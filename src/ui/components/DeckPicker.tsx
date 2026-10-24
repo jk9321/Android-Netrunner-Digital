@@ -1,5 +1,5 @@
 import React, { useMemo, useState } from 'react';
-import { SideCode, getCardDefinition, influenceCost, validateDeck } from '../../core';
+import { SideCode, getCardDefinition, getFormat, influenceCost, validateDeck } from '../../core';
 import { DECKS, DeckList, deckCodes, pickRandomDeck, randomDeckPool } from '../../data/decks';
 import { ALL_CARDS, getCardImageUrl } from '../../data/cards';
 import { loadCustomDecks, newCustomDeckId, saveCustomDecks } from '../../data/customDecks';
@@ -241,6 +241,15 @@ export const DeckPicker: React.FC<DeckPickerProps> = ({ initialCorpDeckId, initi
                       >
                         {s.deck.source === 'official starter' ? 'Official starter' : s.deck.source === 'official sample' ? 'Official sample' : 'Custom'}
                       </span>
+                      {s.deck.format && s.deck.format !== 'casual' && (
+                        <span
+                          className="text-[10px] uppercase tracking-wider font-bold px-1.5 py-0.5 rounded bg-slate-800 text-sky-300"
+                          title={getFormat(s.deck.format).banList?.name}
+                          data-testid={`format-${s.deck.id}`}
+                        >
+                          {getFormat(s.deck.format).name}
+                        </span>
+                      )}
                       {s.problems.length === 0 ? (
                         <span className="text-[11px] text-emerald-400 flex items-center gap-1">
                           <CheckCircle2 className="w-3 h-3" /> Legal

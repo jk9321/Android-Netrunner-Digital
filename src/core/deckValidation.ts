@@ -1,10 +1,13 @@
 import { getCardDefinition } from './cards';
 import { CardDefinition } from './types/card';
+import { FormatId, getFormat, validateFormat } from './formats';
 
 /** A deck: an identity and the codes of its cards (one entry per copy). */
 export interface DeckSpec {
   identity: string;
   cards: string[];
+  /** Format whose card pool and ban list apply; casual (no limits) when left out. */
+  format?: FormatId;
 }
 
 /**
@@ -25,7 +28,8 @@ export function influenceCost(identity: CardDefinition, card: CardDefinition): n
 /**
  * Checks deck-building rules: identity and card sides, minimum deck size,
  * copies per card (deck limit), influence, out-of-faction agendas, and
- * agenda points. Returns a list of problems; empty means the deck is legal.
+ * agenda points, then the format's card pool, ban list and extra rules.
+ * Returns a list of problems; empty means the deck is legal.
  */
 export function validateDeck(deck: DeckSpec): string[] {
   const problems: string[] = [];
@@ -75,5 +79,6 @@ export function validateDeck(deck: DeckSpec): string[] {
     const [min, max] = requiredAgendaPoints(defs.length);
     if (points < min || points > max) problems.push(`Has ${points} agenda points; a ${defs.length}-card deck needs ${min} or ${max}`);
   }
+  problems.push(...validateFormat(getFormat(deck.format), identity, defs));
   return problems;
 }

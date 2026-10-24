@@ -1,4 +1,5 @@
 import { DeckList, deckCodes } from './decks';
+import { isFormatId } from '../core/formats';
 
 /**
  * Player-built decks, saved in this browser's localStorage. Storage can be
@@ -29,7 +30,10 @@ export function loadCustomDecks(): DeckList[] {
     if (!raw) return [];
     const parsed: unknown = JSON.parse(raw);
     if (!Array.isArray(parsed)) return [];
-    return parsed.filter(isDeckList).map(d => ({ ...d, source: 'custom' as const }));
+    return parsed
+      .filter(isDeckList)
+      // A format this version doesn't know falls back to casual
+      .map(d => ({ ...d, format: isFormatId(d.format) ? d.format : undefined, source: 'custom' as const }));
   } catch {
     return [];
   }

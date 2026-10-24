@@ -1,5 +1,5 @@
 import React, { useMemo, useState } from 'react';
-import { influenceCost, requiredAgendaPoints, validateDeck } from '../../core';
+import { DEFAULT_FORMAT, FORMATS, FormatId, getFormat, influenceCost, isBanned, isInCardPool, requiredAgendaPoints, validateDeck } from '../../core';
 import { CardDefinition, CardTypeCode, FactionCode, SideCode } from '../../core/types/card';
 import { DeckList, deckCodes } from '../../data/decks';
 import { ALL_CARDS, CARD_SETS, getCardImageUrl } from '../../data/cards';
@@ -37,6 +37,8 @@ export const DeckBuilder: React.FC<DeckBuilderProps> = ({ initial, onSave, onCan
   const [name, setName] = useState(initial.name);
   const [identityTitle, setIdentityTitle] = useState(initial.identity);
   const [cards, setCards] = useState<Record<string, number>>(initial.cards);
+  const [formatId, setFormatId] = useState<FormatId>(initial.format ?? DEFAULT_FORMAT);
+  const format = getFormat(formatId);
   const [query, setQuery] = useState('');
   const [typeFilter, setTypeFilter] = useState<CardTypeCode | 'all'>('all');
   const [factionFilter, setFactionFilter] = useState<'all' | 'playable' | FactionCode>('all');
@@ -54,7 +56,7 @@ export const DeckBuilder: React.FC<DeckBuilderProps> = ({ initial, onSave, onCan
   );
   const factions = [...new Set(pool.map(c => c.faction_code))];
 
-  const draft: DeckList = { ...initial, name: name.trim() || 'Untitled deck', identity: identity.title, cards, source: 'custom' };
+  const draft: DeckList = { ...initial, name: name.trim() || 'Untitled deck', identity: identity.title, cards, format: formatId, source: 'custom' };
   const codes = deckCodes(draft);
   const defs = codes.cards.map(code => ALL_CARDS.find(c => c.code === code)!);
   const problems = validateDeck(codes);
@@ -208,6 +210,15 @@ export const DeckBuilder: React.FC<DeckBuilderProps> = ({ initial, onSave, onCan
                         loading="lazy"
                         className="w-full aspect-[63/88] object-cover rounded-md"
                       />
+                      {(isBanned(format, c) || !isInCardPool(format, c)) && (
+                        <span
+                          className="absolute top-1 left-1 rounded bg-red-900/90 text-red-200 text-[9px] font-bold px-1 py-0.5"
+                          title={isBanned(format, c) ? `Banned in ${format.name} (${format.banList?.name})` : `Not in the ${format.name} card pool`}
+                          data-testid={`banned-${c.code}`}
+                        >
+                          {isBanned(format, c) ? 'BANNED' : 'NOT LEGAL'}
+                        </span>
+                      )}
                       {unscripted(c) && (
                         <span
                           className="absolute bottom-1 left-1 right-1 rounded bg-amber-900/90 text-amber-200 text-[9px] font-bold text-center py-0.5"
@@ -283,6 +294,25 @@ export const DeckBuilder: React.FC<DeckBuilderProps> = ({ initial, onSave, onCan
                 <span className={`text-[11px] ${FACTION_COLOR[identity.faction_code]}`}>{FACTION_LABEL[identity.faction_code]}</span>
               </label>
             </div>
+
+            <label className="block">
+              <span className="text-[10px] uppercase tracking-wider text-slate-500">Format</span>
+              <select
+                value={formatId}
+                onChange={e => setFormatId(e.target.value as FormatId)}
+                aria-label="Format"
+                data-testid="format-select"
+                className="w-full mt-1 bg-slate-900 border border-slate-700 rounded-xl px-2 py-1.5 text-xs"
+              >
+                {FORMATS.map(f => (
+                  <option key={f.id} value={f.id}>{f.name}</option>
+                ))}
+              </select>
+              <span className="text-[11px] text-slate-500">
+                {format.description}
+                {format.banList && <> Ban list: {format.banList.name}.</>}
+              </span>
+            </label>
 
             <div className="flex flex-wrap gap-2">
               {stat('Cards', `${size} / ${identity.minimum_deck_size ?? 0}`, size >= (identity.minimum_deck_size ?? 0))}

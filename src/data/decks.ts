@@ -1,7 +1,8 @@
 import { GameSetup } from '../core/engine/gameState';
 import { SideCode } from '../core/types/card';
 import { ALL_CARDS } from './cards';
-import { validateDeck } from '../core/deckValidation';
+import { DeckSpec, validateDeck } from '../core/deckValidation';
+import { FormatId } from '../core/formats';
 
 /**
  * Playable System Gateway decks.
@@ -30,6 +31,8 @@ export interface DeckList {
   source: 'official starter' | 'official sample' | 'custom';
   /** Who designed the list, for official samples that name a designer. */
   credit?: string;
+  /** Play format the deck is built for; casual (any card) when left out. */
+  format?: FormatId;
 }
 
 export const DECKS: DeckList[] = [
@@ -468,8 +471,9 @@ export function getDeck(id: string, extra: DeckList[] = []): DeckList {
 }
 
 /** The identity code and the card codes (one entry per copy) of a decklist. */
-export function deckCodes(deck: DeckList): { identity: string; cards: string[] } {
+export function deckCodes(deck: DeckList): DeckSpec {
   return {
+    format: deck.format,
     identity: codeOf(deck.identity),
     cards: Object.entries(deck.cards).flatMap(([title, n]) => Array<string>(n).fill(codeOf(title))),
   };
