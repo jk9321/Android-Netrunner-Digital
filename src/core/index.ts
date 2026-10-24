@@ -17,5 +17,5 @@ export { rezCost as rezCostOf, availableCredits } from './engine/cardEffects';
 export { encounteredIce, iceScript, breakerScript, iceStrength, breakerStrength, installedIcebreakers, boostCostOf, iceSubtypes } from './engine/ice';
 export { validateDeck, requiredAgendaPoints, influenceCost } from './deckValidation';
 export type { DeckSpec } from './deckValidation';
-export { FORMATS, DEFAULT_FORMAT, SET_NAMES, getFormat, isFormatId, isBanned, isRestricted, isInCardPool, validateFormat } from './formats';
-export type { Format, FormatId, BanList } from './formats';
+export { FORMATS, DEFAULT_FORMAT, SET_NAMES, getFormat, isFormatId, isBanned, isRestricted, isInCardPool, validateFormat, formatStatuses, describeFormatStatuses } from './formats';
+export type { Format, FormatId, BanList, FormatStatus } from './formats';

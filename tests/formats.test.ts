@@ -50,3 +50,13 @@ describe('formats', () => {
     expect(f.extraRules!(corpId, Array(5).fill(three)).join('|')).toMatch(/at most 4/);
   });
 });
+
+describe('formatStatuses', () => {
+  it('lists every format that bans a card', async () => {
+    const { describeFormatStatuses, formatStatuses } = await import('../src/core');
+    const card = (title: string) => ALL_CARDS.find(c => c.title === title)!;
+    expect(describeFormatStatuses(formatStatuses(card('Cleaver')))).toBe('Banned in Startup, Standard');
+    expect(describeFormatStatuses(formatStatuses(card('Seamless Launch')))).toBe('Banned in Startup');
+    expect(formatStatuses(card('Sure Gamble'))).toEqual([]);
+  });
+});

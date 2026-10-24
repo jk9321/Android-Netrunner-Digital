@@ -1,12 +1,12 @@
 import React, { useMemo, useState } from 'react';
-import { DEFAULT_FORMAT, FORMATS, FormatId, getFormat, influenceCost, isBanned, isInCardPool, requiredAgendaPoints, validateDeck } from '../../core';
+import { DEFAULT_FORMAT, FORMATS, FormatId, describeFormatStatuses, formatStatuses, getFormat, influenceCost, isBanned, isInCardPool, requiredAgendaPoints, validateDeck } from '../../core';
 import { CardDefinition, CardTypeCode, FactionCode, SideCode } from '../../core/types/card';
 import { DeckList, deckCodes } from '../../data/decks';
 import { ALL_CARDS, CARD_SETS, getCardImageUrl } from '../../data/cards';
 import { getCardScript } from '../../core/scripts';
 import { CardZoomModal } from './CardZoomModal';
 import { FACTION_COLOR, FACTION_LABEL } from '../cardLabels';
-import { AlertTriangle, ArrowLeft, CheckCircle2, Minus, Plus, Save, Search, ZoomIn } from 'lucide-react';
+import { AlertTriangle, ArrowLeft, Ban, CheckCircle2, Minus, Plus, Save, Search, ZoomIn } from 'lucide-react';
 
 interface DeckBuilderProps {
   /** The deck to edit: a saved custom deck, a copy of another deck, or a new empty one. */
@@ -100,6 +100,27 @@ export const DeckBuilder: React.FC<DeckBuilderProps> = ({ initial, onSave, onCan
     const cost = influenceCost(identity, c);
     return cost > 0 ? <span className="text-amber-400" title={`${cost} influence`}>{'●'.repeat(cost)}</span> : null;
   };
+
+  /** Small marker for cards banned or restricted in some format, explained on hover. */
+  const formatMarker = (c: CardDefinition) => {
+    const statuses = formatStatuses(c);
+    if (statuses.length === 0) return null;
+    const banned = statuses.some(s => s.status === 'banned');
+    return (
+      <span
+        className={`inline-flex items-center gap-0.5 ${banned ? 'text-red-400' : 'text-amber-300'}`}
+        title={describeFormatStatuses(statuses)}
+        data-testid={`format-marker-${c.code}`}
+      >
+        <Ban className="w-3 h-3" />
+        <span className="text-[9px] font-bold">{banned ? 'BAN' : 'RES'}</span>
+      </span>
+    );
+  };
+  // Deck cards (and the identity) that some format bans or restricts
+  const limited = [identity, ...inDeck]
+    .map(c => ({ card: c, text: describeFormatStatuses(formatStatuses(c)) }))
+    .filter(x => x.text);
 
   const stat = (label: string, value: string, ok: boolean) => (
     <div className="flex-1 min-w-[5.5rem] rounded-xl border border-slate-800 bg-slate-900/70 px-2.5 py-1.5">
@@ -235,8 +256,11 @@ export const DeckBuilder: React.FC<DeckBuilderProps> = ({ initial, onSave, onCan
                     </button>
                     <div className="text-[11px] leading-tight truncate" title={c.title}>{c.title}</div>
                     <div className="flex items-center justify-between text-[10px]">
-                      <span className={FACTION_COLOR[c.faction_code]}>{FACTION_LABEL[c.faction_code]}</span>
-                      {influencePips(c)}
+                      <span className={`truncate ${FACTION_COLOR[c.faction_code]}`}>{FACTION_LABEL[c.faction_code]}</span>
+                      <span className="flex items-center gap-1 shrink-0">
+                        {formatMarker(c)}
+                        {influencePips(c)}
+                      </span>
                     </div>
                     <div className="flex items-center gap-1">
                       <button
@@ -336,6 +360,20 @@ export const DeckBuilder: React.FC<DeckBuilderProps> = ({ initial, onSave, onCan
               </ul>
             )}
 
+            {limited.length > 0 && (
+              <div className="rounded-xl border border-red-900/60 bg-red-950/20 p-2.5" data-testid="format-limits">
+                <div className="text-[10px] uppercase tracking-wider text-slate-500 mb-1">Banned or restricted</div>
+                <ul className="flex flex-col gap-1 text-xs">
+                  {limited.map(({ card, text }) => (
+                    <li key={card.code}>
+                      <button onClick={() => setZoomCode(card.code)} className="hover:underline text-left">{card.title}</button>
+                      <div className="text-[11px] text-red-300/90">{text}</div>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            )}
+
             <div className="rounded-xl border border-slate-800 bg-slate-950/70 p-2.5 max-h-[60vh] overflow-y-auto">
               {inDeck.length === 0 && <p className="text-xs text-slate-500">Click cards on the left to add them.</p>}
               {TYPE_ORDER[side].map(t => {
@@ -364,6 +402,7 @@ export const DeckBuilder: React.FC<DeckBuilderProps> = ({ initial, onSave, onCan
                         <button onClick={() => setZoomCode(c.code)} className="truncate text-left hover:underline flex-1">
                           {c.title}
                         </button>
+                        {formatMarker(c)}
                         {influencePips(c)}
                       </div>
                     ))}

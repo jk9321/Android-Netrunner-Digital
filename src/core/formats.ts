@@ -181,3 +181,26 @@ export function validateFormat(format: Format, identity: CardDefinition, cards: 
   if (format.extraRules) problems.push(...format.extraRules(identity, cards));
   return problems;
 }
+
+export interface FormatStatus {
+  format: Format;
+  status: 'banned' | 'restricted';
+}
+
+/** Every format that bans or restricts the card. */
+export function formatStatuses(card: CardDefinition): FormatStatus[] {
+  return FORMATS.flatMap((format): FormatStatus[] =>
+    isBanned(format, card) ? [{ format, status: 'banned' }] : isRestricted(format, card) ? [{ format, status: 'restricted' }] : []
+  );
+}
+
+/** "Banned in Startup, Standard; restricted in …", or '' when no format limits the card. */
+export function describeFormatStatuses(statuses: FormatStatus[]): string {
+  return (['banned', 'restricted'] as const)
+    .map(status => {
+      const names = statuses.filter(s => s.status === status).map(s => s.format.name);
+      return names.length ? `${status === 'banned' ? 'Banned' : 'Restricted'} in ${names.join(', ')}` : '';
+    })
+    .filter(Boolean)
+    .join('; ');
+}
