@@ -112,7 +112,7 @@ export function rezCard(state: GameState, action: RezCardAction): void {
     return;
   }
   spendCredits(state, 'corp', cost, purpose);
-  addLog(state, 'corp', `Corp spent ${cost} [credit] to rez ${def.title}.`);
+  addLog(state, 'corp', `Corp spent ${cost} [credit] to rez ${def.title}.`, undefined, 'rez');
   completeRez(state, card);
 }
 

@@ -208,7 +208,7 @@ const sendAMessage: CardScript = {
   onPromptAnswer: ({ state }, _source, answer) => {
     if (answer.kind !== 'effect_cards' || answer.cardInstanceIds.length === 0) return;
     const ice = installedIce(state).find(c => c.instanceId === answer.cardInstanceIds[0])!;
-    addLog(state, 'corp', `Corp rezzed ${cardDef(ice).title}, ignoring all costs (Send a Message).`);
+    addLog(state, 'corp', `Corp rezzed ${cardDef(ice).title}, ignoring all costs (Send a Message).`, undefined, 'rez');
     rezForFree(state, ice);
   },
 };

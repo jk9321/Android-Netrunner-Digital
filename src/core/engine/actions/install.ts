@@ -112,7 +112,7 @@ export function installCorpCardFrom(
   if (def.type_code === 'ice') {
     // Outer ice is placed at the end of the array
     server.ice.push(card);
-    addLog(state, 'corp', `Corp installed Ice protecting ${server.name} (cost: ${installCost} [credit]).`);
+    addLog(state, 'corp', `Corp installed Ice protecting ${server.name} (cost: ${installCost} [credit]).`, undefined, 'install');
     fireTrigger(state, { type: 'installed', card });
     return;
   }
@@ -132,7 +132,7 @@ export function installCorpCardFrom(
     }
   }
   server.root.push(card);
-  addLog(state, 'corp', card.faceUp ? `Corp installed ${def.title} faceup into ${server.name}.` : `Corp installed a card into ${server.name}.`);
+  addLog(state, 'corp', card.faceUp ? `Corp installed ${def.title} faceup into ${server.name}.` : `Corp installed a card into ${server.name}.`, undefined, 'install');
   fireTrigger(state, { type: 'installed', card });
 }
 
@@ -238,7 +238,7 @@ export function installRunnerCardFrom(
     host.hostedCardIds.push(card.instanceId);
   }
 
-  addLog(state, 'runner', `Runner paid ${installCost} [credit] to install ${def.title}${host ? ' on a piece of ice' : ''}.`);
+  addLog(state, 'runner', `Runner paid ${installCost} [credit] to install ${def.title}${host ? ' on a piece of ice' : ''}.`, undefined, 'install');
   enforceInstallLimits(state, card);
   fireTrigger(state, { type: 'installed', card, paid: installCost });
 }

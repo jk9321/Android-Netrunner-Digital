@@ -213,7 +213,7 @@ function accessCard(state: GameState, card: CardInstance, zone: CardInstance[], 
   const run = state.activeRun!;
   run.accessedCount += 1;
   run.accessed.push({ id: card.instanceId, inArchives });
-  addLog(state, 'runner', `Runner accessed ${def.title}.`, card.cardCode);
+  addLog(state, 'runner', `Runner accessed ${def.title}.`, card.cardCode, 'access');
 
   const installed = Object.values(state.corp.servers).some(s => s.root.includes(card) || s.ice.includes(card));
   const where: AccessZone = installed ? 'installed' : inArchives ? 'archives' : zone === state.corp.hq ? 'hq' : 'rd';

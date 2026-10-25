@@ -38,7 +38,7 @@ import { cardFates } from './ui/cardFates';
 import { HandoffScreen } from './ui/components/HandoffScreen';
 import { GameOverModal } from './ui/components/GameOverModal';
 import { ViewMode, Viewer, actingSide, canActAs, canSeeCorpSecrets, canSeeRunnerSecrets, corpRezWindow } from './ui/viewer';
-import { playForLog, setSoundEnabled, soundEnabled } from './ui/sound';
+import { playForAction, setSoundEnabled, soundEnabled } from './ui/sound';
 import {
   Clock,
   LogOut,
@@ -284,10 +284,10 @@ function Game({
       const nextState = executeAction(current, action);
       latestStateRef.current = nextState;
       if (!current.activeRun && nextState.activeRun) setRunSerial(n => n + 1);
-      const newEntries = nextState.log.slice(current.log.length);
-      playForLog(newEntries);
-      const newlyAccessed = newEntries
-        .filter(e => e.cardCode && e.message.startsWith('Runner accessed '))
+      playForAction(current, nextState);
+      const newlyAccessed = nextState.log
+        .slice(current.log.length)
+        .filter(e => e.event === 'access' && e.cardCode)
         .map(e => e.cardCode!);
       const runStarted = !current.activeRun && nextState.activeRun;
       if (runStarted || newlyAccessed.length > 0) setAccessed(prev => [...(runStarted ? [] : prev), ...newlyAccessed]);

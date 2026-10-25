@@ -1,25 +1,29 @@
-import { LogEntry } from '../core/types/state';
+import { GameState, LogEvent } from '../core/types/state';
 
 /**
  * Short synthesized sound effects (Web Audio, no audio files). Each action
- * plays the most important sound among the log lines it produced.
+ * plays the most important sound for what it changed, read from the game
+ * state and the events on its new log lines (never from their wording).
  */
 
 type Sound = 'win' | 'score' | 'steal' | 'damage' | 'tag' | 'run' | 'rez' | 'access' | 'install' | 'credit' | 'draw' | 'click';
 
+const loggedEvent = (event: LogEvent) => (prev: GameState, next: GameState) => next.log.slice(prev.log.length).some(e => e.event === event);
+const handSize = (state: GameState) => state.corp.hq.length + state.runner.grip.length;
+
 // Most important first
-const RULES: [Sound, RegExp][] = [
-  ['win', / wins[:!]/],
-  ['score', /^Corp scored /],
-  ['steal', /stole /],
-  ['damage', / damage/],
-  ['tag', /took \d+ tag/],
-  ['run', /initiated a run/],
-  ['rez', /\brez(zed)? /],
-  ['access', /^Runner accessed|^Run successful/],
-  ['install', /installed/],
-  ['credit', /gain(ed|s)? \d* ?\[?credit|to gain 1 credit|took \d+ \[credit\]/],
-  ['draw', /\bdr[ae]w\b/],
+const RULES: [Sound, (prev: GameState, next: GameState) => boolean][] = [
+  ['win', (prev, next) => !prev.winner && !!next.winner],
+  ['score', (prev, next) => next.corp.score > prev.corp.score],
+  ['steal', (prev, next) => next.runner.score > prev.runner.score],
+  ['damage', loggedEvent('damage')],
+  ['tag', (prev, next) => next.runner.tags > prev.runner.tags],
+  ['run', (prev, next) => !prev.activeRun && !!next.activeRun],
+  ['rez', loggedEvent('rez')],
+  ['access', loggedEvent('access')],
+  ['install', loggedEvent('install')],
+  ['credit', (prev, next) => next.corp.credits > prev.corp.credits || next.runner.credits > prev.runner.credits],
+  ['draw', (prev, next) => handSize(next) > handSize(prev)],
 ];
 
 const STORAGE_KEY = 'netrunner.sound';
@@ -114,17 +118,17 @@ function play(sound: Sound) {
   }
 }
 
-/** The sound for a batch of new log lines (exported for tests). */
-export function soundFor(entries: LogEntry[]): Sound | null {
-  if (entries.length === 0) return null;
-  for (const [sound, pattern] of RULES) {
-    if (entries.some(e => pattern.test(e.message))) return sound;
+/** The sound for an action that turned `prev` into `next` (exported for tests). */
+export function soundFor(prev: GameState, next: GameState): Sound | null {
+  if (next === prev) return null;
+  for (const [sound, happened] of RULES) {
+    if (happened(prev, next)) return sound;
   }
   return 'click';
 }
 
-export function playForLog(entries: LogEntry[]): void {
+export function playForAction(prev: GameState, next: GameState): void {
   if (!soundEnabled()) return;
-  const sound = soundFor(entries);
+  const sound = soundFor(prev, next);
   if (sound) play(sound);
 }

@@ -52,13 +52,34 @@ describe('who acts (pass and play)', () => {
 });
 
 describe('sound effects', () => {
-  const entry = (message: string) => ({ id: 'x', turnNumber: 1, player: 'corp' as const, message });
-  it('picks the most important sound from an action', () => {
-    expect(soundFor([])).toBeNull();
-    expect(soundFor([entry('Corp spent [click] to gain 1 credit.')])).toBe('credit');
-    expect(soundFor([entry('Runner initiated a run on HQ!'), entry('Corp spent 3 [credit] to rez Palisade.')])).toBe('run');
-    expect(soundFor([entry('Runner accessed and stole Offworld Office for 2 agenda point(s)! Total: 2')])).toBe('steal');
-    expect(soundFor([entry('Corp wins: the Runner was flatlined.'), entry('Corp did 3 net damage.')])).toBe('win');
-    expect(soundFor([entry('Corp ended turn. Runner turn begins (4 clicks).')])).toBe('click');
+  it('picks the most important sound from what an action changed', () => {
+    const state = newGame();
+    expect(soundFor(state, state)).toBeNull();
+    expect(soundFor(state, executeAction(state, { type: 'GAIN_CREDIT', player: 'corp' }))).toBe('credit');
+    expect(soundFor(state, executeAction(state, { type: 'DRAW_CARD', player: 'corp' }))).toBe('draw');
+
+    const withIce = newGame();
+    installIceForTest(withIce, PALISADE, 'hq', false);
+    const running = run(withIce, 'hq');
+    expect(soundFor(withIce, running)).toBe('run');
+    const ice = running.corp.servers.hq.ice[0];
+    expect(soundFor(running, executeAction(running, { type: 'REZ_CARD', player: 'corp', cardInstanceId: ice.instanceId }))).toBe('rez');
+
+    const won = structuredClone(state);
+    won.winner = 'corp';
+    won.corp.score = 7;
+    expect(soundFor(state, won)).toBe('win');
+    const conceded = executeAction(state, { type: 'CONCEDE', player: 'runner' });
+    expect(soundFor(state, conceded)).toBe('win');
+  });
+
+  it('marks accessed cards in the log so the UI can list them', () => {
+    let state = newGame();
+    installCorpForTest(state, MANEGARM, 'hq');
+    state = run(state, 'hq');
+    while (state.activeRun && state.activeRun.phase !== 'access') {
+      state = executeAction(state, { type: 'CONTINUE_RUN', player: 'runner' });
+    }
+    expect(state.log.filter(e => e.event === 'access').length).toBeGreaterThan(0);
   });
 });

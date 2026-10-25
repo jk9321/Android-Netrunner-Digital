@@ -152,12 +152,16 @@ export type GamePhase =
   | 'run'
   | 'game_over';
 
+/** What a log line records, for the UI (sounds, the accessed-cards panel) so it never reads the wording. */
+export type LogEvent = 'access' | 'damage' | 'rez' | 'install';
+
 export interface LogEntry {
   id: string;
   turnNumber: number;
   player: SideCode | 'system';
   message: string;
   cardCode?: string;
+  event?: LogEvent;
 }
 
 export interface GameState {

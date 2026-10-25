@@ -29,7 +29,7 @@ export function dealDamage(state: GameState, type: DamageType, amount: number, b
     trashed.push(card);
   }
   const what = trashed.length > 0 ? `, trashing ${trashed.map(c => cardDef(c).title).join(', ')}` : '';
-  addLog(state, byCorp ? 'corp' : 'runner', byCorp ? `Corp did ${amount} ${type} damage${what}.` : `Runner suffered ${amount} ${type} damage${what}.`);
+  addLog(state, byCorp ? 'corp' : 'runner', byCorp ? `Corp did ${amount} ${type} damage${what}.` : `Runner suffered ${amount} ${type} damage${what}.`, undefined, amount > 0 ? 'damage' : undefined);
   if (amount > 0 && !state.winner) fireTrigger(state, { type: 'damage_dealt', damage: type, amount, byCorp });
   return trashed;
 }

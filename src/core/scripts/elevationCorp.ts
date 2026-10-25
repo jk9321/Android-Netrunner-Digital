@@ -834,7 +834,7 @@ const mycoweb: CardScript = {
       if (!ice) return;
       const cost = Math.max(0, rezCost(state, ice) - 2);
       spendCredits(state, 'corp', cost, { kind: 'rez', card: ice });
-      addLog(state, 'corp', `Corp spent ${cost} [credit] to rez ${cardDef(ice).title} (Mycoweb).`);
+      addLog(state, 'corp', `Corp spent ${cost} [credit] to rez ${cardDef(ice).title} (Mycoweb).`, undefined, 'rez');
       completeRez(state, ice);
     } else if (source.step === 'borrow_ice' && answer.kind === 'effect_cards') {
       const ice = installedIce(state).find(c => c.instanceId === answer.cardInstanceIds[0]);
@@ -950,7 +950,7 @@ const biawak: CardScript = {
         forfeitAgenda(state, agenda);
         spendCredits(state, 'corp', Math.max(0, cost - 10), { kind: 'rez', card });
       }
-      addLog(state, 'corp', 'Corp rezzed Biawak.');
+      addLog(state, 'corp', 'Corp rezzed Biawak.', undefined, 'rez');
       completeRez(state, card);
       return;
     }
@@ -1140,7 +1140,7 @@ const ipEnforcement: CardScript = {
       agenda.isRezzed = false;
       installCorpChoice(state, source, answer);
       if (state.runner.tags > 0) agenda.advancementCounters += 1;
-      addLog(state, 'corp', `Corp installed ${cardDef(agenda).title} from the Runner's score area (IP Enforcement).`);
+      addLog(state, 'corp', `Corp installed ${cardDef(agenda).title} from the Runner's score area (IP Enforcement).`, undefined, 'install');
     }
   },
 };

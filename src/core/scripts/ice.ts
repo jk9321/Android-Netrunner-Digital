@@ -309,7 +309,7 @@ const bran: CardScript = {
     if (run && run.server === server.id && run.icePosition !== null && run.icePosition >= branIndex) {
       run.icePosition += 1; // the Runner is still at Brân, now one position further out
     }
-    addLog(state, 'corp', `Corp installed a piece of ice inward from Brân 1.0 in ${server.name}.`);
+    addLog(state, 'corp', `Corp installed a piece of ice inward from Brân 1.0 in ${server.name}.`, undefined, 'install');
   },
 };
 
