@@ -20,11 +20,14 @@ import { tuning } from '../src/ai/synergy';
 const [gamesArg, levelArg, synArg, ctrArg] = process.argv.slice(2).filter(a => a !== '--');
 const games = Number(gamesArg ?? 1);
 const level = (levelArg ?? 'normal') as 'normal' | 'hard';
-tuning.synergy = Number(synArg ?? 1);
-tuning.counter = Number(ctrArg ?? 1);
+// Weights given here apply to both sides; leave them out to test the shipped weights
+if (synArg !== undefined) tuning.synergy = { corp: Number(synArg), runner: Number(synArg) };
+if (ctrArg !== undefined) tuning.counter = { corp: Number(ctrArg), runner: Number(ctrArg) };
 // More knobs for ablations: KEEP=0 turns off the keep-in-hand synergy, DIVIDENDS=0 the over-advancing
-tuning.keep = Number(process.env.KEEP ?? 1);
+if (process.env.KEEP) tuning.keep = { corp: Number(process.env.KEEP), runner: Number(process.env.KEEP) };
 tuning.dividends = process.env.DIVIDENDS !== '0';
+tuning.wary = process.env.WARY !== '0';
+tuning.bluff = process.env.BLUFF !== '0';
 
 const corpDecks = DECKS.filter(d => d.side === 'corp');
 const runnerDecks = DECKS.filter(d => d.side === 'runner');
@@ -61,8 +64,9 @@ for (const c of corpDecks) {
       };
       const key = `${seed}|${c.id}|${r.id}`;
       const base = (baseCache[key] ??= play(false, false)) as 'corp' | 'runner' | 'draw';
-      const nc = play(true, false);
-      const nr = play(false, true);
+      // SIDE=corp or SIDE=runner tests only that side's new AI (the other line repeats the baseline)
+      const nc = process.env.SIDE === 'runner' ? base : play(true, false);
+      const nr = process.env.SIDE === 'corp' ? base : play(false, true);
       results.base[base]++;
       results.newCorp[nc]++;
       results.newRunner[nr]++;

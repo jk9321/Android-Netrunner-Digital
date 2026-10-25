@@ -254,7 +254,7 @@ export class HeuristicCorpAI implements Agent {
     if (def.type_code === 'asset') {
       // Traps: advancing makes them look like agendas (Urtica Cipher, Clearinghouse)
       if (!(corp.credits >= 4 && card.advancementCounters < 3)) return -Infinity;
-      return this.synergy && isTrap(card.cardCode) ? 1.2 + this.trapBluff(state, card) : 1.2;
+      return this.synergy && tuning.bluff && isTrap(card.cardCode) ? 1.2 + this.trapBluff(state, card) : 1.2;
     }
     // Pharos: +5 strength at 3 counters; Syailendra: places counters when encountered at 3
     if (card.cardCode === '35076' && card.advancementCounters < 3 && corp.credits >= 4) return 0.8;
@@ -323,7 +323,7 @@ export class HeuristicCorpAI implements Agent {
             need = server.ice.length === 0 ? 1.5 : 0.2;
             // Deck-aware AI: one cheap ice sells a trap as an agenda
             const trap = server.root.some(c => !c.isRezzed && isTrap(c.cardCode));
-            if (this.synergy && trap && server.ice.length === 0 && (cardDef(card).cost ?? 0) <= 3) need += 0.6;
+            if (this.synergy && tuning.bluff && trap && server.ice.length === 0 && (cardDef(card).cost ?? 0) <= 3) need += 0.6;
           }
           else need = agendasInHand > 0 ? (server.ice.length < 2 ? 3 : 1) : 0.3;
         } else if (server.id === 'archives') {
@@ -348,7 +348,7 @@ export class HeuristicCorpAI implements Agent {
         if (!server) {
           if (finishNow) return 44;
           if (hq.length > corp.handSizeLimit) return 0.5;
-          return this.synergy && this.nakedAgenda(state, card) ? 5 : -2;
+          return this.synergy && tuning.bluff && this.nakedAgenda(state, card) ? 5 : -2;
         }
         if (server.root.some(isAgendaOrAsset)) return -Infinity;
         if (finishNow) return 45;
@@ -367,7 +367,7 @@ export class HeuristicCorpAI implements Agent {
         if (!server) return remotes.length >= 4 ? 0.2 : 1.2;
         if (server.root.some(isAgendaOrAsset)) return -Infinity;
         // Deck-aware AI: a trap behind ice looks like the real thing
-        const sell = this.synergy && isTrap(card.cardCode) && server.ice.length > 0 ? 0.5 : 0;
+        const sell = this.synergy && tuning.bluff && isTrap(card.cardCode) && server.ice.length > 0 ? 0.5 : 0;
         return (server.ice.length > 0 && agendasInHand === 0 ? 1.8 : 0.5) + sell;
       }
       case 'upgrade': {

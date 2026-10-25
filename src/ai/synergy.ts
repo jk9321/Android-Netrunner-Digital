@@ -24,14 +24,23 @@ import { THEMES, Theme, ThemeWeights, cardSynergy } from './synergyTags';
 export const MAX_NUDGE = 1;
 /** Weights, tuned with AI-vs-AI batches (scripts/ai-match.sh). */
 export const tuning = {
-  /** Own-deck synergy term of the move nudge. */
-  synergy: 1,
-  /** Opponent-reading term of the move nudge. */
-  counter: 1,
-  /** Synergy when choosing which cards to keep in hand. */
-  keep: 1,
+  /**
+   * Own-deck synergy term of the move nudge, per side. Off for the Runner:
+   * with only System Gateway and Elevation it cost the Runner games (its
+   * plain scoring already plays these decks well). Worth re-testing as
+   * sets with deeper combos arrive.
+   */
+  synergy: { corp: 1, runner: 0 } as Record<SideCode, number>,
+  /** Opponent-reading term of the move nudge, per side. */
+  counter: { corp: 1, runner: 1 } as Record<SideCode, number>,
+  /** Synergy when choosing which cards to keep in hand, per side. */
+  keep: { corp: 1, runner: 1 } as Record<SideCode, number>,
   /** Over-advance Dividends agendas. */
   dividends: true,
+  /** Runner: trap caution from the traps the Corp has shown. */
+  wary: true,
+  /** Corp: sell traps as agendas, and the naked-agenda reverse bluff. */
+  bluff: true,
 };
 
 const IDENTITY = 3;
@@ -226,14 +235,14 @@ export function nudge(state: GameState, side: SideCode, action: GameAction, expl
     const v = w * sat(own.live[t] - (self.wants?.[t] ?? 0) * HAND_PAYOFF);
     if (v > 0.01) {
       synergy += v;
-      if (explain) reasons.push(`feeds ${t} payoffs +${(v * tuning.synergy).toFixed(2)}`);
+      if (explain) reasons.push(`feeds ${t} payoffs +${(v * tuning.synergy[side]).toFixed(2)}`);
     }
   }
   for (const [t, w] of Object.entries(wants)) {
     const v = (w ?? 0) * sat(own.supply[t as Theme] - (self.gives?.[t as Theme] ?? 0) * LIVE);
     if (v > 0.01) {
       synergy += v;
-      if (explain) reasons.push(`pays off ${t} +${(v * tuning.synergy).toFixed(2)}`);
+      if (explain) reasons.push(`pays off ${t} +${(v * tuning.synergy[side]).toFixed(2)}`);
     }
   }
   let counter = 0;
@@ -244,12 +253,12 @@ export function nudge(state: GameState, side: SideCode, action: GameAction, expl
       const v = lean * (w ?? 0) * (features[f as Feature] ?? 0);
       if (v > 0.01) {
         counter += v;
-        if (explain) reasons.push(`counters their ${theirs} (${f}) +${(v * tuning.counter).toFixed(2)}`);
+        if (explain) reasons.push(`counters their ${theirs} (${f}) +${(v * tuning.counter[side]).toFixed(2)}`);
       }
     }
   }
-  const bonus = Math.min(MAX_NUDGE, tuning.synergy * synergy + tuning.counter * counter);
-  return { bonus, reasons };
+  const bonus = Math.min(MAX_NUDGE, tuning.synergy[side] * synergy + tuning.counter[side] * counter);
+  return { bonus, reasons: reasons.filter(r => !r.endsWith('+0.00')) }; // weights at 0 add nothing
 }
 
 /** Extra reason to keep a card in hand: how well it fits the deck's plan (0 to about 1). */
@@ -260,7 +269,7 @@ export function keepBonus(state: GameState, card: CardInstance): number {
   let v = 0;
   for (const [t, w] of Object.entries(syn.gives ?? {})) v += (w ?? 0) * sat(own.demand[t as Theme] - (syn.wants?.[t as Theme] ?? 0) * LIVE);
   for (const [t, w] of Object.entries(syn.wants ?? {})) v += (w ?? 0) * sat(own.supply[t as Theme] - (syn.gives?.[t as Theme] ?? 0) * LIVE);
-  return Math.min(1, tuning.keep * v);
+  return Math.min(1, tuning.keep[side] * v);
 }
 
 /** How hard the opponent leans on a theme, 0 to 1 (e.g. "is this Runner econ-reliant?"). */
