@@ -98,7 +98,7 @@ export class HeuristicCorpAI implements Agent {
     const run = state.activeRun;
     if (!run) return null;
     const server = state.corp.servers[run.server];
-    const importance = serverImportance(state, server);
+    const importance = serverImportance(state, server, this.synergy && tuning.plan.icePlacement);
     let best: { card: CardInstance; score: number } | null = null;
     for (const card of cards) {
       const def = cardDef(card);
@@ -352,7 +352,12 @@ export class HeuristicCorpAI implements Agent {
         else if (server.isRemote) {
           const holdsAgenda = server.root.some(c => type(c) === 'agenda' || c.advancementCounters > 0);
           const holdsAsset = server.root.some(c => type(c) === 'asset');
-          if (holdsAgenda) need = server.ice.length < 2 ? 7 : 3;
+          if (holdsAgenda) {
+            need = server.ice.length < 2 ? 7 : 3;
+            // Deck-aware AI: guard a key agenda (more points, or one that would win them the game) harder
+            const agenda = server.root.find(c => type(c) === 'agenda');
+            if (this.synergy && tuning.plan.icePlacement && agenda) need *= 0.7 + 0.15 * agendaStakes(state, agenda);
+          }
           else if (holdsAsset) {
             need = server.ice.length === 0 ? 1.5 : 0.2;
             // Deck-aware AI: one cheap ice sells a trap as an agenda
@@ -439,6 +444,15 @@ function iceFit(state: GameState, ice: CardInstance, server: ServerState | null)
   return fit;
 }
 
+/**
+ * What losing this agenda would cost: its points, and a lot more if the
+ * steal would win the game for the Runner (about 1 to 6).
+ */
+export function agendaStakes(state: GameState, agenda: CardInstance): number {
+  const points = cardDef(agenda).agenda_points ?? 1;
+  return points + (state.runner.score + points >= 7 ? 3 : 0);
+}
+
 /** Installed agendas with enough counters to score. */
 function scoreable(state: GameState): number {
   return Object.values(state.corp.servers)
@@ -447,10 +461,14 @@ function scoreable(state: GameState): number {
 }
 
 /** How much the Corp cares about keeping the Runner out of this server (for rez decisions). */
-function serverImportance(state: GameState, server: ServerState | undefined): number {
+function serverImportance(state: GameState, server: ServerState | undefined, aware = false): number {
   if (!server) return 0;
-  if (server.root.some(c => type(c) === 'agenda')) return 10;
-  if (server.id === 'hq') return 3 + state.corp.hq.filter(c => type(c) === 'agenda').length * 2;
+  const agenda = server.root.find(c => type(c) === 'agenda');
+  if (agenda) return aware ? 7 + 1.5 * agendaStakes(state, agenda) : 10;
+  if (server.id === 'hq') {
+    const inHq = state.corp.hq.filter(c => type(c) === 'agenda');
+    return 3 + (aware ? inHq.reduce((n, a) => n + agendaStakes(state, a), 0) : inHq.length * 2);
+  }
   if (server.id === 'rd') return 4;
   if (server.id === 'archives') return state.corp.archives.faceDown.some(c => type(c) === 'agenda') ? 6 : 0.5;
   if (server.root.some(c => c.advancementCounters > 0)) return 1; // a trap: let them in
