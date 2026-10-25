@@ -1,6 +1,6 @@
 # Netrunner Digital (Null Signal Games Ruleset)
 
-An open-source digital implementation of the card game **Android: Netrunner**, adhering to **Null Signal Games** comprehensive rules. Features solo play vs AI and online multiplayer with a friend.
+An open-source digital implementation of the card game **Android: Netrunner**, adhering to **Null Signal Games** comprehensive rules. Features solo play against the computer and pass-and-play for two people on one device; online multiplayer is planned.
 
 ## 📖 Project Documentation & Collaboration Guide
 

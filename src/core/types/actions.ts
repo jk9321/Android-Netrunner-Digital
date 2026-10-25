@@ -16,10 +16,8 @@ export type GameActionType =
   | 'CONTINUE_RUN'
   | 'JACK_OUT'
   | 'BREAK_SUBROUTINE'
-  | 'ACCESS_CARD'
   | 'BOOST_BREAKER'
   | 'BIOROID_BREAK'
-  | 'PASS_PRIORITY'
   | 'RESOLVE_PROMPT'
   | 'USE_ABILITY'
   | 'REMOVE_TAG'
@@ -109,15 +107,6 @@ export interface BioroidBreakAction extends BaseAction {
   subroutineIndex: number;
 }
 
-export interface AccessCardAction extends BaseAction {
-  type: 'ACCESS_CARD';
-  cardInstanceId: string;
-}
-
-export interface PassPriorityAction extends BaseAction {
-  type: 'PASS_PRIORITY';
-}
-
 export interface ResolvePromptAction extends BaseAction {
   type: 'RESOLVE_PROMPT';
   promptId: string;
@@ -166,8 +155,6 @@ export type GameAction =
   | BreakSubroutineAction
   | BoostBreakerAction
   | BioroidBreakAction
-  | AccessCardAction
-  | PassPriorityAction
   | ResolvePromptAction
   | UseAbilityAction
   | RemoveTagAction

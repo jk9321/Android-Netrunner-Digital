@@ -1,6 +1,6 @@
 import { SideCode } from '../core/types/card';
 
-export { ALL_CARDS, ALL_CARDS as SYSTEM_GATEWAY_CARDS, CARD_SETS, getCardDefinition, cardDef } from '../core/cards';
+export { ALL_CARDS, CARD_SETS, getCardDefinition, cardDef } from '../core/cards';
 
 // Card art belongs to Null Signal Games and isn't shipped with the app; it is
 // loaded from NetrunnerDB's image host at runtime.

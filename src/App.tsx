@@ -92,7 +92,7 @@ function configFromUrl(): GameConfig | null {
   const seed = Number(params.get('seed'));
   if (!Number.isInteger(seed) || seed <= 0) return null;
   const decks = [...DECKS, ...loadCustomDecks()];
-  const find = (id: string | null, side: 'corp' | 'runner', fallback: string) =>
+  const find = (id: string | null, side: SideCode, fallback: string) =>
     decks.find(d => d.id === id && d.side === side) ?? decks.find(d => d.id === fallback)!;
   return {
     seed,
@@ -189,7 +189,7 @@ function Game({
   const [viewMode, setViewMode] = useState<ViewMode>(() =>
     config.ai === 'corp' ? 'runner' : config.ai === 'runner' ? 'corp' : savedViewMode(),
   );
-  const [hotseatSide, setHotseatSide] = useState<'corp' | 'runner'>(saved?.table.hotseatSide ?? 'corp');
+  const [hotseatSide, setHotseatSide] = useState<SideCode>(saved?.table.hotseatSide ?? 'corp');
   // Runs started so far, and the Corp rez windows already passed, so each window asks once
   const [runSerial, setRunSerial] = useState(saved?.table.runSerial ?? 0);
   const [passedRezWindows, setPassedRezWindows] = useState<string[]>(saved?.table.passedRezWindows ?? []);
@@ -293,8 +293,8 @@ function Game({
       if (runStarted || newlyAccessed.length > 0) setAccessed(prev => [...(runStarted ? [] : prev), ...newlyAccessed]);
       setGameState(nextState);
       setSelectedCardId(null);
-    } catch (err: any) {
-      void showAlert(err.message || 'Illegal action', { title: 'Action blocked' });
+    } catch (err) {
+      void showAlert(err instanceof Error ? err.message : 'Illegal action', { title: 'Action blocked' });
     }
   };
 
@@ -382,7 +382,6 @@ function Game({
     </button>
   );
 
-  const resetGame = onNewGame;
   // Back to the deck picker; a game still in progress is lost, so ask first
   const leaveGame = async () => {
     if (
@@ -414,7 +413,7 @@ function Game({
 
   const selectedCard = [...corp.hq, ...runner.grip].find(c => c.instanceId === selectedCardId);
   const selectedIsPlayable = selectedCard && ['operation', 'event'].includes(cardDef(selectedCard).type_code);
-  const playButton = (side: 'corp' | 'runner') => {
+  const playButton = (side: SideCode) => {
     if (!selectedCard || !selectedIsPlayable || cardDef(selectedCard).side_code !== side) return null;
     const action: GameAction = { type: 'PLAY_OPERATION_OR_EVENT', player: side, cardInstanceId: selectedCard.instanceId };
     const implemented = Boolean(getCardScript(selectedCard.cardCode)?.onPlay);
@@ -749,7 +748,7 @@ function Game({
                 Show result
               </button>
               <button
-                onClick={resetGame}
+                onClick={onNewGame}
                 className="px-5 py-2.5 bg-amber-500 hover:bg-amber-400 text-black font-bold rounded-xl text-xs shadow-lg transition-colors"
               >
                 Play Again
@@ -1204,7 +1203,7 @@ function illegalReason(state: GameState, action: GameAction): string | null {
 }
 
 /** Runner play and install actions for cards hosted faceup on hardware (Bling, Madani), not in the grip. */
-function hostedCardActions(state: ReturnType<typeof createInitialGameState>): GameAction[] {
+function hostedCardActions(state: GameState): GameAction[] {
   const grip = new Set(state.runner.grip.map(c => c.instanceId));
   return getLegalActions(state, 'runner').filter(
     a => (a.type === 'INSTALL_CARD' || a.type === 'PLAY_OPERATION_OR_EVENT') && !grip.has(a.cardInstanceId),
@@ -1220,7 +1219,7 @@ function CorpInstallOptions({
   card,
   onAction,
 }: {
-  state: ReturnType<typeof createInitialGameState>;
+  state: GameState;
   card: CardInstance;
   onAction: (action: GameAction) => void;
 }) {

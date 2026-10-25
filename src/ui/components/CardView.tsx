@@ -1,7 +1,7 @@
 import React, { useRef, useState } from 'react';
 import { CardInstance } from '../../core/types/card';
 import { cardDef, getCardImageUrl, getCardBackUrl } from '../../data/cards';
-import { Layers, Lock, Eye, AlertCircle } from 'lucide-react';
+import { Lock, Eye } from 'lucide-react';
 import { CardPopout } from './CardPopout';
 import { motion } from 'framer-motion';
 import { Credits } from './CreditIcon';

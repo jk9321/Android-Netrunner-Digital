@@ -87,7 +87,6 @@ Netrunner/
 │   ├── data/
 │   │   ├── cards.ts                    <-- Typed card lookup utilities
 │   │   ├── decks.ts                    <-- Playable decklists (2 official starters + 7 Gateway faction builds), deckGameSetup
-│   │   ├── sampleDecks.ts              <-- One-of-each sample decks used by tests (not legal decks)
 │   │   └── system-gateway-cards.json   <-- Bundled card metadata
 │   ├── ui/
 │   │   ├── glossary.ts                 <-- Rules keyword definitions + card-text annotation for hover tooltips

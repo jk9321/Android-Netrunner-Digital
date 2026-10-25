@@ -1,6 +1,6 @@
 import { createInitialGameState, createCardInstance, cardDef, executeAction, getLegalActions, GameState, CardTypeCode, SideCode } from '../src/core';
 import { GameSetup } from '../src/core/engine/gameState';
-import { sampleGameSetup } from '../src/data/sampleDecks';
+import { sampleGameSetup } from './sampleDecks';
 
 /** A starter-deck game still waiting on both mulligan decisions. */
 export function newGameAtSetup(seed = 1): GameState {

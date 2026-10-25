@@ -1,11 +1,11 @@
 import React from 'react';
 import { AnimatePresence, MotionConfig, motion } from 'framer-motion';
-import { CardInstance } from '../../core/types/card';
+import { CardInstance, SideCode } from '../../core/types/card';
 import { CardView } from './CardView';
 
 interface HandRowProps {
   cards: CardInstance[];
-  side: 'corp' | 'runner';
+  side: SideCode;
   /** Can this viewer see the faces? If not, cards come and go face down. */
   canSee: boolean;
   isSelectable: boolean;

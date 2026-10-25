@@ -1,6 +1,6 @@
 import { CardInstance, GameAction, GameState, SideCode, activePrompt, getCardDefinition } from '../core';
 import { isAdvanceable } from '../core/engine/helpers';
-import { Agent, ScoredAction } from './agent';
+import { Agent } from './agent';
 import { HeuristicCorpAI } from './corpAI';
 import { HeuristicRunnerAI } from './runnerAI';
 import { evaluate } from './evaluate';
@@ -44,6 +44,9 @@ const MIN_Z = 1.5;
 const MAX_PLAYOUT_STEPS = 160;
 
 type Random = () => number;
+
+/** A move to compare, and the first step its playouts take. */
+type Candidate<A> = { action: A; score: number; first: GameAction | 'pass-rez' };
 
 function mulberry(seed: number): Random {
   let a = seed >>> 0;
@@ -168,7 +171,7 @@ export class SearchAI implements Agent {
     const ranked = this.base.rankMainActions(state).filter(c => c.score > -Infinity);
     if (ranked.length === 0) return this.base.chooseAction(state);
     if (ranked[0].action.type === 'SCORE_AGENDA') return ranked[0].action;
-    const best = this.search(state, ranked.slice(0, this.options.candidates).map(c => ({ ...c, first: c.action })), this.options.timeMs);
+    const best = this.search(state, ranked.slice(0, this.options.candidates).map(c => ({ ...c, first: c.action })), this.options.timeMs).action;
     this.base.notePlayed(best); // keeps the rule-based AI's loop guard in step
     if (this.options.debug) logNudge(state, this.side, best);
     return best;
@@ -177,8 +180,9 @@ export class SearchAI implements Agent {
   chooseRez(state: GameState, cards: CardInstance[]): GameAction | null {
     if (!(this.base instanceof HeuristicCorpAI)) return null;
     const suggested = this.base.chooseRez(state, cards);
-    const options: (ScoredAction & { first: GameAction | 'pass-rez' })[] = [
-      { action: { type: 'PASS_PRIORITY', player: 'corp' }, score: suggested ? 0 : 1, first: 'pass-rez' },
+    // action null: let the Runner carry on without rezzing
+    const options: Candidate<GameAction | null>[] = [
+      { action: null, score: suggested ? 0 : 1, first: 'pass-rez' },
       ...cards.map(card => {
         const action: GameAction = { type: 'REZ_CARD', player: 'corp', cardInstanceId: card.instanceId };
         return { action, score: suggested && 'cardInstanceId' in suggested && suggested.cardInstanceId === card.instanceId ? 1 : 0, first: action };
@@ -186,8 +190,7 @@ export class SearchAI implements Agent {
     ];
     if (suggested?.type === 'USE_ABILITY') options.push({ action: suggested, score: 1, first: suggested });
     options.sort((a, b) => b.score - a.score); // the rule-based AI's choice first
-    const best = this.search(state, options, this.options.timeMs / 2);
-    return best.type === 'PASS_PRIORITY' ? null : best;
+    return this.search(state, options, this.options.timeMs / 2).action;
   }
 
   /**
@@ -196,8 +199,8 @@ export class SearchAI implements Agent {
    * clearly better across the deals, so noise in a few playouts can't
    * talk the AI out of a sound move.
    */
-  private search(state: GameState, candidates: (ScoredAction & { first: GameAction | 'pass-rez' })[], timeMs: number): GameAction {
-    if (candidates.length === 1) return candidates[0].action;
+  private search<C extends Candidate<GameAction | null>>(state: GameState, candidates: C[], timeMs: number): C {
+    if (candidates.length === 1) return candidates[0];
     const values: number[][] = candidates.map(() => []);
     const deadline = Date.now() + timeMs;
     const wanted = this.options.samples;
@@ -224,6 +227,6 @@ export class SearchAI implements Agent {
         bestGain = mean;
       }
     }
-    return candidates[best].action;
+    return candidates[best];
   }
 }

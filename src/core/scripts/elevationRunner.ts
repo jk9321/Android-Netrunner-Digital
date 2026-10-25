@@ -20,7 +20,6 @@ import {
   removeCounters,
   removeTags,
   takeHostedCredits,
-  turnFlag,
   useOncePerTurn,
 } from '../engine/cardEffects';
 import { addBreakerStrength, bypassIce, encounteredIce, isIcebreaker } from '../engine/ice';

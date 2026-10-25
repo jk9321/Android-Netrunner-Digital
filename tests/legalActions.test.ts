@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { executeAction, getLegalActions, isLegalAction, IllegalActionError, NotImplementedError } from '../src/core';
+import { executeAction, getLegalActions, isLegalAction, IllegalActionError } from '../src/core';
 import { newGame, putInHand, startRunnerTurn } from './helpers';
 
 describe('Legal actions', () => {
@@ -38,11 +38,10 @@ describe('Legal actions', () => {
     expect(getLegalActions(state, 'corp')).toEqual([]);
   });
 
-  it('rejects illegal and unimplemented actions with typed errors', () => {
+  it('rejects illegal actions with a typed error', () => {
     const state = newGame(3);
     state.corp.clicks = 0;
     expect(() => executeAction(state, { type: 'GAIN_CREDIT', player: 'corp' })).toThrow(IllegalActionError);
-    expect(() => executeAction(state, { type: 'ACCESS_CARD', player: 'runner', cardInstanceId: 'x' })).toThrow(NotImplementedError);
     expect(isLegalAction(state, { type: 'GAIN_CREDIT', player: 'corp' })).toBe(false);
   });
 

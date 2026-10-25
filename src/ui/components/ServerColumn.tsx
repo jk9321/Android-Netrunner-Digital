@@ -1,6 +1,7 @@
 import React from 'react';
 import { RunState, ServerState } from '../../core/types/state';
-import { CardInstance } from '../../core/types/card';
+import { CardInstance, SideCode } from '../../core/types/card';
+import type { Viewer } from '../viewer';
 import { CardView } from './CardView';
 import { cardDef } from '../../data/cards';
 import { Database, Crosshair, Zap, ChevronsUp, Award, Bug } from 'lucide-react';
@@ -11,8 +12,8 @@ import { Credits } from './CreditIcon';
 
 interface ServerColumnProps {
   server: ServerState;
-  activePlayer: 'corp' | 'runner';
-  perspective?: 'both' | 'corp' | 'runner';
+  activePlayer: SideCode;
+  perspective?: Viewer;
   /** The run in progress, when it targets this server: highlights the server and the ice the Runner is at. */
   run?: RunState | null;
   onInitiateRun?: (serverId: string) => void;

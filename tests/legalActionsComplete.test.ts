@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { GameAction, GameState, SideCode, executeAction, getLegalActions, isLegalAction } from '../src/core';
 import { createInitialGameState } from '../src/core';
-import { sampleGameSetup } from '../src/data/sampleDecks';
+import { sampleGameSetup } from './sampleDecks';
 
 /**
  * getLegalActions skips candidates that cheap checks rule out. This makes

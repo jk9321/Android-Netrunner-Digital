@@ -1,6 +1,7 @@
 import { ResolvePromptAction } from '../../types/actions';
 import { EffectSource, PromptChoice } from '../../types/prompts';
 import { GameState } from '../../types/state';
+import { SideCode } from '../../types/card';
 import { cardDef } from '../../cards';
 import { shuffleInPlace } from '../../rng';
 import { addLog } from '../log';
@@ -137,7 +138,7 @@ function runScriptAnswer(
 }
 
 /** Shuffles the hand back into the deck and draws 5 new cards. */
-function mulligan(state: GameState, side: 'corp' | 'runner'): void {
+function mulligan(state: GameState, side: SideCode): void {
   if (side === 'corp') {
     state.corp.rd.push(...state.corp.hq.splice(0));
     shuffleInPlace(state.rng, state.corp.rd);

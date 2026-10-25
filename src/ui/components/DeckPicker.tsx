@@ -75,7 +75,7 @@ function summarize(deck: DeckList): DeckSummary {
   };
 }
 
-function emptyDeck(side: 'corp' | 'runner'): DeckList {
+function emptyDeck(side: SideCode): DeckList {
   const identity = ALL_CARDS.find(c => c.side_code === side && c.type_code === 'identity')!;
   return { id: newCustomDeckId(), name: 'New deck', side, identity: identity.title, cards: {}, source: 'custom' };
 }
@@ -112,7 +112,7 @@ export const DeckPicker: React.FC<DeckPickerProps> = ({ initialCorpDeckId, initi
     setCustomDecks(decks);
     setStorageFailed(!saveCustomDecks(decks));
   };
-  const selectFor = (side: 'corp' | 'runner') => (side === 'corp' ? setCorpId : setRunnerId);
+  const selectFor = (side: SideCode) => (side === 'corp' ? setCorpId : setRunnerId);
 
   const saveDeck = (deck: DeckList) => {
     const exists = customDecks.some(d => d.id === deck.id);
@@ -163,7 +163,7 @@ export const DeckPicker: React.FC<DeckPickerProps> = ({ initialCorpDeckId, initi
   );
 
   // Scrolls only the deck list column (not the page) so the deck sits in the middle
-  const scrollDeckIntoView = (side: 'corp' | 'runner', deckId: string) => {
+  const scrollDeckIntoView = (side: SideCode, deckId: string) => {
     const list = document.querySelector<HTMLElement>(`[data-testid="deck-list-${side}"]`);
     const item = Array.from(list?.children ?? []).find(
       el => (el as HTMLElement).dataset.testid === `deck-${deckId}`,
@@ -174,7 +174,7 @@ export const DeckPicker: React.FC<DeckPickerProps> = ({ initialCorpDeckId, initi
     list.scrollTo?.({ top: Math.max(0, top), behavior: 'smooth' });
   };
 
-  const column = (side: 'corp' | 'runner', selected: string, select: (id: string) => void) => {
+  const column = (side: SideCode, selected: string, select: (id: string) => void) => {
     const accent = side === 'corp' ? 'cyan' : 'pink';
     const allDecks = summaries.map(s => s.deck);
     const canRandomize = randomDeckPool(allDecks, side).some(d => d.id !== selected);

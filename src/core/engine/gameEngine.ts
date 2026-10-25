@@ -1,6 +1,6 @@
 import { GameAction, GameActionType } from '../types/actions';
 import { GameState } from '../types/state';
-import { IllegalActionError, NotImplementedError } from './errors';
+import { IllegalActionError } from './errors';
 import { drawCard, gainCredit, purgeVirus, removeTag, trashResource } from './actions/basic';
 import { installCard } from './actions/install';
 import { advanceCard, rezCard, scoreAgenda } from './actions/corp';
@@ -25,10 +25,6 @@ type ActionOf<T extends GameActionType> = Extract<GameAction, { type: T }>;
  */
 type ActionHandlers = { [T in GameActionType]: (state: GameState, action: ActionOf<T>) => void };
 
-const notImplemented = (state: GameState, action: GameAction): void => {
-  throw new NotImplementedError(action.type);
-};
-
 const handlers: ActionHandlers = {
   GAIN_CREDIT: gainCredit,
   DRAW_CARD: drawCard,
@@ -50,8 +46,6 @@ const handlers: ActionHandlers = {
   USE_ABILITY: useAbility,
   REMOVE_TAG: removeTag,
   TRASH_RESOURCE: trashResource,
-  ACCESS_CARD: notImplemented,
-  PASS_PRIORITY: notImplemented,
 };
 
 /**

@@ -3,7 +3,7 @@ import { createPortal } from 'react-dom';
 import { CardInstance } from '../../core/types/card';
 import { cardDef, getCardImageUrl } from '../../data/cards';
 import { FACTION_COLOR, FACTION_LABEL, typeLine } from '../cardLabels';
-import { Shield, Award, Trash2, Clock, AlertCircle, Lock } from 'lucide-react';
+import { Shield, Award, Trash2, AlertCircle, Lock } from 'lucide-react';
 import { GLOSSARY, annotateKeywords, cardKeywords } from '../glossary';
 import { CreditIcon, Credits, CREDIT_ICON_HTML, RECURRING_CREDIT_ICON_HTML, MU_ICON_HTML, MuIcon } from './CreditIcon';
 

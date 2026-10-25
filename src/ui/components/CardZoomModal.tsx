@@ -11,13 +11,11 @@ import { CreditIcon, CREDIT_ICON_HTML, RECURRING_CREDIT_ICON_HTML, MU_ICON_HTML,
 interface CardZoomModalProps {
   card: CardInstance | null;
   onClose: () => void;
-  canPeek?: boolean;
 }
 
 export const CardZoomModal: React.FC<CardZoomModalProps> = ({
   card,
   onClose,
-  canPeek = true,
 }) => {
   if (!card) return null;
   const def = cardDef(card);
