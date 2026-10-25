@@ -445,12 +445,13 @@ function iceFit(state: GameState, ice: CardInstance, server: ServerState | null)
 }
 
 /**
- * What losing this agenda would cost: its points, and a lot more if the
- * steal would win the game for the Runner (about 1 to 6).
+ * What losing this agenda would cost: its points, a lot more if the steal
+ * would win the game for the Runner, and a little for each advancement
+ * counter on it (it is that much closer to being scored). About 1 to 7.
  */
 export function agendaStakes(state: GameState, agenda: CardInstance): number {
   const points = cardDef(agenda).agenda_points ?? 1;
-  return points + (state.runner.score + points >= 7 ? 3 : 0);
+  return points + (state.runner.score + points >= 7 ? 3 : 0) + 0.25 * Math.min(agenda.advancementCounters, 4);
 }
 
 /** Installed agendas with enough counters to score. */
