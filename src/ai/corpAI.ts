@@ -177,25 +177,39 @@ export class HeuristicCorpAI implements Agent {
         if (state.activeRun) return -Infinity;
         const card = Object.values(corp.servers).flatMap(s => s.root).find(c => c.instanceId === action.cardInstanceId);
         if (!card) return -Infinity; // ice waits for a run
-        if (ECON_ASSETS[card.cardCode]) return ECON_ASSETS[card.cardCode] + 1;
-        if (card.cardCode === '30061') return 1; // Clearinghouse must be rezzed to fire
-        // Elevation cards whose effects need them rezzed
-        switch (card.cardCode) {
-          case '35051': // Phật Gioan Baotixita: gathers power counters
-            return 1.5;
-          case '35061': // Idiosyncresis: pays out when the turn begins
-            return card.advancementCounters >= 2 ? 2 : -Infinity;
-          case '35073': // Plutus: replays transactions from Archives
-            return corp.archives.faceUp.concat(corp.archives.faceDown).some(c => /transaction/i.test(cardDef(c).keywords ?? '')) ? 1.2 : -Infinity;
-          case '35082': // Mahkota Langit Grid: recurring credits
-            return 1.5;
-          case '35045': // Mercia B4LL4RD
-          case '35056': // Mitra Aman
-            return 1;
-        }
-        return -Infinity;
+        const value = this.rezValue(state, card);
+        // Deck-aware AI: rezzing assets spends the same money as rezzing ice
+        return Number.isFinite(value) && this.wideReserve ? value - reservePenalty(state, corp.credits - rezCost(state, card), true) : value;
       }
     }
+    return this.playScore(state, action, before);
+  }
+
+  /** Worth of rezzing a card in a server's root on the Corp's own turn. */
+  private rezValue(state: GameState, card: CardInstance): number {
+    const corp = state.corp;
+    if (ECON_ASSETS[card.cardCode]) return ECON_ASSETS[card.cardCode] + 1;
+    if (card.cardCode === '30061') return 1; // Clearinghouse must be rezzed to fire
+    // Elevation cards whose effects need them rezzed
+    switch (card.cardCode) {
+      case '35051': // Phật Gioan Baotixita: gathers power counters
+        return 1.5;
+      case '35061': // Idiosyncresis: pays out when the turn begins
+        return card.advancementCounters >= 2 ? 2 : -Infinity;
+      case '35073': // Plutus: replays transactions from Archives
+        return corp.archives.faceUp.concat(corp.archives.faceDown).some(c => /transaction/i.test(cardDef(c).keywords ?? '')) ? 1.2 : -Infinity;
+      case '35082': // Mahkota Langit Grid: recurring credits
+        return 1.5;
+      case '35045': // Mercia B4LL4RD
+      case '35056': // Mitra Aman
+        return 1;
+    }
+    return -Infinity;
+  }
+
+  /** Operations and other plays, scored by the position they lead to. */
+  private playScore(state: GameState, action: GameAction, before: number): number {
+    const corp = state.corp;
     if (action.type === 'PLAY_OPERATION_OR_EVENT') {
       const code = corp.hq.find(c => c.instanceId === action.cardInstanceId)?.cardCode;
       // The tag that sets up a waiting Orbital Superiority
@@ -443,7 +457,9 @@ export class HeuristicCorpAI implements Agent {
         if (econ !== undefined) {
           if (server) return -1;
           const rezCost = cardDef(card).cost ?? 0;
-          return econ - (corp.credits < rezCost ? 1.5 : 0) - (remotes.length >= 4 ? 1 : 0);
+          // Deck-aware AI (one remote): every extra remote spreads the Corp thinner
+          const spread = this.synergy && tuning.plan.oneRemote ? (remotes.length >= 4 ? 2 : remotes.length >= 3 ? 1 : 0) : remotes.length >= 4 ? 1 : 0;
+          return econ - (corp.credits < rezCost ? 1.5 : 0) - spread;
         }
         // Traps and Clearinghouse: bluff in a new remote, or an empty protected one
         if (!server) return remotes.length >= 4 ? 0.2 : 1.2;

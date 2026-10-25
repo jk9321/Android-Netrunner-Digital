@@ -81,7 +81,9 @@ export const tuning = {
      * Ice depth: as half a layer for breakable ice -25 (dropped); by the
      * Runner's cost to get through (v2) -5 vs without it, kept (noise).
      * One scoring remote: +104 vs old (49.0%; +56 over round 3 without it).
-     * Self-play (new vs new) Corp 43.6%, was 36.6%; Jeff's target 50 ±5%.
+     * Rez money also on the Corp's own turn (assets) and fewer asset
+     * remotes: +121 vs old (50.6%). Self-play (new vs new) Corp 45.4%, was
+     * 36.6% before round 3; Jeff's target is 50 ±5%.
      */
     /** Corp (round 3): keep credits to rez ice on two key servers (R&D, an agenda remote, HQ holding agendas). */
     rezMoney: true,
