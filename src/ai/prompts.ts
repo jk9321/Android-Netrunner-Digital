@@ -14,7 +14,7 @@ export function simulate(state: GameState, action: GameAction): GameState | null
 
 const hand = (state: GameState, side: SideCode) => (side === 'corp' ? state.corp.hq : state.runner.grip);
 /** How much a side wants to keep a card, plus (deck-aware AI) how well it fits the deck's plan. */
-const keep = (state: GameState, card: CardInstance, synergy: boolean) => keepValue(state, card) + (synergy ? keepBonus(state, card) : 0);
+const keep = (state: GameState, card: CardInstance, synergy: boolean) => keepValue(state, card, synergy) + (synergy ? keepBonus(state, card) : 0);
 const sumKeep = (state: GameState, cards: CardInstance[], synergy: boolean) => cards.reduce((n, c) => n + keep(state, c, synergy), 0);
 
 /**
@@ -23,10 +23,10 @@ const sumKeep = (state: GameState, cards: CardInstance[], synergy: boolean) => c
  * its least useful cards) and, for the Runner, the run still in progress.
  */
 export function scoreOutcome(before: GameState, after: GameState, side: SideCode, memory?: RunnerMemory, synergy = false): number {
-  let score = evaluate(after, side);
+  let score = evaluate(after, side, synergy);
   score += 0.5 * (sumKeep(after, hand(after, side), synergy) - sumKeep(before, hand(before, side), synergy));
   if (side === 'runner' && before.activeRun) {
-    const value = serverValue(before, before.activeRun.server, 0, memory, synergy && tuning.wary) * 0.8;
+    const value = serverValue(before, before.activeRun.server, 0, memory, synergy && tuning.wary, synergy && tuning.plan.urgency) * 0.8;
     if (after.activeRun && !after.activeRun.isJackedOut) score += value;
   }
   return score;
@@ -83,7 +83,7 @@ export function answerPrompt(state: GameState, side: SideCode, memory?: RunnerMe
 
   const servers = side === 'runner' ? serverOptions(state, prompt) : null;
   if (servers && prompt.kind === 'effect_choice') {
-    const scored = servers.map(id => ({ id, score: runScore(state, id, { ...runEventOptions(prompt.source.cardCode), memory, wary: synergy && tuning.wary }) }));
+    const scored = servers.map(id => ({ id, score: runScore(state, id, { ...runEventOptions(prompt.source.cardCode), memory, wary: synergy && tuning.wary, urgent: synergy && tuning.plan.urgency }) }));
     scored.sort((a, b) => b.score - a.score);
     return { ...base, choice: { kind: 'effect_choice', optionId: scored[0].id } };
   }

@@ -6,7 +6,7 @@ import { evaluate, rigCoverage } from './evaluate';
 import { answerPrompt, runEventOptions, simulate } from './prompts';
 import type { HeuristicOptions } from './corpAI';
 import { logNudge, nudge, tuning } from './synergy';
-import { RunnerMemory, bestBreakPlan, iceCost, needsBiggerHand, runScore, subroutineCost } from './runs';
+import { RunnerMemory, bestBreakPlan, iceCost, needsBiggerHand, runScore, runShortfall, serverValue, subroutineCost } from './runs';
 
 const TROJANS = ['30004', '30017']; // Botulus, Tranquilizer
 /** Actions in a row that spend no click, before the AI stops taking them (guards against loops). */
@@ -23,6 +23,8 @@ export class HeuristicRunnerAI implements Agent {
   private freeKey = '';
   private memory: RunnerMemory = new Map();
   private digForBreakers = false;
+  /** A run worth making that the Runner can't afford yet (deck-aware AI: take money toward it). */
+  private savingFor: string | null = null;
   readonly synergy: boolean;
   private debug: boolean;
 
@@ -133,11 +135,12 @@ export class HeuristicRunnerAI implements Agent {
       this.freeKey = key;
       this.freeActions = 0;
     }
-    const before = evaluate(state, 'runner');
+    const before = evaluate(state, 'runner', this.synergy);
     // Nowhere worth running and breakers missing: dig for them
     this.digForBreakers =
       rigCoverage(state.runner.rig.programs).covered.size < 3 &&
-      !legal.some(a => a.type === 'INITIATE_RUN' && runScore(state, a.targetServerId, { memory: this.memory, wary: this.synergy && tuning.wary }) > 0);
+      !legal.some(a => a.type === 'INITIATE_RUN' && runScore(state, a.targetServerId, { memory: this.memory, wary: this.synergy && tuning.wary, urgent: this.synergy && tuning.plan.urgency }) > 0);
+    this.savingFor = this.synergy && tuning.plan.saveUp ? saveUpTarget(state, this.memory) : null;
     return legal
       .map(action => {
         let score = this.scoreMain(state, action, before);
@@ -163,7 +166,7 @@ export class HeuristicRunnerAI implements Agent {
       case 'END_TURN':
         return -0.5;
       case 'INITIATE_RUN':
-        return runScore(state, action.targetServerId, { memory: this.memory, wary: this.synergy && tuning.wary });
+        return runScore(state, action.targetServerId, { memory: this.memory, wary: this.synergy && tuning.wary, urgent: this.synergy && tuning.plan.urgency });
       case 'REMOVE_TAG':
         return state.runner.rig.resources.length > 0 ? 1.2 : 0.3;
     }
@@ -177,12 +180,12 @@ export class HeuristicRunnerAI implements Agent {
     const cardCode = 'cardInstanceId' in action ? state.runner.grip.concat(state.runner.rig.resources, state.runner.rig.programs).find(c => c.instanceId === action.cardInstanceId)?.cardCode : undefined;
     const paid = state.runner.credits - after.runner.credits;
     if (prompt?.kind === 'effect_choice' && prompt.side === 'runner' && prompt.options.every(o => after.corp.servers[o.id])) {
-      const options = { ...runEventOptions(prompt.source.cardCode), memory: this.memory, wary: this.synergy && tuning.wary };
+      const options = { ...runEventOptions(prompt.source.cardCode), memory: this.memory, wary: this.synergy && tuning.wary, urgent: this.synergy && tuning.plan.urgency };
       const best = Math.max(...prompt.options.map(o => runScore(state, o.id, options)));
       return best - paid * 0.6 + (prompt.source.cardCode === '30028' ? 0.5 : 0);
     }
     if (!state.activeRun && after.activeRun) {
-      return runScore(state, after.activeRun.server, { ...runEventOptions(cardCode ?? ''), memory: this.memory, wary: this.synergy && tuning.wary }) - paid * 0.6 + 0.3;
+      return runScore(state, after.activeRun.server, { ...runEventOptions(cardCode ?? ''), memory: this.memory, wary: this.synergy && tuning.wary, urgent: this.synergy && tuning.plan.urgency }) - paid * 0.6 + 0.3;
     }
 
     // Follow our own prompts (Lie Low, Scrounge, Madani) a few steps
@@ -192,14 +195,39 @@ export class HeuristicRunnerAI implements Agent {
       if (!next) break;
       resolved = next;
     }
-    let score = evaluate(resolved, 'runner') - before;
+    let score = evaluate(resolved, 'runner', this.synergy) - before;
     if (action.type === 'DRAW_CARD' && needsBiggerHand(state, this.memory)) score += 1.5;
     if (action.type === 'DRAW_CARD' && this.digForBreakers && state.runner.stack.length > 5) score += 1.2;
     if (action.type === 'INSTALL_CARD' && action.hostInstanceId && cardCode && TROJANS.includes(cardCode)) {
       const host = Object.values(state.corp.servers).flatMap(s => s.ice).find(c => c.instanceId === action.hostInstanceId);
       score += host?.isRezzed ? 1.5 : -3;
     }
+    // Saving up for a run: money now beats spending it elsewhere
+    if (this.savingFor) {
+      const gained = resolved.runner.credits - state.runner.credits;
+      if (gained > 0) score += 0.8;
+      else if (gained < -1) score -= 0.4;
+    }
     if (!spendsClick && score <= 0.3) return -Infinity; // free actions only when clearly good
     return score;
   }
+}
+
+/**
+ * The best server worth running (value 4+) that the Runner can't afford to
+ * get into yet but could within about two turns of money, if any.
+ */
+function saveUpTarget(state: GameState, memory: RunnerMemory): string | null {
+  let best: string | null = null;
+  let bestValue = 4;
+  for (const id of Object.keys(state.corp.servers)) {
+    const short = runShortfall(state, id);
+    if (short === null || short <= 0 || short > 7) continue;
+    const value = serverValue(state, id, 0, memory, tuning.wary, tuning.plan.urgency);
+    if (value >= bestValue) {
+      best = id;
+      bestValue = value;
+    }
+  }
+  return best;
 }

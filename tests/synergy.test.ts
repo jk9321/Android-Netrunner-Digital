@@ -1,9 +1,10 @@
 import { describe, expect, it } from 'vitest';
-import { ALL_CARDS, GameAction, createCardInstance, createInitialGameState, getCardDefinition } from '../src/core';
+import { ALL_CARDS, CardInstance, GameAction, GameState, createCardInstance, createInitialGameState, getCardDefinition } from '../src/core';
+import { keepValue, tagThreat } from '../src/ai/evaluate';
 import { DECKS, deckGameSetup } from '../src/data/decks';
 import { HeuristicCorpAI, playAIGame } from '../src/ai';
 import { MAX_NUDGE, deckProfile, nudge, opponentProfile } from '../src/ai/synergy';
-import { SYNERGY, THEMES, inferSynergy } from '../src/ai/synergyTags';
+import { CONDITIONS, CONDITION_PATTERNS, SYNERGY, THEMES, inferSynergy } from '../src/ai/synergyTags';
 import { newGame } from './helpers';
 import { RunnerMemory, serverValue, trapOdds } from '../src/ai/runs';
 
@@ -12,6 +13,18 @@ describe('synergy tags', () => {
   it('cover every card (tag the cards of a new set in synergyTags.ts)', () => {
     const untagged = ALL_CARDS.filter(c => !(c.code in SYNERGY)).map(c => `${c.code} ${c.title}`);
     expect(untagged).toEqual([]);
+  });
+
+  it('tag every conditional effect (timing the AI should plan around)', () => {
+    const missing: string[] = [];
+    for (const card of ALL_CARDS) {
+      for (const c of CONDITIONS) {
+        const says = CONDITION_PATTERNS[c].test(card.stripped_text ?? '');
+        const tagged = SYNERGY[card.code]?.when?.includes(c) ?? false;
+        if (says && !tagged) missing.push(`${card.code} ${card.title}: ${c}`);
+      }
+    }
+    expect(missing).toEqual([]);
   });
 
   it('only use known themes', () => {
@@ -162,5 +175,86 @@ describe('Corp bluffing', () => {
     const advance = (ai: HeuristicCorpAI) =>
       ai.rankMainActions(s).find(r => r.action.type === 'ADVANCE_CARD' && r.action.cardInstanceId === urtica.instanceId)!.score;
     expect(advance(new HeuristicCorpAI())).toBeGreaterThan(advance(new HeuristicCorpAI({ synergy: false })) + 1);
+  });
+});
+
+describe('planning (setup scoring)', () => {
+  const remote = (s: GameState, id: string, root: CardInstance[], ice: CardInstance[] = []) =>
+    (s.corp.servers[id] = { id, name: id, isRemote: true, ice, root });
+
+  it('values tags more while the Corp holds cards that punish them, seen only by the Corp', () => {
+    const s = structuredClone(newGame());
+    s.corp.hq.push(createCardInstance(s, '30065')); // Retribution
+    expect(tagThreat(s, 'corp')).toBeGreaterThan(tagThreat(s, 'runner'));
+  });
+
+  it('wants the breaker for the ice the Corp has shown', () => {
+    const s = structuredClone(newGame());
+    for (let i = 0; i < 3; i++) {
+      const sentry = createCardInstance(s, '30062'); // Ballista
+      sentry.isRezzed = true;
+      s.corp.servers.hq.ice.push(sentry);
+    }
+    s.runner.rig.programs = [];
+    const killer = createCardInstance(s, '30015'); // Carmen
+    const decoder = createCardInstance(s, '30005'); // Buzzsaw
+    expect(keepValue(s, killer, true)).toBeGreaterThan(keepValue(s, decoder, true));
+    expect(keepValue(s, killer, false)).toBe(keepValue(s, decoder, false));
+  });
+
+  it('runs an agenda the Corp could finish next turn with more urgency', () => {
+    const s = structuredClone(newGame());
+    const card = createCardInstance(s, '30067');
+    card.advancementCounters = 2;
+    remote(s, 'remote-9', [card]);
+    s.runner.grip = s.runner.grip.slice(0, 5);
+    expect(serverValue(s, 'remote-9', 0, new Map(), false, true)).toBeGreaterThan(serverValue(s, 'remote-9', 0, new Map(), false, false));
+  });
+
+  it('plays Seamless Launch when it lets an agenda score this turn', () => {
+    const s = structuredClone(newGame());
+    const agenda = createCardInstance(s, '30067'); // Offworld Office: 4 to score
+    agenda.advancementCounters = 2;
+    agenda.installedTurn = 'earlier';
+    const ice = createCardInstance(s, '30072');
+    ice.isRezzed = true;
+    remote(s, 'remote-9', [agenda], [ice]);
+    const launch = createCardInstance(s, '30040');
+    s.corp.hq.push(launch);
+    s.corp.clicks = 1;
+    s.corp.credits = 5;
+    const rank = (ai: HeuristicCorpAI) => ai.rankMainActions(s).find(r => 'cardInstanceId' in r.action && r.action.cardInstanceId === launch.instanceId)!.score;
+    expect(rank(new HeuristicCorpAI())).toBeGreaterThanOrEqual(41);
+  });
+
+  it('ices against the Runner: a type they cannot break, on a server they attacked', () => {
+    const s = structuredClone(newGame());
+    s.runner.rig.programs = [createCardInstance(s, '30006')]; // Cleaver: barriers only
+    s.runnerLastTurnRuns = [{ server: 'rd', successful: true } as (typeof s.runnerLastTurnRuns)[number]];
+    const sentry = createCardInstance(s, '30073'); // Tithe
+    const barrier = createCardInstance(s, '30072'); // Palisade
+    s.corp.hq = [sentry, barrier];
+    const score = (card: CardInstance, server: string) =>
+      new HeuristicCorpAI().rankMainActions(s).find(r => r.action.type === 'INSTALL_CARD' && r.action.cardInstanceId === card.instanceId && r.action.targetServerId === server)!.score;
+    expect(score(sentry, 'rd')).toBeGreaterThan(score(sentry, 'hq'));
+    const plain = (card: CardInstance) =>
+      new HeuristicCorpAI({ synergy: false }).rankMainActions(s).find(r => r.action.type === 'INSTALL_CARD' && r.action.cardInstanceId === card.instanceId && r.action.targetServerId === 'hq')!.score;
+    expect(score(sentry, 'hq') - plain(sentry)).toBeGreaterThan(score(barrier, 'hq') - plain(barrier));
+  });
+
+  it('tags the Runner before scoring Orbital Superiority', () => {
+    const s = structuredClone(newGame());
+    const orbital = createCardInstance(s, '30068');
+    orbital.advancementCounters = 4; // ready to score
+    const ice = createCardInstance(s, '30072');
+    ice.isRezzed = true;
+    remote(s, 'remote-9', [orbital], [ice]);
+    s.corp.hq.push(createCardInstance(s, '30057')); // Public Trail
+    s.runnerLastTurnRuns = [{ server: 'hq', successful: true } as (typeof s.runnerLastTurnRuns)[number]];
+    s.runner.credits = 2; // can't pay 8 to dodge it
+    const order = (ai: HeuristicCorpAI) => ai.rankMainActions(s).map(r => r.action.type);
+    const aware = order(new HeuristicCorpAI());
+    expect(aware.indexOf('PLAY_OPERATION_OR_EVENT')).toBeLessThan(aware.indexOf('SCORE_AGENDA'));
+    expect(order(new HeuristicCorpAI({ synergy: false }))[0]).toBe('SCORE_AGENDA');
   });
 });

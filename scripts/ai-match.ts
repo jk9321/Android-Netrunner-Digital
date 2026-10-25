@@ -29,6 +29,8 @@ tuning.dividends = process.env.DIVIDENDS !== '0';
 tuning.wary = process.env.WARY !== '0';
 tuning.bluff = process.env.BLUFF !== '0';
 tuning.purge = process.env.PURGE !== '0';
+// PLAN_OFF=urgency,saveUp switches off planning terms (see tuning.plan)
+for (const key of (process.env.PLAN_OFF ?? '').split(',').filter(Boolean)) (tuning.plan as Record<string, boolean>)[key] = false;
 
 const corpDecks = DECKS.filter(d => d.side === 'corp');
 const runnerDecks = DECKS.filter(d => d.side === 'runner');

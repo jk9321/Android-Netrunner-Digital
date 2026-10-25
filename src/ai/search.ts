@@ -140,7 +140,7 @@ function playout(state: GameState, side: SideCode, first: GameAction | 'pass-rez
     }
     if (runner.state.log.length > 40) runner.state = { ...runner.state, log: runner.state.log.slice(-5) };
   }
-  return evaluate(runner.state, side);
+  return evaluate(runner.state, side, synergy);
 }
 
 export class SearchAI implements Agent {

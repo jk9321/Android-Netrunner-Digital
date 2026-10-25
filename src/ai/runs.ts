@@ -147,7 +147,7 @@ export function trapOdds(state: GameState, memory?: RunnerMemory): number {
 }
 
 /** What accessing this server is worth to the Runner right now. */
-export function serverValue(state: GameState, serverId: string, extraAccesses = 0, memory?: RunnerMemory, wary = false): number {
+export function serverValue(state: GameState, serverId: string, extraAccesses = 0, memory?: RunnerMemory, wary = false, urgent = false): number {
   const server = state.corp.servers[serverId];
   if (!server) return 0;
   const priorRuns = state.runsThisTurn.filter(r => r.server === serverId);
@@ -180,11 +180,15 @@ export function serverValue(state: GameState, serverId: string, extraAccesses = 
       if (trapRisk && card.advancementCounters > 0 && state.runner.grip.length <= 2 + card.advancementCounters + handMargin) return 0;
       // The more traps, the less likely it's the agenda we're hoping for
       value += (3 + 2.5 * Math.min(card.advancementCounters, 4)) * (wary ? Math.min(1.2, Math.max(0.6, 1 - (caution - 1) * 0.33)) : 1);
+      // Deck-aware AI: 2+ counters and the Corp could finish it next turn, so now is the time
+      if (urgent && card.advancementCounters >= 2) value += 2;
     } else {
       const trash = cardDef(card).trash_cost;
       if (trash != null && trash <= state.runner.credits) value += Math.max(0.5, corpCardValue(card) - trash) * 0.6;
     }
   }
+  // Deck-aware AI: close to losing, every access matters more
+  if (urgent && state.corp.score >= 5) value *= 1 + 0.1 * (state.corp.score - 4);
   return value;
 }
 
@@ -208,7 +212,27 @@ export interface RunOptions {
   shred?: boolean;
   /** Deck-aware AI: weigh trap risk by the traps this Corp has shown (see trapOdds). */
   wary?: boolean;
+  /** Deck-aware AI: urgency on agendas the Corp could finish next turn, and late-game defence. */
+  urgent?: boolean;
   memory?: RunnerMemory;
+}
+
+/**
+ * Credits the Runner is short of getting past the rezzed ice on this
+ * server (0 or less: it can afford it now). Null when some rezzed ice
+ * can't be got past at any price (no breaker for an end-the-run).
+ */
+export function runShortfall(state: GameState, serverId: string): number | null {
+  const server = state.corp.servers[serverId];
+  if (!server) return null;
+  let known = 0;
+  for (const ice of server.ice) {
+    if (!ice.isRezzed) continue;
+    const cost = iceCost(state, ice);
+    if (cost === BLOCK) return null;
+    known += cost;
+  }
+  return known - availableCredits(state, 'runner');
 }
 
 /**
@@ -218,7 +242,7 @@ export interface RunOptions {
 export function runScore(state: GameState, serverId: string, options: RunOptions = {}): number {
   const server = state.corp.servers[serverId];
   if (!server) return -Infinity;
-  let value = serverValue(state, serverId, options.extraAccesses ?? 0, options.memory, options.wary) + 0.8 * (options.successBonus ?? 0);
+  let value = serverValue(state, serverId, options.extraAccesses ?? 0, options.memory, options.wary, options.urgent) + 0.8 * (options.successBonus ?? 0);
   if (state.runner.grip.length <= 1) value -= 2; // one net damage from flatlining
   if (value <= 0) return -Infinity;
   let known = 0;

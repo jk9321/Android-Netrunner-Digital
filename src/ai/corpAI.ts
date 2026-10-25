@@ -1,11 +1,13 @@
-import { CardInstance, GameAction, GameState, ServerState, activePrompt, cardDef, findCardAnywhere, getLegalActions, isLegalAction } from '../core';
-import { iceScript } from '../core/engine/ice';
+import { CardInstance, GameAction, GameState, ServerState, activePrompt, cardDef, findCardAnywhere, getCardDefinition, getLegalActions, isLegalAction } from '../core';
+import { iceScript, iceSubtypes } from '../core/engine/ice';
+import { rigCoverage } from './evaluate';
 import { counters, rezCost } from '../core/engine/cardEffects';
 import { Agent, ScoredAction } from './agent';
 import { evaluate } from './evaluate';
 import { answerPrompt, simulate } from './prompts';
 import { logNudge, nudge, opponentLean, tuning } from './synergy';
 import { isTrap } from './runs';
+import { cardSynergy } from './synergyTags';
 
 const FREE_ACTION_LIMIT = 6;
 
@@ -81,7 +83,7 @@ export class HeuristicCorpAI implements Agent {
       this.freeKey = key;
       this.freeActions = 0;
     }
-    const before = evaluate(state, 'corp');
+    const before = evaluate(state, 'corp', this.synergy);
     return legal
       .map(action => {
         let score = this.score(state, action, before);
@@ -138,7 +140,10 @@ export class HeuristicCorpAI implements Agent {
         return -0.5;
       case 'SCORE_AGENDA':
         // Dividends: put spare clicks into the agenda first (scoring stays possible all turn)
-        return this.synergy && this.overAdvance(state, action.cardInstanceId) ? 5 : 100;
+        if (this.synergy && this.overAdvance(state, action.cardInstanceId)) return 5;
+        // Orbital Superiority and the like: tag the Runner first if we can this turn
+        if (this.synergy && tuning.plan.scoreSetup && this.tagFirst(state, action.cardInstanceId)) return 5;
+        return 100;
       case 'PURGE_VIRUS': {
         const viruses = [...state.runner.rig.programs, ...state.runner.rig.hardware, ...state.runner.rig.resources].reduce(
           (n, c) => n + counters(c, 'virus'),
@@ -184,6 +189,8 @@ export class HeuristicCorpAI implements Agent {
     }
     if (action.type === 'PLAY_OPERATION_OR_EVENT') {
       const code = corp.hq.find(c => c.instanceId === action.cardInstanceId)?.cardCode;
+      // The tag that sets up a waiting Orbital Superiority
+      if (this.synergy && tuning.plan.scoreSetup && code && this.tagsBeforeScore(state, code) && simulate(state, action)) return 6;
       const bonus = code ? this.operationBonus(state, code) : 0;
       if (bonus !== 0) {
         const after = simulate(state, action);
@@ -201,7 +208,9 @@ export class HeuristicCorpAI implements Agent {
       if (!next) break;
       resolved = next;
     }
-    let score = evaluate(resolved, 'corp') - before;
+    let score = evaluate(resolved, 'corp', this.synergy) - before;
+    // Deck-aware AI: a play that makes an agenda scoreable this turn (Seamless Launch, Key Performance Indicators...)
+    if (this.synergy && tuning.plan.scoreSetup && scoreable(resolved) > scoreable(state)) score = Math.max(score, 41);
     if (!spendsClick && score <= 0.3) return -Infinity;
     score -= reservePenalty(state, resolved.corp.credits);
     return score;
@@ -272,6 +281,31 @@ export class HeuristicCorpAI implements Agent {
     return shown && card.advancementCounters === 0 ? 0.6 : 0;
   }
 
+  /** An agenda that is better scored with the Runner tagged, while an operation in HQ could tag them this turn. */
+  private tagFirst(state: GameState, agendaId: string): boolean {
+    const agenda = Object.values(state.corp.servers).flatMap(s => s.root).find(c => c.instanceId === agendaId);
+    if (!agenda || state.runner.tags > 0 || state.corp.clicks < 1) return false;
+    const when = cardSynergy(cardDef(agenda)).when ?? [];
+    if (!when.includes('ifTagged') || !when.includes('onScore')) return false;
+    return state.corp.hq.some(c => this.tagsBeforeScore(state, c.cardCode, agenda));
+  }
+
+  /** Is this operation a tag we could play now to set up such an agenda? */
+  private tagsBeforeScore(state: GameState, code: string, agenda?: CardInstance): boolean {
+    const def = getCardDefinition(code);
+    if (def.type_code !== 'operation' || !(cardSynergy(def).gives?.tags ?? 0) || state.runner.tags > 0) return false;
+    const card = state.corp.hq.find(c => c.cardCode === code);
+    if (!card || !isLegalAction(state, { type: 'PLAY_OPERATION_OR_EVENT', player: 'corp', cardInstanceId: card.instanceId })) return false;
+    if (agenda) return true;
+    // Only worth it with such an agenda ready to score
+    return Object.values(state.corp.servers)
+      .flatMap(s => s.root)
+      .some(a => {
+        const when = cardSynergy(cardDef(a)).when ?? [];
+        return type(a) === 'agenda' && a.advancementCounters >= (cardDef(a).advancement_cost ?? 99) && when.includes('ifTagged') && when.includes('onScore');
+      });
+  }
+
   /**
    * The reverse bluff: once the Runner has seen this Corp's traps, now and
    * then put a real agenda in a remote with no ice, unadvanced, and score
@@ -338,7 +372,8 @@ export class HeuristicCorpAI implements Agent {
           0.8 * installCost +
           (hasEndTheRun(card) ? 1 : 0) +
           0.15 * Math.min(strength, 5) -
-          (corp.credits - installCost < rezCost ? 1.5 : 0)
+          (corp.credits - installCost < rezCost ? 1.5 : 0) +
+          (this.synergy && tuning.plan.icePlacement ? iceFit(state, card, server) : 0)
         );
       }
       case 'agenda': {
@@ -380,6 +415,31 @@ export class HeuristicCorpAI implements Agent {
     }
     return -Infinity;
   }
+}
+
+/**
+ * Deck-aware AI: how well this ice fits here against this Runner. Ice the
+ * rig can't break, on a server the Runner has been attacking, of a type
+ * the server doesn't have yet, is worth more.
+ */
+function iceFit(state: GameState, ice: CardInstance, server: ServerState | null): number {
+  let fit = 0;
+  const types = iceSubtypes(ice, state);
+  const { covered, anyBreakers } = rigCoverage(state.runner.rig.programs);
+  if (types.length > 0 && types.every(t => !covered.has(t))) fit += anyBreakers > 0 ? 0.7 : 1.5;
+  if (!server) return fit;
+  const attacked = [...state.runnerLastTurnRuns, ...state.runsThisTurn].some(r => r.server === server.id);
+  if (attacked) fit += 0.8;
+  if (server.id === 'rd' && state.runner.rig.programs.some(p => p.cardCode === '30024')) fit += 0.8; // Conduit
+  if (server.ice.length > 0) fit += server.ice.some(other => iceSubtypes(other, state).some(t => types.includes(t))) ? -0.6 : 0.3;
+  return fit;
+}
+
+/** Installed agendas with enough counters to score. */
+function scoreable(state: GameState): number {
+  return Object.values(state.corp.servers)
+    .flatMap(s => s.root)
+    .filter(c => type(c) === 'agenda' && c.advancementCounters >= (cardDef(c).advancement_cost ?? 99)).length;
 }
 
 /** How much the Corp cares about keeping the Runner out of this server (for rez decisions). */

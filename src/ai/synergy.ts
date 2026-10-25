@@ -47,6 +47,21 @@ export const tuning = {
   bluff: true,
   /** Corp: purge sooner against a virus deck. */
   purge: true,
+  /** Planning terms (round 2): each can be switched off for batches. */
+  plan: {
+    /** Tags are worth more while the Corp holds cards that punish them. */
+    tagThreat: true,
+    /** Icebreakers for the ice types the Corp has shown are worth more. */
+    breakerFocus: true,
+    /** Runner: run an agenda the Corp could finish next turn now; defend harder late in the game. */
+    urgency: true,
+    /** Runner: take money toward a run it can't afford yet. */
+    saveUp: true,
+    /** Corp: plays that let an agenda be scored this turn (Seamless Launch, KPI...), and tagging before scoring Orbital Superiority. */
+    scoreSetup: true,
+    /** Corp: ice the Runner can't break, on servers under attack, mixing types. */
+    icePlacement: true,
+  },
 };
 
 const IDENTITY = 3;
