@@ -149,3 +149,18 @@ describe('trap caution', () => {
     expect(trapOdds(s2, seenTraps)).toBeLessThan(trapOdds(s, seenTraps));
   });
 });
+
+describe('Corp bluffing', () => {
+  it('advances an Urtica Cipher that would flatline the Runner', () => {
+    const state = newGame();
+    const s = structuredClone(state);
+    const urtica = createCardInstance(s, '30045');
+    urtica.advancementCounters = 1;
+    s.corp.servers['remote-9'] = { id: 'remote-9', name: 'Server 9', isRemote: true, ice: [], root: [urtica] };
+    s.runner.grip = s.runner.grip.slice(0, 4); // 2 + 2 counters = 4 net damage after one more advance
+    s.corp.credits = 8;
+    const advance = (ai: HeuristicCorpAI) =>
+      ai.rankMainActions(s).find(r => r.action.type === 'ADVANCE_CARD' && r.action.cardInstanceId === urtica.instanceId)!.score;
+    expect(advance(new HeuristicCorpAI())).toBeGreaterThan(advance(new HeuristicCorpAI({ synergy: false })) + 1);
+  });
+});

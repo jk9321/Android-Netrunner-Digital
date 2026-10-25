@@ -5,6 +5,7 @@ import { Agent, ScoredAction } from './agent';
 import { evaluate } from './evaluate';
 import { answerPrompt, simulate } from './prompts';
 import { logNudge, nudge, opponentLean, tuning } from './synergy';
+import { isTrap } from './runs';
 
 const FREE_ACTION_LIMIT = 6;
 
@@ -252,11 +253,23 @@ export class HeuristicCorpAI implements Agent {
     }
     if (def.type_code === 'asset') {
       // Traps: advancing makes them look like agendas (Urtica Cipher, Clearinghouse)
-      return corp.credits >= 4 && card.advancementCounters < 3 ? 1.2 : -Infinity;
+      if (!(corp.credits >= 4 && card.advancementCounters < 3)) return -Infinity;
+      return this.synergy && isTrap(card.cardCode) ? 1.2 + this.trapBluff(state, card) : 1.2;
     }
     // Pharos: +5 strength at 3 counters; Syailendra: places counters when encountered at 3
     if (card.cardCode === '35076' && card.advancementCounters < 3 && corp.credits >= 4) return 0.8;
     return card.cardCode === '30063' && card.advancementCounters < 3 && corp.credits >= 8 ? 1 : -Infinity;
+  }
+
+  /**
+   * Extra reason to advance a trap: an Urtica Cipher that would flatline
+   * the Runner's current hand, or (once the Runner has seen this Corp's
+   * traps) a bare trap that would otherwise read as an obvious bluff.
+   */
+  private trapBluff(state: GameState, card: CardInstance): number {
+    if (card.cardCode === '30045' && 2 + card.advancementCounters + 1 >= state.runner.grip.length) return 1.5;
+    const shown = state.corp.archives.faceUp.some(c => isTrap(c.cardCode));
+    return shown && card.advancementCounters === 0 ? 0.6 : 0;
   }
 
   /**
@@ -287,7 +300,12 @@ export class HeuristicCorpAI implements Agent {
           const holdsAgenda = server.root.some(c => type(c) === 'agenda' || c.advancementCounters > 0);
           const holdsAsset = server.root.some(c => type(c) === 'asset');
           if (holdsAgenda) need = server.ice.length < 2 ? 7 : 3;
-          else if (holdsAsset) need = server.ice.length === 0 ? 1.5 : 0.2;
+          else if (holdsAsset) {
+            need = server.ice.length === 0 ? 1.5 : 0.2;
+            // Deck-aware AI: one cheap ice sells a trap as an agenda
+            const trap = server.root.some(c => !c.isRezzed && isTrap(c.cardCode));
+            if (this.synergy && trap && server.ice.length === 0 && (cardDef(card).cost ?? 0) <= 3) need += 0.6;
+          }
           else need = agendasInHand > 0 ? (server.ice.length < 2 ? 3 : 1) : 0.3;
         } else if (server.id === 'archives') {
           need = server.ice.length === 0 && corp.archives.faceDown.length > 0 ? 1.2 : -0.5;
@@ -325,7 +343,9 @@ export class HeuristicCorpAI implements Agent {
         // Traps and Clearinghouse: bluff in a new remote, or an empty protected one
         if (!server) return remotes.length >= 4 ? 0.2 : 1.2;
         if (server.root.some(isAgendaOrAsset)) return -Infinity;
-        return server.ice.length > 0 && agendasInHand === 0 ? 1.8 : 0.5;
+        // Deck-aware AI: a trap behind ice looks like the real thing
+        const sell = this.synergy && isTrap(card.cardCode) && server.ice.length > 0 ? 0.5 : 0;
+        return (server.ice.length > 0 && agendasInHand === 0 ? 1.8 : 0.5) + sell;
       }
       case 'upgrade': {
         const values = UPGRADES[card.cardCode] ?? [1, 0.5];
