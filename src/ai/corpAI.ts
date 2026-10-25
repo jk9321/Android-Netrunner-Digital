@@ -6,7 +6,7 @@ import { Agent, ScoredAction } from './agent';
 import { evaluate } from './evaluate';
 import { answerPrompt, simulate } from './prompts';
 import { logNudge, nudge, opponentLean, tuning } from './synergy';
-import { isTrap } from './runs';
+import { iceCost, isTrap } from './runs';
 import { cardSynergy } from './synergyTags';
 
 const FREE_ACTION_LIMIT = 6;
@@ -486,16 +486,12 @@ function iceFit(state: GameState, ice: CardInstance, server: ServerState | null,
 }
 
 /**
- * Layers of ice on a server as the Runner sees them: rezzed ice their rig
- * can already break counts half (it still costs them credits), anything
- * else counts in full.
+ * Layers of ice on a server as the Runner sees them: rezzed ice counts by
+ * what it costs them to get through (1 credit or less: not there at all,
+ * 3 or more: a full layer); unrezzed ice counts in full.
  */
 function iceDepth(state: GameState, server: ServerState): number {
-  const { covered, anyBreakers } = rigCoverage(state.runner.rig.programs);
-  return server.ice.reduce((n, ice) => {
-    const broken = ice.isRezzed && (anyBreakers > 0 || iceSubtypes(ice, state).some(t => covered.has(t)));
-    return n + (broken ? 0.5 : 1);
-  }, 0);
+  return server.ice.reduce((n, ice) => n + (ice.isRezzed ? Math.min(1, Math.max(0, (iceCost(state, ice) - 1) / 2)) : 1), 0);
 }
 
 /**

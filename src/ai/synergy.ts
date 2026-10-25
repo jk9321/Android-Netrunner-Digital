@@ -77,13 +77,15 @@ export const tuning = {
      * vs the old Corp (round 2 alone was -15). Leaving one out: rez money
      * was worth +22, agenda timing +27, central ice -12 (HQ steals rose; a
      * variant that keeps HQ's ice need was -8 vs no change: noise, kept as
-     * the more human rule).
+     * the more human rule). HQ order (first HQ ice once R&D has one): +53.
+     * Ice depth: as half a layer for breakable ice -25 (dropped); by the
+     * Runner's cost to get through (v2) -5 vs without it, kept (noise).
      */
     /** Corp (round 3): keep credits to rez ice on two key servers (R&D, an agenda remote, HQ holding agendas). */
     rezMoney: true,
     /** Corp (round 3): ice R&D first, then HQ; more HQ ice only while it holds agendas. */
     centralIce: true,
-    /** Corp (round 3): ice the Runner already breaks counts as half a layer; servers they keep getting into want more. */
+    /** Corp (round 3): ice counts by what it costs the Runner to get through (free: not there); servers they keep getting into want more. */
     iceDepth: true,
     /** Corp (round 3): no half-advanced agendas: advance only when it can be scored next turn behind ice it can rez. */
     agendaTiming: true,
