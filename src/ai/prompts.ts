@@ -1,6 +1,6 @@
 import { CardInstance, GameAction, GameState, Prompt, SideCode, activePrompt, cardDef, executeAction, getLegalActions } from '../core';
 import { evaluate, keepValue } from './evaluate';
-import { RunOptions, RunnerMemory, isTrap, runScore, serverValue } from './runs';
+import { RunOptions, RunnerMemory, iceCost, isTrap, runScore, serverValue } from './runs';
 import { keepBonus, tuning } from './synergy';
 
 /** Applies an action, or returns null if the engine rejects it. */
@@ -93,6 +93,11 @@ export function answerPrompt(state: GameState, side: SideCode, memory?: RunnerMe
     return { ...base, choice: { kind: 'effect_cards', cardInstanceIds: untaianPick(state, prompt.candidateIds) } };
   }
 
+  // Deck-aware AI: Tāo Salonga moves the hardest ice off the servers worth attacking
+  if (synergy && side === 'runner' && tuning.plan.runnerIdentities && prompt.kind === 'effect_cards' && prompt.source.cardCode === '30019') {
+    return { ...base, choice: { kind: 'effect_cards', cardInstanceIds: taoSwap(state, memory) } };
+  }
+
   // "Any number of cards": build the answer one card at a time
   if (prompt.kind === 'effect_cards' && prompt.max - prompt.min > 2 && prompt.candidateIds.length > 4) {
     return greedyCards(state, side, prompt, base, memory, synergy);
@@ -135,6 +140,31 @@ export function untaianPick(state: GameState, candidateIds: string[]): string[] 
     }
   }
   return best && best.value >= 1 ? [best.id] : [];
+}
+
+/**
+ * Tāo Salonga: the swap of 2 installed ice that most lowers what the
+ * Runner pays to get into servers, weighted by what each server is worth
+ * running (the same values its run choices use: an agenda remote, then HQ
+ * and R&D). None if no swap saves at least about a credit on a key server.
+ */
+export function taoSwap(state: GameState, memory?: RunnerMemory): string[] {
+  const servers = Object.values(state.corp.servers).filter(s => s.ice.length > 0);
+  const weight = new Map(servers.map(s => [s.id, Math.max(0.3, serverValue(state, s.id, 0, memory, tuning.wary, tuning.plan.urgency))]));
+  const cost = (ice: CardInstance) => Math.min(8, iceCost(state, ice));
+  const placed = servers.flatMap(s => s.ice.map(ice => ({ ice, server: s.id })));
+  let best: { ids: string[]; gain: number } | null = null;
+  for (let i = 0; i < placed.length; i++) {
+    for (let j = i + 1; j < placed.length; j++) {
+      const a = placed[i];
+      const b = placed[j];
+      if (a.server === b.server) continue; // reordering one server rarely matters
+      const delta = cost(a.ice) - cost(b.ice); // a moves to b's server and back
+      const gain = delta * (weight.get(a.server)! - weight.get(b.server)!);
+      if (!best || gain > best.gain) best = { ids: [a.ice.instanceId, b.ice.instanceId], gain };
+    }
+  }
+  return best && best.gain >= 2 ? best.ids : [];
 }
 
 /** Adds the card that helps most until no card helps (and at least `min` are chosen). */

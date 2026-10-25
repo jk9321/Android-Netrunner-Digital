@@ -7,7 +7,7 @@ import { MAX_NUDGE, deckProfile, nudge, opponentProfile, tuning } from '../src/a
 import { CONDITIONS, CONDITION_PATTERNS, SYNERGY, THEMES, inferSynergy } from '../src/ai/synergyTags';
 import { newGame } from './helpers';
 import { RunnerMemory, serverValue, trapOdds } from '../src/ai/runs';
-import { untaianPick } from '../src/ai/prompts';
+import { taoSwap, untaianPick } from '../src/ai/prompts';
 
 
 describe('synergy tags', () => {
@@ -362,5 +362,22 @@ describe('identity plans', () => {
     expect(serverValue(t, 'remote-9', 0, undefined, true)).toBeGreaterThan(2);
     t.runner.grip = t.runner.grip.slice(0, 1);
     expect(serverValue(t, 'remote-9', 0, undefined, true)).toBe(0);
+  });
+
+  it('Tāo Salonga swaps the ice it cannot break off the agenda remote', () => {
+    const s = structuredClone(newGame());
+    s.runner.rig.programs = [createCardInstance(s, '30006')]; // Cleaver: barriers only
+    const sentry = createCardInstance(s, '30073'); // Tithe
+    sentry.isRezzed = true;
+    const barrier = createCardInstance(s, '30072'); // Palisade
+    barrier.isRezzed = true;
+    const agenda = createCardInstance(s, '30069');
+    agenda.advancementCounters = 2;
+    remote(s, 'remote-8', [agenda], [sentry]);
+    s.corp.servers.archives.ice = [barrier];
+    expect(new Set(taoSwap(s))).toEqual(new Set([sentry.instanceId, barrier.instanceId]));
+    // Nothing to gain: no swap
+    s.corp.servers.archives.ice = [];
+    expect(taoSwap(s)).toEqual([]);
   });
 });
