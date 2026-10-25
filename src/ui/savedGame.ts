@@ -13,6 +13,13 @@ import type { DeckList } from '../data/decks';
 
 const STORAGE_KEY = 'netrunner.savedGame.v1';
 
+/**
+ * Bump this whenever GameState (or SavedTable) changes shape in a way an
+ * older save can't be loaded into. Saves with another version are dropped
+ * rather than resumed into a game the new code can't draw.
+ */
+export const SAVE_VERSION = 1;
+
 export interface GameConfig {
   seed: number;
   corpDeck: DeckList;
@@ -31,7 +38,7 @@ export interface SavedTable {
 }
 
 export interface SavedGame {
-  version: 1;
+  version: number;
   config: GameConfig;
   state: GameState;
   table: SavedTable;
@@ -41,7 +48,7 @@ function isSavedGame(value: unknown): value is SavedGame {
   const s = value as SavedGame;
   return (
     !!s &&
-    s.version === 1 &&
+    s.version === SAVE_VERSION &&
     !!s.config &&
     Number.isInteger(s.config.seed) &&
     !!s.config.corpDeck &&
@@ -70,7 +77,7 @@ export function loadSavedGame(): SavedGame | null {
 /** Returns false when the browser would not store the game. */
 export function saveGame(game: Omit<SavedGame, 'version'>): boolean {
   try {
-    window.localStorage.setItem(STORAGE_KEY, JSON.stringify({ version: 1, ...game }));
+    window.localStorage.setItem(STORAGE_KEY, JSON.stringify({ version: SAVE_VERSION, ...game }));
     return true;
   } catch {
     return false;

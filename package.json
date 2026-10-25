@@ -9,7 +9,7 @@
     "preview": "vite preview",
     "test": "vitest run",
     "test:watch": "vitest",
-    "sync-cards": "node scripts/download-system-gateway.mjs"
+    "sync-cards": "node scripts/sync-cards.mjs"
   },
   "dependencies": {
     "clsx": "^2.1.1",

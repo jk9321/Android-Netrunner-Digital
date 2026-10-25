@@ -2,7 +2,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import { createInitialGameState } from '../src/core';
 import { playAIGame } from '../src/ai';
 import { DECKS, deckGameSetup } from '../src/data/decks';
-import { GameConfig, clearSavedGame, loadSavedGame, saveGame } from '../src/ui/savedGame';
+import { GameConfig, SAVE_VERSION, clearSavedGame, loadSavedGame, saveGame } from '../src/ui/savedGame';
 
 function fakeStorage() {
   const store: Record<string, string> = {};
@@ -56,6 +56,16 @@ describe('saved game', () => {
     saveGame({ config, state: start, table });
     expect(loadSavedGame()).not.toBeNull();
     clearSavedGame();
+    expect(loadSavedGame()).toBeNull();
+  });
+
+  it('drops saves written with another save version', () => {
+    const store = fakeStorage();
+    const start = createInitialGameState(deckGameSetup(config.seed, corpDeck, runnerDeck));
+    saveGame({ config, state: start, table });
+    const raw = JSON.parse(store['netrunner.savedGame.v1']);
+    expect(raw.version).toBe(SAVE_VERSION);
+    store['netrunner.savedGame.v1'] = JSON.stringify({ ...raw, version: SAVE_VERSION + 1 });
     expect(loadSavedGame()).toBeNull();
   });
 

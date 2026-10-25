@@ -57,12 +57,7 @@ Netrunner/
 ├── package.json
 ├── vite.config.ts
 ├── tailwind.config.js
-├── Resources/
-│   └── Cards/                          <-- Card data from NetrunnerDB (no images: card art is loaded from card-images.netrunnerdb.com at runtime)
-│       ├── System Gateway/
-│       │   └── system-gateway-cards.json
-│       └── Elevation/                  <-- In the card pool via src/data/elevation-cards.json; scripts/download-elevation.mjs
-│           └── elevation-cards.json    <-- 82 cards (codes 35001–35082)
+├── scripts/sync-cards.mjs              <-- `npm run sync-cards`: refreshes src/data/*.json (card data) from NetrunnerDB; no images (card art loads from card-images.netrunnerdb.com at runtime)
 ├── public/card-backs/                  <-- Our own corp.svg / runner.svg (NSG card art and backs are not licensed for redistribution, so none are in the repo)
 ├── src/
 │   ├── core/                           <-- Pure TypeScript Game Engine
@@ -255,3 +250,4 @@ Netrunner/
 | **2026-10-23** | Claude | Themed dialogs replace every browser `alert`/`confirm` (illegal-action errors, leave game, forfeit, delete deck): `src/ui/components/Dialog.tsx` (`showAlert`, `showConfirm` returning promises; `DialogHost` mounted in `main.tsx`). Escape or a click outside cancels, focus stays in the dialog and starts on Cancel for destructive confirms. |
 | **2026-10-24** | Claude | Play formats (`src/core/formats.ts`): Casual (any card, the default), Startup (SG + Elevation + Vantage Point, Startup Balance Update 26.05 a.k.a. NSG's 26.04, max 4 agendas worth 3+ points) and Standard (SG, Elevation, Ashes, Borealis, Liberation, Vantage Point; Standard Balance Update 26.08). `DeckList.format` / `DeckSpec.format`; `validateDeck` adds card-pool, ban-list (by title, so all printings), restricted-card and extra-rule problems. Deckbuilder has a Format picker and BANNED / NOT LEGAL badges; the picker tags decks with their format. To update after a rotation or new list, edit `FORMATS` (`node scripts/print-banlist.mjs` prints NetrunnerDB's latest lists as titles). Tests: `tests/formats.test.ts`. |
 | **2026-10-24** | Claude | Deckbuilder ban markers: cards banned or restricted in any format get a BAN / RES marker (hover lists the formats) in the card pool and deck list, and a "Banned or restricted" panel in the right column lists the deck's flagged cards and their formats (`formatStatuses` / `describeFormatStatuses` in `src/core/formats.ts`). |
+| **2026-10-25** | Claude | Bug fixes from the code health audit: crash screen (`ErrorBoundary` in `main.tsx`; "Start over" clears the saved game) and `SAVE_VERSION` in `src/ui/savedGame.ts` (bump it when GameState changes shape; saves with another version are dropped); an AI that errors, finds no move or picks an illegal one now opens a "Computer stuck" dialog (Try again / Computer concedes) instead of hanging on AI THINKING; `handleAction` applies moves to the latest state, so forfeiting after the confirm dialog no longer undoes AI moves made while it was open; the Runner's Install Card button is disabled with the engine's reason when the install is illegal; card-fate timers are cleared when a game is left; favicon (`public/favicon.svg`, was a 404). Card data: one `scripts/sync-cards.mjs` (`npm run sync-cards`) now writes `src/data/*.json` in the committed format for both sets; the old download scripts and the duplicate `Resources/` copies are removed. |

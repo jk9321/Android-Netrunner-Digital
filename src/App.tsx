@@ -2,6 +2,7 @@ import React, { useEffect, useRef, useState } from 'react';
 import {
   CardInstance,
   GameAction,
+  GameState,
   cardDef,
   createInitialGameState,
   executeAction,
@@ -197,6 +198,14 @@ function Game({
   // Cards just stolen, scored or trashed, shown briefly in the middle of the table
   const [fates, setFates] = useState<ShownFate[]>([]);
   const prevStateRef = useRef(gameState);
+  // The state as of the latest move, for actions applied after an await (a
+  // confirm dialog) when the computer may have moved in the meantime
+  const latestStateRef = useRef(gameState);
+  latestStateRef.current = gameState;
+  // Timers that end each card-fate showing, cleared if the game is left
+  const fateTimersRef = useRef(new Set<number>());
+  // Bumped to ask the computer again after it failed to move
+  const [aiRetry, setAiRetry] = useState(0);
 
   // Against the computer: the AI plays one side and the person sees their own
   // side (or everything, with Open table).
@@ -256,22 +265,31 @@ function Game({
     }));
     setFates(cur => [...cur, ...shown]);
     // Not cleared on the next change: each showing ends on its own timer
-    window.setTimeout(() => {
+    const timer = window.setTimeout(() => {
+      fateTimersRef.current.delete(timer);
       const keys = new Set(shown.map(f => f.key));
       setFates(cur => cur.filter(f => !keys.has(f.key)));
     }, FATE_SHOW_MS);
+    fateTimersRef.current.add(timer);
   }, [gameState]); // eslint-disable-line react-hooks/exhaustive-deps
 
+  useEffect(() => {
+    const timers = fateTimersRef.current;
+    return () => timers.forEach(t => window.clearTimeout(t));
+  }, []);
+
   const handleAction = (action: GameAction) => {
+    const current = latestStateRef.current;
     try {
-      const nextState = executeAction(gameState, action);
-      if (!gameState.activeRun && nextState.activeRun) setRunSerial(n => n + 1);
-      const newEntries = nextState.log.slice(gameState.log.length);
+      const nextState = executeAction(current, action);
+      latestStateRef.current = nextState;
+      if (!current.activeRun && nextState.activeRun) setRunSerial(n => n + 1);
+      const newEntries = nextState.log.slice(current.log.length);
       playForLog(newEntries);
       const newlyAccessed = newEntries
         .filter(e => e.cardCode && e.message.startsWith('Runner accessed '))
         .map(e => e.cardCode!);
-      const runStarted = !gameState.activeRun && nextState.activeRun;
+      const runStarted = !current.activeRun && nextState.activeRun;
       if (runStarted || newlyAccessed.length > 0) setAccessed(prev => [...(runStarted ? [] : prev), ...newlyAccessed]);
       setGameState(nextState);
       setSelectedCardId(null);
@@ -298,23 +316,39 @@ function Game({
     let timer: number | undefined;
     const started = Date.now();
     const window_ = aiSide === 'corp' && rezWindowOpen ? rezWindow : null;
+    // A computer that can't move would leave the game on "AI THINKING" for
+    // good, so let the person ask it again or end the game
+    const failed = async (problem: string) => {
+      console.error('AI failed to move:', problem);
+      const retry = await showConfirm(
+        `The computer couldn't make its move (${problem}). Ask it to try again, or end the game with the computer conceding?`,
+        { title: 'Computer stuck', confirmLabel: 'Try again', cancelLabel: 'Computer concedes' },
+      );
+      if (cancelled) return;
+      if (retry) setAiRetry(n => n + 1);
+      else handleAction({ type: 'CONCEDE', player: aiSide });
+    };
     const request = window_ ? ai.chooseRez(gameState, window_.cards) : ai.chooseAction(gameState);
     request
       .then(action => {
         if (cancelled) return;
         timer = window.setTimeout(() => {
           if (cancelled) return;
-          if (action) handleAction(action);
+          if (action && !isLegalAction(gameState, action)) void failed(`it chose an illegal ${action.type} move`);
+          else if (action) handleAction(action);
           else if (window_) setPassedRezWindows(keys => [...keys, window_.key]);
+          else void failed('it found no move');
         }, Math.max(0, AI_DELAY_MS - (Date.now() - started)));
       })
-      .catch(err => console.error('AI failed to move', err));
+      .catch(err => {
+        if (!cancelled) void failed(err instanceof Error ? err.message : String(err));
+      });
     return () => {
       cancelled = true;
       window.clearTimeout(timer);
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [gameState, acting, rezWindowOpen]);
+  }, [gameState, acting, rezWindowOpen, aiRetry]);
 
   const zoneView: { title: string; groups: ZoneGroup[] } | null =
     zone === 'archives'
@@ -398,6 +432,12 @@ function Game({
       </button>
     );
   };
+
+  // Why the selected grip card can't be installed now (shown on the disabled Install button), or null if it can
+  const installBlocked =
+    selectedCardId && selectedCard && !selectedIsPlayable && cardDef(selectedCard).side_code === 'runner'
+      ? illegalReason(gameState, { type: 'INSTALL_CARD', player: 'runner', cardInstanceId: selectedCardId })
+      : null;
 
   // What each icebreaker breaks (AI breakers: everything), matched against the icons on ice
   const breakerTypes = (card: CardInstance): IceSubtype[] => {
@@ -992,7 +1032,9 @@ function Game({
                         cardInstanceId: selectedCardId,
                       });
                     }}
-                    className="px-2 py-1 bg-cyber-neonPink hover:bg-pink-600 text-white text-xs font-bold rounded-lg transition-all flex items-center gap-1.5 shadow-lg animate-pulse"
+                    disabled={installBlocked !== null}
+                    title={installBlocked ?? undefined}
+                    className="px-2 py-1 bg-cyber-neonPink hover:bg-pink-600 text-white text-xs font-bold rounded-lg transition-all flex items-center gap-1.5 shadow-lg animate-pulse disabled:opacity-40 disabled:animate-none"
                   >
                     <Plus className="w-3.5 h-3.5" /> Install Card
                   </button>
@@ -1129,6 +1171,16 @@ function Game({
       />
     </div>
   );
+}
+
+/** The engine's reason an action is illegal right now, or null if it is legal. */
+function illegalReason(state: GameState, action: GameAction): string | null {
+  try {
+    executeAction(state, action);
+    return null;
+  } catch (err) {
+    return err instanceof Error ? err.message : 'Illegal action';
+  }
 }
 
 /** Runner play and install actions for cards hosted faceup on hardware (Bling, Madani), not in the grip. */
