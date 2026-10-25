@@ -362,13 +362,15 @@ export class HeuristicCorpAI implements Agent {
     switch (type(card)) {
       case 'ice': {
         const installCost = server ? server.ice.length : 0;
+        // Deck-aware AI: ice the Runner already breaks counts as half a layer
+        const depth = server && this.synergy && tuning.plan.iceDepth ? iceDepth(state, server) : server?.ice.length ?? 0;
         let need: number;
         if (!server) need = agendasInHand > 0 && !protectedEmptyRemote ? 5 : -1;
         else if (server.isRemote) {
           const holdsAgenda = server.root.some(c => type(c) === 'agenda' || c.advancementCounters > 0);
           const holdsAsset = server.root.some(c => type(c) === 'asset');
           if (holdsAgenda) {
-            need = server.ice.length < 2 ? 7 : 3;
+            need = depth < 2 ? 7 : 3;
             // Deck-aware AI: guard a key agenda (more points, or one that would win them the game) harder
             const agenda = server.root.find(c => type(c) === 'agenda');
             if (this.synergy && tuning.plan.agendaStakes && agenda) need *= 0.7 + 0.15 * agendaStakes(state, agenda);
@@ -379,16 +381,22 @@ export class HeuristicCorpAI implements Agent {
             const trap = server.root.some(c => !c.isRezzed && isTrap(c.cardCode));
             if (this.synergy && tuning.bluff && trap && server.ice.length === 0 && (cardDef(card).cost ?? 0) <= 3) need += 0.6;
           }
-          else need = agendasInHand > 0 ? (server.ice.length < 2 ? 3 : 1) : 0.3;
+          else need = agendasInHand > 0 ? (depth < 2 ? 3 : 1) : 0.3;
         } else if (server.id === 'archives') {
           need = server.ice.length === 0 && corp.archives.faceDown.length > 0 ? 1.2 : -0.5;
         } else {
-          need = (server.ice.length === 0 ? 4 : server.ice.length === 1 ? 2 : 0.6) + (server.id === 'rd' ? 0.3 : 0);
+          need = (depth <= 1 ? 4 - 2 * depth : Math.max(0.6, 2 - 1.4 * (depth - 1))) + (server.id === 'rd' ? 0.3 : 0);
           if (this.synergy && tuning.plan.centralIce) {
             // Deck-aware AI: R&D always holds agendas; HQ only matters while it does
             if (server.id === 'rd') need += 0.4;
-            else if (agendasInHand === 0) need -= server.ice.length === 0 ? 1.5 : 0.8;
+            // ...but HQ still gets its first ice once R&D has one
+            else if (agendasInHand === 0) need -= server.ice.length === 0 ? (corp.servers.rd.ice.length > 0 ? 0 : 1.5) : 0.8;
           }
+        }
+        // Deck-aware AI: a server the Runner keeps getting into needs another layer
+        if (server && this.synergy && tuning.plan.iceDepth) {
+          const breaches = state.runnerLastTurnRuns.filter(r => r.server === server.id && r.successful).length;
+          need += Math.min(1, 0.5 * breaches);
         }
         const rezCost = cardDef(card).cost ?? 0;
         const strength = cardDef(card).strength ?? 0;
@@ -475,6 +483,19 @@ function iceFit(state: GameState, ice: CardInstance, server: ServerState | null,
   }
   if (server.ice.length > 0 && server.ice.some(other => iceSubtypes(other, state).some(t => types.includes(t)))) fit -= 0.4;
   return fit;
+}
+
+/**
+ * Layers of ice on a server as the Runner sees them: rezzed ice their rig
+ * can already break counts half (it still costs them credits), anything
+ * else counts in full.
+ */
+function iceDepth(state: GameState, server: ServerState): number {
+  const { covered, anyBreakers } = rigCoverage(state.runner.rig.programs);
+  return server.ice.reduce((n, ice) => {
+    const broken = ice.isRezzed && (anyBreakers > 0 || iceSubtypes(ice, state).some(t => covered.has(t)));
+    return n + (broken ? 0.5 : 1);
+  }, 0);
 }
 
 /**

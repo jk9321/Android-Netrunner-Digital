@@ -304,4 +304,23 @@ describe('planning (setup scoring)', () => {
     // Short of the reserve, a credit is worth a little more to the round 3 Corp
     expect(credit(new HeuristicCorpAI())).toBeGreaterThan(credit(new HeuristicCorpAI({ synergy: false })));
   });
+
+  it('adds a layer where the Runner already breaks the ice', () => {
+    const s = structuredClone(newGame());
+    const palisade = createCardInstance(s, '30072'); // a barrier
+    palisade.isRezzed = true;
+    s.corp.servers.rd.ice = [palisade];
+    const ice = createCardInstance(s, '30073'); // Tithe
+    s.corp.hq = [ice];
+    s.corp.credits = 8;
+    const score = () =>
+      new HeuristicCorpAI().rankMainActions(s).find(r => r.action.type === 'INSTALL_CARD' && r.action.targetServerId === 'rd')!.score;
+    const unbroken = score();
+    s.runner.rig.programs = [createCardInstance(s, '30006')]; // Cleaver breaks barriers
+    const broken = score();
+    tuning.plan.iceDepth = false;
+    const plain = score();
+    tuning.plan.iceDepth = true;
+    expect(broken - unbroken).toBeGreaterThan(plain - unbroken + 0.5);
+  });
 });
