@@ -72,6 +72,13 @@ export const tuning = {
     icePlacement: true,
     /** Corp: guard agendas by their stakes (points, a winning steal, counters), HQ while it holds them. */
     agendaStakes: true,
+    /*
+     * Round 3 batches (1,105 deals, Corp only, 2026-10-25): all on +46 games
+     * vs the old Corp (round 2 alone was -15). Leaving one out: rez money
+     * was worth +22, agenda timing +27, central ice -12 (HQ steals rose; a
+     * variant that keeps HQ's ice need was -8 vs no change: noise, kept as
+     * the more human rule).
+     */
     /** Corp (round 3): keep credits to rez ice on two key servers (R&D, an agenda remote, HQ holding agendas). */
     rezMoney: true,
     /** Corp (round 3): ice R&D first; HQ only while it holds agendas. */
