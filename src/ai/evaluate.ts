@@ -3,6 +3,7 @@ import { breakerScript, iceSubtypes, isIcebreaker } from '../core/engine/ice';
 import { counters } from '../core/engine/cardEffects';
 import { cardSynergy } from './synergyTags';
 import { tuning } from './synergy';
+import { corpKeepValue, runnerCardValue } from './cardValues';
 
 /**
  * Board evaluation shared by both AIs, in "credit" units: a credit is worth
@@ -26,30 +27,6 @@ export function handValue(size: number, limit: number): number {
   return value;
 }
 
-// Rough worth of an installed Runner card beyond icebreaker coverage (by card code).
-const RUNNER_CARD_VALUE: Record<string, number> = {
-  '30003': 3, // Carnivore
-  '30004': 2, // Botulus
-  '30007': 1, // Fermenter (its counters count too)
-  '30008': 2.5, // Leech
-  '30009': 0.5, // Cookbook
-  '30013': 2.5, // Docklands Pass
-  '30014': 3.5, // Pennyshaver
-  '30017': 2.5, // Tranquilizer
-  '30018': 1, // Red Team (hosted credits count too)
-  '30022': 2.5, // DZMZ Optimizer
-  '30023': 2.5, // Pantograph
-  '30024': 4, // Conduit
-  '30027': 1.5, // Telework Contract
-  '30031': 2, // T400 Memory Diamond
-  '30033': 2.5, // Smartware Distributor
-  '30034': 3.5, // Verbal Plasticity
-  '35010': 4, // Cacophony
-  '35006': 3.5, // Bling
-  '35018': 3.5, // Detente
-  '35022': 2.5, // Open Market
-  '35034': 2.5, // Side Hustle
-};
 
 /** Icebreaker coverage: each ice subtype the rig can break is worth a lot. */
 export function rigCoverage(cards: CardInstance[]): { covered: Set<string>; anyBreakers: number } {
@@ -94,7 +71,7 @@ function runnerRigValue(state: GameState, aware = false): number {
   const { covered, anyBreakers } = rigCoverage(rig.programs);
   let value = [...covered].reduce((n, t) => n + coverageValue(state, t, aware), 0) + (anyBreakers > 0 ? 2 : 0);
   for (const card of cards) {
-    value += isIcebreaker(card) ? 2 : 2 * (RUNNER_CARD_VALUE[card.cardCode] ?? 2);
+    value += isIcebreaker(card) ? 2 : 2 * runnerCardValue(card.cardCode);
     value += counters(card, 'credit') * (card.cardCode === '30033' ? 0.25 : 0.6); // Smartware pays out 1 a turn
     value += counters(card, 'virus') * (card.cardCode === '30007' ? 1.5 : 0.7);
     value += (card.hostedCards?.length ?? 0) * 0.8; // Bling, Madani: cards to play later
@@ -102,30 +79,12 @@ function runnerRigValue(state: GameState, aware = false): number {
   return value;
 }
 
-// Corp cards the Runner would like to trash, and the Corp would like to keep (by card code).
-const CORP_CARD_VALUE: Record<string, number> = {
-  '30037': 5, // Nico Campaign
-  '30071': 6, // Regolith Mining License
-  '30053': 2, // Spin Doctor
-  '30042': 4, // Manegarm Skunkworks
-  '30050': 3, // Anoetic Void
-  '30058': 2, // AMAZE Amusements
-  '30066': 2, // Malapert Data Vault
-  '35072': 5, // Anthill Excavation Contract
-  '35040': 4, // Otto Campaign
-  '35062': 3, // Public Access Plaza
-  '35039': 3, // Humanoid Resources
-  '35082': 3, // Mahkota Langit Grid
-  '35056': 2, // Mitra Aman
-  '35045': 2, // Mercia B4LL4RD
-  '35051': 2, // Phật Gioan Baotixita
-};
 
 /** Worth of an installed Corp root card (assets and upgrades). */
 export function corpCardValue(card: CardInstance): number {
   const hosted = counters(card, 'credit');
   if (card.isRezzed && hosted > 0) return 1 + hosted * 0.6;
-  return CORP_CARD_VALUE[card.cardCode] ?? 1;
+  return corpKeepValue(card.cardCode);
 }
 
 function corpBoardValue(state: GameState): number {
@@ -213,7 +172,7 @@ export function keepValue(state: GameState, card: CardInstance, aware = false): 
       case 'operation':
         return /gain \d+/i.test(def.stripped_text ?? '') ? 2.5 : 1.5;
       case 'asset':
-        return CORP_CARD_VALUE[card.cardCode] ? 2.5 : 1.5;
+        return corpKeepValue(card.cardCode) > 1 ? 2.5 : 1.5;
       default:
         return 1.2;
     }
@@ -228,5 +187,5 @@ export function keepValue(state: GameState, card: CardInstance, aware = false): 
     return 0.2;
   }
   if (def.type_code === 'event') return /gain \d+/i.test(def.stripped_text ?? '') ? 3 : 2;
-  return 2 + (RUNNER_CARD_VALUE[card.cardCode] ?? 2) * 0.3;
+  return 2 + runnerCardValue(card.cardCode) * 0.3;
 }

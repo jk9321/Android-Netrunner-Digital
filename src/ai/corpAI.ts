@@ -8,27 +8,8 @@ import { answerPrompt, simulate } from './prompts';
 import { logNudge, nudge, opponentLean, tuning } from './synergy';
 import { iceCost, isTrap } from './runs';
 import { cardSynergy } from './synergyTags';
+import { econValue, upgradeValue } from './cardValues';
 
-// Assets worth installing in their own remote and rezzing for money or cards (by code).
-const ECON_ASSETS: Record<string, number> = {
-  '30071': 4, // Regolith Mining License
-  '30037': 3.5, // Nico Campaign
-  '30053': 1.5, // Spin Doctor
-  '35072': 4, // Anthill Excavation Contract
-  '35040': 3.5, // Otto Campaign
-  '35062': 2.5, // Public Access Plaza
-  '35039': 2, // Humanoid Resources
-};
-// Upgrades: [value in a scoring remote, value on HQ or R&D]
-const UPGRADES: Record<string, [number, number]> = {
-  '30042': [2.5, 2], // Manegarm Skunkworks
-  '30050': [1.5, 0.8], // Anoetic Void
-  '30058': [1.5, 0], // AMAZE Amusements
-  '30066': [1.5, 0], // Malapert Data Vault
-  '35082': [2, 0.5], // Mahkota Langit Grid
-  '35056': [1.5, 1.2], // Mitra Aman
-  '35045': [1, 1], // Mercia B4LL4RD
-};
 
 const type = (card: CardInstance) => cardDef(card).type_code;
 const hasEndTheRun = (ice: CardInstance) => (iceScript(ice)?.subroutines ?? []).some(s => /end the run/i.test(s.label));
@@ -182,7 +163,7 @@ export class HeuristicCorpAI implements Agent {
   /** Worth of rezzing a card in a server's root on the Corp's own turn. */
   private rezValue(state: GameState, card: CardInstance): number {
     const corp = state.corp;
-    if (ECON_ASSETS[card.cardCode]) return ECON_ASSETS[card.cardCode] + 1;
+    if (econValue(card.cardCode)) return econValue(card.cardCode)! + 1;
     if (card.cardCode === '30061') return 1; // Clearinghouse must be rezzed to fire
     // Elevation cards whose effects need them rezzed
     switch (card.cardCode) {
@@ -467,7 +448,7 @@ export class HeuristicCorpAI implements Agent {
         return guarded === 0 ? -2 : 8 + Math.min(guarded, 3) * 0.6;
       }
       case 'asset': {
-        const econ = ECON_ASSETS[card.cardCode];
+        const econ = econValue(card.cardCode);
         if (econ !== undefined) {
           if (server) return -1;
           const rezCost = cardDef(card).cost ?? 0;
@@ -485,7 +466,7 @@ export class HeuristicCorpAI implements Agent {
         return (server.ice.length > 0 && agendasInHand === 0 ? 1.8 : 0.5) + sell;
       }
       case 'upgrade': {
-        const values = UPGRADES[card.cardCode] ?? [1, 0.5];
+        const values = upgradeValue(card.cardCode);
         if (!server) return -1;
         if (server.root.some(c => c.cardCode === card.cardCode)) return -Infinity;
         const value = server.isRemote ? (server.ice.length > 0 ? values[0] : -0.5) : server.id === 'archives' ? -1 : values[1];
@@ -576,7 +557,7 @@ function serverImportance(state: GameState, server: ServerState | undefined, awa
   if (server.id === 'rd') return 4;
   if (server.id === 'archives') return state.corp.archives.faceDown.some(c => type(c) === 'agenda') ? 6 : 0.5;
   if (server.root.some(c => c.advancementCounters > 0)) return 1; // a trap: let them in
-  if (server.root.some(c => c.isRezzed && ECON_ASSETS[c.cardCode])) return 3;
+  if (server.root.some(c => c.isRezzed && econValue(c.cardCode))) return 3;
   return server.root.length > 0 ? 2 : 0.5;
 }
 
