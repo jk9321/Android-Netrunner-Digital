@@ -515,7 +515,7 @@ function iceFit(state: GameState, ice: CardInstance, server: ServerState | null,
  * The scoring remote: the remote with the most ice that isn't holding a
  * money asset or trap (null with no iced remote).
  */
-function mainRemote(state: GameState): ServerState | null {
+export function mainRemote(state: GameState): ServerState | null {
   let best: ServerState | null = null;
   for (const server of Object.values(state.corp.servers)) {
     if (!server.isRemote || server.ice.length === 0 || server.root.some(c => type(c) === 'asset')) continue;
@@ -529,7 +529,7 @@ function mainRemote(state: GameState): ServerState | null {
  * what it costs them to get through (1 credit or less: not there at all,
  * 3 or more: a full layer); unrezzed ice counts in full.
  */
-function iceDepth(state: GameState, server: ServerState): number {
+export function iceDepth(state: GameState, server: ServerState): number {
   return server.ice.reduce((n, ice) => n + (ice.isRezzed ? Math.min(1, Math.max(0, (iceCost(state, ice) - 1) / 2)) : 1), 0);
 }
 
@@ -582,7 +582,7 @@ function guards(state: GameState, server: ServerState, credits: number): number 
  * Credits to keep back so every remote holding an agenda has at least one
  * piece of ice the Corp can rez when the Runner comes in.
  */
-function rezReserve(state: GameState, wide = false): number {
+export function rezReserve(state: GameState, wide = false): number {
   const needs: number[] = [];
   const hqAgendas = state.corp.hq.some(c => type(c) === 'agenda');
   for (const server of Object.values(state.corp.servers)) {
