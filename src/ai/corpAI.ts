@@ -4,6 +4,7 @@ import { counters, rezCost } from '../core/engine/cardEffects';
 import { Agent, ScoredAction } from './agent';
 import { evaluate } from './evaluate';
 import { answerPrompt, simulate } from './prompts';
+import { logNudge, nudge, opponentLean, tuning } from './synergy';
 
 const FREE_ACTION_LIMIT = 6;
 
@@ -31,6 +32,15 @@ const UPGRADES: Record<string, [number, number]> = {
 const type = (card: CardInstance) => cardDef(card).type_code;
 const hasEndTheRun = (ice: CardInstance) => (iceScript(ice)?.subroutines ?? []).some(s => /end the run/i.test(s.label));
 const isAgendaOrAsset = (card: CardInstance) => ['agenda', 'asset'].includes(type(card));
+/** "Dividends N": agenda counters per advancement counter beyond the requirement (0: none). */
+const dividends = (card: CardInstance) => Number(/dividends (\d+)/i.exec(cardDef(card).stripped_text ?? '')?.[1] ?? 0);
+
+export interface HeuristicOptions {
+  /** Deck-aware nudges and opponent reading (synergy.ts). Off: the AI as it was before them. */
+  synergy?: boolean;
+  /** Log each move's synergy reasons to the console. */
+  debug?: boolean;
+}
 
 /**
  * Rule-based Corp: builds money, ices its centrals, sets up a remote with
@@ -40,13 +50,21 @@ export class HeuristicCorpAI implements Agent {
   readonly side = 'corp' as const;
   private freeActions = 0;
   private freeKey = '';
+  readonly synergy: boolean;
+  private debug: boolean;
+
+  constructor(options: HeuristicOptions = {}) {
+    this.synergy = options.synergy ?? true;
+    this.debug = options.debug ?? false;
+  }
 
   chooseAction(state: GameState): GameAction {
-    if (activePrompt(state)) return answerPrompt(state, 'corp');
+    if (activePrompt(state)) return answerPrompt(state, 'corp', undefined, this.synergy);
     const legal = getLegalActions(state, 'corp');
     const ranked = this.rankMainActions(state, legal);
     const chosen = ranked[0]?.score > -Infinity ? ranked[0].action : legal.find(a => a.type === 'END_TURN') ?? legal[0];
     this.notePlayed(chosen);
+    if (this.debug) logNudge(state, 'corp', chosen);
     return chosen;
   }
 
@@ -63,7 +81,14 @@ export class HeuristicCorpAI implements Agent {
       this.freeActions = 0;
     }
     const before = evaluate(state, 'corp');
-    return legal.map(action => ({ action, score: this.score(state, action, before) })).sort((a, b) => b.score - a.score);
+    return legal
+      .map(action => {
+        let score = this.score(state, action, before);
+        // Deck-aware nudge: small, and only for moves the AI would consider anyway
+        if (this.synergy && Number.isFinite(score) && score < 40 && action.type !== 'END_TURN') score += nudge(state, 'corp', action).bonus;
+        return { action, score };
+      })
+      .sort((a, b) => b.score - a.score);
   }
 
   chooseRez(state: GameState, cards: CardInstance[]): GameAction | null {
@@ -111,13 +136,15 @@ export class HeuristicCorpAI implements Agent {
       case 'END_TURN':
         return -0.5;
       case 'SCORE_AGENDA':
-        return 100;
+        // Dividends: put spare clicks into the agenda first (scoring stays possible all turn)
+        return this.synergy && this.overAdvance(state, action.cardInstanceId) ? 5 : 100;
       case 'PURGE_VIRUS': {
         const viruses = [...state.runner.rig.programs, ...state.runner.rig.hardware, ...state.runner.rig.resources].reduce(
           (n, c) => n + counters(c, 'virus'),
           0
         );
-        return viruses - 3.5;
+        // Against a virus deck, purge a little sooner
+        return viruses - 3.5 + (this.synergy ? opponentLean(state, 'corp', 'virus') : 0);
       }
       case 'ADVANCE_CARD': {
         const score = this.advanceScore(state, action.cardInstanceId, action.serverId);
@@ -169,7 +196,7 @@ export class HeuristicCorpAI implements Agent {
     // Follow our own prompts (Predictive Planogram, Seamless Launch) a few steps.
     let resolved = after;
     for (let i = 0; i < 3 && activePrompt(resolved)?.side === 'corp'; i++) {
-      const next = simulate(resolved, answerPrompt(resolved, 'corp'));
+      const next = simulate(resolved, answerPrompt(resolved, 'corp', undefined, this.synergy));
       if (!next) break;
       resolved = next;
     }
@@ -218,7 +245,7 @@ export class HeuristicCorpAI implements Agent {
     const def = cardDef(card);
     if (def.type_code === 'agenda') {
       const need = (def.advancement_cost ?? 0) - card.advancementCounters;
-      if (need <= 0) return -Infinity;
+      if (need <= 0) return this.synergy && this.overAdvance(state, card.instanceId) ? 6 + 1.5 * dividends(card) : -Infinity;
       if (need <= corp.clicks && need <= corp.credits) return 40 + card.advancementCounters;
       // Can't finish this turn: build counters only behind ice we can rez
       return guards(state, server, corp.credits - 1) > 0 ? 3 + 0.5 * card.advancementCounters : -Infinity;
@@ -230,6 +257,18 @@ export class HeuristicCorpAI implements Agent {
     // Pharos: +5 strength at 3 counters; Syailendra: places counters when encountered at 3
     if (card.cardCode === '35076' && card.advancementCounters < 3 && corp.credits >= 4) return 0.8;
     return card.cardCode === '30063' && card.advancementCounters < 3 && corp.credits >= 8 ? 1 : -Infinity;
+  }
+
+  /**
+   * A scoreable Dividends agenda the Corp can still advance this turn: each
+   * extra counter becomes agenda counters when it is scored.
+   */
+  private overAdvance(state: GameState, cardId: string): boolean {
+    const corp = state.corp;
+    const card = Object.values(corp.servers).flatMap(s => s.root).find(c => c.instanceId === cardId);
+    if (!tuning.dividends || !card || type(card) !== 'agenda' || dividends(card) === 0) return false;
+    const excess = card.advancementCounters - (cardDef(card).advancement_cost ?? 0);
+    return excess >= 0 && excess < 2 && corp.clicks >= 1 && corp.credits >= 1 + rezReserve(state);
   }
 
   private installScore(state: GameState, card: CardInstance, server: ServerState | null): number {

@@ -1,11 +1,14 @@
 import { CardInstance, GameAction, GameState, SideCode } from '../core';
-import { Difficulty, createAgent } from './index';
+import { Difficulty, createAgent, setSynergyDebug } from './index';
 import type { AIRequest, AIResponse } from './worker';
 
 /**
  * The game's handle on the computer player: asks a background worker for
  * moves, or (where workers aren't available) computes them in place.
  */
+/** `?aidebug` in the address: log why the computer made each move (browser console). */
+const aiDebug = () => typeof location !== 'undefined' && new URLSearchParams(location.search).has('aidebug');
+
 type Question = { type: 'action'; state: GameState } | { type: 'rez'; state: GameState; cards: CardInstance[] };
 
 export class AIClient {
@@ -31,7 +34,7 @@ export class AIClient {
         console.error('AI worker failed; the computer will think on the main thread', e);
         this.fallBackToLocal();
       };
-      this.worker.postMessage({ type: 'init', side, difficulty } satisfies AIRequest);
+      this.worker.postMessage({ type: 'init', side, difficulty, debug: aiDebug() } satisfies AIRequest);
     } catch {
       this.fallBackToLocal();
     }
@@ -40,7 +43,8 @@ export class AIClient {
   private fallBackToLocal() {
     this.worker?.terminate();
     this.worker = null;
-    this.local ??= createAgent(this.side, this.difficulty);
+    setSynergyDebug(aiDebug());
+    this.local ??= createAgent(this.side, this.difficulty, { debug: aiDebug() });
     const waiting = [...this.pending.values()];
     this.pending.clear();
     for (const { msg, resolve } of waiting) {

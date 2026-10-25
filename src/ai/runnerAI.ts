@@ -4,6 +4,8 @@ import { availableCredits } from '../core/engine/cardEffects';
 import { Agent, ScoredAction } from './agent';
 import { evaluate, rigCoverage } from './evaluate';
 import { answerPrompt, runEventOptions, simulate } from './prompts';
+import type { HeuristicOptions } from './corpAI';
+import { logNudge, nudge } from './synergy';
 import { RunnerMemory, bestBreakPlan, iceCost, needsBiggerHand, runScore, subroutineCost } from './runs';
 
 const TROJANS = ['30004', '30017']; // Botulus, Tranquilizer
@@ -21,10 +23,17 @@ export class HeuristicRunnerAI implements Agent {
   private freeKey = '';
   private memory: RunnerMemory = new Map();
   private digForBreakers = false;
+  readonly synergy: boolean;
+  private debug: boolean;
+
+  constructor(options: HeuristicOptions = {}) {
+    this.synergy = options.synergy ?? true;
+    this.debug = options.debug ?? false;
+  }
 
   chooseAction(state: GameState): GameAction {
     this.remember(state);
-    if (activePrompt(state)) return answerPrompt(state, 'runner', this.memory);
+    if (activePrompt(state)) return answerPrompt(state, 'runner', this.memory, this.synergy);
     const legal = getLegalActions(state, 'runner');
     if (state.activeRun) return this.runAction(state, legal) ?? legal[0];
     return this.mainAction(state, legal);
@@ -108,6 +117,7 @@ export class HeuristicRunnerAI implements Agent {
     const ranked = this.rankMainActions(state, legal);
     const chosen = ranked[0]?.score > -Infinity ? ranked[0].action : legal.find(a => a.type === 'END_TURN') ?? legal[0];
     this.notePlayed(chosen);
+    if (this.debug) logNudge(state, 'runner', chosen);
     return chosen;
   }
 
@@ -128,7 +138,14 @@ export class HeuristicRunnerAI implements Agent {
     this.digForBreakers =
       rigCoverage(state.runner.rig.programs).covered.size < 3 &&
       !legal.some(a => a.type === 'INITIATE_RUN' && runScore(state, a.targetServerId, { memory: this.memory }) > 0);
-    return legal.map(action => ({ action, score: this.scoreMain(state, action, before) })).sort((a, b) => b.score - a.score);
+    return legal
+      .map(action => {
+        let score = this.scoreMain(state, action, before);
+        // Deck-aware nudge: small, and only for moves the AI would consider anyway
+        if (this.synergy && Number.isFinite(score) && action.type !== 'END_TURN') score += nudge(state, 'runner', action).bonus;
+        return { action, score };
+      })
+      .sort((a, b) => b.score - a.score);
   }
 
   /** Cards seen so far (for the search AI's guesses about hidden cards). */
@@ -171,7 +188,7 @@ export class HeuristicRunnerAI implements Agent {
     // Follow our own prompts (Lie Low, Scrounge, Madani) a few steps
     let resolved = after;
     for (let i = 0; i < 3 && activePrompt(resolved)?.side === 'runner'; i++) {
-      const next = simulate(resolved, answerPrompt(resolved, 'runner', this.memory));
+      const next = simulate(resolved, answerPrompt(resolved, 'runner', this.memory, this.synergy));
       if (!next) break;
       resolved = next;
     }

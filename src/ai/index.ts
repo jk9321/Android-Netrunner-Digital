@@ -10,13 +10,15 @@ export { HeuristicCorpAI } from './corpAI';
 export { HeuristicRunnerAI } from './runnerAI';
 export { SearchAI } from './search';
 export { GameRunner } from './playout';
+export { setSynergyDebug } from './synergy';
 
 /** Normal: the rule-based AI. Hard: the rule-based AI plus Monte Carlo look-ahead. */
 export type Difficulty = 'normal' | 'hard';
 
 export function createAgent(side: SideCode, difficulty: Difficulty = 'normal', search: Partial<SearchOptions> = {}): Agent {
   if (difficulty === 'hard') return new SearchAI(side, search);
-  return side === 'corp' ? new HeuristicCorpAI() : new HeuristicRunnerAI();
+  const options = { synergy: search.synergy, debug: search.debug };
+  return side === 'corp' ? new HeuristicCorpAI(options) : new HeuristicRunnerAI(options);
 }
 
 export interface AIGameResult {

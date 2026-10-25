@@ -1,6 +1,7 @@
 import { CardInstance, GameAction, GameState, Prompt, SideCode, activePrompt, cardDef, executeAction, getLegalActions } from '../core';
 import { evaluate, keepValue } from './evaluate';
 import { RunOptions, RunnerMemory, runScore, serverValue } from './runs';
+import { keepBonus } from './synergy';
 
 /** Applies an action, or returns null if the engine rejects it. */
 export function simulate(state: GameState, action: GameAction): GameState | null {
@@ -12,16 +13,18 @@ export function simulate(state: GameState, action: GameAction): GameState | null
 }
 
 const hand = (state: GameState, side: SideCode) => (side === 'corp' ? state.corp.hq : state.runner.grip);
-const sumKeep = (state: GameState, cards: CardInstance[]) => cards.reduce((n, c) => n + keepValue(state, c), 0);
+/** How much a side wants to keep a card, plus (deck-aware AI) how well it fits the deck's plan. */
+const keep = (state: GameState, card: CardInstance, synergy: boolean) => keepValue(state, card) + (synergy ? keepBonus(state, card) : 0);
+const sumKeep = (state: GameState, cards: CardInstance[], synergy: boolean) => cards.reduce((n, c) => n + keep(state, c, synergy), 0);
 
 /**
  * Position value after an answer, from `side`'s point of view. Beyond the
  * board evaluation it counts which cards are in hand (so the AI discards
  * its least useful cards) and, for the Runner, the run still in progress.
  */
-export function scoreOutcome(before: GameState, after: GameState, side: SideCode, memory?: RunnerMemory): number {
+export function scoreOutcome(before: GameState, after: GameState, side: SideCode, memory?: RunnerMemory, synergy = false): number {
   let score = evaluate(after, side);
-  score += 0.5 * (sumKeep(after, hand(after, side)) - sumKeep(before, hand(before, side)));
+  score += 0.5 * (sumKeep(after, hand(after, side), synergy) - sumKeep(before, hand(before, side), synergy));
   if (side === 'runner' && before.activeRun) {
     const value = serverValue(before, before.activeRun.server, 0, memory) * 0.8;
     if (after.activeRun && !after.activeRun.isJackedOut) score += value;
@@ -66,7 +69,7 @@ export function runEventOptions(cardCode: string): RunOptions {
 }
 
 /** Picks an answer to the active prompt, which belongs to `side`. */
-export function answerPrompt(state: GameState, side: SideCode, memory?: RunnerMemory): GameAction {
+export function answerPrompt(state: GameState, side: SideCode, memory?: RunnerMemory, synergy = false): GameAction {
   const prompt = activePrompt(state)!;
   const base = { type: 'RESOLVE_PROMPT' as const, player: side, promptId: prompt.id };
 
@@ -74,7 +77,7 @@ export function answerPrompt(state: GameState, side: SideCode, memory?: RunnerMe
     return { ...base, choice: { kind: 'mulligan', mulligan: mulligan(state, prompt) } };
   }
   if (prompt.kind === 'discard') {
-    const cards = [...hand(state, side)].sort((a, b) => keepValue(state, a) - keepValue(state, b));
+    const cards = [...hand(state, side)].sort((a, b) => keep(state, a, synergy) - keep(state, b, synergy));
     return { ...base, choice: { kind: 'discard', cardInstanceIds: cards.slice(0, prompt.count).map(c => c.instanceId) } };
   }
 
@@ -87,7 +90,7 @@ export function answerPrompt(state: GameState, side: SideCode, memory?: RunnerMe
 
   // "Any number of cards": build the answer one card at a time
   if (prompt.kind === 'effect_cards' && prompt.max - prompt.min > 2 && prompt.candidateIds.length > 4) {
-    return greedyCards(state, side, prompt, base, memory);
+    return greedyCards(state, side, prompt, base, memory, synergy);
   }
 
   // Everything else: try each answer and keep the best outcome.
@@ -97,7 +100,7 @@ export function answerPrompt(state: GameState, side: SideCode, memory?: RunnerMe
   for (const action of options) {
     const after = simulate(state, action);
     if (!after) continue;
-    const score = scoreOutcome(state, after, side, memory);
+    const score = scoreOutcome(state, after, side, memory, synergy);
     if (score > bestScore) {
       bestScore = score;
       best = action;
@@ -112,12 +115,13 @@ function greedyCards(
   side: SideCode,
   prompt: Extract<Prompt, { kind: 'effect_cards' }>,
   base: { type: 'RESOLVE_PROMPT'; player: SideCode; promptId: string },
-  memory?: RunnerMemory
+  memory?: RunnerMemory,
+  synergy = false
 ): GameAction {
   const answer = (ids: string[]): GameAction => ({ ...base, choice: { kind: 'effect_cards', cardInstanceIds: ids } });
   const value = (ids: string[]) => {
     const after = simulate(state, answer(ids));
-    return after ? scoreOutcome(state, after, side, memory) : -Infinity;
+    return after ? scoreOutcome(state, after, side, memory, synergy) : -Infinity;
   };
   let chosen: string[] = [];
   let current = prompt.min === 0 ? value([]) : -Infinity;

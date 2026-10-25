@@ -6,6 +6,7 @@ import { HeuristicRunnerAI } from './runnerAI';
 import { evaluate } from './evaluate';
 import { GameRunner } from './playout';
 import { RunnerMemory } from './runs';
+import { logNudge } from './synergy';
 
 /**
  * Hard AI: Monte Carlo look-ahead on top of the rule-based AI.
@@ -28,6 +29,10 @@ export interface SearchOptions {
   candidates: number;
   /** Seed for the guesses (tests); random otherwise. */
   seed?: number;
+  /** Deck-aware nudges and opponent reading, in the AI and in its look-ahead (default on). */
+  synergy?: boolean;
+  /** Log each move's synergy reasons to the console. */
+  debug?: boolean;
 }
 
 const DEFAULTS: SearchOptions = { timeMs: 1500, candidates: 4 };
@@ -107,9 +112,9 @@ export function determinize(state: GameState, side: SideCode, random: Random, me
   return s;
 }
 
-function heuristicFor(side: SideCode, memory?: RunnerMemory): Agent {
-  if (side === 'corp') return new HeuristicCorpAI();
-  const runner = new HeuristicRunnerAI();
+function heuristicFor(side: SideCode, synergy: boolean, memory?: RunnerMemory): Agent {
+  if (side === 'corp') return new HeuristicCorpAI({ synergy });
+  const runner = new HeuristicRunnerAI({ synergy });
   memory?.forEach((code, id) => runner.knownCards().set(id, code));
   return runner;
 }
@@ -119,8 +124,8 @@ function heuristicFor(side: SideCode, memory?: RunnerMemory): Agent {
  * sides until the end of the opponent's next turn, and scores the result
  * for `side`.
  */
-function playout(state: GameState, side: SideCode, first: GameAction | 'pass-rez', memory?: RunnerMemory): number {
-  const runner = new GameRunner(state, { corp: heuristicFor('corp'), runner: heuristicFor('runner', memory) });
+function playout(state: GameState, side: SideCode, first: GameAction | 'pass-rez', synergy: boolean, memory?: RunnerMemory): number {
+  const runner = new GameRunner(state, { corp: heuristicFor('corp', synergy), runner: heuristicFor('runner', synergy, memory) });
   if (first === 'pass-rez') runner.passRezWindow();
   else runner.apply(first);
 
@@ -146,8 +151,9 @@ export class SearchAI implements Agent {
 
   constructor(side: SideCode, options: Partial<SearchOptions> = {}) {
     this.side = side;
-    this.base = side === 'corp' ? new HeuristicCorpAI() : new HeuristicRunnerAI();
     this.options = { ...DEFAULTS, ...options };
+    const synergy = this.options.synergy ?? true;
+    this.base = side === 'corp' ? new HeuristicCorpAI({ synergy }) : new HeuristicRunnerAI({ synergy });
     this.random = mulberry(this.options.seed ?? Math.floor(Math.random() * 2 ** 32));
   }
 
@@ -164,6 +170,7 @@ export class SearchAI implements Agent {
     if (ranked[0].action.type === 'SCORE_AGENDA') return ranked[0].action;
     const best = this.search(state, ranked.slice(0, this.options.candidates).map(c => ({ ...c, first: c.action })), this.options.timeMs);
     this.base.notePlayed(best); // keeps the rule-based AI's loop guard in step
+    if (this.options.debug) logNudge(state, this.side, best);
     return best;
   }
 
@@ -200,7 +207,7 @@ export class SearchAI implements Agent {
       candidates.forEach((candidate, i) => {
         // The same guessed deal (and dice) for every candidate, so they're compared fairly
         const world = determinize(state, this.side, mulberry(seed), this.memory);
-        values[i].push(playout(world, this.side, candidate.first, this.memory));
+        values[i].push(playout(world, this.side, candidate.first, this.options.synergy ?? true, this.memory));
       });
       samples++;
       if (samples >= 200) break;

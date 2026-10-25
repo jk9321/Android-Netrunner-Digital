@@ -1,5 +1,5 @@
 /// <reference lib="webworker" />
-import { Agent, Difficulty, createAgent } from './index';
+import { Agent, Difficulty, createAgent, setSynergyDebug } from './index';
 import { CardInstance, GameState, SideCode } from '../core';
 
 /**
@@ -7,7 +7,7 @@ import { CardInstance, GameState, SideCode } from '../core';
  * responsive while the Hard AI thinks. One worker serves one game.
  */
 export type AIRequest =
-  | { type: 'init'; side: SideCode; difficulty: Difficulty }
+  | { type: 'init'; side: SideCode; difficulty: Difficulty; debug?: boolean }
   | { type: 'action'; id: number; state: GameState }
   | { type: 'rez'; id: number; state: GameState; cards: CardInstance[] };
 
@@ -18,7 +18,8 @@ let agent: Agent | null = null;
 self.onmessage = (event: MessageEvent<AIRequest>) => {
   const msg = event.data;
   if (msg.type === 'init') {
-    agent = createAgent(msg.side, msg.difficulty);
+    setSynergyDebug(!!msg.debug);
+    agent = createAgent(msg.side, msg.difficulty, { debug: msg.debug });
     return;
   }
   try {

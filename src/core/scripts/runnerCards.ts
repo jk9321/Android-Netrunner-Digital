@@ -183,7 +183,9 @@ const pantograph: CardScript = {
   triggers: { agenda_scored: pantographTrigger, agenda_stolen: pantographTrigger },
   onPromptAnswer: ({ state }, _source, answer) => {
     if (answer.kind !== 'effect_cards' || answer.cardInstanceIds.length === 0) return;
-    const card = state.runner.grip.find(c => c.instanceId === answer.cardInstanceIds[0])!;
+    // The card may have left the grip, or stopped being installable, since the prompt was asked
+    const card = state.runner.grip.find(c => c.instanceId === answer.cardInstanceIds[0]);
+    if (!card || runnerInstallBlocker(state, card)) return;
     installRunnerCardFrom(state, card, state.runner.grip);
   },
 };
