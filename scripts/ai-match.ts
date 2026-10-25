@@ -25,6 +25,13 @@ if (synArg !== undefined) tuning.synergy = { corp: Number(synArg), runner: Numbe
 if (ctrArg !== undefined) tuning.counter = { corp: Number(ctrArg), runner: Number(ctrArg) };
 // More knobs for ablations: KEEP=0 turns off the keep-in-hand synergy, DIVIDENDS=0 the over-advancing
 if (process.env.KEEP) tuning.keep = { corp: Number(process.env.KEEP), runner: Number(process.env.KEEP) };
+// One side's weights: CORP_SYN, CORP_CTR, CORP_KEEP, RUNNER_SYN, RUNNER_CTR, RUNNER_KEEP
+for (const side of ['corp', 'runner'] as const) {
+  const env = (k: string) => process.env[`${side.toUpperCase()}_${k}`];
+  if (env('SYN')) tuning.synergy[side] = Number(env('SYN'));
+  if (env('CTR')) tuning.counter[side] = Number(env('CTR'));
+  if (env('KEEP')) tuning.keep[side] = Number(env('KEEP'));
+}
 tuning.dividends = process.env.DIVIDENDS !== '0';
 tuning.wary = process.env.WARY !== '0';
 tuning.bluff = process.env.BLUFF !== '0';
