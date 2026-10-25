@@ -109,6 +109,8 @@ describe('Loaded credits and click abilities', () => {
   it('click abilities need the action phase, and the ability list comes from getLegalActions', () => {
     let [s, id] = runnerInstall(newGame(), C.telework);
     expect(getLegalActions(s, 'runner')).toContainEqual({ type: 'USE_ABILITY', player: 'runner', cardInstanceId: id, abilityIndex: 0 });
+    // A changed copy: legality answers are cached per state object, so a state isn't edited after it is asked about
+    s = structuredClone(s);
     s.runner.clicks = 0;
     expect(isLegalAction(s, { type: 'USE_ABILITY', player: 'runner', cardInstanceId: id, abilityIndex: 0 })).toBe(false);
   });

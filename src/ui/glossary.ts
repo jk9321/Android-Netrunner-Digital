@@ -395,6 +395,18 @@ function idFor(word: string): string | undefined {
  * in a hoverable span. Text inside tags is left alone.
  */
 export function annotateKeywords(html: string): string {
+  // Card text comes from a fixed card pool, so each text is worked out once (hover popouts ask again on every hover)
+  let annotated = annotatedCache.get(html);
+  if (annotated === undefined) {
+    annotated = annotate(html);
+    annotatedCache.set(html, annotated);
+  }
+  return annotated;
+}
+
+const annotatedCache = new Map<string, string>();
+
+function annotate(html: string): string {
   const seen = new Set<string>();
   return html
     .split(/(<[^>]+>)/)

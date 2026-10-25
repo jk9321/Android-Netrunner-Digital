@@ -54,7 +54,7 @@ export default {
         }
       },
       fontFamily: {
-        mono: ['"Share Tech Mono"', '"Fira Code"', '"Courier New"', 'monospace'],
+        mono: ['"Share Tech Mono"', '"Courier New"', 'monospace'],
         cyber: ['Orbitron', 'sans-serif'],
       }
     },

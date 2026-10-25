@@ -1,4 +1,4 @@
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import {
   CardInstance,
   GameAction,
@@ -411,9 +411,6 @@ function Game({
   };
 
   const { corp, runner, activePlayer, activeRun, winner, winReason } = gameState;
-  const discardedIds = new Set(
-    [...runner.heap, ...corp.archives.faceUp, ...corp.archives.faceDown].map(c => c.instanceId),
-  );
 
   const selectedCard = [...corp.hq, ...runner.grip].find(c => c.instanceId === selectedCardId);
   const selectedIsPlayable = selectedCard && ['operation', 'event'].includes(cardDef(selectedCard).type_code);
@@ -465,13 +462,108 @@ function Game({
   // Board cards follow the window height (--card-w in index.css); Large and Huge scale them up
   const cardScaleValue = cardScale === 'huge' ? 1.4 : cardScale === 'large' ? 1.2 : 1;
 
+  // The servers and the rig only change with the game state or who is looking, so selecting a
+  // card, opening a zone or resizing cards reuses them instead of redrawing the whole table.
+  // (Their buttons call handleAction, which always works on the latest state.)
+  const serversView = useMemo(
+    () =>
+      Object.values(corp.servers).map(server => (
+        <ServerColumn
+          key={server.id}
+          server={server}
+          activePlayer={activePlayer}
+          perspective={viewer}
+          run={activeRun?.server === server.id ? activeRun : null}
+          onInitiateRun={
+            runnerCanAct
+              ? (sId) => handleAction({ type: 'INITIATE_RUN', player: 'runner', targetServerId: sId })
+              : undefined
+          }
+          onRezCard={(cId) =>
+            handleAction({ type: 'REZ_CARD', player: 'corp', cardInstanceId: cId })
+          }
+          onAdvanceCard={(cId, sId) =>
+            handleAction({ type: 'ADVANCE_CARD', player: 'corp', cardInstanceId: cId, serverId: sId })
+          }
+          onScoreCard={(cId) =>
+            handleAction({ type: 'SCORE_AGENDA', player: 'corp', cardInstanceId: cId })
+          }
+          canRez={(card) => corpCanAct && isLegalAction(gameState, rezAction(card))}
+          canAdvance={(card) =>
+            corpCanAct &&
+            isLegalAction(gameState, { type: 'ADVANCE_CARD', player: 'corp', cardInstanceId: card.instanceId, serverId: server.id })
+          }
+          canScore={(card) =>
+            corpCanAct && isLegalAction(gameState, { type: 'SCORE_AGENDA', player: 'corp', cardInstanceId: card.instanceId })
+          }
+          onInspectCard={(card) => setInspectedCard(card)}
+          hostedOnIce={(ice) => onIce.filter(c => c.hostedOnId === ice.instanceId)}
+          iceTypes={(ice) => iceSubtypes(ice, gameState)}
+          anchor={
+            server.id === 'hq' ? (
+              <CardView card={corp.identity} size="fit" notInstalled onInspect={setInspectedCard} />
+            ) : server.id === 'rd' ? (
+              <Pile label="R&D" count={corp.rd.length} side="corp" size="fit" hideLabel testId="pile-rd" />
+            ) : server.id === 'archives' ? (
+              <Pile
+                label="Archives"
+                count={corp.archives.faceUp.length + corp.archives.faceDown.length}
+                side="corp"
+                topCard={corp.archives.faceUp[corp.archives.faceUp.length - 1]}
+                size="fit"
+                hideLabel
+                onClick={() => setZone('archives')}
+                testId="pile-archives"
+              />
+            ) : undefined
+          }
+        />
+      )),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [gameState, viewer, corpCanAct, runnerCanAct],
+  );
+  const rigView = useMemo(
+    () => (
+      <RigView
+        rig={runner.rig}
+        onInspectCard={setInspectedCard}
+        hostLabel={iceHostLabel}
+        breaks={breakerTypes}
+        aside={
+          <>
+            <CardView card={runner.identity} size="fit" notInstalled onInspect={setInspectedCard} />
+            <div />
+            <Pile label="Stack" count={runner.stack.length} side="runner" size="fit" testId="pile-stack" />
+            <Pile
+              label="Heap"
+              count={runner.heap.length}
+              side="runner"
+              topCard={runner.heap[runner.heap.length - 1]}
+              size="fit"
+              onClick={() => setZone('heap')}
+              testId="pile-heap"
+            />
+          </>
+        }
+      />
+    ),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [gameState, viewer],
+  );
+  // New only when a move changes the piles, so the hands below can skip redrawing
+  const discardedIds = useMemo(
+    () => new Set([...runner.heap, ...corp.archives.faceUp, ...corp.archives.faceDown].map(c => c.instanceId)),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [gameState],
+  );
+
   return (
     <div
       className="min-h-screen lg:h-screen lg:overflow-hidden text-slate-100 flex flex-col font-mono selection:bg-cyber-neonYellow selection:text-black"
       style={{ '--card-scale': cardScaleValue } as React.CSSProperties}
     >
       {/* Top Header Bar */}
-      <header className="h-12 shrink-0 min-w-0 overflow-x-auto border-b border-amber-400/40 bg-slate-950/90 px-3 gap-3 flex items-center justify-between backdrop-blur-md sticky top-0 z-30 shadow-lg">
+      <header className="h-12 shrink-0 min-w-0 overflow-x-auto border-b border-amber-400/40 bg-slate-950/90 px-3 gap-3 flex items-center justify-between sticky top-0 z-30 shadow-lg">
         <div className="flex items-center gap-3">
           <button
             onClick={leaveGame}
@@ -667,7 +759,7 @@ function Game({
         )}
 
         {/* CORP SECTOR (TOP HALF) */}
-        <section id="corp-board" className="flex-1 min-h-0 flex flex-col gap-1.5 bg-slate-950/60 border border-cyan-900/80 chamfer hud-frame hud-corp p-2 shadow-xl relative backdrop-blur-sm w-full min-w-0">
+        <section id="corp-board" className="flex-1 min-h-0 flex flex-col gap-1.5 bg-slate-950/70 border border-cyan-900/80 chamfer hud-frame hud-corp p-2 shadow-xl relative w-full min-w-0">
           <div className="shrink-0 flex flex-wrap items-center justify-between gap-x-3 gap-y-1 pb-1 border-b border-cyan-950">
             {/* Identity & Header */}
             <div className="flex items-center gap-3">
@@ -721,58 +813,7 @@ function Game({
           <div className="flex-1 min-h-0 flex flex-col lg:flex-row gap-2 min-w-0">
           {/* Servers Grid */}
           <div className="flex items-start gap-2 flex-1 min-w-0 min-h-0 overflow-auto pt-2 pb-1">
-            {Object.values(corp.servers).map((server) => (
-              <ServerColumn
-                key={server.id}
-                server={server}
-                activePlayer={activePlayer}
-                perspective={viewer}
-                run={activeRun?.server === server.id ? activeRun : null}
-                onInitiateRun={
-                  runnerCanAct
-                    ? (sId) => handleAction({ type: 'INITIATE_RUN', player: 'runner', targetServerId: sId })
-                    : undefined
-                }
-                onRezCard={(cId) =>
-                  handleAction({ type: 'REZ_CARD', player: 'corp', cardInstanceId: cId })
-                }
-                onAdvanceCard={(cId, sId) =>
-                  handleAction({ type: 'ADVANCE_CARD', player: 'corp', cardInstanceId: cId, serverId: sId })
-                }
-                onScoreCard={(cId) =>
-                  handleAction({ type: 'SCORE_AGENDA', player: 'corp', cardInstanceId: cId })
-                }
-                canRez={(card) => corpCanAct && isLegalAction(gameState, rezAction(card))}
-                canAdvance={(card) =>
-                  corpCanAct &&
-                  isLegalAction(gameState, { type: 'ADVANCE_CARD', player: 'corp', cardInstanceId: card.instanceId, serverId: server.id })
-                }
-                canScore={(card) =>
-                  corpCanAct && isLegalAction(gameState, { type: 'SCORE_AGENDA', player: 'corp', cardInstanceId: card.instanceId })
-                }
-                onInspectCard={(card) => setInspectedCard(card)}
-                hostedOnIce={(ice) => onIce.filter(c => c.hostedOnId === ice.instanceId)}
-                iceTypes={(ice) => iceSubtypes(ice, gameState)}
-                anchor={
-                  server.id === 'hq' ? (
-                    <CardView card={corp.identity} size="fit" notInstalled onInspect={setInspectedCard} />
-                  ) : server.id === 'rd' ? (
-                    <Pile label="R&D" count={corp.rd.length} side="corp" size="fit" hideLabel testId="pile-rd" />
-                  ) : server.id === 'archives' ? (
-                    <Pile
-                      label="Archives"
-                      count={corp.archives.faceUp.length + corp.archives.faceDown.length}
-                      side="corp"
-                      topCard={corp.archives.faceUp[corp.archives.faceUp.length - 1]}
-                      size="fit"
-                      hideLabel
-                      onClick={() => setZone('archives')}
-                      testId="pile-archives"
-                    />
-                  ) : undefined
-                }
-              />
-            ))}
+            {serversView}
           </div>
           {/* Corp HQ Hand: beside the servers on wide screens */}
           <div className="min-w-0 lg:max-w-[45%] shrink-0 flex flex-col overflow-x-auto overflow-y-hidden">
@@ -794,32 +835,11 @@ function Game({
         </section>
 
         {/* RUNNER SECTOR (BOTTOM): the rig is two rows, so it takes what it needs and the Corp gets the rest */}
-        <section id="runner-board" className="flex-none lg:max-h-[55%] min-h-0 flex flex-col gap-1.5 bg-slate-950/60 border border-pink-900/80 chamfer hud-frame hud-runner p-2 shadow-xl relative backdrop-blur-sm w-full min-w-0">
+        <section id="runner-board" className="flex-none lg:max-h-[55%] min-h-0 flex flex-col gap-1.5 bg-slate-950/70 border border-pink-900/80 chamfer hud-frame hud-runner p-2 shadow-xl relative w-full min-w-0">
           <div className="flex-1 min-h-0 flex flex-col lg:flex-row gap-2 min-w-0">
           {/* Runner Rig (Installed Programs, Hardware, Resources) */}
           <div className="flex-1 min-w-0 min-h-0 overflow-auto">
-            <RigView
-              rig={runner.rig}
-              onInspectCard={setInspectedCard}
-              hostLabel={iceHostLabel}
-              breaks={breakerTypes}
-              aside={
-                <>
-                  <CardView card={runner.identity} size="fit" notInstalled onInspect={setInspectedCard} />
-                  <div />
-                  <Pile label="Stack" count={runner.stack.length} side="runner" size="fit" testId="pile-stack" />
-                  <Pile
-                    label="Heap"
-                    count={runner.heap.length}
-                    side="runner"
-                    topCard={runner.heap[runner.heap.length - 1]}
-                    size="fit"
-                    onClick={() => setZone('heap')}
-                    testId="pile-heap"
-                  />
-                </>
-              }
-            />
+            {rigView}
           </div>
           {/* Runner Grip Hand: beside the rig on wide screens */}
           <div className="min-w-0 lg:max-w-[45%] shrink-0 flex flex-col overflow-x-auto overflow-y-hidden">

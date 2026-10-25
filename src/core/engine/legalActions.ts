@@ -20,8 +20,17 @@ import { isAdvanceable } from './helpers';
  */
 export function getLegalActions(state: GameState, side: SideCode): GameAction[] {
   if (state.winner) return [];
-  return candidateActions(state, side).filter(action => isLegalAction(state, action));
+  // Worked out once per state and side (states are never changed after they are made)
+  let bySide = legalActionsCache.get(state);
+  if (!bySide) {
+    bySide = {};
+    legalActionsCache.set(state, bySide);
+  }
+  bySide[side] ??= candidateActions(state, side).filter(action => isLegalAction(state, action));
+  return [...bySide[side]];
 }
+
+const legalActionsCache = new WeakMap<GameState, Partial<Record<SideCode, GameAction[]>>>();
 
 function candidateActions(state: GameState, side: SideCode): GameAction[] {
   const prompt = activePrompt(state);

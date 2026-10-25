@@ -156,12 +156,12 @@ const CardFace: React.FC<CardViewProps> = ({
 
       {/* Unrezzed Blueprint Indicator for Corp */}
       {isUnrezzed && card.faceUp && (
-        <div className="absolute top-1 left-1 bg-amber-950/90 text-amber-300 border border-amber-700/80 px-1.5 py-0.5 rounded text-[9px] font-bold tracking-wider uppercase shadow z-10 backdrop-blur-sm">
+        <div className="absolute top-1 left-1 bg-amber-950/90 text-amber-300 border border-amber-700/80 px-1.5 py-0.5 rounded text-[9px] font-bold tracking-wider uppercase shadow z-10">
           Faceup
         </div>
       )}
       {isUnrezzed && !card.faceUp && (
-        <div className="absolute top-1 left-1 bg-cyan-950/90 text-cyan-300 border border-cyan-700/80 px-1.5 py-0.5 rounded text-[9px] font-bold tracking-wider uppercase shadow z-10 flex items-center gap-1 backdrop-blur-sm">
+        <div className="absolute top-1 left-1 bg-cyan-950/90 text-cyan-300 border border-cyan-700/80 px-1.5 py-0.5 rounded text-[9px] font-bold tracking-wider uppercase shadow z-10 flex items-center gap-1">
           <Eye className="w-2.5 h-2.5 text-cyan-400" />
           <Keyword id="unrezzed">Unrezzed</Keyword>
         </div>

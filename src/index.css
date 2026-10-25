@@ -101,7 +101,7 @@
     background-size: 100% 100%, 32px 32px, 32px 32px;
     background-attachment: fixed;
     color: rgb(var(--neutral-100));
-    font-family: 'Share Tech Mono', 'Fira Code', monospace;
+    font-family: 'Share Tech Mono', monospace;
     overflow-x: hidden;
   }
 

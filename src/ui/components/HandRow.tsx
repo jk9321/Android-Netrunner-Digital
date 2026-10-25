@@ -22,8 +22,10 @@ type ExitCustom = ReadonlySet<string>;
  * A hand of cards, fanned so each overlaps the last, that animates its changes: a drawn card slides in from the
  * deck, a played or installed card lifts out toward the table, a discarded
  * card drops away, and the rest close the gap.
+ * Memoized: the table re-renders whenever a card is selected, and a hand only
+ * needs to when its own props change.
  */
-export const HandRow: React.FC<HandRowProps> = ({
+export const HandRow: React.FC<HandRowProps> = React.memo(({
   cards,
   side,
   canSee,
@@ -83,4 +85,4 @@ export const HandRow: React.FC<HandRowProps> = ({
       </div>
     </MotionConfig>
   );
-};
+});

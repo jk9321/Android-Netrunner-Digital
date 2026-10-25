@@ -67,7 +67,12 @@ export function executeAction(prevState: GameState, action: GameAction): GameSta
     const p = prevState.pendingPrompts[0];
     throw new IllegalActionError(`Waiting on a decision: ${p.message}`);
   }
-  const state = structuredClone(prevState);
+  // Everything is copied except the log entries: the log only ever grows and
+  // its entries are never changed (addLog freezes them), so the new state gets
+  // a new array holding the same entries instead of a deep copy of a log that
+  // is most of the state late in a game.
+  const { log, ...rest } = prevState;
+  const state: GameState = { ...structuredClone(rest), log: log.slice() };
   const handler = handlers[action.type] as (state: GameState, action: GameAction) => void;
   if (!handler) {
     throw new IllegalActionError(`Unknown action type: ${(action as { type: string }).type}`);
@@ -100,13 +105,34 @@ function isClickAction(state: GameState, action: GameAction): boolean {
   return !!card && (getCardScript(card.cardCode)?.abilities?.[action.abilityIndex]?.clicks ?? 0) > 0;
 }
 
+/**
+ * Answers already worked out for each state, by action. Checking legality
+ * runs the whole action on a copy of the state, and the UI asks about the
+ * same state many times (every render, every button), so each answer is
+ * kept for as long as the state object lives. Game states are never changed
+ * after they are made (executeAction returns a new one), which is what
+ * makes this safe.
+ */
+const legalityCache = new WeakMap<GameState, Map<string, boolean>>();
+
 /** True if the action can be applied to the state without error. */
 export function isLegalAction(state: GameState, action: GameAction): boolean {
+  let known = legalityCache.get(state);
+  if (!known) {
+    known = new Map();
+    legalityCache.set(state, known);
+  }
+  const key = JSON.stringify(action);
+  const cached = known.get(key);
+  if (cached !== undefined) return cached;
+  let legal: boolean;
   try {
     executeAction(state, action);
-    return true;
+    legal = true;
   } catch (err) {
-    if (err instanceof IllegalActionError) return false;
-    throw err;
+    if (!(err instanceof IllegalActionError)) throw err;
+    legal = false;
   }
+  known.set(key, legal);
+  return legal;
 }
