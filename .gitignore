@@ -8,3 +8,5 @@ dist-ssr
 Thumbs.db
 *.tsbuildinfo
 .wrangler
+test-results
+playwright-report
