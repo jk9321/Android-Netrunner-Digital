@@ -93,6 +93,11 @@ export const tuning = {
     iceDepth: true,
     /** Corp (round 3): one scoring remote: no assets in it, new remotes iced only once it has 2 layers and rez money; money assets iced once attacked. */
     oneRemote: true,
+    /*
+     * Identity plans (2026-10-25): self-play, Pork Chops + Peculiarity, 520
+     * games: Corp 39.6% on vs 36.3% off (each deck about +3 points);
+     * flatline wins 91 vs 65. All decks: new Corp +113 vs old (noise vs +121).
+     */
     /** Identity plans: BANGUN's faceup agenda bait, PT Untaian's end-of-turn advancement (and the Runner reading faceup agendas). */
     identities: true,
     /** Corp (round 3): no half-advanced agendas: advance only when it can be scored next turn behind ice it can rez. */
