@@ -1,7 +1,7 @@
 import { GameAction, GameState, activePrompt, getLegalActions } from '../core';
 import { encounteredIce, iceScript, isBioroid } from '../core/engine/ice';
 import { availableCredits } from '../core/engine/cardEffects';
-import { Agent, ScoredAction } from './agent';
+import { Agent, FreeActionGuard, ScoredAction } from './agent';
 import { evaluate, rigCoverage } from './evaluate';
 import { answerPrompt, runEventOptions, simulate } from './prompts';
 import type { HeuristicOptions } from './corpAI';
@@ -9,8 +9,6 @@ import { logNudge, nudge, tuning } from './synergy';
 import { RunnerMemory, bestBreakPlan, iceCost, needsBiggerHand, runScore, runShortfall, serverValue, subroutineCost } from './runs';
 
 const TROJANS = ['30004', '30017']; // Botulus, Tranquilizer
-/** Actions in a row that spend no click, before the AI stops taking them (guards against loops). */
-const FREE_ACTION_LIMIT = 6;
 
 /**
  * Rule-based Runner: builds economy, installs icebreakers for the ice
@@ -19,8 +17,7 @@ const FREE_ACTION_LIMIT = 6;
  */
 export class HeuristicRunnerAI implements Agent {
   readonly side = 'runner' as const;
-  private freeActions = 0;
-  private freeKey = '';
+  private freeActions = new FreeActionGuard(['END_TURN', 'INITIATE_RUN']);
   private memory: RunnerMemory = new Map();
   private digForBreakers = false;
   /** A run worth making that the Runner can't afford yet (deck-aware AI: take money toward it). */
@@ -125,16 +122,12 @@ export class HeuristicRunnerAI implements Agent {
 
   /** Counts actions in a row that spent no click (loop guard). */
   notePlayed(action: GameAction) {
-    if (action.type !== 'END_TURN' && action.type !== 'INITIATE_RUN') this.freeActions++;
+    this.freeActions.played(action);
   }
 
   /** Main-phase actions, best first, with this AI's score for each (the search AI starts from these). */
   rankMainActions(state: GameState, legal = getLegalActions(state, 'runner')): ScoredAction[] {
-    const key = `${state.turnNumber}|${state.runner.clicks}`;
-    if (key !== this.freeKey) {
-      this.freeKey = key;
-      this.freeActions = 0;
-    }
+    this.freeActions.start(state, state.runner.clicks);
     const before = evaluate(state, 'runner', this.synergy);
     // Nowhere worth running and breakers missing: dig for them
     this.digForBreakers =
@@ -173,7 +166,7 @@ export class HeuristicRunnerAI implements Agent {
     const after = simulate(state, action);
     if (!after) return -Infinity;
     const spendsClick = after.runner.clicks < state.runner.clicks;
-    if (!spendsClick && this.freeActions >= FREE_ACTION_LIMIT) return -Infinity;
+    if (!spendsClick && this.freeActions.exhausted) return -Infinity;
 
     // Run events and run abilities (Jailbreak, Overclock, Conduit, Red Team)
     const prompt = activePrompt(after);

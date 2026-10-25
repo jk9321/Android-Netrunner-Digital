@@ -1,19 +1,20 @@
 import { CardInstance, GameAction, GameState, SideCode } from '../core';
-import { Difficulty, createAgent, setSynergyDebug } from './index';
+import type { Agent, Difficulty } from './index';
 import type { AIRequest, AIResponse } from './worker';
 
-/**
- * The game's handle on the computer player: asks a background worker for
- * moves, or (where workers aren't available) computes them in place.
- */
 /** `?aidebug` in the address: log why the computer made each move (browser console). */
 const aiDebug = () => typeof location !== 'undefined' && new URLSearchParams(location.search).has('aidebug');
 
 type Question = { type: 'action'; state: GameState } | { type: 'rez'; state: GameState; cards: CardInstance[] };
 
+/**
+ * The game's handle on the computer player: asks a background worker for
+ * moves, or (where workers aren't available) computes them in place. The AI
+ * code for thinking in place is only downloaded if the worker fails.
+ */
 export class AIClient {
   private worker: Worker | null = null;
-  private local = null as ReturnType<typeof createAgent> | null;
+  private local: Promise<Agent> | null = null;
   private nextId = 1;
   private pending = new Map<number, { msg: Question; resolve: (r: AIResponse) => void }>();
 
@@ -43,32 +44,27 @@ export class AIClient {
   private fallBackToLocal() {
     this.worker?.terminate();
     this.worker = null;
-    setSynergyDebug(aiDebug());
-    this.local ??= createAgent(this.side, this.difficulty, { debug: aiDebug() });
+    this.local ??= import('./index').then(ai => {
+      ai.setSynergyDebug(aiDebug());
+      return ai.createAgent(this.side, this.difficulty, { debug: aiDebug() });
+    });
     const waiting = [...this.pending.values()];
     this.pending.clear();
     for (const { msg, resolve } of waiting) {
-      try {
-        resolve({ id: 0, action: this.answerLocally(msg) });
-      } catch (err) {
-        resolve({ id: 0, action: null, error: String(err) });
-      }
+      this.answerLocally(msg).then(
+        action => resolve({ id: 0, action }),
+        err => resolve({ id: 0, action: null, error: String(err) }),
+      );
     }
   }
 
-  private answerLocally(msg: Question): GameAction | null {
-    const agent = this.local!;
+  private async answerLocally(msg: Question): Promise<GameAction | null> {
+    const agent = await this.local!;
     return msg.type === 'action' ? agent.chooseAction(msg.state) : agent.chooseRez?.(msg.state, msg.cards) ?? null;
   }
 
   private ask(msg: Question): Promise<GameAction | null> {
-    if (!this.worker) {
-      try {
-        return Promise.resolve(this.answerLocally(msg));
-      } catch (err) {
-        return Promise.reject(err);
-      }
-    }
+    if (!this.worker) return this.answerLocally(msg);
     const id = this.nextId++;
     return new Promise((resolve, reject) => {
       this.pending.set(id, { msg, resolve: r => (r.error ? reject(new Error(r.error)) : resolve(r.action)) });

@@ -2,14 +2,12 @@ import { CardInstance, GameAction, GameState, ServerState, activePrompt, cardDef
 import { iceScript, iceSubtypes } from '../core/engine/ice';
 import { rigCoverage } from './evaluate';
 import { counters, rezCost } from '../core/engine/cardEffects';
-import { Agent, ScoredAction } from './agent';
+import { Agent, FreeActionGuard, ScoredAction } from './agent';
 import { evaluate } from './evaluate';
 import { answerPrompt, simulate } from './prompts';
 import { logNudge, nudge, opponentLean, tuning } from './synergy';
 import { iceCost, isTrap } from './runs';
 import { cardSynergy } from './synergyTags';
-
-const FREE_ACTION_LIMIT = 6;
 
 // Assets worth installing in their own remote and rezzing for money or cards (by code).
 const ECON_ASSETS: Record<string, number> = {
@@ -51,8 +49,7 @@ export interface HeuristicOptions {
  */
 export class HeuristicCorpAI implements Agent {
   readonly side = 'corp' as const;
-  private freeActions = 0;
-  private freeKey = '';
+  private freeActions = new FreeActionGuard(['END_TURN']);
   readonly synergy: boolean;
   private debug: boolean;
 
@@ -82,16 +79,12 @@ export class HeuristicCorpAI implements Agent {
 
   /** Counts actions in a row that spent no click (loop guard). */
   notePlayed(action: GameAction) {
-    if (action.type !== 'END_TURN') this.freeActions++;
+    this.freeActions.played(action);
   }
 
   /** Main-phase actions, best first, with this AI's score for each (the search AI starts from these). */
   rankMainActions(state: GameState, legal = getLegalActions(state, 'corp')): ScoredAction[] {
-    const key = `${state.turnNumber}|${state.corp.clicks}`;
-    if (key !== this.freeKey) {
-      this.freeKey = key;
-      this.freeActions = 0;
-    }
+    this.freeActions.start(state, state.corp.clicks);
     const before = evaluate(state, 'corp', this.synergy);
     return legal
       .map(action => {
@@ -224,7 +217,7 @@ export class HeuristicCorpAI implements Agent {
     const after = simulate(state, action);
     if (!after) return -Infinity;
     const spendsClick = after.corp.clicks < corp.clicks;
-    if (!spendsClick && this.freeActions >= FREE_ACTION_LIMIT) return -Infinity;
+    if (!spendsClick && this.freeActions.exhausted) return -Infinity;
     // Follow our own prompts (Predictive Planogram, Seamless Launch) a few steps.
     let resolved = after;
     for (let i = 0; i < 3 && activePrompt(resolved)?.side === 'corp'; i++) {

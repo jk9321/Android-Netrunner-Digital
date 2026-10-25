@@ -25,8 +25,28 @@ const HANTU = '35008'; // boosts by spending hosted virus counters (+2 each), no
 
 /** Credits-equivalent cost of letting one subroutine resolve (Infinity: it ends the run). */
 export function subroutineCost(state: GameState, label: string): number {
+  return knownSubroutineCost(state, label) ?? 2;
+}
+
+/**
+ * The cost of a subroutine whose wording one of the patterns below
+ * recognises, or undefined for wording none of them knows (counted as 2).
+ * A test checks every subroutine in the card pool is recognised.
+ */
+export function knownSubroutineCost(state: GameState, label: string): number | undefined {
   const runner = state.runner;
   if (/cannot steal or trash/i.test(label)) return BLOCK;
+  // Mycoweb: as bad as the worst subroutine on a rezzed ice of that type
+  const borrowed = label.match(/resolve 1 subroutine on (?:a|another) rezzed (barrier|code gate|sentry)/i);
+  if (borrowed) {
+    const type = borrowed[1].toLowerCase();
+    const costs = Object.values(state.corp.servers)
+      .flatMap(server => server.ice)
+      .filter(ice => ice.isRezzed && iceSubtypes(ice, state).some(t => t === type))
+      .flatMap(ice => (iceScript(ice)?.subroutines ?? []).filter(sub => !/resolve 1 subroutine on/i.test(sub.label)))
+      .map(sub => subroutineCost(state, sub.label));
+    return costs.length > 0 ? Math.max(...costs) : 0;
+  }
   // Elevation conditions
   const unless = label.match(/end the run unless the runner suffers (\d+) net damage/i);
   if (unless) return Number(unless[1]) >= runner.grip.length ? BLOCK : 2 * Number(unless[1]);
@@ -50,8 +70,9 @@ export function subroutineCost(state: GameState, label: string): number {
   if (/tag/i.test(label)) return 3;
   if (/trash 1 installed runner card/i.test(label)) return 4;
   if (/gain 1 credit/i.test(label)) return 0.3;
+  if (/^draw 1 card/i.test(label)) return 0.5; // Empiricist: helps the Corp a little
   if (/install/i.test(label)) return 1.5;
-  return 2;
+  return undefined;
 }
 
 export interface BreakPlan {
@@ -163,8 +184,6 @@ export function serverValue(state: GameState, serverId: string, extraAccesses = 
     value = Math.min(3, 0.6 * state.corp.archives.faceDown.length) + 6 * faceUpAgendas;
   }
   if (repeat > 0 && server.isRemote) return 0;
-  // Urtica Cipher (in Jinteki and both starter Corp decks) does 2 + counters net damage
-  const trapRisk = true;
   // Deck-aware AI: caution grows with the traps this Corp has shown, more so on a remote with no ice (a classic bluff)
   const caution = wary ? (trapOdds(state, memory) / (1 / 3)) * (server.isRemote && server.ice.length === 0 ? 1.25 : 1) : 1;
   const handMargin = wary && caution > 1.4 ? 1 : 0;
@@ -181,9 +200,9 @@ export function serverValue(state: GameState, serverId: string, extraAccesses = 
       const trash = cardDef(card).trash_cost;
       if (trash != null && trash <= state.runner.credits) value += Math.max(0, corpCardValue(card) - trash) * 0.6;
     } else if (!card.isRezzed) {
-      if (trapRisk && card.advancementCounters === 0 && state.runner.grip.length <= 3 + handMargin) value -= 3 * caution; // might be a trap
+      if (card.advancementCounters === 0 && state.runner.grip.length <= 3 + handMargin) value -= 3 * caution; // might be a trap
       // Advanced and unrezzed: an agenda, or a trap (Urtica Cipher does 2 + counters net damage)
-      if (trapRisk && card.advancementCounters > 0 && state.runner.grip.length <= 2 + card.advancementCounters + handMargin) return 0;
+      if (card.advancementCounters > 0 && state.runner.grip.length <= 2 + card.advancementCounters + handMargin) return 0;
       // The more traps, the less likely it's the agenda we're hoping for
       value += (3 + 2.5 * Math.min(card.advancementCounters, 4)) * (wary ? Math.min(1.2, Math.max(0.6, 1 - (caution - 1) * 0.33)) : 1);
       // Deck-aware AI: 2+ counters and the Corp could finish it next turn, so now is the time
