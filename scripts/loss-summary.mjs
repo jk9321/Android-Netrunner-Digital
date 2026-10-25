@@ -37,6 +37,12 @@ export function printLossSummary(games, detail = !!process.env.DETAIL) {
   console.log('Corp losses:');
   console.log(`  Corp score at loss: avg ${avg(losses, g => g.corpScore)}; at 5+: ${losses.filter(g => g.corpScore >= 5).length}`);
   console.log(`  game length: avg ${avg(losses, g => g.turns)} turns (Corp wins ${avg(wins, g => g.turns)})`);
+  if (games[0]?.board) {
+    const b = (list, k) => avg(list, g => g.board[k]);
+    for (const [label, list] of [['losses', losses], ['wins', wins]])
+      console.log(`  board in Corp ${label} (avg per turn): ${b(list, 'remotes')} remotes, ${b(list, 'icedRemotes')} with ice, ${b(list, 'remoteIce')} remote ice (best remote ${b(list, 'maxRemoteIce')}), HQ ${b(list, 'hqIce')}, R&D ${b(list, 'rdIce')}`);
+    console.log(`  remote steals by iced remotes at the time: ${[...count(remote, s => s.icedRemotes)].sort((x, y) => x[0] - y[0]).map(([k, v]) => `${k}: ${v}`).join(', ')}`);
+  }
   console.log(`  turns with an agenda in HQ and none in a remote: avg ${avg(losses, g => g.idleAgendaTurns)} (Corp wins ${avg(wins, g => g.idleAgendaTurns)})`);
   console.log(`  agendas still in HQ at the end: avg ${avg(losses, g => g.agendasInHQ)}`);
   show('  most stolen agendas:', count(steals, s => s.title), steals.length);

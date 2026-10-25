@@ -365,7 +365,12 @@ export class HeuristicCorpAI implements Agent {
         // Deck-aware AI: ice the Runner already breaks counts as half a layer
         const depth = server && this.synergy && tuning.plan.iceDepth ? iceDepth(state, server) : server?.ice.length ?? 0;
         let need: number;
-        if (!server) need = agendasInHand > 0 && !protectedEmptyRemote ? 5 : -1;
+        // Deck-aware AI: one well-iced scoring remote rather than ice spread thin
+        const main = this.synergy && tuning.plan.oneRemote ? mainRemote(state) : null;
+        if (!server) {
+          need = agendasInHand > 0 && !protectedEmptyRemote ? 5 : -1;
+          if (main && need > 0 && (iceDepth(state, main) < 2 || corp.credits < rezReserve(state, this.wideReserve) + (cardDef(card).cost ?? 0))) need = -1;
+        }
         else if (server.isRemote) {
           const holdsAgenda = server.root.some(c => type(c) === 'agenda' || c.advancementCounters > 0);
           const holdsAsset = server.root.some(c => type(c) === 'asset');
@@ -377,11 +382,14 @@ export class HeuristicCorpAI implements Agent {
           }
           else if (holdsAsset) {
             need = server.ice.length === 0 ? 1.5 : 0.2;
+            // ...money assets get ice only once the Runner goes after them
+            if (main && !server.root.some(c => isTrap(c.cardCode)) && !state.runnerLastTurnRuns.some(r => r.server === server.id)) need = Math.min(need, 0.2);
             // Deck-aware AI: one cheap ice sells a trap as an agenda
             const trap = server.root.some(c => !c.isRezzed && isTrap(c.cardCode));
             if (this.synergy && tuning.bluff && trap && server.ice.length === 0 && (cardDef(card).cost ?? 0) <= 3) need += 0.6;
           }
           else need = agendasInHand > 0 ? (depth < 2 ? 3 : 1) : 0.3;
+          if (main && server !== main && !holdsAgenda && !holdsAsset) need = Math.min(need, 0.3);
         } else if (server.id === 'archives') {
           need = server.ice.length === 0 && corp.archives.faceDown.length > 0 ? 1.2 : -0.5;
         } else {
@@ -440,6 +448,8 @@ export class HeuristicCorpAI implements Agent {
         // Traps and Clearinghouse: bluff in a new remote, or an empty protected one
         if (!server) return remotes.length >= 4 ? 0.2 : 1.2;
         if (server.root.some(isAgendaOrAsset)) return -Infinity;
+        // Deck-aware AI: keep the scoring remote free for agendas
+        if (this.synergy && tuning.plan.oneRemote && server === mainRemote(state)) return -Infinity;
         // Deck-aware AI: a trap behind ice looks like the real thing
         const sell = this.synergy && tuning.bluff && isTrap(card.cardCode) && server.ice.length > 0 ? 0.5 : 0;
         return (server.ice.length > 0 && agendasInHand === 0 ? 1.8 : 0.5) + sell;
@@ -483,6 +493,19 @@ function iceFit(state: GameState, ice: CardInstance, server: ServerState | null,
   }
   if (server.ice.length > 0 && server.ice.some(other => iceSubtypes(other, state).some(t => types.includes(t)))) fit -= 0.4;
   return fit;
+}
+
+/**
+ * The scoring remote: the remote with the most ice that isn't holding a
+ * money asset or trap (null with no iced remote).
+ */
+function mainRemote(state: GameState): ServerState | null {
+  let best: ServerState | null = null;
+  for (const server of Object.values(state.corp.servers)) {
+    if (!server.isRemote || server.ice.length === 0 || server.root.some(c => type(c) === 'asset')) continue;
+    if (!best || server.ice.length > best.ice.length) best = server;
+  }
+  return best;
 }
 
 /**

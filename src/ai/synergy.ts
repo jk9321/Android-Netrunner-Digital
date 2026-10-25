@@ -80,6 +80,8 @@ export const tuning = {
      * the more human rule). HQ order (first HQ ice once R&D has one): +53.
      * Ice depth: as half a layer for breakable ice -25 (dropped); by the
      * Runner's cost to get through (v2) -5 vs without it, kept (noise).
+     * One scoring remote: +104 vs old (49.0%; +56 over round 3 without it).
+     * Self-play (new vs new) Corp 43.6%, was 36.6%; Jeff's target 50 ±5%.
      */
     /** Corp (round 3): keep credits to rez ice on two key servers (R&D, an agenda remote, HQ holding agendas). */
     rezMoney: true,
@@ -87,6 +89,8 @@ export const tuning = {
     centralIce: true,
     /** Corp (round 3): ice counts by what it costs the Runner to get through (free: not there); servers they keep getting into want more. */
     iceDepth: true,
+    /** Corp (round 3): one scoring remote: no assets in it, new remotes iced only once it has 2 layers and rez money; money assets iced once attacked. */
+    oneRemote: true,
     /** Corp (round 3): no half-advanced agendas: advance only when it can be scored next turn behind ice it can rez. */
     agendaTiming: true,
   },

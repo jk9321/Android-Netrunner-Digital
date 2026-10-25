@@ -24,6 +24,8 @@ export interface Steal {
   hqAgendas: number;
   hqSize: number;
   title: string;
+  /** Remotes with ice when it was stolen (spread) */
+  icedRemotes: number;
 }
 
 export interface GameRecord {
@@ -40,6 +42,8 @@ export interface GameRecord {
   agendasInHQ: number;
   /** Turns the Corp spent with an agenda in hand and no remote holding one */
   idleAgendaTurns: number;
+  /** Averages over the Corp's turns: remotes, remotes with ice, ice in remotes, ice on the best-iced remote, ice on HQ and R&D */
+  board: { remotes: number; icedRemotes: number; remoteIce: number; maxRemoteIce: number; hqIce: number; rdIce: number };
 }
 
 const isAgenda = (c: { cardCode: string }) => cardDef(c as never).type_code === 'agenda';
@@ -58,6 +62,8 @@ export function playLogged(start: GameState, agents: { corp: Agent; runner: Agen
   const runner = new GameRunner(start, agents);
   const steals: Steal[] = [];
   let idleAgendaTurns = 0;
+  const board = { remotes: 0, icedRemotes: 0, remoteIce: 0, maxRemoteIce: 0, hqIce: 0, rdIce: 0 };
+  let corpTurns = 0;
   let lastTurn = -1;
   for (let steps = 0; steps < 4000 && runner.state.turnNumber <= 80; steps++) {
     const before = runner.state;
@@ -65,6 +71,14 @@ export function playLogged(start: GameState, agents: { corp: Agent; runner: Agen
       lastTurn = before.turnNumber;
       const remoteAgenda = Object.entries(before.corp.servers).some(([id, s]) => id.startsWith('remote') && s.root.some(isAgenda));
       if (!remoteAgenda && before.corp.hq.some(isAgenda)) idleAgendaTurns++;
+      const remotes = Object.values(before.corp.servers).filter(s => s.isRemote);
+      corpTurns++;
+      board.remotes += remotes.length;
+      board.icedRemotes += remotes.filter(s => s.ice.length > 0).length;
+      board.remoteIce += remotes.reduce((n, s) => n + s.ice.length, 0);
+      board.maxRemoteIce += Math.max(0, ...remotes.map(s => s.ice.length));
+      board.hqIce += before.corp.servers.hq.ice.length;
+      board.rdIce += before.corp.servers.rd.ice.length;
     }
     if (!runner.step()) break;
     const after = runner.state;
@@ -87,6 +101,7 @@ export function playLogged(start: GameState, agents: { corp: Agent; runner: Agen
       hqAgendas: before.corp.hq.filter(isAgenda).length,
       hqSize: before.corp.hq.length,
       title: stolen[0] ? cardDef(stolen[0]).title : '?',
+      icedRemotes: Object.values(before.corp.servers).filter(s => s.isRemote && s.ice.length > 0).length,
     });
   }
   const s = runner.state;
@@ -102,5 +117,6 @@ export function playLogged(start: GameState, agents: { corp: Agent; runner: Agen
     agendasInRD: s.corp.rd.filter(isAgenda).length,
     agendasInHQ: s.corp.hq.filter(isAgenda).length,
     idleAgendaTurns,
+    board: Object.fromEntries(Object.entries(board).map(([k, v]) => [k, v / Math.max(corpTurns, 1)])) as GameRecord['board'],
   };
 }
