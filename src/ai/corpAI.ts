@@ -273,6 +273,25 @@ export class HeuristicCorpAI implements Agent {
   }
 
   /**
+   * The reverse bluff: once the Runner has seen this Corp's traps, now and
+   * then put a real agenda in a remote with no ice, unadvanced, and score
+   * it out next turn while the Runner reads it as another trap. Only
+   * agendas that 3 clicks can finish, and one at a time.
+   */
+  private nakedAgenda(state: GameState, card: CardInstance): boolean {
+    const corp = state.corp;
+    const cost = cardDef(card).advancement_cost ?? 0;
+    if (cost > 3 || corp.credits < cost + 1) return false;
+    if (!corp.archives.faceUp.some(c => isTrap(c.cardCode))) return false;
+    const remotes = Object.values(corp.servers).filter(s => s.isRemote);
+    if (remotes.some(s => s.ice.length === 0 && s.root.some(c => type(c) === 'agenda'))) return false;
+    // "Now and then": about one turn in three, but the same answer all turn
+    let hash = state.turnNumber * 31;
+    for (const ch of card.instanceId) hash = (hash * 33 + ch.charCodeAt(0)) >>> 0;
+    return hash % 3 === 0;
+  }
+
+  /**
    * A scoreable Dividends agenda the Corp can still advance this turn: each
    * extra counter becomes agenda counters when it is scored.
    */
@@ -326,7 +345,11 @@ export class HeuristicCorpAI implements Agent {
         const def = cardDef(card);
         const finishNow = (def.advancement_cost ?? 0) <= corp.clicks - 1 && (def.advancement_cost ?? 0) <= corp.credits;
         // A naked remote only to dodge a discard (or to score it straight away)
-        if (!server) return finishNow ? 44 : hq.length > corp.handSizeLimit ? 0.5 : -2;
+        if (!server) {
+          if (finishNow) return 44;
+          if (hq.length > corp.handSizeLimit) return 0.5;
+          return this.synergy && this.nakedAgenda(state, card) ? 5 : -2;
+        }
         if (server.root.some(isAgendaOrAsset)) return -Infinity;
         if (finishNow) return 45;
         // Only behind ice that is rezzed or that we can afford to rez
