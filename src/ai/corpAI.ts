@@ -61,6 +61,15 @@ export class HeuristicCorpAI implements Agent {
     this.debug = options.debug ?? false;
   }
 
+  /** Round 3: keep rez money for R&D and HQ as well as agenda remotes. */
+  private get wideReserve() {
+    return this.synergy && tuning.plan.rezMoney;
+  }
+
+  private get timing() {
+    return this.synergy && tuning.plan.agendaTiming;
+  }
+
   chooseAction(state: GameState): GameAction {
     if (activePrompt(state)) return answerPrompt(state, 'corp', undefined, this.synergy);
     const legal = getLegalActions(state, 'corp');
@@ -154,7 +163,7 @@ export class HeuristicCorpAI implements Agent {
       }
       case 'ADVANCE_CARD': {
         const score = this.advanceScore(state, action.cardInstanceId, action.serverId);
-        return score >= 40 ? score : score - reservePenalty(state, corp.credits - 1);
+        return score >= 40 ? score : score - reservePenalty(state, corp.credits - 1, this.wideReserve);
       }
       case 'INSTALL_CARD': {
         const card = corp.hq.find(c => c.instanceId === action.cardInstanceId);
@@ -162,7 +171,7 @@ export class HeuristicCorpAI implements Agent {
         const server = action.asNewRemote ? null : corp.servers[action.targetServerId ?? ''] ?? null;
         // BANGUN's faceup agendas hurt the Runner but tell them what is there
         const installCost = type(card) === 'ice' && server ? server.ice.length : 0;
-        return this.installScore(state, card, server) - (action.faceUp ? 0.5 : 0) - reservePenalty(state, corp.credits - installCost);
+        return this.installScore(state, card, server) - (action.faceUp ? 0.5 : 0) - reservePenalty(state, corp.credits - installCost, this.wideReserve);
       }
       case 'REZ_CARD': {
         if (state.activeRun) return -Infinity;
@@ -212,7 +221,7 @@ export class HeuristicCorpAI implements Agent {
     // Deck-aware AI: a play that makes an agenda scoreable this turn (Seamless Launch, Key Performance Indicators...)
     if (this.synergy && tuning.plan.scoreSetup && scoreable(resolved) > scoreable(state)) score = Math.max(score, 41);
     if (!spendsClick && score <= 0.3) return -Infinity;
-    score -= reservePenalty(state, resolved.corp.credits);
+    score -= reservePenalty(state, resolved.corp.credits, this.wideReserve);
     return score;
   }
 
@@ -257,6 +266,12 @@ export class HeuristicCorpAI implements Agent {
       const need = (def.advancement_cost ?? 0) - card.advancementCounters;
       if (need <= 0) return this.synergy && this.overAdvance(state, card.instanceId) ? 6 + 1.5 * dividends(card) : -Infinity;
       if (need <= corp.clicks && need <= corp.credits) return 40 + card.advancementCounters;
+      if (this.timing) {
+        // Deck-aware AI: only if the rest of this turn leaves it scoreable next turn, behind ice we can still rez
+        const spend = Math.min(corp.clicks, corp.credits);
+        if (need - spend > 3 || guards(state, server, corp.credits - spend) === 0) return -Infinity;
+        return 6 + card.advancementCounters; // and then finish the job: a half-advanced agenda is the Runner's best target
+      }
       // Can't finish this turn: build counters only behind ice we can rez
       return guards(state, server, corp.credits - 1) > 0 ? 3 + 0.5 * card.advancementCounters : -Infinity;
     }
@@ -369,6 +384,11 @@ export class HeuristicCorpAI implements Agent {
           need = server.ice.length === 0 && corp.archives.faceDown.length > 0 ? 1.2 : -0.5;
         } else {
           need = (server.ice.length === 0 ? 4 : server.ice.length === 1 ? 2 : 0.6) + (server.id === 'rd' ? 0.3 : 0);
+          if (this.synergy && tuning.plan.centralIce) {
+            // Deck-aware AI: R&D always holds agendas; HQ only matters while it does
+            if (server.id === 'rd') need += 0.4;
+            else if (agendasInHand === 0) need -= server.ice.length === 0 ? 1.5 : 0.8;
+          }
         }
         const rezCost = cardDef(card).cost ?? 0;
         const strength = cardDef(card).strength ?? 0;
@@ -392,6 +412,12 @@ export class HeuristicCorpAI implements Agent {
         }
         if (server.root.some(isAgendaOrAsset)) return -Infinity;
         if (finishNow) return 45;
+        if (this.timing) {
+          // Deck-aware AI: install only if this turn's advances leave it scoreable next turn, behind ice we can still rez
+          const spend = Math.min(corp.clicks - 1, corp.credits);
+          const left = (def.advancement_cost ?? 0) - spend;
+          if (left > 3 || guards(state, server, corp.credits - spend) === 0) return hq.length > corp.handSizeLimit ? 0.5 : -2;
+        }
         // Only behind ice that is rezzed or that we can afford to rez
         const guarded = guards(state, server, corp.credits);
         return guarded === 0 ? -2 : 8 + Math.min(guarded, 3) * 0.6;
@@ -500,19 +526,32 @@ function guards(state: GameState, server: ServerState, credits: number): number 
  * Credits to keep back so every remote holding an agenda has at least one
  * piece of ice the Corp can rez when the Runner comes in.
  */
-function rezReserve(state: GameState): number {
-  let reserve = 0;
+function rezReserve(state: GameState, wide = false): number {
+  const needs: number[] = [];
+  const hqAgendas = state.corp.hq.some(c => type(c) === 'agenda');
   for (const server of Object.values(state.corp.servers)) {
-    if (!server.isRemote || !server.root.some(c => type(c) === 'agenda')) continue;
+    const agendaRemote = server.isRemote && server.root.some(c => type(c) === 'agenda');
+    // Deck-aware AI: R&D, and HQ while it holds agendas, need rez money too
+    const central = wide && (server.id === 'rd' || (server.id === 'hq' && hqAgendas));
+    if (!agendaRemote && !central) continue;
     if (server.ice.some(ice => ice.isRezzed)) continue;
     const costs = server.ice.map(ice => rezCost(state, ice));
-    if (costs.length > 0) reserve = Math.max(reserve, Math.min(...costs));
+    if (costs.length > 0) needs.push(Math.min(...costs));
   }
-  return reserve;
+  needs.sort((a, b) => b - a);
+  // Wide: enough for the two most expensive of those servers
+  return wide ? (needs[0] ?? 0) + (needs[1] ?? 0) : needs[0] ?? 0;
 }
 
-/** Penalty for an action that drops the Corp below its rez reserve. */
-function reservePenalty(state: GameState, creditsAfter: number): number {
-  const reserve = rezReserve(state);
-  return reserve > 0 && state.corp.credits >= reserve && creditsAfter < reserve ? 3 : 0;
+/**
+ * Penalty for an action that drops the Corp below its rez reserve. Wide
+ * (round 3): graded by how far below it goes, and a small reward for
+ * money that climbs back toward it.
+ */
+function reservePenalty(state: GameState, creditsAfter: number, wide = false): number {
+  const reserve = rezReserve(state, wide);
+  if (!wide) return reserve > 0 && state.corp.credits >= reserve && creditsAfter < reserve ? 3 : 0;
+  const before = Math.max(0, reserve - state.corp.credits);
+  const after = Math.max(0, reserve - creditsAfter);
+  return after > before ? Math.min(3, after - before) : -Math.min(1, 0.4 * (before - after));
 }

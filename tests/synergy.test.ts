@@ -263,4 +263,45 @@ describe('planning (setup scoring)', () => {
     expect(aware.indexOf('PLAY_OPERATION_OR_EVENT')).toBeLessThan(aware.indexOf('SCORE_AGENDA'));
     expect(order(new HeuristicCorpAI({ synergy: false }))[0]).toBe('SCORE_AGENDA');
   });
+
+  it('does not leave an agenda half-advanced over the Runner\'s turn', () => {
+    const s = structuredClone(newGame());
+    const agenda = createCardInstance(s, '30069'); // Send a Message: 5 to score
+    agenda.installedTurn = 'earlier';
+    const ice = createCardInstance(s, '30072'); // Palisade, unrezzed
+    remote(s, 'remote-9', [agenda], [ice]);
+    s.corp.clicks = 1;
+    s.corp.credits = 6;
+    const advance = (ai: HeuristicCorpAI) => ai.rankMainActions(s).find(r => r.action.type === 'ADVANCE_CARD')?.score ?? -Infinity;
+    // One advance now still leaves 4 to go next turn: wait
+    expect(advance(new HeuristicCorpAI())).toBe(-Infinity);
+    expect(advance(new HeuristicCorpAI({ synergy: false }))).toBeGreaterThan(0);
+    // With 3 clicks it can get to 2 counters and score next turn: then it commits
+    s.corp.clicks = 3;
+    expect(advance(new HeuristicCorpAI())).toBeGreaterThan(5);
+  });
+
+  it('ices R&D before an HQ with nothing worth stealing', () => {
+    const s = structuredClone(newGame());
+    const ice = createCardInstance(s, '30072');
+    s.corp.hq = [ice, createCardInstance(s, '30075')];
+    s.corp.credits = 8;
+    const score = (server: string) =>
+      new HeuristicCorpAI().rankMainActions(s).find(r => r.action.type === 'INSTALL_CARD' && r.action.targetServerId === server)!.score;
+    expect(score('rd')).toBeGreaterThan(score('hq') + 1);
+  });
+
+  it('keeps money to rez ice on R&D as well as an agenda remote', () => {
+    const s = structuredClone(newGame());
+    const rdIce = createCardInstance(s, '30072');
+    s.corp.servers.rd.ice = [rdIce];
+    const hedge = createCardInstance(s, '30075'); // Hedge Fund: 5 to play, +9
+    const palisade = createCardInstance(s, '30072');
+    s.corp.hq = [hedge, palisade];
+    s.corp.credits = 2; // Palisade on R&D costs 3 to rez
+    const ranked = (ai: HeuristicCorpAI) => ai.rankMainActions(s);
+    const credit = (ai: HeuristicCorpAI) => ranked(ai).find(r => r.action.type === 'GAIN_CREDIT')!.score;
+    // Short of the reserve, a credit is worth a little more to the round 3 Corp
+    expect(credit(new HeuristicCorpAI())).toBeGreaterThan(credit(new HeuristicCorpAI({ synergy: false })));
+  });
 });

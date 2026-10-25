@@ -72,6 +72,12 @@ export const tuning = {
     icePlacement: true,
     /** Corp: guard agendas by their stakes (points, a winning steal, counters), HQ while it holds them. */
     agendaStakes: true,
+    /** Corp (round 3): keep credits to rez ice on two key servers (R&D, an agenda remote, HQ holding agendas). */
+    rezMoney: true,
+    /** Corp (round 3): ice R&D first; HQ only while it holds agendas. */
+    centralIce: true,
+    /** Corp (round 3): no half-advanced agendas: advance only when it can be scored next turn behind ice it can rez. */
+    agendaTiming: true,
   },
 };
 
