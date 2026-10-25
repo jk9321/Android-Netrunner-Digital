@@ -1,6 +1,6 @@
 import { CardInstance, GameAction, GameState, Prompt, SideCode, activePrompt, cardDef, executeAction, getLegalActions } from '../core';
 import { evaluate, keepValue } from './evaluate';
-import { RunOptions, RunnerMemory, runScore, serverValue } from './runs';
+import { RunOptions, RunnerMemory, isTrap, runScore, serverValue } from './runs';
 import { keepBonus, tuning } from './synergy';
 
 /** Applies an action, or returns null if the engine rejects it. */
@@ -88,6 +88,11 @@ export function answerPrompt(state: GameState, side: SideCode, memory?: RunnerMe
     return { ...base, choice: { kind: 'effect_choice', optionId: scored[0].id } };
   }
 
+  // Deck-aware AI: PT Untaian's paid advancement goes where it does the most
+  if (synergy && side === 'corp' && tuning.plan.identities && prompt.kind === 'effect_cards' && prompt.source.cardCode === '35047') {
+    return { ...base, choice: { kind: 'effect_cards', cardInstanceIds: untaianPick(state, prompt.candidateIds) } };
+  }
+
   // "Any number of cards": build the answer one card at a time
   if (prompt.kind === 'effect_cards' && prompt.max - prompt.min > 2 && prompt.candidateIds.length > 4) {
     return greedyCards(state, side, prompt, base, memory, synergy);
@@ -107,6 +112,29 @@ export function answerPrompt(state: GameState, side: SideCode, memory?: RunnerMe
     }
   }
   return best;
+}
+
+/**
+ * PT Untaian: 1 credit for an advancement counter on an unrezzed card. An
+ * agenda behind ice gets closer to scoring, a trap hits harder (Urtica
+ * Cipher) or reads as an agenda; nothing worth it, or no spare credit: skip.
+ */
+export function untaianPick(state: GameState, candidateIds: string[]): string[] {
+  if (state.corp.credits < 2) return [];
+  let best: { id: string; value: number } | null = null;
+  for (const server of Object.values(state.corp.servers)) {
+    for (const card of [...server.root, ...server.ice]) {
+      if (!candidateIds.includes(card.instanceId)) continue;
+      const def = cardDef(card);
+      let value = 0.3;
+      if (def.type_code === 'agenda') value = server.ice.length > 0 ? 3 + (card.advancementCounters > 0 ? 0.5 : 0) : 0.8;
+      else if (card.cardCode === '30045') value = 2.5; // Urtica Cipher: 1 more net damage
+      else if (isTrap(card.cardCode)) value = 1.5;
+      else if (def.type_code === 'asset') value = 1.2; // Clearinghouse and the like
+      if (!best || value > best.value) best = { id: card.instanceId, value };
+    }
+  }
+  return best && best.value >= 1 ? [best.id] : [];
 }
 
 /** Adds the card that helps most until no card helps (and at least `min` are chosen). */

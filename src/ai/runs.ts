@@ -169,6 +169,12 @@ export function serverValue(state: GameState, serverId: string, extraAccesses = 
   const caution = wary ? (trapOdds(state, memory) / (1 / 3)) * (server.isRemote && server.ice.length === 0 ? 1.25 : 1) : 1;
   const handMargin = wary && caution > 1.4 ? 1 : 0;
   for (const card of server.root) {
+    if (wary && card.faceUp && cardDef(card).type_code === 'agenda') {
+      // Deck-aware AI: a faceup agenda (BANGUN) is a sure steal, for 2 meat damage and a tag
+      if (state.runner.grip.length < 2) return 0;
+      value += 2.5 * (cardDef(card).agenda_points ?? 1) + 0.5 * Math.min(card.advancementCounters, 4) - 2;
+      continue;
+    }
     if (!card.isRezzed && memory?.has(card.instanceId)) {
       // Seen it: only worth coming back to trash it, and never into a known trap
       if (card.cardCode === URTICA) return 0;

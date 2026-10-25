@@ -171,7 +171,8 @@ export class HeuristicCorpAI implements Agent {
         const server = action.asNewRemote ? null : corp.servers[action.targetServerId ?? ''] ?? null;
         // BANGUN's faceup agendas hurt the Runner but tell them what is there
         const installCost = type(card) === 'ice' && server ? server.ice.length : 0;
-        return this.installScore(state, card, server) - (action.faceUp ? 0.5 : 0) - reservePenalty(state, corp.credits - installCost, this.wideReserve);
+        const faceUp = action.faceUp ? (this.synergy && tuning.plan.identities ? -this.bangunBait(state) : 0.5) : 0;
+        return this.installScore(state, card, server) - faceUp - reservePenalty(state, corp.credits - installCost, this.wideReserve);
       }
       case 'REZ_CARD': {
         if (state.activeRun) return -Infinity;
@@ -282,7 +283,7 @@ export class HeuristicCorpAI implements Agent {
       if (need <= corp.clicks && need <= corp.credits) return 40 + card.advancementCounters;
       if (this.timing) {
         // Deck-aware AI: only if the rest of this turn leaves it scoreable next turn, behind ice we can still rez
-        const spend = Math.min(corp.clicks, corp.credits);
+        const spend = Math.min(corp.clicks, corp.credits) + this.untaianAdvance(state, 0);
         if (need - spend > 3 || guards(state, server, corp.credits - spend) === 0) return -Infinity;
         return 6 + card.advancementCounters; // and then finish the job: a half-advanced agenda is the Runner's best target
       }
@@ -308,6 +309,26 @@ export class HeuristicCorpAI implements Agent {
     if (card.cardCode === '30045' && 2 + card.advancementCounters + 1 >= state.runner.grip.length) return 1.5;
     const shown = state.corp.archives.faceUp.some(c => isTrap(c.cardCode));
     return shown && card.advancementCounters === 0 ? 0.6 : 0;
+  }
+
+  /** PT Untaian's paid advancement at the end of this turn (1), if HQ will be small enough; `leaving` cards are about to leave HQ. */
+  private untaianAdvance(state: GameState, leaving: number): number {
+    const corp = state.corp;
+    return this.synergy && tuning.plan.identities && corp.identity.cardCode === '35047' && corp.hq.length - leaving <= 3 && corp.credits >= 2 ? 1 : 0;
+  }
+
+  /**
+   * BANGUN: a faceup agenda tells the Runner what it is, but accessing it
+   * does 2 meat damage and gives a tag. Worth it when that would flatline
+   * the Runner (a guard on the agenda), or when the Corp holds cards that
+   * punish tags; otherwise a small cost, as before.
+   */
+  private bangunBait(state: GameState): number {
+    if (state.runner.grip.length < 2) return 1.5;
+    const corp = state.corp;
+    const cards = [...corp.hq, ...corp.scoreArea, ...Object.values(corp.servers).flatMap(s => s.root)];
+    const punishers = cards.filter(c => (cardSynergy(cardDef(c)).when ?? []).includes('ifTagged')).length;
+    return punishers > 0 ? 0.4 + 0.4 * Math.min(punishers, 2) : -0.5;
   }
 
   /** An agenda that is better scored with the Runner tagged, while an operation in HQ could tag them this turn. */
@@ -444,7 +465,7 @@ export class HeuristicCorpAI implements Agent {
         if (finishNow) return 45;
         if (this.timing) {
           // Deck-aware AI: install only if this turn's advances leave it scoreable next turn, behind ice we can still rez
-          const spend = Math.min(corp.clicks - 1, corp.credits);
+          const spend = Math.min(corp.clicks - 1, corp.credits) + this.untaianAdvance(state, 1);
           const left = (def.advancement_cost ?? 0) - spend;
           if (left > 3 || guards(state, server, corp.credits - spend) === 0) return hq.length > corp.handSizeLimit ? 0.5 : -2;
         }

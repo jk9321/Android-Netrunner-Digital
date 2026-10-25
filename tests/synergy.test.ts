@@ -7,6 +7,7 @@ import { MAX_NUDGE, deckProfile, nudge, opponentProfile, tuning } from '../src/a
 import { CONDITIONS, CONDITION_PATTERNS, SYNERGY, THEMES, inferSynergy } from '../src/ai/synergyTags';
 import { newGame } from './helpers';
 import { RunnerMemory, serverValue, trapOdds } from '../src/ai/runs';
+import { untaianPick } from '../src/ai/prompts';
 
 
 describe('synergy tags', () => {
@@ -322,5 +323,44 @@ describe('planning (setup scoring)', () => {
     const plain = score();
     tuning.plan.iceDepth = true;
     expect(broken - unbroken).toBeGreaterThan(plain - unbroken + 0.5);
+  });
+});
+
+describe('identity plans', () => {
+  const remote = (s: GameState, id: string, root: CardInstance[], ice: CardInstance[] = []) =>
+    (s.corp.servers[id] = { id, name: id, isRemote: true, ice, root });
+
+  it('PT Untaian advances the agenda behind ice, and skips when nothing is worth a credit', () => {
+    const s = structuredClone(newGame());
+    const agenda = createCardInstance(s, '30069');
+    const trap = createCardInstance(s, '30045'); // Urtica Cipher
+    remote(s, 'remote-8', [agenda], [createCardInstance(s, '30072')]);
+    remote(s, 'remote-9', [trap]);
+    s.corp.credits = 5;
+    expect(untaianPick(s, [agenda.instanceId, trap.instanceId])).toEqual([agenda.instanceId]);
+    expect(untaianPick(s, [trap.instanceId])).toEqual([trap.instanceId]);
+    s.corp.credits = 1;
+    expect(untaianPick(s, [agenda.instanceId])).toEqual([]);
+  });
+
+  it('BANGUN installs an agenda faceup with tag punishers in hand; the Runner reads it', () => {
+    const s = structuredClone(newGame());
+    s.corp.identity = createCardInstance(s, '35068'); // BANGUN
+    const agenda = createCardInstance(s, '30067');
+    s.corp.hq = [agenda, createCardInstance(s, '30065')]; // Retribution
+    remote(s, 'remote-8', [], [createCardInstance(s, '30072')]);
+    s.corp.clicks = 1;
+    s.corp.credits = 6;
+    const install = (faceUp: boolean) =>
+      new HeuristicCorpAI().rankMainActions(s).find(r => r.action.type === 'INSTALL_CARD' && r.action.cardInstanceId === agenda.instanceId && r.action.targetServerId === 'remote-8' && !!r.action.faceUp === faceUp)?.score ?? -Infinity;
+    expect(install(true)).toBeGreaterThan(install(false));
+    // The Runner: a faceup agenda is a sure steal, but not with a hand that 2 meat damage would empty
+    const t = structuredClone(s);
+    agenda.faceUp = true;
+    remote(t, 'remote-9', [{ ...agenda, faceUp: true }]);
+    t.runner.grip = t.runner.grip.slice(0, 3);
+    expect(serverValue(t, 'remote-9', 0, undefined, true)).toBeGreaterThan(2);
+    t.runner.grip = t.runner.grip.slice(0, 1);
+    expect(serverValue(t, 'remote-9', 0, undefined, true)).toBe(0);
   });
 });
