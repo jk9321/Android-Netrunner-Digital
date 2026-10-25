@@ -571,7 +571,7 @@ function Game({
             title="Back to deck selection"
             className="font-cyber font-black tracking-wider 2xl:tracking-widest text-xs 2xl:text-lg whitespace-nowrap glitch-title hover:brightness-125 transition"
           >
-            NETRUNNER // PROTOCOL
+            NETRUNNER
           </button>
           <div className="flex items-center gap-1.5">
             <div className="hidden sm:block">

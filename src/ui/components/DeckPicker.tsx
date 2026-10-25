@@ -283,7 +283,7 @@ export const DeckPicker: React.FC<DeckPickerProps> = ({ initialCorpDeckId, initi
   return (
     <div className="min-h-screen text-slate-100 font-mono flex flex-col items-center px-4 py-8">
       <h1 className="font-cyber font-black tracking-widest text-2xl sm:text-4xl glitch-title mb-1">
-        NETRUNNER // PROTOCOL
+        NETRUNNER
       </h1>
       <p className="text-xs text-slate-400 mb-6 text-center">
         Choose a deck for each side. The starter decks are the best place to begin. Build your own with New deck, or copy any deck to tweak it.
