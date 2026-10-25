@@ -420,7 +420,7 @@ export class HeuristicCorpAI implements Agent {
 /**
  * Deck-aware AI: how well this ice fits here against this Runner. Ice the
  * rig can't break, on a server the Runner has been attacking, of a type
- * the server doesn't have yet, is worth more.
+ * the server doesn't have yet, or on HQ while it holds agendas, is worth more.
  */
 function iceFit(state: GameState, ice: CardInstance, server: ServerState | null): number {
   let fit = 0;
@@ -431,6 +431,10 @@ function iceFit(state: GameState, ice: CardInstance, server: ServerState | null)
   const attacked = [...state.runnerLastTurnRuns, ...state.runsThisTurn].some(r => r.server === server.id);
   if (attacked) fit += 0.8;
   if (server.id === 'rd' && state.runner.rig.programs.some(p => p.cardCode === '30024')) fit += 0.8; // Conduit
+  // Guard what HQ holds: agendas in hand make HQ the server to ice, none make R&D the bigger risk
+  const agendasInHq = state.corp.hq.filter(c => type(c) === 'agenda' && c.instanceId !== ice.instanceId).length;
+  if (server.id === 'hq') fit += agendasInHq > 0 ? Math.min(1.5, 0.6 * agendasInHq) : -0.3;
+  if (server.id === 'rd' && agendasInHq === 0) fit += 0.3;
   if (server.ice.length > 0) fit += server.ice.some(other => iceSubtypes(other, state).some(t => types.includes(t))) ? -0.6 : 0.3;
   return fit;
 }
