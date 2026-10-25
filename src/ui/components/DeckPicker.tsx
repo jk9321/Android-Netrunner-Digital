@@ -162,6 +162,18 @@ export const DeckPicker: React.FC<DeckPickerProps> = ({ initialCorpDeckId, initi
     </span>
   );
 
+  // Scrolls only the deck list column (not the page) so the deck sits in the middle
+  const scrollDeckIntoView = (side: 'corp' | 'runner', deckId: string) => {
+    const list = document.querySelector<HTMLElement>(`[data-testid="deck-list-${side}"]`);
+    const item = Array.from(list?.children ?? []).find(
+      el => (el as HTMLElement).dataset.testid === `deck-${deckId}`,
+    ) as HTMLElement | undefined;
+    if (!list || !item) return;
+    const offset = item.getBoundingClientRect().top - list.getBoundingClientRect().top;
+    const top = list.scrollTop + offset - (list.clientHeight - item.offsetHeight) / 2;
+    list.scrollTo?.({ top: Math.max(0, top), behavior: 'smooth' });
+  };
+
   const column = (side: 'corp' | 'runner', selected: string, select: (id: string) => void) => {
     const accent = side === 'corp' ? 'cyan' : 'pink';
     const allDecks = summaries.map(s => s.deck);
@@ -176,7 +188,10 @@ export const DeckPicker: React.FC<DeckPickerProps> = ({ initialCorpDeckId, initi
             <button
               onClick={() => {
                 const deck = pickRandomDeck(allDecks, side, selected);
-                if (deck) select(deck.id);
+                if (!deck) return;
+                select(deck.id);
+                // Wait for the re-render, then bring the picked deck into view
+                requestAnimationFrame(() => scrollDeckIntoView(side, deck.id));
               }}
               disabled={!canRandomize}
               title="Pick a random legal deck (never a starter deck)"
