@@ -1,6 +1,7 @@
 import React from 'react';
 import { createPortal } from 'react-dom';
 import { CardInstance } from '../../core/types/card';
+import { GameState } from '../../core/types/state';
 import { CardView } from './CardView';
 import { X } from 'lucide-react';
 
@@ -9,6 +10,30 @@ export interface ZoneGroup {
   cards: CardInstance[];
   /** Face-down cards (Archives): shown only when the viewer may peek. */
   faceDown?: boolean;
+}
+
+export type ZoneId = 'archives' | 'heap' | 'corp-score' | 'runner-score' | 'removed';
+
+/** The title and card groups shown when browsing a zone. */
+export function zoneContents(zone: ZoneId, state: GameState): { title: string; groups: ZoneGroup[] } {
+  switch (zone) {
+    case 'archives':
+      return {
+        title: 'ARCHIVES',
+        groups: [
+          { label: 'Face up', cards: state.corp.archives.faceUp },
+          { label: 'Face down', cards: state.corp.archives.faceDown, faceDown: true },
+        ],
+      };
+    case 'heap':
+      return { title: 'HEAP', groups: [{ label: 'Heap', cards: state.runner.heap }] };
+    case 'corp-score':
+      return { title: 'CORP SCORE AREA', groups: [{ label: 'Scored agendas', cards: state.corp.scoreArea }] };
+    case 'runner-score':
+      return { title: 'RUNNER SCORE AREA', groups: [{ label: 'Stolen agendas', cards: state.runner.scoreArea }] };
+    case 'removed':
+      return { title: 'REMOVED FROM GAME', groups: [{ label: 'Removed', cards: state.removedFromGame }] };
+  }
 }
 
 interface ZoneViewerProps {
