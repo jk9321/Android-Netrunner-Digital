@@ -49,10 +49,17 @@ export const tuning = {
   purge: true,
   /** Planning terms (round 2): each can be switched off for batches. */
   plan: {
-    /** Tags are worth more while the Corp holds cards that punish them. */
-    tagThreat: true,
-    /** Icebreakers for the ice types the Corp has shown are worth more. */
-    breakerFocus: true,
+    /*
+     * Round 2 batches (663 deals per piece, 2026-10-25): Runner, all on +10
+     * games over round 1; leaving one out: saving up was worth +6, tag
+     * threat +2, urgency +1, breakers for seen ice -4 (shelved). Corp, all on
+     * -31: ice placement cost about 23 games as a flat bonus (now reworked to
+     * shift between choices), tag threat -4 (off for the Corp), score setups +1.
+     */
+    /** Tags are worth more while the Corp holds cards that punish them (per deciding side). */
+    tagThreat: { corp: false, runner: true } as Record<SideCode, boolean>,
+    /** SHELVED: icebreakers for the ice types the Corp has shown are worth more. */
+    breakerFocus: false,
     /** Runner: run an agenda the Corp could finish next turn now; defend harder late in the game. */
     urgency: true,
     /** Runner: take money toward a run it can't afford yet. */
@@ -61,6 +68,8 @@ export const tuning = {
     scoreSetup: true,
     /** Corp: ice the Runner can't break, on servers under attack, mixing types. */
     icePlacement: true,
+    /** Corp: guard agendas by their stakes (points, a winning steal, counters), HQ while it holds them. */
+    agendaStakes: true,
   },
 };
 

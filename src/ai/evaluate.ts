@@ -162,7 +162,7 @@ export function tagThreat(state: GameState, viewer: SideCode): number {
 }
 
 export function sideStrength(state: GameState, side: SideCode, viewer: SideCode = side, aware = false): number {
-  const threat = aware && tuning.plan.tagThreat && state.runner.tags > 0 ? tagThreat(state, viewer) : 0;
+  const threat = aware && tuning.plan.tagThreat?.[viewer] && state.runner.tags > 0 ? tagThreat(state, viewer) : 0;
   if (side === 'corp') {
     const corp = state.corp;
     return (

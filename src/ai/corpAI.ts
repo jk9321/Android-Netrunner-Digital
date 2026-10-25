@@ -98,7 +98,7 @@ export class HeuristicCorpAI implements Agent {
     const run = state.activeRun;
     if (!run) return null;
     const server = state.corp.servers[run.server];
-    const importance = serverImportance(state, server, this.synergy && tuning.plan.icePlacement);
+    const importance = serverImportance(state, server, this.synergy && tuning.plan.agendaStakes);
     let best: { card: CardInstance; score: number } | null = null;
     for (const card of cards) {
       const def = cardDef(card);
@@ -356,7 +356,7 @@ export class HeuristicCorpAI implements Agent {
             need = server.ice.length < 2 ? 7 : 3;
             // Deck-aware AI: guard a key agenda (more points, or one that would win them the game) harder
             const agenda = server.root.find(c => type(c) === 'agenda');
-            if (this.synergy && tuning.plan.icePlacement && agenda) need *= 0.7 + 0.15 * agendaStakes(state, agenda);
+            if (this.synergy && tuning.plan.agendaStakes && agenda) need *= 0.7 + 0.15 * agendaStakes(state, agenda);
           }
           else if (holdsAsset) {
             need = server.ice.length === 0 ? 1.5 : 0.2;
@@ -378,7 +378,7 @@ export class HeuristicCorpAI implements Agent {
           (hasEndTheRun(card) ? 1 : 0) +
           0.15 * Math.min(strength, 5) -
           (corp.credits - installCost < rezCost ? 1.5 : 0) +
-          (this.synergy && tuning.plan.icePlacement ? iceFit(state, card, server) : 0)
+          (this.synergy && tuning.plan.icePlacement ? iceFit(state, card, server, tuning.plan.agendaStakes) : 0)
         );
       }
       case 'agenda': {
@@ -423,24 +423,31 @@ export class HeuristicCorpAI implements Agent {
 }
 
 /**
- * Deck-aware AI: how well this ice fits here against this Runner. Ice the
- * rig can't break, on a server the Runner has been attacking, of a type
- * the server doesn't have yet, or on HQ while it holds agendas, is worth more.
+ * Deck-aware AI: how well this ice fits here against this Runner, as a
+ * shift between ice and servers that averages out to about zero, so it
+ * changes which ice goes where rather than how much ice gets installed
+ * (a flat bonus made the Corp over-ice in batches). Ice of a type the rig
+ * can't break, on a server the Runner has been attacking, or of a type the
+ * server lacks, does better; with `stakes`, so does HQ while it holds agendas.
  */
-function iceFit(state: GameState, ice: CardInstance, server: ServerState | null): number {
+function iceFit(state: GameState, ice: CardInstance, server: ServerState | null, stakes: boolean): number {
   let fit = 0;
   const types = iceSubtypes(ice, state);
-  const { covered, anyBreakers } = rigCoverage(state.runner.rig.programs);
-  if (types.length > 0 && types.every(t => !covered.has(t))) fit += anyBreakers > 0 ? 0.7 : 1.5;
+  const { covered } = rigCoverage(state.runner.rig.programs);
+  // Only once the rig breaks some types but not others is there a choice to make
+  if (covered.size > 0 && covered.size < 3 && types.length > 0) fit += types.some(t => covered.has(t)) ? -0.5 : 0.8;
   if (!server) return fit;
-  const attacked = [...state.runnerLastTurnRuns, ...state.runsThisTurn].some(r => r.server === server.id);
-  if (attacked) fit += 0.8;
-  if (server.id === 'rd' && state.runner.rig.programs.some(p => p.cardCode === '30024')) fit += 0.8; // Conduit
-  // Guard what HQ holds: agendas in hand make HQ the server to ice, none make R&D the bigger risk
-  const agendasInHq = state.corp.hq.filter(c => type(c) === 'agenda' && c.instanceId !== ice.instanceId).length;
-  if (server.id === 'hq') fit += agendasInHq > 0 ? Math.min(1.5, 0.6 * agendasInHq) : -0.3;
-  if (server.id === 'rd' && agendasInHq === 0) fit += 0.3;
-  if (server.ice.length > 0) fit += server.ice.some(other => iceSubtypes(other, state).some(t => types.includes(t))) ? -0.6 : 0.3;
+  const runs = [...state.runnerLastTurnRuns, ...state.runsThisTurn];
+  if (runs.length > 0) fit += runs.some(r => r.server === server.id) ? 0.6 : -0.2;
+  if (server.id === 'rd' && state.runner.rig.programs.some(p => p.cardCode === '30024')) fit += 0.6; // Conduit
+  if (stakes && (server.id === 'hq' || server.id === 'rd')) {
+    // Guard what HQ holds: agendas in hand make HQ the server to ice, none make R&D the bigger risk
+    const inHq = state.corp.hq.filter(c => type(c) === 'agenda' && c.instanceId !== ice.instanceId);
+    const hqStakes = inHq.reduce((n, a) => n + agendaStakes(state, a), 0);
+    const lean = hqStakes > 0 ? Math.min(1, 0.25 * hqStakes) : -0.3;
+    fit += server.id === 'hq' ? lean : -lean / 2;
+  }
+  if (server.ice.length > 0 && server.ice.some(other => iceSubtypes(other, state).some(t => types.includes(t)))) fit -= 0.4;
   return fit;
 }
 
