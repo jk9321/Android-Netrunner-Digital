@@ -41,7 +41,7 @@ import { ViewMode, Viewer, actingSide, canActAs, canSeeCorpSecrets, canSeeRunner
 import { playForLog, setSoundEnabled, soundEnabled } from './ui/sound';
 import {
   Clock,
-  RotateCcw,
+  LogOut,
   Plus,
   Layers,
   Award,
@@ -720,9 +720,9 @@ function Game({
           <button
             onClick={leaveGame}
             className="p-2 bg-slate-900 hover:bg-slate-800 text-slate-400 hover:text-white rounded-lg border border-slate-800 transition-colors"
-            title="New game (pick decks)"
+            title="Leave game (back to deck select)"
           >
-            <RotateCcw className="w-4 h-4" />
+            <LogOut className="w-4 h-4" />
           </button>
         </div>
       </header>
