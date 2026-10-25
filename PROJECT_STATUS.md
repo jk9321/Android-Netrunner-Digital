@@ -32,7 +32,7 @@ This project is an open-source digital implementation of **Android: Netrunner**,
   * **Tailwind CSS** with custom cyberpunk palette (`cyber-dark`, `cyber-neonCyan`, `cyber-neonPink`, etc.)
   * **Framer Motion** for card transitions (FLIP animations)
   * **Lucide React** for icons
-* **Testing:** **Vitest** (fast headless unit testing for game rules and timing interactions).
+* **Testing:** **Vitest** (fast headless unit testing for game rules and timing interactions), a **Playwright** browser smoke test (`e2e/`, `npm run test:e2e`), **ESLint** (`npm run lint`) and `npm run typecheck`. GitHub Actions (`.github/workflows/ci.yml`) runs all four on pushes to main and on PRs.
 * **Desktop Executable Target:** Architecture is prepared for **Tauri** packaging to output lightweight Windows `.exe` binaries without modifying web code.
 
 ### Architectural Invariants
@@ -90,15 +90,25 @@ Netrunner/
 │   │   └── system-gateway-cards.json   <-- Bundled card metadata
 │   ├── ui/
 │   │   ├── glossary.ts                 <-- Rules keyword definitions + card-text annotation for hover tooltips
+│   │   ├── useGameController.ts        <-- One game's state, AI moves, saving, rez windows, who may act
+│   │   ├── gameStart.ts                <-- ?seed= links, resuming a saved game, view mode default
+│   │   ├── legal.ts                    <-- illegalReason, hostedCardActions (for the action buttons)
+│   │   ├── sound.ts                    <-- Sounds picked from what an action changed and log events
 │   │   └── components/
+│   │       ├── GameHeader.tsx          <-- Top bar: phase, AI status, scores, card size, view, sound, forfeit
+│   │       ├── SideStrip.tsx           <-- Each side's identity and counters
+│   │       ├── ActionBars.tsx          <-- Corp and Runner click actions, plays, installs, End Turn
 │   │       ├── CardView.tsx            <-- Card renderer with hover stats & face-down backing
 │   │       ├── ServerColumn.tsx        <-- HQ, R&D, Archives, Remotes with Ice stacks
 │   │       ├── RigView.tsx             <-- Installed Programs, Hardware, Resources
 │   │       ├── RunOverlay.tsx          <-- Real-time run tracker overlay
 │   │       └── LogFeed.tsx             <-- Cyberpunk terminal event log
-│   ├── App.tsx                         <-- Main interactive tabletop interface
+│   ├── App.tsx                         <-- Deck picker or game; lays out the tabletop
 │   ├── main.tsx
 │   └── index.css                       <-- Tailwind directives & cyberpunk styles
+├── e2e/smoke.e2e.ts                    <-- Browser smoke test: game vs the computer, reload resumes
+├── eslint.config.js                    <-- Lint rules (React hook rules on UI files only)
+├── .github/workflows/ci.yml            <-- Typecheck, lint, unit tests, smoke test on push and PR
 └── tests/
     ├── helpers.ts                      <-- newGame(seed), putInHand(), startRunnerTurn()
     ├── gameEngine.test.ts              <-- Core action tests
@@ -259,3 +269,4 @@ Netrunner/
 | **2026-10-24** | Claude | Deckbuilder ban markers: cards banned or restricted in any format get a BAN / RES marker (hover lists the formats) in the card pool and deck list, and a "Banned or restricted" panel in the right column lists the deck's flagged cards and their formats (`formatStatuses` / `describeFormatStatuses` in `src/core/formats.ts`). |
 | **2026-10-25** | Claude | Bug fixes from the code health audit: crash screen (`ErrorBoundary` in `main.tsx`; "Start over" clears the saved game) and `SAVE_VERSION` in `src/ui/savedGame.ts` (bump it when GameState changes shape; saves with another version are dropped); an AI that errors, finds no move or picks an illegal one now opens a "Computer stuck" dialog (Try again / Computer concedes) instead of hanging on AI THINKING; `handleAction` applies moves to the latest state, so forfeiting after the confirm dialog no longer undoes AI moves made while it was open; the Runner's Install Card button is disabled with the engine's reason when the install is illegal; card-fate timers are cleared when a game is left; favicon (`public/favicon.svg`, was a 404). Card data: one `scripts/sync-cards.mjs` (`npm run sync-cards`) now writes `src/data/*.json` in the committed format for both sets; the old download scripts and the duplicate `Resources/` copies are removed. |
 | **2026-10-25** | Claude | Speed (audit P1–P6). Legality answers are cached per state object (`isLegalAction` and `getLegalActions` keep a WeakMap; game states must never be edited after they are made, so tests change a `structuredClone` copy). `executeAction` no longer deep-copies the log: the new state gets a new array of the same entries, which `addLog` freezes. App reuses the servers and rig (`useMemo` on the game state and viewer; their buttons call `handleAction`, which reads the latest state), `HandRow`, `LogFeed` and each log line are memoized, and keyword-annotated card text is cached. The board sections, header and card badges lost their `backdrop-blur` (the blur repainted the whole board on every change and was invisible over the dark panels; modals keep theirs). DeckBuilder and ImportDeckModal load on first use. Unused Google Font weights dropped (Fira Code, Orbitron 500). Measured in headless Chromium on a turn-12 save: selecting a card 160–180 ms → 65–80 ms click-to-paint, JavaScript per selection 27–31 ms → 9 ms. |
+| **2026-10-25** | Claude | Code health (audit C1–C8). Lint and type checks: `eslint.config.js` (typescript-eslint, React hook rules on UI files), `npm run lint`, `npm run typecheck`; `tsconfig` now rejects unused variables and parameters. Dead code removed (`ACCESS_CARD` / `PASS_PRIORITY` actions, unused imports and props); `sampleDecks.ts` moved to `tests/`; the Hard AI's rez search uses a typed candidate instead of casts. Log lines can carry an `event` (access, damage, rez, install): sounds come from what an action changed plus those events, and the accessed-cards panel reads the access event, so neither depends on log wording (also fixes agenda wins playing the score sound instead of the win fanfare, and Runner installs making no sound). App.tsx split from 1,297 to about 490 lines: `useGameController`, `GameHeader`, `SideStrip`, `ActionBars`, `CorpInstallOptions`, `AccessedPanel`, `gameStart.ts`, `legal.ts`. Playwright smoke test (`e2e/smoke.e2e.ts`) and a GitHub Actions workflow running typecheck, lint, unit tests and the smoke test. README says online multiplayer is planned. |
