@@ -24,23 +24,29 @@ import { THEMES, Theme, ThemeWeights, cardSynergy } from './synergyTags';
 export const MAX_NUDGE = 1;
 /** Weights, tuned with AI-vs-AI batches (scripts/ai-match.sh). */
 export const tuning = {
-  /**
-   * Own-deck synergy term of the move nudge, per side. Off for the Runner:
-   * with only System Gateway and Elevation it cost the Runner games (its
-   * plain scoring already plays these decks well). Worth re-testing as
-   * sets with deeper combos arrive.
+  /*
+   * Measured with new-vs-old batches on System Gateway + Elevation
+   * (2026-10-25): the own-deck nudge cost both sides games (their plain
+   * scoring already plays these decks well), and the Corp's opponent
+   * reading and hand-keeping did too. The Runner's opponent reading and
+   * hand-keeping won games. So only those are on for now; the rest is
+   * ready to re-test with scripts/ai-match.sh as sets with deeper combos
+   * arrive.
    */
-  synergy: { corp: 1, runner: 0 } as Record<SideCode, number>,
+  /** Own-deck synergy term of the move nudge, per side. */
+  synergy: { corp: 0, runner: 0 } as Record<SideCode, number>,
   /** Opponent-reading term of the move nudge, per side. */
-  counter: { corp: 1, runner: 1 } as Record<SideCode, number>,
+  counter: { corp: 0, runner: 1 } as Record<SideCode, number>,
   /** Synergy when choosing which cards to keep in hand, per side. */
-  keep: { corp: 1, runner: 1 } as Record<SideCode, number>,
+  keep: { corp: 0, runner: 1 } as Record<SideCode, number>,
   /** Over-advance Dividends agendas. */
   dividends: true,
   /** Runner: trap caution from the traps the Corp has shown. */
   wary: true,
   /** Corp: sell traps as agendas, and the naked-agenda reverse bluff. */
   bluff: true,
+  /** Corp: purge sooner against a virus deck. */
+  purge: true,
 };
 
 const IDENTITY = 3;

@@ -28,6 +28,7 @@ if (process.env.KEEP) tuning.keep = { corp: Number(process.env.KEEP), runner: Nu
 tuning.dividends = process.env.DIVIDENDS !== '0';
 tuning.wary = process.env.WARY !== '0';
 tuning.bluff = process.env.BLUFF !== '0';
+tuning.purge = process.env.PURGE !== '0';
 
 const corpDecks = DECKS.filter(d => d.side === 'corp');
 const runnerDecks = DECKS.filter(d => d.side === 'runner');

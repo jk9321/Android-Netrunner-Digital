@@ -145,7 +145,7 @@ export class HeuristicCorpAI implements Agent {
           0
         );
         // Against a virus deck, purge a little sooner
-        return viruses - 3.5 + (this.synergy ? opponentLean(state, 'corp', 'virus') : 0);
+        return viruses - 3.5 + (this.synergy && tuning.purge ? opponentLean(state, 'corp', 'virus') : 0);
       }
       case 'ADVANCE_CARD': {
         const score = this.advanceScore(state, action.cardInstanceId, action.serverId);
