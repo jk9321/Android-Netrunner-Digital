@@ -137,7 +137,7 @@ export class HeuristicRunnerAI implements Agent {
     // Nowhere worth running and breakers missing: dig for them
     this.digForBreakers =
       rigCoverage(state.runner.rig.programs).covered.size < 3 &&
-      !legal.some(a => a.type === 'INITIATE_RUN' && runScore(state, a.targetServerId, { memory: this.memory }) > 0);
+      !legal.some(a => a.type === 'INITIATE_RUN' && runScore(state, a.targetServerId, { memory: this.memory, wary: this.synergy }) > 0);
     return legal
       .map(action => {
         let score = this.scoreMain(state, action, before);
@@ -163,7 +163,7 @@ export class HeuristicRunnerAI implements Agent {
       case 'END_TURN':
         return -0.5;
       case 'INITIATE_RUN':
-        return runScore(state, action.targetServerId, { memory: this.memory });
+        return runScore(state, action.targetServerId, { memory: this.memory, wary: this.synergy });
       case 'REMOVE_TAG':
         return state.runner.rig.resources.length > 0 ? 1.2 : 0.3;
     }
@@ -177,12 +177,12 @@ export class HeuristicRunnerAI implements Agent {
     const cardCode = 'cardInstanceId' in action ? state.runner.grip.concat(state.runner.rig.resources, state.runner.rig.programs).find(c => c.instanceId === action.cardInstanceId)?.cardCode : undefined;
     const paid = state.runner.credits - after.runner.credits;
     if (prompt?.kind === 'effect_choice' && prompt.side === 'runner' && prompt.options.every(o => after.corp.servers[o.id])) {
-      const options = { ...runEventOptions(prompt.source.cardCode), memory: this.memory };
+      const options = { ...runEventOptions(prompt.source.cardCode), memory: this.memory, wary: this.synergy };
       const best = Math.max(...prompt.options.map(o => runScore(state, o.id, options)));
       return best - paid * 0.6 + (prompt.source.cardCode === '30028' ? 0.5 : 0);
     }
     if (!state.activeRun && after.activeRun) {
-      return runScore(state, after.activeRun.server, { ...runEventOptions(cardCode ?? ''), memory: this.memory }) - paid * 0.6 + 0.3;
+      return runScore(state, after.activeRun.server, { ...runEventOptions(cardCode ?? ''), memory: this.memory, wary: this.synergy }) - paid * 0.6 + 0.3;
     }
 
     // Follow our own prompts (Lie Low, Scrounge, Madani) a few steps

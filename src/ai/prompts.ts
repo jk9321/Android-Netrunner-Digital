@@ -26,7 +26,7 @@ export function scoreOutcome(before: GameState, after: GameState, side: SideCode
   let score = evaluate(after, side);
   score += 0.5 * (sumKeep(after, hand(after, side), synergy) - sumKeep(before, hand(before, side), synergy));
   if (side === 'runner' && before.activeRun) {
-    const value = serverValue(before, before.activeRun.server, 0, memory) * 0.8;
+    const value = serverValue(before, before.activeRun.server, 0, memory, synergy) * 0.8;
     if (after.activeRun && !after.activeRun.isJackedOut) score += value;
   }
   return score;
@@ -83,7 +83,7 @@ export function answerPrompt(state: GameState, side: SideCode, memory?: RunnerMe
 
   const servers = side === 'runner' ? serverOptions(state, prompt) : null;
   if (servers && prompt.kind === 'effect_choice') {
-    const scored = servers.map(id => ({ id, score: runScore(state, id, { ...runEventOptions(prompt.source.cardCode), memory }) }));
+    const scored = servers.map(id => ({ id, score: runScore(state, id, { ...runEventOptions(prompt.source.cardCode), memory, wary: synergy }) }));
     scored.sort((a, b) => b.score - a.score);
     return { ...base, choice: { kind: 'effect_choice', optionId: scored[0].id } };
   }

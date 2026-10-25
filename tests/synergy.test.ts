@@ -5,6 +5,7 @@ import { HeuristicCorpAI, playAIGame } from '../src/ai';
 import { MAX_NUDGE, deckProfile, nudge, opponentProfile } from '../src/ai/synergy';
 import { SYNERGY, THEMES, inferSynergy } from '../src/ai/synergyTags';
 import { newGame } from './helpers';
+import { RunnerMemory, serverValue, trapOdds } from '../src/ai/runs';
 
 
 describe('synergy tags', () => {
@@ -127,5 +128,24 @@ describe('dividends', () => {
     expect(first).toMatchObject({ type: 'ADVANCE_CARD', cardInstanceId: agenda.instanceId });
     // Without the deck-aware AI it scores straight away
     expect(new HeuristicCorpAI({ synergy: false }).chooseAction(s)).toMatchObject({ type: 'SCORE_AGENDA' });
+  });
+});
+
+describe('trap caution', () => {
+  it('grows with the traps the Corp has shown, and is strongest on an undefended remote', () => {
+    const state = newGame();
+    const s = structuredClone(state);
+    const card = createCardInstance(s, '30067'); // an unknown card in a new remote
+    s.corp.servers['remote-9'] = { id: 'remote-9', name: 'Server 9', isRemote: true, ice: [], root: [card] };
+    s.runner.grip = s.runner.grip.slice(0, 3);
+    const fresh = serverValue(s, 'remote-9', 0, new Map(), true);
+    expect(fresh).toBeLessThan(serverValue(s, 'remote-9', 0, new Map(), false)); // no ice: a little warier
+    const seenTraps: RunnerMemory = new Map([['t1', '30045'], ['t2', '35050']]); // Urtica Cipher, Byte!
+    expect(trapOdds(s, seenTraps)).toBeGreaterThan(trapOdds(s, new Map()));
+    expect(serverValue(s, 'remote-9', 0, seenTraps, true)).toBeLessThan(fresh);
+    // Agendas showing up from remotes make it bolder again
+    const s2 = structuredClone(s);
+    s2.runner.scoreArea.push(createCardInstance(s2, '30067'), createCardInstance(s2, '30070'), createCardInstance(s2, '30069'));
+    expect(trapOdds(s2, seenTraps)).toBeLessThan(trapOdds(s, seenTraps));
   });
 });

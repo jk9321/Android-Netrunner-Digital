@@ -1,4 +1,4 @@
-import { CardInstance, GameState, cardDef } from '../core';
+import { CardInstance, GameState, cardDef, getCardDefinition } from '../core';
 import {
   boostCostOf,
   breakerScript,
@@ -119,8 +119,35 @@ export type RunnerMemory = Map<string, string>;
 
 const URTICA = '30045';
 
+/** Corp assets that punish the Runner for accessing or leaving them (the cards an empty-looking remote bluffs with). */
+export function isTrap(code: string): boolean {
+  const def = getCardDefinition(code);
+  return def.type_code === 'asset' && /ambush|hostile/i.test(def.keywords ?? '') && code !== '35061'; // Idiosyncresis isn't sprung by access
+}
+
+/**
+ * How likely an unknown installed Corp card is a trap rather than an
+ * agenda, from what the Runner has seen: traps it accessed or saw trashed
+ * into Archives, agendas scored or stolen, and the Corp's faction (Jinteki
+ * plays the most traps). Starts at 1 in 3 and moves with the evidence.
+ */
+export function trapOdds(state: GameState, memory?: RunnerMemory): number {
+  const seen = new Set<string>();
+  let traps = 0;
+  const note = (id: string, code: string) => {
+    if (seen.has(id)) return;
+    seen.add(id);
+    if (isTrap(code)) traps++;
+  };
+  memory?.forEach((code, id) => note(id, code));
+  for (const c of state.corp.archives.faceUp) note(c.instanceId, c.cardCode);
+  const agendas = state.corp.scoreArea.length + state.runner.scoreArea.length;
+  const prior = cardDef(state.corp.identity).faction_code === 'jinteki' ? 1.5 : 1;
+  return (traps + prior) / (traps + agendas + prior + 2);
+}
+
 /** What accessing this server is worth to the Runner right now. */
-export function serverValue(state: GameState, serverId: string, extraAccesses = 0, memory?: RunnerMemory): number {
+export function serverValue(state: GameState, serverId: string, extraAccesses = 0, memory?: RunnerMemory, wary = false): number {
   const server = state.corp.servers[serverId];
   if (!server) return 0;
   const priorRuns = state.runsThisTurn.filter(r => r.server === serverId);
@@ -138,6 +165,9 @@ export function serverValue(state: GameState, serverId: string, extraAccesses = 
   if (repeat > 0 && server.isRemote) return 0;
   // Urtica Cipher (in Jinteki and both starter Corp decks) does 2 + counters net damage
   const trapRisk = true;
+  // Deck-aware AI: caution grows with the traps this Corp has shown, more so on a remote with no ice (a classic bluff)
+  const caution = wary ? (trapOdds(state, memory) / (1 / 3)) * (server.isRemote && server.ice.length === 0 ? 1.25 : 1) : 1;
+  const handMargin = wary && caution > 1.4 ? 1 : 0;
   for (const card of server.root) {
     if (!card.isRezzed && memory?.has(card.instanceId)) {
       // Seen it: only worth coming back to trash it, and never into a known trap
@@ -145,10 +175,11 @@ export function serverValue(state: GameState, serverId: string, extraAccesses = 
       const trash = cardDef(card).trash_cost;
       if (trash != null && trash <= state.runner.credits) value += Math.max(0, corpCardValue(card) - trash) * 0.6;
     } else if (!card.isRezzed) {
-      if (trapRisk && card.advancementCounters === 0 && state.runner.grip.length <= 3) value -= 3; // might be a trap
+      if (trapRisk && card.advancementCounters === 0 && state.runner.grip.length <= 3 + handMargin) value -= 3 * caution; // might be a trap
       // Advanced and unrezzed: an agenda, or a trap (Urtica Cipher does 2 + counters net damage)
-      if (trapRisk && card.advancementCounters > 0 && state.runner.grip.length <= 2 + card.advancementCounters) return 0;
-      value += 3 + 2.5 * Math.min(card.advancementCounters, 4);
+      if (trapRisk && card.advancementCounters > 0 && state.runner.grip.length <= 2 + card.advancementCounters + handMargin) return 0;
+      // The more traps, the less likely it's the agenda we're hoping for
+      value += (3 + 2.5 * Math.min(card.advancementCounters, 4)) * (wary ? Math.min(1.2, Math.max(0.6, 1 - (caution - 1) * 0.33)) : 1);
     } else {
       const trash = cardDef(card).trash_cost;
       if (trash != null && trash <= state.runner.credits) value += Math.max(0.5, corpCardValue(card) - trash) * 0.6;
@@ -175,6 +206,8 @@ export interface RunOptions {
   successBonus?: number;
   /** Shred: the first "end the run" is prevented unless the Corp trashes cards from HQ. */
   shred?: boolean;
+  /** Deck-aware AI: weigh trap risk by the traps this Corp has shown (see trapOdds). */
+  wary?: boolean;
   memory?: RunnerMemory;
 }
 
@@ -185,7 +218,7 @@ export interface RunOptions {
 export function runScore(state: GameState, serverId: string, options: RunOptions = {}): number {
   const server = state.corp.servers[serverId];
   if (!server) return -Infinity;
-  let value = serverValue(state, serverId, options.extraAccesses ?? 0, options.memory) + 0.8 * (options.successBonus ?? 0);
+  let value = serverValue(state, serverId, options.extraAccesses ?? 0, options.memory, options.wary) + 0.8 * (options.successBonus ?? 0);
   if (state.runner.grip.length <= 1) value -= 2; // one net damage from flatlining
   if (value <= 0) return -Infinity;
   let known = 0;
