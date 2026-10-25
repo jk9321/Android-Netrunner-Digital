@@ -1,15 +1,18 @@
 // Adds up the shard counts from scripts/ai-match.ts (see ai-match.sh).
 import { readFileSync } from 'node:fs';
+import { printLossSummary } from './loss-summary.mjs';
 
 const files = process.argv.slice(2).filter(f => f.endsWith('.json'));
 const args = process.argv.slice(2).filter(f => !f.endsWith('.json'));
 const total = { base: {}, newCorp: {}, newRunner: {} };
 const corp = new Map();
 const runner = new Map();
+const corpLog = [];
 for (const f of files) {
   const lines = readFileSync(f, 'utf8').trim().split('\n');
   const data = JSON.parse(lines[lines.length - 1]);
   for (const k of Object.keys(total)) for (const [w, n] of Object.entries(data.results[k])) total[k][w] = (total[k][w] ?? 0) + n;
+  corpLog.push(...(data.corpLog ?? []));
   for (const [name, d] of data.byCorpDeck) {
     const t = corp.get(name) ?? { base: 0, newCorp: 0, n: 0 };
     corp.set(name, { base: t.base + d.base, newCorp: t.newCorp + d.newCorp, n: t.n + d.n });
@@ -28,4 +31,8 @@ console.log(`old vs NEW Runner: Runner ${pct(total.newRunner.runner)}  (${(total
 if (process.env.DETAIL) {
   for (const [name, d] of corp) console.log(`  corp ${name}: ${d.base}/${d.n} -> ${d.newCorp}/${d.n}`);
   for (const [name, d] of runner) console.log(`  runner ${name}: ${d.base}/${d.n} -> ${d.newRunner}/${d.n}`);
+}
+if (corpLog.length > 0) {
+  console.log('\nNEW Corp games, how they end (vs old Runner):');
+  printLossSummary(corpLog, false);
 }

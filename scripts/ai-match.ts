@@ -16,6 +16,7 @@ import { createInitialGameState } from '../src/core';
 import { DECKS, deckGameSetup } from '../src/data/decks';
 import { createAgent, playAIGame } from '../src/ai';
 import { tuning } from '../src/ai/synergy';
+import { GameRecord, playLogged } from './lossLog';
 
 const [gamesArg, levelArg, synArg, ctrArg] = process.argv.slice(2).filter(a => a !== '--');
 const games = Number(gamesArg ?? 1);
@@ -49,6 +50,7 @@ const tally = (): Tally => ({ corp: 0, runner: 0, draw: 0 });
 const results = { base: tally(), newCorp: tally(), newRunner: tally() };
 const byCorpDeck = new Map<string, { base: number; newCorp: number; n: number }>();
 const byRunnerDeck = new Map<string, { base: number; newRunner: number; n: number }>();
+const corpLog: GameRecord[] = [];
 
 const [shard, shards] = (process.env.SHARD ?? '0/1').split('/').map(Number);
 // The old-vs-old games don't change while the new AI is tuned: BASE_CACHE=dir keeps their results
@@ -68,7 +70,14 @@ for (const [ci, c] of corpDecks.entries()) {
       const play = (newCorp: boolean, newRunner: boolean) => {
         try {
           const start = createInitialGameState(deckGameSetup(seed, c, r));
-          const { state } = playAIGame(start, 4000, 80, { corp: agent('corp', newCorp, seed), runner: agent('runner', newRunner, seed) });
+          const agents = { corp: agent('corp', newCorp, seed), runner: agent('runner', newRunner, seed) };
+          if (newCorp) {
+            // The new Corp's games are logged: how it loses (see lossLog.ts)
+            const record = playLogged(start, agents, { corp: c.name, runner: r.name });
+            corpLog.push(record);
+            return record.winner as 'corp' | 'runner' | 'draw';
+          }
+          const { state } = playAIGame(start, 4000, 80, agents);
           return state.winner ?? 'draw';
         } catch (err) {
           console.error(`deal ${seed} ${c.name} vs ${r.name}: ${err}`); // an engine bug: count it as unfinished
@@ -98,7 +107,7 @@ for (const [ci, c] of corpDecks.entries()) {
 }
 if (cacheFile) writeFileSync(cacheFile, JSON.stringify(baseCache));
 if (process.env.SHARD) {
-  console.log(JSON.stringify({ results, byCorpDeck: [...byCorpDeck], byRunnerDeck: [...byRunnerDeck] }));
+  console.log(JSON.stringify({ results, byCorpDeck: [...byCorpDeck], byRunnerDeck: [...byRunnerDeck], corpLog }));
   process.exit(0);
 }
 const n = (diagonal ? corpDecks.length : corpDecks.length * runnerDecks.length) * games;
