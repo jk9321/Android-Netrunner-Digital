@@ -48,8 +48,11 @@ const baseCache: Record<string, string> = cacheFile && existsSync(cacheFile) ? J
 let seed = 1000;
 let deal = 0;
 const t0 = Date.now();
-for (const c of corpDecks) {
-  for (const r of runnerDecks) {
+// DIAGONAL=1: each Corp deck meets just one Runner deck (quick Hard AI checks)
+const diagonal = !!process.env.DIAGONAL;
+for (const [ci, c] of corpDecks.entries()) {
+  for (const [ri, r] of runnerDecks.entries()) {
+    if (diagonal && ri !== ci % runnerDecks.length) continue;
     for (let g = 0; g < games; g++) {
       seed++;
       if (deal++ % shards !== shard) continue;
@@ -89,7 +92,7 @@ if (process.env.SHARD) {
   console.log(JSON.stringify({ results, byCorpDeck: [...byCorpDeck], byRunnerDeck: [...byRunnerDeck] }));
   process.exit(0);
 }
-const n = corpDecks.length * runnerDecks.length * games;
+const n = (diagonal ? corpDecks.length : corpDecks.length * runnerDecks.length) * games;
 const pct = (x: number) => `${((100 * x) / n).toFixed(1)}%`;
 console.log(`${level}, ${n} deals per matchup, weights ${synArg ?? 1}/${ctrArg ?? 1}, ${((Date.now() - t0) / 1000).toFixed(0)}s`);
 console.log(`old Corp vs old Runner: Corp wins ${pct(results.base.corp)}, Runner ${pct(results.base.runner)}, unfinished ${pct(results.base.draw)}`);
