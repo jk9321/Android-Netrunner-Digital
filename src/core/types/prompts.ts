@@ -82,4 +82,5 @@ export type PromptChoice =
   | { kind: 'access_order'; optionId: string }
   /** trashFirst: on a prompt that installs a card (source.data.install), cards to trash first (rules 8.5.6). */
   | { kind: 'effect_choice'; optionId: string; trashFirst?: string[] }
-  | { kind: 'effect_cards'; cardInstanceIds: string[] };
+  /** trashFirst: on a prompt that installs the chosen card (source.data.install), installed cards to trash first (rules 8.5.6). */
+  | { kind: 'effect_cards'; cardInstanceIds: string[]; trashFirst?: string[] };

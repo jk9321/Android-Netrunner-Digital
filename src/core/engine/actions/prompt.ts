@@ -93,6 +93,7 @@ function answerPrompt(state: GameState, action: ResolvePromptAction): void {
       if (new Set(ids).size !== ids.length || ids.some(id => !prompt.candidateIds.includes(id))) {
         illegal('Choose only from the offered cards');
       }
+      if (choice.trashFirst?.length && !prompt.source.data?.install) illegal('This choice does not install a card');
       if (ids.length < prompt.min || ids.length > prompt.max) {
         illegal(prompt.min === prompt.max ? `Choose exactly ${prompt.min} card(s)` : `Choose ${prompt.min}-${prompt.max} card(s)`);
       }

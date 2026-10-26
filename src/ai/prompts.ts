@@ -1,4 +1,5 @@
-import { CardInstance, GameAction, GameState, Prompt, SideCode, activePrompt, cardDef, executeAction, getLegalActions } from '../core';
+import { CardInstance, GameAction, GameState, Prompt, SideCode, activePrompt, cardDef, executeAction, findCardAnywhere, getLegalActions } from '../core';
+import { runnerInstallBlocker } from '../core/engine/actions/install';
 import { evaluate, keepValue } from './evaluate';
 import { RunOptions, RunnerMemory, iceCost, isTrap, runScore, serverValue } from './runs';
 import { keepBonus, tuning } from './synergy';
@@ -38,7 +39,37 @@ export function scoreOutcome(before: GameState, after: GameState, side: SideCode
 }
 
 function answers(state: GameState, side: SideCode): GameAction[] {
-  return getLegalActions(state, side).filter(a => a.type === 'RESOLVE_PROMPT').slice(0, 200);
+  const legal = getLegalActions(state, side).filter(a => a.type === 'RESOLVE_PROMPT').slice(0, 200);
+  return [...legal, ...legal.flatMap(a => makeRoomAnswers(state, a))];
+}
+
+/**
+ * A Runner effect installing a program that only fits once installed
+ * programs are trashed (rules 8.5.6c): the same answer, trashing one
+ * program (or two, if one isn't enough) first.
+ */
+export function makeRoomAnswers(state: GameState, action: GameAction): GameAction[] {
+  if (action.type !== 'RESOLVE_PROMPT' || action.player !== 'runner') return [];
+  const prompt = activePrompt(state);
+  if (!prompt || (prompt.kind !== 'effect_cards' && prompt.kind !== 'effect_choice') || !prompt.source.data?.install) return [];
+  const choice = action.choice;
+  const cardId = choice.kind === 'effect_cards' ? choice.cardInstanceIds[0] : choice.kind === 'effect_choice' && choice.optionId === 'install' ? String(prompt.source.data.cardId) : undefined;
+  const card = cardId ? findCardAnywhere(state, cardId) : undefined;
+  if (!card || cardDef(card).type_code !== 'program' || !runnerInstallBlocker(state, card)) return [];
+  const programs = state.runner.rig.programs.map(c => c.instanceId);
+  const singles = programs.map(id => [id]);
+  const pairs = programs.flatMap((a, i) => programs.slice(i + 1).map(b => [a, b]));
+  for (const options of [singles, pairs]) {
+    // Each answer that installs the program
+    const installs = options
+      .map(trashFirst => ({ ...action, choice: { ...choice, trashFirst } }) as GameAction)
+      .filter(a => {
+        const after = simulate(state, a);
+        return !!after && after.runner.rig.programs.some(c => c.instanceId === card.instanceId);
+      });
+    if (installs.length > 0) return installs;
+  }
+  return [];
 }
 
 function mulligan(state: GameState, prompt: Prompt): boolean {

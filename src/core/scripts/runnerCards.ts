@@ -3,7 +3,6 @@ import { GameState } from '../types/state';
 import { cardDef } from '../cards';
 import { addLog } from '../engine/log';
 import { illegal, removeCard } from '../engine/helpers';
-import { installRunnerCardFrom, runnerInstallBlocker } from '../engine/actions/install';
 import { startRun, trashAccessedCard } from '../engine/actions/run';
 import {
   addCounters,
@@ -19,7 +18,7 @@ import {
 } from '../engine/cardEffects';
 import { encounteredIce, iceScript } from '../engine/ice';
 import { CardScript, EffectContext } from './types';
-import { askCards, askChoice, gainCredits } from './effects';
+import { askCards, askChoice, askRunnerInstall, gainCredits, installRunnerChoice, installRunnerHostChoice, installableRunnerCards } from './effects';
 
 /** Runner identities, hardware, resources and non-icebreaker programs from System Gateway. */
 
@@ -174,19 +173,22 @@ const pantographTrigger = (ctx: EffectContext) => {
   const { state } = ctx;
   gainCredits(state, 'runner', 1);
   addLog(state, 'runner', 'Runner gained 1 [credit] (Pantograph).');
-  const installable = state.runner.grip.filter(c => cardDef(c).type_code !== 'event' && !runnerInstallBlocker(state, c));
+  const installable = installableRunnerCards(state, state.runner.grip);
   if (installable.length === 0) return;
-  askCards(ctx, 'runner', 'Pantograph: you may install 1 card from your grip.', installable.map(c => c.instanceId), 0, 1, 'install');
+  askRunnerInstall(ctx, 'Pantograph: you may install 1 card from your grip.', installable.map(c => c.instanceId), 0, 1, 'install');
 };
 const pantograph: CardScript = {
   modifiers: { memory: 1 },
   triggers: { agenda_scored: pantographTrigger, agenda_stolen: pantographTrigger },
-  onPromptAnswer: ({ state }, _source, answer) => {
+  onPromptAnswer: (ctx, source, answer) => {
+    if (source.step === 'host') {
+      installRunnerHostChoice(ctx.state, source, answer);
+      return;
+    }
     if (answer.kind !== 'effect_cards' || answer.cardInstanceIds.length === 0) return;
     // The card may have left the grip, or stopped being installable, since the prompt was asked
-    const card = state.runner.grip.find(c => c.instanceId === answer.cardInstanceIds[0]);
-    if (!card || runnerInstallBlocker(state, card)) return;
-    installRunnerCardFrom(state, card, state.runner.grip);
+    if (!ctx.state.runner.grip.some(c => c.instanceId === answer.cardInstanceIds[0])) return;
+    installRunnerChoice(ctx, answer.cardInstanceIds[0], 'host', 0, {}, answer.trashFirst);
   },
 };
 

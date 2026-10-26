@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
-import { GameAction, cardDef, createCardInstance, getCardDefinition, isLegalAction } from '../src/core';
+import { GameAction, cardDef, createCardInstance, executeAction, getCardDefinition, getLegalActions, isLegalAction } from '../src/core';
+import { makeRoomAnswers } from '../src/ai/prompts';
 import { runScore, serverValue, subroutineCost } from '../src/ai/runs';
 import { rezReserve, withDeadIceTrashed } from '../src/ai/corpAI';
 import { makeRoomInstalls } from '../src/ai/runnerAI';
@@ -94,5 +95,21 @@ describe('AI judgement in fixed positions', () => {
     expect(mine()).toEqual([{ type: 'INSTALL_CARD', player: 'runner', cardInstanceId: program.instanceId, trashFirst: [old] }]);
     s.runner.memoryUnitsUsed = 0;
     expect(mine()).toEqual([]);
+  });
+
+  it('Runner AI considers trashing a program to answer an install prompt when memory is full (rules 8.5.6c)', () => {
+    let s = newGame();
+    startRunnerTurn(s);
+    const old = installProgramForTest(s, '30006'); // Cleaver (1 MU)
+    s.runner.memoryUnitsUsed = s.runner.memoryUnitsTotal - 1;
+    const mayfly = createCardInstance(s, '30032'); // Mayfly (2 MU)
+    s.runner.heap = [mayfly];
+    const scrounge = createCardInstance(s, '35004');
+    s.runner.grip.push(scrounge);
+    s.runner.clicks = 2;
+    s = executeAction(s, { type: 'PLAY_OPERATION_OR_EVENT', player: 'runner', cardInstanceId: scrounge.instanceId });
+    // The plain answer installs nothing; the AI also weighs the answer that trashes Cleaver first
+    const plain = getLegalActions(s, 'runner').find(a => a.type === 'RESOLVE_PROMPT')!;
+    expect(makeRoomAnswers(s, plain)).toMatchObject([{ choice: { cardInstanceIds: [mayfly.instanceId], trashFirst: [old] } }]);
   });
 });

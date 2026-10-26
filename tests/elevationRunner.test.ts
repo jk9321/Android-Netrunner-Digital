@@ -194,6 +194,35 @@ describe('Elevation Runner events', () => {
     expect(id).toBeTruthy();
   });
 
+  it('Scrounge can trash programs to make room for the one it installs (rules 8.5.6c)', () => {
+    let s = newGame();
+    startRunnerTurn(s);
+    const old = installProgramForTest(s, SG.cleaver); // 1 MU
+    s.runner.memoryUnitsUsed = s.runner.memoryUnitsTotal - 1;
+    const mayfly = createCardInstance(s, SG.mayfly); // 2 MU: fits only once Cleaver is gone
+    s.runner.heap.push(mayfly);
+    [s] = playRunner(s, E.scrounge, 2);
+    expect(prompt(s)).toMatchObject({ kind: 'effect_cards', candidateIds: [mayfly.instanceId] });
+    // Not without trashing: nothing is installed
+    expect(answer(s, { kind: 'effect_cards', cardInstanceIds: [mayfly.instanceId] }).runner.rig.programs.map(c => c.instanceId)).toEqual([old]);
+    s = keepGoing(answer(s, { kind: 'effect_cards', cardInstanceIds: [mayfly.instanceId], trashFirst: [old] }));
+    expect(s.runner.rig.programs.map(c => c.instanceId)).toEqual([mayfly.instanceId]);
+    expect(s.runner.heap.map(c => c.instanceId)).toContain(old);
+  });
+
+  it('only accepts programs to trash first on prompts that install a card', () => {
+    let s = newGame();
+    startRunnerTurn(s);
+    const old = installProgramForTest(s, SG.cleaver);
+    const cleaver = createCardInstance(s, SG.cleaver);
+    s.runner.heap.push(cleaver, createCardInstance(s, SG.leech));
+    [s] = playRunner(s, E.scrounge, 2);
+    s = pick(s, [cleaver.instanceId]);
+    // The "add a program to the bottom of the stack" step installs nothing
+    const p = prompt(s)!;
+    expect(isLegalAction(s, { type: 'RESOLVE_PROMPT', player: 'runner', promptId: p.id, choice: { kind: 'effect_cards', cardInstanceIds: [], trashFirst: [old] } })).toBe(false);
+  });
+
   it('Scrounge needs two clicks', () => {
     const s = newGame();
     startRunnerTurn(s);

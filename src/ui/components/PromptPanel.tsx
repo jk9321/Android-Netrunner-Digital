@@ -49,9 +49,30 @@ export const PromptPanel: React.FC<PromptPanelProps> = ({ state, onAnswer, onIns
   }
 
   const isCorp = prompt.side === 'corp';
-  // A Corp effect asking where to install a card (askCorpInstall)
-  const installCard =
-    prompt.kind === 'effect_choice' && isCorp && prompt.source.data?.install ? findCardAnywhere(state, String(prompt.source.data.cardId)) : undefined;
+  // An effect installing a card may first trash cards already installed (rules 8.5.6): Corp effects
+  // asking where to install (option: a server), Runner effects picking a card (option: the picked card)
+  const installs = (prompt.kind === 'effect_choice' || prompt.kind === 'effect_cards') && !!prompt.source.data?.install;
+  const installCardFor = (optionId: string): CardInstance | undefined => {
+    if (!installs) return undefined;
+    if (prompt.kind === 'effect_cards') return findCardAnywhere(state, optionId);
+    return isCorp || optionId === 'install' ? findCardAnywhere(state, String(prompt.source.data?.cardId)) : undefined;
+  };
+  const trashableFor = (optionId: string): CardInstance[] => {
+    const card = installCardFor(optionId);
+    if (!card) return [];
+    return isCorp ? (optionId === 'new' ? [] : trashableFirst(state, card, optionId)) : trashableFirst(state, card, null);
+  };
+  const trashingChoice = (optionId: string, trash: string[]): PromptChoice =>
+    prompt.kind === 'effect_cards' ? { kind: 'effect_cards', cardInstanceIds: [optionId], trashFirst: trash } : { kind: 'effect_choice', optionId, trashFirst: trash };
+  const trashOptions = !installs
+    ? []
+    : (prompt.kind === 'effect_choice' ? prompt.options.map(o => o.id) : selected.length === 1 ? selected : []).filter(id => trashableFor(id).length > 0);
+  const trashing = installs && trashingFor?.promptId === prompt.id ? trashingFor.optionId : null;
+  const trashLabel = (optionId: string) => {
+    const card = installCardFor(optionId)!;
+    if (!isCorp) return 'Trash programs first';
+    return `${state.corp.servers[optionId]?.name ?? optionId}: trash ${cardDef(card).type_code === 'ice' ? 'ice' : 'cards'} first`;
+  };
   const hand = isCorp ? state.corp.hq : state.runner.grip;
   const accent = isCorp ? 'border-cyan-500 shadow-cyan-950/60' : 'border-pink-500 shadow-pink-950/60';
   // Selection stops at the most cards the prompt takes; with a limit of one, a new pick replaces the old
@@ -158,37 +179,43 @@ export const PromptPanel: React.FC<PromptPanelProps> = ({ state, onAnswer, onIns
           </div>
         )}
 
-        {prompt.kind === 'effect_choice' && installCard && trashingFor?.promptId === prompt.id && (
-          <TrashFirstPicker
-            key={trashingFor.optionId}
-            heading={`Install ${cardDef(installCard).title} in ${state.corp.servers[trashingFor.optionId]?.name ?? ''}, trashing first:`}
-            cards={trashableFirst(state, installCard, trashingFor.optionId)}
-            confirmLabel={trash => `Install${trash.length > 0 ? `, trash ${trash.length}` : ''}`}
-            canConfirm={trash => trash.length > 0 && isLegalAction(state, { type: 'RESOLVE_PROMPT', player: prompt.side, promptId: prompt.id, choice: { kind: 'effect_choice', optionId: trashingFor.optionId, trashFirst: trash } })}
-            onConfirm={trash => {
-              setTrashingFor(null);
-              answer({ kind: 'effect_choice', optionId: trashingFor.optionId, trashFirst: trash });
-            }}
-            onCancel={() => setTrashingFor(null)}
-          />
-        )}
+        {trashing && (() => {
+          const card = installCardFor(trashing)!;
+          const where = isCorp ? ` in ${state.corp.servers[trashing]?.name ?? ''}` : '';
+          return (
+            <TrashFirstPicker
+              key={trashing}
+              heading={`Install ${cardDef(card).title}${where}, trashing first:`}
+              cards={trashableFor(trashing)}
+              confirmLabel={trash => `Install${trash.length > 0 ? `, trash ${trash.length}` : ''}`}
+              canConfirm={trash =>
+                trash.length > 0 &&
+                isLegalAction(state, { type: 'RESOLVE_PROMPT', player: prompt.side, promptId: prompt.id, choice: trashingChoice(trashing, trash) })
+              }
+              onConfirm={trash => {
+                setTrashingFor(null);
+                answer(trashingChoice(trashing, trash));
+              }}
+              onCancel={() => setTrashingFor(null)}
+            />
+          );
+        })()}
 
-        {prompt.kind === 'effect_choice' && installCard && trashingFor?.promptId !== prompt.id && (
+        {!trashing && trashOptions.length > 0 && (
           <div className="flex gap-2 justify-end flex-wrap mb-2">
-            {prompt.options
-              .filter(o => o.id !== 'new' && trashableFirst(state, installCard, o.id).length > 0)
-              .map(o => (
-                <TrashFirstButton
-                  key={o.id}
-                  label={`${state.corp.servers[o.id]?.name ?? o.label}: trash ${cardDef(installCard).type_code === 'ice' ? 'ice' : 'cards'} first`}
-                  title="Trash cards already there as part of this install; trashed ice doesn't count toward the install cost"
-                  onClick={() => setTrashingFor({ promptId: prompt.id, optionId: o.id })}
-                />
-              ))}
+            {trashOptions.map(id => (
+              <TrashFirstButton
+                key={id}
+                label={trashLabel(id)}
+                title={isCorp ? "Trash cards already there as part of this install; trashed ice doesn't count toward the install cost" : 'Trash installed programs first, to free memory for this one'}
+                onClick={() => setTrashingFor({ promptId: prompt.id, optionId: id })}
+                testId={`prompt-trash-first-${id}`}
+              />
+            ))}
           </div>
         )}
 
-        {prompt.kind === 'effect_choice' && trashingFor?.promptId !== prompt.id && (
+        {prompt.kind === 'effect_choice' && !trashing && (
           <div className="flex gap-2 justify-end flex-wrap">
             {prompt.options.map(option => (
               <button
@@ -202,7 +229,7 @@ export const PromptPanel: React.FC<PromptPanelProps> = ({ state, onAnswer, onIns
           </div>
         )}
 
-        {prompt.kind === 'effect_cards' && (
+        {prompt.kind === 'effect_cards' && !trashing && (
           <>
             <div className="flex gap-2 overflow-x-auto py-2 mb-4">
               {prompt.candidateIds.map(id => {

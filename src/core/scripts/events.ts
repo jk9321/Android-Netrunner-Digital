@@ -1,12 +1,11 @@
 import { cardDef } from '../cards';
 import { addLog } from '../engine/log';
 import { drawCards, madeSuccessfulRunThisTurn } from '../engine/helpers';
-import { installRunnerCardFrom, runnerInstallBlocker } from '../engine/actions/install';
 import { shuffleInPlace } from '../rng';
 import { CardScript, EffectContext } from './types';
 import { startRun } from '../engine/actions/run';
 import { drawForEffect } from '../engine/cardEffects';
-import { askCards, askChoice, gainCredits, loseClickIfAny } from './effects';
+import { askCards, askChoice, gainCredits, installRunnerTrashing, installableRunnerCards, loseClickIfAny } from './effects';
 
 /** Runner events from System Gateway. */
 
@@ -87,7 +86,7 @@ const mutualFavor: CardScript = {
       state.runner.stack.unshift(card);
       addLog(state, 'runner', `Runner revealed ${cardDef(card).title} and shuffled their Stack.`);
 
-      if (madeSuccessfulRunThisTurn(state) && !runnerInstallBlocker(state, card)) {
+      if (madeSuccessfulRunThisTurn(state) && installableRunnerCards(state, [card]).length > 0) {
         askChoice(
           ctx,
           'runner',
@@ -97,7 +96,7 @@ const mutualFavor: CardScript = {
             { id: 'grip', label: 'Add to grip' },
           ],
           'install',
-          { cardId: id }
+          { cardId: id, install: true }
         );
         return;
       }
@@ -108,9 +107,8 @@ const mutualFavor: CardScript = {
 
     if (source.step === 'install' && answer.kind === 'effect_choice') {
       const card = state.runner.stack.find(c => c.instanceId === source.data?.cardId)!;
-      if (answer.optionId === 'install') {
-        installRunnerCardFrom(state, card, state.runner.stack);
-      } else {
+      // Installing may first trash programs to make room (rules 8.5.6c); if it can't be installed, it goes to the grip
+      if (answer.optionId !== 'install' || !installRunnerTrashing(state, card, state.runner.stack, undefined, 0, answer.trashFirst ?? [])) {
         state.runner.stack.shift();
         state.runner.grip.push(card);
         addLog(state, 'runner', `Runner added ${cardDef(card).title} to their grip.`);

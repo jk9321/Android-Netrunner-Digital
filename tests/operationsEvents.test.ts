@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import { cardDef, executeAction, getLegalActions, IllegalActionError, GameState } from '../src/core';
-import { answer, giveCard, installForTest, newGame, play, putInHand, startRunnerTurn } from './helpers';
+import { answer, giveCard, installForTest, installProgramForTest, newGame, play, putInHand, startRunnerTurn } from './helpers';
 
 const SURE_GAMBLE = '30030';
 const CREATIVE_COMMISSION = '30020';
@@ -214,6 +214,25 @@ describe('Runner events', () => {
       state = answer(state, { kind: 'effect_choice', optionId: 'install' });
       expect(state.runner.rig.programs.map(c => c.instanceId)).toEqual([breaker]);
       expect(state.runner.stack.some(c => c.instanceId === breaker)).toBe(false);
+    });
+
+    it('can trash programs to make room, and goes to the grip if it still does not fit (rules 8.5.6c)', () => {
+      let state = runnerTurn(20);
+      state = executeAction(state, { type: 'INITIATE_RUN', player: 'runner', targetServerId: 'archives' });
+      state = executeAction(state, { type: 'CONTINUE_RUN', player: 'runner' });
+      state = executeAction(state, { type: 'CONTINUE_RUN', player: 'runner' });
+      const old = installProgramForTest(state, '30006');
+      state = play(state, 'runner', giveCard(state, 'runner', MUTUAL_FAVOR));
+      const breaker = breakersIn(state)[0];
+      // Full by 1 MU: Cleaver's 1 MU makes the room
+      const mu = cardDef(state.runner.stack.find(c => c.instanceId === breaker)!).memory_cost ?? 0;
+      state.runner.memoryUnitsUsed = state.runner.memoryUnitsTotal - mu + 1;
+      state = answer(state, { kind: 'effect_cards', cardInstanceIds: [breaker] });
+      expect(state.pendingPrompts[0]).toMatchObject({ kind: 'effect_choice', source: { data: { install: true } } });
+      const plain = answer(state, { kind: 'effect_choice', optionId: 'install' });
+      expect(plain.runner.grip.map(c => c.instanceId)).toContain(breaker);
+      state = answer(state, { kind: 'effect_choice', optionId: 'install', trashFirst: [old] });
+      expect(state.runner.rig.programs.map(c => c.instanceId)).toEqual([breaker]);
     });
 
     it('does nothing but shuffle when the Stack has no icebreakers', () => {

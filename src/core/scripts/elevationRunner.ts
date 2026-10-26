@@ -31,6 +31,7 @@ import {
   installRunnerChoice,
   installRunnerHostChoice,
   installableRunnerCards,
+  askRunnerInstall,
   sabotage,
   resolveSabotage,
 } from './effects';
@@ -89,12 +90,12 @@ const topan: CardScript = {
       oncePerTurn: true,
       canUse: ({ state }) => (topanTargets(state).length > 0 ? null : 'Nothing in your grip can be installed'),
       resolve: ctx =>
-        askCards(ctx, 'runner', 'Topan: install 1 card from your grip, paying 2 credits less.', topanTargets(ctx.state).map(c => c.instanceId), 1, 1, 'install'),
+        askRunnerInstall(ctx, 'Topan: install 1 card from your grip, paying 2 credits less.', topanTargets(ctx.state).map(c => c.instanceId), 1, 1, 'install'),
     },
   ],
   onPromptAnswer: (ctx, source, answer) => {
     if (source.step === 'install' && answer.kind === 'effect_cards') {
-      if (installRunnerChoice(ctx, answer.cardInstanceIds[0], 'host', 2)) topanDamage(ctx.state);
+      if (installRunnerChoice(ctx, answer.cardInstanceIds[0], 'host', 2, {}, answer.trashFirst)) topanDamage(ctx.state);
     } else if (source.step === 'host' && installRunnerHostChoice(ctx.state, source, answer)) {
       topanDamage(ctx.state);
     }
@@ -185,12 +186,12 @@ const magdalene: CardScript = {
       const inHeap = e.cards.filter(c => ctx.state.runner.heap.includes(c) && ['program', 'hardware'].includes(cardDef(c).type_code));
       const targets = installableRunnerCards(ctx.state, inHeap);
       if (targets.length === 0) return;
-      askCards(ctx, 'runner', 'Magdalene Keino-Chemutai: you may install 1 program or piece of hardware you discarded.', targets.map(c => c.instanceId), 0, 1, 'install');
+      askRunnerInstall(ctx, 'Magdalene Keino-Chemutai: you may install 1 program or piece of hardware you discarded.', targets.map(c => c.instanceId), 0, 1, 'install');
     },
   },
   onPromptAnswer: (ctx, source, answer) => {
     if (source.step === 'install' && answer.kind === 'effect_cards' && answer.cardInstanceIds.length > 0) {
-      installRunnerChoice(ctx, answer.cardInstanceIds[0], 'host');
+      installRunnerChoice(ctx, answer.cardInstanceIds[0], 'host', 0, {}, answer.trashFirst);
     } else if (source.step === 'host') {
       installRunnerHostChoice(ctx.state, source, answer);
     }
@@ -238,12 +239,12 @@ const scrounge: CardScript = {
   onPlay: ctx => {
     const targets = installableRunnerCards(ctx.state, heapPrograms(ctx.state));
     if (targets.length === 0) return askScroungeStack(ctx);
-    askCards(ctx, 'runner', 'Scrounge: install 1 program from your heap.', targets.map(c => c.instanceId), 1, 1, 'install');
+    askRunnerInstall(ctx, 'Scrounge: install 1 program from your heap.', targets.map(c => c.instanceId), 1, 1, 'install');
   },
   onPromptAnswer: (ctx, source, answer) => {
     const { state } = ctx;
     if (source.step === 'install' && answer.kind === 'effect_cards') {
-      if (installRunnerChoice(ctx, answer.cardInstanceIds[0], 'host')) askScroungeStack(ctx);
+      if (installRunnerChoice(ctx, answer.cardInstanceIds[0], 'host', 0, {}, answer.trashFirst)) askScroungeStack(ctx);
     } else if (source.step === 'host') {
       installRunnerHostChoice(state, source, answer);
       askScroungeStack(ctx);
@@ -336,7 +337,7 @@ const transferOfWealth: CardScript = {
 const askIllumination = (ctx: EffectContext, left: number) => {
   const targets = installableRunnerCards(ctx.state, ctx.state.runner.grip, 1);
   if (left <= 0 || targets.length === 0) return;
-  askCards(ctx, 'runner', `Illumination: you may install a card from your grip, paying 1 credit less (${left} left).`, targets.map(c => c.instanceId), 0, 1, 'install', { left });
+  askRunnerInstall(ctx, `Illumination: you may install a card from your grip, paying 1 credit less (${left} left).`, targets.map(c => c.instanceId), 0, 1, 'install', { left });
 };
 const illumination: CardScript = {
   onPlay: ctx => startRun(ctx.state, 'rd', { source: runSource(ctx), eventCode: ctx.card.cardCode }),
@@ -345,7 +346,7 @@ const illumination: CardScript = {
     const left = Number(source.data?.left ?? 0);
     if (source.step === 'install' && answer.kind === 'effect_cards') {
       if (answer.cardInstanceIds.length === 0) return;
-      if (installRunnerChoice(ctx, answer.cardInstanceIds[0], 'host', 1, { left })) askIllumination(ctx, left - 1);
+      if (installRunnerChoice(ctx, answer.cardInstanceIds[0], 'host', 1, { left }, answer.trashFirst)) askIllumination(ctx, left - 1);
     } else if (source.step === 'host') {
       installRunnerHostChoice(ctx.state, source, answer);
       askIllumination(ctx, left - 1);
@@ -525,7 +526,7 @@ const madani: CardScript = {
       oncePerTurn: true,
       canUse: ({ state, card }) => (madaniTargets(state, card).length > 0 ? null : 'No hosted program can be installed'),
       resolve: ctx =>
-        askCards(ctx, 'runner', 'Madani: install 1 hosted program.', madaniTargets(ctx.state, ctx.card).map(c => c.instanceId), 1, 1, 'install'),
+        askRunnerInstall(ctx, 'Madani: install 1 hosted program.', madaniTargets(ctx.state, ctx.card).map(c => c.instanceId), 1, 1, 'install'),
     },
   ],
   onPromptAnswer: (ctx, source, answer) => {
@@ -539,7 +540,7 @@ const madani: CardScript = {
       }
       addLog(state, 'runner', `Runner hosted ${answer.cardInstanceIds.length} program(s) on Madani.`);
     } else if (source.step === 'install' && answer.kind === 'effect_cards') {
-      installRunnerChoice(ctx, answer.cardInstanceIds[0], 'host');
+      installRunnerChoice(ctx, answer.cardInstanceIds[0], 'host', 0, {}, answer.trashFirst);
     } else if (source.step === 'host') {
       installRunnerHostChoice(state, source, answer);
     }

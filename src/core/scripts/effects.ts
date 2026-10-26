@@ -11,6 +11,7 @@ import {
   chosenToTrashFirst,
   corpInstallBlocker,
   corpInstallCost,
+  freedMemory,
   iceTrashedDiscount,
   installCorpCardFrom,
   installRunnerCardFrom,
@@ -144,11 +145,46 @@ export function runnerZoneOf(state: GameState, instanceId: string): CardInstance
 /** Runner cards in `cards` that could be installed now (with a discount). Trojans need some ice. */
 export function installableRunnerCards(state: GameState, cards: CardInstance[], discount = 0): CardInstance[] {
   const ice = installedIce(state);
+  // A program may fit once installed programs are trashed to make room (rules 8.5.6c)
+  const freeable = freedMemory(state.runner.rig.programs);
   return cards.filter(c => {
     if (!['program', 'hardware', 'resource'].includes(cardDef(c).type_code)) return false;
-    if (getCardScript(c.cardCode)?.installsOnIce) return ice.some(i => !runnerInstallBlocker(state, c, i.instanceId, discount));
-    return !runnerInstallBlocker(state, c, undefined, discount);
+    if (getCardScript(c.cardCode)?.installsOnIce) return ice.some(i => !runnerInstallBlocker(state, c, i.instanceId, discount, freeable));
+    return !runnerInstallBlocker(state, c, undefined, discount, freeable);
   });
+}
+
+/** askCards() for a Runner card to install: the answer may name programs to trash first (rules 8.5.6c). */
+export function askRunnerInstall(
+  ctx: EffectContext,
+  message: string,
+  candidateIds: string[],
+  min: number,
+  max: number,
+  step: string,
+  data: EffectSource['data'] = {}
+): void {
+  askCards(ctx, 'runner', message, candidateIds, min, max, step, { ...data, install: true });
+}
+
+/**
+ * Installs a Runner card from `zone` for an effect, first trashing the
+ * installed programs the player chose (rules 8.5.6c). Returns false, doing
+ * nothing, if the install isn't possible that way.
+ */
+export function installRunnerTrashing(
+  state: GameState,
+  card: CardInstance,
+  zone: CardInstance[],
+  hostInstanceId: string | undefined,
+  discount: number,
+  trashIds: string[]
+): boolean {
+  const trash = chosenToTrashFirst(state, card, null, trashIds);
+  if (runnerInstallBlocker(state, card, hostInstanceId, discount, freedMemory(trash))) return false;
+  trashFirst(state, trash);
+  installRunnerCardFrom(state, card, zone, hostInstanceId, discount);
+  return true;
 }
 
 /**
@@ -157,24 +193,31 @@ export function installableRunnerCards(state: GameState, cards: CardInstance[], 
  * script's onPromptAnswer then calls installRunnerHostChoice(). Returns true
  * if the card was installed now.
  */
-export function installRunnerChoice(ctx: EffectContext, cardId: string, hostStep: string, discount = 0, data: EffectSource['data'] = {}): boolean {
+export function installRunnerChoice(
+  ctx: EffectContext,
+  cardId: string,
+  hostStep: string,
+  discount = 0,
+  data: EffectSource['data'] = {},
+  trashIds: string[] = []
+): boolean {
   const { state } = ctx;
   const card = findCardAnywhere(state, cardId);
   const zone = runnerZoneOf(state, cardId);
   if (!card || !zone) return false;
   if (getCardScript(card.cardCode)?.installsOnIce) {
-    const hosts = installedIce(state).filter(i => !runnerInstallBlocker(state, card, i.instanceId, discount));
+    const freed = freedMemory(chosenToTrashFirst(state, card, null, trashIds));
+    const hosts = installedIce(state).filter(i => !runnerInstallBlocker(state, card, i.instanceId, discount, freed));
     if (hosts.length === 0) return false;
     askChoice(ctx, 'runner', `Install ${cardDef(card).title} on which ice?`, hosts.map(i => ({ id: i.instanceId, label: iceLabel(state, i) })), hostStep, {
       ...data,
       cardId,
       discount,
+      trashIds,
     });
     return false;
   }
-  if (runnerInstallBlocker(state, card, undefined, discount)) return false;
-  installRunnerCardFrom(state, card, zone, undefined, discount);
-  return true;
+  return installRunnerTrashing(state, card, zone, undefined, discount, trashIds);
 }
 
 /** Finishes installRunnerChoice() once the host ice is chosen. */
@@ -184,9 +227,8 @@ export function installRunnerHostChoice(state: GameState, source: EffectSource, 
   const card = findCardAnywhere(state, cardId);
   const zone = runnerZoneOf(state, cardId);
   const discount = Number(source.data?.discount ?? 0);
-  if (!card || !zone || runnerInstallBlocker(state, card, answer.optionId, discount)) return false;
-  installRunnerCardFrom(state, card, zone, answer.optionId, discount);
-  return true;
+  if (!card || !zone) return false;
+  return installRunnerTrashing(state, card, zone, answer.optionId, discount, (source.data?.trashIds as string[] | undefined) ?? []);
 }
 
 /** "Rezzed Ice in Remote Server 1" style label for a piece of ice the other player may not see. */
