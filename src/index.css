@@ -322,11 +322,10 @@
 
 /*
  * Table sizing. Board cards follow the window height so the whole game fits
- * one screen; the Normal/Large/Huge picker sets --card-scale.
+ * one screen; the zoom panel shows a large copy on hover.
  */
 :root {
-  --card-scale: 1;
-  --card-w: clamp(50px, calc(9vh * var(--card-scale)), 170px);
+  --card-w: clamp(50px, 9vh, 170px);
   --card-h: calc(var(--card-w) * 1.4);
 }
 .card-fit {

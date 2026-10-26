@@ -95,7 +95,7 @@ Netrunner/
 │   │   ├── legal.ts                    <-- illegalReason, hostedCardActions (for the action buttons)
 │   │   ├── sound.ts                    <-- Sounds picked from what an action changed and log events
 │   │   └── components/
-│   │       ├── GameHeader.tsx          <-- Top bar: phase, AI status, scores, card size, view, sound, forfeit
+│   │       ├── GameHeader.tsx          <-- Top bar: phase, AI status, scores, view, sound, forfeit
 │   │       ├── SideStrip.tsx           <-- Each side's identity and counters
 │   │       ├── ActionBars.tsx          <-- Corp and Runner click actions, plays, installs, End Turn
 │   │       ├── CardView.tsx            <-- Card renderer with hover stats & face-down backing

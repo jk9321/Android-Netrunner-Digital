@@ -1,12 +1,10 @@
 import { useState } from 'react';
-import { ArrowRight, Award, Flag, LogOut, Volume2, VolumeX, ZoomIn } from 'lucide-react';
+import { ArrowRight, Award, Flag, LogOut, Volume2, VolumeX } from 'lucide-react';
 import { GameState, SideCode } from '../../core';
 import { GameConfig } from '../savedGame';
 import { ViewMode } from '../viewer';
 import { setSoundEnabled, soundEnabled } from '../sound';
 import { PhaseTracker } from './PhaseTracker';
-
-export type CardScale = 'normal' | 'large' | 'huge';
 
 interface GameHeaderProps {
   state: GameState;
@@ -16,8 +14,6 @@ interface GameHeaderProps {
   /** May the active player end their turn now? */
   canEndTurn: boolean;
   onEndTurn: () => void;
-  cardScale: CardScale;
-  onCardScale: (scale: CardScale) => void;
   viewMode: ViewMode;
   onViewMode: (mode: ViewMode) => void;
   concedingSide: SideCode;
@@ -25,7 +21,7 @@ interface GameHeaderProps {
   onLeave: () => void;
 }
 
-/** The bar across the top: title, phase, AI status, scores, card size, view, sound, forfeit and leave. */
+/** The bar across the top: title, phase, AI status, scores, view, sound, forfeit and leave. */
 export function GameHeader({
   state,
   config,
@@ -33,8 +29,6 @@ export function GameHeader({
   humanSide,
   canEndTurn,
   onEndTurn,
-  cardScale,
-  onCardScale,
   viewMode,
   onViewMode,
   concedingSide,
@@ -115,26 +109,8 @@ export function GameHeader({
         </div>
       </div>
 
-      {/* Card Zoom & Game Controls */}
+      {/* Game Controls */}
       <div className="flex items-center gap-2">
-        {/* Card Size Selector */}
-        <div className="flex items-center bg-slate-900 border border-slate-800 rounded-lg p-0.5 text-xs">
-          <span className="px-2 text-[10px] text-slate-500 font-bold uppercase hidden 2xl:inline-flex items-center gap-1">
-            <ZoomIn className="w-3 h-3" /> Size:
-          </span>
-          {SCALES.map(({ scale, label, active }) => (
-            <button
-              key={scale}
-              onClick={() => onCardScale(scale)}
-              className={`px-2 py-0.5 rounded text-xs transition-colors ${
-                cardScale === scale ? `${active} text-white font-bold` : 'text-slate-400 hover:text-white'
-              }`}
-            >
-              {label}
-            </button>
-          ))}
-        </div>
-
         {humanSide ? (
           <select
             value={viewMode === 'open' ? 'open' : humanSide}
@@ -195,11 +171,3 @@ export function GameHeader({
   );
 }
 
-const SCALES: { scale: CardScale; label: string; active: string }[] = [
-  { scale: 'normal', label: 'Normal', active: 'bg-slate-700' },
-  { scale: 'large', label: 'Large', active: 'bg-cyan-600' },
-  { scale: 'huge', label: 'Huge', active: 'bg-cyber-neonPink' },
-];
-
-/** Card size multiplier for the board (--card-scale). */
-export const cardScaleValue = (scale: CardScale): number => (scale === 'huge' ? 1.4 : scale === 'large' ? 1.2 : 1);

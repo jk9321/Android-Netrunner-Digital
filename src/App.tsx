@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from 'react';
+import { useMemo, useState } from 'react';
 import { CardInstance, GameAction, SideCode, cardDef, findCardAnywhere, iceSubtypes, isLegalAction } from './core';
 import { breakerTypes } from './ui/components/IceTypeIcons';
 import { DEFAULT_CORP_DECK, DEFAULT_RUNNER_DECK } from './data/decks';
@@ -22,7 +22,7 @@ import { CardFates } from './ui/components/CardFates';
 import { HandoffScreen } from './ui/components/HandoffScreen';
 import { TurnBanner } from './ui/components/TurnBanner';
 import { GameOverModal } from './ui/components/GameOverModal';
-import { CardScale, GameHeader, cardScaleValue } from './ui/components/GameHeader';
+import { GameHeader } from './ui/components/GameHeader';
 import { SideStrip } from './ui/components/SideStrip';
 import { CorpActions, RunnerActions } from './ui/components/ActionBars';
 import { AccessedPanel } from './ui/components/AccessedPanel';
@@ -104,7 +104,6 @@ function Game({
   } = useGameController(config, saved);
 
   const [gameOverHidden, setGameOverHidden] = useState(false);
-  const [cardScale, setCardScale] = useState<CardScale>('normal');
   const [zoomStore] = useState(createZoomStore);
   const [inspectedCard, setInspectedCard] = useState<CardInstance | null>(null);
   const [zone, setZone] = useState<ZoneId | null>(null);
@@ -264,7 +263,6 @@ function Game({
   return (
     <div
       className="min-h-screen lg:h-screen lg:overflow-hidden text-slate-100 flex flex-col font-mono selection:bg-cyber-neonYellow selection:text-black"
-      style={{ '--card-scale': cardScaleValue(cardScale) } as React.CSSProperties}
     >
       <GameHeader
         state={gameState}
@@ -273,8 +271,6 @@ function Game({
         humanSide={humanSide}
         canEndTurn={(activePlayer === 'corp' ? corpCanAct : runnerCanAct) && isLegalAction(gameState, turnAction)}
         onEndTurn={() => handleAction(turnAction)}
-        cardScale={cardScale}
-        onCardScale={setCardScale}
         viewMode={viewMode}
         onViewMode={setViewMode}
         concedingSide={concedingSide}
