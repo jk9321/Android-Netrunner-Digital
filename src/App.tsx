@@ -155,9 +155,6 @@ function Game({
   };
 
   const { corp, runner, activePlayer, activeRun, winner, winReason } = gameState;
-  // Before the Corp's turn begins the header button takes the mandatory draw
-  const turnAction: GameAction =
-    gameState.turnStep?.kind === 'corp_turn_start' ? { type: 'START_TURN', player: 'corp' } : { type: 'END_TURN', player: activePlayer };
   const selectedCard = [...corp.hq, ...runner.grip].find(c => c.instanceId === selectedCardId);
 
   // Runner cards installed on Corp ice (trojans), and where each one sits, for the host tags
@@ -290,8 +287,6 @@ function Game({
         config={config}
         aiThinking={aiThinking}
         humanSide={humanSide}
-        canEndTurn={(activePlayer === 'corp' ? corpCanAct : runnerCanAct) && isLegalAction(gameState, turnAction)}
-        onEndTurn={() => handleAction(turnAction)}
         viewMode={viewMode}
         onViewMode={changeViewMode}
         concedingSide={concedingSide}

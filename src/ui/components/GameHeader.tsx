@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { ArrowRight, Award, Flag, LogOut, Volume2, VolumeX } from 'lucide-react';
+import { Award, Flag, LogOut, Volume2, VolumeX } from 'lucide-react';
 import { GameState, SideCode } from '../../core';
 import { GameConfig } from '../savedGame';
 import { ViewMode } from '../viewer';
@@ -11,9 +11,6 @@ interface GameHeaderProps {
   config: GameConfig;
   aiThinking: boolean;
   humanSide: SideCode | null;
-  /** May the active player end their turn now? */
-  canEndTurn: boolean;
-  onEndTurn: () => void;
   viewMode: ViewMode;
   onViewMode: (mode: ViewMode) => void;
   concedingSide: SideCode;
@@ -27,8 +24,6 @@ export function GameHeader({
   config,
   aiThinking,
   humanSide,
-  canEndTurn,
-  onEndTurn,
   viewMode,
   onViewMode,
   concedingSide,
@@ -37,8 +32,7 @@ export function GameHeader({
 }: GameHeaderProps) {
   const [sound, setSound] = useState(soundEnabled);
   const aiSide = config.ai;
-  const startingTurn = state.turnStep?.kind === 'corp_turn_start';
-  const { corp, runner, activePlayer } = state;
+  const { corp, runner } = state;
 
   return (
     <header className="h-12 shrink-0 min-w-0 overflow-x-auto border-b border-amber-400/40 bg-slate-950/90 px-3 gap-3 flex items-center justify-between sticky top-0 z-30 shadow-lg">
@@ -72,23 +66,6 @@ export function GameHeader({
               {aiThinking ? 'AI THINKING…' : `AI: ${aiSide.toUpperCase()}${config.difficulty === 'hard' ? ' (HARD)' : ''}`}
             </span>
           )}
-          {/* Quick Sticky End Turn Button */}
-          <button
-            onClick={onEndTurn}
-            disabled={!canEndTurn}
-            className={`px-2.5 py-1 text-xs font-bold rounded-lg border transition-all shadow flex items-center gap-1 whitespace-nowrap disabled:opacity-40 ${
-              activePlayer === 'corp'
-                ? 'bg-cyan-700 hover:bg-cyan-600 text-white border-cyan-500 shadow-cyan-950'
-                : 'bg-pink-700 hover:bg-pink-600 text-white border-pink-500 shadow-pink-950'
-            }`}
-            title={
-              startingTurn
-                ? 'Rez assets or upgrades first if you want them working this turn, then take the mandatory draw'
-                : `End ${activePlayer.toUpperCase()}'s turn`
-            }
-          >
-            {startingTurn ? 'Draw & Start' : 'End Turn'} <ArrowRight className="w-3 h-3" />
-          </button>
         </div>
       </div>
 
