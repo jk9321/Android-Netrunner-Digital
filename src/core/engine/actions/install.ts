@@ -40,11 +40,35 @@ function installCorpCard(state: GameState, action: InstallCardAction): void {
   if (!card) illegal('Card not in HQ');
   const newRemote = action.asNewRemote || !action.targetServerId;
   const serverId = newRemote ? null : action.targetServerId!;
-  const blocker = corpInstallBlocker(state, card, serverId, false);
+  const trash = iceToTrashFirst(state, card, serverId, action.trashIceIds ?? []);
+  // With ice trashed first, iceToTrashFirst has already checked the (lower) install cost
+  const blocker = corpInstallBlocker(state, card, serverId, trash.length > 0);
   if (blocker) illegal(blocker);
   if (action.faceUp && !canInstallFaceUp(state, card)) illegal('This card cannot be installed faceup');
   state.corp.clicks -= 1;
+  if (serverId !== null && trash.length > 0) {
+    const server = state.corp.servers[serverId];
+    for (const ice of trash) trashInstalledCorpCard(state, server, ice);
+    addLog(state, 'corp', `Corp trashed ${trash.length} ice protecting ${server.name} to install new ice there.`);
+  }
   installCorpCardFrom(state, card, state.corp.hq, serverId, false, { faceUp: action.faceUp });
+}
+
+/**
+ * Ice the Corp chose to trash before installing ice in the same server
+ * (rules 8.5.6b). They don't count toward the install cost, so the Corp
+ * only has to afford the ice that stays.
+ */
+function iceToTrashFirst(state: GameState, card: CardInstance, serverId: string | null, ids: string[]): CardInstance[] {
+  if (ids.length === 0) return [];
+  if (cardDef(card).type_code !== 'ice' || serverId === null) illegal('Only ice can replace ice in a server');
+  const server = state.corp.servers[serverId];
+  if (!server) illegal('Server not found');
+  const ice = ids.map(id => server.ice.find(c => c.instanceId === id));
+  if (ice.some(c => !c) || new Set(ids).size !== ids.length) illegal('Can only trash ice protecting that server');
+  const cost = Math.max(0, server.ice.length - ids.length);
+  if (state.corp.credits < cost) illegal(`Need ${cost} credits to install ice on this server`);
+  return ice as CardInstance[];
 }
 
 /** BANGUN: agendas may be installed faceup. */

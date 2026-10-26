@@ -1,6 +1,8 @@
 import { describe, it, expect } from 'vitest';
 import { cardDef, executeAction, IllegalActionError, GameState, isLegalAction } from '../src/core';
-import { keepGoing, newGame, putInHand, startRunnerTurn, installForTest } from './helpers';
+import { keepGoing, newGame, putInHand, startRunnerTurn, installForTest, installIceForTest } from './helpers';
+
+const PALISADE = '30072';
 
 const findInHand = (state: GameState, side: 'corp' | 'runner', id: string) =>
   (side === 'corp' ? state.corp.hq : state.runner.grip).some(c => c.instanceId === id);
@@ -85,6 +87,40 @@ describe('Installing', () => {
     const second = putInHand(after, 'corp', 'ice');
     expect(() => executeAction(after, { type: 'INSTALL_CARD', player: 'corp', cardInstanceId: second, targetServerId: 'hq' })).toThrow(/credits/);
     expect(isLegalAction(after, { type: 'INSTALL_CARD', player: 'corp', cardInstanceId: second, targetServerId: 'hq' })).toBe(false);
+  });
+
+  it('lets the Corp trash ice on the server first, which then does not count toward the cost (rules 8.5.6b)', () => {
+    let state = newGame();
+    state.corp.credits = 1;
+    const ice = [0, 1, 2].map(() => installIceForTest(state, PALISADE, 'hq', true));
+    installIceForTest(state, PALISADE, 'rd', false);
+    const newIce = putInHand(state, 'corp', 'ice');
+    const install = (trashIceIds: string[]) => ({ type: 'INSTALL_CARD' as const, player: 'corp' as const, cardInstanceId: newIce, targetServerId: 'hq', trashIceIds });
+    // 3 ice: can't pay 3, and trashing 1 still leaves 2 to pay for
+    expect(isLegalAction(state, install([]))).toBe(false);
+    expect(isLegalAction(state, install([ice[0]]))).toBe(false);
+    // Ice from another server, or the same ice twice, can't be trashed this way
+    expect(isLegalAction(state, install([ice[0], state.corp.servers.rd.ice[0].instanceId]))).toBe(false);
+    expect(isLegalAction(state, install([ice[0], ice[0]]))).toBe(false);
+    state = executeAction(state, install([ice[0], ice[2]]));
+    expect(state.corp.credits).toBe(0);
+    expect(state.corp.clicks).toBe(2);
+    expect(state.corp.servers.hq.ice.map(c => c.instanceId)).toEqual([ice[1], newIce]);
+    // Rezzed ice goes to Archives faceup
+    expect(state.corp.archives.faceUp.map(c => c.instanceId)).toEqual([ice[0], ice[2]]);
+  });
+
+  it('only trashes ice when installing ice in that same server', () => {
+    const state = newGame();
+    const old = installIceForTest(state, PALISADE, 'hq', false);
+    const upgrade = putInHand(state, 'corp', 'upgrade');
+    const ice = putInHand(state, 'corp', 'ice');
+    expect(isLegalAction(state, { type: 'INSTALL_CARD', player: 'corp', cardInstanceId: upgrade, targetServerId: 'hq', trashIceIds: [old] })).toBe(false);
+    expect(isLegalAction(state, { type: 'INSTALL_CARD', player: 'corp', cardInstanceId: ice, targetServerId: 'rd', trashIceIds: [old] })).toBe(false);
+    expect(isLegalAction(state, { type: 'INSTALL_CARD', player: 'corp', cardInstanceId: ice, asNewRemote: true, trashIceIds: [old] })).toBe(false);
+    const after = executeAction(state, { type: 'INSTALL_CARD', player: 'corp', cardInstanceId: ice, targetServerId: 'hq', trashIceIds: [old] });
+    // Unrezzed ice goes to Archives facedown
+    expect(after.corp.archives.faceDown.map(c => c.instanceId)).toEqual([old]);
   });
 
   it('enforces the Runner memory limit', () => {

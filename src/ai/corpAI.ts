@@ -78,8 +78,11 @@ export class HeuristicCorpAI implements Agent {
     this.freeActions.start(state, state.corp.clicks);
     const before = evaluate(state, 'corp', this.synergy);
     return legal
-      .map(action => {
-        let score = this.score(state, action, before);
+      .map(original => {
+        const action = withDeadIceTrashed(state, original);
+        let score = this.score(state, original, before);
+        // Trashing ice first takes it off the install cost
+        if (action !== original && Number.isFinite(score)) score += 0.8 * (action as { trashIceIds: string[] }).trashIceIds.length;
         // Deck-aware nudge: small, and only for moves the AI would consider anyway
         if (this.synergy && Number.isFinite(score) && score < 40 && action.type !== 'END_TURN' && action.type !== 'START_TURN') score += nudge(state, 'corp', action).bonus;
         return { action, score };
@@ -751,4 +754,23 @@ function reservePenalty(state: GameState, creditsAfter: number, wide = false): n
   const before = Math.max(0, reserve - state.corp.credits);
   const after = Math.max(0, reserve - creditsAfter);
   return after > before ? Math.min(3, after - before) : -Math.min(1, 0.4 * (before - after));
+}
+
+/**
+ * Installing ice behind 2 or more layers: trash rezzed ice the Runner gets
+ * through for a credit or less (rules 8.5.6b), when the new ice taxes them
+ * clearly more. Each trashed ice is a credit off the install cost.
+ */
+export function withDeadIceTrashed(state: GameState, action: GameAction): GameAction {
+  if (action.type !== 'INSTALL_CARD' || action.asNewRemote || !action.targetServerId) return action;
+  const card = state.corp.hq.find(c => c.instanceId === action.cardInstanceId);
+  const server = state.corp.servers[action.targetServerId];
+  if (!card || type(card) !== 'ice' || !server || server.ice.length < 2) return action;
+  const incoming = iceCost(state, { ...card, isRezzed: true });
+  const dead = server.ice.filter(ice => {
+    if (!ice.isRezzed) return false;
+    const cost = iceCost(state, ice);
+    return cost <= 1 && incoming >= cost + 2;
+  });
+  return dead.length > 0 ? { ...action, trashIceIds: dead.map(ice => ice.instanceId) } : action;
 }

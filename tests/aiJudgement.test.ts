@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
-import { cardDef, getCardDefinition } from '../src/core';
+import { GameAction, cardDef, createCardInstance, getCardDefinition, isLegalAction } from '../src/core';
 import { runScore, serverValue, subroutineCost } from '../src/ai/runs';
-import { rezReserve } from '../src/ai/corpAI';
+import { rezReserve, withDeadIceTrashed } from '../src/ai/corpAI';
 import { evaluate } from '../src/ai/evaluate';
 import { installForTest, installIceForTest, installProgramForTest, newGame, startRunnerTurn } from './helpers';
 
@@ -63,5 +63,21 @@ describe('AI judgement in fixed positions', () => {
     expect(evaluate(swapped, 'runner')).toBeCloseTo(evaluate(state, 'runner'));
     // The Corp knows its own cards
     expect(evaluate(swapped, 'corp')).not.toBeCloseTo(evaluate(state, 'corp'));
+  });
+
+  it('Corp trashes ice the Runner breaks for a credit when installing much tougher ice behind it (rules 8.5.6b)', () => {
+    const s = newGame();
+    installProgramForTest(s, '30006'); // Cleaver
+    const weak = installIceForTest(s, '30072', 'hq'); // Palisade: 1 credit with Cleaver
+    const unrezzed = installIceForTest(s, '30072', 'hq', false);
+    const tough = createCardInstance(s, '30054'); // Funhouse: no decoder to break it
+    s.corp.hq.push(tough);
+    const install: GameAction = { type: 'INSTALL_CARD', player: 'corp', cardInstanceId: tough.instanceId, targetServerId: 'hq' };
+    const chosen = withDeadIceTrashed(s, install);
+    expect(chosen).toMatchObject({ trashIceIds: [weak] });
+    expect(isLegalAction(s, chosen)).toBe(true);
+    // Only 1 ice on the server: nothing to save, leave it
+    s.corp.servers.hq.ice = s.corp.servers.hq.ice.filter(c => c.instanceId !== unrezzed);
+    expect(withDeadIceTrashed(s, install)).toBe(install);
   });
 });
