@@ -42,7 +42,7 @@ test('the run panel reopens fully on screen after being dragged off it', async (
   const overlay = page.getByTestId('run-overlay');
   for (let i = 0; i < 10 && (await overlay.isVisible()); i++) {
     // The button is off screen with the panel, so click it without scrolling
-    await overlay.getByRole('button', { name: /Continue Run|Pass|Let Subroutines Fire/ }).dispatchEvent('click');
+    await overlay.getByRole('button', { name: /Continue Run|Pass|Let Subroutines Fire|Keep Going/ }).dispatchEvent('click');
     await page.waitForTimeout(800); // the computer may rez in between
   }
   await expect(overlay).toBeHidden({ timeout: 10_000 });
