@@ -3,6 +3,7 @@ import { ALL_CARDS, CardInstance, GameAction, GameState, createCardInstance, cre
 import { digValue, handValue, keepValue, tagThreat } from '../src/ai/evaluate';
 import { DECKS, deckGameSetup } from '../src/data/decks';
 import { HeuristicCorpAI, HeuristicRunnerAI, playAIGame } from '../src/ai';
+import { rezReserve } from '../src/ai/corpAI';
 import { MAX_NUDGE, deckProfile, nudge, opponentProfile, tuning } from '../src/ai/synergy';
 import { CONDITIONS, CONDITION_PATTERNS, SYNERGY, THEMES, inferSynergy } from '../src/ai/synergyTags';
 import { newGame } from './helpers';
@@ -495,5 +496,35 @@ describe('digging for answers', () => {
     expect(digValue(s, 'runner')).toBeGreaterThan(0);
     s.runner.rig.programs = [createCardInstance(s, '30006')]; // Cleaver breaks barriers
     expect(digValue(s, 'runner')).toBe(0);
+  });
+});
+
+describe('rez money (Jeff, from play)', () => {
+  // Unrezzed ice out, an upgrade in a remote with no agenda: the money should wait for the ice
+  const position = () => {
+    const s = structuredClone(newGame());
+    const ice = (code: string) => createCardInstance(s, code);
+    s.corp.servers.rd.ice = [ice('30072'), ice('30073')]; // Palisade (ends the run, 3 to rez), Tithe
+    s.corp.servers.hq.ice = [ice('30072')];
+    const grid = createCardInstance(s, '35082'); // Mahkota Langit Grid, 2 to rez
+    s.corp.servers['remote-1'] = { id: 'remote-1', name: 'remote-1', isRemote: true, ice: [ice('30073')], root: [grid] };
+    s.corp.hq = [createCardInstance(s, '30042'), ...s.corp.hq.filter(c => getCardDefinition(c.cardCode).type_code !== 'agenda').slice(0, 3)];
+    s.corp.credits = 4;
+    return { s, grid };
+  };
+
+  it('keeps money for the ice that ends the run', () => {
+    expect(rezReserve(position().s, true)).toBe(3);
+  });
+
+  it('sets up upgrades in an empty remote, but does not rez them out of that money', () => {
+    const { s, grid } = position();
+    const ranked = new HeuristicCorpAI().rankMainActions(s);
+    const rez = ranked.find(r => r.action.type === 'REZ_CARD' && r.action.cardInstanceId === grid.instanceId)?.score ?? -Infinity;
+    const credit = ranked.find(r => r.action.type === 'GAIN_CREDIT')!.score;
+    expect(rez).toBeLessThan(credit);
+    // With money to spare beyond the reserve, it may
+    s.corp.credits = 6;
+    expect(new HeuristicCorpAI().rankMainActions(s).find(r => r.action.type === 'REZ_CARD' && r.action.cardInstanceId === grid.instanceId)!.score).toBeGreaterThan(0);
   });
 });

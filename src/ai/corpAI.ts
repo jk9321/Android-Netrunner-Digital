@@ -175,6 +175,17 @@ export class HeuristicCorpAI implements Agent {
     return this.playScore(state, action, before);
   }
 
+  /**
+   * Deck-aware AI (Jeff): an upgrade in a remote with no agenda can be set up
+   * in advance, but rezzing it must not eat the money kept for rezzing ice.
+   */
+  private idleUpgrade(state: GameState, card: CardInstance): boolean {
+    if (!this.synergy || !tuning.plan.idleUpgrades) return false;
+    const server = Object.values(state.corp.servers).find(s => s.root.some(c => c.instanceId === card.instanceId));
+    if (!server?.isRemote || server.root.some(c => type(c) === 'agenda')) return false;
+    return state.corp.credits - rezCost(state, card) < rezReserve(state, this.wideReserve);
+  }
+
   /** Worth of rezzing a card in a server's root on the Corp's own turn. */
   private rezValue(state: GameState, card: CardInstance): number {
     const corp = state.corp;
@@ -189,10 +200,10 @@ export class HeuristicCorpAI implements Agent {
       case '35073': // Plutus: replays transactions from Archives
         return corp.archives.faceUp.concat(corp.archives.faceDown).some(c => /transaction/i.test(cardDef(c).keywords ?? '')) ? 1.2 : -Infinity;
       case '35082': // Mahkota Langit Grid: recurring credits
-        return 1.5;
+        return this.idleUpgrade(state, card) ? -Infinity : 1.5;
       case '35045': // Mercia B4LL4RD
       case '35056': // Mitra Aman
-        return 1;
+        return this.idleUpgrade(state, card) ? -Infinity : 1;
     }
     return -Infinity;
   }
@@ -711,6 +722,13 @@ export function rezReserve(state: GameState, wide = false): number {
     if (wide && agendaRemote && tuning.plan.deepReserve) {
       const unrezzed = server.ice.filter(ice => !ice.isRezzed).map(ice => rezCost(state, ice));
       if (unrezzed.length > 0) needs.push(unrezzed.reduce((a, b) => a + b, 0));
+      continue;
+    }
+    if (wide && tuning.plan.iceReserve) {
+      // (Jeff) money for ice that actually stops a run: none rezzed yet, keep the cheapest one that does
+      if (server.ice.some(ice => ice.isRezzed && hasEndTheRun(ice))) continue;
+      const stoppers = server.ice.filter(ice => !ice.isRezzed && hasEndTheRun(ice)).map(ice => rezCost(state, ice));
+      if (stoppers.length > 0) needs.push(Math.min(...stoppers));
       continue;
     }
     if (server.ice.some(ice => ice.isRezzed)) continue;

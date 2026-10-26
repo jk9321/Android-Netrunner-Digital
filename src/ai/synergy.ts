@@ -136,6 +136,11 @@ export const tuning = {
     dig: { corp: true, runner: true } as Record<SideCode, boolean>,
     /** Corp (Jeff): taking credits off an asset (Regolith Mining License) counts as the money gained, not as board value lost. */
     hostedMoney: true,
+    /* Rez money (2026-10-26, 2,210 self-play games): both on 46.7%, neither 47.2% (noise). Halving upgrade worth in empty remotes instead cost about 2 points. */
+    /** Corp (Jeff): rez money for the cheapest run-ending ice on R&D (HQ, agenda remotes) even behind rezzed ice that doesn't stop runs. */
+    iceReserve: true,
+    /** Corp (Jeff): upgrades in a remote with no agenda can go out early, but are rezzed only with the ice reserve left over. */
+    idleUpgrades: true,
     /** Corp: Petty Cash first thing in the turn (it can only be played then, and replays from Archives). */
     pettyCash: true,
     /** Corp: click for credits toward a money operation in HQ it can't afford yet (Hedge Fund, Subsidy...). */
