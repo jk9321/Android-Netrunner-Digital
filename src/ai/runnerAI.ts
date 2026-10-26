@@ -7,7 +7,7 @@ import { digValue, evaluate, rigCoverage } from './evaluate';
 import { answerPrompt, runEventOptions, simulate } from './prompts';
 import type { HeuristicOptions } from './corpAI';
 import { logNudge, nudge, tuning } from './synergy';
-import { RunnerMemory, bestBreakPlan, iceCost, needsBiggerHand, runScore, runShortfall, serverValue, subroutineCost } from './runs';
+import { RunnerMemory, bestBreakPlan, creditsAhead, iceCost, iceCreditNeed, needsBiggerHand, runScore, runShortfall, serverValue, subroutineCost } from './runs';
 
 const TROJANS = ['30004', '30017']; // Botulus, Tranquilizer
 
@@ -62,9 +62,14 @@ export class HeuristicRunnerAI implements Agent {
 
     if (run.phase === 'movement' && run.icePosition !== null && server) {
       // Jack out (only possible after passing ice) if the rezzed ice further in is more than we can pay for.
-      const remaining = server.ice.slice(0, run.icePosition).filter(c => c.isRezzed);
-      const cost = remaining.reduce((sum, ice) => sum + iceCost(state, ice), 0);
-      if (cost > availableCredits(state, 'runner') + 0.5 && find('JACK_OUT')) return find('JACK_OUT');
+      const credits = availableCredits(state, 'runner');
+      if (tuning.plan.runBudget) {
+        if (creditsAhead(state) > credits && find('JACK_OUT')) return find('JACK_OUT');
+      } else {
+        const remaining = server.ice.slice(0, run.icePosition).filter(c => c.isRezzed);
+        const cost = remaining.reduce((sum, ice) => sum + iceCost(state, ice), 0);
+        if (cost > credits + 0.5 && find('JACK_OUT')) return find('JACK_OUT');
+      }
     }
     return find('CONTINUE_RUN') ?? legal[0];
   }
@@ -79,8 +84,16 @@ export class HeuristicRunnerAI implements Agent {
     const mustBreak = unbroken.filter(s => s.cost >= 1);
     if (mustBreak.length === 0) return undefined;
 
-    const credits = availableCredits(state, 'runner');
+    // Runner (run budget): keep what the rezzed ice further in needs
+    const ahead = tuning.plan.runBudget ? creditsAhead(state) : 0;
+    const credits = availableCredits(state, 'runner') - ahead;
     const tank = mustBreak.reduce((sum, s) => sum + s.cost, 0);
+    if (tuning.plan.runBudget && mustBreak.some(s => s.cost === Infinity)) {
+      // Can't get through the whole way: paying here is wasted unless what fires before the run ends is worse
+      const first = mustBreak.find(s => s.cost === Infinity)!;
+      const before = mustBreak.filter(s => s.i < first.i).reduce((sum, s) => sum + s.cost, 0);
+      if (credits < iceCreditNeed(state, ice, encounter.broken) && before < 2) return undefined;
+    }
     const tryBreaking = (targets: typeof mustBreak): GameAction | undefined => {
       const plan = bestBreakPlan(state, ice, targets.length);
       if (!plan || plan.credits > credits) return undefined;

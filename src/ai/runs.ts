@@ -12,6 +12,7 @@ import {
 } from '../core/engine/ice';
 import { availableCredits, counters } from '../core/engine/cardEffects';
 import { corpCardValue } from './evaluate';
+import { tuning } from './synergy';
 
 /**
  * What the Runner AI knows about runs. It only reads public information:
@@ -126,6 +127,37 @@ export function iceCost(state: GameState, ice: CardInstance): number {
   const plan = bestBreakPlan(state, ice, subs.length);
   const breakCost = plan ? plan.credits + (ice.cardCode === '30054' ? 3 : 0) : BLOCK;
   return Math.min(tank, breakCost, selfBreakCost(ice, subs.length));
+}
+
+/**
+ * Credits the Runner must spend to get past this rezzed ice without the
+ * run ending: breaking its run-ending subroutines (0 when it has none, or
+ * when a bioroid can be broken with the clicks left). Subroutines already
+ * broken in `broken` don't count. BLOCK when it can't be got past.
+ */
+export function iceCreditNeed(state: GameState, ice: CardInstance, broken: boolean[] = []): number {
+  const subs = iceScript(ice)?.subroutines ?? [];
+  const blocking = subs.filter((s, i) => !broken[i] && subroutineCost(state, s.label) === BLOCK).length;
+  if (blocking === 0) return 0;
+  const plan = bestBreakPlan(state, ice, blocking);
+  const self = iceScript(ice)?.runnerBreakCost;
+  if (self !== undefined) return Math.min(plan?.credits ?? BLOCK, blocking * self);
+  if (isBioroid(ice) && state.runner.clicks >= blocking) return 0;
+  return plan ? plan.credits : BLOCK;
+}
+
+/**
+ * Credits to keep for the rezzed ice the Runner still has to pass further
+ * in on this run, from the position it is at now (BLOCK: some of it can't
+ * be got past). Breaker boosts bought for the current encounter don't
+ * carry over, so the ice ahead is costed without them.
+ */
+export function creditsAhead(state: GameState): number {
+  const run = state.activeRun;
+  const server = run ? state.corp.servers[run.server] : undefined;
+  if (!run || !server || run.icePosition === null) return 0;
+  const outside: GameState = { ...state, activeRun: { ...run, encounter: null } };
+  return server.ice.slice(0, run.icePosition).reduce((sum, ice) => sum + (ice.isRezzed ? iceCreditNeed(outside, ice) : 0), 0);
 }
 
 /** Breaking the ice with its own ability: a click per subroutine (bioroids) or credits (N-Pot). */
@@ -273,6 +305,18 @@ export function runScore(state: GameState, serverId: string, options: RunOptions
   let known = 0;
   let expected = 0;
   let shredLeft = !!options.shred && server.root.length > 0;
+  const budget = availableCredits(state, 'runner') + (options.bonusCredits ?? 0);
+  // Runner (rez allowance): credits paid on the way in are lost if unrezzed ice further in is rezzed and can't be paid for
+  let paidOutside = 0;
+  let waste = 0;
+  const canRez = state.corp.credits >= (options.rezTax ? 4 : 1);
+  for (const ice of [...server.ice].reverse()) {
+    if (ice.isRezzed) paidOutside += Math.min(iceCreditNeed(state, ice), budget);
+    else if (tuning.plan.rezAllowance && canRez && paidOutside > 0) {
+      const spare = budget - paidOutside;
+      waste += paidOutside * (spare < 2 ? 0.5 : spare < 4 ? 0.25 : 0.1);
+    }
+  }
   for (const ice of server.ice) {
     let cost = iceCost(state, ice);
     if (cost === BLOCK && shredLeft) {
@@ -286,5 +330,5 @@ export function runScore(state: GameState, serverId: string, options: RunOptions
   }
   if (known > availableCredits(state, 'runner') + (options.bonusCredits ?? 0)) return -Infinity;
   const paid = Math.max(0, expected - (options.bonusCredits ?? 0));
-  return value - 0.6 * paid - 1;
+  return value - 0.6 * paid - 0.6 * waste - 1;
 }

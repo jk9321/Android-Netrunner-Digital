@@ -45,6 +45,12 @@ export function printLossSummary(games, detail = !!process.env.DETAIL) {
   }
   console.log(`  turns with an agenda in HQ and none in a remote: avg ${avg(losses, g => g.idleAgendaTurns)} (Corp wins ${avg(wins, g => g.idleAgendaTurns)})`);
   console.log(`  agendas still in HQ at the end: avg ${avg(losses, g => g.agendasInHQ)}`);
+  if (games[0]?.runs) {
+    const r = k => sum(games, g => g.runs[k]);
+    console.log(`Runner runs: ${r('total')}; paid to break then failed: ${r('paidAndFailed')} (${pct(r('paidAndFailed'), r('total'))}), ${r('credits')} credits wasted`);
+    console.log(`  jacked out before rezzed ice: known at run start ${r('jackOutKnown')}, rezzed during the run ${r('jackOutFresh')}`);
+    console.log(`  stopped by ice: known at run start ${r('stoppedKnown')}, rezzed during the run ${r('stoppedFresh')}`);
+  }
   show('  most stolen agendas:', count(steals, s => s.title), steals.length);
 
   if (detail) {

@@ -44,6 +44,24 @@ export interface GameRecord {
   idleAgendaTurns: number;
   /** Averages over the Corp's turns: remotes, remotes with ice, ice in remotes, ice on the best-iced remote, ice on HQ and R&D */
   board: { remotes: number; icedRemotes: number; remoteIce: number; maxRemoteIce: number; hqIce: number; rdIce: number };
+  /** Runner runs: how many, and the failed ones where it had already paid to break ice (see RunWaste) */
+  runs: RunWaste;
+}
+
+/**
+ * Runs the Runner paid into (boosting or breaking) and then lost: jacked out
+ * or stopped by ice. `known` means the ice that stopped it was rezzed when
+ * the run began (it could have budgeted for it); `fresh` means the Corp
+ * rezzed it during the run.
+ */
+export interface RunWaste {
+  total: number;
+  paidAndFailed: number;
+  credits: number;
+  jackOutKnown: number;
+  jackOutFresh: number;
+  stoppedKnown: number;
+  stoppedFresh: number;
 }
 
 const isAgenda = (c: { cardCode: string }) => cardDef(c as never).type_code === 'agenda';
@@ -65,6 +83,10 @@ export function playLogged(start: GameState, agents: { corp: Agent; runner: Agen
   const board = { remotes: 0, icedRemotes: 0, remoteIce: 0, maxRemoteIce: 0, hqIce: 0, rdIce: 0 };
   let corpTurns = 0;
   let lastTurn = -1;
+  const runs: RunWaste = { total: 0, paidAndFailed: 0, credits: 0, jackOutKnown: 0, jackOutFresh: 0, stoppedKnown: 0, stoppedFresh: 0 };
+  let rezzedAtStart = new Set<string>();
+  let paid = 0;
+  let startCredits = 0;
   for (let steps = 0; steps < 4000 && runner.state.turnNumber <= 80; steps++) {
     const before = runner.state;
     if (before.turnNumber !== lastTurn && before.activePlayer === 'corp') {
@@ -82,6 +104,43 @@ export function playLogged(start: GameState, agents: { corp: Agent; runner: Agen
     }
     if (!runner.step()) break;
     const after = runner.state;
+    const run = before.activeRun;
+    if (!run && after.activeRun) {
+      runs.total++;
+      paid = 0;
+      startCredits = after.runner.credits + after.activeRun.bonusCredits;
+      rezzedAtStart = new Set(Object.values(after.corp.servers).flatMap(sv => sv.ice.filter(i => i.isRezzed).map(i => i.instanceId)));
+    }
+    // Credits spent while the encounter stays open: boosts and breaks (subroutines resolve as it closes)
+    const pool = (st: GameState) => st.runner.credits + (st.activeRun?.bonusCredits ?? 0);
+    if (run?.encounter && after.activeRun?.encounter && run.encounter.resolvingIndex === null && after.activeRun.encounter.resolvingIndex === null) {
+      paid += Math.max(0, pool(before) - pool(after));
+    }
+    if (run && !after.activeRun) {
+      const ended = after.runsThisTurn[after.runsThisTurn.length - 1];
+      if (ended && !ended.successful && paid > 0) {
+        const ice = before.corp.servers[run.server]?.ice ?? [];
+        runs.paidAndFailed++;
+        runs.credits += paid;
+        if (run.phase === 'movement') {
+          // Jacked out: what lay ahead
+          const ahead = ice.slice(0, run.icePosition ?? 0).filter(i => i.isRezzed);
+          if (ahead.some(i => rezzedAtStart.has(i.instanceId))) runs.jackOutKnown++;
+          else runs.jackOutFresh++;
+          if (process.env.RUN_DEBUG)
+            console.error(
+              `JACKOUT ${run.server} credits@start=${startCredits} now=${pool(before)} paid=${paid} ice(out->in)=${[...ice]
+                .reverse()
+                .map(i => `${cardDef(i).title}${rezzedAtStart.has(i.instanceId) ? '[K]' : i.isRezzed ? '[R]' : '[u]'}`)
+                .join(',')} pos=${run.icePosition} bonus=${run.bonusCredits}`
+            );
+        } else {
+          const stopper = run.icePosition !== null ? ice[run.icePosition] : undefined;
+          if (stopper && rezzedAtStart.has(stopper.instanceId)) runs.stoppedKnown++;
+          else runs.stoppedFresh++;
+        }
+      }
+    }
     const gained = after.runner.score - before.runner.score;
     if (gained <= 0) continue;
     const serverId = before.activeRun?.server ?? after.activeRun?.server ?? null;
@@ -118,5 +177,6 @@ export function playLogged(start: GameState, agents: { corp: Agent; runner: Agen
     agendasInHQ: s.corp.hq.filter(isAgenda).length,
     idleAgendaTurns,
     board: Object.fromEntries(Object.entries(board).map(([k, v]) => [k, v / Math.max(corpTurns, 1)])) as GameRecord['board'],
+    runs,
   };
 }

@@ -119,6 +119,16 @@ export const tuning = {
     purgeValue: true,
     /** Corp: no ice it can't rez, nor ice that eats the rez money for ice already out. */
     affordIce: true,
+    /*
+     * Run budget (2026-10-26, self-play, 2,210 games): runs the Runner paid
+     * into and lost fell from 1,536 to 1,265, jack-outs before known ice from
+     * 282 to 9. Runner +36 games (Corp 44.2% -> 42.8%). Rez allowance alone:
+     * within noise (kept, plays more like a person).
+     */
+    /** Runner: while breaking, keep the credits the rezzed ice further in needs; don't pay into a run it can't finish. */
+    runBudget: true,
+    /** Runner: a run that pays for outer ice counts the risk that unrezzed ice further in gets rezzed and stops it. */
+    rezAllowance: true,
     /** Corp (round 3): no half-advanced agendas: advance only when it can be scored next turn behind ice it can rez. */
     agendaTiming: true,
     /*
