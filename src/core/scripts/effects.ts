@@ -90,7 +90,7 @@ export function askCorpInstall(ctx: EffectContext, cardId: string, step: string,
   if (!card) return false;
   const options = corpInstallOptions(ctx.state, card, opts);
   if (options.length === 0) {
-    addLog(ctx.state, 'corp', `Corp could not install ${cardDef(card).title}.`);
+    addLog(ctx.state, 'corp', 'Corp could not install the card: there is nowhere to put it.');
     return false;
   }
   askChoice(ctx, 'corp', `Install ${cardDef(card).title} where?`, options, step, { ...data, cardId });

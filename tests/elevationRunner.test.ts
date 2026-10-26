@@ -225,6 +225,9 @@ describe('Elevation Runner events', () => {
     s = choose(s, 'trash');
     expect(s.activeRun).toBeNull();
     expect(s.corp.hq.length).toBe(hq - 1);
+    // Revealed before it was trashed, so it goes to Archives faceup (rules 4.4.6b)
+    expect(s.corp.archives.faceUp.length).toBe(1);
+    expect(s.corp.archives.faceDown.length).toBe(0);
   });
 
   it('Clean Getaway gains 6 on a successful run', () => {

@@ -121,7 +121,7 @@ export function removeCard(cards: CardInstance[], card: CardInstance): boolean {
 }
 
 /**
- * Trashes an installed Corp card to Archives (face up if it was rezzed).
+ * Trashes an installed Corp card to Archives (faceup if it was rezzed or faceup).
  * Runner programs hosted on it (Botulus, Tranquilizer) are trashed too.
  */
 export function trashInstalledCorpCard(state: GameState, server: ServerState, card: CardInstance): void {
@@ -138,10 +138,12 @@ export function trashInstalledCorpCard(state: GameState, server: ServerState, ca
   }
   card.hostedCardIds = [];
   card.tokens = {};
-  const wasRezzed = card.isRezzed;
+  // Faceup if the Runner could see it (rezzed, or an agenda installed faceup with BANGUN): rules 4.4.6b
+  const visible = card.isRezzed || !!card.faceUp;
   card.isRezzed = false;
+  delete card.faceUp;
   card.advancementCounters = 0;
-  if (wasRezzed) {
+  if (visible) {
     state.corp.archives.faceUp.push(card);
   } else {
     state.corp.archives.faceDown.push(card);

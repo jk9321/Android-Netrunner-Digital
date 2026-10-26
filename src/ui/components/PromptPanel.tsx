@@ -6,6 +6,12 @@ import { CardNameText } from './CardNameText';
 import { Credits } from './CreditIcon';
 import { FloatingPanel } from './FloatingPanel';
 
+/** An installed Corp card that is neither rezzed nor faceup: only the Corp may look at it (rules 4.6.3). */
+function isFacedownCorpCard(state: GameState, card: CardInstance): boolean {
+  if (card.isRezzed || card.faceUp || cardDef(card).side_code !== 'corp') return false;
+  return Object.values(state.corp.servers).some(s => s.ice.includes(card) || s.root.includes(card));
+}
+
 interface PromptPanelProps {
   state: GameState;
   onAnswer: (choice: PromptChoice) => void;
@@ -142,15 +148,19 @@ export const PromptPanel: React.FC<PromptPanelProps> = ({ state, onAnswer, onIns
             <div className="flex gap-2 overflow-x-auto py-2 mb-4">
               {prompt.candidateIds.map(id => {
                 const card = findCardAnywhere(state, id);
+                // The Runner never sees the face of an unrezzed Corp card it is choosing (Tāo Salonga)
+                const secret = !!card && !isCorp && isFacedownCorpCard(state, card);
                 return card ? (
                   <CardView
                     key={id}
                     card={card}
                     size="sm"
+                    isFaceDown={secret}
+                    canPeek={!secret}
                     isSelectable={!isFull || selected.includes(id)}
                     isSelected={selected.includes(id)}
                     onClick={() => toggle(id)}
-                    onInspect={onInspectCard}
+                    onInspect={secret ? undefined : onInspectCard}
                   />
                 ) : null;
               })}

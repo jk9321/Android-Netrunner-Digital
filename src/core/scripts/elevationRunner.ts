@@ -274,7 +274,7 @@ const shred: CardScript = {
     const pool = [...state.corp.hq];
     const ids: string[] = [];
     for (let i = 0; i < x && pool.length > 0; i++) ids.push(pool.splice(nextInt(state.rng, pool.length), 1)[0].instanceId);
-    const trashed = corpTrashFromHQ(state, ids);
+    const trashed = corpTrashFromHQ(state, ids, true);
     addLog(state, 'corp', `Corp revealed and trashed ${trashed.map(c => cardDef(c).title).join(', ') || 'no cards'} from HQ (Shred).`);
     if (!state.activeRun) return;
     addLog(state, 'corp', 'The run was ended.');

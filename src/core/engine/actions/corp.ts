@@ -85,6 +85,9 @@ export function rezCard(state: GameState, action: RezCardAction): void {
   const def = cardDef(card);
   if (def.type_code === 'agenda') illegal('Agendas cannot be rezzed');
 
+  // During an encounter players may only use paid abilities (rules 6.9.3b)
+  if (state.activeRun?.phase === 'encounter_ice') illegal('Cards cannot be rezzed during an encounter');
+
   if (location === 'ice') {
     // Ice can only be rezzed while the Runner is approaching it.
     const run = state.activeRun;

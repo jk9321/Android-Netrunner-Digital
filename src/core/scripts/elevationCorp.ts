@@ -678,7 +678,7 @@ const plutus: CardScript = {
       spendCredits(state, 'corp', cost, { kind: 'rez', card });
       completeRez(state, card);
     } else if (source.step === 'rez_trash' && answer.kind === 'effect_cards') {
-      const trashed = corpTrashFromHQ(state, answer.cardInstanceIds);
+      const trashed = corpTrashFromHQ(state, answer.cardInstanceIds, true);
       addLog(state, 'corp', `Corp revealed and trashed ${trashed.map(c => cardDef(c).title).join(', ')} (Plutus).`);
       spendCredits(state, 'corp', cost, { kind: 'rez', card });
       completeRez(state, card);

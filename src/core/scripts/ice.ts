@@ -219,7 +219,7 @@ function askServer(ctx: EffectContext, cardId: string, ignoreCosts: boolean, ste
       .map(s => ({ id: s.id, label: s.name })),
   ];
   if (options.length === 0) {
-    addLog(ctx.state, 'corp', `Corp could not install ${cardDef(card).title}.`);
+    addLog(ctx.state, 'corp', 'Corp could not install the card: there is nowhere to put it.');
     return;
   }
   askChoice(ctx, 'corp', `Install ${cardDef(card).title} where?`, options, step, { cardId });

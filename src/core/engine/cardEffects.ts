@@ -237,14 +237,18 @@ export function removeTags(state: GameState, count: number): number {
   return removed;
 }
 
-/** The Corp trashes cards from HQ (facedown into Archives) and fires "hq_trashed" (AU Co.). */
-export function corpTrashFromHQ(state: GameState, ids: string[]): CardInstance[] {
+/**
+ * The Corp trashes cards from HQ and fires "hq_trashed" (AU Co.). They go
+ * into Archives facedown, or faceup when they were revealed first (Shred,
+ * Plutus): a card the Runner could see when it was trashed is faceup (rules 4.4.6b).
+ */
+export function corpTrashFromHQ(state: GameState, ids: string[], revealed = false): CardInstance[] {
   const trashed: CardInstance[] = [];
   for (const id of ids) {
     const card = state.corp.hq.find(c => c.instanceId === id);
     if (!card) continue;
     removeCard(state.corp.hq, card);
-    state.corp.archives.faceDown.push(card);
+    (revealed ? state.corp.archives.faceUp : state.corp.archives.faceDown).push(card);
     trashed.push(card);
   }
   if (trashed.length > 0) fireTrigger(state, { type: 'hq_trashed', count: trashed.length });
