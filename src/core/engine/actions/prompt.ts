@@ -82,6 +82,7 @@ function answerPrompt(state: GameState, action: ResolvePromptAction): void {
     case 'effect_choice': {
       if (choice.kind !== 'effect_choice') return;
       if (!prompt.options.some(o => o.id === choice.optionId)) illegal('Not one of the options');
+      if (choice.trashFirst?.length && !prompt.source.data?.install) illegal('This choice does not install a card');
       runScriptAnswer(state, prompt.source, choice);
       return;
     }

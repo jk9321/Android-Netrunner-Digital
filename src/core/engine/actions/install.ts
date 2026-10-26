@@ -24,6 +24,7 @@ import {
   trashInstalledCorpCard,
   turnKey,
 } from '../helpers';
+import { trashInstalledRunnerCard } from '../damage';
 
 export function installCard(state: GameState, action: InstallCardAction): void {
   requireActionPhase(state, action.player);
@@ -40,35 +41,64 @@ function installCorpCard(state: GameState, action: InstallCardAction): void {
   if (!card) illegal('Card not in HQ');
   const newRemote = action.asNewRemote || !action.targetServerId;
   const serverId = newRemote ? null : action.targetServerId!;
-  const trash = iceToTrashFirst(state, card, serverId, action.trashIceIds ?? []);
-  // With ice trashed first, iceToTrashFirst has already checked the (lower) install cost
-  const blocker = corpInstallBlocker(state, card, serverId, trash.length > 0);
+  const trash = chosenToTrashFirst(state, card, serverId, action.trashFirst ?? []);
+  const blocker = corpInstallBlocker(state, card, serverId, false, iceTrashedDiscount(card, trash));
   if (blocker) illegal(blocker);
   if (action.faceUp && !canInstallFaceUp(state, card)) illegal('This card cannot be installed faceup');
   state.corp.clicks -= 1;
-  if (serverId !== null && trash.length > 0) {
-    const server = state.corp.servers[serverId];
-    for (const ice of trash) trashInstalledCorpCard(state, server, ice);
-    addLog(state, 'corp', `Corp trashed ${trash.length} ice protecting ${server.name} to install new ice there.`);
-  }
+  trashFirst(state, trash);
   installCorpCardFrom(state, card, state.corp.hq, serverId, false, { faceUp: action.faceUp });
 }
 
 /**
- * Ice the Corp chose to trash before installing ice in the same server
- * (rules 8.5.6b). They don't count toward the install cost, so the Corp
- * only has to afford the ice that stays.
+ * The installed cards a player may trash as part of installing this card
+ * (rules 8.5.6): ice protecting the server for ice (8.5.6b), cards in the
+ * root for an upgrade, or an agenda or asset in a remote (8.5.6a), and
+ * installed programs for a program (8.5.6c). Null server: a new remote.
  */
-function iceToTrashFirst(state: GameState, card: CardInstance, serverId: string | null, ids: string[]): CardInstance[] {
+export function trashableFirst(state: GameState, card: CardInstance, serverId: string | null): CardInstance[] {
+  const type = cardDef(card).type_code;
+  if (type === 'program') return [...state.runner.rig.programs];
+  const server = serverId === null ? undefined : state.corp.servers[serverId];
+  if (!server) return [];
+  if (type === 'ice') return [...server.ice];
+  if (type === 'upgrade' || ((type === 'agenda' || type === 'asset') && server.isRemote)) return [...server.root];
+  return [];
+}
+
+/** Checks the cards a player chose to trash while installing (see trashableFirst) and returns them. */
+export function chosenToTrashFirst(state: GameState, card: CardInstance, serverId: string | null, ids: string[]): CardInstance[] {
   if (ids.length === 0) return [];
-  if (cardDef(card).type_code !== 'ice' || serverId === null) illegal('Only ice can replace ice in a server');
-  const server = state.corp.servers[serverId];
-  if (!server) illegal('Server not found');
-  const ice = ids.map(id => server.ice.find(c => c.instanceId === id));
-  if (ice.some(c => !c) || new Set(ids).size !== ids.length) illegal('Can only trash ice protecting that server');
-  const cost = Math.max(0, server.ice.length - ids.length);
-  if (state.corp.credits < cost) illegal(`Need ${cost} credits to install ice on this server`);
-  return ice as CardInstance[];
+  const allowed = trashableFirst(state, card, serverId);
+  const chosen = ids.map(id => allowed.find(c => c.instanceId === id));
+  if (chosen.some(c => !c) || new Set(ids).size !== ids.length) illegal(`Can't trash those cards to install ${cardDef(card).title}`);
+  return chosen as CardInstance[];
+}
+
+/** Ice trashed before installing ice doesn't count toward its install cost (rules 8.5.6b). */
+export function iceTrashedDiscount(card: CardInstance, trash: CardInstance[]): number {
+  return cardDef(card).type_code === 'ice' ? trash.length : 0;
+}
+
+/** Programs trashed before installing a program free up their memory (rules 8.5.6c). */
+export function freedMemory(trash: CardInstance[]): number {
+  return trash.reduce((mu, c) => mu + (cardDef(c).type_code === 'program' ? cardDef(c).memory_cost || 0 : 0), 0);
+}
+
+/** Trashes the cards chosen in chosenToTrashFirst(), before the install itself. */
+export function trashFirst(state: GameState, trash: CardInstance[]): void {
+  for (const card of trash) {
+    if (cardDef(card).side_code === 'runner') {
+      trashInstalledRunnerCard(state, card);
+      addLog(state, 'runner', `Runner trashed ${cardDef(card).title} to make room.`);
+      continue;
+    }
+    const server = Object.values(state.corp.servers).find(s => s.ice.includes(card) || s.root.includes(card));
+    if (!server) continue;
+    trashInstalledCorpCard(state, server, card);
+    const seen = state.corp.archives.faceUp.includes(card);
+    addLog(state, 'corp', `Corp trashed ${seen ? cardDef(card).title : 'a card'} in ${server.name} to make room.`);
+  }
 }
 
 /** BANGUN: agendas may be installed faceup. */
@@ -169,9 +199,11 @@ function installRunnerCard(state: GameState, action: InstallCardAction): void {
   const card = zone?.find(c => c.instanceId === action.cardInstanceId);
   if (!zone || !card) illegal('Card not in Grip');
   if (cardDef(card).type_code === 'event') illegal('Events are played, not installed');
-  const blocker = runnerInstallBlocker(state, card, action.hostInstanceId);
+  const trash = chosenToTrashFirst(state, card, null, action.trashFirst ?? []);
+  const blocker = runnerInstallBlocker(state, card, action.hostInstanceId, 0, freedMemory(trash));
   if (blocker) illegal(blocker);
   state.runner.clicks -= 1;
+  trashFirst(state, trash);
   installRunnerCardFrom(state, card, zone, action.hostInstanceId);
 }
 
@@ -206,7 +238,7 @@ export function runnerInstallCost(state: GameState, card: CardInstance, discount
  * restrictions)? Returns a reason if not. Programs that install on ice
  * need a host; other cards must not have one.
  */
-export function runnerInstallBlocker(state: GameState, card: CardInstance, hostInstanceId?: string, discount = 0): string | null {
+export function runnerInstallBlocker(state: GameState, card: CardInstance, hostInstanceId?: string, discount = 0, freedMU = 0): string | null {
   const def = cardDef(card);
   const script = getCardScript(card.cardCode);
   if (!['program', 'hardware', 'resource'].includes(def.type_code)) return 'Only programs, hardware and resources can be installed';
@@ -222,7 +254,7 @@ export function runnerInstallBlocker(state: GameState, card: CardInstance, hostI
     return 'Not enough credits to install';
   }
   const mem = def.type_code === 'program' ? def.memory_cost || 0 : 0;
-  if (state.runner.memoryUnitsUsed + mem > memoryLimit(state)) {
+  if (state.runner.memoryUnitsUsed - freedMU + mem > memoryLimit(state)) {
     return 'Not enough memory units to install this program';
   }
   return null;

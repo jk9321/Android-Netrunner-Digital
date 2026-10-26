@@ -1,6 +1,7 @@
 import { useState } from 'react';
-import { Plus, Trash2 } from 'lucide-react';
-import { CardInstance, GameAction, GameState, cardDef, getLegalActions, isLegalAction } from '../../core';
+import { Plus } from 'lucide-react';
+import { CardInstance, GameAction, GameState, cardDef, getLegalActions, isLegalAction, trashableFirst } from '../../core';
+import { TrashFirstButton, TrashFirstPicker } from './TrashFirstPicker';
 
 /**
  * Where the selected HQ card can go: a new remote, or any server the engine
@@ -16,64 +17,40 @@ export function CorpInstallOptions({
   onAction: (action: GameAction) => void;
 }) {
   const def = cardDef(card);
-  // Ice: trash ice already on a server first, so it doesn't count toward the install cost (rules 8.5.6b)
-  const [replacing, setReplacing] = useState<{ cardId: string; serverId: string; trash: string[] } | null>(null);
-  const replace = replacing?.cardId === card.instanceId ? replacing : null;
-  const installWithTrash = (serverId: string, trashIceIds: string[]): GameAction => ({
+  // Trash cards already there first (rules 8.5.6): ice for ice (they then don't count toward its cost), root cards for a root install
+  const [replacing, setReplacing] = useState<{ cardId: string; serverId: string } | null>(null);
+  const installWithTrash = (serverId: string, trashFirst: string[]): GameAction => ({
     type: 'INSTALL_CARD',
     player: 'corp',
     cardInstanceId: card.instanceId,
     targetServerId: serverId,
-    trashIceIds,
+    trashFirst,
   });
-  const replaceable =
-    def.type_code === 'ice'
-      ? Object.values(state.corp.servers).filter(
-          s => s.ice.length > 0 && isLegalAction(state, installWithTrash(s.id, s.ice.map(c => c.instanceId)))
-        )
-      : [];
-  if (replace) {
-    const server = state.corp.servers[replace.serverId];
-    const action = installWithTrash(replace.serverId, replace.trash);
-    const cost = Math.max(0, server.ice.length - replace.trash.length);
-    const toggle = (id: string) =>
-      setReplacing({ ...replace, trash: replace.trash.includes(id) ? replace.trash.filter(t => t !== id) : [...replace.trash, id] });
+  const replaceable = Object.values(state.corp.servers).filter(s => {
+    const cards = trashableFirst(state, card, s.id);
+    return cards.length > 0 && isLegalAction(state, installWithTrash(s.id, cards.map(c => c.instanceId)));
+  });
+  const what = def.type_code === 'ice' ? 'ice' : 'cards';
+  if (replacing?.cardId === card.instanceId) {
+    const server = state.corp.servers[replacing.serverId];
+    // Outermost ice first, as on the board
+    const cards = trashableFirst(state, card, server.id);
     return (
-      <div className="flex items-center gap-1.5 flex-wrap" data-testid="install-trash-ice">
-        <span className="text-xs text-amber-300 font-bold">Trash ice on {server.name} first:</span>
-        {[...server.ice].reverse().map(ice => {
-          const picked = replace.trash.includes(ice.instanceId);
-          return (
-            <button
-              key={ice.instanceId}
-              onClick={() => toggle(ice.instanceId)}
-              data-testid={`trash-ice-${ice.instanceId}`}
-              className={`px-2.5 py-1 text-xs font-bold rounded-xl border transition-all ${
-                picked ? 'bg-red-600 border-red-400 text-white line-through' : 'bg-slate-800 border-slate-600 text-slate-200 hover:border-red-400'
-              }`}
-            >
-              {cardDef(ice).title}
-              {!ice.isRezzed && ' (unrezzed)'}
-            </button>
-          );
-        })}
-        <button
-          onClick={() => {
-            setReplacing(null);
-            onAction(action);
-          }}
-          disabled={!isLegalAction(state, action)}
-          data-testid="install-trash-confirm"
-          className="px-3 py-1.5 bg-amber-500 hover:bg-amber-400 disabled:opacity-40 disabled:cursor-not-allowed text-black text-xs font-bold rounded-xl transition-all flex items-center gap-1 shadow-lg"
-        >
-          <Plus className="w-3.5 h-3.5" /> Install {def.title}
-          {cost > 0 && ` (${cost}c)`}
-          {replace.trash.length > 0 && `, trash ${replace.trash.length}`}
-        </button>
-        <button onClick={() => setReplacing(null)} className="px-2 py-1 text-xs text-slate-400 hover:text-white">
-          Cancel
-        </button>
-      </div>
+      <TrashFirstPicker
+        key={`${card.instanceId}-${server.id}`}
+        heading={`Install ${def.title} in ${server.name}, trashing first:`}
+        cards={def.type_code === 'ice' ? cards.reverse() : cards}
+        confirmLabel={trash => {
+          const cost = def.type_code === 'ice' ? Math.max(0, server.ice.length - trash.length) : 0;
+          return `Install${cost > 0 ? ` (${cost}c)` : ''}${trash.length > 0 ? `, trash ${trash.length}` : ''}`;
+        }}
+        canConfirm={trash => isLegalAction(state, installWithTrash(server.id, trash))}
+        onConfirm={trash => {
+          setReplacing(null);
+          onAction(installWithTrash(server.id, trash));
+        }}
+        onCancel={() => setReplacing(null)}
+      />
     );
   }
   const options = getLegalActions(state, 'corp').filter(
@@ -108,15 +85,17 @@ export function CorpInstallOptions({
         );
       })}
       {replaceable.map(server => (
-        <button
+        <TrashFirstButton
           key={`trash-${server.id}`}
-          onClick={() => setReplacing({ cardId: card.instanceId, serverId: server.id, trash: [] })}
-          data-testid={`install-replace-${server.id}`}
-          title={`Trash ice protecting ${server.name} first; trashed ice doesn't count toward the install cost`}
-          className="px-2.5 py-1.5 bg-slate-800 hover:bg-slate-700 border border-amber-500/50 text-amber-300 text-xs font-bold rounded-xl transition-all flex items-center gap-1"
-        >
-          <Trash2 className="w-3.5 h-3.5" /> {server.name}: trash ice first
-        </button>
+          label={`${server.name}: trash ${what} first`}
+          title={
+            def.type_code === 'ice'
+              ? `Trash ice protecting ${server.name} first; trashed ice doesn't count toward the install cost`
+              : `Trash cards in the root of ${server.name} first`
+          }
+          onClick={() => setReplacing({ cardId: card.instanceId, serverId: server.id })}
+          testId={`install-replace-${server.id}`}
+        />
       ))}
     </div>
   );

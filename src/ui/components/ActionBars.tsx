@@ -1,6 +1,7 @@
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import { ArrowRight, Biohazard, Layers, Plus, Tag, Trash2, Zap } from 'lucide-react';
-import { CardInstance, GameAction, GameState, SideCode, cardDef, findCardAnywhere, getCardScript, getLegalActions, isLegalAction } from '../../core';
+import { CardInstance, GameAction, GameState, SideCode, cardDef, findCardAnywhere, getCardScript, getLegalActions, isLegalAction, trashableFirst } from '../../core';
+import { TrashFirstButton, TrashFirstPicker } from './TrashFirstPicker';
 import { CreditIcon, Credits } from './CreditIcon';
 import { CorpInstallOptions } from './CorpInstallOptions';
 import { hostedCardActions, illegalReason } from '../legal';
@@ -132,6 +133,29 @@ export function RunnerActions(props: ActionBarProps) {
     installable && cardDef(installable).side_code === 'runner'
       ? illegalReason(state, { type: 'INSTALL_CARD', player: 'runner', cardInstanceId: installable.instanceId })
       : null;
+  // Programs: trash installed programs first (rules 8.5.6c), which the memory limit may require
+  const [makingRoom, setMakingRoom] = useState<string | null>(null);
+  const installTrashing = (trashFirst: string[]): GameAction => ({ type: 'INSTALL_CARD', player: 'runner', cardInstanceId: installable!.instanceId, trashFirst });
+  const programs = installable && !onIce ? trashableFirst(state, installable, null) : [];
+  const canMakeRoom = programs.length > 0 && isLegalAction(state, installTrashing(programs.map(c => c.instanceId)));
+  if (installable && makingRoom === installable.instanceId) {
+    return (
+      <div className="flex flex-col gap-2 p-2 bg-pink-950/40 border border-pink-800/80 chamfer-sm shadow-inner">
+        <TrashFirstPicker
+          key={installable.instanceId}
+          heading={`Install ${cardDef(installable).title}, trashing first:`}
+          cards={programs}
+          confirmLabel={trash => `Install${trash.length > 0 ? `, trash ${trash.length}` : ''}`}
+          canConfirm={trash => isLegalAction(state, installTrashing(trash))}
+          onConfirm={trash => {
+            setMakingRoom(null);
+            onAction(installTrashing(trash));
+          }}
+          onCancel={() => setMakingRoom(null)}
+        />
+      </div>
+    );
+  }
   return (
     <div className="flex flex-col gap-2 p-2 bg-pink-950/40 border border-pink-800/80 chamfer-sm shadow-inner">
       <div className="flex items-center gap-1.5 flex-wrap">
@@ -176,6 +200,14 @@ export function RunnerActions(props: ActionBarProps) {
           >
             <Plus className="w-3.5 h-3.5" /> Install Card
           </button>
+        )}
+        {installable && canMakeRoom && (
+          <TrashFirstButton
+            label="Trash programs first"
+            title="Trash installed programs first, to free memory for this one"
+            onClick={() => setMakingRoom(installable.instanceId)}
+            testId="install-trash-programs"
+          />
         )}
         {hostedCardActions(state).map(a => {
           if (a.type !== 'INSTALL_CARD' && a.type !== 'PLAY_OPERATION_OR_EVENT') return null;

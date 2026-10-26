@@ -82,7 +82,7 @@ export class HeuristicCorpAI implements Agent {
         const action = withDeadIceTrashed(state, original);
         let score = this.score(state, original, before);
         // Trashing ice first takes it off the install cost
-        if (action !== original && Number.isFinite(score)) score += 0.8 * (action as { trashIceIds: string[] }).trashIceIds.length;
+        if (action !== original && Number.isFinite(score)) score += 0.8 * (action as { trashFirst: string[] }).trashFirst.length;
         // Deck-aware nudge: small, and only for moves the AI would consider anyway
         if (this.synergy && Number.isFinite(score) && score < 40 && action.type !== 'END_TURN' && action.type !== 'START_TURN') score += nudge(state, 'corp', action).bonus;
         return { action, score };
@@ -772,5 +772,5 @@ export function withDeadIceTrashed(state: GameState, action: GameAction): GameAc
     const cost = iceCost(state, ice);
     return cost <= 1 && incoming >= cost + 2;
   });
-  return dead.length > 0 ? { ...action, trashIceIds: dead.map(ice => ice.instanceId) } : action;
+  return dead.length > 0 ? { ...action, trashFirst: dead.map(ice => ice.instanceId) } : action;
 }

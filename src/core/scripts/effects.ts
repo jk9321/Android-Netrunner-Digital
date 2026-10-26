@@ -7,7 +7,17 @@ import { pushPrompt } from '../engine/prompts';
 import { addLog } from '../engine/log';
 import { findCardAnywhere, isAdvanceable, removeCard } from '../engine/helpers';
 import { corpTrashFromHQ, corpTrashFromRD, installedIce } from '../engine/cardEffects';
-import { corpInstallBlocker, corpInstallCost, installCorpCardFrom, installRunnerCardFrom, runnerInstallBlocker } from '../engine/actions/install';
+import {
+  chosenToTrashFirst,
+  corpInstallBlocker,
+  corpInstallCost,
+  iceTrashedDiscount,
+  installCorpCardFrom,
+  installRunnerCardFrom,
+  runnerInstallBlocker,
+  trashFirst,
+  trashableFirst,
+} from '../engine/actions/install';
 import { getCardScript } from './index';
 import { EffectAnswer, EffectContext } from './types';
 
@@ -74,8 +84,14 @@ export function corpInstallOptions(state: GameState, card: CardInstance, opts: C
   if (!corpInstallBlocker(state, card, null, ignore, opts.discount)) options.push({ id: 'new', label: 'New remote server' });
   for (const server of Object.values(state.corp.servers)) {
     if (opts.remoteRootOnly && !server.isRemote) continue;
-    if (corpInstallBlocker(state, card, server.id, ignore, opts.discount)) continue;
     const cost = corpInstallCost(state, card, server.id, ignore, opts.discount);
+    if (corpInstallBlocker(state, card, server.id, ignore, opts.discount)) {
+      // Trashing ice there first (rules 8.5.6b) may bring the cost within reach
+      const all = iceTrashedDiscount(card, trashableFirst(state, card, server.id));
+      if (all === 0 || corpInstallBlocker(state, card, server.id, ignore, (opts.discount ?? 0) + all)) continue;
+      options.push({ id: server.id, label: `${server.name} (${cost}c, or trash ice there first)` });
+      continue;
+    }
     options.push({ id: server.id, label: cost > 0 ? `${server.name} (${cost}c)` : server.name });
   }
   return options;
@@ -94,7 +110,7 @@ export function askCorpInstall(ctx: EffectContext, cardId: string, step: string,
     addLog(ctx.state, 'corp', 'Corp could not install the card: there is nowhere to put it.');
     return false;
   }
-  askChoice(ctx, 'corp', `Install ${cardDef(card).title} where?`, options, step, { ...data, cardId });
+  askChoice(ctx, 'corp', `Install ${cardDef(card).title} where?`, options, step, { ...data, cardId, install: true });
   return true;
 }
 
@@ -106,12 +122,15 @@ export function installCorpChoice(state: GameState, source: EffectSource, answer
   const zone = corpZoneOf(state, cardId);
   if (!card || !zone) return null;
   const serverId = answer.optionId === 'new' ? null : answer.optionId;
-  if (corpInstallBlocker(state, card, serverId, !!opts.ignoreCosts, opts.discount)) return null;
+  const trash = chosenToTrashFirst(state, card, serverId, answer.trashFirst ?? []);
+  const discount = (opts.discount ?? 0) + iceTrashedDiscount(card, trash);
+  if (corpInstallBlocker(state, card, serverId, !!opts.ignoreCosts, discount)) return null;
+  trashFirst(state, trash);
   const before = new Set(Object.keys(state.corp.servers));
   card.advancementCounters = 0;
   card.tokens = {};
   card.isRezzed = false;
-  installCorpCardFrom(state, card, zone, serverId, !!opts.ignoreCosts, { discount: opts.discount });
+  installCorpCardFrom(state, card, zone, serverId, !!opts.ignoreCosts, { discount });
   return serverId ?? Object.keys(state.corp.servers).find(id => !before.has(id)) ?? null;
 }
 

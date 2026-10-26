@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from 'react';
-import { CardInstance, GameState, PromptChoice, activePrompt, availableCredits, cardDef, findCardAnywhere, isLegalAction, locateCorpCard } from '../../core';
+import { CardInstance, GameState, PromptChoice, activePrompt, availableCredits, cardDef, findCardAnywhere, isLegalAction, locateCorpCard, trashableFirst } from '../../core';
+import { TrashFirstButton, TrashFirstPicker } from './TrashFirstPicker';
 import { CardView } from './CardView';
 import { Check, RefreshCw, Trash2, X } from 'lucide-react';
 import { CardNameText } from './CardNameText';
@@ -30,6 +31,8 @@ interface PromptPanelProps {
 export const PromptPanel: React.FC<PromptPanelProps> = ({ state, onAnswer, onInspectCard, canAnswer = true }) => {
   const prompt = activePrompt(state);
   const [selected, setSelected] = useState<string[]>([]);
+  // An effect installing a card: the option (server) whose cards to trash first (rules 8.5.6)
+  const [trashingFor, setTrashingFor] = useState<{ promptId: string; optionId: string } | null>(null);
   // Mark the picked cards on the table too, and drop every mark once the prompt closes
   useEffect(() => selectPromptTargets(selected), [selected]);
   useEffect(() => () => {
@@ -46,6 +49,9 @@ export const PromptPanel: React.FC<PromptPanelProps> = ({ state, onAnswer, onIns
   }
 
   const isCorp = prompt.side === 'corp';
+  // A Corp effect asking where to install a card (askCorpInstall)
+  const installCard =
+    prompt.kind === 'effect_choice' && isCorp && prompt.source.data?.install ? findCardAnywhere(state, String(prompt.source.data.cardId)) : undefined;
   const hand = isCorp ? state.corp.hq : state.runner.grip;
   const accent = isCorp ? 'border-cyan-500 shadow-cyan-950/60' : 'border-pink-500 shadow-pink-950/60';
   // Selection stops at the most cards the prompt takes; with a limit of one, a new pick replaces the old
@@ -152,7 +158,37 @@ export const PromptPanel: React.FC<PromptPanelProps> = ({ state, onAnswer, onIns
           </div>
         )}
 
-        {prompt.kind === 'effect_choice' && (
+        {prompt.kind === 'effect_choice' && installCard && trashingFor?.promptId === prompt.id && (
+          <TrashFirstPicker
+            key={trashingFor.optionId}
+            heading={`Install ${cardDef(installCard).title} in ${state.corp.servers[trashingFor.optionId]?.name ?? ''}, trashing first:`}
+            cards={trashableFirst(state, installCard, trashingFor.optionId)}
+            confirmLabel={trash => `Install${trash.length > 0 ? `, trash ${trash.length}` : ''}`}
+            canConfirm={trash => trash.length > 0 && isLegalAction(state, { type: 'RESOLVE_PROMPT', player: prompt.side, promptId: prompt.id, choice: { kind: 'effect_choice', optionId: trashingFor.optionId, trashFirst: trash } })}
+            onConfirm={trash => {
+              setTrashingFor(null);
+              answer({ kind: 'effect_choice', optionId: trashingFor.optionId, trashFirst: trash });
+            }}
+            onCancel={() => setTrashingFor(null)}
+          />
+        )}
+
+        {prompt.kind === 'effect_choice' && installCard && trashingFor?.promptId !== prompt.id && (
+          <div className="flex gap-2 justify-end flex-wrap mb-2">
+            {prompt.options
+              .filter(o => o.id !== 'new' && trashableFirst(state, installCard, o.id).length > 0)
+              .map(o => (
+                <TrashFirstButton
+                  key={o.id}
+                  label={`${state.corp.servers[o.id]?.name ?? o.label}: trash ${cardDef(installCard).type_code === 'ice' ? 'ice' : 'cards'} first`}
+                  title="Trash cards already there as part of this install; trashed ice doesn't count toward the install cost"
+                  onClick={() => setTrashingFor({ promptId: prompt.id, optionId: o.id })}
+                />
+              ))}
+          </div>
+        )}
+
+        {prompt.kind === 'effect_choice' && trashingFor?.promptId !== prompt.id && (
           <div className="flex gap-2 justify-end flex-wrap">
             {prompt.options.map(option => (
               <button

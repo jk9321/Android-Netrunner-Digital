@@ -4,10 +4,8 @@ import { addLog } from '../engine/log';
 import { dealNetDamage, giveTags, installedRunnerCards, trashInstalledRunnerCard } from '../engine/damage';
 import { endRun, endTheRun } from '../engine/runEnd';
 import { availableCredits, spendCredits } from '../engine/cardEffects';
-import { findCardAnywhere } from '../engine/helpers';
-import { installCorpCardFrom } from '../engine/actions/install';
-import { CardScript, EffectContext, Subroutine } from './types';
-import { askCards, askChoice, corpInstallOptions } from './effects';
+import { CardScript, Subroutine } from './types';
+import { askCards, askChoice, askCorpInstall, installCorpChoice } from './effects';
 
 /** Ice from System Gateway. */
 
@@ -209,17 +207,6 @@ const ballista: CardScript = {
   },
 };
 
-/** Lets the Corp pick a server for a card being installed by an ice subroutine. */
-function askServer(ctx: EffectContext, cardId: string, ignoreCosts: boolean, step: string): void {
-  const card = findCardAnywhere(ctx.state, cardId)!;
-  const options = corpInstallOptions(ctx.state, card, { ignoreCosts });
-  if (options.length === 0) {
-    addLog(ctx.state, 'corp', 'Corp could not install the card: there is nowhere to put it.');
-    return;
-  }
-  askChoice(ctx, 'corp', `Install ${cardDef(card).title} where?`, options, step, { cardId });
-}
-
 // Ansel 1.0 (Sentry - Bioroid - Destroyer): [Lose click]: Break 1 subroutine on this ice.
 // Subroutine: Trash 1 installed Runner card.
 // Subroutine: You may install 1 card from HQ or Archives.
@@ -260,11 +247,9 @@ const ansel: CardScript = {
         addLog(state, 'corp', `Ansel 1.0 trashed ${cardDef(card).title}.`);
       }
     } else if (source.step === 'pick_install' && answer.kind === 'effect_cards') {
-      if (answer.cardInstanceIds.length === 1) askServer(ctx, answer.cardInstanceIds[0], false, 'server');
-    } else if (source.step === 'server' && answer.kind === 'effect_choice') {
-      const cardId = source.data!.cardId as string;
-      const card = findCardAnywhere(state, cardId)!;
-      installCorpCardFrom(state, card, zoneOf(state, cardId), answer.optionId === 'new' ? null : answer.optionId, false);
+      if (answer.cardInstanceIds.length === 1) askCorpInstall(ctx, answer.cardInstanceIds[0], 'server');
+    } else if (source.step === 'server') {
+      installCorpChoice(state, source, answer);
     }
   },
 };

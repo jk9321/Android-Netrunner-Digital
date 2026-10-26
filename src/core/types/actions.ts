@@ -49,8 +49,12 @@ export interface InstallCardAction extends BaseAction {
   hostInstanceId?: string;
   /** Corp: install an agenda faceup (BANGUN). */
   faceUp?: boolean;
-  /** Corp installing ice: ice already protecting that server to trash first, so it doesn't count toward the install cost (rules 8.5.6b). */
-  trashIceIds?: string[];
+  /**
+   * Installed cards to trash first (rules 8.5.6): ice protecting that server
+   * when installing ice (they then don't count toward its install cost), cards
+   * in the root when installing in a root, programs when installing a program.
+   */
+  trashFirst?: string[];
 }
 
 export interface PlayOperationOrEventAction extends BaseAction {

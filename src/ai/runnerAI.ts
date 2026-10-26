@@ -1,4 +1,5 @@
-import { GameAction, GameState, activePrompt, getLegalActions } from '../core';
+import { GameAction, GameState, activePrompt, cardDef, getCardScript, getLegalActions, isLegalAction } from '../core';
+import { runnerInstallBlocker } from '../core/engine/actions/install';
 import { encounteredIce, iceScript, isBioroid } from '../core/engine/ice';
 import { availableCredits } from '../core/engine/cardEffects';
 import { Agent, FreeActionGuard, ScoredAction } from './agent';
@@ -138,7 +139,7 @@ export class HeuristicRunnerAI implements Agent {
       rigCoverage(state.runner.rig.programs).covered.size < 3 &&
       !legal.some(a => a.type === 'INITIATE_RUN' && runScore(state, a.targetServerId, { memory: this.memory, wary: this.synergy && tuning.wary, urgent: this.synergy && tuning.plan.urgency }) > 0);
     this.savingFor = this.synergy && tuning.plan.saveUp ? saveUpTarget(state, this.memory) : null;
-    return legal
+    return [...legal, ...makeRoomInstalls(state)]
       .map(action => {
         let score = this.scoreMain(state, action, before);
         // Deck-aware nudge: small, and only for moves the AI would consider anyway
@@ -209,6 +210,33 @@ export class HeuristicRunnerAI implements Agent {
     if (!spendsClick && score <= 0.3) return -Infinity; // free actions only when clearly good
     return score;
   }
+}
+
+/**
+ * Programs only the memory limit keeps out: install them by trashing one
+ * or two installed programs first (rules 8.5.6c). Scoring the position afterwards
+ * decides whether the swap is worth it.
+ */
+export function makeRoomInstalls(state: GameState): GameAction[] {
+  if (state.activeRun || state.activePlayer !== 'runner' || state.runner.clicks < 1) return [];
+  const installs: GameAction[] = [];
+  for (const card of state.runner.grip) {
+    if (cardDef(card).type_code !== 'program' || getCardScript(card.cardCode)?.installsOnIce) continue;
+    // Blocked now, but not with all the memory back: memory is the only thing in the way
+    if (!runnerInstallBlocker(state, card) || runnerInstallBlocker(state, card, undefined, 0, Infinity)) continue;
+    // One program if that is enough, else two
+    const programs = state.runner.rig.programs.map(c => c.instanceId);
+    const singles = programs.map(id => [id]);
+    const pairs = programs.flatMap((a, i) => programs.slice(i + 1).map(b => [a, b]));
+    for (const options of [singles, pairs]) {
+      const legal = options
+        .map((trashFirst): GameAction => ({ type: 'INSTALL_CARD', player: 'runner', cardInstanceId: card.instanceId, trashFirst }))
+        .filter(action => isLegalAction(state, action));
+      installs.push(...legal);
+      if (legal.length > 0) break;
+    }
+  }
+  return installs;
 }
 
 /**

@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { GameAction, cardDef, createCardInstance, getCardDefinition, isLegalAction } from '../src/core';
 import { runScore, serverValue, subroutineCost } from '../src/ai/runs';
 import { rezReserve, withDeadIceTrashed } from '../src/ai/corpAI';
+import { makeRoomInstalls } from '../src/ai/runnerAI';
 import { evaluate } from '../src/ai/evaluate';
 import { installForTest, installIceForTest, installProgramForTest, newGame, startRunnerTurn } from './helpers';
 
@@ -74,10 +75,24 @@ describe('AI judgement in fixed positions', () => {
     s.corp.hq.push(tough);
     const install: GameAction = { type: 'INSTALL_CARD', player: 'corp', cardInstanceId: tough.instanceId, targetServerId: 'hq' };
     const chosen = withDeadIceTrashed(s, install);
-    expect(chosen).toMatchObject({ trashIceIds: [weak] });
+    expect(chosen).toMatchObject({ trashFirst: [weak] });
     expect(isLegalAction(s, chosen)).toBe(true);
     // Only 1 ice on the server: nothing to save, leave it
     s.corp.servers.hq.ice = s.corp.servers.hq.ice.filter(c => c.instanceId !== unrezzed);
     expect(withDeadIceTrashed(s, install)).toBe(install);
+  });
+
+  it('Runner AI considers trashing a program when memory is full (rules 8.5.6c)', () => {
+    const s = newGame();
+    startRunnerTurn(s);
+    s.runner.credits = 20;
+    const old = installProgramForTest(s, '30006'); // Cleaver (1 MU)
+    s.runner.memoryUnitsUsed = s.runner.memoryUnitsTotal - 1;
+    const program = createCardInstance(s, '30032'); // Mayfly (2 MU)
+    s.runner.grip.push(program);
+    const mine = () => makeRoomInstalls(s).filter(a => 'cardInstanceId' in a && a.cardInstanceId === program.instanceId);
+    expect(mine()).toEqual([{ type: 'INSTALL_CARD', player: 'runner', cardInstanceId: program.instanceId, trashFirst: [old] }]);
+    s.runner.memoryUnitsUsed = 0;
+    expect(mine()).toEqual([]);
   });
 });

@@ -14,6 +14,7 @@ export { activePrompt } from './engine/prompts';
 export { locateCorpCard, findCardAnywhere } from './engine/helpers';
 export { getCardScript, scriptedCardCodes } from './scripts';
 export { rezCost as rezCostOf, availableCredits } from './engine/cardEffects';
+export { trashableFirst } from './engine/actions/install';
 export { encounteredIce, iceScript, breakerScript, iceStrength, breakerStrength, installedIcebreakers, boostCostOf, iceSubtypes } from './engine/ice';
 export { validateDeck, requiredAgendaPoints, influenceCost } from './deckValidation';
 export type { DeckSpec } from './deckValidation';

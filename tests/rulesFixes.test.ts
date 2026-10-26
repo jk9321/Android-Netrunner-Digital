@@ -1,8 +1,9 @@
 import { describe, it, expect } from 'vitest';
 import { cardDef, executeAction, IllegalActionError, GameState, isLegalAction } from '../src/core';
-import { keepGoing, newGame, putInHand, startRunnerTurn, installForTest, installIceForTest } from './helpers';
+import { keepGoing, newGame, putInHand, startRunnerTurn, installForTest, installIceForTest, installProgramForTest } from './helpers';
 
 const PALISADE = '30072';
+const CLEAVER = '30006';
 
 const findInHand = (state: GameState, side: 'corp' | 'runner', id: string) =>
   (side === 'corp' ? state.corp.hq : state.runner.grip).some(c => c.instanceId === id);
@@ -95,7 +96,7 @@ describe('Installing', () => {
     const ice = [0, 1, 2].map(() => installIceForTest(state, PALISADE, 'hq', true));
     installIceForTest(state, PALISADE, 'rd', false);
     const newIce = putInHand(state, 'corp', 'ice');
-    const install = (trashIceIds: string[]) => ({ type: 'INSTALL_CARD' as const, player: 'corp' as const, cardInstanceId: newIce, targetServerId: 'hq', trashIceIds });
+    const install = (trashFirst: string[]) => ({ type: 'INSTALL_CARD' as const, player: 'corp' as const, cardInstanceId: newIce, targetServerId: 'hq', trashFirst });
     // 3 ice: can't pay 3, and trashing 1 still leaves 2 to pay for
     expect(isLegalAction(state, install([]))).toBe(false);
     expect(isLegalAction(state, install([ice[0]]))).toBe(false);
@@ -115,12 +116,43 @@ describe('Installing', () => {
     const old = installIceForTest(state, PALISADE, 'hq', false);
     const upgrade = putInHand(state, 'corp', 'upgrade');
     const ice = putInHand(state, 'corp', 'ice');
-    expect(isLegalAction(state, { type: 'INSTALL_CARD', player: 'corp', cardInstanceId: upgrade, targetServerId: 'hq', trashIceIds: [old] })).toBe(false);
-    expect(isLegalAction(state, { type: 'INSTALL_CARD', player: 'corp', cardInstanceId: ice, targetServerId: 'rd', trashIceIds: [old] })).toBe(false);
-    expect(isLegalAction(state, { type: 'INSTALL_CARD', player: 'corp', cardInstanceId: ice, asNewRemote: true, trashIceIds: [old] })).toBe(false);
-    const after = executeAction(state, { type: 'INSTALL_CARD', player: 'corp', cardInstanceId: ice, targetServerId: 'hq', trashIceIds: [old] });
+    expect(isLegalAction(state, { type: 'INSTALL_CARD', player: 'corp', cardInstanceId: upgrade, targetServerId: 'hq', trashFirst: [old] })).toBe(false);
+    expect(isLegalAction(state, { type: 'INSTALL_CARD', player: 'corp', cardInstanceId: ice, targetServerId: 'rd', trashFirst: [old] })).toBe(false);
+    expect(isLegalAction(state, { type: 'INSTALL_CARD', player: 'corp', cardInstanceId: ice, asNewRemote: true, trashFirst: [old] })).toBe(false);
+    const after = executeAction(state, { type: 'INSTALL_CARD', player: 'corp', cardInstanceId: ice, targetServerId: 'hq', trashFirst: [old] });
     // Unrezzed ice goes to Archives facedown
     expect(after.corp.archives.faceDown.map(c => c.instanceId)).toEqual([old]);
+  });
+
+  it('lets the Runner trash programs to free memory for a new one (rules 8.5.6c)', () => {
+    let state = newGame();
+    startRunnerTurn(state);
+    state.runner.credits = 99;
+    const old = installProgramForTest(state, CLEAVER);
+    state.runner.memoryUnitsUsed = state.runner.memoryUnitsTotal;
+    const program = putInHand(state, 'runner', 'program');
+    const install = (trashFirst: string[]) => ({ type: 'INSTALL_CARD' as const, player: 'runner' as const, cardInstanceId: program, trashFirst });
+    expect(isLegalAction(state, install([]))).toBe(false);
+    state = executeAction(state, install([old]));
+    expect(state.runner.rig.programs.map(c => c.instanceId)).toEqual([program]);
+    expect(state.runner.heap.map(c => c.instanceId)).toContain(old);
+    expect(state.runner.clicks).toBe(3);
+    // Only installed programs, and only when installing a program
+    const hardware = putInHand(state, 'runner', 'hardware');
+    expect(isLegalAction(state, { type: 'INSTALL_CARD', player: 'runner', cardInstanceId: hardware, trashFirst: [program] })).toBe(false);
+  });
+
+  it('lets the Corp trash cards in a root when installing there (rules 8.5.6a)', () => {
+    let state = newGame();
+    const upgrade = putInHand(state, 'corp', 'upgrade');
+    state = executeAction(state, { type: 'INSTALL_CARD', player: 'corp', cardInstanceId: upgrade, targetServerId: 'hq' });
+    const next = putInHand(state, 'corp', 'upgrade');
+    const ice = putInHand(state, 'corp', 'ice');
+    // Ice can't trash root cards
+    expect(isLegalAction(state, { type: 'INSTALL_CARD', player: 'corp', cardInstanceId: ice, targetServerId: 'hq', trashFirst: [upgrade] })).toBe(false);
+    state = executeAction(state, { type: 'INSTALL_CARD', player: 'corp', cardInstanceId: next, targetServerId: 'hq', trashFirst: [upgrade] });
+    expect(state.corp.servers.hq.root.map(c => c.instanceId)).toEqual([next]);
+    expect(state.corp.archives.faceDown.map(c => c.instanceId)).toContain(upgrade);
   });
 
   it('enforces the Runner memory limit', () => {

@@ -635,18 +635,35 @@ describe('Elevation upgrades', () => {
     expect(s.corp.servers.hq.ice.length).toBe(3);
   });
 
-  it('Mercia B4LL4RD can not install ice the Corp can not afford even with the discount', () => {
+  it('Mercia B4LL4RD offers trashing ice first when the Corp can not afford the server otherwise (rules 8.5.6b)', () => {
     let s = newGame();
     installCorpForTest(s, C.mercia, 'remote1', true);
-    installIceForTest(s, SG.palisade, 'hq');
-    installIceForTest(s, SG.palisade, 'hq');
+    const old = [installIceForTest(s, SG.palisade, 'hq'), installIceForTest(s, SG.palisade, 'hq')];
     s.corp.hq = [];
     const ice = giveCard(s, 'corp', SG.palisade);
     s.corp.credits = 0;
     s = passTurn(s);
     s = pick(s, [ice]);
-    expect(optionIds(s)).not.toContain('hq');
-    expect(optionIds(s)).toContain('rd');
+    const p = prompt(s);
+    expect(p?.kind === 'effect_choice' && p.options.find(o => o.id === 'hq')?.label).toMatch(/trash ice/);
+    // Not without trashing: nothing is installed
+    const plain = choose(s, 'hq');
+    expect(plain.corp.servers.hq.ice.map(c => c.instanceId)).not.toContain(ice);
+    // Trash 1: 1 ice left to pay for, less Mercia's 1
+    s = answer(s, { kind: 'effect_choice', optionId: 'hq', trashFirst: [old[0]] });
+    expect(s.corp.servers.hq.ice.map(c => c.instanceId)).toEqual([old[1], ice]);
+    expect(s.corp.archives.faceUp.map(c => c.instanceId)).toContain(old[0]);
+    expect(s.corp.credits).toBe(0);
+  });
+
+  it('only accepts cards to trash first on prompts that install a card', () => {
+    let s = newGame();
+    const outer = installIceForTest(s, SG.palisade, 'remote1');
+    installCorpForTest(s, C.mitra, 'remote1', true);
+    s = run(s, 'remote1');
+    const p = prompt(s)!;
+    expect(isLegalAction(s, { type: 'RESOLVE_PROMPT', player: 'corp', promptId: p.id, choice: { kind: 'effect_choice', optionId: 'trash', trashFirst: [outer] } })).toBe(false);
+    expect(isLegalAction(s, { type: 'RESOLVE_PROMPT', player: 'corp', promptId: p.id, choice: { kind: 'effect_choice', optionId: 'trash' } })).toBe(true);
   });
 
   it('Mitra Aman gains 3 and swaps the approached ice', () => {
