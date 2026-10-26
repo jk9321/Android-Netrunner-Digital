@@ -40,9 +40,8 @@ export const Pile: React.FC<PileProps> = ({ label, count, side, topCard, size = 
           Empty
         </div>
       ) : topCard ? (
-        <div className="pointer-events-none">
-          <CardView card={topCard} size={size} notInstalled onInspect={onInspect} />
-        </div>
+        // Hover reaches the card so it previews like any other; clicks still bubble up to browse the pile
+        <CardView card={topCard} size={size} notInstalled onInspect={onInspect} />
       ) : (
         <img
           src={getCardBackUrl(side)}
