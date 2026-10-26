@@ -401,7 +401,7 @@ export const DeckPicker: React.FC<DeckPickerProps> = ({ initialCorpDeckId, initi
         {column('corp', corpId, setCorpId)}
         {column('runner', runnerId, setRunnerId)}
       </div>
-      <p className="mt-8 text-[10px] text-slate-500">
+      <p className="mt-8 max-w-3xl text-center text-[10px] text-slate-500">
         Game symbols by Null Signal Games,{' '}
         <a
           href="https://creativecommons.org/licenses/by-nd/4.0/"
@@ -411,6 +411,12 @@ export const DeckPicker: React.FC<DeckPickerProps> = ({ initialCorpDeckId, initi
         >
           CC BY-ND 4.0
         </a>
+        . Card data and art from{' '}
+        <a href="https://netrunnerdb.com/" target="_blank" rel="noreferrer" className="underline hover:text-slate-300">
+          NetrunnerDB
+        </a>
+        . Netrunner card text and art © Null Signal Games and/or Fantasy Flight Games. An unofficial, free fan
+        project, not produced or endorsed by Null Signal Games or Fantasy Flight Games.
       </p>
     </div>
   );

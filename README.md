@@ -21,7 +21,9 @@ npm run dev
 npm test
 ```
 
-## Credits
+## Licence & credits
+
+The source code is MIT licensed (see [LICENSE](LICENSE)). The licence does not cover Netrunner card content.
 
 Game symbols (such as the credit and MU icons) by [Null Signal Games](https://nullsignal.games/), from the NSG Visual Assets pack v1.5, licensed [CC BY-ND 4.0](https://creativecommons.org/licenses/by-nd/4.0/). They are used unmodified apart from colour.
 
