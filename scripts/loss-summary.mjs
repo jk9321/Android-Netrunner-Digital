@@ -25,6 +25,10 @@ export function printLossSummary(games, detail = !!process.env.DETAIL) {
   const remote = steals.filter(s => s.from === 'remote');
   console.log(`Remote steals (${remote.length}):`);
   show('  by ice on the server (rezzed/total):', count(remote, s => `${s.rezzedIce}/${s.ice}`), remote.length);
+  if (remote[0]?.unrezzed) {
+    for (const [label, list] of [['remote', remote], ['R&D', steals.filter(s => s.from === 'rd')], ['HQ', steals.filter(s => s.from === 'hq')]])
+      console.log(`  unrezzed ice at ${label} steals: ${[...count(list, s => s.unrezzed)].map(([k, v]) => `${k} ${v} (${pct(v, list.length)})`).join(', ')}`);
+  }
   console.log(`  already scoreable when stolen: ${remote.filter(s => s.scoreable).length}`);
   console.log(`  advanced at least once: ${remote.filter(s => s.advanced > 0).length}`);
   console.log(`  Corp credits when stolen: avg ${avg(remote, s => s.corpCredits)}`);

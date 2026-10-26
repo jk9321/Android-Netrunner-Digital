@@ -6,6 +6,7 @@
  */
 import { GameState } from '../src/core';
 import { cardDef } from '../src/core/cards';
+import { rezCost } from '../src/core/engine/cardEffects';
 import { Agent, GameRunner } from '../src/ai';
 
 export interface Steal {
@@ -26,6 +27,12 @@ export interface Steal {
   title: string;
   /** Remotes with ice when it was stolen (spread) */
   icedRemotes: number;
+  /**
+   * Unrezzed ice on the server at the steal: none, 'declined' (the Corp had
+   * the credits to rez the cheapest of it and didn't), or 'broke' (it
+   * couldn't afford any of it)
+   */
+  unrezzed?: 'none' | 'declined' | 'broke';
 }
 
 export interface GameRecord {
@@ -62,6 +69,12 @@ export interface RunWaste {
   jackOutFresh: number;
   stoppedKnown: number;
   stoppedFresh: number;
+}
+
+function unrezzedAtSteal(state: GameState, server: GameState['corp']['servers'][string] | undefined): Steal['unrezzed'] {
+  const costs = (server?.ice ?? []).filter(i => !i.isRezzed).map(i => rezCost(state, i));
+  if (costs.length === 0) return 'none';
+  return Math.min(...costs) <= state.corp.credits ? 'declined' : 'broke';
 }
 
 const isAgenda = (c: { cardCode: string }) => cardDef(c as never).type_code === 'agenda';
@@ -161,6 +174,7 @@ export function playLogged(start: GameState, agents: { corp: Agent; runner: Agen
       hqSize: before.corp.hq.length,
       title: stolen[0] ? cardDef(stolen[0]).title : '?',
       icedRemotes: Object.values(before.corp.servers).filter(s => s.isRemote && s.ice.length > 0).length,
+      unrezzed: unrezzedAtSteal(before, server),
     });
   }
   const s = runner.state;

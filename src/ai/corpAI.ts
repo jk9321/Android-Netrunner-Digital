@@ -356,7 +356,8 @@ export class HeuristicCorpAI implements Agent {
    */
   private exposureOk(state: GameState, server: ServerState, credits: number): boolean {
     if (!(this.synergy && tuning.plan.exposure)) return true;
-    if (iceDepth(state, server) >= 2) return true;
+    // (Jeff) unrezzed ice only protects if the money to rez it is still there on the Runner's turn
+    if ((tuning.plan.fundedDepth ? fundedDepth(state, server, credits) : iceDepth(state, server)) >= 2) return true;
     return entryCost(state, server, credits) >= state.runner.credits + 2;
   }
 
@@ -662,6 +663,24 @@ function entryCost(state: GameState, server: ServerState, credits: number): numb
  */
 export function iceDepth(state: GameState, server: ServerState): number {
   return server.ice.reduce((n, ice) => n + (ice.isRezzed ? Math.min(1, Math.max(0, (iceCost(state, ice) - 1) / 2)) : 1), 0);
+}
+
+/**
+ * iceDepth, counting only the unrezzed ice that `credits` can pay to rez
+ * (cheapest first): ice the Corp can't afford to rez is no protection.
+ */
+export function fundedDepth(state: GameState, server: ServerState, credits: number): number {
+  const affordable = new Set<string>();
+  for (const ice of server.ice.filter(i => !i.isRezzed).sort((a, b) => rezCost(state, a) - rezCost(state, b))) {
+    const cost = rezCost(state, ice);
+    if (cost > credits) break;
+    credits -= cost;
+    affordable.add(ice.instanceId);
+  }
+  return server.ice.reduce(
+    (n, ice) => n + (ice.isRezzed ? Math.min(1, Math.max(0, (iceCost(state, ice) - 1) / 2)) : affordable.has(ice.instanceId) ? 1 : 0),
+    0
+  );
 }
 
 /**
