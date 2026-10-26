@@ -308,37 +308,19 @@
   height: 36px;
   filter: drop-shadow(0 0 4px var(--hud));
 }
-/* Out of clicks: the End Turn button pulses in the side's colour. Buttons are
-   clipped (chamfered corners), so the glow is drawn inside and the button
-   grows a little instead of casting an outer glow. */
+/* Out of clicks: the End Turn button flashes in the side's colour. Buttons are
+   clipped (chamfered corners), so the glow is drawn inside. It flashes even
+   with reduced motion on (Jeff's choice): it's the cue that the turn is over. */
 @keyframes end-turn-pulse {
-  0%, 100% {
-    transform: scale(1);
-    filter: brightness(1);
-    box-shadow: inset 0 0 0 1px rgb(var(--pulse-glow) / 0.6);
-  }
-  50% {
-    transform: scale(1.12);
-    filter: brightness(1.6) saturate(1.3);
-    box-shadow: inset 0 0 0 3px rgb(255 255 255), inset 0 0 22px rgb(255 255 255 / 0.7);
-  }
-}
-.end-turn-pulse:not(:disabled) {
-  animation: end-turn-pulse 0.9s ease-in-out infinite;
-  transform-origin: right center;
-}
-@keyframes end-turn-blink {
   0%, 100% { filter: brightness(1); box-shadow: inset 0 0 0 1px rgb(var(--pulse-glow) / 0.6); }
   50% { filter: brightness(1.6) saturate(1.3); box-shadow: inset 0 0 0 3px rgb(255 255 255), inset 0 0 22px rgb(255 255 255 / 0.7); }
+}
+.end-turn-pulse:not(:disabled) {
+  animation: end-turn-pulse 1s ease-in-out infinite;
 }
 .end-turn-corp { --pulse-glow: var(--corp-300); }
 .end-turn-runner { --pulse-glow: var(--runner-400); }
 @media (prefers-reduced-motion: reduce) {
-  /* Still blinks (it's the cue that the turn is over), but without growing */
-  .end-turn-pulse:not(:disabled) {
-    animation-name: end-turn-blink;
-    animation-duration: 1.6s;
-  }
   .turn-active {
     animation: none;
     box-shadow: inset 0 0 24px rgb(var(--turn-glow) / 0.28), inset 0 0 0 1px rgb(var(--turn-glow) / 0.7);
