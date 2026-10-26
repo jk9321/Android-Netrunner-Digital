@@ -5,7 +5,7 @@ import { SideCode } from './card';
  * legal action is RESOLVE_PROMPT for the first prompt in the queue, made by
  * the prompt's side.
  */
-export type Prompt = MulliganPrompt | DiscardPrompt | AccessTrashPrompt | EffectChoicePrompt | EffectCardsPrompt;
+export type Prompt = MulliganPrompt | DiscardPrompt | AccessTrashPrompt | AccessOrderPrompt | EffectChoicePrompt | EffectCardsPrompt;
 
 interface BasePrompt {
   id: string;
@@ -39,6 +39,16 @@ export interface AccessTrashPrompt extends BasePrompt {
 }
 
 /**
+ * During a breach the Runner picks which candidate to access next (rules
+ * 7.3.4): a card in the root, a random card from HQ, the next card of R&D,
+ * or the next card in Archives. Option ids are 'root:<instance id>', 'hq', 'rd' or 'archives'.
+ */
+export interface AccessOrderPrompt extends BasePrompt {
+  kind: 'access_order';
+  options: { id: string; label: string }[];
+}
+
+/**
  * Identifies the card script waiting on a prompt answer and where it is in
  * its resolution. `data` must stay plain JSON.
  */
@@ -69,5 +79,6 @@ export type PromptChoice =
   | { kind: 'mulligan'; mulligan: boolean }
   | { kind: 'discard'; cardInstanceIds: string[] }
   | { kind: 'access_trash'; trash: boolean; alternativeId?: string }
+  | { kind: 'access_order'; optionId: string }
   | { kind: 'effect_choice'; optionId: string }
   | { kind: 'effect_cards'; cardInstanceIds: string[] };

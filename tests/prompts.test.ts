@@ -1,11 +1,11 @@
 import { describe, it, expect } from 'vitest';
 import { cardDef, executeAction, getLegalActions, IllegalActionError, GameState } from '../src/core';
-import { answer, installForTest, newGame, newGameAtSetup, putInHand, startRunnerTurn } from './helpers';
+import { answer, installForTest, keepGoing, newGame, newGameAtSetup, putInHand, startRunnerTurn } from './helpers';
 
 const runOn = (state: GameState, serverId: string) => {
   startRunnerTurn(state);
   let s = executeAction(state, { type: 'INITIATE_RUN', player: 'runner', targetServerId: serverId });
-  while (s.activeRun && s.pendingPrompts.length === 0) s = executeAction(s, { type: 'CONTINUE_RUN', player: 'runner' });
+  while (s.activeRun && s.pendingPrompts.length === 0) s = keepGoing(executeAction(s, { type: 'CONTINUE_RUN', player: 'runner' }));
   return s;
 };
 

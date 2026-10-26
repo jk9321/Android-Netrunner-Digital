@@ -9,7 +9,7 @@ import { findCardAnywhere, illegal, locateCorpCard, removeCard } from '../helper
 import { getCardScript } from '../../scripts';
 import { activePrompt, sideName } from '../prompts';
 import { beginCorpTurn, finishDiscard, resumeTurn } from './turn';
-import { continueAccess, finishAccess, succeedRun, trashAccessedCard } from './run';
+import { chooseBreachCandidate, continueAccess, finishAccess, succeedRun, trashAccessedCard } from './run';
 import { availableCredits, spendCredits } from '../cardEffects';
 import { resumeEncounter, resumeOnEncounter } from '../ice';
 import { fireTrigger } from '../triggers';
@@ -97,6 +97,12 @@ function answerPrompt(state: GameState, action: ResolvePromptAction): void {
       }
       runScriptAnswer(state, prompt.source, choice);
       return;
+    }
+
+    case 'access_order': {
+      if (choice.kind !== 'access_order') return;
+      chooseBreachCandidate(state, choice.optionId);
+      return; // resumeRun carries on accessing
     }
 
     case 'access_trash': {

@@ -81,6 +81,10 @@ export function answerPrompt(state: GameState, side: SideCode, memory?: RunnerMe
   if (prompt.kind === 'mulligan') {
     return { ...base, choice: { kind: 'mulligan', mulligan: mulligan(state, prompt) } };
   }
+  // Breach order: the cards in the root first, then the central zone, without peeking at what comes up
+  if (prompt.kind === 'access_order') {
+    return { ...base, choice: { kind: 'access_order', optionId: prompt.options[0].id } };
+  }
   if (prompt.kind === 'discard') {
     const cards = [...hand(state, side)].sort((a, b) => keep(state, a, synergy) - keep(state, b, synergy));
     return { ...base, choice: { kind: 'discard', cardInstanceIds: cards.slice(0, prompt.count).map(c => c.instanceId) } };

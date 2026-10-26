@@ -138,6 +138,7 @@ export function trashInstalledCorpCard(state: GameState, server: ServerState, ca
   }
   card.hostedCardIds = [];
   card.tokens = {};
+  delete card.runnerKnows;
   // Faceup if the Runner could see it (rezzed, or an agenda installed faceup with BANGUN): rules 4.4.6b
   const visible = card.isRezzed || !!card.faceUp;
   card.isRezzed = false;

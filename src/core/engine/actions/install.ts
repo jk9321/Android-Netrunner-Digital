@@ -105,6 +105,10 @@ export function installCorpCardFrom(
   removeCard(zone, card);
   card.isRezzed = false;
   card.faceUp = options.faceUp && def.type_code === 'agenda' ? true : undefined;
+  // A card the Runner accessed in this breach stays known to them (rules 7.3.1a)
+  const run = state.activeRun;
+  if (run?.breached && run.accessed.some(a => a.id === card.instanceId)) card.runnerKnows = true;
+  else delete card.runnerKnows;
   card.installedTurn = turnKey(state);
   state.corp.credits -= installCost;
   const server = serverId === null ? createRemoteServer(state) : state.corp.servers[serverId];
@@ -128,7 +132,7 @@ export function installCorpCardFrom(
     // Limit 1 region per server
     for (const old of server.root.filter(c => /\bregion\b/i.test(cardDef(c).keywords ?? ''))) {
       trashInstalledCorpCard(state, server, old);
-      addLog(state, 'corp', `Corp trashed ${cardDef(old).title} (limit 1 region per server).`);
+      addLog(state, 'corp', `Corp trashed ${state.corp.archives.faceUp.includes(old) ? cardDef(old).title : 'a card'} (limit 1 region per server).`);
     }
   }
   server.root.push(card);

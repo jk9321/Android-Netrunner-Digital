@@ -46,6 +46,10 @@ export class HeuristicRunnerAI implements Agent {
     for (const id of breached) {
       for (const card of state.corp.servers[id]?.root ?? []) this.memory.set(card.instanceId, card.cardCode);
     }
+    // Cards it accessed that the Corp then installed during the breach (Poétrï)
+    for (const server of Object.values(state.corp.servers)) {
+      for (const card of server.root) if (card.runnerKnows) this.memory.set(card.instanceId, card.cardCode);
+    }
   }
 
   private runAction(state: GameState, legal: GameAction[]): GameAction | undefined {

@@ -109,9 +109,17 @@ export function runIntoFirstIce(state: GameState, serverId: string): GameState {
 /** One CONTINUE_RUN, stopping in the Movement Phase (where the Runner may jack out). */
 export const step = (state: GameState) => executeAction(state, { type: 'CONTINUE_RUN', player: 'runner' });
 
-/** Keeps going through the Movement Phase, where the Runner declines to jack out. */
-export const keepGoing = (state: GameState): GameState =>
-  state.activeRun?.phase === 'movement' && state.pendingPrompts.length === 0 ? step(state) : state;
+/**
+ * Keeps going through the Movement Phase, where the Runner declines to jack
+ * out, and through breach-order choices, taking candidates as listed (root first).
+ */
+export const keepGoing = (state: GameState): GameState => {
+  const p = state.pendingPrompts[0];
+  if (p?.kind === 'access_order') {
+    return keepGoing(executeAction(state, { type: 'RESOLVE_PROMPT', player: 'runner', promptId: p.id, choice: { kind: 'access_order', optionId: p.options[0].id } }));
+  }
+  return state.activeRun?.phase === 'movement' && !p ? step(state) : state;
+};
 
 /** Continues the run, and declines to jack out when that lands in the Movement Phase. */
 export const cont = (state: GameState) => keepGoing(step(state));

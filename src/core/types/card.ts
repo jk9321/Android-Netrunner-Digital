@@ -69,6 +69,12 @@ export interface CardInstance {
   flipped?: boolean;
   /** An installed Corp card that is faceup without being rezzed (agendas installed with BANGUN). */
   faceUp?: boolean;
+  /**
+   * An unrezzed Corp card the Runner may look at: they accessed it during the
+   * breach in which the Corp installed it (Poétrï Luxury Brands), so they know
+   * which card it is (rules 7.3.1a). Cleared when the card leaves play.
+   */
+  runnerKnows?: boolean;
   /** Cards hosted faceup on this card without being installed (Bling, Madani, Detente). */
   hostedCards?: CardInstance[];
 }

@@ -172,7 +172,7 @@ export const ServerColumn: React.FC<ServerColumnProps> = ({
               <CardView
                 card={card}
                 isFaceDown={!card.isRezzed && !card.faceUp}
-                canPeek={canCorpPeek}
+                canPeek={canCorpPeek || !!card.runnerKnows}
                 size="fit"
                 onInspect={onInspectCard}
               />
@@ -226,7 +226,7 @@ export const ServerColumn: React.FC<ServerColumnProps> = ({
               ice={iceCard}
               hosted={hostedOnIce(iceCard)}
               // Unrezzed ice keeps its type secret from the Runner
-              types={iceCard.isRezzed || canCorpPeek ? iceTypes(iceCard) : []}
+              types={iceCard.isRezzed || canCorpPeek || iceCard.runnerKnows ? iceTypes(iceCard) : []}
               atRunner={runIceId === iceCard.instanceId}
             >
               {/* Ice lies sideways, as on the table; the zoom panel shows it upright */}
@@ -234,7 +234,7 @@ export const ServerColumn: React.FC<ServerColumnProps> = ({
                 <CardView
                   card={iceCard}
                   isFaceDown={!iceCard.isRezzed}
-                  canPeek={canCorpPeek}
+                  canPeek={canCorpPeek || !!iceCard.runnerKnows}
                   size="fit"
                   onInspect={onInspectCard}
                 />

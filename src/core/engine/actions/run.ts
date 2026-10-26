@@ -165,49 +165,115 @@ function breachBonus(state: GameState, serverId: string): number {
 }
 
 /**
- * Queues every card the breach reaches: root cards of any server, plus
- * random cards from HQ, cards from the top of R&D, or all of Archives.
- * Candidates are fixed before anything moves, so stealing a card can't
- * cause another to be skipped. Accessing pauses whenever a prompt is
- * pending; resumeRun() picks it up again.
+ * Begins the breach: sets out the candidates the Runner will choose from
+ * (rules 7.4.1) and the random access limit for HQ or R&D (7.3.5). Breaching
+ * Archives turns all its cards face up first (7.3.2).
  */
 function breachServer(state: GameState, server: ServerState): void {
-  state.activeRun!.breached = true;
-  const ids = server.root.map(card => card.instanceId);
-
+  const run = state.activeRun!;
+  run.breached = true;
+  let zone: 'hq' | 'rd' | 'archives' | null = null;
+  let zoneLeft = 0;
   if (server.id === 'hq') {
-    const count = 1 + breachBonus(state, 'hq');
+    zone = 'hq';
+    zoneLeft = 1 + breachBonus(state, 'hq');
     bumpTurnFlag(state, TurnFlag.hqBreaches);
-    const pool = [...state.corp.hq];
-    for (let i = 0; i < count && pool.length > 0; i++) {
-      ids.push(pool.splice(nextInt(state.rng, pool.length), 1)[0].instanceId);
-    }
   } else if (server.id === 'rd') {
-    const count = 1 + breachBonus(state, 'rd');
-    ids.push(...state.corp.rd.slice(0, count).map(card => card.instanceId));
+    zone = 'rd';
+    zoneLeft = 1 + breachBonus(state, 'rd');
   } else if (server.id === 'archives') {
-    // Breaching Archives turns all its cards face up.
     state.corp.archives.faceUp.push(...state.corp.archives.faceDown);
     state.corp.archives.faceDown = [];
-    ids.push(...state.corp.archives.faceUp.map(card => card.instanceId));
+    zone = 'archives';
+    zoneLeft = -1;
   }
+  run.breach = { root: server.root.map(card => card.instanceId), zone, zoneLeft, chosen: [] };
+}
 
-  state.activeRun!.accessQueue = ids;
+/** The zone's cards the Runner may still choose: HQ (at random), R&D (topmost first) or Archives, not yet chosen. */
+function zoneCandidates(state: GameState): string[] {
+  const breach = state.activeRun?.breach;
+  if (!breach?.zone || breach.zoneLeft === 0) return [];
+  const cards =
+    breach.zone === 'hq'
+      ? state.corp.hq
+      : breach.zone === 'rd'
+        ? state.corp.rd
+        : [...state.corp.archives.faceUp, ...state.corp.archives.faceDown];
+  return cards.map(c => c.instanceId).filter(id => !breach.chosen.includes(id));
+}
+
+/** The choices the Runner has for the next access of the breach (rules 7.3.4). */
+export function breachOptions(state: GameState): { id: string; label: string }[] {
+  const run = state.activeRun;
+  const breach = run?.breach;
+  if (!run || !breach) return [];
+  const server = state.corp.servers[run.server];
+  const options: { id: string; label: string }[] = [];
+  // A root card that left the server is no longer a candidate (7.4.5)
+  for (const id of breach.root) {
+    const card = server?.root.find(c => c.instanceId === id);
+    if (!card) continue;
+    const seen = card.isRezzed || card.faceUp;
+    const place = server.root.indexOf(card) + 1;
+    options.push({ id: `root:${id}`, label: seen ? `${cardDef(card).title} (in the root)` : `Unrezzed card in the root (${ordinal(place)} installed)` });
+  }
+  if (zoneCandidates(state).length > 0) {
+    const label = breach.zone === 'hq' ? 'A random card from HQ' : breach.zone === 'rd' ? 'The top card of R&D' : 'A card in Archives';
+    options.push({ id: breach.zone!, label });
+  }
+  return options;
+}
+
+const ordinal = (n: number) => `${n}${n === 1 ? 'st' : n === 2 ? 'nd' : n === 3 ? 'rd' : 'th'}`;
+
+/** Takes the Runner's choice of candidate and queues it for access. */
+export function chooseBreachCandidate(state: GameState, optionId: string): void {
+  const run = state.activeRun;
+  const breach = run?.breach;
+  if (!run || !breach) illegal('No breach in progress');
+  if (!breachOptions(state).some(o => o.id === optionId)) illegal('That card cannot be chosen now');
+  if (optionId.startsWith('root:')) {
+    const id = optionId.slice('root:'.length);
+    breach.root = breach.root.filter(r => r !== id);
+    run.accessQueue.push(id);
+    return;
+  }
+  const candidates = zoneCandidates(state);
+  // HQ: at random among the cards not chosen yet; R&D: the topmost card not chosen yet (7.4.7a)
+  const id = breach.zone === 'hq' ? candidates[nextInt(state.rng, candidates.length)] : candidates[0];
+  breach.chosen.push(id);
+  if (breach.zoneLeft > 0) breach.zoneLeft -= 1;
+  run.accessQueue.push(id);
 }
 
 /** Marks an access queue entry that continues an access paused by a "when accessed" prompt. */
 const RESUME = 'resume:';
 
-/** Accesses queued cards until something needs a decision, then ends the run. */
+/**
+ * Accesses cards until something needs a decision, then ends the run. The
+ * Runner chooses each breach candidate when there is more than one to
+ * choose from; queued cards (a paused access, Detente) go first.
+ */
 export function continueAccess(state: GameState): void {
   const run = state.activeRun;
   if (run && !run.breached) {
     if (state.pendingPrompts.length > 0 || state.winner) return;
     breachServer(state, state.corp.servers[run.server]);
   }
-  while (state.activeRun && state.activeRun.accessQueue.length > 0) {
+  while (state.activeRun) {
     if (state.pendingPrompts.length > 0 || state.winner) return;
-    const next = state.activeRun.accessQueue.shift()!;
+    const current = state.activeRun;
+    if (current.accessQueue.length === 0) {
+      const options = breachOptions(state);
+      if (options.length === 0) break;
+      if (options.length > 1) {
+        pushPrompt(state, { kind: 'access_order', side: 'runner', options, message: 'Runner: which card do you access next?' });
+        return;
+      }
+      chooseBreachCandidate(state, options[0].id);
+    }
+    const next = current.accessQueue.shift()!;
     if (next.startsWith(RESUME)) {
       resumePausedAccess(state, next.slice(RESUME.length));
       continue;
@@ -369,6 +435,7 @@ function runnerTrashCorpCard(state: GameState, card: CardInstance): void {
   card.hostedCardIds = [];
   card.isRezzed = false;
   card.faceUp = false;
+  delete card.runnerKnows;
   card.advancementCounters = 0;
   card.tokens = {};
   state.corp.archives.faceUp.push(card);

@@ -129,6 +129,20 @@ export const PromptPanel: React.FC<PromptPanelProps> = ({ state, onAnswer, onIns
           </>
         )}
 
+        {prompt.kind === 'access_order' && (
+          <div className="flex gap-2 justify-end flex-wrap">
+            {prompt.options.map(option => (
+              <button
+                key={option.id}
+                className={`${button} bg-slate-800 hover:bg-slate-700 border-slate-600 text-slate-100`}
+                onClick={() => answer({ kind: 'access_order', optionId: option.id })}
+              >
+                <CardNameText text={option.label} focusable={false} />
+              </button>
+            ))}
+          </div>
+        )}
+
         {prompt.kind === 'effect_choice' && (
           <div className="flex gap-2 justify-end flex-wrap">
             {prompt.options.map(option => (

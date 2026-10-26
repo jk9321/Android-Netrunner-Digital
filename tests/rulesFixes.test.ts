@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import { cardDef, executeAction, IllegalActionError, GameState } from '../src/core';
-import { newGame, putInHand, startRunnerTurn, installForTest } from './helpers';
+import { keepGoing, newGame, putInHand, startRunnerTurn, installForTest } from './helpers';
 
 const findInHand = (state: GameState, side: 'corp' | 'runner', id: string) =>
   (side === 'corp' ? state.corp.hq : state.runner.grip).some(c => c.instanceId === id);
@@ -141,7 +141,7 @@ describe('Accessing', () => {
   const runOn = (state: GameState, serverId: string) => {
     startRunnerTurn(state);
     let s = executeAction(state, { type: 'INITIATE_RUN', player: 'runner', targetServerId: serverId });
-    while (s.activeRun) s = executeAction(s, { type: 'CONTINUE_RUN', player: 'runner' });
+    while (s.activeRun) s = keepGoing(executeAction(s, { type: 'CONTINUE_RUN', player: 'runner' }));
     return s;
   };
 

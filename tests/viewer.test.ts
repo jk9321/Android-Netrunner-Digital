@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { executeAction } from '../src/core';
 import { actingSide, corpRezWindow } from '../src/ui/viewer';
 import { soundFor } from '../src/ui/sound';
-import { installCorpForTest, installIceForTest, newGame, newGameAtSetup, run } from './helpers';
+import { installCorpForTest, installIceForTest, keepGoing, newGame, newGameAtSetup, run } from './helpers';
 
 const PALISADE = '30072';
 const MANEGARM = '30045';
@@ -90,7 +90,7 @@ describe('sound effects', () => {
     installCorpForTest(state, MANEGARM, 'hq');
     state = run(state, 'hq');
     while (state.activeRun && state.activeRun.phase !== 'access') {
-      state = executeAction(state, { type: 'CONTINUE_RUN', player: 'runner' });
+      state = keepGoing(executeAction(state, { type: 'CONTINUE_RUN', player: 'runner' }));
     }
     expect(state.log.filter(e => e.event === 'access').length).toBeGreaterThan(0);
   });

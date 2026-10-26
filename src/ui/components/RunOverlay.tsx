@@ -100,7 +100,7 @@ export const RunOverlay: React.FC<RunOverlayProps> = ({
               <CardView
                 card={currentIce}
                 isFaceDown={!currentIce.isRezzed}
-                canPeek={canPeekCorp}
+                canPeek={canPeekCorp || !!currentIce.runnerKnows}
                 size="md"
                 onInspect={currentIce.isRezzed || canPeekCorp ? onInspectCard : undefined}
               />

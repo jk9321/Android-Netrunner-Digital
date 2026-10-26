@@ -178,6 +178,8 @@ function promptAnswers(state: GameState): GameAction[] {
           choice: { kind: 'access_trash' as const, trash: false, alternativeId: a.id },
         })),
       ];
+    case 'access_order':
+      return prompt.options.map(o => ({ ...base, choice: { kind: 'access_order' as const, optionId: o.id } }));
     case 'effect_choice':
       return prompt.options.map(o => ({ ...base, choice: { kind: 'effect_choice' as const, optionId: o.id } }));
     case 'effect_cards': {

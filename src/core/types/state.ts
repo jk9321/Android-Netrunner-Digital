@@ -131,8 +131,20 @@ export interface RunState {
   subroutineResolved: boolean;
   /** Instance ids of the cards accessed this run, and where (Charm Offensive). */
   accessed: { id: string; inArchives: boolean }[];
-  /** Has the breach queued its cards yet? (Breach abilities like Devadatta Drone resolve first.) */
+  /** Has the breach begun? (Breach abilities like Devadatta Drone resolve first.) */
   breached: boolean;
+  /**
+   * The candidates of the breach in progress that the Runner still chooses
+   * from (rules 7.3.4): root cards not yet chosen, and the central zone with
+   * how many more cards may be chosen from it (-1: no limit, Archives).
+   */
+  breach?: {
+    root: string[];
+    zone: 'hq' | 'rd' | 'archives' | null;
+    zoneLeft: number;
+    /** Cards already chosen from the zone (R&D: the next candidate is the topmost card not chosen). */
+    chosen: string[];
+  };
   /** The first time the Corp would end this run, it must trash cards from HQ or the run goes on (Shred). */
   shredArmed: boolean;
   /** At Archives, the Runner approaches HQ instead (Maintenance Access). */
