@@ -385,7 +385,7 @@ function Game({
           )}
           {runnerCanAct && <AbilityBar state={gameState} side="runner" onAction={handleAction} />}
         </div>
-        <LogFeed logs={gameState.log} className="h-56 lg:h-auto lg:flex-1 lg:min-h-[6rem]" />
+        <LogFeed logs={gameState.log} viewer={viewer} className="h-56 lg:h-auto lg:flex-1 lg:min-h-[6rem]" />
       </aside>
       </div>
 
@@ -429,7 +429,7 @@ function Game({
       {!handoffTo && <CardFates fates={fates} />}
 
       {accessed.length > 0 && !handoffTo && (
-        <AccessedPanel codes={accessed} onInspect={setInspectedCard} onClose={clearAccessed} />
+        <AccessedPanel cards={accessed} viewer={viewer} onInspect={setInspectedCard} onClose={clearAccessed} />
       )}
 
       {zoneView && (

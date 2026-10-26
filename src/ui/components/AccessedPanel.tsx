@@ -1,13 +1,18 @@
 import { CardInstance } from '../../core';
 import { CardView } from './CardView';
+import { AccessedCard } from '../savedGame';
+import { Viewer } from '../viewer';
 
 /** The cards the Runner accessed in the latest run, so accesses with nothing to decide are still seen. */
 export function AccessedPanel({
-  codes,
+  cards,
+  viewer,
   onInspect,
   onClose,
 }: {
-  codes: string[];
+  cards: AccessedCard[];
+  /** Cards accessed from R&D show face down to the Corp (rules 7.1.2). */
+  viewer: Viewer;
   onInspect: (card: CardInstance) => void;
   onClose: () => void;
 }) {
@@ -17,18 +22,20 @@ export function AccessedPanel({
       data-testid="accessed-panel"
     >
       <div className="flex items-center justify-between mb-2">
-        <span className="text-xs font-bold text-pink-300 uppercase tracking-wider">Accessed this run ({codes.length})</span>
+        <span className="text-xs font-bold text-pink-300 uppercase tracking-wider">Accessed this run ({cards.length})</span>
         <button onClick={onClose} className="text-slate-400 hover:text-white text-xs px-1.5" aria-label="Dismiss accessed cards">
           ✕
         </button>
       </div>
       <div className="flex gap-2 overflow-x-auto pb-1">
-        {codes.map((code, i) => (
+        {cards.map(({ code, secretFrom }, i) => (
           <CardView
             key={`${code}-${i}`}
             card={{ instanceId: `accessed-${i}`, cardCode: code, isRezzed: true, advancementCounters: 0, tokens: {}, hostedCardIds: [] }}
             size="xs"
             notInstalled
+            isFaceDown={secretFrom === viewer}
+            canPeek={secretFrom !== viewer}
             onInspect={onInspect}
           />
         ))}

@@ -1,6 +1,6 @@
 import { ContinueRunAction, InitiateRunAction, JackOutAction } from '../../types/actions';
 import { CardInstance } from '../../types/card';
-import { GameState, RunEffectSource, ServerState } from '../../types/state';
+import { GameState, LogEntry, RunEffectSource, ServerState } from '../../types/state';
 import { cardDef } from '../../cards';
 import { getCardScript } from '../../scripts';
 import { nextInt } from '../../rng';
@@ -213,10 +213,10 @@ function accessCard(state: GameState, card: CardInstance, zone: CardInstance[], 
   const run = state.activeRun!;
   run.accessedCount += 1;
   run.accessed.push({ id: card.instanceId, inArchives });
-  addLog(state, 'runner', `Runner accessed ${def.title}.`, card.cardCode, 'access');
-
   const installed = Object.values(state.corp.servers).some(s => s.root.includes(card) || s.ice.includes(card));
   const where: AccessZone = installed ? 'installed' : inArchives ? 'archives' : zone === state.corp.hq ? 'hq' : 'rd';
+  // Rules 7.1.2: the Corp may look at accessed cards, except those accessed from R&D
+  addLog(state, 'runner', `Runner accessed ${def.title}.`, card.cardCode, 'access', rdSecret(where, 'Runner accessed a card in R&D.'));
   getCardScript(card.cardCode)?.onAccessed?.({ state, card, side: 'corp' }, where);
   if (state.winner || !state.activeRun) return;
   fireTrigger(state, { type: 'card_accessed', card, where });
@@ -227,6 +227,11 @@ function accessCard(state: GameState, card: CardInstance, zone: CardInstance[], 
     return;
   }
   offerMidAccess(state, card, zone, inArchives);
+}
+
+/** Keeps the name of a card accessed from R&D from the Corp (rules 7.1.2). */
+function rdSecret(where: AccessZone | 'other', publicMessage: string): LogEntry['secret'] {
+  return where === 'rd' ? { from: 'corp', publicMessage } : undefined;
 }
 
 function offerMidAccess(state: GameState, card: CardInstance, zone: CardInstance[], inArchives: boolean): void {
@@ -278,7 +283,14 @@ export function finishAccess(state: GameState, card: CardInstance, zone: CardIns
   const def = cardDef(card);
   if (def.type_code !== 'agenda' || !zone.includes(card)) return;
   if (state.activeRun?.cannotStealOrTrash) {
-    addLog(state, 'runner', `Runner accessed ${def.title} but cannot steal it this run.`);
+    addLog(
+      state,
+      'runner',
+      `Runner accessed ${def.title} but cannot steal it this run.`,
+      undefined,
+      undefined,
+      rdSecret(zone === state.corp.rd ? 'rd' : 'other', ''),
+    );
     return;
   }
   stealAgenda(state, card, zone);

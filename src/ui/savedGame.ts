@@ -29,12 +29,19 @@ export interface GameConfig {
   difficulty: Difficulty;
 }
 
+/** A card the Runner accessed in the latest run; `secretFrom` (R&D accesses) is the side that may not see it. */
+export interface AccessedCard {
+  code: string;
+  secretFrom?: SideCode;
+}
+
 /** Table state outside the engine that a resumed game should keep. */
 export interface SavedTable {
   runSerial: number;
   passedRezWindows: string[];
   hotseatSide: SideCode;
-  accessed: string[];
+  /** Plain card codes in games saved before R&D accesses were kept secret. */
+  accessed: (AccessedCard | string)[];
 }
 
 export interface SavedGame {

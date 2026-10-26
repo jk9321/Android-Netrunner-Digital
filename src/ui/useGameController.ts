@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import { GameAction, SideCode, createInitialGameState, executeAction, getLegalActions, isLegalAction } from '../core';
 import { AIClient } from '../ai/client';
 import { deckGameSetup } from '../data/decks';
-import { GameConfig, SavedGame, clearSavedGame, saveGame } from './savedGame';
+import { AccessedCard, GameConfig, SavedGame, clearSavedGame, saveGame } from './savedGame';
 import { ShownFate } from './components/CardFates';
 import { cardFates } from './cardFates';
 import { showAlert, showConfirm } from './components/Dialog';
@@ -37,7 +37,9 @@ export function useGameController(config: GameConfig, saved: SavedGame | null) {
   const [runSerial, setRunSerial] = useState(saved?.table.runSerial ?? 0);
   const [passedRezWindows, setPassedRezWindows] = useState<string[]>(saved?.table.passedRezWindows ?? []);
   // Cards the Runner accessed in the latest run, shown until dismissed or the next run
-  const [accessed, setAccessed] = useState<string[]>(saved?.table.accessed ?? []);
+  const [accessed, setAccessed] = useState<AccessedCard[]>(() =>
+    (saved?.table.accessed ?? []).map(a => (typeof a === 'string' ? { code: a } : a)),
+  );
   // Cards just stolen, scored or trashed, shown briefly in the middle of the table
   const [fates, setFates] = useState<ShownFate[]>([]);
   const prevStateRef = useRef(gameState);
@@ -131,7 +133,7 @@ export function useGameController(config: GameConfig, saved: SavedGame | null) {
       const newlyAccessed = nextState.log
         .slice(current.log.length)
         .filter(e => e.event === 'access' && e.cardCode)
-        .map(e => e.cardCode!);
+        .map(e => ({ code: e.cardCode!, ...(e.secret && { secretFrom: e.secret.from }) }));
       const runStarted = !current.activeRun && nextState.activeRun;
       if (runStarted || newlyAccessed.length > 0) setAccessed(prev => [...(runStarted ? [] : prev), ...newlyAccessed]);
       setGameState(nextState);

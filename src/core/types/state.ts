@@ -164,6 +164,8 @@ export interface LogEntry {
   message: string;
   cardCode?: string;
   event?: LogEvent;
+  /** A line one side may not see (the Runner's R&D accesses): that side is shown `publicMessage` (nothing if empty) and no card. */
+  secret?: { from: SideCode; publicMessage: string };
 }
 
 export interface GameState {
