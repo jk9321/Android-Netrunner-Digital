@@ -1,15 +1,15 @@
-import { GameAction, GameState, activePrompt, cardDef, getCardScript, getLegalActions, isLegalAction } from '../core';
+import { CardInstance, GameAction, GameState, activePrompt, cardDef, getCardScript, getLegalActions, isLegalAction } from '../core';
 import { runnerInstallBlocker } from '../core/engine/actions/install';
 import { encounteredIce, iceScript, isBioroid } from '../core/engine/ice';
-import { availableCredits } from '../core/engine/cardEffects';
+import { availableCredits, counters } from '../core/engine/cardEffects';
 import { Agent, FreeActionGuard, ScoredAction } from './agent';
 import { digValue, evaluate, rigCoverage } from './evaluate';
 import { answerPrompt, runEventOptions, simulate } from './prompts';
 import type { HeuristicOptions } from './corpAI';
 import { logNudge, nudge, tuning } from './synergy';
-import { RunnerMemory, bestBreakPlan, creditsAhead, iceCost, iceCreditNeed, needsBiggerHand, runScore, runShortfall, serverValue, subroutineCost } from './runs';
+import { BOTULUS, RunnerMemory, TRANQUILIZER, bestBreakPlan, botulusBreaks, hostedTrojans, creditsAhead, iceCost, iceCreditNeed, needsBiggerHand, runScore, runShortfall, serverValue, subroutineCost } from './runs';
 
-const TROJANS = ['30004', '30017']; // Botulus, Tranquilizer
+const TROJANS = [BOTULUS, TRANQUILIZER];
 
 /**
  * Rule-based Runner: builds economy, installs icebreakers for the ice
@@ -83,6 +83,13 @@ export class HeuristicRunnerAI implements Agent {
     const unbroken = subs.map((s, i) => ({ i, cost: subroutineCost(state, s.label) })).filter(s => !encounter.broken[s.i]);
     const mustBreak = unbroken.filter(s => s.cost >= 1);
     if (mustBreak.length === 0) return undefined;
+
+    // Botulus: its counters only break this ice's subroutines, and cost nothing
+    if (botulusBreaks(state, ice) > 0) {
+      const botulus = hostedTrojans(state, ice, BOTULUS).find(c => counters(c, 'virus') > 0)!;
+      const use = legal.find(a => a.type === 'USE_ABILITY' && a.cardInstanceId === botulus.instanceId);
+      if (use) return use;
+    }
 
     // Runner (run budget): keep what the rezzed ice further in needs
     const ahead = tuning.plan.runBudget ? creditsAhead(state) : 0;
@@ -212,7 +219,7 @@ export class HeuristicRunnerAI implements Agent {
     if (action.type === 'DRAW_CARD' && this.synergy && tuning.plan.dig?.runner && state.runner.grip.length < state.runner.handSizeLimit) score += digValue(state, 'runner');
     if (action.type === 'INSTALL_CARD' && action.hostInstanceId && cardCode && TROJANS.includes(cardCode)) {
       const host = Object.values(state.corp.servers).flatMap(s => s.ice).find(c => c.instanceId === action.hostInstanceId);
-      score += host?.isRezzed ? 1.5 : -3;
+      score += host?.isRezzed ? (tuning.plan.trojans ? trojanHostValue(state, cardCode, host) : 1.5) : -3;
     }
     // Saving up for a run: money now beats spending it elsewhere
     if (this.savingFor) {
@@ -223,6 +230,18 @@ export class HeuristicRunnerAI implements Agent {
     if (!spendsClick && score <= 0.3) return -Infinity; // free actions only when clearly good
     return score;
   }
+}
+
+/**
+ * Worth of a trojan on this rezzed ice: more on ice that is costly to get
+ * past. A second Botulus only speeds up counters the first is already
+ * piling up there; a second Tranquilizer does nothing the first doesn't
+ * (each derezzes at its own 3 counters).
+ */
+export function trojanHostValue(state: GameState, code: string, host: CardInstance): number {
+  const value = 1 + 0.15 * Math.min(8, iceCost(state, host));
+  const doubled = hostedTrojans(state, host, code).length;
+  return code === TRANQUILIZER ? value - 3 * doubled : value - 1.5 * doubled;
 }
 
 /**

@@ -1,7 +1,8 @@
 import { CardInstance, GameAction, GameState, Prompt, SideCode, activePrompt, cardDef, executeAction, findCardAnywhere, getLegalActions } from '../core';
 import { runnerInstallBlocker } from '../core/engine/actions/install';
 import { evaluate, keepValue } from './evaluate';
-import { RunOptions, RunnerMemory, iceCost, isTrap, runScore, serverValue } from './runs';
+import { BOTULUS, RunOptions, RunnerMemory, iceCost, isTrap, runScore, serverValue, subroutineCost } from './runs';
+import { encounteredIce, iceScript } from '../core/engine/ice';
 import { keepBonus, tuning } from './synergy';
 
 /** Applies an action, or returns null if the engine rejects it. */
@@ -126,6 +127,14 @@ export function answerPrompt(state: GameState, side: SideCode, memory?: RunnerMe
     const scored = servers.map(id => ({ id, score: runScore(state, id, { ...runEventOptions(prompt.source.cardCode), memory, wary: synergy && tuning.wary, urgent: synergy && tuning.plan.urgency }) }));
     scored.sort((a, b) => b.score - a.score);
     return { ...base, choice: { kind: 'effect_choice', optionId: scored[0].id } };
+  }
+
+  // Botulus: break the worst subroutine
+  if (side === 'runner' && prompt.kind === 'effect_choice' && prompt.source.cardCode === BOTULUS && tuning.plan.trojans) {
+    const ice = encounteredIce(state);
+    const subs = ice ? (iceScript(ice)?.subroutines ?? []) : [];
+    const worst = [...prompt.options].sort((a, b) => subroutineCost(state, subs[Number(b.id)]?.label ?? '') - subroutineCost(state, subs[Number(a.id)]?.label ?? ''))[0];
+    return { ...base, choice: { kind: 'effect_choice', optionId: worst.id } };
   }
 
   // Deck-aware AI: PT Untaian's paid advancement goes where it does the most

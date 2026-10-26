@@ -158,6 +158,8 @@ export const tuning = {
     pettyCash: true,
     /** Corp: click for credits toward a money operation in HQ it can't afford yet (Hedge Fund, Subsidy...). */
     saveForOps: true,
+    /** Runner: Botulus counters count as free breaks when costing ice; trojans go on the ice they help most, not doubled up. */
+    trojans: true,
   },
 };
 

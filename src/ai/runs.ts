@@ -23,6 +23,19 @@ import { tuning } from './synergy';
 const BLOCK = Infinity;
 const MAYFLY = '30032';
 const HANTU = '35008'; // boosts by spending hosted virus counters (+2 each), not credits
+export const BOTULUS = '30004';
+export const TRANQUILIZER = '30017';
+
+/** The Runner's trojans of one kind (Botulus, Tranquilizer) hosted on this ice. */
+export function hostedTrojans(state: GameState, ice: CardInstance, code: string): CardInstance[] {
+  return state.runner.rig.programs.filter(c => c.cardCode === code && c.hostedOnId === ice.instanceId);
+}
+
+/** Subroutines Botulus breaks on this ice for free: the virus counters on the Botulus programs it hosts. */
+export function botulusBreaks(state: GameState, ice: CardInstance): number {
+  if (!tuning.plan.trojans) return 0;
+  return hostedTrojans(state, ice, BOTULUS).reduce((n, c) => n + counters(c, 'virus'), 0);
+}
 
 /** Credits-equivalent cost of letting one subroutine resolve (Infinity: it ends the run). */
 export function subroutineCost(state: GameState, label: string): number {
@@ -121,8 +134,11 @@ export function bestBreakPlan(state: GameState, ice: CardInstance, subCount: num
 /** Estimated cost to get past one piece of ice, as the Runner sees it. */
 export function iceCost(state: GameState, ice: CardInstance): number {
   if (!ice.isRezzed) return state.corp.credits >= 3 ? 1.5 : 0.5;
-  const subs = iceScript(ice)?.subroutines ?? [];
-  let tank = subs.reduce((sum, s) => sum + subroutineCost(state, s.label), 0);
+  // Botulus breaks the worst subroutines for free; the rest are tanked or broken
+  const costs = (iceScript(ice)?.subroutines ?? []).map(s => subroutineCost(state, s.label)).sort((a, b) => b - a);
+  const subs = costs.slice(botulusBreaks(state, ice));
+  if (subs.length === 0) return ice.cardCode === '30054' ? 3 : 0;
+  let tank = subs.reduce((sum, cost) => sum + cost, 0);
   if (ice.cardCode === '30054') tank += 3; // Funhouse: take a tag or the run ends
   const plan = bestBreakPlan(state, ice, subs.length);
   const breakCost = plan ? plan.credits + (ice.cardCode === '30054' ? 3 : 0) : BLOCK;
@@ -137,7 +153,7 @@ export function iceCost(state: GameState, ice: CardInstance): number {
  */
 export function iceCreditNeed(state: GameState, ice: CardInstance, broken: boolean[] = []): number {
   const subs = iceScript(ice)?.subroutines ?? [];
-  const blocking = subs.filter((s, i) => !broken[i] && subroutineCost(state, s.label) === BLOCK).length;
+  const blocking = Math.max(0, subs.filter((s, i) => !broken[i] && subroutineCost(state, s.label) === BLOCK).length - botulusBreaks(state, ice));
   if (blocking === 0) return 0;
   const plan = bestBreakPlan(state, ice, blocking);
   const self = iceScript(ice)?.runnerBreakCost;
