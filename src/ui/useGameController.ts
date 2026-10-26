@@ -78,6 +78,11 @@ export function useGameController(config: GameConfig, saved: SavedGame | null) {
   const corpCanAct = canActAs(viewer, 'corp') && aiSide !== 'corp';
   const runnerCanAct = canActAs(viewer, 'runner') && aiSide !== 'runner' && !rezWindowOpen;
   const aiThinking = aiSide !== null && acting === aiSide;
+  // The side hearing the game's sounds, for the win or lose sound at the end:
+  // the person against the computer, the side in view in two-player games
+  // (in pass and play, whoever has the device), nobody in particular on an open table
+  const listener: SideCode | null =
+    humanSide ?? (viewMode === 'hotseat' ? hotseatSide : viewMode === 'corp' || viewMode === 'runner' ? viewMode : null);
 
   useEffect(() => {
     if (aiSide) return; // the AI game's view choice doesn't replace the two-player default
@@ -129,7 +134,7 @@ export function useGameController(config: GameConfig, saved: SavedGame | null) {
       const nextState = executeAction(current, action);
       latestStateRef.current = nextState;
       if (!current.activeRun && nextState.activeRun) setRunSerial(n => n + 1);
-      playForAction(current, nextState);
+      playForAction(current, nextState, listener);
       const newlyAccessed = nextState.log
         .slice(current.log.length)
         .filter(e => e.event === 'access' && e.cardCode)

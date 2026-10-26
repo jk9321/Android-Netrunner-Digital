@@ -83,6 +83,11 @@ describe('sound effects', () => {
     expect(soundFor(state, won)).toBe('win');
     const conceded = executeAction(state, { type: 'CONCEDE', player: 'runner' });
     expect(soundFor(state, conceded)).toBe('win');
+    // The side that lost hears the lose sound, the winner the fanfare
+    expect(soundFor(state, won, 'corp')).toBe('win');
+    expect(soundFor(state, won, 'runner')).toBe('lose');
+    expect(soundFor(state, conceded, 'runner')).toBe('lose');
+    expect(soundFor(state, conceded, 'corp')).toBe('win');
   });
 
   it('marks accessed cards in the log so the UI can list them', () => {

@@ -1,4 +1,5 @@
 import { GameState, LogEvent } from '../core/types/state';
+import { SideCode } from '../core/types/card';
 
 /**
  * Short synthesized sound effects (Web Audio, no audio files). Each action
@@ -6,7 +7,7 @@ import { GameState, LogEvent } from '../core/types/state';
  * state and the events on its new log lines (never from their wording).
  */
 
-type Sound = 'win' | 'score' | 'steal' | 'damage' | 'tag' | 'run' | 'rez' | 'access' | 'install' | 'credit' | 'draw' | 'click';
+type Sound = 'win' | 'lose' | 'score' | 'steal' | 'damage' | 'tag' | 'run' | 'rez' | 'access' | 'install' | 'credit' | 'draw' | 'click';
 
 const loggedEvent = (event: LogEvent) => (prev: GameState, next: GameState) => next.log.slice(prev.log.length).some(e => e.event === event);
 const handSize = (state: GameState) => state.corp.hq.length + state.runner.grip.length;
@@ -78,6 +79,10 @@ function play(sound: Sound) {
     case 'win':
       [523, 659, 784, 1047].forEach((f, i) => tone(ac, t + i * 0.12, f, f, 0.25, 'triangle', 0.1));
       break;
+    case 'lose':
+      // The win fanfare run backwards and slower, each note sagging a little flat
+      [1047, 784, 659, 523].forEach((f, i) => tone(ac, t + i * 0.2, f, f * 0.94, 0.38, 'triangle', 0.1));
+      break;
     case 'score':
       tone(ac, t, 440, 440, 0.12, 'triangle');
       tone(ac, t + 0.12, 660, 660, 0.22, 'triangle');
@@ -118,17 +123,23 @@ function play(sound: Sound) {
   }
 }
 
-/** The sound for an action that turned `prev` into `next` (exported for tests). */
-export function soundFor(prev: GameState, next: GameState): Sound | null {
+/**
+ * The sound for an action that turned `prev` into `next` (exported for tests).
+ * `listener` is the side hearing it: when that side has just lost, the end of
+ * the game plays the lose sound instead of the win fanfare.
+ */
+export function soundFor(prev: GameState, next: GameState, listener: SideCode | null = null): Sound | null {
   if (next === prev) return null;
   for (const [sound, happened] of RULES) {
-    if (happened(prev, next)) return sound;
+    if (!happened(prev, next)) continue;
+    if (sound === 'win' && listener && next.winner !== listener) return 'lose';
+    return sound;
   }
   return 'click';
 }
 
-export function playForAction(prev: GameState, next: GameState): void {
+export function playForAction(prev: GameState, next: GameState, listener: SideCode | null = null): void {
   if (!soundEnabled()) return;
-  const sound = soundFor(prev, next);
+  const sound = soundFor(prev, next, listener);
   if (sound) play(sound);
 }
