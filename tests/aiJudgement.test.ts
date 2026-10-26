@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { GameAction, cardDef, createCardInstance, executeAction, getCardDefinition, getLegalActions, isLegalAction } from '../src/core';
 import { makeRoomAnswers } from '../src/ai/prompts';
 import { runScore, serverValue, subroutineCost } from '../src/ai/runs';
-import { rezReserve, withDeadIceTrashed } from '../src/ai/corpAI';
+import { agendaRemoteNeed, fundedDepth, rezReserve, withDeadIceTrashed } from '../src/ai/corpAI';
 import { makeRoomInstalls } from '../src/ai/runnerAI';
 import { evaluate } from '../src/ai/evaluate';
 import { installForTest, installIceForTest, installProgramForTest, newGame, startRunnerTurn } from './helpers';
@@ -49,6 +49,19 @@ describe('AI judgement in fixed positions', () => {
     expect(rezReserve(state)).toBe(rez);
     state.corp.servers.remote1.ice[0].isRezzed = true;
     expect(rezReserve(state)).toBe(0);
+  });
+
+  it('counts unrezzed ice as protection only while the Corp can pay to rez it', () => {
+    const state = newGame();
+    installForTest(state, 'agenda', 'remote1');
+    installIceForTest(state, PALISADE, 'remote1', false);
+    installIceForTest(state, PALISADE, 'remote1', false);
+    const rez = getCardDefinition(PALISADE).cost ?? 0;
+    expect(agendaRemoteNeed(state)).toBe(2 * rez);
+    const server = state.corp.servers.remote1;
+    expect(fundedDepth(state, server, 2 * rez)).toBe(2);
+    expect(fundedDepth(state, server, rez)).toBe(1);
+    expect(fundedDepth(state, server, rez - 1)).toBe(0); // broke: no protection at all
   });
 
   it("judges the Corp's facedown cards by the odds, not by what they really are", () => {

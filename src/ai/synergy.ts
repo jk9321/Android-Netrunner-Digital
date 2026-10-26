@@ -114,6 +114,16 @@ export const tuning = {
     /* Funded depth (2026-10-26, self-play, 2,210 games): Corp 42.9% -> 44.8%; remote steals 1,714 -> 1,472, behind ice it couldn't afford to rez 883 -> 499. */
     /** Corp (Jeff): an agenda left over the Runner's turn counts unrezzed ice as a layer only if it can still pay to rez it. */
     fundedDepth: true,
+    /*
+     * Agenda money (2026-10-26, self-play after the Botulus fix, 2,210 games
+     * each): main 43.0%, agenda money on 45.0%, plus funded ice plans 42.8%,
+     * funded ice plans alone 40.9%. Funded ice plans lose about 2 points
+     * (more ice where money was the problem): off, kept for re-testing.
+     */
+    /** Corp (Jeff): spending (plays, installs, rezzes elsewhere) keeps the money to rez an installed agenda's ice. */
+    agendaMoney: true,
+    /** Corp (Jeff): ice planning counts unrezzed ice as a layer only if it can be paid for. */
+    fundedIcePlans: false,
     /** Corp: an agenda remote's rez reserve covers all its unrezzed ice. */
     deepReserve: true,
     /** Corp (Jeff): push agendas through a remote the Runner can't get into yet. */

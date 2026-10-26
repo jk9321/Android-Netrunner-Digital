@@ -33,6 +33,10 @@ export interface Steal {
    * couldn't afford any of it)
    */
   unrezzed?: 'none' | 'declined' | 'broke';
+  /** Broke steals: was the Corp already short of rezzing all this server's ice when the Runner's turn began, or did it spend the money during that turn? */
+  brokeWhen?: 'turn start' | 'during turn';
+  /** Remote steals: the agenda was installed during the Corp's last turn */
+  freshAgenda?: boolean;
 }
 
 export interface GameRecord {
@@ -77,6 +81,13 @@ function unrezzedAtSteal(state: GameState, server: GameState['corp']['servers'][
   return Math.min(...costs) <= state.corp.credits ? 'declined' : 'broke';
 }
 
+function brokeWhen(start: GameState | null, serverId: string | null): Steal['brokeWhen'] {
+  const server = start && serverId ? start.corp.servers[serverId] : undefined;
+  if (!start || !server) return undefined;
+  const total = server.ice.filter(i => !i.isRezzed).reduce((n, i) => n + rezCost(start, i), 0);
+  return total > start.corp.credits ? 'turn start' : 'during turn';
+}
+
 const isAgenda = (c: { cardCode: string }) => cardDef(c as never).type_code === 'agenda';
 
 function reasonOf(state: GameState): string {
@@ -100,9 +111,13 @@ export function playLogged(start: GameState, agents: { corp: Agent; runner: Agen
   let rezzedAtStart = new Set<string>();
   let paid = 0;
   let startCredits = 0;
+  let runnerTurnStart: GameState | null = null;
+  let corpTurnStart: GameState | null = null;
   for (let steps = 0; steps < 4000 && runner.state.turnNumber <= 80; steps++) {
     const before = runner.state;
+    if (before.activePlayer === 'runner' && runnerTurnStart?.turnNumber !== before.turnNumber) runnerTurnStart = before;
     if (before.turnNumber !== lastTurn && before.activePlayer === 'corp') {
+      corpTurnStart = before;
       lastTurn = before.turnNumber;
       const remoteAgenda = Object.entries(before.corp.servers).some(([id, s]) => id.startsWith('remote') && s.root.some(isAgenda));
       if (!remoteAgenda && before.corp.hq.some(isAgenda)) idleAgendaTurns++;
@@ -175,6 +190,8 @@ export function playLogged(start: GameState, agents: { corp: Agent; runner: Agen
       title: stolen[0] ? cardDef(stolen[0]).title : '?',
       icedRemotes: Object.values(before.corp.servers).filter(s => s.isRemote && s.ice.length > 0).length,
       unrezzed: unrezzedAtSteal(before, server),
+      brokeWhen: brokeWhen(runnerTurnStart, serverId),
+      freshAgenda: !!agenda && !!corpTurnStart && !Object.values(corpTurnStart.corp.servers).some(sv => sv.root.some(c => c.instanceId === agenda.instanceId)),
     });
   }
   const s = runner.state;

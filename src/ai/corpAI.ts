@@ -105,6 +105,8 @@ export class HeuristicCorpAI implements Agent {
         // Ping tags the Runner when rezzed during a run; ice that ends the run protects best
         score = importance + (hasEndTheRun(card) ? 1 : 0) + (card.cardCode === '30055' ? 2 : 0);
         if (state.corp.credits - cost < 2 && importance < 4) score -= 2;
+        // (Jeff) money kept to rez an agenda remote's ice isn't spent on ice elsewhere
+        if (this.synergy && tuning.plan.agendaMoney && state.corp.credits - cost < agendaRemoteNeed(state, server.id)) score -= 3;
       } else if (def.type_code === 'upgrade') {
         score = card.cardCode === '30042' || card.cardCode === '30050' ? importance : importance - 2;
       } else {
@@ -461,13 +463,18 @@ export class HeuristicCorpAI implements Agent {
       case 'ice': {
         const installCost = server ? server.ice.length : 0;
         // Deck-aware AI: ice the Runner already breaks counts as half a layer
-        const depth = server && this.synergy && tuning.plan.iceDepth ? iceDepth(state, server) : server?.ice.length ?? 0;
+        const depth =
+          server && this.synergy && tuning.plan.iceDepth
+            ? tuning.plan.fundedIcePlans
+              ? fundedDepth(state, server, corp.credits - installCost)
+              : iceDepth(state, server)
+            : server?.ice.length ?? 0;
         let need: number;
         // Deck-aware AI: one well-iced scoring remote rather than ice spread thin
         const main = this.synergy && tuning.plan.oneRemote ? mainRemote(state) : null;
         if (!server) {
           need = agendasInHand > 0 && !protectedEmptyRemote ? 5 : -1;
-          if (main && need > 0 && (iceDepth(state, main) < 2 || corp.credits < rezReserve(state, this.wideReserve) + (cardDef(card).cost ?? 0))) need = -1;
+          if (main && need > 0 && ((tuning.plan.fundedIcePlans ? fundedDepth(state, main, corp.credits) : iceDepth(state, main)) < 2 || corp.credits < rezReserve(state, this.wideReserve) + (cardDef(card).cost ?? 0))) need = -1;
         }
         else if (server.isRemote) {
           const holdsAgenda = server.root.some(c => type(c) === 'agenda' || c.advancementCounters > 0);
@@ -772,7 +779,23 @@ function reservePenalty(state: GameState, creditsAfter: number, wide = false): n
   if (!wide) return reserve > 0 && state.corp.credits >= reserve && creditsAfter < reserve ? 3 : 0;
   const before = Math.max(0, reserve - state.corp.credits);
   const after = Math.max(0, reserve - creditsAfter);
-  return after > before ? Math.min(3, after - before) : -Math.min(1, 0.4 * (before - after));
+  // (Jeff) an installed agenda's unrezzed ice is only protection while the money to rez it is there: don't spend it
+  const agendaMoney = tuning.plan.agendaMoney && creditsAfter < state.corp.credits && creditsAfter < agendaRemoteNeed(state) ? 6 : 0;
+  return agendaMoney + (after > before ? Math.min(3, after - before) : -Math.min(1, 0.4 * (before - after)));
+}
+
+/**
+ * Credits to rez every unrezzed ice on the remotes holding an agenda that
+ * can't be scored yet (other than `except`).
+ */
+export function agendaRemoteNeed(state: GameState, except?: string): number {
+  let need = 0;
+  for (const server of Object.values(state.corp.servers)) {
+    if (!server.isRemote || server.id === except) continue;
+    if (!server.root.some(c => type(c) === 'agenda' && c.advancementCounters < (cardDef(c).advancement_cost ?? 0))) continue;
+    for (const ice of server.ice) if (!ice.isRezzed) need += rezCost(state, ice);
+  }
+  return need;
 }
 
 /**
