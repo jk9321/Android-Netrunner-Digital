@@ -38,6 +38,11 @@ export interface CardViewProps {
   tag?: React.ReactNode;
   /** Buttons over the card (Rez, Advance, Score), kept between the top and bottom badges. */
   actions?: React.ReactNode;
+  /**
+   * A facedown Corp card shown from the Runner's memory: they saw it before (rezzed or accessed) and may
+   * remember it (rules 1.12.5, 10.2.2b). Faded and marked Seen so it never passes for a rezzed card.
+   */
+  seen?: boolean;
 }
 
 const CardFace: React.FC<CardViewProps> = ({
@@ -55,6 +60,7 @@ const CardFace: React.FC<CardViewProps> = ({
   sideways = false,
   tag,
   actions,
+  seen = false,
 }) => {
   const [showTooltip, setShowTooltip] = useState(false);
   const [imageError, setImageError] = useState(false);
@@ -80,7 +86,7 @@ const CardFace: React.FC<CardViewProps> = ({
   const zoom = useZoom();
   const hidden = isFaceDown && !canPeek;
   const handleMouseEnter = () => {
-    zoom?.show({ card, hidden });
+    zoom?.show({ card, hidden, seen: seen && !hidden });
     setShowTooltip(true);
   };
   const handleMouseLeave = () => setShowTooltip(false);
@@ -158,7 +164,7 @@ const CardFace: React.FC<CardViewProps> = ({
           src={imageUrl}
           alt={def.title}
           className={`w-full h-full object-cover object-center rounded-lg transition-opacity duration-200 ${
-            isUnrezzed ? 'opacity-85 brightness-95' : 'opacity-100'
+            seen ? 'opacity-60 grayscale-[50%]' : isUnrezzed ? 'opacity-85 brightness-95' : 'opacity-100'
           }`}
           loading="lazy"
           onError={() => setImageError(true)}
@@ -172,12 +178,15 @@ const CardFace: React.FC<CardViewProps> = ({
         </div>
       )}
 
+      {/* Remembered, not visible: a card-back tint with scanlines over the faded art */}
+      {seen && <div data-testid="seen-veil" className="seen-veil absolute inset-0 rounded-lg pointer-events-none" />}
+
       <CardOverlays
         card={card}
         sideways={sideways}
         tag={tag}
         actions={actions}
-        status={isUnrezzed ? (card.faceUp ? 'faceup' : 'unrezzed') : undefined}
+        status={seen ? 'seen' : isUnrezzed ? (card.faceUp ? 'faceup' : 'unrezzed') : undefined}
         types={typeIcons === false ? [] : typeIcons === true ? (def.type_code === 'ice' ? iceSubtypes(card) : breakerTypes(card)) : typeIcons}
         typeSide={def.type_code === 'ice' ? 'ice' : 'breaker'}
         onInspect={onInspect}
@@ -211,7 +220,7 @@ const CardOverlays: React.FC<{
   sideways: boolean;
   tag?: React.ReactNode;
   actions?: React.ReactNode;
-  status?: 'unrezzed' | 'faceup';
+  status?: 'unrezzed' | 'faceup' | 'seen';
   types?: IceSubtype[];
   typeSide?: 'ice' | 'breaker';
   onInspect?: (card: CardInstance) => void;
@@ -236,6 +245,12 @@ const CardOverlays: React.FC<{
               <div className={`${tagClass} bg-cyan-950/90 text-cyan-300 border-cyan-700/80`}>
                 <Eye className="w-[1em] h-[1em] shrink-0 text-cyan-400" />
                 <Keyword id="unrezzed" className="truncate">Unrezzed</Keyword>
+              </div>
+            )}
+            {status === 'seen' && (
+              <div data-testid="seen-tag" className={`${tagClass} bg-slate-950/90 text-slate-200 border-slate-500`}>
+                <Eye className="w-[1em] h-[1em] shrink-0 text-slate-400" />
+                <Keyword id="seen" className="truncate">Seen</Keyword>
               </div>
             )}
             {/* A flipped identity (Nebula Talent Management) */}
@@ -302,7 +317,7 @@ const CardOverlays: React.FC<{
  */
 export const CardView: React.FC<CardViewProps> = props => {
   const showsBack = Boolean(props.isFaceDown) && props.canPeek === false;
-  const face = showsBack ? 'back' : props.card.isRezzed ? 'rezzed' : 'face';
+  const face = showsBack ? 'back' : props.card.isRezzed ? 'rezzed' : props.seen ? 'seen' : 'face';
   // Only table cards (inside the zoom provider) answer to the prompt's hover; the prompt's own copies don't
   const onTable = useZoom() !== null;
   const mark = usePromptHighlight(props.card.instanceId);

@@ -167,6 +167,7 @@ export const ServerColumn: React.FC<ServerColumnProps> = ({
                 card={card}
                 isFaceDown={!card.isRezzed && !card.faceUp}
                 canPeek={canCorpPeek || !!card.runnerKnows}
+                seen={!canCorpPeek && !!card.runnerKnows && !card.isRezzed && !card.faceUp}
                 size="fit"
                 onInspect={onInspectCard}
                 actions={<>
@@ -227,6 +228,7 @@ export const ServerColumn: React.FC<ServerColumnProps> = ({
                   card={iceCard}
                   isFaceDown={!iceCard.isRezzed}
                   canPeek={canCorpPeek || !!iceCard.runnerKnows}
+                  seen={!canCorpPeek && !!iceCard.runnerKnows && !iceCard.isRezzed}
                   size="fit"
                   sideways
                   onInspect={onInspectCard}

@@ -70,9 +70,13 @@ export interface CardInstance {
   /** An installed Corp card that is faceup without being rezzed (agendas installed with BANGUN). */
   faceUp?: boolean;
   /**
-   * An unrezzed Corp card the Runner may look at: they accessed it during the
-   * breach in which the Corp installed it (Poétrï Luxury Brands), so they know
-   * which card it is (rules 7.3.1a). Cleared when the card leaves play.
+   * An installed Corp card the Runner has seen: they saw it rezzed, accessed it
+   * where it is installed, or saw it before it was installed (accessed during
+   * the same breach, Poétrï Luxury Brands, rules 7.3.1a; or from faceup
+   * Archives). Turned facedown it is the same object (rules 1.12.5) and the
+   * Runner may remember it, so the Runner's view keeps showing it, marked
+   * Seen. Cleared when the card leaves play or goes back to HQ or R&D, where
+   * it becomes a new object (rules 1.12.3).
    */
   runnerKnows?: boolean;
   /** Cards hosted faceup on this card without being installed (Bling, Madani, Detente). */

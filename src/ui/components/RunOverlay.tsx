@@ -101,9 +101,10 @@ export const RunOverlay: React.FC<RunOverlayProps> = ({
                 card={currentIce}
                 isFaceDown={!currentIce.isRezzed}
                 canPeek={canPeekCorp || !!currentIce.runnerKnows}
+                seen={!canPeekCorp && !!currentIce.runnerKnows && !currentIce.isRezzed}
                 size="md"
                 typeIcons
-                onInspect={currentIce.isRezzed || canPeekCorp ? onInspectCard : undefined}
+                onInspect={currentIce.isRezzed || canPeekCorp || currentIce.runnerKnows ? onInspectCard : undefined}
               />
               <div className="flex-1">
                 <div className="flex items-center gap-2 mb-1">

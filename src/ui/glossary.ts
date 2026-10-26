@@ -372,6 +372,10 @@ export const GLOSSARY: Record<string, GlossaryEntry> = {
     term: 'Unrezzed',
     text: 'An installed Corp card still facedown. It has no effect until the Corp pays to rez it. The Runner cannot see it unless they access it.',
   },
+  seen: {
+    term: 'Seen',
+    text: 'A facedown Corp card the Runner has seen before: they accessed it, or saw it rezzed before it was derezzed. The Runner may remember it, so it is shown faded as a reminder. It is still unrezzed and inactive.',
+  },
 };
 
 const ids = Object.keys(GLOSSARY).filter(id => GLOSSARY[id].match);

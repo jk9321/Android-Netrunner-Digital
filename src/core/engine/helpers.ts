@@ -152,6 +152,30 @@ export function trashInstalledCorpCard(state: GameState, server: ServerState, ca
 }
 
 /** True if the card can receive advancement counters via the advance action. */
+/**
+ * Whether the Runner knows which card the Corp is installing from `zone`:
+ * they accessed it in this breach (rules 7.3.1a), it comes from faceup
+ * Archives or a score area, or it is moving within the play area as the same
+ * object (rules 1.12.4) that they already knew.
+ */
+export function runnerSawBeforeInstall(state: GameState, card: CardInstance, zone: CardInstance[]): boolean {
+  const run = state.activeRun;
+  if (run?.breached && run.accessed.some(a => a.id === card.instanceId)) return true;
+  if (zone === state.corp.archives.faceUp || zone === state.corp.scoreArea || zone === state.runner.scoreArea) return true;
+  const inPlay = Object.values(state.corp.servers).some(s => s.root === zone || s.ice === zone);
+  return inPlay && !!card.runnerKnows;
+}
+
+/**
+ * Cards that went back to HQ or R&D, or facedown into Archives, are new
+ * objects the Runner no longer tracks (rules 1.12.3). Runs after every action.
+ */
+export function forgetHiddenCards(state: GameState): void {
+  for (const zone of [state.corp.hq, state.corp.rd, state.corp.archives.faceDown]) {
+    for (const card of zone) delete card.runnerKnows;
+  }
+}
+
 export function isAdvanceable(card: CardInstance): boolean {
   const def = cardDef(card);
   return def.type_code === 'agenda' || /you can advance this/i.test(def.stripped_text ?? def.text ?? '');

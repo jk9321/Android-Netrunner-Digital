@@ -37,7 +37,10 @@ function subscribe(listener: () => void) {
 
 /** How a board card is linked to the open prompt: the hovered option's label, picked, or not at all. */
 export function usePromptHighlight(instanceId: string): { hovered: boolean; label: string | null; selected: boolean } {
-  const isHovered = useSyncExternalStore(subscribe, () => hovered?.id === instanceId);
-  const isSelected = useSyncExternalStore(subscribe, () => selected.has(instanceId));
+  // The same getter serves server rendering (tests render the board to markup)
+  const getHovered = () => hovered?.id === instanceId;
+  const getSelected = () => selected.has(instanceId);
+  const isHovered = useSyncExternalStore(subscribe, getHovered, getHovered);
+  const isSelected = useSyncExternalStore(subscribe, getSelected, getSelected);
   return { hovered: isHovered, label: isHovered ? (hovered?.label ?? null) : null, selected: isSelected };
 }

@@ -8,6 +8,8 @@ import { Eye } from 'lucide-react';
 export interface ZoomTarget {
   card: CardInstance;
   hidden: boolean;
+  /** Facedown, but the Runner remembers it (see CardView's seen). */
+  seen?: boolean;
 }
 
 /**
@@ -20,7 +22,7 @@ export function createZoomStore() {
   return {
     get: () => current,
     show(target: ZoomTarget) {
-      if (current?.card.instanceId === target.card.instanceId && current.hidden === target.hidden) return;
+      if (current?.card.instanceId === target.card.instanceId && current.hidden === target.hidden && !!current.seen === !!target.seen) return;
       current = target;
       listeners.forEach(l => l());
     },
@@ -54,7 +56,7 @@ export const ZoomPanel: React.FC<{ store: ZoomStore; onInspect: (card: CardInsta
     );
   }
 
-  const { card, hidden } = target;
+  const { card, hidden, seen } = target;
   const def = cardDef(card);
   const src = hidden ? getCardBackUrl(def.side_code || 'corp') : getCardImageUrl(card.cardCode);
 
@@ -64,11 +66,19 @@ export const ZoomPanel: React.FC<{ store: ZoomStore; onInspect: (card: CardInsta
         {failed === src ? (
           <div className="w-full h-full flex items-center justify-center p-3 text-center text-sm text-slate-300">{def.title}</div>
         ) : (
-          <img src={src} alt={hidden ? 'Face-down card' : def.title} className="w-full h-full object-cover" onError={() => setFailed(src)} />
+          <img
+            src={src}
+            alt={hidden ? 'Face-down card' : def.title}
+            className={`w-full h-full object-cover ${seen ? 'opacity-60 grayscale-[50%]' : ''}`}
+            onError={() => setFailed(src)}
+          />
         )}
+        {seen && <div className="seen-veil absolute inset-0 pointer-events-none" />}
       </div>
       <div className="w-full flex items-center justify-between gap-2 text-[11px] font-mono min-w-0">
-        <span className="truncate text-slate-300">{hidden ? 'Face-down card' : `${def.title} · ${typeLine(def)}`}</span>
+        <span className="truncate text-slate-300" title={seen ? `Unrezzed, last seen as ${def.title}` : undefined}>
+          {hidden ? 'Face-down card' : seen ? `Unrezzed, last seen as ${def.title}` : `${def.title} · ${typeLine(def)}`}
+        </span>
         {!hidden && (
           <button
             onClick={() => onInspect(card)}

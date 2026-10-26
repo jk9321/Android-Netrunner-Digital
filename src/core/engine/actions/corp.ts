@@ -132,6 +132,8 @@ export function completeRez(state: GameState, card: CardInstance): void {
 /** Rezzes a card without paying (rez action after payment, or "ignoring all costs") and fires rez triggers. */
 export function rezForFree(state: GameState, card: CardInstance): void {
   card.isRezzed = true;
+  // Rezzed, it is faceup and the Runner sees it; they may remember it if it is derezzed (rules 1.12.5)
+  card.runnerKnows = true;
   delete card.faceUp;
   refillRecurring(card);
   enforceInstallLimits(state, card);

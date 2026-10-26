@@ -4,6 +4,7 @@ import { addLog } from '../engine/log';
 import { dealNetDamage, giveTags, installedRunnerCards, trashInstalledRunnerCard } from '../engine/damage';
 import { endRun, endTheRun } from '../engine/runEnd';
 import { availableCredits, spendCredits } from '../engine/cardEffects';
+import { runnerSawBeforeInstall } from '../engine/helpers';
 import { CardScript, Subroutine } from './types';
 import { askCards, askChoice, askCorpInstall, installCorpChoice } from './effects';
 
@@ -281,6 +282,8 @@ const bran: CardScript = {
     const id = answer.cardInstanceIds[0];
     const zone = zoneOf(state, id);
     const ice = zone.find(c => c.instanceId === id)!;
+    if (runnerSawBeforeInstall(state, ice, zone)) ice.runnerKnows = true;
+    else delete ice.runnerKnows;
     zone.splice(zone.indexOf(ice), 1);
     ice.isRezzed = false;
     // Index 0 is innermost: "directly inward" takes Brân's current index.

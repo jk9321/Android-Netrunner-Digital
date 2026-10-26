@@ -18,6 +18,7 @@ import {
 import {
   createRemoteServer,
   illegal,
+  runnerSawBeforeInstall,
   removeCard,
   requireActionPhase,
   requireClicks,
@@ -159,9 +160,8 @@ export function installCorpCardFrom(
   removeCard(zone, card);
   card.isRezzed = false;
   card.faceUp = options.faceUp && def.type_code === 'agenda' ? true : undefined;
-  // A card the Runner accessed in this breach stays known to them (rules 7.3.1a)
-  const run = state.activeRun;
-  if (run?.breached && run.accessed.some(a => a.id === card.instanceId)) card.runnerKnows = true;
+  // A card the Runner accessed in this breach (rules 7.3.1a) or saw faceup before stays known to them
+  if (runnerSawBeforeInstall(state, card, zone)) card.runnerKnows = true;
   else delete card.runnerKnows;
   card.installedTurn = turnKey(state);
   state.corp.credits -= installCost;

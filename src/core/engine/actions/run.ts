@@ -299,6 +299,8 @@ function accessCard(state: GameState, card: CardInstance, zone: CardInstance[], 
   run.accessed.push({ id: card.instanceId, inArchives });
   const installed = Object.values(state.corp.servers).some(s => s.root.includes(card) || s.ice.includes(card));
   const where: AccessZone = installed ? 'installed' : inArchives ? 'archives' : zone === state.corp.hq ? 'hq' : 'rd';
+  // The Runner has seen this installed card and may remember it if it stays installed (rules 10.2.2b)
+  if (installed) card.runnerKnows = true;
   // Rules 7.1.2: the Corp may look at accessed cards, except those accessed from R&D (unless revealed, Byte!)
   const secret = getCardScript(card.cardCode)?.revealedOnRdAccess ? undefined : rdSecret(where, 'Runner accessed a card in R&D.');
   addLog(state, 'runner', `Runner accessed ${def.title}.`, card.cardCode, 'access', secret);
