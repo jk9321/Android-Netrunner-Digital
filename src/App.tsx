@@ -20,6 +20,7 @@ import { HandRow } from './ui/components/HandRow';
 import { ZoomContext, ZoomPanel, createZoomStore } from './ui/components/ZoomPanel';
 import { CardFates } from './ui/components/CardFates';
 import { HandoffScreen } from './ui/components/HandoffScreen';
+import { TurnBanner } from './ui/components/TurnBanner';
 import { GameOverModal } from './ui/components/GameOverModal';
 import { CardScale, GameHeader, cardScaleValue } from './ui/components/GameHeader';
 import { SideStrip } from './ui/components/SideStrip';
@@ -313,7 +314,7 @@ function Game({
         )}
 
         {/* CORP SECTOR (TOP HALF) */}
-        <section id="corp-board" className="flex-1 min-h-0 flex flex-col gap-1.5 bg-slate-950/70 border border-cyan-900/80 chamfer hud-frame hud-corp p-2 shadow-xl relative w-full min-w-0">
+        <section id="corp-board" className={`${activePlayer === 'corp' && !winner ? 'turn-active ' : ''}flex-1 min-h-0 flex flex-col gap-1.5 bg-slate-950/70 border border-cyan-900/80 chamfer hud-frame hud-corp p-2 shadow-xl relative w-full min-w-0`}>
           <SideStrip side="corp" state={gameState} onInspect={setInspectedCard} onOpenZone={setZone} />
 
           <div className="flex-1 min-h-0 flex flex-col lg:flex-row gap-2 min-w-0">
@@ -341,7 +342,7 @@ function Game({
         </section>
 
         {/* RUNNER SECTOR (BOTTOM): the rig is two rows, so it takes what it needs and the Corp gets the rest */}
-        <section id="runner-board" className="flex-none lg:max-h-[55%] min-h-0 flex flex-col gap-1.5 bg-slate-950/70 border border-pink-900/80 chamfer hud-frame hud-runner p-2 shadow-xl relative w-full min-w-0">
+        <section id="runner-board" className={`${activePlayer === 'runner' && !winner ? 'turn-active ' : ''}flex-none lg:max-h-[55%] min-h-0 flex flex-col gap-1.5 bg-slate-950/70 border border-pink-900/80 chamfer hud-frame hud-runner p-2 shadow-xl relative w-full min-w-0`}>
           <div className="flex-1 min-h-0 flex flex-col lg:flex-row gap-2 min-w-0">
           {/* Runner Rig (Installed Programs, Hardware, Resources) */}
           <div className="flex-1 min-w-0 min-h-0 overflow-auto">
@@ -425,6 +426,8 @@ function Game({
           (canActAs(viewer, gameState.pendingPrompts[0].side) && gameState.pendingPrompts[0].side !== aiSide)
         }
       />
+
+      {!winner && <TurnBanner activePlayer={activePlayer} humanSide={humanSide} />}
 
       {!handoffTo && <CardFates fates={fates} />}
 

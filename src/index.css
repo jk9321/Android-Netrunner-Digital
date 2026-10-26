@@ -291,7 +291,28 @@
 .run-ice {
   animation: run-ice-pulse 1.2s ease-in-out infinite;
 }
+/* Whose turn it is: the acting side's board glows in its colour. The boards are
+   clipped by .chamfer, so the glow sits inside the frame rather than around it. */
+@keyframes turn-active-breathe {
+  0%, 100% { box-shadow: inset 0 0 18px rgb(var(--turn-glow) / 0.22), inset 0 0 0 1px rgb(var(--turn-glow) / 0.55); }
+  50% { box-shadow: inset 0 0 30px rgb(var(--turn-glow) / 0.34), inset 0 0 0 1px rgb(var(--turn-glow) / 0.8); }
+}
+.turn-active {
+  animation: turn-active-breathe 3.2s ease-in-out infinite;
+}
+.turn-active.hud-corp { --turn-glow: var(--corp-400); }
+.turn-active.hud-runner { --turn-glow: var(--runner-500); }
+.turn-active.hud-frame::before,
+.turn-active.hud-frame::after {
+  width: 36px;
+  height: 36px;
+  filter: drop-shadow(0 0 4px var(--hud));
+}
 @media (prefers-reduced-motion: reduce) {
+  .turn-active {
+    animation: none;
+    box-shadow: inset 0 0 24px rgb(var(--turn-glow) / 0.28), inset 0 0 0 1px rgb(var(--turn-glow) / 0.7);
+  }
   .run-target,
   .run-ice,
   .terminal-cursor {
