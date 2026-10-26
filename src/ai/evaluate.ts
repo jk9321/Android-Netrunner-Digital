@@ -87,18 +87,49 @@ export function corpCardValue(card: CardInstance): number {
   return corpKeepValue(card.cardCode);
 }
 
-function corpBoardValue(state: GameState): number {
+/** A Corp card the Runner can't see: installed, unrezzed and facedown. */
+const isHidden = (card: CardInstance) => !card.isRezzed && !card.faceUp;
+
+/**
+ * What the Runner can expect of a facedown installed Corp card, worked out
+ * from the cards it hasn't seen: the Corp's decklist minus everything
+ * public. It never looks at the card itself. `agenda` is the chance it's an
+ * agenda, `agendaCost` the typical advancement those agendas need, and
+ * `other` the average worth of the assets and upgrades it could be instead.
+ */
+export function hiddenCardOdds(state: GameState): { agenda: number; agendaCost: number; other: number } {
+  const corp = state.corp;
+  const installed = Object.values(corp.servers).flatMap(server => server.root.filter(isHidden));
+  const unseen = [...corp.hq, ...corp.rd, ...corp.archives.faceDown, ...installed]
+    .map(card => cardDef(card))
+    .filter(def => def.type_code === 'agenda' || def.type_code === 'asset' || def.type_code === 'upgrade');
+  const agendas = unseen.filter(def => def.type_code === 'agenda');
+  const others = unseen.filter(def => def.type_code !== 'agenda');
+  const mean = (values: number[], fallback: number) => (values.length > 0 ? values.reduce((a, b) => a + b, 0) / values.length : fallback);
+  return {
+    agenda: unseen.length > 0 ? agendas.length / unseen.length : 0,
+    agendaCost: Math.round(mean(agendas.map(def => def.advancement_cost ?? 3), 3)),
+    other: mean(others.map(def => corpKeepValue(def.code)), 1),
+  };
+}
+
+const agendaBoardValue = (counters: number, cost: number) => counters * 1.5 + (counters >= cost ? 6 : 0);
+
+/** The Corp's installed cards, as `viewer` can judge them: the Runner values facedown cards by the odds, not by what they are. */
+function corpBoardValue(state: GameState, viewer: SideCode): number {
   let value = 0;
+  let odds: ReturnType<typeof hiddenCardOdds> | undefined;
   for (const server of Object.values(state.corp.servers)) {
     for (const ice of server.ice) value += ice.isRezzed ? 1 + 0.6 * (cardDef(ice).cost ?? 0) : 1;
     for (const card of server.root) {
-      const def = cardDef(card);
-      if (def.type_code === 'agenda') {
-        const cost = def.advancement_cost ?? 0;
-        value += card.advancementCounters * 1.5 + (card.advancementCounters >= cost ? 6 : 0);
-      } else {
-        value += corpCardValue(card);
+      if (viewer === 'runner' && isHidden(card)) {
+        odds ??= hiddenCardOdds(state);
+        value += odds.agenda * agendaBoardValue(card.advancementCounters, odds.agendaCost) + (1 - odds.agenda) * odds.other;
+        continue;
       }
+      const def = cardDef(card);
+      if (def.type_code === 'agenda') value += agendaBoardValue(card.advancementCounters, def.advancement_cost ?? 0);
+      else value += corpCardValue(card);
     }
   }
   return value;
@@ -129,7 +160,7 @@ export function sideStrength(state: GameState, side: SideCode, viewer: SideCode 
       corp.clicks +
       handValue(corp.hq.length, corp.handSizeLimit) +
       8 * corp.score +
-      corpBoardValue(state) +
+      corpBoardValue(state, viewer) +
       (1.5 + threat) * state.runner.tags +
       // Dividends and Next Big Thing counters, AU Co. power counters
       1.5 * corp.scoreArea.reduce((n, a) => n + counters(a, 'agenda'), 0) +

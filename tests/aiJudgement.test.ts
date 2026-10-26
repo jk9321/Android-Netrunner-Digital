@@ -1,7 +1,8 @@
 import { describe, expect, it } from 'vitest';
-import { getCardDefinition } from '../src/core';
+import { cardDef, getCardDefinition } from '../src/core';
 import { runScore, serverValue, subroutineCost } from '../src/ai/runs';
 import { rezReserve } from '../src/ai/corpAI';
+import { evaluate } from '../src/ai/evaluate';
 import { installForTest, installIceForTest, installProgramForTest, newGame, startRunnerTurn } from './helpers';
 
 // Small fixed positions that check the AI's judgement directly, rather than through whole games
@@ -46,5 +47,21 @@ describe('AI judgement in fixed positions', () => {
     expect(rezReserve(state)).toBe(rez);
     state.corp.servers.remote1.ice[0].isRezzed = true;
     expect(rezReserve(state)).toBe(0);
+  });
+
+  it("judges the Corp's facedown cards by the odds, not by what they really are", () => {
+    const state = newGame();
+    const id = installForTest(state, 'agenda', 'remote1');
+    const agenda = state.corp.servers.remote1.root.find(c => c.instanceId === id)!;
+    agenda.advancementCounters = 2;
+    const asset = state.corp.rd.find(c => cardDef(c).type_code === 'asset')!;
+    // The same position with the remote card and an R&D asset swapped: the Runner can't tell them apart
+    const swapped = structuredClone(state);
+    const remote = swapped.corp.servers.remote1.root.find(c => c.instanceId === id)!;
+    const inRd = swapped.corp.rd.find(c => c.instanceId === asset.instanceId)!;
+    [remote.cardCode, inRd.cardCode] = [inRd.cardCode, remote.cardCode];
+    expect(evaluate(swapped, 'runner')).toBeCloseTo(evaluate(state, 'runner'));
+    // The Corp knows its own cards
+    expect(evaluate(swapped, 'corp')).not.toBeCloseTo(evaluate(state, 'corp'));
   });
 });
