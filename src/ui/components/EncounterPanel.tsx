@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useRef } from 'react';
 import {
   boostCostOf,
   GameAction,
@@ -25,6 +25,17 @@ interface EncounterPanelProps {
   readOnly?: boolean;
 }
 
+/** Every way to pick 1..max subroutines out of `count`, in the engine's order. */
+function subroutineSlots(count: number, max: number): number[][] {
+  const out: number[][] = [];
+  const pick = (start: number, size: number, acc: number[]) => {
+    if (acc.length === size) { out.push(acc); return; }
+    for (let i = start; i < count; i++) pick(i + 1, size, [...acc, i]);
+  };
+  for (let size = 1; size <= Math.min(max, count); size++) pick(0, size, []);
+  return out;
+}
+
 /**
  * Break window for the ice being encountered: shows each subroutine and offers
  * the BREAK / BOOST / BIOROID_BREAK actions the engine reports as legal.
@@ -32,7 +43,16 @@ interface EncounterPanelProps {
 export const EncounterPanel: React.FC<EncounterPanelProps> = ({ state, onAction, readOnly = false }) => {
   const encounter = state.activeRun?.encounter;
   const ice = encounteredIce(state);
+  // Rows that have offered break buttons during this encounter keep every
+  // button slot afterwards (greyed out once used), so nothing slides under the cursor.
+  const shown = useRef<{ key: string; rows: Set<string> }>({ key: '', rows: new Set() });
   if (!encounter || !ice) return null;
+  const encounterKey = `${state.turnNumber}:${ice.instanceId}:${state.activeRun?.icePassed ?? 0}`;
+  if (shown.current.key !== encounterKey) shown.current = { key: encounterKey, rows: new Set() };
+  const seen = (row: string, active: boolean) => {
+    if (active) shown.current.rows.add(row);
+    return shown.current.rows.has(row);
+  };
 
   const subs = iceScript(ice)?.subroutines ?? [];
   const legal = readOnly ? [] : getLegalActions(state, 'runner');
@@ -46,13 +66,21 @@ export const EncounterPanel: React.FC<EncounterPanelProps> = ({ state, onAction,
     const actions = legal.filter(
       a => (a.type === 'BREAK_SUBROUTINE' || a.type === 'BOOST_BREAKER') && a.breakerInstanceId === breaker.instanceId,
     );
-    return { breaker, script, actions };
+    const breakSlots =
+      !readOnly && script && seen(breaker.instanceId, actions.some(a => a.type === 'BREAK_SUBROUTINE'))
+        ? subroutineSlots(subs.length, script.breakMax)
+        : null;
+    return { breaker, script, actions, breakSlots };
   });
   const bioroidActions = legal.filter(a => a.type === 'BIOROID_BREAK');
+  const showBioroid = !readOnly && seen('bioroid', bioroidActions.length > 0);
   const abilityActions = legal.filter(a => a.type === 'USE_ABILITY');
 
   const btn =
     'px-2.5 py-1 rounded-lg text-[11px] font-mono font-bold border transition-colors disabled:opacity-40';
+  const usedBtn = `${btn} bg-slate-900 border-slate-700 text-slate-500 cursor-not-allowed`;
+  const isBroken = (indices: number[]) => indices.every(i => encounter.broken[i]);
+  const labelOf = (indices: number[]) => indices.map(i => i + 1).join('+');
 
   return (
     <div className="mt-3 border-t border-pink-900/50 pt-3 space-y-3" data-testid="encounter-panel">
@@ -80,11 +108,55 @@ export const EncounterPanel: React.FC<EncounterPanelProps> = ({ state, onAction,
 
       {breakerRows.length > 0 && (
         <div className="space-y-1.5">
-          {breakerRows.map(({ breaker, script, actions }) => (
+          {breakerRows.map(({ breaker, script, actions, breakSlots }) => (
             <div key={breaker.instanceId} className="flex flex-wrap items-center gap-1.5">
               <span className="text-[11px] font-mono text-slate-400 w-40 truncate">
                 {cardDef(breaker).title} (str {breakerStrength(state, breaker)})
               </span>
+              {breakSlots ? (
+                <>
+                  {(() => {
+                    const boost = actions.find(a => a.type === 'BOOST_BREAKER');
+                    return (
+                      <button
+                        onClick={() => boost && onAction(boost)}
+                        disabled={!boost}
+                        className={boost ? `${btn} bg-cyan-950 border-cyan-700 text-cyan-200 hover:bg-cyan-900` : usedBtn}
+                      >
+                        <TrendingUp className="inline w-3 h-3 mr-1" />
+                        Boost (<Credits amount={boostCostOf(state, breaker)} />)
+                      </button>
+                    );
+                  })()}
+                  {breakSlots.map(indices => {
+                    const key = labelOf(indices);
+                    const action = actions.find(
+                      a => a.type === 'BREAK_SUBROUTINE' && labelOf(a.subroutineIndices) === key,
+                    );
+                    if (action) {
+                      return (
+                        <button
+                          key={key}
+                          onClick={() => onAction(action)}
+                          className={`${btn} bg-pink-950 border-pink-700 text-pink-200 hover:bg-pink-900`}
+                          title={`Break with ${titleOf(breaker.instanceId)}`}
+                        >
+                          <Scissors className="inline w-3 h-3 mr-1" />
+                          Break {key} (<Credits amount={script?.breakCost(state, breaker) ?? 0} />)
+                        </button>
+                      );
+                    }
+                    const broken = isBroken(indices);
+                    return (
+                      <button key={key} disabled className={usedBtn} title={broken ? 'Already broken' : 'Not available'}>
+                        <Scissors className="inline w-3 h-3 mr-1" />
+                        {broken ? <span className="line-through">Broken {key}</span> : <>Break {key}</>}
+                      </button>
+                    );
+                  })}
+                </>
+              ) : (
+                <>
               {actions.length === 0 && <span className="text-[11px] font-mono text-slate-600">no legal use</span>}
               {actions.map((a, k) =>
                 a.type === 'BOOST_BREAKER' ? (
@@ -107,6 +179,8 @@ export const EncounterPanel: React.FC<EncounterPanelProps> = ({ state, onAction,
                     Break {a.subroutineIndices.map(i => i + 1).join('+')} (<Credits amount={script?.breakCost(state, breaker) ?? 0} />)
                   </button>
                 ) : null,
+              )}
+                </>
               )}
             </div>
           ))}
@@ -131,23 +205,33 @@ export const EncounterPanel: React.FC<EncounterPanelProps> = ({ state, onAction,
         </div>
       )}
 
-      {bioroidActions.length > 0 && (
+      {showBioroid && (
         <div className="flex flex-wrap items-center gap-1.5">
           <span className="text-[11px] font-mono text-slate-400 w-40">
             {iceScript(ice)?.runnerBreakCost ? <>Pay <Credits amount={iceScript(ice)!.runnerBreakCost!} /> per subroutine</> : 'Bioroid: spend a click'}
           </span>
-          {bioroidActions.map((a, k) =>
-            a.type === 'BIOROID_BREAK' ? (
-              <button
-                key={k}
-                onClick={() => onAction(a)}
-                className={`${btn} bg-amber-950 border-amber-700 text-amber-200 hover:bg-amber-900`}
-              >
+          {subs.map((_, i) => {
+            const action = bioroidActions.find(a => a.type === 'BIOROID_BREAK' && a.subroutineIndex === i);
+            if (action) {
+              return (
+                <button
+                  key={i}
+                  onClick={() => onAction(action)}
+                  className={`${btn} bg-amber-950 border-amber-700 text-amber-200 hover:bg-amber-900`}
+                >
+                  <Clock className="inline w-3 h-3 mr-1" />
+                  Break {i + 1}
+                </button>
+              );
+            }
+            const broken = encounter.broken[i];
+            return (
+              <button key={i} disabled className={usedBtn} title={broken ? 'Already broken' : 'Not available'}>
                 <Clock className="inline w-3 h-3 mr-1" />
-                Break {a.subroutineIndex + 1}
+                {broken ? <span className="line-through">Broken {i + 1}</span> : <>Break {i + 1}</>}
               </button>
-            ) : null,
-          )}
+            );
+          })}
         </div>
       )}
     </div>
