@@ -12,9 +12,15 @@ const savedPositions = new Map<string, Position>();
 /** Keep at least this much of the header on screen. */
 const MARGIN = 8;
 
-function clamp(pos: Position, width: number, height: number): Position {
+/**
+ * Keeps a position on screen. While dragging only the header has to stay in
+ * view (`whole` false), so the panel can be pushed mostly off screen; when it
+ * opens or is restored, the whole panel is moved into view (`whole` true) at
+ * the nearest spot, so its buttons are never hidden below the window.
+ */
+function clamp(pos: Position, width: number, height: number, whole = false): Position {
   const maxLeft = Math.max(MARGIN, window.innerWidth - width - MARGIN);
-  const maxTop = Math.max(MARGIN, window.innerHeight - Math.min(height, 48) - MARGIN);
+  const maxTop = Math.max(MARGIN, window.innerHeight - (whole ? height : Math.min(height, 48)) - MARGIN);
   return {
     left: Math.min(Math.max(pos.left, MARGIN), maxLeft),
     top: Math.min(Math.max(pos.top, MARGIN), maxTop),
@@ -79,21 +85,23 @@ export const FloatingPanel: React.FC<FloatingPanelProps> = ({
   };
   const drag = useRef<{ dx: number; dy: number; pointerId: number } | null>(null);
 
-  const reclamp = useCallback(() => {
+  const reclamp = useCallback((whole: boolean) => {
     const el = ref.current;
     if (!el) return;
     setPos(p => {
       if (!p) return p;
-      const next = clamp(p, el.offsetWidth, el.offsetHeight);
+      const next = clamp(p, el.offsetWidth, el.offsetHeight, whole);
       return next.left === p.left && next.top === p.top ? p : next;
     });
   }, []);
 
-  // A saved spot may be off screen if the window shrank since.
-  useLayoutEffect(reclamp, [reclamp, minimized]);
+  // Opening at a saved spot (or restoring from the bar) brings the whole panel
+  // into view near where it was left, even if it was dragged mostly off screen
+  useLayoutEffect(() => reclamp(!minimized), [reclamp, minimized]);
   useEffect(() => {
-    window.addEventListener('resize', reclamp);
-    return () => window.removeEventListener('resize', reclamp);
+    const onResize = () => reclamp(false);
+    window.addEventListener('resize', onResize);
+    return () => window.removeEventListener('resize', onResize);
   }, [reclamp]);
 
   const onPointerDown = (e: React.PointerEvent) => {
