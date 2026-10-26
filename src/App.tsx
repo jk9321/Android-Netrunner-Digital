@@ -153,10 +153,12 @@ function Game({
   const iceHostLabel = (card: CardInstance): string | undefined => {
     if (!card.hostedOnId) return undefined;
     const server = Object.values(corp.servers).find(s => s.ice.some(i => i.instanceId === card.hostedOnId));
-    const ice = server?.ice.find(i => i.instanceId === card.hostedOnId);
-    if (!server || !ice) return undefined;
+    const index = server ? server.ice.findIndex(i => i.instanceId === card.hostedOnId) : -1;
+    if (!server || index < 0) return undefined;
+    const ice = server.ice[index];
     const name = ice.isRezzed || canSeeCorpSecrets(viewer) ? cardDef(ice).title : 'unrezzed ice';
-    return `${server.name} · ${name}`;
+    // Several unrezzed ice in one server look alike, so say which one (ice 1 is innermost)
+    return `${server.name} ice ${index + 1} · ${name}`;
   };
 
   const rezAction = (card: CardInstance): GameAction => ({ type: 'REZ_CARD', player: 'corp', cardInstanceId: card.instanceId });

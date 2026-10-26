@@ -1,8 +1,11 @@
+import { useEffect } from 'react';
 import { ArrowRight, Biohazard, Layers, Plus, Tag, Trash2, Zap } from 'lucide-react';
 import { CardInstance, GameAction, GameState, SideCode, cardDef, findCardAnywhere, getCardScript, getLegalActions, isLegalAction } from '../../core';
 import { CreditIcon, Credits } from './CreditIcon';
 import { CorpInstallOptions } from './CorpInstallOptions';
 import { hostedCardActions, illegalReason } from '../legal';
+import { cardPositionLabel } from '../cardLabels';
+import { hoverPromptTarget } from '../promptHighlight';
 
 interface ActionBarProps {
   state: GameState;
@@ -26,6 +29,29 @@ function PlayButton({ side, state, selectedCard, onAction }: ActionBarProps & { 
       className="px-4 py-1.5 bg-amber-500 hover:bg-amber-400 text-black text-xs font-bold rounded-xl transition-all flex items-center gap-1.5 shadow-lg disabled:opacity-40 disabled:animate-none animate-pulse"
     >
       <Zap className="w-3.5 h-3.5" /> {implemented ? `Play ${cardDef(selectedCard).title}` : 'Effect not implemented yet'}
+    </button>
+  );
+}
+
+/**
+ * Install a trojan on one piece of ice. Unrezzed ice all looks alike, so the
+ * button names the ice's position and hovering it lights that ice up on the table.
+ */
+function InstallOnIceButton({ state, host, onClick }: { state: GameState; host: CardInstance; onClick: () => void }) {
+  const position = cardPositionLabel(state, host);
+  // The button goes away once the card is installed or deselected; don't leave its ice lit
+  useEffect(() => () => hoverPromptTarget(null), []);
+  return (
+    <button
+      onClick={() => {
+        hoverPromptTarget(null);
+        onClick();
+      }}
+      onMouseEnter={() => hoverPromptTarget({ id: host.instanceId, label: position })}
+      onMouseLeave={() => hoverPromptTarget(null)}
+      className="px-2 py-1 bg-cyber-neonPink hover:bg-pink-600 text-white text-xs font-bold rounded-lg transition-all flex items-center gap-1.5 shadow-lg"
+    >
+      <Plus className="w-3.5 h-3.5" /> Install on {host.isRezzed ? cardDef(host).title : 'unrezzed ice'} · {position}
     </button>
   );
 }
@@ -98,7 +124,7 @@ export function CorpActions(props: ActionBarProps) {
 /** The Runner's click actions, plays and installs for the selected card (or cards hosted on hardware), and End Turn. */
 export function RunnerActions(props: ActionBarProps) {
   const { state, selectedCard, onAction } = props;
-  const { runner, corp } = state;
+  const { runner } = state;
   const installable = selectedCard && !isPlayable(selectedCard) ? selectedCard : undefined;
   const onIce = installable && getCardScript(installable.cardCode)?.installsOnIce;
   // Why the selected grip card can't be installed now (shown on the disabled Install button), or null if it can
@@ -139,16 +165,7 @@ export function RunnerActions(props: ActionBarProps) {
           getLegalActions(state, 'runner').map(a => {
             if (a.type !== 'INSTALL_CARD' || a.cardInstanceId !== installable.instanceId || !a.hostInstanceId) return null;
             const host = findCardAnywhere(state, a.hostInstanceId);
-            const server = host && Object.values(corp.servers).find(s => s.ice.includes(host));
-            return (
-              <button
-                key={a.hostInstanceId}
-                onClick={() => onAction(a)}
-                className="px-2 py-1 bg-cyber-neonPink hover:bg-pink-600 text-white text-xs font-bold rounded-lg transition-all flex items-center gap-1.5 shadow-lg"
-              >
-                <Plus className="w-3.5 h-3.5" /> Install on {host?.isRezzed ? cardDef(host).title : 'unrezzed ice'} ({server?.name})
-              </button>
-            );
+            return host ? <InstallOnIceButton key={a.hostInstanceId} state={state} host={host} onClick={() => onAction(a)} /> : null;
           })}
         {installable && !onIce && (
           <button

@@ -273,7 +273,8 @@ const PromptTargetLabel: React.FC<{ anchor: HTMLElement | null; label: string | 
     <div
       data-testid="prompt-target-label"
       className="fixed z-[60] -translate-x-1/2 pointer-events-none whitespace-nowrap px-2 py-1 text-[11px] font-mono font-bold bg-black/90 border border-amber-300 text-amber-200 shadow-lg"
-      style={{ left: rect.left + rect.width / 2, top: above ? rect.top - 30 : rect.bottom + 6 }}
+      // Kept clear of the window's edges: board columns at the far left would cut it off
+      style={{ left: Math.min(Math.max(rect.left + rect.width / 2, 130), window.innerWidth - 130), top: above ? rect.top - 30 : rect.bottom + 6 }}
     >
       {label}
     </div>,
