@@ -9,7 +9,7 @@ import { findCardAnywhere, illegal, locateCorpCard, removeCard } from '../helper
 import { getCardScript } from '../../scripts';
 import { activePrompt, sideName } from '../prompts';
 import { beginCorpTurn, finishDiscard, resumeTurn } from './turn';
-import { continueAccess, finishAccess, trashAccessedCard } from './run';
+import { continueAccess, finishAccess, succeedRun, trashAccessedCard } from './run';
 import { availableCredits, spendCredits } from '../cardEffects';
 import { resumeEncounter, resumeOnEncounter } from '../ice';
 import { fireTrigger } from '../triggers';
@@ -22,7 +22,8 @@ export function resolvePrompt(state: GameState, action: ResolvePromptAction): vo
 
 /**
  * Once no decision is pending, picks up whatever run step was waiting:
- * resolving subroutines, or accessing the rest of the breach.
+ * resolving subroutines, the success of a run whose "when the Runner
+ * approaches this server" abilities asked something, or accessing the rest of the breach.
  */
 export function resumeRun(state: GameState): void {
   if (state.pendingPrompts.length > 0 || state.winner) return;
@@ -30,6 +31,7 @@ export function resumeRun(state: GameState): void {
   if (!run) return;
   if (run.encounter?.onEncounterPending) resumeOnEncounter(state);
   else if (run.encounter?.resolvingIndex != null) resumeEncounter(state);
+  else if (run.phase === 'approach_server' && run.serverApproached) succeedRun(state);
   else if (run.phase === 'access') continueAccess(state);
 }
 

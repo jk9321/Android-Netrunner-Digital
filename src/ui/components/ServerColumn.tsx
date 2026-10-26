@@ -74,7 +74,7 @@ const IceSlot: React.FC<{
 const ICE_PHASE_LABEL: Partial<Record<RunState['phase'], string>> = {
   approach_ice: 'Approaching',
   encounter_ice: 'Encountering',
-  pass_ice: 'Passing',
+  movement: 'Passed',
 };
 
 /**
@@ -107,7 +107,7 @@ export const ServerColumn: React.FC<ServerColumnProps> = ({
   const isRunTarget = run !== null;
   // The ice the Runner is at, and what they're doing there
   const runIceId =
-    run && (run.phase === 'approach_ice' || run.phase === 'encounter_ice' || run.phase === 'pass_ice')
+    run && (run.phase === 'approach_ice' || run.phase === 'encounter_ice' || run.phase === 'movement')
       ? (run.encounter?.iceId ?? (run.icePosition !== null ? server.ice[run.icePosition]?.instanceId : undefined))
       : undefined;
   const iceLabel = run ? ICE_PHASE_LABEL[run.phase] : undefined;

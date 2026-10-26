@@ -29,15 +29,27 @@ describe('who acts (pass and play)', () => {
     expect(corpRezWindow(state, 2)?.key).not.toBe(window?.key);
   });
 
-  it('has no rez window for rezzed ice or when the Corp cannot pay', () => {
-    let state = newGame();
+  it('has no rez window for rezzed ice', () => {
+    const state = newGame();
     installIceForTest(state, PALISADE, 'hq', true);
     expect(corpRezWindow(run(state, 'hq'), 1)).toBeNull();
+  });
 
-    state = newGame();
+  it('still opens the window when the Corp cannot pay, so its absence tells the Runner nothing', () => {
+    const state = newGame();
     installIceForTest(state, PALISADE, 'hq', false);
     state.corp.credits = 0;
-    expect(corpRezWindow(run(state, 'hq'), 1)).toBeNull();
+    const window = corpRezWindow(run(state, 'hq'), 1);
+    expect(window).not.toBeNull();
+    expect(window?.cards).toEqual([]);
+  });
+
+  it('opens a window before the Runner approaches a server holding only an agenda', () => {
+    const state = newGame();
+    installCorpForTest(state, '30067', 'remote-1'); // Offworld Office: can't be rezzed
+    const window = corpRezWindow(run(state, 'remote-1'), 1);
+    expect(window).not.toBeNull();
+    expect(window?.cards).toEqual([]);
   });
 
   it('offers unrezzed root cards when the Runner approaches the server', () => {

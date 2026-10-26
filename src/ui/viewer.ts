@@ -12,9 +12,14 @@ export const canActAs = (viewer: Viewer, side: SideCode) => viewer === 'both' ||
 
 /**
  * The Corp's chance to rez during a run: the approached ice, or the unrezzed
- * cards in the attacked server's root once the Runner approaches the server.
+ * cards in the attacked server's root before the Runner approaches the server.
  * The engine lets the Corp rez whenever it is legal; this names the moments
  * the UI stops to ask, so pass and play can hand the screen over.
+ *
+ * Whether a window opens depends only on what the Runner can see (an
+ * unrezzed card in that position), never on whether the Corp can rez it:
+ * otherwise a missing handoff or AI pause would tell the Runner the card is
+ * an agenda, or more than the Corp can afford (rules 4.6.3).
  */
 export interface RezWindow {
   /** Identifies this window so a "no rez" answer is remembered. */
@@ -32,20 +37,21 @@ export function corpRezWindow(state: GameState, runSerial: number): RezWindow | 
   const rezzable = (c: CardInstance) =>
     !c.isRezzed && isLegalAction(state, { type: 'REZ_CARD', player: 'corp', cardInstanceId: c.instanceId });
 
-  let cards: CardInstance[] = [];
+  let unrezzed: CardInstance[] = [];
   if (run.phase === 'approach_ice' && run.icePosition !== null) {
     const ice = server.ice[run.icePosition];
-    if (ice && rezzable(ice)) cards = [ice];
-  } else if (run.phase === 'approach_server') {
-    cards = server.root.filter(rezzable);
+    if (ice && !ice.isRezzed) unrezzed = [ice];
+  } else if (run.phase === 'approach_server' && !run.serverApproached) {
+    unrezzed = server.root.filter(c => !c.isRezzed);
   }
-  // Abilities alone open a window only as the Runner reaches the server, so
+  const cards = unrezzed.filter(rezzable);
+  // Abilities alone open a window only before the Runner approaches the server, so
   // pass and play doesn't hand the screen over at every piece of ice
   const abilities =
-    cards.length > 0 || run.phase === 'approach_server'
+    unrezzed.length > 0 || (run.phase === 'approach_server' && !run.serverApproached)
       ? getLegalActions(state, 'corp').filter((a): a is RezWindow['abilities'][number] => a.type === 'USE_ABILITY')
       : [];
-  if (cards.length === 0 && abilities.length === 0) return null;
+  if (unrezzed.length === 0 && abilities.length === 0) return null;
   // The server is part of the key: Proprionegation moves the Runner to another server mid-run
   return { key: `${state.turnNumber}|${runSerial}|${run.server}|${run.phase}|${run.icePosition}`, cards, abilities };
 }

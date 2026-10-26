@@ -204,7 +204,7 @@ export const GLOSSARY: Record<string, GlossaryEntry> = {
   },
   'jack-out': {
     term: 'Jack out',
-    text: 'The Runner gives up the run. It ends unsuccessful. Allowed when approaching ice, not while encountering it.',
+    text: 'The Runner gives up the run. It ends unsuccessful. Allowed only right after passing a piece of ice (or before approaching a server with no ice), before the Corp gets to rez the next card.',
     match: ['jack out'],
   },
   breach: {

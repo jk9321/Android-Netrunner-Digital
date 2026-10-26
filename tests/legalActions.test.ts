@@ -33,7 +33,9 @@ describe('Legal actions', () => {
     let state = newGame(3);
     startRunnerTurn(state);
     state = executeAction(state, { type: 'INITIATE_RUN', player: 'runner', targetServerId: 'rd' });
-    // No ice passed yet, so the Runner cannot jack out
+    // R&D has no ice: the run starts in the Movement Phase, where the Runner may jack out (rules 6.1.5b)
+    expect(getLegalActions(state, 'runner').map(a => a.type).sort()).toEqual(['CONTINUE_RUN', 'JACK_OUT']);
+    state = executeAction(state, { type: 'CONTINUE_RUN', player: 'runner' });
     expect(getLegalActions(state, 'runner').map(a => a.type).sort()).toEqual(['CONTINUE_RUN']);
     expect(getLegalActions(state, 'corp')).toEqual([]);
   });

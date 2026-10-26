@@ -150,6 +150,18 @@ export function useGameController(config: GameConfig, saved: SavedGame | null) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [gameState]);
 
+  // During a run the person's Runner stops only where they have a choice: approaching ice or
+  // the server once the Corp's rez window has closed is skipped when Continue is the only move.
+  // (Not on an open table, where the Corp rezzes from the run panel without a window.)
+  useEffect(() => {
+    const run = gameState.activeRun;
+    if (!run || !rezWindowsOn || !runnerCanAct || rezWindowOpen || gameState.winner || gameState.pendingPrompts.length > 0) return;
+    if (run.phase !== 'approach_ice' && run.phase !== 'approach_server') return;
+    const legal = getLegalActions(gameState, 'runner');
+    if (legal.length === 1 && legal[0].type === 'CONTINUE_RUN') handleAction(legal[0]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [gameState, rezWindowOpen]);
+
   const passRezWindow = (key: string) => setPassedRezWindows(keys => [...keys, key]);
 
   // The computer thinks in a background worker, then moves after a short pause so its moves can be followed

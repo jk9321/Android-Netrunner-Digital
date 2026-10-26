@@ -65,7 +65,10 @@ describe('Netrunner Rules Engine', () => {
     expect(state.activeRun?.server).toBe('hq');
     expect(state.runner.clicks).toBe(3);
 
-    // HQ has no ice, so approach server -> access
+    // HQ has no ice: the Runner may jack out, then goes on to approach the server and access
+    expect(state.activeRun?.phase).toBe('movement');
+    state = executeAction(state, { type: 'CONTINUE_RUN', player: 'runner' });
+    expect(state.activeRun?.phase).toBe('approach_server');
     state = executeAction(state, { type: 'CONTINUE_RUN', player: 'runner' });
     expect(state.activeRun).toBeNull(); // Run completed
     expect(state.phase).toBe('runner_turn');

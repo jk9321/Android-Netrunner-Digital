@@ -4,7 +4,7 @@ import { GameState, RunPhase } from '../../core/types/state';
 const RUN_STEPS: { label: string; phases: RunPhase[] }[] = [
   { label: 'Approach', phases: ['initiation', 'approach_ice'] },
   { label: 'Encounter', phases: ['encounter_ice'] },
-  { label: 'Pass', phases: ['pass_ice'] },
+  { label: 'Pass', phases: ['movement'] },
   { label: 'Server', phases: ['approach_server'] },
   { label: 'Breach', phases: ['access', 'complete'] },
 ];

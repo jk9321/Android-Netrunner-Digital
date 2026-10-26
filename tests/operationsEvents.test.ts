@@ -206,6 +206,7 @@ describe('Runner events', () => {
       let state = runnerTurn(20);
       state = executeAction(state, { type: 'INITIATE_RUN', player: 'runner', targetServerId: 'archives' });
       state = executeAction(state, { type: 'CONTINUE_RUN', player: 'runner' });
+      state = executeAction(state, { type: 'CONTINUE_RUN', player: 'runner' });
       state = play(state, 'runner', giveCard(state, 'runner', MUTUAL_FAVOR));
       const breaker = breakersIn(state)[0];
       state = answer(state, { kind: 'effect_cards', cardInstanceIds: [breaker] });

@@ -4,6 +4,8 @@ import { breakerStrength, iceStrength } from '../src/core/engine/ice';
 import {
   answer,
   cont,
+  keepGoing,
+  step,
   giveCard,
   installForTest,
   installIceForTest,
@@ -63,7 +65,7 @@ describe('Encounters', () => {
     startRunnerTurn(s);
     s = executeAction(s, { type: 'INITIATE_RUN', player: 'runner', targetServerId: 'archives' });
     expect(() => executeAction(s, { type: 'JACK_OUT', player: 'runner' })).toThrow(/after passing/);
-    s = cont(s); // pass unrezzed ice
+    s = step(s); // pass unrezzed ice: the Movement Phase
     s = executeAction(s, { type: 'JACK_OUT', player: 'runner' });
     expect(s.activeRun).toBeNull();
   });
@@ -172,7 +174,7 @@ describe('Breaking subroutines', () => {
     startRunnerTurn(s);
     s.runner.credits = 20;
     s = executeAction(s, { type: 'INITIATE_RUN', player: 'runner', targetServerId: 'archives' });
-    s = cont(s); // successful run on empty Archives
+    s = cont(keepGoing(s)); // successful run on empty Archives
     s = executeAction(s, { type: 'INITIATE_RUN', player: 'runner', targetServerId: 'hq' });
     s = cont(s);
     s = executeAction(s, boost(marjanah)); // 1 -> 2 strength
@@ -229,6 +231,9 @@ describe('Bioroid ice', () => {
     s = answer(s, { kind: 'effect_cards', cardInstanceIds: [tithe] });
     expect(s.corp.servers.hq.ice.map(c => c.cardCode)).toEqual([ICE.tithe, ICE.bran]);
     expect(s.corp.credits).toBe(5); // ignoring all costs
+    // Brân's other subroutines were broken: the Runner passes Brân, then approaches the new ice inward
+    expect(s.activeRun?.phase).toBe('movement');
+    s = step(s);
     expect(s.activeRun?.phase).toBe('approach_ice');
     expect(s.activeRun?.icePosition).toBe(0);
   });
@@ -274,7 +279,7 @@ describe('Subroutine effects', () => {
     expect(s.pendingPrompts[0]).toMatchObject({ kind: 'effect_choice', side: 'runner' });
     const stayed = answer(s, { kind: 'effect_choice', optionId: 'stay' });
     expect(stayed.runner.heap).toHaveLength(4);
-    expect(stayed.activeRun?.phase).toBe('approach_server');
+    expect(stayed.activeRun?.phase).toBe('movement');
     const jacked = answer(s, { kind: 'effect_choice', optionId: 'jack' });
     expect(jacked.runner.heap).toHaveLength(2);
     expect(jacked.activeRun).toBeNull();
@@ -309,7 +314,7 @@ describe('Subroutine effects', () => {
     s = answer(s, { kind: 'effect_choice', optionId: 'pay' });
     expect(s.runner.credits).toBe(1);
     expect(s.runner.tags).toBe(1);
-    expect(s.activeRun?.phase).toBe('approach_server');
+    expect(s.activeRun?.phase).toBe('movement');
   });
 
   it('Ping gives a tag when rezzed during a run on its server', () => {
@@ -330,7 +335,7 @@ describe('Subroutine effects', () => {
     s = answer(s, { kind: 'effect_choice', optionId: cleaver });
     expect(s.runner.rig.programs).toHaveLength(0);
     expect(s.runner.memoryUnitsUsed).toBe(0);
-    expect(s.activeRun?.phase).toBe('approach_server');
+    expect(s.activeRun?.phase).toBe('movement');
 
     let empty = newGame();
     installIceForTest(empty, ICE.ballista, 'hq');

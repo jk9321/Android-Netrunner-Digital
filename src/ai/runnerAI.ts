@@ -55,9 +55,9 @@ export class HeuristicRunnerAI implements Agent {
 
     if (run.phase === 'encounter_ice') return this.encounterAction(state, legal) ?? find('CONTINUE_RUN');
 
-    if (run.phase === 'approach_ice' && run.icePosition !== null && server) {
-      // Jack out if the rezzed ice from here inward is more than we can pay for.
-      const remaining = server.ice.slice(0, run.icePosition + 1).filter(c => c.isRezzed);
+    if (run.phase === 'movement' && run.icePosition !== null && server) {
+      // Jack out (only possible after passing ice) if the rezzed ice further in is more than we can pay for.
+      const remaining = server.ice.slice(0, run.icePosition).filter(c => c.isRezzed);
       const cost = remaining.reduce((sum, ice) => sum + iceCost(state, ice), 0);
       if (cost > availableCredits(state, 'runner') + 0.5 && find('JACK_OUT')) return find('JACK_OUT');
     }

@@ -6,6 +6,7 @@ import {
   cont,
   giveCard,
   installCorpForTest,
+  keepGoing,
   installIceForTest,
   newGame,
   passTurn,
@@ -33,7 +34,7 @@ const C = {
 
 const card = (s: GameState, id: string) => findCardAnywhere(s, id)!;
 const tokens = (s: GameState, id: string, t: string) => card(s, id).tokens[t] ?? 0;
-const choose = (s: GameState, optionId: string) => answer(s, { kind: 'effect_choice', optionId });
+const choose = (s: GameState, optionId: string) => keepGoing(answer(s, { kind: 'effect_choice', optionId }));
 const pick = (s: GameState, ids: string[]) => answer(s, { kind: 'effect_cards', cardInstanceIds: ids });
 const declineAccess = (s: GameState) => answer(s, { kind: 'access_trash', trash: false });
 /** Number of cards accessed so far in the game (from the log). */
@@ -475,22 +476,34 @@ describe('Upgrades', () => {
     let s = newGame();
     installCorpForTest(s, C.manegarm, 'remote-1', true);
     s = run(s, 'remote-1');
+    expect(s.pendingPrompts).toHaveLength(0); // the Corp's rez window comes before the approach
+    s = cont(s);
     const p = s.pendingPrompts[0];
     expect(p.kind === 'effect_choice' && p.options.map(o => o.id)).toEqual(['clicks', 'pay', 'end']);
     s = choose(s, 'end');
     expect(s.activeRun).toBeNull();
     s.runner.clicks = 1;
     s.runner.credits = 5;
-    s = run(s, 'remote-1');
+    s = cont(run(s, 'remote-1'));
     s = choose(s, 'pay');
     expect(s.runner.credits).toBe(0);
+    expect(s.runsThisTurn[s.runsThisTurn.length - 1].successful).toBe(true); // the run went on to the server
+  });
+
+  it('Manegarm Skunkworks rezzed during the run, before the approach, still triggers (rules 6.9.4e)', () => {
+    let s = newGame();
+    const id = installCorpForTest(s, C.manegarm, 'remote-1');
+    s = run(s, 'remote-1');
     expect(s.activeRun?.phase).toBe('approach_server');
+    s = rezForTest(s, id);
+    s = cont(s);
+    expect(s.pendingPrompts[0]?.kind).toBe('effect_choice');
   });
 
   it('Anoetic Void lets the Corp pay 2 and trash 2 from HQ to end the run', () => {
     let s = newGame();
     installCorpForTest(s, C.anoetic, 'remote-1', true);
-    s = run(s, 'remote-1');
+    s = cont(run(s, 'remote-1'));
     s = choose(s, 'yes');
     s = pick(s, s.corp.hq.slice(0, 2).map(c => c.instanceId));
     expect(s.activeRun).toBeNull();

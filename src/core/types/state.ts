@@ -58,11 +58,17 @@ export interface RunnerState {
   rig: RunnerRig;
 }
 
+/**
+ * Where a run is (rules 6.9). 'movement' is the Movement Phase after passing
+ * ice (or right after initiation when the server has no ice): the Runner may
+ * jack out there, and only there. 'approach_server' is the moment before the
+ * Runner approaches the server, when the Corp may still rez cards in its root.
+ */
 export type RunPhase =
   | 'initiation'
   | 'approach_ice'
   | 'encounter_ice'
-  | 'pass_ice'
+  | 'movement'
   | 'approach_server'
   | 'access'
   | 'complete';
@@ -137,6 +143,8 @@ export interface RunState {
   runBoosts: Record<string, number>;
   /** Not a run: the Runner is only accessing cards (Detente). No run abilities apply. */
   accessOnly: boolean;
+  /** The Runner has approached the attacked server (rules 6.9.4g); the run becomes successful next. */
+  serverApproached?: boolean;
 }
 
 /** The end of a turn or the Corp's draw, paused while players answer prompts (see engine/actions/turn.ts). */

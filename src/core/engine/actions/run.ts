@@ -7,7 +7,7 @@ import { nextInt } from '../../rng';
 import { addLog } from '../log';
 import { checkAgendaVictory, findCardAnywhere, illegal, locateCorpCard, removeCard, requireActionPhase, requireClicks } from '../helpers';
 import { pushPrompt } from '../prompts';
-import { approachIce, approachServer, beginEncounter, passIce, startSubroutineResolution } from '../ice';
+import { approachIce, approachServer, beginEncounter, enterMovement, moveInward, passIce, startSubroutineResolution } from '../ice';
 import { endRun } from '../runEnd';
 import { activeCards, fireTrigger } from '../triggers';
 import { AccessZone } from '../../scripts/types';
@@ -65,6 +65,7 @@ function newRunState(serverId: string, options: RunOptions): RunState {
     eventCode: options.eventCode ?? null,
     runBoosts: {},
     accessOnly: false,
+    serverApproached: false,
   };
 }
 
@@ -81,8 +82,9 @@ export function startRun(state: GameState, serverId: string, options: RunOptions
   state.phase = 'run';
   fireTrigger(state, { type: 'run_begins', server: targetServer.id });
   if (!state.activeRun) return;
+  // With no ice the run goes straight to the Movement Phase, where the Runner may still jack out (rules 6.1.5b)
   if (iceCount > 0) approachIce(state, iceCount - 1);
-  else approachServer(state);
+  else enterMovement(state);
 }
 
 export function continueRun(state: GameState, action: ContinueRunAction): void {
@@ -104,34 +106,50 @@ export function continueRun(state: GameState, action: ContinueRunAction): void {
     // Done breaking: unbroken subroutines resolve, then the ice is passed.
     if (run.encounter?.resolvingIndex != null) illegal('Subroutines are already resolving');
     startSubroutineResolution(state);
+  } else if (run.phase === 'movement') {
+    moveInward(state);
   } else if (run.phase === 'approach_server') {
-    run.phase = 'access';
-    run.isSuccessful = true;
-    state.runsThisTurn[state.runsThisTurn.length - 1].successful = true;
-    addLog(state, 'runner', `Run successful on ${server.name}! Accessing cards.`);
-    fireTrigger(state, { type: 'successful_run', server: server.id });
-    for (const source of run.runEffects) {
-      const card = findCardAnywhere(state, source.instanceId);
-      if (card) getCardScript(source.cardCode)?.onRunSuccessful?.({ state, card, side: 'runner' });
+    if (!run.serverApproached) {
+      // The Corp's last chance to rez was before this; now the Runner approaches the server
+      approachServer(state);
+      if (state.pendingPrompts.length > 0 || state.winner || state.activeRun !== run) return;
     }
-    if (state.winner || !state.activeRun) return;
-    // "Whenever you breach" abilities (Devadatta Drone) resolve before cards are chosen
-    fireTrigger(state, { type: 'breach_server', server: server.id });
-    if (state.winner || !state.activeRun) return;
-    continueAccess(state);
+    succeedRun(state);
   }
 }
 
+/** The Success Phase: the run is declared successful and the Runner breaches the server (rules 6.9.5). */
+export function succeedRun(state: GameState): void {
+  const run = state.activeRun;
+  if (!run || run.phase !== 'approach_server') return;
+  const server = state.corp.servers[run.server];
+  run.phase = 'access';
+  run.isSuccessful = true;
+  state.runsThisTurn[state.runsThisTurn.length - 1].successful = true;
+  addLog(state, 'runner', `Run successful on ${server.name}! Accessing cards.`);
+  fireTrigger(state, { type: 'successful_run', server: server.id });
+  for (const source of run.runEffects) {
+    const card = findCardAnywhere(state, source.instanceId);
+    if (card) getCardScript(source.cardCode)?.onRunSuccessful?.({ state, card, side: 'runner' });
+  }
+  if (state.winner || !state.activeRun) return;
+  // "Whenever you breach" abilities (Devadatta Drone) resolve before cards are chosen
+  fireTrigger(state, { type: 'breach_server', server: server.id });
+  if (state.winner || !state.activeRun) return;
+  continueAccess(state);
+}
+
 /**
- * The Runner may jack out during the movement phase, i.e. after passing at
- * least one piece of ice and before encountering the next one or breaching.
+ * The Runner may jack out only in the Movement Phase: after passing a piece
+ * of ice, or before approaching a server with no ice, and before the Corp's
+ * next chance to rez (rules 6.1.5, 6.9.4c).
  */
 export function jackOut(state: GameState, action: JackOutAction): void {
   if (action.player !== 'runner') illegal('Only the Runner can jack out');
   const run = state.activeRun;
   if (!run) illegal('No active run');
-  if (!['approach_ice', 'approach_server'].includes(run.phase) || run.icePassed === 0) {
-    illegal('You can only jack out after passing a piece of ice');
+  if (run.phase !== 'movement') {
+    illegal('You can only jack out after passing a piece of ice, or before approaching a server with no ice');
   }
   addLog(state, 'runner', 'Runner jacked out. Run ended unsuccessfully.');
   endRun(state);

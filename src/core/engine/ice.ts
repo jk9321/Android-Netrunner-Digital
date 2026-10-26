@@ -165,17 +165,43 @@ function continueSubroutines(state: GameState): void {
   passIce(state);
 }
 
-/** Finishes the encounter and moves inward to the next ice or the server. */
+/**
+ * Finishes the encounter (or the approach of unrezzed ice): the Runner passes
+ * the ice and the run moves to the Movement Phase, where they may jack out
+ * before going on (rules 6.9.4a-c).
+ */
 export function passIce(state: GameState): void {
   const run = state.activeRun;
   if (!run) return;
   run.encounter = null;
   run.icePassed += 1;
-  if (run.icePosition! > 0) {
-    approachIce(state, run.icePosition! - 1);
-  } else {
-    approachServer(state);
+  enterMovement(state);
+}
+
+/** The Movement Phase: the Runner chooses to jack out or go on (CONTINUE_RUN). */
+export function enterMovement(state: GameState): void {
+  const run = state.activeRun;
+  if (!run) return;
+  run.encounter = null;
+  run.phase = 'movement';
+}
+
+/**
+ * The Runner declined to jack out: they move to the next position inward and
+ * approach that ice, or, past the innermost ice, get ready to approach the
+ * server. The Corp may rez cards before that approach (rules 6.9.4d-f).
+ */
+export function moveInward(state: GameState): void {
+  const run = state.activeRun;
+  if (!run) return;
+  const next = run.icePosition === null ? -1 : run.icePosition - 1;
+  if (next >= 0 && state.corp.servers[run.server].ice[next]) {
+    approachIce(state, next);
+    return;
   }
+  run.phase = 'approach_server';
+  run.icePosition = null;
+  run.serverApproached = false;
 }
 
 /** The Runner approaches the ice at this position of the attacked server ("whenever the Runner approaches"). */
@@ -202,12 +228,16 @@ export function moveRunnerTo(state: GameState, serverId: string): void {
   addLog(state, 'corp', `The Runner moved to the outermost position of ${state.corp.servers[serverId].name}.`);
   if (ice.length > 0) approachIce(state, ice.length - 1);
   else {
-    run.encounter = null;
-    approachServer(state);
+    // No ice: the Runner has no position and the run goes to the Movement Phase (rules 6.2.8b)
+    run.icePosition = null;
+    enterMovement(state);
   }
 }
 
-/** The Runner approaches the attacked server ("whenever the Runner approaches this server"). */
+/**
+ * The Runner approaches the attacked server ("whenever the Runner approaches
+ * this server"). The run becomes successful once these abilities resolve.
+ */
 export function approachServer(state: GameState): void {
   const run = state.activeRun!;
   if (run.redirectToHq && run.server === 'archives') {
@@ -220,6 +250,7 @@ export function approachServer(state: GameState): void {
   }
   run.phase = 'approach_server';
   run.icePosition = null;
+  run.serverApproached = true;
   fireTrigger(state, { type: 'approach_server', server: run.server });
 }
 

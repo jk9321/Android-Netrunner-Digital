@@ -76,7 +76,7 @@ export function giveCard(state: GameState, side: 'corp' | 'runner', code: string
 
 /** Plays a card from hand (test shorthand). */
 export function play(state: GameState, side: 'corp' | 'runner', cardInstanceId: string): GameState {
-  return executeAction(state, { type: 'PLAY_OPERATION_OR_EVENT', player: side, cardInstanceId });
+  return keepGoing(executeAction(state, { type: 'PLAY_OPERATION_OR_EVENT', player: side, cardInstanceId }));
 }
 
 /** Installs a specific ice (by code) as the outermost ice on a server, rezzed by default (test setup only). */
@@ -103,10 +103,18 @@ export function installProgramForTest(state: GameState, code: string): string {
 export function runIntoFirstIce(state: GameState, serverId: string): GameState {
   startRunnerTurn(state);
   const s = executeAction(state, { type: 'INITIATE_RUN', player: 'runner', targetServerId: serverId });
-  return executeAction(s, { type: 'CONTINUE_RUN', player: 'runner' });
+  return cont(s);
 }
 
-export const cont = (state: GameState) => executeAction(state, { type: 'CONTINUE_RUN', player: 'runner' });
+/** One CONTINUE_RUN, stopping in the Movement Phase (where the Runner may jack out). */
+export const step = (state: GameState) => executeAction(state, { type: 'CONTINUE_RUN', player: 'runner' });
+
+/** Keeps going through the Movement Phase, where the Runner declines to jack out. */
+export const keepGoing = (state: GameState): GameState =>
+  state.activeRun?.phase === 'movement' && state.pendingPrompts.length === 0 ? step(state) : state;
+
+/** Continues the run, and declines to jack out when that lands in the Movement Phase. */
+export const cont = (state: GameState) => keepGoing(step(state));
 
 /** Gives the Runner a card and installs it with the install action (on the Runner's turn, with spare credits). */
 export function runnerInstall(state: GameState, code: string, hostInstanceId?: string): [GameState, string] {
@@ -159,14 +167,14 @@ export function setIdentity(state: GameState, side: 'corp' | 'runner', code: str
 
 /** Uses an ability by index on a card (test shorthand). */
 export function useAbility(state: GameState, side: 'corp' | 'runner', cardInstanceId: string, abilityIndex = 0): GameState {
-  return executeAction(state, { type: 'USE_ABILITY', player: side, cardInstanceId, abilityIndex });
+  return keepGoing(executeAction(state, { type: 'USE_ABILITY', player: side, cardInstanceId, abilityIndex }));
 }
 
 /** Starts a run with the basic action on the Runner's turn. */
 export function run(state: GameState, serverId: string): GameState {
   if (state.activePlayer !== 'runner') startRunnerTurn(state);
   if (state.runner.clicks < 1) state.runner.clicks = 1;
-  return executeAction(state, { type: 'INITIATE_RUN', player: 'runner', targetServerId: serverId });
+  return keepGoing(executeAction(state, { type: 'INITIATE_RUN', player: 'runner', targetServerId: serverId }));
 }
 
 /** Ends the current turn, spending leftover clicks and declining any discard (test shorthand). */

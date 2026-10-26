@@ -44,6 +44,7 @@ describe('Deterministic games', () => {
       { type: 'END_TURN', player: 'corp' },
 
       { type: 'INITIATE_RUN', player: 'runner', targetServerId: 'archives' },
+      { type: 'CONTINUE_RUN', player: 'runner' }, // no ice: decline to jack out
       { type: 'CONTINUE_RUN', player: 'runner' },
       { type: 'GAIN_CREDIT', player: 'runner' },
       { type: 'GAIN_CREDIT', player: 'runner' },

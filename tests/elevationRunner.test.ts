@@ -6,6 +6,7 @@ import {
   cont,
   giveCard,
   installCorpForTest,
+  keepGoing,
   installIceForTest,
   installProgramForTest,
   newGame,
@@ -35,8 +36,8 @@ const SG = {
 
 const card = (s: GameState, id: string) => findCardAnywhere(s, id)!;
 const tokens = (s: GameState, id: string, t: string) => card(s, id).tokens[t] ?? 0;
-const choose = (s: GameState, optionId: string) => answer(s, { kind: 'effect_choice', optionId });
-const pick = (s: GameState, ids: string[]) => answer(s, { kind: 'effect_cards', cardInstanceIds: ids });
+const choose = (s: GameState, optionId: string) => keepGoing(answer(s, { kind: 'effect_choice', optionId }));
+const pick = (s: GameState, ids: string[]) => keepGoing(answer(s, { kind: 'effect_cards', cardInstanceIds: ids }));
 const declineAccess = (s: GameState) => answer(s, { kind: 'access_trash', trash: false });
 const prompt = (s: GameState) => s.pendingPrompts[0];
 /** Moves every HQ card to R&D so breaches of HQ are predictable. */
@@ -257,9 +258,8 @@ describe('Elevation Runner events', () => {
     [s] = playRunner(s, E.maintenance, 2);
     expect(s.activeRun?.server).toBe('archives');
     s = cont(s); // pass the unrezzed ice
-    expect(s.activeRun?.server).toBe('hq');
     expect(s.activeRun?.phase).toBe('approach_server');
-    s = cont(s);
+    s = cont(s); // "when you would approach Archives": the attacked server becomes HQ
     expect(s.runsThisTurn[0]).toEqual({ server: 'hq', successful: true });
   });
 

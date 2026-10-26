@@ -12,7 +12,7 @@ import { Keyword } from './Keyword';
 
 /** The glossary entry that explains each run phase. */
 const PHASE_KEYWORD: Record<string, string> = {
-  approach_ice: 'approach', encounter_ice: 'encounter', approach_server: 'approach', access: 'breach',
+  approach_ice: 'approach', encounter_ice: 'encounter', movement: 'jack-out', approach_server: 'approach', access: 'breach',
 };
 
 interface RunOverlayProps {
@@ -62,7 +62,9 @@ export const RunOverlay: React.FC<RunOverlayProps> = ({
         : 'Pass Ice'
       : activeRun.phase === 'approach_ice' && currentIce && !currentIce.isRezzed
         ? 'Pass Unrezzed Ice'
-        : 'Continue Run';
+        : activeRun.phase === 'movement'
+          ? 'Keep Going'
+          : 'Continue Run';
 
   return (
     <FloatingPanel
@@ -119,6 +121,8 @@ export const RunOverlay: React.FC<RunOverlayProps> = ({
                         {cardDef(currentIce).text}
                       </div>
                     </>
+                  ) : activeRun.phase === 'movement' ? (
+                    'Passed. Jack out now, or keep going inward.'
                   ) : (
                     'Ice is unrezzed. Corporation has a rez window before the Runner encounters subroutines.'
                   )}
@@ -128,7 +132,11 @@ export const RunOverlay: React.FC<RunOverlayProps> = ({
           ) : (
             <div className="flex items-center gap-3 text-sm font-mono text-emerald-400 bg-emerald-950/40 border border-emerald-800 p-4 rounded-2xl flex-1">
               <CheckCircle2 className="w-6 h-6 text-emerald-400 shrink-0" />
-              <span>Breached Ice defense! Approaching server root to access files.</span>
+              <span>
+                {activeRun.phase === 'movement'
+                  ? 'No ice left between you and the server. Jack out now, or go on to the server.'
+                  : 'Breached Ice defense! Approaching server root to access files.'}
+              </span>
             </div>
           )}
 
@@ -183,7 +191,7 @@ export const RunOverlay: React.FC<RunOverlayProps> = ({
             <button
               onClick={onJackOut}
               disabled={!canJackOut}
-              title={canJackOut ? 'End the run now' : 'You can jack out only while approaching, after passing at least one ice'}
+              title={canJackOut ? 'End the run now' : 'You can jack out only after passing a piece of ice (or before approaching a server with no ice)'}
               className="px-5 py-2 bg-slate-800 hover:bg-slate-700 text-slate-200 font-mono text-xs font-semibold rounded-xl border border-slate-700 flex items-center justify-center gap-1.5 transition-colors disabled:opacity-40 disabled:hover:bg-slate-800"
             >
               <LogOut className="w-4 h-4" /> Jack Out
