@@ -30,6 +30,8 @@ export interface HeuristicOptions {
  */
 export class HeuristicCorpAI implements Agent {
   readonly side = 'corp' as const;
+  /** Has this Corp made its once-a-game reverse bluff? */
+  private reverseBluffed = false;
   private freeActions = new FreeActionGuard(['END_TURN']);
   readonly synergy: boolean;
   private debug: boolean;
@@ -53,6 +55,11 @@ export class HeuristicCorpAI implements Agent {
     const legal = getLegalActions(state, 'corp');
     const ranked = this.rankMainActions(state, legal);
     const chosen = ranked[0]?.score > -Infinity ? ranked[0].action : legal.find(a => a.type === 'END_TURN') ?? legal[0];
+    // The reverse bluff: at most once a game
+    if (chosen.type === 'INSTALL_CARD' && chosen.asNewRemote && state.corp.hq.some(c => c.instanceId === chosen.cardInstanceId && type(c) === 'agenda')) {
+      const def = cardDef(state.corp.hq.find(c => c.instanceId === chosen.cardInstanceId)!);
+      if ((def.advancement_cost ?? 0) > state.corp.clicks - 1) this.reverseBluffed = true;
+    }
     this.notePlayed(chosen);
     if (this.debug) logNudge(state, 'corp', chosen);
     return chosen;
@@ -258,8 +265,9 @@ export class HeuristicCorpAI implements Agent {
       if (this.timing) {
         // Deck-aware AI: only if the rest of this turn leaves it scoreable next turn, behind ice we can still rez
         const spend = Math.min(corp.clicks, corp.credits) + this.untaianAdvance(state, 0);
-        if (need - spend > 3 || guards(state, server, corp.credits - spend) === 0 || !this.exposureOk(state, server, corp.credits - spend)) return -Infinity;
-        return 6 + card.advancementCounters; // and then finish the job: a half-advanced agenda is the Runner's best target
+        const locked = this.locked(state, server, corp.credits - spend);
+        if (need - spend > (locked ? 6 : 3) || guards(state, server, corp.credits - spend) === 0 || !this.exposureOk(state, server, corp.credits - spend)) return -Infinity;
+        return (locked ? 8 : 6) + card.advancementCounters; // and then finish the job: a half-advanced agenda is the Runner's best target
       }
       // Can't finish this turn: build counters only behind ice we can rez
       return guards(state, server, corp.credits - 1) > 0 ? 3 + 0.5 * card.advancementCounters : -Infinity;
@@ -294,16 +302,17 @@ export class HeuristicCorpAI implements Agent {
   private exposureOk(state: GameState, server: ServerState, credits: number): boolean {
     if (!(this.synergy && tuning.plan.exposure)) return true;
     if (iceDepth(state, server) >= 2) return true;
-    let cost = 0;
-    for (const ice of server.ice) {
-      if (!ice.isRezzed) {
-        const rc = rezCost(state, ice);
-        if (rc > credits) continue;
-        credits -= rc;
-      }
-      cost += Math.min(8, iceCost(state, { ...ice, isRezzed: true }));
-    }
-    return cost >= state.runner.credits + 2;
+    return entryCost(state, server, credits) >= state.runner.credits + 2;
+  }
+
+  /**
+   * Tempo (Jeff): a server the Runner can't get into for now (ice they
+   * can't break, or far more than they can pay), so the Corp should push
+   * agendas through it before the Runner finds the answer.
+   */
+  private locked(state: GameState, server: ServerState, credits: number): boolean {
+    if (!(this.synergy && tuning.plan.tempo) || !server.isRemote) return false;
+    return entryCost(state, server, credits) >= state.runner.credits + 5;
   }
 
   /** PT Untaian's paid advancement at the end of this turn (1), if HQ will be small enough; `leaving` cards are about to leave HQ. */
@@ -360,8 +369,11 @@ export class HeuristicCorpAI implements Agent {
   private nakedAgenda(state: GameState, card: CardInstance): boolean {
     const corp = state.corp;
     const cost = cardDef(card).advancement_cost ?? 0;
-    if (cost > 3 || corp.credits < cost + 1) return false;
+    if (this.reverseBluffed || cost > 3 || corp.credits < cost + 1) return false;
     if (!corp.archives.faceUp.some(c => isTrap(c.cardCode))) return false;
+    // A decklist-aware Runner calls it unless this Corp still has traps they haven't seen
+    const hidden = [...corp.hq, ...corp.rd, ...corp.archives.faceDown, ...Object.values(corp.servers).flatMap(s => s.root.filter(c => !c.isRezzed))];
+    if (!hidden.some(c => isTrap(c.cardCode))) return false;
     const remotes = Object.values(corp.servers).filter(s => s.isRemote);
     if (remotes.some(s => s.ice.length === 0 && s.root.some(c => type(c) === 'agenda'))) return false;
     // "Now and then": about one turn in three, but the same answer all turn
@@ -457,7 +469,13 @@ export class HeuristicCorpAI implements Agent {
           if (finishNow) return 44;
           // Deck-aware AI (exposure): an overfull HQ goes behind ice rather than into a bare remote
           if (hq.length > corp.handSizeLimit) return this.synergy && tuning.plan.exposure ? 0.1 : 0.5;
-          return this.synergy && tuning.bluff && tuning.reverseBluff && this.nakedAgenda(state, card) ? 5 : -2;
+          if (this.synergy && tuning.bluff && tuning.reverseBluff && this.nakedAgenda(state, card)) {
+            // A rare treat: worth it early (a steal costs little yet) or with the Runner too poor or too low on cards to check
+            const risky = state.turnNumber <= 6 && state.runner.score <= 2;
+            const vulnerable = state.runner.credits <= 2 || state.runner.grip.length <= 2;
+            return risky || vulnerable ? 4 : 0.5;
+          }
+          return -2;
         }
         if (server.root.some(isAgendaOrAsset)) return -Infinity;
         if (finishNow) return 45;
@@ -465,6 +483,8 @@ export class HeuristicCorpAI implements Agent {
           // Deck-aware AI: install only if this turn's advances leave it scoreable next turn, behind ice we can still rez
           const spend = Math.min(corp.clicks - 1, corp.credits) + this.untaianAdvance(state, 1);
           const left = (def.advancement_cost ?? 0) - spend;
+          const locked = this.locked(state, server, corp.credits - spend);
+          if (locked) return 11 + Math.min(guards(state, server, corp.credits), 3) * 0.6; // push it through while they can't get in
           if (left > 3 || guards(state, server, corp.credits - spend) === 0 || !this.exposureOk(state, server, corp.credits - spend)) return hq.length > corp.handSizeLimit ? (server.ice.length > 0 ? 0.6 : 0.5) : -2;
         }
         // Only behind ice that is rezzed or that we can afford to rez
@@ -544,6 +564,23 @@ export function mainRemote(state: GameState): ServerState | null {
 }
 
 /**
+ * What the Runner would pay to get into a server, counting rezzed ice and
+ * the unrezzed ice `credits` can still rez (8 for ice they can't break).
+ */
+function entryCost(state: GameState, server: ServerState, credits: number): number {
+  let cost = 0;
+  for (const ice of server.ice) {
+    if (!ice.isRezzed) {
+      const rc = rezCost(state, ice);
+      if (rc > credits) continue;
+      credits -= rc;
+    }
+    cost += Math.min(8, iceCost(state, { ...ice, isRezzed: true }));
+  }
+  return cost;
+}
+
+/**
  * Layers of ice on a server as the Runner sees them: rezzed ice counts by
  * what it costs them to get through (1 credit or less: not there at all,
  * 3 or more: a full layer); unrezzed ice counts in full.
@@ -609,6 +646,12 @@ export function rezReserve(state: GameState, wide = false): number {
     // Deck-aware AI: R&D, and HQ while it holds agendas, need rez money too
     const central = wide && (server.id === 'rd' || (server.id === 'hq' && hqAgendas));
     if (!agendaRemote && !central) continue;
+    // Deck-aware AI: an agenda remote keeps money for all its unrezzed ice, not just the first layer
+    if (wide && agendaRemote && tuning.plan.deepReserve) {
+      const unrezzed = server.ice.filter(ice => !ice.isRezzed).map(ice => rezCost(state, ice));
+      if (unrezzed.length > 0) needs.push(unrezzed.reduce((a, b) => a + b, 0));
+      continue;
+    }
     if (server.ice.some(ice => ice.isRezzed)) continue;
     const costs = server.ice.map(ice => rezCost(state, ice));
     if (costs.length > 0) needs.push(Math.min(...costs));
