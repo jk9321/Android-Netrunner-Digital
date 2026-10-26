@@ -22,21 +22,22 @@ export function breakerTypes(card: CardInstance): IceSubtype[] {
  * Ice types at a glance: blue on ice for what it is, red on icebreakers for
  * what they break, so matching icons show which ice the Runner has answers for.
  */
-export const IceTypeIcons: React.FC<{ types: IceSubtype[]; side: 'ice' | 'breaker'; className?: string }> = ({
+export const IceTypeIcons: React.FC<{ types: IceSubtype[]; side: 'ice' | 'breaker'; row?: boolean; className?: string }> = ({
   types,
   side,
+  row = false,
   className = '',
 }) => {
   if (types.length === 0) return null;
   const tone = side === 'ice' ? 'bg-cyan-950/95 border-cyan-400 text-cyan-200' : 'bg-pink-950/95 border-pink-500 text-pink-100';
   const verb = side === 'ice' ? '' : 'Breaks ';
   return (
-    <div className={`z-20 flex flex-col gap-0.5 pointer-events-none ${className}`} data-testid={`${side}-types`}>
+    <div className={`flex ${row ? 'flex-row' : 'flex-col'} gap-[0.2em] pointer-events-none ${className}`} data-testid={`${side}-types`}>
       {ORDER.filter(t => types.includes(t)).map(t => {
         const Icon = ICON[t];
         return (
-          <span key={t} className={`flex items-center justify-center w-5 h-5 rounded-full border ${tone}`} title={`${verb}${LABEL[t]}`}>
-            <Icon className="w-3 h-3" />
+          <span key={t} className={`flex items-center justify-center w-[2em] h-[2em] rounded-full border ${tone}`} title={`${verb}${LABEL[t]}`}>
+            <Icon className="w-[1.2em] h-[1.2em]" />
           </span>
         );
       })}

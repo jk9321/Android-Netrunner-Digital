@@ -11,6 +11,7 @@ import { createPortal } from 'react-dom';
 import { usePromptHighlight } from '../promptHighlight';
 import { IceTypeIcons, breakerTypes } from './IceTypeIcons';
 import { iceSubtypes } from '../../core/engine/ice';
+import type { IceSubtype } from '../../core/scripts/types';
 
 export interface CardViewProps {
   card: CardInstance;
@@ -24,8 +25,17 @@ export interface CardViewProps {
   size?: 'xs' | 'sm' | 'md' | 'lg' | 'xl' | 'fit' | 'fit-sm';
   /** Only installed cards are rezzed or unrezzed; hide the badge for cards in hand or in a pile. */
   notInstalled?: boolean;
-  /** Show the ice or icebreaker type icons, as on the table (hand, prompts, piles); never on a hidden card. */
-  typeIcons?: boolean;
+  /**
+   * Show the ice or icebreaker type icons (never on a hidden card): true reads them from the card,
+   * a list gives them (ice with a subtype granted by Chromatophores).
+   */
+  typeIcons?: boolean | IceSubtype[];
+  /** Turned 90 degrees by its parent (ice on the table); the badges are laid out upright all the same. */
+  sideways?: boolean;
+  /** A tag under the card's status, e.g. the ice a trojan is installed on. */
+  tag?: React.ReactNode;
+  /** Buttons over the card (Rez, Advance, Score), kept between the top and bottom badges. */
+  actions?: React.ReactNode;
 }
 
 const CardFace: React.FC<CardViewProps> = ({
@@ -39,6 +49,9 @@ const CardFace: React.FC<CardViewProps> = ({
   size = 'md',
   notInstalled = false,
   typeIcons = false,
+  sideways = false,
+  tag,
+  actions,
 }) => {
   const [showTooltip, setShowTooltip] = useState(false);
   const [imageError, setImageError] = useState(false);
@@ -77,7 +90,7 @@ const CardFace: React.FC<CardViewProps> = ({
         onClick={isSelectable ? onClick : undefined}
         onMouseEnter={handleMouseEnter}
         onMouseLeave={handleMouseLeave}
-        className={`relative ${sizeClasses} rounded-xl border-2 transition-all duration-200 select-none flex flex-col items-center justify-center p-2 shadow-lg ${
+        className={`relative ${sizeClasses} [container-type:inline-size] rounded-xl border-2 transition-all duration-200 select-none flex flex-col items-center justify-center p-2 shadow-lg ${
           isSelected
             ? 'border-cyber-neonCyan ring-2 ring-cyber-neonCyan scale-105'
             : 'border-slate-800 bg-gradient-to-b from-slate-900 to-black hover:border-slate-600'
@@ -100,12 +113,7 @@ const CardFace: React.FC<CardViewProps> = ({
           </span>
         </div>
 
-        {/* Counter badges if advanced */}
-        {card.advancementCounters > 0 && (
-          <div data-kw="advance" className="absolute -top-2 -right-2 bg-amber-400 text-black font-bold px-2 py-0.5 rounded-full text-xs shadow-md z-20">
-            ★ {card.advancementCounters}
-          </div>
-        )}
+        <CardOverlays card={card} sideways={sideways} tag={tag} actions={actions} />
 
         {showTooltip && (
           <CardPopout
@@ -131,7 +139,7 @@ const CardFace: React.FC<CardViewProps> = ({
       onDoubleClick={() => onInspect && onInspect(card)}
       onMouseEnter={handleMouseEnter}
       onMouseLeave={handleMouseLeave}
-      className={`relative ${sizeClasses} rounded-xl border-2 transition-all duration-200 select-none overflow-hidden group shadow-md ${
+      className={`relative ${sizeClasses} [container-type:inline-size] rounded-xl border-2 transition-all duration-200 select-none overflow-hidden group shadow-md ${
         isSelected
           ? 'border-cyber-neonCyan ring-4 ring-cyber-neonCyan/50 scale-105 z-20 shadow-cyan-500/30'
           : isUnrezzed
@@ -161,79 +169,16 @@ const CardFace: React.FC<CardViewProps> = ({
         </div>
       )}
 
-      {/* Unrezzed Blueprint Indicator for Corp */}
-      {isUnrezzed && card.faceUp && (
-        <div className="absolute top-1 left-1 bg-amber-950/90 text-amber-300 border border-amber-700/80 px-1.5 py-0.5 rounded text-[9px] font-bold tracking-wider uppercase shadow z-10">
-          Faceup
-        </div>
-      )}
-      {isUnrezzed && !card.faceUp && (
-        <div className="absolute top-1 left-1 bg-cyan-950/90 text-cyan-300 border border-cyan-700/80 px-1.5 py-0.5 rounded text-[9px] font-bold tracking-wider uppercase shadow z-10 flex items-center gap-1">
-          <Eye className="w-2.5 h-2.5 text-cyan-400" />
-          <Keyword id="unrezzed">Unrezzed</Keyword>
-        </div>
-      )}
-
-      {/* Advancement Counter Badge */}
-      {card.advancementCounters > 0 && (
-        <div data-kw="advance" className="absolute top-1 right-1 bg-amber-400 text-black font-extrabold px-1.5 py-0.5 rounded-full text-[10px] shadow-lg z-20 border border-amber-200">
-          ★ {card.advancementCounters}
-        </div>
-      )}
-
-      {/* A flipped identity (Nebula Talent Management) */}
-      {card.flipped && (
-        <div className="absolute bottom-1 left-1 bg-violet-950/90 text-violet-200 border border-violet-600 px-1.5 py-0.5 rounded text-[9px] font-bold tracking-wider uppercase shadow z-10">
-          Flipped
-        </div>
-      )}
-
-      {/* Hosted credit, virus, power and agenda counters */}
-      {((card.tokens.credit ?? 0) > 0 || (card.tokens.virus ?? 0) > 0 || (card.tokens.power ?? 0) > 0 || (card.tokens.agenda ?? 0) > 0) && (
-        <div className="absolute bottom-1 right-1 flex flex-col items-end gap-0.5 z-20">
-          {(card.tokens.credit ?? 0) > 0 && (
-            <span className="bg-amber-500 text-black font-extrabold px-1.5 py-0.5 rounded-full text-[10px] shadow-lg border border-amber-200" data-kw="credit">
-              <Credits amount={card.tokens.credit ?? 0} />
-            </span>
-          )}
-          {(card.tokens.virus ?? 0) > 0 && (
-            <span className="bg-lime-500 text-black font-extrabold px-1.5 py-0.5 rounded-full text-[10px] shadow-lg border border-lime-200" data-kw="virus-counter">
-              ☣ {card.tokens.virus}
-            </span>
-          )}
-          {(card.tokens.power ?? 0) > 0 && (
-            <span className="bg-violet-500 text-white font-extrabold px-1.5 py-0.5 rounded-full text-[10px] shadow-lg border border-violet-200" title="Power counters">
-              ⚡ {card.tokens.power}
-            </span>
-          )}
-          {(card.tokens.agenda ?? 0) > 0 && (
-            <span className="bg-teal-400 text-black font-extrabold px-1.5 py-0.5 rounded-full text-[10px] shadow-lg border border-teal-100" title="Agenda counters">
-              ◆ {card.tokens.agenda}
-            </span>
-          )}
-        </div>
-      )}
-
-      {/* Quick Inspect Button on Hover (Clicking opens large Modal) */}
-      {onInspect && (
-        <button
-          onClick={(e) => {
-            e.stopPropagation();
-            onInspect(card);
-          }}
-          className="absolute bottom-1 right-1 bg-black/80 hover:bg-slate-800 text-slate-300 hover:text-white p-1 rounded-md opacity-0 group-hover:opacity-100 transition-opacity z-20 border border-slate-700"
-          title="Inspect full card details"
-        >
-          <Eye className="w-3.5 h-3.5" />
-        </button>
-      )}
-
-      {typeIcons &&
-        (def.type_code === 'ice' ? (
-          <IceTypeIcons types={iceSubtypes(card)} side="ice" className="absolute right-0.5 bottom-0.5" />
-        ) : (
-          <IceTypeIcons types={breakerTypes(card)} side="breaker" className="absolute left-0.5 top-1/2 -translate-y-1/2" />
-        ))}
+      <CardOverlays
+        card={card}
+        sideways={sideways}
+        tag={tag}
+        actions={actions}
+        status={isUnrezzed ? (card.faceUp ? 'faceup' : 'unrezzed') : undefined}
+        types={typeIcons === false ? [] : typeIcons === true ? (def.type_code === 'ice' ? iceSubtypes(card) : breakerTypes(card)) : typeIcons}
+        typeSide={def.type_code === 'ice' ? 'ice' : 'breaker'}
+        onInspect={onInspect}
+      />
 
       {/* Hover Card Detail Popout (Rendered via Portal to Document Body) */}
       {showTooltip && (
@@ -244,6 +189,106 @@ const CardFace: React.FC<CardViewProps> = ({
           canPeek={canPeek}
         />
       )}
+    </div>
+  );
+};
+
+// Overlay sizes are in em, and the layer's font follows the card's width, so the layout keeps its proportions at every card size
+const badge = 'pointer-events-auto shrink-0 font-extrabold px-[0.5em] py-[0.1em] rounded-full leading-[1.2em] shadow-lg border';
+const tagClass = 'pointer-events-auto max-w-full min-w-0 px-[0.4em] py-[0.1em] rounded text-[0.85em] leading-[1.2em] font-bold tracking-wider uppercase shadow border flex items-center gap-[0.3em]';
+
+/**
+ * Every badge and button over a card, laid out in rows and columns so none can cover another at any card size:
+ * status and tags top-left, advancement top-right, Rez/Advance/Score buttons in between, type icons and the
+ * inspect button bottom-left, hosted counters bottom-right. A sideways card's layer is turned back upright.
+ * Its font is 12% of the card's width (capped at 12px), and every size in it is in em.
+ */
+const CardOverlays: React.FC<{
+  card: CardInstance;
+  sideways: boolean;
+  tag?: React.ReactNode;
+  actions?: React.ReactNode;
+  status?: 'unrezzed' | 'faceup';
+  types?: IceSubtype[];
+  typeSide?: 'ice' | 'breaker';
+  onInspect?: (card: CardInstance) => void;
+}> = ({ card, sideways, tag, actions, status, types = [], typeSide = 'ice', onInspect }) => {
+  const t = card.tokens;
+  const tokens = (t.credit ?? 0) > 0 || (t.virus ?? 0) > 0 || (t.power ?? 0) > 0 || (t.agenda ?? 0) > 0;
+  const top = status || card.flipped || tag || card.advancementCounters > 0;
+  return (
+    <div
+      data-testid="card-overlays"
+      className={`absolute z-20 pointer-events-none flex flex-col gap-[0.2em] p-[0.2em] ${
+        sideways ? 'left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 -rotate-90' : 'inset-0'
+      }`}
+      // Sideways, the layer is the card's box turned: as wide as the card is tall (140%)
+      style={{ fontSize: 'min(12cqw, 12px)', ...(sideways ? { width: '140cqw', height: '100cqw' } : {}) }}
+    >
+      {top && (
+        <div className="flex items-start gap-[0.2em] min-w-0">
+          <div className="flex-1 min-w-0 flex flex-col items-start gap-[0.2em]">
+            {status === 'faceup' && <div className={`${tagClass} bg-amber-950/90 text-amber-300 border-amber-700/80`}><span className="truncate">Faceup</span></div>}
+            {status === 'unrezzed' && (
+              <div className={`${tagClass} bg-cyan-950/90 text-cyan-300 border-cyan-700/80`}>
+                <Eye className="w-[1em] h-[1em] shrink-0 text-cyan-400" />
+                <Keyword id="unrezzed" className="truncate">Unrezzed</Keyword>
+              </div>
+            )}
+            {/* A flipped identity (Nebula Talent Management) */}
+            {card.flipped && <div className={`${tagClass} bg-violet-950/90 text-violet-200 border-violet-600`}><span className="truncate">Flipped</span></div>}
+            {tag}
+          </div>
+          {card.advancementCounters > 0 && (
+            <span data-kw="advance" className={`${badge} bg-amber-400 text-black border-amber-200`}>
+              ★ {card.advancementCounters}
+            </span>
+          )}
+        </div>
+      )}
+      <div className={`flex-1 min-h-0 flex justify-end gap-[0.2em] ${sideways ? 'flex-row items-end' : 'flex-col'}`}>{actions}</div>
+      <div className="flex items-end justify-between gap-[0.2em]">
+        <div className={`flex gap-[0.2em] ${sideways ? 'flex-row items-end' : 'flex-col items-start'}`}>
+          <IceTypeIcons types={types} side={typeSide} row={sideways} />
+          {/* Quick inspect, shown on hover; it keeps its place so nothing moves under the pointer */}
+          {onInspect && (
+            <button
+              onClick={(e) => {
+                e.stopPropagation();
+                onInspect(card);
+              }}
+              className="pointer-events-auto bg-black/80 hover:bg-slate-800 text-slate-300 hover:text-white p-[0.2em] rounded-md opacity-0 group-hover:opacity-100 transition-opacity border border-slate-700"
+              title="Inspect full card details"
+            >
+              <Eye className="w-[1.4em] h-[1.4em]" />
+            </button>
+          )}
+        </div>
+        {tokens && (
+          <div className="flex flex-col items-end gap-[0.2em]">
+            {(t.credit ?? 0) > 0 && (
+              <span className={`${badge} bg-amber-500 text-black border-amber-200`} data-kw="credit">
+                <Credits amount={t.credit ?? 0} />
+              </span>
+            )}
+            {(t.virus ?? 0) > 0 && (
+              <span className={`${badge} bg-lime-500 text-black border-lime-200`} data-kw="virus-counter">
+                ☣ {t.virus}
+              </span>
+            )}
+            {(t.power ?? 0) > 0 && (
+              <span className={`${badge} bg-violet-500 text-white border-violet-200`} title="Power counters">
+                ⚡ {t.power}
+              </span>
+            )}
+            {(t.agenda ?? 0) > 0 && (
+              <span className={`${badge} bg-teal-400 text-black border-teal-100`} title="Agenda counters">
+                ◆ {t.agenda}
+              </span>
+            )}
+          </div>
+        )}
+      </div>
     </div>
   );
 };

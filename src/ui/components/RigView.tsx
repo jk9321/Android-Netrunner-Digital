@@ -4,7 +4,6 @@ import { CardInstance } from '../../core/types/card';
 import { CardView } from './CardView';
 import { Bug, Cpu, HardDrive, Users } from 'lucide-react';
 import { clearHostLink, lightHostLink, useHostLinkLit } from '../hostLinks';
-import { IceTypeIcons } from './IceTypeIcons';
 import type { IceSubtype } from '../../core/scripts/types';
 
 interface RigViewProps {
@@ -34,18 +33,23 @@ const RigCard: React.FC<{
     : {};
   const face = (
     <div className={`relative rounded-xl ${lit ? 'host-link-lit' : ''}`} {...linkProps} data-testid={card.hostedOnId ? `on-host-${card.instanceId}` : undefined}>
-      <CardView card={card} size="fit" onInspect={onInspect} />
-      {card.hostedOnId ? (
-        <div
-          className="absolute inset-x-0.5 top-0.5 z-20 flex items-center gap-0.5 rounded bg-pink-950/95 border border-pink-500 px-0.5 text-[8px] leading-3 font-bold text-pink-100 pointer-events-none"
-          title={`Hosted on ${hostLabel ?? 'another card'}`}
-        >
-          <Bug className="w-2.5 h-2.5 shrink-0" />
-          <span className="truncate">{hostLabel ? `On ${hostLabel}` : 'Hosted'}</span>
-        </div>
-      ) : (
-        breaks.length > 0 && <IceTypeIcons types={breaks} side="breaker" className="absolute left-0.5 top-1/2 -translate-y-1/2" />
-      )}
+      <CardView
+        card={card}
+        size="fit"
+        onInspect={onInspect}
+        typeIcons={breaks}
+        tag={
+          card.hostedOnId ? (
+            <div
+              className="max-w-full min-w-0 flex items-center gap-[0.2em] rounded bg-pink-950/95 border border-pink-500 px-[0.2em] text-[0.8em] leading-[1.3em] font-bold text-pink-100"
+              title={`Hosted on ${hostLabel ?? 'another card'}`}
+            >
+              <Bug className="w-[1.1em] h-[1.1em] shrink-0" />
+              <span className="truncate">{hostLabel ? `On ${hostLabel}` : 'Hosted'}</span>
+            </div>
+          ) : undefined
+        }
+      />
     </div>
   );
   if (hosted.length === 0) return face;

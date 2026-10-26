@@ -6,7 +6,6 @@ import { CardView } from './CardView';
 import { cardDef } from '../../data/cards';
 import { Database, Crosshair, Zap, ChevronsUp, Award, Bug } from 'lucide-react';
 import { clearHostLink, lightHostLink, useHostLinkLit } from '../hostLinks';
-import { IceTypeIcons } from './IceTypeIcons';
 import type { IceSubtype } from '../../core/scripts/types';
 import { Credits } from './CreditIcon';
 
@@ -42,10 +41,9 @@ interface ServerColumnProps {
 const IceSlot: React.FC<{
   ice: CardInstance;
   hosted: CardInstance[];
-  types: IceSubtype[];
   atRunner: boolean;
   children: React.ReactNode;
-}> = ({ ice, hosted, types, atRunner, children }) => {
+}> = ({ ice, hosted, atRunner, children }) => {
   const lit = useHostLinkLit(ice.instanceId);
   const link = hosted.length > 0 ? [ice.instanceId, ...hosted.map(h => h.instanceId)] : null;
   return (
@@ -56,20 +54,20 @@ const IceSlot: React.FC<{
       className={`relative card-sideways rounded-xl ${atRunner ? 'run-ice' : ''} ${lit ? 'host-link-lit' : ''}`}
     >
       {children}
-      {/* Bottom of the right edge (the card's top edge, lying sideways): clear of the Unrezzed tag and the Rez/Advance buttons */}
-      <IceTypeIcons types={types} side="ice" className="absolute right-0.5 bottom-0.5" />
-      {hosted.length > 0 && (
-        <div
-          className="absolute left-0.5 top-0.5 z-20 max-w-[85%] flex items-center gap-0.5 rounded bg-pink-950/95 border border-pink-500 px-0.5 text-[8px] leading-3 font-bold text-pink-100 pointer-events-none"
-          data-testid={`hosts-${ice.instanceId}`}
-        >
-          <Bug className="w-2.5 h-2.5 shrink-0" />
-          <span className="truncate">{hosted.map(h => cardDef(h).title).join(', ')}</span>
-        </div>
-      )}
     </div>
   );
 };
+
+/** The trojans on a piece of ice, named in a tag on it. */
+const HostedTag: React.FC<{ ice: CardInstance; hosted: CardInstance[] }> = ({ ice, hosted }) => (
+  <div
+    className="max-w-full min-w-0 flex items-center gap-[0.2em] rounded bg-pink-950/95 border border-pink-500 px-[0.2em] text-[0.8em] leading-[1.3em] font-bold text-pink-100"
+    data-testid={`hosts-${ice.instanceId}`}
+  >
+    <Bug className="w-[1.1em] h-[1.1em] shrink-0" />
+    <span className="truncate">{hosted.map(h => cardDef(h).title).join(', ')}</span>
+  </div>
+);
 
 const ICE_PHASE_LABEL: Partial<Record<RunState['phase'], string>> = {
   approach_ice: 'Approaching',
@@ -77,13 +75,9 @@ const ICE_PHASE_LABEL: Partial<Record<RunState['phase'], string>> = {
   movement: 'Passed',
 };
 
-/**
- * Rez, advance and score sit over the lower card, so they cost no table height. They stop
- * short of the bottom edge, which keeps the card's inspect button and counters clickable.
- */
+/** Rez, advance and score sit over the card, so they cost no table height; the card keeps them clear of its badges. */
 const smallButton =
-  'px-0.5 w-full bg-cyan-950/95 hover:bg-cyan-800 text-cyan-200 text-[9px] leading-4 font-mono font-bold whitespace-nowrap rounded border border-cyan-500 shadow flex items-center justify-center gap-0.5 transition-all';
-const overlay = 'absolute inset-x-0.5 bottom-7 z-30 flex flex-col gap-0.5';
+  'pointer-events-auto px-[0.2em] w-full bg-cyan-950/95 hover:bg-cyan-800 text-cyan-200 text-[0.9em] leading-[1.6em] font-mono font-bold whitespace-nowrap rounded border border-cyan-500 shadow flex items-center justify-center gap-0.5 transition-all';
 
 export const ServerColumn: React.FC<ServerColumnProps> = ({
   server,
@@ -175,8 +169,7 @@ export const ServerColumn: React.FC<ServerColumnProps> = ({
                 canPeek={canCorpPeek || !!card.runnerKnows}
                 size="fit"
                 onInspect={onInspectCard}
-              />
-              <div className={overlay}>
+                actions={<>
                 {canRez(card) && onRezCard && (
                   <button
                     onClick={(e) => {
@@ -185,7 +178,7 @@ export const ServerColumn: React.FC<ServerColumnProps> = ({
                     }}
                     className={smallButton}
                   >
-                    <Zap className="w-2.5 h-2.5 text-amber-400" /> Rez (<Credits amount={cardDef(card).cost || 0} />)
+                    <Zap className="w-[1.1em] h-[1.1em] text-amber-400" /> Rez (<Credits amount={cardDef(card).cost || 0} />)
                   </button>
                 )}
                 {canAdvance(card) && onAdvanceCard && (
@@ -196,7 +189,7 @@ export const ServerColumn: React.FC<ServerColumnProps> = ({
                     }}
                     className={smallButton}
                   >
-                    <ChevronsUp className="w-2.5 h-2.5 text-amber-400" /> Adv ({card.advancementCounters}
+                    <ChevronsUp className="w-[1.1em] h-[1.1em] text-amber-400" /> Adv ({card.advancementCounters}
                     {cardDef(card).advancement_cost ? `/${cardDef(card).advancement_cost}` : ''})
                   </button>
                 )}
@@ -208,10 +201,11 @@ export const ServerColumn: React.FC<ServerColumnProps> = ({
                     }}
                     className={smallButton}
                   >
-                    <Award className="w-2.5 h-2.5 text-amber-400" /> Score
+                    <Award className="w-[1.1em] h-[1.1em] text-amber-400" /> Score
                   </button>
                 )}
-              </div>
+                </>}
+              />
             </div>
           ))
         )}
@@ -225,8 +219,6 @@ export const ServerColumn: React.FC<ServerColumnProps> = ({
               key={iceCard.instanceId}
               ice={iceCard}
               hosted={hostedOnIce(iceCard)}
-              // Unrezzed ice keeps its type secret from the Runner
-              types={iceCard.isRezzed || canCorpPeek || iceCard.runnerKnows ? iceTypes(iceCard) : []}
               atRunner={runIceId === iceCard.instanceId}
             >
               {/* Ice lies sideways, as on the table; the zoom panel shows it upright */}
@@ -236,16 +228,12 @@ export const ServerColumn: React.FC<ServerColumnProps> = ({
                   isFaceDown={!iceCard.isRezzed}
                   canPeek={canCorpPeek || !!iceCard.runnerKnows}
                   size="fit"
+                  sideways
                   onInspect={onInspectCard}
-                />
-              </div>
-              {runIceId === iceCard.instanceId && iceLabel && (
-                <div className="absolute -top-1.5 left-1/2 -translate-x-1/2 z-30 px-1.5 rounded-full bg-amber-400 text-black text-[9px] font-bold font-mono uppercase tracking-wider shadow whitespace-nowrap pointer-events-none">
-                  {iceLabel}
-                </div>
-              )}
-              {/* Leaves the right edge to the ice type icons */}
-              <div className={`${overlay} flex-row right-7`}>
+                  // Unrezzed ice keeps its type secret from the Runner
+                  typeIcons={iceCard.isRezzed || canCorpPeek || iceCard.runnerKnows ? iceTypes(iceCard) : []}
+                  tag={hostedOnIce(iceCard).length > 0 ? <HostedTag ice={iceCard} hosted={hostedOnIce(iceCard)} /> : undefined}
+                  actions={<>
                 {canRez(iceCard) && onRezCard && (
                   <button
                     onClick={(e) => {
@@ -255,7 +243,7 @@ export const ServerColumn: React.FC<ServerColumnProps> = ({
                     className={smallButton}
                     title={`Rez ${cardDef(iceCard).title} for ${cardDef(iceCard).cost || 0} credits`}
                   >
-                    <Zap className="w-2.5 h-2.5 text-amber-400" /> Rez (<Credits amount={cardDef(iceCard).cost || 0} />)
+                    <Zap className="w-[1.1em] h-[1.1em] text-amber-400" /> Rez (<Credits amount={cardDef(iceCard).cost || 0} />)
                   </button>
                 )}
                 {canAdvance(iceCard) && onAdvanceCard && (
@@ -266,10 +254,17 @@ export const ServerColumn: React.FC<ServerColumnProps> = ({
                     }}
                     className={smallButton}
                   >
-                    <ChevronsUp className="w-2.5 h-2.5 text-amber-400" /> Adv ({iceCard.advancementCounters})
+                    <ChevronsUp className="w-[1.1em] h-[1.1em] text-amber-400" /> Adv ({iceCard.advancementCounters})
                   </button>
                 )}
+                  </>}
+                />
               </div>
+              {runIceId === iceCard.instanceId && iceLabel && (
+                <div className="absolute -top-1.5 left-1/2 -translate-x-1/2 z-30 px-1.5 rounded-full bg-amber-400 text-black text-[9px] font-bold font-mono uppercase tracking-wider shadow whitespace-nowrap pointer-events-none">
+                  {iceLabel}
+                </div>
+              )}
             </IceSlot>
           ))}
         </div>
