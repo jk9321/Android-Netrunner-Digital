@@ -128,7 +128,7 @@ export function CorpActions(props: ActionBarProps) {
         disabled={!isLegalAction(state, turnAction)}
         title={startingTurn ? 'Rez assets or upgrades first if you want them working this turn, then take the mandatory draw' : undefined}
         data-testid="end-turn"
-        className={`px-3 py-1.5 bg-cyan-600 hover:bg-cyan-500 text-white font-mono text-xs font-bold rounded-lg border border-cyan-400 transition-all shadow-lg shadow-cyan-950 flex items-center gap-1.5 self-end disabled:opacity-40 disabled:hover:scale-100 ${
+        className={`px-3 py-1.5 bg-cyan-600 hover:bg-cyan-500 text-white font-mono text-xs font-bold rounded-lg border border-cyan-400 transition-all shadow-lg shadow-cyan-950 flex items-center gap-1.5 self-end disabled:opacity-40 ${
           !startingTurn && corp.clicks === 0 ? 'end-turn-pulse end-turn-corp' : ''
         }`}
       >
@@ -249,7 +249,7 @@ export function RunnerActions(props: ActionBarProps) {
         onClick={() => onAction({ type: 'END_TURN', player: 'runner' })}
         disabled={!isLegalAction(state, { type: 'END_TURN', player: 'runner' })}
         data-testid="end-turn"
-        className={`px-3 py-1.5 bg-cyber-neonPink hover:bg-pink-600 text-white font-mono text-xs font-bold rounded-lg border border-pink-400 transition-all shadow-lg shadow-pink-950 flex items-center gap-1.5 self-end disabled:opacity-40 disabled:hover:scale-100 ${
+        className={`px-3 py-1.5 bg-cyber-neonPink hover:bg-pink-600 text-white font-mono text-xs font-bold rounded-lg border border-pink-400 transition-all shadow-lg shadow-pink-950 flex items-center gap-1.5 self-end disabled:opacity-40 ${
           runner.clicks === 0 ? 'end-turn-pulse end-turn-runner' : ''
         }`}
       >
