@@ -47,6 +47,8 @@ export const tuning = {
   bluff: true,
   /** Corp: purge sooner against a virus deck. */
   purge: true,
+  /** Corp: the naked-agenda reverse bluff. Off (Jeff, 2026-10-26): too niche for the AI to judge once the Runner counts traps; kept for later. */
+  reverseBluff: false,
   /** Planning terms (round 2): each can be switched off for batches. */
   plan: {
     /*
@@ -103,6 +105,8 @@ export const tuning = {
     /* Tāo swap: used on 128 of 244 chances (was 6 of 221); self-play with the two Tāo decks, 1,360 games: Runner 55.8% vs 54.9% off (noise, kept). */
     /** Runner identity plans: Tāo Salonga's ice swap. */
     runnerIdentities: true,
+    /** Corp: an agenda left over the Runner's turn only behind 2 real layers, or ice that costs more than the Runner has. */
+    exposure: true,
     /** Corp (round 3): no half-advanced agendas: advance only when it can be scored next turn behind ice it can rez. */
     agendaTiming: true,
   },

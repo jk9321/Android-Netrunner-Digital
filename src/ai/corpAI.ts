@@ -258,7 +258,7 @@ export class HeuristicCorpAI implements Agent {
       if (this.timing) {
         // Deck-aware AI: only if the rest of this turn leaves it scoreable next turn, behind ice we can still rez
         const spend = Math.min(corp.clicks, corp.credits) + this.untaianAdvance(state, 0);
-        if (need - spend > 3 || guards(state, server, corp.credits - spend) === 0) return -Infinity;
+        if (need - spend > 3 || guards(state, server, corp.credits - spend) === 0 || !this.exposureOk(state, server, corp.credits - spend)) return -Infinity;
         return 6 + card.advancementCounters; // and then finish the job: a half-advanced agenda is the Runner's best target
       }
       // Can't finish this turn: build counters only behind ice we can rez
@@ -283,6 +283,27 @@ export class HeuristicCorpAI implements Agent {
     if (card.cardCode === '30045' && 2 + card.advancementCounters + 1 >= state.runner.grip.length) return 1.5;
     const shown = state.corp.archives.faceUp.some(c => isTrap(c.cardCode));
     return shown && card.advancementCounters === 0 ? 0.6 : 0;
+  }
+
+  /**
+   * An agenda left installed over the Runner's turn needs a server they
+   * can't simply walk into: 2 real layers of ice, or ice (rezzed, or that
+   * `credits` can still rez) that costs more to get through than the
+   * Runner has. A Runner who counts traps reads a thin remote as an agenda.
+   */
+  private exposureOk(state: GameState, server: ServerState, credits: number): boolean {
+    if (!(this.synergy && tuning.plan.exposure)) return true;
+    if (iceDepth(state, server) >= 2) return true;
+    let cost = 0;
+    for (const ice of server.ice) {
+      if (!ice.isRezzed) {
+        const rc = rezCost(state, ice);
+        if (rc > credits) continue;
+        credits -= rc;
+      }
+      cost += Math.min(8, iceCost(state, { ...ice, isRezzed: true }));
+    }
+    return cost >= state.runner.credits + 2;
   }
 
   /** PT Untaian's paid advancement at the end of this turn (1), if HQ will be small enough; `leaving` cards are about to leave HQ. */
@@ -408,6 +429,8 @@ export class HeuristicCorpAI implements Agent {
             if (server.id === 'rd') need += 0.4;
             // ...but HQ still gets its first ice once R&D has one
             else if (agendasInHand === 0) need -= server.ice.length === 0 ? (corp.servers.rd.ice.length > 0 ? 0 : 1.5) : 0.8;
+            // ...and agendas waiting in HQ for a safe remote (exposure) want HQ iced deeper
+            else if (tuning.plan.exposure && agendasInHand >= 2) need += Math.min(2, 0.8 * (agendasInHand - 1));
           }
         }
         // Deck-aware AI: a server the Runner keeps getting into needs another layer
@@ -432,8 +455,9 @@ export class HeuristicCorpAI implements Agent {
         // A naked remote only to dodge a discard (or to score it straight away)
         if (!server) {
           if (finishNow) return 44;
-          if (hq.length > corp.handSizeLimit) return 0.5;
-          return this.synergy && tuning.bluff && this.nakedAgenda(state, card) ? 5 : -2;
+          // Deck-aware AI (exposure): an overfull HQ goes behind ice rather than into a bare remote
+          if (hq.length > corp.handSizeLimit) return this.synergy && tuning.plan.exposure ? 0.1 : 0.5;
+          return this.synergy && tuning.bluff && tuning.reverseBluff && this.nakedAgenda(state, card) ? 5 : -2;
         }
         if (server.root.some(isAgendaOrAsset)) return -Infinity;
         if (finishNow) return 45;
@@ -441,7 +465,7 @@ export class HeuristicCorpAI implements Agent {
           // Deck-aware AI: install only if this turn's advances leave it scoreable next turn, behind ice we can still rez
           const spend = Math.min(corp.clicks - 1, corp.credits) + this.untaianAdvance(state, 1);
           const left = (def.advancement_cost ?? 0) - spend;
-          if (left > 3 || guards(state, server, corp.credits - spend) === 0) return hq.length > corp.handSizeLimit ? 0.5 : -2;
+          if (left > 3 || guards(state, server, corp.credits - spend) === 0 || !this.exposureOk(state, server, corp.credits - spend)) return hq.length > corp.handSizeLimit ? (server.ice.length > 0 ? 0.6 : 0.5) : -2;
         }
         // Only behind ice that is rezzed or that we can afford to rez
         const guarded = guards(state, server, corp.credits);

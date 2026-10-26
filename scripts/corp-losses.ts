@@ -21,6 +21,7 @@ const [shard, shards] = (process.env.SHARD ?? '0/1').split('/').map(Number);
 
 // PLAN_OFF=a,b switches off planning terms; CORP_DECKS / RUNNER_DECKS=name,name play only those decks
 for (const key of (process.env.PLAN_OFF ?? '').split(',').filter(Boolean)) (tuning.plan as Record<string, boolean>)[key] = false;
+if (process.env.BLUFF === '0') tuning.bluff = false;
 const only = (process.env.CORP_DECKS ?? '').split(',').filter(Boolean);
 const corpDecks = DECKS.filter(d => d.side === 'corp' && (only.length === 0 || only.includes(d.name)));
 const onlyRunner = (process.env.RUNNER_DECKS ?? '').split(',').filter(Boolean);
