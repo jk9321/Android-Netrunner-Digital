@@ -542,6 +542,7 @@ const ottoCampaign: CardScript = {
 // Runner accesses this asset anywhere except in Archives, you may pay 4 credits. If you
 // do, give the Runner 1 tag and do 3 net damage.
 const byte: CardScript = {
+  revealedOnRdAccess: true,
   onAccessed: (ctx, where) => {
     if (where === 'archives' || ctx.state.corp.credits < 4) return;
     askChoice(ctx, 'corp', 'Byte!: pay 4 credits to give the Runner 1 tag and do 3 net damage?', [

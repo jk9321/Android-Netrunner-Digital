@@ -31,6 +31,17 @@ describe('R&D accesses are secret from the Corp', () => {
     expect(entry.secret).toEqual({ from: 'corp', publicMessage: 'Runner accessed a card in R&D.' });
   });
 
+  it('shows the Corp a card that must be revealed when accessed in R&D (Byte!)', () => {
+    const state = newGame();
+    const top = state.corp.rd[0];
+    top.cardCode = '35050';
+    state.corp.credits = 0; // Byte! can't fire, so the access finishes
+    const after = runOn(state, 'rd');
+    const entry = after.log.find(e => e.event === 'access')!;
+    expect(entry.cardCode).toBe('35050');
+    expect(entry.secret).toBeUndefined();
+  });
+
   it('keeps HQ accesses visible to the Corp', () => {
     const state = newGame();
     place(state, 'ice', 'hq');

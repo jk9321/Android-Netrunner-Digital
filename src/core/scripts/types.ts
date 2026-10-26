@@ -41,6 +41,8 @@ export interface CardScript {
   modifiers?: CardModifiers;
   /** "When the Runner accesses this card": active even while the card is inactive (Urtica Cipher). */
   onAccessed?(ctx: EffectContext, where: AccessZone): void;
+  /** "While the Runner is accessing this card in R&D, they must reveal it" (Byte!): the Corp sees the access. */
+  revealedOnRdAccess?: boolean;
   /** A mid-access ability this active card offers on each access (Carnivore). */
   accessAbility?: AccessAbility;
   /** A run started by this card is successful (Red Team, Jailbreak, Conduit). */

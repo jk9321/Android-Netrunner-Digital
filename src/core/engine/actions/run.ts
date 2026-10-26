@@ -215,8 +215,9 @@ function accessCard(state: GameState, card: CardInstance, zone: CardInstance[], 
   run.accessed.push({ id: card.instanceId, inArchives });
   const installed = Object.values(state.corp.servers).some(s => s.root.includes(card) || s.ice.includes(card));
   const where: AccessZone = installed ? 'installed' : inArchives ? 'archives' : zone === state.corp.hq ? 'hq' : 'rd';
-  // Rules 7.1.2: the Corp may look at accessed cards, except those accessed from R&D
-  addLog(state, 'runner', `Runner accessed ${def.title}.`, card.cardCode, 'access', rdSecret(where, 'Runner accessed a card in R&D.'));
+  // Rules 7.1.2: the Corp may look at accessed cards, except those accessed from R&D (unless revealed, Byte!)
+  const secret = getCardScript(card.cardCode)?.revealedOnRdAccess ? undefined : rdSecret(where, 'Runner accessed a card in R&D.');
+  addLog(state, 'runner', `Runner accessed ${def.title}.`, card.cardCode, 'access', secret);
   getCardScript(card.cardCode)?.onAccessed?.({ state, card, side: 'corp' }, where);
   if (state.winner || !state.activeRun) return;
   fireTrigger(state, { type: 'card_accessed', card, where });
