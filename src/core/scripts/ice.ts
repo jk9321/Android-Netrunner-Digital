@@ -5,9 +5,9 @@ import { dealNetDamage, giveTags, installedRunnerCards, trashInstalledRunnerCard
 import { endRun, endTheRun } from '../engine/runEnd';
 import { availableCredits, spendCredits } from '../engine/cardEffects';
 import { findCardAnywhere } from '../engine/helpers';
-import { corpInstallBlocker, installCorpCardFrom } from '../engine/actions/install';
+import { installCorpCardFrom } from '../engine/actions/install';
 import { CardScript, EffectContext, Subroutine } from './types';
-import { askCards, askChoice } from './effects';
+import { askCards, askChoice, corpInstallOptions } from './effects';
 
 /** Ice from System Gateway. */
 
@@ -212,12 +212,7 @@ const ballista: CardScript = {
 /** Lets the Corp pick a server for a card being installed by an ice subroutine. */
 function askServer(ctx: EffectContext, cardId: string, ignoreCosts: boolean, step: string): void {
   const card = findCardAnywhere(ctx.state, cardId)!;
-  const options = [
-    ...(corpInstallBlocker(ctx.state, card, null, ignoreCosts) ? [] : [{ id: 'new', label: 'New remote server' }]),
-    ...Object.values(ctx.state.corp.servers)
-      .filter(s => !corpInstallBlocker(ctx.state, card, s.id, ignoreCosts))
-      .map(s => ({ id: s.id, label: s.name })),
-  ];
+  const options = corpInstallOptions(ctx.state, card, { ignoreCosts });
   if (options.length === 0) {
     addLog(ctx.state, 'corp', 'Corp could not install the card: there is nowhere to put it.');
     return;

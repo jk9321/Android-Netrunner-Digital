@@ -7,7 +7,7 @@ import { pushPrompt } from '../engine/prompts';
 import { addLog } from '../engine/log';
 import { findCardAnywhere, isAdvanceable, removeCard } from '../engine/helpers';
 import { corpTrashFromHQ, corpTrashFromRD, installedIce } from '../engine/cardEffects';
-import { corpInstallBlocker, installCorpCardFrom, installRunnerCardFrom, runnerInstallBlocker } from '../engine/actions/install';
+import { corpInstallBlocker, corpInstallCost, installCorpCardFrom, installRunnerCardFrom, runnerInstallBlocker } from '../engine/actions/install';
 import { getCardScript } from './index';
 import { EffectAnswer, EffectContext } from './types';
 
@@ -75,7 +75,8 @@ export function corpInstallOptions(state: GameState, card: CardInstance, opts: C
   for (const server of Object.values(state.corp.servers)) {
     if (opts.remoteRootOnly && !server.isRemote) continue;
     if (corpInstallBlocker(state, card, server.id, ignore, opts.discount)) continue;
-    options.push({ id: server.id, label: server.name });
+    const cost = corpInstallCost(state, card, server.id, ignore, opts.discount);
+    options.push({ id: server.id, label: cost > 0 ? `${server.name} (${cost}c)` : server.name });
   }
   return options;
 }

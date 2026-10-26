@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { cardDef, executeAction, IllegalActionError, GameState } from '../src/core';
+import { cardDef, executeAction, IllegalActionError, GameState, isLegalAction } from '../src/core';
 import { keepGoing, newGame, putInHand, startRunnerTurn, installForTest } from './helpers';
 
 const findInHand = (state: GameState, side: 'corp' | 'runner', id: string) =>
@@ -64,6 +64,27 @@ describe('Installing', () => {
     state = executeAction(state, { type: 'INSTALL_CARD', player: 'corp', cardInstanceId: second, targetServerId: 'remote-1' });
     expect(state.corp.servers['remote-1'].root.map(c => c.instanceId)).toEqual([second]);
     expect(state.corp.archives.faceDown.map(c => c.instanceId)).toEqual([first]);
+  });
+
+  it('charges 1 credit per ice already protecting the server (rules 1.16.6b)', () => {
+    let state = newGame();
+    state.corp.credits = 5;
+    for (let i = 0; i < 3; i++) {
+      const ice = putInHand(state, 'corp', 'ice');
+      state = executeAction(state, { type: 'INSTALL_CARD', player: 'corp', cardInstanceId: ice, targetServerId: 'hq' });
+    }
+    expect(state.corp.servers.hq.ice.length).toBe(3);
+    expect(state.corp.credits).toBe(5 - 0 - 1 - 2);
+  });
+
+  it('rejects ice the Corp can not pay the install cost for', () => {
+    const state = newGame();
+    state.corp.credits = 0;
+    const first = putInHand(state, 'corp', 'ice');
+    const after = executeAction(state, { type: 'INSTALL_CARD', player: 'corp', cardInstanceId: first, targetServerId: 'hq' });
+    const second = putInHand(after, 'corp', 'ice');
+    expect(() => executeAction(after, { type: 'INSTALL_CARD', player: 'corp', cardInstanceId: second, targetServerId: 'hq' })).toThrow(/credits/);
+    expect(isLegalAction(after, { type: 'INSTALL_CARD', player: 'corp', cardInstanceId: second, targetServerId: 'hq' })).toBe(false);
   });
 
   it('enforces the Runner memory limit', () => {

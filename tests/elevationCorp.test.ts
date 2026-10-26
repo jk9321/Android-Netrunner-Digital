@@ -615,6 +615,40 @@ describe('Elevation upgrades', () => {
     expect(s.corp.servers.hq.root.map(c => c.instanceId)).toContain(mercia);
   });
 
+  it('Mercia B4LL4RD pays 1 less than the ice install cost and shows the cost (rules 1.16.6b)', () => {
+    let s = newGame();
+    installCorpForTest(s, C.mercia, 'remote1', true);
+    installIceForTest(s, SG.palisade, 'hq');
+    installIceForTest(s, SG.palisade, 'hq');
+    installIceForTest(s, SG.palisade, 'rd');
+    s.corp.hq = [];
+    const ice = giveCard(s, 'corp', SG.palisade);
+    s.corp.credits = 5;
+    s = passTurn(s);
+    s = pick(s, [ice]);
+    const labels = prompt(s)?.kind === 'effect_choice' ? Object.fromEntries((prompt(s) as { options: { id: string; label: string }[] }).options.map(o => [o.id, o.label])) : {};
+    expect(labels.hq).toMatch(/\(1c\)/); // 2 ice, 1 less
+    expect(labels.rd).not.toMatch(/c\)/); // 1 ice, free
+    expect(labels.remote1).not.toMatch(/c\)/); // no ice, never below 0
+    s = choose(s, 'hq');
+    expect(s.corp.credits).toBe(4);
+    expect(s.corp.servers.hq.ice.length).toBe(3);
+  });
+
+  it('Mercia B4LL4RD can not install ice the Corp can not afford even with the discount', () => {
+    let s = newGame();
+    installCorpForTest(s, C.mercia, 'remote1', true);
+    installIceForTest(s, SG.palisade, 'hq');
+    installIceForTest(s, SG.palisade, 'hq');
+    s.corp.hq = [];
+    const ice = giveCard(s, 'corp', SG.palisade);
+    s.corp.credits = 0;
+    s = passTurn(s);
+    s = pick(s, [ice]);
+    expect(optionIds(s)).not.toContain('hq');
+    expect(optionIds(s)).toContain('rd');
+  });
+
   it('Mitra Aman gains 3 and swaps the approached ice', () => {
     let s = newGame();
     const outer = installIceForTest(s, SG.palisade, 'remote1');
