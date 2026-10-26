@@ -26,6 +26,25 @@ export function influenceCost(identity: CardDefinition, card: CardDefinition): n
 }
 
 /**
+ * Copies over the deck limit: 3 per card, or the card's own limit. Counted by
+ * name, so reprints from different sets share one limit (rule 1.4.7).
+ */
+export function copyLimitProblems(cards: CardDefinition[]): string[] {
+  const byTitle = new Map<string, { def: CardDefinition; count: number }>();
+  for (const def of cards) {
+    const entry = byTitle.get(def.title) ?? { def, count: 0 };
+    entry.count++;
+    byTitle.set(def.title, entry);
+  }
+  const problems: string[] = [];
+  for (const { def, count } of byTitle.values()) {
+    const limit = def.deck_limit ?? 3;
+    if (count > limit) problems.push(`${count} copies of ${def.title} (limit ${limit})`);
+  }
+  return problems;
+}
+
+/**
  * Checks deck-building rules: identity and card sides, minimum deck size,
  * copies per card (deck limit), influence, out-of-faction agendas, and
  * agenda points, then the format's card pool, ban list and extra rules.
@@ -53,15 +72,11 @@ export function validateDeck(deck: DeckSpec): string[] {
   const minSize = identity.minimum_deck_size ?? 0;
   if (defs.length < minSize) problems.push(`Deck has ${defs.length} cards; ${identity.title} needs at least ${minSize}`);
 
-  const counts = new Map<string, number>();
-  for (const def of defs) counts.set(def.code, (counts.get(def.code) ?? 0) + 1);
-  for (const [code, count] of counts) {
-    const def = getCardDefinition(code);
+  for (const def of new Map(defs.map(d => [d.code, d])).values()) {
     if (def.type_code === 'identity') problems.push(`${def.title} is an identity and cannot be in a deck`);
     if (def.side_code !== identity.side_code) problems.push(`${def.title} is a ${def.side_code} card`);
-    const limit = def.deck_limit ?? 3;
-    if (count > limit) problems.push(`${count} copies of ${def.title} (limit ${limit})`);
   }
+  problems.push(...copyLimitProblems(defs));
 
   if (identity.influence_limit != null) {
     const influence = defs.reduce((n, d) => n + influenceCost(identity, d), 0);

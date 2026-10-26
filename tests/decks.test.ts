@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { createInitialGameState, requiredAgendaPoints, validateDeck } from '../src/core';
+import { copyLimitProblems, createInitialGameState, getCardDefinition, requiredAgendaPoints, validateDeck } from '../src/core';
 import { DECKS, DeckList, deckCodes, deckGameSetup, pickRandomDeck, randomDeckPool } from '../src/data/decks';
 import { playout } from './helpers';
 
@@ -45,6 +45,13 @@ describe('validateDeck', () => {
   it('needs 2 points per 5 cards plus 2 (or 1 more)', () => {
     expect(requiredAgendaPoints(40)).toEqual([18, 19]);
     expect(requiredAgendaPoints(45)).toEqual([20, 21]);
+  });
+
+  it('counts the copy limit by name, so reprints share it (rule 1.4.7)', () => {
+    const palisade = getCardDefinition('30072');
+    const reprint = { ...palisade, code: '99072', pack_code: 'reprint' };
+    expect(copyLimitProblems([palisade, palisade, reprint])).toEqual([]);
+    expect(copyLimitProblems([palisade, palisade, reprint, reprint])).toEqual(['4 copies of Palisade (limit 3)']);
   });
 
   it('reports size, copies, side, influence, agenda points and out-of-faction agendas', () => {

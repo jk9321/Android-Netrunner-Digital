@@ -42,6 +42,19 @@ describe('formats', () => {
     ]);
   });
 
+  it('allows the starter-only identities in Casual but not in Startup or Standard (rule 1.4.1a)', () => {
+    for (const deckId of ['catalyst-starter', 'syndicate-starter']) {
+      const deck = DECKS.find(d => d.id === deckId);
+      expect(deck).toBeDefined();
+      const codes = deckCodes(deck!);
+      const title = getCardDefinition(codes.identity).title;
+      expect(validateDeck({ ...codes, format: 'casual' })).toEqual([]);
+      for (const format of ['startup', 'standard'] as const) {
+        expect(validateDeck({ ...codes, format }).join('|')).toContain(`${title} is a starter-only identity`);
+      }
+    }
+  });
+
   it('limits Startup Corp decks to 4 agendas worth 3 or more points', () => {
     const f = getFormat('startup');
     const corpId = ALL_CARDS.find(c => c.side_code === 'corp' && c.type_code === 'identity')!;

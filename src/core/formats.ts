@@ -166,9 +166,18 @@ export function isInCardPool(format: Format, card: CardDefinition): boolean {
   return format.sets === null || format.sets.includes(card.pack_code);
 }
 
+/**
+ * Identities from the System Gateway Starter Pack, legal only with their own
+ * starter decks and not under full deck construction rules (rule 1.4.1a).
+ */
+export const STARTER_ONLY_IDENTITIES = ['The Catalyst: Convention Breaker', 'The Syndicate: Profit over Principle'];
+
 /** Problems with the identity and cards under a format's card pool, ban list and extra rules. */
 export function validateFormat(format: Format, identity: CardDefinition, cards: CardDefinition[]): string[] {
   const problems: string[] = [];
+  if (format.id !== 'casual' && STARTER_ONLY_IDENTITIES.includes(identity.title)) {
+    problems.push(`${identity.title} is a starter-only identity and isn't legal in ${format.name}`);
+  }
   const unique = [identity, ...new Map(cards.map(c => [c.code, c])).values()];
   for (const card of unique) {
     if (!isInCardPool(format, card)) {
