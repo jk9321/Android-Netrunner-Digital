@@ -15,6 +15,9 @@ export function simulate(state: GameState, action: GameAction): GameState | null
 const hand = (state: GameState, side: SideCode) => (side === 'corp' ? state.corp.hq : state.runner.grip);
 /** How much a side wants to keep a card, plus (deck-aware AI) how well it fits the deck's plan. */
 const keep = (state: GameState, card: CardInstance, synergy: boolean) => keepValue(state, card, synergy) + (synergy ? keepBonus(state, card) : 0);
+/** The card was on top of R&D or the stack before (so it was drawn, not fetched by name). */
+const fromDeck = (state: GameState, side: SideCode, card: CardInstance) =>
+  (side === 'corp' ? state.corp.rd : state.runner.stack).some(c => c.instanceId === card.instanceId);
 const sumKeep = (state: GameState, cards: CardInstance[], synergy: boolean) => cards.reduce((n, c) => n + keep(state, c, synergy), 0);
 
 /**
@@ -24,7 +27,9 @@ const sumKeep = (state: GameState, cards: CardInstance[], synergy: boolean) => c
  */
 export function scoreOutcome(before: GameState, after: GameState, side: SideCode, memory?: RunnerMemory, synergy = false): number {
   let score = evaluate(after, side, synergy);
-  score += 0.5 * (sumKeep(after, hand(after, side), synergy) - sumKeep(before, hand(before, side), synergy));
+  // Cards that came from the deck are unknown until drawn: only the cards that left the hand count (plan.blindDraws)
+  const drawn = (c: CardInstance) => tuning.plan.blindDraws && !hand(before, side).some(b => b.instanceId === c.instanceId) && fromDeck(before, side, c);
+  score += 0.5 * (sumKeep(after, hand(after, side).filter(c => !drawn(c)), synergy) - sumKeep(before, hand(before, side), synergy));
   if (side === 'runner' && before.activeRun) {
     const value = serverValue(before, before.activeRun.server, 0, memory, synergy && tuning.wary, synergy && tuning.plan.urgency) * 0.8;
     if (after.activeRun && !after.activeRun.isJackedOut) score += value;

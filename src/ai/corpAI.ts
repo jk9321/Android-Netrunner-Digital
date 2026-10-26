@@ -3,7 +3,7 @@ import { iceScript, iceSubtypes } from '../core/engine/ice';
 import { rigCoverage } from './evaluate';
 import { counters, rezCost } from '../core/engine/cardEffects';
 import { Agent, FreeActionGuard, ScoredAction } from './agent';
-import { evaluate } from './evaluate';
+import { digValue, evaluate } from './evaluate';
 import { answerPrompt, simulate } from './prompts';
 import { logNudge, nudge, opponentLean, tuning } from './synergy';
 import { iceCost, isTrap } from './runs';
@@ -14,6 +14,9 @@ import { econValue, upgradeValue } from './cardValues';
 const type = (card: CardInstance) => cardDef(card).type_code;
 const hasEndTheRun = (ice: CardInstance) => (iceScript(ice)?.subroutines ?? []).some(s => /end the run/i.test(s.label));
 const isAgendaOrAsset = (card: CardInstance) => ['agenda', 'asset'].includes(type(card));
+
+/** Money operations by card code: credits gained (Hedge Fund, Government Subsidy, Hansei Review, Peer Review, Petty Cash). */
+const MONEY_OPS: Record<string, number> = { '30075': 9, '30064': 15, '30048': 10, '35055': 7, '35081': 5 };
 /** "Dividends N": agenda counters per advancement counter beyond the requirement (0: none). */
 const dividends = (card: CardInstance) => Number(/dividends (\d+)/i.exec(cardDef(card).stripped_text ?? '')?.[1] ?? 0);
 
@@ -216,11 +219,44 @@ export class HeuristicCorpAI implements Agent {
       resolved = next;
     }
     let score = evaluate(resolved, 'corp', this.synergy) - before;
+    if (this.synergy) score += this.moneyPlan(state, action);
     // Deck-aware AI: a play that makes an agenda scoreable this turn (Seamless Launch, Key Performance Indicators...)
     if (this.synergy && tuning.plan.scoreSetup && scoreable(resolved) > scoreable(state)) score = Math.max(score, 41);
     if (!spendsClick && score <= 0.3) return -Infinity;
     score -= reservePenalty(state, resolved.corp.credits, this.wideReserve);
     return score;
+  }
+
+  /**
+   * Money and digging the one-step evaluation misses (deck-aware AI):
+   * clicks toward a money operation in HQ it can't afford yet, Petty Cash
+   * while it can still be played (it comes back from Archives later), and
+   * draws for a missing answer still in R&D (see digValue).
+   */
+  private moneyPlan(state: GameState, action: GameAction): number {
+    const corp = state.corp;
+    if (action.type === 'GAIN_CREDIT' && tuning.plan.saveForOps) {
+      // Reachable: this turn with a click left to play it, or early next turn
+      const reachable = corp.hq.some(c => {
+        const gain = MONEY_OPS[c.cardCode];
+        const cost = cardDef(c).cost ?? 0;
+        return gain !== undefined && cost > corp.credits && cost <= corp.credits + corp.clicks + 2;
+      });
+      return reachable ? 0.6 : 0;
+    }
+    if (action.type === 'USE_ABILITY' && tuning.plan.hostedMoney) {
+      // The board counts hosted credits at 0.6 each (see corpCardValue): give that back, so a Regolith click is worth its 3 credits
+      const card = Object.values(corp.servers).flatMap(s => s.root).find(c => c.instanceId === action.cardInstanceId);
+      const after = card && simulate(state, action);
+      if (!card || !after) return 0;
+      const left = Object.values(after.corp.servers).flatMap(s => s.root).find(c => c.instanceId === card.instanceId);
+      return 0.6 * Math.max(0, counters(card, 'credit') - (left ? counters(left, 'credit') : 0));
+    }
+    if (action.type === 'PLAY_OPERATION_OR_EVENT' && tuning.plan.pettyCash) {
+      return corp.hq.find(c => c.instanceId === action.cardInstanceId)?.cardCode === '35081' ? 1.5 : 0;
+    }
+    if (action.type === 'DRAW_CARD' && tuning.plan.dig?.corp && corp.hq.length < corp.handSizeLimit) return digValue(state, 'corp');
+    return 0;
   }
 
   /**

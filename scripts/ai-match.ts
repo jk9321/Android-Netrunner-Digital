@@ -38,7 +38,13 @@ tuning.wary = process.env.WARY !== '0';
 tuning.bluff = process.env.BLUFF !== '0';
 tuning.purge = process.env.PURGE !== '0';
 // PLAN_OFF=urgency,saveUp switches off planning terms (see tuning.plan)
-for (const key of (process.env.PLAN_OFF ?? '').split(',').filter(Boolean)) (tuning.plan as Record<string, boolean>)[key] = false;
+for (const key of (process.env.PLAN_OFF ?? '').split(',').filter(Boolean)) {
+  // key.side (drawValue.runner) switches a per-side term off for one side only
+  const [name, side] = key.split('.');
+  const plan = tuning.plan as Record<string, unknown>;
+  if (side) plan[name] = { ...(plan[name] as object), [side]: false };
+  else plan[name] = false;
+}
 
 const corpDecks = DECKS.filter(d => d.side === 'corp');
 const runnerDecks = DECKS.filter(d => d.side === 'runner');

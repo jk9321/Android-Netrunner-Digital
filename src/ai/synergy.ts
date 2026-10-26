@@ -121,6 +121,25 @@ export const tuning = {
     affordIce: true,
     /** Corp (round 3): no half-advanced agendas: advance only when it can be scored next turn behind ice it can rez. */
     agendaTiming: true,
+    /*
+     * Draw and money round (2026-10-26, self-play): all on Corp 45.4% (2,210
+     * games). Off on 1,105: saveForOps 39.8%, blindDraws 42.0%, pettyCash,
+     * hostedMoney and dig within noise. drawValue off for both sides 48.0%
+     * (2,210), for either side alone within noise; kept (Jeff's rule: within
+     * noise and plays more like a person).
+     */
+    /** Both sides (Jeff): a card in hand is worth about a credit up to the hand-size limit, not half of one (per deciding side). */
+    drawValue: { corp: true, runner: true } as Record<SideCode, boolean>,
+    /** Both sides: prompt answers don't count what the drawn cards are (the AI can't know), only how many. */
+    blindDraws: true,
+    /** Both sides (Jeff): draw harder for a missing answer (money, ice, a breaker) still in the deck, more under pressure (per side). */
+    dig: { corp: true, runner: true } as Record<SideCode, boolean>,
+    /** Corp (Jeff): taking credits off an asset (Regolith Mining License) counts as the money gained, not as board value lost. */
+    hostedMoney: true,
+    /** Corp: Petty Cash first thing in the turn (it can only be played then, and replays from Archives). */
+    pettyCash: true,
+    /** Corp: click for credits toward a money operation in HQ it can't afford yet (Hedge Fund, Subsidy...). */
+    saveForOps: true,
   },
 };
 

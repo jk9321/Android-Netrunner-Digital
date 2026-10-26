@@ -20,11 +20,58 @@ export function creditValue(credits: number): number {
   return credits + 0.6 * Math.min(Math.max(credits, 0), 6);
 }
 
-/** Value of a hand of `size` cards: the first few matter most, cards over the limit not at all. */
-export function handValue(size: number, limit: number): number {
+/**
+ * Value of a hand of `size` cards: the first few matter most, cards over
+ * the limit not at all (they will be discarded). With plan.drawValue a card
+ * up to the limit is worth what a credit is to a short side.
+ */
+export function handValue(size: number, limit: number, viewer?: SideCode): number {
+  const card = viewer && tuning.plan.drawValue?.[viewer] ? DRAWN_CARD : 0.8;
   let value = 0;
-  for (let i = 0; i < size; i++) value += i < 3 ? 2 : i < limit ? 0.8 : 0;
+  for (let i = 0; i < size; i++) value += i < 3 ? 2 : i < limit ? card : 0;
   return value;
+}
+
+/** Worth of a card in hand beyond the first three, up to the limit (plan.drawValue). */
+export const DRAWN_CARD = 1.6;
+
+const isEcon = (card: CardInstance) => (cardSynergy(cardDef(card)).gives?.econ ?? 0) >= 0.5;
+
+/**
+ * Extra worth of drawing a card (plan.dig, Jeff): for each problem the hand
+ * can't answer but the deck still can (no money, no ice for the Corp, no
+ * breaker for an ice type the Runner faces), the chance the next card is an
+ * answer, more while the opponent is close to winning or about to score.
+ * Each side only looks at its own deck's contents, never its order.
+ */
+export function digValue(state: GameState, side: SideCode): number {
+  const odds = (deck: CardInstance[], answers: (c: CardInstance) => boolean) => (deck.length > 0 ? deck.filter(answers).length / deck.length : 0);
+  let value = 0;
+  if (side === 'corp') {
+    const corp = state.corp;
+    const pressure = state.runner.score >= 5 ? 1 : state.runner.score >= 3 ? 0.5 : 0;
+    const iced = (id: string) => (corp.servers[id]?.ice.length ?? 0) > 0;
+    const needIce = !corp.hq.some(c => cardDef(c).type_code === 'ice') && (!iced('rd') || !iced('hq') || corp.hq.some(c => cardDef(c).type_code === 'agenda'));
+    const needMoney = corp.credits < 5 && !corp.hq.some(isEcon);
+    if (needIce) value += Math.min(1.2, 3 * odds(corp.rd, c => cardDef(c).type_code === 'ice') * (1 + pressure));
+    if (needMoney) value += Math.min(1.2, 3 * odds(corp.rd, isEcon) * (1 + pressure));
+    return value;
+  }
+  const runner = state.runner;
+  const remotes = Object.values(state.corp.servers).filter(s => s.isRemote);
+  const scoring = remotes.some(s => s.root.some(c => !c.isRezzed && c.advancementCounters > 0));
+  const pressure = (state.corp.score >= 5 ? 1 : state.corp.score >= 3 ? 0.5 : 0) + (scoring ? 0.5 : 0);
+  // Ice types the Corp has shown that nothing installed or in the grip breaks
+  const covered = rigCoverage([...runner.rig.programs, ...runner.grip]);
+  if (covered.anyBreakers === 0) {
+    const faced = new Set(Object.values(state.corp.servers).flatMap(s => s.ice.filter(i => i.isRezzed).flatMap(i => iceSubtypes(i, state))));
+    for (const type of ICE_TYPES) {
+      if (!faced.has(type) || covered.covered.has(type)) continue;
+      value += Math.min(1.2, 3 * odds(runner.stack, c => { const b = breakerScript(c); return !!b && (b.breaks === type || b.breaks === 'any'); }) * (1 + pressure));
+    }
+  }
+  if (runner.credits < 4 && !runner.grip.some(isEcon)) value += Math.min(1.2, 3 * odds(runner.stack, isEcon) * (1 + pressure));
+  return Math.min(2.5, value);
 }
 
 
@@ -158,7 +205,7 @@ export function sideStrength(state: GameState, side: SideCode, viewer: SideCode 
     return (
       creditValue(corp.credits) +
       corp.clicks +
-      handValue(corp.hq.length, corp.handSizeLimit) +
+      handValue(corp.hq.length, corp.handSizeLimit, viewer) +
       8 * corp.score +
       corpBoardValue(state, viewer) +
       (1.5 + threat) * state.runner.tags +
@@ -171,7 +218,7 @@ export function sideStrength(state: GameState, side: SideCode, viewer: SideCode 
   return (
     creditValue(runner.credits) +
     runner.clicks +
-    handValue(runner.grip.length, runner.handSizeLimit) +
+    handValue(runner.grip.length, runner.handSizeLimit, viewer) +
     8 * runner.score -
     (3 + threat) * runner.tags -
     4 * runner.coreDamage +

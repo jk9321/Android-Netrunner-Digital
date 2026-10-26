@@ -1,3 +1,6 @@
+import { getCardDefinition } from '../core';
+import { tuning } from './synergy';
+
 /**
  * The AI's per-card numbers, by card code. Every Corp asset and upgrade and
  * every Runner program, hardware and resource that isn't an icebreaker needs
@@ -15,20 +18,22 @@ export interface CardValue {
   upgrade?: [number, number];
   /** Runner program, hardware or resource (not an icebreaker): its worth installed beyond icebreaker coverage. */
   rig?: number;
+  /** Cards it draws (a turn, or once): adds to keep, econ and rig worth while plan.drawValue is on. */
+  draws?: number;
 }
 
 export const CARD_VALUES: Record<string, CardValue> = {
   // Corp
-  '30037': { keep: 5, econ: 3.5 }, // Nico Campaign
+  '30037': { keep: 5, econ: 3.5, draws: 1 }, // Nico Campaign
   '30042': { keep: 4, upgrade: [2.5, 2] }, // Manegarm Skunkworks
   '30045': { keep: 2 }, // Urtica Cipher: a trap, worth keeping for trap decks
   '30050': { keep: 3, upgrade: [1.5, 0.8] }, // Anoetic Void
-  '30053': { keep: 2, econ: 1.5 }, // Spin Doctor
+  '30053': { keep: 2, econ: 1.5, draws: 2 }, // Spin Doctor
   '30058': { keep: 2, upgrade: [1.5, 0] }, // AMAZE Amusements
   '30061': { keep: 2 }, // Clearinghouse: meat damage once advanced
   '30066': { keep: 2, upgrade: [1.5, 0] }, // Malapert Data Vault
   '30071': { keep: 6, econ: 4 }, // Regolith Mining License
-  '35039': { keep: 3, econ: 2 }, // Humanoid Resources
+  '35039': { keep: 3, econ: 2, draws: 3 }, // Humanoid Resources
   '35040': { keep: 4, econ: 3.5 }, // Otto Campaign
   '35045': { keep: 2, upgrade: [1, 1] }, // Mercia B4LL4RD
   '35050': { keep: 1.5 }, // Byte!: a trap, but costs 4 to fire
@@ -55,9 +60,9 @@ export const CARD_VALUES: Record<string, CardValue> = {
   '30027': { rig: 1.5 }, // Telework Contract
   '30031': { rig: 2 }, // T400 Memory Diamond
   '30033': { rig: 2.5 }, // Smartware Distributor
-  '30034': { rig: 3.5 }, // Verbal Plasticity
+  '30034': { rig: 3.5, draws: 1 }, // Verbal Plasticity
   '35006': { rig: 3.5 }, // Bling
-  '35007': { rig: 2.5 }, // Gourmand: trash and draw, once
+  '35007': { rig: 2.5, draws: 1 }, // Gourmand: trash and draw, once
   '35010': { rig: 4 }, // Cacophony
   '35011': { rig: 3 }, // Rent Rioters: 9 credits waiting
   '35018': { rig: 3.5 }, // Detente
@@ -69,15 +74,21 @@ export const CARD_VALUES: Record<string, CardValue> = {
   '35029': { rig: 2.5 }, // Azimat: 2 recurring credits for trashing
   '35030': { rig: 2 }, // Chromatophores: any breaker can break its host ice
   '35031': { rig: 2.5 }, // Devadatta Drone: 2 extra R&D accesses
-  '35033': { rig: 2 }, // “Knickknack” O’Brian: credits and a card for spent installs
+  '35033': { rig: 2, draws: 0.5 }, // “Knickknack” O’Brian: credits and a card for spent installs
   '35034': { rig: 2.5 }, // Side Hustle
 };
 
+/** Extra worth of the cards a card draws, now that a card in hand is worth about a credit. */
+const drawBonus = (code: string): number => (tuning.plan.drawValue?.[getCardDefinition(code).side_code] ? 0.5 * (CARD_VALUES[code]?.draws ?? 0) : 0);
+
 /** Worth of an installed Corp asset or upgrade (1 if not listed). */
-export const corpKeepValue = (code: string): number => CARD_VALUES[code]?.keep ?? 1;
+export const corpKeepValue = (code: string): number => (CARD_VALUES[code]?.keep ?? 1) + drawBonus(code);
 /** Worth of an econ asset in its own remote (undefined: not an econ asset). */
-export const econValue = (code: string): number | undefined => CARD_VALUES[code]?.econ;
+export const econValue = (code: string): number | undefined => {
+  const econ = CARD_VALUES[code]?.econ;
+  return econ === undefined ? undefined : econ + drawBonus(code);
+};
 /** An upgrade's worth in a scoring remote and on HQ or R&D. */
 export const upgradeValue = (code: string): [number, number] => CARD_VALUES[code]?.upgrade ?? [1, 0.5];
 /** Worth of an installed Runner card beyond icebreaker coverage (2 if not listed). */
-export const runnerCardValue = (code: string): number => CARD_VALUES[code]?.rig ?? 2;
+export const runnerCardValue = (code: string): number => (CARD_VALUES[code]?.rig ?? 2) + drawBonus(code);

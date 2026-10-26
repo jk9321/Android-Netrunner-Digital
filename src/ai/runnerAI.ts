@@ -2,7 +2,7 @@ import { GameAction, GameState, activePrompt, getLegalActions } from '../core';
 import { encounteredIce, iceScript, isBioroid } from '../core/engine/ice';
 import { availableCredits } from '../core/engine/cardEffects';
 import { Agent, FreeActionGuard, ScoredAction } from './agent';
-import { evaluate, rigCoverage } from './evaluate';
+import { digValue, evaluate, rigCoverage } from './evaluate';
 import { answerPrompt, runEventOptions, simulate } from './prompts';
 import type { HeuristicOptions } from './corpAI';
 import { logNudge, nudge, tuning } from './synergy';
@@ -175,7 +175,7 @@ export class HeuristicRunnerAI implements Agent {
     if (prompt?.kind === 'effect_choice' && prompt.side === 'runner' && prompt.options.every(o => after.corp.servers[o.id])) {
       const options = { ...runEventOptions(prompt.source.cardCode), memory: this.memory, wary: this.synergy && tuning.wary, urgent: this.synergy && tuning.plan.urgency };
       const best = Math.max(...prompt.options.map(o => runScore(state, o.id, options)));
-      return best - paid * 0.6 + (prompt.source.cardCode === '30028' ? 0.5 : 0);
+      return best - paid * 0.6 + (prompt.source.cardCode === '30028' ? (tuning.plan.drawValue?.runner ? 1.3 : 0.5) : 0); // Jailbreak draws a card
     }
     if (!state.activeRun && after.activeRun) {
       return runScore(state, after.activeRun.server, { ...runEventOptions(cardCode ?? ''), memory: this.memory, wary: this.synergy && tuning.wary, urgent: this.synergy && tuning.plan.urgency }) - paid * 0.6 + 0.3;
@@ -191,6 +191,7 @@ export class HeuristicRunnerAI implements Agent {
     let score = evaluate(resolved, 'runner', this.synergy) - before;
     if (action.type === 'DRAW_CARD' && needsBiggerHand(state, this.memory)) score += 1.5;
     if (action.type === 'DRAW_CARD' && this.digForBreakers && state.runner.stack.length > 5) score += 1.2;
+    if (action.type === 'DRAW_CARD' && this.synergy && tuning.plan.dig?.runner && state.runner.grip.length < state.runner.handSizeLimit) score += digValue(state, 'runner');
     if (action.type === 'INSTALL_CARD' && action.hostInstanceId && cardCode && TROJANS.includes(cardCode)) {
       const host = Object.values(state.corp.servers).flatMap(s => s.ice).find(c => c.instanceId === action.hostInstanceId);
       score += host?.isRezzed ? 1.5 : -3;

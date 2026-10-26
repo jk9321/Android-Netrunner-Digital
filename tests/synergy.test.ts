@@ -1,13 +1,13 @@
 import { describe, expect, it } from 'vitest';
-import { ALL_CARDS, CardInstance, GameAction, GameState, createCardInstance, createInitialGameState, getCardDefinition } from '../src/core';
-import { keepValue, tagThreat } from '../src/ai/evaluate';
+import { ALL_CARDS, CardInstance, GameAction, GameState, createCardInstance, createInitialGameState, executeAction, getCardDefinition } from '../src/core';
+import { digValue, handValue, keepValue, tagThreat } from '../src/ai/evaluate';
 import { DECKS, deckGameSetup } from '../src/data/decks';
-import { HeuristicCorpAI, playAIGame } from '../src/ai';
+import { HeuristicCorpAI, HeuristicRunnerAI, playAIGame } from '../src/ai';
 import { MAX_NUDGE, deckProfile, nudge, opponentProfile, tuning } from '../src/ai/synergy';
 import { CONDITIONS, CONDITION_PATTERNS, SYNERGY, THEMES, inferSynergy } from '../src/ai/synergyTags';
 import { newGame } from './helpers';
 import { RunnerMemory, isTrap, serverValue, trapOdds } from '../src/ai/runs';
-import { taoSwap, untaianPick } from '../src/ai/prompts';
+import { answerPrompt, taoSwap, untaianPick } from '../src/ai/prompts';
 
 
 describe('synergy tags', () => {
@@ -408,5 +408,92 @@ describe('identity plans', () => {
     // Nothing to gain: no swap
     s.corp.servers.archives.ice = [];
     expect(taoSwap(s)).toEqual([]);
+  });
+});
+
+describe('draws and money', () => {
+  it('a card in hand is worth about a credit up to the hand-size limit, nothing over it', () => {
+    expect(handValue(4, 5, 'corp') - handValue(3, 5, 'corp')).toBeCloseTo(1.6);
+    expect(handValue(6, 5, 'corp') - handValue(5, 5, 'corp')).toBe(0);
+    tuning.plan.drawValue.corp = false;
+    expect(handValue(4, 5, 'corp') - handValue(3, 5, 'corp')).toBeCloseTo(0.8);
+    expect(handValue(4, 5, 'runner') - handValue(3, 5, 'runner')).toBeCloseTo(1.6);
+    tuning.plan.drawValue.corp = true;
+  });
+
+  it('the Runner draws below the limit with money in the bank, and stops at the limit', () => {
+    const s = structuredClone(newGame());
+    s.activePlayer = 'runner';
+    s.runner.clicks = 4;
+    s.runner.credits = 8;
+    s.runner.grip = s.runner.grip.slice(0, 3);
+    const score = (type: string) => new HeuristicRunnerAI().rankMainActions(s).find(r => r.action.type === type)!.score;
+    expect(score('DRAW_CARD')).toBeGreaterThan(score('GAIN_CREDIT'));
+    while (s.runner.grip.length < s.runner.handSizeLimit) s.runner.grip.push(s.runner.stack.shift()!);
+    expect(score('DRAW_CARD')).toBeLessThan(score('GAIN_CREDIT'));
+  });
+
+  it('Predictive Planogram takes the credits when broke and HQ is full, without peeking at the cards it would draw', () => {
+    const s = structuredClone(newGame());
+    const planogram = createCardInstance(s, '30056');
+    s.corp.hq = [planogram, ...s.corp.hq.slice(0, 4)];
+    s.corp.credits = 0;
+    const played = executeAction(s, { type: 'PLAY_OPERATION_OR_EVENT', player: 'corp', cardInstanceId: planogram.instanceId });
+    const answered = executeAction(played, answerPrompt(played, 'corp', undefined, true));
+    expect(answered.corp.credits).toBe(3);
+  });
+
+  it('a Regolith Mining License click is worth its 3 credits, well over the basic click', () => {
+    const s = structuredClone(newGame());
+    const regolith = createCardInstance(s, '30071');
+    regolith.isRezzed = true;
+    regolith.tokens = { ...regolith.tokens, credit: 15 };
+    s.corp.servers['remote-8'] = { id: 'remote-8', name: 'remote-8', isRemote: true, ice: [], root: [regolith] };
+    s.corp.credits = 8;
+    const ranked = new HeuristicCorpAI().rankMainActions(s);
+    const take = ranked.find(r => r.action.type === 'USE_ABILITY' && r.action.cardInstanceId === regolith.instanceId)!.score;
+    const click = ranked.find(r => r.action.type === 'GAIN_CREDIT')!.score;
+    expect(take).toBeGreaterThan(click + 1.5);
+  });
+
+  it('clicks for credits toward a Hedge Fund it can almost afford', () => {
+    const s = structuredClone(newGame());
+    s.corp.hq = [createCardInstance(s, '30075'), ...s.corp.hq.slice(0, 2)];
+    s.corp.credits = 3;
+    const credit = () => new HeuristicCorpAI().rankMainActions(s).find(r => r.action.type === 'GAIN_CREDIT')!.score;
+    const on = credit();
+    tuning.plan.saveForOps = false;
+    const off = credit();
+    tuning.plan.saveForOps = true;
+    expect(on).toBeGreaterThan(off + 0.5);
+  });
+});
+
+describe('digging for answers', () => {
+  it('the Corp digs for ice it does not hold, harder once the Runner is close to winning', () => {
+    const s = structuredClone(newGame());
+    s.corp.hq = s.corp.hq.filter(c => getCardDefinition(c.cardCode).type_code !== 'ice').slice(0, 2);
+    s.corp.credits = 8;
+    const calm = digValue(s, 'corp');
+    expect(calm).toBeGreaterThan(0);
+    s.runner.score = 5;
+    expect(digValue(s, 'corp')).toBeGreaterThan(calm);
+    // Nothing left to find: no reason to dig
+    s.corp.rd = s.corp.rd.filter(c => getCardDefinition(c.cardCode).type_code !== 'ice');
+    expect(digValue(s, 'corp')).toBe(0);
+  });
+
+  it('the Runner digs for a breaker for the ice the Corp has shown', () => {
+    const s = structuredClone(newGame());
+    s.runner.credits = 8;
+    s.runner.grip = [];
+    s.runner.rig.programs = [];
+    expect(digValue(s, 'runner')).toBe(0); // no ice shown yet
+    const wall = createCardInstance(s, '30072'); // Palisade, a barrier
+    wall.isRezzed = true;
+    s.corp.servers.rd.ice = [wall];
+    expect(digValue(s, 'runner')).toBeGreaterThan(0);
+    s.runner.rig.programs = [createCardInstance(s, '30006')]; // Cleaver breaks barriers
+    expect(digValue(s, 'runner')).toBe(0);
   });
 });

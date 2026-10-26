@@ -20,7 +20,13 @@ const level = (levelArg ?? 'normal') as 'normal' | 'hard';
 const [shard, shards] = (process.env.SHARD ?? '0/1').split('/').map(Number);
 
 // PLAN_OFF=a,b switches off planning terms; CORP_DECKS / RUNNER_DECKS=name,name play only those decks
-for (const key of (process.env.PLAN_OFF ?? '').split(',').filter(Boolean)) (tuning.plan as Record<string, boolean>)[key] = false;
+for (const key of (process.env.PLAN_OFF ?? '').split(',').filter(Boolean)) {
+  // key.side (drawValue.runner) switches a per-side term off for one side only
+  const [name, side] = key.split('.');
+  const plan = tuning.plan as Record<string, unknown>;
+  if (side) plan[name] = { ...(plan[name] as object), [side]: false };
+  else plan[name] = false;
+}
 if (process.env.BLUFF === '0') tuning.bluff = false;
 const only = (process.env.CORP_DECKS ?? '').split(',').filter(Boolean);
 const corpDecks = DECKS.filter(d => d.side === 'corp' && (only.length === 0 || only.includes(d.name)));
