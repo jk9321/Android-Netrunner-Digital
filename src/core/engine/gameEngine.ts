@@ -13,6 +13,7 @@ import { useAbility } from './actions/ability';
 import { bumpTurnFlag, syncDerivedStats, TurnFlag } from './cardEffects';
 import { findCardAnywhere } from './helpers';
 import { getCardScript } from '../scripts';
+import { removeEmptyRemotes } from './checkpoint';
 
 export { addLog } from './log';
 
@@ -73,6 +74,7 @@ export function executeAction(prevState: GameState, action: GameAction): GameSta
     throw new IllegalActionError(`Unknown action type: ${(action as { type: string }).type}`);
   }
   handler(state, action);
+  removeEmptyRemotes(state);
   // Petty Cash: "Play only if you have not finished an action yet this turn"
   if (isClickAction(prevState, action) && state.activePlayer === prevState.activePlayer) bumpTurnFlag(state, TurnFlag.actionsFinished);
   syncDerivedStats(state);

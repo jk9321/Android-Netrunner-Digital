@@ -151,7 +151,7 @@ describe('Accessing', () => {
     const b = installForTest(state, 'agenda', 'remote-9');
     const after = runOn(state, 'remote-9');
     expect(after.runner.scoreArea.map(c => c.instanceId).sort()).toEqual([a, b].sort());
-    expect(after.corp.servers['remote-9'].root).toHaveLength(0);
+    expect(after.corp.servers['remote-9']).toBeUndefined(); // emptied, so it ceased to exist
   });
 
   it('accesses the top card of R&D', () => {

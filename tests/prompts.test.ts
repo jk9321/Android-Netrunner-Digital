@@ -106,7 +106,7 @@ describe('Trashing accessed cards', () => {
     const credits = state.runner.credits;
     state = answer(state, { kind: 'access_trash', trash: true });
     expect(state.runner.credits).toBe(credits - cost);
-    expect(state.corp.servers['remote-9'].root).toHaveLength(0);
+    expect(state.corp.servers['remote-9']).toBeUndefined(); // emptied, so it ceased to exist
     expect(state.corp.archives.faceUp.map(c => c.instanceId)).toEqual([id]);
     expect(state.activeRun).toBeNull();
   });
