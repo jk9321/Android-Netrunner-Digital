@@ -43,6 +43,7 @@ export function AccessedPanel({
             notInstalled
             isFaceDown={secretFrom === viewer}
             canPeek={secretFrom !== viewer}
+            plainBack
             onInspect={onInspect}
           />
         ))}

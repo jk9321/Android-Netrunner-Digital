@@ -17,6 +17,8 @@ export interface CardViewProps {
   card: CardInstance;
   isFaceDown?: boolean;
   canPeek?: boolean;
+  /** Face down with nothing to explain (an R&D access the Corp can't see): just the card back, no text popout. */
+  plainBack?: boolean;
   isSelectable?: boolean;
   isSelected?: boolean;
   onClick?: () => void;
@@ -48,6 +50,7 @@ const CardFace: React.FC<CardViewProps> = ({
   onInspect,
   size = 'md',
   notInstalled = false,
+  plainBack = false,
   typeIcons = false,
   sideways = false,
   tag,
@@ -115,7 +118,7 @@ const CardFace: React.FC<CardViewProps> = ({
 
         <CardOverlays card={card} sideways={sideways} tag={tag} actions={actions} />
 
-        {showTooltip && (
+        {showTooltip && !plainBack && (
           <CardPopout
             card={card}
             targetRect={cardRef.current?.getBoundingClientRect() || null}
