@@ -91,6 +91,13 @@ export class HeuristicRunnerAI implements Agent {
       if (use) return use;
     }
 
+    // Bioroids: spare clicks break the worst subroutines first, run-ending or not (each one costs the Runner at least a credit)
+    if (tuning.plan.bioroidClicks && isBioroid(ice)) {
+      const worst = [...mustBreak].sort((a, b) => b.cost - a.cost)[0];
+      const click = legal.find(a => a.type === 'BIOROID_BREAK' && a.subroutineIndex === worst.i);
+      if (click) return click;
+    }
+
     // Runner (run budget): keep what the rezzed ice further in needs
     const ahead = tuning.plan.runBudget ? creditsAhead(state) : 0;
     const credits = availableCredits(state, 'runner') - ahead;

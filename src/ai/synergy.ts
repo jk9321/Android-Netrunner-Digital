@@ -160,6 +160,8 @@ export const tuning = {
     saveForOps: true,
     /** Runner: Botulus counters count as free breaks when costing ice; trojans go on the ice they help most, not doubled up. */
     trojans: true,
+    /** Runner (Jeff): on bioroid ice, spend spare clicks on the worst subroutines, not only the run-ending ones. */
+    bioroidClicks: true,
   },
 };
 

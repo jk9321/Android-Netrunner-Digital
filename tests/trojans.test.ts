@@ -66,4 +66,19 @@ describe('Runner AI trojans', () => {
     expect(trojanHostValue(s, BOTULUS, s.corp.servers.rd.ice[0])).toBeLessThan(noFracter);
     expect(trojanHostValue(s, BOTULUS, s.corp.servers.hq.ice[0])).toBeGreaterThan(trojanHostValue(s, BOTULUS, s.corp.servers.rd.ice[0]));
   });
+
+  it('spends spare clicks on bioroid ice, worst subroutine first, not only the run-ending one (Ansel 1.0: "Lose [click]: Break 1 subroutine")', () => {
+    let s = newGame();
+    installIceForTest(s, ANSEL, 'remote-9');
+    installProgramForTest(s, CLEAVER); // something for "Trash 1 installed Runner card" to hit
+    s = runIntoFirstIce(s, 'remote-9');
+    const ai = new HeuristicRunnerAI();
+    let action = ai.chooseAction(s);
+    expect(action).toMatchObject({ type: 'BIOROID_BREAK', subroutineIndex: 2 }); // cannot steal or trash
+    s = executeAction(s, action);
+    action = ai.chooseAction(s);
+    expect(action).toMatchObject({ type: 'BIOROID_BREAK', subroutineIndex: 0 }); // trash an installed card
+    s = executeAction(s, action);
+    expect(s.activeRun!.encounter!.broken).toEqual([true, false, true]);
+  });
 });
