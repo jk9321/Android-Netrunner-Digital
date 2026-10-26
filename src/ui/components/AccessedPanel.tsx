@@ -1,4 +1,4 @@
-import { CardInstance } from '../../core';
+import { CardInstance, getCardDefinition } from '../../core';
 import { CardView } from './CardView';
 import { AccessedCard } from '../savedGame';
 import { Viewer } from '../viewer';
@@ -16,6 +16,13 @@ export function AccessedPanel({
   onInspect: (card: CardInstance) => void;
   onClose: () => void;
 }) {
+  // Rules 7.1.5a: only cards with a trash cost can be trashed on access. Explains a
+  // card the viewer can see that got no trash offer (agendas are stolen instead).
+  const untrashable = cards.some(({ code, secretFrom }) => {
+    if (secretFrom === viewer) return false;
+    const def = getCardDefinition(code);
+    return def.type_code !== 'agenda' && def.trash_cost == null;
+  });
   return (
     <div
       className="fixed left-4 bottom-6 z-40 w-72 max-w-[calc(100vw-2rem)] bg-slate-950/95 border-2 border-pink-700 rounded-2xl p-3 shadow-2xl font-mono"
@@ -40,7 +47,7 @@ export function AccessedPanel({
           />
         ))}
       </div>
-      <p className="text-[10px] text-slate-500 mt-1.5">Cards without a trash cost (ice, operations) can't be trashed.</p>
+      {untrashable && <p className="text-[10px] text-slate-500 mt-1.5">Cards without a trash cost (most ice and operations) can't be trashed.</p>}
     </div>
   );
 }
