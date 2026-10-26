@@ -148,23 +148,23 @@ export function isTrap(code: string): boolean {
 
 /**
  * How likely an unknown installed Corp card is a trap rather than an
- * agenda, from what the Runner has seen: traps it accessed or saw trashed
- * into Archives, agendas scored or stolen, and the Corp's faction (Jinteki
- * plays the most traps). Starts at 1 in 3 and moves with the evidence.
+ * agenda, counted from the Corp's decklist: the traps still unaccounted for
+ * against the traps and agendas still unaccounted for. Unaccounted for
+ * means in HQ, R&D, facedown in Archives or installed facedown, and not
+ * already accessed by the Runner. Cards that come back to HQ or R&D count
+ * again; once every trap is accounted for the odds are 0.
  */
 export function trapOdds(state: GameState, memory?: RunnerMemory): number {
-  const seen = new Set<string>();
+  const corp = state.corp;
+  const installed = Object.values(corp.servers).flatMap(server => server.root.filter(c => !c.isRezzed && !c.faceUp));
   let traps = 0;
-  const note = (id: string, code: string) => {
-    if (seen.has(id)) return;
-    seen.add(id);
-    if (isTrap(code)) traps++;
-  };
-  memory?.forEach((code, id) => note(id, code));
-  for (const c of state.corp.archives.faceUp) note(c.instanceId, c.cardCode);
-  const agendas = state.corp.scoreArea.length + state.runner.scoreArea.length;
-  const prior = cardDef(state.corp.identity).faction_code === 'jinteki' ? 1.5 : 1;
-  return (traps + prior) / (traps + agendas + prior + 2);
+  let agendas = 0;
+  for (const card of [...corp.hq, ...corp.rd, ...corp.archives.faceDown, ...installed]) {
+    if (memory?.has(card.instanceId)) continue;
+    if (isTrap(card.cardCode)) traps++;
+    else if (cardDef(card).type_code === 'agenda') agendas++;
+  }
+  return traps + agendas > 0 ? traps / (traps + agendas) : 0;
 }
 
 /** What accessing this server is worth to the Runner right now. */
@@ -184,7 +184,7 @@ export function serverValue(state: GameState, serverId: string, extraAccesses = 
     value = Math.min(3, 0.6 * state.corp.archives.faceDown.length) + 6 * faceUpAgendas;
   }
   if (repeat > 0 && server.isRemote) return 0;
-  // Deck-aware AI: caution grows with the traps this Corp has shown, more so on a remote with no ice (a classic bluff)
+  // Deck-aware AI: caution follows the traps this Corp may still have, more so on a remote with no ice (a classic bluff)
   const caution = wary ? (trapOdds(state, memory) / (1 / 3)) * (server.isRemote && server.ice.length === 0 ? 1.25 : 1) : 1;
   const handMargin = wary && caution > 1.4 ? 1 : 0;
   for (const card of server.root) {
@@ -202,7 +202,7 @@ export function serverValue(state: GameState, serverId: string, extraAccesses = 
     } else if (!card.isRezzed) {
       if (card.advancementCounters === 0 && state.runner.grip.length <= 3 + handMargin) value -= 3 * caution; // might be a trap
       // Advanced and unrezzed: an agenda, or a trap (Urtica Cipher does 2 + counters net damage)
-      if (card.advancementCounters > 0 && state.runner.grip.length <= 2 + card.advancementCounters + handMargin) return 0;
+      if (card.advancementCounters > 0 && caution > 0 && state.runner.grip.length <= 2 + card.advancementCounters + handMargin) return 0;
       // The more traps, the less likely it's the agenda we're hoping for
       value += (3 + 2.5 * Math.min(card.advancementCounters, 4)) * (wary ? Math.min(1.2, Math.max(0.6, 1 - (caution - 1) * 0.33)) : 1);
       // Deck-aware AI: 2+ counters and the Corp could finish it next turn, so now is the time
@@ -235,7 +235,7 @@ export interface RunOptions {
   successBonus?: number;
   /** Shred: the first "end the run" is prevented unless the Corp trashes cards from HQ. */
   shred?: boolean;
-  /** Deck-aware AI: weigh trap risk by the traps this Corp has shown (see trapOdds). */
+  /** Deck-aware AI: weigh trap risk by the traps this Corp may still have (see trapOdds). */
   wary?: boolean;
   /** Deck-aware AI: urgency on agendas the Corp could finish next turn, and late-game defence. */
   urgent?: boolean;

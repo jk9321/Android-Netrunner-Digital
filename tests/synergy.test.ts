@@ -6,7 +6,7 @@ import { HeuristicCorpAI, playAIGame } from '../src/ai';
 import { MAX_NUDGE, deckProfile, nudge, opponentProfile, tuning } from '../src/ai/synergy';
 import { CONDITIONS, CONDITION_PATTERNS, SYNERGY, THEMES, inferSynergy } from '../src/ai/synergyTags';
 import { newGame } from './helpers';
-import { RunnerMemory, serverValue, trapOdds } from '../src/ai/runs';
+import { RunnerMemory, isTrap, serverValue, trapOdds } from '../src/ai/runs';
 import { taoSwap, untaianPick } from '../src/ai/prompts';
 
 
@@ -146,21 +146,50 @@ describe('dividends', () => {
 });
 
 describe('trap caution', () => {
-  it('grows with the traps the Corp has shown, and is strongest on an undefended remote', () => {
-    const state = newGame();
-    const s = structuredClone(state);
-    const card = createCardInstance(s, '30067'); // an unknown card in a new remote
+  // Every trap the Corp still has hidden (HQ, R&D, facedown in Archives, installed facedown)
+  const hiddenTraps = (s: GameState) =>
+    [...s.corp.hq, ...s.corp.rd, ...s.corp.archives.faceDown].filter(c => isTrap(c.cardCode));
+
+  it('counts the traps and agendas the Corp could still have from its decklist', () => {
+    const s = structuredClone(newGame());
+    s.corp.rd.push(createCardInstance(s, '30045'), createCardInstance(s, '35050')); // Urtica Cipher, Byte!
+    const before = trapOdds(s, new Map());
+    expect(before).toBeGreaterThan(0);
+    // Traps the Runner has accessed are accounted for
+    const seen: RunnerMemory = new Map(hiddenTraps(s).slice(0, 1).map(c => [c.instanceId, c.cardCode]));
+    expect(trapOdds(s, seen)).toBeLessThan(before);
+  });
+
+  it('knows when every trap is accounted for, and counts one shuffled back in again', () => {
+    const s = structuredClone(newGame());
+    const traps = hiddenTraps(s);
+    for (const t of traps) {
+      for (const zone of [s.corp.hq, s.corp.rd, s.corp.archives.faceDown]) {
+        const i = zone.indexOf(t);
+        if (i >= 0) zone.splice(i, 1);
+      }
+    }
+    s.corp.archives.faceUp.push(...traps);
+    expect(trapOdds(s, new Map())).toBe(0);
+    // Nothing to fear in an unknown remote: no trap penalty even with a small hand
+    const card = createCardInstance(s, '30067');
+    card.advancementCounters = 2;
+    s.corp.servers['remote-9'] = { id: 'remote-9', name: 'Server 9', isRemote: true, ice: [], root: [card] };
+    s.runner.grip = s.runner.grip.slice(0, 2);
+    expect(serverValue(s, 'remote-9', 0, new Map(), true)).toBeGreaterThan(0);
+    // A trap shuffled back into R&D is live again
+    s.corp.rd.push(createCardInstance(s, '30045'));
+    expect(trapOdds(s, new Map())).toBeGreaterThan(0);
+    expect(serverValue(s, 'remote-9', 0, new Map(), true)).toBe(0);
+  });
+
+  it('is warier of an undefended remote', () => {
+    const s = structuredClone(newGame());
+    s.corp.rd.push(createCardInstance(s, '30045'));
+    const card = createCardInstance(s, '30067');
     s.corp.servers['remote-9'] = { id: 'remote-9', name: 'Server 9', isRemote: true, ice: [], root: [card] };
     s.runner.grip = s.runner.grip.slice(0, 3);
-    const fresh = serverValue(s, 'remote-9', 0, new Map(), true);
-    expect(fresh).toBeLessThan(serverValue(s, 'remote-9', 0, new Map(), false)); // no ice: a little warier
-    const seenTraps: RunnerMemory = new Map([['t1', '30045'], ['t2', '35050']]); // Urtica Cipher, Byte!
-    expect(trapOdds(s, seenTraps)).toBeGreaterThan(trapOdds(s, new Map()));
-    expect(serverValue(s, 'remote-9', 0, seenTraps, true)).toBeLessThan(fresh);
-    // Agendas showing up from remotes make it bolder again
-    const s2 = structuredClone(s);
-    s2.runner.scoreArea.push(createCardInstance(s2, '30067'), createCardInstance(s2, '30070'), createCardInstance(s2, '30069'));
-    expect(trapOdds(s2, seenTraps)).toBeLessThan(trapOdds(s, seenTraps));
+    expect(serverValue(s, 'remote-9', 0, new Map(), true)).toBeLessThan(serverValue(s, 'remote-9', 0, new Map(), false));
   });
 });
 
