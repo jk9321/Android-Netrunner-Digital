@@ -1,6 +1,8 @@
 import React from 'react';
 import { BrickWall, KeyRound, Swords } from 'lucide-react';
 import type { IceSubtype } from '../../core/scripts/types';
+import type { CardInstance } from '../../core/types/card';
+import { breakerScript } from '../../core/engine/ice';
 
 const ICON: Record<IceSubtype, React.ElementType> = {
   barrier: BrickWall,
@@ -9,6 +11,12 @@ const ICON: Record<IceSubtype, React.ElementType> = {
 };
 const LABEL: Record<IceSubtype, string> = { barrier: 'Barrier', 'code gate': 'Code gate', sentry: 'Sentry' };
 const ORDER: IceSubtype[] = ['barrier', 'code gate', 'sentry'];
+
+/** What an icebreaker breaks (AI breakers: everything), matched against the icons on ice. */
+export function breakerTypes(card: CardInstance): IceSubtype[] {
+  const breaks = breakerScript(card)?.breaks;
+  return breaks === 'any' ? [...ORDER] : breaks ? [breaks] : [];
+}
 
 /**
  * Ice types at a glance: blue on ice for what it is, red on icebreakers for

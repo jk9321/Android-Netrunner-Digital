@@ -1,6 +1,6 @@
 import React, { useMemo, useState } from 'react';
-import { CardInstance, GameAction, SideCode, cardDef, findCardAnywhere, breakerScript, iceSubtypes, isLegalAction } from './core';
-import type { IceSubtype } from './core/scripts/types';
+import { CardInstance, GameAction, SideCode, cardDef, findCardAnywhere, iceSubtypes, isLegalAction } from './core';
+import { breakerTypes } from './ui/components/IceTypeIcons';
 import { DEFAULT_CORP_DECK, DEFAULT_RUNNER_DECK } from './data/decks';
 import { GameConfig, SavedGame, clearSavedGame } from './ui/savedGame';
 import { randomSeed, startingGame } from './ui/gameStart';
@@ -141,12 +141,6 @@ function Game({
   const turnAction: GameAction =
     gameState.turnStep?.kind === 'corp_turn_start' ? { type: 'START_TURN', player: 'corp' } : { type: 'END_TURN', player: activePlayer };
   const selectedCard = [...corp.hq, ...runner.grip].find(c => c.instanceId === selectedCardId);
-
-  // What each icebreaker breaks (AI breakers: everything), matched against the icons on ice
-  const breakerTypes = (card: CardInstance): IceSubtype[] => {
-    const breaks = breakerScript(card)?.breaks;
-    return breaks === 'any' ? ['barrier', 'code gate', 'sentry'] : breaks ? [breaks] : [];
-  };
 
   // Runner cards installed on Corp ice (trojans), and where each one sits, for the host tags
   const onIce = [...runner.rig.programs, ...runner.rig.hardware, ...runner.rig.resources].filter(c => c.hostedOnId);
