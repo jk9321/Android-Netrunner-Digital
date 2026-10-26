@@ -30,6 +30,9 @@ import { canActAs, canSeeCorpSecrets, canSeeRunnerSecrets } from './ui/viewer';
 import { Keyword } from './ui/components/Keyword';
 import { showConfirm } from './ui/components/Dialog';
 
+/** Reversed: Archives sorts first; remotes (-1) keep their order after HQ. */
+const CENTRAL_ORDER = ['hq', 'rd', 'archives'];
+
 export default function App() {
   const [start] = useState(startingGame);
   const [config, setConfig] = useState<GameConfig | null>(start.config);
@@ -170,7 +173,10 @@ function Game({
   // (Their buttons call handleAction, which always works on the latest state.)
   const serversView = useMemo(
     () =>
-      Object.values(corp.servers).map(server => (
+      // Central servers left to right: Archives, R&D, HQ, then remotes
+      Object.values(corp.servers)
+        .sort((a, b) => CENTRAL_ORDER.indexOf(b.id) - CENTRAL_ORDER.indexOf(a.id))
+        .map(server => (
         <ServerColumn
           key={server.id}
           server={server}
