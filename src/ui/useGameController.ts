@@ -142,7 +142,12 @@ export function useGameController(config: GameConfig, saved: SavedGame | null) {
       const runStarted = !current.activeRun && nextState.activeRun;
       if (runStarted || newlyAccessed.length > 0) setAccessed(prev => [...(runStarted ? [] : prev), ...newlyAccessed]);
       setGameState(nextState);
-      setSelectedCardId(null);
+      // Keep the selected card across actions that leave it in hand (gaining credits, drawing),
+      // so the player can afford it and then play it; drop it once it leaves hand or the turn passes.
+      setSelectedCardId(id => {
+        if (!id || nextState.turnNumber !== current.turnNumber || nextState.activePlayer !== current.activePlayer) return null;
+        return [...nextState.corp.hq, ...nextState.runner.grip].some(c => c.instanceId === id) ? id : null;
+      });
     } catch (err) {
       void showAlert(err instanceof Error ? err.message : 'Illegal action', { title: 'Action blocked' });
     }
