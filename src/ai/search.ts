@@ -172,7 +172,7 @@ export class SearchAI implements Agent {
 
   chooseAction(state: GameState): GameAction {
     // Prompts and the steps of a run follow the rule-based AI's judgement
-    if (activePrompt(state) || state.activeRun) return this.base.chooseAction(state);
+    if (activePrompt(state) || state.activeRun || state.turnStep?.kind === 'corp_turn_start') return this.base.chooseAction(state);
     if (this.base instanceof HeuristicRunnerAI) this.base.observe(state);
     const ranked = this.base.rankMainActions(state).filter(c => c.score > -Infinity);
     if (ranked.length === 0) return this.base.chooseAction(state);

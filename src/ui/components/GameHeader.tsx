@@ -43,6 +43,7 @@ export function GameHeader({
 }: GameHeaderProps) {
   const [sound, setSound] = useState(soundEnabled);
   const aiSide = config.ai;
+  const startingTurn = state.turnStep?.kind === 'corp_turn_start';
   const { corp, runner, activePlayer } = state;
 
   return (
@@ -86,9 +87,13 @@ export function GameHeader({
                 ? 'bg-cyan-700 hover:bg-cyan-600 text-white border-cyan-500 shadow-cyan-950'
                 : 'bg-pink-700 hover:bg-pink-600 text-white border-pink-500 shadow-pink-950'
             }`}
-            title={`End ${activePlayer.toUpperCase()}'s turn`}
+            title={
+              startingTurn
+                ? 'Rez assets or upgrades first if you want them working this turn, then take the mandatory draw'
+                : `End ${activePlayer.toUpperCase()}'s turn`
+            }
           >
-            End Turn <ArrowRight className="w-3 h-3" />
+            {startingTurn ? 'Draw & Start' : 'End Turn'} <ArrowRight className="w-3 h-3" />
           </button>
         </div>
       </div>

@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import { GameAction, SideCode, createInitialGameState, executeAction, isLegalAction } from '../core';
+import { GameAction, SideCode, createInitialGameState, executeAction, getLegalActions, isLegalAction } from '../core';
 import { AIClient } from '../ai/client';
 import { deckGameSetup } from '../data/decks';
 import { GameConfig, SavedGame, clearSavedGame, saveGame } from './savedGame';
@@ -140,6 +140,13 @@ export function useGameController(config: GameConfig, saved: SavedGame | null) {
       void showAlert(err instanceof Error ? err.message : 'Illegal action', { title: 'Action blocked' });
     }
   };
+
+  // Before the Corp's turn begins the person stops only if they can rez, score or use something
+  useEffect(() => {
+    if (aiSide === 'corp' || gameState.winner || gameState.pendingPrompts.length > 0 || gameState.turnStep?.kind !== 'corp_turn_start') return;
+    if (getLegalActions(gameState, 'corp').every(a => a.type === 'START_TURN')) handleAction({ type: 'START_TURN', player: 'corp' });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [gameState]);
 
   const passRezWindow = (key: string) => setPassedRezWindows(keys => [...keys, key]);
 

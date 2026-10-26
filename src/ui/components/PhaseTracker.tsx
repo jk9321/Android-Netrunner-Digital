@@ -34,7 +34,7 @@ export const PhaseTracker: React.FC<{ state: GameState }> = ({ state }) => {
   } else {
     title = `Turn ${turnNumber} · ${corp ? 'Corp' : 'Runner'}`;
     steps = corp ? ['Draw', 'Action', 'Discard'] : ['Action', 'Discard'];
-    current = turnStep?.kind === 'corp_draw' ? 'Draw' : turnStep?.kind === 'end_turn' ? 'Discard' : 'Action';
+    current = turnStep?.kind === 'corp_draw' || turnStep?.kind === 'corp_turn_start' ? 'Draw' : turnStep?.kind === 'end_turn' ? 'Discard' : 'Action';
   }
 
   return (

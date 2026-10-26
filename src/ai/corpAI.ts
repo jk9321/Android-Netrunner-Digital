@@ -35,7 +35,7 @@ export class HeuristicCorpAI implements Agent {
   readonly side = 'corp' as const;
   /** Has this Corp made its once-a-game reverse bluff? */
   private reverseBluffed = false;
-  private freeActions = new FreeActionGuard(['END_TURN']);
+  private freeActions = new FreeActionGuard(['END_TURN', 'START_TURN']);
   readonly synergy: boolean;
   private debug: boolean;
 
@@ -81,7 +81,7 @@ export class HeuristicCorpAI implements Agent {
       .map(action => {
         let score = this.score(state, action, before);
         // Deck-aware nudge: small, and only for moves the AI would consider anyway
-        if (this.synergy && Number.isFinite(score) && score < 40 && action.type !== 'END_TURN') score += nudge(state, 'corp', action).bonus;
+        if (this.synergy && Number.isFinite(score) && score < 40 && action.type !== 'END_TURN' && action.type !== 'START_TURN') score += nudge(state, 'corp', action).bonus;
         return { action, score };
       })
       .sort((a, b) => b.score - a.score);
@@ -130,6 +130,9 @@ export class HeuristicCorpAI implements Agent {
     const corp = state.corp;
     switch (action.type) {
       case 'END_TURN':
+        return -0.5;
+      case 'START_TURN':
+        // After rezzing what is worth it, so "when your turn begins" cards fire this turn
         return -0.5;
       case 'SCORE_AGENDA':
         // Dividends: put spare clicks into the agenda first (scoring stays possible all turn)

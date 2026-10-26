@@ -5,7 +5,7 @@ import { drawCard, gainCredit, purgeVirus, removeTag, trashResource } from './ac
 import { installCard } from './actions/install';
 import { advanceCard, rezCard, scoreAgenda } from './actions/corp';
 import { continueRun, initiateRun, jackOut } from './actions/run';
-import { concede, endTurn } from './actions/turn';
+import { concede, endTurn, startTurn } from './actions/turn';
 import { resolvePrompt } from './actions/prompt';
 import { playOperationOrEvent } from './actions/play';
 import { bioroidBreak, boostBreaker, breakSubroutine } from './actions/breaking';
@@ -36,6 +36,7 @@ const handlers: ActionHandlers = {
   CONTINUE_RUN: continueRun,
   JACK_OUT: jackOut,
   END_TURN: endTurn,
+  START_TURN: startTurn,
   CONCEDE: concede,
   RESOLVE_PROMPT: resolvePrompt,
   PLAY_OPERATION_OR_EVENT: playOperationOrEvent,

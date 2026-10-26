@@ -48,7 +48,8 @@ export function advanceCard(state: GameState, action: AdvanceCardAction): void {
 /** Scoring is a separate Corp choice, available in their own turn once the requirement is met. */
 export function scoreAgenda(state: GameState, action: ScoreAgendaAction): void {
   if (action.player !== 'corp') illegal('Only Corp can score agendas');
-  requireActionPhase(state, 'corp');
+  // Also in the paid ability window before the turn begins (rules 5.6.1b)
+  if (state.turnStep?.kind !== 'corp_turn_start') requireActionPhase(state, 'corp');
 
   const found = findInstalledCorpCard(state, action.cardInstanceId);
   if (!found || found.location !== 'root') illegal('Agenda not found in a server root');

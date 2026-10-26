@@ -34,6 +34,8 @@ function PlayButton({ side, state, selectedCard, onAction }: ActionBarProps & { 
 export function CorpActions(props: ActionBarProps) {
   const { state, selectedCard, onAction } = props;
   const { corp } = state;
+  const startingTurn = state.turnStep?.kind === 'corp_turn_start';
+  const turnAction: GameAction = startingTurn ? { type: 'START_TURN', player: 'corp' } : { type: 'END_TURN', player: 'corp' };
   return (
     <div className="flex flex-col gap-2 p-2 bg-cyan-950/40 border border-cyan-800/80 chamfer-sm shadow-inner">
       <div className="flex items-center gap-1.5 flex-wrap">
@@ -80,13 +82,14 @@ export function CorpActions(props: ActionBarProps) {
         )}
       </div>
 
-      {/* End Turn Button - Prominently Anchored */}
+      {/* End Turn Button - Prominently Anchored (before the turn begins it takes the mandatory draw instead) */}
       <button
-        onClick={() => onAction({ type: 'END_TURN', player: 'corp' })}
-        disabled={!isLegalAction(state, { type: 'END_TURN', player: 'corp' })}
+        onClick={() => onAction(turnAction)}
+        disabled={!isLegalAction(state, turnAction)}
+        title={startingTurn ? 'Rez assets or upgrades first if you want them working this turn, then take the mandatory draw' : undefined}
         className="px-3 py-1.5 bg-cyan-600 hover:bg-cyan-500 text-white font-mono text-xs font-bold rounded-lg border border-cyan-400 transition-all shadow-lg shadow-cyan-950 flex items-center gap-1.5 self-end disabled:opacity-40 disabled:hover:scale-100"
       >
-        End Corp Turn <ArrowRight className="w-3.5 h-3.5" />
+        {startingTurn ? 'Draw & Start Turn' : 'End Corp Turn'} <ArrowRight className="w-3.5 h-3.5" />
       </button>
     </div>
   );

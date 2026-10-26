@@ -23,6 +23,7 @@ export type GameActionType =
   | 'REMOVE_TAG'
   | 'TRASH_RESOURCE'
   | 'END_TURN'
+  | 'START_TURN'
   // Either player, at any time
   | 'CONCEDE';
 
@@ -135,12 +136,18 @@ export interface EndTurnAction extends BaseAction {
   type: 'END_TURN';
 }
 
+/** Corp: closes the paid ability window before the turn formally begins, then takes the mandatory draw. */
+export interface StartTurnAction extends BaseAction {
+  type: 'START_TURN';
+}
+
 /** A player concedes: the game ends at once and the other side wins. */
 export interface ConcedeAction extends BaseAction {
   type: 'CONCEDE';
 }
 
 export type GameAction =
+  | StartTurnAction
   | GainCreditAction
   | DrawCardAction
   | InstallCardAction

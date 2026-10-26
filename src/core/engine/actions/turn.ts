@@ -1,4 +1,4 @@
-import { ConcedeAction, EndTurnAction } from '../../types/actions';
+import { ConcedeAction, EndTurnAction, StartTurnAction } from '../../types/actions';
 import { SideCode } from '../../types/card';
 import { GameState } from '../../types/state';
 import { addLog } from '../log';
@@ -7,6 +7,9 @@ import { pushPrompt, sideName } from '../prompts';
 import { fireTrigger } from '../triggers';
 import { maxHandSize, refillRecurringCredits } from '../cardEffects';
 import { flatline } from '../damage';
+import { cardDef } from '../../cards';
+import { getCardScript } from '../../scripts';
+import { abilitySources, abilityUsableFrom } from './ability';
 
 export function handSize(state: GameState, side: SideCode): number {
   return side === 'corp' ? state.corp.hq.length : state.runner.grip.length;
@@ -44,6 +47,7 @@ export function resumeTurn(state: GameState): void {
       mandatoryDraw(state);
       continue;
     }
+    if (step.kind === 'corp_turn_start') return; // waiting on START_TURN
     const side = step.side;
     switch (step.stage) {
       case 'action_ended': {
@@ -107,7 +111,12 @@ function handOver(state: GameState, side: SideCode): void {
   beginCorpTurn(state);
 }
 
-/** Starts a Corp turn: refill clicks, "when your turn begins" abilities, then the mandatory draw. */
+/**
+ * Starts a Corp turn (rules 5.6.1): the Corp gains clicks, then gets a paid
+ * ability window (rez non-ice cards, score, paid abilities) before the turn
+ * formally begins. The window stays open until START_TURN, but only when the
+ * Corp has something to do in it.
+ */
 export function beginCorpTurn(state: GameState): void {
   state.activePlayer = 'corp';
   state.phase = 'corp_turn';
@@ -115,11 +124,47 @@ export function beginCorpTurn(state: GameState): void {
   state.corp.clicks = state.corp.maxClicks + bonus;
   state.corp.bonusClicksNextTurn = 0;
   if (bonus > 0) addLog(state, 'corp', `Corp gets ${bonus} extra [click] this turn.`);
+  if (hasTurnStartOptions(state)) {
+    state.turnStep = { kind: 'corp_turn_start' };
+    return;
+  }
+  continueCorpTurnStart(state);
+}
+
+/** The Corp closes the window before their turn begins: recurring credits, "when your turn begins", then the mandatory draw. */
+export function startTurn(state: GameState, action: StartTurnAction): void {
+  if (action.player !== 'corp' || state.turnStep?.kind !== 'corp_turn_start') illegal('Not waiting to start a turn');
+  state.turnStep = null;
+  continueCorpTurnStart(state);
+}
+
+function continueCorpTurnStart(state: GameState): void {
   refillRecurringCredits(state, 'corp');
   fireTrigger(state, { type: 'turn_begins', side: 'corp' });
   if (state.winner) return;
   state.turnStep = { kind: 'corp_draw' };
   resumeTurn(state);
+}
+
+/**
+ * Worth stopping before the turn begins: an installed card the Corp could
+ * rez (other than ice), an agenda ready to score, or a paid ability that
+ * costs no click on a rezzed card.
+ */
+function hasTurnStartOptions(state: GameState): boolean {
+  for (const server of Object.values(state.corp.servers)) {
+    for (const card of server.root) {
+      const def = cardDef(card);
+      if (def.type_code === 'agenda') {
+        if (card.advancementCounters >= (def.advancement_cost ?? 0)) return true;
+      } else if (!card.isRezzed) {
+        return true;
+      }
+    }
+  }
+  return abilitySources(state, 'corp').some(({ card, where }) =>
+    (getCardScript(card.cardCode)?.abilities ?? []).some(a => !a.clicks && abilityUsableFrom(a, where, true))
+  );
 }
 
 function mandatoryDraw(state: GameState): void {

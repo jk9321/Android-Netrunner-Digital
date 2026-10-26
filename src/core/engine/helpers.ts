@@ -30,6 +30,7 @@ export function requireClicks(state: GameState, side: SideCode, count = 1): void
 export function requireActionPhase(state: GameState, side: SideCode): void {
   if (state.activePlayer !== side) illegal(`It is not the ${side === 'corp' ? 'Corp' : 'Runner'}'s turn`);
   if (state.activeRun) illegal('Not allowed during a run');
+  if (state.turnStep?.kind === 'corp_turn_start') illegal('Start your turn (mandatory draw) first');
 }
 
 export function createRemoteServer(state: GameState): ServerState {

@@ -137,6 +137,9 @@ function Game({
   };
 
   const { corp, runner, activePlayer, activeRun, winner, winReason } = gameState;
+  // Before the Corp's turn begins the header button takes the mandatory draw
+  const turnAction: GameAction =
+    gameState.turnStep?.kind === 'corp_turn_start' ? { type: 'START_TURN', player: 'corp' } : { type: 'END_TURN', player: activePlayer };
   const selectedCard = [...corp.hq, ...runner.grip].find(c => c.instanceId === selectedCardId);
 
   // What each icebreaker breaks (AI breakers: everything), matched against the icons on ice
@@ -267,10 +270,8 @@ function Game({
         config={config}
         aiThinking={aiThinking}
         humanSide={humanSide}
-        canEndTurn={
-          (activePlayer === 'corp' ? corpCanAct : runnerCanAct) && isLegalAction(gameState, { type: 'END_TURN', player: activePlayer })
-        }
-        onEndTurn={() => handleAction({ type: 'END_TURN', player: activePlayer })}
+        canEndTurn={(activePlayer === 'corp' ? corpCanAct : runnerCanAct) && isLegalAction(gameState, turnAction)}
+        onEndTurn={() => handleAction(turnAction)}
         cardScale={cardScale}
         onCardScale={setCardScale}
         viewMode={viewMode}

@@ -47,6 +47,9 @@ function candidateActions(state: GameState, side: SideCode): GameAction[] {
       candidates.push({ type: 'CONTINUE_RUN', player: 'runner' }, { type: 'JACK_OUT', player: 'runner' });
       candidates.push(...breakCandidates(state));
     }
+  } else if (actionPhase && state.turnStep?.kind === 'corp_turn_start') {
+    // Before the Corp's turn begins only rezzing, scoring and paid abilities (below) are open
+    candidates.push({ type: 'START_TURN', player: 'corp' });
   } else if (actionPhase) {
     candidates.push({ type: 'END_TURN', player: side });
     if (hasClick) candidates.push({ type: 'GAIN_CREDIT', player: side }, { type: 'DRAW_CARD', player: side });

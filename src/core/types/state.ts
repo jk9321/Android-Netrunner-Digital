@@ -142,6 +142,8 @@ export interface RunState {
 /** The end of a turn or the Corp's draw, paused while players answer prompts (see engine/actions/turn.ts). */
 export type TurnStep =
   | { kind: 'end_turn'; side: SideCode; stage: 'action_ended' | 'discarding' | 'discarded' | 'handover' }
+  /** The paid ability window before the Corp's turn formally begins (rules 5.6.1b): rez, score, use paid abilities. */
+  | { kind: 'corp_turn_start' }
   | { kind: 'corp_draw' };
 
 export type TurnPlayer = SideCode;
@@ -185,7 +187,7 @@ export interface GameState {
   turnFlags: Record<string, number>;
   /** Cards removed from the game (Spin Doctor). */
   removedFromGame: CardInstance[];
-  /** A turn transition waiting on prompts (end of turn, Corp's mandatory draw). */
+  /** A turn transition waiting on prompts or the Corp (end of turn, start of the Corp's turn, mandatory draw). */
   turnStep?: TurnStep | null;
   turnNumber: number;
   activePlayer: TurnPlayer;
