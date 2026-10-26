@@ -1,4 +1,4 @@
-import { CardInstance, GameAction, GameState, SideCode, activePrompt, getCardDefinition } from '../core';
+import { CardInstance, GameAction, GameState, SideCode, activePrompt, getCardDefinition, isLegalAction } from '../core';
 import { isAdvanceable } from '../core/engine/helpers';
 import { Agent } from './agent';
 import { HeuristicCorpAI } from './corpAI';
@@ -33,13 +33,19 @@ export interface SearchOptions {
   synergy?: boolean;
   /** Log each move's synergy reasons to the console. */
   debug?: boolean;
+  /** Stop thinking once the outcome is clear (default on; off to compare). */
+  earlyStop?: boolean;
 }
 
-const DEFAULTS: SearchOptions = { timeMs: 1500, candidates: 4 };
+const DEFAULTS: SearchOptions = { timeMs: 1000, candidates: 4 };
 /** How much better (in evaluation points) another move must do on average to replace the favourite. */
 const MIN_GAIN = 1;
 /** ...and by how many standard errors. */
 const MIN_Z = 1.5;
+/** The rule-based favourite is played without searching when it leads the next move by this much. */
+const CLEAR_LEAD = 3;
+/** Deals to play before the search may stop early because the outcome is clear. */
+const MIN_SAMPLES = 6;
 /** Upper bound on decisions in one playout (a safety net; turns end well before). */
 const MAX_PLAYOUT_STEPS = 160;
 
@@ -171,6 +177,11 @@ export class SearchAI implements Agent {
     const ranked = this.base.rankMainActions(state).filter(c => c.score > -Infinity);
     if (ranked.length === 0) return this.base.chooseAction(state);
     if (ranked[0].action.type === 'SCORE_AGENDA') return ranked[0].action;
+    // Only one sensible move, or the favourite is far ahead: no need to think it over
+    if (ranked.length === 1 || ranked[0].score - ranked[1].score >= CLEAR_LEAD) {
+      this.base.notePlayed(ranked[0].action);
+      return ranked[0].action;
+    }
     const best = this.search(state, ranked.slice(0, this.options.candidates).map(c => ({ ...c, first: c.action })), this.options.timeMs).action;
     this.base.notePlayed(best); // keeps the rule-based AI's loop guard in step
     if (this.options.debug) logNudge(state, this.side, best);
@@ -183,9 +194,11 @@ export class SearchAI implements Agent {
     // action null: let the Runner carry on without rezzing
     const options: Candidate<GameAction | null>[] = [
       { action: null, score: suggested ? 0 : 1, first: 'pass-rez' },
-      ...cards.map(card => {
+      ...cards.flatMap(card => {
         const action: GameAction = { type: 'REZ_CARD', player: 'corp', cardInstanceId: card.instanceId };
-        return { action, score: suggested && 'cardInstanceId' in suggested && suggested.cardInstanceId === card.instanceId ? 1 : 0, first: action };
+        // Cards the Corp can't afford to rez aren't worth playing out
+        if (!isLegalAction(state, action)) return [];
+        return [{ action, score: suggested && 'cardInstanceId' in suggested && suggested.cardInstanceId === card.instanceId ? 1 : 0, first: action }];
       }),
     ];
     if (suggested?.type === 'USE_ABILITY') options.push({ action: suggested, score: 1, first: suggested });
@@ -197,7 +210,8 @@ export class SearchAI implements Agent {
    * Compares candidates on the same guessed deals. The rule-based AI's
    * favourite (the first candidate) stands unless another candidate does
    * clearly better across the deals, so noise in a few playouts can't
-   * talk the AI out of a sound move.
+   * talk the AI out of a sound move. It stops early once no other
+   * candidate can still plausibly beat the favourite.
    */
   private search<C extends Candidate<GameAction | null>>(state: GameState, candidates: C[], timeMs: number): C {
     if (candidates.length === 1) return candidates[0];
@@ -214,14 +228,12 @@ export class SearchAI implements Agent {
       });
       samples++;
       if (samples >= 200) break;
+      if (this.options.earlyStop !== false && samples >= MIN_SAMPLES && settled(values)) break;
     }
     let best = 0;
     let bestGain = MIN_GAIN;
     for (let i = 1; i < candidates.length; i++) {
-      const diffs = values[i].map((v, k) => v - values[0][k]);
-      const mean = diffs.reduce((a, b) => a + b, 0) / diffs.length;
-      const variance = diffs.reduce((a, d) => a + (d - mean) ** 2, 0) / Math.max(1, diffs.length - 1);
-      const stderr = Math.sqrt(variance / diffs.length);
+      const { mean, stderr } = gainOver(values, i);
       if (mean > bestGain && mean > MIN_Z * stderr) {
         best = i;
         bestGain = mean;
@@ -229,4 +241,30 @@ export class SearchAI implements Agent {
     }
     return candidates[best];
   }
+}
+
+/**
+ * How much candidate `i` beats the favourite (candidate 0) by on the same
+ * deals: the mean difference, its standard error, and a generous upper
+ * bound (mean + 2 standard errors) on what it could really be.
+ */
+function gainOver(values: number[][], i: number): { mean: number; stderr: number; upper: number } {
+  const diffs = values[i].map((v, k) => v - values[0][k]);
+  const mean = diffs.reduce((a, b) => a + b, 0) / diffs.length;
+  const variance = diffs.reduce((a, d) => a + (d - mean) ** 2, 0) / Math.max(1, diffs.length - 1);
+  const stderr = Math.sqrt(variance / diffs.length);
+  return { mean, stderr, upper: mean + 2 * stderr };
+}
+
+/**
+ * True once more deals are unlikely to change the choice: either no
+ * candidate could still beat the favourite by MIN_GAIN, or one already beats
+ * it clearly and no other could catch up with it.
+ */
+function settled(values: number[][]): boolean {
+  const gains = values.slice(1).map((_, i) => gainOver(values, i + 1));
+  if (gains.every(g => g.upper < MIN_GAIN)) return true;
+  const leader = gains.reduce((best, g) => (g.mean > best.mean ? g : best));
+  const lower = leader.mean - 2 * leader.stderr;
+  return lower > MIN_GAIN && gains.every(g => g === leader || g.upper < lower);
 }
