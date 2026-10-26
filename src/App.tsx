@@ -139,6 +139,21 @@ function Game({
     handleAction({ type: 'CONCEDE', player: concedingSide });
   };
 
+  // Open table reveals both sides' hidden cards, so switching to it is confirmed
+  // (switching away from it is not)
+  const changeViewMode = async (mode: typeof viewMode) => {
+    if (
+      mode === 'open' &&
+      viewMode !== 'open' &&
+      !(await showConfirm(
+        "Open table shows both sides' hidden cards: each player's hand, unrezzed and face-down cards, and every access. Switch to open table?",
+        { title: 'Open table', confirmLabel: 'Show everything', danger: true },
+      ))
+    )
+      return;
+    setViewMode(mode);
+  };
+
   const { corp, runner, activePlayer, activeRun, winner, winReason } = gameState;
   // Before the Corp's turn begins the header button takes the mandatory draw
   const turnAction: GameAction =
@@ -278,7 +293,7 @@ function Game({
         canEndTurn={(activePlayer === 'corp' ? corpCanAct : runnerCanAct) && isLegalAction(gameState, turnAction)}
         onEndTurn={() => handleAction(turnAction)}
         viewMode={viewMode}
-        onViewMode={setViewMode}
+        onViewMode={changeViewMode}
         concedingSide={concedingSide}
         onConcede={concede}
         onLeave={leaveGame}

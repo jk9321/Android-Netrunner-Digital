@@ -152,7 +152,7 @@ export function GameHeader({
         {!state.winner && (
           <button
             onClick={onConcede}
-            className="p-2 bg-slate-900 hover:bg-red-950 text-slate-400 hover:text-red-300 rounded-lg border border-slate-800 hover:border-red-800 transition-colors"
+            className="p-2 bg-pink-950/70 hover:bg-pink-800 text-pink-300 hover:text-white rounded-lg border border-pink-600 hover:border-pink-400 shadow shadow-pink-950 transition-colors"
             title={`Forfeit (the ${concedingSide === 'corp' ? 'Corp' : 'Runner'} concedes)`}
             data-testid="forfeit"
           >
@@ -161,7 +161,7 @@ export function GameHeader({
         )}
         <button
           onClick={onLeave}
-          className="p-2 bg-slate-900 hover:bg-slate-800 text-slate-400 hover:text-white rounded-lg border border-slate-800 transition-colors"
+          className="p-2 bg-cyan-950/70 hover:bg-cyan-800 text-cyan-300 hover:text-white rounded-lg border border-cyan-600 hover:border-cyan-400 shadow shadow-cyan-950 transition-colors"
           title="Leave game (back to deck select)"
         >
           <LogOut className="w-4 h-4" />
