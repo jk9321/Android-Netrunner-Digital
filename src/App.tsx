@@ -1,5 +1,5 @@
 import React, { useMemo, useState } from 'react';
-import { CardInstance, GameAction, SideCode, cardDef, breakerScript, iceSubtypes, isLegalAction } from './core';
+import { CardInstance, GameAction, SideCode, cardDef, findCardAnywhere, breakerScript, iceSubtypes, isLegalAction } from './core';
 import type { IceSubtype } from './core/scripts/types';
 import { DEFAULT_CORP_DECK, DEFAULT_RUNNER_DECK } from './data/decks';
 import { GameConfig, SavedGame, clearSavedGame } from './ui/savedGame';
@@ -154,7 +154,11 @@ function Game({
     if (!card.hostedOnId) return undefined;
     const server = Object.values(corp.servers).find(s => s.ice.some(i => i.instanceId === card.hostedOnId));
     const index = server ? server.ice.findIndex(i => i.instanceId === card.hostedOnId) : -1;
-    if (!server || index < 0) return undefined;
+    if (!server || index < 0) {
+      // Hosted on one of the Runner's own cards (Gamdragon Pro on an icebreaker)
+      const host = findCardAnywhere(gameState, card.hostedOnId);
+      return host ? cardDef(host).title : undefined;
+    }
     const ice = server.ice[index];
     const name = ice.isRezzed || canSeeCorpSecrets(viewer) ? cardDef(ice).title : 'unrezzed ice';
     // Several unrezzed ice in one server look alike, so say which one (ice 1 is innermost)

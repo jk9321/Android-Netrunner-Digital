@@ -12,7 +12,7 @@ interface RigViewProps {
   onInspectCard?: (card: CardInstance) => void;
   /** The Runner's identity, Stack and Heap, shown beside the rig. */
   aside?: React.ReactNode;
-  /** Where a card installed on Corp ice (Botulus, Tranquilizer) sits, e.g. "R&D · Ice Wall". */
+  /** What a hosted card sits on: Corp ice (Botulus, "R&D ice 1 · Ice Wall") or a rig card (Gamdragon Pro on a breaker). */
   hostLabel?: (card: CardInstance) => string | undefined;
   /** The ice types an icebreaker breaks, shown as icons on it. */
   breaks?: (card: CardInstance) => IceSubtype[];
@@ -27,30 +27,26 @@ const RigCard: React.FC<{
 }> = ({ card, onInspect, hostLabel, breaks = [] }) => {
   const hosted = card.hostedCards ?? [];
   const lit = useHostLinkLit(card.instanceId);
-  // A trojan on Corp ice: say which ice, and outline it while hovered
-  const face = card.hostedOnId ? (
-    <div
-      className={`relative rounded-xl ${lit ? 'host-link-lit' : ''}`}
-      onMouseEnter={() => lightHostLink([card.instanceId, card.hostedOnId!])}
-      onMouseLeave={clearHostLink}
-      data-testid={`on-ice-${card.instanceId}`}
-    >
+  // Hover a hosted card or its host and both outline: Corp ice, or a rig card hosting another (Gamdragon Pro)
+  const link = card.hostedOnId ? [card.instanceId, card.hostedOnId] : card.hostedCardIds.length > 0 ? [card.instanceId, ...card.hostedCardIds] : null;
+  const linkProps = link
+    ? { onMouseEnter: () => lightHostLink(link), onMouseLeave: clearHostLink }
+    : {};
+  const face = (
+    <div className={`relative rounded-xl ${lit ? 'host-link-lit' : ''}`} {...linkProps} data-testid={card.hostedOnId ? `on-host-${card.instanceId}` : undefined}>
       <CardView card={card} size="fit" onInspect={onInspect} />
-      <div
-        className="absolute inset-x-0.5 top-0.5 z-20 flex items-center gap-0.5 rounded bg-pink-950/95 border border-pink-500 px-0.5 text-[8px] leading-3 font-bold text-pink-100 pointer-events-none"
-        title={`Installed on ${hostLabel ?? 'Corp ice'}`}
-      >
-        <Bug className="w-2.5 h-2.5 shrink-0" />
-        <span className="truncate">{hostLabel ?? 'On ice'}</span>
-      </div>
+      {card.hostedOnId ? (
+        <div
+          className="absolute inset-x-0.5 top-0.5 z-20 flex items-center gap-0.5 rounded bg-pink-950/95 border border-pink-500 px-0.5 text-[8px] leading-3 font-bold text-pink-100 pointer-events-none"
+          title={`Hosted on ${hostLabel ?? 'another card'}`}
+        >
+          <Bug className="w-2.5 h-2.5 shrink-0" />
+          <span className="truncate">{hostLabel ? `On ${hostLabel}` : 'Hosted'}</span>
+        </div>
+      ) : (
+        breaks.length > 0 && <IceTypeIcons types={breaks} side="breaker" className="absolute left-0.5 top-1/2 -translate-y-1/2" />
+      )}
     </div>
-  ) : breaks.length > 0 ? (
-    <div className="relative">
-      <CardView card={card} size="fit" onInspect={onInspect} />
-      <IceTypeIcons types={breaks} side="breaker" className="absolute left-0.5 top-1/2 -translate-y-1/2" />
-    </div>
-  ) : (
-    <CardView card={card} size="fit" onInspect={onInspect} />
   );
   if (hosted.length === 0) return face;
   return (
