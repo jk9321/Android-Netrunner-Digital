@@ -139,6 +139,8 @@ export class HeuristicCorpAI implements Agent {
           (n, c) => n + counters(c, 'virus'),
           0
         );
+        // Deck-aware AI: weigh each counter by what it does, against the 3 clicks a purge costs
+        if (this.synergy && tuning.plan.purgeValue) return virusThreat(state) - 5;
         // Against a virus deck, purge a little sooner
         return viruses - 3.5 + (this.synergy && tuning.purge ? opponentLean(state, 'corp', 'virus') : 0);
       }
@@ -457,7 +459,9 @@ export class HeuristicCorpAI implements Agent {
           0.8 * installCost +
           (hasEndTheRun(card) ? 1 : 0) +
           0.15 * Math.min(strength, 5) -
-          (corp.credits - installCost < rezCost ? 1.5 : 0) +
+          (corp.credits - installCost < rezCost ? (this.synergy && tuning.plan.affordIce ? 3 : 1.5) : 0) -
+          // Deck-aware AI: ice we can't rez is no protection; rez money for the ice already out comes first
+          (this.synergy && tuning.plan.affordIce && corp.credits - installCost >= rezCost && corp.credits - installCost < rezCost + rezReserve(state, this.wideReserve) ? 1 : 0) +
           (this.synergy && tuning.plan.icePlacement ? iceFit(state, card, server, tuning.plan.agendaStakes) : 0)
         );
       }
@@ -561,6 +565,24 @@ export function mainRemote(state: GameState): ServerState | null {
     if (!best || server.ice.length > best.ice.length) best = server;
   }
   return best;
+}
+
+// What one virus counter on each card is worth to the Runner, in about credits
+const VIRUS_WEIGHT: Record<string, number> = {
+  '30024': 1.5, // Conduit: an extra R&D access per counter
+  '30017': 1.2, // Tranquilizer: derezzes its host at 3
+  '30004': 1, // Botulus: breaks its host's subroutines
+  '30008': 0.8, // Leech: lowers ice strength
+  '30007': 0.7, // Fermenter: 2 credits per counter, once
+  '35008': 0.5, // Hantu
+};
+
+/** The Runner's virus counters, weighted by what they do. */
+function virusThreat(state: GameState): number {
+  return [...state.runner.rig.programs, ...state.runner.rig.hardware, ...state.runner.rig.resources].reduce(
+    (n, c) => n + counters(c, 'virus') * (VIRUS_WEIGHT[c.cardCode] ?? 0.8),
+    0
+  );
 }
 
 /**

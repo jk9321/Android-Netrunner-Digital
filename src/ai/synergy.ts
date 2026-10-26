@@ -115,6 +115,10 @@ export const tuning = {
     deepReserve: true,
     /** Corp (Jeff): push agendas through a remote the Runner can't get into yet. */
     tempo: true,
+    /** Corp: purge by what the counters do (Conduit, Tranquilizer...) against the 3 clicks it costs. */
+    purgeValue: true,
+    /** Corp: no ice it can't rez, nor ice that eats the rez money for ice already out. */
+    affordIce: true,
     /** Corp (round 3): no half-advanced agendas: advance only when it can be scored next turn behind ice it can rez. */
     agendaTiming: true,
   },
