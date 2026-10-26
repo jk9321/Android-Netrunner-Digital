@@ -337,3 +337,12 @@
   box-shadow: 0 0 0 2px rgb(var(--runner-400)), 0 0 18px rgb(var(--runner-500) / 0.7);
   z-index: 25;
 }
+/* A board card the prompt's hovered option points at, and the options already picked */
+.prompt-target-hover {
+  box-shadow: 0 0 0 3px rgb(var(--signal-400)), 0 0 24px rgb(var(--signal-400) / 0.8);
+  position: relative;
+  z-index: 30;
+}
+.prompt-target-picked {
+  box-shadow: 0 0 0 2px rgb(var(--corp-400)), 0 0 12px rgb(var(--corp-400) / 0.6);
+}

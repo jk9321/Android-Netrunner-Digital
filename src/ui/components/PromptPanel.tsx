@@ -1,10 +1,12 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { CardInstance, GameState, PromptChoice, activePrompt, availableCredits, cardDef, findCardAnywhere, isLegalAction, locateCorpCard } from '../../core';
 import { CardView } from './CardView';
 import { Check, RefreshCw, Trash2, X } from 'lucide-react';
 import { CardNameText } from './CardNameText';
 import { Credits } from './CreditIcon';
 import { FloatingPanel } from './FloatingPanel';
+import { cardPositionLabel } from '../cardLabels';
+import { hoverPromptTarget, selectPromptTargets } from '../promptHighlight';
 
 /** An installed Corp card that is neither rezzed nor faceup: only the Corp may look at it (rules 4.6.3). */
 function isFacedownCorpCard(state: GameState, card: CardInstance): boolean {
@@ -28,6 +30,12 @@ interface PromptPanelProps {
 export const PromptPanel: React.FC<PromptPanelProps> = ({ state, onAnswer, onInspectCard, canAnswer = true }) => {
   const prompt = activePrompt(state);
   const [selected, setSelected] = useState<string[]>([]);
+  // Mark the picked cards on the table too, and drop every mark once the prompt closes
+  useEffect(() => selectPromptTargets(selected), [selected]);
+  useEffect(() => () => {
+    hoverPromptTarget(null);
+    selectPromptTargets([]);
+  }, [prompt?.id]);
   if (!prompt) return null;
   if (!canAnswer) {
     return (
@@ -164,18 +172,30 @@ export const PromptPanel: React.FC<PromptPanelProps> = ({ state, onAnswer, onIns
                 const card = findCardAnywhere(state, id);
                 // The Runner never sees the face of an unrezzed Corp card it is choosing (Tāo Salonga)
                 const secret = !!card && !isCorp && isFacedownCorpCard(state, card);
+                const position = card ? cardPositionLabel(state, card) : null;
                 return card ? (
-                  <CardView
+                  <div
                     key={id}
-                    card={card}
-                    size="sm"
-                    isFaceDown={secret}
-                    canPeek={!secret}
-                    isSelectable={!isFull || selected.includes(id)}
-                    isSelected={selected.includes(id)}
-                    onClick={() => toggle(id)}
-                    onInspect={secret ? undefined : onInspectCard}
-                  />
+                    className="flex flex-col items-center gap-1 shrink-0"
+                    onMouseEnter={() => hoverPromptTarget({ id, label: position })}
+                    onMouseLeave={() => hoverPromptTarget(null)}
+                  >
+                    <CardView
+                      card={card}
+                      size="sm"
+                      isFaceDown={secret}
+                      canPeek={!secret}
+                      isSelectable={!isFull || selected.includes(id)}
+                      isSelected={selected.includes(id)}
+                      onClick={() => toggle(id)}
+                      onInspect={secret ? undefined : onInspectCard}
+                    />
+                    {position && (
+                      <span data-testid="prompt-card-position" className="w-28 text-center text-[10px] leading-tight font-mono text-slate-400">
+                        {position}
+                      </span>
+                    )}
+                  </div>
                 ) : null;
               })}
             </div>

@@ -7,6 +7,8 @@ import { motion } from 'framer-motion';
 import { Credits } from './CreditIcon';
 import { Keyword } from './Keyword';
 import { useZoom } from './ZoomPanel';
+import { createPortal } from 'react-dom';
+import { usePromptHighlight } from '../promptHighlight';
 
 export interface CardViewProps {
   card: CardInstance;
@@ -241,16 +243,40 @@ const CardFace: React.FC<CardViewProps> = ({
 export const CardView: React.FC<CardViewProps> = props => {
   const showsBack = Boolean(props.isFaceDown) && props.canPeek === false;
   const face = showsBack ? 'back' : props.card.isRezzed ? 'rezzed' : 'face';
+  // Only table cards (inside the zoom provider) answer to the prompt's hover; the prompt's own copies don't
+  const onTable = useZoom() !== null;
+  const mark = usePromptHighlight(props.card.instanceId);
+  const ref = useRef<HTMLDivElement>(null);
+  const markClass = !onTable ? '' : mark.hovered ? 'prompt-target-hover' : mark.selected ? 'prompt-target-picked' : '';
   return (
     <motion.div
       key={face}
-      className="shrink-0"
+      ref={ref}
+      className={`shrink-0 rounded-xl ${markClass}`}
       initial={{ rotateY: 90, opacity: 0.3 }}
       animate={{ rotateY: 0, opacity: 1 }}
       transition={{ duration: 0.28, ease: 'easeOut' }}
       style={{ transformPerspective: 700 }}
     >
       <CardFace {...props} />
+      {onTable && mark.hovered && <PromptTargetLabel anchor={ref.current} label={mark.label} />}
     </motion.div>
+  );
+};
+
+/** The hovered option's position, floated above its board card and over the prompt panel. */
+const PromptTargetLabel: React.FC<{ anchor: HTMLElement | null; label: string | null }> = ({ anchor, label }) => {
+  if (!anchor || !label) return null;
+  const rect = anchor.getBoundingClientRect();
+  const above = rect.top > 40;
+  return createPortal(
+    <div
+      data-testid="prompt-target-label"
+      className="fixed z-[60] -translate-x-1/2 pointer-events-none whitespace-nowrap px-2 py-1 text-[11px] font-mono font-bold bg-black/90 border border-amber-300 text-amber-200 shadow-lg"
+      style={{ left: rect.left + rect.width / 2, top: above ? rect.top - 30 : rect.bottom + 6 }}
+    >
+      {label}
+    </div>,
+    document.body,
   );
 };
