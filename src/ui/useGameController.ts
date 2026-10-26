@@ -9,6 +9,7 @@ import { showAlert, showConfirm } from './components/Dialog';
 import { ViewMode, Viewer, actingSide, canActAs, canSeeCorpSecrets, corpRezWindow } from './viewer';
 import { playForAction } from './sound';
 import { VIEW_MODE_KEY, savedViewMode } from './gameStart';
+import { installedCardsGained, installedCardsLost, isInstallAction, replacementMessage } from './installReplacements';
 
 const AI_DELAY_MS = 650;
 /** How long a stolen, scored or trashed card stays in the middle of the table. */
@@ -128,10 +129,23 @@ export function useGameController(config: GameConfig, saved: SavedGame | null) {
     return () => timers.forEach(t => window.clearTimeout(t));
   }, []);
 
-  const handleAction = (action: GameAction) => {
+  const handleAction = async (action: GameAction) => {
     const current = latestStateRef.current;
     try {
       const nextState = executeAction(current, action);
+      // The person installing over their own cards confirms first, with Cancel as the safe default
+      if (action.player !== aiSide && isInstallAction(current, action)) {
+        const lost = installedCardsLost(current, nextState, action.player);
+        if (lost.length > 0) {
+          const ok = await showConfirm(replacementMessage(installedCardsGained(current, nextState, action.player), lost), {
+            title: lost.length === 1 ? 'Replace installed card?' : 'Trash installed cards?',
+            confirmLabel: 'Trash and install',
+            danger: true,
+          });
+          // Nothing happens if cancelled, or if the game moved on while asking
+          if (!ok || latestStateRef.current !== current) return;
+        }
+      }
       latestStateRef.current = nextState;
       if (!current.activeRun && nextState.activeRun) setRunSerial(n => n + 1);
       playForAction(current, nextState, listener);
