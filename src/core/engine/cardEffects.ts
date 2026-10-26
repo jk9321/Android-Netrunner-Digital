@@ -96,6 +96,11 @@ export function takeHostedCredits(state: GameState, card: CardInstance, amount: 
   return taken;
 }
 
+/** Virus counters on all installed cards: what a purge would remove (rule 10.1.2). */
+export function virusCountersInPlay(state: GameState): number {
+  return allInstalledCards(state).reduce((n, card) => n + counters(card, 'virus'), 0);
+}
+
 /** Removes every virus counter from every card. */
 export function purgeVirusCounters(state: GameState): number {
   let removed = 0;

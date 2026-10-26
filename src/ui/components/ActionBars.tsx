@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { ArrowRight, Biohazard, Layers, Plus, Tag, Trash2, Zap } from 'lucide-react';
-import { CardInstance, GameAction, GameState, SideCode, cardDef, findCardAnywhere, getCardScript, getLegalActions, isLegalAction, trashableFirst } from '../../core';
+import { CardInstance, GameAction, GameState, SideCode, cardDef, findCardAnywhere, getCardScript, getLegalActions, isLegalAction, trashableFirst, virusCountersInPlay } from '../../core';
+import { showConfirm } from './Dialog';
 import { TrashFirstButton, TrashFirstPicker } from './TrashFirstPicker';
 import { CreditIcon, Credits } from './CreditIcon';
 import { CorpInstallOptions } from './CorpInstallOptions';
@@ -82,7 +83,19 @@ export function CorpActions(props: ActionBarProps) {
           <Layers className="w-3.5 h-3.5 text-cyan-400" /> Draw Card
         </button>
         <button
-          onClick={() => onAction({ type: 'PURGE_VIRUS', player: 'corp' })}
+          onClick={async () => {
+            // Purging with no virus counters out is legal (rule 10.1.2) but wastes the turn, so check first
+            if (
+              virusCountersInPlay(state) === 0 &&
+              !(await showConfirm('There are no virus counters to purge. Spend 3 clicks anyway?', {
+                title: 'Nothing to purge',
+                confirmLabel: 'Purge anyway',
+                danger: true,
+              }))
+            )
+              return;
+            onAction({ type: 'PURGE_VIRUS', player: 'corp' });
+          }}
           disabled={!isLegalAction(state, { type: 'PURGE_VIRUS', player: 'corp' })}
           className="px-2 py-1 bg-cyan-950 hover:bg-cyan-900 border border-cyan-700 text-cyan-200 text-xs font-bold rounded-lg transition-all flex items-center gap-1.5 disabled:opacity-40 shadow"
           title="Spend 3 clicks to remove every virus counter"

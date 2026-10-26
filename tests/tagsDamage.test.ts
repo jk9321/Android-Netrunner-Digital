@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { executeAction, findCardAnywhere, GameState, getLegalActions, isLegalAction } from '../src/core';
+import { executeAction, findCardAnywhere, GameState, getLegalActions, isLegalAction, virusCountersInPlay } from '../src/core';
 import { dealCoreDamage, dealMeatDamage } from '../src/core/engine/damage';
 import {
   answer,
@@ -95,10 +95,19 @@ describe('Purge', () => {
     let [s, id] = runnerInstall(newGame(), C.fermenter);
     s = passTurn(s);
     expect(findCardAnywhere(s, id)!.tokens.virus).toBe(1);
+    expect(virusCountersInPlay(s)).toBe(1);
     s.corp.clicks = 3;
     s = executeAction(s, { type: 'PURGE_VIRUS', player: 'corp' });
     expect(findCardAnywhere(s, id)!.tokens.virus).toBe(0);
+    expect(virusCountersInPlay(s)).toBe(0);
     expect(s.corp.clicks).toBe(0);
+  });
+
+  it('purging with no virus counters is still legal (rule 10.1.2); the UI only asks to confirm', () => {
+    const s = newGame();
+    s.corp.clicks = 3;
+    expect(virusCountersInPlay(s)).toBe(0);
+    expect(isLegalAction(s, { type: 'PURGE_VIRUS', player: 'corp' })).toBe(true);
   });
 });
 
