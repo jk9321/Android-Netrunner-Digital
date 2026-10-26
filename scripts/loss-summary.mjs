@@ -58,6 +58,21 @@ export function printLossSummary(games, detail = !!process.env.DETAIL) {
     console.log(`  jacked out before rezzed ice: known at run start ${r('jackOutKnown')}, rezzed during the run ${r('jackOutFresh')}`);
     console.log(`  stopped by ice: known at run start ${r('stoppedKnown')}, rezzed during the run ${r('stoppedFresh')}`);
   }
+  if (games[0]?.money) {
+    for (const [label, list] of [['losses', losses], ['wins', wins]]) {
+      const turns = sum(list, g => g.money.corpTurns);
+      const book = key => {
+        const m = new Map();
+        for (const g of list) for (const [k, v] of Object.entries(g.money[key])) m.set(k, (m.get(k) ?? 0) + v);
+        const total = [...m.values()].reduce((a, b) => a + b, 0);
+        return `${(total / Math.max(turns, 1)).toFixed(2)}/turn: ` + [...m].sort((a, b) => b[1] - a[1]).map(([k, v]) => `${k} ${(v / Math.max(turns, 1)).toFixed(2)}`).join(', ');
+      };
+      console.log(`Corp money in Corp ${label} (per Corp turn):`);
+      console.log(`  spent ${book('spent')}`);
+      console.log(`  gained ${book('gained')}`);
+      console.log(`  credits at end of turn ${(sum(list, g => g.money.creditsAtTurnEnd) / Math.max(turns, 1)).toFixed(1)}; clicks for a credit ${pct(sum(list, g => g.money.creditClicks), sum(list, g => g.money.clicks))}`);
+    }
+  }
   show('  most stolen agendas:', count(steals, s => s.title), steals.length);
 
   if (detail) {

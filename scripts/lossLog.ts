@@ -57,6 +57,25 @@ export interface GameRecord {
   board: { remotes: number; icedRemotes: number; remoteIce: number; maxRemoteIce: number; hqIce: number; rdIce: number };
   /** Runner runs: how many, and the failed ones where it had already paid to break ice (see RunWaste) */
   runs: RunWaste;
+  /** Corp credits spent and gained over the game, by what for (see moneyKind) */
+  money: { spent: Record<string, number>; gained: Record<string, number>; corpTurns: number; creditsAtTurnEnd: number; clicks: number; creditClicks: number };
+}
+
+/** What a step that changed the Corp's credits did, read from the state change. */
+function moneyKind(before: GameState, after: GameState): string {
+  const ice = (st: GameState) => Object.values(st.corp.servers).flatMap(sv => sv.ice);
+  const root = (st: GameState) => Object.values(st.corp.servers).flatMap(sv => sv.root);
+  const rezzed = (list: { isRezzed: boolean }[]) => list.filter(c => c.isRezzed).length;
+  const counters = (st: GameState) => [...root(st), ...ice(st)].reduce((n, c) => n + c.advancementCounters, 0);
+  if (rezzed(ice(after)) > rezzed(ice(before))) return before.activeRun ? 'rez ice in a run' : 'rez ice';
+  if (rezzed(root(after)) > rezzed(root(before))) return 'rez asset/upgrade';
+  if (ice(after).length > ice(before).length) return 'install ice';
+  if (counters(after) > counters(before)) return 'advance';
+  if (before.activePlayer === 'runner' || before.activeRun) return "runner's turn";
+  if (after.corp.clicks === before.corp.clicks - 1 && after.corp.hq.length === before.corp.hq.length && after.corp.credits === before.corp.credits + 1) return 'click for credit';
+  if (after.corp.archives.faceUp.length > before.corp.archives.faceUp.length || after.corp.hq.length < before.corp.hq.length) return 'operation/install';
+  if (after.corp.clicks === before.corp.clicks) return 'turn start/assets';
+  return 'other';
 }
 
 /**
@@ -107,6 +126,7 @@ export function playLogged(start: GameState, agents: { corp: Agent; runner: Agen
   const board = { remotes: 0, icedRemotes: 0, remoteIce: 0, maxRemoteIce: 0, hqIce: 0, rdIce: 0 };
   let corpTurns = 0;
   let lastTurn = -1;
+  const money: GameRecord['money'] = { spent: {}, gained: {}, corpTurns: 0, creditsAtTurnEnd: 0, clicks: 0, creditClicks: 0 };
   const runs: RunWaste = { total: 0, paidAndFailed: 0, credits: 0, jackOutKnown: 0, jackOutFresh: 0, stoppedKnown: 0, stoppedFresh: 0 };
   let rezzedAtStart = new Set<string>();
   let paid = 0;
@@ -132,6 +152,20 @@ export function playLogged(start: GameState, agents: { corp: Agent; runner: Agen
     }
     if (!runner.step()) break;
     const after = runner.state;
+    const delta = after.corp.credits - before.corp.credits;
+    if (delta !== 0) {
+      const kind = moneyKind(before, after);
+      const book = delta < 0 ? money.spent : money.gained;
+      book[kind] = (book[kind] ?? 0) + Math.abs(delta);
+    }
+    if (before.activePlayer === 'corp' && !before.activeRun && after.corp.clicks < before.corp.clicks) {
+      money.clicks += before.corp.clicks - after.corp.clicks;
+      if (moneyKind(before, after) === 'click for credit') money.creditClicks++;
+    }
+    if (before.activePlayer === 'corp' && after.activePlayer === 'runner') {
+      money.corpTurns++;
+      money.creditsAtTurnEnd += after.corp.credits;
+    }
     const run = before.activeRun;
     if (!run && after.activeRun) {
       runs.total++;
@@ -209,5 +243,6 @@ export function playLogged(start: GameState, agents: { corp: Agent; runner: Agen
     idleAgendaTurns,
     board: Object.fromEntries(Object.entries(board).map(([k, v]) => [k, v / Math.max(corpTurns, 1)])) as GameRecord['board'],
     runs,
+    money,
   };
 }

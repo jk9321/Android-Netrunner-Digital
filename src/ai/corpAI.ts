@@ -781,7 +781,32 @@ function reservePenalty(state: GameState, creditsAfter: number, wide = false): n
   const after = Math.max(0, reserve - creditsAfter);
   // (Jeff) an installed agenda's unrezzed ice is only protection while the money to rez it is there: don't spend it
   const agendaMoney = tuning.plan.agendaMoney && creditsAfter < state.corp.credits && creditsAfter < agendaRemoteNeed(state) ? 6 : 0;
-  return agendaMoney + (after > before ? Math.min(3, after - before) : -Math.min(1, 0.4 * (before - after)));
+  return agendaMoney + moneyTargetPenalty(state, creditsAfter) + (after > before ? Math.min(3, after - before) : -Math.min(1, 0.4 * (before - after)));
+}
+
+/**
+ * (Jeff) A surplus to aim for: the credits to rez every unrezzed ice on
+ * R&D, HQ and the remotes that hold agendas or do the scoring (at most 12).
+ * Spending below it costs a little, money that climbs toward it earns a
+ * little. Rezzing during runs and scoring aren't held back by it.
+ */
+export function moneyTarget(state: GameState): number {
+  const main = mainRemote(state);
+  let target = 0;
+  for (const server of Object.values(state.corp.servers)) {
+    const counts = server.id === 'rd' || server.id === 'hq' || server === main || (server.isRemote && server.root.some(c => type(c) === 'agenda'));
+    if (counts) for (const ice of server.ice) if (!ice.isRezzed) target += rezCost(state, ice);
+  }
+  return Math.min(12, target);
+}
+
+function moneyTargetPenalty(state: GameState, creditsAfter: number): number {
+  const weight = tuning.plan.moneyTarget;
+  if (!weight) return 0;
+  const target = moneyTarget(state);
+  const before = Math.max(0, target - state.corp.credits);
+  const after = Math.max(0, target - creditsAfter);
+  return after > before ? Math.min(2, weight * (after - before)) : -Math.min(1.5, weight * (before - after));
 }
 
 /**

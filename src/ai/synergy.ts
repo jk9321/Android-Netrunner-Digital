@@ -124,6 +124,9 @@ export const tuning = {
     agendaMoney: true,
     /** Corp (Jeff): ice planning counts unrezzed ice as a layer only if it can be paid for. */
     fundedIcePlans: false,
+    /* Money target (2026-10-26, self-play, 2,210 games): off 42.7%, 0.3 46.8%, 0.6 46.8%. Kept the milder weight. */
+    /** Corp (Jeff): aim for a surplus that rezzes the unrezzed ice on the centrals and scoring remote (credits-worth per credit short; 0 = off). */
+    moneyTarget: 0.3,
     /** Corp: an agenda remote's rez reserve covers all its unrezzed ice. */
     deepReserve: true,
     /** Corp (Jeff): push agendas through a remote the Runner can't get into yet. */
