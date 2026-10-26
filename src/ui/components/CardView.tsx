@@ -9,6 +9,8 @@ import { Keyword } from './Keyword';
 import { useZoom } from './ZoomPanel';
 import { createPortal } from 'react-dom';
 import { usePromptHighlight } from '../promptHighlight';
+import { IceTypeIcons, breakerTypes } from './IceTypeIcons';
+import { iceSubtypes } from '../../core/engine/ice';
 
 export interface CardViewProps {
   card: CardInstance;
@@ -22,6 +24,8 @@ export interface CardViewProps {
   size?: 'xs' | 'sm' | 'md' | 'lg' | 'xl' | 'fit' | 'fit-sm';
   /** Only installed cards are rezzed or unrezzed; hide the badge for cards in hand or in a pile. */
   notInstalled?: boolean;
+  /** Show the ice or icebreaker type icons, as on the table (hand, prompts, piles); never on a hidden card. */
+  typeIcons?: boolean;
 }
 
 const CardFace: React.FC<CardViewProps> = ({
@@ -34,6 +38,7 @@ const CardFace: React.FC<CardViewProps> = ({
   onInspect,
   size = 'md',
   notInstalled = false,
+  typeIcons = false,
 }) => {
   const [showTooltip, setShowTooltip] = useState(false);
   const [imageError, setImageError] = useState(false);
@@ -222,6 +227,13 @@ const CardFace: React.FC<CardViewProps> = ({
           <Eye className="w-3.5 h-3.5" />
         </button>
       )}
+
+      {typeIcons &&
+        (def.type_code === 'ice' ? (
+          <IceTypeIcons types={iceSubtypes(card)} side="ice" className="absolute right-0.5 bottom-0.5" />
+        ) : (
+          <IceTypeIcons types={breakerTypes(card)} side="breaker" className="absolute left-0.5 top-1/2 -translate-y-1/2" />
+        ))}
 
       {/* Hover Card Detail Popout (Rendered via Portal to Document Body) */}
       {showTooltip && (

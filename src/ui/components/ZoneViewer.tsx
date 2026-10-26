@@ -80,6 +80,7 @@ export const ZoneViewer: React.FC<ZoneViewerProps> = ({ title, groups, canPeek, 
                     notInstalled
                     isFaceDown={group.faceDown}
                     canPeek={!group.faceDown || canPeek}
+                    typeIcons
                     onInspect={!group.faceDown || canPeek ? onInspect : undefined}
                   />
                 ))}

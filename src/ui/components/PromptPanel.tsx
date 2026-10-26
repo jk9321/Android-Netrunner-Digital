@@ -91,7 +91,7 @@ export const PromptPanel: React.FC<PromptPanelProps> = ({ state, onAnswer, onIns
           <>
             <div className="flex gap-2 overflow-x-auto py-2 mb-4">
               {hand.map(card => (
-                <CardView key={card.instanceId} card={card} size="sm" notInstalled onInspect={onInspectCard} />
+                <CardView key={card.instanceId} card={card} size="sm" notInstalled typeIcons onInspect={onInspectCard} />
               ))}
             </div>
             <div className="flex gap-2 justify-end">
@@ -114,6 +114,7 @@ export const PromptPanel: React.FC<PromptPanelProps> = ({ state, onAnswer, onIns
                   card={card}
                   size="sm"
                   notInstalled
+                  typeIcons
                   isSelectable={!isFull || selected.includes(card.instanceId)}
                   isSelected={selected.includes(card.instanceId)}
                   onClick={() => toggle(card.instanceId)}
@@ -185,6 +186,7 @@ export const PromptPanel: React.FC<PromptPanelProps> = ({ state, onAnswer, onIns
                       size="sm"
                       isFaceDown={secret}
                       canPeek={!secret}
+                      typeIcons
                       isSelectable={!isFull || selected.includes(id)}
                       isSelected={selected.includes(id)}
                       onClick={() => toggle(id)}
@@ -228,7 +230,7 @@ export const PromptPanel: React.FC<PromptPanelProps> = ({ state, onAnswer, onIns
           return (
             <>
               <div className="flex items-center gap-4 mb-4">
-                {card && <CardView card={card} size="md" onInspect={onInspectCard} />}
+                {card && <CardView card={card} size="md" typeIcons onInspect={onInspectCard} />}
                 <div className="text-xs text-slate-300">
                   {card && <div className="font-bold text-slate-100 mb-1">{cardDef(card).title}</div>}
                   {prompt.trashCost !== null && (

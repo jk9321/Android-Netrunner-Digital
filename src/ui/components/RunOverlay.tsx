@@ -102,6 +102,7 @@ export const RunOverlay: React.FC<RunOverlayProps> = ({
                 isFaceDown={!currentIce.isRezzed}
                 canPeek={canPeekCorp || !!currentIce.runnerKnows}
                 size="md"
+                typeIcons
                 onInspect={currentIce.isRezzed || canPeekCorp ? onInspectCard : undefined}
               />
               <div className="flex-1">

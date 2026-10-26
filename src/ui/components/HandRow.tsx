@@ -2,8 +2,6 @@ import React from 'react';
 import { AnimatePresence, MotionConfig, motion } from 'framer-motion';
 import { CardInstance, SideCode } from '../../core/types/card';
 import { CardView } from './CardView';
-import { IceTypeIcons, breakerTypes } from './IceTypeIcons';
-import { iceSubtypes } from '../../core/engine/ice';
 
 interface HandRowProps {
   cards: CardInstance[];
@@ -81,14 +79,8 @@ export const HandRow: React.FC<HandRowProps> = React.memo(({
                 isSelected={selectedCardId === card.instanceId}
                 onClick={() => onSelect(card.instanceId)}
                 onInspect={canSee ? onInspect : undefined}
+                typeIcons
               />
-              {/* The same type icons as on the table, only for a viewer who can see the faces */}
-              {canSee &&
-                (side === 'corp' ? (
-                  <IceTypeIcons types={iceSubtypes(card)} side="ice" className="absolute right-0.5 bottom-0.5" />
-                ) : (
-                  <IceTypeIcons types={breakerTypes(card)} side="breaker" className="absolute left-0.5 top-1/2 -translate-y-1/2" />
-                ))}
             </motion.div>
           ))}
         </AnimatePresence>
