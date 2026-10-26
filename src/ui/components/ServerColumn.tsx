@@ -61,7 +61,8 @@ const IceSlot: React.FC<{
 /** The trojans on a piece of ice, named in a tag on it. */
 const HostedTag: React.FC<{ ice: CardInstance; hosted: CardInstance[] }> = ({ ice, hosted }) => (
   <div
-    className="max-w-full min-w-0 flex items-center gap-[0.2em] rounded bg-pink-950/95 border border-pink-500 px-[0.2em] text-[0.8em] leading-[1.3em] font-bold text-pink-100"
+    data-tip={`Installed on this ice: ${hosted.map(h => cardDef(h).title).join(', ')}`}
+    className="pointer-events-auto max-w-full min-w-0 flex items-center gap-[0.2em] rounded bg-pink-950/95 border border-pink-500 px-[0.2em] text-[0.8em] leading-[1.3em] font-bold text-pink-100"
     data-testid={`hosts-${ice.instanceId}`}
   >
     <Bug className="w-[1.1em] h-[1.1em] shrink-0" />
