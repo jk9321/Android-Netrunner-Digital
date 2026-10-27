@@ -1124,11 +1124,23 @@ const ipTargets = (state: GameState) =>
   state.runner.scoreArea.filter(a => (cardDef(a).agenda_points ?? 0) > 0 && (cardDef(a).agenda_points ?? 0) <= state.runner.tags);
 const ipEnforcement: CardScript = {
   canPlay: ({ state }) => (ipTargets(state).length > 0 ? null : 'Needs an agenda in the Runner\'s score area worth no more than their tags'),
-  onPlay: ctx => askCards(ctx, 'corp', 'IP Enforcement: choose an agenda in the Runner\'s score area (remove tags equal to its points).', ids(ipTargets(ctx.state)), 1, 1, 'agenda'),
+  // The Corp chooses X when paying (rule 1.16.6c). Only an X that matches an agenda's printed
+  // points installs anything, so each option pairs an X with the agenda it takes back.
+  onPlay: ctx => {
+    const tags = ctx.state.runner.tags;
+    const options = [...ipTargets(ctx.state)]
+      .sort((a, b) => (cardDef(a).agenda_points ?? 0) - (cardDef(b).agenda_points ?? 0))
+      .map(a => {
+        const x = cardDef(a).agenda_points ?? 0;
+        const counter = tags - x > 0 ? ', the Runner stays tagged: +1 advancement counter' : '';
+        return { id: a.instanceId, label: `X = ${x}: remove ${x} of ${tags} tag(s), take back ${cardDef(a).title}${counter}` };
+      });
+    askChoice(ctx, 'corp', `IP Enforcement: choose X, the number of tags to remove (the Runner has ${tags}). You install the agenda worth X points.`, options, 'agenda');
+  },
   onPromptAnswer: (ctx, source, answer) => {
     const { state } = ctx;
-    if (source.step === 'agenda' && answer.kind === 'effect_cards') {
-      const agenda = state.runner.scoreArea.find(a => a.instanceId === answer.cardInstanceIds[0]);
+    if (source.step === 'agenda' && answer.kind === 'effect_choice') {
+      const agenda = state.runner.scoreArea.find(a => a.instanceId === answer.optionId);
       if (!agenda) return;
       const x = cardDef(agenda).agenda_points ?? 0;
       removeTags(state, x);
