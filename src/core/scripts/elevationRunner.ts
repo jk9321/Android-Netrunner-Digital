@@ -6,6 +6,8 @@ import { addLog } from '../engine/log';
 import { findCardAnywhere, findInstalledCorpCard, removeCard } from '../engine/helpers';
 import { endRun } from '../engine/runEnd';
 import { getCardScript } from './index';
+import { installedIce } from '../engine/cardEffects';
+import { runnerInstallBlocker } from '../engine/actions/install';
 import { accessOutsideRun, runnerTrashInstalledCorpCard, startRun, trashAccessedCard } from '../engine/actions/run';
 import { dealDamage, giveTags, installedRunnerCards, trashInstalledRunnerCard } from '../engine/damage';
 import {
@@ -177,6 +179,14 @@ const dewi: CardScript = {
   },
 };
 
+/** Why a discarded program or piece of hardware can't be installed right now. */
+function magdaleneBlocker(state: GameState, card: CardInstance): string {
+  const ice = installedIce(state);
+  if (getCardScript(card.cardCode)?.installsOnIce && ice.length === 0) return 'no installed ice to host it';
+  const blocker = runnerInstallBlocker(state, card, getCardScript(card.cardCode)?.installsOnIce ? ice[0].instanceId : undefined) ?? 'not allowed';
+  return blocker.replace(/^Not enough credits to install$/, `not enough credits, costs ${cardDef(card).cost ?? 0}`);
+}
+
 // Magdalene Keino-Chemutai: Whenever you discard cards to reach your maximum hand
 // size, you may install 1 program or piece of hardware from among those cards.
 const magdalene: CardScript = {
@@ -185,7 +195,11 @@ const magdalene: CardScript = {
       if (e.side !== 'runner') return;
       const inHeap = e.cards.filter(c => ctx.state.runner.heap.includes(c) && ['program', 'hardware'].includes(cardDef(c).type_code));
       const targets = installableRunnerCards(ctx.state, inHeap);
-      if (targets.length === 0) return;
+      if (targets.length === 0) {
+        // Installing still means paying the install cost (rules 1.16.6), so say why nothing could be installed
+        for (const c of inHeap) addLog(ctx.state, 'runner', `Magdalene Keino-Chemutai: ${cardDef(c).title} cannot be installed (${magdaleneBlocker(ctx.state, c)}).`);
+        return;
+      }
       askRunnerInstall(ctx, 'Magdalene Keino-Chemutai: you may install 1 program or piece of hardware you discarded.', targets.map(c => c.instanceId), 0, 1, 'install');
     },
   },
