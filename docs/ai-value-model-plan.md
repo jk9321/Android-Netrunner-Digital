@@ -13,6 +13,7 @@ Approved by Jeff on 2026-10-27. This file is the working copy for anyone (Claude
 | 5. Ice and breakers in credits | Not started | | | |
 | 6. Remove special cases | Not started | | | |
 | Later: whole-turn planner for Normal | Not started | | | |
+| Final: every-card value audit (Jeff) | Not started | | | A coverage test that lists every card in the pool and how it is valued (profile, counter entry, hand-set number, ice/breaker formula, simulated operation or event, agenda formula), failing for any card that falls to a default; plus a per-card report for Jeff. |
 
 The 'Improve AI run and protection budgeting' work is paused (Jeff, 2026-10-27) until this rework is done. Then we check whether it is still needed.
 
