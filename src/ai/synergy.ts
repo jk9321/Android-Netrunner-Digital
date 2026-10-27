@@ -227,6 +227,8 @@ export const tuning = {
     pointClock: true,
     /** Both sides: one card over the hand-size limit is a small plus (you discard your worst card), not nothing. */
     handFilter: true,
+    /** Both sides (step 3, Jeff): counters are worth what they do on their card (counterValues.ts), not a flat rate per type (per deciding side). */
+    counterEffects: { corp: true, runner: true } as Record<SideCode, boolean>,
   },
 };
 

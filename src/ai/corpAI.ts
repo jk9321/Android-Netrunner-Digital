@@ -9,7 +9,7 @@ import { logNudge, nudge, opponentLean, tuning } from './synergy';
 import { iceCost, isTrap, weakestIce } from './runs';
 import { cardSynergy } from './synergyTags';
 import { econValue, upgradeValue } from './cardValues';
-import { RATES } from './valueModel';
+import { counterWorth } from './counterValues';
 
 
 const type = (card: CardInstance) => cardDef(card).type_code;
@@ -274,12 +274,12 @@ export class HeuristicCorpAI implements Agent {
       return reachable ? 0.6 : 0;
     }
     if (action.type === 'USE_ABILITY' && tuning.plan.hostedMoney) {
-      // The board counts hosted credits at 0.6 each (see corpCardValue): give that back, so a Regolith click is worth its 3 credits
+      // The board counts hosted credits at their counter worth (see corpCardValue): give that back, so a Regolith click is worth its 3 credits
       const card = Object.values(corp.servers).flatMap(s => s.root).find(c => c.instanceId === action.cardInstanceId);
       const after = card && simulate(state, action);
       if (!card || !after) return 0;
       const left = Object.values(after.corp.servers).flatMap(s => s.root).find(c => c.instanceId === card.instanceId);
-      return RATES.counters.hostedCredit * Math.max(0, counters(card, 'credit') - (left ? counters(left, 'credit') : 0));
+      return counterWorth(state, card, 'credit', 'corp') * Math.max(0, counters(card, 'credit') - (left ? counters(left, 'credit') : 0));
     }
     if (action.type === 'PLAY_OPERATION_OR_EVENT' && tuning.plan.pettyCash) {
       return corp.hq.find(c => c.instanceId === action.cardInstanceId)?.cardCode === '35081' ? 1.5 : 0;

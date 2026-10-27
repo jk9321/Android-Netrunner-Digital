@@ -4,6 +4,7 @@ import { counters } from '../core/engine/cardEffects';
 import { cardSynergy } from './synergyTags';
 import { tuning } from './synergy';
 import { corpKeepValue, runnerCardValue } from './cardValues';
+import { countersWorth } from './counterValues';
 import { RATES, clickRate, creditValue, handFilter, pointValue, sideCreditValue } from './valueModel';
 
 export { creditValue };
@@ -111,15 +112,15 @@ function coverageValue(state: GameState, type: string, aware: boolean): number {
   return RATES.iceTypeCoverage * (0.4 + 1.8 * shownIceShare(state)[type]);
 }
 
-function runnerRigValue(state: GameState, aware = false): number {
+function runnerRigValue(state: GameState, aware: boolean, viewer: SideCode): number {
   const rig = state.runner.rig;
   const cards = [...rig.programs, ...rig.hardware, ...rig.resources];
   const { covered, anyBreakers } = rigCoverage(rig.programs);
   let value = [...covered].reduce((n, t) => n + coverageValue(state, t, aware), 0) + (anyBreakers > 0 ? RATES.anyBreaker : 0);
   for (const card of cards) {
     value += isIcebreaker(card) ? RATES.icebreaker : RATES.rigCardScale * runnerCardValue(card.cardCode);
-    value += counters(card, 'credit') * (card.cardCode === '30033' ? RATES.counters.smartwareCredit : RATES.counters.hostedCredit); // Smartware pays out 1 a turn
-    value += counters(card, 'virus') * (card.cardCode === '30007' ? RATES.counters.fermenterVirus : RATES.counters.virus);
+    // Counters by what they do on this card (step 3), or the step-1 rates
+    value += countersWorth(state, card, 'credit', viewer) + countersWorth(state, card, 'virus', viewer) + countersWorth(state, card, 'power', viewer);
     value += (card.hostedCards?.length ?? 0) * RATES.hostedCard; // Bling, Madani: cards to play later
   }
   return value;
@@ -127,10 +128,11 @@ function runnerRigValue(state: GameState, aware = false): number {
 
 
 /** Worth of an installed Corp root card (assets and upgrades). */
-export function corpCardValue(card: CardInstance): number {
+export function corpCardValue(card: CardInstance, state?: GameState, viewer: SideCode = 'corp'): number {
   const hosted = counters(card, 'credit');
-  if (card.isRezzed && hosted > 0) return 1 + hosted * RATES.counters.hostedCredit;
-  return corpKeepValue(card.cardCode);
+  const power = state && card.isRezzed ? countersWorth(state, card, 'power', viewer) : 0;
+  if (card.isRezzed && hosted > 0) return 1 + (state ? countersWorth(state, card, 'credit', viewer) : hosted * RATES.counters.hostedCredit) + power;
+  return corpKeepValue(card.cardCode) + power;
 }
 
 /** A Corp card the Runner can't see: installed, unrezzed and facedown. */
@@ -175,7 +177,7 @@ function corpBoardValue(state: GameState, viewer: SideCode): number {
       }
       const def = cardDef(card);
       if (def.type_code === 'agenda') value += agendaBoardValue(card.advancementCounters, def.advancement_cost ?? 0);
-      else value += corpCardValue(card);
+      else value += corpCardValue(card, state, viewer);
     }
   }
   return value;
@@ -209,8 +211,8 @@ export function sideStrength(state: GameState, side: SideCode, viewer: SideCode 
       corpBoardValue(state, viewer) +
       (RATES.tagForCorp + threat) * state.runner.tags +
       // Dividends and Next Big Thing counters, AU Co. power counters
-      RATES.counters.scoredAgenda * corp.scoreArea.reduce((n, a) => n + counters(a, 'agenda'), 0) +
-      RATES.counters.identityPower * counters(corp.identity, 'power')
+      corp.scoreArea.reduce((n, a) => n + countersWorth(state, a, 'agenda', viewer), 0) +
+      countersWorth(state, corp.identity, 'power', viewer)
     );
   }
   const runner = state.runner;
@@ -221,7 +223,7 @@ export function sideStrength(state: GameState, side: SideCode, viewer: SideCode 
     pointValue(runner.score) -
     (RATES.tagAgainstRunner + threat) * runner.tags -
     RATES.coreDamage * runner.coreDamage +
-    runnerRigValue(state, aware)
+    runnerRigValue(state, aware, viewer)
   );
 }
 
