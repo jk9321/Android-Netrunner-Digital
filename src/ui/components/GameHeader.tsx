@@ -88,7 +88,16 @@ export function GameHeader({
 
       {/* Game Controls */}
       <div className="flex items-center gap-2">
-        {humanSide ? (
+        {state.winner ? (
+          // The game is over, so both sides' cards are shown and there is no view to choose
+          <span
+            data-testid="view-mode"
+            className="border border-amber-500/60 rounded-lg px-2 py-1 text-xs text-amber-300"
+            title="The game is over: both hands, decks, discard piles and face-down cards are shown"
+          >
+            Open table
+          </span>
+        ) : humanSide ? (
           <select
             value={viewMode === 'open' ? 'open' : humanSide}
             onChange={(e) => onViewMode(e.target.value as ViewMode)}

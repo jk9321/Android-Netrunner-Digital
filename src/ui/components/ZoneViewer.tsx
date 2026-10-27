@@ -12,7 +12,7 @@ export interface ZoneGroup {
   faceDown?: boolean;
 }
 
-export type ZoneId = 'archives' | 'heap' | 'corp-score' | 'runner-score' | 'removed';
+export type ZoneId = 'archives' | 'heap' | 'rd' | 'stack' | 'corp-score' | 'runner-score' | 'removed';
 
 /** The title and card groups shown when browsing a zone. */
 export function zoneContents(zone: ZoneId, state: GameState): { title: string; groups: ZoneGroup[] } {
@@ -25,6 +25,11 @@ export function zoneContents(zone: ZoneId, state: GameState): { title: string; g
           { label: 'Face down', cards: state.corp.archives.faceDown, faceDown: true },
         ],
       };
+    // Decks list the top card first (index 0 is the top)
+    case 'rd':
+      return { title: 'R&D', groups: [{ label: 'Top to bottom', cards: state.corp.rd, faceDown: true }] };
+    case 'stack':
+      return { title: 'STACK', groups: [{ label: 'Top to bottom', cards: state.runner.stack, faceDown: true }] };
     case 'heap':
       return { title: 'HEAP', groups: [{ label: 'Heap', cards: state.runner.heap }] };
     case 'corp-score':
