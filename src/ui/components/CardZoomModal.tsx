@@ -4,9 +4,9 @@ import { CardInstance } from '../../core/types/card';
 import { cardDef, getCardImageUrl } from '../../data/cards';
 import { FACTION_COLOR, FACTION_LABEL, typeLine } from '../cardLabels';
 import { X, Shield, Award, Trash2, AlertCircle } from 'lucide-react';
-import { annotateKeywords } from '../glossary';
+import { cardTextHtml } from '../cardText';
 import { Keyword } from './Keyword';
-import { CreditIcon, CREDIT_ICON_HTML, RECURRING_CREDIT_ICON_HTML, MU_ICON_HTML, MuIcon, CLICK_ICON_HTML, TRASH_ICON_HTML, LINK_ICON_HTML } from './CreditIcon';
+import { CreditIcon, MuIcon } from './CreditIcon';
 
 interface CardZoomModalProps {
   card: CardInstance | null;
@@ -124,15 +124,7 @@ export const CardZoomModal: React.FC<CardZoomModalProps> = ({
               <div className="bg-slate-900/80 rounded-xl p-4 border border-slate-800 text-sm leading-relaxed mb-4">
                 <div
                   dangerouslySetInnerHTML={{
-                    __html: annotateKeywords(def.text)
-                      .replace(/\[credit\]/g, ` <span data-kw="credit" class="kw-label text-amber-400">${CREDIT_ICON_HTML}</span> `)
-                      .replace(/\[click\]/g, ` <span data-kw="click" class="kw-label text-red-400">${CLICK_ICON_HTML}</span> `)
-                      .replace(/\[subroutine\]/g, '<span data-kw="subroutine" class="kw-label text-cyan-400 font-bold block mt-1">↳ Subroutine: </span>')
-                      .replace(/\[trash\]/g, ` <span data-kw="trash-symbol" class="kw-label text-red-400">${TRASH_ICON_HTML}</span> `)
-                      .replace(/\[recurring-credit\]/g, ` <span data-kw="recurring-credit" class="kw-label text-amber-300">${RECURRING_CREDIT_ICON_HTML}</span> `)
-                      .replace(/\[mu\]/g, `<span data-kw="mu" class="kw-label font-bold inline-flex items-center">${MU_ICON_HTML}</span>`)
-                      .replace(/\[link\]/g, ` <span data-kw="link" class="kw-label text-emerald-400">${LINK_ICON_HTML}</span> `)
-                      .replace(/\n/g, '<br />'),
+                    __html: cardTextHtml(def.text),
                   }}
                 />
               </div>
