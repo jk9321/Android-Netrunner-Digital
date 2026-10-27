@@ -4,11 +4,12 @@ import { DECKS, DeckList, deckCodes, pickRandomDeck, randomDeckPool } from '../.
 import { ALL_CARDS, getCardImageUrl } from '../../data/cards';
 import { loadCustomDecks, newCustomDeckId, saveCustomDecks } from '../../data/customDecks';
 import type { Difficulty } from '../../ai';
-import { CheckCircle2, AlertTriangle, Play, Plus, Pencil, Copy, Trash2, Dices, FileDown } from 'lucide-react';
+import { CheckCircle2, AlertTriangle, Play, Plus, Pencil, Copy, Trash2, Dices, FileDown, Eye } from 'lucide-react';
 import { showConfirm } from './Dialog';
 
 // Loaded on first use, so the start screen doesn't wait for them
 const DeckBuilder = lazy(() => import('./DeckBuilder').then(m => ({ default: m.DeckBuilder })));
+const DeckViewer = lazy(() => import('./DeckBuilder').then(m => ({ default: m.DeckViewer })));
 const ImportDeckModal = lazy(() => import('./ImportDeckModal').then(m => ({ default: m.ImportDeckModal })));
 
 interface DeckPickerProps {
@@ -85,6 +86,7 @@ export const DeckPicker: React.FC<DeckPickerProps> = ({ initialCorpDeckId, initi
   const [customDecks, setCustomDecks] = useState<DeckList[]>(loadCustomDecks);
   const [storageFailed, setStorageFailed] = useState(false);
   const [editing, setEditing] = useState<DeckList | null>(null);
+  const [viewing, setViewing] = useState<DeckList | null>(null);
   const [importing, setImporting] = useState(false);
   const summaries = useMemo(() => [...DECKS, ...customDecks].map(summarize), [customDecks]);
   const [corpId, setCorpId] = useState(initialCorpDeckId);
@@ -133,6 +135,23 @@ export const DeckPicker: React.FC<DeckPickerProps> = ({ initialCorpDeckId, initi
     return (
       <Suspense fallback={<div className="p-6 font-mono text-xs text-slate-400">Loading deckbuilder…</div>}>
         <DeckBuilder key={editing.id} initial={editing} onSave={saveDeck} onCancel={() => setEditing(null)} />
+      </Suspense>
+    );
+  }
+
+  if (viewing) {
+    const selectedId = viewing.side === 'corp' ? corpId : runnerId;
+    return (
+      <Suspense fallback={<div className="p-6 font-mono text-xs text-slate-400">Loading decklist…</div>}>
+        <DeckViewer
+          key={viewing.id}
+          deck={viewing}
+          onClose={() => setViewing(null)}
+          onSelect={selectedId === viewing.id ? undefined : () => {
+            selectFor(viewing.side)(viewing.id);
+            setViewing(null);
+          }}
+        />
       </Suspense>
     );
   }
@@ -241,6 +260,7 @@ export const DeckPicker: React.FC<DeckPickerProps> = ({ initialCorpDeckId, initi
                         )}
                       </div>
                       <div className="flex shrink-0">
+                        {iconButton('View decklist', <Eye className="w-3.5 h-3.5" />, () => setViewing(s.deck), `view-${s.deck.id}`)}
                         {s.deck.source === 'custom' &&
                           iconButton('Edit deck', <Pencil className="w-3.5 h-3.5" />, () => setEditing(s.deck), `edit-${s.deck.id}`)}
                         {iconButton('Copy into a new deck', <Copy className="w-3.5 h-3.5" />, () => copyDeck(s.deck), `copy-${s.deck.id}`)}
