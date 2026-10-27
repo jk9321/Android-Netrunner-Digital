@@ -469,6 +469,8 @@ export class HeuristicCorpAI implements Agent {
               ? fundedDepth(state, server, corp.credits - installCost)
               : iceDepth(state, server)
             : server?.ice.length ?? 0;
+        // (Jeff) no ice the Corp can't afford to rez on top of the unrezzed ice already out, unless HQ must shrink to avoid a discard
+        if (this.synergy && tuning.plan.icePacing && unrezzedIceCost(state) + (cardDef(card).cost ?? 0) > corp.credits - installCost + ICE_PACING_INCOME && hq.length <= corp.handSizeLimit) return -Infinity;
         let need: number;
         // Deck-aware AI: one well-iced scoring remote rather than ice spread thin
         const main = this.synergy && tuning.plan.oneRemote ? mainRemote(state) : null;
@@ -613,6 +615,16 @@ function iceFit(state: GameState, ice: CardInstance, server: ServerState | null,
   }
   if (server.ice.length > 0 && server.ice.some(other => iceSubtypes(other, state).some(t => types.includes(t)))) fit -= 0.4;
   return fit;
+}
+
+/** Credits the Corp counts on making before the Runner tests its newest ice (ice pacing: 2 and 0 played the same). */
+const ICE_PACING_INCOME = 0;
+
+/** Credits to rez every unrezzed ice the Corp has installed. */
+export function unrezzedIceCost(state: GameState): number {
+  return Object.values(state.corp.servers)
+    .flatMap(server => server.ice)
+    .reduce((n, ice) => n + (ice.isRezzed ? 0 : rezCost(state, ice)), 0);
 }
 
 /**

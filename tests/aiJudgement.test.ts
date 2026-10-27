@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { GameAction, cardDef, createCardInstance, executeAction, getCardDefinition, getLegalActions, isLegalAction } from '../src/core';
 import { makeRoomAnswers } from '../src/ai/prompts';
 import { runScore, serverValue, subroutineCost } from '../src/ai/runs';
-import { agendaRemoteNeed, fundedDepth, moneyTarget, rezReserve, withDeadIceTrashed } from '../src/ai/corpAI';
+import { agendaRemoteNeed, fundedDepth, moneyTarget, unrezzedIceCost, rezReserve, withDeadIceTrashed } from '../src/ai/corpAI';
 import { makeRoomInstalls } from '../src/ai/runnerAI';
 import { evaluate } from '../src/ai/evaluate';
 import { installForTest, installIceForTest, installProgramForTest, newGame, startRunnerTurn } from './helpers';
@@ -73,6 +73,13 @@ describe('AI judgement in fixed positions', () => {
     expect(moneyTarget(state)).toBe(2 * rez);
     state.corp.servers.rd.ice[0].isRezzed = true;
     expect(moneyTarget(state)).toBe(rez);
+  });
+
+  it('counts what rezzing all its unrezzed ice would cost (ice pacing)', () => {
+    const state = newGame();
+    installIceForTest(state, PALISADE, 'rd', false);
+    installIceForTest(state, PALISADE, 'hq', true);
+    expect(unrezzedIceCost(state)).toBe(getCardDefinition(PALISADE).cost ?? 0);
   });
 
   it("judges the Corp's facedown cards by the odds, not by what they really are", () => {

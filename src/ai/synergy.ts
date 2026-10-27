@@ -124,6 +124,13 @@ export const tuning = {
     agendaMoney: true,
     /** Corp (Jeff): ice planning counts unrezzed ice as a layer only if it can be paid for. */
     fundedIcePlans: false,
+    /*
+     * Ice pacing (2026-10-27, self-play, 2,210 games): 46.8% -> 46.2% (noise).
+     * Steals behind unrezzed ice the Corp couldn't afford: remote 287 -> 196,
+     * R&D 581 -> 301, HQ 517 -> 268. Kept (Jeff's rule, plays like a person).
+     */
+    /** Corp (Jeff): no ice it can't afford to rez on top of its unrezzed ice already out, unless HQ is over the hand-size limit. */
+    icePacing: true,
     /* Money target (2026-10-26, self-play, 2,210 games): off 42.7%, 0.3 46.8%, 0.6 46.8%. Kept the milder weight. */
     /** Corp (Jeff): aim for a surplus that rezzes the unrezzed ice on the centrals and scoring remote (credits-worth per credit short; 0 = off). */
     moneyTarget: 0.3,
