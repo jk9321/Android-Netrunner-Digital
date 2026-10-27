@@ -144,6 +144,13 @@ export const tuning = {
      */
     /** Corp (Jeff): R&D, and HQ while it holds agendas, get their first ice before any remote; HQ first while it holds agendas. */
     centralsFirst: true,
+    /*
+     * Entry gate (2026-10-27, self-play, 2,210 games each): off 40.1%, margin 2 39.9%, 4 39.6%, 6 36.5%. Remote points
+     * fell (3,856 -> 2,609 at 4) but agendas waited in HQ instead (turns with an agenda stuck in HQ 8.5 -> 10.8) and HQ and
+     * R&D steals rose. Off: holding agendas back only moves the steals.
+     */
+    /** Corp: leave an agenda out only behind ice that costs the Runner this much more than they have (0 = off: 2 layers or credits + 2). */
+    entryGate: 0,
     /** Corp (Jeff): ice that would stop this Runner goes on a server that matters (R&D, the scoring remote, HQ holding agendas). */
     stopperPlacement: true,
     /** ...and remotes wait for their ice until then. */

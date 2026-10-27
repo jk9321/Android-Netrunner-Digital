@@ -367,6 +367,9 @@ export class HeuristicCorpAI implements Agent {
    */
   private exposureOk(state: GameState, server: ServerState, credits: number): boolean {
     if (!(this.synergy && tuning.plan.exposure)) return true;
+    // Agenda log: an agenda behind ice the Runner can pay through is stolen 2 times in 3, whatever the layers; behind ice they
+    // can't break or that costs well over what they have, 1 in 6 to 1 in 4. So judge by what getting in costs this Runner.
+    if (tuning.plan.entryGate) return entryGate(state, server, credits) >= state.runner.credits + tuning.plan.entryGate;
     // (Jeff) unrezzed ice only protects if the money to rez it is still there on the Runner's turn
     if ((tuning.plan.fundedDepth ? fundedDepth(state, server, credits) : iceDepth(state, server)) >= 2) return true;
     return entryCost(state, server, credits) >= state.runner.credits + 2;
@@ -709,6 +712,23 @@ function entryCost(state: GameState, server: ServerState, credits: number): numb
       credits -= rc;
     }
     cost += Math.min(8, iceCost(state, { ...ice, isRezzed: true }));
+  }
+  return cost;
+}
+
+/**
+ * What getting through this server's rezzed ice, and the unrezzed ice
+ * `credits` can still rez (cheapest first), costs the Runner. Infinity
+ * when some of it can't be broken with what they have installed.
+ */
+function entryGate(state: GameState, server: ServerState, credits: number): number {
+  let cost = 0;
+  for (const ice of [...server.ice].sort((a, b) => rezCost(state, a) - rezCost(state, b))) {
+    if (!ice.isRezzed) {
+      if (rezCost(state, ice) > credits) continue;
+      credits -= rezCost(state, ice);
+    }
+    cost += iceCost(state, { ...ice, isRezzed: true });
   }
   return cost;
 }

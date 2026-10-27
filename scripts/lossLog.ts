@@ -51,6 +51,23 @@ export interface Steal {
   savedRezWouldCover?: boolean;
 }
 
+export interface AgendaInstall {
+  turn: number;
+  ice: number;
+  rezzed: number;
+  /** Unrezzed ice the Corp could still pay to rez after the install, cheapest first */
+  affordable: number;
+  /** What the rezzed and affordable ice would cost this Runner to get through (Infinity: can't) */
+  entryCost: number;
+  runnerCredits: number;
+  /** Advancements still needed, and whether the rest of this turn's clicks could finish it */
+  need: number;
+  finishable: boolean;
+  outcome: 'scored' | 'stolen' | 'other' | 'still out';
+  /** Corp turns it sat installed before the outcome */
+  turnsOut: number;
+}
+
 /** Rezzes during runs, and how many were on servers holding nothing that matters to the Corp */
 export interface RezLog {
   total: number;
@@ -79,6 +96,8 @@ export interface GameRecord {
   runs: RunWaste;
   /** Corp credits spent and gained over the game, by what for (see moneyKind) */
   rezzes: RezLog;
+  /** Every agenda installed in a remote: the server when it went in, and what became of it */
+  agendaInstalls: AgendaInstall[];
   /** At the start of the Runner's turns 1 and 2: which centrals had ice, and what ice the Corp still held */
   early: { turn: number; rdIce: number; hqIce: number; remoteIce: number; iceInHand: number; cheapIceInHand: number; hqAgendas: number; credits: number }[];
   money: { spent: Record<string, number>; gained: Record<string, number>; corpTurns: number; creditsAtTurnEnd: number; clicks: number; creditClicks: number };
@@ -153,6 +172,50 @@ function stopperAt(state: GameState, serverId: string, credits: number): Steal['
   return 'none';
 }
 
+function trackAgendas(state: GameState, all: AgendaInstall[], open: Map<string, AgendaInstall>) {
+  const seen = new Set<string>();
+  for (const server of Object.values(state.corp.servers)) {
+    if (!server.isRemote) continue;
+    for (const card of server.root) {
+      if (!isAgenda(card)) continue;
+      seen.add(card.instanceId);
+      if (open.has(card.instanceId)) continue;
+      let credits = state.corp.credits;
+      let affordable = 0;
+      let entryCost = 0;
+      for (const ice of [...server.ice].sort((a, b) => rezCost(state, a) - rezCost(state, b))) {
+        if (!ice.isRezzed) {
+          if (rezCost(state, ice) > credits) continue;
+          credits -= rezCost(state, ice);
+          affordable++;
+        }
+        entryCost += iceCost(state, { ...ice, isRezzed: true });
+      }
+      const need = (cardDef(card).advancement_cost ?? 0) - card.advancementCounters;
+      const record: AgendaInstall = {
+        turn: state.turnNumber,
+        ice: server.ice.length,
+        rezzed: server.ice.filter(i => i.isRezzed).length,
+        affordable,
+        entryCost,
+        runnerCredits: state.runner.credits,
+        need,
+        finishable: need <= Math.min(state.corp.clicks, state.corp.credits),
+        outcome: 'still out',
+        turnsOut: 0,
+      };
+      open.set(card.instanceId, record);
+      all.push(record);
+    }
+  }
+  for (const [id, record] of open) {
+    if (seen.has(id)) continue;
+    record.outcome = state.corp.scoreArea.some(c => c.instanceId === id) ? 'scored' : state.runner.scoreArea.some(c => c.instanceId === id) ? 'stolen' : 'other';
+    record.turnsOut = state.turnNumber - record.turn;
+    open.delete(id);
+  }
+}
+
 const isAgenda = (c: { cardCode: string }) => cardDef(c as never).type_code === 'agenda';
 
 function reasonOf(state: GameState): string {
@@ -178,6 +241,8 @@ export function playLogged(start: GameState, agents: { corp: Agent; runner: Agen
   let paid = 0;
   let startCredits = 0;
   const early: GameRecord['early'] = [];
+  const agendaInstalls: AgendaInstall[] = [];
+  const openAgendas = new Map<string, AgendaInstall>();
   const rezzes: RezLog = { total: 0, credits: 0, low: 0, lowCredits: 0 };
   const lowRezzes: { turn: number; cost: number }[] = [];
   let runnerTurnStart: GameState | null = null;
@@ -216,6 +281,7 @@ export function playLogged(start: GameState, agents: { corp: Agent; runner: Agen
     }
     if (!runner.step()) break;
     const after = runner.state;
+    trackAgendas(after, agendaInstalls, openAgendas);
     const delta = after.corp.credits - before.corp.credits;
     if (delta !== 0) {
       const kind = moneyKind(before, after);
@@ -329,6 +395,7 @@ export function playLogged(start: GameState, agents: { corp: Agent; runner: Agen
     board: Object.fromEntries(Object.entries(board).map(([k, v]) => [k, v / Math.max(corpTurns, 1)])) as GameRecord['board'],
     runs,
     rezzes,
+    agendaInstalls,
     early,
     money,
   };
