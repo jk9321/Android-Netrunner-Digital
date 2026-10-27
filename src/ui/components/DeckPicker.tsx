@@ -1,4 +1,4 @@
-import React, { Suspense, lazy, useMemo, useState } from 'react';
+import React, { Suspense, lazy, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { SideCode, getCardDefinition, getFormat, influenceCost, validateDeck } from '../../core';
 import { DECKS, DeckList, deckCodes, pickRandomDeck, randomDeckPool } from '../../data/decks';
 import { ALL_CARDS, getCardImageUrl } from '../../data/cards';
@@ -81,6 +81,30 @@ function emptyDeck(side: SideCode): DeckList {
   return { id: newCustomDeckId(), name: 'New deck', side, identity: identity.title, cards: {}, source: 'custom' };
 }
 
+const deckListElement = (side: SideCode) => document.querySelector<HTMLElement>(`[data-testid="deck-list-${side}"]`);
+
+/** Scrolls only the deck list column (not the page) so the deck sits in the middle. */
+function scrollDeckIntoView(side: SideCode, deckId: string, behavior: ScrollBehavior = 'smooth') {
+  const list = deckListElement(side);
+  const item = Array.from(list?.children ?? []).find(
+    el => (el as HTMLElement).dataset.testid === `deck-${deckId}`,
+  ) as HTMLElement | undefined;
+  if (!list || !item) return;
+  const offset = item.getBoundingClientRect().top - list.getBoundingClientRect().top;
+  const top = list.scrollTop + offset - (list.clientHeight - item.offsetHeight) / 2;
+  list.scrollTo?.({ top: Math.max(0, top), behavior });
+}
+
+/** Whether the deck's whole entry is inside its list's visible area. */
+function deckFullyVisible(side: SideCode, deckId: string): boolean {
+  const list = deckListElement(side);
+  const item = list?.querySelector<HTMLElement>(`[data-testid="deck-${deckId}"]`);
+  if (!list || !item) return true;
+  const l = list.getBoundingClientRect();
+  const r = item.getBoundingClientRect();
+  return r.top >= l.top && r.bottom <= l.bottom;
+}
+
 /** Start screen: choose a Corp deck and a Runner deck, or build your own. */
 export const DeckPicker: React.FC<DeckPickerProps> = ({ initialCorpDeckId, initialRunnerDeckId, onStart }) => {
   const [customDecks, setCustomDecks] = useState<DeckList[]>(loadCustomDecks);
@@ -92,6 +116,33 @@ export const DeckPicker: React.FC<DeckPickerProps> = ({ initialCorpDeckId, initi
   const [corpId, setCorpId] = useState(initialCorpDeckId);
   const [runnerId, setRunnerId] = useState(initialRunnerDeckId);
   const [opponent, setOpponent] = useState<Opponent>(savedOpponent);
+  // Where the page and each deck list were scrolled, so coming back from the deckbuilder or a decklist lands in the same place
+  const scrollMemory = useRef({ page: 0, corp: 0, runner: 0 });
+  const showingList = !editing && !viewing;
+  useEffect(() => {
+    if (!showingList) return;
+    const remember = () => (scrollMemory.current.page = window.scrollY);
+    window.addEventListener('scroll', remember);
+    return () => window.removeEventListener('scroll', remember);
+  }, [showingList]);
+  const rememberScroll = () => {
+    scrollMemory.current.page = window.scrollY;
+    for (const side of ['corp', 'runner'] as const) scrollMemory.current[side] = deckListElement(side)?.scrollTop ?? 0;
+  };
+  useLayoutEffect(() => {
+    if (!showingList) return;
+    const memory = scrollMemory.current;
+    for (const side of ['corp', 'runner'] as const) {
+      const list = deckListElement(side);
+      if (list) list.scrollTop = memory[side];
+      // A deck picked or saved on the other screen may be off the remembered view
+      const selected = side === 'corp' ? corpId : runnerId;
+      if (!deckFullyVisible(side, selected)) scrollDeckIntoView(side, selected, 'auto');
+    }
+    window.scrollTo?.(0, memory.page);
+    // Only on returning to the list; later selections scroll themselves
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [showingList]);
   const [difficulty, setDifficulty] = useState<Difficulty>(savedDifficulty);
   const chooseDifficulty = (id: Difficulty) => {
     setDifficulty(id);
@@ -179,12 +230,14 @@ export const DeckPicker: React.FC<DeckPickerProps> = ({ initialCorpDeckId, initi
       data-testid={testId}
       onClick={e => {
         e.stopPropagation();
+        rememberScroll();
         onClick();
       }}
       onKeyDown={e => {
         if (e.key === 'Enter' || e.key === ' ') {
           e.preventDefault();
           e.stopPropagation();
+          rememberScroll();
           onClick();
         }
       }}
@@ -193,18 +246,6 @@ export const DeckPicker: React.FC<DeckPickerProps> = ({ initialCorpDeckId, initi
       {icon}
     </span>
   );
-
-  // Scrolls only the deck list column (not the page) so the deck sits in the middle
-  const scrollDeckIntoView = (side: SideCode, deckId: string) => {
-    const list = document.querySelector<HTMLElement>(`[data-testid="deck-list-${side}"]`);
-    const item = Array.from(list?.children ?? []).find(
-      el => (el as HTMLElement).dataset.testid === `deck-${deckId}`,
-    ) as HTMLElement | undefined;
-    if (!list || !item) return;
-    const offset = item.getBoundingClientRect().top - list.getBoundingClientRect().top;
-    const top = list.scrollTop + offset - (list.clientHeight - item.offsetHeight) / 2;
-    list.scrollTo?.({ top: Math.max(0, top), behavior: 'smooth' });
-  };
 
   const column = (side: SideCode, selected: string, select: (id: string) => void) => {
     const accent = side === 'corp' ? 'cyan' : 'pink';
@@ -233,7 +274,10 @@ export const DeckPicker: React.FC<DeckPickerProps> = ({ initialCorpDeckId, initi
               <Dices className="w-3.5 h-3.5" /> Random deck
             </button>
             <button
-              onClick={() => setEditing(emptyDeck(side))}
+              onClick={() => {
+                rememberScroll();
+                setEditing(emptyDeck(side));
+              }}
               data-testid={`new-${side}-deck`}
               className="px-2.5 py-1 rounded-lg border border-slate-700 hover:border-slate-500 text-xs flex items-center gap-1"
             >
@@ -241,7 +285,11 @@ export const DeckPicker: React.FC<DeckPickerProps> = ({ initialCorpDeckId, initi
             </button>
           </div>
         </div>
-        <div className="flex flex-col gap-2 max-h-[50vh] md:max-h-[65vh] overflow-y-auto pr-1" data-testid={`deck-list-${side}`}>
+        <div
+          className="flex flex-col gap-2 max-h-[50vh] md:max-h-[65vh] overflow-y-auto pr-1"
+          data-testid={`deck-list-${side}`}
+          onScroll={e => (scrollMemory.current[side] = e.currentTarget.scrollTop)}
+        >
           {summaries
             .filter(s => s.deck.side === side)
             .map(s => {
