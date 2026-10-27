@@ -98,7 +98,6 @@ export const PromptPanel: React.FC<PromptPanelProps> = ({ state, onAnswer, onIns
   return (
     <FloatingPanel
       key={prompt.id}
-      id="prompt"
       testId="prompt-panel"
       accentClass={accent}
       dotClass={isCorp ? 'bg-cyan-400' : 'bg-pink-400'}

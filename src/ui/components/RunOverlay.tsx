@@ -68,12 +68,12 @@ export const RunOverlay: React.FC<RunOverlayProps> = ({
 
   return (
     <FloatingPanel
-      id="run"
       testId="run-overlay"
       zIndexClass="z-40"
       accentClass="border-cyber-neonPink"
       dotClass="bg-pink-400"
-      defaultPlacement="left-1/2 bottom-6 -translate-x-1/2"
+      defaultPlacement="left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2"
+      minimizedPlacement="left-1/2 top-32 -translate-x-1/2"
       widthClass="w-[48rem]"
       minimizedLabel={`Run on ${server?.name ?? 'server'}: ${activeRun.phase.replace(/_/g, ' ')}`}
       title={

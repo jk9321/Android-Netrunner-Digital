@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { Maximize2, Minus, GripHorizontal } from 'lucide-react';
 
 interface Position {
@@ -6,21 +6,16 @@ interface Position {
   top: number;
 }
 
-/** Where each panel was last dragged to, so the next prompt opens in the same spot. */
-const savedPositions = new Map<string, Position>();
-
 /** Keep at least this much of the header on screen. */
 const MARGIN = 8;
 
 /**
- * Keeps a position on screen. While dragging only the header has to stay in
- * view (`whole` false), so the panel can be pushed mostly off screen; when it
- * opens or is restored, the whole panel is moved into view (`whole` true) at
- * the nearest spot, so its buttons are never hidden below the window.
+ * Keeps a dragged position on screen. Only the header has to stay in view, so
+ * the panel can be pushed mostly off screen.
  */
-function clamp(pos: Position, width: number, height: number, whole = false): Position {
+function clamp(pos: Position, width: number, height: number): Position {
   const maxLeft = Math.max(MARGIN, window.innerWidth - width - MARGIN);
-  const maxTop = Math.max(MARGIN, window.innerHeight - (whole ? height : Math.min(height, 48)) - MARGIN);
+  const maxTop = Math.max(MARGIN, window.innerHeight - Math.min(height, 48) - MARGIN);
   return {
     left: Math.min(Math.max(pos.left, MARGIN), maxLeft),
     top: Math.min(Math.max(pos.top, MARGIN), maxTop),
@@ -28,8 +23,6 @@ function clamp(pos: Position, width: number, height: number, whole = false): Pos
 }
 
 interface FloatingPanelProps {
-  /** Remembers the dragged position across mounts; one id per kind of panel. */
-  id: string;
   /** Header content; the header is the drag handle. */
   title: React.ReactNode;
   /** Short text for the collapsed bar, e.g. "Runner decision pending". */
@@ -38,7 +31,7 @@ interface FloatingPanelProps {
   accentClass: string;
   /** Tailwind classes for the pulsing dot on the collapsed bar. */
   dotClass: string;
-  /** Tailwind classes placing the panel before it has been dragged. */
+  /** Tailwind classes placing the panel when it opens or is restored from the bar. */
   defaultPlacement: string;
   /** Where the collapsed bar sits if the panel was never dragged (defaults to defaultPlacement). */
   minimizedPlacement?: string;
@@ -57,9 +50,10 @@ interface FloatingPanelProps {
 /**
  * A pop-up the player can drag by its header and collapse to a bar, so the
  * board underneath stays visible while they decide. Nothing dims the board.
+ * A dragged spot lasts only while the panel is open: each new panel, and a
+ * panel restored from its bar, opens at its default placement.
  */
 export const FloatingPanel: React.FC<FloatingPanelProps> = ({
-  id,
   title,
   minimizedLabel,
   accentClass,
@@ -76,7 +70,7 @@ export const FloatingPanel: React.FC<FloatingPanelProps> = ({
   ariaLabelledBy,
 }) => {
   const ref = useRef<HTMLDivElement>(null);
-  const [pos, setPos] = useState<Position | null>(() => savedPositions.get(id) ?? null);
+  const [pos, setPos] = useState<Position | null>(null);
   const [minimizedState, setMinimizedState] = useState(false);
   const minimized = minimizedProp ?? minimizedState;
   const setMinimized = (value: boolean) => {
@@ -85,21 +79,18 @@ export const FloatingPanel: React.FC<FloatingPanelProps> = ({
   };
   const drag = useRef<{ dx: number; dy: number; pointerId: number } | null>(null);
 
-  const reclamp = useCallback((whole: boolean) => {
+  const reclamp = useCallback(() => {
     const el = ref.current;
     if (!el) return;
     setPos(p => {
       if (!p) return p;
-      const next = clamp(p, el.offsetWidth, el.offsetHeight, whole);
+      const next = clamp(p, el.offsetWidth, el.offsetHeight);
       return next.left === p.left && next.top === p.top ? p : next;
     });
   }, []);
 
-  // Opening at a saved spot (or restoring from the bar) brings the whole panel
-  // into view near where it was left, even if it was dragged mostly off screen
-  useLayoutEffect(() => reclamp(!minimized), [reclamp, minimized]);
   useEffect(() => {
-    const onResize = () => reclamp(false);
+    const onResize = () => reclamp();
     window.addEventListener('resize', onResize);
     return () => window.removeEventListener('resize', onResize);
   }, [reclamp]);
@@ -123,10 +114,6 @@ export const FloatingPanel: React.FC<FloatingPanelProps> = ({
   const endDrag = (e: React.PointerEvent) => {
     if (!drag.current || drag.current.pointerId !== e.pointerId) return;
     drag.current = null;
-    setPos(p => {
-      if (p) savedPositions.set(id, p);
-      return p;
-    });
   };
   const dragHandlers = { onPointerDown, onPointerMove, onPointerUp: endDrag, onPointerCancel: endDrag };
 
@@ -148,7 +135,10 @@ export const FloatingPanel: React.FC<FloatingPanelProps> = ({
         </span>
         <span className="text-xs font-bold text-slate-100 truncate">{minimizedLabel}</span>
         <button
-          onClick={() => setMinimized(false)}
+          onClick={() => {
+            setPos(null); // reopen at the default placement, not where the bar was dragged
+            setMinimized(false);
+          }}
           className="ml-1 px-3 py-1 rounded-full bg-slate-800 hover:bg-slate-700 text-slate-100 text-xs font-bold flex items-center gap-1 shrink-0"
           aria-label="Restore panel"
           data-testid={testId ? `${testId}-restore` : undefined}

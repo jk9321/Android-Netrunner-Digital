@@ -34,7 +34,6 @@ export const GameOverModal: React.FC<GameOverModalProps> = ({
   const title = humanSide ? (humanSide === winner ? 'YOU WIN' : 'YOU LOSE') : `${isCorp ? 'CORP' : 'RUNNER'} WINS`;
   return createPortal(
     <FloatingPanel
-      id="game-over"
       testId="game-over"
       zIndexClass="z-[70]"
       role="dialog"
