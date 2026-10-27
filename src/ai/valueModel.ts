@@ -80,7 +80,7 @@ export function creditValue(credits: number): number {
 
 /** Worth of a click (Jeff: never under a credit, 1.25 by default). */
 export const CLICK = 1.25;
-export const clickRate = (): number => (tuning.plan.clickRate ? CLICK : RATES.click);
+export const clickRate = (viewer: SideCode): number => (tuning.plan.clickRate?.[viewer] ? CLICK : RATES.click);
 
 /**
  * Worth of `credits` against a need (Jeff): each extra credit is worth 1.8
@@ -178,8 +178,8 @@ export function boardNeed(state: GameState, side: SideCode): number {
 /** The need credits slide against: the build target or the board's need, whichever is more. */
 export const creditNeed = (state: GameState, side: SideCode): number => Math.max(buildTarget(state, side), boardNeed(state, side));
 
-/** Worth of a side's credits on this board. */
-export function sideCreditValue(state: GameState, side: SideCode): number {
+/** Worth of a side's credits on this board, as `viewer` (the deciding side) prices them. */
+export function sideCreditValue(state: GameState, side: SideCode, viewer: SideCode): number {
   const credits = side === 'corp' ? state.corp.credits : state.runner.credits;
-  return tuning.plan.creditSlide ? creditSlide(credits, creditNeed(state, side)) : creditValue(credits);
+  return tuning.plan.creditSlide?.[viewer] ? creditSlide(credits, creditNeed(state, side)) : creditValue(credits);
 }

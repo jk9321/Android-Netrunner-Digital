@@ -202,8 +202,8 @@ export function sideStrength(state: GameState, side: SideCode, viewer: SideCode 
   if (side === 'corp') {
     const corp = state.corp;
     return (
-      sideCreditValue(state, 'corp') +
-      clickRate() * corp.clicks +
+      sideCreditValue(state, 'corp', viewer) +
+      clickRate(viewer) * corp.clicks +
       handValue(corp.hq.length, corp.handSizeLimit, viewer) +
       pointValue(corp.score) +
       corpBoardValue(state, viewer) +
@@ -215,8 +215,8 @@ export function sideStrength(state: GameState, side: SideCode, viewer: SideCode 
   }
   const runner = state.runner;
   return (
-    sideCreditValue(state, 'runner') +
-    clickRate() * runner.clicks +
+    sideCreditValue(state, 'runner', viewer) +
+    clickRate(viewer) * runner.clicks +
     handValue(runner.grip.length, runner.handSizeLimit, viewer) +
     pointValue(runner.score) -
     (RATES.tagAgainstRunner + threat) * runner.tags -

@@ -210,12 +210,19 @@ export const tuning = {
     bioroidClicks: true,
     /*
      * Value model step 2 (docs/ai-value-model-plan.md, Jeff 2026-10-27): the
-     * new exchange rates in valueModel.ts, each switchable for batches.
+     * new exchange rates in valueModel.ts. Self-play, 2,210 games each: all
+     * off 40.1% Corp, all on 38.6%. Leave-one-out: no credit slide 41.0%, no
+     * click rate 37.7%, no points clock 38.5%, no hand filter 38.2%. Per side:
+     * the Runner's credit slide is worth about +2.6 points to the Runner, the
+     * Corp's about +0.7 to the Corp (noise). The flat 1.25 click rate loses
+     * for both sides (Corp's -2.5 to the Corp, Runner's -2 to -3 to the
+     * Runner): off, kept for re-testing once a click is priced by the best
+     * play in hand as planned. Points clock and hand filter: noise, kept.
      */
-    /** Both sides: a click is worth 1.25 credits (at least 1), not 1. */
-    clickRate: true,
-    /** Both sides: credits slide against a need (the deck's build target or the board's need, whichever is more) instead of a flat bonus under 6. */
-    creditSlide: true,
+    /** Both sides: a click is worth 1.25 credits (at least 1), not 1 (per deciding side). */
+    clickRate: { corp: false, runner: false } as Record<SideCode, boolean>,
+    /** Both sides: credits slide against a need (the deck's build target or the board's need, whichever is more) instead of a flat bonus under 6 (per deciding side). */
+    creditSlide: { corp: true, runner: true } as Record<SideCode, boolean>,
     /** Both sides: agenda points are worth more the closer they take a side to 7. */
     pointClock: true,
     /** Both sides: one card over the hand-size limit is a small plus (you discard your worst card), not nothing. */

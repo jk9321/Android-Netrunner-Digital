@@ -7,7 +7,7 @@ Approved by Jeff on 2026-10-27. This file is the working copy for anyone (Claude
 | Step | State | Branch / commit | Self-play Corp % | Notes |
 | --- | --- | --- | --- | --- |
 | 1. Exchange rates module (no behaviour change) | Done 2026-10-27 | `claude/project-thread-3heaal` | 38.0% (221 games, identical to main 1724c6b) | `src/ai/valueModel.ts` holds today's numbers; same-seed self-play output byte-identical to main |
-| 2. New rates (click, credit slide, clocks) | Not started | | | |
+| 2. New rates (click, credit slide, clocks) | Done 2026-10-27 | `claude/project-thread-3heaal` | 37.7% (was 40.1% with all off) | Credit slide ON: Runner +2.6 pts, Corp +0.7 (noise). Points clock, hand filter ON (noise). Flat 1.25 click OFF: lost 2-3 pts for each side; re-test when a click is priced by the best play in hand. Race clock on credits not built yet. |
 | 3. Counters by effect | Not started | | | |
 | 4. Card profiles | Not started | | | |
 | 5. Ice and breakers in credits | Not started | | | |
