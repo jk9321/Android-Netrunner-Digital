@@ -1,4 +1,4 @@
-import React, { useLayoutEffect, useState } from 'react';
+import React, { useLayoutEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { CardInstance } from '../../core/types/card';
 import { cardDef, getCardImageUrl } from '../../data/cards';
@@ -22,6 +22,7 @@ export const CardPopout: React.FC<CardPopoutProps> = ({
   canPeek = true,
 }) => {
   const [coords, setCoords] = useState<{ top: number; left: number }>({ top: 0, left: 0 });
+  const boxRef = useRef<HTMLDivElement>(null);
   const def = cardDef(card);
 
   const isHiddenSecured = isFaceDown && !canPeek;
@@ -30,26 +31,36 @@ export const CardPopout: React.FC<CardPopoutProps> = ({
 
   useLayoutEffect(() => {
     if (!targetRect) return;
-
-    const popoutHeight = isHiddenSecured ? 300 : 420;
     const padding = 12;
 
-    // Determine horizontal position: prefer right, fallback to left
-    let left = targetRect.right + padding;
-    if (left + popoutWidth > window.innerWidth - padding) {
-      left = targetRect.left - popoutWidth - padding;
-    }
-    // Clamp to viewport edges
-    left = Math.max(padding, Math.min(window.innerWidth - popoutWidth - padding, left));
+    const place = () => {
+      // The real height once rendered (long card text makes it taller than the estimate)
+      const popoutHeight = boxRef.current?.offsetHeight || (isHiddenSecured ? 300 : 420);
 
-    // Determine vertical position: align with top of card, clamp inside window
-    let top = targetRect.top - 10;
-    if (top + popoutHeight > window.innerHeight - padding) {
-      top = window.innerHeight - popoutHeight - padding;
-    }
-    top = Math.max(padding, top);
+      // Determine horizontal position: prefer right, fallback to left
+      let left = targetRect.right + padding;
+      if (left + popoutWidth > window.innerWidth - padding) {
+        left = targetRect.left - popoutWidth - padding;
+      }
+      // Clamp to viewport edges
+      left = Math.max(padding, Math.min(window.innerWidth - popoutWidth - padding, left));
 
-    setCoords({ top, left });
+      // Determine vertical position: align with top of card, clamp inside window
+      let top = targetRect.top - 10;
+      if (top + popoutHeight > window.innerHeight - padding) {
+        top = window.innerHeight - popoutHeight - padding;
+      }
+      top = Math.max(padding, top);
+
+      setCoords(prev => (prev.top === top && prev.left === left ? prev : { top, left }));
+    };
+    place();
+    // The card image loads after the first placement and grows the box, so place it again
+    const box = boxRef.current;
+    if (!box || typeof ResizeObserver === 'undefined') return;
+    const observer = new ResizeObserver(place);
+    observer.observe(box);
+    return () => observer.disconnect();
   }, [targetRect, popoutWidth, isHiddenSecured]);
 
   if (!targetRect) return null;
@@ -58,6 +69,7 @@ export const CardPopout: React.FC<CardPopoutProps> = ({
 
   const popoutContent = (
     <div
+      ref={boxRef}
       style={{
         position: 'fixed',
         top: `${coords.top}px`,
@@ -101,7 +113,7 @@ export const CardPopout: React.FC<CardPopoutProps> = ({
             <img
               src={getCardImageUrl(card.cardCode)}
               alt={def.title}
-              className="w-full h-auto rounded-xl border border-slate-800 shadow-inner bg-black/60"
+              className="w-full h-auto aspect-[63/88] rounded-xl border border-slate-800 shadow-inner bg-black/60"
             />
             {card.advancementCounters > 0 && (
               <div className="absolute top-2 right-2 bg-amber-400 text-black font-black text-xs px-2 py-0.5 rounded-full shadow-lg border border-amber-200">
