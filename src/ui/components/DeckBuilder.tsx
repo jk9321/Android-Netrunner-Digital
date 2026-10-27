@@ -114,7 +114,7 @@ export const DeckBuilder: React.FC<DeckBuilderProps> = ({ initial, onSave, onCan
 
   const influencePips = (c: CardDefinition) => {
     const cost = influenceCost(identity, c);
-    return cost > 0 ? <span className="text-amber-400" title={`${cost} influence`}>{'●'.repeat(cost)}</span> : null;
+    return cost > 0 ? <span className={FACTION_COLOR[c.faction_code]} title={`${cost} influence`}>{'●'.repeat(cost)}</span> : null;
   };
 
   /** Small marker for cards banned or restricted in some format, explained on hover. */
