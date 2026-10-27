@@ -24,9 +24,16 @@ test('play against the computer and resume after a reload', async ({ page }) => 
   await expect(credits).toContainText(String(before + 4));
   await expect(page.getByText('Runner Actions (0 Clicks):')).toBeVisible();
 
+  // Large cards grow the board cards, and the choice survives the reload below
+  const cardWidth = () => page.locator('.card-fit').first().evaluate(el => el.getBoundingClientRect().width);
+  const normalWidth = await cardWidth();
+  await page.getByTestId('card-size').getByRole('button', { name: 'Large' }).click();
+  expect(await cardWidth()).toBeGreaterThan(normalWidth);
+
   // A reload picks up the same game, mid-turn
   await page.reload();
   await expect(page.getByTestId('runner-credits')).toContainText(String(before + 4));
+  await expect(page.getByTestId('card-size').getByRole('button', { name: 'Large' })).toHaveAttribute('aria-pressed', 'true');
   await page.getByRole('button', { name: 'End Runner Turn' }).click();
   await expect(page.getByTestId('ai-status')).toBeVisible();
 

@@ -1,9 +1,10 @@
 import { useState } from 'react';
-import { Award, Flag, LogOut, Volume2, VolumeX } from 'lucide-react';
+import { Award, Flag, LogOut, Volume2, VolumeX, ZoomIn } from 'lucide-react';
 import { GameState, SideCode } from '../../core';
 import { GameConfig } from '../savedGame';
 import { ViewMode } from '../viewer';
 import { setSoundEnabled, soundEnabled } from '../sound';
+import { CardSize, savedCardSize, setCardSize } from '../cardSize';
 import { PhaseTracker } from './PhaseTracker';
 
 interface GameHeaderProps {
@@ -18,7 +19,7 @@ interface GameHeaderProps {
   onLeave: () => void;
 }
 
-/** The bar across the top: title, phase, AI status, scores, view, sound, forfeit and leave. */
+/** The bar across the top: title, phase, AI status, scores, card size, view, sound, forfeit and leave. */
 export function GameHeader({
   state,
   config,
@@ -31,6 +32,7 @@ export function GameHeader({
   onLeave,
 }: GameHeaderProps) {
   const [sound, setSound] = useState(soundEnabled);
+  const [cardSize, setCardSizeState] = useState(savedCardSize);
   const aiSide = config.ai;
   const { corp, runner } = state;
 
@@ -86,8 +88,30 @@ export function GameHeader({
         </div>
       </div>
 
-      {/* Game Controls */}
+      {/* Card Size & Game Controls */}
       <div className="flex items-center gap-2">
+        <div className="flex items-center bg-slate-900 border border-slate-800 rounded-lg p-0.5 text-xs" data-testid="card-size">
+          <span className="px-2 text-[10px] text-slate-500 font-bold uppercase hidden 2xl:inline-flex items-center gap-1">
+            <ZoomIn className="w-3 h-3" /> Size:
+          </span>
+          {SIZES.map(({ size, label, active }) => (
+            <button
+              key={size}
+              onClick={() => {
+                setCardSize(size);
+                setCardSizeState(size);
+              }}
+              aria-pressed={cardSize === size}
+              title={size === 'large' ? 'Bigger cards on the board (the page may scroll)' : 'Cards sized to fit one screen'}
+              className={`px-2 py-0.5 rounded text-xs transition-colors ${
+                cardSize === size ? `${active} text-white font-bold` : 'text-slate-400 hover:text-white'
+              }`}
+            >
+              {label}
+            </button>
+          ))}
+        </div>
+
         {state.winner ? (
           // The game is over, so both sides' cards are shown and there is no view to choose
           <span
@@ -157,3 +181,7 @@ export function GameHeader({
   );
 }
 
+const SIZES: { size: CardSize; label: string; active: string }[] = [
+  { size: 'normal', label: 'Normal', active: 'bg-slate-700' },
+  { size: 'large', label: 'Large', active: 'bg-cyan-600' },
+];
