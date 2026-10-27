@@ -131,6 +131,9 @@ export const tuning = {
      */
     /** Corp (Jeff): no ice it can't afford to rez on top of its unrezzed ice already out, unless HQ is over the hand-size limit. */
     icePacing: true,
+    /* Ice trashing (2026-10-27, self-play, 2,210 games each): 40.4% off -> 40.1% on (noise). Kept: plays like a person when short of money. */
+    /** Corp: when installing ice, weigh trashing the weakest rezzed ice there first (rules 8.5.6b), on its own turn and for effects (Mercia). */
+    iceTrash: true,
     /*
      * Opening round (2026-10-27, self-play, 2,210 games each). Before the
      * Manegarm fix: mulligan only 46.7%, + placement 46.1%, + centrals first

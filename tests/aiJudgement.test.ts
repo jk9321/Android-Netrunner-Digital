@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { GameAction, cardDef, createCardInstance, executeAction, getCardDefinition, getLegalActions, isLegalAction } from '../src/core';
 import { makeRoomAnswers } from '../src/ai/prompts';
 import { runScore, serverValue, subroutineCost } from '../src/ai/runs';
-import { agendaRemoteNeed, fundedDepth, moneyTarget, unrezzedIceCost, rezReserve, withDeadIceTrashed } from '../src/ai/corpAI';
+import { HeuristicCorpAI, agendaRemoteNeed, fundedDepth, moneyTarget, unrezzedIceCost, rezReserve, withDeadIceTrashed } from '../src/ai/corpAI';
 import { makeRoomInstalls } from '../src/ai/runnerAI';
 import { evaluate } from '../src/ai/evaluate';
 import { installForTest, installIceForTest, installProgramForTest, newGame, startRunnerTurn } from './helpers';
@@ -142,5 +142,24 @@ describe('AI judgement in fixed positions', () => {
     // The plain answer installs nothing; the AI also weighs the answer that trashes Cleaver first
     const plain = getLegalActions(s, 'runner').find(a => a.type === 'RESOLVE_PROMPT')!;
     expect(makeRoomAnswers(s, plain)).toMatchObject([{ choice: { cardInstanceIds: [mayfly.instanceId], trashFirst: [old] } }]);
+  });
+
+  it('Corp trashes weak ice to install where money is tight, not when it has plenty (rules 8.5.6b)', () => {
+    const s = newGame();
+    const weak = () => {
+      const ice = createCardInstance(s, '30072'); // Palisade: Cleaver gets through for 1
+      ice.isRezzed = true;
+      return ice;
+    };
+    s.corp.servers.rd.ice = [weak(), weak()];
+    s.corp.hq = [createCardInstance(s, '30073')]; // Tithe
+    s.runner.rig.programs = [createCardInstance(s, '30006')];
+    const best = (credits: number) => {
+      s.corp.credits = credits;
+      return new HeuristicCorpAI().rankMainActions(s).find(r => r.action.type === 'INSTALL_CARD' && r.action.targetServerId === 'rd')!.action;
+    };
+    expect(best(8)).not.toHaveProperty('trashFirst');
+    // 2 credits: R&D's install cost would leave nothing to rez Tithe; trashing a Palisade makes it work
+    expect(best(2)).toMatchObject({ trashFirst: [s.corp.servers.rd.ice[0].instanceId] });
   });
 });

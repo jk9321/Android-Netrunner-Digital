@@ -6,7 +6,7 @@ import { Agent, FreeActionGuard, ScoredAction } from './agent';
 import { digValue, evaluate } from './evaluate';
 import { answerPrompt, simulate } from './prompts';
 import { logNudge, nudge, opponentLean, tuning } from './synergy';
-import { iceCost, isTrap } from './runs';
+import { iceCost, isTrap, weakestIce } from './runs';
 import { cardSynergy } from './synergyTags';
 import { econValue, upgradeValue } from './cardValues';
 
@@ -77,9 +77,18 @@ export class HeuristicCorpAI implements Agent {
   rankMainActions(state: GameState, legal = getLegalActions(state, 'corp')): ScoredAction[] {
     this.freeActions.start(state, state.corp.clicks);
     const before = evaluate(state, 'corp', this.synergy);
-    return legal
+    const iceTrash = this.synergy && tuning.plan.iceTrash;
+    return [...legal, ...(iceTrash ? iceTrashInstalls(state) : [])]
       .map(original => {
-        const action = withDeadIceTrashed(state, original);
+        if (original.type === 'INSTALL_CARD' && original.trashFirst?.length) {
+          // Score the plain install with the credits it saves, less what the trashed ice was worth
+          const trashed = original.trashFirst;
+          const richer = { ...state, corp: { ...state.corp, credits: state.corp.credits + trashed.length } };
+          let score = this.score(richer, { ...original, trashFirst: undefined }, before) - trashed.reduce((sum, id) => sum + trashLoss(state, id), 0);
+          if (this.synergy && Number.isFinite(score) && score < 40) score += nudge(state, 'corp', original).bonus;
+          return { action: original, score };
+        }
+        const action = iceTrash ? original : withDeadIceTrashed(state, original);
         let score = this.score(state, original, before);
         // Trashing ice first takes it off the install cost
         if (action !== original && Number.isFinite(score)) score += 0.8 * (action as { trashFirst: string[] }).trashFirst.length;
@@ -881,4 +890,33 @@ export function withDeadIceTrashed(state: GameState, action: GameAction): GameAc
     return cost <= 1 && incoming >= cost + 2;
   });
   return dead.length > 0 ? { ...action, trashFirst: dead.map(ice => ice.instanceId) } : action;
+}
+
+/**
+ * Ice installs that trash the weakest rezzed ice on the server first (rules
+ * 8.5.6b): a credit off the install cost, and some installs become
+ * affordable only this way. Scored as the plain install with a credit more,
+ * less the trashed ice's worth, so it wins only where money is tight.
+ */
+export function iceTrashInstalls(state: GameState): GameAction[] {
+  const corp = state.corp;
+  if (state.activePlayer !== 'corp' || state.activeRun || corp.clicks < 1) return [];
+  const installs: GameAction[] = [];
+  for (const card of corp.hq) {
+    if (type(card) !== 'ice') continue;
+    for (const server of Object.values(corp.servers)) {
+      if (corp.credits < server.ice.length - 1) continue;
+      const weak = weakestIce(state, server.id);
+      if (!weak) continue;
+      const action: GameAction = { type: 'INSTALL_CARD', player: 'corp', cardInstanceId: card.instanceId, targetServerId: server.id, trashFirst: [weak.instanceId] };
+      if (isLegalAction(state, action)) installs.push(action);
+    }
+  }
+  return installs;
+}
+
+/** What losing a piece of ice costs the Corp: a layer, worth more the more it taxes the Runner. */
+function trashLoss(state: GameState, id: string): number {
+  const ice = Object.values(state.corp.servers).flatMap(s => s.ice).find(c => c.instanceId === id);
+  return ice ? 0.5 + 0.75 * Math.min(4, iceCost(state, ice)) : 0;
 }

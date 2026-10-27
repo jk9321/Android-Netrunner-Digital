@@ -1,7 +1,7 @@
-import { CardInstance, GameAction, GameState, Prompt, SideCode, activePrompt, cardDef, executeAction, findCardAnywhere, getLegalActions } from '../core';
+import { CardInstance, GameAction, GameState, Prompt, SideCode, activePrompt, cardDef, executeAction, findCardAnywhere, getLegalActions, isLegalAction } from '../core';
 import { runnerInstallBlocker } from '../core/engine/actions/install';
 import { evaluate, keepValue } from './evaluate';
-import { BOTULUS, MANEGARM, RunOptions, RunnerMemory, iceCost, isTrap, runScore, serverValue, subroutineCost } from './runs';
+import { BOTULUS, MANEGARM, RunOptions, RunnerMemory, iceCost, isTrap, runScore, serverValue, subroutineCost, weakestIce } from './runs';
 import { encounteredIce, iceScript } from '../core/engine/ice';
 import { keepBonus, tuning } from './synergy';
 
@@ -39,9 +39,28 @@ export function scoreOutcome(before: GameState, after: GameState, side: SideCode
   return score;
 }
 
-function answers(state: GameState, side: SideCode): GameAction[] {
+function answers(state: GameState, side: SideCode, synergy = false): GameAction[] {
   const legal = getLegalActions(state, side).filter(a => a.type === 'RESOLVE_PROMPT').slice(0, 200);
-  return [...legal, ...legal.flatMap(a => makeRoomAnswers(state, a))];
+  const iceTrash = synergy && tuning.plan.iceTrash;
+  return [...legal, ...legal.flatMap(a => makeRoomAnswers(state, a)), ...(iceTrash ? iceTrashAnswers(state) : [])];
+}
+
+/**
+ * A Corp effect installing ice (Mercia B4LL4RD, Ansel 1.0): also answer
+ * each server by trashing its weakest rezzed ice first (rules 8.5.6b),
+ * which can make a server affordable. The outcome decides.
+ */
+export function iceTrashAnswers(state: GameState): GameAction[] {
+  const prompt = activePrompt(state);
+  if (!prompt || prompt.side !== 'corp' || prompt.kind !== 'effect_choice' || !prompt.source.data?.install) return [];
+  const card = findCardAnywhere(state, String(prompt.source.data.cardId));
+  if (!card || cardDef(card).type_code !== 'ice') return [];
+  return prompt.options.flatMap(o => {
+    const weak = o.id === 'new' ? undefined : weakestIce(state, o.id);
+    if (!weak) return [];
+    const action: GameAction = { type: 'RESOLVE_PROMPT', player: 'corp', promptId: prompt.id, choice: { kind: 'effect_choice', optionId: o.id, trashFirst: [weak.instanceId] } };
+    return isLegalAction(state, action) ? [action] : [];
+  });
 }
 
 /**
@@ -162,7 +181,7 @@ export function answerPrompt(state: GameState, side: SideCode, memory?: RunnerMe
   }
 
   // Everything else: try each answer and keep the best outcome.
-  const options = answers(state, side);
+  const options = answers(state, side, synergy);
   let best: GameAction = options[0];
   let bestScore = -Infinity;
   for (const action of options) {

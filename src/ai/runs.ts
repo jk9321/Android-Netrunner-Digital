@@ -403,3 +403,13 @@ export function runScore(state: GameState, serverId: string, options: RunOptions
   const paid = Math.max(0, expected - (options.bonusCredits ?? 0));
   return value - 0.6 * paid - 0.6 * waste - approach.cost - 1;
 }
+
+/** Rezzed ice the Runner gets through for this much or less is worth trashing to make room. */
+const WEAK_ICE = 2;
+
+/** The rezzed ice on a server that is cheapest for the Runner to get through, if it is weak enough to trash. */
+export function weakestIce(state: GameState, serverId: string): CardInstance | undefined {
+  const rezzed = (state.corp.servers[serverId]?.ice ?? []).filter(ice => ice.isRezzed).map(ice => ({ ice, cost: iceCost(state, ice) }));
+  rezzed.sort((a, b) => a.cost - b.cost);
+  return rezzed[0] && rezzed[0].cost <= WEAK_ICE ? rezzed[0].ice : undefined;
+}

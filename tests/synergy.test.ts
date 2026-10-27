@@ -347,7 +347,7 @@ describe('planning (setup scoring)', () => {
     s.corp.hq = [ice];
     s.corp.credits = 8;
     const score = () =>
-      new HeuristicCorpAI().rankMainActions(s).find(r => r.action.type === 'INSTALL_CARD' && r.action.targetServerId === 'rd')!.score;
+      new HeuristicCorpAI().rankMainActions(s).find(r => r.action.type === 'INSTALL_CARD' && r.action.targetServerId === 'rd' && !r.action.trashFirst)!.score;
     const unbroken = score();
     s.runner.rig.programs = [createCardInstance(s, '30006')]; // Cleaver breaks barriers
     const broken = score();
