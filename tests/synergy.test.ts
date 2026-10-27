@@ -231,13 +231,17 @@ describe('planning (setup scoring)', () => {
     s.runner.rig.programs = [];
     const killer = createCardInstance(s, '30015'); // Carmen
     const decoder = createCardInstance(s, '30005'); // Buzzsaw
+    // Value model step 5b: the odds of meeting each type (shown ice, then the decklist)
+    expect(keepValue(s, killer, false)).toBeGreaterThan(keepValue(s, decoder, false));
     const shelved = tuning.plan.breakerFocus; // switched off for now; the logic is kept for re-testing
     tuning.plan.breakerFocus = true;
+    tuning.plan.breakerCredits.runner = false;
     try {
       expect(keepValue(s, killer, true)).toBeGreaterThan(keepValue(s, decoder, true));
       expect(keepValue(s, killer, false)).toBe(keepValue(s, decoder, false));
     } finally {
       tuning.plan.breakerFocus = shelved;
+      tuning.plan.breakerCredits.runner = true;
     }
   });
 

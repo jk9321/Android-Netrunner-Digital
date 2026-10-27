@@ -240,6 +240,8 @@ export const tuning = {
     cardProfiles: true,
     /** Both sides (step 5, Jeff): ice is worth what it costs the Runner to get past it, not its rez cost (per deciding side). */
     iceInCredits: { corp: true, runner: true } as Record<SideCode, boolean>,
+    /** Both sides (step 5b): breakers are worth the full stops they save across the Corp's decklist ice, less late in the game (per deciding side). */
+    breakerCredits: { corp: true, runner: true } as Record<SideCode, boolean>,
   },
 };
 

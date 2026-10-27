@@ -28,3 +28,16 @@ describe('ice is worth what it costs the Runner to get past (value model step 5)
     expect(iceWorth(s, ice, 'runner')).toBeCloseTo(1 + iceCost(s, ice));
   });
 });
+
+describe('breakers are worth the stops they save (value model step 5b)', () => {
+  it('splits 24 across the ice types by the Corp decklist, less late in the game', async () => {
+    const { breakerTypeWorth, deckIceShare } = await import('../src/ai/iceValues');
+    const s = newGame();
+    const share = deckIceShare(s);
+    expect(share.barrier + share['code gate'] + share.sentry).toBeCloseTo(1);
+    const total = ['barrier', 'code gate', 'sentry'].reduce((n, t) => n + breakerTypeWorth(s, t), 0);
+    expect(total).toBeCloseTo(24);
+    s.corp.score = 6;
+    expect(['barrier', 'code gate', 'sentry'].reduce((n, t) => n + breakerTypeWorth(s, t), 0)).toBeCloseTo(12);
+  });
+});

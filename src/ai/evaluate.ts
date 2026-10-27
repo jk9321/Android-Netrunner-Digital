@@ -5,7 +5,7 @@ import { cardSynergy } from './synergyTags';
 import { tuning } from './synergy';
 import { corpKeepValue, runnerCardValue } from './cardValues';
 import { countersWorth } from './counterValues';
-import { flatIceWorth, iceWorth } from './iceValues';
+import { AI_BREAKER_SHARE, breakerTypeWorth, flatIceWorth, iceWorth } from './iceValues';
 import { payoutWorth, profileOf, turnsLeft } from './cardProfiles';
 import { RATES, clickRate, creditValue, handFilter, pointValue, sideCreditValue } from './valueModel';
 
@@ -118,7 +118,11 @@ function runnerRigValue(state: GameState, aware: boolean, viewer: SideCode): num
   const rig = state.runner.rig;
   const cards = [...rig.programs, ...rig.hardware, ...rig.resources];
   const { covered, anyBreakers } = rigCoverage(rig.programs);
-  let value = [...covered].reduce((n, t) => n + coverageValue(state, t, aware), 0) + (anyBreakers > 0 ? RATES.anyBreaker : 0);
+  let value: number;
+  if (tuning.plan.breakerCredits?.[viewer]) {
+    // Step 5b: each ice type by the stops it saves; an AI breaker covers the rest at a discount
+    value = ICE_TYPES.reduce((n, t) => n + (covered.has(t) ? 1 : anyBreakers > 0 ? AI_BREAKER_SHARE : 0) * breakerTypeWorth(state, t), 0);
+  } else value = [...covered].reduce((n, t) => n + coverageValue(state, t, aware), 0) + (anyBreakers > 0 ? RATES.anyBreaker : 0);
   for (const card of cards) {
     // Step 4: a card that pays out money is worth what it will still pay
     const profile = profileOf(card.cardCode);
@@ -270,6 +274,7 @@ export function keepValue(state: GameState, card: CardInstance, aware = false): 
     const { covered } = rigCoverage(state.runner.rig.programs);
     const breaks = breakerScript(card)?.breaks;
     if (!breaks || breaks === 'any' || covered.has(breaks)) return 1.5;
+    if (tuning.plan.breakerCredits?.runner) return (5 / RATES.iceTypeCoverage) * breakerTypeWorth(state, breaks);
     return aware && tuning.plan.breakerFocus ? 5 * (0.4 + 1.8 * shownIceShare(state)[breaks]) : 5;
   }
   if (def.uniqueness && [...state.runner.rig.programs, ...state.runner.rig.hardware, ...state.runner.rig.resources].some(c => c.cardCode === card.cardCode)) {
