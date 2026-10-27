@@ -35,7 +35,8 @@ export const COUNTER_WORTH: Record<string, Partial<Record<CounterType, CounterWo
   '35060': { agenda: () => 3 }, // Next Big Thing: a click for 4 cards and a reshuffle
   '35048': { agenda: () => 3 }, // Proprionegation: sends a run back to Archives once
   // ---- Runner ----
-  '30033': { credit: () => 0.75 }, // Smartware Distributor: 1 a turn
+  // Smartware Distributor: 1 a turn, so the k-th hosted credit waits k turns (stacking more is worth less and less)
+  '30033': { credit: (_state, card) => paidOneATurn(counters(card, 'credit')) },
   '35029': { credit: () => 0.8 }, // Azimat: recurring, only for trash costs
   '30007': { virus: () => 2 - RATES.click / 4 }, // Fermenter: 2 credits each, for a click and the card (cashed at about 4)
   '30008': { virus: () => 0.9 }, // Leech: -1 strength on an encounter, about a credit of boosting
@@ -48,6 +49,13 @@ export const COUNTER_WORTH: Record<string, Partial<Record<CounterType, CounterWo
   // Tranquilizer: 3 counters derez its host, a third of the rez cost each
   '30017': { virus: (state, card) => trojanHostWorth(state, card, host => (host.isRezzed ? rezCost(state, host) / 3 : 0.3)) },
 };
+
+/** Average worth of `n` hosted credits taken 1 a turn: each turn of waiting costs 15%. */
+function paidOneATurn(n: number): number {
+  let total = 0;
+  for (let k = 1; k <= n; k++) total += 0.85 ** k;
+  return n > 0 ? total / n : 0.85;
+}
 
 function trojanHostWorth(state: GameState, card: CardInstance, worth: (host: CardInstance) => number): number {
   const host = card.hostedOnId ? findCardAnywhere(state, card.hostedOnId) : undefined;

@@ -227,6 +227,13 @@ export const tuning = {
     pointClock: true,
     /** Both sides: one card over the hand-size limit is a small plus (you discard your worst card), not nothing. */
     handFilter: true,
+    /*
+     * Step 3 (self-play, 2,210 games each, click rate off): off 37.7% Corp,
+     * on 35.2%, Runner's only 34.8%: the Runner +2.5 to 3 points, the Corp's
+     * within noise (kept). A flat 0.75 per Smartware credit first cost the
+     * Runner 8 points (it stacked Smartware instead of running); each stacked
+     * credit now waits a turn longer and is worth less.
+     */
     /** Both sides (step 3, Jeff): counters are worth what they do on their card (counterValues.ts), not a flat rate per type (per deciding side). */
     counterEffects: { corp: true, runner: true } as Record<SideCode, boolean>,
   },

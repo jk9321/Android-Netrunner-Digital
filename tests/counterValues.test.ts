@@ -20,9 +20,19 @@ describe('counters are worth what they do on their card (value model step 3)', (
     expect(worth('35040', 'credit')).toBeCloseTo(0.85); // Otto
     expect(worth('35072', 'credit')).toBeCloseTo(0.85); // Anthill
     expect(worth('35082', 'credit')).toBeCloseTo(0.8); // Mahkota: recurring, rezzes only
-    expect(worth('30033', 'credit')).toBeCloseTo(0.75); // Smartware: 1 a turn
     expect(worth('35029', 'credit')).toBeCloseTo(0.8); // Azimat: recurring, trash costs only
     expect(worth('30007', 'virus')).toBeCloseTo(1.75); // Fermenter: 2 each, less a click shared by about 4
+  });
+
+  it('values Smartware credits less the more are stacked, since it pays out 1 a turn', () => {
+    const s = newGame();
+    const smartware = make(s, '30033');
+    addCounters(smartware, 'credit', 3);
+    const three = countersWorth(s, smartware, 'credit', 'runner');
+    expect(three).toBeCloseTo(0.85 + 0.85 ** 2 + 0.85 ** 3);
+    addCounters(smartware, 'credit', 3);
+    // The next 3 are worth well under the first 3, and under a click for 1 credit each turn
+    expect(countersWorth(s, smartware, 'credit', 'runner') - three).toBeLessThan(1.5);
   });
 
   it('prices effect counters by the effect', () => {
