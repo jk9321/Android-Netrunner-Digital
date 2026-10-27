@@ -9,8 +9,8 @@ Approved by Jeff on 2026-10-27. This file is the working copy for anyone (Claude
 | 1. Exchange rates module (no behaviour change) | Done 2026-10-27 | `claude/project-thread-3heaal` | 38.0% (221 games, identical to main 1724c6b) | `src/ai/valueModel.ts` holds today's numbers; same-seed self-play output byte-identical to main |
 | 2. New rates (click, credit slide, clocks) | Done 2026-10-27 | `claude/project-thread-3heaal` | 37.7% (was 40.1% with all off) | Credit slide ON: Runner +2.6 pts, Corp +0.7 (noise). Points clock, hand filter ON (noise). Flat 1.25 click OFF: lost 2-3 pts for each side; re-test when a click is priced by the best play in hand. Race clock on credits not built yet. |
 | 3. Counters by effect | Done 2026-10-27 | `claude/project-thread-3heaal` | 35.2% (was 37.7%) | `src/ai/counterValues.ts`, 23 cards, test each. Runner +2.5-3 pts, Corp noise. Lesson: a flat Smartware rate made the Runner stack it (-8 pts); stacked payouts must lose worth per turn of waiting. |
-| 4. Card profiles | Not started | | | |
-| 5. Ice and breakers in credits | Not started | | | |
+| 4. Card profiles | Done 2026-10-27 (money cards) | `claude/project-thread-3heaal` | 36.0% (was 35.2%, noise) | `src/ai/cardProfiles.ts`: Nico, Otto, Anthill, Regolith, Telework, Open Market by load/payout/schedule, 15% per turn waited, nothing past turns left. Other cards still hand-set in cardValues.ts (to profile or mark in the final audit). |
+| 5. Ice and breakers in credits | In progress | `claude/project-thread-3heaal` | | 5a ice (`src/ai/iceValues.ts`) in batches; 5b breakers next. |
 | 6. Remove special cases | Not started | | | |
 | Later: whole-turn planner for Normal | Not started | | | |
 | Final: every-card value audit (Jeff) | Not started | | | A coverage test that lists every card in the pool and how it is valued (profile, counter entry, hand-set number, ice/breaker formula, simulated operation or event, agenda formula), failing for any card that falls to a default; plus a per-card report for Jeff. |
