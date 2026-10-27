@@ -7,6 +7,8 @@
 import { GameState } from '../src/core';
 import { cardDef } from '../src/core/cards';
 import { rezCost } from '../src/core/engine/cardEffects';
+import { CardInstance } from '../src/core';
+import { iceCost } from '../src/ai/runs';
 import { Agent, GameRunner } from '../src/ai';
 
 export interface Steal {
@@ -37,6 +39,24 @@ export interface Steal {
   brokeWhen?: 'turn start' | 'during turn';
   /** Remote steals: the agenda was installed during the Corp's last turn */
   freshAgenda?: boolean;
+  /** Credits the Runner spent during the run that stole it */
+  runnerPaid?: number;
+  /**
+   * Ice that would have stopped this Runner (its rig can't break it, or it
+   * costs more than the Runner had at the start of the run): installed on a
+   * server holding nothing that matters, held in HQ, or nowhere
+   */
+  stopperAt?: 'low-value server' | 'hq' | 'none';
+  /** Broke steals: a rez on a low-value server in the last 2 turns cost enough to have rezzed the cheapest ice here */
+  savedRezWouldCover?: boolean;
+}
+
+/** Rezzes during runs, and how many were on servers holding nothing that matters to the Corp */
+export interface RezLog {
+  total: number;
+  credits: number;
+  low: number;
+  lowCredits: number;
 }
 
 export interface GameRecord {
@@ -58,6 +78,9 @@ export interface GameRecord {
   /** Runner runs: how many, and the failed ones where it had already paid to break ice (see RunWaste) */
   runs: RunWaste;
   /** Corp credits spent and gained over the game, by what for (see moneyKind) */
+  rezzes: RezLog;
+  /** At the start of the Runner's turns 1 and 2: which centrals had ice, and what ice the Corp still held */
+  early: { turn: number; rdIce: number; hqIce: number; remoteIce: number; iceInHand: number; cheapIceInHand: number; hqAgendas: number; credits: number }[];
   money: { spent: Record<string, number>; gained: Record<string, number>; corpTurns: number; creditsAtTurnEnd: number; clicks: number; creditClicks: number };
 }
 
@@ -107,6 +130,29 @@ function brokeWhen(start: GameState | null, serverId: string | null): Steal['bro
   return total > start.corp.credits ? 'turn start' : 'during turn';
 }
 
+type Server = GameState['corp']['servers'][string];
+
+/** A server where the Corp knows nothing important is at stake: no agenda in it (HQ, Archives, remotes); R&D always matters. */
+function lowValue(state: GameState, server: Server): boolean {
+  if (server.id === 'rd') return false;
+  if (server.id === 'hq') return !state.corp.hq.some(isAgenda);
+  if (server.id === 'archives') return !state.corp.archives.faceDown.some(isAgenda);
+  return !server.root.some(isAgenda);
+}
+
+/** Would this ice stop the Runner: its rig can't break it, or it costs more than `credits`? */
+function stops(state: GameState, ice: CardInstance, credits: number): boolean {
+  const cost = iceCost(state, { ...ice, isRezzed: true });
+  return cost === Infinity || cost > credits;
+}
+
+function stopperAt(state: GameState, serverId: string, credits: number): Steal['stopperAt'] {
+  const elsewhere = Object.values(state.corp.servers).filter(sv => sv.id !== serverId && lowValue(state, sv));
+  if (elsewhere.some(sv => sv.ice.some(i => stops(state, i, credits)))) return 'low-value server';
+  if (state.corp.hq.some(c => cardDef(c).type_code === 'ice' && stops(state, c, credits))) return 'hq';
+  return 'none';
+}
+
 const isAgenda = (c: { cardCode: string }) => cardDef(c as never).type_code === 'agenda';
 
 function reasonOf(state: GameState): string {
@@ -131,11 +177,29 @@ export function playLogged(start: GameState, agents: { corp: Agent; runner: Agen
   let rezzedAtStart = new Set<string>();
   let paid = 0;
   let startCredits = 0;
+  const early: GameRecord['early'] = [];
+  const rezzes: RezLog = { total: 0, credits: 0, low: 0, lowCredits: 0 };
+  const lowRezzes: { turn: number; cost: number }[] = [];
   let runnerTurnStart: GameState | null = null;
   let corpTurnStart: GameState | null = null;
   for (let steps = 0; steps < 4000 && runner.state.turnNumber <= 80; steps++) {
     const before = runner.state;
-    if (before.activePlayer === 'runner' && runnerTurnStart?.turnNumber !== before.turnNumber) runnerTurnStart = before;
+    if (before.activePlayer === 'runner' && runnerTurnStart?.turnNumber !== before.turnNumber) {
+      runnerTurnStart = before;
+      if (before.turnNumber <= 2) {
+        const ice = before.corp.hq.filter(c => cardDef(c).type_code === 'ice');
+        early.push({
+          turn: before.turnNumber,
+          rdIce: before.corp.servers.rd.ice.length,
+          hqIce: before.corp.servers.hq.ice.length,
+          remoteIce: Object.values(before.corp.servers).filter(sv => sv.isRemote).reduce((n, sv) => n + sv.ice.length, 0),
+          iceInHand: ice.length,
+          cheapIceInHand: ice.filter(c => (cardDef(c).cost ?? 0) <= before.corp.credits).length,
+          hqAgendas: before.corp.hq.filter(isAgenda).length,
+          credits: before.corp.credits,
+        });
+      }
+    }
     if (before.turnNumber !== lastTurn && before.activePlayer === 'corp') {
       corpTurnStart = before;
       lastTurn = before.turnNumber;
@@ -167,6 +231,20 @@ export function playLogged(start: GameState, agents: { corp: Agent; runner: Agen
       money.creditsAtTurnEnd += after.corp.credits;
     }
     const run = before.activeRun;
+    if (run) {
+      const server = before.corp.servers[run.server];
+      const fresh = server?.ice.find(i => !i.isRezzed && after.corp.servers[run.server]?.ice.some(a => a.instanceId === i.instanceId && a.isRezzed));
+      if (server && fresh) {
+        const cost = Math.max(0, before.corp.credits - after.corp.credits);
+        rezzes.total++;
+        rezzes.credits += cost;
+        if (lowValue(before, server)) {
+          rezzes.low++;
+          rezzes.lowCredits += cost;
+          lowRezzes.push({ turn: before.turnNumber, cost });
+        }
+      }
+    }
     if (!run && after.activeRun) {
       runs.total++;
       paid = 0;
@@ -225,6 +303,13 @@ export function playLogged(start: GameState, agents: { corp: Agent; runner: Agen
       icedRemotes: Object.values(before.corp.servers).filter(s => s.isRemote && s.ice.length > 0).length,
       unrezzed: unrezzedAtSteal(before, server),
       brokeWhen: brokeWhen(runnerTurnStart, serverId),
+      runnerPaid: before.activeRun ? Math.max(0, startCredits - pool(before)) : undefined,
+      stopperAt: serverId && before.activeRun ? stopperAt(before, serverId, startCredits) : undefined,
+      savedRezWouldCover: (() => {
+        const costs = (server?.ice ?? []).filter(i => !i.isRezzed).map(i => rezCost(before, i));
+        if (costs.length === 0 || Math.min(...costs) <= before.corp.credits) return false;
+        return lowRezzes.some(r => before.turnNumber - r.turn <= 2 && r.cost + before.corp.credits >= Math.min(...costs));
+      })(),
       freshAgenda: !!agenda && !!corpTurnStart && !Object.values(corpTurnStart.corp.servers).some(sv => sv.root.some(c => c.instanceId === agenda.instanceId)),
     });
   }
@@ -243,6 +328,8 @@ export function playLogged(start: GameState, agents: { corp: Agent; runner: Agen
     idleAgendaTurns,
     board: Object.fromEntries(Object.entries(board).map(([k, v]) => [k, v / Math.max(corpTurns, 1)])) as GameRecord['board'],
     runs,
+    rezzes,
+    early,
     money,
   };
 }

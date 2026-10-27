@@ -474,8 +474,12 @@ export class HeuristicCorpAI implements Agent {
         let need: number;
         // Deck-aware AI: one well-iced scoring remote rather than ice spread thin
         const main = this.synergy && tuning.plan.oneRemote ? mainRemote(state) : null;
+        // (Jeff) centrals first while R&D, or HQ holding agendas, has no ice
+        const bareCentral =
+          this.synergy && tuning.plan.centralsFirst && (corp.servers.rd.ice.length === 0 || (agendasInHand > 0 && corp.servers.hq.ice.length === 0));
         if (!server) {
           need = agendasInHand > 0 && !protectedEmptyRemote ? 5 : -1;
+          if (bareCentral && tuning.plan.centralsFirstRemotes) need -= 2;
           if (main && need > 0 && ((tuning.plan.fundedIcePlans ? fundedDepth(state, main, corp.credits) : iceDepth(state, main)) < 2 || corp.credits < rezReserve(state, this.wideReserve) + (cardDef(card).cost ?? 0))) need = -1;
         }
         else if (server.isRemote) {
@@ -497,6 +501,7 @@ export class HeuristicCorpAI implements Agent {
           }
           else need = agendasInHand > 0 ? (depth < 2 ? 3 : 1) : 0.3;
           if (main && server !== main && !holdsAgenda && !holdsAsset) need = Math.min(need, 0.3);
+          if (bareCentral && tuning.plan.centralsFirstRemotes && !holdsAgenda) need -= 2;
         } else if (server.id === 'archives') {
           need = server.ice.length === 0 && corp.archives.faceDown.length > 0 ? 1.2 : -0.5;
         } else {
@@ -508,6 +513,10 @@ export class HeuristicCorpAI implements Agent {
             else if (agendasInHand === 0) need -= server.ice.length === 0 ? (corp.servers.rd.ice.length > 0 ? 0 : 1.5) : 0.8;
             // ...and agendas waiting in HQ for a safe remote (exposure) want HQ iced deeper
             else if (tuning.plan.exposure && agendasInHand >= 2) need += Math.min(2, 0.8 * (agendasInHand - 1));
+          }
+          // (Jeff) a bare central gets its first ice before anything else; HQ ahead of R&D while it holds agendas
+          if (this.synergy && tuning.plan.centralsFirst && server.ice.length === 0 && (server.id === 'rd' || agendasInHand > 0)) {
+            need += 2 + (server.id === 'hq' ? 1 : 0);
           }
         }
         // Deck-aware AI: a server the Runner keeps getting into needs another layer
@@ -525,7 +534,8 @@ export class HeuristicCorpAI implements Agent {
           (corp.credits - installCost < rezCost ? (this.synergy && tuning.plan.affordIce ? 3 : 1.5) : 0) -
           // Deck-aware AI: ice we can't rez is no protection; rez money for the ice already out comes first
           (this.synergy && tuning.plan.affordIce && corp.credits - installCost >= rezCost && corp.credits - installCost < rezCost + rezReserve(state, this.wideReserve) ? 1 : 0) +
-          (this.synergy && tuning.plan.icePlacement ? iceFit(state, card, server, tuning.plan.agendaStakes) : 0)
+          (this.synergy && tuning.plan.icePlacement ? iceFit(state, card, server, tuning.plan.agendaStakes) : 0) +
+          (this.synergy && tuning.plan.stopperPlacement ? stopperPlacement(state, card, server) : 0)
         );
       }
       case 'agenda': {
@@ -615,6 +625,25 @@ function iceFit(state: GameState, ice: CardInstance, server: ServerState | null,
   }
   if (server.ice.length > 0 && server.ice.some(other => iceSubtypes(other, state).some(t => types.includes(t)))) fit -= 0.4;
   return fit;
+}
+
+/**
+ * (Jeff) Ice that would stop this Runner (its rig can't break it, or it
+ * costs more than they have) belongs where it matters: R&D, the scoring
+ * remote, a remote holding an agenda, HQ while it holds agendas. Not on a
+ * server with nothing at stake, where it can never be moved from.
+ */
+function stopperPlacement(state: GameState, ice: CardInstance, server: ServerState | null): number {
+  const cost = iceCost(state, { ...ice, isRezzed: true });
+  if (cost !== Infinity && cost <= state.runner.credits) return 0;
+  if (!server) return state.corp.hq.some(c => c.instanceId !== ice.instanceId && type(c) === 'agenda') ? 0.5 : -1; // a new remote, for an agenda to come
+  const hqAgendas = state.corp.hq.some(c => c.instanceId !== ice.instanceId && type(c) === 'agenda');
+  const matters =
+    server.id === 'rd' ||
+    (server.id === 'hq' && hqAgendas) ||
+    server === mainRemote(state) ||
+    (server.isRemote && server.root.some(c => type(c) === 'agenda'));
+  return matters ? 1.5 : -1.5;
 }
 
 /** Credits the Corp counts on making before the Runner tests its newest ice (ice pacing: 2 and 0 played the same). */

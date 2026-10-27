@@ -73,9 +73,10 @@ export function makeRoomAnswers(state: GameState, action: GameAction): GameActio
   return [];
 }
 
-function mulligan(state: GameState, prompt: Prompt): boolean {
+function mulligan(state: GameState, prompt: Prompt, synergy: boolean): boolean {
   const cards = hand(state, prompt.side);
-  if (prompt.side === 'corp') return !cards.some(c => cardDef(c).type_code === 'ice');
+  // (Jeff) a Corp hand needs ice it can rez early (on 5 credits, with a credit to spare), not just any ice
+  if (prompt.side === 'corp') return !cards.some(c => cardDef(c).type_code === 'ice' && (!(synergy && tuning.plan.mulliganRez) || (cardDef(c).cost ?? 0) <= 4));
   const useful = cards.some(c => /icebreaker/i.test(cardDef(c).keywords ?? '') || /gain \d+|load \d+/i.test(cardDef(c).stripped_text ?? ''));
   return !useful;
 }
@@ -111,7 +112,7 @@ export function answerPrompt(state: GameState, side: SideCode, memory?: RunnerMe
   const base = { type: 'RESOLVE_PROMPT' as const, player: side, promptId: prompt.id };
 
   if (prompt.kind === 'mulligan') {
-    return { ...base, choice: { kind: 'mulligan', mulligan: mulligan(state, prompt) } };
+    return { ...base, choice: { kind: 'mulligan', mulligan: mulligan(state, prompt, synergy) } };
   }
   // Breach order: the cards in the root first, then the central zone, without peeking at what comes up
   if (prompt.kind === 'access_order') {

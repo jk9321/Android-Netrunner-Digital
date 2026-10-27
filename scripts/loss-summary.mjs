@@ -73,6 +73,30 @@ export function printLossSummary(games, detail = !!process.env.DETAIL) {
       console.log(`  credits at end of turn ${(sum(list, g => g.money.creditsAtTurnEnd) / Math.max(turns, 1)).toFixed(1)}; clicks for a credit ${pct(sum(list, g => g.money.creditClicks), sum(list, g => g.money.clicks))}`);
     }
   }
+  if (steals[0]?.stopperAt !== undefined) {
+    const run = steals.filter(s => s.stopperAt !== undefined && ['remote', 'rd', 'hq'].includes(s.from));
+    console.log(`Placement (steals from runs in Corp losses: ${run.length}):`);
+    console.log(`  Runner paid to get in: avg ${avg(run, s => s.runnerPaid ?? 0)}; nothing ${run.filter(s => !s.runnerPaid).length}, 1-3 ${run.filter(s => s.runnerPaid >= 1 && s.runnerPaid <= 3).length}, 4+ ${run.filter(s => s.runnerPaid >= 4).length}`);
+    show('  ice that would have stopped them:', count(run, s => s.stopperAt), run.length);
+    for (const from of ['remote', 'rd', 'hq']) {
+      const list = run.filter(s => s.from === from);
+      console.log(`    ${from}: ${[...count(list, s => s.stopperAt)].map(([k, v]) => `${k} ${v}`).join(', ')}`);
+    }
+    const broke = run.filter(s => s.unrezzed === 'broke');
+    console.log(`  broke steals where a rez on a low-value server in the last 2 turns would have paid for the ice: ${broke.filter(s => s.savedRezWouldCover).length} of ${broke.length}`);
+  }
+  if (games[0]?.early) {
+    for (const turn of [1, 2]) {
+      const e = games.flatMap(g => g.early).filter(x => x.turn === turn);
+      const bare = e.filter(x => x.rdIce === 0 || x.hqIce === 0);
+      console.log(`Runner's turn ${turn} (${e.length} games): R&D bare ${pct(e.filter(x => x.rdIce === 0).length, e.length)}, HQ bare ${pct(e.filter(x => x.hqIce === 0).length, e.length)}, ice on remotes avg ${avg(e, x => x.remoteIce)}`);
+      console.log(`  with a bare central: ${bare.length}; Corp held ice ${bare.filter(x => x.iceInHand > 0).length}, ice it could rez ${bare.filter(x => x.cheapIceInHand > 0).length}; credits avg ${avg(bare, x => x.credits)}; HQ agendas avg ${avg(bare, x => x.hqAgendas)}`);
+    }
+  }
+  if (games[0]?.rezzes) {
+    const r = k => sum(games, g => g.rezzes[k]);
+    console.log(`Rezzes in runs (all games): ${r('total')} (${r('credits')} credits); on low-value servers ${r('low')} (${pct(r('low'), r('total'))}), ${r('lowCredits')} credits (${pct(r('lowCredits'), r('credits'))})`);
+  }
   show('  most stolen agendas:', count(steals, s => s.title), steals.length);
 
   if (detail) {

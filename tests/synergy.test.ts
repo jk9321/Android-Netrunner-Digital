@@ -138,6 +138,8 @@ describe('dividends', () => {
     s.corp.servers['remote-9'] = { id: 'remote-9', name: 'Server 9', isRemote: true, ice: [ice], root: [agenda] };
     s.corp.credits = 10;
     s.corp.clicks = 2;
+    // Centrals already iced, so their first ice doesn't come first (centralsFirst)
+    for (const id of ['rd', 'hq']) s.corp.servers[id].ice.push(createCardInstance(s, '30072'));
     const ai = new HeuristicCorpAI();
     const first = ai.chooseAction(s);
     expect(first).toMatchObject({ type: 'ADVANCE_CARD', cardInstanceId: agenda.instanceId });

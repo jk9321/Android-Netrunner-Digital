@@ -131,6 +131,22 @@ export const tuning = {
      */
     /** Corp (Jeff): no ice it can't afford to rez on top of its unrezzed ice already out, unless HQ is over the hand-size limit. */
     icePacing: true,
+    /*
+     * Opening round (2026-10-27, self-play, 2,210 games each). Before the
+     * Manegarm fix: mulligan only 46.7%, + placement 46.1%, + centrals first
+     * 45.0%, all three 47.0% (base 46.2%). After it: base 40.7%, all three
+     * 40.4%. Neutral overall: R&D points 3,483 -> 2,974, remote 3,483 ->
+     * 3,797. Bare R&D on the Runner's first turn 74% -> 37%. Kept (Jeff's
+     * rule: within noise, plays like a person).
+     */
+    /** Corp (Jeff): R&D, and HQ while it holds agendas, get their first ice before any remote; HQ first while it holds agendas. */
+    centralsFirst: true,
+    /** Corp (Jeff): ice that would stop this Runner goes on a server that matters (R&D, the scoring remote, HQ holding agendas). */
+    stopperPlacement: true,
+    /** ...and remotes wait for their ice until then. */
+    centralsFirstRemotes: false,
+    /** Corp (Jeff): mulligan a hand with no ice it can rez early (rez cost 4 or less). */
+    mulliganRez: true,
     /* Money target (2026-10-26, self-play, 2,210 games): off 42.7%, 0.3 46.8%, 0.6 46.8%. Kept the milder weight. */
     /** Corp (Jeff): aim for a surplus that rezzes the unrezzed ice on the centrals and scoring remote (credits-worth per credit short; 0 = off). */
     moneyTarget: 0.3,
