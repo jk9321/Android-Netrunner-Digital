@@ -172,8 +172,56 @@ export function creditsAhead(state: GameState): number {
   const run = state.activeRun;
   const server = run ? state.corp.servers[run.server] : undefined;
   if (!run || !server || run.icePosition === null) return 0;
+  const ice = iceCreditsAhead(state);
+  // Manegarm Skunkworks: 5 credits on approach unless the clicks cover it
+  const approach = approachCost(state, run.server, state.runner.clicks - bioroidClicks(state, server.ice.slice(0, run.icePosition)), Infinity);
+  return ice + (approach?.credits ?? 0);
+}
+
+/** creditsAhead without the server's approach costs: just the rezzed ice further in. */
+export function iceCreditsAhead(state: GameState): number {
+  const run = state.activeRun;
+  const server = run ? state.corp.servers[run.server] : undefined;
+  if (!run || !server || run.icePosition === null) return 0;
   const outside: GameState = { ...state, activeRun: { ...run, encounter: null } };
   return server.ice.slice(0, run.icePosition).reduce((sum, ice) => sum + (ice.isRezzed ? iceCreditNeed(outside, ice) : 0), 0);
+}
+
+export const MANEGARM = '30042';
+
+/**
+ * What the rezzed upgrades in this server's root charge the Runner on
+ * approaching it (rules 6.9.4g). Manegarm Skunkworks: "end the run unless
+ * they either spend 2 clicks or pay 5 credits", a nested cost (rules
+ * 1.16.11b) the Runner pays to keep the run going. `clicks` and `credits`
+ * are what the Runner will have left by then. The cheaper way in, in
+ * runScore's units (a click 1, a credit 0.6), and the credits it takes;
+ * null when the Runner can pay neither.
+ */
+export function approachCost(state: GameState, serverId: string, clicks: number, credits: number): { cost: number; credits: number } | null {
+  let cost = 0;
+  let paid = 0;
+  for (const card of state.corp.servers[serverId]?.root ?? []) {
+    if (!card.isRezzed || card.cardCode !== MANEGARM) continue;
+    const byClicks = clicks >= 2 ? 2 : Infinity;
+    const byCredits = credits - paid >= 5 ? 0.6 * 5 : Infinity;
+    if (byClicks === Infinity && byCredits === Infinity) return null;
+    if (byClicks <= byCredits) clicks -= 2;
+    else paid += 5;
+    cost += Math.min(byClicks, byCredits);
+  }
+  return { cost, credits: paid };
+}
+
+/** Clicks the Runner must spend on these rezzed bioroids' run-ending subroutines, having no breaker for them. */
+export function bioroidClicks(state: GameState, ice: CardInstance[]): number {
+  let clicks = 0;
+  for (const card of ice) {
+    if (!card.isRezzed || !isBioroid(card)) continue;
+    const blocking = (iceScript(card)?.subroutines ?? []).filter(s => subroutineCost(state, s.label) === BLOCK).length - botulusBreaks(state, card);
+    if (blocking > 0 && !bestBreakPlan(state, card, blocking)) clicks += blocking;
+  }
+  return clicks;
 }
 
 /** Breaking the ice with its own ability: a click per subroutine (bioroids) or credits (N-Pot). */
@@ -219,7 +267,9 @@ export function trapOdds(state: GameState, memory?: RunnerMemory): number {
 export function serverValue(state: GameState, serverId: string, extraAccesses = 0, memory?: RunnerMemory, wary = false, urgent = false): number {
   const server = state.corp.servers[serverId];
   if (!server) return 0;
-  const priorRuns = state.runsThisTurn.filter(r => r.server === serverId);
+  // The run in progress is already listed (as not yet successful): only earlier runs count
+  const earlier = state.activeRun ? state.runsThisTurn.slice(0, -1) : state.runsThisTurn;
+  const priorRuns = earlier.filter(r => r.server === serverId);
   if (priorRuns.some(r => !r.successful)) return 0; // it stopped us once already this turn
   const repeat = priorRuns.length;
 
@@ -305,6 +355,8 @@ export function runShortfall(state: GameState, serverId: string): number | null 
     if (cost === BLOCK) return null;
     known += cost;
   }
+  // Manegarm Skunkworks: 5 credits too when a run won't leave 2 clicks for it
+  if (state.runner.clicks - 1 - bioroidClicks(state, server.ice) < 2) known += 5 * server.root.filter(c => c.isRezzed && c.cardCode === MANEGARM).length;
   return known - availableCredits(state, 'runner');
 }
 
@@ -344,7 +396,10 @@ export function runScore(state: GameState, serverId: string, options: RunOptions
     if (ice.isRezzed) known += cost;
     expected += !ice.isRezzed && options.rezTax ? cost * 0.3 : cost;
   }
-  if (known > availableCredits(state, 'runner') + (options.bonusCredits ?? 0)) return -Infinity;
+  if (known > budget) return -Infinity;
+  // Known costs of approaching the server, after the ice (Manegarm Skunkworks)
+  const approach = approachCost(state, serverId, state.runner.clicks - 1 - bioroidClicks(state, server.ice), budget - known);
+  if (!approach) return -Infinity;
   const paid = Math.max(0, expected - (options.bonusCredits ?? 0));
-  return value - 0.6 * paid - 0.6 * waste - 1;
+  return value - 0.6 * paid - 0.6 * waste - approach.cost - 1;
 }

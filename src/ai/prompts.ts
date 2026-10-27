@@ -1,7 +1,7 @@
 import { CardInstance, GameAction, GameState, Prompt, SideCode, activePrompt, cardDef, executeAction, findCardAnywhere, getLegalActions } from '../core';
 import { runnerInstallBlocker } from '../core/engine/actions/install';
 import { evaluate, keepValue } from './evaluate';
-import { BOTULUS, RunOptions, RunnerMemory, iceCost, isTrap, runScore, serverValue, subroutineCost } from './runs';
+import { BOTULUS, MANEGARM, RunOptions, RunnerMemory, iceCost, isTrap, runScore, serverValue, subroutineCost } from './runs';
 import { encounteredIce, iceScript } from '../core/engine/ice';
 import { keepBonus, tuning } from './synergy';
 
@@ -127,6 +127,14 @@ export function answerPrompt(state: GameState, side: SideCode, memory?: RunnerMe
     const scored = servers.map(id => ({ id, score: runScore(state, id, { ...runEventOptions(prompt.source.cardCode), memory, wary: synergy && tuning.wary, urgent: synergy && tuning.plan.urgency }) }));
     scored.sort((a, b) => b.score - a.score);
     return { ...base, choice: { kind: 'effect_choice', optionId: scored[0].id } };
+  }
+
+  // Manegarm Skunkworks: pay the cheaper way in if the access is worth it, on the scale runScore planned the run with
+  if (side === 'runner' && prompt.kind === 'effect_choice' && prompt.source.cardCode === MANEGARM && state.activeRun) {
+    const value = serverValue(state, state.activeRun.server, 0, memory, synergy && tuning.wary, synergy && tuning.plan.urgency);
+    const cost: Record<string, number> = { clicks: 2, pay: 0.6 * 5 };
+    const ways = prompt.options.filter(o => o.id in cost && cost[o.id] < value).sort((a, b) => cost[a.id] - cost[b.id]);
+    return { ...base, choice: { kind: 'effect_choice', optionId: ways[0]?.id ?? 'end' } };
   }
 
   // Botulus: break the worst subroutine

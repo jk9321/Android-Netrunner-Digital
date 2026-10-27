@@ -1,7 +1,8 @@
 import { describe, expect, it } from 'vitest';
 import { HeuristicRunnerAI } from '../src/ai';
-import { creditsAhead } from '../src/ai/runs';
-import { installIceForTest, installProgramForTest, newGame, runIntoFirstIce } from './helpers';
+import { creditsAhead, runScore, serverValue } from '../src/ai/runs';
+import { GameState, activePrompt, executeAction } from '../src/core';
+import { installCorpForTest, installIceForTest, installProgramForTest, newGame, runIntoFirstIce, startRunnerTurn } from './helpers';
 
 const PALISADE = '30072'; // barrier, end the run; strength 4 on a remote
 const CLEAVER = '30006'; // fracter, strength 3: 2 credits for +1, 1 credit breaks 2 barrier subroutines
@@ -33,5 +34,71 @@ describe('Runner AI run budget', () => {
   it('breaks the outer ice when it can pay for the whole way in', () => {
     const action = new HeuristicRunnerAI().chooseAction(twoPalisades(6));
     expect(action.type).toBe('BOOST_BREAKER');
+  });
+});
+
+const BUMI = '35041'; // bioroid sentry: lose a click to break a subroutine (trash a program, 1 core damage)
+const MANEGARM = '30042'; // upgrade: on approach, end the run unless the Runner spends 2 clicks or pays 5 credits
+
+/** R&D behind a rezzed Bumi 1.0, with a rezzed Manegarm Skunkworks in the root (Jeff's game). */
+function manegarmGame(clicks: number, credits: number, withManegarm = true) {
+  const state = newGame();
+  installIceForTest(state, BUMI, 'rd');
+  if (withManegarm) installCorpForTest(state, MANEGARM, 'rd', true);
+  startRunnerTurn(state);
+  state.runner.clicks = clicks;
+  state.runner.credits = credits;
+  return state;
+}
+
+/** Lets the Runner AI play the run on R&D until the Manegarm prompt (or the run ends). */
+function runToManegarm(state: GameState, ai = new HeuristicRunnerAI()) {
+  let s = executeAction(state, { type: 'INITIATE_RUN', player: 'runner', targetServerId: 'rd' });
+  for (let i = 0; i < 20 && s.activeRun && !activePrompt(s); i++) s = executeAction(s, ai.chooseAction(s));
+  return s;
+}
+
+describe('Runner AI and Manegarm Skunkworks (rules 6.9.4g, 1.16.11b)', () => {
+  it('counts a rezzed Manegarm in the cost of a run', () => {
+    // Without it: 0.7. With it: 2 clicks more (-2), a little back for an upgrade worth trashing
+    expect(runScore(manegarmGame(4, 7), 'rd')).toBeLessThan(runScore(manegarmGame(4, 7, false), 'rd') - 1);
+  });
+
+  it("doesn't start a run it can't pay Manegarm for", () => {
+    // 2 clicks: the run takes one, Bumi's subroutines are tanked, 1 click and 4 credits can't pay Manegarm
+    const state = manegarmGame(2, 4);
+    state.corp.servers.rd.ice = [];
+    expect(runScore(state, 'rd')).toBe(-Infinity);
+    state.runner.credits = 5;
+    expect(runScore(state, 'rd')).toBeGreaterThan(-Infinity);
+  });
+
+  it('values the server it is running while the run is on', () => {
+    const s = runToManegarm(manegarmGame(5, 7));
+    expect(s.activeRun).toBeTruthy();
+    expect(serverValue(s, 'rd')).toBeGreaterThan(3);
+  });
+
+  it('pays Manegarm with its spare clicks instead of ending the run', () => {
+    // Jeff's game: Bumi broken with 2 clicks, 2 clicks and credits left at Manegarm
+    const s = runToManegarm(manegarmGame(5, 7));
+    const prompt = activePrompt(s)!;
+    expect(prompt.kind === 'effect_choice' && prompt.source.cardCode).toBe(MANEGARM);
+    const action = new HeuristicRunnerAI().chooseAction(s);
+    expect(action.type === 'RESOLVE_PROMPT' && action.choice.kind === 'effect_choice' && action.choice.optionId).toBe('clicks');
+  });
+
+  it('pays 5 credits when it has no clicks to spare', () => {
+    const s = runToManegarm(manegarmGame(4, 7));
+    expect(s.runner.clicks).toBeLessThan(2);
+    const action = new HeuristicRunnerAI().chooseAction(s);
+    expect(action.type === 'RESOLVE_PROMPT' && action.choice.kind === 'effect_choice' && action.choice.optionId).toBe('pay');
+  });
+
+  it("keeps 2 clicks for Manegarm instead of breaking every bioroid subroutine when credits can't cover it", () => {
+    const s = runToManegarm(manegarmGame(4, 3));
+    const prompt = activePrompt(s);
+    expect(prompt?.kind === 'effect_choice' && prompt.source.cardCode).toBe(MANEGARM);
+    expect(s.runner.clicks).toBe(2);
   });
 });

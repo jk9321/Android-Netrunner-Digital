@@ -7,7 +7,7 @@ import { digValue, evaluate, rigCoverage } from './evaluate';
 import { answerPrompt, runEventOptions, simulate } from './prompts';
 import type { HeuristicOptions } from './corpAI';
 import { logNudge, nudge, tuning } from './synergy';
-import { BOTULUS, RunnerMemory, TRANQUILIZER, bestBreakPlan, botulusBreaks, hostedTrojans, creditsAhead, iceCost, iceCreditNeed, needsBiggerHand, runScore, runShortfall, serverValue, subroutineCost } from './runs';
+import { BOTULUS, RunnerMemory, TRANQUILIZER, MANEGARM, bestBreakPlan, botulusBreaks, hostedTrojans, creditsAhead, iceCreditsAhead, iceCost, iceCreditNeed, needsBiggerHand, runScore, runShortfall, serverValue, subroutineCost } from './runs';
 
 const TROJANS = [BOTULUS, TRANQUILIZER];
 
@@ -95,7 +95,8 @@ export class HeuristicRunnerAI implements Agent {
     if (tuning.plan.bioroidClicks && isBioroid(ice)) {
       const worst = [...mustBreak].sort((a, b) => b.cost - a.cost)[0];
       const click = legal.find(a => a.type === 'BIOROID_BREAK' && a.subroutineIndex === worst.i);
-      if (click) return click;
+      // ...but not the 2 clicks a Manegarm Skunkworks needs when the credits can't cover it
+      if (click && (worst.cost === Infinity || state.runner.clicks - 1 >= approachClickReserve(state))) return click;
     }
 
     // Runner (run budget): keep what the rezzed ice further in needs
@@ -295,4 +296,19 @@ function saveUpTarget(state: GameState, memory: RunnerMemory): string | null {
     }
   }
   return best;
+}
+
+/**
+ * Clicks to keep for a rezzed Manegarm Skunkworks on the server being run
+ * (2 each), when the credits left after the rezzed ice further in can't pay
+ * its 5 credits instead.
+ */
+export function approachClickReserve(state: GameState): number {
+  const run = state.activeRun;
+  const server = run ? state.corp.servers[run.server] : undefined;
+  if (!server) return 0;
+  const count = server.root.filter(c => c.isRezzed && c.cardCode === MANEGARM).length;
+  if (count === 0) return 0;
+  const spare = availableCredits(state, 'runner') - iceCreditsAhead(state);
+  return spare >= 5 * count ? 0 : 2 * count;
 }
