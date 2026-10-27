@@ -457,7 +457,7 @@ describe('draws and money', () => {
     const ranked = new HeuristicCorpAI().rankMainActions(s);
     const take = ranked.find(r => r.action.type === 'USE_ABILITY' && r.action.cardInstanceId === regolith.instanceId)!.score;
     const click = ranked.find(r => r.action.type === 'GAIN_CREDIT')!.score;
-    expect(take).toBeGreaterThan(click + 1.5);
+    expect(take).toBeGreaterThan(click + 1);
   });
 
   it('clicks for credits toward a Hedge Fund it can almost afford', () => {

@@ -5,6 +5,7 @@ import { cardSynergy } from './synergyTags';
 import { tuning } from './synergy';
 import { corpKeepValue, runnerCardValue } from './cardValues';
 import { countersWorth } from './counterValues';
+import { payoutWorth, profileOf, turnsLeft } from './cardProfiles';
 import { RATES, clickRate, creditValue, handFilter, pointValue, sideCreditValue } from './valueModel';
 
 export { creditValue };
@@ -118,6 +119,12 @@ function runnerRigValue(state: GameState, aware: boolean, viewer: SideCode): num
   const { covered, anyBreakers } = rigCoverage(rig.programs);
   let value = [...covered].reduce((n, t) => n + coverageValue(state, t, aware), 0) + (anyBreakers > 0 ? RATES.anyBreaker : 0);
   for (const card of cards) {
+    // Step 4: a card that pays out money is worth what it will still pay
+    const profile = profileOf(card.cardCode);
+    if (profile) {
+      value += payoutWorth(profile, turnsLeft(state), counters(card, 'credit'));
+      continue;
+    }
     value += isIcebreaker(card) ? RATES.icebreaker : RATES.rigCardScale * runnerCardValue(card.cardCode);
     // Counters by what they do on this card (step 3), or the step-1 rates
     value += countersWorth(state, card, 'credit', viewer) + countersWorth(state, card, 'virus', viewer) + countersWorth(state, card, 'power', viewer);
@@ -131,6 +138,8 @@ function runnerRigValue(state: GameState, aware: boolean, viewer: SideCode): num
 export function corpCardValue(card: CardInstance, state?: GameState, viewer: SideCode = 'corp'): number {
   const hosted = counters(card, 'credit');
   const power = state && card.isRezzed ? countersWorth(state, card, 'power', viewer) : 0;
+  const profile = state ? profileOf(card.cardCode) : undefined;
+  if (state && profile) return card.isRezzed ? payoutWorth(profile, turnsLeft(state), hosted) : corpKeepValue(card.cardCode, state);
   if (card.isRezzed && hosted > 0) return 1 + (state ? countersWorth(state, card, 'credit', viewer) : hosted * RATES.counters.hostedCredit) + power;
   return corpKeepValue(card.cardCode) + power;
 }
@@ -157,7 +166,7 @@ export function hiddenCardOdds(state: GameState): { agenda: number; agendaCost: 
   return {
     agenda: unseen.length > 0 ? agendas.length / unseen.length : 0,
     agendaCost: Math.round(mean(agendas.map(def => def.advancement_cost ?? 3), 3)),
-    other: mean(others.map(def => corpKeepValue(def.code)), 1),
+    other: mean(others.map(def => corpKeepValue(def.code, state)), 1),
   };
 }
 
@@ -251,7 +260,7 @@ export function keepValue(state: GameState, card: CardInstance, aware = false): 
       case 'operation':
         return /gain \d+/i.test(def.stripped_text ?? '') ? 2.5 : 1.5;
       case 'asset':
-        return corpKeepValue(card.cardCode) > 1 ? 2.5 : 1.5;
+        return corpKeepValue(card.cardCode, state) > 1 ? 2.5 : 1.5;
       default:
         return 1.2;
     }

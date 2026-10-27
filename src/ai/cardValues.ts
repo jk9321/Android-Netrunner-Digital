@@ -1,4 +1,5 @@
-import { getCardDefinition } from '../core';
+import { GameState, getCardDefinition } from '../core';
+import { ECON_SCALE, unrezzedWorth } from './cardProfiles';
 import { tuning } from './synergy';
 import { RATES } from './valueModel';
 
@@ -82,10 +83,13 @@ export const CARD_VALUES: Record<string, CardValue> = {
 /** Extra worth of the cards a card draws, now that a card in hand is worth about a credit. */
 const drawBonus = (code: string): number => (tuning.plan.drawValue?.[getCardDefinition(code).side_code] ? RATES.cardDrawn * (CARD_VALUES[code]?.draws ?? 0) : 0);
 
-/** Worth of an installed Corp asset or upgrade (1 if not listed). */
-export const corpKeepValue = (code: string): number => (CARD_VALUES[code]?.keep ?? RATES.defaultKeep) + drawBonus(code);
+/** Worth of an installed Corp asset or upgrade (1 if not listed). With a game state, a card profile (step 4) prices it instead. */
+export const corpKeepValue = (code: string, state?: GameState): number =>
+  (state ? unrezzedWorth(state, code) : undefined) ?? (CARD_VALUES[code]?.keep ?? RATES.defaultKeep) + drawBonus(code);
 /** Worth of an econ asset in its own remote (undefined: not an econ asset). */
-export const econValue = (code: string): number | undefined => {
+export const econValue = (code: string, state?: GameState): number | undefined => {
+  const profiled = state ? unrezzedWorth(state, code) : undefined;
+  if (profiled !== undefined) return ECON_SCALE * profiled;
   const econ = CARD_VALUES[code]?.econ;
   return econ === undefined ? undefined : econ + drawBonus(code);
 };

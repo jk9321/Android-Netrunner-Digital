@@ -236,6 +236,8 @@ export const tuning = {
      */
     /** Both sides (step 3, Jeff): counters are worth what they do on their card (counterValues.ts), not a flat rate per type (per deciding side). */
     counterEffects: { corp: true, runner: true } as Record<SideCode, boolean>,
+    /** Both sides (step 4): money cards are worth what they will still pay out before the game ends (cardProfiles.ts). */
+    cardProfiles: true,
   },
 };
 

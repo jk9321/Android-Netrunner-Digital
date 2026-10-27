@@ -10,6 +10,7 @@ import { iceCost, isTrap, weakestIce } from './runs';
 import { cardSynergy } from './synergyTags';
 import { econValue, upgradeValue } from './cardValues';
 import { counterWorth } from './counterValues';
+import { profileOf } from './cardProfiles';
 
 
 const type = (card: CardInstance) => cardDef(card).type_code;
@@ -204,7 +205,8 @@ export class HeuristicCorpAI implements Agent {
   /** Worth of rezzing a card in a server's root on the Corp's own turn. */
   private rezValue(state: GameState, card: CardInstance): number {
     const corp = state.corp;
-    if (econValue(card.cardCode)) return econValue(card.cardCode)! + 1;
+    const econ = econValue(card.cardCode, state);
+    if (econ) return econ + 1;
     if (card.cardCode === '30061') return 1; // Clearinghouse must be rezzed to fire
     // Elevation cards whose effects need them rezzed
     switch (card.cardCode) {
@@ -277,7 +279,8 @@ export class HeuristicCorpAI implements Agent {
       // The board counts hosted credits at their counter worth (see corpCardValue): give that back, so a Regolith click is worth its 3 credits
       const card = Object.values(corp.servers).flatMap(s => s.root).find(c => c.instanceId === action.cardInstanceId);
       const after = card && simulate(state, action);
-      if (!card || !after) return 0;
+      // Step 4: a profiled card's board worth already counts what taking the money costs
+      if (!card || !after || profileOf(card.cardCode)) return 0;
       const left = Object.values(after.corp.servers).flatMap(s => s.root).find(c => c.instanceId === card.instanceId);
       return counterWorth(state, card, 'credit', 'corp') * Math.max(0, counters(card, 'credit') - (left ? counters(left, 'credit') : 0));
     }
@@ -582,7 +585,7 @@ export class HeuristicCorpAI implements Agent {
         return guarded === 0 ? -2 : 8 + Math.min(guarded, 3) * 0.6;
       }
       case 'asset': {
-        const econ = econValue(card.cardCode);
+        const econ = econValue(card.cardCode, state);
         if (econ !== undefined) {
           if (server) return -1;
           const rezCost = cardDef(card).cost ?? 0;
@@ -790,7 +793,7 @@ function serverImportance(state: GameState, server: ServerState | undefined, awa
   if (server.id === 'rd') return 4;
   if (server.id === 'archives') return state.corp.archives.faceDown.some(c => type(c) === 'agenda') ? 6 : 0.5;
   if (server.root.some(c => c.advancementCounters > 0)) return 1; // a trap: let them in
-  if (server.root.some(c => c.isRezzed && econValue(c.cardCode))) return 3;
+  if (server.root.some(c => c.isRezzed && econValue(c.cardCode, state))) return 3;
   return server.root.length > 0 ? 2 : 0.5;
 }
 
