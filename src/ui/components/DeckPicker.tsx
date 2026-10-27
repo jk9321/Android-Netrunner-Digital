@@ -4,7 +4,7 @@ import { DECKS, DeckList, deckCodes, pickRandomDeck, randomDeckPool } from '../.
 import { ALL_CARDS, getCardImageUrl } from '../../data/cards';
 import { loadCustomDecks, newCustomDeckId, saveCustomDecks } from '../../data/customDecks';
 import type { Difficulty } from '../../ai';
-import { CheckCircle2, AlertTriangle, Play, Plus, Pencil, Copy, Trash2, Dices, FileDown, Eye } from 'lucide-react';
+import { CheckCircle2, AlertTriangle, Play, Plus, Pencil, Copy, Trash2, Dices, Eye } from 'lucide-react';
 import { showConfirm } from './Dialog';
 
 // Loaded on first use, so the start screen doesn't wait for them
@@ -134,7 +134,20 @@ export const DeckPicker: React.FC<DeckPickerProps> = ({ initialCorpDeckId, initi
   if (editing) {
     return (
       <Suspense fallback={<div className="p-6 font-mono text-xs text-slate-400">Loading deckbuilder…</div>}>
-        <DeckBuilder key={editing.id} initial={editing} onSave={saveDeck} onCancel={() => setEditing(null)} />
+        <DeckBuilder key={editing.id} initial={editing} onSave={saveDeck} onCancel={() => setEditing(null)} onImport={() => setImporting(true)} />
+        {importing && (
+          <ImportDeckModal
+            onClose={() => setImporting(false)}
+            onSave={deck => {
+              setImporting(false);
+              saveDeck(deck);
+            }}
+            onEdit={deck => {
+              setImporting(false);
+              setEditing(deck);
+            }}
+          />
+        )}
       </Suspense>
     );
   }
@@ -321,31 +334,8 @@ export const DeckPicker: React.FC<DeckPickerProps> = ({ initialCorpDeckId, initi
         NETRUNNER
       </h1>
       <p className="text-xs text-slate-400 mb-6 text-center">
-        Choose a deck for each side. The starter decks are the best place to begin. Build your own with New deck, or copy any deck to tweak it.
+        Choose a deck for each side. The starter decks are the best place to begin. Build your own with New deck (where you can also import from NetrunnerDB), or copy any deck to tweak it.
       </p>
-      <button
-        onClick={() => setImporting(true)}
-        data-testid="import-deck"
-        title="Import a deck from a NetrunnerDB export, file or link"
-        className="mb-6 -mt-3 px-3 py-1.5 rounded-lg border border-indigo-500/70 hover:border-indigo-300 bg-indigo-950/50 text-xs flex items-center gap-1.5"
-      >
-        <FileDown className="w-3.5 h-3.5" /> Import from NetrunnerDB
-      </button>
-      {importing && (
-        <Suspense fallback={null}>
-          <ImportDeckModal
-            onClose={() => setImporting(false)}
-            onSave={deck => {
-              setImporting(false);
-              saveDeck(deck);
-            }}
-            onEdit={deck => {
-              setImporting(false);
-              setEditing(deck);
-            }}
-          />
-        </Suspense>
-      )}
       {storageFailed && (
         <p className="text-xs text-amber-400 mb-4">This browser would not save your decks, so they will be lost when the page closes.</p>
       )}

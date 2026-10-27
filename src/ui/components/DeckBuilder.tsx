@@ -7,13 +7,15 @@ import { getCardScript } from '../../core/scripts';
 import { CardZoomModal } from './CardZoomModal';
 import { CardPopout } from './CardPopout';
 import { FACTION_COLOR, FACTION_LABEL } from '../cardLabels';
-import { AlertTriangle, ArrowLeft, Ban, CheckCircle2, Minus, Plus, Save, Search, ZoomIn } from 'lucide-react';
+import { AlertTriangle, ArrowLeft, Ban, CheckCircle2, FileDown, Minus, Plus, Save, Search, ZoomIn } from 'lucide-react';
 
 interface DeckBuilderProps {
   /** The deck to edit: a saved custom deck, a copy of another deck, or a new empty one. */
   initial: DeckList;
   onSave: (deck: DeckList) => void;
   onCancel: () => void;
+  /** Opens the NetrunnerDB import window. */
+  onImport?: () => void;
 }
 
 const TYPE_ORDER: Record<SideCode, CardTypeCode[]> = {
@@ -109,7 +111,7 @@ const CardBadges: React.FC<{ card: CardDefinition; format: ReturnType<typeof get
 );
 
 /** Pick an identity, add and remove cards, and see the deck's legality as you go. */
-export const DeckBuilder: React.FC<DeckBuilderProps> = ({ initial, onSave, onCancel }) => {
+export const DeckBuilder: React.FC<DeckBuilderProps> = ({ initial, onSave, onCancel, onImport }) => {
   const side = initial.side;
   const [name, setName] = useState(initial.name);
   const [identityTitle, setIdentityTitle] = useState(initial.identity);
@@ -204,6 +206,16 @@ export const DeckBuilder: React.FC<DeckBuilderProps> = ({ initial, onSave, onCan
             data-testid="deck-name"
             className="flex-1 min-w-[12rem] bg-slate-900 border border-slate-700 rounded-xl px-3 py-1.5 text-sm focus:outline-none focus:border-slate-400"
           />
+          {onImport && (
+            <button
+              onClick={onImport}
+              data-testid="import-deck"
+              title="Import a deck from a NetrunnerDB export, file or link"
+              className="px-3 py-1.5 rounded-xl border border-indigo-500/70 hover:border-indigo-300 bg-indigo-950/50 text-xs flex items-center gap-1.5"
+            >
+              <FileDown className="w-3.5 h-3.5" /> Import from NetrunnerDB
+            </button>
+          )}
           <button
             onClick={() => onSave(draft)}
             data-testid="save-deck"
