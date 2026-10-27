@@ -1,5 +1,6 @@
 import { getCardDefinition } from '../core';
 import { tuning } from './synergy';
+import { RATES } from './valueModel';
 
 /**
  * The AI's per-card numbers, by card code. Every Corp asset and upgrade and
@@ -79,16 +80,16 @@ export const CARD_VALUES: Record<string, CardValue> = {
 };
 
 /** Extra worth of the cards a card draws, now that a card in hand is worth about a credit. */
-const drawBonus = (code: string): number => (tuning.plan.drawValue?.[getCardDefinition(code).side_code] ? 0.5 * (CARD_VALUES[code]?.draws ?? 0) : 0);
+const drawBonus = (code: string): number => (tuning.plan.drawValue?.[getCardDefinition(code).side_code] ? RATES.cardDrawn * (CARD_VALUES[code]?.draws ?? 0) : 0);
 
 /** Worth of an installed Corp asset or upgrade (1 if not listed). */
-export const corpKeepValue = (code: string): number => (CARD_VALUES[code]?.keep ?? 1) + drawBonus(code);
+export const corpKeepValue = (code: string): number => (CARD_VALUES[code]?.keep ?? RATES.defaultKeep) + drawBonus(code);
 /** Worth of an econ asset in its own remote (undefined: not an econ asset). */
 export const econValue = (code: string): number | undefined => {
   const econ = CARD_VALUES[code]?.econ;
   return econ === undefined ? undefined : econ + drawBonus(code);
 };
 /** An upgrade's worth in a scoring remote and on HQ or R&D. */
-export const upgradeValue = (code: string): [number, number] => CARD_VALUES[code]?.upgrade ?? [1, 0.5];
+export const upgradeValue = (code: string): [number, number] => CARD_VALUES[code]?.upgrade ?? RATES.defaultUpgrade;
 /** Worth of an installed Runner card beyond icebreaker coverage (2 if not listed). */
-export const runnerCardValue = (code: string): number => (CARD_VALUES[code]?.rig ?? 2) + drawBonus(code);
+export const runnerCardValue = (code: string): number => (CARD_VALUES[code]?.rig ?? RATES.defaultRig) + drawBonus(code);

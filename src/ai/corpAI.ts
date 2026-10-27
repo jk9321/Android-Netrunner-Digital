@@ -9,6 +9,7 @@ import { logNudge, nudge, opponentLean, tuning } from './synergy';
 import { iceCost, isTrap, weakestIce } from './runs';
 import { cardSynergy } from './synergyTags';
 import { econValue, upgradeValue } from './cardValues';
+import { RATES } from './valueModel';
 
 
 const type = (card: CardInstance) => cardDef(card).type_code;
@@ -278,7 +279,7 @@ export class HeuristicCorpAI implements Agent {
       const after = card && simulate(state, action);
       if (!card || !after) return 0;
       const left = Object.values(after.corp.servers).flatMap(s => s.root).find(c => c.instanceId === card.instanceId);
-      return 0.6 * Math.max(0, counters(card, 'credit') - (left ? counters(left, 'credit') : 0));
+      return RATES.counters.hostedCredit * Math.max(0, counters(card, 'credit') - (left ? counters(left, 'credit') : 0));
     }
     if (action.type === 'PLAY_OPERATION_OR_EVENT' && tuning.plan.pettyCash) {
       return corp.hq.find(c => c.instanceId === action.cardInstanceId)?.cardCode === '35081' ? 1.5 : 0;

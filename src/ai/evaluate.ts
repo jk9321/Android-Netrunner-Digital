@@ -4,6 +4,9 @@ import { counters } from '../core/engine/cardEffects';
 import { cardSynergy } from './synergyTags';
 import { tuning } from './synergy';
 import { corpKeepValue, runnerCardValue } from './cardValues';
+import { RATES, creditValue } from './valueModel';
+
+export { creditValue };
 
 /**
  * Board evaluation shared by both AIs, in "credit" units: a credit is worth
@@ -15,25 +18,20 @@ import { corpKeepValue, runnerCardValue } from './cardValues';
  * the ice types the Corp has shown are worth more than the rest.
  */
 
-/** Credits are worth more while a side is short of them. */
-export function creditValue(credits: number): number {
-  return credits + 0.6 * Math.min(Math.max(credits, 0), 6);
-}
-
 /**
  * Value of a hand of `size` cards: the first few matter most, cards over
  * the limit not at all (they will be discarded). With plan.drawValue a card
  * up to the limit is worth what a credit is to a short side.
  */
 export function handValue(size: number, limit: number, viewer?: SideCode): number {
-  const card = viewer && tuning.plan.drawValue?.[viewer] ? DRAWN_CARD : 0.8;
+  const card = viewer && tuning.plan.drawValue?.[viewer] ? DRAWN_CARD : RATES.drawnCardOff;
   let value = 0;
-  for (let i = 0; i < size; i++) value += i < 3 ? 2 : i < limit ? card : 0;
+  for (let i = 0; i < size; i++) value += i < RATES.handCoreCards ? RATES.handCore : i < limit ? card : 0;
   return value;
 }
 
 /** Worth of a card in hand beyond the first three, up to the limit (plan.drawValue). */
-export const DRAWN_CARD = 1.6;
+export const DRAWN_CARD = RATES.drawnCard;
 
 const isEcon = (card: CardInstance) => (cardSynergy(cardDef(card)).gives?.econ ?? 0) >= 0.5;
 
@@ -108,20 +106,20 @@ export function shownIceShare(state: GameState): Record<string, number> {
 
 /** Worth of being able to break an ice type: 8 on average, more for the types the Corp plays. */
 function coverageValue(state: GameState, type: string, aware: boolean): number {
-  if (!aware || !tuning.plan.breakerFocus) return 8;
-  return 8 * (0.4 + 1.8 * shownIceShare(state)[type]);
+  if (!aware || !tuning.plan.breakerFocus) return RATES.iceTypeCoverage;
+  return RATES.iceTypeCoverage * (0.4 + 1.8 * shownIceShare(state)[type]);
 }
 
 function runnerRigValue(state: GameState, aware = false): number {
   const rig = state.runner.rig;
   const cards = [...rig.programs, ...rig.hardware, ...rig.resources];
   const { covered, anyBreakers } = rigCoverage(rig.programs);
-  let value = [...covered].reduce((n, t) => n + coverageValue(state, t, aware), 0) + (anyBreakers > 0 ? 2 : 0);
+  let value = [...covered].reduce((n, t) => n + coverageValue(state, t, aware), 0) + (anyBreakers > 0 ? RATES.anyBreaker : 0);
   for (const card of cards) {
-    value += isIcebreaker(card) ? 2 : 2 * runnerCardValue(card.cardCode);
-    value += counters(card, 'credit') * (card.cardCode === '30033' ? 0.25 : 0.6); // Smartware pays out 1 a turn
-    value += counters(card, 'virus') * (card.cardCode === '30007' ? 1.5 : 0.7);
-    value += (card.hostedCards?.length ?? 0) * 0.8; // Bling, Madani: cards to play later
+    value += isIcebreaker(card) ? RATES.icebreaker : RATES.rigCardScale * runnerCardValue(card.cardCode);
+    value += counters(card, 'credit') * (card.cardCode === '30033' ? RATES.counters.smartwareCredit : RATES.counters.hostedCredit); // Smartware pays out 1 a turn
+    value += counters(card, 'virus') * (card.cardCode === '30007' ? RATES.counters.fermenterVirus : RATES.counters.virus);
+    value += (card.hostedCards?.length ?? 0) * RATES.hostedCard; // Bling, Madani: cards to play later
   }
   return value;
 }
@@ -130,7 +128,7 @@ function runnerRigValue(state: GameState, aware = false): number {
 /** Worth of an installed Corp root card (assets and upgrades). */
 export function corpCardValue(card: CardInstance): number {
   const hosted = counters(card, 'credit');
-  if (card.isRezzed && hosted > 0) return 1 + hosted * 0.6;
+  if (card.isRezzed && hosted > 0) return 1 + hosted * RATES.counters.hostedCredit;
   return corpKeepValue(card.cardCode);
 }
 
@@ -160,14 +158,14 @@ export function hiddenCardOdds(state: GameState): { agenda: number; agendaCost: 
   };
 }
 
-const agendaBoardValue = (counters: number, cost: number) => counters * 1.5 + (counters >= cost ? 6 : 0);
+const agendaBoardValue = (counters: number, cost: number) => counters * RATES.advancement + (counters >= cost ? RATES.scoreableAgenda : 0);
 
 /** The Corp's installed cards, as `viewer` can judge them: the Runner values facedown cards by the odds, not by what they are. */
 function corpBoardValue(state: GameState, viewer: SideCode): number {
   let value = 0;
   let odds: ReturnType<typeof hiddenCardOdds> | undefined;
   for (const server of Object.values(state.corp.servers)) {
-    for (const ice of server.ice) value += ice.isRezzed ? 1 + 0.6 * (cardDef(ice).cost ?? 0) : 1;
+    for (const ice of server.ice) value += ice.isRezzed ? RATES.ice + RATES.rezzedIceCostShare * (cardDef(ice).cost ?? 0) : RATES.ice;
     for (const card of server.root) {
       if (viewer === 'runner' && isHidden(card)) {
         odds ??= hiddenCardOdds(state);
@@ -204,24 +202,24 @@ export function sideStrength(state: GameState, side: SideCode, viewer: SideCode 
     const corp = state.corp;
     return (
       creditValue(corp.credits) +
-      corp.clicks +
+      RATES.click * corp.clicks +
       handValue(corp.hq.length, corp.handSizeLimit, viewer) +
-      8 * corp.score +
+      RATES.point * corp.score +
       corpBoardValue(state, viewer) +
-      (1.5 + threat) * state.runner.tags +
+      (RATES.tagForCorp + threat) * state.runner.tags +
       // Dividends and Next Big Thing counters, AU Co. power counters
-      1.5 * corp.scoreArea.reduce((n, a) => n + counters(a, 'agenda'), 0) +
-      0.8 * counters(corp.identity, 'power')
+      RATES.counters.scoredAgenda * corp.scoreArea.reduce((n, a) => n + counters(a, 'agenda'), 0) +
+      RATES.counters.identityPower * counters(corp.identity, 'power')
     );
   }
   const runner = state.runner;
   return (
     creditValue(runner.credits) +
-    runner.clicks +
+    RATES.click * runner.clicks +
     handValue(runner.grip.length, runner.handSizeLimit, viewer) +
-    8 * runner.score -
-    (3 + threat) * runner.tags -
-    4 * runner.coreDamage +
+    RATES.point * runner.score -
+    (RATES.tagAgainstRunner + threat) * runner.tags -
+    RATES.coreDamage * runner.coreDamage +
     runnerRigValue(state, aware)
   );
 }
