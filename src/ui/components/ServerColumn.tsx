@@ -183,6 +183,18 @@ export const ServerColumn: React.FC<ServerColumnProps> = ({
                     <Zap className="w-[1.1em] h-[1.1em] text-amber-400" /> Rez (<Credits amount={cardDef(card).cost || 0} />)
                   </button>
                 )}
+                {/* Score sits above Advance, so Advance keeps its place at the bottom when Score appears */}
+                {canScore(card) && onScoreCard && (
+                  <button
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      onScoreCard(card.instanceId);
+                    }}
+                    className={smallButton}
+                  >
+                    <Award className="w-[1.1em] h-[1.1em] text-amber-400" /> Score
+                  </button>
+                )}
                 {canAdvance(card) && onAdvanceCard && (
                   <button
                     onClick={(e) => {
@@ -193,17 +205,6 @@ export const ServerColumn: React.FC<ServerColumnProps> = ({
                   >
                     <ChevronsUp className="w-[1.1em] h-[1.1em] text-amber-400" /> Adv ({card.advancementCounters}
                     {cardDef(card).advancement_cost ? `/${cardDef(card).advancement_cost}` : ''})
-                  </button>
-                )}
-                {canScore(card) && onScoreCard && (
-                  <button
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      onScoreCard(card.instanceId);
-                    }}
-                    className={smallButton}
-                  >
-                    <Award className="w-[1.1em] h-[1.1em] text-amber-400" /> Score
                   </button>
                 )}
                 </>}
