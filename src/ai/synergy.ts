@@ -208,6 +208,18 @@ export const tuning = {
     trojans: true,
     /** Runner (Jeff): on bioroid ice, spend spare clicks on the worst subroutines, not only the run-ending ones. */
     bioroidClicks: true,
+    /*
+     * Value model step 2 (docs/ai-value-model-plan.md, Jeff 2026-10-27): the
+     * new exchange rates in valueModel.ts, each switchable for batches.
+     */
+    /** Both sides: a click is worth 1.25 credits (at least 1), not 1. */
+    clickRate: true,
+    /** Both sides: credits slide against a need (the deck's build target or the board's need, whichever is more) instead of a flat bonus under 6. */
+    creditSlide: true,
+    /** Both sides: agenda points are worth more the closer they take a side to 7. */
+    pointClock: true,
+    /** Both sides: one card over the hand-size limit is a small plus (you discard your worst card), not nothing. */
+    handFilter: true,
   },
 };
 

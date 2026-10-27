@@ -4,7 +4,7 @@ import { counters } from '../core/engine/cardEffects';
 import { cardSynergy } from './synergyTags';
 import { tuning } from './synergy';
 import { corpKeepValue, runnerCardValue } from './cardValues';
-import { RATES, creditValue } from './valueModel';
+import { RATES, clickRate, creditValue, handFilter, pointValue, sideCreditValue } from './valueModel';
 
 export { creditValue };
 
@@ -20,13 +20,14 @@ export { creditValue };
 
 /**
  * Value of a hand of `size` cards: the first few matter most, cards over
- * the limit not at all (they will be discarded). With plan.drawValue a card
+ * the limit next to nothing (they will be discarded; with plan.handFilter the
+ * first one over lets the worst card go). With plan.drawValue a card
  * up to the limit is worth what a credit is to a short side.
  */
 export function handValue(size: number, limit: number, viewer?: SideCode): number {
   const card = viewer && tuning.plan.drawValue?.[viewer] ? DRAWN_CARD : RATES.drawnCardOff;
   let value = 0;
-  for (let i = 0; i < size; i++) value += i < RATES.handCoreCards ? RATES.handCore : i < limit ? card : 0;
+  for (let i = 0; i < size; i++) value += i < RATES.handCoreCards ? RATES.handCore : i < limit ? card : i === limit ? handFilter() : 0;
   return value;
 }
 
@@ -201,10 +202,10 @@ export function sideStrength(state: GameState, side: SideCode, viewer: SideCode 
   if (side === 'corp') {
     const corp = state.corp;
     return (
-      creditValue(corp.credits) +
-      RATES.click * corp.clicks +
+      sideCreditValue(state, 'corp') +
+      clickRate() * corp.clicks +
       handValue(corp.hq.length, corp.handSizeLimit, viewer) +
-      RATES.point * corp.score +
+      pointValue(corp.score) +
       corpBoardValue(state, viewer) +
       (RATES.tagForCorp + threat) * state.runner.tags +
       // Dividends and Next Big Thing counters, AU Co. power counters
@@ -214,10 +215,10 @@ export function sideStrength(state: GameState, side: SideCode, viewer: SideCode 
   }
   const runner = state.runner;
   return (
-    creditValue(runner.credits) +
-    RATES.click * runner.clicks +
+    sideCreditValue(state, 'runner') +
+    clickRate() * runner.clicks +
     handValue(runner.grip.length, runner.handSizeLimit, viewer) +
-    RATES.point * runner.score -
+    pointValue(runner.score) -
     (RATES.tagAgainstRunner + threat) * runner.tags -
     RATES.coreDamage * runner.coreDamage +
     runnerRigValue(state, aware)

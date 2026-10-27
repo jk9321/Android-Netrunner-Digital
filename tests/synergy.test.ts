@@ -415,9 +415,10 @@ describe('identity plans', () => {
 });
 
 describe('draws and money', () => {
-  it('a card in hand is worth about a credit up to the hand-size limit, nothing over it', () => {
+  it('a card in hand is worth about a credit up to the hand-size limit, little for one over, nothing beyond', () => {
     expect(handValue(4, 5, 'corp') - handValue(3, 5, 'corp')).toBeCloseTo(1.6);
-    expect(handValue(6, 5, 'corp') - handValue(5, 5, 'corp')).toBe(0);
+    expect(handValue(6, 5, 'corp') - handValue(5, 5, 'corp')).toBeCloseTo(0.3);
+    expect(handValue(7, 5, 'corp') - handValue(6, 5, 'corp')).toBe(0);
     tuning.plan.drawValue.corp = false;
     expect(handValue(4, 5, 'corp') - handValue(3, 5, 'corp')).toBeCloseTo(0.8);
     expect(handValue(4, 5, 'runner') - handValue(3, 5, 'runner')).toBeCloseTo(1.6);
