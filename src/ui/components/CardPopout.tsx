@@ -5,7 +5,7 @@ import { cardDef, getCardImageUrl } from '../../data/cards';
 import { FACTION_COLOR, FACTION_LABEL, typeLine } from '../cardLabels';
 import { Shield, Award, Trash2, AlertCircle, Lock } from 'lucide-react';
 import { GLOSSARY, annotateKeywords, cardKeywords } from '../glossary';
-import { CreditIcon, Credits, CREDIT_ICON_HTML, RECURRING_CREDIT_ICON_HTML, MU_ICON_HTML, MuIcon } from './CreditIcon';
+import { CreditIcon, Credits, CREDIT_ICON_HTML, RECURRING_CREDIT_ICON_HTML, MU_ICON_HTML, MuIcon, CLICK_ICON_HTML, TRASH_ICON_HTML, LINK_ICON_HTML } from './CreditIcon';
 
 interface CardPopoutProps {
   card: CardInstance;
@@ -196,12 +196,12 @@ export const CardPopout: React.FC<CardPopoutProps> = ({
                 dangerouslySetInnerHTML={{
                   __html: annotateKeywords(def.text)
                     .replace(/\[credit\]/g, `<span data-kw="credit" class="kw-label text-amber-400 font-bold inline-flex items-center">${CREDIT_ICON_HTML}</span>`)
-                    .replace(/\[click\]/g, '<span data-kw="click" class="kw-label text-red-400 font-bold inline-flex items-center">⏱️</span>')
+                    .replace(/\[click\]/g, `<span data-kw="click" class="kw-label text-red-400 font-bold inline-flex items-center">${CLICK_ICON_HTML}</span>`)
                     .replace(/\[subroutine\]/g, '<span data-kw="subroutine" class="kw-label text-cyan-400 font-bold block mt-1">↳ <strong class="text-white">Subroutine:</strong></span>')
-                    .replace(/\[trash\]/g, '<span data-kw="trash" class="kw-label text-red-400 font-bold inline-flex items-center">🗑️</span>')
+                    .replace(/\[trash\]/g, `<span data-kw="trash-symbol" class="kw-label text-red-400 font-bold inline-flex items-center">${TRASH_ICON_HTML}</span>`)
                     .replace(/\[recurring-credit\]/g, `<span data-kw="recurring-credit" class="kw-label text-amber-300 font-bold inline-flex items-center">${RECURRING_CREDIT_ICON_HTML}</span>`)
                     .replace(/\[mu\]/g, `<span data-kw="mu" class="kw-label text-pink-300 font-bold inline-flex items-center">${MU_ICON_HTML}</span>`)
-                    .replace(/\[link\]/g, '<span data-kw="link" class="kw-label text-emerald-400 font-bold inline-flex items-center">🔗</span>')
+                    .replace(/\[link\]/g, `<span data-kw="link" class="kw-label text-emerald-400 font-bold inline-flex items-center">${LINK_ICON_HTML}</span>`)
                     .replace(/\n/g, '<br />'),
                 }}
               />

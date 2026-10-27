@@ -1,7 +1,7 @@
 import React from 'react';
 import { GameAction, GameState, SideCode, cardDef, findCardAnywhere, getCardScript, getLegalActions } from '../../core';
 import { Sparkles } from 'lucide-react';
-import { Credits } from './CreditIcon';
+import { ClickIcon, Credits, renderSymbols } from './CreditIcon';
 
 interface AbilityBarProps {
   state: GameState;
@@ -28,7 +28,10 @@ export const AbilityBar: React.FC<AbilityBarProps> = ({ state, side, onAction })
         const card = findCardAnywhere(state, action.cardInstanceId);
         const ability = card && getCardScript(card.cardCode)?.abilities?.[action.abilityIndex];
         if (!card || !ability) return null;
-        const clickCost = ability.clicks ? `${ability.clicks}[click]` : '';
+        // Printed like the card: one click symbol per click spent
+        const clickCost = ability.clicks
+          ? <span className="inline-flex items-center whitespace-nowrap">{Array.from({ length: ability.clicks }, (_, i) => <ClickIcon key={i} />)}</span>
+          : null;
         const cost = clickCost || ability.credits ? (
           <>
             {clickCost}
@@ -41,11 +44,11 @@ export const AbilityBar: React.FC<AbilityBarProps> = ({ state, side, onAction })
             key={`${action.cardInstanceId}-${action.abilityIndex}`}
             onClick={() => onAction(action)}
             className={`px-2 py-1 border text-[11px] text-left font-bold rounded-lg transition-all flex items-center gap-1.5 shadow ${accent}`}
-            title={ability.label}
+            title={ability.label.replace(/\[click\]/g, 'click').replace(/\[credit\]/g, 'credit')}
           >
             <Sparkles className="w-3.5 h-3.5 text-amber-300" />
-            {cardDef(card).title}: {ability.label}
-            {cost && <span className="opacity-70">({cost})</span>}
+            {cardDef(card).title}: {renderSymbols(ability.label)}
+            {cost && <span className="opacity-70 inline-flex items-center">({cost})</span>}
           </button>
         );
       })}

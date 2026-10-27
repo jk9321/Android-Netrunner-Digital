@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { CardInstance } from '../../core/types/card';
 import { ALL_CARDS } from '../../data/cards';
 import { CardPopout } from './CardPopout';
+import { renderSymbols } from './CreditIcon';
 
 // Every printed title (and its accent-free spelling) mapped to its card code, so
 // card names already shown in text (log lines, prompts) can show the card on hover.
@@ -44,7 +45,7 @@ interface CardNameTextProps {
 
 /**
  * Text with each card name it already prints underlined; hovering (or focusing)
- * a name shows that card. Only names in the text, so nothing hidden is revealed.
+ * a name shows that card. Rules symbols like [click] are drawn as icons. Only names in the text, so nothing hidden is revealed.
  */
 export const CardNameText: React.FC<CardNameTextProps> = ({ text, focusable = true, nameClassName = '' }) => {
   const [hovered, setHovered] = useState<{ card: CardInstance; rect: DOMRect } | null>(null);
@@ -61,7 +62,7 @@ export const CardNameText: React.FC<CardNameTextProps> = ({ text, focusable = tr
     <>
       {splitCardNames(text).map((part, i) =>
         typeof part === 'string' ? (
-          part
+          <React.Fragment key={i}>{renderSymbols(part)}</React.Fragment>
         ) : (
           <span
             key={i}
