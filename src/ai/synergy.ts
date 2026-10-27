@@ -238,6 +238,8 @@ export const tuning = {
     counterEffects: { corp: true, runner: true } as Record<SideCode, boolean>,
     /** Both sides (step 4): money cards are worth what they will still pay out before the game ends (cardProfiles.ts). */
     cardProfiles: true,
+    /** Both sides (step 5, Jeff): ice is worth what it costs the Runner to get past it, not its rez cost (per deciding side). */
+    iceInCredits: { corp: true, runner: true } as Record<SideCode, boolean>,
   },
 };
 

@@ -5,6 +5,7 @@ import { cardSynergy } from './synergyTags';
 import { tuning } from './synergy';
 import { corpKeepValue, runnerCardValue } from './cardValues';
 import { countersWorth } from './counterValues';
+import { flatIceWorth, iceWorth } from './iceValues';
 import { payoutWorth, profileOf, turnsLeft } from './cardProfiles';
 import { RATES, clickRate, creditValue, handFilter, pointValue, sideCreditValue } from './valueModel';
 
@@ -177,7 +178,7 @@ function corpBoardValue(state: GameState, viewer: SideCode): number {
   let value = 0;
   let odds: ReturnType<typeof hiddenCardOdds> | undefined;
   for (const server of Object.values(state.corp.servers)) {
-    for (const ice of server.ice) value += ice.isRezzed ? RATES.ice + RATES.rezzedIceCostShare * (cardDef(ice).cost ?? 0) : RATES.ice;
+    for (const ice of server.ice) value += tuning.plan.iceInCredits?.[viewer] ? iceWorth(state, ice, viewer) : flatIceWorth(ice);
     for (const card of server.root) {
       if (viewer === 'runner' && isHidden(card)) {
         odds ??= hiddenCardOdds(state);
