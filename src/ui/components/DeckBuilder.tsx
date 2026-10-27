@@ -1,10 +1,11 @@
-import React, { useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { DEFAULT_FORMAT, FORMATS, FormatId, describeFormatStatuses, formatStatuses, getFormat, influenceCost, isBanned, isInCardPool, requiredAgendaPoints, validateDeck } from '../../core';
-import { CardDefinition, CardTypeCode, FactionCode, SideCode } from '../../core/types/card';
+import { CardDefinition, CardInstance, CardTypeCode, FactionCode, SideCode } from '../../core/types/card';
 import { DeckList, deckCodes } from '../../data/decks';
 import { ALL_CARDS, CARD_SETS, getCardImageUrl } from '../../data/cards';
 import { getCardScript } from '../../core/scripts';
 import { CardZoomModal } from './CardZoomModal';
+import { CardPopout } from './CardPopout';
 import { FACTION_COLOR, FACTION_LABEL } from '../cardLabels';
 import { AlertTriangle, ArrowLeft, Ban, CheckCircle2, Minus, Plus, Save, Search, ZoomIn } from 'lucide-react';
 
@@ -29,6 +30,8 @@ const byTitle = new Map(ALL_CARDS.map(c => [c.title, c]));
 /** Elevation cards whose abilities aren't in the engine yet (every System Gateway card is). */
 const unscripted = (c: CardDefinition) => c.pack_code !== 'sg' && !!c.text && !getCardScript(c.code);
 const typeRank = (c: CardDefinition) => TYPE_ORDER[c.side_code].indexOf(c.type_code);
+/** A faceup stand-in for a card in the pool, for the popout and the inspect window. */
+const asInstance = (code: string): CardInstance => ({ instanceId: `deckbuilder-${code}`, cardCode: code, isRezzed: true, advancementCounters: 0, tokens: {}, hostedCardIds: [] });
 const sortCards = (a: CardDefinition, b: CardDefinition) => typeRank(a) - typeRank(b) || a.title.localeCompare(b.title);
 
 /** Pick an identity, add and remove cards, and see the deck's legality as you go. */
@@ -44,6 +47,19 @@ export const DeckBuilder: React.FC<DeckBuilderProps> = ({ initial, onSave, onCan
   const [factionFilter, setFactionFilter] = useState<'all' | 'playable' | FactionCode>('all');
   const [setFilter, setSetFilter] = useState<string>('all');
   const [zoomCode, setZoomCode] = useState<string | null>(null);
+  // The card under the pointer gets the same text popout as on the table, so there's no need to inspect it
+  const [hover, setHover] = useState<{ code: string; rect: DOMRect } | null>(null);
+  const hoverProps = (code: string) => ({
+    onMouseEnter: (e: React.MouseEvent<HTMLElement>) => setHover({ code, rect: e.currentTarget.getBoundingClientRect() }),
+    onMouseLeave: () => setHover(null),
+  });
+  // A scroll moves the card away from its popout
+  useEffect(() => {
+    if (!hover) return;
+    const clear = () => setHover(null);
+    window.addEventListener('scroll', clear, true);
+    return () => window.removeEventListener('scroll', clear, true);
+  }, [hover]);
 
   const identities = useMemo(
     () => ALL_CARDS.filter(c => c.side_code === side && c.type_code === 'identity'),
@@ -224,7 +240,7 @@ export const DeckBuilder: React.FC<DeckBuilderProps> = ({ initial, onSave, onCan
                       n > 0 ? (accent === 'cyan' ? 'border-cyan-600' : 'border-pink-600') : 'border-slate-800'
                     }`}
                   >
-                    <button onClick={() => change(c, 1)} title={`Add ${c.title}`} className="relative group">
+                    <button onClick={() => change(c, 1)} className="relative group" {...hoverProps(c.code)}>
                       <img
                         src={getCardImageUrl(c.code)}
                         alt={c.title}
@@ -300,14 +316,16 @@ export const DeckBuilder: React.FC<DeckBuilderProps> = ({ initial, onSave, onCan
               <img
                 src={getCardImageUrl(identity.code)}
                 alt={identity.title}
+                {...hoverProps(identity.code)}
                 className="w-16 h-[5.6rem] object-cover rounded-md border border-slate-700 shrink-0"
               />
               <label className="flex-1 min-w-0">
                 <span className="text-[10px] uppercase tracking-wider text-slate-500">Identity</span>
                 <select
                   value={identity.title}
-                  onChange={e => setIdentityTitle(e.target.value)}
+                  onChange={e => { setIdentityTitle(e.target.value); setHover(null); }}
                   aria-label="Identity"
+                  {...hoverProps(identity.code)}
                   data-testid="identity-select"
                   className="w-full mt-1 bg-slate-900 border border-slate-700 rounded-xl px-2 py-1.5 text-xs"
                 >
@@ -366,7 +384,7 @@ export const DeckBuilder: React.FC<DeckBuilderProps> = ({ initial, onSave, onCan
                 <ul className="flex flex-col gap-1 text-xs">
                   {limited.map(({ card, text }) => (
                     <li key={card.code}>
-                      <button onClick={() => setZoomCode(card.code)} className="hover:underline text-left">{card.title}</button>
+                      <button onClick={() => setZoomCode(card.code)} className="hover:underline text-left" {...hoverProps(card.code)}>{card.title}</button>
                       <div className="text-[11px] text-red-300/90">{text}</div>
                     </li>
                   ))}
@@ -399,7 +417,7 @@ export const DeckBuilder: React.FC<DeckBuilderProps> = ({ initial, onSave, onCan
                         >
                           <Plus className="w-3 h-3" />
                         </button>
-                        <button onClick={() => setZoomCode(c.code)} className="truncate text-left hover:underline flex-1">
+                        <button onClick={() => setZoomCode(c.code)} className="truncate text-left hover:underline flex-1" {...hoverProps(c.code)}>
                           {c.title}
                         </button>
                         {formatMarker(c)}
@@ -413,12 +431,9 @@ export const DeckBuilder: React.FC<DeckBuilderProps> = ({ initial, onSave, onCan
           </aside>
         </div>
       </div>
+      {hover && !zoomCode && <CardPopout card={asInstance(hover.code)} targetRect={hover.rect} />}
       <CardZoomModal
-        card={
-          zoomCode
-            ? { instanceId: 'deckbuilder-zoom', cardCode: zoomCode, isRezzed: true, advancementCounters: 0, tokens: {}, hostedCardIds: [] }
-            : null
-        }
+        card={zoomCode ? asInstance(zoomCode) : null}
         onClose={() => setZoomCode(null)}
       />
     </div>
