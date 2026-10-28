@@ -8,7 +8,7 @@ import { countersWorth } from './counterValues';
 import { AI_BREAKER_SHARE, breakerTypeWorth, flatIceWorth, iceWorth } from './iceValues';
 import { payoutWait, payoutWorth, profileOf, turnsLeft } from './cardProfiles';
 import { HAND_FLOOR, clickPrice, handByCard, handSchedule, heldWorth, ownHandValue, playedWorth, scheduleValue } from './handValues';
-import { CLICK, RATES, cardRate, creditValue, flatRate, flatlineWorth, handFilter, pointValue, sideCreditValue } from './valueModel';
+import { CLICK, RATES, cardRate, creditValue, flatRate, flatlineWorth, handFilter, memo, pointValue, sideCreditValue } from './valueModel';
 import { PACE, coreSlotWorth, flatlineOdds, runSuccess } from './effectValues';
 import { trashedCardCost } from './runs';
 
@@ -288,6 +288,14 @@ export function tagThreat(state: GameState, viewer: SideCode): number {
  */
 export function tagsWorth(state: GameState, viewer: SideCode, tags = state.runner.tags): number {
   if (tags <= 0) return 0;
+  const perTurn = memo(state, 'tagLoss:' + viewer, () => tagLossPerTurn(state, viewer));
+  const clear = CLICK + 2;
+  // Kept, a tag costs this turn's loss and maybe the next; the Runner clears the ones that cost more than clearing
+  return Math.min(tags * clear, 1.5 * perTurn + 0.1 * (tags - 1));
+}
+
+/** What a tagged Runner stands to lose each Corp turn, as `viewer` sees it. */
+function tagLossPerTurn(state: GameState, viewer: SideCode): number {
   const corp = state.corp;
   // The best resource the Corp would trash, net of what trashing costs it
   const rig = runnerRigValue(state, true, viewer);
@@ -303,10 +311,7 @@ export function tagsWorth(state: GameState, viewer: SideCode, tags = state.runne
     held = 1 - (1 - share) ** corp.hq.length;
   }
   const punish = held * trashedCardCost(state);
-  const perTurn = Math.max(trash, 0) + punish + (punishes(corp.identity) ? 1 : 0);
-  const clear = CLICK + 2;
-  // Kept, a tag costs this turn's loss and maybe the next; the Runner clears the ones that cost more than clearing
-  return Math.min(tags * clear, 1.5 * perTurn + 0.1 * (tags - 1));
+  return Math.max(trash, 0) + punish + (punishes(corp.identity) ? 1 : 0);
 }
 
 /** A side's clicks left and its hand: the hand schedule for the viewer's own side (plan.handSchedule), else each on its own. */

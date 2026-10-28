@@ -3,7 +3,7 @@ import { counters } from '../core/engine/cardEffects';
 import { PAYOUT_RISK, turnsLeft } from './cardProfiles';
 import { COUNTER_WORTH, counterWorth } from './counterValues';
 import { tuning } from './synergy';
-import { CLICK, RATES, cardRate, flatRate, flatlineWorth, pointGain, pointValue, sideCards } from './valueModel';
+import { CLICK, RATES, cardRate, flatRate, flatlineWorth, memo, pointGain, pointValue, sideCards } from './valueModel';
 import { tagsWorth } from './evaluate';
 import { iceCost } from './runs';
 
@@ -109,12 +109,14 @@ export function runSuccess(state: GameState, serverId: string): number {
   const server = state.corp.servers[serverId];
   // Pricing the ice can come back here (a subroutine that trashes a card prices the rig): the guess, inside
   if (!tuning.plan.runOpenness || !server || pricingIce) return PACE.success;
-  pricingIce = true;
-  try {
-    return passOdds(state, server.ice);
-  } finally {
-    pricingIce = false;
-  }
+  return memo(state, 'runSuccess:' + serverId, () => {
+    pricingIce = true;
+    try {
+      return passOdds(state, server.ice);
+    } finally {
+      pricingIce = false;
+    }
+  });
 }
 
 function passOdds(state: GameState, ices: CardInstance[]): number {
@@ -149,6 +151,10 @@ const lock = (): number => (tuning.plan.runOpenness ? LOCKDOWN : 1);
 
 /** Chance a Corp card the Runner hasn't seen is an agenda, and the points of a typical agenda (decklist). */
 export function agendaOdds(state: GameState): { odds: number; points: number } {
+  return memo(state, 'agendaOdds', () => countAgendaOdds(state));
+}
+
+function countAgendaOdds(state: GameState): { odds: number; points: number } {
   const corp = sideCards(state, 'corp');
   const agendas = corp.filter(c => cardDef(c).type_code === 'agenda');
   const unseen = corp.length - state.corp.scoreArea.length - state.runner.scoreArea.length - state.corp.archives.faceUp.length;

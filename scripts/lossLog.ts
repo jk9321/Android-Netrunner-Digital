@@ -247,8 +247,17 @@ export function playLogged(start: GameState, agents: { corp: Agent; runner: Agen
   const lowRezzes: { turn: number; cost: number }[] = [];
   let runnerTurnStart: GameState | null = null;
   let corpTurnStart: GameState | null = null;
+  const traced = !!process.env.TRACE;
+  let tracedTurn = -1;
+  let t0 = Date.now();
   for (let steps = 0; steps < 4000 && runner.state.turnNumber <= 80; steps++) {
     const before = runner.state;
+    if (traced && before.turnNumber !== tracedTurn) {
+      console.error(`  turn ${before.turnNumber} ${before.activePlayer} step ${steps} +${((Date.now() - t0) / 1000).toFixed(1)} s`);
+      tracedTurn = before.turnNumber;
+      if (Number(process.env.STOP_TURN ?? 0) === before.turnNumber) process.exit(0);
+      t0 = Date.now();
+    }
     if (before.activePlayer === 'runner' && runnerTurnStart?.turnNumber !== before.turnNumber) {
       runnerTurnStart = before;
       if (before.turnNumber <= 2) {

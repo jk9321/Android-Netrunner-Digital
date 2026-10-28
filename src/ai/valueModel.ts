@@ -106,6 +106,38 @@ export function pointValue(score: number): number {
   return value;
 }
 
+/** What a position holds that the value helpers read: two calls with the same fingerprint on the same state agree. */
+function fingerprint(state: GameState): string {
+  const { corp, runner } = state;
+  const ids = (cards: CardInstance[]) => cards.map(c => c.instanceId + (c.isRezzed ? 'r' : '') + (c.hostedCards?.length ?? '')).join(',');
+  const servers = Object.values(corp.servers).map(s => s.id + ':' + ids(s.ice) + '/' + ids(s.root)).join(';');
+  return [
+    state.turnNumber, state.activePlayer, corp.credits, corp.clicks, corp.score, corp.hq.length, corp.rd.length, corp.archives.faceUp.length, corp.archives.faceDown.length,
+    runner.credits, runner.clicks, runner.score, runner.tags, runner.grip.length, runner.stack.length, ids(runner.rig.programs), ids(runner.rig.hardware), ids(runner.rig.resources), servers,
+  ].join('|');
+}
+
+const memos = new WeakMap<GameState, { print: string; values: Map<string, unknown> }>();
+
+/**
+ * A value worked out once per position: the AI prices the same board many
+ * times over in one decision (each ice's subroutines price the rig, which
+ * prices runs on each server...). Kept on the state object, and dropped if
+ * the state is changed in place (tests do).
+ */
+export function memo<T>(state: GameState, key: string, work: () => T): T {
+  const print = fingerprint(state);
+  let entry = memos.get(state);
+  if (!entry || entry.print !== print) {
+    entry = { print, values: new Map() };
+    memos.set(state, entry);
+  }
+  if (entry.values.has(key)) return entry.values.get(key) as T;
+  const value = work();
+  entry.values.set(key, value);
+  return value;
+}
+
 /** True while a plan.flatRates piece is on. */
 export const flatRate = (key: string): boolean => !!tuning.plan.flatRates?.[key];
 

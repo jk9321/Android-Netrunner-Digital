@@ -37,6 +37,8 @@ const records: GameRecord[] = [];
 // Each pairing's deals are seeded 10 apart (as a 10-a-pairing batch always was), so a topped-up batch plays the same games.
 const from = Number(process.env.GAME_FROM ?? 0);
 const stride = Math.max(10, games);
+// SEED=n plays only that deal (to look into one game)
+const onlySeed = Number(process.env.SEED ?? 0);
 let pairing = 0;
 let deal = 0;
 for (const c of corpDecks) {
@@ -44,10 +46,15 @@ for (const c of corpDecks) {
     pairing++;
     for (let g = from; g < games; g++) {
       const seed = 1000 + (pairing - 1) * stride + g + 1;
+      if (onlySeed && seed !== onlySeed) {
+        deal++;
+        continue;
+      }
       if (deal++ % shards !== shard) continue;
       const agent = (side: 'corp' | 'runner') =>
         createAgent(side, level, level === 'hard' ? { samples: 6, candidates: 3, seed } : {});
       const started = Date.now();
+      if (process.env.TRACE) console.error(`start deal ${seed} ${c.name} vs ${r.name}`);
       try {
         records.push(playLogged(createInitialGameState(deckGameSetup(seed, c, r)), { corp: agent('corp'), runner: agent('runner') }, { corp: c.name, runner: r.name }));
       } catch (err) {
