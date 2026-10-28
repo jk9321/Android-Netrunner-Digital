@@ -221,8 +221,12 @@ export const tuning = {
      */
     /** Both sides: a click is worth 1.25 credits (at least 1), not 1 (per deciding side). */
     clickRate: { corp: true, runner: true } as Record<SideCode, boolean>,
-    /** Per deciding side (Jeff, 2026-10-28): its own clicks priced by the best plays in hand, at least a credit (handValues.ts clickWorth). */
-    clickByPlay: { corp: true, runner: true } as Record<SideCode, boolean>,
+    /**
+     * Per deciding side (Jeff, 2026-10-28): its own clicks priced by the best plays in hand, at least a credit (handValues.ts clickWorth).
+     * Batches (2,210 games each): Corp side 29.7% -> 21.6% (the Corp clicks for cards over credits and runs dry), Runner side 29.7% -> 29.7%.
+     * Corp off, kept for re-testing; Runner on (neutral, Jeff's design).
+     */
+    clickByPlay: { corp: false, runner: true } as Record<SideCode, boolean>,
     /** Both sides: credits slide against a need (the deck's build target or the board's need, whichever is more) instead of a flat bonus under 6 (per deciding side). */
     creditSlide: { corp: true, runner: true } as Record<SideCode, boolean>,
     /** Both sides: agenda points are worth more the closer they take a side to 7. */
@@ -262,8 +266,12 @@ export const tuning = {
     cardFixes: true,
     /** Value hacks replaced by the model, by group (Jeff, 2026-10-28; effectValues.ts). */
     modelHacks: { rez: true, rezPriority: true, purge: true, bonuses: true, iceAdvance: true } as Record<string, boolean>,
-    /** Per deciding side (Jeff, 2026-10-28): its own hand valued card by card, by what each will do once played (handValues.ts). */
-    handByCard: { corp: true, runner: true } as Record<SideCode, boolean>,
+    /**
+     * Per deciding side (Jeff, 2026-10-28): its own hand valued card by card, by what each will do once played (handValues.ts).
+     * Batches: each side loses with it (Corp side 32.2% -> 28.0%, Runner side 32.2% -> 35.9% Corp) and the Runner draws at a
+     * full hand on 55% of turns. Off on both sides, kept for re-testing.
+     */
+    handByCard: { corp: false, runner: false } as Record<SideCode, boolean>,
     /** Both sides: subroutine costs (tags, damage, trashed cards, lost credits) from the rates (runs.ts). */
     subCosts: true,
     /** Both sides (step 5, Jeff): ice is worth what it costs the Runner to get past it, not its rez cost (per deciding side). */
