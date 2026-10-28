@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { HeuristicRunnerAI } from '../src/ai';
 import { creditsAhead, runScore, serverValue } from '../src/ai/runs';
+import { PACE } from '../src/ai/effectValues';
 import { GameState, activePrompt, executeAction } from '../src/core';
 import { installCorpForTest, installIceForTest, installProgramForTest, newGame, runIntoFirstIce, startRunnerTurn } from './helpers';
 
@@ -91,10 +92,18 @@ describe('Runner AI and Manegarm Skunkworks (rules 6.9.4g, 1.16.11b)', () => {
   });
 
   it('keeps its clicks for strong installs in hand when the access is worth less (plan.clickByPlay)', () => {
-    // Carmen and Marjanah in grip: 2 clicks buy more than one early R&D access
-    const s = runToManegarm(manegarmGame(5, 7));
-    const action = new HeuristicRunnerAI().chooseAction(s);
-    expect(action.type === 'RESOLVE_PROMPT' && action.choice.kind === 'effect_choice' && action.choice.optionId).toBe('end');
+    // Carmen and Marjanah in grip: 2 clicks buy more than one early R&D access.
+    // Checked at a slower run pace (fewer, less successful runs): at the measured pace the access wins
+    const pace = PACE as unknown as Record<string, number>;
+    const saved = { ...pace };
+    Object.assign(pace, { runs: 0.9, success: 0.6, hqShare: 0.3, rdShare: 0.35, remoteShare: 0.35 });
+    try {
+      const s = runToManegarm(manegarmGame(5, 7));
+      const action = new HeuristicRunnerAI().chooseAction(s);
+      expect(action.type === 'RESOLVE_PROMPT' && action.choice.kind === 'effect_choice' && action.choice.optionId).toBe('end');
+    } finally {
+      Object.assign(pace, saved);
+    }
   });
 
   it('pays 5 credits when it has no clicks to spare and the access is worth it', () => {

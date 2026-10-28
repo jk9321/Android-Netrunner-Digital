@@ -19,24 +19,30 @@ import { iceCost } from './runs';
  * when it is off.
  */
 
-/** How often things happen, per Runner turn, in self-play (behaviour logs, 2026-10-28). */
+/**
+ * How often things happen, per Runner turn, in self-play. Measured averages,
+ * not guesses (Jeff, 2026-10-28): runs, shares, success, agenda events and
+ * rezzes from scripts/pace.ts (663 games at f01f346, 8,484 Runner turns);
+ * the rest from the behaviour logs. Re-measure after every Corp or Runner AI change.
+ */
 export const PACE = {
-  /** Runs a turn, and the share of them on HQ, R&D and a remote. */
-  runs: 0.9,
-  hqShare: 0.3,
-  rdShare: 0.35,
-  remoteShare: 0.35,
-  /** Share of runs on R&D while Conduit is installed. */
+  /** Runs a turn, and the share of them on HQ, R&D, Archives and a remote. */
+  runs: 1.2,
+  hqShare: 0.25,
+  rdShare: 0.23,
+  archivesShare: 0.14,
+  remoteShare: 0.38,
+  /** Share of runs on R&D while Conduit is installed (too few Conduit runs measured, 30: kept). */
   conduitRdShare: 0.6,
   /** Share of runs that succeed. */
-  success: 0.6,
+  success: 0.82,
   /** Turns the Runner steals or trashes a Corp card, and trashes something it pays for. */
   stealOrTrash: 0.35,
   paidTrashes: 0.3,
   /** Agendas scored or stolen a turn, both sides together. */
-  agendaEvents: 0.5,
+  agendaEvents: 0.34,
   /** Ice rezzed a turn. */
-  rezzes: 0.7,
+  rezzes: 0.37,
   /** Turns the Runner installs a program, and has ice in hand (Corp). */
   programInstalls: 0.3,
   iceInHand: 0.6,

@@ -192,8 +192,8 @@ export function hiddenCardOdds(state: GameState): { agenda: number; agendaCost: 
 
 export const agendaBoardValue = (counters: number, cost: number) => counters * RATES.advancement + (counters >= cost ? RATES.scoreableAgenda : 0);
 
-/** Chance the Runner runs a server holding an advanced agenda on its turn (a guess: most turns it can). */
-export const AGENDA_RUN = 0.6;
+/** Chance the Runner runs a remote holding an advanced agenda on its turn (measured, scripts/pace.ts at f01f346: 40% of 1,928 turns). */
+export const AGENDA_RUN = 0.4;
 
 /**
  * An installed agenda (Jeff, 2026-10-28; plan.agendaBoard): its points on
@@ -216,11 +216,12 @@ export function agendaWorth(state: GameState, counters: number, cost: number, po
  * An agenda in Archives (plan.agendaBoard): a breach of Archives turns its
  * facedown cards faceup and the Runner accesses them all (rules 7.3.2,
  * 7.4), so a discarded agenda is a likely steal: its points to the Runner,
- * by the odds of a successful Archives run on one of the turns left.
+ * by the odds of a successful Archives run (as often as the Runner runs
+ * Archives, scripts/pace.ts) on one of the turns left.
  */
 export function archivedAgendaLoss(state: GameState, points: number): number {
   const gain = pointValue(state.runner.score + points) - pointValue(state.runner.score);
-  const perTurn = AGENDA_RUN * runSuccess(state, 'archives');
+  const perTurn = Math.min(1, PACE.runs * PACE.archivesShare) * runSuccess(state, 'archives');
   return gain * (1 - (1 - perTurn) ** turnsLeft(state));
 }
 

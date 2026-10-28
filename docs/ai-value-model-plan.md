@@ -127,6 +127,7 @@ Each card describes what it produces; its value is computed from the rates and t
 - Normal and Hard both use the model (Jeff). Hard stays at 1 s per decision if possible; Jeff allows more if it makes Hard better.
 - Balance target: self-play Corp 50 ± 5%. Report Corp loss reasons with every batch.
 - AI bug fixes only need a small sample, not a full batch.
+- Run pace (Jeff, 2026-10-28): PACE and AGENDA_RUN are averages measured from self-play (`scripts/pace.ts`, `scripts/pace-sum.mjs`). Re-measure them after every Corp or Runner AI change (either one changes how often and where the Runner runs) and update the constants.
 - Check rules questions against the comprehensive rules (`Null_Signal_Games_Netrunner_Comprehensive_Rules_v26.03.pdf`) and cite the rule.
 - Commit straight to main only for small fixes; this rework stays on a branch until Jeff approves a merge.
 
