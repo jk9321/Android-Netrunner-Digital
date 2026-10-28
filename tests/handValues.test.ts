@@ -90,3 +90,16 @@ describe('a click priced by the best play in hand (Jeff, 2026-10-28; plan.clickB
     tuning.plan.handSchedule = saved.schedule;
   });
 });
+
+describe('discards by model worth (Jeff, 2026-10-28; plan.keepByModel)', () => {
+  it('keeps the card worth more once played, not by its type', async () => {
+    const { keepValue } = await import('../src/ai/evaluate');
+    const s = newGame();
+    s.runner.credits = 10;
+    const marjanah = createCardInstance(s, '30016');
+    const leech = createCardInstance(s, '30008');
+    expect(keepValue(s, marjanah)).toBeCloseTo(Math.max(HAND_FLOOR, playedWorth(s, marjanah) + CLICK));
+    expect(keepValue(s, marjanah)).toBeGreaterThan(keepValue(s, leech));
+    expect(keepValue(s, leech)).toBeGreaterThanOrEqual(HAND_FLOOR);
+  });
+});

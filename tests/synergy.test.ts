@@ -242,12 +242,14 @@ describe('planning (setup scoring)', () => {
     const shelved = tuning.plan.breakerFocus; // switched off for now; the logic is kept for re-testing
     tuning.plan.breakerFocus = true;
     tuning.plan.breakerCredits.runner = false;
+    tuning.plan.keepByModel = false; // the old flat keep values
     try {
       expect(keepValue(s, killer, true)).toBeGreaterThan(keepValue(s, decoder, true));
       expect(keepValue(s, killer, false)).toBe(keepValue(s, decoder, false));
     } finally {
       tuning.plan.breakerFocus = shelved;
       tuning.plan.breakerCredits.runner = true;
+      tuning.plan.keepByModel = true;
     }
   });
 

@@ -266,6 +266,8 @@ export const tuning = {
     cardFixes: true,
     /** Jeff, 2026-10-28: the last hand-set counter rates (20 cards) worked out from what each counter turns into (counterValues.ts). */
     counterFormulas: true,
+    /** Jeff, 2026-10-28: discards and trashes from hand by each card's model worth, not flat numbers by type (evaluate.ts keepValue). */
+    keepByModel: true,
     /** Value hacks replaced by the model, by group (Jeff, 2026-10-28; effectValues.ts). */
     modelHacks: { rez: true, rezPriority: true, purge: true, bonuses: true, iceAdvance: true } as Record<string, boolean>,
     /**

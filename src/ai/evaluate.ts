@@ -7,8 +7,8 @@ import { corpKeepValue, runnerCardValue } from './cardValues';
 import { countersWorth } from './counterValues';
 import { AI_BREAKER_SHARE, breakerTypeWorth, flatIceWorth, iceWorth } from './iceValues';
 import { payoutWait, payoutWorth, profileOf, turnsLeft } from './cardProfiles';
-import { clickPrice, handByCard, handSchedule, ownHandValue, scheduleValue } from './handValues';
-import { RATES, creditValue, handFilter, pointValue, sideCreditValue } from './valueModel';
+import { HAND_FLOOR, clickPrice, handByCard, handSchedule, ownHandValue, playedWorth, scheduleValue } from './handValues';
+import { CLICK, RATES, creditValue, handFilter, pointValue, sideCreditValue } from './valueModel';
 
 export { creditValue };
 
@@ -270,6 +270,8 @@ export function evaluate(state: GameState, side: SideCode, aware = false): numbe
  * for effects that trash, shuffle away or fetch cards).
  */
 export function keepValue(state: GameState, card: CardInstance, aware = false): number {
+  // Jeff, 2026-10-28 (plan.keepByModel): what the card adds once played, before its click (at least the hand floor)
+  if (tuning.plan.keepByModel) return Math.max(HAND_FLOOR, playedWorth(state, card) + CLICK);
   const def = cardDef(card);
   if (def.side_code === 'corp') {
     switch (def.type_code) {
