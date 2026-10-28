@@ -62,7 +62,10 @@ function paidOneATurn(n: number): number {
 
 function trojanHostWorth(state: GameState, card: CardInstance, worth: (host: CardInstance) => number): number {
   const host = card.hostedOnId ? findCardAnywhere(state, card.hostedOnId) : undefined;
-  return host ? worth(host) : 0;
+  if (host) return worth(host);
+  // Not installed yet (in hand): on the best rezzed ice it could go on
+  const rezzed = Object.values(state.corp.servers).flatMap(s => s.ice).filter(i => i.isRezzed);
+  return rezzed.length ? Math.max(...rezzed.map(worth)) : 0.5;
 }
 
 /** Step-1 rates, for cards without an entry. */

@@ -224,8 +224,8 @@ export function runnerEffect(state: GameState, code: string, card?: CardInstance
       return MU + perTurn(state, PACE.runs * PACE.success * counterWorthOf(state, code, 'credit'), 'runner');
     case '30024': // Conduit: a counter (1 more card accessed) for each successful R&D run; with Conduit out, most runs go to R&D
       return perTurn(state, PACE.runs * PACE.conduitRdShare * PACE.success * counterWorthOf(state, code, 'virus'), 'runner');
-    case '30033': // Smartware Distributor: a click turns into 3 credits paid out over 3 turns, now and then
-      return Math.max(0.5, 3 * 0.9 - CLICK);
+    case '30033': // Smartware Distributor: a spare click turns into 3 credits paid out over 3 turns, about every other turn
+      return perTurn(state, 0.5 * Math.max(0, 3 * 0.9 - CLICK), 'runner');
     case '35010': // Cacophony: a power counter the first time each turn it steals or trashes a Corp card
       return perTurn(state, PACE.stealOrTrash * counterWorthOf(state, code, 'power'), 'runner');
     case '35029': // Azimat: its 2 credits refill each turn it has a trash cost to pay

@@ -209,7 +209,7 @@ describe('the last hand-set cards, priced by what they do (Jeff, 2026-10-28)', (
   });
 
   it('Smartware Distributor and Side Hustle: what the click or the runs still turn into', () => {
-    expect(rig('30033')).toBeCloseTo(3 * 0.9 - CLICK);
+    expect(rig('30033')).toBeGreaterThan(3 * 0.9 - CLICK); // used again about every other turn
     expect(rig('35034')).toBeGreaterThan(RATES.drawnCard);
   });
 

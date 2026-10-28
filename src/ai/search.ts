@@ -7,6 +7,7 @@ import { evaluate } from './evaluate';
 import { GameRunner } from './playout';
 import { RunnerMemory } from './runs';
 import { logNudge } from './synergy';
+import { noteKnownHand } from './handValues';
 
 /**
  * Hard AI: Monte Carlo look-ahead on top of the rule-based AI.
@@ -171,6 +172,7 @@ export class SearchAI implements Agent {
   }
 
   chooseAction(state: GameState): GameAction {
+    noteKnownHand(state, this.side);
     // Prompts and the steps of a run follow the rule-based AI's judgement
     if (activePrompt(state) || state.activeRun || state.turnStep?.kind === 'corp_turn_start') return this.base.chooseAction(state);
     if (this.base instanceof HeuristicRunnerAI) this.base.observe(state);
@@ -183,6 +185,7 @@ export class SearchAI implements Agent {
       return ranked[0].action;
     }
     const best = this.search(state, ranked.slice(0, this.options.candidates).map(c => ({ ...c, first: c.action })), this.options.timeMs).action;
+    noteKnownHand(state, this.side); // the look-ahead noted its own hands
     this.base.notePlayed(best); // keeps the rule-based AI's loop guard in step
     if (this.options.debug) logNudge(state, this.side, best);
     return best;

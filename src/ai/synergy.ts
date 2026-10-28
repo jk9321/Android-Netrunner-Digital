@@ -256,6 +256,8 @@ export const tuning = {
     effectValues: true,
     /** Runner (Jeff, 2026-10-28): runs scored in the model's units, credits on the slide, steals on the point clock (runs.ts). */
     runModel: true,
+    /** Per deciding side (Jeff, 2026-10-28): its own hand valued card by card, by what each will do once played (handValues.ts). */
+    handByCard: { corp: true, runner: true } as Record<SideCode, boolean>,
     /** Both sides: subroutine costs (tags, damage, trashed cards, lost credits) from the rates (runs.ts). */
     subCosts: true,
     /** Both sides (step 5, Jeff): ice is worth what it costs the Runner to get past it, not its rez cost (per deciding side). */

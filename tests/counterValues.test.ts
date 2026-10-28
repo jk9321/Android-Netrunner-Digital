@@ -66,8 +66,9 @@ describe('counters are worth what they do on their card (value model step 3)', (
     const ice = s.corp.servers['remote-9'].ice[0];
     const tranqWorth = counterWorth(s, prog(tranq), 'virus', 'runner');
     expect(tranqWorth).toBeCloseTo(ice.isRezzed ? rezCost(s, ice) / 3 : 0.3);
-    // A trojan with no host is worth nothing
-    expect(counterWorth(s, { ...prog(botulus), hostedOnId: undefined }, 'virus', 'runner')).toBe(0);
+    // A trojan not installed yet (in hand) is priced on the best rezzed ice it could go on, or 0.5 with none rezzed
+    const unhosted = { ...prog(botulus), hostedOnId: undefined };
+    expect(counterWorth(s, unhosted, 'virus', 'runner')).toBe(ice.isRezzed ? 3 : 0.5);
   });
 
   it('every entry is tested above, and switching the piece off restores the step-1 rates', () => {

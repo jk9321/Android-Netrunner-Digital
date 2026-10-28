@@ -7,6 +7,7 @@ import { digValue, evaluate, rigCoverage } from './evaluate';
 import { answerPrompt, runEventOptions, simulate } from './prompts';
 import type { HeuristicOptions } from './corpAI';
 import { logNudge, nudge, tuning } from './synergy';
+import { noteKnownHand } from './handValues';
 import { BOTULUS, RunnerMemory, TRANQUILIZER, MANEGARM, bestBreakPlan, botulusBreaks, hostedTrojans, creditsAhead, iceCreditsAhead, iceCost, iceCreditNeed, needsBiggerHand, runScore, runShortfall, serverValue, spendCost, subroutineCost } from './runs';
 import { RATES } from './valueModel';
 
@@ -33,6 +34,7 @@ export class HeuristicRunnerAI implements Agent {
   }
 
   chooseAction(state: GameState): GameAction {
+    noteKnownHand(state, 'runner');
     this.remember(state);
     if (activePrompt(state)) return answerPrompt(state, 'runner', this.memory, this.synergy);
     const legal = getLegalActions(state, 'runner');
@@ -161,6 +163,7 @@ export class HeuristicRunnerAI implements Agent {
 
   /** Main-phase actions, best first, with this AI's score for each (the search AI starts from these). */
   rankMainActions(state: GameState, legal = getLegalActions(state, 'runner')): ScoredAction[] {
+    noteKnownHand(state, 'runner');
     this.freeActions.start(state, state.runner.clicks);
     const before = evaluate(state, 'runner', this.synergy);
     // Nowhere worth running and breakers missing: dig for them
