@@ -3,7 +3,8 @@ name: AI batch
 # Self-play batches for the AI work (scripts/corp-losses.ts), split across
 # runners so a batch takes minutes instead of an hour. Started by hand:
 # Actions > AI batch > Run workflow, or the API. The summary job's log and
-# artifact hold the same breakdown as scripts/corp-losses.sh.
+# artifact hold the same breakdown as scripts/corp-losses.sh; the summary is
+# also committed to the ai-batch-results branch as results/<run id>.txt.
 on:
   workflow_dispatch:
     inputs:
@@ -29,6 +30,10 @@ on:
         default: normal
       label:
         description: What this batch tests (for the log)
+        required: false
+        default: ''
+      add_run:
+        description: Run id of an earlier batch to add in (a top-up sums both); empty for none
         required: false
         default: ''
 
@@ -69,6 +74,9 @@ jobs:
   summary:
     needs: shard
     runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      actions: read
     steps:
       - uses: actions/checkout@v4
         with:
@@ -76,14 +84,35 @@ jobs:
       - uses: actions/download-artifact@v4
         with:
           path: out
+          pattern: shard-*
           merge-multiple: true
+      - if: inputs.add_run != ''
+        uses: actions/download-artifact@v4
+        with:
+          path: earlier
+          pattern: shard-*
+          merge-multiple: true
+          run-id: ${{ inputs.add_run }}
+          github-token: ${{ github.token }}
       - name: Sum
         run: |
-          echo "Batch: ${{ inputs.label }} | ref ${{ inputs.ref }} | games ${{ inputs.game_from }}-${{ inputs.games }} | PLAN_OFF=${{ inputs.plan_off }}"
-          node scripts/corp-losses-sum.mjs out/*.json | tee summary.txt
+          [ -d earlier ] && for f in earlier/*.json; do cp "$f" "out/earlier-$(basename "$f")"; done
+          {
+            echo "Batch: ${{ inputs.label }} | ref ${{ inputs.ref }} | games ${{ inputs.game_from }}-${{ inputs.games }} | PLAN_OFF=${{ inputs.plan_off }} | added run ${{ inputs.add_run }}"
+            node scripts/corp-losses-sum.mjs out/*.json
+          } | tee summary.txt
       - uses: actions/upload-artifact@v4
         with:
           name: summary
-          path: |
-            summary.txt
-            out/
+          path: summary.txt
+      - name: Keep the summary on the ai-batch-results branch
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          cp summary.txt /tmp/summary.txt
+          if git fetch --depth=1 origin ai-batch-results; then git checkout -B ai-batch-results FETCH_HEAD; else git checkout --orphan ai-batch-results && git rm -rqf .; fi
+          mkdir -p results
+          cp /tmp/summary.txt "results/${{ github.run_id }}.txt"
+          git add results
+          git commit -qm "Batch ${{ github.run_id }}: ${{ inputs.label }}"
+          for i in 1 2 3; do git push origin ai-batch-results && break; git pull --rebase origin ai-batch-results; done
