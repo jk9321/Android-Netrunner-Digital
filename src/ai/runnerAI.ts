@@ -7,7 +7,8 @@ import { digValue, evaluate, rigCoverage } from './evaluate';
 import { answerPrompt, runEventOptions, simulate } from './prompts';
 import type { HeuristicOptions } from './corpAI';
 import { logNudge, nudge, tuning } from './synergy';
-import { BOTULUS, RunnerMemory, TRANQUILIZER, MANEGARM, bestBreakPlan, botulusBreaks, hostedTrojans, creditsAhead, iceCreditsAhead, iceCost, iceCreditNeed, needsBiggerHand, runScore, runShortfall, serverValue, subroutineCost } from './runs';
+import { BOTULUS, RunnerMemory, TRANQUILIZER, MANEGARM, bestBreakPlan, botulusBreaks, hostedTrojans, creditsAhead, iceCreditsAhead, iceCost, iceCreditNeed, needsBiggerHand, runScore, runShortfall, serverValue, spendCost, subroutineCost } from './runs';
+import { RATES } from './valueModel';
 
 const TROJANS = [BOTULUS, TRANQUILIZER];
 
@@ -208,10 +209,10 @@ export class HeuristicRunnerAI implements Agent {
     if (prompt?.kind === 'effect_choice' && prompt.side === 'runner' && prompt.options.every(o => after.corp.servers[o.id])) {
       const options = { ...runEventOptions(prompt.source.cardCode), memory: this.memory, wary: this.synergy && tuning.wary, urgent: this.synergy && tuning.plan.urgency };
       const best = Math.max(...prompt.options.map(o => runScore(state, o.id, options)));
-      return best - paid * 0.6 + (prompt.source.cardCode === '30028' ? (tuning.plan.drawValue?.runner ? 1.3 : 0.5) : 0); // Jailbreak draws a card
+      return best - spendCost(state, paid) + (prompt.source.cardCode === '30028' ? (tuning.plan.runModel ? RATES.drawnCard : tuning.plan.drawValue?.runner ? 1.3 : 0.5) : 0); // Jailbreak draws a card
     }
     if (!state.activeRun && after.activeRun) {
-      return runScore(state, after.activeRun.server, { ...runEventOptions(cardCode ?? ''), memory: this.memory, wary: this.synergy && tuning.wary, urgent: this.synergy && tuning.plan.urgency }) - paid * 0.6 + 0.3;
+      return runScore(state, after.activeRun.server, { ...runEventOptions(cardCode ?? ''), memory: this.memory, wary: this.synergy && tuning.wary, urgent: this.synergy && tuning.plan.urgency }) - spendCost(state, paid) + 0.3;
     }
 
     // Follow our own prompts (Lie Low, Scrounge, Madani) a few steps

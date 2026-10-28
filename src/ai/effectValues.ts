@@ -72,9 +72,12 @@ export function accessWorth(state: GameState): number {
 
 /** Worth of n net or meat damage to the Runner: the cards lost, or the game if it flatlines. */
 export function damageWorth(state: GameState, n: number): number {
-  if (n > state.runner.grip.length) return 2 * RATES.point; // a flatline ends the game: as much as a big agenda
+  if (n > state.runner.grip.length) return FLATLINE;
   return n * RATES.drawnCard;
 }
+
+/** A flatline ends the game: priced like half of a whole game of agenda points. */
+export const FLATLINE = 4 * RATES.point;
 
 /** Average net credits of a transaction operation in the Corp's deck (Plutus replays them). */
 function transactionGain(state: GameState): number {

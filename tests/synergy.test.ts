@@ -1,3 +1,4 @@
+import { FLATLINE } from '../src/ai/effectValues';
 import { describe, expect, it } from 'vitest';
 import { ALL_CARDS, CardInstance, GameAction, GameState, createCardInstance, createInitialGameState, executeAction, getCardDefinition } from '../src/core';
 import { digValue, handValue, keepValue, tagThreat } from '../src/ai/evaluate';
@@ -180,19 +181,23 @@ describe('trap caution', () => {
     s.corp.servers['remote-9'] = { id: 'remote-9', name: 'Server 9', isRemote: true, ice: [], root: [card] };
     s.runner.grip = s.runner.grip.slice(0, 2);
     expect(serverValue(s, 'remote-9', 0, new Map(), true)).toBeGreaterThan(0);
-    // A trap shuffled back into R&D is live again
+    // A trap shuffled back into R&D is live again: the run is worth less by the chance of a flatline (plan.runModel)
+    const safe = serverValue(s, 'remote-9', 0, new Map(), true);
     s.corp.rd.push(createCardInstance(s, '30045'));
     expect(trapOdds(s, new Map())).toBeGreaterThan(0);
-    expect(serverValue(s, 'remote-9', 0, new Map(), true)).toBe(0);
+    expect(serverValue(s, 'remote-9', 0, new Map(), true)).toBeLessThan(safe - trapOdds(s, new Map()) * FLATLINE * 0.9);
   });
 
-  it('is warier of an undefended remote', () => {
+  it('is warier of an undefended remote (Jeff: agenda odds rise with what the Corp has put into the server)', () => {
     const s = structuredClone(newGame());
     s.corp.rd.push(createCardInstance(s, '30045'));
     const card = createCardInstance(s, '30067');
     s.corp.servers['remote-9'] = { id: 'remote-9', name: 'Server 9', isRemote: true, ice: [], root: [card] };
     s.runner.grip = s.runner.grip.slice(0, 3);
-    expect(serverValue(s, 'remote-9', 0, new Map(), true)).toBeLessThan(serverValue(s, 'remote-9', 0, new Map(), false));
+    const bare = serverValue(s, 'remote-9', 0, new Map(), true);
+    const guarded = structuredClone(s);
+    guarded.corp.servers['remote-9'].ice = [createCardInstance(guarded, '30072')];
+    expect(bare).toBeLessThan(serverValue(guarded, 'remote-9', 0, new Map(), true));
   });
 });
 
@@ -251,7 +256,13 @@ describe('planning (setup scoring)', () => {
     card.advancementCounters = 2;
     remote(s, 'remote-9', [card]);
     s.runner.grip = s.runner.grip.slice(0, 5);
-    expect(serverValue(s, 'remote-9', 0, new Map(), false, true)).toBeGreaterThan(serverValue(s, 'remote-9', 0, new Map(), false, false));
+    // plan.runModel: an advanced card is likelier an agenda the Corp is about to score, and denying it matters more as the Corp nears 7
+    const fresh = structuredClone(s);
+    fresh.corp.servers['remote-9'].root[0].advancementCounters = 0;
+    expect(serverValue(s, 'remote-9', 0, new Map(), false, true)).toBeGreaterThan(serverValue(fresh, 'remote-9', 0, new Map(), false, true));
+    const late = structuredClone(s);
+    late.corp.score = 5;
+    expect(serverValue(late, 'remote-9', 0, new Map(), false, true)).toBeGreaterThan(serverValue(s, 'remote-9', 0, new Map(), false, true));
   });
 
   it('plays Seamless Launch when it lets an agenda score this turn', () => {

@@ -1,3 +1,4 @@
+import { RATES } from '../src/ai/valueModel';
 import { describe, expect, it } from 'vitest';
 import { GameAction, cardDef, createCardInstance, executeAction, getCardDefinition, getLegalActions, isLegalAction } from '../src/core';
 import { makeRoomAnswers } from '../src/ai/prompts';
@@ -16,7 +17,7 @@ describe('AI judgement in fixed positions', () => {
     const state = newGame();
     expect(subroutineCost(state, 'End the run.')).toBe(Infinity);
     state.runner.grip = state.runner.grip.slice(0, 5);
-    expect(subroutineCost(state, 'Do 1 net damage.')).toBe(2);
+    expect(subroutineCost(state, 'Do 1 net damage.')).toBe(RATES.drawnCard); // a card lost (plan.subCosts)
     state.runner.grip = state.runner.grip.slice(0, 1);
     expect(subroutineCost(state, 'Do 1 net damage.')).toBe(Infinity); // would flatline
   });

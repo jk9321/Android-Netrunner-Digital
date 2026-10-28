@@ -88,8 +88,12 @@ describe('Runner AI and Manegarm Skunkworks (rules 6.9.4g, 1.16.11b)', () => {
     expect(action.type === 'RESOLVE_PROMPT' && action.choice.kind === 'effect_choice' && action.choice.optionId).toBe('clicks');
   });
 
-  it('pays 5 credits when it has no clicks to spare', () => {
-    const s = runToManegarm(manegarmGame(4, 7));
+  it('pays 5 credits when it has no clicks to spare and the access is worth it', () => {
+    // Late in the game an R&D access is worth more than 5 credits (plan.runModel: steals on the point clock)
+    const start = manegarmGame(4, 12);
+    start.corp.score = 5;
+    start.runner.score = 5;
+    const s = runToManegarm(start);
     expect(s.runner.clicks).toBeLessThan(2);
     const action = new HeuristicRunnerAI().chooseAction(s);
     expect(action.type === 'RESOLVE_PROMPT' && action.choice.kind === 'effect_choice' && action.choice.optionId).toBe('pay');

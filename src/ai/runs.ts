@@ -11,8 +11,10 @@ import {
   isBioroid,
 } from '../core/engine/ice';
 import { availableCredits, counters } from '../core/engine/cardEffects';
-import { corpCardValue } from './evaluate';
+import { corpCardValue, tagThreat } from './evaluate';
+import { agendaOdds, damageWorth } from './effectValues';
 import { tuning } from './synergy';
+import { RATES, clickRate, creditNeed, creditSlide, pointValue } from './valueModel';
 
 /**
  * What the Runner AI knows about runs. It only reads public information:
@@ -68,10 +70,11 @@ export function knownSubroutineCost(state: GameState, label: string): number | u
   if (threat) return Math.max(state.corp.score, runner.score) >= Number(threat[1]) ? BLOCK : 0;
   if (/end the run if the runner is tagged/i.test(label)) return runner.tags > 0 ? BLOCK : 1;
   if (/if the runner has at least 2 tags/i.test(label)) return runner.tags >= 2 ? (2 >= runner.grip.length ? BLOCK : 4) : 0;
-  if (/core damage/i.test(label)) return 6;
-  if (/unless they pay 3 credits/i.test(label)) return 3;
+  const rates = !!tuning.plan.subCosts;
+  if (/core damage/i.test(label)) return rates ? RATES.coreDamage + damageWorth(state, 1) : 6;
+  if (/unless they pay 3 credits/i.test(label)) return rates ? creditCost(state, 3) : 3;
   const loses = label.match(/loses? (\d+) credits?/i);
-  if (loses) return Math.min(Number(loses[1]), runner.credits);
+  if (loses) return rates ? creditCost(state, Math.min(Number(loses[1]), runner.credits)) : Math.min(Number(loses[1]), runner.credits);
   if (/or end the run/i.test(label)) return runner.rig.programs.length > 0 ? 5 : BLOCK;
   if (/odd cost/i.test(label)) return runner.grip.length <= 1 ? BLOCK : 4; // Diviner: half the time it ends the run
   if (/6 credits or less/i.test(label)) return runner.credits - 3 <= 6 ? BLOCK : 0;
@@ -79,14 +82,44 @@ export function knownSubroutineCost(state: GameState, label: string): number | u
   const damage = label.match(/(\d+) (net|meat) damage/i);
   if (damage) {
     const n = Number(damage[1]);
-    return n >= runner.grip.length ? BLOCK : 2 * n;
+    return n >= runner.grip.length ? BLOCK : rates ? damageWorth(state, n) : 2 * n;
   }
-  if (/tag/i.test(label)) return 3;
-  if (/trash 1 installed runner card/i.test(label)) return 4;
+  if (/tag/i.test(label)) return rates ? tagCost(state) : 3;
+  if (/trash 1 installed runner card/i.test(label)) return rates ? trashedCardCost(state) : 4;
   if (/gain 1 credit/i.test(label)) return 0.3;
   if (/^draw 1 card/i.test(label)) return 0.5; // Empiricist: helps the Corp a little
   if (/install/i.test(label)) return 1.5;
   return undefined;
+}
+
+/**
+ * Worth to the Runner of spending `credits` now, on the credit slide its
+ * board score uses (plan.runModel; before it, runScore's 0.6 a credit).
+ */
+export function creditCost(state: GameState, credits: number): number {
+  if (credits <= 0) return 0;
+  if (!tuning.plan.creditSlide?.runner) return credits;
+  const have = state.runner.credits;
+  const need = creditNeed(state, 'runner');
+  return creditSlide(have, need) - creditSlide(have - credits, need);
+}
+
+/** Credits spent on a run, in runScore's units: the slide with plan.runModel, 0.6 each without. */
+export const spendCost = (state: GameState, credits: number): number => (tuning.plan.runModel ? creditCost(state, credits) : 0.6 * Math.max(0, credits));
+
+/** A click spent on a run, in runScore's units. */
+export const runClick = (): number => (tuning.plan.runModel ? clickRate('runner') : 1);
+
+/** A tag taken (Jeff): the cheaper of clearing it (a click and 2 credits) and what it costs to keep it. */
+export function tagCost(state: GameState): number {
+  return Math.min(clickRate('runner') + creditCost(state, 2), RATES.tagAgainstRunner + tagThreat(state, 'runner'));
+}
+
+/** An installed card the Corp gets to trash: about the Runner's best, a breaker at its install cost and the time to replace it. */
+function trashedCardCost(state: GameState): number {
+  const rig = [...state.runner.rig.programs, ...state.runner.rig.hardware, ...state.runner.rig.resources];
+  if (rig.length === 0) return 0;
+  return Math.min(8, Math.max(...rig.map(c => (cardDef(c).cost ?? 0) + clickRate('runner') + 1)));
 }
 
 export interface BreakPlan {
@@ -203,8 +236,8 @@ export function approachCost(state: GameState, serverId: string, clicks: number,
   let paid = 0;
   for (const card of state.corp.servers[serverId]?.root ?? []) {
     if (!card.isRezzed || card.cardCode !== MANEGARM) continue;
-    const byClicks = clicks >= 2 ? 2 : Infinity;
-    const byCredits = credits - paid >= 5 ? 0.6 * 5 : Infinity;
+    const byClicks = clicks >= 2 ? 2 * runClick() : Infinity;
+    const byCredits = credits - paid >= 5 ? spendCost(state, paid + 5) - spendCost(state, paid) : Infinity;
     if (byClicks === Infinity && byCredits === Infinity) return null;
     if (byClicks <= byCredits) clicks -= 2;
     else paid += 5;
@@ -263,6 +296,73 @@ export function trapOdds(state: GameState, memory?: RunnerMemory): number {
   return traps + agendas > 0 ? traps / (traps + agendas) : 0;
 }
 
+/**
+ * Run scoring in the model's units (Jeff, 2026-10-28): stealing p points is
+ * worth what they add to the Runner's score on the point clock, plus a share
+ * of what they would have added to the Corp's (an agenda stolen is one the
+ * Corp doesn't score). The share is larger in a remote, where the Corp is
+ * about to score it.
+ */
+export const DENY = { remote: 0.6, central: 0.3 };
+
+function stealWorth(state: GameState, points: number, deny: number): number {
+  const runner = pointValue(state.runner.score + points) - pointValue(state.runner.score);
+  const corp = pointValue(state.corp.score + points) - pointValue(state.corp.score);
+  return runner + deny * corp;
+}
+
+/** Chance an unseen card in a remote's root is an agenda (Jeff: higher the more the Corp has put into the server). */
+export function remoteAgendaOdds(state: GameState, server: { ice: CardInstance[] }, card: CardInstance, trap: number): number {
+  if (card.advancementCounters > 0) return Math.max(0, 1 - trap);
+  const corp = [...state.corp.hq, ...state.corp.rd, ...state.corp.archives.faceDown, ...Object.values(state.corp.servers).flatMap(s => s.root.filter(c => !c.isRezzed && !c.faceUp))];
+  const kinds = corp.map(c => cardDef(c).type_code);
+  const agendas = kinds.filter(t => t === 'agenda').length;
+  const roots = kinds.filter(t => t === 'agenda' || t === 'asset' || t === 'upgrade').length;
+  const base = roots > 0 ? agendas / roots : 0;
+  // Ice in front of it: the Corp guards agendas more than assets
+  return Math.min(0.9, base + (1 - base) * Math.min(0.45, 0.15 * server.ice.length));
+}
+
+/** serverValue in credits (plan.runModel). */
+function serverWorth(state: GameState, serverId: string, extraAccesses: number, memory: RunnerMemory | undefined, wary: boolean, repeat: number): number {
+  const server = state.corp.servers[serverId];
+  const { odds, points } = agendaOdds(state);
+  const central = stealWorth(state, points, DENY.central);
+  let value = 0;
+  if (serverId === 'rd') value = (1 + extraAccesses) * odds * central * 0.3 ** repeat; // a second look sees the same top card
+  else if (serverId === 'hq') value = state.corp.hq.length === 0 ? 0 : Math.min(1 + extraAccesses, state.corp.hq.length) * odds * central * 0.5 ** repeat;
+  else if (serverId === 'archives') {
+    if (repeat > 0) return 0;
+    const faceUp = state.corp.archives.faceUp.filter(c => cardDef(c).type_code === 'agenda');
+    value = faceUp.reduce((n, c) => n + stealWorth(state, cardDef(c).agenda_points ?? 1, 0), 0) + Math.min(3, state.corp.archives.faceDown.length) * odds * stealWorth(state, points, 0);
+  }
+  if (repeat > 0 && server.isRemote) return 0;
+  const trap = wary ? trapOdds(state, memory) : 1 / 3;
+  for (const card of server.root) {
+    if (wary && card.faceUp && cardDef(card).type_code === 'agenda') {
+      // A faceup agenda (BANGUN): a sure steal, for 2 meat damage and a tag
+      if (state.runner.grip.length < 2) return 0;
+      value += stealWorth(state, cardDef(card).agenda_points ?? 1, DENY.remote) - damageWorth(state, 2) - tagCost(state);
+      continue;
+    }
+    if (!card.isRezzed && memory?.has(card.instanceId)) {
+      // Seen it: only worth coming back to trash it, and never into a known trap
+      if (card.cardCode === URTICA) return 0;
+      const trash = cardDef(card).trash_cost;
+      if (trash != null && trash <= state.runner.credits) value += Math.max(0, corpCardValue(card, state, 'runner') - creditCost(state, trash));
+    } else if (!card.isRezzed) {
+      const agenda = remoteAgendaOdds(state, server, card, trap);
+      // Not an agenda: a trap (Urtica: 2 net damage plus its counters) or an asset to trash
+      const trapShare = Math.min(1 - agenda, trap);
+      value += agenda * stealWorth(state, points, card.advancementCounters > 0 ? DENY.remote : DENY.central) - trapShare * damageWorth(state, 2 + card.advancementCounters) + (1 - agenda - trapShare) * 1;
+    } else {
+      const trash = cardDef(card).trash_cost;
+      if (trash != null && trash <= state.runner.credits) value += Math.max(0.5, corpCardValue(card, state, 'runner') - creditCost(state, trash));
+    }
+  }
+  return value;
+}
+
 /** What accessing this server is worth to the Runner right now. */
 export function serverValue(state: GameState, serverId: string, extraAccesses = 0, memory?: RunnerMemory, wary = false, urgent = false): number {
   const server = state.corp.servers[serverId];
@@ -272,6 +372,7 @@ export function serverValue(state: GameState, serverId: string, extraAccesses = 
   const priorRuns = earlier.filter(r => r.server === serverId);
   if (priorRuns.some(r => !r.successful)) return 0; // it stopped us once already this turn
   const repeat = priorRuns.length;
+  if (tuning.plan.runModel) return serverWorth(state, serverId, extraAccesses, memory, wary, repeat);
 
   let value = 0;
   if (serverId === 'rd') value = 3.5 + 1.5 * extraAccesses - 1 * repeat;
@@ -367,8 +468,8 @@ export function runShortfall(state: GameState, serverId: string): number | null 
 export function runScore(state: GameState, serverId: string, options: RunOptions = {}): number {
   const server = state.corp.servers[serverId];
   if (!server) return -Infinity;
-  let value = serverValue(state, serverId, options.extraAccesses ?? 0, options.memory, options.wary, options.urgent) + 0.8 * (options.successBonus ?? 0);
-  if (state.runner.grip.length <= 1) value -= 2; // one net damage from flatlining
+  let value = serverValue(state, serverId, options.extraAccesses ?? 0, options.memory, options.wary, options.urgent) + (tuning.plan.runModel ? 1 : 0.8) * (options.successBonus ?? 0);
+  if (state.runner.grip.length <= 1) value -= tuning.plan.runModel ? 0.25 * damageWorth(state, 1) : 2; // one net damage from flatlining
   if (value <= 0) return -Infinity;
   let known = 0;
   let expected = 0;
@@ -401,7 +502,7 @@ export function runScore(state: GameState, serverId: string, options: RunOptions
   const approach = approachCost(state, serverId, state.runner.clicks - 1 - bioroidClicks(state, server.ice), budget - known);
   if (!approach) return -Infinity;
   const paid = Math.max(0, expected - (options.bonusCredits ?? 0));
-  return value - 0.6 * paid - 0.6 * waste - approach.cost - 1;
+  return value - spendCost(state, paid) - spendCost(state, waste) - approach.cost - runClick();
 }
 
 /** Rezzed ice the Runner gets through for this much or less is worth trashing to make room. */
