@@ -217,3 +217,36 @@ describe('the last hand-set cards, priced by what they do (Jeff, 2026-10-28)', (
     expect(rig('35010')).toBeGreaterThan(0);
   });
 });
+
+describe('Fermenter, Conduit and Mayfly (Jeff, 2026-10-28; plan.cardFixes)', () => {
+  it('Fermenter: its counters are banked and can be purged, so it counts for less', () => {
+    const on = runnerEffect(newGame(), '30007')!;
+    tuning.plan.cardFixes = false;
+    const off = runnerEffect(newGame(), '30007')!;
+    tuning.plan.cardFixes = true;
+    expect(on).toBeLessThan(off);
+  });
+
+  it('Conduit: worth the extra accesses on the Conduit runs still to come, less late in the game', () => {
+    const early = runnerEffect(newGame(), '30024')!;
+    tuning.plan.cardFixes = false;
+    const old = runnerEffect(newGame(), '30024')!;
+    tuning.plan.cardFixes = true;
+    expect(early).toBeGreaterThan(old);
+    expect(runnerEffect(late(), '30024')!).toBeLessThan(early);
+  });
+
+  it('Mayfly: a breaker trashed after one run is worth a third of a lasting one', async () => {
+    const { isOneUse } = await import('../src/ai/evaluate');
+    const { playedWorth } = await import('../src/ai/handValues');
+    const { createCardInstance } = await import('../src/core/engine/gameState');
+    const s = newGame();
+    const mayfly = createCardInstance(s, '30032');
+    expect(isOneUse(mayfly)).toBe(true);
+    const on = playedWorth(s, mayfly);
+    tuning.plan.cardFixes = false;
+    const off = playedWorth(s, mayfly);
+    tuning.plan.cardFixes = true;
+    expect(on).toBeLessThan(off);
+  });
+});

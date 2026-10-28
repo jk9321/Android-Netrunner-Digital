@@ -93,6 +93,9 @@ export function rigCoverage(cards: CardInstance[]): { covered: Set<string>; anyB
 
 const ICE_TYPES = ['barrier', 'code gate', 'sentry'] as const;
 
+/** A breaker trashed when its run ends (Mayfly): it saves one stop, not the three a lasting breaker is counted for. */
+export const isOneUse = (card: CardInstance): boolean => /when (?:the|this) run ends, trash this program/i.test(cardDef(card).stripped_text ?? '');
+
 /**
  * Share of each ice type among the ice the Corp has shown (rezzed, or
  * trashed faceup to Archives), with a prior of one of each so it starts
@@ -122,7 +125,8 @@ function runnerRigValue(state: GameState, aware: boolean, viewer: SideCode): num
   let value: number;
   if (tuning.plan.breakerCredits?.[viewer]) {
     // Step 5b: each ice type by the stops it saves; an AI breaker covers the rest at a discount
-    value = ICE_TYPES.reduce((n, t) => n + (covered.has(t) ? 1 : anyBreakers > 0 ? AI_BREAKER_SHARE : 0) * breakerTypeWorth(state, t), 0);
+    const aiShare = anyBreakers === 0 ? 0 : tuning.plan.cardFixes ? Math.max(...rig.programs.filter(p => breakerScript(p)?.breaks === 'any').map(p => (isOneUse(p) ? AI_BREAKER_SHARE / 3 : AI_BREAKER_SHARE))) : AI_BREAKER_SHARE;
+    value = ICE_TYPES.reduce((n, t) => n + (covered.has(t) ? 1 : aiShare) * breakerTypeWorth(state, t), 0);
   } else value = [...covered].reduce((n, t) => n + coverageValue(state, t, aware), 0) + (anyBreakers > 0 ? RATES.anyBreaker : 0);
   for (const card of cards) {
     // Step 4: a card that pays out money is worth what it will still pay

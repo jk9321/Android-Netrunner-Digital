@@ -4,6 +4,7 @@ import { counters, rezCost } from '../core/engine/cardEffects';
 import { tuning } from './synergy';
 import { RATES } from './valueModel';
 import { bestBreakPlan } from './runs';
+import { conduitCounterWorth } from './effectValues';
 
 /**
  * Value model step 3 (docs/ai-value-model-plan.md): a counter is worth
@@ -44,7 +45,7 @@ export const COUNTER_WORTH: Record<string, Partial<Record<CounterType, CounterWo
   '30007': { virus: () => 2 - RATES.click / 4 }, // Fermenter: 2 credits each, for a click and the card (cashed at about 4)
   '30008': { virus: () => 0.9 }, // Leech: -1 strength on an encounter, about a credit of boosting
   '35008': { virus: () => 1 }, // Hantu: +2 strength for a boost
-  '30024': { virus: () => 1.2 }, // Conduit: 1 more card accessed on each Conduit run
+  '30024': { virus: state => (tuning.plan.cardFixes ? conduitCounterWorth(state) : 1.2) }, // Conduit: 1 more card accessed on each Conduit run still to come
   '35031': { power: () => 1.2 }, // Devadatta Drone: 1 more card accessed on an R&D breach
   '35010': { power: () => 1.2 }, // Cacophony: 2 counters sabotage 3
   // Botulus: each counter breaks 1 subroutine on its host, worth what breaking one costs (3 if nothing breaks it)

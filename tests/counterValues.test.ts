@@ -1,3 +1,4 @@
+import { conduitCounterWorth } from '../src/ai/effectValues';
 import { describe, expect, it } from 'vitest';
 import { CardInstance, GameState } from '../src/core';
 import { createCardInstance } from '../src/core/engine/gameState';
@@ -49,7 +50,9 @@ describe('counters are worth what they do on their card (value model step 3)', (
     expect(worth('35048', 'agenda')).toBe(3); // Proprionegation
     expect(worth('30008', 'virus')).toBe(0.9); // Leech
     expect(worth('35008', 'virus')).toBe(1); // Hantu
-    expect(worth('30024', 'virus')).toBe(1.2); // Conduit
+    // Conduit (plan.cardFixes): an access on each Conduit run still to come
+    expect(worth('30024', 'virus')).toBeCloseTo(conduitCounterWorth(newGame()));
+    expect(worth('30024', 'virus')).toBeGreaterThan(1.2);
     expect(worth('35031', 'power')).toBe(1.2); // Devadatta Drone
     expect(worth('35010', 'power')).toBe(1.2); // Cacophony
   });

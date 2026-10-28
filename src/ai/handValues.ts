@@ -3,6 +3,7 @@ import { breakerScript, isIcebreaker } from '../core/engine/ice';
 import { CARD_PROFILES, payoutWait, payoutWorth, turnsLeft } from './cardProfiles';
 import { corpKeepValue, runnerCardValue } from './cardValues';
 import { breakerTypeWorth } from './iceValues';
+import { isOneUse } from './evaluate';
 import { counterWorth } from './counterValues';
 import { iceCost } from './runs';
 import { tuning } from './synergy';
@@ -53,7 +54,8 @@ export function playedWorth(state: GameState, card: CardInstance): number {
   if (isIcebreaker(card)) {
     const breaks = breakerScript(card)?.breaks;
     const covered = state.runner.rig.programs.some(p => isIcebreaker(p) && breakerScript(p)?.breaks === breaks);
-    const worth = !breaks || breaks === 'any' ? RATES.anyBreaker + 4 : covered ? 1 : breakerTypeWorth(state, breaks);
+    let worth = !breaks || breaks === 'any' ? RATES.anyBreaker + 4 : covered ? 1 : breakerTypeWorth(state, breaks);
+    if (tuning.plan.cardFixes && isOneUse(card)) worth /= 3; // Mayfly: one run, then trashed
     return worth - cost - CLICK;
   }
   const unique = def.uniqueness && [...state.runner.rig.programs, ...state.runner.rig.hardware, ...state.runner.rig.resources].some(c => c.cardCode === card.cardCode);

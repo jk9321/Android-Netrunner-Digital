@@ -42,15 +42,35 @@ export const PACE = {
   drawTurns: 0.7,
 };
 
+/**
+ * Virus counters sit until the Runner cashes them and a purge wipes them
+ * all: banked like a clicked payout (PAYOUT_RISK.clickWait) and 10% a turn
+ * at risk of a purge (Jeff, 2026-10-28: Fermenter was overvalued without it).
+ */
+export const VIRUS_WAIT = PAYOUT_RISK.clickWait * 0.9;
+
+/** The virus wait while plan.cardFixes is on. */
+const virusWait = (): number => (tuning.plan.cardFixes ? VIRUS_WAIT : 1);
+
+/**
+ * Conduit (Jeff, 2026-10-28): each counter is one more card accessed on
+ * every Conduit run still to come, so a counter is worth an access times
+ * the successful Conduit runs left.
+ */
+export function conduitCounterWorth(state: GameState): number {
+  const runsLeft = PACE.runs * PACE.conduitRdShare * PACE.success * Math.max(1, turnsLeft(state) - 1);
+  return accessWorth(state) * Math.min(4, runsLeft) * VIRUS_WAIT;
+}
+
 /** A memory unit: room for one more program. */
 export const MU = 1.5;
 
 /** Worth of `x` each turn for the turns left, less the risk of losing the card each turn. */
-function perTurn(state: GameState, x: number, owner: 'corp' | 'runner', minTurns = 0, maxTurns = Infinity): number {
+function perTurn(state: GameState, x: number, owner: 'corp' | 'runner', minTurns = 0, maxTurns = Infinity, wait = 1): number {
   const risk = owner === 'corp' ? PAYOUT_RISK.corpBare : state.runner.tags > 0 ? PAYOUT_RISK.runnerTagged : PAYOUT_RISK.runnerUntagged;
   const turns = Math.min(maxTurns, Math.max(minTurns, turnsLeft(state)));
   let value = 0;
-  for (let t = 1; t <= turns; t++) value += x * (1 - risk) ** t;
+  for (let t = 1; t <= turns; t++) value += x * (wait * (1 - risk)) ** t;
   return value;
 }
 
@@ -215,15 +235,21 @@ export function runnerEffect(state: GameState, code: string, card?: CardInstance
     // Cards whose counters are priced in counterValues.ts: what they are worth is the counters still to come
     case '30004': // Botulus: a virus counter a turn, each breaking a subroutine on its host; useful for about 3 turns
     case '30017': // Tranquilizer: a virus counter a turn; 3 derez its host
-      return perTurn(state, card ? counterWorth(state, card, 'virus', 'runner') : 1, 'runner', 0, 3);
-    case '30007': // Fermenter: a virus counter a turn (2 credits each when cashed), cashed within about 4 turns
-      return perTurn(state, counterWorthOf(state, code, 'virus'), 'runner', 0, 4);
+      return perTurn(state, card ? counterWorth(state, card, 'virus', 'runner') : 1, 'runner', 0, 3, virusWait());
+    case '30007': // Fermenter: a virus counter a turn (2 credits each when cashed), banked until cashed within about 4 turns, and lost to a purge
+      return perTurn(state, counterWorthOf(state, code, 'virus'), 'runner', 0, 4, virusWait());
     case '30008': // Leech: a virus counter for each successful central run
-      return perTurn(state, PACE.runs * (PACE.hqShare + PACE.rdShare) * PACE.success * counterWorthOf(state, code, 'virus'), 'runner');
+      return perTurn(state, PACE.runs * (PACE.hqShare + PACE.rdShare) * PACE.success * counterWorthOf(state, code, 'virus'), 'runner', 0, Infinity, virusWait());
     case '30014': // Pennyshaver: +1 MU; a credit on it for each successful run
       return MU + perTurn(state, PACE.runs * PACE.success * counterWorthOf(state, code, 'credit'), 'runner');
-    case '30024': // Conduit: a counter (1 more card accessed) for each successful R&D run; with Conduit out, most runs go to R&D
-      return perTurn(state, PACE.runs * PACE.conduitRdShare * PACE.success * counterWorthOf(state, code, 'virus'), 'runner');
+    case '30024': {
+      if (!tuning.plan.cardFixes) return perTurn(state, PACE.runs * PACE.conduitRdShare * PACE.success * counterWorthOf(state, code, 'virus'), 'runner');
+      // Conduit: a counter for each successful R&D run, each one more card on every Conduit run after it; counters gained later have fewer runs left
+      const gained = PACE.runs * PACE.conduitRdShare * PACE.success;
+      let value = 0;
+      for (let t = 1; t < turnsLeft(state); t++) value += gained * accessWorth(state) * Math.min(4, gained * (turnsLeft(state) - t)) * VIRUS_WAIT ** t;
+      return value;
+    }
     case '30033': // Smartware Distributor: a spare click turns into 3 credits paid out over 3 turns, about every other turn
       return perTurn(state, 0.5 * Math.max(0, 3 * 0.9 - CLICK), 'runner');
     case '35010': // Cacophony: a power counter the first time each turn it steals or trashes a Corp card

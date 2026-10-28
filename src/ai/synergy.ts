@@ -256,6 +256,8 @@ export const tuning = {
     effectValues: true,
     /** Runner (Jeff, 2026-10-28): runs scored in the model's units, credits on the slide, steals on the point clock (runs.ts). */
     runModel: true,
+    /** Jeff, 2026-10-28: Fermenter and other virus counters banked and at risk of a purge; Conduit counters worth the accesses still to come; one-use breakers (Mayfly) worth one run. */
+    cardFixes: true,
     /** Value hacks replaced by the model, by group (Jeff, 2026-10-28; effectValues.ts). */
     modelHacks: { rez: true, rezPriority: true, purge: true, bonuses: true, iceAdvance: true } as Record<string, boolean>,
     /** Per deciding side (Jeff, 2026-10-28): its own hand valued card by card, by what each will do once played (handValues.ts). */
