@@ -11,9 +11,10 @@ Approved by Jeff on 2026-10-27. This file is the working copy for anyone (Claude
 | 3. Counters by effect | Done 2026-10-27 | `claude/project-thread-3heaal` | 35.2% (was 37.7%) | `src/ai/counterValues.ts`, 23 cards, test each. Runner +2.5-3 pts, Corp noise. Lesson: a flat Smartware rate made the Runner stack it (-8 pts); stacked payouts must lose worth per turn of waiting. |
 | 4. Card profiles | Done 2026-10-27 (money cards) | `claude/project-thread-3heaal` | 36.0% (was 35.2%, noise) | `src/ai/cardProfiles.ts`: Nico, Otto, Anthill, Regolith, Telework, Open Market by load/payout/schedule, 15% per turn waited, nothing past turns left. Other cards still hand-set in cardValues.ts (to profile or mark in the final audit). |
 | 5. Ice and breakers in credits | Done 2026-10-27 | `claude/project-thread-3heaal` | 39.0% | 5a ice worth the Runner's cost to get past (`src/ai/iceValues.ts`): Corp +2.5 pts (36.0 -> 38.5). 5b breakers worth the stops they save, by shown ice + decklist odds: noise (39.0), kept. |
-| 6. Remove special cases | In progress | `claude/project-thread-3heaal` | | Batching the Corp money hacks off one at a time (moneyTarget, agendaMoney, iceReserve, icePacing, deepReserve, affordIce, rezMoney): neutral or better -> switch off (Jeff: fewer hacks is a win). |
+| 6. Remove special cases | Done 2026-10-27 | `claude/project-thread-3heaal` | 38.9% | deepReserve, iceReserve, hostedMoney switched off (neutral together); the others lose when off and stay on. Money operations read from card text. |
 | Later: whole-turn planner for Normal | Not started | | | |
-| Final: every-card value audit (Jeff) | Not started | | | A coverage test that lists every card in the pool and how it is valued (profile, counter entry, hand-set number, ice/breaker formula, simulated operation or event, agenda formula), failing for any card that falls to a default; plus a per-card report for Jeff. |
+| Issues with the new system (Jeff, before any Corp rebalance) | Found 2026-10-28 | `claude/project-thread-3heaal` | 38.8% full system | https://claude.ai/artifact/GduREr1PTu2HvH4LKY5MR5. Payout wait kills Open Market/Telework/Otto; Runner overdraws (hand filter); rich Runner skips runs (runScore still in old units); Mayfly overvalued (one-use breaker); Hard ~1.3-2x slower. Tool: `scripts/behaviour.ts`. Fix order in the doc. |
+| Final: every-card value audit (Jeff) | Done 2026-10-28 | `claude/project-thread-3heaal` | | `src/ai/valueAudit.ts` + test; report `npx vite-node scripts/print-card-values.ts` (31 cards still hand-set only). A coverage test that lists every card in the pool and how it is valued (profile, counter entry, hand-set number, ice/breaker formula, simulated operation or event, agenda formula), failing for any card that falls to a default; plus a per-card report for Jeff. |
 
 The 'Improve AI run and protection budgeting' work is paused (Jeff, 2026-10-27) until this rework is done. Then we check whether it is still needed.
 
@@ -99,6 +100,7 @@ Needs Node 20+ and a clone of the repo, then `npm ci`.
 
 - Unit tests: `npm test`. Types and lint: `npm run typecheck`, `npm run lint`.
 - Self-play side balance with Corp loss reasons: `scripts/corp-losses.sh 10 normal` (2,210 games, about 20 minutes on 4 cores). Smaller sample for bug fixes: `scripts/corp-losses.sh 1 normal`.
+- Behaviour (clicks, hoarding, overdraws, runs, plays per card): `SHARD=i/4 npx vite-node scripts/behaviour.ts -- 5 normal > beh-i.json` for i = 0..3 (accepts PLAN_OFF).
 - New vs old AI on the same deals: `scripts/ai-match.sh 5 normal`.
 - Switch a piece off for a batch: `PLAN_OFF=name` or `PLAN_OFF=name.corp`.
 - The `.sh` scripts need bash (on Windows: Git Bash or WSL). Without bash, run the shards by hand: `SHARD=0/1 npx vite-node scripts/corp-losses.ts -- 10 normal > out.json`, then `node scripts/corp-losses-sum.mjs out.json`.
