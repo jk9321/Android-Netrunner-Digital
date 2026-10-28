@@ -4,7 +4,7 @@ import { counters, rezCost } from '../core/engine/cardEffects';
 import { tuning } from './synergy';
 import { CLICK, RATES, handFilter, pointValue, sideCards } from './valueModel';
 import { bestBreakPlan } from './runs';
-import { PACE, accessWorth, conduitCounterWorth, damageWorth } from './effectValues';
+import { PACE, accessWorth, conduitCounterWorth, damageWorth, runSuccess } from './effectValues';
 import { PAYOUT_RISK } from './cardProfiles';
 import { corpKeepValue } from './cardValues';
 import { boostCostOf, breakerScript, isIcebreaker } from '../core/engine/ice';
@@ -89,7 +89,11 @@ function azimatCredit(state: GameState): number {
 }
 
 /** Red Team: 3 credits per successful click-run, the click shared with the access it also gets. */
-const redTeamCredit = (): number => PACE.success * (1 - CLICK / 3 / 2) + (1 - PACE.success) * PAYOUT_RISK.clickWait * (1 - CLICK / 6);
+function redTeamCredit(state: GameState): number {
+  // A successful central run takes 3; a failed one waits for the next (plan.runOpenness: as open as HQ and R&D are)
+  const success = tuning.plan.runOpenness ? Math.max(runSuccess(state, 'hq'), runSuccess(state, 'rd')) : PACE.success;
+  return success * (1 - CLICK / 3 / 2) + (1 - success) * PAYOUT_RISK.clickWait * (1 - CLICK / 6);
+}
 
 /** Side Hustle: one a run until 6, then all taken with a card; each waits for the rest. */
 function sideHustleCredit(card: CardInstance): number {

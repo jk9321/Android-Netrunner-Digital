@@ -270,6 +270,8 @@ export const tuning = {
     keepByModel: true,
     /** Jeff, 2026-10-28: damage priced on a clock (flatline odds rise as the grip falls below the Corp's biggest hit) and tags by what the Corp can do with them (effectValues.ts, evaluate.ts tagsWorth). */
     damageClock: true,
+    /** Jeff, 2026-10-28: run-payoff cards (Leech, Conduit, Pennyshaver, Docklands, Red Team, Cacophony) by how open the servers they need are, fading as they lock down (effectValues.ts runSuccess). */
+    runOpenness: true,
     tagClock: true,
     /** Per deciding side (Jeff, 2026-10-28): Normal plays its best few actions through to the end of the turn and picks the best turn (turnPlanner.ts). */
     turnPlanner: { corp: true, runner: true } as Record<SideCode, boolean>,

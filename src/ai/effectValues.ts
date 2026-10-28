@@ -4,6 +4,7 @@ import { PAYOUT_RISK, turnsLeft } from './cardProfiles';
 import { COUNTER_WORTH, counterWorth } from './counterValues';
 import { tuning } from './synergy';
 import { CLICK, RATES, pointValue, sideCards } from './valueModel';
+import { iceCost } from './runs';
 
 /**
  * The every-card audit's last 31 cards (Jeff, 2026-10-28): assets, upgrades
@@ -58,7 +59,11 @@ const virusWait = (): number => (tuning.plan.cardFixes ? VIRUS_WAIT : 1);
  * the successful Conduit runs left.
  */
 export function conduitCounterWorth(state: GameState): number {
-  const runsLeft = PACE.runs * PACE.conduitRdShare * PACE.success * Math.max(1, turnsLeft(state) - 1);
+  let runsLeft = PACE.runs * PACE.conduitRdShare * PACE.success * Math.max(1, turnsLeft(state) - 1);
+  if (tuning.plan.runOpenness) {
+    runsLeft = 0;
+    for (let t = 1; t < Math.max(2, turnsLeft(state)); t++) runsLeft += PACE.runs * PACE.conduitRdShare * runSuccess(state, 'rd') * LOCKDOWN ** (t - 1);
+  }
   return accessWorth(state) * Math.min(4, runsLeft) * VIRUS_WAIT;
 }
 
@@ -66,13 +71,74 @@ export function conduitCounterWorth(state: GameState): number {
 export const MU = 1.5;
 
 /** Worth of `x` each turn for the turns left, less the risk of losing the card each turn. */
-function perTurn(state: GameState, x: number, owner: 'corp' | 'runner', minTurns = 0, maxTurns = Infinity, wait = 1): number {
+function perTurn(state: GameState, x: number, owner: 'corp' | 'runner', minTurns = 0, maxTurns = Infinity, wait = 1, lock = 1): number {
   const risk = owner === 'corp' ? PAYOUT_RISK.corpBare : state.runner.tags > 0 ? PAYOUT_RISK.runnerTagged : PAYOUT_RISK.runnerUntagged;
   const turns = Math.min(maxTurns, Math.max(minTurns, turnsLeft(state)));
   let value = 0;
-  for (let t = 1; t <= turns; t++) value += x * (wait * (1 - risk)) ** t;
+  for (let t = 1; t <= turns; t++) value += x * (wait * (1 - risk)) ** t * lock ** (t - 1);
   return value;
 }
+
+/*
+ * Run openness (Jeff, 2026-10-28; plan.runOpenness): cards that pay off on
+ * successful runs (Leech, Conduit, Pennyshaver, Docklands Pass, Red Team,
+ * Cacophony) are worth what the servers they need allow. A run succeeds as
+ * often as the rig can pay its way through the ice there now, and the Corp
+ * ices its servers as the game goes on, so later turns are less open:
+ * strong early or with cheap breakers, fading as servers lock down.
+ */
+
+/** Share of a server's openness left each turn as the Corp adds ice (a guess: about one ice in ten turns per server). */
+export const LOCKDOWN = 0.9;
+/** A rezzed ice the rig can't afford to get past: the run mostly ends there. */
+const BLOCKED_PASS = 0.1;
+/** Unrezzed ice: the Corp rezzes it when it can afford to, about half the time. */
+const UNREZZED_PASS = { rich: 0.55, broke: 0.9 };
+
+/** Chance a run on `serverId` succeeds now, from its ice against the rig and the Runner's credits (PACE.success while plan.runOpenness is off). */
+let pricingIce = false;
+
+export function runSuccess(state: GameState, serverId: string): number {
+  const server = state.corp.servers[serverId];
+  // Pricing the ice can come back here (a subroutine that trashes a card prices the rig): the guess, inside
+  if (!tuning.plan.runOpenness || !server || pricingIce) return PACE.success;
+  pricingIce = true;
+  try {
+    return passOdds(state, server.ice);
+  } finally {
+    pricingIce = false;
+  }
+}
+
+function passOdds(state: GameState, ices: CardInstance[]): number {
+  let credits = state.runner.credits;
+  let pass = 1;
+  for (const ice of [...ices].reverse()) {
+    if (!ice.isRezzed) {
+      pass *= state.corp.credits >= 3 ? UNREZZED_PASS.rich : UNREZZED_PASS.broke;
+      continue;
+    }
+    const cost = iceCost(state, ice);
+    if (cost <= credits) {
+      credits -= cost;
+      pass *= 0.95;
+    } else pass *= BLOCKED_PASS;
+  }
+  return pass;
+}
+
+/** Successful runs a turn on the centrals, by the share of runs each gets. */
+const centralSuccess = (state: GameState): number => PACE.hqShare * runSuccess(state, 'hq') + PACE.rdShare * runSuccess(state, 'rd');
+
+/** Average success of a run anywhere (remotes at their typical share). */
+function anySuccess(state: GameState): number {
+  const remotes = Object.values(state.corp.servers).filter(s => s.isRemote);
+  const remote = remotes.length ? Math.max(...remotes.map(s => runSuccess(state, s.id))) : runSuccess(state, 'hq');
+  return centralSuccess(state) + PACE.remoteShare * remote;
+}
+
+/** The lock-down per turn while plan.runOpenness is on. */
+const lock = (): number => (tuning.plan.runOpenness ? LOCKDOWN : 1);
 
 /** Chance a Corp card the Runner hasn't seen is an agenda, and the points of a typical agenda (decklist). */
 export function agendaOdds(state: GameState): { odds: number; points: number } {
@@ -246,7 +312,8 @@ export function runnerEffect(state: GameState, code: string, card?: CardInstance
       return MU + perTurn(state, 0.25 * Math.max(0, 4 + 2 - 2 * RATES.drawnCard), 'runner');
     case '35018': // Detente: +1 MU; parks an HQ card each HQ run, and can trade 2 back for a random access
       return MU + perTurn(state, PACE.runs * PACE.hqShare * 0.5 * accessWorth(state), 'runner');
-    case '30013': // Docklands Pass: one more HQ access the first time each turn
+    case '30013': // Docklands Pass: one more HQ access the first time each turn, on a successful HQ run
+      if (tuning.plan.runOpenness) return perTurn(state, PACE.runs * PACE.hqShare * runSuccess(state, 'hq') * accessWorth(state), 'runner', 0, Infinity, 1, lock());
       return perTurn(state, PACE.runs * PACE.hqShare * accessWorth(state), 'runner');
     case '30022': // DZMZ Optimizer: +1 MU; first program each turn 1 credit cheaper
       return MU + perTurn(state, PACE.programInstalls, 'runner');
@@ -289,20 +356,27 @@ export function runnerEffect(state: GameState, code: string, card?: CardInstance
     case '30007': // Fermenter: a virus counter a turn (2 credits each when cashed), banked until cashed within about 4 turns, and lost to a purge
       return perTurn(state, counterWorthOf(state, code, 'virus'), 'runner', 0, 4, virusWait());
     case '30008': // Leech: a virus counter for each successful central run, spent on an encounter soon after: each waits about a turn, not from now
+      if (tuning.plan.runOpenness) return virusWait() * perTurn(state, PACE.runs * centralSuccess(state) * counterWorthOf(state, code, 'virus'), 'runner', 0, Infinity, 1, lock());
       return virusWait() * perTurn(state, PACE.runs * (PACE.hqShare + PACE.rdShare) * PACE.success * counterWorthOf(state, code, 'virus'), 'runner');
     case '30014': // Pennyshaver: +1 MU; a credit on it for each successful run
+      if (tuning.plan.runOpenness) return MU + perTurn(state, PACE.runs * anySuccess(state) * counterWorthOf(state, code, 'credit'), 'runner', 0, Infinity, 1, lock());
       return MU + perTurn(state, PACE.runs * PACE.success * counterWorthOf(state, code, 'credit'), 'runner');
     case '30024': {
       if (!tuning.plan.cardFixes) return perTurn(state, PACE.runs * PACE.conduitRdShare * PACE.success * counterWorthOf(state, code, 'virus'), 'runner');
       // Conduit: a counter for each successful R&D run, each one more card on every Conduit run after it; counters gained later have fewer runs left
-      const gained = PACE.runs * PACE.conduitRdShare * PACE.success;
+      const success = (t: number) => PACE.runs * PACE.conduitRdShare * runSuccess(state, 'rd') * lock() ** (t - 1);
       let value = 0;
-      for (let t = 1; t < turnsLeft(state); t++) value += gained * accessWorth(state) * Math.min(4, gained * (turnsLeft(state) - t)) * VIRUS_WAIT ** t;
+      for (let t = 1; t < turnsLeft(state); t++) {
+        let later = 0;
+        for (let u = t + 1; u <= turnsLeft(state); u++) later += success(u);
+        value += success(t) * accessWorth(state) * Math.min(4, later) * VIRUS_WAIT ** t;
+      }
       return value;
     }
     case '30033': // Smartware Distributor: a spare click turns into 3 credits paid out over 3 turns, about every other turn
       return perTurn(state, 0.5 * Math.max(0, 3 * 0.9 - CLICK), 'runner');
     case '35010': // Cacophony: a power counter the first time each turn it steals or trashes a Corp card
+      if (tuning.plan.runOpenness) return perTurn(state, PACE.stealOrTrash * (anySuccess(state) / PACE.success) * counterWorthOf(state, code, 'power'), 'runner', 0, Infinity, 1, lock());
       return perTurn(state, PACE.stealOrTrash * counterWorthOf(state, code, 'power'), 'runner');
     case '35029': // Azimat: its 2 credits refill each turn it has a trash cost to pay
       return perTurn(state, PACE.paidTrashes * 2 * counterWorthOf(state, code, 'credit'), 'runner');

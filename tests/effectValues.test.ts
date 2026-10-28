@@ -1,10 +1,10 @@
 import { describe, expect, it } from 'vitest';
 import { getCardDefinition } from '../src/core';
 import { CLICK, RATES } from '../src/ai/valueModel';
-import { EFFECT_CODES, MU, PACE, accessWorth, corpEffect, damageWorth, runnerEffect } from '../src/ai/effectValues';
+import { EFFECT_CODES, LOCKDOWN, MU, PACE, accessWorth, corpEffect, damageWorth, runSuccess, runnerEffect } from '../src/ai/effectValues';
 import { corpKeepValue, econValue, runnerCardValue, upgradeValue } from '../src/ai/cardValues';
 import { tuning } from '../src/ai/synergy';
-import { newGame } from './helpers';
+import { installIceForTest, newGame } from './helpers';
 
 const late = () => {
   const s = newGame();
@@ -249,5 +249,39 @@ describe('Fermenter, Conduit and Mayfly (Jeff, 2026-10-28; plan.cardFixes)', () 
     const off = playedWorth(s, mayfly);
     tuning.plan.cardFixes = true;
     expect(on).toBeLessThan(off);
+  });
+});
+
+describe('run openness (Jeff, 2026-10-28; plan.runOpenness)', () => {
+  const locked = () => {
+    const s = newGame();
+    s.runner.credits = 5;
+    for (const id of ['hq', 'rd']) for (let i = 0; i < 2; i++) installIceForTest(s, '30072', id); // Palisades, rezzed, no fracter
+    return s;
+  };
+  const open = () => {
+    const s = newGame();
+    s.runner.credits = 5;
+    for (const id of ['hq', 'rd']) s.corp.servers[id].ice = [];
+    return s;
+  };
+
+  it('a bare server is open; rezzed ice the rig can’t pay through mostly ends the run', () => {
+    expect(runSuccess(open(), 'rd')).toBe(1);
+    expect(runSuccess(locked(), 'rd')).toBeLessThan(0.05);
+  });
+
+  it('Leech, Conduit, Pennyshaver, Docklands Pass and Cacophony are worth more on open servers than locked ones', () => {
+    for (const code of ['30008', '30024', '30014', '30013', '35010']) expect(rig(code, open()), code).toBeGreaterThan(rig(code, locked()));
+  });
+
+  it('later turns count for less as the Corp locks its servers down', () => {
+    const s = open();
+    const fading = rig('30013', s);
+    expect(LOCKDOWN).toBeLessThan(1);
+    tuning.plan.runOpenness = false;
+    const flat = rig('30013', s) * PACE.success; // the old guess had no success odds at all
+    tuning.plan.runOpenness = true;
+    expect(fading).toBeLessThan(flat / PACE.success);
   });
 });
