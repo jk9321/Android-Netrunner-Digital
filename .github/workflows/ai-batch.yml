@@ -1,0 +1,89 @@
+name: AI batch
+
+# Self-play batches for the AI work (scripts/corp-losses.ts), split across
+# runners so a batch takes minutes instead of an hour. Started by hand:
+# Actions > AI batch > Run workflow, or the API. The summary job's log and
+# artifact hold the same breakdown as scripts/corp-losses.sh.
+on:
+  workflow_dispatch:
+    inputs:
+      ref:
+        description: Branch or commit to test
+        required: true
+        default: main
+      games:
+        description: Games per pairing (3 = short batch, 10 = full)
+        required: true
+        default: '3'
+      game_from:
+        description: First game of each pairing (3 tops up a short batch to the full one)
+        required: true
+        default: '0'
+      plan_off:
+        description: PLAN_OFF switches, comma-separated (empty for none)
+        required: false
+        default: ''
+      level:
+        description: normal or hard
+        required: true
+        default: normal
+      label:
+        description: What this batch tests (for the log)
+        required: false
+        default: ''
+
+permissions:
+  contents: read
+
+jobs:
+  shard:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        job: [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15]
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.ref }}
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      # 4 cores a runner: 4 shards each, 64 in all
+      - name: Play
+        env:
+          PLAN_OFF: ${{ inputs.plan_off }}
+          GAME_FROM: ${{ inputs.game_from }}
+        run: |
+          mkdir -p out
+          for i in 0 1 2 3; do
+            SHARD=$(( ${{ matrix.job }} * 4 + i ))/64 npx vite-node scripts/corp-losses.ts -- ${{ inputs.games }} ${{ inputs.level }} > out/${{ matrix.job }}-$i.json &
+          done
+          wait
+      - uses: actions/upload-artifact@v4
+        with:
+          name: shard-${{ matrix.job }}
+          path: out/
+
+  summary:
+    needs: shard
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.ref }}
+      - uses: actions/download-artifact@v4
+        with:
+          path: out
+          merge-multiple: true
+      - name: Sum
+        run: |
+          echo "Batch: ${{ inputs.label }} | ref ${{ inputs.ref }} | games ${{ inputs.game_from }}-${{ inputs.games }} | PLAN_OFF=${{ inputs.plan_off }}"
+          node scripts/corp-losses-sum.mjs out/*.json | tee summary.txt
+      - uses: actions/upload-artifact@v4
+        with:
+          name: summary
+          path: |
+            summary.txt
+            out/
