@@ -1,0 +1,36 @@
+Batch: Steal odds: new Corp vs old Runner | ref 64fbe578a5886636dbda6d417fbc0199d2ea784b | games 0-10 | PLAN_OFF= | steal-odds corp | added run 
+
+Agenda in a remote, by predicted steal chance:
+  0-0.05      5286 turns: predicted   3.2%  ran  14.2%  stolen   7.9%
+  0.2-0.3     1981 turns: predicted  23.3%  ran  77.5%  stolen  33.0%
+  0.1-0.15    1025 turns: predicted  13.0%  ran  70.9%  stolen  29.1%
+  0.4-0.6      611 turns: predicted  42.3%  ran  69.9%  stolen  62.0%
+  0.3-0.4      475 turns: predicted  38.0%  ran  66.7%  stolen  40.0%
+  0.05-0.1       9 turns: predicted   7.2%  ran  88.9%  stolen  11.1%
+
+Agenda in a remote, by ice on the server (rezzed/total):
+  1/1         2197 turns: predicted   7.8%  ran  18.1%  stolen  13.0%
+  1/2         2017 turns: predicted   9.0%  ran  29.4%  stolen  11.4%
+  2/2         1682 turns: predicted   5.4%  ran  12.8%  stolen   7.5%
+  0/1         1622 turns: predicted  25.5%  ran  85.5%  stolen  39.0%
+  0/2          978 turns: predicted  13.6%  ran  72.2%  stolen  29.2%
+  0/0          399 turns: predicted  43.0%  ran  81.5%  stolen  81.5%
+  2/3          191 turns: predicted   9.4%  ran  28.8%  stolen  11.5%
+  3/3          163 turns: predicted   5.8%  ran  13.5%  stolen   6.1%
+  1/3          109 turns: predicted   9.8%  ran  46.8%  stolen  20.2%
+  0/3            9 turns: predicted   7.2%  ran  88.9%  stolen  11.1%
+  3/4            7 turns: predicted   4.1%  ran   0.0%  stolen   0.0%
+  2/4            6 turns: predicted   6.3%  ran  33.3%  stolen  16.7%
+  3/5            4 turns: predicted   1.7%  ran   0.0%  stolen   0.0%
+  4/4            3 turns: predicted   0.2%  ran   0.0%  stolen   0.0%
+
+Agenda in a remote, by advancement counters (3 = 3+):
+  0           3395 turns: predicted  18.0%  ran  40.2%  stolen  25.0%
+  1           3211 turns: predicted  11.1%  ran  46.3%  stolen  20.1%
+  2           2111 turns: predicted   9.4%  ran  39.2%  stolen  18.9%
+  3            670 turns: predicted   5.2%  ran  12.4%  stolen   7.5%
+
+HQ, agendas in HQ (count, 3 = 3+): HQ run / stolen from HQ that turn:
+  1           8583 turns:  ran  25.8%  stolen   4.9%
+  2           5856 turns:  ran  21.6%  stolen   6.8%
+  3           4309 turns:  ran  15.9%  stolen   6.8%
