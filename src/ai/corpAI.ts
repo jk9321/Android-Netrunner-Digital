@@ -17,8 +17,17 @@ const type = (card: CardInstance) => cardDef(card).type_code;
 const hasEndTheRun = (ice: CardInstance) => (iceScript(ice)?.subroutines ?? []).some(s => /end the run/i.test(s.label));
 const isAgendaOrAsset = (card: CardInstance) => ['agenda', 'asset'].includes(type(card));
 
-/** Money operations by card code: credits gained (Hedge Fund, Government Subsidy, Hansei Review, Peer Review, Petty Cash). */
-const MONEY_OPS: Record<string, number> = { '30075': 9, '30064': 15, '30048': 10, '35055': 7, '35081': 5 };
+/**
+ * Credits a money operation gains, read from its text (step 6: no hand-kept
+ * list, so new sets are covered): "Gain N credits" as the card's own effect,
+ * not as one option of a choice ("* Gain 3 credits").
+ */
+export function moneyOpGain(code: string): number | undefined {
+  const def = getCardDefinition(code);
+  if (def.type_code !== 'operation') return undefined;
+  const gain = /(?:^|\. )Gain (\d+) credits/.exec(def.stripped_text ?? '');
+  return gain ? Number(gain[1]) : undefined;
+}
 /** "Dividends N": agenda counters per advancement counter beyond the requirement (0: none). */
 const dividends = (card: CardInstance) => Number(/dividends (\d+)/i.exec(cardDef(card).stripped_text ?? '')?.[1] ?? 0);
 
@@ -269,7 +278,7 @@ export class HeuristicCorpAI implements Agent {
     if (action.type === 'GAIN_CREDIT' && tuning.plan.saveForOps) {
       // Reachable: this turn with a click left to play it, or early next turn
       const reachable = corp.hq.some(c => {
-        const gain = MONEY_OPS[c.cardCode];
+        const gain = moneyOpGain(c.cardCode);
         const cost = cardDef(c).cost ?? 0;
         return gain !== undefined && cost > corp.credits && cost <= corp.credits + corp.clicks + 2;
       });

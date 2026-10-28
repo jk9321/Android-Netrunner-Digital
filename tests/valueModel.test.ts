@@ -29,3 +29,16 @@ describe('value model rates', () => {
     }
   });
 });
+
+describe('money operations are read from their text (value model step 6)', () => {
+  it('finds the five money operations and their gains, and skips gains offered as one option', async () => {
+    const { moneyOpGain } = await import('../src/ai/corpAI');
+    expect(moneyOpGain('30075')).toBe(9); // Hedge Fund
+    expect(moneyOpGain('30064')).toBe(15); // Government Subsidy
+    expect(moneyOpGain('30048')).toBe(10); // Hansei Review
+    expect(moneyOpGain('35055')).toBe(7); // Peer Review
+    expect(moneyOpGain('35081')).toBe(5); // Petty Cash
+    expect(moneyOpGain('30056')).toBeUndefined(); // Predictive Planogram: "* Gain 3 credits" is a choice
+    expect(moneyOpGain('35077')).toBeUndefined(); // Key Performance Indicators
+  });
+});
