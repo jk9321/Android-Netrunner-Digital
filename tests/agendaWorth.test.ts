@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { AGENDA_RUN, agendaWorth, archivedAgendaLoss, evaluate, keepValue } from '../src/ai/evaluate';
+import { agendaWorth, archivedAgendaLoss, evaluate, keepValue } from '../src/ai/evaluate';
 import { cardDef } from '../src/core';
 import { playedWorth } from '../src/ai/handValues';
 import { iceWorth } from '../src/ai/iceValues';
@@ -7,6 +7,7 @@ import { turnsLeft } from '../src/ai/cardProfiles';
 import { CLICK, pointValue } from '../src/ai/valueModel';
 import { createCardInstance } from '../src/core';
 import { installIceForTest, newGame } from './helpers';
+import { STEAL, runSuccess, stealOdds } from '../src/ai/effectValues';
 
 const PALISADE = '30072';
 
@@ -34,7 +35,7 @@ describe('agendas on the board (Jeff, 2026-10-28; plan.agendaBoard)', () => {
     const iced = agendaWorth(s, 3, 3, 2, 'remote-1');
     const bare = agendaWorth(s, 3, 3, 2, 'remote-2');
     expect(iced).toBeGreaterThan(bare);
-    expect(bare).toBeCloseTo((pointValue(2) - pointValue(0)) * (1 - AGENDA_RUN) * (1 - 1 / turnsLeft(s)));
+    expect(bare).toBeCloseTo((pointValue(2) - pointValue(0)) * (1 - STEAL.run) * (1 - 1 / turnsLeft(s)));
   });
 
   it('each advancement brings it closer: the click and credit it took come back', () => {
@@ -79,5 +80,23 @@ describe('agendas on the board (Jeff, 2026-10-28; plan.agendaBoard)', () => {
     expect(now).toBeGreaterThan(later);
     // From hand it takes a click more to install
     expect(agendaWorth(s, 0, 2, 2, 'remote-2', undefined, true)).toBeLessThan(agendaWorth(s, 0, 2, 2, 'remote-2'));
+  });
+});
+
+describe('steal odds as measured (Jeff, 2026-10-28; plan.stealOdds)', () => {
+  it('an open remote is stolen most turns, not 43%', () => {
+    const s = remotes();
+    s.activePlayer = 'corp';
+    expect(stealOdds(s, 'remote-2')).toBeCloseTo(STEAL.run);
+  });
+
+  it('ice is judged against the credits the Runner can raise on its turn, not what it holds now', () => {
+    const s = newGame();
+    installIceForTest(s, PALISADE, 'remote-1');
+    s.corp.servers['remote-1'].ice[0].isRezzed = true;
+    s.activePlayer = 'corp';
+    const broke = { ...s, runner: { ...s.runner, credits: 0 } };
+    expect(stealOdds(broke, 'remote-1', STEAL.run, 0)).toBeLessThanOrEqual(stealOdds(broke, 'remote-1', STEAL.run, 4));
+    expect(stealOdds(s, 'remote-1')).toBeGreaterThanOrEqual(STEAL.run * runSuccess(s, 'remote-1') - 1e-9);
   });
 });

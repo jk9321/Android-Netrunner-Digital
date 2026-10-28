@@ -1,8 +1,9 @@
 /**
  * How well the Corp AI judges agenda safety (Jeff, 2026-10-28): at the start
  * of each Runner turn, the steal chance the value model gives each installed
- * agenda (AGENDA_RUN x runSuccess, evaluate.ts agendaWorth) against whether
- * the Runner stole it that turn. Also agendas held in HQ.
+ * agenda (evaluate.ts agendaWorth: stealOdds, and the older AGENDA_RUN x
+ * runSuccess) against whether the Runner stole it that turn, with the Brier
+ * score of each guess (lower is better). Also agendas held in HQ.
  *
  *   H2H=corp|new SHARD=i/n npx vite-node scripts/steal-odds.ts -- [games per pairing] [normal|hard] > out.json
  *   node scripts/steal-odds-sum.mjs out/*.json
@@ -14,7 +15,7 @@ import { createInitialGameState, cardDef, GameState } from '../src/core';
 import { DECKS, deckGameSetup } from '../src/data/decks';
 import { createAgent } from '../src/ai';
 import { GameRunner } from '../src/ai/playout';
-import { runSuccess } from '../src/ai/effectValues';
+import { runSuccess, stealOdds } from '../src/ai/effectValues';
 import { AGENDA_RUN } from '../src/ai/evaluate';
 
 const [gamesArg, levelArg] = process.argv.slice(2).filter(a => a !== '--');
@@ -24,14 +25,24 @@ const [shard, shards] = (process.env.SHARD ?? '0/1').split('/').map(Number);
 const vsOld = process.env.H2H === 'corp';
 const old = vsOld ? ((await import(resolve(process.env.OLD_AI ?? 'old', 'src/ai/index.ts'))) as { createAgent: typeof createAgent }) : null;
 
-type Tally = { n: number; predicted: number; ran: number; stolen: number };
-const tally = (): Tally => ({ n: 0, predicted: 0, ran: 0, stolen: 0 });
+/** The guesses compared: the old one, and stealOdds with 0 to 4 credits of income before the run. */
+const GUESSES: Record<string, (s: GameState, server: string) => number> = {
+  old: (s, v) => AGENDA_RUN * runSuccess(s, v),
+  income0: (s, v) => stealOdds(s, v, undefined, 0),
+  income2: (s, v) => stealOdds(s, v, undefined, 2),
+  income3: (s, v) => stealOdds(s, v, undefined, 3),
+  income4: (s, v) => stealOdds(s, v, undefined, 4),
+};
+const brier: Record<string, number> = Object.fromEntries(Object.keys(GUESSES).map(k => [k, 0]));
+type Tally = { n: number; predicted: number; ran: number; stolen: number; guesses?: Record<string, number> };
+const tally = (): Tally => ({ n: 0, predicted: 0, ran: 0, stolen: 0, guesses: {} });
 const bins: Record<string, Tally> = {};
 const byIce: Record<string, Tally> = {};
 const byAdvanced: Record<string, Tally> = {};
 const hq: Record<string, Tally> = {};
-const add = (t: Record<string, Tally>, key: string, predicted: number, ran: boolean, stolen: boolean) => {
+const add = (t: Record<string, Tally>, key: string, predicted: number, ran: boolean, stolen: boolean, guesses: Record<string, number> = {}) => {
   const x = (t[key] ??= tally());
+  for (const [g, p] of Object.entries(guesses)) x.guesses![g] = (x.guesses![g] ?? 0) + p;
   x.n++;
   x.predicted += predicted;
   if (ran) x.ran++;
@@ -44,7 +55,7 @@ const binOf = (p: number) => {
   return `${i === 0 ? 0 : BIN[i - 1]}-${Math.min(1, top)}`;
 };
 
-type Watch = { id: string; server: string; predicted: number; ice: string; advanced: number };
+type Watch = { id: string; server: string; predicted: number; guesses: Record<string, number>; ice: string; advanced: number };
 const watchRemotes = (s: GameState): Watch[] =>
   Object.values(s.corp.servers)
     .filter(v => v.isRemote)
@@ -54,7 +65,8 @@ const watchRemotes = (s: GameState): Watch[] =>
         .map(c => ({
           id: c.instanceId,
           server: v.id,
-          predicted: AGENDA_RUN * runSuccess(s, v.id),
+          predicted: stealOdds(s, v.id),
+          guesses: Object.fromEntries(Object.entries(GUESSES).map(([k, f]) => [k, f(s, v.id)])),
           ice: `${v.ice.filter(i => i.isRezzed).length}/${v.ice.length}`,
           advanced: c.advancementCounters,
         })),
@@ -88,9 +100,11 @@ for (const c of DECKS.filter(d => d.side === 'corp')) for (const r of DECKS.filt
           const ranOn = new Set(before.runsThisTurn.map(run => run.server));
           for (const w of watch) {
             const ran = ranOn.has(w.server);
-            add(bins, binOf(w.predicted), w.predicted, ran, stolen.has(w.id));
-            add(byIce, w.ice, w.predicted, ran, stolen.has(w.id));
-            add(byAdvanced, String(Math.min(3, w.advanced)), w.predicted, ran, stolen.has(w.id));
+            const y = stolen.has(w.id) ? 1 : 0;
+            for (const [g, p] of Object.entries(w.guesses)) brier[g] += (p - y) ** 2;
+            add(bins, binOf(w.predicted), w.predicted, ran, !!y, w.guesses);
+            add(byIce, w.ice, w.predicted, ran, !!y, w.guesses);
+            add(byAdvanced, String(Math.min(3, w.advanced)), w.predicted, ran, !!y, w.guesses);
           }
           if (hqAgendas.length) add(hq, String(Math.min(3, hqAgendas.length)), 0, ranOn.has('hq'), hqAgendas.some(id => stolen.has(id)));
           watch = [];
@@ -102,4 +116,4 @@ for (const c of DECKS.filter(d => d.side === 'corp')) for (const r of DECKS.filt
     }
   }
 }
-console.log(JSON.stringify({ bins, byIce, byAdvanced, hq }));
+console.log(JSON.stringify({ bins, byIce, byAdvanced, hq, brier }));

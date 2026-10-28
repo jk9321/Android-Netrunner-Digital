@@ -119,8 +119,8 @@ export function runSuccess(state: GameState, serverId: string): number {
   });
 }
 
-function passOdds(state: GameState, ices: CardInstance[]): number {
-  let credits = state.runner.credits;
+function passOdds(state: GameState, ices: CardInstance[], income = 0): number {
+  let credits = state.runner.credits + income;
   let pass = 1;
   for (const ice of [...ices].reverse()) {
     if (!ice.isRezzed) {
@@ -134,6 +134,31 @@ function passOdds(state: GameState, ices: CardInstance[]): number {
     } else pass *= BLOCKED_PASS;
   }
   return pass;
+}
+
+/**
+ * Chance the Runner steals an agenda installed in `serverId` on its next
+ * turn (plan.stealOdds, Jeff 2026-10-28). Measured with scripts/steal-odds.ts:
+ * the Runner runs an agenda remote it can get into most turns (STEAL.run, an
+ * open remote), and it has its turn's clicks to raise credits for the ice
+ * first (STEAL.income), so the ice's protection is judged against
+ * that, not the credits it holds now.
+ */
+export const STEAL = { run: 0.84, income: 3 };
+
+export function stealOdds(state: GameState, serverId: string, run = STEAL.run, income = STEAL.income): number {
+  const server = state.corp.servers[serverId];
+  if (!server || pricingIce) return run * PACE.success;
+  // On the Runner's own turn: the clicks it has left, one kept for the run
+  const coming = state.activePlayer === 'runner' ? Math.max(0, Math.min(income, state.runner.clicks - 1)) : income;
+  return memo(state, `stealOdds:${serverId}:${run}:${coming}`, () => {
+    pricingIce = true;
+    try {
+      return run * passOdds(state, server.ice, coming);
+    } finally {
+      pricingIce = false;
+    }
+  });
 }
 
 /** Successful runs a turn on the centrals, by the share of runs each gets. */

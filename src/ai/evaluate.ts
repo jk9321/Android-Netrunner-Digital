@@ -9,7 +9,7 @@ import { AI_BREAKER_SHARE, breakerTypeWorth, flatIceWorth, iceWorth } from './ic
 import { payoutWait, payoutWorth, profileOf, turnsLeft } from './cardProfiles';
 import { HAND_FLOOR, clickPrice, handByCard, handSchedule, heldWorth, ownHandValue, playedWorth, scheduleValue } from './handValues';
 import { CLICK, RATES, cardRate, creditValue, flatRate, flatlineWorth, handFilter, memo, pointValue, sideCreditValue } from './valueModel';
-import { PACE, coreSlotWorth, flatlineOdds, runSuccess } from './effectValues';
+import { PACE, STEAL, coreSlotWorth, flatlineOdds, runSuccess, stealOdds } from './effectValues';
 import { trashedCardCost } from './runs';
 
 export { creditValue };
@@ -207,7 +207,10 @@ export function agendaWorth(state: GameState, counters: number, cost: number, po
   if (!tuning.plan.agendaBoard) return agendaBoardValue(counters, cost);
   const gain = pointValue(state.corp.score + points) - pointValue(state.corp.score);
   const need = Math.max(0, cost - counters);
-  const steal = AGENDA_RUN * (success ?? (serverId ? runSuccess(state, serverId) : PACE.success));
+  const steal =
+    tuning.plan.stealOdds && success === undefined && serverId
+      ? stealOdds(state, serverId)
+      : (tuning.plan.stealOdds ? STEAL.run : AGENDA_RUN) * (success ?? (serverId ? runSuccess(state, serverId) : PACE.success));
   if (!tuning.plan.agendaTempo) {
     const runnerTurns = need === 0 && state.activePlayer === 'corp' ? 0 : Math.max(1, Math.ceil(need / 3));
     return gain * (1 - steal) ** runnerTurns - need * (CLICK + 1);

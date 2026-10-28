@@ -274,6 +274,8 @@ export const tuning = {
     runOpenness: true,
     /** Jeff, 2026-10-28: an installed agenda is its points on the clock if it survives the Runner's turns until scored, less the advancing left (evaluate.ts agendaWorth). */
     agendaBoard: true,
+    /** Jeff, 2026-10-28: an installed agenda's steal chance as measured (scripts/steal-odds.ts): the Runner runs a remote it can get into most turns, and raises credits for the ice first (effectValues stealOdds). */
+    stealOdds: true,
     /** Jeff, 2026-10-28: agendas on the board count the Runner turns until the Corp can finish them, by its clicks (from hand, one more), and each is a turn closer to the end of the game. */
     agendaTempo: true,
     /**
