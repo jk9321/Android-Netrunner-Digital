@@ -21,8 +21,15 @@ function runnerWith(codes: string[], credits: number) {
 }
 
 describe('the hand schedule (Jeff, 2026-10-28; plan.handSchedule)', () => {
-  beforeAll(() => { tuning.plan.handSchedule = { corp: true, runner: true }; });
-  afterAll(() => { tuning.plan.handSchedule = { corp: false, runner: false }; });
+  // Switched off, kept for re-testing: checked on its own, without the damage clock (a smaller grip is a step toward a flatline)
+  beforeAll(() => {
+    tuning.plan.handSchedule = { corp: true, runner: true };
+    tuning.plan.damageClock = false;
+  });
+  afterAll(() => {
+    tuning.plan.handSchedule = { corp: false, runner: false };
+    tuning.plan.damageClock = true;
+  });
 
   it('when credits hold the plan back, a click is worth about a credit', () => {
     const s = runnerWith([CARMEN, RED_TEAM], 0);

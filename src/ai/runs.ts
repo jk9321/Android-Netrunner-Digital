@@ -11,7 +11,7 @@ import {
   isBioroid,
 } from '../core/engine/ice';
 import { availableCredits, counters } from '../core/engine/cardEffects';
-import { corpCardValue, tagThreat } from './evaluate';
+import { corpCardValue, tagThreat, tagsWorth } from './evaluate';
 import { agendaOdds, damageWorth } from './effectValues';
 import { clickPrice } from './handValues';
 import { tuning } from './synergy';
@@ -113,11 +113,12 @@ export const runClick = (state?: GameState): number => (tuning.plan.runModel ? (
 
 /** A tag taken (Jeff): the cheaper of clearing it (a click and 2 credits) and what it costs to keep it. */
 export function tagCost(state: GameState): number {
+  if (tuning.plan.tagClock) return tagsWorth(state, 'runner', state.runner.tags + 1) - tagsWorth(state, 'runner');
   return Math.min(clickRate('runner') + creditCost(state, 2), RATES.tagAgainstRunner + tagThreat(state, 'runner'));
 }
 
 /** An installed card the Corp gets to trash: about the Runner's best, a breaker at its install cost and the time to replace it. */
-function trashedCardCost(state: GameState): number {
+export function trashedCardCost(state: GameState): number {
   const rig = [...state.runner.rig.programs, ...state.runner.rig.hardware, ...state.runner.rig.resources];
   if (rig.length === 0) return 0;
   return Math.min(8, Math.max(...rig.map(c => (cardDef(c).cost ?? 0) + clickRate('runner') + 1)));

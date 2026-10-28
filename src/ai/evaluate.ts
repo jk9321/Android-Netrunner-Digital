@@ -9,6 +9,8 @@ import { AI_BREAKER_SHARE, breakerTypeWorth, flatIceWorth, iceWorth } from './ic
 import { payoutWait, payoutWorth, profileOf, turnsLeft } from './cardProfiles';
 import { HAND_FLOOR, clickPrice, handByCard, handSchedule, ownHandValue, playedWorth, scheduleValue } from './handValues';
 import { CLICK, RATES, creditValue, handFilter, pointValue, sideCreditValue } from './valueModel';
+import { FLATLINE, flatlineOdds } from './effectValues';
+import { trashedCardCost } from './runs';
 
 export { creditValue };
 
@@ -223,6 +225,37 @@ export function tagThreat(state: GameState, viewer: SideCode): number {
   return Math.min(2.5, threat);
 }
 
+/**
+ * The tag clock (Jeff, 2026-10-28; plan.tagClock): what tags on the Runner
+ * are worth, to the Corp and against the Runner. Each Corp turn a tagged
+ * Runner can lose its best resource (the Corp's basic trash action: a click
+ * and 2 credits, rule 4.4.1) or a card to a tag punisher (Retribution) the
+ * Corp holds, as far as `viewer` knows. The Runner clears a tag for a click
+ * and 2 credits when keeping it costs more, so tags are worth the cheaper.
+ */
+export function tagsWorth(state: GameState, viewer: SideCode, tags = state.runner.tags): number {
+  if (tags <= 0) return 0;
+  const corp = state.corp;
+  // The best resource the Corp would trash, net of what trashing costs it
+  const rig = runnerRigValue(state, true, viewer);
+  const resources = state.runner.rig.resources.map(r => rig - runnerRigValue({ ...state, runner: { ...state.runner, rig: { ...state.runner.rig, resources: state.runner.rig.resources.filter(c => c !== r) } } }, true, viewer));
+  const trash = Math.max(0, ...resources) - (corp.credits >= 2 ? CLICK + 2 : Infinity);
+  // A tag punisher in HQ: known to the Corp, the decklist's odds to the Runner
+  const punishes = (c: CardInstance) => cardSynergy(cardDef(c)).when?.includes('ifTagged') ?? false;
+  let held: number;
+  if (viewer === 'corp') held = corp.hq.some(punishes) ? 1 : 0;
+  else {
+    const unseen = [...corp.hq, ...corp.rd];
+    const share = unseen.length ? unseen.filter(punishes).length / unseen.length : 0;
+    held = 1 - (1 - share) ** corp.hq.length;
+  }
+  const punish = held * trashedCardCost(state);
+  const perTurn = Math.max(trash, 0) + punish + (punishes(corp.identity) ? 1 : 0);
+  const clear = CLICK + 2;
+  // Kept, a tag costs this turn's loss and maybe the next; the Runner clears the ones that cost more than clearing
+  return Math.min(tags * clear, 1.5 * perTurn + 0.1 * (tags - 1));
+}
+
 /** A side's clicks left and its hand: the hand schedule for the viewer's own side (plan.handSchedule), else each on its own. */
 function handAndClicks(state: GameState, side: SideCode, viewer: SideCode): number {
   if (side === viewer && handSchedule(side)) return scheduleValue(state, side);
@@ -231,6 +264,9 @@ function handAndClicks(state: GameState, side: SideCode, viewer: SideCode): numb
   const own = side === viewer && handByCard(side) ? ownHandValue(state, side) : handValue(hand.length, player.handSizeLimit, viewer);
   return clickPrice(state, side, viewer) * player.clicks + own;
 }
+
+/** The flat worth of the first cards in hand as life against damage, which the damage clock replaces. */
+const lifeCards = (size: number): number => Math.min(size, RATES.handCoreCards) * (RATES.handCore - RATES.drawnCard);
 
 export function sideStrength(state: GameState, side: SideCode, viewer: SideCode = side, aware = false): number {
   const threat = aware && tuning.plan.tagThreat?.[viewer] && state.runner.tags > 0 ? tagThreat(state, viewer) : 0;
@@ -241,7 +277,7 @@ export function sideStrength(state: GameState, side: SideCode, viewer: SideCode 
       handAndClicks(state, 'corp', viewer) +
       pointValue(corp.score) +
       corpBoardValue(state, viewer) +
-      (RATES.tagForCorp + threat) * state.runner.tags +
+      (tuning.plan.tagClock ? tagsWorth(state, viewer) : (RATES.tagForCorp + threat) * state.runner.tags) +
       // Dividends and Next Big Thing counters, AU Co. power counters
       corp.scoreArea.reduce((n, a) => n + countersWorth(state, a, 'agenda', viewer), 0) +
       countersWorth(state, corp.identity, 'power', viewer)
@@ -252,8 +288,10 @@ export function sideStrength(state: GameState, side: SideCode, viewer: SideCode 
     sideCreditValue(state, 'runner', viewer) +
     handAndClicks(state, 'runner', viewer) +
     pointValue(runner.score) -
-    (RATES.tagAgainstRunner + threat) * runner.tags -
-    RATES.coreDamage * runner.coreDamage +
+    (tuning.plan.tagClock ? tagsWorth(state, viewer) : (RATES.tagAgainstRunner + threat) * runner.tags) -
+    RATES.coreDamage * runner.coreDamage -
+    // The damage clock: a small grip against the Corp's damage is a step toward a flatline
+    (tuning.plan.damageClock ? FLATLINE * flatlineOdds(state, Math.min(runner.grip.length, runner.handSizeLimit ?? 5)) + lifeCards(runner.grip.length) : 0) +
     runnerRigValue(state, aware, viewer)
   );
 }

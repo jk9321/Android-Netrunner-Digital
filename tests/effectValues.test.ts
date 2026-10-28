@@ -48,8 +48,9 @@ describe('the last hand-set cards, priced by what they do (Jeff, 2026-10-28)', (
     expect(keep('30045', s)).toBeCloseTo(0.5 * damageWorth(s, 3));
   });
 
-  it('Clearinghouse: its 2 meat damage barely cover the clicks and credits to advance it', () => {
-    expect(keep('30061')).toBeLessThan(1.5);
+  it('Clearinghouse: its 2 meat damage on the damage clock, less the clicks and credits to advance it', () => {
+    const s = newGame();
+    expect(keep('30061', s)).toBeCloseTo(Math.max(0.5, 0.6 * damageWorth(s, 2) - CLICK - 1));
   });
 
   it('Idiosyncresis: each advancement is a 5-credit swing for a click and a credit', () => {

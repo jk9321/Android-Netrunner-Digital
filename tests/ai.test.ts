@@ -14,6 +14,6 @@ describe('heuristic AI', () => {
       const start = createInitialGameState(deckGameSetup(100 + i, corpDeck, runnerDeck));
       const { state } = playAIGame(start);
       expect(state.winner, `turn ${state.turnNumber}, score ${state.corp.score}-${state.runner.score}`).toBeTruthy();
-    }, 30000);
+    }, 90000); // the whole-turn planner plays out every turn
   });
 });

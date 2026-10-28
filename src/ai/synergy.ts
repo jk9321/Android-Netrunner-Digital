@@ -268,6 +268,9 @@ export const tuning = {
     counterFormulas: true,
     /** Jeff, 2026-10-28: discards and trashes from hand by each card's model worth, not flat numbers by type (evaluate.ts keepValue). */
     keepByModel: true,
+    /** Jeff, 2026-10-28: damage priced on a clock (flatline odds rise as the grip falls below the Corp's biggest hit) and tags by what the Corp can do with them (effectValues.ts, evaluate.ts tagsWorth). */
+    damageClock: true,
+    tagClock: true,
     /** Per deciding side (Jeff, 2026-10-28): Normal plays its best few actions through to the end of the turn and picks the best turn (turnPlanner.ts). */
     turnPlanner: { corp: true, runner: true } as Record<SideCode, boolean>,
     /** With the planner: the hand at the end of a planned turn valued card by card (what each will do later). */

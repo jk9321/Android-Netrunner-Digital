@@ -1,3 +1,4 @@
+import { damageWorth } from '../src/ai/effectValues';
 import { RATES } from '../src/ai/valueModel';
 import { describe, expect, it } from 'vitest';
 import { GameAction, cardDef, createCardInstance, executeAction, getCardDefinition, getLegalActions, isLegalAction } from '../src/core';
@@ -17,7 +18,8 @@ describe('AI judgement in fixed positions', () => {
     const state = newGame();
     expect(subroutineCost(state, 'End the run.')).toBe(Infinity);
     state.runner.grip = state.runner.grip.slice(0, 5);
-    expect(subroutineCost(state, 'Do 1 net damage.')).toBe(RATES.drawnCard); // a card lost (plan.subCosts)
+    expect(subroutineCost(state, 'Do 1 net damage.')).toBeCloseTo(damageWorth(state, 1)); // a card lost and a step on the damage clock (plan.subCosts)
+    expect(damageWorth(state, 1)).toBeGreaterThanOrEqual(RATES.drawnCard);
     state.runner.grip = state.runner.grip.slice(0, 1);
     expect(subroutineCost(state, 'Do 1 net damage.')).toBe(Infinity); // would flatline
   });

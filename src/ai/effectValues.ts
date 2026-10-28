@@ -93,7 +93,57 @@ export function accessWorth(state: GameState): number {
 /** Worth of n net or meat damage to the Runner: the cards lost, or the game if it flatlines. */
 export function damageWorth(state: GameState, n: number): number {
   if (n > state.runner.grip.length) return FLATLINE;
-  return n * RATES.drawnCard;
+  if (!tuning.plan.damageClock) return n * RATES.drawnCard;
+  // The damage clock: the cards, and the step closer to a flatline the smaller grip leaves
+  // Cards over the hand limit are discarded before the Corp's turn: they are no life against its damage
+  const limit = state.runner.handSizeLimit ?? 5;
+  const grip = state.runner.grip.length;
+  return n * RATES.drawnCard + FLATLINE * (flatlineOdds(state, Math.min(limit, grip - n)) - flatlineOdds(state, Math.min(limit, grip)));
+}
+
+/** Damage a Corp card can deal in one go, from its text ("plus 1 ... for each" counts 2 more). */
+function cardDamage(code: string): number {
+  const text = getCardDefinition(code).stripped_text ?? '';
+  let most = 0;
+  for (const m of text.matchAll(/[Dd]o (\d+) (?:net|meat|core) damage( plus 1 (?:net |meat )?damage for each)?/g)) most = Math.max(most, Number(m[1]) + (m[2] ? 2 : 0));
+  return most;
+}
+
+const threats = new Map<string, { burst: number; share: number }>();
+
+/**
+ * The Corp's damage threat (the damage clock, Jeff 2026-10-28): the biggest
+ * hit one of its cards can still deal, and the share of its cards that deal
+ * damage, from the decklist less what is scored or trashed faceup.
+ */
+export function damageThreat(state: GameState): { burst: number; share: number } {
+  const key = `${state.id}:${state.corp.archives.faceUp.length}:${state.corp.scoreArea.length}:${state.runner.scoreArea.length}`;
+  const cached = threats.get(key);
+  if (cached) return cached;
+  const gone = new Set([...state.corp.archives.faceUp, ...state.corp.scoreArea, ...state.runner.scoreArea].map(c => c.instanceId));
+  const live = sideCards(state, 'corp').filter(c => !gone.has(c.instanceId));
+  const hits = live.map(c => cardDamage(c.cardCode)).filter(n => n > 0);
+  const threat = { burst: hits.length ? Math.max(...hits) : 0, share: live.length ? hits.length / live.length : 0 };
+  if (threats.size > 200) threats.clear();
+  threats.set(key, threat);
+  return threat;
+}
+
+/**
+ * Chance the Corp flatlines a Runner holding `grip` cards before it can
+ * draw back up: near 1 once the grip is below the Corp's biggest hit,
+ * falling off over a card or two above it, and only as likely as the Corp
+ * is to have a damage card to hand (rule 10.4.4: flatlined on damage beyond the grip).
+ */
+/** Share of damage threats the Corp gets to land. */
+export const FLATLINE_LANDS = 0.5;
+
+export function flatlineOdds(state: GameState, grip: number): number {
+  const { burst, share } = damageThreat(state);
+  if (burst === 0) return 0;
+  // The Corp has to draw the card and land the hit (the Runner has to access or encounter it): about half the time when it holds one
+  const presence = Math.min(1, 4 * share) * FLATLINE_LANDS;
+  return presence / (1 + Math.exp((grip + 0.5 - burst) / 1.2));
 }
 
 /** A flatline ends the game: priced like half of a whole game of agenda points. */
