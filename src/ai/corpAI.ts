@@ -7,7 +7,12 @@ import { digValue, evaluate } from './evaluate';
 import { answerPrompt, simulate } from './prompts';
 import { logNudge, nudge, opponentLean, tuning } from './synergy';
 import { noteKnownHand } from './handValues';
-import { iceCost, isTrap, weakestIce } from './runs';
+import { PETTY_CASH_REPLAY, iceAdvanceWorth, placedCounterWorth, rezEffectWorth, rezzedWorth, topDownWorth } from './effectValues';
+import { ECON_SCALE } from './cardProfiles';
+
+/** Whether a group of value hacks is replaced by the model (plan.modelHacks, Jeff 2026-10-28). */
+const hacksOff = (group: 'rez' | 'rezPriority' | 'purge' | 'bonuses' | 'iceAdvance'): boolean => !!tuning.plan.modelHacks?.[group];
+import { iceCost, isTrap, tagCost, weakestIce } from './runs';
 import { cardSynergy } from './synergyTags';
 import { econValue, upgradeValue } from './cardValues';
 import { counterWorth } from './counterValues';
@@ -126,12 +131,17 @@ export class HeuristicCorpAI implements Agent {
       let score: number;
       if (def.type_code === 'ice') {
         // Ping tags the Runner when rezzed during a run; ice that ends the run protects best
-        score = importance + (hasEndTheRun(card) ? 1 : 0) + (card.cardCode === '30055' ? 2 : 0);
+        const onRez = hacksOff('rezPriority') ? ECON_SCALE * rezEffectWorth(card, tagCost(state)) : card.cardCode === '30055' ? 2 : 0;
+        score = importance + (hasEndTheRun(card) ? 1 : 0) + onRez;
         if (state.corp.credits - cost < 2 && importance < 4) score -= 2;
         // (Jeff) money kept to rez an agenda remote's ice isn't spent on ice elsewhere
         if (this.synergy && tuning.plan.agendaMoney && state.corp.credits - cost < agendaRemoteNeed(state, server.id)) score -= 3;
       } else if (def.type_code === 'upgrade') {
-        score = card.cardCode === '30042' || card.cardCode === '30050' ? importance : importance - 2;
+        if (hacksOff('rezPriority')) {
+          // Upgrades: by what they do here (model), up to the 2 an upgrade gives up against ice
+          const [remote, central] = upgradeValue(card.cardCode, state);
+          score = importance - 2 + Math.min(2, Math.max(0, server.isRemote ? remote : central));
+        } else score = card.cardCode === '30042' || card.cardCode === '30050' ? importance : importance - 2;
       } else {
         score = -1; // assets are rezzed on the Corp's own turn
       }
@@ -219,6 +229,13 @@ export class HeuristicCorpAI implements Agent {
     const corp = state.corp;
     const econ = econValue(card.cardCode, state);
     if (econ) return econ + 1;
+    if (hacksOff('rez')) {
+      // Model: worth once rezzed, less the rez cost, on the install-score scale; upgrades still wait for ice money (Jeff)
+      if (type(card) === 'upgrade' && this.idleUpgrade(state, card)) return -Infinity;
+      if (type(card) === 'agenda' || isTrap(card.cardCode)) return -Infinity;
+      const worth = rezzedWorth(state, card, rezCost(state, card));
+      return worth > 0 ? ECON_SCALE * worth : -Infinity;
+    }
     if (card.cardCode === '30061') return 1; // Clearinghouse must be rezzed to fire
     // Elevation cards whose effects need them rezzed
     switch (card.cardCode) {
@@ -297,7 +314,7 @@ export class HeuristicCorpAI implements Agent {
       return counterWorth(state, card, 'credit', 'corp') * Math.max(0, counters(card, 'credit') - (left ? counters(left, 'credit') : 0));
     }
     if (action.type === 'PLAY_OPERATION_OR_EVENT' && tuning.plan.pettyCash) {
-      return corp.hq.find(c => c.instanceId === action.cardInstanceId)?.cardCode === '35081' ? 1.5 : 0;
+      return corp.hq.find(c => c.instanceId === action.cardInstanceId)?.cardCode === '35081' ? (hacksOff('bonuses') ? PETTY_CASH_REPLAY : 1.5) : 0;
     }
     if (action.type === 'DRAW_CARD' && tuning.plan.dig?.corp && corp.hq.length < corp.handSizeLimit) return digValue(state, 'corp');
     return 0;
@@ -328,7 +345,8 @@ export class HeuristicCorpAI implements Agent {
       case '35044': {
         // Top-Down Solutions: 2 cards and up to 2 installs for 1 click
         const installable = corp.hq.filter(c => ['ice', 'asset', 'upgrade', 'agenda'].includes(type(c))).length;
-        return corp.credits >= 3 && installable >= 1 && corp.hq.length <= corp.handSizeLimit ? 1.3 : 0;
+        if (!(corp.credits >= 3 && installable >= 1 && corp.hq.length <= corp.handSizeLimit)) return 0;
+        return hacksOff('bonuses') ? topDownWorth(installable) : 1.3;
       }
     }
     return 0;
@@ -360,6 +378,11 @@ export class HeuristicCorpAI implements Agent {
       return this.synergy && tuning.bluff && isTrap(card.cardCode) ? 1.2 + this.trapBluff(state, card) : 1.2;
     }
     // Pharos: +5 strength at 3 counters; Syailendra: places counters when encountered at 3
+    if (hacksOff('iceAdvance') && (card.cardCode === '35076' || card.cardCode === '30063')) {
+      const at = (n: number) => Math.min(8, iceCost(state, { ...card, isRezzed: true, advancementCounters: n }));
+      const worth = iceAdvanceWorth(state, card, at);
+      return worth > 0 ? ECON_SCALE * worth : -Infinity;
+    }
     if (card.cardCode === '35076' && card.advancementCounters < 3 && corp.credits >= 4) return 0.8;
     return card.cardCode === '30063' && card.advancementCounters < 3 && corp.credits >= 8 ? 1 : -Infinity;
   }
@@ -370,7 +393,10 @@ export class HeuristicCorpAI implements Agent {
    * traps) a bare trap that would otherwise read as an obvious bluff.
    */
   private trapBluff(state: GameState, card: CardInstance): number {
-    if (card.cardCode === '30045' && 2 + card.advancementCounters + 1 >= state.runner.grip.length) return 1.5;
+    if (card.cardCode === '30045' && 2 + card.advancementCounters + 1 >= state.runner.grip.length) {
+      // Model: the counter that makes it lethal, at the chance it's accessed
+      return hacksOff('bonuses') ? ECON_SCALE * placedCounterWorth(state, card, false) : 1.5;
+    }
     const shown = state.corp.archives.faceUp.some(c => isTrap(c.cardCode));
     return shown && card.advancementCounters === 0 ? 0.6 : 0;
   }
@@ -710,7 +736,7 @@ const VIRUS_WEIGHT: Record<string, number> = {
 /** The Runner's virus counters, weighted by what they do. */
 function virusThreat(state: GameState): number {
   return [...state.runner.rig.programs, ...state.runner.rig.hardware, ...state.runner.rig.resources].reduce(
-    (n, c) => n + counters(c, 'virus') * (VIRUS_WEIGHT[c.cardCode] ?? 0.8),
+    (n, c) => n + counters(c, 'virus') * (hacksOff('purge') ? counterWorth(state, c, 'virus', 'corp') : VIRUS_WEIGHT[c.cardCode] ?? 0.8),
     0
   );
 }

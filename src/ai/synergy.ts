@@ -256,6 +256,8 @@ export const tuning = {
     effectValues: true,
     /** Runner (Jeff, 2026-10-28): runs scored in the model's units, credits on the slide, steals on the point clock (runs.ts). */
     runModel: true,
+    /** Value hacks replaced by the model, by group (Jeff, 2026-10-28; effectValues.ts). */
+    modelHacks: { rez: true, rezPriority: true, purge: true, bonuses: true, iceAdvance: true } as Record<string, boolean>,
     /** Per deciding side (Jeff, 2026-10-28): its own hand valued card by card, by what each will do once played (handValues.ts). */
     handByCard: { corp: true, runner: true } as Record<SideCode, boolean>,
     /** Both sides: subroutine costs (tags, damage, trashed cards, lost credits) from the rates (runs.ts). */

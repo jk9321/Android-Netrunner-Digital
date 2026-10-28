@@ -1,6 +1,7 @@
 import { CardInstance, GameAction, GameState, Prompt, SideCode, activePrompt, cardDef, executeAction, findCardAnywhere, getLegalActions, isLegalAction } from '../core';
 import { runnerInstallBlocker } from '../core/engine/actions/install';
 import { evaluate, keepValue } from './evaluate';
+import { placedCounterWorth } from './effectValues';
 import { BOTULUS, MANEGARM, RunOptions, RunnerMemory, iceCost, isTrap, runClick, runScore, serverValue, spendCost, subroutineCost, weakestIce } from './runs';
 import { encounteredIce, iceScript } from '../core/engine/ice';
 import { keepBonus, tuning } from './synergy';
@@ -209,6 +210,12 @@ export function untaianPick(state: GameState, candidateIds: string[]): string[] 
       if (!candidateIds.includes(card.instanceId)) continue;
       const def = cardDef(card);
       let value = 0.3;
+      if (tuning.plan.modelHacks?.bonuses && (def.type_code !== 'ice' || card.cardCode === '30063' || card.cardCode === '35076')) {
+        // Model: what the counter adds on this card
+        value = def.type_code === 'ice' ? 0.5 : placedCounterWorth(state, card, server.ice.length > 0);
+        if (!best || value > best.value) best = { id: card.instanceId, value };
+        continue;
+      }
       if (def.type_code === 'agenda') value = server.ice.length > 0 ? 3 + (card.advancementCounters > 0 ? 0.5 : 0) : 0.8;
       else if (card.cardCode === '30045') value = 2.5; // Urtica Cipher: 1 more net damage
       else if (isTrap(card.cardCode)) value = 1.5;

@@ -3,7 +3,7 @@ import { counters } from '../core/engine/cardEffects';
 import { PAYOUT_RISK, turnsLeft } from './cardProfiles';
 import { COUNTER_WORTH, counterWorth } from './counterValues';
 import { tuning } from './synergy';
-import { CLICK, RATES, sideCards } from './valueModel';
+import { CLICK, RATES, pointValue, sideCards } from './valueModel';
 
 /**
  * The every-card audit's last 31 cards (Jeff, 2026-10-28): assets, upgrades
@@ -257,3 +257,61 @@ export const EFFECT_CODES = [
 
 /** Whether the effect formulas price cards (plan.effectValues). */
 export const effectsOn = (): boolean => !!tuning.plan.effectValues;
+
+/**
+ * Value hacks replaced by the model (Jeff, 2026-10-28; plan.modelHacks).
+ * Each returns credits.
+ */
+
+/** Worth of a Corp root card once rezzed, less its rez cost (rez decisions on the Corp's own turn). */
+export function rezzedWorth(state: GameState, card: CardInstance, rezCost: number): number {
+  switch (card.cardCode) {
+    case '35061': // Idiosyncresis: each counter is 3 credits and 2 off the Runner when it fires
+      return card.advancementCounters * 5 - rezCost;
+    case '30061': // Clearinghouse: 1 meat damage per counter when it fires
+      return card.advancementCounters > 0 ? damageWorth(state, card.advancementCounters) - rezCost : -1;
+  }
+  const fx = corpEffect(state, card.cardCode);
+  return fx ? fx.keep - rezCost : -1;
+}
+
+/** Worth of an ice's "when rezzed during a run" effect (Ping: a tag). */
+export function rezEffectWorth(card: CardInstance, tagWorth: number): number {
+  const tags = (cardDef(card).stripped_text ?? '').match(/When you rez this ice during a run[^.]*give the Runner (\d+) tag/i);
+  return tags ? Number(tags[1]) * tagWorth : 0;
+}
+
+/** Worth of one more advancement counter on a piece of ice that grows with them (Pharos, Syailendra). */
+export function iceAdvanceWorth(state: GameState, card: CardInstance, iceCostAt: (counters: number) => number): number {
+  const left = 3 - card.advancementCounters;
+  if (left <= 0) return 0;
+  if (card.cardCode === '35076') {
+    // Syailendra at 3: each encounter places a counter (a click and a credit) on a card we can advance
+    return perTurn(state, 0.3 * (CLICK + 1), 'corp') / left;
+  }
+  return Math.max(0, iceCostAt(3) - iceCostAt(card.advancementCounters)) / left;
+}
+
+/** Worth of an advancement counter placed by an effect (Sericulture, Syailendra) on this card. */
+export function placedCounterWorth(state: GameState, card: CardInstance, iced: boolean): number {
+  const def = cardDef(card);
+  if (def.type_code === 'agenda') {
+    const points = def.agenda_points ?? 1;
+    const share = (pointValue(state.corp.score + points) - pointValue(state.corp.score)) / Math.max(1, def.advancement_cost ?? 3);
+    return iced ? share : 0.3 * share;
+  }
+  // Traps: an advanced card reads as an agenda and draws a run (about a third of the time, a click and 2 credits wasted)
+  const bluff = /ambush|hostile/i.test(def.keywords ?? '') ? 0.3 * (CLICK + 2) : 0;
+  if (card.cardCode === '30045') return bluff + 0.5 * (damageWorth(state, 3 + card.advancementCounters) - damageWorth(state, 2 + card.advancementCounters)); // Urtica: 1 more net damage
+  if (card.cardCode === '35061') return 0.6 * 5; // Idiosyncresis
+  if (card.cardCode === '30061') return bluff + 0.6 * damageWorth(state, 1); // Clearinghouse
+  return 0.3;
+}
+
+/** Petty Cash comes back from Archives for its 5 credits and the click back: worth its net 2 credits again, a turn later. */
+export const PETTY_CASH_REPLAY = 2 * 0.85;
+
+/** Top-Down Solutions: 2 cards and up to 2 installs that cost no click, for its click. */
+export function topDownWorth(installable: number): number {
+  return 2 * RATES.drawnCard + Math.min(2, installable) * CLICK - CLICK;
+}

@@ -170,11 +170,12 @@ export function iceCost(state: GameState, ice: CardInstance): number {
   // Botulus breaks the worst subroutines for free; the rest are tanked or broken
   const costs = (iceScript(ice)?.subroutines ?? []).map(s => subroutineCost(state, s.label)).sort((a, b) => b - a);
   const subs = costs.slice(botulusBreaks(state, ice));
-  if (subs.length === 0) return ice.cardCode === '30054' ? 3 : 0;
+  const funhouse = ice.cardCode === '30054' ? (tuning.plan.modelHacks?.bonuses ? tagCost(state) : 3) : 0; // Funhouse: take a tag or the run ends
+  if (subs.length === 0) return funhouse;
   let tank = subs.reduce((sum, cost) => sum + cost, 0);
-  if (ice.cardCode === '30054') tank += 3; // Funhouse: take a tag or the run ends
+  tank += funhouse;
   const plan = bestBreakPlan(state, ice, subs.length);
-  const breakCost = plan ? plan.credits + (ice.cardCode === '30054' ? 3 : 0) : BLOCK;
+  const breakCost = plan ? plan.credits + funhouse : BLOCK;
   return Math.min(tank, breakCost, selfBreakCost(ice, subs.length));
 }
 
