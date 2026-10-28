@@ -2,9 +2,12 @@ import { CardInstance, GameState, SideCode, cardDef } from '../core';
 import { findCardAnywhere } from '../core';
 import { counters, rezCost } from '../core/engine/cardEffects';
 import { tuning } from './synergy';
-import { RATES } from './valueModel';
+import { CLICK, RATES, handFilter, pointValue, sideCards } from './valueModel';
 import { bestBreakPlan } from './runs';
-import { conduitCounterWorth } from './effectValues';
+import { PACE, accessWorth, conduitCounterWorth, damageWorth } from './effectValues';
+import { PAYOUT_RISK } from './cardProfiles';
+import { corpKeepValue } from './cardValues';
+import { boostCostOf, breakerScript, isIcebreaker } from '../core/engine/ice';
 
 /**
  * Value model step 3 (docs/ai-value-model-plan.md): a counter is worth
@@ -54,6 +57,144 @@ export const COUNTER_WORTH: Record<string, Partial<Record<CounterType, CounterWo
   '30017': { virus: (state, card) => trojanHostWorth(state, card, host => (host.isRezzed ? rezCost(state, host) / 3 : 0.3)) },
 };
 
+/*
+ * The last hand-set counter rates (Jeff, 2026-10-28; plan.counterFormulas):
+ * each one worked out from what the counter turns into, in the model's
+ * units, from the board and decklists. The old numbers stay for when the
+ * switch is off. tests/counterValues.test.ts works each one through.
+ */
+
+/** Free credits paid out on the Corp's turn: each turn's payout survives the Runner trashing the asset first. */
+const paidOut = (): number => 1 - 2 * PAYOUT_RISK.corpBare;
+
+/** Average of a list, or a fallback for an empty one. */
+const mean = (xs: number[], fallback: number): number => (xs.length ? xs.reduce((a, b) => a + b, 0) / xs.length : fallback);
+
+/** A recurring credit spent only on some costs: worth a credit if those costs come up before it refills (a turn). */
+const recurring = (uses: number): number => Math.min(1, uses / 2);
+
+/** Mahkota Langit Grid: the rez costs still to pay in its server. */
+function mahkotaCredit(state: GameState, card: CardInstance): number {
+  const server = Object.values(state.corp.servers).find(s => s.root.some(c => c.instanceId === card.instanceId));
+  const unrezzed = server ? [...server.ice, ...server.root].filter(c => !c.isRezzed && c.instanceId !== card.instanceId) : [];
+  const owed = unrezzed.reduce((n, c) => n + (cardDef(c).cost ?? 0), 0);
+  // No server yet (in hand): the ice and assets the deck puts behind a scoring remote
+  return recurring(server ? owed : 2);
+}
+
+/** Azimat: the trash costs the Runner pays in a turn, from the Corp's decklist. */
+function azimatCredit(state: GameState): number {
+  const costs = sideCards(state, 'corp').map(c => cardDef(c).trash_cost).filter((t): t is number => typeof t === 'number');
+  return recurring(PACE.paidTrashes * mean(costs, 3));
+}
+
+/** Red Team: 3 credits per successful click-run, the click shared with the access it also gets. */
+const redTeamCredit = (): number => PACE.success * (1 - CLICK / 3 / 2) + (1 - PACE.success) * PAYOUT_RISK.clickWait * (1 - CLICK / 6);
+
+/** Side Hustle: one a run until 6, then all taken with a card; each waits for the rest. */
+function sideHustleCredit(card: CardInstance): number {
+  const turnsToFill = Math.max(0, 6 - counters(card, 'credit')) / PACE.runs;
+  return PAYOUT_RISK.clickWait ** turnsToFill + RATES.drawnCard / 6;
+}
+
+/** Pennyshaver: all taken with a click that adds 1 more, about every few turns. */
+function pennyshaverCredit(card: CardInstance): number {
+  const batch = Math.max(2, counters(card, 'credit'));
+  return PAYOUT_RISK.clickWait * (1 - Math.max(0, CLICK - 1) / batch);
+}
+
+/** Leech: -1 strength on an encounter, what boosting a breaker by 1 costs (cheapest in the rig). */
+function leechVirus(state: GameState): number {
+  const perStrength = state.runner.rig.programs
+    .filter(isIcebreaker)
+    .map(b => {
+      const amount = breakerScript(b)?.boostAmount(state, b) ?? 0;
+      return amount > 0 ? boostCostOf(state, b) / amount : Infinity;
+    })
+    .filter(Number.isFinite);
+  return PAYOUT_RISK.clickWait * (perStrength.length ? Math.min(2, Math.min(...perStrength)) : 0.5);
+}
+
+/** Hantu: +2 strength when a sentry is stronger than it, else spare. */
+function hantuVirus(state: GameState, card: CardInstance): number {
+  const strength = cardDef(card).strength ?? 0;
+  const sentries = Object.values(state.corp.servers).flatMap(s => s.ice).filter(i => i.isRezzed && /sentry/i.test(cardDef(i).keywords ?? ''));
+  return sentries.some(i => (cardDef(i).strength ?? 0) > strength) ? 2 * 0.5 : 0.5; // a boost of 2, at about half a credit per point (rig average)
+}
+
+/** Phật Gioan Baotixita: a net damage when an agenda is scored or stolen, most turns. */
+const gioanPower = (state: GameState): number => Math.min(1, 2 * PACE.agendaEvents) * damageWorth(state, 1);
+
+/** AU Co.: 2 counters look at 3 cards, keep 2: two cards drawn and a filter. */
+const auCoPower = (): number => (2 * RATES.drawnCard + handFilter()) / 2;
+
+/** Project Ingatan: install the best card in Archives for nothing (a click and its install cost saved). */
+function ingatanAgenda(state: GameState): number {
+  const archived = [...state.corp.archives.faceUp, ...state.corp.archives.faceDown].filter(c => cardDef(c).type_code !== 'operation' && cardDef(c).type_code !== 'agenda');
+  const worth = archived.map(c => (cardDef(c).type_code === 'ice' ? RATES.ice : corpKeepValue(c.cardCode, state)));
+  return CLICK * (archived.length ? 1 : 0.5) + (worth.length ? Math.max(...worth) : 0);
+}
+
+/** Sericulture Expansion: 2 advancement counters, each a click and a credit. */
+const sericultureAgenda = (): number => 2 * (CLICK + 1);
+
+/** Embedded Reporting: the best money operation left in R&D as the next draw, over an average draw. */
+function embeddedAgenda(state: GameState): number {
+  const gains = state.corp.rd.map(c => {
+    const gain = (cardDef(c).stripped_text ?? '').match(/(?:^|\. )Gain (\d+) credits/);
+    return cardDef(c).type_code === 'operation' && gain ? Number(gain[1]) - (cardDef(c).cost ?? 0) : 0;
+  });
+  return Math.max(0, Math.max(0, ...gains) - RATES.drawnCard);
+}
+
+/** Off the Books: any card from R&D, installed for nothing: a card, a click, and the install it saves. */
+function offTheBooksAgenda(state: GameState): number {
+  const installs = state.corp.rd.filter(c => ['asset', 'upgrade', 'ice'].includes(cardDef(c).type_code ?? ''));
+  return RATES.drawnCard + CLICK + mean(installs.map(c => (cardDef(c).type_code === 'ice' ? 1 : 0)), 0.5);
+}
+
+/** Next Big Thing: a click for 4 cards, any shuffled back: new cards in the hand's free space, the rest swapped for its worst cards. */
+function nextBigThingAgenda(state: GameState): number {
+  const space = Math.min(4, Math.max(0, state.corp.handSizeLimit - state.corp.hq.length));
+  return space * RATES.drawnCard + (4 - space) * 0.5 * RATES.drawnCard - CLICK;
+}
+
+/** Proprionegation: once, a run on a scoring server sent to Archives: the steal it stops. */
+function proprionegationAgenda(state: GameState): number {
+  const typical = 2;
+  return PACE.remoteShare * (pointValue(state.runner.score + typical) - pointValue(state.runner.score)) * 0.5;
+}
+
+/** Devadatta Drone: one more card on an R&D breach. */
+const devadattaPower = (state: GameState): number => PAYOUT_RISK.clickWait * accessWorth(state);
+
+/** Cacophony: 2 counters sabotage 3, the Corp picking its worst cards. */
+const cacophonyPower = (): number => (3 * 0.5 * RATES.drawnCard) / 2;
+
+/** The formulas, by card, while plan.counterFormulas is on. */
+const COUNTER_FORMULAS: Record<string, Partial<Record<CounterType, CounterWorth>>> = {
+  '30037': { credit: paidOut },
+  '35040': { credit: paidOut },
+  '35072': { credit: paidOut },
+  '35082': { credit: mahkotaCredit },
+  '35051': { power: gioanPower },
+  '35046': { power: auCoPower },
+  '35038': { agenda: ingatanAgenda },
+  '35049': { agenda: sericultureAgenda },
+  '35059': { agenda: embeddedAgenda },
+  '35071': { agenda: offTheBooksAgenda },
+  '35060': { agenda: nextBigThingAgenda },
+  '35048': { agenda: proprionegationAgenda },
+  '35029': { credit: azimatCredit },
+  '30018': { credit: redTeamCredit },
+  '35034': { credit: (_s, card) => sideHustleCredit(card) },
+  '30014': { credit: (_s, card) => pennyshaverCredit(card) },
+  '30008': { virus: leechVirus },
+  '35008': { virus: hantuVirus },
+  '35031': { power: devadattaPower },
+  '35010': { power: cacophonyPower },
+};
+
 /** Average worth of `n` hosted credits taken 1 a turn: each turn of waiting costs 15%. */
 function paidOneATurn(n: number): number {
   let total = 0;
@@ -85,7 +226,7 @@ function defaultWorth(card: CardInstance, type: CounterType): number {
 
 /** Worth of one counter of `type` on `card`, as `viewer` prices it. */
 export function counterWorth(state: GameState, card: CardInstance, type: CounterType, viewer: SideCode): number {
-  const entry = tuning.plan.counterEffects?.[viewer] ? COUNTER_WORTH[card.cardCode]?.[type] : undefined;
+  const entry = tuning.plan.counterEffects?.[viewer] ? ((tuning.plan.counterFormulas ? COUNTER_FORMULAS[card.cardCode]?.[type] : undefined) ?? COUNTER_WORTH[card.cardCode]?.[type]) : undefined;
   return entry ? entry(state, card) : defaultWorth(card, type);
 }
 

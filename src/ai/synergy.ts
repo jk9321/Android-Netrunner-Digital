@@ -264,6 +264,8 @@ export const tuning = {
     runModel: true,
     /** Jeff, 2026-10-28: Fermenter and other virus counters banked and at risk of a purge; Conduit counters worth the accesses still to come; one-use breakers (Mayfly) worth one run. */
     cardFixes: true,
+    /** Jeff, 2026-10-28: the last hand-set counter rates (20 cards) worked out from what each counter turns into (counterValues.ts). */
+    counterFormulas: true,
     /** Value hacks replaced by the model, by group (Jeff, 2026-10-28; effectValues.ts). */
     modelHacks: { rez: true, rezPriority: true, purge: true, bonuses: true, iceAdvance: true } as Record<string, boolean>,
     /**
