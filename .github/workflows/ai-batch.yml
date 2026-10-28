@@ -33,7 +33,7 @@ on:
         required: false
         default: ''
       script:
-        description: corp-losses (win rates), pace (run pace for PACE in effectValues) or head-to-head (old vs new AI)
+        description: corp-losses (win rates), pace (run pace for PACE in effectValues) head-to-head (old vs new AI) or steal-odds (agenda safety guess vs steals)
         required: true
         default: corp-losses
       h2h:
@@ -117,7 +117,7 @@ jobs:
           [ -d earlier ] && for f in earlier/*.json; do cp "$f" "out/earlier-$(basename "$f")"; done
           {
             echo "Batch: ${{ inputs.label }} | ref ${{ inputs.ref }} | games ${{ inputs.game_from }}-${{ inputs.games }} | PLAN_OFF=${{ inputs.plan_off }} | ${{ inputs.script }} ${{ inputs.h2h }} | added run ${{ inputs.add_run }}"
-            if [ "${{ inputs.script }}" = pace ]; then node scripts/pace-sum.mjs out/*.json; else node scripts/corp-losses-sum.mjs out/*.json; fi
+            if [ -f "scripts/${{ inputs.script }}-sum.mjs" ]; then node "scripts/${{ inputs.script }}-sum.mjs" out/*.json; elif [ "${{ inputs.script }}" = pace ]; then node scripts/pace-sum.mjs out/*.json; else node scripts/corp-losses-sum.mjs out/*.json; fi
           } | tee summary.txt
       - uses: actions/upload-artifact@v4
         with:
