@@ -3,7 +3,7 @@ import { iceScript, iceSubtypes } from '../core/engine/ice';
 import { rigCoverage } from './evaluate';
 import { counters, rezCost } from '../core/engine/cardEffects';
 import { Agent, FreeActionGuard, ScoredAction } from './agent';
-import { agendaBoardValue, digValue, evaluate } from './evaluate';
+import { agendaWorth, digValue, evaluate } from './evaluate';
 import { pointValue } from './valueModel';
 import { PACE, accessWorth } from './effectValues';
 import { answerPrompt, simulate } from './prompts';
@@ -713,7 +713,8 @@ const ICE_STOPS = 0.3;
 function finishWorth(state: GameState, agenda: CardInstance): number {
   const def = cardDef(agenda);
   const points = def.agenda_points ?? 1;
-  return pointValue(state.corp.score + points) - pointValue(state.corp.score) - agendaBoardValue(agenda.advancementCounters, def.advancement_cost ?? 0);
+  const server = Object.values(state.corp.servers).find(s => s.root.some(c => c.instanceId === agenda.instanceId));
+  return pointValue(state.corp.score + points) - pointValue(state.corp.score) - agendaWorth(state, agenda.advancementCounters, def.advancement_cost ?? 0, points, server?.id);
 }
 
 /**

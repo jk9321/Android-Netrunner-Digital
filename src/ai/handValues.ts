@@ -2,8 +2,8 @@ import { CardInstance, GameState, SideCode, cardDef } from '../core';
 import { breakerScript, isIcebreaker } from '../core/engine/ice';
 import { CARD_PROFILES, payoutWait, payoutWorth, turnsLeft } from './cardProfiles';
 import { corpKeepValue, runnerCardValue } from './cardValues';
-import { breakerTypeWorth } from './iceValues';
-import { isOneUse, runnerRigValue } from './evaluate';
+import { breakerTypeWorth, iceWorth } from './iceValues';
+import { agendaWorth, isOneUse, runnerRigValue } from './evaluate';
 import { counterWorth } from './counterValues';
 import { iceCost } from './runs';
 import { tuning } from './synergy';
@@ -38,11 +38,19 @@ export function playedWorth(state: GameState, card: CardInstance): number {
       return gain ? Math.max(RATES.drawnCard, Number(gain[1]) - cost) : RATES.drawnCard;
     }
     case 'agenda': {
-      // Scored from hand about 40% of the time; the rest is stolen or stuck
       const points = def.agenda_points ?? 1;
+      if (tuning.plan.agendaBoard) {
+        // Installed in the safest remote it could go in (or a new, bare one), as the board will value it (plan.agendaBoard)
+        const remotes = Object.values(state.corp.servers).filter(s => s.isRemote && !s.root.some(c => ['agenda', 'asset'].includes(cardDef(c).type_code ?? '')));
+        const best = Math.max(agendaWorth(state, 0, def.advancement_cost ?? 0, points, undefined, 1), ...remotes.map(s => agendaWorth(state, 0, def.advancement_cost ?? 0, points, s.id)));
+        return best - CLICK;
+      }
+      // Scored from hand about 40% of the time; the rest is stolen or stuck
       return 0.4 * (pointValue(state.corp.score + points) - pointValue(state.corp.score));
     }
     case 'ice':
+      // Installed unrezzed, as the board values it (plan.agendaBoard: the same check of what the Corp can rez)
+      if (tuning.plan.agendaBoard) return iceWorth(state, { ...card, isRezzed: false }, 'corp') - CLICK;
       return RATES.ice + 0.6 * Math.min(8, iceCost(state, { ...card, isRezzed: true })) - CLICK;
     case 'asset':
     case 'upgrade':

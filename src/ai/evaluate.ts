@@ -9,7 +9,7 @@ import { AI_BREAKER_SHARE, breakerTypeWorth, flatIceWorth, iceWorth } from './ic
 import { payoutWait, payoutWorth, profileOf, turnsLeft } from './cardProfiles';
 import { HAND_FLOOR, clickPrice, handByCard, handSchedule, ownHandValue, playedWorth, scheduleValue } from './handValues';
 import { CLICK, RATES, creditValue, handFilter, pointValue, sideCreditValue } from './valueModel';
-import { FLATLINE, flatlineOdds } from './effectValues';
+import { FLATLINE, PACE, flatlineOdds, runSuccess } from './effectValues';
 import { trashedCardCost } from './runs';
 
 export { creditValue };
@@ -171,7 +171,7 @@ const isHidden = (card: CardInstance) => !card.isRezzed && !card.faceUp;
  * agenda, `agendaCost` the typical advancement those agendas need, and
  * `other` the average worth of the assets and upgrades it could be instead.
  */
-export function hiddenCardOdds(state: GameState): { agenda: number; agendaCost: number; other: number } {
+export function hiddenCardOdds(state: GameState): { agenda: number; agendaCost: number; agendaPoints: number; other: number } {
   const corp = state.corp;
   const installed = Object.values(corp.servers).flatMap(server => server.root.filter(isHidden));
   const unseen = [...corp.hq, ...corp.rd, ...corp.archives.faceDown, ...installed]
@@ -183,11 +183,32 @@ export function hiddenCardOdds(state: GameState): { agenda: number; agendaCost: 
   return {
     agenda: unseen.length > 0 ? agendas.length / unseen.length : 0,
     agendaCost: Math.round(mean(agendas.map(def => def.advancement_cost ?? 3), 3)),
+    agendaPoints: mean(agendas.map(def => def.agenda_points ?? 2), 2),
     other: mean(others.map(def => corpKeepValue(def.code, state)), 1),
   };
 }
 
 export const agendaBoardValue = (counters: number, cost: number) => counters * RATES.advancement + (counters >= cost ? RATES.scoreableAgenda : 0);
+
+/** Chance the Runner runs a server holding an advanced agenda on its turn (a guess: most turns it can). */
+export const AGENDA_RUN = 0.6;
+
+/**
+ * An installed agenda (Jeff, 2026-10-28; plan.agendaBoard): its points on
+ * the clock, if it survives the Runner's turns until it can be scored, less
+ * the clicks and credits still needed to advance it. Safe only once it can
+ * be scored on the Corp's own turn (a free action, rule 7.1); otherwise each
+ * Runner turn it waits is a run on its server that may get through (run
+ * openness: the ice there against the rig).
+ */
+export function agendaWorth(state: GameState, counters: number, cost: number, points: number, serverId?: string, success?: number): number {
+  if (!tuning.plan.agendaBoard) return agendaBoardValue(counters, cost);
+  const gain = pointValue(state.corp.score + points) - pointValue(state.corp.score);
+  const need = Math.max(0, cost - counters);
+  const runnerTurns = need === 0 && state.activePlayer === 'corp' ? 0 : Math.max(1, Math.ceil(need / 3));
+  const steal = AGENDA_RUN * (success ?? (serverId ? runSuccess(state, serverId) : PACE.success));
+  return gain * (1 - steal) ** runnerTurns - need * (CLICK + 1);
+}
 
 /** The Corp's installed cards, as `viewer` can judge them: the Runner values facedown cards by the odds, not by what they are. */
 function corpBoardValue(state: GameState, viewer: SideCode): number {
@@ -198,11 +219,11 @@ function corpBoardValue(state: GameState, viewer: SideCode): number {
     for (const card of server.root) {
       if (viewer === 'runner' && isHidden(card)) {
         odds ??= hiddenCardOdds(state);
-        value += odds.agenda * agendaBoardValue(card.advancementCounters, odds.agendaCost) + (1 - odds.agenda) * odds.other;
+        value += odds.agenda * agendaWorth(state, card.advancementCounters, odds.agendaCost, odds.agendaPoints, server.id) + (1 - odds.agenda) * odds.other;
         continue;
       }
       const def = cardDef(card);
-      if (def.type_code === 'agenda') value += agendaBoardValue(card.advancementCounters, def.advancement_cost ?? 0);
+      if (def.type_code === 'agenda') value += agendaWorth(state, card.advancementCounters, def.advancement_cost ?? 0, def.agenda_points ?? 1, server.id);
       else value += corpCardValue(card, state, viewer);
     }
   }
