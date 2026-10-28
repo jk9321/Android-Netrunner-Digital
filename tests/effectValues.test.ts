@@ -230,10 +230,12 @@ describe('Fermenter, Conduit and Mayfly (Jeff, 2026-10-28; plan.cardFixes)', () 
 
   it('Conduit: worth the extra accesses on the Conduit runs still to come, less late in the game', () => {
     const early = runnerEffect(newGame(), '30024')!;
-    tuning.plan.cardFixes = false;
-    const old = runnerEffect(newGame(), '30024')!;
-    tuning.plan.cardFixes = true;
-    expect(early).toBeGreaterThan(old);
+    expect(early).toBeGreaterThan(0);
+    // More R&D runs with Conduit (PACE.conduitRdShare, measured) make it worth more
+    const share = PACE.conduitRdShare;
+    PACE.conduitRdShare = 0.6;
+    expect(runnerEffect(newGame(), '30024')!).toBeGreaterThan(early);
+    PACE.conduitRdShare = share;
     expect(runnerEffect(late(), '30024')!).toBeLessThan(early);
   });
 
