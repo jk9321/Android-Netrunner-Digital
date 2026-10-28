@@ -17,6 +17,16 @@ import { createAgent } from '../src/ai';
 import { GameRunner } from '../src/ai/playout';
 import { runSuccess, stealOdds } from '../src/ai/effectValues';
 import { AGENDA_RUN } from '../src/ai/evaluate';
+import { tuning } from '../src/ai/synergy';
+
+// A switch written +name turns it on instead (pieces that are off by default)
+for (const key of (process.env.PLAN_OFF ?? '').split(',').filter(Boolean)) {
+  const on = key.startsWith('+');
+  const [name, side] = key.replace(/^\+/, '').split('.');
+  const plan = tuning.plan as Record<string, unknown>;
+  if (side) plan[name] = { ...(plan[name] as object), [side]: on };
+  else plan[name] = on;
+}
 
 const [gamesArg, levelArg] = process.argv.slice(2).filter(a => a !== '--');
 const games = Number(gamesArg ?? 1);

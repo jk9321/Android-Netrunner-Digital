@@ -24,11 +24,13 @@ const [shard, shards] = (process.env.SHARD ?? '0/1').split('/').map(Number);
 const mode = process.env.H2H ?? 'corp';
 const old = (await import(resolve(process.env.OLD_AI ?? 'old', 'src/ai/index.ts'))) as { createAgent: typeof createAgent };
 // PLAN_OFF switches reach only the new AI: the old one has its own copy of tuning
+// A switch written +name turns it on instead (pieces that are off by default)
 for (const key of (process.env.PLAN_OFF ?? '').split(',').filter(Boolean)) {
-  const [name, side] = key.split('.');
+  const on = key.startsWith('+');
+  const [name, side] = key.replace(/^\+/, '').split('.');
   const plan = tuning.plan as Record<string, unknown>;
-  if (side) plan[name] = { ...(plan[name] as object), [side]: false };
-  else plan[name] = false;
+  if (side) plan[name] = { ...(plan[name] as object), [side]: on };
+  else plan[name] = on;
 }
 const newSide = mode === 'corp' ? 'corp' : mode === 'runner' ? 'runner' : null;
 
