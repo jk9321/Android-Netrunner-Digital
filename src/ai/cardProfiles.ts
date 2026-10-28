@@ -1,6 +1,6 @@
 import { GameState, getCardDefinition } from '../core';
 import { tuning } from './synergy';
-import { RATES } from './valueModel';
+import { RATES, cardRate } from './valueModel';
 
 /**
  * Value model step 4 (docs/ai-value-model-plan.md): money cards described
@@ -78,7 +78,7 @@ export function turnsLeft(state: GameState): number {
  * credits once it has been rezzed or installed. Clicks spent taking money
  * count against it at the click rate; draws at a drawn card's worth.
  */
-export function payoutWorth(profile: CardProfile, turns: number, hosted = profile.load, wait = WAIT): number {
+export function payoutWorth(profile: CardProfile, turns: number, hosted = profile.load, wait = WAIT, card: number = RATES.drawnCard): number {
   const payouts = Math.ceil(hosted / profile.pay);
   let value = 0;
   let turn = 0;
@@ -87,9 +87,9 @@ export function payoutWorth(profile: CardProfile, turns: number, hosted = profil
     if (turn > turns) return value;
     const pay = Math.min(profile.pay, hosted - i * profile.pay);
     const click = profile.every === 'click' ? RATES.click : 0;
-    value += wait ** turn * (pay - click + (profile.drawEach ?? 0) * RATES.drawnCard);
+    value += wait ** turn * (pay - click + (profile.drawEach ?? 0) * card);
   }
-  if (turn + 1 <= turns) value += wait ** (turn + 1) * ((profile.drawAtEnd ?? 0) * RATES.drawnCard + (profile.clicksAtEnd ?? 0) * RATES.click);
+  if (turn + 1 <= turns) value += wait ** (turn + 1) * ((profile.drawAtEnd ?? 0) * card + (profile.clicksAtEnd ?? 0) * RATES.click);
   return value;
 }
 
@@ -100,7 +100,7 @@ export const profileOf = (code: string): CardProfile | undefined => (tuning.plan
 export function unrezzedWorth(state: GameState, code: string, iced = false): number | undefined {
   const profile = profileOf(code);
   if (!profile) return undefined;
-  return payoutWorth(profile, turnsLeft(state), profile.load, payoutWait(state, profile, 'corp', iced)) - (getCardDefinition(code).cost ?? 0);
+  return payoutWorth(profile, turnsLeft(state), profile.load, payoutWait(state, profile, 'corp', iced), cardRate(state, 'corp')) - (getCardDefinition(code).cost ?? 0);
 }
 
 /** The install score a profiled Corp econ asset gets, on the scale of corpAI's install scores. */

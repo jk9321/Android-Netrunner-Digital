@@ -2,7 +2,7 @@ import { CardInstance, GameState, SideCode, cardDef } from '../core';
 import { findCardAnywhere } from '../core';
 import { counters, rezCost } from '../core/engine/cardEffects';
 import { tuning } from './synergy';
-import { CLICK, RATES, handFilter, pointValue, sideCards } from './valueModel';
+import { CLICK, RATES, cardRate, handFilter, pointValue, sideCards } from './valueModel';
 import { bestBreakPlan } from './runs';
 import { PACE, accessWorth, conduitCounterWorth, damageWorth, runSuccess } from './effectValues';
 import { PAYOUT_RISK } from './cardProfiles';
@@ -96,9 +96,9 @@ function redTeamCredit(state: GameState): number {
 }
 
 /** Side Hustle: one a run until 6, then all taken with a card; each waits for the rest. */
-function sideHustleCredit(card: CardInstance): number {
+function sideHustleCredit(state: GameState, card: CardInstance): number {
   const turnsToFill = Math.max(0, 6 - counters(card, 'credit')) / PACE.runs;
-  return PAYOUT_RISK.clickWait ** turnsToFill + RATES.drawnCard / 6;
+  return PAYOUT_RISK.clickWait ** turnsToFill + cardRate(state, 'runner') / 6;
 }
 
 /** Pennyshaver: all taken with a click that adds 1 more, about every few turns. */
@@ -130,7 +130,7 @@ function hantuVirus(state: GameState, card: CardInstance): number {
 const gioanPower = (state: GameState): number => Math.min(1, 2 * PACE.agendaEvents) * damageWorth(state, 1);
 
 /** AU Co.: 2 counters look at 3 cards, keep 2: two cards drawn and a filter. */
-const auCoPower = (): number => (2 * RATES.drawnCard + handFilter()) / 2;
+const auCoPower = (state: GameState): number => (2 * cardRate(state, 'corp') + handFilter()) / 2;
 
 /** Project Ingatan: install the best card in Archives for nothing (a click and its install cost saved). */
 function ingatanAgenda(state: GameState): number {
@@ -148,19 +148,20 @@ function embeddedAgenda(state: GameState): number {
     const gain = (cardDef(c).stripped_text ?? '').match(/(?:^|\. )Gain (\d+) credits/);
     return cardDef(c).type_code === 'operation' && gain ? Number(gain[1]) - (cardDef(c).cost ?? 0) : 0;
   });
-  return Math.max(0, Math.max(0, ...gains) - RATES.drawnCard);
+  return Math.max(0, Math.max(0, ...gains) - cardRate(state, 'corp'));
 }
 
 /** Off the Books: any card from R&D, installed for nothing: a card, a click, and the install it saves. */
 function offTheBooksAgenda(state: GameState): number {
   const installs = state.corp.rd.filter(c => ['asset', 'upgrade', 'ice'].includes(cardDef(c).type_code ?? ''));
-  return RATES.drawnCard + CLICK + mean(installs.map(c => (cardDef(c).type_code === 'ice' ? 1 : 0)), 0.5);
+  return cardRate(state, 'corp') + CLICK + mean(installs.map(c => (cardDef(c).type_code === 'ice' ? 1 : 0)), 0.5);
 }
 
 /** Next Big Thing: a click for 4 cards, any shuffled back: new cards in the hand's free space, the rest swapped for its worst cards. */
 function nextBigThingAgenda(state: GameState): number {
   const space = Math.min(4, Math.max(0, state.corp.handSizeLimit - state.corp.hq.length));
-  return space * RATES.drawnCard + (4 - space) * 0.5 * RATES.drawnCard - CLICK;
+  const card = cardRate(state, 'corp');
+  return space * card + (4 - space) * 0.5 * card - CLICK;
 }
 
 /** Proprionegation: once, a run on a scoring server sent to Archives: the steal it stops. */
@@ -173,7 +174,7 @@ function proprionegationAgenda(state: GameState): number {
 const devadattaPower = (state: GameState): number => PAYOUT_RISK.clickWait * accessWorth(state);
 
 /** Cacophony: 2 counters sabotage 3, the Corp picking its worst cards. */
-const cacophonyPower = (): number => (3 * 0.5 * RATES.drawnCard) / 2;
+const cacophonyPower = (state: GameState): number => (3 * 0.5 * cardRate(state, 'corp')) / 2;
 
 /** The formulas, by card, while plan.counterFormulas is on. */
 const COUNTER_FORMULAS: Record<string, Partial<Record<CounterType, CounterWorth>>> = {
@@ -191,7 +192,7 @@ const COUNTER_FORMULAS: Record<string, Partial<Record<CounterType, CounterWorth>
   '35048': { agenda: proprionegationAgenda },
   '35029': { credit: azimatCredit },
   '30018': { credit: redTeamCredit },
-  '35034': { credit: (_s, card) => sideHustleCredit(card) },
+  '35034': { credit: (s, card) => sideHustleCredit(s, card) },
   '30014': { credit: (_s, card) => pennyshaverCredit(card) },
   '30008': { virus: leechVirus },
   '35008': { virus: hantuVirus },

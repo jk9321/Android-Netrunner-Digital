@@ -12,7 +12,7 @@ import {
 } from '../core/engine/ice';
 import { availableCredits, counters } from '../core/engine/cardEffects';
 import { corpCardValue, tagThreat, tagsWorth } from './evaluate';
-import { agendaOdds, damageWorth } from './effectValues';
+import { agendaOdds, coreDamageWorth, damageWorth } from './effectValues';
 import { clickPrice } from './handValues';
 import { tuning } from './synergy';
 import { RATES, clickRate, creditNeed, creditSlide, pointValue } from './valueModel';
@@ -72,7 +72,7 @@ export function knownSubroutineCost(state: GameState, label: string): number | u
   if (/end the run if the runner is tagged/i.test(label)) return runner.tags > 0 ? BLOCK : 1;
   if (/if the runner has at least 2 tags/i.test(label)) return runner.tags >= 2 ? (2 >= runner.grip.length ? BLOCK : 4) : 0;
   const rates = !!tuning.plan.subCosts;
-  if (/core damage/i.test(label)) return rates ? RATES.coreDamage + damageWorth(state, 1) : 6;
+  if (/core damage/i.test(label)) return rates ? coreDamageWorth(state) + damageWorth(state, 1) : 6;
   if (/unless they pay 3 credits/i.test(label)) return rates ? creditCost(state, 3) : 3;
   const loses = label.match(/loses? (\d+) credits?/i);
   if (loses) return rates ? creditCost(state, Math.min(Number(loses[1]), runner.credits)) : Math.min(Number(loses[1]), runner.credits);

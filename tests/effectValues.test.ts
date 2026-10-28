@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { getCardDefinition } from '../src/core';
-import { CLICK, RATES } from '../src/ai/valueModel';
+import { CLICK, RATES, cardRate } from '../src/ai/valueModel';
 import { EFFECT_CODES, LOCKDOWN, MU, PACE, accessWorth, corpEffect, damageWorth, runSuccess, runnerEffect } from '../src/ai/effectValues';
 import { corpKeepValue, econValue, runnerCardValue, upgradeValue } from '../src/ai/cardValues';
 import { tuning } from '../src/ai/synergy';
@@ -72,11 +72,11 @@ describe('the last hand-set cards, priced by what they do (Jeff, 2026-10-28)', (
   });
 
   it('Spin Doctor: 2 cards drawn', () => {
-    expect(keep('30053')).toBeCloseTo(2 * RATES.drawnCard + 0.5);
+    expect(keep('30053')).toBeCloseTo(2 * cardRate(newGame(), 'corp') + 0.5);
   });
 
   it('Humanoid Resources: 4 credits and 3 cards, its 3 clicks paid back by 3 free actions', () => {
-    expect(keep('35039')).toBeCloseTo(0.9 * (4 + 3 * RATES.drawnCard) - 1);
+    expect(keep('35039')).toBeCloseTo(0.9 * (4 + 3 * cardRate(newGame(), 'corp')) - 1);
   });
 
   it('Phật Gioan Baotixita: counters still to come, used up within 3 turns', () => {
@@ -148,7 +148,7 @@ describe('the last hand-set cards, priced by what they do (Jeff, 2026-10-28)', (
   });
 
   it('T400 Memory Diamond: +1 MU and a bigger hand', () => {
-    expect(rig('30031')).toBeCloseTo(MU + 0.6 * RATES.drawnCard);
+    expect(rig('30031')).toBeCloseTo(MU + 0.6 * cardRate(newGame(), 'runner'));
   });
 
   // ---- Runner programs ----
@@ -157,7 +157,7 @@ describe('the last hand-set cards, priced by what they do (Jeff, 2026-10-28)', (
   });
 
   it('Gourmand: once, a trashed card and a card drawn', () => {
-    expect(rig('35007')).toBeCloseTo(0.7 * (4 + RATES.drawnCard));
+    expect(rig('35007')).toBeCloseTo(0.7 * (4 + cardRate(newGame(), 'runner')));
   });
 
   it('Botulus and Tranquilizer: a counter a turn for about 3 turns', () => {

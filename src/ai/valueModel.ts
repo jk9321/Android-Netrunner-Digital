@@ -106,6 +106,36 @@ export function pointValue(score: number): number {
   return value;
 }
 
+/** True while a plan.flatRates piece is on. */
+export const flatRate = (key: string): boolean => !!tuning.plan.flatRates?.[key];
+
+/** The deck's average card (handValues.ts registers it; valueModel can't import it without a cycle). */
+let deckCard: ((state: GameState, side: SideCode) => number) | null = null;
+export const setDeckCard = (fn: (state: GameState, side: SideCode) => number) => (deckCard = fn);
+
+/**
+ * Worth of one card drawn from, or lost out of, `side`'s hand: the deck's
+ * average card with plan.flatRates.cards (no peeking: the deck, not the
+ * hand), else the flat rate.
+ */
+export function cardRate(state: GameState | undefined, side: SideCode): number {
+  return state && deckCard && flatRate('cards') ? deckCard(state, side) : RATES.drawnCard;
+}
+
+/** Worth of `points` more for a side on `score` (averaged decklist points can be fractional). */
+export function pointGain(score: number, points: number): number {
+  if (!flatRate('points')) return RATES.point * points;
+  const whole = Math.floor(points);
+  const base = pointValue(score + whole) - pointValue(score);
+  return base + (points - whole) * (pointValue(score + whole + 1) - pointValue(score + whole));
+}
+
+/** Worth of a flatline (plan.flatRates.flatline: the whole game, the Corp's points still to come and the Runner's lost). */
+export function flatlineWorth(state: GameState): number {
+  if (!flatRate('flatline')) return 4 * RATES.point;
+  return pointValue(7) - pointValue(state.corp.score) + pointValue(state.runner.score);
+}
+
 /** Worth of the first card over the hand-size limit (Jeff: you pick the worst card to discard). */
 export const handFilter = (): number => (tuning.plan.handFilter ? 0.3 : 0);
 

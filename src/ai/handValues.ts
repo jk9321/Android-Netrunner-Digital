@@ -7,7 +7,7 @@ import { agendaWorth, isOneUse, runnerRigValue } from './evaluate';
 import { counterWorth } from './counterValues';
 import { iceCost } from './runs';
 import { tuning } from './synergy';
-import { CLICK, RATES, handFilter, pointValue, sideCreditValue } from './valueModel';
+import { CLICK, RATES, cardRate, flatRate, handFilter, pointValue, setDeckCard, sideCreditValue } from './valueModel';
 
 /**
  * Cards in hand by what they do (Jeff, 2026-10-28; plan.handByCard). A card
@@ -35,7 +35,8 @@ export function playedWorth(state: GameState, card: CardInstance): number {
     case 'operation': {
       // Played out when chosen (one-step simulation); in hand, a money card is worth its net gain
       const gain = (def.stripped_text ?? '').match(/(?:^|\. )Gain (\d+) credits/);
-      return gain ? Math.max(RATES.drawnCard, Number(gain[1]) - cost) : RATES.drawnCard;
+      const card = cardRate(state, def.side_code);
+      return gain ? Math.max(card, Number(gain[1]) - cost) : card;
     }
     case 'agenda': {
       const points = def.agenda_points ?? 1;
@@ -58,7 +59,13 @@ export function playedWorth(state: GameState, card: CardInstance): number {
   }
   // Runner rig cards
   const profile = CARD_PROFILES[card.cardCode];
-  if (profile && tuning.plan.cardProfiles) return payoutWorth(profile, turns, profile.load, payoutWait(state, profile, 'runner')) - cost - CLICK;
+  if (profile && tuning.plan.cardProfiles) return payoutWorth(profile, turns, profile.load, payoutWait(state, profile, 'runner'), cardRate(state, 'runner')) - cost - CLICK;
+  if (isIcebreaker(card) && flatRate('breakers') && tuning.plan.breakerCredits?.runner) {
+    // What it adds to the rig's coverage once installed (Mayfly's one use included), as the board will see it
+    const rig = state.runner.rig;
+    const after = { ...state, runner: { ...state.runner, rig: { ...rig, programs: [...rig.programs, card] } } } as GameState;
+    return runnerRigValue(after, true, 'runner') - runnerRigValue(state, true, 'runner') - cost - CLICK;
+  }
   if (isIcebreaker(card)) {
     const breaks = breakerScript(card)?.breaks;
     const covered = state.runner.rig.programs.some(p => isIcebreaker(p) && breakerScript(p)?.breaks === breaks);
@@ -119,6 +126,18 @@ function drawWorth(state: GameState, side: SideCode): number {
   deckAverage.set(key, value);
   return value;
 }
+
+/** The deck's average card for valueModel's cardRate (plan.flatRates.cards); the flat rate while it is being worked out. */
+let averaging = false;
+setDeckCard((state, side) => {
+  if (averaging) return RATES.drawnCard;
+  averaging = true;
+  try {
+    return drawWorth(state, side);
+  } finally {
+    averaging = false;
+  }
+});
 
 /**
  * Worth of a side's own hand: the best `limit` cards by held worth, the

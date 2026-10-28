@@ -21,14 +21,16 @@ function runnerWith(codes: string[], credits: number) {
 }
 
 describe('the hand schedule (Jeff, 2026-10-28; plan.handSchedule)', () => {
-  // Switched off, kept for re-testing: checked on its own, without the damage clock (a smaller grip is a step toward a flatline)
+  // Switched off, kept for re-testing: checked on its own, without the damage clock (a smaller grip is a step toward a flatline) or later card rates
   beforeAll(() => {
     tuning.plan.handSchedule = { corp: true, runner: true };
     tuning.plan.damageClock = false;
+    tuning.plan.flatRates = { ...tuning.plan.flatRates, cards: false };
   });
   afterAll(() => {
     tuning.plan.handSchedule = { corp: false, runner: false };
     tuning.plan.damageClock = true;
+    tuning.plan.flatRates = { ...tuning.plan.flatRates, cards: true };
   });
 
   it('when credits hold the plan back, a click is worth about a credit', () => {

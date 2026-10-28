@@ -7,9 +7,9 @@ import { corpKeepValue, runnerCardValue } from './cardValues';
 import { countersWorth } from './counterValues';
 import { AI_BREAKER_SHARE, breakerTypeWorth, flatIceWorth, iceWorth } from './iceValues';
 import { payoutWait, payoutWorth, profileOf, turnsLeft } from './cardProfiles';
-import { HAND_FLOOR, clickPrice, handByCard, handSchedule, ownHandValue, playedWorth, scheduleValue } from './handValues';
-import { CLICK, RATES, creditValue, handFilter, pointValue, sideCreditValue } from './valueModel';
-import { FLATLINE, PACE, flatlineOdds, runSuccess } from './effectValues';
+import { HAND_FLOOR, clickPrice, handByCard, handSchedule, heldWorth, ownHandValue, playedWorth, scheduleValue } from './handValues';
+import { CLICK, RATES, cardRate, creditValue, flatRate, flatlineWorth, handFilter, pointValue, sideCreditValue } from './valueModel';
+import { PACE, coreSlotWorth, flatlineOdds, runSuccess } from './effectValues';
 import { trashedCardCost } from './runs';
 
 export { creditValue };
@@ -134,13 +134,15 @@ export function runnerRigValue(state: GameState, aware: boolean, viewer: SideCod
     // Step 4: a card that pays out money is worth what it will still pay
     const profile = profileOf(card.cardCode);
     if (profile) {
-      value += payoutWorth(profile, turnsLeft(state), counters(card, 'credit'), payoutWait(state, profile, 'runner'));
+      value += payoutWorth(profile, turnsLeft(state), counters(card, 'credit'), payoutWait(state, profile, 'runner'), cardRate(state, 'runner'));
       continue;
     }
-    value += isIcebreaker(card) ? RATES.icebreaker : RATES.rigCardScale * runnerCardValue(card.cardCode, state, card);
+    // A breaker is worth its coverage above (plan.flatRates.breakers: no flat extra for having one)
+    value += isIcebreaker(card) ? (flatRate('breakers') && tuning.plan.breakerCredits?.[viewer] ? 0 : RATES.icebreaker) : RATES.rigCardScale * runnerCardValue(card.cardCode, state, card);
     // Counters by what they do on this card (step 3), or the step-1 rates
     value += countersWorth(state, card, 'credit', viewer) + countersWorth(state, card, 'virus', viewer) + countersWorth(state, card, 'power', viewer);
-    value += (card.hostedCards?.length ?? 0) * RATES.hostedCard; // Bling, Madani: cards to play later
+    // Bling, Madani: cards to play later, worth what they would be in the grip (plan.flatRates.hosted)
+    value += (card.hostedCards ?? []).reduce((n, h) => n + (flatRate('hosted') ? heldWorth(state, h, 'runner') : RATES.hostedCard), 0);
   }
   return value;
 }
@@ -151,7 +153,7 @@ export function corpCardValue(card: CardInstance, state?: GameState, viewer: Sid
   const hosted = counters(card, 'credit');
   const power = state && card.isRezzed ? countersWorth(state, card, 'power', viewer) : 0;
   const profile = state ? profileOf(card.cardCode) : undefined;
-  if (state && profile) return card.isRezzed ? payoutWorth(profile, turnsLeft(state), hosted, payoutWait(state, profile, 'corp', inIcedServer(state, card))) : corpKeepValue(card.cardCode, state);
+  if (state && profile) return card.isRezzed ? payoutWorth(profile, turnsLeft(state), hosted, payoutWait(state, profile, 'corp', inIcedServer(state, card)), cardRate(state, 'corp')) : corpKeepValue(card.cardCode, state);
   if (card.isRezzed && hosted > 0) return 1 + (state ? countersWorth(state, card, 'credit', viewer) : hosted * RATES.counters.hostedCredit) + power;
   return corpKeepValue(card.cardCode, state) + power;
 }
@@ -310,9 +312,9 @@ export function sideStrength(state: GameState, side: SideCode, viewer: SideCode 
     handAndClicks(state, 'runner', viewer) +
     pointValue(runner.score) -
     (tuning.plan.tagClock ? tagsWorth(state, viewer) : (RATES.tagAgainstRunner + threat) * runner.tags) -
-    RATES.coreDamage * runner.coreDamage -
+    coreSlotWorth(state) * runner.coreDamage -
     // The damage clock: a small grip against the Corp's damage is a step toward a flatline
-    (tuning.plan.damageClock ? FLATLINE * flatlineOdds(state, Math.min(runner.grip.length, runner.handSizeLimit ?? 5)) + lifeCards(runner.grip.length) : 0) +
+    (tuning.plan.damageClock ? flatlineWorth(state) * flatlineOdds(state, Math.min(runner.grip.length, runner.handSizeLimit ?? 5)) + lifeCards(runner.grip.length) : 0) +
     runnerRigValue(state, aware, viewer)
   );
 }

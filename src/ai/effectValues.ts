@@ -3,7 +3,8 @@ import { counters } from '../core/engine/cardEffects';
 import { PAYOUT_RISK, turnsLeft } from './cardProfiles';
 import { COUNTER_WORTH, counterWorth } from './counterValues';
 import { tuning } from './synergy';
-import { CLICK, RATES, pointValue, sideCards } from './valueModel';
+import { CLICK, RATES, cardRate, flatRate, flatlineWorth, pointGain, pointValue, sideCards } from './valueModel';
+import { tagsWorth } from './evaluate';
 import { iceCost } from './runs';
 
 /**
@@ -153,18 +154,19 @@ export function agendaOdds(state: GameState): { odds: number; points: number } {
 /** Worth to the Runner of one more random access to an unseen Corp card. */
 export function accessWorth(state: GameState): number {
   const { odds, points } = agendaOdds(state);
-  return odds * points * RATES.point;
+  return odds * pointGain(state.runner.score, points);
 }
 
 /** Worth of n net or meat damage to the Runner: the cards lost, or the game if it flatlines. */
 export function damageWorth(state: GameState, n: number): number {
-  if (n > state.runner.grip.length) return FLATLINE;
-  if (!tuning.plan.damageClock) return n * RATES.drawnCard;
+  if (n > state.runner.grip.length) return flatlineWorth(state);
+  const card = cardRate(state, 'runner');
+  if (!tuning.plan.damageClock) return n * card;
   // The damage clock: the cards, and the step closer to a flatline the smaller grip leaves
   // Cards over the hand limit are discarded before the Corp's turn: they are no life against its damage
   const limit = state.runner.handSizeLimit ?? 5;
   const grip = state.runner.grip.length;
-  return n * RATES.drawnCard + FLATLINE * (flatlineOdds(state, Math.min(limit, grip - n)) - flatlineOdds(state, Math.min(limit, grip)));
+  return n * card + flatlineWorth(state) * (flatlineOdds(state, Math.min(limit, grip - n)) - flatlineOdds(state, Math.min(limit, grip)));
 }
 
 /** Damage a Corp card can deal in one go, from its text ("plus 1 ... for each" counts 2 more). */
@@ -212,7 +214,27 @@ export function flatlineOdds(state: GameState, grip: number): number {
   return presence / (1 + Math.exp((grip + 0.5 - burst) / 1.2));
 }
 
-/** A flatline ends the game: priced like half of a whole game of agenda points. */
+/** Share of turns a hand slot lost to core damage holds a card the Runner would have kept (a named guess). */
+export const CORE_SLOT_USE = 0.5;
+
+/** Worth of a hand slot already lost to core damage (plan.flatRates.coreDamage; the damage clock already reads the lower limit). */
+export function coreSlotWorth(state: GameState): number {
+  return flatRate('coreDamage') ? CORE_SLOT_USE * cardRate(state, 'runner') : RATES.coreDamage;
+}
+
+/**
+ * Worth of one more core damage beyond the card it discards (rule 5.5.3b:
+ * core damage also lowers the Runner's hand size for the rest of the game):
+ * the slot, and the damage clock at a full hand with the limit one lower.
+ */
+export function coreDamageWorth(state: GameState): number {
+  if (!flatRate('coreDamage')) return RATES.coreDamage;
+  const limit = state.runner.handSizeLimit ?? 5;
+  const clock = tuning.plan.damageClock ? Math.max(0, flatlineOdds(state, limit - 1) - flatlineOdds(state, limit)) : 0;
+  return coreSlotWorth(state) + flatlineWorth(state) * clock;
+}
+
+/** A flatline ends the game: priced like half of a whole game of agenda points (plan.flatRates.flatline off; valueModel flatlineWorth). */
 export const FLATLINE = 4 * RATES.point;
 
 /** Average net credits of a transaction operation in the Corp's deck (Plutus replays them). */
@@ -237,10 +259,12 @@ export interface CorpEffect {
 /** Corp assets and upgrades, in credits. */
 export function corpEffect(state: GameState, code: string): CorpEffect | undefined {
   const cost = getCardDefinition(code).cost ?? 0;
-  const agenda = agendaOdds(state).points * RATES.point;
+  const agenda = pointGain(state.corp.score, agendaOdds(state).points);
+  const card = cardRate(state, 'corp');
+  const tag = flatRate('tags') && tuning.plan.tagClock ? tagsWorth(state, 'corp', 1) : RATES.tagAgainstRunner;
   switch (code) {
     case '35050': { // Byte!: pay 4 on access for 1 tag and 3 net damage; accessed about half the time
-      const fire = RATES.tagAgainstRunner + damageWorth(state, 3) - 4;
+      const fire = tag + damageWorth(state, 3) - 4;
       return { keep: Math.max(0.3, 0.5 * fire) };
     }
     case '30045': // Urtica Cipher: 2 net damage plus 1 per advancement, accessed about half the time
@@ -252,7 +276,7 @@ export function corpEffect(state: GameState, code: string): CorpEffect | undefin
     case '35061': // Idiosyncresis: each advancement is 3 credits to the Corp and 2 off the Runner, for a click and a credit
       return { keep: 0.6 * 2 * (3 + 2 - (CLICK + 1)) };
     case '35073': { // Plutus: a transaction replayed each turn from Archives; to rez, trash 3 cards from HQ
-      const keep = perTurn(state, transactionGain(state), 'corp') - 3 * RATES.drawnCard;
+      const keep = perTurn(state, transactionGain(state), 'corp') - 3 * card;
       return { keep: Math.max(0.3, keep) };
     }
     case '35062': { // Public Access Plaza: 1 credit each turn
@@ -260,23 +284,23 @@ export function corpEffect(state: GameState, code: string): CorpEffect | undefin
       return { keep, econ: keep };
     }
     case '30053': { // Spin Doctor: draw 2 when rezzed; later 2 cards back from Archives
-      const keep = 2 * RATES.drawnCard + 0.5 - cost;
+      const keep = 2 * card + 0.5 - cost;
       return { keep, econ: keep };
     }
     case '35039': { // Humanoid Resources: 3 clicks for 4 credits, 3 cards and 3 free actions (2 installs, 1 operation)
-      const keep = 0.9 * (4 + 3 * RATES.drawnCard + 3 * CLICK - 3 * CLICK) - cost;
+      const keep = 0.9 * (4 + 3 * card + 3 * CLICK - 3 * CLICK) - cost;
       return { keep, econ: keep };
     }
     case '30058': { // AMAZE Amusements: 2 tags whenever the Runner steals from this server
-      const tags = 2 * RATES.tagAgainstRunner;
+      const tags = flatRate('tags') && tuning.plan.tagClock ? tagsWorth(state, 'corp', 2) : 2 * RATES.tagAgainstRunner;
       return { keep: 0.3 * tags, upgrade: [0.3 * tags, 0.15 * tags] };
     }
     case '30050': { // Anoetic Void: pay 2 and 2 cards from HQ to end a run; worth it on a server holding an agenda
-      const use = 2 + 2 * RATES.drawnCard;
+      const use = 2 + 2 * card;
       return { keep: 0.5 * agenda - use, upgrade: [Math.max(0, 0.5 * agenda - use), Math.max(0.3, 2 * accessWorth(state) - use)] };
     }
     case '30066': { // Malapert Data Vault: fetch a card of choice from R&D on each score here
-      const tutor = 1.5 * RATES.drawnCard;
+      const tutor = 1.5 * card;
       return { keep: 1.2 * tutor, upgrade: [1.2 * tutor, 0] };
     }
     case '30042': { // Manegarm Skunkworks: each run here costs the Runner 2 clicks or 5 credits
@@ -309,7 +333,7 @@ export function runnerEffect(state: GameState, code: string, card?: CardInstance
     case '35006': // Bling: +1 MU; a free install now and then lets it host the top card to play
       return MU + perTurn(state, 0.3, 'runner');
     case '30003': // Carnivore: +1 MU; trash an accessed card for 2 cards from the grip (its trash cost and the Corp's loss, about 4)
-      return MU + perTurn(state, 0.25 * Math.max(0, 4 + 2 - 2 * RATES.drawnCard), 'runner');
+      return MU + perTurn(state, 0.25 * Math.max(0, 4 + 2 - 2 * cardRate(state, 'runner')), 'runner');
     case '35018': // Detente: +1 MU; parks an HQ card each HQ run, and can trade 2 back for a random access
       return MU + perTurn(state, PACE.runs * PACE.hqShare * 0.5 * accessWorth(state), 'runner');
     case '30013': // Docklands Pass: one more HQ access the first time each turn, on a successful HQ run
@@ -332,15 +356,15 @@ export function runnerEffect(state: GameState, code: string, card?: CardInstance
     case '30023': // Pantograph: +1 MU; 1 credit and a free install (when there is one to make, about half the time) each time an agenda is scored or stolen
       return MU + perTurn(state, PACE.agendaEvents * (1 + 0.5 * CLICK), 'runner');
     case '30031': // T400 Memory Diamond: +1 MU and one more card in hand (and one more point of life against damage)
-      return MU + RATES.drawnCard * 0.6;
+      return MU + cardRate(state, 'runner') * 0.6;
     case '35030': { // Chromatophores: the host ice can be broken by any breaker
       const host = card?.hostedOnId ? Object.values(state.corp.servers).flatMap(s => s.ice).find(i => i.instanceId === card.hostedOnId) : undefined;
       return host?.isRezzed ? 1 + 0.3 * Math.min(8, cardDef(host).cost ?? 0) : 1.5;
     }
     case '35007': // Gourmand: once, trash a non-agenda card accessed (about 4 to the Corp) and draw 1
-      return 0.7 * (4 + RATES.drawnCard);
+      return 0.7 * (4 + cardRate(state, 'runner'));
     case '35033': // Knickknack O'Brian: now and then, an empty card turned into its install cost and a card
-      return perTurn(state, 0.25 * (2 + RATES.drawnCard - 1), 'runner');
+      return perTurn(state, 0.25 * (2 + cardRate(state, 'runner') - 1), 'runner');
     case '30009': { // Cookbook: a virus counter on each virus program installed later
       const viruses = [...state.runner.grip, ...state.runner.stack].filter(c => /virus/i.test(cardDef(c).keywords ?? '')).length;
       return viruses * RATES.counters.virus;
@@ -382,13 +406,13 @@ export function runnerEffect(state: GameState, code: string, card?: CardInstance
       return perTurn(state, PACE.paidTrashes * 2 * counterWorthOf(state, code, 'credit'), 'runner');
     case '35034': { // Side Hustle: a credit for each run until it holds 6, then a card
       const left = Math.max(0, 6 - (card ? counters(card, 'credit') : 1));
-      return perTurn(state, PACE.runs * counterWorthOf(state, code, 'credit'), 'runner', 0, Math.ceil(left / PACE.runs)) + 0.85 ** Math.ceil(left / PACE.runs) * RATES.drawnCard;
+      return perTurn(state, PACE.runs * counterWorthOf(state, code, 'credit'), 'runner', 0, Math.ceil(left / PACE.runs)) + 0.85 ** Math.ceil(left / PACE.runs) * cardRate(state, 'runner');
     }
     case '30018': // Red Team: all its worth is the 12 credits on it (counterValues.ts)
     case '35031': // Devadatta Drone: all its worth is its 2 power counters
       return 0;
     case '30034': // Verbal Plasticity: one more card the first time each turn it clicks to draw
-      return perTurn(state, PACE.drawTurns * RATES.drawnCard, 'runner');
+      return perTurn(state, PACE.drawTurns * cardRate(state, 'runner'), 'runner');
   }
   return undefined;
 }
@@ -462,6 +486,6 @@ export function placedCounterWorth(state: GameState, card: CardInstance, iced: b
 export const PETTY_CASH_REPLAY = 2 * 0.85;
 
 /** Top-Down Solutions: 2 cards and up to 2 installs that cost no click, for its click. */
-export function topDownWorth(installable: number): number {
-  return 2 * RATES.drawnCard + Math.min(2, installable) * CLICK - CLICK;
+export function topDownWorth(installable: number, state?: GameState): number {
+  return 2 * cardRate(state, 'corp') + Math.min(2, installable) * CLICK - CLICK;
 }

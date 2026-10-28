@@ -288,6 +288,7 @@ describe('planning (setup scoring)', () => {
   it('ices against the Runner: a type they cannot break, on a server they attacked', () => {
     const s = structuredClone(newGame());
     s.runner.rig.programs = [createCardInstance(s, '30006')]; // Cleaver: barriers only
+    s.runner.credits = 10; // rich enough that neither is a full stop (stopperPlacement): only the type fit differs
     s.runnerLastTurnRuns = [{ server: 'rd', successful: true } as (typeof s.runnerLastTurnRuns)[number]];
     const sentry = createCardInstance(s, '30073'); // Tithe
     const barrier = createCardInstance(s, '30072'); // Palisade

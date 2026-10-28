@@ -19,11 +19,40 @@ Approved by Jeff on 2026-10-27. This file is the working copy for anyone (Claude
 | Fix E: value hacks replaced by the model | On | 3761037 | 31.0% (rez group back: 31.7%) | plan.modelHacks {rez, rezPriority, purge, bonuses, iceAdvance}: rez/advance/counter/purge/Petty Cash/Top-Down bonuses from the model. Nanomanagement/Touch-ups kept as a finish-the-agenda priority tier. |
 | Fix F: Fermenter, Conduit, Mayfly | On | a35e090, 932d784 | 30.4% | plan.cardFixes: banked virus counters wait (purge risk), Conduit priced by extra accesses on runs still to come, one-use breakers (Mayfly) a third. |
 | Fix G: click priced by best play | Runner only | b57d227 | 23.5% both; Corp side 21.6%, Runner side neutral | plan.clickByPlay, Corp off (23f21d0); kept settings 25.2%, same with G off 26.6%: own clicks worth the average of the best uses of the clicks left (what playing a card now adds over holding it, or draw/credit), 1 to 3 credits. clickRate on for both sides. |
-| Later: whole-turn planner for Normal | Not started | | | |
+| Hand schedule (Jeff 2026-10-28) | Off | 511d38f, 57557d0 | 24.9% both; Corp only 14.1%, Runner only 42.9% | plan.handSchedule: hand and click value from one plan of the next 2 turns. Each side much worse with it: a one-step AI with plan-valued hands procrastinates. Kept, off. Lesson: hand and click pricing needs the whole-turn planner. |
+| Counter formulas, model discards | On | ead8e14, c417d8d | 25.6% (formulas off 24.7%, discards off 26.0%; noise) | plan.counterFormulas: the last 20 hand-set counter rates from what each counter turns into. plan.keepByModel: discards and trashes from hand by played worth. |
+| Whole-turn planner for Normal | On | 26fc538 | batching at 85b2d96 | `src/ai/turnPlanner.ts` (plan.turnPlanner, plan.plannerHand): the top 4 candidates played to the end of the turn by the rule-based AI, runs not played out (click + expected worth), no peeking; end of turn valued with hand by card. About 3x slower batches; Jeff accepts the slowdown. |
+| Damage and tag clocks | On | 91e150d | batching | plan.damageClock: damage priced by the odds of a flatline from the Corp's damage cards against the grip. plan.tagClock: tags priced by the Corp's punishers in HQ (odds for the Runner) and the cost of clearing them. |
+| Last two hacks: finish, Conduit | On | 5ebeee5 | batching | modelHacks.finish: Nanomanagement/Touch-ups by the points they finish less the agenda's board worth. modelHacks.conduit: Conduit ice placement by the accesses it denies. |
+| Short batches (Jeff) | Done | fc9fae3 | | 3 games a pairing (663 games, about ±3.7 pts) first; topped up to 2,210 only when the result is close. Same seeds as the full batch. |
+| Run openness for engine cards (Jeff) | On | df6b7fd | batching | plan.runOpenness: Docklands, Leech, Pennyshaver, Conduit, Cacophony by the odds the rig gets through each server's ice (rezzed ice the rig can afford, unrezzed by the Corp's money), so they fade as servers lock down. |
+| Agendas on the board and in hand | On | 85b2d96 | batching | plan.agendaBoard: an installed agenda is worth its point gain, discounted by the odds of a steal each Runner turn until it can be scored, less the clicks and credits still to pay. Agendas and ice in hand from the same formulas. |
+| Final flat-value scan | Written 2026-10-28 | | | See **Final flat-value scan** below. |
 | Issues with the new system (Jeff, before any Corp rebalance) | Found 2026-10-28 | `claude/project-thread-3heaal` | 38.8% full system | https://claude.ai/artifact/GduREr1PTu2HvH4LKY5MR5. Payout wait kills Open Market/Telework/Otto; Runner overdraws (hand filter); rich Runner skips runs (runScore still in old units); Mayfly overvalued (one-use breaker); Hard ~1.3-2x slower. Tool: `scripts/behaviour.ts`. Fix order in the doc. |
 | Final: every-card value audit (Jeff) | Done 2026-10-28 | `claude/project-thread-3heaal` | | `src/ai/valueAudit.ts` + test; report `npx vite-node scripts/print-card-values.ts` (31 cards still hand-set only). A coverage test that lists every card in the pool and how it is valued (profile, counter entry, hand-set number, ice/breaker formula, simulated operation or event, agenda formula), failing for any card that falls to a default; plus a per-card report for Jeff. |
 
 The 'Improve AI run and protection budgeting' work is paused (Jeff, 2026-10-27) until this rework is done. Then we check whether it is still needed.
+
+## Final flat-value scan (2026-10-28)
+
+Every card now has a formula: no card in `CARD_VALUES` falls back to a hand-set number with the model on. What is left are rates, named guesses and Corp priorities.
+
+**(a) Flat rates still used, to convert before the head-to-head**
+
+| Rate | Where | Proposed model value |
+| --- | --- | --- |
+| Agenda point 8 (`RATES.point`) | accessWorth, agendaOdds, FLATLINE = 32 | Point clock (`pointValue`) by the score reached; a flatline is worth the rest of the game, `pointValue(7) - pointValue(corp score)`. |
+| Drawn card 1.6 (`RATES.drawnCard`) | Mid-turn hand value, damage per card, draws in payouts | Damage: the average played worth of the cards in the grip (a random card is lost). Draws: the deck's average played worth. Mid-turn hand stays flat (the planner prices hands at the end of the turn). |
+| Core damage 4 | Board, subroutine costs | One card of hand size for the rest of the game: the damage clock with the limit 1 lower, plus the hand filter lost. |
+| Tags in two card formulas (fire 3, 2 tags) | effectValues lines 243, 271 | `tagsWorth`, as the board already does with plan.tagClock. |
+| Hosted card 0.8 | Bling, Madani | The hosted card's played worth. |
+| Breaker in hand: any-breaker 2 + 4, covered type 1 | handValues | The installed breaker formula (`breakerTypeWorth`, stops saved) less what the rig already covers. |
+| Installed icebreaker +2, `rigCardScale` 2 | runnerRigValue | Breakers: coverage only (already in credits). `rigCardScale` only scales `defaultRig` for unlisted cards now; drop it. |
+| Ice base 1, Corp's unrezzed hold-back 0.6 | iceWorth, handValues | Base 1 stays as a named guess (any ice slows a run). Hold-back: iceCost less the rez cost spread over the runs it will face. |
+
+**(b) Named guesses, measured or tuned, not flat card values** (leave as is): PACE (self-play logs), AGENDA_RUN, LOCKDOWN, BLOCKED_PASS, UNREZZED_PASS, ICE_STOPS, ICE_STOP, FLATLINE_LANDS, VIRUS_WAIT, SOON, HAND_FLOOR, PAYOUT_RISK, SCHEDULE, DENY, AI_BREAKER_SHARE, credit slide and point clock curves.
+
+**(c) Corp decision priorities** (Corp balance work, not value work): advanceScore tiers, iceFit nudges, keepBonus, ECON_SCALE (credits to corpAI install scores), defaultKeep / defaultUpgrade.
 
 ## Goal
 

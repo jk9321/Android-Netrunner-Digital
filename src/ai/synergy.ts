@@ -274,6 +274,14 @@ export const tuning = {
     runOpenness: true,
     /** Jeff, 2026-10-28: an installed agenda is its points on the clock if it survives the Runner's turns until scored, less the advancing left (evaluate.ts agendaWorth). */
     agendaBoard: true,
+    /**
+     * Jeff, 2026-10-28 (final flat-value scan): the last flat rates from the model. points: accesses and
+     * agenda effects on the point clock; flatline: a flatline worth the whole game; cards: a card lost or
+     * drawn worth the deck's average card; coreDamage: a hand slot for the rest of the game; tags: card
+     * formulas price tags as the board does; hosted: Bling/Madani cards at their worth in hand; breakers:
+     * a breaker in hand or play by what it adds to the rig, with no flat extra.
+     */
+    flatRates: { points: true, flatline: true, cards: true, coreDamage: true, tags: true, hosted: true, breakers: true } as Record<string, boolean>,
     tagClock: true,
     /** Per deciding side (Jeff, 2026-10-28): Normal plays its best few actions through to the end of the turn and picks the best turn (turnPlanner.ts). */
     turnPlanner: { corp: true, runner: true } as Record<SideCode, boolean>,

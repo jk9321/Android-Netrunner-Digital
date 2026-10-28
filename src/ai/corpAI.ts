@@ -363,7 +363,7 @@ export class HeuristicCorpAI implements Agent {
         // Top-Down Solutions: 2 cards and up to 2 installs for 1 click
         const installable = corp.hq.filter(c => ['ice', 'asset', 'upgrade', 'agenda'].includes(type(c))).length;
         if (!(corp.credits >= 3 && installable >= 1 && corp.hq.length <= corp.handSizeLimit)) return 0;
-        return hacksOff('bonuses') ? topDownWorth(installable) : 1.3;
+        return hacksOff('bonuses') ? topDownWorth(installable, state) : 1.3;
       }
     }
     return 0;

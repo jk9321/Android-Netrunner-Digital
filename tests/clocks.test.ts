@@ -1,8 +1,8 @@
 import { describe, expect, it } from 'vitest';
-import { FLATLINE, damageThreat, damageWorth, flatlineOdds } from '../src/ai/effectValues';
+import { damageThreat, damageWorth, flatlineOdds } from '../src/ai/effectValues';
 import { tagsWorth } from '../src/ai/evaluate';
 import { tagCost } from '../src/ai/runs';
-import { CLICK, RATES } from '../src/ai/valueModel';
+import { CLICK, cardRate, flatlineWorth } from '../src/ai/valueModel';
 import { createCardInstance } from '../src/core';
 import { newGame } from './helpers';
 
@@ -26,15 +26,15 @@ describe('the damage clock (Jeff, 2026-10-28; plan.damageClock)', () => {
     const roomy = damageWorth(s, 1);
     s.runner.grip = s.runner.grip.slice(0, 3);
     expect(damageWorth(s, 1)).toBeGreaterThan(roomy);
-    expect(roomy).toBeGreaterThan(RATES.drawnCard);
+    expect(roomy).toBeGreaterThan(cardRate(s, 'runner'));
     s.runner.grip = s.runner.grip.slice(0, 1);
-    expect(damageWorth(s, 2)).toBe(FLATLINE);
+    expect(damageWorth(s, 2)).toBe(flatlineWorth(s));
   });
 
   it('cards over the hand limit are no life against damage: they are discarded first', () => {
     const s = newGame();
     s.runner.grip = [...s.runner.grip.slice(0, 5), ...s.runner.stack.slice(0, 3)];
-    expect(damageWorth(s, 1)).toBeCloseTo(RATES.drawnCard);
+    expect(damageWorth(s, 1)).toBeCloseTo(cardRate(s, 'runner'));
   });
 
   it('no damage in the Corp’s deck: no clock', () => {
