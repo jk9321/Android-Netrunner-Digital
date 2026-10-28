@@ -26,6 +26,9 @@ export const SOON = { now: 0.7, later: 0.45 };
 export const HAND_FLOOR = 0.5;
 
 /** Worth of a card once played, less its cost and click (credits), before the wait. */
+/** Breakers being priced by the rig they join (a hosted breaker would price itself again). */
+const pricingBreakers = new Set<string>();
+
 export function playedWorth(state: GameState, card: CardInstance): number {
   const def = cardDef(card);
   const cost = def.cost ?? 0;
@@ -60,11 +63,17 @@ export function playedWorth(state: GameState, card: CardInstance): number {
   // Runner rig cards
   const profile = CARD_PROFILES[card.cardCode];
   if (profile && tuning.plan.cardProfiles) return payoutWorth(profile, turns, profile.load, payoutWait(state, profile, 'runner'), cardRate(state, 'runner')) - cost - CLICK;
-  if (isIcebreaker(card) && flatRate('breakers') && tuning.plan.breakerCredits?.runner) {
-    // What it adds to the rig's coverage once installed (Mayfly's one use included), as the board will see it
+  if (isIcebreaker(card) && flatRate('breakers') && tuning.plan.breakerCredits?.runner && !pricingBreakers.has(card.instanceId)) {
+    // What it adds to the rig's coverage once installed (Mayfly's one use included), as the board will see it.
+    // A breaker hosted on Bling or Madani is priced inside the rig too: while it is, the rule-based worth below
     const rig = state.runner.rig;
     const after = { ...state, runner: { ...state.runner, rig: { ...rig, programs: [...rig.programs, card] } } } as GameState;
-    return runnerRigValue(after, true, 'runner') - runnerRigValue(state, true, 'runner') - cost - CLICK;
+    pricingBreakers.add(card.instanceId);
+    try {
+      return runnerRigValue(after, true, 'runner') - runnerRigValue(state, true, 'runner') - cost - CLICK;
+    } finally {
+      pricingBreakers.delete(card.instanceId);
+    }
   }
   if (isIcebreaker(card)) {
     const breaks = breakerScript(card)?.breaks;

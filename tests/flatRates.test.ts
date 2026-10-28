@@ -67,4 +67,13 @@ describe('the last flat rates from the model (Jeff, 2026-10-28; plan.flatRates)'
     const buzzsaw = createCardInstance(s, '30005'); // Buzzsaw, a decoder: a new type
     expect(playedWorth(s, buzzsaw)).toBeGreaterThan(playedWorth(s, second));
   });
+
+  it('a breaker hosted on Bling is priced once, not again inside the rig it joins', () => {
+    const s = newGame();
+    const bling = createCardInstance(s, '35006');
+    const hosted = createCardInstance(s, '30006');
+    bling.hostedCards = [hosted];
+    s.runner.rig.hardware = [bling];
+    expect(Number.isFinite(playedWorth(s, hosted))).toBe(true);
+  });
 });

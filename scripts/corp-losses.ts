@@ -51,6 +51,7 @@ for (const c of corpDecks) {
         records.push(playLogged(createInitialGameState(deckGameSetup(seed, c, r)), { corp: agent('corp'), runner: agent('runner') }, { corp: c.name, runner: r.name }));
       } catch (err) {
         console.error(`deal ${seed} ${c.name} vs ${r.name}: ${err}`);
+        if (process.env.STACK) console.error((err as Error).stack?.split("\n").slice(0, 60).join("\n"));
       }
     }
   }
