@@ -67,7 +67,7 @@ jobs:
           node-version: 22
           cache: npm
       - run: npm ci
-      - if: inputs.script == 'head-to-head'
+      - if: inputs.script == 'head-to-head' || inputs.script == 'steal-odds'
         uses: actions/checkout@v4
         with:
           ref: ${{ inputs.old_ref }}
