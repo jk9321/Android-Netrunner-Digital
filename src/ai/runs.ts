@@ -13,6 +13,7 @@ import {
 import { availableCredits, counters } from '../core/engine/cardEffects';
 import { corpCardValue, tagThreat } from './evaluate';
 import { agendaOdds, damageWorth } from './effectValues';
+import { clickPrice } from './handValues';
 import { tuning } from './synergy';
 import { RATES, clickRate, creditNeed, creditSlide, pointValue } from './valueModel';
 
@@ -108,7 +109,7 @@ export function creditCost(state: GameState, credits: number): number {
 export const spendCost = (state: GameState, credits: number): number => (tuning.plan.runModel ? creditCost(state, credits) : 0.6 * Math.max(0, credits));
 
 /** A click spent on a run, in runScore's units. */
-export const runClick = (): number => (tuning.plan.runModel ? clickRate('runner') : 1);
+export const runClick = (state?: GameState): number => (tuning.plan.runModel ? (state ? clickPrice(state, 'runner', 'runner') : clickRate('runner')) : 1);
 
 /** A tag taken (Jeff): the cheaper of clearing it (a click and 2 credits) and what it costs to keep it. */
 export function tagCost(state: GameState): number {
@@ -237,7 +238,7 @@ export function approachCost(state: GameState, serverId: string, clicks: number,
   let paid = 0;
   for (const card of state.corp.servers[serverId]?.root ?? []) {
     if (!card.isRezzed || card.cardCode !== MANEGARM) continue;
-    const byClicks = clicks >= 2 ? 2 * runClick() : Infinity;
+    const byClicks = clicks >= 2 ? 2 * runClick(state) : Infinity;
     const byCredits = credits - paid >= 5 ? spendCost(state, paid + 5) - spendCost(state, paid) : Infinity;
     if (byClicks === Infinity && byCredits === Infinity) return null;
     if (byClicks <= byCredits) clicks -= 2;
@@ -503,7 +504,7 @@ export function runScore(state: GameState, serverId: string, options: RunOptions
   const approach = approachCost(state, serverId, state.runner.clicks - 1 - bioroidClicks(state, server.ice), budget - known);
   if (!approach) return -Infinity;
   const paid = Math.max(0, expected - (options.bonusCredits ?? 0));
-  return value - spendCost(state, paid) - spendCost(state, waste) - approach.cost - runClick();
+  return value - spendCost(state, paid) - spendCost(state, waste) - approach.cost - runClick(state);
 }
 
 /** Rezzed ice the Runner gets through for this much or less is worth trashing to make room. */

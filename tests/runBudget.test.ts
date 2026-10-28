@@ -84,8 +84,17 @@ describe('Runner AI and Manegarm Skunkworks (rules 6.9.4g, 1.16.11b)', () => {
     const s = runToManegarm(manegarmGame(5, 7));
     const prompt = activePrompt(s)!;
     expect(prompt.kind === 'effect_choice' && prompt.source.cardCode).toBe(MANEGARM);
+    // Clicks are priced by the best plays in hand (plan.clickByPlay): with nothing to play they are cheap
+    s.runner.grip = [];
     const action = new HeuristicRunnerAI().chooseAction(s);
     expect(action.type === 'RESOLVE_PROMPT' && action.choice.kind === 'effect_choice' && action.choice.optionId).toBe('clicks');
+  });
+
+  it('keeps its clicks for strong installs in hand when the access is worth less (plan.clickByPlay)', () => {
+    // Carmen and Marjanah in grip: 2 clicks buy more than one early R&D access
+    const s = runToManegarm(manegarmGame(5, 7));
+    const action = new HeuristicRunnerAI().chooseAction(s);
+    expect(action.type === 'RESOLVE_PROMPT' && action.choice.kind === 'effect_choice' && action.choice.optionId).toBe('end');
   });
 
   it('pays 5 credits when it has no clicks to spare and the access is worth it', () => {

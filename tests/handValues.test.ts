@@ -1,7 +1,9 @@
 import { describe, expect, it } from 'vitest';
-import { HAND_FLOOR, SOON, heldWorth, noteKnownHand, ownHandValue, playedWorth } from '../src/ai/handValues';
+import { HAND_FLOOR, SOON, clickPrice, clickWorth, heldWorth, noteKnownHand, ownHandValue, playedWorth } from '../src/ai/handValues';
 import { createCardInstance } from '../src/core/engine/gameState';
-import { newGame } from './helpers';
+import { CLICK } from '../src/ai/valueModel';
+import { tuning } from '../src/ai/synergy';
+import { installIceForTest, newGame } from './helpers';
 
 describe('cards in hand by what they do (Jeff, 2026-10-28; plan.handByCard)', () => {
   it('a card in hand holds part of its played worth, so playing a good card gains the rest', () => {
@@ -50,5 +52,38 @@ describe('cards in hand by what they do (Jeff, 2026-10-28; plan.handByCard)', ()
     s.corp.hq.push({ ...worst, instanceId: 'w1' }, { ...worst, instanceId: 'w2' });
     noteKnownHand(s, 'corp');
     expect(ownHandValue(s, 'corp') - full).toBeCloseTo(0.3);
+  });
+});
+
+describe('a click priced by the best play in hand (Jeff, 2026-10-28; plan.clickByPlay)', () => {
+  it('is never worth less than a credit, even with nothing to play', () => {
+    const s = newGame();
+    s.runner.grip = [];
+    s.runner.stack = [];
+    expect(clickWorth(s, 'runner')).toBeGreaterThanOrEqual(1);
+  });
+
+  it('a strong card in hand raises it, by what playing it now adds over holding it', () => {
+    const s = newGame();
+    s.runner.credits = 10;
+    s.runner.grip = [];
+    s.runner.stack = [];
+    installIceForTest(s, '35041', 'hq'); // a rezzed sentry for Carmen to break
+    const bare = clickWorth(s, 'runner');
+    const carmen = createCardInstance(s, '30015');
+    s.runner.grip = [carmen];
+    s.runner.clicks = 1;
+    expect(clickWorth(s, 'runner')).toBeGreaterThan(bare);
+    expect(clickWorth(s, 'runner')).toBeCloseTo(Math.min(3, Math.max(1, (1 - SOON.now) * (playedWorth(s, carmen) + CLICK))));
+  });
+
+  it('is capped at 3 credits and only used for the side’s own clicks', () => {
+    const s = newGame();
+    s.runner.credits = 50;
+    expect(clickWorth(s, 'runner')).toBeLessThanOrEqual(3);
+    expect(clickPrice(s, 'corp', 'runner')).toBe(CLICK);
+    tuning.plan.clickByPlay = { corp: false, runner: false };
+    expect(clickPrice(s, 'runner', 'runner')).toBe(CLICK);
+    tuning.plan.clickByPlay = { corp: true, runner: true };
   });
 });

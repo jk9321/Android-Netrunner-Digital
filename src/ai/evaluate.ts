@@ -7,8 +7,8 @@ import { corpKeepValue, runnerCardValue } from './cardValues';
 import { countersWorth } from './counterValues';
 import { AI_BREAKER_SHARE, breakerTypeWorth, flatIceWorth, iceWorth } from './iceValues';
 import { payoutWait, payoutWorth, profileOf, turnsLeft } from './cardProfiles';
-import { handByCard, ownHandValue } from './handValues';
-import { RATES, clickRate, creditValue, handFilter, pointValue, sideCreditValue } from './valueModel';
+import { clickPrice, handByCard, ownHandValue } from './handValues';
+import { RATES, creditValue, handFilter, pointValue, sideCreditValue } from './valueModel';
 
 export { creditValue };
 
@@ -229,7 +229,7 @@ export function sideStrength(state: GameState, side: SideCode, viewer: SideCode 
     const corp = state.corp;
     return (
       sideCreditValue(state, 'corp', viewer) +
-      clickRate(viewer) * corp.clicks +
+      clickPrice(state, 'corp', viewer) * corp.clicks +
       (viewer === 'corp' && handByCard('corp') ? ownHandValue(state, 'corp') : handValue(corp.hq.length, corp.handSizeLimit, viewer)) +
       pointValue(corp.score) +
       corpBoardValue(state, viewer) +
@@ -242,7 +242,7 @@ export function sideStrength(state: GameState, side: SideCode, viewer: SideCode 
   const runner = state.runner;
   return (
     sideCreditValue(state, 'runner', viewer) +
-    clickRate(viewer) * runner.clicks +
+    clickPrice(state, 'runner', viewer) * runner.clicks +
     (viewer === 'runner' && handByCard('runner') ? ownHandValue(state, 'runner') : handValue(runner.grip.length, runner.handSizeLimit, viewer)) +
     pointValue(runner.score) -
     (RATES.tagAgainstRunner + threat) * runner.tags -

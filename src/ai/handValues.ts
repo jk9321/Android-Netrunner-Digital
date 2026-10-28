@@ -121,3 +121,42 @@ export function ownHandValue(state: GameState, side: SideCode): number {
 }
 
 export const handByCard = (side: SideCode): boolean => !!tuning.plan.handByCard?.[side];
+
+/**
+ * A click priced by the best plays in hand (Jeff, 2026-10-28; plan.clickByPlay):
+ * at least a credit (1 on the credit slide, Jeff's floor), usually more.
+ * Each card in hand can be played once, so with k clicks left a click is
+ * worth the average of the k best uses: playing the best cards, drawing
+ * (the deck average) or taking a credit, which can be repeated. A card in
+ * hand already holds most of its worth (SOON.now), so playing it now is
+ * worth only the rest: what a click left unspent loses.
+ */
+export function clickWorth(state: GameState, side: SideCode): number {
+  const player = side === 'corp' ? state.corp : state.runner;
+  const clicks = Math.max(1, player.clicks);
+  const key = `${side}:${state.id}:${state.turnNumber}:${player.clicks}:${player.credits}:${(side === 'corp' ? state.corp.hq : state.runner.grip).map(c => c.instanceId).join(',')}`;
+  const cached = clickCache.get(key);
+  if (cached !== undefined) return cached;
+  const hand = side === 'corp' ? state.corp.hq : state.runner.grip;
+  const credits = player.credits;
+  const plays = hand
+    .filter(c => (cardDef(c).cost ?? 0) <= credits && cardDef(c).type_code !== 'agenda')
+    // What playing it now adds: the card already holds SOON.now of its worth in hand, so the click buys the
+    // rest (playedWorth charges the click: add it back to get what the click buys)
+    .map(c => (1 - SOON.now) * (playedWorth(state, c) + CLICK))
+    .sort((a, b) => b - a);
+  const repeatable = Math.max(1, drawWorth(state, side));
+  let total = 0;
+  for (let i = 0; i < clicks; i++) total += Math.max(repeatable, plays[i] ?? 0);
+  const value = Math.max(1, Math.min(3, total / clicks));
+  if (clickCache.size > 2000) clickCache.clear();
+  clickCache.set(key, value);
+  return value;
+}
+const clickCache = new Map<string, number>();
+
+/** Price of a click left to `side`, as `viewer` sees it: best play in hand for its own, the 1.25 default for the other side's. */
+export function clickPrice(state: GameState, side: SideCode, viewer: SideCode): number {
+  if (!tuning.plan.clickRate?.[viewer]) return RATES.click;
+  return side === viewer && tuning.plan.clickByPlay?.[viewer] ? clickWorth(state, side) : CLICK;
+}

@@ -220,7 +220,9 @@ export const tuning = {
      * play in hand as planned. Points clock and hand filter: noise, kept.
      */
     /** Both sides: a click is worth 1.25 credits (at least 1), not 1 (per deciding side). */
-    clickRate: { corp: false, runner: false } as Record<SideCode, boolean>,
+    clickRate: { corp: true, runner: true } as Record<SideCode, boolean>,
+    /** Per deciding side (Jeff, 2026-10-28): its own clicks priced by the best plays in hand, at least a credit (handValues.ts clickWorth). */
+    clickByPlay: { corp: true, runner: true } as Record<SideCode, boolean>,
     /** Both sides: credits slide against a need (the deck's build target or the board's need, whichever is more) instead of a flat bonus under 6 (per deciding side). */
     creditSlide: { corp: true, runner: true } as Record<SideCode, boolean>,
     /** Both sides: agenda points are worth more the closer they take a side to 7. */

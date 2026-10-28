@@ -153,7 +153,7 @@ export function answerPrompt(state: GameState, side: SideCode, memory?: RunnerMe
   // Manegarm Skunkworks: pay the cheaper way in if the access is worth it, on the scale runScore planned the run with
   if (side === 'runner' && prompt.kind === 'effect_choice' && prompt.source.cardCode === MANEGARM && state.activeRun) {
     const value = serverValue(state, state.activeRun.server, 0, memory, synergy && tuning.wary, synergy && tuning.plan.urgency);
-    const cost: Record<string, number> = { clicks: 2 * runClick(), pay: spendCost(state, 5) };
+    const cost: Record<string, number> = { clicks: 2 * runClick(state), pay: spendCost(state, 5) };
     const ways = prompt.options.filter(o => o.id in cost && cost[o.id] < value).sort((a, b) => cost[a.id] - cost[b.id]);
     return { ...base, choice: { kind: 'effect_choice', optionId: ways[0]?.id ?? 'end' } };
   }
