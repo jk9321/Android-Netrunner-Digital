@@ -3,7 +3,9 @@ import { iceScript, iceSubtypes } from '../core/engine/ice';
 import { rigCoverage } from './evaluate';
 import { counters, rezCost } from '../core/engine/cardEffects';
 import { Agent, FreeActionGuard, ScoredAction } from './agent';
-import { digValue, evaluate } from './evaluate';
+import { agendaBoardValue, digValue, evaluate } from './evaluate';
+import { pointValue } from './valueModel';
+import { PACE, accessWorth } from './effectValues';
 import { answerPrompt, simulate } from './prompts';
 import { logNudge, nudge, opponentLean, tuning } from './synergy';
 import { noteKnownHand } from './handValues';
@@ -12,7 +14,7 @@ import { PETTY_CASH_REPLAY, iceAdvanceWorth, placedCounterWorth, rezEffectWorth,
 import { ECON_SCALE } from './cardProfiles';
 
 /** Whether a group of value hacks is replaced by the model (plan.modelHacks, Jeff 2026-10-28). */
-const hacksOff = (group: 'rez' | 'rezPriority' | 'purge' | 'bonuses' | 'iceAdvance'): boolean => !!tuning.plan.modelHacks?.[group];
+const hacksOff = (group: 'rez' | 'rezPriority' | 'purge' | 'bonuses' | 'iceAdvance' | 'finish' | 'conduit'): boolean => !!tuning.plan.modelHacks?.[group];
 import { iceCost, isTrap, tagCost, weakestIce } from './runs';
 import { cardSynergy } from './synergyTags';
 import { econValue, upgradeValue } from './cardValues';
@@ -344,15 +346,18 @@ export class HeuristicCorpAI implements Agent {
       case '35043': {
         // Nanomanagement (4 credits): +2 clicks, worth it if they finish an agenda
         const clicksAfter = corp.clicks - 1 + 2;
-        const finish = agendas.some(a => need(a) > corp.clicks && need(a) <= clicksAfter && corp.credits - 4 >= need(a));
-        return finish ? 42 : -Infinity;
+        const finishing = agendas.filter(a => need(a) > corp.clicks && need(a) <= clicksAfter && corp.credits - 4 >= need(a));
+        // Model (plan.modelHacks.finish): the clicks are priced by the evaluation; what it misses is the score they lead to
+        if (hacksOff('finish')) return Math.max(0, ...finishing.map(a => finishWorth(state, a)));
+        return finishing.length ? 42 : -Infinity;
       }
       case '35067': {
         // Touch-ups (2 clicks, 2 credits): 2 advancements, best when they finish an agenda
         const clicksAfter = corp.clicks - 2;
         if (clicksAfter < 0 || corp.credits < 2) return -Infinity;
-        const finish = agendas.some(a => need(a) <= 2 + Math.min(clicksAfter, corp.credits - 2) && need(a) > 0);
-        return finish ? 41 : 0;
+        const finishing = agendas.filter(a => need(a) <= 2 + Math.min(clicksAfter, corp.credits - 2) && need(a) > 0);
+        if (hacksOff('finish')) return Math.max(0, ...finishing.map(a => finishWorth(state, a)));
+        return finishing.length ? 41 : 0;
       }
       case '35044': {
         // Top-Down Solutions: 2 cards and up to 2 installs for 1 click
@@ -681,7 +686,11 @@ function iceFit(state: GameState, ice: CardInstance, server: ServerState | null,
   if (!server) return fit;
   const runs = [...state.runnerLastTurnRuns, ...state.runsThisTurn];
   if (runs.length > 0) fit += runs.some(r => r.server === server.id) ? 0.6 : -0.2;
-  if (server.id === 'rd' && state.runner.rig.programs.some(p => p.cardCode === '30024')) fit += 0.6; // Conduit
+  const conduit = state.runner.rig.programs.find(p => p.cardCode === '30024');
+  if (server.id === 'rd' && conduit) {
+    // Conduit: each run on R&D it gets through accesses 1 more card per counter (model, plan.modelHacks.conduit): ice here stops some of them
+    fit += hacksOff('conduit') ? Math.min(3, ICE_STOPS * PACE.runs * PACE.conduitRdShare * (1 + counters(conduit, 'virus')) * accessWorth(state)) - ICE_STOPS * PACE.runs * PACE.rdShare * accessWorth(state) : 0.6;
+  }
   if (stakes && (server.id === 'hq' || server.id === 'rd')) {
     // Guard what HQ holds: agendas in hand make HQ the server to ice, none make R&D the bigger risk
     const inHq = state.corp.hq.filter(c => type(c) === 'agenda' && c.instanceId !== ice.instanceId);
@@ -691,6 +700,20 @@ function iceFit(state: GameState, ice: CardInstance, server: ServerState | null,
   }
   if (server.ice.length > 0 && server.ice.some(other => iceSubtypes(other, state).some(t => types.includes(t)))) fit -= 0.4;
   return fit;
+}
+
+/** Share of runs a new ice on a server stops (a guess, Jeff 2026-10-28: about one run in three). */
+const ICE_STOPS = 0.3;
+
+/**
+ * Worth of scoring `agenda` this turn rather than leaving it advanced on
+ * the board: its points on the clock, less what the evaluation already
+ * counts for it installed.
+ */
+function finishWorth(state: GameState, agenda: CardInstance): number {
+  const def = cardDef(agenda);
+  const points = def.agenda_points ?? 1;
+  return pointValue(state.corp.score + points) - pointValue(state.corp.score) - agendaBoardValue(agenda.advancementCounters, def.advancement_cost ?? 0);
 }
 
 /**

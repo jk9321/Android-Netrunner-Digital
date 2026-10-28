@@ -276,7 +276,7 @@ export const tuning = {
     /** With the planner: the hand at the end of a planned turn valued card by card (what each will do later). */
     plannerHand: true,
     /** Value hacks replaced by the model, by group (Jeff, 2026-10-28; effectValues.ts). */
-    modelHacks: { rez: true, rezPriority: true, purge: true, bonuses: true, iceAdvance: true } as Record<string, boolean>,
+    modelHacks: { rez: true, rezPriority: true, purge: true, bonuses: true, iceAdvance: true, finish: true, conduit: true } as Record<string, boolean>,
     /**
      * Per deciding side (Jeff, 2026-10-28): its own hand valued card by card, by what each will do once played (handValues.ts).
      * Batches: each side loses with it (Corp side 32.2% -> 28.0%, Runner side 32.2% -> 35.9% Corp) and the Runner draws at a
