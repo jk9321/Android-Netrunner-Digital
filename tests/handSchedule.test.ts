@@ -1,4 +1,5 @@
-import { describe, expect, it } from 'vitest';
+import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+import { tuning } from '../src/ai/synergy';
 import { SCHEDULE, noteKnownHand, scheduleClick, scheduleValue } from '../src/ai/handValues';
 import { evaluate } from '../src/ai/evaluate';
 import { handFilter } from '../src/ai/valueModel';
@@ -20,6 +21,9 @@ function runnerWith(codes: string[], credits: number) {
 }
 
 describe('the hand schedule (Jeff, 2026-10-28; plan.handSchedule)', () => {
+  beforeAll(() => { tuning.plan.handSchedule = { corp: true, runner: true }; });
+  afterAll(() => { tuning.plan.handSchedule = { corp: false, runner: false }; });
+
   it('when credits hold the plan back, a click is worth about a credit', () => {
     const s = runnerWith([CARMEN, RED_TEAM], 0);
     expect(scheduleClick(s, 'runner')).toBeGreaterThanOrEqual(1);

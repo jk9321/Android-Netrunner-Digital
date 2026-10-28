@@ -272,8 +272,13 @@ export const tuning = {
      * full hand on 55% of turns. Off on both sides, kept for re-testing.
      */
     handByCard: { corp: false, runner: false } as Record<SideCode, boolean>,
-    /** Per deciding side (Jeff, 2026-10-28): its hand and clicks left valued together by when each card would be played (handValues.ts scheduleValue). */
-    handSchedule: { corp: true, runner: true } as Record<SideCode, boolean>,
+    /**
+     * Per deciding side (Jeff, 2026-10-28): its hand and clicks left valued together by when each card would be played (handValues.ts scheduleValue).
+     * Batches (vs 25.2% without): both 24.9%, Corp side only 14.1%, Runner side only 42.9%: each side much worse using it.
+     * The plan already counts this turn's plays, so playing them gains nothing and the AI does what's outside the plan
+     * instead (the Runner draws at a full hand on 92% of turns). Off, kept for a whole-turn planner.
+     */
+    handSchedule: { corp: false, runner: false } as Record<SideCode, boolean>,
     /** Both sides: subroutine costs (tags, damage, trashed cards, lost credits) from the rates (runs.ts). */
     subCosts: true,
     /** Both sides (step 5, Jeff): ice is worth what it costs the Runner to get past it, not its rez cost (per deciding side). */
