@@ -47,12 +47,16 @@ for (const c of corpDecks) {
       if (deal++ % shards !== shard) continue;
       const agent = (side: 'corp' | 'runner') =>
         createAgent(side, level, level === 'hard' ? { samples: 6, candidates: 3, seed } : {});
+      const started = Date.now();
       try {
         records.push(playLogged(createInitialGameState(deckGameSetup(seed, c, r)), { corp: agent('corp'), runner: agent('runner') }, { corp: c.name, runner: r.name }));
       } catch (err) {
         console.error(`deal ${seed} ${c.name} vs ${r.name}: ${err}`);
-        if (process.env.STACK) console.error((err as Error).stack?.split("\n").slice(0, 60).join("\n"));
+        if (process.env.STACK) console.error((err as Error).stack?.split('\n').slice(0, 60).join('\n'));
       }
+      // A game far slower than the rest holds up its whole shard: name it
+      const secs = (Date.now() - started) / 1000;
+      if (secs > 60) console.error(`slow deal ${seed} ${c.name} vs ${r.name}: ${secs.toFixed(0)} s`);
     }
   }
 }
