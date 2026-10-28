@@ -68,3 +68,7 @@ Every self-play batch, newest last (Jeff, 2026-10-28). Made with `scripts/corp-l
 | 2026-10-28 | Actions full: tag clock off | 62ff956 | 2210 | **23.8%** | 20.1% / 3.6% | 74.3% / 2.0% | 50.6% / 20.3% / 24.9% / 4.1% | 5.6 | [txt](batch-logs/2026-10-28-actions-full-tag-clock-off.txt) |
 | 2026-10-28 | Actions full: run openness off | 62ff956 | 2209 | **23.5%** | 18.9% / 4.6% | 73.7% / 2.9% | 47.3% / 21.0% / 27.1% / 4.7% | 6.2 | [txt](batch-logs/2026-10-28-actions-full-run-openness-off.txt) |
 | 2026-10-28 | Actions full: flat rates off | 62ff956 | 2210 | **21.3%** | 16.1% / 5.2% | 76.9% / 1.8% | 47.0% / 20.7% / 27.6% / 4.7% | 6.1 | [txt](batch-logs/2026-10-28-actions-full-flat-rates-off.txt) |
+| 2026-10-28 | Head-to-head: old vs old (AI at 1724c6b) | 31041b9 | 2208 | **40.1%** | 31.9% / 8.2% | 56.9% / 3.0% | 39.1% / 31.0% / 23.8% / 6.2% | 6.3 | [txt](batch-logs/2026-10-28-head-to-head-old-vs-old-ai-at-1724c6b.txt) |
+| 2026-10-28 | Full system, re-measured pace | a3b53d9 | 2210 | **24.3%** | 20.6% / 3.7% | 73.5% / 2.3% | 48.9% / 20.4% / 25.8% / 4.9% | 5.8 | [txt](batch-logs/2026-10-28-full-system-re-measured-pace.txt) |
+| 2026-10-28 | Head-to-head: new Corp vs old Runner | a3b53d9 | 2206 | **35.3%** | 28.5% / 6.8% | 62.2% / 2.5% | 45.6% / 29.5% / 21.7% / 3.2% | 5.8 | [txt](batch-logs/2026-10-28-head-to-head-new-corp-vs-old-runner.txt) |
+| 2026-10-28 | Head-to-head: old Corp vs new Runner | a3b53d9 | 2210 | **33.3%** | 27.9% / 5.3% | 64.6% / 2.2% | 44.6% / 20.8% / 27.6% / 7.0% | 6.9 | [txt](batch-logs/2026-10-28-head-to-head-old-corp-vs-new-runner.txt) |
