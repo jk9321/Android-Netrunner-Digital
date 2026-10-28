@@ -1,0 +1,38 @@
+Batch: Steal odds: new vs new | ref 64fbe578a5886636dbda6d417fbc0199d2ea784b | games 0-10 | PLAN_OFF= | steal-odds new | added run 
+
+Agenda in a remote, by predicted steal chance:
+  0-0.05      5223 turns: predicted   3.1%  ran  20.3%  stolen  12.8%
+  0.2-0.3     1765 turns: predicted  23.3%  ran  92.9%  stolen  41.8%
+  0.1-0.15     770 turns: predicted  12.9%  ran  95.3%  stolen  40.0%
+  0.4-0.6      575 turns: predicted  42.3%  ran  83.5%  stolen  76.7%
+  0.3-0.4      493 turns: predicted  38.2%  ran  82.6%  stolen  51.1%
+  0.05-0.1       6 turns: predicted   7.2%  ran 100.0%  stolen  50.0%
+
+Agenda in a remote, by ice on the server (rezzed/total):
+  2/2         1998 turns: predicted   6.0%  ran  22.1%  stolen  14.4%
+  1/1         1929 turns: predicted   8.1%  ran  29.1%  stolen  23.3%
+  1/2         1661 turns: predicted   8.5%  ran  40.8%  stolen  18.9%
+  0/1         1489 turns: predicted  25.5%  ran  94.5%  stolen  43.8%
+  0/2          719 turns: predicted  13.5%  ran  96.0%  stolen  40.9%
+  0/0          377 turns: predicted  43.0%  ran  83.6%  stolen  83.6%
+  2/3          276 turns: predicted   7.8%  ran  41.3%  stolen  17.4%
+  3/3          219 turns: predicted   4.4%  ran  15.5%  stolen   9.1%
+  1/3           70 turns: predicted  11.1%  ran  75.7%  stolen  31.4%
+  3/4           36 turns: predicted   4.1%  ran  25.0%  stolen   8.3%
+  4/4           15 turns: predicted   6.1%  ran  20.0%  stolen   6.7%
+  2/4           15 turns: predicted  10.2%  ran  73.3%  stolen  13.3%
+  4/6           12 turns: predicted  21.8%  ran   0.0%  stolen   0.0%
+  3/5            7 turns: predicted   2.2%  ran  42.9%  stolen   0.0%
+  0/3            6 turns: predicted   7.2%  ran 100.0%  stolen  50.0%
+  4/5            3 turns: predicted  10.6%  ran  33.3%  stolen  33.3%
+
+Agenda in a remote, by advancement counters (3 = 3+):
+  1           3171 turns: predicted  10.8%  ran  51.8%  stolen  26.3%
+  0           3039 turns: predicted  17.7%  ran  59.5%  stolen  35.7%
+  2           2023 turns: predicted   9.4%  ran  37.5%  stolen  21.4%
+  3            599 turns: predicted   5.6%  ran  19.5%  stolen  10.2%
+
+HQ, agendas in HQ (count, 3 = 3+): HQ run / stolen from HQ that turn:
+  1           8680 turns:  ran  30.6%  stolen   5.7%
+  2           6213 turns:  ran  24.9%  stolen   7.7%
+  3           4695 turns:  ran  20.3%  stolen   8.1%
