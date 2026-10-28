@@ -161,7 +161,7 @@ export const tuning = {
     /** Corp (Jeff): aim for a surplus that rezzes the unrezzed ice on the centrals and scoring remote (credits-worth per credit short; 0 = off). */
     moneyTarget: 0.3,
     /** Corp: an agenda remote's rez reserve covers all its unrezzed ice. */
-    deepReserve: true,
+    deepReserve: false,
     /** Corp (Jeff): push agendas through a remote the Runner can't get into yet. */
     tempo: true,
     /** Corp: purge by what the counters do (Conduit, Tranquilizer...) against the 3 clicks it costs. */
@@ -194,10 +194,10 @@ export const tuning = {
     /** Both sides (Jeff): draw harder for a missing answer (money, ice, a breaker) still in the deck, more under pressure (per side). */
     dig: { corp: true, runner: true } as Record<SideCode, boolean>,
     /** Corp (Jeff): taking credits off an asset (Regolith Mining License) counts as the money gained, not as board value lost. */
-    hostedMoney: true,
+    hostedMoney: false,
     /* Rez money (2026-10-26, 2,210 self-play games): both on 46.7%, neither 47.2% (noise). Halving upgrade worth in empty remotes instead cost about 2 points. */
     /** Corp (Jeff): rez money for the cheapest run-ending ice on R&D (HQ, agenda remotes) even behind rezzed ice that doesn't stop runs. */
-    iceReserve: true,
+    iceReserve: false,
     /** Corp (Jeff): upgrades in a remote with no agenda can go out early, but are rezzed only with the ice reserve left over. */
     idleUpgrades: true,
     /** Corp: Petty Cash first thing in the turn (it can only be played then, and replays from Archives). */
@@ -227,6 +227,18 @@ export const tuning = {
     pointClock: true,
     /** Both sides: one card over the hand-size limit is a small plus (you discard your worst card), not nothing. */
     handFilter: true,
+    /*
+     * Value model step 6 (2026-10-27, self-play, 2,210 games each, base
+     * 39.0%): off one at a time affordIce 38.5, deepReserve 38.6, iceReserve
+     * 38.7, agendaMoney 37.9, icePacing 37.6, moneyTarget 37.0, rezMoney 35.5;
+     * the first three off together 38.9 (noise). deepReserve and iceReserve
+     * off (the credit slide now covers them; kept for re-testing). affordIce
+     * stays on: without it the Corp installs ice it can't rez (Pharos with 9
+     * credits left), which Jeff's rule forbids. With agendaMoney and
+     * icePacing off too 33.6: those two stay on, as do moneyTarget and
+     * rezMoney. hostedMoney off: the step 4 profile prices Regolith, the
+     * only card it applied to.
+     */
     /*
      * Step 3 (self-play, 2,210 games each, click rate off): off 37.7% Corp,
      * on 35.2%, Runner's only 34.8%: the Runner +2.5 to 3 points, the Corp's

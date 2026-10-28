@@ -521,7 +521,13 @@ describe('rez money (Jeff, from play)', () => {
   };
 
   it('keeps money for the ice that ends the run', () => {
-    expect(rezReserve(position().s, true)).toBe(3);
+    // Switched off in value model step 6 (the credit slide covers it); kept for re-testing
+    tuning.plan.iceReserve = true;
+    try {
+      expect(rezReserve(position().s, true)).toBe(3);
+    } finally {
+      tuning.plan.iceReserve = false;
+    }
   });
 
   it('sets up upgrades in an empty remote, but does not rez them out of that money', () => {
