@@ -144,7 +144,7 @@ function passOdds(state: GameState, ices: CardInstance[], income = 0): number {
  * first (STEAL.income), so the ice's protection is judged against
  * that, not the credits it holds now.
  */
-export const STEAL = { run: 0.84, income: 3 };
+export const STEAL = { run: 0.84, income: 2 };
 
 export function stealOdds(state: GameState, serverId: string, run = STEAL.run, income = STEAL.income): number {
   const server = state.corp.servers[serverId];

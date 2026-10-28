@@ -96,6 +96,7 @@ for (const c of DECKS.filter(d => d.side === 'corp')) for (const r of DECKS.filt
     const gr = new GameRunner(createInitialGameState(deckGameSetup(seed, c, r)), { corp: agent('corp'), runner: agent('runner') });
     let watch: Watch[] = [];
     let hqAgendas: string[] = [];
+    let hqGuess = 0;
     try {
       for (let steps = 0; steps < 4000 && gr.state.turnNumber <= 80; steps++) {
         const before = gr.state;
@@ -104,6 +105,7 @@ for (const c of DECKS.filter(d => d.side === 'corp')) for (const r of DECKS.filt
         if (before.activePlayer !== 'runner' && after.activePlayer === 'runner') {
           watch = watchRemotes(after);
           hqAgendas = after.corp.hq.filter(h => cardDef(h).type_code === 'agenda').map(h => h.instanceId);
+          hqGuess = Math.min(1, (hqAgendas.length * stealOdds(after, 'hq')) / Math.max(1, after.corp.hq.length));
         }
         if (before.activePlayer === 'runner' && after.activePlayer !== 'runner' && !before.activeRun) {
           const stolen = new Set(after.runner.scoreArea.map(x => x.instanceId));
@@ -116,7 +118,7 @@ for (const c of DECKS.filter(d => d.side === 'corp')) for (const r of DECKS.filt
             add(byIce, w.ice, w.predicted, ran, !!y, w.guesses);
             add(byAdvanced, String(Math.min(3, w.advanced)), w.predicted, ran, !!y, w.guesses);
           }
-          if (hqAgendas.length) add(hq, String(Math.min(3, hqAgendas.length)), 0, ranOn.has('hq'), hqAgendas.some(id => stolen.has(id)));
+          if (hqAgendas.length) add(hq, String(Math.min(3, hqAgendas.length)), hqGuess, ranOn.has('hq'), hqAgendas.some(id => stolen.has(id)));
           watch = [];
           hqAgendas = [];
         }

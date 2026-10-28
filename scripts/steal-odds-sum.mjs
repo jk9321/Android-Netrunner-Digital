@@ -11,7 +11,7 @@ for (const [part, title] of [['bins', 'by predicted steal chance'], ['byIce', 'b
   }
   console.log(`\n${part === 'hq' ? 'HQ' : 'Agenda in a remote'}, ${title}:`);
   for (const [k, s] of Object.entries(sum).sort((a, b) => b[1].n - a[1].n)) {
-    const pred = part === 'hq' ? '' : ` predicted ${pct(s.predicted / s.n)}`;
+    const pred = ` predicted ${pct(s.predicted / s.n)}`;
     const guesses = part === 'byIce' ? '  ' + Object.entries(s.guesses).map(([g, p]) => `${g} ${pct(p / s.n)}`).join(' ') : '';
     console.log(`  ${k.padEnd(9)} ${String(s.n).padStart(6)} turns:${pred}  ran ${pct(s.ran / s.n)}  stolen ${pct(s.stolen / s.n)}${guesses}`);
   }

@@ -245,6 +245,25 @@ function archivedAgendasValue(state: GameState, viewer: SideCode): number {
   return -archives.filter(c => cardDef(c).type_code === 'agenda').reduce((n, c) => n + archivedAgendaLoss(state, cardDef(c).agenda_points ?? 1), 0);
 }
 
+/**
+ * Agendas in HQ (Jeff, 2026-10-28; plan.hqSteal): as exposed as agendas in
+ * a remote. The Corp assumes the Runner runs HQ whenever it can get in
+ * (stealOdds), and a breach of HQ accesses one random card (rules 7.3.2,
+ * 7.4.1), so each agenda is stolen at its share of the hand. A steal swings
+ * the agenda's points from the Corp's clock to the Runner's.
+ */
+export function hqAgendaLoss(state: GameState): number {
+  const hq = state.corp.hq;
+  const agendas = hq.filter(c => cardDef(c).type_code === 'agenda');
+  if (!agendas.length) return 0;
+  const perCard = stealOdds(state, 'hq') / hq.length;
+  return agendas.reduce((n, c) => {
+    const points = cardDef(c).agenda_points ?? 1;
+    const swing = pointValue(state.runner.score + points) - pointValue(state.runner.score) + pointValue(state.corp.score + points) - pointValue(state.corp.score);
+    return n + swing * perCard;
+  }, 0);
+}
+
 /** The Corp's installed cards, as `viewer` can judge them: the Runner values facedown cards by the odds, not by what they are. */
 function corpBoardValue(state: GameState, viewer: SideCode): number {
   let value = 0;
@@ -262,7 +281,7 @@ function corpBoardValue(state: GameState, viewer: SideCode): number {
       else value += corpCardValue(card, state, viewer);
     }
   }
-  return value + archivedAgendasValue(state, viewer);
+  return value + archivedAgendasValue(state, viewer) - (viewer === 'corp' && tuning.plan.hqSteal ? hqAgendaLoss(state) : 0);
 }
 
 /**
