@@ -1,0 +1,84 @@
+2210 games: Corp 34.8%, Runner 65.2%
+How games end:
+  runner runner points: 1376 (62.3%)
+  corp corp points: 615 (27.8%)
+  corp flatline: 153 (6.9%)
+  runner corp decked: 66 (3.0%)
+Runner points in Corp losses, by server:
+  remote: 4175 (38.5%)
+  rd: 3276 (30.2%)
+  hq: 2663 (24.6%)
+  archives: 719 (6.6%)
+Remote steals (1896):
+  by ice on the server (rezzed/total):
+  2/2: 707 (37.3%)
+  1/1: 563 (29.7%)
+  3/3: 202 (10.7%)
+  0/0: 173 (9.1%)
+  1/2: 120 (6.3%)
+  0/1: 87 (4.6%)
+  2/3: 16 (0.8%)
+  4/4: 14 (0.7%)
+  0/2: 9 (0.5%)
+  1/3: 4 (0.2%)
+  2/4: 1 (0.1%)
+  unrezzed ice at remote steals: none 1659 (87.5%), broke 235 (12.4%), declined 2 (0.1%); broke since: turn start 126, during turn 109
+    broke remote steals of agendas installed the Corp's last turn: 134 of 235
+  unrezzed ice at R&D steals: none 1130 (76.3%), broke 329 (22.2%), declined 22 (1.5%); broke since: during turn 37, turn start 292
+  unrezzed ice at HQ steals: broke 420 (35.2%), none 766 (64.2%), declined 7 (0.6%); broke since: turn start 330, during turn 90
+  already scoreable when stolen: 30
+  advanced at least once: 1443
+  Corp credits when stolen: avg 5.1
+HQ steals (1193): avg 2.1 agendas in a 4.5-card HQ, ice avg 1.2 (0.8 rezzed)
+R&D steals (1481): ice avg 1.2 (0.9 rezzed)
+Corp losses:
+  Corp score at loss: avg 2.2; at 5+: 236
+  game length: avg 14.1 turns (Corp wins 15.4)
+  board in Corp losses (avg per turn): 1.7 remotes, 1.0 with ice, 1.3 remote ice (best remote 0.9), HQ 1.2, R&D 1.3
+  board in Corp wins (avg per turn): 1.7 remotes, 0.9 with ice, 1.3 remote ice (best remote 1.1), HQ 1.3, R&D 1.3
+  remote steals by iced remotes at the time: 0: 64, 1: 1272, 2: 364, 3: 126, 4: 32, 5: 17, 6: 10, 7: 4, 8: 4, 9: 3
+  turns with an agenda in HQ and none in a remote: avg 8.7 (Corp wins 7.3)
+  agendas still in HQ at the end: avg 1.1
+Runner runs: 31620; paid to break then failed: 695 (2.2%), 2046 credits wasted
+  jacked out before rezzed ice: known at run start 23, rezzed during the run 1
+  stopped by ice: known at run start 91, rezzed during the run 580
+Corp money in Corp losses (per Corp turn):
+  spent 2.30/turn: rez ice in a run 1.03, advance 0.50, rez asset/upgrade 0.37, install ice 0.23, runner's turn 0.08, operation/install 0.06, other 0.03, turn start/assets 0.00
+  gained 2.36/turn: click for credit 0.81, operation/install 0.71, turn start/assets 0.43, other 0.22, runner's turn 0.16, advance 0.03, rez asset/upgrade 0.00
+  credits at end of turn 6.4; clicks for a credit 26.6%
+Corp money in Corp wins (per Corp turn):
+  spent 2.58/turn: rez ice in a run 0.99, advance 0.87, rez asset/upgrade 0.27, install ice 0.23, runner's turn 0.09, operation/install 0.08, other 0.05
+  gained 2.55/turn: operation/install 0.73, turn start/assets 0.67, click for credit 0.61, other 0.30, runner's turn 0.19, advance 0.05
+  credits at end of turn 6.7; clicks for a credit 19.1%
+Placement (steals from runs in Corp losses: 4569):
+  Runner paid to get in: avg 1.9; nothing 2161, 1-3 1433, 4+ 975
+  ice that would have stopped them:
+  none: 2680 (58.7%)
+  low-value server: 1144 (25.0%)
+  hq: 745 (16.3%)
+    remote: none 1217, hq 278, low-value server 401
+    rd: none 780, hq 235, low-value server 466
+    hq: none 683, hq 232, low-value server 277
+  broke steals where a rez on a low-value server in the last 2 turns would have paid for the ice: 28 of 984
+Runner's turn 1 (2210 games): R&D bare 37.3%, HQ bare 18.1%, ice on remotes avg 0.0
+  with a bare central: 1132; Corp held ice 660, ice it could rez 483; credits avg 5.7; HQ agendas avg 1.3
+Runner's turn 2 (2201 games): R&D bare 15.2%, HQ bare 9.3%, ice on remotes avg 0.3
+  with a bare central: 517; Corp held ice 284, ice it could rez 177; credits avg 6.1; HQ agendas avg 1.4
+Rezzes in runs (all games): 10015 (31858 credits); on low-value servers 1049 (10.5%), 3089 credits (9.7%)
+  most stolen agendas:
+  Offworld Office: 1184 (24.5%)
+  Send a Message: 1042 (21.5%)
+  Orbital Superiority: 459 (9.5%)
+  Project Ingatan: 309 (6.4%)
+  Off the Books: 254 (5.2%)
+  Next Big Thing: 223 (4.6%)
+  Embedded Reporting: 223 (4.6%)
+  Sericulture Expansion: 222 (4.6%)
+  Proprionegation: 163 (3.4%)
+  Luminal Transubstantiation: 147 (3.0%)
+  Superconducting Hub: 137 (2.8%)
+  Aggressive Trendsetting: 127 (2.6%)
+  Above the Law: 126 (2.6%)
+  Tomorrowʼs Headline: 115 (2.4%)
+  Longevity Serum: 73 (1.5%)
+  Greenmail: 36 (0.7%)
