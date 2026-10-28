@@ -37,8 +37,36 @@ export const CARD_PROFILES: Record<string, CardProfile> = {
   '35022': { load: 6, pay: 1, every: 'turn', perTurn: 1 }, // Open Market
 };
 
-/** How much a payout is worth per turn it waits. */
+/** How much a payout is worth per turn it waits (step 4, before plan.payoutRisk). */
 const WAIT = 0.85;
+
+/**
+ * plan.payoutRisk (Jeff, 2026-10-28): money that arrives on its own when the
+ * turn begins can't be hoarded, so it keeps its full worth less the real
+ * risk of losing the card. Money taken with a click keeps a small wait, so
+ * the AI cashes it rather than banking it (the step 3 Smartware lesson);
+ * the click it costs is counted against each payout as well.
+ */
+export const PAYOUT_RISK = {
+  /** Taken with a click: worth this much per turn it waits. */
+  clickWait: 0.93,
+  /** A Corp asset trashed by the Runner, per turn: in a remote with ice, and without. */
+  corpIced: 0.03,
+  corpBare: 0.06,
+  /** A Runner resource: trashed by the Corp only while the Runner is tagged. */
+  runnerTagged: 0.25,
+  runnerUntagged: 0.02,
+};
+
+/** Worth kept per turn a payout of this card waits. */
+export function payoutWait(state: GameState, profile: CardProfile, owner: 'corp' | 'runner', iced = false): number {
+  if (!tuning.plan.payoutRisk) return WAIT;
+  const time = profile.every === 'click' ? PAYOUT_RISK.clickWait : 1;
+  const risk = owner === 'corp'
+    ? (iced ? PAYOUT_RISK.corpIced : PAYOUT_RISK.corpBare)
+    : (state.runner.tags > 0 ? PAYOUT_RISK.runnerTagged : PAYOUT_RISK.runnerUntagged);
+  return time * (1 - risk);
+}
 
 /** Turns each side has left, guessed from the score (Jeff: mostly points). */
 export function turnsLeft(state: GameState): number {
@@ -50,7 +78,7 @@ export function turnsLeft(state: GameState): number {
  * credits once it has been rezzed or installed. Clicks spent taking money
  * count against it at the click rate; draws at a drawn card's worth.
  */
-export function payoutWorth(profile: CardProfile, turns: number, hosted = profile.load): number {
+export function payoutWorth(profile: CardProfile, turns: number, hosted = profile.load, wait = WAIT): number {
   const payouts = Math.ceil(hosted / profile.pay);
   let value = 0;
   let turn = 0;
@@ -59,9 +87,9 @@ export function payoutWorth(profile: CardProfile, turns: number, hosted = profil
     if (turn > turns) return value;
     const pay = Math.min(profile.pay, hosted - i * profile.pay);
     const click = profile.every === 'click' ? RATES.click : 0;
-    value += WAIT ** turn * (pay - click + (profile.drawEach ?? 0) * RATES.drawnCard);
+    value += wait ** turn * (pay - click + (profile.drawEach ?? 0) * RATES.drawnCard);
   }
-  if (turn + 1 <= turns) value += WAIT ** (turn + 1) * ((profile.drawAtEnd ?? 0) * RATES.drawnCard + (profile.clicksAtEnd ?? 0) * RATES.click);
+  if (turn + 1 <= turns) value += wait ** (turn + 1) * ((profile.drawAtEnd ?? 0) * RATES.drawnCard + (profile.clicksAtEnd ?? 0) * RATES.click);
   return value;
 }
 
@@ -69,10 +97,10 @@ export function payoutWorth(profile: CardProfile, turns: number, hosted = profil
 export const profileOf = (code: string): CardProfile | undefined => (tuning.plan.cardProfiles ? CARD_PROFILES[code] : undefined);
 
 /** Worth of a profiled card still to be rezzed (Corp): its payouts less its rez cost. */
-export function unrezzedWorth(state: GameState, code: string): number | undefined {
+export function unrezzedWorth(state: GameState, code: string, iced = false): number | undefined {
   const profile = profileOf(code);
   if (!profile) return undefined;
-  return payoutWorth(profile, turnsLeft(state)) - (getCardDefinition(code).cost ?? 0);
+  return payoutWorth(profile, turnsLeft(state), profile.load, payoutWait(state, profile, 'corp', iced)) - (getCardDefinition(code).cost ?? 0);
 }
 
 /** The install score a profiled Corp econ asset gets, on the scale of corpAI's install scores. */

@@ -4,6 +4,7 @@ import { CARD_PROFILES } from './cardProfiles';
 import { CARD_VALUES } from './cardValues';
 import { COUNTER_WORTH } from './counterValues';
 import { moneyOpGain } from './corpAI';
+import { EFFECT_CODES } from './effectValues';
 
 /**
  * The every-card value audit (Jeff, docs/ai-value-model-plan.md): how the
@@ -17,6 +18,7 @@ export type ValueSource =
   | 'icebreaker: the stops it saves'
   | 'payout profile'
   | 'counters by effect'
+  | 'effect formula'
   | 'hand-set number'
   | 'money operation (from its text)'
   | 'simulated play'
@@ -63,10 +65,17 @@ export function valueSources(def: CardDefinition): ValueSource[] {
     default:
       if (isIcebreaker({ cardCode: code } as never)) sources.push('icebreaker: the stops it saves');
       if (CARD_PROFILES[code]) sources.push('payout profile');
-      if (CARD_VALUES[code]) sources.push('hand-set number');
+      if (EFFECT_CODES.includes(code)) sources.push('effect formula');
+      // The hand-set numbers in cardValues.ts: not used where a profile or effect formula prices the card
+      else if (CARD_VALUES[code] && !CARD_PROFILES[code]) sources.push('hand-set number');
   }
   if (COUNTER_WORTH[code]) sources.push('counters by effect');
   return sources;
+}
+
+/** Cards still priced only by a hand-set number (Jeff, 2026-10-28: none should be). */
+export function handSetOnly(cards: CardDefinition[]): string[] {
+  return cards.filter(def => valueSources(def).length === 1 && valueSources(def)[0] === 'hand-set number').map(def => `${def.code} ${def.title}`);
 }
 
 /** Cards nothing prices on purpose, and counter-holding cards whose counters fall to a default rate. */

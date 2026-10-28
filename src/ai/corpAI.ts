@@ -612,7 +612,7 @@ export class HeuristicCorpAI implements Agent {
         return (server.ice.length > 0 && agendasInHand === 0 ? 1.8 : 0.5) + sell;
       }
       case 'upgrade': {
-        const values = upgradeValue(card.cardCode);
+        const values = upgradeValue(card.cardCode, state);
         if (!server) return -1;
         if (server.root.some(c => c.cardCode === card.cardCode)) return -Infinity;
         const value = server.isRemote ? (server.ice.length > 0 ? values[0] : -0.5) : server.id === 'archives' ? -1 : values[1];

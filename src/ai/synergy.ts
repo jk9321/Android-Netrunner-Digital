@@ -250,6 +250,10 @@ export const tuning = {
     counterEffects: { corp: true, runner: true } as Record<SideCode, boolean>,
     /** Both sides (step 4): money cards are worth what they will still pay out before the game ends (cardProfiles.ts). */
     cardProfiles: true,
+    /** Both sides (Jeff, 2026-10-28): payouts that come when the turn begins keep full worth less the risk of losing the card; clicked payouts wait 7% a turn (cardProfiles.ts). */
+    payoutRisk: true,
+    /** Both sides (Jeff, 2026-10-28): the last 31 hand-set cards priced from what they do (effectValues.ts). */
+    effectValues: true,
     /** Both sides (step 5, Jeff): ice is worth what it costs the Runner to get past it, not its rez cost (per deciding side). */
     iceInCredits: { corp: true, runner: true } as Record<SideCode, boolean>,
     /** Both sides (step 5b): breakers are worth the full stops they save across the Corp's decklist ice, less late in the game (per deciding side). */

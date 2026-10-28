@@ -6,7 +6,7 @@ import { tuning } from './synergy';
 import { corpKeepValue, runnerCardValue } from './cardValues';
 import { countersWorth } from './counterValues';
 import { AI_BREAKER_SHARE, breakerTypeWorth, flatIceWorth, iceWorth } from './iceValues';
-import { payoutWorth, profileOf, turnsLeft } from './cardProfiles';
+import { payoutWait, payoutWorth, profileOf, turnsLeft } from './cardProfiles';
 import { RATES, clickRate, creditValue, handFilter, pointValue, sideCreditValue } from './valueModel';
 
 export { creditValue };
@@ -127,10 +127,10 @@ function runnerRigValue(state: GameState, aware: boolean, viewer: SideCode): num
     // Step 4: a card that pays out money is worth what it will still pay
     const profile = profileOf(card.cardCode);
     if (profile) {
-      value += payoutWorth(profile, turnsLeft(state), counters(card, 'credit'));
+      value += payoutWorth(profile, turnsLeft(state), counters(card, 'credit'), payoutWait(state, profile, 'runner'));
       continue;
     }
-    value += isIcebreaker(card) ? RATES.icebreaker : RATES.rigCardScale * runnerCardValue(card.cardCode);
+    value += isIcebreaker(card) ? RATES.icebreaker : RATES.rigCardScale * runnerCardValue(card.cardCode, state, card);
     // Counters by what they do on this card (step 3), or the step-1 rates
     value += countersWorth(state, card, 'credit', viewer) + countersWorth(state, card, 'virus', viewer) + countersWorth(state, card, 'power', viewer);
     value += (card.hostedCards?.length ?? 0) * RATES.hostedCard; // Bling, Madani: cards to play later
@@ -144,9 +144,14 @@ export function corpCardValue(card: CardInstance, state?: GameState, viewer: Sid
   const hosted = counters(card, 'credit');
   const power = state && card.isRezzed ? countersWorth(state, card, 'power', viewer) : 0;
   const profile = state ? profileOf(card.cardCode) : undefined;
-  if (state && profile) return card.isRezzed ? payoutWorth(profile, turnsLeft(state), hosted) : corpKeepValue(card.cardCode, state);
+  if (state && profile) return card.isRezzed ? payoutWorth(profile, turnsLeft(state), hosted, payoutWait(state, profile, 'corp', inIcedServer(state, card))) : corpKeepValue(card.cardCode, state);
   if (card.isRezzed && hosted > 0) return 1 + (state ? countersWorth(state, card, 'credit', viewer) : hosted * RATES.counters.hostedCredit) + power;
-  return corpKeepValue(card.cardCode) + power;
+  return corpKeepValue(card.cardCode, state) + power;
+}
+
+/** Whether a Corp root card sits in a server with ice in front of it. */
+function inIcedServer(state: GameState, card: CardInstance): boolean {
+  return Object.values(state.corp.servers).some(s => s.ice.length > 0 && s.root.some(c => c.instanceId === card.instanceId));
 }
 
 /** A Corp card the Runner can't see: installed, unrezzed and facedown. */
@@ -281,5 +286,5 @@ export function keepValue(state: GameState, card: CardInstance, aware = false): 
     return 0.2;
   }
   if (def.type_code === 'event') return /gain \d+/i.test(def.stripped_text ?? '') ? 3 : 2;
-  return 2 + runnerCardValue(card.cardCode) * 0.3;
+  return 2 + runnerCardValue(card.cardCode, state) * 0.3;
 }

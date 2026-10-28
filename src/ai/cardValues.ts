@@ -1,5 +1,6 @@
-import { GameState, getCardDefinition } from '../core';
+import { CardInstance, GameState, getCardDefinition } from '../core';
 import { ECON_SCALE, unrezzedWorth } from './cardProfiles';
+import { corpEffect, effectsOn, runnerEffect } from './effectValues';
 import { tuning } from './synergy';
 import { RATES } from './valueModel';
 
@@ -85,15 +86,26 @@ const drawBonus = (code: string): number => (tuning.plan.drawValue?.[getCardDefi
 
 /** Worth of an installed Corp asset or upgrade (1 if not listed). With a game state, a card profile (step 4) prices it instead. */
 export const corpKeepValue = (code: string, state?: GameState): number =>
-  (state ? unrezzedWorth(state, code) : undefined) ?? (CARD_VALUES[code]?.keep ?? RATES.defaultKeep) + drawBonus(code);
+  (state ? unrezzedWorth(state, code) ?? effect(state, code)?.keep : undefined) ?? (CARD_VALUES[code]?.keep ?? RATES.defaultKeep) + drawBonus(code);
+/** A card's worth from what it does (effectValues.ts), while plan.effectValues is on. */
+const effect = (state: GameState, code: string) => (effectsOn() ? corpEffect(state, code) : undefined);
 /** Worth of an econ asset in its own remote (undefined: not an econ asset). */
 export const econValue = (code: string, state?: GameState): number | undefined => {
   const profiled = state ? unrezzedWorth(state, code) : undefined;
   if (profiled !== undefined) return ECON_SCALE * profiled;
+  const fx = state ? effect(state, code) : undefined;
+  if (fx) return fx.econ === undefined ? undefined : ECON_SCALE * fx.econ;
   const econ = CARD_VALUES[code]?.econ;
   return econ === undefined ? undefined : econ + drawBonus(code);
 };
 /** An upgrade's worth in a scoring remote and on HQ or R&D. */
-export const upgradeValue = (code: string): [number, number] => CARD_VALUES[code]?.upgrade ?? RATES.defaultUpgrade;
+export const upgradeValue = (code: string, state?: GameState): [number, number] => {
+  const fx = state ? effect(state, code)?.upgrade : undefined;
+  return fx ? [ECON_SCALE * fx[0], ECON_SCALE * fx[1]] : CARD_VALUES[code]?.upgrade ?? RATES.defaultUpgrade;
+};
 /** Worth of an installed Runner card beyond icebreaker coverage (2 if not listed). */
-export const runnerCardValue = (code: string): number => (CARD_VALUES[code]?.rig ?? RATES.defaultRig) + drawBonus(code);
+export const runnerCardValue = (code: string, state?: GameState, card?: CardInstance): number => {
+  // Effect formulas give credits; rig worth is on the board at RATES.rigCardScale per point
+  const fx = state && effectsOn() ? runnerEffect(state, code, card) : undefined;
+  return fx !== undefined ? fx / RATES.rigCardScale : (CARD_VALUES[code]?.rig ?? RATES.defaultRig) + drawBonus(code);
+};

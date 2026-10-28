@@ -110,7 +110,7 @@ export function pointValue(score: number): number {
 export const handFilter = (): number => (tuning.plan.handFilter ? 0.3 : 0);
 
 /** Every card a side owns, wherever it is (for decklist averages). */
-function sideCards(state: GameState, side: SideCode): CardInstance[] {
+export function sideCards(state: GameState, side: SideCode): CardInstance[] {
   const corp = state.corp;
   const runner = state.runner;
   const installed = [
