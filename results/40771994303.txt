@@ -1,0 +1,10 @@
+Batch: Run pace re-measure after flatRates + agendaTempo | ref 26b182ccbde669ea46f165827bd6ab3be06950a8 | games 0-10 | PLAN_OFF= | added run 
+2210 games, 28630 Runner turns
+runs a turn: 1.17; success: 83.1%
+  hq: 27.2% of runs, success 77.1%
+  rd: 23.1% of runs, success 82.8%
+  archives: 13.1% of runs, success 99.6%
+  remote: 36.7% of runs, success 82.0%
+advanced agenda in a remote: run that turn 42.8% (5783 turns)
+R&D share of runs with Conduit: 18.8% (844 runs)
+agendas scored or stolen a Runner turn: 0.34; ice rezzed a turn: 0.37
