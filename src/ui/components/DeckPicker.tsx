@@ -45,10 +45,29 @@ function savedOpponent(): Opponent {
   return 'people';
 }
 
-const OPPONENTS: { id: Opponent; label: string; hint: string }[] = [
-  { id: 'people', label: 'Two players', hint: 'Pass and play, or one person playing both sides' },
-  { id: 'ai-corp', label: 'I play Runner', hint: 'The computer plays the Corp' },
-  { id: 'ai-runner', label: 'I play Corp', hint: 'The computer plays the Runner' },
+// Corp before Runner, matching the deck columns below; each side's button wears its side colour
+const OPPONENTS: { id: Opponent; label: string; hint: string; on: string; off: string }[] = [
+  {
+    id: 'people',
+    label: 'Two players',
+    hint: 'Pass and play, or one person playing both sides',
+    on: 'bg-indigo-600 border-indigo-400 text-white',
+    off: 'bg-slate-900 border-slate-700 text-slate-300 hover:border-slate-500',
+  },
+  {
+    id: 'ai-runner',
+    label: 'I play Corp',
+    hint: 'The computer plays the Runner',
+    on: 'bg-cyan-700 border-cyan-400 text-white',
+    off: 'bg-slate-900 border-cyan-800 text-cyan-300 hover:border-cyan-500',
+  },
+  {
+    id: 'ai-corp',
+    label: 'I play Runner',
+    hint: 'The computer plays the Corp',
+    on: 'bg-pink-600 border-pink-400 text-white',
+    off: 'bg-slate-900 border-pink-800 text-pink-300 hover:border-pink-500',
+  },
 ];
 
 interface DeckSummary {
@@ -400,9 +419,7 @@ export const DeckPicker: React.FC<DeckPickerProps> = ({ initialCorpDeckId, initi
                 title={o.hint}
                 data-testid={`opponent-${o.id}`}
                 className={`px-4 py-2 rounded-xl border text-xs font-bold transition-colors ${
-                  opponent === o.id
-                    ? 'bg-indigo-600 border-indigo-400 text-white'
-                    : 'bg-slate-900 border-slate-700 text-slate-300 hover:border-slate-500'
+                  opponent === o.id ? o.on : o.off
                 }`}
               >
                 {o.label}
