@@ -33,12 +33,17 @@ const corpDecks = DECKS.filter(d => d.side === 'corp' && (only.length === 0 || o
 const onlyRunner = (process.env.RUNNER_DECKS ?? '').split(',').filter(Boolean);
 const runnerDecks = DECKS.filter(d => d.side === 'runner' && (onlyRunner.length === 0 || onlyRunner.includes(d.name)));
 const records: GameRecord[] = [];
-let seed = 1000;
+// GAME_FROM=k plays only games k.. of each pairing, so a short batch can be topped up later with fresh deals.
+// Each pairing's deals are seeded 10 apart (as a 10-a-pairing batch always was), so a topped-up batch plays the same games.
+const from = Number(process.env.GAME_FROM ?? 0);
+const stride = Math.max(10, games);
+let pairing = 0;
 let deal = 0;
 for (const c of corpDecks) {
   for (const r of runnerDecks) {
-    for (let g = 0; g < games; g++) {
-      seed++;
+    pairing++;
+    for (let g = from; g < games; g++) {
+      const seed = 1000 + (pairing - 1) * stride + g + 1;
       if (deal++ % shards !== shard) continue;
       const agent = (side: 'corp' | 'runner') =>
         createAgent(side, level, level === 'hard' ? { samples: 6, candidates: 3, seed } : {});
