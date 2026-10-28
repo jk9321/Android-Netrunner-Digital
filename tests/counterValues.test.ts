@@ -21,6 +21,9 @@ describe('counters are worth what they do on their card (value model step 3)', (
     expect(worth('35072', 'credit')).toBeCloseTo(0.85); // Anthill
     expect(worth('35082', 'credit')).toBeCloseTo(0.8); // Mahkota: recurring, rezzes only
     expect(worth('35029', 'credit')).toBeCloseTo(0.8); // Azimat: recurring, trash costs only
+    expect(worth('30018', 'credit')).toBeCloseTo(0.7); // Red Team: needs a successful run
+    expect(worth('35034', 'credit')).toBeCloseTo(0.9); // Side Hustle: paid out at 6, with a card
+    expect(worth('30014', 'credit')).toBeCloseTo(0.85); // Pennyshaver: a click takes them all
     expect(worth('30007', 'virus')).toBeCloseTo(1.75); // Fermenter: 2 each, less a click shared by about 4
   });
 
@@ -68,7 +71,7 @@ describe('counters are worth what they do on their card (value model step 3)', (
   });
 
   it('every entry is tested above, and switching the piece off restores the step-1 rates', () => {
-    expect(Object.keys(COUNTER_WORTH).length).toBe(23);
+    expect(Object.keys(COUNTER_WORTH).length).toBe(26);
     const s = newGame();
     const fermenter = make(s, '30007');
     addCounters(fermenter, 'virus', 2);

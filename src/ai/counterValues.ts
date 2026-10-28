@@ -38,6 +38,9 @@ export const COUNTER_WORTH: Record<string, Partial<Record<CounterType, CounterWo
   // Smartware Distributor: 1 a turn, so the k-th hosted credit waits k turns (stacking more is worth less and less)
   '30033': { credit: (_state, card) => paidOneATurn(counters(card, 'credit')) },
   '35029': { credit: () => 0.8 }, // Azimat: recurring, only for trash costs
+  '30018': { credit: () => 0.7 }, // Red Team: 3 per successful click-run on a central not yet run this turn
+  '35034': { credit: () => 0.9 }, // Side Hustle: all taken (and a card drawn) once it holds 6
+  '30014': { credit: () => 0.85 }, // Pennyshaver: all taken with a click, which adds 1 more
   '30007': { virus: () => 2 - RATES.click / 4 }, // Fermenter: 2 credits each, for a click and the card (cashed at about 4)
   '30008': { virus: () => 0.9 }, // Leech: -1 strength on an encounter, about a credit of boosting
   '35008': { virus: () => 1 }, // Hantu: +2 strength for a boost
