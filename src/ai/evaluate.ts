@@ -212,6 +212,25 @@ export function agendaWorth(state: GameState, counters: number, cost: number, po
   return gain * (1 - steal) ** runnerTurns - need * (CLICK + 1);
 }
 
+/**
+ * An agenda in Archives (plan.agendaBoard): a breach of Archives turns its
+ * facedown cards faceup and the Runner accesses them all (rules 7.3.2,
+ * 7.4), so a discarded agenda is a likely steal: its points to the Runner,
+ * by the odds of a successful Archives run on one of the turns left.
+ */
+export function archivedAgendaLoss(state: GameState, points: number): number {
+  const gain = pointValue(state.runner.score + points) - pointValue(state.runner.score);
+  const perTurn = AGENDA_RUN * runSuccess(state, 'archives');
+  return gain * (1 - (1 - perTurn) ** turnsLeft(state));
+}
+
+/** Agendas in Archives as `viewer` can see them: the Corp knows its facedown cards, the Runner only the faceup ones. */
+function archivedAgendasValue(state: GameState, viewer: SideCode): number {
+  if (!tuning.plan.agendaBoard) return 0;
+  const archives = viewer === 'corp' ? [...state.corp.archives.faceUp, ...state.corp.archives.faceDown] : state.corp.archives.faceUp;
+  return -archives.filter(c => cardDef(c).type_code === 'agenda').reduce((n, c) => n + archivedAgendaLoss(state, cardDef(c).agenda_points ?? 1), 0);
+}
+
 /** The Corp's installed cards, as `viewer` can judge them: the Runner values facedown cards by the odds, not by what they are. */
 function corpBoardValue(state: GameState, viewer: SideCode): number {
   let value = 0;
@@ -229,7 +248,7 @@ function corpBoardValue(state: GameState, viewer: SideCode): number {
       else value += corpCardValue(card, state, viewer);
     }
   }
-  return value;
+  return value + archivedAgendasValue(state, viewer);
 }
 
 /**
@@ -332,7 +351,11 @@ export function evaluate(state: GameState, side: SideCode, aware = false): numbe
  */
 export function keepValue(state: GameState, card: CardInstance, aware = false): number {
   // Jeff, 2026-10-28 (plan.keepByModel): what the card adds once played, before its click (at least the hand floor)
-  if (tuning.plan.keepByModel) return Math.max(HAND_FLOOR, playedWorth(state, card) + CLICK);
+  if (tuning.plan.keepByModel) {
+    // An agenda let go goes to Archives, where the Runner likely steals it (plan.agendaBoard)
+    const loss = tuning.plan.agendaBoard && cardDef(card).type_code === 'agenda' ? archivedAgendaLoss(state, cardDef(card).agenda_points ?? 1) : 0;
+    return Math.max(HAND_FLOOR, playedWorth(state, card) + CLICK) + loss;
+  }
   const def = cardDef(card);
   if (def.side_code === 'corp') {
     switch (def.type_code) {
