@@ -32,6 +32,10 @@ on:
         description: What this batch tests (for the log)
         required: false
         default: ''
+      script:
+        description: corp-losses (win rates) or pace (run pace for PACE in effectValues)
+        required: true
+        default: corp-losses
       add_run:
         description: Run id of an earlier batch to add in (a top-up sums both); empty for none
         required: false
@@ -63,7 +67,7 @@ jobs:
         run: |
           mkdir -p out
           for i in 0 1 2 3; do
-            SHARD=$(( ${{ matrix.job }} * 4 + i ))/64 npx vite-node scripts/corp-losses.ts -- ${{ inputs.games }} ${{ inputs.level }} > out/${{ matrix.job }}-$i.json &
+            SHARD=$(( ${{ matrix.job }} * 4 + i ))/64 npx vite-node scripts/${{ inputs.script }}.ts -- ${{ inputs.games }} ${{ inputs.level }} > out/${{ matrix.job }}-$i.json &
           done
           wait
       - uses: actions/upload-artifact@v4
@@ -99,7 +103,7 @@ jobs:
           [ -d earlier ] && for f in earlier/*.json; do cp "$f" "out/earlier-$(basename "$f")"; done
           {
             echo "Batch: ${{ inputs.label }} | ref ${{ inputs.ref }} | games ${{ inputs.game_from }}-${{ inputs.games }} | PLAN_OFF=${{ inputs.plan_off }} | added run ${{ inputs.add_run }}"
-            node scripts/corp-losses-sum.mjs out/*.json
+            if [ "${{ inputs.script }}" = pace ]; then node scripts/pace-sum.mjs out/*.json; else node scripts/corp-losses-sum.mjs out/*.json; fi
           } | tee summary.txt
       - uses: actions/upload-artifact@v4
         with:
