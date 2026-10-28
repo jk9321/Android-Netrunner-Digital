@@ -123,8 +123,8 @@ export function determinize(state: GameState, side: SideCode, random: Random, me
 }
 
 function heuristicFor(side: SideCode, synergy: boolean, memory?: RunnerMemory): Agent {
-  if (side === 'corp') return new HeuristicCorpAI({ synergy });
-  const runner = new HeuristicRunnerAI({ synergy });
+  if (side === 'corp') return new HeuristicCorpAI({ synergy, planner: false });
+  const runner = new HeuristicRunnerAI({ synergy, planner: false });
   memory?.forEach((code, id) => runner.knownCards().set(id, code));
   return runner;
 }
@@ -163,7 +163,7 @@ export class SearchAI implements Agent {
     this.side = side;
     this.options = { ...DEFAULTS, ...options };
     const synergy = this.options.synergy ?? true;
-    this.base = side === 'corp' ? new HeuristicCorpAI({ synergy }) : new HeuristicRunnerAI({ synergy });
+    this.base = side === 'corp' ? new HeuristicCorpAI({ synergy, planner: false }) : new HeuristicRunnerAI({ synergy, planner: false });
     this.random = mulberry(this.options.seed ?? Math.floor(Math.random() * 2 ** 32));
   }
 

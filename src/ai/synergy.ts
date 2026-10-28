@@ -268,6 +268,10 @@ export const tuning = {
     counterFormulas: true,
     /** Jeff, 2026-10-28: discards and trashes from hand by each card's model worth, not flat numbers by type (evaluate.ts keepValue). */
     keepByModel: true,
+    /** Per deciding side (Jeff, 2026-10-28): Normal plays its best few actions through to the end of the turn and picks the best turn (turnPlanner.ts). */
+    turnPlanner: { corp: true, runner: true } as Record<SideCode, boolean>,
+    /** With the planner: the hand at the end of a planned turn valued card by card (what each will do later). */
+    plannerHand: true,
     /** Value hacks replaced by the model, by group (Jeff, 2026-10-28; effectValues.ts). */
     modelHacks: { rez: true, rezPriority: true, purge: true, bonuses: true, iceAdvance: true } as Record<string, boolean>,
     /**

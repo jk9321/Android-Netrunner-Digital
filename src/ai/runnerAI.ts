@@ -8,6 +8,7 @@ import { answerPrompt, runEventOptions, simulate } from './prompts';
 import type { HeuristicOptions } from './corpAI';
 import { logNudge, nudge, tuning } from './synergy';
 import { noteKnownHand } from './handValues';
+import { planTurn, plannerOn } from './turnPlanner';
 import { BOTULUS, RunnerMemory, TRANQUILIZER, MANEGARM, bestBreakPlan, botulusBreaks, hostedTrojans, creditsAhead, iceCreditsAhead, iceCost, iceCreditNeed, needsBiggerHand, runScore, runShortfall, serverValue, spendCost, subroutineCost } from './runs';
 import { RATES } from './valueModel';
 
@@ -27,10 +28,12 @@ export class HeuristicRunnerAI implements Agent {
   private savingFor: string | null = null;
   readonly synergy: boolean;
   private debug: boolean;
+  private planner: boolean;
 
   constructor(options: HeuristicOptions = {}) {
     this.synergy = options.synergy ?? true;
     this.debug = options.debug ?? false;
+    this.planner = options.planner ?? true;
   }
 
   chooseAction(state: GameState): GameAction {
@@ -150,7 +153,8 @@ export class HeuristicRunnerAI implements Agent {
 
   private mainAction(state: GameState, legal: GameAction[]): GameAction {
     const ranked = this.rankMainActions(state, legal);
-    const chosen = ranked[0]?.score > -Infinity ? ranked[0].action : legal.find(a => a.type === 'END_TURN') ?? legal[0];
+    const planned = this.planner && plannerOn('runner') ? this.plan(state, ranked) : null;
+    const chosen = planned ?? (ranked[0]?.score > -Infinity ? ranked[0].action : legal.find(a => a.type === 'END_TURN') ?? legal[0]);
     this.notePlayed(chosen);
     if (this.debug) logNudge(state, 'runner', chosen);
     return chosen;
@@ -159,6 +163,20 @@ export class HeuristicRunnerAI implements Agent {
   /** Counts actions in a row that spent no click (loop guard). */
   notePlayed(action: GameAction) {
     this.freeActions.played(action);
+  }
+
+  /** The whole-turn planner's pick (plan.turnPlanner), its playouts by a fresh copy of this AI with what it has seen. */
+  private plan(state: GameState, ranked: ScoredAction[]): GameAction | null {
+    const rollout = new HeuristicRunnerAI({ synergy: this.synergy, planner: false });
+    rollout.memory = new Map(this.memory);
+    const options = { memory: this.memory, wary: this.synergy && tuning.wary, urgent: this.synergy && tuning.plan.urgency };
+    return planTurn(
+      state,
+      'runner',
+      ranked,
+      { rank: s => rollout.rankMainActions(s), answer: s => rollout.chooseAction(s), runWorth: (s, id) => runScore(s, id, options) },
+      this.synergy,
+    );
   }
 
   /** Main-phase actions, best first, with this AI's score for each (the search AI starts from these). */

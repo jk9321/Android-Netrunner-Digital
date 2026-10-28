@@ -44,7 +44,7 @@ describe('saved game', () => {
     const a = playAIGame(mid, 150).state;
     const b = playAIGame(loaded.state, 150).state;
     expect(JSON.stringify(b)).toBe(JSON.stringify(a));
-  });
+  }, 60_000); // the whole-turn planner plays out each turn
 
   it('drops finished games, corrupt data and cleared saves', () => {
     const store = fakeStorage();

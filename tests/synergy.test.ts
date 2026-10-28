@@ -141,11 +141,12 @@ describe('dividends', () => {
     s.corp.clicks = 2;
     // Centrals already iced, so their first ice doesn't come first (centralsFirst)
     for (const id of ['rd', 'hq']) s.corp.servers[id].ice.push(createCardInstance(s, '30072'));
-    const ai = new HeuristicCorpAI();
+    // The one-step rule (the turn planner instead weighs the counters by what they do: Embedded Reporting's by the operations in R&D)
+    const ai = new HeuristicCorpAI({ planner: false });
     const first = ai.chooseAction(s);
     expect(first).toMatchObject({ type: 'ADVANCE_CARD', cardInstanceId: agenda.instanceId });
     // Without the deck-aware AI it scores straight away
-    expect(new HeuristicCorpAI({ synergy: false }).chooseAction(s)).toMatchObject({ type: 'SCORE_AGENDA' });
+    expect(new HeuristicCorpAI({ synergy: false, planner: false }).chooseAction(s)).toMatchObject({ type: 'SCORE_AGENDA' });
   });
 });
 

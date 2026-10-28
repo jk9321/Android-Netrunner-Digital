@@ -7,6 +7,7 @@ import { digValue, evaluate } from './evaluate';
 import { answerPrompt, simulate } from './prompts';
 import { logNudge, nudge, opponentLean, tuning } from './synergy';
 import { noteKnownHand } from './handValues';
+import { planTurn, plannerOn } from './turnPlanner';
 import { PETTY_CASH_REPLAY, iceAdvanceWorth, placedCounterWorth, rezEffectWorth, rezzedWorth, topDownWorth } from './effectValues';
 import { ECON_SCALE } from './cardProfiles';
 
@@ -42,6 +43,8 @@ export interface HeuristicOptions {
   synergy?: boolean;
   /** Log each move's synergy reasons to the console. */
   debug?: boolean;
+  /** The whole-turn planner while plan.turnPlanner is on (default on; the Hard AI's search turns it off). */
+  planner?: boolean;
 }
 
 /**
@@ -55,10 +58,12 @@ export class HeuristicCorpAI implements Agent {
   private freeActions = new FreeActionGuard(['END_TURN', 'START_TURN']);
   readonly synergy: boolean;
   private debug: boolean;
+  private planner: boolean;
 
   constructor(options: HeuristicOptions = {}) {
     this.synergy = options.synergy ?? true;
     this.debug = options.debug ?? false;
+    this.planner = options.planner ?? true;
   }
 
   /** Round 3: keep rez money for R&D and HQ as well as agenda remotes. */
@@ -75,7 +80,8 @@ export class HeuristicCorpAI implements Agent {
     if (activePrompt(state)) return answerPrompt(state, 'corp', undefined, this.synergy);
     const legal = getLegalActions(state, 'corp');
     const ranked = this.rankMainActions(state, legal);
-    const chosen = ranked[0]?.score > -Infinity ? ranked[0].action : legal.find(a => a.type === 'END_TURN') ?? legal[0];
+    const planned = this.planner && plannerOn('corp') && state.turnStep?.kind !== 'corp_turn_start' ? this.plan(state, ranked) : null;
+    const chosen = planned ?? (ranked[0]?.score > -Infinity ? ranked[0].action : legal.find(a => a.type === 'END_TURN') ?? legal[0]);
     // The reverse bluff: at most once a game
     if (chosen.type === 'INSTALL_CARD' && chosen.asNewRemote && state.corp.hq.some(c => c.instanceId === chosen.cardInstanceId && type(c) === 'agenda')) {
       const def = cardDef(state.corp.hq.find(c => c.instanceId === chosen.cardInstanceId)!);
@@ -89,6 +95,12 @@ export class HeuristicCorpAI implements Agent {
   /** Counts actions in a row that spent no click (loop guard). */
   notePlayed(action: GameAction) {
     this.freeActions.played(action);
+  }
+
+  /** The whole-turn planner's pick (plan.turnPlanner), its playouts by a fresh copy of this AI. */
+  private plan(state: GameState, ranked: ScoredAction[]): GameAction | null {
+    const rollout = new HeuristicCorpAI({ synergy: this.synergy, planner: false });
+    return planTurn(state, 'corp', ranked, { rank: s => rollout.rankMainActions(s), answer: s => rollout.chooseAction(s) }, this.synergy);
   }
 
   /** Main-phase actions, best first, with this AI's score for each (the search AI starts from these). */

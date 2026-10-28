@@ -82,8 +82,18 @@ export function heldWorth(state: GameState, card: CardInstance, side: SideCode):
 /** The cards in each side's hand the deciding AI has seen (set as it starts a decision). */
 const known: Record<SideCode, Set<string> | null> = { corp: null, runner: null };
 
+let frozen = false;
+
+/** While a planner plays a turn out, keep the hands as they were seen (a card drawn in the playout stays unseen). Returns the undo. */
+export function freezeKnownHand(): () => void {
+  const was = frozen;
+  frozen = true;
+  return () => (frozen = was);
+}
+
 /** Remember which cards are in `side`'s hand now: anything that arrives later in a look-ahead is unknown. */
 export function noteKnownHand(state: GameState, side: SideCode) {
+  if (frozen) return;
   const hand = side === 'corp' ? state.corp.hq : state.runner.grip;
   known[side] = new Set(hand.map(c => c.instanceId));
 }
