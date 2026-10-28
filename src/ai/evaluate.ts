@@ -7,7 +7,7 @@ import { corpKeepValue, runnerCardValue } from './cardValues';
 import { countersWorth } from './counterValues';
 import { AI_BREAKER_SHARE, breakerTypeWorth, flatIceWorth, iceWorth } from './iceValues';
 import { payoutWait, payoutWorth, profileOf, turnsLeft } from './cardProfiles';
-import { clickPrice, handByCard, ownHandValue } from './handValues';
+import { clickPrice, handByCard, handSchedule, ownHandValue, scheduleValue } from './handValues';
 import { RATES, creditValue, handFilter, pointValue, sideCreditValue } from './valueModel';
 
 export { creditValue };
@@ -118,7 +118,7 @@ function coverageValue(state: GameState, type: string, aware: boolean): number {
   return RATES.iceTypeCoverage * (0.4 + 1.8 * shownIceShare(state)[type]);
 }
 
-function runnerRigValue(state: GameState, aware: boolean, viewer: SideCode): number {
+export function runnerRigValue(state: GameState, aware: boolean, viewer: SideCode): number {
   const rig = state.runner.rig;
   const cards = [...rig.programs, ...rig.hardware, ...rig.resources];
   const { covered, anyBreakers } = rigCoverage(rig.programs);
@@ -223,14 +223,22 @@ export function tagThreat(state: GameState, viewer: SideCode): number {
   return Math.min(2.5, threat);
 }
 
+/** A side's clicks left and its hand: the hand schedule for the viewer's own side (plan.handSchedule), else each on its own. */
+function handAndClicks(state: GameState, side: SideCode, viewer: SideCode): number {
+  if (side === viewer && handSchedule(side)) return scheduleValue(state, side);
+  const player = side === 'corp' ? state.corp : state.runner;
+  const hand = side === 'corp' ? state.corp.hq : state.runner.grip;
+  const own = side === viewer && handByCard(side) ? ownHandValue(state, side) : handValue(hand.length, player.handSizeLimit, viewer);
+  return clickPrice(state, side, viewer) * player.clicks + own;
+}
+
 export function sideStrength(state: GameState, side: SideCode, viewer: SideCode = side, aware = false): number {
   const threat = aware && tuning.plan.tagThreat?.[viewer] && state.runner.tags > 0 ? tagThreat(state, viewer) : 0;
   if (side === 'corp') {
     const corp = state.corp;
     return (
       sideCreditValue(state, 'corp', viewer) +
-      clickPrice(state, 'corp', viewer) * corp.clicks +
-      (viewer === 'corp' && handByCard('corp') ? ownHandValue(state, 'corp') : handValue(corp.hq.length, corp.handSizeLimit, viewer)) +
+      handAndClicks(state, 'corp', viewer) +
       pointValue(corp.score) +
       corpBoardValue(state, viewer) +
       (RATES.tagForCorp + threat) * state.runner.tags +
@@ -242,8 +250,7 @@ export function sideStrength(state: GameState, side: SideCode, viewer: SideCode 
   const runner = state.runner;
   return (
     sideCreditValue(state, 'runner', viewer) +
-    clickPrice(state, 'runner', viewer) * runner.clicks +
-    (viewer === 'runner' && handByCard('runner') ? ownHandValue(state, 'runner') : handValue(runner.grip.length, runner.handSizeLimit, viewer)) +
+    handAndClicks(state, 'runner', viewer) +
     pointValue(runner.score) -
     (RATES.tagAgainstRunner + threat) * runner.tags -
     RATES.coreDamage * runner.coreDamage +

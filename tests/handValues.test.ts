@@ -82,8 +82,11 @@ describe('a click priced by the best play in hand (Jeff, 2026-10-28; plan.clickB
     s.runner.credits = 50;
     expect(clickWorth(s, 'runner')).toBeLessThanOrEqual(3);
     expect(clickPrice(s, 'corp', 'runner')).toBe(CLICK);
+    const saved = { by: tuning.plan.clickByPlay, schedule: tuning.plan.handSchedule };
+    tuning.plan.handSchedule = { corp: false, runner: false };
     tuning.plan.clickByPlay = { corp: false, runner: false };
     expect(clickPrice(s, 'runner', 'runner')).toBe(CLICK);
-    tuning.plan.clickByPlay = { corp: true, runner: true };
+    tuning.plan.clickByPlay = saved.by;
+    tuning.plan.handSchedule = saved.schedule;
   });
 });

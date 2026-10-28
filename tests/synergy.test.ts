@@ -473,7 +473,8 @@ describe('draws and money', () => {
     const ranked = new HeuristicCorpAI().rankMainActions(s);
     const take = ranked.find(r => r.action.type === 'USE_ABILITY' && r.action.cardInstanceId === regolith.instanceId)!.score;
     const click = ranked.find(r => r.action.type === 'GAIN_CREDIT')!.score;
-    expect(take).toBeGreaterThan(click + 1);
+    // With the hand schedule (plan.handSchedule) the 2 extra credits count for less: Hansei Review in HQ already brings money
+    expect(take).toBeGreaterThan(click + (tuning.plan.handSchedule?.corp ? 0.5 : 1));
   });
 
   it('clicks for credits toward a Hedge Fund it can almost afford', () => {
