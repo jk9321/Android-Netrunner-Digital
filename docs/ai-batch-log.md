@@ -52,3 +52,6 @@ Every self-play batch, newest last (Jeff, 2026-10-28). Made with `scripts/corp-l
 | 2026-10-28 | Hand schedule on both sides | 511d38f | 2210 | **24.9%** | 16.0% / 8.9% | 74.1% / 1.0% | 53.9% / 21.0% / 20.6% / 4.5% | 3.8 | [txt](batch-logs/2026-10-28-hand-schedule-on-both-sides.txt) |
 | 2026-10-28 | Hand schedule on the Corp only | 511d38f | 2210 | **14.1%** | 6.2% / 7.9% | 85.0% / 0.9% | 53.0% / 20.9% / 21.4% / 4.7% | 3.9 | [txt](batch-logs/2026-10-28-hand-schedule-on-the-corp-only.txt) |
 | 2026-10-28 | Hand schedule on the Runner only | 511d38f | 2210 | **42.9%** | 29.7% / 13.1% | 55.2% / 1.9% | 40.3% / 22.9% / 29.7% / 7.1% | 6.0 | [txt](batch-logs/2026-10-28-hand-schedule-on-the-runner-only.txt) |
+| 2026-10-28 | Counter formulas + model discards (A-G kept settings) | c417d8d | 2210 | **25.6%** | 14.1% / 11.5% | 72.3% / 2.1% | 41.3% / 22.4% / 29.0% / 7.3% | 6.1 | [txt](batch-logs/2026-10-28-counter-formulas-model-discards-a-g-kept-settings.txt) |
+| 2026-10-28 | Same, counter formulas off | c417d8d | 2210 | **24.7%** | 13.1% / 11.5% | 73.3% / 2.1% | 41.0% / 22.5% / 29.2% / 7.3% | 6.0 | [txt](batch-logs/2026-10-28-same-counter-formulas-off.txt) |
+| 2026-10-28 | Same, model discards off | c417d8d | 2210 | **26.0%** | 15.7% / 10.4% | 71.9% / 2.1% | 40.9% / 22.6% / 29.1% / 7.4% | 6.1 | [txt](batch-logs/2026-10-28-same-model-discards-off.txt) |
