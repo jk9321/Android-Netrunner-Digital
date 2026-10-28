@@ -46,7 +46,7 @@ export function playedWorth(state: GameState, card: CardInstance): number {
       if (tuning.plan.agendaBoard) {
         // Installed in the safest remote it could go in (or a new, bare one), as the board will value it (plan.agendaBoard)
         const remotes = Object.values(state.corp.servers).filter(s => s.isRemote && !s.root.some(c => ['agenda', 'asset'].includes(cardDef(c).type_code ?? '')));
-        const best = Math.max(agendaWorth(state, 0, def.advancement_cost ?? 0, points, undefined, 1), ...remotes.map(s => agendaWorth(state, 0, def.advancement_cost ?? 0, points, s.id)));
+        const best = Math.max(agendaWorth(state, 0, def.advancement_cost ?? 0, points, undefined, 1, true), ...remotes.map(s => agendaWorth(state, 0, def.advancement_cost ?? 0, points, s.id, undefined, true)));
         return best - CLICK;
       }
       // Scored from hand about 40% of the time; the rest is stolen or stuck

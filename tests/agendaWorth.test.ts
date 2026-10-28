@@ -3,6 +3,7 @@ import { AGENDA_RUN, agendaWorth, archivedAgendaLoss, evaluate, keepValue } from
 import { cardDef } from '../src/core';
 import { playedWorth } from '../src/ai/handValues';
 import { iceWorth } from '../src/ai/iceValues';
+import { turnsLeft } from '../src/ai/cardProfiles';
 import { CLICK, pointValue } from '../src/ai/valueModel';
 import { createCardInstance } from '../src/core';
 import { installIceForTest, newGame } from './helpers';
@@ -33,7 +34,7 @@ describe('agendas on the board (Jeff, 2026-10-28; plan.agendaBoard)', () => {
     const iced = agendaWorth(s, 3, 3, 2, 'remote-1');
     const bare = agendaWorth(s, 3, 3, 2, 'remote-2');
     expect(iced).toBeGreaterThan(bare);
-    expect(bare).toBeCloseTo((pointValue(2) - pointValue(0)) * (1 - AGENDA_RUN));
+    expect(bare).toBeCloseTo((pointValue(2) - pointValue(0)) * (1 - AGENDA_RUN) * (1 - 1 / turnsLeft(s)));
   });
 
   it('each advancement brings it closer: the click and credit it took come back', () => {
@@ -66,5 +67,17 @@ describe('agendas on the board (Jeff, 2026-10-28; plan.agendaBoard)', () => {
     const before = evaluate(s, 'corp', true);
     s.corp.archives.faceDown.push(s.corp.hq.shift()!);
     expect(evaluate(s, 'corp', true)).toBeLessThan(before);
+  });
+
+  it('sooner is better: an agenda the Corp can finish this turn beats one that waits a Runner turn (plan.agendaTempo)', () => {
+    const s = remotes();
+    s.activePlayer = 'corp';
+    s.corp.clicks = 3;
+    const now = agendaWorth(s, 0, 3, 2, 'remote-2');
+    s.corp.clicks = 2;
+    const later = agendaWorth(s, 0, 3, 2, 'remote-2');
+    expect(now).toBeGreaterThan(later);
+    // From hand it takes a click more to install
+    expect(agendaWorth(s, 0, 2, 2, 'remote-2', undefined, true)).toBeLessThan(agendaWorth(s, 0, 2, 2, 'remote-2'));
   });
 });

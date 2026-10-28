@@ -203,13 +203,23 @@ export const AGENDA_RUN = 0.4;
  * Runner turn it waits is a run on its server that may get through (run
  * openness: the ice there against the rig).
  */
-export function agendaWorth(state: GameState, counters: number, cost: number, points: number, serverId?: string, success?: number): number {
+export function agendaWorth(state: GameState, counters: number, cost: number, points: number, serverId?: string, success?: number, inHand = false): number {
   if (!tuning.plan.agendaBoard) return agendaBoardValue(counters, cost);
   const gain = pointValue(state.corp.score + points) - pointValue(state.corp.score);
   const need = Math.max(0, cost - counters);
-  const runnerTurns = need === 0 && state.activePlayer === 'corp' ? 0 : Math.max(1, Math.ceil(need / 3));
   const steal = AGENDA_RUN * (success ?? (serverId ? runSuccess(state, serverId) : PACE.success));
-  return gain * (1 - steal) ** runnerTurns - need * (CLICK + 1);
+  if (!tuning.plan.agendaTempo) {
+    const runnerTurns = need === 0 && state.activePlayer === 'corp' ? 0 : Math.max(1, Math.ceil(need / 3));
+    return gain * (1 - steal) ** runnerTurns - need * (CLICK + 1);
+  }
+  // plan.agendaTempo: the Runner turns until the Corp has the clicks to finish it (installing from hand is one more),
+  // each a run that may get in and a turn closer to the end of the game (about 1 in turnsLeft)
+  const clicks = need + (inHand ? 1 : 0);
+  // On the Runner's turn it is exposed now, then the Corp's next turn has 3 clicks
+  const runnerTurns =
+    state.activePlayer === 'corp' ? Math.ceil(Math.max(0, clicks - state.corp.clicks) / 3) : 1 + Math.ceil(Math.max(0, clicks - 3) / 3);
+  const late = 1 - 1 / turnsLeft(state);
+  return gain * ((1 - steal) * late) ** runnerTurns - need * (CLICK + 1);
 }
 
 /**
