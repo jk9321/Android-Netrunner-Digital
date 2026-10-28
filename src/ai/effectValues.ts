@@ -238,8 +238,8 @@ export function runnerEffect(state: GameState, code: string, card?: CardInstance
       return perTurn(state, card ? counterWorth(state, card, 'virus', 'runner') : 1, 'runner', 0, 3, virusWait());
     case '30007': // Fermenter: a virus counter a turn (2 credits each when cashed), banked until cashed within about 4 turns, and lost to a purge
       return perTurn(state, counterWorthOf(state, code, 'virus'), 'runner', 0, 4, virusWait());
-    case '30008': // Leech: a virus counter for each successful central run
-      return perTurn(state, PACE.runs * (PACE.hqShare + PACE.rdShare) * PACE.success * counterWorthOf(state, code, 'virus'), 'runner', 0, Infinity, virusWait());
+    case '30008': // Leech: a virus counter for each successful central run, spent on an encounter soon after: each waits about a turn, not from now
+      return virusWait() * perTurn(state, PACE.runs * (PACE.hqShare + PACE.rdShare) * PACE.success * counterWorthOf(state, code, 'virus'), 'runner');
     case '30014': // Pennyshaver: +1 MU; a credit on it for each successful run
       return MU + perTurn(state, PACE.runs * PACE.success * counterWorthOf(state, code, 'credit'), 'runner');
     case '30024': {
