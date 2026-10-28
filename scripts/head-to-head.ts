@@ -15,6 +15,7 @@ import { createInitialGameState } from '../src/core';
 import { DECKS, deckGameSetup } from '../src/data/decks';
 import { createAgent } from '../src/ai';
 import { GameRecord, playLogged } from './lossLog';
+import { tuning } from '../src/ai/synergy';
 
 const [gamesArg, levelArg] = process.argv.slice(2).filter(a => a !== '--');
 const games = Number(gamesArg ?? 1);
@@ -22,6 +23,13 @@ const level = (levelArg ?? 'normal') as 'normal' | 'hard';
 const [shard, shards] = (process.env.SHARD ?? '0/1').split('/').map(Number);
 const mode = process.env.H2H ?? 'corp';
 const old = (await import(resolve(process.env.OLD_AI ?? 'old', 'src/ai/index.ts'))) as { createAgent: typeof createAgent };
+// PLAN_OFF switches reach only the new AI: the old one has its own copy of tuning
+for (const key of (process.env.PLAN_OFF ?? '').split(',').filter(Boolean)) {
+  const [name, side] = key.split('.');
+  const plan = tuning.plan as Record<string, unknown>;
+  if (side) plan[name] = { ...(plan[name] as object), [side]: false };
+  else plan[name] = false;
+}
 const newSide = mode === 'corp' ? 'corp' : mode === 'runner' ? 'runner' : null;
 
 const records: GameRecord[] = [];
