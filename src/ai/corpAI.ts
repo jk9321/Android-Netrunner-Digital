@@ -10,6 +10,7 @@ import { answerPrompt, simulate } from './prompts';
 import { logNudge, nudge, opponentLean, tuning } from './synergy';
 import { noteKnownHand } from './handValues';
 import { planTurn, plannerOn } from './turnPlanner';
+import { runnerReply } from './runnerReply';
 import { PETTY_CASH_REPLAY, iceAdvanceWorth, placedCounterWorth, rezEffectWorth, rezzedWorth, topDownWorth } from './effectValues';
 import { ECON_SCALE } from './cardProfiles';
 
@@ -102,7 +103,8 @@ export class HeuristicCorpAI implements Agent {
   /** The whole-turn planner's pick (plan.turnPlanner), its playouts by a fresh copy of this AI. */
   private plan(state: GameState, ranked: ScoredAction[]): GameAction | null {
     const rollout = new HeuristicCorpAI({ synergy: this.synergy, planner: false });
-    return planTurn(state, 'corp', ranked, { rank: s => rollout.rankMainActions(s), answer: s => rollout.chooseAction(s) }, this.synergy);
+    const reply = tuning.plan.runnerReply ? (s: GameState, leaf: (s: GameState) => number) => runnerReply(s, this.synergy, leaf) : undefined;
+    return planTurn(state, 'corp', ranked, { rank: s => rollout.rankMainActions(s), answer: s => rollout.chooseAction(s), reply }, this.synergy);
   }
 
   /** Main-phase actions, best first, with this AI's score for each (the search AI starts from these). */

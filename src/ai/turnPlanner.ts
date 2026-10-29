@@ -35,6 +35,8 @@ export interface PlannerAI {
   answer(state: GameState): GameAction;
   /** A run's expected worth before it starts (runScore), or undefined for the Corp. */
   runWorth?(state: GameState, serverId: string): number;
+  /** The opponent's next turn played out from the end of this one, scored by `leaf` (plan.runnerReply, Corp). */
+  reply?(state: GameState, leaf: (state: GameState) => number): number;
 }
 
 export const plannerOn = (side: SideCode): boolean => !!tuning.plan.turnPlanner?.[side];
@@ -103,7 +105,8 @@ function playout(start: GameState, side: SideCode, first: GameAction, ai: Planne
     if (!next) break;
     state = next;
   }
-  return leafValue(state, side, synergy) + bonus;
+  const leaf = (s: GameState) => leafValue(s, side, synergy);
+  return (ai.reply && !state.winner ? ai.reply(state, leaf) : leaf(state)) + bonus;
 }
 
 /** The end of the turn: hand by what each card will do later (plan.plannerHand), clicks as the model prices them. */

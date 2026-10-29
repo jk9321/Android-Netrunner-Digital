@@ -277,7 +277,9 @@ export const tuning = {
     /** Jeff, 2026-10-28: an installed agenda's steal chance as measured (scripts/steal-odds.ts): the Runner runs a remote it can get into most turns, and raises credits for the ice first (effectValues stealOdds). */
     stealOdds: true,
     /** Jeff, 2026-10-28: agendas in HQ are exposed too: priced at their share of HQ times the odds the Runner gets in (evaluate.ts hqAgendaLoss). */
-    hqSteal: true,
+    hqSteal: false,
+    /** Jeff, 2026-10-28: the Corp's planner plays the Runner's next turn out (the Runner AI on the board, hidden cards guessed) and scores what it leaves (runnerReply.ts). */
+    runnerReply: true,
     /** Jeff, 2026-10-28: agendas on the board count the Runner turns until the Corp can finish them, by its clicks (from hand, one more), and each is a turn closer to the end of the game. */
     agendaTempo: true,
     /**
