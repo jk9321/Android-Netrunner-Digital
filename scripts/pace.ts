@@ -9,13 +9,8 @@ import { createInitialGameState, GameState, cardDef } from '../src/core';
 import { DECKS, deckGameSetup } from '../src/data/decks';
 import { createAgent } from '../src/ai';
 import { GameRunner } from '../src/ai/playout';
-import { tuning } from '../src/ai/synergy';
-for (const key of (process.env.PLAN_OFF ?? '').split(',').filter(Boolean)) {
-  const [name, side] = key.split('.');
-  const plan = tuning.plan as Record<string, unknown>;
-  if (side) plan[name] = { ...(plan[name] as object), [side]: false };
-  else plan[name] = false;
-}
+import { applyPlanOff, tuning } from '../src/ai/synergy';
+applyPlanOff(process.env.PLAN_OFF ?? '');
 
 const [gamesArg, levelArg] = process.argv.slice(2).filter(a => a !== '--');
 const games = Number(gamesArg ?? 1);

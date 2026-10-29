@@ -100,3 +100,22 @@ describe('steal odds as measured (Jeff, 2026-10-28; plan.stealOdds)', () => {
   });
 });
 
+
+describe('plan switches for one side (Jeff, 2026-10-29; synergy.ts sideOff)', () => {
+  it('a side decides with its own plan, nested inside the other side, and the base plan comes back', async () => {
+    const { asSide, sideOff, tuning } = await import('../src/ai/synergy');
+    const saved = sideOff.corp;
+    sideOff.corp = ['flatRates'];
+    try {
+      const base = tuning.plan;
+      asSide('corp', () => {
+        expect(tuning.plan.flatRates).toBe(false);
+        asSide('runner', () => expect(tuning.plan.flatRates).toBe(base.flatRates));
+        expect(tuning.plan.flatRates).toBe(false);
+      });
+      expect(tuning.plan).toBe(base);
+    } finally {
+      sideOff.corp = saved;
+    }
+  });
+});

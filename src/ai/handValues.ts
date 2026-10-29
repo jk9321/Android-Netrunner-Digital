@@ -6,7 +6,7 @@ import { breakerTypeWorth, iceWorth } from './iceValues';
 import { agendaWorth, isOneUse, runnerRigValue } from './evaluate';
 import { counterWorth } from './counterValues';
 import { iceCost } from './runs';
-import { tuning } from './synergy';
+import { planSide, tuning } from './synergy';
 import { CLICK, RATES, cardRate, flatRate, handFilter, pointValue, setDeckCard } from './valueModel';
 
 /**
@@ -128,7 +128,7 @@ const deckAverage = new Map<string, number>();
 function drawWorth(state: GameState, side: SideCode): number {
   const deck = side === 'corp' ? state.corp.rd : state.runner.stack;
   // The cards, not just the count: the Runner reply deals guessed decks of the same size (runnerReply.ts)
-  const key = `${side}:${state.id}:${state.turnNumber}:${deck.map(c => c.instanceId).join(',')}`;
+  const key = `${planSide()}:${side}:${state.id}:${state.turnNumber}:${deck.map(c => c.instanceId).join(',')}`;
   const cached = deckAverage.get(key);
   if (cached !== undefined) return cached;
   const value = deck.length ? deck.reduce((n, c) => n + heldWorth(state, c, side), 0) / deck.length : RATES.drawnCard;
@@ -181,7 +181,7 @@ export const handByCard = (side: SideCode): boolean => !!tuning.plan.handByCard?
 export function clickWorth(state: GameState, side: SideCode): number {
   const player = side === 'corp' ? state.corp : state.runner;
   const clicks = Math.max(1, player.clicks);
-  const key = `${side}:${state.id}:${state.turnNumber}:${player.clicks}:${player.credits}:${(side === 'corp' ? state.corp.hq : state.runner.grip).map(c => c.instanceId).join(',')}`;
+  const key = `${planSide()}:${side}:${state.id}:${state.turnNumber}:${player.clicks}:${player.credits}:${(side === 'corp' ? state.corp.hq : state.runner.grip).map(c => c.instanceId).join(',')}`;
   const cached = clickCache.get(key);
   if (cached !== undefined) return cached;
   const hand = side === 'corp' ? state.corp.hq : state.runner.grip;

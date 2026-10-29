@@ -6,7 +6,7 @@ import { HeuristicRunnerAI } from './runnerAI';
 import { evaluate } from './evaluate';
 import { GameRunner } from './playout';
 import { RunnerMemory } from './runs';
-import { logNudge } from './synergy';
+import { asSide, logNudge } from './synergy';
 import { noteKnownHand } from './handValues';
 
 /**
@@ -172,6 +172,10 @@ export class SearchAI implements Agent {
   }
 
   chooseAction(state: GameState): GameAction {
+    return asSide(this.side, () => this.decide(state));
+  }
+
+  private decide(state: GameState): GameAction {
     noteKnownHand(state, this.side);
     // Prompts and the steps of a run follow the rule-based AI's judgement
     if (activePrompt(state) || state.activeRun || state.turnStep?.kind === 'corp_turn_start') return this.base.chooseAction(state);
@@ -192,6 +196,10 @@ export class SearchAI implements Agent {
   }
 
   chooseRez(state: GameState, cards: CardInstance[]): GameAction | null {
+    return asSide(this.side, () => this.decideRez(state, cards));
+  }
+
+  private decideRez(state: GameState, cards: CardInstance[]): GameAction | null {
     if (!(this.base instanceof HeuristicCorpAI)) return null;
     const suggested = this.base.chooseRez(state, cards);
     // action null: let the Runner carry on without rezzing

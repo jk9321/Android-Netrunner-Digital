@@ -291,6 +291,76 @@ export const tuning = {
   },
 };
 
+/**
+ * Plan switches off for one side only (Jeff, 2026-10-29), on top of
+ * tuning.plan, as PLAN_OFF writes them (name or name.key). Head-to-head
+ * against the old Runner: the Runner-reply Corp 41.9%, and with these off
+ * for the Corp 48.9% (each lost a little alone; the old Corp rules they
+ * re-priced already did well).
+ */
+export const sideOff: Record<SideCode, string[]> = {
+  corp: ['flatRates', 'damageClock', 'tagClock', 'subCosts', 'cardFixes', 'runModel', 'modelHacks', 'effectValues', 'counterEffects.corp', 'counterFormulas'],
+  runner: [],
+};
+
+/** The plan with `keys` switched off (a key written +name turns it on). */
+export function planWith(plan: typeof tuning.plan, keys: string[]): typeof tuning.plan {
+  const out = { ...plan } as Record<string, unknown>;
+  for (const key of keys) {
+    const on = key.startsWith('+');
+    const [name, part] = key.replace(/^\+/, '').split('.');
+    if (part) out[name] = { ...(out[name] as object), [part]: on };
+    else out[name] = on;
+  }
+  return out as typeof tuning.plan;
+}
+
+/**
+ * Batch scripts' PLAN_OFF (comma-separated): name or name.key switches a
+ * piece off for both sides, +name turns one on, and corp:name / runner:name
+ * (corp:+name) changes only that side's sideOff list.
+ */
+export function applyPlanOff(list: string) {
+  for (const key of list.split(',').filter(Boolean)) {
+    const m = key.match(/^(corp|runner):(.*)$/);
+    if (!m) {
+      tuning.plan = planWith(tuning.plan, [key]);
+      continue;
+    }
+    const side = m[1] as SideCode;
+    const name = m[2];
+    sideOff[side] = name.startsWith('+') ? sideOff[side].filter(k => k !== name.slice(1)) : [...sideOff[side], name];
+  }
+}
+
+let acting: SideCode | null = null;
+let basePlan: typeof tuning.plan | null = null;
+
+/** Which side's plan is in use, for caches whose values depend on it. */
+export const planSide = (): string => (acting && sideOff[acting].length ? acting : '');
+
+/**
+ * Runs `fn` with `side`'s plan: tuning.plan with sideOff[side] off. Each
+ * agent's decisions run inside it; it nests (the Corp's Runner reply plays
+ * the Runner with the Runner's own plan).
+ */
+export function asSide<T>(side: SideCode, fn: () => T): T {
+  if (acting === side) return fn();
+  const outer = basePlan === null;
+  const base = basePlan ?? tuning.plan;
+  const was = { plan: tuning.plan, acting };
+  basePlan = base;
+  acting = side;
+  tuning.plan = sideOff[side].length ? planWith(base, sideOff[side]) : base;
+  try {
+    return fn();
+  } finally {
+    tuning.plan = was.plan;
+    acting = was.acting;
+    if (outer) basePlan = null;
+  }
+}
+
 const IDENTITY = 3;
 const LIVE = 1.5; // in hand or installed
 const DECK = 0.5; // still in the deck

@@ -10,7 +10,7 @@
  * damage clocks), each behind its own tuning.plan switch.
  */
 import { CardInstance, GameState, SideCode, cardDef } from '../core';
-import { tuning } from './synergy';
+import { planSide, tuning } from './synergy';
 
 export const RATES = {
   /** A click left this turn. */
@@ -132,6 +132,7 @@ export function memo<T>(state: GameState, key: string, work: () => T): T {
     entry = { print, values: new Map() };
     memos.set(state, entry);
   }
+  key = planSide() + key; // values depend on the deciding side's plan (synergy.ts sideOff)
   if (entry.values.has(key)) return entry.values.get(key) as T;
   const value = work();
   entry.values.set(key, value);

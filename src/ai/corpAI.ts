@@ -7,7 +7,7 @@ import { agendaWorth, digValue, evaluate } from './evaluate';
 import { pointValue } from './valueModel';
 import { PACE, accessWorth } from './effectValues';
 import { answerPrompt, simulate } from './prompts';
-import { logNudge, nudge, opponentLean, tuning } from './synergy';
+import { asSide, logNudge, nudge, opponentLean, tuning } from './synergy';
 import { noteKnownHand } from './handValues';
 import { planTurn, plannerOn } from './turnPlanner';
 import { runnerReply } from './runnerReply';
@@ -78,6 +78,10 @@ export class HeuristicCorpAI implements Agent {
   }
 
   chooseAction(state: GameState): GameAction {
+    return asSide('corp', () => this.decide(state));
+  }
+
+  private decide(state: GameState): GameAction {
     noteKnownHand(state, 'corp');
     if (activePrompt(state)) return answerPrompt(state, 'corp', undefined, this.synergy);
     const legal = getLegalActions(state, 'corp');
@@ -134,6 +138,10 @@ export class HeuristicCorpAI implements Agent {
   }
 
   chooseRez(state: GameState, cards: CardInstance[]): GameAction | null {
+    return asSide('corp', () => this.decideRez(state, cards));
+  }
+
+  private decideRez(state: GameState, cards: CardInstance[]): GameAction | null {
     const run = state.activeRun;
     if (!run) return null;
     const server = state.corp.servers[run.server];

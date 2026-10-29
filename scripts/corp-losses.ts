@@ -12,7 +12,7 @@ import { createInitialGameState } from '../src/core';
 import { DECKS, deckGameSetup } from '../src/data/decks';
 import { createAgent } from '../src/ai';
 import { GameRecord, playLogged } from './lossLog';
-import { tuning } from '../src/ai/synergy';
+import { applyPlanOff, tuning } from '../src/ai/synergy';
 
 const [gamesArg, levelArg] = process.argv.slice(2).filter(a => a !== '--');
 const games = Number(gamesArg ?? 1);
@@ -20,13 +20,7 @@ const level = (levelArg ?? 'normal') as 'normal' | 'hard';
 const [shard, shards] = (process.env.SHARD ?? '0/1').split('/').map(Number);
 
 // PLAN_OFF=a,b switches off planning terms; CORP_DECKS / RUNNER_DECKS=name,name play only those decks
-for (const key of (process.env.PLAN_OFF ?? '').split(',').filter(Boolean)) {
-  // key.side (drawValue.runner) switches a per-side term off for one side only
-  const [name, side] = key.split('.');
-  const plan = tuning.plan as Record<string, unknown>;
-  if (side) plan[name] = { ...(plan[name] as object), [side]: false };
-  else plan[name] = false;
-}
+applyPlanOff(process.env.PLAN_OFF ?? '');
 if (process.env.BLUFF === '0') tuning.bluff = false;
 const only = (process.env.CORP_DECKS ?? '').split(',').filter(Boolean);
 const corpDecks = DECKS.filter(d => d.side === 'corp' && (only.length === 0 || only.includes(d.name)));

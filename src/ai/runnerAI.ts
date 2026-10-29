@@ -6,7 +6,7 @@ import { Agent, FreeActionGuard, ScoredAction } from './agent';
 import { digValue, evaluate, rigCoverage } from './evaluate';
 import { answerPrompt, runEventOptions, simulate } from './prompts';
 import type { HeuristicOptions } from './corpAI';
-import { logNudge, nudge, tuning } from './synergy';
+import { asSide, logNudge, nudge, tuning } from './synergy';
 import { noteKnownHand } from './handValues';
 import { planTurn, plannerOn } from './turnPlanner';
 import { BOTULUS, RunnerMemory, TRANQUILIZER, MANEGARM, bestBreakPlan, botulusBreaks, hostedTrojans, creditsAhead, iceCreditsAhead, iceCost, iceCreditNeed, needsBiggerHand, runScore, runShortfall, serverValue, spendCost, subroutineCost } from './runs';
@@ -37,6 +37,10 @@ export class HeuristicRunnerAI implements Agent {
   }
 
   chooseAction(state: GameState): GameAction {
+    return asSide('runner', () => this.decide(state));
+  }
+
+  private decide(state: GameState): GameAction {
     noteKnownHand(state, 'runner');
     this.remember(state);
     if (activePrompt(state)) return answerPrompt(state, 'runner', this.memory, this.synergy);
