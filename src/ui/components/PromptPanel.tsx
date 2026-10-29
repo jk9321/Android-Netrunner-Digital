@@ -21,6 +21,11 @@ interface PromptPanelProps {
   onInspectCard?: (card: CardInstance) => void;
   /** False when the decision belongs to the side not at the screen: show a waiting note instead. */
   canAnswer?: boolean;
+  /**
+   * Set when the choice is the first thing an ability or event does, before the
+   * action is applied (Red Team's server): backs out as if it was never used.
+   */
+  onCancel?: () => void;
 }
 
 /**
@@ -28,7 +33,7 @@ interface PromptPanelProps {
  * It floats over the board without dimming it: drag it by its header or
  * minimize it to a bar to look at the board while deciding.
  */
-export const PromptPanel: React.FC<PromptPanelProps> = ({ state, onAnswer, onInspectCard, canAnswer = true }) => {
+export const PromptPanel: React.FC<PromptPanelProps> = ({ state, onAnswer, onInspectCard, canAnswer = true, onCancel }) => {
   const prompt = activePrompt(state);
   const [selected, setSelected] = useState<string[]>([]);
   // An effect installing a card: the option (server) whose cards to trash first (rules 8.5.6)
@@ -284,6 +289,22 @@ export const PromptPanel: React.FC<PromptPanelProps> = ({ state, onAnswer, onIns
               </button>
             </div>
           </>
+        )}
+
+        {onCancel && !trashing && (
+          <div className="flex justify-end mt-3 pt-3 border-t border-slate-800">
+            <button
+              data-testid="prompt-cancel"
+              title="Back out: the action is not used and nothing is spent"
+              className={`${button} bg-slate-900 hover:bg-slate-800 border-slate-600 text-slate-300`}
+              onClick={() => {
+                setSelected([]);
+                onCancel();
+              }}
+            >
+              <X className="w-3.5 h-3.5" /> Cancel
+            </button>
+          </div>
         )}
 
         {prompt.kind === 'access_trash' && (() => {
