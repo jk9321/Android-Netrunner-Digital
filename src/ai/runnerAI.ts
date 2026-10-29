@@ -8,7 +8,7 @@ import { answerPrompt, runEventOptions, simulate } from './prompts';
 import type { HeuristicOptions } from './corpAI';
 import { asSide, logNudge, nudge, tuning } from './synergy';
 import { noteKnownHand } from './handValues';
-import { planTurn, plannerOn } from './turnPlanner';
+import { PlanMemory, planTurn, plannerOn } from './turnPlanner';
 import { BOTULUS, RunnerMemory, TRANQUILIZER, MANEGARM, bestBreakPlan, botulusBreaks, hostedTrojans, creditsAhead, iceCreditsAhead, iceCost, iceCreditNeed, needsBiggerHand, runScore, runShortfall, serverValue, spendCost, subroutineCost } from './runs';
 import { RATES } from './valueModel';
 
@@ -29,6 +29,7 @@ export class HeuristicRunnerAI implements Agent {
   readonly synergy: boolean;
   private debug: boolean;
   private planner: boolean;
+  private planMemory: PlanMemory = { line: [] };
 
   constructor(options: HeuristicOptions = {}) {
     this.synergy = options.synergy ?? true;
@@ -178,7 +179,7 @@ export class HeuristicRunnerAI implements Agent {
       state,
       'runner',
       ranked,
-      { rank: s => rollout.rankMainActions(s), answer: s => rollout.chooseAction(s), runWorth: (s, id) => runScore(s, id, options) },
+      { rank: s => rollout.rankMainActions(s), answer: s => rollout.chooseAction(s), runWorth: (s, id) => runScore(s, id, options), memory: this.planMemory },
       this.synergy,
     );
   }

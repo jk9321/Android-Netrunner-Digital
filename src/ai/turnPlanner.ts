@@ -37,6 +37,13 @@ export interface PlannerAI {
   runWorth?(state: GameState, serverId: string): number;
   /** The opponent's next turn played out from the end of this one, scored by `leaf` (plan.runnerReply, Corp). */
   reply?(state: GameState, leaf: (state: GameState) => number): number;
+  /** The rest of this AI's last plan (one per agent, so a new game or a reloaded one starts without it). */
+  memory?: PlanMemory;
+}
+
+/** The rest of the last plan: followed while the game goes as the plan expected. */
+export interface PlanMemory {
+  line: Line;
 }
 
 export const plannerOn = (side: SideCode): boolean => !!tuning.plan.turnPlanner?.[side];
@@ -57,8 +64,8 @@ function positionKey(state: GameState, side: SideCode): string {
   return `${state.id}|${state.turnNumber}|${p.clicks}|${p.credits}|${hand.map(c => c.instanceId).join(',')}|${board.join(';')}|${state.corp.score}|${state.runner.score}`;
 }
 
-/** The rest of the last plan, by side: followed while the game goes as the plan expected. */
-const lastPlan: Record<SideCode, Line> = { corp: [], runner: [] };
+/** Plans of AIs that keep none of their own (tests). */
+const sharedPlan: Record<SideCode, PlanMemory> = { corp: { line: [] }, runner: { line: [] } };
 
 /** Plays `side`'s turn on from `state` after `first`, and returns how good the end of the turn is. */
 function playout(start: GameState, side: SideCode, first: GameAction, ai: PlannerAI, synergy: boolean, line: Line = []): number {
@@ -128,12 +135,13 @@ function leafValue(state: GameState, side: SideCode, synergy: boolean): number {
 export function planTurn(state: GameState, side: SideCode, ranked: ScoredAction[], ai: PlannerAI, synergy: boolean): GameAction | null {
   // Still on the last plan: its next step, if the rule-based AI still rates it
   const key = positionKey(state, side);
-  const next = lastPlan[side][0];
+  const memory = ai.memory ?? sharedPlan[side];
+  const next = memory.line[0];
   if (next && next.key === key && ranked.some(r => r.score > -Infinity && sameAction(r.action, next.action))) {
-    lastPlan[side].shift();
+    memory.line.shift();
     return next.action;
   }
-  lastPlan[side] = [];
+  memory.line = [];
   const candidates = ranked.filter(r => r.score > -Infinity && r.action.type !== 'END_TURN' && r.action.type !== 'START_TURN').slice(0, PLANNER.candidates);
   if (candidates.length <= 1 || clicksOf(state, side) <= 0) return null;
   const unfreeze = freezeKnownHand();
@@ -145,7 +153,7 @@ export function planTurn(state: GameState, side: SideCode, ranked: ScoredAction[
       if (!best || value > best.value) best = { action: c.action, value, line };
     }
     if (!best || best.value === -Infinity) return null;
-    lastPlan[side] = best.line;
+    memory.line = best.line;
     return best.action;
   } finally {
     unfreeze();
