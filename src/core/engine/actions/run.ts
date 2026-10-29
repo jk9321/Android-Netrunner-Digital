@@ -5,7 +5,7 @@ import { cardDef } from '../../cards';
 import { getCardScript } from '../../scripts';
 import { nextInt } from '../../rng';
 import { addLog } from '../log';
-import { checkAgendaVictory, findCardAnywhere, illegal, locateCorpCard, removeCard, requireActionPhase, requireClicks } from '../helpers';
+import { checkAgendaVictory, findCardAnywhere, illegal, locateCorpCard, removeCard, requireActionPhase, requireClicks, revealInHand } from '../helpers';
 import { pushPrompt } from '../prompts';
 import { approachIce, approachServer, beginEncounter, enterMovement, moveInward, passIce, startSubroutineResolution } from '../ice';
 import { endRun } from '../runEnd';
@@ -301,6 +301,8 @@ function accessCard(state: GameState, card: CardInstance, zone: CardInstance[], 
   const where: AccessZone = installed ? 'installed' : inArchives ? 'archives' : zone === state.corp.hq ? 'hq' : 'rd';
   // The Runner has seen this installed card and may remember it if it stays installed (rules 10.2.2b)
   if (installed) card.runnerKnows = true;
+  // An accessed card left in HQ stays known to the Runner until it leaves HQ
+  if (where === 'hq') revealInHand(state, 'corp', [card]);
   // Rules 7.1.2: the Corp may look at accessed cards, except those accessed from R&D (unless revealed, Byte!)
   const secret = getCardScript(card.cardCode)?.revealedOnRdAccess ? undefined : rdSecret(where, 'Runner accessed a card in R&D.');
   addLog(state, 'runner', `Runner accessed ${def.title}.`, card.cardCode, 'access', secret);

@@ -2,6 +2,7 @@ import React from 'react';
 import { createPortal } from 'react-dom';
 import { CardInstance } from '../../core/types/card';
 import { GameState } from '../../core/types/state';
+import { knownInHand } from '../../core';
 import { CardView } from './CardView';
 import { X } from 'lucide-react';
 
@@ -12,7 +13,7 @@ export interface ZoneGroup {
   faceDown?: boolean;
 }
 
-export type ZoneId = 'archives' | 'heap' | 'rd' | 'stack' | 'corp-score' | 'runner-score' | 'removed';
+export type ZoneId = 'archives' | 'heap' | 'rd' | 'stack' | 'corp-score' | 'runner-score' | 'removed' | 'known-hq' | 'known-grip';
 
 /** The title and card groups shown when browsing a zone. */
 export function zoneContents(zone: ZoneId, state: GameState): { title: string; groups: ZoneGroup[] } {
@@ -38,6 +39,11 @@ export function zoneContents(zone: ZoneId, state: GameState): { title: string; g
       return { title: 'RUNNER SCORE AREA', groups: [{ label: 'Stolen agendas', cards: state.runner.scoreArea }] };
     case 'removed':
       return { title: 'REMOVED FROM GAME', groups: [{ label: 'Removed', cards: state.removedFromGame }] };
+    // Revealed or accessed cards still in the opponent's hand (rules 1.21.3): remembered, not faceup
+    case 'known-hq':
+      return { title: 'KNOWN IN HQ', groups: [{ label: 'Seen and still in HQ', cards: knownInHand(state, 'corp') }] };
+    case 'known-grip':
+      return { title: 'KNOWN IN GRIP', groups: [{ label: 'Revealed and still in the grip', cards: knownInHand(state, 'runner') }] };
   }
 }
 

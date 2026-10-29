@@ -1,6 +1,6 @@
 import { cardDef } from '../cards';
 import { addLog } from '../engine/log';
-import { drawCards, madeSuccessfulRunThisTurn } from '../engine/helpers';
+import { drawCards, madeSuccessfulRunThisTurn, revealInHand } from '../engine/helpers';
 import { shuffleInPlace } from '../rng';
 import { CardScript, EffectContext } from './types';
 import { startRun } from '../engine/actions/run';
@@ -101,6 +101,7 @@ const mutualFavor: CardScript = {
         return;
       }
       state.runner.grip.push(state.runner.stack.shift()!);
+      revealInHand(state, 'runner', [card]);
       addLog(state, 'runner', `Runner added ${cardDef(card).title} to their grip.`);
       return;
     }
@@ -111,6 +112,7 @@ const mutualFavor: CardScript = {
       if (answer.optionId !== 'install' || !installRunnerTrashing(state, card, state.runner.stack, undefined, 0, answer.trashFirst ?? [])) {
         state.runner.stack.shift();
         state.runner.grip.push(card);
+        revealInHand(state, 'runner', [card]);
         addLog(state, 'runner', `Runner added ${cardDef(card).title} to their grip.`);
       }
     }

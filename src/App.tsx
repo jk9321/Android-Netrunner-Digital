@@ -1,5 +1,5 @@
 import { useMemo, useState } from 'react';
-import { CardInstance, GameAction, SideCode, cardDef, findCardAnywhere, iceSubtypes, isLegalAction } from './core';
+import { CardInstance, GameAction, SideCode, cardDef, findCardAnywhere, iceSubtypes, isLegalAction, knownInHand } from './core';
 import { breakerTypes } from './ui/components/IceTypeIcons';
 import { DEFAULT_CORP_DECK, DEFAULT_RUNNER_DECK } from './data/decks';
 import { GameConfig, SavedGame, clearSavedGame } from './ui/savedGame';
@@ -28,6 +28,7 @@ import { CorpActions, RunnerActions } from './ui/components/ActionBars';
 import { AccessedPanel } from './ui/components/AccessedPanel';
 import { canActAs, canSeeCorpSecrets, canSeeRunnerSecrets } from './ui/viewer';
 import { Keyword } from './ui/components/Keyword';
+import { KnownInHandButton } from './ui/components/KnownInHandButton';
 import { showConfirm } from './ui/components/Dialog';
 
 /** Reversed: Archives sorts first; remotes (-1) keep their order after HQ. */
@@ -352,8 +353,9 @@ function Game({
           </div>
           {/* Corp HQ Hand: beside the servers on wide screens */}
           <div className="min-w-0 lg:max-w-[45%] shrink-0 flex flex-col overflow-x-auto overflow-y-hidden">
-            <div className="text-[11px] text-cyan-400 font-bold uppercase tracking-wider">
+            <div className="flex items-center gap-2 text-[11px] text-cyan-400 font-bold uppercase tracking-wider">
               <span><Keyword id="hq">HQ</Keyword> Hand (<Keyword id="hand-size">{corp.hq.length} / {corp.handSizeLimit}</Keyword>)</span>
+              {!canSeeCorpSecrets(viewer) && <KnownInHandButton count={knownInHand(gameState, 'corp').length} onOpen={() => setZone('known-hq')} />}
             </div>
             <HandRow
               cards={corp.hq}
@@ -378,8 +380,9 @@ function Game({
           </div>
           {/* Runner Grip Hand: beside the rig on wide screens */}
           <div className="min-w-0 lg:max-w-[45%] shrink-0 flex flex-col overflow-x-auto overflow-y-hidden">
-            <div className="text-[11px] text-pink-400 font-bold uppercase tracking-wider">
+            <div className="flex items-center gap-2 text-[11px] text-pink-400 font-bold uppercase tracking-wider">
               <span><Keyword id="grip">Grip</Keyword> Hand (<Keyword id="hand-size">{runner.grip.length} / {runner.handSizeLimit}</Keyword>)</span>
+              {!canSeeRunnerSecrets(viewer) && <KnownInHandButton count={knownInHand(gameState, 'runner').length} onOpen={() => setZone('known-grip')} />}
             </div>
             <HandRow
               cards={runner.grip}

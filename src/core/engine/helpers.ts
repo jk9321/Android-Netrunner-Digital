@@ -106,7 +106,9 @@ export function drawCards(state: GameState, side: SideCode, count: number): numb
       }
       break;
     }
-    (side === 'corp' ? state.corp.hq : state.runner.grip).push(deck.shift()!);
+    const card = deck.shift()!;
+    (side === 'corp' ? state.corp.hq : state.runner.grip).push(card);
+    forgetInHand(state, side, card);
     drawn++;
   }
   return drawn;
@@ -174,6 +176,45 @@ export function forgetHiddenCards(state: GameState): void {
   for (const zone of [state.corp.hq, state.corp.rd, state.corp.archives.faceDown]) {
     for (const card of zone) delete card.runnerKnows;
   }
+  // A known card that left its hand is no longer tracked there
+  for (const side of ['corp', 'runner'] as const) {
+    const known = knownList(state, side);
+    if (!known?.length) continue;
+    const hand = side === 'corp' ? state.corp.hq : state.runner.grip;
+    setKnownList(state, side, known.filter(id => hand.some(c => c.instanceId === id)));
+  }
+}
+
+const knownList = (state: GameState, owner: SideCode): string[] | undefined =>
+  owner === 'corp' ? state.corp.knownToRunner : state.runner.knownToCorp;
+
+function setKnownList(state: GameState, owner: SideCode, ids: string[]): void {
+  if (owner === 'corp') state.corp.knownToRunner = ids;
+  else state.runner.knownToCorp = ids;
+}
+
+/**
+ * The other side has seen these cards in `owner`'s hand (revealed, rules
+ * 1.21.3, or accessed in HQ). Revealing does not turn a card faceup (1.21.3a),
+ * so the cards stay hidden and the other side only remembers them, until the
+ * card leaves the hand.
+ */
+export function revealInHand(state: GameState, owner: SideCode, cards: CardInstance[]): void {
+  const known = knownList(state, owner) ?? [];
+  const add = cards.map(c => c.instanceId).filter(id => !known.includes(id));
+  if (add.length > 0) setKnownList(state, owner, [...known, ...add]);
+}
+
+/** A card drawn into the hand is unknown to the other side, even if it was known before it left. */
+function forgetInHand(state: GameState, owner: SideCode, card: CardInstance): void {
+  const known = knownList(state, owner);
+  if (known?.includes(card.instanceId)) setKnownList(state, owner, known.filter(id => id !== card.instanceId));
+}
+
+/** Cards in `owner`'s hand the other side knows, in the order they learned them. */
+export function knownInHand(state: GameState, owner: SideCode): CardInstance[] {
+  const hand = owner === 'corp' ? state.corp.hq : state.runner.grip;
+  return (knownList(state, owner) ?? []).flatMap(id => hand.find(c => c.instanceId === id) ?? []);
 }
 
 export function isAdvanceable(card: CardInstance): boolean {

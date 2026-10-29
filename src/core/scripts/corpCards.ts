@@ -3,7 +3,7 @@ import { GameState } from '../types/state';
 import { cardDef } from '../cards';
 import { shuffleInPlace } from '../rng';
 import { addLog } from '../engine/log';
-import { findInstalledCorpCard, removeCard } from '../engine/helpers';
+import { findInstalledCorpCard, removeCard, revealInHand } from '../engine/helpers';
 import { rezForFree } from '../engine/actions/corp';
 import { dealMeatDamage, dealNetDamage, giveTags } from '../engine/damage';
 import { endTheRun } from '../engine/runEnd';
@@ -68,9 +68,11 @@ const precisionDesign: CardScript = {
   onPromptAnswer: ({ state }, _source, answer) => {
     if (answer.kind !== 'effect_cards' || answer.cardInstanceIds.length === 0) return;
     const card = archivesCards(state).find(c => c.instanceId === answer.cardInstanceIds[0])!;
-    removeCard(state.corp.archives.faceUp, card) || removeCard(state.corp.archives.faceDown, card);
+    const wasFaceUp = removeCard(state.corp.archives.faceUp, card);
+    if (!wasFaceUp) removeCard(state.corp.archives.faceDown, card);
     card.isRezzed = false;
     state.corp.hq.push(card);
+    if (wasFaceUp) revealInHand(state, 'corp', [card]);
     addLog(state, 'corp', 'Corp added 1 card from Archives to HQ (Precision Design).');
   },
 };
@@ -402,6 +404,7 @@ const malapertDataVault: CardScript = {
     const card = state.corp.rd.find(c => c.instanceId === answer.cardInstanceIds[0])!;
     removeCard(state.corp.rd, card);
     state.corp.hq.push(card);
+    revealInHand(state, 'corp', [card]);
     shuffleInPlace(state.rng, state.corp.rd);
     addLog(state, 'corp', `Corp revealed ${cardDef(card).title}, added it to HQ and shuffled R&D (Malapert Data Vault).`);
   },
