@@ -134,6 +134,10 @@ export const tuning = {
      * on (ccbc397) bare faceups 66 -> 8, Pork Chops 54.6% (within noise); kept as the sounder play.
      */
     bangunNoBareBait: true,
+    /**
+     * (Jeff) ...but keep the bare bait while the Runner has 2 points or fewer. At 986f20b Pork Chops won
+     * 57.7% with it (48 of the 66 bare baits are early), 57.7% always allowed, 54.6% never.
+     */
     bangunEarlyBait: true,
     /**
      * The exposure check by what the Runner can pay, not by layers of ice (Jeff, 2026-10-29). Off: self-play
