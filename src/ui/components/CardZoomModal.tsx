@@ -64,7 +64,7 @@ export const CardZoomModal: React.FC<CardZoomModalProps> = ({
               >
                 {def.side_code} // {def.type_code}
               </span>
-              {!card.isRezzed && (
+              {!card.isRezzed && !card.faceUp && (
                 <span className="px-2 py-0.5 rounded border bg-amber-950 border-amber-600 text-amber-300 flex items-center gap-1">
                   <AlertCircle className="w-3 h-3" /> <Keyword id="unrezzed">Unrezzed</Keyword>
                 </span>

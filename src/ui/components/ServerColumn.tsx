@@ -227,14 +227,14 @@ export const ServerColumn: React.FC<ServerColumnProps> = ({
               <div className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 rotate-90">
                 <CardView
                   card={iceCard}
-                  isFaceDown={!iceCard.isRezzed}
+                  isFaceDown={!iceCard.isRezzed && !iceCard.faceUp}
                   canPeek={canCorpPeek || !!iceCard.runnerKnows}
-                  seen={!canCorpPeek && !!iceCard.runnerKnows && !iceCard.isRezzed}
+                  seen={!canCorpPeek && !!iceCard.runnerKnows && !iceCard.isRezzed && !iceCard.faceUp}
                   size="fit"
                   sideways
                   onInspect={onInspectCard}
                   // Unrezzed ice keeps its type secret from the Runner
-                  typeIcons={iceCard.isRezzed || canCorpPeek || iceCard.runnerKnows ? iceTypes(iceCard) : []}
+                  typeIcons={iceCard.isRezzed || iceCard.faceUp || canCorpPeek || iceCard.runnerKnows ? iceTypes(iceCard) : []}
                   tag={hostedOnIce(iceCard).length > 0 ? <HostedTag ice={iceCard} hosted={hostedOnIce(iceCard)} /> : undefined}
                   actions={<>
                 {canRez(iceCard) && onRezCard && (
