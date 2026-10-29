@@ -488,6 +488,16 @@ export function rezzedWorth(state: GameState, card: CardInstance, rezCost: numbe
   return fx ? fx.keep - rezCost : -1;
 }
 
+/**
+ * Cards that do their work during a run (Manegarm, Anoetic Void, AMAZE, Mitra
+ * Aman): the Corp can rez them in a paid ability window of the run itself
+ * (rules 3.3.2, 3.6.3; paid ability windows of the run, 6.9.2–6.9.4), so rezzing them sooner only spends the money
+ * and shows them to the Runner.
+ */
+export function runTimed(card: CardInstance): boolean {
+  return /Whenever (?:the Runner (?:approaches|passes|encounters|steals|accesses|breaches)|a run on this server)|When the Runner (?:approaches|breaches|accesses)/i.test(cardDef(card).stripped_text ?? '');
+}
+
 /** Worth of an ice's "when rezzed during a run" effect (Ping: a tag). */
 export function rezEffectWorth(card: CardInstance, tagWorth: number): number {
   const tags = (cardDef(card).stripped_text ?? '').match(/When you rez this ice during a run[^.]*give the Runner (\d+) tag/i);

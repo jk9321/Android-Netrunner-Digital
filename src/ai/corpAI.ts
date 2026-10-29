@@ -11,7 +11,7 @@ import { asSide, logNudge, nudge, opponentLean, tuning } from './synergy';
 import { noteKnownHand } from './handValues';
 import { PlanMemory, planTurn, plannerOn } from './turnPlanner';
 import { runnerReply } from './runnerReply';
-import { PETTY_CASH_REPLAY, iceAdvanceWorth, placedCounterWorth, rezEffectWorth, rezzedWorth, topDownWorth } from './effectValues';
+import { PETTY_CASH_REPLAY, iceAdvanceWorth, placedCounterWorth, rezEffectWorth, rezzedWorth, runTimed, topDownWorth } from './effectValues';
 import { ECON_SCALE } from './cardProfiles';
 
 /** Whether a group of value hacks is replaced by the model (plan.modelHacks, Jeff 2026-10-28). */
@@ -162,9 +162,10 @@ export class HeuristicCorpAI implements Agent {
         if (this.synergy && tuning.plan.agendaMoney && state.corp.credits - cost < agendaRemoteNeed(state, server.id)) score -= 3;
       } else if (def.type_code === 'upgrade') {
         if (hacksOff('rezPriority')) {
-          // Upgrades: by what they do here (model), up to the 2 an upgrade gives up against ice
+          // Upgrades: by what they do here (model), up to the 2 an upgrade gives up against ice;
+          // one that does nothing in a run waits for the Corp's turn, keeping the money for ice
           const [remote, central] = upgradeValue(card.cardCode, state);
-          score = importance - 2 + Math.min(2, Math.max(0, server.isRemote ? remote : central));
+          score = !runTimed(card) ? -1 : importance - 2 + Math.min(2, Math.max(0, server.isRemote ? remote : central));
         } else score = card.cardCode === '30042' || card.cardCode === '30050' ? importance : importance - 2;
       } else {
         score = -1; // assets are rezzed on the Corp's own turn
@@ -257,6 +258,8 @@ export class HeuristicCorpAI implements Agent {
       // Model: worth once rezzed, less the rez cost, on the install-score scale; upgrades still wait for ice money (Jeff)
       if (type(card) === 'upgrade' && this.idleUpgrade(state, card)) return -Infinity;
       if (type(card) === 'agenda' || isTrap(card.cardCode)) return -Infinity;
+      // Manegarm and the like are rezzed when the Runner comes (decideRez), not on the Corp's turn
+      if (runTimed(card)) return -Infinity;
       const worth = rezzedWorth(state, card, rezCost(state, card));
       return worth > 0 ? ECON_SCALE * worth : -Infinity;
     }
