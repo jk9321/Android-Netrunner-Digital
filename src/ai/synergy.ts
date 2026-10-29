@@ -114,11 +114,11 @@ export const tuning = {
     /** Money assets that pay when the turn begins wait for the window before it to be rezzed (2026-10-29: 75-96% were trashed before paying). */
     assetRezTiming: true,
     /**
-     * (Jeff) Spin Doctor waits for a run on its server or the window before the turn, unless digging. Off: it cost
-     * the Corp in batches (self-play 45.6% -> 44.3%, vs old Runner 48.6% -> 47.2%; with spinDoctorUseNow, rezzing
-     * while 2+ clicks are left, 44.3% / 46.9%).
+     * (Jeff) Spin Doctor waits for a run on its server or the window before the turn, unless digging. Self-play at
+     * 5f827e6: 42.5% without, 44.3% with; with icePosition off 45.6% without, 47.9% with. (spinDoctorUseNow,
+     * rezzing while 2+ clicks are left, was no better.)
      */
-    spinDoctorWait: false,
+    spinDoctorWait: true,
     spinDoctorUseNow: false,
     /**
      * The exposure check by what the Runner can pay, not by layers of ice (Jeff, 2026-10-29). Off: self-play
@@ -154,8 +154,11 @@ export const tuning = {
     centralsFirst: true,
     /** Corp (Jeff): ice that would stop this Runner goes on a server that matters (R&D, the scoring remote, HQ holding agendas). */
     stopperPlacement: true,
-    /** Corp (Jeff): ice is judged at the strength it has where it would go, and a layer that weakens the ice inside it costs that (Scatter Field). */
-    icePosition: true,
+    /**
+     * Corp (Jeff): ice is judged at the strength it has where it would go, and a layer that weakens the ice inside it
+     * costs that (Scatter Field). Off: self-play at 5f827e6 42.5% on, 45.6% off; with spinDoctorWait 44.3% on, 47.9% off.
+     */
+    icePosition: false,
     /** ...and remotes wait for their ice until then. */
     centralsFirstRemotes: false,
     /** Corp (Jeff): mulligan a hand with no ice it can rez early (rez cost 4 or less). */
