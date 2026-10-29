@@ -26,6 +26,7 @@ import { RATES, clickRate, creditNeed, creditSlide, pointValue } from './valueMo
 
 const BLOCK = Infinity;
 const MAYFLY = '30032';
+const BANGUN = '35068';
 const HANTU = '35008'; // boosts by spending hosted virus counters (+2 each), not credits
 export const BOTULUS = '30004';
 export const TRANQUILIZER = '30017';
@@ -388,10 +389,12 @@ function serverWorth(state: GameState, serverId: string, extraAccesses: number, 
   if (repeat > 0 && server.isRemote) return 0;
   const trap = wary ? trapOdds(state, memory) : 1 / 3;
   for (const card of server.root) {
-    if (wary && card.faceUp && cardDef(card).type_code === 'agenda') {
-      // A faceup agenda (BANGUN): a sure steal, for 2 meat damage and a tag
-      if (state.runner.grip.length < 2) return 0;
-      value += stealWorth(state, cardDef(card).agenda_points ?? 1, DENY.remote) - damageWorth(state, 2) - tagCost(state);
+    if (card.faceUp && cardDef(card).type_code === 'agenda') {
+      // A faceup agenda: a sure steal, public to both sides. Under BANGUN it costs 2 meat damage and a tag;
+      // installed faceup by its own text (Sacrifice Zone Expansion, rules 3.2.3a) it costs nothing extra
+      const bangun = state.corp.identity.cardCode === BANGUN;
+      if (bangun && state.runner.grip.length < 2) return 0;
+      value += stealWorth(state, cardDef(card).agenda_points ?? 1, DENY.remote) - (bangun ? damageWorth(state, 2) + tagCost(state) : 0);
       continue;
     }
     if (!card.isRezzed && memory?.has(card.instanceId)) {
@@ -436,10 +439,11 @@ export function serverValue(state: GameState, serverId: string, extraAccesses = 
   const caution = wary ? (trapOdds(state, memory) / (1 / 3)) * (server.isRemote && server.ice.length === 0 ? 1.25 : 1) : 1;
   const handMargin = wary && caution > 1.4 ? 1 : 0;
   for (const card of server.root) {
-    if (wary && card.faceUp && cardDef(card).type_code === 'agenda') {
-      // Deck-aware AI: a faceup agenda (BANGUN) is a sure steal, for 2 meat damage and a tag
-      if (state.runner.grip.length < 2) return 0;
-      value += 2.5 * (cardDef(card).agenda_points ?? 1) + 0.5 * Math.min(card.advancementCounters, 4) - 2;
+    if (card.faceUp && cardDef(card).type_code === 'agenda') {
+      // A faceup agenda is a sure steal; under BANGUN it costs 2 meat damage and a tag
+      const bangun = state.corp.identity.cardCode === BANGUN;
+      if (bangun && state.runner.grip.length < 2) return 0;
+      value += 2.5 * (cardDef(card).agenda_points ?? 1) + 0.5 * Math.min(card.advancementCounters, 4) - (bangun ? 2 : 0);
       continue;
     }
     if (!card.isRezzed && memory?.has(card.instanceId)) {
