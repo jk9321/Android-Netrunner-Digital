@@ -44,6 +44,10 @@ on:
         description: head-to-head only, full SHA of the old AI (default the commit before the value model)
         required: false
         default: 1724c6b08430499775cd3378c46f8540f4df466c
+      decks:
+        description: Deck id prefixes to play, comma-separated (vp- for Vantage Point only; empty for every deck)
+        required: false
+        default: ''
       add_run:
         description: Run id of an earlier batch to add in (a top-up sums both); empty for none
         required: false
@@ -78,6 +82,7 @@ jobs:
           PLAN_OFF: ${{ inputs.plan_off }}
           GAME_FROM: ${{ inputs.game_from }}
           H2H: ${{ inputs.h2h }}
+          DECKS: ${{ inputs.decks }}
           REPLY_SAMPLES: ${{ contains(inputs.label, 'samples=4') && '4' || '' }}
         run: |
           mkdir -p out
@@ -117,7 +122,7 @@ jobs:
         run: |
           [ -d earlier ] && for f in earlier/*.json; do cp "$f" "out/earlier-$(basename "$f")"; done
           {
-            echo "Batch: ${{ inputs.label }} | ref ${{ inputs.ref }} | games ${{ inputs.game_from }}-${{ inputs.games }} | PLAN_OFF=${{ inputs.plan_off }} | ${{ inputs.script }} ${{ inputs.h2h }} | added run ${{ inputs.add_run }}"
+            echo "Batch: ${{ inputs.label }} | ref ${{ inputs.ref }} | games ${{ inputs.game_from }}-${{ inputs.games }} | PLAN_OFF=${{ inputs.plan_off }} | decks ${{ inputs.decks }} | ${{ inputs.script }} ${{ inputs.h2h }} | added run ${{ inputs.add_run }}"
             if [ -f "scripts/${{ inputs.script }}-sum.mjs" ]; then node "scripts/${{ inputs.script }}-sum.mjs" out/*.json; elif [ "${{ inputs.script }}" = pace ]; then node scripts/pace-sum.mjs out/*.json; else node scripts/corp-losses-sum.mjs out/*.json; fi
           } | tee summary.txt
       - uses: actions/upload-artifact@v4
