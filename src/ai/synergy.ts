@@ -113,6 +113,12 @@ export const tuning = {
     exposure: true,
     /** Money assets that pay when the turn begins wait for the window before it to be rezzed (2026-10-29: 75-96% were trashed before paying). */
     assetRezTiming: true,
+    /**
+     * (Jeff) Spin Doctor waits for a run on its server or the window before the turn, unless digging. Off: it cost
+     * the Corp in batches (self-play 45.6% -> 44.3%, vs old Runner 48.6% -> 47.2%; with spinDoctorUseNow, rezzing
+     * while 2+ clicks are left, 44.3% / 46.9%).
+     */
+    spinDoctorWait: false,
     spinDoctorUseNow: false,
     /**
      * The exposure check by what the Runner can pay, not by layers of ice (Jeff, 2026-10-29). Off: self-play

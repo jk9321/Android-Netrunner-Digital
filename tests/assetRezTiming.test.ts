@@ -1,6 +1,7 @@
-import { describe, expect, it } from 'vitest';
+import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { HeuristicCorpAI } from '../src/ai/corpAI';
 import { installCorpForTest, newGame, run, startRunnerTurn } from './helpers';
+import { tuning } from '../src/ai/synergy';
 
 const NICO = '30037';
 
@@ -24,7 +25,9 @@ describe('money assets wait for the window before the Corp’s turn (rules 5.6.1
   });
 });
 
-describe('Spin Doctor waits for a run or the turn start (Jeff, 2026-10-29; plan.assetRezTiming)', () => {
+describe('Spin Doctor waits for a run or the turn start (Jeff, 2026-10-29; plan.spinDoctorWait, off by default)', () => {
+  beforeAll(() => (tuning.plan.spinDoctorWait = true));
+  afterAll(() => (tuning.plan.spinDoctorWait = false));
   const SPIN = '30053';
   const setup = (hq: number) => {
     const s = newGame();
@@ -49,6 +52,8 @@ describe('Spin Doctor waits for a run or the turn start (Jeff, 2026-10-29; plan.
 });
 
 describe('Spin Doctor in a run on its server', () => {
+  beforeAll(() => (tuning.plan.spinDoctorWait = true));
+  afterAll(() => (tuning.plan.spinDoctorWait = false));
   it('is rezzed when the Runner approaches the server: the same 2 cards, and the run spent', () => {
     const s = newGame();
     const id = installCorpForTest(s, '30053', 'remote-1');
