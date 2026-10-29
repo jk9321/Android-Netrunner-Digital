@@ -29,3 +29,29 @@ describe('Encounter panel', () => {
     expect(breaks.map(b => b.disabled)).toEqual([true, false, false]);
   });
 });
+
+describe('Encounter panel: counter-spending breakers', () => {
+  const HANTU = '35008';
+  const BUMI = '35041'; // sentry, strength 3
+  const buttons = (s: ReturnType<typeof newGame>) =>
+    [...renderToStaticMarkup(<EncounterPanel state={s} onAction={() => {}} />).matchAll(/<button([^>]*)>(.*?)<\/button>/g)].map(m =>
+      m[2].replace(/<[^>]+>/g, '').replace(/&#x27;/g, "'"),
+    );
+
+  it('offers Hantu’s virus-counter boost in its own row, then its break buttons (no credit boost)', () => {
+    let s = newGame();
+    installIceForTest(s, BUMI, 'hq');
+    installProgramForTest(s, HANTU);
+    const hantu = s.runner.rig.programs[0];
+    hantu.tokens.virus = 2;
+    s.runner.credits = 2;
+    s = runIntoFirstIce(s, 'hq');
+    // Strength 2 < 3: only the counter ability is usable (rules 3.9.5g, 1.16.9).
+    expect(buttons(s)).toContain('Spend 1 virus: +2 strength (2 left)');
+    s = executeAction(s, { type: 'USE_ABILITY', player: 'runner', cardInstanceId: hantu.instanceId, abilityIndex: 0 });
+    const after = buttons(s);
+    expect(after).toContain('Break 1 (1credit)');
+    expect(after).toContain('Break 2 (1credit)');
+    expect(after.some(t => /Boost/.test(t))).toBe(false);
+  });
+});
