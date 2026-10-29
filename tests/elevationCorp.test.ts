@@ -737,3 +737,39 @@ describe('Elevation upgrades', () => {
     expect(p && 'cost' in p ? (p as { cost: number }).cost : 4).toBe(4);
   });
 });
+
+describe('Corp AI uses identity abilities that ask a second question (plan.promptChains)', () => {
+  const ai = (s: GameState) => answerPrompt(s, 'corp', undefined, true);
+  const chosen = (s: GameState) => {
+    const a = ai(s);
+    if (a.type !== 'RESOLVE_PROMPT') return null;
+    return a.choice.kind === 'effect_choice' ? a.choice.optionId : a.choice.kind === 'effect_cards' ? a.choice.cardInstanceIds : null;
+  };
+
+  it('Poétrï installs a money asset from the top of R&D when scoring', () => {
+    let s = newGame();
+    setIdentity(s, 'corp', C.poetri);
+    const anthill = topOfRD(s, C.anthill);
+    s = scoreForTest(s, C.greenmail);
+    expect(chosen(s)).toEqual([anthill]);
+  });
+
+  it('Synapse Global installs a card from HQ for free when a tag is removed', () => {
+    let s = newGame();
+    setIdentity(s, 'corp', C.synapse);
+    corpTurn(s);
+    s.runner.tags = 1;
+    giveCard(s, 'corp', C.anthill);
+    s = useAbility(s, 'corp', s.corp.identity.instanceId);
+    expect(chosen(s)).toHaveLength(1); // the best card in HQ, ignoring all costs
+  });
+
+  it('AU Co. spends its power counters to see 3 cards of R&D', () => {
+    let s = newGame();
+    setIdentity(s, 'corp', C.auCo);
+    s.corp.identity.tokens.power = 2;
+    s = toNextCorpTurn(s);
+    expect(optionIds(s)).toContain('use');
+    expect(chosen(s)).toBe('use');
+  });
+});

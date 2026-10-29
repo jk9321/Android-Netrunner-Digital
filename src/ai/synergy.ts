@@ -122,6 +122,8 @@ export const tuning = {
     spinDoctorUseNow: false,
     /** Money assets priced with the trash risk measured in self-play (PAYOUT_RISK.moneyIced/moneyBare): self-play 47.9% -> 49.5%, new Corp vs old Runner 48.3% -> 48.8% (727d238). */
     measuredAssetRisk: true,
+    /** Prompts that open the same card's next choice are judged after that choice too (AU Co., Poétrï, Synapse Global). */
+    promptChains: true,
     /**
      * The exposure check by what the Runner can pay, not by layers of ice (Jeff, 2026-10-29). Off: self-play
      * 39.0% (old rule 41.3%), new Corp vs old Runner 43.1% (45.8%); without income 38.9% / 44.1%; no

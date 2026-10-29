@@ -1,4 +1,4 @@
-import { CardInstance, GameAction, GameState, Prompt, SideCode, activePrompt, cardDef, executeAction, findCardAnywhere, getLegalActions, isLegalAction } from '../core';
+import { CardInstance, GameAction, GameState, Prompt, SideCode, activePrompt, cardDef, executeAction, findCardAnywhere, getCardDefinition, getLegalActions, isLegalAction } from '../core';
 import { runnerInstallBlocker } from '../core/engine/actions/install';
 import { evaluate, keepValue } from './evaluate';
 import { placedCounterWorth } from './effectValues';
@@ -177,6 +177,12 @@ export function answerPrompt(state: GameState, side: SideCode, memory?: RunnerMe
     return { ...base, choice: { kind: 'effect_choice', optionId: best.id } };
   }
 
+  // AU Co.: the power counters do nothing else, so 2 cards now beat 2 cards later. (Scored as an outcome
+  // the cards drawn count for nothing: plan.blindDraws hides cards from R&D.)
+  if (side === 'corp' && tuning.plan.promptChains && prompt.kind === 'effect_choice' && prompt.source.cardCode === '35046' && prompt.source.step === 'use') {
+    return { ...base, choice: { kind: 'effect_choice', optionId: 'use' } };
+  }
+
   // Deck-aware AI: PT Untaian's paid advancement goes where it does the most
   if (synergy && side === 'corp' && tuning.plan.identities && prompt.kind === 'effect_cards' && prompt.source.cardCode === '35047') {
     return { ...base, choice: { kind: 'effect_cards', cardInstanceIds: untaianPick(state, prompt.candidateIds) } };
@@ -199,7 +205,7 @@ export function answerPrompt(state: GameState, side: SideCode, memory?: RunnerMe
   for (const action of options) {
     const after = simulate(state, action);
     if (!after) continue;
-    const score = scoreOutcome(state, after, side, memory, synergy);
+    const score = scoreOutcome(state, followChain(prompt, after, side, memory, synergy), side, memory, synergy);
     if (score > bestScore) {
       bestScore = score;
       best = action;
@@ -262,6 +268,25 @@ export function taoSwap(state: GameState, memory?: RunnerMemory): string[] {
   return best && best.gain >= 2 ? best.ids : [];
 }
 
+/**
+ * An answer that opens the same card's next choice (AU Co.: which card to trash; Poétrï and
+ * Synapse Global: which server) is judged after the AI answers that too, so the first step of a
+ * good ability doesn't look like a loss on its own (plan.promptChains).
+ */
+function followChain(prompt: Prompt, after: GameState, side: SideCode, memory?: RunnerMemory, synergy = false): GameState {
+  // Identities only: following every card's chain made AI games about 4x slower
+  if (!tuning.plan.promptChains || !('source' in prompt) || getCardDefinition(prompt.source.cardCode).type_code !== 'identity') return after;
+  let state = after;
+  for (let depth = 0; depth < 3; depth++) {
+    const next = activePrompt(state);
+    if (!next || next.side !== side || !('source' in next) || next.source.instanceId !== prompt.source.instanceId) break;
+    const resolved = simulate(state, answerPrompt(state, side, memory, synergy));
+    if (!resolved) break;
+    state = resolved;
+  }
+  return state;
+}
+
 /** Adds the card that helps most until no card helps (and at least `min` are chosen). */
 function greedyCards(
   state: GameState,
@@ -274,7 +299,7 @@ function greedyCards(
   const answer = (ids: string[]): GameAction => ({ ...base, choice: { kind: 'effect_cards', cardInstanceIds: ids } });
   const value = (ids: string[]) => {
     const after = simulate(state, answer(ids));
-    return after ? scoreOutcome(state, after, side, memory, synergy) : -Infinity;
+    return after ? scoreOutcome(state, followChain(prompt, after, side, memory, synergy), side, memory, synergy) : -Infinity;
   };
   let chosen: string[] = [];
   let current = prompt.min === 0 ? value([]) : -Infinity;
