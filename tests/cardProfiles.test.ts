@@ -62,7 +62,7 @@ describe('payouts keep their worth less the risk of losing the card (plan.payout
     const s = newGame();
     const nico = CARD_PROFILES['30037'];
     expect(payoutWait(s, nico, 'corp', true)).toBeGreaterThan(payoutWait(s, nico, 'corp', false));
-    expect(payoutWait(s, CARD_PROFILES['30071'], 'corp', true)).toBeCloseTo(PAYOUT_RISK.clickWait * (1 - PAYOUT_RISK.corpIced));
+    expect(payoutWait(s, CARD_PROFILES['30071'], 'corp', true)).toBeCloseTo(PAYOUT_RISK.clickWait * (1 - PAYOUT_RISK.moneyIced)); // measured (plan.measuredAssetRisk)
     // Nico now counts close to its 9 credits and a card
     expect(unrezzedWorth(s, '30037', true)!).toBeGreaterThan(9 - 2 - 1);
   });

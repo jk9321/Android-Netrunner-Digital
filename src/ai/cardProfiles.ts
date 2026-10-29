@@ -50,9 +50,16 @@ const WAIT = 0.85;
 export const PAYOUT_RISK = {
   /** Taken with a click: worth this much per turn it waits. */
   clickWait: 0.93,
-  /** A Corp asset trashed by the Runner, per turn: in a remote with ice, and without. */
+  /** A Corp card trashed by the Runner, per turn: in a remote with ice, and without (other per-turn effects). */
   corpIced: 0.03,
   corpBare: 0.06,
+  /**
+   * A money asset (CARD_PROFILES) trashed by the Runner, per Runner turn: in a remote with ice, and
+   * without. Measured (scripts/lossLog.ts assetRisk, 2,210 self-play games at 5f827e6): 7.8% of 1,660
+   * turns behind ice, 26.8% of 6,507 bare (the guesses were corpIced and corpBare).
+   */
+  moneyIced: 0.078,
+  moneyBare: 0.268,
   /** A Runner resource: trashed by the Corp only while the Runner is tagged. */
   runnerTagged: 0.25,
   runnerUntagged: 0.02,
@@ -63,7 +70,7 @@ export function payoutWait(state: GameState, profile: CardProfile, owner: 'corp'
   if (!tuning.plan.payoutRisk) return WAIT;
   const time = profile.every === 'click' ? PAYOUT_RISK.clickWait : 1;
   const risk = owner === 'corp'
-    ? (iced ? PAYOUT_RISK.corpIced : PAYOUT_RISK.corpBare)
+    ? (tuning.plan.measuredAssetRisk ? (iced ? PAYOUT_RISK.moneyIced : PAYOUT_RISK.moneyBare) : iced ? PAYOUT_RISK.corpIced : PAYOUT_RISK.corpBare)
     : (state.runner.tags > 0 ? PAYOUT_RISK.runnerTagged : PAYOUT_RISK.runnerUntagged);
   return time * (1 - risk);
 }
