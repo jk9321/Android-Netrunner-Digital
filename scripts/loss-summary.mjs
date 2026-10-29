@@ -83,6 +83,15 @@ export function printLossSummary(games, detail = !!process.env.DETAIL) {
     const b = k => sum(games, g => g.brokeApproaches[k]);
     console.log(`  unrezzed ice approached that the Corp couldn't pay for: ${b('total')}; affordable without asset/upgrade rezzes since its turn began: ${b('rootSpend')}`);
   }
+  if (games[0]?.traps) {
+    const m = new Map();
+    for (const g of games) for (const [k, v] of Object.entries(g.traps)) {
+      const e = m.get(k) ?? { installed: 0, accessed: 0 };
+      m.set(k, { installed: e.installed + v.installed, accessed: e.accessed + v.accessed });
+    }
+    const all = [...m.values()].reduce((a, v) => ({ installed: a.installed + v.installed, accessed: a.accessed + v.accessed }), { installed: 0, accessed: 0 });
+    console.log(`Traps installed and accessed: all ${all.accessed}/${all.installed} (${pct(all.accessed, all.installed)}); ` + [...m].sort((a, b) => b[1].installed - a[1].installed).map(([k, v]) => `${k} ${v.accessed}/${v.installed}`).join(', '));
+  }
   if (steals[0]?.stopperAt !== undefined) {
     const run = steals.filter(s => s.stopperAt !== undefined && ['remote', 'rd', 'hq'].includes(s.from));
     console.log(`Placement (steals from runs in Corp losses: ${run.length}):`);

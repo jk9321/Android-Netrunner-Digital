@@ -8,7 +8,7 @@ import { GameState } from '../src/core';
 import { cardDef } from '../src/core/cards';
 import { rezCost } from '../src/core/engine/cardEffects';
 import { CardInstance } from '../src/core';
-import { iceCost } from '../src/ai/runs';
+import { iceCost, isTrap } from '../src/ai/runs';
 import { Agent, GameRunner } from '../src/ai';
 
 export interface Steal {
@@ -105,6 +105,8 @@ export interface GameRecord {
   rootRezzes: Record<string, { run: number; turn: number; credits: number }>;
   /** Unrezzed ice the Runner approached that the Corp couldn't afford to rez, and how many of those it could have had it not rezzed assets/upgrades since its last turn began */
   brokeApproaches: { total: number; rootSpend: number };
+  /** Traps installed in a root, by title, and how many the Runner accessed (the odds a trap fires) */
+  traps: Record<string, { installed: number; accessed: number }>;
 }
 
 /** What a step that changed the Corp's credits did, read from the state change. */
@@ -251,6 +253,9 @@ export function playLogged(start: GameState, agents: { corp: Agent; runner: Agen
   const rootRezzes: GameRecord['rootRezzes'] = {};
   const brokeApproaches = { total: 0, rootSpend: 0 };
   let rootSpent = 0;
+  const traps: GameRecord['traps'] = {};
+  const trapsSeen = new Set<string>();
+  const trapsHit = new Set<string>();
   const lowRezzes: { turn: number; cost: number }[] = [];
   let runnerTurnStart: GameState | null = null;
   let corpTurnStart: GameState | null = null;
@@ -324,6 +329,20 @@ export function playLogged(start: GameState, agents: { corp: Agent; runner: Agen
         entry.credits += cost;
         rootSpent += cost;
       }
+    }
+    for (const sv of Object.values(after.corp.servers)) {
+      for (const c of sv.root) {
+        if (trapsSeen.has(c.instanceId) || !isTrap(c.cardCode)) continue;
+        trapsSeen.add(c.instanceId);
+        (traps[cardDef(c).title] ??= { installed: 0, accessed: 0 }).installed++;
+      }
+    }
+    // Accessed cards are listed on the run (a trap's access prompt keeps the run open)
+    for (const { id } of after.activeRun?.accessed ?? []) {
+      if (!trapsSeen.has(id) || trapsHit.has(id)) continue;
+      trapsHit.add(id);
+      const c = Object.values(before.corp.servers).flatMap(sv => sv.root).find(x => x.instanceId === id);
+      if (c) traps[cardDef(c).title].accessed++;
     }
     // A fresh approach to unrezzed ice the Corp can't pay for
     const approached = (st: GameState) => (st.activeRun?.phase === 'approach_ice' ? st.corp.servers[st.activeRun.server]?.ice[st.activeRun.icePosition ?? -1] : undefined);
@@ -435,6 +454,7 @@ export function playLogged(start: GameState, agents: { corp: Agent; runner: Agen
     rezzes,
     rootRezzes,
     brokeApproaches,
+    traps,
     agendaInstalls,
     early,
     money,
