@@ -15,7 +15,7 @@ import { createInitialGameState, cardDef, GameState } from '../src/core';
 import { DECKS, deckGameSetup } from '../src/data/decks';
 import { createAgent } from '../src/ai';
 import { GameRunner } from '../src/ai/playout';
-import { runSuccess, stealOdds } from '../src/ai/effectValues';
+import { PACE, runSuccess, stealOdds } from '../src/ai/effectValues';
 import { AGENDA_RUN } from '../src/ai/evaluate';
 import { tuning } from '../src/ai/synergy';
 
@@ -105,7 +105,7 @@ for (const c of DECKS.filter(d => d.side === 'corp')) for (const r of DECKS.filt
         if (before.activePlayer !== 'runner' && after.activePlayer === 'runner') {
           watch = watchRemotes(after);
           hqAgendas = after.corp.hq.filter(h => cardDef(h).type_code === 'agenda').map(h => h.instanceId);
-          hqGuess = Math.min(1, (hqAgendas.length * stealOdds(after, 'hq')) / Math.max(1, after.corp.hq.length));
+          hqGuess = Math.min(1, (hqAgendas.length * stealOdds(after, 'hq', PACE.runs * PACE.hqShare)) / Math.max(1, after.corp.hq.length));
         }
         if (before.activePlayer === 'runner' && after.activePlayer !== 'runner' && !before.activeRun) {
           const stolen = new Set(after.runner.scoreArea.map(x => x.instanceId));

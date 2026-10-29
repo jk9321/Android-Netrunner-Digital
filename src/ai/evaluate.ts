@@ -247,8 +247,8 @@ function archivedAgendasValue(state: GameState, viewer: SideCode): number {
 
 /**
  * Agendas in HQ (Jeff, 2026-10-28; plan.hqSteal): as exposed as agendas in
- * a remote. The Corp assumes the Runner runs HQ whenever it can get in
- * (stealOdds), and a breach of HQ accesses one random card (rules 7.3.2,
+ * a remote: the odds the Runner gets into HQ (stealOdds, at its measured
+ * HQ run rate: 0.84 a turn guessed 2-4x the real HQ steals), and a breach of HQ accesses one random card (rules 7.3.2,
  * 7.4.1), so each agenda is stolen at its share of the hand. A steal swings
  * the agenda's points from the Corp's clock to the Runner's.
  */
@@ -256,7 +256,8 @@ export function hqAgendaLoss(state: GameState): number {
   const hq = state.corp.hq;
   const agendas = hq.filter(c => cardDef(c).type_code === 'agenda');
   if (!agendas.length) return 0;
-  const perCard = stealOdds(state, 'hq') / hq.length;
+  // The Runner can't see which cards are agendas, so it runs HQ at its usual rate (measured, scripts/steal-odds.ts), not as it goes after a known agenda
+  const perCard = stealOdds(state, 'hq', PACE.runs * PACE.hqShare) / hq.length;
   return agendas.reduce((n, c) => {
     const points = cardDef(c).agenda_points ?? 1;
     const swing = pointValue(state.runner.score + points) - pointValue(state.runner.score) + pointValue(state.corp.score + points) - pointValue(state.corp.score);
