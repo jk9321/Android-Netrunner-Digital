@@ -129,6 +129,11 @@ export const tuning = {
     /** BANGUN installs agendas faceup when it pays (off: always facedown, to measure what faceup is worth). */
     bangunFaceUp: true,
     /**
+     * No faceup agenda in a server without ice unless the Runner's grip is 2 or less. At d85fe6e faceup
+     * was worth +9 to Pork Chops (57.7% vs 48.5%), but the 66 bare ones were stolen 98% of the time.
+     */
+    bangunNoBareBait: true,
+    /**
      * The exposure check by what the Runner can pay, not by layers of ice (Jeff, 2026-10-29). Off: self-play
      * 39.0% (old rule 41.3%), new Corp vs old Runner 43.1% (45.8%); without income 38.9% / 44.1%; no
      * exposure check at all 36.6% / 42.3%. Agendas waited in HQ and were raided there.
