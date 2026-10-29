@@ -203,7 +203,7 @@ Netrunner/
 ## 5. Branches
 
 * **`main`** is the live site (Cloudflare deploys every push). Only bugfixes for what is already on main go straight to main. After each one, merge main into `beta` so beta does not drift.
-* **`beta`** is for new cards (Vantage Point onwards) and ALL AI work, including tuning and balance. Branch work from beta and merge back into beta. Cloudflare builds beta as a preview Worker version (Version history), so test there.
+* **`beta`** is for new cards (Vantage Point onwards) and ALL AI work, including tuning and balance. Branch work from beta and merge back into beta. Cloudflare builds beta as a preview Worker version (Version history); its preview URL is `beta-android-netrunner-digital.<workers.dev subdomain>.workers.dev`, so test there.
 * **beta merges into main only when Jeff says it is ready.**
 * AI batches: run the "AI batch" workflow with `ref` set to `beta` (or a branch off beta). Compare batches only against batches from the same branch.
 
