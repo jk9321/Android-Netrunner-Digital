@@ -9,7 +9,7 @@ import { findCardAnywhere, illegal, locateCorpCard, removeCard } from '../helper
 import { getCardScript } from '../../scripts';
 import { activePrompt, sideName } from '../prompts';
 import { beginCorpTurn, finishDiscard, resumeTurn } from './turn';
-import { chooseBreachCandidate, continueAccess, finishAccess, succeedRun, trashAccessedCard } from './run';
+import { chooseBreachCandidate, continueAccess, finishAccess, resolveStealCost, STEAL_COST_STEP, succeedRun, trashAccessedCard } from './run';
 import { availableCredits, spendCredits } from '../cardEffects';
 import { resumeEncounter, resumeOnEncounter } from '../ice';
 import { fireTrigger } from '../triggers';
@@ -76,6 +76,7 @@ function answerPrompt(state: GameState, action: ResolvePromptAction): void {
       );
       finishDiscard(state);
       fireTrigger(state, { type: 'discarded_to_hand_size', side: prompt.side, cards: chosen });
+      for (const card of chosen) if (cardDef(card).type_code === 'hardware') fireTrigger(state, { type: 'hardware_trashed', card });
       return;
     }
 
@@ -83,6 +84,11 @@ function answerPrompt(state: GameState, action: ResolvePromptAction): void {
       if (choice.kind !== 'effect_choice') return;
       if (!prompt.options.some(o => o.id === choice.optionId)) illegal('Not one of the options');
       if (choice.trashFirst?.length && !prompt.source.data?.install) illegal('This choice does not install a card');
+      if (prompt.source.step === STEAL_COST_STEP) {
+        const data = prompt.source.data ?? {};
+        resolveStealCost(state, prompt.source.instanceId, choice.optionId === 'steal', { clicks: Number(data.clicks ?? 0), credits: Number(data.credits ?? 0) });
+        return;
+      }
       runScriptAnswer(state, prompt.source, choice);
       return;
     }

@@ -12,6 +12,7 @@ const DATA_DIR = path.resolve(__dirname, '..', 'src', 'data');
 const SETS = {
   sg: 'system-gateway-cards.json',
   elev: 'elevation-cards.json',
+  vp: 'vantage-point-cards.json',
 };
 
 console.log('Fetching card data from NetrunnerDB...');

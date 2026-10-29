@@ -52,6 +52,14 @@ export interface CardScript {
   accessAbility?: AccessAbility;
   /** A run started by this card is successful (Red Team, Jailbreak, Conduit). */
   onRunSuccessful?(ctx: EffectContext): void;
+  /**
+   * A run started by this card would approach the server (Baker, with
+   * RunState.bakerRedirect): may ask a question and, once answered, must call
+   * approachServer() itself. Returns true if it paused the approach.
+   */
+  onWouldApproachServer?(ctx: EffectContext): boolean;
+  /** An additional cost the Corp pays to score `agenda` while this card is active (Word on the Street). */
+  payScoreCost?(ctx: EffectContext, agenda: Card): void;
   /** A run started by this card ends (Charm Offensive). */
   onRunEnds?(ctx: EffectContext, run: RunState): void;
   /** "As an additional cost to play this event/operation, spend [click]" (Double cards). */
@@ -82,6 +90,36 @@ export interface CardScript {
   installsOnIce?: boolean;
   /** Extra play restriction checked before a Runner card is installed. Return a reason to forbid. */
   canInstall?(ctx: EffectContext): string | null;
+  /** Change to this operation's or event's play cost (Tailgate). Negative = cheaper. */
+  playCostModifier?(state: GameState, card: Card): number;
+  /** Change to this card's own rez cost, active while it is unrezzed (Reverb, Hype Machine; rules 9.1.8d). */
+  ownRezCostModifier?(state: GameState, card: Card): number;
+  /** Where this upgrade may be installed: 'central' (The Red Room) or 'hq-rd' (Flagship). */
+  installOnly?: 'central' | 'hq-rd';
+  /** "Install only faceup" agenda: installed faceup and active while installed (Sacrifice Zone Expansion, rules 3.2.3a). */
+  installFaceUpOnly?: boolean;
+  /**
+   * An additional cost to steal `agenda`: its own (Méliès City Luxury Line,
+   * active even while inactive, rules 9.1.8e; `self` is the agenda) or one
+   * an active card adds to every agenda (Magistrate Revontulet).
+   */
+  stealCost?(state: GameState, self: Card, agenda: Card): { clicks?: number; credits?: number } | null;
+  /** Subroutines this card can give a piece of ice (Stick and Poke), referred to by index from EncounterState.grantedSubs. */
+  grantedSubroutines?: Subroutine[];
+  /** This card can host installed Runner cards (Hackerspace): installing one onto it is allowed when this returns true. */
+  hostsInstalled?(state: GameState, self: Card, card: Card): boolean;
+  /** Credits off the install cost of a card installed onto this one (Hackerspace: 1). */
+  hostedInstallDiscount?: number;
+  /** Cards in hostedCards are facedown: the Corp can't see them (Read-Write Share). */
+  hostedFaceDown?: boolean;
+  /** Hosted credits on this card can be spent during runs, on anything (Methuselah, Touchstone). */
+  paysDuringRuns?: boolean;
+  /** "When this card would be uninstalled": runs before an installed Corp card leaves play (Luana Campos). */
+  onUninstall?(ctx: EffectContext): void;
+  /** While this card is rezzed, runs against its server cannot be declared successful (Flagship, rules 6.8.4a). */
+  blocksSuccess?: boolean;
+  /** While rezzed (and persistent once trashed), the Runner cannot access more than 1 card other than this one during runs on its server (Flagship, rules 7.4.2b). */
+  limitsAccessToOne?: boolean;
 }
 
 /**
@@ -100,7 +138,8 @@ export type TriggerEvent =
   | { type: 'rezzed'; card: Card }
   | { type: 'advanced'; card: Card; hadCounters: boolean }
   | { type: 'agenda_scored'; card: Card; serverId: string }
-  | { type: 'agenda_stolen'; card: Card }
+  /** `serverId`: the server attacked when it was stolen (Perfect Recall's "stolen from this server"). */
+  | { type: 'agenda_stolen'; card: Card; serverId?: string }
   | { type: 'successful_run'; server: string }
   | { type: 'approach_server'; server: string }
   | { type: 'run_ends'; server: string; successful: boolean; accessedCount: number; stoleAgenda: boolean }
@@ -120,7 +159,21 @@ export type TriggerEvent =
   | { type: 'hq_trashed'; count: number }
   /** A player gained credits through an ability on `source` (The Zwicky Group). */
   | { type: 'credits_gained'; side: SideCode; amount: number; source: Card }
-  | { type: 'agenda_forfeited'; card: Card };
+  | { type: 'agenda_forfeited'; card: Card }
+  | { type: 'bad_publicity_taken'; count: number }
+  /** The Runner broke subroutines on `ice` with `breaker` (null: an ability on the ice, like a bioroid's). */
+  | { type: 'subroutines_broken'; ice: Card; breaker: Card | null; count: number }
+  /** The Runner passed a piece of ice; `fullyBroken` only when passed after an encounter in which they fully broke it (rules 6.1.3f). */
+  | { type: 'ice_passed'; ice: Card; server: string; fullyBroken: boolean; outermost: boolean }
+  /** The Runner fully broke the encountered ice (rules 6.5.7a). */
+  | { type: 'ice_fully_broken'; ice: Card }
+  | { type: 'event_played'; card: Card }
+  /** Facedown cards in Archives were turned faceup (Nurse Hạnh). */
+  | { type: 'archives_turned_faceup'; count: number }
+  /** A piece of hardware was trashed, from any location (Hiram "0mission" Svensson). */
+  | { type: 'hardware_trashed'; card: Card }
+  /** The Runner spent credits from outside their credit pool during a run (Shackleton Grid). */
+  | { type: 'credits_spent_outside_pool'; amount: number };
 
 /** Where a card was accessed from. */
 export type AccessZone = 'installed' | 'hq' | 'rd' | 'archives';
@@ -153,6 +206,10 @@ export interface CardAbility {
   trashSelf?: boolean;
   removeSelfFromGame?: boolean;
   oncePerTurn?: boolean;
+  /** Usable only while this card is in HQ (Tocsin: "reveal and trash this ice from HQ"). */
+  fromHQ?: boolean;
+  /** The credits can only come from stealth cards (Corsair). */
+  stealthOnly?: boolean;
   /** Extra condition. Return a reason to forbid using the ability now. */
   canUse?(ctx: EffectContext): string | null;
   resolve(ctx: EffectContext): void;
@@ -162,6 +219,8 @@ export type CounterType = 'credit' | 'virus' | 'power' | 'agenda';
 
 /** What a payment is for, so cards with restricted credits know whether they can help. */
 export type PaymentPurpose =
+  /** Only credits from stealth cards ("Spend credits only from stealth cards": Corsair, Lampades, Baker). */
+  | { kind: 'stealth' }
   | { kind: 'rez'; card: Card }
   | { kind: 'install'; card: Card }
   | { kind: 'trash'; card: Card }
@@ -170,8 +229,8 @@ export type PaymentPurpose =
 export interface CardModifiers {
   /** +memory units while active (Runner hardware). */
   memory?: number;
-  /** +maximum hand size for the controller while active. */
-  handSize?: number;
+  /** +maximum hand size for the controller while active (a function when it depends on the game: Hackerspace). */
+  handSize?: number | ((state: GameState, self: Card) => number);
   /** Change to the install cost of a Runner card (DZMZ Optimizer). Negative = cheaper. */
   runnerInstallCost?(state: GameState, self: Card, installing: Card): number;
   /** Cards drawn by the first basic draw action each turn, instead of 1 (Verbal Plasticity). */
@@ -186,6 +245,10 @@ export interface CardModifiers {
   rezCost?(state: GameState, self: Card, rezzing: Card): number;
   /** Change to the trash cost of a Corp card (Mahkota Langit Grid). */
   trashCost?(state: GameState, self: Card, trashing: Card, serverId: string | undefined): number;
+  /** Change to the strength of each piece of ice (The Tungsten Tailor: -1). */
+  iceStrength?(state: GameState, self: Card, ice: Card): number;
+  /** Clicks off the play action for this operation (Synchrocyclotron: the first double each turn). */
+  playClickDiscount?(state: GameState, self: Card, playing: Card): number;
 }
 
 /**
@@ -218,6 +281,14 @@ export interface IceScript {
   fracterOnly?: boolean;
   /** "X[credit]: Break 1 subroutine on this ice. Only the Runner can use this ability." (N-Pot) */
   runnerBreakCost?: number;
+  /** A bioroid's own click break ability, instead of "[Lose click]: Break 1 subroutine" (Ansel 2.0: lose 2 clicks, up to 2). */
+  clickBreak?: { clicks: number; max: number };
+  /** "When the Runner passes this ice" (Vertigo). */
+  onPass?(ctx: EffectContext): void;
+  /** "Whenever the Runner bypasses this ice" (Lethe). */
+  onBypassed?(ctx: EffectContext): void;
+  /** "Whenever an encounter with this ice ends" (Knowledge Seeker). */
+  onEncounterEnds?(ctx: EffectContext): void;
 }
 
 export type IceSubtype = 'barrier' | 'code gate' | 'sentry';

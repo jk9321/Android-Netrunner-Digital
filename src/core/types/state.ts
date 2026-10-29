@@ -45,6 +45,11 @@ export interface CorpState {
   /** Extra clicks for the Corp's next turn (Aggressive Trendsetting). */
   bonusClicksNextTurn?: number;
   /**
+   * Méliès U: the central server named on the copy of the identity the Corp
+   * secretly set (rules 1.5.2b). Hidden from the Runner until the identity flips.
+   */
+  meliesServer?: 'hq' | 'rd' | 'archives';
+  /**
    * Cards the Runner has seen in HQ: revealed (Peer Review, Malapert Data
    * Vault, rules 1.21.3), accessed and left in HQ, or added from a faceup
    * place. Revealing does not turn them faceup, so they stay hidden in HQ and
@@ -77,6 +82,8 @@ export interface RunnerState {
   rig: RunnerRig;
   /** Cards the Corp has seen in the grip (MuslihaT, Mutual Favor, Touch-ups). See knownToRunner. */
   knownToCorp?: KnownHandCard[];
+  /** Change to the Runner's allotted clicks for their next turn (Caveat Emptor: +1 or -1). */
+  bonusClicksNextTurn?: number;
 }
 
 /**
@@ -107,6 +114,14 @@ export interface EncounterState {
   onEncounterPending?: boolean;
   /** Strength change to the encountered ice for this encounter only (e.g. Leech). */
   iceStrengthModifier: number;
+  /**
+   * Subroutines the ice gained for this encounter, before its printed ones
+   * (Stick and Poke, rules 9.8.3a): the granting card's code and the index
+   * into its script's grantedSubroutines. `broken` covers these first.
+   */
+  grantedSubs?: { cardCode: string; index: number }[];
+  /** The Runner fully broke this ice during this encounter (rules 6.5.7). */
+  fullyBroken?: boolean;
 }
 
 /** A card whose "if successful" effect is attached to this run (Red Team, Jailbreak, Conduit). */
@@ -178,6 +193,20 @@ export interface RunState {
   accessOnly: boolean;
   /** The Runner has approached the attacked server (rules 6.9.4g); the run becomes successful next. */
   serverApproached?: boolean;
+  /** Credits in the bad publicity fund (rules 10.6.2): the Runner can spend them during this run only. */
+  badPublicityCredits?: number;
+  /** Inactive cards whose hosted credits the Runner can spend during this run (Aircheck). */
+  creditHosts?: string[];
+  /** The Runner cannot lose or spend credits from their credit pool during this run (Aircheck). */
+  poolLocked?: boolean;
+  /** Titles the Runner cannot steal or trash for the rest of this run (Perfect Recall). */
+  protectedTitles?: string[];
+  /** Strength added to every piece of ice for the rest of this run (ezaM). */
+  iceStrengthBonus?: number;
+  /** The run reached the Success Phase but could not be declared successful (Flagship, rules 6.8.4a). */
+  notDeclaredSuccessful?: boolean;
+  /** At Archives, the Runner may pay 1 stealth credit to approach HQ or R&D instead (Baker). */
+  bakerRedirect?: boolean;
 }
 
 /** The end of a turn or the Corp's draw, paused while players answer prompts (see engine/actions/turn.ts). */

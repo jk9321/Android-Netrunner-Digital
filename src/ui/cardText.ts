@@ -20,6 +20,8 @@ const SYMBOLS: Record<string, string> = {
   '[recurring-credit]': symbol('recurring-credit', 'text-amber-300', RECURRING_CREDIT_ICON_HTML),
   '[mu]': symbol('mu', 'text-pink-300', MU_ICON_HTML),
   '[link]': symbol('link', 'text-emerald-400', LINK_ICON_HTML),
+  // Vantage Point: "[interrupt] → When this asset would be uninstalled" (Luana Campos)
+  '[interrupt]': symbol('interrupt', 'text-yellow-300', '<span class="uppercase tracking-wide text-[0.85em]">Interrupt</span>'),
 };
 
 /**

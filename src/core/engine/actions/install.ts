@@ -104,6 +104,7 @@ export function trashFirst(state: GameState, trash: CardInstance[]): void {
 
 /** BANGUN: agendas may be installed faceup. */
 export function canInstallFaceUp(state: GameState, card: CardInstance): boolean {
+  if (getCardScript(card.cardCode)?.installFaceUpOnly) return true;
   return cardDef(card).type_code === 'agenda' && !!getCardScript(state.corp.identity.cardCode)?.agendasFaceUp;
 }
 
@@ -135,6 +136,9 @@ export function corpInstallBlocker(
   if ((def.type_code === 'agenda' || def.type_code === 'asset') && server && !server.isRemote) {
     return 'Agendas and assets can only be installed in a remote server';
   }
+  const only = getCardScript(card.cardCode)?.installOnly;
+  if (only === 'central' && (!server || server.isRemote)) return `${def.title} can only be installed in a central server`;
+  if (only === 'hq-rd' && server?.id !== 'hq' && server?.id !== 'rd') return `${def.title} can only be installed in HQ or R&D`;
   const cost = corpInstallCost(state, card, serverId, ignoreCosts, discount);
   if (state.corp.credits < cost) return `Need ${cost} credits to install ice on this server`;
   return null;
@@ -159,7 +163,9 @@ export function installCorpCardFrom(
 
   removeCard(zone, card);
   card.isRezzed = false;
-  card.faceUp = options.faceUp && def.type_code === 'agenda' ? true : undefined;
+  // "Install only faceup" agendas are always installed faceup (Sacrifice Zone Expansion)
+  const faceUp = options.faceUp || !!getCardScript(card.cardCode)?.installFaceUpOnly;
+  card.faceUp = faceUp && def.type_code === 'agenda' ? true : undefined;
   // A card the Runner accessed in this breach (rules 7.3.1a) or saw faceup before stays known to them
   if (runnerSawBeforeInstall(state, card, zone)) card.runnerKnows = true;
   else delete card.runnerKnows;
@@ -246,11 +252,13 @@ export function runnerInstallBlocker(state: GameState, card: CardInstance, hostI
     if (!hostInstanceId) return `${def.title} must be installed on a piece of ice`;
     if (!installedIce(state).some(c => c.instanceId === hostInstanceId)) return 'Host must be an installed piece of ice';
   } else if (hostInstanceId) {
-    return `${def.title} cannot be hosted`;
+    const host = runnerHost(state, hostInstanceId);
+    if (!host || !getCardScript(host.cardCode)?.hostsInstalled?.(state, host, card)) return `${def.title} cannot be hosted there`;
   }
   const restriction = script?.canInstall?.({ state, card, side: 'runner' });
   if (restriction) return restriction;
-  if (availableCredits(state, 'runner', { kind: 'install', card }) < runnerInstallCost(state, card, discount)) {
+  const hostDiscount = hostInstanceId && !script?.installsOnIce ? hostedDiscount(state, hostInstanceId) : 0;
+  if (availableCredits(state, 'runner', { kind: 'install', card }) < runnerInstallCost(state, card, discount + hostDiscount)) {
     return 'Not enough credits to install';
   }
   const mem = def.type_code === 'program' ? def.memory_cost || 0 : 0;
@@ -258,6 +266,18 @@ export function runnerInstallBlocker(state: GameState, card: CardInstance, hostI
     return 'Not enough memory units to install this program';
   }
   return null;
+}
+
+/** An installed Runner card that can host other installed cards (Hackerspace). */
+export function runnerHost(state: GameState, instanceId: string): CardInstance | undefined {
+  const { programs, hardware, resources } = state.runner.rig;
+  return [...programs, ...hardware, ...resources].find(c => c.instanceId === instanceId && getCardScript(c.cardCode)?.hostsInstalled);
+}
+
+/** Install cost discount for installing onto a host (Hackerspace). */
+function hostedDiscount(state: GameState, hostInstanceId: string): number {
+  const host = runnerHost(state, hostInstanceId);
+  return host ? getCardScript(host.cardCode)?.hostedInstallDiscount ?? 0 : 0;
 }
 
 /**
@@ -274,7 +294,8 @@ export function installRunnerCardFrom(
   const blocker = runnerInstallBlocker(state, card, hostInstanceId, discount);
   if (blocker) illegal(blocker);
   const def = cardDef(card);
-  const installCost = runnerInstallCost(state, card, discount);
+  const onRunnerCard = hostInstanceId && !getCardScript(card.cardCode)?.installsOnIce ? runnerHost(state, hostInstanceId) : undefined;
+  const installCost = runnerInstallCost(state, card, discount + (onRunnerCard ? hostedDiscount(state, onRunnerCard.instanceId) : 0));
   const mem = def.type_code === 'program' ? def.memory_cost || 0 : 0;
 
   removeCard(zone, card);
@@ -296,9 +317,13 @@ export function installRunnerCardFrom(
   if (host) {
     card.hostedOnId = host.instanceId;
     host.hostedCardIds.push(card.instanceId);
+  } else if (onRunnerCard) {
+    // Hosted on another Runner card (Hackerspace); trashed along with it
+    card.hostedOnId = onRunnerCard.instanceId;
   }
 
-  addLog(state, 'runner', `Runner paid ${installCost} [credit] to install ${def.title}${host ? ' on a piece of ice' : ''}.`, undefined, 'install');
+  const where = host ? ' on a piece of ice' : onRunnerCard ? ` onto ${cardDef(onRunnerCard).title}` : '';
+  addLog(state, 'runner', `Runner paid ${installCost} [credit] to install ${def.title}${where}.`, undefined, 'install');
   enforceInstallLimits(state, card);
   fireTrigger(state, { type: 'installed', card, paid: installCost });
 }

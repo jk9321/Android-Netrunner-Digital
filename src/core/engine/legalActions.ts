@@ -3,7 +3,7 @@ import { GameAction } from '../types/actions';
 import { GameState } from '../types/state';
 import { isLegalAction } from './gameEngine';
 import { activePrompt } from './prompts';
-import { breakerScript } from './ice';
+import { breakerScript, encounteredIce, iceScript } from './ice';
 import { abilitySources, abilityUsableFrom } from './actions/ability';
 import { canInstallFaceUp, playableHostZones } from './actions/install';
 import { getCardScript } from '../scripts';
@@ -120,6 +120,12 @@ function candidateActions(state: GameState, side: SideCode): GameAction[] {
         }
       } else {
         candidates.push({ type: 'INSTALL_CARD', player: 'runner', cardInstanceId: card.instanceId });
+        // Onto an installed card that hosts it (Hackerspace)
+        for (const host of [...state.runner.rig.resources, ...state.runner.rig.hardware, ...state.runner.rig.programs]) {
+          if (getCardScript(host.cardCode)?.hostsInstalled?.(state, host, card)) {
+            candidates.push({ type: 'INSTALL_CARD', player: 'runner', cardInstanceId: card.instanceId, hostInstanceId: host.instanceId });
+          }
+        }
       }
     }
     for (const server of servers) {
@@ -159,6 +165,14 @@ function breakCandidates(state: GameState): GameAction[] {
   }
   for (const subroutineIndex of unbroken) {
     actions.push({ type: 'BIOROID_BREAK', player: 'runner', subroutineIndex });
+  }
+  // Ice whose own ability breaks several subroutines at once (Ansel 2.0)
+  const ice = encounteredIce(state);
+  const clickBreak = ice ? iceScript(ice)?.clickBreak : undefined;
+  for (let k = 2; k <= (clickBreak?.max ?? 1); k++) {
+    for (const subroutineIndices of combinations(unbroken, k)) {
+      actions.push({ type: 'BIOROID_BREAK', player: 'runner', subroutineIndex: subroutineIndices[0], subroutineIndices });
+    }
   }
   return actions;
 }

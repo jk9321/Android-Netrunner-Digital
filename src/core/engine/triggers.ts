@@ -13,8 +13,12 @@ import { findCardAnywhere } from './helpers';
 export function activeCards(state: GameState, side?: SideCode): CardInstance[] {
   const corp = (): CardInstance[] => [
     state.corp.identity,
-    ...Object.values(state.corp.servers).flatMap(s => [...s.ice, ...s.root]).filter(c => c.isRezzed),
-    ...state.corp.scoreArea,
+    // Agendas whose printed text installs them faceup are active while installed (rules 3.2.3a)
+    ...Object.values(state.corp.servers)
+      .flatMap(s => [...s.ice, ...s.root])
+      .filter(c => c.isRezzed || (c.faceUp && getCardScript(c.cardCode)?.installFaceUpOnly)),
+    // Runner cards added to the Corp's score area as agendas (Word on the Street) are not the Corp's to use
+    ...state.corp.scoreArea.filter(c => cardDef(c).side_code === 'corp'),
   ];
   const runner = (): CardInstance[] => {
     const { programs, hardware, resources } = state.runner.rig;

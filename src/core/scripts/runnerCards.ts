@@ -16,7 +16,7 @@ import {
   TurnFlag,
   useOncePerTurn,
 } from '../engine/cardEffects';
-import { encounteredIce, iceScript } from '../engine/ice';
+import { encounteredIce, iceSubroutines, markSubroutinesBroken } from '../engine/ice';
 import { CardScript, EffectContext } from './types';
 import { askCards, askChoice, askRunnerInstall, gainCredits, installRunnerChoice, installRunnerHostChoice, installableRunnerCards } from './effects';
 
@@ -223,7 +223,7 @@ const botulus: CardScript = {
       resolve: ctx => {
         const encounter = ctx.state.activeRun!.encounter!;
         const ice = encounteredIce(ctx.state)!;
-        const subs = iceScript(ice)?.subroutines ?? [];
+        const subs = iceSubroutines(ctx.state, ice);
         const options = encounter.broken.flatMap((b, i) => (b ? [] : [{ id: String(i), label: subs[i]?.label ?? `Subroutine ${i + 1}` }]));
         if (options.length === 1) {
           breakWithBotulus(ctx.state, Number(options[0].id));
@@ -241,8 +241,8 @@ const botulus: CardScript = {
 function breakWithBotulus(state: GameState, index: number): void {
   const encounter = state.activeRun?.encounter;
   if (!encounter) return;
-  encounter.broken[index] = true;
   addLog(state, 'runner', `Botulus broke subroutine ${index + 1}.`);
+  markSubroutinesBroken(state, [index], null);
 }
 
 // Fermenter: When you install this program and when your turn begins, place 1

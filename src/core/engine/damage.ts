@@ -28,6 +28,7 @@ export function dealDamage(state: GameState, type: DamageType, amount: number, b
     state.runner.heap.push(card);
     trashed.push(card);
   }
+  for (const card of trashed) if (cardDef(card).type_code === 'hardware') fireTrigger(state, { type: 'hardware_trashed', card });
   const what = trashed.length > 0 ? `, trashing ${trashed.map(c => cardDef(c).title).join(', ')}` : '';
   addLog(state, byCorp ? 'corp' : 'runner', byCorp ? `Corp did ${amount} ${type} damage${what}.` : `Runner suffered ${amount} ${type} damage${what}.`, undefined, amount > 0 ? 'damage' : undefined);
   if (amount > 0 && !state.winner) fireTrigger(state, { type: 'damage_dealt', damage: type, amount, byCorp });
@@ -63,6 +64,16 @@ export function installedRunnerCards(state: GameState): CardInstance[] {
 
 /** Trashes an installed Runner card to the heap, freeing its memory if it is a program. */
 export function trashInstalledRunnerCard(state: GameState, card: CardInstance): void {
+  uninstallRunnerCard(state, card, 'heap');
+  if (cardDef(card).type_code === 'hardware') fireTrigger(state, { type: 'hardware_trashed', card });
+}
+
+/**
+ * Takes an installed Runner card out of play to the heap, the grip (Lethe)
+ * or the top or bottom of the stack (Beta Build, Scapegoat), freeing its
+ * memory. What it hosted is trashed (rules 1.13).
+ */
+export function uninstallRunnerCard(state: GameState, card: CardInstance, to: 'heap' | 'grip' | 'stackTop' | 'stack'): void {
   const { rig } = state.runner;
   if (removeCard(rig.programs, card)) {
     state.runner.memoryUnitsUsed -= cardDef(card).memory_cost || 0;
@@ -75,7 +86,10 @@ export function trashInstalledRunnerCard(state: GameState, card: CardInstance): 
     card.hostedOnId = undefined;
   }
   card.tokens = {};
-  state.runner.heap.push(card);
+  if (to === 'heap') state.runner.heap.push(card);
+  else if (to === 'grip') state.runner.grip.push(card);
+  else if (to === 'stackTop') state.runner.stack.unshift(card);
+  else state.runner.stack.push(card);
   // Cards hosted faceup on it (Bling, Madani, Detente) go to their owners' discard piles
   for (const hosted of card.hostedCards ?? []) {
     if (cardDef(hosted).side_code === 'corp') state.corp.archives.faceUp.push(hosted);

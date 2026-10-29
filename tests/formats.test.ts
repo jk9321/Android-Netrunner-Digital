@@ -6,15 +6,15 @@ const titlesBanned = (id: 'startup' | 'standard') =>
   ALL_CARDS.filter(c => isBanned(getFormat(id), c)).map(c => c.title).sort();
 
 describe('formats', () => {
-  it('bans the System Gateway and Elevation cards on the current lists', () => {
-    expect(titlesBanned('startup')).toEqual(['Cleaver', 'Mercia B4LL4RD', 'NBN: Reality Plus', 'Offworld Office', 'Seamless Launch']);
-    expect(titlesBanned('standard')).toEqual(['Cleaver', 'Luminal Transubstantiation', 'Offworld Office', 'Touch-ups']);
+  it('bans the System Gateway, Elevation and Vantage Point cards on the current lists', () => {
+    expect(titlesBanned('startup')).toEqual(['Cleaver', 'Let Them Dream', 'Mercia B4LL4RD', 'NBN: Reality Plus', 'Offworld Office', 'Seamless Launch']);
+    expect(titlesBanned('standard')).toEqual(['Cleaver', 'Luminal Transubstantiation', 'Méliès U: Only the Brightest', 'Offworld Office', 'Touch-ups']);
   });
 
   it('allows every card in casual, and both core sets in Startup and Standard', () => {
     for (const f of FORMATS) {
       const sets = f.sets;
-      if (sets) expect(sets).toEqual(expect.arrayContaining(['sg', 'elev']));
+      if (sets) expect(sets).toEqual(expect.arrayContaining(['sg', 'elev', 'vp']));
     }
     expect(titlesBanned('casual' as never)).toEqual([]);
   });

@@ -112,6 +112,8 @@ export interface BoostBreakerAction extends BaseAction {
 export interface BioroidBreakAction extends BaseAction {
   type: 'BIOROID_BREAK';
   subroutineIndex: number;
+  /** Ice whose ability breaks more than one subroutine per use (Ansel 2.0): all the subroutines broken, subroutineIndex among them. */
+  subroutineIndices?: number[];
 }
 
 export interface ResolvePromptAction extends BaseAction {

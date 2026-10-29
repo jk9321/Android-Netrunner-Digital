@@ -1,8 +1,9 @@
 import { AdvanceCardAction, RezCardAction, ScoreAgendaAction } from '../../types/actions';
 import { GameState } from '../../types/state';
 import { CardInstance } from '../../types/card';
-import { fireTrigger } from '../triggers';
+import { activeCards, fireTrigger } from '../triggers';
 import {
+  agendaPoints,
   availableCredits,
   bumpTurnFlag,
   enforceInstallLimits,
@@ -23,6 +24,7 @@ import {
   removeCard,
   requireActionPhase,
   requireClicks,
+  turnKey,
 } from '../helpers';
 
 export function advanceCard(state: GameState, action: AdvanceCardAction): void {
@@ -61,13 +63,18 @@ export function scoreAgenda(state: GameState, action: ScoreAgendaAction): void {
     illegal(`Needs ${def.advancement_cost} advancement counters to score`);
   }
 
+  // Additional costs to score (Word on the Street)
+  for (const c of activeCards(state, 'runner')) getCardScript(c.cardCode)?.payScoreCost?.({ state, card: c, side: 'runner' }, card);
   removeCard(server.root, card);
   card.isRezzed = true;
   delete card.faceUp;
+  card.scoredTurn = turnKey(state);
   state.corp.scoreArea.push(card);
-  const pts = def.agenda_points || 0;
+  const pts = agendaPoints(card);
   state.corp.score += pts;
   bumpTurnFlag(state, TurnFlag.agendaPointsScored, pts);
+  bumpTurnFlag(state, TurnFlag.agendasScoredOrStolen);
+  if (card.installedTurn !== turnKey(state)) bumpTurnFlag(state, TurnFlag.scoredNotInstalledThisTurn);
   addLog(state, 'corp', `Corp scored ${def.title} for ${pts} agenda point(s)! Total: ${state.corp.score}`);
   checkAgendaVictory(state);
   if (!state.winner) fireTrigger(state, { type: 'agenda_scored', card, serverId: server.id });
@@ -135,6 +142,7 @@ export function rezForFree(state: GameState, card: CardInstance): void {
   // Rezzed, it is faceup and the Runner sees it; they may remember it if it is derezzed (rules 1.12.5)
   card.runnerKnows = true;
   delete card.faceUp;
+  if (cardDef(card).type_code === 'ice') bumpTurnFlag(state, TurnFlag.iceRezzed);
   refillRecurring(card);
   enforceInstallLimits(state, card);
   fireTrigger(state, { type: 'rezzed', card });

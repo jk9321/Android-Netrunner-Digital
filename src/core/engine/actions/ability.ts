@@ -15,7 +15,7 @@ export function abilityUsedKey(instanceId: string, index: number): string {
   return `ability:${instanceId}:${index}`;
 }
 
-type AbilityZone = 'active' | 'archives' | 'runnerScoreArea';
+type AbilityZone = 'active' | 'archives' | 'runnerScoreArea' | 'hq';
 
 /**
  * Cards whose abilities `side` might use: its active cards, the Corp's
@@ -31,6 +31,7 @@ export function abilitySources(state: GameState, side: SideCode): { card: CardIn
     const { faceUp, faceDown } = state.corp.archives;
     for (const card of [...faceUp, ...faceDown]) if (has(card, a => !!a.fromArchives)) sources.push({ card, where: 'archives' });
     for (const card of state.runner.scoreArea) if (has(card, a => !!a.fromRunnerScoreArea)) sources.push({ card, where: 'runnerScoreArea' });
+    for (const card of state.corp.hq) if (has(card, a => !!a.fromHQ)) sources.push({ card, where: 'hq' });
   }
   return sources;
 }
@@ -39,6 +40,8 @@ export function abilitySources(state: GameState, side: SideCode): { card: CardIn
 export function abilityUsableFrom(ability: CardAbility, where: AbilityZone, own: boolean): boolean {
   if (where === 'archives') return !!ability.fromArchives;
   if (ability.fromArchives) return false;
+  if (where === 'hq') return !!ability.fromHQ;
+  if (ability.fromHQ) return false;
   if (where === 'runnerScoreArea') return !!ability.fromRunnerScoreArea;
   return own || !!ability.anyPlayer;
 }
@@ -66,7 +69,8 @@ export function useAbility(state: GameState, action: UseAbilityAction): void {
   const key = abilityUsedKey(card.instanceId, action.abilityIndex);
   if (ability.oncePerTurn && turnFlag(state, key) > 0) illegal(`${title}: once per turn`);
   const credits = ability.credits ?? 0;
-  if (availableCredits(state, side) < credits) illegal(`Need ${credits} credits`);
+  const purpose = ability.stealthOnly ? ({ kind: 'stealth' } as const) : undefined;
+  if (availableCredits(state, side, purpose) < credits) illegal(ability.stealthOnly ? `Need ${credits} credits from stealth cards` : `Need ${credits} credits`);
   if (ability.counters && counters(card, ability.counters.type) < ability.counters.count) {
     illegal(`${title} needs ${ability.counters.count} ${ability.counters.type} counter(s)`);
   }
@@ -74,7 +78,7 @@ export function useAbility(state: GameState, action: UseAbilityAction): void {
   if (reason) illegal(reason);
 
   state[side].clicks -= clicks;
-  spendCredits(state, side, credits);
+  spendCredits(state, side, credits, purpose);
   if (ability.counters) removeCounters(card, ability.counters.type, ability.counters.count);
   if (ability.oncePerTurn) state.turnFlags[key] = 1;
   addLog(state, side, `${side === 'corp' ? 'Corp' : 'Runner'} used ${title}: ${ability.label}`, card.cardCode);

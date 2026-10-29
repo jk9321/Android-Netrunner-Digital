@@ -8,7 +8,7 @@ import { addLog } from '../log';
 import { illegal, removeCard, requireActionPhase, requireClicks } from '../helpers';
 import { runnerHandZone } from './install';
 import { bumpTurnFlag, TurnFlag } from '../cardEffects';
-import { fireTrigger } from '../triggers';
+import { activeCards, fireTrigger } from '../triggers';
 import { effectResolved, effectResolving } from '../uncommitted';
 
 /**
@@ -19,13 +19,24 @@ export function playOperationOrEvent(state: GameState, action: PlayOperationOrEv
   const side = action.player;
   requireActionPhase(state, side);
   const card = playableCard(state, side, action.cardInstanceId);
-  const extra = getCardScript(card.cardCode)?.extraClicks ?? 0;
+  const extra = Math.max(0, (getCardScript(card.cardCode)?.extraClicks ?? 0) - playClickDiscount(state, side, card));
   requireClicks(state, side, 1 + extra);
   const zone = side === 'corp' ? state.corp.hq : runnerHandZone(state, card.instanceId)!;
   const blocker = playBlocker(state, side, card, true);
   if (blocker) illegal(blocker);
   state[side].clicks -= 1 + extra;
   playCardFrom(state, side, card, zone, { fromHand: true, clicksSpent: 1 + extra });
+}
+
+/** Clicks off a double's play action (Synchrocyclotron). */
+function playClickDiscount(state: GameState, side: SideCode, card: CardInstance): number {
+  return activeCards(state, side).reduce((n, c) => n + (getCardScript(c.cardCode)?.modifiers?.playClickDiscount?.(state, c, card) ?? 0), 0);
+}
+
+/** An operation's or event's play cost right now (Tailgate: 1 less for each ice protecting HQ). */
+export function playCost(state: GameState, card: CardInstance): number {
+  const cost = (cardDef(card).cost || 0) + (getCardScript(card.cardCode)?.playCostModifier?.(state, card) ?? 0);
+  return Math.max(0, cost);
 }
 
 function playableCard(state: GameState, side: SideCode, instanceId: string): CardInstance {
@@ -44,7 +55,7 @@ export function playBlocker(state: GameState, side: SideCode, card: CardInstance
   if (!script?.onPlay) throw new NotImplementedError(`${def.title} (card effect)`);
   const restriction = script.canPlay?.({ state, card, side, playedFromHand: fromHand });
   if (restriction) return restriction;
-  const cost = def.cost || 0;
+  const cost = playCost(state, card);
   if (state[side].credits < cost) return `Need ${cost} credits to play ${def.title}`;
   return null;
 }
@@ -67,7 +78,7 @@ export function playCardFrom(state: GameState, side: SideCode, card: CardInstanc
   if (blocker) illegal(blocker);
   const def = cardDef(card);
   const script = getCardScript(card.cardCode)!;
-  const cost = def.cost || 0;
+  const cost = playCost(state, card);
   state[side].credits -= cost;
   removeCard(zone, card);
   card.isRezzed = true;
@@ -78,7 +89,10 @@ export function playCardFrom(state: GameState, side: SideCode, card: CardInstanc
   addLog(state, side, `${side === 'corp' ? 'Corp' : 'Runner'} spent ${clicks}${cost} [credit] to play ${def.title}.`, card.cardCode);
   if (side === 'corp') {
     bumpTurnFlag(state, TurnFlag.operationsPlayed);
+    if (/\bdouble\b/i.test(def.keywords ?? '')) bumpTurnFlag(state, TurnFlag.doublesPlayed);
     fireTrigger(state, { type: 'operation_played', card });
+  } else {
+    fireTrigger(state, { type: 'event_played', card });
   }
   effectResolving(state);
   script.onPlay!({ state, card, side, playedFromHand: options.fromHand });

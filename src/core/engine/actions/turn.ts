@@ -100,8 +100,11 @@ function handOver(state: GameState, side: SideCode): void {
   if (side === 'corp') {
     state.activePlayer = 'runner';
     state.phase = 'runner_turn';
-    state.runner.clicks = state.runner.maxClicks;
-    addLog(state, 'corp', 'Corp ended turn. Runner turn begins (4 clicks).');
+    // Caveat Emptor: +1 or -1 allotted click for this turn
+    const bonus = state.runner.bonusClicksNextTurn ?? 0;
+    state.runner.clicks = Math.max(0, state.runner.maxClicks + bonus);
+    state.runner.bonusClicksNextTurn = 0;
+    addLog(state, 'corp', `Corp ended turn. Runner turn begins (${state.runner.clicks} clicks).`);
     refillRecurringCredits(state, 'runner');
     fireTrigger(state, { type: 'turn_begins', side: 'runner' });
     return;

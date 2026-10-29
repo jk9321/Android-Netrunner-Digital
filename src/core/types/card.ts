@@ -81,4 +81,12 @@ export interface CardInstance {
   runnerKnows?: boolean;
   /** Cards hosted faceup on this card without being installed (Bling, Madani, Detente). */
   hostedCards?: CardInstance[];
+  /**
+   * A card in a score area worth a different number of agenda points than
+   * printed: a non-agenda added as an agenda (Myōshu: 2, Word on the Street:
+   * -1), or Let Them Dream in the Runner's score area. See agendaPoints().
+   */
+  asAgendaPoints?: number;
+  /** Turn key (see turnKey()) when this agenda was scored (Witch Hunt). */
+  scoredTurn?: string;
 }

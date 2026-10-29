@@ -21,6 +21,9 @@ export function endRun(state: GameState): void {
   state.activeRun = null;
   state.phase = state.activePlayer === 'corp' ? 'corp_turn' : 'runner_turn';
   if (run.accessOnly) return; // Detente: accessing outside a run
+  // The encounter in progress ends with the run (Knowledge Seeker)
+  const encountered = run.encounter && state.corp.servers[run.server]?.ice.find(c => c.instanceId === run.encounter!.iceId);
+  if (encountered?.isRezzed) getCardScript(encountered.cardCode)?.ice?.onEncounterEnds?.({ state, card: encountered, side: 'corp' });
   for (const source of run.runEffects) {
     const card = findCardAnywhere(state, source.instanceId);
     if (card) getCardScript(source.cardCode)?.onRunEnds?.({ state, card, side: 'runner' }, run);

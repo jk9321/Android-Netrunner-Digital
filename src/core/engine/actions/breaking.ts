@@ -16,6 +16,7 @@ import {
   iceStrength,
   iceSubtypes,
   isBioroid,
+  markSubroutinesBroken,
 } from '../ice';
 
 /** The encounter in its break window (before subroutines start resolving). */
@@ -61,9 +62,9 @@ export function breakSubroutine(state: GameState, action: BreakSubroutineAction)
   const cost = script.breakCost(state, breaker);
   if (availableCredits(state, 'runner') < cost) illegal(`Need ${cost} credits`);
   spendCredits(state, 'runner', cost);
-  for (const i of indices) encounter.broken[i] = true;
-  script.onBreakUsed?.(state, breaker);
   addLog(state, 'runner', `Runner paid ${cost} [credit] to break ${indices.length} subroutine(s) on ${cardDef(ice).title} with ${name}.`);
+  script.onBreakUsed?.(state, breaker);
+  markSubroutinesBroken(state, indices, breaker);
 }
 
 export function boostBreaker(state: GameState, action: BoostBreakerAction): void {
@@ -73,6 +74,7 @@ export function boostBreaker(state: GameState, action: BoostBreakerAction): void
   const cost = boostCostOf(state, breaker);
   if (availableCredits(state, 'runner') < cost) illegal(`Need ${cost} credits`);
   const amount = script.boostAmount(state, breaker);
+  if (amount <= 0) illegal(`${cardDef(breaker).title} has no strength ability`);
   spendCredits(state, 'runner', cost);
   addBreakerStrength(state, breaker, amount);
   addLog(state, 'runner', `Runner paid ${cost} [credit]: ${cardDef(breaker).title} +${amount} strength (now ${breakerStrength(state, breaker)}).`);
@@ -84,19 +86,27 @@ export function boostBreaker(state: GameState, action: BoostBreakerAction): void
  */
 export function bioroidBreak(state: GameState, action: BioroidBreakAction): void {
   const { encounter, ice } = breakWindow(state, action.player);
-  const credits = iceScript(ice)?.runnerBreakCost;
+  const script = iceScript(ice);
+  const credits = script?.runnerBreakCost;
   if (credits === undefined && !isBioroid(ice)) illegal('This ice has no ability to break its subroutines');
-  const i = action.subroutineIndex;
-  if (i < 0 || i >= encounter.broken.length) illegal('No such subroutine');
-  if (encounter.broken[i]) illegal('Subroutine already broken');
+  // "[Lose click]: Break 1 subroutine", or the ice's own version (Ansel 2.0: lose 2 clicks, break up to 2)
+  const clickBreak = script?.clickBreak ?? { clicks: 1, max: 1 };
+  const indices = action.subroutineIndices ?? [action.subroutineIndex];
+  const max = credits !== undefined ? 1 : clickBreak.max;
+  if (indices.length === 0 || indices.length > max || !indices.includes(action.subroutineIndex)) illegal(`Break 1${max > 1 ? `-${max}` : ''} subroutine(s) per use`);
+  if (new Set(indices).size !== indices.length) illegal('Duplicate subroutine');
+  for (const i of indices) {
+    if (i < 0 || i >= encounter.broken.length) illegal('No such subroutine');
+    if (encounter.broken[i]) illegal('Subroutine already broken');
+  }
   if (credits !== undefined) {
     if (availableCredits(state, 'runner') < credits) illegal(`Need ${credits} credits`);
     spendCredits(state, 'runner', credits);
     addLog(state, 'runner', `Runner paid ${credits} [credit] to break a subroutine on ${cardDef(ice).title}.`);
   } else {
-    if (state.runner.clicks < 1) illegal('No clicks left to lose');
-    state.runner.clicks -= 1;
-    addLog(state, 'runner', `Runner lost [click] to break a subroutine on ${cardDef(ice).title}.`);
+    if (state.runner.clicks < clickBreak.clicks) illegal(clickBreak.clicks === 1 ? 'No clicks left to lose' : `Need ${clickBreak.clicks} clicks to lose`);
+    state.runner.clicks -= clickBreak.clicks;
+    addLog(state, 'runner', `Runner lost ${'[click]'.repeat(clickBreak.clicks)} to break ${indices.length} subroutine(s) on ${cardDef(ice).title}.`);
   }
-  encounter.broken[i] = true;
+  markSubroutinesBroken(state, indices, null);
 }

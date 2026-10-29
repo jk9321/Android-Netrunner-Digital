@@ -2,10 +2,11 @@ import { CardInstance } from '../types/card';
 import { GameState } from '../types/state';
 import { cardDef } from '../cards';
 import { getCardScript } from '../scripts';
-import { BreakerScript, IceScript, IceSubtype } from '../scripts/types';
+import { BreakerScript, IceScript, IceSubtype, Subroutine } from '../scripts/types';
 import { addLog } from './log';
 import { endRun } from './runEnd';
-import { fireTrigger } from './triggers';
+import { activeCards, fireTrigger } from './triggers';
+import { findCardAnywhere } from './helpers';
 
 export function iceScript(ice: CardInstance): IceScript | undefined {
   return getCardScript(ice.cardCode)?.ice;
@@ -55,10 +56,57 @@ export function installedIcebreakers(state: GameState): CardInstance[] {
   return state.runner.rig.programs.filter(isIcebreaker);
 }
 
+/**
+ * The ice's current strength. It can be negative (rules 1.1.3: The Tungsten
+ * Tailor cares about ice "with 0 or less strength").
+ */
 export function iceStrength(state: GameState, ice: CardInstance): number {
+  const run = state.activeRun;
+  const encounterMod = run?.encounter?.iceId === ice.instanceId ? run.encounter.iceStrengthModifier : 0;
+  const fromCards = activeCards(state).reduce((n, c) => n + (getCardScript(c.cardCode)?.modifiers?.iceStrength?.(state, c, ice) ?? 0), 0);
+  return (cardDef(ice).strength ?? 0) + (iceScript(ice)?.strengthModifier?.(state, ice) ?? 0) + encounterMod + fromCards + (run?.iceStrengthBonus ?? 0);
+}
+
+/**
+ * The subroutines on the ice in this encounter, in order: ones it gained for
+ * the encounter (Stick and Poke, rules 9.8.3a), then its printed ones.
+ * Outside an encounter with it, just the printed ones.
+ */
+export function iceSubroutines(state: GameState, ice: CardInstance): Subroutine[] {
+  const printed = iceScript(ice)?.subroutines ?? [];
   const encounter = state.activeRun?.encounter;
-  const encounterMod = encounter?.iceId === ice.instanceId ? encounter.iceStrengthModifier : 0;
-  return Math.max(0, (cardDef(ice).strength ?? 0) + (iceScript(ice)?.strengthModifier?.(state, ice) ?? 0) + encounterMod);
+  if (encounter?.iceId !== ice.instanceId || !encounter.grantedSubs?.length) return printed;
+  const granted = encounter.grantedSubs.flatMap(g => getCardScript(g.cardCode)?.grantedSubroutines?.[g.index] ?? []);
+  return [...granted, ...printed];
+}
+
+/**
+ * The ice gains a subroutine for this encounter, before its other subroutines
+ * (rules 9.8.3a: the most recently added first). It starts unbroken.
+ */
+export function grantSubroutine(state: GameState, cardCode: string, index: number): void {
+  const encounter = state.activeRun?.encounter;
+  if (!encounter) return;
+  encounter.grantedSubs = [{ cardCode, index }, ...(encounter.grantedSubs ?? [])];
+  encounter.broken = [false, ...encounter.broken];
+  if (encounter.resolvingIndex !== null) encounter.resolvingIndex += 1;
+}
+
+/**
+ * Marks subroutines of the encountered ice broken (by `breaker`, or by an
+ * ability that isn't an icebreaker's) and, the first time all of them are
+ * broken this encounter, the Runner fully breaks the ice (rules 6.5.7a).
+ */
+export function markSubroutinesBroken(state: GameState, indices: number[], breaker: CardInstance | null): void {
+  const encounter = state.activeRun?.encounter;
+  const ice = encounteredIce(state);
+  if (!encounter || !ice) return;
+  for (const i of indices) encounter.broken[i] = true;
+  fireTrigger(state, { type: 'subroutines_broken', ice, breaker, count: indices.length });
+  if (!encounter.fullyBroken && state.activeRun?.encounter === encounter && encounter.broken.every(Boolean)) {
+    encounter.fullyBroken = true;
+    fireTrigger(state, { type: 'ice_fully_broken', ice });
+  }
 }
 
 /** Current breaker strength, including boosts for the encounter in progress. */
@@ -126,6 +174,8 @@ export function bypassIce(state: GameState): void {
   const ice = encounteredIce(state);
   if (!ice) return;
   addLog(state, 'runner', `Runner bypassed ${cardDef(ice).title}.`);
+  iceScript(ice)?.onBypassed?.({ state, card: ice, side: 'corp' });
+  if (!state.activeRun || state.winner) return;
   passIce(state);
 }
 
@@ -151,7 +201,7 @@ function continueSubroutines(state: GameState): void {
     const encounter = run?.encounter;
     if (!run || !encounter || encounter.resolvingIndex === null) return; // run ended
     const ice = encounteredIce(state);
-    const subs = ice ? iceScript(ice)?.subroutines ?? [] : [];
+    const subs = ice ? iceSubroutines(state, ice) : [];
     const i = encounter.resolvingIndex;
     if (!ice || i >= subs.length) break;
     encounter.resolvingIndex = i + 1;
@@ -173,9 +223,25 @@ function continueSubroutines(state: GameState): void {
 export function passIce(state: GameState): void {
   const run = state.activeRun;
   if (!run) return;
+  const encounter = run.encounter;
+  const server = state.corp.servers[run.server];
+  const ice = run.icePosition === null ? undefined : server?.ice[run.icePosition];
   run.encounter = null;
   run.icePassed += 1;
   enterMovement(state);
+  if (!ice) return;
+  if (encounter) endEncounter(state, ice);
+  if (state.activeRun !== run || state.winner) return;
+  // "When the Runner passes this ice" (Vertigo), then cards that care (Sipa)
+  if (ice.isRezzed) iceScript(ice)?.onPass?.({ state, card: ice, side: 'corp' });
+  if (state.activeRun !== run || state.winner) return;
+  const outermost = server.ice[server.ice.length - 1]?.instanceId === ice.instanceId;
+  fireTrigger(state, { type: 'ice_passed', ice, server: run.server, fullyBroken: !!encounter?.fullyBroken, outermost });
+}
+
+/** "Whenever an encounter with this ice ends" (Knowledge Seeker): when it is passed, or the run ends during it. */
+export function endEncounter(state: GameState, ice: CardInstance): void {
+  iceScript(ice)?.onEncounterEnds?.({ state, card: ice, side: 'corp' });
 }
 
 /** The Movement Phase: the Runner chooses to jack out or go on (CONTINUE_RUN). */
@@ -240,6 +306,16 @@ export function moveRunnerTo(state: GameState, serverId: string): void {
  */
 export function approachServer(state: GameState): void {
   const run = state.activeRun!;
+  if (run.bakerRedirect) {
+    // Baker: "When you would approach Archives, you may pay ... to instead change the attacked server"
+    run.bakerRedirect = false;
+    run.phase = 'approach_server';
+    run.icePosition = null;
+    for (const source of run.runEffects) {
+      const card = findCardAnywhere(state, source.instanceId);
+      if (card && getCardScript(source.cardCode)?.onWouldApproachServer?.({ state, card, side: 'runner' })) return;
+    }
+  }
   if (run.redirectToHq && run.server === 'archives') {
     // Maintenance Access: the attacked server becomes HQ
     run.server = 'hq';

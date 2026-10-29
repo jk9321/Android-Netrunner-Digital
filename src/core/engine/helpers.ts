@@ -3,6 +3,7 @@ import { GameState, KnownHandCard, ServerState } from '../types/state';
 import { cardDef } from '../cards';
 import { IllegalActionError } from './errors';
 import { addLog } from './log';
+import { getCardScript } from '../scripts';
 
 export const WINNING_SCORE = 7;
 
@@ -125,6 +126,7 @@ export function removeCard(cards: CardInstance[], card: CardInstance): boolean {
  * Runner programs hosted on it (Botulus, Tranquilizer) are trashed too.
  */
 export function trashInstalledCorpCard(state: GameState, server: ServerState, card: CardInstance): void {
+  beforeCorpCardUninstalled(state, card);
   removeCard(server.root, card) || removeCard(server.ice, card);
   for (const hostedId of card.hostedCardIds) {
     const hosted = state.runner.rig.programs.find(c => c.instanceId === hostedId);
@@ -149,6 +151,11 @@ export function trashInstalledCorpCard(state: GameState, server: ServerState, ca
   } else {
     state.corp.archives.faceDown.push(card);
   }
+}
+
+/** "When this card would be uninstalled" interrupts on a rezzed Corp card (Luana Campos), before it leaves play. */
+export function beforeCorpCardUninstalled(state: GameState, card: CardInstance): void {
+  if (card.isRezzed) getCardScript(card.cardCode)?.onUninstall?.({ state, card, side: 'corp' });
 }
 
 /** True if the card can receive advancement counters via the advance action. */

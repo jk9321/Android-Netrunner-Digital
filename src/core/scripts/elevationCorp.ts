@@ -11,11 +11,13 @@ import { endTheRun } from '../engine/runEnd';
 import { moveRunnerTo } from '../engine/ice';
 import {
   addCounters,
+  agendaPoints,
   availableCredits,
   corpTrashFromHQ,
   counters,
   drawForEffect,
   flipIdentity,
+  forfeitable,
   forfeitAgenda,
   gainFromCard,
   installedIce,
@@ -657,12 +659,12 @@ const safePlayBlockerFrom = (state: GameState, card: CardInstance) => {
 const plutus: CardScript = {
   rezBlocker: (state, card, cost) => {
     if (availableCredits(state, 'corp', { kind: 'rez', card }) < cost) return 'Not enough credits to rez';
-    return state.corp.scoreArea.length > 0 || state.corp.hq.length >= 3 ? null : 'Needs an agenda to forfeit or 3 cards in HQ';
+    return forfeitable(state).length > 0 || state.corp.hq.length >= 3 ? null : 'Needs an agenda to forfeit or 3 cards in HQ';
   },
   payRez: (ctx, cost) => {
     const { state } = ctx;
     askChoice(ctx, 'corp', 'Plutus: forfeit 1 agenda or trash 3 cards from HQ to rez it.', [
-      ...state.corp.scoreArea.map(a => ({ id: a.instanceId, label: `Forfeit ${cardDef(a).title}` })),
+      ...forfeitable(state).map(a => ({ id: a.instanceId, label: `Forfeit ${cardDef(a).title}` })),
       ...(state.corp.hq.length >= 3 ? [{ id: 'hq', label: 'Reveal and trash 3 cards from HQ' }] : []),
     ], 'rez_cost', { cost });
   },
@@ -681,7 +683,7 @@ const plutus: CardScript = {
         askCards(ctx, 'corp', 'Plutus: reveal and trash 3 cards from HQ.', ids(state.corp.hq), 3, 3, 'rez_trash', { cost });
         return;
       }
-      const agenda = state.corp.scoreArea.find(a => a.instanceId === answer.optionId);
+      const agenda = forfeitable(state).find(a => a.instanceId === answer.optionId);
       if (!agenda) return;
       forfeitAgenda(state, agenda);
       spendCredits(state, 'corp', cost, { kind: 'rez', card });
@@ -934,7 +936,7 @@ const biawak: CardScript = {
   rezBlocker: (state, card, cost) => {
     const credits = availableCredits(state, 'corp', { kind: 'rez', card });
     if (credits >= cost) return null;
-    return state.corp.scoreArea.length > 0 && credits >= cost - 10 ? null : 'Not enough credits to rez';
+    return forfeitable(state).length > 0 && credits >= cost - 10 ? null : 'Not enough credits to rez';
   },
   payRez: (ctx, cost) => {
     const { state, card } = ctx;
@@ -942,7 +944,7 @@ const biawak: CardScript = {
     const options = [
       ...(canPay ? [{ id: 'pay', label: `Pay ${cost} credits` }] : []),
       ...(availableCredits(state, 'corp', { kind: 'rez', card }) >= cost - 10
-        ? state.corp.scoreArea.map(a => ({ id: a.instanceId, label: `Forfeit ${cardDef(a).title} and pay ${Math.max(0, cost - 10)}` }))
+        ? forfeitable(state).map(a => ({ id: a.instanceId, label: `Forfeit ${cardDef(a).title} and pay ${Math.max(0, cost - 10)}` }))
         : []),
     ];
     askChoice(ctx, 'corp', 'Biawak: how do you pay its rez cost?', options, 'rez_cost', { cost });
@@ -955,7 +957,7 @@ const biawak: CardScript = {
       if (answer.optionId === 'pay') {
         spendCredits(state, 'corp', cost, { kind: 'rez', card });
       } else {
-        const agenda = state.corp.scoreArea.find(a => a.instanceId === answer.optionId);
+        const agenda = forfeitable(state).find(a => a.instanceId === answer.optionId);
         if (!agenda) return;
         forfeitAgenda(state, agenda);
         spendCredits(state, 'corp', Math.max(0, cost - 10), { kind: 'rez', card });
@@ -1159,7 +1161,8 @@ const ipEnforcement: CardScript = {
     } else if (source.step === 'server' && answer.kind === 'effect_choice') {
       const agenda = state.runner.scoreArea.find(a => a.instanceId === source.data?.cardId);
       if (!agenda) return;
-      state.runner.score -= cardDef(agenda).agenda_points ?? 0;
+      state.runner.score -= agendaPoints(agenda);
+      delete agenda.asAgendaPoints;
       agenda.isRezzed = false;
       installCorpChoice(state, source, answer);
       if (state.runner.tags > 0) agenda.advancementCounters += 1;

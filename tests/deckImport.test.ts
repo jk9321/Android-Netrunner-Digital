@@ -142,9 +142,9 @@ describe('deck import', () => {
       calls.push(url);
       const json = (data: unknown[]) => ({ ok: true, status: 200, json: async () => ({ data }) });
       if (url.endsWith('/decklist/98786')) {
-        return json([{ name: 'Stealing the Stars', cards: { '35057': 1, '30052': 2, '36042': 2, '99001': 3 } }]);
+        return json([{ name: 'Stealing the Stars', cards: { '35057': 1, '30052': 2, '37042': 2, '99001': 3 } }]);
       }
-      if (url.endsWith('/card/36042')) return json([{ title: 'Some Later Ice' }]);
+      if (url.endsWith('/card/37042')) return json([{ title: 'Some Later Ice' }]);
       if (url.endsWith('/card/99001')) return json([{ title: 'Hedge Fund' }]); // a reprint
       return { ok: false, status: 404, json: async () => ({}) };
     }) as unknown as typeof fetch;
