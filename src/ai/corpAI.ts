@@ -259,7 +259,8 @@ export class HeuristicCorpAI implements Agent {
         const installCost = type(card) === 'ice' && server ? server.ice.length : 0;
         if (action.faceUp && !tuning.plan.bangunFaceUp) return -Infinity;
         // (Jeff) a faceup agenda with no ice is stolen 98% of the time: only as a flatline threat (plan.bangunNoBareBait)
-        if (action.faceUp && tuning.plan.bangunNoBareBait && !(server?.ice.length) && state.runner.grip.length > 2) return -Infinity;
+        // (Jeff) early on, 2 points cost less than 2 cards and a tag: the bait stays while the Runner has 2 points or fewer (plan.bangunEarlyBait)
+        if (action.faceUp && tuning.plan.bangunNoBareBait && !(server?.ice.length) && state.runner.grip.length > 2 && !(tuning.plan.bangunEarlyBait && state.runner.score <= 2)) return -Infinity;
         const faceUp = action.faceUp ? (this.synergy && tuning.plan.identities ? -this.bangunBait(state) : 0.5) : 0;
         return this.installScore(state, card, server) - faceUp - reservePenalty(state, corp.credits - installCost, this.wideReserve);
       }
