@@ -9,6 +9,8 @@ import { cardDef } from '../src/core/cards';
 import { rezCost } from '../src/core/engine/cardEffects';
 import { CardInstance } from '../src/core';
 import { iceCost, isTrap } from '../src/ai/runs';
+import { CARD_PROFILES } from '../src/ai/cardProfiles';
+import { counters } from '../src/core/engine/cardEffects';
 import { Agent, GameRunner } from '../src/ai';
 
 export interface Steal {
@@ -107,6 +109,8 @@ export interface GameRecord {
   brokeApproaches: { total: number; rootSpend: number };
   /** Traps installed in a root, by title, and how many the Runner accessed (the odds a trap fires) */
   traps: Record<string, { installed: number; accessed: number }>;
+  /** Money assets rezzed (card profiles), by title: credits they paid out before leaving play, what rezzing them cost, how they left */
+  assets: Record<string, { rezzed: number; paid: number; cost: number; trashed: number; emptied: number; atEnd: number; turns: number }>;
 }
 
 /** What a step that changed the Corp's credits did, read from the state change. */
@@ -234,6 +238,9 @@ function reasonOf(state: GameState): string {
 }
 
 /** Plays a game to the end (or the step/turn limits) and records it. */
+/** Money assets still out when the game ends. */
+let closeAssets: () => GameRecord['assets'] = () => ({});
+
 export function playLogged(start: GameState, agents: { corp: Agent; runner: Agent }, decks: { corp: string; runner: string }): GameRecord {
   const runner = new GameRunner(start, agents);
   const steals: Steal[] = [];
@@ -254,6 +261,17 @@ export function playLogged(start: GameState, agents: { corp: Agent; runner: Agen
   const brokeApproaches = { total: 0, rootSpend: 0 };
   let rootSpent = 0;
   const traps: GameRecord['traps'] = {};
+  const assets: GameRecord['assets'] = {};
+  const live = new Map<string, { title: string; load: number; left: number; turn: number }>();
+  closeAssets = () => {
+    for (const entry of live.values()) {
+      const a = assets[entry.title];
+      a.paid += entry.load - entry.left;
+      a.turns += (runner.state.turnNumber - entry.turn) / 2;
+      a.atEnd++;
+    }
+    return assets;
+  };
   const trapsSeen = new Set<string>();
   const trapsHit = new Set<string>();
   const lowRezzes: { turn: number; cost: number }[] = [];
@@ -336,6 +354,29 @@ export function playLogged(start: GameState, agents: { corp: Agent; runner: Agen
         trapsSeen.add(c.instanceId);
         (traps[cardDef(c).title] ??= { installed: 0, accessed: 0 }).installed++;
       }
+    }
+    // Money assets: rezzed, paying out, and how they leave
+    const roots = new Map(Object.values(after.corp.servers).flatMap(sv => sv.root).map(c => [c.instanceId, c]));
+    for (const c of roots.values()) {
+      if (!c.isRezzed || !CARD_PROFILES[c.cardCode] || cardDef(c).side_code !== 'corp') continue;
+      const entry = live.get(c.instanceId);
+      if (entry) entry.left = counters(c, 'credit');
+      else {
+        const title = cardDef(c).title;
+        const a = (assets[title] ??= { rezzed: 0, paid: 0, cost: 0, trashed: 0, emptied: 0, atEnd: 0, turns: 0 });
+        a.rezzed++;
+        a.cost += Math.max(0, before.corp.credits - after.corp.credits);
+        live.set(c.instanceId, { title, load: counters(c, 'credit'), left: counters(c, 'credit'), turn: after.turnNumber });
+      }
+    }
+    for (const [id, entry] of live) {
+      if (roots.has(id)) continue;
+      const a = assets[entry.title];
+      a.paid += entry.load - entry.left;
+      a.turns += (after.turnNumber - entry.turn) / 2;
+      if (before.activeRun) a.trashed++;
+      else a.emptied++;
+      live.delete(id);
     }
     // Accessed cards are listed on the run (a trap's access prompt keeps the run open)
     for (const { id } of after.activeRun?.accessed ?? []) {
@@ -455,6 +496,7 @@ export function playLogged(start: GameState, agents: { corp: Agent; runner: Agen
     rootRezzes,
     brokeApproaches,
     traps,
+    assets: closeAssets(),
     agendaInstalls,
     early,
     money,

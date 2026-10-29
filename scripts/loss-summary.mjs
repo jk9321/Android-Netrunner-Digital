@@ -92,6 +92,19 @@ export function printLossSummary(games, detail = !!process.env.DETAIL) {
     const all = [...m.values()].reduce((a, v) => ({ installed: a.installed + v.installed, accessed: a.accessed + v.accessed }), { installed: 0, accessed: 0 });
     console.log(`Traps installed and accessed: all ${all.accessed}/${all.installed} (${pct(all.accessed, all.installed)}); ` + [...m].sort((a, b) => b[1].installed - a[1].installed).map(([k, v]) => `${k} ${v.accessed}/${v.installed}`).join(', '));
   }
+  if (games[0]?.assets) {
+    const m = new Map();
+    for (const g of games) for (const [k, v] of Object.entries(g.assets)) {
+      const e = m.get(k) ?? { rezzed: 0, paid: 0, cost: 0, trashed: 0, emptied: 0, atEnd: 0, turns: 0 };
+      for (const f of Object.keys(e)) e[f] += v[f];
+      m.set(k, e);
+    }
+    console.log('Money assets (rezzed: credits paid out / rez cost each, Corp turns out, trashed in a run / emptied / still out at the end):');
+    for (const [k, v] of [...m].sort((a, b) => b[1].rezzed - a[1].rezzed)) {
+      const each = x => (x / Math.max(v.rezzed, 1)).toFixed(1);
+      console.log(`  ${k}: ${v.rezzed}: paid ${each(v.paid)} / cost ${each(v.cost)}, ${each(v.turns)} turns, ${pct(v.trashed, v.rezzed)} / ${pct(v.emptied, v.rezzed)} / ${pct(v.atEnd, v.rezzed)}`);
+    }
+  }
   if (steals[0]?.stopperAt !== undefined) {
     const run = steals.filter(s => s.stopperAt !== undefined && ['remote', 'rd', 'hq'].includes(s.from));
     console.log(`Placement (steals from runs in Corp losses: ${run.length}):`);
