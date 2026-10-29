@@ -6,6 +6,7 @@ import {
   canBreakSubroutinesWith,
   iceScript,
   iceStrength,
+  iceSubroutines,
   iceSubtypes,
   installedIcebreakers,
   isBioroid,
@@ -60,7 +61,7 @@ export function knownSubroutineCost(state: GameState, label: string): number | u
     const costs = Object.values(state.corp.servers)
       .flatMap(server => server.ice)
       .filter(ice => ice.isRezzed && iceSubtypes(ice, state).some(t => t === type))
-      .flatMap(ice => (iceScript(ice)?.subroutines ?? []).filter(sub => !/resolve 1 subroutine on/i.test(sub.label)))
+      .flatMap(ice => (iceSubroutines(state, ice)).filter(sub => !/resolve 1 subroutine on/i.test(sub.label)))
       .map(sub => subroutineCost(state, sub.label));
     return costs.length > 0 ? Math.max(...costs) : 0;
   }
@@ -72,9 +73,30 @@ export function knownSubroutineCost(state: GameState, label: string): number | u
   if (/end the run if the runner is tagged/i.test(label)) return runner.tags > 0 ? BLOCK : 1;
   if (/if the runner has at least 2 tags/i.test(label)) return runner.tags >= 2 ? (2 >= runner.grip.length ? BLOCK : 4) : 0;
   const rates = !!tuning.plan.subCosts;
+  // Vantage Point: "... unless the Runner pays N credits": the cheaper of paying and letting the rest resolve
+  const pays = label.match(/^(.*?)\s*unless the runner pays (\d+) (?:\[credit\]|credits?)\.?$/i);
+  if (pays) {
+    const n = Number(pays[2]);
+    const rest = /^end the run$/i.test(pays[1]) ? BLOCK : knownSubroutineCost(state, pays[1]) ?? 2;
+    return runner.credits >= n ? Math.min(rates ? creditCost(state, n) : n, rest) : rest;
+  }
+  const jacks = label.match(/^(.*?)\s*unless the runner jacks out\.?$/i);
+  if (jacks) return knownSubroutineCost(state, jacks[1]);
+  if (/do x net damage and give the runner x tags/i.test(label)) {
+    // Vicsek: X is the Runner's tags
+    const x = runner.tags;
+    if (x === 0) return 0;
+    return x >= runner.grip.length ? BLOCK : (rates ? damageWorth(state, x) + tagCost(state) * x : 2 * x + 3 * x);
+  }
+  if (/loses? \[click\]/i.test(label)) return rates ? clickRate('runner') : 2;
+  if (/gets \+1 strength for the remainder of this run/i.test(label)) return 1.5; // ezaM: every ice after it costs more to break
+  if (/installed runner card to the grip/i.test(label)) return rates ? 0.5 * trashedCardCost(state) + 1 : 2; // Lethe: a reinstall, not a loss
+  if (/remove 1 card in the heap from the game/i.test(label)) return 0.3;
+  if (/place 1 virus counter on this ice/i.test(label)) return 0; // Knowledge Seeker: counts down to its own derez
+  if (/look at the top \d+ cards? of r&d|arrange|to the (?:top or )?bottom of r&d|shuffle 1 card from hq or archives into r&d/i.test(label)) return 0.4; // Corp card selection
   if (/core damage/i.test(label)) return rates ? coreDamageWorth(state) + damageWorth(state, 1) : 6;
   if (/unless they pay 3 credits/i.test(label)) return rates ? creditCost(state, 3) : 3;
-  const loses = label.match(/loses? (\d+) credits?/i);
+  const loses = label.match(/loses? (\d+) (?:\[credit\]|credits?)/i);
   if (loses) return rates ? creditCost(state, Math.min(Number(loses[1]), runner.credits)) : Math.min(Number(loses[1]), runner.credits);
   if (/or end the run/i.test(label)) return runner.rig.programs.length > 0 ? 5 : BLOCK;
   if (/odd cost/i.test(label)) return runner.grip.length <= 1 ? BLOCK : 4; // Diviner: half the time it ends the run
@@ -88,7 +110,8 @@ export function knownSubroutineCost(state: GameState, label: string): number | u
   if (/tag/i.test(label)) return rates ? tagCost(state) : 3;
   if (/trash 1 installed runner card/i.test(label)) return rates ? trashedCardCost(state) : 4;
   if (/gain 1 credit/i.test(label)) return 0.3;
-  if (/^draw 1 card/i.test(label)) return 0.5; // Empiricist: helps the Corp a little
+  if (/gain 1 \[credit\]/i.test(label)) return 0.8; // Flywheel: a credit and maybe a card
+  if (/^(?:you may )?draw 1 card/i.test(label)) return 0.5; // Empiricist: helps the Corp a little
   if (/install/i.test(label)) return 1.5;
   return undefined;
 }
@@ -170,7 +193,7 @@ export function bestBreakPlan(state: GameState, ice: CardInstance, subCount: num
 export function iceCost(state: GameState, ice: CardInstance): number {
   if (!ice.isRezzed) return state.corp.credits >= 3 ? 1.5 : 0.5;
   // Botulus breaks the worst subroutines for free; the rest are tanked or broken
-  const costs = (iceScript(ice)?.subroutines ?? []).map(s => subroutineCost(state, s.label)).sort((a, b) => b - a);
+  const costs = (iceSubroutines(state, ice)).map(s => subroutineCost(state, s.label)).sort((a, b) => b - a);
   const subs = costs.slice(botulusBreaks(state, ice));
   const funhouse = ice.cardCode === '30054' ? (tuning.plan.modelHacks?.bonuses ? tagCost(state) : 3) : 0; // Funhouse: take a tag or the run ends
   if (subs.length === 0) return funhouse;
@@ -188,7 +211,7 @@ export function iceCost(state: GameState, ice: CardInstance): number {
  * broken in `broken` don't count. BLOCK when it can't be got past.
  */
 export function iceCreditNeed(state: GameState, ice: CardInstance, broken: boolean[] = []): number {
-  const subs = iceScript(ice)?.subroutines ?? [];
+  const subs = iceSubroutines(state, ice);
   const blocking = Math.max(0, subs.filter((s, i) => !broken[i] && subroutineCost(state, s.label) === BLOCK).length - botulusBreaks(state, ice));
   if (blocking === 0) return 0;
   const plan = bestBreakPlan(state, ice, blocking);
@@ -254,7 +277,7 @@ export function bioroidClicks(state: GameState, ice: CardInstance[]): number {
   let clicks = 0;
   for (const card of ice) {
     if (!card.isRezzed || !isBioroid(card)) continue;
-    const blocking = (iceScript(card)?.subroutines ?? []).filter(s => subroutineCost(state, s.label) === BLOCK).length - botulusBreaks(state, card);
+    const blocking = iceSubroutines(state, card).filter(s => subroutineCost(state, s.label) === BLOCK).length - botulusBreaks(state, card);
     if (blocking > 0 && !bestBreakPlan(state, card, blocking)) clicks += blocking;
   }
   return clicks;

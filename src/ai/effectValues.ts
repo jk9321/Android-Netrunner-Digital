@@ -1,4 +1,4 @@
-import { CardInstance, GameState, cardDef, getCardDefinition } from '../core';
+import { CardInstance, GameState, cardDef, getCardDefinition, getCardScript } from '../core';
 import { counters } from '../core/engine/cardEffects';
 import { PAYOUT_RISK, turnsLeft } from './cardProfiles';
 import { COUNTER_WORTH, counterWorth } from './counterValues';
@@ -364,6 +364,42 @@ export function corpEffect(state: GameState, code: string): CorpEffect | undefin
       const value = 3 + 2;
       return { keep: value, upgrade: [value, value] };
     }
+    // ---- Vantage Point ----
+    case '36027': // Synchrocyclotron: a click back on the first double each turn, as often as the deck holds doubles
+      return { keep: Math.max(0.3, perTurn(state, Math.min(1, 4 * deckShare(state, 'corp', /double/i)) * CLICK, 'corp') - cost) };
+    case '36035': { // Perfect Recall: a counter when rezzed and on each score here; each keeps the Runner off one card for a run
+      const counter = counterWorthOf(state, code, 'power');
+      const remote = counter + perTurn(state, 0.5 * PACE.agendaEvents * counter, 'corp');
+      return { keep: remote, upgrade: [remote, counter] };
+    }
+    case '36038': // Esca: on access (about half the time), 1 credit off the Runner and 1 net damage if tagged
+      return { keep: 0.5 * (1 + (state.runner.tags > 0 ? damageWorth(state, 1) : 0.2 * damageWorth(state, 1))) };
+    case '36045': { // The Red Room: central only; a counter on the first agenda each turn, each ending a run elsewhere
+      const value = perTurn(state, PACE.agendaEvents * counterWorthOf(state, code, 'power'), 'corp');
+      return { keep: value, upgrade: [0, value] };
+    }
+    case '36048': // Magistrate Revontulet: 3 credits more for each steal, 3 off the Runner on each score
+      return { keep: Math.max(0.3, perTurn(state, PACE.agendaEvents * 3, 'corp') - cost) };
+    case '36049': // Nihilo Agent: a tag at the end of each Corp turn for 3 turns, and a bad publicity the Runner spends meanwhile
+      return { keep: Math.max(0.3, perTurn(state, tag - PACE.runs * 0.5, 'corp', 0, 3) - cost) };
+    case '36055': { // Hype Machine: free to rez after an agenda; trash for an advancement counter in this root
+      const counter = CLICK + 1;
+      return { keep: 0.6 * counter, upgrade: [0.8 * counter, 0] };
+    }
+    case '36057': { // Luana Campos: each bad publicity hosted is 3 credits and a card, taken back if it is trashed
+      const hosts = Math.max(state.corp.badPublicity ?? 0, deckShare(state, 'corp', /liability/i) > 0.1 ? 2 : 0.5);
+      const keep = perTurn(state, 3 + card, 'corp', 0, Math.max(1, hosts)) - cost;
+      return { keep, econ: keep };
+    }
+    case '36064': { // Flagship: on HQ or R&D, one access a run and no successful-run payoffs
+      const central = perTurn(state, PACE.runs * (PACE.hqShare + PACE.rdShare) * 0.5 * (accessWorth(state) + 0.5), 'corp') - cost;
+      return { keep: Math.max(0.3, central), upgrade: [0, Math.max(0.3, central)] };
+    }
+    case '36065': { // Shackleton Grid: 4 meat damage when the Runner spends credits from outside its pool here
+      const hosted = state.runner.rig.hardware.concat(state.runner.rig.programs, state.runner.rig.resources).some(c => (c.tokens.credit ?? 0) > 0 || !!getCardScript(c.cardCode)?.paysDuringRuns);
+      const value = perTurn(state, PACE.runs * PACE.remoteShare * (hosted ? 0.3 : 0.05) * damageWorth(state, 4), 'corp');
+      return { keep: value, upgrade: [value, 0.6 * value] };
+    }
   }
   return undefined;
 }
@@ -454,9 +490,59 @@ export function runnerEffect(state: GameState, code: string, card?: CardInstance
       return 0;
     case '30034': // Verbal Plasticity: one more card the first time each turn it clicks to draw
       return perTurn(state, PACE.drawTurns * cardRate(state, 'runner'), 'runner');
+    // ---- Vantage Point ----
+    case '36003': // The Tungsten Tailor: -1 strength on every ice, about half a credit of boosting saved a run
+      return perTurn(state, PACE.runs * 0.5, 'runner');
+    case '36005': // Lampades: 3 counters, each a paid trash of an accessed card (stealth credits only)
+      return 3 * counterWorthOf(state, code, 'power');
+    case '36006': { // Hackerspace: companions and connections a credit cheaper, +2 hand size with one of each
+      const hosts = deckCount(state, 'runner', c => cardDef(c).type_code === 'resource' && !!cardDef(c).uniqueness && /companion|connection/i.test(cardDef(c).keywords ?? ''));
+      return Math.min(3, hosts) * 0.8 + (hosts >= 2 ? 0.6 * cardRate(state, 'runner') : 0);
+    }
+    case '36007': { // Nurse Hạnh: 2 cards when an Archives breach turns 2 or more cards faceup
+      const facedown = state.corp.archives.faceDown.length >= 2 ? 1 : 0.4;
+      return perTurn(state, PACE.runs * PACE.archivesShare * runSuccess(state, 'archives') * facedown * 2 * cardRate(state, 'runner'), 'runner');
+    }
+    case '36008': // Stick and Poke: a card drawn for a net damage on the first encounter each turn: a filter at best
+      return perTurn(state, 0.1, 'runner');
+    case '36013': // Borrowed Goods: +1 MU for a tag when untagged
+      return MU - (state.runner.tags > 0 ? 0 : flatRate('tags') && tuning.plan.tagClock ? tagsWorth(state, 'runner', 1) : RATES.tagAgainstRunner);
+    case '36014': // Rotary: +1 MU; a tag for one more access on HQ and R&D breaches, now and then
+      return MU + perTurn(state, PACE.runs * centralSuccess(state) * 0.3 * accessWorth(state), 'runner');
+    case '36015': // Baker: once a turn, a central breach past Archives' ice for a stealth credit
+      return perTurn(state, 0.25 * accessWorth(state), 'runner');
+    case '36016': { // Underdome Irregulars: 2 cards each turn the Corp rezzes ice, trashed the first turn it doesn't
+      const p = PACE.rezzes;
+      return (2 * cardRate(state, 'runner') * p) / (1 - p);
+    }
+    case '36020': // Methuselah: +1 MU; a hardware from the grip turns into 2 run credits now and then
+      return MU + perTurn(state, Math.min(1, 3 * deckShare(state, 'runner', /./, 'hardware')) * 0.5 * Math.max(0, 2 * counterWorthOf(state, code, 'credit') - cardRate(state, 'runner')), 'runner');
+    case '36021': // Touchstone: a run credit the first time each turn it plays an event
+      return perTurn(state, Math.min(1, 3 * deckShare(state, 'runner', /./, 'event')) * counterWorthOf(state, code, 'credit'), 'runner');
+    case '36022': // Read-Write Share: a card in the grip parked for a fresh draw each turn, 4 at most
+      return perTurn(state, 0.3 * cardRate(state, 'runner'), 'runner', 0, 4);
+    case '36023': // Sipa: a swap of fully broken outer ice, now and then
+      return perTurn(state, 0.2, 'runner');
+    case '36024': { // Stowaway: 2 credits on each successful run on its host's server
+      const server = card?.hostedOnId ? Object.values(state.corp.servers).find(s => s.ice.some(i => i.instanceId === card.hostedOnId)) : undefined;
+      const share = !server ? 0.25 : server.id === 'hq' ? PACE.hqShare : server.id === 'rd' ? PACE.rdShare : server.id === 'archives' ? PACE.archivesShare : PACE.remoteShare;
+      return perTurn(state, PACE.runs * share * runSuccess(state, server?.id ?? 'hq') * 2, 'runner', 0, Infinity, 1, lock());
+    }
+    case '36025': // Word on the Street: a tax on fast advances, then 4 credits and a card when the Corp scores a card it installed earlier
+      return 0.6 * (4 + cardRate(state, 'runner')) + 0.5;
   }
   return undefined;
 }
+
+/** Share of a side's decklist matching a keyword (and card type). */
+function deckShare(state: GameState, side: 'corp' | 'runner', keywords: RegExp, type?: string): number {
+  const cards = sideCards(state, side);
+  const hits = cards.filter(c => (!type || cardDef(c).type_code === type) && keywords.test(cardDef(c).keywords ?? '')).length;
+  return cards.length ? hits / cards.length : 0;
+}
+
+/** Copies in a side's decklist matching a test. */
+const deckCount = (state: GameState, side: 'corp' | 'runner', test: (c: CardInstance) => boolean): number => sideCards(state, side).filter(test).length;
 
 /** Worth of one counter of a type on a card, priced against the board (counterValues.ts), for a card not installed yet. */
 function counterWorthOf(state: GameState, code: string, type: 'credit' | 'virus' | 'power'): number {
@@ -468,6 +554,8 @@ export const EFFECT_CODES = [
   '35051', '35082', '30004', '30017', '30007', '30008', '30014', '30024', '30033', '35010', '35029', '35034', '30018', '35031',
   '35050', '30045', '30061', '35061', '35073', '35062', '30053', '35039', '30058', '30050', '30066', '30042', '35045', '35056',
   '35006', '30003', '35018', '30013', '30022', '35027', '35028', '35019', '30023', '30031', '35030', '35007', '35033', '30009', '35021', '35011', '30034',
+  '36027', '36035', '36038', '36045', '36048', '36049', '36055', '36057', '36064', '36065',
+  '36003', '36005', '36006', '36007', '36008', '36013', '36014', '36015', '36016', '36020', '36021', '36022', '36023', '36024', '36025',
 ];
 
 /** Whether the effect formulas price cards (plan.effectValues). */

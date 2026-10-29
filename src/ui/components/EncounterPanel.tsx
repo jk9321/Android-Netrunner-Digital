@@ -12,6 +12,7 @@ import {
   getLegalActions,
   iceScript,
   iceStrength,
+  iceSubroutines,
   iceSubtypes,
   installedIcebreakers,
 } from '../../core';
@@ -56,7 +57,7 @@ export const EncounterPanel: React.FC<EncounterPanelProps> = ({ state, onAction,
     return shown.current.rows.has(row);
   };
 
-  const subs = iceScript(ice)?.subroutines ?? [];
+  const subs = iceSubroutines(state, ice);
   const legal = readOnly ? [] : getLegalActions(state, 'runner');
   const titleOf = (id: string) => {
     const card = state.runner.rig.programs.find(c => c.instanceId === id);
@@ -233,7 +234,7 @@ export const EncounterPanel: React.FC<EncounterPanelProps> = ({ state, onAction,
             {iceScript(ice)?.runnerBreakCost ? <>Pay <Credits amount={iceScript(ice)!.runnerBreakCost!} /> per subroutine</> : 'Bioroid: spend a click'}
           </span>
           {subs.map((_, i) => {
-            const action = bioroidActions.find(a => a.type === 'BIOROID_BREAK' && a.subroutineIndex === i);
+            const action = bioroidActions.find(a => a.type === 'BIOROID_BREAK' && !a.subroutineIndices && a.subroutineIndex === i);
             if (action) {
               return (
                 <button
@@ -254,6 +255,16 @@ export const EncounterPanel: React.FC<EncounterPanelProps> = ({ state, onAction,
               </button>
             );
           })}
+          {bioroidActions.map((a, k) => a.type === 'BIOROID_BREAK' && a.subroutineIndices && (
+            <button
+              key={`multi-${k}`}
+              onClick={() => onAction(a)}
+              className={`${btn} bg-amber-950 border-amber-700 text-amber-200 hover:bg-amber-900`}
+            >
+              <Clock className="inline w-3 h-3 mr-1" />
+              Break {a.subroutineIndices.map(i => i + 1).join(' + ')}
+            </button>
+          ))}
         </div>
       )}
     </div>

@@ -1,6 +1,6 @@
 import { CardInstance, GameState, SideCode, cardDef } from '../core';
 import { findCardAnywhere } from '../core';
-import { counters, rezCost } from '../core/engine/cardEffects';
+import { counters, rezCost, stealthCredits } from '../core/engine/cardEffects';
 import { tuning } from './synergy';
 import { CLICK, RATES, cardRate, handFilter, pointValue, sideCards } from './valueModel';
 import { bestBreakPlan } from './runs';
@@ -38,6 +38,9 @@ export const COUNTER_WORTH: Record<string, Partial<Record<CounterType, CounterWo
   '35071': { agenda: () => 3.5 }, // Off the Books: fetch any card, installed for free
   '35060': { agenda: () => 3 }, // Next Big Thing: a click for 4 cards and a reshuffle
   '35048': { agenda: () => 3 }, // Proprionegation: sends a run back to Archives once
+  '36037': { agenda: () => 1 }, // Lotus Haze: moves a rezzed upgrade to another server
+  '36035': { power: () => 1.5 }, // Perfect Recall: keeps the Runner off copies of one card for a run
+  '36045': { power: () => 2 }, // The Red Room: ends a run on another server
   // ---- Runner ----
   // Smartware Distributor: 1 a turn, so the k-th hosted credit waits k turns (stacking more is worth less and less)
   '30033': { credit: (_state, card) => paidOneATurn(counters(card, 'credit')) },
@@ -51,6 +54,9 @@ export const COUNTER_WORTH: Record<string, Partial<Record<CounterType, CounterWo
   '30024': { virus: state => (tuning.plan.cardFixes ? conduitCounterWorth(state) : 1.2) }, // Conduit: 1 more card accessed on each Conduit run still to come
   '35031': { power: () => 1.2 }, // Devadatta Drone: 1 more card accessed on an R&D breach
   '35010': { power: () => 1.2 }, // Cacophony: 2 counters sabotage 3
+  '36005': { power: state => (stealthCredits(state) > 0 ? 2 : 0.5) }, // Lampades: a paid trash of an accessed card, with stealth credits only
+  '36020': { credit: () => 0.9 }, // Methuselah: run credits only
+  '36021': { credit: () => 0.9 }, // Touchstone: run credits only
   // Botulus: each counter breaks 1 subroutine on its host, worth what breaking one costs (3 if nothing breaks it)
   '30004': { virus: (state, card) => trojanHostWorth(state, card, host => Math.min(3, bestBreakPlan(state, host, 1)?.credits ?? 3)) },
   // Tranquilizer: 3 counters derez its host, a third of the rez cost each

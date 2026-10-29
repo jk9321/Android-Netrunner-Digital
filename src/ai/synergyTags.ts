@@ -237,6 +237,74 @@ export const SYNERGY: Record<string, CardSynergy> = {
   '35080': { gives: { ice: 1, tags: 1 }, wants: { tags: 0.5 }, when: ['ifTagged', 'onScore'] }, // Lamplighter
   '35081': { gives: { econ: 1 } }, // Petty Cash
   '35082': { gives: { econ: 1 } }, // Mahkota Langit Grid
+  // ---- Vantage Point: Runner ----
+  '36001': { gives: { trash: 2 }, wants: { runs: 2, hq: 1, rd: 1, archives: 1 }, when: ['successfulRun'] }, // Chain Reaction
+  '36002': { gives: { runs: 1, hq: 0.5, rd: 0.5 } }, // Take a Dive
+  '36003': { gives: { econ: 0.5 }, wants: { breakers: 1 } }, // The Tungsten Tailor
+  '36004': { gives: { breakers: 1 } }, // Corsair
+  '36005': { gives: { trash: 1.5 }, wants: { runs: 1 } }, // Lampades
+  '36006': { gives: { install: 1 } }, // Hackerspace
+  '36007': { gives: { draw: 1 }, wants: { archives: 1.5 } }, // Nurse Hạnh
+  '36008': { gives: { draw: 1 } }, // Stick and Poke
+  '36009': { gives: { draw: 1 }, wants: { tags: 0.5 } }, // Vic
+  '36010': { gives: { runs: 1 } }, // Kompromat
+  '36011': { gives: { econ: 1.5, draw: 1 } }, // Sell Out
+  '36012': { gives: { runs: 1, hq: 2 } }, // Tailgate
+  '36013': { wants: { tags: 0.5 } }, // Borrowed Goods
+  '36014': { gives: { hq: 1, rd: 1 }, wants: { runs: 1 }, when: ['ifTagged'] }, // Rotary
+  '36015': { gives: { runs: 1.5, hq: 1, rd: 1, archives: 0.5 } }, // Baker
+  '36016': { gives: { draw: 1 } }, // Underdome Irregulars
+  '36017': { gives: { rd: 0.5 }, wants: { install: 1 } }, // Hiram
+  '36018': { gives: { runs: 1, hq: 0.5, rd: 0.5, econ: 0.5 } }, // Aircheck
+  '36019': { gives: { runs: 1, install: 1.5 } }, // Beta Build
+  '36020': { gives: { econ: 1.5 }, wants: { runs: 1 } }, // Methuselah
+  '36021': { gives: { econ: 1 }, wants: { runs: 0.5 } }, // Touchstone
+  '36022': { gives: { draw: 1 } }, // Read-Write Share
+  '36023': { wants: { runs: 1, breakers: 1 } }, // Sipa
+  '36024': { gives: { econ: 1 }, wants: { runs: 1.5 }, when: ['successfulRun'] }, // Stowaway
+  '36025': { gives: { econ: 1, draw: 0.5 }, when: ['notInstalledThisTurn'] }, // Word on the Street
+  // ---- Vantage Point: Corp ----
+  '36026': { when: ['onScore'] }, // Méliès City Luxury Line
+  '36027': { wants: { operations: 1.5 } }, // Synchrocyclotron
+  '36028': { gives: { ice: 1, bioroid: 1.5, install: 0.5 } }, // Ansel 2.0
+  '36029': { gives: { ice: 1.5 } }, // Reverb
+  '36030': { gives: { ice: 1, bioroid: 0.5, draw: 0.5 } }, // Sleipnir
+  '36031': { gives: { ice: 1, bioroid: 0.5 } }, // Vertigo
+  '36032': { gives: { econ: 2 } }, // Caveat Emptor
+  '36033': { gives: { econ: 1.5 }, wants: { ice: 1 } }, // realloc()
+  '36034': { gives: { install: 1, ice: 0.5 }, wants: { discard: 1 } }, // Retirement Plan
+  '36035': { gives: { denial: 0.5 }, when: ['onScore'] }, // Perfect Recall
+  '36036': { gives: { econ: 1, draw: 0.5 }, wants: { discard: 0.5 }, when: ['successfulRun'] }, // Méliès U
+  '36037': { when: ['onScore'] }, // Lotus Haze
+  '36038': { gives: { denial: 0.5, damage: 0.5 }, when: ['ifTagged'] }, // Esca
+  '36039': { gives: { ice: 1 } }, // ezaM
+  '36040': { gives: { ice: 1 } }, // Knowledge Seeker
+  '36041': { gives: { ice: 1, damage: 2 } }, // Lionsmane
+  '36042': { gives: { ice: 1, damage: 1, tags: 1 }, wants: { tags: 1 }, when: ['ifTagged'] }, // Vicsek
+  '36043': { gives: { draw: 1, discard: 0.5 } }, // Cultivate
+  '36044': { wants: { tags: 1.5, ice: 1 }, when: ['ifTagged'] }, // Unleash
+  '36045': { when: ['onScore'] }, // The Red Room
+  '36046': { gives: { draw: 0.5 } }, // Editorial Division
+  '36047': { gives: { tags: 2 }, when: ['onScore'] }, // Witch Hunt
+  '36048': { gives: { denial: 1.5 }, when: ['onScore'] }, // Magistrate Revontulet
+  '36049': { gives: { tags: 1.5 } }, // Nihilo Agent
+  '36050': { gives: { ice: 1, denial: 1 } }, // Grubber
+  '36051': { gives: { ice: 1, tags: 1, discard: 0.5 } }, // Lethe
+  '36052': { gives: { ice: 1, denial: 1 } }, // Paywall
+  '36053': { gives: { advance: 2 } }, // Flood the Market
+  '36054': {}, // Scapegoat
+  '36055': { gives: { advance: 1 }, when: ['onScore'] }, // Hype Machine
+  '36056': { gives: { econ: 1, damage: 0.5 }, wants: { advance: 1 }, when: ['successfulRun'] }, // Sacrifice Zone Expansion
+  '36057': { gives: { econ: 1.5, draw: 1 } }, // Luana Campos
+  '36058': { gives: { ice: 1 } }, // Event Horizon
+  '36059': { gives: { ice: 1, econ: 1, draw: 1 } }, // Flywheel
+  '36060': { gives: { ice: 1.5, denial: 0.5 } }, // Tocsin
+  '36061': { when: ['notInstalledThisTurn'] }, // Myōshu
+  '36062': { gives: { ice: 1.5 }, wants: { discard: 1 } }, // Reanimation Protocol
+  '36063': { gives: { econ: 2 } }, // Vulture Fund
+  '36064': { gives: { denial: 0.5 } }, // Flagship
+  '36065': { gives: { damage: 1.5 } }, // Shackleton Grid
+  '36066': { gives: { draw: 0.5 }, when: ['onScore'] }, // Let Them Dream
 };
 
 /** Text patterns for guessing a card's themes when it has no hand-written entry (a new set). */

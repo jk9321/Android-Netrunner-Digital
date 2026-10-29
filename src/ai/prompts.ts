@@ -3,7 +3,7 @@ import { runnerInstallBlocker } from '../core/engine/actions/install';
 import { evaluate, keepValue } from './evaluate';
 import { placedCounterWorth } from './effectValues';
 import { BOTULUS, MANEGARM, RunOptions, RunnerMemory, iceCost, isTrap, runClick, runScore, serverValue, spendCost, subroutineCost, weakestIce } from './runs';
-import { encounteredIce, iceScript } from '../core/engine/ice';
+import { encounteredIce, iceSubroutines } from '../core/engine/ice';
 import { keepBonus, tuning } from './synergy';
 
 /** Applies an action, or returns null if the engine rejects it. */
@@ -161,7 +161,7 @@ export function answerPrompt(state: GameState, side: SideCode, memory?: RunnerMe
   // Botulus: break the worst subroutine
   if (side === 'runner' && prompt.kind === 'effect_choice' && prompt.source.cardCode === BOTULUS && tuning.plan.trojans) {
     const ice = encounteredIce(state);
-    const subs = ice ? (iceScript(ice)?.subroutines ?? []) : [];
+    const subs = ice ? (iceSubroutines(state, ice)) : [];
     const worst = [...prompt.options].sort((a, b) => subroutineCost(state, subs[Number(b.id)]?.label ?? '') - subroutineCost(state, subs[Number(a.id)]?.label ?? ''))[0];
     return { ...base, choice: { kind: 'effect_choice', optionId: worst.id } };
   }

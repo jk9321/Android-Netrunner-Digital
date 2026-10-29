@@ -1,6 +1,6 @@
 import { CardInstance, GameAction, GameState, activePrompt, cardDef, getCardScript, getLegalActions, isLegalAction } from '../core';
 import { runnerInstallBlocker } from '../core/engine/actions/install';
-import { encounteredIce, iceScript, isBioroid } from '../core/engine/ice';
+import { encounteredIce, iceScript, iceSubroutines, isBioroid } from '../core/engine/ice';
 import { availableCredits, counters } from '../core/engine/cardEffects';
 import { Agent, FreeActionGuard, ScoredAction } from './agent';
 import { digValue, evaluate, rigCoverage } from './evaluate';
@@ -90,7 +90,7 @@ export class HeuristicRunnerAI implements Agent {
     const ice = encounteredIce(state);
     const encounter = state.activeRun?.encounter;
     if (!ice || !encounter || encounter.resolvingIndex !== null) return undefined;
-    const subs = iceScript(ice)?.subroutines ?? [];
+    const subs = iceSubroutines(state, ice);
     const unbroken = subs.map((s, i) => ({ i, cost: subroutineCost(state, s.label) })).filter(s => !encounter.broken[s.i]);
     const mustBreak = unbroken.filter(s => s.cost >= 1);
     if (mustBreak.length === 0) return undefined;

@@ -253,9 +253,86 @@ export const GLOSSARY: Record<string, GlossaryEntry> = {
   },
   'bad-publicity': {
     term: 'Bad publicity',
-    text: 'For each bad publicity the Corp has, the Runner gets 1 extra credit to spend during each run.',
+    text: 'When each run begins, the Runner puts 1 credit in their bad publicity fund for each bad publicity the Corp has. They can spend those credits during that run only; the rest go back at the end of the run (rules 10.6).',
     match: ['bad publicity'],
   },
+  stealth: {
+    term: 'Stealth',
+    text: 'A Runner card subtype. Some abilities can only be paid with credits from stealth cards (credits hosted on them), not from the credit pool.',
+    match: ['stealth'],
+  },
+  double: {
+    term: 'Double',
+    text: 'An event or operation subtype. As an additional cost to play it, spend another click: playing it takes 2 clicks in all.',
+    match: ['double'],
+  },
+  liability: {
+    term: 'Liability',
+    text: 'A Corp card subtype for cards that are bad for the Corp\'s image, usually giving bad publicity. Some cards care about it (Editorial Division, Reanimation Protocol).',
+    match: ['liability'],
+  },
+  'gray-ops': {
+    term: 'Gray ops',
+    text: 'An operation subtype for shady dealings, often only playable when the Runner is tagged or made runs. Some cards search for it.',
+    match: ['gray ops'],
+  },
+  'black-ops': {
+    term: 'Black ops',
+    text: 'An operation subtype for the Corp\'s most underhanded tricks. Some cards search for it.',
+    match: ['black ops'],
+  },
+  swap: {
+    term: 'Swap',
+    text: 'Two cards change places at the same time. Swapped ice keeps whatever is hosted on it; a Runner between encounters stays where they are (rules 8.8, 6.2.7).',
+    match: ['swap(?:s|ped)?'],
+  },
+  allotted: {
+    term: 'Allotted clicks',
+    text: 'The clicks a player gets when their turn begins (Corp 3, Runner 4). Some effects give 1 more or 1 fewer for a single turn.',
+    match: ['allotted'],
+  },
+  interrupt: {
+    term: 'Interrupt',
+    text: 'An ability that resolves just before the thing it mentions would happen ("When this would be uninstalled..."), so it can still act on it.',
+  },
+  'fully-break': {
+    term: 'Fully break',
+    text: 'The Runner fully breaks a piece of ice the first time all its subroutines are broken during an encounter (rules 6.5.7).',
+    match: ['fully break(?:s|ing)?', 'fully broke'],
+  },
+  observer: { term: 'Observer', text: 'An ice subtype. Observer ice give tags.', match: ['observer'] },
+  expendable: {
+    term: 'Expendable',
+    text: 'A subtype for cards with an ability you can use by revealing and trashing them from your hand.',
+    match: ['expendable'],
+  },
+  derez: {
+    term: 'Derez',
+    text: 'Turn a rezzed Corp card facedown again. It stays installed and can be rezzed again by paying its rez cost.',
+    match: ['derez(?:zes|zed)?'],
+  },
+  arrange: {
+    term: 'Arrange',
+    text: 'Put cards back on top of a deck in any order you choose, without showing anyone the order.',
+    match: ['arrange'],
+  },
+  'install-faceup': {
+    term: 'Install only faceup',
+    text: 'This agenda is installed faceup (neither rezzed nor unrezzed), so the Runner sees it, and its abilities work while it is installed (rules 3.2.3a).',
+    match: ['Install only faceup'],
+  },
+  'secretly-set': {
+    term: 'Secretly set',
+    text: 'Méliès U: the Corp secretly picks which copy of the identity is in play. Each copy\'s back names HQ, R&D or Archives; the Runner only learns which when it flips (rules 1.5.2b).',
+    match: ['secretly set'],
+  },
+  flip: {
+    term: 'Flip',
+    text: 'Turn an identity over to its other side, which has different abilities.',
+    match: ['flip'],
+  },
+  companion: { term: 'Companion', text: 'A resource subtype for the Runner\'s friends and pets. Some cards host them (Hackerspace).', match: ['companion'] },
+  connection: { term: 'Connection', text: 'A resource subtype for the Runner\'s contacts. Some cards host them (Hackerspace).', match: ['connection'] },
   trace: {
     term: 'Trace',
     text: 'Both players secretly bid credits: the Corp adds theirs to the trace value, the Runner adds theirs to link. The Corp wins if its total is higher.',

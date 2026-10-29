@@ -6,6 +6,9 @@ import { Keyword } from './Keyword';
 import { labelKeyword } from '../glossary';
 import { ZoneId } from './ZoneViewer';
 
+const MELIES_U = '36036';
+const MELIES_SIDES = { hq: 'HQ', rd: 'R&D', archives: 'Archives' } as const;
+
 const STYLE: Record<SideCode, { strip: string; dot: string; name: string; viewId: string; stat: string }> = {
   corp: {
     strip: 'pb-1 border-b border-cyan-950',
@@ -80,6 +83,11 @@ export function SideStrip({
         <div className={`flex items-center gap-1.5 px-2 py-0.5 rounded-lg shadow ${style.stat}`} data-testid={`${side}-credits`}>
           <CreditIcon className="w-3.5 h-3.5 text-amber-400" />
           <span className="font-bold">{player.credits}</span> <Keyword id="credit">Credits</Keyword>
+          {side === 'runner' && (state.activeRun?.badPublicityCredits ?? 0) > 0 && (
+            <span className="text-amber-300" data-testid="bad-publicity-fund">
+              {' '}+{state.activeRun!.badPublicityCredits} <Keyword id="bad-publicity">bad publicity</Keyword>
+            </span>
+          )}
         </div>
         <div className={`flex items-center gap-1.5 px-2 py-0.5 rounded-lg shadow ${style.stat}`}>
           <Clock className="w-3.5 h-3.5 text-red-400" />
@@ -98,6 +106,16 @@ export function SideStrip({
               <Archive className="w-3.5 h-3.5 text-slate-500" />,
             )}
             {zoneButton('corp-score', 'Scored', corp.scoreArea.length, <Award className="w-3.5 h-3.5 text-cyan-400" />)}
+            {corp.badPublicity > 0 && (
+              <div className="flex items-center gap-1.5 bg-amber-950 border border-amber-800 px-2 py-0.5 rounded-lg text-amber-300 shadow" data-testid="corp-bad-publicity">
+                <span className="font-bold">{corp.badPublicity}</span> <Keyword id="bad-publicity">Bad publicity</Keyword>
+              </div>
+            )}
+            {corp.identity.cardCode === MELIES_U && (
+              <div className={plain} data-testid="melies-side" title="Méliès U: the side is set secretly and shown once the identity flips">
+                <span>Méliès U: {corp.identity.flipped && corp.meliesServer ? `${MELIES_SIDES[corp.meliesServer]} side` : 'side secret'}</span>
+              </div>
+            )}
             {state.removedFromGame.length > 0 &&
               zoneButton('removed', 'Removed', state.removedFromGame.length, <Ban className="w-3.5 h-3.5 text-slate-500" />)}
           </>

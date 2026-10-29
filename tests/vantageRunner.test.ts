@@ -40,6 +40,7 @@ const choose = (s: GameState, optionId: string) => keepGoing(answer(s, { kind: '
 const pick = (s: GameState, ids: string[]) => keepGoing(answer(s, { kind: 'effect_cards', cardInstanceIds: ids }));
 const declineAccess = (s: GameState) => keepGoing(answer(s, { kind: 'access_trash', trash: false }));
 const prompt = (s: GameState) => s.pendingPrompts[0];
+const source = (s: GameState) => { const p = prompt(s); return p && 'source' in p ? p.source : undefined; };
 const emptyHQ = (s: GameState) => s.corp.rd.push(...s.corp.hq.splice(0));
 /** Gives the Runner a card and plays it (with clicks and credits to spare). */
 function playRunner(s: GameState, code: string, clicks = 1): [GameState, string] {
@@ -217,7 +218,7 @@ describe('Vantage Point Runner events', () => {
     expect(s.runner.credits).toBeGreaterThan(4);
     expect(availableCredits(s, 'runner')).toBe(4);
     s = finishBreach(cont(s));
-    expect(prompt(s)?.source).toMatchObject({ cardCode: V.aircheck, step: 'remote' });
+    expect(source(s)).toMatchObject({ cardCode: V.aircheck, step: 'remote' });
     s = choose(s, 'remote-1');
     expect(s.activeRun?.server).toBe('remote-1');
     expect(availableCredits(s, 'runner')).toBe(4);
@@ -279,7 +280,7 @@ describe('Vantage Point Runner hardware', () => {
     let rotary: string;
     [s, rotary] = runnerInstall(s, V.rotary);
     s = cont(run(s, 'hq'));
-    expect(prompt(s)?.source).toMatchObject({ cardCode: V.rotary });
+    expect(source(s)).toMatchObject({ cardCode: V.rotary });
     s = choose(s, 'tag');
     expect(s.runner.tags).toBe(1);
     s = declineAll(s);
@@ -302,7 +303,7 @@ describe('Vantage Point Runner hardware', () => {
     const t400 = giveCard(s, 'runner', SG.t400);
     s.runner.credits = 0;
     s = run(s, 'archives');
-    expect(prompt(s)?.source).toMatchObject({ cardCode: V.methuselah });
+    expect(source(s)).toMatchObject({ cardCode: V.methuselah });
     s = pick(s, [t400]);
     expect(card(s, meth).tokens.credit).toBe(2);
     expect(availableCredits(s, 'runner')).toBe(2);
@@ -379,7 +380,7 @@ describe('Vantage Point Runner programs', () => {
     s = useAbility(s, 'runner', baker);
     expect(s.activeRun?.server).toBe('archives');
     s = cont(s);
-    expect(prompt(s)?.source).toMatchObject({ cardCode: V.baker });
+    expect(source(s)).toMatchObject({ cardCode: V.baker });
     s = choose(s, 'rd');
     expect(card(s, touch).tokens.credit).toBe(0);
     expect(s.log.some(l => /attacked server changed to R&D/.test(l.message))).toBe(true);
@@ -415,7 +416,7 @@ describe('Vantage Point Runner programs', () => {
     s = cont(s);
     s = executeAction(s, { type: 'BREAK_SUBROUTINE', player: 'runner', breakerInstanceId: cleaver, subroutineIndices: [0] });
     s = executeAction(s, { type: 'CONTINUE_RUN', player: 'runner' }); // pass it
-    expect(prompt(s)?.source).toMatchObject({ cardCode: V.sipa });
+    expect(source(s)).toMatchObject({ cardCode: V.sipa });
     s = answer(s, { kind: 'effect_choice', optionId: other });
     expect(s.corp.servers['remote-1'].ice[0].instanceId).toBe(other);
     expect(s.corp.servers.hq.ice[0].instanceId).toBe(outer);

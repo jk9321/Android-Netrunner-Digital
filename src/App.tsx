@@ -261,6 +261,7 @@ function Game({
         onInspectCard={setInspectedCard}
         hostLabel={iceHostLabel}
         breaks={breakerTypes}
+        canSeeSecrets={canSeeRunnerSecrets(viewer)}
         aside={
           <>
             <CardView card={runner.identity} size="fit" notInstalled onInspect={setInspectedCard} />

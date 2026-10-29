@@ -41,6 +41,9 @@ export const COUNTERS_PRICED_ELSEWHERE: Record<string, string> = {
   '35076': 'Syailendra: advancement counters on ice, priced by the Corp advance choice',
   '30009': 'Cookbook: puts its counter on another virus program, priced there',
   '30029': 'Overclock: its 5 credits last only for the run it starts, priced by playing it out',
+  '36018': 'Aircheck: its 4 credits last only for the run it starts, priced by playing it out',
+  '36040': "Knowledge Seeker: virus counters on the Corp's own ice count down to its derez, priced as ice",
+  '36049': 'Nihilo Agent: its power counters count the turns it has left, priced by its effect formula',
 };
 
 export function valueSources(def: CardDefinition): ValueSource[] {

@@ -2,6 +2,7 @@ import React from 'react';
 import { RunnerRig } from '../../core/types/state';
 import { CardInstance } from '../../core/types/card';
 import { CardView } from './CardView';
+import { getCardScript } from '../../core';
 import { Bug, Cpu, HardDrive, Users } from 'lucide-react';
 import { clearHostLink, lightHostLink, useHostLinkLit } from '../hostLinks';
 import type { IceSubtype } from '../../core/scripts/types';
@@ -15,6 +16,8 @@ interface RigViewProps {
   hostLabel?: (card: CardInstance) => string | undefined;
   /** The ice types an icebreaker breaks, shown as icons on it. */
   breaks?: (card: CardInstance) => IceSubtype[];
+  /** May the viewer see cards hosted facedown (Read-Write Share)? */
+  canSeeSecrets?: boolean;
 }
 
 /** An installed card, with any cards hosted faceup on it (Bling, Madani, Detente) tucked beneath. */
@@ -23,8 +26,10 @@ const RigCard: React.FC<{
   onInspect?: (card: CardInstance) => void;
   hostLabel?: string;
   breaks?: IceSubtype[];
-}> = ({ card, onInspect, hostLabel, breaks = [] }) => {
+  canSeeSecrets?: boolean;
+}> = ({ card, onInspect, hostLabel, breaks = [], canSeeSecrets = true }) => {
   const hosted = card.hostedCards ?? [];
+  const faceDown = !!getCardScript(card.cardCode)?.hostedFaceDown;
   const lit = useHostLinkLit(card.instanceId);
   // Hover a hosted card or its host and both outline: Corp ice, or a rig card hosting another (Gamdragon Pro)
   const link = card.hostedOnId ? [card.instanceId, card.hostedOnId] : card.hostedCardIds.length > 0 ? [card.instanceId, ...card.hostedCardIds] : null;
@@ -58,7 +63,7 @@ const RigCard: React.FC<{
       {face}
       <div className="flex flex-col gap-0.5" title={`Hosted (${hosted.length})`}>
         {hosted.map(h => (
-          <CardView key={h.instanceId} card={h} size="fit-sm" notInstalled onInspect={onInspect} />
+          <CardView key={h.instanceId} card={h} size="fit-sm" notInstalled onInspect={onInspect} isFaceDown={faceDown} canPeek={canSeeSecrets} />
         ))}
       </div>
     </div>
@@ -74,7 +79,8 @@ const Row: React.FC<{
   hostLabel?: (card: CardInstance) => string | undefined;
   breaks?: (card: CardInstance) => IceSubtype[];
   className?: string;
-}> = ({ icon, label, color, cards, onInspect, hostLabel, breaks, className = '' }) => (
+  canSeeSecrets?: boolean;
+}> = ({ icon, label, color, cards, onInspect, hostLabel, breaks, className = '', canSeeSecrets }) => (
   <div className={`min-w-0 flex flex-col gap-0.5 ${className}`}>
     <div className={`flex items-center gap-1 text-[10px] font-mono font-bold uppercase tracking-wider ${color}`}>
       {icon}
@@ -86,19 +92,19 @@ const Row: React.FC<{
       {cards.length === 0 ? (
         <span className="text-[10px] text-slate-600 italic m-auto">None</span>
       ) : (
-        cards.map(card => <RigCard key={card.instanceId} card={card} onInspect={onInspect} hostLabel={hostLabel?.(card)} breaks={breaks?.(card)} />)
+        cards.map(card => <RigCard key={card.instanceId} card={card} onInspect={onInspect} hostLabel={hostLabel?.(card)} breaks={breaks?.(card)} canSeeSecrets={canSeeSecrets} />)
       )}
     </div>
   </div>
 );
 
-export const RigView: React.FC<RigViewProps> = ({ rig, onInspectCard, aside, hostLabel, breaks }) => {
+export const RigView: React.FC<RigViewProps> = ({ rig, onInspectCard, aside, hostLabel, breaks, canSeeSecrets }) => {
   return (
     // As on the table: programs in the front row (toward the Corp), then hardware and resources
     <div className="flex gap-2 min-w-0">
       {aside && <div className="grid grid-cols-2 gap-1.5 shrink-0 content-start">{aside}</div>}
       <div className="flex flex-col gap-1 flex-1 min-w-0">
-        <Row icon={<Cpu className="w-3 h-3" />} label="Programs" color="text-cyber-neonCyan" cards={rig.programs} onInspect={onInspectCard} hostLabel={hostLabel} breaks={breaks} />
+        <Row icon={<Cpu className="w-3 h-3" />} label="Programs" color="text-cyber-neonCyan" cards={rig.programs} onInspect={onInspectCard} hostLabel={hostLabel} breaks={breaks} canSeeSecrets={canSeeSecrets} />
         <div className="flex gap-2 min-w-0">
           <Row icon={<HardDrive className="w-3 h-3" />} label="Hardware" color="text-amber-400" cards={rig.hardware} onInspect={onInspectCard} hostLabel={hostLabel} className="flex-1" />
           <Row icon={<Users className="w-3 h-3" />} label="Resources" color="text-cyber-neonPink" cards={rig.resources} onInspect={onInspectCard} hostLabel={hostLabel} className="flex-[2]" />

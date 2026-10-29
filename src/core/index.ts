@@ -16,7 +16,7 @@ export { locateCorpCard, findCardAnywhere, knownInHand } from './engine/helpers'
 export { getCardScript, scriptedCardCodes } from './scripts';
 export { rezCost as rezCostOf, availableCredits, virusCountersInPlay } from './engine/cardEffects';
 export { trashableFirst } from './engine/actions/install';
-export { encounteredIce, iceScript, breakerScript, iceStrength, breakerStrength, installedIcebreakers, boostCostOf, iceSubtypes } from './engine/ice';
+export { encounteredIce, iceScript, breakerScript, iceStrength, iceSubroutines, breakerStrength, installedIcebreakers, boostCostOf, iceSubtypes } from './engine/ice';
 export { validateDeck, requiredAgendaPoints, influenceCost, copyLimitProblems } from './deckValidation';
 export type { DeckSpec } from './deckValidation';
 export { FORMATS, DEFAULT_FORMAT, SET_NAMES, getFormat, isFormatId, isBanned, isRestricted, isInCardPool, validateFormat, STARTER_ONLY_IDENTITIES, formatStatuses, describeFormatStatuses } from './formats';

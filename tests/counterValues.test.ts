@@ -82,8 +82,17 @@ describe('counters are worth what they do on their card (value model step 3)', (
     expect(counterWorth(s, unhosted, 'virus', 'runner')).toBe(ice.isRezzed ? 3 : 0.5);
   });
 
+  it('Vantage Point: run-only credits, Lampades by the stealth credits it can use, and the Corp counters by what one does', () => {
+    expect(worth('36020', 'credit')).toBeCloseTo(0.9); // Methuselah
+    expect(worth('36021', 'credit')).toBeCloseTo(0.9); // Touchstone
+    expect(worth('36005', 'power')).toBeCloseTo(0.5); // Lampades with no stealth credits
+    expect(worth('36037', 'agenda')).toBeCloseTo(1); // Lotus Haze: moves an upgrade
+    expect(worth('36035', 'power')).toBeCloseTo(1.5); // Perfect Recall: protects a card for a run
+    expect(worth('36045', 'power')).toBeCloseTo(2); // The Red Room: ends a run
+  });
+
   it('every entry is tested above, and switching the piece off restores the step-1 rates', () => {
-    expect(Object.keys(COUNTER_WORTH).length).toBe(26);
+    expect(Object.keys(COUNTER_WORTH).length).toBe(32);
     const s = newGame();
     const fermenter = make(s, '30007');
     addCounters(fermenter, 'virus', 2);

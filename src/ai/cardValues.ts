@@ -47,6 +47,16 @@ export const CARD_VALUES: Record<string, CardValue> = {
   '35072': { keep: 5, econ: 4 }, // Anthill Excavation Contract
   '35073': { keep: 1.5 }, // Plutus: replays transactions, but costly to rez
   '35082': { keep: 3, upgrade: [2, 0.5] }, // Mahkota Langit Grid
+  '36027': { keep: 1.5 }, // Synchrocyclotron: a click back on the first double each turn
+  '36035': { keep: 2, upgrade: [2, 1] }, // Perfect Recall: power counters that protect a card for a run
+  '36038': { keep: 1 }, // Esca: a credit and a net damage on a tagged Runner, on access
+  '36045': { keep: 2, upgrade: [0, 2] }, // The Red Room: central only, ends runs elsewhere after agendas
+  '36048': { keep: 3 }, // Magistrate Revontulet: 3 more to steal, and 3 off the Runner on each score
+  '36049': { keep: 2 }, // Nihilo Agent: a tag each turn for 3 turns
+  '36055': { keep: 1.5, upgrade: [1.5, 0] }, // Hype Machine: a free advancement counter after an agenda
+  '36057': { keep: 3, econ: 2 }, // Luana Campos: 3 credits and a card for each bad publicity it hosts
+  '36064': { keep: 2, upgrade: [0, 2] }, // Flagship: HQ or R&D only, 1 access and no successful runs there
+  '36065': { keep: 1.5, upgrade: [1.5, 1] }, // Shackleton Grid: 4 meat damage when the Runner spends hosted credits
   // Runner
   '30003': { rig: 3 }, // Carnivore
   '30004': { rig: 2 }, // Botulus
@@ -79,6 +89,21 @@ export const CARD_VALUES: Record<string, CardValue> = {
   '35031': { rig: 2.5 }, // Devadatta Drone: 2 extra R&D accesses
   '35033': { rig: 2, draws: 0.5 }, // “Knickknack” O’Brian: credits and a card for spent installs
   '35034': { rig: 2.5 }, // Side Hustle
+  '36003': { rig: 2 }, // The Tungsten Tailor
+  '36005': { rig: 1.5 }, // Lampades: three paid trashes, with stealth credits
+  '36006': { rig: 1.5 }, // Hackerspace
+  '36007': { rig: 1 }, // Nurse Hạnh
+  '36008': { rig: 0.5 }, // Stick and Poke
+  '36013': { rig: 1 }, // Borrowed Goods: +1 MU for a tag
+  '36014': { rig: 2.5 }, // Rotary
+  '36015': { rig: 2 }, // Baker
+  '36016': { rig: 1.5, draws: 1 }, // Underdome Irregulars
+  '36020': { rig: 2.5 }, // Methuselah
+  '36021': { rig: 1.5 }, // Touchstone
+  '36022': { rig: 1, draws: 1 }, // Read-Write Share
+  '36023': { rig: 1 }, // Sipa
+  '36024': { rig: 1.5 }, // Stowaway
+  '36025': { rig: 2 }, // Word on the Street
 };
 
 /** Extra worth of the cards a card draws, now that a card in hand is worth about a credit. */
