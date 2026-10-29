@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { executeAction } from '../src/core';
 import { actingSide, corpRezWindow } from '../src/ui/viewer';
 import { soundFor } from '../src/ui/sound';
+import { zoneContents } from '../src/ui/components/ZoneViewer';
 import { installCorpForTest, installIceForTest, keepGoing, newGame, newGameAtSetup, run } from './helpers';
 
 const PALISADE = '30072';
@@ -98,5 +99,18 @@ describe('sound effects', () => {
       state = keepGoing(executeAction(state, { type: 'CONTINUE_RUN', player: 'runner' }));
     }
     expect(state.log.filter(e => e.event === 'access').length).toBeGreaterThan(0);
+  });
+});
+
+describe('browsing decks after the game', () => {
+  it('lists R&D and the Stack top card first, face down', () => {
+    const state = newGame();
+    const rd = zoneContents('rd', state);
+    expect(rd.groups[0].cards[0].instanceId).toBe(state.corp.rd[0].instanceId);
+    expect(rd.groups[0].cards).toHaveLength(state.corp.rd.length);
+    expect(rd.groups[0].faceDown).toBe(true);
+    const stack = zoneContents('stack', state);
+    expect(stack.groups[0].cards[0].instanceId).toBe(state.runner.stack[0].instanceId);
+    expect(stack.groups[0].faceDown).toBe(true);
   });
 });

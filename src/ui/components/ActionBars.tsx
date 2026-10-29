@@ -68,16 +68,17 @@ export function CorpActions(props: ActionBarProps) {
     <div className="flex flex-col gap-2 p-2 bg-cyan-950/40 border border-cyan-800/80 chamfer-sm shadow-inner">
       <div className="flex items-center gap-1.5 flex-wrap">
         <span className="text-xs font-bold text-cyan-400 font-mono uppercase w-full">Corp Actions ({corp.clicks} Clicks):</span>
+        {/* Greyed out whenever the engine says no, including the window before the turn begins (rules 5.6.1b: no actions there) */}
         <button
           onClick={() => onAction({ type: 'GAIN_CREDIT', player: 'corp' })}
-          disabled={corp.clicks < 1}
+          disabled={!isLegalAction(state, { type: 'GAIN_CREDIT', player: 'corp' })}
           className="px-2 py-1 bg-cyan-950 hover:bg-cyan-900 border border-cyan-700 text-cyan-200 text-xs font-bold rounded-lg transition-all flex items-center gap-1.5 disabled:opacity-40 shadow"
         >
           <CreditIcon className="w-3.5 h-3.5 text-amber-400" /> +1 Credit
         </button>
         <button
           onClick={() => onAction({ type: 'DRAW_CARD', player: 'corp' })}
-          disabled={corp.clicks < 1}
+          disabled={!isLegalAction(state, { type: 'DRAW_CARD', player: 'corp' })}
           className="px-2 py-1 bg-cyan-950 hover:bg-cyan-900 border border-cyan-700 text-cyan-200 text-xs font-bold rounded-lg transition-all flex items-center gap-1.5 disabled:opacity-40 shadow"
         >
           <Layers className="w-3.5 h-3.5 text-cyan-400" /> Draw Card

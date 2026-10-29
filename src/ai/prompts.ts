@@ -166,6 +166,17 @@ export function answerPrompt(state: GameState, side: SideCode, memory?: RunnerMe
     return { ...base, choice: { kind: 'effect_choice', optionId: worst.id } };
   }
 
+  // IP Enforcement: simulating stops before the agenda leaves the score area, so the try-each
+  // search only sees the tags it costs. Take back the most points, then the quickest to re-score.
+  if (side === 'corp' && prompt.kind === 'effect_choice' && prompt.source.cardCode === '35066' && prompt.source.step === 'agenda') {
+    const worth = (id: string) => {
+      const def = cardDef(state.runner.scoreArea.find(a => a.instanceId === id)!);
+      return (def.agenda_points ?? 0) * 10 - (def.advancement_cost ?? 0);
+    };
+    const best = [...prompt.options].sort((a, b) => worth(b.id) - worth(a.id))[0];
+    return { ...base, choice: { kind: 'effect_choice', optionId: best.id } };
+  }
+
   // Deck-aware AI: PT Untaian's paid advancement goes where it does the most
   if (synergy && side === 'corp' && tuning.plan.identities && prompt.kind === 'effect_cards' && prompt.source.cardCode === '35047') {
     return { ...base, choice: { kind: 'effect_cards', cardInstanceIds: untaianPick(state, prompt.candidateIds) } };

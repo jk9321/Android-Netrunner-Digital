@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { cardDef, createCardInstance, executeAction, findCardAnywhere, GameState, iceStrength, isLegalAction } from '../src/core';
 import { counters } from '../src/core/engine/cardEffects';
+import { answerPrompt } from '../src/ai/prompts';
 import {
   answer,
   cont,
@@ -539,11 +540,48 @@ describe('Elevation operations', () => {
     s0.runner.score = 1;
     s0.runner.tags = 2;
     let [s] = playCorp(s0, C.ip, 1);
-    s = pick(s, [agenda.instanceId]);
+    s = choose(s, agenda.instanceId);
     s = choose(s, 'new');
     expect(s.runner.score).toBe(0);
     expect(s.runner.tags).toBe(1);
     expect(card(s, agenda.instanceId).advancementCounters).toBe(1);
+  });
+
+  it('IP Enforcement lets the Corp choose X (rule 1.16.6c), one option per agenda worth X', () => {
+    const s0 = newGame();
+    const one = createCardInstance(s0, C.greenmail);
+    const two = createCardInstance(s0, C.ingatan);
+    const three = createCardInstance(s0, C.nbt);
+    s0.runner.scoreArea.push(one, two, three);
+    s0.runner.score = 6;
+    s0.runner.tags = 2;
+    let [s] = playCorp(s0, C.ip, 1);
+    const prompt = s.pendingPrompts[0];
+    expect(prompt.kind).toBe('effect_choice');
+    if (prompt.kind !== 'effect_choice') return;
+    // X = 3 costs more tags than the Runner has, so only X = 1 and X = 2
+    expect(prompt.options.map(o => o.id)).toEqual([one.instanceId, two.instanceId]);
+    expect(prompt.options[0].label).toContain('X = 1: remove 1 of 2 tag(s)');
+    expect(prompt.options[1].label).toContain('X = 2: remove 2 of 2 tag(s)');
+    s = choose(s, two.instanceId);
+    s = choose(s, 'new');
+    expect(s.runner.tags).toBe(0);
+    expect(s.runner.score).toBe(4);
+    expect(card(s, two.instanceId).advancementCounters).toBe(0); // no tags left, no counter
+  });
+
+  it('IP Enforcement: the AI Corp takes back the agenda worth the most points', () => {
+    const s0 = newGame();
+    const one = createCardInstance(s0, C.greenmail);
+    const two = createCardInstance(s0, C.ingatan);
+    s0.runner.scoreArea.push(one, two);
+    s0.runner.score = 3;
+    s0.runner.tags = 3;
+    const [s] = playCorp(s0, C.ip, 1);
+    for (const synergy of [false, true]) {
+      const action = answerPrompt(s, 'corp', undefined, synergy);
+      expect(action.type === 'RESOLVE_PROMPT' && action.choice).toEqual({ kind: 'effect_choice', optionId: two.instanceId });
+    }
   });
 
   it('Touch-ups advances twice and shuffles grip cards back', () => {

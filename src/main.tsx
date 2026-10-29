@@ -4,7 +4,10 @@ import App from './App';
 import { KeywordTooltip } from './ui/components/Keyword';
 import { DialogHost } from './ui/components/Dialog';
 import { ErrorBoundary } from './ui/components/ErrorBoundary';
+import { applyCardSize, savedCardSize } from './ui/cardSize';
 import './index.css';
+
+applyCardSize(savedCardSize());
 
 ReactDOM.createRoot(document.getElementById('root')!).render(
   <React.StrictMode>

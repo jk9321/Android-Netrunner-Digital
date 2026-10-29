@@ -153,6 +153,45 @@ describe('Elevation Runner identities', () => {
     // The turn then passes to the Corp
     expect(s.activePlayer).toBe('corp');
   });
+
+  /** Ends the Runner's turn with Botulus plus 5 other cards in the grip and discards Botulus. */
+  function discardBotulus(credits: number, withIce: boolean): [GameState, string, string | null] {
+    let s = newGame();
+    setIdentity(s, 'runner', E.magdalene);
+    const ice = withIce ? installIceForTest(s, SG.palisade, 'hq', false) : null;
+    startRunnerTurn(s);
+    s.runner.grip = [];
+    const botulus = giveCard(s, 'runner', '30004');
+    for (let i = 0; i < 5; i++) giveCard(s, 'runner', SG.sureGamble);
+    s.runner.credits = credits;
+    s.runner.clicks = 0;
+    s = executeAction(s, { type: 'END_TURN', player: 'runner' });
+    s = answer(s, { kind: 'discard', cardInstanceIds: [botulus] });
+    return [s, botulus, ice];
+  }
+
+  it('Magdalene may install Botulus discarded to hand size, choosing its host ice', () => {
+    let [s, botulus, ice] = discardBotulus(2, true);
+    expect(prompt(s)?.kind).toBe('effect_cards');
+    s = pick(s, [botulus]);
+    expect(prompt(s)?.kind).toBe('effect_choice');
+    s = choose(s, ice!);
+    expect(card(s, botulus).hostedOnId).toBe(ice);
+    expect(s.runner.credits).toBe(0); // the install cost is still paid (rules 1.16.6)
+    expect(s.activePlayer).toBe('corp');
+  });
+
+  it('Magdalene cannot install a discarded Botulus the Runner cannot pay for, and says why', () => {
+    const [s] = discardBotulus(1, true);
+    expect(s.pendingPrompts.some(p => p.side === 'runner')).toBe(false);
+    expect(s.log.some(l => /Botulus cannot be installed \(not enough credits, costs 2\)/.test(l.message))).toBe(true);
+  });
+
+  it('Magdalene cannot install a discarded Botulus with no ice to host it, and says why', () => {
+    const [s] = discardBotulus(5, false);
+    expect(s.pendingPrompts.some(p => p.side === 'runner')).toBe(false);
+    expect(s.log.some(l => /Botulus cannot be installed \(no installed ice to host it\)/.test(l.message))).toBe(true);
+  });
 });
 
 describe('Elevation Runner events', () => {

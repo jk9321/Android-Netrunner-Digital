@@ -334,11 +334,15 @@
 
 /*
  * Table sizing. Board cards follow the window height so the whole game fits
- * one screen; the zoom panel shows a large copy on hover.
+ * one screen; the zoom panel shows a large copy on hover. The header's Large
+ * button (data-card-size on <html>, src/ui/cardSize.ts) scales them up.
  */
 :root {
   --card-w: clamp(50px, 9vh, 170px);
   --card-h: calc(var(--card-w) * 1.4);
+}
+:root[data-card-size='large'] {
+  --card-w: clamp(65px, 12vh, 220px);
 }
 .card-fit {
   width: var(--card-w);

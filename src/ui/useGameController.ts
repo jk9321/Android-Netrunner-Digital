@@ -64,17 +64,15 @@ export function useGameController(config: GameConfig, saved: SavedGame | null) {
   const rezWindow = corpRezWindow(gameState, runSerial);
   const rezWindowOpen = rezWindowsOn && rezWindow !== null && !passedRezWindows.includes(rezWindow.key);
   const acting = actingSide(gameState, rezWindowOpen);
-  const viewer: Viewer = humanSide
-    ? viewMode === 'open' || gameState.winner
+  // Once the game is over nothing is secret any more, so everyone sees the open table
+  const viewer: Viewer =
+    gameState.winner || viewMode === 'open'
       ? 'both'
       : humanSide
-    : viewMode === 'open'
-      ? 'both'
-      : viewMode === 'hotseat'
-        ? gameState.winner
-          ? 'both'
-          : hotseatSide
-        : viewMode;
+        ? humanSide
+        : viewMode === 'hotseat'
+          ? hotseatSide
+          : viewMode;
   const handoffTo = !aiSide && viewMode === 'hotseat' && acting && acting !== hotseatSide ? acting : null;
   const corpCanAct = canActAs(viewer, 'corp') && aiSide !== 'corp';
   const runnerCanAct = canActAs(viewer, 'runner') && aiSide !== 'runner' && !rezWindowOpen;

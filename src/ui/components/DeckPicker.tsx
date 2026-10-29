@@ -1,14 +1,15 @@
-import React, { Suspense, lazy, useMemo, useState } from 'react';
+import React, { Suspense, lazy, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { SideCode, getCardDefinition, getFormat, influenceCost, validateDeck } from '../../core';
 import { DECKS, DeckList, deckCodes, pickRandomDeck, randomDeckPool } from '../../data/decks';
 import { ALL_CARDS, getCardImageUrl } from '../../data/cards';
 import { loadCustomDecks, newCustomDeckId, saveCustomDecks } from '../../data/customDecks';
 import type { Difficulty } from '../../ai';
-import { CheckCircle2, AlertTriangle, Play, Plus, Pencil, Copy, Trash2, Dices, FileDown } from 'lucide-react';
+import { CheckCircle2, AlertTriangle, Play, Plus, Pencil, Copy, Trash2, Dices, Eye } from 'lucide-react';
 import { showConfirm } from './Dialog';
 
 // Loaded on first use, so the start screen doesn't wait for them
 const DeckBuilder = lazy(() => import('./DeckBuilder').then(m => ({ default: m.DeckBuilder })));
+const DeckViewer = lazy(() => import('./DeckBuilder').then(m => ({ default: m.DeckViewer })));
 const ImportDeckModal = lazy(() => import('./ImportDeckModal').then(m => ({ default: m.ImportDeckModal })));
 
 interface DeckPickerProps {
@@ -44,10 +45,29 @@ function savedOpponent(): Opponent {
   return 'people';
 }
 
-const OPPONENTS: { id: Opponent; label: string; hint: string }[] = [
-  { id: 'people', label: 'Two players', hint: 'Pass and play, or one person playing both sides' },
-  { id: 'ai-corp', label: 'I play Runner', hint: 'The computer plays the Corp' },
-  { id: 'ai-runner', label: 'I play Corp', hint: 'The computer plays the Runner' },
+// Corp before Runner, matching the deck columns below; each side's button wears its side colour
+const OPPONENTS: { id: Opponent; label: string; hint: string; on: string; off: string }[] = [
+  {
+    id: 'people',
+    label: 'Two players',
+    hint: 'Pass and play, or one person playing both sides',
+    on: 'bg-indigo-600 border-indigo-400 text-white',
+    off: 'bg-slate-900 border-slate-700 text-slate-300 hover:border-slate-500',
+  },
+  {
+    id: 'ai-runner',
+    label: 'I play Corp',
+    hint: 'The computer plays the Runner',
+    on: 'bg-cyan-700 border-cyan-400 text-white',
+    off: 'bg-slate-900 border-cyan-800 text-cyan-300 hover:border-cyan-500',
+  },
+  {
+    id: 'ai-corp',
+    label: 'I play Runner',
+    hint: 'The computer plays the Corp',
+    on: 'bg-pink-600 border-pink-400 text-white',
+    off: 'bg-slate-900 border-pink-800 text-pink-300 hover:border-pink-500',
+  },
 ];
 
 interface DeckSummary {
@@ -80,16 +100,68 @@ function emptyDeck(side: SideCode): DeckList {
   return { id: newCustomDeckId(), name: 'New deck', side, identity: identity.title, cards: {}, source: 'custom' };
 }
 
+const deckListElement = (side: SideCode) => document.querySelector<HTMLElement>(`[data-testid="deck-list-${side}"]`);
+
+/** Scrolls only the deck list column (not the page) so the deck sits in the middle. */
+function scrollDeckIntoView(side: SideCode, deckId: string, behavior: ScrollBehavior = 'smooth') {
+  const list = deckListElement(side);
+  const item = Array.from(list?.children ?? []).find(
+    el => (el as HTMLElement).dataset.testid === `deck-${deckId}`,
+  ) as HTMLElement | undefined;
+  if (!list || !item) return;
+  const offset = item.getBoundingClientRect().top - list.getBoundingClientRect().top;
+  const top = list.scrollTop + offset - (list.clientHeight - item.offsetHeight) / 2;
+  list.scrollTo?.({ top: Math.max(0, top), behavior });
+}
+
+/** Whether the deck's whole entry is inside its list's visible area. */
+function deckFullyVisible(side: SideCode, deckId: string): boolean {
+  const list = deckListElement(side);
+  const item = list?.querySelector<HTMLElement>(`[data-testid="deck-${deckId}"]`);
+  if (!list || !item) return true;
+  const l = list.getBoundingClientRect();
+  const r = item.getBoundingClientRect();
+  return r.top >= l.top && r.bottom <= l.bottom;
+}
+
 /** Start screen: choose a Corp deck and a Runner deck, or build your own. */
 export const DeckPicker: React.FC<DeckPickerProps> = ({ initialCorpDeckId, initialRunnerDeckId, onStart }) => {
   const [customDecks, setCustomDecks] = useState<DeckList[]>(loadCustomDecks);
   const [storageFailed, setStorageFailed] = useState(false);
   const [editing, setEditing] = useState<DeckList | null>(null);
+  const [viewing, setViewing] = useState<DeckList | null>(null);
   const [importing, setImporting] = useState(false);
   const summaries = useMemo(() => [...DECKS, ...customDecks].map(summarize), [customDecks]);
   const [corpId, setCorpId] = useState(initialCorpDeckId);
   const [runnerId, setRunnerId] = useState(initialRunnerDeckId);
   const [opponent, setOpponent] = useState<Opponent>(savedOpponent);
+  // Where the page and each deck list were scrolled, so coming back from the deckbuilder or a decklist lands in the same place
+  const scrollMemory = useRef({ page: 0, corp: 0, runner: 0 });
+  const showingList = !editing && !viewing;
+  useEffect(() => {
+    if (!showingList) return;
+    const remember = () => (scrollMemory.current.page = window.scrollY);
+    window.addEventListener('scroll', remember);
+    return () => window.removeEventListener('scroll', remember);
+  }, [showingList]);
+  const rememberScroll = () => {
+    scrollMemory.current.page = window.scrollY;
+    for (const side of ['corp', 'runner'] as const) scrollMemory.current[side] = deckListElement(side)?.scrollTop ?? 0;
+  };
+  useLayoutEffect(() => {
+    if (!showingList) return;
+    const memory = scrollMemory.current;
+    for (const side of ['corp', 'runner'] as const) {
+      const list = deckListElement(side);
+      if (list) list.scrollTop = memory[side];
+      // A deck picked or saved on the other screen may be off the remembered view
+      const selected = side === 'corp' ? corpId : runnerId;
+      if (!deckFullyVisible(side, selected)) scrollDeckIntoView(side, selected, 'auto');
+    }
+    window.scrollTo?.(0, memory.page);
+    // Only on returning to the list; later selections scroll themselves
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [showingList]);
   const [difficulty, setDifficulty] = useState<Difficulty>(savedDifficulty);
   const chooseDifficulty = (id: Difficulty) => {
     setDifficulty(id);
@@ -132,7 +204,37 @@ export const DeckPicker: React.FC<DeckPickerProps> = ({ initialCorpDeckId, initi
   if (editing) {
     return (
       <Suspense fallback={<div className="p-6 font-mono text-xs text-slate-400">Loading deckbuilder…</div>}>
-        <DeckBuilder key={editing.id} initial={editing} onSave={saveDeck} onCancel={() => setEditing(null)} />
+        <DeckBuilder key={editing.id} initial={editing} onSave={saveDeck} onCancel={() => setEditing(null)} onImport={() => setImporting(true)} />
+        {importing && (
+          <ImportDeckModal
+            onClose={() => setImporting(false)}
+            onSave={deck => {
+              setImporting(false);
+              saveDeck(deck);
+            }}
+            onEdit={deck => {
+              setImporting(false);
+              setEditing(deck);
+            }}
+          />
+        )}
+      </Suspense>
+    );
+  }
+
+  if (viewing) {
+    const selectedId = viewing.side === 'corp' ? corpId : runnerId;
+    return (
+      <Suspense fallback={<div className="p-6 font-mono text-xs text-slate-400">Loading decklist…</div>}>
+        <DeckViewer
+          key={viewing.id}
+          deck={viewing}
+          onClose={() => setViewing(null)}
+          onSelect={selectedId === viewing.id ? undefined : () => {
+            selectFor(viewing.side)(viewing.id);
+            setViewing(null);
+          }}
+        />
       </Suspense>
     );
   }
@@ -147,12 +249,14 @@ export const DeckPicker: React.FC<DeckPickerProps> = ({ initialCorpDeckId, initi
       data-testid={testId}
       onClick={e => {
         e.stopPropagation();
+        rememberScroll();
         onClick();
       }}
       onKeyDown={e => {
         if (e.key === 'Enter' || e.key === ' ') {
           e.preventDefault();
           e.stopPropagation();
+          rememberScroll();
           onClick();
         }
       }}
@@ -161,18 +265,6 @@ export const DeckPicker: React.FC<DeckPickerProps> = ({ initialCorpDeckId, initi
       {icon}
     </span>
   );
-
-  // Scrolls only the deck list column (not the page) so the deck sits in the middle
-  const scrollDeckIntoView = (side: SideCode, deckId: string) => {
-    const list = document.querySelector<HTMLElement>(`[data-testid="deck-list-${side}"]`);
-    const item = Array.from(list?.children ?? []).find(
-      el => (el as HTMLElement).dataset.testid === `deck-${deckId}`,
-    ) as HTMLElement | undefined;
-    if (!list || !item) return;
-    const offset = item.getBoundingClientRect().top - list.getBoundingClientRect().top;
-    const top = list.scrollTop + offset - (list.clientHeight - item.offsetHeight) / 2;
-    list.scrollTo?.({ top: Math.max(0, top), behavior: 'smooth' });
-  };
 
   const column = (side: SideCode, selected: string, select: (id: string) => void) => {
     const accent = side === 'corp' ? 'cyan' : 'pink';
@@ -201,7 +293,10 @@ export const DeckPicker: React.FC<DeckPickerProps> = ({ initialCorpDeckId, initi
               <Dices className="w-3.5 h-3.5" /> Random deck
             </button>
             <button
-              onClick={() => setEditing(emptyDeck(side))}
+              onClick={() => {
+                rememberScroll();
+                setEditing(emptyDeck(side));
+              }}
               data-testid={`new-${side}-deck`}
               className="px-2.5 py-1 rounded-lg border border-slate-700 hover:border-slate-500 text-xs flex items-center gap-1"
             >
@@ -209,7 +304,11 @@ export const DeckPicker: React.FC<DeckPickerProps> = ({ initialCorpDeckId, initi
             </button>
           </div>
         </div>
-        <div className="flex flex-col gap-2 max-h-[50vh] md:max-h-[65vh] overflow-y-auto pr-1" data-testid={`deck-list-${side}`}>
+        <div
+          className="flex flex-col gap-2 max-h-[50vh] md:max-h-[65vh] overflow-y-auto pr-1"
+          data-testid={`deck-list-${side}`}
+          onScroll={e => (scrollMemory.current[side] = e.currentTarget.scrollTop)}
+        >
           {summaries
             .filter(s => s.deck.side === side)
             .map(s => {
@@ -241,6 +340,7 @@ export const DeckPicker: React.FC<DeckPickerProps> = ({ initialCorpDeckId, initi
                         )}
                       </div>
                       <div className="flex shrink-0">
+                        {iconButton('View decklist', <Eye className="w-3.5 h-3.5" />, () => setViewing(s.deck), `view-${s.deck.id}`)}
                         {s.deck.source === 'custom' &&
                           iconButton('Edit deck', <Pencil className="w-3.5 h-3.5" />, () => setEditing(s.deck), `edit-${s.deck.id}`)}
                         {iconButton('Copy into a new deck', <Copy className="w-3.5 h-3.5" />, () => copyDeck(s.deck), `copy-${s.deck.id}`)}
@@ -301,31 +401,8 @@ export const DeckPicker: React.FC<DeckPickerProps> = ({ initialCorpDeckId, initi
         NETRUNNER
       </h1>
       <p className="text-xs text-slate-400 mb-6 text-center">
-        Choose a deck for each side. The starter decks are the best place to begin. Build your own with New deck, or copy any deck to tweak it.
+        Choose a deck for each side. The starter decks are the best place to begin. Build your own with New deck (where you can also import from NetrunnerDB), or copy any deck to tweak it.
       </p>
-      <button
-        onClick={() => setImporting(true)}
-        data-testid="import-deck"
-        title="Import a deck from a NetrunnerDB export, file or link"
-        className="mb-6 -mt-3 px-3 py-1.5 rounded-lg border border-indigo-500/70 hover:border-indigo-300 bg-indigo-950/50 text-xs flex items-center gap-1.5"
-      >
-        <FileDown className="w-3.5 h-3.5" /> Import from NetrunnerDB
-      </button>
-      {importing && (
-        <Suspense fallback={null}>
-          <ImportDeckModal
-            onClose={() => setImporting(false)}
-            onSave={deck => {
-              setImporting(false);
-              saveDeck(deck);
-            }}
-            onEdit={deck => {
-              setImporting(false);
-              setEditing(deck);
-            }}
-          />
-        </Suspense>
-      )}
       {storageFailed && (
         <p className="text-xs text-amber-400 mb-4">This browser would not save your decks, so they will be lost when the page closes.</p>
       )}
@@ -342,9 +419,7 @@ export const DeckPicker: React.FC<DeckPickerProps> = ({ initialCorpDeckId, initi
                 title={o.hint}
                 data-testid={`opponent-${o.id}`}
                 className={`px-4 py-2 rounded-xl border text-xs font-bold transition-colors ${
-                  opponent === o.id
-                    ? 'bg-indigo-600 border-indigo-400 text-white'
-                    : 'bg-slate-900 border-slate-700 text-slate-300 hover:border-slate-500'
+                  opponent === o.id ? o.on : o.off
                 }`}
               >
                 {o.label}

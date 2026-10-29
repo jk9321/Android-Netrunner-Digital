@@ -9,6 +9,7 @@ import { ArrowRight, LogOut, CheckCircle2, ShieldAlert, Sparkles } from 'lucide-
 import { Credits } from './CreditIcon';
 import { FloatingPanel } from './FloatingPanel';
 import { Keyword } from './Keyword';
+import { cardTextHtml } from '../cardText';
 
 /** The glossary entry that explains each run phase. */
 const PHASE_KEYWORD: Record<string, string> = {
@@ -68,12 +69,12 @@ export const RunOverlay: React.FC<RunOverlayProps> = ({
 
   return (
     <FloatingPanel
-      id="run"
       testId="run-overlay"
       zIndexClass="z-40"
       accentClass="border-cyber-neonPink"
       dotClass="bg-pink-400"
-      defaultPlacement="left-1/2 bottom-6 -translate-x-1/2"
+      defaultPlacement="left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2"
+      minimizedPlacement="left-1/2 top-32 -translate-x-1/2"
       widthClass="w-[48rem]"
       minimizedLabel={`Run on ${server?.name ?? 'server'}: ${activeRun.phase.replace(/_/g, ' ')}`}
       title={
@@ -119,9 +120,10 @@ export const RunOverlay: React.FC<RunOverlayProps> = ({
                       <div className="text-cyan-300 font-bold">
                         <Keyword id="strength">Strength</Keyword>: {iceStrength(state, currentIce)} • {cardDef(currentIce).keywords}
                       </div>
-                      <div className="text-[11px] text-slate-300 mt-1 line-clamp-2">
-                        {cardDef(currentIce).text}
-                      </div>
+                      <div
+                        className="text-[11px] text-slate-300 mt-1 max-h-28 overflow-y-auto"
+                        dangerouslySetInnerHTML={{ __html: cardTextHtml(cardDef(currentIce).text ?? '') }}
+                      />
                     </>
                   ) : activeRun.phase === 'movement' ? (
                     'Passed. Jack out now, or keep going inward.'

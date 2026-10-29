@@ -98,7 +98,6 @@ export const PromptPanel: React.FC<PromptPanelProps> = ({ state, onAnswer, onIns
   return (
     <FloatingPanel
       key={prompt.id}
-      id="prompt"
       testId="prompt-panel"
       accentClass={accent}
       dotClass={isCorp ? 'bg-cyan-400' : 'bg-pink-400'}
@@ -217,15 +216,22 @@ export const PromptPanel: React.FC<PromptPanelProps> = ({ state, onAnswer, onIns
 
         {prompt.kind === 'effect_choice' && !trashing && (
           <div className="flex gap-2 justify-end flex-wrap">
-            {prompt.options.map(option => (
-              <button
-                key={option.id}
-                className={`${button} bg-slate-800 hover:bg-slate-700 border-slate-600 text-slate-100`}
-                onClick={() => answer({ kind: 'effect_choice', optionId: option.id })}
-              >
-                <CardNameText text={option.label} focusable={false} />
-              </button>
-            ))}
+            {prompt.options.map(option => {
+              // Options that name a card on the table (the host ice for Tranquilizer or Botulus) light it up like a card pick
+              const card = findCardAnywhere(state, option.id);
+              const position = card ? cardPositionLabel(state, card) : null;
+              return (
+                <button
+                  key={option.id}
+                  className={`${button} bg-slate-800 hover:bg-slate-700 border-slate-600 text-slate-100`}
+                  onClick={() => answer({ kind: 'effect_choice', optionId: option.id })}
+                  onMouseEnter={card ? () => hoverPromptTarget({ id: option.id, label: position }) : undefined}
+                  onMouseLeave={card ? () => hoverPromptTarget(null) : undefined}
+                >
+                  <CardNameText text={option.label} focusable={false} />
+                </button>
+              );
+            })}
           </div>
         )}
 

@@ -224,7 +224,16 @@ function Game({
             server.id === 'hq' ? (
               <CardView card={corp.identity} size="fit" notInstalled onInspect={setInspectedCard} />
             ) : server.id === 'rd' ? (
-              <Pile label="R&D" count={corp.rd.length} side="corp" size="fit" hideLabel testId="pile-rd" />
+              <Pile
+                label="R&D"
+                count={corp.rd.length}
+                side="corp"
+                size="fit"
+                hideLabel
+                // Nobody may look through the decks during play; once the game is over anyone can (rules 1.7.1)
+                onClick={gameState.winner ? () => setZone('rd') : undefined}
+                testId="pile-rd"
+              />
             ) : server.id === 'archives' ? (
               <Pile
                 label="Archives"
@@ -254,7 +263,14 @@ function Game({
           <>
             <CardView card={runner.identity} size="fit" notInstalled onInspect={setInspectedCard} />
             <div />
-            <Pile label="Stack" count={runner.stack.length} side="runner" size="fit" testId="pile-stack" />
+            <Pile
+              label="Stack"
+              count={runner.stack.length}
+              side="runner"
+              size="fit"
+              onClick={gameState.winner ? () => setZone('stack') : undefined}
+              testId="pile-stack"
+            />
             <Pile
               label="Heap"
               count={runner.heap.length}
@@ -451,7 +467,7 @@ function Game({
         <ZoneViewer
           title={zoneView.title}
           groups={zoneView.groups}
-          canPeek={canSeeCorpSecrets(viewer)}
+          canPeek={zone === 'stack' ? canSeeRunnerSecrets(viewer) : canSeeCorpSecrets(viewer)}
           onClose={() => setZone(null)}
           onInspect={setInspectedCard}
         />

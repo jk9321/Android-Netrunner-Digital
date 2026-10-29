@@ -65,6 +65,9 @@ const CardFace: React.FC<CardViewProps> = ({
   const [showTooltip, setShowTooltip] = useState(false);
   const [imageError, setImageError] = useState(false);
   const cardRef = useRef<HTMLDivElement>(null);
+  // When a button over the card was last clicked: a quick second click near it (Advance, then the Score button
+  // that takes its place) is a double click, and must not open the inspect view
+  const lastButtonClick = useRef(-Infinity);
   const def = cardDef(card);
 
   // Sizing definitions: Much larger than original 64x96!
@@ -145,7 +148,13 @@ const CardFace: React.FC<CardViewProps> = ({
     <div
       ref={cardRef}
       onClick={isSelectable ? onClick : undefined}
-      onDoubleClick={() => onInspect && onInspect(card)}
+      onClickCapture={(e) => {
+        if ((e.target as HTMLElement).closest('button')) lastButtonClick.current = e.timeStamp;
+      }}
+      onDoubleClick={(e) => {
+        if ((e.target as HTMLElement).closest('button') || e.timeStamp - lastButtonClick.current < 800) return;
+        onInspect?.(card);
+      }}
       onMouseEnter={handleMouseEnter}
       onMouseLeave={handleMouseLeave}
       className={`relative ${sizeClasses} [container-type:inline-size] rounded-xl border-2 transition-all duration-200 select-none overflow-hidden group shadow-md ${
