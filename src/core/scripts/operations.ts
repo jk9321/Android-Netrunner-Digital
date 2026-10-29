@@ -121,6 +121,7 @@ const seamlessLaunch: CardScript = {
 // Neurospike: Do X net damage, where X is equal to the sum of the printed
 // agenda points on agendas you scored this turn.
 const neurospike: CardScript = {
+  liveValue: state => `X = ${turnFlag(state, TurnFlag.agendaPointsScored)}: ${turnFlag(state, TurnFlag.agendaPointsScored)} net damage`,
   onPlay: ({ state }) => {
     const x = turnFlag(state, TurnFlag.agendaPointsScored);
     if (x > 0) dealNetDamage(state, x);

@@ -286,13 +286,16 @@ const regolithMiningLicense: CardScript = {
 // Urtica Cipher: You can advance this asset. When the Runner accesses this
 // asset while it is installed, do 2 net damage plus 1 net damage for each
 // hosted advancement counter. (Works while unrezzed: it triggers on access.)
+const urticaDamage = (card: CardInstance) => 2 + card.advancementCounters;
 const urticaCipher: CardScript = {
-  onAccessed: ({ state, card }) => void dealNetDamage(state, 2 + card.advancementCounters),
+  onAccessed: ({ state, card }) => void dealNetDamage(state, urticaDamage(card)),
+  liveValue: (_state, card) => `On access now: ${urticaDamage(card)} net damage`,
 };
 
 // Clearinghouse: You can advance this asset. When your turn begins, you may
 // trash this asset to do 1 meat damage for each hosted advancement counter.
 const clearinghouse: CardScript = {
+  liveValue: (_state, card) => `Trash now: ${card.advancementCounters} meat damage`,
   triggers: {
     turn_begins: (ctx, e) => {
       if (e.side !== 'corp' || ctx.card.advancementCounters === 0) return;

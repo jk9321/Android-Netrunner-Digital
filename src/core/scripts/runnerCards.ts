@@ -238,15 +238,17 @@ function breakWithBotulus(state: GameState, index: number): void {
 
 // Fermenter: When you install this program and when your turn begins, place 1
 // virus counter on this program. click, trash: Gain 2 credits for each hosted virus counter.
+const fermenterGain = (card: CardInstance) => 2 * counters(card, 'virus');
 const fermenter: CardScript = {
   triggers: virusGrowth(),
+  liveValue: (_state, card) => `Cash out now: gain ${fermenterGain(card)}[credit]`,
   abilities: [
     {
       label: 'Gain 2 credits for each hosted virus counter.',
       clicks: 1,
       trashSelf: true,
       resolve: ({ state, card }) => {
-        const gain = 2 * counters(card, 'virus');
+        const gain = fermenterGain(card);
         gainCredits(state, 'runner', gain);
         addLog(state, 'runner', `Runner gained ${gain} [credit] (Fermenter).`);
       },
@@ -303,6 +305,7 @@ const conduit: CardScript = {
       resolve: ({ state, card }) => startRun(state, 'rd', { source: { cardCode: card.cardCode, instanceId: card.instanceId } }),
     },
   ],
+  liveValue: (_state, card) => `X = ${counters(card, 'virus')}: access ${counters(card, 'virus')} additional card(s)`,
   onRunSuccessful: ({ state, card }) => {
     state.activeRun!.extraAccesses += counters(card, 'virus');
   },

@@ -561,13 +561,15 @@ const byte: CardScript = {
 // Phật Gioan Baotixita: When your discard phase ends, place 1 power counter on this asset.
 // The first time each turn an agenda is scored or stolen, you may remove up to 2 hosted
 // power counters. Do 1 net damage plus 1 net damage for each power counter removed this way.
+const phatMaxRemoved = (card: CardInstance) => Math.min(2, counters(card, 'power'));
 const phatTrigger = (ctx: EffectContext) => {
   if (!useOncePerTurn(ctx.state, onceKey(ctx.card))) return;
-  const max = Math.min(2, counters(ctx.card, 'power'));
+  const max = phatMaxRemoved(ctx.card);
   const options = Array.from({ length: max + 1 }, (_, n) => ({ id: String(n), label: `Remove ${n} power counter(s): ${n + 1} net damage` }));
   askChoice(ctx, 'corp', 'Phật Gioan Baotixita: remove power counters for extra net damage.', options, 'damage');
 };
 const phat: CardScript = {
+  liveValue: (_state, card) => `Next score or steal: up to ${1 + phatMaxRemoved(card)} net damage`,
   triggers: {
     discard_phase_ends: ({ card }, e) => e.side === 'corp' && addCounters(card, 'power', 1),
     agenda_scored: phatTrigger,
@@ -584,6 +586,7 @@ const phat: CardScript = {
 // Idiosyncresis: You can advance this asset. When your turn begins, you may trash this
 // asset. If you do, for each hosted advancement counter, gain 3 credits and the Runner loses 2.
 const idiosyncresis: CardScript = {
+  liveValue: (_state, card) => `Trash now: gain ${3 * card.advancementCounters}[credit], Runner loses ${2 * card.advancementCounters}[credit]`,
   triggers: {
     turn_begins: (ctx, e) => {
       const n = ctx.card.advancementCounters;

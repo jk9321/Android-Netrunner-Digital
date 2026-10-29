@@ -2,6 +2,10 @@ import React, { createContext, useContext, useState, useSyncExternalStore } from
 import { CardInstance } from '../../core/types/card';
 import { cardDef, getCardBackUrl, getCardImageUrl } from '../../data/cards';
 import { typeLine } from '../cardLabels';
+import { GameState } from '../../core/types/state';
+import { findCardAnywhere } from '../../core/engine/helpers';
+import { liveValues } from '../liveValues';
+import { renderSymbols } from './CreditIcon';
 import { Eye } from 'lucide-react';
 
 /** The card under the pointer, and whether this viewer may see its face. */
@@ -44,8 +48,8 @@ export const ZoomContext = createContext<ZoomStore | null>(null);
 export const useZoom = () => useContext(ZoomContext);
 
 /** Full-size view of the hovered card, as on jinteki.net. Double-click a card for the rules text. */
-export const ZoomPanel: React.FC<{ store: ZoomStore; onInspect: (card: CardInstance) => void }> = ({ store, onInspect }) => {
-  const target = useSyncExternalStore(store.subscribe, store.get);
+export const ZoomPanel: React.FC<{ store: ZoomStore; state: GameState; onInspect: (card: CardInstance) => void }> = ({ store, state, onInspect }) => {
+  const target = useSyncExternalStore(store.subscribe, store.get, store.get);
   const [failed, setFailed] = useState<string | null>(null);
 
   if (!target) {
@@ -59,6 +63,8 @@ export const ZoomPanel: React.FC<{ store: ZoomStore; onInspect: (card: CardInsta
   const { card, hidden, seen } = target;
   const def = cardDef(card);
   const src = hidden ? getCardBackUrl(def.side_code || 'corp') : getCardImageUrl(card.cardCode);
+  // The hovered instance is a snapshot; read counters and zones from the live state
+  const live = hidden ? [] : liveValues(state, findCardAnywhere(state, card.instanceId) ?? card);
 
   return (
     <div className="flex flex-col items-center gap-1" data-testid="zoom-panel">
@@ -74,6 +80,16 @@ export const ZoomPanel: React.FC<{ store: ZoomStore; onInspect: (card: CardInsta
           />
         )}
         {seen && <div className="seen-veil absolute inset-0 pointer-events-none" />}
+        {live.length > 0 && (
+          <div
+            data-testid="zoom-live-values"
+            className="absolute inset-x-1 top-[44%] -translate-y-full rounded bg-slate-950/90 border border-amber-400/60 px-2 py-1 text-[11px] font-mono text-amber-200 flex flex-col gap-0.5 pointer-events-none"
+          >
+            {live.map(line => (
+              <div key={line} className="flex items-center gap-1 flex-wrap">{renderSymbols(line)}</div>
+            ))}
+          </div>
+        )}
       </div>
       <div className="w-full flex items-center justify-between gap-2 text-[11px] font-mono min-w-0">
         <span className="truncate text-slate-300" title={seen ? `Unrezzed, last seen as ${def.title}` : undefined}>
