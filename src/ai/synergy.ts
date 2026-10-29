@@ -294,12 +294,15 @@ export const tuning = {
 /**
  * Plan switches off for one side only (Jeff, 2026-10-29), on top of
  * tuning.plan, as PLAN_OFF writes them (name or name.key). Head-to-head
- * against the old Runner: the Runner-reply Corp 41.9%, and with these off
- * for the Corp 48.9% (each lost a little alone; the old Corp rules they
- * re-priced already did well).
+ * against the old Runner (2,210 games each): Runner-reply Corp 41.9%; with
+ * 10 pieces off for it 47.8%. Putting groups back on: flatRates 47.7,
+ * damage + tag clocks 48.7, subCosts + runModel + cardFixes 46.9 (noise:
+ * back on, they replace hacks), modelHacks 44.7 and effect + counter values
+ * 45.4 (lose: off for the Corp). The same 10 off for the Runner cost it
+ * 6.9 points (old Corp 33.3% -> 40.2%): on for the Runner.
  */
 export const sideOff: Record<SideCode, string[]> = {
-  corp: ['flatRates', 'damageClock', 'tagClock', 'subCosts', 'cardFixes', 'runModel', 'modelHacks', 'effectValues', 'counterEffects.corp', 'counterFormulas'],
+  corp: ['modelHacks', 'effectValues', 'counterEffects.corp', 'counterFormulas'],
   runner: [],
 };
 
