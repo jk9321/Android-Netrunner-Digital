@@ -135,3 +135,4 @@ Every self-play batch, newest last (Jeff, 2026-10-28). Made with `scripts/corp-l
 | 2026-10-29 | FINAL H2H new Corp vs old Runner | 3566955 | 2208 | **45.8%** | 37.5% / 8.4% | 51.2% / 3.0% | 41.4% / 31.7% / 24.6% / 2.3% | 5.8 | [txt](batch-logs/2026-10-29-final-h2h-new-corp-vs-old-runner.txt) |
 | 2026-10-29 | FINAL H2H old Corp vs new Runner | 3566955 | 2210 | **32.8%** | 27.3% / 5.5% | 64.9% / 2.3% | 44.2% / 20.9% / 27.6% / 7.2% | 7.0 | [txt](batch-logs/2026-10-29-final-h2h-old-corp-vs-new-runner.txt) |
 | 2026-10-29 | FINAL full system self-play | 3566955 | 2210 | **41.5%** | 34.3% / 7.2% | 56.1% / 2.4% | 44.8% / 21.4% / 30.2% / 3.5% | 6.2 | [txt](batch-logs/2026-10-29-final-full-system-self-play.txt) |
+| 2026-10-29 | Main after merge: self-play baseline for balance | 1327cc1 | 2210 | **41.3%** | 34.1% / 7.2% | 56.3% / 2.4% | 44.9% / 21.4% / 30.2% / 3.5% | 6.1 | [txt](batch-logs/2026-10-29-main-after-merge-self-play-baseline-for-balance.txt) |
