@@ -259,8 +259,9 @@ export class HeuristicCorpAI implements Agent {
     // (rules 5.6.1b-d): it pays at once, and the Runner gets no turn to trash it full (plan.assetRezTiming)
     if (tuning.plan.assetRezTiming && CARD_PROFILES[card.cardCode]?.every === 'turn' && state.turnStep?.kind !== 'corp_turn_start') return -Infinity;
     // (Jeff) Spin Doctor: left unrezzed it may draw a run, and is rezzed then for the same draw; or just before the
-    // turn begins. Rezzed in the action phase only when the cards are needed now (digging, or an empty hand)
-    if (tuning.plan.assetRezTiming && onRezOnly(card) && state.turnStep?.kind !== 'corp_turn_start' && corp.hq.length > 1 && digValue(state, 'corp') <= 0) return -Infinity;
+    // turn begins. Rezzed in the action phase only when the cards are needed now (digging, or an empty hand);
+    // spinDoctorUseNow: or while 2+ clicks are left to use them this turn
+    if (tuning.plan.assetRezTiming && onRezOnly(card) && state.turnStep?.kind !== 'corp_turn_start' && corp.hq.length > 1 && digValue(state, 'corp') <= 0 && (!tuning.plan.spinDoctorUseNow || corp.clicks <= 1)) return -Infinity;
     const econ = econValue(card.cardCode, state);
     if (econ) return econ + 1;
     if (hacksOff('rez')) {
