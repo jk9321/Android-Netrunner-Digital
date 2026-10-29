@@ -111,6 +111,8 @@ export interface GameRecord {
   traps: Record<string, { installed: number; accessed: number }>;
   /** Money assets rezzed (card profiles), by title: credits they paid out before leaving play, what rezzing them cost, how they left */
   assets: Record<string, { rezzed: number; paid: number; cost: number; trashed: number; emptied: number; atEnd: number; turns: number }>;
+  /** Runner turns a rezzed money asset faced, and how many ended with it trashed: in a remote with ice, and without (the trash risk per turn) */
+  assetRisk: { icedTurns: number; icedTrashed: number; bareTurns: number; bareTrashed: number };
 }
 
 /** What a step that changed the Corp's credits did, read from the state change. */
@@ -262,7 +264,8 @@ export function playLogged(start: GameState, agents: { corp: Agent; runner: Agen
   let rootSpent = 0;
   const traps: GameRecord['traps'] = {};
   const assets: GameRecord['assets'] = {};
-  const live = new Map<string, { title: string; load: number; left: number; turn: number }>();
+  const live = new Map<string, { title: string; load: number; left: number; turn: number; iced?: boolean }>();
+  const assetRisk = { icedTurns: 0, icedTrashed: 0, bareTurns: 0, bareTrashed: 0 };
   closeAssets = () => {
     for (const entry of live.values()) {
       const a = assets[entry.title];
@@ -290,6 +293,13 @@ export function playLogged(start: GameState, agents: { corp: Agent; runner: Agen
     }
     if (before.activePlayer === 'runner' && runnerTurnStart?.turnNumber !== before.turnNumber) {
       runnerTurnStart = before;
+      // Each rezzed money asset faces this Runner turn, behind ice or not
+      for (const [id, entry] of live) {
+        const sv = Object.values(before.corp.servers).find(x => x.root.some(c => c.instanceId === id));
+        entry.iced = !!sv && sv.ice.length > 0;
+        if (entry.iced) assetRisk.icedTurns++;
+        else assetRisk.bareTurns++;
+      }
       if (before.turnNumber <= 2) {
         const ice = before.corp.hq.filter(c => cardDef(c).type_code === 'ice');
         early.push({
@@ -374,7 +384,11 @@ export function playLogged(start: GameState, agents: { corp: Agent; runner: Agen
       const a = assets[entry.title];
       a.paid += entry.load - entry.left;
       a.turns += (after.turnNumber - entry.turn) / 2;
-      if (before.activeRun) a.trashed++;
+      if (before.activeRun) {
+        a.trashed++;
+        if (entry.iced) assetRisk.icedTrashed++;
+        else if (entry.iced === false) assetRisk.bareTrashed++;
+      }
       else a.emptied++;
       live.delete(id);
     }
@@ -497,6 +511,7 @@ export function playLogged(start: GameState, agents: { corp: Agent; runner: Agen
     brokeApproaches,
     traps,
     assets: closeAssets(),
+    assetRisk,
     agendaInstalls,
     early,
     money,

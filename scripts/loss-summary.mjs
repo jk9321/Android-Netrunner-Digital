@@ -105,6 +105,10 @@ export function printLossSummary(games, detail = !!process.env.DETAIL) {
       console.log(`  ${k}: ${v.rezzed}: paid ${each(v.paid)} / cost ${each(v.cost)}, ${each(v.turns)} turns, ${pct(v.trashed, v.rezzed)} / ${pct(v.emptied, v.rezzed)} / ${pct(v.atEnd, v.rezzed)}`);
     }
   }
+  if (games[0]?.assetRisk) {
+    const r = k => sum(games, g => g.assetRisk[k]);
+    console.log(`  trash risk per Runner turn: behind ice ${pct(r('icedTrashed'), r('icedTurns'))} of ${r('icedTurns')}, bare ${pct(r('bareTrashed'), r('bareTurns'))} of ${r('bareTurns')}`);
+  }
   if (steals[0]?.stopperAt !== undefined) {
     const run = steals.filter(s => s.stopperAt !== undefined && ['remote', 'rd', 'hq'].includes(s.from));
     console.log(`Placement (steals from runs in Corp losses: ${run.length}):`);
