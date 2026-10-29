@@ -61,6 +61,32 @@ export const EncounterPanel: React.FC<EncounterPanelProps> = ({ state, onAction,
     return card ? cardDef(card).title : id;
   };
 
+  const btn =
+    'px-2.5 py-1 rounded-lg text-[11px] font-mono font-bold border transition-colors disabled:opacity-40';
+  const abilityActions = legal.filter(
+    (a): a is Extract<GameAction, { type: 'USE_ABILITY' }> => a.type === 'USE_ABILITY',
+  );
+  const breakerIds = new Set(installedIcebreakers(state).map(b => b.instanceId));
+  // A breaker's own abilities (Hantu: spend a virus counter for +2 strength)
+  // sit in its row, next to its break buttons, rather than under "Card abilities".
+  const abilityButton = (a: (typeof abilityActions)[number], k: number, compact: boolean) => {
+    const card = findCardAnywhere(state, a.cardInstanceId);
+    const ability = card && getCardScript(card.cardCode)?.abilities?.[a.abilityIndex];
+    if (!card || !ability) return null;
+    const effect = ability.label.split(':').slice(1).join(':').trim().replace(/\.$/, '');
+    const text = !compact
+      ? cardDef(card).title
+      : ability.counters && effect
+        ? `Spend ${ability.counters.count} ${ability.counters.type}: ${effect} (${card.tokens[ability.counters.type] ?? 0} left)`
+        : ability.label.replace(/\.$/, '');
+    return (
+      <button key={`ab${k}`} onClick={() => onAction(a)} className={`${btn} bg-lime-950 border-lime-700 text-lime-200 hover:bg-lime-900`} title={ability.label}>
+        <Sparkles className="inline w-3 h-3 mr-1" />
+        {text}
+      </button>
+    );
+  };
+
   const breakerRows = installedIcebreakers(state).map(breaker => {
     const script = breakerScript(breaker);
     const actions = legal.filter(
@@ -70,14 +96,12 @@ export const EncounterPanel: React.FC<EncounterPanelProps> = ({ state, onAction,
       !readOnly && script && seen(breaker.instanceId, actions.some(a => a.type === 'BREAK_SUBROUTINE'))
         ? subroutineSlots(subs.length, script.breakMax)
         : null;
-    return { breaker, script, actions, breakSlots };
+    const own = abilityActions.filter(a => a.cardInstanceId === breaker.instanceId);
+    return { breaker, script, actions, breakSlots, own };
   });
   const bioroidActions = legal.filter(a => a.type === 'BIOROID_BREAK');
   const showBioroid = !readOnly && seen('bioroid', bioroidActions.length > 0);
-  const abilityActions = legal.filter(a => a.type === 'USE_ABILITY');
-
-  const btn =
-    'px-2.5 py-1 rounded-lg text-[11px] font-mono font-bold border transition-colors disabled:opacity-40';
+  const otherAbilities = abilityActions.filter(a => !breakerIds.has(a.cardInstanceId));
   const usedBtn = `${btn} bg-slate-900 border-slate-700 text-slate-500 cursor-not-allowed`;
   const isBroken = (indices: number[]) => indices.every(i => encounter.broken[i]);
   const labelOf = (indices: number[]) => indices.map(i => i + 1).join('+');
@@ -108,15 +132,18 @@ export const EncounterPanel: React.FC<EncounterPanelProps> = ({ state, onAction,
 
       {breakerRows.length > 0 && (
         <div className="space-y-1.5">
-          {breakerRows.map(({ breaker, script, actions, breakSlots }) => (
+          {breakerRows.map(({ breaker, script, actions, breakSlots, own }) => (
             <div key={breaker.instanceId} className="flex flex-wrap items-center gap-1.5">
               <span className="text-[11px] font-mono text-slate-400 w-40 truncate">
                 {cardDef(breaker).title} (str {breakerStrength(state, breaker)})
               </span>
+              {own.map((a, k) => abilityButton(a, k, true))}
               {breakSlots ? (
                 <>
                   {(() => {
                     const boost = actions.find(a => a.type === 'BOOST_BREAKER');
+                    // No credit boost at all (Hantu boosts only by spending counters).
+                    if (!Number.isFinite(boostCostOf(state, breaker))) return null;
                     return (
                       <button
                         onClick={() => boost && onAction(boost)}
@@ -157,7 +184,7 @@ export const EncounterPanel: React.FC<EncounterPanelProps> = ({ state, onAction,
                 </>
               ) : (
                 <>
-              {actions.length === 0 && <span className="text-[11px] font-mono text-slate-600">no legal use</span>}
+              {actions.length === 0 && own.length === 0 && <span className="text-[11px] font-mono text-slate-600">no legal use</span>}
               {actions.map((a, k) =>
                 a.type === 'BOOST_BREAKER' ? (
                   <button
@@ -187,21 +214,10 @@ export const EncounterPanel: React.FC<EncounterPanelProps> = ({ state, onAction,
         </div>
       )}
 
-      {abilityActions.length > 0 && (
+      {otherAbilities.length > 0 && (
         <div className="flex flex-wrap items-center gap-1.5">
           <span className="text-[11px] font-mono text-slate-400 w-40">Card abilities</span>
-          {abilityActions.map((a, k) => {
-            if (a.type !== 'USE_ABILITY') return null;
-            const card = findCardAnywhere(state, a.cardInstanceId);
-            const ability = card && getCardScript(card.cardCode)?.abilities?.[a.abilityIndex];
-            if (!card || !ability) return null;
-            return (
-              <button key={k} onClick={() => onAction(a)} className={`${btn} bg-lime-950 border-lime-700 text-lime-200 hover:bg-lime-900`} title={ability.label}>
-                <Sparkles className="inline w-3 h-3 mr-1" />
-                {cardDef(card).title}
-              </button>
-            );
-          })}
+          {otherAbilities.map((a, k) => abilityButton(a, k, false))}
         </div>
       )}
 
