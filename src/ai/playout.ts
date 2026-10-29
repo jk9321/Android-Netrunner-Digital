@@ -12,6 +12,8 @@ export class GameRunner {
   state: GameState;
   private runSerial = 0;
   private passed = new Set<string>();
+  /** The last action applied (for the batch logs). */
+  last: Parameters<typeof executeAction>[1] | null = null;
 
   constructor(
     state: GameState,
@@ -33,6 +35,7 @@ export class GameRunner {
     const window = corpRezWindow(state, this.runSerial);
     if (window && !this.passed.has(window.key)) {
       const rez = this.agents.corp.chooseRez?.(state, window.cards) ?? null;
+      this.last = rez;
       if (rez) this.state = executeAction(state, rez);
       else this.passed.add(window.key);
       return true;
@@ -44,6 +47,7 @@ export class GameRunner {
   }
 
   apply(action: Parameters<typeof executeAction>[1]) {
+    this.last = action;
     const next = executeAction(this.state, action);
     if (!this.state.activeRun && next.activeRun) this.runSerial++;
     this.state = next;

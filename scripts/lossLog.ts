@@ -113,7 +113,21 @@ export interface GameRecord {
   assets: Record<string, { rezzed: number; paid: number; cost: number; trashed: number; emptied: number; atEnd: number; turns: number }>;
   /** Runner turns a rezzed money asset faced, and how many ended with it trashed: in a remote with ice, and without (the trash risk per turn) */
   assetRisk: { icedTurns: number; icedTrashed: number; bareTurns: number; bareTrashed: number };
+  /** Each side's identity: its prompts by step (offered, taken), abilities used, log lines naming it, turns played */
+  identity: Record<'corp' | 'runner', IdentityUse>;
 }
+
+export interface IdentityUse {
+  title: string;
+  prompts: Record<string, { offered: number; taken: number }>;
+  abilities: number;
+  logs: number;
+  turns: number;
+  faceUpAgendas?: number;
+}
+
+/** Prompt option ids that turn an optional ability down. */
+const DECLINES = ['no', 'leave', 'skip', 'decline', 'none', 'pass', 'done', 'keep'];
 
 /** What a step that changed the Corp's credits did, read from the state change. */
 function moneyKind(before: GameState, after: GameState): string {
@@ -266,6 +280,16 @@ export function playLogged(start: GameState, agents: { corp: Agent; runner: Agen
   const assets: GameRecord['assets'] = {};
   const live = new Map<string, { title: string; load: number; left: number; turn: number; iced?: boolean }>();
   const assetRisk = { icedTurns: 0, icedTrashed: 0, bareTurns: 0, bareTrashed: 0 };
+  const sides = ['corp', 'runner'] as const;
+  const identity = Object.fromEntries(
+    sides.map(side => [side, { title: cardDef(start[side].identity).title, prompts: {}, abilities: 0, logs: 0, turns: 0 } as IdentityUse])
+  ) as GameRecord['identity'];
+  // Log lines naming the identity: its name before the colon, first word for long ones (René, Ryō, Poétrï...)
+  const idName = (side: 'corp' | 'runner') => {
+    const words = identity[side].title.split(':')[0].replace(/[“”"]/g, '').replace(/^The /, '').split(' ');
+    return words[0].length >= 4 ? words[0] : words.slice(0, 2).join(' ');
+  };
+  const idNames = { corp: idName('corp'), runner: idName('runner') };
   closeAssets = () => {
     for (const entry of live.values()) {
       const a = assets[entry.title];
@@ -331,6 +355,26 @@ export function playLogged(start: GameState, agents: { corp: Agent; runner: Agen
     }
     if (!runner.step()) break;
     const after = runner.state;
+    for (const side of sides) {
+      const use = identity[side];
+      const id = before[side].identity;
+      const prompt = before.pendingPrompts[0];
+      const act = runner.last;
+      if (act?.type === 'RESOLVE_PROMPT' && prompt && 'source' in prompt && prompt.source.instanceId === id.instanceId && prompt.id === act.promptId) {
+        const p = (use.prompts[prompt.source.step] ??= { offered: 0, taken: 0 });
+        p.offered++;
+        const c = act.choice;
+        if ((c.kind === 'effect_choice' && !DECLINES.includes(c.optionId)) || (c.kind === 'effect_cards' && c.cardInstanceIds.length > 0)) p.taken++;
+      }
+      if (act?.type === 'USE_ABILITY' && act.cardInstanceId === id.instanceId) use.abilities++;
+      for (let i = before.log.length; i < after.log.length; i++) if (after.log[i].message.replace(/[“”"]/g, '').includes(idNames[side])) use.logs++;
+      if (before.activePlayer === side && after.activePlayer !== side) use.turns++;
+      // BANGUN: agendas installed faceup
+      if (side === 'corp') {
+        const up = (st: GameState) => Object.values(st.corp.servers).flatMap(sv => sv.root).filter(c => isAgenda(c) && c.faceUp && !c.isRezzed);
+        for (const c of up(after)) if (!up(before).some(b => b.instanceId === c.instanceId)) use.faceUpAgendas = (use.faceUpAgendas ?? 0) + 1;
+      }
+    }
     trackAgendas(after, agendaInstalls, openAgendas);
     const delta = after.corp.credits - before.corp.credits;
     if (delta !== 0) {
@@ -512,6 +556,7 @@ export function playLogged(start: GameState, agents: { corp: Agent; runner: Agen
     traps,
     assets: closeAssets(),
     assetRisk,
+    identity,
     agendaInstalls,
     early,
     money,

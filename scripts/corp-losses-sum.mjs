@@ -21,6 +21,35 @@ for (const side of ['corp', 'runner']) {
   for (const [name, d] of [...by].sort((a, b) => b[1].w / b[1].n - a[1].w / a[1].n)) console.log(`  ${name}: ${((100 * d.w) / d.n).toFixed(1)}% of ${d.n}`);
 }
 
+// Identities (Jeff, 2026-10-29): how often each uses its ability, per game, and its win rate
+if (games[0]?.identity) {
+  console.log('Identities (per game: prompts taken/offered by step, abilities used, log lines naming it; win %):');
+  for (const side of ['corp', 'runner']) {
+    const by = new Map();
+    for (const g of games) {
+      const u = g.identity[side];
+      const d = by.get(u.title) ?? { n: 0, w: 0, turns: 0, abilities: 0, logs: 0, faceUp: 0, prompts: {} };
+      d.n++;
+      if (g.winner === side) d.w++;
+      d.turns += u.turns;
+      d.abilities += u.abilities;
+      d.logs += u.logs;
+      d.faceUp += u.faceUpAgendas ?? 0;
+      for (const [step, p] of Object.entries(u.prompts)) {
+        const q = (d.prompts[step] ??= { offered: 0, taken: 0 });
+        q.offered += p.offered;
+        q.taken += p.taken;
+      }
+      by.set(u.title, d);
+    }
+    for (const [title, d] of [...by].sort((a, b) => a[0].localeCompare(b[0]))) {
+      const per = x => (x / d.n).toFixed(2);
+      const prompts = Object.entries(d.prompts).map(([step, p]) => `${step} ${per(p.taken)}/${per(p.offered)}`).join(', ');
+      console.log(`  ${side} ${title}: ${((100 * d.w) / d.n).toFixed(1)}% of ${d.n}; own turns ${per(d.turns)}; abilities ${per(d.abilities)}; logs ${per(d.logs)}${prompts ? `; prompts ${prompts}` : ''}${d.faceUp ? `; agendas faceup ${per(d.faceUp)}` : ''}`);
+    }
+  }
+}
+
 // The two weakest Corp decks on their own (Jeff, 2026-10-29: weakest decks first)
 const corpRates = new Map();
 for (const g of games) {
