@@ -3,13 +3,16 @@
  * clicks, hoards credits, overdraws, discards, runs, and which cards it plays
  * or leaves in hand. Copied into scripts/ of a tree and run with vite-node.
  *   SHARD=i/n npx vite-node scripts/behaviour.ts -- [games per pairing] [normal|hard]
+ * DECKS=vp- plays only decks whose id starts with that prefix (comma-separated prefixes).
+ * COVERAGE=1 adds the test-only decks of scripts/vp-coverage-decks.ts (ids cov-...).
  */
-import { createInitialGameState, GameState, cardDef } from '../src/core';
+import { activePrompt, createInitialGameState, findCardAnywhere, GameState, cardDef } from '../src/core';
 import { DECKS, deckGameSetup } from '../src/data/decks';
 import { createAgent } from '../src/ai';
 import { GameRunner } from '../src/ai/playout';
 import type { Agent } from '../src/ai/agent';
 import { tuning } from '../src/ai/synergy';
+import { VP_COVERAGE_DECKS } from './vp-coverage-decks';
 for (const key of (process.env.PLAN_OFF ?? '').split(',').filter(Boolean)) {
   const [name, side] = key.split('.');
   const plan = tuning.plan as Record<string, unknown>;
@@ -30,7 +33,11 @@ const side0 = () => ({
 });
 const stats = { games: 0, corpWins: 0, corp: side0(), runner: side0(),
   played: {} as Record<string, number>, stuck: {} as Record<string, number>, seen: {} as Record<string, number>,
-  byDeck: {} as Record<string, { n: number; w: number }> };
+  byDeck: {} as Record<string, { n: number; w: number }>,
+  /** Card abilities used, and card prompt answers ("code step=answer"), by card. */
+  abilities: {} as Record<string, number>, answers: {} as Record<string, number>,
+  /** Cards the agents chose to play, install or rez (counted from their actions, unlike `played`). */
+  chosen: {} as Record<string, number> };
 
 const hand = (s: GameState, side: Side) => side === 'corp' ? s.corp.hq : s.runner.grip;
 const credits = (s: GameState, side: Side) => s[side].credits;
@@ -40,13 +47,39 @@ function timed(a: Agent, side: Side): Agent {
   const st = stats[side];
   return {
     side: a.side,
-    chooseAction(s) { const t = performance.now(); const r = a.chooseAction(s); const d = performance.now() - t; st.decisions++; st.ms += d; st.maxMs = Math.max(st.maxMs, d); return r; },
-    chooseRez: a.chooseRez ? (s, c) => a.chooseRez!(s, c) : undefined,
+    chooseAction(s) {
+      const t = performance.now(); const r = a.chooseAction(s); const d = performance.now() - t; st.decisions++; st.ms += d; st.maxMs = Math.max(st.maxMs, d);
+      if (r.type === 'PLAY_OPERATION_OR_EVENT' || r.type === 'INSTALL_CARD' || r.type === 'REZ_CARD') {
+        const card = findCardAnywhere(s, r.cardInstanceId);
+        if (card) { const k = `${card.cardCode} ${r.type}`; stats.chosen[k] = (stats.chosen[k] ?? 0) + 1; }
+      }
+      if (r.type === 'USE_ABILITY') {
+        const card = findCardAnywhere(s, r.cardInstanceId);
+        if (card) { const k = `${card.cardCode} ${titleOf(card.cardCode)} #${r.abilityIndex}`; stats.abilities[k] = (stats.abilities[k] ?? 0) + 1; }
+      }
+      const prompt = activePrompt(s);
+      if (r.type === 'RESOLVE_PROMPT' && prompt && (prompt.kind === 'effect_choice' || prompt.kind === 'effect_cards')) {
+        const answer = r.choice.kind === 'effect_choice' ? r.choice.optionId : r.choice.kind === 'effect_cards' ? `${r.choice.cardInstanceIds.length} cards` : '?';
+        const k = `${prompt.source.cardCode} ${titleOf(prompt.source.cardCode)} ${prompt.source.step}=${answer}`;
+        stats.answers[k] = (stats.answers[k] ?? 0) + 1;
+      }
+      return r;
+    },
+    chooseRez: a.chooseRez
+      ? (s, c) => {
+          const r = a.chooseRez!(s, c);
+          if (r?.type === 'REZ_CARD') { const card = findCardAnywhere(s, r.cardInstanceId); if (card) stats.chosen[`${card.cardCode} REZ_CARD`] = (stats.chosen[`${card.cardCode} REZ_CARD`] ?? 0) + 1; }
+          if (r?.type === 'USE_ABILITY') { const card = findCardAnywhere(s, r.cardInstanceId); if (card) { const k = `${card.cardCode} ${titleOf(card.cardCode)} #${r.abilityIndex}`; stats.abilities[k] = (stats.abilities[k] ?? 0) + 1; } }
+          return r;
+        }
+      : undefined,
   };
 }
 
 let seed = 1000, deal = 0;
-for (const c of DECKS.filter(d => d.side === 'corp')) for (const r of DECKS.filter(d => d.side === 'runner')) for (let g = 0; g < games; g++) {
+const prefixes = (process.env.DECKS ?? '').split(',').filter(Boolean);
+const pool = [...DECKS, ...(process.env.COVERAGE ? VP_COVERAGE_DECKS : [])].filter(d => prefixes.length === 0 || prefixes.some(p => d.id.startsWith(p)));
+for (const c of pool.filter(d => d.side === 'corp')) for (const r of pool.filter(d => d.side === 'runner')) for (let g = 0; g < games; g++) {
   seed++;
   if (deal++ % shards !== shard) continue;
   const agent = (side: Side) => timed(createAgent(side, level, level === 'hard' ? { samples: 6, candidates: 3, seed } : {}), side);

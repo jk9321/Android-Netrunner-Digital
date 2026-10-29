@@ -191,6 +191,13 @@ export class HeuristicCorpAI implements Agent {
       const code = findCardAnywhere(state, action.cardInstanceId)?.cardCode;
       if (code === '35035') return action; // LEO: trash a bioroid, end the run
       if (code === '35048' && !archivesAgenda && state.activeRun?.server !== 'archives') return action; // Proprionegation
+      if (code === '36045') return action; // The Red Room: a power counter, end the run
+      if (code === '36035' && perfectRecallTarget(state)) return action; // Perfect Recall: protect the agenda the Runner is after
+    }
+    // Event Horizon: trash it to end the run, only for a run that would take an agenda
+    if (importance >= 7) {
+      const horizon = getLegalActions(state, 'corp').find(a => a.type === 'USE_ABILITY' && findCardAnywhere(state, a.cardInstanceId)?.cardCode === '36058');
+      if (horizon) return horizon;
     }
     return null;
   }
@@ -933,6 +940,20 @@ export function runLoss(state: GameState): number {
     loss += state.corp.archives.faceDown.filter(c => type(c) === 'agenda').reduce((n, c) => n + steal(c), 0);
   }
   return loss;
+}
+
+/**
+ * Perfect Recall: the card in HQ to reveal so the Runner can't steal it on
+ * this run: on an HQ run the agenda worth most there; on a run where the
+ * root holds an agenda, a copy of it in HQ. Undefined: nothing worth it.
+ */
+export function perfectRecallTarget(state: GameState): string | undefined {
+  const run = state.activeRun;
+  if (!run || (run.protectedTitles?.length ?? 0) > 0) return undefined;
+  const agendas = state.corp.hq.filter(c => type(c) === 'agenda');
+  if (run.server === 'hq') return [...agendas].sort((a, b) => (cardDef(b).agenda_points ?? 0) - (cardDef(a).agenda_points ?? 0))[0]?.instanceId;
+  const target = state.corp.servers[run.server]?.root.find(c => type(c) === 'agenda');
+  return target ? agendas.find(c => cardDef(c).title === cardDef(target).title)?.instanceId : undefined;
 }
 
 function serverImportance(state: GameState, server: ServerState | undefined, aware = false): number {

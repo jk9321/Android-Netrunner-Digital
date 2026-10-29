@@ -1,10 +1,11 @@
 import { CardInstance, GameAction, GameState, Prompt, SideCode, activePrompt, cardDef, executeAction, findCardAnywhere, getCardDefinition, getLegalActions, isLegalAction } from '../core';
 import { runnerInstallBlocker } from '../core/engine/actions/install';
 import { evaluate, keepValue } from './evaluate';
-import { placedCounterWorth } from './effectValues';
+import { PACE, placedCounterWorth } from './effectValues';
 import { BOTULUS, MANEGARM, RunOptions, RunnerMemory, iceCost, isTrap, runClick, runScore, serverValue, spendCost, subroutineCost, weakestIce } from './runs';
 import { encounteredIce, iceSubroutines } from '../core/engine/ice';
 import { keepBonus, tuning } from './synergy';
+import { perfectRecallTarget } from './corpAI';
 
 /** Applies an action, or returns null if the engine rejects it. */
 export function simulate(state: GameState, action: GameAction): GameState | null {
@@ -121,6 +122,12 @@ export function runEventOptions(cardCode: string): RunOptions {
       return { successBonus: 6 };
     case '35005': // Shred
       return { shred: true };
+    case '36012': // Tailgate: 2 more HQ accesses
+      return { extraAccesses: 2 };
+    case '36018': // Aircheck: 4 credits of its own, the pool locked
+      return { bonusCredits: 4, poolLocked: true };
+    case '36015': // Baker
+      return { baker: true };
     default:
       return {};
   }
@@ -156,6 +163,30 @@ export function answerPrompt(state: GameState, side: SideCode, memory?: RunnerMe
     const cost: Record<string, number> = { clicks: 2 * runClick(state), pay: spendCost(state, 5) };
     const ways = prompt.options.filter(o => o.id in cost && cost[o.id] < value).sort((a, b) => cost[a.id] - cost[b.id]);
     return { ...base, choice: { kind: 'effect_choice', optionId: ways[0]?.id ?? 'end' } };
+  }
+
+  // Baker: turn the run on Archives to whichever of HQ and R&D is worth more, if either beats Archives by the credit
+  if (side === 'runner' && prompt.kind === 'effect_choice' && prompt.source.cardCode === '36015' && prompt.source.step === 'redirect') {
+    const value = (id: string) => serverValue(state, id, 0, memory, synergy && tuning.wary, synergy && tuning.plan.urgency) - (id === 'archives' ? 0 : spendCost(state, 1));
+    const best = ['hq', 'rd'].sort((a, b) => value(b) - value(a))[0];
+    return { ...base, choice: { kind: 'effect_choice', optionId: value(best) > value('archives') ? best : 'no' } };
+  }
+
+  // Méliès U: the secret side is the central the Runner is likeliest to run first (its share of runs), varied by turn so it can't be read
+  if (side === 'corp' && prompt.kind === 'effect_choice' && prompt.source.cardCode === '36036' && prompt.source.step === 'set') {
+    return { ...base, choice: { kind: 'effect_choice', optionId: meliesSide(state) } };
+  }
+
+  // Caveat Emptor: the board score doesn't see next turn's clicks, so weigh them here: the 4 extra
+  // credits are worth a 2-click swing to the Runner only when the Corp is nearly broke
+  if (side === 'corp' && prompt.kind === 'effect_choice' && prompt.source.cardCode === '36032' && prompt.source.step === 'mode') {
+    return { ...base, choice: { kind: 'effect_choice', optionId: state.corp.credits < 4 ? 'ten' : 'six' } };
+  }
+
+  // Perfect Recall: reveal the agenda the Runner is after
+  if (side === 'corp' && prompt.kind === 'effect_cards' && prompt.source.cardCode === '36035' && prompt.source.step === 'reveal') {
+    const pick = perfectRecallTarget(state) ?? prompt.candidateIds[0];
+    return { ...base, choice: { kind: 'effect_cards', cardInstanceIds: [pick] } };
   }
 
   // Botulus: break the worst subroutine
@@ -218,6 +249,24 @@ export function answerPrompt(state: GameState, side: SideCode, memory?: RunnerMe
     }
   }
   return best;
+}
+
+/**
+ * Méliès U's secret side, picked in proportion to the share of runs each
+ * central gets in self-play (PACE), from a hash of the game and turn: a
+ * fixed pick would let a human read it.
+ */
+export function meliesSide(state: GameState): 'hq' | 'rd' | 'archives' {
+  const shares: ['hq' | 'rd' | 'archives', number][] = [['hq', PACE.hqShare], ['rd', PACE.rdShare], ['archives', PACE.archivesShare]];
+  const total = shares.reduce((n, [, w]) => n + w, 0);
+  let h = 2166136261;
+  for (const ch of `${state.id}:${state.turnNumber}`) h = Math.imul(h ^ ch.charCodeAt(0), 16777619);
+  let roll = ((h >>> 0) % 10000) / 10000 * total;
+  for (const [id, w] of shares) {
+    if (roll < w) return id;
+    roll -= w;
+  }
+  return 'hq';
 }
 
 /**

@@ -505,8 +505,8 @@ export function runnerEffect(state: GameState, code: string, card?: CardInstance
     }
     case '36008': // Stick and Poke: a card drawn for a net damage on the first encounter each turn: a filter at best
       return perTurn(state, 0.1, 'runner');
-    case '36013': // Borrowed Goods: +1 MU for a tag when untagged
-      return MU - (state.runner.tags > 0 ? 0 : flatRate('tags') && tuning.plan.tagClock ? tagsWorth(state, 'runner', 1) : RATES.tagAgainstRunner);
+    case '36013': // Borrowed Goods: +1 MU for a tag when untagged (the flat tag rate: the tag clock prices the rig, which would come back here)
+      return MU - (state.runner.tags > 0 ? 0 : RATES.tagAgainstRunner);
     case '36014': // Rotary: +1 MU; a tag for one more access on HQ and R&D breaches, now and then
       return MU + perTurn(state, PACE.runs * centralSuccess(state) * 0.3 * accessWorth(state), 'runner');
     case '36015': // Baker: once a turn, a central breach past Archives' ice for a stealth credit
@@ -516,9 +516,9 @@ export function runnerEffect(state: GameState, code: string, card?: CardInstance
       return (2 * cardRate(state, 'runner') * p) / (1 - p);
     }
     case '36020': // Methuselah: +1 MU; a hardware from the grip turns into 2 run credits now and then
-      return MU + perTurn(state, Math.min(1, 3 * deckShare(state, 'runner', /./, 'hardware')) * 0.5 * Math.max(0, 2 * counterWorthOf(state, code, 'credit') - cardRate(state, 'runner')), 'runner');
+      return MU + perTurn(state, Math.min(1, 3 * deckShare(state, 'runner', null, 'hardware')) * 0.5 * Math.max(0, 2 * counterWorthOf(state, code, 'credit') - cardRate(state, 'runner')), 'runner');
     case '36021': // Touchstone: a run credit the first time each turn it plays an event
-      return perTurn(state, Math.min(1, 3 * deckShare(state, 'runner', /./, 'event')) * counterWorthOf(state, code, 'credit'), 'runner');
+      return perTurn(state, Math.min(1, 3 * deckShare(state, 'runner', null, 'event')) * counterWorthOf(state, code, 'credit'), 'runner');
     case '36022': // Read-Write Share: a card in the grip parked for a fresh draw each turn, 4 at most
       return perTurn(state, 0.3 * cardRate(state, 'runner'), 'runner', 0, 4);
     case '36023': // Sipa: a swap of fully broken outer ice, now and then
@@ -534,10 +534,10 @@ export function runnerEffect(state: GameState, code: string, card?: CardInstance
   return undefined;
 }
 
-/** Share of a side's decklist matching a keyword (and card type). */
-function deckShare(state: GameState, side: 'corp' | 'runner', keywords: RegExp, type?: string): number {
+/** Share of a side's decklist matching a keyword (null: any), and a card type. */
+function deckShare(state: GameState, side: 'corp' | 'runner', keywords: RegExp | null, type?: string): number {
   const cards = sideCards(state, side);
-  const hits = cards.filter(c => (!type || cardDef(c).type_code === type) && keywords.test(cardDef(c).keywords ?? '')).length;
+  const hits = cards.filter(c => (!type || cardDef(c).type_code === type) && (!keywords || keywords.test(cardDef(c).keywords ?? ''))).length;
   return cards.length ? hits / cards.length : 0;
 }
 

@@ -11,7 +11,7 @@ import {
   installedIcebreakers,
   isBioroid,
 } from '../core/engine/ice';
-import { availableCredits, counters } from '../core/engine/cardEffects';
+import { availableCredits, counters, stealthCredits } from '../core/engine/cardEffects';
 import { corpCardValue, tagThreat, tagsWorth } from './evaluate';
 import { agendaOdds, coreDamageWorth, damageWorth } from './effectValues';
 import { clickPrice } from './handValues';
@@ -156,6 +156,15 @@ export interface BreakPlan {
   boostByAbility?: boolean;
 }
 
+const CORSAIR = '36004';
+
+/** Credits from stealth cards the Runner can spend on a run: now, during one, or what its stealth cards hold before it starts. */
+export function runStealthCredits(state: GameState): number {
+  if (state.activeRun) return stealthCredits(state);
+  const rig = [...state.runner.rig.hardware, ...state.runner.rig.programs, ...state.runner.rig.resources];
+  return rig.filter(c => /stealth/i.test(cardDef(c).keywords ?? '')).reduce((n, c) => n + counters(c, 'credit'), 0);
+}
+
 /**
  * The cheapest installed icebreaker that can break the given subroutines of
  * this ice, counting strength boosts already bought this encounter.
@@ -175,6 +184,14 @@ export function bestBreakPlan(state: GameState, ice: CardInstance, subCount: num
       if (boosts > counters(breaker, 'virus')) continue;
       const credits = boosts * 1.5 + Math.ceil(subCount / script.breakMax) * script.breakCost(state, breaker);
       if (!best || credits < best.credits) best = { breaker, credits, boostsNeeded: boosts, boostByAbility: true };
+      continue;
+    }
+    if (breaker.cardCode === CORSAIR) {
+      // Corsair: -3 strength on the barrier per stealth credit (its own ability), then 1 credit a subroutine
+      const lowers = Math.max(0, Math.ceil((iceStr - strength) / 3));
+      if (lowers > runStealthCredits(state)) continue;
+      const credits = lowers + Math.ceil(subCount / script.breakMax) * script.breakCost(state, breaker);
+      if (!best || credits < best.credits) best = { breaker, credits, boostsNeeded: lowers, boostByAbility: true };
       continue;
     }
     const amount = script.boostAmount(state, breaker);
@@ -217,7 +234,7 @@ export function iceCreditNeed(state: GameState, ice: CardInstance, broken: boole
   const plan = bestBreakPlan(state, ice, blocking);
   const self = iceScript(ice)?.runnerBreakCost;
   if (self !== undefined) return Math.min(plan?.credits ?? BLOCK, blocking * self);
-  if (isBioroid(ice) && state.runner.clicks >= blocking) return 0;
+  if (isBioroid(ice) && state.runner.clicks >= bioroidBreakClicks(ice, blocking)) return 0;
   return plan ? plan.credits : BLOCK;
 }
 
@@ -278,16 +295,22 @@ export function bioroidClicks(state: GameState, ice: CardInstance[]): number {
   for (const card of ice) {
     if (!card.isRezzed || !isBioroid(card)) continue;
     const blocking = iceSubroutines(state, card).filter(s => subroutineCost(state, s.label) === BLOCK).length - botulusBreaks(state, card);
-    if (blocking > 0 && !bestBreakPlan(state, card, blocking)) clicks += blocking;
+    if (blocking > 0 && !bestBreakPlan(state, card, blocking)) clicks += bioroidBreakClicks(card, blocking);
   }
   return clicks;
+}
+
+/** Clicks a bioroid's own ability takes to break `subCount` subroutines: one each, or the ice's own rate (Ansel 2.0: 2 clicks for up to 2). */
+export function bioroidBreakClicks(ice: CardInstance, subCount: number): number {
+  const own = iceScript(ice)?.clickBreak;
+  return own ? Math.ceil(subCount / own.max) * own.clicks : subCount;
 }
 
 /** Breaking the ice with its own ability: a click per subroutine (bioroids) or credits (N-Pot). */
 export function selfBreakCost(ice: CardInstance, subCount: number): number {
   const credits = iceScript(ice)?.runnerBreakCost;
   if (credits !== undefined) return subCount * credits;
-  return isBioroid(ice) ? subCount * 1.5 : BLOCK;
+  return isBioroid(ice) ? bioroidBreakClicks(ice, subCount) * 1.5 : BLOCK;
 }
 
 /** Cards the Runner has already accessed (instance id -> card code), so it doesn't keep checking them. */
@@ -460,6 +483,10 @@ export interface RunOptions {
   successBonus?: number;
   /** Shred: the first "end the run" is prevented unless the Corp trashes cards from HQ. */
   shred?: boolean;
+  /** Aircheck: only the run's own credits can be spent, not the pool. */
+  poolLocked?: boolean;
+  /** Baker: with a stealth credit, the run on Archives can approach HQ or R&D instead after its ice. */
+  baker?: boolean;
   /** Deck-aware AI: weigh trap risk by the traps this Corp may still have (see trapOdds). */
   wary?: boolean;
   /** Deck-aware AI: urgency on agendas the Corp could finish next turn, and late-game defence. */
@@ -495,12 +522,17 @@ export function runScore(state: GameState, serverId: string, options: RunOptions
   const server = state.corp.servers[serverId];
   if (!server) return -Infinity;
   let value = serverValue(state, serverId, options.extraAccesses ?? 0, options.memory, options.wary, options.urgent) + (tuning.plan.runModel ? 1 : 0.8) * (options.successBonus ?? 0);
+  if (options.baker && serverId === 'archives' && runStealthCredits(state) >= 1) {
+    // Baker: after Archives' ice, a stealth credit turns the run on HQ or R&D, whose ice it skipped
+    const redirect = Math.max(...['hq', 'rd'].map(id => serverValue(state, id, 0, options.memory, options.wary, options.urgent)));
+    value = Math.max(value, redirect - spendCost(state, 1));
+  }
   if (state.runner.grip.length <= 1) value -= tuning.plan.runModel ? 0.25 * damageWorth(state, 1) : 2; // one net damage from flatlining
   if (value <= 0) return -Infinity;
   let known = 0;
   let expected = 0;
   let shredLeft = !!options.shred && server.root.length > 0;
-  const budget = availableCredits(state, 'runner') + (options.bonusCredits ?? 0);
+  const budget = (options.poolLocked ? 0 : availableCredits(state, 'runner')) + (options.bonusCredits ?? 0);
   // Runner (rez allowance): credits paid on the way in are lost if unrezzed ice further in is rezzed and can't be paid for
   let paidOutside = 0;
   let waste = 0;

@@ -104,10 +104,17 @@ export class HeuristicRunnerAI implements Agent {
 
     // Bioroids: spare clicks break the worst subroutines first, run-ending or not (each one costs the Runner at least a credit)
     if (tuning.plan.bioroidClicks && isBioroid(ice)) {
-      const worst = [...mustBreak].sort((a, b) => b.cost - a.cost)[0];
-      const click = legal.find(a => a.type === 'BIOROID_BREAK' && a.subroutineIndex === worst.i);
+      const sorted = [...mustBreak].sort((a, b) => b.cost - a.cost);
+      const worst = sorted[0];
+      // Ansel 2.0: its clicks break up to 2 at once, so take the worst two together
+      const own = iceScript(ice)?.clickBreak;
+      const targets = own ? sorted.slice(0, own.max).map(s => s.i) : [worst.i];
+      const click =
+        (targets.length > 1 &&
+          legal.find(a => a.type === 'BIOROID_BREAK' && a.subroutineIndices?.length === targets.length && targets.every(i => a.subroutineIndices!.includes(i)))) ||
+        legal.find(a => a.type === 'BIOROID_BREAK' && !a.subroutineIndices && a.subroutineIndex === worst.i);
       // ...but not the 2 clicks a Manegarm Skunkworks needs when the credits can't cover it
-      if (click && (worst.cost === Infinity || state.runner.clicks - 1 >= approachClickReserve(state))) return click;
+      if (click && (worst.cost === Infinity || state.runner.clicks - (own?.clicks ?? 1) >= approachClickReserve(state))) return click;
     }
 
     // Runner (run budget): keep what the rezzed ice further in needs
@@ -149,7 +156,7 @@ export class HeuristicRunnerAI implements Agent {
       if (action) return action;
       if (isBioroid(ice) || iceScript(ice)?.runnerBreakCost !== undefined) {
         // Bioroids: spend a click; N-Pot: pay credits
-        const bioroid = legal.find(a => a.type === 'BIOROID_BREAK' && a.subroutineIndex === blocking[0].i);
+        const bioroid = legal.find(a => a.type === 'BIOROID_BREAK' && !a.subroutineIndices && a.subroutineIndex === blocking[0].i);
         if (bioroid) return bioroid;
       }
     }
