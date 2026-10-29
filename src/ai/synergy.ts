@@ -120,7 +120,7 @@ export const tuning = {
      */
     spinDoctorWait: true,
     spinDoctorUseNow: false,
-    /** Money assets priced with the trash risk measured in self-play (PAYOUT_RISK.moneyIced/moneyBare). */
+    /** Money assets priced with the trash risk measured in self-play (PAYOUT_RISK.moneyIced/moneyBare): self-play 47.9% -> 49.5%, new Corp vs old Runner 48.3% -> 48.8% (727d238). */
     measuredAssetRisk: true,
     /**
      * The exposure check by what the Runner can pay, not by layers of ice (Jeff, 2026-10-29). Off: self-play
