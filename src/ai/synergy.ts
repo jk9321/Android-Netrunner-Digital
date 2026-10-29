@@ -299,10 +299,13 @@ export const tuning = {
  * damage + tag clocks 48.7, subCosts + runModel + cardFixes 46.9 (noise:
  * back on, they replace hacks), modelHacks 44.7 and effect + counter values
  * 45.4 (lose: off for the Corp). The same 10 off for the Runner cost it
- * 6.9 points (old Corp 33.3% -> 40.2%): on for the Runner.
+ * 6.9 points (old Corp 33.3% -> 40.2%): on for the Runner. Then, from
+ * 48.3% with those 4 off: effectValues back on 46.4, model rez hacks
+ * 46.4 (lose: off); counter values 47.8, purge 48.7, bonuses 47.7,
+ * iceAdvance + finish + conduit 47.6 (noise: back on).
  */
 export const sideOff: Record<SideCode, string[]> = {
-  corp: ['modelHacks', 'effectValues', 'counterEffects.corp', 'counterFormulas'],
+  corp: ['effectValues', 'modelHacks.rez', 'modelHacks.rezPriority'],
   runner: [],
 };
 
