@@ -3,8 +3,9 @@ import { SideCode, getCardDefinition, getFormat, influenceCost, validateDeck } f
 import { DECKS, DeckList, deckCodes, pickRandomDeck, randomDeckPool } from '../../data/decks';
 import { ALL_CARDS, getCardImageUrl } from '../../data/cards';
 import { loadCustomDecks, newCustomDeckId, saveCustomDecks } from '../../data/customDecks';
+import { favoritesFirst, loadFavoriteDecks, loadHiddenDecks, saveFavoriteDecks, saveHiddenDecks, toggleId } from '../../data/deckPrefs';
 import type { Difficulty } from '../../ai';
-import { CheckCircle2, AlertTriangle, Play, Plus, Pencil, Copy, Trash2, Dices, Eye } from 'lucide-react';
+import { CheckCircle2, AlertTriangle, Play, Plus, Pencil, Copy, Trash2, Dices, Eye, EyeOff, RotateCcw, Star } from 'lucide-react';
 import { showConfirm } from './Dialog';
 
 // Loaded on first use, so the start screen doesn't wait for them
@@ -132,9 +133,18 @@ export const DeckPicker: React.FC<DeckPickerProps> = ({ initialCorpDeckId, initi
   const [viewing, setViewing] = useState<DeckList | null>(null);
   const [importing, setImporting] = useState(false);
   const summaries = useMemo(() => [...DECKS, ...customDecks].map(summarize), [customDecks]);
-  const [corpId, setCorpId] = useState(initialCorpDeckId);
-  const [runnerId, setRunnerId] = useState(initialRunnerDeckId);
+  const [favorites, setFavorites] = useState<string[]>(loadFavoriteDecks);
+  // Premade decks the player hid; they stay listed (faded) while that side's "Show hidden" is on
+  const [hidden, setHidden] = useState<string[]>(loadHiddenDecks);
+  // A hidden starting deck (such as the default starter) gives way to the top of the list
+  const startingDeck = (side: SideCode, id: string) =>
+    !hidden.includes(id)
+      ? id
+      : (favoritesFirst(summaries.filter(s => s.deck.side === side && !hidden.includes(s.deck.id)), favorites, s => s.deck.id)[0]?.deck.id ?? id);
+  const [corpId, setCorpId] = useState(() => startingDeck('corp', initialCorpDeckId));
+  const [runnerId, setRunnerId] = useState(() => startingDeck('runner', initialRunnerDeckId));
   const [opponent, setOpponent] = useState<Opponent>(savedOpponent);
+  const [showHidden, setShowHidden] = useState({ corp: false, runner: false });
   // Where the page and each deck list were scrolled, so coming back from the deckbuilder or a decklist lands in the same place
   const scrollMemory = useRef({ page: 0, corp: 0, runner: 0 });
   const showingList = !editing && !viewing;
@@ -185,6 +195,29 @@ export const DeckPicker: React.FC<DeckPickerProps> = ({ initialCorpDeckId, initi
     setStorageFailed(!saveCustomDecks(decks));
   };
   const selectFor = (side: SideCode) => (side === 'corp' ? setCorpId : setRunnerId);
+  const storeFavorites = (ids: string[]) => {
+    setFavorites(ids);
+    if (!saveFavoriteDecks(ids)) setStorageFailed(true);
+  };
+  const storeHidden = (ids: string[]) => {
+    setHidden(ids);
+    if (!saveHiddenDecks(ids)) setStorageFailed(true);
+  };
+  /** The side's decks in list order: favourites first, hidden ones left out unless shown. */
+  const listedDecks = (side: SideCode, selected: string, includeHidden: boolean) =>
+    favoritesFirst(
+      summaries.filter(s => s.deck.side === side && (includeHidden || s.deck.id === selected || !hidden.includes(s.deck.id))),
+      favorites,
+      s => s.deck.id,
+    );
+  const hideDeck = (deck: DeckList) => {
+    storeHidden([...hidden, deck.id]);
+    const selected = deck.side === 'corp' ? corpId : runnerId;
+    if (selected !== deck.id) return;
+    // Move the selection to the first deck still on the list
+    const next = listedDecks(deck.side, '', false).find(s => s.deck.id !== deck.id);
+    if (next) selectFor(deck.side)(next.deck.id);
+  };
 
   const saveDeck = (deck: DeckList) => {
     const exists = customDecks.some(d => d.id === deck.id);
@@ -195,6 +228,7 @@ export const DeckPicker: React.FC<DeckPickerProps> = ({ initialCorpDeckId, initi
   const deleteDeck = async (deck: DeckList) => {
     if (!(await showConfirm(`Delete "${deck.name}"? This cannot be undone.`, { title: 'Delete deck', confirmLabel: 'Delete', danger: true }))) return;
     storeDecks(customDecks.filter(d => d.id !== deck.id));
+    if (favorites.includes(deck.id)) storeFavorites(favorites.filter(id => id !== deck.id));
     const fallback = DECKS.find(d => d.side === deck.side)!.id;
     if ((deck.side === 'corp' ? corpId : runnerId) === deck.id) selectFor(deck.side)(fallback);
   };
@@ -240,7 +274,7 @@ export const DeckPicker: React.FC<DeckPickerProps> = ({ initialCorpDeckId, initi
   }
 
   const selectedProblems = [corpId, runnerId].flatMap(id => summaries.find(s => s.deck.id === id)?.problems ?? ['missing']);
-  const iconButton = (label: string, icon: React.ReactNode, onClick: () => void, testId: string) => (
+  const iconButton = (label: string, icon: React.ReactNode, onClick: () => void, testId: string, active = false) => (
     <span
       role="button"
       tabIndex={0}
@@ -260,7 +294,8 @@ export const DeckPicker: React.FC<DeckPickerProps> = ({ initialCorpDeckId, initi
           onClick();
         }
       }}
-      className="p-1 rounded-md text-slate-400 hover:text-white hover:bg-slate-800 cursor-pointer"
+      aria-pressed={active || undefined}
+      className={`p-1 rounded-md hover:bg-slate-800 cursor-pointer ${active ? 'text-amber-300 hover:text-amber-200' : 'text-slate-400 hover:text-white'}`}
     >
       {icon}
     </span>
@@ -268,7 +303,10 @@ export const DeckPicker: React.FC<DeckPickerProps> = ({ initialCorpDeckId, initi
 
   const column = (side: SideCode, selected: string, select: (id: string) => void) => {
     const accent = side === 'corp' ? 'cyan' : 'pink';
-    const allDecks = summaries.map(s => s.deck);
+    // Random deck never picks a hidden deck
+    const allDecks = summaries.map(s => s.deck).filter(d => !hidden.includes(d.id));
+    const hiddenCount = summaries.filter(s => s.deck.side === side && hidden.includes(s.deck.id)).length;
+    const listed = listedDecks(side, selected, showHidden[side]);
     const canRandomize = randomDeckPool(allDecks, side).some(d => d.id !== selected);
     return (
       <section className="flex-1 min-w-0">
@@ -304,15 +342,25 @@ export const DeckPicker: React.FC<DeckPickerProps> = ({ initialCorpDeckId, initi
             </button>
           </div>
         </div>
+        {hiddenCount > 0 && (
+          <button
+            onClick={() => setShowHidden(v => ({ ...v, [side]: !v[side] }))}
+            data-testid={`show-hidden-${side}`}
+            className="mb-2 text-[11px] text-slate-400 hover:text-slate-200 flex items-center gap-1"
+          >
+            {showHidden[side] ? <EyeOff className="w-3 h-3" /> : <Eye className="w-3 h-3" />}
+            {showHidden[side] ? 'Hide hidden decks' : `Show ${hiddenCount} hidden deck${hiddenCount === 1 ? '' : 's'}`}
+          </button>
+        )}
         <div
           className="flex flex-col gap-2 max-h-[50vh] md:max-h-[65vh] overflow-y-auto pr-1"
           data-testid={`deck-list-${side}`}
           onScroll={e => (scrollMemory.current[side] = e.currentTarget.scrollTop)}
         >
-          {summaries
-            .filter(s => s.deck.side === side)
-            .map(s => {
+          {listed.map(s => {
               const isSelected = s.deck.id === selected;
+              const isFavorite = favorites.includes(s.deck.id);
+              const isHidden = hidden.includes(s.deck.id);
               return (
                 <button
                   key={s.deck.id}
@@ -324,7 +372,7 @@ export const DeckPicker: React.FC<DeckPickerProps> = ({ initialCorpDeckId, initi
                         ? 'border-cyan-400 bg-cyan-950/60 shadow-[inset_0_0_18px_rgb(var(--corp-400)/0.3)]'
                         : 'border-pink-400 bg-pink-950/60 shadow-[inset_0_0_18px_rgb(var(--runner-500)/0.3)]'
                       : 'border-slate-800 bg-slate-950/70 hover:border-slate-600'
-                  }`}
+                  }${isHidden ? ' opacity-50' : ''}`}
                 >
                   <img
                     src={getCardImageUrl(s.identityCode)}
@@ -340,12 +388,24 @@ export const DeckPicker: React.FC<DeckPickerProps> = ({ initialCorpDeckId, initi
                         )}
                       </div>
                       <div className="flex shrink-0">
+                        {iconButton(
+                          isFavorite ? 'Remove from favourites' : 'Favourite (shows at the top)',
+                          <Star className="w-3.5 h-3.5" fill={isFavorite ? 'currentColor' : 'none'} />,
+                          () => storeFavorites(toggleId(favorites, s.deck.id)),
+                          `favorite-${s.deck.id}`,
+                          isFavorite,
+                        )}
                         {iconButton('View decklist', <Eye className="w-3.5 h-3.5" />, () => setViewing(s.deck), `view-${s.deck.id}`)}
                         {s.deck.source === 'custom' &&
                           iconButton('Edit deck', <Pencil className="w-3.5 h-3.5" />, () => setEditing(s.deck), `edit-${s.deck.id}`)}
                         {iconButton('Copy into a new deck', <Copy className="w-3.5 h-3.5" />, () => copyDeck(s.deck), `copy-${s.deck.id}`)}
                         {s.deck.source === 'custom' &&
                           iconButton('Delete deck', <Trash2 className="w-3.5 h-3.5" />, () => deleteDeck(s.deck), `delete-${s.deck.id}`)}
+                        {s.deck.source !== 'custom' &&
+                          (isHidden
+                            ? iconButton('Restore deck', <RotateCcw className="w-3.5 h-3.5" />, () => storeHidden(hidden.filter(id => id !== s.deck.id)), `restore-${s.deck.id}`)
+                            : listedDecks(side, '', false).length > 1 &&
+                              iconButton('Hide deck (restore it with Show hidden)', <EyeOff className="w-3.5 h-3.5" />, () => hideDeck(s.deck), `hide-${s.deck.id}`))}
                       </div>
                     </div>
                     <div className="text-[11px] text-slate-400 font-mono mt-0.5">
@@ -362,6 +422,9 @@ export const DeckPicker: React.FC<DeckPickerProps> = ({ initialCorpDeckId, initi
                       >
                         {s.deck.source === 'official starter' ? 'Official starter' : s.deck.source === 'official sample' ? 'Official sample' : 'Custom'}
                       </span>
+                      {isHidden && (
+                        <span className="text-[10px] uppercase tracking-wider font-bold px-1.5 py-0.5 rounded bg-slate-800 text-slate-400">Hidden</span>
+                      )}
                       {s.deck.format && s.deck.format !== 'casual' && (
                         <span
                           className="text-[10px] uppercase tracking-wider font-bold px-1.5 py-0.5 rounded bg-slate-800 text-sky-300"

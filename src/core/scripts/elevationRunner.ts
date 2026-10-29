@@ -3,7 +3,7 @@ import { GameState } from '../types/state';
 import { cardDef } from '../cards';
 import { nextInt } from '../rng';
 import { addLog } from '../engine/log';
-import { findCardAnywhere, findInstalledCorpCard, removeCard } from '../engine/helpers';
+import { findCardAnywhere, findInstalledCorpCard, removeCard, revealInHand } from '../engine/helpers';
 import { endRun } from '../engine/runEnd';
 import { getCardScript } from './index';
 import { installedIce } from '../engine/cardEffects';
@@ -141,6 +141,7 @@ const muslihat: CardScript = {
     if (!card) return;
     removeCard(state.runner.stack, card);
     state.runner.grip.push(card);
+    revealInHand(state, 'runner', [card]);
     addLog(state, 'runner', `Runner revealed ${cardDef(card).title} and added it to their grip (MuslihaT).`);
   },
 };
@@ -418,6 +419,8 @@ const detenteReturn = (state: GameState, card: CardInstance, ids: string[]) => {
     if (!hosted) continue;
     card.hostedCards = card.hostedCards!.filter(c => c !== hosted);
     state.corp.hq.push(hosted);
+    // Hosted faceup, so the Runner knows what went back
+    revealInHand(state, 'corp', [hosted]);
   }
   addLog(state, 'runner', `${ids.length} card(s) hosted on Detente were added to HQ.`);
 };

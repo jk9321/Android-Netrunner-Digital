@@ -11,7 +11,7 @@ export type { GameSetup } from './engine/gameState';
 export { executeAction, isLegalAction, addLog } from './engine/gameEngine';
 export { getLegalActions } from './engine/legalActions';
 export { activePrompt } from './engine/prompts';
-export { locateCorpCard, findCardAnywhere } from './engine/helpers';
+export { locateCorpCard, findCardAnywhere, knownInHand } from './engine/helpers';
 export { getCardScript, scriptedCardCodes } from './scripts';
 export { rezCost as rezCostOf, availableCredits, virusCountersInPlay } from './engine/cardEffects';
 export { trashableFirst } from './engine/actions/install';

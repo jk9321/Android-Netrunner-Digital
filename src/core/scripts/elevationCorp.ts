@@ -3,7 +3,7 @@ import { GameState } from '../types/state';
 import { cardDef } from '../cards';
 import { shuffleInPlace } from '../rng';
 import { addLog } from '../engine/log';
-import { drawCards, findInstalledCorpCard, removeCard } from '../engine/helpers';
+import { drawCards, findInstalledCorpCard, removeCard, revealInHand } from '../engine/helpers';
 import { completeRez } from '../engine/actions/corp';
 import { playBlocker, playCardFrom } from '../engine/actions/play';
 import { dealMeatDamage, dealNetDamage, dealCoreDamage, giveTags, trashInstalledRunnerCard } from '../engine/damage';
@@ -404,6 +404,7 @@ const offTheBooks = dividendAgenda(
         if (!card) return;
         // Set aside in HQ while choosing; installing takes it from there
         state.corp.hq.push(card);
+        revealInHand(state, 'corp', [card]);
         const options = type(card) === 'operation' ? [] : corpInstallOptions(state, card, { ignoreCosts: true });
         if (options.length === 0) return;
         askChoice(ctx, 'corp', `Off the Books: install ${cardDef(card).title} ignoring all costs, or add it to HQ?`, [
@@ -1084,6 +1085,7 @@ const peerReview: CardScript = {
     const { state, card } = ctx;
     const shown = state.corp.hq.slice(1);
     if (shown.length > 0) addLog(state, 'corp', `Corp revealed ${shown.map(c => cardDef(c).title).join(', ')} (Peer Review).`);
+    revealInHand(state, 'corp', shown);
     gainFromCard(state, 'corp', 7, card);
     const targets = peerReviewTargets(state);
     if (targets.length > 0) askCards(ctx, 'corp', 'Peer Review: you may install 1 card from HQ in the root of a remote server.', ids(targets), 0, 1, 'pick');
@@ -1181,6 +1183,7 @@ const touchUps: CardScript = {
       askChoice(ctx, 'corp', 'Touch-ups: choose a card type, then reveal the grip.', RUNNER_TYPES.map(t => ({ id: t, label: t[0].toUpperCase() + t.slice(1) })), 'type');
     } else if (source.step === 'type' && answer.kind === 'effect_choice') {
       addLog(state, 'corp', `The Runner revealed their grip: ${state.runner.grip.map(c => cardDef(c).title).join(', ') || 'empty'}.`);
+      revealInHand(state, 'runner', state.runner.grip);
       const matching = state.runner.grip.filter(c => type(c) === answer.optionId);
       if (matching.length === 0) return;
       askCards(ctx, 'corp', 'Touch-ups: choose up to 2 of them to shuffle into the stack.', ids(matching), 0, Math.min(2, matching.length), 'shuffle');

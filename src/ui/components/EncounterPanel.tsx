@@ -12,11 +12,13 @@ import {
   getLegalActions,
   iceScript,
   iceStrength,
+  iceSubtypes,
   installedIcebreakers,
 } from '../../core';
 import { Scissors, TrendingUp, Clock, Sparkles } from 'lucide-react';
 import { Credits } from './CreditIcon';
 import { Keyword } from './Keyword';
+import { IceTypeIcons, breakerTypes } from './IceTypeIcons';
 
 interface EncounterPanelProps {
   state: GameState;
@@ -108,8 +110,10 @@ export const EncounterPanel: React.FC<EncounterPanelProps> = ({ state, onAction,
 
   return (
     <div className="mt-3 border-t border-pink-900/50 pt-3 space-y-3" data-testid="encounter-panel">
-      <div className="text-xs font-mono text-slate-300">
-        <Keyword id="encounter">Encountering</Keyword> <span className="text-pink-300 font-bold">{cardDef(ice).title}</span> —{' '}
+      <div className="text-xs font-mono text-slate-300 flex flex-wrap items-center gap-x-1">
+        <Keyword id="encounter">Encountering</Keyword>
+        <IceTypeIcons types={iceSubtypes(ice, state)} side="ice" row className="text-[9px]" />
+        <span className="text-pink-300 font-bold">{cardDef(ice).title}</span> —{' '}
         <Keyword id="strength">strength</Keyword>{' '}
         <span className="text-cyan-300 font-bold">{iceStrength(state, ice)}</span>
         {encounter.resolvingIndex !== null && <span className="text-amber-300"> • <Keyword id="subroutine">subroutines</Keyword> resolving</span>}
@@ -134,8 +138,10 @@ export const EncounterPanel: React.FC<EncounterPanelProps> = ({ state, onAction,
         <div className="space-y-1.5">
           {breakerRows.map(({ breaker, script, actions, breakSlots, own }) => (
             <div key={breaker.instanceId} className="flex flex-wrap items-center gap-1.5">
-              <span className="text-[11px] font-mono text-slate-400 w-40 truncate">
-                {cardDef(breaker).title} (str {breakerStrength(state, breaker)})
+              <span className="text-[11px] font-mono text-slate-400 w-48 flex items-center gap-1.5 min-w-0">
+                {/* Same icons as on the ice above, so the Runner can check the breaker matches */}
+                <IceTypeIcons types={breakerTypes(breaker)} side="breaker" row className="text-[9px] shrink-0" />
+                <span className="truncate">{cardDef(breaker).title} (str {breakerStrength(state, breaker)})</span>
               </span>
               {own.map((a, k) => abilityButton(a, k, true))}
               {breakSlots ? (

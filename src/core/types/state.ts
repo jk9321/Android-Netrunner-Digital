@@ -32,6 +32,13 @@ export interface CorpState {
   remoteCounter: number;
   /** Extra clicks for the Corp's next turn (Aggressive Trendsetting). */
   bonusClicksNextTurn?: number;
+  /**
+   * Instance ids of cards in HQ the Runner knows: revealed (Peer Review,
+   * Malapert Data Vault, rules 1.21.3), accessed and left in HQ, or added from
+   * a faceup place. Revealing does not turn them faceup, so they stay hidden in
+   * HQ and the Runner only remembers them. See revealInHand().
+   */
+  knownToRunner?: string[];
 }
 
 export interface RunnerRig {
@@ -56,6 +63,8 @@ export interface RunnerState {
   stack: CardInstance[]; // Draw deck (top of deck is index 0)
   heap: CardInstance[]; // Discard pile (face up)
   rig: RunnerRig;
+  /** Instance ids of cards in the grip the Corp knows (MuslihaT, Mutual Favor, Touch-ups). See knownToRunner. */
+  knownToCorp?: string[];
 }
 
 /**
