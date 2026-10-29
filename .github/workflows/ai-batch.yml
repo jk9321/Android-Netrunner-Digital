@@ -78,6 +78,7 @@ jobs:
           PLAN_OFF: ${{ inputs.plan_off }}
           GAME_FROM: ${{ inputs.game_from }}
           H2H: ${{ inputs.h2h }}
+          REPLY_SAMPLES: ${{ contains(inputs.label, 'samples=4') && '4' || '' }}
         run: |
           mkdir -p out
           for i in 0 1 2 3; do

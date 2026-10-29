@@ -32,6 +32,8 @@ for (const key of (process.env.PLAN_OFF ?? '').split(',').filter(Boolean)) {
   if (side) plan[name] = { ...(plan[name] as object), [side]: on };
   else plan[name] = on;
 }
+// REPLY_SAMPLES: Runner turns the Corp's planner plays out per candidate (plan.runnerReply)
+if (process.env.REPLY_SAMPLES) (await import('../src/ai/runnerReply')).REPLY.samples = Number(process.env.REPLY_SAMPLES);
 const newSide = mode === 'corp' ? 'corp' : mode === 'runner' ? 'runner' : null;
 
 const records: GameRecord[] = [];
@@ -55,4 +57,6 @@ for (const c of DECKS.filter(d => d.side === 'corp')) {
     }
   }
 }
+const { replyStats } = await import('../src/ai/runnerReply');
+console.error(`reply naked agenda remotes: ${replyStats.nakedAgendaRuns}/${replyStats.nakedAgendaTurns} run`);
 console.log(JSON.stringify(records));

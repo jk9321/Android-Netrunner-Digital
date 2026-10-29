@@ -1,4 +1,4 @@
-import { GameState, createRng, shuffleInPlace } from '../core';
+import { GameState, cardDef, createRng, shuffleInPlace } from '../core';
 import { HeuristicCorpAI } from './corpAI';
 import { GameRunner } from './playout';
 import { HeuristicRunnerAI } from './runnerAI';
@@ -32,6 +32,13 @@ export function guessHidden(state: GameState, k: number): GameState {
   return { ...state, rng: createRng(rng.state), runner: { ...state.runner, grip, stack }, corp: { ...state.corp, rd } };
 }
 
+/** Diagnostics (scripts): reply turns that began with an agenda in a remote with no ice, and how many ran it. */
+export const replyStats = { nakedAgendaTurns: 0, nakedAgendaRuns: 0 };
+const nakedAgendaRemotes = (s: GameState) =>
+  Object.values(s.corp.servers)
+    .filter(v => v.isRemote && v.ice.length === 0 && v.root.some(c => cardDef(c).type_code === 'agenda'))
+    .map(v => v.id);
+
 /** Plays the Runner's next turn from the end of a Corp turn; the average of `leaf` over the samples. */
 export function runnerReply(end: GameState, synergy: boolean, leaf: (state: GameState) => number): number {
   let total = 0;
@@ -41,16 +48,21 @@ export function runnerReply(end: GameState, synergy: boolean, leaf: (state: Game
       runner: new HeuristicRunnerAI({ synergy, planner: false }),
     });
     let runnerTurn = false;
+    const naked = nakedAgendaRemotes(gr.state);
+    const ran = new Set<string>();
     try {
       for (let i = 0; i < REPLY.maxSteps && !gr.state.winner; i++) {
         if (!gr.step()) break;
         const s = gr.state;
+        if (s.activeRun) ran.add(s.activeRun.server);
         if (s.activePlayer === 'runner') runnerTurn = true;
         else if (runnerTurn && !s.activeRun) break;
       }
     } catch {
       // A reply that breaks the engine is scored where it stopped
     }
+    replyStats.nakedAgendaTurns += naked.length;
+    replyStats.nakedAgendaRuns += naked.filter(id => ran.has(id)).length;
     total += leaf(gr.state);
   }
   return total / REPLY.samples;
