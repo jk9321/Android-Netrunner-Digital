@@ -73,6 +73,16 @@ export function printLossSummary(games, detail = !!process.env.DETAIL) {
       console.log(`  credits at end of turn ${(sum(list, g => g.money.creditsAtTurnEnd) / Math.max(turns, 1)).toFixed(1)}; clicks for a credit ${pct(sum(list, g => g.money.creditClicks), sum(list, g => g.money.clicks))}`);
     }
   }
+  if (games[0]?.rootRezzes) {
+    const m = new Map();
+    for (const g of games) for (const [k, v] of Object.entries(g.rootRezzes)) {
+      const e = m.get(k) ?? { run: 0, turn: 0, credits: 0 };
+      m.set(k, { run: e.run + v.run, turn: e.turn + v.turn, credits: e.credits + v.credits });
+    }
+    console.log(`Assets/upgrades rezzed (in a run / on the Corp's turn, credits per game): ` + [...m].sort((a, b) => b[1].credits - a[1].credits).map(([k, v]) => `${k} ${v.run}/${v.turn} ${(v.credits / games.length).toFixed(2)}`).join(', '));
+    const b = k => sum(games, g => g.brokeApproaches[k]);
+    console.log(`  unrezzed ice approached that the Corp couldn't pay for: ${b('total')}; affordable without asset/upgrade rezzes since its turn began: ${b('rootSpend')}`);
+  }
   if (steals[0]?.stopperAt !== undefined) {
     const run = steals.filter(s => s.stopperAt !== undefined && ['remote', 'rd', 'hq'].includes(s.from));
     console.log(`Placement (steals from runs in Corp losses: ${run.length}):`);

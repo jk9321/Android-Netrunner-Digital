@@ -101,6 +101,10 @@ export interface GameRecord {
   /** At the start of the Runner's turns 1 and 2: which centrals had ice, and what ice the Corp still held */
   early: { turn: number; rdIce: number; hqIce: number; remoteIce: number; iceInHand: number; cheapIceInHand: number; hqAgendas: number; credits: number }[];
   money: { spent: Record<string, number>; gained: Record<string, number>; corpTurns: number; creditsAtTurnEnd: number; clicks: number; creditClicks: number };
+  /** Assets and upgrades rezzed, by card title: during a run or on the Corp's turn, and the credits paid */
+  rootRezzes: Record<string, { run: number; turn: number; credits: number }>;
+  /** Unrezzed ice the Runner approached that the Corp couldn't afford to rez, and how many of those it could have had it not rezzed assets/upgrades since its last turn began */
+  brokeApproaches: { total: number; rootSpend: number };
 }
 
 /** What a step that changed the Corp's credits did, read from the state change. */
@@ -244,6 +248,9 @@ export function playLogged(start: GameState, agents: { corp: Agent; runner: Agen
   const agendaInstalls: AgendaInstall[] = [];
   const openAgendas = new Map<string, AgendaInstall>();
   const rezzes: RezLog = { total: 0, credits: 0, low: 0, lowCredits: 0 };
+  const rootRezzes: GameRecord['rootRezzes'] = {};
+  const brokeApproaches = { total: 0, rootSpend: 0 };
+  let rootSpent = 0;
   const lowRezzes: { turn: number; cost: number }[] = [];
   let runnerTurnStart: GameState | null = null;
   let corpTurnStart: GameState | null = null;
@@ -276,6 +283,7 @@ export function playLogged(start: GameState, agents: { corp: Agent; runner: Agen
     }
     if (before.turnNumber !== lastTurn && before.activePlayer === 'corp') {
       corpTurnStart = before;
+      rootSpent = 0;
       lastTurn = before.turnNumber;
       const remoteAgenda = Object.entries(before.corp.servers).some(([id, s]) => id.startsWith('remote') && s.root.some(isAgenda));
       if (!remoteAgenda && before.corp.hq.some(isAgenda)) idleAgendaTurns++;
@@ -306,6 +314,27 @@ export function playLogged(start: GameState, agents: { corp: Agent; runner: Agen
       money.creditsAtTurnEnd += after.corp.credits;
     }
     const run = before.activeRun;
+    for (const sv of Object.values(before.corp.servers)) {
+      for (const c of sv.root) {
+        if (c.isRezzed || !after.corp.servers[sv.id]?.root.some(a => a.instanceId === c.instanceId && a.isRezzed)) continue;
+        const entry = (rootRezzes[cardDef(c).title] ??= { run: 0, turn: 0, credits: 0 });
+        const cost = Math.max(0, before.corp.credits - after.corp.credits);
+        if (run) entry.run++;
+        else entry.turn++;
+        entry.credits += cost;
+        rootSpent += cost;
+      }
+    }
+    // A fresh approach to unrezzed ice the Corp can't pay for
+    const approached = (st: GameState) => (st.activeRun?.phase === 'approach_ice' ? st.corp.servers[st.activeRun.server]?.ice[st.activeRun.icePosition ?? -1] : undefined);
+    const ice = approached(after);
+    if (ice && !ice.isRezzed && (approached(before)?.instanceId !== ice.instanceId || before.activeRun?.phase !== 'approach_ice')) {
+      const cost = rezCost(after, ice);
+      if (cost > after.corp.credits) {
+        brokeApproaches.total++;
+        if (cost <= after.corp.credits + rootSpent) brokeApproaches.rootSpend++;
+      }
+    }
     if (run) {
       const server = before.corp.servers[run.server];
       const fresh = server?.ice.find(i => !i.isRezzed && after.corp.servers[run.server]?.ice.some(a => a.instanceId === i.instanceId && a.isRezzed));
@@ -404,6 +433,8 @@ export function playLogged(start: GameState, agents: { corp: Agent; runner: Agen
     board: Object.fromEntries(Object.entries(board).map(([k, v]) => [k, v / Math.max(corpTurns, 1)])) as GameRecord['board'],
     runs,
     rezzes,
+    rootRezzes,
+    brokeApproaches,
     agendaInstalls,
     early,
     money,
