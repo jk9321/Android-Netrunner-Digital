@@ -206,7 +206,7 @@ const CardFace: React.FC<CardViewProps> = ({
         <CardPopout
           card={card}
           targetRect={cardRef.current?.getBoundingClientRect() || null}
-          isFaceDown={isUnrezzed}
+          isFaceDown={isUnrezzed && !card.faceUp}
           canPeek={canPeek}
         />
       )}
