@@ -302,10 +302,13 @@ export const tuning = {
  * 6.9 points (old Corp 33.3% -> 40.2%): on for the Runner. Then, from
  * 48.3% with those 4 off: effectValues back on 46.4, model rez hacks
  * 46.4 (lose: off); counter values 47.8, purge 48.7, bonuses 47.7,
- * iceAdvance + finish + conduit 47.6 (noise: back on).
+ * iceAdvance + finish + conduit 47.6 (noise: back on). The model rez
+ * choices lost because they rezzed Manegarm, Anoetic Void and AMAZE on the
+ * Corp's turn (44.4 vs 46.8); keeping run-timed cards for the run made
+ * them even (46.3): back on.
  */
 export const sideOff: Record<SideCode, string[]> = {
-  corp: ['effectValues', 'modelHacks.rez', 'modelHacks.rezPriority'],
+  corp: ['effectValues'],
   runner: [],
 };
 
