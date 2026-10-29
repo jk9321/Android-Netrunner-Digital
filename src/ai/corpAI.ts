@@ -20,7 +20,6 @@ import { iceCost, isTrap, tagCost, weakestIce } from './runs';
 import { cardSynergy } from './synergyTags';
 import { econValue, upgradeValue } from './cardValues';
 import { counterWorth } from './counterValues';
-import { profileOf } from './cardProfiles';
 
 
 const type = (card: CardInstance) => cardDef(card).type_code;
@@ -320,15 +319,6 @@ export class HeuristicCorpAI implements Agent {
       });
       return reachable ? 0.6 : 0;
     }
-    if (action.type === 'USE_ABILITY' && tuning.plan.hostedMoney) {
-      // The board counts hosted credits at their counter worth (see corpCardValue): give that back, so a Regolith click is worth its 3 credits
-      const card = Object.values(corp.servers).flatMap(s => s.root).find(c => c.instanceId === action.cardInstanceId);
-      const after = card && simulate(state, action);
-      // Step 4: a profiled card's board worth already counts what taking the money costs
-      if (!card || !after || profileOf(card.cardCode)) return 0;
-      const left = Object.values(after.corp.servers).flatMap(s => s.root).find(c => c.instanceId === card.instanceId);
-      return counterWorth(state, card, 'credit', 'corp') * Math.max(0, counters(card, 'credit') - (left ? counters(left, 'credit') : 0));
-    }
     if (action.type === 'PLAY_OPERATION_OR_EVENT' && tuning.plan.pettyCash) {
       return corp.hq.find(c => c.instanceId === action.cardInstanceId)?.cardCode === '35081' ? (hacksOff('bonuses') ? PETTY_CASH_REPLAY : 1.5) : 0;
     }
@@ -428,9 +418,6 @@ export class HeuristicCorpAI implements Agent {
    */
   private exposureOk(state: GameState, server: ServerState, credits: number): boolean {
     if (!(this.synergy && tuning.plan.exposure)) return true;
-    // Agenda log: an agenda behind ice the Runner can pay through is stolen 2 times in 3, whatever the layers; behind ice they
-    // can't break or that costs well over what they have, 1 in 6 to 1 in 4. So judge by what getting in costs this Runner.
-    if (tuning.plan.entryGate) return entryGate(state, server, credits) >= state.runner.credits + tuning.plan.entryGate;
     // (Jeff) unrezzed ice only protects if the money to rez it is still there on the Runner's turn
     if ((tuning.plan.fundedDepth ? fundedDepth(state, server, credits) : iceDepth(state, server)) >= 2) return true;
     return entryCost(state, server, credits) >= state.runner.credits + 2;
@@ -537,11 +524,7 @@ export class HeuristicCorpAI implements Agent {
         const installCost = server ? server.ice.length : 0;
         // Deck-aware AI: ice the Runner already breaks counts as half a layer
         const depth =
-          server && this.synergy && tuning.plan.iceDepth
-            ? tuning.plan.fundedIcePlans
-              ? fundedDepth(state, server, corp.credits - installCost)
-              : iceDepth(state, server)
-            : server?.ice.length ?? 0;
+          server && this.synergy && tuning.plan.iceDepth ? iceDepth(state, server) : server?.ice.length ?? 0;
         // (Jeff) no ice the Corp can't afford to rez on top of the unrezzed ice already out, unless HQ must shrink to avoid a discard
         if (this.synergy && tuning.plan.icePacing && unrezzedIceCost(state) + (cardDef(card).cost ?? 0) > corp.credits - installCost + ICE_PACING_INCOME && hq.length <= corp.handSizeLimit) return -Infinity;
         let need: number;
@@ -553,7 +536,7 @@ export class HeuristicCorpAI implements Agent {
         if (!server) {
           need = agendasInHand > 0 && !protectedEmptyRemote ? 5 : -1;
           if (bareCentral && tuning.plan.centralsFirstRemotes) need -= 2;
-          if (main && need > 0 && ((tuning.plan.fundedIcePlans ? fundedDepth(state, main, corp.credits) : iceDepth(state, main)) < 2 || corp.credits < rezReserve(state, this.wideReserve) + (cardDef(card).cost ?? 0))) need = -1;
+          if (main && need > 0 && (iceDepth(state, main) < 2 || corp.credits < rezReserve(state, this.wideReserve) + (cardDef(card).cost ?? 0))) need = -1;
         }
         else if (server.isRemote) {
           const holdsAgenda = server.root.some(c => type(c) === 'agenda' || c.advancementCounters > 0);
@@ -797,23 +780,6 @@ function entryCost(state: GameState, server: ServerState, credits: number): numb
 }
 
 /**
- * What getting through this server's rezzed ice, and the unrezzed ice
- * `credits` can still rez (cheapest first), costs the Runner. Infinity
- * when some of it can't be broken with what they have installed.
- */
-function entryGate(state: GameState, server: ServerState, credits: number): number {
-  let cost = 0;
-  for (const ice of [...server.ice].sort((a, b) => rezCost(state, a) - rezCost(state, b))) {
-    if (!ice.isRezzed) {
-      if (rezCost(state, ice) > credits) continue;
-      credits -= rezCost(state, ice);
-    }
-    cost += iceCost(state, { ...ice, isRezzed: true });
-  }
-  return cost;
-}
-
-/**
  * Layers of ice on a server as the Runner sees them: rezzed ice counts by
  * what it costs them to get through (1 credit or less: not there at all,
  * 3 or more: a full layer); unrezzed ice counts in full.
@@ -897,19 +863,6 @@ export function rezReserve(state: GameState, wide = false): number {
     // Deck-aware AI: R&D, and HQ while it holds agendas, need rez money too
     const central = wide && (server.id === 'rd' || (server.id === 'hq' && hqAgendas));
     if (!agendaRemote && !central) continue;
-    // Deck-aware AI: an agenda remote keeps money for all its unrezzed ice, not just the first layer
-    if (wide && agendaRemote && tuning.plan.deepReserve) {
-      const unrezzed = server.ice.filter(ice => !ice.isRezzed).map(ice => rezCost(state, ice));
-      if (unrezzed.length > 0) needs.push(unrezzed.reduce((a, b) => a + b, 0));
-      continue;
-    }
-    if (wide && tuning.plan.iceReserve) {
-      // (Jeff) money for ice that actually stops a run: none rezzed yet, keep the cheapest one that does
-      if (server.ice.some(ice => ice.isRezzed && hasEndTheRun(ice))) continue;
-      const stoppers = server.ice.filter(ice => !ice.isRezzed && hasEndTheRun(ice)).map(ice => rezCost(state, ice));
-      if (stoppers.length > 0) needs.push(Math.min(...stoppers));
-      continue;
-    }
     if (server.ice.some(ice => ice.isRezzed)) continue;
     const costs = server.ice.map(ice => rezCost(state, ice));
     if (costs.length > 0) needs.push(Math.min(...costs));

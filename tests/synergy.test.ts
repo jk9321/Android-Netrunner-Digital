@@ -4,7 +4,6 @@ import { ALL_CARDS, CardInstance, GameAction, GameState, createCardInstance, cre
 import { digValue, handValue, keepValue, tagThreat } from '../src/ai/evaluate';
 import { DECKS, deckGameSetup } from '../src/data/decks';
 import { HeuristicCorpAI, HeuristicRunnerAI, playAIGame } from '../src/ai';
-import { rezReserve } from '../src/ai/corpAI';
 import { MAX_NUDGE, deckProfile, nudge, opponentProfile, tuning } from '../src/ai/synergy';
 import { CONDITIONS, CONDITION_PATTERNS, SYNERGY, THEMES, inferSynergy } from '../src/ai/synergyTags';
 import { newGame } from './helpers';
@@ -477,8 +476,7 @@ describe('draws and money', () => {
     const ranked = new HeuristicCorpAI().rankMainActions(s);
     const take = ranked.find(r => r.action.type === 'USE_ABILITY' && r.action.cardInstanceId === regolith.instanceId)!.score;
     const click = ranked.find(r => r.action.type === 'GAIN_CREDIT')!.score;
-    // With the hand schedule (plan.handSchedule) the 2 extra credits count for less: Hansei Review in HQ already brings money
-    expect(take).toBeGreaterThan(click + (tuning.plan.handSchedule?.corp ? 0.5 : 1));
+    expect(take).toBeGreaterThan(click + 1);
   });
 
   it('clicks for credits toward a Hedge Fund it can almost afford', () => {
@@ -536,16 +534,6 @@ describe('rez money (Jeff, from play)', () => {
     s.corp.credits = 4;
     return { s, grid };
   };
-
-  it('keeps money for the ice that ends the run', () => {
-    // Switched off in value model step 6 (the credit slide covers it); kept for re-testing
-    tuning.plan.iceReserve = true;
-    try {
-      expect(rezReserve(position().s, true)).toBe(3);
-    } finally {
-      tuning.plan.iceReserve = false;
-    }
-  });
 
   it('sets up upgrades in an empty remote, but does not rez them out of that money', () => {
     const { s, grid } = position();

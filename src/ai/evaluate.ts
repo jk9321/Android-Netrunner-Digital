@@ -7,7 +7,7 @@ import { corpKeepValue, runnerCardValue } from './cardValues';
 import { countersWorth } from './counterValues';
 import { AI_BREAKER_SHARE, breakerTypeWorth, flatIceWorth, iceWorth } from './iceValues';
 import { payoutWait, payoutWorth, profileOf, turnsLeft } from './cardProfiles';
-import { HAND_FLOOR, clickPrice, handByCard, handSchedule, heldWorth, ownHandValue, playedWorth, scheduleValue } from './handValues';
+import { HAND_FLOOR, clickPrice, handByCard, heldWorth, ownHandValue, playedWorth } from './handValues';
 import { CLICK, RATES, cardRate, creditValue, flatRate, flatlineWorth, handFilter, memo, pointValue, sideCreditValue } from './valueModel';
 import { PACE, STEAL, coreSlotWorth, flatlineOdds, runSuccess, stealOdds } from './effectValues';
 import { trashedCardCost } from './runs';
@@ -245,26 +245,6 @@ function archivedAgendasValue(state: GameState, viewer: SideCode): number {
   return -archives.filter(c => cardDef(c).type_code === 'agenda').reduce((n, c) => n + archivedAgendaLoss(state, cardDef(c).agenda_points ?? 1), 0);
 }
 
-/**
- * Agendas in HQ (Jeff, 2026-10-28; plan.hqSteal): as exposed as agendas in
- * a remote: the odds the Runner gets into HQ (stealOdds, at its measured
- * HQ run rate: 0.84 a turn guessed 2-4x the real HQ steals), and a breach of HQ accesses one random card (rules 7.3.2,
- * 7.4.1), so each agenda is stolen at its share of the hand. A steal swings
- * the agenda's points from the Corp's clock to the Runner's.
- */
-export function hqAgendaLoss(state: GameState): number {
-  const hq = state.corp.hq;
-  const agendas = hq.filter(c => cardDef(c).type_code === 'agenda');
-  if (!agendas.length) return 0;
-  // The Runner can't see which cards are agendas, so it runs HQ at its usual rate (measured, scripts/steal-odds.ts), not as it goes after a known agenda
-  const perCard = stealOdds(state, 'hq', PACE.runs * PACE.hqShare) / hq.length;
-  return agendas.reduce((n, c) => {
-    const points = cardDef(c).agenda_points ?? 1;
-    const swing = pointValue(state.runner.score + points) - pointValue(state.runner.score) + pointValue(state.corp.score + points) - pointValue(state.corp.score);
-    return n + swing * perCard;
-  }, 0);
-}
-
 /** The Corp's installed cards, as `viewer` can judge them: the Runner values facedown cards by the odds, not by what they are. */
 function corpBoardValue(state: GameState, viewer: SideCode): number {
   let value = 0;
@@ -282,7 +262,7 @@ function corpBoardValue(state: GameState, viewer: SideCode): number {
       else value += corpCardValue(card, state, viewer);
     }
   }
-  return value + archivedAgendasValue(state, viewer) - (viewer === 'corp' && tuning.plan.hqSteal ? hqAgendaLoss(state) : 0);
+  return value + archivedAgendasValue(state, viewer);
 }
 
 /**
@@ -337,9 +317,8 @@ function tagLossPerTurn(state: GameState, viewer: SideCode): number {
   return Math.max(trash, 0) + punish + (punishes(corp.identity) ? 1 : 0);
 }
 
-/** A side's clicks left and its hand: the hand schedule for the viewer's own side (plan.handSchedule), else each on its own. */
+/** A side's clicks left and its hand, each on its own. */
 function handAndClicks(state: GameState, side: SideCode, viewer: SideCode): number {
-  if (side === viewer && handSchedule(side)) return scheduleValue(state, side);
   const player = side === 'corp' ? state.corp : state.runner;
   const hand = side === 'corp' ? state.corp.hq : state.runner.grip;
   const own = side === viewer && handByCard(side) ? ownHandValue(state, side) : handValue(hand.length, player.handSizeLimit, viewer);

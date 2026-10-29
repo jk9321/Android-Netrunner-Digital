@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { agendaWorth, hqAgendaLoss, archivedAgendaLoss, evaluate, keepValue } from '../src/ai/evaluate';
+import { agendaWorth, archivedAgendaLoss, evaluate, keepValue } from '../src/ai/evaluate';
 import { cardDef } from '../src/core';
 import { playedWorth } from '../src/ai/handValues';
 import { iceWorth } from '../src/ai/iceValues';
@@ -100,20 +100,3 @@ describe('steal odds as measured (Jeff, 2026-10-28; plan.stealOdds)', () => {
   });
 });
 
-describe('agendas in HQ are exposed too (Jeff, 2026-10-28; plan.hqSteal)', () => {
-  it('each agenda at its share of HQ, times the odds the Runner gets in; ice on HQ protects it', () => {
-    const s = newGame();
-    s.activePlayer = 'corp';
-    const agendas = s.corp.hq.filter(c => cardDef(c).type_code === 'agenda');
-    if (!agendas.length) s.corp.hq.push(createCardInstance(s, '30069'));
-    const n = s.corp.hq.filter(c => cardDef(c).type_code === 'agenda').length;
-    const open = hqAgendaLoss(s);
-    expect(open).toBeGreaterThan(0);
-    expect(open).toBeLessThanOrEqual(n * (pointValue(3) * 2) * (stealOdds(s, 'hq') / s.corp.hq.length) + 1e-9);
-    installIceForTest(s, PALISADE, 'hq');
-    s.corp.servers.hq.ice[0].isRezzed = true;
-    s.runner.credits = 0;
-    s.runner.rig.programs = [];
-    expect(hqAgendaLoss(s)).toBeLessThan(open);
-  });
-});

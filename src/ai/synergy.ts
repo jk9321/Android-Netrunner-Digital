@@ -114,16 +114,8 @@ export const tuning = {
     /* Funded depth (2026-10-26, self-play, 2,210 games): Corp 42.9% -> 44.8%; remote steals 1,714 -> 1,472, behind ice it couldn't afford to rez 883 -> 499. */
     /** Corp (Jeff): an agenda left over the Runner's turn counts unrezzed ice as a layer only if it can still pay to rez it. */
     fundedDepth: true,
-    /*
-     * Agenda money (2026-10-26, self-play after the Botulus fix, 2,210 games
-     * each): main 43.0%, agenda money on 45.0%, plus funded ice plans 42.8%,
-     * funded ice plans alone 40.9%. Funded ice plans lose about 2 points
-     * (more ice where money was the problem): off, kept for re-testing.
-     */
     /** Corp (Jeff): spending (plays, installs, rezzes elsewhere) keeps the money to rez an installed agenda's ice. */
     agendaMoney: true,
-    /** Corp (Jeff): ice planning counts unrezzed ice as a layer only if it can be paid for. */
-    fundedIcePlans: false,
     /*
      * Ice pacing (2026-10-27, self-play, 2,210 games): 46.8% -> 46.2% (noise).
      * Steals behind unrezzed ice the Corp couldn't afford: remote 287 -> 196,
@@ -144,13 +136,6 @@ export const tuning = {
      */
     /** Corp (Jeff): R&D, and HQ while it holds agendas, get their first ice before any remote; HQ first while it holds agendas. */
     centralsFirst: true,
-    /*
-     * Entry gate (2026-10-27, self-play, 2,210 games each): off 40.1%, margin 2 39.9%, 4 39.6%, 6 36.5%. Remote points
-     * fell (3,856 -> 2,609 at 4) but agendas waited in HQ instead (turns with an agenda stuck in HQ 8.5 -> 10.8) and HQ and
-     * R&D steals rose. Off: holding agendas back only moves the steals.
-     */
-    /** Corp: leave an agenda out only behind ice that costs the Runner this much more than they have (0 = off: 2 layers or credits + 2). */
-    entryGate: 0,
     /** Corp (Jeff): ice that would stop this Runner goes on a server that matters (R&D, the scoring remote, HQ holding agendas). */
     stopperPlacement: true,
     /** ...and remotes wait for their ice until then. */
@@ -160,8 +145,6 @@ export const tuning = {
     /* Money target (2026-10-26, self-play, 2,210 games): off 42.7%, 0.3 46.8%, 0.6 46.8%. Kept the milder weight. */
     /** Corp (Jeff): aim for a surplus that rezzes the unrezzed ice on the centrals and scoring remote (credits-worth per credit short; 0 = off). */
     moneyTarget: 0.3,
-    /** Corp: an agenda remote's rez reserve covers all its unrezzed ice. */
-    deepReserve: false,
     /** Corp (Jeff): push agendas through a remote the Runner can't get into yet. */
     tempo: true,
     /** Corp: purge by what the counters do (Conduit, Tranquilizer...) against the 3 clicks it costs. */
@@ -193,11 +176,7 @@ export const tuning = {
     blindDraws: true,
     /** Both sides (Jeff): draw harder for a missing answer (money, ice, a breaker) still in the deck, more under pressure (per side). */
     dig: { corp: true, runner: true } as Record<SideCode, boolean>,
-    /** Corp (Jeff): taking credits off an asset (Regolith Mining License) counts as the money gained, not as board value lost. */
-    hostedMoney: false,
     /* Rez money (2026-10-26, 2,210 self-play games): both on 46.7%, neither 47.2% (noise). Halving upgrade worth in empty remotes instead cost about 2 points. */
-    /** Corp (Jeff): rez money for the cheapest run-ending ice on R&D (HQ, agenda remotes) even behind rezzed ice that doesn't stop runs. */
-    iceReserve: false,
     /** Corp (Jeff): upgrades in a remote with no agenda can go out early, but are rezzed only with the ice reserve left over. */
     idleUpgrades: true,
     /** Corp: Petty Cash first thing in the turn (it can only be played then, and replays from Archives). */
@@ -276,8 +255,6 @@ export const tuning = {
     agendaBoard: true,
     /** Jeff, 2026-10-28: an installed agenda's steal chance as measured (scripts/steal-odds.ts): the Runner runs a remote it can get into most turns, and raises credits for the ice first (effectValues stealOdds). */
     stealOdds: true,
-    /** Jeff, 2026-10-28: agendas in HQ are exposed too: priced at their share of HQ times the odds the Runner gets in (evaluate.ts hqAgendaLoss). */
-    hqSteal: false,
     /** Jeff, 2026-10-28: the Corp's planner plays the Runner's next turn out (the Runner AI on the board, hidden cards guessed) and scores what it leaves (runnerReply.ts). */
     runnerReply: true,
     /** Jeff, 2026-10-29: an agenda in an open remote is as good as stolen: steal odds 1, and the Runner reply counts it stolen even when the sampled Runner didn't run it. */
@@ -305,13 +282,6 @@ export const tuning = {
      * full hand on 55% of turns. Off on both sides, kept for re-testing.
      */
     handByCard: { corp: false, runner: false } as Record<SideCode, boolean>,
-    /**
-     * Per deciding side (Jeff, 2026-10-28): its hand and clicks left valued together by when each card would be played (handValues.ts scheduleValue).
-     * Batches (vs 25.2% without): both 24.9%, Corp side only 14.1%, Runner side only 42.9%: each side much worse using it.
-     * The plan already counts this turn's plays, so playing them gains nothing and the AI does what's outside the plan
-     * instead (the Runner draws at a full hand on 92% of turns). Off, kept for a whole-turn planner.
-     */
-    handSchedule: { corp: false, runner: false } as Record<SideCode, boolean>,
     /** Both sides: subroutine costs (tags, damage, trashed cards, lost credits) from the rates (runs.ts). */
     subCosts: true,
     /** Both sides (step 5, Jeff): ice is worth what it costs the Runner to get past it, not its rez cost (per deciding side). */
