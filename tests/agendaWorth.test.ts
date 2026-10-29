@@ -3,7 +3,6 @@ import { agendaWorth, hqAgendaLoss, archivedAgendaLoss, evaluate, keepValue } fr
 import { cardDef } from '../src/core';
 import { playedWorth } from '../src/ai/handValues';
 import { iceWorth } from '../src/ai/iceValues';
-import { turnsLeft } from '../src/ai/cardProfiles';
 import { CLICK, pointValue } from '../src/ai/valueModel';
 import { createCardInstance } from '../src/core';
 import { installIceForTest, newGame } from './helpers';
@@ -35,7 +34,7 @@ describe('agendas on the board (Jeff, 2026-10-28; plan.agendaBoard)', () => {
     const iced = agendaWorth(s, 3, 3, 2, 'remote-1');
     const bare = agendaWorth(s, 3, 3, 2, 'remote-2');
     expect(iced).toBeGreaterThan(bare);
-    expect(bare).toBeCloseTo((pointValue(2) - pointValue(0)) * (1 - STEAL.run) * (1 - 1 / turnsLeft(s)));
+    expect(bare).toBeCloseTo(0); // an open remote: as good as stolen (plan.openSteal)
   });
 
   it('each advancement brings it closer: the click and credit it took come back', () => {
@@ -84,10 +83,10 @@ describe('agendas on the board (Jeff, 2026-10-28; plan.agendaBoard)', () => {
 });
 
 describe('steal odds as measured (Jeff, 2026-10-28; plan.stealOdds)', () => {
-  it('an open remote is stolen most turns, not 43%', () => {
+  it('an open remote is as good as stolen (Jeff, plan.openSteal)', () => {
     const s = remotes();
     s.activePlayer = 'corp';
-    expect(stealOdds(s, 'remote-2')).toBeCloseTo(STEAL.run);
+    expect(stealOdds(s, 'remote-2')).toBe(1);
   });
 
   it('ice is judged against the credits the Runner can raise on its turn, not what it holds now', () => {

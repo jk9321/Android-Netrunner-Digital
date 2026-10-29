@@ -2,6 +2,8 @@ import { GameState, cardDef, createRng, shuffleInPlace } from '../core';
 import { HeuristicCorpAI } from './corpAI';
 import { GameRunner } from './playout';
 import { HeuristicRunnerAI } from './runnerAI';
+import { pointValue } from './valueModel';
+import { tuning } from './synergy';
 
 /**
  * The Runner's reply (Jeff, 2026-10-28; plan.runnerReply): the Corp's
@@ -39,6 +41,23 @@ const nakedAgendaRemotes = (s: GameState) =>
     .filter(v => v.isRemote && v.ice.length === 0 && v.root.some(c => cardDef(c).type_code === 'agenda'))
     .map(v => v.id);
 
+/**
+ * Agendas left in an open remote that the sampled Runner happened not to
+ * run (Jeff, 2026-10-29; plan.openSteal): counted as stolen anyway, a swing
+ * of their points from the Corp's clock to the Runner's.
+ */
+function openAgendaLoss(state: GameState, ids: string[]): number {
+  let loss = 0;
+  for (const server of Object.values(state.corp.servers)) {
+    for (const card of server.root) {
+      if (!ids.includes(card.instanceId)) continue;
+      const points = cardDef(card).agenda_points ?? 1;
+      loss += pointValue(state.runner.score + points) - pointValue(state.runner.score) + pointValue(state.corp.score + points) - pointValue(state.corp.score);
+    }
+  }
+  return loss;
+}
+
 /** Plays the Runner's next turn from the end of a Corp turn; the average of `leaf` over the samples. */
 export function runnerReply(end: GameState, synergy: boolean, leaf: (state: GameState) => number): number {
   let total = 0;
@@ -49,6 +68,7 @@ export function runnerReply(end: GameState, synergy: boolean, leaf: (state: Game
     });
     let runnerTurn = false;
     const naked = nakedAgendaRemotes(gr.state);
+    const nakedAgendas = naked.flatMap(id => gr.state.corp.servers[id].root.filter(c => cardDef(c).type_code === 'agenda').map(c => c.instanceId));
     const ran = new Set<string>();
     try {
       for (let i = 0; i < REPLY.maxSteps && !gr.state.winner; i++) {
@@ -63,7 +83,7 @@ export function runnerReply(end: GameState, synergy: boolean, leaf: (state: Game
     }
     replyStats.nakedAgendaTurns += naked.length;
     replyStats.nakedAgendaRuns += naked.filter(id => ran.has(id)).length;
-    total += leaf(gr.state);
+    total += leaf(gr.state) - (tuning.plan.openSteal ? openAgendaLoss(gr.state, nakedAgendas) : 0);
   }
   return total / REPLY.samples;
 }

@@ -280,6 +280,8 @@ export const tuning = {
     hqSteal: false,
     /** Jeff, 2026-10-28: the Corp's planner plays the Runner's next turn out (the Runner AI on the board, hidden cards guessed) and scores what it leaves (runnerReply.ts). */
     runnerReply: true,
+    /** Jeff, 2026-10-29: an agenda in an open remote is as good as stolen: steal odds 1, and the Runner reply counts it stolen even when the sampled Runner didn't run it. */
+    openSteal: true,
     /** Jeff, 2026-10-28: agendas on the board count the Runner turns until the Corp can finish them, by its clicks (from hand, one more), and each is a turn closer to the end of the game. */
     agendaTempo: true,
     /**

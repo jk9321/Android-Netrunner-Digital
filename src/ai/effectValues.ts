@@ -154,6 +154,8 @@ export function stealOdds(state: GameState, serverId: string, run = STEAL.run, i
   return memo(state, `stealOdds:${serverId}:${run}:${coming}`, () => {
     pricingIce = true;
     try {
+      // Jeff: nothing stops the Runner checking an open remote, so an agenda there is as good as stolen (plan.openSteal)
+      if (tuning.plan.openSteal && server.isRemote && server.ice.length === 0) return 1;
       return run * passOdds(state, server.ice, coming);
     } finally {
       pricingIce = false;
