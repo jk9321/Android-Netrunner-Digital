@@ -773,3 +773,34 @@ describe('Corp AI uses identity abilities that ask a second question (plan.promp
     expect(chosen(s)).toBe('use');
   });
 });
+
+describe('Corp AI: LEO Construction weighs the bioroid against the run (Jeff, plan.leoValue)', () => {
+  const atServer = (s: GameState, server: string) => {
+    s = run(s, server);
+    s.activeRun!.phase = 'approach_server';
+    s.activeRun!.icePosition = null;
+    return s;
+  };
+
+  it('trashes a bioroid to stop the steal of an agenda in the remote', async () => {
+    const { createAgent } = await import('../src/ai');
+    const s = newGame();
+    setIdentity(s, 'corp', C.leo);
+    installIceForTest(s, C.bumi, 'remote-1');
+    installCorpForTest(s, C.greenmail, 'remote-1');
+    const at = atServer(s, 'remote-1');
+    // With clicks left the Runner just runs the remote again once it is bare: not worth a bioroid
+    expect(createAgent('corp', 'normal').chooseRez!(at, [])).toBeNull();
+    at.runner.clicks = 0; // the Runner's last click
+    expect(createAgent('corp', 'normal').chooseRez!(at, [])?.type).toBe('USE_ABILITY');
+  });
+
+  it('lets the Runner into HQ when HQ holds no agenda', async () => {
+    const { createAgent } = await import('../src/ai');
+    const s = newGame();
+    setIdentity(s, 'corp', C.leo);
+    installIceForTest(s, C.bumi, 'hq');
+    s.corp.hq = s.corp.hq.filter(c => cardDef(c).type_code !== 'agenda');
+    expect(createAgent('corp', 'normal').chooseRez!(atServer(s, 'hq'), [])).toBeNull();
+  });
+});

@@ -5,8 +5,8 @@ import { rigCoverage } from './evaluate';
 import { counters, rezCost } from '../core/engine/cardEffects';
 import { Agent, FreeActionGuard, ScoredAction } from './agent';
 import { agendaWorth, digValue, evaluate } from './evaluate';
-import { pointValue } from './valueModel';
-import { PACE, STEAL, accessWorth } from './effectValues';
+import { pointGain, pointValue } from './valueModel';
+import { PACE, STEAL, accessWorth, agendaOdds } from './effectValues';
 import { answerPrompt, simulate } from './prompts';
 import { asSide, logNudge, nudge, opponentLean, tuning } from './synergy';
 import { noteKnownHand } from './handValues';
@@ -181,6 +181,9 @@ export class HeuristicCorpAI implements Agent {
 
   /** LEO Construction or Proprionegation, when the Runner is about to get into something that matters. */
   private runStopper(state: GameState, importance: number): GameAction | null {
+    // (Jeff) LEO: worth it when the run would take more than the bioroid it trashes (plan.leoValue)
+    const leo = getLegalActions(state, 'corp').find(a => a.type === 'USE_ABILITY' && findCardAnywhere(state, a.cardInstanceId)?.cardCode === '35035');
+    if (leo && tuning.plan.leoValue) return this.leoGain(state, leo) > 0 ? leo : null;
     if (importance < 6) return null;
     const archivesAgenda = state.corp.archives.faceDown.some(c => type(c) === 'agenda');
     for (const action of getLegalActions(state, 'corp')) {
@@ -190,6 +193,34 @@ export class HeuristicCorpAI implements Agent {
       if (code === '35048' && !archivesAgenda && state.activeRun?.server !== 'archives') return action; // Proprionegation
     }
     return null;
+  }
+
+  /**
+   * LEO against letting the Runner in: the board after trashing the bioroid the AI would pick and
+   * ending the run, against the board after the run takes what it would (agendas in the root
+   * stolen; HQ and R&D by the odds, runLoss).
+   */
+  private leoGain(state: GameState, action: GameAction): number {
+    let after = simulate(state, action);
+    for (let i = 0; after && i < 3 && activePrompt(after)?.side === 'corp'; i++) after = simulate(after, answerPrompt(after, 'corp', undefined, this.synergy));
+    if (!after) return -Infinity;
+    // Out of clicks, the Runner can't come back this turn: the Corp moves next (protects or scores the agenda)
+    const next = (st: GameState): GameState => (st.runner.clicks > 0 ? st : { ...st, activePlayer: 'corp' });
+    const server = state.corp.servers[state.activeRun!.server];
+    const agendas = server.root.filter(c => type(c) === 'agenda');
+    let letIn: number;
+    if (agendas.length > 0) {
+      const stolen = structuredClone(state);
+      const root = stolen.corp.servers[server.id].root;
+      for (const a of agendas) {
+        const i = root.findIndex(c => c.instanceId === a.instanceId);
+        stolen.runner.scoreArea.push(...root.splice(i, 1));
+        stolen.runner.score += cardDef(a).agenda_points ?? 0;
+      }
+      stolen.activeRun = null;
+      letIn = evaluate(next(stolen), 'corp', this.synergy);
+    } else letIn = evaluate(state, 'corp', this.synergy) - runLoss(state);
+    return evaluate(next(after), 'corp', this.synergy) - letIn;
   }
 
   private score(state: GameState, action: GameAction, before: number): number {
@@ -877,6 +908,29 @@ function scoreable(state: GameState): number {
 }
 
 /** How much the Corp cares about keeping the Runner out of this server (for rez decisions). */
+/**
+ * What the Runner's run takes if it gets in, on the value model's scale: the agendas it would
+ * steal (the Corp knows its own cards), each worth the points it brings the Runner closer to 7.
+ */
+export function runLoss(state: GameState): number {
+  const run = state.activeRun;
+  const server = run ? state.corp.servers[run.server] : undefined;
+  if (!run || !server) return 0;
+  const steal = (c: CardInstance) => pointGain(state.runner.score, cardDef(c).agenda_points ?? 0);
+  const accesses = 1 + run.extraAccesses;
+  let loss = server.root.filter(c => type(c) === 'agenda').reduce((n, c) => n + steal(c), 0);
+  if (server.id === 'hq' && state.corp.hq.length > 0) {
+    const agendas = state.corp.hq.filter(c => type(c) === 'agenda');
+    loss += (Math.min(accesses, state.corp.hq.length) / state.corp.hq.length) * agendas.reduce((n, c) => n + steal(c), 0);
+  } else if (server.id === 'rd') {
+    const { odds, points } = agendaOdds(state);
+    loss += Math.min(accesses, state.corp.rd.length) * odds * pointGain(state.runner.score, points);
+  } else if (server.id === 'archives') {
+    loss += state.corp.archives.faceDown.filter(c => type(c) === 'agenda').reduce((n, c) => n + steal(c), 0);
+  }
+  return loss;
+}
+
 function serverImportance(state: GameState, server: ServerState | undefined, aware = false): number {
   if (!server) return 0;
   const agenda = server.root.find(c => type(c) === 'agenda');

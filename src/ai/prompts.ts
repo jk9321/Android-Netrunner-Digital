@@ -183,6 +183,12 @@ export function answerPrompt(state: GameState, side: SideCode, memory?: RunnerMe
     return { ...base, choice: { kind: 'effect_choice', optionId: 'use' } };
   }
 
+  // Zahya Sadeghi (Jeff): a 1-credit gain waits while 2 clicks are left for another HQ or R&D run
+  if (side === 'runner' && prompt.kind === 'effect_choice' && prompt.source.cardCode === '30010' && prompt.source.step === 'gain') {
+    const wait = Number(prompt.source.data?.credits ?? 0) < 2 && state.runner.clicks >= 2;
+    return { ...base, choice: { kind: 'effect_choice', optionId: wait ? 'no' : 'gain' } };
+  }
+
   // Deck-aware AI: PT Untaian's paid advancement goes where it does the most
   if (synergy && side === 'corp' && tuning.plan.identities && prompt.kind === 'effect_cards' && prompt.source.cardCode === '35047') {
     return { ...base, choice: { kind: 'effect_cards', cardInstanceIds: untaianPick(state, prompt.candidateIds) } };

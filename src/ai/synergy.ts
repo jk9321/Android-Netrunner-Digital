@@ -124,6 +124,8 @@ export const tuning = {
     measuredAssetRisk: true,
     /** Prompts that open the same card's next choice are judged after that choice too (AU Co., Poétrï, Synapse Global). */
     promptChains: true,
+    /** (Jeff) LEO Construction ends a run when what the run would take is worth more than the bioroid it trashes. */
+    leoValue: true,
     /**
      * The exposure check by what the Runner can pay, not by layers of ice (Jeff, 2026-10-29). Off: self-play
      * 39.0% (old rule 41.3%), new Corp vs old Runner 43.1% (45.8%); without income 38.9% / 44.1%; no
