@@ -9,6 +9,7 @@ import { illegal, removeCard, requireActionPhase, requireClicks } from '../helpe
 import { runnerHandZone } from './install';
 import { bumpTurnFlag, TurnFlag } from '../cardEffects';
 import { fireTrigger } from '../triggers';
+import { effectResolved, effectResolving } from '../uncommitted';
 
 /**
  * Basic action: spend a click and the play cost, move the card to the
@@ -79,7 +80,9 @@ export function playCardFrom(state: GameState, side: SideCode, card: CardInstanc
     bumpTurnFlag(state, TurnFlag.operationsPlayed);
     fireTrigger(state, { type: 'operation_played', card });
   }
+  effectResolving(state);
   script.onPlay!({ state, card, side, playedFromHand: options.fromHand });
+  effectResolved(state);
   if (options.removeAfter) {
     const pile = side === 'corp' ? state.corp.archives.faceUp : state.runner.heap;
     if (removeCard(pile, card)) {

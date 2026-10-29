@@ -7,6 +7,7 @@ import { illegal, requireActionPhase, requireClicks } from '../helpers';
 import { activeCards } from '../triggers';
 import { CardInstance, SideCode } from '../../types/card';
 import { CardAbility } from '../../scripts/types';
+import { effectResolved, effectResolving } from '../uncommitted';
 import { availableCredits, counters, removeCounters, removeFromGame, spendCredits, trashInstalledCard, turnFlag } from '../cardEffects';
 
 /** Turn-flag key for a "once per turn" ability. */
@@ -78,7 +79,9 @@ export function useAbility(state: GameState, action: UseAbilityAction): void {
   if (ability.oncePerTurn) state.turnFlags[key] = 1;
   addLog(state, side, `${side === 'corp' ? 'Corp' : 'Runner'} used ${title}: ${ability.label}`, card.cardCode);
 
+  effectResolving(state);
   ability.resolve(ctx);
+  effectResolved(state);
   if (ability.trashSelf) trashInstalledCard(state, card);
   if (ability.removeSelfFromGame) removeFromGame(state, card);
 }

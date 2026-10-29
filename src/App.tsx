@@ -105,6 +105,7 @@ function Game({
     corpCanAct,
     runnerCanAct,
     aiThinking,
+    cancelChoice,
   } = useGameController(config, saved);
 
   const [gameOverHidden, setGameOverHidden] = useState(false);
@@ -455,6 +456,7 @@ function Game({
             if (prompt) handleAction({ type: 'RESOLVE_PROMPT', player: prompt.side, promptId: prompt.id, choice });
           }}
           onInspectCard={setInspectedCard}
+          onCancel={cancelChoice}
           canAnswer={
             !gameState.pendingPrompts[0] ||
             (canActAs(viewer, gameState.pendingPrompts[0].side) && gameState.pendingPrompts[0].side !== aiSide)

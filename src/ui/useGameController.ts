@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import { GameAction, SideCode, createInitialGameState, executeAction, getLegalActions, isLegalAction } from '../core';
+import { GameAction, GameState, SideCode, createInitialGameState, executeAction, getLegalActions, isLegalAction, uncommittedChoice } from '../core';
 import { AIClient } from '../ai/client';
 import { deckGameSetup } from '../data/decks';
 import { AccessedCard, GameConfig, SavedGame, clearSavedGame, saveGame } from './savedGame';
@@ -52,6 +52,11 @@ export function useGameController(config: GameConfig, saved: SavedGame | null) {
   const fateTimersRef = useRef(new Set<number>());
   // Bumped to ask the computer again after it failed to move
   const [aiRetry, setAiRetry] = useState(0);
+  // The person's ability or event whose first step is their own choice (Red Team's server):
+  // shown with the choice open, but not applied until they choose, so Cancel can drop it (uncommitted.ts)
+  const [held, setHeld] = useState<{ base: GameState; next: GameState } | null>(null);
+  const heldRef = useRef(held);
+  heldRef.current = held;
 
   // Against the computer: the AI plays one side and the person sees their own
   // side (or everything, with Open table).
@@ -129,8 +134,18 @@ export function useGameController(config: GameConfig, saved: SavedGame | null) {
   }, []);
 
   const handleAction = async (action: GameAction) => {
-    const current = latestStateRef.current;
+    // Answering a held choice applies the action and the answer as one move, from the state before both
+    // (Conceding drops a held choice instead)
+    const hold = action.type === 'CONCEDE' ? null : heldRef.current;
+    const base = hold?.base ?? latestStateRef.current;
+    const current = hold?.next ?? base;
     try {
+      const uncommitted = !hold && action.player !== aiSide ? uncommittedChoice(current, action) : null;
+      if (uncommitted) {
+        heldRef.current = { base: current, next: uncommitted.next };
+        setHeld(heldRef.current);
+        return;
+      }
       const nextState = executeAction(current, action);
       // The person installing over their own cards confirms first, with Cancel as the safe default
       if (action.player !== aiSide && isInstallAction(current, action)) {
@@ -142,23 +157,25 @@ export function useGameController(config: GameConfig, saved: SavedGame | null) {
             danger: true,
           });
           // Nothing happens if cancelled, or if the game moved on while asking
-          if (!ok || latestStateRef.current !== current) return;
+          if (!ok || latestStateRef.current !== base || heldRef.current !== hold) return;
         }
       }
       latestStateRef.current = nextState;
-      if (!current.activeRun && nextState.activeRun) setRunSerial(n => n + 1);
-      playForAction(current, nextState, listener);
+      heldRef.current = null;
+      setHeld(null);
+      if (!base.activeRun && nextState.activeRun) setRunSerial(n => n + 1);
+      playForAction(base, nextState, listener);
       const newlyAccessed = nextState.log
-        .slice(current.log.length)
+        .slice(base.log.length)
         .filter(e => e.event === 'access' && e.cardCode)
         .map(e => ({ code: e.cardCode!, ...(e.secret && { secretFrom: e.secret.from }) }));
-      const runStarted = !current.activeRun && nextState.activeRun;
+      const runStarted = !base.activeRun && nextState.activeRun;
       if (runStarted || newlyAccessed.length > 0) setAccessed(prev => [...(runStarted ? [] : prev), ...newlyAccessed]);
       setGameState(nextState);
       // Keep the selected card across actions that leave it in hand (gaining credits, drawing),
       // so the player can afford it and then play it; drop it once it leaves hand or the turn passes.
       setSelectedCardId(id => {
-        if (!id || nextState.turnNumber !== current.turnNumber || nextState.activePlayer !== current.activePlayer) return null;
+        if (!id || nextState.turnNumber !== base.turnNumber || nextState.activePlayer !== base.activePlayer) return null;
         return [...nextState.corp.hq, ...nextState.runner.grip].some(c => c.instanceId === id) ? id : null;
       });
     } catch (err) {
@@ -239,9 +256,17 @@ export function useGameController(config: GameConfig, saved: SavedGame | null) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [gameState, acting, rezWindowOpen, aiRetry]);
 
+  // Dropping a held choice: the action was never applied, so the game is as it was
+  const cancelChoice = () => {
+    heldRef.current = null;
+    setHeld(null);
+  };
+
   return {
-    gameState,
+    // What the table shows: with a held choice, the action applied and its choice open
+    gameState: held?.next ?? gameState,
     handleAction,
+    cancelChoice: held ? cancelChoice : undefined,
     selectedCardId,
     setSelectedCardId,
     viewMode,
