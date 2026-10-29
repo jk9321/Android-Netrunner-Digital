@@ -127,7 +127,8 @@ const deckAverage = new Map<string, number>();
 /** Average held worth of the cards left in a side's deck (what a draw is expected to bring). */
 function drawWorth(state: GameState, side: SideCode): number {
   const deck = side === 'corp' ? state.corp.rd : state.runner.stack;
-  const key = `${side}:${state.id}:${state.turnNumber}:${deck.length}`;
+  // The cards, not just the count: the Runner reply deals guessed decks of the same size (runnerReply.ts)
+  const key = `${side}:${state.id}:${state.turnNumber}:${deck.map(c => c.instanceId).join(',')}`;
   const cached = deckAverage.get(key);
   if (cached !== undefined) return cached;
   const value = deck.length ? deck.reduce((n, c) => n + heldWorth(state, c, side), 0) / deck.length : RATES.drawnCard;
@@ -297,7 +298,8 @@ const deckPlays = new Map<string, Play>();
 /** The average play a card drawn from the deck brings. */
 function deckPlay(state: GameState, side: SideCode): Play {
   const deck = side === 'corp' ? state.corp.rd : state.runner.stack;
-  const key = `${side}:${state.id}:${state.turnNumber}:${deck.length}`;
+  // The cards, not just the count: the Runner reply deals guessed decks of the same size (runnerReply.ts)
+  const key = `${side}:${state.id}:${state.turnNumber}:${deck.map(c => c.instanceId).join(',')}`;
   const cached = deckPlays.get(key);
   if (cached) return cached;
   const play = deck.length
