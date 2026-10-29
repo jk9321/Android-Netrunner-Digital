@@ -52,6 +52,19 @@ describe('Encounter panel: counter-spending breakers', () => {
     const after = buttons(s);
     expect(after).toContain('Break 1 (1credit)');
     expect(after).toContain('Break 2 (1credit)');
-    expect(after.some(t => /Boost/.test(t))).toBe(false);
+    expect(after.some(t => /^\+\d+ strength \(\d+credit\)$/.test(t))).toBe(false);
+  });
+
+  it('labels Unity’s boost with the strength it gives (+X, X = installed icebreakers)', () => {
+    const UNITY = '30026';
+    const PHAROS = '30063';
+    let s = newGame();
+    installIceForTest(s, PHAROS, 'hq');
+    installProgramForTest(s, UNITY);
+    installProgramForTest(s, '30006'); // Cleaver
+    installProgramForTest(s, '30015'); // Carmen
+    s.runner.credits = 20;
+    s = runIntoFirstIce(s, 'hq');
+    expect(buttons(s)).toContain('+3 strength (1credit)');
   });
 });

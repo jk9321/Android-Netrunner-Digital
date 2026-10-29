@@ -151,7 +151,7 @@ export const EncounterPanel: React.FC<EncounterPanelProps> = ({ state, onAction,
                         className={boost ? `${btn} bg-cyan-950 border-cyan-700 text-cyan-200 hover:bg-cyan-900` : usedBtn}
                       >
                         <TrendingUp className="inline w-3 h-3 mr-1" />
-                        Boost (<Credits amount={boostCostOf(state, breaker)} />)
+                        +{script?.boostAmount(state, breaker) ?? 0} strength (<Credits amount={boostCostOf(state, breaker)} />)
                       </button>
                     );
                   })()}
@@ -193,7 +193,7 @@ export const EncounterPanel: React.FC<EncounterPanelProps> = ({ state, onAction,
                     className={`${btn} bg-cyan-950 border-cyan-700 text-cyan-200 hover:bg-cyan-900`}
                   >
                     <TrendingUp className="inline w-3 h-3 mr-1" />
-                    Boost (<Credits amount={boostCostOf(state, breaker)} />)
+                    +{script?.boostAmount(state, breaker) ?? 0} strength (<Credits amount={boostCostOf(state, breaker)} />)
                   </button>
                 ) : a.type === 'BREAK_SUBROUTINE' ? (
                   <button
