@@ -6,6 +6,8 @@ import { ALL_CARDS, CARD_SETS, getCardImageUrl } from '../../data/cards';
 import { getCardScript } from '../../core/scripts';
 import { CardZoomModal } from './CardZoomModal';
 import { CardPopout } from './CardPopout';
+import { IceTypeIcons, breakerTypes } from './IceTypeIcons';
+import { iceSubtypes } from '../../core/engine/ice';
 import { FACTION_COLOR, FACTION_LABEL } from '../cardLabels';
 import { AlertTriangle, ArrowLeft, Ban, CheckCircle2, FileDown, Minus, Plus, Save, Search, ZoomIn } from 'lucide-react';
 
@@ -83,6 +85,14 @@ const Stat: React.FC<{ label: string; value: string; ok: boolean }> = ({ label, 
 );
 
 /** Badges on a card image: banned or out of the format's pool, not scripted, and how many copies. */
+/** The same ice-type / breaks-type icons as in game: what ice is, and what an icebreaker breaks. */
+const TypeIcons: React.FC<{ card: CardDefinition; className?: string }> = ({ card, className }) =>
+  card.type_code === 'ice' ? (
+    <IceTypeIcons types={iceSubtypes(asInstance(card.code))} side="ice" row className={className} />
+  ) : (
+    <IceTypeIcons types={breakerTypes(asInstance(card.code))} side="breaker" row className={className} />
+  );
+
 const CardBadges: React.FC<{ card: CardDefinition; format: ReturnType<typeof getFormat>; count: number }> = ({ card: c, format, count: n }) => (
   <>
     {(isBanned(format, c) || !isInCardPool(format, c)) && (
@@ -102,6 +112,7 @@ const CardBadges: React.FC<{ card: CardDefinition; format: ReturnType<typeof get
         NOT SCRIPTED YET
       </span>
     )}
+    <TypeIcons card={c} className={`absolute left-1 text-[10px] ${unscripted(c) ? 'bottom-6' : 'bottom-1'}`} />
     {n > 0 && (
       <span className="absolute top-1 right-1 min-w-[1.5rem] h-6 px-1 rounded-full bg-black/85 border border-slate-500 text-xs font-bold flex items-center justify-center">
         {n}
@@ -451,6 +462,7 @@ export const DeckBuilder: React.FC<DeckBuilderProps> = ({ initial, onSave, onCan
                         </button>
                         {formatMarker(c)}
                         {influencePips(c)}
+                        <TypeIcons card={c} className="text-[7px] shrink-0" />
                       </div>
                     ))}
                   </div>
