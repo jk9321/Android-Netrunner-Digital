@@ -155,6 +155,44 @@ export function RunnerActions(props: ActionBarProps) {
   const installTrashing = (trashFirst: string[]): GameAction => ({ type: 'INSTALL_CARD', player: 'runner', cardInstanceId: installable!.instanceId, trashFirst });
   const programs = installable && !onIce ? trashableFirst(state, installable, null) : [];
   const canMakeRoom = programs.length > 0 && isLegalAction(state, installTrashing(programs.map(c => c.instanceId)));
+  // Cards hosted on hardware (Bling, Madani) that can be played or installed as if in the grip
+  const hostedActions = hostedCardActions(state);
+  // A hosted card that installs only on ice (Botulus on Bling): the ice the player is choosing between (rules 1.13.6c, 8.5.16b)
+  const [pickingHost, setPickingHost] = useState<string | null>(null);
+  const hostChoices = pickingHost
+    ? hostedActions.filter(a => a.type === 'INSTALL_CARD' && a.cardInstanceId === pickingHost && a.hostInstanceId)
+    : [];
+  const pickingCard = pickingHost ? findCardAnywhere(state, pickingHost) : undefined;
+  if (pickingCard && hostChoices.length > 0) {
+    return (
+      <div className="flex flex-col gap-2 p-2 bg-pink-950/40 border border-pink-800/80 chamfer-sm shadow-inner">
+        <span className="text-xs font-bold text-pink-400 font-mono uppercase">Install hosted {cardDef(pickingCard).title} on:</span>
+        <div className="flex items-center gap-1.5 flex-wrap" data-testid="hosted-ice-picker">
+          {hostChoices.map(a => {
+            if (a.type !== 'INSTALL_CARD' || !a.hostInstanceId) return null;
+            const host = findCardAnywhere(state, a.hostInstanceId);
+            return host ? (
+              <InstallOnIceButton
+                key={a.hostInstanceId}
+                state={state}
+                host={host}
+                onClick={() => {
+                  setPickingHost(null);
+                  onAction(a);
+                }}
+              />
+            ) : null;
+          })}
+        </div>
+        <button
+          onClick={() => setPickingHost(null)}
+          className="px-2 py-1 bg-pink-950 hover:bg-pink-900 border border-pink-700 text-pink-200 text-xs font-bold rounded-lg transition-all self-end shadow"
+        >
+          Cancel
+        </button>
+      </div>
+    );
+  }
   if (installable && makingRoom === installable.instanceId) {
     return (
       <div className="flex flex-col gap-2 p-2 bg-pink-950/40 border border-pink-800/80 chamfer-sm shadow-inner">
@@ -226,17 +264,20 @@ export function RunnerActions(props: ActionBarProps) {
             testId="install-trash-programs"
           />
         )}
-        {hostedCardActions(state).map(a => {
+        {hostedActions.map(a => {
           if (a.type !== 'INSTALL_CARD' && a.type !== 'PLAY_OPERATION_OR_EVENT') return null;
+          const onIceHosted = a.type === 'INSTALL_CARD' && !!a.hostInstanceId;
+          // A hosted trojan gets one button that opens the ice picker, not one button per ice
+          if (onIceHosted && hostedActions.find(b => b.type === 'INSTALL_CARD' && b.cardInstanceId === a.cardInstanceId) !== a) return null;
           const hosted = findCardAnywhere(state, a.cardInstanceId);
           if (!hosted) return null;
           return (
             <button
-              key={`${a.type}-${a.cardInstanceId}-${a.type === 'INSTALL_CARD' ? a.hostInstanceId ?? '' : ''}`}
-              onClick={() => onAction(a)}
+              key={`${a.type}-${a.cardInstanceId}`}
+              onClick={() => (onIceHosted ? setPickingHost(a.cardInstanceId) : onAction(a))}
               data-testid={`hosted-${a.cardInstanceId}`}
               className="px-2 py-1 bg-pink-900 hover:bg-pink-800 border border-pink-500 text-white text-xs font-bold rounded-lg transition-all flex items-center gap-1.5 shadow"
-              title="This card is hosted faceup on your hardware"
+              title={onIceHosted ? 'This card is hosted faceup on your hardware; choose the ice to install it on' : 'This card is hosted faceup on your hardware'}
             >
               {a.type === 'INSTALL_CARD' ? <Plus className="w-3.5 h-3.5" /> : <Zap className="w-3.5 h-3.5" />}
               {a.type === 'INSTALL_CARD' ? 'Install' : 'Play'} hosted {cardDef(hosted).title}
