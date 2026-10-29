@@ -9,7 +9,7 @@ on:
   workflow_dispatch:
     inputs:
       ref:
-        description: Branch or commit to test
+        description: Branch or commit to test (beta for new cards and AI work)
         required: true
         default: main
       games:

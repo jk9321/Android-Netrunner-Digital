@@ -200,7 +200,16 @@ Netrunner/
 
 ---
 
-## 5. Development Commands
+## 5. Branches
+
+* **`main`** is the live site (Cloudflare deploys every push). Only bugfixes for what is already on main go straight to main. After each one, merge main into `beta` so beta does not drift.
+* **`beta`** is for new cards (Vantage Point onwards) and ALL AI work, including tuning and balance. Branch work from beta and merge back into beta. Cloudflare builds beta as a preview Worker version (Version history), so test there.
+* **beta merges into main only when Jeff says it is ready.**
+* AI batches: run the "AI batch" workflow with `ref` set to `beta` (or a branch off beta). Compare batches only against batches from the same branch.
+
+---
+
+## 6. Development Commands
 
 * **Start dev server:** `npm run dev` (Runs locally on `http://localhost:3000`)
 * **Run unit tests:** `npm test`
@@ -211,7 +220,7 @@ Netrunner/
 
 ---
 
-## 6. Changelog & Agent Work Log
+## 7. Changelog & Agent Work Log
 
 | Date | Agent / Dev | Changes Made |
 | :--- | :--- | :--- |
@@ -307,3 +316,4 @@ Netrunner/
 | **2026-10-29** | Claude | Deck picker: star a deck to favourite it (favourites sort to the top of their side's list), and hide premade decks (they ship with the game, so they are hidden rather than deleted; "Show N hidden decks" lists them faded with a Restore button). The last listed deck of a side can't be hidden; hiding the selected deck moves the selection to the top of the list; Random deck skips hidden decks. `src/data/deckPrefs.ts` (localStorage `netrunner.favoriteDecks.v1`, `netrunner.hiddenDecks.v1`), `tests/deckPrefs.test.ts`. |
 | **2026-10-29** | Claude | Cards known in the opponent's hand (Jeff). A revealed card returns to its previous state (rules 1.21.3, 1.21.3a), so it stays hidden; the other side only remembers it. `CorpState.knownToRunner` / `RunnerState.knownToCorp` hold instance ids, set by `revealInHand()` (helpers.ts) for MuslihaT, Mutual Favor, Touch-ups (whole grip), Peer Review, Malapert Data Vault, Off the Books, Precision Design from faceup Archives, Detente returning hosted cards, and HQ cards the Runner accessed and left. `forgetHiddenCards` drops ids no longer in the hand after every action; `drawCards` drops a drawn card. UI: a small "Known (n)" button by the opponent's hand label (hidden when nothing is known or the viewer can see the hand) opens the `known-hq` / `known-grip` zone viewer. No SG/Elevation card picks a specific card from the opponent's hand (Detente, Shred, HQ access are random), so only identity matters, not position. Not fed to the AI yet. `tests/knownInHand.test.ts`. |
 | **2026-10-29** | Claude | Known-in-hand fix (Jeff): the list gave away which card was installed facedown, because a known card dropped off as soon as it left the hand. Now entries are `{ id, code }` and `updateHandKnowledge(prev, state)` (after every action, gameEngine) keeps an entry when its card leaves unseen (rules 1.12.3: the viewer can't tell which card left). An entry is dropped when a card with the same name appears in the open from somewhere the viewer couldn't follow (not straight from R&D/stack), preferring the same card, so playing or rezzing an unseen copy looks the same as the seen one; and the list is trimmed to the hand size. Touch-ups forgets the cards the Corp shuffled away (`forgetInHand`); Off the Books marks the card only if it stays in HQ. The viewer shows name-only stand-ins with a note that a card that left unseen could be one of these. The board "Seen" tag is unchanged: it only comes from rez, access where installed, or a card accessed in the same breach (7.3.1a, Poétrï). |
+| **2026-10-29** | Claude | Branch policy (Jeff): new `beta` branch for Vantage Point cards and all AI work; main only takes bugfixes, which are then merged into beta; beta goes to main when Jeff says it is ready (section 5). CI now also runs on pushes to beta; the AI batch workflow takes `ref: beta`. |
