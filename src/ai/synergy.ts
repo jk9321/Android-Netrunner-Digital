@@ -111,8 +111,12 @@ export const tuning = {
     runnerIdentities: true,
     /** Corp: an agenda left over the Runner's turn only behind 2 real layers, or ice that costs more than the Runner has. */
     exposure: true,
-    /** The exposure check by what the Runner can pay, not by layers of ice (Jeff, 2026-10-29). */
-    exposureByCost: true,
+    /**
+     * The exposure check by what the Runner can pay, not by layers of ice (Jeff, 2026-10-29). Off: self-play
+     * 39.0% (old rule 41.3%), new Corp vs old Runner 43.1% (45.8%); without income 38.9% / 44.1%; no
+     * exposure check at all 36.6% / 42.3%. Agendas waited in HQ and were raided there.
+     */
+    exposureByCost: false,
     exposureNoIncome: false,
     /* Funded depth (2026-10-26, self-play, 2,210 games): Corp 42.9% -> 44.8%; remote steals 1,714 -> 1,472, behind ice it couldn't afford to rez 883 -> 499. */
     /** Corp (Jeff): an agenda left over the Runner's turn counts unrezzed ice as a layer only if it can still pay to rez it. */

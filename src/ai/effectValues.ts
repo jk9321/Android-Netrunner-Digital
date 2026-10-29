@@ -139,12 +139,14 @@ function passOdds(state: GameState, ices: CardInstance[], income = 0): number {
 /**
  * Chance the Runner steals an agenda installed in `serverId` on its next
  * turn (plan.stealOdds, Jeff 2026-10-28). Measured with scripts/steal-odds.ts:
- * the Runner runs an agenda remote it can get into most turns (STEAL.run, an
- * open remote), and it has its turn's clicks to raise credits for the ice
- * first (STEAL.income), so the ice's protection is judged against
- * that, not the credits it holds now.
+ * the share of agenda turns behind ice the Runner can afford that end in a
+ * steal (STEAL.run), against the credits it holds (STEAL.income: credits it
+ * raises first). Re-measured 2026-10-29 at 8e09d10 (12,100 agenda turns):
+ * the Runner AI now steals about half as often as the first measure (0.84,
+ * 2 income) said (1/1 rezzed: 10% stolen, predicted 21%), so 0.45 and no
+ * income. Open remotes stay a sure steal (plan.openSteal; 86% measured).
  */
-export const STEAL = { run: 0.84, income: 2 };
+export const STEAL = { run: 0.45, income: 0 };
 
 export function stealOdds(state: GameState, serverId: string, run = STEAL.run, income = STEAL.income): number {
   const server = state.corp.servers[serverId];
