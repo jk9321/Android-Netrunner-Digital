@@ -48,7 +48,10 @@ export const breakerScripts: Record<string, CardScript> = {
 
   // Unity (Decoder): Interface -> 1c: Break 1 code gate subroutine. 1c: +X strength, where X is
   // the number of installed icebreakers (including this one).
-  '30026': breaker({ breaks: 'code gate', breakMax: 1, breakCost: () => 1, boostCost: 1, boostAmount: icebreakerCount }),
+  '30026': breaker(
+    { breaks: 'code gate', breakMax: 1, breakCost: () => 1, boostCost: 1, boostAmount: icebreakerCount },
+    { liveValue: state => `X = ${icebreakerCount(state)}: 1[credit] for +${icebreakerCount(state)} strength` }
+  ),
 
   // Mayfly (AI): Interface -> 1c: Break 1 subroutine. When this run ends, trash this program.
   // 1c: +1 strength.

@@ -404,7 +404,7 @@ function Game({
       {/* Side bar: the hovered card, the acting side's actions, then the log */}
       <aside className="lg:w-80 2xl:w-96 shrink-0 flex flex-col gap-2 min-h-0">
         <div className="hidden lg:block shrink-0">
-          <ZoomPanel store={zoomStore} onInspect={setInspectedCard} />
+          <ZoomPanel store={zoomStore} state={gameState} onInspect={setInspectedCard} />
         </div>
         <div className="shrink-0 lg:max-h-[40vh] overflow-y-auto flex flex-col gap-2 empty:hidden">
           {activePlayer === 'corp' && corpCanAct && <CorpActions state={gameState} selectedCard={selectedCard} onAction={handleAction} />}

@@ -335,11 +335,13 @@ const maintenanceAccess: CardScript = {
 
 // Transfer of Wealth: Run HQ. If successful, take 1 tag and the Corp loses 3
 // credits. Gain 2 credits for each credit lost this way.
+const transferLoss = (state: GameState) => Math.min(3, state.corp.credits);
 const transferOfWealth: CardScript = {
   onPlay: ctx => startRun(ctx.state, 'hq', { source: runSource(ctx), eventCode: ctx.card.cardCode }),
+  liveValue: state => `If successful now: Corp loses ${transferLoss(state)}, you gain ${2 * transferLoss(state)}[credit]`,
   onRunSuccessful: ({ state }) => {
     giveTags(state, 1);
-    const lost = Math.min(3, state.corp.credits);
+    const lost = transferLoss(state);
     state.corp.credits -= lost;
     gainCredits(state, 'runner', 2 * lost);
     addLog(state, 'runner', `Corp lost ${lost} [credit]; Runner gained ${2 * lost} [credit] (Transfer of Wealth).`);
@@ -371,6 +373,9 @@ const illumination: CardScript = {
 // Ritual: Draw 1 card for each click you have remaining.
 const ritual: CardScript = {
   onPlay: ({ state }) => drawForEffect(state, 'runner', state.runner.clicks, 'Ritual'),
+  // The play action's click is spent before Ritual resolves (8.6.7b, f), so one fewer remains
+  // (the 9.12.2b example counts the clicks left after playing it)
+  liveValue: state => `Play now: draw ${Math.max(0, state.runner.clicks - 1)}`,
 };
 
 // --- Hardware ---------------------------------------------------------------------

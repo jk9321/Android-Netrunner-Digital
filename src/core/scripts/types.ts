@@ -32,6 +32,11 @@ export interface CardScript {
   breaker?: BreakerScript;
   /** Install cost change for Runner cards (e.g. Carmen). Negative = cheaper. */
   installCostModifier?(state: GameState, card: Card): number;
+  /**
+   * The current value of a counted effect ("for each...", "X is..."), shown
+   * when the card is hovered. Uses the same formula the effect resolves with.
+   */
+  liveValue?(state: GameState, card: Card): string | null;
 
   /** Reactions to game events while this card is active (see engine/triggers.ts). */
   triggers?: TriggerHandlers;
