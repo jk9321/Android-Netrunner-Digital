@@ -353,8 +353,40 @@ describe('Access abilities and access triggers', () => {
     setIdentity(s, 'runner', C.zahya);
     const before = s.runner.credits;
     s = cont(run(s, 'hq'));
-    while (s.pendingPrompts.length > 0) s = declineAccess(s);
+    while (s.pendingPrompts[0]?.kind === 'access_trash') s = declineAccess(s);
+    s = choose(s, 'gain');
     expect(s.runner.credits).toBe(before + 1);
+  });
+
+  it('Zahya may save the gain for a later run the same turn (rules 9.6.9, 9.1.6b)', () => {
+    let s = newGame();
+    setIdentity(s, 'runner', C.zahya);
+    const before = s.runner.credits;
+    s = cont(run(s, 'hq'));
+    while (s.pendingPrompts[0]?.kind === 'access_trash') s = declineAccess(s);
+    s = choose(s, 'no');
+    expect(s.runner.credits).toBe(before);
+    s = cont(run(s, 'rd'));
+    while (s.pendingPrompts[0]?.kind === 'access_trash') s = declineAccess(s);
+    s = choose(s, 'gain');
+    expect(s.runner.credits).toBe(before + 1);
+    s = cont(run(s, 'hq'));
+    while (s.pendingPrompts[0]?.kind === 'access_trash') s = declineAccess(s);
+    expect(s.pendingPrompts).toHaveLength(0); // used this turn
+  });
+
+  it('the AI saves a 1-credit Zahya gain while it has clicks for another run', async () => {
+    const { answerPrompt } = await import('../src/ai/prompts');
+    let s = newGame();
+    setIdentity(s, 'runner', C.zahya);
+    s = cont(run(s, 'hq'));
+    while (s.pendingPrompts[0]?.kind === 'access_trash') s = declineAccess(s);
+    s.runner.clicks = 2;
+    const a = answerPrompt(s, 'runner');
+    expect(a.type === 'RESOLVE_PROMPT' && a.choice.kind === 'effect_choice' && a.choice.optionId).toBe('no');
+    s.runner.clicks = 1;
+    const b = answerPrompt(s, 'runner');
+    expect(b.type === 'RESOLVE_PROMPT' && b.choice.kind === 'effect_choice' && b.choice.optionId).toBe('gain');
   });
 });
 

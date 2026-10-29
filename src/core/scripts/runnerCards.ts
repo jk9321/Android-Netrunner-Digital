@@ -59,15 +59,24 @@ const rene: CardScript = {
 };
 
 // Zahya Sadeghi: Once per turn -> When a run on HQ or R&D ends, you may gain
-// 1 credit for each time you accessed a card during that run.
+// 1 credit for each time you accessed a card during that run. Optional (rules 9.6.9),
+// and only counts as used once taken (9.1.6b), so it can wait for a later run.
 const zahya: CardScript = {
   triggers: {
-    run_ends: ({ state, card }, e) => {
-      if (!['hq', 'rd'].includes(e.server) || e.accessedCount === 0) return;
-      if (!useOncePerTurn(state, `once:${card.instanceId}`)) return;
-      gainCredits(state, 'runner', e.accessedCount);
-      addLog(state, 'runner', `Runner gained ${e.accessedCount} [credit] (Zahya Sadeghi).`);
+    run_ends: (ctx, e) => {
+      const { state, card } = ctx;
+      if (!['hq', 'rd'].includes(e.server) || e.accessedCount === 0 || turnFlag(state, `once:${card.instanceId}`) > 0) return;
+      askChoice(ctx, 'runner', `Zahya Sadeghi: gain ${e.accessedCount} [credit] now? (Once per turn.)`, [
+        { id: 'gain', label: `Gain ${e.accessedCount} [credit]` },
+        { id: 'no', label: 'Save it for a later run' },
+      ], 'gain', { credits: e.accessedCount });
     },
+  },
+  onPromptAnswer: ({ state, card }, source, answer) => {
+    if (answer.kind !== 'effect_choice' || answer.optionId !== 'gain' || !useOncePerTurn(state, `once:${card.instanceId}`)) return;
+    const credits = Number(source.data?.credits ?? 0);
+    gainCredits(state, 'runner', credits);
+    addLog(state, 'runner', `Runner gained ${credits} [credit] (Zahya Sadeghi).`);
   },
 };
 
