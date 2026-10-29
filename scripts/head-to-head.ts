@@ -15,7 +15,7 @@ import { createInitialGameState } from '../src/core';
 import { DECKS, deckGameSetup } from '../src/data/decks';
 import { createAgent } from '../src/ai';
 import { GameRecord, playLogged } from './lossLog';
-import { applyPlanOff, tuning } from '../src/ai/synergy';
+import { applyPlanOff } from '../src/ai/synergy';
 
 const [gamesArg, levelArg] = process.argv.slice(2).filter(a => a !== '--');
 const games = Number(gamesArg ?? 1);

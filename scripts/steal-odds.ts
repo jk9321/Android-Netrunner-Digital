@@ -17,7 +17,7 @@ import { createAgent } from '../src/ai';
 import { GameRunner } from '../src/ai/playout';
 import { PACE, runSuccess, stealOdds } from '../src/ai/effectValues';
 import { AGENDA_RUN } from '../src/ai/evaluate';
-import { applyPlanOff, tuning } from '../src/ai/synergy';
+import { applyPlanOff } from '../src/ai/synergy';
 
 applyPlanOff(process.env.PLAN_OFF ?? '');
 

@@ -9,7 +9,7 @@ import { createInitialGameState, GameState, cardDef } from '../src/core';
 import { DECKS, deckGameSetup } from '../src/data/decks';
 import { createAgent } from '../src/ai';
 import { GameRunner } from '../src/ai/playout';
-import { applyPlanOff, tuning } from '../src/ai/synergy';
+import { applyPlanOff } from '../src/ai/synergy';
 applyPlanOff(process.env.PLAN_OFF ?? '');
 
 const [gamesArg, levelArg] = process.argv.slice(2).filter(a => a !== '--');
