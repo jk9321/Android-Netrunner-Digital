@@ -192,8 +192,8 @@ export function hiddenCardOdds(state: GameState): { agenda: number; agendaCost: 
 
 export const agendaBoardValue = (counters: number, cost: number) => counters * RATES.advancement + (counters >= cost ? RATES.scoreableAgenda : 0);
 
-/** Chance the Runner runs a remote holding an advanced agenda on its turn (measured, scripts/pace.ts at f01f346: 40% of 1,928 turns). */
-export const AGENDA_RUN = 0.43;
+/** Chance the Runner runs a remote holding an advanced agenda on its turn (measured, scripts/pace.ts at b72eb3d: 40% of 6,689 turns). */
+export const AGENDA_RUN = 0.4;
 
 /**
  * An installed agenda (Jeff, 2026-10-28; plan.agendaBoard): its points on
