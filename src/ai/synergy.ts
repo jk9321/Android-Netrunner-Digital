@@ -130,7 +130,8 @@ export const tuning = {
     bangunFaceUp: true,
     /**
      * No faceup agenda in a server without ice unless the Runner's grip is 2 or less. At d85fe6e faceup
-     * was worth +9 to Pork Chops (57.7% vs 48.5%), but the 66 bare ones were stolen 98% of the time.
+     * was worth +9 to Pork Chops (57.7% vs 48.5%), but the 66 bare ones were stolen 98% of the time. With this
+     * on (ccbc397) bare faceups 66 -> 8, Pork Chops 54.6% (within noise); kept as the sounder play.
      */
     bangunNoBareBait: true,
     /**
