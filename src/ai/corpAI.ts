@@ -1,5 +1,6 @@
 import { CardInstance, GameAction, GameState, ServerState, activePrompt, cardDef, findCardAnywhere, getCardDefinition, getLegalActions, isLegalAction } from '../core';
-import { iceScript, iceSubtypes } from '../core/engine/ice';
+import { iceScript, iceStrength, iceSubtypes } from '../core/engine/ice';
+import { iceWorth, withIceInstalled } from './iceValues';
 import { rigCoverage } from './evaluate';
 import { counters, rezCost } from '../core/engine/cardEffects';
 import { Agent, FreeActionGuard, ScoredAction } from './agent';
@@ -597,8 +598,11 @@ export class HeuristicCorpAI implements Agent {
           need += Math.min(1, 0.5 * breaches);
         }
         const rezCost = cardDef(card).cost ?? 0;
-        const strength = cardDef(card).strength ?? 0;
+        // (Jeff) ice whose strength depends on where it sits (Scatter Field) is judged where it would go
+        const placed = this.synergy && tuning.plan.icePosition ? withIceInstalled(state, card, server) : state;
+        const strength = placed === state ? cardDef(card).strength ?? 0 : iceStrength(placed, card);
         return (
+          (placed === state ? 0 : ICE_POSITION_RATE * shiftedIceWorth(state, placed, server)) +
           need -
           0.8 * installCost +
           (hasEndTheRun(card) ? 1 : 0) +
@@ -607,7 +611,7 @@ export class HeuristicCorpAI implements Agent {
           // Deck-aware AI: ice we can't rez is no protection; rez money for the ice already out comes first
           (this.synergy && tuning.plan.affordIce && corp.credits - installCost >= rezCost && corp.credits - installCost < rezCost + rezReserve(state, this.wideReserve) ? 1 : 0) +
           (this.synergy && tuning.plan.icePlacement ? iceFit(state, card, server, tuning.plan.agendaStakes) : 0) +
-          (this.synergy && tuning.plan.stopperPlacement ? stopperPlacement(state, card, server) : 0)
+          (this.synergy && tuning.plan.stopperPlacement ? stopperPlacement(placed, card, server) : 0)
         );
       }
       case 'agenda': {
@@ -701,6 +705,15 @@ function iceFit(state: GameState, ice: CardInstance, server: ServerState | null,
   }
   if (server.ice.length > 0 && server.ice.some(other => iceSubtypes(other, state).some(t => types.includes(t)))) fit -= 0.4;
   return fit;
+}
+
+/** Install-score points per credit of worth the ice already on a server gains or loses from a new layer. */
+const ICE_POSITION_RATE = 0.5;
+
+/** Change in worth (credits, as the Corp sees it) of the ice already on `server` once a new layer goes outside it (a lone Scatter Field drops 4 strength). */
+function shiftedIceWorth(state: GameState, placed: GameState, server: ServerState | null): number {
+  if (!server) return 0;
+  return server.ice.reduce((n, ice) => n + iceWorth(placed, ice, 'corp') - iceWorth(state, ice, 'corp'), 0);
 }
 
 /** Share of runs a new ice on a server stops (a guess, Jeff 2026-10-28: about one run in three). */

@@ -145,6 +145,8 @@ export const tuning = {
     centralsFirst: true,
     /** Corp (Jeff): ice that would stop this Runner goes on a server that matters (R&D, the scoring remote, HQ holding agendas). */
     stopperPlacement: true,
+    /** Corp (Jeff): ice is judged at the strength it has where it would go, and a layer that weakens the ice inside it costs that (Scatter Field). */
+    icePosition: true,
     /** ...and remotes wait for their ice until then. */
     centralsFirstRemotes: false,
     /** Corp (Jeff): mulligan a hand with no ice it can rez early (rez cost 4 or less). */

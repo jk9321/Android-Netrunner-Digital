@@ -300,6 +300,42 @@ describe('planning (setup scoring)', () => {
     expect(score(sentry, 'hq') - plain(sentry)).toBeGreaterThan(score(barrier, 'hq') - plain(barrier));
   });
 
+  it('judges Scatter Field where it would go: strong alone, weak behind or in front of other ice', () => {
+    const board = () => {
+      const s = structuredClone(newGame());
+      s.runner.rig.programs = [createCardInstance(s, '30026')]; // Unity: boosting through 4 strength costs more
+      s.runner.credits = 10; // never a full stop: only the strength differs
+      s.corp.credits = 10;
+      return s;
+    };
+    const score = (s: GameState, card: CardInstance, server: string, on: boolean) => {
+      const was = tuning.plan.icePosition;
+      tuning.plan.icePosition = on;
+      try {
+        return new HeuristicCorpAI().rankMainActions(s).find(r => r.action.type === 'INSTALL_CARD' && r.action.cardInstanceId === card.instanceId && r.action.targetServerId === server)!.score;
+      } finally {
+        tuning.plan.icePosition = was;
+      }
+    };
+    // Alone on R&D it counts its +4 strength; as HQ's second layer it doesn't get it
+    const s = board();
+    const palisade = createCardInstance(s, '30072');
+    palisade.isRezzed = true;
+    s.corp.servers.hq.ice = [palisade];
+    const scatter = createCardInstance(s, '35042');
+    s.corp.hq = [scatter];
+    expect(score(s, scatter, 'rd', true) - score(s, scatter, 'rd', false)).toBeGreaterThan(0);
+    expect(score(s, scatter, 'hq', true)).toBeCloseTo(score(s, scatter, 'hq', false));
+    // A new layer outside a lone Scatter Field takes its +4 away, and that counts against it
+    const t = board();
+    const lone = createCardInstance(t, '35042');
+    lone.isRezzed = true;
+    t.corp.servers.rd.ice = [lone];
+    const layer = createCardInstance(t, '30072');
+    t.corp.hq = [layer];
+    expect(score(t, layer, 'rd', true)).toBeLessThan(score(t, layer, 'rd', false));
+  });
+
   it('tags the Runner before scoring Orbital Superiority', () => {
     const s = structuredClone(newGame());
     const orbital = createCardInstance(s, '30068');
