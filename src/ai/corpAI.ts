@@ -801,7 +801,8 @@ function entryCost(state: GameState, server: ServerState, credits: number): numb
  * it has plus a turn's income (plan.exposureByCost).
  */
 export function outOfReach(state: GameState, server: ServerState, credits: number): boolean {
-  return entryCost(state, server, credits) > state.runner.credits + STEAL.income;
+  // exposureNoIncome: only what the Runner holds now (it must spend clicks on money first)
+  return entryCost(state, server, credits) > state.runner.credits + (tuning.plan.exposureNoIncome ? 0 : STEAL.income);
 }
 
 /**

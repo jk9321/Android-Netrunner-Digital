@@ -113,6 +113,7 @@ export const tuning = {
     exposure: true,
     /** The exposure check by what the Runner can pay, not by layers of ice (Jeff, 2026-10-29). */
     exposureByCost: true,
+    exposureNoIncome: false,
     /* Funded depth (2026-10-26, self-play, 2,210 games): Corp 42.9% -> 44.8%; remote steals 1,714 -> 1,472, behind ice it couldn't afford to rez 883 -> 499. */
     /** Corp (Jeff): an agenda left over the Runner's turn counts unrezzed ice as a layer only if it can still pay to rez it. */
     fundedDepth: true,
