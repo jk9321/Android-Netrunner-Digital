@@ -20,3 +20,16 @@ for (const side of ['corp', 'runner']) {
   console.log(`${side === 'corp' ? 'Corp' : 'Runner'} decks (win %):`);
   for (const [name, d] of [...by].sort((a, b) => b[1].w / b[1].n - a[1].w / a[1].n)) console.log(`  ${name}: ${((100 * d.w) / d.n).toFixed(1)}% of ${d.n}`);
 }
+
+// The two weakest Corp decks on their own (Jeff, 2026-10-29: weakest decks first)
+const corpRates = new Map();
+for (const g of games) {
+  const d = corpRates.get(g.corpDeck) ?? { n: 0, w: 0 };
+  d.n++;
+  if (g.winner === 'corp') d.w++;
+  corpRates.set(g.corpDeck, d);
+}
+for (const [name] of [...corpRates].sort((a, b) => a[1].w / a[1].n - b[1].w / b[1].n).slice(0, 2)) {
+  console.log(`\n=== Weak Corp deck: ${name} ===`);
+  printLossSummary(games.filter(g => g.corpDeck === name));
+}
