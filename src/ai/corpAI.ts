@@ -12,7 +12,7 @@ import { noteKnownHand } from './handValues';
 import { PlanMemory, planTurn, plannerOn } from './turnPlanner';
 import { runnerReply } from './runnerReply';
 import { PETTY_CASH_REPLAY, iceAdvanceWorth, placedCounterWorth, rezEffectWorth, rezzedWorth, runTimed, topDownWorth } from './effectValues';
-import { ECON_SCALE } from './cardProfiles';
+import { CARD_PROFILES, ECON_SCALE } from './cardProfiles';
 
 /** Whether a group of value hacks is replaced by the model (plan.modelHacks, Jeff 2026-10-28). */
 const hacksOff = (group: 'rez' | 'rezPriority' | 'purge' | 'bonuses' | 'iceAdvance' | 'finish' | 'conduit'): boolean => !!tuning.plan.modelHacks?.[group];
@@ -252,6 +252,9 @@ export class HeuristicCorpAI implements Agent {
   /** Worth of rezzing a card in a server's root on the Corp's own turn. */
   private rezValue(state: GameState, card: CardInstance): number {
     const corp = state.corp;
+    // A money asset that pays when the Corp's turn begins is rezzed in the window just before then
+    // (rules 5.6.1b-d): it pays at once, and the Runner gets no turn to trash it full (plan.assetRezTiming)
+    if (tuning.plan.assetRezTiming && CARD_PROFILES[card.cardCode]?.every === 'turn' && state.turnStep?.kind !== 'corp_turn_start') return -Infinity;
     const econ = econValue(card.cardCode, state);
     if (econ) return econ + 1;
     if (hacksOff('rez')) {
