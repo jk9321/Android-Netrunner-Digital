@@ -50,6 +50,19 @@ if (games[0]?.identity) {
   }
 }
 
+// BANGUN's faceup agendas (Jeff, 2026-10-29): by ice on the server when installed, what became of them
+const faceUp = games.flatMap(g => (g.identity?.corp.faceUp ?? []).map(f => ({ ...f, flatline: g.reason === 'flatline' && g.winner === 'corp', won: g.winner === 'corp' })));
+if (faceUp.length) {
+  console.log('BANGUN faceup agendas (by ice when installed: stolen / scored / still out / gone; games won by flatline, won):');
+  for (const [label, test] of [['no ice', f => f.ice === 0], ['1 ice', f => f.ice === 1], ['2+ ice', f => f.ice >= 2], ['no ice, grip <= 2', f => f.ice === 0 && f.grip <= 2], ['no ice, tag punisher held', f => f.ice === 0 && f.punishers > 0]]) {
+    const set = faceUp.filter(test);
+    if (!set.length) continue;
+    const pc = k => ((100 * set.filter(f => f.outcome === k).length) / set.length).toFixed(0);
+    const pg = fn => ((100 * set.filter(fn).length) / set.length).toFixed(0);
+    console.log(`  ${label}: ${set.length}; stolen ${pc('stolen')}%, scored ${pc('scored')}%, out ${pc('out')}%, gone ${pc('gone')}%; flatline wins ${pg(f => f.flatline)}%, wins ${pg(f => f.won)}%`);
+  }
+}
+
 // The two weakest Corp decks on their own (Jeff, 2026-10-29: weakest decks first)
 const corpRates = new Map();
 for (const g of games) {

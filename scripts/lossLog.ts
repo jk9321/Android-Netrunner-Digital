@@ -10,6 +10,7 @@ import { rezCost } from '../src/core/engine/cardEffects';
 import { CardInstance } from '../src/core';
 import { iceCost, isTrap } from '../src/ai/runs';
 import { CARD_PROFILES } from '../src/ai/cardProfiles';
+import { cardSynergy } from '../src/ai/synergyTags';
 import { counters } from '../src/core/engine/cardEffects';
 import { Agent, GameRunner } from '../src/ai';
 
@@ -124,6 +125,8 @@ export interface IdentityUse {
   logs: number;
   turns: number;
   faceUpAgendas?: number;
+  /** BANGUN's faceup agendas, one per install: ice on the server then, the Runner's grip, and what became of it */
+  faceUp?: { ice: number; grip: number; punishers: number; outcome: 'stolen' | 'scored' | 'out' | 'gone' }[];
 }
 
 /** Prompt option ids that turn an optional ability down. */
@@ -290,6 +293,15 @@ export function playLogged(start: GameState, agents: { corp: Agent; runner: Agen
     return words[0].length >= 4 ? words[0] : words.slice(0, 2).join(' ');
   };
   const idNames = { corp: idName('corp'), runner: idName('runner') };
+  const faceUpIds = new Map<string, number>();
+  const closeFaceUp = () => {
+    const st = runner.state;
+    for (const [id, i] of faceUpIds) {
+      const f = identity.corp.faceUp![i];
+      f.outcome = st.runner.scoreArea.some(c => c.instanceId === id) ? 'stolen' : st.corp.scoreArea.some(c => c.instanceId === id) ? 'scored' : Object.values(st.corp.servers).some(sv => sv.root.some(c => c.instanceId === id)) ? 'out' : 'gone';
+    }
+    return identity;
+  };
   closeAssets = () => {
     for (const entry of live.values()) {
       const a = assets[entry.title];
@@ -372,7 +384,13 @@ export function playLogged(start: GameState, agents: { corp: Agent; runner: Agen
       // BANGUN: agendas installed faceup
       if (side === 'corp') {
         const up = (st: GameState) => Object.values(st.corp.servers).flatMap(sv => sv.root).filter(c => isAgenda(c) && c.faceUp && !c.isRezzed);
-        for (const c of up(after)) if (!up(before).some(b => b.instanceId === c.instanceId)) use.faceUpAgendas = (use.faceUpAgendas ?? 0) + 1;
+        for (const c of up(after)) {
+          if (up(before).some(b => b.instanceId === c.instanceId)) continue;
+          use.faceUpAgendas = (use.faceUpAgendas ?? 0) + 1;
+          const sv = Object.values(after.corp.servers).find(x => x.root.some(r => r.instanceId === c.instanceId))!;
+          const tagPunishers = [...after.corp.hq, ...after.corp.scoreArea].filter(x => (cardSynergy(cardDef(x)).when ?? []).includes('ifTagged')).length;
+          faceUpIds.set(c.instanceId, (use.faceUp ??= []).push({ ice: sv.ice.length, grip: after.runner.grip.length, punishers: tagPunishers, outcome: 'out' }) - 1);
+        }
       }
     }
     trackAgendas(after, agendaInstalls, openAgendas);
@@ -556,7 +574,7 @@ export function playLogged(start: GameState, agents: { corp: Agent; runner: Agen
     traps,
     assets: closeAssets(),
     assetRisk,
-    identity,
+    identity: closeFaceUp(),
     agendaInstalls,
     early,
     money,

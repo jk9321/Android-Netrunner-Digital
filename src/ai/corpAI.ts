@@ -257,6 +257,7 @@ export class HeuristicCorpAI implements Agent {
         const server = action.asNewRemote ? null : corp.servers[action.targetServerId ?? ''] ?? null;
         // BANGUN's faceup agendas hurt the Runner but tell them what is there
         const installCost = type(card) === 'ice' && server ? server.ice.length : 0;
+        if (action.faceUp && !tuning.plan.bangunFaceUp) return -Infinity;
         const faceUp = action.faceUp ? (this.synergy && tuning.plan.identities ? -this.bangunBait(state) : 0.5) : 0;
         return this.installScore(state, card, server) - faceUp - reservePenalty(state, corp.credits - installCost, this.wideReserve);
       }
