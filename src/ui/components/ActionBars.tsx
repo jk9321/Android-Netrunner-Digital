@@ -157,17 +157,20 @@ export function RunnerActions(props: ActionBarProps) {
   const canMakeRoom = programs.length > 0 && isLegalAction(state, installTrashing(programs.map(c => c.instanceId)));
   // Cards hosted on hardware (Bling, Madani) that can be played or installed as if in the grip
   const hostedActions = hostedCardActions(state);
-  // A hosted card that installs only on ice (Botulus on Bling): the ice the player is choosing between (rules 1.13.6c, 8.5.16b)
+  // A card that installs only on ice (Botulus, from the grip or hosted on Bling): the ice the player is choosing between (rules 1.13.6c, 8.5.16b)
   const [pickingHost, setPickingHost] = useState<string | null>(null);
   const hostChoices = pickingHost
-    ? hostedActions.filter(a => a.type === 'INSTALL_CARD' && a.cardInstanceId === pickingHost && a.hostInstanceId)
+    ? getLegalActions(state, 'runner').filter(a => a.type === 'INSTALL_CARD' && a.cardInstanceId === pickingHost && a.hostInstanceId)
     : [];
   const pickingCard = pickingHost ? findCardAnywhere(state, pickingHost) : undefined;
   if (pickingCard && hostChoices.length > 0) {
     return (
       <div className="flex flex-col gap-2 p-2 bg-pink-950/40 border border-pink-800/80 chamfer-sm shadow-inner">
-        <span className="text-xs font-bold text-pink-400 font-mono uppercase">Install hosted {cardDef(pickingCard).title} on:</span>
-        <div className="flex items-center gap-1.5 flex-wrap" data-testid="hosted-ice-picker">
+        <span className="text-xs font-bold text-pink-400 font-mono uppercase">
+          Install {pickingCard.instanceId === installable?.instanceId ? '' : 'hosted '}
+          {cardDef(pickingCard).title} on:
+        </span>
+        <div className="flex items-center gap-1.5 flex-wrap" data-testid="ice-host-picker">
           {hostChoices.map(a => {
             if (a.type !== 'INSTALL_CARD' || !a.hostInstanceId) return null;
             const host = findCardAnywhere(state, a.hostInstanceId);
@@ -239,13 +242,16 @@ export function RunnerActions(props: ActionBarProps) {
           </button>
         )}
         <PlayButton {...props} side="runner" />
-        {installable &&
-          onIce &&
-          getLegalActions(state, 'runner').map(a => {
-            if (a.type !== 'INSTALL_CARD' || a.cardInstanceId !== installable.instanceId || !a.hostInstanceId) return null;
-            const host = findCardAnywhere(state, a.hostInstanceId);
-            return host ? <InstallOnIceButton key={a.hostInstanceId} state={state} host={host} onClick={() => onAction(a)} /> : null;
-          })}
+        {installable && onIce && (
+          <button
+            onClick={() => setPickingHost(installable.instanceId)}
+            disabled={!getLegalActions(state, 'runner').some(a => a.type === 'INSTALL_CARD' && a.cardInstanceId === installable.instanceId)}
+            title={installBlocked ?? 'Choose the ice to install it on'}
+            className="px-2 py-1 bg-cyber-neonPink hover:bg-pink-600 text-white text-xs font-bold rounded-lg transition-all flex items-center gap-1.5 shadow-lg animate-pulse disabled:opacity-40 disabled:animate-none"
+          >
+            <Plus className="w-3.5 h-3.5" /> Install {cardDef(installable).title}
+          </button>
+        )}
         {installable && !onIce && (
           <button
             onClick={() => onAction({ type: 'INSTALL_CARD', player: 'runner', cardInstanceId: installable.instanceId })}
