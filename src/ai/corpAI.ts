@@ -3,6 +3,7 @@ import { iceScript, iceStrength, iceSubtypes } from '../core/engine/ice';
 import { iceWorth, withIceInstalled } from './iceValues';
 import { rigCoverage } from './evaluate';
 import { counters, rezCost } from '../core/engine/cardEffects';
+import { turnKey } from '../core/engine/helpers';
 import { Agent, FreeActionGuard, ScoredAction } from './agent';
 import { agendaWorth, digValue, evaluate } from './evaluate';
 import { pointGain, pointValue } from './valueModel';
@@ -359,6 +360,8 @@ export class HeuristicCorpAI implements Agent {
     }
     let score = evaluate(resolved, 'corp', this.synergy) - before;
     if (this.synergy) score += this.moneyPlan(state, action);
+    // Myōshu: keep the 10 credits once saved, unless the spend scores
+    if (this.synergy && myoshuSaving(state, true) && resolved.corp.credits < MYOSHU_COST && resolved.corp.score === corp.score) score -= 1;
     // Deck-aware AI: a play that makes an agenda scoreable this turn (Seamless Launch, Key Performance Indicators...)
     if (this.synergy && tuning.plan.scoreSetup && scoreable(resolved) > scoreable(state)) score = Math.max(score, 41);
     if (!spendsClick && score <= 0.3) return -Infinity;
@@ -381,7 +384,7 @@ export class HeuristicCorpAI implements Agent {
         const cost = cardDef(c).cost ?? 0;
         return gain !== undefined && cost > corp.credits && cost <= corp.credits + corp.clicks + 2;
       });
-      return reachable ? 0.6 : 0;
+      return reachable || myoshuSaving(state) ? 0.6 : 0;
     }
     if (action.type === 'PLAY_OPERATION_OR_EVENT' && tuning.plan.pettyCash) {
       return corp.hq.find(c => c.instanceId === action.cardInstanceId)?.cardCode === '35081' ? (hacksOff('bonuses') ? PETTY_CASH_REPLAY : 1.5) : 0;
@@ -940,6 +943,25 @@ export function runLoss(state: GameState): number {
     loss += state.corp.archives.faceDown.filter(c => type(c) === 'agenda').reduce((n, c) => n + steal(c), 0);
   }
   return loss;
+}
+
+const MYOSHU = '36061';
+const MYOSHU_COST = 10;
+
+/**
+ * Myōshu (play only after scoring an agenda installed on an earlier turn;
+ * 10 credits for 2 points): worth saving for while it is in HQ and an
+ * agenda installed before this turn sits in a remote. `held`: the 10 are
+ * already in the pool (keep them); otherwise they are within about two
+ * turns of clicks (save toward them).
+ */
+export function myoshuSaving(state: GameState, held = false): boolean {
+  const corp = state.corp;
+  if (!corp.hq.some(c => c.cardCode === MYOSHU)) return false;
+  const now = turnKey(state);
+  const older = Object.values(corp.servers).some(s => s.isRemote && s.root.some(c => type(c) === 'agenda' && c.installedTurn !== now));
+  if (!older) return false;
+  return held ? corp.credits >= MYOSHU_COST : corp.credits < MYOSHU_COST && corp.credits + corp.clicks + 6 >= MYOSHU_COST;
 }
 
 /**

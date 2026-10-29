@@ -567,6 +567,30 @@ export function runScore(state: GameState, serverId: string, options: RunOptions
   return value - spendCost(state, paid) - spendCost(state, waste) - approach.cost - runClick(state);
 }
 
+const CHAIN_REACTION = '36001';
+const CENTRALS = ['hq', 'rd', 'archives'];
+
+/**
+ * Chain Reaction (plays only after successful runs on HQ, R&D and Archives
+ * this turn): the share of its worth a run on one of the centrals still
+ * needed earns, while the clicks left cover the other runs and the play.
+ * Its worth: the 2 Corp cards it trashes (rezzed ice at its rez cost and the install to replace it, other
+ * cards as the Runner prices them), less the cheapest Runner card the Corp trashes back.
+ */
+export function chainReactionBonus(state: GameState, serverId: string): number {
+  if (!state.runner.grip.some(c => c.cardCode === CHAIN_REACTION) || !CENTRALS.includes(serverId)) return 0;
+  const needed = CENTRALS.filter(id => !state.runsThisTurn.some(r => r.server === id && r.successful));
+  if (!needed.includes(serverId) || state.runner.clicks < needed.length + 1 || state.runner.credits < 1) return 0;
+  const installed = Object.values(state.corp.servers).flatMap(s => [...s.ice, ...s.root]);
+  const worth = installed
+    // Rezzed ice: the Corp pays its rez cost, a click and an install again to replace it
+    .map(c => (!c.isRezzed ? 1.5 : cardDef(c).type_code === 'ice' ? (cardDef(c).cost ?? 0) + 2 : corpCardValue(c, state, 'runner')))
+    .sort((a, b) => b - a);
+  const mine = [...state.runner.rig.programs, ...state.runner.rig.hardware, ...state.runner.rig.resources].map(c => cardDef(c).cost ?? 0);
+  const value = (worth[0] ?? 0) + (worth[1] ?? 0) - (mine.length ? Math.min(...mine) + 0.5 : 0) - 1;
+  return value > 0 ? value / needed.length : 0;
+}
+
 /** Rezzed ice the Runner gets through for this much or less is worth trashing to make room. */
 const WEAK_ICE = 2;
 

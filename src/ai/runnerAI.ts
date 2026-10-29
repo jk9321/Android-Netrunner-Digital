@@ -9,7 +9,7 @@ import type { HeuristicOptions } from './corpAI';
 import { asSide, logNudge, nudge, tuning } from './synergy';
 import { noteKnownHand } from './handValues';
 import { PlanMemory, planTurn, plannerOn } from './turnPlanner';
-import { BOTULUS, RunnerMemory, TRANQUILIZER, MANEGARM, bestBreakPlan, botulusBreaks, hostedTrojans, creditsAhead, iceCreditsAhead, iceCost, iceCreditNeed, needsBiggerHand, runScore, runShortfall, serverValue, spendCost, subroutineCost } from './runs';
+import { BOTULUS, RunnerMemory, chainReactionBonus, TRANQUILIZER, MANEGARM, bestBreakPlan, botulusBreaks, hostedTrojans, creditsAhead, iceCreditsAhead, iceCost, iceCreditNeed, needsBiggerHand, runScore, runShortfall, serverValue, spendCost, subroutineCost } from './runs';
 import { RATES } from './valueModel';
 
 const TROJANS = [BOTULUS, TRANQUILIZER];
@@ -226,7 +226,8 @@ export class HeuristicRunnerAI implements Agent {
       case 'END_TURN':
         return -0.5;
       case 'INITIATE_RUN':
-        return runScore(state, action.targetServerId, { memory: this.memory, wary: this.synergy && tuning.wary, urgent: this.synergy && tuning.plan.urgency });
+        // Chain Reaction: a run on a central it still needs is worth a share of the play, if it succeeds
+        return runScore(state, action.targetServerId, { memory: this.memory, wary: this.synergy && tuning.wary, urgent: this.synergy && tuning.plan.urgency, successBonus: chainReactionBonus(state, action.targetServerId) });
       case 'REMOVE_TAG':
         return state.runner.rig.resources.length > 0 ? 1.2 : 0.3;
     }

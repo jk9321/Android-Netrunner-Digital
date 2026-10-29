@@ -1,8 +1,8 @@
 import { describe, expect, it } from 'vitest';
 import { ALL_CARDS, cardDef, createCardInstance, GameState, getLegalActions } from '../src/core';
 import { answerPrompt, meliesSide } from '../src/ai/prompts';
-import { bestBreakPlan, runScore } from '../src/ai/runs';
-import { perfectRecallTarget } from '../src/ai/corpAI';
+import { bestBreakPlan, chainReactionBonus, runScore } from '../src/ai/runs';
+import { myoshuSaving, perfectRecallTarget } from '../src/ai/corpAI';
 import { createAgent } from '../src/ai';
 import { giveCard, installIceForTest, installProgramForTest, newGame, play, run, runIntoFirstIce, startRunnerTurn } from './helpers';
 
@@ -10,6 +10,7 @@ const V = { caveat: '36032', corsair: '36004', methuselah: '36020', baker: '3601
 const agendaWorth = (points: number) => ALL_CARDS.find(d => d.type_code === 'agenda' && d.agenda_points === points && d.pack_code === 'sg')!.code;
 const AGENDA_2 = agendaWorth(2);
 const AGENDA_3 = agendaWorth(3);
+const CHAIN_REACTION = '36001';
 
 function corpPlays(s: GameState, code: string, credits: number): GameState {
   s.activePlayer = 'corp';
@@ -99,5 +100,38 @@ describe('AI with Vantage Point cards', () => {
     s = run(s, 'hq');
     expect(s.activeRun).toBeTruthy();
     expect(perfectRecallTarget(s)).toBe(big.instanceId);
+  });
+
+  it('Chain Reaction: a run on a central it still needs earns a share of the play, while the clicks last', () => {
+    const s = newGame();
+    startRunnerTurn(s);
+    installIceForTest(s, V.grubber, 'hq');
+    installIceForTest(s, V.paywall, 'rd');
+    expect(chainReactionBonus(s, 'archives')).toBe(0); // not in the grip
+    giveCard(s, 'runner', CHAIN_REACTION);
+    s.runner.clicks = 4;
+    const first = chainReactionBonus(s, 'archives');
+    expect(first).toBeGreaterThan(0);
+    s.runsThisTurn.push({ server: 'archives', successful: true });
+    expect(chainReactionBonus(s, 'archives')).toBe(0); // done already
+    s.runner.clicks = 3;
+    expect(chainReactionBonus(s, 'hq')).toBeCloseTo(first * 1.5); // 2 left to run
+    s.runner.clicks = 2;
+    expect(chainReactionBonus(s, 'hq')).toBe(0); // no click left to play it after the runs
+  });
+
+  it('Myōshu: saves toward 10 credits with an agenda installed on an earlier turn, and keeps them', () => {
+    const s = newGame();
+    s.corp.hq.push(createCardInstance(s, '36061'));
+    expect(myoshuSaving(s)).toBe(false); // no older agenda out
+    const agenda = createCardInstance(s, AGENDA_2);
+    agenda.installedTurn = 'earlier';
+    s.corp.servers['remote-1'] = { id: 'remote-1', name: 'Remote Server 1', isRemote: true, ice: [], root: [agenda] };
+    s.corp.credits = 6;
+    s.corp.clicks = 3;
+    expect(myoshuSaving(s)).toBe(true);
+    expect(myoshuSaving(s, true)).toBe(false);
+    s.corp.credits = 10;
+    expect(myoshuSaving(s, true)).toBe(true);
   });
 });
