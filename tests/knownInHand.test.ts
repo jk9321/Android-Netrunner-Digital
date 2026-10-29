@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { createCardInstance, executeAction, GameState, knownInHand } from '../src/core';
+import { revealInHand } from '../src/core/engine/helpers';
 import { answer, cont, giveCard, installCorpForTest, keepGoing, newGame, passTurn, play, run, setIdentity, startRunnerTurn } from './helpers';
 
 // Rules 1.21.3: a revealed card is shown, then returns to its previous state.
@@ -8,11 +9,11 @@ const muslihat = '35013';
 const peerReview = '35055';
 const touchUps = '35067';
 const idio = '35061';
-const SG = { cleaver: '30006', sureGamble: '30030', hedgeFund: '30075', palisade: '30072' };
+const SG = { cleaver: '30006', sureGamble: '30030', hedgeFund: '30075', palisade: '30072', regolith: '30071' };
 
 const choose = (s: GameState, optionId: string) => keepGoing(answer(s, { kind: 'effect_choice', optionId }));
 const pick = (s: GameState, ids: string[]) => keepGoing(answer(s, { kind: 'effect_cards', cardInstanceIds: ids }));
-const known = (s: GameState, side: 'corp' | 'runner') => knownInHand(s, side).map(c => c.instanceId);
+const known = (s: GameState, side: 'corp' | 'runner') => knownInHand(s, side).map(c => c.id);
 function playCorp(s: GameState, code: string, clicks: number): GameState {
   s.activePlayer = 'corp';
   s.phase = 'corp_turn';
@@ -72,5 +73,52 @@ describe('cards known in the opponent\'s hand', () => {
     s = passTurn(s); // Corp mandatory draw adds an unknown card
     expect(s.corp.hq.length).toBe(2);
     expect(known(s, 'corp')).toEqual([fund.instanceId]);
+  });
+
+  // Jeff's bug: a known Regolith left the list when an unseen card was installed, showing which card it was
+  it('a facedown install does not tell the Runner which HQ card was installed', () => {
+    let s = newGame();
+    const regolith = createCardInstance(s, SG.regolith);
+    const other = createCardInstance(s, SG.palisade);
+    s.corp.hq = [regolith, other];
+    revealInHand(s, 'corp', [regolith]);
+    s.activePlayer = 'corp';
+    s.phase = 'corp_turn';
+    s.corp.clicks = 3;
+    s.corp.credits = 20;
+    s = executeAction(s, { type: 'INSTALL_CARD', player: 'corp', cardInstanceId: regolith.instanceId, asNewRemote: true });
+    const installed = Object.values(s.corp.servers).flatMap(sv => sv.root).find(c => c.instanceId === regolith.instanceId)!;
+    expect(installed.runnerKnows).toBeFalsy();
+    expect(knownInHand(s, 'corp').map(k => k.code)).toEqual([SG.regolith]);
+    // Rezzing shows a Regolith: it may be the one seen, so that entry goes
+    s = executeAction(s, { type: 'REZ_CARD', player: 'corp', cardInstanceId: regolith.instanceId });
+    expect(knownInHand(s, 'corp')).toEqual([]);
+  });
+
+  it('playing an unseen copy forgets a seen copy too, so the list does not say which was played', () => {
+    let s = newGame();
+    const seen = createCardInstance(s, SG.hedgeFund);
+    const unseen = createCardInstance(s, SG.hedgeFund);
+    const filler = createCardInstance(s, SG.palisade);
+    s.corp.hq = [seen, unseen, filler];
+    revealInHand(s, 'corp', [seen]);
+    s.activePlayer = 'corp';
+    s.phase = 'corp_turn';
+    s.corp.clicks = 3;
+    s = play(s, 'corp', unseen.instanceId);
+    expect(knownInHand(s, 'corp')).toEqual([]);
+  });
+
+  it('never lists more cards than the hand holds', () => {
+    let s = newGame();
+    const a = createCardInstance(s, SG.palisade);
+    s.corp.hq = [a];
+    revealInHand(s, 'corp', [a]);
+    s.activePlayer = 'corp';
+    s.phase = 'corp_turn';
+    s.corp.clicks = 3;
+    s.corp.credits = 20;
+    s = executeAction(s, { type: 'INSTALL_CARD', player: 'corp', cardInstanceId: a.instanceId, targetServerId: 'hq' });
+    expect(knownInHand(s, 'corp')).toEqual([]);
   });
 });

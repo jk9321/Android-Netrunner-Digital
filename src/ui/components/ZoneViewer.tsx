@@ -1,6 +1,6 @@
 import React from 'react';
 import { createPortal } from 'react-dom';
-import { CardInstance } from '../../core/types/card';
+import { CardInstance, SideCode } from '../../core/types/card';
 import { GameState } from '../../core/types/state';
 import { knownInHand } from '../../core';
 import { CardView } from './CardView';
@@ -11,9 +11,27 @@ export interface ZoneGroup {
   cards: CardInstance[];
   /** Face-down cards (Archives): shown only when the viewer may peek. */
   faceDown?: boolean;
+  /** A line under the group label. */
+  note?: string;
 }
 
 export type ZoneId = 'archives' | 'heap' | 'rd' | 'stack' | 'corp-score' | 'runner-score' | 'removed' | 'known-hq' | 'known-grip';
+
+const KNOWN_NOTE = 'A card that left this hand unseen (installed facedown, shuffled away) could be one of these.';
+
+/**
+ * Stand-ins showing only the names of known cards, so the list never points
+ * at a real card that may have left the hand unseen.
+ */
+const knownCards = (state: GameState, owner: SideCode): CardInstance[] =>
+  knownInHand(state, owner).map((k, i) => ({
+    instanceId: `known-${owner}-${i}`,
+    cardCode: k.code,
+    isRezzed: false,
+    advancementCounters: 0,
+    tokens: {},
+    hostedCardIds: [],
+  }));
 
 /** The title and card groups shown when browsing a zone. */
 export function zoneContents(zone: ZoneId, state: GameState): { title: string; groups: ZoneGroup[] } {
@@ -39,11 +57,11 @@ export function zoneContents(zone: ZoneId, state: GameState): { title: string; g
       return { title: 'RUNNER SCORE AREA', groups: [{ label: 'Stolen agendas', cards: state.runner.scoreArea }] };
     case 'removed':
       return { title: 'REMOVED FROM GAME', groups: [{ label: 'Removed', cards: state.removedFromGame }] };
-    // Revealed or accessed cards still in the opponent's hand (rules 1.21.3): remembered, not faceup
+    // Cards seen in the opponent's hand (rules 1.21.3): remembered by name, they stay facedown there
     case 'known-hq':
-      return { title: 'KNOWN IN HQ', groups: [{ label: 'Seen and still in HQ', cards: knownInHand(state, 'corp') }] };
+      return { title: 'SEEN IN HQ', groups: [{ label: 'Seen in HQ', note: KNOWN_NOTE, cards: knownCards(state, 'corp') }] };
     case 'known-grip':
-      return { title: 'KNOWN IN GRIP', groups: [{ label: 'Revealed and still in the grip', cards: knownInHand(state, 'runner') }] };
+      return { title: 'SEEN IN GRIP', groups: [{ label: 'Seen in the grip', note: KNOWN_NOTE, cards: knownCards(state, 'runner') }] };
   }
 }
 
@@ -79,6 +97,7 @@ export const ZoneViewer: React.FC<ZoneViewerProps> = ({ title, groups, canPeek, 
             <div className="text-[11px] uppercase tracking-wider text-slate-500 mb-2">
               {group.label} ({group.cards.length})
             </div>
+            {group.note && <p className="text-xs text-slate-400 mb-2">{group.note}</p>}
             {group.cards.length === 0 ? (
               <p className="text-xs text-slate-600 italic">Empty</p>
             ) : (
