@@ -5,7 +5,7 @@ import { counters, rezCost } from '../core/engine/cardEffects';
 import { Agent, FreeActionGuard, ScoredAction } from './agent';
 import { agendaWorth, digValue, evaluate } from './evaluate';
 import { pointValue } from './valueModel';
-import { PACE, accessWorth } from './effectValues';
+import { PACE, STEAL, accessWorth } from './effectValues';
 import { answerPrompt, simulate } from './prompts';
 import { asSide, logNudge, nudge, opponentLean, tuning } from './synergy';
 import { noteKnownHand } from './handValues';
@@ -424,12 +424,16 @@ export class HeuristicCorpAI implements Agent {
 
   /**
    * An agenda left installed over the Runner's turn needs a server they
-   * can't simply walk into: 2 real layers of ice, or ice (rezzed, or that
-   * `credits` can still rez) that costs more to get through than the
-   * Runner has. A Runner who counts traps reads a thin remote as an agenda.
+   * can't simply walk into. plan.exposureByCost (Jeff, 2026-10-29: two
+   * layers are no protection against a Runner who can pay for them): the
+   * ice (rezzed, or that `credits` can still rez) must cost more to get
+   * through than the Runner has plus a turn's income (STEAL.income, as the
+   * steal odds judge it). Before it: 2 real layers of ice, or ice that costs
+   * more than the Runner has.
    */
   private exposureOk(state: GameState, server: ServerState, credits: number): boolean {
     if (!(this.synergy && tuning.plan.exposure)) return true;
+    if (tuning.plan.exposureByCost) return outOfReach(state, server, credits);
     // (Jeff) unrezzed ice only protects if the money to rez it is still there on the Runner's turn
     if ((tuning.plan.fundedDepth ? fundedDepth(state, server, credits) : iceDepth(state, server)) >= 2) return true;
     return entryCost(state, server, credits) >= state.runner.credits + 2;
@@ -789,6 +793,15 @@ function entryCost(state: GameState, server: ServerState, credits: number): numb
     cost += Math.min(8, iceCost(state, { ...ice, isRezzed: true }));
   }
   return cost;
+}
+
+/**
+ * The Runner can't pay its way into the server on its next turn: the ice
+ * (rezzed, or that `credits` can still rez) costs more to get through than
+ * it has plus a turn's income (plan.exposureByCost).
+ */
+export function outOfReach(state: GameState, server: ServerState, credits: number): boolean {
+  return entryCost(state, server, credits) > state.runner.credits + STEAL.income;
 }
 
 /**
