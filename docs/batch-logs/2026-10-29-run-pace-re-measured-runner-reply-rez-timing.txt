@@ -1,0 +1,10 @@
+Batch: Run pace re-measured after the Runner reply and rez timing | ref b72eb3dd19d00381676b666afc203ed90efcb687 | games 0-10 | PLAN_OFF= | pace corp | added run 
+2210 games, 30630 Runner turns
+runs a turn: 1.19; success: 80.9%
+  hq: 28.1% of runs, success 78.0%
+  rd: 20.8% of runs, success 80.1%
+  archives: 13.2% of runs, success 99.7%
+  remote: 37.8% of runs, success 77.0%
+advanced agenda in a remote: run that turn 40.3% (6689 turns)
+R&D share of runs with Conduit: 0.0% (0 runs)
+agendas scored or stolen a Runner turn: 0.33; ice rezzed a turn: 0.37
