@@ -1,4 +1,4 @@
-import { CardInstance, GameState, SideCode, cardDef } from '../core';
+import { CardInstance, GameState, ServerState, SideCode, cardDef } from '../core';
 import { rezCost } from '../core/engine/cardEffects';
 import { iceCost } from './runs';
 import { RATES } from './valueModel';
@@ -95,3 +95,15 @@ export function iceTypeOdds(state: GameState): Record<string, number> {
 
 /** An AI breaker covers every type, but costs more to use: this share of each type it alone covers. */
 export const AI_BREAKER_SHARE = 0.6;
+
+/**
+ * The board with `ice` installed outermost on `server` (a new remote when
+ * null), for ice whose strength depends on where it sits (Scatter Field:
+ * +4 only while it is the only ice protecting its server, rules 4.6.9).
+ * Shallow: only the corp's servers are copied.
+ */
+export function withIceInstalled(state: GameState, ice: CardInstance, server: ServerState | null): GameState {
+  const target: ServerState = server ?? { id: 'remote-placed', name: 'New remote', isRemote: true, ice: [], root: [] };
+  const servers = { ...state.corp.servers, [target.id]: { ...target, ice: [...target.ice, ice] } };
+  return { ...state, corp: { ...state.corp, servers } };
+}

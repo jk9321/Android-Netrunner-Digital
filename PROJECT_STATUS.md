@@ -183,6 +183,7 @@ Netrunner/
 - [x] Full card zoom modal on click/inspect and high-res hover popout via Portal.
 - [x] Dynamic card scaling system (Normal / Large / Huge) with legible card art and text.
 - [x] Decision pop-ups (prompts, run overlay, game over) are draggable and minimizable so the board stays visible.
+- [x] When the game ends (even mid-run) the run box, decision prompts and action bars close, so the post-game board is clean (rule 1.7.1).
 - [x] Rules keyword glossary: hover underlined terms in card text and UI labels for a short definition (`src/ui/glossary.ts`).
 - [x] Card names in the terminal log and in decision pop-ups (prompt text and choice buttons) are underlined; hover or focus one to see that card (`CardNameText.tsx`). Only names the log already prints, so nothing hidden leaks.
 - [x] Cyberpunk theme: angular clipped corners, HUD brackets, CRT scanlines, Night City yellow/red palette, terminal-green log. All colours are CSS variables at the top of `src/index.css`; `tailwind.config.js` routes `slate`/`cyan`/`pink`/`amber` (and `cyber-*`) through them, so a recolour is one edit. Faction colours keep Tailwind defaults.

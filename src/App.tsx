@@ -418,42 +418,46 @@ function Game({
       </aside>
       </div>
 
-      {/* Active Run Overlay */}
-      <RunOverlay
-        state={gameState}
-        onContinueRun={() => handleAction({ type: 'CONTINUE_RUN', player: 'runner' })}
-        onJackOut={() => handleAction({ type: 'JACK_OUT', player: 'runner' })}
-        rezCards={
-          rezWindowsOn
-            ? rezWindowOpen
-              ? rezWindow!.cards
-              : []
-            : approachedIce && isLegalAction(gameState, rezAction(approachedIce))
-              ? [approachedIce]
-              : []
-        }
-        onRez={corpCanAct ? (card) => handleAction(rezAction(card)) : undefined}
-        rezAbilities={rezWindowOpen ? rezWindow!.abilities : []}
-        onDoneRezzing={rezWindowOpen && corpCanAct ? () => passRezWindow(rezWindow!.key) : undefined}
-        runnerControls={runnerCanAct}
-        canPeekCorp={canSeeCorpSecrets(viewer)}
-        onInspectCard={setInspectedCard}
-        onAction={handleAction}
-      />
+      {/* Active Run Overlay; the run and any open decision end with the game (rule 1.7.1) */}
+      {!winner && (
+        <RunOverlay
+          state={gameState}
+          onContinueRun={() => handleAction({ type: 'CONTINUE_RUN', player: 'runner' })}
+          onJackOut={() => handleAction({ type: 'JACK_OUT', player: 'runner' })}
+          rezCards={
+            rezWindowsOn
+              ? rezWindowOpen
+                ? rezWindow!.cards
+                : []
+              : approachedIce && isLegalAction(gameState, rezAction(approachedIce))
+                ? [approachedIce]
+                : []
+          }
+          onRez={corpCanAct ? (card) => handleAction(rezAction(card)) : undefined}
+          rezAbilities={rezWindowOpen ? rezWindow!.abilities : []}
+          onDoneRezzing={rezWindowOpen && corpCanAct ? () => passRezWindow(rezWindow!.key) : undefined}
+          runnerControls={runnerCanAct}
+          canPeekCorp={canSeeCorpSecrets(viewer)}
+          onInspectCard={setInspectedCard}
+          onAction={handleAction}
+        />
+      )}
 
       {/* Pending player decision (mulligan, discard, trash on access) */}
-      <PromptPanel
-        state={gameState}
-        onAnswer={(choice) => {
-          const prompt = gameState.pendingPrompts[0];
-          if (prompt) handleAction({ type: 'RESOLVE_PROMPT', player: prompt.side, promptId: prompt.id, choice });
-        }}
-        onInspectCard={setInspectedCard}
-        canAnswer={
-          !gameState.pendingPrompts[0] ||
-          (canActAs(viewer, gameState.pendingPrompts[0].side) && gameState.pendingPrompts[0].side !== aiSide)
-        }
-      />
+      {!winner && (
+        <PromptPanel
+          state={gameState}
+          onAnswer={(choice) => {
+            const prompt = gameState.pendingPrompts[0];
+            if (prompt) handleAction({ type: 'RESOLVE_PROMPT', player: prompt.side, promptId: prompt.id, choice });
+          }}
+          onInspectCard={setInspectedCard}
+          canAnswer={
+            !gameState.pendingPrompts[0] ||
+            (canActAs(viewer, gameState.pendingPrompts[0].side) && gameState.pendingPrompts[0].side !== aiSide)
+          }
+        />
+      )}
 
       {!winner && <TurnBanner activePlayer={activePlayer} humanSide={humanSide} />}
 
