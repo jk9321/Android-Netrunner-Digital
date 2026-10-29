@@ -168,6 +168,8 @@ export class HeuristicCorpAI implements Agent {
           const [remote, central] = upgradeValue(card.cardCode, state);
           score = !runTimed(card) ? -1 : importance - 2 + Math.min(2, Math.max(0, server.isRemote ? remote : central));
         } else score = card.cardCode === '30042' || card.cardCode === '30050' ? importance : importance - 2;
+      } else if (tuning.plan.assetRezTiming && onRezOnly(card)) {
+        score = 3; // Spin Doctor (Jeff): the Runner came anyway, so the same 2 cards cost it a run
       } else {
         score = -1; // assets are rezzed on the Corp's own turn
       }
@@ -256,6 +258,9 @@ export class HeuristicCorpAI implements Agent {
     // A money asset that pays when the Corp's turn begins is rezzed in the window just before then
     // (rules 5.6.1b-d): it pays at once, and the Runner gets no turn to trash it full (plan.assetRezTiming)
     if (tuning.plan.assetRezTiming && CARD_PROFILES[card.cardCode]?.every === 'turn' && state.turnStep?.kind !== 'corp_turn_start') return -Infinity;
+    // (Jeff) Spin Doctor: left unrezzed it may draw a run, and is rezzed then for the same draw; or just before the
+    // turn begins. Rezzed in the action phase only when the cards are needed now (digging, or an empty hand)
+    if (tuning.plan.assetRezTiming && onRezOnly(card) && state.turnStep?.kind !== 'corp_turn_start' && corp.hq.length > 1 && digValue(state, 'corp') <= 0) return -Infinity;
     const econ = econValue(card.cardCode, state);
     if (econ) return econ + 1;
     if (hacksOff('rez')) {
@@ -809,6 +814,11 @@ function entryCost(state: GameState, server: ServerState, credits: number): numb
     cost += Math.min(8, iceCost(state, { ...ice, isRezzed: true }));
   }
   return cost;
+}
+
+/** An asset whose whole worth is what it does when rezzed (Spin Doctor), not a money asset that pays out. */
+function onRezOnly(card: CardInstance): boolean {
+  return type(card) === 'asset' && !CARD_PROFILES[card.cardCode] && /^When you rez this asset, draw/i.test(cardDef(card).stripped_text ?? '');
 }
 
 /**
