@@ -74,8 +74,9 @@ export function useGameController(config: GameConfig, saved: SavedGame | null) {
           ? hotseatSide
           : viewMode;
   const handoffTo = !aiSide && viewMode === 'hotseat' && acting && acting !== hotseatSide ? acting : null;
-  const corpCanAct = canActAs(viewer, 'corp') && aiSide !== 'corp';
-  const runnerCanAct = canActAs(viewer, 'runner') && aiSide !== 'runner' && !rezWindowOpen;
+  // Nobody acts once the game is over (rule 1.7.1: the game ends when a player wins)
+  const corpCanAct = !gameState.winner && canActAs(viewer, 'corp') && aiSide !== 'corp';
+  const runnerCanAct = !gameState.winner && canActAs(viewer, 'runner') && aiSide !== 'runner' && !rezWindowOpen;
   const aiThinking = aiSide !== null && acting === aiSide;
   // The side hearing the game's sounds, for the win or lose sound at the end:
   // the person against the computer, the side in view in two-player games
