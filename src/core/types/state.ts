@@ -2,6 +2,18 @@ import { CardInstance, SideCode } from './card';
 import { RngState } from '../rng';
 import { Prompt } from './prompts';
 
+/**
+ * A card the other side has seen in a hand. The instance id is only
+ * used to match that same card when it is seen again; what the viewer is
+ * shown is just the card's name, because once any card leaves the hand
+ * unseen (installed facedown, shuffled into R&D) they cannot tell which one
+ * it was (rules 1.12.3).
+ */
+export interface KnownHandCard {
+  id: string;
+  code: string;
+}
+
 export type CentralServerType = 'hq' | 'rd' | 'archives';
 export type ServerType = CentralServerType | string; // remote names like "remote-1"
 
@@ -33,12 +45,12 @@ export interface CorpState {
   /** Extra clicks for the Corp's next turn (Aggressive Trendsetting). */
   bonusClicksNextTurn?: number;
   /**
-   * Instance ids of cards in HQ the Runner knows: revealed (Peer Review,
-   * Malapert Data Vault, rules 1.21.3), accessed and left in HQ, or added from
-   * a faceup place. Revealing does not turn them faceup, so they stay hidden in
-   * HQ and the Runner only remembers them. See revealInHand().
+   * Cards the Runner has seen in HQ: revealed (Peer Review, Malapert Data
+   * Vault, rules 1.21.3), accessed and left in HQ, or added from a faceup
+   * place. Revealing does not turn them faceup, so they stay hidden in HQ and
+   * the Runner only remembers them. See revealInHand(), updateHandKnowledge().
    */
-  knownToRunner?: string[];
+  knownToRunner?: KnownHandCard[];
 }
 
 export interface RunnerRig {
@@ -63,8 +75,8 @@ export interface RunnerState {
   stack: CardInstance[]; // Draw deck (top of deck is index 0)
   heap: CardInstance[]; // Discard pile (face up)
   rig: RunnerRig;
-  /** Instance ids of cards in the grip the Corp knows (MuslihaT, Mutual Favor, Touch-ups). See knownToRunner. */
-  knownToCorp?: string[];
+  /** Cards the Corp has seen in the grip (MuslihaT, Mutual Favor, Touch-ups). See knownToRunner. */
+  knownToCorp?: KnownHandCard[];
 }
 
 /**

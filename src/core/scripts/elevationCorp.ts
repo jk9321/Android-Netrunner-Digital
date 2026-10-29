@@ -3,7 +3,7 @@ import { GameState } from '../types/state';
 import { cardDef } from '../cards';
 import { shuffleInPlace } from '../rng';
 import { addLog } from '../engine/log';
-import { drawCards, findInstalledCorpCard, removeCard, revealInHand } from '../engine/helpers';
+import { drawCards, findInstalledCorpCard, forgetInHand, removeCard, revealInHand } from '../engine/helpers';
 import { completeRez } from '../engine/actions/corp';
 import { playBlocker, playCardFrom } from '../engine/actions/play';
 import { dealMeatDamage, dealNetDamage, dealCoreDamage, giveTags, trashInstalledRunnerCard } from '../engine/damage';
@@ -404,15 +404,20 @@ const offTheBooks = dividendAgenda(
         if (!card) return;
         // Set aside in HQ while choosing; installing takes it from there
         state.corp.hq.push(card);
-        revealInHand(state, 'corp', [card]);
         const options = type(card) === 'operation' ? [] : corpInstallOptions(state, card, { ignoreCosts: true });
-        if (options.length === 0) return;
+        if (options.length === 0) {
+          revealInHand(state, 'corp', [card]);
+          return;
+        }
         askChoice(ctx, 'corp', `Off the Books: install ${cardDef(card).title} ignoring all costs, or add it to HQ?`, [
           ...options,
           { id: 'hq', label: 'Add it to HQ' },
         ], 'install', { cardId: card.instanceId });
       } else if (source.step === 'install' && answer.kind === 'effect_choice' && answer.optionId !== 'hq') {
         installCorpChoice(state, source, answer, { ignoreCosts: true });
+      } else if (source.step === 'install' && answer.kind === 'effect_choice') {
+        const card = state.corp.hq.find(c => c.instanceId === source.data?.cardId);
+        if (card) revealInHand(state, 'corp', [card]);
       }
     },
   }
@@ -1192,6 +1197,7 @@ const touchUps: CardScript = {
         const card = state.runner.grip.find(c => c.instanceId === id);
         if (!card) continue;
         removeCard(state.runner.grip, card);
+        forgetInHand(state, 'runner', [card]);
         state.runner.stack.push(card);
       }
       shuffleInPlace(state.rng, state.runner.stack);

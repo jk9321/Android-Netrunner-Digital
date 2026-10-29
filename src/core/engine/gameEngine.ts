@@ -11,7 +11,7 @@ import { playOperationOrEvent } from './actions/play';
 import { bioroidBreak, boostBreaker, breakSubroutine } from './actions/breaking';
 import { useAbility } from './actions/ability';
 import { bumpTurnFlag, syncDerivedStats, TurnFlag } from './cardEffects';
-import { findCardAnywhere, forgetHiddenCards } from './helpers';
+import { findCardAnywhere, forgetHiddenCards, updateHandKnowledge } from './helpers';
 import { getCardScript } from '../scripts';
 import { removeEmptyRemotes } from './checkpoint';
 
@@ -76,6 +76,7 @@ export function executeAction(prevState: GameState, action: GameAction): GameSta
   handler(state, action);
   removeEmptyRemotes(state);
   forgetHiddenCards(state);
+  updateHandKnowledge(prevState, state);
   // Petty Cash: "Play only if you have not finished an action yet this turn"
   if (isClickAction(prevState, action) && state.activePlayer === prevState.activePlayer) bumpTurnFlag(state, TurnFlag.actionsFinished);
   syncDerivedStats(state);
