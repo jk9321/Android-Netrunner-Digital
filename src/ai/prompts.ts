@@ -2,6 +2,7 @@ import { CardInstance, GameAction, GameState, Prompt, SideCode, activePrompt, ca
 import { runnerInstallBlocker } from '../core/engine/actions/install';
 import { evaluate, keepValue } from './evaluate';
 import { PACE, placedCounterWorth } from './effectValues';
+import { turnsLeft } from './cardProfiles';
 import { BOTULUS, MANEGARM, RunOptions, RunnerMemory, iceCost, isTrap, runClick, runScore, serverValue, spendCost, subroutineCost, weakestIce } from './runs';
 import { encounteredIce, iceSubroutines } from '../core/engine/ice';
 import { keepBonus, tuning } from './synergy';
@@ -109,9 +110,21 @@ function serverOptions(state: GameState, prompt: Prompt): string[] | null {
   return ids.length > 0 && ids.every(id => state.corp.servers[id]) ? ids : null;
 }
 
+/**
+ * A bad publicity the Runner gives the Corp: a credit on each run for the rest of the game
+ * (rules 10.6), or the Corp derezzing ice instead (Kompromat), whichever is cheaper for it.
+ */
+export function badPublicityWorth(state: GameState): number {
+  return Math.min(3, 0.8 * PACE.runs * turnsLeft(state));
+}
+
 /** Run-event bonuses, by the code of the card that asks which server to run. */
-export function runEventOptions(cardCode: string): RunOptions {
+export function runEventOptions(cardCode: string, state?: GameState): RunOptions {
   switch (cardCode) {
+    case '36010': // Kompromat: a bad publicity (or a derezzed ice) on success
+      return { successBonus: state ? badPublicityWorth(state) : 2 };
+    case '36002': // Take a Dive: a bad publicity on success, if a subroutine resolved (about half the time)
+      return { successBonus: 0.5 * (state ? badPublicityWorth(state) : 2) };
     case '30028': // Jailbreak
       return { extraAccesses: 1 };
     case '30029': // Overclock
@@ -152,7 +165,7 @@ export function answerPrompt(state: GameState, side: SideCode, memory?: RunnerMe
 
   const servers = side === 'runner' ? serverOptions(state, prompt) : null;
   if (servers && prompt.kind === 'effect_choice') {
-    const scored = servers.map(id => ({ id, score: runScore(state, id, { ...runEventOptions(prompt.source.cardCode), memory, wary: synergy && tuning.wary, urgent: synergy && tuning.plan.urgency }) }));
+    const scored = servers.map(id => ({ id, score: runScore(state, id, { ...runEventOptions(prompt.source.cardCode, state), memory, wary: synergy && tuning.wary, urgent: synergy && tuning.plan.urgency }) }));
     scored.sort((a, b) => b.score - a.score);
     return { ...base, choice: { kind: 'effect_choice', optionId: scored[0].id } };
   }

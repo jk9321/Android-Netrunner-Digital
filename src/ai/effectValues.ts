@@ -119,6 +119,16 @@ export function runSuccess(state: GameState, serverId: string): number {
   });
 }
 
+/** iceCost behind the re-entry guard. */
+function priceIce(state: GameState, ice: CardInstance): number {
+  pricingIce = true;
+  try {
+    return iceCost(state, ice);
+  } finally {
+    pricingIce = false;
+  }
+}
+
 function passOdds(state: GameState, ices: CardInstance[], income = 0): number {
   let credits = state.runner.credits + income;
   let pass = 1;
@@ -509,8 +519,13 @@ export function runnerEffect(state: GameState, code: string, card?: CardInstance
       return MU - (state.runner.tags > 0 ? 0 : RATES.tagAgainstRunner);
     case '36014': // Rotary: +1 MU; a tag for one more access on HQ and R&D breaches, now and then
       return MU + perTurn(state, PACE.runs * centralSuccess(state) * 0.3 * accessWorth(state), 'runner');
-    case '36015': // Baker: once a turn, a central breach past Archives' ice for a stealth credit
-      return perTurn(state, 0.25 * accessWorth(state), 'runner');
+    case '36015': { // Baker: once a turn, an HQ or R&D breach past Archives' ice instead of theirs, for a stealth credit
+      const stealth = deckCount(state, 'runner', c => /stealth/i.test(cardDef(c).keywords ?? '')) > 0;
+      // Pricing the ice can price the rig (a subroutine that trashes a card), which comes back here: count each rezzed ice as 2 then
+      const ice = (id: string) => (state.corp.servers[id]?.ice ?? []).reduce((n, c) => n + (!c.isRezzed ? 1 : pricingIce ? 2 : Math.min(4, priceIce(state, c))), 0);
+      const saved = Math.max(0, Math.min(4, Math.max(ice('hq'), ice('rd'))) - ice('archives'));
+      return perTurn(state, (stealth ? 0.5 : 0.1) * (saved + accessWorth(state)), 'runner');
+    }
     case '36016': { // Underdome Irregulars: 2 cards each turn the Corp rezzes ice, trashed the first turn it doesn't
       const p = PACE.rezzes;
       return (2 * cardRate(state, 'runner') * p) / (1 - p);

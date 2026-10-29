@@ -240,12 +240,12 @@ export class HeuristicRunnerAI implements Agent {
     const cardCode = 'cardInstanceId' in action ? state.runner.grip.concat(state.runner.rig.resources, state.runner.rig.programs).find(c => c.instanceId === action.cardInstanceId)?.cardCode : undefined;
     const paid = state.runner.credits - after.runner.credits;
     if (prompt?.kind === 'effect_choice' && prompt.side === 'runner' && prompt.options.every(o => after.corp.servers[o.id])) {
-      const options = { ...runEventOptions(prompt.source.cardCode), memory: this.memory, wary: this.synergy && tuning.wary, urgent: this.synergy && tuning.plan.urgency };
+      const options = { ...runEventOptions(prompt.source.cardCode, state), memory: this.memory, wary: this.synergy && tuning.wary, urgent: this.synergy && tuning.plan.urgency };
       const best = Math.max(...prompt.options.map(o => runScore(state, o.id, options)));
       return best - spendCost(state, paid) + (prompt.source.cardCode === '30028' ? (tuning.plan.runModel ? RATES.drawnCard : tuning.plan.drawValue?.runner ? 1.3 : 0.5) : 0); // Jailbreak draws a card
     }
     if (!state.activeRun && after.activeRun) {
-      return runScore(state, after.activeRun.server, { ...runEventOptions(cardCode ?? ''), memory: this.memory, wary: this.synergy && tuning.wary, urgent: this.synergy && tuning.plan.urgency }) - spendCost(state, paid) + 0.3;
+      return runScore(state, after.activeRun.server, { ...runEventOptions(cardCode ?? '', state), memory: this.memory, wary: this.synergy && tuning.wary, urgent: this.synergy && tuning.plan.urgency }) - spendCost(state, paid) + 0.3;
     }
 
     // Follow our own prompts (Lie Low, Scrounge, Madani) a few steps
