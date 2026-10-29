@@ -1,5 +1,6 @@
 import React from 'react';
 import { clearSavedGame } from '../savedGame';
+import { isChunkLoadError, reloadForNewBuild } from '../chunkReload';
 
 /**
  * Catches a crash anywhere in the app and offers a way out. The game in
@@ -7,14 +8,20 @@ import { clearSavedGame } from '../savedGame';
  * that can't be drawn (a bug, or a save from an older version) would show a
  * blank page on every reload.
  */
-export class ErrorBoundary extends React.Component<{ children: React.ReactNode }, { error: Error | null }> {
-  state = { error: null as Error | null };
+export class ErrorBoundary extends React.Component<{ children: React.ReactNode }, { error: Error | null; reloading: boolean }> {
+  state = { error: null as Error | null, reloading: false };
 
   static getDerivedStateFromError(error: Error) {
-    return { error };
+    // A screen's code from an older deploy is gone: reload once for the new
+    // build (see chunkReload.ts) instead of showing the crash screen.
+    return { error, reloading: isChunkLoadError(error) };
   }
 
   componentDidCatch(error: Error, info: React.ErrorInfo) {
+    if (this.state.reloading) {
+      if (reloadForNewBuild()) return;
+      this.setState({ reloading: false });
+    }
     console.error('The app crashed', error, info.componentStack);
   }
 
@@ -25,8 +32,15 @@ export class ErrorBoundary extends React.Component<{ children: React.ReactNode }
   };
 
   render() {
-    const { error } = this.state;
+    const { error, reloading } = this.state;
     if (!error) return this.props.children;
+    if (reloading) {
+      return (
+        <div className="min-h-screen flex items-center justify-center font-mono text-sm text-slate-400">
+          New version found, reloading...
+        </div>
+      );
+    }
     return (
       <div className="min-h-screen flex items-center justify-center p-6 font-mono text-slate-100" data-testid="crash-screen">
         <div className="max-w-md w-full bg-slate-950/95 border-2 border-red-700 chamfer p-5 shadow-2xl space-y-3">
