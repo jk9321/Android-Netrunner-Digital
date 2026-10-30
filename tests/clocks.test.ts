@@ -3,8 +3,9 @@ import { damageThreat, damageWorth, flatlineOdds } from '../src/ai/effectValues'
 import { tagsWorth } from '../src/ai/evaluate';
 import { tagCost } from '../src/ai/runs';
 import { CLICK, cardRate, flatlineWorth } from '../src/ai/valueModel';
-import { createCardInstance } from '../src/core';
-import { newGame } from './helpers';
+import { createCardInstance, GameState } from '../src/core';
+import { abilityUsedKey } from '../src/core/engine/actions/ability';
+import { newGame, startRunnerTurn } from './helpers';
 
 describe('the damage clock (Jeff, 2026-10-28; plan.damageClock)', () => {
   it('reads the Corp’s biggest hit and its share of damage cards from the decklist', () => {
@@ -70,5 +71,46 @@ describe('the tag clock (Jeff, 2026-10-28; plan.tagClock)', () => {
   it('the cost of taking a tag is what one more tag adds', () => {
     const s = newGame();
     expect(tagCost(s)).toBeCloseTo(tagsWorth(s, 'runner', 1));
+  });
+});
+
+describe('tags on Vic (Jeff, 2026-10-30; plan.vicTags)', () => {
+  const VIC = '36009';
+  function vicGame(): GameState {
+    const s = newGame();
+    startRunnerTurn(s);
+    s.runner.identity = createCardInstance(s, VIC);
+    s.runner.credits = 5;
+    s.corp.credits = 10;
+    s.runner.rig.resources = [createCardInstance(s, '35011'), createCardInstance(s, '30034')]; // worth trashing
+    return s;
+  }
+
+  it('the first tag is cheap while her ability is unused, the second dearer, the third as usual', () => {
+    const s = vicGame();
+    const one = tagsWorth(s, 'runner', 1);
+    const two = tagsWorth(s, 'runner', 2) - one;
+    const three = tagsWorth(s, 'runner', 3) - one - two;
+    expect(one).toBeLessThan(CLICK + 1);
+    expect(two).toBeGreaterThan(one);
+    expect(three).toBeGreaterThanOrEqual(two);
+    expect(tagsWorth(s, 'runner', 3)).toBeLessThanOrEqual(3 * (CLICK + 2));
+  });
+
+  it('dearer once she has used her ability this turn, or with no click left', () => {
+    const s = vicGame();
+    const fresh = tagsWorth(s, 'runner', 1);
+    s.turnFlags[abilityUsedKey(s.runner.identity.instanceId, 0)] = 1;
+    expect(tagsWorth(s, 'runner', 1)).toBeGreaterThan(fresh);
+    const t = vicGame();
+    t.runner.clicks = 0;
+    expect(tagsWorth(t, 'runner', 1)).toBeGreaterThan(fresh);
+  });
+
+  it('cheaper than for any other Runner', () => {
+    const s = vicGame();
+    const vic = tagsWorth(s, 'runner', 2);
+    s.runner.identity = createCardInstance(s, '30010');
+    expect(vic).toBeLessThan(tagsWorth(s, 'runner', 2));
   });
 });

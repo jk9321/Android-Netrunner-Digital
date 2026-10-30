@@ -1,6 +1,7 @@
 import { CardInstance, GameState, SideCode, cardDef } from '../core';
 import { breakerScript, iceSubtypes, isIcebreaker } from '../core/engine/ice';
-import { counters } from '../core/engine/cardEffects';
+import { counters, turnFlag } from '../core/engine/cardEffects';
+import { abilityUsedKey } from '../core/engine/actions/ability';
 import { cardSynergy } from './synergyTags';
 import { tuning } from './synergy';
 import { corpKeepValue, runnerCardValue } from './cardValues';
@@ -294,7 +295,31 @@ export function tagsWorth(state: GameState, viewer: SideCode, tags = state.runne
   const perTurn = memo(state, 'tagLoss:' + viewer, () => tagLossPerTurn(state, viewer));
   const clear = CLICK + 2;
   // Kept, a tag costs this turn's loss and maybe the next; the Runner clears the ones that cost more than clearing
-  return Math.min(tags * clear, 1.5 * perTurn + 0.1 * (tags - 1));
+  const worth = Math.min(tags * clear, 1.5 * perTurn + 0.1 * (tags - 1));
+  return tuning.plan.vicTags && state.runner.identity.cardCode === VIC ? Math.min(worth, vicTagsWorth(state, tags, perTurn)) : worth;
+}
+
+/** Virtual Intelligence, P.I.: "Once per turn → [click], 1[credit]: Draw 1 card and remove 1 tag." */
+const VIC = '36009';
+
+/**
+ * Tags on Vic (Jeff, 2026-10-30; plan.vicTags): her ability clears a tag for
+ * a click and a credit less the card it draws. The first tag costs that
+ * while she can still use it this turn (the Runner's turn, ability unused,
+ * a click and a credit left); otherwise it sits through a Corp turn first
+ * (this turn's loss, as the Corp's punishers see it). The second waits a
+ * turn for her (two Corp turns if the first waits too) or is cleared the
+ * usual way; the rest cost as usual.
+ */
+function vicTagsWorth(state: GameState, tags: number, perTurn: number): number {
+  const clear = CLICK + 2;
+  const vic = Math.max(0.5, CLICK + 1 - RATES.drawnCard);
+  const runner = state.runner;
+  const ability = abilityUsedKey(runner.identity.instanceId, 0);
+  const now = state.activePlayer === 'runner' && turnFlag(state, ability) === 0 && runner.clicks >= 1 && runner.credits >= 1;
+  const later = Math.min(clear, vic + perTurn);
+  const second = now ? later : Math.min(clear, vic + 2 * perTurn);
+  return (now ? vic : later) + (tags >= 2 ? second : 0) + Math.max(0, tags - 2) * clear;
 }
 
 /** What a tagged Runner stands to lose each Corp turn, as `viewer` sees it. */
