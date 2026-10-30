@@ -2,6 +2,8 @@ import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { DeckList } from '../../data/decks';
 import { ImportResult, fetchNetrunnerDbDeck, importDeckText, parseNetrunnerDbUrl, resolveImport } from '../../data/deckImport';
+import { groupMissingBySet } from '../../data/deckPlayability';
+import { CARD_SETS } from '../../data/cards';
 import { AlertTriangle, CheckCircle2, Download, FileUp, Pencil, Save, X } from 'lucide-react';
 
 interface ImportDeckModalProps {
@@ -57,6 +59,7 @@ export const ImportDeckModal: React.FC<ImportDeckModalProps> = ({ onSave, onEdit
 
   const deck = result?.deck ? { ...result.deck, name: (name ?? result.deck.name).trim() || result.deck.name } : null;
   const cardCount = deck ? Object.values(deck.cards).reduce((a, b) => a + b, 0) : 0;
+  const missingCopies = result?.missing.reduce((n, m) => n + m.count, 0) ?? 0;
 
   return createPortal(
     <div
@@ -79,8 +82,8 @@ export const ImportDeckModal: React.FC<ImportDeckModalProps> = ({ onSave, onEdit
         <h2 className="font-cyber font-bold tracking-wider text-indigo-300 mb-1">IMPORT A DECK</h2>
         <p className="text-xs text-slate-400 mb-3 pr-10">
           Paste a NetrunnerDB export (Download → Text file, or a Markdown or BBCode copy), a jinteki.net list, or a NetrunnerDB
-          decklist link. You can also load a .txt or OCTGN .o8d file. Cards are matched by title against System Gateway and
-          Elevation.
+          decklist link. You can also load a .txt or OCTGN .o8d file. Cards are matched by title against{' '}
+          {CARD_SETS.map(c => c.name).join(', ')}; the check below says whether the deck is fully playable.
         </p>
         <textarea
           value={text}
@@ -143,18 +146,31 @@ export const ImportDeckModal: React.FC<ImportDeckModalProps> = ({ onSave, onEdit
                 {n}
               </p>
             ))}
+            {deck && result.playable && (
+              <p className="mt-2 text-emerald-400 flex items-center gap-1" data-testid="import-playable">
+                <CheckCircle2 className="w-3.5 h-3.5" /> Fully playable: every card is in this game
+              </p>
+            )}
             {result.missing.length > 0 && (
               <div className="mt-2 text-amber-400" data-testid="import-missing">
                 <div className="flex items-center gap-1 font-bold">
-                  <AlertTriangle className="w-3.5 h-3.5" /> Not in this game, left out:
+                  <AlertTriangle className="w-3.5 h-3.5" /> Not fully playable: {result.missing.length} card
+                  {result.missing.length === 1 ? '' : 's'} ({missingCopies} {missingCopies === 1 ? 'copy' : 'copies'}) not in this game, left out
                 </div>
-                <ul className="ml-5 list-disc text-amber-300/90">
-                  {result.missing.map(m => (
-                    <li key={m.title}>
-                      {m.count}x {m.title}
-                    </li>
-                  ))}
-                </ul>
+                {groupMissingBySet(result.missing).map(g => (
+                  <div key={g.set} className="mt-1">
+                    <div className="text-amber-300 text-[11px] uppercase tracking-wider">
+                      {g.set} · {g.copies}
+                    </div>
+                    <ul className="ml-5 list-disc text-amber-300/90">
+                      {g.cards.map(m => (
+                        <li key={m.title}>
+                          {m.count}x {m.title}
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                ))}
               </div>
             )}
             {deck &&

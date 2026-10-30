@@ -33,7 +33,12 @@ export function loadCustomDecks(): DeckList[] {
     return parsed
       .filter(isDeckList)
       // A format this version doesn't know falls back to casual
-      .map(d => ({ ...d, format: isFormatId(d.format) ? d.format : undefined, source: 'custom' as const }));
+      .map(d => ({
+        ...d,
+        format: isFormatId(d.format) ? d.format : undefined,
+        missing: Array.isArray(d.missing) && d.missing.every(m => typeof m?.title === 'string' && Number.isInteger(m.count)) && d.missing.length > 0 ? d.missing : undefined,
+        source: 'custom' as const,
+      }));
   } catch {
     return [];
   }

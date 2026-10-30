@@ -1,3 +1,4 @@
+import { groupMissingBySet } from '../../data/deckPlayability';
 import React, { useEffect, useMemo, useState } from 'react';
 import { DEFAULT_FORMAT, FORMATS, FormatId, describeFormatStatuses, getCardDefinition, formatStatuses, getFormat, influenceCost, isBanned, isInCardPool, requiredAgendaPoints, validateDeck } from '../../core';
 import { CardDefinition, CardInstance, CardTypeCode, FactionCode, SideCode } from '../../core/types/card';
@@ -416,6 +417,24 @@ export const DeckBuilder: React.FC<DeckBuilderProps> = ({ initial, onSave, onCan
                   </li>
                 ))}
               </ul>
+            )}
+
+            {initial.missing && (
+              <div className="rounded-xl border border-amber-900/60 bg-amber-950/20 p-2.5" data-testid="import-left-out">
+                <div className="text-[10px] uppercase tracking-wider text-slate-500 mb-1">Left out of the import (not in this game)</div>
+                {groupMissingBySet(initial.missing).map(g => (
+                  <div key={g.set} className="text-xs mb-1">
+                    <div className="text-[11px] text-amber-300">{g.set}</div>
+                    <ul className="text-amber-200/80 ml-3">
+                      {g.cards.map(m => (
+                        <li key={m.title}>
+                          {m.count}x {m.title}
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                ))}
+              </div>
             )}
 
             {limited.length > 0 && (

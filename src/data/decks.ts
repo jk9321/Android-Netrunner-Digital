@@ -1,3 +1,4 @@
+import type { ImportEntry } from './deckImport';
 import { GameSetup } from '../core/engine/gameState';
 import { SideCode } from '../core/types/card';
 import { ALL_CARDS } from './cards';
@@ -34,7 +35,8 @@ export interface DeckList {
   /** Who designed the list, for official samples that name a designer. */
   credit?: string;
   /** Play format the deck is built for; casual (any card) when left out. */
-  format?: FormatId;
+  format?: FormatId;  /** Cards an imported list had that aren't in this game, so the import left them out. */
+  missing?: ImportEntry[];
 }
 
 export const DECKS: DeckList[] = [

@@ -70,8 +70,8 @@ describe('deck import', () => {
     ].join('\n');
     const result = importDeckText(text);
     expect(result.missing).toEqual([
-      { title: 'Esâ Afontov: Eco-Insurrectionist', count: 1 },
-      { title: 'Dirty Laundry', count: 2 },
+      { title: 'Esâ Afontov: Eco-Insurrectionist', count: 1, set: 'Midnight Sun' },
+      { title: 'Dirty Laundry', count: 2, set: 'Uprising Booster Pack' },
     ]);
     expect(result.deck?.side).toBe('runner');
     expect(result.deck?.cards).toEqual({ 'Sure Gamble': 3, Unity: 1 });

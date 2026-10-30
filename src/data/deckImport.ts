@@ -1,5 +1,5 @@
 import { CardDefinition, SideCode } from '../core/types/card';
-import { ALL_CARDS } from '../core/cards';
+import { ALL_CARDS, CARD_SETS } from '../core/cards';
 import { validateDeck } from '../core/deckValidation';
 import { DeckList, deckCodes } from './decks';
 import { newCustomDeckId } from './customDecks';
@@ -12,12 +12,15 @@ import { newCustomDeckId } from './customDecks';
  * and BBCode copies, the OCTGN .o8d file, jinteki.net style "3 Sure Gamble"
  * lists, and a link to a decklist or shared deck, which is fetched from
  * NetrunnerDB's public API. Cards are matched by title against our pool
- * (System Gateway + Elevation); cards we don't have are reported and left out.
+ * (CARD_SETS); cards we don't have are reported and left out, with their set
+ * when known (see deckPlayability.ts).
  */
 
 export interface ImportEntry {
   title: string;
   count: number;
+  /** The set the card comes from, when the export or NetrunnerDB names it ("Midnight Sun"). */
+  set?: string;
 }
 
 /** A decklist as written in the export, before matching it to our cards. */
@@ -25,6 +28,8 @@ export interface ParsedDeck {
   name?: string;
   /** The identity as written, when the export names one. */
   identity?: string;
+  /** The identity's set, when the export names it. */
+  identitySet?: string;
   entries: ImportEntry[];
 }
 
@@ -37,6 +42,8 @@ export interface ImportResult {
   notes: string[];
   /** Deck-building problems from the validator; the deck still saves, but can't start a game. */
   problems: string[];
+  /** Every card in the import is in this game (nothing left out). */
+  playable: boolean;
 }
 
 /** Title key that ignores case, accents, punctuation and curly quotes ("Brân 1.0" = "Bran 1.0"). */
@@ -97,6 +104,8 @@ function cleanLine(line: string): string {
 
 /** Drops NetrunnerDB's trailing set name: "Sure Gamble (System Gateway)". */
 const stripSet = (line: string) => line.replace(/\s*\([^()]*\)$/, '').trim();
+/** That trailing set name, if there is one. */
+const setOf = (line: string) => /\(([^()]*)\)$/.exec(line)?.[1].trim() || undefined;
 
 /** Section headers ("Event (14)", "Ice:") and NetrunnerDB's summary lines, which aren't cards. */
 const HEADER = /^(?:agendas?|assets?|upgrades?|operations?|ice|events?|hardware|resources?|programs?|identity|barrier|code gate|sentry|other|icebreakers?|mixed)\s*(?:\(\d+\))?:?$/i;
@@ -112,10 +121,12 @@ export function parseDeckText(text: string): ParsedDeck {
     if (!line || HEADER.test(line) || SUMMARY.test(line)) continue;
     const counted = /^(\d+)\s*[x×]?\s+(.+)$/i.exec(line) ?? /^(.+?)\s+[x×](\d+)$/i.exec(line);
     if (counted) {
-      const [count, title] = /^\d/.test(counted[1]) ? [Number(counted[1]), stripSet(counted[2])] : [Number(counted[2]), stripSet(counted[1])];
+      const [count, written] = /^\d/.test(counted[1]) ? [Number(counted[1]), counted[2]] : [Number(counted[2]), counted[1]];
+      const title = stripSet(written);
       const card = findCardByTitle(title);
       if (card?.type_code === 'identity') parsed.identity = title.trim();
-      else if (count > 0) parsed.entries.push({ title: title.trim(), count });
+      // The set only matters for cards we lack, to say where they come from.
+      else if (count > 0) parsed.entries.push({ title: title.trim(), count, ...(!card && setOf(written) && { set: setOf(written) }) });
       seenCard = true;
       continue;
     }
@@ -125,7 +136,10 @@ export function parseDeckText(text: string): ParsedDeck {
     if (card?.type_code === 'identity') parsed.identity = title;
     else if (card) parsed.entries.push({ title, count: 1 });
     else if (parsed.name === undefined && !seenCard && !parsed.identity) parsed.name = line;
-    else if (parsed.identity === undefined && !seenCard && title.includes(':')) parsed.identity = title;
+    else if (parsed.identity === undefined && !seenCard && title.includes(':')) {
+      parsed.identity = title;
+      parsed.identitySet = setOf(line);
+    }
   }
   return parsed;
 }
@@ -141,14 +155,14 @@ export function resolveImport(parsed: ParsedDeck): ImportResult {
     identity = findCardByTitle(parsed.identity);
     if (identity?.type_code !== 'identity') {
       identity = undefined;
-      missing.push({ title: parsed.identity, count: 1 });
+      missing.push({ title: parsed.identity, count: 1, ...(parsed.identitySet && { set: parsed.identitySet }) });
     }
   }
   const sides = new Map<SideCode, number>();
-  for (const { title, count } of parsed.entries) {
+  for (const { title, count, set } of parsed.entries) {
     const card = findCardByTitle(title);
     if (!card) {
-      missing.push({ title, count });
+      missing.push({ title, count, ...(set && { set }) });
       continue;
     }
     if (card.type_code === 'identity') {
@@ -161,7 +175,7 @@ export function resolveImport(parsed: ParsedDeck): ImportResult {
 
   const side: SideCode | undefined =
     identity?.side_code ?? ((sides.get('corp') ?? 0) >= (sides.get('runner') ?? 0) && sides.size > 0 ? 'corp' : sides.size > 0 ? 'runner' : undefined);
-  if (!side) return { deck: null, missing, notes: ['No cards from System Gateway or Elevation were found in the import.'], problems: [] };
+  if (!side) return { deck: null, missing, notes: [`No cards from ${CARD_SETS.map(s => s.name).join(', ')} were found in the import.`], problems: [], playable: false };
   if (!identity) {
     identity = ALL_CARDS.find(c => c.side_code === side && c.type_code === 'identity')!;
     notes.push(
@@ -186,8 +200,9 @@ export function resolveImport(parsed: ParsedDeck): ImportResult {
     identity: identity.title,
     cards,
     source: 'custom',
+    ...(missing.length > 0 && { missing }),
   };
-  return { deck, missing, notes, problems: validateDeck(deckCodes(deck)) };
+  return { deck, missing, notes, problems: validateDeck(deckCodes(deck)), playable: missing.length === 0 };
 }
 
 /** Parses and resolves a pasted export or file in one step. */
@@ -237,17 +252,31 @@ export async function fetchNetrunnerDbDeck(url: string, fetchFn: typeof fetch = 
     throw e;
   }
   const parsed: ParsedDeck = { name: deck.name, entries: [] };
+  let packNames: Map<string, string> | undefined;
+  const packName = async (code: string) => {
+    if (!packNames) {
+      try {
+        packNames = new Map(((await getJson('packs')) as { code: string; name: string }[]).map(p => [p.code, p.name]));
+      } catch {
+        packNames = new Map();
+      }
+    }
+    return packNames.get(code);
+  };
   for (const [code, count] of Object.entries(deck.cards ?? {})) {
     let title = BY_CODE.get(code)?.title;
+    let set: string | undefined;
     if (!title) {
       try {
-        title = ((await getJson(`card/${code}`))[0] as { title: string }).title;
+        const card = (await getJson(`card/${code}`))[0] as { title: string; pack_code?: string };
+        title = card.title;
+        if (card.pack_code && !findCardByTitle(title)) set = await packName(card.pack_code);
       } catch {
         title = `Card ${code}`;
       }
     }
     if (findCardByTitle(title)?.type_code === 'identity') parsed.identity = title;
-    else parsed.entries.push({ title, count });
+    else parsed.entries.push({ title, count, ...(set && { set }) });
   }
   return parsed;
 }

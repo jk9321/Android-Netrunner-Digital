@@ -443,6 +443,15 @@ export const DeckPicker: React.FC<DeckPickerProps> = ({ initialCorpDeckId, initi
                           <AlertTriangle className="w-3 h-3" /> {s.problems.length} problem(s)
                         </span>
                       )}
+                      {s.deck.missing && (
+                        <span
+                          className="text-[11px] text-amber-400 flex items-center gap-1"
+                          title={`Not fully playable: the import left out cards this game doesn't have:\n${s.deck.missing.map(m => `${m.count}x ${m.title}${m.set ? ` (${m.set})` : ''}`).join('\n')}`}
+                          data-testid={`incomplete-${s.deck.id}`}
+                        >
+                          <AlertTriangle className="w-3 h-3" /> {s.deck.missing.reduce((n, m) => n + m.count, 0)} cards left out
+                        </span>
+                      )}
                     </div>
                     {s.deck.credit && (
                       <div className="text-[10px] text-slate-500 mt-1 line-clamp-2" title={s.deck.credit} data-testid={`credit-${s.deck.id}`}>
