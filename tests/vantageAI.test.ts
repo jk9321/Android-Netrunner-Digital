@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { ALL_CARDS, cardDef, createCardInstance, GameState, getLegalActions } from '../src/core';
 import { answerPrompt, meliesSide } from '../src/ai/prompts';
-import { bestBreakPlan, chainReactionBonus, runScore } from '../src/ai/runs';
+import { bestBreakPlan, chainReactionBonus, runBudget, runScore } from '../src/ai/runs';
 import { myoshuSaving, perfectRecallTarget } from '../src/ai/corpAI';
 import { createAgent } from '../src/ai';
 import { giveCard, installIceForTest, installProgramForTest, newGame, play, run, runIntoFirstIce, startRunnerTurn } from './helpers';
@@ -133,5 +133,13 @@ describe('AI with Vantage Point cards', () => {
     expect(myoshuSaving(s, true)).toBe(false);
     s.corp.credits = 10;
     expect(myoshuSaving(s, true)).toBe(true);
+  });
+
+  it('plans runs with the credits that pay only during runs (Methuselah, Touchstone)', () => {
+    const s = newGame();
+    startRunnerTurn(s);
+    const pool = runBudget(s);
+    methuselah(s, 2);
+    expect(runBudget(s)).toBe(pool + 2);
   });
 });

@@ -1,4 +1,4 @@
-import { CardInstance, GameState, cardDef, getCardDefinition } from '../core';
+import { CardInstance, GameState, cardDef, getCardDefinition, getCardScript } from '../core';
 import {
   boostCostOf,
   breakerScript,
@@ -158,6 +158,18 @@ export interface BreakPlan {
 }
 
 const CORSAIR = '36004';
+
+/**
+ * Credits the Runner can spend on a run it is planning: what it can spend
+ * now, plus, before the run starts, the credits on cards that pay only
+ * during runs (Methuselah, Touchstone), which availableCredits leaves out then.
+ */
+export function runBudget(state: GameState): number {
+  const now = availableCredits(state, 'runner');
+  if (state.activeRun) return now;
+  const rig = [...state.runner.rig.hardware, ...state.runner.rig.programs, ...state.runner.rig.resources];
+  return now + rig.filter(c => getCardScript(c.cardCode)?.paysDuringRuns).reduce((n, c) => n + counters(c, 'credit'), 0);
+}
 
 /** Credits from stealth cards the Runner can spend on a run: now, during one, or what its stealth cards hold before it starts. */
 export function runStealthCredits(state: GameState): number {
@@ -515,7 +527,7 @@ export function runShortfall(state: GameState, serverId: string): number | null 
   }
   // Manegarm Skunkworks: 5 credits too when a run won't leave 2 clicks for it
   if (state.runner.clicks - 1 - bioroidClicks(state, server.ice) < 2) known += 5 * server.root.filter(c => c.isRezzed && c.cardCode === MANEGARM).length;
-  return known - availableCredits(state, 'runner');
+  return known - runBudget(state);
 }
 
 /**
@@ -536,7 +548,7 @@ export function runScore(state: GameState, serverId: string, options: RunOptions
   let known = 0;
   let expected = 0;
   let shredLeft = !!options.shred && server.root.length > 0;
-  const budget = (options.poolLocked ? 0 : availableCredits(state, 'runner')) + (options.bonusCredits ?? 0);
+  const budget = (options.poolLocked ? runBudget(state) - availableCredits(state, 'runner') : runBudget(state)) + (options.bonusCredits ?? 0);
   // Runner (rez allowance): credits paid on the way in are lost if unrezzed ice further in is rezzed and can't be paid for
   let paidOutside = 0;
   let waste = 0;
