@@ -1,10 +1,11 @@
 import { describe, expect, it } from 'vitest';
-import { ALL_CARDS, cardDef, createCardInstance, GameState, getLegalActions } from '../src/core';
+import { activePrompt, ALL_CARDS, cardDef, createCardInstance, executeAction, GameState, getLegalActions } from '../src/core';
+import { accessWorth } from '../src/ai/effectValues';
 import { answerPrompt, meliesSide } from '../src/ai/prompts';
-import { bestBreakPlan, chainReactionBonus, runBudget, runScore } from '../src/ai/runs';
+import { bestBreakPlan, chainReactionBonus, runBudget, runScore, tagCost } from '../src/ai/runs';
 import { myoshuSaving, perfectRecallTarget } from '../src/ai/corpAI';
 import { createAgent } from '../src/ai';
-import { giveCard, installIceForTest, installProgramForTest, newGame, play, run, runIntoFirstIce, startRunnerTurn } from './helpers';
+import { giveCard, installIceForTest, installProgramForTest, newGame, play, run, runIntoFirstIce, runnerInstall, setIdentity, startRunnerTurn } from './helpers';
 
 const V = { caveat: '36032', corsair: '36004', methuselah: '36020', baker: '36015', ansel2: '36028', paywall: '36052', grubber: '36050' };
 const agendaWorth = (points: number) => ALL_CARDS.find(d => d.type_code === 'agenda' && d.agenda_points === points && d.pack_code === 'sg')!.code;
@@ -142,4 +143,24 @@ describe('AI with Vantage Point cards', () => {
     methuselah(s, 2);
     expect(runBudget(s)).toBe(pool + 2);
   });
+
+  it('Rotary: takes the tag for the extra access when an access is worth more than the tag', () => {
+    let s = newGame();
+    startRunnerTurn(s);
+    setIdentity(s, 'runner', '36009'); // Vic: the first tag a turn is cheap
+    [s] = runnerInstall(s, '36014');
+    s = executeAction(s, { type: 'INITIATE_RUN', player: 'runner', targetServerId: 'hq' });
+    for (let i = 0; i < 30 && s.activeRun; i++) {
+      const p = activePrompt(s);
+      if (p?.kind === 'effect_choice' && p.source.cardCode === '36014') {
+        const a = answerPrompt(s, 'runner');
+        expect(a.type === 'RESOLVE_PROMPT' && a.choice.kind === 'effect_choice' && a.choice.optionId).toBe(accessWorth(s) > tagCost(s) ? 'tag' : 'no');
+        expect(accessWorth(s)).toBeGreaterThan(tagCost(s));
+        return;
+      }
+      s = executeAction(s, createAgent(p?.side ?? 'runner', 'normal').chooseAction(s));
+    }
+    throw new Error('no Rotary prompt');
+  });
 });
+

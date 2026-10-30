@@ -1,9 +1,9 @@
 import { CardInstance, GameAction, GameState, Prompt, SideCode, activePrompt, cardDef, executeAction, findCardAnywhere, getCardDefinition, getLegalActions, isLegalAction } from '../core';
 import { runnerInstallBlocker } from '../core/engine/actions/install';
 import { evaluate, keepValue } from './evaluate';
-import { PACE, placedCounterWorth } from './effectValues';
+import { PACE, accessWorth, placedCounterWorth } from './effectValues';
 import { turnsLeft } from './cardProfiles';
-import { BOTULUS, MANEGARM, RunOptions, RunnerMemory, iceCost, isTrap, runClick, runScore, serverValue, spendCost, subroutineCost, weakestIce } from './runs';
+import { BOTULUS, MANEGARM, RunOptions, RunnerMemory, iceCost, isTrap, runClick, runScore, serverValue, spendCost, subroutineCost, tagCost, weakestIce } from './runs';
 import { encounteredIce, iceSubroutines } from '../core/engine/ice';
 import { keepBonus, tuning } from './synergy';
 import { perfectRecallTarget } from './corpAI';
@@ -194,6 +194,12 @@ export function answerPrompt(state: GameState, side: SideCode, memory?: RunnerMe
   // credits are worth a 2-click swing to the Runner only when the Corp is nearly broke
   if (side === 'corp' && prompt.kind === 'effect_choice' && prompt.source.cardCode === '36032' && prompt.source.step === 'mode') {
     return { ...base, choice: { kind: 'effect_choice', optionId: state.corp.credits < 4 ? 'ten' : 'six' } };
+  }
+
+  // Rotary: the board score doesn't see the extra access the tag buys, so weigh it here: take the
+  // tag when one more random access is worth more than what the tag costs (cheap for Vic)
+  if (side === 'runner' && prompt.kind === 'effect_choice' && prompt.source.cardCode === '36014' && prompt.source.step === 'breach') {
+    return { ...base, choice: { kind: 'effect_choice', optionId: accessWorth(state) > tagCost(state) ? 'tag' : 'no' } };
   }
 
   // Perfect Recall: reveal the agenda the Runner is after

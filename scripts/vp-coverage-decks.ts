@@ -3,7 +3,8 @@ import type { DeckList } from '../src/data/decks';
 /**
  * Test-only decks for AI diagnostics (not in the deck picker, not legal):
  * the 27 Vantage Point cards that none of the NetrunnerDB sample decks
- * play, so self-play can check the AI uses them.
+ * play, so self-play can check the AI uses them. The Corp deck runs
+ * Méliès U, the one VP identity no sample deck plays.
  *   COVERAGE=1 npx vite-node scripts/behaviour.ts -- 2 normal
  */
 export const VP_COVERAGE_DECKS: DeckList[] = [
@@ -11,7 +12,7 @@ export const VP_COVERAGE_DECKS: DeckList[] = [
     id: 'cov-vp-corp',
     name: 'VP coverage (Corp)',
     side: 'corp',
-    identity: 'Editorial Division: Ad Nihilum',
+    identity: 'Méliès U: Only the Brightest',
     source: 'custom',
     cards: {
       'Let Them Dream': 3, 'Méliès City Luxury Line': 3, 'Lotus Haze': 2, 'Myōshu': 2,

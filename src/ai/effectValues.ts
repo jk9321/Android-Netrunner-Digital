@@ -4,7 +4,7 @@ import { PAYOUT_RISK, turnsLeft } from './cardProfiles';
 import { COUNTER_WORTH, counterWorth } from './counterValues';
 import { tuning } from './synergy';
 import { CLICK, RATES, cardRate, flatRate, flatlineWorth, memo, pointGain, pointValue, sideCards } from './valueModel';
-import { tagsWorth } from './evaluate';
+import { VIC, tagsWorth } from './evaluate';
 import { iceCost } from './runs';
 
 /**
@@ -533,8 +533,10 @@ export function runnerEffect(state: GameState, code: string, card?: CardInstance
       return perTurn(state, 0.1, 'runner');
     case '36013': // Borrowed Goods: +1 MU for a tag when untagged (the flat tag rate: the tag clock prices the rig, which would come back here)
       return muWorth(state) - (state.runner.tags > 0 ? 0 : RATES.tagAgainstRunner);
-    case '36014': // Rotary: +1 MU; a tag for one more access on HQ and R&D breaches, now and then
-      return muWorth(state) + perTurn(state, PACE.runs * centralSuccess(state) * 0.3 * accessWorth(state), 'runner');
+    case '36014': { // Rotary: +1 MU; a tag for one more access on HQ and R&D breaches, now and then (most breaches for Vic, who clears a tag a turn cheaply)
+      const takes = tuning.plan.vicTags && state.runner.identity.cardCode === VIC ? 0.8 : 0.3;
+      return muWorth(state) + perTurn(state, PACE.runs * centralSuccess(state) * takes * accessWorth(state), 'runner');
+    }
     case '36015': { // Baker: once a turn, an HQ or R&D breach past Archives' ice instead of theirs, for a stealth credit
       const stealth = deckCount(state, 'runner', c => /stealth/i.test(cardDef(c).keywords ?? '')) > 0;
       // Pricing the ice can price the rig (a subroutine that trashes a card), which comes back here: count each rezzed ice as 2 then

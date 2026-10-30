@@ -300,7 +300,7 @@ export function tagsWorth(state: GameState, viewer: SideCode, tags = state.runne
 }
 
 /** Virtual Intelligence, P.I.: "Once per turn → [click], 1[credit]: Draw 1 card and remove 1 tag." */
-const VIC = '36009';
+export const VIC = '36009';
 
 /**
  * Tags on Vic (Jeff, 2026-10-30; plan.vicTags): her ability clears a tag for
