@@ -187,7 +187,7 @@ const CardFace: React.FC<CardViewProps> = ({
         </div>
       )}
 
-      {/* Remembered, not visible: a card-back tint with scanlines over the faded art */}
+      {/* Remembered, not visible: a card-back tint over the faded art */}
       {seen && <div data-testid="seen-veil" className="seen-veil absolute inset-0 rounded-lg pointer-events-none" />}
 
       <CardOverlays
