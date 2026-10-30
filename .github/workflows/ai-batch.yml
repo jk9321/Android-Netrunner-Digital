@@ -45,7 +45,7 @@ on:
         required: false
         default: 1724c6b08430499775cd3378c46f8540f4df466c
       decks:
-        description: Deck id prefixes to play, comma-separated (vp- for Vantage Point only; empty for every deck)
+        description: Deck id prefixes to play, comma-separated (vp- for Vantage Point only; runner=vp-sourdough or corp=x for one side only; empty for every deck)
         required: false
         default: ''
       add_run:

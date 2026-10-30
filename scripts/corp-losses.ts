@@ -23,12 +23,20 @@ const [shard, shards] = (process.env.SHARD ?? '0/1').split('/').map(Number);
 applyPlanOff(process.env.PLAN_OFF ?? '');
 if (process.env.BLUFF === '0') tuning.bluff = false;
 const only = (process.env.CORP_DECKS ?? '').split(',').filter(Boolean);
-// DECKS=vp-,core- plays only decks whose id starts with one of the prefixes
-const prefixes = (process.env.DECKS ?? '').split(',').filter(Boolean);
-const inPool = (id: string) => prefixes.length === 0 || prefixes.some(p => id.startsWith(p));
-const corpDecks = DECKS.filter(d => d.side === 'corp' && inPool(d.id) && (only.length === 0 || only.includes(d.name)));
+// DECKS=vp-,core- plays only decks whose id starts with one of the prefixes; corp=x / runner=x narrow one side only
+// (DECKS=runner=vp-sourdough: one Runner deck against every Corp deck)
+const entries = (process.env.DECKS ?? '').split(',').filter(Boolean);
+const sidePrefixes = (side: 'corp' | 'runner') => {
+  const own = entries.filter(e => e.startsWith(side + '=')).map(e => e.slice(side.length + 1));
+  return own.length ? own : entries.filter(e => !e.includes('='));
+};
+const inSidePool = (side: 'corp' | 'runner', id: string) => {
+  const prefixes = sidePrefixes(side);
+  return prefixes.length === 0 || prefixes.some(p => id.startsWith(p));
+};
+const corpDecks = DECKS.filter(d => d.side === 'corp' && inSidePool('corp', d.id) && (only.length === 0 || only.includes(d.name)));
 const onlyRunner = (process.env.RUNNER_DECKS ?? '').split(',').filter(Boolean);
-const runnerDecks = DECKS.filter(d => d.side === 'runner' && inPool(d.id) && (onlyRunner.length === 0 || onlyRunner.includes(d.name)));
+const runnerDecks = DECKS.filter(d => d.side === 'runner' && inSidePool('runner', d.id) && (onlyRunner.length === 0 || onlyRunner.includes(d.name)));
 const records: GameRecord[] = [];
 // GAME_FROM=k plays only games k.. of each pairing, so a short batch can be topped up later with fresh deals.
 // Each pairing's deals are seeded 10 apart (as a 10-a-pairing batch always was), so a topped-up batch plays the same games.

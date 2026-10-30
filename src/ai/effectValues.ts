@@ -1,10 +1,11 @@
 import { CardInstance, GameState, cardDef, getCardDefinition, getCardScript } from '../core';
 import { counters } from '../core/engine/cardEffects';
+import { isIcebreaker } from '../core/engine/ice';
 import { PAYOUT_RISK, turnsLeft } from './cardProfiles';
 import { COUNTER_WORTH, counterWorth } from './counterValues';
 import { tuning } from './synergy';
 import { CLICK, RATES, cardRate, flatRate, flatlineWorth, memo, pointGain, pointValue, sideCards } from './valueModel';
-import { VIC, tagsWorth } from './evaluate';
+import { PRINCIPIA, VIC, tagsWorth } from './evaluate';
 import { iceCost } from './runs';
 
 /**
@@ -469,8 +470,16 @@ export function runnerEffect(state: GameState, code: string, card?: CardInstance
     }
     case '35007': // Gourmand: once, trash a non-agenda card accessed (about 4 to the Corp) and draw 1
       return 0.7 * (4 + cardRate(state, 'runner'));
-    case '35033': // Knickknack O'Brian: now and then, an empty card turned into its install cost and a card
-      return perTurn(state, 0.25 * (2 + cardRate(state, 'runner') - 1), 'runner');
+    case '35033': { // Knickknack O'Brian: now and then, an empty card turned into its install cost and a card
+      const spent = 0.25 * (2 + cardRate(state, 'runner') - 1);
+      // The Sourdough loop (Jeff, 2026-10-30): Principia pays its printed 4 but reinstalls for 1 less per other
+      // breaker installed (from the grip, or the heap with Scrounge), so trashing a spare copy is credits and a card most turns
+      const principia = [...state.runner.grip, ...state.runner.stack, ...state.runner.heap, ...state.runner.rig.programs].some(c => c.cardCode === PRINCIPIA);
+      if (!tuning.plan.sourdough || !principia) return perTurn(state, spent, 'runner');
+      const breakers = state.runner.rig.programs.filter(c => isIcebreaker(c) && c.cardCode !== PRINCIPIA).length;
+      const loop = 4 + cardRate(state, 'runner') - Math.max(0, 4 - Math.max(1, breakers)) - CLICK;
+      return perTurn(state, Math.max(spent, 0.6 * loop), 'runner');
+    }
     case '30009': { // Cookbook: a virus counter on each virus program installed later
       const viruses = [...state.runner.grip, ...state.runner.stack].filter(c => /virus/i.test(cardDef(c).keywords ?? '')).length;
       return viruses * RATES.counters.virus;

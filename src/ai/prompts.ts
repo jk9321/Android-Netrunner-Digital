@@ -1,11 +1,11 @@
 import { CardInstance, GameAction, GameState, Prompt, SideCode, activePrompt, cardDef, executeAction, findCardAnywhere, getCardDefinition, getLegalActions, isLegalAction } from '../core';
-import { runnerInstallBlocker } from '../core/engine/actions/install';
-import { evaluate, keepValue, runnerRigValue } from './evaluate';
-import { cardRate } from './valueModel';
+import { runnerInstallBlocker, runnerInstallCost } from '../core/engine/actions/install';
+import { evaluate, keepValue, runnerRigValue, sourdoughFuel } from './evaluate';
+import { CLICK, cardRate } from './valueModel';
 import { PACE, accessWorth, placedCounterWorth } from './effectValues';
 import { turnsLeft } from './cardProfiles';
 import { BOTULUS, MANEGARM, RunOptions, RunnerMemory, iceCost, isTrap, runClick, runScore, serverValue, spendCost, subroutineCost, tagCost, weakestIce } from './runs';
-import { encounteredIce, iceSubroutines } from '../core/engine/ice';
+import { breakerScript, encounteredIce, iceSubroutines, iceSubtypes, isIcebreaker } from '../core/engine/ice';
 import { keepBonus, tuning } from './synergy';
 import { perfectRecallTarget } from './corpAI';
 
@@ -231,7 +231,15 @@ export function answerPrompt(state: GameState, side: SideCode, memory?: RunnerMe
       const loss = (c: CardInstance) => {
         const { programs, hardware, resources } = state.runner.rig;
         const without = { programs: programs.filter(x => x !== c), hardware: hardware.filter(x => x !== c), resources: resources.filter(x => x !== c) };
-        return rig - runnerRigValue({ ...state, runner: { ...state.runner, rig: without } }, true, 'runner');
+        // Fuel is there to be burnt: its loss is only the coverage it gives
+        const lost = rig - runnerRigValue({ ...state, runner: { ...state.runner, rig: without } }, true, 'runner') - sourdoughFuel(state, c);
+        if (!isIcebreaker(c)) return lost;
+        // A breaker is cheap to lose when it comes back for its install (a copy in the grip, or this one from the
+        // heap with Scrounge), and while no rezzed ice it breaks is out (Jeff, 2026-10-30: the Sourdough loop)
+        const back = state.runner.grip.some(g => g.cardCode === c.cardCode || g.cardCode === SCROUNGE);
+        const reinstall = runnerInstallCost(state, c) + CLICK;
+        const needed = breaksRezzedIce(state, c);
+        return Math.min(lost, back ? reinstall : Infinity) * (needed ? 1 : 0.5);
       };
       const spent = cards.map(c => ({ c, net: loss(c) - 0.5 * ((cardDef(c).cost ?? 0) + cardRate(state, 'runner')) })).filter(x => x.net < 0).sort((a, b) => a.net - b.net);
       return pick(spent[0]?.c);
@@ -430,3 +438,13 @@ function greedyCards(
   }
   return answer(chosen);
 }
+
+const SCROUNGE = '35004';
+
+/** Rezzed ice on the board that `breaker` breaks (all ice for an AI breaker). */
+function breaksRezzedIce(state: GameState, breaker: CardInstance): boolean {
+  const breaks = breakerScript(breaker)?.breaks;
+  if (!breaks) return false;
+  return Object.values(state.corp.servers).some(server => server.ice.some(ice => ice.isRezzed && (breaks === 'any' || iceSubtypes(ice, state).includes(breaks))));
+}
+
