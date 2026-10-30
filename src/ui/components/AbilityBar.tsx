@@ -43,7 +43,7 @@ export const AbilityBar: React.FC<AbilityBarProps> = ({ state, side, onAction })
           <button
             key={`${action.cardInstanceId}-${action.abilityIndex}`}
             onClick={() => onAction(action)}
-            className={`px-2 py-1 border text-[11px] text-left font-bold rounded-lg transition-all flex items-center gap-1.5 shadow ${accent}`}
+            className={`px-2 py-1 border text-[12px] text-left font-bold rounded-lg transition-all flex items-center gap-1.5 shadow ${accent}`}
             title={ability.label.replace(/\[click\]/g, 'click').replace(/\[credit\]/g, 'credit')}
           >
             <Sparkles className="w-3.5 h-3.5 text-amber-300" />

@@ -54,7 +54,7 @@ export const ZoomPanel: React.FC<{ store: ZoomStore; state: GameState; onInspect
 
   if (!target) {
     return (
-      <div className="zoom-card flex items-center justify-center border border-dashed border-slate-700 text-[11px] text-slate-500 text-center px-6">
+      <div className="zoom-card flex items-center justify-center border border-dashed border-slate-700 text-[12px] text-slate-500 text-center px-6">
         Hover any card on the table to see it here
       </div>
     );
@@ -83,7 +83,7 @@ export const ZoomPanel: React.FC<{ store: ZoomStore; state: GameState; onInspect
         {live.length > 0 && (
           <div
             data-testid="zoom-live-values"
-            className="absolute inset-x-1 top-[44%] -translate-y-full rounded bg-slate-950/90 border border-amber-400/60 px-2 py-1 text-[11px] font-mono text-amber-200 flex flex-col gap-0.5 pointer-events-none"
+            className="absolute inset-x-1 top-[44%] -translate-y-full rounded bg-slate-950/90 border border-amber-400/60 px-2 py-1 text-[12px] font-mono text-amber-200 flex flex-col gap-0.5 pointer-events-none"
           >
             {live.map(line => (
               <div key={line} className="flex items-center gap-1 flex-wrap">{renderSymbols(line)}</div>
@@ -91,7 +91,7 @@ export const ZoomPanel: React.FC<{ store: ZoomStore; state: GameState; onInspect
           </div>
         )}
       </div>
-      <div className="w-full flex items-center justify-between gap-2 text-[11px] font-mono min-w-0">
+      <div className="w-full flex items-center justify-between gap-2 text-[12px] font-mono min-w-0">
         <span className="truncate text-slate-300" title={seen ? `Unrezzed, last seen as ${def.title}` : undefined}>
           {hidden ? 'Face-down card' : seen ? `Unrezzed, last seen as ${def.title}` : `${def.title} · ${typeLine(def)}`}
         </span>

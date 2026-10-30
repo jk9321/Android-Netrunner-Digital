@@ -49,7 +49,7 @@ export class ErrorBoundary extends React.Component<{ children: React.ReactNode }
             Something went wrong and the game can't be shown. Starting over clears the saved game and goes back to deck
             selection. Your custom decks are kept.
           </p>
-          <pre className="text-[11px] text-slate-500 whitespace-pre-wrap break-words max-h-32 overflow-auto">{error.message}</pre>
+          <pre className="text-[12px] text-slate-500 whitespace-pre-wrap break-words max-h-32 overflow-auto">{error.message}</pre>
           <div className="flex gap-2 justify-end">
             <button
               onClick={() => window.location.reload()}

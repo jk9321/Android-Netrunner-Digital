@@ -72,14 +72,14 @@ const FormatMarker: React.FC<{ card: CardDefinition }> = ({ card }) => {
       data-testid={`format-marker-${card.code}`}
     >
       <Ban className="w-3 h-3" />
-      <span className="text-[9px] font-bold">{banned ? 'BAN' : 'RES'}</span>
+      <span className="text-[10px] font-bold">{banned ? 'BAN' : 'RES'}</span>
     </span>
   );
 };
 
 const Stat: React.FC<{ label: string; value: string; ok: boolean }> = ({ label, value, ok }) => (
   <div className="flex-1 min-w-[5.5rem] rounded-xl border border-slate-800 bg-slate-900/70 px-2.5 py-1.5">
-    <div className="text-[10px] uppercase tracking-wider text-slate-500">{label}</div>
+    <div className="text-[11px] uppercase tracking-wider text-slate-500">{label}</div>
     <div className={`text-sm font-bold ${ok ? 'text-slate-100' : 'text-amber-400'}`}>{value}</div>
   </div>
 );
@@ -97,7 +97,7 @@ const CardBadges: React.FC<{ card: CardDefinition; format: ReturnType<typeof get
   <>
     {(isBanned(format, c) || !isInCardPool(format, c)) && (
       <span
-        className="absolute top-1 left-1 rounded bg-red-900/90 text-red-200 text-[9px] font-bold px-1 py-0.5"
+        className="absolute top-1 left-1 rounded bg-red-900/90 text-red-200 text-[10px] font-bold px-1 py-0.5"
         title={isBanned(format, c) ? `Banned in ${format.name} (${format.banList?.name})` : `Not in the ${format.name} card pool`}
         data-testid={`banned-${c.code}`}
       >
@@ -106,13 +106,13 @@ const CardBadges: React.FC<{ card: CardDefinition; format: ReturnType<typeof get
     )}
     {unscripted(c) && (
       <span
-        className="absolute bottom-1 left-1 right-1 rounded bg-amber-900/90 text-amber-200 text-[9px] font-bold text-center py-0.5"
+        className="absolute bottom-1 left-1 right-1 rounded bg-amber-900/90 text-amber-200 text-[10px] font-bold text-center py-0.5"
         title="This card's abilities are not implemented yet"
       >
         NOT SCRIPTED YET
       </span>
     )}
-    <TypeIcons card={c} className={`absolute left-1 text-[10px] ${unscripted(c) ? 'bottom-6' : 'bottom-1'}`} />
+    <TypeIcons card={c} className={`absolute left-1 text-[11px] ${unscripted(c) ? 'bottom-6' : 'bottom-1'}`} />
     {n > 0 && (
       <span className="absolute top-1 right-1 min-w-[1.5rem] h-6 px-1 rounded-full bg-black/85 border border-slate-500 text-xs font-bold flex items-center justify-center">
         {n}
@@ -310,8 +310,8 @@ export const DeckBuilder: React.FC<DeckBuilderProps> = ({ initial, onSave, onCan
                       />
                       <CardBadges card={c} format={format} count={n} />
                     </button>
-                    <div className="text-[11px] leading-tight truncate" title={c.title}>{c.title}</div>
-                    <div className="flex items-center justify-between text-[10px]">
+                    <div className="text-[12px] leading-tight truncate" title={c.title}>{c.title}</div>
+                    <div className="flex items-center justify-between text-[11px]">
                       <span className={`truncate ${FACTION_COLOR[c.faction_code]}`}>{FACTION_LABEL[c.faction_code]}</span>
                       <span className="flex items-center gap-1 shrink-0">
                         {formatMarker(c)}
@@ -360,7 +360,7 @@ export const DeckBuilder: React.FC<DeckBuilderProps> = ({ initial, onSave, onCan
                 className="w-16 h-[5.6rem] object-cover rounded-md border border-slate-700 shrink-0"
               />
               <label className="flex-1 min-w-0">
-                <span className="text-[10px] uppercase tracking-wider text-slate-500">Identity</span>
+                <span className="text-[11px] uppercase tracking-wider text-slate-500">Identity</span>
                 <select
                   value={identity.title}
                   onChange={e => { setIdentityTitle(e.target.value); setHover(null); }}
@@ -373,12 +373,12 @@ export const DeckBuilder: React.FC<DeckBuilderProps> = ({ initial, onSave, onCan
                     <option key={i.code} value={i.title}>{i.title}</option>
                   ))}
                 </select>
-                <span className={`text-[11px] ${FACTION_COLOR[identity.faction_code]}`}>{FACTION_LABEL[identity.faction_code]}</span>
+                <span className={`text-[12px] ${FACTION_COLOR[identity.faction_code]}`}>{FACTION_LABEL[identity.faction_code]}</span>
               </label>
             </div>
 
             <label className="block">
-              <span className="text-[10px] uppercase tracking-wider text-slate-500">Format</span>
+              <span className="text-[11px] uppercase tracking-wider text-slate-500">Format</span>
               <select
                 value={formatId}
                 onChange={e => setFormatId(e.target.value as FormatId)}
@@ -390,7 +390,7 @@ export const DeckBuilder: React.FC<DeckBuilderProps> = ({ initial, onSave, onCan
                   <option key={f.id} value={f.id}>{f.name}</option>
                 ))}
               </select>
-              <span className="text-[11px] text-slate-500">
+              <span className="text-[12px] text-slate-500">
                 {format.description}
                 {format.banList && <> Ban list: {format.banList.name}.</>}
               </span>
@@ -420,12 +420,12 @@ export const DeckBuilder: React.FC<DeckBuilderProps> = ({ initial, onSave, onCan
 
             {limited.length > 0 && (
               <div className="rounded-xl border border-red-900/60 bg-red-950/20 p-2.5" data-testid="format-limits">
-                <div className="text-[10px] uppercase tracking-wider text-slate-500 mb-1">Banned or restricted</div>
+                <div className="text-[11px] uppercase tracking-wider text-slate-500 mb-1">Banned or restricted</div>
                 <ul className="flex flex-col gap-1 text-xs">
                   {limited.map(({ card, text }) => (
                     <li key={card.code}>
                       <button onClick={() => setZoomCode(card.code)} className="hover:underline text-left" {...hoverProps(card.code)}>{card.title}</button>
-                      <div className="text-[11px] text-red-300/90">{text}</div>
+                      <div className="text-[12px] text-red-300/90">{text}</div>
                     </li>
                   ))}
                 </ul>
@@ -440,7 +440,7 @@ export const DeckBuilder: React.FC<DeckBuilderProps> = ({ initial, onSave, onCan
                 const total = group.reduce((n, c) => n + countOf(c), 0);
                 return (
                   <div key={t} className="mb-2 last:mb-0">
-                    <div className="text-[10px] uppercase tracking-wider text-slate-500 mb-1">
+                    <div className="text-[11px] uppercase tracking-wider text-slate-500 mb-1">
                       {TYPE_LABEL[t]} ({total})
                     </div>
                     {group.map(c => (
@@ -462,7 +462,7 @@ export const DeckBuilder: React.FC<DeckBuilderProps> = ({ initial, onSave, onCan
                         </button>
                         {formatMarker(c)}
                         {influencePips(c)}
-                        <TypeIcons card={c} className="text-[7px] shrink-0" />
+                        <TypeIcons card={c} className="text-[8px] shrink-0" />
                       </div>
                     ))}
                   </div>
@@ -553,7 +553,7 @@ export const DeckViewer: React.FC<DeckViewerProps> = ({ deck, onClose, onSelect 
               const total = group.reduce((n, c) => n + counts.get(c.code)!, 0);
               return (
                 <div key={t}>
-                  <div className="text-[10px] uppercase tracking-wider text-slate-500 mb-1.5">
+                  <div className="text-[11px] uppercase tracking-wider text-slate-500 mb-1.5">
                     {TYPE_LABEL[t]} ({total})
                   </div>
                   <div className="grid grid-cols-[repeat(auto-fill,minmax(7.5rem,1fr))] gap-3">
@@ -572,8 +572,8 @@ export const DeckViewer: React.FC<DeckViewerProps> = ({ deck, onClose, onSelect 
                           />
                           <CardBadges card={c} format={format} count={counts.get(c.code)!} />
                         </button>
-                        <div className="text-[11px] leading-tight truncate" title={c.title}>{c.title}</div>
-                        <div className="flex items-center justify-between text-[10px]">
+                        <div className="text-[12px] leading-tight truncate" title={c.title}>{c.title}</div>
+                        <div className="flex items-center justify-between text-[11px]">
                           <span className={`truncate ${FACTION_COLOR[c.faction_code]}`}>{FACTION_LABEL[c.faction_code]}</span>
                           <span className="flex items-center gap-1 shrink-0">
                             <FormatMarker card={c} />
@@ -599,16 +599,16 @@ export const DeckViewer: React.FC<DeckViewerProps> = ({ deck, onClose, onSelect 
                 />
               </button>
               <div className="flex-1 min-w-0">
-                <div className="text-[10px] uppercase tracking-wider text-slate-500">Identity</div>
+                <div className="text-[11px] uppercase tracking-wider text-slate-500">Identity</div>
                 <div className="text-sm font-bold mt-1" data-testid="viewed-identity">{identity.title}</div>
-                <span className={`text-[11px] ${FACTION_COLOR[identity.faction_code]}`}>{FACTION_LABEL[identity.faction_code]}</span>
+                <span className={`text-[12px] ${FACTION_COLOR[identity.faction_code]}`}>{FACTION_LABEL[identity.faction_code]}</span>
               </div>
             </div>
 
             <div>
-              <div className="text-[10px] uppercase tracking-wider text-slate-500">Format</div>
+              <div className="text-[11px] uppercase tracking-wider text-slate-500">Format</div>
               <div className="text-xs mt-1">{format.name}</div>
-              <span className="text-[11px] text-slate-500">
+              <span className="text-[12px] text-slate-500">
                 {format.description}
                 {format.banList && <> Ban list: {format.banList.name}.</>}
               </span>
@@ -638,7 +638,7 @@ export const DeckViewer: React.FC<DeckViewerProps> = ({ deck, onClose, onSelect 
               </ul>
             )}
 
-            {deck.credit && <p className="text-[11px] text-slate-500">{deck.credit}</p>}
+            {deck.credit && <p className="text-[12px] text-slate-500">{deck.credit}</p>}
           </aside>
         </div>
       </div>

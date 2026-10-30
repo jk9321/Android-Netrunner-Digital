@@ -36,7 +36,7 @@ export const Pile: React.FC<PileProps> = ({ label, count, side, topCard, size = 
       className={`relative ${SIZE[size]} rounded-xl ${onClick ? 'cursor-pointer hover:scale-105' : 'cursor-default'} transition-transform`}
     >
       {count === 0 ? (
-        <div className="w-full h-full rounded-xl border-2 border-dashed border-slate-700 flex items-center justify-center text-[10px] text-slate-600 uppercase tracking-wider">
+        <div className="w-full h-full rounded-xl border-2 border-dashed border-slate-700 flex items-center justify-center text-[11px] text-slate-600 uppercase tracking-wider">
           Empty
         </div>
       ) : topCard ? (
@@ -56,7 +56,7 @@ export const Pile: React.FC<PileProps> = ({ label, count, side, topCard, size = 
       )}
     </button>
     {!hideLabel && (
-      <Keyword id={labelKeyword(label)} className="text-[10px] uppercase tracking-wider text-slate-500 font-bold">{label}</Keyword>
+      <Keyword id={labelKeyword(label)} className="text-[11px] uppercase tracking-wider text-slate-500 font-bold">{label}</Keyword>
     )}
   </div>
 );

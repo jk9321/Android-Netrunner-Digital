@@ -76,7 +76,7 @@ const CardFace: React.FC<CardViewProps> = ({
   // lg: 176x256 (3x larger)
   // xl: 224x320 (4x larger)
   const sizeClasses = {
-    xs: 'w-20 h-28 text-[10px]',
+    xs: 'w-20 h-28 text-[11px]',
     sm: 'w-28 h-40 text-xs',
     md: 'w-36 h-52 text-xs',
     lg: 'w-44 h-64 text-sm',
@@ -120,7 +120,7 @@ const CardFace: React.FC<CardViewProps> = ({
         {/* Fallback circuit badge if image is hidden */}
         <div className="absolute inset-1.5 rounded-lg border border-dashed border-slate-800/80 flex flex-col items-center justify-center opacity-70 pointer-events-none -z-0">
           <Lock className="w-6 h-6 text-slate-500 mb-1" />
-          <span className="text-[10px] uppercase tracking-widest text-slate-500 font-mono font-bold">
+          <span className="text-[11px] uppercase tracking-widest text-slate-500 font-mono font-bold">
             SECURED
           </span>
         </div>
@@ -181,9 +181,9 @@ const CardFace: React.FC<CardViewProps> = ({
       ) : (
         /* Fallback graphic placeholder if image completely fails */
         <div className="w-full h-full flex flex-col justify-between p-2 bg-slate-900 font-mono text-center">
-          <div className="text-[10px] font-bold text-cyan-400 line-clamp-2">{def.title}</div>
-          <div className="text-[9px] text-slate-500">{def.type_code}</div>
-          <div className="text-[9px] text-amber-400">{def.cost != null && <Credits amount={def.cost} />}</div>
+          <div className="text-[11px] font-bold text-cyan-400 line-clamp-2">{def.title}</div>
+          <div className="text-[10px] text-slate-500">{def.type_code}</div>
+          <div className="text-[10px] text-amber-400">{def.cost != null && <Credits amount={def.cost} />}</div>
         </div>
       )}
 
@@ -356,7 +356,7 @@ const PromptTargetLabel: React.FC<{ anchor: HTMLElement | null; label: string | 
   return createPortal(
     <div
       data-testid="prompt-target-label"
-      className="fixed z-[60] -translate-x-1/2 pointer-events-none whitespace-nowrap px-2 py-1 text-[11px] font-mono font-bold bg-black/90 border border-amber-300 text-amber-200 shadow-lg"
+      className="fixed z-[60] -translate-x-1/2 pointer-events-none whitespace-nowrap px-2 py-1 text-[12px] font-mono font-bold bg-black/90 border border-amber-300 text-amber-200 shadow-lg"
       // Kept clear of the window's edges: board columns at the far left would cut it off
       style={{ left: Math.min(Math.max(rect.left + rect.width / 2, 130), window.innerWidth - 130), top: above ? rect.top - 30 : rect.bottom + 6 }}
     >

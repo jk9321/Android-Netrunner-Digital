@@ -123,7 +123,7 @@ export const CardPopout: React.FC<CardPopoutProps> = ({
           </div>
           <div className="min-w-0 flex-1">
           {/* Top Pill / Badge Header */}
-          <div className="flex items-center justify-between pb-2 mb-2 border-b border-slate-800 text-[11px]">
+          <div className="flex items-center justify-between pb-2 mb-2 border-b border-slate-800 text-[12px]">
             <div className="flex items-center gap-1.5 font-bold uppercase tracking-wider">
               <span
                 className={`w-2 h-2 rounded-full ${
@@ -136,12 +136,12 @@ export const CardPopout: React.FC<CardPopoutProps> = ({
             </div>
 
             {isFaceDown && !card.isRezzed && (
-              <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-amber-950/80 text-amber-400 border border-amber-600 flex items-center gap-1">
+              <span className="px-2 py-0.5 rounded text-[11px] font-bold bg-amber-950/80 text-amber-400 border border-amber-600 flex items-center gap-1">
                 <AlertCircle className="w-3 h-3" /> UNREZZED
               </span>
             )}
             {card.faceUp && !card.isRezzed && (
-              <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-cyan-950/80 text-cyan-300 border border-cyan-600 flex items-center gap-1">
+              <span className="px-2 py-0.5 rounded text-[11px] font-bold bg-cyan-950/80 text-cyan-300 border border-cyan-600 flex items-center gap-1">
                 FACE UP
               </span>
             )}
@@ -156,7 +156,7 @@ export const CardPopout: React.FC<CardPopoutProps> = ({
             >
               {def.title}
             </h3>
-            <div className="text-[11px] text-slate-400 italic mt-0.5">
+            <div className="text-[12px] text-slate-400 italic mt-0.5">
               {typeLine(def)} · <span className={`not-italic ${FACTION_COLOR[def.faction_code]}`}>{FACTION_LABEL[def.faction_code]}</span>
             </div>
           </div>
@@ -220,7 +220,7 @@ export const CardPopout: React.FC<CardPopoutProps> = ({
 
           {/* The popout can't be hovered, so list what this card's rules terms mean */}
           {def.text && cardKeywords(def.text).length > 0 && (
-            <div className="mt-2 space-y-1 text-[10px] leading-snug" data-testid="popout-keywords">
+            <div className="mt-2 space-y-1 text-[11px] leading-snug" data-testid="popout-keywords">
               {cardKeywords(def.text).map(id => (
                 <div key={id}>
                   <span className="font-bold text-amber-300">{GLOSSARY[id].term}:</span>{' '}
@@ -232,7 +232,7 @@ export const CardPopout: React.FC<CardPopoutProps> = ({
 
           {/* Flavor Text */}
           {def.flavor && (
-            <div className="mt-2 text-[10px] text-slate-400 italic border-t border-slate-900 pt-2 leading-relaxed">
+            <div className="mt-2 text-[11px] text-slate-400 italic border-t border-slate-900 pt-2 leading-relaxed">
               "{def.flavor}"
             </div>
           )}

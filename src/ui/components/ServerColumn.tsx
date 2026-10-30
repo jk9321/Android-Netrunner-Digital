@@ -121,12 +121,12 @@ export const ServerColumn: React.FC<ServerColumnProps> = ({
       }`}
     >
       {isRunTarget && (
-        <div className="absolute -top-2 left-1/2 -translate-x-1/2 z-30 px-2 py-0.5 rounded-full bg-cyber-neonPink text-white text-[9px] font-bold font-mono uppercase tracking-widest shadow-lg flex items-center gap-1 whitespace-nowrap pointer-events-none">
+        <div className="absolute -top-2 left-1/2 -translate-x-1/2 z-30 px-2 py-0.5 rounded-full bg-cyber-neonPink text-white text-[10px] font-bold font-mono uppercase tracking-widest shadow-lg flex items-center gap-1 whitespace-nowrap pointer-events-none">
           <Crosshair className="w-3 h-3" /> Run target
         </div>
       )}
       {/* Server Header */}
-      <div className="flex items-center justify-between gap-1 w-full text-[11px] font-mono">
+      <div className="flex items-center justify-between gap-1 w-full text-[12px] font-mono">
         <span className="font-bold text-cyber-neonCyan flex items-center gap-1 truncate" title={server.name}>
           <Database className="w-3 h-3 text-cyan-400 shrink-0" />
           <span className="truncate">{server.name}</span>
@@ -137,7 +137,7 @@ export const ServerColumn: React.FC<ServerColumnProps> = ({
               e.stopPropagation();
               onInitiateRun(server.id);
             }}
-            className="px-1.5 py-px text-[10px] bg-pink-950/60 text-pink-400 hover:bg-cyber-neonPink hover:text-white rounded border border-pink-500 transition-colors flex items-center gap-1 font-bold shrink-0"
+            className="px-1.5 py-px text-[11px] bg-pink-950/60 text-pink-400 hover:bg-cyber-neonPink hover:text-white rounded border border-pink-500 transition-colors flex items-center gap-1 font-bold shrink-0"
             title="Initiate Run on this server"
           >
             <Crosshair className="w-3 h-3" /> Run
@@ -152,13 +152,13 @@ export const ServerColumn: React.FC<ServerColumnProps> = ({
         }`}
       >
         {atRoot && (
-          <span className="absolute -top-1 left-1/2 -translate-x-1/2 z-30 px-1.5 rounded-full bg-cyber-neonPink text-white text-[9px] font-bold uppercase tracking-wider whitespace-nowrap pointer-events-none">
+          <span className="absolute -top-1 left-1/2 -translate-x-1/2 z-30 px-1.5 rounded-full bg-cyber-neonPink text-white text-[10px] font-bold uppercase tracking-wider whitespace-nowrap pointer-events-none">
             {run?.phase === 'access' ? 'Breaching' : 'Approaching'}
           </span>
         )}
         {anchor}
         {server.root.length === 0 && !anchor ? (
-          <div className="card-fit rounded-xl border border-dashed border-slate-800 flex items-center justify-center text-[10px] text-slate-600 italic">
+          <div className="card-fit rounded-xl border border-dashed border-slate-800 flex items-center justify-center text-[11px] text-slate-600 italic">
             Empty
           </div>
         ) : (
@@ -264,7 +264,7 @@ export const ServerColumn: React.FC<ServerColumnProps> = ({
                 />
               </div>
               {runIceId === iceCard.instanceId && iceLabel && (
-                <div className="absolute -top-1.5 left-1/2 -translate-x-1/2 z-30 px-1.5 rounded-full bg-amber-400 text-black text-[9px] font-bold font-mono uppercase tracking-wider shadow whitespace-nowrap pointer-events-none">
+                <div className="absolute -top-1.5 left-1/2 -translate-x-1/2 z-30 px-1.5 rounded-full bg-amber-400 text-black text-[10px] font-bold font-mono uppercase tracking-wider shadow whitespace-nowrap pointer-events-none">
                   {iceLabel}
                 </div>
               )}

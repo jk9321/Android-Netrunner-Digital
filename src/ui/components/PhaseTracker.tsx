@@ -39,7 +39,7 @@ export const PhaseTracker: React.FC<{ state: GameState }> = ({ state }) => {
 
   return (
     <div
-      className={`flex items-center gap-1 text-[10px] font-mono font-bold uppercase whitespace-nowrap border rounded px-1.5 py-0.5 bg-slate-900 ${
+      className={`flex items-center gap-1 text-[11px] font-mono font-bold uppercase whitespace-nowrap border rounded px-1.5 py-0.5 bg-slate-900 ${
         corp ? 'border-cyan-800' : 'border-pink-800'
       }`}
       data-testid="phase-tracker"

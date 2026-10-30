@@ -268,7 +268,7 @@ export const PromptPanel: React.FC<PromptPanelProps> = ({ state, onAnswer, onIns
                       onInspect={secret ? undefined : onInspectCard}
                     />
                     {position && (
-                      <span data-testid="prompt-card-position" className="w-28 text-center text-[10px] leading-tight font-mono text-slate-400">
+                      <span data-testid="prompt-card-position" className="w-28 text-center text-[11px] leading-tight font-mono text-slate-400">
                         {position}
                       </span>
                     )}

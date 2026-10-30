@@ -312,12 +312,12 @@
 .card-fit {
   width: var(--card-w);
   height: var(--card-h);
-  font-size: 10px;
+  font-size: 11px;
 }
 .card-fit-sm {
   width: calc(var(--card-w) * 0.62);
   height: calc(var(--card-h) * 0.62);
-  font-size: 9px;
+  font-size: 10px;
 }
 /* A card lying sideways (ice): the box is the card turned 90 degrees */
 .card-sideways {

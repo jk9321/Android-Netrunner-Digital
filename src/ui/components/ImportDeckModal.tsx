@@ -126,7 +126,7 @@ export const ImportDeckModal: React.FC<ImportDeckModalProps> = ({ onSave, onEdit
           <div className="mt-4 border-t border-slate-800 pt-4 text-xs" data-testid="import-preview">
             {deck ? (
               <>
-                <label className="block text-[11px] uppercase tracking-wider text-slate-500 font-bold mb-1">Deck name</label>
+                <label className="block text-[12px] uppercase tracking-wider text-slate-500 font-bold mb-1">Deck name</label>
                 <input
                   value={name ?? deck.name}
                   onChange={e => setName(e.target.value)}

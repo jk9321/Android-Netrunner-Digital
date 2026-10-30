@@ -76,7 +76,7 @@ const Row: React.FC<{
   className?: string;
 }> = ({ icon, label, color, cards, onInspect, hostLabel, breaks, className = '' }) => (
   <div className={`min-w-0 flex flex-col gap-0.5 ${className}`}>
-    <div className={`flex items-center gap-1 text-[10px] font-mono font-bold uppercase tracking-wider ${color}`}>
+    <div className={`flex items-center gap-1 text-[11px] font-mono font-bold uppercase tracking-wider ${color}`}>
       {icon}
       <span>
         {label} ({cards.length})
@@ -84,7 +84,7 @@ const Row: React.FC<{
     </div>
     <div className="flex gap-1.5 p-1 bg-black/40 rounded-xl border border-slate-800/80 overflow-x-auto items-center" style={{ minHeight: 'calc(var(--card-h) + 0.5rem)' }}>
       {cards.length === 0 ? (
-        <span className="text-[10px] text-slate-600 italic m-auto">None</span>
+        <span className="text-[11px] text-slate-600 italic m-auto">None</span>
       ) : (
         cards.map(card => <RigCard key={card.instanceId} card={card} onInspect={onInspect} hostLabel={hostLabel?.(card)} breaks={breaks?.(card)} />)
       )}
