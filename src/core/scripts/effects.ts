@@ -70,6 +70,8 @@ export interface CorpInstallChoice {
   discount?: number;
   /** Only the root of a remote server (Peer Review, IP Enforcement). */
   remoteRootOnly?: boolean;
+  /** The card was revealed to the Runner just before, so they know it once installed (Synapse Global, Off the Books). */
+  revealed?: boolean;
 }
 
 /** The zone a Corp card is in, among those effects install from (HQ, R&D, Archives, the Runner's score area). */
@@ -131,7 +133,7 @@ export function installCorpChoice(state: GameState, source: EffectSource, answer
   card.advancementCounters = 0;
   card.tokens = {};
   card.isRezzed = false;
-  installCorpCardFrom(state, card, zone, serverId, !!opts.ignoreCosts, { discount });
+  installCorpCardFrom(state, card, zone, serverId, !!opts.ignoreCosts, { discount, revealed: opts.revealed });
   return serverId ?? Object.keys(state.corp.servers).find(id => !before.has(id)) ?? null;
 }
 

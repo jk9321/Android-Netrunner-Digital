@@ -112,6 +112,8 @@ export interface CorpInstallOptions {
   discount?: number;
   /** Install faceup without rezzing (BANGUN agendas). */
   faceUp?: boolean;
+  /** The Runner saw this card revealed just before it was installed (rules 1.21.3). */
+  revealed?: boolean;
 }
 
 /** The credits it costs to install this card in that server (ice: 1 per ice already there). */
@@ -161,7 +163,7 @@ export function installCorpCardFrom(
   card.isRezzed = false;
   card.faceUp = options.faceUp && def.type_code === 'agenda' ? true : undefined;
   // A card the Runner accessed in this breach (rules 7.3.1a) or saw faceup before stays known to them
-  if (runnerSawBeforeInstall(state, card, zone)) card.runnerKnows = true;
+  if (options.revealed || runnerSawBeforeInstall(state, card, zone)) card.runnerKnows = true;
   else delete card.runnerKnows;
   card.installedTurn = turnKey(state);
   state.corp.credits -= installCost;
