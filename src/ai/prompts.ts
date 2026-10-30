@@ -1,6 +1,7 @@
 import { CardInstance, GameAction, GameState, Prompt, SideCode, activePrompt, cardDef, executeAction, findCardAnywhere, getCardDefinition, getLegalActions, isLegalAction } from '../core';
 import { runnerInstallBlocker } from '../core/engine/actions/install';
-import { evaluate, keepValue } from './evaluate';
+import { evaluate, keepValue, runnerRigValue } from './evaluate';
+import { cardRate } from './valueModel';
 import { PACE, accessWorth, placedCounterWorth } from './effectValues';
 import { turnsLeft } from './cardProfiles';
 import { BOTULUS, MANEGARM, RunOptions, RunnerMemory, iceCost, isTrap, runClick, runScore, serverValue, spendCost, subroutineCost, tagCost, weakestIce } from './runs';
@@ -200,6 +201,41 @@ export function answerPrompt(state: GameState, side: SideCode, memory?: RunnerMe
   // tag when one more random access is worth more than what the tag costs (cheap for Vic)
   if (side === 'runner' && prompt.kind === 'effect_choice' && prompt.source.cardCode === '36014' && prompt.source.step === 'breach') {
     return { ...base, choice: { kind: 'effect_choice', optionId: accessWorth(state) > tagCost(state) ? 'tag' : 'no' } };
+  }
+
+  // Sourdough Starter (Jeff, 2026-10-30, plan.sourdough)
+  if (side === 'runner' && prompt.kind === 'effect_cards' && tuning.plan.sourdough) {
+    const code = prompt.source.cardCode;
+    const cards = prompt.candidateIds.map(id => findCardAnywhere(state, id)).filter((c): c is CardInstance => !!c);
+    const weakest = (list: CardInstance[]) => [...list].sort((a, b) => keepValue(state, a) - keepValue(state, b))[0];
+    const pick = (card?: CardInstance) => ({ ...base, choice: { kind: 'effect_cards' as const, cardInstanceIds: card ? [card.instanceId] : [] } });
+    // Read-Write Share (Jeff): park the weakest card in the grip, or one it can't afford soon (more than
+    // about two turns of credit clicks away), for a fresh draw
+    if (code === '36022' && prompt.source.step === 'host') {
+      const farOff = (c: CardInstance) => (cardDef(c).cost ?? 0) > state.runner.credits + 4;
+      return pick([...cards].sort((a, b) => keepValue(state, a) * (farOff(a) ? 0.5 : 1) - keepValue(state, b) * (farOff(b) ? 0.5 : 1))[0]);
+    }
+    // Methuselah: feed it only dead hardware: a copy of one installed (or a second console), or one it can't afford
+    if (code === '36020' && prompt.source.step === 'trash') {
+      const rig = state.runner.rig.hardware;
+      const dead = cards.filter(c => {
+        const def = cardDef(c);
+        const console = /console/i.test(def.keywords ?? '');
+        return rig.some(h => cardDef(h).title === def.title || (console && /console/i.test(cardDef(h).keywords ?? ''))) || (def.cost ?? 0) > state.runner.credits;
+      });
+      return pick(dead.length ? weakest(dead) : undefined);
+    }
+    // Knickknack O'Brian: trash only a card that has stopped giving value (its loss to the rig well under the credits and card it pays)
+    if (code === '35033' && prompt.source.step === 'trash') {
+      const rig = runnerRigValue(state, true, 'runner');
+      const loss = (c: CardInstance) => {
+        const { programs, hardware, resources } = state.runner.rig;
+        const without = { programs: programs.filter(x => x !== c), hardware: hardware.filter(x => x !== c), resources: resources.filter(x => x !== c) };
+        return rig - runnerRigValue({ ...state, runner: { ...state.runner, rig: without } }, true, 'runner');
+      };
+      const spent = cards.map(c => ({ c, net: loss(c) - 0.5 * ((cardDef(c).cost ?? 0) + cardRate(state, 'runner')) })).filter(x => x.net < 0).sort((a, b) => a.net - b.net);
+      return pick(spent[0]?.c);
+    }
   }
 
   // Perfect Recall: reveal the agenda the Runner is after

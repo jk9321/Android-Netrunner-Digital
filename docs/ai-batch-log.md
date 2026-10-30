@@ -182,3 +182,5 @@ Every self-play batch, newest last (Jeff, 2026-10-28). Made with `scripts/corp-l
 | 2026-10-30 | Vic only vs all Corps: vicTags on + Rotary share | 52e6766 | 66 | **57.6%** | - | - | - | - | [txt](batch-logs/2026-10-30-vic-tags-behaviour-samples.txt) |
 | 2026-10-30 | Vic only vs all Corps: + Rotary takes the tag when an access is worth more | (this commit) | 66 | **56.1%** | - | - | - | - | [txt](batch-logs/2026-10-30-vic-tags-behaviour-samples.txt) |
 | 2026-10-30 | Méliès U coverage deck vs all Runners, local behaviour sample (function check, not balance) | (this commit) | 76 | **38.2%** | - | - | - | - | [txt](batch-logs/2026-10-30-melies-u-coverage-behaviour.txt) |
+| 2026-10-30 | Sourdough only vs all Corps, local behaviour sample: plan.sourdough off (Corp win = 1 - Sourdough) | 4eaa8c9 | 66 | **56.1%** | - | - | - | - | [txt](batch-logs/2026-10-30-sourdough-behaviour-samples.txt) |
+| 2026-10-30 | Sourdough only vs all Corps: plan.sourdough on (DZMZ, Methuselah, Read-Write Share, Knickknack) | (this commit) | 66 | **60.6%** | - | - | - | - | [txt](batch-logs/2026-10-30-sourdough-behaviour-samples.txt) |

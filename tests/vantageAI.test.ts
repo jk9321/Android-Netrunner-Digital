@@ -162,5 +162,26 @@ describe('AI with Vantage Point cards', () => {
     }
     throw new Error('no Rotary prompt');
   });
+
+  it('Methuselah: feeds it only a copy of installed hardware, never a card it still wants (Jeff, Sourdough)', () => {
+    let s = newGame();
+    startRunnerTurn(s);
+    [s] = runnerInstall(s, V.methuselah);
+    s.runner.grip = [];
+    s.runner.credits = 10;
+    giveCard(s, 'runner', '36021');
+    s = executeAction(s, { type: 'INITIATE_RUN', player: 'runner', targetServerId: 'hq' });
+    let a = answerPrompt(s, 'runner');
+    expect(a.type === 'RESOLVE_PROMPT' && a.choice.kind === 'effect_cards' && a.choice.cardInstanceIds).toEqual([]);
+    s = newGame();
+    startRunnerTurn(s);
+    [s] = runnerInstall(s, V.methuselah);
+    s.runner.grip = [];
+    giveCard(s, 'runner', '36021');
+    const copy = giveCard(s, 'runner', V.methuselah);
+    s = executeAction(s, { type: 'INITIATE_RUN', player: 'runner', targetServerId: 'hq' });
+    a = answerPrompt(s, 'runner');
+    expect(a.type === 'RESOLVE_PROMPT' && a.choice.kind === 'effect_cards' && a.choice.cardInstanceIds).toEqual([copy]);
+  });
 });
 
