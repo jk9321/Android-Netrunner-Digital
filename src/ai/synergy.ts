@@ -291,6 +291,8 @@ export const tuning = {
     damageClock: true,
     /** Jeff, 2026-10-28: run-payoff cards (Leech, Conduit, Pennyshaver, Docklands, Red Team, Cacophony) by how open the servers they need are, fading as they lock down (effectValues.ts runSuccess). */
     runOpenness: true,
+    /** Vantage Point (2026-10-30): a memory unit is worth more while the programs in the rig and grip want more than the base 4 MU (Hiram's breaker suite), so consoles get installed. */
+    muNeed: true,
     /** Jeff, 2026-10-28: an installed agenda is its points on the clock if it survives the Runner's turns until scored, less the advancing left (evaluate.ts agendaWorth). */
     agendaBoard: true,
     /** Jeff, 2026-10-28: an installed agenda's steal chance as measured (scripts/steal-odds.ts): the Runner runs a remote it can get into most turns, and raises credits for the ice first (effectValues stealOdds). */

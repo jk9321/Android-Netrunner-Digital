@@ -1,0 +1,10 @@
+Batch: Pace re-measure with VP decks and AI (974c6b6) | ref beta | games 0-5 | PLAN_OFF= | decks  | pace corp | added run 
+1980 games, 27128 Runner turns
+runs a turn: 1.20; success: 79.7%
+  hq: 26.9% of runs, success 76.8%
+  rd: 19.5% of runs, success 79.7%
+  archives: 14.9% of runs, success 99.6%
+  remote: 38.7% of runs, success 74.1%
+advanced agenda in a remote: run that turn 40.3% (6650 turns)
+R&D share of runs with Conduit: 0.0% (0 runs)
+agendas scored or stolen a Runner turn: 0.34; ice rezzed a turn: 0.39

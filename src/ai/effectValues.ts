@@ -22,27 +22,28 @@ import { iceCost } from './runs';
 /**
  * How often things happen, per Runner turn, in self-play. Measured averages,
  * not guesses (Jeff, 2026-10-28): runs, shares, success, agenda events and
- * rezzes from scripts/pace.ts (2,210 games at b72eb3d, 30,630 Runner turns);
+ * rezzes from scripts/pace.ts (re-measured with Vantage Point: 1,980 games over
+ * every deck at 974c6b6, 27,128 Runner turns; before, 2,210 games at b72eb3d);
  * the rest from the behaviour logs. Re-measure after every Corp or Runner AI change.
  */
 export const PACE = {
   /** Runs a turn, and the share of them on HQ, R&D, Archives and a remote. */
-  runs: 1.19,
-  hqShare: 0.28,
-  rdShare: 0.21,
-  archivesShare: 0.13,
-  remoteShare: 0.38,
+  runs: 1.2,
+  hqShare: 0.27,
+  rdShare: 0.2,
+  archivesShare: 0.15,
+  remoteShare: 0.39,
   /** Share of runs on R&D while Conduit is installed (844 runs measured, 2026-10-28). */
   conduitRdShare: 0.19,
   /** Share of runs that succeed. */
-  success: 0.81,
+  success: 0.8,
   /** Turns the Runner steals or trashes a Corp card, and trashes something it pays for. */
   stealOrTrash: 0.35,
   paidTrashes: 0.3,
   /** Agendas scored or stolen a turn, both sides together. */
-  agendaEvents: 0.33,
+  agendaEvents: 0.34,
   /** Ice rezzed a turn. */
-  rezzes: 0.37,
+  rezzes: 0.39,
   /** Turns the Runner installs a program, and has ice in hand (Corp). */
   programInstalls: 0.3,
   iceInHand: 0.6,
@@ -76,6 +77,21 @@ export function conduitCounterWorth(state: GameState): number {
 
 /** A memory unit: room for one more program. */
 export const MU = 1.5;
+
+/** Base memory before any console or chip (rules 1.20.2: 4 MU unless the identity says otherwise). */
+const BASE_MU = 4;
+
+/**
+ * Worth of the memory a card adds (plan.muNeed): MU, and as much again while
+ * the programs installed and in the grip need more than the base 4 MU, so a
+ * console is worth installing when it lets the programs in. Counted against
+ * the base, not the current total, so the worth doesn't drop once installed.
+ */
+export function muWorth(state: GameState): number {
+  if (!tuning.plan.muNeed) return MU;
+  const grip = state.runner.grip.filter(c => cardDef(c).type_code === 'program').reduce((n, c) => n + (cardDef(c).memory_cost ?? 0), 0);
+  return state.runner.memoryUnitsUsed + grip > BASE_MU ? 2 * MU : MU;
+}
 
 /** Worth of `x` each turn for the turns left, less the risk of losing the card each turn. */
 function perTurn(state: GameState, x: number, owner: 'corp' | 'runner', minTurns = 0, maxTurns = Infinity, wait = 1, lock = 1): number {
@@ -418,16 +434,16 @@ export function corpEffect(state: GameState, code: string): CorpEffect | undefin
 export function runnerEffect(state: GameState, code: string, card?: CardInstance): number | undefined {
   switch (code) {
     case '35006': // Bling: +1 MU; a free install now and then lets it host the top card to play
-      return MU + perTurn(state, 0.3, 'runner');
+      return muWorth(state) + perTurn(state, 0.3, 'runner');
     case '30003': // Carnivore: +1 MU; trash an accessed card for 2 cards from the grip (its trash cost and the Corp's loss, about 4)
-      return MU + perTurn(state, 0.25 * Math.max(0, 4 + 2 - 2 * cardRate(state, 'runner')), 'runner');
+      return muWorth(state) + perTurn(state, 0.25 * Math.max(0, 4 + 2 - 2 * cardRate(state, 'runner')), 'runner');
     case '35018': // Detente: +1 MU; parks an HQ card each HQ run, and can trade 2 back for a random access
-      return MU + perTurn(state, PACE.runs * PACE.hqShare * 0.5 * accessWorth(state), 'runner');
+      return muWorth(state) + perTurn(state, PACE.runs * PACE.hqShare * 0.5 * accessWorth(state), 'runner');
     case '30013': // Docklands Pass: one more HQ access the first time each turn, on a successful HQ run
       if (tuning.plan.runOpenness) return perTurn(state, PACE.runs * PACE.hqShare * runSuccess(state, 'hq') * accessWorth(state), 'runner', 0, Infinity, 1, lock());
       return perTurn(state, PACE.runs * PACE.hqShare * accessWorth(state), 'runner');
     case '30022': // DZMZ Optimizer: +1 MU; first program each turn 1 credit cheaper
-      return MU + perTurn(state, PACE.programInstalls, 'runner');
+      return muWorth(state) + perTurn(state, PACE.programInstalls, 'runner');
     case '35027': { // GAMEDRAGON Pro: +1 strength and boosts last the run, about a credit a run with a host
       const hosts = state.runner.rig.programs.some(p => /icebreaker/i.test(cardDef(p).keywords ?? '') && !/\bAI\b/.test(cardDef(p).keywords ?? ''));
       return perTurn(state, PACE.runs * (hosts ? 1 : 0.5), 'runner');
@@ -441,9 +457,9 @@ export function runnerEffect(state: GameState, code: string, card?: CardInstance
       return 0.8 * (rezzed.length ? Math.max(...rezzed) : 3);
     }
     case '30023': // Pantograph: +1 MU; 1 credit and a free install (when there is one to make, about half the time) each time an agenda is scored or stolen
-      return MU + perTurn(state, PACE.agendaEvents * (1 + 0.5 * CLICK), 'runner');
+      return muWorth(state) + perTurn(state, PACE.agendaEvents * (1 + 0.5 * CLICK), 'runner');
     case '30031': // T400 Memory Diamond: +1 MU and one more card in hand (and one more point of life against damage)
-      return MU + cardRate(state, 'runner') * 0.6;
+      return muWorth(state) + cardRate(state, 'runner') * 0.6;
     case '35030': { // Chromatophores: the host ice can be broken by any breaker
       const host = card?.hostedOnId ? Object.values(state.corp.servers).flatMap(s => s.ice).find(i => i.instanceId === card.hostedOnId) : undefined;
       return host?.isRezzed ? 1 + 0.3 * Math.min(8, cardDef(host).cost ?? 0) : 1.5;
@@ -470,8 +486,8 @@ export function runnerEffect(state: GameState, code: string, card?: CardInstance
       if (tuning.plan.runOpenness) return virusWait() * perTurn(state, PACE.runs * centralSuccess(state) * counterWorthOf(state, code, 'virus'), 'runner', 0, Infinity, 1, lock());
       return virusWait() * perTurn(state, PACE.runs * (PACE.hqShare + PACE.rdShare) * PACE.success * counterWorthOf(state, code, 'virus'), 'runner');
     case '30014': // Pennyshaver: +1 MU; a credit on it for each successful run
-      if (tuning.plan.runOpenness) return MU + perTurn(state, PACE.runs * anySuccess(state) * counterWorthOf(state, code, 'credit'), 'runner', 0, Infinity, 1, lock());
-      return MU + perTurn(state, PACE.runs * PACE.success * counterWorthOf(state, code, 'credit'), 'runner');
+      if (tuning.plan.runOpenness) return muWorth(state) + perTurn(state, PACE.runs * anySuccess(state) * counterWorthOf(state, code, 'credit'), 'runner', 0, Infinity, 1, lock());
+      return muWorth(state) + perTurn(state, PACE.runs * PACE.success * counterWorthOf(state, code, 'credit'), 'runner');
     case '30024': {
       if (!tuning.plan.cardFixes) return perTurn(state, PACE.runs * PACE.conduitRdShare * PACE.success * counterWorthOf(state, code, 'virus'), 'runner');
       // Conduit: a counter for each successful R&D run, each one more card on every Conduit run after it; counters gained later have fewer runs left
@@ -516,9 +532,9 @@ export function runnerEffect(state: GameState, code: string, card?: CardInstance
     case '36008': // Stick and Poke: a card drawn for a net damage on the first encounter each turn: a filter at best
       return perTurn(state, 0.1, 'runner');
     case '36013': // Borrowed Goods: +1 MU for a tag when untagged (the flat tag rate: the tag clock prices the rig, which would come back here)
-      return MU - (state.runner.tags > 0 ? 0 : RATES.tagAgainstRunner);
+      return muWorth(state) - (state.runner.tags > 0 ? 0 : RATES.tagAgainstRunner);
     case '36014': // Rotary: +1 MU; a tag for one more access on HQ and R&D breaches, now and then
-      return MU + perTurn(state, PACE.runs * centralSuccess(state) * 0.3 * accessWorth(state), 'runner');
+      return muWorth(state) + perTurn(state, PACE.runs * centralSuccess(state) * 0.3 * accessWorth(state), 'runner');
     case '36015': { // Baker: once a turn, an HQ or R&D breach past Archives' ice instead of theirs, for a stealth credit
       const stealth = deckCount(state, 'runner', c => /stealth/i.test(cardDef(c).keywords ?? '')) > 0;
       // Pricing the ice can price the rig (a subroutine that trashes a card), which comes back here: count each rezzed ice as 2 then
@@ -531,7 +547,7 @@ export function runnerEffect(state: GameState, code: string, card?: CardInstance
       return (2 * cardRate(state, 'runner') * p) / (1 - p);
     }
     case '36020': // Methuselah: +1 MU; a hardware from the grip turns into 2 run credits now and then
-      return MU + perTurn(state, Math.min(1, 3 * deckShare(state, 'runner', null, 'hardware')) * 0.5 * Math.max(0, 2 * counterWorthOf(state, code, 'credit') - cardRate(state, 'runner')), 'runner');
+      return muWorth(state) + perTurn(state, Math.min(1, 3 * deckShare(state, 'runner', null, 'hardware')) * 0.5 * Math.max(0, 2 * counterWorthOf(state, code, 'credit') - cardRate(state, 'runner')), 'runner');
     case '36021': // Touchstone: a run credit the first time each turn it plays an event
       return perTurn(state, Math.min(1, 3 * deckShare(state, 'runner', null, 'event')) * counterWorthOf(state, code, 'credit'), 'runner');
     case '36022': // Read-Write Share: a card in the grip parked for a fresh draw each turn, 4 at most
