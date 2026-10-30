@@ -184,7 +184,7 @@ describe('Elevation Runner identities', () => {
   it('Magdalene cannot install a discarded Botulus the Runner cannot pay for, and says why', () => {
     const [s] = discardBotulus(1, true);
     expect(s.pendingPrompts.some(p => p.side === 'runner')).toBe(false);
-    expect(s.log.some(l => /Botulus cannot be installed \(not enough credits, costs 2\)/.test(l.message))).toBe(true);
+    expect(s.log.some(l => /Botulus cannot be installed \(Not enough credits to install: costs 2, you have/.test(l.message))).toBe(true);
   });
 
   it('Magdalene cannot install a discarded Botulus with no ice to host it, and says why', () => {
@@ -536,6 +536,22 @@ describe('Elevation Runner programs', () => {
     s = executeAction(s, { type: 'BREAK_SUBROUTINE', player: 'runner', breakerInstanceId: unity, subroutineIndices: [0] });
     expect(s.activeRun?.encounter?.broken[0]).toBe(true);
     expect(chroma).toBeTruthy();
+  });
+
+  it('Chromatophores can trash an installed program to free memory while installing on ice (rules 8.5.6c)', () => {
+    let s = newGame();
+    const ice = installIceForTest(s, SG.palisade, 'hq');
+    const old = installProgramForTest(s, SG.unity);
+    const chroma = giveCard(s, 'runner', E.chromatophores);
+    startRunnerTurn(s);
+    s.runner.credits = 10;
+    s.runner.memoryUnitsUsed = 4;
+    const full = { type: 'INSTALL_CARD', player: 'runner', cardInstanceId: chroma, hostInstanceId: ice } as const;
+    expect(isLegalAction(s, full)).toBe(false);
+    expect(isLegalAction(s, { ...full, trashFirst: [old] })).toBe(true);
+    s = executeAction(s, { ...full, trashFirst: [old] });
+    expect(s.runner.rig.programs.map(c => c.instanceId)).toContain(chroma);
+    expect(s.runner.rig.programs.map(c => c.instanceId)).not.toContain(old);
   });
 
   it('Devadatta Drone spends a power counter for an extra R&D access', () => {
