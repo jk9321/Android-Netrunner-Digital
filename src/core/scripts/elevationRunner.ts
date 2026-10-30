@@ -184,8 +184,7 @@ const dewi: CardScript = {
 function magdaleneBlocker(state: GameState, card: CardInstance): string {
   const ice = installedIce(state);
   if (getCardScript(card.cardCode)?.installsOnIce && ice.length === 0) return 'no installed ice to host it';
-  const blocker = runnerInstallBlocker(state, card, getCardScript(card.cardCode)?.installsOnIce ? ice[0].instanceId : undefined) ?? 'not allowed';
-  return blocker.replace(/^Not enough credits to install$/, `not enough credits, costs ${cardDef(card).cost ?? 0}`);
+  return runnerInstallBlocker(state, card, getCardScript(card.cardCode)?.installsOnIce ? ice[0].instanceId : undefined) ?? 'not allowed';
 }
 
 // Magdalene Keino-Chemutai: Whenever you discard cards to reach your maximum hand

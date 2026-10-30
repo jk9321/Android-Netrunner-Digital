@@ -252,12 +252,15 @@ export function runnerInstallBlocker(state: GameState, card: CardInstance, hostI
   }
   const restriction = script?.canInstall?.({ state, card, side: 'runner' });
   if (restriction) return restriction;
-  if (availableCredits(state, 'runner', { kind: 'install', card }) < runnerInstallCost(state, card, discount)) {
-    return 'Not enough credits to install';
+  const cost = runnerInstallCost(state, card, discount);
+  const credits = availableCredits(state, 'runner', { kind: 'install', card });
+  if (credits < cost) {
+    return `Not enough credits to install: costs ${cost}, you have ${credits}`;
   }
   const mem = def.type_code === 'program' ? def.memory_cost || 0 : 0;
-  if (state.runner.memoryUnitsUsed - freedMU + mem > memoryLimit(state)) {
-    return 'Not enough memory units to install this program';
+  const limit = memoryLimit(state);
+  if (state.runner.memoryUnitsUsed - freedMU + mem > limit) {
+    return `Not enough memory: needs ${mem} MU, only ${Math.max(0, limit - (state.runner.memoryUnitsUsed - freedMU))} free (${state.runner.memoryUnitsUsed}/${limit} used)`;
   }
   return null;
 }

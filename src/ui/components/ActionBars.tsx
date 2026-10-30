@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { ArrowRight, Biohazard, Layers, Plus, Tag, Trash2, Zap } from 'lucide-react';
-import { CardInstance, GameAction, GameState, SideCode, cardDef, findCardAnywhere, getCardScript, getLegalActions, isLegalAction, trashableFirst, virusCountersInPlay } from '../../core';
+import { CardInstance, GameAction, GameState, SideCode, cardDef, findCardAnywhere, getCardScript, getLegalActions, installedIce, isLegalAction, trashableFirst, virusCountersInPlay } from '../../core';
 import { showConfirm } from './Dialog';
 import { TrashFirstButton, TrashFirstPicker } from './TrashFirstPicker';
 import { CreditIcon, Credits } from './CreditIcon';
@@ -145,23 +145,32 @@ export function RunnerActions(props: ActionBarProps) {
   const { runner } = state;
   const installable = selectedCard && !isPlayable(selectedCard) ? selectedCard : undefined;
   const onIce = installable && getCardScript(installable.cardCode)?.installsOnIce;
-  // Why the selected grip card can't be installed now (shown on the disabled Install button), or null if it can
+  // A trojan needs a host; any installed ice stands in for it when asking why the install is blocked
+  const iceHosts = onIce ? installedIce(state) : [];
+  // Why the selected grip card can't be installed now (shown beside the disabled Install button), or null if it can
   const installBlocked =
     installable && cardDef(installable).side_code === 'runner'
-      ? illegalReason(state, { type: 'INSTALL_CARD', player: 'runner', cardInstanceId: installable.instanceId })
+      ? onIce && iceHosts.length === 0
+        ? `${cardDef(installable).title} must be installed on a piece of ice and there is none installed`
+        : illegalReason(state, { type: 'INSTALL_CARD', player: 'runner', cardInstanceId: installable.instanceId, hostInstanceId: iceHosts[0]?.instanceId })
       : null;
   // Programs: trash installed programs first (rules 8.5.6c), which the memory limit may require
   const [makingRoom, setMakingRoom] = useState<string | null>(null);
-  const installTrashing = (trashFirst: string[]): GameAction => ({ type: 'INSTALL_CARD', player: 'runner', cardInstanceId: installable!.instanceId, trashFirst });
-  const programs = installable && !onIce ? trashableFirst(state, installable, null) : [];
-  const canMakeRoom = programs.length > 0 && isLegalAction(state, installTrashing(programs.map(c => c.instanceId)));
+  // Trojans: the programs already chosen to trash, while the ice to install on is picked
+  const [pendingTrash, setPendingTrash] = useState<string[] | null>(null);
+  const installTrashing = (trashFirst: string[], hostInstanceId?: string): GameAction => ({ type: 'INSTALL_CARD', player: 'runner', cardInstanceId: installable!.instanceId, trashFirst, hostInstanceId });
+  const programs = installable ? trashableFirst(state, installable, null) : [];
+  const canMakeRoom =
+    programs.length > 0 && (!onIce || iceHosts.length > 0) && isLegalAction(state, installTrashing(programs.map(c => c.instanceId), iceHosts[0]?.instanceId));
   // Cards hosted on hardware (Bling, Madani) that can be played or installed as if in the grip
   const hostedActions = hostedCardActions(state);
   // A card that installs only on ice (Botulus, from the grip or hosted on Bling): the ice the player is choosing between (rules 1.13.6c, 8.5.16b)
   const [pickingHost, setPickingHost] = useState<string | null>(null);
-  const hostChoices = pickingHost
-    ? getLegalActions(state, 'runner').filter(a => a.type === 'INSTALL_CARD' && a.cardInstanceId === pickingHost && a.hostInstanceId)
-    : [];
+  const hostChoices: GameAction[] = !pickingHost
+    ? []
+    : pendingTrash && installable?.instanceId === pickingHost
+      ? iceHosts.map(h => installTrashing(pendingTrash, h.instanceId)).filter(a => isLegalAction(state, a))
+      : getLegalActions(state, 'runner').filter(a => a.type === 'INSTALL_CARD' && a.cardInstanceId === pickingHost && a.hostInstanceId);
   const pickingCard = pickingHost ? findCardAnywhere(state, pickingHost) : undefined;
   if (pickingCard && hostChoices.length > 0) {
     return (
@@ -181,6 +190,7 @@ export function RunnerActions(props: ActionBarProps) {
                 host={host}
                 onClick={() => {
                   setPickingHost(null);
+                  setPendingTrash(null);
                   onAction(a);
                 }}
               />
@@ -188,7 +198,10 @@ export function RunnerActions(props: ActionBarProps) {
           })}
         </div>
         <button
-          onClick={() => setPickingHost(null)}
+          onClick={() => {
+            setPickingHost(null);
+            setPendingTrash(null);
+          }}
           className="px-2 py-1 bg-pink-950 hover:bg-pink-900 border border-pink-700 text-pink-200 text-xs font-bold rounded-lg transition-all self-end shadow"
         >
           Cancel
@@ -203,10 +216,15 @@ export function RunnerActions(props: ActionBarProps) {
           key={installable.instanceId}
           heading={`Install ${cardDef(installable).title}, trashing first:`}
           cards={programs}
-          confirmLabel={trash => `Install${trash.length > 0 ? `, trash ${trash.length}` : ''}`}
-          canConfirm={trash => isLegalAction(state, installTrashing(trash))}
+          confirmLabel={trash => `${onIce ? 'Choose ice' : 'Install'}${trash.length > 0 ? `, trash ${trash.length}` : ''}`}
+          canConfirm={trash => isLegalAction(state, installTrashing(trash, iceHosts[0]?.instanceId))}
           onConfirm={trash => {
             setMakingRoom(null);
+            if (onIce) {
+              setPendingTrash(trash);
+              setPickingHost(installable.instanceId);
+              return;
+            }
             onAction(installTrashing(trash));
           }}
           onCancel={() => setMakingRoom(null)}
@@ -261,6 +279,12 @@ export function RunnerActions(props: ActionBarProps) {
           >
             <Plus className="w-3.5 h-3.5" /> Install Card
           </button>
+        )}
+        {installable && installBlocked !== null && (
+          <span className="w-full text-xs text-amber-300 font-mono" data-testid="install-blocked-reason">
+            Can't install: {installBlocked}
+            {canMakeRoom ? '. You can trash installed programs first to free memory.' : ''}
+          </span>
         )}
         {installable && canMakeRoom && (
           <TrashFirstButton
