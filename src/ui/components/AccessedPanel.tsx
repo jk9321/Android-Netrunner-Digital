@@ -48,7 +48,7 @@ export function AccessedPanel({
           />
         ))}
       </div>
-      {untrashable && <p className="text-[10px] text-slate-500 mt-1.5">Cards without a trash cost (most ice and operations) can't be trashed.</p>}
+      {untrashable && <p className="text-[11px] text-slate-500 mt-1.5">Cards without a trash cost (most ice and operations) can't be trashed.</p>}
     </div>
   );
 }

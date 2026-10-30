@@ -53,6 +53,11 @@ export default {
           terminal: token('terminal'),
         }
       },
+      // One step up from Tailwind's 12px/14px: the thin mono font is hard to read small on 1080p screens
+      fontSize: {
+        xs: ['0.8125rem', { lineHeight: '1.125rem' }],
+        sm: ['0.9375rem', { lineHeight: '1.375rem' }],
+      },
       fontFamily: {
         mono: ['"Share Tech Mono"', '"Courier New"', 'monospace'],
         cyber: ['Orbitron', 'sans-serif'],

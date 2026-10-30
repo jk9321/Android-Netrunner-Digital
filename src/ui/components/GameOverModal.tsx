@@ -46,7 +46,7 @@ export const GameOverModal: React.FC<GameOverModalProps> = ({
       minimized={minimized}
       onMinimizedChange={onMinimizedChange}
       minimizedLabel={`Game over: ${title.toLowerCase()}`}
-      title={<div className="text-[11px] tracking-[0.3em] text-slate-500 font-bold text-center">GAME OVER</div>}
+      title={<div className="text-[12px] tracking-[0.3em] text-slate-500 font-bold text-center">GAME OVER</div>}
     >
       <div className="text-center px-3 pb-3">
         <Trophy className="w-12 h-12 mx-auto mb-3 text-amber-400" />

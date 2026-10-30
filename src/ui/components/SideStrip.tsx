@@ -69,7 +69,7 @@ export function SideStrip({
             </span>
             <button
               onClick={() => onInspect(player.identity)}
-              className={`text-[10px] px-1.5 py-0.5 rounded flex items-center gap-1 transition-colors ${style.viewId}`}
+              className={`text-[11px] px-1.5 py-0.5 rounded flex items-center gap-1 transition-colors ${style.viewId}`}
               title={`Inspect ${side === 'corp' ? 'Corp' : 'Runner'} Identity card`}
             >
               <Eye className="w-2.5 h-2.5" /> View ID
@@ -79,7 +79,7 @@ export function SideStrip({
       </div>
 
       {/* Stats */}
-      <div className="flex items-center gap-1.5 text-[11px] font-mono flex-wrap">
+      <div className="flex items-center gap-1.5 text-[12px] font-mono flex-wrap">
         <div className={`flex items-center gap-1.5 px-2 py-0.5 rounded-lg shadow ${style.stat}`} data-testid={`${side}-credits`}>
           <CreditIcon className="w-3.5 h-3.5 text-amber-400" />
           <span className="font-bold">{player.credits}</span> <Keyword id="credit">Credits</Keyword>

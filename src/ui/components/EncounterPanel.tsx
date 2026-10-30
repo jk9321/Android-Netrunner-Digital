@@ -65,7 +65,7 @@ export const EncounterPanel: React.FC<EncounterPanelProps> = ({ state, onAction,
   };
 
   const btn =
-    'px-2.5 py-1 rounded-lg text-[11px] font-mono font-bold border transition-colors disabled:opacity-40';
+    'px-2.5 py-1 rounded-lg text-[12px] font-mono font-bold border transition-colors disabled:opacity-40';
   const abilityActions = legal.filter(
     (a): a is Extract<GameAction, { type: 'USE_ABILITY' }> => a.type === 'USE_ABILITY',
   );
@@ -113,7 +113,7 @@ export const EncounterPanel: React.FC<EncounterPanelProps> = ({ state, onAction,
     <div className="mt-3 border-t border-pink-900/50 pt-3 space-y-3" data-testid="encounter-panel">
       <div className="text-xs font-mono text-slate-300 flex flex-wrap items-center gap-x-1">
         <Keyword id="encounter">Encountering</Keyword>
-        <IceTypeIcons types={iceSubtypes(ice, state)} side="ice" row className="text-[9px]" />
+        <IceTypeIcons types={iceSubtypes(ice, state)} side="ice" row className="text-[10px]" />
         <span className="text-pink-300 font-bold">{cardDef(ice).title}</span> —{' '}
         <Keyword id="strength">strength</Keyword>{' '}
         <span className="text-cyan-300 font-bold">{iceStrength(state, ice)}</span>
@@ -139,9 +139,9 @@ export const EncounterPanel: React.FC<EncounterPanelProps> = ({ state, onAction,
         <div className="space-y-1.5">
           {breakerRows.map(({ breaker, script, actions, breakSlots, own }) => (
             <div key={breaker.instanceId} className="flex flex-wrap items-center gap-1.5">
-              <span className="text-[11px] font-mono text-slate-400 w-48 flex items-center gap-1.5 min-w-0">
+              <span className="text-[12px] font-mono text-slate-400 w-48 flex items-center gap-1.5 min-w-0">
                 {/* Same icons as on the ice above, so the Runner can check the breaker matches */}
-                <IceTypeIcons types={breakerTypes(breaker)} side="breaker" row className="text-[9px] shrink-0" />
+                <IceTypeIcons types={breakerTypes(breaker)} side="breaker" row className="text-[10px] shrink-0" />
                 <span className="truncate">{cardDef(breaker).title} (str {breakerStrength(state, breaker)})</span>
               </span>
               {own.map((a, k) => abilityButton(a, k, true))}
@@ -191,7 +191,7 @@ export const EncounterPanel: React.FC<EncounterPanelProps> = ({ state, onAction,
                 </>
               ) : (
                 <>
-              {actions.length === 0 && own.length === 0 && <span className="text-[11px] font-mono text-slate-600">no legal use</span>}
+              {actions.length === 0 && own.length === 0 && <span className="text-[12px] font-mono text-slate-600">no legal use</span>}
               {actions.map((a, k) =>
                 a.type === 'BOOST_BREAKER' ? (
                   <button
@@ -223,14 +223,14 @@ export const EncounterPanel: React.FC<EncounterPanelProps> = ({ state, onAction,
 
       {otherAbilities.length > 0 && (
         <div className="flex flex-wrap items-center gap-1.5">
-          <span className="text-[11px] font-mono text-slate-400 w-40">Card abilities</span>
+          <span className="text-[12px] font-mono text-slate-400 w-40">Card abilities</span>
           {otherAbilities.map((a, k) => abilityButton(a, k, false))}
         </div>
       )}
 
       {showBioroid && (
         <div className="flex flex-wrap items-center gap-1.5">
-          <span className="text-[11px] font-mono text-slate-400 w-40">
+          <span className="text-[12px] font-mono text-slate-400 w-40">
             {iceScript(ice)?.runnerBreakCost ? <>Pay <Credits amount={iceScript(ice)!.runnerBreakCost!} /> per subroutine</> : 'Bioroid: spend a click'}
           </span>
           {subs.map((_, i) => {

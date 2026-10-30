@@ -121,7 +121,7 @@ export const RunOverlay: React.FC<RunOverlayProps> = ({
                         <Keyword id="strength">Strength</Keyword>: {iceStrength(state, currentIce)} • {cardDef(currentIce).keywords}
                       </div>
                       <div
-                        className="text-[11px] text-slate-300 mt-1 max-h-28 overflow-y-auto"
+                        className="text-[12px] text-slate-300 mt-1 max-h-28 overflow-y-auto"
                         dangerouslySetInnerHTML={{ __html: cardTextHtml(cardDef(currentIce).text ?? '') }}
                       />
                     </>

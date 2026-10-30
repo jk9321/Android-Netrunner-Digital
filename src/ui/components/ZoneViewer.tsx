@@ -94,7 +94,7 @@ export const ZoneViewer: React.FC<ZoneViewerProps> = ({ title, groups, canPeek, 
         </div>
         {groups.map(group => (
           <section key={group.label} className="mb-4 last:mb-0">
-            <div className="text-[11px] uppercase tracking-wider text-slate-500 mb-2">
+            <div className="text-[12px] uppercase tracking-wider text-slate-500 mb-2">
               {group.label} ({group.cards.length})
             </div>
             {group.note && <p className="text-xs text-slate-400 mb-2">{group.note}</p>}

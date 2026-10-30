@@ -346,7 +346,7 @@ export const DeckPicker: React.FC<DeckPickerProps> = ({ initialCorpDeckId, initi
           <button
             onClick={() => setShowHidden(v => ({ ...v, [side]: !v[side] }))}
             data-testid={`show-hidden-${side}`}
-            className="mb-2 text-[11px] text-slate-400 hover:text-slate-200 flex items-center gap-1"
+            className="mb-2 text-[12px] text-slate-400 hover:text-slate-200 flex items-center gap-1"
           >
             {showHidden[side] ? <EyeOff className="w-3 h-3" /> : <Eye className="w-3 h-3" />}
             {showHidden[side] ? 'Hide hidden decks' : `Show ${hiddenCount} hidden deck${hiddenCount === 1 ? '' : 's'}`}
@@ -384,7 +384,7 @@ export const DeckPicker: React.FC<DeckPickerProps> = ({ initialCorpDeckId, initi
                       <div className="min-w-0 flex-1">
                         <div className="text-sm font-bold text-slate-100 truncate">{s.deck.name}</div>
                         {s.deck.name !== s.deck.identity && (
-                          <div className="text-[11px] text-slate-400 truncate">{s.deck.identity}</div>
+                          <div className="text-[12px] text-slate-400 truncate">{s.deck.identity}</div>
                         )}
                       </div>
                       <div className="flex shrink-0">
@@ -408,7 +408,7 @@ export const DeckPicker: React.FC<DeckPickerProps> = ({ initialCorpDeckId, initi
                               iconButton('Hide deck (restore it with Show hidden)', <EyeOff className="w-3.5 h-3.5" />, () => hideDeck(s.deck), `hide-${s.deck.id}`))}
                       </div>
                     </div>
-                    <div className="text-[11px] text-slate-400 font-mono mt-0.5">
+                    <div className="text-[12px] text-slate-400 font-mono mt-0.5">
                       {s.size} cards
                       {side === 'corp' && <> · {s.agendaPoints} agenda points</>}
                       {s.influenceLimit !== null && (
@@ -417,17 +417,17 @@ export const DeckPicker: React.FC<DeckPickerProps> = ({ initialCorpDeckId, initi
                     </div>
                     <div className="flex items-center gap-2 mt-1">
                       <span
-                        className="text-[10px] uppercase tracking-wider font-bold px-1.5 py-0.5 rounded bg-slate-800 text-slate-300"
+                        className="text-[11px] uppercase tracking-wider font-bold px-1.5 py-0.5 rounded bg-slate-800 text-slate-300"
                         title={s.deck.credit}
                       >
                         {s.deck.source === 'official starter' ? 'Official starter' : s.deck.source === 'official sample' ? 'Official sample' : s.deck.source === 'netrunnerdb' ? 'NetrunnerDB' : 'Custom'}
                       </span>
                       {isHidden && (
-                        <span className="text-[10px] uppercase tracking-wider font-bold px-1.5 py-0.5 rounded bg-slate-800 text-slate-400">Hidden</span>
+                        <span className="text-[11px] uppercase tracking-wider font-bold px-1.5 py-0.5 rounded bg-slate-800 text-slate-400">Hidden</span>
                       )}
                       {s.deck.format && s.deck.format !== 'casual' && (
                         <span
-                          className="text-[10px] uppercase tracking-wider font-bold px-1.5 py-0.5 rounded bg-slate-800 text-sky-300"
+                          className="text-[11px] uppercase tracking-wider font-bold px-1.5 py-0.5 rounded bg-slate-800 text-sky-300"
                           title={getFormat(s.deck.format).banList?.name}
                           data-testid={`format-${s.deck.id}`}
                         >
@@ -435,17 +435,17 @@ export const DeckPicker: React.FC<DeckPickerProps> = ({ initialCorpDeckId, initi
                         </span>
                       )}
                       {s.problems.length === 0 ? (
-                        <span className="text-[11px] text-emerald-400 flex items-center gap-1">
+                        <span className="text-[12px] text-emerald-400 flex items-center gap-1">
                           <CheckCircle2 className="w-3 h-3" /> Legal
                         </span>
                       ) : (
-                        <span className="text-[11px] text-amber-400 flex items-center gap-1" title={s.problems.join('\n')}>
+                        <span className="text-[12px] text-amber-400 flex items-center gap-1" title={s.problems.join('\n')}>
                           <AlertTriangle className="w-3 h-3" /> {s.problems.length} problem(s)
                         </span>
                       )}
                       {s.deck.missing && (
                         <span
-                          className="text-[11px] text-amber-400 flex items-center gap-1"
+                          className="text-[12px] text-amber-400 flex items-center gap-1"
                           title={`Not fully playable: the import left out cards this game doesn't have:\n${s.deck.missing.map(m => `${m.count}x ${m.title}${m.set ? ` (${m.set})` : ''}`).join('\n')}`}
                           data-testid={`incomplete-${s.deck.id}`}
                         >
@@ -454,7 +454,7 @@ export const DeckPicker: React.FC<DeckPickerProps> = ({ initialCorpDeckId, initi
                       )}
                     </div>
                     {s.deck.credit && (
-                      <div className="text-[10px] text-slate-500 mt-1 line-clamp-2" title={s.deck.credit} data-testid={`credit-${s.deck.id}`}>
+                      <div className="text-[11px] text-slate-500 mt-1 line-clamp-2" title={s.deck.credit} data-testid={`credit-${s.deck.id}`}>
                         {s.deck.credit}
                       </div>
                     )}
@@ -480,7 +480,7 @@ export const DeckPicker: React.FC<DeckPickerProps> = ({ initialCorpDeckId, initi
       )}
       <div className="w-full max-w-5xl mb-6 flex flex-wrap items-start justify-center gap-x-8 gap-y-4" data-testid="game-settings">
         <div className="flex flex-col items-center gap-2">
-          <span className="text-[11px] uppercase tracking-wider text-slate-500 font-bold">Opponent</span>
+          <span className="text-[12px] uppercase tracking-wider text-slate-500 font-bold">Opponent</span>
           <div className="flex flex-wrap justify-center gap-2" role="radiogroup" aria-label="Opponent">
             {OPPONENTS.map(o => (
               <button
@@ -498,11 +498,11 @@ export const DeckPicker: React.FC<DeckPickerProps> = ({ initialCorpDeckId, initi
               </button>
             ))}
           </div>
-          <span className="text-[11px] text-slate-500">{OPPONENTS.find(o => o.id === opponent)!.hint}</span>
+          <span className="text-[12px] text-slate-500">{OPPONENTS.find(o => o.id === opponent)!.hint}</span>
         </div>
         {opponent !== 'people' && (
           <div className="flex flex-col items-center gap-2">
-            <span className="text-[11px] uppercase tracking-wider text-slate-500 font-bold">Difficulty</span>
+            <span className="text-[12px] uppercase tracking-wider text-slate-500 font-bold">Difficulty</span>
             <div className="flex flex-wrap justify-center gap-2" role="radiogroup" aria-label="Difficulty">
               {DIFFICULTIES.map(d => (
                 <button
@@ -524,7 +524,7 @@ export const DeckPicker: React.FC<DeckPickerProps> = ({ initialCorpDeckId, initi
                 </button>
               ))}
             </div>
-            <span className="text-[11px] text-slate-500 text-center max-w-xs">{DIFFICULTIES.find(d => d.id === difficulty)!.hint}</span>
+            <span className="text-[12px] text-slate-500 text-center max-w-xs">{DIFFICULTIES.find(d => d.id === difficulty)!.hint}</span>
           </div>
         )}
         <div className="flex flex-col items-center gap-2 self-center">
@@ -548,7 +548,7 @@ export const DeckPicker: React.FC<DeckPickerProps> = ({ initialCorpDeckId, initi
         {column('corp', corpId, setCorpId)}
         {column('runner', runnerId, setRunnerId)}
       </div>
-      <p className="mt-8 max-w-3xl text-center text-[10px] text-slate-500">
+      <p className="mt-8 max-w-3xl text-center text-[11px] text-slate-500">
         Game symbols by Null Signal Games,{' '}
         <a
           href="https://creativecommons.org/licenses/by-nd/4.0/"

@@ -52,7 +52,7 @@ export function GameHeader({
             <PhaseTracker state={state} />
           </div>
           <span
-            className="text-[10px] text-slate-500 font-mono whitespace-nowrap hidden 2xl:inline"
+            className="text-[11px] text-slate-500 font-mono whitespace-nowrap hidden 2xl:inline"
             title={`Open the app with ?seed=${state.rng.seed}&corp=${config.corpDeck.id}&runner=${config.runnerDeck.id}${aiSide ? `&ai=${aiSide}&difficulty=${config.difficulty}` : ''} to replay this deal`}
           >
             SEED {state.rng.seed}
@@ -60,7 +60,7 @@ export function GameHeader({
           {aiSide && (
             <span
               data-testid="ai-status"
-              className={`text-[10px] px-2 py-0.5 rounded border font-bold ${
+              className={`text-[11px] px-2 py-0.5 rounded border font-bold ${
                 aiThinking ? 'border-amber-500 text-amber-300 animate-pulse' : 'border-slate-700 text-slate-500'
               }`}
               title={`The computer plays the ${aiSide === 'corp' ? 'Corp' : 'Runner'}`}
@@ -91,7 +91,7 @@ export function GameHeader({
       {/* Card Size & Game Controls */}
       <div className="flex items-center gap-2">
         <div className="flex items-center bg-slate-900 border border-slate-800 rounded-lg p-0.5 text-xs" data-testid="card-size">
-          <span className="px-2 text-[10px] text-slate-500 font-bold uppercase hidden 2xl:inline-flex items-center gap-1">
+          <span className="px-2 text-[11px] text-slate-500 font-bold uppercase hidden 2xl:inline-flex items-center gap-1">
             <ZoomIn className="w-3 h-3" /> Size:
           </span>
           {SIZES.map(({ size, label, active }) => (
