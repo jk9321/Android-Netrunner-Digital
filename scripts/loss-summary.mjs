@@ -1,7 +1,20 @@
 // Prints the Corp loss breakdown for game records from lossLog.ts.
 
 /** Prints how the games ended and where the Runner's points came from. */
-export function printLossSummary(games, detail = !!process.env.DETAIL) {
+export function printLossSummary(all, detail = !!process.env.DETAIL) {
+  // Crashed games and value loops (valueModel.ts guardLoop) are listed first, to be fixed
+  const crashed = all.filter(g => g.crashed);
+  const games = all.filter(g => !g.crashed);
+  if (crashed.length) {
+    console.log(`CRASHED GAMES: ${crashed.length}`);
+    for (const g of crashed.slice(0, 10)) console.log(`  deal ${g.seed} ${g.corpDeck} vs ${g.runnerDeck}: ${g.crashed}`);
+  }
+  const loops = new Map();
+  for (const g of games) for (const [chain, n] of Object.entries(g.loops ?? {})) loops.set(chain.replace(/ inst-\d+| @\d+/g, ''), (loops.get(chain.replace(/ inst-\d+| @\d+/g, '')) ?? 0) + n);
+  if (loops.size) {
+    console.log(`VALUE LOOPS (games played on with flat values): ${games.filter(g => g.loops).length} games`);
+    for (const [chain, n] of [...loops].sort((a, b) => b[1] - a[1]).slice(0, 10)) console.log(`  ${chain}: ${n}`);
+  }
   const pct = (x, n) => `${((100 * x) / Math.max(n, 1)).toFixed(1)}%`;
   const count = (list, key) => list.reduce((m, x) => m.set(key(x), (m.get(key(x)) ?? 0) + 1), new Map());
   const sum = (list, f) => list.reduce((a, x) => a + f(x), 0);

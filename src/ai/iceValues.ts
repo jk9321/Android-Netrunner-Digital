@@ -1,7 +1,7 @@
 import { CardInstance, GameState, ServerState, SideCode, cardDef } from '../core';
 import { rezCost } from '../core/engine/cardEffects';
 import { iceCost } from './runs';
-import { RATES } from './valueModel';
+import { RATES, guardLoop } from './valueModel';
 import { turnsLeft } from './cardProfiles';
 
 /**
@@ -18,6 +18,10 @@ export const ICE_STOP = 8;
 
 /** Worth of one installed piece of ice, as `viewer` can judge it. */
 export function iceWorth(state: GameState, ice: CardInstance, viewer: SideCode): number {
+  return guardLoop(state, `ice ${cardDef(ice).title} ${ice.instanceId}`, () => flatIceWorth(ice), () => iceWorthOf(state, ice, viewer));
+}
+
+function iceWorthOf(state: GameState, ice: CardInstance, viewer: SideCode): number {
   if (ice.isRezzed) return RATES.ice + Math.min(ICE_STOP, iceCost(state, ice));
   // The Runner doesn't know what it is: iceCost's guess for unrezzed ice
   if (viewer === 'runner') return RATES.ice + iceCost(state, ice);

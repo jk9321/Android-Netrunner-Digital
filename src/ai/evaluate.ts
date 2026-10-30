@@ -10,7 +10,7 @@ import { boardPlansWorth } from './cardPlans';
 import { AI_BREAKER_SHARE, breakerTypeWorth, flatIceWorth, iceWorth } from './iceValues';
 import { payoutWait, payoutWorth, profileOf, turnsLeft } from './cardProfiles';
 import { HAND_FLOOR, clickPrice, handByCard, heldWorth, ownHandValue, playedWorth } from './handValues';
-import { CLICK, RATES, cardRate, creditValue, flatRate, flatlineWorth, handFilter, memo, pointValue, sideCreditValue } from './valueModel';
+import { CLICK, RATES, cardRate, creditValue, flatRate, flatlineWorth, guardLoop, handFilter, memo, pointValue, sideCreditValue } from './valueModel';
 import { PACE, STEAL, coreSlotWorth, flatlineOdds, runSuccess, stealOdds } from './effectValues';
 import { trashedCardCost } from './runs';
 
@@ -155,6 +155,10 @@ export function runnerRigValue(state: GameState, aware: boolean, viewer: SideCod
 
 /** Worth of an installed Corp root card (assets and upgrades). */
 export function corpCardValue(card: CardInstance, state?: GameState, viewer: SideCode = 'corp'): number {
+  return guardLoop(state, `corp card ${cardDef(card).title} ${card.instanceId}`, () => corpKeepValue(card.cardCode), () => corpCardWorth(card, state, viewer));
+}
+
+function corpCardWorth(card: CardInstance, state: GameState | undefined, viewer: SideCode): number {
   const hosted = counters(card, 'credit');
   const power = state && card.isRezzed ? countersWorth(state, card, 'power', viewer) : 0;
   const profile = state ? profileOf(card.cardCode) : undefined;
@@ -296,6 +300,12 @@ export function tagThreat(state: GameState, viewer: SideCode): number {
  */
 export function tagsWorth(state: GameState, viewer: SideCode, tags = state.runner.tags): number {
   if (tags <= 0) return 0;
+  // Inside the tag clock's own pricing of the rig, a tag is the flat rate (a resource's worth can depend on tags)
+  if (pricingTagLoss) return tags * RATES.tagAgainstRunner;
+  return guardLoop(state, `tags ${viewer}`, () => tags * RATES.tagAgainstRunner, () => tagClock(state, viewer, tags));
+}
+
+function tagClock(state: GameState, viewer: SideCode, tags: number): number {
   const perTurn = memo(state, 'tagLoss:' + viewer, () => tagLossPerTurn(state, viewer));
   const clear = CLICK + 2;
   // Kept, a tag costs this turn's loss and maybe the next; the Runner clears the ones that cost more than clearing
@@ -328,6 +338,18 @@ function vicTagsWorth(state: GameState, tags: number, perTurn: number): number {
 
 /** What a tagged Runner stands to lose each Corp turn, as `viewer` sees it. */
 function tagLossPerTurn(state: GameState, viewer: SideCode): number {
+  const was = pricingTagLoss;
+  pricingTagLoss = true;
+  try {
+    return tagLoss({ ...state }, viewer);
+  } finally {
+    pricingTagLoss = was;
+  }
+}
+/** The tag clock is pricing the rig: tags are the flat rate in there (a copy of the position, so it is not a value loop). */
+let pricingTagLoss = false;
+
+function tagLoss(state: GameState, viewer: SideCode): number {
   const corp = state.corp;
   // The best resource the Corp would trash, net of what trashing costs it
   const rig = runnerRigValue(state, true, viewer);

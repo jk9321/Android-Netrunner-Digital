@@ -246,3 +246,41 @@ export function sideCreditValue(state: GameState, side: SideCode, viewer: SideCo
   const credits = side === 'corp' ? state.corp.credits : state.runner.credits;
   return tuning.plan.creditSlide?.[viewer] ? creditSlide(credits, creditNeed(state, side)) : creditValue(credits);
 }
+
+/*
+ * Value loops (Jeff, 2026-10-30): a card's worth can depend on another's,
+ * which can depend on the first (ice with a tag subroutine prices tags, tags
+ * price the rig, the rig prices that ice again). Each main lookup runs
+ * through guardLoop: a lookup already in progress further up returns its
+ * flat value instead of looping. Tests fail on a loop (so the valuation gets
+ * fixed); batches count them (valueLoops, printed with the results); play
+ * just carries on.
+ */
+const pricing: string[] = [];
+/** Loops met since the last reset, by chain ("a > b > a"). */
+export const valueLoops = new Map<string, number>();
+const loopsFail = (): boolean => typeof process !== 'undefined' && !!process.env?.VITEST && !process.env?.VALUE_LOOPS_OK;
+
+const stateIds = new WeakMap<GameState, number>();
+let nextStateId = 0;
+
+/** `key` names the lookup; the same lookup on another position (a rig with a card taken out) is not a loop. */
+export function guardLoop<T>(state: GameState | undefined, key: string, flat: () => T, work: () => T): T {
+  if (!state) return work();
+  let id = stateIds.get(state);
+  if (id === undefined) stateIds.set(state, (id = nextStateId++));
+  key = `${key} @${id}`;
+  const at = pricing.indexOf(key);
+  if (at >= 0) {
+    const chain = [...pricing.slice(at), key].join(' > ');
+    valueLoops.set(chain, (valueLoops.get(chain) ?? 0) + 1);
+    if (loopsFail()) throw new Error(`Value loop: ${chain}`);
+    return flat();
+  }
+  pricing.push(key);
+  try {
+    return work();
+  } finally {
+    pricing.pop();
+  }
+}
