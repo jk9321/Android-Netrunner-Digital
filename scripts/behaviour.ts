@@ -4,7 +4,7 @@
  * or leaves in hand. Copied into scripts/ of a tree and run with vite-node.
  *   SHARD=i/n npx vite-node scripts/behaviour.ts -- [games per pairing] [normal|hard]
  * DECKS=vp- plays only decks whose id starts with that prefix (comma-separated prefixes).
- * RUNNERS=vp-vic narrows only the Runner side to those prefixes.
+ * RUNNERS=vp-vic / CORPS=cov-vp-corp narrow only that side to those prefixes.
  * COVERAGE=1 adds the test-only decks of scripts/vp-coverage-decks.ts (ids cov-...).
  */
 import { activePrompt, createInitialGameState, findCardAnywhere, GameState, cardDef } from '../src/core';
@@ -80,10 +80,13 @@ function timed(a: Agent, side: Side): Agent {
 let seed = 1000, deal = 0;
 const prefixes = (process.env.DECKS ?? '').split(',').filter(Boolean);
 const pool = [...DECKS, ...(process.env.COVERAGE ? VP_COVERAGE_DECKS : [])].filter(d => prefixes.length === 0 || prefixes.some(p => d.id.startsWith(p)));
-// RUNNERS=vp-vic narrows the Runner side only (one Runner deck against every Corp deck)
-const runners = (process.env.RUNNERS ?? '').split(',').filter(Boolean);
-const runnerPool = pool.filter(d => d.side === 'runner' && (runners.length === 0 || runners.some(p => d.id.startsWith(p))));
-for (const c of pool.filter(d => d.side === 'corp')) for (const r of runnerPool) for (let g = 0; g < games; g++) {
+// RUNNERS=vp-vic / CORPS=cov-vp-corp narrow one side only (one deck against every deck of the other side)
+const sidePool = (side: Side, env?: string) => {
+  const only = (env ?? '').split(',').filter(Boolean);
+  return pool.filter(d => d.side === side && (only.length === 0 || only.some(p => d.id.startsWith(p))));
+};
+const runnerPool = sidePool('runner', process.env.RUNNERS);
+for (const c of sidePool('corp', process.env.CORPS)) for (const r of runnerPool) for (let g = 0; g < games; g++) {
   seed++;
   if (deal++ % shards !== shard) continue;
   const agent = (side: Side) => timed(createAgent(side, level, level === 'hard' ? { samples: 6, candidates: 3, seed } : {}), side);
