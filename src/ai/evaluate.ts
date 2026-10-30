@@ -141,8 +141,10 @@ export function runnerRigValue(state: GameState, aware: boolean, viewer: SideCod
     value += isIcebreaker(card) ? (flatRate('breakers') && tuning.plan.breakerCredits?.[viewer] ? 0 : RATES.icebreaker) : RATES.rigCardScale * runnerCardValue(card.cardCode, state, card);
     // Counters by what they do on this card (step 3), or the step-1 rates
     value += countersWorth(state, card, 'credit', viewer) + countersWorth(state, card, 'virus', viewer) + countersWorth(state, card, 'power', viewer);
-    // Bling, Madani: cards to play later, worth what they would be in the grip (plan.flatRates.hosted)
-    value += (card.hostedCards ?? []).reduce((n, h) => n + (flatRate('hosted') ? heldWorth(state, h, 'runner') : RATES.hostedCard), 0);
+    // Bling, Madani: cards to play later, worth what they would be in the grip (plan.flatRates.hosted).
+    // Corp cards hosted on Detente are not the Runner's to play: Detente's own value covers them
+    const hosted = (card.hostedCards ?? []).filter(h => cardDef(h).side_code === 'runner');
+    value += hosted.reduce((n, h) => n + (flatRate('hosted') ? heldWorth(state, h, 'runner') : RATES.hostedCard), 0);
   }
   return value;
 }
