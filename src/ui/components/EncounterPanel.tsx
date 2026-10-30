@@ -137,12 +137,15 @@ export const EncounterPanel: React.FC<EncounterPanelProps> = ({ state, onAction,
       {breakerRows.length > 0 && (
         <div className="space-y-1.5">
           {breakerRows.map(({ breaker, script, actions, breakSlots, own }) => (
-            <div key={breaker.instanceId} className="flex flex-wrap items-center gap-1.5">
-              <span className="text-[12px] font-mono text-slate-400 w-48 flex items-center gap-1.5 min-w-0">
+            // Buttons wrap within their own column, so a wrapped button (Break 3) stays lined up
+            // with the others instead of dropping under the breaker's name
+            <div key={breaker.instanceId} className="flex items-start gap-1.5">
+              <span className="text-[12px] font-mono text-slate-400 w-40 shrink-0 min-h-[28px] flex items-center gap-1.5 min-w-0">
                 {/* Same icons as on the ice above, so the Runner can check the breaker matches */}
                 <IceTypeIcons types={breakerTypes(breaker)} side="breaker" row className="text-[10px] shrink-0" />
                 <span className="truncate">{cardDef(breaker).title} (str {breakerStrength(state, breaker)})</span>
               </span>
+              <div className="flex flex-1 flex-wrap items-center gap-1.5 min-w-0">
               {own.map((a, k) => abilityButton(a, k, true))}
               {breakSlots ? (
                 <>
@@ -215,6 +218,7 @@ export const EncounterPanel: React.FC<EncounterPanelProps> = ({ state, onAction,
               )}
                 </>
               )}
+              </div>
             </div>
           ))}
         </div>
