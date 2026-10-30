@@ -2,8 +2,10 @@ import { CardInstance } from '../types/card';
 import { GameState } from '../types/state';
 import { cardDef } from '../cards';
 import { shuffleInPlace } from '../rng';
+import { shuffleRD } from '../engine/rdKnowledge';
 import { addLog } from '../engine/log';
 import { checkAgendaVictory, findInstalledCorpCard, removeCard, revealInHand, turnKey } from '../engine/helpers';
+import { noteRdPrivate, runnerSeesRd } from '../engine/rdKnowledge';
 import { completeRez, rezForFree } from '../engine/actions/corp';
 import { installCorpCardFrom } from '../engine/actions/install';
 import { dealMeatDamage, dealNetDamage, giveTags, installedRunnerCards, trashInstalledRunnerCard, uninstallRunnerCard } from '../engine/damage';
@@ -98,6 +100,8 @@ function arrangeTop(ctx: EffectContext, cardIds: string[], step: string, placed:
     const cards = order.flatMap(id => state.corp.rd.find(c => c.instanceId === id) ?? []);
     for (const card of cards) removeCard(state.corp.rd, card);
     state.corp.rd.unshift(...cards);
+    // Arranged in secret: the Runner only knows the cards are among these (rules 8.3.3)
+    noteRdPrivate(state, cards.length);
     if (cards.length > 1) addLog(state, 'corp', `Corp arranged the top ${cards.length} cards of R&D.`);
     return;
   }
@@ -190,7 +194,7 @@ const editorial: CardScript = {
     if (answer.kind !== 'effect_cards') return;
     const card = answer.cardInstanceIds.length > 0 ? takeFromRD(state, answer.cardInstanceIds[0]) : undefined;
     if (!card) {
-      shuffleInPlace(state.rng, state.corp.rd);
+      shuffleRD(state);
       return;
     }
     state.corp.hq.push(card);
@@ -312,7 +316,7 @@ const letThemDream: CardScript = {
     if (source.step === 'zone' && answer.kind === 'effect_choice' && answer.optionId !== 'no') {
       const agendas = ltdZone(state, answer.optionId).filter(c => type(c) === 'agenda');
       if (agendas.length === 0) {
-        if (answer.optionId === 'rd') shuffleInPlace(state.rng, state.corp.rd);
+        if (answer.optionId === 'rd') shuffleRD(state);
         return;
       }
       askCards(ctx, 'corp', 'Let Them Dream: choose 1 agenda.', ids(agendas), 1, 1, 'agenda', { zone: answer.optionId });
@@ -320,7 +324,7 @@ const letThemDream: CardScript = {
       const card = ltdZone(state, String(source.data?.zone)).find(c => c.instanceId === answer.cardInstanceIds[0]);
       if (!card) return;
       takeFromCorpZone(state, card);
-      if (source.data?.zone === 'rd') shuffleInPlace(state.rng, state.corp.rd);
+      if (source.data?.zone === 'rd') shuffleRD(state);
       addLog(state, 'corp', `Corp revealed ${title(card)} (Let Them Dream).`);
       state.corp.hq.push(card);
       askChoice(ctx, 'corp', `Let Them Dream: add ${title(card)} to HQ or the bottom of R&D?`, [
@@ -333,6 +337,7 @@ const letThemDream: CardScript = {
       if (answer.optionId === 'bottom') {
         removeCard(state.corp.hq, card);
         state.corp.rd.push(card);
+        runnerSeesRd(state, card); // revealed, then put on the bottom
       } else {
         revealInHand(state, 'corp', [card]);
       }
@@ -525,7 +530,7 @@ const sleipnir: CardScript = {
       const visible = state.corp.archives.faceUp.includes(card);
       takeFromCorpZone(state, card);
       state.corp.rd.push(card);
-      shuffleInPlace(state.rng, state.corp.rd);
+      shuffleRD(state);
       addLog(state, 'corp', `Corp shuffled ${visible ? title(card) : 'a card'} into R&D (Sleipnir).`);
     }
   },
@@ -887,7 +892,7 @@ const tocsin: CardScript = {
     if (source.step === 'barrier') {
       askCards(ctx, 'corp', 'Tocsin: search R&D for up to 1 sentry.', ids(iceOfType(state, 'sentry')), 0, 1, 'sentry');
     } else {
-      shuffleInPlace(state.rng, state.corp.rd);
+      shuffleRD(state);
     }
   },
 };
@@ -967,6 +972,7 @@ const cultivate: CardScript = {
       if (card) {
         removeCard(state.corp.rd, card);
         state.corp.archives.faceDown.push(card);
+        noteRdPrivate(state, set.length); // which of them is not declared (rules 8.3.3b)
       }
       const rest = set.filter(id => id !== answer.cardInstanceIds[0] && state.corp.rd.some(c => c.instanceId === id));
       if (rest.length === 0) return;
@@ -976,6 +982,7 @@ const cultivate: CardScript = {
       if (card) {
         removeCard(state.corp.rd, card);
         state.corp.hq.push(card);
+        noteRdPrivate(state, set.length);
       }
       addLog(state, 'corp', 'Corp trashed 1 card and added 1 card to HQ (Cultivate).');
       arrangeTop(ctx, set.filter(id => id !== answer.cardInstanceIds[0]), 'arrange');

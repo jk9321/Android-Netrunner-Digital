@@ -4,6 +4,7 @@ import { GameState } from '../../types/state';
 import { SideCode } from '../../types/card';
 import { cardDef } from '../../cards';
 import { shuffleInPlace } from '../../rng';
+import { shuffleRD } from '../rdKnowledge';
 import { addLog } from '../log';
 import { findCardAnywhere, illegal, locateCorpCard, removeCard } from '../helpers';
 import { getCardScript } from '../../scripts';
@@ -157,7 +158,7 @@ function runScriptAnswer(
 function mulligan(state: GameState, side: SideCode): void {
   if (side === 'corp') {
     state.corp.rd.push(...state.corp.hq.splice(0));
-    shuffleInPlace(state.rng, state.corp.rd);
+    shuffleRD(state);
     state.corp.hq = state.corp.rd.splice(0, 5);
   } else {
     state.runner.stack.push(...state.runner.grip.splice(0));

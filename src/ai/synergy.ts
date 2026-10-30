@@ -314,6 +314,8 @@ export const tuning = {
     tagClock: true,
     /** Jeff, 2026-10-30: tags on Vic cost what her once-a-turn ability takes to clear them: the first cheap, the second after a Corp turn, the rest as usual (evaluate.ts vicTagsWorth); Rotary counts on its tag most breaches. */
     vicTags: true,
+    /** Jeff, 2026-10-30: R&D runs priced card by card from what the Runner remembers of R&D (rdKnowledge.ts): a known agenda on top is a sure steal, known other cards are worth nothing, and the rest are unseen. Replaces the flat discount for a second R&D run in a turn. */
+    rdMemory: true,
     /** Per deciding side (Jeff, 2026-10-28): Normal plays its best few actions through to the end of the turn and picks the best turn (turnPlanner.ts). */
     turnPlanner: { corp: true, runner: true } as Record<SideCode, boolean>,
     /** With the planner: the hand at the end of a planned turn valued card by card (what each will do later). */

@@ -2,7 +2,7 @@ import React from 'react';
 import { createPortal } from 'react-dom';
 import { CardInstance, SideCode } from '../../core/types/card';
 import { GameState } from '../../core/types/state';
-import { knownInHand } from '../../core';
+import { RdKnownCard, knownInHand, knownInRd } from '../../core';
 import { CardView } from './CardView';
 import { X } from 'lucide-react';
 
@@ -13,6 +13,8 @@ export interface ZoneGroup {
   faceDown?: boolean;
   /** A line under the group label. */
   note?: string;
+  /** A line under each card, matching `cards` by index. */
+  captions?: string[];
 }
 
 export type ZoneId = 'archives' | 'heap' | 'rd' | 'stack' | 'corp-score' | 'runner-score' | 'removed' | 'known-hq' | 'known-grip';
@@ -33,6 +35,36 @@ const knownCards = (state: GameState, owner: SideCode): CardInstance[] =>
     hostedCardIds: [],
   }));
 
+const ordinal = (n: number) => `${n}${n % 10 === 1 && n !== 11 ? 'st' : n % 10 === 2 && n !== 12 ? 'nd' : n % 10 === 3 && n !== 13 ? 'rd' : 'th'}`;
+
+/** Where in R&D the Runner thinks a seen card is, e.g. "Top card", "Somewhere in the top 3 · may have been drawn". */
+export function rdCaption(e: RdKnownCard, deckSize: number): string {
+  const place =
+    e.lo === e.hi
+      ? e.lo === 0
+        ? 'Top card'
+        : e.lo === deckSize - 1
+          ? 'Bottom card'
+          : `${ordinal(e.lo + 1)} from the top`
+      : e.lo === 0
+        ? `Somewhere in the top ${e.hi + 1}`
+        : `${ordinal(e.lo + 1)} to ${ordinal(e.hi + 1)} from the top`;
+  return e.left === 'hq' ? `${place}, or drawn` : e.left === 'other' ? `${place}, or gone from R&D` : place;
+}
+
+const RD_NOTE = 'Cards the Runner accessed or looked at in R&D, until they are drawn, moved or R&D is shuffled. Cards the Corp rearranged in secret could be anywhere among them.';
+
+/** The cards the Runner remembers in R&D, by name only, with where each one is. */
+function rdSeenGroup(state: GameState): ZoneGroup {
+  const known = knownInRd(state);
+  return {
+    label: 'Seen by the Runner',
+    note: RD_NOTE,
+    cards: known.map((k, i) => ({ instanceId: `known-rd-${i}`, cardCode: k.code, isRezzed: false, advancementCounters: 0, tokens: {}, hostedCardIds: [] })),
+    captions: known.map(k => rdCaption(k, state.corp.rd.length)),
+  };
+}
+
 /** The title and card groups shown when browsing a zone. */
 export function zoneContents(zone: ZoneId, state: GameState): { title: string; groups: ZoneGroup[] } {
   switch (zone) {
@@ -46,7 +78,11 @@ export function zoneContents(zone: ZoneId, state: GameState): { title: string; g
       };
     // Decks list the top card first (index 0 is the top)
     case 'rd':
-      return { title: 'R&D', groups: [{ label: 'Top to bottom', cards: state.corp.rd, faceDown: true }] };
+      // During play only what the Runner remembers; once the game is over, the whole deck (rules 1.7.1)
+      return {
+        title: 'R&D',
+        groups: state.winner ? [{ label: 'Top to bottom', cards: state.corp.rd, faceDown: true }, rdSeenGroup(state)] : [rdSeenGroup(state)],
+      };
     case 'stack':
       return { title: 'STACK', groups: [{ label: 'Top to bottom', cards: state.runner.stack, faceDown: true }] };
     case 'heap':
@@ -102,17 +138,19 @@ export const ZoneViewer: React.FC<ZoneViewerProps> = ({ title, groups, canPeek, 
               <p className="text-xs text-slate-600 italic">Empty</p>
             ) : (
               <div className="flex flex-wrap gap-3">
-                {group.cards.map(card => (
-                  <CardView
-                    key={card.instanceId}
-                    card={card}
-                    size="sm"
-                    notInstalled
-                    isFaceDown={group.faceDown}
-                    canPeek={!group.faceDown || canPeek}
-                    typeIcons
-                    onInspect={!group.faceDown || canPeek ? onInspect : undefined}
-                  />
+                {group.cards.map((card, i) => (
+                  <div key={card.instanceId} className="flex flex-col items-center gap-1">
+                    <CardView
+                      card={card}
+                      size="sm"
+                      notInstalled
+                      isFaceDown={group.faceDown}
+                      canPeek={!group.faceDown || canPeek}
+                      typeIcons
+                      onInspect={!group.faceDown || canPeek ? onInspect : undefined}
+                    />
+                    {group.captions?.[i] && <span className="max-w-28 text-center text-[11px] text-slate-400 leading-tight">{group.captions[i]}</span>}
+                  </div>
                 ))}
               </div>
             )}

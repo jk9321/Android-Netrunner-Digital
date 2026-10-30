@@ -14,6 +14,33 @@ export interface KnownHandCard {
   code: string;
 }
 
+/**
+ * A card the Runner has seen in R&D (accessed it, or looked at it). `lo` and
+ * `hi` are the positions it may be in now, counted from the top (0 is the
+ * top card): equal while the Runner knows exactly where it is, wider once
+ * the Corp rearranged cards around it in secret (rules 8.3.3). `left` is set
+ * when the card may already have left R&D: 'hq' if every card that could
+ * have been it was drawn, 'other' otherwise. When `hi` drops below `lo` the
+ * card has certainly left. See engine/rdKnowledge.ts.
+ */
+export interface RdKnownCard {
+  id: string;
+  code: string;
+  lo: number;
+  hi: number;
+  left?: 'hq' | 'other';
+}
+
+/** What the Runner saw happen to R&D during one action, beyond what the change itself shows. */
+export interface RdNotes {
+  /** R&D was shuffled: the Runner no longer knows where any card is. */
+  shuffled?: boolean;
+  /** The Corp secretly acted on this many cards from the top (looked, picked, arranged). */
+  privateTop?: number;
+  /** Cards the Runner saw in R&D, by instance id. */
+  seen?: string[];
+}
+
 export type CentralServerType = 'hq' | 'rd' | 'archives';
 export type ServerType = CentralServerType | string; // remote names like "remote-1"
 
@@ -56,6 +83,10 @@ export interface CorpState {
    * the Runner only remembers them. See revealInHand(), updateHandKnowledge().
    */
   knownToRunner?: KnownHandCard[];
+  /** Cards the Runner has seen in R&D and where they may be now. See engine/rdKnowledge.ts. */
+  rdKnownToRunner?: RdKnownCard[];
+  /** Notes on R&D for the action being resolved; cleared at the end of every action. */
+  rdNotes?: RdNotes;
 }
 
 export interface RunnerRig {

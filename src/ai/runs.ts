@@ -1,4 +1,4 @@
-import { CardInstance, GameState, cardDef, getCardDefinition, getCardScript } from '../core';
+import { CardInstance, GameState, cardDef, getCardDefinition, getCardScript, knownInRd } from '../core';
 import {
   boostCostOf,
   breakerScript,
@@ -385,13 +385,41 @@ export function remoteAgendaOdds(state: GameState, server: { ice: CardInstance[]
   return Math.min(0.9, base + (1 - base) * Math.min(0.45, 0.15 * server.ice.length));
 }
 
+/**
+ * The R&D accesses priced card by card from what the Runner remembers (rules
+ * 7.4.7a: R&D is accessed from the top down): a remembered card counts by
+ * the share of its possible places this position is, the rest of each place
+ * by the odds for an unseen card. Remembered non-agendas are worth nothing
+ * here, so a second run on the same top cards is not worth making.
+ */
+function rdWorth(state: GameState, accesses: number, odds: number, central: number): number {
+  const known = knownInRd(state);
+  let value = 0;
+  for (let i = 0; i < Math.min(accesses, state.corp.rd.length); i++) {
+    let seen = 0;
+    for (const e of known) {
+      if (i < e.lo || i > e.hi) continue;
+      const share = 1 / (e.hi - e.lo + 1);
+      seen += share;
+      const def = getCardDefinition(e.code);
+      if (def.type_code === 'agenda') value += share * stealWorth(state, def.agenda_points ?? 1, DENY.central);
+    }
+    value += Math.max(0, 1 - seen) * odds * central;
+  }
+  return value;
+}
+
 /** serverValue in credits (plan.runModel). */
 function serverWorth(state: GameState, serverId: string, extraAccesses: number, memory: RunnerMemory | undefined, wary: boolean, repeat: number): number {
   const server = state.corp.servers[serverId];
   const { odds, points } = agendaOdds(state);
   const central = stealWorth(state, points, DENY.central);
   let value = 0;
-  if (serverId === 'rd') value = (1 + extraAccesses) * odds * central * 0.3 ** repeat; // a second look sees the same top card
+  if (serverId === 'rd') {
+    value = tuning.plan.rdMemory
+      ? rdWorth(state, 1 + extraAccesses, odds, central)
+      : (1 + extraAccesses) * odds * central * 0.3 ** repeat; // a second look sees the same top card
+  }
   else if (serverId === 'hq') value = state.corp.hq.length === 0 ? 0 : Math.min(1 + extraAccesses, state.corp.hq.length) * odds * central * 0.5 ** repeat;
   else if (serverId === 'archives') {
     if (repeat > 0) return 0;

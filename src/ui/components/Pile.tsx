@@ -1,6 +1,7 @@
 import React from 'react';
 import { CardInstance, SideCode } from '../../core';
 import { getCardBackUrl } from '../../data/cards';
+import { Eye } from 'lucide-react';
 import { CardView } from './CardView';
 import { Keyword } from './Keyword';
 import { labelKeyword } from '../glossary';
@@ -19,10 +20,12 @@ interface PileProps {
   testId?: string;
   /** Leave out the label under the pile (the server or rig already names it). */
   hideLabel?: boolean;
+  /** Cards in this deck the Runner remembers (R&D): shown as a small eye badge. */
+  seenCount?: number;
 }
 
 /** A deck or discard pile drawn as a card on the table, with its count. */
-export const Pile: React.FC<PileProps> = ({ label, count, side, topCard, size = 'sm', onClick, onInspect, testId, hideLabel }) => (
+export const Pile: React.FC<PileProps> = ({ label, count, side, topCard, size = 'sm', onClick, onInspect, testId, hideLabel, seenCount }) => (
   <div className="flex flex-col items-center gap-1 shrink-0">
     <button
       type="button"
@@ -52,6 +55,15 @@ export const Pile: React.FC<PileProps> = ({ label, count, side, topCard, size = 
       {count > 0 && (
         <span className="absolute -top-2 -right-2 min-w-[1.5rem] h-6 px-1 rounded-full bg-black/90 border border-slate-500 text-xs font-bold text-slate-100 flex items-center justify-center z-20">
           {count}
+        </span>
+      )}
+      {!!seenCount && (
+        <span
+          data-testid={testId && `${testId}-seen`}
+          className="absolute -bottom-2 -left-2 h-6 px-1.5 gap-1 rounded-full bg-black/90 border border-cyan-500/70 text-xs font-bold text-cyan-200 flex items-center z-20"
+        >
+          <Eye className="w-3 h-3" />
+          {seenCount}
         </span>
       )}
     </button>

@@ -2,7 +2,7 @@ import { CardInstance, SideCode } from '../types/card';
 import { EffectSource } from '../types/prompts';
 import { GameState } from '../types/state';
 import { cardDef } from '../cards';
-import { shuffleInPlace } from '../rng';
+import { shuffleRD } from '../engine/rdKnowledge';
 import { pushPrompt } from '../engine/prompts';
 import { addLog } from '../engine/log';
 import { findCardAnywhere, isAdvanceable, removeCard } from '../engine/helpers';
@@ -278,7 +278,7 @@ export function takeFromRD(state: GameState, instanceId: string): CardInstance |
   const card = state.corp.rd.find(c => c.instanceId === instanceId);
   if (!card) return undefined;
   removeCard(state.corp.rd, card);
-  shuffleInPlace(state.rng, state.corp.rd);
+  shuffleRD(state);
   addLog(state, 'corp', `Corp revealed ${cardDef(card).title} and shuffled R&D.`);
   return card;
 }

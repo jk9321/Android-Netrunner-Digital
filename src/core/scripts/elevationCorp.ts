@@ -2,8 +2,10 @@ import { CardInstance } from '../types/card';
 import { GameState } from '../types/state';
 import { cardDef } from '../cards';
 import { shuffleInPlace } from '../rng';
+import { shuffleRD } from '../engine/rdKnowledge';
 import { addLog } from '../engine/log';
 import { drawCards, findInstalledCorpCard, forgetInHand, removeCard, revealInHand } from '../engine/helpers';
+import { noteRdPrivate, runnerSeesRd } from '../engine/rdKnowledge';
 import { completeRez } from '../engine/actions/corp';
 import { playBlocker, playCardFrom } from '../engine/actions/play';
 import { dealMeatDamage, dealNetDamage, dealCoreDamage, giveTags, trashInstalledRunnerCard } from '../engine/damage';
@@ -142,6 +144,8 @@ const poetri: CardScript = {
     if (source.step === 'pick' && answer.kind === 'effect_cards' && answer.cardInstanceIds.length > 0) {
       askCorpInstall(ctx, answer.cardInstanceIds[0], 'server');
     } else if (source.step === 'server') {
+      // Installed facedown from among the top 3: the Runner can't tell which (rules 8.3.3b)
+      if (ctx.state.corp.rd.some(c => c.instanceId === source.data?.cardId)) noteRdPrivate(ctx.state, 3);
       installCorpChoice(ctx.state, source, answer);
     }
   },
@@ -172,6 +176,7 @@ const auCo: CardScript = {
       askCards(ctx, 'corp', 'AU Co.: trash 1 of the top 3 cards of R&D; the rest go to HQ.', ids(state.corp.rd.slice(0, 3)), 1, 1, 'trash');
     } else if (source.step === 'trash' && answer.kind === 'effect_cards') {
       const top = state.corp.rd.splice(0, 3);
+      noteRdPrivate(state, top.length); // which one was trashed is not declared
       for (const card of top) {
         if (card.instanceId === answer.cardInstanceIds[0]) state.corp.archives.faceDown.push(card);
         else state.corp.hq.push(card);
@@ -385,7 +390,10 @@ const embeddedReporting = dividendAgenda(
     onPromptAnswer: ({ state }, source, answer) => {
       if (source.step !== 'search' || answer.kind !== 'effect_cards') return;
       const card = takeFromRD(state, answer.cardInstanceIds[0]);
-      if (card) state.corp.rd.unshift(card);
+      if (card) {
+        state.corp.rd.unshift(card);
+        runnerSeesRd(state, card); // revealed, then put on top
+      }
     },
   }
 );
@@ -456,7 +464,7 @@ const nextBigThing: CardScript = {
         state.corp.rd.push(card);
       }
     }
-    shuffleInPlace(state.rng, state.corp.rd);
+    shuffleRD(state);
     addLog(state, 'corp', `Corp shuffled ${answer.cardInstanceIds.length} card(s) from HQ into R&D.`);
   },
 };
@@ -1258,7 +1266,7 @@ const kpi: CardScript = {
       if (target) {
         removeCard(state.corp.hq, target);
         state.corp.rd.push(target);
-        shuffleInPlace(state.rng, state.corp.rd);
+        shuffleRD(state);
       }
       return askKpi(ctx, done);
     }

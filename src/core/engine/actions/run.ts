@@ -13,6 +13,7 @@ import { activeCards, fireTrigger } from '../triggers';
 import { AccessZone } from '../../scripts/types';
 import { agendaPoints, availableCredits, bumpTurnFlag, spendCredits, trashCost, TurnFlag } from '../cardEffects';
 import { RunState } from '../../types/state';
+import { runnerSeesRd } from '../rdKnowledge';
 
 export function initiateRun(state: GameState, action: InitiateRunAction): void {
   if (action.player !== 'runner') illegal('Only Runner can initiate runs');
@@ -363,6 +364,8 @@ function accessCard(state: GameState, card: CardInstance, zone: CardInstance[], 
   if (installed) card.runnerKnows = true;
   // An accessed card left in HQ stays known to the Runner until it leaves HQ
   if (where === 'hq') revealInHand(state, 'corp', [card]);
+  // An accessed card left in R&D stays where it is, and the Runner remembers it there (rules 7.4.7a)
+  if (where === 'rd') runnerSeesRd(state, card);
   // Rules 7.1.2: the Corp may look at accessed cards, except those accessed from R&D (unless revealed, Byte!)
   const secret = getCardScript(card.cardCode)?.revealedOnRdAccess ? undefined : rdSecret(where, 'Runner accessed a card in R&D.');
   addLog(state, 'runner', `Runner accessed ${def.title}.`, card.cardCode, 'access', secret);

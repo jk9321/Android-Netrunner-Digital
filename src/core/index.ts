@@ -13,6 +13,7 @@ export { getLegalActions } from './engine/legalActions';
 export { activePrompt } from './engine/prompts';
 export { uncommittedChoice } from './engine/uncommitted';
 export { locateCorpCard, findCardAnywhere, knownInHand } from './engine/helpers';
+export { knownInRd } from './engine/rdKnowledge';
 export { getCardScript, scriptedCardCodes } from './scripts';
 export { rezCost as rezCostOf, availableCredits, virusCountersInPlay } from './engine/cardEffects';
 export { trashableFirst } from './engine/actions/install';

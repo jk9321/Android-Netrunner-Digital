@@ -4,7 +4,7 @@ import { cardDef } from '../cards';
 import { dealNetDamage, giveTags, trashInstalledRunnerCard } from '../engine/damage';
 import { turnFlag, TurnFlag } from '../engine/cardEffects';
 import { drawCards, removeCard, turnKey } from '../engine/helpers';
-import { shuffleInPlace } from '../rng';
+import { shuffleRD } from '../engine/rdKnowledge';
 import { CardScript } from './types';
 import { askCards, askChoice, gainCredits } from './effects';
 
@@ -63,7 +63,7 @@ const sprint: CardScript = {
       removeCard(state.corp.hq, card);
       state.corp.rd.push(card);
     }
-    shuffleInPlace(state.rng, state.corp.rd);
+    shuffleRD(state);
     addLog(state, 'corp', `Corp shuffled ${answer.cardInstanceIds.length} card(s) from HQ into R&D.`);
   },
 };

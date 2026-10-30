@@ -212,7 +212,7 @@ export function forgetInHand(state: GameState, owner: SideCode, cards: CardInsta
 }
 
 /** Cards anyone can see (rezzed or faceup installed cards, discard piles, score areas, the rig), by id to code. */
-function publicCards(state: GameState): Map<string, string> {
+export function publicCards(state: GameState): Map<string, string> {
   const cards = new Map<string, string>();
   const add = (list: CardInstance[]) => {
     for (const c of list) {

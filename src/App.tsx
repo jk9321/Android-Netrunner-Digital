@@ -1,5 +1,5 @@
 import { useMemo, useState } from 'react';
-import { CardInstance, GameAction, SideCode, cardDef, findCardAnywhere, iceSubtypes, isLegalAction, knownInHand } from './core';
+import { CardInstance, GameAction, SideCode, cardDef, findCardAnywhere, iceSubtypes, isLegalAction, knownInHand, knownInRd } from './core';
 import { breakerTypes } from './ui/components/IceTypeIcons';
 import { DEFAULT_CORP_DECK, DEFAULT_RUNNER_DECK } from './data/decks';
 import { GameConfig, SavedGame, clearSavedGame } from './ui/savedGame';
@@ -232,8 +232,10 @@ function Game({
                 side="corp"
                 size="fit"
                 hideLabel
-                // Nobody may look through the decks during play; once the game is over anyone can (rules 1.7.1)
-                onClick={gameState.winner ? () => setZone('rd') : undefined}
+                // Nobody may look through the decks during play; once the game is over anyone can (rules 1.7.1).
+                // During play it opens the cards the Runner has seen in R&D.
+                onClick={gameState.winner || knownInRd(gameState).length > 0 ? () => setZone('rd') : undefined}
+                seenCount={knownInRd(gameState).length}
                 testId="pile-rd"
               />
             ) : server.id === 'archives' ? (

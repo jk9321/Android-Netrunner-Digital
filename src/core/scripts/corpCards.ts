@@ -1,7 +1,7 @@
 import { CardInstance } from '../types/card';
 import { GameState } from '../types/state';
 import { cardDef } from '../cards';
-import { shuffleInPlace } from '../rng';
+import { shuffleRD } from '../engine/rdKnowledge';
 import { addLog } from '../engine/log';
 import { findInstalledCorpCard, removeCard, revealInHand } from '../engine/helpers';
 import { rezForFree } from '../engine/actions/corp';
@@ -35,7 +35,7 @@ function shuffleArchivesIntoRD(state: GameState, ids: string[]): void {
     card.isRezzed = false;
     state.corp.rd.push(card);
   }
-  shuffleInPlace(state.rng, state.corp.rd);
+  shuffleRD(state);
   addLog(state, 'corp', `Corp shuffled ${ids.length} card(s) from Archives into R&D.`);
 }
 
@@ -405,7 +405,7 @@ const malapertDataVault: CardScript = {
     removeCard(state.corp.rd, card);
     state.corp.hq.push(card);
     revealInHand(state, 'corp', [card]);
-    shuffleInPlace(state.rng, state.corp.rd);
+    shuffleRD(state);
     addLog(state, 'corp', `Corp revealed ${cardDef(card).title}, added it to HQ and shuffled R&D (Malapert Data Vault).`);
   },
 };

@@ -4,6 +4,7 @@ import { cardDef } from '../cards';
 import { shuffleInPlace } from '../rng';
 import { addLog } from '../engine/log';
 import { drawCards, findInstalledCorpCard, removeCard, turnKey } from '../engine/helpers';
+import { runnerSeesRd } from '../engine/rdKnowledge';
 import { runnerTrashInstalledCorpCard, startRun, trashAccessedCard, cannotStealOrTrash } from '../engine/actions/run';
 import { giveTags, installedRunnerCards, dealNetDamage, trashInstalledRunnerCard, uninstallRunnerCard } from '../engine/damage';
 import {
@@ -84,6 +85,7 @@ const hiramLook = (state: GameState) => {
     from: 'corp',
     publicMessage: 'Runner looked at the top card of R&D (Hiram "0mission" Svensson).',
   });
+  runnerSeesRd(state, top);
 };
 const hiram: CardScript = {
   triggers: {
