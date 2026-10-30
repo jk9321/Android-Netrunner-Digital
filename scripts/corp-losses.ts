@@ -12,6 +12,7 @@ import { createInitialGameState } from '../src/core';
 import { DECKS, deckGameSetup } from '../src/data/decks';
 import { createAgent } from '../src/ai';
 import { GameRecord, playLogged } from './lossLog';
+import { valueLoops } from '../src/ai/valueModel';
 import { applyPlanOff, tuning } from '../src/ai/synergy';
 
 const [gamesArg, levelArg] = process.argv.slice(2).filter(a => a !== '--');
@@ -60,9 +61,14 @@ for (const c of corpDecks) {
         createAgent(side, level, level === 'hard' ? { samples: 6, candidates: 3, seed } : {});
       const started = Date.now();
       if (process.env.TRACE) console.error(`start deal ${seed} ${c.name} vs ${r.name}`);
+      valueLoops.clear();
       try {
-        records.push(playLogged(createInitialGameState(deckGameSetup(seed, c, r)), { corp: agent('corp'), runner: agent('runner') }, { corp: c.name, runner: r.name }));
+        const record = playLogged(createInitialGameState(deckGameSetup(seed, c, r)), { corp: agent('corp'), runner: agent('runner') }, { corp: c.name, runner: r.name });
+        // Value loops met in the game (valueModel.ts guardLoop): played on with flat values, listed in the summary to fix
+        records.push(valueLoops.size ? { ...record, loops: Object.fromEntries(valueLoops) } : record);
       } catch (err) {
+        // A crashed game is listed in the summary, not dropped silently
+        records.push({ crashed: `${err}`.slice(0, 200), seed, corpDeck: c.name, runnerDeck: r.name } as unknown as GameRecord);
         console.error(`deal ${seed} ${c.name} vs ${r.name}: ${err}`);
         if (process.env.STACK) console.error((err as Error).stack?.split('\n').slice(0, 60).join('\n'));
       }

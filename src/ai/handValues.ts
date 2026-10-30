@@ -67,7 +67,8 @@ export function playedWorth(state: GameState, card: CardInstance): number {
   // Runner rig cards
   const profile = CARD_PROFILES[card.cardCode];
   if (profile && tuning.plan.cardProfiles) return payoutWorth(profile, turns, profile.load, payoutWait(state, profile, 'runner'), cardRate(state, 'runner')) - cost - CLICK;
-  if (isIcebreaker(card) && flatRate('breakers') && tuning.plan.breakerCredits?.runner && !pricingBreakers.has(card.instanceId)) {
+  // (Not while the deck's average card is worked out: pricing the rig there prices the rig cards that asked for the average)
+  if (isIcebreaker(card) && flatRate('breakers') && tuning.plan.breakerCredits?.runner && !pricingBreakers.has(card.instanceId) && !averaging) {
     // What it adds to the rig's coverage once installed (Mayfly's one use included), as the board will see it.
     // A breaker hosted on Bling or Madani is priced inside the rig too: while it is, the rule-based worth below
     const rig = state.runner.rig;
@@ -127,6 +128,7 @@ export function noteKnownHand(state: GameState, side: SideCode) {
 }
 
 const deckAverage = new Map<string, number>();
+let averaging = false;
 
 /** Average held worth of the cards left in a side's deck (what a draw is expected to bring). */
 function drawWorth(state: GameState, side: SideCode): number {
@@ -135,23 +137,23 @@ function drawWorth(state: GameState, side: SideCode): number {
   const key = `${planSide()}:${side}:${state.id}:${state.turnNumber}:${deck.map(c => c.instanceId).join(',')}`;
   const cached = deckAverage.get(key);
   if (cached !== undefined) return cached;
-  const value = deck.length ? deck.reduce((n, c) => n + heldWorth(state, c, side), 0) / deck.length : RATES.drawnCard;
+  // While the average is worked out, a card's worth that needs the average card (cardRate) gets the flat rate:
+  // the deck's average card can't depend on itself (a value loop otherwise, valueModel.ts guardLoop)
+  const was = averaging;
+  averaging = true;
+  let value: number;
+  try {
+    value = deck.length ? deck.reduce((n, c) => n + heldWorth(state, c, side), 0) / deck.length : RATES.drawnCard;
+  } finally {
+    averaging = was;
+  }
   if (deckAverage.size > 500) deckAverage.clear();
   deckAverage.set(key, value);
   return value;
 }
 
 /** The deck's average card for valueModel's cardRate (plan.flatRates.cards); the flat rate while it is being worked out. */
-let averaging = false;
-setDeckCard((state, side) => {
-  if (averaging) return RATES.drawnCard;
-  averaging = true;
-  try {
-    return drawWorth(state, side);
-  } finally {
-    averaging = false;
-  }
-});
+setDeckCard((state, side) => (averaging ? RATES.drawnCard : drawWorth(state, side)));
 
 /**
  * Worth of a side's own hand: the best `limit` cards by held worth, the

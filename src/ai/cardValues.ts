@@ -2,7 +2,7 @@ import { CardInstance, GameState, getCardDefinition } from '../core';
 import { ECON_SCALE, unrezzedWorth } from './cardProfiles';
 import { corpEffect, effectsOn, runnerEffect } from './effectValues';
 import { tuning } from './synergy';
-import { RATES } from './valueModel';
+import { RATES, guardLoop } from './valueModel';
 
 /**
  * The AI's per-card numbers, by card code. Every Corp asset and upgrade and
@@ -130,7 +130,8 @@ export const upgradeValue = (code: string, state?: GameState): [number, number] 
 };
 /** Worth of an installed Runner card beyond icebreaker coverage (2 if not listed). */
 export const runnerCardValue = (code: string, state?: GameState, card?: CardInstance): number => {
+  const flat = () => (CARD_VALUES[code]?.rig ?? RATES.defaultRig) + drawBonus(code);
   // Effect formulas give credits; rig worth is on the board at RATES.rigCardScale per point
-  const fx = state && effectsOn() ? runnerEffect(state, code, card) : undefined;
-  return fx !== undefined ? fx / RATES.rigCardScale : (CARD_VALUES[code]?.rig ?? RATES.defaultRig) + drawBonus(code);
+  const fx = state && effectsOn() ? guardLoop(state, `runner card ${code} ${card?.instanceId ?? ''}`, () => undefined, () => runnerEffect(state, code, card)) : undefined;
+  return fx !== undefined ? fx / RATES.rigCardScale : flat();
 };
