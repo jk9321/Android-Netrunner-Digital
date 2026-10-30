@@ -157,6 +157,19 @@ describe('Elevation Corp identities', () => {
     expect(s.corp.hq.some(c => c.instanceId === asset)).toBe(false);
   });
 
+  it('Synapse Global: the Runner knows the revealed card once it is installed (rules 1.21.3)', () => {
+    let s = newGame();
+    setIdentity(s, 'corp', C.synapse);
+    corpTurn(s);
+    s.runner.tags = 1;
+    const ice = giveCard(s, 'corp', SG.funhouse);
+    s = useAbility(s, 'corp', s.corp.identity.instanceId);
+    s = pick(s, [ice]);
+    s = choose(s, 'new');
+    expect(card(s, ice).isRezzed).toBe(false);
+    expect(card(s, ice).runnerKnows).toBe(true);
+  });
+
   it('BANGUN punishes accessing a faceup agenda', () => {
     let s = newGame();
     setIdentity(s, 'corp', C.bangun);

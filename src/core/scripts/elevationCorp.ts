@@ -258,9 +258,9 @@ const synapse: CardScript = {
     if (source.step === 'pick' && answer.kind === 'effect_cards' && answer.cardInstanceIds.length > 0) {
       const card = ctx.state.corp.hq.find(c => c.instanceId === answer.cardInstanceIds[0]);
       if (card) addLog(ctx.state, 'corp', `Corp revealed ${cardDef(card).title} (Synapse Global).`);
-      askCorpInstall(ctx, answer.cardInstanceIds[0], 'server', { ignoreCosts: true });
+      askCorpInstall(ctx, answer.cardInstanceIds[0], 'server', { ignoreCosts: true, revealed: true });
     } else if (source.step === 'server') {
-      installCorpChoice(ctx.state, source, answer, { ignoreCosts: true });
+      installCorpChoice(ctx.state, source, answer, { ignoreCosts: true, revealed: true });
     }
   },
 };
@@ -424,7 +424,7 @@ const offTheBooks = dividendAgenda(
           { id: 'hq', label: 'Add it to HQ' },
         ], 'install', { cardId: card.instanceId });
       } else if (source.step === 'install' && answer.kind === 'effect_choice' && answer.optionId !== 'hq') {
-        installCorpChoice(state, source, answer, { ignoreCosts: true });
+        installCorpChoice(state, source, answer, { ignoreCosts: true, revealed: true });
       } else if (source.step === 'install' && answer.kind === 'effect_choice') {
         const card = state.corp.hq.find(c => c.instanceId === source.data?.cardId);
         if (card) revealInHand(state, 'corp', [card]);
