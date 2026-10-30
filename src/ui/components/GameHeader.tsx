@@ -1,10 +1,11 @@
 import { useState } from 'react';
-import { Award, Flag, LogOut, Volume2, VolumeX, ZoomIn } from 'lucide-react';
+import { Award, Eye, Flag, LogOut, Volume2, VolumeX, ZoomIn } from 'lucide-react';
 import { GameState, SideCode } from '../../core';
 import { GameConfig } from '../savedGame';
 import { ViewMode } from '../viewer';
 import { setSoundEnabled, soundEnabled } from '../sound';
 import { CardSize, savedCardSize, setCardSize } from '../cardSize';
+import { savedComfort, setComfort } from '../comfort';
 import { PhaseTracker } from './PhaseTracker';
 
 interface GameHeaderProps {
@@ -19,7 +20,7 @@ interface GameHeaderProps {
   onLeave: () => void;
 }
 
-/** The bar across the top: title, phase, AI status, scores, card size, view, sound, forfeit and leave. */
+/** The bar across the top: title, phase, AI status, scores, card size, comfort, view, sound, forfeit and leave. */
 export function GameHeader({
   state,
   config,
@@ -33,6 +34,7 @@ export function GameHeader({
 }: GameHeaderProps) {
   const [sound, setSound] = useState(soundEnabled);
   const [cardSize, setCardSizeState] = useState(savedCardSize);
+  const [comfort, setComfortState] = useState(savedComfort);
   const aiSide = config.ai;
   const { corp, runner } = state;
 
@@ -111,6 +113,21 @@ export function GameHeader({
             </button>
           ))}
         </div>
+
+        <button
+          onClick={() => {
+            setComfort(!comfort);
+            setComfortState(!comfort);
+          }}
+          aria-pressed={comfort}
+          className={`flex items-center gap-1 px-2 py-1 rounded-lg border text-xs transition-colors ${
+            comfort ? 'bg-emerald-800 border-emerald-500 text-white font-bold' : 'bg-slate-900 border-slate-800 text-slate-400 hover:text-white'
+          }`}
+          title={comfort ? 'Comfort mode is on: no scanlines, glow or looping animations' : 'Comfort mode: turn off scanlines, glow and looping animations'}
+          data-testid="comfort-toggle"
+        >
+          <Eye className="w-3.5 h-3.5" /> <span className="hidden 2xl:inline">Comfort</span>
+        </button>
 
         {state.winner ? (
           // The game is over, so both sides' cards are shown and there is no view to choose
