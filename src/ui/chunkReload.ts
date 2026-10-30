@@ -1,3 +1,5 @@
+import { noteReloadReason } from './reloadReason';
+
 /**
  * Recovers from a new deploy while the page is open. Each build gives its lazy
  * chunks new hashed names and the old files are gone from the server, so a tab
@@ -28,6 +30,7 @@ export function reloadForNewBuild(): boolean {
   } catch {
     // No sessionStorage (private mode): reload anyway, the browser caps loops
   }
+  noteReloadReason('a new version of the game was deployed');
   window.location.reload();
   return true;
 }

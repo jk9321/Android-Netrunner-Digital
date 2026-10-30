@@ -1,6 +1,7 @@
 import { CardInstance, GameAction, GameState, SideCode } from '../core';
 import type { Agent, Difficulty } from './index';
 import type { AIRequest, AIResponse } from './worker';
+import { logReloadEvent } from '../ui/reloadReason';
 
 /** `?aidebug` in the address: log why the computer made each move (browser console). */
 const aiDebug = () => typeof location !== 'undefined' && new URLSearchParams(location.search).has('aidebug');
@@ -33,6 +34,7 @@ export class AIClient {
       // forever, so answer from the main thread from then on.
       this.worker.onerror = e => {
         console.error('AI worker failed; the computer will think on the main thread', e);
+        logReloadEvent(`AI worker failed (${e.message || 'no message'}); the AI moved to the main thread`);
         this.fallBackToLocal();
       };
       this.worker.postMessage({ type: 'init', side, difficulty, debug: aiDebug() } satisfies AIRequest);
