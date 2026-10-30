@@ -6,7 +6,7 @@ import { Check, RefreshCw, Trash2, X } from 'lucide-react';
 import { CardNameText } from './CardNameText';
 import { Credits } from './CreditIcon';
 import { FloatingPanel } from './FloatingPanel';
-import { cardPositionLabel } from '../cardLabels';
+import { cardPositionLabel, isInstalledCard } from '../cardLabels';
 import { hoverPromptTarget, selectPromptTargets } from '../promptHighlight';
 
 /** An installed Corp card that is neither rezzed nor faceup: only the Corp may look at it (rules 4.6.3). */
@@ -258,6 +258,7 @@ export const PromptPanel: React.FC<PromptPanelProps> = ({ state, onAnswer, onIns
                     <CardView
                       card={card}
                       size="sm"
+                      notInstalled={!isInstalledCard(state, card)}
                       isFaceDown={secret}
                       canPeek={!secret}
                       typeIcons

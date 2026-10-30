@@ -20,6 +20,16 @@ export function typeLine(def: CardDefinition): string {
 }
 
 /**
+ * Whether a card is installed (in a server or the rig). Only installed cards are
+ * rezzed or unrezzed (rules 8.1.1); a card in HQ, Archives, the grip or the heap is neither.
+ */
+export function isInstalledCard(state: GameState, card: CardInstance): boolean {
+  const has = (zone: CardInstance[]) => zone.some(c => c.instanceId === card.instanceId);
+  const { programs, hardware, resources } = state.runner.rig;
+  return Object.values(state.corp.servers).some(s => has(s.ice) || has(s.root)) || has(programs) || has(hardware) || has(resources);
+}
+
+/**
  * Where a card sits, in words, e.g. "HQ, ice 2 of 2 (outermost)" or
  * "Rig, programs". Never names the card, so it is safe for facedown cards.
  */
