@@ -1,13 +1,13 @@
 import { CardInstance, GameState, cardDef, getCardDefinition, getCardScript } from '../core';
 import { counters } from '../core/engine/cardEffects';
-import { isIcebreaker } from '../core/engine/ice';
+import { iceSubroutines, isIcebreaker } from '../core/engine/ice';
 import { PAYOUT_RISK, turnsLeft } from './cardProfiles';
 import { COUNTER_WORTH, counterWorth } from './counterValues';
 import { tuning } from './synergy';
 import { CLICK, RATES, cardRate, flatRate, flatlineWorth, memo, pointGain, pointValue, sideCards } from './valueModel';
 import { VIC, tagsWorth } from './evaluate';
 import { PRINCIPIA } from './cardPlans';
-import { iceCost } from './runs';
+import { BLOCK, iceCost, iceCreditNeed, subroutineCost } from './runs';
 
 /**
  * The every-card audit's last 31 cards (Jeff, 2026-10-28): assets, upgrades
@@ -117,6 +117,19 @@ function perTurn(state: GameState, x: number, owner: 'corp' | 'runner', minTurns
 export const LOCKDOWN = 0.9;
 /** A rezzed ice the rig can't afford to get past: the run mostly ends there. */
 const BLOCKED_PASS = 0.1;
+/** Rezzed ice the Runner walks through, taking its subroutines (it has none that end the run, or it breaks those). */
+const TANKED_PASS = 0.85;
+/**
+ * The Runner tanks an ice's subroutines on the way to an agenda when it can pay to break the ones
+ * that end the run and the rest cost it less than half the agenda is worth to it (net damage
+ * priced on the damage clock, so a small grip won't take it).
+ */
+function canTank(state: GameState, ice: CardInstance, credits: number): boolean {
+  if (iceCreditNeed(state, ice) > credits) return false;
+  const tank = iceSubroutines(state, ice).map(s => subroutineCost(state, s.label)).filter(c => c < BLOCK).reduce((n, c) => n + c, 0);
+  return tank < 0.5 * pointGain(state.runner.score, agendaOdds(state).points);
+}
+
 /** Unrezzed ice: the Corp rezzes it when it can afford to, about half the time. */
 const UNREZZED_PASS = { rich: 0.55, broke: 0.9 };
 
@@ -159,6 +172,10 @@ function passOdds(state: GameState, ices: CardInstance[], income = 0): number {
     if (cost <= credits) {
       credits -= cost;
       pass *= 0.95;
+    } else if (tuning.plan.tankIce && canTank(state, ice, credits)) {
+      // Ice that can't end the run (Doomscroll) doesn't stop a Runner who can take what it does (Jeff, 2026-10-30)
+      credits -= iceCreditNeed(state, ice);
+      pass *= TANKED_PASS;
     } else pass *= BLOCKED_PASS;
   }
   return pass;

@@ -24,7 +24,7 @@ import { RATES, clickRate, creditNeed, creditSlide, pointValue } from './valueMo
  * unrezzed root cards are guesses.
  */
 
-const BLOCK = Infinity;
+export const BLOCK = Infinity;
 const MAYFLY = '30032';
 const BANGUN = '35068';
 const HANTU = '35008'; // boosts by spending hosted virus counters (+2 each), not credits
