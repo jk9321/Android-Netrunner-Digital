@@ -119,3 +119,27 @@ describe('plan switches for one side (Jeff, 2026-10-29; synergy.ts sideOff)', ()
     }
   });
 });
+
+describe('ice that cannot end the run (Jeff, 2026-10-30; plan.tankIce)', () => {
+  const remote = (s: ReturnType<typeof newGame>) => {
+    s.corp.servers['remote-1'] = { id: 'remote-1', name: 'Remote Server 1', isRemote: true, ice: [], root: [] };
+    installIceForTest(s, '35063', 'remote-1'); // Doomscroll: a tag and net damage, no end the run
+  };
+
+  it('Doomscroll stops little against a broke Runner with a full grip', () => {
+    const s = newGame();
+    remote(s);
+    s.runner.credits = 0;
+    expect(s.runner.grip.length).toBeGreaterThanOrEqual(4);
+    expect(stealOdds(s, 'remote-1')).toBeGreaterThan(STEAL.run * 0.5);
+  });
+
+  it('but holds off a Runner it would flatline', () => {
+    const s = newGame();
+    remote(s);
+    s.runner.credits = 0;
+    s.runner.grip = s.runner.grip.slice(0, 1);
+    s.runner.tags = 1; // the third subroutine's 2 net damage too
+    expect(stealOdds(s, 'remote-1')).toBeLessThan(STEAL.run * 0.2);
+  });
+});
