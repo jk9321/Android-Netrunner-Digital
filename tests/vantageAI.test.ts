@@ -4,6 +4,7 @@ import { accessWorth } from '../src/ai/effectValues';
 import { answerPrompt, meliesSide } from '../src/ai/prompts';
 import { bestBreakPlan, chainReactionBonus, runBudget, runScore, tagCost } from '../src/ai/runs';
 import { myoshuSaving, perfectRecallTarget } from '../src/ai/corpAI';
+import { stealthCreditWorth } from '../src/ai/counterValues';
 import { createAgent } from '../src/ai';
 import { giveCard, installIceForTest, installProgramForTest, newGame, play, run, runIntoFirstIce, runnerInstall, setIdentity, startRunnerTurn } from './helpers';
 
@@ -182,6 +183,18 @@ describe('AI with Vantage Point cards', () => {
     s = executeAction(s, { type: 'INITIATE_RUN', player: 'runner', targetServerId: 'hq' });
     a = answerPrompt(s, 'runner');
     expect(a.type === 'RESOLVE_PROMPT' && a.choice.kind === 'effect_cards' && a.choice.cardInstanceIds).toEqual([copy]);
+  });
+
+  it('Baker: the first stealth credit is worth a Baker run past central ice, the rest run money', () => {
+    let s = newGame();
+    startRunnerTurn(s);
+    expect(stealthCreditWorth(s)).toBeCloseTo(0.9); // no Baker
+    [s] = runnerInstall(s, V.baker);
+    methuselah(s, 0);
+    const first = stealthCreditWorth(s);
+    expect(first).toBeGreaterThan(2);
+    s.runner.rig.hardware.at(-1)!.tokens.credit = 3;
+    expect(stealthCreditWorth(s)).toBeLessThan(first);
   });
 });
 

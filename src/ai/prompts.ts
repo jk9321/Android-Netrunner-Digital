@@ -4,6 +4,8 @@ import { evaluate, keepValue, runnerRigValue, sourdoughFuel } from './evaluate';
 import { CLICK, cardRate } from './valueModel';
 import { PACE, accessWorth, placedCounterWorth } from './effectValues';
 import { turnsLeft } from './cardProfiles';
+import { stealthCreditWorth } from './counterValues';
+import { stealthCredits } from '../core/engine/cardEffects';
 import { BOTULUS, MANEGARM, RunOptions, RunnerMemory, iceCost, isTrap, runClick, runScore, serverValue, spendCost, subroutineCost, tagCost, weakestIce } from './runs';
 import { breakerScript, encounteredIce, iceSubroutines, iceSubtypes, isIcebreaker } from '../core/engine/ice';
 import { keepBonus, tuning } from './synergy';
@@ -223,7 +225,11 @@ export function answerPrompt(state: GameState, side: SideCode, memory?: RunnerMe
         const console = /console/i.test(def.keywords ?? '');
         return rig.some(h => cardDef(h).title === def.title || (console && /console/i.test(cardDef(h).keywords ?? ''))) || (def.cost ?? 0) > state.runner.credits;
       });
-      return pick(dead.length ? weakest(dead) : undefined);
+      if (dead.length) return pick(weakest(dead));
+      // With Baker out and no stealth credit for it, the weakest hardware is worth turning into its fuel
+      const fuel = 2 * stealthCreditWorth(state);
+      const spare = weakest(cards);
+      return pick(stealthCreditWorth(state) > 1 && stealthCredits(state) === 0 && spare && keepValue(state, spare) < fuel ? spare : undefined);
     }
     // Knickknack O'Brian: trash only a card that has stopped giving value (its loss to the rig well under the credits and card it pays)
     if (code === '35033' && prompt.source.step === 'trash') {
