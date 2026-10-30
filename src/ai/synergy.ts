@@ -316,6 +316,8 @@ export const tuning = {
     vicTags: true,
     /** Jeff, 2026-10-30: R&D runs priced card by card from what the Runner remembers of R&D (rdKnowledge.ts): a known agenda on top is a sure steal, known other cards are worth nothing, and the rest are unseen. Replaces the flat discount for a second R&D run in a turn. */
     rdMemory: true,
+    /** Jeff, 2026-10-30 (playing Sourdough Starter): DZMZ Optimizer by the programs still to install; Methuselah fed only dead hardware (a copy of one installed, or unaffordable); Read-Write Share hosts the weakest grip card; Knickknack trashes only spent cards (effectValues.ts, prompts.ts). */
+    sourdough: true,
     /** Per deciding side (Jeff, 2026-10-28): Normal plays its best few actions through to the end of the turn and picks the best turn (turnPlanner.ts). */
     turnPlanner: { corp: true, runner: true } as Record<SideCode, boolean>,
     /** With the planner: the hand at the end of a planned turn valued card by card (what each will do later). */

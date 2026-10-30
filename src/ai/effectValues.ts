@@ -442,8 +442,11 @@ export function runnerEffect(state: GameState, code: string, card?: CardInstance
     case '30013': // Docklands Pass: one more HQ access the first time each turn, on a successful HQ run
       if (tuning.plan.runOpenness) return perTurn(state, PACE.runs * PACE.hqShare * runSuccess(state, 'hq') * accessWorth(state), 'runner', 0, Infinity, 1, lock());
       return perTurn(state, PACE.runs * PACE.hqShare * accessWorth(state), 'runner');
-    case '30022': // DZMZ Optimizer: +1 MU; first program each turn 1 credit cheaper
-      return muWorth(state) + perTurn(state, PACE.programInstalls, 'runner');
+    case '30022': { // DZMZ Optimizer: +1 MU; first program each turn 1 credit cheaper: a credit for each program still to install, over the turns left (Jeff, 2026-10-30: early it saves a ton)
+      if (!tuning.plan.sourdough) return muWorth(state) + perTurn(state, PACE.programInstalls, 'runner');
+      const programs = [...state.runner.grip, ...state.runner.stack].filter(c => cardDef(c).type_code === 'program').length;
+      return muWorth(state) + 0.6 * perTurn(state, 1, 'runner', 0, programs);
+    }
     case '35027': { // GAMEDRAGON Pro: +1 strength and boosts last the run, about a credit a run with a host
       const hosts = state.runner.rig.programs.some(p => /icebreaker/i.test(cardDef(p).keywords ?? '') && !/\bAI\b/.test(cardDef(p).keywords ?? ''));
       return perTurn(state, PACE.runs * (hosts ? 1 : 0.5), 'runner');
@@ -548,8 +551,15 @@ export function runnerEffect(state: GameState, code: string, card?: CardInstance
       const p = PACE.rezzes;
       return (2 * cardRate(state, 'runner') * p) / (1 - p);
     }
-    case '36020': // Methuselah: +1 MU; a hardware from the grip turns into 2 run credits now and then
+    case '36020': { // Methuselah: +1 MU; a dead hardware in the grip (a copy of one installed, or one it can't afford) turns into 2 run credits now and then
+      if (tuning.plan.sourdough) {
+        const hardware = [...state.runner.grip, ...state.runner.stack].filter(c => cardDef(c).type_code === 'hardware');
+        const titles = new Set(hardware.map(c => cardDef(c).title));
+        const spare = (hardware.length - titles.size) / Math.max(1, state.runner.grip.length + state.runner.stack.length);
+        return muWorth(state) + perTurn(state, Math.min(1, 3 * spare) * 2 * counterWorthOf(state, code, 'credit'), 'runner');
+      }
       return muWorth(state) + perTurn(state, Math.min(1, 3 * deckShare(state, 'runner', null, 'hardware')) * 0.5 * Math.max(0, 2 * counterWorthOf(state, code, 'credit') - cardRate(state, 'runner')), 'runner');
+    }
     case '36021': // Touchstone: a run credit the first time each turn it plays an event
       return perTurn(state, Math.min(1, 3 * deckShare(state, 'runner', null, 'event')) * counterWorthOf(state, code, 'credit'), 'runner');
     case '36022': // Read-Write Share: a card in the grip parked for a fresh draw each turn, 4 at most
