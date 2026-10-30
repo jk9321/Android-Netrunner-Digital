@@ -37,8 +37,9 @@ export function playedWorth(state: GameState, card: CardInstance): number {
   switch (def.type_code) {
     case 'event':
     case 'operation': {
-      // A conditional card by its plan: payoff scaled by how ready its condition is (cardPlans.ts)
-      const planned = handPlanWorth(state, card);
+      // A conditional card by its plan: payoff scaled by how ready its condition is (cardPlans.ts);
+      // not inside the deck's average card, which a plan's payoff can be priced from (Chain Reaction > Corp card > damage > average)
+      const planned = averaging ? undefined : handPlanWorth(state, card);
       if (planned !== undefined) return planned;
       // Played out when chosen (one-step simulation); in hand, a money card is worth its net gain
       const gain = (def.stripped_text ?? '').match(/(?:^|\. )Gain (\d+) credits/);
