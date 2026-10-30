@@ -1,4 +1,5 @@
-import { GameAction, GameState, SideCode, activePrompt, executeAction } from '../core';
+import { GameAction, GameState, SideCode, activePrompt, executeAction, findCardAnywhere } from '../core';
+import { profileOf } from './cardProfiles';
 import { ScoredAction } from './agent';
 import { evaluate } from './evaluate';
 import { freezeKnownHand } from './handValues';
@@ -67,6 +68,21 @@ function positionKey(state: GameState, side: SideCode): string {
 /** Plans of AIs that keep none of their own (tests). */
 const sharedPlan: Record<SideCode, PlanMemory> = { corp: { line: [] }, runner: { line: [] } };
 
+/**
+ * A click for 1 credit while a click takes more from a money card (Regolith Mining License, Telework Contract):
+ * the same click for fewer credits. The planner tries each first action and plays the rest out with the
+ * rule-based ranking, so it could pick the basic click just to steer the rest of the turn (Jeff, 2026-10-30).
+ */
+function dominated(state: GameState, action: GameAction, ranked: ScoredAction[]): boolean {
+  if (action.type !== 'GAIN_CREDIT') return false;
+  return ranked.some(r => {
+    if (r.score === -Infinity || r.action.type !== 'USE_ABILITY' || r.action.abilityIndex !== 0) return false;
+    const card = findCardAnywhere(state, r.action.cardInstanceId);
+    const profile = card && profileOf(card.cardCode);
+    return !!profile && profile.every === 'click' && profile.pay > 1 && (card.tokens.credit ?? 0) > 1;
+  });
+}
+
 /** Plays `side`'s turn on from `state` after `first`, and returns how good the end of the turn is. */
 function playout(start: GameState, side: SideCode, first: GameAction, ai: PlannerAI, synergy: boolean, line: Line = []): number {
   let bonus = 0;
@@ -105,7 +121,9 @@ function playout(start: GameState, side: SideCode, first: GameAction, ai: Planne
       continue;
     }
     if (clicksOf(state, side) <= 0) break;
-    const best = ai.rank(state).find(r => r.score > -Infinity && r.action.type !== 'END_TURN' && !(ran && r.action.type === 'INITIATE_RUN'));
+    const now = state;
+    const ranked = ai.rank(now);
+    const best = ranked.find(r => r.score > -Infinity && r.action.type !== 'END_TURN' && !(ran && r.action.type === 'INITIATE_RUN') && !dominated(now, r.action, ranked));
     if (!best) break;
     if (!ran) line.push({ key: positionKey(state, side), action: best.action }); // after a run the position can't be foreseen
     const next = step(state, best.action);
@@ -142,7 +160,7 @@ export function planTurn(state: GameState, side: SideCode, ranked: ScoredAction[
     return next.action;
   }
   memory.line = [];
-  const candidates = ranked.filter(r => r.score > -Infinity && r.action.type !== 'END_TURN' && r.action.type !== 'START_TURN').slice(0, PLANNER.candidates);
+  const candidates = ranked.filter(r => r.score > -Infinity && r.action.type !== 'END_TURN' && r.action.type !== 'START_TURN' && !dominated(state, r.action, ranked)).slice(0, PLANNER.candidates);
   if (candidates.length <= 1 || clicksOf(state, side) <= 0) return null;
   const unfreeze = freezeKnownHand();
   try {
