@@ -140,11 +140,18 @@ export const plansOn = (): boolean => !!tuning.plan.cardPlans;
 /** A card's worth in hand by its plan (before the wait), or undefined if it has none. */
 export function handPlanWorth(state: GameState, card: CardInstance): number | undefined {
   const plan = plansOn() ? CARD_PLANS[card.cardCode]?.hand : undefined;
-  if (!plan) return undefined;
-  const ready = Math.max(0, Math.min(1, plan.ready(state, card)));
-  // No floor here: a card whose setup is far off is worth little (heldWorth keeps the hand floor)
-  return ready * plan.payoff(state, card);
+  // A payoff priced from card values can come back here (the deck's average card counts this one): the average then
+  if (!plan || planning) return undefined;
+  planning = true;
+  try {
+    const ready = Math.max(0, Math.min(1, plan.ready(state, card)));
+    // No floor here: a card whose setup is far off is worth little (heldWorth keeps the hand floor)
+    return ready * plan.payoff(state, card);
+  } finally {
+    planning = false;
+  }
 }
+let planning = false;
 
 /** What the installed board plans of `side` add to its board. */
 export function boardPlansWorth(state: GameState, side: SideCode): number {
