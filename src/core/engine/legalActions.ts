@@ -76,13 +76,15 @@ function candidateActions(state: GameState, side: SideCode): GameAction[] {
             candidates.push({ type: 'PLAY_OPERATION_OR_EVENT', player: 'corp', cardInstanceId: card.instanceId });
             continue;
           }
+          // "Install only faceup" cards (Sacrifice Zone Expansion, rule 3.2.3a) get only the faceup options
+          const onlyFaceUp = !!getCardScript(card.cardCode)?.installFaceUpOnly;
           const faceUpToo = canInstallFaceUp(state, card);
-          candidates.push({ type: 'INSTALL_CARD', player: 'corp', cardInstanceId: card.instanceId, asNewRemote: true });
+          if (!onlyFaceUp) candidates.push({ type: 'INSTALL_CARD', player: 'corp', cardInstanceId: card.instanceId, asNewRemote: true });
           if (faceUpToo) candidates.push({ type: 'INSTALL_CARD', player: 'corp', cardInstanceId: card.instanceId, asNewRemote: true, faceUp: true });
           for (const server of servers) {
             if (!server.isRemote && (type === 'agenda' || type === 'asset')) continue;
             if (type === 'ice' && server.ice.length > state.corp.credits) continue;
-            candidates.push({ type: 'INSTALL_CARD', player: 'corp', cardInstanceId: card.instanceId, targetServerId: server.id });
+            if (!onlyFaceUp) candidates.push({ type: 'INSTALL_CARD', player: 'corp', cardInstanceId: card.instanceId, targetServerId: server.id });
             if (faceUpToo) {
               candidates.push({ type: 'INSTALL_CARD', player: 'corp', cardInstanceId: card.instanceId, targetServerId: server.id, faceUp: true });
             }

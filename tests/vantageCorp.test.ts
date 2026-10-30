@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { cardDef, createCardInstance, executeAction, findCardAnywhere, GameState, iceStrength, isLegalAction } from '../src/core';
+import { cardDef, createCardInstance, executeAction, findCardAnywhere, GameState, getLegalActions, iceStrength, isLegalAction } from '../src/core';
 import { availableCredits, rezCost } from '../src/core/engine/cardEffects';
 import { markSubroutinesBroken } from '../src/core/engine/ice';
 import {
@@ -190,6 +190,10 @@ describe('Vantage Point agendas', () => {
     let s = newGame();
     corpTurn(s);
     const id = giveCard(s, 'corp', V.sze);
+    // Only faceup install options are offered (no duplicate facedown buttons)
+    const installs = getLegalActions(s, 'corp').filter(a => a.type === 'INSTALL_CARD' && a.cardInstanceId === id);
+    expect(installs.length).toBeGreaterThan(0);
+    expect(installs.every(a => a.type === 'INSTALL_CARD' && a.faceUp)).toBe(true);
     s = executeAction(s, { type: 'INSTALL_CARD', player: 'corp', cardInstanceId: id, asNewRemote: true });
     const sze = card(s, id);
     expect(sze.faceUp).toBe(true);
