@@ -105,6 +105,9 @@ describe('sound effects', () => {
 describe('browsing decks after the game', () => {
   it('lists R&D and the Stack top card first, face down', () => {
     const state = newGame();
+    // During play R&D shows only what the Runner remembers (rules 1.7.1)
+    expect(zoneContents('rd', state).groups.map(g => g.label)).toEqual(['Seen by the Runner']);
+    state.winner = 'corp';
     const rd = zoneContents('rd', state);
     expect(rd.groups[0].cards[0].instanceId).toBe(state.corp.rd[0].instanceId);
     expect(rd.groups[0].cards).toHaveLength(state.corp.rd.length);
