@@ -1,6 +1,7 @@
 import fs from 'node:fs';
 import { ParsedDeck, normalizeTitle, parseNetrunnerDbUrl, resolveImport } from '../src/data/deckImport';
 import { CARD_SETS } from '../src/core/cards';
+import { getFormat } from '../src/core/formats';
 import {
   DeckGap,
   IMPLEMENTED_PACKS,
@@ -23,10 +24,12 @@ import {
  *   --from / --to YYYY-MM-DD   decklists published in that range (inclusive; one API call per day)
  *   --ids a,b                  decklist ids or links
  *   --startup                  only decklists tagged with a Startup ban list (mwl_code startup-*)
- *   --within sg,su21,ms        only decklists whose every card is printed in these packs
- *                              (era Startup pool), on top of our own sets
+ *   --within sg,ms,ph          only decklists whose every card is printed in these packs
+ *                              (era Startup pool), on top of our own sets; "standard" = the
+ *                              current Standard card pool (formats.ts)
  *   --side corp|runner
- *   --candidates ms,ph         sets to rank (default: every set from System Gateway on that we lack)
+ *   --candidates ms,ph         sets to rank (default: the Standard-legal sets we lack; rotated
+ *                              sets such as System Update 2021 are never candidates)
  *   --playable                 list only fully playable decklists
  *   --json out.json            also write the full result as JSON
  *
@@ -94,7 +97,8 @@ if (decklists.length === 0) {
   process.exit(1);
 }
 
-const within = list('within');
+const standardSets = getFormat('standard').sets!;
+const within = list('within')?.flatMap(p => (p === 'standard' ? standardSets : [p]));
 const pool = within && new Set([...within, ...IMPLEMENTED_PACKS]);
 const side = opt('side');
 const isIdentity = (code: string) => byCode.get(code)?.type_code === 'identity';
@@ -152,9 +156,7 @@ for (const r of shown) {
 }
 
 // Which set would unlock the most decks
-const startDate = released(packs.find(p => p.code === 'sg')!);
-const candidates =
-  list('candidates') ?? packsByDate.filter(p => !IMPLEMENTED_PACKS.has(p.code) && released(p) >= startDate && p.date_release).map(p => p.code);
+const candidates = list('candidates') ?? packsByDate.filter(p => standardSets.includes(p.code) && !IMPLEMENTED_PACKS.has(p.code)).map(p => p.code);
 const gaps: DeckGap[] = results.map(r => ({ id: String(r.id), missing: r.missing }));
 const ranking = rankSetsToUnlock(gaps, printings, candidates, packsByDate.map(p => p.code));
 const label = (id: string) => results.find(r => String(r.id) === id)!.name;
