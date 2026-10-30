@@ -6,6 +6,7 @@ import { cardSynergy } from './synergyTags';
 import { tuning } from './synergy';
 import { corpKeepValue, runnerCardValue } from './cardValues';
 import { countersWorth } from './counterValues';
+import { boardPlansWorth } from './cardPlans';
 import { AI_BREAKER_SHARE, breakerTypeWorth, flatIceWorth, iceWorth } from './iceValues';
 import { payoutWait, payoutWorth, profileOf, turnsLeft } from './cardProfiles';
 import { HAND_FLOOR, clickPrice, handByCard, heldWorth, ownHandValue, playedWorth } from './handValues';
@@ -140,7 +141,6 @@ export function runnerRigValue(state: GameState, aware: boolean, viewer: SideCod
     }
     // A breaker is worth its coverage above (plan.flatRates.breakers: no flat extra for having one)
     value += isIcebreaker(card) ? (flatRate('breakers') && tuning.plan.breakerCredits?.[viewer] ? 0 : RATES.icebreaker) : RATES.rigCardScale * runnerCardValue(card.cardCode, state, card);
-    value += sourdoughFuel(state, card);
     // Counters by what they do on this card (step 3), or the step-1 rates
     value += countersWorth(state, card, 'credit', viewer) + countersWorth(state, card, 'virus', viewer) + countersWorth(state, card, 'power', viewer);
     // Bling, Madani: cards to play later, worth what they would be in the grip (plan.flatRates.hosted).
@@ -148,7 +148,8 @@ export function runnerRigValue(state: GameState, aware: boolean, viewer: SideCod
     const hosted = (card.hostedCards ?? []).filter(h => cardDef(h).side_code === 'runner');
     value += hosted.reduce((n, h) => n + (flatRate('hosted') ? heldWorth(state, h, 'runner') : RATES.hostedCard), 0);
   }
-  return value;
+  // Combos in play (Knickknack burning Principia, Baker on stealth credits): plan.cardPlans
+  return value + boardPlansWorth(state, 'runner');
 }
 
 
@@ -300,22 +301,6 @@ export function tagsWorth(state: GameState, viewer: SideCode, tags = state.runne
   // Kept, a tag costs this turn's loss and maybe the next; the Runner clears the ones that cost more than clearing
   const worth = Math.min(tags * clear, 1.5 * perTurn + 0.1 * (tags - 1));
   return tuning.plan.vicTags && state.runner.identity.cardCode === VIC ? Math.min(worth, vicTagsWorth(state, tags, perTurn)) : worth;
-}
-
-/** Principia: costs 1 less to install for each other installed icebreaker. */
-export const PRINCIPIA = '35032';
-/** "Knickknack" O'Brian: trash an installed card when a run begins for its printed install cost and a card. */
-const KNICKKNACK = '35033';
-
-/**
- * The Sourdough loop (Jeff, 2026-10-30; plan.sourdough): with Knickknack
- * O'Brian installed, an installed Principia is fuel, its printed 4 and a card
- * waiting to be taken when a run begins (it reinstalls cheaply with other
- * breakers out), on top of whatever barriers it covers.
- */
-export function sourdoughFuel(state: GameState, card: CardInstance): number {
-  if (!tuning.plan.sourdough || card.cardCode !== PRINCIPIA || !state.runner.rig.resources.some(r => r.cardCode === KNICKKNACK)) return 0;
-  return 0.6 * ((cardDef(card).cost ?? 0) + cardRate(state, 'runner'));
 }
 
 /** Virtual Intelligence, P.I.: "Once per turn → [click], 1[credit]: Draw 1 card and remove 1 tag." */

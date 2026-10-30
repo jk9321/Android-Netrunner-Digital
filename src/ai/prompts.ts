@@ -1,11 +1,10 @@
 import { CardInstance, GameAction, GameState, Prompt, SideCode, activePrompt, cardDef, executeAction, findCardAnywhere, getCardDefinition, getLegalActions, isLegalAction } from '../core';
 import { runnerInstallBlocker, runnerInstallCost } from '../core/engine/actions/install';
-import { evaluate, keepValue, runnerRigValue, sourdoughFuel } from './evaluate';
+import { evaluate, keepValue, runnerRigValue } from './evaluate';
+import { bakerWantsFuel, principiaFuel } from './cardPlans';
 import { CLICK, cardRate } from './valueModel';
 import { PACE, accessWorth, placedCounterWorth } from './effectValues';
 import { turnsLeft } from './cardProfiles';
-import { stealthCreditWorth } from './counterValues';
-import { stealthCredits } from '../core/engine/cardEffects';
 import { BOTULUS, MANEGARM, RunOptions, RunnerMemory, iceCost, isTrap, runClick, runScore, serverValue, spendCost, subroutineCost, tagCost, weakestIce } from './runs';
 import { breakerScript, encounteredIce, iceSubroutines, iceSubtypes, isIcebreaker } from '../core/engine/ice';
 import { keepBonus, tuning } from './synergy';
@@ -227,9 +226,9 @@ export function answerPrompt(state: GameState, side: SideCode, memory?: RunnerMe
       });
       if (dead.length) return pick(weakest(dead));
       // With Baker out and no stealth credit for it, the weakest hardware is worth turning into its fuel
-      const fuel = 2 * stealthCreditWorth(state);
+      // (2 stealth credits, the first a Baker run worth about 2.5: cardPlans.ts)
       const spare = weakest(cards);
-      return pick(stealthCreditWorth(state) > 1 && stealthCredits(state) === 0 && spare && keepValue(state, spare) < fuel ? spare : undefined);
+      return pick(bakerWantsFuel(state) && spare && keepValue(state, spare) < 2 * 0.9 + 1.6 ? spare : undefined);
     }
     // Knickknack O'Brian: trash only a card that has stopped giving value (its loss to the rig well under the credits and card it pays)
     if (code === '35033' && prompt.source.step === 'trash') {
@@ -238,7 +237,7 @@ export function answerPrompt(state: GameState, side: SideCode, memory?: RunnerMe
         const { programs, hardware, resources } = state.runner.rig;
         const without = { programs: programs.filter(x => x !== c), hardware: hardware.filter(x => x !== c), resources: resources.filter(x => x !== c) };
         // Fuel is there to be burnt: its loss is only the coverage it gives
-        const lost = rig - runnerRigValue({ ...state, runner: { ...state.runner, rig: without } }, true, 'runner') - sourdoughFuel(state, c);
+        const lost = rig - runnerRigValue({ ...state, runner: { ...state.runner, rig: without } }, true, 'runner') - principiaFuel(state, c);
         if (!isIcebreaker(c)) return lost;
         // A breaker is cheap to lose when it comes back for its install (a copy in the grip, or this one from the
         // heap with Scrounge), and while no rezzed ice it breaks is out (Jeff, 2026-10-30: the Sourdough loop)

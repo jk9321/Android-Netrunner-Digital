@@ -3,7 +3,7 @@ import { findCardAnywhere } from '../core';
 import { counters, rezCost, stealthCredits } from '../core/engine/cardEffects';
 import { tuning } from './synergy';
 import { CLICK, RATES, cardRate, handFilter, pointValue, sideCards } from './valueModel';
-import { bestBreakPlan, runStealthCredits } from './runs';
+import { bestBreakPlan } from './runs';
 import { PACE, accessWorth, conduitCounterWorth, damageWorth, runSuccess } from './effectValues';
 import { PAYOUT_RISK } from './cardProfiles';
 import { corpKeepValue } from './cardValues';
@@ -21,18 +21,6 @@ type CounterWorth = (state: GameState, card: CardInstance) => number;
 
 /** Credits paid out a few at a time on the Corp's turn: a little under face value, since the Runner can trash the asset first. */
 const PAID_OUT = 0.85;
-
-const BAKER = '36015';
-
-/**
- * A stealth credit (Methuselah, Touchstone) pays only during runs: about 0.9. With Baker installed
- * (Jeff, 2026-10-30; plan.sourdough) the first one each turn is a Baker run past HQ's or R&D's ice,
- * worth about 2.5, so the pool's first credit carries that and the rest are run money.
- */
-export function stealthCreditWorth(state: GameState): number {
-  if (!tuning.plan.sourdough || !state.runner.rig.programs.some(c => c.cardCode === BAKER)) return 0.9;
-  return 0.9 + 1.6 / Math.max(1, runStealthCredits(state));
-}
 
 export const COUNTER_WORTH: Record<string, Partial<Record<CounterType, CounterWorth>>> = {
   // ---- Corp ----
@@ -67,8 +55,8 @@ export const COUNTER_WORTH: Record<string, Partial<Record<CounterType, CounterWo
   '35031': { power: () => 1.2 }, // Devadatta Drone: 1 more card accessed on an R&D breach
   '35010': { power: () => 1.2 }, // Cacophony: 2 counters sabotage 3
   '36005': { power: state => (stealthCredits(state) > 0 ? 2 : 0.5) }, // Lampades: a paid trash of an accessed card, with stealth credits only
-  '36020': { credit: state => stealthCreditWorth(state) }, // Methuselah: run credits only (Baker's fuel)
-  '36021': { credit: state => stealthCreditWorth(state) }, // Touchstone: run credits only (Baker's fuel)
+  '36020': { credit: () => 0.9 }, // Methuselah: run credits only (Baker's fuel: cardPlans.ts)
+  '36021': { credit: () => 0.9 }, // Touchstone: run credits only (Baker's fuel: cardPlans.ts)
   // Botulus: each counter breaks 1 subroutine on its host, worth what breaking one costs (3 if nothing breaks it)
   '30004': { virus: (state, card) => trojanHostWorth(state, card, host => Math.min(3, bestBreakPlan(state, host, 1)?.credits ?? 3)) },
   // Tranquilizer: 3 counters derez its host, a third of the rez cost each

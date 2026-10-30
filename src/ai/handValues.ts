@@ -5,6 +5,7 @@ import { corpKeepValue, runnerCardValue } from './cardValues';
 import { breakerTypeWorth, iceWorth } from './iceValues';
 import { agendaWorth, isOneUse, runnerRigValue } from './evaluate';
 import { counterWorth } from './counterValues';
+import { handPlanWorth } from './cardPlans';
 import { iceCost } from './runs';
 import { planSide, tuning } from './synergy';
 import { CLICK, RATES, cardRate, flatRate, handFilter, pointValue, setDeckCard } from './valueModel';
@@ -36,10 +37,13 @@ export function playedWorth(state: GameState, card: CardInstance): number {
   switch (def.type_code) {
     case 'event':
     case 'operation': {
+      // A conditional card by its plan: payoff scaled by how ready its condition is (cardPlans.ts)
+      const planned = handPlanWorth(state, card);
+      if (planned !== undefined) return planned;
       // Played out when chosen (one-step simulation); in hand, a money card is worth its net gain
       const gain = (def.stripped_text ?? '').match(/(?:^|\. )Gain (\d+) credits/);
-      const card = cardRate(state, def.side_code);
-      return gain ? Math.max(card, Number(gain[1]) - cost) : card;
+      const average = cardRate(state, def.side_code);
+      return gain ? Math.max(average, Number(gain[1]) - cost) : average;
     }
     case 'agenda': {
       const points = def.agenda_points ?? 1;
