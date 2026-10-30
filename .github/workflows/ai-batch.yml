@@ -45,7 +45,7 @@ on:
         required: false
         default: 1724c6b08430499775cd3378c46f8540f4df466c
       decks:
-        description: Deck id prefixes to play, comma-separated (vp- for Vantage Point only; runner=vp-sourdough or corp=x for one side only; empty for every deck)
+        description: Deck id prefixes to play, comma-separated (vp- for the test-only NetrunnerDB Vantage Point decks; runner=vp-sourdough or corp=x for one side only; empty for every deck)
         required: false
         default: ''
       add_run:
@@ -83,6 +83,8 @@ jobs:
           GAME_FROM: ${{ inputs.game_from }}
           H2H: ${{ inputs.h2h }}
           DECKS: ${{ inputs.decks }}
+          # the test-only NetrunnerDB decks (scripts/nrdb-test-decks.ts) join when asked for by prefix
+          NRDB: ${{ contains(inputs.decks, 'vp-') && '1' || '' }}
           REPLY_SAMPLES: ${{ contains(inputs.label, 'samples=4') && '4' || '' }}
         run: |
           mkdir -p out

@@ -6,6 +6,7 @@
  * DECKS=vp- plays only decks whose id starts with that prefix (comma-separated prefixes).
  * RUNNERS=vp-vic / CORPS=cov-vp-corp narrow only that side to those prefixes.
  * COVERAGE=1 adds the test-only decks of scripts/vp-coverage-decks.ts (ids cov-...).
+ * NRDB=1 adds the test-only NetrunnerDB decks of scripts/nrdb-test-decks.ts (ids vp-...).
  */
 import { activePrompt, createInitialGameState, findCardAnywhere, GameState, cardDef } from '../src/core';
 import { DECKS, deckGameSetup } from '../src/data/decks';
@@ -14,6 +15,7 @@ import { GameRunner } from '../src/ai/playout';
 import type { Agent } from '../src/ai/agent';
 import { tuning } from '../src/ai/synergy';
 import { VP_COVERAGE_DECKS } from './vp-coverage-decks';
+import { NRDB_TEST_DECKS } from './nrdb-test-decks';
 for (const key of (process.env.PLAN_OFF ?? '').split(',').filter(Boolean)) {
   const [name, side] = key.split('.');
   const plan = tuning.plan as Record<string, unknown>;
@@ -79,7 +81,7 @@ function timed(a: Agent, side: Side): Agent {
 
 let seed = 1000, deal = 0;
 const prefixes = (process.env.DECKS ?? '').split(',').filter(Boolean);
-const pool = [...DECKS, ...(process.env.COVERAGE ? VP_COVERAGE_DECKS : [])].filter(d => prefixes.length === 0 || prefixes.some(p => d.id.startsWith(p)));
+const pool = [...DECKS, ...(process.env.COVERAGE ? VP_COVERAGE_DECKS : []), ...(process.env.NRDB ? NRDB_TEST_DECKS : [])].filter(d => prefixes.length === 0 || prefixes.some(p => d.id.startsWith(p)));
 // RUNNERS=vp-vic / CORPS=cov-vp-corp narrow one side only (one deck against every deck of the other side)
 const sidePool = (side: Side, env?: string) => {
   const only = (env ?? '').split(',').filter(Boolean);

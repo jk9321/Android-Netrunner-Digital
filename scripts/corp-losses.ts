@@ -9,7 +9,8 @@
  * the same way.
  */
 import { createInitialGameState } from '../src/core';
-import { DECKS, deckGameSetup } from '../src/data/decks';
+import { DECKS as SHIPPED_DECKS, deckGameSetup } from '../src/data/decks';
+import { NRDB_TEST_DECKS } from './nrdb-test-decks';
 import { createAgent } from '../src/ai';
 import { GameRecord, playLogged } from './lossLog';
 import { valueLoops } from '../src/ai/valueModel';
@@ -26,6 +27,8 @@ if (process.env.BLUFF === '0') tuning.bluff = false;
 const only = (process.env.CORP_DECKS ?? '').split(',').filter(Boolean);
 // DECKS=vp-,core- plays only decks whose id starts with one of the prefixes; corp=x / runner=x narrow one side only
 // (DECKS=runner=vp-sourdough: one Runner deck against every Corp deck)
+// NRDB=1 adds the test-only NetrunnerDB decks of scripts/nrdb-test-decks.ts (ids vp-...)
+const DECKS = [...SHIPPED_DECKS, ...(process.env.NRDB ? NRDB_TEST_DECKS : [])];
 const entries = (process.env.DECKS ?? '').split(',').filter(Boolean);
 const sidePrefixes = (side: 'corp' | 'runner') => {
   const own = entries.filter(e => e.startsWith(side + '=')).map(e => e.slice(side.length + 1));
