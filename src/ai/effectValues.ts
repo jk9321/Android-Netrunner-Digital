@@ -5,7 +5,8 @@ import { PAYOUT_RISK, turnsLeft } from './cardProfiles';
 import { COUNTER_WORTH, counterWorth } from './counterValues';
 import { tuning } from './synergy';
 import { CLICK, RATES, cardRate, flatRate, flatlineWorth, memo, pointGain, pointValue, sideCards } from './valueModel';
-import { PRINCIPIA, VIC, tagsWorth } from './evaluate';
+import { VIC, tagsWorth } from './evaluate';
+import { PRINCIPIA } from './cardPlans';
 import { iceCost } from './runs';
 
 /**

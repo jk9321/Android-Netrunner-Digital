@@ -318,6 +318,8 @@ export const tuning = {
     rdMemory: true,
     /** Jeff, 2026-10-30 (playing Sourdough Starter): DZMZ Optimizer by the programs still to install; Methuselah fed only dead hardware (a copy of one installed, or unaffordable); Read-Write Share hosts the weakest grip card; Knickknack trashes only spent cards (effectValues.ts, prompts.ts). */
     sourdough: true,
+    /** Jeff, 2026-10-30: card plans: conditional cards in hand by payoff x readiness, board combos (Knickknack fuel, Baker fuel) on top (cardPlans.ts). */
+    cardPlans: true,
     /** Per deciding side (Jeff, 2026-10-28): Normal plays its best few actions through to the end of the turn and picks the best turn (turnPlanner.ts). */
     turnPlanner: { corp: true, runner: true } as Record<SideCode, boolean>,
     /** With the planner: the hand at the end of a planned turn valued card by card (what each will do later). */

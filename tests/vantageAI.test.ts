@@ -4,7 +4,7 @@ import { accessWorth } from '../src/ai/effectValues';
 import { answerPrompt, meliesSide } from '../src/ai/prompts';
 import { bestBreakPlan, chainReactionBonus, runBudget, runScore, tagCost } from '../src/ai/runs';
 import { myoshuSaving, perfectRecallTarget } from '../src/ai/corpAI';
-import { stealthCreditWorth } from '../src/ai/counterValues';
+import { bakerWantsFuel, boardPlansWorth } from '../src/ai/cardPlans';
 import { createAgent } from '../src/ai';
 import { giveCard, installIceForTest, installProgramForTest, newGame, play, run, runIntoFirstIce, runnerInstall, setIdentity, startRunnerTurn } from './helpers';
 
@@ -188,13 +188,16 @@ describe('AI with Vantage Point cards', () => {
   it('Baker: the first stealth credit is worth a Baker run past central ice, the rest run money', () => {
     let s = newGame();
     startRunnerTurn(s);
-    expect(stealthCreditWorth(s)).toBeCloseTo(0.9); // no Baker
-    [s] = runnerInstall(s, V.baker);
     methuselah(s, 0);
-    const first = stealthCreditWorth(s);
-    expect(first).toBeGreaterThan(2);
-    s.runner.rig.hardware.at(-1)!.tokens.credit = 3;
-    expect(stealthCreditWorth(s)).toBeLessThan(first);
+    expect(boardPlansWorth(s, 'runner')).toBe(0); // no Baker
+    [s] = runnerInstall(s, V.baker);
+    expect(bakerWantsFuel(s)).toBe(true);
+    s.runner.rig.hardware.find(c => c.cardCode === V.methuselah)!.tokens.credit = 1;
+    const one = boardPlansWorth(s, 'runner');
+    expect(one).toBeGreaterThan(1);
+    s.runner.rig.hardware.find(c => c.cardCode === V.methuselah)!.tokens.credit = 3;
+    expect(boardPlansWorth(s, 'runner')).toBe(one); // only the first is Baker's
+    expect(bakerWantsFuel(s)).toBe(false);
   });
 });
 
