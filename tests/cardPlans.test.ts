@@ -89,4 +89,14 @@ describe('card plans (Jeff, 2026-10-30; plan.cardPlans)', () => {
       tuning.plan.cardPlans = true;
     }
   });
+
+  it('a plan priced from card values does not price itself again (Chain Reaction with Corp cards out)', () => {
+    const s = newGame();
+    startRunnerTurn(s);
+    for (let i = 0; i < 3; i++) s.runner.stack.unshift(createCardInstance(s, '36001'));
+    const chain = inHand(s, 'runner', '36001');
+    s.corp.servers['remote-1'] = { id: 'remote-1', name: 'Remote Server 1', isRemote: true, ice: [], root: [createCardInstance(s, '30071')] };
+    expect(Number.isFinite(heldWorth(s, chain, 'runner'))).toBe(true);
+  });
 });
+
