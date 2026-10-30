@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { CARD_PLANS, boardPlansWorth, handPlanWorth } from '../src/ai/cardPlans';
+import { corpCardValue, evaluate } from '../src/ai/evaluate';
 import { heldWorth } from '../src/ai/handValues';
 import { ALL_CARDS, cardDef, createCardInstance, GameState } from '../src/core';
 import { giveCard, newGame, runnerInstall, startRunnerTurn } from './helpers';
@@ -32,6 +33,29 @@ describe('card plans (Jeff, 2026-10-30; plan.cardPlans)', () => {
     s.corp.servers['remote-1'] = { id: 'remote-1', name: 'Remote Server 1', isRemote: true, ice: [], root: [agenda] };
     s.corp.credits = 10;
     expect(handPlanWorth(s, myoshu)!).toBeGreaterThan(saved);
+  });
+
+  it('Myōshu: the planned turn values keeping the saved 10 credits by more than the old flat -1 (retires myoshuSaving)', async () => {
+    const { tuning } = await import('../src/ai/synergy');
+    const saved = tuning.plan.handByCard;
+    tuning.plan.handByCard = { ...saved, corp: true }; // the turn planner's end-of-turn view
+    const s = newGame();
+    const agenda = createCardInstance(s, AGENDA);
+    agenda.installedTurn = 'earlier';
+    s.corp.servers['remote-1'] = { id: 'remote-1', name: 'Remote Server 1', isRemote: true, ice: [], root: [agenda] };
+    const spendCost = (st: GameState) => {
+      st.corp.credits = 10;
+      const saved = evaluate(st, 'corp', true);
+      st.corp.credits = 7;
+      return saved - evaluate(st, 'corp', true);
+    };
+    const without = spendCost(s);
+    inHand(s, 'corp', '36061');
+    try {
+      expect(spendCost(s) - without).toBeGreaterThan(1);
+    } finally {
+      tuning.plan.handByCard = saved;
+    }
   });
 
   it('Retribution is worth more once the Runner is tagged', () => {
@@ -97,6 +121,16 @@ describe('card plans (Jeff, 2026-10-30; plan.cardPlans)', () => {
     const chain = inHand(s, 'runner', '36001');
     s.corp.servers['remote-1'] = { id: 'remote-1', name: 'Remote Server 1', isRemote: true, ice: [], root: [createCardInstance(s, '30071')] };
     expect(Number.isFinite(heldWorth(s, chain, 'runner'))).toBe(true);
+  });
+
+  it('a Corp card priced from the damage clock does not loop through Chain Reaction in the deck average (Phật Gioan Baotixita)', () => {
+    const s = newGame();
+    for (let i = 0; i < 3; i++) s.runner.stack.unshift(createCardInstance(s, '36001'));
+    const gioan = createCardInstance(s, '35051');
+    gioan.isRezzed = true;
+    gioan.tokens.power = 2; // priced on the damage clock, which needs the Runner's average card
+    s.corp.servers['remote-1'] = { id: 'remote-1', name: 'Remote Server 1', isRemote: true, ice: [], root: [gioan] };
+    expect(Number.isFinite(corpCardValue(gioan, s, 'corp'))).toBe(true); // the loop guard throws in tests
   });
 });
 

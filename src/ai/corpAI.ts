@@ -1,4 +1,5 @@
 import { CardInstance, GameAction, GameState, ServerState, activePrompt, cardDef, findCardAnywhere, getCardDefinition, getLegalActions, isLegalAction } from '../core';
+import { plansOn } from './cardPlans';
 import { iceScript, iceStrength, iceSubtypes } from '../core/engine/ice';
 import { iceWorth, withIceInstalled } from './iceValues';
 import { rigCoverage } from './evaluate';
@@ -360,8 +361,8 @@ export class HeuristicCorpAI implements Agent {
     }
     let score = evaluate(resolved, 'corp', this.synergy) - before;
     if (this.synergy) score += this.moneyPlan(state, action);
-    // Myōshu: keep the 10 credits once saved, unless the spend scores
-    if (this.synergy && myoshuSaving(state, true) && resolved.corp.credits < MYOSHU_COST && resolved.corp.score === corp.score) score -= 1;
+    // Myōshu: keep the 10 credits once saved, unless the spend scores (its card plan does this when plans are on)
+    if (this.synergy && !plansOn() && myoshuSaving(state, true) && resolved.corp.credits < MYOSHU_COST && resolved.corp.score === corp.score) score -= 1;
     // Deck-aware AI: a play that makes an agenda scoreable this turn (Seamless Launch, Key Performance Indicators...)
     if (this.synergy && tuning.plan.scoreSetup && scoreable(resolved) > scoreable(state)) score = Math.max(score, 41);
     if (!spendsClick && score <= 0.3) return -Infinity;
@@ -384,7 +385,7 @@ export class HeuristicCorpAI implements Agent {
         const cost = cardDef(c).cost ?? 0;
         return gain !== undefined && cost > corp.credits && cost <= corp.credits + corp.clicks + 2;
       });
-      return reachable || myoshuSaving(state) ? 0.6 : 0;
+      return reachable || (!plansOn() && myoshuSaving(state)) ? 0.6 : 0;
     }
     if (action.type === 'PLAY_OPERATION_OR_EVENT' && tuning.plan.pettyCash) {
       return corp.hq.find(c => c.instanceId === action.cardInstanceId)?.cardCode === '35081' ? (hacksOff('bonuses') ? PETTY_CASH_REPLAY : 1.5) : 0;
