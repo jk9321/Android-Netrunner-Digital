@@ -75,6 +75,7 @@ export function executeAction(prevState: GameState, action: GameAction): GameSta
     throw new IllegalActionError(`Unknown action type: ${(action as { type: string }).type}`);
   }
   handler(state, action);
+  if (state.winner) endGame(state);
   removeEmptyRemotes(state);
   forgetHiddenCards(state);
   updateRdKnowledge(prevState, state);
@@ -83,6 +84,16 @@ export function executeAction(prevState: GameState, action: GameAction): GameSta
   if (isClickAction(prevState, action) && state.activePlayer === prevState.activePlayer) bumpTurnFlag(state, TurnFlag.actionsFinished);
   syncDerivedStats(state);
   return state;
+}
+
+/**
+ * The game ends the moment a player wins (rules 1.7.1, 10.3.1c), so nothing
+ * still waiting is carried out: decisions queued before the win (Ryō's HQ
+ * trash, the rest of a breach) are dropped and the run is over.
+ */
+function endGame(state: GameState): void {
+  state.pendingPrompts = [];
+  state.activeRun = null;
 }
 
 const CLICK_ACTIONS: GameActionType[] = [

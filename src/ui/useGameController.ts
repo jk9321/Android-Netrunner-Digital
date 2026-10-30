@@ -139,6 +139,8 @@ export function useGameController(config: GameConfig, saved: SavedGame | null) {
     const hold = action.type === 'CONCEDE' ? null : heldRef.current;
     const base = hold?.base ?? latestStateRef.current;
     const current = hold?.next ?? base;
+    // The game is over (rule 1.7.1): a move still on its way (the computer's, a click) is dropped quietly
+    if (current.winner) return;
     try {
       const uncommitted = !hold && action.player !== aiSide ? uncommittedChoice(current, action) : null;
       if (uncommitted) {
@@ -239,7 +241,8 @@ export function useGameController(config: GameConfig, saved: SavedGame | null) {
       .then(action => {
         if (cancelled) return;
         timer = window.setTimeout(() => {
-          if (cancelled) return;
+          // The game moved on (or ended) since the computer was asked
+          if (cancelled || latestStateRef.current !== gameState) return;
           if (action && !isLegalAction(gameState, action)) void failed(`it chose an illegal ${action.type} move`);
           else if (action) handleAction(action);
           else if (window_) passRezWindow(window_.key);
