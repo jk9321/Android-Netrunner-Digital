@@ -449,6 +449,24 @@ describe('Elevation Runner hardware', () => {
     expect(s.runner.rig.programs.map(c => c.instanceId)).toContain(cleaver);
     expect(s.runner.credits).toBe(0);
   });
+
+  it('Madani installs once on the Runner turn and again on the Corp turn (no click, rules 9.5.2, 5.6.2a)', () => {
+    let [s, madani] = runnerInstall(newGame(), E.madani);
+    const cleavers = [giveCard(s, 'runner', SG.cleaver), giveCard(s, 'runner', SG.cleaver)];
+    s.runner.clicks = 1;
+    s = useAbility(s, 'runner', madani, 0);
+    s = pick(s, cleavers);
+    s.runner.credits = 6;
+    s = useAbility(s, 'runner', madani, 1);
+    s = pick(s, [cleavers[0]]);
+    expect(isLegalAction(s, { type: 'USE_ABILITY', player: 'runner', cardInstanceId: madani, abilityIndex: 1 })).toBe(false);
+    s = passTurn(s);
+    expect(s.activePlayer).toBe('corp');
+    expect(isLegalAction(s, { type: 'USE_ABILITY', player: 'runner', cardInstanceId: madani, abilityIndex: 1 })).toBe(true);
+    s = useAbility(s, 'runner', madani, 1);
+    s = pick(s, [cleavers[1]]);
+    expect(s.runner.rig.programs.map(c => c.instanceId)).toEqual(expect.arrayContaining(cleavers));
+  });
 });
 
 describe('Elevation Runner programs', () => {
