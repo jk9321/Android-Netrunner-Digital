@@ -41,6 +41,8 @@ export default defineConfig({
   define: {
     __APP_VERSION__: JSON.stringify(buildVersion()),
     __ALL_DECKS__: JSON.stringify(allDecksBuild()),
+    // Beta-only tools (the bulk NetrunnerDB importer); compiled out of every other build
+    __BETA_TOOLS__: JSON.stringify(allDecksBuild()),
   },
   resolve: {
     alias: {

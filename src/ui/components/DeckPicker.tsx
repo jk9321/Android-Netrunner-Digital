@@ -13,6 +13,8 @@ import { BugReportButton } from './BugReportButton';
 const DeckBuilder = lazy(() => import('./DeckBuilder').then(m => ({ default: m.DeckBuilder })));
 const DeckViewer = lazy(() => import('./DeckBuilder').then(m => ({ default: m.DeckViewer })));
 const ImportDeckModal = lazy(() => import('./ImportDeckModal').then(m => ({ default: m.ImportDeckModal })));
+// Beta builds only: __BETA_TOOLS__ is false elsewhere, so the bundler drops this chunk from main builds
+const BulkImportModal = __BETA_TOOLS__ ? lazy(() => import('../../beta/BulkImportModal').then(m => ({ default: m.BulkImportModal }))) : null;
 
 interface DeckPickerProps {
   initialCorpDeckId: string;
@@ -133,6 +135,7 @@ export const DeckPicker: React.FC<DeckPickerProps> = ({ initialCorpDeckId, initi
   const [editing, setEditing] = useState<DeckList | null>(null);
   const [viewing, setViewing] = useState<DeckList | null>(null);
   const [importing, setImporting] = useState(false);
+  const [bulkImporting, setBulkImporting] = useState(false);
   const summaries = useMemo(() => [...DECKS, ...customDecks].map(summarize), [customDecks]);
   const [favorites, setFavorites] = useState<string[]>(loadFavoriteDecks);
   // Premade decks the player hid; they stay listed (faded) while that side's "Show hidden" is on
@@ -475,7 +478,29 @@ export const DeckPicker: React.FC<DeckPickerProps> = ({ initialCorpDeckId, initi
           NETRUNNER
         </h1>
         <BugReportButton screen="deck picker" />
+        {BulkImportModal && (
+          <button
+            onClick={() => setBulkImporting(true)}
+            data-testid="bulk-import"
+            title="Beta only: fetch many NetrunnerDB decks at once"
+            className="px-2.5 py-1 rounded-lg border border-fuchsia-600 text-fuchsia-300 hover:border-fuchsia-400 text-xs"
+          >
+            Bulk import (beta)
+          </button>
+        )}
       </div>
+      {BulkImportModal && bulkImporting && (
+        <Suspense fallback={null}>
+          <BulkImportModal
+            saved={customDecks}
+            onClose={() => setBulkImporting(false)}
+            onSave={decks => {
+              setBulkImporting(false);
+              storeDecks([...customDecks, ...decks]);
+            }}
+          />
+        </Suspense>
+      )}
       <p className="text-xs text-slate-400 mb-6 text-center">
         Choose a deck for each side. The starter decks are the best place to begin. Build your own with New deck (where you can also import from NetrunnerDB), or copy any deck to tweak it.
       </p>
