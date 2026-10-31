@@ -14,6 +14,7 @@ import { asSide, logNudge, nudge, opponentLean, tuning } from './synergy';
 import { noteKnownHand } from './handValues';
 import { PlanMemory, planTurn, plannerOn } from './turnPlanner';
 import { runnerReply } from './runnerReply';
+import { freeRezCover, freeRezTargets } from './freeRez';
 import { PETTY_CASH_REPLAY, iceAdvanceWorth, placedCounterWorth, rezEffectWorth, rezzedWorth, runTimed, topDownWorth } from './effectValues';
 import { CARD_PROFILES, ECON_SCALE } from './cardProfiles';
 
@@ -623,7 +624,10 @@ export class HeuristicCorpAI implements Agent {
         const depth =
           server && this.synergy && tuning.plan.iceDepth ? iceDepth(state, server) : server?.ice.length ?? 0;
         // (Jeff) no ice the Corp can't afford to rez on top of the unrezzed ice already out, unless HQ must shrink to avoid a discard
-        if (this.synergy && tuning.plan.icePacing && unrezzedIceCost(state) + (cardDef(card).cost ?? 0) > corp.credits - installCost + ICE_PACING_INCOME && hq.length <= corp.handSizeLimit) return -Infinity;
+        // plan.freeRez: a coming free rez (Send a Message, Unleash) pays for the costliest of them
+        const freeTargets = freeRezTargets(state, card);
+        const covered = freeRezCover(state, card);
+        if (this.synergy && tuning.plan.icePacing && unrezzedIceCost(state) + (cardDef(card).cost ?? 0) - covered > corp.credits - installCost + ICE_PACING_INCOME && hq.length <= corp.handSizeLimit) return -Infinity;
         let need: number;
         // Deck-aware AI: one well-iced scoring remote rather than ice spread thin
         const main = this.synergy && tuning.plan.oneRemote ? mainRemote(state) : null;
@@ -677,7 +681,7 @@ export class HeuristicCorpAI implements Agent {
           const breaches = state.runnerLastTurnRuns.filter(r => r.server === server.id && r.successful).length;
           need += Math.min(1, 0.5 * breaches);
         }
-        const rezCost = cardDef(card).cost ?? 0;
+        const rezCost = freeTargets.has(card.instanceId) ? 0 : cardDef(card).cost ?? 0;
         // (Jeff) ice whose strength depends on where it sits (Scatter Field) is judged where it would go
         const placed = this.synergy && tuning.plan.icePosition ? withIceInstalled(state, card, server) : state;
         const strength = placed === state ? cardDef(card).strength ?? 0 : iceStrength(placed, card);

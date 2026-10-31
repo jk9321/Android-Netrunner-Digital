@@ -9,6 +9,9 @@ import { BOTULUS, MANEGARM, RunOptions, RunnerMemory, iceCost, isTrap, runClick,
 import { breakerScript, encounteredIce, iceSubroutines, iceSubtypes, isIcebreaker } from '../core/engine/ice';
 import { keepBonus, tuning } from './synergy';
 import { perfectRecallTarget } from './corpAI';
+import { freeRezOn } from './freeRez';
+import { iceWorth } from './iceValues';
+import { rezCost } from '../core/engine/cardEffects';
 
 /** Applies an action, or returns null if the engine rejects it. */
 export function simulate(state: GameState, action: GameAction): GameState | null {
@@ -310,7 +313,8 @@ export function answerPrompt(state: GameState, side: SideCode, memory?: RunnerMe
   for (const action of options) {
     const after = simulate(state, action);
     if (!after) continue;
-    const score = scoreOutcome(state, followChain(prompt, after, side, memory, synergy), side, memory, synergy);
+    let score = scoreOutcome(state, followChain(prompt, after, side, memory, synergy), side, memory, synergy);
+    if (side === 'corp' && freeRezOn()) score += freeRezSaving(state, after);
     if (score > bestScore) {
       bestScore = score;
       best = action;
@@ -453,3 +457,26 @@ function breaksRezzedIce(state: GameState, breaker: CardInstance): boolean {
   return Object.values(state.corp.servers).some(server => server.ice.some(ice => ice.isRezzed && (breaks === 'any' || iceSubtypes(ice, state).includes(breaks))));
 }
 
+/**
+ * plan.freeRez: an answer that rezzes ice ignoring all costs (Send a Message,
+ * Unleash; rules 1.16.5c). Ice the Corp could pay for anyway would have cost
+ * its rez: the free rez saves that much, where the board score only sees the
+ * ice's worth go from "still to pay for" to rezzed. Ice it couldn't pay for
+ * gains its whole worth on the board already. So the free rez goes to the ice
+ * that saves the most.
+ */
+export function freeRezSaving(before: GameState, after: GameState): number {
+  if (after.corp.credits < before.corp.credits) return 0;
+  let saving = 0;
+  for (const server of Object.values(before.corp.servers)) {
+    for (const ice of server.ice) {
+      if (ice.isRezzed) continue;
+      const now = after.corp.servers[server.id]?.ice.find(c => c.instanceId === ice.instanceId);
+      if (!now?.isRezzed) continue;
+      const cost = rezCost(before, ice);
+      if (before.corp.credits < cost) continue;
+      saving += Math.max(0, cost - (iceWorth(after, now, 'corp') - iceWorth(before, ice, 'corp')));
+    }
+  }
+  return saving;
+}

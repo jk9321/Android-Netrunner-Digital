@@ -342,6 +342,8 @@ export const tuning = {
     tankProtection: true,
     /** Jeff, 2026-10-31 (dud draws): the Corp digs for ice one card past its hand size (discarding the worst at the end of the turn), and ice it can't afford to rez soon doesn't count as ice in hand (corpAI.ts, evaluate.ts digValue). */
     digPastLimit: true,
+    /** Jeff, 2026-10-31 ("cheat out" expensive ice): an installed Send a Message (rezzes ice when scored or stolen) or Unleash with a Runner tag pays for the costliest unrezzed ice, so that ice counts as rezzable, may be installed past the ice pacing, and a free rez picks the ice that saves the most (freeRez.ts). */
+    freeRez: true,
     /** Per deciding side (Jeff, 2026-10-28): Normal plays its best few actions through to the end of the turn and picks the best turn (turnPlanner.ts). */
     turnPlanner: { corp: true, runner: true } as Record<SideCode, boolean>,
     /** With the planner: the hand at the end of a planned turn valued card by card (what each will do later). */
