@@ -482,7 +482,7 @@ export class HeuristicCorpAI implements Agent {
     }
     // Pharos: +5 strength at 3 counters; Syailendra: places counters when encountered at 3
     if (hacksOff('iceAdvance') && (card.cardCode === '35076' || card.cardCode === '30063')) {
-      const at = (n: number) => Math.min(iceStop(), iceCost(state, { ...card, isRezzed: true, advancementCounters: n }));
+      const at = (n: number) => Math.min(iceStop(state), iceCost(state, { ...card, isRezzed: true, advancementCounters: n }));
       const worth = iceAdvanceWorth(state, card, at);
       return worth > 0 ? ECON_SCALE * worth : -Infinity;
     }

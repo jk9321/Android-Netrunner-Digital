@@ -379,7 +379,7 @@ export function untaianPick(state: GameState, candidateIds: string[]): string[] 
 export function taoSwap(state: GameState, memory?: RunnerMemory): string[] {
   const servers = Object.values(state.corp.servers).filter(s => s.ice.length > 0);
   const weight = new Map(servers.map(s => [s.id, Math.max(0.3, serverValue(state, s.id, 0, memory, tuning.wary, tuning.plan.urgency))]));
-  const cost = (ice: CardInstance) => Math.min(iceStop(), iceCost(state, ice));
+  const cost = (ice: CardInstance) => Math.min(iceStop(state), iceCost(state, ice));
   const placed = servers.flatMap(s => s.ice.map(ice => ({ ice, server: s.id })));
   let best: { ids: string[]; gain: number } | null = null;
   for (let i = 0; i < placed.length; i++) {
