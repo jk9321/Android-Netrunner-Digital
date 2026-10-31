@@ -390,7 +390,9 @@ export class HeuristicCorpAI implements Agent {
     if (action.type === 'PLAY_OPERATION_OR_EVENT' && tuning.plan.pettyCash) {
       return corp.hq.find(c => c.instanceId === action.cardInstanceId)?.cardCode === '35081' ? (hacksOff('bonuses') ? PETTY_CASH_REPLAY : 1.5) : 0;
     }
-    if (action.type === 'DRAW_CARD' && tuning.plan.dig?.corp && corp.hq.length < corp.handSizeLimit) return digValue(state, 'corp');
+    // plan.digPastLimit (Jeff, 2026-10-31): a hand of duds digs one card past the limit, to discard the worst at the end of the turn (rules 4.3.6, 5.5.3)
+    const digRoom = corp.handSizeLimit + (tuning.plan.digPastLimit ? 1 : 0);
+    if (action.type === 'DRAW_CARD' && tuning.plan.dig?.corp && corp.hq.length < digRoom) return digValue(state, 'corp');
     return 0;
   }
 

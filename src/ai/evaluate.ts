@@ -60,7 +60,9 @@ export function digValue(state: GameState, side: SideCode): number {
     const corp = state.corp;
     const pressure = state.runner.score >= 5 ? 1 : state.runner.score >= 3 ? 0.5 : 0;
     const iced = (id: string) => (corp.servers[id]?.ice.length ?? 0) > 0;
-    const needIce = !corp.hq.some(c => cardDef(c).type_code === 'ice') && (!iced('rd') || !iced('hq') || corp.hq.some(c => cardDef(c).type_code === 'agenda'));
+    // plan.digPastLimit: ice too dear to rez soon (its cost past the credits and a turn's clicks) is no answer either
+    const usableIce = (c: CardInstance) => cardDef(c).type_code === 'ice' && (!tuning.plan.digPastLimit || (cardDef(c).cost ?? 0) <= corp.credits + 3);
+    const needIce = !corp.hq.some(usableIce) && (!iced('rd') || !iced('hq') || corp.hq.some(c => cardDef(c).type_code === 'agenda'));
     const needMoney = corp.credits < 5 && !corp.hq.some(isEcon);
     if (needIce) value += Math.min(1.2, 3 * odds(corp.rd, c => cardDef(c).type_code === 'ice') * (1 + pressure));
     if (needMoney) value += Math.min(1.2, 3 * odds(corp.rd, isEcon) * (1 + pressure));
