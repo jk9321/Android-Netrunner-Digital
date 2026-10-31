@@ -3,7 +3,7 @@ import { GameState } from '../../core/types/state';
 import { CardInstance } from '../../core/types/card';
 import { CardView } from './CardView';
 import { cardDef } from '../../data/cards';
-import { GameAction, findCardAnywhere, getCardScript, iceStrength, isLegalAction, rezCostOf } from '../../core';
+import { GameAction, findCardAnywhere, getCardScript, iceStrength, iceSubtypes, isLegalAction, rezCostOf } from '../../core';
 import { EncounterPanel } from './EncounterPanel';
 import { ArrowRight, LogOut, CheckCircle2, ShieldAlert, Sparkles } from 'lucide-react';
 import { Credits } from './CreditIcon';
@@ -104,7 +104,7 @@ export const RunOverlay: React.FC<RunOverlayProps> = ({
                 canPeek={canPeekCorp || !!currentIce.runnerKnows}
                 seen={!canPeekCorp && !!currentIce.runnerKnows && !currentIce.isRezzed && !currentIce.faceUp}
                 size="md"
-                typeIcons
+                typeIcons={iceSubtypes(currentIce, state)}
                 onInspect={currentIce.isRezzed || currentIce.faceUp || canPeekCorp || currentIce.runnerKnows ? onInspectCard : undefined}
               />
               <div className="flex-1">
