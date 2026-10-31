@@ -21,6 +21,10 @@ npm run dev
 npm test
 ```
 
+## Bug reports
+
+The "Report a bug" button posts to `/api/bug-report`, a small Cloudflare Worker (`worker/`) that opens a GitHub issue titled `[Bug report] …`. It needs a Worker secret named `GITHUB_TOKEN` (a fine-grained token with Issues read and write on this repository only). Reports from a game carry the deck lists, log, seed and a gzipped snapshot in the first comment; decode it with `node scripts/bug-report-state.mjs <file>`.
+
 ## Licence & credits
 
 The source code is MIT licensed (see [LICENSE](LICENSE)). The licence does not cover Netrunner card content.
