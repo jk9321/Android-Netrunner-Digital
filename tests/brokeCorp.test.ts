@@ -73,6 +73,17 @@ describe('a Corp with no credits (Jeff’s bug report, plan.agendaCredits)', () 
  * credit at up to 1.8 when broke, but credits are lumpy: Petty Cash needs 3 before the turn's first action.
  * The same position at 3 credits and a Corp score of 1 (so Send a Message doesn't win the game).
  */
+/** The same board with no agendas out or in HQ and no operations in HQ: Humanoid Resources is the play. */
+function idle(): GameState {
+  const s = threeCredits();
+  for (const server of Object.values(s.corp.servers)) {
+    s.corp.rd.push(...server.root.filter(c => cardDef(c).type_code === 'agenda'));
+    server.root = server.root.filter(c => cardDef(c).type_code !== 'agenda');
+  }
+  s.corp.hq = s.corp.hq.filter(c => !['operation', 'agenda'].includes(cardDef(c).type_code));
+  return s;
+}
+
 function threeCredits(): GameState {
   const s = turn17();
   s.corp.credits = 3;
@@ -113,7 +124,7 @@ describe('credits a broke Corp needs (Jeff, plan.moneyReach, agendaBudget, plann
   });
 
   it('Humanoid Resources is rezzed only with the 3 clicks to use it (rule 5.6.2a: a rez window before every action)', () => {
-    const s = threeCredits();
+    const s = idle();
     const hr = Object.values(s.corp.servers).flatMap(v => v.root).find(c => c.cardCode === '35039')!;
     expect(clickOnly(hr)).toBe(3);
     const rezzesHr = (clicks: number) => {
@@ -122,5 +133,33 @@ describe('credits a broke Corp needs (Jeff, plan.moneyReach, agendaBudget, plann
     };
     expect(rezzesHr(1)).toBe(false);
     expect(rezzesHr(3)).toBe(true);
+  });
+});
+
+describe('Humanoid Resources is rezzed to be used (Jeff 2026-10-31: "it rezzes it but never seems to use it"; plan.rezToUse)', () => {
+  const hrOf = (s: GameState) => Object.values(s.corp.servers).flatMap(v => v.root).find(c => c.cardCode === '35039')!;
+
+  it('not in the window before the turn begins (rule 5.6.1b), where it would sit rezzed and unused', () => {
+    const s = { ...threeCredits(), turnStep: { kind: 'corp_turn_start' as const } };
+    const hr = hrOf(s);
+    expect(new HeuristicCorpAI({ planner: false }).rankMainActions(s).some(r => r.action.type === 'REZ_CARD' && r.action.cardInstanceId === hr.instanceId && r.score > -Infinity)).toBe(false);
+  });
+
+  it('a rez in the action phase is followed by using it (the rule-based ranking)', () => {
+    let s = idle();
+    const hr = hrOf(s);
+    const corp = new HeuristicCorpAI({ planner: false });
+    let rezzed = false;
+    for (let i = 0; i < 20 && s.activePlayer === 'corp' && !s.winner; i++) {
+      const action = corp.chooseAction(s);
+      if (rezzed) {
+        expect(action).toMatchObject({ type: 'USE_ABILITY', cardInstanceId: hr.instanceId });
+        return;
+      }
+      if (action.type === 'REZ_CARD' && action.cardInstanceId === hr.instanceId) rezzed = true;
+      s = executeAction(s, action);
+      if (action.type === 'END_TURN') break;
+    }
+    expect(rezzed).toBe(true);
   });
 });

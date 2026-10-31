@@ -296,6 +296,21 @@ export class HeuristicCorpAI implements Agent {
     return state.corp.credits - rezCost(state, card) < rezReserve(state, this.wideReserve);
   }
 
+  /** Rezzing a click-only asset (plan.rezToUse): worth it only when its ability is then this AI's next play. */
+  private rezToUse(state: GameState, card: CardInstance): number {
+    if (state.turnStep?.kind === 'corp_turn_start' || rezzingToUse) return -Infinity;
+    const after = simulate(state, { type: 'REZ_CARD', player: 'corp', cardInstanceId: card.instanceId });
+    if (!after) return -Infinity;
+    rezzingToUse = true;
+    try {
+      const best = new HeuristicCorpAI({ synergy: this.synergy, planner: false }).rankMainActions(after)[0];
+      if (!best || best.action.type !== 'USE_ABILITY' || best.action.cardInstanceId !== card.instanceId) return -Infinity;
+      return best.score;
+    } finally {
+      rezzingToUse = false;
+    }
+  }
+
   /** Worth of rezzing a card in a server's root on the Corp's own turn. */
   private rezValue(state: GameState, card: CardInstance): number {
     const corp = state.corp;
@@ -310,6 +325,10 @@ export class HeuristicCorpAI implements Agent {
     // is rezzed in the paid ability window just before the action that uses it (rule 5.6.2a): rezzed with fewer clicks
     // left it does nothing yet, and spends the money a broke Corp needs for Petty Cash or its ice
     if (tuning.plan.rezWhenUsed && clickOnly(card) && corp.clicks < clickOnly(card)) return -Infinity;
+    // (Jeff, 2026-10-31: "it rezzes Humanoid Resources but never seems to use it"; plan.rezToUse) not before the turn
+    // begins either, and in the action phase only when using it would then be the best play: rezzed and left, it is
+    // just a credit spent and a trash target
+    if (tuning.plan.rezToUse && clickOnly(card)) return this.rezToUse(state, card);
     const econ = econValue(card.cardCode, state);
     if (econ) return econ + 1;
     if (hacksOff('rez')) {
@@ -849,6 +868,9 @@ const VIRUS_WEIGHT: Record<string, number> = {
  * Clicks of the ability an asset pays through, when that is all it does (plan.rezWhenUsed): text that is only
  * a click ability, with nothing on rez, at the turn's start or while it sits rezzed. 0 for anything else.
  */
+/** A rez-to-use check is running (its ranking must not start another). */
+let rezzingToUse = false;
+
 export function clickOnly(card: CardInstance): number {
   const def = cardDef(card);
   if (def.type_code !== 'asset') return 0;
