@@ -196,3 +196,5 @@ Every self-play batch, newest last (Jeff, 2026-10-28). Made with `scripts/corp-l
 | 2026-10-31 | tankProtection off (baseline, 663) | b2082ed | 663 | **48.6%** | 42.8% / 5.7% | 49.8% / 1.7% | 47.5% / 19.4% / 27.9% / 5.1% | 7.2 | [txt](batch-logs/2026-10-31-tankprotection-off-baseline-663.txt) |
 | 2026-10-31 | tankProtection on, no Runner prep (663) | b2082ed | 663 | **47.4%** | 39.7% / 7.7% | 48.7% / 3.9% | 40.7% / 21.6% / 30.7% / 6.9% | 7.9 | [txt](batch-logs/2026-10-31-tankprotection-on-no-runner-prep-663.txt) |
 | 2026-10-31 | tankProtection on, with Runner prep (663) | 38e7c9d | 663 | **46.2%** | 38.2% / 8.0% | 49.2% / 4.7% | 40.6% / 21.5% / 30.7% / 7.2% | 8.0 | [txt](batch-logs/2026-10-31-tankprotection-on-with-runner-prep-663.txt) |
+| 2026-10-31 | digPastLimit off (baseline, 663) | ee0b71d | 663 | **46.2%** | 38.2% / 8.0% | 49.2% / 4.7% | 40.6% / 21.5% / 30.7% / 7.2% | 8.0 | [txt](batch-logs/2026-10-31-digpastlimit-off-baseline-663.txt) |
+| 2026-10-31 | digPastLimit on (663) | ee0b71d | 663 | **46.0%** | 37.4% / 8.6% | 48.6% / 5.4% | 42.0% / 21.8% / 29.4% / 6.8% | 7.4 | [txt](batch-logs/2026-10-31-digpastlimit-on-663.txt) |
