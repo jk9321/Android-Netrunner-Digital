@@ -1,6 +1,6 @@
 import { CardInstance, GameAction, GameState, ServerState, activePrompt, cardDef, findCardAnywhere, getCardDefinition, getLegalActions, isLegalAction } from '../core';
 import { plansOn } from './cardPlans';
-import { iceScript, iceStrength, iceSubtypes } from '../core/engine/ice';
+import { iceScript, iceStrength, iceSubroutines, iceSubtypes } from '../core/engine/ice';
 import { iceWorth, withIceInstalled } from './iceValues';
 import { rigCoverage } from './evaluate';
 import { counters, rezCost } from '../core/engine/cardEffects';
@@ -19,7 +19,7 @@ import { CARD_PROFILES, ECON_SCALE } from './cardProfiles';
 
 /** Whether a group of value hacks is replaced by the model (plan.modelHacks, Jeff 2026-10-28). */
 const hacksOff = (group: 'rez' | 'rezPriority' | 'purge' | 'bonuses' | 'iceAdvance' | 'finish' | 'conduit'): boolean => !!tuning.plan.modelHacks?.[group];
-import { iceCost, isTrap, tagCost, weakestIce } from './runs';
+import { BLOCK, iceCost, iceCreditNeed, isTrap, subroutineCost, tagCost, weakestIce } from './runs';
 import { cardSynergy } from './synergyTags';
 import { econValue, upgradeValue } from './cardValues';
 import { counterWorth } from './counterValues';
@@ -847,6 +847,25 @@ function virusThreat(state: GameState): number {
 }
 
 /**
+ * What this (rezzed) ice costs the Runner to get past, as protection for an
+ * agenda (plan.tankProtection). Ice the Runner can get past with the credits it
+ * has (no run enders, like Doomscroll, or run enders it can pay to break),
+ * and whose other subroutines cost it less than a typical agenda is worth,
+ * only protects by those credits, often 0: a Runner going for an agenda
+ * takes the tag and the damage (Jeff 2026-10-31: clear the tag, draw past
+ * the damage, run anyway). The full agenda, not the steal odds' half: the
+ * Corp has to plan against a Runner who knows to run.
+ */
+export function protectionCost(state: GameState, ice: CardInstance): number {
+  const cost = iceCost(state, ice);
+  if (!tuning.plan.tankProtection) return cost;
+  const need = iceCreditNeed(state, ice);
+  if (need > state.runner.credits) return cost;
+  const tank = iceSubroutines(state, ice).map(s => subroutineCost(state, s.label)).filter(c => c < BLOCK).reduce((n, c) => n + c, 0);
+  return tank < pointGain(state.runner.score, agendaOdds(state).points) ? Math.min(cost, need) : cost;
+}
+
+/**
  * What the Runner would pay to get into a server, counting rezzed ice and
  * the unrezzed ice `credits` can still rez (8 for ice they can't break).
  */
@@ -858,7 +877,7 @@ function entryCost(state: GameState, server: ServerState, credits: number): numb
       if (rc > credits) continue;
       credits -= rc;
     }
-    cost += Math.min(8, iceCost(state, { ...ice, isRezzed: true }));
+    cost += Math.min(8, protectionCost(state, { ...ice, isRezzed: true }));
   }
   return cost;
 }
@@ -884,7 +903,7 @@ export function outOfReach(state: GameState, server: ServerState, credits: numbe
  * 3 or more: a full layer); unrezzed ice counts in full.
  */
 export function iceDepth(state: GameState, server: ServerState): number {
-  return server.ice.reduce((n, ice) => n + (ice.isRezzed ? Math.min(1, Math.max(0, (iceCost(state, ice) - 1) / 2)) : 1), 0);
+  return server.ice.reduce((n, ice) => n + (ice.isRezzed ? Math.min(1, Math.max(0, (protectionCost(state, ice) - 1) / 2)) : 1), 0);
 }
 
 /**
@@ -900,7 +919,7 @@ export function fundedDepth(state: GameState, server: ServerState, credits: numb
     affordable.add(ice.instanceId);
   }
   return server.ice.reduce(
-    (n, ice) => n + (ice.isRezzed ? Math.min(1, Math.max(0, (iceCost(state, ice) - 1) / 2)) : affordable.has(ice.instanceId) ? 1 : 0),
+    (n, ice) => n + (ice.isRezzed ? Math.min(1, Math.max(0, (protectionCost(state, ice) - 1) / 2)) : affordable.has(ice.instanceId) ? 1 : 0),
     0
   );
 }

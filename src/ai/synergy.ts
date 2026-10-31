@@ -322,6 +322,8 @@ export const tuning = {
     cardPlans: true,
     /** Jeff, 2026-10-30 (Doomscroll): ice that can't end the run doesn't protect an agenda from a Runner who can take its subroutines (effectValues.ts passOdds). */
     tankIce: true,
+    /** Jeff, 2026-10-31 (Doomscroll again): the Corp's agenda safety checks (iceDepth, fundedDepth, entryCost) count ice the Runner can take as only the credits it needs (corpAI.ts protectionCost). */
+    tankProtection: true,
     /** Per deciding side (Jeff, 2026-10-28): Normal plays its best few actions through to the end of the turn and picks the best turn (turnPlanner.ts). */
     turnPlanner: { corp: true, runner: true } as Record<SideCode, boolean>,
     /** With the planner: the hand at the end of a planned turn valued card by card (what each will do later). */
