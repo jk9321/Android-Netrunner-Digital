@@ -7,7 +7,7 @@ import { counters, rezCost } from '../core/engine/cardEffects';
 import { turnKey } from '../core/engine/helpers';
 import { Agent, FreeActionGuard, ScoredAction } from './agent';
 import { agendaWorth, digValue, evaluate } from './evaluate';
-import { pointGain, pointValue } from './valueModel';
+import { clickRate, pointGain, pointValue } from './valueModel';
 import { PACE, STEAL, accessWorth, agendaOdds } from './effectValues';
 import { answerPrompt, simulate } from './prompts';
 import { asSide, logNudge, nudge, opponentLean, tuning } from './synergy';
@@ -854,15 +854,63 @@ function virusThreat(state: GameState): number {
  * only protects by those credits, often 0: a Runner going for an agenda
  * takes the tag and the damage (Jeff 2026-10-31: clear the tag, draw past
  * the damage, run anyway). The full agenda, not the steal odds' half: the
- * Corp has to plan against a Runner who knows to run.
+ * Corp has to plan against a Runner who knows to run. The Runner may get
+ * ready first (tankPrep): clear its tags and draw up, a click each.
  */
 export function protectionCost(state: GameState, ice: CardInstance): number {
   const cost = iceCost(state, ice);
   if (!tuning.plan.tankProtection) return cost;
-  const need = iceCreditNeed(state, ice);
-  if (need > state.runner.credits) return cost;
-  const tank = iceSubroutines(state, ice).map(s => subroutineCost(state, s.label)).filter(c => c < BLOCK).reduce((n, c) => n + c, 0);
-  return tank < pointGain(state.runner.score, agendaOdds(state).points) ? Math.min(cost, need) : cost;
+  const worth = pointGain(state.runner.score, agendaOdds(state).points);
+  for (const prep of tankPreps(state)) {
+    const need = iceCreditNeed(prep.state, ice);
+    if (need + prep.credits > state.runner.credits) continue;
+    if (tankCost(prep.state, ice) + prep.cost < worth) return Math.min(cost, need);
+  }
+  return cost;
+}
+
+/**
+ * Ways the Runner can get ready for a run on its turn (one click kept for
+ * the run): as it is, its tags cleared (a click and 2 credits each), and
+ * then up to 3 cards drawn (a click each). Shallow copies of the board.
+ */
+function tankPreps(state: GameState): { state: GameState; cost: number; credits: number }[] {
+  const runner = state.runner;
+  const preps = [{ state, cost: 0, credits: 0 }];
+  // Clearing comes first: it also stops "if the Runner is tagged" subroutines
+  for (const tags of runner.tags > 0 ? [runner.tags, 0] : [runner.tags]) {
+    const cleared = runner.tags - tags;
+    for (let draws = 0; cleared + draws <= 3 && draws <= runner.stack.length; draws++) {
+      if (cleared === 0 && draws === 0) continue;
+      const clicks = cleared + draws;
+      preps.push({
+        state: { ...state, runner: { ...runner, tags, grip: [...runner.grip, ...runner.stack.slice(0, draws)] } },
+        cost: clicks * clickRate('runner') + 2 * cleared,
+        credits: 2 * cleared,
+      });
+    }
+  }
+  return preps;
+}
+
+/**
+ * What taking this ice's subroutines (the ones that don't end the run) costs
+ * the Runner, resolving them in order: tags an earlier one gives count for
+ * the later ones (Doomscroll's third subroutine after its first). Ones that
+ * end the run as things stand are broken (iceCreditNeed); one that only
+ * becomes a wall from those tags (damage past the grip) can't be taken.
+ */
+function tankCost(state: GameState, ice: CardInstance): number {
+  let tags = state.runner.tags;
+  let total = 0;
+  for (const sub of iceSubroutines(state, ice)) {
+    const now = tags === state.runner.tags ? state : { ...state, runner: { ...state.runner, tags } };
+    const c = subroutineCost(now, sub.label);
+    if (c >= BLOCK && subroutineCost(state, sub.label) < BLOCK) return Infinity;
+    if (c < BLOCK) total += c;
+    tags += Number(sub.label.match(/give the runner (\d+) tags?/i)?.[1] ?? 0);
+  }
+  return total;
 }
 
 /**
