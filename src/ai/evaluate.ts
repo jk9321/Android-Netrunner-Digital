@@ -14,6 +14,8 @@ import { CLICK, RATES, cardRate, creditValue, flatRate, flatlineWorth, guardLoop
 import { PACE, STEAL, coreSlotWorth, flatlineOdds, runSuccess, stealOdds } from './effectValues';
 import { trashedCardCost } from './runs';
 
+const MADANI = '35028';
+
 export { creditValue };
 
 /**
@@ -143,10 +145,12 @@ export function runnerRigValue(state: GameState, aware: boolean, viewer: SideCod
     value += isIcebreaker(card) ? (flatRate('breakers') && tuning.plan.breakerCredits?.[viewer] ? 0 : RATES.icebreaker) : RATES.rigCardScale * runnerCardValue(card.cardCode, state, card);
     // Counters by what they do on this card (step 3), or the step-1 rates
     value += countersWorth(state, card, 'credit', viewer) + countersWorth(state, card, 'virus', viewer) + countersWorth(state, card, 'power', viewer);
-    // Bling, Madani: cards to play later, worth what they would be in the grip (plan.flatRates.hosted).
+    // Bling, Madani: cards to play later, worth what they would be in the grip (plan.flatRates.hosted);
+    // Madani's install takes no click, so its programs keep the click they will save (plan.madaniClick).
     // Corp cards hosted on Detente are not the Runner's to play: Detente's own value covers them
     const hosted = (card.hostedCards ?? []).filter(h => cardDef(h).side_code === 'runner');
-    value += hosted.reduce((n, h) => n + (flatRate('hosted') ? heldWorth(state, h, 'runner') : RATES.hostedCard), 0);
+    const freeInstall = card.cardCode === MADANI && !!tuning.plan.madaniClick;
+    value += hosted.reduce((n, h) => n + (flatRate('hosted') ? heldWorth(state, h, 'runner', freeInstall) : RATES.hostedCard), 0);
   }
   // Combos in play (Knickknack burning Principia, Baker on stealth credits): plan.cardPlans
   return value + boardPlansWorth(state, 'runner');

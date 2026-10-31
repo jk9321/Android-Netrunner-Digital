@@ -471,8 +471,16 @@ export function runnerEffect(state: GameState, code: string, card?: CardInstance
       return perTurn(state, PACE.runs * (hosts ? 1 : 0.5), 'runner');
     }
     case '35028': { // Madani: a hosted program installed each turn without a click
-      const programs = [...state.runner.grip, ...state.runner.stack].filter(c => cardDef(c).type_code === 'program').length;
-      return CLICK * Math.min(3, programs * 0.5);
+      if (!tuning.plan.madaniClick) {
+        const programs = [...state.runner.grip, ...state.runner.stack].filter(c => cardDef(c).type_code === 'program').length;
+        return CLICK * Math.min(3, programs * 0.5);
+      }
+      // Like DZMZ Optimizer: a click for each program still to install (hosted ones too, so hosting doesn't use up
+      // this worth; their own saved click is on them, evaluate.ts), over the turns left. It installs on the Runner's
+      // turn and again on the Corp's (rules 9.5.2), so 2 a round; a click to host about every 3 installs.
+      const hosted = card?.hostedCards ?? [];
+      const programs = [...state.runner.grip, ...state.runner.stack, ...hosted].filter(c => cardDef(c).type_code === 'program').length;
+      return CLICK * (2 / 3) * 0.6 * perTurn(state, 2, 'runner', 0, Math.ceil(programs / 2));
     }
     case '35019': { // Maglectric Rapid: once, derez a Corp card (about its rez cost)
       const rezzed = Object.values(state.corp.servers).flatMap(s => s.ice).filter(i => i.isRezzed).map(i => cardDef(i).cost ?? 0);

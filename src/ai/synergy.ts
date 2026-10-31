@@ -320,6 +320,8 @@ export const tuning = {
     sourdough: true,
     /** Jeff, 2026-10-30: card plans: conditional cards in hand by payoff x readiness, board combos (Knickknack fuel, Baker fuel) on top (cardPlans.ts). */
     cardPlans: true,
+    /** Jeff, 2026-10-31: a program hosted on Madani keeps the click its free install will save, and hosting doesn't use up Madani's own worth (evaluate.ts, effectValues.ts). */
+    madaniClick: true,
     /** Jeff, 2026-10-30 (Doomscroll): ice that can't end the run doesn't protect an agenda from a Runner who can take its subroutines (effectValues.ts passOdds). */
     tankIce: true,
     /** Per deciding side (Jeff, 2026-10-28): Normal plays its best few actions through to the end of the turn and picks the best turn (turnPlanner.ts). */

@@ -135,8 +135,16 @@ describe('the last hand-set cards, priced by what they do (Jeff, 2026-10-28)', (
     expect(rig('35027', none)).toBeGreaterThan(0);
   });
 
-  it('Madani: a click saved for each program it can still install (at most 3)', () => {
-    expect(rig('35028')).toBeLessThanOrEqual(3 * CLICK);
+  it('Madani: a click saved for each program it can still install, 2 a round (plan.madaniClick), less late and with fewer programs', () => {
+    const s = newGame();
+    const programs = [...s.runner.grip, ...s.runner.stack].filter(c => getCardDefinition(c.cardCode).type_code === 'program').length;
+    expect(rig('35028', s)).toBeGreaterThan(0);
+    expect(rig('35028', s)).toBeLessThanOrEqual(programs * CLICK);
+    expect(rig('35028', late())).toBeLessThan(rig('35028', s));
+    const few = newGame();
+    few.runner.stack = few.runner.stack.filter(c => getCardDefinition(c.cardCode).type_code !== 'program');
+    few.runner.grip = few.runner.grip.filter(c => getCardDefinition(c.cardCode).type_code !== 'program');
+    expect(rig('35028', few)).toBe(0);
   });
 
   it('Maglectric Rapid: once, about the rez cost of the best rezzed ice', () => {

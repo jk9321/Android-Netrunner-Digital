@@ -1,6 +1,8 @@
 import { describe, expect, it } from 'vitest';
 import { GameState, findCardAnywhere } from '../src/core';
 import { GameRunner, HeuristicCorpAI, HeuristicRunnerAI } from '../src/ai';
+import { CLICK } from '../src/ai/valueModel';
+import { SOON, heldWorth } from '../src/ai/handValues';
 import { runnerOffTurnWindow } from '../src/ui/viewer';
 import { giveCard, newGame, passTurn, runnerInstall } from './helpers';
 
@@ -36,5 +38,31 @@ describe('Runner AI on the Corp turn', () => {
     expect(gr.last).toMatchObject({ type: 'USE_ABILITY', player: 'runner', abilityIndex: 1 });
     for (let i = 0; i < 5 && gr.state.activePlayer === 'corp'; i++) gr.step();
     expect(gr.state.runner.rig.programs.map(c => c.instanceId)).toContain(cleaver);
+  });
+});
+
+describe('Madani value', () => {
+  it('a program hosted on Madani keeps the click its free install saves (plan.madaniClick)', () => {
+    let [s, madani] = runnerInstall(newGame(), MADANI);
+    const cleaver = giveCard(s, 'runner', CLEAVER);
+    s.runner.credits = 5;
+    const card = s.runner.grip.find(c => c.instanceId === cleaver)!;
+    s.runner.grip = s.runner.grip.filter(c => c !== card);
+    findCardAnywhere(s, madani)!.hostedCards = [card];
+    const saved = heldWorth(s, card, 'runner', true) - heldWorth(s, card, 'runner');
+    expect(saved).toBeGreaterThan(0);
+    expect(saved).toBeLessThanOrEqual(SOON.now * CLICK + 1e-9);
+  });
+
+  it('hosting programs on Madani is worth a click (it scored about 0 before plan.madaniClick)', () => {
+    let [s, madani] = runnerInstall(newGame(), MADANI);
+    for (const code of [CLEAVER, '30007']) giveCard(s, 'runner', code);
+    s.runner.credits = 5;
+    s.runner.clicks = 1;
+    const ranked = new HeuristicRunnerAI({ planner: false }).rankMainActions(s);
+    const score = (pick: (a: (typeof ranked)[number]['action']) => boolean) => ranked.find(r => pick(r.action))!.score;
+    const host = score(a => a.type === 'USE_ABILITY' && a.cardInstanceId === madani && a.abilityIndex === 0);
+    expect(host).toBeGreaterThan(0.5);
+    expect(host).toBeGreaterThan(score(a => a.type === 'GAIN_CREDIT'));
   });
 });

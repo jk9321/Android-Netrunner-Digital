@@ -103,10 +103,11 @@ function loadedWorth(state: GameState, card: CardInstance): number {
 }
 
 /** Worth of one card waiting in hand. */
-export function heldWorth(state: GameState, card: CardInstance, side: SideCode): number {
+export function heldWorth(state: GameState, card: CardInstance, side: SideCode, freeInstall = false): number {
   const credits = side === 'corp' ? state.corp.credits : state.runner.credits;
   const soon = (cardDef(card).cost ?? 0) <= credits ? SOON.now : SOON.later;
-  return Math.max(HAND_FLOOR, soon * playedWorth(state, card));
+  // Installed later without spending a click (a program hosted on Madani): the click playedWorth charges is saved
+  return Math.max(HAND_FLOOR, soon * (playedWorth(state, card) + (freeInstall ? CLICK : 0)));
 }
 
 /** The cards in each side's hand the deciding AI has seen (set as it starts a decision). */
