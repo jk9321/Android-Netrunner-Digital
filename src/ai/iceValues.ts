@@ -3,6 +3,7 @@ import { rezCost } from '../core/engine/cardEffects';
 import { iceCost } from './runs';
 import { RATES, guardLoop } from './valueModel';
 import { turnsLeft } from './cardProfiles';
+import { freeRezTargets } from './freeRez';
 
 /**
  * Value model step 5 (docs/ai-value-model-plan.md): ice priced in credits,
@@ -25,7 +26,8 @@ function iceWorthOf(state: GameState, ice: CardInstance, viewer: SideCode): numb
   if (ice.isRezzed) return RATES.ice + Math.min(ICE_STOP, iceCost(state, ice));
   // The Runner doesn't know what it is: iceCost's guess for unrezzed ice
   if (viewer === 'runner') return RATES.ice + iceCost(state, ice);
-  if (state.corp.credits < rezCost(state, ice)) return RATES.ice;
+  // plan.freeRez: ice a coming free rez pays for (Send a Message, Unleash) counts as rezzable
+  if (state.corp.credits < rezCost(state, ice) && !freeRezTargets(state).has(ice.instanceId)) return RATES.ice;
   // The Corp knows: what it would cost the Runner once rezzed, held back a little for the rez still to pay
   return RATES.ice + 0.6 * Math.min(ICE_STOP, iceCost(state, { ...ice, isRezzed: true }));
 }
