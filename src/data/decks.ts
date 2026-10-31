@@ -4,16 +4,15 @@ import { SideCode } from '../core/types/card';
 import { ALL_CARDS } from './cards';
 import { DeckSpec, validateDeck } from '../core/deckValidation';
 import { FormatId } from '../core/formats';
+import { NSG_SAMPLE_DECKS } from './testDecks/nsgSamples';
+import { NRDB_TEST_DECKS } from './testDecks/nrdb';
 
 /**
  * Premade decks that ship with the game: only the two official System Gateway
  * starter decks (Null Signal Games product page). Other people's lists (NSG's
- * sample decklists, NetrunnerDB decks) are test-only, in scripts/nsg-sample-decks.ts
- * and scripts/nrdb-test-decks.ts.
+ * sample decklists, NetrunnerDB decks) are in src/data/testDecks and listed only in
+ * beta builds (__ALL_DECKS__, set in vite.config.ts); main builds list the starters alone.
  */
-
-export const CORE_SETS_CREDIT =
-  'The System Gateway + Elevation decks were designed by Phi aka Girometics, Game Development and Startup Curation Teams member (Null Signal Games).';
 
 export interface DeckList {
   id: string;
@@ -32,7 +31,7 @@ export interface DeckList {
   missing?: ImportEntry[];
 }
 
-export const DECKS: DeckList[] = [
+export const STARTER_DECKS: DeckList[] = [
   {
     id: 'syndicate-starter',
     name: 'The Syndicate (starter)',
@@ -60,6 +59,9 @@ export const DECKS: DeckList[] = [
     },
   },
 ];
+
+/** The decks the picker lists: the starters, plus every test deck in beta builds. */
+export const DECKS: DeckList[] = __ALL_DECKS__ ? [...STARTER_DECKS, ...NSG_SAMPLE_DECKS, ...NRDB_TEST_DECKS] : STARTER_DECKS;
 
 const codeByTitle = new Map(ALL_CARDS.map(c => [c.title, c.code]));
 
