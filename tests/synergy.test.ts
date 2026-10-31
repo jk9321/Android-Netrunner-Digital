@@ -543,6 +543,35 @@ describe('digging for answers', () => {
     expect(digValue(s, 'corp')).toBe(0);
   });
 
+  // Jeff 2026-10-31 (dud draws): a full hand with no ice digs one past the limit and discards the worst (rules 4.3.6, 5.5.3)
+  it('a full hand of duds still digs for ice, one card past the hand size (plan.digPastLimit)', () => {
+    const s = structuredClone(newGame());
+    const duds = s.corp.rd.filter(c => getCardDefinition(c.cardCode).type_code !== 'ice' && getCardDefinition(c.cardCode).type_code !== 'agenda');
+    s.corp.hq = duds.slice(0, 5);
+    s.corp.rd = s.corp.rd.filter(c => !s.corp.hq.includes(c));
+    s.corp.credits = 8;
+    const draw = () => new HeuristicCorpAI({ synergy: true }).rankMainActions(s).find(r => r.action.type === 'DRAW_CARD')?.score ?? -Infinity;
+    const on = draw();
+    tuning.plan.digPastLimit = false;
+    const off = draw();
+    tuning.plan.digPastLimit = true;
+    expect(on).toBeGreaterThan(off + 0.5);
+    // Six cards: no more digging (a second discard)
+    s.corp.hq.push(duds[5]);
+    expect(draw()).toBeLessThanOrEqual(off);
+  });
+
+  it('ice the Corp cannot afford to rez soon is no answer: it still digs', () => {
+    const s = structuredClone(newGame());
+    s.corp.hq = s.corp.hq.filter(c => getCardDefinition(c.cardCode).type_code !== 'ice').slice(0, 2);
+    const dear = s.corp.rd.find(c => (getCardDefinition(c.cardCode).type_code === 'ice') && (getCardDefinition(c.cardCode).cost ?? 0) >= 4)!;
+    s.corp.hq.push(dear);
+    s.corp.credits = 0;
+    expect(digValue(s, 'corp')).toBeGreaterThan(0);
+    s.corp.credits = 10;
+    expect(digValue(s, 'corp')).toBe(0);
+  });
+
   it('the Runner digs for a breaker for the ice the Corp has shown', () => {
     const s = structuredClone(newGame());
     s.runner.credits = 8;
