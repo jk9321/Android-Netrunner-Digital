@@ -1,4 +1,5 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
+import { hoverPromptTarget } from '../promptHighlight';
 import { Plus, Trash2 } from 'lucide-react';
 import { CardInstance, cardDef } from '../../core';
 
@@ -23,7 +24,9 @@ export function TrashFirstPicker({
   onCancel: () => void;
 }) {
   const [trash, setTrash] = useState<string[]>([]);
-  const toggle = (id: string) => setTrash(t => (t.includes(id) ? t.filter(x => x !== id) : [...t, id]));
+  // Drop the board highlight if the picker closes while a button is hovered
+  useEffect(() => () => hoverPromptTarget(null), []);
+  const toggle =(id: string) => setTrash(t => (t.includes(id) ? t.filter(x => x !== id) : [...t, id]));
   return (
     <div className="flex items-center gap-1.5 flex-wrap" data-testid="trash-first">
       <span className="text-xs text-amber-300 font-bold">{heading}</span>
@@ -33,6 +36,8 @@ export function TrashFirstPicker({
           <button
             key={card.instanceId}
             onClick={() => toggle(card.instanceId)}
+            onMouseEnter={() => hoverPromptTarget({ id: card.instanceId, label: null })}
+            onMouseLeave={() => hoverPromptTarget(null)}
             data-testid={`trash-first-${card.instanceId}`}
             className={`px-2.5 py-1 text-xs font-bold rounded-xl border transition-all flex items-center gap-1 ${
               picked ? 'bg-red-600 border-red-400 text-white line-through' : 'bg-slate-800 border-slate-600 text-slate-200 hover:border-red-400'
