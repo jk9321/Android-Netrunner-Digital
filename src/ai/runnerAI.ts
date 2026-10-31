@@ -1,6 +1,7 @@
 import { CardInstance, GameAction, GameState, activePrompt, cardDef, getCardScript, getLegalActions, isLegalAction } from '../core';
 import { runnerInstallBlocker } from '../core/engine/actions/install';
 import { encounteredIce, iceScript, iceSubroutines, isBioroid } from '../core/engine/ice';
+import { iceStop } from './iceValues';
 import { availableCredits, counters } from '../core/engine/cardEffects';
 import { Agent, FreeActionGuard, ScoredAction } from './agent';
 import { digValue, evaluate, rigCoverage } from './evaluate';
@@ -282,7 +283,7 @@ export class HeuristicRunnerAI implements Agent {
  * (each derezzes at its own 3 counters).
  */
 export function trojanHostValue(state: GameState, code: string, host: CardInstance): number {
-  const value = 1 + 0.15 * Math.min(8, iceCost(state, host));
+  const value = 1 + 0.15 * Math.min(iceStop(), iceCost(state, host));
   const doubled = hostedTrojans(state, host, code).length;
   return code === TRANQUILIZER ? value - 3 * doubled : value - 1.5 * doubled;
 }

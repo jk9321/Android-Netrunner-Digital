@@ -2,7 +2,7 @@ import { CardInstance, GameState, SideCode, cardDef } from '../core';
 import { breakerScript, isIcebreaker } from '../core/engine/ice';
 import { CARD_PROFILES, payoutWait, payoutWorth, turnsLeft } from './cardProfiles';
 import { corpKeepValue, runnerCardValue } from './cardValues';
-import { breakerTypeWorth, iceWorth } from './iceValues';
+import { breakerTypeWorth, iceStop, iceWorth } from './iceValues';
 import { agendaWorth, isOneUse, runnerRigValue } from './evaluate';
 import { counterWorth } from './counterValues';
 import { handPlanWorth } from './cardPlans';
@@ -60,7 +60,7 @@ export function playedWorth(state: GameState, card: CardInstance): number {
     case 'ice':
       // Installed unrezzed, as the board values it (plan.agendaBoard: the same check of what the Corp can rez)
       if (tuning.plan.agendaBoard) return iceWorth(state, { ...card, isRezzed: false }, 'corp') - CLICK;
-      return RATES.ice + 0.6 * Math.min(8, iceCost(state, { ...card, isRezzed: true })) - CLICK;
+      return RATES.ice + 0.6 * Math.min(iceStop(), iceCost(state, { ...card, isRezzed: true })) - CLICK;
     case 'asset':
     case 'upgrade':
       return corpKeepValue(card.cardCode, state) - CLICK;
