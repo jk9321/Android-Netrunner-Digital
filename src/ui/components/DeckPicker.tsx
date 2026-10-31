@@ -7,6 +7,7 @@ import { favoritesFirst, loadFavoriteDecks, loadHiddenDecks, saveFavoriteDecks, 
 import type { Difficulty } from '../../ai';
 import { CheckCircle2, AlertTriangle, Play, Plus, Pencil, Copy, Trash2, Dices, Eye, EyeOff, RotateCcw, Star } from 'lucide-react';
 import { showConfirm } from './Dialog';
+import { BugReportButton } from './BugReportButton';
 
 // Loaded on first use, so the start screen doesn't wait for them
 const DeckBuilder = lazy(() => import('./DeckBuilder').then(m => ({ default: m.DeckBuilder })));
@@ -469,9 +470,12 @@ export const DeckPicker: React.FC<DeckPickerProps> = ({ initialCorpDeckId, initi
 
   return (
     <div className="min-h-screen text-slate-100 font-mono flex flex-col items-center px-4 py-8">
-      <h1 className="font-cyber font-black tracking-widest text-2xl sm:text-4xl glitch-title mb-1">
-        NETRUNNER
-      </h1>
+      <div className="flex flex-wrap items-center justify-center gap-x-4 gap-y-2 mb-1">
+        <h1 className="font-cyber font-black tracking-widest text-2xl sm:text-4xl glitch-title">
+          NETRUNNER
+        </h1>
+        <BugReportButton screen="deck picker" />
+      </div>
       <p className="text-xs text-slate-400 mb-6 text-center">
         Choose a deck for each side. The starter decks are the best place to begin. Build your own with New deck (where you can also import from NetrunnerDB), or copy any deck to tweak it.
       </p>

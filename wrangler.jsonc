@@ -1,13 +1,32 @@
 // Cloudflare Workers config: the built site in dist/ served as static
-// assets. Kept in the repo so production (wrangler deploy) and branch
-// previews (wrangler versions upload or wrangler preview) build the same way.
+// assets, plus a small Worker (worker/index.ts) that answers /api/* only
+// (the "Report a bug" endpoint). Kept in the repo so production
+// (wrangler deploy) and branch previews (wrangler versions upload) build
+// the same way.
 {
   "name": "android-netrunner-digital",
+  "main": "worker/index.ts",
   "compatibility_date": "2026-10-19",
   "assets": {
     "directory": "./dist",
-    "not_found_handling": "single-page-application"
+    "binding": "ASSETS",
+    "not_found_handling": "single-page-application",
+    // Everything else is served from dist/ without running the Worker
+    "run_worker_first": ["/api/*"]
   },
+  // Where bug reports go. The token that posts them is the GITHUB_TOKEN
+  // secret, added in the Cloudflare dashboard (never in this file).
+  "vars": {
+    "BUG_REPORT_REPO": "jk9321/Android-Netrunner-Digital"
+  },
+  // A burst limit per reporter; the daily limits are in worker/bugReport.ts
+  "ratelimits": [
+    {
+      "name": "BUG_RATE_LIMITER",
+      "namespace_id": "1001",
+      "simple": { "limit": 2, "period": 60 }
+    }
+  ],
   "observability": {
     "enabled": true
   },
