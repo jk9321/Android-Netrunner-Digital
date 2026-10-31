@@ -303,6 +303,8 @@ export const tuning = {
     openSteal: true,
     /** Jeff, 2026-10-28: agendas on the board count the Runner turns until the Corp can finish them, by its clicks (from hand, one more), and each is a turn closer to the end of the game. */
     agendaTempo: true,
+    /** Jeff's bug report, 2026-10-31 (LEO at 0 credits installing bare agendas): agenda tempo counts the clicks to gain the credits each advancement still needs. */
+    agendaCredits: true,
     /**
      * Jeff, 2026-10-28 (final flat-value scan): the last flat rates from the model. points: accesses and
      * agenda effects on the point clock; flatline: a flatline worth the whole game; cards: a card lost or
