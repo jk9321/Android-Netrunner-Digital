@@ -56,12 +56,27 @@ export function corpRezWindow(state: GameState, runSerial: number): RezWindow | 
   return { key: `${state.turnNumber}|${runSerial}|${run.server}|${run.phase}|${run.icePosition}`, cards, abilities };
 }
 
+/**
+ * The computer Runner's chance to use paid abilities on the Corp's turn
+ * (Madani's install): the last paid ability window of the Corp's action
+ * phase, once the Corp has spent its clicks (rules 5.6.2a-b, 9.2.7a). It
+ * opens only when the Runner has an ability it could use. Returns the
+ * window's key, or null.
+ */
+export function runnerOffTurnWindow(state: GameState): string | null {
+  if (state.winner || state.activePlayer !== 'corp' || state.activeRun || state.turnStep || activePrompt(state)) return null;
+  if (state.corp.clicks > 0) return null;
+  if (!getLegalActions(state, 'runner').some(a => a.type === 'USE_ABILITY')) return null;
+  return `off|${state.turnNumber}`;
+}
+
 /** The side the game is waiting on, or null when the game is over. */
-export function actingSide(state: GameState, rezWindowOpen: boolean): SideCode | null {
+export function actingSide(state: GameState, rezWindowOpen: boolean, offTurnOpen = false): SideCode | null {
   if (state.winner) return null;
   const prompt = activePrompt(state);
   if (prompt) return prompt.side;
   if (rezWindowOpen) return 'corp';
+  if (offTurnOpen) return 'runner';
   if (state.activeRun) return 'runner';
   return state.activePlayer;
 }

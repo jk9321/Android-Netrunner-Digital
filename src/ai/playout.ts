@@ -1,11 +1,12 @@
 import { GameState, SideCode, executeAction } from '../core';
-import { actingSide, corpRezWindow } from '../ui/viewer';
+import { actingSide, corpRezWindow, runnerOffTurnWindow } from '../ui/viewer';
 import { Agent } from './agent';
 
 /**
  * Steps a game forward with an agent on each side, giving the Corp the same
  * rez windows a person gets (before the Runner continues past approached
- * ice, and when the Runner approaches the server). Used for AI-vs-AI games
+ * ice, and when the Runner approaches the server) and the Runner its window
+ * at the end of the Corp's action phase. Used for AI-vs-AI games
  * and for the search AI's look-ahead.
  */
 export class GameRunner {
@@ -38,6 +39,15 @@ export class GameRunner {
       this.last = rez;
       if (rez) this.state = executeAction(state, rez);
       else this.passed.add(window.key);
+      return true;
+    }
+    // The Runner's paid abilities at the end of the Corp's action phase (Madani)
+    const offTurn = this.agents.runner.chooseOffTurn ? runnerOffTurnWindow(state) : null;
+    if (offTurn && !this.passed.has(offTurn)) {
+      const use = this.agents.runner.chooseOffTurn!(state);
+      this.last = use;
+      if (use) this.apply(use);
+      else this.passed.add(offTurn);
       return true;
     }
     const side = actingSide(state, false);

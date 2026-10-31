@@ -13,6 +13,11 @@ export interface Agent {
    * be rezzed. Returns a rez action, or null to let the Runner carry on.
    */
   chooseRez?(state: GameState, cards: CardInstance[]): GameAction | null;
+  /**
+   * Runner only: a paid ability to use on the Corp's turn (Madani), or null
+   * to let the Corp carry on. Asked when runnerOffTurnWindow opens.
+   */
+  chooseOffTurn?(state: GameState): GameAction | null;
 }
 
 /** An action with an AI's score for it (higher is better). */

@@ -76,6 +76,13 @@ function timed(a: Agent, side: Side): Agent {
           return r;
         }
       : undefined,
+    chooseOffTurn: a.chooseOffTurn
+      ? s => {
+          const r = a.chooseOffTurn!(s);
+          if (r?.type === 'USE_ABILITY') { const card = findCardAnywhere(s, r.cardInstanceId); if (card) { const k = `${card.cardCode} ${titleOf(card.cardCode)} #${r.abilityIndex} (Corp turn)`; stats.abilities[k] = (stats.abilities[k] ?? 0) + 1; } }
+          return r;
+        }
+      : undefined,
   };
 }
 

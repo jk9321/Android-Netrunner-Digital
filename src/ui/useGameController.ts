@@ -6,7 +6,7 @@ import { AccessedCard, GameConfig, SavedGame, clearSavedGame, saveGame } from '.
 import { ShownFate } from './components/CardFates';
 import { cardFates } from './cardFates';
 import { showAlert, showConfirm } from './components/Dialog';
-import { ViewMode, Viewer, actingSide, canActAs, canSeeCorpSecrets, corpRezWindow } from './viewer';
+import { ViewMode, Viewer, actingSide, canActAs, canSeeCorpSecrets, corpRezWindow, runnerOffTurnWindow } from './viewer';
 import { playForAction } from './sound';
 import { VIEW_MODE_KEY, savedViewMode } from './gameStart';
 import { installedCardsGained, installedCardsLost, isInstallAction, replacementMessage } from './installReplacements';
@@ -68,7 +68,10 @@ export function useGameController(config: GameConfig, saved: SavedGame | null) {
   const rezWindowsOn = viewMode === 'hotseat' || aiSide !== null;
   const rezWindow = corpRezWindow(gameState, runSerial);
   const rezWindowOpen = rezWindowsOn && rezWindow !== null && !passedRezWindows.includes(rezWindow.key);
-  const acting = actingSide(gameState, rezWindowOpen);
+  // The computer Runner's paid abilities at the end of the Corp's action phase (Madani)
+  const offTurnKey = aiSide === 'runner' ? runnerOffTurnWindow(gameState) : null;
+  const offTurnOpen = offTurnKey !== null && !passedRezWindows.includes(offTurnKey);
+  const acting = actingSide(gameState, rezWindowOpen, offTurnOpen);
   // Once the game is over nothing is secret any more, so everyone sees the open table
   const viewer: Viewer =
     gameState.winner || viewMode === 'open'
@@ -80,7 +83,7 @@ export function useGameController(config: GameConfig, saved: SavedGame | null) {
           : viewMode;
   const handoffTo = !aiSide && viewMode === 'hotseat' && acting && acting !== hotseatSide ? acting : null;
   // Nobody acts once the game is over (rule 1.7.1: the game ends when a player wins)
-  const corpCanAct = !gameState.winner && canActAs(viewer, 'corp') && aiSide !== 'corp';
+  const corpCanAct = !gameState.winner && canActAs(viewer, 'corp') && aiSide !== 'corp' && !offTurnOpen;
   const runnerCanAct = !gameState.winner && canActAs(viewer, 'runner') && aiSide !== 'runner' && !rezWindowOpen;
   const aiThinking = aiSide !== null && acting === aiSide;
   // The side hearing the game's sounds, for the win or lose sound at the end:
@@ -224,6 +227,7 @@ export function useGameController(config: GameConfig, saved: SavedGame | null) {
     let timer: number | undefined;
     const started = Date.now();
     const window_ = aiSide === 'corp' && rezWindowOpen ? rezWindow : null;
+    const offTurn = offTurnOpen ? offTurnKey : null;
     // A computer that can't move would leave the game on "AI THINKING" for
     // good, so let the person ask it again or end the game
     const failed = async (problem: string) => {
@@ -236,7 +240,7 @@ export function useGameController(config: GameConfig, saved: SavedGame | null) {
       if (retry) setAiRetry(n => n + 1);
       else handleAction({ type: 'CONCEDE', player: aiSide });
     };
-    const request = window_ ? ai.chooseRez(gameState, window_.cards) : ai.chooseAction(gameState);
+    const request = window_ ? ai.chooseRez(gameState, window_.cards) : offTurn ? ai.chooseOffTurn(gameState) : ai.chooseAction(gameState);
     request
       .then(action => {
         if (cancelled) return;
@@ -246,6 +250,7 @@ export function useGameController(config: GameConfig, saved: SavedGame | null) {
           if (action && !isLegalAction(gameState, action)) void failed(`it chose an illegal ${action.type} move`);
           else if (action) handleAction(action);
           else if (window_) passRezWindow(window_.key);
+          else if (offTurn) passRezWindow(offTurn);
           else void failed('it found no move');
         }, Math.max(0, AI_DELAY_MS - (Date.now() - started)));
       })
@@ -257,7 +262,7 @@ export function useGameController(config: GameConfig, saved: SavedGame | null) {
       window.clearTimeout(timer);
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [gameState, acting, rezWindowOpen, aiRetry]);
+  }, [gameState, acting, rezWindowOpen, offTurnOpen, aiRetry]);
 
   // Dropping a held choice: the action was never applied, so the game is as it was
   const cancelChoice = () => {

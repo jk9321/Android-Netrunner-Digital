@@ -41,6 +41,27 @@ export class HeuristicRunnerAI implements Agent {
     return asSide('runner', () => this.decide(state));
   }
 
+  /**
+   * On the Corp's turn: the best paid ability to use now (Madani's install),
+   * judged like a free action on the Runner's own turn, or null.
+   */
+  chooseOffTurn(state: GameState): GameAction | null {
+    return asSide('runner', () => {
+      noteKnownHand(state, 'runner');
+      this.remember(state);
+      this.freeActions.start(state, state.runner.clicks);
+      const before = evaluate(state, 'runner', this.synergy);
+      const best = getLegalActions(state, 'runner')
+        .filter(a => a.type === 'USE_ABILITY')
+        .map(action => ({ action, score: this.scoreMain(state, action, before) }))
+        .sort((a, b) => b.score - a.score)[0];
+      if (!best || best.score === -Infinity) return null;
+      this.notePlayed(best.action);
+      if (this.debug) logNudge(state, 'runner', best.action);
+      return best.action;
+    });
+  }
+
   private decide(state: GameState): GameAction {
     noteKnownHand(state, 'runner');
     this.remember(state);

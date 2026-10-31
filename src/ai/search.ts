@@ -195,6 +195,11 @@ export class SearchAI implements Agent {
     return best;
   }
 
+  /** The Runner's abilities on the Corp's turn follow the rule-based AI's judgement. */
+  chooseOffTurn(state: GameState): GameAction | null {
+    return this.base instanceof HeuristicRunnerAI ? this.base.chooseOffTurn(state) : null;
+  }
+
   chooseRez(state: GameState, cards: CardInstance[]): GameAction | null {
     return asSide(this.side, () => this.decideRez(state, cards));
   }

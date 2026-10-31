@@ -6,7 +6,7 @@ import { logReloadEvent } from '../ui/reloadReason';
 /** `?aidebug` in the address: log why the computer made each move (browser console). */
 const aiDebug = () => typeof location !== 'undefined' && new URLSearchParams(location.search).has('aidebug');
 
-type Question = { type: 'action'; state: GameState } | { type: 'rez'; state: GameState; cards: CardInstance[] };
+type Question = { type: 'action'; state: GameState } | { type: 'rez'; state: GameState; cards: CardInstance[] } | { type: 'offturn'; state: GameState };
 
 /**
  * The game's handle on the computer player: asks a background worker for
@@ -62,7 +62,9 @@ export class AIClient {
 
   private async answerLocally(msg: Question): Promise<GameAction | null> {
     const agent = await this.local!;
-    return msg.type === 'action' ? agent.chooseAction(msg.state) : agent.chooseRez?.(msg.state, msg.cards) ?? null;
+    if (msg.type === 'action') return agent.chooseAction(msg.state);
+    if (msg.type === 'rez') return agent.chooseRez?.(msg.state, msg.cards) ?? null;
+    return agent.chooseOffTurn?.(msg.state) ?? null;
   }
 
   private ask(msg: Question): Promise<GameAction | null> {
@@ -80,6 +82,10 @@ export class AIClient {
 
   chooseRez(state: GameState, cards: CardInstance[]): Promise<GameAction | null> {
     return this.ask({ type: 'rez', state, cards });
+  }
+
+  chooseOffTurn(state: GameState): Promise<GameAction | null> {
+    return this.ask({ type: 'offturn', state });
   }
 
   dispose() {
