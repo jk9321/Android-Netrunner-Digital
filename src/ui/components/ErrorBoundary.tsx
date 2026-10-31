@@ -1,5 +1,6 @@
 import React from 'react';
-import { clearSavedGame } from '../savedGame';
+import { clearSavedGame, loadSavedGame } from '../savedGame';
+import { BugReportButton } from './BugReportButton';
 import { isChunkLoadError, reloadForNewBuild } from '../chunkReload';
 
 /**
@@ -51,6 +52,12 @@ export class ErrorBoundary extends React.Component<{ children: React.ReactNode }
           </p>
           <pre className="text-[12px] text-slate-500 whitespace-pre-wrap break-words max-h-32 overflow-auto">{error.message}</pre>
           <div className="flex gap-2 justify-end">
+            <BugReportButton
+              screen="crash screen"
+              crash={{ message: error.message, stack: error.stack }}
+              game={loadSavedGame() ? () => loadSavedGame() : undefined}
+              className="mr-auto"
+            />
             <button
               onClick={() => window.location.reload()}
               className="px-3 py-1.5 bg-slate-800 hover:bg-slate-700 text-slate-100 text-xs font-bold rounded-lg"

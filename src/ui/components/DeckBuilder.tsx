@@ -10,6 +10,7 @@ import { CardPopout } from './CardPopout';
 import { IceTypeIcons, breakerTypes } from './IceTypeIcons';
 import { iceSubtypes } from '../../core/engine/ice';
 import { FACTION_COLOR, FACTION_LABEL } from '../cardLabels';
+import { BugReportButton } from './BugReportButton';
 import { AlertTriangle, ArrowLeft, Ban, CheckCircle2, FileDown, Minus, Plus, Save, Search, ZoomIn } from 'lucide-react';
 
 interface DeckBuilderProps {
@@ -210,6 +211,7 @@ export const DeckBuilder: React.FC<DeckBuilderProps> = ({ initial, onSave, onCan
           <h1 className={`font-cyber font-black tracking-widest text-lg ${accentText}`}>
             {side === 'corp' ? 'CORP' : 'RUNNER'} DECKBUILDER
           </h1>
+          <BugReportButton screen="deck builder" />
           <input
             value={name}
             onChange={e => setName(e.target.value)}
@@ -548,6 +550,7 @@ export const DeckViewer: React.FC<DeckViewerProps> = ({ deck, onClose, onSelect 
           <h1 className={`font-cyber font-black tracking-widest text-lg ${accentText}`}>
             {side === 'corp' ? 'CORP' : 'RUNNER'} DECKLIST
           </h1>
+          <BugReportButton screen="decklist" />
           <div className="flex-1 min-w-[12rem] text-sm font-bold truncate" data-testid="viewed-deck-name">{deck.name}</div>
           {onSelect && (
             <button

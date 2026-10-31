@@ -6,6 +6,8 @@ import { ViewMode } from '../viewer';
 import { setSoundEnabled, soundEnabled } from '../sound';
 import { CardSize, savedCardSize, setCardSize } from '../cardSize';
 import { PhaseTracker } from './PhaseTracker';
+import { BugReportButton } from './BugReportButton';
+import { savedTableFor } from '../bugReport';
 
 interface GameHeaderProps {
   state: GameState;
@@ -19,7 +21,7 @@ interface GameHeaderProps {
   onLeave: () => void;
 }
 
-/** The bar across the top: title, phase, AI status, scores, card size, view, sound, forfeit and leave. */
+/** The bar across the top: title, bug report, phase, AI status, scores, card size, view, sound, forfeit and leave. */
 export function GameHeader({
   state,
   config,
@@ -47,6 +49,11 @@ export function GameHeader({
         >
           NETRUNNER
         </button>
+        <BugReportButton
+          screen="game"
+          textFrom="xl"
+          game={() => ({ config, state, table: savedTableFor(config.seed) })}
+        />
         <div className="flex items-center gap-1.5">
           <div className="hidden sm:block">
             <PhaseTracker state={state} />
