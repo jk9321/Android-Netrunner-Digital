@@ -4,6 +4,7 @@ import { iceCost } from './runs';
 import { RATES, guardLoop } from './valueModel';
 import { turnsLeft } from './cardProfiles';
 import { freeRezTargets } from './freeRez';
+import { tuning } from './synergy';
 
 /**
  * Value model step 5 (docs/ai-value-model-plan.md): ice priced in credits,
@@ -14,8 +15,17 @@ import { freeRezTargets } from './freeRez';
  * rule), and the Runner, who can't see it, values it by the odds.
  */
 
-/** Worth of ice that stops the Runner outright. */
+/** Worth of ice that stops the Runner outright (breakerTypeWorth keeps this base rate). */
 export const ICE_STOP = 8;
+/**
+ * plan.iceStopHigh (Jeff, 2026-10-31: "the Runner's cost to boost their
+ * breaker continues to scale"): ice worth follows what it costs the Runner
+ * to get past it up to 16 credits, so a Pharos at 10 strength (16 against
+ * Cleaver) is worth more than one at 5 (6), not the same capped 8.
+ */
+export const ICE_STOP_HIGH = 16;
+/** Most a piece of ice is worth: what a full stop counts as. */
+export const iceStop = (): number => (tuning.plan.iceStopHigh ? ICE_STOP_HIGH : ICE_STOP);
 
 /** Worth of one installed piece of ice, as `viewer` can judge it. */
 export function iceWorth(state: GameState, ice: CardInstance, viewer: SideCode): number {
@@ -23,13 +33,13 @@ export function iceWorth(state: GameState, ice: CardInstance, viewer: SideCode):
 }
 
 function iceWorthOf(state: GameState, ice: CardInstance, viewer: SideCode): number {
-  if (ice.isRezzed) return RATES.ice + Math.min(ICE_STOP, iceCost(state, ice));
+  if (ice.isRezzed) return RATES.ice + Math.min(iceStop(), iceCost(state, ice));
   // The Runner doesn't know what it is: iceCost's guess for unrezzed ice
   if (viewer === 'runner') return RATES.ice + iceCost(state, ice);
   // plan.freeRez: ice a coming free rez pays for (Send a Message, Unleash) counts as rezzable
   if (state.corp.credits < rezCost(state, ice) && !freeRezTargets(state).has(ice.instanceId)) return RATES.ice;
   // The Corp knows: what it would cost the Runner once rezzed, held back a little for the rez still to pay
-  return RATES.ice + 0.6 * Math.min(ICE_STOP, iceCost(state, { ...ice, isRezzed: true }));
+  return RATES.ice + 0.6 * Math.min(iceStop(), iceCost(state, { ...ice, isRezzed: true }));
 }
 
 /** The step-1 rate, with plan.iceInCredits off. */
