@@ -3,7 +3,9 @@ import { describe, expect, it } from 'vitest';
 import { GameState, cardDef, executeAction } from '../src/core';
 import { agendaWorth } from '../src/ai/evaluate';
 import { HeuristicCorpAI, createAgent } from '../src/ai';
+import { clickOnly } from '../src/ai/corpAI';
 import { tuning } from '../src/ai/synergy';
+import { sideCreditValue } from '../src/ai/valueModel';
 
 /**
  * Jeff's bug report (issue #2, 2026-10-31; LEO Construction vs Vic, Hard Corp): at 0 credits
@@ -55,12 +57,70 @@ describe('a Corp with no credits (Jeff’s bug report, plan.agendaCredits)', () 
   }, 60_000);
 
   it('the old way (plan off) is what the report saw', () => {
-    const was = tuning.plan.agendaCredits;
-    tuning.plan.agendaCredits = false;
+    const was = { ...tuning.plan };
+    // agendaBudget closes the same hole from the other side (two agendas no longer both look scored this turn)
+    Object.assign(tuning.plan, { agendaCredits: false, agendaBudget: false });
     try {
       expect(bareAgendas(playTurn(turn17(), createAgent('corp', 'hard', { samples: 6, seed: 1 })))).toBeGreaterThan(2);
     } finally {
-      tuning.plan.agendaCredits = was;
+      Object.assign(tuning.plan, was);
     }
   }, 60_000);
+});
+
+/**
+ * Jeff, same report: "a broke Corp can't do anything since it can't rez ice". The credit slide prices each
+ * credit at up to 1.8 when broke, but credits are lumpy: Petty Cash needs 3 before the turn's first action.
+ * The same position at 3 credits and a Corp score of 1 (so Send a Message doesn't win the game).
+ */
+function threeCredits(): GameState {
+  const s = turn17();
+  s.corp.credits = 3;
+  s.corp.score = 1;
+  s.corp.scoreArea = [];
+  return s;
+}
+
+describe('credits a broke Corp needs (Jeff, plan.moneyReach, agendaBudget, plannerScores, rezWhenUsed, openStealUnrun)', () => {
+  it('credits that pay for Petty Cash in HQ are worth the money it unlocks', () => {
+    const s = threeCredits();
+    const at = (credits: number) => sideCreditValue({ ...s, corp: { ...s.corp, credits } }, 'corp', 'corp');
+    const was = tuning.plan.moneyReach;
+    tuning.plan.moneyReach = false;
+    const plainDrop = at(3) - at(2);
+    tuning.plan.moneyReach = was;
+    expect(at(3) - at(2)).toBeGreaterThan(plainDrop + 1); // dropping to 2 loses Petty Cash for next turn
+    expect(sideCreditValue(s, 'corp', 'runner')).toBeLessThan(at(3)); // the Runner can't see HQ
+  });
+
+  it('plays Petty Cash first, then finishes Send a Message, instead of advancing first (Normal)', () => {
+    let s = threeCredits();
+    const corp = createAgent('corp', 'normal');
+    const first = corp.chooseAction(s);
+    expect(first.type).toBe('PLAY_OPERATION_OR_EVENT');
+    s = playTurn(executeAction(s, first), corp);
+    expect(s.corp.score).toBe(4);
+    expect(s.corp.credits).toBeGreaterThanOrEqual(2);
+  });
+
+  it('two agendas share one turn’s clicks: only one of them looks scored this turn', () => {
+    const s = threeCredits();
+    // Send a Message (2 to go) and Project Ingatan (3 to go) with 3 clicks: Petty Cash is still a candidate
+    const ranked = new HeuristicCorpAI({ planner: false }).rankMainActions(s);
+    const petty = ranked.findIndex(r => r.action.type === 'PLAY_OPERATION_OR_EVENT');
+    expect(petty).toBeGreaterThanOrEqual(0);
+    expect(petty).toBeLessThan(4); // in the planner's four candidates
+  });
+
+  it('Humanoid Resources is rezzed only with the 3 clicks to use it (rule 5.6.2a: a rez window before every action)', () => {
+    const s = threeCredits();
+    const hr = Object.values(s.corp.servers).flatMap(v => v.root).find(c => c.cardCode === '35039')!;
+    expect(clickOnly(hr)).toBe(3);
+    const rezzesHr = (clicks: number) => {
+      const st = { ...s, corp: { ...s.corp, clicks } };
+      return new HeuristicCorpAI({ planner: false }).rankMainActions(st).some(r => r.action.type === 'REZ_CARD' && r.action.cardInstanceId === hr.instanceId && r.score > -Infinity);
+    };
+    expect(rezzesHr(1)).toBe(false);
+    expect(rezzesHr(3)).toBe(true);
+  });
 });

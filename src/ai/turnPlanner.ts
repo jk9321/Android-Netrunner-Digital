@@ -120,10 +120,13 @@ function playout(start: GameState, side: SideCode, first: GameAction, ai: Planne
       state = next;
       continue;
     }
-    if (clicksOf(state, side) <= 0) break;
+    // Out of clicks, the turn can still score an agenda the last click finished: scoring costs no click (rule 7.1.1;
+    // Jeff's bug report, 2026-10-31: Petty Cash first, then two advances, looked like leaving the agenda for the Runner)
+    const outOfClicks = clicksOf(state, side) <= 0;
+    if (outOfClicks && !(tuning.plan.plannerScores && side === 'corp')) break;
     const now = state;
     const ranked = ai.rank(now);
-    const best = ranked.find(r => r.score > -Infinity && r.action.type !== 'END_TURN' && !(ran && r.action.type === 'INITIATE_RUN') && !dominated(now, r.action, ranked));
+    const best = ranked.find(r => r.score > -Infinity && r.action.type !== 'END_TURN' && (!outOfClicks || r.action.type === 'SCORE_AGENDA') && !(ran && r.action.type === 'INITIATE_RUN') && !dominated(now, r.action, ranked));
     if (!best) break;
     if (!ran) line.push({ key: positionKey(state, side), action: best.action }); // after a run the position can't be foreseen
     const next = step(state, best.action);

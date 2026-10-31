@@ -218,7 +218,17 @@ export const AGENDA_RUN = 0.4;
  * Runner turn it waits is a run on its server that may get through (run
  * openness: the ice there against the rig).
  */
-export function agendaWorth(state: GameState, counters: number, cost: number, points: number, serverId?: string, success?: number, inHand = false): number {
+export function agendaWorth(
+  state: GameState,
+  counters: number,
+  cost: number,
+  points: number,
+  serverId?: string,
+  success?: number,
+  inHand = false,
+  /** The Corp's clicks and credits left for this agenda this turn, once others on the board have theirs (plan.agendaBudget). */
+  budget: { clicks: number; credits: number } = state.corp
+): number {
   if (!tuning.plan.agendaBoard) return agendaBoardValue(counters, cost);
   const gain = pointValue(state.corp.score + points) - pointValue(state.corp.score);
   const need = Math.max(0, cost - counters);
@@ -234,11 +244,11 @@ export function agendaWorth(state: GameState, counters: number, cost: number, po
   // each a run that may get in and a turn closer to the end of the game (about 1 in turnsLeft)
   // plan.agendaCredits (Jeff's bug report, 2026-10-31): each advancement costs a credit (rule 5.2.6 basic actions: [click], 1[credit]: advance), so a Corp short of
   // credits needs a click to gain each missing one first ([click]: gain 1[credit]); at 0 credits an agenda can't be finished "this turn" on clicks alone
-  const short = tuning.plan.agendaCredits ? Math.max(0, need - state.corp.credits) : 0;
+  const short = tuning.plan.agendaCredits ? Math.max(0, need - budget.credits) : 0;
   const clicks = need + (inHand ? 1 : 0) + short;
   // On the Runner's turn it is exposed now, then the Corp's next turn has 3 clicks
   const runnerTurns =
-    state.activePlayer === 'corp' ? Math.ceil(Math.max(0, clicks - state.corp.clicks) / 3) : 1 + Math.ceil(Math.max(0, clicks - 3) / 3);
+    state.activePlayer === 'corp' ? Math.ceil(Math.max(0, clicks - budget.clicks) / 3) : 1 + Math.ceil(Math.max(0, clicks - 3) / 3);
   const late = 1 - 1 / turnsLeft(state);
   return gain * ((1 - steal) * late) ** runnerTurns - need * (CLICK + 1);
 }
@@ -263,10 +273,41 @@ function archivedAgendasValue(state: GameState, viewer: SideCode): number {
   return -archives.filter(c => cardDef(c).type_code === 'agenda').reduce((n, c) => n + archivedAgendaLoss(state, cardDef(c).agenda_points ?? 1), 0);
 }
 
+/**
+ * One turn's clicks and credits are shared by the agendas on the board (Jeff's bug report, 2026-10-31;
+ * plan.agendaBudget): on the Corp's turn, the agendas it can finish are given the clicks and credits
+ * they need, nearest to scored first, and the rest get what is left. Each agenda used to count on all
+ * of them, so two agendas both looked scored this turn and every other play (Petty Cash, which must
+ * be the turn's first action) looked like it threw a score away.
+ */
+function agendaBudgets(state: GameState, viewer: SideCode): Map<string, { clicks: number; credits: number }> | undefined {
+  if (!tuning.plan.agendaBudget || viewer !== 'corp' || state.activePlayer !== 'corp') return undefined;
+  const agendas = Object.values(state.corp.servers)
+    .flatMap(s => s.root)
+    .filter(c => cardDef(c).type_code === 'agenda')
+    .map(c => ({ id: c.instanceId, need: Math.max(0, (cardDef(c).advancement_cost ?? 0) - c.advancementCounters) }))
+    .sort((a, b) => a.need - b.need);
+  if (agendas.length < 2) return undefined;
+  const budgets = new Map<string, { clicks: number; credits: number }>();
+  let clicks = state.corp.clicks;
+  let credits = state.corp.credits;
+  for (const { id, need } of agendas) {
+    budgets.set(id, { clicks, credits });
+    // Clicks to finish it now: an advance each, and a click for each credit it is short (plan.agendaCredits)
+    const short = tuning.plan.agendaCredits ? Math.max(0, need - credits) : 0;
+    if (need + short <= clicks) {
+      clicks -= need + short;
+      credits = Math.max(0, credits - need);
+    }
+  }
+  return budgets;
+}
+
 /** The Corp's installed cards, as `viewer` can judge them: the Runner values facedown cards by the odds, not by what they are. */
 function corpBoardValue(state: GameState, viewer: SideCode): number {
   let value = 0;
   let odds: ReturnType<typeof hiddenCardOdds> | undefined;
+  const budgets = agendaBudgets(state, viewer);
   for (const server of Object.values(state.corp.servers)) {
     for (const ice of server.ice) value += tuning.plan.iceInCredits?.[viewer] ? iceWorth(state, ice, viewer) : flatIceWorth(ice);
     for (const card of server.root) {
@@ -276,7 +317,7 @@ function corpBoardValue(state: GameState, viewer: SideCode): number {
         continue;
       }
       const def = cardDef(card);
-      if (def.type_code === 'agenda') value += agendaWorth(state, card.advancementCounters, def.advancement_cost ?? 0, def.agenda_points ?? 1, server.id);
+      if (def.type_code === 'agenda') value += agendaWorth(state, card.advancementCounters, def.advancement_cost ?? 0, def.agenda_points ?? 1, server.id, undefined, false, budgets?.get(card.instanceId));
       else value += corpCardValue(card, state, viewer);
     }
   }
