@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { createInitialGameState } from '../src/core';
-import { DECKS, deckGameSetup } from '../src/data/decks';
+import { deckGameSetup } from '../src/data/decks';
+import { ALL_DECKS as DECKS } from '../scripts/nsg-sample-decks';
 import { buildTarget, creditSlide, pointValue } from '../src/ai/valueModel';
 
 describe('value model rates', () => {

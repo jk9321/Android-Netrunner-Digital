@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { GameState, createInitialGameState, getCardDefinition, isLegalAction } from '../src/core';
-import { DECKS, deckGameSetup } from '../src/data/decks';
+import { deckGameSetup } from '../src/data/decks';
+import { ALL_DECKS as DECKS } from '../scripts/nsg-sample-decks';
 import { SearchAI, playAIGame } from '../src/ai';
 import { determinize } from '../src/ai/search';
 

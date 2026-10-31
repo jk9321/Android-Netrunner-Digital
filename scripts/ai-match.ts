@@ -13,7 +13,8 @@
  */
 import { existsSync, readFileSync, writeFileSync } from 'node:fs';
 import { createInitialGameState } from '../src/core';
-import { DECKS, deckGameSetup } from '../src/data/decks';
+import { deckGameSetup } from '../src/data/decks';
+import { ALL_DECKS as DECKS } from './nsg-sample-decks';
 import { createAgent, playAIGame } from '../src/ai';
 import { tuning } from '../src/ai/synergy';
 import { GameRecord, playLogged } from './lossLog';

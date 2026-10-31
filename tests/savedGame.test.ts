@@ -1,7 +1,8 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { createInitialGameState } from '../src/core';
 import { playAIGame } from '../src/ai';
-import { DECKS, deckGameSetup } from '../src/data/decks';
+import { deckGameSetup } from '../src/data/decks';
+import { ALL_DECKS as DECKS } from '../scripts/nsg-sample-decks';
 import { GameConfig, SAVE_VERSION, clearSavedGame, loadSavedGame, saveGame } from '../src/ui/savedGame';
 
 function fakeStorage() {

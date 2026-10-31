@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { getCardDefinition } from '../src/core';
-import { DECKS, DeckList, deckCodes } from '../src/data/decks';
+import { DeckList, deckCodes } from '../src/data/decks';
+import { ALL_DECKS as DECKS } from '../scripts/nsg-sample-decks';
 import {
   fetchNetrunnerDbDeck,
   importDeckText,

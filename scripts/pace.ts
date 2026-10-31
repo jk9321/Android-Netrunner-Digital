@@ -6,7 +6,8 @@
  *   node scripts/pace-sum.mjs pace-*.json
  */
 import { createInitialGameState, GameState, cardDef } from '../src/core';
-import { DECKS, deckGameSetup } from '../src/data/decks';
+import { deckGameSetup } from '../src/data/decks';
+import { ALL_DECKS as DECKS } from './nsg-sample-decks';
 import { createAgent } from '../src/ai';
 import { GameRunner } from '../src/ai/playout';
 import { applyPlanOff } from '../src/ai/synergy';

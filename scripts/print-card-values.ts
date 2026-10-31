@@ -5,7 +5,8 @@
  *   npx vite-node scripts/print-card-values.ts > card-values.md
  */
 import { ALL_CARDS, createInitialGameState } from '../src/core';
-import { DECKS, deckGameSetup } from '../src/data/decks';
+import { deckGameSetup } from '../src/data/decks';
+import { ALL_DECKS as DECKS } from './nsg-sample-decks';
 import { CARD_PROFILES, payoutWorth, turnsLeft } from '../src/ai/cardProfiles';
 import { CARD_VALUES } from '../src/ai/cardValues';
 import { COUNTER_WORTH } from '../src/ai/counterValues';

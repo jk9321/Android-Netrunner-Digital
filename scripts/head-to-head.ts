@@ -12,7 +12,8 @@
  */
 import { resolve } from 'node:path';
 import { createInitialGameState } from '../src/core';
-import { DECKS, deckGameSetup } from '../src/data/decks';
+import { deckGameSetup } from '../src/data/decks';
+import { ALL_DECKS as DECKS } from './nsg-sample-decks';
 import { createAgent } from '../src/ai';
 import { GameRecord, playLogged } from './lossLog';
 import { applyPlanOff } from '../src/ai/synergy';

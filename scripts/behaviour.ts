@@ -9,7 +9,8 @@
  * NRDB=1 adds the test-only NetrunnerDB decks of scripts/nrdb-test-decks.ts (ids vp-...).
  */
 import { activePrompt, createInitialGameState, findCardAnywhere, GameState, cardDef } from '../src/core';
-import { DECKS, deckGameSetup } from '../src/data/decks';
+import { deckGameSetup } from '../src/data/decks';
+import { ALL_DECKS as DECKS } from './nsg-sample-decks';
 import { createAgent } from '../src/ai';
 import { GameRunner } from '../src/ai/playout';
 import type { Agent } from '../src/ai/agent';
