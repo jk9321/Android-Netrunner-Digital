@@ -138,6 +138,8 @@ Each card describes what it produces; its value is computed from the rates and t
 - Normal and Hard both use the model (Jeff). Hard stays at 1 s per decision if possible; Jeff allows more if it makes Hard better.
 - Balance target: self-play Corp 50 ± 5%. Report Corp loss reasons with every batch.
 - AI bug fixes only need a small sample, not a full batch.
+- Self-play blind spots (Jeff, 2026-10-31): self-play tunes each side against the other AI's blind spots, so a hole the Runner AI never punishes looks free in batches. Batches guard against big regressions; they don't prove a fix right. A fix that closes a hole a human player uses stays on when its batch is within noise (e.g. plan.tankProtection: Doomscroll, 46.2% vs 48.6% at 663 games).
+- Pin every hole found in play with a scenario test (e.g. `tests/tankableProtection.test.ts`, `tests/chromatophoresProtection.test.ts`), so later tuning can't quietly undo it.
 - Run pace (Jeff, 2026-10-28): PACE and AGENDA_RUN are averages measured from self-play (`scripts/pace.ts`, `scripts/pace-sum.mjs`). Re-measure them after every Corp or Runner AI change (either one changes how often and where the Runner runs) and update the constants.
 - Check rules questions against the comprehensive rules (`Null_Signal_Games_Netrunner_Comprehensive_Rules_v26.03.pdf`) and cite the rule.
 - Commit straight to main only for small fixes; this rework stays on a branch until Jeff approves a merge.
