@@ -228,7 +228,10 @@ export function agendaWorth(state: GameState, counters: number, cost: number, po
   }
   // plan.agendaTempo: the Runner turns until the Corp has the clicks to finish it (installing from hand is one more),
   // each a run that may get in and a turn closer to the end of the game (about 1 in turnsLeft)
-  const clicks = need + (inHand ? 1 : 0);
+  // plan.agendaCredits (Jeff's bug report, 2026-10-31): each advancement costs a credit (rule 5.2.6 basic actions: [click], 1[credit]: advance), so a Corp short of
+  // credits needs a click to gain each missing one first ([click]: gain 1[credit]); at 0 credits an agenda can't be finished "this turn" on clicks alone
+  const short = tuning.plan.agendaCredits ? Math.max(0, need - state.corp.credits) : 0;
+  const clicks = need + (inHand ? 1 : 0) + short;
   // On the Runner's turn it is exposed now, then the Corp's next turn has 3 clicks
   const runnerTurns =
     state.activePlayer === 'corp' ? Math.ceil(Math.max(0, clicks - state.corp.clicks) / 3) : 1 + Math.ceil(Math.max(0, clicks - 3) / 3);
