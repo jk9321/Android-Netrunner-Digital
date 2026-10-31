@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { ALL_CARDS, FORMATS, getCardDefinition, getFormat, isBanned, validateDeck, validateFormat } from '../src/core';
-import { DECKS, deckCodes } from '../src/data/decks';
+import { deckCodes } from '../src/data/decks';
+import { ALL_DECKS as DECKS } from '../scripts/nsg-sample-decks';
 
 const titlesBanned = (id: 'startup' | 'standard') =>
   ALL_CARDS.filter(c => isBanned(getFormat(id), c)).map(c => c.title).sort();

@@ -9,7 +9,8 @@
  * the same way.
  */
 import { createInitialGameState } from '../src/core';
-import { DECKS as SHIPPED_DECKS, deckGameSetup } from '../src/data/decks';
+import { deckGameSetup } from '../src/data/decks';
+import { ALL_DECKS as SHIPPED_DECKS } from './nsg-sample-decks';
 import { NRDB_TEST_DECKS } from './nrdb-test-decks';
 import { createAgent } from '../src/ai';
 import { GameRecord, playLogged } from './lossLog';

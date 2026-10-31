@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { copyLimitProblems, createInitialGameState, getCardDefinition, requiredAgendaPoints, validateDeck } from '../src/core';
-import { DECKS, DeckList, deckCodes, deckGameSetup, pickRandomDeck, randomDeckPool } from '../src/data/decks';
+import { DeckList, deckCodes, deckGameSetup, pickRandomDeck, randomDeckPool } from '../src/data/decks';
+import { ALL_DECKS as DECKS } from '../scripts/nsg-sample-decks';
 import { playout } from './helpers';
 
 describe('decklists', () => {
@@ -33,7 +34,7 @@ describe('decklists', () => {
   });
 
   it('builds a game from two decklists', () => {
-    const state = createInitialGameState(deckGameSetup(7, 'weyland-built-to-last', 'zahya-sadeghi'));
+    const state = createInitialGameState(deckGameSetup(7, DECKS.find(d => d.id === 'weyland-built-to-last')!, DECKS.find(d => d.id === 'zahya-sadeghi')!));
     expect(state.corp.hq.length + state.corp.rd.length).toBe(44);
     expect(state.runner.identity.cardCode).toBe('30010');
   });
@@ -73,7 +74,7 @@ describe('real deck playouts', () => {
   corps.forEach((corp, i) => {
     const runner = runners[i % runners.length];
     it(`${corp.name} vs ${runner.name} plays without errors`, () => {
-      const state = playout(100 + i, 500, deckGameSetup(100 + i, corp.id, runner.id));
+      const state = playout(100 + i, 500, deckGameSetup(100 + i, corp, runner));
       expect(state.turnNumber).toBeGreaterThan(1);
     });
   });
