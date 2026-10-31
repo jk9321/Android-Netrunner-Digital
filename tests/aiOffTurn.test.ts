@@ -43,7 +43,7 @@ describe('Runner AI on the Corp turn', () => {
 
 describe('Madani value', () => {
   it('a program hosted on Madani keeps the click its free install saves (plan.madaniClick)', () => {
-    let [s, madani] = runnerInstall(newGame(), MADANI);
+    const [s, madani] = runnerInstall(newGame(), MADANI);
     const cleaver = giveCard(s, 'runner', CLEAVER);
     s.runner.credits = 5;
     const card = s.runner.grip.find(c => c.instanceId === cleaver)!;
@@ -55,7 +55,7 @@ describe('Madani value', () => {
   });
 
   it('hosting programs on Madani is worth a click (it scored about 0 before plan.madaniClick)', () => {
-    let [s, madani] = runnerInstall(newGame(), MADANI);
+    const [s, madani] = runnerInstall(newGame(), MADANI);
     for (const code of [CLEAVER, '30007']) giveCard(s, 'runner', code);
     s.runner.credits = 5;
     s.runner.clicks = 1;
