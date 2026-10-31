@@ -60,7 +60,7 @@ export function playedWorth(state: GameState, card: CardInstance): number {
     case 'ice':
       // Installed unrezzed, as the board values it (plan.agendaBoard: the same check of what the Corp can rez)
       if (tuning.plan.agendaBoard) return iceWorth(state, { ...card, isRezzed: false }, 'corp') - CLICK;
-      return RATES.ice + 0.6 * Math.min(iceStop(), iceCost(state, { ...card, isRezzed: true })) - CLICK;
+      return RATES.ice + 0.6 * Math.min(iceStop(state), iceCost(state, { ...card, isRezzed: true })) - CLICK;
     case 'asset':
     case 'upgrade':
       return corpKeepValue(card.cardCode, state) - CLICK;

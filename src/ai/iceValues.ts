@@ -24,8 +24,17 @@ export const ICE_STOP = 8;
  * Cleaver) is worth more than one at 5 (6), not the same capped 8.
  */
 export const ICE_STOP_HIGH = 16;
-/** Most a piece of ice is worth: what a full stop counts as. */
-export const iceStop = (): number => (tuning.plan.iceStopHigh ? ICE_STOP_HIGH : ICE_STOP);
+/** Credits a Runner raises in a turn, for iceStopRunner (a named guess: 4 clicks at a credit each). */
+export const RUNNER_TURN_INCOME = 4;
+/**
+ * Most a piece of ice is worth: what a full stop counts as. plan.iceStopRunner (Jeff, 2026-10-31: "why have
+ * a cap at all?"): past what this Runner can raise in about two turns, more cost buys nothing, so the cap is
+ * their credits plus two turns of income (at least the base 8), and unbreakable ice counts at that ceiling.
+ */
+export function iceStop(state?: GameState): number {
+  if (tuning.plan.iceStopRunner && state) return Math.max(ICE_STOP, state.runner.credits + 2 * RUNNER_TURN_INCOME);
+  return tuning.plan.iceStopHigh ? ICE_STOP_HIGH : ICE_STOP;
+}
 
 /** Worth of one installed piece of ice, as `viewer` can judge it. */
 export function iceWorth(state: GameState, ice: CardInstance, viewer: SideCode): number {
@@ -33,13 +42,13 @@ export function iceWorth(state: GameState, ice: CardInstance, viewer: SideCode):
 }
 
 function iceWorthOf(state: GameState, ice: CardInstance, viewer: SideCode): number {
-  if (ice.isRezzed) return RATES.ice + Math.min(iceStop(), iceCost(state, ice));
+  if (ice.isRezzed) return RATES.ice + Math.min(iceStop(state), iceCost(state, ice));
   // The Runner doesn't know what it is: iceCost's guess for unrezzed ice
   if (viewer === 'runner') return RATES.ice + iceCost(state, ice);
   // plan.freeRez: ice a coming free rez pays for (Send a Message, Unleash) counts as rezzable
   if (state.corp.credits < rezCost(state, ice) && !freeRezTargets(state).has(ice.instanceId)) return RATES.ice;
   // The Corp knows: what it would cost the Runner once rezzed, held back a little for the rez still to pay
-  return RATES.ice + 0.6 * Math.min(iceStop(), iceCost(state, { ...ice, isRezzed: true }));
+  return RATES.ice + 0.6 * Math.min(iceStop(state), iceCost(state, { ...ice, isRezzed: true }));
 }
 
 /** The step-1 rate, with plan.iceInCredits off. */

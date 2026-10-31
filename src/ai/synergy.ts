@@ -346,6 +346,8 @@ export const tuning = {
     freeRez: true,
     /** Jeff, 2026-10-31: ice worth is the Runner's cost to get past it up to 16 credits, not 8 (iceValues.ts iceStop). */
     iceStopHigh: true,
+    /** Jeff, 2026-10-31: the ice worth cap is this Runner's credits plus two turns of income, at least 8 (iceValues.ts iceStop); wins over iceStopHigh. */
+    iceStopRunner: true,
     /** Per deciding side (Jeff, 2026-10-28): Normal plays its best few actions through to the end of the turn and picks the best turn (turnPlanner.ts). */
     turnPlanner: { corp: true, runner: true } as Record<SideCode, boolean>,
     /** With the planner: the hand at the end of a planned turn valued card by card (what each will do later). */

@@ -11,10 +11,10 @@ describe('ice is worth what it costs the Runner to get past (value model step 5)
     const s = newGame();
     installIceForTest(s, PALISADE, 'remote-9');
     const ice = () => s.corp.servers['remote-9'].ice[0];
-    expect(iceWorth(s, ice(), 'corp')).toBe(1 + iceStop());
+    expect(iceWorth(s, ice(), 'corp')).toBe(1 + iceStop(s));
     installProgramForTest(s, CLEAVER);
     expect(iceWorth(s, ice(), 'corp')).toBeCloseTo(1 + iceCost(s, ice()));
-    expect(iceWorth(s, ice(), 'corp')).toBeLessThan(1 + iceStop());
+    expect(iceWorth(s, ice(), 'corp')).toBeLessThan(1 + iceStop(s));
   });
 
   it("unrezzed ice counts only while the Corp can pay to rez it, and the Runner guesses", () => {
@@ -24,7 +24,7 @@ describe('ice is worth what it costs the Runner to get past (value model step 5)
     s.corp.credits = 0;
     expect(iceWorth(s, ice, 'corp')).toBe(1);
     s.corp.credits = 10;
-    expect(iceWorth(s, ice, 'corp')).toBeCloseTo(1 + 0.6 * iceStop());
+    expect(iceWorth(s, ice, 'corp')).toBeCloseTo(1 + 0.6 * iceStop(s));
     expect(iceWorth(s, ice, 'runner')).toBeCloseTo(1 + iceCost(s, ice));
   });
 });

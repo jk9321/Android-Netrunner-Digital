@@ -304,7 +304,7 @@ export class HeuristicRunnerAI implements Agent {
  * (each derezzes at its own 3 counters).
  */
 export function trojanHostValue(state: GameState, code: string, host: CardInstance): number {
-  const value = 1 + 0.15 * Math.min(iceStop(), iceCost(state, host));
+  const value = 1 + 0.15 * Math.min(iceStop(state), iceCost(state, host));
   const doubled = hostedTrojans(state, host, code).length;
   return code === TRANQUILIZER ? value - 3 * doubled : value - 1.5 * doubled;
 }
