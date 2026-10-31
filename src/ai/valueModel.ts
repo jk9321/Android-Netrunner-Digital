@@ -241,10 +241,36 @@ export function boardNeed(state: GameState, side: SideCode): number {
 /** The need credits slide against: the build target or the board's need, whichever is more. */
 export const creditNeed = (state: GameState, side: SideCode): number => Math.max(buildTarget(state, side), boardNeed(state, side));
 
+/** Share of a money operation's net gain that holding its cost already earns (plan.moneyReach): it still takes a click, and a turn. */
+export const MONEY_REACH = 0.5;
+
+/**
+ * Money the Corp's credits unlock (Jeff's bug report, 2026-10-31; plan.moneyReach): the best money
+ * operation in HQ it can afford, by its net gain. Credits are lumpy: a broke Corp with Petty Cash
+ * (3 credits before the turn's first action) and Hedge Fund (5) in HQ can play neither, and its
+ * last credit spent on a 1-credit rez keeps it locked out. The Corp's own view only: the Runner
+ * doesn't see HQ.
+ */
+export function moneyReach(state: GameState): number {
+  const credits = state.corp.credits;
+  let best = 0;
+  for (const card of state.corp.hq) {
+    const def = cardDef(card);
+    if (def.type_code !== 'operation' || (def.cost ?? 0) > credits) continue;
+    const gain = /(?:^|\. )Gain (\d+) credits/.exec(def.stripped_text ?? '');
+    if (gain) best = Math.max(best, Number(gain[1]) - (def.cost ?? 0));
+  }
+  return MONEY_REACH * best;
+}
+
 /** Worth of a side's credits on this board, as `viewer` (the deciding side) prices them. */
 export function sideCreditValue(state: GameState, side: SideCode, viewer: SideCode): number {
   const credits = side === 'corp' ? state.corp.credits : state.runner.credits;
-  return tuning.plan.creditSlide?.[viewer] ? creditSlide(credits, creditNeed(state, side)) : creditValue(credits);
+  // The money it unlocks in HQ sits on the slide with the credits: worth most to a broke Corp
+  const reach = side === 'corp' && viewer === 'corp' && tuning.plan.moneyReach ? moneyReach(state) : 0;
+  if (!tuning.plan.creditSlide?.[viewer]) return creditValue(credits) + reach;
+  const need = creditNeed(state, side);
+  return reach ? creditSlide(credits + reach, need) + Math.min(credits, 0) : creditSlide(credits, need);
 }
 
 /*

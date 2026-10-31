@@ -305,6 +305,16 @@ export const tuning = {
     agendaTempo: true,
     /** Jeff's bug report, 2026-10-31 (LEO at 0 credits installing bare agendas): agenda tempo counts the clicks to gain the credits each advancement still needs. */
     agendaCredits: true,
+    /** Jeff, 2026-10-31 ("a broke Corp can't do anything since it can't rez ice"): the Corp's credits are worth the best money operation in HQ they can pay for, half its net gain, on the credit slide (valueModel.ts moneyReach). */
+    moneyReach: true,
+    /** Jeff, 2026-10-31 (same report): on the Corp's turn the agendas on the board share its clicks and credits, nearest to scored first, instead of each counting on all of them (evaluate.ts agendaBudgets). */
+    agendaBudget: true,
+    /** Jeff, 2026-10-31 (same report): the turn planner's playouts score an agenda its last click finished (turnPlanner.ts). */
+    plannerScores: true,
+    /** Jeff, 2026-10-31 (same report): an asset that only pays through a click ability (Humanoid Resources) is rezzed only with the clicks to use it (corpAI.ts clickOnly). */
+    rezWhenUsed: true,
+    /** Jeff, 2026-10-31 (same report): the Runner reply counts as stolen only open-remote agendas the sampled Runner never ran; one it ran and was stopped from survived (runnerReply.ts). */
+    openStealUnrun: true,
     /**
      * Jeff, 2026-10-28 (final flat-value scan): the last flat rates from the model. points: accesses and
      * agenda effects on the point clock; flatline: a flatline worth the whole game; cards: a card lost or

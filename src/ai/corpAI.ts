@@ -306,6 +306,10 @@ export class HeuristicCorpAI implements Agent {
     // turn begins. Rezzed in the action phase only when the cards are needed now (digging, or an empty hand);
     // spinDoctorUseNow: or while 2+ clicks are left to use them this turn
     if (tuning.plan.spinDoctorWait && onRezOnly(card) && state.turnStep?.kind !== 'corp_turn_start' && corp.hq.length > 1 && digValue(state, 'corp') <= 0 && (!tuning.plan.spinDoctorUseNow || corp.clicks <= 1)) return -Infinity;
+    // (Jeff's bug report, 2026-10-31; plan.rezWhenUsed) An asset that only pays through a click ability (Humanoid Resources)
+    // is rezzed in the paid ability window just before the action that uses it (rule 5.6.2a): rezzed with fewer clicks
+    // left it does nothing yet, and spends the money a broke Corp needs for Petty Cash or its ice
+    if (tuning.plan.rezWhenUsed && clickOnly(card) && corp.clicks < clickOnly(card)) return -Infinity;
     const econ = econValue(card.cardCode, state);
     if (econ) return econ + 1;
     if (hacksOff('rez')) {
@@ -841,6 +845,19 @@ const VIRUS_WEIGHT: Record<string, number> = {
 };
 
 /** The Runner's virus counters, weighted by what they do. */
+/**
+ * Clicks of the ability an asset pays through, when that is all it does (plan.rezWhenUsed): text that is only
+ * a click ability, with nothing on rez, at the turn's start or while it sits rezzed. 0 for anything else.
+ */
+export function clickOnly(card: CardInstance): number {
+  const def = cardDef(card);
+  if (def.type_code !== 'asset') return 0;
+  const text = def.stripped_text ?? '';
+  const ability = /^((?:click,? ?)+)/i.exec(text);
+  if (!ability || /when you rez|when your turn begins|whenever|each turn|while/i.test(text)) return 0;
+  return (ability[1].match(/click/gi) ?? []).length;
+}
+
 function virusThreat(state: GameState): number {
   return [...state.runner.rig.programs, ...state.runner.rig.hardware, ...state.runner.rig.resources].reduce(
     (n, c) => n + counters(c, 'virus') * (hacksOff('purge') ? counterWorth(state, c, 'virus', 'corp') : VIRUS_WEIGHT[c.cardCode] ?? 0.8),

@@ -83,7 +83,10 @@ export function runnerReply(end: GameState, synergy: boolean, leaf: (state: Game
     }
     replyStats.nakedAgendaTurns += naked.length;
     replyStats.nakedAgendaRuns += naked.filter(id => ran.has(id)).length;
-    total += leaf(gr.state) - (tuning.plan.openSteal ? openAgendaLoss(gr.state, nakedAgendas) : 0);
+    // (Jeff's bug report, 2026-10-31; plan.openStealUnrun) only agendas in remotes the Runner didn't run: one it ran and
+    // was stopped from (The Red Room, LEO) survived the run it was counted stolen for
+    const unrun = tuning.plan.openStealUnrun ? naked.filter(id => !ran.has(id)).flatMap(id => gr.state.corp.servers[id]?.root.map(c => c.instanceId) ?? []) : nakedAgendas;
+    total += leaf(gr.state) - (tuning.plan.openSteal ? openAgendaLoss(gr.state, nakedAgendas.filter(id => unrun.includes(id))) : 0);
   }
   return total / REPLY.samples;
 }
