@@ -342,9 +342,9 @@ export const tuning = {
     digPastLimit: true,
     /** Jeff, 2026-10-31 ("cheat out" expensive ice): an installed Send a Message (rezzes ice when scored or stolen) or Unleash with a Runner tag pays for the costliest unrezzed ice, so that ice counts as rezzable, may be installed past the ice pacing, and a free rez picks the ice that saves the most (freeRez.ts). */
     freeRez: true,
-    /** Jeff, 2026-10-31: ice worth is the Runner's cost to get past it up to 16 credits, not 8 (iceValues.ts iceStop). */
-    iceStopHigh: true,
-    /** Jeff, 2026-10-31: the ice worth cap is this Runner's credits plus two turns of income, at least 8 (iceValues.ts iceStop); wins over iceStopHigh. */
+    /** Jeff, 2026-10-31: ice worth is the Runner's cost to get past it up to 16 credits, not 8 (iceValues.ts iceStop). Batch 663: 46.6% vs 49.2% base; superseded by iceStopRunner. */
+    iceStopHigh: false,
+    /** Jeff, 2026-10-31: the ice worth cap is this Runner's credits plus two turns of income, at least 8 (iceValues.ts iceStop); wins over iceStopHigh. Batch 663: 47.1% vs 49.2% base (noise, in band); kept on as Jeff's model. icePacing off (install ice it can't rez) was 45.4%, remote steals 487 -> 566: icePacing stays. */
     iceStopRunner: true,
     /** Per deciding side (Jeff, 2026-10-28): Normal plays its best few actions through to the end of the turn and picks the best turn (turnPlanner.ts). */
     turnPlanner: { corp: true, runner: true } as Record<SideCode, boolean>,
