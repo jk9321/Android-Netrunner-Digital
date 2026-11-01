@@ -322,7 +322,7 @@ function Game({
       <main className="flex-1 min-w-0 min-h-0 flex flex-col gap-2">
         {/* Victory Banner */}
         {winner && (
-          <div className="shrink-0 p-3 bg-gradient-to-r from-amber-950/80 to-pink-950/80 border-2 border-amber-500 chamfer flex items-center justify-between shadow-2xl">
+          <div className="shrink-0 p-3 bg-gradient-to-r from-amber-950/80 to-pink-950/80 border-2 border-amber-500 rounded-[4px] flex items-center justify-between shadow-2xl">
             <div>
               <h2 className="text-xl font-cyber font-black text-amber-400">
                 GAME OVER // {winner.toUpperCase()} VICTORIOUS
@@ -347,7 +347,7 @@ function Game({
         )}
 
         {/* CORP SECTOR (TOP HALF) */}
-        <section id="corp-board" className={`${activePlayer === 'corp' && !winner ? 'turn-active ' : ''}flex-1 min-h-0 flex flex-col gap-1.5 bg-slate-950/70 border border-cyan-900/80 chamfer hud-frame hud-corp p-2 shadow-xl relative w-full min-w-0`}>
+        <section id="corp-board" className={`${activePlayer === 'corp' && !winner ? 'turn-active ' : ''}flex-1 min-h-0 flex flex-col gap-1.5 bg-slate-950/70 border border-cyan-900/80 rounded-[4px] hud-frame hud-corp p-2 shadow-xl relative w-full min-w-0`}>
           <SideStrip side="corp" state={gameState} onInspect={setInspectedCard} onOpenZone={setZone} />
 
           <div className="flex-1 min-h-0 flex flex-col lg:flex-row gap-2 min-w-0">
@@ -376,7 +376,7 @@ function Game({
         </section>
 
         {/* RUNNER SECTOR (BOTTOM): the rig is two rows, so it takes what it needs and the Corp gets the rest */}
-        <section id="runner-board" className={`${activePlayer === 'runner' && !winner ? 'turn-active ' : ''}flex-none lg:max-h-[55%] min-h-0 flex flex-col gap-1.5 bg-slate-950/70 border border-pink-900/80 chamfer hud-frame hud-runner p-2 shadow-xl relative w-full min-w-0`}>
+        <section id="runner-board" className={`${activePlayer === 'runner' && !winner ? 'turn-active ' : ''}flex-none lg:max-h-[55%] min-h-0 flex flex-col gap-1.5 bg-slate-950/70 border border-pink-900/80 rounded-[4px] hud-frame hud-runner p-2 shadow-xl relative w-full min-w-0`}>
           <div className="flex-1 min-h-0 flex flex-col lg:flex-row gap-2 min-w-0">
           {/* Runner Rig (Installed Programs, Hardware, Resources) */}
           <div className="flex-1 min-w-0 min-h-0 overflow-auto">

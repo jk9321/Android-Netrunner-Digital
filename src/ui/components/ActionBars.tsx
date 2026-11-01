@@ -65,7 +65,7 @@ export function CorpActions(props: ActionBarProps) {
   const startingTurn = state.turnStep?.kind === 'corp_turn_start';
   const turnAction: GameAction = startingTurn ? { type: 'START_TURN', player: 'corp' } : { type: 'END_TURN', player: 'corp' };
   return (
-    <div className="flex flex-col gap-2 p-2 bg-cyan-950/40 border border-cyan-800/80 chamfer-sm shadow-inner">
+    <div className="flex flex-col gap-2 p-2 bg-cyan-950/40 border border-cyan-800/80 rounded-[4px] shadow-inner">
       <div className="flex items-center gap-1.5 flex-wrap">
         <span className="text-xs font-bold text-cyan-400 font-mono uppercase w-full">Corp Actions ({corp.clicks} Clicks):</span>
         {/* Basic click actions sit in an equal 3-column row so they never wrap awkwardly */}
@@ -177,7 +177,7 @@ export function RunnerActions(props: ActionBarProps) {
   const pickingCard = pickingHost ? findCardAnywhere(state, pickingHost) : undefined;
   if (pickingCard && hostChoices.length > 0) {
     return (
-      <div className="flex flex-col gap-2 p-2 bg-pink-950/40 border border-pink-800/80 chamfer-sm shadow-inner">
+      <div className="flex flex-col gap-2 p-2 bg-pink-950/40 border border-pink-800/80 rounded-[4px] shadow-inner">
         <span className="text-xs font-bold text-pink-400 font-mono uppercase">
           Install {pickingCard.instanceId === installable?.instanceId ? '' : 'hosted '}
           {cardDef(pickingCard).title} on:
@@ -214,7 +214,7 @@ export function RunnerActions(props: ActionBarProps) {
   }
   if (installable && makingRoom === installable.instanceId) {
     return (
-      <div className="flex flex-col gap-2 p-2 bg-pink-950/40 border border-pink-800/80 chamfer-sm shadow-inner">
+      <div className="flex flex-col gap-2 p-2 bg-pink-950/40 border border-pink-800/80 rounded-[4px] shadow-inner">
         <TrashFirstPicker
           key={installable.instanceId}
           heading={`Install ${cardDef(installable).title}, trashing first:`}
@@ -236,7 +236,7 @@ export function RunnerActions(props: ActionBarProps) {
     );
   }
   return (
-    <div className="flex flex-col gap-2 p-2 bg-pink-950/40 border border-pink-800/80 chamfer-sm shadow-inner">
+    <div className="flex flex-col gap-2 p-2 bg-pink-950/40 border border-pink-800/80 rounded-[4px] shadow-inner">
       <div className="flex items-center gap-1.5 flex-wrap">
         <span className="text-xs font-bold text-pink-400 font-mono uppercase w-full">Runner Actions ({runner.clicks} Clicks):</span>
         {/* Basic click actions sit in an equal 2-column row */}

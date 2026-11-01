@@ -20,18 +20,6 @@ export default {
     "./src/**/*.{js,ts,jsx,tsx}",
   ],
   theme: {
-    // Angular: corners are clipped or near-square; only rounded-full (pips, dots) stays round
-    borderRadius: {
-      none: '0',
-      sm: '1px',
-      DEFAULT: '2px',
-      md: '2px',
-      lg: '2px',
-      xl: '3px',
-      '2xl': '3px',
-      '3xl': '4px',
-      full: '9999px',
-    },
     extend: {
       colors: {
         slate: scale('neutral'),
@@ -59,8 +47,8 @@ export default {
         sm: ['0.9375rem', { lineHeight: '1.375rem' }],
       },
       fontFamily: {
-        mono: ['"Share Tech Mono"', '"Courier New"', 'monospace'],
-        cyber: ['Orbitron', 'sans-serif'],
+        mono: ['"JetBrains Mono"', '"Share Tech Mono"', '"Courier New"', 'monospace'],
+        cyber: ['Rajdhani', 'Orbitron', 'sans-serif'],
       }
     },
   },
