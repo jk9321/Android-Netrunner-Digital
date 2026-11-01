@@ -1,9 +1,9 @@
 import { useEffect, useState } from 'react';
-import { ArrowRight, Biohazard, Layers, Plus, Tag, Trash2, Zap } from 'lucide-react';
+import { ArrowRight, Layers, Plus, Trash2, Zap } from 'lucide-react';
 import { CardInstance, GameAction, GameState, SideCode, cardDef, findCardAnywhere, getCardScript, getLegalActions, installedIce, isLegalAction, trashableFirst, virusCountersInPlay } from '../../core';
 import { showConfirm } from './Dialog';
 import { TrashFirstButton, TrashFirstPicker } from './TrashFirstPicker';
-import { CreditIcon, Credits } from './CreditIcon';
+import { CreditIcon, Credits, TagIcon, VirusIcon } from './CreditIcon';
 import { CorpInstallOptions } from './CorpInstallOptions';
 import { hostedCardActions, illegalReason } from '../legal';
 import { cardPositionLabel } from '../cardLabels';
@@ -101,7 +101,7 @@ export function CorpActions(props: ActionBarProps) {
           className="px-2 py-1 bg-cyan-950 hover:bg-cyan-900 border border-cyan-700 text-cyan-200 text-xs font-bold rounded-lg transition-all flex items-center gap-1.5 disabled:opacity-40 shadow"
           title="Spend 3 clicks to remove every virus counter"
         >
-          <Biohazard className="w-3.5 h-3.5 text-lime-400" /> Purge (3 clicks)
+          <VirusIcon className="w-3.5 h-3.5 text-lime-400" /> Purge (3 clicks)
         </button>
         {getLegalActions(state, 'corp').map(a => {
           if (a.type !== 'TRASH_RESOURCE') return null;
@@ -256,7 +256,7 @@ export function RunnerActions(props: ActionBarProps) {
             disabled={!isLegalAction(state, { type: 'REMOVE_TAG', player: 'runner' })}
             className="px-2 py-1 bg-pink-950 hover:bg-pink-900 border border-pink-700 text-pink-200 text-xs font-bold rounded-lg transition-all flex items-center gap-1.5 disabled:opacity-40 shadow"
           >
-            <Tag className="w-3.5 h-3.5 text-red-400" /> Remove Tag (1 click + <Credits amount={2} />)
+            <TagIcon className="w-3.5 h-3.5 text-red-400" /> Remove Tag (1 click + <Credits amount={2} />)
           </button>
         )}
         <PlayButton {...props} side="runner" />
