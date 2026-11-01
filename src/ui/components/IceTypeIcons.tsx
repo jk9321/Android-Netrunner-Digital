@@ -1,13 +1,51 @@
 import React from 'react';
-import { BrickWall, KeyRound, Swords } from 'lucide-react';
 import type { IceSubtype } from '../../core/scripts/types';
 import type { CardInstance } from '../../core/types/card';
 import { breakerScript } from '../../core/engine/ice';
 
+function BarrierIcon({ className = 'w-[1.2em] h-[1.2em]' }: { className?: string }) {
+  return (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" className={className} aria-hidden="true">
+      <path d="M3 3h18v18H3z" />
+      <path d="M3 9h18" />
+      <path d="M3 15h18" />
+      <path d="M12 3v6" />
+      <path d="M8 9v6" />
+      <path d="M16 9v6" />
+      <path d="M12 15v6" />
+    </svg>
+  );
+}
+
+function CodeGateIcon({ className = 'w-[1.2em] h-[1.2em]' }: { className?: string }) {
+  return (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" className={className} aria-hidden="true">
+      <path d="M6 3.5h1.5v3" />
+      <rect x="5" y="9.5" width="3.5" height="4.5" rx="1" />
+      <path d="M6 17.5h1.5v3" />
+      <line x1="12" y1="2" x2="12" y2="22" strokeDasharray="2 2" strokeWidth="1.2" opacity="0.6" />
+      <rect x="15.5" y="3.5" width="3.5" height="4.5" rx="1" />
+      <path d="M16.5 11h1.5v3" />
+      <rect x="15.5" y="16.5" width="3.5" height="4.5" rx="1" />
+    </svg>
+  );
+}
+
+function SentryIcon({ className = 'w-[1.2em] h-[1.2em]' }: { className?: string }) {
+  return (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className={className} aria-hidden="true">
+      <circle cx="12" cy="12" r="3" />
+      <path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7-10-7-10-7Z" />
+      <line x1="12" y1="1.5" x2="12" y2="4.5" strokeWidth="2.2" />
+      <line x1="12" y1="19.5" x2="12" y2="22.5" strokeWidth="2.2" />
+    </svg>
+  );
+}
+
 const ICON: Record<IceSubtype, React.ElementType> = {
-  barrier: BrickWall,
-  'code gate': KeyRound,
-  sentry: Swords,
+  barrier: BarrierIcon,
+  'code gate': CodeGateIcon,
+  sentry: SentryIcon,
 };
 const LABEL: Record<IceSubtype, string> = { barrier: 'Barrier', 'code gate': 'Code gate', sentry: 'Sentry' };
 // Glossary ids for the hover tooltip: the ice subtype on ice, the breaker that answers it on icebreakers

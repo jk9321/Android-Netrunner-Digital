@@ -1,7 +1,7 @@
 import React from 'react';
 import { createPortal } from 'react-dom';
 import { SideCode } from '../../core';
-import { Trophy, RotateCcw, LayoutGrid, Eye } from 'lucide-react';
+import { RotateCcw, LayoutGrid, Eye } from 'lucide-react';
 import { FloatingPanel } from './FloatingPanel';
 
 interface GameOverModalProps {
@@ -49,7 +49,26 @@ export const GameOverModal: React.FC<GameOverModalProps> = ({
       title={<div className="text-[12px] tracking-[0.3em] text-slate-500 font-bold text-center">GAME OVER</div>}
     >
       <div className="text-center px-3 pb-3">
-        <Trophy className="w-12 h-12 mx-auto mb-3 text-amber-400" />
+        <div
+          className={`w-12 h-12 mx-auto mb-3 rounded-full border flex items-center justify-center shadow-lg ${
+            isCorp
+              ? 'border-cyan-400 bg-cyan-950/70 text-cyan-300 shadow-cyan-900/40'
+              : 'border-pink-500 bg-pink-950/70 text-pink-300 shadow-pink-900/40'
+          }`}
+        >
+          <svg
+            className="w-7 h-7"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="2.2"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+            aria-hidden="true"
+          >
+            <path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5" />
+          </svg>
+        </div>
         <h2
           id="game-over-title"
           className={`font-cyber font-black tracking-widest text-2xl mb-2 ${isCorp ? 'text-cyan-400' : 'text-pink-400'}`}

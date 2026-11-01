@@ -1,7 +1,7 @@
 import React from 'react';
-import { Archive, Award, Ban, Clock, Eye, Layers, Tag, Trash2 } from 'lucide-react';
+import { Archive, Award, Ban, Crosshair, Eye, Layers, Trash2 } from 'lucide-react';
 import { CardInstance, GameState, SideCode, cardDef } from '../../core';
-import { CreditIcon, MuIcon } from './CreditIcon';
+import { ClickIcon, CreditIcon, MuIcon } from './CreditIcon';
 import { Keyword } from './Keyword';
 import { labelKeyword } from '../glossary';
 import { ZoneId } from './ZoneViewer';
@@ -90,7 +90,7 @@ export function SideStrip({
           )}
         </div>
         <div className={`flex items-center gap-1.5 px-2 py-0.5 rounded-lg shadow ${style.stat}`}>
-          <Clock className="w-3.5 h-3.5 text-red-400" />
+          <ClickIcon className="w-3.5 h-3.5 text-red-400" />
           <span className="font-bold">{player.clicks}</span> / {player.maxClicks} <Keyword id="click">Clicks</Keyword>
         </div>
         {side === 'corp' ? (
@@ -137,7 +137,7 @@ export function SideStrip({
               }`}
               data-testid="runner-tags"
             >
-              <Tag className="w-3.5 h-3.5" />
+              <Crosshair className="w-3.5 h-3.5" />
               <span className="font-bold">{runner.tags}</span> <Keyword id="tag">Tag{runner.tags === 1 ? '' : 's'}</Keyword>
             </div>
             {runner.coreDamage > 0 && (
