@@ -3,7 +3,7 @@ import { ArrowRight, Layers, Plus, Trash2, Zap } from 'lucide-react';
 import { CardInstance, GameAction, GameState, SideCode, cardDef, findCardAnywhere, getCardScript, getLegalActions, installedIce, isLegalAction, trashableFirst, virusCountersInPlay } from '../../core';
 import { showConfirm } from './Dialog';
 import { TrashFirstButton, TrashFirstPicker } from './TrashFirstPicker';
-import { CreditIcon, Credits, TagIcon, VirusIcon } from './CreditIcon';
+import { ClickIcon, CreditIcon, Credits, TagIcon, VirusIcon } from './CreditIcon';
 import { CorpInstallOptions } from './CorpInstallOptions';
 import { hostedCardActions, illegalReason } from '../legal';
 import { cardPositionLabel } from '../cardLabels';
@@ -68,41 +68,44 @@ export function CorpActions(props: ActionBarProps) {
     <div className="flex flex-col gap-2 p-2 bg-cyan-950/40 border border-cyan-800/80 chamfer-sm shadow-inner">
       <div className="flex items-center gap-1.5 flex-wrap">
         <span className="text-xs font-bold text-cyan-400 font-mono uppercase w-full">Corp Actions ({corp.clicks} Clicks):</span>
-        {/* Greyed out whenever the engine says no, including the window before the turn begins (rules 5.6.1b: no actions there) */}
-        <button
-          onClick={() => onAction({ type: 'GAIN_CREDIT', player: 'corp' })}
-          disabled={!isLegalAction(state, { type: 'GAIN_CREDIT', player: 'corp' })}
-          className="px-2 py-1 bg-cyan-950 hover:bg-cyan-900 border border-cyan-700 text-cyan-200 text-xs font-bold rounded-lg transition-all flex items-center gap-1.5 disabled:opacity-40 shadow"
-        >
-          <CreditIcon className="w-3.5 h-3.5 text-amber-400" /> +1 Credit
-        </button>
-        <button
-          onClick={() => onAction({ type: 'DRAW_CARD', player: 'corp' })}
-          disabled={!isLegalAction(state, { type: 'DRAW_CARD', player: 'corp' })}
-          className="px-2 py-1 bg-cyan-950 hover:bg-cyan-900 border border-cyan-700 text-cyan-200 text-xs font-bold rounded-lg transition-all flex items-center gap-1.5 disabled:opacity-40 shadow"
-        >
-          <Layers className="w-3.5 h-3.5 text-cyan-400" /> Draw Card
-        </button>
-        <button
-          onClick={async () => {
-            // Purging with no virus counters out is legal (rule 10.1.2) but wastes the turn, so check first
-            if (
-              virusCountersInPlay(state) === 0 &&
-              !(await showConfirm('There are no virus counters to purge. Spend 3 clicks anyway?', {
-                title: 'Nothing to purge',
-                confirmLabel: 'Purge anyway',
-                danger: true,
-              }))
-            )
-              return;
-            onAction({ type: 'PURGE_VIRUS', player: 'corp' });
-          }}
-          disabled={!isLegalAction(state, { type: 'PURGE_VIRUS', player: 'corp' })}
-          className="px-2 py-1 bg-cyan-950 hover:bg-cyan-900 border border-cyan-700 text-cyan-200 text-xs font-bold rounded-lg transition-all flex items-center gap-1.5 disabled:opacity-40 shadow"
-          title="Spend 3 clicks to remove every virus counter"
-        >
-          <VirusIcon className="w-[18px] h-[18px] text-lime-400 shrink-0" /> Purge (3 clicks)
-        </button>
+        {/* Basic click actions sit in an equal 3-column row so they never wrap awkwardly */}
+        <div className="grid grid-cols-3 gap-1.5 w-full">
+          <button
+            onClick={() => onAction({ type: 'GAIN_CREDIT', player: 'corp' })}
+            disabled={!isLegalAction(state, { type: 'GAIN_CREDIT', player: 'corp' })}
+            className="px-1.5 py-1 bg-cyan-950 hover:bg-cyan-900 border border-cyan-700 text-cyan-200 text-xs font-bold rounded-lg transition-all flex items-center justify-center gap-1.5 disabled:opacity-40 shadow"
+          >
+            <CreditIcon className="w-3.5 h-3.5 text-amber-400" /> +1 Credit
+          </button>
+          <button
+            onClick={() => onAction({ type: 'DRAW_CARD', player: 'corp' })}
+            disabled={!isLegalAction(state, { type: 'DRAW_CARD', player: 'corp' })}
+            className="px-1.5 py-1 bg-cyan-950 hover:bg-cyan-900 border border-cyan-700 text-cyan-200 text-xs font-bold rounded-lg transition-all flex items-center justify-center gap-1.5 disabled:opacity-40 shadow"
+          >
+            <Layers className="w-3.5 h-3.5 text-cyan-400" /> Draw Card
+          </button>
+          <button
+            onClick={async () => {
+              // Purging with no virus counters out is legal (rule 10.1.2) but wastes the turn, so check first
+              if (
+                virusCountersInPlay(state) === 0 &&
+                !(await showConfirm('There are no virus counters to purge. Spend 3 clicks anyway?', {
+                  title: 'Nothing to purge',
+                  confirmLabel: 'Purge anyway',
+                  danger: true,
+                }))
+              )
+                return;
+              onAction({ type: 'PURGE_VIRUS', player: 'corp' });
+            }}
+            disabled={!isLegalAction(state, { type: 'PURGE_VIRUS', player: 'corp' })}
+            className="px-1 py-1 bg-cyan-950 hover:bg-cyan-900 border border-cyan-700 text-cyan-200 text-xs font-bold rounded-lg transition-all flex items-center justify-center gap-1 disabled:opacity-40 shadow whitespace-nowrap"
+            title="Spend 3 clicks to remove every virus counter"
+          >
+            <VirusIcon className="w-[17px] h-[17px] text-lime-400 shrink-0" />
+            <span>Purge (3<ClickIcon className="w-3 h-3 text-red-400 inline-block align-middle mx-0.5" />)</span>
+          </button>
+        </div>
         {getLegalActions(state, 'corp').map(a => {
           if (a.type !== 'TRASH_RESOURCE') return null;
           const res = findCardAnywhere(state, a.cardInstanceId);
@@ -113,7 +116,7 @@ export function CorpActions(props: ActionBarProps) {
               className="px-2 py-1 bg-red-950 hover:bg-red-900 border border-red-700 text-red-200 text-xs font-bold rounded-lg transition-all flex items-center gap-1.5 shadow"
               title="The Runner is tagged: spend a click and 2 credits to trash this resource"
             >
-              <Trash2 className="w-3.5 h-3.5" /> Trash {res ? cardDef(res).title : 'resource'} (1 click + <Credits amount={2} />)
+              <Trash2 className="w-3.5 h-3.5" /> Trash {res ? cardDef(res).title : 'resource'} (1<ClickIcon className="w-3 h-3 text-red-400 inline-block align-middle mx-0.5" /> + <Credits amount={2} />)
             </button>
           );
         })}
@@ -236,27 +239,30 @@ export function RunnerActions(props: ActionBarProps) {
     <div className="flex flex-col gap-2 p-2 bg-pink-950/40 border border-pink-800/80 chamfer-sm shadow-inner">
       <div className="flex items-center gap-1.5 flex-wrap">
         <span className="text-xs font-bold text-pink-400 font-mono uppercase w-full">Runner Actions ({runner.clicks} Clicks):</span>
-        <button
-          onClick={() => onAction({ type: 'GAIN_CREDIT', player: 'runner' })}
-          disabled={runner.clicks < 1}
-          className="px-2 py-1 bg-pink-950 hover:bg-pink-900 border border-pink-700 text-pink-200 text-xs font-bold rounded-lg transition-all flex items-center gap-1.5 disabled:opacity-40 shadow"
-        >
-          <CreditIcon className="w-3.5 h-3.5 text-amber-400" /> +1 Credit
-        </button>
-        <button
-          onClick={() => onAction({ type: 'DRAW_CARD', player: 'runner' })}
-          disabled={runner.clicks < 1}
-          className="px-2 py-1 bg-pink-950 hover:bg-pink-900 border border-pink-700 text-pink-200 text-xs font-bold rounded-lg transition-all flex items-center gap-1.5 disabled:opacity-40 shadow"
-        >
-          <Layers className="w-3.5 h-3.5 text-pink-400" /> Draw Card
-        </button>
+        {/* Basic click actions sit in an equal 2-column row */}
+        <div className="grid grid-cols-2 gap-1.5 w-full">
+          <button
+            onClick={() => onAction({ type: 'GAIN_CREDIT', player: 'runner' })}
+            disabled={runner.clicks < 1}
+            className="px-2 py-1 bg-pink-950 hover:bg-pink-900 border border-pink-700 text-pink-200 text-xs font-bold rounded-lg transition-all flex items-center justify-center gap-1.5 disabled:opacity-40 shadow"
+          >
+            <CreditIcon className="w-3.5 h-3.5 text-amber-400" /> +1 Credit
+          </button>
+          <button
+            onClick={() => onAction({ type: 'DRAW_CARD', player: 'runner' })}
+            disabled={runner.clicks < 1}
+            className="px-2 py-1 bg-pink-950 hover:bg-pink-900 border border-pink-700 text-pink-200 text-xs font-bold rounded-lg transition-all flex items-center justify-center gap-1.5 disabled:opacity-40 shadow"
+          >
+            <Layers className="w-3.5 h-3.5 text-pink-400" /> Draw Card
+          </button>
+        </div>
         {runner.tags > 0 && (
           <button
             onClick={() => onAction({ type: 'REMOVE_TAG', player: 'runner' })}
             disabled={!isLegalAction(state, { type: 'REMOVE_TAG', player: 'runner' })}
-            className="px-2 py-1 bg-pink-950 hover:bg-pink-900 border border-pink-700 text-pink-200 text-xs font-bold rounded-lg transition-all flex items-center gap-1.5 disabled:opacity-40 shadow"
+            className="px-2 py-1 bg-pink-950 hover:bg-pink-900 border border-pink-700 text-pink-200 text-xs font-bold rounded-lg transition-all flex items-center justify-center gap-1.5 disabled:opacity-40 shadow w-full"
           >
-            <TagIcon className="w-[18px] h-[18px] text-red-400 shrink-0" /> Remove Tag (1 click + <Credits amount={2} />)
+            <TagIcon className="w-[18px] h-[18px] text-red-400 shrink-0" /> Remove Tag (1<ClickIcon className="w-3 h-3 text-red-400 inline-block align-middle mx-0.5" /> + <Credits amount={2} />)
           </button>
         )}
         <PlayButton {...props} side="runner" />
