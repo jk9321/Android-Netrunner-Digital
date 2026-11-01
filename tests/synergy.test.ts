@@ -612,3 +612,20 @@ describe('rez money (Jeff, from play)', () => {
     expect(new HeuristicCorpAI().rankMainActions(s).find(r => r.action.type === 'REZ_CARD' && r.action.cardInstanceId === grid.instanceId)!.score).toBeGreaterThan(0);
   });
 });
+
+describe('a trap the Runner has already seen (Gemini audit, 2026-11-01)', () => {
+  const seen = (code: string) => {
+    const s = structuredClone(newGame());
+    const card = createCardInstance(s, code);
+    s.corp.servers['remote-9'] = { id: 'remote-9', name: 'Server 9', isRemote: true, ice: [], root: [card] };
+    s.runner.credits = 10;
+    return serverValue(s, 'remote-9', 0, new Map([[card.instanceId, code]]), true);
+  };
+  it('is not run again to trash it when it springs on access (Esca, Byte!)', () => {
+    expect(seen('36038')).toBe(0);
+    expect(seen('35050')).toBe(0);
+  });
+  it('is still worth trashing when it fires on the Corp\'s turn instead (Clearinghouse)', () => {
+    expect(seen('30061')).toBeGreaterThan(0);
+  });
+});

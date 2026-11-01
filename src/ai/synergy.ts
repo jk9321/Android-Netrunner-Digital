@@ -114,6 +114,12 @@ export const tuning = {
     /** Money assets that pay when the turn begins wait for the window before it to be rezzed (2026-10-29: 75-96% were trashed before paying). */
     assetRezTiming: true,
     /**
+     * Every other asset that pays only when the Corp's turn begins (Idiosyncresis, Public Access Plaza, Plutus, Luana
+     * Campos) waits for that window too (rules 5.6.1b-d), not rezzed at 0 clicks before END_TURN (Gemini audit, 2026-11-01).
+     * Assets with a discard-phase payoff (Nihilo Agent, Phật Gioan Baotixita) still rez in the action phase.
+     */
+    turnStartRez: true,
+    /**
      * (Jeff) Spin Doctor waits for a run on its server or the window before the turn, unless digging. Self-play at
      * 5f827e6: 42.5% without, 44.3% with; with icePosition off 45.6% without, 47.9% with. (spinDoctorUseNow,
      * rezzing while 2+ clicks are left, was no better.)

@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { HeuristicCorpAI } from '../src/ai/corpAI';
 import { installCorpForTest, newGame, run, startRunnerTurn } from './helpers';
+import { asSide } from '../src/ai/synergy';
 
 const NICO = '30037';
 
@@ -57,5 +58,33 @@ describe('Spin Doctor in a run on its server', () => {
     expect(r.activeRun?.phase).toBe('approach_server');
     const card = r.corp.servers['remote-1'].root.find(c => c.instanceId === id)!;
     expect(new HeuristicCorpAI({ planner: false }).chooseRez(r, [card])).toMatchObject({ type: 'REZ_CARD', cardInstanceId: id });
+  });
+});
+
+describe('assets that pay when the turn begins wait for that window (rules 5.6.1b-d; plan.turnStartRez)', () => {
+  const rezScore = (code: string, clicks: number, turnStart: boolean) => {
+    const s = newGame();
+    s.activePlayer = 'corp';
+    s.corp.credits = 10;
+    s.corp.clicks = clicks;
+    const id = installCorpForTest(s, code, 'remote-1');
+    if (turnStart) s.turnStep = { kind: 'corp_turn_start' };
+    const ranked = asSide('corp', () => new HeuristicCorpAI({ planner: false }).rankMainActions(s));
+    return ranked.find(r => r.action.type === 'REZ_CARD' && r.action.cardInstanceId === id)?.score ?? -Infinity;
+  };
+
+  // Found rezzed at 0 clicks just before END_TURN: a turn early, shown to the Runner, and the credits gone from ice
+  for (const [code, name] of [['35061', 'Idiosyncresis'], ['35062', 'Public Access Plaza'], ['35073', 'Plutus'], ['36057', 'Luana Campos']]) {
+    it(`${name} is not rezzed with the last click spent`, () => {
+      expect(rezScore(code, 0, false)).toBe(-Infinity);
+    });
+  }
+
+  it('Public Access Plaza is rezzed just before the turn begins', () => {
+    expect(rezScore('35062', 0, true)).toBeGreaterThan(0);
+  });
+
+  it('Phật Gioan Baotixita still rezzes in the action phase: its counter comes when the discard phase ends', () => {
+    expect(rezScore('35051', 0, false)).toBeGreaterThan(0);
   });
 });

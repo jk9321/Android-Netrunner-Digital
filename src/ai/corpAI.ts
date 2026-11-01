@@ -1,4 +1,4 @@
-import { CardInstance, GameAction, GameState, ServerState, activePrompt, cardDef, findCardAnywhere, getCardDefinition, getLegalActions, isLegalAction } from '../core';
+import { CardInstance, GameAction, GameState, ServerState, activePrompt, cardDef, findCardAnywhere, getCardDefinition, getCardScript, getLegalActions, isLegalAction } from '../core';
 import { plansOn } from './cardPlans';
 import { iceScript, iceStrength, iceSubroutines, iceSubtypes } from '../core/engine/ice';
 import { iceStop, iceWorth, withIceInstalled } from './iceValues';
@@ -29,6 +29,12 @@ import { counterWorth } from './counterValues';
 const type = (card: CardInstance) => cardDef(card).type_code;
 const hasEndTheRun = (ice: CardInstance) => (iceScript(ice)?.subroutines ?? []).some(s => /end the run/i.test(s.label));
 const isAgendaOrAsset = (card: CardInstance) => ['agenda', 'asset'].includes(type(card));
+
+/** A Corp asset that pays when the Corp's turn begins, with nothing at the end of the turn before it (plan.turnStartRez). */
+export const turnStartOnly = (card: CardInstance): boolean => {
+  const triggers = getCardScript(card.cardCode)?.triggers;
+  return type(card) === 'asset' && !!triggers?.turn_begins && !triggers.discard_phase_ends;
+};
 
 /**
  * Credits a money operation gains, read from its text (step 6: no hand-kept
@@ -318,6 +324,9 @@ export class HeuristicCorpAI implements Agent {
     // A money asset that pays when the Corp's turn begins is rezzed in the window just before then
     // (rules 5.6.1b-d): it pays at once, and the Runner gets no turn to trash it full (plan.assetRezTiming)
     if (tuning.plan.assetRezTiming && CARD_PROFILES[card.cardCode]?.every === 'turn' && state.turnStep?.kind !== 'corp_turn_start') return -Infinity;
+    // The same for any asset whose payoff is "when your turn begins" (plan.turnStartRez): rezzed earlier it pays no
+    // sooner, shows the Runner what it is, gives it a turn to trash it and spends credits the Corp's ice may need
+    if (tuning.plan.turnStartRez && turnStartOnly(card) && state.turnStep?.kind !== 'corp_turn_start') return -Infinity;
     // (Jeff) Spin Doctor: left unrezzed it may draw a run, and is rezzed then for the same draw; or just before the
     // turn begins. Rezzed in the action phase only when the cards are needed now (digging, or an empty hand);
     // spinDoctorUseNow: or while 2+ clicks are left to use them this turn

@@ -329,13 +329,17 @@ export function selfBreakCost(ice: CardInstance, subCount: number): number {
 /** Cards the Runner has already accessed (instance id -> card code), so it doesn't keep checking them. */
 export type RunnerMemory = Map<string, string>;
 
-const URTICA = '30045';
-
 /** Corp assets that punish the Runner for accessing or leaving them (the cards an empty-looking remote bluffs with). */
 export function isTrap(code: string): boolean {
   const def = getCardDefinition(code);
   return def.type_code === 'asset' && /ambush|hostile/i.test(def.keywords ?? '') && code !== '35061'; // Idiosyncresis isn't sprung by access
 }
+
+/**
+ * A trap that springs when the Runner accesses it (Urtica Cipher, Byte!, Esca), not one that fires on the Corp's turn
+ * (Clearinghouse): once seen, never worth coming back to access (Gemini audit, 2026-11-01).
+ */
+export const accessTrap = (code: string): boolean => isTrap(code) && /when the runner accesses this/i.test(getCardDefinition(code).stripped_text ?? '');
 
 /**
  * How likely an unknown installed Corp card is a trap rather than an
@@ -439,7 +443,7 @@ function serverWorth(state: GameState, serverId: string, extraAccesses: number, 
     }
     if (!card.isRezzed && memory?.has(card.instanceId)) {
       // Seen it: only worth coming back to trash it, and never into a known trap
-      if (card.cardCode === URTICA) return 0;
+      if (accessTrap(card.cardCode)) return 0;
       const trash = cardDef(card).trash_cost;
       if (trash != null && trash <= state.runner.credits) value += Math.max(0, corpCardValue(card, state, 'runner') - creditCost(state, trash));
     } else if (!card.isRezzed) {
@@ -488,7 +492,7 @@ export function serverValue(state: GameState, serverId: string, extraAccesses = 
     }
     if (!card.isRezzed && memory?.has(card.instanceId)) {
       // Seen it: only worth coming back to trash it, and never into a known trap
-      if (card.cardCode === URTICA) return 0;
+      if (accessTrap(card.cardCode)) return 0;
       const trash = cardDef(card).trash_cost;
       if (trash != null && trash <= state.runner.credits) value += Math.max(0, corpCardValue(card) - trash) * 0.6;
     } else if (!card.isRezzed) {
