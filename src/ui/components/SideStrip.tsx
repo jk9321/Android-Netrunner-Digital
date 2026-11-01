@@ -1,7 +1,7 @@
 import React from 'react';
-import { Archive, Award, Ban, Crosshair, Eye, Layers, Trash2 } from 'lucide-react';
+import { Archive, Award, Ban, Eye, Layers, Trash2 } from 'lucide-react';
 import { CardInstance, GameState, SideCode, cardDef } from '../../core';
-import { ClickIcon, CreditIcon, MuIcon } from './CreditIcon';
+import { ClickIcon, CreditIcon, MuIcon, TagIcon } from './CreditIcon';
 import { Keyword } from './Keyword';
 import { labelKeyword } from '../glossary';
 import { ZoneId } from './ZoneViewer';
@@ -137,7 +137,7 @@ export function SideStrip({
               }`}
               data-testid="runner-tags"
             >
-              <Crosshair className="w-3.5 h-3.5" />
+              <TagIcon className="w-3.5 h-3.5 text-red-400" />
               <span className="font-bold">{runner.tags}</span> <Keyword id="tag">Tag{runner.tags === 1 ? '' : 's'}</Keyword>
             </div>
             {runner.coreDamage > 0 && (

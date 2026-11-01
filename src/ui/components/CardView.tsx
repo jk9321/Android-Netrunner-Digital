@@ -4,7 +4,7 @@ import { cardDef, getCardImageUrl, getCardBackUrl } from '../../data/cards';
 import { Lock, Eye } from 'lucide-react';
 import { CardPopout } from './CardPopout';
 import { motion } from 'framer-motion';
-import { Credits } from './CreditIcon';
+import { AdvancementIcon, AgendaIcon, Credits, PowerIcon, VirusIcon } from './CreditIcon';
 import { Keyword } from './Keyword';
 import { useZoom } from './ZoomPanel';
 import { createPortal } from 'react-dom';
@@ -267,8 +267,9 @@ const CardOverlays: React.FC<{
             {tag}
           </div>
           {card.advancementCounters > 0 && (
-            <span data-kw="advance" className={`${badge} bg-amber-400 text-black border-amber-200`}>
-              ★ {card.advancementCounters}
+            <span data-kw="advance" className={`${badge} bg-amber-400 text-black border-amber-200 inline-flex items-center gap-[0.2em]`}>
+              <AdvancementIcon className="w-[1.1em] h-[1.1em]" />
+              <span>{card.advancementCounters}</span>
             </span>
           )}
         </div>
@@ -299,18 +300,21 @@ const CardOverlays: React.FC<{
               </span>
             )}
             {(t.virus ?? 0) > 0 && (
-              <span className={`${badge} bg-lime-500 text-black border-lime-200`} data-kw="virus-counter">
-                ☣ {t.virus}
+              <span className={`${badge} bg-lime-500 text-black border-lime-200 inline-flex items-center gap-[0.2em]`} data-kw="virus-counter">
+                <VirusIcon className="w-[1.1em] h-[1.1em]" />
+                <span>{t.virus}</span>
               </span>
             )}
             {(t.power ?? 0) > 0 && (
-              <span className={`${badge} bg-violet-500 text-white border-violet-200`} title="Power counters">
-                ⚡ {t.power}
+              <span className={`${badge} bg-violet-500 text-white border-violet-200 inline-flex items-center gap-[0.2em]`} title="Power counters">
+                <PowerIcon className="w-[1.1em] h-[1.1em]" />
+                <span>{t.power}</span>
               </span>
             )}
             {(t.agenda ?? 0) > 0 && (
-              <span className={`${badge} bg-teal-400 text-black border-teal-100`} title="Agenda counters">
-                ◆ {t.agenda}
+              <span className={`${badge} bg-teal-400 text-black border-teal-100 inline-flex items-center gap-[0.2em]`} title="Agenda counters">
+                <AgendaIcon className="w-[1.1em] h-[1.1em]" />
+                <span>{t.agenda}</span>
               </span>
             )}
           </div>

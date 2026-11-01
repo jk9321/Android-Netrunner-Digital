@@ -6,7 +6,7 @@ import { FACTION_COLOR, FACTION_LABEL, typeLine } from '../cardLabels';
 import { Shield, Award, Trash2, AlertCircle, Lock } from 'lucide-react';
 import { GLOSSARY, cardKeywords } from '../glossary';
 import { cardTextHtml } from '../cardText';
-import { CreditIcon, Credits, MuIcon } from './CreditIcon';
+import { AdvancementIcon, CreditIcon, Credits, MuIcon } from './CreditIcon';
 
 interface CardPopoutProps {
   card: CardInstance;
@@ -101,8 +101,9 @@ export const CardPopout: React.FC<CardPopoutProps> = ({
               : 'Hidden from the Runner until it is rezzed or accessed.'}
           </p>
           {card.advancementCounters > 0 && (
-            <div className="mt-3 px-3 py-1 bg-amber-500/20 border border-amber-500/40 rounded-full text-amber-300 text-xs font-bold">
-              ★ {card.advancementCounters} Advancement Counter{card.advancementCounters > 1 ? 's' : ''}
+            <div className="mt-3 px-3 py-1 bg-amber-500/20 border border-amber-500/40 rounded-full text-amber-300 text-xs font-bold inline-flex items-center gap-1.5">
+              <AdvancementIcon className="w-3.5 h-3.5" />
+              <span>{card.advancementCounters} Advancement Counter{card.advancementCounters > 1 ? 's' : ''}</span>
             </div>
           )}
         </div>
@@ -116,8 +117,9 @@ export const CardPopout: React.FC<CardPopoutProps> = ({
               className="w-full h-auto aspect-[63/88] rounded-xl border border-slate-800 shadow-inner bg-black/60"
             />
             {card.advancementCounters > 0 && (
-              <div className="absolute top-2 right-2 bg-amber-400 text-black font-black text-xs px-2 py-0.5 rounded-full shadow-lg border border-amber-200">
-                ★ {card.advancementCounters} ADVANCED
+              <div className="absolute top-2 right-2 bg-amber-400 text-black font-black text-xs px-2 py-0.5 rounded-full shadow-lg border border-amber-200 flex items-center gap-1">
+                <AdvancementIcon className="w-3 h-3" />
+                <span>{card.advancementCounters} ADVANCED</span>
               </div>
             )}
           </div>
