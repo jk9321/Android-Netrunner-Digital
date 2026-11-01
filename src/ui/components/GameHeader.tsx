@@ -1,5 +1,6 @@
 import { useState } from 'react';
-import { Award, Flag, LogOut, Volume2, VolumeX, ZoomIn } from 'lucide-react';
+import { Flag, LogOut, Volume2, VolumeX, ZoomIn } from 'lucide-react';
+import { AgendaDiamondIcon } from './CreditIcon';
 import { GameState, SideCode } from '../../core';
 import { GameConfig } from '../savedGame';
 import { ViewMode } from '../viewer';
@@ -83,13 +84,13 @@ export function GameHeader({
         <div className="flex items-center gap-2">
           <span className="text-xs font-bold text-cyan-400 hidden 2xl:inline">CORP</span>
           <div title="Corp agenda points" className="flex items-center whitespace-nowrap bg-cyan-950/60 border border-cyan-800 px-2.5 py-0.5 rounded-full text-xs font-bold text-cyan-300">
-            <Award className="w-3.5 h-3.5 mr-1 text-cyan-400" /> {corp.score} / 7
+            <AgendaDiamondIcon className="w-3.5 h-3.5 mr-1 text-cyan-400" /> {corp.score} / 7
           </div>
         </div>
         <div className="text-slate-600 font-bold text-xs hidden 2xl:block">vs</div>
         <div className="flex items-center gap-2">
           <div title="Runner agenda points" className="flex items-center whitespace-nowrap bg-pink-950/60 border border-pink-800 px-2.5 py-0.5 rounded-full text-xs font-bold text-pink-300">
-            <Award className="w-3.5 h-3.5 mr-1 text-pink-400" /> {runner.score} / 7
+            <AgendaDiamondIcon className="w-3.5 h-3.5 mr-1 text-pink-400" /> {runner.score} / 7
           </div>
           <span className="text-xs font-bold text-pink-400 hidden 2xl:inline">RUNNER</span>
         </div>

@@ -176,6 +176,31 @@ export function AgendaIcon({ className = DEFAULT_CLASS, title = 'agenda counter'
   );
 }
 
+export function AgendaDiamondIcon({ className = DEFAULT_CLASS, title = 'agenda points' }: { className?: string; title?: string }) {
+  return (
+    <svg
+      viewBox="0 0 24 24"
+      fill="currentColor"
+      fillOpacity="0.2"
+      stroke="currentColor"
+      strokeWidth="2"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      className={className}
+      role="img"
+      aria-label={title}
+    >
+      <title>{title}</title>
+      <polygon points="12 2 21 8.5 12 22 3 8.5 12 2" />
+      <line x1="3" y1="8.5" x2="21" y2="8.5" strokeWidth="1.5" />
+      <line x1="12" y1="2" x2="8" y2="8.5" strokeWidth="1.5" />
+      <line x1="12" y1="2" x2="16" y2="8.5" strokeWidth="1.5" />
+      <line x1="12" y1="22" x2="8" y2="8.5" strokeWidth="1.5" />
+      <line x1="12" y1="22" x2="16" y2="8.5" strokeWidth="1.5" />
+    </svg>
+  );
+}
+
 export function BadPublicityIcon({ className = DEFAULT_CLASS, title = 'bad publicity' }: { className?: string; title?: string }) {
   return (
     <svg viewBox={NSG_72_VIEWBOX} fill="currentColor" className={className} role="img" aria-label={title}>

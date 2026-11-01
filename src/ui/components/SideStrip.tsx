@@ -1,7 +1,7 @@
 import React from 'react';
-import { Archive, Award, Ban, Eye, Layers, Trash2 } from 'lucide-react';
+import { Archive, Ban, Eye, Layers, Trash2 } from 'lucide-react';
 import { CardInstance, GameState, SideCode, cardDef } from '../../core';
-import { BadPublicityIcon, ClickIcon, CoreDamageIcon, CreditIcon, MuIcon, TagIcon } from './CreditIcon';
+import { AgendaDiamondIcon, BadPublicityIcon, ClickIcon, CoreDamageIcon, CreditIcon, MuIcon, TagIcon } from './CreditIcon';
 import { Keyword } from './Keyword';
 import { labelKeyword } from '../glossary';
 import { ZoneId } from './ZoneViewer';
@@ -114,7 +114,7 @@ export function SideStrip({
               corp.archives.faceUp.length + corp.archives.faceDown.length,
               <Archive className="w-3.5 h-3.5 text-slate-500" />,
             )}
-            {zoneButton('corp-score', 'Scored', corp.scoreArea.length, <Award className="w-3.5 h-3.5 text-cyan-400" />)}
+            {zoneButton('corp-score', 'Scored', corp.scoreArea.length, <AgendaDiamondIcon className="w-3.5 h-3.5 text-cyan-400" />)}
             <div
               className={`${pillBase} ${
                 corp.badPublicity > 0 ? 'bg-amber-950 border-amber-800 text-amber-300' : 'bg-slate-900 border-slate-800 text-slate-400'
@@ -145,7 +145,7 @@ export function SideStrip({
               <span><Keyword id="stack">Stack</Keyword>: {runner.stack.length}</span>
             </div>
             {zoneButton('heap', 'Heap', runner.heap.length, <Trash2 className="w-3.5 h-3.5 text-slate-500" />)}
-            {zoneButton('runner-score', 'Stolen', runner.scoreArea.length, <Award className="w-3.5 h-3.5 text-pink-400" />)}
+            {zoneButton('runner-score', 'Stolen', runner.scoreArea.length, <AgendaDiamondIcon className="w-3.5 h-3.5 text-pink-400" />)}
             <div
               className={`${pillBase} ${
                 runner.tags > 0 ? 'bg-red-950 border-red-700 text-red-300' : 'bg-slate-900 border-slate-800 text-slate-400'

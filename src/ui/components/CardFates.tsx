@@ -1,6 +1,7 @@
 import React from 'react';
 import { AnimatePresence, MotionConfig, motion } from 'framer-motion';
-import { Award, Trash2, Trophy } from 'lucide-react';
+import { Trash2 } from 'lucide-react';
+import { AgendaDiamondIcon } from './CreditIcon';
 import { CardFate, FateKind } from '../cardFates';
 import { CardView } from './CardView';
 
@@ -15,7 +16,7 @@ const STAMP: Record<FateKind, { label: string; className: string; icon: React.Re
   stolen: {
     label: 'Stolen',
     className: 'bg-cyber-neonPink text-white border-pink-200 shadow-pink-500/50',
-    icon: <Trophy className="w-4 h-4" />,
+    icon: <AgendaDiamondIcon className="w-4 h-4" />,
   },
   trashed: {
     label: 'Trashed',
@@ -25,7 +26,7 @@ const STAMP: Record<FateKind, { label: string; className: string; icon: React.Re
   scored: {
     label: 'Scored',
     className: 'bg-cyan-500 text-black border-cyan-100 shadow-cyan-400/50',
-    icon: <Award className="w-4 h-4" />,
+    icon: <AgendaDiamondIcon className="w-4 h-4" />,
   },
 };
 

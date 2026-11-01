@@ -3,10 +3,10 @@ import { createPortal } from 'react-dom';
 import { CardInstance } from '../../core/types/card';
 import { cardDef, getCardImageUrl } from '../../data/cards';
 import { FACTION_COLOR, FACTION_LABEL, typeLine } from '../cardLabels';
-import { Shield, Award, Trash2, AlertCircle, Lock } from 'lucide-react';
+import { Shield, Trash2, AlertCircle, Lock } from 'lucide-react';
 import { GLOSSARY, cardKeywords } from '../glossary';
 import { cardTextHtml } from '../cardText';
-import { AdvancementIcon, CreditIcon, Credits, MuIcon } from './CreditIcon';
+import { AdvancementIcon, AgendaDiamondIcon, CreditIcon, Credits, MuIcon } from './CreditIcon';
 
 interface CardPopoutProps {
   card: CardInstance;
@@ -183,7 +183,7 @@ export const CardPopout: React.FC<CardPopoutProps> = ({
 
             {def.agenda_points !== undefined && (
               <div className="flex items-center gap-1.5 bg-slate-900/90 border border-slate-800 px-2.5 py-1 rounded-lg">
-                <Award className="w-3.5 h-3.5 text-cyan-400 shrink-0" />
+                <AgendaDiamondIcon className="w-3.5 h-3.5 text-cyan-400 shrink-0" />
                 <span className="text-slate-400">Points:</span>
                 <span className="font-bold text-cyan-300">
                   {def.agenda_points} {def.advancement_cost ? `(${def.advancement_cost} req)` : ''}

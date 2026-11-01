@@ -4,10 +4,10 @@ import { CardInstance, SideCode } from '../../core/types/card';
 import type { Viewer } from '../viewer';
 import { CardView } from './CardView';
 import { cardDef } from '../../data/cards';
-import { Database, Crosshair, Zap, ChevronsUp, Award, Bug } from 'lucide-react';
+import { Database, Crosshair, Zap, ChevronsUp, Bug } from 'lucide-react';
 import { clearHostLink, lightHostLink, useHostLinkLit } from '../hostLinks';
 import type { IceSubtype } from '../../core/scripts/types';
-import { Credits } from './CreditIcon';
+import { AgendaDiamondIcon, Credits } from './CreditIcon';
 
 interface ServerColumnProps {
   server: ServerState;
@@ -203,7 +203,7 @@ export const ServerColumn: React.FC<ServerColumnProps> = ({
                     }}
                     className={smallButton}
                   >
-                    <Award className="w-[1.1em] h-[1.1em] text-amber-400" /> Score
+                    <AgendaDiamondIcon className="w-[1.1em] h-[1.1em] text-amber-400" /> Score
                   </button>
                 )}
                 </>}

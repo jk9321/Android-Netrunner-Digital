@@ -3,10 +3,10 @@ import { createPortal } from 'react-dom';
 import { CardInstance } from '../../core/types/card';
 import { cardDef, getCardImageUrl } from '../../data/cards';
 import { FACTION_COLOR, FACTION_LABEL, typeLine } from '../cardLabels';
-import { X, Shield, Award, Trash2, AlertCircle } from 'lucide-react';
+import { X, Shield, Trash2, AlertCircle } from 'lucide-react';
 import { cardTextHtml } from '../cardText';
 import { Keyword } from './Keyword';
-import { CreditIcon, MuIcon } from './CreditIcon';
+import { AgendaDiamondIcon, CreditIcon, MuIcon } from './CreditIcon';
 
 interface CardZoomModalProps {
   card: CardInstance | null;
@@ -96,7 +96,7 @@ export const CardZoomModal: React.FC<CardZoomModalProps> = ({
               )}
               {def.agenda_points !== undefined && (
                 <div className="flex items-center gap-1.5 bg-slate-900 border border-slate-800 px-3 py-1.5 rounded-lg">
-                  <Award className="w-4 h-4 text-cyan-400" />
+                  <AgendaDiamondIcon className="w-4 h-4 text-cyan-400" />
                   <Keyword id="advancement-requirement" className="text-slate-400">Agenda Points:</Keyword>
                   <span className="font-bold text-cyan-300">
                     {def.agenda_points} (Req: {def.advancement_cost || 0})
