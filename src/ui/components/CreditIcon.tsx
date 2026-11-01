@@ -3,7 +3,7 @@ import React from 'react';
 // Official Netrunner game symbols from the Null Signal Games Visual Assets pack v1.5
 // (NSG_CREDIT.svg, NSG_RECURRING_CREDIT.svg, NSG_Mu.svg, NSG_CLICK.svg, NSG_TRASH_ABILITY.svg,
 // NSG_LINK.svg, NSG_SUBROUTINE.svg, NSG_TAG.svg, NSG_ADVANCEMENT_COUNTER.svg,
-// NSG_VIRUS_COUNTER.svg, NSG_GENERIC_COUNTER_BLUE.svg, NSG_AGENDA.svg).
+// NSG_VIRUS_COUNTER.svg, NSG_GENERIC_COUNTER_BLUE.svg, NSG_AGENDA.svg, NSG_BAD_PUBLICITY.svg, NSG_CORE_DAMAGE.svg).
 // Licensed CC BY-ND 4.0: the paths are used unmodified, only the fill colour changes
 // (it follows the CSS text colour).
 // https://creativecommons.org/licenses/by-nd/4.0/
@@ -66,6 +66,15 @@ const POWER_POLYGONS = [
 const AGENDA_VIEWBOX = '0 0 5867 5867';
 const AGENDA_PATH =
   'M1789.19,1722.06l0,-1062.42l1138.31,-659.635l1132.47,659.635l-0,1074.1l1634.49,-741.36l-1424.35,1056.58l881.459,513.698l0,1313.43l-1132.47,659.635l-893.134,-519.535l-192.637,1850.48l-192.636,-1856.32l-910.647,525.373l-1132.47,-659.635l-0,-1313.43l893.134,-519.535l-1418.51,-1050.75l1616.98,729.685Zm-87.562,402.786l-881.459,507.861l-0,1173.33l1009.88,583.748l898.972,-519.535l-64.213,-595.423c-159.557,-58.375 -288.955,-157.612 -388.192,-297.712c-99.237,-140.099 -148.856,-299.657 -148.856,-478.673l0,-52.537l-426.136,-321.062Zm2457.58,5.838l-420.299,315.224l0,52.537c0,179.016 -49.618,338.574 -148.855,478.673c-99.237,140.1 -226.689,239.337 -382.355,297.712l-64.212,607.098l875.621,507.86l1009.88,-583.748l0,-1173.33l-869.784,-502.023Zm531.211,682.985l233.499,-99.237l-0,1056.58l-910.647,502.023l-0,-251.012l677.148,-396.948l-0,-811.41Zm-3706.8,904.809l0,-1056.58l233.499,99.237l0,811.409l671.311,396.949l-0,251.012l-904.81,-502.024Zm2947.93,-1926.37l0,-1062.42l-1004.05,-583.748l-1009.88,583.748l-0,1050.75l402.786,186.8c163.449,-190.691 368.734,-286.037 615.854,-286.037c247.12,0 450.459,95.346 610.017,286.037l385.273,-175.125Zm-1897.18,-974.859l904.809,-513.698l893.134,525.373l-192.637,163.449l-706.335,-408.623l-694.66,367.761l-204.311,-134.262Z';
+
+const BAD_PUBLICITY_PATH =
+  'M12.99,21.03v31.44l-2.1-2.09v-31.48s48.13,0,48.13,0v-.9H9.96v32.97h.02-.01s3,3.01,3,3.01l.02-.02v.04h49.06V21.03H12.99ZM49.19,28.81c.02-.28,0-.31-.01-.58-.02-.32-.02-.82.02-1.15.04-.32.12-.47.23-.63.23-.37.65-.66.68-.71.09-.14-.26-.29-.26-.42,0-.16,2.16-.08,2.38-.07.47.04.56.11.69.26.15.18.28.58.51.61.34.05.55.22.7.52.24.48.26,1.16.17,1.68-.04.24-.06.22-.05.48.17,0,.3.13.3.3,0,.43-.02.82-.45,1.06-.09.29-.21.56-.36.81v1.09l-1.81,1.29h0v.22s.07.04.11.07l.36.36c.14.14.14.38,0,.52l-.24.24c.12.88.25,1.76.37,2.64h-1.51c.12-.88.25-1.76.37-2.64l-.24-.24c-.14-.14-.14-.38,0-.52l.36-.36s.07-.06.11-.07v-.22l-1.81-1.29v-.95c-.2-.29-.36-.63-.47-1-.36-.28-.38-.59-.38-1.01,0-.15.11-.27.24-.29ZM28.81,50.59h-11.43v-1.12h11.43v1.12ZM28.81,47.66h-11.43v-1.12h11.43v1.12ZM24.73,40.68v1.12h-7.35v-1.12h7.35ZM17.38,38.87v-1.12h4.9v1.12h-4.9ZM28.8,43.61v1.12h-11.42v-1.12h11.42ZM37.3,50.59h-5.63v-1.12h5.63v1.12ZM35.67,46.54v1.12h-4v-1.12h4ZM31.67,44.73v-1.12h3.18v1.12h-3.18ZM37.93,48.24l1.45-1.06-6.9-9.42-5.2,3.53-5.24-7.59-3.34,2.27-1.01-1.49,4.82-3.28,5.24,7.59,5.16-3.5,7.92,10.82,1.45-1.06.58,5.35-4.92-2.17ZM31.67,33.01v-1.12h11.42v1.12h-11.42ZM43.1,41.8h-3.18v-1.12h3.18v1.12ZM37.63,38.87v-1.12h5.47v1.12h-5.47ZM43.1,35.94h-7.43v-1.12h7.43v1.12ZM43.34,29.44h-26.01v-4.5h26.01v4.5ZM45.89,35.43c.57-1,2.44-2.02,3.45-2.48h0s0,0,0,0c0,0,0,0,0,0l.87,4.47h-4.31v-1.98ZM45.96,43.61h11.42v1.12h-11.42v-1.12ZM57.39,50.59h-11.43v-1.12h11.43v1.12ZM57.39,47.66h-11.43v-1.12h11.43v1.12ZM57.39,41.8h-11.43v-1.12h11.43v1.12ZM57.64,37.41s-4.31,0-4.31,0l.87-4.47c1.01.47,2.88,1.48,3.45,2.48v1.98ZM56.96,31.29l-1.64-2.84h3.28l-1.64,2.84ZM56.96,27.82l-1.64-2.84h3.28l-1.64,2.84Z';
+const BAD_PUBLICITY_POLYGON = '11.56 50.1 12.31 50.85 12.31 20.33 60.65 20.33 60.65 19.63 11.56 19.6 11.56 50.1';
+
+const CORE_DAMAGE_POLYGONS = [
+  '23.4 43.03 36 50.31 48.6 43.03 48.6 28.48 42.24 24.72 39.58 29.44 45.9 32.96 30.91 45.2 34.8 36.27 28.8 33.7 31.88 23.58 23.4 28.48 23.4 43.03',
+  '45.44 19.12 43.72 22.12 51.84 26.61 51.84 44.91 36 54.05 20.16 44.91 20.16 26.6 33.4 18.82 34.87 14.21 16.92 24.75 16.92 46.77 36 57.79 55.08 46.77 55.08 24.74 45.44 19.12',
+];
 
 // Sized to the surrounding text by default so it can sit inline like the "c" it replaces.
 const DEFAULT_CLASS = 'inline-block w-[1em] h-[1em] align-[-0.125em] shrink-0';
@@ -182,6 +191,27 @@ export function AgendaIcon({ className = DEFAULT_CLASS, title = 'agenda counter'
     <svg viewBox={AGENDA_VIEWBOX} fill="currentColor" fillRule="nonzero" className={className} role="img" aria-label={title}>
       <title>{title}</title>
       <path d={AGENDA_PATH} />
+    </svg>
+  );
+}
+
+export function BadPublicityIcon({ className = DEFAULT_CLASS, title = 'bad publicity' }: { className?: string; title?: string }) {
+  return (
+    <svg viewBox={NSG_72_VIEWBOX} fill="currentColor" className={className} role="img" aria-label={title}>
+      <title>{title}</title>
+      <path d={BAD_PUBLICITY_PATH} />
+      <polygon points={BAD_PUBLICITY_POLYGON} />
+    </svg>
+  );
+}
+
+export function CoreDamageIcon({ className = DEFAULT_CLASS, title = 'core damage' }: { className?: string; title?: string }) {
+  return (
+    <svg viewBox={NSG_72_VIEWBOX} fill="currentColor" className={className} role="img" aria-label={title}>
+      <title>{title}</title>
+      {CORE_DAMAGE_POLYGONS.map((pts, i) => (
+        <polygon key={i} points={pts} />
+      ))}
     </svg>
   );
 }

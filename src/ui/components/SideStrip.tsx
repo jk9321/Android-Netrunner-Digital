@@ -1,7 +1,7 @@
 import React from 'react';
 import { Archive, Award, Ban, Eye, Layers, Trash2 } from 'lucide-react';
 import { CardInstance, GameState, SideCode, cardDef } from '../../core';
-import { ClickIcon, CreditIcon, MuIcon, TagIcon } from './CreditIcon';
+import { BadPublicityIcon, ClickIcon, CoreDamageIcon, CreditIcon, MuIcon, TagIcon } from './CreditIcon';
 import { Keyword } from './Keyword';
 import { labelKeyword } from '../glossary';
 import { ZoneId } from './ZoneViewer';
@@ -84,8 +84,8 @@ export function SideStrip({
           <CreditIcon className="w-3.5 h-3.5 text-amber-400" />
           <span className="font-bold">{player.credits}</span> <Keyword id="credit">Credits</Keyword>
           {side === 'runner' && (state.activeRun?.badPublicityCredits ?? 0) > 0 && (
-            <span className="text-amber-300" data-testid="bad-publicity-fund">
-              {' '}+{state.activeRun!.badPublicityCredits} <Keyword id="bad-publicity">bad publicity</Keyword>
+            <span className="text-amber-300 inline-flex items-center gap-1" data-testid="bad-publicity-fund">
+              +{state.activeRun!.badPublicityCredits} <BadPublicityIcon className="w-3.5 h-3.5 text-amber-400" /> <Keyword id="bad-publicity">bad publicity</Keyword>
             </span>
           )}
         </div>
@@ -106,11 +106,15 @@ export function SideStrip({
               <Archive className="w-3.5 h-3.5 text-slate-500" />,
             )}
             {zoneButton('corp-score', 'Scored', corp.scoreArea.length, <Award className="w-3.5 h-3.5 text-cyan-400" />)}
-            {corp.badPublicity > 0 && (
-              <div className="flex items-center gap-1.5 bg-amber-950 border border-amber-800 px-2 py-0.5 rounded-lg text-amber-300 shadow" data-testid="corp-bad-publicity">
-                <span className="font-bold">{corp.badPublicity}</span> <Keyword id="bad-publicity">Bad publicity</Keyword>
-              </div>
-            )}
+            <div
+              className={`flex items-center gap-1.5 px-2 py-0.5 rounded-lg shadow border ${
+                corp.badPublicity > 0 ? 'bg-amber-950 border-amber-800 text-amber-300' : 'bg-slate-900 border-slate-800 text-slate-400'
+              }`}
+              data-testid="corp-bad-publicity"
+            >
+              <BadPublicityIcon className="w-[18px] h-[18px] text-amber-400 shrink-0" />
+              <span className="font-bold">{corp.badPublicity}</span> <Keyword id="bad-publicity">Bad publicity</Keyword>
+            </div>
             {corp.identity.cardCode === MELIES_U && (
               <div className={plain} data-testid="melies-side" title="Méliès U: the side is set secretly and shown once the identity flips">
                 <span>Méliès U: {corp.identity.flipped && corp.meliesServer ? `${MELIES_SIDES[corp.meliesServer]} side` : 'side secret'}</span>
@@ -142,6 +146,7 @@ export function SideStrip({
             </div>
             {runner.coreDamage > 0 && (
               <div className="flex items-center gap-1.5 bg-red-950 border border-red-800 px-2 py-0.5 rounded-lg text-red-300 shadow">
+                <CoreDamageIcon className="w-[18px] h-[18px] text-red-400 shrink-0" />
                 <span className="font-bold">{runner.coreDamage}</span> <Keyword id="core-damage">Core damage</Keyword>
               </div>
             )}
