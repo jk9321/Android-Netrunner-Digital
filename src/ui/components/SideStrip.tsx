@@ -112,7 +112,7 @@ export function SideStrip({
               }`}
               data-testid="corp-bad-publicity"
             >
-              <BadPublicityIcon className="w-[18px] h-[18px] text-amber-400 shrink-0" />
+              <BadPublicityIcon className="w-6 h-6 text-amber-400 shrink-0" />
               <span className="font-bold">{corp.badPublicity}</span> <Keyword id="bad-publicity">Bad publicity</Keyword>
             </div>
             {corp.identity.cardCode === MELIES_U && (
@@ -141,12 +141,12 @@ export function SideStrip({
               }`}
               data-testid="runner-tags"
             >
-              <TagIcon className="w-[18px] h-[18px] text-red-400 shrink-0" />
+              <TagIcon className="w-6 h-6 text-red-400 shrink-0" />
               <span className="font-bold">{runner.tags}</span> <Keyword id="tag">Tag{runner.tags === 1 ? '' : 's'}</Keyword>
             </div>
             {runner.coreDamage > 0 && (
               <div className="flex items-center gap-1.5 bg-red-950 border border-red-800 px-2 py-0.5 rounded-lg text-red-300 shadow">
-                <CoreDamageIcon className="w-[18px] h-[18px] text-red-400 shrink-0" />
+                <CoreDamageIcon className="w-6 h-6 text-red-400 shrink-0" />
                 <span className="font-bold">{runner.coreDamage}</span> <Keyword id="core-damage">Core damage</Keyword>
               </div>
             )}
