@@ -137,7 +137,7 @@ export function SideStrip({
               }`}
               data-testid="runner-tags"
             >
-              <TagIcon className="w-3.5 h-3.5 text-red-400" />
+              <TagIcon className="w-[18px] h-[18px] text-red-400 shrink-0" />
               <span className="font-bold">{runner.tags}</span> <Keyword id="tag">Tag{runner.tags === 1 ? '' : 's'}</Keyword>
             </div>
             {runner.coreDamage > 0 && (
