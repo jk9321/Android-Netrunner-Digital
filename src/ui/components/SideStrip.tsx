@@ -10,21 +10,21 @@ const MELIES_U = '36036';
 const MELIES_SIDES = { hq: 'HQ', rd: 'R&D', archives: 'Archives' } as const;
 
 const pillBase =
-  'h-[26px] px-2 flex items-center gap-1.5 rounded-[5px] text-[12px] font-mono leading-none shadow [clip-path:none] shrink-0 border';
+  'h-[26px] px-2 flex items-center gap-1.5 rounded-[2px] text-[12px] font-mono leading-none shadow ![clip-path:none] shrink-0 border';
 
 const STYLE: Record<SideCode, { strip: string; dot: string; name: string; viewId: string; stat: string }> = {
   corp: {
     strip: 'pb-1 border-b border-cyan-950',
     dot: 'bg-cyan-400 shadow-[0_0_10px_#00f0ff]',
     name: 'text-cyan-400',
-    viewId: 'text-cyan-400 hover:text-cyan-200 border border-cyan-800/80 bg-cyan-950/40 rounded [clip-path:none]',
+    viewId: 'text-cyan-400 hover:text-cyan-200 border border-cyan-800/80 bg-cyan-950/40 rounded-[2px] ![clip-path:none]',
     stat: 'bg-cyan-950/80 border-cyan-800 text-cyan-300',
   },
   runner: {
     strip: 'pt-1 border-t border-pink-950',
     dot: 'bg-pink-400 shadow-[0_0_10px_#ff0055]',
     name: 'text-pink-400',
-    viewId: 'text-pink-400 hover:text-pink-200 border border-pink-800/80 bg-pink-950/40 rounded [clip-path:none]',
+    viewId: 'text-pink-400 hover:text-pink-200 border border-pink-800/80 bg-pink-950/40 rounded-[2px] ![clip-path:none]',
     stat: 'bg-pink-950/80 border-pink-800 text-pink-300',
   },
 };
@@ -47,6 +47,7 @@ export function SideStrip({
   const zoneButton = (id: ZoneId, label: string, count: number, icon: React.ReactNode) => (
     <button
       onClick={() => onOpenZone(id)}
+      style={{ clipPath: 'none' }}
       data-testid={`zone-${id}`}
       className={`${pillBase} bg-slate-900 hover:bg-slate-800 border-slate-800 hover:border-slate-600 text-slate-300 transition-colors`}
       title={`Browse ${label}`}
@@ -72,7 +73,8 @@ export function SideStrip({
             </span>
             <button
               onClick={() => onInspect(player.identity)}
-              className={`text-[11px] px-1.5 py-0.5 rounded flex items-center gap-1 transition-colors ${style.viewId}`}
+              style={{ clipPath: 'none' }}
+              className={`text-[11px] px-1.5 py-0.5 rounded-[2px] ![clip-path:none] flex items-center gap-1 transition-colors ${style.viewId}`}
               title={`Inspect ${side === 'corp' ? 'Corp' : 'Runner'} Identity card`}
             >
               <Eye className="w-2.5 h-2.5" /> View ID
