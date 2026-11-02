@@ -20,6 +20,7 @@ import { Scissors, TrendingUp, Clock, Sparkles } from 'lucide-react';
 import { Credits } from './CreditIcon';
 import { Keyword } from './Keyword';
 import { IceTypeIcons, breakerTypes } from './IceTypeIcons';
+import { StatTumbler } from './StatTumbler';
 
 interface EncounterPanelProps {
   state: GameState;
@@ -137,16 +138,32 @@ export const EncounterPanel: React.FC<EncounterPanelProps> = ({ state, onAction,
 
       {breakerRows.length > 0 && (
         <div className="space-y-1.5">
-          {breakerRows.map(({ breaker, script, actions, breakSlots, own }) => (
-            // Buttons wrap within their own column, so a wrapped button (Break 3) stays lined up
-            // with the others instead of dropping under the breaker's name
-            <div key={breaker.instanceId} className="flex items-start gap-1.5">
-              <span className="text-[12px] font-mono text-slate-400 w-40 shrink-0 min-h-[28px] flex items-center gap-1.5 min-w-0">
-                {/* Same icons as on the ice above, so the Runner can check the breaker matches */}
-                <IceTypeIcons types={breakerTypes(breaker)} side="breaker" row className="text-[10px] shrink-0" />
-                <span className="truncate">{cardDef(breaker).title} (str {breakerStrength(state, breaker)})</span>
-              </span>
-              <div className="flex flex-1 flex-wrap items-center gap-1.5 min-w-0">
+          {breakerRows.map(({ breaker, script, actions, breakSlots, own }) => {
+            const bStr = breakerStrength(state, breaker);
+            const targetStrength = iceStrength(state, ice);
+            const hasEnoughStrength = bStr >= targetStrength;
+            return (
+              // Buttons wrap within their own column, so a wrapped button (Break 3) stays lined up
+              // with the others instead of dropping under the breaker's name
+              <div key={breaker.instanceId} className="flex items-start gap-1.5">
+                <span className="text-[12px] font-mono text-slate-400 w-40 shrink-0 min-h-[28px] flex items-center gap-1.5 min-w-0">
+                  {/* Same icons as on the ice above, so the Runner can check the breaker matches */}
+                  <IceTypeIcons types={breakerTypes(breaker)} side="breaker" row className="text-[10px] shrink-0" />
+                  <span className="min-w-0 flex flex-col leading-tight">
+                    <span className="truncate text-slate-200 font-semibold" title={cardDef(breaker).title}>
+                      {cardDef(breaker).title}
+                    </span>
+                    <span
+                      className={`text-[11px] font-bold transition-colors ${
+                        hasEnoughStrength ? 'text-emerald-400' : 'text-amber-400'
+                      }`}
+                      title={hasEnoughStrength ? `Meets ice strength (${targetStrength})` : `Below ice strength (${targetStrength})`}
+                    >
+                      str <StatTumbler value={bStr} />
+                    </span>
+                  </span>
+                </span>
+                <div className="flex flex-1 flex-wrap items-center gap-1.5 min-w-0">
               {own.map((a, k) => abilityButton(a, k, true))}
               {breakSlots ? (
                 <>
@@ -221,7 +238,8 @@ export const EncounterPanel: React.FC<EncounterPanelProps> = ({ state, onAction,
               )}
               </div>
             </div>
-          ))}
+          );
+          })}
         </div>
       )}
 
