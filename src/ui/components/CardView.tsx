@@ -1,4 +1,4 @@
-import React, { useRef, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { CardInstance } from '../../core/types/card';
 import { cardDef, getCardImageUrl, getCardBackUrl } from '../../data/cards';
 import { Lock, Eye } from 'lucide-react';
@@ -336,14 +336,50 @@ export const CardView: React.FC<CardViewProps> = props => {
   const mark = usePromptHighlight(props.card.instanceId);
   const ref = useRef<HTMLDivElement>(null);
   const markClass = !onTable ? '' : mark.hovered ? 'prompt-target-hover' : mark.selected ? 'prompt-target-picked' : '';
+
+  const isInstalledOnTable = !props.notInstalled && onTable;
+  const prevFace = useRef(face);
+  const [faceKey, setFaceKey] = useState(0);
+
+  useEffect(() => {
+    if (prevFace.current !== face) {
+      prevFace.current = face;
+      setFaceKey(k => k + 1);
+    }
+  }, [face]);
+
+  const prefersReduced =
+    typeof window !== 'undefined' && window.matchMedia?.('(prefers-reduced-motion: reduce)')?.matches;
+
+  // On table:
+  // - First mount (install): Option 1 Caddy Settle (y: -8 -> 0 over 160ms with cubic-bezier(0.16, 1, 0.3, 1))
+  // - Face flip (rez / reveal): Option D Ultra-Fast Blade Snap (rotateY: -90 -> 0 over 140ms snappy spring)
+  const isFlip = faceKey > 0;
+
   return (
     <motion.div
-      key={face}
+      key={isFlip ? `${props.card.instanceId}-${faceKey}` : undefined}
       ref={ref}
       className={`shrink-0 rounded-[3px] ${markClass}`}
-      initial={{ rotateY: 90, opacity: 0.3 }}
-      animate={{ rotateY: 0, opacity: 1 }}
-      transition={{ duration: 0.28, ease: 'easeOut' }}
+      initial={
+        prefersReduced
+          ? false
+          : isFlip
+            ? { rotateY: -90, opacity: 0.85 }
+            : isInstalledOnTable
+              ? { y: -8, opacity: 0.75 }
+              : false
+      }
+      animate={{ rotateY: 0, y: 0, opacity: 1 }}
+      transition={
+        prefersReduced
+          ? { duration: 0 }
+          : isFlip
+            ? { duration: 0.14, ease: [0.2, 1.25, 0.4, 1] }
+            : isInstalledOnTable
+              ? { duration: 0.16, ease: [0.16, 1, 0.3, 1] }
+              : { duration: 0 }
+      }
       style={{ transformPerspective: 700 }}
     >
       <CardFace {...props} />
