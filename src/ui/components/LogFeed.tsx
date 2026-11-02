@@ -11,6 +11,20 @@ interface LogFeedProps {
   className?: string;
 }
 
+/** Matches search query tokens against log text, aliasing "rd" to "R&D" without matching "card". */
+function matchesSearch(message: string, player: string, query: string): boolean {
+  const fullText = `${player} ${message}`.toLowerCase();
+  const tokens = query.toLowerCase().trim().split(/\s+/).filter(Boolean);
+  if (tokens.length === 0) return true;
+
+  return tokens.every(token => {
+    if (token === 'rd' || token === 'r&d' || token === 'r and d') {
+      return fullText.includes('r&d') || fullText.includes('r & d') || /\brd\b/.test(fullText);
+    }
+    return fullText.includes(token);
+  });
+}
+
 /**
  * Memoized, as is each line: the log only grows, so a re-render of the table
  * (a card selected, a zone opened) draws nothing here, and a new move draws
@@ -21,14 +35,12 @@ export const LogFeed: React.FC<LogFeedProps> = React.memo(({ logs, viewer, class
   const initialMountCount = useRef(logs.length);
   const [searchQuery, setSearchQuery] = useState('');
 
-  const trimmedQuery = searchQuery.trim().toLowerCase();
-  const isFiltering = trimmedQuery.length > 0;
+  const isFiltering = searchQuery.trim().length > 0;
 
   const filteredLogs = isFiltering
     ? logs.filter(log => {
-        const message = (log.secret?.from === viewer ? log.secret.publicMessage : log.message).toLowerCase();
-        const player = log.player.toLowerCase();
-        return message.includes(trimmedQuery) || player.includes(trimmedQuery);
+        const message = log.secret?.from === viewer ? log.secret.publicMessage : log.message;
+        return matchesSearch(message, log.player, searchQuery);
       })
     : logs;
 
