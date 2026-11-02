@@ -354,7 +354,11 @@ export function RunnerActions(props: ActionBarProps) {
               title={onIceHosted ? 'This card is hosted faceup on your hardware; choose the ice to install it on' : 'This card is hosted faceup on your hardware'}
             >
               {a.type === 'INSTALL_CARD' ? <Plus className="w-3.5 h-3.5" /> : <Zap className="w-3.5 h-3.5" />}
-              {a.type === 'INSTALL_CARD' ? 'Install' : 'Play'} hosted {cardDef(hosted).title}
+              <span>{a.type === 'INSTALL_CARD' ? 'Install' : 'Play'} hosted {cardDef(hosted).title}</span>
+              <LiveCostParens
+                printed={cardDef(hosted).cost ?? 0}
+                live={a.type === 'INSTALL_CARD' ? runnerInstallCost(state, hosted) : playCost(state, hosted)}
+              />
             </button>
           );
         })}

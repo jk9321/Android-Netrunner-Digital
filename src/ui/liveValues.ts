@@ -63,18 +63,17 @@ export function runCreditPools(state: GameState): { runner?: RunPoolBreakdown; c
     };
   }
 
-  // 2. Corp server-specific rez pool on the attacked server (e.g. Mahkota Langit Grid)
+  // 2. Corp server-specific rez pool on the attacked server (e.g. Mahkota Langit Grid).
+  // Inspect only rezzed cards in the server's root so we never leak whether an unrezzed root card is an asset vs. agenda.
   const server = state.corp.servers[run.server];
   if (server) {
-    const sampleTargets = [...server.ice, ...server.root.filter(c => cardDef(c).type_code === 'asset')];
-    const seen = new Set<string>();
     const corpSources: { label: string; amount: number }[] = [];
-    for (const target of sampleTargets) {
-      for (const src of creditSources(state, 'corp', { kind: 'rez', card: target })) {
-        if (seen.has(src.instanceId)) continue;
-        seen.add(src.instanceId);
-        const amt = counters(src, 'credit');
-        if (amt > 0) corpSources.push({ label: cardDef(src).title, amount: amt });
+    for (const rootCard of server.root) {
+      if (!rootCard.isRezzed) continue;
+      const script = getCardScript(rootCard.cardCode);
+      const amt = counters(rootCard, 'credit');
+      if (amt > 0 && script?.recurringCredits && script?.paysFor) {
+        corpSources.push({ label: cardDef(rootCard).title, amount: amt });
       }
     }
     const corpBonus = corpSources.reduce((n, s) => n + s.amount, 0);

@@ -261,14 +261,14 @@ const CardOverlays: React.FC<{
               <span
                 data-testid="live-cost-badge"
                 title={`${mods.cost.label}: ${mods.cost.current} credits (printed ${mods.cost.printed})`}
-                className={`${badge} inline-flex items-center gap-[0.15em] ${
+                className={`${badge} inline-flex items-center gap-[0.1em] ${
                   mods.cost.current < mods.cost.printed
                     ? 'bg-emerald-950/95 text-emerald-300 border-emerald-400'
                     : 'bg-amber-950/95 text-amber-300 border-amber-400'
                 }`}
               >
+                <span>{mods.cost.printed}→</span>
                 <Credits amount={<StatTumbler value={mods.cost.current} />} />
-                <span>{mods.cost.current < mods.cost.printed ? '↓' : '↑'}</span>
               </span>
             )}
             {status === 'faceup' && <div className={`${tagClass} bg-amber-950/90 text-amber-300 border-amber-700/80`}><span className="truncate">Faceup</span></div>}
@@ -304,15 +304,14 @@ const CardOverlays: React.FC<{
             <span
               data-testid="live-strength-badge"
               title={`${mods.strength.onceInstalled ? 'Strength once installed' : 'Strength'}: ${mods.strength.current} (printed ${mods.strength.printed})`}
-              className={`${badge} inline-flex items-center gap-[0.2em] ${
+              className={`${badge} inline-flex items-center gap-[0.15em] ${
                 mods.strength.current > mods.strength.printed
                   ? 'bg-emerald-950/95 text-emerald-300 border-emerald-400'
-                  : 'bg-amber-950/95 text-amber-300 border-amber-400'
+                : 'bg-amber-950/95 text-amber-300 border-amber-400'
               }`}
             >
-              <span>STR</span>
+              <span>STR {mods.strength.printed}→</span>
               <StatTumbler value={mods.strength.current} />
-              <span>{mods.strength.current > mods.strength.printed ? '↑' : '↓'}</span>
             </span>
           )}
           {/* Quick inspect, shown on hover; it keeps its place so nothing moves under the pointer */}

@@ -63,8 +63,8 @@ export const ZoomPanel: React.FC<{ store: ZoomStore; state: GameState; onInspect
   const { card, hidden, seen } = target;
   const def = cardDef(card);
   const src = hidden ? getCardBackUrl(def.side_code || 'corp') : getCardImageUrl(card.cardCode);
-  // The hovered instance is a snapshot; read counters and zones from the live state
-  const live = hidden ? [] : liveValues(state, findCardAnywhere(state, card.instanceId) ?? card);
+  // The hovered instance is a snapshot; read counters and zones from the live state (never on hidden or remembered facedown cards)
+  const live = hidden || seen ? [] : liveValues(state, findCardAnywhere(state, card.instanceId) ?? card);
 
   return (
     <div className="flex flex-col items-center gap-1" data-testid="zoom-panel">

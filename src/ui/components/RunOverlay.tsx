@@ -189,17 +189,30 @@ export const RunOverlay: React.FC<RunOverlayProps> = ({
           {/* Action buttons */}
           <div className="flex flex-col gap-2 shrink-0">
             {onRez &&
-              rezCards.map(card => (
-                <button
-                  key={card.instanceId}
-                  onClick={() => onRez(card)}
-                  data-testid={`rez-${card.instanceId}`}
-                  className="px-5 py-2 bg-cyan-700 hover:bg-cyan-600 text-white font-mono text-xs font-bold rounded-[2px] border border-cyan-400 border-b-2 border-b-cyan-500 active:translate-y-[1px] active:border-b-[1px] flex items-center justify-center gap-1.5 transition-all"
-                  title="Corp rez window: rez this card before the Runner continues"
-                >
-                  <ShieldAlert className="w-4 h-4" /> Rez {cardDef(card).title} (<Credits amount={rezCostOf(state, card)} />)
-                </button>
-              ))}
+              rezCards.map(card => {
+                const printed = cardDef(card).cost || 0;
+                const live = rezCostOf(state, card);
+                return (
+                  <button
+                    key={card.instanceId}
+                    onClick={() => onRez(card)}
+                    data-testid={`rez-${card.instanceId}`}
+                    className="px-5 py-2 bg-cyan-700 hover:bg-cyan-600 text-white font-mono text-xs font-bold rounded-[2px] border border-cyan-400 border-b-2 border-b-cyan-500 active:translate-y-[1px] active:border-b-[1px] flex items-center justify-center gap-1.5 transition-all"
+                    title="Corp rez window: rez this card before the Runner continues"
+                  >
+                    <ShieldAlert className="w-4 h-4" /> Rez {cardDef(card).title} (
+                    {live !== printed ? (
+                      <span className={live < printed ? 'text-emerald-300' : 'text-amber-300'}>
+                        <s className="opacity-65 mr-0.5">{printed}</s>
+                        <Credits amount={live} />
+                      </span>
+                    ) : (
+                      <Credits amount={live} />
+                    )}
+                    )
+                  </button>
+                );
+              })}
             {onRez &&
               rezAbilities.map(action => {
                 const source = findCardAnywhere(state, action.cardInstanceId);
