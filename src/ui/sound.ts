@@ -7,14 +7,31 @@ import { SideCode } from '../core/types/card';
  * state and the events on its new log lines (never from their wording).
  */
 
-type Sound = 'win' | 'lose' | 'score' | 'steal' | 'damage' | 'tag' | 'run' | 'rez' | 'access' | 'install' | 'credit' | 'draw' | 'click';
+type Sound =
+  | 'win'
+  | 'lose'
+  | 'runner_win'
+  | 'corp_win'
+  | 'deckout'
+  | 'concede'
+  | 'score'
+  | 'steal'
+  | 'damage'
+  | 'tag'
+  | 'run'
+  | 'rez'
+  | 'access'
+  | 'install'
+  | 'credit'
+  | 'draw'
+  | 'click';
 
 const loggedEvent = (event: LogEvent) => (prev: GameState, next: GameState) => next.log.slice(prev.log.length).some(e => e.event === event);
 const handSize = (state: GameState) => state.corp.hq.length + state.runner.grip.length;
 
 // Most important first
 const RULES: [Sound, (prev: GameState, next: GameState) => boolean][] = [
-  ['win', (prev, next) => !prev.winner && !!next.winner],
+
   ['score', (prev, next) => next.corp.score > prev.corp.score],
   ['steal', (prev, next) => next.runner.score > prev.runner.score],
   ['damage', loggedEvent('damage')],
@@ -149,6 +166,168 @@ function play(sound: Sound) {
         osc.start(start);
         osc.stop(start + (idx === 3 ? 0.42 : 0.2));
       });
+      break;
+    }
+
+    case 'runner_win': {
+      // 7 syncopated heist notes for 7 agenda points: D4, F4, G4, A4, D5, G5, A5 + neon overtone
+      const pattern = [
+        { f: 293.66, time: 0, dur: 0.09 },
+        { f: 349.23, time: 0.11, dur: 0.09 },
+        { f: 392.00, time: 0.20, dur: 0.08 },
+        { f: 440.00, time: 0.28, dur: 0.09 },
+        { f: 587.33, time: 0.40, dur: 0.14 },
+        { f: 783.99, time: 0.54, dur: 0.10 },
+        { f: 880.00, time: 0.64, dur: 0.48 },
+      ];
+      pattern.forEach((note, idx) => {
+        const start = t + note.time;
+        const osc = ac.createOscillator();
+        const filter = ac.createBiquadFilter();
+        const gain = ac.createGain();
+
+        osc.type = idx >= 4 ? 'sawtooth' : 'triangle';
+        osc.frequency.setValueAtTime(note.f, start);
+
+        filter.type = 'lowpass';
+        filter.frequency.setValueAtTime(idx >= 4 ? 3200 : 1800, start);
+        filter.Q.value = 1.6;
+
+        gain.gain.setValueAtTime(0.11, start);
+        gain.gain.exponentialRampToValueAtTime(0.0001, start + note.dur);
+
+        osc.connect(filter).connect(gain).connect(ac.destination);
+        osc.start(start);
+        osc.stop(start + note.dur + 0.02);
+      });
+
+      const topChime = ac.createOscillator();
+      const tcGain = ac.createGain();
+      topChime.type = 'sine';
+      topChime.frequency.setValueAtTime(1760, t + 0.64);
+      tcGain.gain.setValueAtTime(0.06, t + 0.64);
+      tcGain.gain.exponentialRampToValueAtTime(0.0001, t + 1.15);
+      topChime.connect(tcGain).connect(ac.destination);
+      topChime.start(t + 0.64);
+      topChime.stop(t + 1.18);
+      break;
+    }
+
+    case 'corp_win': {
+      // 7 architectural corporate chimes in C Major / Lydian
+      const corpNotes = [
+        { f: 261.63, time: 0, dur: 0.18 },
+        { f: 329.63, time: 0.10, dur: 0.18 },
+        { f: 392.00, time: 0.20, dur: 0.18 },
+        { f: 493.88, time: 0.32, dur: 0.20 },
+        { f: 587.33, time: 0.44, dur: 0.22 },
+        { f: 659.25, time: 0.58, dur: 0.24 },
+        { f: 783.99, time: 0.72, dur: 0.68 },
+      ];
+      const sub = ac.createOscillator();
+      const subG = ac.createGain();
+      sub.type = 'sine';
+      sub.frequency.setValueAtTime(130.81, t);
+      sub.frequency.exponentialRampToValueAtTime(65.4, t + 0.9);
+      subG.gain.setValueAtTime(0.14, t);
+      subG.gain.exponentialRampToValueAtTime(0.0001, t + 0.9);
+      sub.connect(subG).connect(ac.destination);
+      sub.start(t);
+      sub.stop(t + 0.92);
+
+      corpNotes.forEach((n, idx) => {
+        const start = t + n.time;
+        const fundamental = ac.createOscillator();
+        const overtone = ac.createOscillator();
+        const gain = ac.createGain();
+        const filter = ac.createBiquadFilter();
+
+        fundamental.type = 'sine';
+        fundamental.frequency.setValueAtTime(n.f, start);
+
+        overtone.type = 'sine';
+        overtone.frequency.setValueAtTime(n.f * 2.0, start);
+
+        filter.type = 'lowpass';
+        filter.frequency.setValueAtTime(2200, start);
+
+        const isLast = idx === corpNotes.length - 1;
+        gain.gain.setValueAtTime(isLast ? 0.12 : 0.08, start);
+        gain.gain.exponentialRampToValueAtTime(0.0001, start + n.dur);
+
+        fundamental.connect(filter);
+        overtone.connect(filter);
+        filter.connect(gain).connect(ac.destination);
+
+        fundamental.start(start);
+        overtone.start(start);
+        fundamental.stop(start + n.dur + 0.02);
+        overtone.stop(start + n.dur + 0.02);
+      });
+      break;
+    }
+
+    case 'deckout': {
+      // Corporate Liquidation / Memory fault cascade (descending saw bitcrush + power-down whine)
+      const notes = [659.25, 523.25, 440.0, 329.63, 261.63, 196.0, 110.0];
+      notes.forEach((freq, i) => {
+        const start = t + i * 0.075;
+        const osc = ac.createOscillator();
+        const filter = ac.createBiquadFilter();
+        const gain = ac.createGain();
+
+        osc.type = 'sawtooth';
+        osc.frequency.setValueAtTime(freq, start);
+        osc.frequency.exponentialRampToValueAtTime(freq * 0.85, start + 0.07);
+
+        filter.type = 'lowpass';
+        filter.frequency.setValueAtTime(2200 - (i * 260), start);
+
+        gain.gain.setValueAtTime(0.09, start);
+        gain.gain.exponentialRampToValueAtTime(0.0001, start + 0.12);
+
+        osc.connect(filter).connect(gain).connect(ac.destination);
+        osc.start(start);
+        osc.stop(start + 0.14);
+      });
+
+      const shutdown = ac.createOscillator();
+      const sGain = ac.createGain();
+      shutdown.type = 'triangle';
+      shutdown.frequency.setValueAtTime(180, t + 0.35);
+      shutdown.frequency.exponentialRampToValueAtTime(35, t + 1.1);
+      sGain.gain.setValueAtTime(0.001, t + 0.35);
+      sGain.gain.linearRampToValueAtTime(0.16, t + 0.45);
+      sGain.gain.exponentialRampToValueAtTime(0.0001, t + 1.1);
+      shutdown.connect(sGain).connect(ac.destination);
+      shutdown.start(t + 0.35);
+      shutdown.stop(t + 1.15);
+      break;
+    }
+
+    case 'concede': {
+      // Terminal disconnect switch snap + capacitor frequency discharge
+      const click = ac.createOscillator();
+      const clkGain = ac.createGain();
+      click.type = 'triangle';
+      click.frequency.setValueAtTime(1600, t);
+      click.frequency.exponentialRampToValueAtTime(300, t + 0.02);
+      clkGain.gain.setValueAtTime(0.1, t);
+      clkGain.gain.exponentialRampToValueAtTime(0.0001, t + 0.02);
+      click.connect(clkGain).connect(ac.destination);
+      click.start(t);
+      click.stop(t + 0.025);
+
+      const discharge = ac.createOscillator();
+      const dGain = ac.createGain();
+      discharge.type = 'sine';
+      discharge.frequency.setValueAtTime(480, t + 0.02);
+      discharge.frequency.exponentialRampToValueAtTime(50, t + 0.35);
+      dGain.gain.setValueAtTime(0.12, t + 0.02);
+      dGain.gain.exponentialRampToValueAtTime(0.0001, t + 0.35);
+      discharge.connect(dGain).connect(ac.destination);
+      discharge.start(t + 0.02);
+      discharge.stop(t + 0.37);
       break;
     }
 
@@ -383,9 +562,27 @@ function play(sound: Sound) {
  */
 export function soundFor(prev: GameState, next: GameState, listener: SideCode | null = null): Sound | null {
   if (next === prev) return null;
+  // Specific victory and defeat signatures when a game concludes
+  if (!prev.winner && !!next.winner) {
+    const reason = next.winReason ?? '';
+    if (reason.includes('conceded')) {
+      return 'concede';
+    }
+    if (reason.includes('decked out')) {
+      return 'deckout';
+    }
+    if (reason.includes('flatlined')) {
+      return listener && next.winner !== listener ? 'lose' : 'win';
+    }
+    // Agenda point victory (7 notes)
+    if (listener && next.winner !== listener) {
+      return 'lose';
+    }
+    return next.winner === 'runner' ? 'runner_win' : 'corp_win';
+  }
   for (const [sound, happened] of RULES) {
     if (!happened(prev, next)) continue;
-    if (sound === 'win' && listener && next.winner !== listener) return 'lose';
+
     return sound;
   }
   return 'click';
