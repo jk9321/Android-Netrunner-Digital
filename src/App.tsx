@@ -33,6 +33,7 @@ import { showConfirm } from './ui/components/Dialog';
 import { SectorRimTrace } from './ui/components/SectorRimTrace';
 import { MotionConfig } from 'framer-motion';
 import { useAnimationsEnabled } from './ui/animations';
+import { GameStateContext } from './ui/liveValues';
 
 /** Reversed: Archives sorts first; remotes (-1) keep their order after HQ. */
 const CENTRAL_ORDER = ['hq', 'rd', 'archives'];
@@ -327,6 +328,7 @@ function Game({
   );
 
   return (
+    <GameStateContext.Provider value={gameState}>
     <div
       className="min-h-screen lg:h-screen lg:overflow-hidden text-slate-100 flex flex-col font-mono selection:bg-cyber-neonYellow selection:text-black"
     >
@@ -582,5 +584,6 @@ function Game({
         onClose={() => setInspectedCard(null)}
       />
     </div>
+    </GameStateContext.Provider>
   );
 }

@@ -1,6 +1,8 @@
 import { useEffect, useState } from 'react';
 import { ArrowRight, Layers, Plus, Trash2, Zap } from 'lucide-react';
 import { CardInstance, GameAction, GameState, SideCode, cardDef, findCardAnywhere, getCardScript, getLegalActions, installedIce, isLegalAction, trashableFirst, virusCountersInPlay } from '../../core';
+import { runnerInstallCost } from '../../core/engine/actions/install';
+import { playCost } from '../../core/engine/actions/play';
 import { showConfirm } from './Dialog';
 import { TrashFirstButton, TrashFirstPicker } from './TrashFirstPicker';
 import { ClickIcon, CreditIcon, Credits, TagIcon, VirusIcon } from './CreditIcon';
@@ -18,11 +20,37 @@ interface ActionBarProps {
 
 const isPlayable = (card: CardInstance | undefined) => !!card && ['operation', 'event'].includes(cardDef(card).type_code);
 
+/** Render a live play/install cost in parentheses, highlighting when discounted or taxed vs. printed cost. */
+function LiveCostParens({ printed, live, darkOnAmber = false }: { printed: number; live: number; darkOnAmber?: boolean }) {
+  if (live === printed) {
+    return (
+      <span>
+        (<Credits amount={live} />)
+      </span>
+    );
+  }
+  const colorClass = darkOnAmber
+    ? live < printed
+      ? 'text-emerald-950 bg-emerald-300/80 px-1 rounded'
+      : 'text-red-950 bg-red-300/80 px-1 rounded'
+    : live < printed
+      ? 'text-emerald-300'
+      : 'text-amber-300';
+  return (
+    <span className={colorClass}>
+      (<s className="opacity-65 mr-0.5">{printed}</s>
+      <Credits amount={live} />)
+    </span>
+  );
+}
+
 /** "Play <card>" for a selected operation or event of this side. */
 function PlayButton({ side, state, selectedCard, onAction }: ActionBarProps & { side: SideCode }) {
   if (!selectedCard || !isPlayable(selectedCard) || cardDef(selectedCard).side_code !== side) return null;
   const action: GameAction = { type: 'PLAY_OPERATION_OR_EVENT', player: side, cardInstanceId: selectedCard.instanceId };
   const implemented = Boolean(getCardScript(selectedCard.cardCode)?.onPlay);
+  const printed = cardDef(selectedCard).cost ?? 0;
+  const live = playCost(state, selectedCard);
   return (
     <button
       onClick={() => onAction(action)}
@@ -30,7 +58,15 @@ function PlayButton({ side, state, selectedCard, onAction }: ActionBarProps & { 
       title={implemented ? undefined : 'This card\'s effect is not implemented yet'}
       className="px-4 py-1.5 bg-gradient-to-b from-amber-400 to-amber-600 hover:from-amber-300 hover:to-amber-500 text-black text-xs font-bold rounded-[2px] border border-amber-300 border-b-2 border-b-amber-700 transition-all flex items-center gap-1.5 shadow-lg disabled:opacity-40 disabled:animate-none animate-pulse active:translate-y-[1px] active:border-b-[1px]"
     >
-      <Zap className="w-3.5 h-3.5" /> {implemented ? `Play ${cardDef(selectedCard).title}` : 'Effect not implemented yet'}
+      <Zap className="w-3.5 h-3.5" />{' '}
+      {implemented ? (
+        <>
+          <span>Play {cardDef(selectedCard).title}</span>
+          <LiveCostParens printed={printed} live={live} darkOnAmber />
+        </>
+      ) : (
+        'Effect not implemented yet'
+      )}
     </button>
   );
 }
@@ -273,7 +309,8 @@ export function RunnerActions(props: ActionBarProps) {
             title={installBlocked ?? 'Choose the ice to install it on'}
             className="px-2 py-1.5 bg-gradient-to-b from-pink-600 to-pink-800 hover:from-pink-500 hover:to-pink-700 text-white text-xs font-bold rounded-[2px] border border-pink-400 border-b-2 border-b-pink-300 transition-all flex items-center gap-1.5 shadow-lg animate-pulse disabled:opacity-40 disabled:animate-none active:translate-y-[1px] active:border-b-[1px]"
           >
-            <Plus className="w-3.5 h-3.5" /> Install {cardDef(installable).title}
+            <Plus className="w-3.5 h-3.5" /> <span>Install {cardDef(installable).title}</span>
+            <LiveCostParens printed={cardDef(installable).cost ?? 0} live={runnerInstallCost(state, installable)} />
           </button>
         )}
         {installable && !onIce && (
@@ -283,7 +320,8 @@ export function RunnerActions(props: ActionBarProps) {
             title={installBlocked ?? undefined}
             className="px-2 py-1.5 bg-gradient-to-b from-pink-600 to-pink-800 hover:from-pink-500 hover:to-pink-700 text-white text-xs font-bold rounded-[2px] border border-pink-400 border-b-2 border-b-pink-300 transition-all flex items-center gap-1.5 shadow-lg animate-pulse disabled:opacity-40 disabled:animate-none active:translate-y-[1px] active:border-b-[1px]"
           >
-            <Plus className="w-3.5 h-3.5" /> Install Card
+            <Plus className="w-3.5 h-3.5" /> <span>Install Card</span>
+            <LiveCostParens printed={cardDef(installable).cost ?? 0} live={runnerInstallCost(state, installable)} />
           </button>
         )}
         {installable && installBlocked !== null && (

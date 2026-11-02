@@ -14,6 +14,7 @@ import { IceTypeIcons, breakerTypes } from './IceTypeIcons';
 import { iceSubtypes } from '../../core/engine/ice';
 import type { IceSubtype } from '../../core/scripts/types';
 import { shouldReduceMotion } from '../animations';
+import { liveCardModifiers, useLiveGameState } from '../liveValues';
 
 export interface CardViewProps {
   card: CardInstance;
@@ -211,6 +212,7 @@ const CardFace: React.FC<CardViewProps & { showTooltip: boolean; setShowTooltip:
           targetRect={cardRef.current?.getBoundingClientRect() || null}
           isFaceDown={isUnrezzed && !card.faceUp}
           canPeek={canPeek}
+          seen={seen}
         />
       )}
     </div>
@@ -237,9 +239,11 @@ const CardOverlays: React.FC<{
   typeSide?: 'ice' | 'breaker';
   onInspect?: (card: CardInstance) => void;
 }> = ({ card, sideways, tag, actions, status, types = [], typeSide = 'ice', onInspect }) => {
+  const gameState = useLiveGameState();
+  const mods = gameState && status !== 'seen' ? liveCardModifiers(gameState, card) : undefined;
   const t = card.tokens;
   const tokens = (t.credit ?? 0) > 0 || (t.virus ?? 0) > 0 || (t.power ?? 0) > 0 || (t.agenda ?? 0) > 0;
-  const top = status || card.flipped || tag || card.advancementCounters > 0;
+  const top = status || card.flipped || tag || card.advancementCounters > 0 || Boolean(mods?.cost);
   return (
     <div
       data-testid="card-overlays"
@@ -252,6 +256,20 @@ const CardOverlays: React.FC<{
       {top && (
         <div className="flex items-start gap-[0.2em] min-w-0">
           <div className="flex-1 min-w-0 flex flex-col items-start gap-[0.2em]">
+            {mods?.cost && (
+              <span
+                data-testid="live-cost-badge"
+                title={`${mods.cost.label}: ${mods.cost.current} credits (printed ${mods.cost.printed})`}
+                className={`${badge} inline-flex items-center gap-[0.15em] ${
+                  mods.cost.current < mods.cost.printed
+                    ? 'bg-emerald-950/95 text-emerald-300 border-emerald-400'
+                    : 'bg-amber-950/95 text-amber-300 border-amber-400'
+                }`}
+              >
+                <Credits amount={<StatTumbler value={mods.cost.current} />} />
+                <span>{mods.cost.current < mods.cost.printed ? '↓' : '↑'}</span>
+              </span>
+            )}
             {status === 'faceup' && <div className={`${tagClass} bg-amber-950/90 text-amber-300 border-amber-700/80`}><span className="truncate">Faceup</span></div>}
             {status === 'unrezzed' && (
               <div className={`${tagClass} bg-cyan-950/90 text-cyan-300 border-cyan-700/80`}>
@@ -281,6 +299,21 @@ const CardOverlays: React.FC<{
       <div className="flex items-end justify-between gap-[0.2em]">
         <div className={`flex gap-[0.2em] ${sideways ? 'flex-row items-end' : 'flex-col items-start'}`}>
           <IceTypeIcons types={types} side={typeSide} row={sideways} />
+          {mods?.strength && (
+            <span
+              data-testid="live-strength-badge"
+              title={`${mods.strength.onceInstalled ? 'Strength once installed' : 'Strength'}: ${mods.strength.current} (printed ${mods.strength.printed})`}
+              className={`${badge} inline-flex items-center gap-[0.2em] ${
+                mods.strength.current > mods.strength.printed
+                  ? 'bg-emerald-950/95 text-emerald-300 border-emerald-400'
+                  : 'bg-amber-950/95 text-amber-300 border-amber-400'
+              }`}
+            >
+              <span>STR</span>
+              <StatTumbler value={mods.strength.current} />
+              <span>{mods.strength.current > mods.strength.printed ? '↑' : '↓'}</span>
+            </span>
+          )}
           {/* Quick inspect, shown on hover; it keeps its place so nothing moves under the pointer */}
           {onInspect && (
             <button

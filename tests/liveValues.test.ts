@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { createCardInstance, findCardAnywhere, GameState } from '../src/core';
 import { TurnFlag, bumpTurnFlag } from '../src/core/engine/cardEffects';
-import { liveValues } from '../src/ui/liveValues';
+import { liveCardModifiers, liveValues } from '../src/ui/liveValues';
 import { giveCard, installCorpForTest, installIceForTest, installProgramForTest, newGame, startRunnerTurn } from './helpers';
 
 const C = {
@@ -87,5 +87,27 @@ describe('live values on hover', () => {
   it('cards without counted effects show nothing', () => {
     const s = newGame();
     expect(values(s, giveCard(s, 'runner', C.sureGamble))).toEqual([]);
+  });
+
+  it('liveCardModifiers returns structured cost and strength deltas only when modified', () => {
+    const s = newGame();
+    startRunnerTurn(s);
+    const tide = installProgramForTest(s, C.risingTide);
+    expect(liveCardModifiers(s, findCardAnywhere(s, tide)!)).toEqual({});
+    s.runner.heap.push(createCardInstance(s, C.cleaver), createCardInstance(s, C.principia));
+    expect(liveCardModifiers(s, findCardAnywhere(s, tide)!)).toEqual({
+      strength: { printed: 1, current: 3 },
+    });
+
+    installProgramForTest(s, C.cleaver);
+    const principia = giveCard(s, 'runner', C.principia);
+    expect(liveCardModifiers(s, findCardAnywhere(s, principia)!)).toEqual({
+      cost: { printed: 4, current: 2, label: 'Install cost' },
+    });
+
+    const palisade = installIceForTest(s, C.palisade, 'remote1');
+    expect(liveCardModifiers(s, findCardAnywhere(s, palisade)!)).toEqual({
+      strength: { printed: 2, current: 4 },
+    });
   });
 });

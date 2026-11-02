@@ -8,6 +8,8 @@ import { Database, Crosshair, Zap, ChevronsUp, Bug } from 'lucide-react';
 import { clearHostLink, lightHostLink, useHostLinkLit } from '../hostLinks';
 import { usePromptServerHighlight } from '../promptHighlight';
 import type { IceSubtype } from '../../core/scripts/types';
+import { rezCostOf } from '../../core';
+import { useLiveGameState } from '../liveValues';
 import { AgendaDiamondIcon, Credits } from './CreditIcon';
 
 interface ServerColumnProps {
@@ -100,6 +102,20 @@ export const ServerColumn: React.FC<ServerColumnProps> = ({
   iceTypes = () => [],
 }) => {
   const canCorpPeek = perspective !== 'runner';
+  const gameState = useLiveGameState();
+  const renderRezCost = (c: CardInstance) => {
+    const printed = cardDef(c).cost || 0;
+    const live = gameState ? rezCostOf(gameState, c) : printed;
+    if (live !== printed) {
+      return (
+        <span className={live < printed ? 'text-emerald-300' : 'text-amber-300'}>
+          <s className="opacity-60 mr-0.5">{printed}</s>
+          <Credits amount={live} />
+        </span>
+      );
+    }
+    return <Credits amount={live} />;
+  };
   const isHighlighted = usePromptServerHighlight(server.id);
   const isRunTarget = run !== null;
   // The ice the Runner is at, and what they're doing there
@@ -185,7 +201,7 @@ export const ServerColumn: React.FC<ServerColumnProps> = ({
                     }}
                     className={smallButton}
                   >
-                    <Zap className="w-[1.1em] h-[1.1em] text-amber-400" /> Rez (<Credits amount={cardDef(card).cost || 0} />)
+                    <Zap className="w-[1.1em] h-[1.1em] text-amber-400" /> Rez ({renderRezCost(card)})
                   </button>
                 )}
                 {canAdvance(card) && onAdvanceCard && (
@@ -249,9 +265,9 @@ export const ServerColumn: React.FC<ServerColumnProps> = ({
                       onRezCard(iceCard.instanceId);
                     }}
                     className={smallButton}
-                    title={`Rez ${cardDef(iceCard).title} for ${cardDef(iceCard).cost || 0} credits`}
+                    title={`Rez ${cardDef(iceCard).title} for ${gameState ? rezCostOf(gameState, iceCard) : cardDef(iceCard).cost || 0} credits`}
                   >
-                    <Zap className="w-[1.1em] h-[1.1em] text-amber-400" /> Rez (<Credits amount={cardDef(iceCard).cost || 0} />)
+                    <Zap className="w-[1.1em] h-[1.1em] text-amber-400" /> Rez ({renderRezCost(iceCard)})
                   </button>
                 )}
                 {canAdvance(iceCard) && onAdvanceCard && (

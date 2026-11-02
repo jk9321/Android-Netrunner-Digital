@@ -7,12 +7,14 @@ import { Shield, Trash2, AlertCircle, Lock } from 'lucide-react';
 import { GLOSSARY, cardKeywords } from '../glossary';
 import { cardTextHtml } from '../cardText';
 import { AdvancementIcon, AgendaDiamondIcon, CreditIcon, Credits, MuIcon } from './CreditIcon';
+import { liveCardModifiers, useLiveGameState } from '../liveValues';
 
 interface CardPopoutProps {
   card: CardInstance;
   targetRect: DOMRect | null;
   isFaceDown?: boolean;
   canPeek?: boolean;
+  seen?: boolean;
 }
 
 export const CardPopout: React.FC<CardPopoutProps> = ({
@@ -20,12 +22,15 @@ export const CardPopout: React.FC<CardPopoutProps> = ({
   targetRect,
   isFaceDown = false,
   canPeek = true,
+  seen = false,
 }) => {
   const [coords, setCoords] = useState<{ top: number; left: number }>({ top: 0, left: 0 });
   const boxRef = useRef<HTMLDivElement>(null);
   const def = cardDef(card);
+  const gameState = useLiveGameState();
 
   const isHiddenSecured = isFaceDown && !canPeek;
+  const mods = gameState && !isHiddenSecured && !seen ? liveCardModifiers(gameState, card) : undefined;
   // Visible cards show the whole card image beside the details, so nothing is cropped
   const popoutWidth = isHiddenSecured ? 330 : Math.min(620, window.innerWidth - 24);
 
@@ -166,18 +171,48 @@ export const CardPopout: React.FC<CardPopoutProps> = ({
           {/* Key Stat Badges Row */}
           <div className="grid grid-cols-2 gap-1.5 mb-3 text-xs">
             {def.cost !== null && def.cost !== undefined && (
-              <div className="flex items-center gap-1.5 bg-[#0c121d] border border-slate-800 px-2.5 py-1 rounded-[2px]">
+              <div
+                className={`flex items-center gap-1.5 bg-[#0c121d] border px-2.5 py-1 rounded-[2px] ${
+                  mods?.cost
+                    ? mods.cost.current < mods.cost.printed
+                      ? 'border-emerald-600/80'
+                      : 'border-amber-500/80'
+                    : 'border-slate-800'
+                }`}
+              >
                 <CreditIcon className="w-3.5 h-3.5 text-amber-400 shrink-0" />
                 <span className="text-slate-400">Cost:</span>
-                <span className="font-bold text-amber-300"><Credits amount={def.cost} /></span>
+                {mods?.cost ? (
+                  <span className={`font-bold ${mods.cost.current < mods.cost.printed ? 'text-emerald-300' : 'text-amber-300'}`}>
+                    <Credits amount={mods.cost.current} />{' '}
+                    <span className="text-slate-400 font-normal">(was {mods.cost.printed})</span>
+                  </span>
+                ) : (
+                  <span className="font-bold text-amber-300"><Credits amount={def.cost} /></span>
+                )}
               </div>
             )}
 
             {def.strength !== null && def.strength !== undefined && (
-              <div className="flex items-center gap-1.5 bg-[#0c121d] border border-slate-800 px-2.5 py-1 rounded-[2px]">
+              <div
+                className={`flex items-center gap-1.5 bg-[#0c121d] border px-2.5 py-1 rounded-[2px] ${
+                  mods?.strength
+                    ? mods.strength.current > mods.strength.printed
+                      ? 'border-emerald-600/80'
+                      : 'border-amber-500/80'
+                    : 'border-slate-800'
+                }`}
+              >
                 <Shield className="w-3.5 h-3.5 text-cyan-400 shrink-0" />
                 <span className="text-slate-400">Strength:</span>
-                <span className="font-bold text-cyan-300">{def.strength}</span>
+                {mods?.strength ? (
+                  <span className={`font-bold ${mods.strength.current > mods.strength.printed ? 'text-emerald-300' : 'text-amber-300'}`}>
+                    {mods.strength.current}{' '}
+                    <span className="text-slate-400 font-normal">(was {mods.strength.printed})</span>
+                  </span>
+                ) : (
+                  <span className="font-bold text-cyan-300">{def.strength}</span>
+                )}
               </div>
             )}
 
