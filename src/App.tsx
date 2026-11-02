@@ -349,8 +349,8 @@ function Game({
         {/* CORP SECTOR (TOP HALF) */}
         <div className="flex-1 min-h-0 flex flex-col min-w-0">
           <div className="inline-flex items-center gap-1.5 px-2.5 py-0.5 text-[10px] font-bold tracking-widest uppercase rounded-t-[2px] bg-cyan-950/80 border border-cyan-800/80 border-b-0 text-cyan-400 self-start -mb-[1px] z-10 font-mono">
-            <span>// SECTOR 01: CORP INFRASTRUCTURE</span>
-            {activePlayer === 'corp' && !winner && <span className="text-[9px] text-cyan-300 font-semibold">[LINK_ACTIVE]</span>}
+            <span>// SECTOR 01: CORP SERVERS</span>
+            {activePlayer === 'corp' && !winner && <span className="text-[9px] text-cyan-300 font-semibold">[SERVERS_ONLINE]</span>}
           </div>
           <section id="corp-board" className={`${activePlayer === 'corp' && !winner ? 'turn-active ' : ''}flex-1 min-h-0 flex flex-col gap-1.5 bg-gradient-to-b from-[#0d141e] to-[#080c13] border border-cyan-900/60 rounded-[2px] rounded-tl-none hud-frame hud-corp p-2 shadow-2xl relative w-full min-w-0`}>
           <SideStrip side="corp" state={gameState} onInspect={setInspectedCard} onOpenZone={setZone} />
