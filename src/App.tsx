@@ -371,9 +371,7 @@ function Game({
           <SectorRimTrace side="corp" isActive={shiftSide === 'corp'} tabRef={corpTabRef} chassisRef={corpChassisRef} />
           <div
             ref={corpTabRef}
-            className={`inline-flex items-center gap-1.5 px-2.5 py-0.5 text-[10px] font-bold tracking-widest uppercase rounded-t-[2px] bg-cyan-950/80 border border-cyan-800/80 border-b-0 text-cyan-400 self-start -mb-[1px] z-10 font-mono ${
-              shiftSide === 'corp' ? 'turn-badge-illuminate' : ''
-            }`}
+            className="inline-flex items-center gap-1.5 px-2.5 py-0.5 text-[10px] font-bold tracking-widest uppercase rounded-t-[2px] bg-cyan-950/80 border border-cyan-800/80 border-b-0 text-cyan-400 self-start -mb-[1px] z-10 font-mono"
           >
             <span>// SECTOR 01: CORP SERVERS</span>
             {activePlayer === 'corp' && !winner && <span className="text-[9px] text-cyan-300 font-semibold">[SERVERS_ONLINE]</span>}
@@ -381,9 +379,7 @@ function Game({
           <section
             ref={corpChassisRef}
             id="corp-board"
-            className={`${activePlayer === 'corp' && !winner ? 'turn-active ' : ''}${
-              shiftSide === 'corp' ? 'turn-shift-corp ' : ''
-            }flex-1 min-h-0 flex flex-col gap-1.5 bg-gradient-to-b from-[#0d141e] to-[#080c13] border border-cyan-900/60 rounded-[2px] rounded-tl-none hud-frame hud-corp p-2 shadow-2xl relative w-full min-w-0`}
+            className={`${activePlayer === 'corp' && !winner ? 'turn-active ' : ''}flex-1 min-h-0 flex flex-col gap-1.5 bg-gradient-to-b from-[#0d141e] to-[#080c13] border border-cyan-900/60 rounded-[2px] rounded-tl-none hud-frame hud-corp p-2 shadow-2xl relative w-full min-w-0`}
           >
           <SideStrip side="corp" state={gameState} onInspect={setInspectedCard} onOpenZone={setZone} />
 
@@ -418,9 +414,7 @@ function Game({
           <SectorRimTrace side="runner" isActive={shiftSide === 'runner'} tabRef={runnerTabRef} chassisRef={runnerChassisRef} />
           <div
             ref={runnerTabRef}
-            className={`inline-flex items-center gap-1.5 px-2.5 py-0.5 text-[10px] font-bold tracking-widest uppercase rounded-t-[2px] bg-pink-950/80 border border-pink-800/80 border-b-0 text-pink-400 self-start -mb-[1px] z-10 font-mono ${
-              shiftSide === 'runner' ? 'turn-badge-illuminate' : ''
-            }`}
+            className="inline-flex items-center gap-1.5 px-2.5 py-0.5 text-[10px] font-bold tracking-widest uppercase rounded-t-[2px] bg-pink-950/80 border border-pink-800/80 border-b-0 text-pink-400 self-start -mb-[1px] z-10 font-mono"
           >
             <span>// SECTOR 02: RUNNER RIG</span>
             {activePlayer === 'runner' && !winner && <span className="text-[9px] text-pink-300 font-semibold">[RIG_LINKED]</span>}
@@ -428,9 +422,7 @@ function Game({
           <section
             ref={runnerChassisRef}
             id="runner-board"
-            className={`${activePlayer === 'runner' && !winner ? 'turn-active ' : ''}${
-              shiftSide === 'runner' ? 'turn-shift-runner ' : ''
-            }flex-1 min-h-0 flex flex-col gap-1.5 bg-gradient-to-b from-[#0d141e] to-[#080c13] border border-pink-900/60 rounded-[2px] rounded-tl-none hud-frame hud-runner p-2 shadow-2xl relative w-full min-w-0`}
+            className={`${activePlayer === 'runner' && !winner ? 'turn-active ' : ''}flex-1 min-h-0 flex flex-col gap-1.5 bg-gradient-to-b from-[#0d141e] to-[#080c13] border border-pink-900/60 rounded-[2px] rounded-tl-none hud-frame hud-runner p-2 shadow-2xl relative w-full min-w-0`}
           >
           <div className="flex-1 min-h-0 flex flex-col lg:flex-row gap-2 min-w-0">
           {/* Runner Rig (Installed Programs, Hardware, Resources) */}
