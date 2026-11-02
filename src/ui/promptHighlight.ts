@@ -7,20 +7,28 @@ export interface PromptTarget {
 }
 
 /**
- * Links a decision's card options to the same cards on the table: hover an
- * option and its board card lights up with its position, and picked options
- * stay marked. Facedown cards all look alike, so this is how a player tells
- * which one they are choosing (Tāo Salonga swapping unrezzed ice).
- * A module store so only the linked cards repaint, not the whole table.
+ * Links a decision's card and server options to the board: hover an option
+ * and its board card or server column lights up with an outline. Facedown
+ * cards all look alike, so this is how a player tells which one they are
+ * choosing (Tāo Salonga swapping unrezzed ice). Server buttons outline the
+ * targeted server's frame containing all its cards.
+ * A module store so only the linked elements repaint, not the whole table.
  */
 let hovered: PromptTarget | null = null;
+let hoveredServerId: string | null = null;
 let selected: ReadonlySet<string> = new Set();
 const listeners = new Set<() => void>();
 const notify = () => listeners.forEach(l => l());
 
 export function hoverPromptTarget(target: PromptTarget | null) {
-  if (hovered?.id === target?.id) return;
+  if (hovered?.id === target?.id && hovered?.label === target?.label) return;
   hovered = target;
+  notify();
+}
+
+export function hoverPromptServer(serverId: string | null) {
+  if (hoveredServerId === serverId) return;
+  hoveredServerId = serverId;
   notify();
 }
 
@@ -43,4 +51,10 @@ export function usePromptHighlight(instanceId: string): { hovered: boolean; labe
   const isHovered = useSyncExternalStore(subscribe, getHovered, getHovered);
   const isSelected = useSyncExternalStore(subscribe, getSelected, getSelected);
   return { hovered: isHovered, label: isHovered ? (hovered?.label ?? null) : null, selected: isSelected };
+}
+
+/** Whether a server column is highlighted by a hovered prompt or install option. */
+export function usePromptServerHighlight(serverId: string): boolean {
+  const getHovered = () => hoveredServerId === serverId;
+  return useSyncExternalStore(subscribe, getHovered, getHovered);
 }

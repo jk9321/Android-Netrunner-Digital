@@ -1,7 +1,8 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Plus } from 'lucide-react';
 import { CardInstance, GameAction, GameState, cardDef, getLegalActions, isLegalAction, trashableFirst } from '../../core';
 import { TrashFirstButton, TrashFirstPicker } from './TrashFirstPicker';
+import { hoverPromptServer, hoverPromptTarget } from '../promptHighlight';
 
 /**
  * Where the selected HQ card can go: a new remote, or any server the engine
@@ -17,6 +18,12 @@ export function CorpInstallOptions({
   onAction: (action: GameAction) => void;
 }) {
   const def = cardDef(card);
+  // Clear any hovered target/server when this options bar closes or card changes
+  useEffect(() => () => {
+    hoverPromptServer(null);
+    hoverPromptTarget(null);
+  }, [card.instanceId]);
+
   // Trash cards already there first (rules 8.5.6): ice for ice (they then don't count toward its cost), root cards for a root install
   const [replacing, setReplacing] = useState<{ cardId: string; serverId: string } | null>(null);
   const installWithTrash = (serverId: string, trashFirst: string[]): GameAction => ({
@@ -38,6 +45,7 @@ export function CorpInstallOptions({
     return (
       <TrashFirstPicker
         key={`${card.instanceId}-${server.id}`}
+        serverId={server.id}
         heading={`Install ${def.title} in ${server.name}, trashing first:`}
         cards={def.type_code === 'ice' ? cards.reverse() : cards}
         confirmLabel={trash => {
@@ -46,10 +54,14 @@ export function CorpInstallOptions({
         }}
         canConfirm={trash => isLegalAction(state, installWithTrash(server.id, trash))}
         onConfirm={trash => {
+          hoverPromptServer(null);
           setReplacing(null);
           onAction(installWithTrash(server.id, trash));
         }}
-        onCancel={() => setReplacing(null)}
+        onCancel={() => {
+          hoverPromptServer(null);
+          setReplacing(null);
+        }}
       />
     );
   }
@@ -69,10 +81,37 @@ export function CorpInstallOptions({
           server && ['agenda', 'asset'].includes(def.type_code)
             ? server.root.find(c => ['agenda', 'asset'].includes(cardDef(c).type_code))
             : undefined;
+
+        const handleMouseEnter = () => {
+          if (server) {
+            hoverPromptServer(server.id);
+          }
+          if (replaced) {
+            hoverPromptTarget({ id: replaced.instanceId, label: 'replace' });
+          }
+        };
+
+        const handleMouseLeave = () => {
+          hoverPromptServer(null);
+          if (replaced) {
+            hoverPromptTarget(null);
+          }
+        };
+
+        const handleClick = () => {
+          hoverPromptServer(null);
+          if (replaced) {
+            hoverPromptTarget(null);
+          }
+          onAction(a);
+        };
+
         return (
           <button
             key={`${a.targetServerId ?? 'new'}${a.faceUp ? '-faceup' : ''}`}
-            onClick={() => onAction(a)}
+            onClick={handleClick}
+            onMouseEnter={handleMouseEnter}
+            onMouseLeave={handleMouseLeave}
             data-testid={`install-${a.targetServerId ?? 'new'}${a.faceUp ? '-faceup' : ''}`}
             title={replaced ? `Trashes ${cardDef(replaced).title} to make room` : undefined}
             className="px-3 py-1.5 bg-gradient-to-b from-amber-400 to-amber-600 hover:from-amber-300 hover:to-amber-500 text-black text-xs font-bold rounded-[2px] border border-amber-300 border-b-2 border-b-amber-700 transition-all flex items-center gap-1 shadow-lg active:translate-y-[1px] active:border-b-[1px]"
@@ -93,7 +132,12 @@ export function CorpInstallOptions({
               ? `Trash ice protecting ${server.name} first; trashed ice doesn't count toward the install cost`
               : `Trash cards in the root of ${server.name} first`
           }
-          onClick={() => setReplacing({ cardId: card.instanceId, serverId: server.id })}
+          onClick={() => {
+            hoverPromptServer(null);
+            setReplacing({ cardId: card.instanceId, serverId: server.id });
+          }}
+          onMouseEnter={() => hoverPromptServer(server.id)}
+          onMouseLeave={() => hoverPromptServer(null)}
           testId={`install-replace-${server.id}`}
         />
       ))}

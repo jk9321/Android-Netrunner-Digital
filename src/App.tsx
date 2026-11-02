@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+﻿import { useEffect, useMemo, useRef, useState } from 'react';
 import { CardInstance, GameAction, SideCode, cardDef, findCardAnywhere, iceSubtypes, isLegalAction, knownInHand, knownInRd } from './core';
 import { breakerTypes } from './ui/components/IceTypeIcons';
 import { DEFAULT_CORP_DECK, DEFAULT_RUNNER_DECK } from './data/decks';
@@ -30,6 +30,7 @@ import { canActAs, canSeeCorpSecrets, canSeeRunnerSecrets } from './ui/viewer';
 import { Keyword } from './ui/components/Keyword';
 import { KnownInHandButton } from './ui/components/KnownInHandButton';
 import { showConfirm } from './ui/components/Dialog';
+import { SectorRimTrace } from './ui/components/SectorRimTrace';
 
 /** Reversed: Archives sorts first; remotes (-1) keep their order after HQ. */
 const CENTRAL_ORDER = ['hq', 'rd', 'archives'];
@@ -157,6 +158,25 @@ function Game({
   };
 
   const { corp, runner, activePlayer, activeRun, winner, winReason } = gameState;
+
+  const corpTabRef = useRef<HTMLDivElement>(null);
+  const corpChassisRef = useRef<HTMLElement>(null);
+  const runnerTabRef = useRef<HTMLDivElement>(null);
+  const runnerChassisRef = useRef<HTMLElement>(null);
+
+  const [shiftSide, setShiftSide] = useState<SideCode | null>(null);
+  const prevActivePlayer = useRef(activePlayer);
+
+  useEffect(() => {
+    if (prevActivePlayer.current !== activePlayer && !winner) {
+      prevActivePlayer.current = activePlayer;
+      setShiftSide(activePlayer);
+      const timer = setTimeout(() => setShiftSide(null), 320);
+      return () => clearTimeout(timer);
+    }
+  }, [activePlayer, winner]);
+
+
   const selectedCard = [...corp.hq, ...runner.grip].find(c => c.instanceId === selectedCardId);
 
   // Runner cards installed on Corp ice (trojans), and where each one sits, for the host tags
@@ -173,7 +193,7 @@ function Game({
     const ice = server.ice[index];
     const name = ice.isRezzed || canSeeCorpSecrets(viewer) ? cardDef(ice).title : 'unrezzed ice';
     // Several unrezzed ice in one server look alike, so say which one (ice 1 is innermost)
-    return `${server.name} ice ${index + 1} · ${name}`;
+    return `${server.name} ice ${index + 1} Â· ${name}`;
   };
 
   const rezAction = (card: CardInstance): GameAction => ({ type: 'REZ_CARD', player: 'corp', cardInstanceId: card.instanceId });
@@ -347,12 +367,24 @@ function Game({
         )}
 
         {/* CORP SECTOR (TOP HALF) */}
-        <div className="flex-1 min-h-0 flex flex-col min-w-0">
-          <div className="inline-flex items-center gap-1.5 px-2.5 py-0.5 text-[10px] font-bold tracking-widest uppercase rounded-t-[2px] bg-cyan-950/80 border border-cyan-800/80 border-b-0 text-cyan-400 self-start -mb-[1px] z-10 font-mono">
+        <div className="flex-1 min-h-0 flex flex-col min-w-0 relative">
+          <SectorRimTrace side="corp" isActive={shiftSide === 'corp'} tabRef={corpTabRef} chassisRef={corpChassisRef} />
+          <div
+            ref={corpTabRef}
+            className={`inline-flex items-center gap-1.5 px-2.5 py-0.5 text-[10px] font-bold tracking-widest uppercase rounded-t-[2px] bg-cyan-950/80 border border-cyan-800/80 border-b-0 text-cyan-400 self-start -mb-[1px] z-10 font-mono ${
+              shiftSide === 'corp' ? 'turn-badge-illuminate' : ''
+            }`}
+          >
             <span>// SECTOR 01: CORP SERVERS</span>
             {activePlayer === 'corp' && !winner && <span className="text-[9px] text-cyan-300 font-semibold">[SERVERS_ONLINE]</span>}
           </div>
-          <section id="corp-board" className={`${activePlayer === 'corp' && !winner ? 'turn-active ' : ''}flex-1 min-h-0 flex flex-col gap-1.5 bg-gradient-to-b from-[#0d141e] to-[#080c13] border border-cyan-900/60 rounded-[2px] rounded-tl-none hud-frame hud-corp p-2 shadow-2xl relative w-full min-w-0`}>
+          <section
+            ref={corpChassisRef}
+            id="corp-board"
+            className={`${activePlayer === 'corp' && !winner ? 'turn-active ' : ''}${
+              shiftSide === 'corp' ? 'turn-shift-corp ' : ''
+            }flex-1 min-h-0 flex flex-col gap-1.5 bg-gradient-to-b from-[#0d141e] to-[#080c13] border border-cyan-900/60 rounded-[2px] rounded-tl-none hud-frame hud-corp p-2 shadow-2xl relative w-full min-w-0`}
+          >
           <SideStrip side="corp" state={gameState} onInspect={setInspectedCard} onOpenZone={setZone} />
 
           <div className="flex-1 min-h-0 flex flex-col lg:flex-row gap-2 min-w-0">
@@ -382,12 +414,24 @@ function Game({
         </div>
 
         {/* RUNNER SECTOR (BOTTOM): the rig is two rows, so it takes what it needs and the Corp gets the rest */}
-        <div className="flex-none lg:max-h-[55%] min-h-0 flex flex-col min-w-0">
-          <div className="inline-flex items-center gap-1.5 px-2.5 py-0.5 text-[10px] font-bold tracking-widest uppercase rounded-t-[2px] bg-pink-950/80 border border-pink-800/80 border-b-0 text-pink-400 self-start -mb-[1px] z-10 font-mono">
+        <div className="flex-none lg:max-h-[55%] min-h-0 flex flex-col min-w-0 relative">
+          <SectorRimTrace side="runner" isActive={shiftSide === 'runner'} tabRef={runnerTabRef} chassisRef={runnerChassisRef} />
+          <div
+            ref={runnerTabRef}
+            className={`inline-flex items-center gap-1.5 px-2.5 py-0.5 text-[10px] font-bold tracking-widest uppercase rounded-t-[2px] bg-pink-950/80 border border-pink-800/80 border-b-0 text-pink-400 self-start -mb-[1px] z-10 font-mono ${
+              shiftSide === 'runner' ? 'turn-badge-illuminate' : ''
+            }`}
+          >
             <span>// SECTOR 02: RUNNER RIG</span>
             {activePlayer === 'runner' && !winner && <span className="text-[9px] text-pink-300 font-semibold">[RIG_LINKED]</span>}
           </div>
-          <section id="runner-board" className={`${activePlayer === 'runner' && !winner ? 'turn-active ' : ''}flex-1 min-h-0 flex flex-col gap-1.5 bg-gradient-to-b from-[#0d141e] to-[#080c13] border border-pink-900/60 rounded-[2px] rounded-tl-none hud-frame hud-runner p-2 shadow-2xl relative w-full min-w-0`}>
+          <section
+            ref={runnerChassisRef}
+            id="runner-board"
+            className={`${activePlayer === 'runner' && !winner ? 'turn-active ' : ''}${
+              shiftSide === 'runner' ? 'turn-shift-runner ' : ''
+            }flex-1 min-h-0 flex flex-col gap-1.5 bg-gradient-to-b from-[#0d141e] to-[#080c13] border border-pink-900/60 rounded-[2px] rounded-tl-none hud-frame hud-runner p-2 shadow-2xl relative w-full min-w-0`}
+          >
           <div className="flex-1 min-h-0 flex flex-col lg:flex-row gap-2 min-w-0">
           {/* Runner Rig (Installed Programs, Hardware, Resources) */}
           <div className="flex-1 min-w-0 min-h-0 overflow-auto">

@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { hoverPromptTarget } from '../promptHighlight';
+import { hoverPromptServer, hoverPromptTarget } from '../promptHighlight';
 import { Plus, Trash2 } from 'lucide-react';
 import { CardInstance, cardDef } from '../../core';
 
@@ -11,6 +11,7 @@ import { CardInstance, cardDef } from '../../core';
 export function TrashFirstPicker({
   heading,
   cards,
+  serverId,
   confirmLabel,
   canConfirm,
   onConfirm,
@@ -18,15 +19,22 @@ export function TrashFirstPicker({
 }: {
   heading: string;
   cards: CardInstance[];
+  serverId?: string;
   confirmLabel: (trash: string[]) => string;
   canConfirm: (trash: string[]) => boolean;
   onConfirm: (trash: string[]) => void;
   onCancel: () => void;
 }) {
   const [trash, setTrash] = useState<string[]>([]);
-  // Drop the board highlight if the picker closes while a button is hovered
-  useEffect(() => () => hoverPromptTarget(null), []);
-  const toggle =(id: string) => setTrash(t => (t.includes(id) ? t.filter(x => x !== id) : [...t, id]));
+  // Drop the board & server highlight if the picker closes while a button is hovered
+  useEffect(() => {
+    if (serverId) hoverPromptServer(serverId);
+    return () => {
+      hoverPromptTarget(null);
+      if (serverId) hoverPromptServer(null);
+    };
+  }, [serverId]);
+  const toggle = (id: string) => setTrash(t => (t.includes(id) ? t.filter(x => x !== id) : [...t, id]));
   return (
     <div className="flex items-center gap-1.5 flex-wrap" data-testid="trash-first">
       <span className="text-xs text-amber-300 font-bold">{heading}</span>
@@ -70,10 +78,26 @@ export function TrashFirstPicker({
 }
 
 /** The small button that opens a TrashFirstPicker. */
-export function TrashFirstButton({ label, title, onClick, testId }: { label: string; title: string; onClick: () => void; testId?: string }) {
+export function TrashFirstButton({
+  label,
+  title,
+  onClick,
+  onMouseEnter,
+  onMouseLeave,
+  testId,
+}: {
+  label: string;
+  title: string;
+  onClick: () => void;
+  onMouseEnter?: () => void;
+  onMouseLeave?: () => void;
+  testId?: string;
+}) {
   return (
     <button
       onClick={onClick}
+      onMouseEnter={onMouseEnter}
+      onMouseLeave={onMouseLeave}
       data-testid={testId}
       title={title}
       className="px-2.5 py-1.5 bg-gradient-to-b from-slate-900 to-slate-950 hover:bg-slate-800 border border-amber-500/70 border-b-2 border-b-amber-600 text-amber-300 text-xs font-bold rounded-[2px] transition-all flex items-center gap-1.5 shadow active:translate-y-[1px] active:border-b-[1px]"

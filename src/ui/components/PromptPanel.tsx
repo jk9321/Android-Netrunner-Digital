@@ -7,7 +7,7 @@ import { CardNameText } from './CardNameText';
 import { Credits } from './CreditIcon';
 import { FloatingPanel } from './FloatingPanel';
 import { cardPositionLabel, isInstalledCard } from '../cardLabels';
-import { hoverPromptTarget, selectPromptTargets } from '../promptHighlight';
+import { hoverPromptServer, hoverPromptTarget, selectPromptTargets } from '../promptHighlight';
 
 /** An installed Corp card that is neither rezzed nor faceup: only the Corp may look at it (rules 4.6.3). */
 function isFacedownCorpCard(state: GameState, card: CardInstance): boolean {
@@ -222,16 +222,27 @@ export const PromptPanel: React.FC<PromptPanelProps> = ({ state, onAnswer, onIns
         {prompt.kind === 'effect_choice' && !trashing && (
           <div className="flex gap-2 justify-end flex-wrap">
             {prompt.options.map(option => {
-              // Options that name a card on the table (the host ice for Tranquilizer or Botulus) light it up like a card pick
+              // Options that name a card or server on the table light it up like a pick
               const card = findCardAnywhere(state, option.id);
+              const server = state.corp.servers[option.id];
               const position = card ? cardPositionLabel(state, card) : null;
               return (
                 <button
                   key={option.id}
                   className={`${button} bg-slate-800 hover:bg-slate-700 border-slate-600 text-slate-100`}
-                  onClick={() => answer({ kind: 'effect_choice', optionId: option.id })}
-                  onMouseEnter={card ? () => hoverPromptTarget({ id: option.id, label: position }) : undefined}
-                  onMouseLeave={card ? () => hoverPromptTarget(null) : undefined}
+                  onClick={() => {
+                    hoverPromptTarget(null);
+                    hoverPromptServer(null);
+                    answer({ kind: 'effect_choice', optionId: option.id });
+                  }}
+                  onMouseEnter={() => {
+                    if (card) hoverPromptTarget({ id: option.id, label: position });
+                    else if (server) hoverPromptServer(server.id);
+                  }}
+                  onMouseLeave={() => {
+                    if (card) hoverPromptTarget(null);
+                    else if (server) hoverPromptServer(null);
+                  }}
                 >
                   <CardNameText text={option.label} focusable={false} />
                 </button>

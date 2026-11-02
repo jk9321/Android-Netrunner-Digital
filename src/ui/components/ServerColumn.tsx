@@ -6,6 +6,7 @@ import { CardView } from './CardView';
 import { cardDef } from '../../data/cards';
 import { Database, Crosshair, Zap, ChevronsUp, Bug } from 'lucide-react';
 import { clearHostLink, lightHostLink, useHostLinkLit } from '../hostLinks';
+import { usePromptServerHighlight } from '../promptHighlight';
 import type { IceSubtype } from '../../core/scripts/types';
 import { AgendaDiamondIcon, Credits } from './CreditIcon';
 
@@ -99,6 +100,7 @@ export const ServerColumn: React.FC<ServerColumnProps> = ({
   iceTypes = () => [],
 }) => {
   const canCorpPeek = perspective !== 'runner';
+  const isHighlighted = usePromptServerHighlight(server.id);
   const isRunTarget = run !== null;
   // The ice the Runner is at, and what they're doing there
   const runIceId =
@@ -113,11 +115,14 @@ export const ServerColumn: React.FC<ServerColumnProps> = ({
       onClick={() => onSelectServer && onSelectServer(server.id)}
       data-testid={`server-${server.id}`}
       data-run-target={isRunTarget || undefined}
+      data-server-highlighted={isHighlighted || undefined}
       style={{ minWidth: 'calc(var(--card-h) + 0.75rem)' }}
       className={`relative shrink-0 flex flex-col items-center gap-1 bg-[#070b12]/80 border rounded-[2px] px-1.5 pt-1 pb-1.5 transition-all duration-200 shadow-lg ${
-        isRunTarget
-          ? 'border-cyber-neonPink ring-2 ring-cyber-neonPink/60 bg-pink-950/30 run-target'
-          : 'border-slate-800 hover:border-slate-600'
+        isHighlighted
+          ? 'prompt-server-target'
+          : isRunTarget
+            ? 'border-cyber-neonPink ring-2 ring-cyber-neonPink/60 bg-pink-950/30 run-target'
+            : 'border-slate-800 hover:border-slate-600'
       }`}
     >
       {isRunTarget && (
