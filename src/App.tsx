@@ -384,8 +384,8 @@ function Game({
         {/* RUNNER SECTOR (BOTTOM): the rig is two rows, so it takes what it needs and the Corp gets the rest */}
         <div className="flex-none lg:max-h-[55%] min-h-0 flex flex-col min-w-0">
           <div className="inline-flex items-center gap-1.5 px-2.5 py-0.5 text-[10px] font-bold tracking-widest uppercase rounded-t-[2px] bg-pink-950/80 border border-pink-800/80 border-b-0 text-pink-400 self-start -mb-[1px] z-10 font-mono">
-            <span>// SECTOR 02: RUNNER CYBERDECK RIG</span>
-            {activePlayer === 'runner' && !winner && <span className="text-[9px] text-pink-300 font-semibold">[RIG_LINKED]</span>}
+            <span>// SECTOR 02: NETRUNNER CONSOLE</span>
+            {activePlayer === 'runner' && !winner && <span className="text-[9px] text-pink-300 font-semibold">[CONSOLE_LINKED]</span>}
           </div>
           <section id="runner-board" className={`${activePlayer === 'runner' && !winner ? 'turn-active ' : ''}flex-1 min-h-0 flex flex-col gap-1.5 bg-gradient-to-b from-[#0d141e] to-[#080c13] border border-pink-900/60 rounded-[2px] rounded-tl-none hud-frame hud-runner p-2 shadow-2xl relative w-full min-w-0`}>
           <div className="flex-1 min-h-0 flex flex-col lg:flex-row gap-2 min-w-0">
