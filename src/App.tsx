@@ -171,7 +171,7 @@ function Game({
     if (prevActivePlayer.current !== activePlayer && !winner) {
       prevActivePlayer.current = activePlayer;
       setShiftSide(activePlayer);
-      const timer = setTimeout(() => setShiftSide(null), 320);
+      const timer = setTimeout(() => setShiftSide(null), 540);
       return () => clearTimeout(timer);
     }
   }, [activePlayer, winner]);

@@ -33,7 +33,7 @@ export const SectorRimTrace: React.FC<SectorRimTraceProps> = React.memo(({ side,
     path.setAttribute('d', d);
 
     const totalLen = path.getTotalLength();
-    const pulseLen = Math.min(180, Math.floor(totalLen * 0.35));
+    const pulseLen = Math.min(220, Math.floor(totalLen * 0.38));
 
     path.style.opacity = '1';
     path.style.strokeDasharray = `${pulseLen} ${totalLen * 2}`;
@@ -43,15 +43,15 @@ export const SectorRimTrace: React.FC<SectorRimTraceProps> = React.memo(({ side,
     // Force layout reflow
     void path.getBoundingClientRect();
 
-    const durationMs = 320;
-    path.style.transition = `stroke-dashoffset ${durationMs}ms cubic-bezier(0.16, 1, 0.3, 1), opacity ${durationMs * 0.3}ms linear ${durationMs * 0.7}ms`;
+    const durationMs = 520;
+    path.style.transition = `stroke-dashoffset ${durationMs}ms cubic-bezier(0.16, 1, 0.3, 1), opacity ${durationMs * 0.35}ms linear ${durationMs * 0.65}ms`;
     path.style.strokeDashoffset = `${-totalLen}`;
     path.style.opacity = '0';
 
     const timer = setTimeout(() => {
       path.style.transition = 'none';
       path.style.opacity = '0';
-    }, durationMs + 40);
+    }, durationMs + 50);
 
     return () => clearTimeout(timer);
   }, [isActive, tabRef, chassisRef]);
