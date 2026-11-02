@@ -40,7 +40,7 @@ export function GameHeader({
   const { corp, runner } = state;
 
   return (
-    <header className="h-12 shrink-0 min-w-0 overflow-x-auto border-b border-amber-400/40 bg-slate-950/90 px-3 gap-3 flex items-center justify-between sticky top-0 z-30 shadow-lg">
+    <header className="h-12 shrink-0 min-w-0 overflow-x-auto border-b border-slate-800 bg-gradient-to-b from-[#0d121c] to-[#06090e] px-3 gap-3 flex items-center justify-between sticky top-0 z-30 shadow-xl relative">
       <div className="flex items-center gap-3">
         <button
           onClick={onLeave}
@@ -68,7 +68,7 @@ export function GameHeader({
           {aiSide && (
             <span
               data-testid="ai-status"
-              className={`text-[11px] px-2 py-0.5 rounded border font-bold ${
+              className={`text-[11px] px-2 py-0.5 rounded-[2px] border font-bold ${
                 aiThinking ? 'border-amber-500 text-amber-300 animate-pulse' : 'border-slate-700 text-slate-500'
               }`}
               title={`The computer plays the ${aiSide === 'corp' ? 'Corp' : 'Runner'}`}
@@ -80,25 +80,31 @@ export function GameHeader({
       </div>
 
       {/* Score Board */}
-      <div className="flex items-center gap-3 2xl:gap-6">
-        <div className="flex items-center gap-2">
-          <span className="text-xs font-bold text-cyan-400 hidden 2xl:inline">CORP</span>
-          <div title="Corp agenda points" className="flex items-center whitespace-nowrap bg-cyan-950/60 border border-cyan-800 px-2.5 py-0.5 rounded-full text-xs font-bold text-cyan-300">
-            <AgendaDiamondIcon className="w-3.5 h-3.5 mr-1 text-cyan-400" /> {corp.score} / 7
+      <div className="flex items-center gap-2 2xl:gap-3 bg-[#04070c] border border-slate-800/80 rounded-[2px] p-1 shadow-inner">
+        <div className="flex items-center gap-1.5">
+          <span className="text-[11px] font-bold text-cyan-400 font-cyber tracking-wider hidden 2xl:inline">CORP</span>
+          <div
+            title="Corp agenda points"
+            className="flex items-center whitespace-nowrap h-[26px] bg-gradient-to-b from-cyan-950/90 to-cyan-950/40 border border-cyan-700/80 px-2.5 rounded-[2px] text-xs font-bold text-cyan-300 shadow"
+          >
+            <AgendaDiamondIcon className="w-3.5 h-3.5 mr-1.5 text-cyan-400" /> {corp.score} / 7
           </div>
         </div>
-        <div className="text-slate-600 font-bold text-xs hidden 2xl:block">vs</div>
-        <div className="flex items-center gap-2">
-          <div title="Runner agenda points" className="flex items-center whitespace-nowrap bg-pink-950/60 border border-pink-800 px-2.5 py-0.5 rounded-full text-xs font-bold text-pink-300">
-            <AgendaDiamondIcon className="w-3.5 h-3.5 mr-1 text-pink-400" /> {runner.score} / 7
+        <div className="text-slate-600 font-bold text-[10px] uppercase font-mono px-0.5">vs</div>
+        <div className="flex items-center gap-1.5">
+          <div
+            title="Runner agenda points"
+            className="flex items-center whitespace-nowrap h-[26px] bg-gradient-to-b from-pink-950/90 to-pink-950/40 border border-pink-700/80 px-2.5 rounded-[2px] text-xs font-bold text-pink-300 shadow"
+          >
+            <AgendaDiamondIcon className="w-3.5 h-3.5 mr-1.5 text-pink-400" /> {runner.score} / 7
           </div>
-          <span className="text-xs font-bold text-pink-400 hidden 2xl:inline">RUNNER</span>
+          <span className="text-[11px] font-bold text-pink-400 font-cyber tracking-wider hidden 2xl:inline">RUNNER</span>
         </div>
       </div>
 
       {/* Card Size & Game Controls */}
       <div className="flex items-center gap-2">
-        <div className="flex items-center bg-slate-900 border border-slate-800 rounded-lg p-0.5 text-xs" data-testid="card-size">
+        <div className="flex items-center bg-[#05080e] border border-slate-800 rounded-[2px] p-0.5 text-xs h-[26px]" data-testid="card-size">
           <span className="px-2 text-[11px] text-slate-500 font-bold uppercase hidden 2xl:inline-flex items-center gap-1">
             <ZoomIn className="w-3 h-3" /> Size:
           </span>
@@ -111,7 +117,7 @@ export function GameHeader({
               }}
               aria-pressed={cardSize === size}
               title={size === 'large' ? 'Bigger cards on the board (the page may scroll)' : 'Cards sized to fit one screen'}
-              className={`px-2 py-0.5 rounded text-xs transition-colors ${
+              className={`px-2 py-0.5 rounded-[1px] text-xs transition-colors ${
                 cardSize === size ? `${active} text-white font-bold` : 'text-slate-400 hover:text-white'
               }`}
             >
@@ -124,7 +130,7 @@ export function GameHeader({
           // The game is over, so both sides' cards are shown and there is no view to choose
           <span
             data-testid="view-mode"
-            className="border border-amber-500/60 rounded-lg px-2 py-1 text-xs text-amber-300"
+            className="border border-amber-500/60 rounded-[2px] px-2 py-0.5 text-xs text-amber-300 h-[26px] flex items-center"
             title="The game is over: both hands, decks, discard piles and face-down cards are shown"
           >
             Open table
@@ -135,7 +141,7 @@ export function GameHeader({
             onChange={(e) => onViewMode(e.target.value as ViewMode)}
             aria-label="View"
             data-testid="view-mode"
-            className="bg-slate-900 border border-slate-800 rounded-lg px-2 py-1 text-xs text-slate-300"
+            className="bg-slate-900 border border-slate-800 rounded-[2px] px-2 py-0.5 text-xs text-slate-300 h-[26px]"
             title="Open table also shows the computer's hand"
           >
             <option value={humanSide}>My view ({humanSide === 'corp' ? 'Corp' : 'Runner'})</option>
@@ -147,7 +153,7 @@ export function GameHeader({
             onChange={(e) => onViewMode(e.target.value as ViewMode)}
             aria-label="View"
             data-testid="view-mode"
-            className="bg-slate-900 border border-slate-800 rounded-lg px-2 py-1 text-xs text-slate-300"
+            className="bg-slate-900 border border-slate-800 rounded-[2px] px-2 py-0.5 text-xs text-slate-300 h-[26px]"
             title="Who is looking at the screen"
           >
             <option value="open">Open table</option>
@@ -161,7 +167,7 @@ export function GameHeader({
             setSoundEnabled(!sound);
             setSound(!sound);
           }}
-          className="p-2 bg-slate-900 hover:bg-slate-800 text-slate-400 hover:text-white rounded-lg border border-slate-800 transition-colors"
+          className="p-1.5 bg-gradient-to-b from-slate-900 to-slate-950 hover:bg-slate-800 text-slate-400 hover:text-white rounded-[2px] border border-slate-700/80 border-b-2 border-b-slate-600 active:translate-y-[1px] active:border-b-[1px] transition-all"
           title={sound ? 'Mute sound' : 'Turn sound on'}
           data-testid="sound-toggle"
         >
@@ -170,7 +176,7 @@ export function GameHeader({
         {!state.winner && (
           <button
             onClick={onConcede}
-            className="p-2 bg-pink-950/70 hover:bg-pink-800 text-pink-300 hover:text-white rounded-lg border border-pink-600 hover:border-pink-400 shadow shadow-pink-950 transition-colors"
+            className="p-1.5 bg-gradient-to-b from-pink-950/90 to-pink-950/40 hover:from-pink-900/90 hover:to-pink-900/40 text-pink-300 hover:text-white rounded-[2px] border border-pink-700/80 border-b-2 border-b-pink-500 shadow shadow-pink-950 active:translate-y-[1px] active:border-b-[1px] transition-all"
             title={`Forfeit (the ${concedingSide === 'corp' ? 'Corp' : 'Runner'} concedes)`}
             data-testid="forfeit"
           >
@@ -179,7 +185,7 @@ export function GameHeader({
         )}
         <button
           onClick={onLeave}
-          className="p-2 bg-cyan-950/70 hover:bg-cyan-800 text-cyan-300 hover:text-white rounded-lg border border-cyan-600 hover:border-cyan-400 shadow shadow-cyan-950 transition-colors"
+          className="p-1.5 bg-gradient-to-b from-cyan-950/90 to-cyan-950/40 hover:from-cyan-900/90 hover:to-cyan-900/40 text-cyan-300 hover:text-white rounded-[2px] border border-cyan-700/80 border-b-2 border-b-cyan-500 shadow shadow-cyan-950 active:translate-y-[1px] active:border-b-[1px] transition-all"
           title="Leave game (back to deck select)"
         >
           <LogOut className="w-4 h-4" />

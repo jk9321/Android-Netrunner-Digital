@@ -39,7 +39,7 @@ export const PhaseTracker: React.FC<{ state: GameState }> = ({ state }) => {
 
   return (
     <div
-      className={`flex items-center gap-1 text-[11px] font-mono font-bold uppercase whitespace-nowrap border rounded px-1.5 py-0.5 bg-slate-900 ${
+      className={`flex items-center gap-1 text-[11px] font-mono font-bold uppercase whitespace-nowrap border rounded-[2px] px-1.5 py-0.5 bg-[#05080e] ${
         corp ? 'border-cyan-800' : 'border-pink-800'
       }`}
       data-testid="phase-tracker"
@@ -48,7 +48,7 @@ export const PhaseTracker: React.FC<{ state: GameState }> = ({ state }) => {
       {steps.map(step => (
         <React.Fragment key={step}>
           <span className="text-slate-600">›</span>
-          <span className={`px-1 rounded-sm ${step === current ? lit : 'text-slate-500'}`} aria-current={step === current ? 'step' : undefined}>
+          <span className={`px-1 rounded-[1px] ${step === current ? lit : 'text-slate-500'}`} aria-current={step === current ? 'step' : undefined}>
             {step}
           </span>
         </React.Fragment>

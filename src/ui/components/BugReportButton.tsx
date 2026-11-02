@@ -26,7 +26,7 @@ export function BugReportButton({ screen, game, crash, textFrom = 'always', clas
         data-testid="report-bug"
         title="Report a bug"
         aria-label="Report a bug"
-        className={`shrink-0 inline-flex items-center gap-1.5 px-2 py-1 rounded-lg border border-slate-700 bg-slate-900/80 text-slate-400 hover:text-amber-300 hover:border-amber-500/70 text-[11px] font-bold whitespace-nowrap transition-colors ${className}`}
+        className={`shrink-0 inline-flex items-center gap-1.5 px-2 py-1 rounded-[2px] border border-slate-700/80 border-b-2 border-b-slate-600 bg-gradient-to-b from-slate-900 to-slate-950 text-slate-400 hover:text-amber-300 hover:border-amber-500/70 text-[11px] font-bold whitespace-nowrap transition-all active:translate-y-[1px] active:border-b-[1px] ${className}`}
       >
         <Bug className="w-3.5 h-3.5" />
         <span className={textFrom === 'xl' ? 'hidden xl:inline' : ''}>Report a bug</span>
