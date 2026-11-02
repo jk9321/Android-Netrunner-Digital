@@ -28,7 +28,7 @@ function PlayButton({ side, state, selectedCard, onAction }: ActionBarProps & { 
       onClick={() => onAction(action)}
       disabled={!isLegalAction(state, action)}
       title={implemented ? undefined : 'This card\'s effect is not implemented yet'}
-      className="px-4 py-1.5 bg-amber-500 hover:bg-amber-400 text-black text-xs font-bold rounded-xl transition-all flex items-center gap-1.5 shadow-lg disabled:opacity-40 disabled:animate-none animate-pulse"
+      className="px-4 py-1.5 bg-gradient-to-b from-amber-400 to-amber-600 hover:from-amber-300 hover:to-amber-500 text-black text-xs font-bold rounded-[2px] border border-amber-300 border-b-2 border-b-amber-700 transition-all flex items-center gap-1.5 shadow-lg disabled:opacity-40 disabled:animate-none animate-pulse active:translate-y-[1px] active:border-b-[1px]"
     >
       <Zap className="w-3.5 h-3.5" /> {implemented ? `Play ${cardDef(selectedCard).title}` : 'Effect not implemented yet'}
     </button>
@@ -51,7 +51,7 @@ function InstallOnIceButton({ state, host, onClick }: { state: GameState; host: 
       }}
       onMouseEnter={() => hoverPromptTarget({ id: host.instanceId, label: position })}
       onMouseLeave={() => hoverPromptTarget(null)}
-      className="px-2 py-1 bg-cyber-neonPink hover:bg-pink-600 text-white text-xs font-bold rounded-lg transition-all flex items-center gap-1.5 shadow-lg"
+      className="px-2 py-1.5 bg-gradient-to-b from-pink-600 to-pink-800 hover:from-pink-500 hover:to-pink-700 text-white text-xs font-bold rounded-[2px] border border-pink-400 border-b-2 border-b-pink-300 transition-all flex items-center gap-1.5 shadow-lg active:translate-y-[1px] active:border-b-[1px]"
     >
       <Plus className="w-3.5 h-3.5" /> Install on {host.isRezzed ? cardDef(host).title : 'unrezzed ice'} · {position}
     </button>
@@ -113,7 +113,7 @@ export function CorpActions(props: ActionBarProps) {
             <button
               key={a.cardInstanceId}
               onClick={() => onAction(a)}
-              className="px-2 py-1 bg-red-950 hover:bg-red-900 border border-red-700 text-red-200 text-xs font-bold rounded-lg transition-all flex items-center gap-1.5 shadow"
+              className="px-2 py-1.5 bg-gradient-to-b from-red-950/90 to-red-950/40 hover:from-red-900/90 hover:to-red-900/40 border border-red-700/80 border-b-2 border-b-red-500 text-red-200 text-xs font-bold rounded-[2px] transition-all flex items-center gap-1.5 shadow active:translate-y-[1px] active:border-b-[1px]"
               title="The Runner is tagged: spend a click and 2 credits to trash this resource"
             >
               <Trash2 className="w-3.5 h-3.5" /> Trash {res ? cardDef(res).title : 'resource'} (1<ClickIcon className="w-3 h-3 text-red-400 inline-block align-middle mx-0.5" /> + <Credits amount={2} />)
@@ -132,7 +132,7 @@ export function CorpActions(props: ActionBarProps) {
         disabled={!isLegalAction(state, turnAction)}
         title={startingTurn ? 'Rez assets or upgrades first if you want them working this turn, then take the mandatory draw' : undefined}
         data-testid="end-turn"
-        className={`px-3 py-1.5 bg-cyan-600 hover:bg-cyan-500 text-white font-mono text-xs font-bold rounded-lg border border-cyan-400 transition-all shadow-lg shadow-cyan-950 flex items-center gap-1.5 self-end disabled:opacity-40 ${
+        className={`px-3 py-1.5 bg-gradient-to-b from-cyan-600 to-cyan-800 hover:from-cyan-500 hover:to-cyan-700 text-white font-mono text-xs font-bold rounded-[2px] border border-cyan-400 border-b-2 border-b-cyan-300 transition-all shadow-lg shadow-cyan-950 flex items-center gap-1.5 self-end disabled:opacity-40 active:translate-y-[1px] active:border-b-[1px] ${
           !startingTurn && corp.clicks === 0 ? 'end-turn-pulse end-turn-corp' : ''
         }`}
       >
@@ -205,7 +205,7 @@ export function RunnerActions(props: ActionBarProps) {
             setPickingHost(null);
             setPendingTrash(null);
           }}
-          className="px-2 py-1 bg-pink-950 hover:bg-pink-900 border border-pink-700 text-pink-200 text-xs font-bold rounded-lg transition-all self-end shadow"
+          className="px-2 py-1.5 bg-gradient-to-b from-pink-950/90 to-pink-950/40 hover:from-pink-900/90 hover:to-pink-900/40 border border-pink-700/80 border-b-2 border-b-pink-500 text-pink-200 text-xs font-bold rounded-[2px] transition-all self-end shadow active:translate-y-[1px] active:border-b-[1px]"
         >
           Cancel
         </button>
@@ -214,7 +214,7 @@ export function RunnerActions(props: ActionBarProps) {
   }
   if (installable && makingRoom === installable.instanceId) {
     return (
-      <div className="flex flex-col gap-2 p-2 bg-pink-950/40 border border-pink-800/80 rounded-[4px] shadow-inner">
+      <div className="flex flex-col gap-2 p-2 bg-gradient-to-b from-[#180a10] to-[#0d0407] border border-pink-900/60 rounded-[2px] shadow-inner">
         <TrashFirstPicker
           key={installable.instanceId}
           heading={`Install ${cardDef(installable).title}, trashing first:`}
@@ -236,7 +236,7 @@ export function RunnerActions(props: ActionBarProps) {
     );
   }
   return (
-    <div className="flex flex-col gap-2 p-2 bg-pink-950/40 border border-pink-800/80 rounded-[4px] shadow-inner">
+    <div className="flex flex-col gap-2 p-2 bg-gradient-to-b from-[#180a10] to-[#0d0407] border border-pink-900/60 rounded-[2px] shadow-inner">
       <div className="flex items-center gap-1.5 flex-wrap">
         <span className="text-xs font-bold text-pink-400 font-mono uppercase w-full">Runner Actions ({runner.clicks} Clicks):</span>
         {/* Basic click actions sit in an equal 2-column row */}
@@ -271,7 +271,7 @@ export function RunnerActions(props: ActionBarProps) {
             onClick={() => setPickingHost(installable.instanceId)}
             disabled={!getLegalActions(state, 'runner').some(a => a.type === 'INSTALL_CARD' && a.cardInstanceId === installable.instanceId)}
             title={installBlocked ?? 'Choose the ice to install it on'}
-            className="px-2 py-1 bg-cyber-neonPink hover:bg-pink-600 text-white text-xs font-bold rounded-lg transition-all flex items-center gap-1.5 shadow-lg animate-pulse disabled:opacity-40 disabled:animate-none"
+            className="px-2 py-1.5 bg-gradient-to-b from-pink-600 to-pink-800 hover:from-pink-500 hover:to-pink-700 text-white text-xs font-bold rounded-[2px] border border-pink-400 border-b-2 border-b-pink-300 transition-all flex items-center gap-1.5 shadow-lg animate-pulse disabled:opacity-40 disabled:animate-none active:translate-y-[1px] active:border-b-[1px]"
           >
             <Plus className="w-3.5 h-3.5" /> Install {cardDef(installable).title}
           </button>
@@ -281,7 +281,7 @@ export function RunnerActions(props: ActionBarProps) {
             onClick={() => onAction({ type: 'INSTALL_CARD', player: 'runner', cardInstanceId: installable.instanceId })}
             disabled={installBlocked !== null}
             title={installBlocked ?? undefined}
-            className="px-2 py-1 bg-cyber-neonPink hover:bg-pink-600 text-white text-xs font-bold rounded-lg transition-all flex items-center gap-1.5 shadow-lg animate-pulse disabled:opacity-40 disabled:animate-none"
+            className="px-2 py-1.5 bg-gradient-to-b from-pink-600 to-pink-800 hover:from-pink-500 hover:to-pink-700 text-white text-xs font-bold rounded-[2px] border border-pink-400 border-b-2 border-b-pink-300 transition-all flex items-center gap-1.5 shadow-lg animate-pulse disabled:opacity-40 disabled:animate-none active:translate-y-[1px] active:border-b-[1px]"
           >
             <Plus className="w-3.5 h-3.5" /> Install Card
           </button>
@@ -312,7 +312,7 @@ export function RunnerActions(props: ActionBarProps) {
               key={`${a.type}-${a.cardInstanceId}`}
               onClick={() => (onIceHosted ? setPickingHost(a.cardInstanceId) : onAction(a))}
               data-testid={`hosted-${a.cardInstanceId}`}
-              className="px-2 py-1 bg-pink-900 hover:bg-pink-800 border border-pink-500 text-white text-xs font-bold rounded-lg transition-all flex items-center gap-1.5 shadow"
+              className="px-2 py-1.5 bg-gradient-to-b from-pink-900/90 to-pink-900/40 hover:from-pink-800/90 hover:to-pink-800/40 border border-pink-600/80 border-b-2 border-b-pink-400 text-white text-xs font-bold rounded-[2px] transition-all flex items-center gap-1.5 shadow active:translate-y-[1px] active:border-b-[1px]"
               title={onIceHosted ? 'This card is hosted faceup on your hardware; choose the ice to install it on' : 'This card is hosted faceup on your hardware'}
             >
               {a.type === 'INSTALL_CARD' ? <Plus className="w-3.5 h-3.5" /> : <Zap className="w-3.5 h-3.5" />}
@@ -327,7 +327,7 @@ export function RunnerActions(props: ActionBarProps) {
         onClick={() => onAction({ type: 'END_TURN', player: 'runner' })}
         disabled={!isLegalAction(state, { type: 'END_TURN', player: 'runner' })}
         data-testid="end-turn"
-        className={`px-3 py-1.5 bg-cyber-neonPink hover:bg-pink-600 text-white font-mono text-xs font-bold rounded-lg border border-pink-400 transition-all shadow-lg shadow-pink-950 flex items-center gap-1.5 self-end disabled:opacity-40 ${
+        className={`px-3 py-1.5 bg-gradient-to-b from-pink-600 to-pink-800 hover:from-pink-500 hover:to-pink-700 text-white font-mono text-xs font-bold rounded-[2px] border border-pink-400 border-b-2 border-b-pink-300 transition-all shadow-lg shadow-pink-950 flex items-center gap-1.5 self-end disabled:opacity-40 active:translate-y-[1px] active:border-b-[1px] ${
           runner.clicks === 0 ? 'end-turn-pulse end-turn-runner' : ''
         }`}
       >

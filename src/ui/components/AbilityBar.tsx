@@ -41,8 +41,8 @@ export const AbilityBar: React.FC<AbilityBarProps> = ({ state, side, onAction })
   }
   const accent =
     side === 'corp'
-      ? 'bg-cyan-950 hover:bg-cyan-900 border-cyan-700 text-cyan-200'
-      : 'bg-pink-950 hover:bg-pink-900 border-pink-700 text-pink-200';
+      ? 'bg-gradient-to-b from-cyan-950/90 to-cyan-950/40 hover:from-cyan-900/90 hover:to-cyan-900/40 border border-cyan-700/80 border-b-2 border-b-cyan-500 text-cyan-200 active:translate-y-[1px] active:border-b-[1px]'
+      : 'bg-gradient-to-b from-pink-950/90 to-pink-950/40 hover:from-pink-900/90 hover:to-pink-900/40 border border-pink-700/80 border-b-2 border-b-pink-500 text-pink-200 active:translate-y-[1px] active:border-b-[1px]';
 
   return (
     <div className="flex items-center gap-1.5 flex-wrap" data-testid={`ability-bar-${side}`}>
@@ -79,7 +79,7 @@ export const AbilityBar: React.FC<AbilityBarProps> = ({ state, side, onAction })
             }}
             onMouseEnter={() => hoverPromptTarget({ id: card.instanceId, label: hoverLabel })}
             onMouseLeave={() => hoverPromptTarget(null)}
-            className={`px-2 py-1 border text-[12px] text-left font-bold rounded-lg transition-all flex items-center gap-1.5 shadow ${accent}`}
+            className={`px-2 py-1 text-[12px] text-left font-bold rounded-[2px] transition-all flex items-center gap-1.5 shadow ${accent}`}
             title={ability.label.replace(/\[click\]/g, 'click').replace(/\[credit\]/g, 'credit')}
           >
             <Sparkles className="w-3.5 h-3.5 text-amber-300" />
