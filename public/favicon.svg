@@ -1,4 +1,9 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32">
-  <path d="M5 1h22l4 4v22l-4 4H5l-4-4V5z" fill="#05070c" stroke="#ff0055" stroke-width="2"/>
-  <path d="M9 24V8h3l8 11V8h3v16h-3l-8-11v11z" fill="#00f0ff"/>
+  <rect width="32" height="32" rx="6" fill="#07090e" stroke="#1e293b" stroke-width="1.5"/>
+  <!-- S: Stack (Corp Cyan) -->
+  <path d="M12 9 H7 V15 H12 V23 H7" fill="none" stroke="#00f0ff" stroke-width="2.6" stroke-linecap="square" stroke-linejoin="miter"/>
+  <!-- Slash: Credit Amber divider -->
+  <line x1="17.5" y1="8" x2="14.5" y2="24" stroke="#fbbf24" stroke-width="1.8" stroke-linecap="round"/>
+  <!-- H: Heap (Runner Pink) -->
+  <path d="M20 9 V23 M20 16 H25 M25 9 V23" fill="none" stroke="#ff0055" stroke-width="2.6" stroke-linecap="square" stroke-linejoin="miter"/>
 </svg>
