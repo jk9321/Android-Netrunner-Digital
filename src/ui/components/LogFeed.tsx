@@ -1,4 +1,4 @@
-import React, { useEffect, useRef } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { LogEntry } from '../../core/types/state';
 import { CardNameText } from './CardNameText';
 import { Viewer } from '../viewer';
@@ -18,9 +18,9 @@ interface LogFeedProps {
  */
 export const LogFeed: React.FC<LogFeedProps> = React.memo(({ logs, viewer, className = 'h-48' }) => {
   const listRef = useRef<HTMLDivElement>(null);
+  const initialMountCount = useRef(logs.length);
 
   // Keep the newest entry in view by scrolling the log box itself.
-  // (scrollIntoView would also scroll the whole page down to the log.)
   useEffect(() => {
     const list = listRef.current;
     if (list) list.scrollTo({ top: list.scrollHeight, behavior: 'smooth' });
@@ -42,26 +42,55 @@ export const LogFeed: React.FC<LogFeedProps> = React.memo(({ logs, viewer, class
         <span className="ml-auto text-[10px] text-slate-500 font-mono tracking-wider uppercase">PORT:443 // {logs.length} EVT</span>
       </div>
       <div ref={listRef} className="flex-1 overflow-y-auto p-2.5 space-y-1.5 z-10">
-        {logs.map(log => {
+        {logs.map((log, index) => {
           const message = log.secret?.from === viewer ? log.secret.publicMessage : log.message;
-          return message ? <LogLine key={log.id} player={log.player} message={message} /> : null;
+          const isNew = index >= initialMountCount.current;
+          return message ? <LogLine key={log.id} player={log.player} message={message} animate={isNew} /> : null;
         })}
-        <div className="text-[10px] text-slate-500 pt-1 border-t border-slate-800/60 flex items-center justify-between" aria-hidden="true">
-          <span>&gt; AWAITING INPUT...</span>
-          <span className="text-[9px] text-emerald-500/80 font-semibold">[STREAM_ACTIVE]</span>
-        </div>
       </div>
     </div>
   );
 });
 
-const LogLine = React.memo(({ player, message }: { player: LogEntry['player']; message: string }) => {
+interface LogLineProps {
+  player: LogEntry['player'];
+  message: string;
+  animate?: boolean;
+}
+
+const LogLine = React.memo(({ player, message, animate = false }: LogLineProps) => {
+  const shouldAnimate = animate && typeof window !== 'undefined' && !window.matchMedia?.('(prefers-reduced-motion: reduce)')?.matches;
+  const [displayedLength, setDisplayedLength] = useState(() => (shouldAnimate ? 0 : message.length));
+
+  useEffect(() => {
+    if (!shouldAnimate || displayedLength >= message.length) return;
+    const totalLen = message.length;
+    const stepMs = Math.max(4, Math.floor(120 / totalLen));
+    const timer = setInterval(() => {
+      setDisplayedLength(prev => {
+        if (prev + 1 >= totalLen) {
+          clearInterval(timer);
+          return totalLen;
+        }
+        return prev + 1;
+      });
+    }, stepMs);
+    return () => clearInterval(timer);
+  }, [shouldAnimate, message.length]);
+
+  const isTyping = shouldAnimate && displayedLength < message.length;
+  const currentText = isTyping ? message.slice(0, displayedLength) : message;
+
   const colorClass = player === 'corp' ? 'text-cyan-400 border-cyan-800/60 bg-cyan-950/40' : player === 'runner' ? 'text-pink-400 border-pink-800/60 bg-pink-950/40' : 'text-amber-400 border-amber-800/60 bg-amber-950/40';
+
   return (
     <div className="leading-snug flex items-start gap-1.5 text-[11.5px] text-slate-300">
       <span className={`uppercase font-bold text-[10px] px-1 py-0.5 rounded-[2px] border ${colorClass}`}>{player}</span>
       <span className="flex-1">
-        <CardNameText text={message} nameClassName="text-slate-100 font-medium underline decoration-slate-600/50 underline-offset-2" />
+        <CardNameText text={currentText} nameClassName="text-slate-100 font-medium underline decoration-slate-600/50 underline-offset-2" />
+        {isTyping && (
+          <span className="inline-block w-[6px] h-[11px] bg-cyan-400 ml-0.5 align-middle animate-pulse" aria-hidden="true" />
+        )}
       </span>
     </div>
   );
