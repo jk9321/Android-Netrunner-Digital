@@ -102,7 +102,7 @@ const CardFace: React.FC<CardViewProps> = ({
         onClick={isSelectable ? onClick : undefined}
         onMouseEnter={handleMouseEnter}
         onMouseLeave={handleMouseLeave}
-        className={`relative ${sizeClasses} [container-type:inline-size] rounded-xl border-2 transition-all duration-200 select-none flex flex-col items-center justify-center p-2 shadow-lg ${
+        className={`relative ${sizeClasses} [container-type:inline-size] rounded-[3px] border-2 transition-all duration-200 select-none flex flex-col items-center justify-center p-2 shadow-lg ${
           isSelected
             ? 'border-cyber-neonCyan ring-2 ring-cyber-neonCyan scale-105'
             : 'border-slate-800 bg-gradient-to-b from-slate-900 to-black hover:border-slate-600'
@@ -111,14 +111,14 @@ const CardFace: React.FC<CardViewProps> = ({
         <img
           src={getCardBackUrl(def.side_code || 'corp')}
           alt="Secured card back"
-          className="w-full h-full object-cover rounded-lg shadow-inner"
+          className="w-full h-full object-cover rounded-[2px] shadow-inner"
           onError={(e) => {
             (e.currentTarget as HTMLElement).style.display = 'none';
           }}
         />
 
         {/* Fallback circuit badge if image is hidden */}
-        <div className="absolute inset-1.5 rounded-lg border border-dashed border-slate-800/80 flex flex-col items-center justify-center opacity-70 pointer-events-none -z-0">
+        <div className="absolute inset-1.5 rounded-[2px] border border-dashed border-slate-800/80 flex flex-col items-center justify-center opacity-70 pointer-events-none -z-0">
           <Lock className="w-6 h-6 text-slate-500 mb-1" />
           <span className="text-[11px] uppercase tracking-widest text-slate-500 font-mono font-bold">
             SECURED
@@ -157,7 +157,7 @@ const CardFace: React.FC<CardViewProps> = ({
       }}
       onMouseEnter={handleMouseEnter}
       onMouseLeave={handleMouseLeave}
-      className={`relative ${sizeClasses} [container-type:inline-size] rounded-xl border-2 transition-all duration-200 select-none overflow-hidden group shadow-md ${
+      className={`relative ${sizeClasses} [container-type:inline-size] rounded-[3px] border-2 transition-all duration-200 select-none overflow-hidden group shadow-md ${
         isSelected
           ? 'border-cyber-neonCyan ring-4 ring-cyber-neonCyan/50 scale-105 z-20 shadow-cyan-500/30'
           : isUnrezzed
@@ -172,7 +172,7 @@ const CardFace: React.FC<CardViewProps> = ({
         <img
           src={imageUrl}
           alt={def.title}
-          className={`w-full h-full object-cover object-center rounded-lg transition-opacity duration-200 ${
+          className={`w-full h-full object-cover object-center rounded-[2px] transition-opacity duration-200 ${
             seen ? 'opacity-60 grayscale-[50%]' : isUnrezzed ? 'opacity-85 brightness-95' : 'opacity-100'
           }`}
           loading="lazy"
@@ -188,7 +188,7 @@ const CardFace: React.FC<CardViewProps> = ({
       )}
 
       {/* Remembered, not visible: a card-back tint over the faded art */}
-      {seen && <div data-testid="seen-veil" className="seen-veil absolute inset-0 rounded-lg pointer-events-none" />}
+      {seen && <div data-testid="seen-veil" className="seen-veil absolute inset-0 rounded-[2px] pointer-events-none" />}
 
       <CardOverlays
         card={card}
@@ -340,7 +340,7 @@ export const CardView: React.FC<CardViewProps> = props => {
     <motion.div
       key={face}
       ref={ref}
-      className={`shrink-0 rounded-xl ${markClass}`}
+      className={`shrink-0 rounded-[3px] ${markClass}`}
       initial={{ rotateY: 90, opacity: 0.3 }}
       animate={{ rotateY: 0, opacity: 1 }}
       transition={{ duration: 0.28, ease: 'easeOut' }}

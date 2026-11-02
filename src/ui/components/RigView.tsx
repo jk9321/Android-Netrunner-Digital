@@ -37,7 +37,7 @@ const RigCard: React.FC<{
     ? { onMouseEnter: () => lightHostLink(link), onMouseLeave: clearHostLink }
     : {};
   const face = (
-    <div className={`relative rounded-xl ${lit ? 'host-link-lit' : ''}`} {...linkProps} data-testid={card.hostedOnId ? `on-host-${card.instanceId}` : undefined}>
+    <div className={`relative rounded-[2px] ${lit ? 'host-link-lit' : ''}`} {...linkProps} data-testid={card.hostedOnId ? `on-host-${card.instanceId}` : undefined}>
       <CardView
         card={card}
         size="fit"
@@ -88,7 +88,7 @@ const Row: React.FC<{
         {label} ({cards.length})
       </span>
     </div>
-    <div className="flex gap-1.5 p-1 bg-black/40 rounded-xl border border-slate-800/80 overflow-x-auto items-center" style={{ minHeight: 'calc(var(--card-h) + 0.5rem)' }}>
+    <div className="flex gap-1.5 p-1 bg-black/40 rounded-[2px] border border-slate-800/80 overflow-x-auto items-center" style={{ minHeight: 'calc(var(--card-h) + 0.5rem)' }}>
       {cards.length === 0 ? (
         <span className="text-[11px] text-slate-600 italic m-auto">None</span>
       ) : (

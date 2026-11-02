@@ -44,7 +44,7 @@ export class ErrorBoundary extends React.Component<{ children: React.ReactNode }
     }
     return (
       <div className="min-h-screen flex items-center justify-center p-6 font-mono text-slate-100" data-testid="crash-screen">
-        <div className="max-w-md w-full bg-slate-950/95 border-2 border-red-700 chamfer p-5 shadow-2xl space-y-3">
+        <div className="max-w-md w-full bg-[#090d15] border border-red-700/80 rounded-[2px] p-5 shadow-2xl space-y-3">
           <h1 className="font-cyber font-black text-red-400 tracking-wider">SYSTEM FAILURE</h1>
           <p className="text-sm text-slate-300">
             Something went wrong and the game can't be shown. Starting over clears the saved game and goes back to deck
@@ -60,13 +60,13 @@ export class ErrorBoundary extends React.Component<{ children: React.ReactNode }
             />
             <button
               onClick={() => window.location.reload()}
-              className="px-3 py-1.5 bg-slate-800 hover:bg-slate-700 text-slate-100 text-xs font-bold rounded-lg"
+              className="px-3 py-1.5 bg-slate-800 hover:bg-slate-700 text-slate-100 text-xs font-bold rounded-[2px] border border-slate-700 border-b-2 border-b-slate-600 active:translate-y-[1px] active:border-b-[1px]"
             >
               Reload
             </button>
             <button
               onClick={this.startOver}
-              className="px-3 py-1.5 bg-amber-500 hover:bg-amber-400 text-black text-xs font-bold rounded-lg"
+              className="px-3 py-1.5 bg-gradient-to-b from-amber-400 to-amber-500 hover:from-amber-300 hover:to-amber-400 text-black text-xs font-bold rounded-[2px] border-b-2 border-amber-700 active:translate-y-[1px] active:border-b-[1px]"
             >
               Start over
             </button>

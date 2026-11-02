@@ -45,8 +45,8 @@ export const TurnBanner: React.FC<TurnBannerProps> = ({ activePlayer, humanSide 
           aria-live="polite"
         >
           <div
-            className={`px-10 py-3 chamfer border-y-2 bg-slate-950/85 font-cyber font-black tracking-[0.35em] text-2xl ${
-              isCorp ? 'border-cyan-400 text-cyan-300 glow-cyan' : 'border-pink-500 text-pink-400 glow-pink'
+            className={`px-10 py-3 rounded-[2px] border-y-2 border-x border-slate-800 bg-[#090d15]/95 shadow-2xl backdrop-blur-md font-cyber font-black tracking-[0.35em] text-2xl ${
+              isCorp ? 'border-cyan-400 text-cyan-300' : 'border-pink-500 text-pink-400'
             }`}
           >
             YOUR TURN

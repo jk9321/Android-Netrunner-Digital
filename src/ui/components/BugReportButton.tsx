@@ -84,7 +84,7 @@ function BugReportForm({
         role="dialog"
         aria-modal="true"
         aria-labelledby="bug-report-title"
-        className="w-full max-w-md bg-slate-950 border-2 border-amber-400 chamfer hud-frame hud-signal shadow-2xl font-mono text-slate-100"
+        className="w-full max-w-md bg-[#090d15] border border-amber-400/80 rounded-[2px] shadow-2xl font-mono text-slate-100"
       >
         <div className="flex items-center gap-2 px-4 py-2 border-b border-slate-800 bg-slate-900/80 text-amber-300">
           <Bug className="w-4 h-4 shrink-0" />
@@ -106,7 +106,7 @@ function BugReportForm({
                 type="button"
                 onClick={onClose}
                 autoFocus
-                className="px-4 py-2 text-xs font-bold border border-amber-400 bg-amber-500 hover:bg-amber-400 text-black"
+                className="px-4 py-2 text-xs font-bold rounded-[2px] border-b-2 border-amber-700 bg-amber-500 hover:bg-amber-400 text-black active:translate-y-[1px] active:border-b-[1px]"
               >
                 Close
               </button>
@@ -126,7 +126,7 @@ function BugReportForm({
               rows={5}
               disabled={sending}
               data-testid="bug-report-text"
-              className="w-full bg-slate-900 border border-slate-700 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-amber-400 resize-y"
+              className="w-full bg-[#080d15] border border-slate-700 rounded-[2px] px-3 py-2 text-sm focus:outline-none focus:border-amber-400 resize-y"
             />
             <div className="flex justify-between text-[11px] text-slate-500">
               <span>{tooShort && length > 0 ? `At least ${MIN_DESCRIPTION} characters` : ''}</span>
@@ -161,7 +161,7 @@ function BugReportForm({
                 type="button"
                 onClick={onClose}
                 disabled={sending}
-                className="px-4 py-2 text-xs font-bold border bg-slate-800 hover:bg-slate-700 border-slate-600 text-slate-200"
+                className="px-4 py-2 text-xs font-bold rounded-[2px] border border-slate-700 border-b-2 border-b-slate-600 bg-slate-800 hover:bg-slate-700 text-slate-200 active:translate-y-[1px] active:border-b-[1px]"
               >
                 Cancel
               </button>
@@ -169,7 +169,7 @@ function BugReportForm({
                 type="submit"
                 disabled={tooShort || sending}
                 data-testid="bug-report-send"
-                className="px-4 py-2 text-xs font-bold border border-amber-400 bg-amber-500 hover:bg-amber-400 text-black disabled:opacity-40 disabled:cursor-not-allowed flex items-center gap-1.5"
+                className="px-4 py-2 text-xs font-bold rounded-[2px] border-b-2 border-amber-700 bg-gradient-to-b from-amber-400 to-amber-500 hover:from-amber-300 hover:to-amber-400 text-black disabled:opacity-40 disabled:cursor-not-allowed flex items-center gap-1.5 active:translate-y-[1px] active:border-b-[1px]"
               >
                 <Send className="w-3.5 h-3.5" /> {sending ? 'Sending…' : 'Send report'}
               </button>

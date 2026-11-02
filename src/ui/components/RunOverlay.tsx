@@ -88,7 +88,7 @@ export const RunOverlay: React.FC<RunOverlayProps> = ({
               RUN IN PROGRESS // {server?.name?.toUpperCase()}
             </h3>
           </div>
-          <span className="text-xs font-mono bg-pink-950 text-pink-300 px-2.5 py-1 rounded-lg border border-pink-700 font-bold shrink-0">
+          <span className="text-xs font-mono bg-pink-950 text-pink-300 px-2.5 py-1 rounded-[2px] border border-pink-700/80 font-bold shrink-0">
             PHASE: <Keyword id={PHASE_KEYWORD[activeRun.phase] ?? 'run'}>{activeRun.phase.toUpperCase()}</Keyword>
           </span>
         </div>
@@ -97,7 +97,7 @@ export const RunOverlay: React.FC<RunOverlayProps> = ({
 
         <div className="flex items-center gap-5 my-2">
           {currentIce ? (
-            <div className="flex items-center gap-4 bg-black/60 p-3 rounded-2xl border border-slate-800 flex-1">
+            <div className="flex items-center gap-4 bg-[#080d14] p-3 rounded-[2px] border border-slate-800 flex-1">
               <CardView
                 card={currentIce}
                 isFaceDown={!currentIce.isRezzed && !currentIce.faceUp}
@@ -134,7 +134,7 @@ export const RunOverlay: React.FC<RunOverlayProps> = ({
               </div>
             </div>
           ) : (
-            <div className="flex items-center gap-3 text-sm font-mono text-emerald-400 bg-emerald-950/40 border border-emerald-800 p-4 rounded-2xl flex-1">
+            <div className="flex items-center gap-3 text-sm font-mono text-emerald-400 bg-emerald-950/40 border border-emerald-800 p-4 rounded-[2px] flex-1">
               <CheckCircle2 className="w-6 h-6 text-emerald-400 shrink-0" />
               <span>
                 {activeRun.phase === 'movement'
@@ -152,7 +152,7 @@ export const RunOverlay: React.FC<RunOverlayProps> = ({
                   key={card.instanceId}
                   onClick={() => onRez(card)}
                   data-testid={`rez-${card.instanceId}`}
-                  className="px-5 py-2 bg-cyan-700 hover:bg-cyan-600 text-white font-mono text-xs font-bold rounded-xl border border-cyan-400 flex items-center justify-center gap-1.5 transition-colors"
+                  className="px-5 py-2 bg-cyan-700 hover:bg-cyan-600 text-white font-mono text-xs font-bold rounded-[2px] border border-cyan-400 border-b-2 border-b-cyan-500 active:translate-y-[1px] active:border-b-[1px] flex items-center justify-center gap-1.5 transition-all"
                   title="Corp rez window: rez this card before the Runner continues"
                 >
                   <ShieldAlert className="w-4 h-4" /> Rez {cardDef(card).title} (<Credits amount={rezCostOf(state, card)} />)
@@ -168,7 +168,7 @@ export const RunOverlay: React.FC<RunOverlayProps> = ({
                     key={`${action.cardInstanceId}-${action.abilityIndex}`}
                     onClick={() => onAction(action)}
                     data-testid={`run-ability-${action.cardInstanceId}`}
-                    className="px-5 py-2 bg-cyan-900 hover:bg-cyan-800 text-white font-mono text-xs font-bold rounded-xl border border-cyan-500 flex items-center justify-center gap-1.5 transition-colors max-w-[16rem]"
+                    className="px-5 py-2 bg-cyan-900 hover:bg-cyan-800 text-white font-mono text-xs font-bold rounded-[2px] border border-cyan-500 border-b-2 border-b-cyan-600 active:translate-y-[1px] active:border-b-[1px] flex items-center justify-center gap-1.5 transition-all max-w-[16rem]"
                     title={ability.label}
                   >
                     <Sparkles className="w-4 h-4 text-amber-300 shrink-0" /> {cardDef(source).title}
@@ -179,7 +179,7 @@ export const RunOverlay: React.FC<RunOverlayProps> = ({
               <button
                 onClick={onDoneRezzing}
                 data-testid="done-rezzing"
-                className="px-5 py-2 bg-slate-800 hover:bg-slate-700 text-slate-200 font-mono text-xs font-bold rounded-xl border border-slate-600 flex items-center justify-center gap-1.5 transition-colors"
+                className="px-5 py-2 bg-slate-800 hover:bg-slate-700 text-slate-200 font-mono text-xs font-bold rounded-[2px] border border-slate-600 border-b-2 border-b-slate-500 active:translate-y-[1px] active:border-b-[1px] flex items-center justify-center gap-1.5 transition-all"
               >
                 {rezCards.length > 0 ? "Don't rez" : rezAbilities.length > 0 ? 'Let them in' : 'Done'} <ArrowRight className="w-4 h-4" />
               </button>
@@ -188,7 +188,7 @@ export const RunOverlay: React.FC<RunOverlayProps> = ({
             <>
             <button
               onClick={onContinueRun}
-              className="px-5 py-2.5 bg-cyber-neonPink hover:bg-pink-600 text-white font-mono text-xs font-bold rounded-xl shadow-lg flex items-center justify-center gap-1.5 transition-all hover:scale-105"
+              className="px-5 py-2.5 bg-gradient-to-b from-pink-600 to-pink-700 hover:from-pink-500 hover:to-pink-600 text-white font-mono text-xs font-bold rounded-[2px] border-b-2 border-b-pink-400 active:translate-y-[1px] active:border-b-[1px] shadow-lg flex items-center justify-center gap-1.5 transition-all"
             >
               {continueLabel} <ArrowRight className="w-4 h-4" />
             </button>
@@ -196,7 +196,7 @@ export const RunOverlay: React.FC<RunOverlayProps> = ({
               onClick={onJackOut}
               disabled={!canJackOut}
               title={canJackOut ? 'End the run now' : 'You can jack out only after passing a piece of ice (or before approaching a server with no ice)'}
-              className="px-5 py-2 bg-slate-800 hover:bg-slate-700 text-slate-200 font-mono text-xs font-semibold rounded-xl border border-slate-700 flex items-center justify-center gap-1.5 transition-colors disabled:opacity-40 disabled:hover:bg-slate-800"
+              className="px-5 py-2 bg-slate-800 hover:bg-slate-700 text-slate-200 font-mono text-xs font-semibold rounded-[2px] border border-slate-700 border-b-2 border-b-slate-600 active:translate-y-[1px] active:border-b-[1px] flex items-center justify-center gap-1.5 transition-all disabled:opacity-40 disabled:hover:bg-slate-800"
             >
               <LogOut className="w-4 h-4" /> Jack Out
             </button>

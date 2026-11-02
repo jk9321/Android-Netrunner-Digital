@@ -78,18 +78,18 @@ export const CardPopout: React.FC<CardPopoutProps> = ({
         width: `${popoutWidth}px`,
         maxHeight: '90vh',
       }}
-      className={`pointer-events-none rounded-2xl p-4 font-mono shadow-2xl backdrop-blur-xl border-2 transition-opacity duration-150 animate-in fade-in zoom-in-95 overflow-y-auto ${
+      className={`pointer-events-none rounded-[2px] p-4 font-mono shadow-2xl backdrop-blur-xl border transition-opacity duration-150 animate-in fade-in zoom-in-95 overflow-y-auto ${
         isHiddenSecured
-          ? 'bg-slate-950/95 border-slate-700 shadow-slate-900/80 text-slate-300'
+          ? 'bg-[#090d15]/95 border-slate-700 shadow-slate-900/80 text-slate-300'
           : isCorp
-          ? 'bg-cyan-950/95 border-cyan-500 shadow-[0_0_30px_rgb(var(--corp-400)/0.25)] text-slate-100'
-          : 'bg-pink-950/95 border-pink-500 shadow-[0_0_30px_rgb(var(--runner-500)/0.25)] text-slate-100'
+          ? 'bg-[#070d18]/95 border-cyan-600/80 shadow-[0_0_30px_rgb(var(--corp-400)/0.25)] text-slate-100'
+          : 'bg-[#140810]/95 border-pink-600/80 shadow-[0_0_30px_rgb(var(--runner-500)/0.25)] text-slate-100'
       }`}
     >
       {/* Hidden Corp Card View for Runner */}
       {isHiddenSecured ? (
         <div className="flex flex-col items-center justify-center py-8 text-center">
-          <div className="w-14 h-14 rounded-2xl bg-slate-900 border border-slate-700 flex items-center justify-center mb-3 text-cyan-400">
+          <div className="w-14 h-14 rounded-[2px] bg-[#0c121d] border border-slate-700 flex items-center justify-center mb-3 text-cyan-400">
             <Lock className="w-7 h-7" />
           </div>
           <h4 className={`font-bold text-sm tracking-wider uppercase mb-1 ${def.side_code === 'runner' ? 'text-pink-400' : 'text-cyan-400'}`}>
@@ -101,7 +101,7 @@ export const CardPopout: React.FC<CardPopoutProps> = ({
               : 'Hidden from the Runner until it is rezzed or accessed.'}
           </p>
           {card.advancementCounters > 0 && (
-            <div className="mt-3 px-3 py-1 bg-amber-500/20 border border-amber-500/40 rounded-full text-amber-300 text-xs font-bold inline-flex items-center gap-1.5">
+            <div className="mt-3 px-3 py-1 bg-amber-500/20 border border-amber-500/40 rounded-[2px] text-amber-300 text-xs font-bold inline-flex items-center gap-1.5">
               <AdvancementIcon className="w-3.5 h-3.5" />
               <span>{card.advancementCounters} Advancement Counter{card.advancementCounters > 1 ? 's' : ''}</span>
             </div>
@@ -114,10 +114,10 @@ export const CardPopout: React.FC<CardPopoutProps> = ({
             <img
               src={getCardImageUrl(card.cardCode)}
               alt={def.title}
-              className="w-full h-auto aspect-[63/88] rounded-xl border border-slate-800 shadow-inner bg-black/60"
+              className="w-full h-auto aspect-[63/88] rounded-[2px] border border-slate-800 shadow-inner bg-black/60"
             />
             {card.advancementCounters > 0 && (
-              <div className="absolute top-2 right-2 bg-amber-400 text-black font-black text-xs px-2 py-0.5 rounded-full shadow-lg border border-amber-200 flex items-center gap-1">
+              <div className="absolute top-2 right-2 bg-amber-400 text-black font-black text-xs px-2 py-0.5 rounded-[2px] shadow-lg border border-amber-200 flex items-center gap-1">
                 <AdvancementIcon className="w-3 h-3" />
                 <span>{card.advancementCounters} ADVANCED</span>
               </div>
@@ -166,7 +166,7 @@ export const CardPopout: React.FC<CardPopoutProps> = ({
           {/* Key Stat Badges Row */}
           <div className="grid grid-cols-2 gap-1.5 mb-3 text-xs">
             {def.cost !== null && def.cost !== undefined && (
-              <div className="flex items-center gap-1.5 bg-slate-900/90 border border-slate-800 px-2.5 py-1 rounded-lg">
+              <div className="flex items-center gap-1.5 bg-[#0c121d] border border-slate-800 px-2.5 py-1 rounded-[2px]">
                 <CreditIcon className="w-3.5 h-3.5 text-amber-400 shrink-0" />
                 <span className="text-slate-400">Cost:</span>
                 <span className="font-bold text-amber-300"><Credits amount={def.cost} /></span>
@@ -174,7 +174,7 @@ export const CardPopout: React.FC<CardPopoutProps> = ({
             )}
 
             {def.strength !== null && def.strength !== undefined && (
-              <div className="flex items-center gap-1.5 bg-slate-900/90 border border-slate-800 px-2.5 py-1 rounded-lg">
+              <div className="flex items-center gap-1.5 bg-[#0c121d] border border-slate-800 px-2.5 py-1 rounded-[2px]">
                 <Shield className="w-3.5 h-3.5 text-cyan-400 shrink-0" />
                 <span className="text-slate-400">Strength:</span>
                 <span className="font-bold text-cyan-300">{def.strength}</span>
@@ -182,7 +182,7 @@ export const CardPopout: React.FC<CardPopoutProps> = ({
             )}
 
             {def.agenda_points !== undefined && (
-              <div className="flex items-center gap-1.5 bg-slate-900/90 border border-slate-800 px-2.5 py-1 rounded-lg">
+              <div className="flex items-center gap-1.5 bg-[#0c121d] border border-slate-800 px-2.5 py-1 rounded-[2px]">
                 <AgendaDiamondIcon className="w-3.5 h-3.5 text-cyan-400 shrink-0" />
                 <span className="text-slate-400">Points:</span>
                 <span className="font-bold text-cyan-300">
@@ -192,7 +192,7 @@ export const CardPopout: React.FC<CardPopoutProps> = ({
             )}
 
             {def.memory_cost !== null && def.memory_cost !== undefined && (
-              <div className="flex items-center gap-1.5 bg-slate-900/90 border border-slate-800 px-2.5 py-1 rounded-lg">
+              <div className="flex items-center gap-1.5 bg-[#0c121d] border border-slate-800 px-2.5 py-1 rounded-[2px]">
                 <MuIcon className="w-3.5 h-3.5 text-pink-400 shrink-0" />
                 <span className="text-slate-400">Memory:</span>
                 <span className="font-bold text-pink-300 inline-flex items-center gap-[0.15em]">{def.memory_cost}<MuIcon /></span>
@@ -200,7 +200,7 @@ export const CardPopout: React.FC<CardPopoutProps> = ({
             )}
 
             {def.trash_cost !== null && def.trash_cost !== undefined && (
-              <div className="flex items-center gap-1.5 bg-slate-900/90 border border-slate-800 px-2.5 py-1 rounded-lg">
+              <div className="flex items-center gap-1.5 bg-[#0c121d] border border-slate-800 px-2.5 py-1 rounded-[2px]">
                 <Trash2 className="w-3.5 h-3.5 text-red-400 shrink-0" />
                 <span className="text-slate-400">Trash:</span>
                 <span className="font-bold text-red-300"><Credits amount={def.trash_cost} /></span>
@@ -210,7 +210,7 @@ export const CardPopout: React.FC<CardPopoutProps> = ({
 
           {/* Formatted Ability Rules Text */}
           {def.text && (
-            <div className="bg-black/60 rounded-xl p-3 border border-slate-800/90 text-xs leading-relaxed text-slate-200">
+            <div className="bg-[#06090e]/80 rounded-[2px] p-3 border border-slate-800/90 text-xs leading-relaxed text-slate-200">
               <div
                 className="card-rules-text font-mono space-y-1"
                 dangerouslySetInnerHTML={{

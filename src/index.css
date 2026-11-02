@@ -118,22 +118,12 @@
 }
 
 @layer components {
-  /* Clipped corners: top-left and bottom-right cut at 45 degrees */
-  .chamfer {
-    clip-path: polygon(
-      var(--chamfer) 0, 100% 0, 100% calc(100% - var(--chamfer)),
-      calc(100% - var(--chamfer)) 100%, 0 100%, 0 var(--chamfer)
-    );
-  }
-  .chamfer-sm {
-    clip-path: polygon(
-      var(--chamfer-sm) 0, 100% 0, 100% calc(100% - var(--chamfer-sm)),
-      calc(100% - var(--chamfer-sm)) 100%, 0 100%, 0 var(--chamfer-sm)
-    );
-  }
-  /* Only the bottom-right corner, for tabs and headers */
+  /* Neutralized to clean precision hardware 2px borders (anti-AI-trope) */
+  .chamfer,
+  .chamfer-sm,
   .chamfer-br {
-    clip-path: polygon(0 0, 100% 0, 100% calc(100% - var(--chamfer-sm)), calc(100% - var(--chamfer-sm)) 100%, 0 100%);
+    clip-path: none;
+    border-radius: 2px;
   }
 
   /*

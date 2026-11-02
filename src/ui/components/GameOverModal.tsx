@@ -50,7 +50,7 @@ export const GameOverModal: React.FC<GameOverModalProps> = ({
     >
       <div className="text-center px-3 pb-3">
         <div
-          className={`w-12 h-12 mx-auto mb-3 rounded-full border flex items-center justify-center shadow-lg ${
+          className={`w-12 h-12 mx-auto mb-3 rounded-[2px] border flex items-center justify-center shadow-lg ${
             isCorp
               ? 'border-cyan-400 bg-cyan-950/70 text-cyan-300 shadow-cyan-900/40'
               : 'border-pink-500 bg-pink-950/70 text-pink-300 shadow-pink-900/40'
@@ -87,21 +87,21 @@ export const GameOverModal: React.FC<GameOverModalProps> = ({
             onClick={onRematch}
             autoFocus
             data-testid="rematch"
-            className="w-full px-5 py-3 bg-amber-500 hover:bg-amber-400 text-black font-bold rounded-xl text-sm flex items-center justify-center gap-2"
+            className="w-full px-5 py-3 bg-gradient-to-b from-amber-400 to-amber-500 hover:from-amber-300 hover:to-amber-400 text-black font-bold rounded-[2px] border-b-2 border-amber-700 text-sm flex items-center justify-center gap-2 active:translate-y-[1px] active:border-b-[1px]"
           >
             <RotateCcw className="w-4 h-4" /> Play again (same decks)
           </button>
           <button
             onClick={onDeckSelect}
             data-testid="deck-select"
-            className="w-full px-5 py-2.5 bg-slate-800 hover:bg-slate-700 text-slate-100 font-bold rounded-xl text-sm flex items-center justify-center gap-2"
+            className="w-full px-5 py-2.5 bg-slate-800 hover:bg-slate-700 text-slate-100 font-bold rounded-[2px] border border-slate-700 border-b-2 border-b-slate-600 text-sm flex items-center justify-center gap-2 active:translate-y-[1px] active:border-b-[1px]"
           >
             <LayoutGrid className="w-4 h-4" /> Back to deck selection
           </button>
           <button
             onClick={() => onMinimizedChange(true)}
             data-testid="view-board"
-            className="w-full px-5 py-2 text-slate-400 hover:text-white text-xs flex items-center justify-center gap-2"
+            className="w-full px-5 py-2 rounded-[2px] border border-transparent hover:border-slate-800 hover:bg-slate-900/60 text-slate-400 hover:text-white text-xs flex items-center justify-center gap-2"
           >
             <Eye className="w-3.5 h-3.5" /> Look at the final board
           </button>

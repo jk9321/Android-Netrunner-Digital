@@ -76,7 +76,7 @@ export const BulkImportModal: React.FC<BulkImportModalProps> = ({ saved, onSave,
   const tab = (id: 'links' | 'dates', label: string) => (
     <button
       onClick={() => setMode(id)}
-      className={`px-2.5 py-1 rounded-lg border text-xs ${mode === id ? 'bg-indigo-600 border-indigo-400 text-white' : 'border-slate-700 hover:border-slate-500 text-slate-300'}`}
+      className={`px-2.5 py-1 rounded-[2px] border border-b-2 text-xs active:translate-y-[1px] active:border-b-[1px] ${mode === id ? 'bg-indigo-600 border-indigo-400 border-b-indigo-700 text-white font-bold' : 'bg-slate-900 border-slate-700 border-b-slate-800 hover:border-slate-500 text-slate-300'}`}
     >
       {label}
     </button>
@@ -86,11 +86,11 @@ export const BulkImportModal: React.FC<BulkImportModalProps> = ({ saved, onSave,
     <div onClick={onClose} className="fixed inset-0 z-[10000] bg-black/80 backdrop-blur-md flex items-center justify-center p-4" data-testid="bulk-import-modal">
       <div
         onClick={e => e.stopPropagation()}
-        className="relative w-full max-w-3xl max-h-[90vh] overflow-y-auto bg-slate-950 border-2 border-fuchsia-500 chamfer p-6 shadow-2xl font-mono text-slate-100"
+        className="relative w-full max-w-3xl max-h-[90vh] overflow-y-auto bg-[#090d15] border border-fuchsia-500/80 rounded-[2px] p-6 shadow-2xl font-mono text-slate-100"
       >
         <button
           onClick={onClose}
-          className="absolute top-4 right-4 p-2 bg-slate-900 hover:bg-slate-800 rounded-full text-slate-400 hover:text-white border border-slate-800"
+          className="absolute top-4 right-4 p-1.5 bg-[#0e1422] hover:bg-slate-800 rounded-[2px] text-slate-400 hover:text-white border border-slate-700 border-b-2 border-b-slate-600 active:translate-y-[1px] active:border-b-[1px]"
           title="Close (Esc)"
           aria-label="Close"
         >
@@ -113,7 +113,7 @@ export const BulkImportModal: React.FC<BulkImportModalProps> = ({ saved, onSave,
               rows={6}
               autoFocus
               data-testid="bulk-links"
-              className="w-full bg-slate-900 border border-slate-700 rounded-lg p-2 text-xs focus:outline-none focus:border-fuchsia-400"
+              className="w-full bg-[#080d15] border border-slate-700 rounded-[2px] p-2 text-xs focus:outline-none focus:border-fuchsia-400"
             />
             <p className="text-[12px] text-slate-500 mt-1">
               Any text works: every decklist link, shared deck link or bare decklist id in it is picked up ({refs.length} found).
@@ -134,7 +134,7 @@ export const BulkImportModal: React.FC<BulkImportModalProps> = ({ saved, onSave,
           onClick={() => void run()}
           disabled={!!progress || (mode === 'links' && refs.length === 0)}
           data-testid="bulk-fetch"
-          className="mt-3 disabled:opacity-50 px-3 py-1.5 rounded-lg border border-fuchsia-500 bg-fuchsia-950 hover:bg-fuchsia-900 text-xs flex items-center gap-1"
+          className="mt-3 disabled:opacity-50 px-3 py-1.5 rounded-[2px] border border-fuchsia-500 border-b-2 border-b-fuchsia-700 bg-fuchsia-950 hover:bg-fuchsia-900 text-xs flex items-center gap-1 active:translate-y-[1px] active:border-b-[1px]"
         >
           <Download className="w-3.5 h-3.5" /> {progress ?? 'Fetch from NetrunnerDB'}
         </button>
@@ -185,7 +185,7 @@ export const BulkImportModal: React.FC<BulkImportModalProps> = ({ saved, onSave,
                 </>
               )}
             </div>
-            <ul className="divide-y divide-slate-800 border border-slate-800 rounded-lg max-h-[45vh] overflow-y-auto">
+            <ul className="divide-y divide-slate-800 border border-slate-800 rounded-[2px] max-h-[45vh] overflow-y-auto">
               {shown.map(c => {
                 const d = c.result.deck!;
                 const dup = isAlreadySaved(c, saved);
@@ -248,14 +248,14 @@ export const BulkImportModal: React.FC<BulkImportModalProps> = ({ saved, onSave,
         )}
 
         <div className="mt-5 flex justify-end gap-2">
-          <button onClick={onClose} className="px-3 py-1.5 rounded-lg border border-slate-700 hover:border-slate-500 text-xs">
+          <button onClick={onClose} className="px-3 py-1.5 rounded-[2px] border border-slate-700 border-b-2 border-b-slate-600 bg-slate-900 hover:bg-slate-800 text-xs active:translate-y-[1px] active:border-b-[1px]">
             Close
           </button>
           <button
             onClick={() => onSave(ticked.map(c => c.result.deck!))}
             disabled={ticked.length === 0}
             data-testid="bulk-save"
-            className="disabled:opacity-40 disabled:cursor-not-allowed px-3 py-1.5 rounded-lg bg-amber-400 hover:bg-amber-300 text-black font-bold text-xs flex items-center gap-1"
+            className="disabled:opacity-40 disabled:cursor-not-allowed px-3 py-1.5 rounded-[2px] bg-gradient-to-b from-amber-400 to-amber-500 hover:from-amber-300 hover:to-amber-400 text-black font-bold text-xs flex items-center gap-1 border-b-2 border-amber-700 active:translate-y-[1px] active:border-b-[1px]"
           >
             <Save className="w-3.5 h-3.5" /> Save {ticked.length} deck{ticked.length === 1 ? '' : 's'}
           </button>

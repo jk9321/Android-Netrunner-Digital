@@ -65,7 +65,7 @@ export const EncounterPanel: React.FC<EncounterPanelProps> = ({ state, onAction,
   };
 
   const btn =
-    'px-2.5 py-1 rounded-lg text-[12px] font-mono font-bold border transition-colors disabled:opacity-40';
+    'px-2.5 py-1 rounded-[2px] text-[12px] font-mono font-bold border border-b-2 active:translate-y-[1px] active:border-b-[1px] transition-all disabled:opacity-40 disabled:active:translate-y-0 disabled:active:border-b-2';
   const abilityActions = legal.filter(
     (a): a is Extract<GameAction, { type: 'USE_ABILITY' }> => a.type === 'USE_ABILITY',
   );
@@ -124,7 +124,7 @@ export const EncounterPanel: React.FC<EncounterPanelProps> = ({ state, onAction,
         {subs.map((sub, i) => (
           <li
             key={i}
-            className={`text-xs font-mono px-2 py-1 rounded-md border ${
+            className={`text-xs font-mono px-2 py-1 rounded-[2px] border ${
               encounter.broken[i]
                 ? 'border-emerald-800 bg-emerald-950/40 text-emerald-400 line-through'
                 : 'border-slate-700 bg-black/40 text-slate-200'

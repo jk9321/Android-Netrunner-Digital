@@ -70,7 +70,7 @@ export const KeywordTooltip: React.FC = () => {
       role="tooltip"
       data-testid="keyword-tooltip"
       style={{ position: 'fixed', width: WIDTH, zIndex: 10050, ...style }}
-      className="pointer-events-none rounded-lg border border-amber-500/70 bg-slate-950/95 px-3 py-2 font-mono text-xs leading-snug text-slate-200 shadow-2xl backdrop-blur"
+      className="pointer-events-none rounded-[2px] border border-amber-500/70 bg-[#090d15]/95 px-3 py-2 font-mono text-xs leading-snug text-slate-200 shadow-2xl backdrop-blur"
     >
       {tip.term && <div className="mb-0.5 font-bold text-amber-300">{tip.term}</div>}
       {tip.text}

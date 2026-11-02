@@ -50,7 +50,7 @@ export const HandRow: React.FC<HandRowProps> = React.memo(({
               layout
               custom={discardedIds}
               // isolate: a card's type icons stay in its own layer, under the next card in the fan until hovered
-              className="relative isolate shrink-0 hover:z-10 rounded-xl"
+              className="relative isolate shrink-0 hover:z-10 rounded-[2px]"
               initial={{ opacity: 0, x: 40, y: -24, scale: 0.8, boxShadow: `0 0 0px ${glow}` }}
               animate={{
                 opacity: 1,

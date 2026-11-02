@@ -28,14 +28,14 @@ export const CardZoomModal: React.FC<CardZoomModalProps> = ({
     >
       <div
         onClick={(e) => e.stopPropagation()}
-        className={`relative max-w-2xl w-full bg-slate-950 border-2 chamfer p-6 shadow-2xl flex flex-col md:flex-row gap-6 font-mono text-slate-100 ${
-          isCorp ? 'border-cyan-500 shadow-cyan-950/50' : 'border-pink-500 shadow-pink-950/50'
+        className={`relative max-w-2xl w-full bg-[#090d15] border rounded-[2px] p-6 shadow-2xl flex flex-col md:flex-row gap-6 font-mono text-slate-100 ${
+          isCorp ? 'border-cyan-600/80 shadow-cyan-950/50' : 'border-pink-600/80 shadow-pink-950/50'
         }`}
       >
         {/* Close Button */}
         <button
           onClick={onClose}
-          className="absolute top-4 right-4 p-2 bg-slate-900 hover:bg-slate-800 rounded-full text-slate-400 hover:text-white border border-slate-800 transition-colors z-20"
+          className="absolute top-4 right-4 p-1.5 bg-[#0e1422] hover:bg-slate-800 rounded-[2px] text-slate-400 hover:text-white border border-slate-700 border-b-2 border-b-slate-600 active:translate-y-[1px] active:border-b-[1px] transition-colors z-20"
           title="Close (Esc)"
         >
           <X className="w-5 h-5" />
@@ -46,7 +46,7 @@ export const CardZoomModal: React.FC<CardZoomModalProps> = ({
           <img
             src={getCardImageUrl(card.cardCode)}
             alt={def.title}
-            className="w-full h-auto max-h-[460px] object-contain rounded-xl shadow-2xl border border-slate-800"
+            className="w-full h-auto max-h-[460px] object-contain rounded-[2px] shadow-2xl border border-slate-800"
           />
         </div>
 
@@ -81,21 +81,21 @@ export const CardZoomModal: React.FC<CardZoomModalProps> = ({
             {/* Stats row */}
             <div className="flex flex-wrap gap-2 mb-4 text-xs">
               {def.cost !== null && def.cost !== undefined && (
-                <div className="flex items-center gap-1.5 bg-slate-900 border border-slate-800 px-3 py-1.5 rounded-lg">
+                <div className="flex items-center gap-1.5 bg-[#0b101b] border border-slate-800 px-3 py-1.5 rounded-[2px]">
                   <CreditIcon className="w-4 h-4 text-amber-400" />
                   <Keyword id="credit" className="text-slate-400">Cost:</Keyword>
                   <span className="font-bold text-amber-300">{def.cost} Credits</span>
                 </div>
               )}
               {def.strength !== null && def.strength !== undefined && (
-                <div className="flex items-center gap-1.5 bg-slate-900 border border-slate-800 px-3 py-1.5 rounded-lg">
+                <div className="flex items-center gap-1.5 bg-[#0b101b] border border-slate-800 px-3 py-1.5 rounded-[2px]">
                   <Shield className="w-4 h-4 text-cyan-400" />
                   <Keyword id="strength" className="text-slate-400">Strength:</Keyword>
                   <span className="font-bold text-cyan-300">{def.strength}</span>
                 </div>
               )}
               {def.agenda_points !== undefined && (
-                <div className="flex items-center gap-1.5 bg-slate-900 border border-slate-800 px-3 py-1.5 rounded-lg">
+                <div className="flex items-center gap-1.5 bg-[#0b101b] border border-slate-800 px-3 py-1.5 rounded-[2px]">
                   <AgendaDiamondIcon className="w-4 h-4 text-cyan-400" />
                   <Keyword id="advancement-requirement" className="text-slate-400">Agenda Points:</Keyword>
                   <span className="font-bold text-cyan-300">
@@ -104,14 +104,14 @@ export const CardZoomModal: React.FC<CardZoomModalProps> = ({
                 </div>
               )}
               {def.memory_cost !== null && def.memory_cost !== undefined && (
-                <div className="flex items-center gap-1.5 bg-slate-900 border border-slate-800 px-3 py-1.5 rounded-lg">
+                <div className="flex items-center gap-1.5 bg-[#0b101b] border border-slate-800 px-3 py-1.5 rounded-[2px]">
                   <MuIcon className="w-4 h-4 text-pink-400" />
                   <Keyword id="mu" className="text-slate-400">Memory:</Keyword>
                   <span className="font-bold text-pink-300 inline-flex items-center gap-[0.15em]">{def.memory_cost}<MuIcon /></span>
                 </div>
               )}
               {def.trash_cost !== null && def.trash_cost !== undefined && (
-                <div className="flex items-center gap-1.5 bg-slate-900 border border-slate-800 px-3 py-1.5 rounded-lg">
+                <div className="flex items-center gap-1.5 bg-[#0b101b] border border-slate-800 px-3 py-1.5 rounded-[2px]">
                   <Trash2 className="w-4 h-4 text-red-400" />
                   <Keyword id="trash-cost" className="text-slate-400">Trash:</Keyword>
                   <span className="font-bold text-red-300">{def.trash_cost} Credits</span>
@@ -121,7 +121,7 @@ export const CardZoomModal: React.FC<CardZoomModalProps> = ({
 
             {/* Rules Text */}
             {def.text && (
-              <div className="bg-slate-900/80 rounded-xl p-4 border border-slate-800 text-sm leading-relaxed mb-4">
+              <div className="bg-[#0b101b]/90 rounded-[2px] p-4 border border-slate-800 text-sm leading-relaxed mb-4">
                 <div
                   dangerouslySetInnerHTML={{
                     __html: cardTextHtml(def.text),

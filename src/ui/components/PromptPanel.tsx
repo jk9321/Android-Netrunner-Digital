@@ -47,7 +47,7 @@ export const PromptPanel: React.FC<PromptPanelProps> = ({ state, onAnswer, onIns
   if (!prompt) return null;
   if (!canAnswer) {
     return (
-      <div className="fixed top-20 left-1/2 -translate-x-1/2 z-40 bg-slate-950/95 border border-slate-700 rounded-xl px-4 py-2 text-xs font-mono text-slate-300 shadow-xl">
+      <div className="fixed top-20 left-1/2 -translate-x-1/2 z-40 bg-[#090d15]/95 border border-slate-700 rounded-[2px] px-4 py-2 text-xs font-mono text-slate-300 shadow-xl">
         Waiting on the {prompt.side === 'corp' ? 'Corp' : 'Runner'} to decide…
       </div>
     );

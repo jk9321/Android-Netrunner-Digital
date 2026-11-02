@@ -36,10 +36,10 @@ export const Pile: React.FC<PileProps> = ({ label, count, side, topCard, size = 
       disabled={!onClick}
       data-testid={testId}
       title={onClick ? `Browse ${label}` : label}
-      className={`relative ${SIZE[size]} rounded-xl ${onClick ? 'cursor-pointer hover:scale-105' : 'cursor-default'} transition-transform`}
+      className={`relative ${SIZE[size]} rounded-[2px] ${onClick ? 'cursor-pointer hover:scale-105' : 'cursor-default'} transition-transform`}
     >
       {count === 0 ? (
-        <div className="w-full h-full rounded-xl border-2 border-dashed border-slate-700 flex items-center justify-center text-[11px] text-slate-600 uppercase tracking-wider">
+        <div className="w-full h-full rounded-[2px] border border-dashed border-slate-700 flex items-center justify-center text-[11px] text-slate-600 uppercase tracking-wider">
           Empty
         </div>
       ) : topCard ? (
@@ -49,7 +49,7 @@ export const Pile: React.FC<PileProps> = ({ label, count, side, topCard, size = 
         <img
           src={getCardBackUrl(side)}
           alt={`${label} (face down)`}
-          className="w-full h-full object-cover rounded-xl border-2 border-slate-700 shadow-[3px_3px_0_#1e293b,6px_6px_0_#0f172a]"
+          className="w-full h-full object-cover rounded-[2px] border border-slate-700 shadow-[2px_2px_0_#1e293b,4px_4px_0_#0f172a]"
         />
       )}
       {count > 0 && (

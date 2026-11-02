@@ -60,11 +60,11 @@ export const CardFates: React.FC<{ fates: ShownFate[] }> = ({ fates }) => (
               exit={{ ...EXIT[fate.kind], transition: { duration: 0.45, ease: 'easeIn' } }}
               transition={{ duration: 0.25, ease: 'easeOut' }}
             >
-              <div className="rounded-xl shadow-2xl shadow-black">
+              <div className="rounded-[3px] shadow-2xl shadow-black">
                 <CardView card={fate.card} size="lg" notInstalled isFaceDown={!fate.canSee} canPeek={fate.canSee} />
               </div>
               <motion.div
-                className={`absolute left-1/2 top-1/2 px-3 py-1 rounded-lg border-2 font-cyber font-bold uppercase tracking-[0.2em] text-lg shadow-xl flex items-center gap-1.5 whitespace-nowrap ${stamp.className}`}
+                className={`absolute left-1/2 top-1/2 px-3 py-1 rounded-[2px] border-2 font-cyber font-bold uppercase tracking-[0.2em] text-lg shadow-xl flex items-center gap-1.5 whitespace-nowrap ${stamp.className}`}
                 initial={{ opacity: 0, scale: 2.2, x: '-50%', y: '-50%', rotate: -12 }}
                 animate={{ opacity: 1, scale: 1, x: '-50%', y: '-50%', rotate: -12 }}
                 transition={{ delay: 0.15, duration: 0.2, ease: 'easeOut' }}

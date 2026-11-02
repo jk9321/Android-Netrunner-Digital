@@ -120,11 +120,11 @@ export const ZoneViewer: React.FC<ZoneViewerProps> = ({ title, groups, canPeek, 
     >
       <div
         onClick={e => e.stopPropagation()}
-        className="w-full max-w-5xl max-h-full overflow-y-auto bg-slate-950 border-2 border-slate-700 chamfer p-5 shadow-2xl font-mono text-slate-100"
+        className="w-full max-w-5xl max-h-full overflow-y-auto bg-[#090d15] border border-slate-700 rounded-[2px] p-5 shadow-2xl font-mono text-slate-100"
       >
         <div className="flex items-center justify-between mb-4">
           <h3 className="font-cyber font-bold tracking-wider text-sm">{title}</h3>
-          <button onClick={onClose} aria-label="Close" className="p-1.5 rounded-lg hover:bg-slate-800 text-slate-400 hover:text-white">
+          <button onClick={onClose} aria-label="Close" className="p-1.5 rounded-[2px] bg-slate-900 hover:bg-slate-800 border border-slate-700 border-b-2 border-b-slate-600 text-slate-400 hover:text-white active:translate-y-[1px] active:border-b-[1px]">
             <X className="w-4 h-4" />
           </button>
         </div>

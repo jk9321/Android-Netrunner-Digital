@@ -330,7 +330,7 @@ export const DeckPicker: React.FC<DeckPickerProps> = ({ initialCorpDeckId, initi
               disabled={!canRandomize}
               title="Pick a random legal deck (never a starter deck)"
               data-testid={`random-${side}-deck`}
-              className="disabled:opacity-40 disabled:cursor-not-allowed px-2.5 py-1 rounded-lg border border-slate-700 hover:border-slate-500 text-xs flex items-center gap-1"
+              className="disabled:opacity-40 disabled:cursor-not-allowed px-2.5 py-1 rounded-[2px] border border-slate-700/80 border-b-2 border-b-slate-600 bg-gradient-to-b from-slate-900 to-slate-950 hover:bg-slate-800 text-xs font-bold flex items-center gap-1 active:translate-y-[1px] active:border-b-[1px]"
             >
               <Dices className="w-3.5 h-3.5" /> Random deck
             </button>
@@ -340,7 +340,7 @@ export const DeckPicker: React.FC<DeckPickerProps> = ({ initialCorpDeckId, initi
                 setEditing(emptyDeck(side));
               }}
               data-testid={`new-${side}-deck`}
-              className="px-2.5 py-1 rounded-lg border border-slate-700 hover:border-slate-500 text-xs flex items-center gap-1"
+              className="px-2.5 py-1 rounded-[2px] border border-slate-700/80 border-b-2 border-b-slate-600 bg-gradient-to-b from-slate-900 to-slate-950 hover:bg-slate-800 text-xs font-bold flex items-center gap-1 active:translate-y-[1px] active:border-b-[1px]"
             >
               <Plus className="w-3.5 h-3.5" /> New deck
             </button>
@@ -370,18 +370,18 @@ export const DeckPicker: React.FC<DeckPickerProps> = ({ initialCorpDeckId, initi
                   key={s.deck.id}
                   onClick={() => select(s.deck.id)}
                   data-testid={`deck-${s.deck.id}`}
-                  className={`flex items-center gap-3 p-2.5 chamfer border text-left transition-all ${
+                  className={`flex items-center gap-3 p-2.5 rounded-[2px] border text-left transition-all ${
                     isSelected
                       ? accent === 'cyan'
-                        ? 'border-cyan-400 bg-cyan-950/60 shadow-[inset_0_0_18px_rgb(var(--corp-400)/0.3)]'
-                        : 'border-pink-400 bg-pink-950/60 shadow-[inset_0_0_18px_rgb(var(--runner-500)/0.3)]'
-                      : 'border-slate-800 bg-slate-950/70 hover:border-slate-600'
+                        ? 'border-cyan-400 border-l-4 bg-gradient-to-r from-cyan-950/80 to-[#080d14] shadow-lg'
+                        : 'border-pink-400 border-l-4 bg-gradient-to-r from-pink-950/80 to-[#080d14] shadow-lg'
+                      : 'border-slate-800/80 bg-[#080d14] hover:border-slate-600'
                   }${isHidden ? ' opacity-50' : ''}`}
                 >
                   <img
                     src={getCardImageUrl(s.identityCode)}
                     alt={s.deck.identity}
-                    className="w-14 h-20 object-cover rounded-md border border-slate-700 shrink-0"
+                    className="w-14 h-20 object-cover rounded-[2px] border border-slate-700 shrink-0"
                   />
                   <div className="min-w-0 flex-1">
                     <div className="flex items-start gap-1">
@@ -483,7 +483,7 @@ export const DeckPicker: React.FC<DeckPickerProps> = ({ initialCorpDeckId, initi
             onClick={() => setBulkImporting(true)}
             data-testid="bulk-import"
             title="Beta only: fetch many NetrunnerDB decks at once"
-            className="px-2.5 py-1 rounded-lg border border-fuchsia-600 text-fuchsia-300 hover:border-fuchsia-400 text-xs"
+            className="px-2.5 py-1 rounded-[2px] border border-fuchsia-600/80 border-b-2 border-b-fuchsia-500 bg-fuchsia-950/40 text-fuchsia-300 hover:border-fuchsia-400 text-xs font-bold active:translate-y-[1px] active:border-b-[1px]"
           >
             Bulk import (beta)
           </button>
@@ -519,7 +519,7 @@ export const DeckPicker: React.FC<DeckPickerProps> = ({ initialCorpDeckId, initi
                 onClick={() => chooseOpponent(o.id)}
                 title={o.hint}
                 data-testid={`opponent-${o.id}`}
-                className={`px-4 py-2 rounded-xl border text-xs font-bold transition-colors ${
+                className={`px-4 py-2 rounded-[2px] border border-b-2 text-xs font-bold transition-all active:translate-y-[1px] active:border-b-[1px] ${
                   opponent === o.id ? o.on : o.off
                 }`}
               >
@@ -541,12 +541,12 @@ export const DeckPicker: React.FC<DeckPickerProps> = ({ initialCorpDeckId, initi
                   onClick={() => chooseDifficulty(d.id)}
                   title={d.hint}
                   data-testid={`difficulty-${d.id}`}
-                  className={`px-4 py-2 rounded-xl border text-xs font-bold transition-colors ${
+                  className={`px-4 py-2 rounded-[2px] border border-b-2 text-xs font-bold transition-all active:translate-y-[1px] active:border-b-[1px] ${
                     difficulty === d.id
                       ? d.id === 'hard'
-                        ? 'bg-red-700 border-red-400 text-white'
-                        : 'bg-indigo-600 border-indigo-400 text-white'
-                      : 'bg-slate-900 border-slate-700 text-slate-300 hover:border-slate-500'
+                        ? 'bg-gradient-to-b from-red-600 to-red-800 border-red-400 border-b-red-300 text-white'
+                        : 'bg-gradient-to-b from-indigo-600 to-indigo-800 border-indigo-400 border-b-indigo-300 text-white'
+                      : 'bg-gradient-to-b from-slate-900 to-slate-950 border-slate-700/80 border-b-slate-600 text-slate-300 hover:border-slate-500'
                   }`}
                 >
                   {d.label}
@@ -567,7 +567,7 @@ export const DeckPicker: React.FC<DeckPickerProps> = ({ initialCorpDeckId, initi
             }}
             disabled={selectedProblems.length > 0}
             data-testid="start-game"
-            className="disabled:opacity-40 disabled:cursor-not-allowed px-8 py-3 bg-amber-400 hover:bg-amber-300 text-black font-cyber tracking-widest font-bold rounded-2xl shadow-lg flex items-center gap-2"
+            className="disabled:opacity-40 disabled:cursor-not-allowed px-8 py-3 bg-gradient-to-b from-amber-400 to-amber-500 hover:from-amber-300 hover:to-amber-400 text-black font-cyber text-sm tracking-widest font-bold rounded-[2px] border border-amber-300 border-b-4 border-b-amber-600 shadow-xl flex items-center gap-2 active:translate-y-[2px] active:border-b-2 transition-all"
           >
             <Play className="w-4 h-4" /> Start game
           </button>

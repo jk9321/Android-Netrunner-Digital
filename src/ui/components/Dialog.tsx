@@ -96,7 +96,7 @@ export const DialogHost: React.FC = () => {
     }
   };
 
-  const accent = current.danger ? 'border-pink-500 hud-runner text-pink-400' : 'border-amber-400 hud-signal text-amber-300';
+  const accent = current.danger ? 'border-pink-500/80 text-pink-400' : 'border-amber-400/80 text-amber-300';
   return (
     <div
       className="fixed inset-0 z-[10001] bg-black/70 backdrop-blur-sm flex items-center justify-center p-4"
@@ -111,16 +111,15 @@ export const DialogHost: React.FC = () => {
         aria-modal="true"
         aria-labelledby={`dialog-title-${current.id}`}
         aria-describedby={`dialog-message-${current.id}`}
-        className={`w-full max-w-md bg-slate-950 border-2 chamfer hud-frame shadow-2xl font-mono ${accent}`}
+        className={`w-full max-w-md bg-[#090d15] border rounded-[2px] shadow-2xl font-mono ${accent}`}
       >
-        <div className="flex items-center gap-2 px-4 py-2 border-b border-slate-800 bg-slate-900/80">
+        <div className="flex items-center gap-2 px-4 py-2 border-b border-slate-800 bg-[#0d1420]">
           <AlertTriangle className="w-4 h-4 shrink-0" />
-          <h2 id={`dialog-title-${current.id}`} className="font-cyber font-bold text-xs tracking-[0.2em]">
+          <h2 id={`dialog-title-${current.id}`} className="font-cyber font-bold text-xs tracking-wider uppercase">
             {current.title}
           </h2>
         </div>
         <p id={`dialog-message-${current.id}`} className="px-5 py-5 text-sm text-slate-100 leading-relaxed whitespace-pre-line">
-          <span className="text-cyber-terminal mr-1" aria-hidden="true">&gt;</span>
           {current.message}
         </p>
         <div className="flex justify-end gap-2 px-4 pb-4">
@@ -129,7 +128,7 @@ export const DialogHost: React.FC = () => {
               ref={cancelRef}
               onClick={() => close(false)}
               data-testid="dialog-cancel"
-              className="px-4 py-2 text-xs font-bold border bg-slate-800 hover:bg-slate-700 border-slate-600 text-slate-200 flex items-center gap-1.5"
+              className="px-4 py-2 text-xs font-bold border border-slate-700/80 border-b-2 border-b-slate-600 bg-gradient-to-b from-slate-900 to-slate-950 hover:bg-slate-800 text-slate-200 rounded-[2px] flex items-center gap-1.5 active:translate-y-[1px] active:border-b-[1px] shadow"
             >
               <X className="w-3.5 h-3.5" /> {current.cancelLabel}
             </button>
@@ -138,10 +137,10 @@ export const DialogHost: React.FC = () => {
             ref={confirmRef}
             onClick={() => close(true)}
             data-testid="dialog-confirm"
-            className={`px-4 py-2 text-xs font-bold border flex items-center gap-1.5 ${
+            className={`px-4 py-2 text-xs font-bold rounded-[2px] flex items-center gap-1.5 shadow active:translate-y-[1px] active:border-b-[1px] ${
               current.danger
-                ? 'bg-pink-600 hover:bg-pink-500 border-pink-400 text-white'
-                : 'bg-amber-400 hover:bg-amber-300 border-amber-200 text-black'
+                ? 'bg-gradient-to-b from-pink-600 to-pink-800 hover:from-pink-500 hover:to-pink-700 border border-pink-400 border-b-2 border-b-pink-300 text-white'
+                : 'bg-gradient-to-b from-amber-400 to-amber-600 hover:from-amber-300 hover:to-amber-500 border border-amber-300 border-b-2 border-b-amber-700 text-black'
             }`}
           >
             <Check className="w-3.5 h-3.5" /> {current.confirmLabel}

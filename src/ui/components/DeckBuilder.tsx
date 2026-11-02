@@ -80,7 +80,7 @@ const FormatMarker: React.FC<{ card: CardDefinition }> = ({ card }) => {
 };
 
 const Stat: React.FC<{ label: string; value: string; ok: boolean }> = ({ label, value, ok }) => (
-  <div className="flex-1 min-w-[5.5rem] rounded-xl border border-slate-800 bg-slate-900/70 px-2.5 py-1.5">
+  <div className="flex-1 min-w-[5.5rem] rounded-[2px] border border-slate-800 bg-[#090d15] px-2.5 py-1.5">
     <div className="text-[11px] uppercase tracking-wider text-slate-500">{label}</div>
     <div className={`text-sm font-bold ${ok ? 'text-slate-100' : 'text-amber-400'}`}>{value}</div>
   </div>
@@ -204,7 +204,7 @@ export const DeckBuilder: React.FC<DeckBuilderProps> = ({ initial, onSave, onCan
         <div className="flex flex-wrap items-center gap-3 mb-5">
           <button
             onClick={onCancel}
-            className="px-3 py-1.5 rounded-xl border border-slate-700 hover:border-slate-500 text-xs flex items-center gap-1.5"
+            className="px-3 py-1.5 rounded-[2px] border border-slate-700/80 border-b-2 border-b-slate-600 bg-gradient-to-b from-slate-900 to-slate-950 hover:bg-slate-800 text-xs font-bold flex items-center gap-1.5 active:translate-y-[1px] active:border-b-[1px]"
           >
             <ArrowLeft className="w-3.5 h-3.5" /> Back
           </button>
@@ -218,14 +218,14 @@ export const DeckBuilder: React.FC<DeckBuilderProps> = ({ initial, onSave, onCan
             placeholder="Deck name"
             aria-label="Deck name"
             data-testid="deck-name"
-            className="flex-1 min-w-[12rem] bg-slate-900 border border-slate-700 rounded-xl px-3 py-1.5 text-sm focus:outline-none focus:border-slate-400"
+            className="flex-1 min-w-[12rem] bg-slate-900 border border-slate-700 rounded-[2px] px-3 py-1.5 text-sm focus:outline-none focus:border-slate-400"
           />
           {onImport && (
             <button
               onClick={onImport}
               data-testid="import-deck"
               title="Import a deck from a NetrunnerDB export, file or link"
-              className="px-3 py-1.5 rounded-xl border border-indigo-500/70 hover:border-indigo-300 bg-indigo-950/50 text-xs flex items-center gap-1.5"
+              className="px-3 py-1.5 rounded-[2px] border border-indigo-500/70 border-b-2 border-b-indigo-400 bg-indigo-950/50 text-xs font-bold flex items-center gap-1.5 active:translate-y-[1px] active:border-b-[1px]"
             >
               <FileDown className="w-3.5 h-3.5" /> Import from NetrunnerDB
             </button>
@@ -233,8 +233,8 @@ export const DeckBuilder: React.FC<DeckBuilderProps> = ({ initial, onSave, onCan
           <button
             onClick={() => onSave(draft)}
             data-testid="save-deck"
-            className={`px-4 py-1.5 rounded-xl text-sm font-bold flex items-center gap-1.5 text-white ${
-              accent === 'cyan' ? 'bg-cyan-700 hover:bg-cyan-600' : 'bg-pink-700 hover:bg-pink-600'
+            className={`px-4 py-1.5 rounded-[2px] text-sm font-bold border-b-2 active:translate-y-[1px] active:border-b-[1px] flex items-center gap-1.5 text-white ${
+              accent === 'cyan' ? 'bg-cyan-700 hover:bg-cyan-600 border-cyan-500' : 'bg-pink-700 hover:bg-pink-600 border-pink-500'
             }`}
           >
             <Save className="w-4 h-4" /> Save deck
@@ -245,7 +245,7 @@ export const DeckBuilder: React.FC<DeckBuilderProps> = ({ initial, onSave, onCan
           {/* Card pool */}
           <section className="flex-1 min-w-0">
             <div className="flex flex-wrap gap-2 mb-3">
-              <label className="flex items-center gap-2 flex-1 min-w-[12rem] bg-slate-900 border border-slate-700 rounded-xl px-3 py-1.5">
+              <label className="flex items-center gap-2 flex-1 min-w-[12rem] bg-slate-900 border border-slate-700 rounded-[2px] px-3 py-1.5">
                 <Search className="w-3.5 h-3.5 text-slate-500" />
                 <input
                   value={query}
@@ -258,7 +258,7 @@ export const DeckBuilder: React.FC<DeckBuilderProps> = ({ initial, onSave, onCan
                 value={factionFilter}
                 onChange={e => setFactionFilter(e.target.value as typeof factionFilter)}
                 aria-label="Faction filter"
-                className="bg-slate-900 border border-slate-700 rounded-xl px-2 py-1.5 text-sm"
+                className="bg-slate-900 border border-slate-700 rounded-[2px] px-2 py-1.5 text-sm"
               >
                 <option value="all">All factions</option>
                 <option value="playable">Playable with this identity</option>
@@ -271,7 +271,7 @@ export const DeckBuilder: React.FC<DeckBuilderProps> = ({ initial, onSave, onCan
                 onChange={e => setSetFilter(e.target.value)}
                 aria-label="Set filter"
                 data-testid="set-filter"
-                className="bg-slate-900 border border-slate-700 rounded-xl px-2 py-1.5 text-sm"
+                className="bg-slate-900 border border-slate-700 rounded-[2px] px-2 py-1.5 text-sm"
               >
                 <option value="all">All sets</option>
                 {CARD_SETS.map(set => (
@@ -284,7 +284,7 @@ export const DeckBuilder: React.FC<DeckBuilderProps> = ({ initial, onSave, onCan
                 <button
                   key={t}
                   onClick={() => setTypeFilter(t)}
-                  className={`px-2.5 py-1 rounded-lg text-xs border ${
+                  className={`px-2.5 py-1 rounded-[2px] text-xs border border-b-2 active:translate-y-[1px] active:border-b-[1px] ${
                     typeFilter === t ? 'border-slate-300 bg-slate-800 text-white' : 'border-slate-800 text-slate-400 hover:border-slate-600'
                   }`}
                 >
@@ -300,7 +300,7 @@ export const DeckBuilder: React.FC<DeckBuilderProps> = ({ initial, onSave, onCan
                   <div
                     key={c.code}
                     data-testid={`pool-${c.code}`}
-                    className={`rounded-xl border p-1.5 bg-slate-950/80 flex flex-col gap-1 ${
+                    className={`rounded-[2px] border border-slate-800 p-1.5 bg-[#080d14] flex flex-col gap-1 ${
                       n > 0 ? (accent === 'cyan' ? 'border-cyan-600' : 'border-pink-600') : 'border-slate-800'
                     }`}
                   >
@@ -309,7 +309,7 @@ export const DeckBuilder: React.FC<DeckBuilderProps> = ({ initial, onSave, onCan
                         src={getCardImageUrl(c.code)}
                         alt={c.title}
                         loading="lazy"
-                        className="w-full aspect-[63/88] object-cover rounded-md"
+                        className="w-full aspect-[63/88] object-cover rounded-[2px]"
                       />
                       <CardBadges card={c} format={format} count={n} />
                     </button>
@@ -326,14 +326,14 @@ export const DeckBuilder: React.FC<DeckBuilderProps> = ({ initial, onSave, onCan
                         onClick={() => change(c, -1)}
                         disabled={n === 0}
                         aria-label={`Remove ${c.title}`}
-                        className="flex-1 py-0.5 rounded-md bg-slate-800 hover:bg-slate-700 disabled:opacity-30 flex justify-center"
+                        className="flex-1 py-0.5 rounded-[2px] bg-slate-800 hover:bg-slate-700 border border-slate-700/80 border-b-2 border-b-slate-600 active:translate-y-[1px] active:border-b-[1px] disabled:opacity-30 flex justify-center"
                       >
                         <Minus className="w-3 h-3" />
                       </button>
                       <button
                         onClick={() => setZoomCode(c.code)}
                         aria-label={`Inspect ${c.title}`}
-                        className="py-0.5 px-1.5 rounded-md bg-slate-800 hover:bg-slate-700"
+                        className="py-0.5 px-1.5 rounded-[2px] bg-slate-800 hover:bg-slate-700 border border-slate-700/80 border-b-2 border-b-slate-600 active:translate-y-[1px] active:border-b-[1px]"
                       >
                         <ZoomIn className="w-3 h-3" />
                       </button>
@@ -341,7 +341,7 @@ export const DeckBuilder: React.FC<DeckBuilderProps> = ({ initial, onSave, onCan
                         onClick={() => change(c, 1)}
                         disabled={n >= limit}
                         aria-label={`Add ${c.title}`}
-                        className="flex-1 py-0.5 rounded-md bg-slate-800 hover:bg-slate-700 disabled:opacity-30 flex justify-center"
+                        className="flex-1 py-0.5 rounded-[2px] bg-slate-800 hover:bg-slate-700 border border-slate-700/80 border-b-2 border-b-slate-600 active:translate-y-[1px] active:border-b-[1px] disabled:opacity-30 flex justify-center"
                       >
                         <Plus className="w-3 h-3" />
                       </button>
@@ -360,7 +360,7 @@ export const DeckBuilder: React.FC<DeckBuilderProps> = ({ initial, onSave, onCan
                 src={getCardImageUrl(identity.code)}
                 alt={identity.title}
                 {...hoverProps(identity.code)}
-                className="w-16 h-[5.6rem] object-cover rounded-md border border-slate-700 shrink-0"
+                className="w-16 h-[5.6rem] object-cover rounded-[2px] border border-slate-700 shrink-0"
               />
               <label className="flex-1 min-w-0">
                 <span className="text-[11px] uppercase tracking-wider text-slate-500">Identity</span>
@@ -370,7 +370,7 @@ export const DeckBuilder: React.FC<DeckBuilderProps> = ({ initial, onSave, onCan
                   aria-label="Identity"
                   {...hoverProps(identity.code)}
                   data-testid="identity-select"
-                  className="w-full mt-1 bg-slate-900 border border-slate-700 rounded-xl px-2 py-1.5 text-xs"
+                  className="w-full mt-1 bg-slate-900 border border-slate-700 rounded-[2px] px-2 py-1.5 text-xs"
                 >
                   {identities.map(i => (
                     <option key={i.code} value={i.title}>{i.title}</option>
@@ -387,7 +387,7 @@ export const DeckBuilder: React.FC<DeckBuilderProps> = ({ initial, onSave, onCan
                 onChange={e => setFormatId(e.target.value as FormatId)}
                 aria-label="Format"
                 data-testid="format-select"
-                className="w-full mt-1 bg-slate-900 border border-slate-700 rounded-xl px-2 py-1.5 text-xs"
+                className="w-full mt-1 bg-slate-900 border border-slate-700 rounded-[2px] px-2 py-1.5 text-xs"
               >
                 {FORMATS.map(f => (
                   <option key={f.id} value={f.id}>{f.name}</option>
@@ -422,7 +422,7 @@ export const DeckBuilder: React.FC<DeckBuilderProps> = ({ initial, onSave, onCan
             )}
 
             {initial.missing && (
-              <div className="rounded-xl border border-amber-900/60 bg-amber-950/20 p-2.5" data-testid="import-left-out">
+              <div className="rounded-[2px] border border-amber-900/60 bg-amber-950/20 p-2.5" data-testid="import-left-out">
                 <div className="text-[11px] uppercase tracking-wider text-slate-500 mb-1">Left out of the import (not in this game)</div>
                 {groupMissingBySet(initial.missing).map(g => (
                   <div key={g.set} className="text-xs mb-1">
@@ -440,7 +440,7 @@ export const DeckBuilder: React.FC<DeckBuilderProps> = ({ initial, onSave, onCan
             )}
 
             {limited.length > 0 && (
-              <div className="rounded-xl border border-red-900/60 bg-red-950/20 p-2.5" data-testid="format-limits">
+              <div className="rounded-[2px] border border-red-900/60 bg-red-950/20 p-2.5" data-testid="format-limits">
                 <div className="text-[11px] uppercase tracking-wider text-slate-500 mb-1">Banned or restricted</div>
                 <ul className="flex flex-col gap-1 text-xs">
                   {limited.map(({ card, text }) => (
@@ -453,7 +453,7 @@ export const DeckBuilder: React.FC<DeckBuilderProps> = ({ initial, onSave, onCan
               </div>
             )}
 
-            <div className="rounded-xl border border-slate-800 bg-slate-950/70 p-2.5 max-h-[60vh] overflow-y-auto">
+            <div className="rounded-[2px] border border-slate-800 bg-[#080d14] p-2.5 max-h-[60vh] overflow-y-auto">
               {inDeck.length === 0 && <p className="text-xs text-slate-500">Click cards on the left to add them.</p>}
               {TYPE_ORDER[side].map(t => {
                 const group = inDeck.filter(c => c.type_code === t);
@@ -543,7 +543,7 @@ export const DeckViewer: React.FC<DeckViewerProps> = ({ deck, onClose, onSelect 
           <button
             onClick={onClose}
             data-testid="close-deck-view"
-            className="px-3 py-1.5 rounded-xl border border-slate-700 hover:border-slate-500 text-xs flex items-center gap-1.5"
+            className="px-3 py-1.5 rounded-[2px] border border-slate-700/80 border-b-2 border-b-slate-600 bg-gradient-to-b from-slate-900 to-slate-950 hover:bg-slate-800 text-xs font-bold flex items-center gap-1.5 active:translate-y-[1px] active:border-b-[1px]"
           >
             <ArrowLeft className="w-3.5 h-3.5" /> Back
           </button>
@@ -556,8 +556,8 @@ export const DeckViewer: React.FC<DeckViewerProps> = ({ deck, onClose, onSelect 
             <button
               onClick={onSelect}
               data-testid="select-viewed-deck"
-              className={`px-4 py-1.5 rounded-xl text-sm font-bold flex items-center gap-1.5 text-white ${
-                accent === 'cyan' ? 'bg-cyan-700 hover:bg-cyan-600' : 'bg-pink-700 hover:bg-pink-600'
+              className={`px-4 py-1.5 rounded-[2px] text-sm font-bold border-b-2 active:translate-y-[1px] active:border-b-[1px] flex items-center gap-1.5 text-white ${
+                accent === 'cyan' ? 'bg-cyan-700 hover:bg-cyan-600 border-cyan-500' : 'bg-pink-700 hover:bg-pink-600 border-pink-500'
               }`}
             >
               <CheckCircle2 className="w-4 h-4" /> Use this deck
@@ -583,14 +583,14 @@ export const DeckViewer: React.FC<DeckViewerProps> = ({ deck, onClose, onSelect 
                       <div
                         key={c.code}
                         data-testid={`view-${c.code}`}
-                        className={`rounded-xl border p-1.5 bg-slate-950/80 flex flex-col gap-1 ${accent === 'cyan' ? 'border-cyan-600' : 'border-pink-600'}`}
+                        className={`rounded-[2px] border border-slate-800 p-1.5 bg-[#080d14] flex flex-col gap-1 ${accent === 'cyan' ? 'border-cyan-600' : 'border-pink-600'}`}
                       >
                         <button onClick={() => setZoomCode(c.code)} aria-label={`Inspect ${c.title}`} className="relative" {...hoverProps(c.code)}>
                           <img
                             src={getCardImageUrl(c.code)}
                             alt={c.title}
                             loading="lazy"
-                            className="w-full aspect-[63/88] object-cover rounded-md"
+                            className="w-full aspect-[63/88] object-cover rounded-[2px]"
                           />
                           <CardBadges card={c} format={format} count={counts.get(c.code)!} />
                         </button>
@@ -617,7 +617,7 @@ export const DeckViewer: React.FC<DeckViewerProps> = ({ deck, onClose, onSelect 
                 <img
                   src={getCardImageUrl(identity.code)}
                   alt={identity.title}
-                  className="w-16 h-[5.6rem] object-cover rounded-md border border-slate-700"
+                  className="w-16 h-[5.6rem] object-cover rounded-[2px] border border-slate-700"
                 />
               </button>
               <div className="flex-1 min-w-0">

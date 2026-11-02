@@ -125,7 +125,7 @@ export const FloatingPanel: React.FC<FloatingPanelProps> = ({
       <div
         ref={ref}
         style={style}
-        className={`fixed ${zIndexClass} ${pos ? '' : minimizedPlacement ?? defaultPlacement} max-w-[min(36rem,calc(100vw-1rem))] bg-slate-950/95 border-2 rounded-full shadow-2xl font-mono flex items-center gap-2 pl-3 pr-1 py-1 cursor-move select-none touch-none ${accentClass}`}
+        className={`fixed ${zIndexClass} ${pos ? '' : minimizedPlacement ?? defaultPlacement} max-w-[min(36rem,calc(100vw-1rem))] bg-[#090d15]/95 border rounded-[2px] shadow-2xl font-mono flex items-center gap-2 pl-3 pr-1.5 py-1 cursor-move select-none touch-none ${accentClass}`}
         data-testid={testId ? `${testId}-minimized` : undefined}
         {...dragHandlers}
       >
@@ -139,7 +139,7 @@ export const FloatingPanel: React.FC<FloatingPanelProps> = ({
             setPos(null); // reopen at the default placement, not where the bar was dragged
             setMinimized(false);
           }}
-          className="ml-1 px-3 py-1 rounded-full bg-slate-800 hover:bg-slate-700 text-slate-100 text-xs font-bold flex items-center gap-1 shrink-0"
+          className="ml-1 px-2.5 py-1 rounded-[2px] bg-slate-900 hover:bg-slate-800 text-slate-100 text-xs font-bold border border-slate-700/80 border-b-2 border-b-slate-600 flex items-center gap-1 shrink-0 active:translate-y-[1px] active:border-b-[1px]"
           aria-label="Restore panel"
           data-testid={testId ? `${testId}-restore` : undefined}
         >
@@ -153,7 +153,7 @@ export const FloatingPanel: React.FC<FloatingPanelProps> = ({
     <div
       ref={ref}
       style={style}
-      className={`fixed ${zIndexClass} ${placement} ${widthClass} max-w-[calc(100vw-1rem)] max-h-[calc(100vh-1rem)] flex flex-col bg-slate-950/95 backdrop-blur-xl border-2 chamfer shadow-2xl font-mono ${accentClass}`}
+      className={`fixed ${zIndexClass} ${placement} ${widthClass} max-w-[calc(100vw-1rem)] max-h-[calc(100vh-1rem)] flex flex-col bg-[#090d15]/95 backdrop-blur-xl border rounded-[2px] shadow-2xl font-mono ${accentClass}`}
       data-testid={testId}
       role={role}
       aria-labelledby={ariaLabelledBy}
@@ -168,7 +168,7 @@ export const FloatingPanel: React.FC<FloatingPanelProps> = ({
         <div className="flex-1 min-w-0">{title}</div>
         <button
           onClick={() => setMinimized(true)}
-          className="p-1.5 rounded-lg text-slate-400 hover:text-white hover:bg-slate-800 shrink-0"
+          className="p-1 rounded-[2px] text-slate-400 hover:text-white hover:bg-slate-800 border border-transparent hover:border-slate-700 shrink-0"
           aria-label="Minimize panel"
           title="Minimize to see the board"
           data-testid={testId ? `${testId}-minimize` : undefined}

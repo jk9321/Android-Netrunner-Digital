@@ -25,7 +25,7 @@ export function AccessedPanel({
   });
   return (
     <div
-      className="fixed left-4 bottom-6 z-40 w-72 max-w-[calc(100vw-2rem)] bg-slate-950/95 border-2 border-pink-700 rounded-2xl p-3 shadow-2xl font-mono"
+      className="fixed left-4 bottom-6 z-40 w-72 max-w-[calc(100vw-2rem)] bg-[#090d15]/95 border border-pink-700/80 rounded-[2px] p-3 shadow-2xl font-mono"
       data-testid="accessed-panel"
     >
       <div className="flex items-center justify-between mb-2">

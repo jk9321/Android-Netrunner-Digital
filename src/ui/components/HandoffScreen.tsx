@@ -25,8 +25,8 @@ export const HandoffScreen: React.FC<HandoffScreenProps> = ({ to, reason, onRead
         initial={{ opacity: 0, scale: 0.94 }}
         animate={{ opacity: 1, scale: 1 }}
         transition={{ duration: 0.25 }}
-        className={`max-w-md w-full text-center border-2 chamfer p-8 font-mono bg-slate-950 shadow-2xl ${
-          isCorp ? 'border-cyan-500 shadow-cyan-950/60' : 'border-pink-500 shadow-pink-950/60'
+        className={`max-w-md w-full text-center border rounded-[2px] p-8 font-mono bg-[#090d15] shadow-2xl ${
+          isCorp ? 'border-cyan-600/80 shadow-cyan-950/60' : 'border-pink-600/80 shadow-pink-950/60'
         }`}
       >
         <ArrowRightLeft className={`w-10 h-10 mx-auto mb-4 ${isCorp ? 'text-cyan-400' : 'text-pink-400'}`} />
@@ -38,8 +38,8 @@ export const HandoffScreen: React.FC<HandoffScreenProps> = ({ to, reason, onRead
           onClick={onReady}
           autoFocus
           data-testid="handoff-ready"
-          className={`px-6 py-3 rounded-2xl font-bold text-white ${
-            isCorp ? 'bg-cyan-700 hover:bg-cyan-600' : 'bg-pink-700 hover:bg-pink-600'
+          className={`px-6 py-3 rounded-[2px] font-bold text-white border-b-2 active:translate-y-[1px] active:border-b-[1px] ${
+            isCorp ? 'bg-cyan-700 hover:bg-cyan-600 border-cyan-500' : 'bg-pink-700 hover:bg-pink-600 border-pink-500'
           }`}
         >
           I'm the {isCorp ? 'Corp' : 'Runner'}: show my screen

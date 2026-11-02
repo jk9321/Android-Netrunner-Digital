@@ -51,7 +51,7 @@ const IceSlot: React.FC<{
       data-run-ice={atRunner || undefined}
       onMouseEnter={link ? () => lightHostLink(link) : undefined}
       onMouseLeave={link ? clearHostLink : undefined}
-      className={`relative card-sideways rounded-xl ${atRunner ? 'run-ice' : ''} ${lit ? 'host-link-lit' : ''}`}
+      className={`relative card-sideways rounded-[2px] ${atRunner ? 'run-ice' : ''} ${lit ? 'host-link-lit' : ''}`}
     >
       {children}
     </div>
@@ -114,7 +114,7 @@ export const ServerColumn: React.FC<ServerColumnProps> = ({
       data-testid={`server-${server.id}`}
       data-run-target={isRunTarget || undefined}
       style={{ minWidth: 'calc(var(--card-h) + 0.75rem)' }}
-      className={`relative shrink-0 flex flex-col items-center gap-1 bg-slate-900/70 border rounded-2xl px-1.5 pt-1 pb-1.5 transition-all duration-200 shadow-lg ${
+      className={`relative shrink-0 flex flex-col items-center gap-1 bg-[#070b12]/80 border rounded-[2px] px-1.5 pt-1 pb-1.5 transition-all duration-200 shadow-lg ${
         isRunTarget
           ? 'border-cyber-neonPink ring-2 ring-cyber-neonPink/60 bg-pink-950/30 run-target'
           : 'border-slate-800 hover:border-slate-600'
@@ -147,7 +147,7 @@ export const ServerColumn: React.FC<ServerColumnProps> = ({
 
       {/* Server Root on the Corp's side: the central's own card, then assets, agendas and upgrades side by side */}
       <div
-        className={`relative flex gap-1 flex-nowrap justify-center items-start w-full rounded-xl transition-colors ${
+        className={`relative flex gap-1 flex-nowrap justify-center items-start w-full rounded-[2px] transition-colors ${
           atRoot ? 'bg-pink-500/10 ring-1 ring-cyber-neonPink/60' : ''
         }`}
       >
@@ -158,7 +158,7 @@ export const ServerColumn: React.FC<ServerColumnProps> = ({
         )}
         {anchor}
         {server.root.length === 0 && !anchor ? (
-          <div className="card-fit rounded-xl border border-dashed border-slate-800 flex items-center justify-center text-[11px] text-slate-600 italic">
+          <div className="card-fit rounded-[2px] border border-dashed border-slate-800 flex items-center justify-center text-[11px] text-slate-600 italic">
             Empty
           </div>
         ) : (
