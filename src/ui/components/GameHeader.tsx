@@ -7,6 +7,7 @@ import { GameState, SideCode } from '../../core';
 import { GameConfig } from '../savedGame';
 import { ViewMode } from '../viewer';
 import { setSoundEnabled, soundEnabled } from '../sound';
+import { musicEnabled, setMusicEnabled, musicVolume, setMusicVolume } from '../music';
 import { animationsEnabled, setAnimationsEnabled } from '../animations';
 import { CardSize, savedCardSize, setCardSize } from '../cardSize';
 import { PhaseTracker } from './PhaseTracker';
@@ -38,6 +39,8 @@ export function GameHeader({
   onLeave,
 }: GameHeaderProps) {
   const [sound, setSound] = useState(soundEnabled);
+  const [music, setMusic] = useState(musicEnabled);
+  const [musicVol, setMusicVol] = useState(musicVolume);
   const [animations, setAnimations] = useState(animationsEnabled);
   const [settingsOpen, setSettingsOpen] = useState(false);
   const settingsBtnRef = useRef<HTMLButtonElement>(null);
@@ -218,7 +221,7 @@ export function GameHeader({
                 const right = rect && rect.right > 0 ? Math.max(8, window.innerWidth - rect.right) : 12;
                 return { top, right };
               })()}
-              className="fixed z-[100] w-52 bg-[#090d15] border border-slate-700 rounded-[2px] p-3 shadow-2xl font-mono text-xs text-slate-200 space-y-2"
+              className="fixed z-[100] w-56 bg-[#090d15] border border-slate-700 rounded-[2px] p-3 shadow-2xl font-mono text-xs text-slate-200 space-y-2.5"
             >
               <div className="font-cyber font-bold tracking-wider text-[11px] text-slate-400 border-b border-slate-800 pb-1.5">
                 SETTINGS
@@ -235,9 +238,44 @@ export function GameHeader({
                   className="accent-cyan-400 cursor-pointer"
                   data-testid="setting-mute-audio"
                 />
-                <span>Mute audio</span>
+                <span>Mute sound effects</span>
               </label>
               <label className="flex items-center gap-2 cursor-pointer select-none hover:text-white">
+                <input
+                  type="checkbox"
+                  checked={!music}
+                  onChange={e => {
+                    const nextMusic = !e.target.checked;
+                    setMusicEnabled(nextMusic);
+                    setMusic(nextMusic);
+                  }}
+                  className="accent-cyan-400 cursor-pointer"
+                  data-testid="setting-mute-music"
+                />
+                <span>Mute music</span>
+              </label>
+              <div className="pt-0.5 pb-1 space-y-1">
+                <div className="flex items-center justify-between text-[11px] text-slate-400">
+                  <span>Music volume</span>
+                  <span className="font-bold text-cyan-400">{Math.round(musicVol * 100)}%</span>
+                </div>
+                <input
+                  type="range"
+                  min="0"
+                  max="1"
+                  step="0.05"
+                  value={musicVol}
+                  disabled={!music}
+                  onChange={e => {
+                    const nextVol = parseFloat(e.target.value);
+                    setMusicVolume(nextVol);
+                    setMusicVol(nextVol);
+                  }}
+                  className="w-full accent-cyan-400 cursor-pointer disabled:opacity-40"
+                  data-testid="setting-music-volume"
+                />
+              </div>
+              <label className="flex items-center gap-2 cursor-pointer select-none hover:text-white border-t border-slate-800/80 pt-1.5">
                 <input
                   type="checkbox"
                   checked={!animations}

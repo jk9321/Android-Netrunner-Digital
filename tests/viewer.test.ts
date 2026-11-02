@@ -81,14 +81,14 @@ describe('sound effects', () => {
     const won = structuredClone(state);
     won.winner = 'corp';
     won.corp.score = 7;
-    expect(soundFor(state, won)).toBe('win');
+    expect(soundFor(state, won)).toBe('corp_win');
     const conceded = executeAction(state, { type: 'CONCEDE', player: 'runner' });
-    expect(soundFor(state, conceded)).toBe('win');
+    expect(soundFor(state, conceded)).toBe('concede');
     // The side that lost hears the lose sound, the winner the fanfare
-    expect(soundFor(state, won, 'corp')).toBe('win');
+    expect(soundFor(state, won, 'corp')).toBe('corp_win');
     expect(soundFor(state, won, 'runner')).toBe('lose');
-    expect(soundFor(state, conceded, 'runner')).toBe('lose');
-    expect(soundFor(state, conceded, 'corp')).toBe('win');
+    expect(soundFor(state, conceded, 'runner')).toBe('concede');
+    expect(soundFor(state, conceded, 'corp')).toBe('concede');
   });
 
   it('marks accessed cards in the log so the UI can list them', () => {

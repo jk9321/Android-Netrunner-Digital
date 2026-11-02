@@ -34,6 +34,7 @@ import { SectorRimTrace } from './ui/components/SectorRimTrace';
 import { MotionConfig } from 'framer-motion';
 import { useAnimationsEnabled } from './ui/animations';
 import { GameStateContext } from './ui/liveValues';
+import { stopMusic, updateMusic } from './ui/music';
 
 /** Reversed: Archives sorts first; remotes (-1) keep their order after HQ. */
 const CENTRAL_ORDER = ['hq', 'rd', 'archives'];
@@ -122,6 +123,15 @@ function Game({
   const [inspectedCard, setInspectedCard] = useState<CardInstance | null>(null);
   const [zone, setZone] = useState<ZoneId | null>(null);
   const zoneView = zone ? zoneContents(zone, gameState) : null;
+
+  // Adaptive background music driven by the active side and match tension
+  useEffect(() => {
+    const musicSide = humanSide ?? (viewMode === 'hotseat' ? hotseatSide : gameState.activePlayer);
+    updateMusic(gameState, musicSide);
+    return () => {
+      stopMusic();
+    };
+  }, [gameState, humanSide, viewMode, hotseatSide]);
 
   // Back to the deck picker; a game still in progress is lost, so ask first
   const leaveGame = async () => {
