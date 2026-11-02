@@ -1,34 +1,87 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 300 420">
+<svg viewBox="0 0 300 420" xmlns="http://www.w3.org/2000/svg">
   <defs>
-    <linearGradient id="bg" x1="0" y1="0" x2="0" y2="1">
-      <stop offset="0" stop-color="#0b2230"/>
-      <stop offset="1" stop-color="#05070c"/>
+    <linearGradient id="corp-chip-bg" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#030b18"/>
+      <stop offset="50%" stop-color="#02050d"/>
+      <stop offset="100%" stop-color="#01040a"/>
     </linearGradient>
-    <pattern id="grid" width="20" height="20" patternUnits="userSpaceOnUse">
-      <path d="M20 0H0V20" fill="none" stroke="#22d3ee" stroke-opacity="0.08" stroke-width="1"/>
-    </pattern>
+    <linearGradient id="corp-core-glow" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#00f0ff"/>
+      <stop offset="100%" stop-color="#0284c7"/>
+    </linearGradient>
   </defs>
-  <rect width="300" height="420" rx="14" fill="url(#bg)"/>
-  <rect width="300" height="420" rx="14" fill="url(#grid)"/>
-  <path d="M28 14H272L286 28V392L272 406H28L14 392V28Z" fill="none" stroke="#22d3ee" stroke-opacity="0.75" stroke-width="3"/>
-  <path d="M38 26H262L274 38V382L262 394H38L26 382V38Z" fill="none" stroke="#22d3ee" stroke-opacity="0.3" stroke-width="1.5"/>
-  <g fill="none" stroke="#22d3ee" stroke-opacity="0.45" stroke-width="2">
-    <path d="M26 110H80L100 130H130"/>
-    <path d="M274 110H220L200 130H170"/>
-    <path d="M26 310H80L100 290H130"/>
-    <path d="M274 310H220L200 290H170"/>
-    <path d="M150 26V90"/>
-    <path d="M150 394V330"/>
+
+  <!-- Edge-to-edge flush background (no rounded corners, fills card frame perfectly) -->
+  <rect width="300" height="420" fill="url(#corp-chip-bg)"/>
+
+  <!-- Microchip Die Boundaries -->
+  <rect x="12" y="12" width="276" height="396" fill="none" stroke="#00f0ff" stroke-width="1.5" stroke-opacity="0.35"/>
+  <rect x="20" y="20" width="260" height="380" fill="none" stroke="#0284c7" stroke-width="1" stroke-opacity="0.2"/>
+
+  <!-- Bus Array Lines -->
+  <g fill="none" stroke="#00f0ff" stroke-width="1.2" stroke-opacity="0.4">
+    <!-- Top Bus -->
+    <path d="M 40 20 V 70 H 130 V 120"/>
+    <path d="M 60 20 V 60 H 140 V 120"/>
+    <path d="M 80 20 V 50 H 145 V 120"/>
+    <path d="M 260 20 V 70 H 170 V 120"/>
+    <path d="M 240 20 V 60 H 160 V 120"/>
+    <path d="M 220 20 V 50 H 155 V 120"/>
+    <!-- Bottom Bus -->
+    <path d="M 40 400 V 350 H 130 V 300"/>
+    <path d="M 60 400 V 360 H 140 V 300"/>
+    <path d="M 80 400 V 370 H 145 V 300"/>
+    <path d="M 260 400 V 350 H 170 V 300"/>
+    <path d="M 240 400 V 360 H 160 V 300"/>
+    <path d="M 220 400 V 370 H 155 V 300"/>
+    <!-- Side Bus -->
+    <path d="M 20 180 H 60 L 85 195 H 95"/>
+    <path d="M 20 240 H 60 L 85 225 H 95"/>
+    <path d="M 280 180 H 240 L 215 195 H 205"/>
+    <path d="M 280 240 H 240 L 215 225 H 205"/>
   </g>
-  <g fill="#22d3ee" fill-opacity="0.7">
-    <circle cx="130" cy="130" r="4"/><circle cx="170" cy="130" r="4"/>
-    <circle cx="130" cy="290" r="4"/><circle cx="170" cy="290" r="4"/>
-    <circle cx="150" cy="90" r="4"/><circle cx="150" cy="330" r="4"/>
+
+  <!-- Chip Pins / Contact Pads -->
+  <g fill="#00f0ff" opacity="0.65">
+    <rect x="36" y="8" width="8" height="6"/>
+    <rect x="56" y="8" width="8" height="6"/>
+    <rect x="76" y="8" width="8" height="6"/>
+    <rect x="216" y="8" width="8" height="6"/>
+    <rect x="236" y="8" width="8" height="6"/>
+    <rect x="256" y="8" width="8" height="6"/>
+    <rect x="36" y="406" width="8" height="6"/>
+    <rect x="56" y="406" width="8" height="6"/>
+    <rect x="76" y="406" width="8" height="6"/>
+    <rect x="216" y="406" width="8" height="6"/>
+    <rect x="236" y="406" width="8" height="6"/>
+    <rect x="256" y="406" width="8" height="6"/>
   </g>
-  <g fill="none" stroke="#22d3ee" stroke-width="5">
-    <path d="M150 150L210 185V245L150 280L90 245V185Z"/>
-    <path d="M150 180L184 200V240L150 260L116 240V200Z" stroke-opacity="0.6"/>
+
+  <!-- Micro-vias (Bus solder junctions) -->
+  <g fill="#00f0ff" opacity="0.75">
+    <circle cx="130" cy="70" r="2"/>
+    <circle cx="140" cy="60" r="2"/>
+    <circle cx="145" cy="50" r="2"/>
+    <circle cx="170" cy="70" r="2"/>
+    <circle cx="160" cy="60" r="2"/>
+    <circle cx="155" cy="50" r="2"/>
+    <circle cx="130" cy="350" r="2"/>
+    <circle cx="140" cy="360" r="2"/>
+    <circle cx="145" cy="370" r="2"/>
+    <circle cx="170" cy="350" r="2"/>
+    <circle cx="160" cy="360" r="2"/>
+    <circle cx="155" cy="370" r="2"/>
   </g>
-  <rect x="140" y="205" width="20" height="20" fill="#22d3ee"/>
-  <text x="150" y="372" text-anchor="middle" font-family="'Share Tech Mono', ui-monospace, monospace" font-size="26" letter-spacing="8" fill="#22d3ee">CORP</text>
+
+  <!-- Central Processing Unit Core -->
+  <g transform="translate(150, 210)">
+    <rect x="-65" y="-65" width="130" height="130" fill="#031628" stroke="#00f0ff" stroke-width="2"/>
+    <rect x="-56" y="-56" width="112" height="112" fill="#010812" stroke="#0284c7" stroke-width="1"/>
+    
+    <!-- Concentric Heat Ring & Telemetry Pattern -->
+    <circle cx="0" cy="0" r="38" fill="none" stroke="#00f0ff" stroke-width="1.5" stroke-dasharray="5,3" stroke-opacity="0.8"/>
+    <circle cx="0" cy="0" r="24" fill="#05223a" stroke="#38bdf8" stroke-width="1.5"/>
+    <polygon points="0,-14 14,0 0,14 -14,0" fill="url(#corp-core-glow)"/>
+    <circle cx="0" cy="0" r="3" fill="#ffffff"/>
+  </g>
 </svg>
