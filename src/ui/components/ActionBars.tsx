@@ -65,7 +65,7 @@ export function CorpActions(props: ActionBarProps) {
   const startingTurn = state.turnStep?.kind === 'corp_turn_start';
   const turnAction: GameAction = startingTurn ? { type: 'START_TURN', player: 'corp' } : { type: 'END_TURN', player: 'corp' };
   return (
-    <div className="flex flex-col gap-2 p-2 bg-cyan-950/40 border border-cyan-800/80 rounded-[4px] shadow-inner">
+    <div className="flex flex-col gap-2 p-2 bg-gradient-to-b from-[#0e141e] to-[#080c13] border border-cyan-900/60 rounded-[2px] shadow-inner">
       <div className="flex items-center gap-1.5 flex-wrap">
         <span className="text-xs font-bold text-cyan-400 font-mono uppercase w-full">Corp Actions ({corp.clicks} Clicks):</span>
         {/* Basic click actions sit in an equal 3-column row so they never wrap awkwardly */}
@@ -73,14 +73,14 @@ export function CorpActions(props: ActionBarProps) {
           <button
             onClick={() => onAction({ type: 'GAIN_CREDIT', player: 'corp' })}
             disabled={!isLegalAction(state, { type: 'GAIN_CREDIT', player: 'corp' })}
-            className="px-1.5 py-1 bg-cyan-950 hover:bg-cyan-900 border border-cyan-700 text-cyan-200 text-xs font-bold rounded-lg transition-all flex items-center justify-center gap-1.5 disabled:opacity-40 shadow"
+            className="px-1.5 py-1.5 bg-gradient-to-b from-cyan-950/90 to-cyan-950/40 hover:from-cyan-900/90 hover:to-cyan-900/40 border border-cyan-700/80 border-b-2 border-b-cyan-500 text-cyan-200 text-xs font-bold rounded-[2px] transition-all flex items-center justify-center gap-1.5 disabled:opacity-40 shadow active:translate-y-[1px] active:border-b-[1px]"
           >
             <CreditIcon className="w-3.5 h-3.5 text-amber-400" /> +1 Credit
           </button>
           <button
             onClick={() => onAction({ type: 'DRAW_CARD', player: 'corp' })}
             disabled={!isLegalAction(state, { type: 'DRAW_CARD', player: 'corp' })}
-            className="px-1.5 py-1 bg-cyan-950 hover:bg-cyan-900 border border-cyan-700 text-cyan-200 text-xs font-bold rounded-lg transition-all flex items-center justify-center gap-1.5 disabled:opacity-40 shadow"
+            className="px-1.5 py-1.5 bg-gradient-to-b from-cyan-950/90 to-cyan-950/40 hover:from-cyan-900/90 hover:to-cyan-900/40 border border-cyan-700/80 border-b-2 border-b-cyan-500 text-cyan-200 text-xs font-bold rounded-[2px] transition-all flex items-center justify-center gap-1.5 disabled:opacity-40 shadow active:translate-y-[1px] active:border-b-[1px]"
           >
             <Layers className="w-3.5 h-3.5 text-cyan-400" /> Draw Card
           </button>
@@ -99,7 +99,7 @@ export function CorpActions(props: ActionBarProps) {
               onAction({ type: 'PURGE_VIRUS', player: 'corp' });
             }}
             disabled={!isLegalAction(state, { type: 'PURGE_VIRUS', player: 'corp' })}
-            className="px-1 py-1 bg-cyan-950 hover:bg-cyan-900 border border-cyan-700 text-cyan-200 text-xs font-bold rounded-lg transition-all flex items-center justify-center gap-1 disabled:opacity-40 shadow whitespace-nowrap"
+            className="px-1 py-1.5 bg-gradient-to-b from-cyan-950/90 to-cyan-950/40 hover:from-cyan-900/90 hover:to-cyan-900/40 border border-cyan-700/80 border-b-2 border-b-cyan-500 text-cyan-200 text-xs font-bold rounded-[2px] transition-all flex items-center justify-center gap-1 disabled:opacity-40 shadow whitespace-nowrap active:translate-y-[1px] active:border-b-[1px]"
             title="Spend 3 clicks to remove every virus counter"
           >
             <VirusIcon className="w-[17px] h-[17px] text-lime-400 shrink-0" />
@@ -177,7 +177,7 @@ export function RunnerActions(props: ActionBarProps) {
   const pickingCard = pickingHost ? findCardAnywhere(state, pickingHost) : undefined;
   if (pickingCard && hostChoices.length > 0) {
     return (
-      <div className="flex flex-col gap-2 p-2 bg-pink-950/40 border border-pink-800/80 rounded-[4px] shadow-inner">
+      <div className="flex flex-col gap-2 p-2 bg-gradient-to-b from-[#180a10] to-[#0d0407] border border-pink-900/60 rounded-[2px] shadow-inner">
         <span className="text-xs font-bold text-pink-400 font-mono uppercase">
           Install {pickingCard.instanceId === installable?.instanceId ? '' : 'hosted '}
           {cardDef(pickingCard).title} on:
@@ -244,14 +244,14 @@ export function RunnerActions(props: ActionBarProps) {
           <button
             onClick={() => onAction({ type: 'GAIN_CREDIT', player: 'runner' })}
             disabled={runner.clicks < 1}
-            className="px-2 py-1 bg-pink-950 hover:bg-pink-900 border border-pink-700 text-pink-200 text-xs font-bold rounded-lg transition-all flex items-center justify-center gap-1.5 disabled:opacity-40 shadow"
+            className="px-2 py-1.5 bg-gradient-to-b from-pink-950/90 to-pink-950/40 hover:from-pink-900/90 hover:to-pink-900/40 border border-pink-700/80 border-b-2 border-b-pink-500 text-pink-200 text-xs font-bold rounded-[2px] transition-all flex items-center justify-center gap-1.5 disabled:opacity-40 shadow active:translate-y-[1px] active:border-b-[1px]"
           >
             <CreditIcon className="w-3.5 h-3.5 text-amber-400" /> +1 Credit
           </button>
           <button
             onClick={() => onAction({ type: 'DRAW_CARD', player: 'runner' })}
             disabled={runner.clicks < 1}
-            className="px-2 py-1 bg-pink-950 hover:bg-pink-900 border border-pink-700 text-pink-200 text-xs font-bold rounded-lg transition-all flex items-center justify-center gap-1.5 disabled:opacity-40 shadow"
+            className="px-2 py-1.5 bg-gradient-to-b from-pink-950/90 to-pink-950/40 hover:from-pink-900/90 hover:to-pink-900/40 border border-pink-700/80 border-b-2 border-b-pink-500 text-pink-200 text-xs font-bold rounded-[2px] transition-all flex items-center justify-center gap-1.5 disabled:opacity-40 shadow active:translate-y-[1px] active:border-b-[1px]"
           >
             <Layers className="w-3.5 h-3.5 text-pink-400" /> Draw Card
           </button>
@@ -260,7 +260,7 @@ export function RunnerActions(props: ActionBarProps) {
           <button
             onClick={() => onAction({ type: 'REMOVE_TAG', player: 'runner' })}
             disabled={!isLegalAction(state, { type: 'REMOVE_TAG', player: 'runner' })}
-            className="px-2 py-1 bg-pink-950 hover:bg-pink-900 border border-pink-700 text-pink-200 text-xs font-bold rounded-lg transition-all flex items-center justify-center gap-1.5 disabled:opacity-40 shadow w-full"
+            className="px-2 py-1.5 bg-gradient-to-b from-pink-950/90 to-pink-950/40 hover:from-pink-900/90 hover:to-pink-900/40 border border-pink-700/80 border-b-2 border-b-pink-500 text-pink-200 text-xs font-bold rounded-[2px] transition-all flex items-center justify-center gap-1.5 disabled:opacity-40 shadow w-full active:translate-y-[1px] active:border-b-[1px]"
           >
             <TagIcon className="w-[18px] h-[18px] text-red-400 shrink-0" /> Remove Tag (1<ClickIcon className="w-3 h-3 text-red-400 inline-block align-middle mx-0.5" /> + <Credits amount={2} />)
           </button>

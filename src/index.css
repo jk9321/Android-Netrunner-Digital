@@ -82,12 +82,12 @@
 
 @layer base {
   body {
-    background-color: rgb(var(--bg));
-    /* Micro dot-matrix dark canvas with soft radial vignette */
+    background-color: #06090d;
+    /* Static micro-raster texture with soft radial vignette - no animations or blur to prevent eye strain */
     background-image:
-      radial-gradient(ellipse at center, transparent 40%, rgb(var(--bg-deep) / 0.85) 100%),
-      radial-gradient(rgba(255, 255, 255, 0.05) 1px, transparent 1px);
-    background-size: 100% 100%, 24px 24px;
+      linear-gradient(rgba(18, 24, 38, 0) 50%, rgba(0, 0, 0, 0.4) 50%),
+      radial-gradient(rgba(255, 255, 255, 0.04) 1px, transparent 1px);
+    background-size: 100% 4px, 24px 24px;
     background-attachment: fixed;
     color: rgb(var(--neutral-100));
     font-family: 'JetBrains Mono', 'Share Tech Mono', monospace;
@@ -226,12 +226,12 @@
 .run-ice {
   animation: run-ice-pulse 1.2s ease-in-out infinite;
 }
-/* Whose turn it is: clean, crisp edge rail indicating the acting side's board */
+/* Whose turn it is: clean, crisp edge rail with tactile hardware depth */
 .turn-active.hud-corp {
-  box-shadow: inset 3px 0 0 rgb(var(--corp-400)), inset 0 1px 0 rgb(var(--corp-400) / 0.25);
+  box-shadow: inset 3.5px 0 0 rgb(var(--corp-400)), inset 0 1px 0 rgba(255, 255, 255, 0.08), 0 4px 20px rgba(0, 0, 0, 0.7);
 }
 .turn-active.hud-runner {
-  box-shadow: inset 3px 0 0 rgb(var(--runner-500)), inset 0 1px 0 rgb(var(--runner-500) / 0.25);
+  box-shadow: inset 3.5px 0 0 rgb(var(--runner-500)), inset 0 1px 0 rgba(255, 255, 255, 0.08), 0 4px 20px rgba(0, 0, 0, 0.7);
 }
 /* Out of clicks: the End Turn button flashes in the side's colour. Buttons are
    clipped (chamfered corners), so the glow is drawn inside. It flashes even
