@@ -493,7 +493,7 @@ export const DeckPicker: React.FC<DeckPickerProps> = ({ initialCorpDeckId, initi
           )}
         </div>
         <p className="text-xs font-mono text-slate-400 tracking-wide mt-1">
-          <span className="text-slate-500">//</span> unofficial netrunner client
+          <span className="text-slate-500">//</span> an unofficial netrunner client
         </p>
       </div>
       {BulkImportModal && bulkImporting && (
