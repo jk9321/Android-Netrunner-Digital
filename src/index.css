@@ -278,6 +278,19 @@
   }
 }
 
+:root[data-animations='off'] .run-target,
+:root[data-animations='off'] .run-ice,
+:root[data-animations='off'] .terminal-cursor,
+:root[data-animations='off'] .tumbler-up,
+:root[data-animations='off'] .tumbler-down,
+:root[data-animations='off'] .animate-pulse,
+:root[data-animations='off'] .animate-ping,
+:root[data-animations='off'] .animate-spin,
+:root[data-animations='off'] .animate-in {
+  animation: none !important;
+  transform: none !important;
+}
+
 /*
  * Table sizing. Board cards follow the window height so the whole game fits
  * one screen; the zoom panel shows a large copy on hover. The header's Large

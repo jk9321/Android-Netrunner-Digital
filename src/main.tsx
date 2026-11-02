@@ -5,12 +5,14 @@ import { KeywordTooltip } from './ui/components/Keyword';
 import { DialogHost } from './ui/components/Dialog';
 import { ErrorBoundary } from './ui/components/ErrorBoundary';
 import { applyCardSize, savedCardSize } from './ui/cardSize';
+import { animationsEnabled, applyAnimations } from './ui/animations';
 import { installChunkReload } from './ui/chunkReload';
 import { diagnoseLoad, installReloadWatch } from './ui/reloadReason';
 import { ReloadNotice } from './ui/components/ReloadNotice';
 import './index.css';
 
 applyCardSize(savedCardSize());
+applyAnimations(animationsEnabled());
 installChunkReload();
 const reloadMessage = diagnoseLoad();
 installReloadWatch();

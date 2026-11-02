@@ -4,6 +4,7 @@ import { Trash2 } from 'lucide-react';
 import { AgendaDiamondIcon } from './CreditIcon';
 import { CardFate, FateKind } from '../cardFates';
 import { CardView } from './CardView';
+import { useAnimationsEnabled } from '../animations';
 
 export interface ShownFate extends CardFate {
   /** Unique per showing, so the same card can show again later. */
@@ -41,41 +42,44 @@ const EXIT: Record<FateKind, object> = {
  * Cards just stolen, scored or trashed, shown large in the middle of the
  * table with a stamp saying what happened, then sent on their way.
  */
-export const CardFates: React.FC<{ fates: ShownFate[] }> = ({ fates }) => (
-  <MotionConfig reducedMotion="user">
-    <div
-      data-testid="card-fates"
-      className="fixed inset-0 z-[60] pointer-events-none flex items-center justify-center gap-6"
-    >
-      <AnimatePresence>
-        {fates.map(fate => {
-          const stamp = STAMP[fate.kind];
-          return (
-            <motion.div
-              key={fate.key}
-              data-fate={fate.kind}
-              className="relative"
-              initial={{ opacity: 0, scale: 0.6, y: 20 }}
-              animate={{ opacity: 1, scale: 1, y: 0, rotate: 0, filter: 'grayscale(0) brightness(1)' }}
-              exit={{ ...EXIT[fate.kind], transition: { duration: 0.45, ease: 'easeIn' } }}
-              transition={{ duration: 0.25, ease: 'easeOut' }}
-            >
-              <div className="rounded-[3px] shadow-2xl shadow-black">
-                <CardView card={fate.card} size="lg" notInstalled isFaceDown={!fate.canSee} canPeek={fate.canSee} />
-              </div>
+export const CardFates: React.FC<{ fates: ShownFate[] }> = ({ fates }) => {
+  const animationsOn = useAnimationsEnabled();
+  return (
+    <MotionConfig reducedMotion={animationsOn ? 'user' : 'always'}>
+      <div
+        data-testid="card-fates"
+        className="fixed inset-0 z-[60] pointer-events-none flex items-center justify-center gap-6"
+      >
+        <AnimatePresence>
+          {fates.map(fate => {
+            const stamp = STAMP[fate.kind];
+            return (
               <motion.div
-                className={`absolute left-1/2 top-1/2 px-3 py-1 rounded-[2px] border-2 font-cyber font-bold uppercase tracking-[0.2em] text-lg shadow-xl flex items-center gap-1.5 whitespace-nowrap ${stamp.className}`}
-                initial={{ opacity: 0, scale: 2.2, x: '-50%', y: '-50%', rotate: -12 }}
-                animate={{ opacity: 1, scale: 1, x: '-50%', y: '-50%', rotate: -12 }}
-                transition={{ delay: 0.15, duration: 0.2, ease: 'easeOut' }}
+                key={fate.key}
+                data-fate={fate.kind}
+                className="relative"
+                initial={{ opacity: 0, scale: 0.6, y: 20 }}
+                animate={{ opacity: 1, scale: 1, y: 0, rotate: 0, filter: 'grayscale(0) brightness(1)' }}
+                exit={{ ...EXIT[fate.kind], transition: { duration: 0.45, ease: 'easeIn' } }}
+                transition={{ duration: 0.25, ease: 'easeOut' }}
               >
-                {stamp.icon}
-                {stamp.label}
+                <div className="rounded-[3px] shadow-2xl shadow-black">
+                  <CardView card={fate.card} size="lg" notInstalled isFaceDown={!fate.canSee} canPeek={fate.canSee} />
+                </div>
+                <motion.div
+                  className={`absolute left-1/2 top-1/2 px-3 py-1 rounded-[2px] border-2 font-cyber font-bold uppercase tracking-[0.2em] text-lg shadow-xl flex items-center gap-1.5 whitespace-nowrap ${stamp.className}`}
+                  initial={{ opacity: 0, scale: 2.2, x: '-50%', y: '-50%', rotate: -12 }}
+                  animate={{ opacity: 1, scale: 1, x: '-50%', y: '-50%', rotate: -12 }}
+                  transition={{ delay: 0.15, duration: 0.2, ease: 'easeOut' }}
+                >
+                  {stamp.icon}
+                  {stamp.label}
+                </motion.div>
               </motion.div>
-            </motion.div>
-          );
-        })}
-      </AnimatePresence>
-    </div>
-  </MotionConfig>
-);
+            );
+          })}
+        </AnimatePresence>
+      </div>
+    </MotionConfig>
+  );
+};

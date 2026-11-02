@@ -2,6 +2,7 @@ import React, { useEffect, useRef, useState } from 'react';
 import { LogEntry } from '../../core/types/state';
 import { CardNameText } from './CardNameText';
 import { Viewer } from '../viewer';
+import { shouldReduceMotion } from '../animations';
 
 interface LogFeedProps {
   logs: LogEntry[];
@@ -53,9 +54,10 @@ export const LogFeed: React.FC<LogFeedProps> = React.memo(({ logs, viewer, class
     if (isFiltering) return;
     const list = listRef.current;
     if (!list) return;
-    list.scrollTo({ top: list.scrollHeight, behavior: 'smooth' });
+    const behavior = shouldReduceMotion() ? 'instant' : 'smooth';
+    list.scrollTo({ top: list.scrollHeight, behavior });
     const timer = setTimeout(() => {
-      list.scrollTo({ top: list.scrollHeight, behavior: 'smooth' });
+      list.scrollTo({ top: list.scrollHeight, behavior });
     }, 135);
     return () => clearTimeout(timer);
   }, [logs.length, isFiltering]);
@@ -132,7 +134,7 @@ interface LogLineProps {
 }
 
 const LogLine = React.memo(({ player, message, animate = false }: LogLineProps) => {
-  const shouldAnimate = animate && typeof window !== 'undefined' && !window.matchMedia?.('(prefers-reduced-motion: reduce)')?.matches;
+  const shouldAnimate = animate && !shouldReduceMotion();
   const [displayedLength, setDisplayedLength] = useState(() => (shouldAnimate ? 0 : message.length));
 
   useEffect(() => {

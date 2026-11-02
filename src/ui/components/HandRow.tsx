@@ -2,6 +2,7 @@ import React from 'react';
 import { AnimatePresence, MotionConfig, motion } from 'framer-motion';
 import { CardInstance, SideCode } from '../../core/types/card';
 import { CardView } from './CardView';
+import { useAnimationsEnabled } from '../animations';
 
 interface HandRowProps {
   cards: CardInstance[];
@@ -36,9 +37,10 @@ export const HandRow: React.FC<HandRowProps> = React.memo(({
   discardedIds,
 }) => {
   const glow = side === 'corp' ? 'rgb(var(--corp-400) / 0.55)' : 'rgb(var(--runner-500) / 0.55)';
+  const animationsOn = useAnimationsEnabled();
 
   return (
-    <MotionConfig reducedMotion="user">
+    <MotionConfig reducedMotion={animationsOn ? 'user' : 'always'}>
       <div
         data-testid={`hand-${side}`}
         className="hand-fan relative flex min-w-0 pt-2 pb-1 px-1"

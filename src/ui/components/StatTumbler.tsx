@@ -1,4 +1,5 @@
 import React, { useEffect, useRef, useState } from 'react';
+import { shouldReduceMotion } from '../animations';
 
 interface StatTumblerProps {
   value: number;
@@ -18,6 +19,7 @@ export const StatTumbler: React.FC<StatTumblerProps> = React.memo(({ value, clas
     if (prevValue.current !== value) {
       const dir = value > prevValue.current ? 'tumbler-up' : 'tumbler-down';
       prevValue.current = value;
+      if (shouldReduceMotion()) return;
       setAnim(prev => ({ dir, seq: (prev?.seq ?? 0) + 1 }));
       const timer = setTimeout(() => setAnim(null), 120);
       return () => clearTimeout(timer);

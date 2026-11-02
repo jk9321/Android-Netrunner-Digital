@@ -31,6 +31,8 @@ import { Keyword } from './ui/components/Keyword';
 import { KnownInHandButton } from './ui/components/KnownInHandButton';
 import { showConfirm } from './ui/components/Dialog';
 import { SectorRimTrace } from './ui/components/SectorRimTrace';
+import { MotionConfig } from 'framer-motion';
+import { useAnimationsEnabled } from './ui/animations';
 
 /** Reversed: Archives sorts first; remotes (-1) keep their order after HQ. */
 const CENTRAL_ORDER = ['hq', 'rd', 'archives'];
@@ -39,36 +41,41 @@ export default function App() {
   const [start] = useState(startingGame);
   const [config, setConfig] = useState<GameConfig | null>(start.config);
   const [lastDecks, setLastDecks] = useState({ corp: DEFAULT_CORP_DECK, runner: DEFAULT_RUNNER_DECK });
+  const animationsOn = useAnimationsEnabled();
 
   if (!config) {
     return (
-      <DeckPicker
-        initialCorpDeckId={lastDecks.corp}
-        initialRunnerDeckId={lastDecks.runner}
-        onStart={(corpDeck, runnerDeck, ai, difficulty) => {
-          setLastDecks({ corp: corpDeck.id, runner: runnerDeck.id });
-          setConfig({ seed: randomSeed(), corpDeck, runnerDeck, ai, difficulty });
-        }}
-      />
+      <MotionConfig reducedMotion={animationsOn ? 'user' : 'always'}>
+        <DeckPicker
+          initialCorpDeckId={lastDecks.corp}
+          initialRunnerDeckId={lastDecks.runner}
+          onStart={(corpDeck, runnerDeck, ai, difficulty) => {
+            setLastDecks({ corp: corpDeck.id, runner: runnerDeck.id });
+            setConfig({ seed: randomSeed(), corpDeck, runnerDeck, ai, difficulty });
+          }}
+        />
+      </MotionConfig>
     );
   }
   return (
-    <Game
-      key={config.seed}
-      config={config}
-      saved={start.saved?.config.seed === config.seed ? start.saved : null}
-      onNewGame={() => {
-        clearSavedGame();
-        // Drop ?seed=... so a reload doesn't restart the old deal
-        if (window.location.search) window.history.replaceState(null, '', window.location.pathname);
-        setConfig(null);
-      }}
-      onRematch={() => {
-        clearSavedGame();
-        if (window.location.search) window.history.replaceState(null, '', window.location.pathname);
-        setConfig({ ...config, seed: randomSeed() });
-      }}
-    />
+    <MotionConfig reducedMotion={animationsOn ? 'user' : 'always'}>
+      <Game
+        key={config.seed}
+        config={config}
+        saved={start.saved?.config.seed === config.seed ? start.saved : null}
+        onNewGame={() => {
+          clearSavedGame();
+          // Drop ?seed=... so a reload doesn't restart the old deal
+          if (window.location.search) window.history.replaceState(null, '', window.location.pathname);
+          setConfig(null);
+        }}
+        onRematch={() => {
+          clearSavedGame();
+          if (window.location.search) window.history.replaceState(null, '', window.location.pathname);
+          setConfig({ ...config, seed: randomSeed() });
+        }}
+      />
+    </MotionConfig>
   );
 }
 

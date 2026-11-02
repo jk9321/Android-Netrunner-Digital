@@ -1,11 +1,13 @@
-import { useState } from 'react';
-import { Flag, LogOut, Volume2, VolumeX, ZoomIn } from 'lucide-react';
+import { useEffect, useRef, useState } from 'react';
+import { createPortal } from 'react-dom';
+import { Flag, LogOut, Settings, ZoomIn } from 'lucide-react';
 import { AgendaDiamondIcon } from './CreditIcon';
 import { StatTumbler } from './StatTumbler';
 import { GameState, SideCode } from '../../core';
 import { GameConfig } from '../savedGame';
 import { ViewMode } from '../viewer';
 import { setSoundEnabled, soundEnabled } from '../sound';
+import { animationsEnabled, setAnimationsEnabled } from '../animations';
 import { CardSize, savedCardSize, setCardSize } from '../cardSize';
 import { PhaseTracker } from './PhaseTracker';
 import { BugReportButton } from './BugReportButton';
@@ -23,7 +25,7 @@ interface GameHeaderProps {
   onLeave: () => void;
 }
 
-/** The bar across the top: title, bug report, phase, AI status, scores, card size, view, sound, forfeit and leave. */
+/** The bar across the top: title, bug report, phase, AI status, scores, card size, view, settings, forfeit and leave. */
 export function GameHeader({
   state,
   config,
@@ -36,9 +38,31 @@ export function GameHeader({
   onLeave,
 }: GameHeaderProps) {
   const [sound, setSound] = useState(soundEnabled);
+  const [animations, setAnimations] = useState(animationsEnabled);
+  const [settingsOpen, setSettingsOpen] = useState(false);
+  const settingsBtnRef = useRef<HTMLButtonElement>(null);
+  const settingsMenuRef = useRef<HTMLDivElement>(null);
   const [cardSize, setCardSizeState] = useState(savedCardSize);
   const aiSide = config.ai;
   const { corp, runner } = state;
+
+  useEffect(() => {
+    if (!settingsOpen) return;
+    const onPointerDown = (e: MouseEvent) => {
+      const target = e.target as Node | null;
+      if (target && (settingsBtnRef.current?.contains(target) || settingsMenuRef.current?.contains(target))) return;
+      setSettingsOpen(false);
+    };
+    const onKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') setSettingsOpen(false);
+    };
+    window.addEventListener('mousedown', onPointerDown);
+    window.addEventListener('keydown', onKeyDown);
+    return () => {
+      window.removeEventListener('mousedown', onPointerDown);
+      window.removeEventListener('keydown', onKeyDown);
+    };
+  }, [settingsOpen]);
 
   return (
     <header className="h-12 shrink-0 min-w-0 overflow-x-auto border-b border-slate-800 bg-gradient-to-b from-[#0d121c] to-[#06090e] px-3 gap-3 flex items-center justify-between sticky top-0 z-30 shadow-xl relative">
@@ -166,16 +190,70 @@ export function GameHeader({
           </select>
         )}
         <button
-          onClick={() => {
-            setSoundEnabled(!sound);
-            setSound(!sound);
-          }}
-          className="p-1.5 bg-gradient-to-b from-slate-900 to-slate-950 hover:bg-slate-800 text-slate-400 hover:text-white rounded-[2px] border border-slate-700/80 border-b-2 border-b-slate-600 active:translate-y-[1px] active:border-b-[1px] transition-all"
-          title={sound ? 'Mute sound' : 'Turn sound on'}
-          data-testid="sound-toggle"
+          ref={settingsBtnRef}
+          onClick={() => setSettingsOpen(o => !o)}
+          aria-expanded={settingsOpen}
+          aria-haspopup="menu"
+          aria-label="Settings"
+          className={`p-1.5 rounded-[2px] border border-b-2 active:translate-y-[1px] active:border-b-[1px] transition-all ${
+            settingsOpen
+              ? 'bg-slate-800 text-white border-cyan-500/80 border-b-cyan-400'
+              : 'bg-gradient-to-b from-slate-900 to-slate-950 hover:bg-slate-800 text-slate-400 hover:text-white border-slate-700/80 border-b-slate-600'
+          }`}
+          title="Settings"
+          data-testid="settings-button"
         >
-          {sound ? <Volume2 className="w-4 h-4" /> : <VolumeX className="w-4 h-4" />}
+          <Settings className="w-4 h-4" />
         </button>
+        {settingsOpen &&
+          createPortal(
+            <div
+              ref={settingsMenuRef}
+              role="menu"
+              aria-label="Settings"
+              data-testid="settings-menu"
+              style={(() => {
+                const rect = settingsBtnRef.current?.getBoundingClientRect();
+                const top = (rect && rect.bottom > 0 ? rect.bottom : 42) + 6;
+                const right = rect && rect.right > 0 ? Math.max(8, window.innerWidth - rect.right) : 12;
+                return { top, right };
+              })()}
+              className="fixed z-[100] w-52 bg-[#090d15] border border-slate-700 rounded-[2px] p-3 shadow-2xl font-mono text-xs text-slate-200 space-y-2"
+            >
+              <div className="font-cyber font-bold tracking-wider text-[11px] text-slate-400 border-b border-slate-800 pb-1.5">
+                SETTINGS
+              </div>
+              <label className="flex items-center gap-2 cursor-pointer select-none hover:text-white">
+                <input
+                  type="checkbox"
+                  checked={!sound}
+                  onChange={e => {
+                    const nextSound = !e.target.checked;
+                    setSoundEnabled(nextSound);
+                    setSound(nextSound);
+                  }}
+                  className="accent-cyan-400 cursor-pointer"
+                  data-testid="setting-mute-audio"
+                />
+                <span>Mute audio</span>
+              </label>
+              <label className="flex items-center gap-2 cursor-pointer select-none hover:text-white">
+                <input
+                  type="checkbox"
+                  checked={!animations}
+                  onChange={e => {
+                    const nextAnim = !e.target.checked;
+                    setAnimationsEnabled(nextAnim);
+                    setAnimations(nextAnim);
+                  }}
+                  className="accent-cyan-400 cursor-pointer"
+                  data-testid="setting-disable-animations"
+                />
+                <span>Disable animations</span>
+              </label>
+            </div>,
+            document.body,
+          )}
         {!state.winner && (
           <button
             onClick={onConcede}

@@ -13,6 +13,7 @@ import { usePromptHighlight } from '../promptHighlight';
 import { IceTypeIcons, breakerTypes } from './IceTypeIcons';
 import { iceSubtypes } from '../../core/engine/ice';
 import type { IceSubtype } from '../../core/scripts/types';
+import { shouldReduceMotion } from '../animations';
 
 export interface CardViewProps {
   card: CardInstance;
@@ -348,8 +349,7 @@ export const CardView: React.FC<CardViewProps> = props => {
     flipCount.current += 1;
   }
 
-  const prefersReduced =
-    typeof window !== 'undefined' && window.matchMedia?.('(prefers-reduced-motion: reduce)')?.matches;
+  const prefersReduced = shouldReduceMotion();
 
   // On table:
   // - First mount (install): Option 1 Caddy Settle (y: -8 -> 0 over 160ms with cubic-bezier(0.16, 1, 0.3, 1))

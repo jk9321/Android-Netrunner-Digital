@@ -1,5 +1,6 @@
 import React, { useEffect, useRef } from 'react';
 import { SideCode } from '../../core/types/card';
+import { shouldReduceMotion } from '../animations';
 
 interface SectorRimTraceProps {
   side: SideCode;
@@ -17,7 +18,7 @@ export const SectorRimTrace: React.FC<SectorRimTraceProps> = React.memo(({ side,
     prevActiveRef.current = isActive;
 
     if (!justActivated) return;
-    if (typeof window !== 'undefined' && window.matchMedia?.('(prefers-reduced-motion: reduce)')?.matches) return;
+    if (shouldReduceMotion()) return;
 
     const tab = tabRef.current;
     const chassis = chassisRef.current;
