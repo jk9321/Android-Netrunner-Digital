@@ -129,7 +129,7 @@ const CardFace: React.FC<CardViewProps & { showTooltip: boolean; setShowTooltip:
           </div>
         )}
 
-        <CardOverlays card={card} sideways={sideways} tag={tag} actions={actions} />
+        <CardOverlays card={card} sideways={sideways} tag={tag} actions={actions} hidden />
 
         {showTooltip && !plainBack && (
           <CardPopout
@@ -235,12 +235,13 @@ const CardOverlays: React.FC<{
   tag?: React.ReactNode;
   actions?: React.ReactNode;
   status?: 'unrezzed' | 'faceup' | 'seen';
+  hidden?: boolean;
   types?: IceSubtype[];
   typeSide?: 'ice' | 'breaker';
   onInspect?: (card: CardInstance) => void;
-}> = ({ card, sideways, tag, actions, status, types = [], typeSide = 'ice', onInspect }) => {
+}> = ({ card, sideways, tag, actions, status, hidden = false, types = [], typeSide = 'ice', onInspect }) => {
   const gameState = useLiveGameState();
-  const mods = gameState && status !== 'seen' ? liveCardModifiers(gameState, card) : undefined;
+  const mods = gameState && !hidden && status !== 'seen' ? liveCardModifiers(gameState, card) : undefined;
   const t = card.tokens;
   const tokens = (t.credit ?? 0) > 0 || (t.virus ?? 0) > 0 || (t.power ?? 0) > 0 || (t.agenda ?? 0) > 0;
   const top = status || card.flipped || tag || card.advancementCounters > 0 || Boolean(mods?.cost);

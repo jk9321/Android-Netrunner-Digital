@@ -143,7 +143,7 @@ export function liveCardModifiers(state: GameState, card: CardInstance): LiveCar
       const current = breakerStrength(withInstalled(state, liveCard), liveCard);
       if (current !== def.strength) out.strength = { current, printed: def.strength, onceInstalled: true };
     }
-  } else if (inIce && def.type_code === 'ice' && def.strength != null) {
+  } else if (inIce && liveCard.isRezzed && def.type_code === 'ice' && def.strength != null) {
     const current = iceStrength(state, liveCard);
     if (current !== def.strength) out.strength = { current, printed: def.strength };
   }

@@ -106,7 +106,9 @@ describe('live values on hover', () => {
       cost: { printed: 4, current: 2, label: 'Install cost' },
     });
 
-    const palisade = installIceForTest(s, C.palisade, 'remote1');
+    const palisade = installIceForTest(s, C.palisade, 'remote1', false);
+    expect(liveCardModifiers(s, findCardAnywhere(s, palisade)!)).toEqual({});
+    findCardAnywhere(s, palisade)!.isRezzed = true;
     expect(liveCardModifiers(s, findCardAnywhere(s, palisade)!)).toEqual({
       strength: { printed: 2, current: 4 },
     });
