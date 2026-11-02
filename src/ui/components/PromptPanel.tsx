@@ -98,7 +98,7 @@ export const PromptPanel: React.FC<PromptPanelProps> = ({ state, onAnswer, onIns
     onAnswer(choice);
   };
 
-  const button = 'px-4 py-2 text-xs font-bold rounded-xl border flex items-center gap-1.5 transition-colors disabled:opacity-40';
+  const button = 'px-4 py-2 text-xs font-bold rounded-[2px] border border-b-2 flex items-center gap-1.5 transition-all disabled:opacity-40 active:translate-y-[1px] active:border-b-[1px]';
 
   return (
     <FloatingPanel

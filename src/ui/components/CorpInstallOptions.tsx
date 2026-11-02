@@ -75,7 +75,7 @@ export function CorpInstallOptions({
             onClick={() => onAction(a)}
             data-testid={`install-${a.targetServerId ?? 'new'}${a.faceUp ? '-faceup' : ''}`}
             title={replaced ? `Trashes ${cardDef(replaced).title} to make room` : undefined}
-            className="px-3 py-1.5 bg-amber-500 hover:bg-amber-400 text-black text-xs font-bold rounded-xl transition-all flex items-center gap-1 shadow-lg"
+            className="px-3 py-1.5 bg-gradient-to-b from-amber-400 to-amber-600 hover:from-amber-300 hover:to-amber-500 text-black text-xs font-bold rounded-[2px] border border-amber-300 border-b-2 border-b-amber-700 transition-all flex items-center gap-1 shadow-lg active:translate-y-[1px] active:border-b-[1px]"
           >
             <Plus className="w-3.5 h-3.5" /> {server ? server.name : 'New remote'}
             {iceCost > 0 && ` (${iceCost}c)`}
