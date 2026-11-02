@@ -315,26 +315,27 @@ function play(sound: Sound) {
     }
 
     case 'credit': {
-      // Crypto Tx Confirmation Chirp: rapid upward electronic two-tone (E6 1318.5Hz -> C7 2093.0Hz)
-      const osc1 = ac.createOscillator();
-      const g1 = ac.createGain();
-      osc1.type = 'sine';
-      osc1.frequency.setValueAtTime(1318.5, t);
-      g1.gain.setValueAtTime(0.08, t);
-      g1.gain.exponentialRampToValueAtTime(0.0001, t + 0.06);
-      osc1.connect(g1).connect(ac.destination);
-      osc1.start(t);
-      osc1.stop(t + 0.07);
+      // Crystal Micro-Tick: 1760Hz -> 2200Hz sine sweep (48ms) + faint 3520Hz crystalline overtone (25ms)
+      const osc = ac.createOscillator();
+      const gain = ac.createGain();
+      osc.type = 'sine';
+      osc.frequency.setValueAtTime(1760, t);
+      osc.frequency.exponentialRampToValueAtTime(2200, t + 0.048);
+      gain.gain.setValueAtTime(0.045, t);
+      gain.gain.exponentialRampToValueAtTime(0.0001, t + 0.048);
+      osc.connect(gain).connect(ac.destination);
+      osc.start(t);
+      osc.stop(t + 0.05);
 
-      const osc2 = ac.createOscillator();
-      const g2 = ac.createGain();
-      osc2.type = 'sine';
-      osc2.frequency.setValueAtTime(2093.0, t + 0.04);
-      g2.gain.setValueAtTime(0.1, t + 0.04);
-      g2.gain.exponentialRampToValueAtTime(0.0001, t + 0.22);
-      osc2.connect(g2).connect(ac.destination);
-      osc2.start(t + 0.04);
-      osc2.stop(t + 0.23);
+      const ot = ac.createOscillator();
+      const otG = ac.createGain();
+      ot.type = 'sine';
+      ot.frequency.setValueAtTime(3520, t);
+      otG.gain.setValueAtTime(0.015, t);
+      otG.gain.exponentialRampToValueAtTime(0.0001, t + 0.025);
+      ot.connect(otG).connect(ac.destination);
+      ot.start(t);
+      ot.stop(t + 0.028);
       break;
     }
 
