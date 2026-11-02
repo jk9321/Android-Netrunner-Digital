@@ -473,23 +473,28 @@ export const DeckPicker: React.FC<DeckPickerProps> = ({ initialCorpDeckId, initi
 
   return (
     <div className="min-h-screen text-slate-100 font-mono flex flex-col items-center px-4 py-8">
-      <div className="flex flex-wrap items-center justify-center gap-x-4 gap-y-2 mb-1">
-        <h1 className="font-cyber font-black tracking-wider text-2xl sm:text-4xl select-none" data-testid="app-title">
-          <span className="text-cyan-400">STACK</span>
-          <span className="text-amber-400 mx-1.5 font-mono font-normal">//</span>
-          <span className="text-pink-500">HEAP</span>
-        </h1>
-        <BugReportButton screen="deck picker" />
-        {BulkImportModal && (
-          <button
-            onClick={() => setBulkImporting(true)}
-            data-testid="bulk-import"
-            title="Beta only: fetch many NetrunnerDB decks at once"
-            className="px-2.5 py-1 rounded-[2px] border border-fuchsia-600/80 border-b-2 border-b-fuchsia-500 bg-fuchsia-950/40 text-fuchsia-300 hover:border-fuchsia-400 text-xs font-bold active:translate-y-[1px] active:border-b-[1px]"
-          >
-            Bulk import (beta)
-          </button>
-        )}
+      <div className="flex flex-col items-center mb-3">
+        <div className="flex flex-wrap items-center justify-center gap-x-4 gap-y-2">
+          <h1 className="font-cyber font-black tracking-wider text-2xl sm:text-4xl select-none" data-testid="app-title">
+            <span className="text-cyan-400">STACK</span>
+            <span className="text-amber-400 mx-1.5 font-mono font-normal">//</span>
+            <span className="text-pink-500">HEAP</span>
+          </h1>
+          <BugReportButton screen="deck picker" />
+          {BulkImportModal && (
+            <button
+              onClick={() => setBulkImporting(true)}
+              data-testid="bulk-import"
+              title="Beta only: fetch many NetrunnerDB decks at once"
+              className="px-2.5 py-1 rounded-[2px] border border-fuchsia-600/80 border-b-2 border-b-fuchsia-500 bg-fuchsia-950/40 text-fuchsia-300 hover:border-fuchsia-400 text-xs font-bold active:translate-y-[1px] active:border-b-[1px]"
+            >
+              Bulk import (beta)
+            </button>
+          )}
+        </div>
+        <p className="text-xs font-mono text-slate-400 tracking-wide mt-1">
+          <span className="text-slate-500">//</span> unofficial netrunner client
+        </p>
       </div>
       {BulkImportModal && bulkImporting && (
         <Suspense fallback={null}>
