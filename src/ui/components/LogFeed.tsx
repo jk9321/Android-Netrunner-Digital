@@ -32,8 +32,12 @@ function matchesSearch(message: string, player: string, query: string): boolean 
  */
 export const LogFeed: React.FC<LogFeedProps> = React.memo(({ logs, viewer, className = 'h-48' }) => {
   const listRef = useRef<HTMLDivElement>(null);
-  const initialMountCount = useRef(logs.length);
+  const seenCountRef = useRef(logs.length);
   const [searchQuery, setSearchQuery] = useState('');
+
+  useEffect(() => {
+    seenCountRef.current = logs.length;
+  }, [logs.length]);
 
   const isFiltering = searchQuery.trim().length > 0;
 
@@ -48,7 +52,12 @@ export const LogFeed: React.FC<LogFeedProps> = React.memo(({ logs, viewer, class
   useEffect(() => {
     if (isFiltering) return;
     const list = listRef.current;
-    if (list) list.scrollTo({ top: list.scrollHeight, behavior: 'smooth' });
+    if (!list) return;
+    list.scrollTo({ top: list.scrollHeight, behavior: 'smooth' });
+    const timer = setTimeout(() => {
+      list.scrollTo({ top: list.scrollHeight, behavior: 'smooth' });
+    }, 135);
+    return () => clearTimeout(timer);
   }, [logs.length, isFiltering]);
 
   return (
@@ -77,7 +86,7 @@ export const LogFeed: React.FC<LogFeedProps> = React.memo(({ logs, viewer, class
         ) : (
           filteredLogs.map((log, index) => {
             const message = log.secret?.from === viewer ? log.secret.publicMessage : log.message;
-            const isNew = !isFiltering && index >= initialMountCount.current;
+            const isNew = !isFiltering && index >= seenCountRef.current;
             return message ? <LogLine key={log.id} player={log.player} message={message} animate={isNew} /> : null;
           })
         )}

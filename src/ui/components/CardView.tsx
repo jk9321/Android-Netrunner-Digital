@@ -1,4 +1,4 @@
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useRef, useState } from 'react';
 import { CardInstance } from '../../core/types/card';
 import { cardDef, getCardImageUrl, getCardBackUrl } from '../../data/cards';
 import { Lock, Eye } from 'lucide-react';
@@ -46,7 +46,7 @@ export interface CardViewProps {
   seen?: boolean;
 }
 
-const CardFace: React.FC<CardViewProps> = ({
+const CardFace: React.FC<CardViewProps & { showTooltip: boolean; setShowTooltip: (show: boolean) => void }> = ({
   card,
   isFaceDown = false,
   canPeek = true,
@@ -62,8 +62,9 @@ const CardFace: React.FC<CardViewProps> = ({
   tag,
   actions,
   seen = false,
+  showTooltip,
+  setShowTooltip,
 }) => {
-  const [showTooltip, setShowTooltip] = useState(false);
   const [imageError, setImageError] = useState(false);
   const cardRef = useRef<HTMLDivElement>(null);
   // When a button over the card was last clicked: a quick second click near it (Advance, then the Score button
@@ -297,7 +298,7 @@ const CardOverlays: React.FC<{
           <div className="flex flex-col items-end gap-[0.2em]">
             {(t.credit ?? 0) > 0 && (
               <span className={`${badge} bg-amber-500 text-black border-amber-200`} data-kw="credit">
-                <Credits amount={t.credit ?? 0} />
+                <Credits amount={<StatTumbler value={t.credit!} />} />
               </span>
             )}
             {(t.virus ?? 0) > 0 && (
@@ -337,17 +338,15 @@ export const CardView: React.FC<CardViewProps> = props => {
   const mark = usePromptHighlight(props.card.instanceId);
   const ref = useRef<HTMLDivElement>(null);
   const markClass = !onTable ? '' : mark.hovered ? 'prompt-target-hover' : mark.selected ? 'prompt-target-picked' : '';
+  const [showTooltip, setShowTooltip] = useState(false);
 
   const isInstalledOnTable = !props.notInstalled && onTable;
   const prevFace = useRef(face);
-  const [faceKey, setFaceKey] = useState(0);
-
-  useEffect(() => {
-    if (prevFace.current !== face) {
-      prevFace.current = face;
-      setFaceKey(k => k + 1);
-    }
-  }, [face]);
+  const flipCount = useRef(0);
+  if (prevFace.current !== face) {
+    prevFace.current = face;
+    flipCount.current += 1;
+  }
 
   const prefersReduced =
     typeof window !== 'undefined' && window.matchMedia?.('(prefers-reduced-motion: reduce)')?.matches;
@@ -355,11 +354,11 @@ export const CardView: React.FC<CardViewProps> = props => {
   // On table:
   // - First mount (install): Option 1 Caddy Settle (y: -8 -> 0 over 160ms with cubic-bezier(0.16, 1, 0.3, 1))
   // - Face flip (rez / reveal): Option D Ultra-Fast Blade Snap (rotateY: -90 -> 0 over 140ms snappy spring)
-  const isFlip = faceKey > 0;
+  const isFlip = flipCount.current > 0;
 
   return (
     <motion.div
-      key={isFlip ? `${props.card.instanceId}-${faceKey}` : undefined}
+      key={face}
       ref={ref}
       className={`shrink-0 rounded-[3px] ${markClass}`}
       initial={
@@ -383,7 +382,7 @@ export const CardView: React.FC<CardViewProps> = props => {
       }
       style={{ transformPerspective: 700 }}
     >
-      <CardFace {...props} />
+      <CardFace {...props} showTooltip={showTooltip} setShowTooltip={setShowTooltip} />
       {onTable && mark.hovered && <PromptTargetLabel anchor={ref.current} label={mark.label} />}
     </motion.div>
   );

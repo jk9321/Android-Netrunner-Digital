@@ -12,20 +12,20 @@ interface StatTumblerProps {
  */
 export const StatTumbler: React.FC<StatTumblerProps> = React.memo(({ value, className = '' }) => {
   const prevValue = useRef(value);
-  const [animClass, setAnimClass] = useState<'tumbler-up' | 'tumbler-down' | ''>('');
+  const [anim, setAnim] = useState<{ dir: 'tumbler-up' | 'tumbler-down'; seq: number } | null>(null);
 
   useEffect(() => {
     if (prevValue.current !== value) {
-      const isUp = value > prevValue.current;
+      const dir = value > prevValue.current ? 'tumbler-up' : 'tumbler-down';
       prevValue.current = value;
-      setAnimClass(isUp ? 'tumbler-up' : 'tumbler-down');
-      const timer = setTimeout(() => setAnimClass(''), 120);
+      setAnim(prev => ({ dir, seq: (prev?.seq ?? 0) + 1 }));
+      const timer = setTimeout(() => setAnim(null), 120);
       return () => clearTimeout(timer);
     }
   }, [value]);
 
   return (
-    <span className={`inline-block tabular-nums ${animClass} ${className}`}>
+    <span key={anim?.seq} className={`inline-block tabular-nums ${anim?.dir ?? ''} ${className}`}>
       {value}
     </span>
   );

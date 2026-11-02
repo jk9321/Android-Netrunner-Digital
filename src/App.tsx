@@ -1,4 +1,4 @@
-﻿import { useEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { CardInstance, GameAction, SideCode, cardDef, findCardAnywhere, iceSubtypes, isLegalAction, knownInHand, knownInRd } from './core';
 import { breakerTypes } from './ui/components/IceTypeIcons';
 import { DEFAULT_CORP_DECK, DEFAULT_RUNNER_DECK } from './data/decks';
@@ -193,7 +193,7 @@ function Game({
     const ice = server.ice[index];
     const name = ice.isRezzed || canSeeCorpSecrets(viewer) ? cardDef(ice).title : 'unrezzed ice';
     // Several unrezzed ice in one server look alike, so say which one (ice 1 is innermost)
-    return `${server.name} ice ${index + 1} Â· ${name}`;
+    return `${server.name} ice ${index + 1} · ${name}`;
   };
 
   const rezAction = (card: CardInstance): GameAction => ({ type: 'REZ_CARD', player: 'corp', cardInstanceId: card.instanceId });

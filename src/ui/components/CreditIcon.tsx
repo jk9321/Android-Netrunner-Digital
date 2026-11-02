@@ -222,7 +222,7 @@ export function CoreDamageIcon({ className = DEFAULT_CLASS, title = 'core damage
   );
 }
 
-export function Credits({ amount, className = '' }: { amount: number | string; className?: string }) {
+export function Credits({ amount, className = '' }: { amount: React.ReactNode; className?: string }) {
   return (
     <span className={`inline-flex items-center gap-[0.15em] whitespace-nowrap ${className}`}>
       {amount}

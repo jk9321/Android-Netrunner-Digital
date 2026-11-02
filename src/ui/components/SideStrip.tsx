@@ -136,7 +136,7 @@ export function SideStrip({
           <>
             <div className={plain}>
               <MuIcon className="w-3.5 h-3.5 text-cyan-400" />
-              <span><Keyword id="mu">MU</Keyword>: {runner.memoryUnitsUsed} / {runner.memoryUnitsTotal}</span>
+              <span><Keyword id="mu">MU</Keyword>: <StatTumbler value={runner.memoryUnitsUsed} /> / {runner.memoryUnitsTotal}</span>
             </div>
             <div className={plain}>
               <Layers className="w-3.5 h-3.5 text-slate-500" />
