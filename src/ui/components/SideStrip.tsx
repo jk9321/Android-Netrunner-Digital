@@ -12,17 +12,15 @@ const MELIES_SIDES = { hq: 'HQ', rd: 'R&D', archives: 'Archives' } as const;
 const pillBase =
   'h-[26px] px-2 flex items-center gap-1.5 rounded-[2px] text-[12px] font-mono leading-none shadow ![clip-path:none] shrink-0 border';
 
-const STYLE: Record<SideCode, { strip: string; dot: string; name: string; viewId: string; stat: string }> = {
+const STYLE: Record<SideCode, { strip: string; name: string; viewId: string; stat: string }> = {
   corp: {
     strip: 'pb-1 border-b border-cyan-950',
-    dot: 'bg-cyan-400 shadow-[0_0_10px_#00f0ff]',
     name: 'text-cyan-400',
     viewId: 'text-cyan-400 hover:text-cyan-200 border border-cyan-800/80 bg-cyan-950/40 rounded-[2px] ![clip-path:none]',
     stat: 'bg-cyan-950/80 border-cyan-800 text-cyan-300',
   },
   runner: {
     strip: 'pt-1 border-t border-pink-950',
-    dot: 'bg-pink-400 shadow-[0_0_10px_#ff0055]',
     name: 'text-pink-400',
     viewId: 'text-pink-400 hover:text-pink-200 border border-pink-800/80 bg-pink-950/40 rounded-[2px] ![clip-path:none]',
     stat: 'bg-pink-950/80 border-pink-800 text-pink-300',
@@ -63,8 +61,7 @@ export function SideStrip({
   return (
     <div className={`shrink-0 flex flex-wrap items-center justify-between gap-x-3 gap-y-1 ${style.strip}`}>
       {/* Identity & Header */}
-      <div className="flex items-center gap-3">
-        <span className={`w-2 h-2 rounded-full ${style.dot}`} />
+      <div className="flex items-center gap-2.5">
         <div className="flex items-center gap-2 flex-wrap">
           <h2 className={`font-cyber font-bold text-xs tracking-wider ${style.name}`}>{side === 'corp' ? 'CORP' : 'RUNNER'}</h2>
           <div className="flex items-center gap-2">
