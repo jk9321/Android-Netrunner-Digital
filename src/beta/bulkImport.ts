@@ -20,6 +20,8 @@ export interface NrdbDecklist {
   date_creation?: string;
   user_name?: string;
   mwl_code?: string | null;
+  votes_count?: number;
+  favorites_count?: number;
   cards: Record<string, number>;
 }
 
@@ -48,6 +50,8 @@ export interface BulkCandidate {
   author?: string;
   date?: string;
   mwl?: string | null;
+  votes?: number;
+  favorites?: number;
   result: ImportResult;
 }
 
@@ -125,7 +129,16 @@ export function deckUrl(ref: DeckRef): string {
 export function toCandidate(ref: DeckRef, deck: NrdbDecklist, index: NrdbIndex): BulkCandidate {
   const result = resolveImport(nrdbToParsed(deck, index));
   if (result.deck && deck.user_name) result.deck.credit = deck.user_name;
-  return { ref, url: deckUrl(ref), author: deck.user_name, date: deck.date_creation?.slice(0, 10), mwl: deck.mwl_code, result };
+  return {
+    ref,
+    url: deckUrl(ref),
+    author: deck.user_name,
+    date: deck.date_creation?.slice(0, 10),
+    mwl: deck.mwl_code,
+    votes: deck.votes_count ?? 0,
+    favorites: deck.favorites_count ?? 0,
+    result,
+  };
 }
 
 /** Fetches the listed decks a few at a time; a deck that fails is reported, not fatal. */
@@ -169,7 +182,7 @@ export function daysBetween(from: string, to: string): string[] {
 
 export const MAX_DAYS = 120;
 
-/** Every decklist published from `from` to `to`; one request per day. */
+/** Every decklist published from `from` to `to` with at least 1 like or favorite; one request per day. */
 export async function fetchDecksByDate(
   from: string,
   to: string,
@@ -189,6 +202,7 @@ export async function fetchDecksByDate(
       const day = days[next++];
       try {
         for (const deck of await getJson<NrdbDecklist>(fetchFn, `decklists/by_date/${day}`)) {
+          if ((deck.votes_count ?? 0) < 1 && (deck.favorites_count ?? 0) < 1) continue;
           candidates.push(toCandidate({ kind: 'decklist', id: String(deck.id) }, deck, index));
         }
       } catch (e) {

@@ -127,7 +127,7 @@ export const BulkImportModal: React.FC<BulkImportModalProps> = ({ saved, onSave,
             <label>
               to <input type="date" value={to} onChange={e => setTo(e.target.value)} className="bg-slate-900 border border-slate-700 rounded px-1 py-0.5" />
             </label>
-            <span className="text-slate-500">(at most {MAX_DAYS} days; one request per day)</span>
+            <span className="text-slate-500">(at most {MAX_DAYS} days; only decks with ≥1 ♥ or ★)</span>
           </div>
         )}
         <button
@@ -214,6 +214,7 @@ export const BulkImportModal: React.FC<BulkImportModalProps> = ({ saved, onSave,
                             {c.author && ` · ${c.author}`}
                             {c.date && ` · ${c.date}`}
                             {c.mwl && ` · ${c.mwl}`}
+                            {((c.votes ?? 0) > 0 || (c.favorites ?? 0) > 0) && ` · ♥ ${c.votes ?? 0} ★ ${c.favorites ?? 0}`}
                           </span>
                         </div>
                         <div className="flex flex-wrap gap-x-3">

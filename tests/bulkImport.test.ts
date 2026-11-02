@@ -48,16 +48,25 @@ describe('bulk NetrunnerDB import (beta tool)', () => {
     expect(errors[0]).toContain('decklist/3');
   });
 
-  it('fetches a date range one day at a time and filters the results', async () => {
+  it('fetches a date range one day at a time, requiring >=1 like or favorite, and filters the results', async () => {
     resetNrdbIndex();
     const f = fakeFetch({
-      'decklists/by_date/2026-10-01': [deck(1, { '30010': 1, '30001': 3 }, { mwl_code: 'startup-ban-list-26-05', date_creation: '2026-10-01T10:00:00+00:00' })],
-      'decklists/by_date/2026-10-02': [deck(2, { '30010': 1, '99999': 3 }, { mwl_code: 'standard-ban-list-26-05', date_creation: '2026-10-02T10:00:00+00:00' })],
+      'decklists/by_date/2026-10-01': [
+        deck(1, { '30010': 1, '30001': 3 }, { mwl_code: 'startup-ban-list-26-05', date_creation: '2026-10-01T10:00:00+00:00', votes_count: 1, favorites_count: 0 }),
+        deck(3, { '30010': 1, '30001': 3 }, { mwl_code: 'startup-ban-list-26-05', date_creation: '2026-10-01T12:00:00+00:00', votes_count: 0, favorites_count: 0 }),
+      ],
+      'decklists/by_date/2026-10-02': [
+        deck(2, { '30010': 1, '99999': 3 }, { mwl_code: 'standard-ban-list-26-05', date_creation: '2026-10-02T10:00:00+00:00', votes_count: 0, favorites_count: 2 }),
+      ],
       'decklists/by_date/2026-10-03': [],
     });
     const { candidates, errors } = await fetchDecksByDate('2026-10-01', '2026-10-03', undefined, f);
     expect(errors).toEqual([]);
-    expect(candidates.map(c => c.ref.id)).toEqual(['2', '1']); // newest first
+    expect(candidates.map(c => c.ref.id)).toEqual(['2', '1']); // newest first; deck 3 (0 votes, 0 favorites) excluded
+    expect(candidates.map(c => ({ votes: c.votes, favorites: c.favorites }))).toEqual([
+      { votes: 0, favorites: 2 },
+      { votes: 1, favorites: 0 },
+    ]);
     expect(filterCandidates(candidates, { playableOnly: true }).map(c => c.ref.id)).toEqual(['1']);
     expect(filterCandidates(candidates, { startupOnly: true }).map(c => c.ref.id)).toEqual(['1']);
     expect(filterCandidates(candidates, { side: 'corp' })).toEqual([]);
