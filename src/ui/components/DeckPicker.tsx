@@ -474,8 +474,10 @@ export const DeckPicker: React.FC<DeckPickerProps> = ({ initialCorpDeckId, initi
   return (
     <div className="min-h-screen text-slate-100 font-mono flex flex-col items-center px-4 py-8">
       <div className="flex flex-wrap items-center justify-center gap-x-4 gap-y-2 mb-1">
-        <h1 className="font-cyber font-black tracking-widest text-2xl sm:text-4xl glitch-title">
-          NETRUNNER
+        <h1 className="font-cyber font-black tracking-wider text-2xl sm:text-4xl select-none" data-testid="app-title">
+          <span className="text-cyan-400">STACK</span>
+          <span className="text-amber-400 mx-1.5 font-mono font-normal">//</span>
+          <span className="text-pink-500">HEAP</span>
         </h1>
         <BugReportButton screen="deck picker" />
         {BulkImportModal && (

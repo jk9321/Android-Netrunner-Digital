@@ -46,9 +46,11 @@ export function GameHeader({
           onClick={onLeave}
           data-testid="home-logo"
           title="Back to deck selection"
-          className="font-cyber font-black tracking-wider 2xl:tracking-widest text-xs 2xl:text-lg whitespace-nowrap glitch-title hover:brightness-125 transition"
+          className="font-cyber font-black tracking-wider text-xs 2xl:text-lg whitespace-nowrap hover:brightness-125 transition flex items-center select-none"
         >
-          NETRUNNER
+          <span className="text-cyan-400">STACK</span>
+          <span className="text-amber-400 mx-1 font-mono font-normal">//</span>
+          <span className="text-pink-500">HEAP</span>
         </button>
         <BugReportButton
           screen="game"
