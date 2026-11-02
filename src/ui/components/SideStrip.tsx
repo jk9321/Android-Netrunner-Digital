@@ -5,6 +5,7 @@ import { AgendaDiamondIcon, BadPublicityIcon, ClickIcon, CoreDamageIcon, CreditI
 import { Keyword } from './Keyword';
 import { labelKeyword } from '../glossary';
 import { ZoneId } from './ZoneViewer';
+import { StatTumbler } from './StatTumbler';
 
 const MELIES_U = '36036';
 const MELIES_SIDES = { hq: 'HQ', rd: 'R&D', archives: 'Archives' } as const;
@@ -85,7 +86,7 @@ export function SideStrip({
         <div className={`${pillBase} ${style.stat}`} data-testid={`${side}-credits`}>
           <CreditIcon className="w-3.5 h-3.5 text-amber-400" />
           <span>
-            <span className="font-bold">{player.credits}</span> <Keyword id="credit">Credits</Keyword>
+            <StatTumbler value={player.credits} className="font-bold" /> <Keyword id="credit">Credits</Keyword>
           </span>
           {side === 'runner' && (state.activeRun?.badPublicityCredits ?? 0) > 0 && (
             <span className="text-amber-300 inline-flex items-center gap-1" data-testid="bad-publicity-fund">
@@ -96,7 +97,7 @@ export function SideStrip({
         <div className={`${pillBase} ${style.stat}`}>
           <ClickIcon className="w-3.5 h-3.5 text-red-400" />
           <span>
-            <span className="font-bold">{player.clicks}</span> / {player.maxClicks} <Keyword id="click">Clicks</Keyword>
+            <StatTumbler value={player.clicks} className="font-bold" /> / {player.maxClicks} <Keyword id="click">Clicks</Keyword>
           </span>
         </div>
         {side === 'corp' ? (
@@ -120,7 +121,7 @@ export function SideStrip({
             >
               <BadPublicityIcon className="w-[18px] h-[18px] text-amber-400 shrink-0" />
               <span>
-                <span className="font-bold">{corp.badPublicity}</span> <Keyword id="bad-publicity">Bad publicity</Keyword>
+                <StatTumbler value={corp.badPublicity} className="font-bold" /> <Keyword id="bad-publicity">Bad publicity</Keyword>
               </span>
             </div>
             {corp.identity.cardCode === MELIES_U && (
@@ -151,14 +152,14 @@ export function SideStrip({
             >
               <TagIcon className="w-[18px] h-[18px] text-red-400 shrink-0" />
               <span>
-                <span className="font-bold">{runner.tags}</span> <Keyword id="tag">Tag{runner.tags === 1 ? '' : 's'}</Keyword>
+                <StatTumbler value={runner.tags} className="font-bold" /> <Keyword id="tag">Tag{runner.tags === 1 ? '' : 's'}</Keyword>
               </span>
             </div>
             {runner.coreDamage > 0 && (
               <div className={`${pillBase} bg-red-950 border-red-800 text-red-300`}>
                 <CoreDamageIcon className="w-[18px] h-[18px] text-red-400 shrink-0" />
                 <span>
-                  <span className="font-bold">{runner.coreDamage}</span> <Keyword id="core-damage">Core damage</Keyword>
+                  <StatTumbler value={runner.coreDamage} className="font-bold" /> <Keyword id="core-damage">Core damage</Keyword>
                 </span>
               </div>
             )}

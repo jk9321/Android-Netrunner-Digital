@@ -6,6 +6,7 @@ import { CardPopout } from './CardPopout';
 import { motion } from 'framer-motion';
 import { AdvancementIcon, AgendaIcon, Credits, PowerIcon, VirusIcon } from './CreditIcon';
 import { Keyword } from './Keyword';
+import { StatTumbler } from './StatTumbler';
 import { useZoom } from './ZoomPanel';
 import { createPortal } from 'react-dom';
 import { usePromptHighlight } from '../promptHighlight';
@@ -269,7 +270,7 @@ const CardOverlays: React.FC<{
           {card.advancementCounters > 0 && (
             <span data-kw="advance" className={`${badge} bg-amber-400 text-black border-amber-200 inline-flex items-center gap-[0.2em]`}>
               <AdvancementIcon className="w-[1.25em] h-[1.25em]" />
-              <span>{card.advancementCounters}</span>
+              <StatTumbler value={card.advancementCounters} />
             </span>
           )}
         </div>
@@ -302,19 +303,19 @@ const CardOverlays: React.FC<{
             {(t.virus ?? 0) > 0 && (
               <span className={`${badge} bg-lime-500 text-black border-lime-200 inline-flex items-center gap-[0.2em]`} data-kw="virus-counter">
                 <VirusIcon className="w-[1.4em] h-[1.4em]" />
-                <span>{t.virus}</span>
+                <StatTumbler value={t.virus!} />
               </span>
             )}
             {(t.power ?? 0) > 0 && (
               <span className={`${badge} bg-violet-500 text-white border-violet-200 inline-flex items-center gap-[0.2em]`} title="Power counters">
                 <PowerIcon className="w-[1.25em] h-[1.25em]" />
-                <span>{t.power}</span>
+                <StatTumbler value={t.power!} />
               </span>
             )}
             {(t.agenda ?? 0) > 0 && (
               <span className={`${badge} bg-teal-400 text-black border-teal-100 inline-flex items-center gap-[0.2em]`} title="Agenda counters">
                 <AgendaIcon className="w-[1.25em] h-[1.25em]" />
-                <span>{t.agenda}</span>
+                <StatTumbler value={t.agenda!} />
               </span>
             )}
           </div>

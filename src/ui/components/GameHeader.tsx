@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { Flag, LogOut, Volume2, VolumeX, ZoomIn } from 'lucide-react';
 import { AgendaDiamondIcon } from './CreditIcon';
+import { StatTumbler } from './StatTumbler';
 import { GameState, SideCode } from '../../core';
 import { GameConfig } from '../savedGame';
 import { ViewMode } from '../viewer';
@@ -89,7 +90,7 @@ export function GameHeader({
             title="Corp agenda points"
             className="flex items-center whitespace-nowrap h-[26px] bg-gradient-to-b from-cyan-950/90 to-cyan-950/40 border border-cyan-700/80 px-2.5 rounded-[2px] text-xs font-bold text-cyan-300 shadow"
           >
-            <AgendaDiamondIcon className="w-3.5 h-3.5 mr-1.5 text-cyan-400" /> {corp.score} / 7
+            <AgendaDiamondIcon className="w-3.5 h-3.5 mr-1.5 text-cyan-400" /> <StatTumbler value={corp.score} /> / 7
           </div>
         </div>
         <div className="text-slate-600 font-bold text-[10px] uppercase font-mono px-0.5">vs</div>
@@ -98,7 +99,7 @@ export function GameHeader({
             title="Runner agenda points"
             className="flex items-center whitespace-nowrap h-[26px] bg-gradient-to-b from-pink-950/90 to-pink-950/40 border border-pink-700/80 px-2.5 rounded-[2px] text-xs font-bold text-pink-300 shadow"
           >
-            <AgendaDiamondIcon className="w-3.5 h-3.5 mr-1.5 text-pink-400" /> {runner.score} / 7
+            <AgendaDiamondIcon className="w-3.5 h-3.5 mr-1.5 text-pink-400" /> <StatTumbler value={runner.score} /> / 7
           </div>
           <span className="text-[11px] font-bold text-pink-400 font-cyber tracking-wider hidden 2xl:inline">RUNNER</span>
         </div>

@@ -225,6 +225,36 @@
 }
 
 
+/* Stat tumbler micro-slip for numerical counters */
+@keyframes tumbler-up {
+  0% {
+    transform: translateY(3px);
+    filter: brightness(1.7);
+  }
+  100% {
+    transform: translateY(0);
+    filter: brightness(1);
+  }
+}
+@keyframes tumbler-down {
+  0% {
+    transform: translateY(-3px);
+    filter: brightness(1.4);
+  }
+  100% {
+    transform: translateY(0);
+    filter: brightness(1);
+  }
+}
+.tumbler-up {
+  display: inline-block;
+  animation: tumbler-up 110ms cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+.tumbler-down {
+  display: inline-block;
+  animation: tumbler-down 110ms cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+
 /* Out of clicks: the End Turn button flashes in the side's colour. Buttons are
    clipped (chamfered corners), so the glow is drawn inside. It flashes even
    with reduced motion on (Jeff's choice): it's the cue that the turn is over. */
@@ -244,8 +274,11 @@
   }
   .run-target,
   .run-ice,
-  .terminal-cursor {
-    animation: none;
+  .terminal-cursor,
+  .tumbler-up,
+  .tumbler-down {
+    animation: none !important;
+    transform: none !important;
   }
 }
 
