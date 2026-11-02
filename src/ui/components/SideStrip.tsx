@@ -6,6 +6,7 @@ import { Keyword } from './Keyword';
 import { labelKeyword } from '../glossary';
 import { ZoneId } from './ZoneViewer';
 import { StatTumbler } from './StatTumbler';
+import { runCreditPools } from '../liveValues';
 
 const MELIES_U = '36036';
 const MELIES_SIDES = { hq: 'HQ', rd: 'R&D', archives: 'Archives' } as const;
@@ -43,6 +44,9 @@ export function SideStrip({
   const style = STYLE[side];
   const player = side === 'corp' ? state.corp : state.runner;
   const { corp, runner } = state;
+  const pools = runCreditPools(state);
+  const nonBpRunnerSources = pools.runner?.sources.filter(s => s.label !== 'bad publicity') ?? [];
+  const nonBpBonus = nonBpRunnerSources.reduce((n, s) => n + s.amount, 0);
   const zoneButton = (id: ZoneId, label: string, count: number, icon: React.ReactNode) => (
     <button
       onClick={() => onOpenZone(id)}
@@ -91,6 +95,33 @@ export function SideStrip({
           {side === 'runner' && (state.activeRun?.badPublicityCredits ?? 0) > 0 && (
             <span className="text-amber-300 inline-flex items-center gap-1" data-testid="bad-publicity-fund">
               +{state.activeRun!.badPublicityCredits} <BadPublicityIcon className="w-3.5 h-3.5 text-amber-400" /> <Keyword id="bad-publicity">bad publicity</Keyword>
+            </span>
+          )}
+          {side === 'runner' && nonBpBonus > 0 && (
+            <span
+              className="text-emerald-300 inline-flex items-center gap-1"
+              data-testid="run-bonus-credits"
+              title={nonBpRunnerSources.map(s => `+${s.amount} ${s.label}`).join(', ')}
+            >
+              +{nonBpBonus} run ({pools.runner!.total} spendable)
+            </span>
+          )}
+          {side === 'runner' && pools.runner?.poolLocked && (
+            <span
+              className="text-amber-300 inline-flex items-center gap-1"
+              data-testid="run-pool-locked"
+              title="Your credit pool cannot be spent during this run"
+            >
+              (pool locked · {pools.runner.total} spendable)
+            </span>
+          )}
+          {side === 'corp' && pools.corpRez && (
+            <span
+              className="text-emerald-300 inline-flex items-center gap-1"
+              data-testid="corp-rez-bonus"
+              title={pools.corpRez.sources.map(s => `+${s.amount} ${s.label}`).join(', ')}
+            >
+              +{pools.corpRez.bonus} rez ({pools.corpRez.total} on server)
             </span>
           )}
         </div>

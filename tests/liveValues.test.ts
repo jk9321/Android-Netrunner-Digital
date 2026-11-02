@@ -1,7 +1,8 @@
 import { describe, expect, it } from 'vitest';
 import { createCardInstance, findCardAnywhere, GameState } from '../src/core';
 import { TurnFlag, bumpTurnFlag } from '../src/core/engine/cardEffects';
-import { liveCardModifiers, liveValues } from '../src/ui/liveValues';
+import { startRun } from '../src/core/engine/actions/run';
+import { liveCardModifiers, liveValues, runCreditPools } from '../src/ui/liveValues';
 import { giveCard, installCorpForTest, installIceForTest, installProgramForTest, newGame, startRunnerTurn } from './helpers';
 
 const C = {
@@ -108,6 +109,38 @@ describe('live values on hover', () => {
     const palisade = installIceForTest(s, C.palisade, 'remote1');
     expect(liveCardModifiers(s, findCardAnywhere(s, palisade)!)).toEqual({
       strength: { printed: 2, current: 4 },
+    });
+  });
+
+  it('runCreditPools reports Runner Overclock/bad-pub/locked pools and Corp Mahkota Langit Grid', () => {
+    const s = newGame();
+    startRunnerTurn(s);
+    expect(runCreditPools(s)).toEqual({});
+
+    // Overclock (+5) + 1 Bad Publicity on a server with rezzed Mahkota Langit Grid (+2 rez)
+    s.corp.badPublicity = 1;
+    installIceForTest(s, C.palisade, 'remote1');
+    const mahkotaId = installCorpForTest(s, '35082', 'remote1', true);
+    findCardAnywhere(s, mahkotaId)!.tokens.credit = 2;
+
+    startRun(s, 'remote1', { bonusCredits: 5, eventCode: '30029' });
+    const pools = runCreditPools(s);
+    expect(pools.runner).toEqual({
+      total: 11,
+      pool: 5,
+      bonus: 6,
+      poolLocked: false,
+      sources: [
+        { label: 'bad publicity', amount: 1 },
+        { label: 'Overclock', amount: 5 },
+      ],
+    });
+    expect(pools.corpRez).toEqual({
+      total: 7,
+      pool: 5,
+      bonus: 2,
+      poolLocked: false,
+      sources: [{ label: 'Mahkota Langit Grid', amount: 2 }],
     });
   });
 });

@@ -10,6 +10,7 @@ import { Credits } from './CreditIcon';
 import { FloatingPanel } from './FloatingPanel';
 import { Keyword } from './Keyword';
 import { cardTextHtml } from '../cardText';
+import { runCreditPools } from '../liveValues';
 
 /** The glossary entry that explains each run phase. */
 const PHASE_KEYWORD: Record<string, string> = {
@@ -53,6 +54,7 @@ export const RunOverlay: React.FC<RunOverlayProps> = ({
   if (!activeRun) return null;
 
   const server = state.corp.servers[activeRun.server];
+  const pools = runCreditPools(state);
   const currentIce =
     activeRun.icePosition !== null && server ? server.ice[activeRun.icePosition] : null;
   const canJackOut = isLegalAction(state, { type: 'JACK_OUT', player: 'runner' });
@@ -88,9 +90,49 @@ export const RunOverlay: React.FC<RunOverlayProps> = ({
               RUN IN PROGRESS // {server?.name?.toUpperCase()}
             </h3>
           </div>
-          <span className="text-xs font-mono bg-pink-950 text-pink-300 px-2.5 py-1 rounded-[2px] border border-pink-700/80 font-bold shrink-0">
-            PHASE: <Keyword id={PHASE_KEYWORD[activeRun.phase] ?? 'run'}>{activeRun.phase.toUpperCase()}</Keyword>
-          </span>
+          <div className="flex items-center gap-2 flex-wrap justify-end">
+            {pools.runner && (
+              <span
+                data-testid="run-spendable-pool"
+                title={
+                  pools.runner.poolLocked
+                    ? `Your normal credit pool (${pools.runner.pool}) cannot be spent during this run`
+                    : `Total credits you can spend during this run (${pools.runner.pool} in pool + ${pools.runner.bonus} from run/hosted sources)`
+                }
+                className={`text-xs font-mono px-2.5 py-1 rounded-[2px] border font-bold shrink-0 inline-flex items-center gap-1.5 ${
+                  pools.runner.poolLocked
+                    ? 'bg-amber-950/90 text-amber-200 border-amber-500/80'
+                    : 'bg-emerald-950/90 text-emerald-200 border-emerald-500/80'
+                }`}
+              >
+                <span>
+                  SPENDABLE: <Credits amount={pools.runner.total} />
+                </span>
+                <span className={pools.runner.poolLocked ? 'text-amber-300/90 font-normal' : 'text-emerald-300/90 font-normal'}>
+                  {pools.runner.poolLocked
+                    ? `(${pools.runner.sources.map(s => `${s.amount} ${s.label}`).join(' + ') || '0'} · ${pools.runner.pool} pool locked)`
+                    : `(${pools.runner.pool} pool ${pools.runner.sources.map(s => `+ ${s.amount} ${s.label}`).join(' ')})`}
+                </span>
+              </span>
+            )}
+            {pools.corpRez && (
+              <span
+                data-testid="run-corp-rez-pool"
+                title={`Corp has ${pools.corpRez.bonus} recurring/hosted credits usable to rez cards on ${server?.name ?? 'this server'}`}
+                className="text-xs font-mono bg-cyan-950/90 text-cyan-200 px-2.5 py-1 rounded-[2px] border border-cyan-500/80 font-bold shrink-0 inline-flex items-center gap-1.5"
+              >
+                <span>
+                  CORP REZ: <Credits amount={pools.corpRez.total} />
+                </span>
+                <span className="text-cyan-300/90 font-normal">
+                  ({pools.corpRez.pool} pool {pools.corpRez.sources.map(s => `+ ${s.amount} ${s.label}`).join(' ')})
+                </span>
+              </span>
+            )}
+            <span className="text-xs font-mono bg-pink-950 text-pink-300 px-2.5 py-1 rounded-[2px] border border-pink-700/80 font-bold shrink-0">
+              PHASE: <Keyword id={PHASE_KEYWORD[activeRun.phase] ?? 'run'}>{activeRun.phase.toUpperCase()}</Keyword>
+            </span>
+          </div>
         </div>
       }
     >
