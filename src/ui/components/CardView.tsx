@@ -111,22 +111,22 @@ const CardFace: React.FC<CardViewProps & { showTooltip: boolean; setShowTooltip:
             : 'border-slate-800 bg-gradient-to-b from-slate-900 to-black hover:border-slate-600'
         } ${isSelectable ? 'cursor-pointer hover:scale-105' : ''}`}
       >
-        <img
-          src={getCardBackUrl(def.side_code || 'corp')}
-          alt="Secured card back"
-          className="w-full h-full object-cover rounded-[2px] shadow-inner"
-          onError={(e) => {
-            (e.currentTarget as HTMLElement).style.display = 'none';
-          }}
-        />
-
-        {/* Fallback circuit badge if image is hidden */}
-        <div className="absolute inset-1.5 rounded-[2px] border border-dashed border-slate-800/80 flex flex-col items-center justify-center opacity-70 pointer-events-none -z-0">
-          <Lock className="w-6 h-6 text-slate-500 mb-1" />
-          <span className="text-[11px] uppercase tracking-widest text-slate-500 font-mono font-bold">
-            SECURED
-          </span>
-        </div>
+        {!imageError ? (
+          <img
+            src={getCardBackUrl(def.side_code || 'corp')}
+            alt="Card back"
+            className="w-full h-full object-cover rounded-[2px] shadow-inner"
+            onError={() => setImageError(true)}
+          />
+        ) : (
+          /* Fallback circuit badge only if image failed to load */
+          <div className="absolute inset-1.5 rounded-[2px] border border-dashed border-slate-800/80 flex flex-col items-center justify-center opacity-70 pointer-events-none">
+            <Lock className="w-6 h-6 text-slate-500 mb-1" />
+            <span className="text-[11px] uppercase tracking-widest text-slate-500 font-mono font-bold">
+              {def.side_code === 'runner' ? 'RUNNER' : 'CORP'}
+            </span>
+          </div>
+        )}
 
         <CardOverlays card={card} sideways={sideways} tag={tag} actions={actions} />
 
