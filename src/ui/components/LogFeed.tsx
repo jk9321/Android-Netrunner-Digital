@@ -19,12 +19,25 @@ interface LogFeedProps {
 export const LogFeed: React.FC<LogFeedProps> = React.memo(({ logs, viewer, className = 'h-48' }) => {
   const listRef = useRef<HTMLDivElement>(null);
   const initialMountCount = useRef(logs.length);
+  const [searchQuery, setSearchQuery] = useState('');
 
-  // Keep the newest entry in view by scrolling the log box itself.
+  const trimmedQuery = searchQuery.trim().toLowerCase();
+  const isFiltering = trimmedQuery.length > 0;
+
+  const filteredLogs = isFiltering
+    ? logs.filter(log => {
+        const message = (log.secret?.from === viewer ? log.secret.publicMessage : log.message).toLowerCase();
+        const player = log.player.toLowerCase();
+        return message.includes(trimmedQuery) || player.includes(trimmedQuery);
+      })
+    : logs;
+
+  // Keep the newest entry in view by scrolling the log box itself when new logs arrive (only when not searching).
   useEffect(() => {
+    if (isFiltering) return;
     const list = listRef.current;
     if (list) list.scrollTo({ top: list.scrollHeight, behavior: 'smooth' });
-  }, [logs.length]);
+  }, [logs.length, isFiltering]);
 
   return (
     <div className={`flex flex-col ${className} bg-[#070b12] border border-slate-800 rounded-[2px] overflow-hidden font-mono text-xs shadow-inner relative`}>
@@ -39,14 +52,53 @@ export const LogFeed: React.FC<LogFeedProps> = React.memo(({ logs, viewer, class
       <div className="flex items-center gap-2 px-3 py-1.5 bg-[#0c121d] border-b border-slate-800 text-[11px] text-slate-400 z-10">
         <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
         <span className="font-bold tracking-wider uppercase text-slate-200">SYS.TRACE // STACKHEAP</span>
-        <span className="ml-auto text-[10px] text-slate-500 font-mono tracking-wider uppercase">PORT:443 // {logs.length} EVT</span>
+        <span className="ml-auto text-[10px] text-slate-500 font-mono tracking-wider uppercase">
+          {isFiltering ? `${filteredLogs.length} OF ${logs.length} EVT` : `PORT:443 // ${logs.length} EVT`}
+        </span>
       </div>
+
       <div ref={listRef} className="flex-1 overflow-y-auto p-2.5 space-y-1.5 z-10">
-        {logs.map((log, index) => {
-          const message = log.secret?.from === viewer ? log.secret.publicMessage : log.message;
-          const isNew = index >= initialMountCount.current;
-          return message ? <LogLine key={log.id} player={log.player} message={message} animate={isNew} /> : null;
-        })}
+        {filteredLogs.length === 0 && isFiltering ? (
+          <div className="text-[11px] text-slate-500 italic py-2 text-center">
+            No matching log entries found for "{searchQuery}".
+          </div>
+        ) : (
+          filteredLogs.map((log, index) => {
+            const message = log.secret?.from === viewer ? log.secret.publicMessage : log.message;
+            const isNew = !isFiltering && index >= initialMountCount.current;
+            return message ? <LogLine key={log.id} player={log.player} message={message} animate={isNew} /> : null;
+          })
+        )}
+      </div>
+
+      {/* Terminal Search Bar */}
+      <div className="flex items-center gap-1.5 px-2.5 py-1.5 bg-[#0c121d] border-t border-slate-800 text-[11px] text-slate-400 z-10">
+        <span className="text-cyan-400 font-bold select-none">&gt;</span>
+        <input
+          type="text"
+          value={searchQuery}
+          onChange={e => setSearchQuery(e.target.value)}
+          onKeyDown={e => {
+            if (e.key === 'Escape') setSearchQuery('');
+          }}
+          placeholder="search log... (Esc to clear)"
+          className="bg-transparent flex-1 outline-none text-slate-200 placeholder:text-slate-600 text-[11px] font-mono"
+        />
+        {isFiltering && (
+          <div className="flex items-center gap-2">
+            <span className="text-[10px] text-cyan-400 font-semibold font-mono">
+              {filteredLogs.length} {filteredLogs.length === 1 ? 'MATCH' : 'MATCHES'}
+            </span>
+            <button
+              onClick={() => setSearchQuery('')}
+              className="text-[10px] text-slate-400 hover:text-slate-200 bg-slate-800 hover:bg-slate-700 px-1.5 py-0.5 rounded-[2px] font-bold"
+              title="Clear search (Esc)"
+              type="button"
+            >
+              ✕
+            </button>
+          </div>
+        )}
       </div>
     </div>
   );
