@@ -1,6 +1,6 @@
 import { CardInstance, GameAction, GameState, Prompt, SideCode, activePrompt, cardDef, executeAction, findCardAnywhere, getCardDefinition, getLegalActions, isLegalAction, knownInHand } from '../core';
 import { runnerInstallBlocker, runnerInstallCost } from '../core/engine/actions/install';
-import { evaluate, keepValue, runnerRigValue } from './evaluate';
+import { evaluate, keepValue, rigCoverage, runnerRigValue } from './evaluate';
 import { bakerWantsFuel, principiaFuel } from './cardPlans';
 import { CLICK, cardRate } from './valueModel';
 import { PACE, accessWorth, placedCounterWorth } from './effectValues';
@@ -182,6 +182,71 @@ export function answerPrompt(state: GameState, side: SideCode, memory?: RunnerMe
   // Psi Game (Liberation): a secret bid from a mixed strategy, never from the other side's bid
   if (prompt.kind === 'effect_choice' && isPsiStep(prompt.source.step)) {
     return { ...base, choice: { kind: 'effect_choice', optionId: psiBid(state, side, prompt.options.map(o => o.id)) } };
+  }
+  // Lycian Multi-Munition: the subtypes the Runner has no breaker for; all three when it covers them all
+  // (more subroutines), or when an AI breaker breaks anything anyway
+  if (side === 'corp' && prompt.kind === 'effect_choice' && prompt.source.cardCode === '34100' && prompt.source.step === 'subtypes') {
+    const { covered, anyBreakers } = rigCoverage(state.runner.rig.programs);
+    const open = anyBreakers > 0 ? [] : ['barrier', 'code gate', 'sentry'].filter(t => !covered.has(t));
+    const id = open.length === 0 ? 'all' : open.join('+');
+    return { ...base, choice: { kind: 'effect_choice', optionId: prompt.options.some(o => o.id === id) ? id : 'all' } };
+  }
+  // Balanced Coverage: name the commonest non-agenda type left in R&D (the Corp knows its deck, not the order);
+  // reveal it for the 2 credits (an agenda would never be named, so revealing tells the Runner little)
+  if (side === 'corp' && prompt.kind === 'effect_choice' && prompt.source.cardCode === '34050') {
+    if (prompt.source.step === 'reveal') return { ...base, choice: { kind: 'effect_choice', optionId: 'yes' } };
+    if (prompt.source.step === 'type') {
+      const counts = new Map<string, number>();
+      for (const c of state.corp.rd) {
+        const t = cardDef(c).type_code;
+        if (t !== 'agenda') counts.set(t, (counts.get(t) ?? 0) + 1);
+      }
+      const best = [...counts].sort((a, b) => b[1] - a[1])[0]?.[0];
+      return { ...base, choice: { kind: 'effect_choice', optionId: best && prompt.options.some(o => o.id === best) ? best : 'no' } };
+    }
+  }
+  // Cohort Guidance Program: with 2 or more cards in HQ, swap the least useful for 2 credits and a draw
+  if (side === 'corp' && prompt.kind === 'effect_choice' && prompt.source.cardCode === '34108' && prompt.source.step === 'mode') {
+    const trash = state.corp.hq.length >= 2 && prompt.options.some(o => o.id === 'trash');
+    return { ...base, choice: { kind: 'effect_choice', optionId: trash ? 'trash' : 'no' } };
+  }
+  // Warm Reception, Janaína: a free install from HQ; ice the Corp can afford first, then an asset or upgrade, never an agenda
+  if (side === 'corp' && prompt.kind === 'effect_cards' && ['34098', '34115'].includes(prompt.source.cardCode) && prompt.source.step === 'pick') {
+    const cards = prompt.candidateIds.map(id => findCardAnywhere(state, id)).filter((c): c is CardInstance => !!c);
+    const ice = cards.filter(c => cardDef(c).type_code === 'ice' && (cardDef(c).cost ?? 0) <= state.corp.credits).sort((a, b) => (cardDef(b).cost ?? 0) - (cardDef(a).cost ?? 0));
+    const root = cards.filter(c => ['asset', 'upgrade'].includes(cardDef(c).type_code) && (cardDef(c).cost ?? 0) <= state.corp.credits);
+    const pick = ice[0] ?? root[0];
+    return { ...base, choice: { kind: 'effect_cards', cardInstanceIds: pick ? [pick.instanceId] : [] } };
+  }
+  // Liberation install effects placing an agenda: into the best-iced empty remote, not a bare new one
+  if (side === 'corp' && prompt.kind === 'effect_choice' && prompt.source.data?.install && LIB_INSTALLERS.includes(prompt.source.cardCode)) {
+    const card = findCardAnywhere(state, String(prompt.source.data.cardId));
+    if (card && cardDef(card).type_code === 'agenda') {
+      const remote = safeAgendaRemote(state, prompt.options.map(o => o.id));
+      if (remote) return { ...base, choice: { kind: 'effect_choice', optionId: remote } };
+    }
+  }
+  // Epiphany Analytica: of the top 3 of R&D, ice or an asset or upgrade; an agenda only with an iced empty remote to put it in
+  if (side === 'corp' && prompt.kind === 'effect_cards' && prompt.source.cardCode === '34048' && prompt.source.step === 'pick') {
+    const cards = prompt.candidateIds.map(id => findCardAnywhere(state, id)).filter((c): c is CardInstance => !!c);
+    const agenda = safeAgendaRemote(state, Object.keys(state.corp.servers)) ? cards.find(c => cardDef(c).type_code === 'agenda') : undefined;
+    const ice = cards.find(c => cardDef(c).type_code === 'ice' && (cardDef(c).cost ?? 0) <= state.corp.credits);
+    const root = cards.find(c => ['asset', 'upgrade'].includes(cardDef(c).type_code));
+    const pick = agenda ?? ice ?? root;
+    return { ...base, choice: { kind: 'effect_cards', cardInstanceIds: pick ? [pick.instanceId] : [] } };
+  }
+  // Lightning Laboratory: its one counter rezzes ice free for a turn; spend it on a run that threatens
+  // something (HQ, R&D, a remote with cards in it) and on ice that costs at least 3 to rez
+  if (side === 'corp' && prompt.kind === 'effect_cards' && prompt.source.cardCode === '34097' && prompt.source.step === 'rez') {
+    const server = state.activeRun ? state.corp.servers[state.activeRun.server] : undefined;
+    const threatened = !!server && (server.id === 'hq' || server.id === 'rd' || (server.isRemote && server.root.length > 0));
+    const ice = prompt.candidateIds
+      .map(id => findCardAnywhere(state, id))
+      .filter((c): c is CardInstance => !!c)
+      .sort((a, b) => rezCost(state, b) - rezCost(state, a))
+      .slice(0, 2);
+    const worth = ice.reduce((n, c) => n + rezCost(state, c), 0);
+    return { ...base, choice: { kind: 'effect_cards', cardInstanceIds: threatened && worth >= 3 ? ice.map(c => c.instanceId) : [] } };
   }
   // Lobisomem: break every barrier subroutine the plan chose it for (the largest X offered)
   if (side === 'runner' && prompt.kind === 'effect_choice' && prompt.source.cardCode === '34090' && prompt.source.step === 'x') {
@@ -376,6 +441,17 @@ export function answerPrompt(state: GameState, side: SideCode, memory?: RunnerMe
  * more often (0: 45%, 1: 35%, 2: 20%), spread by the game, turn and side so
  * a human can't read it, and never more than the side can pay.
  */
+/** Liberation cards whose effects install a card from HQ or R&D (their install-where prompts). */
+const LIB_INSTALLERS = ['34037', '34039', '34048', '34062', '34098', '34102', '34115', '34122', '34130'];
+
+/** The remote among these options with the most ice and nothing in its root, for an agenda (undefined: none has ice). */
+function safeAgendaRemote(state: GameState, options: string[]): string | undefined {
+  return options
+    .map(id => state.corp.servers[id])
+    .filter(s => !!s && s.isRemote && s.root.length === 0 && s.ice.length > 0)
+    .sort((a, b) => b.ice.length - a.ice.length)[0]?.id;
+}
+
 export function psiBid(state: GameState, side: SideCode, options: string[]): string {
   const weights: [string, number][] = (
     [['0', 0.45], ['1', 0.35], ['2', 0.2]] as [string, number][]

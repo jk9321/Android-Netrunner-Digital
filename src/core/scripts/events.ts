@@ -3,7 +3,7 @@ import { addLog } from '../engine/log';
 import { drawCards, madeSuccessfulRunThisTurn, revealInHand } from '../engine/helpers';
 import { shuffleInPlace } from '../rng';
 import { CardScript, EffectContext } from './types';
-import { startRun } from '../engine/actions/run';
+import { runBlocked, startRun } from '../engine/actions/run';
 import { drawForEffect } from '../engine/cardEffects';
 import { askCards, askChoice, gainCredits, installRunnerTrashing, installableRunnerCards, loseClickIfAny } from './effects';
 
@@ -121,7 +121,7 @@ const mutualFavor: CardScript = {
 
 /** Asks the Runner which server to run (for "Run any server" events). */
 function askRunTarget(ctx: EffectContext, serverIds: string[], cardTitle: string): void {
-  const options = serverIds.map(id => ({ id, label: ctx.state.corp.servers[id].name }));
+  const options = serverIds.filter(id => !runBlocked(ctx.state, id)).map(id => ({ id, label: ctx.state.corp.servers[id].name }));
   askChoice(ctx, 'runner', `${cardTitle}: run which server?`, options, 'run');
 }
 

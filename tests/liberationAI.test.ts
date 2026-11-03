@@ -1,8 +1,8 @@
 import { describe, expect, it } from 'vitest';
-import { psiBid } from '../src/ai/prompts';
+import { answerPrompt, psiBid } from '../src/ai/prompts';
 import { bestBreakPlan, knownSubroutineCost } from '../src/ai/runs';
-import { giveCard, installIceForTest, installProgramForTest, newGame, startRunnerTurn } from './helpers';
-import { GameState } from '../src/core';
+import { giveCard, installIceForTest, installProgramForTest, newGame, run, scoreForTest, startRunnerTurn } from './helpers';
+import { activePrompt, GameState } from '../src/core';
 
 const L = { audrey: '34004', banner: '34005', lobisomem: '34090', spike: '34092', slap: '34026', ablative: '34034', valentao: '34060', piranhas: '34117', capacitor: '34116' };
 const GRUBBER = '36050'; // barrier, strength 5, 2 subroutines
@@ -82,6 +82,18 @@ describe('Liberation AI', () => {
     slap.hostedOnId = host.instanceId;
     expect(bestBreakPlan(s, host, 1)?.breaker.instanceId).toBe(slap.instanceId);
     expect(bestBreakPlan(s, other, 1)).toBeNull();
+  });
+
+  it('Lightning Laboratory: spends its counter on a run on HQ, not on Archives', () => {
+    for (const [server, rezzes] of [['hq', 1], ['archives', 0]] as const) {
+      let s = scoreForTest(newGame(), '34097');
+      iceOn(s, GRUBBER, server).isRezzed = false;
+      s = run(s, server);
+      const prompt = activePrompt(s)!;
+      expect(prompt.kind === 'effect_cards' && prompt.source.cardCode).toBe('34097');
+      const action = answerPrompt(s, 'corp');
+      expect(action.type === 'RESOLVE_PROMPT' && action.choice.kind === 'effect_cards' && action.choice.cardInstanceIds.length).toBe(rezzes);
+    }
   });
 
   it('reads the conditional Liberation subroutines', () => {

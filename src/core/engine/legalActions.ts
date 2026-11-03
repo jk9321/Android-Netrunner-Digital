@@ -6,6 +6,7 @@ import { activePrompt } from './prompts';
 import { breakerScript, encounteredIce, iceScript } from './ice';
 import { abilitySources, abilityUsableFrom } from './actions/ability';
 import { canInstallFaceUp, playableHostZones } from './actions/install';
+import { runBlocked } from './actions/run';
 import { getCardScript } from '../scripts';
 import { cardDef } from '../cards';
 import { isAdvanceable } from './helpers';
@@ -131,7 +132,7 @@ function candidateActions(state: GameState, side: SideCode): GameAction[] {
       }
     }
     for (const server of servers) {
-      candidates.push({ type: 'INITIATE_RUN', player: 'runner', targetServerId: server.id });
+      if (!runBlocked(state, server.id)) candidates.push({ type: 'INITIATE_RUN', player: 'runner', targetServerId: server.id });
     }
   }
 

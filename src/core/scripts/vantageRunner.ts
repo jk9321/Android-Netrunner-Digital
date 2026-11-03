@@ -5,7 +5,7 @@ import { shuffleInPlace } from '../rng';
 import { addLog } from '../engine/log';
 import { drawCards, findInstalledCorpCard, removeCard, turnKey } from '../engine/helpers';
 import { runnerSeesRd } from '../engine/rdKnowledge';
-import { runnerTrashInstalledCorpCard, startRun, trashAccessedCard, cannotStealOrTrash } from '../engine/actions/run';
+import { runnerTrashInstalledCorpCard, runBlocked, startRun, trashAccessedCard, cannotStealOrTrash } from '../engine/actions/run';
 import { giveTags, installedRunnerCards, dealNetDamage, trashInstalledRunnerCard, uninstallRunnerCard } from '../engine/damage';
 import {
   addCounters,
@@ -53,7 +53,7 @@ function removeEventFromGame(state: GameState, card: CardInstance): void {
 
 /** Asks which of these servers a run event runs. */
 function askServer(ctx: EffectContext, title: string, serverIds: string[]): void {
-  const options = serverIds.map(id => ({ id, label: ctx.state.corp.servers[id].name }));
+  const options = serverIds.filter(id => !runBlocked(ctx.state, id)).map(id => ({ id, label: ctx.state.corp.servers[id].name }));
   askChoice(ctx, 'runner', `${title}: run which server?`, options, 'run');
 }
 

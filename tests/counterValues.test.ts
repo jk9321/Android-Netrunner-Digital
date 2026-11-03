@@ -91,8 +91,22 @@ describe('counters are worth what they do on their card (value model step 3)', (
     expect(worth('36045', 'power')).toBeCloseTo(2); // The Red Room: ends a run
   });
 
+  it('Liberation: each counter by what it does', () => {
+    const lib: [string, 'credit' | 'virus' | 'power' | 'agenda'][] = [
+      ['34003', 'power'], ['34004', 'virus'], ['34015', 'power'], ['34019', 'credit'], ['34022', 'power'], ['34029', 'credit'],
+      ['34030', 'credit'], ['34048', 'power'], ['34058', 'credit'], ['34069', 'power'], ['34081', 'power'], ['34083', 'power'],
+      ['34084', 'power'], ['34086', 'power'], ['34087', 'credit'], ['34088', 'power'], ['34089', 'power'], ['34090', 'power'],
+      ['34097', 'agenda'], ['34099', 'power'], ['34115', 'credit'], ['34123', 'agenda'],
+    ];
+    for (const [code, type] of lib) expect(worth(code, type), code).toBeGreaterThan(0);
+    expect(worth('34081', 'power')).toBeCloseTo(2); // Malandragem: a bypass
+    expect(worth('34089', 'power')).toBeCloseTo(1.7); // Coalescence: 2 credits, no click
+    expect(worth('34097', 'agenda')).toBeCloseTo(3); // Lightning Laboratory: 2 ice rezzed free
+    expect(Object.keys(COUNTER_WORTH).filter(code => code.startsWith('34')).length).toBe(lib.length);
+  });
+
   it('every entry is tested above, and switching the piece off restores the step-1 rates', () => {
-    expect(Object.keys(COUNTER_WORTH).length).toBe(32);
+    expect(Object.keys(COUNTER_WORTH).length).toBe(54);
     const s = newGame();
     const fermenter = make(s, '30007');
     addCounters(fermenter, 'virus', 2);

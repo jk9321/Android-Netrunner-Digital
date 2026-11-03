@@ -82,15 +82,22 @@ function newRunState(serverId: string, options: RunOptions): RunState {
   };
 }
 
+/** Why the Runner can't run this server now (Front Company), or null if it can. */
+export function runBlocked(state: GameState, serverId: string): string | null {
+  for (const card of activeCards(state)) {
+    const blocked = getCardScript(card.cardCode)?.modifiers?.runBlocker?.(state, card, serverId);
+    if (blocked) return blocked;
+  }
+  return null;
+}
+
 /** Starts a run (no click spent here; the basic action or the card effect pays for it). */
 export function startRun(state: GameState, serverId: string, options: RunOptions = {}): void {
   const targetServer = state.corp.servers[serverId];
   if (!targetServer) illegal('Invalid target server');
   // Restrictions on where the Runner can run (Front Company)
-  for (const card of activeCards(state)) {
-    const blocked = getCardScript(card.cardCode)?.modifiers?.runBlocker?.(state, card, serverId);
-    if (blocked) illegal(blocked);
-  }
+  const blocked = runBlocked(state, serverId);
+  if (blocked) illegal(blocked);
 
   addLog(state, 'runner', `Runner initiated a run on ${targetServer.name}!`);
 

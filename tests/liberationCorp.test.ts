@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { createCardInstance, executeAction, findCardAnywhere, GameState, iceStrength, isLegalAction } from '../src/core';
+import { activePrompt, createCardInstance, executeAction, findCardAnywhere, GameState, getLegalActions, iceStrength, isLegalAction } from '../src/core';
 import { rezCost } from '../src/core/engine/cardEffects';
 import { breakerStrength, iceSubroutines, markSubroutinesBroken } from '../src/core/engine/ice';
 import {
@@ -15,6 +15,7 @@ import {
   play,
   rezForTest,
   run,
+  runnerInstall,
   scoreForTest,
   setIdentity,
   startRunnerTurn,
@@ -287,6 +288,13 @@ describe('The Automata Initiative: Jinteki', () => {
     expect(card(s, fc).isRezzed).toBe(true);
     startRunnerTurn(s);
     expect(isLegalAction(s, { type: 'INITIATE_RUN', player: 'runner', targetServerId: 'remote-1' })).toBe(false);
+    // Not offered as a run, nor as the target of a "run any server" card
+    expect(getLegalActions(s, 'runner').some(a => a.type === 'INITIATE_RUN' && a.targetServerId === 'remote-1')).toBe(false);
+    s.runner.credits = 10;
+    const [withDebbie, debbie] = runnerInstall(s, '34019');
+    const asked = useAbility(withDebbie, 'runner', debbie);
+    const prompt = activePrompt(asked)!;
+    expect(prompt.kind === 'effect_choice' ? prompt.options.map(o => o.id) : []).toEqual(['hq', 'rd', 'archives']);
     const grip = s.runner.grip.length;
     s = run(s, 'archives');
     expect(s.runner.grip.length).toBe(grip - 2);

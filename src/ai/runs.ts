@@ -122,7 +122,12 @@ export function knownSubroutineCost(state: GameState, label: string): number | u
   if (/gain 1 \[credit\]/i.test(label)) return 0.8; // Flywheel: a credit and maybe a card
   const gains = label.match(/^gain (\d+) \[credit\]/i);
   if (gains) return 0.4 * Number(gains[1]); // Valentão: Corp credits
-  if (/trash 1 installed (?:resource|piece of hardware|program)/i.test(label)) return rates ? trashedCardCost(state) : 4; // Sorocaban Blade, Hammer, Lycian
+  // Sorocaban Blade, Hammer, Lycian: a rig card lost, when there is one of that type (with none, the old flat 1.5 below)
+  const trashType = label.match(/trash 1 installed (resource|piece of hardware|program)/i);
+  if (trashType && rates) {
+    const zone = { resource: runner.rig.resources, 'piece of hardware': runner.rig.hardware, program: runner.rig.programs }[trashType[1].toLowerCase() as 'resource'];
+    if (zone.length > 0) return trashedCardCost(state);
+  }
   if (/^(?:you may )?draw 1 card/i.test(label)) return 0.5; // Empiricist: helps the Corp a little
   if (/install/i.test(label)) return 1.5;
   return undefined;

@@ -8,7 +8,7 @@ import { endRun } from '../engine/runEnd';
 import { getCardScript } from './index';
 import { installedIce } from '../engine/cardEffects';
 import { runnerInstallBlocker } from '../engine/actions/install';
-import { accessOutsideRun, runnerTrashInstalledCorpCard, startRun, trashAccessedCard } from '../engine/actions/run';
+import { accessOutsideRun, runnerTrashInstalledCorpCard, runBlocked, startRun, trashAccessedCard } from '../engine/actions/run';
 import { dealDamage, giveTags, installedRunnerCards, trashInstalledRunnerCard } from '../engine/damage';
 import {
   addCounters,
@@ -54,7 +54,7 @@ function inBreakWindow(state: GameState): boolean {
 
 /** Asks which server a "Run any server" event runs. */
 function askAnyServer(ctx: EffectContext, title: string): void {
-  const options = Object.values(ctx.state.corp.servers).map(s => ({ id: s.id, label: s.name }));
+  const options = Object.values(ctx.state.corp.servers).filter(s => !runBlocked(ctx.state, s.id)).map(s => ({ id: s.id, label: s.name }));
   askChoice(ctx, 'runner', `${title}: run which server?`, options, 'run');
 }
 

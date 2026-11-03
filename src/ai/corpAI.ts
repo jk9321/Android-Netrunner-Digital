@@ -396,6 +396,11 @@ export class HeuristicCorpAI implements Agent {
       resolved = next;
     }
     let score = evaluate(resolved, 'corp', this.synergy) - before;
+    // Terminal operations (Liberation) end the action phase: the clicks left are lost, so play them last
+    if (action.type === 'PLAY_OPERATION_OR_EVENT') {
+      const played = corp.hq.find(c => c.instanceId === action.cardInstanceId);
+      if (played && /terminal/i.test(cardDef(played).keywords ?? '')) score -= Math.max(0, corp.clicks - 1) * clickRate('corp');
+    }
     if (this.synergy) score += this.moneyPlan(state, action);
     // Myōshu: keep the 10 credits once saved, unless the spend scores (its card plan does this when plans are on)
     if (this.synergy && !plansOn() && myoshuSaving(state, true) && resolved.corp.credits < MYOSHU_COST && resolved.corp.score === corp.score) score -= 1;

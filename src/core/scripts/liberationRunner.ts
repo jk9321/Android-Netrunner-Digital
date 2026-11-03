@@ -5,7 +5,7 @@ import { nextInt, shuffleInPlace } from '../rng';
 import { addLog } from '../engine/log';
 import { findCardAnywhere, findInstalledCorpCard, noteTrashedFromHand, removeCard, revealInHand } from '../engine/helpers';
 import { runnerSeesRd } from '../engine/rdKnowledge';
-import { breachOutsideRun, runnerTrashInstalledCorpCard, startRun, trashAccessedCard } from '../engine/actions/run';
+import { breachOutsideRun, runBlocked, runnerTrashInstalledCorpCard, startRun, trashAccessedCard } from '../engine/actions/run';
 import { answerBoostDiscard, BOOST_DISCARD_STEP } from '../engine/actions/breaking';
 import { giveTags, installedRunnerCards, trashInstalledRunnerCard, uninstallRunnerCard } from '../engine/damage';
 import {
@@ -53,7 +53,7 @@ const picked = (answer: EffectAnswer) => (answer.kind === 'effect_cards' ? answe
 const isInstalled = (state: GameState, card: CardInstance) => installedRunnerCards(state).some(c => c.instanceId === card.instanceId);
 const runnerTurn = (state: GameState) => state.activePlayer === 'runner';
 const centralServers = ['hq', 'rd', 'archives'];
-const remoteServers = (state: GameState) => Object.values(state.corp.servers).filter(s => s.isRemote).map(s => s.id);
+const remoteServers = (state: GameState) => Object.values(state.corp.servers).filter(s => s.isRemote && !runBlocked(state, s.id)).map(s => s.id);
 const allServers = (state: GameState) => Object.keys(state.corp.servers);
 
 /** True while the Runner is encountering ice and can still break (before subroutines fire). */
@@ -63,7 +63,8 @@ function inBreakWindow(state: GameState): boolean {
 }
 
 /** Asks which of these servers a run event or ability runs. */
-function askServer(ctx: EffectContext, label: string, serverIds: string[], step = 'run'): boolean {
+function askServer(ctx: EffectContext, label: string, ids: string[], step = 'run'): boolean {
+  const serverIds = ids.filter(id => !runBlocked(ctx.state, id)); // Front Company
   if (serverIds.length === 0) return false;
   askChoice(ctx, 'runner', `${label}: run which server?`, serverIds.map(id => ({ id, label: ctx.state.corp.servers[id].name })), step);
   return true;
@@ -233,7 +234,7 @@ const hannah: CardScript = {
       label: 'Gain [click]. Run a remote server (take 1 tag if unsuccessful).',
       clicks: 1,
       oncePerTurn: true,
-      canUse: ({ state }) => (remoteServers(state).length > 0 ? null : 'There is no remote server'),
+      canUse: ({ state }) => (remoteServers(state).length > 0 ? null : 'There is no remote server to run'),
       resolve: ctx => {
         ctx.state.runner.clicks += 1;
         askServer(ctx, 'Hannah "Wheels" Pilintra', remoteServers(ctx.state));
