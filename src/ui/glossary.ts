@@ -387,6 +387,29 @@ export const GLOSSARY: Record<string, GlossaryEntry> = {
     text: 'The threat level is the highest number of agenda points either player has in their score area. "Threat N →" abilities are only active while the threat level is N or more.',
     match: ['threat level', 'threat \\d+'],
   },
+  psi: {
+    term: 'Psi Game',
+    text: 'Both players secretly bid 0, 1 or 2 credits, then reveal and spend their bids. The card says what happens if the bids match or differ (rules 10.14.6).',
+    match: ['psi games?'],
+  },
+  terminal: {
+    term: 'Terminal',
+    text: 'After you resolve this operation or event, your action phase ends, even with clicks left (rules 5.4.3). You go straight to your discard phase.',
+    match: ['terminal'],
+  },
+  mandate: { term: 'Mandate', text: 'An operation subtype. Some cards care whether it is the first mandate you played this turn.', match: ['mandates?'] },
+  mythic: { term: 'Mythic', text: 'An ice subtype with no rules of its own; some cards refer to it.', match: ['mythic'] },
+  'set-aside': {
+    term: 'Set aside',
+    text: 'Cards moved out of play for a moment while an effect resolves (rules 4.8). They belong to no zone until the effect says where they go.',
+    match: ['set aside'],
+  },
+  assassination: {
+    term: 'Assassination',
+    text: 'An agenda subtype. Jeitinho becomes an assassination agenda worth 0 points in the Runner\'s score area; 3 of them win the game.',
+    match: ['assassination'],
+  },
+  daemon: { term: 'Daemon', text: 'A program subtype. Daemons can host other programs.', match: ['daemons?'] },
   dividends: {
     term: 'Dividends',
     text: 'When the Corp scores this agenda, it gets 1 agenda counter (or N for Dividends N) for each advancement counter on it beyond its advancement requirement.',
