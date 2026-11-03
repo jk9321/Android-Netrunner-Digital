@@ -13,7 +13,7 @@ import { answerPrompt, taoSwap, untaianPick } from '../src/ai/prompts';
 
 
 describe('synergy tags', () => {
-  it('cover every card (tag the cards of a new set in synergyTags.ts)', () => {
+  it("cover every card (a `synergy` on each card in its set's file in src/ai/cards/)", () => {
     const untagged = ALL_CARDS.filter(c => !(c.code in SYNERGY)).map(c => `${c.code} ${c.title}`);
     expect(untagged).toEqual([]);
   });

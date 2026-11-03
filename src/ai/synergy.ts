@@ -5,7 +5,7 @@ import { THEMES, Theme, ThemeWeights, cardSynergy } from './synergyTags';
  * Deck-aware nudges for the rule-based AI.
  *
  * Each side keeps a profile of what its own cards do and reward (see
- * synergyTags.ts), counting the identity most, cards in hand or installed
+ * each card's `synergy` in src/ai/cards/), counting the identity most, cards in hand or installed
  * next and cards still in the deck least; trashed cards don't count. So
  * the profile follows the game: it shifts as cards are drawn, installed or
  * lost. A move that feeds a theme the deck pays off for, or that puts a

@@ -2,6 +2,7 @@ import type { CardInstance, GameState } from '../../core';
 import type { CardProfile } from '../cardProfiles';
 import type { CardValue } from '../cardValues';
 import type { CorpEffect } from '../effectValues';
+import type { CardSynergy } from '../synergyTags';
 
 export type CounterType = 'credit' | 'virus' | 'power' | 'agenda';
 export type CounterWorth = (state: GameState, card: CardInstance) => number;
@@ -24,6 +25,8 @@ export interface CorpEffectContext {
  * script; this is only how the AI prices it. Every part is optional.
  */
 export interface CardAI {
+  /** Deck-aware synergy tags: what it gives and wants, and when its effect applies (synergyTags.ts). Every card has one. */
+  synergy?: CardSynergy;
   /** Hand-set numbers: the fallback when effect values are off or a value loop is cut short (cardValues.ts). */
   value?: CardValue;
   /** Money cards: what they pay out and when (cardProfiles.ts). */

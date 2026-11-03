@@ -104,25 +104,41 @@ function transactionGain(state: GameState): number {
 }
 
 export const ELEVATION: Record<string, CardAI> = {
+  // Ryō "Phoenix" Ōno
+  '35001': { synergy: { gives: { denial: 0.5 }, wants: { runs: 1, hq: 0.5 } } },
+  // Topan
+  '35002': { synergy: { gives: { install: 2 } } },
+  // Charm Offensive
+  '35003': { synergy: { gives: { runs: 1, archives: 1, trash: 0.5 } } },
+  // Scrounge
+  '35004': { synergy: { wants: { discard: 1.5 } } },
+  // Shred
+  '35005': { synergy: { gives: { runs: 1, denial: 0.5 } } },
   // Bling
   '35006': {
+    synergy: { gives: { draw: 0.5 }, wants: { install: 2 } },
     value: { rig: 3.5 },
     // +1 MU; a free install now and then lets it host the top card to play
     runner: state => muWorth(state) + perTurn(state, 0.3, 'runner'),
   },
   // Gourmand
   '35007': {
+    synergy: { gives: { trash: 1.5, draw: 0.5 } },
     value: { rig: 2.5, draws: 1 }, // Trash and draw, once
     // Once, trash a non-agenda card accessed (about 4 to the Corp) and draw 1
     runner: state => 0.7 * (4 + cardRate(state, 'runner')),
   },
   // Hantu
   '35008': {
+    synergy: { gives: { breakers: 1, virus: 1 } },
     counters: { virus: () => 1 }, // +2 strength for a boost
     counterFormulas: { virus: hantuVirus },
   },
+  // Rising Tide
+  '35009': { synergy: { gives: { breakers: 1 }, wants: { discard: 1 } } },
   // Cacophony
   '35010': {
+    synergy: { gives: { denial: 1 }, wants: { trash: 2 } },
     value: { rig: 4 },
     // A power counter the first time each turn it steals or trashes a Corp card
     runner: (state, code) => {
@@ -134,18 +150,33 @@ export const ELEVATION: Record<string, CardAI> = {
   },
   // Rent Rioters
   '35011': {
+    synergy: { gives: { econ: 1.5 } },
     value: { rig: 3 }, // 9 credits waiting
     // 3 clicks for 9 credits
     runner: () => 9 - 3 * CLICK,
   },
+  // Baz Wong
+  '35012': { synergy: { gives: { install: 1.5 } } },
+  // MuslihaT
+  '35013': { synergy: { gives: { draw: 1, breakers: 0.5 }, wants: { runs: 1 } } },
+  // Clean Getaway
+  '35014': { synergy: { gives: { runs: 1, econ: 1 } } },
+  // Lie Low
+  '35015': { synergy: { gives: { draw: 1 } } },
+  // Maintenance Access
+  '35016': { synergy: { gives: { runs: 1, hq: 1 } } },
+  // Transfer of Wealth
+  '35017': { synergy: { gives: { runs: 1, hq: 1, econ: 1, denial: 1.5 } } },
   // Detente
   '35018': {
+    synergy: { wants: { hq: 1.5 }, when: ['successfulRun'] },
     value: { rig: 3.5 },
     // +1 MU; parks an HQ card each HQ run, and can trade 2 back for a random access
     runner: state => muWorth(state) + perTurn(state, PACE.runs * PACE.hqShare * 0.5 * accessWorth(state), 'runner'),
   },
   // Maglectric Rapid (748 Mod)
   '35019': {
+    synergy: { wants: { hq: 1 }, when: ['successfulRun'] },
     value: { rig: 1.5 }, // One derez
     // Maglectric Rapid: once, derez a Corp card (about its rez cost)
     runner: state => {
@@ -153,19 +184,32 @@ export const ELEVATION: Record<string, CardAI> = {
       return 0.8 * (rezzed.length ? Math.max(...rezzed) : 3);
     },
   },
+  // Sang Kancil
+  '35020': { synergy: { gives: { breakers: 1 }, wants: { runs: 1 } } },
   // Fransofia Ward
   '35021': {
+    synergy: { gives: { denial: 1 } },
     value: { rig: 2 }, // Taxes every rez
     // Each rez costs the Corp a credit more; bypass an ice once the Corp is rich
     runner: state => perTurn(state, PACE.rezzes, 'runner') + (state.corp.credits >= 15 ? 3 : 0.5),
   },
   // Open Market
   '35022': {
+    synergy: { gives: { econ: 1 } },
     value: { rig: 2.5 },
     profile: { load: 6, pay: 1, every: 'turn', perTurn: 1 }, // Open Market
   },
+  // Dewi Subrotoputri
+  '35023': { synergy: { wants: { runs: 1.5, breakers: 0.5 }, when: ['successfulRun'] } },
+  // Magdalene Keino-Chemutai
+  '35024': { synergy: { gives: { install: 1 }, wants: { discard: 2, draw: 1 } } },
+  // Illumination
+  '35025': { synergy: { gives: { runs: 1, rd: 1, install: 1 } } },
+  // Ritual
+  '35026': { synergy: { gives: { draw: 1 } } },
   // GAMEDRAGON™ Pro
   '35027': {
+    synergy: { wants: { breakers: 1 } },
     value: { rig: 2 }, // A breaker boost that lasts the run
     // GAMEDRAGON Pro: +1 strength and boosts last the run, about a credit a run with a host
     runner: state => {
@@ -175,6 +219,7 @@ export const ELEVATION: Record<string, CardAI> = {
   },
   // Madani
   '35028': {
+    synergy: { gives: { install: 1 }, wants: { breakers: 0.5 } },
     value: { rig: 2.5 }, // Free program installs (hosted cards count too)
     // A hosted program installed each turn without a click
     runner: (state, _code, card) => {
@@ -192,6 +237,7 @@ export const ELEVATION: Record<string, CardAI> = {
   },
   // Azimat
   '35029': {
+    synergy: { gives: { econ: 0.5 }, wants: { trash: 1 } },
     value: { rig: 2.5 }, // 2 recurring credits for trashing
     // Its 2 credits refill each turn it has a trash cost to pay
     runner: (state, code) => perTurn(state, PACE.paidTrashes * 2 * counterWorthOf(state, code, 'credit'), 'runner'),
@@ -200,6 +246,7 @@ export const ELEVATION: Record<string, CardAI> = {
   },
   // Chromatophores
   '35030': {
+    synergy: { gives: { breakers: 0.5 } },
     value: { rig: 2 }, // Any breaker can break its host ice
     // The host ice can be broken by any breaker
     runner: (state, _code, card) => {
@@ -209,14 +256,18 @@ export const ELEVATION: Record<string, CardAI> = {
   },
   // Devadatta Drone
   '35031': {
+    synergy: { wants: { rd: 1.5 } },
     value: { rig: 2.5 }, // 2 extra R&D accesses
     // All its worth is its 2 power counters
     runner: () => 0,
     counters: { power: () => 1.2 }, // 1 more card accessed on an R&D breach
     counterFormulas: { power: devadattaPower },
   },
+  // Principia
+  '35032': { synergy: { gives: { breakers: 1 }, wants: { breakers: 1 } } },
   // “Knickknack” O’Brian
   '35033': {
+    synergy: { gives: { draw: 0.5, econ: 0.5, discard: 0.5 }, wants: { runs: 0.5 } },
     value: { rig: 2, draws: 0.5 }, // Credits and a card for spent installs
     // Now and then, an empty card turned into its install cost and a card
     runner: state => {
@@ -232,6 +283,7 @@ export const ELEVATION: Record<string, CardAI> = {
   },
   // Side Hustle
   '35034': {
+    synergy: { gives: { econ: 0.5 }, wants: { runs: 1.5 } },
     value: { rig: 2.5 },
     // A credit for each run until it holds 6, then a card
     runner: (state, code, card) => {
@@ -241,14 +293,22 @@ export const ELEVATION: Record<string, CardAI> = {
     counters: { credit: () => 0.9 }, // All taken (and a card drawn) once it holds 6
     counterFormulas: { credit: (s, card) => sideHustleCredit(s, card) },
   },
+  // LEO Construction
+  '35035': { synergy: { wants: { bioroid: 2 } } },
+  // Poétrï Luxury Brands
+  '35036': { synergy: { gives: { install: 1 }, wants: { advance: 0.5 }, when: ['onScore'] } },
+  // Aggressive Trendsetting
+  '35037': { synergy: {} },
   // Project Ingatan
   '35038': {
+    synergy: { wants: { advance: 1, discard: 0.5 }, when: ['onScore'] },
     // Agenda counters in the score area, by what spending one does
     counters: { agenda: () => 3 }, // Install a card from Archives for free
     counterFormulas: { agenda: ingatanAgenda },
   },
   // Humanoid Resources
   '35039': {
+    synergy: { gives: { econ: 1, draw: 1, install: 1 } },
     value: { keep: 3, econ: 2, draws: 3 },
     // 3 clicks for 4 credits, 3 cards and 3 free actions (2 installs, 1 operation)
     corp: (_state, _code, { cost, card }) => {
@@ -258,13 +318,23 @@ export const ELEVATION: Record<string, CardAI> = {
   },
   // Otto Campaign
   '35040': {
+    synergy: { gives: { econ: 1.5 } },
     value: { keep: 4, econ: 3.5 },
     profile: { load: 6, pay: 2, every: 'turn', perTurn: 1, clicksAtEnd: 2 }, // Otto Campaign
     counters: { credit: () => PAID_OUT }, // 2 a turn, no click
     counterFormulas: { credit: () => paidOut() },
   },
+  // Bumi 1.0
+  '35041': { synergy: { gives: { ice: 1, bioroid: 1, damage: 0.5 } } },
+  // Scatter Field
+  '35042': { synergy: { gives: { ice: 1, install: 0.5 } } },
+  // Nanomanagement
+  '35043': { synergy: { gives: { advance: 1 } } },
+  // Top-Down Solutions
+  '35044': { synergy: { gives: { draw: 1, install: 1 } } },
   // Mercia B4LL4RD
   '35045': {
+    synergy: { gives: { ice: 1, install: 0.5, bioroid: 1 } },
     value: { keep: 2, upgrade: [1, 1] },
     // One ice a turn installed for no click and 1 credit less
     corp: state => {
@@ -274,21 +344,27 @@ export const ELEVATION: Record<string, CardAI> = {
   },
   // AU Co.: The Gold Standard in Clones
   '35046': {
+    synergy: { wants: { damage: 2, discard: 1.5 } },
     counters: { power: () => 1.5 }, // AU Co.: 2 counters look at 3, keep 2 of them
     counterFormulas: { power: auCoPower },
   },
+  // PT Untaian
+  '35047': { synergy: { gives: { advance: 1.5 } } },
   // Proprionegation
   '35048': {
+    synergy: { when: ['onScore'] },
     counters: { agenda: () => 3 }, // Sends a run back to Archives once
     counterFormulas: { agenda: proprionegationAgenda },
   },
   // Sericulture Expansion
   '35049': {
+    synergy: { gives: { advance: 1 }, wants: { advance: 1 }, when: ['onScore'] },
     counters: { agenda: () => 4 }, // 2 advancement counters (2 clicks and 2 credits)
     counterFormulas: { agenda: sericultureAgenda },
   },
   // Byte!
   '35050': {
+    synergy: { gives: { damage: 1.5, tags: 0.5 } },
     value: { keep: 1.5 }, // A trap, but costs 4 to fire
     // Pay 4 on access for 1 tag and 3 net damage; accessed about half the time
     corp: (state, _code, { tag }) => {
@@ -298,14 +374,24 @@ export const ELEVATION: Record<string, CardAI> = {
   },
   // Phật Gioan Baotixita
   '35051': {
+    synergy: { gives: { damage: 1 }, when: ['onScore'] },
     value: { keep: 2 },
     // A power counter a turn (1 net damage each, priced in counterValues.ts), used up within about 3 turns
     corp: (state, code) => ({ keep: perTurn(state, counterWorthOf(state, code, 'power'), 'corp', 0, 3) }),
     counters: { power: () => 1.5 }, // 1 net damage each, when an agenda is scored or stolen
     counterFormulas: { power: gioanPower },
   },
+  // Empiricist
+  '35052': { synergy: { gives: { ice: 1, damage: 1, tags: 0.5, draw: 0.5 } } },
+  // Mycoweb
+  '35053': { synergy: { gives: { ice: 1 }, wants: { discard: 1 } } },
+  // Semak-samun
+  '35054': { synergy: { gives: { ice: 1, damage: 1 } } },
+  // Peer Review
+  '35055': { synergy: { gives: { econ: 1.5 } } },
   // Mitra Aman
   '35056': {
+    synergy: { gives: { econ: 0.5, ice: 0.5 } },
     value: { keep: 2, upgrade: [1.5, 1.2] },
     // Once, 3 credits and a swap of the approached ice
     corp: () => {
@@ -313,18 +399,25 @@ export const ELEVATION: Record<string, CardAI> = {
       return { keep: value, upgrade: [value, value] };
     },
   },
+  // Nebula Talent Management
+  '35057': { synergy: { wants: { operations: 2 }, when: ['successfulRun'] } },
+  // Synapse Global
+  '35058': { synergy: { gives: { econ: 0.5 }, wants: { tags: 1.5 }, when: ['ifTagged'] } },
   // Embedded Reporting
   '35059': {
+    synergy: { wants: { advance: 1.5, operations: 0.5 }, when: ['onScore'] },
     counters: { agenda: () => 1.5 }, // An operation to the top of R&D
     counterFormulas: { agenda: embeddedAgenda },
   },
   // Next Big Thing
   '35060': {
+    synergy: { gives: { draw: 1 }, when: ['onScore'] },
     counters: { agenda: () => 3 }, // A click for 4 cards and a reshuffle
     counterFormulas: { agenda: nextBigThingAgenda },
   },
   // Idiosyncresis
   '35061': {
+    synergy: { gives: { econ: 1, denial: 1.5 }, wants: { advance: 1 } },
     value: { keep: 2.5 }, // 3 credits for the Corp and -2 for the Runner per counter
     // Each advancement is 3 credits to the Corp and 2 off the Runner, for a click and a credit
     corp: () => ({ keep: 0.6 * 2 * (3 + 2 - (CLICK + 1)) }),
@@ -333,6 +426,7 @@ export const ELEVATION: Record<string, CardAI> = {
   },
   // Public Access Plaza
   '35062': {
+    synergy: { gives: { econ: 1 }, when: ['threat'] },
     value: { keep: 3, econ: 2.5 },
     // 1 credit each turn
     corp: (state, _code, { cost }) => {
@@ -340,13 +434,31 @@ export const ELEVATION: Record<string, CardAI> = {
       return { keep, econ: keep };
     },
   },
+  // Doomscroll
+  '35063': { synergy: { gives: { ice: 1, tags: 1, damage: 1 }, wants: { tags: 0.5 }, when: ['ifTagged'] } },
+  // N-Pot
+  '35064': { synergy: { gives: { ice: 1, denial: 0.5 }, when: ['threat'] } },
+  // Bigger Picture
+  '35065': { synergy: { gives: { denial: 1.5 }, wants: { tags: 1.5 }, when: ['ifTagged'] } },
+  // IP Enforcement
+  '35066': { synergy: { wants: { tags: 1 }, when: ['ifTagged'] } },
+  // Touch-ups
+  '35067': { synergy: { gives: { advance: 2 } } },
+  // BANGUN
+  '35068': { synergy: { gives: { damage: 1, tags: 0.5 } } },
+  // The Zwicky Group
+  '35069': { synergy: { wants: { operations: 1.5 } } },
+  // Greenmail
+  '35070': { synergy: { gives: { econ: 1 }, when: ['onScore'] } },
   // Off the Books
   '35071': {
+    synergy: { gives: { install: 0.5 }, wants: { advance: 1 }, when: ['onScore'] },
     counters: { agenda: () => 3.5 }, // Fetch any card, installed for free
     counterFormulas: { agenda: offTheBooksAgenda },
   },
   // Anthill Excavation Contract
   '35072': {
+    synergy: { gives: { econ: 2, draw: 0.5 } },
     value: { keep: 5, econ: 4 },
     profile: { load: 8, pay: 4, every: 'turn', perTurn: 1, drawEach: 1 }, // Anthill Excavation Contract
     counters: { credit: () => PAID_OUT }, // 4 a turn and a card
@@ -354,6 +466,7 @@ export const ELEVATION: Record<string, CardAI> = {
   },
   // Plutus
   '35073': {
+    synergy: { wants: { operations: 1.5, discard: 0.5 } },
     value: { keep: 1.5 }, // Replays transactions, but costly to rez
     // A transaction replayed each turn from Archives; to rez, trash 3 cards from HQ
     corp: (state, _code, { card }) => {
@@ -361,8 +474,25 @@ export const ELEVATION: Record<string, CardAI> = {
       return { keep: Math.max(0.3, keep) };
     },
   },
+  // Biawak
+  '35074': { synergy: { gives: { ice: 1 } } },
+  // Kessleroid
+  '35075': { synergy: { gives: { ice: 1 } } },
+  // Syailendra
+  '35076': { synergy: { gives: { ice: 1, advance: 1, denial: 0.5, damage: 0.5 } } },
+  // Key Performance Indicators
+  '35077': { synergy: { gives: { advance: 1, econ: 0.5, ice: 0.5 } } },
+  // Measured Response
+  '35078': { synergy: { gives: { damage: 1.5, denial: 0.5 }, when: ['successfulRun', 'threat'] } },
+  // Flyswatter
+  '35079': { synergy: { gives: { ice: 1 } } },
+  // Lamplighter
+  '35080': { synergy: { gives: { ice: 1, tags: 1 }, wants: { tags: 0.5 }, when: ['ifTagged', 'onScore'] } },
+  // Petty Cash
+  '35081': { synergy: { gives: { econ: 1 } } },
   // Mahkota Langit Grid
   '35082': {
+    synergy: { gives: { econ: 1 } },
     value: { keep: 3, upgrade: [2, 0.5] },
     // 2 credits back each turn it gets to pay for a rez here; assets here cost 2 more to trash
     corp: (state, code) => {

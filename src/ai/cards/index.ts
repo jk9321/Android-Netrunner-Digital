@@ -2,6 +2,7 @@ import type { CardInstance, GameState } from '../../core';
 import type { CardProfile } from '../cardProfiles';
 import type { CardValue } from '../cardValues';
 import type { CorpEffect } from '../effectValues';
+import { CardSynergy, setSynergy } from '../synergyTags';
 import { ELEVATION } from './elevation';
 import { LIBERATION } from './liberation';
 import { SYSTEM_GATEWAY } from './systemGateway';
@@ -13,7 +14,7 @@ export type { CardAI, CorpEffectContext, CounterType, CounterWorth } from './typ
 /**
  * The AI's card knowledge, one entry per card, one file per set (2026-11-03).
  * Adding a set: a new file beside these, listed here. The old per-file tables
- * (CARD_VALUES, CARD_PROFILES, COUNTER_WORTH, EFFECT_CODES) are built from it.
+ * (SYNERGY, CARD_VALUES, CARD_PROFILES, COUNTER_WORTH, EFFECT_CODES) are built from it.
  */
 const SETS: Record<string, CardAI>[] = [SYSTEM_GATEWAY, ELEVATION, VANTAGE_POINT, LIBERATION];
 
@@ -37,6 +38,8 @@ function pick<K extends keyof CardAI>(key: K): Record<string, NonNullable<CardAI
   return out;
 }
 
+export const SYNERGY: Record<string, CardSynergy> = pick('synergy');
+setSynergy(SYNERGY);
 export const CARD_VALUES: Record<string, CardValue> = pick('value');
 export const CARD_PROFILES: Record<string, CardProfile> = pick('profile');
 export const COUNTER_WORTH: Record<string, Partial<Record<CounterType, CounterWorth>>> = pick('counters');
