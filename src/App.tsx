@@ -348,7 +348,7 @@ function Game({
   return (
     <GameStateContext.Provider value={gameState}>
     <div
-      className="h-[100dvh] overflow-hidden text-slate-100 flex flex-col font-mono selection:bg-cyber-neonYellow selection:text-black"
+      className="min-h-screen lg:h-screen lg:overflow-hidden text-slate-100 flex flex-col font-mono selection:bg-cyber-neonYellow selection:text-black"
     >
       <GameHeader
         state={gameState}
@@ -362,11 +362,8 @@ function Game({
         onLeave={leaveGame}
       />
 
-      {/* Main Tabletop: scrolls internally on mobile while outer window remains locked */}
-      <div
-        id="game-viewport"
-        className="flex-1 min-h-0 w-full flex flex-col lg:flex-row gap-2 p-2 overflow-y-auto lg:overflow-hidden overscroll-contain"
-      >
+      {/* Main Tabletop */}
+      <div className="flex-1 min-h-0 w-full flex flex-col lg:flex-row gap-2 p-2">
       {/* Cards on the table send their hover to the zoom panel in the side bar */}
       <ZoomContext.Provider value={zoomStore}>
       <main className="flex-1 min-w-0 min-h-0 flex flex-col gap-2">
@@ -576,14 +573,10 @@ function Game({
           onReady={() => {
             setHotseatSide(handoffTo);
             // Show the incoming player their own board and hand
+            // (window.scrollTo, not scrollIntoView, which would also scroll the overflow-hidden <main>)
             requestAnimationFrame(() => {
               const board = document.getElementById(`${handoffTo}-board`);
-              const container = document.getElementById('game-viewport');
-              if (board && container) {
-                container.scrollTo({ top: board.offsetTop - 10, behavior: 'smooth' });
-              } else if (board) {
-                window.scrollTo({ top: board.getBoundingClientRect().top + window.scrollY - 80, behavior: 'smooth' });
-              }
+              if (board) window.scrollTo({ top: board.getBoundingClientRect().top + window.scrollY - 80, behavior: 'smooth' });
             });
           }}
         />
