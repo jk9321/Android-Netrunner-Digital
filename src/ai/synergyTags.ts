@@ -305,6 +305,138 @@ export const SYNERGY: Record<string, CardSynergy> = {
   '36064': { gives: { denial: 0.5 } }, // Flagship
   '36065': { gives: { damage: 1.5 } }, // Shackleton Grid
   '36066': { gives: { draw: 0.5 }, when: ['onScore'] }, // Let Them Dream
+  // ---- Liberation: Runner ----
+  '34001': { gives: { econ: 1.5, discard: 0.5 } }, // Strike Fund
+  '34002': { gives: { discard: 1.5, install: 1 } }, // The Price
+  '34003': { gives: { draw: 1 }, wants: { trash: 1.5, tags: 0.5 } }, // Solidarity Badge
+  '34004': { gives: { breakers: 1.5, virus: 1 }, wants: { trash: 1.5, discard: 0.5 } }, // Audrey v2
+  '34005': { gives: { breakers: 1 } }, // Banner
+  '34006': { gives: { breakers: 0.5 }, wants: { breakers: 1 } }, // Monkeywrench
+  '34007': { gives: { runs: 1, rd: 1.5, archives: 0.5 }, wants: { tags: 0.5 }, when: ['threat'] }, // Eru Ayase-Pessoa
+  '34008': { gives: { runs: 1 }, wants: { tags: 0.5 } }, // Hannah "Wheels" Pilintra
+  '34009': { gives: { draw: 1, discard: 0.5 } }, // Lago Paranoá Shelter
+  '34010': { gives: { hq: 1, rd: 1 }, wants: { runs: 1 } }, // Mercury: Chrome Libertador
+  '34011': { gives: { draw: 0.5, rd: 0.5 } }, // Chrysopoeian Skimming
+  '34012': { gives: { runs: 1.5, hq: 1, rd: 1 }, when: ['threat'] }, // S-Dobrado
+  '34013': { gives: { denial: 1 } }, // Capybara
+  '34014': { gives: { denial: 1 }, when: ['onScore'] }, // Hermes
+  '34015': { gives: { breakers: 1 } }, // Curupira
+  '34016': { gives: { runs: 0.5 } }, // Laser Pointer
+  '34017': { gives: { econ: 1 } }, // Saci
+  '34018': { gives: { breakers: 1 }, when: ['threat'] }, // Shibboleth
+  '34019': { gives: { econ: 1, runs: 1 }, wants: { runs: 1 }, when: ['threat'] }, // Debbie "Downtown" Moreira
+  '34020': { gives: { install: 1.5, breakers: 0.5 } }, // Arissana Rocha Nahu: Street Artist
+  '34021': { gives: { runs: 1, rd: 1, draw: 2 } }, // Joy Ride
+  '34022': {}, // AirbladeX (JSRF Ed.)
+  '34023': { gives: { draw: 1 }, wants: { install: 1 } }, // LilyPAD
+  '34024': { gives: { breakers: 1 }, when: ['threat'] }, // Living Mural
+  '34025': { gives: { runs: 1 } }, // Pichação
+  '34026': { gives: { breakers: 1 } }, // Slap Vandal
+  '34027': { gives: { breakers: 1, draw: 0.5 } }, // Umbrella
+  '34028': { gives: { runs: 1, rd: 1.5 } }, // Beatriz Friere Gonzalez
+  '34029': { gives: { econ: 1, install: 0.5 } }, // Urban Art Vernissage
+  '34030': { gives: { runs: 1, draw: 1, econ: 1, install: 0.5 } }, // Bahia Bands
+  '34066': { gives: { install: 1 }, wants: { tags: 1 } }, // Sebastião Souza Pessoa: Activist Organizer
+  '34067': { gives: { runs: 1, hq: 1.5, trash: 1, tags: 0.5 } }, // Eye for an Eye
+  '34068': { gives: { runs: 0.5, install: 1, tags: 0.5 }, wants: { discard: 1 }, when: ['threat'] }, // Privileged Access
+  '34069': { gives: { draw: 1 }, wants: { tags: 1.5 } }, // Amanuensis
+  '34070': { gives: { install: 1 }, wants: { runs: 1.5, hq: 1, rd: 1, archives: 1 }, when: ['successfulRun'] }, // The Wizard’s Chest
+  '34071': { gives: { breakers: 1 } }, // Boi-tatá
+  '34072': { gives: { virus: 1 }, wants: { archives: 1.5 } }, // Heliamphora
+  '34073': { gives: { trash: 1 }, wants: { tags: 0.5 } }, // Arruaceiras Crew
+  '34074': { gives: { econ: 2 } }, // Friend of a Friend
+  '34075': { gives: { hq: 1, rd: 1 }, wants: { tags: 1.5 }, when: ['threat'] }, // Manuel Lattes de Moura
+  '34076': { gives: { econ: 1, draw: 0.5 } }, // Meeting of Minds
+  '34077': { gives: { runs: 1, install: 0.5 } }, // Window of Opportunity
+  '34078': { gives: { runs: 1, hq: 1 } }, // Alarm Clock
+  '34079': { wants: { runs: 1.5, hq: 1, rd: 1, archives: 1 }, when: ['successfulRun', 'threat'] }, // Jeitinho
+  '34080': { gives: { trash: 1 }, wants: { hq: 1 } }, // Cupellation
+  '34081': { gives: { runs: 1 }, when: ['threat'] }, // Malandragem
+  '34082': { gives: { runs: 1 }, wants: { econ: 0.5 } }, // Physarum Entangler
+  '34083': { wants: { hq: 1, rd: 1 } }, // Amelia Earhart
+  '34084': { gives: { econ: 0.5 } }, // Juli Moreira Lee
+  '34085': { gives: { runs: 1, hq: 1, denial: 0.5 } }, // Burner
+  '34086': { gives: { runs: 1 }, wants: { breakers: 0.5 } }, // Spree
+  '34087': { gives: { runs: 1.5, rd: 1.5, econ: 0.5 } }, // Trick Shot
+  '34088': { gives: { rd: 1 }, wants: { runs: 1 }, when: ['successfulRun'] }, // Cataloguer
+  '34089': { gives: { econ: 1 } }, // Coalescence
+  '34090': { gives: { breakers: 1 } }, // Lobisomem
+  '34091': { gives: { install: 1.5, breakers: 0.5 } }, // Muse
+  '34092': { gives: { breakers: 1 }, when: ['threat'] }, // Pressure Spike
+  '34093': { gives: { rd: 1 }, wants: { rd: 1 } }, // “Pretty” Mary da Silva
+  '34094': { gives: { draw: 1.5 } }, // Ashen Epilogue
+  '34095': { gives: { econ: 0.5 }, wants: { tags: 1 }, when: ['threat'] }, // Valentina Ferreira Carvalho
+  // ---- Liberation: Corp ----
+  '34031': { gives: { damage: 1 }, when: ['onScore'] }, // Salvo Testing
+  '34032': { gives: { denial: 0.5, econ: 0.5 } }, // Stegodon MK IV
+  '34033': { gives: { econ: 0.5, bioroid: 0.5 } }, // Wage Workers
+  '34034': { gives: { ice: 1, install: 0.5 }, when: ['threat'] }, // Ablative Barrier
+  '34035': { gives: { ice: 1, tags: 1, damage: 1 }, wants: { tags: 0.5 }, when: ['ifTagged', 'threat'] }, // Jaguarundi
+  '34036': { gives: { ice: 1, denial: 1 } }, // M.I.C.
+  '34037': { gives: { econ: 1.5, install: 0.5, advance: 0.5 }, wants: { tags: 0.5 } }, // Greasing the Palm
+  '34038': { gives: { econ: 1 }, wants: { ice: 1 }, when: ['threat'] }, // Vovô Ozetti
+  '34039': { gives: { install: 2 } }, // A Teia: IP Recovery
+  '34040': { gives: { damage: 1.5 }, when: ['onScore'] }, // Fujii Asset Retrieval
+  '34041': { gives: { damage: 1 } }, // Front Company
+  '34042': { gives: { ice: 1, damage: 1 }, when: ['threat'] }, // Attini
+  '34043': { gives: { ice: 1, damage: 1, tags: 0.5 } }, // Phoneutria
+  '34044': { gives: { ice: 1, econ: 0.5 } }, // Tatu-Bola
+  '34045': { gives: { econ: 1, draw: 1, damage: 0.5 }, wants: { tags: 0.5 } }, // Mindscaping
+  '34046': { gives: { denial: 1 }, when: ['successfulRun'] }, // Adrian Seis
+  '34047': { gives: { denial: 1 } }, // Daniela Jorge Inácio
+  '34048': { gives: { install: 1, draw: 0.5 } }, // Epiphany Analytica: Nations Undivided
+  '34049': { gives: { tags: 1 }, wants: { tags: 0.5 } }, // Oracle Thinktank
+  '34050': { gives: { econ: 1 } }, // Balanced Coverage
+  '34051': { gives: { tags: 1.5 } }, // Behold!
+  '34052': { gives: { draw: 0.5 } }, // Federal Fundraising
+  '34053': { gives: { ice: 1, tags: 1 }, wants: { tags: 1 }, when: ['threat'] }, // Starlit Knight
+  '34054': { gives: { ice: 1, tags: 1, denial: 0.5 } }, // Virtual Service Agent
+  '34055': { gives: { tags: 2 }, when: ['threat'] }, // Oppo Research
+  '34056': { gives: { econ: 1.5 } }, // Your Digital Life
+  '34057': { gives: { advance: 1.5 } }, // Slash and Burn Agriculture
+  '34058': { gives: { econ: 1.5 }, wants: { ice: 1 } }, // Cybersand Harvester
+  '34059': { gives: { ice: 1, advance: 1.5 } }, // Tree Line
+  '34060': { gives: { ice: 1, econ: 0.5, denial: 1 } }, // Valentão
+  '34061': { gives: { econ: 1.5 }, wants: { discard: 0.5 } }, // Armed Asset Protection
+  '34062': { gives: { draw: 0.5, operations: 0.5 }, when: ['threat'] }, // Pivot
+  '34063': { gives: { damage: 1 }, when: ['threat'] }, // Angelique Garza Correa
+  '34064': { gives: { ice: 1 }, when: ['onScore'] }, // Tucana
+  '34065': { wants: { tags: 1.5 } }, // B-1001
+  '34096': { gives: { damage: 0.5 }, wants: { ice: 1 } }, // Thunderbolt Armaments: Peace Through Power
+  '34097': { gives: { econ: 0.5 }, when: ['onScore'] }, // Lightning Laboratory
+  '34098': { gives: { install: 1 } }, // Warm Reception
+  '34099': { gives: { econ: 1.5 } }, // Working Prototype
+  '34100': { gives: { ice: 1 } }, // Lycian Multi-Munition
+  '34101': { gives: { ice: 1 } }, // Sorocaban Blade
+  '34102': { gives: { install: 0.5, denial: 1 }, when: ['threat'] }, // Active Policing
+  '34103': { gives: { econ: 1.5, draw: 1 }, wants: { discard: 0.5 } }, // Corporate Hospitality
+  '34104': { wants: { ice: 1 } }, // Brasília Government Grid
+  '34105': { gives: { tags: 1, damage: 1 }, when: ['onScore'] }, // See How They Run
+  '34106': { wants: { ice: 1 } }, // Sisyphus Protocol
+  '34107': { gives: { econ: 1.5, draw: 0.5 }, wants: { advance: 1 } }, // Charlotte Caçador
+  '34108': { gives: { econ: 0.5, draw: 0.5, advance: 0.5 }, wants: { discard: 0.5 } }, // Cohort Guidance Program
+  '34109': { gives: { ice: 1, damage: 1 }, when: ['threat'] }, // Boto
+  '34110': { gives: { ice: 1, tags: 1, damage: 1 } }, // Cloud Eater
+  '34111': { gives: { ice: 1.5, draw: 0.5 } }, // Tributary
+  '34112': { gives: { denial: 1 }, when: ['threat'] }, // Bring Them Home
+  '34113': { gives: { draw: 1 }, when: ['onScore'] }, // Kingmaking
+  '34114': { gives: { econ: 1, advance: 1 }, when: ['onScore'] }, // Stoke the Embers
+  '34115': { gives: { econ: 1.5, install: 0.5 } }, // Janaína “JK” Dumont Kindelán
+  '34116': { gives: { ice: 1, econ: 0.5 }, wants: { tags: 1 }, when: ['ifTagged'] }, // Capacitor
+  '34117': { gives: { ice: 1, damage: 0.5, draw: 0.5 }, wants: { tags: 0.5 } }, // Piranhas
+  '34118': { gives: { ice: 1, damage: 1, tags: 1, denial: 1 } }, // Seraph
+  '34119': { gives: { draw: 1, operations: 1 }, when: ['threat'] }, // Sudden Commandment
+  '34120': { gives: { advance: 1.5 } }, // The Holo Man
+  '34121': { gives: { econ: 1 }, wants: { operations: 1 } }, // Nuvem SA: Law of the Land
+  '34122': { gives: { install: 1 }, when: ['onScore'] }, // Eminent Domain
+  '34123': { wants: { discard: 1 }, when: ['onScore'] }, // The Basalt Spire
+  '34124': { gives: { advance: 1 } }, // Hearts and Minds
+  '34125': { gives: { ice: 1, draw: 0.5 } }, // Descent
+  '34126': { gives: { ice: 1, tags: 0.5 } }, // Hammer
+  '34127': { gives: { ice: 1, econ: 0.5 }, wants: { advance: 1, discard: 0.5 } }, // Logjam
+  '34128': { gives: { advance: 1 }, when: ['threat'] }, // Business As Usual
+  '34129': { gives: { ice: 0.5 }, wants: { advance: 1 } }, // Isaac Liberdade
+  '34130': { gives: { install: 1 }, when: ['onScore'] }, // The Powers That Be
 };
 
 /** Text patterns for guessing a card's themes when it has no hand-written entry (a new set). */

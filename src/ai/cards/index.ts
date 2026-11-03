@@ -3,6 +3,7 @@ import type { CardProfile } from '../cardProfiles';
 import type { CardValue } from '../cardValues';
 import type { CorpEffect } from '../effectValues';
 import { ELEVATION } from './elevation';
+import { LIBERATION } from './liberation';
 import { SYSTEM_GATEWAY } from './systemGateway';
 import type { CardAI, CorpEffectContext, CounterType, CounterWorth } from './types';
 import { VANTAGE_POINT } from './vantagePoint';
@@ -14,7 +15,7 @@ export type { CardAI, CorpEffectContext, CounterType, CounterWorth } from './typ
  * Adding a set: a new file beside these, listed here. The old per-file tables
  * (CARD_VALUES, CARD_PROFILES, COUNTER_WORTH, EFFECT_CODES) are built from it.
  */
-const SETS: Record<string, CardAI>[] = [SYSTEM_GATEWAY, ELEVATION, VANTAGE_POINT];
+const SETS: Record<string, CardAI>[] = [SYSTEM_GATEWAY, ELEVATION, VANTAGE_POINT, LIBERATION];
 
 function join(sets: Record<string, CardAI>[]): Record<string, CardAI> {
   const all: Record<string, CardAI> = {};

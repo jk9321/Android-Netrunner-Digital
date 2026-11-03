@@ -12,6 +12,7 @@ import { perfectRecallTarget } from './corpAI';
 import { freeRezOn } from './freeRez';
 import { iceStop, iceWorth } from './iceValues';
 import { rezCost } from '../core/engine/cardEffects';
+import { isPsiStep } from '../core/scripts/effects';
 
 /** Applies an action, or returns null if the engine rejects it. */
 export function simulate(state: GameState, action: GameAction): GameState | null {
@@ -146,6 +147,25 @@ export function runEventOptions(cardCode: string, state?: GameState): RunOptions
       return { bonusCredits: 4, poolLocked: true };
     case '36015': // Baker
       return { baker: true };
+    // Liberation
+    case '34007': // Eru Ayase-Pessoa: a tag, then Archives breaches R&D instead (1 more card at threat 3)
+      return { breachAs: 'rd', extraAccesses: state && Math.max(state.corp.score, state.runner.score) >= 3 ? 1 : 0, successBonus: state ? -tagCost(state) : -3 };
+    case '34028': // Beatriz Friere Gonzalez: an extra click, then HQ breaches R&D with 1 more card
+      return { breachAs: 'rd', extraAccesses: 1, successBonus: -(state ? runClick(state) : 1) };
+    case '34008': // Hannah: the click comes back
+      return { successBonus: state ? runClick(state) : 1 };
+    case '34021': // Joy Ride: 5 cards
+      return { successBonus: state ? Math.min(5, Math.max(1, state.runner.handSizeLimit - state.runner.grip.length + 1)) * cardRate(state, 'runner') : 4 };
+    case '34067': // Eye for an Eye: a tag, 1 more HQ card
+      return { extraAccesses: 1, successBonus: state ? -tagCost(state) : -3 };
+    case '34068': // Privileged Access: no breach, a tag and a cheap resource from the heap
+      return { noBreach: true, successBonus: state ? (state.runner.heap.some(c => cardDef(c).type_code === 'resource') ? 3 : 0) - tagCost(state) : 0 };
+    case '34085': // Burner: no breach, 2 HQ cards sent back to R&D
+      return { noBreach: true, successBonus: state && state.corp.hq.length > 0 ? 3 : 0 };
+    case '34087': // Trick Shot: 4 credits for the run, 1 more R&D card, 2 credits after
+      return { bonusCredits: 4, extraAccesses: 1, successBonus: 1.5 };
+    case '34030': // Bahia Bands: two of 2 cards, a cheaper install, a tag gone, 4 credits
+      return { successBonus: 4 };
     default:
       return {};
   }
@@ -158,6 +178,14 @@ export function answerPrompt(state: GameState, side: SideCode, memory?: RunnerMe
 
   if (prompt.kind === 'mulligan') {
     return { ...base, choice: { kind: 'mulligan', mulligan: mulligan(state, prompt, synergy) } };
+  }
+  // Psi Game (Liberation): a secret bid from a mixed strategy, never from the other side's bid
+  if (prompt.kind === 'effect_choice' && isPsiStep(prompt.source.step)) {
+    return { ...base, choice: { kind: 'effect_choice', optionId: psiBid(state, side, prompt.options.map(o => o.id)) } };
+  }
+  // Lobisomem: break every barrier subroutine the plan chose it for (the largest X offered)
+  if (side === 'runner' && prompt.kind === 'effect_choice' && prompt.source.cardCode === '34090' && prompt.source.step === 'x') {
+    return { ...base, choice: { kind: 'effect_choice', optionId: prompt.options[0].id } };
   }
   // Breach order: the cards in the root first, then the central zone, without peeking at what comes up
   if (prompt.kind === 'access_order') {
@@ -341,6 +369,29 @@ export function answerPrompt(state: GameState, side: SideCode, memory?: RunnerMe
  * central gets in self-play (PACE), from a hash of the game and turn: a
  * fixed pick would let a human read it.
  */
+/**
+ * Psi Game bid (rules 10.14): neither side may see the
+ * other's bid, so the AI mixes. The Corp wants the bids to differ and the
+ * Runner wants them to match; with both paying their bid, cheap bids come up
+ * more often (0: 45%, 1: 35%, 2: 20%), spread by the game, turn and side so
+ * a human can't read it, and never more than the side can pay.
+ */
+export function psiBid(state: GameState, side: SideCode, options: string[]): string {
+  const weights: [string, number][] = (
+    [['0', 0.45], ['1', 0.35], ['2', 0.2]] as [string, number][]
+  ).filter(([id]) => options.includes(id));
+  if (weights.length === 0) return options[0];
+  const total = weights.reduce((n, [, w]) => n + w, 0);
+  let h = 2166136261;
+  for (const ch of `${state.id}:${state.turnNumber}:${side}:${state.log.length}`) h = Math.imul(h ^ ch.charCodeAt(0), 16777619);
+  let roll = (((h >>> 0) % 10000) / 10000) * total;
+  for (const [id, w] of weights) {
+    if (roll < w) return id;
+    roll -= w;
+  }
+  return weights[0][0];
+}
+
 export function meliesSide(state: GameState): 'hq' | 'rd' | 'archives' {
   const shares: ['hq' | 'rd' | 'archives', number][] = [['hq', PACE.hqShare], ['rd', PACE.rdShare], ['archives', PACE.archivesShare]];
   const total = shares.reduce((n, [, w]) => n + w, 0);

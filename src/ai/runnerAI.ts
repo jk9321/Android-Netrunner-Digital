@@ -113,7 +113,10 @@ export class HeuristicRunnerAI implements Agent {
     const encounter = state.activeRun?.encounter;
     if (!ice || !encounter || encounter.resolvingIndex !== null) return undefined;
     const subs = iceSubroutines(state, ice);
-    const unbroken = subs.map((s, i) => ({ i, cost: subroutineCost(state, s.label) })).filter(s => !encounter.broken[s.i]);
+    // Banner: once used, this encounter's subroutines can't end the run
+    const unbroken = subs
+      .map((s, i) => ({ i, cost: encounter.cannotEndRun && /^end the run\.?$/i.test(s.label.trim()) ? 0 : subroutineCost(state, s.label) }))
+      .filter(s => !encounter.broken[s.i]);
     const mustBreak = unbroken.filter(s => s.cost >= 1);
     if (mustBreak.length === 0) return undefined;
 
@@ -157,6 +160,8 @@ export class HeuristicRunnerAI implements Agent {
         if (plan.boostByAbility) return legal.find(a => a.type === 'USE_ABILITY' && a.cardInstanceId === breakerId);
         return legal.find(a => a.type === 'BOOST_BREAKER' && a.breakerInstanceId === breakerId);
       }
+      // Lobisomem on barriers, Banner: the card's own ability
+      if (plan.breakByAbility) return legal.find(a => a.type === 'USE_ABILITY' && a.cardInstanceId === breakerId);
       const wanted = new Set(targets.map(t => t.i));
       const breaks = legal.filter(
         (a): a is Extract<GameAction, { type: 'BREAK_SUBROUTINE' }> => a.type === 'BREAK_SUBROUTINE' && a.breakerInstanceId === breakerId

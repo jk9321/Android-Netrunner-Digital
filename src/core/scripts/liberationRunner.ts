@@ -1522,7 +1522,8 @@ const muse: CardScript = {
 
 // Pressure Spike (Fracter): Interface -> 1 credit: Break 1 barrier subroutine. 2 credits: +3
 // strength. Threat 4 -> 2 credits: +9 strength. Use this ability only once per run.
-const spikeKey = (card: CardInstance) => `pressure-spike:${card.instanceId}`;
+/** Pressure Spike's once-per-run +9 (a run flag), read by the AI's break plans too. */
+export const spikeKey = (card: CardInstance) => `pressure-spike:${card.instanceId}`;
 const pressureSpike: CardScript = {
   breaker: { breaks: 'barrier', breakMax: 1, breakCost: () => 1, boostCost: 2, boostAmount: () => 3 },
   abilities: [

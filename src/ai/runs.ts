@@ -13,6 +13,7 @@ import {
 } from '../core/engine/ice';
 import { availableCredits, counters, stealthCredits } from '../core/engine/cardEffects';
 import { stealCost } from '../core/engine/actions/run';
+import { spikeKey } from '../core/scripts/liberationRunner';
 import { corpCardValue, tagThreat, tagsWorth } from './evaluate';
 import { agendaOdds, coreDamageWorth, damageWorth } from './effectValues';
 import { clickPrice } from './handValues';
@@ -92,6 +93,7 @@ export function knownSubroutineCost(state: GameState, label: string): number | u
   }
   if (/loses? \[click\]/i.test(label)) return rates ? clickRate('runner') : 2;
   if (/gets \+1 strength for the remainder of this run/i.test(label)) return 1.5; // ezaM: every ice after it costs more to break
+  if (/each piece of ice gets \+2 strength for the remainder of this run/i.test(label)) return 2.5; // Tributary: every ice costs more to break
   if (/installed runner card to the grip/i.test(label)) return rates ? 0.5 * trashedCardCost(state) + 1 : 2; // Lethe: a reinstall, not a loss
   if (/remove 1 card in the heap from the game/i.test(label)) return 0.3;
   if (/place 1 virus counter on this ice/i.test(label)) return 0; // Knowledge Seeker: counts down to its own derez
@@ -103,16 +105,24 @@ export function knownSubroutineCost(state: GameState, label: string): number | u
   if (/or end the run/i.test(label)) return runner.rig.programs.length > 0 ? 5 : BLOCK;
   if (/odd cost/i.test(label)) return runner.grip.length <= 1 ? BLOCK : 4; // Diviner: half the time it ends the run
   if (/6 credits or less/i.test(label)) return runner.credits - 3 <= 6 ? BLOCK : 0;
+  // Liberation conditions
+  if (/end the run if you have more credits than the runner/i.test(label)) return state.corp.credits > runner.credits ? BLOCK : 1; // Valentão
+  if (/end the run if there are more cards in hq than in the grip/i.test(label)) return state.corp.hq.length > runner.grip.length ? BLOCK : 0; // Piranhas
+  if (/trash 1 card from hq to end the run/i.test(label)) return state.corp.hq.length > 0 ? BLOCK : 0; // Boto
   if (/end the run/i.test(label)) return BLOCK;
   const damage = label.match(/(\d+) (net|meat) damage/i);
   if (damage) {
     const n = Number(damage[1]);
     return n >= runner.grip.length ? BLOCK : rates ? damageWorth(state, n) : 2 * n;
   }
+  if (/gain 1 \[credit\] for each tag/i.test(label)) return 0.3 * runner.tags; // Capacitor: Corp credits
   if (/tag/i.test(label)) return rates ? tagCost(state) : 3;
   if (/trash 1 installed runner card/i.test(label)) return rates ? trashedCardCost(state) : 4;
   if (/gain 1 credit/i.test(label)) return 0.3;
   if (/gain 1 \[credit\]/i.test(label)) return 0.8; // Flywheel: a credit and maybe a card
+  const gains = label.match(/^gain (\d+) \[credit\]/i);
+  if (gains) return 0.4 * Number(gains[1]); // Valentão: Corp credits
+  if (/trash 1 installed (?:resource|piece of hardware|program)/i.test(label)) return rates ? trashedCardCost(state) : 4; // Sorocaban Blade, Hammer, Lycian
   if (/^(?:you may )?draw 1 card/i.test(label)) return 0.5; // Empiricist: helps the Corp a little
   if (/install/i.test(label)) return 1.5;
   return undefined;
@@ -160,7 +170,19 @@ export interface BreakPlan {
   boostsNeeded: number;
   /** Boost with the breaker's card ability (Hantu's virus counters) instead of BOOST_BREAKER. */
   boostByAbility?: boolean;
+  /** Break with the card's ability instead of BREAK_SUBROUTINE (Lobisomem on barriers, Banner). */
+  breakByAbility?: boolean;
 }
+
+/** Liberation breakers the generic plan can't price. */
+export const AUDREY = '34004';
+export const BANNER = '34005';
+export const LOBISOMEM = '34090';
+export const PRESSURE_SPIKE = '34092';
+/** A card trashed from the grip for Audrey's +3 strength, in credits. */
+const AUDREY_DISCARD = 1.5;
+/** Each of Audrey's virus counters, in credits (it gains them only on trashes). */
+const AUDREY_COUNTER = 1;
 
 const CORSAIR = '36004';
 
@@ -194,9 +216,42 @@ export function bestBreakPlan(state: GameState, ice: CardInstance, subCount: num
   let best: BreakPlan | null = null;
   for (const breaker of installedIcebreakers(state)) {
     const script = breakerScript(breaker);
+    const strength = breakerStrength(state, breaker);
+    // Banner (no break ability): 2 credits and a barrier's subroutines can't end the run; only for barriers whose every subroutine just ends the run
+    if (breaker.cardCode === BANNER) {
+      const subs = iceSubroutines(state, ice);
+      if (types.includes('barrier') && strength >= iceStr && subs.length > 0 && subs.every(sub => /^end the run\.?$/i.test(sub.label.trim()))) {
+        if (!best || 2 < best.credits) best = { breaker, credits: 2, boostsNeeded: 0, breakByAbility: true };
+      }
+      continue;
+    }
+    // Lobisomem on a barrier: X credits and a power counter break X subroutines (rules: its second interface ability)
+    if (breaker.cardCode === LOBISOMEM && script && types.includes('barrier') && counters(breaker, 'power') > 0 && canBreakSubroutinesWith(ice, breaker)) {
+      const boosts = Math.max(0, Math.ceil((iceStr - strength) / Math.max(1, script.boostAmount(state, breaker))));
+      const credits = boosts * boostCostOf(state, breaker) + subCount + 1; // the counter is worth about a credit
+      if (!best || credits < best.credits) best = { breaker, credits, boostsNeeded: boosts, breakByAbility: true };
+      continue;
+    }
     if (!script || (script.breaks !== 'any' && !types.includes(script.breaks))) continue;
     if (!canBreakSubroutinesWith(ice, breaker)) continue; // Semak-samun: fracters only
-    const strength = breakerStrength(state, breaker);
+    if (script.canInterface?.(state, breaker, ice)) continue; // Slap Vandal, Living Mural, Umbrella
+    if (breaker.cardCode === AUDREY) {
+      // Audrey v2: a virus counter breaks up to 2; a card from the grip is +3 strength
+      const uses = Math.ceil(subCount / script.breakMax);
+      const boosts = Math.max(0, Math.ceil((iceStr - strength) / 3));
+      if (uses > counters(breaker, 'virus') || boosts > state.runner.grip.length) continue;
+      const credits = uses * AUDREY_COUNTER + boosts * AUDREY_DISCARD;
+      if (!best || credits < best.credits) best = { breaker, credits, boostsNeeded: boosts };
+      continue;
+    }
+    if (breaker.cardCode === PRESSURE_SPIKE && strength < iceStr && Math.max(state.corp.score, state.runner.score) >= 4 && !state.activeRun?.runFlags?.[spikeKey(breaker)]) {
+      // Pressure Spike at threat 4: +9 for 2 credits once a run
+      const boosts = Math.ceil((iceStr - strength) / 9);
+      if (boosts === 1) {
+        const credits = 2 + Math.ceil(subCount / script.breakMax) * script.breakCost(state, breaker);
+        if (!best || credits < best.credits) best = { breaker, credits, boostsNeeded: 1, boostByAbility: true };
+      }
+    }
     if (breaker.cardCode === HANTU) {
       const boosts = Math.max(0, Math.ceil((iceStr - strength) / 2));
       if (boosts > counters(breaker, 'virus')) continue;
@@ -580,6 +635,10 @@ export interface RunOptions {
   poolLocked?: boolean;
   /** Baker: with a stealth credit, the run on Archives can approach HQ or R&D instead after its ice. */
   baker?: boolean;
+  /** Eru, Beatriz: a successful run breaches this server instead (with extraAccesses there). */
+  breachAs?: string;
+  /** Privileged Access, Burner: a successful run breaches nothing (its worth is successBonus). */
+  noBreach?: boolean;
   /** Deck-aware AI: weigh trap risk by the traps this Corp may still have (see trapOdds). */
   wary?: boolean;
   /** Deck-aware AI: urgency on agendas the Corp could finish next turn, and late-game defence. */
@@ -614,7 +673,8 @@ export function runShortfall(state: GameState, serverId: string): number | null 
 export function runScore(state: GameState, serverId: string, options: RunOptions = {}): number {
   const server = state.corp.servers[serverId];
   if (!server) return -Infinity;
-  let value = serverValue(state, serverId, options.extraAccesses ?? 0, options.memory, options.wary, options.urgent) + (tuning.plan.runModel ? 1 : 0.8) * (options.successBonus ?? 0);
+  const breached = options.noBreach ? 0 : serverValue(state, options.breachAs ?? serverId, options.extraAccesses ?? 0, options.memory, options.wary, options.urgent);
+  let value = breached + (tuning.plan.runModel ? 1 : 0.8) * (options.successBonus ?? 0);
   if (options.baker && serverId === 'archives' && runStealthCredits(state) >= 1) {
     // Baker: after Archives' ice, a stealth credit turns the run on HQ or R&D, whose ice it skipped
     const redirect = Math.max(...['hq', 'rd'].map(id => serverValue(state, id, 0, options.memory, options.wary, options.urgent)));
