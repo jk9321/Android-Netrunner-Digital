@@ -76,7 +76,7 @@ function dividendAgenda(perExcess: number, label: string, canUse: (state: GameSt
   return {
     ...more,
     triggers: {
-      agenda_scored: onScore(ctx => placeDividends(ctx.state, ctx.card, perExcess)),
+      agenda_scored: (ctx, e) => isSelf(ctx, e.card) && placeDividends(ctx.state, ctx.card, perExcess, e.advancementCounters),
       discard_phase_ends: (ctx, e) => {
         if (e.side !== 'corp' || counters(ctx.card, 'agenda') === 0 || !canUse(ctx.state)) return;
         askChoice(ctx, 'corp', `${cardDef(ctx.card).title}: remove 1 agenda counter to ${label}?`, [

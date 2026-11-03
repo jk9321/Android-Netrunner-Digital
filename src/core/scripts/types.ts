@@ -137,7 +137,7 @@ export type TriggerEvent =
   | { type: 'installed'; card: Card; paid?: number }
   | { type: 'rezzed'; card: Card }
   | { type: 'advanced'; card: Card; hadCounters: boolean }
-  | { type: 'agenda_scored'; card: Card; serverId: string }
+  | { type: 'agenda_scored'; card: Card; serverId: string; /** Last known count before scoring (rules 1.17.8); the counters themselves are gone (1.17.5). */ advancementCounters: number }
   /** `serverId`: the server attacked when it was stolen (Perfect Recall's "stolen from this server"). */
   | { type: 'agenda_stolen'; card: Card; serverId?: string }
   | { type: 'successful_run'; server: string }

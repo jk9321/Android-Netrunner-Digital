@@ -65,8 +65,8 @@ export function counters(card: CardInstance, type: CounterType): number {
 }
 
 /** "Dividends N": when scored, N agenda counters for each advancement counter beyond the requirement. */
-export function placeDividends(state: GameState, agenda: CardInstance, perExcess: number): void {
-  const excess = agenda.advancementCounters - (cardDef(agenda).advancement_cost ?? 0);
+export function placeDividends(state: GameState, agenda: CardInstance, perExcess: number, advanced = agenda.advancementCounters): void {
+  const excess = advanced - (cardDef(agenda).advancement_cost ?? 0);
   if (excess <= 0) return;
   addCounters(agenda, 'agenda', excess * perExcess);
   addLog(state, 'corp', `${cardDef(agenda).title}: dividends, ${excess * perExcess} agenda counter(s).`);
