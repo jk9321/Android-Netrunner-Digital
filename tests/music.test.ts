@@ -35,4 +35,30 @@ describe('music settings and lifecycle', () => {
     expect(() => startMusic('runner')).not.toThrow();
     expect(() => stopMusic()).not.toThrow();
   });
+
+  it('handles asymmetric score updates and game-over transitions safely', () => {
+    const state = newGame();
+
+    // Opening
+    updateMusic(state, 'runner');
+
+    // Runner dominance (5-0)
+    const domState = { ...state, runner: { ...state.runner, score: 5 }, corp: { ...state.corp, score: 0 } };
+    expect(() => updateMusic(domState, 'runner')).not.toThrow();
+
+    // Corp infiltration (Runner 1, Corp 5)
+    const infilState = { ...state, runner: { ...state.runner, score: 1 }, corp: { ...state.corp, score: 5 } };
+    expect(() => updateMusic(infilState, 'runner')).not.toThrow();
+
+    // 6-6 Climax Clash
+    const clashState = { ...state, runner: { ...state.runner, score: 6 }, corp: { ...state.corp, score: 6 } };
+    expect(() => updateMusic(clashState, 'runner')).not.toThrow();
+
+    // Corp perspective duel
+    expect(() => updateMusic(clashState, 'corp')).not.toThrow();
+
+    // Game over handoff
+    const overState = { ...clashState, winner: 'corp' as const, winReason: 'Corp scored 7 agenda points!' };
+    expect(() => updateMusic(overState, 'corp')).not.toThrow();
+  });
 });
