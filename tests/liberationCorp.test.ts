@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { createCardInstance, executeAction, findCardAnywhere, GameState, iceStrength, isLegalAction } from '../src/core';
-import { availableCredits, rezCost } from '../src/core/engine/cardEffects';
+import { rezCost } from '../src/core/engine/cardEffects';
 import { breakerStrength, iceSubroutines, markSubroutinesBroken } from '../src/core/engine/ice';
 import {
   answer,
@@ -314,7 +314,6 @@ describe('The Automata Initiative: Jinteki', () => {
   it('Phoneutria tags a Runner passing it with 4 or more cards in grip', () => {
     let s = newGame();
     installIceForTest(s, L.phoneutria, 'archives');
-    const pho = s.corp.servers.archives.ice[0].instanceId;
     while (s.runner.grip.length < 5) s.runner.grip.push(s.runner.stack.shift()!);
     s = cont(run(s, 'archives'));
     markSubroutinesBroken(s, [0, 1], null);
@@ -482,7 +481,7 @@ describe('The Automata Initiative: NBN', () => {
 
   it('Virtual Service Agent tags a Runner who passes it without breaking it with a decoder', () => {
     let s = newGame();
-    const vsa = installIceForTest(s, L.vsa, 'archives');
+    installIceForTest(s, L.vsa, 'archives');
     s = cont(run(s, 'archives'));
     markSubroutinesBroken(s, [0], null); // broken, but not by a decoder
     s = cont(s);
