@@ -122,7 +122,7 @@ function Game({
   const [zoomStore] = useState(createZoomStore);
   const [inspectedCard, setInspectedCard] = useState<CardInstance | null>(null);
   const [zone, setZone] = useState<ZoneId | null>(null);
-  const zoneView = zone ? zoneContents(zone, gameState) : null;
+  const zoneView = zone ? zoneContents(zone, gameState, viewer) : null;
 
   // Adaptive background music driven by the active side and match tension
   useEffect(() => {
@@ -272,8 +272,12 @@ function Game({
                 hideLabel
                 // Nobody may look through the decks during play; once the game is over anyone can (rules 1.7.1).
                 // During play it opens the cards the Runner has seen in R&D.
-                onClick={gameState.winner || knownInRd(gameState).length > 0 ? () => setZone('rd') : undefined}
-                seenCount={knownInRd(gameState).length}
+                onClick={
+                  gameState.winner || (canSeeRunnerSecrets(viewer) && knownInRd(gameState).length > 0)
+                    ? () => setZone('rd')
+                    : undefined
+                }
+                seenCount={canSeeRunnerSecrets(viewer) ? knownInRd(gameState).length : undefined}
                 testId="pile-rd"
               />
             ) : server.id === 'archives' ? (

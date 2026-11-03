@@ -5,6 +5,7 @@ import { GameState } from '../../core/types/state';
 import { RdKnownCard, knownInHand, knownInRd } from '../../core';
 import { CardView } from './CardView';
 import { X } from 'lucide-react';
+import { Viewer, canSeeRunnerSecrets } from '../viewer';
 
 export interface ZoneGroup {
   label: string;
@@ -66,7 +67,7 @@ function rdSeenGroup(state: GameState): ZoneGroup {
 }
 
 /** The title and card groups shown when browsing a zone. */
-export function zoneContents(zone: ZoneId, state: GameState): { title: string; groups: ZoneGroup[] } {
+export function zoneContents(zone: ZoneId, state: GameState, viewer?: Viewer): { title: string; groups: ZoneGroup[] } {
   switch (zone) {
     case 'archives':
       return {
@@ -77,12 +78,15 @@ export function zoneContents(zone: ZoneId, state: GameState): { title: string; g
         ],
       };
     // Decks list the top card first (index 0 is the top)
-    case 'rd':
-      // During play only what the Runner remembers; once the game is over, the whole deck (rules 1.7.1)
+    case 'rd': {
+      // During play only what the Runner remembers (for viewers who may see Runner secrets); once the game is over, the whole deck (rules 1.7.1)
+      const showSeen = viewer ? canSeeRunnerSecrets(viewer) : true;
+      const seenGroup = showSeen ? [rdSeenGroup(state)] : [];
       return {
         title: 'R&D',
-        groups: state.winner ? [{ label: 'Top to bottom', cards: state.corp.rd, faceDown: true }, rdSeenGroup(state)] : [rdSeenGroup(state)],
+        groups: state.winner ? [{ label: 'Top to bottom', cards: state.corp.rd, faceDown: true }, ...seenGroup] : seenGroup,
       };
+    }
     case 'stack':
       return { title: 'STACK', groups: [{ label: 'Top to bottom', cards: state.runner.stack, faceDown: true }] };
     case 'heap':

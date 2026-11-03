@@ -106,7 +106,12 @@ describe('browsing decks after the game', () => {
   it('lists R&D and the Stack top card first, face down', () => {
     const state = newGame();
     // During play R&D shows only what the Runner remembers (rules 1.7.1)
+    // During play R&D shows only what the Runner remembers (rules 1.7.1)
     expect(zoneContents('rd', state).groups.map(g => g.label)).toEqual(['Seen by the Runner']);
+    // Corp viewer cannot see what the Runner saw in R&D during play
+    expect(zoneContents('rd', state, 'corp').groups).toHaveLength(0);
+    expect(zoneContents('rd', state, 'runner').groups.map(g => g.label)).toEqual(['Seen by the Runner']);
+    expect(zoneContents('rd', state, 'both').groups.map(g => g.label)).toEqual(['Seen by the Runner']);
     state.winner = 'corp';
     const rd = zoneContents('rd', state);
     expect(rd.groups[0].cards[0].instanceId).toBe(state.corp.rd[0].instanceId);
