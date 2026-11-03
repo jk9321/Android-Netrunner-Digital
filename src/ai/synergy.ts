@@ -78,6 +78,8 @@ export const tuning = {
     icePlacement: true,
     /** Corp: guard agendas by their stakes (points, a winning steal, counters), HQ while it holds them. */
     agendaStakes: true,
+    /** Corp: an agenda in HQ that would win the Runner the game gets HQ iced first, past the ice pacing limit (bug report #4). */
+    lethalHq: true,
     /*
      * Round 3 batches (1,105 deals, Corp only, 2026-10-25): all on +46 games
      * vs the old Corp (round 2 alone was -15). Leaving one out: rez money
