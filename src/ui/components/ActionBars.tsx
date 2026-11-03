@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { ArrowRight, Eye, Layers, Plus, Trash2, Zap } from 'lucide-react';
 import { CardInstance, GameAction, GameState, SideCode, cardDef, findCardAnywhere, getCardScript, getLegalActions, installedIce, isLegalAction, trashableFirst, virusCountersInPlay } from '../../core';
-import { runnerInstallCost } from '../../core/engine/actions/install';
+import { playableHostZones, runnerInstallCost } from '../../core/engine/actions/install';
 import { playCost } from '../../core/engine/actions/play';
 import { showConfirm } from './Dialog';
 import { TrashFirstButton, TrashFirstPicker } from './TrashFirstPicker';
@@ -214,18 +214,30 @@ export function RunnerActions(props: ActionBarProps) {
   const [makingRoom, setMakingRoom] = useState<string | null>(null);
   // Trojans: the programs already chosen to trash, while the ice to install on is picked
   const [pendingTrash, setPendingTrash] = useState<string[] | null>(null);
-  const installTrashing = (trashFirst: string[], hostInstanceId?: string): GameAction => ({ type: 'INSTALL_CARD', player: 'runner', cardInstanceId: installable!.instanceId, trashFirst, hostInstanceId });
-  const programs = installable ? trashableFirst(state, installable, null) : [];
-  const canMakeRoom =
-    programs.length > 0 && (!onIce || iceHosts.length > 0) && isLegalAction(state, installTrashing(programs.map(c => c.instanceId), iceHosts[0]?.instanceId));
+  const installTrashing = (card: CardInstance, trashFirst: string[], hostInstanceId?: string): GameAction => ({ type: 'INSTALL_CARD', player: 'runner', cardInstanceId: card.instanceId, trashFirst, hostInstanceId });
+  // Can this card be installed if the Runner trashes installed programs first?
+  const canMakeRoomFor = (card: CardInstance) => {
+    const trojan = getCardScript(card.cardCode)?.installsOnIce;
+    const all = trashableFirst(state, card, null).map(c => c.instanceId);
+    const ice = trojan ? installedIce(state)[0]?.instanceId : undefined;
+    return all.length > 0 && (!trojan || !!ice) && isLegalAction(state, installTrashing(card, all, ice));
+  };
+  const canMakeRoom = !!installable && canMakeRoomFor(installable);
   // Cards hosted on hardware (Bling, Madani) that can be played or installed as if in the grip
   const hostedActions = hostedCardActions(state);
+  // Hosted programs that fit only after trashing installed programs (rules 8.5.6c): Gourmand on Bling with full MU
+  const hostedNeedingRoom = playableHostZones(state)
+    .flat()
+    .filter(c => !hostedActions.some(a => a.type === 'INSTALL_CARD' && a.cardInstanceId === c.instanceId) && canMakeRoomFor(c));
+  // The card the player is choosing programs to trash for: the selected grip card or a hosted one
+  const roomCard = makingRoom ? findCardAnywhere(state, makingRoom) : undefined;
+  const roomOnIce = !!roomCard && !!getCardScript(roomCard.cardCode)?.installsOnIce;
   // A card that installs only on ice (Botulus, from the grip or hosted on Bling): the ice the player is choosing between (rules 1.13.6c, 8.5.16b)
   const [pickingHost, setPickingHost] = useState<string | null>(null);
   const hostChoices: GameAction[] = !pickingHost
     ? []
-    : pendingTrash && installable?.instanceId === pickingHost
-      ? iceHosts.map(h => installTrashing(pendingTrash, h.instanceId)).filter(a => isLegalAction(state, a))
+    : pendingTrash
+      ? installedIce(state).map(h => installTrashing(findCardAnywhere(state, pickingHost)!, pendingTrash, h.instanceId)).filter(a => isLegalAction(state, a))
       : getLegalActions(state, 'runner').filter(a => a.type === 'INSTALL_CARD' && a.cardInstanceId === pickingHost && a.hostInstanceId);
   const pickingCard = pickingHost ? findCardAnywhere(state, pickingHost) : undefined;
   if (pickingCard && hostChoices.length > 0) {
@@ -265,23 +277,24 @@ export function RunnerActions(props: ActionBarProps) {
       </div>
     );
   }
-  if (installable && makingRoom === installable.instanceId) {
+  if (roomCard) {
+    const firstIce = roomOnIce ? installedIce(state)[0]?.instanceId : undefined;
     return (
       <div className="flex flex-col gap-2 p-2 bg-gradient-to-b from-[#180a10] to-[#0d0407] border border-pink-900/60 rounded-[2px] shadow-inner">
         <TrashFirstPicker
-          key={installable.instanceId}
-          heading={`Install ${cardDef(installable).title}, trashing first:`}
-          cards={programs}
-          confirmLabel={trash => `${onIce ? 'Choose ice' : 'Install'}${trash.length > 0 ? `, trash ${trash.length}` : ''}`}
-          canConfirm={trash => isLegalAction(state, installTrashing(trash, iceHosts[0]?.instanceId))}
+          key={roomCard.instanceId}
+          heading={`Install ${roomCard.instanceId === installable?.instanceId ? '' : 'hosted '}${cardDef(roomCard).title}, trashing first:`}
+          cards={trashableFirst(state, roomCard, null)}
+          confirmLabel={trash => `${roomOnIce ? 'Choose ice' : 'Install'}${trash.length > 0 ? `, trash ${trash.length}` : ''}`}
+          canConfirm={trash => isLegalAction(state, installTrashing(roomCard, trash, firstIce))}
           onConfirm={trash => {
             setMakingRoom(null);
-            if (onIce) {
+            if (roomOnIce) {
               setPendingTrash(trash);
-              setPickingHost(installable.instanceId);
+              setPickingHost(roomCard.instanceId);
               return;
             }
-            onAction(installTrashing(trash));
+            onAction(installTrashing(roomCard, trash));
           }}
           onCancel={() => setMakingRoom(null)}
         />
@@ -380,6 +393,15 @@ export function RunnerActions(props: ActionBarProps) {
             </button>
           );
         })}
+        {hostedNeedingRoom.map(c => (
+          <TrashFirstButton
+            key={`room-${c.instanceId}`}
+            label={`Install hosted ${cardDef(c).title}, trashing programs first`}
+            title="Not enough memory: trash installed programs first to free memory for this hosted card"
+            onClick={() => setMakingRoom(c.instanceId)}
+            testId={`hosted-room-${c.instanceId}`}
+          />
+        ))}
       </div>
 
       {/* End Turn Button - Prominently Anchored */}
