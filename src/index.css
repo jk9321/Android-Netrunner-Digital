@@ -82,13 +82,8 @@
 
 @layer base {
   body {
+    /* Plain background: no scanlines, stripes or dot grids (they cause eye strain on 1080p LCDs) */
     background-color: #06090d;
-    /* Static micro-raster texture with soft radial vignette - no animations or blur to prevent eye strain */
-    background-image:
-      linear-gradient(rgba(18, 24, 38, 0) 50%, rgba(0, 0, 0, 0.4) 50%),
-      radial-gradient(rgba(255, 255, 255, 0.04) 1px, transparent 1px);
-    background-size: 100% 4px, 24px 24px;
-    background-attachment: fixed;
     color: rgb(var(--neutral-100));
     font-family: 'JetBrains Mono', 'Share Tech Mono', monospace;
     overflow-x: hidden;

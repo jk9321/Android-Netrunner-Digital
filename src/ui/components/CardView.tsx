@@ -171,7 +171,7 @@ const CardFace: React.FC<CardViewProps & { showTooltip: boolean; setShowTooltip:
         if ((e.target as HTMLElement).closest('button, [data-kw], [data-tip]')) return;
         if (isSelectable) {
           onClick?.();
-        } else if (onInspect && (Date.now() - lastTouchTime.current < 1000 || isTouchViewport() || (typeof window !== 'undefined' && window.innerWidth < 1024))) {
+        } else if (onInspect && (Date.now() - lastTouchTime.current < 1000 || isTouchViewport())) {
           onInspect(card);
         }
       }}
@@ -337,7 +337,7 @@ const CardOverlays: React.FC<{
               <StatTumbler value={mods.strength.current} />
             </span>
           )}
-          {/* Quick inspect: always visible on touch/mobile screens, shown on hover on desktop */}
+          {/* Quick inspect: always visible on touch screens, shown on hover with a mouse (at any window width) */}
           {onInspect && (
             <button
               onClick={(e) => {
@@ -345,7 +345,7 @@ const CardOverlays: React.FC<{
                 onInspect(card);
               }}
               aria-label={`Inspect ${cardDef(card).title}`}
-              className="pointer-events-auto bg-black/85 hover:bg-slate-800 text-slate-200 hover:text-white p-[0.25em] rounded-md opacity-90 lg:opacity-0 lg:group-hover:opacity-100 [@media(hover:none)]:opacity-95 transition-opacity border border-slate-700"
+              className="pointer-events-auto bg-black/85 hover:bg-slate-800 text-slate-200 hover:text-white p-[0.25em] rounded-md opacity-0 group-hover:opacity-100 [@media(hover:none)]:opacity-95 [@media(pointer:coarse)]:opacity-95 transition-opacity border border-slate-700"
               title="Inspect full card details"
             >
               <Eye className="w-[1.4em] h-[1.4em]" />

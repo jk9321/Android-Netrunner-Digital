@@ -72,7 +72,7 @@ function PlayButton({ side, state, selectedCard, onAction }: ActionBarProps & { 
   );
 }
 
-/** Quick-inspect button for the currently selected hand card on mobile/tablet (< lg). */
+/** Quick-inspect button for the currently selected hand card on touch screens (mouse users hover instead). */
 function InspectSelectedButton({ side, selectedCard, onInspect }: { side: SideCode; selectedCard: CardInstance | undefined; onInspect?: (card: CardInstance) => void }) {
   if (!selectedCard || !onInspect || cardDef(selectedCard).side_code !== side) return null;
   return (
@@ -80,7 +80,7 @@ function InspectSelectedButton({ side, selectedCard, onInspect }: { side: SideCo
       onClick={() => onInspect(selectedCard)}
       data-testid="inspect-selected-card"
       title={`Inspect ${cardDef(selectedCard).title}`}
-      className="lg:hidden px-2.5 py-1.5 bg-slate-900 hover:bg-slate-800 text-slate-200 hover:text-white text-xs font-bold rounded-[2px] border border-slate-700 border-b-2 border-b-slate-600 transition-all flex items-center gap-1.5 shadow active:translate-y-[1px] active:border-b-[1px]"
+      className="[@media(hover:hover)_and_(pointer:fine)]:hidden px-2.5 py-1.5 bg-slate-900 hover:bg-slate-800 text-slate-200 hover:text-white text-xs font-bold rounded-[2px] border border-slate-700 border-b-2 border-b-slate-600 transition-all flex items-center gap-1.5 shadow active:translate-y-[1px] active:border-b-[1px]"
     >
       <Eye className="w-3.5 h-3.5 text-amber-400" /> Inspect {cardDef(selectedCard).title}
     </button>

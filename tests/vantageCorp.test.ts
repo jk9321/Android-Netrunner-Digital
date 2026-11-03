@@ -214,6 +214,24 @@ describe('Vantage Point agendas', () => {
     expect(card(s, id).advancementCounters).toBe(1);
   });
 
+  it('a scored Sacrifice Zone Expansion has no counters left to turn into meat damage (bug report #6, rules 1.17.5)', () => {
+    let s = newGame();
+    corpTurn(s);
+    const id = giveCard(s, 'corp', V.sze);
+    s = executeAction(s, { type: 'INSTALL_CARD', player: 'corp', cardInstanceId: id, asNewRemote: true });
+    const sze = card(s, id);
+    sze.advancementCounters = 5;
+    s = executeAction(s, { type: 'SCORE_AGENDA', player: 'corp', cardInstanceId: id });
+    const scored = s.corp.scoreArea.find(c => c.instanceId === id)!;
+    expect(scored.advancementCounters).toBe(0);
+    startRunnerTurn(s);
+    s.runner.grip.push(...s.runner.stack.splice(0, 3));
+    const grip = s.runner.grip.length;
+    s = cont(run(s, 'archives'));
+    expect(source(s)?.cardCode).not.toBe(V.sze);
+    expect(s.runner.grip.length).toBe(grip);
+  });
+
   it('Let Them Dream fetches an agenda and is worth 1 less in the Runner\'s score area', () => {
     let s = newGame();
     corpTurn(s);

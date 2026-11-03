@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { cardDef, createCardInstance, executeAction, findCardAnywhere, GameState, iceStrength, isLegalAction } from '../src/core';
+import { cardDef, createCardInstance, executeAction, findCardAnywhere, GameState, iceStrength, isLegalAction, knownInHand } from '../src/core';
 import { counters } from '../src/core/engine/cardEffects';
 import { answerPrompt } from '../src/ai/prompts';
 import {
@@ -532,6 +532,36 @@ describe('Elevation operations', () => {
     const credits = s0.corp.credits + 10;
     const [s] = playCorp(s0, C.peerReview, 1);
     expect(s.corp.credits).toBe(credits - 4 + 7);
+  });
+
+  it('Peer Review lets the Corp choose the hidden card, and any HQ card can be installed (bug report #9)', () => {
+    const s0 = newGame();
+    const fund = createCardInstance(s0, SG.hedgeFund);
+    const agenda = createCardInstance(s0, '30067'); // Offworld Office
+    const regolith = createCardInstance(s0, SG.regolith);
+    s0.corp.hq = [fund, agenda, regolith];
+    let [s] = playCorp(s0, C.peerReview, 1);
+    expect(prompt(s)).toMatchObject({ kind: 'effect_cards', min: 1, max: 1 });
+    s = pick(s, [agenda.instanceId]);
+    const known = knownInHand(s, 'corp').map(e => e.id);
+    expect(known).toEqual(expect.arrayContaining([fund.instanceId, regolith.instanceId]));
+    expect(known).not.toContain(agenda.instanceId);
+    // Any installable HQ card may be installed, hidden or revealed
+    const offer = prompt(s);
+    expect(offer?.kind === 'effect_cards' && [...offer.candidateIds].sort()).toEqual([agenda.instanceId, regolith.instanceId].sort());
+  });
+
+  it('AI Peer Review keeps its agenda hidden', () => {
+    const s0 = newGame();
+    const fund = createCardInstance(s0, SG.hedgeFund);
+    const agenda = createCardInstance(s0, '30067'); // Offworld Office
+    const regolith = createCardInstance(s0, SG.regolith);
+    s0.corp.hq = [fund, regolith, agenda];
+    const [s] = playCorp(s0, C.peerReview, 1);
+    for (const synergy of [false, true]) {
+      const action = answerPrompt(s, 'corp', undefined, synergy);
+      expect(action.type === 'RESOLVE_PROMPT' && action.choice).toEqual({ kind: 'effect_cards', cardInstanceIds: [agenda.instanceId] });
+    }
   });
 
   it('Bigger Picture removes tags for 5 credits each', () => {
