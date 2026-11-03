@@ -369,9 +369,9 @@ function Game({
       <main className="flex-1 min-w-0 min-h-0 flex flex-col gap-2">
         {/* Victory Banner */}
         {winner && (
-          <div className="shrink-0 p-3 bg-gradient-to-r from-amber-950/80 to-pink-950/80 border-2 border-amber-500 rounded-[4px] flex items-center justify-between shadow-2xl">
+          <div className="shrink-0 p-3 bg-gradient-to-r from-amber-950/80 to-pink-950/80 border-2 border-amber-500 rounded-[4px] flex flex-wrap items-center justify-between gap-2 shadow-2xl">
             <div>
-              <h2 className="text-xl font-cyber font-black text-amber-400">
+              <h2 className="text-lg sm:text-xl font-cyber font-black text-amber-400">
                 GAME OVER // {winner.toUpperCase()} VICTORIOUS
               </h2>
               <p className="text-xs text-slate-300 mt-1">{winReason}</p>
@@ -483,16 +483,16 @@ function Game({
       </main>
       </ZoomContext.Provider>
 
-      {/* Side bar: the hovered card, the acting side's actions, then the log */}
-      <aside className="lg:w-80 2xl:w-96 shrink-0 flex flex-col gap-2 min-h-0">
+      {/* Side bar: the hovered card, the acting side's actions (sticky at bottom on mobile), then the log */}
+      <aside className="contents lg:flex lg:w-80 2xl:w-96 shrink-0 flex-col gap-2 min-h-0">
         <div className="hidden lg:block shrink-0">
           <ZoomPanel store={zoomStore} state={gameState} onInspect={setInspectedCard} />
         </div>
-        <div className="shrink-0 lg:max-h-[40vh] overflow-y-auto flex flex-col gap-2 empty:hidden">
-          {activePlayer === 'corp' && corpCanAct && <CorpActions state={gameState} selectedCard={selectedCard} onAction={handleAction} />}
+        <div className="sticky bottom-0 z-20 lg:static bg-[#06090d]/95 lg:bg-transparent backdrop-blur-md lg:backdrop-blur-none py-1 lg:py-0 shrink-0 lg:max-h-[40vh] overflow-y-auto flex flex-col gap-2 empty:hidden">
+          {activePlayer === 'corp' && corpCanAct && <CorpActions state={gameState} selectedCard={selectedCard} onAction={handleAction} onInspect={setInspectedCard} />}
           {corpCanAct && <AbilityBar state={gameState} side="corp" onAction={handleAction} />}
           {activePlayer === 'runner' && runnerCanAct && (
-            <RunnerActions state={gameState} selectedCard={selectedCard} onAction={handleAction} />
+            <RunnerActions state={gameState} selectedCard={selectedCard} onAction={handleAction} onInspect={setInspectedCard} />
           )}
           {runnerCanAct && <AbilityBar state={gameState} side="runner" onAction={handleAction} />}
         </div>

@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { CardInstance } from '../../core/types/card';
 import { ALL_CARDS } from '../../data/cards';
 import { CardPopout } from './CardPopout';
@@ -44,19 +44,51 @@ interface CardNameTextProps {
 }
 
 /**
- * Text with each card name it already prints underlined; hovering (or focusing)
+ * Text with each card name it already prints underlined; hovering, focusing, or tapping
  * a name shows that card. Rules symbols like [click] are drawn as icons. Only names in the text, so nothing hidden is revealed.
  */
 export const CardNameText: React.FC<CardNameTextProps> = ({ text, focusable = true, nameClassName = '' }) => {
-  const [hovered, setHovered] = useState<{ card: CardInstance; rect: DOMRect } | null>(null);
+  const [hovered, setHovered] = useState<{ card: CardInstance; rect: DOMRect; pinned?: boolean } | null>(null);
 
-  const show = (code: string) => (e: React.SyntheticEvent<HTMLElement>) =>
-    setHovered({
-      // Only the printed card: no counters or install state
-      card: { instanceId: `text-${code}`, cardCode: code, isRezzed: true, advancementCounters: 0, tokens: {}, hostedCardIds: [] },
-      rect: e.currentTarget.getBoundingClientRect(),
-    });
-  const hide = () => setHovered(null);
+  const makeCard = (code: string): CardInstance => ({
+    instanceId: `text-${code}`,
+    cardCode: code,
+    isRezzed: true,
+    advancementCounters: 0,
+    tokens: {},
+    hostedCardIds: [],
+  });
+
+  const show = (code: string) => (e: React.SyntheticEvent<HTMLElement>) => {
+    const rect = e.currentTarget.getBoundingClientRect();
+    setHovered(prev => (prev?.pinned && prev.card.cardCode === code ? prev : { card: makeCard(code), rect }));
+  };
+  const hide = () => setHovered(prev => (prev?.pinned ? prev : null));
+
+  const toggleTap = (code: string) => (e: React.MouseEvent<HTMLElement>) => {
+    if (!focusable) return;
+    e.stopPropagation();
+    const rect = e.currentTarget.getBoundingClientRect();
+    setHovered(prev =>
+      prev?.card.cardCode === code && prev.pinned
+        ? null
+        : { card: makeCard(code), rect, pinned: true },
+    );
+  };
+
+  useEffect(() => {
+    if (!hovered?.pinned) return;
+    const dismiss = () => setHovered(null);
+    const onKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') setHovered(null);
+    };
+    window.addEventListener('click', dismiss);
+    window.addEventListener('keydown', onKeyDown);
+    return () => {
+      window.removeEventListener('click', dismiss);
+      window.removeEventListener('keydown', onKeyDown);
+    };
+  }, [hovered?.pinned]);
 
   return (
     <>
@@ -73,12 +105,19 @@ export const CardNameText: React.FC<CardNameTextProps> = ({ text, focusable = tr
             onMouseLeave={hide}
             onFocus={show(part.code)}
             onBlur={hide}
+            onClick={toggleTap(part.code)}
           >
             {part.title}
           </span>
         ),
       )}
-      {hovered && <CardPopout card={hovered.card} targetRect={hovered.rect} />}
+      {hovered && (
+        <CardPopout
+          card={hovered.card}
+          targetRect={hovered.rect}
+          onClose={hovered.pinned ? () => setHovered(null) : undefined}
+        />
+      )}
     </>
   );
 };

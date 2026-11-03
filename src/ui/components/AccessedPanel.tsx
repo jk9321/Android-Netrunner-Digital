@@ -44,7 +44,7 @@ export function AccessedPanel({
             isFaceDown={secretFrom === viewer}
             canPeek={secretFrom !== viewer}
             plainBack
-            onInspect={onInspect}
+            onInspect={secretFrom !== viewer ? onInspect : undefined}
           />
         ))}
       </div>

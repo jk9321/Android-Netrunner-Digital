@@ -23,8 +23,8 @@
   /* Neutrals (Tailwind "slate"): gunmetal with a faint phosphor tint */
   --neutral-50: 241 250 246;
   --neutral-100: 226 240 235;
-  --neutral-200: 204 222 216;
   --neutral-300: 170 192 186;
+  --neutral-200: 204 222 216;
   --neutral-400: 128 151 147;
   --neutral-500: 100 122 120;
   --neutral-600: 56 72 72;
@@ -302,6 +302,14 @@
 }
 :root[data-card-size='large'] {
   --card-w: clamp(65px, 12vh, 220px);
+}
+@media (max-width: 640px) {
+  :root {
+    --card-w: clamp(68px, 20vw, 96px);
+  }
+  :root[data-card-size='large'] {
+    --card-w: clamp(86px, 26vw, 120px);
+  }
 }
 .card-fit {
   width: var(--card-w);

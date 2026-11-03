@@ -16,6 +16,14 @@ import type { IceSubtype } from '../../core/scripts/types';
 import { shouldReduceMotion } from '../animations';
 import { liveCardModifiers, useLiveGameState } from '../liveValues';
 
+function isTouchViewport(): boolean {
+  return (
+    typeof window !== 'undefined' &&
+    typeof window.matchMedia === 'function' &&
+    window.matchMedia('(hover: none), (pointer: coarse)').matches
+  );
+}
+
 export interface CardViewProps {
   card: CardInstance;
   isFaceDown?: boolean;
@@ -72,6 +80,7 @@ const CardFace: React.FC<CardViewProps & { showTooltip: boolean; setShowTooltip:
   // When a button over the card was last clicked: a quick second click near it (Advance, then the Score button
   // that takes its place) is a double click, and must not open the inspect view
   const lastButtonClick = useRef(-Infinity);
+  const lastTouchTime = useRef(-Infinity);
   const def = cardDef(card);
 
   // Sizing definitions: Much larger than original 64x96!
@@ -89,11 +98,16 @@ const CardFace: React.FC<CardViewProps & { showTooltip: boolean; setShowTooltip:
     'fit-sm': 'card-fit-sm',
   }[size];
 
-  // Hover opens the text popout beside the card; on the table it also fills the zoom panel
+  // Hover opens the text popout beside the card on pointer devices; on the table it also fills the zoom panel
   const zoom = useZoom();
   const hidden = isFaceDown && !canPeek;
+  const handleTouchStart = () => {
+    lastTouchTime.current = Date.now();
+  };
   const handleMouseEnter = () => {
     zoom?.show({ card, hidden, seen: seen && !hidden });
+    // Suppress sticky hover popouts from synthesized mouseenter events on touch screens
+    if (Date.now() - lastTouchTime.current < 1000 || isTouchViewport()) return;
     setShowTooltip(true);
   };
   const handleMouseLeave = () => setShowTooltip(false);
@@ -103,6 +117,7 @@ const CardFace: React.FC<CardViewProps & { showTooltip: boolean; setShowTooltip:
     return (
       <div
         ref={cardRef}
+        onTouchStart={handleTouchStart}
         onClick={isSelectable ? onClick : undefined}
         onMouseEnter={handleMouseEnter}
         onMouseLeave={handleMouseLeave}
@@ -151,7 +166,15 @@ const CardFace: React.FC<CardViewProps & { showTooltip: boolean; setShowTooltip:
   return (
     <div
       ref={cardRef}
-      onClick={isSelectable ? onClick : undefined}
+      onTouchStart={handleTouchStart}
+      onClick={(e) => {
+        if ((e.target as HTMLElement).closest('button, [data-kw], [data-tip]')) return;
+        if (isSelectable) {
+          onClick?.();
+        } else if (onInspect && (Date.now() - lastTouchTime.current < 1000 || isTouchViewport() || (typeof window !== 'undefined' && window.innerWidth < 1024))) {
+          onInspect(card);
+        }
+      }}
       onClickCapture={(e) => {
         if ((e.target as HTMLElement).closest('button')) lastButtonClick.current = e.timeStamp;
       }}
@@ -314,14 +337,15 @@ const CardOverlays: React.FC<{
               <StatTumbler value={mods.strength.current} />
             </span>
           )}
-          {/* Quick inspect, shown on hover; it keeps its place so nothing moves under the pointer */}
+          {/* Quick inspect: always visible on touch/mobile screens, shown on hover on desktop */}
           {onInspect && (
             <button
               onClick={(e) => {
                 e.stopPropagation();
                 onInspect(card);
               }}
-              className="pointer-events-auto bg-black/80 hover:bg-slate-800 text-slate-300 hover:text-white p-[0.2em] rounded-md opacity-0 group-hover:opacity-100 transition-opacity border border-slate-700"
+              aria-label={`Inspect ${cardDef(card).title}`}
+              className="pointer-events-auto bg-black/85 hover:bg-slate-800 text-slate-200 hover:text-white p-[0.25em] rounded-md opacity-90 lg:opacity-0 lg:group-hover:opacity-100 [@media(hover:none)]:opacity-95 transition-opacity border border-slate-700"
               title="Inspect full card details"
             >
               <Eye className="w-[1.4em] h-[1.4em]" />

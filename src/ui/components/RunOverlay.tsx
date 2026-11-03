@@ -80,17 +80,17 @@ export const RunOverlay: React.FC<RunOverlayProps> = ({
       widthClass="w-[50rem]"
       minimizedLabel={`Run on ${server?.name ?? 'server'}: ${activeRun.phase.replace(/_/g, ' ')}`}
       title={
-        <div className="flex items-center justify-between gap-2 border-b border-pink-900/50 pb-2.5">
-          <div className="flex items-center gap-2.5 min-w-0">
-            <span className="relative flex h-3.5 w-3.5 shrink-0">
+        <div className="flex flex-wrap items-center justify-between gap-2 border-b border-pink-900/50 pb-2">
+          <div className="flex items-center gap-2 min-w-0">
+            <span className="relative flex h-3 w-3 sm:h-3.5 sm:w-3.5 shrink-0">
               <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-pink-400 opacity-75"></span>
-              <span className="relative inline-flex rounded-full h-3.5 w-3.5 bg-cyber-neonPink"></span>
+              <span className="relative inline-flex rounded-full h-3 w-3 sm:h-3.5 sm:w-3.5 bg-cyber-neonPink"></span>
             </span>
-            <h3 className="font-cyber font-bold text-cyber-neonPink text-sm tracking-wider truncate">
+            <h3 className="font-cyber font-bold text-cyber-neonPink text-xs sm:text-sm tracking-wider truncate">
               RUN IN PROGRESS // {server?.name?.toUpperCase()}
             </h3>
           </div>
-          <div className="flex items-center gap-2 flex-wrap justify-end">
+          <div className="flex items-center gap-1.5 sm:gap-2 flex-wrap justify-end">
             {pools.runner && (
               <span
                 data-testid="run-spendable-pool"
@@ -99,7 +99,7 @@ export const RunOverlay: React.FC<RunOverlayProps> = ({
                     ? `Your normal credit pool (${pools.runner.pool}) cannot be spent during this run`
                     : `Total credits you can spend during this run (${pools.runner.pool} in pool + ${pools.runner.bonus} from run/hosted sources)`
                 }
-                className={`text-xs font-mono px-2.5 py-1 rounded-[2px] border font-bold shrink-0 inline-flex items-center gap-1.5 ${
+                className={`text-[11px] sm:text-xs font-mono px-2 sm:px-2.5 py-0.5 sm:py-1 rounded-[2px] border font-bold shrink-0 inline-flex items-center gap-1 ${
                   pools.runner.poolLocked
                     ? 'bg-amber-950/90 text-amber-200 border-amber-500/80'
                     : 'bg-emerald-950/90 text-emerald-200 border-emerald-500/80'
@@ -119,7 +119,7 @@ export const RunOverlay: React.FC<RunOverlayProps> = ({
               <span
                 data-testid="run-corp-rez-pool"
                 title={`Corp has ${pools.corpRez.bonus} recurring/hosted credits usable to rez cards on ${server?.name ?? 'this server'}`}
-                className="text-xs font-mono bg-cyan-950/90 text-cyan-200 px-2.5 py-1 rounded-[2px] border border-cyan-500/80 font-bold shrink-0 inline-flex items-center gap-1.5"
+                className="text-[11px] sm:text-xs font-mono bg-cyan-950/90 text-cyan-200 px-2 sm:px-2.5 py-0.5 sm:py-1 rounded-[2px] border border-cyan-500/80 font-bold shrink-0 inline-flex items-center gap-1"
               >
                 <span>
                   CORP REZ: <Credits amount={pools.corpRez.total} />
@@ -129,7 +129,7 @@ export const RunOverlay: React.FC<RunOverlayProps> = ({
                 </span>
               </span>
             )}
-            <span className="text-xs font-mono bg-pink-950 text-pink-300 px-2.5 py-1 rounded-[2px] border border-pink-700/80 font-bold shrink-0">
+            <span className="text-[11px] sm:text-xs font-mono bg-pink-950 text-pink-300 px-2 sm:px-2.5 py-0.5 sm:py-1 rounded-[2px] border border-pink-700/80 font-bold shrink-0">
               PHASE: <Keyword id={PHASE_KEYWORD[activeRun.phase] ?? 'run'}>{activeRun.phase.toUpperCase()}</Keyword>
             </span>
           </div>
@@ -137,9 +137,9 @@ export const RunOverlay: React.FC<RunOverlayProps> = ({
       }
     >
 
-        <div className="flex items-center gap-5 my-2">
+        <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3 sm:gap-5 my-2">
           {currentIce ? (
-            <div className="flex items-center gap-4 bg-[#080d14] p-3 rounded-[2px] border border-slate-800 flex-1">
+            <div className="flex items-center gap-3 sm:gap-4 bg-[#080d14] p-2.5 sm:p-3 rounded-[2px] border border-slate-800 flex-1 min-w-0">
               <CardView
                 card={currentIce}
                 isFaceDown={!currentIce.isRezzed && !currentIce.faceUp}
@@ -149,10 +149,10 @@ export const RunOverlay: React.FC<RunOverlayProps> = ({
                 typeIcons={iceSubtypes(currentIce, state)}
                 onInspect={currentIce.isRezzed || currentIce.faceUp || canPeekCorp || currentIce.runnerKnows ? onInspectCard : undefined}
               />
-              <div className="flex-1">
+              <div className="flex-1 min-w-0">
                 <div className="flex items-center gap-2 mb-1">
-                  <ShieldAlert className="w-4 h-4 text-pink-400" />
-                  <span className="text-sm font-bold text-slate-100 font-cyber">
+                  <ShieldAlert className="w-4 h-4 text-pink-400 shrink-0" />
+                  <span className="text-xs sm:text-sm font-bold text-slate-100 font-cyber truncate">
                     {currentIce.isRezzed ? cardDef(currentIce).title : 'Unrezzed Ice Encounter'}
                   </span>
                 </div>
@@ -163,7 +163,7 @@ export const RunOverlay: React.FC<RunOverlayProps> = ({
                         <Keyword id="strength">Strength</Keyword>: {iceStrength(state, currentIce)} • {cardDef(currentIce).keywords}
                       </div>
                       <div
-                        className="text-[12px] text-slate-300 mt-1 max-h-28 overflow-y-auto"
+                        className="text-[12px] text-slate-300 mt-1 max-h-24 sm:max-h-28 overflow-y-auto"
                         dangerouslySetInnerHTML={{ __html: cardTextHtml(cardDef(currentIce).text ?? '') }}
                       />
                     </>
@@ -176,8 +176,8 @@ export const RunOverlay: React.FC<RunOverlayProps> = ({
               </div>
             </div>
           ) : (
-            <div className="flex items-center gap-3 text-sm font-mono text-emerald-400 bg-emerald-950/40 border border-emerald-800 p-4 rounded-[2px] flex-1">
-              <CheckCircle2 className="w-6 h-6 text-emerald-400 shrink-0" />
+            <div className="flex items-center gap-3 text-xs sm:text-sm font-mono text-emerald-400 bg-emerald-950/40 border border-emerald-800 p-3 sm:p-4 rounded-[2px] flex-1">
+              <CheckCircle2 className="w-5 h-5 sm:w-6 sm:h-6 text-emerald-400 shrink-0" />
               <span>
                 {activeRun.phase === 'movement'
                   ? 'No ice left between you and the server. Jack out now, or go on to the server.'
@@ -187,7 +187,7 @@ export const RunOverlay: React.FC<RunOverlayProps> = ({
           )}
 
           {/* Action buttons */}
-          <div className="flex flex-col gap-2 shrink-0">
+          <div className="flex flex-row sm:flex-col flex-wrap gap-2 shrink-0 justify-end">
             {onRez &&
               rezCards.map(card => {
                 const printed = cardDef(card).cost || 0;
@@ -197,7 +197,7 @@ export const RunOverlay: React.FC<RunOverlayProps> = ({
                     key={card.instanceId}
                     onClick={() => onRez(card)}
                     data-testid={`rez-${card.instanceId}`}
-                    className="px-5 py-2 bg-cyan-700 hover:bg-cyan-600 text-white font-mono text-xs font-bold rounded-[2px] border border-cyan-400 border-b-2 border-b-cyan-500 active:translate-y-[1px] active:border-b-[1px] flex items-center justify-center gap-1.5 transition-all"
+                    className="px-4 sm:px-5 py-2 bg-cyan-700 hover:bg-cyan-600 text-white font-mono text-xs font-bold rounded-[2px] border border-cyan-400 border-b-2 border-b-cyan-500 active:translate-y-[1px] active:border-b-[1px] flex items-center justify-center gap-1.5 transition-all"
                     title="Corp rez window: rez this card before the Runner continues"
                   >
                     <ShieldAlert className="w-4 h-4" /> Rez {cardDef(card).title} (
@@ -223,7 +223,7 @@ export const RunOverlay: React.FC<RunOverlayProps> = ({
                     key={`${action.cardInstanceId}-${action.abilityIndex}`}
                     onClick={() => onAction(action)}
                     data-testid={`run-ability-${action.cardInstanceId}`}
-                    className="px-5 py-2 bg-cyan-900 hover:bg-cyan-800 text-white font-mono text-xs font-bold rounded-[2px] border border-cyan-500 border-b-2 border-b-cyan-600 active:translate-y-[1px] active:border-b-[1px] flex items-center justify-center gap-1.5 transition-all max-w-[16rem]"
+                    className="px-4 sm:px-5 py-2 bg-cyan-900 hover:bg-cyan-800 text-white font-mono text-xs font-bold rounded-[2px] border border-cyan-500 border-b-2 border-b-cyan-600 active:translate-y-[1px] active:border-b-[1px] flex items-center justify-center gap-1.5 transition-all max-w-[16rem]"
                     title={ability.label}
                   >
                     <Sparkles className="w-4 h-4 text-amber-300 shrink-0" /> {cardDef(source).title}
@@ -234,7 +234,7 @@ export const RunOverlay: React.FC<RunOverlayProps> = ({
               <button
                 onClick={onDoneRezzing}
                 data-testid="done-rezzing"
-                className="px-5 py-2 bg-slate-800 hover:bg-slate-700 text-slate-200 font-mono text-xs font-bold rounded-[2px] border border-slate-600 border-b-2 border-b-slate-500 active:translate-y-[1px] active:border-b-[1px] flex items-center justify-center gap-1.5 transition-all"
+                className="px-4 sm:px-5 py-2 bg-slate-800 hover:bg-slate-700 text-slate-200 font-mono text-xs font-bold rounded-[2px] border border-slate-600 border-b-2 border-b-slate-500 active:translate-y-[1px] active:border-b-[1px] flex items-center justify-center gap-1.5 transition-all"
               >
                 {rezCards.length > 0 ? "Don't rez" : rezAbilities.length > 0 ? 'Let them in' : 'Done'} <ArrowRight className="w-4 h-4" />
               </button>
@@ -243,7 +243,7 @@ export const RunOverlay: React.FC<RunOverlayProps> = ({
             <>
             <button
               onClick={onContinueRun}
-              className="px-5 py-2.5 bg-gradient-to-b from-pink-600 to-pink-700 hover:from-pink-500 hover:to-pink-600 text-white font-mono text-xs font-bold rounded-[2px] border-b-2 border-b-pink-400 active:translate-y-[1px] active:border-b-[1px] shadow-lg flex items-center justify-center gap-1.5 transition-all"
+              className="flex-1 sm:flex-initial px-4 sm:px-5 py-2 sm:py-2.5 bg-gradient-to-b from-pink-600 to-pink-700 hover:from-pink-500 hover:to-pink-600 text-white font-mono text-xs font-bold rounded-[2px] border-b-2 border-b-pink-400 active:translate-y-[1px] active:border-b-[1px] shadow-lg flex items-center justify-center gap-1.5 transition-all"
             >
               {continueLabel} <ArrowRight className="w-4 h-4" />
             </button>
@@ -251,7 +251,7 @@ export const RunOverlay: React.FC<RunOverlayProps> = ({
               onClick={onJackOut}
               disabled={!canJackOut}
               title={canJackOut ? 'End the run now' : 'You can jack out only after passing a piece of ice (or before approaching a server with no ice)'}
-              className="px-5 py-2 bg-slate-800 hover:bg-slate-700 text-slate-200 font-mono text-xs font-semibold rounded-[2px] border border-slate-700 border-b-2 border-b-slate-600 active:translate-y-[1px] active:border-b-[1px] flex items-center justify-center gap-1.5 transition-all disabled:opacity-40 disabled:hover:bg-slate-800"
+              className="px-4 sm:px-5 py-2 bg-slate-800 hover:bg-slate-700 text-slate-200 font-mono text-xs font-semibold rounded-[2px] border border-slate-700 border-b-2 border-b-slate-600 active:translate-y-[1px] active:border-b-[1px] flex items-center justify-center gap-1.5 transition-all disabled:opacity-40 disabled:hover:bg-slate-800"
             >
               <LogOut className="w-4 h-4" /> Jack Out
             </button>

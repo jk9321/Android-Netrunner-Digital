@@ -153,13 +153,13 @@ export const FloatingPanel: React.FC<FloatingPanelProps> = ({
     <div
       ref={ref}
       style={style}
-      className={`fixed ${zIndexClass} ${placement} ${widthClass} max-w-[calc(100vw-1rem)] max-h-[calc(100vh-1rem)] flex flex-col bg-[#090d15]/95 backdrop-blur-xl border rounded-[2px] shadow-2xl font-mono ${accentClass}`}
+      className={`fixed ${zIndexClass} ${placement} ${widthClass} max-w-[calc(100vw-1rem)] max-h-[calc(100dvh-1rem)] flex flex-col bg-[#090d15]/95 backdrop-blur-xl border rounded-[2px] shadow-2xl font-mono ${accentClass}`}
       data-testid={testId}
       role={role}
       aria-labelledby={ariaLabelledBy}
     >
       <div
-        className="flex items-center gap-2 px-4 pt-3 pb-2 cursor-move select-none touch-none shrink-0"
+        className="flex items-center gap-2 px-3 sm:px-4 pt-2.5 sm:pt-3 pb-2 cursor-move select-none touch-none shrink-0"
         title="Drag to move"
         data-testid={testId ? `${testId}-handle` : undefined}
         {...dragHandlers}
@@ -176,7 +176,7 @@ export const FloatingPanel: React.FC<FloatingPanelProps> = ({
           <Minus className="w-4 h-4" />
         </button>
       </div>
-      <div className="px-5 pb-5 overflow-y-auto min-h-0">{children}</div>
+      <div className="px-3.5 pb-3.5 sm:px-5 sm:pb-5 overflow-y-auto min-h-0">{children}</div>
     </div>
   );
 };

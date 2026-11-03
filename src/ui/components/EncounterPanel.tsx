@@ -137,24 +137,23 @@ export const EncounterPanel: React.FC<EncounterPanelProps> = ({ state, onAction,
       </ol>
 
       {breakerRows.length > 0 && (
-        <div className="space-y-1.5">
+        <div className="space-y-2 sm:space-y-1.5">
           {breakerRows.map(({ breaker, script, actions, breakSlots, own }) => {
             const bStr = breakerStrength(state, breaker);
             const targetStrength = iceStrength(state, ice);
             const hasEnoughStrength = bStr >= targetStrength;
             return (
-              // Buttons wrap within their own column, so a wrapped button (Break 3) stays lined up
-              // with the others instead of dropping under the breaker's name
-              <div key={breaker.instanceId} className="flex items-start gap-1.5">
-                <span className="text-[12px] font-mono text-slate-400 w-40 shrink-0 min-h-[28px] flex items-center gap-1.5 min-w-0">
+              // Buttons wrap within their own column on desktop, and stack cleanly under the breaker name on narrow screens
+              <div key={breaker.instanceId} className="flex flex-col sm:flex-row items-start gap-1 sm:gap-1.5">
+                <span className="text-[12px] font-mono text-slate-400 w-full sm:w-40 shrink-0 min-h-[24px] sm:min-h-[28px] flex items-center gap-1.5 min-w-0">
                   {/* Same icons as on the ice above, so the Runner can check the breaker matches */}
                   <IceTypeIcons types={breakerTypes(breaker)} side="breaker" row className="text-[10px] shrink-0" />
-                  <span className="min-w-0 flex flex-col leading-tight">
+                  <span className="min-w-0 flex sm:flex-col items-baseline sm:items-start gap-2 sm:gap-0 leading-tight">
                     <span className="truncate text-slate-200 font-semibold" title={cardDef(breaker).title}>
                       {cardDef(breaker).title}
                     </span>
                     <span
-                      className={`text-[11px] font-bold transition-colors ${
+                      className={`text-[11px] font-bold transition-colors shrink-0 ${
                         hasEnoughStrength ? 'text-emerald-400' : 'text-amber-400'
                       }`}
                       title={hasEnoughStrength ? `Meets ice strength (${targetStrength})` : `Below ice strength (${targetStrength})`}
@@ -245,14 +244,14 @@ export const EncounterPanel: React.FC<EncounterPanelProps> = ({ state, onAction,
 
       {otherAbilities.length > 0 && (
         <div className="flex flex-wrap items-center gap-1.5">
-          <span className="text-[12px] font-mono text-slate-400 w-40">Card abilities</span>
+          <span className="text-[12px] font-mono text-slate-400 w-full sm:w-40">Card abilities</span>
           {otherAbilities.map((a, k) => abilityButton(a, k, false))}
         </div>
       )}
 
       {showBioroid && (
         <div className="flex flex-wrap items-center gap-1.5">
-          <span className="text-[12px] font-mono text-slate-400 w-40">
+          <span className="text-[12px] font-mono text-slate-400 w-full sm:w-40">
             {iceScript(ice)?.runnerBreakCost ? <>Pay <Credits amount={iceScript(ice)!.runnerBreakCost!} /> per subroutine</> : 'Bioroid: spend a click'}
           </span>
           {subs.map((_, i) => {

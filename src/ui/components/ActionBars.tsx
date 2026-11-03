@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { ArrowRight, Layers, Plus, Trash2, Zap } from 'lucide-react';
+import { ArrowRight, Eye, Layers, Plus, Trash2, Zap } from 'lucide-react';
 import { CardInstance, GameAction, GameState, SideCode, cardDef, findCardAnywhere, getCardScript, getLegalActions, installedIce, isLegalAction, trashableFirst, virusCountersInPlay } from '../../core';
 import { runnerInstallCost } from '../../core/engine/actions/install';
 import { playCost } from '../../core/engine/actions/play';
@@ -16,6 +16,7 @@ interface ActionBarProps {
   /** The hand card the player has selected, if any. */
   selectedCard: CardInstance | undefined;
   onAction: (action: GameAction) => void;
+  onInspect?: (card: CardInstance) => void;
 }
 
 const isPlayable = (card: CardInstance | undefined) => !!card && ['operation', 'event'].includes(cardDef(card).type_code);
@@ -71,6 +72,21 @@ function PlayButton({ side, state, selectedCard, onAction }: ActionBarProps & { 
   );
 }
 
+/** Quick-inspect button for the currently selected hand card on mobile/tablet (< lg). */
+function InspectSelectedButton({ side, selectedCard, onInspect }: { side: SideCode; selectedCard: CardInstance | undefined; onInspect?: (card: CardInstance) => void }) {
+  if (!selectedCard || !onInspect || cardDef(selectedCard).side_code !== side) return null;
+  return (
+    <button
+      onClick={() => onInspect(selectedCard)}
+      data-testid="inspect-selected-card"
+      title={`Inspect ${cardDef(selectedCard).title}`}
+      className="lg:hidden px-2.5 py-1.5 bg-slate-900 hover:bg-slate-800 text-slate-200 hover:text-white text-xs font-bold rounded-[2px] border border-slate-700 border-b-2 border-b-slate-600 transition-all flex items-center gap-1.5 shadow active:translate-y-[1px] active:border-b-[1px]"
+    >
+      <Eye className="w-3.5 h-3.5 text-amber-400" /> Inspect {cardDef(selectedCard).title}
+    </button>
+  );
+}
+
 /**
  * Install a trojan on one piece of ice. Unrezzed ice all looks alike, so the
  * button names the ice's position and hovering it lights that ice up on the table.
@@ -96,7 +112,7 @@ function InstallOnIceButton({ state, host, onClick }: { state: GameState; host: 
 
 /** The Corp's click actions, plays and installs for the selected card, and End Turn. */
 export function CorpActions(props: ActionBarProps) {
-  const { state, selectedCard, onAction } = props;
+  const { state, selectedCard, onAction, onInspect } = props;
   const { corp } = state;
   const startingTurn = state.turnStep?.kind === 'corp_turn_start';
   const turnAction: GameAction = startingTurn ? { type: 'START_TURN', player: 'corp' } : { type: 'END_TURN', player: 'corp' };
@@ -160,6 +176,7 @@ export function CorpActions(props: ActionBarProps) {
         {selectedCard && !isPlayable(selectedCard) && cardDef(selectedCard).side_code === 'corp' && (
           <CorpInstallOptions state={state} card={selectedCard} onAction={onAction} />
         )}
+        <InspectSelectedButton side="corp" selectedCard={selectedCard} onInspect={onInspect} />
       </div>
 
       {/* End Turn Button - Prominently Anchored (before the turn begins it takes the mandatory draw instead) */}
@@ -180,7 +197,7 @@ export function CorpActions(props: ActionBarProps) {
 
 /** The Runner's click actions, plays and installs for the selected card (or cards hosted on hardware), and End Turn. */
 export function RunnerActions(props: ActionBarProps) {
-  const { state, selectedCard, onAction } = props;
+  const { state, selectedCard, onAction, onInspect } = props;
   const { runner } = state;
   const installable = selectedCard && !isPlayable(selectedCard) ? selectedCard : undefined;
   const onIce = installable && getCardScript(installable.cardCode)?.installsOnIce;
@@ -324,6 +341,7 @@ export function RunnerActions(props: ActionBarProps) {
             <LiveCostParens printed={cardDef(installable).cost ?? 0} live={runnerInstallCost(state, installable)} />
           </button>
         )}
+        <InspectSelectedButton side="runner" selectedCard={selectedCard} onInspect={onInspect} />
         {installable && installBlocked !== null && (
           <span className="w-full text-xs text-amber-300 font-mono" data-testid="install-blocked-reason">
             Can't install: {installBlocked}

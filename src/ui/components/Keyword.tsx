@@ -2,7 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { GLOSSARY } from '../glossary';
 
-/** Marks UI text as a rules term; hovering it shows the glossary tooltip. */
+/** Marks UI text as a rules term; hovering or tapping it shows the glossary tooltip. */
 export const Keyword: React.FC<{ id: string; children: React.ReactNode; className?: string }> = ({ id, children, className = '' }) =>
   GLOSSARY[id] ? (
     <span data-kw={id} className={`kw-label ${className}`}>
@@ -16,7 +16,7 @@ const WIDTH = 280;
 
 /**
  * One tooltip for the whole app. Any element with data-kw="<glossary id>", including
- * spans inside card text set with dangerouslySetInnerHTML, shows that term's definition on hover.
+ * spans inside card text set with dangerouslySetInnerHTML, shows that term's definition on hover or tap.
  * An element with data-tip="<text>" (and optionally data-tip-title) shows that text instead,
  * e.g. the whole of a badge cut short by its card's width.
  */
@@ -38,7 +38,18 @@ export const KeywordTooltip: React.FC = () => {
       current = el;
       show(el);
     };
-    const hide = () => {
+    const onPointerDown = (e: PointerEvent) => {
+      const el = (e.target as Element | null)?.closest?.('[data-kw], [data-tip]') ?? null;
+      if (e.pointerType === 'touch' && el) {
+        if (current === el) {
+          current = null;
+          setTip(null);
+        } else {
+          current = el;
+          show(el);
+        }
+        return;
+      }
       current = null;
       setTip(null);
     };
@@ -48,17 +59,18 @@ export const KeywordTooltip: React.FC = () => {
     };
     document.addEventListener('mouseover', over);
     document.addEventListener('scroll', follow, true);
-    document.addEventListener('mousedown', hide);
+    document.addEventListener('pointerdown', onPointerDown);
     return () => {
       document.removeEventListener('mouseover', over);
       document.removeEventListener('scroll', follow, true);
-      document.removeEventListener('mousedown', hide);
+      document.removeEventListener('pointerdown', onPointerDown);
     };
   }, []);
 
   if (!tip) return null;
   const pad = 8;
-  const left = Math.max(pad, Math.min(window.innerWidth - WIDTH - pad, tip.rect.left + tip.rect.width / 2 - WIDTH / 2));
+  const width = Math.min(WIDTH, (typeof window !== 'undefined' ? window.innerWidth : 1024) - pad * 2);
+  const left = Math.max(pad, Math.min(window.innerWidth - width - pad, tip.rect.left + tip.rect.width / 2 - width / 2));
   // Above the term when there is room, otherwise below it
   const above = tip.rect.top > 140;
   const style: React.CSSProperties = above
@@ -69,7 +81,7 @@ export const KeywordTooltip: React.FC = () => {
     <div
       role="tooltip"
       data-testid="keyword-tooltip"
-      style={{ position: 'fixed', width: WIDTH, zIndex: 10050, ...style }}
+      style={{ position: 'fixed', width, zIndex: 10050, ...style }}
       className="pointer-events-none rounded-[2px] border border-amber-500/70 bg-[#090d15]/95 px-3 py-2 font-mono text-xs leading-snug text-slate-200 shadow-2xl backdrop-blur"
     >
       {tip.term && <div className="mb-0.5 font-bold text-amber-300">{tip.term}</div>}
