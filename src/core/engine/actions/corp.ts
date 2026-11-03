@@ -68,6 +68,10 @@ export function scoreAgenda(state: GameState, action: ScoreAgendaAction): void {
   removeCard(server.root, card);
   card.isRezzed = true;
   delete card.faceUp;
+  // Advancement counters on a scored agenda go back to the bank (rules 1.17.5); "when scored"
+  // abilities still see the last known count (1.17.8), passed in the event below.
+  const advanced = card.advancementCounters;
+  card.advancementCounters = 0;
   card.scoredTurn = turnKey(state);
   state.corp.scoreArea.push(card);
   const pts = agendaPoints(card);
@@ -77,7 +81,7 @@ export function scoreAgenda(state: GameState, action: ScoreAgendaAction): void {
   if (card.installedTurn !== turnKey(state)) bumpTurnFlag(state, TurnFlag.scoredNotInstalledThisTurn);
   addLog(state, 'corp', `Corp scored ${def.title} for ${pts} agenda point(s)! Total: ${state.corp.score}`);
   checkAgendaVictory(state);
-  if (!state.winner) fireTrigger(state, { type: 'agenda_scored', card, serverId: server.id });
+  if (!state.winner) fireTrigger(state, { type: 'agenda_scored', card, serverId: server.id, advancementCounters: advanced });
 }
 
 export function rezCard(state: GameState, action: RezCardAction): void {

@@ -1,4 +1,4 @@
-import { CardInstance, GameAction, GameState, Prompt, SideCode, activePrompt, cardDef, executeAction, findCardAnywhere, getCardDefinition, getLegalActions, isLegalAction } from '../core';
+import { CardInstance, GameAction, GameState, Prompt, SideCode, activePrompt, cardDef, executeAction, findCardAnywhere, getCardDefinition, getLegalActions, isLegalAction, knownInHand } from '../core';
 import { runnerInstallBlocker, runnerInstallCost } from '../core/engine/actions/install';
 import { evaluate, keepValue, runnerRigValue } from './evaluate';
 import { bakerWantsFuel, principiaFuel } from './cardPlans';
@@ -260,6 +260,19 @@ export function answerPrompt(state: GameState, side: SideCode, memory?: RunnerMe
     return { ...base, choice: { kind: 'effect_cards', cardInstanceIds: [pick] } };
   }
 
+  // Peer Review: keep the best agenda hidden (the Runner already knows the other cards it might
+  // hide); with no unknown agenda, the card the Corp most wants to keep. The board score can't
+  // see hidden information, so trying each answer would not tell them apart.
+  if (side === 'corp' && prompt.kind === 'effect_cards' && prompt.source.cardCode === PEER_REVIEW && prompt.source.step === 'hide') {
+    const known = new Set(knownInHand(state, 'corp').map(e => e.id));
+    const cards = prompt.candidateIds.map(id => state.corp.hq.find(c => c.instanceId === id)!).filter(Boolean);
+    const unknown = cards.filter(c => !known.has(c.instanceId));
+    const pool = unknown.length > 0 ? unknown : cards;
+    const worth = (c: CardInstance) => (cardDef(c).type_code === 'agenda' ? 100 + (cardDef(c).agenda_points ?? 0) : keep(state, c, synergy));
+    const pick = [...pool].sort((a, b) => worth(b) - worth(a))[0]?.instanceId ?? prompt.candidateIds[0];
+    return { ...base, choice: { kind: 'effect_cards', cardInstanceIds: [pick] } };
+  }
+
   // Botulus: break the worst subroutine
   if (side === 'runner' && prompt.kind === 'effect_choice' && prompt.source.cardCode === BOTULUS && tuning.plan.trojans) {
     const ice = encounteredIce(state);
@@ -449,6 +462,7 @@ function greedyCards(
 }
 
 const SCROUNGE = '35004';
+const PEER_REVIEW = '35055';
 
 /** Rezzed ice on the board that `breaker` breaks (all ice for an AI breaker). */
 function breaksRezzedIce(state: GameState, breaker: CardInstance): boolean {

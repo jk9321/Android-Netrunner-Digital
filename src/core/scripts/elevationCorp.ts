@@ -76,7 +76,7 @@ function dividendAgenda(perExcess: number, label: string, canUse: (state: GameSt
   return {
     ...more,
     triggers: {
-      agenda_scored: onScore(ctx => placeDividends(ctx.state, ctx.card, perExcess)),
+      agenda_scored: (ctx, e) => isSelf(ctx, e.card) && placeDividends(ctx.state, ctx.card, perExcess, e.advancementCounters),
       discard_phase_ends: (ctx, e) => {
         if (e.side !== 'corp' || counters(ctx.card, 'agenda') === 0 || !canUse(ctx.state)) return;
         askChoice(ctx, 'corp', `${cardDef(ctx.card).title}: remove 1 agenda counter to ${label}?`, [
@@ -1097,22 +1097,30 @@ const peerReviewTargets = (state: GameState) =>
   installable(state, state.corp.hq.filter(c => type(c) !== 'ice'), { remoteRootOnly: true });
 const peerReview: CardScript = {
   onPlay: ctx => {
-    const { state, card } = ctx;
-    const shown = state.corp.hq.slice(1);
-    if (shown.length > 0) addLog(state, 'corp', `Corp revealed ${shown.map(c => cardDef(c).title).join(', ')} (Peer Review).`);
-    revealInHand(state, 'corp', shown);
-    gainFromCard(state, 'corp', 7, card);
-    const targets = peerReviewTargets(state);
-    if (targets.length > 0) askCards(ctx, 'corp', 'Peer Review: you may install 1 card from HQ in the root of a remote server.', ids(targets), 0, 1, 'pick');
+    const hq = ctx.state.corp.hq;
+    // The Corp chooses which card stays hidden (rules 1.14.5: the controller makes the choices)
+    if (hq.length >= 2) askCards(ctx, 'corp', 'Peer Review: choose 1 card in HQ to keep hidden. The rest are revealed.', ids(hq), 1, 1, 'hide');
+    else peerReviewResolve(ctx, hq[0]?.instanceId);
   },
   onPromptAnswer: (ctx, source, answer) => {
-    if (source.step === 'pick' && answer.kind === 'effect_cards' && answer.cardInstanceIds.length > 0) {
+    if (source.step === 'hide' && answer.kind === 'effect_cards') {
+      peerReviewResolve(ctx, answer.cardInstanceIds[0]);
+    } else if (source.step === 'pick' && answer.kind === 'effect_cards' && answer.cardInstanceIds.length > 0) {
       askCorpInstall(ctx, answer.cardInstanceIds[0], 'server', { remoteRootOnly: true });
     } else if (source.step === 'server') {
       installCorpChoice(ctx.state, source, answer);
     }
   },
 };
+function peerReviewResolve(ctx: EffectContext, hiddenId: string | undefined): void {
+  const { state, card } = ctx;
+  const shown = state.corp.hq.filter(c => c.instanceId !== hiddenId);
+  if (shown.length > 0) addLog(state, 'corp', `Corp revealed ${shown.map(c => cardDef(c).title).join(', ')} (Peer Review).`);
+  revealInHand(state, 'corp', shown);
+  gainFromCard(state, 'corp', 7, card);
+  const targets = peerReviewTargets(state);
+  if (targets.length > 0) askCards(ctx, 'corp', 'Peer Review: you may install 1 card from HQ in the root of a remote server.', ids(targets), 0, 1, 'pick');
+}
 
 // Bigger Picture (Gray Ops): Play only if the Runner is tagged. Resolve 1 of the following:
 // Give the Runner 1 tag. Remove any number of tags. The Runner loses 5 credits for each tag

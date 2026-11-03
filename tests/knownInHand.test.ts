@@ -41,8 +41,9 @@ describe('cards known in the opponent\'s hand', () => {
     const s0 = newGame();
     const hidden = createCardInstance(s0, SG.hedgeFund);
     const shown = createCardInstance(s0, SG.palisade);
-    s0.corp.hq = [hidden, shown];
-    const s = playCorp(s0, peerReview, 1);
+    s0.corp.hq = [shown, hidden];
+    let s = playCorp(s0, peerReview, 1);
+    s = pick(s, [hidden.instanceId]);
     expect(known(s, 'corp')).toEqual([shown.instanceId]);
   });
 
