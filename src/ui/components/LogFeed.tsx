@@ -64,14 +64,6 @@ export const LogFeed: React.FC<LogFeedProps> = React.memo(({ logs, viewer, class
 
   return (
     <div className={`flex flex-col ${className} bg-[#070b12] border border-slate-800 rounded-[2px] overflow-hidden font-mono text-xs shadow-inner relative`}>
-      {/* Static retro raster overlay (low opacity, no motion to prevent eye strain) */}
-      <div
-        className="absolute inset-0 pointer-events-none opacity-35 z-0"
-        style={{
-          background: 'repeating-linear-gradient(rgba(0,0,0,0.2) 0px, rgba(0,0,0,0.2) 1px, transparent 1px, transparent 2px)',
-        }}
-        aria-hidden="true"
-      />
       <div className="flex items-center gap-2 px-3 py-1.5 bg-[#0c121d] border-b border-slate-800 text-[11px] text-slate-400 z-10">
         <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
         <span className="font-bold tracking-wider uppercase text-slate-200">SYS.TRACE // STACKHEAP</span>
