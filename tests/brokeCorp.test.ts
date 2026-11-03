@@ -104,14 +104,15 @@ describe('credits a broke Corp needs (Jeff, plan.moneyReach, agendaBudget, plann
     expect(sideCreditValue(s, 'corp', 'runner')).toBeLessThan(at(3)); // the Runner can't see HQ
   });
 
-  it('plays Petty Cash first, then finishes Send a Message, instead of advancing first (Normal)', () => {
+  // (2026-11-03, bug report #5) Petty Cash first, or the two advances first and a credit click: the planner
+  // scores the lines 30.4 vs 30.9, a call its sampled Runner reply decides (the Runner no longer trashes the
+  // spent Spin Doctor in it). Either way Send a Message is finished and the Corp isn't left broke.
+  it('finishes Send a Message this turn and keeps credits to rez with (Normal)', () => {
     let s = threeCredits();
     const corp = createAgent('corp', 'normal');
-    const first = corp.chooseAction(s);
-    expect(first.type).toBe('PLAY_OPERATION_OR_EVENT');
-    s = playTurn(executeAction(s, first), corp);
+    s = playTurn(s, corp);
     expect(s.corp.score).toBe(4);
-    expect(s.corp.credits).toBeGreaterThanOrEqual(2);
+    expect(s.corp.credits + s.corp.hq.filter(c => cardDef(c).title === 'Petty Cash').length * 2).toBeGreaterThanOrEqual(7);
   });
 
   it('two agendas share one turn’s clicks: only one of them looks scored this turn', () => {

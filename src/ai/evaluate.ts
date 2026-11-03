@@ -165,12 +165,31 @@ export function corpCardValue(card: CardInstance, state?: GameState, viewer: Sid
 }
 
 function corpCardWorth(card: CardInstance, state: GameState | undefined, viewer: SideCode): number {
+  if (state && viewer === 'runner' && card.isRezzed && card.cardCode === SPIN_DOCTOR && tuning.plan.spentSpinDoctor) return spentSpinDoctorWorth(state);
   const hosted = counters(card, 'credit');
   const power = state && card.isRezzed ? countersWorth(state, card, 'power', viewer) : 0;
   const profile = state ? profileOf(card.cardCode) : undefined;
   if (state && profile) return card.isRezzed ? payoutWorth(profile, turnsLeft(state), hosted, payoutWait(state, profile, 'corp', inIcedServer(state, card)), cardRate(state, 'corp')) : corpKeepValue(card.cardCode, state);
   if (card.isRezzed && hosted > 0) return 1 + (state ? countersWorth(state, card, 'credit', viewer) : hosted * RATES.counters.hostedCredit) + power;
   return corpKeepValue(card.cardCode, state) + power;
+}
+
+const SPIN_DOCTOR = '30053';
+
+/**
+ * plan.spentSpinDoctor (bug report #5, Jeff 2026-11-02): a rezzed Spin Doctor has drawn its 2 cards;
+ * all it can still do is shuffle up to 2 cards from Archives back into R&D. As the Runner sees it:
+ * a faceup card goes back as a slightly better R&D, a facedown one may be an agenda it would
+ * otherwise steal from Archives. With Archives empty, trashing it buys next to nothing.
+ */
+export function spentSpinDoctorWorth(state: GameState): number {
+  const { agenda, agendaPoints } = hiddenCardOdds(state);
+  const archives = state.corp.archives;
+  const worth = [
+    ...archives.faceUp.map(() => 0.3 * cardRate(state, 'corp')),
+    ...archives.faceDown.map(() => agenda * archivedAgendaLoss(state, agendaPoints) + (1 - agenda) * 0.3 * cardRate(state, 'corp')),
+  ].sort((a, b) => b - a);
+  return 0.3 + (worth[0] ?? 0) + (worth[1] ?? 0);
 }
 
 /** Whether a Corp root card sits in a server with ice in front of it. */

@@ -186,6 +186,11 @@ export class HeuristicRunnerAI implements Agent {
   }
 
   private mainAction(state: GameState, legal: GameAction[]): GameAction {
+    const full = tuning.plan.readWriteFull ? readWriteFullShuffle(state, legal) : undefined;
+    if (full) {
+      this.notePlayed(full);
+      return full;
+    }
     const ranked = this.rankMainActions(state, legal);
     const planned = this.planner && plannerOn('runner') ? this.plan(state, ranked) : null;
     const chosen = planned ?? (ranked[0]?.score > -Infinity ? ranked[0].action : legal.find(a => a.type === 'END_TURN') ?? legal[0]);
@@ -368,4 +373,16 @@ export function approachClickReserve(state: GameState): number {
   if (count === 0) return 0;
   const spare = availableCredits(state, 'runner') - iceCreditsAhead(state);
   return spare >= 5 * count ? 0 : 2 * count;
+}
+
+const READ_WRITE_SHARE = '36022';
+
+/**
+ * plan.readWriteFull (Jeff, bug report #8): a Read-Write Share holding its limit of 4 cards can host
+ * no more, so it only takes up memory. Trash it to shuffle the 4 back into the stack (a free action).
+ */
+export function readWriteFullShuffle(state: GameState, legal: GameAction[]): GameAction | undefined {
+  const full = state.runner.rig.programs.find(p => p.cardCode === READ_WRITE_SHARE && (p.hostedCards?.length ?? 0) >= 4);
+  if (!full) return undefined;
+  return legal.find(a => a.type === 'USE_ABILITY' && a.cardInstanceId === full.instanceId);
 }

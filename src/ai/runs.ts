@@ -413,6 +413,9 @@ function rdWorth(state: GameState, accesses: number, odds: number, central: numb
   return value;
 }
 
+/** Share of the deck's agenda odds a facedown card in an Archives with no ice keeps (plan.archivesChosen). */
+const ARCHIVES_CHOSEN_ODDS = 0.3;
+
 /** serverValue in credits (plan.runModel). */
 function serverWorth(state: GameState, serverId: string, extraAccesses: number, memory: RunnerMemory | undefined, wary: boolean, repeat: number): number {
   const server = state.corp.servers[serverId];
@@ -428,7 +431,10 @@ function serverWorth(state: GameState, serverId: string, extraAccesses: number, 
   else if (serverId === 'archives') {
     if (repeat > 0) return 0;
     const faceUp = state.corp.archives.faceUp.filter(c => cardDef(c).type_code === 'agenda');
-    value = faceUp.reduce((n, c) => n + stealWorth(state, cardDef(c).agenda_points ?? 1, 0), 0) + Math.min(3, state.corp.archives.faceDown.length) * odds * stealWorth(state, points, 0);
+    // plan.archivesChosen (Jeff, bug report #5): facedown cards are ones the Corp chose to put there (discards,
+    // Hansei Review); into an Archives with no ice a Corp rarely chooses an agenda
+    const chosen = tuning.plan.archivesChosen && state.corp.servers.archives.ice.length === 0 ? ARCHIVES_CHOSEN_ODDS : 1;
+    value = faceUp.reduce((n, c) => n + stealWorth(state, cardDef(c).agenda_points ?? 1, 0), 0) + Math.min(3, state.corp.archives.faceDown.length) * odds * chosen * stealWorth(state, points, 0);
   }
   if (repeat > 0 && server.isRemote) return 0;
   const trap = wary ? trapOdds(state, memory) : 1 / 3;
