@@ -3,7 +3,7 @@ import { describe, expect, it } from 'vitest';
 import { GameState, executeAction } from '../src/core';
 import { createAgent } from '../src/ai';
 import { lethalHqAgenda } from '../src/ai/corpAI';
-import { tuning } from '../src/ai/synergy';
+import { sideOff, tuning } from '../src/ai/synergy';
 
 /**
  * Jeff's bug report (issue #4, 2026-11-02; Jinteki: Restoring Humanity vs René Arcemont, Hard Corp):
@@ -46,11 +46,14 @@ describe('an agenda in HQ that would win the Runner the game (plan.lethalHq, bug
 
   it('the old way (plan off) is what the report saw', () => {
     const was = { ...tuning.plan };
+    const corpOff = sideOff.corp;
     tuning.plan.lethalHq = false;
+    sideOff.corp = ['effectValues']; // as the report's game ran: before effect values came back on for the Corp (2026-11-03)
     try {
       expect(hqIce(playTurn(turn13(), createAgent('corp', 'hard', { samples: 6, seed: 1 })))).toBe(2);
     } finally {
       Object.assign(tuning.plan, was);
+      sideOff.corp = corpOff;
     }
   }, 120_000);
 });
