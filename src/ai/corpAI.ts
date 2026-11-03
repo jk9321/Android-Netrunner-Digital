@@ -636,7 +636,10 @@ export class HeuristicCorpAI implements Agent {
         // plan.freeRez: a coming free rez (Send a Message, Unleash) pays for the costliest of them
         const freeTargets = freeRezTargets(state, card);
         const covered = freeRezCover(state, card);
-        if (this.synergy && tuning.plan.icePacing && unrezzedIceCost(state) + (cardDef(card).cost ?? 0) - covered > corp.credits - installCost + ICE_PACING_INCOME && hq.length <= corp.handSizeLimit) return -Infinity;
+        // plan.lethalHq: HQ holds an agenda whose steal wins the Runner the game, and the Runner can get in
+        const lethalHq = server?.id === 'hq' && this.synergy && tuning.plan.lethalHq && lethalHqAgenda(state, corp.credits - installCost);
+        const paceOk = lethalHq && corp.credits - installCost >= (cardDef(card).cost ?? 0);
+        if (this.synergy && tuning.plan.icePacing && !paceOk && unrezzedIceCost(state) + (cardDef(card).cost ?? 0) - covered > corp.credits - installCost + ICE_PACING_INCOME && hq.length <= corp.handSizeLimit) return -Infinity;
         let need: number;
         // Deck-aware AI: one well-iced scoring remote rather than ice spread thin
         const main = this.synergy && tuning.plan.oneRemote ? mainRemote(state) : null;
@@ -680,6 +683,7 @@ export class HeuristicCorpAI implements Agent {
             // ...and agendas waiting in HQ for a safe remote (exposure) want HQ iced deeper
             else if (tuning.plan.exposure && agendasInHand >= 2) need += Math.min(2, 0.8 * (agendasInHand - 1));
           }
+          if (lethalHq) need += LETHAL_HQ_NEED;
           // (Jeff) a bare central gets its first ice before anything else; HQ ahead of R&D while it holds agendas
           if (this.synergy && tuning.plan.centralsFirst && server.ice.length === 0 && (server.id === 'rd' || agendasInHand > 0)) {
             need += 2 + (server.id === 'hq' ? 1 : 0);
@@ -1031,6 +1035,19 @@ export function fundedDepth(state: GameState, server: ServerState, credits: numb
  * would win the game for the Runner, and a little for each advancement
  * counter on it (it is that much closer to being scored). About 1 to 7.
  */
+/** Install-score bonus for ice on HQ while it holds an agenda that would win the Runner the game (plan.lethalHq). */
+const LETHAL_HQ_NEED = 3;
+
+/**
+ * plan.lethalHq (bug report #4, Jeff 2026-11-02): an agenda in HQ whose steal wins the Runner
+ * the game, while HQ is not out of the Runner's reach (what it costs them to get in, with the
+ * Corp's `credits` to rez). Trashing it is no answer: it lands in Archives, where they steal it too.
+ */
+export function lethalHqAgenda(state: GameState, credits = state.corp.credits): boolean {
+  const lethal = state.corp.hq.some(c => type(c) === 'agenda' && state.runner.score + (cardDef(c).agenda_points ?? 0) >= 7);
+  return lethal && !outOfReach(state, state.corp.servers.hq, credits);
+}
+
 export function agendaStakes(state: GameState, agenda: CardInstance): number {
   const points = cardDef(agenda).agenda_points ?? 1;
   return points + (state.runner.score + points >= 7 ? 3 : 0) + 0.25 * Math.min(agenda.advancementCounters, 4);
@@ -1231,10 +1248,12 @@ export function iceTrashInstalls(state: GameState): GameAction[] {
   const corp = state.corp;
   if (state.activePlayer !== 'corp' || state.activeRun || corp.clicks < 1) return [];
   const installs: GameAction[] = [];
+  // plan.lethalHq: HQ keeps every layer while it holds the agenda that would lose the game
+  const keepHq = tuning.plan.lethalHq && lethalHqAgenda(state);
   for (const card of corp.hq) {
     if (type(card) !== 'ice') continue;
     for (const server of Object.values(corp.servers)) {
-      if (corp.credits < server.ice.length - 1) continue;
+      if (corp.credits < server.ice.length - 1 || (keepHq && server.id === 'hq')) continue;
       const weak = weakestIce(state, server.id);
       if (!weak) continue;
       const action: GameAction = { type: 'INSTALL_CARD', player: 'corp', cardInstanceId: card.instanceId, targetServerId: server.id, trashFirst: [weak.instanceId] };
