@@ -127,15 +127,36 @@ function audio(): AudioContext | null {
   }
 }
 
+function isTabVisible(): boolean {
+  if (typeof document === 'undefined') return true;
+  return !document.hidden;
+}
+
 function applyMuteState(): void {
   if (!ctx || !masterGain) return;
-  const target = musicEnabled() ? musicVolume() : 0.0001;
+  const shouldPlay = musicEnabled() && isTabVisible();
+  const target = shouldPlay ? musicVolume() : 0.0001;
   masterGain.gain.setTargetAtTime(target, ctx.currentTime, 0.05);
 }
 
 function applyVolume(): void {
-  if (!ctx || !masterGain || !musicEnabled()) return;
+  if (!ctx || !masterGain || !musicEnabled() || !isTabVisible()) return;
   masterGain.gain.setTargetAtTime(musicVolume(), ctx.currentTime, 0.05);
+}
+
+function handleVisibilityChange(): void {
+  if (typeof document === 'undefined') return;
+  if (!document.hidden && ctx) {
+    nextStepTime = ctx.currentTime + 0.05;
+    if (ctx.state === 'suspended') {
+      void ctx.resume();
+    }
+  }
+  applyMuteState();
+}
+
+if (typeof document !== 'undefined') {
+  document.addEventListener('visibilitychange', handleVisibilityChange);
 }
 
 function updateLayerGains(): void {
@@ -290,6 +311,10 @@ function stepScheduler(): void {
   if (!ac) return;
   const bpm = currentSide === 'runner' ? 124 : 108;
   const stepDuration = 60 / bpm / 4;
+
+  if (nextStepTime < ac.currentTime - 0.25) {
+    nextStepTime = ac.currentTime + 0.05;
+  }
 
   while (nextStepTime < ac.currentTime + 0.12) {
     scheduleStep(currentStep, nextStepTime, bpm);

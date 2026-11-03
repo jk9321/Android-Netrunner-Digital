@@ -61,4 +61,11 @@ describe('music settings and lifecycle', () => {
     const overState = { ...clashState, winner: 'corp' as const, winReason: 'Corp scored 7 agenda points!' };
     expect(() => updateMusic(overState, 'corp')).not.toThrow();
   });
+
+  it('handles tab visibility transitions safely', () => {
+    if (typeof document !== 'undefined') {
+      const event = new Event('visibilitychange');
+      expect(() => document.dispatchEvent(event)).not.toThrow();
+    }
+  });
 });
