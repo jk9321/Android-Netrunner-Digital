@@ -420,6 +420,7 @@ export function startMusic(side: SideCode = 'runner'): void {
     nextStepTime = ac.currentTime + 0.05;
     timerId = window.setInterval(stepScheduler, 25);
   }
+  applyMuteState();
   updateLayerGains();
 }
 

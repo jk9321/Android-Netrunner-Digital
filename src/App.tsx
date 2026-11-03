@@ -128,10 +128,14 @@ function Game({
   useEffect(() => {
     const musicSide = humanSide ?? (viewMode === 'hotseat' ? hotseatSide : gameState.activePlayer);
     updateMusic(gameState, musicSide);
+  }, [gameState, humanSide, viewMode, hotseatSide]);
+
+  // Stop background music when leaving the game
+  useEffect(() => {
     return () => {
       stopMusic();
     };
-  }, [gameState, humanSide, viewMode, hotseatSide]);
+  }, []);
 
   // Back to the deck picker; a game still in progress is lost, so ask first
   const leaveGame = async () => {
