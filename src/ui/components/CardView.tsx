@@ -1,7 +1,7 @@
 import React, { useRef, useState } from 'react';
 import { CardInstance } from '../../core/types/card';
 import { cardDef, getCardImageUrl, getCardBackUrl } from '../../data/cards';
-import { Lock, Eye } from 'lucide-react';
+import { Lock, Eye, ArrowRight } from 'lucide-react';
 import { CardPopout } from './CardPopout';
 import { motion } from 'framer-motion';
 import { AdvancementIcon, AgendaIcon, Credits, PowerIcon, VirusIcon } from './CreditIcon';
@@ -284,13 +284,13 @@ const CardOverlays: React.FC<{
               <span
                 data-testid="live-cost-badge"
                 title={`${mods.cost.label}: ${mods.cost.current} credits (printed ${mods.cost.printed})`}
-                className={`${badge} inline-flex items-center gap-[0.1em] ${
+                className={`${badge} inline-flex items-center gap-[0.2em] ${
                   mods.cost.current < mods.cost.printed
                     ? 'bg-emerald-950/95 text-emerald-300 border-emerald-400'
                     : 'bg-amber-950/95 text-amber-300 border-amber-400'
                 }`}
               >
-                <span>{mods.cost.printed}→</span>
+                <span>{mods.cost.printed}</span><ArrowRight className="w-[0.75em] h-[0.75em] shrink-0 stroke-[2.75] opacity-80" aria-hidden="true" />
                 <Credits amount={<StatTumbler value={mods.cost.current} />} />
               </span>
             )}
@@ -327,13 +327,13 @@ const CardOverlays: React.FC<{
             <span
               data-testid="live-strength-badge"
               title={`${mods.strength.onceInstalled ? 'Strength once installed' : 'Strength'}: ${mods.strength.current} (printed ${mods.strength.printed})`}
-              className={`${badge} inline-flex items-center gap-[0.15em] ${
+              className={`${badge} inline-flex items-center gap-[0.2em] ${
                 mods.strength.current > mods.strength.printed
                   ? 'bg-emerald-950/95 text-emerald-300 border-emerald-400'
                 : 'bg-amber-950/95 text-amber-300 border-amber-400'
               }`}
             >
-              <span>STR {mods.strength.printed}→</span>
+              <span>STR {mods.strength.printed}</span><ArrowRight className="w-[0.75em] h-[0.75em] shrink-0 stroke-[2.75] opacity-80" aria-hidden="true" />
               <StatTumbler value={mods.strength.current} />
             </span>
           )}
