@@ -100,14 +100,15 @@ const Row: React.FC<{
 
 export const RigView: React.FC<RigViewProps> = ({ rig, onInspectCard, aside, hostLabel, breaks, canSeeSecrets }) => {
   return (
-    // As on the table: programs in the front row (toward the Corp), then hardware and resources
+    // Desktop: single row alongside aside, programs in front, then hardware (1/3) and resources (2/3).
+    // Mobile (< sm): hardware and resources get their own rows so hardware is never crammed into a tiny 1/3 slot.
     <div className="flex gap-2 min-w-0">
       {aside && <div className="grid grid-cols-2 gap-1.5 shrink-0 content-start">{aside}</div>}
       <div className="flex flex-col gap-1 flex-1 min-w-0">
         <Row icon={<Cpu className="w-3 h-3" />} label="Programs" color="text-cyber-neonCyan" cards={rig.programs} onInspect={onInspectCard} hostLabel={hostLabel} breaks={breaks} canSeeSecrets={canSeeSecrets} />
-        <div className="flex gap-2 min-w-0">
-          <Row icon={<HardDrive className="w-3 h-3" />} label="Hardware" color="text-amber-400" cards={rig.hardware} onInspect={onInspectCard} hostLabel={hostLabel} className="flex-1" />
-          <Row icon={<Users className="w-3 h-3" />} label="Resources" color="text-cyber-neonPink" cards={rig.resources} onInspect={onInspectCard} hostLabel={hostLabel} className="flex-[2]" />
+        <div className="flex flex-col sm:flex-row gap-1 sm:gap-2 min-w-0">
+          <Row icon={<HardDrive className="w-3 h-3" />} label="Hardware" color="text-amber-400" cards={rig.hardware} onInspect={onInspectCard} hostLabel={hostLabel} className="w-full sm:flex-1" />
+          <Row icon={<Users className="w-3 h-3" />} label="Resources" color="text-cyber-neonPink" cards={rig.resources} onInspect={onInspectCard} hostLabel={hostLabel} className="w-full sm:flex-[2]" />
         </div>
       </div>
     </div>
