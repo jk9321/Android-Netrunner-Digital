@@ -408,9 +408,11 @@ export const tuning = {
  * choices lost because they rezzed Manegarm, Anoetic Void and AMAZE on the
  * Corp's turn (44.4 vs 46.8); keeping run-timed cards for the run made
  * them even (46.3): back on.
+ * 2026-11-03 (Jeff): effectValues back on for the Corp after rezPaid (a rezzed card was charged its rez cost
+ * again): 49.5% vs 47.4% off (663 games); rezPaid alone 49.0%. About 23% slower per Corp move (206 vs 168 ms).
  */
 export const sideOff: Record<SideCode, string[]> = {
-  corp: ['effectValues'],
+  corp: [],
   runner: [],
 };
 
