@@ -113,7 +113,7 @@ describe('credits a broke Corp needs (Jeff, plan.moneyReach, agendaBudget, plann
     s = playTurn(s, corp);
     expect(s.corp.score).toBe(4);
     expect(s.corp.credits + s.corp.hq.filter(c => cardDef(c).title === 'Petty Cash').length * 2).toBeGreaterThanOrEqual(7);
-  });
+  }, 60_000); // a whole planned turn: about 4 s here, over vitest's 5 s default on CI since the Corp's effect values came back on
 
   it('two agendas share one turn’s clicks: only one of them looks scored this turn', () => {
     const s = threeCredits();
