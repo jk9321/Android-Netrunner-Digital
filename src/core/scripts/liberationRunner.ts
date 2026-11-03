@@ -626,7 +626,7 @@ const umbrella: CardScript = {
     boostAmount: () => 0,
     canInterface: (state, _breaker, ice) => (hostsTrojan(state, ice) ? null : 'Umbrella can only interface with ice hosting a trojan'),
     onBreakUsed: (state, breaker) => {
-      // Each player may draw: both always do here (a card is never worse for either side's AI or a human choosing in the log)
+      // Each player may draw: the Runner is asked, then the Corp (not offered with R&D empty, where drawing would lose the game)
       const ctx = { state, card: breaker, side: 'runner' as const };
       askChoice(ctx, 'runner', 'Umbrella: draw 1 card?', yesNo('Draw 1 card'), 'draw-runner');
     },
