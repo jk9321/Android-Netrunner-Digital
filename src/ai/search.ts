@@ -1,4 +1,4 @@
-import { CardInstance, GameAction, GameState, SideCode, activePrompt, getCardDefinition, isLegalAction } from '../core';
+import { CardInstance, GameAction, GameState, SideCode, activePrompt, getCardDefinition, isLegalAction, knownInHand } from '../core';
 import { isAdvanceable } from '../core/engine/helpers';
 import { Agent } from './agent';
 import { HeuristicCorpAI } from './corpAI';
@@ -6,7 +6,7 @@ import { HeuristicRunnerAI } from './runnerAI';
 import { evaluate } from './evaluate';
 import { GameRunner } from './playout';
 import { RunnerMemory } from './runs';
-import { asSide, logNudge } from './synergy';
+import { asSide, logNudge, tuning } from './synergy';
 import { noteKnownHand } from './handValues';
 
 /**
@@ -89,7 +89,9 @@ export function determinize(state: GameState, side: SideCode, random: Random, me
 
   if (side === 'corp') {
     // The Corp doesn't know the Grip or the order of either deck
-    const hidden = [...s.runner.grip, ...s.runner.stack];
+    // plan.keepKnownHand: grip cards the Corp has seen stay as they are
+    const known = new Set(tuning.plan.keepKnownHand ? knownInHand(state, 'runner').map(k => k.id) : []);
+    const hidden = [...s.runner.grip.filter(c => !known.has(c.instanceId)), ...s.runner.stack];
     assign(hidden, shuffle(hidden.map(c => c.cardCode), random));
     assign(s.corp.rd, shuffle(s.corp.rd.map(c => c.cardCode), random));
     return s;
@@ -99,7 +101,9 @@ export function determinize(state: GameState, side: SideCode, random: Random, me
   const installed = Object.values(s.corp.servers);
   const iceSlots = installed.flatMap(sv => sv.ice).filter(c => !c.isRezzed);
   const rootSlots = installed.flatMap(sv => sv.root).filter(c => !c.isRezzed && !memory?.has(c.instanceId));
-  const loose = [...s.corp.hq, ...s.corp.rd, ...s.corp.archives.faceDown];
+  // plan.keepKnownHand: HQ cards the Runner has seen (accessed and left, revealed) stay as they are
+  const knownHq = new Set(tuning.plan.keepKnownHand ? knownInHand(state, 'corp').map(k => k.id) : []);
+  const loose = [...s.corp.hq.filter(c => !knownHq.has(c.instanceId)), ...s.corp.rd, ...s.corp.archives.faceDown];
   const pool = shuffle([...iceSlots, ...rootSlots, ...loose].map(c => c.cardCode), random);
 
   const take = (fits: (code: string) => boolean): string | undefined => {

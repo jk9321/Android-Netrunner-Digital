@@ -120,6 +120,24 @@ export const tuning = {
      */
     turnStartRez: true,
     /**
+     * Both sides: additional costs to steal (Méliès City Luxury Line's click, Magistrate Revontulet's 3 credits; rules
+     * 1.16.10) count in the Runner's run values and in the Corp's reach checks (Gemini audit, 2026-11-01).
+     */
+    stealCosts: true,
+    /** A rezzed Corp card's effect worth no longer takes its rez cost off again (rezzedWorth paid it twice; Gemini audit, 2026-11-01). */
+    rezPaid: true,
+    /** A tag the Runner can't clear before the Corp's next turn costs that turn's loss first (evaluate.ts tagClock). */
+    tagNoClear: true,
+    /** Clearinghouse is advanced toward a flatline (grip + 1 counters, at most 6), not stopped at 3 like other assets. */
+    clearinghouseLethal: true,
+    /** Lookahead guesses (runnerReply.guessHidden, search.determinize) keep hand cards the guessing side has seen. */
+    keepKnownHand: true,
+    /**
+     * Experiment (Gemini audit 2.1c, 2026-11-01): sideOff.corp's effectValues also stops the Corp valuing the Runner's
+     * rig by what each card does. On, only the Corp's own cards lose their effect values. Off until a batch says so.
+     */
+    rigEffects: false,
+    /**
      * (Jeff) Spin Doctor waits for a run on its server or the window before the turn, unless digging. Self-play at
      * 5f827e6: 42.5% without, 44.3% with; with icePosition off 45.6% without, 47.9% with. (spinDoctorUseNow,
      * rezzing while 2+ clicks are left, was no better.)

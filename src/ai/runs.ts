@@ -12,6 +12,7 @@ import {
   isBioroid,
 } from '../core/engine/ice';
 import { availableCredits, counters, stealthCredits } from '../core/engine/cardEffects';
+import { stealCost } from '../core/engine/actions/run';
 import { corpCardValue, tagThreat, tagsWorth } from './evaluate';
 import { agendaOdds, coreDamageWorth, damageWorth } from './effectValues';
 import { clickPrice } from './handValues';
@@ -137,7 +138,11 @@ export const runClick = (state?: GameState): number => (tuning.plan.runModel ? (
 
 /** A tag taken (Jeff): the cheaper of clearing it (a click and 2 credits) and what it costs to keep it. */
 export function tagCost(state: GameState): number {
-  if (tuning.plan.tagClock) return tagsWorth(state, 'runner', state.runner.tags + 1) - tagsWorth(state, 'runner');
+  if (tuning.plan.tagClock) {
+    // A run still to start takes its click first (plan.tagNoClear: what's left to clear the tag with)
+    const s = tuning.plan.tagNoClear && !state.activeRun ? { ...state, runner: { ...state.runner, clicks: state.runner.clicks - 1 } } : state;
+    return tagsWorth(s, 'runner', s.runner.tags + 1) - tagsWorth(s, 'runner');
+  }
   return Math.min(clickRate('runner') + creditCost(state, 2), RATES.tagAgainstRunner + tagThreat(state, 'runner'));
 }
 
@@ -414,10 +419,37 @@ function rdWorth(state: GameState, accesses: number, odds: number, central: numb
 }
 
 /** serverValue in credits (plan.runModel). */
+/** Stands in for an agenda the Runner can't see: only other cards' additional costs to steal count (Magistrate Revontulet). */
+const UNSEEN_AGENDA = { instanceId: '', cardCode: '' } as CardInstance;
+
+/**
+ * The additional costs to steal an agenda on this server (rules 1.16.10a-b;
+ * the engine's stealCost: Méliès City Luxury Line's click, only once the
+ * Runner knows the card, and Magistrate Revontulet's 3 credits), priced for
+ * what the Runner will have left at the access: its clicks after the run's
+ * own, and its credits after the rezzed ice. Null: it can't pay them all, so
+ * it can't steal (plan.stealCosts; Gemini audit, 2026-11-01).
+ */
+export function stealTax(state: GameState, serverId: string, agenda: CardInstance = UNSEEN_AGENDA): number | null {
+  if (!tuning.plan.stealCosts) return 0;
+  const cost = stealCost(state, agenda);
+  if (!cost.clicks && !cost.credits) return 0;
+  const server = state.corp.servers[serverId];
+  const clicks = state.activeRun ? state.runner.clicks : state.runner.clicks - 1 - bioroidClicks(state, server?.ice ?? []);
+  const ice = state.activeRun || !server ? 0 : server.ice.reduce((n, c) => n + (c.isRezzed ? iceCost(state, c) : 0), 0);
+  const credits = (state.activeRun ? availableCredits(state, 'runner') : runBudget(state)) - ice;
+  if (clicks < cost.clicks || credits < cost.credits) return null;
+  return cost.clicks * clickRate('runner') + creditCost(state, cost.credits);
+}
+
+/** A steal's worth less its additional costs (0 when they can't be paid). */
+const taxedSteal = (worth: number, tax: number | null) => (tax === null ? 0 : Math.max(0, worth - tax));
+
 function serverWorth(state: GameState, serverId: string, extraAccesses: number, memory: RunnerMemory | undefined, wary: boolean, repeat: number): number {
   const server = state.corp.servers[serverId];
   const { odds, points } = agendaOdds(state);
-  const central = stealWorth(state, points, DENY.central);
+  const unseenTax = stealTax(state, serverId);
+  const central = taxedSteal(stealWorth(state, points, DENY.central), unseenTax);
   let value = 0;
   if (serverId === 'rd') {
     value = tuning.plan.rdMemory
@@ -428,7 +460,7 @@ function serverWorth(state: GameState, serverId: string, extraAccesses: number, 
   else if (serverId === 'archives') {
     if (repeat > 0) return 0;
     const faceUp = state.corp.archives.faceUp.filter(c => cardDef(c).type_code === 'agenda');
-    value = faceUp.reduce((n, c) => n + stealWorth(state, cardDef(c).agenda_points ?? 1, 0), 0) + Math.min(3, state.corp.archives.faceDown.length) * odds * stealWorth(state, points, 0);
+    value = faceUp.reduce((n, c) => n + taxedSteal(stealWorth(state, cardDef(c).agenda_points ?? 1, 0), stealTax(state, serverId, c)), 0) + Math.min(3, state.corp.archives.faceDown.length) * odds * taxedSteal(stealWorth(state, points, 0), unseenTax);
   }
   if (repeat > 0 && server.isRemote) return 0;
   const trap = wary ? trapOdds(state, memory) : 1 / 3;
@@ -438,19 +470,26 @@ function serverWorth(state: GameState, serverId: string, extraAccesses: number, 
       // installed faceup by its own text (Sacrifice Zone Expansion, rules 3.2.3a) it costs nothing extra
       const bangun = state.corp.identity.cardCode === BANGUN;
       if (bangun && state.runner.grip.length < 2) return 0;
-      value += stealWorth(state, cardDef(card).agenda_points ?? 1, DENY.remote) - (bangun ? damageWorth(state, 2) + tagCost(state) : 0);
+      const tax = stealTax(state, serverId, card);
+      if (tax === null) continue;
+      value += stealWorth(state, cardDef(card).agenda_points ?? 1, DENY.remote) - tax - (bangun ? damageWorth(state, 2) + tagCost(state) : 0);
       continue;
     }
     if (!card.isRezzed && memory?.has(card.instanceId)) {
       // Seen it: only worth coming back to trash it, and never into a known trap
       if (accessTrap(card.cardCode)) return 0;
+      // An agenda left behind (its additional cost to steal unpaid, Méliès City Luxury Line): back for it when it can pay
+      if (tuning.plan.stealCosts && cardDef(card).type_code === 'agenda') {
+        value += taxedSteal(stealWorth(state, cardDef(card).agenda_points ?? 1, DENY.remote), stealTax(state, serverId, card));
+        continue;
+      }
       const trash = cardDef(card).trash_cost;
       if (trash != null && trash <= state.runner.credits) value += Math.max(0, corpCardValue(card, state, 'runner') - creditCost(state, trash));
     } else if (!card.isRezzed) {
       const agenda = remoteAgendaOdds(state, server, card, trap);
       // Not an agenda: a trap (Urtica: 2 net damage plus its counters) or an asset to trash
       const trapShare = Math.min(1 - agenda, trap);
-      value += agenda * stealWorth(state, points, card.advancementCounters > 0 ? DENY.remote : DENY.central) - trapShare * damageWorth(state, 2 + card.advancementCounters) + (1 - agenda - trapShare) * 1;
+      value += agenda * taxedSteal(stealWorth(state, points, card.advancementCounters > 0 ? DENY.remote : DENY.central), unseenTax) - trapShare * damageWorth(state, 2 + card.advancementCounters) + (1 - agenda - trapShare) * 1;
     } else {
       const trash = cardDef(card).trash_cost;
       if (trash != null && trash <= state.runner.credits) value += Math.max(0.5, corpCardValue(card, state, 'runner') - creditCost(state, trash));

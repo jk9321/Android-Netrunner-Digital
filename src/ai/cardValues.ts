@@ -110,10 +110,10 @@ export const CARD_VALUES: Record<string, CardValue> = {
 const drawBonus = (code: string): number => (tuning.plan.drawValue?.[getCardDefinition(code).side_code] ? RATES.cardDrawn * (CARD_VALUES[code]?.draws ?? 0) : 0);
 
 /** Worth of an installed Corp asset or upgrade (1 if not listed). With a game state, a card profile (step 4) prices it instead. */
-export const corpKeepValue = (code: string, state?: GameState): number =>
-  (state ? unrezzedWorth(state, code) ?? effect(state, code)?.keep : undefined) ?? (CARD_VALUES[code]?.keep ?? RATES.defaultKeep) + drawBonus(code);
+export const corpKeepValue = (code: string, state?: GameState, rezzed = false): number =>
+  (state ? unrezzedWorth(state, code) ?? effect(state, code, rezzed)?.keep : undefined) ?? (CARD_VALUES[code]?.keep ?? RATES.defaultKeep) + drawBonus(code);
 /** A card's worth from what it does (effectValues.ts), while plan.effectValues is on. */
-const effect = (state: GameState, code: string) => (effectsOn() ? corpEffect(state, code) : undefined);
+const effect = (state: GameState, code: string, rezzed = false) => (effectsOn() ? corpEffect(state, code, rezzed) : undefined);
 /** Worth of an econ asset in its own remote (undefined: not an econ asset). */
 export const econValue = (code: string, state?: GameState): number | undefined => {
   const profiled = state ? unrezzedWorth(state, code) : undefined;
@@ -132,6 +132,7 @@ export const upgradeValue = (code: string, state?: GameState): [number, number] 
 export const runnerCardValue = (code: string, state?: GameState, card?: CardInstance): number => {
   const flat = () => (CARD_VALUES[code]?.rig ?? RATES.defaultRig) + drawBonus(code);
   // Effect formulas give credits; rig worth is on the board at RATES.rigCardScale per point
-  const fx = state && effectsOn() ? guardLoop(state, `runner card ${code} ${card?.instanceId ?? ''}`, () => undefined, () => runnerEffect(state, code, card)) : undefined;
+  // plan.rigEffects: the Runner's cards by what they do even where effectValues is off (the Corp's side; Gemini audit 2.1c)
+  const fx = state && (effectsOn() || tuning.plan.rigEffects) ? guardLoop(state, `runner card ${code} ${card?.instanceId ?? ''}`, () => undefined, () => runnerEffect(state, code, card)) : undefined;
   return fx !== undefined ? fx / RATES.rigCardScale : flat();
 };

@@ -170,7 +170,7 @@ function corpCardWorth(card: CardInstance, state: GameState | undefined, viewer:
   const profile = state ? profileOf(card.cardCode) : undefined;
   if (state && profile) return card.isRezzed ? payoutWorth(profile, turnsLeft(state), hosted, payoutWait(state, profile, 'corp', inIcedServer(state, card)), cardRate(state, 'corp')) : corpKeepValue(card.cardCode, state);
   if (card.isRezzed && hosted > 0) return 1 + (state ? countersWorth(state, card, 'credit', viewer) : hosted * RATES.counters.hostedCredit) + power;
-  return corpKeepValue(card.cardCode, state) + power;
+  return corpKeepValue(card.cardCode, state, card.isRezzed) + power;
 }
 
 /** Whether a Corp root card sits in a server with ice in front of it. */
@@ -358,8 +358,12 @@ export function tagsWorth(state: GameState, viewer: SideCode, tags = state.runne
 function tagClock(state: GameState, viewer: SideCode, tags: number): number {
   const perTurn = memo(state, 'tagLoss:' + viewer, () => tagLossPerTurn(state, viewer));
   const clear = CLICK + 2;
+  // plan.tagNoClear (Gemini audit, 2026-11-01): a Runner that can't clear before the Corp's next turn (the Corp's turn
+  // now, or its last click or 2 credits spent) sits through that turn first
+  const runner = state.runner;
+  const stuck = tuning.plan.tagNoClear && !(state.activePlayer === 'runner' && runner.clicks >= 1 && runner.credits >= 2);
   // Kept, a tag costs this turn's loss and maybe the next; the Runner clears the ones that cost more than clearing
-  const worth = Math.min(tags * clear, 1.5 * perTurn + 0.1 * (tags - 1));
+  const worth = Math.min((stuck ? perTurn : 0) + tags * clear, 1.5 * perTurn + 0.1 * (tags - 1));
   return tuning.plan.vicTags && state.runner.identity.cardCode === VIC ? Math.min(worth, vicTagsWorth(state, tags, perTurn)) : worth;
 }
 

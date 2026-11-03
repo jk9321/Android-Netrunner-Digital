@@ -1,4 +1,4 @@
-import { GameState, cardDef, createRng, shuffleInPlace } from '../core';
+import { GameState, cardDef, createRng, knownInHand, shuffleInPlace } from '../core';
 import { HeuristicCorpAI } from './corpAI';
 import { GameRunner } from './playout';
 import { HeuristicRunnerAI } from './runnerAI';
@@ -27,9 +27,12 @@ export const REPLY = {
 /** `state` with the cards the Corp can't see dealt at random (sample `k`). */
 export function guessHidden(state: GameState, k: number): GameState {
   const rng = createRng(((state.rng?.state ?? 1) ^ Math.imul(k + 1, 0x9e3779b1)) >>> 0);
-  const unseen = shuffleInPlace(rng, [...state.runner.grip, ...state.runner.stack]);
-  const grip = unseen.slice(0, state.runner.grip.length);
-  const stack = unseen.slice(state.runner.grip.length);
+  // plan.keepKnownHand (Gemini audit, 2026-11-01): grip cards the Corp has seen (MuslihaT, Mutual Favor) stay where they are
+  const known = new Set(tuning.plan.keepKnownHand ? knownInHand(state, 'runner').map(k => k.id) : []);
+  const seen = state.runner.grip.filter(c => known.has(c.instanceId));
+  const unseen = shuffleInPlace(rng, [...state.runner.grip.filter(c => !known.has(c.instanceId)), ...state.runner.stack]);
+  const grip = [...seen, ...unseen.slice(0, state.runner.grip.length - seen.length)];
+  const stack = unseen.slice(state.runner.grip.length - seen.length);
   const rd = shuffleInPlace(rng, [...state.corp.rd]);
   return { ...state, rng: createRng(rng.state), runner: { ...state.runner, grip, stack }, corp: { ...state.corp, rd } };
 }

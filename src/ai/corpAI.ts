@@ -5,6 +5,7 @@ import { iceStop, iceWorth, withIceInstalled } from './iceValues';
 import { rigCoverage } from './evaluate';
 import { counters, rezCost } from '../core/engine/cardEffects';
 import { turnKey } from '../core/engine/helpers';
+import { stealCost } from '../core/engine/actions/run';
 import { Agent, FreeActionGuard, ScoredAction } from './agent';
 import { agendaWorth, digValue, evaluate } from './evaluate';
 import { clickRate, pointGain, pointValue } from './valueModel';
@@ -29,6 +30,8 @@ import { counterWorth } from './counterValues';
 const type = (card: CardInstance) => cardDef(card).type_code;
 const hasEndTheRun = (ice: CardInstance) => (iceScript(ice)?.subroutines ?? []).some(s => /end the run/i.test(s.label));
 const isAgendaOrAsset = (card: CardInstance) => ['agenda', 'asset'].includes(type(card));
+
+const CLEARINGHOUSE = '30061';
 
 /** A Corp asset that pays when the Corp's turn begins, with nothing at the end of the turn before it (plan.turnStartRez). */
 export const turnStartOnly = (card: CardInstance): boolean => {
@@ -486,7 +489,10 @@ export class HeuristicCorpAI implements Agent {
     }
     if (def.type_code === 'asset') {
       // Traps: advancing makes them look like agendas (Urtica Cipher, Clearinghouse)
-      if (!(corp.credits >= 4 && card.advancementCounters < 3)) return -Infinity;
+      // plan.clearinghouseLethal (Gemini audit, 2026-11-01): Clearinghouse's meat damage is its counters, so it keeps going
+      // toward a flatline (one more than the grip, at most 6) instead of stopping at 3
+      const cap = tuning.plan.clearinghouseLethal && card.cardCode === CLEARINGHOUSE ? Math.min(6, Math.max(3, state.runner.grip.length + 1)) : 3;
+      if (!(corp.credits >= 4 && card.advancementCounters < cap)) return -Infinity;
       return this.synergy && tuning.bluff && isTrap(card.cardCode) ? 1.2 + this.trapBluff(state, card) : 1.2;
     }
     // Pharos: +5 strength at 3 counters; Syailendra: places counters when encountered at 3
@@ -996,7 +1002,9 @@ function onRezOnly(card: CardInstance): boolean {
  */
 export function outOfReach(state: GameState, server: ServerState, credits: number): boolean {
   // exposureNoIncome: only what the Runner holds now (it must spend clicks on money first)
-  return entryCost(state, server, credits) > state.runner.credits + (tuning.plan.exposureNoIncome ? 0 : STEAL.income);
+  // plan.stealCosts: other cards' additional costs to steal (Magistrate Revontulet's 3 credits, rules 1.16.10b) are paid at the access too
+  const tax = tuning.plan.stealCosts ? stealCost(state, { instanceId: '', cardCode: '' } as CardInstance).credits : 0;
+  return entryCost(state, server, credits) + tax > state.runner.credits + (tuning.plan.exposureNoIncome ? 0 : STEAL.income);
 }
 
 /**

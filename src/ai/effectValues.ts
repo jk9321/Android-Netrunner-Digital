@@ -343,8 +343,9 @@ export interface CorpEffect {
 }
 
 /** Corp assets and upgrades, in credits. */
-export function corpEffect(state: GameState, code: string): CorpEffect | undefined {
-  const cost = getCardDefinition(code).cost ?? 0;
+export function corpEffect(state: GameState, code: string, rezzed = false): CorpEffect | undefined {
+  // A rezzed card's rez cost is paid already (plan.rezPaid; Gemini audit, 2026-11-01: rezzedWorth took it off twice)
+  const cost = rezzed && tuning.plan.rezPaid ? 0 : getCardDefinition(code).cost ?? 0;
   const agenda = pointGain(state.corp.score, agendaOdds(state).points);
   const card = cardRate(state, 'corp');
   const tag = flatRate('tags') && tuning.plan.tagClock ? tagsWorth(state, 'corp', 1) : RATES.tagAgainstRunner;
@@ -652,7 +653,7 @@ export function rezzedWorth(state: GameState, card: CardInstance, rezCost: numbe
     case '30061': // Clearinghouse: 1 meat damage per counter when it fires
       return card.advancementCounters > 0 ? damageWorth(state, card.advancementCounters) - rezCost : -1;
   }
-  const fx = corpEffect(state, card.cardCode);
+  const fx = corpEffect(state, card.cardCode, true);
   return fx ? fx.keep - rezCost : -1;
 }
 
