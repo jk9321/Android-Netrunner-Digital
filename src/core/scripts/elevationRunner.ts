@@ -493,6 +493,7 @@ const maglectric: CardScript = {
     const target = findInstalledCorpCard(state, answer.cardInstanceIds[0])?.card;
     if (!target || !state.runner.rig.hardware.includes(card)) return;
     trashInstalledRunnerCard(state, card);
+    addLog(state, 'runner', 'Runner trashed Maglectric Rapid (748 Mod) to derez a Corp card.');
     derez(state, target);
   },
 };
