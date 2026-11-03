@@ -1,6 +1,8 @@
 import { GameState, getCardDefinition } from '../core';
 import { tuning } from './synergy';
 import { RATES, cardRate } from './valueModel';
+import { CARD_PROFILES } from './cards';
+import { PAYOUT_RISK } from './payoutRisk';
 
 /**
  * Value model step 4 (docs/ai-value-model-plan.md): money cards described
@@ -8,7 +10,8 @@ import { RATES, cardRate } from './valueModel';
  * the turns left in the game instead of a hand-set number. Each payout is
  * worth 15% less per turn it waits, and payouts past the end of the game
  * are worth nothing (the step 3 lesson: stacked payouts lose worth).
- * tests/cardProfiles.test.ts works each one through.
+ * tests/cardProfiles.test.ts works each one through. Each card's profile is
+ * its `profile` in its set's file in src/ai/cards/.
  */
 export interface CardProfile {
   /** Credits loaded onto it when rezzed or installed. */
@@ -26,44 +29,14 @@ export interface CardProfile {
   clicksAtEnd?: number;
 }
 
-export const CARD_PROFILES: Record<string, CardProfile> = {
-  // Corp assets
-  '30037': { load: 9, pay: 3, every: 'turn', perTurn: 1, drawAtEnd: 1 }, // Nico Campaign
-  '35040': { load: 6, pay: 2, every: 'turn', perTurn: 1, clicksAtEnd: 2 }, // Otto Campaign
-  '35072': { load: 8, pay: 4, every: 'turn', perTurn: 1, drawEach: 1 }, // Anthill Excavation Contract
-  '30071': { load: 15, pay: 3, every: 'click', perTurn: 2 }, // Regolith Mining License
-  // Runner resources
-  '30027': { load: 9, pay: 3, every: 'click', perTurn: 1 }, // Telework Contract: once per turn
-  '35022': { load: 6, pay: 1, every: 'turn', perTurn: 1 }, // Open Market
-};
+/** By card code: built from the per-set card files (src/ai/cards/). */
+export { CARD_PROFILES } from './cards';
 
 /** How much a payout is worth per turn it waits (step 4, before plan.payoutRisk). */
 const WAIT = 0.85;
 
-/**
- * plan.payoutRisk (Jeff, 2026-10-28): money that arrives on its own when the
- * turn begins can't be hoarded, so it keeps its full worth less the real
- * risk of losing the card. Money taken with a click keeps a small wait, so
- * the AI cashes it rather than banking it (the step 3 Smartware lesson);
- * the click it costs is counted against each payout as well.
- */
-export const PAYOUT_RISK = {
-  /** Taken with a click: worth this much per turn it waits. */
-  clickWait: 0.93,
-  /** A Corp card trashed by the Runner, per turn: in a remote with ice, and without (other per-turn effects). */
-  corpIced: 0.03,
-  corpBare: 0.06,
-  /**
-   * A money asset (CARD_PROFILES) trashed by the Runner, per Runner turn: in a remote with ice, and
-   * without. Measured (scripts/lossLog.ts assetRisk, 2,210 self-play games at 5f827e6): 7.8% of 1,660
-   * turns behind ice, 26.8% of 6,507 bare (the guesses were corpIced and corpBare).
-   */
-  moneyIced: 0.078,
-  moneyBare: 0.268,
-  /** A Runner resource: trashed by the Corp only while the Runner is tagged. */
-  runnerTagged: 0.25,
-  runnerUntagged: 0.02,
-};
+// PAYOUT_RISK lives in its own file with no imports, so the card files can read it while this one loads
+export { PAYOUT_RISK } from './payoutRisk';
 
 /** Worth kept per turn a payout of this card waits. */
 export function payoutWait(state: GameState, profile: CardProfile, owner: 'corp' | 'runner', iced = false): number {
