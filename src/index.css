@@ -81,6 +81,12 @@
 }
 
 @layer base {
+  html,
+  body {
+    overscroll-behavior: none;
+    overscroll-behavior-y: none;
+  }
+
   body {
     background-color: #06090d;
     /* Static micro-raster texture with soft radial vignette - no animations or blur to prevent eye strain */
