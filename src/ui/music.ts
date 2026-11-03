@@ -3,6 +3,8 @@ import { SideCode } from '../core/types/card';
 
 const ENABLED_STORAGE_KEY = 'netrunner.music';
 const VOLUME_STORAGE_KEY = 'netrunner.music.volume';
+/** The sound effects setting (sound.ts), which also muted everything before music was added */
+const SOUND_STORAGE_KEY = 'netrunner.sound';
 
 let enabledCache = true;
 let volumeCache = 0.6;
@@ -10,7 +12,10 @@ let volumeCache = 0.6;
 export function musicEnabled(): boolean {
   try {
     const val = typeof window !== 'undefined' ? window.localStorage.getItem(ENABLED_STORAGE_KEY) : null;
-    return val !== null ? val !== 'off' : enabledCache;
+    if (val !== null) return val !== 'off';
+    // Never chosen: players who muted sound before music existed stay muted
+    if (typeof window !== 'undefined' && window.localStorage.getItem(SOUND_STORAGE_KEY) === 'off') return false;
+    return enabledCache;
   } catch {
     return enabledCache;
   }

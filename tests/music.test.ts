@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import { musicEnabled, musicVolume, setMusicEnabled, setMusicVolume, startMusic, stopMusic, updateMusic } from '../src/ui/music';
 import { newGame } from './helpers';
 
@@ -12,6 +12,24 @@ describe('music settings and lifecycle', () => {
 
     setMusicEnabled(true);
     expect(musicEnabled()).toBe(true);
+  });
+
+  it('starts muted for players who had muted sound before music existed', () => {
+    const store = new Map<string, string>([['netrunner.sound', 'off']]);
+    vi.stubGlobal('window', {
+      localStorage: { getItem: (k: string) => store.get(k) ?? null, setItem: (k: string, v: string) => store.set(k, v) },
+    });
+    try {
+      expect(musicEnabled()).toBe(false);
+      store.set('netrunner.sound', 'on');
+      expect(musicEnabled()).toBe(true);
+      // An explicit music choice wins over the sound setting
+      store.set('netrunner.sound', 'off');
+      store.set('netrunner.music', 'on');
+      expect(musicEnabled()).toBe(true);
+    } finally {
+      vi.unstubAllGlobals();
+    }
   });
 
   it('clamps and persists volume between 0 and 1', () => {
