@@ -80,6 +80,10 @@ export const tuning = {
     agendaStakes: true,
     /** Corp: an agenda in HQ that would win the Runner the game gets HQ iced first, past the ice pacing limit (bug report #4). */
     lethalHq: true,
+    /** Runner: a Read-Write Share full at 4 hosted cards is trashed to shuffle them back (Jeff, bug report #8). */
+    readWriteFull: true,
+    /** Runner: a facedown card the Corp put into an Archives with no ice is rarely an agenda (Jeff, bug report #5). */
+    archivesChosen: true,
     /*
      * Round 3 batches (1,105 deals, Corp only, 2026-10-25): all on +46 games
      * vs the old Corp (round 2 alone was -15). Leaving one out: rez money
@@ -146,6 +150,8 @@ export const tuning = {
      */
     spinDoctorWait: true,
     spinDoctorUseNow: false,
+    /** Runner: a rezzed Spin Doctor is worth only the Archives cards it can still shuffle back (bug report #5). */
+    spentSpinDoctor: true,
     /** Money assets priced with the trash risk measured in self-play (PAYOUT_RISK.moneyIced/moneyBare): self-play 47.9% -> 49.5%, new Corp vs old Runner 48.3% -> 48.8% (727d238). */
     measuredAssetRisk: true,
     /** Prompts that open the same card's next choice are judged after that choice too (AU Co., Poétrï, Synapse Global). */

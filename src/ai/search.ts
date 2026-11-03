@@ -1,8 +1,8 @@
-import { CardInstance, GameAction, GameState, SideCode, activePrompt, getCardDefinition, isLegalAction, knownInHand } from '../core';
+import { CardInstance, GameAction, GameState, SideCode, activePrompt, getCardDefinition, getLegalActions, isLegalAction, knownInHand } from '../core';
 import { isAdvanceable } from '../core/engine/helpers';
 import { Agent } from './agent';
 import { HeuristicCorpAI } from './corpAI';
-import { HeuristicRunnerAI } from './runnerAI';
+import { HeuristicRunnerAI, readWriteFullShuffle } from './runnerAI';
 import { evaluate } from './evaluate';
 import { GameRunner } from './playout';
 import { RunnerMemory } from './runs';
@@ -184,6 +184,11 @@ export class SearchAI implements Agent {
     // Prompts and the steps of a run follow the rule-based AI's judgement
     if (activePrompt(state) || state.activeRun || state.turnStep?.kind === 'corp_turn_start') return this.base.chooseAction(state);
     if (this.base instanceof HeuristicRunnerAI) this.base.observe(state);
+    // A rule, not a judgement: a full Read-Write Share is shuffled back (plan.readWriteFull)
+    if (this.side === 'runner' && tuning.plan.readWriteFull) {
+      const full = readWriteFullShuffle(state, getLegalActions(state, 'runner'));
+      if (full) return full;
+    }
     const ranked = this.base.rankMainActions(state).filter(c => c.score > -Infinity);
     if (ranked.length === 0) return this.base.chooseAction(state);
     if (ranked[0].action.type === 'SCORE_AGENDA') return ranked[0].action;
