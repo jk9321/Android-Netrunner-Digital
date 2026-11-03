@@ -9,9 +9,9 @@ import { beforeCorpCardUninstalled, checkAgendaVictory, findCardAnywhere, illega
 import { pushPrompt } from '../prompts';
 import { approachIce, approachServer, beginEncounter, enterMovement, moveInward, passIce, startSubroutineResolution } from '../ice';
 import { endRun } from '../runEnd';
-import { activeCards, fireTrigger } from '../triggers';
+import { activeCards, fireTrigger, runEventCards } from '../triggers';
 import { AccessZone } from '../../scripts/types';
-import { agendaPoints, availableCredits, bumpTurnFlag, spendCredits, trashCost, TurnFlag } from '../cardEffects';
+import { agendaPoints, availableCredits, bumpRunFlag, bumpTurnFlag, runFlag, RunFlag, spendCredits, trashCost, TurnFlag } from '../cardEffects';
 import { RunState } from '../../types/state';
 import { runnerSeesRd } from '../rdKnowledge';
 
@@ -86,7 +86,11 @@ function newRunState(serverId: string, options: RunOptions): RunState {
 export function startRun(state: GameState, serverId: string, options: RunOptions = {}): void {
   const targetServer = state.corp.servers[serverId];
   if (!targetServer) illegal('Invalid target server');
-  const iceCount = targetServer.ice.length;
+  // Restrictions on where the Runner can run (Front Company)
+  for (const card of activeCards(state)) {
+    const blocked = getCardScript(card.cardCode)?.modifiers?.runBlocker?.(state, card, serverId);
+    if (blocked) illegal(blocked);
+  }
 
   addLog(state, 'runner', `Runner initiated a run on ${targetServer.name}!`);
 
@@ -99,10 +103,32 @@ export function startRun(state: GameState, serverId: string, options: RunOptions
     addLog(state, 'runner', `Runner gets ${state.corp.badPublicity} [credit] from bad publicity for this run.`);
   }
   fireTrigger(state, { type: 'run_begins', server: targetServer.id });
-  if (!state.activeRun) return;
-  // With no ice the run goes straight to the Movement Phase, where the Runner may still jack out (rules 6.1.5b)
+  if (!state.activeRun || state.winner) return;
+  // "When a run begins" decisions (Tributary, Lightning Laboratory) come first: the approach waits for them
+  if (state.pendingPrompts.length > 0) return;
+  beginApproach(state);
+}
+
+/** After the initiation: approach the outermost ice, or with no ice go straight to the Movement Phase (rules 6.1.5b). */
+export function beginApproach(state: GameState): void {
+  const run = state.activeRun;
+  if (!run || run.phase !== 'initiation') return;
+  const iceCount = state.corp.servers[run.server]?.ice.length ?? 0;
   if (iceCount > 0) approachIce(state, iceCount - 1);
   else enterMovement(state);
+}
+
+/**
+ * Breaches a server outside a run (Cataloguer: "Breach R&D"): no run
+ * abilities apply and it is not counted as a run.
+ */
+export function breachOutsideRun(state: GameState, serverId: string): void {
+  if (state.activeRun) return;
+  const access = newRunState(serverId, {});
+  access.phase = 'access';
+  access.accessOnly = true;
+  state.activeRun = access;
+  continueAccess(state);
 }
 
 export function continueRun(state: GameState, action: ContinueRunAction): void {
@@ -157,10 +183,14 @@ export function succeedRun(state: GameState): void {
     }
   }
   if (state.winner || !state.activeRun) return;
-  // "Whenever you breach" abilities (Devadatta Drone) resolve before cards are chosen
-  fireTrigger(state, { type: 'breach_server', server: server.id });
-  if (state.winner || !state.activeRun) return;
   continueAccess(state);
+}
+
+/** The server the Runner breaches: the attacked one, unless an effect says to breach another instead (Eru Ayase-Pessoa), or none. */
+function breachedServer(state: GameState): ServerState | null {
+  const run = state.activeRun!;
+  if (run.breachInstead === 'none') return null;
+  return state.corp.servers[run.breachInstead ?? run.server] ?? null;
 }
 
 /** Cards in the attacked server's root (or trashed there this run, if persistent) with this ability. */
@@ -238,6 +268,11 @@ function breachServer(state: GameState, server: ServerState): void {
   } else if (server.id === 'rd') {
     zone = 'rd';
     zoneLeft = 1 + breachBonus(state, 'rd');
+  }
+  if (zone === 'hq' || zone === 'rd') {
+    // Cards that add accesses once the others are counted ("Pretty" Mary da Silva)
+    const count = zoneLeft;
+    zoneLeft += activeCards(state, 'runner').reduce((n, c) => n + (getCardScript(c.cardCode)?.modifiers?.breachAccessesAfter?.(state, c, server.id, count) ?? 0), 0);
   } else if (server.id === 'archives') {
     const turned = state.corp.archives.faceDown.length;
     state.corp.archives.faceUp.push(...state.corp.archives.faceDown);
@@ -247,6 +282,7 @@ function breachServer(state: GameState, server: ServerState): void {
     if (turned > 0) fireTrigger(state, { type: 'archives_turned_faceup', count: turned });
   }
   run.breach = { root: server.root.map(card => card.instanceId), zone, zoneLeft, chosen: [] };
+  fireTrigger(state, { type: 'breach_begins', server: server.id });
 }
 
 /** The zone's cards the Runner may still choose: HQ (at random), R&D (topmost first) or Archives, not yet chosen. */
@@ -260,7 +296,15 @@ function zoneCandidates(state: GameState): string[] {
       : breach.zone === 'rd'
         ? state.corp.rd
         : [...state.corp.archives.faceUp, ...state.corp.archives.faceDown];
-  return cards.map(c => c.instanceId).filter(id => !breach.chosen.includes(id) && (!limit || limit.includes(id)));
+  return cards.map(c => c.instanceId).filter(id => !breach.chosen.includes(id) && (!limit || limit.includes(id)) && mayAccess(state, id));
+}
+
+/** Not shut out of accessing this card for the rest of the run (Adrian Seis). */
+function mayAccess(state: GameState, id: string): boolean {
+  const run = state.activeRun;
+  if (!run) return true;
+  if (run.accessOnlyIds && !run.accessOnlyIds.includes(id)) return false;
+  return !(run.noAccessIds ?? []).includes(id);
 }
 
 /** The choices the Runner has for the next access of the breach (rules 7.3.4). */
@@ -268,13 +312,13 @@ export function breachOptions(state: GameState): { id: string; label: string }[]
   const run = state.activeRun;
   const breach = run?.breach;
   if (!run || !breach) return [];
-  const server = state.corp.servers[run.server];
+  const server = state.corp.servers[run.breachInstead && run.breachInstead !== 'none' ? run.breachInstead : run.server];
   const options: { id: string; label: string }[] = [];
   const limit = accessLimitedTo(state);
   // A root card that left the server is no longer a candidate (7.4.5)
   for (const id of breach.root) {
     const card = server?.root.find(c => c.instanceId === id);
-    if (!card || (limit && !limit.includes(id))) continue;
+    if (!card || (limit && !limit.includes(id)) || !mayAccess(state, id)) continue;
     const seen = card.isRezzed || card.faceUp;
     const place = server.root.indexOf(card) + 1;
     options.push({ id: `root:${id}`, label: seen ? `${cardDef(card).title} (in the root)` : `Unrezzed card in the root (${ordinal(place)} installed)` });
@@ -320,7 +364,20 @@ export function continueAccess(state: GameState): void {
   const run = state.activeRun;
   if (run && !run.breached) {
     if (state.pendingPrompts.length > 0 || state.winner) return;
-    breachServer(state, state.corp.servers[run.server]);
+    const server = breachedServer(state);
+    if (!server) {
+      // "Instead of breaching": nothing is accessed (Privileged Access, Burner)
+      run.breached = true;
+      endRun(state);
+      return;
+    }
+    // "Whenever you breach" abilities (Devadatta Drone) resolve before cards are chosen
+    if (!runFlag(state, RunFlag.breachFired)) {
+      bumpRunFlag(state, RunFlag.breachFired);
+      fireTrigger(state, { type: 'breach_server', server: server.id });
+      if (state.winner || state.activeRun !== run || state.pendingPrompts.length > 0) return;
+    }
+    breachServer(state, server);
   }
   while (state.activeRun) {
     if (state.pendingPrompts.length > 0 || state.winner) return;
@@ -402,7 +459,9 @@ function offerMidAccess(state: GameState, card: CardInstance, zone: CardInstance
     !inArchives &&
     def.type_code !== 'agenda' &&
     cost != null &&
-    availableCredits(state, 'runner', { kind: 'trash', card }) >= cost;
+    availableCredits(state, 'runner', { kind: 'trash', card }) >= cost &&
+    // Additional costs to trash (Daniela Jorge Inácio: cards from the grip to the bottom of the stack)
+    state.runner.grip.length >= (getCardScript(card.cardCode)?.trashGripCost ?? 0);
   const alternatives = blocked || inArchives ? [] : accessAlternatives(state, card);
 
   if (canBasicTrash || alternatives.length > 0) {
@@ -413,7 +472,7 @@ function offerMidAccess(state: GameState, card: CardInstance, zone: CardInstance
       trashCost: canBasicTrash ? cost! : null,
       alternatives,
       message: canBasicTrash
-        ? `Runner: pay ${cost} [credit] to trash ${def.title}?`
+        ? `Runner: pay ${cost} [credit]${getCardScript(card.cardCode)?.trashGripCost ? ` and add ${getCardScript(card.cardCode)!.trashGripCost} random grip cards to the bottom of your stack` : ''} to trash ${def.title}?`
         : `Runner: use an ability on ${def.title}?`,
     });
     return;
@@ -423,7 +482,7 @@ function offerMidAccess(state: GameState, card: CardInstance, zone: CardInstance
 
 /** Mid-access abilities installed cards offer for this card. */
 export function accessAlternatives(state: GameState, accessed: CardInstance): { id: string; label: string }[] {
-  return activeCards(state, 'runner').flatMap(c => {
+  return [...activeCards(state, 'runner'), ...runEventCards(state)].flatMap(c => {
     const ability = getCardScript(c.cardCode)?.accessAbility;
     return ability && ability.canUse({ state, card: c, side: 'runner' }, accessed)
       ? [{ id: c.instanceId, label: `${cardDef(c).title}: ${ability.label}` }]
@@ -453,10 +512,10 @@ export function finishAccess(state: GameState, card: CardInstance, zone: CardIns
     return;
   }
   const cost = stealCost(state, card);
-  if (cost.clicks || cost.credits) {
+  if (cost.clicks || cost.credits || cost.gripToBottom) {
     // Additional costs to steal: the Runner may decline them, and then does not steal (rules 1.16.3a-b)
     const what = stealCostLabel(cost);
-    const canPay = state.runner.clicks >= cost.clicks && availableCredits(state, 'runner') >= cost.credits;
+    const canPay = state.runner.clicks >= cost.clicks && availableCredits(state, 'runner') >= cost.credits && state.runner.grip.length >= cost.gripToBottom;
     const secret = rdSecret(zone === state.corp.rd ? 'rd' : 'other', '');
     if (!canPay) {
       addLog(state, 'runner', `Runner cannot pay ${what} to steal ${def.title}.`, undefined, undefined, secret);
@@ -470,7 +529,7 @@ export function finishAccess(state: GameState, card: CardInstance, zone: CardIns
         { id: 'steal', label: `Pay ${what} and steal it` },
         { id: 'no', label: 'Do not steal it' },
       ],
-      source: { cardCode: card.cardCode, instanceId: card.instanceId, step: STEAL_COST_STEP, data: { clicks: cost.clicks, credits: cost.credits } },
+      source: { cardCode: card.cardCode, instanceId: card.instanceId, step: STEAL_COST_STEP, data: { clicks: cost.clicks, credits: cost.credits, gripToBottom: cost.gripToBottom } },
     });
     return;
   }
@@ -481,30 +540,62 @@ export function finishAccess(state: GameState, card: CardInstance, zone: CardIns
 export const STEAL_COST_STEP = 'steal-cost';
 
 /** Every additional cost to steal this agenda: its own (Méliès City Luxury Line) and active cards' (Magistrate Revontulet). */
-export function stealCost(state: GameState, agenda: CardInstance): { clicks: number; credits: number } {
-  const cost = { clicks: 0, credits: 0 };
-  for (const c of [agenda, ...activeCards(state).filter(a => a.instanceId !== agenda.instanceId)]) {
+export function stealCost(state: GameState, agenda: CardInstance): FullStealCost {
+  const cost = { clicks: 0, credits: 0, gripToBottom: 0 };
+  // Persistent cards trashed during this run still add theirs (Daniela Jorge Inácio, rules 9.12.5)
+  const persistent = (state.activeRun?.persistentIds ?? []).flatMap(id => findCardAnywhere(state, id) ?? []);
+  const seen = new Set<string>();
+  for (const c of [agenda, ...activeCards(state), ...persistent]) {
+    if (seen.has(c.instanceId) || (c !== agenda && c.instanceId === agenda.instanceId)) continue;
+    seen.add(c.instanceId);
     const extra = getCardScript(c.cardCode)?.stealCost?.(state, c, agenda);
     cost.clicks += extra?.clicks ?? 0;
     cost.credits += extra?.credits ?? 0;
+    cost.gripToBottom += extra?.gripToBottom ?? 0;
   }
   return cost;
 }
 
-const stealCostLabel = (cost: { clicks: number; credits: number }) =>
-  [cost.clicks ? '[click]'.repeat(cost.clicks) : '', cost.credits ? `${cost.credits} [credit]` : ''].filter(Boolean).join(' and ');
+export interface FullStealCost {
+  clicks: number;
+  credits: number;
+  /** Cards from the grip, at random, to the bottom of the stack (Daniela Jorge Inácio). */
+  gripToBottom: number;
+}
+
+const stealCostLabel = (cost: FullStealCost) =>
+  [
+    cost.clicks ? '[click]'.repeat(cost.clicks) : '',
+    cost.credits ? `${cost.credits} [credit]` : '',
+    cost.gripToBottom ? `${cost.gripToBottom} random card(s) from your grip to the bottom of your stack` : '',
+  ]
+    .filter(Boolean)
+    .join(' and ');
+
+/** Adds `count` cards from the grip at random to the bottom of the stack (an additional cost: Daniela Jorge Inácio). */
+export function gripToBottomOfStack(state: GameState, count: number): void {
+  for (let i = 0; i < count && state.runner.grip.length > 0; i++) {
+    const card = state.runner.grip[nextInt(state.rng, state.runner.grip.length)];
+    removeCard(state.runner.grip, card);
+    state.runner.stack.push(card);
+  }
+  if (count > 0) addLog(state, 'runner', `Runner added ${count} random card(s) from the grip to the bottom of the stack.`);
+}
 
 /** The Runner answered "pay the additional cost to steal?". */
-export function resolveStealCost(state: GameState, agendaId: string, pay: boolean, cost: { clicks: number; credits: number }): void {
+export function resolveStealCost(state: GameState, agendaId: string, pay: boolean, cost: FullStealCost): void {
   const found = locateCorpCard(state, agendaId);
   if (!found) return;
   if (!pay) {
     addLog(state, 'runner', `Runner declined to steal ${cardDef(found.card).title}.`, undefined, undefined, rdSecret(found.zone === state.corp.rd ? 'rd' : 'other', ''));
     return;
   }
-  if (state.runner.clicks < cost.clicks || availableCredits(state, 'runner') < cost.credits) illegal('Cannot pay the cost to steal');
+  if (state.runner.clicks < cost.clicks || availableCredits(state, 'runner') < cost.credits || state.runner.grip.length < cost.gripToBottom) {
+    illegal('Cannot pay the cost to steal');
+  }
   state.runner.clicks -= cost.clicks;
   spendCredits(state, 'runner', cost.credits);
+  gripToBottomOfStack(state, cost.gripToBottom);
   stealAgenda(state, found.card, found.zone);
 }
 
@@ -521,12 +612,15 @@ function stealAgenda(state: GameState, card: CardInstance, zone: CardInstance[])
   const pts = agendaPoints(card);
   state.runner.score += pts;
   bumpTurnFlag(state, TurnFlag.agendasScoredOrStolen);
+  bumpTurnFlag(state, TurnFlag.agendasStolen);
   if (state.activeRun) state.activeRun.stoleAgenda = true;
   addLog(state, 'runner', `Runner accessed and stole ${def.title} for ${pts} agenda point(s)! Total: ${state.runner.score}`);
   checkAgendaVictory(state);
   if (state.winner) return;
   // A stolen agenda is inactive, except for its own "when stolen" ability.
-  fireTrigger(state, { type: 'agenda_stolen', card, serverId: state.activeRun?.accessOnly ? undefined : state.activeRun?.server }, [card]);
+  // Persistent cards trashed this run still react (Tucana, rules 9.12.5)
+  const persistent = (state.activeRun?.persistentIds ?? []).flatMap(id => findCardAnywhere(state, id) ?? []);
+  fireTrigger(state, { type: 'agenda_stolen', card, serverId: state.activeRun?.accessOnly ? undefined : state.activeRun?.server }, [card, ...persistent]);
 }
 
 /** Trashes the card being accessed (basic trash ability or e.g. Carnivore). */
@@ -542,6 +636,7 @@ export function trashAccessedCard(state: GameState, card: CardInstance): void {
     run.persistentServers[card.instanceId] = server.id;
   }
   bumpTurnFlag(state, TurnFlag.accessTrashes);
+  bumpTurnFlag(state, TurnFlag.runnerTrashedCorpCards);
   fireTrigger(state, { type: 'trashed_on_access', card });
   fireTrigger(state, { type: 'runner_trashed_corp_card', card, wasInstalled: !!server, wasRezzed }, [card]);
 }
@@ -577,6 +672,7 @@ function runnerTrashCorpCard(state: GameState, card: CardInstance): void {
 export function runnerTrashInstalledCorpCard(state: GameState, card: CardInstance): void {
   const wasRezzed = card.isRezzed;
   runnerTrashCorpCard(state, card);
+  bumpTurnFlag(state, TurnFlag.runnerTrashedCorpCards);
   addLog(state, 'runner', `Runner trashed ${cardDef(card).title}.`);
   fireTrigger(state, { type: 'runner_trashed_corp_card', card, wasInstalled: true, wasRezzed }, [card]);
 }

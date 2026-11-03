@@ -3,8 +3,12 @@ import { CardInstance } from '../../types/card';
 import { EncounterState, GameState } from '../../types/state';
 import { cardDef } from '../../cards';
 import { addLog } from '../log';
-import { availableCredits, spendCredits } from '../cardEffects';
-import { illegal } from '../helpers';
+import { availableCredits, counters, removeCounters, spendCredits } from '../cardEffects';
+import { pushPrompt } from '../prompts';
+
+/** The step of the engine's "trash a card from your grip to boost" prompt (Audrey v2); the breaker's script answers it with answerBoostDiscard(). */
+export const BOOST_DISCARD_STEP = 'boost-discard';
+import { illegal, noteTrashedFromHand } from '../helpers';
 import {
   addBreakerStrength,
   boostCostOf,
@@ -45,6 +49,8 @@ export function breakSubroutine(state: GameState, action: BreakSubroutineAction)
     illegal(`${name} can only interface with ${script.breaks} ice`);
   }
   if (!canBreakSubroutinesWith(ice, breaker)) illegal(`Only a fracter can break ${cardDef(ice).title}`);
+  const cannot = script.canInterface?.(state, breaker, ice);
+  if (cannot) illegal(cannot);
   if (breakerStrength(state, breaker) < iceStrength(state, ice)) {
     illegal(`${name} needs strength ${iceStrength(state, ice)} (has ${breakerStrength(state, breaker)})`);
   }
@@ -59,6 +65,18 @@ export function breakSubroutine(state: GameState, action: BreakSubroutineAction)
     if (encounter.broken[i]) illegal('Subroutine already broken');
   }
 
+  const restricted = iceScript(ice)?.breakRestriction?.(state, ice, breaker, indices);
+  if (restricted) illegal(restricted);
+
+  if (script.breakCounter) {
+    // Audrey v2: "Hosted virus counter: Break up to 2 subroutines"
+    if (counters(breaker, script.breakCounter) < 1) illegal(`${name} needs a hosted ${script.breakCounter} counter`);
+    removeCounters(breaker, script.breakCounter, 1);
+    addLog(state, 'runner', `Runner spent a hosted ${script.breakCounter} counter to break ${indices.length} subroutine(s) on ${cardDef(ice).title} with ${name}.`);
+    script.onBreakUsed?.(state, breaker);
+    markSubroutinesBroken(state, indices, breaker);
+    return;
+  }
   const cost = script.breakCost(state, breaker);
   if (availableCredits(state, 'runner') < cost) illegal(`Need ${cost} credits`);
   spendCredits(state, 'runner', cost);
@@ -71,6 +89,20 @@ export function boostBreaker(state: GameState, action: BoostBreakerAction): void
   breakWindow(state, action.player);
   const breaker = installedBreaker(state, action.breakerInstanceId);
   const script = breakerScript(breaker)!;
+  if (script.boostDiscard) {
+    // Audrey v2: "Trash 1 card from your grip: +3 strength" (the Runner picks the card)
+    if (state.runner.grip.length === 0) illegal('No card in the grip to trash');
+    pushPrompt(state, {
+      kind: 'effect_cards',
+      side: 'runner',
+      message: `${cardDef(breaker).title}: trash 1 card from your grip for +${script.boostAmount(state, breaker)} strength.`,
+      candidateIds: state.runner.grip.map(c => c.instanceId),
+      min: 1,
+      max: 1,
+      source: { cardCode: breaker.cardCode, instanceId: breaker.instanceId, step: BOOST_DISCARD_STEP },
+    });
+    return;
+  }
   const cost = boostCostOf(state, breaker);
   if (availableCredits(state, 'runner') < cost) illegal(`Need ${cost} credits`);
   const amount = script.boostAmount(state, breaker);
@@ -99,6 +131,8 @@ export function bioroidBreak(state: GameState, action: BioroidBreakAction): void
     if (i < 0 || i >= encounter.broken.length) illegal('No such subroutine');
     if (encounter.broken[i]) illegal('Subroutine already broken');
   }
+  const restricted = script?.breakRestriction?.(state, ice, null, indices);
+  if (restricted) illegal(restricted);
   if (credits !== undefined) {
     if (availableCredits(state, 'runner') < credits) illegal(`Need ${credits} credits`);
     spendCredits(state, 'runner', credits);
@@ -109,4 +143,17 @@ export function bioroidBreak(state: GameState, action: BioroidBreakAction): void
     addLog(state, 'runner', `Runner lost ${'[click]'.repeat(clickBreak.clicks)} to break ${indices.length} subroutine(s) on ${cardDef(ice).title}.`);
   }
   markSubroutinesBroken(state, indices, null);
+}
+
+/** Finishes a boostDiscard strength ability: trashes the chosen grip card and adds the strength. */
+export function answerBoostDiscard(state: GameState, breaker: CardInstance, cardId: string): void {
+  const card = state.runner.grip.find(c => c.instanceId === cardId);
+  const script = breakerScript(breaker);
+  if (!card || !script || !state.activeRun?.encounter) return;
+  state.runner.grip.splice(state.runner.grip.indexOf(card), 1);
+  state.runner.heap.push(card);
+  noteTrashedFromHand(state, [card]);
+  const amount = script.boostAmount(state, breaker);
+  addBreakerStrength(state, breaker, amount);
+  addLog(state, 'runner', `Runner trashed ${cardDef(card).title} from the grip: ${cardDef(breaker).title} +${amount} strength (now ${breakerStrength(state, breaker)}).`);
 }

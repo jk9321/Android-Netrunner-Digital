@@ -36,7 +36,9 @@ export function activeCards(state: GameState, side?: SideCode): CardInstance[] {
  */
 export function fireTrigger(state: GameState, event: TriggerEvent, extra: CardInstance[] = []): void {
   const seen = new Set<string>();
-  const cards = [...activeCards(state), ...extra].filter(c => !seen.has(c.instanceId) && seen.add(c.instanceId));
+  // The run event whose run is in progress reacts to that run's events (S-Dobrado, Window of Opportunity)
+  const runEvents = runEventCards(state);
+  const cards = [...activeCards(state), ...extra, ...runEvents].filter(c => !seen.has(c.instanceId) && seen.add(c.instanceId));
   for (const card of cards) {
     if (state.winner) return;
     const handler = (getCardScript(card.cardCode)?.triggers as TriggerHandlers | undefined)?.[event.type] as
@@ -44,13 +46,31 @@ export function fireTrigger(state: GameState, event: TriggerEvent, extra: CardIn
       | undefined;
     if (!handler) continue;
     // Skip cards that left play while earlier handlers resolved, unless explicitly included.
-    if (!extra.includes(card) && !isStillActive(state, card)) continue;
+    if (!extra.includes(card) && !runEvents.includes(card) && !isStillActive(state, card)) continue;
     handler({ state, card, side: cardDef(card).side_code }, event);
+  }
+  // Cards that react from the heap (Jeitinho)
+  for (const card of [...state.runner.heap]) {
+    if (state.winner) return;
+    const handler = (getCardScript(card.cardCode)?.heapTriggers as TriggerHandlers | undefined)?.[event.type] as
+      | ((ctx: { state: GameState; card: CardInstance; side: SideCode }, e: TriggerEvent) => void)
+      | undefined;
+    if (handler && state.runner.heap.includes(card)) handler({ state, card, side: 'runner' }, event);
   }
 }
 
 function isStillActive(state: GameState, card: CardInstance): boolean {
   return activeCards(state).some(c => c.instanceId === card.instanceId);
+}
+
+/** The run events whose run is in progress: their abilities apply during it (S-Dobrado, Eye for an Eye, Spree). */
+export function runEventCards(state: GameState): CardInstance[] {
+  const run = state.activeRun;
+  if (!run || run.accessOnly || run.runEffects.length === 0) return [];
+  return run.runEffects.flatMap(r => {
+    const card = findCardAnywhere(state, r.instanceId);
+    return card && cardDef(card).type_code === 'event' ? [card] : [];
+  });
 }
 
 /** Looks up a card by id in any zone (used for run effects and persistent cards). */

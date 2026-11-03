@@ -153,6 +153,15 @@ export function trashInstalledCorpCard(state: GameState, server: ServerState, ca
   }
 }
 
+/** Runner cards just trashed from the grip or the stack: "when this is trashed from your grip or stack" (Strike Fund). */
+export function noteTrashedFromHand(state: GameState, cards: CardInstance[]): void {
+  for (const card of cards) {
+    if (state.winner) return;
+    if (!state.runner.heap.includes(card)) continue;
+    getCardScript(card.cardCode)?.onTrashedFromHand?.({ state, card, side: 'runner' });
+  }
+}
+
 /** "When this card would be uninstalled" interrupts on a rezzed Corp card (Luana Campos), before it leaves play. */
 export function beforeCorpCardUninstalled(state: GameState, card: CardInstance): void {
   if (card.isRezzed) getCardScript(card.cardCode)?.onUninstall?.({ state, card, side: 'corp' });

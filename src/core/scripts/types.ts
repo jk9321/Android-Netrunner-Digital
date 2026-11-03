@@ -1,7 +1,7 @@
 import { CardInstance, SideCode } from '../types/card';
 import { EffectSource, PromptChoice } from '../types/prompts';
 import { CardInstance as Card } from '../types/card';
-import { GameState, RunState } from '../types/state';
+import { EncounterState, GameState, RunState } from '../types/state';
 
 export interface EffectContext {
   state: GameState;
@@ -64,6 +64,24 @@ export interface CardScript {
   onRunEnds?(ctx: EffectContext, run: RunState): void;
   /** "As an additional cost to play this event/operation, spend [click]" (Double cards). */
   extraClicks?: number;
+  /** Terminal: "After you resolve this operation, your action phase ends" (rules 5.4.3). */
+  terminal?: boolean;
+  /** Identity: "Limit N remote servers" (A Teia). */
+  maxRemotes?: number;
+  /**
+   * "As an additional cost to trash this card, the Runner must add N cards
+   * from the grip at random to the bottom of the stack" (Daniela Jorge Inácio).
+   */
+  trashGripCost?: number;
+  /** "When this card is trashed from your grip or stack" (Strike Fund): runs from the heap once it is there. */
+  onTrashedFromHand?(ctx: EffectContext): void;
+  /** Runs on the card itself as the Corp installs it, even while inactive (Stoke the Embers). */
+  onCorpInstalled?(ctx: EffectContext, fromHQ: boolean): void;
+  /**
+   * An installed Runner card that prevents damage as it is dealt (AirbladeX):
+   * returns how many of `amount` points it prevents, paying for it itself.
+   */
+  preventDamage?(state: GameState, self: Card, type: 'net' | 'meat' | 'core', amount: number): number;
   /** Extra rez requirement, checked instead of "enough credits" (Plutus, Biawak). Return a reason to forbid. */
   rezBlocker?(state: GameState, card: Card, cost: number): string | null;
   /** Pays a rez cost with extras or alternatives, then calls completeRez (maybe after a prompt). */
@@ -84,6 +102,8 @@ export interface CardScript {
   trashWhenEmpty?: boolean;
   /** Extra effect when emptied, after it is trashed (Nico Campaign: draw 1 card). */
   onEmptied?(ctx: EffectContext): void;
+  /** Reactions while this card is in the heap (Jeitinho: "install this hardware from your heap"). */
+  heapTriggers?: TriggerHandlers;
   /** Abilities still apply for the rest of the run if this is trashed while accessed (AMAZE Amusements). */
   persistent?: boolean;
   /** Runner program that must be installed on a piece of ice (Botulus, Tranquilizer). */
@@ -94,8 +114,8 @@ export interface CardScript {
   playCostModifier?(state: GameState, card: Card): number;
   /** Change to this card's own rez cost, active while it is unrezzed (Reverb, Hype Machine; rules 9.1.8d). */
   ownRezCostModifier?(state: GameState, card: Card): number;
-  /** Where this upgrade may be installed: 'central' (The Red Room) or 'hq-rd' (Flagship). */
-  installOnly?: 'central' | 'hq-rd';
+  /** Where this upgrade may be installed: 'central' (The Red Room), 'hq-rd' (Flagship) or 'remote' (Tucana). */
+  installOnly?: 'central' | 'hq-rd' | 'remote';
   /** "Install only faceup" agenda: installed faceup and active while installed (Sacrifice Zone Expansion, rules 3.2.3a). */
   installFaceUpOnly?: boolean;
   /**
@@ -103,7 +123,7 @@ export interface CardScript {
    * active even while inactive, rules 9.1.8e; `self` is the agenda) or one
    * an active card adds to every agenda (Magistrate Revontulet).
    */
-  stealCost?(state: GameState, self: Card, agenda: Card): { clicks?: number; credits?: number } | null;
+  stealCost?(state: GameState, self: Card, agenda: Card): StealCost | null;
   /** Subroutines this card can give a piece of ice (Stick and Poke), referred to by index from EncounterState.grantedSubs. */
   grantedSubroutines?: Subroutine[];
   /** This card can host installed Runner cards (Hackerspace): installing one onto it is allowed when this returns true. */
@@ -122,6 +142,14 @@ export interface CardScript {
   limitsAccessToOne?: boolean;
 }
 
+/** Additional costs to steal an agenda (rules 1.16.3a). */
+export interface StealCost {
+  clicks?: number;
+  credits?: number;
+  /** Cards from the grip, at random, to the bottom of the stack (Daniela Jorge Inácio). */
+  gripToBottom?: number;
+}
+
 /**
  * Game events that card abilities react to. Handlers receive the context of
  * the reacting card (its controller as `side`), not the card that caused the
@@ -134,7 +162,7 @@ export type TriggerEvent =
   /** Cards a player discarded at the end of their turn to reach their maximum hand size. */
   | { type: 'discarded_to_hand_size'; side: SideCode; cards: Card[] }
   /** `paid` is the credits spent on the install (Bling: "without spending credits"). */
-  | { type: 'installed'; card: Card; paid?: number }
+  | { type: 'installed'; card: Card; paid?: number; /** Corp cards: installed from HQ (Stoke the Embers cares). */ fromHQ?: boolean }
   | { type: 'rezzed'; card: Card }
   | { type: 'advanced'; card: Card; hadCounters: boolean }
   | { type: 'agenda_scored'; card: Card; serverId: string; /** Last known count before scoring (rules 1.17.8); the counters themselves are gone (1.17.5). */ advancementCounters: number }
@@ -173,7 +201,23 @@ export type TriggerEvent =
   /** A piece of hardware was trashed, from any location (Hiram "0mission" Svensson). */
   | { type: 'hardware_trashed'; card: Card }
   /** The Runner spent credits from outside their credit pool during a run (Shackleton Grid). */
-  | { type: 'credits_spent_outside_pool'; amount: number };
+  | { type: 'credits_spent_outside_pool'; amount: number }
+  /** The Runner bypassed the encountered ice (Capybara, Jeitinho). */
+  | { type: 'ice_bypassed'; ice: Card }
+  /** A Corp card was derezzed (Saci). */
+  | { type: 'derezzed'; card: Card }
+  /** The Corp purged virus counters (Heliamphora, Physarum Entangler). */
+  | { type: 'virus_purged' }
+  /** The breach's candidates are set out, Archives turned faceup (Heliamphora). */
+  | { type: 'breach_begins'; server: string }
+  /** A player used an ability on `card` (Juli Moreira Lee: an action on an installed resource). */
+  | { type: 'ability_used'; card: Card; clicks: number }
+  /** The Corp finished resolving an operation (Nuvem SA), once its decisions are made. */
+  | { type: 'operation_finished'; card: Card }
+  /** The Corp finished resolving an ability on an expendable card (Nuvem SA). */
+  | { type: 'expendable_action_finished'; card: Card }
+  /** A player finished an action they have now taken `count` times this turn (Wage Workers). */
+  | { type: 'action_finished'; side: SideCode; count: number };
 
 /** Where a card was accessed from. */
 export type AccessZone = 'installed' | 'hq' | 'rd' | 'archives';
@@ -208,6 +252,8 @@ export interface CardAbility {
   oncePerTurn?: boolean;
   /** Usable only while this card is in HQ (Tocsin: "reveal and trash this ice from HQ"). */
   fromHQ?: boolean;
+  /** Usable while this event's run is in progress, from the heap (Spree). */
+  fromRun?: boolean;
   /** The credits can only come from stealth cards (Corsair). */
   stealthOnly?: boolean;
   /** Extra condition. Return a reason to forbid using the ability now. */
@@ -237,6 +283,8 @@ export interface CardModifiers {
   firstBasicDraw?: number;
   /** Extra cards to access when breaching a server (Docklands Pass). */
   breachAccesses?(state: GameState, self: Card, serverId: string): number;
+  /** Extra cards to access once the others are counted, given how many the Runner may access so far ("Pretty" Mary da Silva). */
+  breachAccessesAfter?(state: GameState, self: Card, serverId: string, count: number): number;
   /** Strength for the icebreaker hosting this card (GAMEDRAGON™ Pro). */
   hostStrength?: number;
   /** Strength increases on the hosting icebreaker last for the rest of the run (GAMEDRAGON™ Pro). */
@@ -249,6 +297,15 @@ export interface CardModifiers {
   iceStrength?(state: GameState, self: Card, ice: Card): number;
   /** Clicks off the play action for this operation (Synchrocyclotron: the first double each turn). */
   playClickDiscount?(state: GameState, self: Card, playing: Card): number;
+  /** Change to the strength of each installed icebreaker (Stegodon MK IV: -2 once ice was derezzed this run). */
+  breakerStrength?(state: GameState, self: Card, breaker: Card): number;
+  /** Why the Runner can't run this server now (Front Company), or null. */
+  runBlocker?(state: GameState, self: Card, serverId: string): string | null;
+  /**
+   * Cards the Corp must trash from HQ as an additional cost to trash this
+   * resource with the basic action (Sebastião Souza Pessoa, Manuel Lattes de Moura).
+   */
+  resourceTrashHqCost?(state: GameState, self: Card, resource: Card): number;
 }
 
 /**
@@ -284,11 +341,16 @@ export interface IceScript {
   /** A bioroid's own click break ability, instead of "[Lose click]: Break 1 subroutine" (Ansel 2.0: lose 2 clicks, up to 2). */
   clickBreak?: { clicks: number; max: number };
   /** "When the Runner passes this ice" (Vertigo). */
-  onPass?(ctx: EffectContext): void;
+  onPass?(ctx: EffectContext, encounter: EncounterState | null): void;
   /** "Whenever the Runner bypasses this ice" (Lethe). */
   onBypassed?(ctx: EffectContext): void;
   /** "Whenever an encounter with this ice ends" (Knowledge Seeker). */
   onEncounterEnds?(ctx: EffectContext): void;
+  /**
+   * Why these subroutines can't be broken this way now (Hammer: only 1 printed
+   * subroutine except with killers). `breaker` null: a card ability, not an icebreaker.
+   */
+  breakRestriction?(state: GameState, ice: Card, breaker: Card | null, indices: number[]): string | null;
 }
 
 export type IceSubtype = 'barrier' | 'code gate' | 'sentry';
@@ -305,4 +367,10 @@ export interface BreakerScript {
   strengthModifier?(state: GameState, breaker: Card): number;
   /** Called after the break ability is used (e.g. Mayfly's trash-at-run-end). */
   onBreakUsed?(state: GameState, breaker: Card): void;
+  /** Why the break ability can't interface with this ice now (Umbrella, Living Mural, Slap Vandal), or null. */
+  canInterface?(state: GameState, breaker: Card, ice: Card): string | null;
+  /** The break ability costs 1 hosted counter of this type instead of credits (Audrey v2). */
+  breakCounter?: CounterType;
+  /** The strength ability costs trashing 1 card from the grip instead of credits (Audrey v2): the Runner picks it in a prompt. */
+  boostDiscard?: boolean;
 }

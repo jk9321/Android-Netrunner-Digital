@@ -6,14 +6,15 @@ import { cardDef } from '../../cards';
 import { shuffleInPlace } from '../../rng';
 import { shuffleRD } from '../rdKnowledge';
 import { addLog } from '../log';
-import { findCardAnywhere, illegal, locateCorpCard, removeCard } from '../helpers';
+import { findCardAnywhere, illegal, locateCorpCard, noteTrashedFromHand, removeCard } from '../helpers';
 import { getCardScript } from '../../scripts';
 import { activePrompt, sideName } from '../prompts';
 import { beginCorpTurn, finishDiscard, resumeTurn } from './turn';
-import { chooseBreachCandidate, continueAccess, finishAccess, resolveStealCost, STEAL_COST_STEP, succeedRun, trashAccessedCard } from './run';
+import { beginApproach, chooseBreachCandidate, continueAccess, finishAccess, gripToBottomOfStack, resolveStealCost, STEAL_COST_STEP, succeedRun, trashAccessedCard } from './run';
 import { availableCredits, spendCredits } from '../cardEffects';
 import { resumeEncounter, resumeOnEncounter } from '../ice';
 import { fireTrigger } from '../triggers';
+import { finishResourceTrash, RESOURCE_TRASH_STEP } from './basic';
 
 export function resolvePrompt(state: GameState, action: ResolvePromptAction): void {
   answerPrompt(state, action);
@@ -33,6 +34,7 @@ export function resumeRun(state: GameState): void {
   if (run.encounter?.onEncounterPending) resumeOnEncounter(state);
   else if (run.encounter?.resolvingIndex != null) resumeEncounter(state);
   else if (run.phase === 'approach_server' && run.serverApproached) succeedRun(state);
+  else if (run.phase === 'initiation') beginApproach(state);
   else if (run.phase === 'access') continueAccess(state);
 }
 
@@ -77,6 +79,7 @@ function answerPrompt(state: GameState, action: ResolvePromptAction): void {
       );
       finishDiscard(state);
       fireTrigger(state, { type: 'discarded_to_hand_size', side: prompt.side, cards: chosen });
+      if (prompt.side === 'runner') noteTrashedFromHand(state, chosen);
       for (const card of chosen) if (cardDef(card).type_code === 'hardware') fireTrigger(state, { type: 'hardware_trashed', card });
       return;
     }
@@ -87,7 +90,11 @@ function answerPrompt(state: GameState, action: ResolvePromptAction): void {
       if (choice.trashFirst?.length && !prompt.source.data?.install) illegal('This choice does not install a card');
       if (prompt.source.step === STEAL_COST_STEP) {
         const data = prompt.source.data ?? {};
-        resolveStealCost(state, prompt.source.instanceId, choice.optionId === 'steal', { clicks: Number(data.clicks ?? 0), credits: Number(data.credits ?? 0) });
+        resolveStealCost(state, prompt.source.instanceId, choice.optionId === 'steal', {
+          clicks: Number(data.clicks ?? 0),
+          credits: Number(data.credits ?? 0),
+          gripToBottom: Number(data.gripToBottom ?? 0),
+        });
         return;
       }
       runScriptAnswer(state, prompt.source, choice);
@@ -103,6 +110,10 @@ function answerPrompt(state: GameState, action: ResolvePromptAction): void {
       if (choice.trashFirst?.length && !prompt.source.data?.install) illegal('This choice does not install a card');
       if (ids.length < prompt.min || ids.length > prompt.max) {
         illegal(prompt.min === prompt.max ? `Choose exactly ${prompt.min} card(s)` : `Choose ${prompt.min}-${prompt.max} card(s)`);
+      }
+      if (prompt.source.step === RESOURCE_TRASH_STEP) {
+        finishResourceTrash(state, String(prompt.source.data?.resourceId ?? ''), ids);
+        return;
       }
       runScriptAnswer(state, prompt.source, choice);
       return;
@@ -130,8 +141,11 @@ function answerPrompt(state: GameState, action: ResolvePromptAction): void {
         if (prompt.trashCost === null) illegal('This card cannot be trashed by paying its trash cost');
         const purpose = { kind: 'trash' as const, card: found.card };
         if (availableCredits(state, 'runner', purpose) < prompt.trashCost) illegal('Not enough credits to trash');
+        const gripCost = getCardScript(found.card.cardCode)?.trashGripCost ?? 0;
+        if (state.runner.grip.length < gripCost) illegal('Not enough cards in the grip to pay the additional cost');
         spendCredits(state, 'runner', prompt.trashCost, purpose);
         addLog(state, 'runner', `Runner paid ${prompt.trashCost} [credit] to trash ${cardDef(found.card).title}.`);
+        gripToBottomOfStack(state, gripCost);
         trashAccessedCard(state, found.card);
         return;
       }

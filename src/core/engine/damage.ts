@@ -3,7 +3,8 @@ import { GameState } from '../types/state';
 import { cardDef } from '../cards';
 import { nextInt } from '../rng';
 import { addLog } from './log';
-import { findCardAnywhere, removeCard } from './helpers';
+import { findCardAnywhere, noteTrashedFromHand, removeCard } from './helpers';
+import { getCardScript } from '../scripts';
 import { bumpTurnFlag, TurnFlag } from './cardEffects';
 import { fireTrigger } from './triggers';
 
@@ -17,6 +18,15 @@ export type DamageType = 'net' | 'meat' | 'core';
  */
 export function dealDamage(state: GameState, type: DamageType, amount: number, byCorp = true): CardInstance[] {
   const trashed: CardInstance[] = [];
+  // Installed cards that prevent damage as it is dealt (AirbladeX)
+  for (const card of installedRunnerCards(state)) {
+    if (amount <= 0) break;
+    const prevented = getCardScript(card.cardCode)?.preventDamage?.(state, card, type, amount) ?? 0;
+    if (prevented > 0) {
+      amount -= prevented;
+      addLog(state, 'runner', `Runner prevented ${prevented} ${type} damage (${cardDef(card).title}).`);
+    }
+  }
   if (type === 'core') state.runner.coreDamage += amount;
   for (let i = 0; i < amount; i++) {
     if (state.runner.grip.length === 0) {
@@ -29,6 +39,7 @@ export function dealDamage(state: GameState, type: DamageType, amount: number, b
     trashed.push(card);
   }
   for (const card of trashed) if (cardDef(card).type_code === 'hardware') fireTrigger(state, { type: 'hardware_trashed', card });
+  noteTrashedFromHand(state, trashed);
   const what = trashed.length > 0 ? `, trashing ${trashed.map(c => cardDef(c).title).join(', ')}` : '';
   addLog(state, byCorp ? 'corp' : 'runner', byCorp ? `Corp did ${amount} ${type} damage${what}.` : `Runner suffered ${amount} ${type} damage${what}.`, undefined, amount > 0 ? 'damage' : undefined);
   if (amount > 0 && !state.winner) fireTrigger(state, { type: 'damage_dealt', damage: type, amount, byCorp });

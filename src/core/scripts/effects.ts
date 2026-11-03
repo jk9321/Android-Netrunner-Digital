@@ -2,11 +2,11 @@ import { CardInstance, SideCode } from '../types/card';
 import { EffectSource } from '../types/prompts';
 import { GameState } from '../types/state';
 import { cardDef } from '../cards';
-import { shuffleRD } from '../engine/rdKnowledge';
+import { noteRdPrivate, runnerSeesRd, shuffleRD } from '../engine/rdKnowledge';
 import { pushPrompt } from '../engine/prompts';
 import { addLog } from '../engine/log';
 import { findCardAnywhere, isAdvanceable, removeCard } from '../engine/helpers';
-import { corpTrashFromHQ, corpTrashFromRD, installedIce } from '../engine/cardEffects';
+import { availableCredits, corpTrashFromHQ, corpTrashFromRD, installedIce, spendCredits } from '../engine/cardEffects';
 import {
   chosenToTrashFirst,
   corpInstallBlocker,
@@ -283,4 +283,95 @@ export function takeFromRD(state: GameState, instanceId: string): CardInstance |
   shuffleRD(state);
   addLog(state, 'corp', `Corp revealed ${cardDef(card).title} and shuffled R&D.`);
   return card;
+}
+
+// --- Arranging R&D -------------------------------------------------------------------
+
+/**
+ * Arranges cards on top of R&D in the order a player picks: one prompt per
+ * position, top first (rules 8.3.3). The cards must already be the top
+ * `ids.length` cards of R&D. The script's onPromptAnswer calls arrangeNext() for `step`.
+ * The Corp arranges in secret; when the Runner arranges (Cataloguer) they know where each card is.
+ */
+export function arrangeTop(ctx: EffectContext, cardIds: string[], step: string, placed: string[] = [], side: SideCode = 'corp'): void {
+  const { state } = ctx;
+  const left = cardIds.filter(id => !placed.includes(id));
+  if (left.length <= 1) {
+    const order = [...placed, ...left];
+    const cards = order.flatMap(id => state.corp.rd.find(c => c.instanceId === id) ?? []);
+    for (const card of cards) removeCard(state.corp.rd, card);
+    state.corp.rd.unshift(...cards);
+    if (side === 'corp') {
+      // Arranged in secret: the Runner only knows the cards are among these (rules 8.3.3)
+      noteRdPrivate(state, cards.length);
+    } else {
+      for (const card of cards) runnerSeesRd(state, card);
+    }
+    if (cards.length > 1) addLog(state, side, `${side === 'corp' ? 'Corp' : 'Runner'} arranged the top ${cards.length} cards of R&D.`);
+    return;
+  }
+  const title = cardDef(ctx.card).title;
+  askCards(ctx, side, `${title}: choose the card to put ${placed.length === 0 ? 'on top of R&D' : `in position ${placed.length + 1}`}.`, left, 1, 1, step, {
+    ids: cardIds,
+    placed,
+    side,
+  });
+}
+export const arrangeNext = (ctx: EffectContext, data: Record<string, unknown> | undefined, picked: string, step: string) =>
+  arrangeTop(ctx, (data?.ids as string[]) ?? [], step, [...((data?.placed as string[]) ?? []), picked], (data?.side as SideCode | undefined) ?? 'corp');
+
+// --- Psi games ---------------------------------------------------------------------
+
+/** Steps of the two bidding prompts of a Psi Game; the card's own step follows the colon. */
+const PSI_CORP = 'psi-corp:';
+const PSI_RUNNER = 'psi-runner:';
+
+const bidOptions = (state: GameState, side: SideCode) =>
+  [0, 1, 2].filter(n => n === 0 || availableCredits(state, side) >= n).map(n => ({ id: String(n), label: `Bid ${n} [credit]` }));
+
+/**
+ * Plays a Psi Game (rules 10.14.6): both players secretly bid 0, 1 or 2
+ * credits (no more than they can spend, 10.14.3), then reveal and spend their
+ * bids. The Corp bids first, unseen by the Runner; the Runner then bids. The
+ * script's onPromptAnswer passes both answers to answerPsiGame(), which calls
+ * back with whether the bids matched.
+ */
+export function playPsiGame(ctx: EffectContext, step: string, data: EffectSource['data'] = {}): void {
+  askChoice(ctx, 'corp', `${cardDef(ctx.card).title}: Psi Game. Secretly bid 0, 1 or 2 [credit].`, bidOptions(ctx.state, 'corp'), PSI_CORP + step, data);
+}
+
+/** Is this prompt one of a Psi Game's bids? */
+export const isPsiStep = (step: string) => step.startsWith(PSI_CORP) || step.startsWith(PSI_RUNNER);
+
+/**
+ * Handles a Psi Game bid. After the Runner's bid, both bids are revealed and
+ * spent, and `done` runs with the outcome and the card's own step. Returns
+ * false if the answer wasn't a Psi Game bid.
+ */
+export function answerPsiGame(
+  ctx: EffectContext,
+  source: EffectSource,
+  answer: EffectAnswer,
+  done: (match: boolean, step: string, data: EffectSource['data']) => void
+): boolean {
+  if (answer.kind !== 'effect_choice' || !isPsiStep(source.step)) return false;
+  const { state } = ctx;
+  if (source.step.startsWith(PSI_CORP)) {
+    const step = source.step.slice(PSI_CORP.length);
+    askChoice(ctx, 'runner', `${cardDef(ctx.card).title}: Psi Game. The Corp has bid in secret. Secretly bid 0, 1 or 2 [credit].`, bidOptions(state, 'runner'), PSI_RUNNER + step, {
+      ...(source.data ?? {}),
+      corpBid: Number(answer.optionId),
+    });
+    return true;
+  }
+  const step = source.step.slice(PSI_RUNNER.length);
+  const { corpBid, ...data } = source.data ?? {};
+  const corp = Math.min(Number(corpBid ?? 0), availableCredits(state, 'corp'));
+  const runner = Math.min(Number(answer.optionId), availableCredits(state, 'runner'));
+  spendCredits(state, 'corp', corp);
+  spendCredits(state, 'runner', runner);
+  const match = corp === runner;
+  addLog(state, 'corp', `Psi Game (${cardDef(ctx.card).title}): the Corp bid ${corp} [credit], the Runner bid ${runner} [credit]. The bids ${match ? 'match' : 'differ'}.`);
+  done(match, step, data);
+  return true;
 }

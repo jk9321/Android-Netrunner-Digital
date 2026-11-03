@@ -10,7 +10,7 @@ import { resolvePrompt } from './actions/prompt';
 import { playOperationOrEvent } from './actions/play';
 import { bioroidBreak, boostBreaker, breakSubroutine } from './actions/breaking';
 import { useAbility } from './actions/ability';
-import { bumpTurnFlag, syncDerivedStats, TurnFlag } from './cardEffects';
+import { bumpTurnFlag, fireSettled, syncDerivedStats, TurnFlag, whenSettled } from './cardEffects';
 import { findCardAnywhere, forgetHiddenCards, updateHandKnowledge } from './helpers';
 import { updateRdKnowledge } from './rdKnowledge';
 import { getCardScript } from '../scripts';
@@ -81,7 +81,13 @@ export function executeAction(prevState: GameState, action: GameAction): GameSta
   updateRdKnowledge(prevState, state);
   updateHandKnowledge(prevState, state);
   // Petty Cash: "Play only if you have not finished an action yet this turn"
-  if (isClickAction(prevState, action) && state.activePlayer === prevState.activePlayer) bumpTurnFlag(state, TurnFlag.actionsFinished);
+  if (isClickAction(prevState, action) && state.activePlayer === prevState.activePlayer) {
+    bumpTurnFlag(state, TurnFlag.actionsFinished);
+    // Wage Workers: "if you have taken that action exactly 3 times this turn"
+    const count = bumpTurnFlag(state, `action:${actionKey(action)}`);
+    whenSettled(state, { type: 'action_finished', side: action.player, count });
+  }
+  fireSettled(state);
   syncDerivedStats(state);
   return state;
 }
@@ -107,6 +113,15 @@ const CLICK_ACTIONS: GameActionType[] = [
   'REMOVE_TAG',
   'TRASH_RESOURCE',
 ];
+
+/**
+ * Which action this is, for "that action ... this turn" (Wage Workers): each
+ * basic action is one action whatever card it is used on (install, play,
+ * advance); each [click] ability is its own action.
+ */
+function actionKey(action: GameAction): string {
+  return action.type === 'USE_ABILITY' ? `ability:${action.cardInstanceId}:${action.abilityIndex}` : action.type;
+}
 
 /** Is this one of the active player's actions (a basic action or a [click] ability)? */
 function isClickAction(state: GameState, action: GameAction): boolean {

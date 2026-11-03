@@ -4,18 +4,18 @@ import { cardDef } from '../../cards';
 import { getCardScript } from '../../scripts';
 import { addLog } from '../log';
 import { illegal, requireActionPhase, requireClicks } from '../helpers';
-import { activeCards } from '../triggers';
+import { activeCards, fireTrigger, runEventCards } from '../triggers';
 import { CardInstance, SideCode } from '../../types/card';
 import { CardAbility } from '../../scripts/types';
 import { effectResolved, effectResolving } from '../uncommitted';
-import { availableCredits, counters, removeCounters, removeFromGame, spendCredits, trashInstalledCard, turnFlag } from '../cardEffects';
+import { availableCredits, bumpTurnFlag, counters, removeCounters, removeFromGame, spendCredits, trashInstalledCard, turnFlag, TurnFlag, whenSettled } from '../cardEffects';
 
 /** Turn-flag key for a "once per turn" ability. */
 export function abilityUsedKey(instanceId: string, index: number): string {
   return `ability:${instanceId}:${index}`;
 }
 
-type AbilityZone = 'active' | 'archives' | 'runnerScoreArea' | 'hq';
+type AbilityZone = 'active' | 'archives' | 'runnerScoreArea' | 'hq' | 'run';
 
 /**
  * Cards whose abilities `side` might use: its active cards, the Corp's
@@ -32,6 +32,9 @@ export function abilitySources(state: GameState, side: SideCode): { card: CardIn
     for (const card of [...faceUp, ...faceDown]) if (has(card, a => !!a.fromArchives)) sources.push({ card, where: 'archives' });
     for (const card of state.runner.scoreArea) if (has(card, a => !!a.fromRunnerScoreArea)) sources.push({ card, where: 'runnerScoreArea' });
     for (const card of state.corp.hq) if (has(card, a => !!a.fromHQ)) sources.push({ card, where: 'hq' });
+  } else {
+    // The run event whose run is in progress (Spree)
+    for (const card of runEventCards(state)) if (has(card, a => !!a.fromRun)) sources.push({ card, where: 'run' });
   }
   return sources;
 }
@@ -40,6 +43,8 @@ export function abilitySources(state: GameState, side: SideCode): { card: CardIn
 export function abilityUsableFrom(ability: CardAbility, where: AbilityZone, own: boolean): boolean {
   if (where === 'archives') return !!ability.fromArchives;
   if (ability.fromArchives) return false;
+  if (where === 'run') return !!ability.fromRun;
+  if (ability.fromRun) return false;
   if (where === 'hq') return !!ability.fromHQ;
   if (ability.fromHQ) return false;
   if (where === 'runnerScoreArea') return !!ability.fromRunnerScoreArea;
@@ -86,6 +91,14 @@ export function useAbility(state: GameState, action: UseAbilityAction): void {
   effectResolving(state);
   ability.resolve(ctx);
   effectResolved(state);
-  if (ability.trashSelf) trashInstalledCard(state, card);
+  if (ability.trashSelf) {
+    trashInstalledCard(state, card);
+    if (side === 'runner') bumpTurnFlag(state, TurnFlag.runnerTrashedOwnInstalled);
+  }
   if (ability.removeSelfFromGame) removeFromGame(state, card);
+  fireTrigger(state, { type: 'ability_used', card, clicks });
+  // Nuvem SA: "whenever you finish resolving ... an action on an expendable card"
+  if (clicks > 0 && side === 'corp' && /\bexpendable\b/i.test(cardDef(card).keywords ?? '')) {
+    whenSettled(state, { type: 'expendable_action_finished', cardId: card.instanceId });
+  }
 }

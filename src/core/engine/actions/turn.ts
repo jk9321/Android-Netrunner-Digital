@@ -5,7 +5,7 @@ import { addLog } from '../log';
 import { requireActionPhase, illegal } from '../helpers';
 import { pushPrompt, sideName } from '../prompts';
 import { fireTrigger } from '../triggers';
-import { maxHandSize, refillRecurringCredits } from '../cardEffects';
+import { maxHandSize, refillRecurringCredits, turnFlag, TurnFlag } from '../cardEffects';
 import { flatline } from '../damage';
 import { cardDef } from '../../cards';
 import { getCardScript } from '../../scripts';
@@ -94,7 +94,11 @@ export function finishDiscard(state: GameState): void {
 
 /** Hands the turn to the other player. */
 function handOver(state: GameState, side: SideCode): void {
-  if (side === 'runner') state.runnerLastTurnRuns = state.runsThisTurn;
+  if (side === 'runner') {
+    state.runnerLastTurnRuns = state.runsThisTurn;
+    // "Play only if the Runner stole or trashed a Corp card during their last turn" (Oppo Research)
+    state.runnerLastTurnStoleOrTrashed = turnFlag(state, TurnFlag.agendasStolen) + turnFlag(state, TurnFlag.runnerTrashedCorpCards) > 0;
+  }
   state.runsThisTurn = [];
   state.turnFlags = {};
   if (side === 'corp') {

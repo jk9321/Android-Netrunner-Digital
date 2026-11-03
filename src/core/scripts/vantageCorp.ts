@@ -38,7 +38,7 @@ import {
 } from '../engine/cardEffects';
 import { corpInstallCost } from '../engine/actions/install';
 import { CardScript, EffectContext, Subroutine } from './types';
-import { advanceableInstalled, askCards, askChoice, askCorpInstall, corpInstallOptions, installCorpChoice, takeFromRD } from './effects';
+import { advanceableInstalled, arrangeNext, arrangeTop, askCards, askChoice, askCorpInstall, corpInstallOptions, installCorpChoice, takeFromRD } from './effects';
 
 /** Corp cards from Vantage Point. */
 
@@ -86,32 +86,6 @@ function answerUnlessPays(state: GameState, amount: number, optionId: string, ot
   if (optionId === 'pay' && availableCredits(state, 'runner') >= amount) spendCredits(state, 'runner', amount);
   else otherwise();
 }
-
-/**
- * Arranges cards on top of R&D in the order the Corp picks: one prompt per
- * position, top first (rules 8.3.3). The cards must already be the top
- * `ids.length` cards of R&D. The script's onPromptAnswer calls arrangeNext() for `step`.
- */
-function arrangeTop(ctx: EffectContext, cardIds: string[], step: string, placed: string[] = []): void {
-  const { state } = ctx;
-  const left = cardIds.filter(id => !placed.includes(id));
-  if (left.length <= 1) {
-    const order = [...placed, ...left];
-    const cards = order.flatMap(id => state.corp.rd.find(c => c.instanceId === id) ?? []);
-    for (const card of cards) removeCard(state.corp.rd, card);
-    state.corp.rd.unshift(...cards);
-    // Arranged in secret: the Runner only knows the cards are among these (rules 8.3.3)
-    noteRdPrivate(state, cards.length);
-    if (cards.length > 1) addLog(state, 'corp', `Corp arranged the top ${cards.length} cards of R&D.`);
-    return;
-  }
-  askCards(ctx, 'corp', `${title(ctx.card)}: choose the card to put ${placed.length === 0 ? 'on top of R&D' : `in position ${placed.length + 1}`}.`, left, 1, 1, step, {
-    ids: cardIds,
-    placed,
-  });
-}
-const arrangeNext = (ctx: EffectContext, data: Record<string, unknown> | undefined, picked: string, step: string) =>
-  arrangeTop(ctx, (data?.ids as string[]) ?? [], step, [...((data?.placed as string[]) ?? []), picked]);
 
 // --- Identities -------------------------------------------------------------
 

@@ -89,4 +89,8 @@ export interface CardInstance {
   asAgendaPoints?: number;
   /** Turn key (see turnKey()) when this agenda was scored (Witch Hunt). */
   scoredTurn?: string;
+  /** Ice subtypes this ice gained when it was rezzed, kept while it stays rezzed (Lycian Multi-Munition). */
+  chosenSubtypes?: string[];
+  /** Turn key (see turnKey()) of a turn in which the Corp cannot score this card (A Teia, Warm Reception). */
+  cannotScoreTurn?: string;
 }

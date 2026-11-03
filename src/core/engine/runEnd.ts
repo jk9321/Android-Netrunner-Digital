@@ -73,6 +73,11 @@ export function endTheRun(state: GameState): void {
     }
     return;
   }
+  if (run.encounter?.cannotEndRun && run.encounter.resolvingIndex !== null) {
+    // Banner: subroutines on this ice cannot end the run this encounter
+    addLog(state, 'runner', 'The subroutine cannot end the run this encounter.');
+    return;
+  }
   addLog(state, 'corp', 'The run was ended.');
   endRun(state);
 }

@@ -5,7 +5,8 @@ import { addLog } from '../log';
 import { drawCards, illegal, requireActionPhase, requireClicks } from '../helpers';
 import { getCardScript } from '../../scripts';
 import { activeCards } from '../triggers';
-import { bumpTurnFlag, purgeVirusCounters, removeTags, TurnFlag } from '../cardEffects';
+import { bumpTurnFlag, corpTrashFromHQ, purgeVirusCounters, removeTags, TurnFlag } from '../cardEffects';
+import { pushPrompt } from '../prompts';
 import { trashInstalledRunnerCard } from '../damage';
 
 export function gainCredit(state: GameState, action: GainCreditAction): void {
@@ -69,10 +70,38 @@ export function trashResource(state: GameState, action: TrashResourceAction): vo
   if (state.corp.credits < 2) illegal('Need 2 credits to trash a resource');
   const card = state.runner.rig.resources.find(c => c.instanceId === action.cardInstanceId);
   if (!card) illegal('Not an installed resource');
+  // Additional cost: cards from HQ (Sebastião Souza Pessoa, Manuel Lattes de Moura)
+  const imposers = activeCards(state).filter(c => (getCardScript(c.cardCode)?.modifiers?.resourceTrashHqCost?.(state, c, card) ?? 0) > 0);
+  const hqCost = imposers.reduce((n, c) => n + getCardScript(c.cardCode)!.modifiers!.resourceTrashHqCost!(state, c, card), 0);
+  if (state.corp.hq.length < hqCost) illegal(`Trashing ${cardDef(card).title} also costs ${hqCost} card(s) from HQ`);
   state.corp.clicks -= 1;
   state.corp.credits -= 2;
+  if (hqCost > 0) {
+    pushPrompt(state, {
+      kind: 'effect_cards',
+      side: 'corp',
+      message: `Trash ${hqCost} card(s) from HQ to trash ${cardDef(card).title} (${cardDef(imposers[0]).title}).`,
+      candidateIds: state.corp.hq.map(c => c.instanceId),
+      min: hqCost,
+      max: hqCost,
+      source: { cardCode: imposers[0].cardCode, instanceId: imposers[0].instanceId, step: RESOURCE_TRASH_STEP, data: { resourceId: card.instanceId } },
+    });
+    return;
+  }
   trashInstalledRunnerCard(state, card);
   addLog(state, 'corp', `Corp spent [click] and 2 [credit] to trash ${cardDef(card).title}.`);
+}
+
+/** The step of the engine's "trash cards from HQ to trash this resource" prompt (see trashResource). */
+export const RESOURCE_TRASH_STEP = 'resource-trash-cost';
+
+/** The Corp paid the HQ cards: the resource is trashed. */
+export function finishResourceTrash(state: GameState, resourceId: string, hqIds: string[]): void {
+  corpTrashFromHQ(state, hqIds);
+  const card = state.runner.rig.resources.find(c => c.instanceId === resourceId);
+  if (!card) return;
+  trashInstalledRunnerCard(state, card);
+  addLog(state, 'corp', `Corp spent [click], 2 [credit] and ${hqIds.length} card(s) from HQ to trash ${cardDef(card).title}.`);
 }
 
 /** Corp basic action: [click][click][click]: purge virus counters. */

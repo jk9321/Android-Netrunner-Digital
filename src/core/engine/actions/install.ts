@@ -140,6 +140,12 @@ export function corpInstallBlocker(
   }
   const only = getCardScript(card.cardCode)?.installOnly;
   if (only === 'central' && (!server || server.isRemote)) return `${def.title} can only be installed in a central server`;
+  if (only === 'remote' && server && !server.isRemote) return `${def.title} can only be installed in a remote server`;
+  // "Limit N remote servers" (A Teia)
+  const maxRemotes = getCardScript(state.corp.identity.cardCode)?.maxRemotes;
+  if (serverId === null && maxRemotes !== undefined && Object.values(state.corp.servers).filter(s => s.isRemote).length >= maxRemotes) {
+    return `You are limited to ${maxRemotes} remote servers`;
+  }
   if (only === 'hq-rd' && server?.id !== 'hq' && server?.id !== 'rd') return `${def.title} can only be installed in HQ or R&D`;
   const cost = corpInstallCost(state, card, serverId, ignoreCosts, discount);
   if (state.corp.credits < cost) return `Need ${cost} credits to install ice on this server`;
@@ -173,13 +179,15 @@ export function installCorpCardFrom(
   else delete card.runnerKnows;
   card.installedTurn = turnKey(state);
   state.corp.credits -= installCost;
+  const fromHQ = zone === state.corp.hq;
+  if (fromHQ) bumpTurnFlag(state, TurnFlag.installedFromHQ);
   const server = serverId === null ? createRemoteServer(state) : state.corp.servers[serverId];
 
   if (def.type_code === 'ice') {
     // Outer ice is placed at the end of the array
     server.ice.push(card);
     addLog(state, 'corp', `Corp installed Ice protecting ${server.name} (cost: ${installCost} [credit]).`, undefined, 'install');
-    fireTrigger(state, { type: 'installed', card });
+    fireTrigger(state, { type: 'installed', card, fromHQ });
     return;
   }
 
@@ -199,7 +207,8 @@ export function installCorpCardFrom(
   }
   server.root.push(card);
   addLog(state, 'corp', card.faceUp ? `Corp installed ${def.title} faceup into ${server.name}.` : `Corp installed a card into ${server.name}.`, undefined, 'install');
-  fireTrigger(state, { type: 'installed', card });
+  getCardScript(card.cardCode)?.onCorpInstalled?.({ state, card, side: 'corp' }, fromHQ);
+  fireTrigger(state, { type: 'installed', card, fromHQ });
 }
 
 function installRunnerCard(state: GameState, action: InstallCardAction): void {

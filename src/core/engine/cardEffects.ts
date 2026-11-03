@@ -1,5 +1,5 @@
 import { CardInstance, SideCode } from '../types/card';
-import { GameState } from '../types/state';
+import { GameState, SettledEvent } from '../types/state';
 import { cardDef } from '../cards';
 import { getCardScript } from '../scripts';
 import { CounterType, PaymentPurpose } from '../scripts/types';
@@ -40,7 +40,65 @@ export const TurnFlag = {
   scoredNotInstalledThisTurn: 'scored_not_installed_this_turn',
   /** Bad publicity taken this turn (Editorial Division). */
   badPublicityTaken: 'bad_publicity_taken',
+  /** Agendas the Runner stole this turn (Oppo Research and other cards that ask about the Runner's last turn). */
+  agendasStolen: 'agendas_stolen',
+  /** The Runner trashed one of their own installed cards this turn (Boi-tatá). */
+  runnerTrashedOwnInstalled: 'runner_trashed_own_installed',
+  /** Cards the Corp installed from HQ this turn (The Holo Man). */
+  installedFromHQ: 'installed_from_hq',
+  /** Mandate operations played this turn (Sudden Commandment). */
+  mandatesPlayed: 'mandates_played',
 } as const;
+
+// --- Run flags ----------------------------------------------------------------------
+
+/** Keys of RunState.runFlags kept by the engine. */
+export const RunFlag = {
+  /** Encounters with ice so far this run (S-Dobrado, Alarm Clock: "the first time you encounter a piece of ice"). */
+  encounters: 'encounters',
+  /** Subroutines broken this run (Mercury: Chrome Libertador). */
+  subsBroken: 'subs_broken',
+  /** Pieces of ice derezzed this run (Stegodon MK IV). */
+  iceDerezzed: 'ice_derezzed',
+  /** The breach's "whenever you breach" abilities have fired. */
+  breachFired: 'breach_fired',
+} as const;
+
+export function runFlag(state: GameState, key: string): number {
+  return state.activeRun?.runFlags?.[key] ?? 0;
+}
+
+export function bumpRunFlag(state: GameState, key: string, by = 1): number {
+  const run = state.activeRun;
+  if (!run) return 0;
+  run.runFlags ??= {};
+  run.runFlags[key] = (run.runFlags[key] ?? 0) + by;
+  return run.runFlags[key];
+}
+
+// --- Events fired once settled ---------------------------------------------------------
+
+/**
+ * Queues an event for when nothing is pending: "whenever you finish
+ * resolving" waits until the decisions the operation or action asked for are made.
+ */
+export function whenSettled(state: GameState, event: SettledEvent): void {
+  (state.whenSettled ??= []).push(event);
+}
+
+/** Fires queued events while no decision is pending (called after every action). */
+export function fireSettled(state: GameState): void {
+  while (state.whenSettled?.length && state.pendingPrompts.length === 0 && !state.winner) {
+    const event = state.whenSettled.shift()!;
+    if (event.type === 'action_finished') {
+      fireTrigger(state, event);
+      continue;
+    }
+    const card = findCardAnywhere(state, event.cardId);
+    if (card) fireTrigger(state, { type: event.type, card });
+  }
+  if (state.whenSettled?.length === 0) delete state.whenSettled;
+}
 
 export function turnFlag(state: GameState, key: string): number {
   return state.turnFlags[key] ?? 0;
@@ -118,6 +176,8 @@ export function purgeVirusCounters(state: GameState): number {
     removed += counters(card, 'virus');
     if (card.tokens.virus) card.tokens.virus = 0;
   }
+  // "When the Corp purges virus counters" (Heliamphora, Physarum Entangler)
+  fireTrigger(state, { type: 'virus_purged' });
   return removed;
 }
 
@@ -147,8 +207,11 @@ export function creditSources(state: GameState, side: SideCode, purpose: Payment
   if (purpose.kind === 'stealth') return runPayers(state, side).filter(isStealth);
   const restricted =
     purpose.kind === 'other' ? [] : activeCards(state, side).filter(c => counters(c, 'credit') > 0 && getCardScript(c.cardCode)?.paysFor?.(state, c, purpose));
+  // Inactive cards whose credits pay trash costs during this run (Bahia Bands)
+  const run = runnerRun(state, side);
+  const forTrash = purpose.kind === 'trash' && run ? (run.trashCreditHosts ?? []).flatMap(id => findCardAnywhere(state, id) ?? []).filter(c => counters(c, 'credit') > 0) : [];
   const seen = new Set<string>();
-  return [...restricted, ...runPayers(state, side)].filter(c => !seen.has(c.instanceId) && seen.add(c.instanceId));
+  return [...restricted, ...forTrash, ...runPayers(state, side)].filter(c => !seen.has(c.instanceId) && seen.add(c.instanceId));
 }
 
 /** Credits from stealth cards the Runner can spend right now ("Spend credits only from stealth cards"). */
@@ -436,7 +499,11 @@ export function trashInstalledCard(state: GameState, card: CardInstance): void {
 export function derez(state: GameState, card: CardInstance): void {
   if (!card.isRezzed) return;
   card.isRezzed = false;
+  // Subtypes it gained when rezzed last only while it stays rezzed (Lycian Multi-Munition)
+  delete card.chosenSubtypes;
   addLog(state, 'runner', `${cardDef(card).title} was derezzed.`);
+  if (cardDef(card).type_code === 'ice') bumpRunFlag(state, RunFlag.iceDerezzed);
+  fireTrigger(state, { type: 'derezzed', card });
 }
 
 /** Removes an installed card from the game (Spin Doctor). */
@@ -504,6 +571,7 @@ export function upgradeAllowedIn(state: GameState, upgrade: CardInstance, server
   if (!server) return false;
   const only = getCardScript(upgrade.cardCode)?.installOnly;
   if (only === 'central' && server.isRemote) return false;
+  if (only === 'remote' && !server.isRemote) return false;
   if (only === 'hq-rd' && serverId !== 'hq' && serverId !== 'rd') return false;
   const isRegion = (c: CardInstance) => /\bregion\b/i.test(cardDef(c).keywords ?? '');
   return !(isRegion(upgrade) && server.root.some(c => c.instanceId !== upgrade.instanceId && isRegion(c)));

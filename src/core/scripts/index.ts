@@ -9,6 +9,7 @@ import { elevationRunnerScripts } from './elevationRunner';
 import { elevationCorpScripts } from './elevationCorp';
 import { vantageRunnerScripts } from './vantageRunner';
 import { vantageCorpScripts } from './vantageCorp';
+import { liberationCorpScripts } from './liberationCorp';
 
 export type { CardScript, EffectContext, EffectAnswer } from './types';
 
@@ -23,6 +24,7 @@ const SCRIPTS: Record<string, CardScript> = {
   ...elevationCorpScripts,
   ...vantageRunnerScripts,
   ...vantageCorpScripts,
+  ...liberationCorpScripts,
 };
 
 /** The script for a card code, if its abilities are implemented. */

@@ -59,6 +59,7 @@ export function scoreAgenda(state: GameState, action: ScoreAgendaAction): void {
   const def = cardDef(card);
   if (def.type_code !== 'agenda') illegal('Only agendas can be scored');
   if (turnFlag(state, TurnFlag.cannotScore)) illegal('You cannot score agendas for the remainder of the turn');
+  if (card.cannotScoreTurn === turnKey(state)) illegal('You cannot score this agenda this turn');
   if (card.advancementCounters < (def.advancement_cost ?? 0)) {
     illegal(`Needs ${def.advancement_cost} advancement counters to score`);
   }

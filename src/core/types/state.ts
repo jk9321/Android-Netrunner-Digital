@@ -153,6 +153,12 @@ export interface EncounterState {
   grantedSubs?: { cardCode: string; index: number }[];
   /** The Runner fully broke this ice during this encounter (rules 6.5.7). */
   fullyBroken?: boolean;
+  /** Who broke each subroutine, by index: the icebreaker's instance id, or 'other' for a card ability (Hammer, Virtual Service Agent). */
+  brokenBy?: Record<number, string>;
+  /** Subroutines on this ice cannot end the run for the rest of this encounter (Banner). */
+  cannotEndRun?: boolean;
+  /** Per-encounter counters and flags for card abilities ("once per encounter": Slap Vandal; Sorocaban Blade). */
+  flags?: Record<string, number>;
 }
 
 /** A card whose "if successful" effect is attached to this run (Red Team, Jailbreak, Conduit). */
@@ -238,7 +244,35 @@ export interface RunState {
   notDeclaredSuccessful?: boolean;
   /** At Archives, the Runner may pay 1 stealth credit to approach HQ or R&D instead (Baker). */
   bakerRedirect?: boolean;
+  /** Counters and flags for this run (encounters so far, subroutines broken, ice derezzed, card abilities). See runFlag(). */
+  runFlags?: Record<string, number>;
+  /**
+   * Subroutines pieces of ice gained for the rest of this run, after their
+   * other subroutines (Starlit Knight, Thunderbolt Armaments), by ice instance
+   * id: the granting card's code and the index into its grantedSubroutines.
+   */
+  iceGains?: Record<string, { cardCode: string; index: number }[]>;
+  /** Strength added to particular pieces of ice for the rest of this run, by instance id (Thunderbolt Armaments, Brasília Government Grid). */
+  iceRunStrength?: Record<string, number>;
+  /**
+   * "Instead of breaching the attacked server": breach this server instead
+   * (Eru Ayase-Pessoa, Beatriz Friere Gonzalez: 'rd'), or do not breach at all
+   * ('none': Privileged Access, Burner, Cataloguer).
+   */
+  breachInstead?: 'hq' | 'rd' | 'archives' | 'none';
+  /** The Runner cannot access cards other than these for the rest of the run (Adrian Seis: the bids differed). */
+  accessOnlyIds?: string[];
+  /** The Runner cannot access these cards for the rest of the run (Adrian Seis: the bids matched). */
+  noAccessIds?: string[];
+  /** Inactive cards whose hosted credits the Runner can spend on trash costs during this run (Bahia Bands). */
+  trashCreditHosts?: string[];
 }
+
+/** An event fired once nothing is pending (GameState.whenSettled). */
+export type SettledEvent =
+  | { type: 'operation_finished'; cardId: string }
+  | { type: 'expendable_action_finished'; cardId: string }
+  | { type: 'action_finished'; side: SideCode; count: number };
 
 /** The end of a turn or the Corp's draw, paused while players answer prompts (see engine/actions/turn.ts). */
 export type TurnStep =
@@ -283,6 +317,14 @@ export interface GameState {
   runsThisTurn: { server: string; successful: boolean }[];
   /** Runs the Runner made during their most recent turn (Public Trail). */
   runnerLastTurnRuns: { server: string; successful: boolean }[];
+  /** The Runner stole or trashed a Corp card during their most recent turn (Oppo Research, Active Policing, Bring Them Home). */
+  runnerLastTurnStoleOrTrashed?: boolean;
+  /**
+   * Events waiting for the action or effect in progress to finish, fired once
+   * no decision is pending ("whenever you finish resolving an operation":
+   * Nuvem SA; "whenever you finish taking an action": Wage Workers). Cards by instance id.
+   */
+  whenSettled?: SettledEvent[];
   /**
    * Counters and "once per turn" flags for the current turn, reset when the
    * turn passes. Keys are listed in engine/turnFlags.ts.
