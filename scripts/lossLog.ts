@@ -382,7 +382,7 @@ export function playLogged(start: GameState, agents: { corp: Agent; runner: Agen
     }
     if (!runner.step()) break;
     const after = runner.state;
-    alarms.step(before, after);
+    alarms.step(before, after, runner.last ?? undefined);
     for (const side of sides) {
       const use = identity[side];
       const id = before[side].identity;

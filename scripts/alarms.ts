@@ -12,16 +12,17 @@
  */
 import { CardInstance, GameState } from '../src/core';
 import { cardDef } from '../src/core/cards';
-import { iceCost } from '../src/ai/runs';
+import { iceCost, isTrap } from '../src/ai/runs';
+import { GameAction } from '../src/core';
 
 export type AlarmKind =
   /** Corp: an agenda sat in HQ 4+ Corp turns while the Runner got into HQ on 2+ of the Runner's turns in between */
   | 'agenda stuck in HQ'
-  /** Corp: the Runner was tagged all through a Corp turn with a resource the Corp could afford to trash, and it neither trashed nor used the tag */
+  /** Corp: the Runner was tagged all through a Corp turn with a resource the Corp could afford to trash, and it clicked for a credit or a card instead of trashing or using the tag */
   | 'tag not used'
   /** Runner: 3 Runner turns running in a row on the same central that got nothing (no points, no Corp card trashed) */
   | 'fruitless runs'
-  /** Runner: an advanced card sat in a remote the Runner could get into (no unrezzed ice, rezzed ice affordable) and it didn't run there */
+  /** Runner: an unrezzed advanced card sat in a remote the Runner could get into (no unrezzed ice, rezzed ice affordable) and it didn't run there; detail says what it really was */
   | 'open target skipped'
   /** Runner: a successful run on an empty Archives */
   | 'empty Archives run';
@@ -32,6 +33,8 @@ export interface Alarm {
   /** Whose turn to dump to get the position before the mistake */
   side: 'corp' | 'runner';
   note: string;
+  /** A short category to count by (what the skipped card really was, ...) */
+  detail?: string;
 }
 
 const isAgenda = (c: CardInstance) => cardDef(c).type_code === 'agenda';
@@ -47,11 +50,15 @@ export class AlarmTracker {
   private runnerStart: GameState | null = null;
   private fruitless = new Map<string, number>();
 
-  private fire(kind: AlarmKind, turn: number, side: 'corp' | 'runner', note: string) {
-    this.alarms.push({ kind, turn, side, note });
+  private corpTurnIdleClicks = 0;
+
+  private fire(kind: AlarmKind, turn: number, side: 'corp' | 'runner', note: string, detail?: string) {
+    this.alarms.push({ kind, turn, side, note, ...(detail ? { detail } : {}) });
   }
 
-  step(before: GameState, after: GameState) {
+  step(before: GameState, after: GameState, action?: GameAction) {
+    // Clicks the Corp spent on a credit or a card: the low-value actions a trash could have replaced
+    if (before.activePlayer === 'corp' && (action?.type === 'GAIN_CREDIT' || action?.type === 'DRAW_CARD')) this.corpTurnIdleClicks++;
     // Turn boundaries
     if (before.activePlayer === 'corp' && after.activePlayer === 'runner') this.endCorpTurn(after);
     if (before.activePlayer === 'runner' && after.activePlayer === 'corp') this.endRunnerTurn(before, after);
@@ -62,7 +69,7 @@ export class AlarmTracker {
     if (after.activePlayer === 'corp' && !after.activeRun && (after.runner.rig.resources.length < before.runner.rig.resources.length || after.runner.tags < before.runner.tags)) this.corpTurnUsedTags = true;
 
     // A successful run on an empty Archives
-    if (before.activeRun && !after.activeRun) {
+    if (after.runsThisTurn.length > before.runsThisTurn.length) {
       const run = after.runsThisTurn[after.runsThisTurn.length - 1];
       if (run?.server === 'archives' && run.successful && corpCardsGone(before) === 0) this.fire('empty Archives run', after.turnNumber, 'runner', 'Archives held no cards');
     }
@@ -71,6 +78,7 @@ export class AlarmTracker {
   private startCorpTurn(s: GameState) {
     this.corpStart = s;
     this.corpTurnUsedTags = false;
+    this.corpTurnIdleClicks = 0;
     for (const c of s.corp.hq.filter(isAgenda)) {
       const entry = this.hqSince.get(c.instanceId);
       if (!entry) {
@@ -90,7 +98,7 @@ export class AlarmTracker {
     if (!start || start.turnNumber !== after.turnNumber) return;
     // Tagged all turn, a trashable resource (base trash cost 2 credits, rule 4.4.1), and the click and credits for it
     const trashable = start.runner.rig.resources.length > 0 && start.corp.credits >= 2 && start.corp.clicks >= 1;
-    if (start.runner.tags > 0 && after.runner.tags > 0 && trashable && !this.corpTurnUsedTags) {
+    if (start.runner.tags > 0 && after.runner.tags > 0 && trashable && !this.corpTurnUsedTags && this.corpTurnIdleClicks > 0) {
       this.fire('tag not used', start.turnNumber, 'corp', `${start.runner.tags} tag(s), ${start.corp.credits} credits, resources: ${start.runner.rig.resources.map(title).join(', ')}`);
     }
   }
@@ -116,12 +124,14 @@ export class AlarmTracker {
     // An advanced card in a remote the Runner could afford to get into, left alone
     if (start.runner.clicks > 0) {
       for (const sv of Object.values(start.corp.servers)) {
-        if (!sv.isRemote || !sv.root.some(c => c.advancementCounters > 0)) continue;
+        const target = sv.isRemote ? sv.root.find(c => c.advancementCounters > 0 && !c.isRezzed) : undefined;
+        if (!target) continue;
         if (sv.ice.some(i => !i.isRezzed)) continue;
         const cost = sv.ice.reduce((n, i) => n + iceCost(start, i), 0);
         if (cost > start.runner.credits) continue;
         if (runs.some(r => r.server === sv.id)) continue;
-        this.fire('open target skipped', start.turnNumber, 'runner', `${sv.id}: advanced card behind ${sv.ice.length} rezzed ice costing about ${cost.toFixed(1)}, Runner had ${start.runner.credits} credits`);
+        const what = isAgenda(target) ? 'agenda' : isTrap(target.cardCode) ? 'trap' : cardDef(target).type_code;
+        this.fire('open target skipped', start.turnNumber, 'runner', `${sv.id}: ${title(target)} (${target.advancementCounters} counters) behind ${sv.ice.length} rezzed ice costing about ${cost.toFixed(1)}, Runner had ${start.runner.credits} credits`, what);
       }
     }
     void after;

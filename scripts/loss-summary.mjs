@@ -29,6 +29,9 @@ export function printLossSummary(all, detail = !!process.env.DETAIL) {
         const deck = a.side === 'corp' ? a.g.corpDeck : a.g.runnerDeck;
         byDeck.set(deck, (byDeck.get(deck) ?? 0) + 1);
       }
+      const details = new Map();
+      for (const a of list) if (a.detail) details.set(a.detail, (details.get(a.detail) ?? 0) + 1);
+      if (details.size) console.log(`    really: ${[...details].sort((a, b) => b[1] - a[1]).map(([d, n]) => `${d} ${n}`).join(', ')}`);
       console.log(`    most: ${[...byDeck].sort((a, b) => b[1] - a[1]).slice(0, 3).map(([d, n]) => `${d} ${n}`).join(', ')}`);
       for (const a of list.slice(0, 3)) console.log(`    deal ${a.g.seed} ${a.g.corpDeck} vs ${a.g.runnerDeck}, turn ${a.turn} ${a.side}: ${a.note}`);
     }
