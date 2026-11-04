@@ -3,7 +3,8 @@ import { createPortal } from 'react-dom';
 import { AnimatePresence, MotionConfig, motion } from 'framer-motion';
 import { CardInstance, SideCode } from '../../core/types/card';
 import { CardView } from './CardView';
-import { useAnimationsEnabled } from '../animations';
+import { animationsEnabled, useAnimationsEnabled } from '../animations';
+import { holdHover } from '../hoverHold';
 
 interface HandRowProps {
   cards: CardInstance[];
@@ -38,6 +39,7 @@ export function spreadOverlap(count: number, cardPx: number, avail: number): num
 }
 
 const CLOSE_DELAY_MS = 160;
+const SPREAD_SECONDS = 0.2;
 
 /**
  * A hand of cards, fanned so each overlaps the last, that animates its changes: a drawn card slides in from the
@@ -80,6 +82,8 @@ export const HandRow: React.FC<HandRowProps> = React.memo(({
     const o = spreadOverlap(cards.length, cardPx, maxRight - minLeft);
     const width = cardPx + (cards.length - 1) * cardPx * (1 - o);
     const shift = Math.min(0, maxRight - (rect.left + width));
+    // Hover previews wait while the cards slide apart
+    if (animationsEnabled()) holdHover(SPREAD_SECONDS * 1000 + 60);
     setSpread({ left: rect.left, top: rect.top, shift: Math.max(shift, minLeft - rect.left), overlap: o });
   }, [cards.length]);
   const close = useCallback(() => {
@@ -119,7 +123,7 @@ export const HandRow: React.FC<HandRowProps> = React.memo(({
     />
   );
 
-  const duration = animationsOn ? 0.2 : 0;
+  const duration = animationsOn ? SPREAD_SECONDS : 0;
 
   return (
     <MotionConfig reducedMotion={animationsOn ? 'user' : 'always'}>

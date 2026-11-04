@@ -1,4 +1,4 @@
-import React, { useRef, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { CardInstance } from '../../core/types/card';
 import { cardDef, getCardImageUrl, getCardBackUrl } from '../../data/cards';
 import { Lock, Eye, ArrowRight } from 'lucide-react';
@@ -8,6 +8,7 @@ import { AdvancementIcon, AgendaIcon, Credits, PowerIcon, VirusIcon } from './Cr
 import { Keyword } from './Keyword';
 import { StatTumbler } from './StatTumbler';
 import { useZoom } from './ZoomPanel';
+import { hoverHoldRemaining } from '../hoverHold';
 import { createPortal } from 'react-dom';
 import { usePromptHighlight } from '../promptHighlight';
 import { IceTypeIcons, breakerTypes } from './IceTypeIcons';
@@ -104,13 +105,30 @@ const CardFace: React.FC<CardViewProps & { showTooltip: boolean; setShowTooltip:
   const handleTouchStart = () => {
     lastTouchTime.current = Date.now();
   };
-  const handleMouseEnter = () => {
+  const showHover = () => {
     zoom?.show({ card, hidden, seen: seen && !hidden });
     // Suppress sticky hover popouts from synthesized mouseenter events on touch screens
     if (Date.now() - lastTouchTime.current < 1000 || isTouchViewport()) return;
     setShowTooltip(true);
   };
-  const handleMouseLeave = () => setShowTooltip(false);
+  const holdTimer = useRef<number | undefined>(undefined);
+  useEffect(() => () => window.clearTimeout(holdTimer.current), []);
+  const handleMouseEnter = () => {
+    window.clearTimeout(holdTimer.current);
+    // A spreading hand slides cards under the pointer: wait for it to settle, then preview the card still under it
+    const held = hoverHoldRemaining();
+    if (held > 0) {
+      holdTimer.current = window.setTimeout(() => {
+        if (cardRef.current?.matches(':hover')) showHover();
+      }, held + 20);
+      return;
+    }
+    showHover();
+  };
+  const handleMouseLeave = () => {
+    window.clearTimeout(holdTimer.current);
+    setShowTooltip(false);
+  };
 
   // When face-down and viewer cannot peek (e.g. Runner looking at Corp ICE/Root)
   if (isFaceDown && !canPeek) {

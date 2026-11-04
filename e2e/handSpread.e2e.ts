@@ -65,3 +65,22 @@ test('a spread hand stays within its board', async ({ page }) => {
   const rects = await spread.locator('> *').evaluateAll(els => els.map(el => el.getBoundingClientRect().right));
   expect(Math.max(...rects)).toBeLessThanOrEqual(board.x + board.width);
 });
+
+// Cards sliding under the pointer don't flick the zoom panel; it settles on the card the pointer ends on
+test('the zoom panel waits for the spread to finish', async ({ page }) => {
+  await page.route(/^https?:\/\/(?!localhost)/, route => route.abort());
+  await page.goto('/');
+  await page.getByTestId('opponent-ai-corp').click();
+  await page.getByTestId('difficulty-normal').click();
+  await page.getByTestId('start-game').click();
+  await page.getByRole('button', { name: 'Keep hand' }).click({ timeout: 30_000 });
+  await expect(page.getByTestId('runner-credits')).toBeVisible({ timeout: 60_000 });
+
+  const box = (await page.getByTestId('hand-runner').locator('[data-hand-card]').nth(2).boundingBox())!;
+  await page.mouse.move(box.x + 10, box.y - 80);
+  await page.mouse.move(box.x + 10, box.y + 30, { steps: 3 });
+  // Right after the hand opens nothing is previewed yet
+  await expect(page.getByTestId('hand-runner-spread')).toBeVisible();
+  await expect(page.getByTestId('zoom-panel')).toHaveCount(0);
+  await expect(page.getByTestId('zoom-panel')).toHaveCount(1, { timeout: 2000 });
+});
