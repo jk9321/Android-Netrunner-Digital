@@ -240,7 +240,7 @@ export const CardPopout: React.FC<CardPopoutProps> = ({
                   {def.title}
                 </h3>
                 <div className="text-[11px] sm:text-[12px] text-slate-400 italic mt-0.5">
-                  {typeLine(def)} · <span className={`not-italic ${FACTION_COLOR[def.faction_code]}`}>{FACTION_LABEL[def.faction_code]}</span>
+                  {typeLine(def, card)} · <span className={`not-italic ${FACTION_COLOR[def.faction_code]}`}>{FACTION_LABEL[def.faction_code]}</span>
                 </div>
               </div>
 
