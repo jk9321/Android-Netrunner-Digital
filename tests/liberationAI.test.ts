@@ -96,7 +96,7 @@ describe('Liberation AI', () => {
     }
   });
 
-  it('takes Salvo Testing's optional core damage', () => {
+  it("takes Salvo Testing's optional core damage", () => {
     const s = scoreForTest(newGame(), '34031');
     const salvo = answerPrompt(s, 'corp');
     expect(salvo.type === 'RESOLVE_PROMPT' && salvo.choice.kind === 'effect_choice' && salvo.choice.optionId).toBe('yes');
