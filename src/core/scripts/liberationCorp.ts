@@ -701,7 +701,11 @@ const balancedCoverage: CardScript = {
 const behold: CardScript = {
   revealedOnRdAccess: true,
   onAccessed: (ctx, where) => {
-    if (where === 'archives' || availableCredits(ctx.state, 'corp') < 4) return;
+    if (where === 'archives') return;
+    if (availableCredits(ctx.state, 'corp') < 4) {
+      addLog(ctx.state, 'corp', 'Behold!: the Corp has less than 4 [credit], so it cannot give the Runner 2 tags.');
+      return;
+    }
     askChoice(ctx, 'corp', 'Behold!: pay 4 [credit] to give the Runner 2 tags?', yesNo('Pay 4 [credit]'), 'tags');
   },
   onPromptAnswer: ({ state }, _source, answer) => {

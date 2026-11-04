@@ -462,6 +462,17 @@ describe('The Automata Initiative: NBN', () => {
     expect(s.corp.credits).toBe(1);
   });
 
+  it('Behold! says so in the log when the Corp cannot pay its 4 credits (bug report #12)', () => {
+    let s = newGame();
+    emptyHQ(s);
+    installCorpForTest(s, L.behold, 'remote-1');
+    s.corp.credits = 3;
+    s = cont(run(s, 'remote-1'));
+    expect(source(s)?.cardCode).not.toBe(L.behold);
+    expect(s.runner.tags).toBe(0);
+    expect(s.log.some(l => l.message.includes('Behold!: the Corp has less than 4'))).toBe(true);
+  });
+
   it('Federal Fundraising arranges the top 3 of R&D and draws when unprotected', () => {
     let s = newGame();
     installCorpForTest(s, L.federal, 'remote-1', true);
