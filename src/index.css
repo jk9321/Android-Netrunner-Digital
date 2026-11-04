@@ -323,7 +323,7 @@
 }
 /* Hands fan out: each card overlaps the one before it */
 .hand-fan > * + * {
-  margin-left: calc(var(--card-w) * -0.42);
+  margin-left: calc(var(--card-w) * var(--hand-overlap, 0.42) * -1);
 }
 /* The zoom panel's card: as big as the side bar allows, never taller than 40% of the screen */
 .zoom-card {

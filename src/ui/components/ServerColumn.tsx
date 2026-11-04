@@ -45,8 +45,10 @@ const IceSlot: React.FC<{
   ice: CardInstance;
   hosted: CardInstance[];
   atRunner: boolean;
+  /** Share of the card's width this ice tucks under the one before it (a long ice stack takes less height). */
+  overlap?: number;
   children: React.ReactNode;
-}> = ({ ice, hosted, atRunner, children }) => {
+}> = ({ ice, hosted, atRunner, overlap = 0, children }) => {
   const lit = useHostLinkLit(ice.instanceId);
   const link = hosted.length > 0 ? [ice.instanceId, ...hosted.map(h => h.instanceId)] : null;
   return (
@@ -54,7 +56,9 @@ const IceSlot: React.FC<{
       data-run-ice={atRunner || undefined}
       onMouseEnter={link ? () => lightHostLink(link) : undefined}
       onMouseLeave={link ? clearHostLink : undefined}
-      className={`relative card-sideways rounded-[2px] ${atRunner ? 'run-ice' : ''} ${lit ? 'host-link-lit' : ''}`}
+      style={overlap > 0 ? { marginTop: `calc(var(--card-w) * ${-overlap})` } : undefined}
+      // Overlapped ice comes forward while hovered or at the run, so its whole face can be read
+      className={`relative card-sideways rounded-[2px] hover:z-20 ${atRunner ? 'run-ice z-20' : ''} ${lit ? 'host-link-lit' : ''}`}
     >
       {children}
     </div>
@@ -72,6 +76,12 @@ const HostedTag: React.FC<{ ice: CardInstance; hosted: CardInstance[] }> = ({ ic
     <span className="truncate">{hosted.map(h => cardDef(h).title).join(', ')}</span>
   </div>
 );
+
+/** Ice stacks of three or more overlap a little, and more as they grow, so tall servers fit the table. */
+export function iceOverlap(count: number): number {
+  if (count < 3) return 0;
+  return count >= 5 ? 0.35 : 0.22;
+}
 
 const ICE_PHASE_LABEL: Partial<Record<RunState['phase'], string>> = {
   approach_ice: 'Approaching',
@@ -237,9 +247,10 @@ export const ServerColumn: React.FC<ServerColumnProps> = ({
       {/* Protecting Ice, on the Runner's side of the root: innermost at the top, outermost at the bottom */}
       {server.ice.length > 0 && (
         <div className="flex flex-col gap-1 items-center" title={`${server.ice.length} ice`}>
-          {server.ice.map((iceCard) => (
+          {server.ice.map((iceCard, i) => (
             <IceSlot
               key={iceCard.instanceId}
+              overlap={i > 0 ? iceOverlap(server.ice.length) : 0}
               ice={iceCard}
               hosted={hostedOnIce(iceCard)}
               atRunner={runIceId === iceCard.instanceId}
