@@ -9,7 +9,7 @@ import { ViewMode } from '../viewer';
 import { setSoundEnabled, soundEnabled } from '../sound';
 import { musicEnabled, setMusicEnabled, musicVolume, setMusicVolume } from '../music';
 import { animationsEnabled, setAnimationsEnabled } from '../animations';
-import { CardSize, savedCardSize, setCardSize } from '../cardSize';
+import { CardSize, isAutoFitOn, savedCardSize, setAutoFit, setCardSize } from '../cardSize';
 import { PhaseTracker } from './PhaseTracker';
 import { BugReportButton } from './BugReportButton';
 import { savedTableFor } from '../bugReport';
@@ -47,6 +47,11 @@ export function GameHeader({
   const settingsBtnRef = useRef<HTMLButtonElement>(null);
   const settingsMenuRef = useRef<HTMLDivElement>(null);
   const [cardSize, setCardSizeState] = useState(savedCardSize);
+  const [autoFit, setAutoFitState] = useState(isAutoFitOn);
+  const toggleAutoFit = () => {
+    setAutoFit(!autoFit);
+    setAutoFitState(!autoFit);
+  };
   const aiSide = config.ai;
   const { corp, runner } = state;
 
@@ -182,6 +187,17 @@ export function GameHeader({
               {label}
             </button>
           ))}
+          <button
+            onClick={toggleAutoFit}
+            aria-pressed={autoFit}
+            data-testid="auto-fit"
+            title={autoFit ? 'Auto fit is on: cards shrink (down to a limit) so the board needs no scrolling' : 'Auto fit is off: cards stay at the chosen size'}
+            className={`ml-0.5 px-2 py-0.5 rounded-[1px] text-xs transition-colors ${
+              autoFit ? 'bg-emerald-700 text-white font-bold' : 'text-slate-400 hover:text-white'
+            }`}
+          >
+            Auto fit
+          </button>
         </div>
 
         {state.winner ? (
@@ -399,6 +415,15 @@ export function GameHeader({
                           {label}
                         </button>
                       ))}
+                      <button
+                        onClick={toggleAutoFit}
+                        aria-pressed={autoFit}
+                        className={`ml-0.5 px-2.5 py-1 rounded-[1px] text-xs transition-colors ${
+                          autoFit ? 'bg-emerald-700 text-white font-bold' : 'text-slate-400 hover:text-white'
+                        }`}
+                      >
+                        Auto fit
+                      </button>
                     </div>
                   </div>
 

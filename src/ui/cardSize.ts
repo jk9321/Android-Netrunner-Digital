@@ -28,3 +28,37 @@ export function setCardSize(size: CardSize): void {
     // Not saved; the size still applies for this page
   }
 }
+
+/**
+ * Auto fit: each scrolling board area (Corp servers, Runner rig) shrinks its
+ * cards, down to a floor, until its contents fit without scrolling. On by
+ * default; the header's Fit button turns it off. See useAutoFit.ts.
+ */
+const AUTO_FIT_KEY = 'netrunner.autoFit';
+export const AUTO_FIT_EVENT = 'netrunner:autofit';
+
+export function savedAutoFit(): boolean {
+  try {
+    return window.localStorage.getItem(AUTO_FIT_KEY) !== 'off';
+  } catch {
+    return true;
+  }
+}
+
+export function isAutoFitOn(): boolean {
+  return document.documentElement.dataset.autoFit !== 'off';
+}
+
+export function applyAutoFit(on: boolean): void {
+  document.documentElement.dataset.autoFit = on ? 'on' : 'off';
+  window.dispatchEvent(new Event(AUTO_FIT_EVENT));
+}
+
+export function setAutoFit(on: boolean): void {
+  applyAutoFit(on);
+  try {
+    window.localStorage.setItem(AUTO_FIT_KEY, on ? 'on' : 'off');
+  } catch {
+    // Not saved; the setting still applies for this page
+  }
+}

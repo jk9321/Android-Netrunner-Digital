@@ -24,6 +24,7 @@ import { TurnBanner } from './ui/components/TurnBanner';
 import { GameOverModal } from './ui/components/GameOverModal';
 import { GameHeader } from './ui/components/GameHeader';
 import { SideStrip } from './ui/components/SideStrip';
+import { AutoFitArea } from './ui/components/AutoFitArea';
 import { CorpActions, RunnerActions } from './ui/components/ActionBars';
 import { AccessedPanel } from './ui/components/AccessedPanel';
 import { canActAs, canSeeCorpSecrets, canSeeRunnerSecrets } from './ui/viewer';
@@ -412,9 +413,9 @@ function Game({
 
           <div className="flex-1 min-h-0 flex flex-col lg:flex-row gap-2 min-w-0">
           {/* Servers Grid */}
-          <div className="flex items-start gap-2 flex-1 min-w-0 min-h-0 overflow-auto pt-2 pb-1">
+          <AutoFitArea className="flex items-start gap-2 flex-1 min-w-0 min-h-0 overflow-auto pt-2 pb-1">
             {serversView}
-          </div>
+          </AutoFitArea>
           {/* Corp HQ Hand: beside the servers on wide screens */}
           <div className="min-w-0 lg:max-w-[45%] shrink-0 flex flex-col overflow-x-auto overflow-y-hidden">
             <div className="flex items-center gap-2 text-[12px] text-cyan-400 font-bold uppercase tracking-wider">
@@ -453,9 +454,9 @@ function Game({
           >
           <div className="flex-1 min-h-0 flex flex-col lg:flex-row gap-2 min-w-0">
           {/* Runner Rig (Installed Programs, Hardware, Resources) */}
-          <div className="flex-1 min-w-0 min-h-0 overflow-auto">
+          <AutoFitArea className="flex-1 min-w-0 min-h-0 overflow-auto">
             {rigView}
-          </div>
+          </AutoFitArea>
           {/* Runner Grip Hand: beside the rig on wide screens */}
           <div className="min-w-0 lg:max-w-[45%] shrink-0 flex flex-col overflow-x-auto overflow-y-hidden">
             <div className="flex items-center gap-2 text-[12px] text-pink-400 font-bold uppercase tracking-wider">
