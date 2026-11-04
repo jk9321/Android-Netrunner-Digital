@@ -239,3 +239,7 @@ Every self-play batch, newest last (Jeff, 2026-10-28). Made with `scripts/corp-l
 | 2026-11-04 | #15: hqNoSafer off | f4118eb | 663 | **46.6%** | 40.1% / 6.5% | 43.1% / 10.3% | 43.3% / 26.4% / 25.3% / 5.0% | 7.4 | [txt](batch-logs/2026-11-04-15-hqnosafer-off.txt) |
 | 2026-11-04 | #16: readAssetTrash on | aff9286 | 663 | **47.7%** | 41.3% / 6.3% | 42.4% / 10.0% | 45.7% / 26.6% / 23.0% / 4.8% | 7.2 | [txt](batch-logs/2026-11-04-16-readassettrash-on.txt) |
 | 2026-11-04 | #16: readAssetTrash off | aff9286 | 663 | **48.3%** | 41.9% / 6.3% | 42.2% / 9.5% | 45.5% / 26.9% / 22.9% / 4.7% | 7.4 | [txt](batch-logs/2026-11-04-16-readassettrash-off.txt) |
+| 2026-11-04 | castWhileAble on | fcb32da | 663 | **49.2%** | 41.6% / 7.5% | 41.2% / 9.7% | 45.2% / 26.3% / 22.1% / 6.4% | 7.6 | [txt](batch-logs/2026-11-04-castwhileable-on.txt) |
+| 2026-11-04 | castWhileAble off | fcb32da | 663 | **47.7%** | 41.3% / 6.3% | 42.4% / 10.0% | 45.7% / 26.6% / 23.0% / 4.8% | 7.2 | [txt](batch-logs/2026-11-04-castwhileable-off.txt) |
+| 2026-11-04 | econ: castWhileAble + clickMoneyRez on | 0af0853 | 663 | **51.4%** | 43.1% / 8.3% | 39.5% / 9.0% | 44.9% / 27.0% / 21.2% / 6.9% | 7.7 | [txt](batch-logs/2026-11-04-econ-castwhileable-clickmoneyrez-on.txt) |
+| 2026-11-04 | econ: clickMoneyRez off | 0af0853 | 663 | **49.2%** | 41.6% / 7.5% | 41.2% / 9.7% | 45.2% / 26.3% / 22.1% / 6.4% | 7.6 | [txt](batch-logs/2026-11-04-econ-clickmoneyrez-off.txt) |

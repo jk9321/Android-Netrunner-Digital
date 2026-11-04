@@ -283,8 +283,11 @@ export class HeuristicRunnerAI implements Agent {
 
     // Follow our own prompts (Lie Low, Scrounge, Madani) a few steps
     let resolved = after;
-    for (let i = 0; i < 3 && activePrompt(resolved)?.side === 'runner'; i++) {
-      const next = simulate(resolved, answerPrompt(resolved, 'runner', this.memory, this.synergy));
+    // plan.answerCorpChoice: also the Corp's answer to the card's choice (Wildcat Strike: the Corp picks 6 credits or 4 cards)
+    for (let i = 0; i < 3; i++) {
+      const side = activePrompt(resolved)?.side;
+      if (side !== 'runner' && !(side === 'corp' && this.synergy && tuning.plan.answerCorpChoice)) break;
+      const next = simulate(resolved, answerPrompt(resolved, side, this.memory, this.synergy));
       if (!next) break;
       resolved = next;
     }

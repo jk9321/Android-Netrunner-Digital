@@ -157,6 +157,10 @@ export const tuning = {
     castWhileAble: true,
     /** Corp: a money asset paid out by clicks (Regolith Mining License) isn't rezzed with no click left to use it, except just before the turn begins. */
     clickMoneyRez: true,
+    /** Both sides: on the Runner's turn outside a run, the damage clock counts the cards its clicks left can draw back (effectValues lifeGrip). */
+    drawBackLife: true,
+    /** Runner: a card the Corp answers a choice for (Wildcat Strike, Urban Art Vernissage) is scored after the Corp's answer, not before anything is gained (runnerAI scoreMain). */
+    answerCorpChoice: true,
     /** Clearinghouse is advanced toward a flatline (grip + 1 counters, at most 6), not stopped at 3 like other assets. */
     clearinghouseLethal: true,
     /** Lookahead guesses (runnerReply.guessHidden, search.determinize) keep hand cards the guessing side has seen. */

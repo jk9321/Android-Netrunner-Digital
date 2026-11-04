@@ -253,9 +253,21 @@ export function damageWorth(state: GameState, n: number): number {
   if (!tuning.plan.damageClock) return n * card;
   // The damage clock: the cards, and the step closer to a flatline the smaller grip leaves
   // Cards over the hand limit are discarded before the Corp's turn: they are no life against its damage
-  const limit = state.runner.handSizeLimit ?? 5;
   const grip = state.runner.grip.length;
-  return n * card + flatlineWorth(state) * (flatlineOdds(state, Math.min(limit, grip - n)) - flatlineOdds(state, Math.min(limit, grip)));
+  return n * card + flatlineWorth(state) * (flatlineOdds(state, lifeGrip(state, grip - n, false)) - flatlineOdds(state, lifeGrip(state, grip, false)));
+}
+
+/**
+ * The grip that will stand against the Corp's damage on its turn: at most the hand size limit (the rest is discarded
+ * first). plan.drawBackLife (Jeff, 2026-11-04: the Runner hoarded Sure Gamble): on the Runner's own turn, outside a run,
+ * each click left can draw a card back, so a card played now isn't a card less against the next Corp turn yet.
+ * Not for damage taken in a run (damageWorth): counting clicks there made every click spent cost life (a click for a
+ * credit at 2 cards scored -5.8 against a damage deck).
+ */
+export function lifeGrip(state: GameState, grip = state.runner.grip.length, drawBack = true): number {
+  const limit = state.runner.handSizeLimit ?? 5;
+  const back = drawBack && tuning.plan.drawBackLife && state.activePlayer === 'runner' && !state.activeRun ? state.runner.clicks : 0;
+  return Math.min(limit, grip + back);
 }
 
 /** Damage a Corp card can deal in one go, from its text ("plus 1 ... for each" counts 2 more). */

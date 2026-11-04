@@ -12,7 +12,7 @@ import { payoutWait, payoutWorth, profileOf, turnsLeft } from './cardProfiles';
 import { resourceTrashHqCost } from '../core/engine/actions/basic';
 import { HAND_FLOOR, clickPrice, handByCard, heldWorth, ownHandValue, playedWorth } from './handValues';
 import { CLICK, RATES, cardRate, creditValue, flatRate, flatlineWorth, guardLoop, handFilter, memo, pointValue, sideCreditValue } from './valueModel';
-import { PACE, STEAL, coreSlotWorth, flatlineOdds, runSuccess, stealOdds } from './effectValues';
+import { PACE, STEAL, coreSlotWorth, flatlineOdds, lifeGrip, runSuccess, stealOdds } from './effectValues';
 import { trashedCardCost } from './runs';
 
 const MADANI = '35028';
@@ -507,7 +507,7 @@ export function sideStrength(state: GameState, side: SideCode, viewer: SideCode 
     (tuning.plan.tagClock ? tagsWorth(state, viewer) : (RATES.tagAgainstRunner + threat) * runner.tags) -
     coreSlotWorth(state) * runner.coreDamage -
     // The damage clock: a small grip against the Corp's damage is a step toward a flatline
-    (tuning.plan.damageClock ? flatlineWorth(state) * flatlineOdds(state, Math.min(runner.grip.length, runner.handSizeLimit ?? 5)) + lifeCards(runner.grip.length) : 0) +
+    (tuning.plan.damageClock ? flatlineWorth(state) * flatlineOdds(state, lifeGrip(state)) + lifeCards(runner.grip.length) : 0) +
     runnerRigValue(state, aware, viewer)
   );
 }
