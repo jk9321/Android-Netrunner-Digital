@@ -7,7 +7,8 @@ import { counters, rezCost } from '../core/engine/cardEffects';
 import { turnKey } from '../core/engine/helpers';
 import { stealCost } from '../core/engine/actions/run';
 import { Agent, FreeActionGuard, ScoredAction } from './agent';
-import { agendaWorth, digValue, evaluate } from './evaluate';
+import { agendaWorth, digValue, evaluate, handValue, hqTrashCardsLoss } from './evaluate';
+import { resourceTrashHqCost } from '../core/engine/actions/basic';
 import { clickRate, pointGain, pointValue } from './valueModel';
 import { PACE, STEAL, accessWorth, agendaOdds } from './effectValues';
 import { answerPrompt, simulate } from './prompts';
@@ -247,6 +248,17 @@ export class HeuristicCorpAI implements Agent {
     switch (action.type) {
       case 'END_TURN':
         return -0.5;
+      case 'TRASH_RESOURCE': {
+        const score = this.playScore(state, action, before);
+        const resource = state.runner.rig.resources.find(c => c.instanceId === action.cardInstanceId);
+        const k = resource ? resourceTrashHqCost(state, resource) : 0;
+        if (!this.synergy || !tuning.plan.hqTrashCost || k === 0 || !resource || !Number.isFinite(score)) return score;
+        // plan.hqTrashCost: the board score took the HQ cards off at the flat worth of a card in hand;
+        // they are the Corp's least useful cards (Sebastião Souza Pessoa, Manuel Lattes de Moura)
+        const size = state.corp.hq.length;
+        const flat = handValue(size, state.corp.handSizeLimit, 'corp') - handValue(size - k, state.corp.handSizeLimit, 'corp');
+        return score + flat - hqTrashCardsLoss(state, resource);
+      }
       case 'START_TURN':
         // After rezzing what is worth it, so "when your turn begins" cards fire this turn
         return -0.5;

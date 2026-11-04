@@ -156,7 +156,7 @@ export function tagCost(state: GameState): number {
   if (tuning.plan.tagClock) {
     // A run still to start takes its click first (plan.tagNoClear: what's left to clear the tag with)
     const s = tuning.plan.tagNoClear && !state.activeRun ? { ...state, runner: { ...state.runner, clicks: state.runner.clicks - 1 } } : state;
-    return tagsWorth(s, 'runner', s.runner.tags + 1) - tagsWorth(s, 'runner');
+    return tagsWorth(s, 'runner', s.runner.tags + 1) - tagsWorth(s, 'runner', s.runner.tags); // both priced as given (plan.tagTrashNow)
   }
   return Math.min(clickRate('runner') + creditCost(state, 2), RATES.tagAgainstRunner + tagThreat(state, 'runner'));
 }

@@ -134,6 +134,15 @@ export const tuning = {
     rezPaid: true,
     /** A tag the Runner can't clear before the Corp's next turn costs that turn's loss first (evaluate.ts tagClock). */
     tagNoClear: true,
+    /** On the Corp's turn, with a click and 2 credits, a tag's worth leaves out this turn's resource trash, which the trash action itself takes (Jeff: the Corp never trashed Sebastião's connections). */
+    tagTrashNow: true,
+    /** The cards from HQ that trashing a resource also costs (Sebastião, Manuel at threat 3) are priced as the Corp's least useful ones, not the flat worth of a card in hand. */
+    hqTrashCost: true,
+    /**
+     * The Corp deciding prices a tagged Runner's resources without the risk of its own trash action (PAYOUT_RISK.runnerTagged):
+     * that risk is the Corp's choice, already in the tag clock, so it made keeping the tag look as good as trashing.
+     */
+    ownTrashRisk: true,
     /** Clearinghouse is advanced toward a flatline (grip + 1 counters, at most 6), not stopped at 3 like other assets. */
     clearinghouseLethal: true,
     /** Lookahead guesses (runnerReply.guessHidden, search.determinize) keep hand cards the guessing side has seen. */
@@ -458,6 +467,9 @@ export function applyPlanOff(list: string) {
 
 let acting: SideCode | null = null;
 let basePlan: typeof tuning.plan | null = null;
+
+/** The side whose decision is being made (asSide), or null outside one. */
+export const actingSide = (): SideCode | null => acting;
 
 /** Which side's plan is in use, for caches whose values depend on it. */
 export const planSide = (): string => (acting && sideOff[acting].length ? acting : '');

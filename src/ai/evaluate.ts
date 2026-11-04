@@ -9,6 +9,7 @@ import { countersWorth } from './counterValues';
 import { boardPlansWorth } from './cardPlans';
 import { AI_BREAKER_SHARE, breakerTypeWorth, flatIceWorth, iceWorth } from './iceValues';
 import { payoutWait, payoutWorth, profileOf, turnsLeft } from './cardProfiles';
+import { resourceTrashHqCost } from '../core/engine/actions/basic';
 import { HAND_FLOOR, clickPrice, handByCard, heldWorth, ownHandValue, playedWorth } from './handValues';
 import { CLICK, RATES, cardRate, creditValue, flatRate, flatlineWorth, guardLoop, handFilter, memo, pointValue, sideCreditValue } from './valueModel';
 import { PACE, STEAL, coreSlotWorth, flatlineOdds, runSuccess, stealOdds } from './effectValues';
@@ -367,22 +368,37 @@ export function tagThreat(state: GameState, viewer: SideCode): number {
  * Corp holds, as far as `viewer` knows. The Runner clears a tag for a click
  * and 2 credits when keeping it costs more, so tags are worth the cheaper.
  */
-export function tagsWorth(state: GameState, viewer: SideCode, tags = state.runner.tags): number {
+export function tagsWorth(state: GameState, viewer: SideCode, count?: number): number {
+  // Tags the Runner has now, or a count priced as if given (an ice subroutine, an operation)
+  const actual = count === undefined;
+  const tags = count ?? state.runner.tags;
   if (tags <= 0) return 0;
   // Inside the tag clock's own pricing of the rig, a tag is the flat rate (a resource's worth can depend on tags)
   if (pricingTagLoss) return tags * RATES.tagAgainstRunner;
-  return guardLoop(state, `tags ${viewer}`, () => tags * RATES.tagAgainstRunner, () => tagClock(state, viewer, tags));
+  return guardLoop(state, `tags ${viewer}`, () => tags * RATES.tagAgainstRunner, () => tagClock(state, viewer, tags, actual));
 }
 
-function tagClock(state: GameState, viewer: SideCode, tags: number): number {
-  const perTurn = memo(state, 'tagLoss:' + viewer, () => tagLossPerTurn(state, viewer));
+function tagClock(state: GameState, viewer: SideCode, tags: number, actual: boolean): number {
+  // plan.tagTrashNow: on the Corp's turn, with the Runner tagged and a click and 2 credits to trash, the Corp takes the
+  // best resource now (the trash action is scored by it), so the clock after this turn runs on the next best
+  const corp = state.corp;
+  const trashNow = tuning.plan.tagTrashNow && state.activePlayer === 'corp' && !state.activeRun && state.runner.tags > 0 && corp.clicks >= 1 && corp.credits >= 2;
+  const skip = trashNow ? 1 : 0;
+  const perTurn = memo(state, `tagLoss:${viewer}:${skip}`, () => tagLossPerTurn(state, viewer, skip));
   const clear = CLICK + 2;
   // plan.tagNoClear (Gemini audit, 2026-11-01): a Runner that can't clear before the Corp's next turn (the Corp's turn
   // now, or its last click or 2 credits spent) sits through that turn first
   const runner = state.runner;
   const stuck = tuning.plan.tagNoClear && !(state.activePlayer === 'runner' && runner.clicks >= 1 && runner.credits >= 2);
   // Kept, a tag costs this turn's loss and maybe the next; the Runner clears the ones that cost more than clearing
-  const worth = Math.min((stuck ? perTurn : 0) + tags * clear, 1.5 * perTurn + 0.1 * (tags - 1));
+  // plan.tagTrashNow (Jeff, 2026-11-04): on the Corp's turn, this turn's loss is what its trash action takes, and the
+  // action is scored by that; counted in the tag as well, keeping the tag looked as good as using it, so the Corp
+  // never trashed. Only the turns after count (the Runner may keep the tag through its turn). Tags priced as if
+  // given (by ice during a run, by an operation) keep the full clock: the Corp trashes with them on a later turn.
+  const corpTurn = tuning.plan.tagTrashNow && actual && state.activePlayer === 'corp' && !state.activeRun;
+  const worth = corpTurn
+    ? Math.min(tags * clear, 0.5 * perTurn + 0.1 * (tags - 1))
+    : Math.min((stuck ? perTurn : 0) + tags * clear, 1.5 * perTurn + 0.1 * (tags - 1));
   return tuning.plan.vicTags && state.runner.identity.cardCode === VIC ? Math.min(worth, vicTagsWorth(state, tags, perTurn)) : worth;
 }
 
@@ -410,11 +426,11 @@ function vicTagsWorth(state: GameState, tags: number, perTurn: number): number {
 }
 
 /** What a tagged Runner stands to lose each Corp turn, as `viewer` sees it. */
-function tagLossPerTurn(state: GameState, viewer: SideCode): number {
+function tagLossPerTurn(state: GameState, viewer: SideCode, skip = 0): number {
   const was = pricingTagLoss;
   pricingTagLoss = true;
   try {
-    return tagLoss({ ...state }, viewer);
+    return tagLoss({ ...state }, viewer, skip);
   } finally {
     pricingTagLoss = was;
   }
@@ -422,12 +438,16 @@ function tagLossPerTurn(state: GameState, viewer: SideCode): number {
 /** The tag clock is pricing the rig: tags are the flat rate in there (a copy of the position, so it is not a value loop). */
 let pricingTagLoss = false;
 
-function tagLoss(state: GameState, viewer: SideCode): number {
+function tagLoss(state: GameState, viewer: SideCode, skip: number): number {
   const corp = state.corp;
   // The best resource the Corp would trash, net of what trashing costs it
   const rig = runnerRigValue(state, true, viewer);
   const resources = state.runner.rig.resources.map(r => rig - runnerRigValue({ ...state, runner: { ...state.runner, rig: { ...state.runner.rig, resources: state.runner.rig.resources.filter(c => c !== r) } } }, true, viewer));
-  const trash = Math.max(0, ...resources) - (corp.credits >= 2 ? CLICK + 2 : Infinity);
+  // plan.hqTrashCost: a resource that also costs cards from HQ to trash is worth that much less to trash
+  const extra = (r: CardInstance) => (tuning.plan.hqTrashCost ? hqTrashCardsLoss(state, r) : 0);
+  const nets = resources.map((v, i) => v - extra(state.runner.rig.resources[i])).sort((a, b) => b - a);
+  // plan.tagTrashNow: a Corp that can trash now takes the best one this turn; the turns after lose the next best
+  const trash = Math.max(0, nets[skip] ?? 0) - (corp.credits >= 2 ? CLICK + 2 : Infinity);
   // A tag punisher in HQ: known to the Corp, the decklist's odds to the Runner
   const punishes = (c: CardInstance) => cardSynergy(cardDef(c)).when?.includes('ifTagged') ?? false;
   let held: number;
@@ -447,6 +467,18 @@ function handAndClicks(state: GameState, side: SideCode, viewer: SideCode): numb
   const hand = side === 'corp' ? state.corp.hq : state.runner.grip;
   const own = side === viewer && handByCard(side) ? ownHandValue(state, side) : handValue(hand.length, player.handSizeLimit, viewer);
   return clickPrice(state, side, viewer) * player.clicks + own;
+}
+
+/**
+ * plan.hqTrashCost: what the Corp gives up in the cards from HQ that trashing this resource
+ * also costs (Sebastião Souza Pessoa, Manuel Lattes de Moura): its least useful cards, not the
+ * flat worth of a card in hand. Zero when nothing extra is due.
+ */
+export function hqTrashCardsLoss(state: GameState, resource: CardInstance): number {
+  const k = resourceTrashHqCost(state, resource);
+  if (k <= 0) return 0;
+  const losses = state.corp.hq.map(c => Math.max(HAND_FLOOR, keepValue(state, c, true) - CLICK)).sort((a, b) => a - b);
+  return losses.length < k ? Infinity : losses.slice(0, k).reduce((n, v) => n + v, 0);
 }
 
 /** The flat worth of the first cards in hand as life against damage, which the damage clock replaces. */
