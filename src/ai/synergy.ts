@@ -143,6 +143,8 @@ export const tuning = {
      * that risk is the Corp's choice, already in the tag clock, so it made keeping the tag look as good as trashing.
      */
     ownTrashRisk: true,
+    /** Runner: an HQ access counts the cards it knows are in HQ at what they are, the rest at the deck's agenda odds (runs.ts hqAgendaOdds; Jeff: Teia's open HQ). */
+    knownHq: true,
     /** Clearinghouse is advanced toward a flatline (grip + 1 counters, at most 6), not stopped at 3 like other assets. */
     clearinghouseLethal: true,
     /** Lookahead guesses (runnerReply.guessHidden, search.determinize) keep hand cards the guessing side has seen. */

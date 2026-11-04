@@ -1,4 +1,4 @@
-import { CardInstance, GameState, cardDef, getCardDefinition, getCardScript, knownInRd } from '../core';
+import { CardInstance, GameState, cardDef, getCardDefinition, getCardScript, knownInHand, knownInRd } from '../core';
 import {
   boostCostOf,
   breakerScript,
@@ -515,6 +515,20 @@ export function stealTax(state: GameState, serverId: string, agenda: CardInstanc
   return cost.clicks * clickRate('runner') + creditCost(state, cost.credits);
 }
 
+/**
+ * plan.knownHq (Jeff, 2026-11-04: against a Teia with an open HQ the Runner kept running it for nothing):
+ * the chance a random HQ access is an agenda, counting the cards the Runner knows are in HQ (accessed there,
+ * or revealed) at what they are and only the rest at the deck's odds. Without it every HQ card was a
+ * random unseen card however often the Runner had looked.
+ */
+export function hqAgendaOdds(state: GameState, odds: number): number {
+  const size = state.corp.hq.length;
+  if (!tuning.plan.knownHq || size === 0) return odds;
+  const known = knownInHand(state, 'corp').slice(-size);
+  const agendas = known.filter(k => getCardDefinition(k.code).type_code === 'agenda').length;
+  return (agendas + (size - known.length) * odds) / size;
+}
+
 /** A steal's worth less its additional costs (0 when they can't be paid). */
 const taxedSteal = (worth: number, tax: number | null) => (tax === null ? 0 : Math.max(0, worth - tax));
 
@@ -529,7 +543,7 @@ function serverWorth(state: GameState, serverId: string, extraAccesses: number, 
       ? rdWorth(state, 1 + extraAccesses, odds, central)
       : (1 + extraAccesses) * odds * central * 0.3 ** repeat; // a second look sees the same top card
   }
-  else if (serverId === 'hq') value = state.corp.hq.length === 0 ? 0 : Math.min(1 + extraAccesses, state.corp.hq.length) * odds * central * 0.5 ** repeat;
+  else if (serverId === 'hq') value = state.corp.hq.length === 0 ? 0 : Math.min(1 + extraAccesses, state.corp.hq.length) * hqAgendaOdds(state, odds) * central * 0.5 ** repeat;
   else if (serverId === 'archives') {
     if (repeat > 0) return 0;
     const faceUp = state.corp.archives.faceUp.filter(c => cardDef(c).type_code === 'agenda');
