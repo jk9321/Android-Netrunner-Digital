@@ -28,8 +28,8 @@ test('auto fit shrinks cards to avoid scrolling and can be switched off', async 
   const unfit = await cardWidth();
 
   await auto.click();
+  await expect.poll(cardWidth).toBeLessThan(unfit);
   await expect.poll(overflowing).toBe(false);
-  expect(await cardWidth()).toBeLessThan(unfit);
   expect(await cardWidth()).toBeGreaterThanOrEqual(unfit * 0.5 - 1); // never below the floor
 
   expect(errors).toEqual([]);
