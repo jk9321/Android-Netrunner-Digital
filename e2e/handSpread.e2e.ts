@@ -43,3 +43,25 @@ test('own hand spreads on hover and closes when the pointer leaves', async ({ pa
   await expect(page.getByTestId('hand-corp-spread')).toHaveCount(0);
   expect(errors).toEqual([]);
 });
+
+// The spread stays inside its own board section, so it never covers the zoom view or the log
+test('a spread hand stays within its board', async ({ page }) => {
+  await page.route(/^https?:\/\/(?!localhost)/, route => route.abort());
+  await page.setViewportSize({ width: 1366, height: 768 });
+  await page.goto('/');
+  await page.getByTestId('opponent-ai-corp').click();
+  await page.getByTestId('difficulty-normal').click();
+  await page.getByTestId('start-game').click();
+  await page.getByRole('button', { name: 'Keep hand' }).click({ timeout: 30_000 });
+  await expect(page.getByTestId('runner-credits')).toBeVisible({ timeout: 60_000 });
+
+  const box = (await page.getByTestId('hand-runner').locator('[data-hand-card]').first().boundingBox())!;
+  await page.mouse.move(box.x + 20, box.y - 80);
+  await page.mouse.move(box.x + 20, box.y + 30, { steps: 5 });
+  const spread = page.getByTestId('hand-runner-spread');
+  await expect(spread).toBeVisible();
+  await page.waitForTimeout(500);
+  const board = (await page.locator('#runner-board').boundingBox())!;
+  const rects = await spread.locator('> *').evaluateAll(els => els.map(el => el.getBoundingClientRect().right));
+  expect(Math.max(...rects)).toBeLessThanOrEqual(board.x + board.width);
+});

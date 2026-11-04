@@ -73,11 +73,14 @@ export const HandRow: React.FC<HandRowProps> = React.memo(({
     const first = wrap.querySelector<HTMLElement>('[data-hand-card]');
     const cardPx = first ? first.getBoundingClientRect().width : 0;
     const rect = (first?.parentElement ?? wrap).getBoundingClientRect();
-    const avail = window.innerWidth - 16;
-    const o = spreadOverlap(cards.length, cardPx, avail);
+    // Stay inside this hand's own board section, so it opens leftward and never covers the zoom view or the log
+    const board = wrap.closest('section')?.getBoundingClientRect();
+    const minLeft = (board?.left ?? 0) + 6;
+    const maxRight = (board?.right ?? window.innerWidth) - 6;
+    const o = spreadOverlap(cards.length, cardPx, maxRight - minLeft);
     const width = cardPx + (cards.length - 1) * cardPx * (1 - o);
-    const shift = Math.min(0, window.innerWidth - 8 - (rect.left + width));
-    setSpread({ left: rect.left, top: rect.top, shift: Math.max(shift, 8 - rect.left), overlap: o });
+    const shift = Math.min(0, maxRight - (rect.left + width));
+    setSpread({ left: rect.left, top: rect.top, shift: Math.max(shift, minLeft - rect.left), overlap: o });
   }, [cards.length]);
   const close = useCallback(() => {
     window.clearTimeout(closeTimer.current);
