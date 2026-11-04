@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { createCardInstance, executeAction, findCardAnywhere, GameState, iceStrength, isLegalAction } from '../src/core';
 import { breakerStrength, markSubroutinesBroken } from '../src/core/engine/ice';
 import { purgeVirusCounters } from '../src/core/engine/cardEffects';
-import { dealNetDamage, giveTags } from '../src/core/engine/damage';
+import { dealNetDamage, giveTags, trashInstalledRunnerCard } from '../src/core/engine/damage';
 import {
   answer,
   cont,
@@ -908,6 +908,19 @@ describe('Rebellion Without Rehearsal: Shaper and neutral', () => {
     s = pick(s, [sv.instanceId]);
     s = choose(s, pal);
     expect(card(s, sv.instanceId).hostedOnId).toBe(pal);
+  });
+
+  it('Muse hosts a found non-trojan program, which is trashed with it', () => {
+    let s = newGame();
+    const leech = createCardInstance(s, SG.leech);
+    s.runner.heap.push(leech);
+    const [s1, muse] = runnerInstall(s, L.muse);
+    s = s1;
+    s.runner.credits += 5;
+    s = pick(s, [leech.instanceId]);
+    expect(card(s, leech.instanceId).hostedOnId).toBe(muse);
+    trashInstalledRunnerCard(s, card(s, muse));
+    expect(inHeap(s, leech.instanceId)).toBe(true);
   });
 
   it('Pressure Spike gets +9 strength once per run at threat 4', () => {

@@ -1506,7 +1506,7 @@ const lobisomem: CardScript = {
 
 // Muse (Daemon): When you install this program, search your stack, heap, or grip for 1 non-daemon
 // program. If that program is a trojan, install it on a piece of ice. Otherwise, install it on this
-// program. (A program "on Muse" is installed normally here: hosting changes nothing else for it.)
+// program. (A program on Muse is trashed with it, rules 1.13.)
 const museTargets = (state: GameState) =>
   [...state.runner.stack, ...state.runner.heap, ...state.runner.grip].filter(c => type(c) === 'program' && !hasKeyword(c, 'daemon'));
 const muse: CardScript = {
@@ -1525,7 +1525,12 @@ const muse: CardScript = {
       if (id) {
         const card = findCardAnywhere(state, id);
         if (card) addLog(state, 'runner', `Runner found ${title(card)} (Muse).`, card.cardCode);
-        installRunnerChoice(ctx, id, 'host', 0, {}, answer.kind === 'effect_cards' ? answer.trashFirst : []);
+        const installed = installRunnerChoice(ctx, id, 'host', 0, {}, answer.kind === 'effect_cards' ? answer.trashFirst : []);
+        const muse = ctx.card;
+        if (installed && card && state.runner.rig.programs.includes(muse) && state.runner.rig.programs.includes(card)) {
+          card.hostedOnId = muse.instanceId;
+          muse.hostedCardIds.push(card.instanceId);
+        }
       }
       shuffleInPlace(state.rng, state.runner.stack);
     } else if (source.step === 'host') installRunnerHostChoice(state, source, answer);
