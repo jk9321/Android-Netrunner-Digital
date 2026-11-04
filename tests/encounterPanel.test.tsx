@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import { renderToStaticMarkup } from 'react-dom/server';
-import { executeAction, GameAction } from '../src/core';
+import { createCardInstance, executeAction, GameAction } from '../src/core';
 import { EncounterPanel } from '../src/ui/components/EncounterPanel';
 import { installIceForTest, installProgramForTest, newGame, runIntoFirstIce } from './helpers';
 
@@ -66,5 +66,23 @@ describe('Encounter panel: counter-spending breakers', () => {
     s.runner.credits = 20;
     s = runIntoFirstIce(s, 'hq');
     expect(buttons(s)).toContain('+3 strength (1credit)');
+  });
+});
+
+describe('Encounter panel: a card with two abilities', () => {
+  it('names each of Arruaceiras Crew’s abilities, with its cost, instead of two buttons with its title', () => {
+    const ABLATIVE = '34034'; // barrier, strength 1
+    let s = newGame();
+    installIceForTest(s, ABLATIVE, 'hq');
+    s = runIntoFirstIce(s, 'hq');
+    const crew = createCardInstance(s, '34073');
+    crew.isRezzed = true;
+    s.runner.rig.resources.push(crew);
+    s.runner.credits = 5;
+    s.activeRun!.encounter!.flags = { [`arruaceiras:${crew.instanceId}`]: 1 }; // -2 strength already
+    const html = renderToStaticMarkup(<EncounterPanel state={s} onAction={() => {}} />);
+    const texts = [...html.matchAll(/<button([^>]*)>(.*?)<\/button>/g)].map(m => m[2].replace(/<[^>]+>/g, ''));
+    expect(texts).toContain('Arruaceiras Crew: Take 1 tag: the encountered ice gets -2 strength this encounter');
+    expect(texts).toContain('Arruaceiras Crew: Trash the encountered ice if its strength is 0 or less (2 credits, trash)');
   });
 });

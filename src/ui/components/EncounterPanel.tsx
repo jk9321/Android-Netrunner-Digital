@@ -78,8 +78,13 @@ export const EncounterPanel: React.FC<EncounterPanelProps> = ({ state, onAction,
     const ability = card && getCardScript(card.cardCode)?.abilities?.[a.abilityIndex];
     if (!card || !ability) return null;
     const effect = ability.label.split(':').slice(1).join(':').trim().replace(/\.$/, '');
+    // A card with more than one ability usable here (Arruaceiras Crew) names each one, with its cost
+    const shared = !compact && abilityActions.filter(o => o.cardInstanceId === a.cardInstanceId && !breakerIds.has(o.cardInstanceId)).length > 1;
+    const cost = [ability.credits ? `${ability.credits} credits` : '', ability.trashSelf ? 'trash' : ''].filter(Boolean).join(', ');
     const text = !compact
-      ? cardDef(card).title
+      ? shared
+        ? `${cardDef(card).title}: ${ability.label.replace(/\.$/, '')}${cost ? ` (${cost})` : ''}`
+        : cardDef(card).title
       : ability.counters && effect
         ? `Spend ${ability.counters.count} ${ability.counters.type}: ${effect} (${card.tokens[ability.counters.type] ?? 0} left)`
         : ability.label.replace(/\.$/, '');
