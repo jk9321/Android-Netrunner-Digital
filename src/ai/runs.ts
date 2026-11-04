@@ -664,7 +664,7 @@ export interface RunOptions {
   poolLocked?: boolean;
   /** Baker: with a stealth credit, the run on Archives can approach HQ or R&D instead after its ice. */
   baker?: boolean;
-  /** Eru, Beatriz: a successful run breaches this server instead (with extraAccesses there). */
+  /** Eru, Beatriz, Maintenance Access: a successful run breaches this server instead (with extraAccesses there). */
   breachAs?: string;
   /** Privileged Access, Burner: a successful run breaches nothing (its worth is successBonus). */
   noBreach?: boolean;
