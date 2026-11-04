@@ -136,6 +136,8 @@ export function runEventOptions(cardCode: string, state?: GameState): RunOptions
       return { bonusCredits: 5 };
     case '30012': // Tread Lightly
       return { rezTax: true };
+    case '35016': // Maintenance Access: Archives' ice, then HQ is breached instead; the extra click it costs
+      return { breachAs: 'hq', successBonus: -(state ? runClick(state) : 1) };
     case '35014': // Clean Getaway
       return { successBonus: 6 };
     case '35005': // Shred

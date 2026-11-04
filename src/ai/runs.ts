@@ -580,6 +580,8 @@ export interface RunOptions {
   poolLocked?: boolean;
   /** Baker: with a stealth credit, the run on Archives can approach HQ or R&D instead after its ice. */
   baker?: boolean;
+  /** The server whose cards the run breaches, when not the one it attacks (Maintenance Access: Archives' ice, then HQ). */
+  breachAs?: string;
   /** Deck-aware AI: weigh trap risk by the traps this Corp may still have (see trapOdds). */
   wary?: boolean;
   /** Deck-aware AI: urgency on agendas the Corp could finish next turn, and late-game defence. */
@@ -614,7 +616,7 @@ export function runShortfall(state: GameState, serverId: string): number | null 
 export function runScore(state: GameState, serverId: string, options: RunOptions = {}): number {
   const server = state.corp.servers[serverId];
   if (!server) return -Infinity;
-  let value = serverValue(state, serverId, options.extraAccesses ?? 0, options.memory, options.wary, options.urgent) + (tuning.plan.runModel ? 1 : 0.8) * (options.successBonus ?? 0);
+  let value = serverValue(state, options.breachAs ?? serverId, options.extraAccesses ?? 0, options.memory, options.wary, options.urgent) + (tuning.plan.runModel ? 1 : 0.8) * (options.successBonus ?? 0);
   if (options.baker && serverId === 'archives' && runStealthCredits(state) >= 1) {
     // Baker: after Archives' ice, a stealth credit turns the run on HQ or R&D, whose ice it skipped
     const redirect = Math.max(...['hq', 'rd'].map(id => serverValue(state, id, 0, options.memory, options.wary, options.urgent)));
