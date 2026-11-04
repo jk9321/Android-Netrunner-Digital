@@ -237,3 +237,5 @@ Every self-play batch, newest last (Jeff, 2026-10-28). Made with `scripts/corp-l
 | 2026-11-04 | paid ability windows: priority + stops, no AI drift (short, run 41784393467) | 41fab86 | 663 | **48.3%** | 41.5% / 6.8% | 42.1% / 9.7% | 45.9% / 25.3% / 25.3% / 3.5% | 7.4 | [txt](batch-logs/2026-11-04-paid-ability-windows-priority-stops-no-ai-drift-short-run-41784393467.txt) |
 | 2026-11-04 | #15: hqNoSafer on | f4118eb | 663 | **48.3%** | 41.9% / 6.3% | 42.2% / 9.5% | 45.5% / 26.9% / 22.9% / 4.7% | 7.4 | [txt](batch-logs/2026-11-04-15-hqnosafer-on.txt) |
 | 2026-11-04 | #15: hqNoSafer off | f4118eb | 663 | **46.6%** | 40.1% / 6.5% | 43.1% / 10.3% | 43.3% / 26.4% / 25.3% / 5.0% | 7.4 | [txt](batch-logs/2026-11-04-15-hqnosafer-off.txt) |
+| 2026-11-04 | #16: readAssetTrash on | aff9286 | 663 | **47.7%** | 41.3% / 6.3% | 42.4% / 10.0% | 45.7% / 26.6% / 23.0% / 4.8% | 7.2 | [txt](batch-logs/2026-11-04-16-readassettrash-on.txt) |
+| 2026-11-04 | #16: readAssetTrash off | aff9286 | 663 | **48.3%** | 41.9% / 6.3% | 42.2% / 9.5% | 45.5% / 26.9% / 22.9% / 4.7% | 7.4 | [txt](batch-logs/2026-11-04-16-readassettrash-off.txt) |
