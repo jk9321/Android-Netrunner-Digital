@@ -1,4 +1,4 @@
-import { CardInstance, GameState, cardDef, getCardDefinition, getCardScript, knownInRd } from '../core';
+import { CardInstance, GameState, cardDef, getCardDefinition, getCardScript, knownInHand, knownInRd } from '../core';
 import {
   boostCostOf,
   breakerScript,
@@ -156,7 +156,7 @@ export function tagCost(state: GameState): number {
   if (tuning.plan.tagClock) {
     // A run still to start takes its click first (plan.tagNoClear: what's left to clear the tag with)
     const s = tuning.plan.tagNoClear && !state.activeRun ? { ...state, runner: { ...state.runner, clicks: state.runner.clicks - 1 } } : state;
-    return tagsWorth(s, 'runner', s.runner.tags + 1) - tagsWorth(s, 'runner');
+    return tagsWorth(s, 'runner', s.runner.tags + 1) - tagsWorth(s, 'runner', s.runner.tags); // both priced as given (plan.tagTrashNow)
   }
   return Math.min(clickRate('runner') + creditCost(state, 2), RATES.tagAgainstRunner + tagThreat(state, 'runner'));
 }
@@ -478,8 +478,18 @@ function rdWorth(state: GameState, accesses: number, odds: number, central: numb
   return value;
 }
 
-/** Share of the deck's agenda odds a facedown card in an Archives with no ice keeps (plan.archivesChosen). */
-const ARCHIVES_CHOSEN_ODDS = 0.3;
+/**
+ * Share of the deck's agenda odds a facedown card in an Archives with no ice keeps (plan.archivesChosen).
+ * Jeff (2026-11-04): Vic still ran Archives far too often against Startup Regards. Measured in self-play
+ * (Vic vs Startup Regards 6 games, Kessleroid vs Big Brain 4): 33 Archives runs for 0 steals, 0 agendas
+ * among the 57 facedown cards there. 0.3 -> 0.05: a Corp flooded with agendas still discards one now and then.
+ */
+const ARCHIVES_CHOSEN_ODDS = 0.05;
+/**
+ * The same with ice on Archives: the AI Corp discards the same way behind ice (the 57 included cards behind
+ * ice, which the Runner still valued at the deck's full agenda odds); a human Corp may trust ice a little more.
+ */
+const ARCHIVES_CHOSEN_ODDS_ICED = 0.1;
 
 /** serverValue in credits (plan.runModel). */
 /** Stands in for an agenda the Runner can't see: only other cards' additional costs to steal count (Magistrate Revontulet). */
@@ -505,6 +515,20 @@ export function stealTax(state: GameState, serverId: string, agenda: CardInstanc
   return cost.clicks * clickRate('runner') + creditCost(state, cost.credits);
 }
 
+/**
+ * plan.knownHq (Jeff, 2026-11-04: against a Teia with an open HQ the Runner kept running it for nothing):
+ * the chance a random HQ access is an agenda, counting the cards the Runner knows are in HQ (accessed there,
+ * or revealed) at what they are and only the rest at the deck's odds. Without it every HQ card was a
+ * random unseen card however often the Runner had looked.
+ */
+export function hqAgendaOdds(state: GameState, odds: number): number {
+  const size = state.corp.hq.length;
+  if (!tuning.plan.knownHq || size === 0) return odds;
+  const known = knownInHand(state, 'corp').slice(-size);
+  const agendas = known.filter(k => getCardDefinition(k.code).type_code === 'agenda').length;
+  return (agendas + (size - known.length) * odds) / size;
+}
+
 /** A steal's worth less its additional costs (0 when they can't be paid). */
 const taxedSteal = (worth: number, tax: number | null) => (tax === null ? 0 : Math.max(0, worth - tax));
 
@@ -519,13 +543,13 @@ function serverWorth(state: GameState, serverId: string, extraAccesses: number, 
       ? rdWorth(state, 1 + extraAccesses, odds, central)
       : (1 + extraAccesses) * odds * central * 0.3 ** repeat; // a second look sees the same top card
   }
-  else if (serverId === 'hq') value = state.corp.hq.length === 0 ? 0 : Math.min(1 + extraAccesses, state.corp.hq.length) * odds * central * 0.5 ** repeat;
+  else if (serverId === 'hq') value = state.corp.hq.length === 0 ? 0 : Math.min(1 + extraAccesses, state.corp.hq.length) * hqAgendaOdds(state, odds) * central * 0.5 ** repeat;
   else if (serverId === 'archives') {
     if (repeat > 0) return 0;
     const faceUp = state.corp.archives.faceUp.filter(c => cardDef(c).type_code === 'agenda');
     // plan.archivesChosen (Jeff, bug report #5): facedown cards are ones the Corp chose to put there (discards,
-    // Hansei Review); into an Archives with no ice a Corp rarely chooses an agenda
-    const chosen = tuning.plan.archivesChosen && state.corp.servers.archives.ice.length === 0 ? ARCHIVES_CHOSEN_ODDS : 1;
+    // Hansei Review); a Corp rarely chooses an agenda, with or without ice there
+    const chosen = !tuning.plan.archivesChosen ? 1 : state.corp.servers.archives.ice.length === 0 ? ARCHIVES_CHOSEN_ODDS : ARCHIVES_CHOSEN_ODDS_ICED;
     value = faceUp.reduce((n, c) => n + taxedSteal(stealWorth(state, cardDef(c).agenda_points ?? 1, 0), stealTax(state, serverId, c)), 0) + Math.min(3, state.corp.archives.faceDown.length) * odds * chosen * taxedSteal(stealWorth(state, points, 0), unseenTax);
   }
   if (repeat > 0 && server.isRemote) return 0;

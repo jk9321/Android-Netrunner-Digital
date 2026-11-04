@@ -74,7 +74,7 @@ export const CARD_PLANS: Record<string, CardPlan> = {
   // Public Trail: play only if the Runner made a successful run last turn; a tag unless they pay 8
   '30057': {
     side: 'corp',
-    hand: { payoff: (state, card) => net(state, card, Math.min(8, tagsWorth(state, 'corp', state.runner.tags + 1) - tagsWorth(state, 'corp'))), ready: state => (ranLastTurn(state) ? 1 : 0.7) },
+    hand: { payoff: (state, card) => net(state, card, Math.min(8, tagsWorth(state, 'corp', state.runner.tags + 1) - tagsWorth(state, 'corp', state.runner.tags))), ready: state => (ranLastTurn(state) ? 1 : 0.7) },
   },
   // Measured Response: play only at threat level 4 or more after a successful run; 4 meat damage unless the Runner pays 8
   '35078': {

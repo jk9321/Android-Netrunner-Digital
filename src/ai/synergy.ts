@@ -134,6 +134,17 @@ export const tuning = {
     rezPaid: true,
     /** A tag the Runner can't clear before the Corp's next turn costs that turn's loss first (evaluate.ts tagClock). */
     tagNoClear: true,
+    /** On the Corp's turn, with a click and 2 credits, a tag's worth leaves out this turn's resource trash, which the trash action itself takes (Jeff: the Corp never trashed Sebastião's connections). */
+    tagTrashNow: true,
+    /** The cards from HQ that trashing a resource also costs (Sebastião, Manuel at threat 3) are priced as the Corp's least useful ones, not the flat worth of a card in hand. */
+    hqTrashCost: true,
+    /**
+     * The Corp deciding prices a tagged Runner's resources without the risk of its own trash action (PAYOUT_RISK.runnerTagged):
+     * that risk is the Corp's choice, already in the tag clock, so it made keeping the tag look as good as trashing.
+     */
+    ownTrashRisk: true,
+    /** Runner: an HQ access counts the cards it knows are in HQ at what they are, the rest at the deck's agenda odds (runs.ts hqAgendaOdds; Jeff: Teia's open HQ). */
+    knownHq: true,
     /** Clearinghouse is advanced toward a flatline (grip + 1 counters, at most 6), not stopped at 3 like other assets. */
     clearinghouseLethal: true,
     /** Lookahead guesses (runnerReply.guessHidden, search.determinize) keep hand cards the guessing side has seen. */
@@ -152,6 +163,8 @@ export const tuning = {
     spinDoctorUseNow: false,
     /** Runner: a rezzed Spin Doctor is worth only the Archives cards it can still shuffle back (bug report #5). */
     spentSpinDoctor: true,
+    /** Synapse Global's free install from HQ is picked like an install action (freeInstallTarget), not by the board score, which kept unrezzed ice in HQ (bug report #13). */
+    freeInstallPick: true,
     /** Money assets priced with the trash risk measured in self-play (PAYOUT_RISK.moneyIced/moneyBare): self-play 47.9% -> 49.5%, new Corp vs old Runner 48.3% -> 48.8% (727d238). */
     measuredAssetRisk: true,
     /** Prompts that open the same card's next choice are judged after that choice too (AU Co., Poétrï, Synapse Global). */
@@ -418,10 +431,13 @@ export const tuning = {
  * them even (46.3): back on.
  * 2026-11-03 (Jeff): effectValues back on for the Corp after rezPaid (a rezzed card was charged its rez cost
  * again): 49.5% vs 47.4% off (663 games); rezPaid alone 49.0%. About 23% slower per Corp move (206 vs 168 ms).
+ * 2026-11-04 (Jeff, bug report #13: the Corp never trashed Sebastião's resources): tagTrashNow, ownTrashRisk and
+ * hqTrashCost on for both sides lost the Corp 4 points (44.8% vs 48.1%, 663 games); Corp-only 48.0%, Runner-only
+ * 47.2%. The fix is the Corp's (it is the side that trashes), so the Runner keeps the old tag values.
  */
 export const sideOff: Record<SideCode, string[]> = {
   corp: [],
-  runner: [],
+  runner: ['tagTrashNow', 'ownTrashRisk', 'hqTrashCost'],
 };
 
 /** The plan with `keys` switched off (a key written +name turns it on). */
@@ -456,6 +472,9 @@ export function applyPlanOff(list: string) {
 
 let acting: SideCode | null = null;
 let basePlan: typeof tuning.plan | null = null;
+
+/** The side whose decision is being made (asSide), or null outside one. */
+export const actingSide = (): SideCode | null => acting;
 
 /** Which side's plan is in use, for caches whose values depend on it. */
 export const planSide = (): string => (acting && sideOff[acting].length ? acting : '');
