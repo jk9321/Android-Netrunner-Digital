@@ -431,10 +431,13 @@ export const tuning = {
  * them even (46.3): back on.
  * 2026-11-03 (Jeff): effectValues back on for the Corp after rezPaid (a rezzed card was charged its rez cost
  * again): 49.5% vs 47.4% off (663 games); rezPaid alone 49.0%. About 23% slower per Corp move (206 vs 168 ms).
+ * 2026-11-04 (Jeff, bug report #13: the Corp never trashed Sebastião's resources): tagTrashNow, ownTrashRisk and
+ * hqTrashCost on for both sides lost the Corp 4 points (44.8% vs 48.1%, 663 games); Corp-only 48.0%, Runner-only
+ * 47.2%. The fix is the Corp's (it is the side that trashes), so the Runner keeps the old tag values.
  */
 export const sideOff: Record<SideCode, string[]> = {
   corp: [],
-  runner: [],
+  runner: ['tagTrashNow', 'ownTrashRisk', 'hqTrashCost'],
 };
 
 /** The plan with `keys` switched off (a key written +name turns it on). */
