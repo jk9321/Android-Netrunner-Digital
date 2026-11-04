@@ -84,7 +84,7 @@ export const BETA_DEFAULT_DECK_IDS: string[] = [
   'nrdb-warpdrive-nebula', // Nebula Talent Management
   'nrdb-big-brain-thinking', // Synapse Global
   'vp-tempo-ed', // Editorial Division
-  'lib-steal-a-stoke', // Epiphany Analytica
+  'nrdb-big-hands', // Epiphany Analytica (Steal a Stoke's IP Enforcement loop was too hard for the AI)
   'vp-de-profundis', // Weyland Consortium: Built to Last
   'nrdb-disintegration', // BANGUN
   'vp-zwift-deth', // The Zwicky Group

@@ -11,6 +11,16 @@ import type { DeckList } from '../decks';
  */
 export const IDENTITY_TEST_DECKS: DeckList[] = [
   {
+    id: "nrdb-big-hands",
+    name: "Big hands",
+    side: "corp",
+    identity: "Epiphany Analytica: Nations Undivided",
+    source: 'netrunnerdb',
+    format: 'standard',
+    credit: "By Ellda on NetrunnerDB: Big hands (netrunnerdb.com/en/decklist/91769)",
+    cards: { "Tomorrowʼs Headline": 1, "Spin Doctor": 3, "Ping": 3, "Superconducting Hub": 3, "Hedge Fund": 3, "Jaguarundi": 2, "Oracle Thinktank": 3, "Balanced Coverage": 3, "Federal Fundraising": 3, "Oppo Research": 3, "Your Digital Life": 3, "Kingmaking": 3, "Janaína “JK” Dumont Kindelán": 2, "Capacitor": 2, "Piranhas": 3, "Seraph": 3, "Descent": 2, "Next Big Thing": 2, "Public Access Plaza": 2 },
+  },
+  {
     id: "nrdb-you-may-fire-when-ready",
     name: "You May Fire When Ready",
     side: "corp",
