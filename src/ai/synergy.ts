@@ -153,6 +153,8 @@ export const tuning = {
     hqNoSafer: true,
     /** Corp: the trash risk of an asset with no ice follows what this Runner has done to such assets this game (cardProfiles.ts bareAssetRisk; bug report #16). */
     readAssetTrash: true,
+    /** Corp: play a money operation while it can, when rezzing its ice would leave it short of the cost (corpAI moneyPlan; Corp-broke alarm: 60% went broke rezzing ice in a run). */
+    castWhileAble: true,
     /** Clearinghouse is advanced toward a flatline (grip + 1 counters, at most 6), not stopped at 3 like other assets. */
     clearinghouseLethal: true,
     /** Lookahead guesses (runnerReply.guessHidden, search.determinize) keep hand cards the guessing side has seen. */

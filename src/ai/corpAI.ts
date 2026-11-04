@@ -440,6 +440,15 @@ export class HeuristicCorpAI implements Agent {
       });
       return reachable || (!plansOn() && myoshuSaving(state)) ? 0.6 : 0;
     }
+    // plan.castWhileAble (Jeff, 2026-11-04: the Corp goes broke holding Hedge Fund): a money operation the Corp can
+    // afford now but not once it pays to rez its ice is played while it still can; stranded, it's a dead card until
+    // clicks for credits climb back to its cost
+    if (action.type === 'PLAY_OPERATION_OR_EVENT' && tuning.plan.castWhileAble) {
+      const card = corp.hq.find(c => c.instanceId === action.cardInstanceId);
+      const gain = card ? moneyOpGain(card.cardCode) : undefined;
+      const cost = card ? cardDef(card).cost ?? 0 : 0;
+      if (gain !== undefined && gain > cost && cost >= 3 && corp.credits >= cost && corp.credits - unrezzedIceCost(state) < cost) return CAST_WHILE_ABLE * (gain - cost);
+    }
     if (action.type === 'PLAY_OPERATION_OR_EVENT' && tuning.plan.pettyCash) {
       return corp.hq.find(c => c.instanceId === action.cardInstanceId)?.cardCode === '35081' ? (hacksOff('bonuses') ? PETTY_CASH_REPLAY : 1.5) : 0;
     }
@@ -888,6 +897,9 @@ function stopperPlacement(state: GameState, ice: CardInstance, server: ServerSta
     (server.isRemote && server.root.some(c => type(c) === 'agenda'));
   return matters ? 1.5 : -1.5;
 }
+
+/** Share of a money operation's net gain added for playing it before rezzing ice strands it (plan.castWhileAble). */
+const CAST_WHILE_ABLE = 0.5;
 
 /** Credits the Corp counts on making before the Runner tests its newest ice (ice pacing: 2 and 0 played the same). */
 const ICE_PACING_INCOME = 0;
