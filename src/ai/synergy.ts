@@ -155,6 +155,8 @@ export const tuning = {
     readAssetTrash: true,
     /** Corp: play a money operation while it can, when rezzing its ice would leave it short of the cost (corpAI moneyPlan; Corp-broke alarm: 60% went broke rezzing ice in a run). */
     castWhileAble: true,
+    /** Corp: a money asset paid out by clicks (Regolith Mining License) isn't rezzed with no click left to use it, except just before the turn begins. */
+    clickMoneyRez: true,
     /** Clearinghouse is advanced toward a flatline (grip + 1 counters, at most 6), not stopped at 3 like other assets. */
     clearinghouseLethal: true,
     /** Lookahead guesses (runnerReply.guessHidden, search.determinize) keep hand cards the guessing side has seen. */

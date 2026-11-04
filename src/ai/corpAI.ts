@@ -350,6 +350,9 @@ export class HeuristicCorpAI implements Agent {
     // is rezzed in the paid ability window just before the action that uses it (rule 5.6.2a): rezzed with fewer clicks
     // left it does nothing yet, and spends the money a broke Corp needs for Petty Cash or its ice
     if (tuning.plan.rezWhenUsed && clickOnly(card) && corp.clicks < clickOnly(card)) return -Infinity;
+    // plan.clickMoneyRez (Jeff, 2026-11-04: Regolith rezzed with no clicks left, then trashed before it paid): money
+    // taken with a click is rezzed when a click is left to take it, or in the window just before the turn begins
+    if (tuning.plan.clickMoneyRez && CARD_PROFILES[card.cardCode]?.every === 'click' && corp.clicks < 1 && state.turnStep?.kind !== 'corp_turn_start') return -Infinity;
     // (Jeff, 2026-10-31: "it rezzes Humanoid Resources but never seems to use it"; plan.rezToUse) not before the turn
     // begins either, and in the action phase only when using it would then be the best play: rezzed and left, it is
     // just a credit spent and a trash target
