@@ -389,6 +389,11 @@ export interface GameState {
   /** The Runner stole or trashed a Corp card during their most recent turn (Oppo Research, Active Policing, Bring Them Home). */
   runnerLastTurnStoleOrTrashed?: boolean;
   /**
+   * Corp assets left in a remote with no ice over a Runner turn (counted as each Runner turn begins), and how many of
+   * them the Runner trashed on access: the AI reads how this Runner treats unprotected assets (bug report #16).
+   */
+  bareAssets?: { exposed: number; trashed: number };
+  /**
    * Events waiting for the action or effect in progress to finish, fired once
    * no decision is pending ("whenever you finish resolving an operation":
    * Nuvem SA; "whenever you finish taking an action": Wage Workers). Cards by instance id.

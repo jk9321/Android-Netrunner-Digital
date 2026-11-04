@@ -1,6 +1,7 @@
 import { ConcedeAction, EndTurnAction, StartTurnAction } from '../../types/actions';
 import { SideCode } from '../../types/card';
 import { GameState } from '../../types/state';
+import { cardDef } from '../../cards';
 import { addLog } from '../log';
 import { requireActionPhase, illegal } from '../helpers';
 import { pushPrompt, sideName } from '../prompts';
@@ -103,6 +104,9 @@ function handOver(state: GameState, side: SideCode): void {
   state.runsThisTurn = [];
   state.turnFlags = {};
   if (side === 'corp') {
+    // Assets with no ice in front of them, facing the Runner's turn (state.bareAssets)
+    const bare = Object.values(state.corp.servers).filter(s => s.isRemote && s.ice.length === 0).flatMap(s => s.root).filter(c => cardDef(c).type_code === 'asset').length;
+    if (bare > 0) (state.bareAssets ??= { exposed: 0, trashed: 0 }).exposed += bare;
     state.activePlayer = 'runner';
     state.phase = 'runner_turn';
     // Caveat Emptor: +1 or -1 allotted click for this turn

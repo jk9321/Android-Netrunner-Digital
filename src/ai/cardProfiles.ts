@@ -43,9 +43,23 @@ export function payoutWait(state: GameState, profile: CardProfile, owner: 'corp'
   if (!tuning.plan.payoutRisk) return WAIT;
   const time = profile.every === 'click' ? PAYOUT_RISK.clickWait : 1;
   const risk = owner === 'corp'
-    ? (tuning.plan.measuredAssetRisk ? (iced ? PAYOUT_RISK.moneyIced : PAYOUT_RISK.moneyBare) : iced ? PAYOUT_RISK.corpIced : PAYOUT_RISK.corpBare)
+    ? (tuning.plan.measuredAssetRisk ? (iced ? PAYOUT_RISK.moneyIced : bareAssetRisk(state)) : iced ? PAYOUT_RISK.corpIced : PAYOUT_RISK.corpBare)
     : (state.runner.tags > 0 ? PAYOUT_RISK.runnerTagged : PAYOUT_RISK.runnerUntagged);
   return time * (1 - risk);
+}
+
+/** Weight of the measured bare-asset risk against this game's own record, in Runner turns (plan.readAssetTrash). */
+const BARE_PRIOR_TURNS = 3;
+
+/**
+ * Per Runner turn risk of a money asset with no ice being trashed. plan.readAssetTrash (bug report #16, Jeff: Zahya
+ * trashed every unprotected asset and the Corp kept installing them): the self-play average, moved toward what this
+ * Runner has done this game (state.bareAssets).
+ */
+export function bareAssetRisk(state: GameState): number {
+  const seen = state.bareAssets;
+  if (!tuning.plan.readAssetTrash || !seen) return PAYOUT_RISK.moneyBare;
+  return (BARE_PRIOR_TURNS * PAYOUT_RISK.moneyBare + seen.trashed) / (BARE_PRIOR_TURNS + seen.exposed);
 }
 
 /** Turns each side has left, guessed from the score (Jeff: mostly points). */

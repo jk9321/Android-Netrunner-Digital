@@ -151,6 +151,8 @@ export const tuning = {
      * least as much to enter, since HQ is no safer.
      */
     hqNoSafer: true,
+    /** Corp: the trash risk of an asset with no ice follows what this Runner has done to such assets this game (cardProfiles.ts bareAssetRisk; bug report #16). */
+    readAssetTrash: true,
     /** Clearinghouse is advanced toward a flatline (grip + 1 counters, at most 6), not stopped at 3 like other assets. */
     clearinghouseLethal: true,
     /** Lookahead guesses (runnerReply.guessHidden, search.determinize) keep hand cards the guessing side has seen. */

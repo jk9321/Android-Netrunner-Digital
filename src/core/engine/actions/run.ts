@@ -669,6 +669,7 @@ export function trashAccessedCard(state: GameState, card: CardInstance): void {
   if (!found) return;
   const server = Object.values(state.corp.servers).find(s => s.root.includes(card) || s.ice.includes(card));
   const wasRezzed = card.isRezzed;
+  if (server?.isRemote && server.ice.length === 0 && cardDef(card).type_code === 'asset') (state.bareAssets ??= { exposed: 0, trashed: 0 }).trashed++;
   runnerTrashCorpCard(state, card);
   const run = state.activeRun;
   if (run && server && getCardScript(card.cardCode)?.persistent) {

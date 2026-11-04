@@ -18,7 +18,7 @@ import { PlanMemory, planTurn, plannerOn } from './turnPlanner';
 import { runnerReply } from './runnerReply';
 import { freeRezCover, freeRezTargets } from './freeRez';
 import { PETTY_CASH_REPLAY, iceAdvanceWorth, placedCounterWorth, rezEffectWorth, rezzedWorth, runTimed, topDownWorth } from './effectValues';
-import { CARD_PROFILES, ECON_SCALE } from './cardProfiles';
+import { CARD_PROFILES, ECON_SCALE, PAYOUT_RISK, bareAssetRisk, unrezzedWorth } from './cardProfiles';
 
 /** Whether a group of value hacks is replaced by the model (plan.modelHacks, Jeff 2026-10-28). */
 const hacksOff = (group: 'rez' | 'rezPriority' | 'purge' | 'bonuses' | 'iceAdvance' | 'finish' | 'conduit'): boolean => !!tuning.plan.modelHacks?.[group];
@@ -779,7 +779,14 @@ export class HeuristicCorpAI implements Agent {
       case 'asset': {
         const econ = econValue(card.cardCode, state);
         if (econ !== undefined) {
-          if (server) return -1;
+          if (server) {
+            // plan.readAssetTrash (bug report #16): against a Runner who trashes unprotected assets, an empty iced
+            // remote that isn't the scoring remote keeps a money asset alive (priced at the iced risk)
+            const iced = this.synergy && tuning.plan.readAssetTrash && server.isRemote && server.ice.length > 0 && server.root.length === 0 && server !== mainRemote(state);
+            const worth = iced ? unrezzedWorth(state, card.cardCode, true) : undefined;
+            if (worth === undefined || bareAssetRisk(state) <= PAYOUT_RISK.moneyBare) return -1;
+            return ECON_SCALE * worth - (corp.credits < (cardDef(card).cost ?? 0) ? 1.5 : 0) - 0.5;
+          }
           const rezCost = cardDef(card).cost ?? 0;
           // Deck-aware AI (one remote): every extra remote spreads the Corp thinner
           const spread = this.synergy && tuning.plan.oneRemote ? (remotes.length >= 4 ? 2 : remotes.length >= 3 ? 1 : 0) : remotes.length >= 4 ? 1 : 0;
