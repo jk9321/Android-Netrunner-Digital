@@ -25,7 +25,9 @@ export type AlarmKind =
   /** Runner: an advanced agenda sat in a remote the Runner could get into (no unrezzed ice, rezzed ice affordable) and it didn't run there; detail says what it really was */
   | 'open target skipped'
   /** Runner: a successful run on an empty Archives */
-  | 'empty Archives run';
+  | 'empty Archives run'
+  /** Corp: starts a turn (3 or later) with under 3 credits after starting the last one with 3 or more; detail is where most of its credits went since */
+  | 'Corp went broke';
 
 export interface Alarm {
   kind: AlarmKind;
@@ -40,6 +42,23 @@ export interface Alarm {
 const isAgenda = (c: CardInstance) => cardDef(c).type_code === 'agenda';
 const corpCardsGone = (s: GameState) => s.corp.archives.faceUp.length + s.corp.archives.faceDown.length;
 const title = (c: CardInstance) => cardDef(c).title;
+
+/** What a step that changed the Corp's credits did, read from the state change. */
+export function moneyKind(before: GameState, after: GameState): string {
+  const ice = (st: GameState) => Object.values(st.corp.servers).flatMap(sv => sv.ice);
+  const root = (st: GameState) => Object.values(st.corp.servers).flatMap(sv => sv.root);
+  const rezzed = (list: { isRezzed: boolean }[]) => list.filter(c => c.isRezzed).length;
+  const counters = (st: GameState) => [...root(st), ...ice(st)].reduce((n, c) => n + c.advancementCounters, 0);
+  if (rezzed(ice(after)) > rezzed(ice(before))) return before.activeRun ? 'rez ice in a run' : 'rez ice';
+  if (rezzed(root(after)) > rezzed(root(before))) return 'rez asset/upgrade';
+  if (ice(after).length > ice(before).length) return 'install ice';
+  if (counters(after) > counters(before)) return 'advance';
+  if (before.activePlayer === 'runner' || before.activeRun) return "runner's turn";
+  if (after.corp.clicks === before.corp.clicks - 1 && after.corp.hq.length === before.corp.hq.length && after.corp.credits === before.corp.credits + 1) return 'click for credit';
+  if (after.corp.archives.faceUp.length > before.corp.archives.faceUp.length || after.corp.hq.length < before.corp.hq.length) return 'operation/install';
+  if (after.corp.clicks === before.corp.clicks) return 'turn start/assets';
+  return 'other';
+}
 
 /** Why an HQ agenda may be waiting: the Corp is broke, has no iced remote, its iced remotes are all taken, or an empty iced remote stands ready. */
 function stuckReason(s: GameState): string {
@@ -60,12 +79,22 @@ export class AlarmTracker {
   private fruitless = new Map<string, number>();
 
   private corpTurnIdleClicks = 0;
+  /** Corp credits spent and gained since the last Corp turn began, by moneyKind */
+  private spent = new Map<string, number>();
+  private gained = new Map<string, number>();
+  private lastCorpCredits = 99;
 
   private fire(kind: AlarmKind, turn: number, side: 'corp' | 'runner', note: string, detail?: string) {
     this.alarms.push({ kind, turn, side, note, ...(detail ? { detail } : {}) });
   }
 
   step(before: GameState, after: GameState, action?: GameAction) {
+    const delta = after.corp.credits - before.corp.credits;
+    if (delta !== 0) {
+      const book = delta < 0 ? this.spent : this.gained;
+      const kind = moneyKind(before, after);
+      book.set(kind, (book.get(kind) ?? 0) + Math.abs(delta));
+    }
     // Clicks the Corp spent on a credit or a card: the low-value actions a trash could have replaced
     if (before.activePlayer === 'corp' && (action?.type === 'GAIN_CREDIT' || action?.type === 'DRAW_CARD')) this.corpTurnIdleClicks++;
     // Turn boundaries
@@ -88,6 +117,16 @@ export class AlarmTracker {
 
   private startCorpTurn(s: GameState) {
     this.corpStart = s;
+    if (s.turnNumber >= 3 && s.corp.credits < 3 && this.lastCorpCredits >= 3) {
+      const top = (m: Map<string, number>) => [...m].sort((x, y) => y[1] - x[1]).map(([k, n]) => `${k} ${n}`).join(', ') || 'nothing';
+      const ops = s.corp.hq.filter(c => cardDef(c).type_code === 'operation').map(c => `${title(c)} (${cardDef(c).cost ?? 0})`);
+      const assets = Object.values(s.corp.servers).flatMap(sv => sv.root).filter(c => cardDef(c).type_code === 'asset').map(c => `${title(c)}${c.isRezzed ? '*' : ''}`);
+      const biggest = [...this.spent].sort((x, y) => y[1] - x[1])[0]?.[0] ?? 'nothing spent';
+      this.fire('Corp went broke', s.turnNumber, 'corp', `${s.corp.credits} credits; since last turn spent: ${top(this.spent)}; gained: ${top(this.gained)}; HQ operations: ${ops.join(', ') || 'none'}; assets: ${assets.join(', ') || 'none'}`, biggest);
+    }
+    this.lastCorpCredits = s.corp.credits;
+    this.spent = new Map();
+    this.gained = new Map();
     this.corpTurnUsedTags = false;
     this.corpTurnIdleClicks = 0;
     for (const c of s.corp.hq.filter(isAgenda)) {

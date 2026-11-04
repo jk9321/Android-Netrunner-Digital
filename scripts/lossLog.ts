@@ -14,7 +14,7 @@ import { cardSynergy } from '../src/ai/synergyTags';
 import { counters } from '../src/core/engine/cardEffects';
 import { Agent, GameRunner } from '../src/ai';
 import { writeFileSync } from 'node:fs';
-import { Alarm, AlarmTracker } from './alarms';
+import { Alarm, AlarmTracker, moneyKind } from './alarms';
 
 export interface Steal {
   turn: number;
@@ -137,23 +137,6 @@ export interface IdentityUse {
 
 /** Prompt option ids that turn an optional ability down. */
 const DECLINES = ['no', 'leave', 'skip', 'decline', 'none', 'pass', 'done', 'keep'];
-
-/** What a step that changed the Corp's credits did, read from the state change. */
-function moneyKind(before: GameState, after: GameState): string {
-  const ice = (st: GameState) => Object.values(st.corp.servers).flatMap(sv => sv.ice);
-  const root = (st: GameState) => Object.values(st.corp.servers).flatMap(sv => sv.root);
-  const rezzed = (list: { isRezzed: boolean }[]) => list.filter(c => c.isRezzed).length;
-  const counters = (st: GameState) => [...root(st), ...ice(st)].reduce((n, c) => n + c.advancementCounters, 0);
-  if (rezzed(ice(after)) > rezzed(ice(before))) return before.activeRun ? 'rez ice in a run' : 'rez ice';
-  if (rezzed(root(after)) > rezzed(root(before))) return 'rez asset/upgrade';
-  if (ice(after).length > ice(before).length) return 'install ice';
-  if (counters(after) > counters(before)) return 'advance';
-  if (before.activePlayer === 'runner' || before.activeRun) return "runner's turn";
-  if (after.corp.clicks === before.corp.clicks - 1 && after.corp.hq.length === before.corp.hq.length && after.corp.credits === before.corp.credits + 1) return 'click for credit';
-  if (after.corp.archives.faceUp.length > before.corp.archives.faceUp.length || after.corp.hq.length < before.corp.hq.length) return 'operation/install';
-  if (after.corp.clicks === before.corp.clicks) return 'turn start/assets';
-  return 'other';
-}
 
 /**
  * Runs the Runner paid into (boosting or breaking) and then lost: jacked out
