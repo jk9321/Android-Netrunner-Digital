@@ -41,6 +41,15 @@ const isAgenda = (c: CardInstance) => cardDef(c).type_code === 'agenda';
 const corpCardsGone = (s: GameState) => s.corp.archives.faceUp.length + s.corp.archives.faceDown.length;
 const title = (c: CardInstance) => cardDef(c).title;
 
+/** Why an HQ agenda may be waiting: the Corp is broke, has no iced remote, its iced remotes are all taken, or an empty iced remote stands ready. */
+function stuckReason(s: GameState): string {
+  if (s.corp.credits < 3) return 'broke (under 3 credits)';
+  const iced = Object.values(s.corp.servers).filter(sv => sv.isRemote && sv.ice.length > 0);
+  if (iced.length === 0) return 'no iced remote';
+  if (iced.every(sv => sv.root.length > 0)) return 'iced remotes taken';
+  return 'empty iced remote ready';
+}
+
 /** Watches a game step by step; call step() after every engine step, then done(). */
 export class AlarmTracker {
   readonly alarms: Alarm[] = [];
@@ -89,7 +98,7 @@ export class AlarmTracker {
       }
       if (!entry.fired && s.turnNumber - entry.turn >= 3 && entry.breaches >= 2) {
         entry.fired = true;
-        this.fire('agenda stuck in HQ', s.turnNumber, 'corp', `${title(c)} in HQ since turn ${entry.turn}; the Runner got into HQ ${entry.breaches} times`);
+        this.fire('agenda stuck in HQ', s.turnNumber, 'corp', `${title(c)} in HQ since turn ${entry.turn}; the Runner got into HQ ${entry.breaches} times; ${s.corp.credits} credits`, stuckReason(s));
       }
     }
     for (const id of [...this.hqSince.keys()]) if (!s.corp.hq.some(c => c.instanceId === id)) this.hqSince.delete(id);
