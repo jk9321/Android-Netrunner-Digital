@@ -12,11 +12,13 @@ import { installChunkReload } from './ui/chunkReload';
 import { diagnoseLoad, installReloadWatch } from './ui/reloadReason';
 import { ReloadNotice } from './ui/components/ReloadNotice';
 import { hasSavedCustomDecks, requestPersistentStorage } from './data/customDecks';
+import { installWheelScroll } from './ui/wheelScroll';
 import './index.css';
 
 // Ask the browser not to clear saved decks when the device is low on space
 if (!movingAway && hasSavedCustomDecks()) requestPersistentStorage();
 
+installWheelScroll();
 applyCardSize(savedCardSize());
 applyAutoFit(savedAutoFit());
 applyAnimations(animationsEnabled());
