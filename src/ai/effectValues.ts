@@ -248,12 +248,16 @@ export function accessWorth(state: GameState): number {
 
 /** Worth of n net or meat damage to the Runner: the cards lost, or the game if it flatlines. */
 export function damageWorth(state: GameState, n: number): number {
-  if (n > state.runner.grip.length) return flatlineWorth(state);
+  // plan.spareLastClick: with no click left the Runner can't run again this turn, so cards over its hand size are
+  // discarded before they can soak up any damage (it drew to 6 with its last click and discarded, for +6)
+  const spent = tuning.plan.spareLastClick && state.activePlayer === 'runner' && !state.activeRun && state.runner.clicks === 0;
+  const held = spent ? Math.min(state.runner.handSizeLimit ?? 5, state.runner.grip.length) : state.runner.grip.length;
+  if (n > held) return flatlineWorth(state);
   const card = cardRate(state, 'runner');
   if (!tuning.plan.damageClock) return n * card;
   // The damage clock: the cards, and the step closer to a flatline the smaller grip leaves
   // Cards over the hand limit are discarded before the Corp's turn: they are no life against its damage
-  const grip = state.runner.grip.length;
+  const grip = held;
   return n * card + flatlineWorth(state) * (flatlineOdds(state, lifeGrip(state, grip - n, false)) - flatlineOdds(state, lifeGrip(state, grip, false)));
 }
 

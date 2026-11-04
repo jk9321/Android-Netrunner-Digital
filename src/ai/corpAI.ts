@@ -102,7 +102,10 @@ export class HeuristicCorpAI implements Agent {
     const legal = getLegalActions(state, 'corp');
     const ranked = this.rankMainActions(state, legal);
     const planned = this.planner && plannerOn('corp') && state.turnStep?.kind !== 'corp_turn_start' ? this.plan(state, ranked) : null;
-    const chosen = planned ?? (ranked[0]?.score > -Infinity ? ranked[0].action : legal.find(a => a.type === 'END_TURN') ?? legal[0]);
+    let chosen = planned ?? (ranked[0]?.score > -Infinity ? ranked[0].action : legal.find(a => a.type === 'END_TURN') ?? legal[0]);
+    // plan.pettyCashFirst: a click for a credit while Petty Cash can still be played is a click for 2 thrown away (the
+    // planner valued Petty Cash held in HQ as the money it will make, though it is playable only as the turn's first action)
+    if (chosen.type === 'GAIN_CREDIT' && this.synergy && tuning.plan.pettyCashFirst) chosen = ranked.find(r => isPettyCash(state, r.action) && r.score > -Infinity)?.action ?? chosen;
     // The reverse bluff: at most once a game
     if (chosen.type === 'INSTALL_CARD' && chosen.asNewRemote && state.corp.hq.some(c => c.instanceId === chosen.cardInstanceId && type(c) === 'agenda')) {
       const def = cardDef(state.corp.hq.find(c => c.instanceId === chosen.cardInstanceId)!);
@@ -131,7 +134,7 @@ export class HeuristicCorpAI implements Agent {
     this.freeActions.start(state, state.corp.clicks);
     const before = evaluate(state, 'corp', this.synergy);
     const iceTrash = this.synergy && tuning.plan.iceTrash;
-    return [...legal, ...(iceTrash ? iceTrashInstalls(state) : [])]
+    const ranked = [...legal, ...(iceTrash ? iceTrashInstalls(state) : [])]
       .map(original => {
         if (original.type === 'INSTALL_CARD' && original.trashFirst?.length) {
           // Score the plain install with the credits it saves, less what the trashed ice was worth
@@ -150,6 +153,7 @@ export class HeuristicCorpAI implements Agent {
         return { action, score };
       })
       .sort((a, b) => b.score - a.score);
+    return this.synergy && tuning.plan.pettyCashFirst ? pettyCashFirst(state, ranked) : ranked;
   }
 
   chooseRez(state: GameState, cards: CardInstance[]): GameAction | null {
@@ -1345,3 +1349,19 @@ export function freeInstallTarget(state: GameState, card: CardInstance, options:
   }
   return best;
 }
+
+/**
+ * plan.pettyCashFirst (Jeff, 2026-11-04, the credit-card audit): Petty Cash can be played only before the Corp has
+ * finished an action this turn, so ranking it below an install made it unplayable for the rest of the turn. In 40
+ * self-play games the Corp clicked for credits on 25 turns while holding a Petty Cash it could afford. When it ranks
+ * among the actions the Corp has clicks for this turn, it goes first; and the Corp never clicks for a credit while it
+ * can play it instead.
+ */
+function pettyCashFirst(state: GameState, ranked: ScoredAction[]): ScoredAction[] {
+  const at = ranked.findIndex(r => isPettyCash(state, r.action));
+  if (at <= 0 || at >= state.corp.clicks || !Number.isFinite(ranked[at].score) || ranked[0].action.type === 'SCORE_AGENDA') return ranked;
+  const petty = { ...ranked[at], score: ranked[0].score + 0.01 };
+  return [petty, ...ranked.slice(0, at), ...ranked.slice(at + 1)];
+}
+const PETTY_CASH = '35081';
+const isPettyCash = (state: GameState, a: GameAction): boolean => a.type === 'PLAY_OPERATION_OR_EVENT' && state.corp.hq.find(c => c.instanceId === a.cardInstanceId)?.cardCode === PETTY_CASH;

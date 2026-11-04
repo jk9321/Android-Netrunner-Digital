@@ -8,7 +8,7 @@ import { counterWorth } from './counterValues';
 import { handPlanWorth } from './cardPlans';
 import { iceCost } from './runs';
 import { planSide, tuning } from './synergy';
-import { CLICK, RATES, cardRate, flatRate, handFilter, pointValue, setDeckCard } from './valueModel';
+import { CLICK, RATES, cardRate, flatRate, handFilter, payoutSlide, pointValue, setDeckCard } from './valueModel';
 
 /**
  * Cards in hand by what they do (Jeff, 2026-10-28; plan.handByCard). A card
@@ -67,7 +67,7 @@ export function playedWorth(state: GameState, card: CardInstance): number {
   }
   // Runner rig cards
   const profile = CARD_PROFILES[card.cardCode];
-  if (profile && tuning.plan.cardProfiles) return payoutWorth(profile, turns, profile.load, payoutWait(state, profile, 'runner'), cardRate(state, 'runner')) - cost - CLICK;
+  if (profile && tuning.plan.cardProfiles) return payoutWorth(profile, turns, profile.load, payoutWait(state, profile, 'runner'), cardRate(state, 'runner')) * payoutSlide(state, 'runner', 'runner', profile.load) - cost - CLICK;
   // (Not while the deck's average card is worked out: pricing the rig there prices the rig cards that asked for the average)
   if (isIcebreaker(card) && flatRate('breakers') && tuning.plan.breakerCredits?.runner && !pricingBreakers.has(card.instanceId) && !averaging) {
     // What it adds to the rig's coverage once installed (Mayfly's one use included), as the board will see it.

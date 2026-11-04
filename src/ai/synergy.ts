@@ -161,6 +161,12 @@ export const tuning = {
     drawBackLife: true,
     /** Runner: a card the Corp answers a choice for (Wildcat Strike, Urban Art Vernissage) is scored after the Corp's answer, not before anything is gained (runnerAI scoreMain). */
     answerCorpChoice: true,
+    /** Runner: credits a card will still pay out are priced on the credit slide, like credits in hand (valueModel payoutSlide). */
+    payoutSlide: true,
+    /** Runner: cards over the hand size soak up no damage once its clicks are spent (effectValues damageWorth). */
+    spareLastClick: true,
+    /** Runner: Transfer of Wealth's run is worth the credits it moves (prompts runEventOptions); it was priced as a bare HQ run and never played. */
+    transferOfWealth: true,
     /** Clearinghouse is advanced toward a flatline (grip + 1 counters, at most 6), not stopped at 3 like other assets. */
     clearinghouseLethal: true,
     /** Lookahead guesses (runnerReply.guessHidden, search.determinize) keep hand cards the guessing side has seen. */
@@ -282,6 +288,8 @@ export const tuning = {
     idleUpgrades: true,
     /** Corp: Petty Cash first thing in the turn (it can only be played then, and replays from Archives). */
     pettyCash: true,
+    /** Corp: Petty Cash goes first when it is among the actions the Corp has clicks for (corpAI pettyCashFirst). */
+    pettyCashFirst: true,
     /** Corp: click for credits toward a money operation in HQ it can't afford yet (Hedge Fund, Subsidy...). */
     saveForOps: true,
     /** Runner: Botulus counters count as free breaks when costing ice; trojans go on the ice they help most, not doubled up. */

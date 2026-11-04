@@ -11,7 +11,7 @@ import { AI_BREAKER_SHARE, breakerTypeWorth, flatIceWorth, iceWorth } from './ic
 import { payoutWait, payoutWorth, profileOf, turnsLeft } from './cardProfiles';
 import { resourceTrashHqCost } from '../core/engine/actions/basic';
 import { HAND_FLOOR, clickPrice, handByCard, heldWorth, ownHandValue, playedWorth } from './handValues';
-import { CLICK, RATES, cardRate, creditValue, flatRate, flatlineWorth, guardLoop, handFilter, memo, pointValue, sideCreditValue } from './valueModel';
+import { CLICK, RATES, cardRate, creditValue, flatRate, flatlineWorth, guardLoop, handFilter, memo, payoutSlide, pointValue, sideCreditValue } from './valueModel';
 import { PACE, STEAL, coreSlotWorth, flatlineOdds, lifeGrip, runSuccess, stealOdds } from './effectValues';
 import { trashedCardCost } from './runs';
 
@@ -141,7 +141,7 @@ export function runnerRigValue(state: GameState, aware: boolean, viewer: SideCod
     // Step 4: a card that pays out money is worth what it will still pay
     const profile = profileOf(card.cardCode);
     if (profile) {
-      value += payoutWorth(profile, turnsLeft(state), counters(card, 'credit'), payoutWait(state, profile, 'runner'), cardRate(state, 'runner'));
+      value += payoutWorth(profile, turnsLeft(state), counters(card, 'credit'), payoutWait(state, profile, 'runner'), cardRate(state, 'runner')) * payoutSlide(state, 'runner', viewer, counters(card, 'credit'));
       continue;
     }
     // A breaker is worth its coverage above (plan.flatRates.breakers: no flat extra for having one)

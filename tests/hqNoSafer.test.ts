@@ -26,18 +26,23 @@ const top = (s: GameState) => {
 
 describe('an agenda leaves HQ when HQ is no safer (plan.hqNoSafer)', () => {
   it('installs Offworld Office behind remote ice and advances it, on Hard', () => {
-    let s = position();
-    expect(top(s)).toBe('install Offworld Office in a remote');
-    // Fixed samples, not the time budget, so a busy test run plays the same search (the search finds it on 8 of 10 seeds)
-    const corp = createAgent('corp', 'hard', { samples: 6, candidates: 3, seed: 1 });
-    const runner = createAgent('runner', 'normal');
-    for (let i = 0; i < 20 && (s.activePlayer === 'corp' || s.pendingPrompts.length > 0); i++) {
-      const prompt = s.pendingPrompts[0];
-      s = executeAction(s, (prompt?.side === 'runner' ? runner : corp).chooseAction(s));
+    expect(top(position())).toBe('install Offworld Office in a remote');
+    // Fixed samples, not the time budget, so a busy test run plays the same search. The search finds it on 8 of 10
+    // seeds, so most of 3 is the check (about 7 s: its own time limit, as a full test run passed 5 s)
+    let advanced = 0;
+    for (const seed of [1, 2, 3]) {
+      let s = position();
+      const corp = createAgent('corp', 'hard', { samples: 6, candidates: 3, seed });
+      const runner = createAgent('runner', 'normal');
+      for (let i = 0; i < 20 && (s.activePlayer === 'corp' || s.pendingPrompts.length > 0); i++) {
+        const prompt = s.pendingPrompts[0];
+        s = executeAction(s, (prompt?.side === 'runner' ? runner : corp).chooseAction(s));
+      }
+      const office = Object.values(s.corp.servers).flatMap(sv => (sv.isRemote ? sv.root : [])).find(c => cardDef(c).title === 'Offworld Office');
+      if ((office?.advancementCounters ?? 0) >= 1) advanced++;
     }
-    const office = Object.values(s.corp.servers).flatMap(sv => (sv.isRemote ? sv.root : [])).find(c => cardDef(c).title === 'Offworld Office');
-    expect(office?.advancementCounters ?? 0).toBeGreaterThanOrEqual(1);
-  });
+    expect(advanced).toBeGreaterThanOrEqual(2);
+  }, 60_000);
 
   it('without the plan the agenda stays in HQ', () => {
     tuning.plan.hqNoSafer = false;

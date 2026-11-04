@@ -273,6 +273,20 @@ export function sideCreditValue(state: GameState, side: SideCode, viewer: SideCo
   return reach ? creditSlide(credits + reach, need) + Math.min(credits, 0) : creditSlide(credits, need);
 }
 
+/**
+ * plan.payoutSlide (Jeff, 2026-11-04: Telework Contract and Fermenter held while clicking for credits): credits a card
+ * will still pay out sit on the same slide as the credits in hand. Spent credits were priced on the slide (up to 1.8
+ * each when broke) but payouts at a flat 1, so a broke side never found an econ card worth installing. The worth of
+ * each credit to come, as a multiple of a flat credit. Runner cards only: on the Corp's Regolith it made taking
+ * the credits barely better than leaving them, so the Corp drew instead of taking.
+ */
+export function payoutSlide(state: GameState, side: SideCode, viewer: SideCode, amount: number): number {
+  if (!tuning.plan.payoutSlide || !tuning.plan.creditSlide?.[viewer] || amount <= 0) return 1;
+  const credits = side === 'corp' ? state.corp.credits : state.runner.credits;
+  const need = creditNeed(state, side);
+  return (creditSlide(credits + amount, need) - creditSlide(credits, need)) / amount;
+}
+
 /*
  * Value loops (Jeff, 2026-10-30): a card's worth can depend on another's,
  * which can depend on the first (ice with a tag subroutine prices tags, tags

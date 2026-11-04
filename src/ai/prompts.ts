@@ -141,6 +141,9 @@ export function runEventOptions(cardCode: string, state?: GameState): RunOptions
       return { breachAs: 'hq', successBonus: -(state ? runClick(state) : 1) };
     case '35014': // Clean Getaway
       return { successBonus: 6 };
+    case '35017': // Transfer of Wealth: a tag, the Corp loses up to 3 credits, the Runner gains twice that (plan.transferOfWealth)
+      if (!tuning.plan.transferOfWealth) return {};
+      return { successBonus: state ? 3 * Math.min(3, state.corp.credits) - tagCost(state) : 6 };
     case '35005': // Shred
       return { shred: true };
     case '36012': // Tailgate: 2 more HQ accesses
