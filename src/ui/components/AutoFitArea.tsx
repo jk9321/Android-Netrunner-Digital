@@ -6,7 +6,7 @@ export const AutoFitArea: React.FC<{ className?: string; children: React.ReactNo
   const ref = useRef<HTMLDivElement>(null);
   useAutoFit(ref);
   return (
-    <div ref={ref} className={className} data-testid="auto-fit-area">
+    <div ref={ref} className={`auto-fit-area ${className ?? ''}`} data-testid="auto-fit-area">
       {children}
     </div>
   );

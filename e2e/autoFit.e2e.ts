@@ -28,6 +28,13 @@ test('auto fit shrinks cards to avoid scrolling and can be switched off', async 
   const unfit = await cardWidth();
 
   await auto.click();
+  // The shrink glides: sizes between the start and the end are seen on the way
+  const seen = new Set<number>();
+  for (let i = 0; i < 20; i++) {
+    seen.add(Math.round(await cardWidth()));
+    await page.waitForTimeout(30);
+  }
+  expect(seen.size).toBeGreaterThan(2);
   await expect.poll(cardWidth).toBeLessThan(unfit);
   await expect.poll(overflowing).toBe(false);
   expect(await cardWidth()).toBeGreaterThanOrEqual(unfit * 0.5 - 1); // never below the floor

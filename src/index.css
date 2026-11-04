@@ -291,6 +291,29 @@
  * one screen; the zoom panel shows a large copy on hover. The header's Large
  * button (data-card-size on <html>, src/ui/cardSize.ts) scales them up.
  */
+/* Typed, so an auto fit area's card size can animate (useAutoFit.ts) */
+@property --card-w {
+  syntax: '<length>';
+  inherits: true;
+  initial-value: 90px;
+}
+@property --card-h {
+  syntax: '<length>';
+  inherits: true;
+  initial-value: 126px;
+}
+.auto-fit-area {
+  transition: --card-w 0.25s ease-out, --card-h 0.25s ease-out;
+}
+:root[data-animations='off'] .auto-fit-area {
+  transition: none;
+}
+/* Cards follow the area's animated size directly: a width transition of their own would lag it and skew the fit measurement */
+.auto-fit-area .card-fit,
+.auto-fit-area .card-fit-sm,
+.auto-fit-area .card-sideways {
+  transition-property: color, background-color, border-color, box-shadow, opacity, transform, filter !important;
+}
 :root {
   --card-w: clamp(50px, 9vh, 170px);
   --card-h: calc(var(--card-w) * 1.4);

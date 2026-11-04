@@ -1,5 +1,6 @@
 import { RefObject, useEffect } from 'react';
 import { AUTO_FIT_EVENT, isAutoFitOn } from './cardSize';
+import { animationsEnabled } from './animations';
 
 /** Auto fit never shrinks cards below this share of their normal width, or below MIN_PX. */
 export const AUTO_FIT_FLOOR = 0.5;
@@ -36,6 +37,9 @@ export function useAutoFit(ref: RefObject<HTMLElement | null>): void {
     const fit = () => {
       frame = 0;
       running = true;
+      // Measure with no transition running, then glide from the old size to the new one
+      const previous = parseFloat(getComputedStyle(el).getPropertyValue('--card-w'));
+      el.style.transition = 'none';
       clearSize(el);
       if (isAutoFitOn()) {
         const probe = document.createElement('div');
@@ -66,6 +70,16 @@ export function useAutoFit(ref: RefObject<HTMLElement | null>): void {
           }
         }
       }
+      const final = parseFloat(el.style.getPropertyValue('--card-w'));
+      if (animationsEnabled() && Number.isFinite(previous) && Number.isFinite(final) && Math.abs(previous - final) > 0.5) {
+        setSize(el, previous);
+        void el.offsetWidth; // commit the starting size before the transition is switched on
+        el.style.removeProperty('transition');
+        setSize(el, final);
+      } else {
+        void el.offsetWidth;
+        el.style.removeProperty('transition');
+      }
       // Let observers triggered by our own changes settle before listening again
       requestAnimationFrame(() => {
         running = false;
@@ -92,6 +106,7 @@ export function useAutoFit(ref: RefObject<HTMLElement | null>): void {
       settings.disconnect();
       window.removeEventListener(AUTO_FIT_EVENT, schedule);
       clearSize(el);
+      el.style.removeProperty('transition');
     };
   }, [ref]);
 }
