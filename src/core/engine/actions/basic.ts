@@ -1,5 +1,6 @@
 import { DrawCardAction, GainCreditAction, PurgeVirusAction, RemoveTagAction, TrashResourceAction } from '../../types/actions';
 import { GameState } from '../../types/state';
+import { CardInstance } from '../../types/card';
 import { cardDef } from '../../cards';
 import { addLog } from '../log';
 import { drawCards, illegal, requireActionPhase, requireClicks } from '../helpers';
@@ -71,8 +72,8 @@ export function trashResource(state: GameState, action: TrashResourceAction): vo
   const card = state.runner.rig.resources.find(c => c.instanceId === action.cardInstanceId);
   if (!card) illegal('Not an installed resource');
   // Additional cost: cards from HQ (Sebastião Souza Pessoa, Manuel Lattes de Moura)
-  const imposers = activeCards(state).filter(c => (getCardScript(c.cardCode)?.modifiers?.resourceTrashHqCost?.(state, c, card) ?? 0) > 0);
-  const hqCost = imposers.reduce((n, c) => n + getCardScript(c.cardCode)!.modifiers!.resourceTrashHqCost!(state, c, card), 0);
+  const imposers = hqCostImposers(state, card);
+  const hqCost = resourceTrashHqCost(state, card);
   if (state.corp.hq.length < hqCost) illegal(`Trashing ${cardDef(card).title} also costs ${hqCost} card(s) from HQ`);
   state.corp.clicks -= 1;
   state.corp.credits -= 2;
@@ -90,6 +91,14 @@ export function trashResource(state: GameState, action: TrashResourceAction): vo
   }
   trashInstalledRunnerCard(state, card);
   addLog(state, 'corp', `Corp spent [click] and 2 [credit] to trash ${cardDef(card).title}.`);
+}
+
+const hqCostImposers = (state: GameState, resource: CardInstance) =>
+  activeCards(state).filter(c => (getCardScript(c.cardCode)?.modifiers?.resourceTrashHqCost?.(state, c, resource) ?? 0) > 0);
+
+/** Cards the Corp must also trash from HQ to trash this resource with the basic action (Sebastião Souza Pessoa, Manuel Lattes de Moura). */
+export function resourceTrashHqCost(state: GameState, resource: CardInstance): number {
+  return hqCostImposers(state, resource).reduce((n, c) => n + getCardScript(c.cardCode)!.modifiers!.resourceTrashHqCost!(state, c, resource), 0);
 }
 
 /** The step of the engine's "trash cards from HQ to trash this resource" prompt (see trashResource). */

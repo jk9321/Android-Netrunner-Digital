@@ -4,7 +4,7 @@ import { turnsLeft } from './cardProfiles';
 import { PAYOUT_RISK } from './payoutRisk';
 import { COUNTER_WORTH } from './counterValues';
 import { CARDS, corpFormula, runnerFormula } from './cards';
-import { tuning } from './synergy';
+import { actingSide, tuning } from './synergy';
 import { CLICK, RATES, cardRate, flatRate, flatlineWorth, memo, pointGain, pointValue, sideCards } from './valueModel';
 import { tagsWorth } from './evaluate';
 import { BLOCK, iceCost, iceCreditNeed, subroutineCost } from './runs';
@@ -98,7 +98,9 @@ export function muWorth(state: GameState): number {
 
 /** Worth of `x` each turn for the turns left, less the risk of losing the card each turn. */
 export function perTurn(state: GameState, x: number, owner: 'corp' | 'runner', minTurns = 0, maxTurns = Infinity, wait = 1, lock = 1): number {
-  const risk = owner === 'corp' ? PAYOUT_RISK.corpBare : state.runner.tags > 0 ? PAYOUT_RISK.runnerTagged : PAYOUT_RISK.runnerUntagged;
+  // plan.ownTrashRisk: the Corp's own trash action is no risk the Corp prices (it decides it)
+  const tagRisk = state.runner.tags > 0 && !(tuning.plan.ownTrashRisk && actingSide() === 'corp');
+  const risk = owner === 'corp' ? PAYOUT_RISK.corpBare : tagRisk ? PAYOUT_RISK.runnerTagged : PAYOUT_RISK.runnerUntagged;
   const turns = Math.min(maxTurns, Math.max(minTurns, turnsLeft(state)));
   let value = 0;
   for (let t = 1; t <= turns; t++) value += x * (wait * (1 - risk)) ** t * lock ** (t - 1);
