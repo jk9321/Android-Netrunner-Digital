@@ -209,7 +209,9 @@ const sendAMessage: CardScript = {
   triggers: { agenda_scored: sendAMessageTrigger, agenda_stolen: sendAMessageTrigger },
   onPromptAnswer: ({ state }, _source, answer) => {
     if (answer.kind !== 'effect_cards' || answer.cardInstanceIds.length === 0) return;
-    const ice = installedIce(state).find(c => c.instanceId === answer.cardInstanceIds[0])!;
+    // The chosen ice may have left play (or been rezzed) before the answer: then nothing happens
+    const ice = installedIce(state).find(c => c.instanceId === answer.cardInstanceIds[0]);
+    if (!ice || ice.isRezzed) return;
     addLog(state, 'corp', `Corp rezzed ${cardDef(ice).title}, ignoring all costs (Send a Message).`, undefined, 'rez');
     rezForFree(state, ice);
   },

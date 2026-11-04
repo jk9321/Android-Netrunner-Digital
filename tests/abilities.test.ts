@@ -426,6 +426,15 @@ describe('Score and steal triggers', () => {
     expect(s.corp.credits).toBe(credits);
   });
 
+  it('Send a Message does nothing if the chosen ice left play before the answer', () => {
+    let s = newGame();
+    const ice = installIceForTest(s, C.pharos, 'hq', false);
+    s = scoreForTest(s, C.sendAMessage, 'remote-s');
+    s.corp.servers.hq.ice = []; // e.g. trashed by another trigger first
+    expect(() => (s = pick(s, [ice]))).not.toThrow();
+    expect(s.corp.servers.hq.ice).toHaveLength(0);
+  });
+
   it('Longevity Serum trashes from HQ then shuffles Archives into R&D', () => {
     let s = newGame();
     const hq = s.corp.hq.map(c => c.instanceId);
