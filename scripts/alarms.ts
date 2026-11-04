@@ -20,7 +20,7 @@ export type AlarmKind =
   | 'agenda stuck in HQ'
   /** Corp: the Runner was tagged all through a Corp turn with a resource the Corp could afford to trash, and it clicked for a credit or a card instead of trashing or using the tag */
   | 'tag not used'
-  /** Runner: 3 Runner turns running in a row on the same central that got nothing (no points, no Corp card trashed) */
+  /** Runner: 3 Runner turns running in a row on HQ or Archives that got nothing (no points, no Corp card trashed) */
   | 'fruitless runs'
   /** Runner: an unrezzed advanced card sat in a remote the Runner could get into (no unrezzed ice, rezzed ice affordable) and it didn't run there; detail says what it really was */
   | 'open target skipped'
@@ -66,7 +66,9 @@ export class AlarmTracker {
     if (after.activePlayer === 'runner' && this.runnerStart?.turnNumber !== after.turnNumber) this.runnerStart = after;
 
     // The Corp used the tag: a resource left the rig on its turn, or the tag count dropped
-    if (after.activePlayer === 'corp' && !after.activeRun && (after.runner.rig.resources.length < before.runner.rig.resources.length || after.runner.tags < before.runner.tags)) this.corpTurnUsedTags = true;
+    // (any rig card trashed, Retribution included; damage; or the tag count dropped)
+    const rig = (st: GameState) => Object.values(st.runner.rig).flat().length;
+    if (after.activePlayer === 'corp' && !after.activeRun && (rig(after) < rig(before) || after.runner.grip.length < before.runner.grip.length || after.runner.tags < before.runner.tags)) this.corpTurnUsedTags = true;
 
     // A successful run on an empty Archives
     if (after.runsThisTurn.length > before.runsThisTurn.length) {
@@ -111,7 +113,8 @@ export class AlarmTracker {
     if (runs.some(r => r.server === 'hq' && r.successful)) for (const entry of this.hqSince.values()) entry.breaches++;
     // Fruitless turns on a central: got in, but no points and no Corp card trashed or stolen
     const gained = before.runner.score > start.runner.score || corpCardsGone(before) > corpCardsGone(start);
-    for (const server of ['hq', 'rd', 'archives']) {
+    // (R&D digs come up empty often enough to be no sign of a mistake)
+    for (const server of ['hq', 'archives']) {
       const ran = runs.some(r => r.server === server && r.successful);
       if (!ran) {
         this.fruitless.delete(server);
