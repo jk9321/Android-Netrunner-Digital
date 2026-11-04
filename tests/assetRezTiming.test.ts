@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { HeuristicCorpAI } from '../src/ai/corpAI';
-import { installCorpForTest, newGame, run, startRunnerTurn } from './helpers';
+import { installCorpForTest, newGame, run, startRunnerTurn, toCorp } from './helpers';
 import { asSide } from '../src/ai/synergy';
 
 const NICO = '30037';
@@ -54,7 +54,7 @@ describe('Spin Doctor in a run on its server', () => {
     const s = newGame();
     const id = installCorpForTest(s, '30053', 'remote-1');
     startRunnerTurn(s);
-    const r = run(s, 'remote-1');
+    const r = toCorp(run(s, 'remote-1')); // the Runner passes: the Corp's window before the approach
     expect(r.activeRun?.phase).toBe('approach_server');
     const card = r.corp.servers['remote-1'].root.find(c => c.instanceId === id)!;
     expect(new HeuristicCorpAI({ planner: false }).chooseRez(r, [card])).toMatchObject({ type: 'REZ_CARD', cardInstanceId: id });

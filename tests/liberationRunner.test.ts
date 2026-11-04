@@ -3,25 +3,7 @@ import { createCardInstance, executeAction, findCardAnywhere, GameState, iceStre
 import { breakerStrength, markSubroutinesBroken } from '../src/core/engine/ice';
 import { purgeVirusCounters } from '../src/core/engine/cardEffects';
 import { dealNetDamage, giveTags, trashInstalledRunnerCard } from '../src/core/engine/damage';
-import {
-  answer,
-  cont,
-  runIntoFirstIce,
-  giveCard,
-  installCorpForTest,
-  installIceForTest,
-  installProgramForTest,
-  keepGoing,
-  newGame,
-  passTurn,
-  play,
-  run,
-  runnerInstall,
-  scoreForTest,
-  setIdentity,
-  startRunnerTurn,
-  useAbility,
-} from './helpers';
+import { answer, cont, runIntoFirstIce, giveCard, installCorpForTest, installIceForTest, installProgramForTest, keepGoing, newGame, passTurn, play, run, runnerInstall, scoreForTest, setIdentity, startRunnerTurn, useAbility, toCorp } from './helpers';
 
 const L = {
   strikeFund: '34001', price: '34002', badge: '34003', audrey: '34004', banner: '34005', monkeywrench: '34006', eru: '34007',
@@ -345,7 +327,7 @@ describe('The Automata Initiative: Criminal', () => {
     let s = newGame();
     const pal = installIceForTest(s, SG.palisade, 'hq', false);
     trojanOn(s, L.saci, pal);
-    s = run(s, 'hq');
+    s = toCorp(run(s, 'hq'));
     const credits = s.runner.credits;
     s.corp.credits += 10;
     s = executeAction(s, { type: 'REZ_CARD', player: 'corp', cardInstanceId: pal });

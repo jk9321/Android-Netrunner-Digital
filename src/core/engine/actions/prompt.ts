@@ -10,7 +10,7 @@ import { findCardAnywhere, illegal, locateCorpCard, noteTrashedFromHand, removeC
 import { getCardScript } from '../../scripts';
 import { activePrompt, sideName } from '../prompts';
 import { beginCorpTurn, finishDiscard, resumeTurn } from './turn';
-import { beginApproach, chooseBreachCandidate, continueAccess, finishAccess, gripToBottomOfStack, resolveStealCost, STEAL_COST_STEP, succeedRun, trashAccessedCard } from './run';
+import { initiationWindow, chooseBreachCandidate, continueAccess, finishAccess, gripToBottomOfStack, resolveStealCost, STEAL_COST_STEP, succeedRun, trashAccessedCard } from './run';
 import { availableCredits, spendCredits } from '../cardEffects';
 import { resumeEncounter, resumeOnEncounter } from '../ice';
 import { fireTrigger } from '../triggers';
@@ -34,7 +34,7 @@ export function resumeRun(state: GameState): void {
   if (run.encounter?.onEncounterPending) resumeOnEncounter(state);
   else if (run.encounter?.resolvingIndex != null) resumeEncounter(state);
   else if (run.phase === 'approach_server' && run.serverApproached) succeedRun(state);
-  else if (run.phase === 'initiation') beginApproach(state);
+  else if (run.phase === 'initiation') initiationWindow(state);
   else if (run.phase === 'access') continueAccess(state);
 }
 

@@ -7,9 +7,7 @@ import { pushPrompt, sideName } from '../prompts';
 import { fireTrigger } from '../triggers';
 import { maxHandSize, refillRecurringCredits, turnFlag, TurnFlag } from '../cardEffects';
 import { flatline } from '../damage';
-import { cardDef } from '../../cards';
-import { getCardScript } from '../../scripts';
-import { abilitySources, abilityUsableFrom } from './ability';
+import { onWindowClose, openWindow, passPriority } from '../priority';
 
 export function handSize(state: GameState, side: SideCode): number {
   return side === 'corp' ? state.corp.hq.length : state.runner.grip.length;
@@ -47,7 +45,7 @@ export function resumeTurn(state: GameState): void {
       mandatoryDraw(state);
       continue;
     }
-    if (step.kind === 'corp_turn_start') return; // waiting on START_TURN
+    if (step.kind === 'corp_turn_start' || step.kind === 'runner_turn_start') return; // a paid ability window is open
     const side = step.side;
     switch (step.stage) {
       case 'action_ended': {
@@ -75,9 +73,12 @@ export function resumeTurn(state: GameState): void {
       case 'discarding':
         return; // waiting on the discard prompt
       case 'discarded':
-        step.stage = 'handover';
-        fireTrigger(state, { type: 'discard_phase_ends', side });
-        break;
+        // The paid ability window after discarding (rules 5.6.3b, 5.7.2b); the turn ends when it closes
+        step.stage = 'discard_window';
+        openWindow(state, side === 'corp' ? 'corp_discard' : 'runner_discard');
+        return;
+      case 'discard_window':
+        return; // waiting on the window
       case 'handover':
         state.turnStep = null;
         handOver(state, side);
@@ -109,8 +110,9 @@ function handOver(state: GameState, side: SideCode): void {
     state.runner.clicks = Math.max(0, state.runner.maxClicks + bonus);
     state.runner.bonusClicksNextTurn = 0;
     addLog(state, 'corp', `Corp ended turn. Runner turn begins (${state.runner.clicks} clicks).`);
-    refillRecurringCredits(state, 'runner');
-    fireTrigger(state, { type: 'turn_begins', side: 'runner' });
+    // The paid ability window before the Runner's turn formally begins (rules 5.7.1b)
+    state.turnStep = { kind: 'runner_turn_start' };
+    openWindow(state, 'runner_turn_start');
     return;
   }
   state.turnNumber += 1;
@@ -121,8 +123,7 @@ function handOver(state: GameState, side: SideCode): void {
 /**
  * Starts a Corp turn (rules 5.6.1): the Corp gains clicks, then gets a paid
  * ability window (rez non-ice cards, score, paid abilities) before the turn
- * formally begins. The window stays open until START_TURN, but only when the
- * Corp has something to do in it.
+ * formally begins. START_TURN is the Corp passing in it.
  */
 export function beginCorpTurn(state: GameState): void {
   state.activePlayer = 'corp';
@@ -131,18 +132,38 @@ export function beginCorpTurn(state: GameState): void {
   state.corp.clicks = state.corp.maxClicks + bonus;
   state.corp.bonusClicksNextTurn = 0;
   if (bonus > 0) addLog(state, 'corp', `Corp gets ${bonus} extra [click] this turn.`);
-  if (hasTurnStartOptions(state)) {
-    state.turnStep = { kind: 'corp_turn_start' };
-    return;
-  }
-  continueCorpTurnStart(state);
+  state.turnStep = { kind: 'corp_turn_start' };
+  openWindow(state, 'corp_draw');
 }
 
-/** The Corp closes the window before their turn begins: recurring credits, "when your turn begins", then the mandatory draw. */
+/** The Corp passes in the window before their turn begins (gameEngine treats START_TURN as passing). */
 export function startTurn(state: GameState, action: StartTurnAction): void {
   if (action.player !== 'corp' || state.turnStep?.kind !== 'corp_turn_start') illegal('Not waiting to start a turn');
+  passPriority(state, 'corp');
+}
+
+// The window before the Corp's turn begins closed: recurring credits, "when your turn begins", then the mandatory draw
+onWindowClose('corp_draw', state => {
   state.turnStep = null;
   continueCorpTurnStart(state);
+});
+
+// The window before the Runner's turn begins closed: recurring credits, then "when your turn begins" (5.7.1c-d)
+onWindowClose('runner_turn_start', state => {
+  state.turnStep = null;
+  refillRecurringCredits(state, 'runner');
+  fireTrigger(state, { type: 'turn_begins', side: 'runner' });
+});
+
+// The window after discarding closed: the turn formally ends (5.6.3d, 5.7.2d)
+for (const step of ['corp_discard', 'runner_discard'] as const) {
+  onWindowClose(step, state => {
+    const turn = state.turnStep;
+    if (turn?.kind !== 'end_turn' || turn.stage !== 'discard_window') return;
+    turn.stage = 'handover';
+    fireTrigger(state, { type: 'discard_phase_ends', side: turn.side });
+    resumeTurn(state);
+  });
 }
 
 function continueCorpTurnStart(state: GameState): void {
@@ -151,27 +172,6 @@ function continueCorpTurnStart(state: GameState): void {
   if (state.winner) return;
   state.turnStep = { kind: 'corp_draw' };
   resumeTurn(state);
-}
-
-/**
- * Worth stopping before the turn begins: an installed card the Corp could
- * rez (other than ice), an agenda ready to score, or a paid ability that
- * costs no click on a rezzed card.
- */
-function hasTurnStartOptions(state: GameState): boolean {
-  for (const server of Object.values(state.corp.servers)) {
-    for (const card of server.root) {
-      const def = cardDef(card);
-      if (def.type_code === 'agenda') {
-        if (card.advancementCounters >= (def.advancement_cost ?? 0)) return true;
-      } else if (!card.isRezzed) {
-        return true;
-      }
-    }
-  }
-  return abilitySources(state, 'corp').some(({ card, where }) =>
-    (getCardScript(card.cardCode)?.abilities ?? []).some(a => !a.clicks && abilityUsableFrom(a, where, true))
-  );
 }
 
 function mandatoryDraw(state: GameState): void {

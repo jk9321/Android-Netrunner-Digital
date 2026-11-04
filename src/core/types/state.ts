@@ -186,6 +186,8 @@ export interface RunState {
   trashAtRunEnd: string[];
   /** Cards whose run-scoped effects apply (see CardScript.onRunSuccessful). */
   runEffects: RunEffectSource[];
+  /** Players passing every paid ability window for the rest of this run ("pass for the rest of this run"). */
+  passing?: SideCode[];
   /** Extra cards to access when breaching the attacked server (Jailbreak, Conduit). */
   extraAccesses: number;
   /** Cards accessed so far this run (Zahya). */
@@ -276,12 +278,79 @@ export type SettledEvent =
 
 /** The end of a turn or the Corp's draw, paused while players answer prompts (see engine/actions/turn.ts). */
 export type TurnStep =
-  | { kind: 'end_turn'; side: SideCode; stage: 'action_ended' | 'discarding' | 'discarded' | 'handover' }
+  | { kind: 'end_turn'; side: SideCode; stage: 'action_ended' | 'discarding' | 'discarded' | 'discard_window' | 'handover' }
   /** The paid ability window before the Corp's turn formally begins (rules 5.6.1b): rez, score, use paid abilities. */
   | { kind: 'corp_turn_start' }
-  | { kind: 'corp_draw' };
+  | { kind: 'corp_draw' }
+  /** The paid ability window after the Runner gains clicks, before their turn formally begins (rules 5.7.1b). */
+  | { kind: 'runner_turn_start' };
 
 export type TurnPlayer = SideCode;
+
+/**
+ * The paid ability windows of the turn and run structure (rules 5.6, 5.7,
+ * 6.9; summary in section 11), named by the step they open in.
+ */
+export type WindowStep =
+  /** 5.6.1b: after the Corp gains clicks, before their turn formally begins. (P) (R) (S) */
+  | 'corp_draw'
+  /** 5.6.2a: before each Corp action, and once more when the Corp has no clicks left. (P) (R) (S) */
+  | 'corp_action'
+  /** 5.6.3b: after the Corp discards. (P) (R) */
+  | 'corp_discard'
+  /** 5.7.1b: after the Runner gains clicks, before their turn formally begins. (P) (R) */
+  | 'runner_turn_start'
+  /** 5.7.1e: before each Runner action, and once more when the Runner has no clicks left. (P) (R) */
+  | 'runner_action'
+  /** 5.7.2b: after the Runner discards. (P) (R) */
+  | 'runner_discard'
+  /** 6.9.1e: once the run has begun, before the Runner approaches anything. (P) (R) */
+  | 'run_initiation'
+  /** 6.9.2b: the Runner approaches ice; the Corp may also rez that ice. (P) (R) */
+  | 'approach_ice'
+  /** 6.9.3b: the Runner encounters ice; subroutines can be broken. (P) */
+  | 'encounter'
+  /** 6.9.4b: the Runner passed ice (or had none to pass); jack out follows (6.9.4c). (P) */
+  | 'movement'
+  /** 6.9.4e: the Runner moved inward to the next piece of ice. (P) (R) */
+  | 'move_inward'
+  /** 6.9.4e: the Runner is past all the ice and about to approach the server. (P) (R) */
+  | 'approach_server';
+
+/**
+ * When a player's game stops to give them priority in a paid ability window:
+ * 'auto' stops where people usually act (the Corp's rez windows during runs
+ * and before the Runner's turn, the Runner's window at the end of the Corp's
+ * turn) and only when the player has something they can do there, 'full' at
+ * every window, 'none' at no window of the opponent's (only the player's own
+ * moves), 'ai' where the computer players have always been asked, judged
+ * only from what both players can see (rules 4.6.3).
+ */
+export type StopLevel = 'ai' | 'auto' | 'full' | 'none';
+
+/**
+ * A paid ability window in progress (rules 9.2.7). Both players get
+ * priority, the active player first; they exchange it until a player who
+ * received priority from their opponent passes, which closes it.
+ *
+ * During the action phases and the Runner's decisions in a run the active
+ * player holds priority without this being set; it is set once they pass
+ * (or for the windows that need a step to come back to).
+ */
+export interface PriorityWindow {
+  step: WindowStep;
+  holder: SideCode;
+  /** The holder received priority from the opponent's pass and has used nothing since: their pass closes it. */
+  received: boolean;
+  /** The holder used something (rezzed, scored, used an ability) since they last got priority. */
+  acted?: boolean;
+  /**
+   * What the active player chose to do once the window closes: the action
+   * they declared (5.6.2b, 5.7.1f), or jacking out (6.9.4c). Dropped if the
+   * opponent uses something first; the active player then chooses again.
+   */
+  intent?: import('./actions').GameAction;
+}
 
 export type GamePhase =
   | 'corp_turn'
@@ -334,6 +403,10 @@ export interface GameState {
   removedFromGame: CardInstance[];
   /** A turn transition waiting on prompts or the Corp (end of turn, start of the Corp's turn, mandatory draw). */
   turnStep?: TurnStep | null;
+  /** The paid ability window waiting on a player, when it isn't simply the active player's move (see PriorityWindow). */
+  priority?: PriorityWindow | null;
+  /** Where each player's game stops for paid ability windows. Missing means 'ai'. */
+  stops?: Partial<Record<SideCode, StopLevel>>;
   turnNumber: number;
   activePlayer: TurnPlayer;
   phase: GamePhase;

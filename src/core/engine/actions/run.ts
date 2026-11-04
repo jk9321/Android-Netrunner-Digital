@@ -14,6 +14,7 @@ import { AccessZone } from '../../scripts/types';
 import { agendaPoints, availableCredits, bumpRunFlag, bumpTurnFlag, runFlag, RunFlag, spendCredits, trashCost, TurnFlag } from '../cardEffects';
 import { RunState } from '../../types/state';
 import { runnerSeesRd } from '../rdKnowledge';
+import { onWindowClose, openWindow } from '../priority';
 
 export function initiateRun(state: GameState, action: InitiateRunAction): void {
   if (action.player !== 'runner') illegal('Only Runner can initiate runs');
@@ -113,7 +114,13 @@ export function startRun(state: GameState, serverId: string, options: RunOptions
   if (!state.activeRun || state.winner) return;
   // "When a run begins" decisions (Tributary, Lightning Laboratory) come first: the approach waits for them
   if (state.pendingPrompts.length > 0) return;
-  beginApproach(state);
+  initiationWindow(state);
+}
+
+/** The paid ability window once the run has begun, before the Runner approaches anything (rules 6.9.1e). */
+export function initiationWindow(state: GameState): void {
+  if (state.activeRun?.phase !== 'initiation' || state.priority?.step === 'run_initiation') return;
+  openWindow(state, 'run_initiation');
 }
 
 /** After the initiation: approach the outermost ice, or with no ice go straight to the Movement Phase (rules 6.1.5b). */
@@ -138,10 +145,22 @@ export function breachOutsideRun(state: GameState, serverId: string): void {
   continueAccess(state);
 }
 
+/**
+ * Continue outside the run's paid ability windows: once the Runner has
+ * approached the server (and its "when approached" abilities asked
+ * something), the run succeeds. In the windows, Continue passes priority
+ * (gameEngine), and the run moves on with advanceRun once the window closes.
+ */
 export function continueRun(state: GameState, action: ContinueRunAction): void {
   if (action.player !== 'runner') illegal('Only the Runner can continue a run');
+  if (!state.activeRun) illegal('No active run');
+  advanceRun(state);
+}
+
+/** The run's next step once its current paid ability window has closed. */
+function advanceRun(state: GameState): void {
   const run = state.activeRun;
-  if (!run) illegal('No active run');
+  if (!run) return;
   const server = state.corp.servers[run.server];
 
   if (run.phase === 'approach_ice') {
@@ -158,7 +177,11 @@ export function continueRun(state: GameState, action: ContinueRunAction): void {
     if (run.encounter?.resolvingIndex != null) illegal('Subroutines are already resolving');
     startSubroutineResolution(state);
   } else if (run.phase === 'movement') {
-    moveInward(state);
+    // The Runner didn't jack out (6.9.4c) and moves inward: to the next ice, with a window first (6.9.4d-e),
+    // or past all the ice, where approach_server is that window
+    const next = run.icePosition === null ? -1 : run.icePosition - 1;
+    if (next >= 0 && server.ice[next]) openWindow(state, 'move_inward');
+    else moveInward(state);
   } else if (run.phase === 'approach_server') {
     if (!run.serverApproached) {
       // The Corp's last chance to rez was before this; now the Runner approaches the server
@@ -167,6 +190,16 @@ export function continueRun(state: GameState, action: ContinueRunAction): void {
     }
     succeedRun(state);
   }
+}
+
+// Closing the run's windows moves the run on, or carries out the Runner's jack out (6.9.4c)
+onWindowClose('run_initiation', state => beginApproach(state));
+onWindowClose('move_inward', state => moveInward(state));
+for (const step of ['approach_ice', 'encounter', 'movement', 'approach_server'] as const) {
+  onWindowClose(step, (state, pw) => {
+    if (pw.intent?.type === 'JACK_OUT') jackOut(state, pw.intent);
+    else advanceRun(state);
+  });
 }
 
 /** The Success Phase: the run is declared successful and the Runner breaches the server (rules 6.9.5). */

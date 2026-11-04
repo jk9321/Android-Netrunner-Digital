@@ -1,24 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { cardDef, executeAction, findCardAnywhere, getLegalActions, GameState, iceStrength, isLegalAction } from '../src/core';
 import { availableCredits, trashInstalledCard } from '../src/core/engine/cardEffects';
-import {
-  answer,
-  cont,
-  giveCard,
-  installCorpForTest,
-  keepGoing,
-  installIceForTest,
-  newGame,
-  passTurn,
-  play,
-  rezForTest,
-  run,
-  runnerInstall,
-  scoreForTest,
-  setIdentity,
-  startRunnerTurn,
-  useAbility,
-} from './helpers';
+import { answer, cont, giveCard, installCorpForTest, keepGoing, installIceForTest, newGame, passTurn, play, rezForTest, run, runnerInstall, scoreForTest, setIdentity, startRunnerTurn, useAbility, toCorp } from './helpers';
 
 const C = {
   rene: '30001', carnivore: '30003', botulus: '30004', fermenter: '30007', leech: '30008', cookbook: '30009',
@@ -289,6 +272,7 @@ describe('Runs from cards and extra accesses', () => {
     const tl = giveCard(s, 'runner', C.treadLightly);
     s = choose(play(s, 'runner', tl), 'hq');
     s.corp.credits = 5; // Palisade costs 3, +3 = 6
+    s = toCorp(s);
     expect(isLegalAction(s, { type: 'REZ_CARD', player: 'corp', cardInstanceId: ice })).toBe(false);
     s.corp.credits = 6;
     s = executeAction(s, { type: 'REZ_CARD', player: 'corp', cardInstanceId: ice });

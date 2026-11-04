@@ -11,6 +11,7 @@ export type { GameSetup } from './engine/gameState';
 export { executeAction, isLegalAction, addLog } from './engine/gameEngine';
 export { getLegalActions } from './engine/legalActions';
 export { activePrompt } from './engine/prompts';
+export { actingSide, currentStep, priorityHolder, wantsStop, isRunStep, isActionStep } from './engine/priority';
 export { uncommittedChoice } from './engine/uncommitted';
 export { locateCorpCard, findCardAnywhere, knownInHand } from './engine/helpers';
 export { knownInRd } from './engine/rdKnowledge';

@@ -1,65 +1,67 @@
-import { GameState, SideCode, executeAction } from '../core';
-import { actingSide, corpRezWindow, runnerOffTurnWindow } from '../ui/viewer';
+import { CardInstance, GameAction, GameState, SideCode, actingSide, executeAction, isLegalAction, wantsStop } from '../core';
 import { Agent } from './agent';
 
 /**
- * Steps a game forward with an agent on each side, giving the Corp the same
- * rez windows a person gets (before the Runner continues past approached
- * ice, and when the Runner approaches the server) and the Runner its window
- * at the end of the Corp's action phase. Used for AI-vs-AI games
- * and for the search AI's look-ahead.
+ * Steps a game forward with an agent on each side. The computer players
+ * stop at the paid ability windows they have always been asked about (stop
+ * level 'ai'): the Corp's rez decisions during a run (approached ice, and
+ * the server's root before the Runner approaches it), the Corp's window
+ * before its turn begins, and the Runner's window at the end of the Corp's
+ * action phase. Everywhere else the engine passes for them. Used for
+ * AI-vs-AI games and for the search AI's look-ahead.
  */
 export class GameRunner {
   state: GameState;
-  private runSerial = 0;
-  private passed = new Set<string>();
   /** The last action applied (for the batch logs). */
-  last: Parameters<typeof executeAction>[1] | null = null;
+  last: GameAction | null = null;
 
   constructor(
     state: GameState,
     private agents: Record<SideCode, Agent>
   ) {
-    this.state = state;
+    // Both computer players stop where the computer always has, whatever a person chose in the game this came from
+    this.state = state.stops?.corp === 'ai' && state.stops?.runner === 'ai' ? state : { ...state, stops: { corp: 'ai', runner: 'ai' } };
   }
 
-  /** The Corp declines the rez window that is open now (search AI: "don't rez"). */
+  /** The Corp passes the rez window it holds now (search AI: "don't rez"). */
   passRezWindow() {
-    const window = corpRezWindow(this.state, this.runSerial);
-    if (window) this.passed.add(window.key);
+    if (this.state.priority?.holder === 'corp' && this.state.activePlayer === 'runner') this.apply({ type: 'PASS', player: 'corp' });
   }
 
   /** Plays one decision. Returns false when the game is over. */
   step(): boolean {
     const state = this.state;
-    if (state.winner) return false;
-    const window = corpRezWindow(state, this.runSerial);
-    if (window && !this.passed.has(window.key)) {
-      const rez = this.agents.corp.chooseRez?.(state, window.cards) ?? null;
-      this.last = rez;
-      if (rez) this.state = executeAction(state, rez);
-      else this.passed.add(window.key);
-      return true;
-    }
-    // The Runner's paid abilities at the end of the Corp's action phase (Madani)
-    const offTurn = this.agents.runner.chooseOffTurn ? runnerOffTurnWindow(state) : null;
-    if (offTurn && !this.passed.has(offTurn)) {
-      const use = this.agents.runner.chooseOffTurn!(state);
-      this.last = use;
-      if (use) this.apply(use);
-      else this.passed.add(offTurn);
-      return true;
-    }
-    const side = actingSide(state, false);
+    const side = actingSide(state);
     if (!side) return false;
+    const window = state.priority;
+    if (state.pendingPrompts.length === 0 && window && window.holder !== state.activePlayer) {
+      // The other player's priority in the active player's window: asked for as long as there is something to do
+      const pass: GameAction = { type: 'PASS', player: side };
+      const ask = wantsStop(state, side, window);
+      let choice: GameAction | null = null;
+      if (ask && side === 'corp' && (window.step === 'approach_ice' || window.step === 'approach_server')) {
+        choice = this.agents.corp.chooseRez?.(state, rezCandidates(state, window.step)) ?? null;
+      } else if (ask && side === 'runner' && window.step === 'corp_action') {
+        choice = this.agents.runner.chooseOffTurn?.(state) ?? null;
+      }
+      this.apply(choice ?? pass);
+      return true;
+    }
     this.apply(this.agents[side].chooseAction(state));
     return true;
   }
 
-  apply(action: Parameters<typeof executeAction>[1]) {
+  apply(action: GameAction) {
     this.last = action;
-    const next = executeAction(this.state, action);
-    if (!this.state.activeRun && next.activeRun) this.runSerial++;
-    this.state = next;
+    this.state = executeAction(this.state, action);
   }
+}
+
+/** The cards the Corp could rez in this rez window: the approached ice, or the unrezzed cards in the attacked server's root. */
+export function rezCandidates(state: GameState, step: 'approach_ice' | 'approach_server'): CardInstance[] {
+  const run = state.activeRun;
+  const server = run ? state.corp.servers[run.server] : undefined;
+  if (!run || !server) return [];
+  const cards = step === 'approach_ice' ? (run.icePosition !== null && server.ice[run.icePosition] ? [server.ice[run.icePosition]] : []) : server.root;
+  return cards.filter(c => !c.isRezzed && isLegalAction(state, { type: 'REZ_CARD', player: 'corp', cardInstanceId: c.instanceId }));
 }

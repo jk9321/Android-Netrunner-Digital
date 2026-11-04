@@ -1,9 +1,8 @@
 import { describe, expect, it } from 'vitest';
-import { GameState, findCardAnywhere } from '../src/core';
+import { GameState, executeAction, findCardAnywhere } from '../src/core';
 import { GameRunner, HeuristicCorpAI, HeuristicRunnerAI } from '../src/ai';
 import { CLICK } from '../src/ai/valueModel';
 import { SOON, heldWorth } from '../src/ai/handValues';
-import { runnerOffTurnWindow } from '../src/ui/viewer';
 import { giveCard, newGame, passTurn, runnerInstall } from './helpers';
 
 const MADANI = '35028';
@@ -25,15 +24,22 @@ describe('Runner AI on the Corp turn', () => {
   it('opens its window only once the Corp has spent its clicks (rules 5.6.2a-b)', () => {
     const { s } = corpTurnWithHostedCleaver();
     expect(s.activePlayer).toBe('corp');
-    expect(runnerOffTurnWindow(s)).toBeNull();
-    s.corp.clicks = 0;
-    expect(runnerOffTurnWindow(s)).toBe(`off|${s.turnNumber}`);
+    // An action with clicks left: the computer Runner doesn't stop before it
+    const gained = executeAction(s, { type: 'GAIN_CREDIT', player: 'corp' });
+    expect(gained.priority ?? null).toBeNull();
+    gained.corp.clicks = 0;
+    // Out of clicks, the Corp passes (ends the action phase): the Runner gets priority before it ends
+    const ended = executeAction(gained, { type: 'END_TURN', player: 'corp' });
+    expect(ended.activePlayer).toBe('corp');
+    expect(ended.priority).toMatchObject({ step: 'corp_action', holder: 'runner', intent: { type: 'END_TURN' } });
   });
 
   it('installs a hosted program with Madani at the end of the Corp action phase', () => {
     const { s, cleaver } = corpTurnWithHostedCleaver();
     s.corp.clicks = 0;
     const gr = new GameRunner(s, { corp: new HeuristicCorpAI(), runner: new HeuristicRunnerAI() });
+    gr.step(); // the Corp ends its action phase, which gives the Runner priority
+    expect(gr.last).toMatchObject({ type: 'END_TURN', player: 'corp' });
     gr.step();
     expect(gr.last).toMatchObject({ type: 'USE_ABILITY', player: 'runner', abilityIndex: 1 });
     for (let i = 0; i < 5 && gr.state.activePlayer === 'corp'; i++) gr.step();

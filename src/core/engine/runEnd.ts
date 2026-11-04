@@ -6,6 +6,7 @@ import { trashInstalledRunnerCard } from './damage';
 import { fireTrigger } from './triggers';
 import { findCardAnywhere } from './helpers';
 import { pushPrompt } from './prompts';
+import { closeRunWindows } from './priority';
 
 /** Ends the active run (successful or not) and cleans up run-scoped effects. */
 export function endRun(state: GameState): void {
@@ -19,6 +20,7 @@ export function endRun(state: GameState): void {
     }
   }
   state.activeRun = null;
+  closeRunWindows(state);
   state.phase = state.activePlayer === 'corp' ? 'corp_turn' : 'runner_turn';
   if (run.accessOnly) return; // Detente: accessing outside a run
   // The encounter in progress ends with the run (Knowledge Seeker)

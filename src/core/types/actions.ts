@@ -24,7 +24,10 @@ export type GameActionType =
   | 'TRASH_RESOURCE'
   | 'END_TURN'
   | 'START_TURN'
+  // Paid ability windows
+  | 'PASS'
   // Either player, at any time
+  | 'SET_STOPS'
   | 'CONCEDE';
 
 export interface BaseAction {
@@ -149,6 +152,21 @@ export interface StartTurnAction extends BaseAction {
   type: 'START_TURN';
 }
 
+/**
+ * The player with priority in a paid ability window passes (rules 9.2.4b).
+ * `restOfRun`: and passes every window of this run that would stop for them.
+ */
+export interface PassAction extends BaseAction {
+  type: 'PASS';
+  restOfRun?: boolean;
+}
+
+/** A player chooses where their game stops for paid ability windows (any time; not a game action). */
+export interface SetStopsAction extends BaseAction {
+  type: 'SET_STOPS';
+  level: import('./state').StopLevel;
+}
+
 /** A player concedes: the game ends at once and the other side wins. */
 export interface ConcedeAction extends BaseAction {
   type: 'CONCEDE';
@@ -175,4 +193,6 @@ export type GameAction =
   | RemoveTagAction
   | TrashResourceAction
   | EndTurnAction
+  | PassAction
+  | SetStopsAction
   | ConcedeAction;

@@ -13,6 +13,7 @@ import { RunOverlay } from './ui/components/RunOverlay';
 import { LogFeed } from './ui/components/LogFeed';
 import { PromptPanel } from './ui/components/PromptPanel';
 import { CardZoomModal } from './ui/components/CardZoomModal';
+import { WindowBar } from './ui/components/WindowBar';
 import { AbilityBar } from './ui/components/AbilityBar';
 import { ZoneId, ZoneViewer, zoneContents } from './ui/components/ZoneViewer';
 import { Pile } from './ui/components/Pile';
@@ -107,10 +108,11 @@ function Game({
     fates,
     aiSide,
     humanSide,
-    rezWindowsOn,
     rezWindow,
     rezWindowOpen,
-    passRezWindow,
+    passWindow,
+    stops,
+    setStops,
     viewer,
     handoffTo,
     corpCanAct,
@@ -220,10 +222,6 @@ function Game({
   };
 
   const rezAction = (card: CardInstance): GameAction => ({ type: 'REZ_CARD', player: 'corp', cardInstanceId: card.instanceId });
-  const approachedIce =
-    activeRun && activeRun.phase === 'approach_ice' && activeRun.icePosition !== null
-      ? corp.servers[activeRun.server]?.ice[activeRun.icePosition]
-      : undefined;
 
   // The servers and the rig only change with the game state or who is looking, so selecting a
   // card, opening a zone or resizing cards reuses them instead of redrawing the whole table.
@@ -355,6 +353,8 @@ function Game({
         state={gameState}
         config={config}
         aiThinking={aiThinking}
+        stops={stops}
+        onStops={setStops}
         humanSide={humanSide}
         viewMode={viewMode}
         onViewMode={changeViewMode}
@@ -491,10 +491,12 @@ function Game({
         </div>
         <div className="sticky bottom-0 z-20 lg:static bg-[#06090d]/95 lg:bg-transparent backdrop-blur-md lg:backdrop-blur-none py-1 lg:py-0 shrink-0 lg:max-h-[40vh] overflow-y-auto flex flex-col gap-2 empty:hidden">
           {activePlayer === 'corp' && corpCanAct && <CorpActions state={gameState} selectedCard={selectedCard} onAction={handleAction} onInspect={setInspectedCard} />}
+          {corpCanAct && <WindowBar state={gameState} side="corp" onAction={handleAction} />}
           {corpCanAct && <AbilityBar state={gameState} side="corp" onAction={handleAction} />}
           {activePlayer === 'runner' && runnerCanAct && (
             <RunnerActions state={gameState} selectedCard={selectedCard} onAction={handleAction} onInspect={setInspectedCard} />
           )}
+          {runnerCanAct && <WindowBar state={gameState} side="runner" onAction={handleAction} />}
           {runnerCanAct && <AbilityBar state={gameState} side="runner" onAction={handleAction} />}
         </div>
         <LogFeed logs={gameState.log} viewer={viewer} className="h-56 lg:h-auto lg:flex-1 lg:min-h-[6rem]" />
@@ -507,19 +509,12 @@ function Game({
           state={gameState}
           onContinueRun={() => handleAction({ type: 'CONTINUE_RUN', player: 'runner' })}
           onJackOut={() => handleAction({ type: 'JACK_OUT', player: 'runner' })}
-          rezCards={
-            rezWindowsOn
-              ? rezWindowOpen
-                ? rezWindow!.cards
-                : []
-              : approachedIce && isLegalAction(gameState, rezAction(approachedIce))
-                ? [approachedIce]
-                : []
-          }
+          rezCards={rezWindowOpen ? rezWindow!.cards : []}
           onRez={corpCanAct ? (card) => handleAction(rezAction(card)) : undefined}
           rezAbilities={rezWindowOpen ? rezWindow!.abilities : []}
-          onDoneRezzing={rezWindowOpen && corpCanAct ? () => passRezWindow(rezWindow!.key) : undefined}
-          runnerControls={runnerCanAct}
+          onDoneRezzing={rezWindowOpen && corpCanAct ? () => passWindow('corp') : undefined}
+          onPassRun={rezWindowOpen && corpCanAct ? () => passWindow('corp', true) : undefined}
+          runnerControls={runnerCanAct && gameState.priority?.holder !== 'corp'}
           canPeekCorp={canSeeCorpSecrets(viewer)}
           onInspectCard={setInspectedCard}
           onAction={handleAction}
