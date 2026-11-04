@@ -1,3 +1,5 @@
+// Must stay first: see domainMoveBoot.ts
+import { movingAway } from './ui/domainMoveBoot';
 import React from 'react';
 import ReactDOM from 'react-dom/client';
 import App from './App';
@@ -9,7 +11,11 @@ import { animationsEnabled, applyAnimations } from './ui/animations';
 import { installChunkReload } from './ui/chunkReload';
 import { diagnoseLoad, installReloadWatch } from './ui/reloadReason';
 import { ReloadNotice } from './ui/components/ReloadNotice';
+import { hasSavedCustomDecks, requestPersistentStorage } from './data/customDecks';
 import './index.css';
+
+// Ask the browser not to clear saved decks when the device is low on space
+if (!movingAway && hasSavedCustomDecks()) requestPersistentStorage();
 
 applyCardSize(savedCardSize());
 applyAutoFit(savedAutoFit());
@@ -18,7 +24,7 @@ installChunkReload();
 const reloadMessage = diagnoseLoad();
 installReloadWatch();
 
-ReactDOM.createRoot(document.getElementById('root')!).render(
+if (!movingAway) ReactDOM.createRoot(document.getElementById('root')!).render(
   <React.StrictMode>
     <ErrorBoundary>
       <App />
