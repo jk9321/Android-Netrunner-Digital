@@ -178,13 +178,11 @@ function autoStop(state: GameState, side: SideCode, pw: PriorityWindow): boolean
 
 /** What `side` could do with priority in this window: rez, score or use a paid ability. */
 function optionsIn(state: GameState, side: SideCode, pw: PriorityWindow): GameAction[] {
-  const saved = state.priority;
-  state.priority = { step: pw.step, holder: side, received: pw.received };
-  try {
-    return getLegalActions(state, side).filter(a => a.type === 'REZ_CARD' || a.type === 'SCORE_AGENDA' || a.type === 'USE_ABILITY');
-  } finally {
-    state.priority = saved;
-  }
+  // A copy with that priority: legal actions are cached per state object, so the
+  // state itself must not be changed, even for a moment (a stale answer once
+  // left the Corp's action phase offering only Start turn)
+  const probe: GameState = { ...state, priority: { step: pw.step, holder: side, received: pw.received } };
+  return getLegalActions(probe, side).filter(a => a.type === 'REZ_CARD' || a.type === 'SCORE_AGENDA' || a.type === 'USE_ABILITY');
 }
 
 /**

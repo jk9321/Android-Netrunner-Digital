@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { GameAction, GameState, SideCode, StopLevel, actingSide, currentStep, executeAction, getLegalActions, isLegalAction } from '../src/core';
-import { installCorpForTest, installIceForTest, newGame, startRunnerTurn } from './helpers';
+import { installCorpForTest, installIceForTest, newGame, newGameAtSetup, startRunnerTurn } from './helpers';
 
 /**
  * The paid ability windows of the turn and run structure (rules 9.2.7a lists
@@ -273,6 +273,17 @@ describe('auto-skip', () => {
     }
     expect(seen.every(s => s.endsWith(':runner'))).toBe(true);
     expect(seen).toContain('approach_ice:runner');
+  });
+
+  it('leaves the action phase fully playable after auto-passing the turn start (no stale legal actions)', () => {
+    let state = stops(newGameAtSetup(), 'auto');
+    // Nothing to do before the turn begins: the Corp's window passes by itself
+    while (state.pendingPrompts.length > 0) state = pass(state);
+    expect(at(state)).toEqual({ step: 'corp_action', holder: 'corp' });
+    const types = new Set(getLegalActions(state, 'corp').map(a => a.type));
+    expect(types).toContain('GAIN_CREDIT');
+    expect(types).toContain('INSTALL_CARD');
+    expect(types).not.toContain('START_TURN');
   });
 
   it("keeps the AI's stops when it plays: no stop before the Runner's turn", () => {
