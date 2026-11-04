@@ -152,6 +152,8 @@ export const tuning = {
     spinDoctorUseNow: false,
     /** Runner: a rezzed Spin Doctor is worth only the Archives cards it can still shuffle back (bug report #5). */
     spentSpinDoctor: true,
+    /** Synapse Global's free install from HQ is picked like an install action (freeInstallTarget), not by the board score, which kept unrezzed ice in HQ (bug report #13). */
+    freeInstallPick: true,
     /** Money assets priced with the trash risk measured in self-play (PAYOUT_RISK.moneyIced/moneyBare): self-play 47.9% -> 49.5%, new Corp vs old Runner 48.3% -> 48.8% (727d238). */
     measuredAssetRisk: true,
     /** Prompts that open the same card's next choice are judged after that choice too (AU Co., Poétrï, Synapse Global). */

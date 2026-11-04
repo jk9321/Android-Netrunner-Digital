@@ -8,7 +8,7 @@ import { turnsLeft } from './cardProfiles';
 import { BOTULUS, MANEGARM, RunOptions, RunnerMemory, iceCost, isTrap, runClick, runScore, serverValue, spendCost, subroutineCost, tagCost, weakestIce } from './runs';
 import { breakerScript, encounteredIce, iceSubroutines, iceSubtypes, isIcebreaker } from '../core/engine/ice';
 import { keepBonus, tuning } from './synergy';
-import { perfectRecallTarget } from './corpAI';
+import { freeInstallTarget, perfectRecallTarget } from './corpAI';
 import { freeRezOn } from './freeRez';
 import { iceStop, iceWorth } from './iceValues';
 import { rezCost } from '../core/engine/cardEffects';
@@ -224,6 +224,23 @@ export function answerPrompt(state: GameState, side: SideCode, memory?: RunnerMe
   if (side === 'corp' && prompt.kind === 'effect_choice' && prompt.source.cardCode === '34108' && prompt.source.step === 'mode') {
     const trash = state.corp.hq.length >= 2 && prompt.options.some(o => o.id === 'trash');
     return { ...base, choice: { kind: 'effect_choice', optionId: trash ? 'trash' : 'no' } };
+  }
+  // Synapse Global: a free install from HQ, judged like the Corp's own install choice; never an agenda,
+  // which it would reveal (plan.freeInstallPick, bug report #13)
+  if (side === 'corp' && (prompt.kind === 'effect_cards' || prompt.kind === 'effect_choice') && prompt.source.cardCode === SYNAPSE && tuning.plan.freeInstallPick) {
+    const servers = [...Object.keys(state.corp.servers), 'new'];
+    if (prompt.kind === 'effect_cards' && prompt.source.step === 'pick') {
+      const picks = prompt.candidateIds
+        .map(id => findCardAnywhere(state, id))
+        .filter((c): c is CardInstance => !!c && cardDef(c).type_code !== 'agenda')
+        .map(c => ({ c, score: freeInstallTarget(state, c, servers)?.score ?? -Infinity }))
+        .filter(p => p.score > 0)
+        .sort((a, b) => b.score - a.score);
+      return { ...base, choice: { kind: 'effect_cards', cardInstanceIds: picks.length > 0 ? [picks[0].c.instanceId] : [] } };
+    }
+    const card = prompt.kind === 'effect_choice' && prompt.source.data?.install ? findCardAnywhere(state, String(prompt.source.data.cardId)) : undefined;
+    const target = card && prompt.kind === 'effect_choice' ? freeInstallTarget(state, card, prompt.options.map(o => o.id)) : undefined;
+    if (target) return { ...base, choice: { kind: 'effect_choice', optionId: target.server } };
   }
   // Warm Reception, Janaína: a free install from HQ; ice the Corp can afford first, then an asset or upgrade, never an agenda
   if (side === 'corp' && prompt.kind === 'effect_cards' && ['34098', '34115'].includes(prompt.source.cardCode) && prompt.source.step === 'pick') {
@@ -605,6 +622,7 @@ function greedyCards(
 
 const SCROUNGE = '35004';
 const PEER_REVIEW = '35055';
+const SYNAPSE = '35058';
 
 /** Rezzed ice on the board that `breaker` breaks (all ice for an AI breaker). */
 function breaksRezzedIce(state: GameState, breaker: CardInstance): boolean {

@@ -630,7 +630,7 @@ export class HeuristicCorpAI implements Agent {
     return excess >= 0 && excess < 2 && corp.clicks >= 1 && corp.credits >= 1 + rezReserve(state);
   }
 
-  private installScore(state: GameState, card: CardInstance, server: ServerState | null): number {
+  private installScore(state: GameState, card: CardInstance, server: ServerState | null, free = false): number {
     const corp = state.corp;
     const hq = corp.hq;
     const remotes = Object.values(corp.servers).filter(s => s.isRemote);
@@ -644,13 +644,14 @@ export class HeuristicCorpAI implements Agent {
         const depth =
           server && this.synergy && tuning.plan.iceDepth ? iceDepth(state, server) : server?.ice.length ?? 0;
         // (Jeff) no ice the Corp can't afford to rez on top of the unrezzed ice already out, unless HQ must shrink to avoid a discard
+        // (a free install, Synapse Global, costs no click or credit and only pays the affordIce penalty below)
         // plan.freeRez: a coming free rez (Send a Message, Unleash) pays for the costliest of them
         const freeTargets = freeRezTargets(state, card);
         const covered = freeRezCover(state, card);
         // plan.lethalHq: HQ holds an agenda whose steal wins the Runner the game, and the Runner can get in
         const lethalHq = server?.id === 'hq' && this.synergy && tuning.plan.lethalHq && lethalHqAgenda(state, corp.credits - installCost);
         const paceOk = lethalHq && corp.credits - installCost >= (cardDef(card).cost ?? 0);
-        if (this.synergy && tuning.plan.icePacing && !paceOk && unrezzedIceCost(state) + (cardDef(card).cost ?? 0) - covered > corp.credits - installCost + ICE_PACING_INCOME && hq.length <= corp.handSizeLimit) return -Infinity;
+        if (this.synergy && tuning.plan.icePacing && !paceOk && !free && unrezzedIceCost(state) + (cardDef(card).cost ?? 0) - covered > corp.credits - installCost + ICE_PACING_INCOME && hq.length <= corp.handSizeLimit) return -Infinity;
         let need: number;
         // Deck-aware AI: one well-iced scoring remote rather than ice spread thin
         const main = this.synergy && tuning.plan.oneRemote ? mainRemote(state) : null;
@@ -1280,4 +1281,22 @@ export function iceTrashInstalls(state: GameState): GameAction[] {
 function trashLoss(state: GameState, id: string): number {
   const ice = Object.values(state.corp.servers).flatMap(s => s.ice).find(c => c.instanceId === id);
   return ice ? 0.5 + 0.75 * Math.min(4, iceCost(state, ice)) : 0;
+}
+
+/**
+ * plan.freeInstallPick: where the Corp's own install choice would put `card` among these
+ * install options ('new' is a new remote), and how much it wants it there. Effects that
+ * install from HQ ignoring all costs (Synapse Global) are judged like an install action,
+ * because the board score alone prices a card leaving HQ above unrezzed ice.
+ */
+export function freeInstallTarget(state: GameState, card: CardInstance, options: string[]): { server: string; score: number } | undefined {
+  const corp = new HeuristicCorpAI({ synergy: true, planner: false });
+  let best: { server: string; score: number } | undefined;
+  for (const id of options) {
+    const server = id === 'new' ? null : state.corp.servers[id];
+    if (server === undefined) continue;
+    const score = (corp as unknown as { installScore(s: GameState, c: CardInstance, sv: ServerState | null, free: boolean): number }).installScore(state, card, server, true);
+    if (Number.isFinite(score) && (!best || score > best.score)) best = { server: id, score };
+  }
+  return best;
 }
