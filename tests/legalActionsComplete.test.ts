@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { GameAction, GameState, SideCode, executeAction, getLegalActions, isLegalAction } from '../src/core';
+import { GameAction, GameState, SideCode, actingSide, executeAction, getLegalActions, isLegalAction } from '../src/core';
 import { createInitialGameState } from '../src/core';
 import { sampleGameSetup } from './sampleDecks';
 
@@ -20,6 +20,10 @@ function bruteForce(state: GameState, side: SideCode): GameAction[] {
     { type: 'END_TURN', player: side },
     { type: 'REMOVE_TAG', player: side },
     { type: 'PURGE_VIRUS', player: side },
+    { type: 'PASS', player: side },
+    { type: 'START_TURN', player: side },
+    { type: 'CONTINUE_RUN', player: side },
+    { type: 'JACK_OUT', player: side },
   ];
   for (const card of hand) {
     all.push({ type: 'PLAY_OPERATION_OR_EVENT', player: side, cardInstanceId: card.instanceId });
@@ -66,12 +70,7 @@ describe('getLegalActions', () => {
             }
           }
         }
-        const side = state.pendingPrompts[0]?.side ?? (state.activeRun ? 'runner' : state.activePlayer);
-        let actions = getLegalActions(state, side);
-        if (state.activeRun && next() < 0.3) {
-          const corp = getLegalActions(state, 'corp');
-          if (corp.length > 0) actions = corp;
-        }
+        const actions = getLegalActions(state, actingSide(state)!);
         state = executeAction(state, actions[Math.floor(next() * actions.length)]);
       }
     });

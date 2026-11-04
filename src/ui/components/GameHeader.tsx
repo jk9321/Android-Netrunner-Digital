@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
-import { Flag, LogOut, Menu, Settings, X, ZoomIn } from 'lucide-react';
+import { FastForward, Flag, Hand, LogOut, Menu, Settings, X, ZoomIn } from 'lucide-react';
 import { AgendaDiamondIcon } from './CreditIcon';
 import { StatTumbler } from './StatTumbler';
 import { GameState, SideCode } from '../../core';
@@ -13,11 +13,15 @@ import { CardSize, isAutoFitOn, savedCardSize, setAutoFit, setCardSize } from '.
 import { PhaseTracker } from './PhaseTracker';
 import { BugReportButton } from './BugReportButton';
 import { savedTableFor } from '../bugReport';
+import { PersonStops, STOP_LABELS } from '../stops';
 
 interface GameHeaderProps {
   state: GameState;
   config: GameConfig;
   aiThinking: boolean;
+  /** Where this person's game stops for paid ability windows (rules 9.2.7). */
+  stops: PersonStops;
+  onStops: (level: PersonStops) => void;
   humanSide: SideCode | null;
   viewMode: ViewMode;
   onViewMode: (mode: ViewMode) => void;
@@ -26,11 +30,13 @@ interface GameHeaderProps {
   onLeave: () => void;
 }
 
-/** The bar across the top: title, bug report, phase, AI status, scores, card size, view, settings, forfeit and leave. */
+/** The bar across the top: title, bug report, phase, stops toggle, scores, card size, view, settings, forfeit and leave. */
 export function GameHeader({
   state,
   config,
   aiThinking,
+  stops,
+  onStops,
   humanSide,
   viewMode,
   onViewMode,
@@ -103,26 +109,39 @@ export function GameHeader({
           />
         </div>
         <div className="flex items-center gap-1.5 min-w-0">
-          <div className="hidden md:block">
+          <button
+            type="button"
+            data-testid="stops-toggle"
+            onClick={() => onStops(stops === 'auto' ? 'full' : 'auto')}
+            className={`shrink-0 text-[10px] sm:text-[11px] px-1.5 sm:px-2 py-0.5 rounded-[2px] border font-bold whitespace-nowrap ${
+              aiThinking
+                ? 'border-amber-500 text-amber-300 animate-pulse'
+                : stops === 'full'
+                  ? 'border-cyan-500 text-cyan-300 hover:bg-cyan-950/40'
+                  : 'border-slate-700 text-slate-400 hover:text-slate-200 hover:border-slate-500'
+            }`}
+            title={STOP_LABELS[stops].title}
+            aria-pressed={stops === 'full'}
+          >
+            {aiThinking ? (
+              <span data-testid="ai-status">AI THINKING…</span>
+            ) : (
+              <span className="inline-flex items-center gap-1">
+                {stops === 'full' ? <Hand className="w-3 h-3" /> : <FastForward className="w-3 h-3" />}
+                <span className="hidden min-[1800px]:inline">STOPS:</span>
+                {STOP_LABELS[stops].short}
+              </span>
+            )}
+          </button>
+          <div className="hidden md:block min-w-0 overflow-hidden">
             <PhaseTracker state={state} />
           </div>
           <span
-            className="text-[11px] text-slate-500 font-mono whitespace-nowrap hidden 2xl:inline"
+            className="text-[11px] text-slate-500 font-mono whitespace-nowrap truncate min-w-0 shrink-[100] hidden 2xl:inline"
             title={`Open the app with ?seed=${state.rng.seed}&corp=${config.corpDeck.id}&runner=${config.runnerDeck.id}${aiSide ? `&ai=${aiSide}&difficulty=${config.difficulty}` : ''} to replay this deal`}
           >
             SEED {state.rng.seed}
           </span>
-          {aiSide && (
-            <span
-              data-testid="ai-status"
-              className={`text-[10px] sm:text-[11px] px-1.5 sm:px-2 py-0.5 rounded-[2px] border font-bold whitespace-nowrap truncate ${
-                aiThinking ? 'border-amber-500 text-amber-300 animate-pulse' : 'border-slate-700 text-slate-500'
-              }`}
-              title={`The computer plays the ${aiSide === 'corp' ? 'Corp' : 'Runner'}`}
-            >
-              {aiThinking ? 'AI THINKING…' : `AI: ${aiSide.toUpperCase()}${config.difficulty === 'hard' ? ' (HARD)' : ''}`}
-            </span>
-          )}
         </div>
       </div>
 

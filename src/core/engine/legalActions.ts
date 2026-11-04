@@ -10,6 +10,7 @@ import { runBlocked } from './actions/run';
 import { getCardScript } from '../scripts';
 import { cardDef } from '../cards';
 import { isAdvanceable } from './helpers';
+import { currentStep, isActionStep, priorityHolder } from './priority';
 
 /**
  * Lists every action the given side can legally take right now.
@@ -37,18 +38,28 @@ function candidateActions(state: GameState, side: SideCode): GameAction[] {
   const prompt = activePrompt(state);
   if (prompt) return prompt.side === side ? promptAnswers(state) : [];
 
+  // Only the player with priority acts (rules 9.2.3)
+  if (priorityHolder(state) !== side) return [];
   const candidates: GameAction[] = [];
   // Cheap necessary conditions first (the engine still checks every candidate):
   // basic actions need the side's own action phase, and all but scoring need a click.
-  const actionPhase = state.activePlayer === side && !state.activeRun;
+  const step = currentStep(state);
+  const active = state.activePlayer === side;
+  const actionPhase = active && !state.activeRun && isActionStep(step);
+  const scoring = active && !state.activeRun && (step === 'corp_action' || step === 'corp_draw');
   const hasClick = state[side].clicks > 0;
 
+  // Passing priority: Continue for the Runner in a run, Start turn for the Corp before their turn,
+  // Pass for the player who was given priority (in the action phase the active player acts instead)
+  if (step && !(side === 'runner' && state.activeRun) && !(side === 'corp' && step === 'corp_draw') && !actionPhase) {
+    candidates.push({ type: 'PASS', player: side });
+  }
   if (state.activeRun) {
     if (side === 'runner') {
       candidates.push({ type: 'CONTINUE_RUN', player: 'runner' }, { type: 'JACK_OUT', player: 'runner' });
       candidates.push(...breakCandidates(state));
     }
-  } else if (actionPhase && state.turnStep?.kind === 'corp_turn_start') {
+  } else if (active && step === 'corp_draw' && side === 'corp') {
     // Before the Corp's turn begins only rezzing, scoring and paid abilities (below) are open
     candidates.push({ type: 'START_TURN', player: 'corp' });
   } else if (actionPhase) {
@@ -93,12 +104,15 @@ function candidateActions(state: GameState, side: SideCode): GameAction[] {
         }
       }
       for (const server of servers) {
-        if (hasClick) {
-          for (const card of [...server.ice, ...server.root]) {
-            if (!isAdvanceable(card)) continue;
-            candidates.push({ type: 'ADVANCE_CARD', player: 'corp', cardInstanceId: card.instanceId, serverId: server.id });
-          }
+        if (!hasClick) continue;
+        for (const card of [...server.ice, ...server.root]) {
+          if (!isAdvanceable(card)) continue;
+          candidates.push({ type: 'ADVANCE_CARD', player: 'corp', cardInstanceId: card.instanceId, serverId: server.id });
         }
+      }
+    }
+    if (scoring) {
+      for (const server of servers) {
         for (const card of server.root) {
           const def = cardDef(card);
           if (def.type_code !== 'agenda' || card.advancementCounters < (def.advancement_cost ?? 0)) continue;

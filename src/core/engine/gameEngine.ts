@@ -15,6 +15,8 @@ import { findCardAnywhere, forgetHiddenCards, updateHandKnowledge } from './help
 import { updateRdKnowledge } from './rdKnowledge';
 import { getCardScript } from '../scripts';
 import { removeEmptyRemotes } from './checkpoint';
+import { canRezIn, canScoreIn, currentStep, declareIntent, isActionStep, isRunStep, normalizePriority, onWindowClose, passPriority, priorityHolder, usedOption } from './priority';
+import { sideName } from './prompts';
 
 export { addLog } from './log';
 
@@ -39,6 +41,10 @@ const handlers: ActionHandlers = {
   JACK_OUT: jackOut,
   END_TURN: endTurn,
   START_TURN: startTurn,
+  PASS: (state, action) => passPriority(state, action.player, action.restOfRun),
+  SET_STOPS: (state, action) => {
+    state.stops = { ...state.stops, [action.player]: action.level };
+  },
   CONCEDE: concede,
   RESOLVE_PROMPT: resolvePrompt,
   PLAY_OPERATION_OR_EVENT: playOperationOrEvent,
@@ -60,7 +66,7 @@ export function executeAction(prevState: GameState, action: GameAction): GameSta
     throw new IllegalActionError('Game is already over.');
   }
   // While a decision is pending, answering it (or conceding) is the only legal action.
-  if (prevState.pendingPrompts.length > 0 && action.type !== 'RESOLVE_PROMPT' && action.type !== 'CONCEDE') {
+  if (prevState.pendingPrompts.length > 0 && action.type !== 'RESOLVE_PROMPT' && action.type !== 'CONCEDE' && action.type !== 'SET_STOPS') {
     const p = prevState.pendingPrompts[0];
     throw new IllegalActionError(`Waiting on a decision: ${p.message}`);
   }
@@ -74,22 +80,120 @@ export function executeAction(prevState: GameState, action: GameAction): GameSta
   if (!handler) {
     throw new IllegalActionError(`Unknown action type: ${(action as { type: string }).type}`);
   }
-  handler(state, action);
+  // The action carried out as the player's action this turn (for "actions taken" counts):
+  // a declared action waits for the opponent's priority, and runs when the window closes.
+  let taken: GameAction | null = action;
+  switch (windowRole(state, action)) {
+    case 'pass':
+      closedIntent = null;
+      try {
+        passPriority(state, action.player, action.type === 'PASS' && action.restOfRun);
+        taken = closedIntent;
+      } finally {
+        closedIntent = null;
+      }
+      break;
+    case 'intent':
+      if (declareIntent(state, action, () => handler(structuredClone(state), action))) handler(state, action);
+      else taken = null;
+      break;
+    case 'option':
+      handler(state, action);
+      usedOption(state, action.player);
+      break;
+    default:
+      handler(state, action);
+  }
+  normalizePriority(state);
   if (state.winner) endGame(state);
   removeEmptyRemotes(state);
   forgetHiddenCards(state);
   updateRdKnowledge(prevState, state);
   updateHandKnowledge(prevState, state);
   // Petty Cash: "Play only if you have not finished an action yet this turn"
-  if (isClickAction(prevState, action) && state.activePlayer === prevState.activePlayer) {
+  if (taken && isClickAction(prevState, taken) && state.activePlayer === prevState.activePlayer) {
     bumpTurnFlag(state, TurnFlag.actionsFinished);
     // Wage Workers: "if you have taken that action exactly 3 times this turn"
-    const count = bumpTurnFlag(state, `action:${actionKey(action)}`);
-    whenSettled(state, { type: 'action_finished', side: action.player, count });
+    const count = bumpTurnFlag(state, `action:${actionKey(taken)}`);
+    whenSettled(state, { type: 'action_finished', side: taken.player, count });
   }
   fireSettled(state);
   syncDerivedStats(state);
   return state;
+}
+
+/** The declared action carried out when the window it waited on closed during this executeAction. */
+let closedIntent: GameAction | null = null;
+
+/** Carries out an action the active player declared, once its window closed (see priority.ts). */
+function runIntent(state: GameState, action: GameAction): void {
+  (handlers[action.type] as (state: GameState, action: GameAction) => void)(state, action);
+  closedIntent = action;
+}
+
+// The window before an action closed: the action declared is carried out (5.6.2b, 5.7.1f)
+for (const step of ['corp_action', 'runner_action'] as const) {
+  onWindowClose(step, (state, pw) => {
+    if (pw.intent) runIntent(state, pw.intent);
+  });
+}
+
+/**
+ * How an action relates to the paid ability window in progress (rules 9.2.7):
+ * passing priority, an action declared by the active player (carried out once
+ * the window closes), an option used with priority, or none of these
+ * (answering a prompt, conceding, choosing stops). Throws if the player may
+ * not act now.
+ */
+function windowRole(state: GameState, action: GameAction): 'pass' | 'intent' | 'option' | 'free' {
+  if (action.type === 'CONCEDE' || action.type === 'RESOLVE_PROMPT' || action.type === 'SET_STOPS') return 'free';
+  const holder = priorityHolder(state);
+  if (action.player !== holder) throw new IllegalActionError(`Waiting for the ${sideName(holder)}`);
+  const step = currentStep(state);
+  switch (action.type) {
+    case 'PASS':
+      // In the action phase the active player acts; in a run the Runner continues; before the Corp's turn the Corp starts it
+      if (!step || (holder === state.activePlayer && isActionStep(step)) || (holder === 'runner' && state.activeRun) || (holder === 'corp' && step === 'corp_draw')) {
+        throw new IllegalActionError('There is nothing to pass');
+      }
+      return 'pass';
+    case 'START_TURN':
+      if (step !== 'corp_draw' || action.player !== 'corp') throw new IllegalActionError('Not waiting to start a turn');
+      return 'pass';
+    case 'CONTINUE_RUN':
+      if (action.player !== 'runner') throw new IllegalActionError('Only the Runner can continue a run');
+      // The Runner passes in the run's windows; elsewhere Continue moves the run on (after approaching the server)
+      return step && isRunStep(step) ? 'pass' : 'free';
+    case 'JACK_OUT':
+      if (step === 'movement') return 'intent';
+      throw new IllegalActionError('You can only jack out after passing a piece of ice, or before approaching a server with no ice');
+    case 'REZ_CARD':
+      if (!canRezIn(step)) throw new IllegalActionError('Cards cannot be rezzed now');
+      return 'option';
+    case 'SCORE_AGENDA':
+      if (!canScoreIn(step)) throw new IllegalActionError('Agendas can only be scored during your turn');
+      return 'option';
+    case 'BREAK_SUBROUTINE':
+    case 'BOOST_BREAKER':
+    case 'BIOROID_BREAK':
+      if (step !== 'encounter') throw new IllegalActionError('Not encountering ice');
+      return 'option';
+    case 'USE_ABILITY': {
+      const card = findCardAnywhere(state, action.cardInstanceId);
+      const clicks = card ? (getCardScript(card.cardCode)?.abilities?.[action.abilityIndex]?.clicks ?? 0) : 0;
+      if (clicks > 0) return actionWindowRole(state, step);
+      if (!step) throw new IllegalActionError('Paid abilities can only be used in a paid ability window');
+      return 'option';
+    }
+    default:
+      return actionWindowRole(state, step);
+  }
+}
+
+/** An action the active player takes in their action phase (5.6.2b, 5.7.1f): declared, then carried out. */
+function actionWindowRole(state: GameState, step: ReturnType<typeof currentStep>): 'intent' | 'free' {
+  // Out of the action phase, the handler gives the reason (not your turn, during a run, start your turn first)
+  return isActionStep(step) && step === `${state.activePlayer}_action` && !state.activeRun ? 'intent' : 'free';
 }
 
 /**

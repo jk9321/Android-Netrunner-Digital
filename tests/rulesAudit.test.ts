@@ -3,7 +3,7 @@ import { cardDef, executeAction, findCardAnywhere, isLegalAction } from '../src/
 import { installCorpCardFrom } from '../src/core/engine/actions/install';
 import { trashInstalledCard } from '../src/core/engine/cardEffects';
 import { askCorpInstall } from '../src/core/scripts/effects';
-import { cont, installCorpForTest, installIceForTest, newGame, putInHand, run } from './helpers';
+import { cont, installCorpForTest, installIceForTest, newGame, putInHand, run, toCorp, step } from './helpers';
 
 // Findings from the 2026-10-26 rules audit (visibility and turn flow)
 
@@ -23,7 +23,7 @@ describe('Rez timing during a run', () => {
     installIceForTest(s, '30072', 'remote-1', false);
     const upgrade = installCorpForTest(s, '30042', 'remote-1');
     s.corp.credits = 20;
-    s = run(s, 'remote-1');
+    s = toCorp(run(s, 'remote-1'));
     expect(s.activeRun?.phase).toBe('approach_ice');
     expect(isLegalAction(s, { type: 'REZ_CARD', player: 'corp', cardInstanceId: upgrade })).toBe(true);
   });
@@ -65,7 +65,7 @@ describe('Breach order (rules 7.3.4)', () => {
     const upgrade = installCorpForTest(s, '30042', 'hq'); // Manegarm Skunkworks, unrezzed
     s.runner.credits = 0;
     s = run(s, 'hq'); // declines to jack out; the breach asks before the first access
-    s = executeAction(s, { type: 'CONTINUE_RUN', player: 'runner' });
+    s = step(s);
     const p = s.pendingPrompts[0];
     expect(p.kind).toBe('access_order');
     if (p.kind !== 'access_order') return;

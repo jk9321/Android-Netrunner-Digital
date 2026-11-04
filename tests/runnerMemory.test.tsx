@@ -4,7 +4,7 @@ import { executeAction } from '../src/core';
 import { derez, trashInstalledCard } from '../src/core/engine/cardEffects';
 import { installCorpCardFrom } from '../src/core/engine/actions/install';
 import { ServerColumn } from '../src/ui/components/ServerColumn';
-import { installCorpForTest, newGame, rezForTest, run } from './helpers';
+import { installCorpForTest, newGame, rezForTest, run, step } from './helpers';
 
 // The Runner may remember a Corp card they have seen (rules 10.2.2b): turned
 // facedown it is the same object (1.12.5), back in HQ or R&D it is a new one (1.12.3).
@@ -27,8 +27,7 @@ describe('Corp cards the Runner has seen', () => {
     let s = newGame();
     const id = installCorpForTest(s, REGOLITH, 'remote-1');
     s.runner.credits = 0; // can't trash it
-    s = run(s, 'remote-1');
-    s = executeAction(s, { type: 'CONTINUE_RUN', player: 'runner' });
+    s = step(run(s, 'remote-1'));
     while (s.pendingPrompts.length > 0) {
       const p = s.pendingPrompts[0];
       if (p.kind !== 'access_trash') break;

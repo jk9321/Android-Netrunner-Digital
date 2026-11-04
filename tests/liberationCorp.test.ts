@@ -2,25 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { activePrompt, createCardInstance, executeAction, findCardAnywhere, GameState, getLegalActions, iceStrength, isLegalAction } from '../src/core';
 import { rezCost } from '../src/core/engine/cardEffects';
 import { breakerStrength, iceSubroutines, markSubroutinesBroken } from '../src/core/engine/ice';
-import {
-  answer,
-  cont,
-  giveCard,
-  installCorpForTest,
-  installIceForTest,
-  installProgramForTest,
-  keepGoing,
-  newGame,
-  passTurn,
-  play,
-  rezForTest,
-  run,
-  runnerInstall,
-  scoreForTest,
-  setIdentity,
-  startRunnerTurn,
-  useAbility,
-} from './helpers';
+import { answer, cont, giveCard, installCorpForTest, installIceForTest, installProgramForTest, keepGoing, newGame, passTurn, play, rezForTest, run, runnerInstall, scoreForTest, setIdentity, startRunnerTurn, useAbility, toCorp, withPriority } from './helpers';
 
 const L = {
   salvo: '34031', stegodon: '34032', wageWorkers: '34033', ablative: '34034', jaguarundi: '34035', mic: '34036',
@@ -165,7 +147,7 @@ describe('The Automata Initiative: Haas-Bioroid', () => {
     const ab = installIceForTest(s, L.ablative, 'hq', false);
     const nico = giveCard(s, 'corp', SG.nico);
     threat(s, 3);
-    s = run(s, 'hq');
+    s = toCorp(run(s, 'hq'));
     s.corp.credits += 10;
     s = executeAction(s, { type: 'REZ_CARD', player: 'corp', cardInstanceId: ab });
     expect(source(s)).toMatchObject({ cardCode: L.ablative, step: 'pick' });
@@ -195,7 +177,7 @@ describe('The Automata Initiative: Haas-Bioroid', () => {
     let s = newGame();
     const mic = installIceForTest(s, L.mic, 'hq');
     s = run(s, 'hq');
-    s = executeAction(s, { type: 'USE_ABILITY', player: 'corp', cardInstanceId: mic, abilityIndex: 0 });
+    s = withPriority(s, 'corp', { type: 'USE_ABILITY', player: 'corp', cardInstanceId: mic, abilityIndex: 0 });
     expect(source(s)).toMatchObject({ cardCode: L.mic });
     s = choose(s, 'end');
     expect(s.activeRun).toBeNull();
@@ -660,7 +642,7 @@ describe('The Automata Initiative: Weyland and neutral', () => {
     const b = installCorpForTest(s, L.b1001, 'remote-1', true);
     s.runner.tags = 1;
     s = run(s, 'hq');
-    s = executeAction(s, { type: 'USE_ABILITY', player: 'corp', cardInstanceId: b, abilityIndex: 0 });
+    s = withPriority(s, 'corp', { type: 'USE_ABILITY', player: 'corp', cardInstanceId: b, abilityIndex: 0 });
     expect(s.activeRun).toBeNull();
     expect(s.runner.tags).toBe(0);
   });
