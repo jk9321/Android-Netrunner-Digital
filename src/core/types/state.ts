@@ -321,11 +321,12 @@ export type WindowStep =
  * When a player's game stops to give them priority in a paid ability window:
  * 'auto' stops where people usually act (the Corp's rez windows during runs
  * and before the Runner's turn, the Runner's window at the end of the Corp's
- * turn), 'full' at every window, 'ai' where the computer players have always
- * been asked. Whether a window stops never depends on what only that player
- * knows, so a stop tells the other player nothing (rules 4.6.3).
+ * turn) and only when the player has something they can do there, 'full' at
+ * every window, 'none' at no window of the opponent's (only the player's own
+ * moves), 'ai' where the computer players have always been asked, judged
+ * only from what both players can see (rules 4.6.3).
  */
-export type StopLevel = 'ai' | 'auto' | 'full';
+export type StopLevel = 'ai' | 'auto' | 'full' | 'none';
 
 /**
  * A paid ability window in progress (rules 9.2.7). Both players get

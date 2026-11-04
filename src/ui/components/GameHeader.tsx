@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
-import { FastForward, Flag, Hand, LogOut, Menu, Settings, X, ZoomIn } from 'lucide-react';
+import { FastForward, Flag, Hand, LogOut, Menu, Settings, SkipForward, X, ZoomIn } from 'lucide-react';
 import { AgendaDiamondIcon } from './CreditIcon';
 import { StatTumbler } from './StatTumbler';
 import { GameState, SideCode } from '../../core';
@@ -13,7 +13,7 @@ import { CardSize, isAutoFitOn, savedCardSize, setAutoFit, setCardSize } from '.
 import { PhaseTracker } from './PhaseTracker';
 import { BugReportButton } from './BugReportButton';
 import { savedTableFor } from '../bugReport';
-import { PersonStops, STOP_LABELS } from '../stops';
+import { PersonStops, STOP_LABELS, nextStops } from '../stops';
 
 interface GameHeaderProps {
   state: GameState;
@@ -112,22 +112,24 @@ export function GameHeader({
           <button
             type="button"
             data-testid="stops-toggle"
-            onClick={() => onStops(stops === 'auto' ? 'full' : 'auto')}
+            onClick={() => onStops(nextStops(stops))}
             className={`shrink-0 text-[10px] sm:text-[11px] px-1.5 sm:px-2 py-0.5 rounded-[2px] border font-bold whitespace-nowrap ${
               aiThinking
                 ? 'border-amber-500 text-amber-300 animate-pulse'
                 : stops === 'full'
                   ? 'border-cyan-500 text-cyan-300 hover:bg-cyan-950/40'
+                  : stops === 'none'
+                  ? 'border-amber-700 text-amber-400 hover:bg-amber-950/40'
                   : 'border-slate-700 text-slate-400 hover:text-slate-200 hover:border-slate-500'
             }`}
             title={STOP_LABELS[stops].title}
-            aria-pressed={stops === 'full'}
+            aria-label={`Stops: ${stops}`}
           >
             {aiThinking ? (
               <span data-testid="ai-status">AI THINKING…</span>
             ) : (
               <span className="inline-flex items-center gap-1">
-                {stops === 'full' ? <Hand className="w-3 h-3" /> : <FastForward className="w-3 h-3" />}
+                {stops === 'full' ? <Hand className="w-3 h-3" /> : stops === 'none' ? <SkipForward className="w-3 h-3" /> : <FastForward className="w-3 h-3" />}
                 <span className="hidden min-[1800px]:inline">STOPS:</span>
                 {STOP_LABELS[stops].short}
               </span>

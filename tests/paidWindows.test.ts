@@ -11,7 +11,7 @@ import { installCorpForTest, installIceForTest, newGame, startRunnerTurn } from 
  */
 
 const PALISADE = '30072'; // Barrier, rez 3
-const MANEGARM = '30045'; // Upgrade
+const MANEGARM = '30042'; // Manegarm Skunkworks: upgrade, rez 2
 
 const stops = (state: GameState, level: StopLevel, sides: SideCode[] = ['corp', 'runner']): GameState =>
   sides.reduce((s, side) => executeAction(s, { type: 'SET_STOPS', player: side, level }), state);
@@ -226,7 +226,7 @@ describe('auto-skip', () => {
     expect(at(state)).toEqual({ step: 'encounter', holder: 'runner' });
   });
 
-  it('stops the Corp at unrezzed ice and before the server whatever it can pay, so a stop gives nothing away (4.6.3)', () => {
+  it('stops the Corp at unrezzed ice and before the server only when it can rez there', () => {
     for (const credits of [0, 20]) {
       let state = stops(newGame(), 'auto');
       installIceForTest(state, PALISADE, 'hq', false);
@@ -236,23 +236,43 @@ describe('auto-skip', () => {
       state = act(state, { type: 'INITIATE_RUN', player: 'runner', targetServerId: 'hq' });
       expect(at(state)).toEqual({ step: 'approach_ice', holder: 'runner' });
       state = act(state, { type: 'CONTINUE_RUN', player: 'runner' });
-      expect(at(state)).toEqual({ step: 'approach_ice', holder: 'corp' });
-      state = pass(state);
-      while (at(state).step !== 'approach_server') state = pass(state);
-      state = pass(state);
-      expect(at(state)).toEqual({ step: 'approach_server', holder: 'corp' });
+      const seen: string[] = [];
+      while (state.activeRun) {
+        if (at(state).holder === 'corp') seen.push(at(state).step!);
+        state = pass(state);
+      }
+      expect(seen).toEqual(credits ? ['approach_ice', 'approach_server'] : []);
     }
   });
 
-  it('stops the Corp before the Runner turn begins when it has an unrezzed card, whatever it can pay', () => {
+  it('stops the Corp before the Runner turn begins only when it can rez or use something', () => {
     for (const credits of [0, 20]) {
       let state = stops(newGame(), 'auto');
       installCorpForTest(state, MANEGARM, 'remote-1');
-      state.corp.credits = credits;
       state = corpEndsTurn(state);
-      while (state.pendingPrompts.length > 0) state = pass(state);
-      expect(at(state)).toEqual({ step: 'runner_turn_start', holder: 'corp' });
+      state.corp.credits = credits;
+      while (state.pendingPrompts.length > 0 || at(state).holder !== state.activePlayer) {
+        if (at(state).step === 'runner_turn_start') break;
+        state = pass(state);
+      }
+      expect(at(state).step === 'runner_turn_start' && at(state).holder === 'corp').toBe(credits > 0);
     }
+  });
+
+  it('with none, passes every window of the opponent, even unrezzed ice; the player\'s own moves still wait', () => {
+    let state = stops(newGame(), 'none');
+    installIceForTest(state, PALISADE, 'hq', false);
+    installCorpForTest(state, MANEGARM, 'hq');
+    state.corp.credits = 20;
+    startRunnerTurn(state);
+    state = act(state, { type: 'INITIATE_RUN', player: 'runner', targetServerId: 'hq' });
+    const seen: string[] = [];
+    while (state.activeRun) {
+      seen.push(`${at(state).step}:${at(state).holder}`);
+      state = pass(state);
+    }
+    expect(seen.every(s => s.endsWith(':runner'))).toBe(true);
+    expect(seen).toContain('approach_ice:runner');
   });
 
   it("keeps the AI's stops when it plays: no stop before the Runner's turn", () => {

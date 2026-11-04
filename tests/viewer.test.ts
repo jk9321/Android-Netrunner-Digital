@@ -6,7 +6,7 @@ import { zoneContents } from '../src/ui/components/ZoneViewer';
 import { installCorpForTest, installIceForTest, keepGoing, newGame, newGameAtSetup, run, step, toCorp } from './helpers';
 
 const PALISADE = '30072';
-const MANEGARM = '30045';
+const URTICA = '30045'; // Urtica Cipher: asset, rez 0
 
 describe('who acts (pass and play)', () => {
   it('follows prompts, then the player with priority', () => {
@@ -54,11 +54,11 @@ describe('who acts (pass and play)', () => {
 
   it('offers unrezzed root cards before the Runner approaches the server (rules 6.9.4e)', () => {
     let state = newGame();
-    installCorpForTest(state, MANEGARM, 'hq');
+    installCorpForTest(state, URTICA, 'hq');
     state = run(state, 'hq');
     while (state.activeRun && !corpRezWindow(state)) state = toCorp(state);
     expect(state.priority?.step).toBe('approach_server');
-    expect(corpRezWindow(state)?.cards.map(c => c.cardCode)).toEqual([MANEGARM]);
+    expect(corpRezWindow(state)?.cards.map(c => c.cardCode)).toEqual([URTICA]);
   });
 });
 
@@ -92,7 +92,7 @@ describe('sound effects', () => {
 
   it('marks accessed cards in the log so the UI can list them', () => {
     let state = newGame();
-    installCorpForTest(state, MANEGARM, 'hq');
+    installCorpForTest(state, URTICA, 'hq');
     state = run(state, 'hq');
     while (state.activeRun && state.activeRun.phase !== 'access') {
       state = keepGoing(step(state));

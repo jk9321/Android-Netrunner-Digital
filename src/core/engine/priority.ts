@@ -7,6 +7,7 @@ import { illegal } from './helpers';
 import { sideName } from './prompts';
 import { abilitySources, abilityUsableFrom, abilityUsedKey } from './actions/ability';
 import { availableCredits, counters, turnFlag } from './cardEffects';
+import { getLegalActions } from './legalActions';
 
 /**
  * Paid ability windows and priority (rules 9.2.4, 9.2.7).
@@ -121,10 +122,10 @@ export function wantsStop(state: GameState, side: SideCode, pw: PriorityWindow):
   if (state.activeRun?.passing?.includes(side) && RUN_STEPS.has(step)) return false;
   const level = stopLevel(state, side);
   if (level === 'full') return true;
-  if (side === active) {
-    if (step === 'corp_draw') return level === 'ai' ? turnStartOptionsAI(state) : turnStartOptions(state);
-    return false;
-  }
+  if (level === 'none') return false;
+  if (level === 'auto') return autoStop(state, side, pw);
+  // The computer's stops ('ai'): where it has always been asked, judged from the table
+  if (side === active) return step === 'corp_draw' && turnStartOptionsAI(state);
   const run = state.activeRun;
   switch (step) {
     case 'approach_ice': {
@@ -140,11 +141,49 @@ export function wantsStop(state: GameState, side: SideCode, pw: PriorityWindow):
     case 'corp_action':
       // The Runner's chance at the end of the Corp's action phase (Madani)
       return side === 'runner' && pw.intent?.type === 'END_TURN' && hasUsableAbility(state, 'runner');
-    case 'runner_turn_start':
-      // Before the Runner's turn begins: the Corp may rez cards or use abilities
-      return level === 'auto' && side === 'corp' && (hasUnrezzedNonIce(state) || hasUsableAbility(state, 'corp'));
     default:
       return false;
+  }
+}
+
+/**
+ * A person's auto stops: the windows where players usually act, and only
+ * when they have something they can actually do there now (a card they can
+ * afford to rez, an agenda to score, a paid ability). Offline the person
+ * deciding is the only one at the table who could learn from it; an online
+ * game must not let the wait reveal hidden cards (rules 4.6.3).
+ */
+function autoStop(state: GameState, side: SideCode, pw: PriorityWindow): boolean {
+  const { step } = pw;
+  const run = state.activeRun;
+  const usual =
+    side === state.activePlayer
+      ? step === 'corp_draw'
+      : (side === 'corp' && (step === 'approach_ice' || step === 'approach_server' || step === 'runner_turn_start')) ||
+        (side === 'runner' && step === 'corp_action' && pw.intent?.type === 'END_TURN');
+  if (!usual) return false;
+  const options = optionsIn(state, side, pw);
+  if (step === 'approach_ice' || step === 'approach_server') {
+    // During a run: rezzing the approached ice or the attacked server's root, or an ability
+    const server = run ? state.corp.servers[run.server] : undefined;
+    const here = new Set(
+      step === 'approach_ice'
+        ? [run && run.icePosition !== null ? server?.ice[run.icePosition]?.instanceId : undefined]
+        : (server?.root ?? []).map(c => c.instanceId)
+    );
+    return options.some(a => a.type === 'USE_ABILITY' || (a.type === 'REZ_CARD' && here.has(a.cardInstanceId)));
+  }
+  return options.length > 0;
+}
+
+/** What `side` could do with priority in this window: rez, score or use a paid ability. */
+function optionsIn(state: GameState, side: SideCode, pw: PriorityWindow): GameAction[] {
+  const saved = state.priority;
+  state.priority = { step: pw.step, holder: side, received: pw.received };
+  try {
+    return getLegalActions(state, side).filter(a => a.type === 'REZ_CARD' || a.type === 'SCORE_AGENDA' || a.type === 'USE_ABILITY');
+  } finally {
+    state.priority = saved;
   }
 }
 
@@ -164,19 +203,6 @@ function turnStartOptionsAI(state: GameState): boolean {
     }
   }
   return hasUsableAbility(state, 'corp');
-}
-
-/**
- * The same, judged only from what the Runner can see: any facedown card in a
- * root (it may be rezzable, or an agenda ready to score), or a paid ability.
- */
-function turnStartOptions(state: GameState): boolean {
-  if (Object.values(state.corp.servers).some(s => s.root.some(c => !c.isRezzed))) return true;
-  return hasUsableAbility(state, 'corp');
-}
-
-function hasUnrezzedNonIce(state: GameState): boolean {
-  return Object.values(state.corp.servers).some(s => s.root.some(c => !c.isRezzed));
 }
 
 /** Can `side` use a paid ability (one that costs no click) right now? A cheap check, without carrying it out. */
