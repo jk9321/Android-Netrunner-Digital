@@ -126,12 +126,13 @@ const threat = (s: GameState, n: number) => {
 const psi = (s: GameState, corp: number, runner: number) => choose(choose(s, String(corp)), String(runner));
 
 describe('The Automata Initiative: Haas-Bioroid', () => {
-  it('Salvo Testing does 1 core damage whenever the Corp scores an agenda, itself included', () => {
+  it('Salvo Testing may do 1 core damage whenever the Corp scores an agenda, itself included', () => {
+    const yes = { kind: 'effect_choice', optionId: 'yes' } as const;
     let s = newGame();
-    s = scoreForTest(s, L.salvo);
+    s = answer(scoreForTest(s, L.salvo), yes);
     expect(s.runner.coreDamage).toBe(1);
-    s = scoreForTest(s, SG.offworld, 'remote-2');
-    expect(s.runner.coreDamage).toBe(2);
+    s = answer(scoreForTest(s, SG.offworld, 'remote-2'), { kind: 'effect_choice', optionId: 'no' });
+    expect(s.runner.coreDamage).toBe(1);
   });
 
   it('Stegodon MK IV derezzes ice off the attacked server for 1 credit, and breakers get -2 strength that run', () => {

@@ -183,6 +183,14 @@ export function answerPrompt(state: GameState, side: SideCode, memory?: RunnerMe
   if (prompt.kind === 'effect_choice' && isPsiStep(prompt.source.step)) {
     return { ...base, choice: { kind: 'effect_choice', optionId: psiBid(state, side, prompt.options.map(o => o.id)) } };
   }
+  // Liberation "may" effects the AI always takes: Salvo Testing's core damage, Strike Fund's 2 credits,
+  // "Pretty" Mary's extra R&D card, and every Meeting of Minds card revealed for a credit
+  if (prompt.kind === 'effect_choice' && ((prompt.source.cardCode === '34031' && prompt.source.step === 'damage') || (prompt.source.cardCode === '34001' && prompt.source.step === 'trashed') || (prompt.source.cardCode === '34093' && prompt.source.step === 'extra'))) {
+    return { ...base, choice: { kind: 'effect_choice', optionId: 'yes' } };
+  }
+  if (prompt.kind === 'effect_cards' && prompt.source.cardCode === '34076' && prompt.source.step === 'reveal') {
+    return { ...base, choice: { kind: 'effect_cards', cardInstanceIds: prompt.candidateIds } };
+  }
   // Lycian Multi-Munition: the subtypes the Runner has no breaker for; all three when it covers them all
   // (more subroutines), or when an AI breaker breaks anything anyway
   if (side === 'corp' && prompt.kind === 'effect_choice' && prompt.source.cardCode === '34100' && prompt.source.step === 'subtypes') {

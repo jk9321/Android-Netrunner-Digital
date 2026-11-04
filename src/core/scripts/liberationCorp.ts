@@ -244,12 +244,12 @@ const corpTurnEnds = (e: { side: string }) => e.side === 'corp';
 // --- The Automata Initiative ------------------------------------------------------
 
 // Salvo Testing: Whenever you score an agenda (including this one), you may do 1 core damage.
-// (The Corp always wants the damage, so it is done without asking.)
 const salvoTesting: CardScript = {
   triggers: {
-    agenda_scored: ({ state }) => {
-      dealCoreDamage(state, 1);
-    },
+    agenda_scored: ctx => askChoice(ctx, 'corp', 'Salvo Testing: do 1 core damage?', yesNo('Do 1 core damage'), 'damage'),
+  },
+  onPromptAnswer: ({ state }, source, answer) => {
+    if (source.step === 'damage' && said(answer)) dealCoreDamage(state, 1);
   },
 };
 

@@ -117,7 +117,7 @@ const breakWith = (s: GameState, breaker: string, indices: number[]) =>
 const boost = (s: GameState, breaker: string) => keepGoing(executeAction(s, { type: 'BOOST_BREAKER', player: 'runner', breakerInstanceId: breaker } as never));
 
 describe('The Automata Initiative: Anarch', () => {
-  it('Strike Fund gains 4, and 2 more when trashed from the grip', () => {
+  it('Strike Fund gains 4, and may gain 2 more when trashed from the grip', () => {
     let s = newGame();
     const credits = s.runner.credits;
     [s] = playRunner(s, L.strikeFund);
@@ -127,7 +127,9 @@ describe('The Automata Initiative: Anarch', () => {
     t.runner.grip.splice(0, t.runner.grip.length - 1);
     const c2 = t.runner.credits;
     dealNetDamage(t, 1);
-    expect(t.runner.credits).toBe(c2 + 2);
+    expect(t.runner.credits).toBe(c2);
+    expect(choose(t, 'yes').runner.credits).toBe(c2 + 2);
+    expect(choose(t, 'no').runner.credits).toBe(c2);
   });
 
   it('The Price trashes the top 4 of the stack and installs one of them 3 cheaper', () => {
@@ -662,7 +664,10 @@ describe('Rebellion Without Rehearsal: Criminal', () => {
     s = choose(s, 'connection');
     s = pick(s, [fof.instanceId]);
     expect(inGrip(s, fof.instanceId)).toBe(true);
-    expect(s.runner.credits).toBe(credits + 2);
+    // Reveal any number of the connections in the grip: one of the two here
+    const hannah = s.runner.grip.find(c => c.cardCode === L.hannah)!;
+    s = pick(s, [hannah.instanceId]);
+    expect(s.runner.credits).toBe(credits + 1);
   });
 
   it('Window of Opportunity derezzes ice as the run begins and the Corp may rez it free when it ends', () => {
@@ -886,7 +891,7 @@ describe('Rebellion Without Rehearsal: Shaper and neutral', () => {
     expect(isLegalAction(s, { type: 'USE_ABILITY', player: 'runner', cardInstanceId: ps, abilityIndex: 0 })).toBe(false);
   });
 
-  it('"Pretty" Mary da Silva adds an R&D access when 2 or more are allowed', () => {
+  it('"Pretty" Mary da Silva may add an R&D access when 2 or more are allowed', () => {
     let s = newGame();
     rig(s, L.mary, 'resources');
     nicosOnRD(s);
@@ -898,7 +903,8 @@ describe('Rebellion Without Rehearsal: Shaper and neutral', () => {
     nicosOnRD(t);
     t.runner.tags = 1;
     t = cont(run(t, 'rd'));
-    expect(breachTotal(t)).toBe(3);
+    expect(breachTotal(choose(t, 'no'))).toBe(2);
+    expect(breachTotal(choose(t, 'yes'))).toBe(3);
   });
 
   it('Ashen Epilogue recycles grip and heap, removes 5 from the game and draws 5', () => {

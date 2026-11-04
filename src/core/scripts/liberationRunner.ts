@@ -102,13 +102,15 @@ function installFrom(ctx: EffectContext, cardId: string, discount: number, step 
 // --- The Automata Initiative: Anarch -------------------------------------------------------
 
 // Strike Fund: Gain 4 credits. When this event is trashed from your grip or stack, you may gain 2
-// credits. (Gaining credits is never worse, so it is done without asking.)
+// credits.
 const strikeFund: CardScript = {
   onPlay: ({ state }) => {
     gainCredits(state, 'runner', 4);
     addLog(state, 'runner', 'Runner gained 4 [credit] (Strike Fund).');
   },
-  onTrashedFromHand: ({ state }) => {
+  onTrashedFromHand: ctx => askChoice(ctx, 'runner', 'Strike Fund was trashed: gain 2 [credit]?', yesNo('Gain 2 [credit]'), 'trashed'),
+  onPromptAnswer: ({ state }, source, answer) => {
+    if (source.step !== 'trashed' || !said(answer)) return;
     gainCredits(state, 'runner', 2);
     addLog(state, 'runner', 'Runner gained 2 [credit] (Strike Fund was trashed).');
   },
@@ -1015,8 +1017,7 @@ const manuelLattes: CardScript = {
 
 // Meeting of Minds: Choose connection or virtual. You may search your stack for 1 resource with the
 // chosen subtype and reveal it. Add that card to your grip. Reveal any number of cards with the
-// chosen subtype in your grip. Gain 1 credit for each card revealed this way. (All of them are
-// revealed: the credits are worth more than hiding them.)
+// chosen subtype in your grip. Gain 1 credit for each card revealed this way.
 const meetingOfMinds: CardScript = {
   onPlay: ctx =>
     askChoice(ctx, 'runner', 'Meeting of Minds: choose a subtype.', [
@@ -1029,7 +1030,7 @@ const meetingOfMinds: CardScript = {
       const kind = answer.optionId;
       const options = state.runner.stack.filter(c => type(c) === 'resource' && hasKeyword(c, kind));
       if (options.length > 0) askCards(ctx, 'runner', `Meeting of Minds: you may search your stack for 1 ${kind} resource.`, ids(options), 0, 1, 'search', { kind });
-      else meetingReveal(state, kind);
+      else meetingReveal(ctx, kind);
     } else if (source.step === 'search') {
       const card = state.runner.stack.find(c => c.instanceId === picked(answer)[0]);
       if (card) {
@@ -1038,16 +1039,20 @@ const meetingOfMinds: CardScript = {
         addLog(state, 'runner', `Runner revealed ${title(card)} and added it to their grip (Meeting of Minds).`, card.cardCode);
       }
       shuffleInPlace(state.rng, state.runner.stack);
-      meetingReveal(state, String(source.data?.kind));
+      meetingReveal(ctx, String(source.data?.kind));
+    } else if (source.step === 'reveal') {
+      const cards = state.runner.grip.filter(c => picked(answer).includes(c.instanceId));
+      if (cards.length === 0) return;
+      revealInHand(state, 'runner', cards);
+      gainCredits(state, 'runner', cards.length);
+      addLog(state, 'runner', `Runner revealed ${cards.map(title).join(', ')} and gained ${cards.length} [credit] (Meeting of Minds).`);
     }
   },
 };
-function meetingReveal(state: GameState, kind: string): void {
-  const cards = state.runner.grip.filter(c => hasKeyword(c, kind));
-  if (cards.length === 0) return;
-  revealInHand(state, 'runner', cards);
-  gainCredits(state, 'runner', cards.length);
-  addLog(state, 'runner', `Runner revealed ${cards.map(title).join(', ')} and gained ${cards.length} [credit] (Meeting of Minds).`);
+/** Meeting of Minds: reveal any number of grip cards of the chosen subtype, a credit each. */
+function meetingReveal(ctx: EffectContext, kind: string): void {
+  const cards = ctx.state.runner.grip.filter(c => hasKeyword(c, kind));
+  if (cards.length > 0) askCards(ctx, 'runner', `Meeting of Minds: reveal any number of ${kind} cards in your grip, gaining 1 [credit] each.`, ids(cards), 0, cards.length, 'reveal');
 }
 
 // Window of Opportunity (Run): You may install 1 program or piece of hardware from your grip. Run any
@@ -1547,9 +1552,22 @@ const pressureSpike: CardScript = {
 };
 
 // "Pretty" Mary da Silva (Connection - Seedy): Whenever you breach R&D, if you are allowed to access 2
-// or more cards in R&D during this breach, you may access 1 additional card. (Always taken.)
+// or more cards in R&D during this breach, you may access 1 additional card. Asked once the other
+// access counts are known, as the breach begins.
 const prettyMary: CardScript = {
-  modifiers: { breachAccessesAfter: (_state, _self, serverId, count) => (serverId === 'rd' && count >= 2 ? 1 : 0) },
+  triggers: {
+    breach_begins: (ctx, e) => {
+      const breach = ctx.state.activeRun?.breach;
+      if (e.server !== 'rd' || !breach || breach.zone !== 'rd' || breach.zoneLeft < 2) return;
+      askChoice(ctx, 'runner', '"Pretty" Mary da Silva: access 1 additional card in R&D?', yesNo('Access 1 more'), 'extra');
+    },
+  },
+  onPromptAnswer: ({ state }, source, answer) => {
+    const breach = state.activeRun?.breach;
+    if (source.step !== 'extra' || !said(answer) || !breach || breach.zone !== 'rd') return;
+    breach.zoneLeft += 1;
+    addLog(state, 'runner', 'Runner accesses 1 additional card in R&D ("Pretty" Mary da Silva).');
+  },
 };
 
 // Ashen Epilogue: Shuffle your grip and heap into your stack, then remove the top 5 cards of your
