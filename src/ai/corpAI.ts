@@ -498,7 +498,7 @@ export class HeuristicCorpAI implements Agent {
         // Deck-aware AI: only if the rest of this turn leaves it scoreable next turn, behind ice we can still rez
         const spend = Math.min(corp.clicks, corp.credits) + this.untaianAdvance(state, 0);
         const locked = this.locked(state, server, corp.credits - spend);
-        if (need - spend > (locked ? 6 : 3) || guards(state, server, corp.credits - spend) === 0 || !this.exposureOk(state, server, corp.credits - spend)) return -Infinity;
+        if (need - spend > (locked ? 6 : 3) || guards(state, server, corp.credits - spend) === 0 || (!this.exposureOk(state, server, corp.credits - spend) && !this.hqNoSafer(state, server, corp.credits - spend))) return -Infinity;
         return (locked ? 8 : 6) + card.advancementCounters; // and then finish the job: a half-advanced agenda is the Runner's best target
       }
       // Can't finish this turn: build counters only behind ice we can rez
@@ -551,6 +551,16 @@ export class HeuristicCorpAI implements Agent {
     // (Jeff) unrezzed ice only protects if the money to rez it is still there on the Runner's turn
     if ((tuning.plan.fundedDepth ? fundedDepth(state, server, credits) : iceDepth(state, server)) >= 2) return true;
     return entryCost(state, server, credits) >= state.runner.credits + 2;
+  }
+
+  /**
+   * plan.hqNoSafer (bug report #15): an agenda waiting in HQ for a safer remote is no safer there when the Runner got into
+   * HQ last turn and HQ costs them no more to enter than this remote (Corp `credits` left to rez).
+   */
+  private hqNoSafer(state: GameState, server: ServerState, credits: number): boolean {
+    if (!(this.synergy && tuning.plan.hqNoSafer)) return false;
+    if (!state.runnerLastTurnRuns.some(r => r.server === 'hq' && r.successful)) return false;
+    return entryCost(state, server, credits) >= entryCost(state, state.corp.servers.hq, credits);
   }
 
   /**
@@ -759,7 +769,8 @@ export class HeuristicCorpAI implements Agent {
           const left = (def.advancement_cost ?? 0) - spend;
           const locked = this.locked(state, server, corp.credits - spend);
           if (locked) return 11 + Math.min(guards(state, server, corp.credits), 3) * 0.6; // push it through while they can't get in
-          if (left > 3 || guards(state, server, corp.credits - spend) === 0 || !this.exposureOk(state, server, corp.credits - spend)) return hq.length > corp.handSizeLimit ? (server.ice.length > 0 ? 0.6 : 0.5) : -2;
+          const exposed = !this.exposureOk(state, server, corp.credits - spend) && !this.hqNoSafer(state, server, corp.credits - spend);
+          if (left > 3 || guards(state, server, corp.credits - spend) === 0 || exposed) return hq.length > corp.handSizeLimit ? (server.ice.length > 0 ? 0.6 : 0.5) : -2;
         }
         // Only behind ice that is rezzed or that we can afford to rez
         const guarded = guards(state, server, corp.credits);

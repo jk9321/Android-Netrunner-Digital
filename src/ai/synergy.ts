@@ -145,6 +145,12 @@ export const tuning = {
     ownTrashRisk: true,
     /** Runner: an HQ access counts the cards it knows are in HQ at what they are, the rest at the deck's agenda odds (runs.ts hqAgendaOdds; Jeff: Teia's open HQ). */
     knownHq: true,
+    /**
+     * Corp (bug report #15, Jeff: an agenda sat in HQ all game while the Runner walked into HQ every turn): an agenda may go
+     * into a remote that falls short of plan.exposure when the Runner keeps getting into HQ and the remote costs them at
+     * least as much to enter, since HQ is no safer.
+     */
+    hqNoSafer: true,
     /** Clearinghouse is advanced toward a flatline (grip + 1 counters, at most 6), not stopped at 3 like other assets. */
     clearinghouseLethal: true,
     /** Lookahead guesses (runnerReply.guessHidden, search.determinize) keep hand cards the guessing side has seen. */
