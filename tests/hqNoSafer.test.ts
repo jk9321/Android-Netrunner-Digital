@@ -28,7 +28,8 @@ describe('an agenda leaves HQ when HQ is no safer (plan.hqNoSafer)', () => {
   it('installs Offworld Office behind remote ice and advances it, on Hard', () => {
     let s = position();
     expect(top(s)).toBe('install Offworld Office in a remote');
-    const corp = createAgent('corp', 'hard');
+    // Fixed samples, not the time budget, so a busy test run plays the same search
+    const corp = createAgent('corp', 'hard', { samples: 6, candidates: 3, seed: 15 });
     const runner = createAgent('runner', 'normal');
     for (let i = 0; i < 20 && (s.activePlayer === 'corp' || s.pendingPrompts.length > 0); i++) {
       const prompt = s.pendingPrompts[0];
