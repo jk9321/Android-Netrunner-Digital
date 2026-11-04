@@ -13,6 +13,8 @@ import { CARD_PROFILES } from '../src/ai/cardProfiles';
 import { cardSynergy } from '../src/ai/synergyTags';
 import { counters } from '../src/core/engine/cardEffects';
 import { Agent, GameRunner } from '../src/ai';
+import { writeFileSync } from 'node:fs';
+import { Alarm, AlarmTracker } from './alarms';
 
 export interface Steal {
   turn: number;
@@ -116,6 +118,10 @@ export interface GameRecord {
   assetRisk: { icedTurns: number; icedTrashed: number; bareTurns: number; bareTrashed: number };
   /** Each side's identity: its prompts by step (offered, taken), abilities used, log lines naming it, turns played */
   identity: Record<'corp' | 'runner', IdentityUse>;
+  /** Symptom alarms (alarms.ts): patterns a human opponent would punish */
+  alarms: Alarm[];
+  /** The deal's seed (corp-losses.ts adds it) */
+  seed?: number;
 }
 
 export interface IdentityUse {
@@ -262,6 +268,10 @@ let closeAssets: () => GameRecord['assets'] = () => ({});
 
 export function playLogged(start: GameState, agents: { corp: Agent; runner: Agent }, decks: { corp: string; runner: string }): GameRecord {
   const runner = new GameRunner(start, agents);
+  const alarms = new AlarmTracker();
+  // DUMP_TURN=n DUMP_SIDE=corp|runner DUMP_FILE=x.json: write the position at the start of that turn and stop (an alarm's position, for a test)
+  const dumpTurn = Number(process.env.DUMP_TURN ?? 0);
+  const dumpSide = process.env.DUMP_SIDE ?? 'corp';
   const steals: Steal[] = [];
   let idleAgendaTurns = 0;
   const board = { remotes: 0, icedRemotes: 0, remoteIce: 0, maxRemoteIce: 0, hqIce: 0, rdIce: 0 };
@@ -365,8 +375,14 @@ export function playLogged(start: GameState, agents: { corp: Agent; runner: Agen
       board.hqIce += before.corp.servers.hq.ice.length;
       board.rdIce += before.corp.servers.rd.ice.length;
     }
+    if (dumpTurn && before.turnNumber === dumpTurn && before.activePlayer === dumpSide && !before.activeRun && before.pendingPrompts.length === 0) {
+      writeFileSync(process.env.DUMP_FILE ?? 'dump.json', JSON.stringify(before));
+      console.error(`dumped turn ${dumpTurn} ${dumpSide} to ${process.env.DUMP_FILE ?? 'dump.json'}`);
+      process.exit(0);
+    }
     if (!runner.step()) break;
     const after = runner.state;
+    alarms.step(before, after);
     for (const side of sides) {
       const use = identity[side];
       const id = before[side].identity;
@@ -578,5 +594,6 @@ export function playLogged(start: GameState, agents: { corp: Agent; runner: Agen
     agendaInstalls,
     early,
     money,
+    alarms: alarms.alarms,
   };
 }
