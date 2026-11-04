@@ -84,3 +84,28 @@ test('the zoom panel waits for the spread to finish', async ({ page }) => {
   await expect(page.getByTestId('zoom-panel')).toHaveCount(0);
   await expect(page.getByTestId('zoom-panel')).toHaveCount(1, { timeout: 2000 });
 });
+
+// Picking a card from the spread hand keeps it open instead of closing and re-opening it
+test('clicking a card in the spread hand keeps the spread', async ({ page }) => {
+  await page.route(/^https?:\/\/(?!localhost)/, route => route.abort());
+  await page.goto('/');
+  await page.getByTestId('opponent-ai-corp').click();
+  await page.getByTestId('difficulty-normal').click();
+  await page.getByTestId('start-game').click();
+  await page.getByRole('button', { name: 'Keep hand' }).click({ timeout: 30_000 });
+  await expect(page.getByTestId('runner-credits')).toBeVisible({ timeout: 60_000 });
+  const gainCredit = page.getByRole('button', { name: '+1 Credit' });
+  await expect(gainCredit).toBeEnabled({ timeout: 60_000 });
+
+  const box = (await page.getByTestId('hand-runner').locator('[data-hand-card]').first().boundingBox())!;
+  await page.mouse.move(box.x + 20, box.y - 80);
+  await page.mouse.move(box.x + 20, box.y + 30, { steps: 4 });
+  const spread = page.getByTestId('hand-runner-spread');
+  await expect(spread).toBeVisible();
+  await page.waitForTimeout(500);
+  const before = await spread.locator('> *').last().evaluate(el => el.getBoundingClientRect().right);
+  await spread.locator('> *').nth(1).click();
+  await page.waitForTimeout(100);
+  await expect(spread).toBeVisible();
+  expect(await spread.locator('> *').last().evaluate(el => el.getBoundingClientRect().right)).toBeCloseTo(before, 0);
+});

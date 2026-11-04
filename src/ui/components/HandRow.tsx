@@ -114,10 +114,7 @@ export const HandRow: React.FC<HandRowProps> = React.memo(({
       canPeek={canSee}
       isSelectable={isSelectable}
       isSelected={selectedCardId === card.instanceId}
-      onClick={() => {
-        onSelect(card.instanceId);
-        setSpread(null);
-      }}
+      onClick={() => onSelect(card.instanceId)}
       onInspect={canSee ? onInspect : undefined}
       typeIcons
     />
