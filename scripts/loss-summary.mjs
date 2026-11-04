@@ -15,6 +15,27 @@ export function printLossSummary(all, detail = !!process.env.DETAIL) {
     console.log(`VALUE LOOPS (games played on with flat values): ${games.filter(g => g.loops).length} games`);
     for (const [chain, n] of [...loops].sort((a, b) => b[1] - a[1]).slice(0, 10)) console.log(`  ${chain}: ${n}`);
   }
+  // Symptom alarms (alarms.ts): patterns a human would punish, whoever won. Each example names the deal and turn to dump for a test
+  const alarmed = games.flatMap(g => (g.alarms ?? []).map(a => ({ ...a, g })));
+  if (alarmed.length) {
+    console.log(`ALARMS (per 100 games; dump a position: SEED=<deal> DUMP_TURN=<turn> DUMP_SIDE=<side> DUMP_FILE=x.json corp-losses.ts):`);
+    const kinds = [...new Set(alarmed.map(a => a.kind))].sort();
+    for (const kind of kinds) {
+      const list = alarmed.filter(a => a.kind === kind);
+      const inGames = new Set(list.map(a => a.g)).size;
+      console.log(`  ${kind}: ${((100 * list.length) / Math.max(games.length, 1)).toFixed(1)} (${list.length} in ${inGames} games)`);
+      const byDeck = new Map();
+      for (const a of list) {
+        const deck = a.side === 'corp' ? a.g.corpDeck : a.g.runnerDeck;
+        byDeck.set(deck, (byDeck.get(deck) ?? 0) + 1);
+      }
+      const details = new Map();
+      for (const a of list) if (a.detail) details.set(a.detail, (details.get(a.detail) ?? 0) + 1);
+      if (details.size) console.log(`    really: ${[...details].sort((a, b) => b[1] - a[1]).map(([d, n]) => `${d} ${n}`).join(', ')}`);
+      console.log(`    most: ${[...byDeck].sort((a, b) => b[1] - a[1]).slice(0, 3).map(([d, n]) => `${d} ${n}`).join(', ')}`);
+      for (const a of list.slice(0, 3)) console.log(`    deal ${a.g.seed} ${a.g.corpDeck} vs ${a.g.runnerDeck}, turn ${a.turn} ${a.side}: ${a.note}`);
+    }
+  }
   const pct = (x, n) => `${((100 * x) / Math.max(n, 1)).toFixed(1)}%`;
   const count = (list, key) => list.reduce((m, x) => m.set(key(x), (m.get(key(x)) ?? 0) + 1), new Map());
   const sum = (list, f) => list.reduce((a, x) => a + f(x), 0);

@@ -69,7 +69,7 @@ for (const c of corpDecks) {
       try {
         const record = playLogged(createInitialGameState(deckGameSetup(seed, c, r)), { corp: agent('corp'), runner: agent('runner') }, { corp: c.name, runner: r.name });
         // Value loops met in the game (valueModel.ts guardLoop): played on with flat values, listed in the summary to fix
-        records.push(valueLoops.size ? { ...record, loops: Object.fromEntries(valueLoops) } : record);
+        records.push(valueLoops.size ? { ...record, seed, loops: Object.fromEntries(valueLoops) } : { ...record, seed });
       } catch (err) {
         // A crashed game is listed in the summary, not dropped silently
         records.push({ crashed: `${err}`.slice(0, 200), seed, corpDeck: c.name, runnerDeck: r.name } as unknown as GameRecord);
