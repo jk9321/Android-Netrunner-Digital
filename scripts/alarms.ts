@@ -22,7 +22,7 @@ export type AlarmKind =
   | 'tag not used'
   /** Runner: 3 Runner turns running in a row on HQ or Archives that got nothing (no points, no Corp card trashed) */
   | 'fruitless runs'
-  /** Runner: an unrezzed advanced card sat in a remote the Runner could get into (no unrezzed ice, rezzed ice affordable) and it didn't run there; detail says what it really was */
+  /** Runner: an advanced agenda sat in a remote the Runner could get into (no unrezzed ice, rezzed ice affordable) and it didn't run there; detail says what it really was */
   | 'open target skipped'
   /** Runner: a successful run on an empty Archives */
   | 'empty Archives run';
@@ -127,7 +127,8 @@ export class AlarmTracker {
     // An advanced card in a remote the Runner could afford to get into, left alone
     if (start.runner.clicks > 0) {
       for (const sv of Object.values(start.corp.servers)) {
-        const target = sv.isRemote ? sv.root.find(c => c.advancementCounters > 0 && !c.isRezzed) : undefined;
+        // Only real agendas: skipped traps and assets were 98% of skips in the first batch (the Runner reads trap odds from the decklist)
+        const target = sv.isRemote ? sv.root.find(c => c.advancementCounters > 0 && !c.isRezzed && isAgenda(c)) : undefined;
         if (!target) continue;
         if (sv.ice.some(i => !i.isRezzed)) continue;
         const cost = sv.ice.reduce((n, i) => n + iceCost(start, i), 0);
