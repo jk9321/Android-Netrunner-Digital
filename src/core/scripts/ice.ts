@@ -1,7 +1,7 @@
 import { GameState } from '../types/state';
 import { cardDef } from '../cards';
 import { addLog } from '../engine/log';
-import { dealNetDamage, giveTags, installedRunnerCards, trashInstalledRunnerCard } from '../engine/damage';
+import { dealDamage, dealNetDamage, giveTags, registerDamageFollowUp, installedRunnerCards, trashInstalledRunnerCard } from '../engine/damage';
 import { endRun, endTheRun } from '../engine/runEnd';
 import { availableCredits, spendCredits } from '../engine/cardEffects';
 import { runnerSawBeforeInstall } from '../engine/helpers';
@@ -100,14 +100,16 @@ const tithe: CardScript = {
 
 // Diviner (Code Gate - AP): Subroutine: Do 1 net damage. If you trash a card this way with a
 // printed play or install cost that is an odd number, end the run. (0 is not odd.)
+registerDamageFollowUp('diviner', (state, [trashed]) => {
+  if (trashed && (cardDef(trashed).cost ?? 0) % 2 === 1) endTheRun(state);
+});
 const diviner: CardScript = {
   ice: {
     subroutines: [
       {
         label: 'Do 1 net damage. If the trashed card has an odd cost, end the run.',
         resolve: ({ state }) => {
-          const [trashed] = dealNetDamage(state, 1);
-          if (trashed && (cardDef(trashed).cost ?? 0) % 2 === 1) endTheRun(state);
+          dealDamage(state, 'net', 1, true, { then: 'diviner' });
         },
       },
     ],

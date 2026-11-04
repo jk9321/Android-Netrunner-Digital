@@ -7,7 +7,7 @@ import { findCardAnywhere, findInstalledCorpCard, noteTrashedFromHand, removeCar
 import { runnerSeesRd } from '../engine/rdKnowledge';
 import { breachOutsideRun, runBlocked, runnerTrashInstalledCorpCard, startRun, trashAccessedCard } from '../engine/actions/run';
 import { answerBoostDiscard, BOOST_DISCARD_STEP } from '../engine/actions/breaking';
-import { giveTags, installedRunnerCards, trashInstalledRunnerCard, uninstallRunnerCard } from '../engine/damage';
+import { dealDamage, DamageType, giveTags, installedRunnerCards, trashInstalledRunnerCard, uninstallRunnerCard } from '../engine/damage';
 import {
   addCounters,
   availableCredits,
@@ -506,7 +506,7 @@ const joyRide: CardScript = {
 // AirbladeX (JSRF Ed.) (Vehicle): When you install this hardware, load 3 power counters onto it.
 // When it is empty, trash it. [interrupt] -> Hosted power counter: Prevent 1 net damage. Use this
 // ability only during a run. [interrupt] -> Hosted power counter: Prevent a "when encountered"
-// ability on a piece of ice. (Damage is prevented without asking: the Runner always wants it.)
+// ability on a piece of ice. (The Runner is asked how much net damage to prevent, so they can save counters.)
 const airblade: CardScript = {
   triggers: {
     installed: (ctx, e) => isSelf(ctx, e.card) && place(ctx.card, 'power', 3),
@@ -515,15 +515,21 @@ const airblade: CardScript = {
       askChoice(ctx, 'runner', `AirbladeX: spend 1 power counter to prevent ${title(e.ice)}'s "when encountered" ability?`, yesNo('Prevent it'), 'prevent', { iceId: e.ice.instanceId });
     },
   },
-  preventDamage: (state, self, kind, amount) => {
-    if (kind !== 'net' || !state.activeRun || state.activeRun.accessOnly) return 0;
-    const n = Math.min(amount, counters(self, 'power'));
-    if (n === 0) return 0;
-    addLog(state, 'runner', `Runner prevented ${n} net damage (AirbladeX).`);
-    spendLoad(state, self, n);
-    return n;
-  },
+  canPreventDamage: (state, self, kind, amount) =>
+    kind === 'net' && state.activeRun && !state.activeRun.accessOnly ? Math.min(amount, counters(self, 'power')) : 0,
   onPromptAnswer: ({ state, card }, source, answer) => {
+    if (source.step === 'prevent_damage') {
+      const d = source.data!;
+      const amount = Number(d.amount);
+      const chosen = answer.kind === 'effect_choice' ? Number(answer.optionId) : 0;
+      const n = Math.min(chosen, amount, counters(card, 'power'));
+      if (n > 0) {
+        addLog(state, 'runner', `Runner prevented ${n} net damage (AirbladeX).`);
+        spendLoad(state, card, n);
+      }
+      dealDamage(state, d.damageType as DamageType, amount - n, Boolean(d.byCorp), { preventionAsked: true, then: (d.then as string) || undefined });
+      return;
+    }
     const encounter = state.activeRun?.encounter;
     if (!said(answer) || !encounter || encounter.iceId !== source.data?.iceId || counters(card, 'power') === 0) return;
     encounter.onEncounterPending = false;

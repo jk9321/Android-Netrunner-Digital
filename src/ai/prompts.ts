@@ -188,6 +188,13 @@ export function answerPrompt(state: GameState, side: SideCode, memory?: RunnerMe
   if (prompt.kind === 'effect_choice' && ((prompt.source.cardCode === '34031' && prompt.source.step === 'damage') || (prompt.source.cardCode === '34001' && prompt.source.step === 'trashed') || (prompt.source.cardCode === '34093' && prompt.source.step === 'extra'))) {
     return { ...base, choice: { kind: 'effect_choice', optionId: 'yes' } };
   }
+  // AirbladeX: prevent all the net damage it can, but keep the last counter (and the card) when 1 damage would only cost a card from a full grip.
+  if (side === 'runner' && prompt.kind === 'effect_choice' && prompt.source.step === 'prevent_damage') {
+    const most = Math.max(...prompt.options.map(o => Number(o.id)));
+    const counters = findCardAnywhere(state, prompt.source.instanceId)?.tokens.power ?? 0;
+    const save = Number(prompt.source.data?.amount) === 1 && counters === 1 && state.runner.grip.length >= 5;
+    return { ...base, choice: { kind: 'effect_choice', optionId: String(save ? 0 : most) } };
+  }
   if (prompt.kind === 'effect_cards' && prompt.source.cardCode === '34076' && prompt.source.step === 'reveal') {
     return { ...base, choice: { kind: 'effect_cards', cardInstanceIds: prompt.candidateIds } };
   }

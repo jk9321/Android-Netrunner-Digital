@@ -9,6 +9,11 @@ export function pushPrompt(state: GameState, prompt: NewPrompt): void {
   state.pendingPrompts.push({ ...prompt, id: `prompt-${state.nextPromptId++}` } as Prompt);
 }
 
+/** Puts a decision ahead of the queue: an interrupt that must be answered before anything already waiting (AirbladeX preventing damage). */
+export function interruptPrompt(state: GameState, prompt: NewPrompt): void {
+  state.pendingPrompts.unshift({ ...prompt, id: `prompt-${state.nextPromptId++}` } as Prompt);
+}
+
 export function activePrompt(state: GameState): Prompt | undefined {
   return state.pendingPrompts[0];
 }

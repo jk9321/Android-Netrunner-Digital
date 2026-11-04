@@ -7,26 +7,51 @@ import { findCardAnywhere, noteTrashedFromHand, removeCard } from './helpers';
 import { getCardScript } from '../scripts';
 import { bumpTurnFlag, TurnFlag } from './cardEffects';
 import { fireTrigger } from './triggers';
+import { interruptPrompt } from './prompts';
 
 export type DamageType = 'net' | 'meat' | 'core';
+
+/** What happens to the cards a damage trashed, once it resolves (Diviner). */
+type DamageFollowUp = (state: GameState, trashed: CardInstance[]) => void;
+const FOLLOW_UPS: Record<string, DamageFollowUp> = {};
+export function registerDamageFollowUp(id: string, fn: DamageFollowUp): void {
+  FOLLOW_UPS[id] = fn;
+}
+
+export interface DamageOptions {
+  /** A registered follow-up that needs the trashed cards (it runs even if the damage waits on a prevention prompt). */
+  then?: string;
+  /** The Runner already chose whether to prevent it. */
+  preventionAsked?: boolean;
+}
 
 /**
  * Deals damage to the Runner: each point trashes a random card from the
  * grip. Core damage also lowers the Runner's maximum hand size by 1 per
  * point. Taking more damage than the grip holds flatlines the Runner and the
- * Corp wins. Returns the trashed cards. (No Gateway card prevents damage.)
+ * Corp wins. Returns the trashed cards.
+ *
+ * If an installed card can prevent it (AirbladeX), the Runner is asked first
+ * (an interrupt, so the prompt goes ahead of any others): the damage then
+ * resolves once they answer, and this returns no cards.
  */
-export function dealDamage(state: GameState, type: DamageType, amount: number, byCorp = true): CardInstance[] {
-  const trashed: CardInstance[] = [];
-  // Installed cards that prevent damage as it is dealt (AirbladeX)
-  for (const card of installedRunnerCards(state)) {
-    if (amount <= 0) break;
-    const prevented = getCardScript(card.cardCode)?.preventDamage?.(state, card, type, amount) ?? 0;
-    if (prevented > 0) {
-      amount -= prevented;
-      addLog(state, 'runner', `Runner prevented ${prevented} ${type} damage (${cardDef(card).title}).`);
+export function dealDamage(state: GameState, type: DamageType, amount: number, byCorp = true, options: DamageOptions = {}): CardInstance[] {
+  if (amount > 0 && !options.preventionAsked && !state.winner) {
+    for (const card of installedRunnerCards(state)) {
+      const max = getCardScript(card.cardCode)?.canPreventDamage?.(state, card, type, amount) ?? 0;
+      if (max <= 0) continue;
+      const choices = Array.from({ length: max + 1 }, (_, i) => max - i);
+      interruptPrompt(state, {
+        kind: 'effect_choice',
+        side: 'runner',
+        message: `${cardDef(card).title}: prevent how much of ${amount} ${type} damage?`,
+        options: choices.map(n => ({ id: String(n), label: n === 0 ? 'Prevent none' : `Prevent ${n}` })),
+        source: { cardCode: card.cardCode, instanceId: card.instanceId, step: 'prevent_damage', data: { damageType: type, amount, byCorp, then: options.then ?? '' } },
+      });
+      return [];
     }
   }
+  const trashed: CardInstance[] = [];
   if (type === 'core') state.runner.coreDamage += amount;
   for (let i = 0; i < amount; i++) {
     if (state.runner.grip.length === 0) {
@@ -43,6 +68,7 @@ export function dealDamage(state: GameState, type: DamageType, amount: number, b
   const what = trashed.length > 0 ? `, trashing ${trashed.map(c => cardDef(c).title).join(', ')}` : '';
   addLog(state, byCorp ? 'corp' : 'runner', byCorp ? `Corp did ${amount} ${type} damage${what}.` : `Runner suffered ${amount} ${type} damage${what}.`, undefined, amount > 0 ? 'damage' : undefined);
   if (amount > 0 && !state.winner) fireTrigger(state, { type: 'damage_dealt', damage: type, amount, byCorp });
+  if (options.then) FOLLOW_UPS[options.then]?.(state, trashed);
   return trashed;
 }
 

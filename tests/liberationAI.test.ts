@@ -2,9 +2,9 @@ import { describe, expect, it } from 'vitest';
 import { answerPrompt, psiBid } from '../src/ai/prompts';
 import { bestBreakPlan, knownSubroutineCost } from '../src/ai/runs';
 import { giveCard, installIceForTest, installProgramForTest, newGame, run, scoreForTest, startRunnerTurn } from './helpers';
-import { activePrompt, GameState } from '../src/core';
+import { activePrompt, createCardInstance, GameState } from '../src/core';
 
-const L = { audrey: '34004', banner: '34005', lobisomem: '34090', spike: '34092', slap: '34026', ablative: '34034', valentao: '34060', piranhas: '34117', capacitor: '34116' };
+const L = { airblade: '34022', audrey: '34004', banner: '34005', lobisomem: '34090', spike: '34092', slap: '34026', ablative: '34034', valentao: '34060', piranhas: '34117', capacitor: '34116' };
 const GRUBBER = '36050'; // barrier, strength 5, 2 subroutines
 
 function iceOn(s: GameState, code: string, server = 'hq') {
@@ -100,6 +100,31 @@ describe('Liberation AI', () => {
     const s = scoreForTest(newGame(), '34031');
     const salvo = answerPrompt(s, 'corp');
     expect(salvo.type === 'RESOLVE_PROMPT' && salvo.choice.kind === 'effect_choice' && salvo.choice.optionId).toBe('yes');
+  });
+
+  it('AirbladeX: prevents all the net damage it can, but keeps its last counter for 1 damage into a full grip', () => {
+    const ask = (amount: number, counters: number, grip: number) => {
+      const s = newGame();
+      startRunnerTurn(s);
+      const airblade = createCardInstance(s, L.airblade);
+      airblade.tokens.power = counters;
+      s.runner.rig.hardware.push(airblade);
+      const id = airblade.instanceId;
+      s.runner.grip = s.runner.grip.slice(0, grip);
+      while (s.runner.grip.length < grip) giveCard(s, 'runner', '30030');
+      const max = Math.min(amount, counters);
+      s.pendingPrompts.push({
+        id: 'p', kind: 'effect_choice', side: 'runner', message: '',
+        options: Array.from({ length: max + 1 }, (_, i) => ({ id: String(max - i), label: '' })),
+        source: { cardCode: L.airblade, instanceId: id, step: 'prevent_damage', data: { damageType: 'net', amount, byCorp: true, then: '' } },
+      });
+      const action = answerPrompt(s, 'runner');
+      return action.type === 'RESOLVE_PROMPT' && action.choice.kind === 'effect_choice' ? action.choice.optionId : undefined;
+    };
+    expect(ask(2, 3, 5)).toBe('2');
+    expect(ask(1, 2, 5)).toBe('1');
+    expect(ask(1, 1, 5)).toBe('0');
+    expect(ask(1, 1, 2)).toBe('1');
   });
 
   it('reads the conditional Liberation subroutines', () => {

@@ -78,10 +78,12 @@ export interface CardScript {
   /** Runs on the card itself as the Corp installs it, even while inactive (Stoke the Embers). */
   onCorpInstalled?(ctx: EffectContext, fromHQ: boolean): void;
   /**
-   * An installed Runner card that prevents damage as it is dealt (AirbladeX):
-   * returns how many of `amount` points it prevents, paying for it itself.
+   * An installed Runner card that can prevent damage as it is dealt (AirbladeX):
+   * returns the most of `amount` points it could prevent. The Runner is then
+   * asked how many (step 'prevent_damage', data damageType/amount/byCorp/then),
+   * and the card's onPromptAnswer pays and deals the rest with preventionAsked.
    */
-  preventDamage?(state: GameState, self: Card, type: 'net' | 'meat' | 'core', amount: number): number;
+  canPreventDamage?(state: GameState, self: Card, type: 'net' | 'meat' | 'core', amount: number): number;
   /** Extra rez requirement, checked instead of "enough credits" (Plutus, Biawak). Return a reason to forbid. */
   rezBlocker?(state: GameState, card: Card, cost: number): string | null;
   /** Pays a rez cost with extras or alternatives, then calls completeRez (maybe after a prompt). */

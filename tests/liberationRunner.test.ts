@@ -6,6 +6,7 @@ import { dealNetDamage, giveTags } from '../src/core/engine/damage';
 import {
   answer,
   cont,
+  runIntoFirstIce,
   giveCard,
   installCorpForTest,
   installIceForTest,
@@ -408,6 +409,36 @@ describe('The Automata Initiative: Shaper and neutral', () => {
     s = choose(s, 'yes');
     expect(card(s, ab).tokens.power).toBe(2);
     expect(s.pendingPrompts.length).toBe(0); // no Jaguarundi tag-or-click
+  });
+
+  it('AirbladeX asks how much net damage to prevent, before the damage resolves (Diviner still reads the trashed card)', () => {
+    const go = (preventId: string) => {
+      let s = newGame();
+      const ab = rig(s, L.airblade, 'hardware');
+      card(s, ab).tokens.power = 3;
+      installIceForTest(s, SG.diviner, 'hq');
+      s = runIntoFirstIce(s, 'hq');
+      s.runner.grip = [];
+      giveCard(s, 'runner', '30030'); // Sure Gamble, cost 5: Diviner ends the run if it is trashed
+      s = cont(s);
+      expect(source(s)).toMatchObject({ cardCode: L.airblade, step: 'prevent_damage' });
+      expect(s.runner.grip.length).toBe(1); // nothing trashed until the Runner answers
+      return [choose(s, preventId), ab] as const;
+    };
+    const [saved, ab1] = go('1');
+    expect(card(saved, ab1).tokens.power).toBe(2);
+    expect(saved.runner.grip.length).toBe(1);
+    expect(saved.activeRun).not.toBeNull();
+    const [taken, ab2] = go('0');
+    expect(card(taken, ab2).tokens.power).toBe(3);
+    expect(taken.runner.grip.length).toBe(0);
+    expect(taken.activeRun).toBeNull();
+    // Outside a run it does not ask
+    const s = newGame();
+    const ab = rig(s, L.airblade, 'hardware');
+    card(s, ab).tokens.power = 3;
+    dealNetDamage(s, 1);
+    expect(s.pendingPrompts.length).toBe(0);
   });
 
   it('LilyPAD gives 2 MU and a draw the first time each turn a program is installed', () => {
