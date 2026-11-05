@@ -187,7 +187,8 @@ interface IssueSummary {
 /** Reports made in the last 24 hours, all and from this reporter. */
 export function countRecent(issues: IssueSummary[], reporter: string, now: number): { total: number; mine: number } {
   const since = now - 24 * 60 * 60 * 1000;
-  const recent = issues.filter(i => !i.pull_request && i.title.startsWith(TITLE_PREFIX) && Date.parse(i.created_at) >= since);
+  // Beta preview reports have no limits of their own and don't use up the live site's
+  const recent = issues.filter(i => !i.pull_request && i.title.startsWith(TITLE_PREFIX) && Date.parse(i.created_at) >= since && !(i.body ?? '').includes('(beta preview)'));
   return { total: recent.length, mine: recent.filter(i => (i.body ?? '').includes(`\`${reporter}\``)).length };
 }
 
@@ -243,19 +244,23 @@ async function handle(request: Request, env: BugReportEnv): Promise<Result> {
 
   const ip = request.headers.get('CF-Connecting-IP') ?? 'unknown';
   const reporter = await reporterId(ip, env.GITHUB_TOKEN);
-  if (env.BUG_RATE_LIMITER) {
+  // Jeff (2026-11-05): only he tests on the beta preview, so its reports skip the burst and daily limits
+  const beta = siteName(new URL(request.url).host) === 'beta preview';
+  if (env.BUG_RATE_LIMITER && !beta) {
     const { success } = await env.BUG_RATE_LIMITER.limit({ key: reporter });
     if (!success) return fail(429, 'Too many reports at once. Please wait a minute and try again.');
   }
 
-  const recent = await github(env, '/issues?state=all&sort=created&direction=desc&per_page=100');
-  if (!recent.ok) {
-    console.error('Bug report: listing issues failed', recent.status, await recent.text());
-    return fail(502, 'The report could not be sent. Please try again later.');
+  if (!beta) {
+    const recent = await github(env, '/issues?state=all&sort=created&direction=desc&per_page=100');
+    if (!recent.ok) {
+      console.error('Bug report: listing issues failed', recent.status, await recent.text());
+      return fail(502, 'The report could not be sent. Please try again later.');
+    }
+    const counts = countRecent((await recent.json()) as IssueSummary[], reporter, Date.now());
+    if (counts.mine >= DAILY_LIMIT_PER_REPORTER) return fail(429, 'You have sent the most reports allowed for today. Thank you! Please try again tomorrow.');
+    if (counts.total >= DAILY_LIMIT_TOTAL) return fail(429, 'We have received a lot of reports today. Please try again tomorrow.');
   }
-  const counts = countRecent((await recent.json()) as IssueSummary[], reporter, Date.now());
-  if (counts.mine >= DAILY_LIMIT_PER_REPORTER) return fail(429, 'You have sent the most reports allowed for today. Thank you! Please try again tomorrow.');
-  if (counts.total >= DAILY_LIMIT_TOTAL) return fail(429, 'We have received a lot of reports today. Please try again tomorrow.');
 
   const issue = {
     title: issueTitle(report.description),

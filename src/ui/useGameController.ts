@@ -5,6 +5,7 @@ import { PersonStops, saveStops, savedStops } from './stops';
 import { AIClient } from '../ai/client';
 import { deckGameSetup } from '../data/decks';
 import { AccessedCard, GameConfig, SavedGame, clearSavedGame, saveGame } from './savedGame';
+import { noteMoves } from './bugReport';
 import { ShownFate } from './components/CardFates';
 import { cardFates } from './cardFates';
 import { showAlert, showConfirm } from './components/Dialog';
@@ -58,11 +59,15 @@ export function useGameController(config: GameConfig, saved: SavedGame | null) {
   latestStateRef.current = gameState;
   // Timers that end each card-fate showing, cleared if the game is left
   const fateTimersRef = useRef(new Set<number>());
+  // Every move applied this game, both sides', in order: with the seed and decks they replay it (bug reports)
+  const movesRef = useRef<GameAction[]>(saved?.table.moves ?? []);
+  const startStops = useRef(saved ? saved.table.startStops : gameState.stops).current;
+  noteMoves(config.seed, movesRef.current, startStops);
   // Bumped to ask the computer again after it failed to move
   const [aiRetry, setAiRetry] = useState(0);
   // The person's ability or event whose first step is their own choice (Red Team's server):
   // shown with the choice open, but not applied until they choose, so Cancel can drop it (uncommitted.ts)
-  const [held, setHeld] = useState<{ base: GameState; next: GameState } | null>(null);
+  const [held, setHeld] = useState<{ base: GameState; next: GameState; action: GameAction } | null>(null);
   const heldRef = useRef(held);
   heldRef.current = held;
 
@@ -109,8 +114,8 @@ export function useGameController(config: GameConfig, saved: SavedGame | null) {
   // tab, or the dev server reconnecting) resumes this game; a finished game is dropped
   useEffect(() => {
     if (gameState.winner) clearSavedGame();
-    else saveGame({ config, state: gameState, table: { runSerial: 0, passedRezWindows: [], hotseatSide, accessed } });
-  }, [config, gameState, hotseatSide, accessed]);
+    else saveGame({ config, state: gameState, table: { runSerial: 0, passedRezWindows: [], hotseatSide, accessed, moves: movesRef.current, startStops } });
+  }, [config, gameState, hotseatSide, accessed, startStops]);
 
   // Watch every state change (the person's moves and the computer's) for steals, scores and trashes
   useEffect(() => {
@@ -151,7 +156,7 @@ export function useGameController(config: GameConfig, saved: SavedGame | null) {
     try {
       const uncommitted = !hold && action.player !== aiSide ? uncommittedChoice(current, action) : null;
       if (uncommitted) {
-        heldRef.current = { base: current, next: uncommitted.next };
+        heldRef.current = { base: current, next: uncommitted.next, action };
         setHeld(heldRef.current);
         return;
       }
@@ -170,6 +175,8 @@ export function useGameController(config: GameConfig, saved: SavedGame | null) {
         }
       }
       latestStateRef.current = nextState;
+      movesRef.current = [...movesRef.current, ...(hold ? [hold.action] : []), action];
+      noteMoves(config.seed, movesRef.current, startStops);
       heldRef.current = null;
       setHeld(null);
       playForAction(base, nextState, listener);

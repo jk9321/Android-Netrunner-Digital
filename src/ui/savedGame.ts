@@ -1,4 +1,4 @@
-import { GameState, SideCode } from '../core';
+import { GameAction, GameState, SideCode } from '../core';
 import type { Difficulty } from '../ai';
 import type { DeckList } from '../data/decks';
 
@@ -42,6 +42,10 @@ export interface SavedTable {
   hotseatSide: SideCode;
   /** Plain card codes in games saved before R&D accesses were kept secret. */
   accessed: (AccessedCard | string)[];
+  /** Every move of the game so far, both sides', in order (missing in games saved before 2026-11-05). */
+  moves?: GameAction[];
+  /** The stops the game started with (moves replay from them). */
+  startStops?: GameState['stops'];
 }
 
 export interface SavedGame {

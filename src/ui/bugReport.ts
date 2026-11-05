@@ -1,4 +1,4 @@
-import type { GameState } from '../core';
+import type { GameAction, GameState } from '../core';
 import type { DeckList } from '../data/decks';
 import { GameConfig, SavedTable, loadSavedGame } from './savedGame';
 
@@ -39,6 +39,14 @@ export interface ReportPayload {
     snapshot?: string;
   };
   crash?: { message: string; stack?: string };
+}
+
+/** The moves of the game being played (a finished game's autosave is dropped, so the report can't read them there). */
+let liveMoves: { seed: number; moves: GameAction[]; startStops?: GameState['stops'] } | null = null;
+
+/** The game controller records each move here as it is applied (and the stops the game started with, which no move sets). */
+export function noteMoves(seed: number, moves: GameAction[], startStops?: GameState['stops']) {
+  liveMoves = { seed, moves, startStops };
 }
 
 /** The table state autosaved for this game (rez windows passed, accesses shown), if there is one. */
@@ -99,7 +107,8 @@ export async function gameReport(game: GameForReport): Promise<NonNullable<Repor
     corpDeck: deckText(config.corpDeck),
     runnerDeck: deckText(config.runnerDeck),
     log: logText(state),
-    snapshot: await compress(JSON.stringify({ config, state, table })),
+    // moves: with the seed and decks they replay the game move by move (scripts/replay-report.ts)
+    snapshot: await compress(JSON.stringify({ config, state, table, ...(liveMoves?.seed === config.seed ? { moves: liveMoves.moves, startStops: liveMoves.startStops } : { moves: table?.moves, startStops: table?.startStops }) })),
   };
 }
 
