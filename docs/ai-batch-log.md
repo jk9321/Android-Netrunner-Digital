@@ -247,3 +247,7 @@ Every self-play batch, newest last (Jeff, 2026-10-28). Made with `scripts/corp-l
 | 2026-11-04 | runner money: drawBackLife + answerCorpChoice off | b0bd2f2 | 663 | **51.4%** | 43.1% / 8.3% | 39.5% / 9.0% | 44.9% / 27.0% / 21.2% / 6.9% | 7.7 | [txt](batch-logs/2026-11-04-runner-money-drawbacklife-answercorpchoice-off.txt) |
 | 2026-11-04 | money cards 2 on | bfbe603 | 663 | **43.9%** | 34.8% / 9.0% | 48.3% / 7.8% | 45.2% / 24.0% / 26.5% / 4.3% | 7.1 | [txt](batch-logs/2026-11-04-money-cards-2-on.txt) |
 | 2026-11-04 | money cards 2 off | bfbe603 | 663 | **50.1%** | 41.0% / 9.0% | 41.9% / 8.0% | 46.1% / 23.3% / 23.6% / 6.9% | 7.3 | [txt](batch-logs/2026-11-04-money-cards-2-off.txt) |
+| 2026-11-05 | money cards 2: payoutSlide off | bfbe603 | 663 | **47.4%** | 38.3% / 9.0% | 46.2% / 6.5% | 43.3% / 25.0% / 26.1% / 5.4% | 7.2 | [txt](batch-logs/2026-11-05-money-cards-2-payoutslide-off.txt) |
+| 2026-11-05 | money cards 2: spareLastClick off | bfbe603 | 663 | **47.8%** | 39.7% / 8.1% | 43.9% / 8.3% | 47.7% / 23.3% / 23.1% / 5.8% | 7.4 | [txt](batch-logs/2026-11-05-money-cards-2-sparelastclick-off.txt) |
+| 2026-11-05 | money cards 2: pettyCashFirst off | bfbe603 | 663 | **44.3%** | 34.7% / 9.7% | 48.0% / 7.7% | 45.9% / 23.3% / 26.5% / 4.2% | 7.1 | [txt](batch-logs/2026-11-05-money-cards-2-pettycashfirst-off.txt) |
+| 2026-11-05 | money cards 2: transferOfWealth off | bfbe603 | 663 | **44.3%** | 35.3% / 9.0% | 47.8% / 7.8% | 44.9% / 23.3% / 27.1% / 4.7% | 7.2 | [txt](batch-logs/2026-11-05-money-cards-2-transferofwealth-off.txt) |
