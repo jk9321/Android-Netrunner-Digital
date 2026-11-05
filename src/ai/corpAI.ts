@@ -106,6 +106,8 @@ export class HeuristicCorpAI implements Agent {
     // plan.pettyCashFirst: a click for a credit while Petty Cash can still be played is a click for 2 thrown away (the
     // planner valued Petty Cash held in HQ as the money it will make, though it is playable only as the turn's first action)
     if (chosen.type === 'GAIN_CREDIT' && this.synergy && tuning.plan.pettyCashFirst) chosen = ranked.find(r => isPettyCash(state, r.action) && r.score > -Infinity)?.action ?? chosen;
+    // plan.tagFirst: the planner's leaf counts a tag kept as a trash still to come, but the Runner clears it on its turn
+    if (this.synergy && tuning.plan.tagFirst && ranked[0]?.action.type === 'TRASH_RESOURCE' && ranked[0].tagFirst) chosen = ranked[0].action;
     // The reverse bluff: at most once a game
     if (chosen.type === 'INSTALL_CARD' && chosen.asNewRemote && state.corp.hq.some(c => c.instanceId === chosen.cardInstanceId && type(c) === 'agenda')) {
       const def = cardDef(state.corp.hq.find(c => c.instanceId === chosen.cardInstanceId)!);
@@ -153,7 +155,8 @@ export class HeuristicCorpAI implements Agent {
         return { action, score };
       })
       .sort((a, b) => b.score - a.score);
-    return this.synergy && tuning.plan.pettyCashFirst ? pettyCashFirst(state, ranked) : ranked;
+    const first = this.synergy && tuning.plan.pettyCashFirst ? pettyCashFirst(state, ranked) : ranked;
+    return this.synergy && tuning.plan.tagFirst ? tagFirst(state, first) : first;
   }
 
   chooseRez(state: GameState, cards: CardInstance[]): GameAction | null {
@@ -1365,3 +1368,17 @@ function pettyCashFirst(state: GameState, ranked: ScoredAction[]): ScoredAction[
 }
 const PETTY_CASH = '35081';
 const isPettyCash = (state: GameState, a: GameAction): boolean => a.type === 'PLAY_OPERATION_OR_EVENT' && state.corp.hq.find(c => c.instanceId === a.cardInstanceId)?.cardCode === PETTY_CASH;
+
+/**
+ * plan.tagFirst (Jeff, 2026-11-05: the Corp leaves tags unused): a tag usually lasts only until the Runner's next turn,
+ * so a resource trash the Corp would make with this turn's clicks is made first, before the installs and draws that can
+ * wait. The "tag not used" alarm rose from 52 to 79 per 663 games once the Runner played its money resources (Side
+ * Hustle at 5 credits, Telework): the Corp ranked the trash second, installed first, and was then too poor to trash.
+ */
+function tagFirst(state: GameState, ranked: ScoredAction[]): ScoredAction[] {
+  if (state.runner.tags <= 0) return ranked;
+  const at = ranked.findIndex(r => r.action.type === 'TRASH_RESOURCE');
+  if (at <= 0 || at >= state.corp.clicks || !Number.isFinite(ranked[at].score) || ranked[at].score <= 0 || ranked[0].action.type === 'SCORE_AGENDA') return ranked;
+  const trash = { ...ranked[at], score: ranked[0].score + 0.01, tagFirst: true };
+  return [trash, ...ranked.slice(0, at), ...ranked.slice(at + 1)];
+}
