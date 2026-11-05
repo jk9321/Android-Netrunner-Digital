@@ -286,3 +286,8 @@ Every self-play batch, newest last (Jeff, 2026-10-28). Made with `scripts/corp-l
 | 2026-11-05 | measuredTurnsLeft off | a78147c | 663 | **36.5%** | 30.8% / 5.7% | 53.2% / 10.3% | 42.3% / 24.5% / 25.6% / 7.6% | 7.7 | [txt](batch-logs/2026-11-05-measuredturnsleft-off.txt) |
 | 2026-11-05 | measuredTurnsLeft: card usage report | a78147c | 1280 | **42.5%** |  /  |  /  |  /  /  /  |  | [txt](batch-logs/2026-11-05-measuredturnsleft-card-usage-report.txt) |
 | 2026-11-05 | measuredTurnsLeft: card payoff report | a78147c |  | **** |  /  |  /  |  /  /  /  |  | [txt](batch-logs/2026-11-05-measuredturnsleft-card-payoff-report.txt) |
+| 2026-11-05 | run odds report (success undercounted) | e54093a |  | **** |  /  |  /  |  /  /  /  |  | [txt](batch-logs/2026-11-05-run-odds-report-success-undercounted.txt) |
+| 2026-11-05 | run odds report v2 (run log) | 2a90510 |  | **** |  /  |  /  |  /  /  /  |  | [txt](batch-logs/2026-11-05-run-odds-report-v2-run-log.txt) |
+| 2026-11-05 | card payoff report v2 (run log) | 2a90510 |  | **** |  /  |  /  |  /  /  /  |  | [txt](batch-logs/2026-11-05-card-payoff-report-v2-run-log.txt) |
+| 2026-11-05 | measuredRunShares on | 8a26d0f | 663 | **38.2%** | 29.6% / 8.6% | 53.7% / 8.1% | 45.3% / 22.4% / 24.3% / 8.0% | 7.4 | [txt](batch-logs/2026-11-05-measuredrunshares-on.txt) |
+| 2026-11-05 | measuredRunShares off | 8a26d0f | 663 | **38.9%** | 31.4% / 7.5% | 52.3% / 8.7% | 44.6% / 22.0% / 26.2% / 7.2% | 7.4 | [txt](batch-logs/2026-11-05-measuredrunshares-off.txt) |
