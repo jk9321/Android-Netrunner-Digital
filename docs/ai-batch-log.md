@@ -258,3 +258,5 @@ Every self-play batch, newest last (Jeff, 2026-10-28). Made with `scripts/corp-l
 | 2026-11-05 | rezToll on | b619617 | 663 | **44.3%** | 34.7% / 9.7% | 48.6% / 7.1% | 44.4% / 24.1% / 26.9% / 4.5% | 7.1 | [txt](batch-logs/2026-11-05-reztoll-on.txt) |
 | 2026-11-05 | iceStopAnchor on | 473dbe8 | 663 | **37.4%** | 29.7% / 7.7% | 53.4% / 9.2% | 42.5% / 26.5% / 25.0% / 5.9% | 7.4 | [txt](batch-logs/2026-11-05-icestopanchor-on.txt) |
 | 2026-11-05 | iceStopAnchor off | 473dbe8 | 663 | **44.3%** | 34.7% / 9.7% | 48.6% / 7.1% | 44.4% / 24.1% / 26.9% / 4.5% | 7.1 | [txt](batch-logs/2026-11-05-icestopanchor-off.txt) |
+| 2026-11-05 | heldMoney on | 67f8c47 | 663 | **36.8%** | 31.1% / 5.7% | 54.3% / 8.9% | 42.5% / 24.7% / 25.5% / 7.4% | 7.6 | [txt](batch-logs/2026-11-05-heldmoney-on.txt) |
+| 2026-11-05 | heldMoney off | 67f8c47 | 663 | **37.4%** | 29.7% / 7.7% | 53.4% / 9.2% | 42.6% / 26.5% / 24.9% / 6.0% | 7.4 | [txt](batch-logs/2026-11-05-heldmoney-off.txt) |
