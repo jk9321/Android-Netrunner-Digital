@@ -73,22 +73,22 @@ export const SYSTEM_GATEWAY: Record<string, CardAI> = {
     value: { rig: 1 },
     // A virus counter a turn (2 credits each when cashed), banked until cashed within about 4 turns, and lost to a purge.
     // plan.fermenterBank (Jeff, 2026-11-05, his Corp game 1: the Runner clicked for credits on 0 credits beside 15
-    // banked counters): a purge takes the whole bank, so each turn held risks 10% of it against the 1 counter it adds;
-    // past 10 counters holding on gains nothing
+    // banked counters): a purge takes the whole bank, so each turn held risks 8% of it against the 1 counter it adds;
+    // past 12 counters holding on gains nothing
     runner: (state, code, card) =>
       perTurn(state, counterWorthOf(state, code, 'virus'), 'runner', 0, 4, virusWait()) *
-      (tuning.plan.fermenterBank && card ? Math.max(0, 1 - 0.1 * counters(card, 'virus')) : 1),
+      (tuning.plan.fermenterBank && card ? Math.max(0, 1 - 0.08 * counters(card, 'virus')) : 1),
     // 2 credits each, for a click and the card (cashed at about 4). plan.fermenterBank: the credits as the Runner's
     // credit slide prices them (flat, a bank of 10 outweighed 20 credits to a broke Runner), the whole bank on one
     // stretch of the slide (each Fermenter priced as the first credits counted every bank at the broke end), the
-    // click shared by the counters on this card, and 3% off each for every counter banked: a purge takes the lot,
+    // click shared by the counters on this card, and 2% off each for every counter banked: a purge takes the lot,
     // and the bigger the bank the likelier the Corp spends its turn on one
     counters: {
       virus: (state, card) => {
         if (!tuning.plan.fermenterBank) return 2 - RATES.click / 4;
         const n = Math.max(1, counters(card, 'virus'));
         const bank = state.runner.rig.programs.reduce((t, p) => t + (p.cardCode === '30007' ? counters(p, 'virus') : 0), 0);
-        return 2 * payoutSlide(state, 'runner', 'runner', 2 * Math.max(n, bank)) * Math.max(0.4, 1 - 0.03 * bank) - RATES.click / n;
+        return 2 * payoutSlide(state, 'runner', 'runner', 2 * Math.max(n, bank)) * Math.max(0.4, 1 - 0.02 * bank) - RATES.click / n;
       },
     },
   },

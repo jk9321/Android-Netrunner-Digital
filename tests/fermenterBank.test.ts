@@ -9,7 +9,7 @@ import { asSide, tuning } from '../src/ai/synergy';
  * from turn 10 on while it clicked for credits on 0 to 5 credits, until Jeff's Flyswatter purged them. Each counter
  * was priced at a flat 1.75, and each Fermenter as if its credits were the first the Runner would gain, so a bank of
  * 10 outweighed 20 credits to a broke Runner. plan.fermenterBank prices the whole bank on one stretch of the credit
- * slide, 3% off each counter for every counter banked (a purge takes the lot).
+ * slide, 2% off each counter for every counter banked (a purge takes the lot).
  *
  * Position: the Runner's turn 10 after its first click, 5 credits, 3 clicks, Fermenters on 10 and 5 counters.
  */
