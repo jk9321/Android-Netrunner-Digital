@@ -403,6 +403,8 @@ export const tuning = {
     runCreditsSlide: false,
     /** Jeff, 2026-11-05: a Runner choice during a run is scored with what the rest of the run is still worth (the breach less the ice ahead), not just that the run goes on (runs.ts runRestWorth). */
     runRest: true,
+    /** Jeff, 2026-11-05: turns left from the self-play measure by the higher score, not 8 less it (cardProfiles.ts turnsLeft). */
+    measuredTurnsLeft: true,
     /** Jeff, 2026-10-31 (same report): an asset that only pays through a click ability (Humanoid Resources) is rezzed only with the clicks to use it (corpAI.ts clickOnly). */
     rezWhenUsed: true,
     /** Jeff, 2026-10-31 (Humanoid Resources rezzed, never used): a click-only asset is rezzed only in the action phase, when using it is then the best play (corpAI.ts rezToUse). */

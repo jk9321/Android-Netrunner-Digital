@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { iceStop, iceWorth } from '../src/ai/iceValues';
 import { iceCost } from '../src/ai/runs';
 import { installIceForTest, installProgramForTest, newGame } from './helpers';
+import { tuning } from '../src/ai/synergy';
 
 const PALISADE = '30072'; // barrier, end the run
 const CLEAVER = '30006'; // fracter
@@ -38,6 +39,14 @@ describe('breakers are worth the stops they save (value model step 5b)', () => {
     const total = ['barrier', 'code gate', 'sentry'].reduce((n, t) => n + breakerTypeWorth(s, t), 0);
     expect(total).toBeCloseTo(24);
     s.corp.score = 6;
-    expect(['barrier', 'code gate', 'sentry'].reduce((n, t) => n + breakerTypeWorth(s, t), 0)).toBeCloseTo(12);
+    // Under 4 turns left (iceValues.ts clock): with the measured turns left (plan.measuredTurnsLeft) 4 remain at 6 points
+    const late = () => ['barrier', 'code gate', 'sentry'].reduce((n, t) => n + breakerTypeWorth(s, t), 0);
+    expect(late()).toBeCloseTo(24);
+    tuning.plan.measuredTurnsLeft = false;
+    try {
+      expect(late()).toBeCloseTo(12);
+    } finally {
+      tuning.plan.measuredTurnsLeft = true;
+    }
   });
 });

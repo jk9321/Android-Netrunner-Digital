@@ -36,11 +36,14 @@ describe('a held money operation is counted once (plan.heldMoney)', () => {
   it('without the plan it keeps Petty Cash', () => {
     tuning.plan.pettyCashFirst = false;
     tuning.plan.heldMoney = false;
+    // plan.measuredTurnsLeft (2026-11-05) plays it here too: on the longer horizon the old way didn't hold it
+    tuning.plan.measuredTurnsLeft = false;
     try {
       expect(inHq(play())).toContain('Petty Cash');
     } finally {
       tuning.plan.pettyCashFirst = true;
       tuning.plan.heldMoney = true;
+      tuning.plan.measuredTurnsLeft = true;
     }
   });
 });

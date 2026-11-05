@@ -1,0 +1,64 @@
+Batch: measuredTurnsLeft: card payoff report | ref a78147c2ac17f2299c3101c8f93161cb06f148ed | games 0-1 | PLAN_OFF= | decks  | card-payoff corp | added run 
+1280 games: 8317 Runner installs
+Per install, forecast (at the install) / actual. "turns" = Runner turns it stayed installed; runs = successful runs while it was.
+All installs: turns    9.9 /    7.1   successful runs    6.5 /    4.1   HQ    1.7 /    0.4   R&D    1.2 /    0.6
+
+card                                type       installs  turns f/a     runs f/a      HQ f/a       R&D f/a    credits given  board worth forecast
+Fermenter (30007)                   program         693     9.5/   6.2     6.2/   3.3     1.7/   0.3     1.1/   0.5     0.0            4.3
+Botulus (30004)                     program         609     9.5/   6.3     6.9/   3.6     1.9/   0.4     1.3/   0.6     0.0            5.8
+Telework Contract (30027)           resource        559     9.6/   4.6     6.2/   2.7     1.6/   0.2     1.1/   0.4     5.4            3.0
+Smartware Distributor (30033)       resource        448    10.0/   9.6     6.9/   5.5     1.8/   0.5     1.3/   0.7     5.6            6.4
+DZMZ Optimizer (30022)              hardware        375    10.3/  10.3     6.8/   5.9     1.8/   0.6     1.3/   1.0     0.0            7.4
+Verbal Plasticity (30034)           resource        353    12.0/   9.8     8.2/   5.9     2.3/   0.6     1.6/   1.0     0.0           15.0
+Rising Tide (35009)                 program         331    10.8/   8.9     7.6/   5.2     2.1/   0.5     1.5/   0.8     0.0            4.0
+Gourmand (35007)                    program         320     9.7/   3.9     6.2/   2.1     1.7/   0.2     1.1/   0.4     0.0            3.9
+Side Hustle (35034)                 resource        315     9.0/   4.0     5.4/   1.6     1.3/   0.1     1.0/   0.3     0.0            5.7
+Unity (30026)                       program         295     9.7/   8.4     6.3/   4.6     1.6/   0.3     1.2/   0.7     0.0            4.0
+Devadatta Drone (35031)             program         278     9.4/   8.5     6.0/   5.3     1.5/   0.4     1.0/   1.0     0.0            0.0
+Echelon (30025)                     program         273     9.2/   8.5     5.8/   4.7     1.5/   0.4     1.1/   0.5     0.0            4.0
+Open Market (35022)                 resource        254    10.1/   3.6     6.2/   1.9     1.5/   0.2     1.1/   0.3     4.3            5.0
+Principia (35032)                   program         240     9.1/   6.2     6.0/   3.4     1.6/   0.3     1.1/   0.5     0.0            4.0
+Marjanah (30016)                    program         228    11.3/   9.1     8.4/   5.5     2.2/   0.6     1.7/   0.6     0.0            4.0
+“Knickknack” O’Brian (35033)        resource        189    11.8/  10.7     8.1/   6.5     2.3/   0.5     1.5/   0.7     0.0           12.1
+Mayfly (30032)                      program         156     9.8/   3.5     6.9/   2.2     1.9/   0.2     1.3/   0.2     0.0            4.0
+Carmen (30015)                      program         154     9.8/   8.7     6.5/   5.0     1.7/   0.4     1.2/   0.6     0.0            4.0
+Buzzsaw (30005)                     program         129     9.3/   8.0     5.6/   4.5     1.4/   0.4     1.1/   0.8     0.0            4.0
+Physarum Entangler (34082)          program         127     8.8/   4.3     6.1/   2.9     1.5/   0.2     1.1/   0.4     0.0            2.0
+Cookbook (30009)                    resource        104    10.8/  10.9     6.8/   6.4     1.8/   0.8     1.2/   1.0     0.0            5.0
+Sang Kancil (35020)                 program         101     9.7/   7.7     6.6/   4.4     1.7/   0.6     1.3/   0.5     0.0            4.0
+Chromatophores (35030)              program          97     8.3/   6.0     5.9/   3.0     1.4/   0.2     1.1/   0.4     0.0            2.1
+Maglectric Rapid (748 Mod) (35019)  hardware         91     7.4/   4.4     4.0/   1.7     1.0/   0.1     0.8/   0.2     0.0            5.6
+Muse (34091)                        program          88     9.6/   4.4     5.8/   2.1     1.5/   0.2     1.0/   0.5     0.0            0.3
+Cleaver (30006)                     program          82     9.7/   9.2     6.7/   5.3     1.9/   0.6     1.3/   0.8     0.0            4.0
+Eru Ayase-Pessoa (34007)            resource         82     9.4/   5.9     5.3/   4.3     1.2/   0.2     1.0/   0.4     0.0           13.5
+Rent Rioters (35011)                resource         82     7.9/   3.3     4.9/   2.0     1.1/   0.2     1.0/   0.3     0.0            5.3
+GAMEDRAGON™ Pro (35027)             hardware         77     9.7/   8.1     6.4/   4.4     1.5/   0.3     1.2/   0.4     0.0            8.7
+Read-Write Share (36022)            program          73    10.6/   2.7     6.9/   1.3     1.9/   0.1     1.4/   0.1     0.0            2.3
+Azimat (35029)                      program          70    11.8/   8.0     7.9/   5.1     2.2/   0.4     1.4/   0.8     4.2            4.9
+Coalescence (34089)                 program          69     9.6/   6.3     6.2/   4.1     1.6/   0.2     1.2/   0.6     2.6            2.7
+Hermes (34014)                      hardware         68    11.3/  10.5     7.2/   7.6     1.8/   0.8     1.6/   1.4     0.0            8.5
+Red Team (30018)                    resource         65     7.4/   5.7     4.1/   3.1     0.9/   0.1     0.8/   0.4     3.2            0.0
+Tranquilizer (30017)                program          63     7.5/   5.5     4.2/   2.7     1.0/   0.3     0.7/   0.4     0.0            3.9
+Slap Vandal (34026)                 program          63    10.6/   8.5     7.2/   6.2     1.9/   0.4     1.3/   0.7     0.0            4.0
+Stowaway (36024)                    program          60     9.9/   6.9     7.0/   3.5     1.9/   0.3     1.3/   0.5     0.0            3.5
+Madani (35028)                      hardware         56    10.9/   9.9     7.4/   5.6     2.1/   0.6     1.3/   0.9     0.0            6.9
+Audrey v2 (34004)                   program          55    10.3/   7.2     6.7/   3.7     1.7/   0.5     1.4/   0.4     0.0            4.0
+Pantograph (30023)                  hardware         49    11.4/  11.7     7.8/   7.0     1.8/   0.5     1.4/   1.0     0.0            7.7
+Docklands Pass (30013)              hardware         46    10.0/   9.1     8.1/   4.3     2.9/   0.3     1.2/   0.5     0.0            6.6
+Touchstone (36021)                  hardware         37    11.9/  10.5     7.5/   6.5     2.1/   0.6     1.6/   0.6     4.2            9.1
+Curupira (34015)                    program          33    10.0/   6.6     6.6/   4.1     1.6/   0.4     1.6/   1.1     0.0            4.0
+Solidarity Badge (34003)            hardware         30    12.5/  10.5     7.8/   5.7     1.9/   0.8     1.5/   0.5     0.0            5.6
+Alarm Clock (34078)                 hardware         30    10.4/   8.0     8.0/   5.8     2.7/   1.3     1.3/   0.8     0.0            8.3
+Amanuensis (34069)                  hardware         24    10.8/   8.3     5.6/   5.2     1.0/   0.4     1.1/   0.4     0.0            6.0
+Detente (35018)                     hardware         24     9.4/   8.5     5.6/   5.2     1.5/   0.5     0.9/   1.3     0.0            7.5
+Baker (36015)                       program          23     9.3/   6.7     5.7/   4.1     1.6/   0.5     1.0/   0.4     0.0           26.3
+Rotary (36014)                      hardware         22    12.4/   5.6     9.9/   4.7     3.0/   0.5     2.1/   0.7     0.0           14.1
+Carnivore (30003)                   hardware         21     8.8/   7.1     4.7/   5.1     1.1/   0.5     0.9/   1.9     0.0            8.7
+Arruaceiras Crew (34073)            resource         21    12.0/   8.5     6.3/   4.1     1.5/   0.2     1.1/   0.1     0.0            5.8
+Hantu (35008)                       program          19     9.3/   6.2     6.6/   3.2     1.7/   0.5     1.1/   0.2     0.0            4.0
+Malandragem (34081)                 program          16     9.4/   4.4     4.5/   3.2     1.0/   0.2     0.8/   0.2     0.0            4.0
+Lago Paranoá Shelter (34009)        resource         15    13.7/  11.1     7.9/   5.6     1.7/   0.4     1.5/   0.5     0.0            6.3
+Bling (35006)                       hardware         15     9.1/   6.2     4.7/   2.2     1.2/   0.1     1.0/   0.5     0.0            5.2
+Leech (30008)                       program          14     8.2/   6.4     6.3/   2.5     2.1/   0.4     1.2/   0.3     0.0            1.4
+Pennyshaver (30014)                 hardware         14     8.3/   7.4     5.5/   4.0     1.3/   0.4     1.0/   0.2     7.5            4.9
+Pressure Spike (34092)              program          13     7.5/   7.5     4.1/   5.1     1.5/   0.3     0.9/   1.7     0.0            4.0

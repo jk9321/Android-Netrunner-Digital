@@ -62,9 +62,20 @@ export function bareAssetRisk(state: GameState): number {
   return (BARE_PRIOR_TURNS * PAYOUT_RISK.moneyBare + seen.trashed) / (BARE_PRIOR_TURNS + seen.exposed);
 }
 
+/**
+ * plan.measuredTurnsLeft (Jeff, 2026-11-05, thread "Find why AI card valuation misses cards"): the turns each side
+ * really had left in self-play by the higher score, 1,280 games over every deck (scripts/turns-left.ts, logged
+ * docs/batch-logs/2026-11-05-turns-left-report.txt): 13.6 at 0 points, 11.6, 9.9, 8.6, 6.9, 4.9, 4.3 at 6. The guess
+ * below (8 less the higher score) was short by 5 turns at the start, so every card that pays over time was priced
+ * on too few turns.
+ */
+const MEASURED_TURNS_LEFT = [14, 12, 10, 9, 7, 5, 4];
+
 /** Turns each side has left, guessed from the score (Jeff: mostly points). */
 export function turnsLeft(state: GameState): number {
-  return Math.max(2, 8 - Math.max(state.corp.score, state.runner.score));
+  const top = Math.max(state.corp.score, state.runner.score);
+  if (tuning.plan.measuredTurnsLeft) return MEASURED_TURNS_LEFT[Math.min(top, MEASURED_TURNS_LEFT.length - 1)] ?? 2;
+  return Math.max(2, 8 - top);
 }
 
 /**
