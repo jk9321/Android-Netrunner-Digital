@@ -382,6 +382,8 @@ export const tuning = {
     agendaCredits: true,
     /** Jeff, 2026-10-31 ("a broke Corp can't do anything since it can't rez ice"): the Corp's credits are worth the best money operation in HQ they can pay for, half its net gain, on the credit slide (valueModel.ts moneyReach). */
     moneyReach: true,
+    /** Jeff, 2026-11-05 (his Corp game 1: the Runner clicked for credits on 0 credits beside 15 banked Fermenter counters): Fermenter counters priced on the Runner's credit slide, the click shared by the bank; the bank's purge risk ends the worth of holding past 10 (cards/systemGateway.ts). */
+    fermenterBank: true,
     /** Jeff, 2026-11-05 (build econ before scoring): a held Hedge Fund was counted twice, as a card in HQ and on the credit slide by moneyReach, so playing it scored below a click for a credit; the card moneyReach counts is left out of HQ's worth (evaluate.ts handAndClicks, handValues.ts ownHandValue). */
     heldMoney: true,
     /** Jeff, 2026-11-05 ("rez ice when needed, but build back up after"): the Corp's first 4 credits are worth up to 2.8 each, not 1.8 (valueModel.ts sideCreditValue, BROKE_SLOPE, BROKE_CREDITS). */

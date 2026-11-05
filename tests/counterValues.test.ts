@@ -30,7 +30,9 @@ describe('counters are worth what they do on their card (value model step 3)', (
     expect(worth('30018', 'credit')).toBeCloseTo(0.7); // Red Team: needs a successful run
     expect(worth('35034', 'credit')).toBeCloseTo(0.9); // Side Hustle: paid out at 6, with a card
     expect(worth('30014', 'credit')).toBeCloseTo(0.85); // Pennyshaver: a click takes them all
+    tuning.plan.fermenterBank = false;
     expect(worth('30007', 'virus')).toBeCloseTo(1.75); // Fermenter: 2 each, less a click shared by about 4
+    tuning.plan.fermenterBank = true;
     tuning.plan.counterFormulas = true;
   });
 
@@ -113,7 +115,9 @@ describe('counters are worth what they do on their card (value model step 3)', (
     tuning.plan.counterEffects.runner = false;
     expect(countersWorth(s, fermenter, 'virus', 'runner')).toBeCloseTo(3);
     tuning.plan.counterEffects.runner = true;
+    tuning.plan.fermenterBank = false;
     expect(countersWorth(s, fermenter, 'virus', 'runner')).toBeCloseTo(3.5);
+    tuning.plan.fermenterBank = true;
   });
 });
 

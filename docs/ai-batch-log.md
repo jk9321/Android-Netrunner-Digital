@@ -291,3 +291,5 @@ Every self-play batch, newest last (Jeff, 2026-10-28). Made with `scripts/corp-l
 | 2026-11-05 | card payoff report v2 (run log) | 2a90510 |  | **** |  /  |  /  |  /  /  /  |  | [txt](batch-logs/2026-11-05-card-payoff-report-v2-run-log.txt) |
 | 2026-11-05 | measuredRunShares on | 8a26d0f | 663 | **38.2%** | 29.6% / 8.6% | 53.7% / 8.1% | 45.3% / 22.4% / 24.3% / 8.0% | 7.4 | [txt](batch-logs/2026-11-05-measuredrunshares-on.txt) |
 | 2026-11-05 | measuredRunShares off | 8a26d0f | 663 | **38.9%** | 31.4% / 7.5% | 52.3% / 8.7% | 44.6% / 22.0% / 26.2% / 7.2% | 7.4 | [txt](batch-logs/2026-11-05-measuredrunshares-off.txt) |
+| 2026-11-05 | fermenterBank v2 on | d4f2519 | 2210 | **39.5%** | 32.8% / 6.7% | 51.9% / 8.6% | 44.1% / 25.4% / 24.3% / 6.3% | 7.6 | [txt](batch-logs/2026-11-05-fermenterbank-v2-on.txt) |
+| 2026-11-05 | fermenterBank v2 off | d4f2519 | 2210 | **38.1%** | 30.8% / 7.2% | 52.4% / 9.6% | 43.2% / 25.6% / 24.5% / 6.7% | 7.8 | [txt](batch-logs/2026-11-05-fermenterbank-v2-off.txt) |
