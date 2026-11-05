@@ -100,7 +100,8 @@ describe('credits a broke Corp needs (Jeff, plan.moneyReach, agendaBudget, plann
     tuning.plan.moneyReach = false;
     const plainDrop = at(3) - at(2);
     tuning.plan.moneyReach = was;
-    expect(at(3) - at(2)).toBeGreaterThan(plainDrop + 1); // dropping to 2 loses Petty Cash for next turn
+    // dropping to 2 loses Petty Cash for next turn (plan.heldMoney: half its gain less the click's credit, 0.5)
+    expect(at(3) - at(2)).toBeGreaterThan(plainDrop + 0.4);
     expect(sideCreditValue(s, 'corp', 'runner')).toBeLessThan(at(3)); // the Runner can't see HQ
   });
 

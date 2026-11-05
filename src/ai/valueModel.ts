@@ -87,14 +87,19 @@ export const clickRate = (viewer: SideCode): number => (tuning.plan.clickRate?.[
  * when broke, sliding to 1 at the need, then fading toward 0.3. The sum of
  * those marginal values.
  */
-export function creditSlide(credits: number, need: number, steep = 0.8): number {
+export function creditSlide(credits: number, need: number, broke = 0): number {
   const c = Math.max(credits, 0);
   const n = Math.max(need, 1);
-  const below = (x: number) => x + steep * (x - (x * x) / (2 * n));
+  // plan.brokeSlope: `broke` more for the first credit, sliding to nothing at BROKE_CREDITS
+  const low = (x: number) => broke * (Math.min(x, BROKE_CREDITS) - Math.min(x, BROKE_CREDITS) ** 2 / (2 * BROKE_CREDITS));
+  const below = (x: number) => x + 0.8 * (x - (x * x) / (2 * n)) + low(x);
   if (c <= n) return below(c) + Math.min(credits, 0);
   const over = c - n;
   return below(n) + 0.3 * over + 3.5 * (1 - Math.exp(-over / 5));
 }
+
+/** plan.brokeSlope: below this many credits the Corp is broke (it can't rez a typical ice in the Runner's turn). */
+export const BROKE_CREDITS = 4;
 
 /** Worth of each agenda point by the score it takes a side to (index = score reached; 7 is the win). */
 const POINT_STEPS = [0, 8, 8, 9, 10, 12, 15, 15];
@@ -253,7 +258,9 @@ export const MONEY_REACH = 0.5;
  */
 export function moneyReach(state: GameState): number {
   const card = reachCard(state);
-  return card ? MONEY_REACH * moneyGain(card) : 0;
+  // plan.heldMoney: less the credit the click that plays it could have taken instead, so holding it is never worth
+  // as much as playing it (a held Petty Cash, +2 for a click, was worth the same as a click for a credit)
+  return card ? MONEY_REACH * Math.max(0, moneyGain(card) - (tuning.plan.heldMoney ? 1 : 0)) : 0;
 }
 
 /** Net credits a money operation gains when played ("Gain N credits" less its cost), else 0. */
@@ -276,8 +283,8 @@ export function reachCard(state: GameState): CardInstance | undefined {
   return best;
 }
 
-/** plan.brokeSlope: the Corp's first credit worth 1 + this (sliding to 1 at its need). */
-export const BROKE_SLOPE = 1.5;
+/** plan.brokeSlope: the Corp's first credit worth this much more (1.8 + 1 = 2.8), sliding to nothing at BROKE_CREDITS. */
+export const BROKE_SLOPE = 1;
 
 /** Worth of a side's credits on this board, as `viewer` (the deciding side) prices them. */
 export function sideCreditValue(state: GameState, side: SideCode, viewer: SideCode): number {
@@ -286,11 +293,12 @@ export function sideCreditValue(state: GameState, side: SideCode, viewer: SideCo
   const reach = side === 'corp' && viewer === 'corp' && tuning.plan.moneyReach ? moneyReach(state) : 0;
   if (!tuning.plan.creditSlide?.[viewer]) return creditValue(credits) + reach;
   const need = creditNeed(state, side);
-  // plan.brokeSlope (Jeff, 2026-11-05: rez ice when needed, then build back up): the Corp's own first credits are worth
-  // up to 2.5 each, not 1.8. Broke, it made no more money than when rich (2.3 credits a turn): a credit click scored
+  // plan.brokeSlope (Jeff, 2026-11-05: rez ice when needed, then build back up): the Corp's own first 4 credits are
+  // worth up to 2.8 each, not 1.8 (a steeper slope all the way to the need made a click for a credit beat installing
+  // Otto Campaign at 6 credits). Broke, it made no more money than when rich (2.3 credits a turn): a credit click scored
   // 1.8 - 1.25 and lost to advancing or installing almost anything, and it went into the Runner's turn unable to rez
-  const steep = side === 'corp' && viewer === 'corp' && tuning.plan.brokeSlope ? BROKE_SLOPE : 0.8;
-  return reach ? creditSlide(credits + reach, need, steep) + Math.min(credits, 0) : creditSlide(credits, need, steep);
+  const broke = side === 'corp' && viewer === 'corp' && tuning.plan.brokeSlope ? BROKE_SLOPE : 0;
+  return reach ? creditSlide(credits + reach, need, broke) + Math.min(credits, 0) : creditSlide(credits, need, broke);
 }
 
 /**
