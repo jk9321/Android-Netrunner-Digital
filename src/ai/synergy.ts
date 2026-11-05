@@ -382,6 +382,8 @@ export const tuning = {
     agendaCredits: true,
     /** Jeff, 2026-10-31 ("a broke Corp can't do anything since it can't rez ice"): the Corp's credits are worth the best money operation in HQ they can pay for, half its net gain, on the credit slide (valueModel.ts moneyReach). */
     moneyReach: true,
+    /** Jeff, 2026-11-05 (his Corp game 1: the Runner clicked for credits on 0 credits beside 15 banked Fermenter counters): Fermenter counters priced on the Runner's credit slide, the click shared by the bank; the bank's purge risk ends the worth of holding past 10 (cards/systemGateway.ts). */
+    fermenterBank: true,
     /** Jeff, 2026-10-31 (same report): on the Corp's turn the agendas on the board share its clicks and credits, nearest to scored first, instead of each counting on all of them (evaluate.ts agendaBudgets). */
     agendaBudget: true,
     /** Jeff, 2026-10-31 (same report): the turn planner's playouts score an agenda its last click finished (turnPlanner.ts). */
