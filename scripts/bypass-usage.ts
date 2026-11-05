@@ -20,7 +20,8 @@ const corps = ALL_DECKS.filter(d => d.side === 'corp');
 const offered = new Map<string, number>();
 const taken = new Map<string, number>();
 const inc = (m: Map<string, number>, k: string) => m.set(k, (m.get(k) ?? 0) + 1);
-let runnerWins = 0, n = 0, played = { dobrado: 0, window: 0 }, held = { dobrado: 0, window: 0 }, bypassed = 0;
+let runnerWins = 0, n = 0, bypassed = 0;
+const played = { dobrado: 0, window: 0 }, held = { dobrado: 0, window: 0 };
 for (const r of runners) for (const c of corps) for (let g = 0; g < games; g++) {
   const seed = 5000 + n;
   let state: GameState = createInitialGameState(deckGameSetup(seed, c, r));

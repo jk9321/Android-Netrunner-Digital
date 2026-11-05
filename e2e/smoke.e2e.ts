@@ -28,7 +28,8 @@ test('play against the computer and resume after a reload', async ({ page }) => 
   const cardWidth = () => page.locator('.card-fit').first().evaluate(el => el.getBoundingClientRect().width);
   const normalWidth = await cardWidth();
   await page.getByTestId('card-size').getByRole('button', { name: 'Large' }).click();
-  expect(await cardWidth()).toBeGreaterThan(normalWidth);
+  // Auto fit glides to the new size, so wait for the transition to land
+  await expect.poll(cardWidth).toBeGreaterThan(normalWidth);
 
   // A reload picks up the same game, mid-turn
   await page.reload();
