@@ -35,7 +35,6 @@ const KNOWN_GAPS: Record<string, string> = {
   '35003': 'Charm Offensive: trashing a rezzed copy of a card accessed in Archives',
   '36019': 'Beta Build: the program it installs for the run',
   '34019': 'Debbie "Downtown" Moreira: credits from run events',
-  '34078': 'Alarm Clock: bypass for 2 clicks',
   '34086': 'Spree: moving a trojan to the attacked server',
   '30058': 'AMAZE Amusements: tags when an agenda is stolen from its server',
   '35019': 'Maglectric Rapid: derez a Corp card after an HQ run',
