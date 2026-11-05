@@ -3,7 +3,7 @@ import { GameState } from '../types/state';
 import { cardDef } from '../cards';
 import { nextInt, shuffleInPlace } from '../rng';
 import { addLog } from '../engine/log';
-import { findCardAnywhere, findInstalledCorpCard, noteTrashedFromHand, removeCard, revealInHand } from '../engine/helpers';
+import { findCardAnywhere, findInstalledCorpCard, illegal, noteTrashedFromHand, removeCard, revealInHand } from '../engine/helpers';
 import { runnerSeesRd } from '../engine/rdKnowledge';
 import { breachOutsideRun, runBlocked, runnerTrashInstalledCorpCard, startRun, trashAccessedCard } from '../engine/actions/run';
 import { answerBoostDiscard, BOOST_DISCARD_STEP } from '../engine/actions/breaking';
@@ -31,7 +31,7 @@ import {
 import { addBreakerStrength, breakerStrength, bypassIce, encounteredIce, enterMovement, iceScript, iceStrength, iceSubroutines, iceSubtypes, markSubroutinesBroken } from '../engine/ice';
 import { rezForFree } from '../engine/actions/corp';
 import { CardScript, EffectAnswer, EffectContext } from './types';
-import { arrangeNext, arrangeTop, askCards, askChoice, askRunnerInstall, gainCredits, iceLabel, installableRunnerCards, installRunnerChoice, installRunnerHostChoice } from './effects';
+import { arrangeNext, arrangeTop, askCards, askChoice, askRunnerInstall, effectTrashableFirst, gainCredits, iceLabel, installableRunnerCards, installRunnerChoice, installRunnerHostChoice } from './effects';
 import { returnInstalledToHQ } from './liberationCorp';
 
 /** Runner cards from Liberation: The Automata Initiative (34001-34030) and Rebellion Without Rehearsal (34066-34095). */
@@ -1506,15 +1506,18 @@ const lobisomem: CardScript = {
 
 // Muse (Daemon): When you install this program, search your stack, heap, or grip for 1 non-daemon
 // program. If that program is a trojan, install it on a piece of ice. Otherwise, install it on this
-// program. (A program on Muse is trashed with it, rules 1.13.)
+// program. (A program on Muse is trashed with it, rules 1.13.) The hosted program still uses its own
+// memory (NSG ruling: its memory cost isn't ignored; rules 3.9.3), and Muse can't be trashed to make
+// room for it unless it is a trojan going on ice (NSG ruling).
 const museTargets = (state: GameState) =>
   [...state.runner.stack, ...state.runner.heap, ...state.runner.grip].filter(c => type(c) === 'program' && !hasKeyword(c, 'daemon'));
 const muse: CardScript = {
   triggers: {
     installed: (ctx, e) => {
       if (!isSelf(ctx, e.card)) return;
-      const options = installableRunnerCards(ctx.state, museTargets(ctx.state));
-      if (options.length > 0) askRunnerInstall(ctx, 'Muse: search your stack, heap or grip for 1 non-daemon program to install.', ids(options), 0, 1, 'install');
+      const hostId = ctx.card.instanceId;
+      const options = installableRunnerCards(ctx.state, museTargets(ctx.state), 0, hostId);
+      if (options.length > 0) askRunnerInstall(ctx, 'Muse: search your stack, heap or grip for 1 non-daemon program to install.', ids(options), 0, 1, 'install', { hostId });
       else shuffleInPlace(ctx.state.rng, ctx.state.runner.stack);
     },
   },
@@ -1524,8 +1527,12 @@ const muse: CardScript = {
       const id = picked(answer)[0];
       if (id) {
         const card = findCardAnywhere(state, id);
+        const trashIds = answer.kind === 'effect_cards' ? (answer.trashFirst ?? []) : [];
+        if (card && trashIds.some(t => !effectTrashableFirst(state, card, source.data).some(c => c.instanceId === t))) {
+          illegal(`Can't trash those programs to install ${title(card)} on Muse`);
+        }
         if (card) addLog(state, 'runner', `Runner found ${title(card)} (Muse).`, card.cardCode);
-        const installed = installRunnerChoice(ctx, id, 'host', 0, {}, answer.kind === 'effect_cards' ? answer.trashFirst : []);
+        const installed = installRunnerChoice(ctx, id, 'host', 0, {}, trashIds);
         const muse = ctx.card;
         if (installed && card && state.runner.rig.programs.includes(muse) && state.runner.rig.programs.includes(card)) {
           card.hostedOnId = muse.instanceId;

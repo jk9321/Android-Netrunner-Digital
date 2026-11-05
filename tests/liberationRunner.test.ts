@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
-import { createCardInstance, executeAction, findCardAnywhere, GameState, iceStrength, isLegalAction } from '../src/core';
+import { createCardInstance, effectTrashableFirst, executeAction, findCardAnywhere, GameState, iceStrength, isLegalAction } from '../src/core';
+import { makeRoomAnswers } from '../src/ai/prompts';
 import { breakerStrength, markSubroutinesBroken } from '../src/core/engine/ice';
 import { purgeVirusCounters } from '../src/core/engine/cardEffects';
 import { dealNetDamage, giveTags, trashInstalledRunnerCard } from '../src/core/engine/damage';
@@ -903,6 +904,52 @@ describe('Rebellion Without Rehearsal: Shaper and neutral', () => {
     expect(card(s, leech.instanceId).hostedOnId).toBe(muse);
     trashInstalledRunnerCard(s, card(s, muse));
     expect(inHeap(s, leech.instanceId)).toBe(true);
+  });
+
+  it('A program hosted on Muse still uses its own memory (NSG ruling; rules 3.9.3)', () => {
+    let s = newGame();
+    const leech = createCardInstance(s, SG.leech);
+    s.runner.heap.push(leech);
+    const [s1] = runnerInstall(s, L.muse);
+    s = pick(s1, [leech.instanceId]);
+    expect(s.runner.memoryUnitsUsed).toBe(2); // Muse 1 + Leech 1
+  });
+
+  it('Muse can only be trashed to make room when the found program is a trojan (NSG ruling)', () => {
+    // 3 MU of programs plus Muse fills the 4 MU limit
+    const full = () => {
+      const s = newGame();
+      const saw = installProgramForTest(s, SG.buzzsaw);
+      installProgramForTest(s, SG.cleaver);
+      installProgramForTest(s, SG.leech);
+      return { s, saw };
+    };
+    // A non-trojan goes on Muse, so Muse can't make room for it
+    let { s, saw } = full();
+    const leech = createCardInstance(s, SG.leech);
+    s.runner.heap.push(leech);
+    const [s1, muse] = runnerInstall(s, L.muse);
+    expect(s1.runner.memoryUnitsUsed).toBe(4);
+    expect(effectTrashableFirst(s1, card(s1, leech.instanceId), source(s1)?.data).map(c => c.instanceId)).not.toContain(muse);
+    expect(() => answer(s1, { kind: 'effect_cards', cardInstanceIds: [leech.instanceId], trashFirst: [muse] })).toThrow();
+    for (const a of makeRoomAnswers(s1, { type: 'RESOLVE_PROMPT', player: 'runner', promptId: prompt(s1).id, choice: { kind: 'effect_cards', cardInstanceIds: [leech.instanceId] } })) {
+      expect(a.type === 'RESOLVE_PROMPT' && a.choice.kind === 'effect_cards' && a.choice.trashFirst).not.toContain(muse);
+    }
+    const s2 = keepGoing(answer(s1, { kind: 'effect_cards', cardInstanceIds: [leech.instanceId], trashFirst: [saw] }));
+    expect(card(s2, leech.instanceId).hostedOnId).toBe(muse);
+    expect(s2.runner.memoryUnitsUsed).toBe(4);
+    // A trojan goes on ice, so Muse may be trashed for it
+    ({ s } = full());
+    const pal = installIceForTest(s, SG.palisade, 'hq');
+    const sv = createCardInstance(s, L.slap);
+    s.runner.stack.push(sv);
+    const [t1, muse2] = runnerInstall(s, L.muse);
+    t1.runner.credits += 5;
+    expect(effectTrashableFirst(t1, card(t1, sv.instanceId), source(t1)?.data).map(c => c.instanceId)).toContain(muse2);
+    const t2 = choose(keepGoing(answer(t1, { kind: 'effect_cards', cardInstanceIds: [sv.instanceId], trashFirst: [muse2] })), pal);
+    expect(card(t2, sv.instanceId).hostedOnId).toBe(pal);
+    expect(inHeap(t2, muse2)).toBe(true);
+    expect(t2.runner.memoryUnitsUsed).toBe(4);
   });
 
   it('Pressure Spike gets +9 strength once per run at threat 4', () => {

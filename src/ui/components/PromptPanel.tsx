@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { CardInstance, GameState, PromptChoice, activePrompt, availableCredits, cardDef, findCardAnywhere, isLegalAction, locateCorpCard, trashableFirst } from '../../core';
+import { CardInstance, GameState, PromptChoice, activePrompt, availableCredits, cardDef, findCardAnywhere, isLegalAction, locateCorpCard, trashableFirst, effectTrashableFirst } from '../../core';
 import { TrashFirstButton, TrashFirstPicker } from './TrashFirstPicker';
 import { CardView } from './CardView';
 import { Check, RefreshCw, Trash2, X } from 'lucide-react';
@@ -65,7 +65,7 @@ export const PromptPanel: React.FC<PromptPanelProps> = ({ state, onAnswer, onIns
   const trashableFor = (optionId: string): CardInstance[] => {
     const card = installCardFor(optionId);
     if (!card) return [];
-    return isCorp ? (optionId === 'new' ? [] : trashableFirst(state, card, optionId)) : trashableFirst(state, card, null);
+    return isCorp ? (optionId === 'new' ? [] : trashableFirst(state, card, optionId)) : effectTrashableFirst(state, card, 'source' in prompt ? prompt.source.data : undefined);
   };
   const trashingChoice = (optionId: string, trash: string[]): PromptChoice =>
     prompt.kind === 'effect_cards' ? { kind: 'effect_cards', cardInstanceIds: [optionId], trashFirst: trash } : { kind: 'effect_choice', optionId, trashFirst: trash };

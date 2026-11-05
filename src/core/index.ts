@@ -18,6 +18,7 @@ export { knownInRd } from './engine/rdKnowledge';
 export { getCardScript, scriptedCardCodes } from './scripts';
 export { rezCost as rezCostOf, availableCredits, virusCountersInPlay } from './engine/cardEffects';
 export { trashableFirst } from './engine/actions/install';
+export { effectTrashableFirst } from './scripts/effects';
 export { installedIce } from './engine/cardEffects';
 export { encounteredIce, iceScript, breakerScript, iceStrength, iceSubroutines, breakerStrength, installedIcebreakers, boostCostOf, iceSubtypes } from './engine/ice';
 export { validateDeck, requiredAgendaPoints, influenceCost, copyLimitProblems } from './deckValidation';

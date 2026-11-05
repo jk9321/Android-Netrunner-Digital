@@ -144,16 +144,30 @@ export function runnerZoneOf(state: GameState, instanceId: string): CardInstance
   return [grip, heap, stack, ...hosted].find(z => z.some(c => c.instanceId === instanceId));
 }
 
-/** Runner cards in `cards` that could be installed now (with a discount). Trojans need some ice. */
-export function installableRunnerCards(state: GameState, cards: CardInstance[], discount = 0): CardInstance[] {
+/**
+ * Runner cards in `cards` that could be installed now (with a discount). Trojans need some ice.
+ * `hostId`: a non-trojan card is installed on that card (Muse), so it can't be trashed to make room.
+ */
+export function installableRunnerCards(state: GameState, cards: CardInstance[], discount = 0, hostId?: string): CardInstance[] {
   const ice = installedIce(state);
   // A program may fit once installed programs are trashed to make room (rules 8.5.6c)
   const freeable = freedMemory(state.runner.rig.programs);
+  const freeableKeepingHost = freedMemory(state.runner.rig.programs.filter(c => c.instanceId !== hostId));
   return cards.filter(c => {
     if (!['program', 'hardware', 'resource'].includes(cardDef(c).type_code)) return false;
     if (getCardScript(c.cardCode)?.installsOnIce) return ice.some(i => !runnerInstallBlocker(state, c, i.instanceId, discount, freeable));
-    return !runnerInstallBlocker(state, c, undefined, discount, freeable);
+    return !runnerInstallBlocker(state, c, undefined, discount, freeableKeepingHost);
   });
+}
+
+/**
+ * The installed cards the Runner may trash to install `card` for an effect (rules 8.5.6c). An effect
+ * that installs the card on one of their programs (Muse, data.hostId) can't trash that host, unless
+ * the card is a trojan going on ice instead (NSG ruling on Muse).
+ */
+export function effectTrashableFirst(state: GameState, card: CardInstance, data: EffectSource['data'] = {}): CardInstance[] {
+  const keep = getCardScript(card.cardCode)?.installsOnIce ? undefined : data?.hostId;
+  return trashableFirst(state, card, null).filter(c => c.instanceId !== keep);
 }
 
 /** askCards() for a Runner card to install: the answer may name programs to trash first (rules 8.5.6c). */
