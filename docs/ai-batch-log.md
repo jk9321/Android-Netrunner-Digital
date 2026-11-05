@@ -260,3 +260,7 @@ Every self-play batch, newest last (Jeff, 2026-10-28). Made with `scripts/corp-l
 | 2026-11-05 | iceStopAnchor off | 473dbe8 | 663 | **44.3%** | 34.7% / 9.7% | 48.6% / 7.1% | 44.4% / 24.1% / 26.9% / 4.5% | 7.1 | [txt](batch-logs/2026-11-05-icestopanchor-off.txt) |
 | 2026-11-05 | heldMoney on | 67f8c47 | 663 | **36.8%** | 31.1% / 5.7% | 54.3% / 8.9% | 42.5% / 24.7% / 25.5% / 7.4% | 7.6 | [txt](batch-logs/2026-11-05-heldmoney-on.txt) |
 | 2026-11-05 | heldMoney off | 67f8c47 | 663 | **37.4%** | 29.7% / 7.7% | 53.4% / 9.2% | 42.6% / 26.5% / 24.9% / 6.0% | 7.4 | [txt](batch-logs/2026-11-05-heldmoney-off.txt) |
+| 2026-11-05 | brokeSlope v1 on (games 3-10 top-up) | db12618 | 884 | **42.6%** | 33.3% / 9.4% | 47.2% / 10.2% | 43.2% / 23.6% / 26.4% / 6.7% | 8.3 | [txt](batch-logs/2026-11-05-brokeslope-v1-on-games-3-10-top-up.txt) |
+| 2026-11-05 | brokeSlope v1 off (games 3-10 top-up) | db12618 | 884 | **39.9%** | 32.7% / 7.2% | 49.1% / 11.0% | 44.4% / 24.8% / 24.4% / 6.4% | 7.3 | [txt](batch-logs/2026-11-05-brokeslope-v1-off-games-3-10-top-up.txt) |
+| 2026-11-05 | brokeSlope v2 on | 336d373 | 2210 | **39.5%** | 33.1% / 6.3% | 51.4% / 9.2% | 43.2% / 25.2% / 24.8% / 6.8% | 7.7 | [txt](batch-logs/2026-11-05-brokeslope-v2-on.txt) |
+| 2026-11-05 | brokeSlope v2 off | 336d373 | 2210 | **39.0%** | 32.4% / 6.6% | 51.6% / 9.4% | 44.2% / 25.3% / 24.1% / 6.4% | 7.5 | [txt](batch-logs/2026-11-05-brokeslope-v2-off.txt) |
