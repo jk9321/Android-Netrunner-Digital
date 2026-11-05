@@ -436,6 +436,10 @@ export class HeuristicCorpAI implements Agent {
     if (this.synergy && !plansOn() && myoshuSaving(state, true) && resolved.corp.credits < MYOSHU_COST && resolved.corp.score === corp.score) score -= 1;
     // Deck-aware AI: a play that makes an agenda scoreable this turn (Seamless Launch, Key Performance Indicators...)
     if (this.synergy && tuning.plan.scoreSetup && scoreable(resolved) > scoreable(state)) score = Math.max(score, 41);
+    // plan.finishSetup (Jeff's Corp game 1, bug report #17: The Holo Man's 3 counters left Offworld Office one advance short,
+    // and the reserve penalty on the 4 credits buried it): a play that lets this turn's clicks and credits finish an agenda
+    // ranks with the advance that would, and the reserve isn't held against it
+    if (this.synergy && tuning.plan.finishSetup && finishable(resolved) > finishable(state)) return Math.max(score, 40);
     if (!spendsClick && score <= 0.3) return -Infinity;
     score -= reservePenalty(state, resolved.corp.credits, this.wideReserve);
     return score;
@@ -1128,6 +1132,17 @@ export function agendaStakes(state: GameState, agenda: CardInstance): number {
 }
 
 /** Installed agendas with enough counters to score. */
+/** Agendas in the root of a server the Corp can finish and score with the clicks and credits it has left (an advance is a click and a credit, rule 5.2.6). */
+function finishable(state: GameState): number {
+  return Object.values(state.corp.servers)
+    .flatMap(s => s.root)
+    .filter(c => {
+      if (type(c) !== 'agenda') return false;
+      const need = Math.max(0, (cardDef(c).advancement_cost ?? 99) - c.advancementCounters);
+      return need <= state.corp.clicks && need <= state.corp.credits;
+    }).length;
+}
+
 function scoreable(state: GameState): number {
   return Object.values(state.corp.servers)
     .flatMap(s => s.root)

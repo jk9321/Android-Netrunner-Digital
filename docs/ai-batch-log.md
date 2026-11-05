@@ -277,3 +277,7 @@ Every self-play batch, newest last (Jeff, 2026-10-28). Made with `scripts/corp-l
 | 2026-11-05 | install value: incomeSlide off | 56edad6 | 663 | **36.5%** | 30.6% / 5.9% | 53.4% / 10.1% | 43.9% / 24.3% / 25.4% / 6.3% | 7.7 | [txt](batch-logs/2026-11-05-install-value-incomeslide-off.txt) |
 | 2026-11-05 | install value: card usage report on | 56edad6 | 1279 | **44.9%** |  /  |  /  |  /  /  /  |  | [txt](batch-logs/2026-11-05-install-value-card-usage-report-on.txt) |
 | 2026-11-05 | card payoff report | 56edad6 |  | **** |  /  |  /  |  /  /  /  |  | [txt](batch-logs/2026-11-05-card-payoff-report.txt) |
+| 2026-11-05 | agendaClicks on | 6d771eb | 2210 | **37.5%** | 30.5% / 6.9% | 51.7% / 10.9% | 43.4% / 24.9% / 25.1% / 6.6% | 7.8 | [txt](batch-logs/2026-11-05-agendaclicks-on.txt) |
+| 2026-11-05 | agendaClicks off | 6d771eb | 2210 | **38.1%** | 30.8% / 7.2% | 52.4% / 9.6% | 43.2% / 25.6% / 24.5% / 6.7% | 7.8 | [txt](batch-logs/2026-11-05-agendaclicks-off.txt) |
+| 2026-11-05 | finishSetup+holoManMove on | 51ae8dd | 2210 | **37.2%** | 30.2% / 7.0% | 52.2% / 10.6% | 43.3% / 24.6% / 25.2% / 6.9% | 7.8 | [txt](batch-logs/2026-11-05-finishsetup-holomanmove-on.txt) |
+| 2026-11-05 | finishSetup+holoManMove off | 51ae8dd | 2210 | **37.5%** | 30.5% / 6.9% | 51.7% / 10.9% | 43.4% / 24.9% / 25.1% / 6.6% | 7.8 | [txt](batch-logs/2026-11-05-finishsetup-holomanmove-off.txt) |

@@ -103,12 +103,21 @@ export const BROKE_CREDITS = 4;
 
 /** Worth of each agenda point by the score it takes a side to (index = score reached; 7 is the win). */
 const POINT_STEPS = [0, 8, 8, 9, 10, 12, 15, 15];
+
+/**
+ * Settings scripts/human-agreement.ts sweeps to fit the Corp to a human's choices (Jeff, 2026-11-05: his Corp games as
+ * the teacher instead of fixing one hole at a time). Play leaves them at 1: each scales a rate it names.
+ */
+export const KNOBS = {
+  /** The Corp's points (POINT_STEPS), as the Corp counts them. */
+  corpPoints: 1,
+};
 /** Worth of a score of `score` points: the sum of its steps. */
-export function pointValue(score: number): number {
-  if (!tuning.plan.pointClock) return RATES.point * score;
+export function pointValue(score: number, scale = 1): number {
+  if (!tuning.plan.pointClock) return RATES.point * score * scale;
   let value = 0;
   for (let s = 1; s <= score; s++) value += POINT_STEPS[Math.min(s, 7)];
-  return value;
+  return value * scale;
 }
 
 /** What a position holds that the value helpers read: two calls with the same fingerprint on the same state agree. */

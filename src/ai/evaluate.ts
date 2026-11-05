@@ -11,7 +11,7 @@ import { AI_BREAKER_SHARE, breakerTypeWorth, flatIceWorth, iceWorth } from './ic
 import { payoutWait, payoutWorth, profileOf, turnsLeft } from './cardProfiles';
 import { resourceTrashHqCost } from '../core/engine/actions/basic';
 import { HAND_FLOOR, clickPrice, handByCard, heldWorth, ownHandValue, playedWorth } from './handValues';
-import { CLICK, RATES, cardRate, creditValue, flatRate, flatlineWorth, guardLoop, handFilter, memo, payoutSlide, pointValue, reachCard, sideCreditValue } from './valueModel';
+import { CLICK, KNOBS, RATES, cardRate, creditValue, flatRate, flatlineWorth, guardLoop, handFilter, memo, payoutSlide, pointValue, reachCard, sideCreditValue } from './valueModel';
 import { PACE, STEAL, coreSlotWorth, flatlineOdds, lifeGrip, runSuccess, stealOdds } from './effectValues';
 import { trashedCardCost } from './runs';
 
@@ -230,6 +230,13 @@ export const agendaBoardValue = (counters: number, cost: number) => counters * R
 /** Chance the Runner runs a remote holding an advanced agenda on its turn (measured, scripts/pace.ts at b72eb3d: 40% of 6,689 turns). */
 export const AGENDA_RUN = 0.4;
 
+/** What a Corp click spent advancing could have built instead (plan.agendaClicks). */
+export let AGENDA_CLICK = 2;
+/** scripts/human-agreement.ts sweeps it. */
+export function setAgendaClick(value: number): void {
+  AGENDA_CLICK = value;
+}
+
 /**
  * An installed agenda (Jeff, 2026-10-28; plan.agendaBoard): its points on
  * the clock, if it survives the Runner's turns until it can be scored, less
@@ -250,7 +257,7 @@ export function agendaWorth(
   budget: { clicks: number; credits: number } = state.corp
 ): number {
   if (!tuning.plan.agendaBoard) return agendaBoardValue(counters, cost);
-  const gain = pointValue(state.corp.score + points) - pointValue(state.corp.score);
+  const gain = pointValue(state.corp.score + points, KNOBS.corpPoints) - pointValue(state.corp.score, KNOBS.corpPoints);
   const need = Math.max(0, cost - counters);
   const steal =
     tuning.plan.stealOdds && success === undefined && serverId
@@ -270,7 +277,10 @@ export function agendaWorth(
   const runnerTurns =
     state.activePlayer === 'corp' ? Math.ceil(Math.max(0, clicks - budget.clicks) / 3) : 1 + Math.ceil(Math.max(0, clicks - 3) / 3);
   const late = 1 - 1 / turnsLeft(state);
-  return gain * ((1 - steal) * late) ** runnerTurns - need * (CLICK + 1);
+  // plan.agendaClicks (Jeff's Corp game 2, bug report #18): the clicks still needed are clicks a later turn can't spend
+  // building; priced at the flat click rate, building now and scoring next turn always beat scoring now and building next
+  const click = tuning.plan.agendaClicks ? AGENDA_CLICK : CLICK;
+  return gain * ((1 - steal) * late) ** runnerTurns - need * (click + 1);
 }
 
 /**
@@ -494,7 +504,7 @@ export function sideStrength(state: GameState, side: SideCode, viewer: SideCode 
     return (
       sideCreditValue(state, 'corp', viewer) +
       handAndClicks(state, 'corp', viewer) +
-      pointValue(corp.score) +
+      pointValue(corp.score, viewer === 'corp' ? KNOBS.corpPoints : 1) +
       corpBoardValue(state, viewer) +
       (tuning.plan.tagClock ? tagsWorth(state, viewer) : (RATES.tagForCorp + threat) * state.runner.tags) +
       // Dividends and Next Big Thing counters, AU Co. power counters
