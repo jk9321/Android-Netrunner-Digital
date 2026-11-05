@@ -181,6 +181,14 @@ export class HeuristicCorpAI implements Agent {
         if (state.corp.credits - cost < 2 && importance < 4) score -= 2;
         // (Jeff) money kept to rez an agenda remote's ice isn't spent on ice elsewhere
         if (this.synergy && tuning.plan.agendaMoney && state.corp.credits - cost < agendaRemoteNeed(state, server.id)) score -= 3;
+        // plan.rezToll (Jeff, 2026-11-05: the Corp's money goes on ice rezzed in runs): ice the Runner can pay its way
+        // through doesn't stop the run, it only takes a toll. Outside a server holding an agenda, paying more to rez it
+        // than twice the toll (this run's and about one more) loses money: 27% of the Corp's in-run rez money went there
+        if (this.synergy && tuning.plan.rezToll && importance < 7) {
+          const rezzed = { ...card, isRezzed: true };
+          const need = iceCreditNeed(state, rezzed);
+          if (need > 0 && need < BLOCK && need <= state.runner.credits && 2 * iceCost(state, rezzed) < cost) continue;
+        }
       } else if (def.type_code === 'upgrade') {
         if (hacksOff('rezPriority')) {
           // Upgrades: by what they do here (model), up to the 2 an upgrade gives up against ice;

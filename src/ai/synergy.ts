@@ -292,6 +292,8 @@ export const tuning = {
     pettyCashFirst: true,
     /** Corp: with the Runner tagged, a resource trash among the actions it has clicks for goes first (corpAI tagFirst). */
     tagFirst: true,
+    /** Corp: in a run, breakable ice outside an agenda server is rezzed only when its toll is worth the rez (corpAI decideRez). */
+    rezToll: true,
     /** Corp: click for credits toward a money operation in HQ it can't afford yet (Hedge Fund, Subsidy...). */
     saveForOps: true,
     /** Runner: Botulus counters count as free breaks when costing ice; trojans go on the ice they help most, not doubled up. */
