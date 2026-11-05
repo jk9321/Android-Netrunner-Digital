@@ -1,0 +1,10 @@
+Batch: run odds report (beta e54093a) | ref e54093a451eaaf17843e60c9b8ca3594db3ce25a | games 0-1 | PLAN_OFF= | decks  | run-odds corp | added run 
+1280 games: 19073 Runner turns, 23039 runs = 1.21 a turn (PACE.runs 1.2)
+
+server     runs  share (PACE)   pass odds forecast at the run   succeeded   odds at turn start (every turn)
+hq         3985   0.17 (0.27)                         0.76        0.34         0.50
+rd         4768   0.21 (0.20)                         0.77        0.38         0.51
+archives   1245   0.05 (0.15)                         0.94        0.26         0.95
+remote    13041   0.57 (0.39)                         0.88        0.71   -
+
+all runs succeeded 0.55 (PACE.success 0.8); successful runs a Runner turn 0.67
