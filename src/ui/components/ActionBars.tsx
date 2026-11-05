@@ -164,7 +164,12 @@ export function CorpActions(props: ActionBarProps) {
           return (
             <button
               key={a.cardInstanceId}
-              onClick={() => onAction(a)}
+              onClick={() => {
+                hoverPromptTarget(null);
+                onAction(a);
+              }}
+              onMouseEnter={() => res && hoverPromptTarget({ id: res.instanceId, label: null })}
+              onMouseLeave={() => hoverPromptTarget(null)}
               className="px-2 py-1.5 bg-gradient-to-b from-red-950/90 to-red-950/40 hover:from-red-900/90 hover:to-red-900/40 border border-red-700/80 border-b-2 border-b-red-500 text-red-200 text-xs font-bold rounded-[2px] transition-all flex items-center gap-1.5 shadow active:translate-y-[1px] active:border-b-[1px]"
               title="The Runner is tagged: spend a click and 2 credits to trash this resource"
             >

@@ -364,7 +364,12 @@ export const PromptPanel: React.FC<PromptPanelProps> = ({ state, onAnswer, onIns
                     className={`${button} bg-red-700 hover:bg-red-600 border-red-500 text-white`}
                     disabled={!canTrash}
                     title={canTrash ? undefined : 'Not enough credits to pay the trash cost'}
-                    onClick={() => answer({ kind: 'access_trash', trash: true })}
+                    onClick={() => {
+                      hoverPromptTarget(null);
+                      answer({ kind: 'access_trash', trash: true });
+                    }}
+                    onMouseEnter={() => card && hoverPromptTarget({ id: card.instanceId, label: null })}
+                    onMouseLeave={() => hoverPromptTarget(null)}
                   >
                     <Trash2 className="w-3.5 h-3.5" /> Trash (<Credits amount={prompt.trashCost ?? 0} />)
                   </button>
