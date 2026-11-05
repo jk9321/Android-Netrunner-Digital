@@ -382,6 +382,10 @@ export const tuning = {
     agendaCredits: true,
     /** Jeff, 2026-10-31 ("a broke Corp can't do anything since it can't rez ice"): the Corp's credits are worth the best money operation in HQ they can pay for, half its net gain, on the credit slide (valueModel.ts moneyReach). */
     moneyReach: true,
+    /** Jeff, 2026-11-05 (build econ before scoring): a held Hedge Fund was counted twice, as a card in HQ and on the credit slide by moneyReach, so playing it scored below a click for a credit; the card moneyReach counts is left out of HQ's worth (evaluate.ts handAndClicks, handValues.ts ownHandValue). */
+    heldMoney: true,
+    /** Jeff, 2026-11-05 ("rez ice when needed, but build back up after"): the Corp's first 4 credits are worth up to 2.8 each, not 1.8 (valueModel.ts sideCreditValue, BROKE_SLOPE, BROKE_CREDITS). */
+    brokeSlope: true,
     /** Jeff, 2026-10-31 (same report): on the Corp's turn the agendas on the board share its clicks and credits, nearest to scored first, instead of each counting on all of them (evaluate.ts agendaBudgets). */
     agendaBudget: true,
     /** Jeff, 2026-10-31 (same report): the turn planner's playouts score an agenda its last click finished (turnPlanner.ts). */
