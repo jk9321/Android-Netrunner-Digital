@@ -20,6 +20,8 @@ const TROJANS = [BOTULUS, TRANQUILIZER];
  * subtypes it can't break yet, and runs the server with the best expected
  * value for its cost. It only looks at public information when planning runs.
  */
+const WINDOW_OF_OPPORTUNITY = '34077';
+
 export class HeuristicRunnerAI implements Agent {
   readonly side = 'runner' as const;
   private freeActions = new FreeActionGuard(['END_TURN', 'INITIATE_RUN']);
@@ -276,6 +278,24 @@ export class HeuristicRunnerAI implements Agent {
       const options = { ...runEventOptions(prompt.source.cardCode, state), memory: this.memory, wary: this.synergy && tuning.wary, urgent: this.synergy && tuning.plan.urgency };
       const best = Math.max(...prompt.options.map(o => runScore(state, o.id, options)));
       return best - spendCost(state, paid) + (prompt.source.cardCode === '30028' ? (tuning.plan.runModel ? RATES.drawnCard : tuning.plan.drawValue?.runner ? 1.3 : 0.5) : 0); // Jailbreak draws a card
+    }
+    // Window of Opportunity (plan.bypass): its install first (worth what the board gains, with no click), then its run
+    if (cardCode === WINDOW_OF_OPPORTUNITY && tuning.plan.bypass && prompt?.side === 'runner' && !state.activeRun) {
+      let ready = after;
+      for (let i = 0; i < 3; i++) {
+        const next = activePrompt(ready);
+        if (!next || next.side !== 'runner' || (next.kind === 'effect_choice' && next.options.every(o => ready.corp.servers[o.id]))) break;
+        const resolved = simulate(ready, answerPrompt(ready, 'runner', this.memory, this.synergy));
+        if (!resolved) break;
+        ready = resolved;
+      }
+      const ask = activePrompt(ready);
+      if (ask?.kind === 'effect_choice' && ask.options.every(o => ready.corp.servers[o.id])) {
+        const options = { ...runEventOptions(WINDOW_OF_OPPORTUNITY, ready), memory: this.memory, wary: this.synergy && tuning.wary, urgent: this.synergy && tuning.plan.urgency };
+        const best = Math.max(...ask.options.map(o => runScore({ ...ready, runner: { ...ready.runner, clicks: state.runner.clicks } }, o.id, options)));
+        const install = evaluate(ready, 'runner', this.synergy) - evaluate(after, 'runner', this.synergy);
+        return best + install - spendCost(state, paid);
+      }
     }
     if (!state.activeRun && after.activeRun) {
       return runScore(state, after.activeRun.server, { ...runEventOptions(cardCode ?? '', state), memory: this.memory, wary: this.synergy && tuning.wary, urgent: this.synergy && tuning.plan.urgency }) - spendCost(state, paid) + 0.3;

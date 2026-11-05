@@ -5,7 +5,7 @@ import { bakerWantsFuel, principiaFuel } from './cardPlans';
 import { CLICK, cardRate } from './valueModel';
 import { PACE, accessWorth, placedCounterWorth } from './effectValues';
 import { turnsLeft } from './cardProfiles';
-import { BOTULUS, MANEGARM, RunOptions, RunnerMemory, iceCost, isTrap, runClick, runScore, serverValue, spendCost, subroutineCost, tagCost, weakestIce } from './runs';
+import { BLOCK, BOTULUS, MANEGARM, RunOptions, RunnerMemory, iceCost, isTrap, runClick, runScore, serverValue, spendCost, subroutineCost, tagCost, weakestIce, windowDerez } from './runs';
 import { breakerScript, encounteredIce, iceSubroutines, iceSubtypes, isIcebreaker } from '../core/engine/ice';
 import { keepBonus, tuning } from './synergy';
 import { freeInstallTarget, perfectRecallTarget } from './corpAI';
@@ -169,6 +169,10 @@ export function runEventOptions(cardCode: string, state?: GameState): RunOptions
       return { noBreach: true, successBonus: state && state.corp.hq.length > 0 ? 3 : 0 };
     case '34087': // Trick Shot: 4 credits for the run, 1 more R&D card, 2 credits after
       return { bonusCredits: 4, extraAccesses: 1, successBonus: 1.5 };
+    case '34012': // S-Dobrado: the first ice encountered is bypassed (rules 6.5.8a), a second for a click at threat 4
+      return tuning.plan.bypass ? { bypassFirst: true } : {};
+    case '34077': // Window of Opportunity: a rezzed ice derezzed as the run begins, and a free-click install
+      return tuning.plan.bypass ? { derezOne: true, successBonus: 0 } : {};
     case '34030': // Bahia Bands: two of 2 cards, a cheaper install, a tag gone, 4 credits
       return { successBonus: 4 };
     default:
@@ -303,6 +307,12 @@ export function answerPrompt(state: GameState, side: SideCode, memory?: RunnerMe
     const scored = servers.map(id => ({ id, score: runScore(state, id, { ...runEventOptions(prompt.source.cardCode, state), memory, wary: synergy && tuning.wary, urgent: synergy && tuning.plan.urgency }) }));
     scored.sort((a, b) => b.score - a.score);
     return { ...base, choice: { kind: 'effect_choice', optionId: scored[0].id } };
+  }
+
+  // Window of Opportunity (plan.bypass): derez the ice that costs the Runner most to get past (runs windowDerez)
+  if (side === 'runner' && tuning.plan.bypass && prompt.kind === 'effect_cards' && prompt.source.cardCode === '34077' && prompt.source.step === 'derez' && state.activeRun) {
+    const pick = windowDerez(state, state.activeRun.server)?.ice.instanceId;
+    if (pick && prompt.candidateIds.includes(pick)) return { ...base, choice: { kind: 'effect_cards', cardInstanceIds: [pick] } };
   }
 
   // Manegarm Skunkworks: pay the cheaper way in if the access is worth it, on the scale runScore planned the run with
@@ -453,17 +463,35 @@ export function answerPrompt(state: GameState, side: SideCode, memory?: RunnerMe
   const options = answers(state, side, synergy);
   let best: GameAction = options[0];
   let bestScore = -Infinity;
+  const skip = bypassSkips(state, side, prompt, memory, synergy);
   for (const action of options) {
     const after = simulate(state, action);
     if (!after) continue;
     let score = scoreOutcome(state, followChain(prompt, after, side, memory, synergy), side, memory, synergy);
     if (side === 'corp' && freeRezOn()) score += freeRezSaving(state, after);
+    if (skip && after.activeRun?.encounter?.iceId === skip.iceId) score -= skip.cost;
     if (score > bestScore) {
       bestScore = score;
       best = action;
     }
   }
   return best;
+}
+
+/**
+ * A "bypass this ice?" prompt (S-Dobrado, Alarm Clock, Malandragem, Curupira, Laser Pointer,
+ * Physarum Entangler, Fransofia Ward; plan.bypass). The board score only sees what the bypass
+ * costs (a click, a counter, the card trashed), so an answer that leaves the ice encountered
+ * also pays what the encounter costs: its subroutines broken or resolved (rules 6.5.8b), or,
+ * when it can't be got past, the run itself (scoreOutcome counts a run still going).
+ */
+function bypassSkips(state: GameState, side: SideCode, prompt: Prompt, memory?: RunnerMemory, synergy = false): { iceId: string; cost: number } | undefined {
+  if (side !== 'runner' || !tuning.plan.bypass || prompt.kind !== 'effect_choice' || prompt.source.step !== 'bypass' || !state.activeRun) return undefined;
+  const ice = encounteredIce(state);
+  if (!ice) return undefined;
+  const cost = iceCost(state, ice);
+  const run = serverValue(state, state.activeRun.server, 0, memory, synergy && tuning.wary, synergy && tuning.plan.urgency) * 0.8;
+  return { iceId: ice.instanceId, cost: cost === BLOCK ? run : spendCost(state, cost) };
 }
 
 /**

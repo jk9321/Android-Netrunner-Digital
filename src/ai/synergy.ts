@@ -167,6 +167,8 @@ export const tuning = {
     spareLastClick: true,
     /** Runner: Transfer of Wealth's run is worth the credits it moves (prompts runEventOptions); it was priced as a bare HQ run and never played. */
     transferOfWealth: true,
+    /** Runner: bypass (rules 6.5.8) is priced: S-Dobrado and Window of Opportunity runs skip their ice, bypass cards in the rig cut ice costs, and "bypass this ice?" prompts weigh the encounter they skip (runs runBypasses, prompts). */
+    bypass: true,
     /** Clearinghouse is advanced toward a flatline (grip + 1 counters, at most 6), not stopped at 3 like other assets. */
     clearinghouseLethal: true,
     /** Lookahead guesses (runnerReply.guessHidden, search.determinize) keep hand cards the guessing side has seen. */

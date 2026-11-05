@@ -11,11 +11,11 @@ import {
   installedIcebreakers,
   isBioroid,
 } from '../core/engine/ice';
-import { availableCredits, counters, stealthCredits } from '../core/engine/cardEffects';
+import { availableCredits, counters, rezCost, stealthCredits, threatLevel, turnFlag } from '../core/engine/cardEffects';
 import { stealCost } from '../core/engine/actions/run';
 import { spikeKey } from '../core/scripts/liberationRunner';
 import { corpCardValue, tagThreat, tagsWorth } from './evaluate';
-import { agendaOdds, coreDamageWorth, damageWorth } from './effectValues';
+import { agendaOdds, coreDamageWorth, counterWorthOf, damageWorth, runnerEffect } from './effectValues';
 import { clickPrice } from './handValues';
 import { tuning } from './synergy';
 import { RATES, clickRate, creditNeed, creditSlide, pointValue } from './valueModel';
@@ -287,6 +287,26 @@ export function bestBreakPlan(state: GameState, ice: CardInstance, subCount: num
 /** Estimated cost to get past one piece of ice, as the Runner sees it. */
 export function iceCost(state: GameState, ice: CardInstance): number {
   if (!ice.isRezzed) return state.corp.credits >= 3 ? 1.5 : 0.5;
+  const physarum = physarumCost(state, ice);
+  if (physarum !== undefined) return Math.min(physarum, plainIceCost(state, ice));
+  return plainIceCost(state, ice);
+}
+
+const PHYSARUM = '34082';
+
+/**
+ * Physarum Entangler on this ice: a credit a subroutine bypasses it on every
+ * encounter (rules 6.5.8a), unless it is a barrier. Undefined when none is hosted
+ * or the Runner can't pay.
+ */
+export function physarumCost(state: GameState, ice: CardInstance): number | undefined {
+  if (!tuning.plan.bypass || !ice.isRezzed || iceSubtypes(ice, state).includes('barrier')) return undefined;
+  if (!state.runner.rig.programs.some(p => p.cardCode === PHYSARUM && p.hostedOnId === ice.instanceId)) return undefined;
+  const credits = iceSubroutines(state, ice).length;
+  return credits <= runBudget(state) ? credits : undefined;
+}
+
+function plainIceCost(state: GameState, ice: CardInstance): number {
   // Botulus breaks the worst subroutines for free; the rest are tanked or broken
   const costs = (iceSubroutines(state, ice)).map(s => subroutineCost(state, s.label)).sort((a, b) => b - a);
   const subs = costs.slice(botulusBreaks(state, ice));
@@ -306,6 +326,13 @@ export function iceCost(state: GameState, ice: CardInstance): number {
  * broken in `broken` don't count. BLOCK when it can't be got past.
  */
 export function iceCreditNeed(state: GameState, ice: CardInstance, broken: boolean[] = []): number {
+  const need = plainCreditNeed(state, ice, broken);
+  // Physarum Entangler: bypassing costs its credits, before any subroutine is broken
+  const physarum = need > 0 && !broken.some(Boolean) ? physarumCost(state, ice) : undefined;
+  return physarum !== undefined ? Math.min(need, physarum) : need;
+}
+
+function plainCreditNeed(state: GameState, ice: CardInstance, broken: boolean[] = []): number {
   const subs = iceSubroutines(state, ice);
   const blocking = Math.max(0, subs.filter((s, i) => !broken[i] && subroutineCost(state, s.label) === BLOCK).length - botulusBreaks(state, ice));
   if (blocking === 0) return 0;
@@ -666,6 +693,10 @@ export interface RunOptions {
   baker?: boolean;
   /** Eru, Beatriz, Maintenance Access: a successful run breaches this server instead (with extraAccesses there). */
   breachAs?: string;
+  /** S-Dobrado: the first ice encountered is bypassed (plan.bypass). */
+  bypassFirst?: boolean;
+  /** Window of Opportunity: a rezzed ice is derezzed as the run begins (plan.bypass). */
+  derezOne?: boolean;
   /** Privileged Access, Burner: a successful run breaches nothing (its worth is successBonus). */
   noBreach?: boolean;
   /** Deck-aware AI: weigh trap risk by the traps this Corp may still have (see trapOdds). */
@@ -673,6 +704,89 @@ export interface RunOptions {
   /** Deck-aware AI: urgency on agendas the Corp could finish next turn, and late-game defence. */
   urgent?: boolean;
   memory?: RunnerMemory;
+}
+
+const MALANDRAGEM = '34081';
+const LASER_POINTER = '34016';
+const CURUPIRA = '34015';
+const FRANSOFIA_WARD = '35021';
+
+/** The ice on a run the Runner bypasses (rules 6.5.8a: no subroutines resolve), and what the bypasses cost it in credits' worth. */
+export interface Bypasses {
+  ids: Set<string>;
+  price: number;
+}
+
+/**
+ * The bypasses the Runner would use on a run on this server (plan.bypass):
+ * S-Dobrado's on the first ice encountered, which is the outermost rezzed
+ * ice (unrezzed ice is only encountered if rezzed on approach, 6.9.2c), and
+ * at threat 4 a click for the next; then each bypass card in the rig on the
+ * rezzed ice it fits where it saves more than it costs, greediest first.
+ * Rig bypasses fit only rezzed ice: the Runner can't see what unrezzed ice is.
+ * Physarum Entangler is in iceCost (it bypasses its host on every encounter).
+ */
+export function runBypasses(state: GameState, serverId: string, options: RunOptions = {}): Bypasses {
+  const out: Bypasses = { ids: new Set(), price: 0 };
+  const server = state.corp.servers[serverId];
+  if (!tuning.plan.bypass || !server) return out;
+  const outward = [...server.ice].reverse(); // outermost first
+  if (options.bypassFirst) {
+    const rezzed = outward.filter(ice => ice.isRezzed);
+    const first = rezzed[0] ?? outward[0];
+    if (first) out.ids.add(first.instanceId);
+    // Threat 4: the second ice encountered, for a click (the play's click is already spent)
+    const second = rezzed[1];
+    if (second && first?.isRezzed && threatLevel(state) >= 4 && state.runner.clicks >= 2 && iceCost(state, second) > runClick(state)) {
+      out.ids.add(second.instanceId);
+      out.price += runClick(state);
+    }
+  }
+  const uses: { fits: (ice: CardInstance) => boolean; price: number; uses: number }[] = [];
+  for (const card of [...state.runner.rig.programs, ...state.runner.rig.resources]) {
+    if (card.cardCode === MALANDRAGEM && counters(card, 'power') > 0 && turnFlag(state, `once:${card.instanceId}:0`) === 0) {
+      uses.push({ fits: ice => iceStrength(state, ice) <= 3, price: counterWorthOf(state, MALANDRAGEM, 'power'), uses: 1 });
+    } else if (card.cardCode === MALANDRAGEM && threatLevel(state) >= 4) {
+      uses.push({ fits: () => true, price: runnerEffect(state, MALANDRAGEM, card) ?? 1, uses: 1 });
+    }
+    if (card.cardCode === LASER_POINTER) {
+      uses.push({ fits: ice => /\b(ap|destroyer|observer)\b/i.test(cardDef(ice).keywords ?? ''), price: runnerEffect(state, LASER_POINTER, card) ?? 2, uses: 1 });
+    }
+    if (card.cardCode === CURUPIRA && counters(card, 'power') >= 3) {
+      uses.push({ fits: ice => iceSubtypes(ice, state).includes('barrier'), price: 3 * counterWorthOf(state, CURUPIRA, 'power'), uses: Math.floor(counters(card, 'power') / 3) });
+    }
+    if (card.cardCode === FRANSOFIA_WARD && state.corp.credits >= 15) {
+      uses.push({ fits: () => true, price: runnerEffect(state, FRANSOFIA_WARD, card) ?? 3, uses: 1 });
+    }
+  }
+  for (const use of uses) {
+    for (let n = 0; n < use.uses; n++) {
+      let best: { ice: CardInstance; saving: number } | undefined;
+      for (const ice of outward) {
+        if (!ice.isRezzed || out.ids.has(ice.instanceId) || !use.fits(ice)) continue;
+        const cost = iceCost(state, ice);
+        const saving = (cost === BLOCK ? 100 : cost) - use.price;
+        if (saving > 0 && (!best || saving > best.saving)) best = { ice, saving };
+      }
+      if (!best) break;
+      out.ids.add(best.ice.instanceId);
+      out.price += use.price;
+    }
+  }
+  return out;
+}
+
+/**
+ * Window of Opportunity: the rezzed ice it derezzes as the run begins (6.9.1c), the
+ * one costing the Runner most. Ice the Corp can't pay to rez again is not
+ * encountered (6.9.2c); ice it can rez again costs the Corp its rez cost.
+ */
+export function windowDerez(state: GameState, serverId: string): { ice: CardInstance; rerez: boolean } | undefined {
+  const rezzed = (state.corp.servers[serverId]?.ice ?? []).filter(ice => ice.isRezzed);
+  const ranked = rezzed.map(ice => ({ ice, cost: iceCost(state, ice) })).sort((a, b) => b.cost - a.cost);
+  const top = ranked[0];
+  if (!top) return undefined;
+  return { ice: top.ice, rerez: state.corp.credits >= rezCost(state, top.ice) };
 }
 
 /**
@@ -684,8 +798,9 @@ export function runShortfall(state: GameState, serverId: string): number | null 
   const server = state.corp.servers[serverId];
   if (!server) return null;
   let known = 0;
+  const bypassed = runBypasses(state, serverId);
   for (const ice of server.ice) {
-    if (!ice.isRezzed) continue;
+    if (!ice.isRezzed || bypassed.ids.has(ice.instanceId)) continue;
     const cost = iceCost(state, ice);
     if (cost === BLOCK) return null;
     known += cost;
@@ -719,7 +834,14 @@ export function runScore(state: GameState, serverId: string, options: RunOptions
   let paidOutside = 0;
   let waste = 0;
   const canRez = state.corp.credits >= (options.rezTax ? 4 : 1);
+  // Bypassed ice costs nothing to pass (rules 6.5.8a); Window of Opportunity's derezzed ice is
+  // passed unencountered unless the Corp rezzes it again (6.9.2b-c), which costs it the rez
+  const bypassed = runBypasses(state, serverId, options);
+  const derez = options.derezOne && tuning.plan.bypass ? windowDerez(state, serverId) : undefined;
+  if (derez && !derez.rerez) bypassed.ids.add(derez.ice.instanceId);
+  if (derez?.rerez) value += 0.5 * rezCost(state, derez.ice); // the Corp pays it about half the time
   for (const ice of [...server.ice].reverse()) {
+    if (bypassed.ids.has(ice.instanceId)) continue;
     if (ice.isRezzed) paidOutside += Math.min(iceCreditNeed(state, ice), budget);
     else if (tuning.plan.rezAllowance && canRez && paidOutside > 0) {
       const spare = budget - paidOutside;
@@ -727,6 +849,7 @@ export function runScore(state: GameState, serverId: string, options: RunOptions
     }
   }
   for (const ice of server.ice) {
+    if (bypassed.ids.has(ice.instanceId)) continue;
     let cost = iceCost(state, ice);
     if (cost === BLOCK && shredLeft) {
       // The Corp either lets the run go on or trashes HQ cards: worth it either way
@@ -742,7 +865,7 @@ export function runScore(state: GameState, serverId: string, options: RunOptions
   const approach = approachCost(state, serverId, state.runner.clicks - 1 - bioroidClicks(state, server.ice), budget - known);
   if (!approach) return -Infinity;
   const paid = Math.max(0, expected - (options.bonusCredits ?? 0));
-  return value - spendCost(state, paid) - spendCost(state, waste) - approach.cost - runClick(state);
+  return value - spendCost(state, paid) - spendCost(state, waste) - approach.cost - runClick(state) - bypassed.price;
 }
 
 const CHAIN_REACTION = '36001';
