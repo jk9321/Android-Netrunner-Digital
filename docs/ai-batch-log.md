@@ -256,3 +256,5 @@ Every self-play batch, newest last (Jeff, 2026-10-28). Made with `scripts/corp-l
 | 2026-11-05 | iceStopRunner off (Runner credits raise unbreakable ice worth) | eb8eac0 | 663 | **38.6%** | 31.2% / 7.4% | 53.2% / 8.1% | 42.6% / 25.6% / 26.0% / 5.9% | 7.4 | [txt](batch-logs/2026-11-05-icestoprunner-off-runner-credits-raise-unbreakable-ice-worth.txt) |
 | 2026-11-05 | rezToll off | b619617 | 663 | **44.0%** | 34.8% / 9.2% | 48.6% / 7.4% | 45.4% / 23.9% / 26.4% / 4.3% | 7.1 | [txt](batch-logs/2026-11-05-reztoll-off.txt) |
 | 2026-11-05 | rezToll on | b619617 | 663 | **44.3%** | 34.7% / 9.7% | 48.6% / 7.1% | 44.4% / 24.1% / 26.9% / 4.5% | 7.1 | [txt](batch-logs/2026-11-05-reztoll-on.txt) |
+| 2026-11-05 | iceStopAnchor on | 473dbe8 | 663 | **37.4%** | 29.7% / 7.7% | 53.4% / 9.2% | 42.5% / 26.5% / 25.0% / 5.9% | 7.4 | [txt](batch-logs/2026-11-05-icestopanchor-on.txt) |
+| 2026-11-05 | iceStopAnchor off | 473dbe8 | 663 | **44.3%** | 34.7% / 9.7% | 48.6% / 7.1% | 44.4% / 24.1% / 26.9% / 4.5% | 7.1 | [txt](batch-logs/2026-11-05-icestopanchor-off.txt) |

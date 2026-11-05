@@ -24,6 +24,11 @@ const rows = Object.entries(held)
   .filter(r => r.t >= min)
   .sort((a, b) => b.hc / b.t - a.hc / a.t);
 console.log(`${games} games: Corp ${(100 * corpWins / Math.max(1, games)).toFixed(1)}%${crashed ? `, ${crashed} crashed` : ''}`);
+for (const side of ['corp', 'runner']) {
+  const all = Object.entries(held).filter(([code]) => titles[code]?.side === side).map(([, v]) => v);
+  const t = all.reduce((n, v) => n + v[0], 0);
+  if (t) console.log(`${side}: held ${(100 * all.reduce((n, v) => n + v[1], 0) / t).toFixed(0)}% of playable card-turns, ${(100 * all.reduce((n, v) => n + v[2], 0) / t).toFixed(0)}% while clicking for credits (the side's baseline)`);
+}
 console.log(`Cards playable on at least ${min} turns, most held while clicking for credits first.`);
 console.log('"held" = still unplayed at the end of a turn it started playable; "held, clicked for credit" = of those, the turns the side clicked for a credit.');
 console.log('Traps and upgrades waiting for their moment are expected high; anything else over about 30% needs a look.\n');
