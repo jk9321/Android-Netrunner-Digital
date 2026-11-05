@@ -272,3 +272,5 @@ Every self-play batch, newest last (Jeff, 2026-10-28). Made with `scripts/corp-l
 | 2026-11-05 | brokeSlope v2 off | 336d373 | 2210 | **39.0%** | 32.4% / 6.6% | 51.6% / 9.4% | 44.2% / 25.3% / 24.1% / 6.4% | 7.5 | [txt](batch-logs/2026-11-05-brokeslope-v2-off.txt) |
 | 2026-11-05 | agendaClicks on | 6d771eb | 2210 | **37.5%** | 30.5% / 6.9% | 51.7% / 10.9% | 43.4% / 24.9% / 25.1% / 6.6% | 7.8 | [txt](batch-logs/2026-11-05-agendaclicks-on.txt) |
 | 2026-11-05 | agendaClicks off | 6d771eb | 2210 | **38.1%** | 30.8% / 7.2% | 52.4% / 9.6% | 43.2% / 25.6% / 24.5% / 6.7% | 7.8 | [txt](batch-logs/2026-11-05-agendaclicks-off.txt) |
+| 2026-11-05 | finishSetup+holoManMove on | 51ae8dd | 2210 | **37.2%** | 30.2% / 7.0% | 52.2% / 10.6% | 43.3% / 24.6% / 25.2% / 6.9% | 7.8 | [txt](batch-logs/2026-11-05-finishsetup-holomanmove-on.txt) |
+| 2026-11-05 | finishSetup+holoManMove off | 51ae8dd | 2210 | **37.5%** | 30.5% / 6.9% | 51.7% / 10.9% | 43.4% / 24.9% / 25.1% / 6.6% | 7.8 | [txt](batch-logs/2026-11-05-finishsetup-holomanmove-off.txt) |
