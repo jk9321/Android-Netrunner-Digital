@@ -11,7 +11,7 @@ import { AI_BREAKER_SHARE, breakerTypeWorth, flatIceWorth, iceWorth } from './ic
 import { payoutWait, payoutWorth, profileOf, turnsLeft } from './cardProfiles';
 import { resourceTrashHqCost } from '../core/engine/actions/basic';
 import { HAND_FLOOR, clickPrice, handByCard, heldWorth, ownHandValue, playedWorth } from './handValues';
-import { CLICK, RATES, cardRate, creditValue, flatRate, flatlineWorth, guardLoop, handFilter, memo, payoutSlide, pointValue, reachCard, sideCreditValue } from './valueModel';
+import { CLICK, KNOBS, RATES, cardRate, creditValue, flatRate, flatlineWorth, guardLoop, handFilter, memo, payoutSlide, pointValue, reachCard, sideCreditValue } from './valueModel';
 import { PACE, STEAL, coreSlotWorth, flatlineOdds, lifeGrip, runSuccess, stealOdds } from './effectValues';
 import { trashedCardCost } from './runs';
 
@@ -231,7 +231,11 @@ export const agendaBoardValue = (counters: number, cost: number) => counters * R
 export const AGENDA_RUN = 0.4;
 
 /** What a Corp click spent advancing could have built instead (plan.agendaClicks). */
-export const AGENDA_CLICK = 2;
+export let AGENDA_CLICK = 2;
+/** scripts/human-agreement.ts sweeps it. */
+export function setAgendaClick(value: number): void {
+  AGENDA_CLICK = value;
+}
 
 /**
  * An installed agenda (Jeff, 2026-10-28; plan.agendaBoard): its points on
@@ -253,7 +257,7 @@ export function agendaWorth(
   budget: { clicks: number; credits: number } = state.corp
 ): number {
   if (!tuning.plan.agendaBoard) return agendaBoardValue(counters, cost);
-  const gain = pointValue(state.corp.score + points) - pointValue(state.corp.score);
+  const gain = pointValue(state.corp.score + points, KNOBS.corpPoints) - pointValue(state.corp.score, KNOBS.corpPoints);
   const need = Math.max(0, cost - counters);
   const steal =
     tuning.plan.stealOdds && success === undefined && serverId
@@ -500,7 +504,7 @@ export function sideStrength(state: GameState, side: SideCode, viewer: SideCode 
     return (
       sideCreditValue(state, 'corp', viewer) +
       handAndClicks(state, 'corp', viewer) +
-      pointValue(corp.score) +
+      pointValue(corp.score, viewer === 'corp' ? KNOBS.corpPoints : 1) +
       corpBoardValue(state, viewer) +
       (tuning.plan.tagClock ? tagsWorth(state, viewer) : (RATES.tagForCorp + threat) * state.runner.tags) +
       // Dividends and Next Big Thing counters, AU Co. power counters

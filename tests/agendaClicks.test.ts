@@ -35,12 +35,25 @@ describe('a protected agenda the Corp can finish is scored this turn (plan.agend
     expect(scoredIngatan(playTurn(position()))).toBe(true);
   }, 30_000);
 
-  it('without the plan it built instead', () => {
+  it('either plan alone scores it (plan.finishSetup ranks the Seamless Launch that lets the turn finish it)', () => {
+    for (const off of ['agendaClicks', 'finishSetup'] as const) {
+      tuning.plan[off] = false;
+      try {
+        expect(scoredIngatan(playTurn(position())), off).toBe(true);
+      } finally {
+        tuning.plan[off] = true;
+      }
+    }
+  }, 60_000);
+
+  it('without both it built instead', () => {
     tuning.plan.agendaClicks = false;
+    tuning.plan.finishSetup = false;
     try {
       expect(scoredIngatan(playTurn(position()))).toBe(false);
     } finally {
       tuning.plan.agendaClicks = true;
+      tuning.plan.finishSetup = true;
     }
   }, 30_000);
 });

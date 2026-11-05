@@ -294,6 +294,28 @@ export function answerPrompt(state: GameState, side: SideCode, memory?: RunnerMe
     return { ...base, choice: { kind: 'effect_choice', optionId: value(best) > value('archives') ? best : 'no' } };
   }
 
+  // The Holo Man (Jeff's Corp game 1, bug report #17: the AI moved it off the remote holding Offworld Office, so it
+  // never advanced it): it goes where its 3 counters do most, the server with the agenda they bring closest to scored
+  // (one they finish counts its points), and stays put when no server has one (the board score had no sense of it)
+  if (side === 'corp' && tuning.plan.holoManMove && prompt.kind === 'effect_choice' && prompt.source.cardCode === '34120' && prompt.source.step === 'move') {
+    const holo = findCardAnywhere(state, prompt.source.instanceId);
+    const here = holo ? Object.values(state.corp.servers).find(v => v.root.some(c => c.instanceId === holo.instanceId))?.id : undefined;
+    const pull = (serverId: string) =>
+      Math.max(
+        0,
+        ...(state.corp.servers[serverId]?.root ?? [])
+          .filter(c => cardDef(c).type_code === 'agenda')
+          .map(c => {
+            const cost = cardDef(c).advancement_cost ?? 3;
+            const points = cardDef(c).agenda_points ?? 1;
+            return c.advancementCounters + 3 >= cost ? points : (0.5 * points * (c.advancementCounters + 3)) / cost;
+          })
+      );
+    let best = { id: 'no', pull: here ? pull(here) : 0 };
+    for (const o of prompt.options) if (o.id !== 'no' && pull(o.id) > best.pull) best = { id: o.id, pull: pull(o.id) };
+    return { ...base, choice: { kind: 'effect_choice', optionId: best.id } };
+  }
+
   // Méliès U: the secret side is the central the Runner is likeliest to run first (its share of runs), varied by turn so it can't be read
   if (side === 'corp' && prompt.kind === 'effect_choice' && prompt.source.cardCode === '36036' && prompt.source.step === 'set') {
     return { ...base, choice: { kind: 'effect_choice', optionId: meliesSide(state) } };
