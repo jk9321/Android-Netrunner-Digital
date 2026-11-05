@@ -30,7 +30,7 @@ import { BLOCK, iceCost, iceCreditNeed, subroutineCost } from './runs';
  * the rest from the behaviour logs. Re-measure after every Corp or Runner AI change.
  */
 export const PACE = {
-  /** Runs a turn, and the share of them on HQ, R&D, Archives and a remote. */
+  /** Runs a turn, and the share of them on HQ, R&D, Archives and a remote (by plan.measuredRunShares: RUN_SHARES below). */
   runs: 1.2,
   hqShare: 0.27,
   rdShare: 0.2,
@@ -53,6 +53,24 @@ export const PACE = {
   /** Times the Runner clicks to draw on a turn it draws at all. */
   drawTurns: 0.7,
 };
+
+/**
+ * plan.measuredRunShares (Jeff, 2026-11-05, thread "Find why AI card valuation misses cards"): where the AI's runs
+ * really go, 23,039 runs in 1,280 self-play games over every deck (scripts/run-odds.ts, logged
+ * docs/batch-logs/2026-11-05-run-odds-report-v2-run-log.txt): HQ 18%, R&D 21%, Archives 5%, remotes 57%, against
+ * the 27/20/15/39 above. Runs a turn (1.21) and success (82%, by server within 5 points of the pass odds) matched.
+ * Cards that pay on HQ or Archives runs were priced on half again the runs they get; remote cards on two thirds.
+ */
+const RUN_SHARES = { hqShare: 0.18, rdShare: 0.21, archivesShare: 0.05, remoteShare: 0.56 };
+for (const key of Object.keys(RUN_SHARES) as (keyof typeof RUN_SHARES)[]) {
+  const old = PACE[key];
+  let set: number | undefined; // a test's own pace (tests/runBudget.test.ts)
+  Object.defineProperty(PACE, key, {
+    get: () => set ?? (tuning.plan.measuredRunShares ? RUN_SHARES[key] : old),
+    set: (v: number) => (set = v),
+    enumerable: true,
+  });
+}
 
 /**
  * Virus counters sit until the Runner cashes them and a purge wipes them

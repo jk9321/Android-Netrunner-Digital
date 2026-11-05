@@ -38,12 +38,14 @@ describe('a held money operation is counted once (plan.heldMoney)', () => {
     tuning.plan.heldMoney = false;
     // plan.measuredTurnsLeft (2026-11-05) plays it here too: on the longer horizon the old way didn't hold it
     tuning.plan.measuredTurnsLeft = false;
+    tuning.plan.measuredRunShares = false; // the same with the measured run shares
     try {
       expect(inHq(play())).toContain('Petty Cash');
     } finally {
       tuning.plan.pettyCashFirst = true;
       tuning.plan.heldMoney = true;
       tuning.plan.measuredTurnsLeft = true;
+      tuning.plan.measuredRunShares = true;
     }
   });
 });
