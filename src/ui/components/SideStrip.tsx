@@ -86,7 +86,7 @@ export function SideStrip({
       </div>
 
       {/* Stats */}
-      <div className="flex items-center gap-1.5 text-[12px] font-mono flex-wrap">
+      <div className="grow flex items-center justify-center gap-1.5 text-[12px] font-mono flex-wrap" data-testid={`${side}-stats`}>
         <div className={`${pillBase} ${style.stat}`} data-testid={`${side}-credits`}>
           <CreditIcon className="w-3.5 h-3.5 text-amber-400" />
           <span>
