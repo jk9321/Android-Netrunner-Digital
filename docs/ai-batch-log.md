@@ -263,3 +263,4 @@ Every self-play batch, newest last (Jeff, 2026-10-28). Made with `scripts/corp-l
 | 2026-11-05 | run pricing: runCreditsSlide off | ccf254a | 663 | **32.1%** | 25.0% / 7.1% | 58.1% / 9.8% | 45.4% / 23.9% / 24.1% / 6.7% | 7.3 | [txt](batch-logs/2026-11-05-run-pricing-runcreditsslide-off.txt) |
 | 2026-11-05 | run pricing: runRest off | ccf254a | 663 | **35.1%** | 27.1% / 8.0% | 54.9% / 10.0% | 45.3% / 24.5% / 23.2% / 6.9% | 7.3 | [txt](batch-logs/2026-11-05-run-pricing-runrest-off.txt) |
 | 2026-11-05 | card usage report: run pricing on | ccf254a | 1280 | **42.6%** |  /  |  /  |  /  /  /  |  | [txt](batch-logs/2026-11-05-card-usage-report-run-pricing-on.txt) |
+| 2026-11-05 | run pricing: plannerRunEvents off | ccf254a | 663 | **35.3%** | 27.3% / 8.0% | 54.9% / 9.8% | 42.6% / 25.3% / 25.6% / 6.6% | 7.5 | [txt](batch-logs/2026-11-05-run-pricing-plannerrunevents-off.txt) |

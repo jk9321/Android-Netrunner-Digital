@@ -37,8 +37,12 @@ const seen = new Set<string>();
 const pool = [...ALL_DECKS, ...IDENTITY_TEST_DECKS, ...NRDB_TEST_DECKS].filter(d => !seen.has(d.id) && seen.add(d.id) && (prefixes.length === 0 || prefixes.some(p => d.id.startsWith(p))));
 
 type Side = 'corp' | 'runner';
-/** By card code: [turns it started playable, turns it was still unplayed at the end, of those the turns the side clicked for a credit]. */
-const held: Record<string, [number, number, number]> = {};
+/**
+ * By card code: [turns it started playable, turns it was still unplayed at the end, of those the turns the side clicked for a credit,
+ * copies ever playable, of those the copies never played by the game's end]. Holding a card for a better turn is fine (Jeff,
+ * 2026-11-05: "sometimes the runner holding a card for later instead of spending it is fine"); a copy never played at all is the miss.
+ */
+const held: Record<string, [number, number, number, number, number]> = {};
 let played = 0, corpWins = 0, crashed = 0;
 
 const PLAYS = new Set(['PLAY_OPERATION_OR_EVENT', 'INSTALL_CARD', 'REZ_CARD']);
@@ -61,6 +65,9 @@ for (const c of pool.filter(d => d.side === 'corp')) for (const r of pool.filter
   let start: Map<string, string> | null = null;
   let side: Side = 'corp';
   let creditClick = false;
+  /** Copies seen playable this game, and the ones played since. */
+  const everPlayable = new Map<string, string>();
+  const usedIds = new Set<string>();
   try {
     for (let steps = 0; steps < 4000 && gr.state.turnNumber <= 80; steps++) {
       const before = gr.state;
@@ -70,13 +77,15 @@ for (const c of pool.filter(d => d.side === 'corp')) for (const r of pool.filter
         side = active;
         const ok = playableIds(before, active);
         start = new Map(candidates(before, active).filter(x => ok.has(x.instanceId) && cardDef(x).type_code !== 'agenda').map(x => [x.instanceId, x.cardCode]));
+        for (const [id, code] of start) everPlayable.set(id, code);
       }
       if (!gr.step()) break;
       const after = gr.state;
+      if (gr.last && PLAYS.has(gr.last.type)) usedIds.add((gr.last as { cardInstanceId: string }).cardInstanceId);
       if (before.activePlayer === side && !before.activeRun && after[side].credits - before[side].credits === 1 && before[side].clicks - after[side].clicks === 1) creditClick = true;
       if (start && before.activePlayer === side && after.activePlayer !== side) {
         for (const [id, code] of start) {
-          const h = (held[code] ??= [0, 0, 0]);
+          const h = (held[code] ??= [0, 0, 0, 0, 0]);
           h[0]++;
           if (stillUnplayed(after, side, id)) {
             h[1]++;
@@ -91,6 +100,11 @@ for (const c of pool.filter(d => d.side === 'corp')) for (const r of pool.filter
     crashed++;
     console.error(`deal ${seed}: ${err}`);
     continue;
+  }
+  for (const [id, code] of everPlayable) {
+    const h = (held[code] ??= [0, 0, 0, 0, 0]);
+    h[3]++;
+    if (!usedIds.has(id)) h[4]++;
   }
   played++;
   if (gr.state.winner === 'corp') corpWins++;
