@@ -271,3 +271,9 @@ Every self-play batch, newest last (Jeff, 2026-10-28). Made with `scripts/corp-l
 | 2026-11-05 | brokeSlope v2 on | 336d373 | 2210 | **39.5%** | 33.1% / 6.3% | 51.4% / 9.2% | 43.2% / 25.2% / 24.8% / 6.8% | 7.7 | [txt](batch-logs/2026-11-05-brokeslope-v2-on.txt) |
 | 2026-11-05 | brokeSlope v2 off | 336d373 | 2210 | **39.0%** | 32.4% / 6.6% | 51.6% / 9.4% | 44.2% / 25.3% / 24.1% / 6.4% | 7.5 | [txt](batch-logs/2026-11-05-brokeslope-v2-off.txt) |
 | 2026-11-05 | card usage report: never played by fate | 9c4378b | 1280 | **42.0%** |  /  |  /  |  /  /  /  |  | [txt](batch-logs/2026-11-05-card-usage-report-never-played-by-fate.txt) |
+| 2026-11-05 | install value: on | 56edad6 | 663 | **41.8%** | 33.9% / 7.8% | 50.1% / 8.1% | 48.1% / 22.8% / 24.0% / 5.1% | 7.4 | [txt](batch-logs/2026-11-05-install-value-on.txt) |
+| 2026-11-05 | install value: off | 56edad6 | 663 | **36.5%** | 30.8% / 5.7% | 53.2% / 10.3% | 42.3% / 24.5% / 25.6% / 7.6% | 7.7 | [txt](batch-logs/2026-11-05-install-value-off.txt) |
+| 2026-11-05 | install value: ownCardCost off | 56edad6 | 663 | **39.8%** | 32.9% / 6.9% | 51.3% / 8.9% | 48.6% / 22.2% / 23.1% / 6.2% | 7.4 | [txt](batch-logs/2026-11-05-install-value-owncardcost-off.txt) |
+| 2026-11-05 | install value: incomeSlide off | 56edad6 | 663 | **36.5%** | 30.6% / 5.9% | 53.4% / 10.1% | 43.9% / 24.3% / 25.4% / 6.3% | 7.7 | [txt](batch-logs/2026-11-05-install-value-incomeslide-off.txt) |
+| 2026-11-05 | install value: card usage report on | 56edad6 | 1279 | **44.9%** |  /  |  /  |  /  /  /  |  | [txt](batch-logs/2026-11-05-install-value-card-usage-report-on.txt) |
+| 2026-11-05 | card payoff report | 56edad6 |  | **** |  /  |  /  |  /  /  /  |  | [txt](batch-logs/2026-11-05-card-payoff-report.txt) |
