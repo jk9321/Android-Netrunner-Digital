@@ -11,6 +11,9 @@
  *     and whether it advanced at all). Order inside a turn doesn't count (Nico before Seamless Launch is the same turn).
  * The turns where they differ are listed, so a sweep shows what a setting fixes and what it breaks.
  *
+ * Runner games (the AI plays the Corp) are compared the same way from the Runner's side: decisions (runs counted 3
+ * times) and turns whose runs and steals match (the servers run, points stolen).
+ *
  * Usage: npx vite-node scripts/human-agreement.ts -- [dir] [--agendaClick=2] [--corpPoints=1] [--quiet]
  */
 import { readFileSync, readdirSync } from 'node:fs';
@@ -47,13 +50,22 @@ function progress(before: GameState, after: GameState) {
   return { points, advanced: points > 0 || counters(after) > counters(before) };
 }
 
-function aiTurn(start: GameState): GameState {
+/** Runs over one Runner turn: the servers run and the points stolen. */
+function runs(start: GameState, moves: GameAction[]) {
+  const servers = [...new Set(moves.filter(m => m.type === 'INITIATE_RUN').map(m => (m as { targetServerId: string }).targetServerId))].sort();
+  return { servers, stolen: 0 } as { servers: string[]; stolen: number };
+}
+
+function aiTurn(start: GameState, side: 'corp' | 'runner' = 'corp', taken: GameAction[] = []): GameState {
   const corp = createAgent('corp', 'normal');
   const runner = createAgent('runner', 'normal');
   let s = start;
-  for (let i = 0; i < 40 && s.activePlayer === 'corp' && s.turnNumber === start.turnNumber && !s.winner; i++) {
+  for (let i = 0; i < 60 && s.activePlayer === side && s.turnNumber === start.turnNumber && !s.winner; i++) {
     const side = actingSide(s);
-    s = executeAction(s, (side === 'runner' ? runner : corp).chooseAction(s));
+    const actor = actingSide(s);
+    const action = (actor === 'runner' ? runner : corp).chooseAction(s);
+    if (actor === side) taken.push(action);
+    s = executeAction(s, action);
   }
   return s;
 }
@@ -65,35 +77,54 @@ let turnsMatched = 0;
 const misses: string[] = [];
 for (const file of readdirSync(dir).filter(f => f.endsWith('.json')).sort()) {
   const report = JSON.parse(readFileSync(join(dir, file), 'utf8'));
-  if (report.config.ai !== 'runner' || !report.moves?.length) continue;
+  if (!report.moves?.length) continue;
+  const human: 'corp' | 'runner' = report.config.ai === 'corp' ? 'runner' : 'corp';
+  if (report.config.ai !== 'corp' && report.config.ai !== 'runner') continue;
   let s: GameState = createInitialGameState(deckGameSetup(report.config.seed, report.config.corpDeck, report.config.runnerDeck));
   if (report.startStops) s = { ...s, stops: report.startStops };
   let turnStart: GameState | null = null;
+  let humanMoves: GameAction[] = [];
   const finishTurn = (end: GameState) => {
     if (!turnStart) return;
-    const human = progress(turnStart, end);
+    if (human === 'runner') {
+      const taken: GameAction[] = [];
+      const aiEnd = aiTurn(turnStart, 'runner', taken);
+      const mine = { ...runs(turnStart, humanMoves), stolen: end.runner.score - turnStart.runner.score };
+      const its = { ...runs(turnStart, taken), stolen: aiEnd.runner.score - turnStart.runner.score };
+      turns++;
+      const say = (r: { servers: string[]; stolen: number }) => `${r.servers.length ? 'ran ' + r.servers.join(', ') : 'no runs'}${r.stolen ? `, stole ${r.stolen}` : ''}`;
+      if (mine.servers.join() === its.servers.join() && mine.stolen === its.stolen) turnsMatched++;
+      else misses.push(`${file} T${turnStart.turnNumber}: you ${say(mine)}, AI ${say(its)}`);
+      turnStart = null;
+      humanMoves = [];
+      return;
+    }
+    const yours = progress(turnStart, end);
     const ai = progress(turnStart, aiTurn(turnStart));
     turns++;
-    if (human.points === ai.points && human.advanced === ai.advanced) turnsMatched++;
+    if (yours.points === ai.points && yours.advanced === ai.advanced) turnsMatched++;
     const say = (p: { points: number; advanced: boolean }) => (p.points ? `scored ${p.points}` : p.advanced ? 'advanced' : 'no agenda move');
-    if (!(human.points === ai.points && human.advanced === ai.advanced)) misses.push(`${file} T${turnStart.turnNumber}: you ${say(human)}, AI ${say(ai)}`);
+    if (!(yours.points === ai.points && yours.advanced === ai.advanced)) misses.push(`${file} T${turnStart.turnNumber}: you ${say(yours)}, AI ${say(ai)}`);
     turnStart = null;
   };
   for (const move of report.moves as GameAction[]) {
-    const corpMain = move.player === 'corp' && s.activePlayer === 'corp' && mainPhase(s) && actingSide(s) === 'corp';
-    if (corpMain && move.type !== 'START_TURN' && !turnStart && s.corp.clicks > 0) turnStart = s;
-    if (corpMain && move.type !== 'START_TURN' && move.type !== 'END_TURN') {
-      const ai = createAgent('corp', 'normal').chooseAction(s);
-      const w = isAgendaMove(s, move) || isAgendaMove(s, ai) ? 3 : 1;
+    const clicks = human === 'corp' ? s.corp.clicks : s.runner.clicks;
+    const main = move.player === human && s.activePlayer === human && mainPhase(s) && actingSide(s) === human;
+    if (main && move.type !== 'START_TURN' && !turnStart && clicks > 0) turnStart = s;
+    if (turnStart && move.player === human) humanMoves.push(move);
+    if (main && move.type !== 'START_TURN' && move.type !== 'END_TURN') {
+      const ai = createAgent(human, 'normal').chooseAction(s);
+      const key = (st: GameState, a: GameAction) => (human === 'corp' ? isAgendaMove(st, a) : a.type === 'INITIATE_RUN');
+      const w = key(s, move) || key(s, ai) ? 3 : 1;
       weight += w;
       if (same(move, ai)) agreed += w;
     }
     const before = s;
     s = executeAction(s, move);
-    if (turnStart && (s.activePlayer !== 'corp' || s.turnNumber !== before.turnNumber || s.winner)) finishTurn(s.winner || s.activePlayer !== 'corp' ? s : before);
+    if (turnStart && (s.activePlayer !== human || s.turnNumber !== before.turnNumber || s.winner)) finishTurn(s.winner || s.activePlayer !== human ? s : before);
   }
   finishTurn(s);
 }
 
-console.log(`decisions ${((100 * agreed) / Math.max(1, weight)).toFixed(1)}% (weighted, agenda moves x3) | agenda turns ${turnsMatched}/${turns} | agendaClick ${opt('agendaClick') ?? 'default'} corpPoints ${KNOBS.corpPoints}`);
+console.log(`decisions ${((100 * agreed) / Math.max(1, weight)).toFixed(1)}% (weighted, agenda moves and runs x3) | turns ${turnsMatched}/${turns} | agendaClick ${opt('agendaClick') ?? 'default'} corpPoints ${KNOBS.corpPoints}`);
 if (!quiet) for (const m of misses) console.log('  ' + m);
