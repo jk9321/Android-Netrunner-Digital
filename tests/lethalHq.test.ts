@@ -48,6 +48,7 @@ describe('an agenda in HQ that would win the Runner the game (plan.lethalHq, bug
     const was = { ...tuning.plan };
     const corpOff = sideOff.corp;
     tuning.plan.lethalHq = false;
+    tuning.plan.heldMoney = false; // added after the report
     sideOff.corp = ['effectValues']; // as the report's game ran: before effect values came back on for the Corp (2026-11-03)
     try {
       expect(hqIce(playTurn(turn13(), createAgent('corp', 'hard', { samples: 6, seed: 1 })))).toBe(2);

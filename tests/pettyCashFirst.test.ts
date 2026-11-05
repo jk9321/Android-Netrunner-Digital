@@ -29,11 +29,14 @@ describe('Petty Cash is played first, while it can be (plan.pettyCashFirst)', ()
   });
 
   it('without the plan it clicks for a credit and keeps Petty Cash', () => {
+    // plan.heldMoney (held Petty Cash no longer counted twice) plays it first on its own here
     tuning.plan.pettyCashFirst = false;
+    tuning.plan.heldMoney = false;
     try {
       expect(inHq(play())).toContain('Petty Cash');
     } finally {
       tuning.plan.pettyCashFirst = true;
+      tuning.plan.heldMoney = true;
     }
   });
 });

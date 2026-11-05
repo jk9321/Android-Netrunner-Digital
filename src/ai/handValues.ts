@@ -8,7 +8,7 @@ import { counterWorth } from './counterValues';
 import { handPlanWorth } from './cardPlans';
 import { iceCost } from './runs';
 import { planSide, tuning } from './synergy';
-import { CLICK, RATES, cardRate, flatRate, handFilter, payoutSlide, pointValue, setDeckCard } from './valueModel';
+import { CLICK, RATES, cardRate, flatRate, handFilter, payoutSlide, pointValue, reachCard, setDeckCard } from './valueModel';
 
 /**
  * Cards in hand by what they do (Jeff, 2026-10-28; plan.handByCard). A card
@@ -167,7 +167,11 @@ export function ownHandValue(state: GameState, side: SideCode): number {
   const hand = side === 'corp' ? state.corp.hq : state.runner.grip;
   const limit = (side === 'corp' ? state.corp.handSizeLimit : state.runner.handSizeLimit) ?? 5;
   const seen = known[side];
-  const values = hand.map(c => (seen && !seen.has(c.instanceId) ? drawWorth(state, side) : heldWorth(state, c, side))).sort((a, b) => b - a);
+  // plan.heldMoney: the money operation moneyReach already puts on the Corp's credit slide isn't counted again in HQ
+  const reach = side === 'corp' && tuning.plan.heldMoney && tuning.plan.moneyReach ? reachCard(state) : undefined;
+  const values = hand
+    .map(c => (seen && !seen.has(c.instanceId) ? drawWorth(state, side) : c === reach ? HAND_FLOOR : heldWorth(state, c, side)))
+    .sort((a, b) => b - a);
   let value = 0;
   for (let i = 0; i < values.length; i++) {
     if (i < RATES.handCoreCards) value += RATES.handCore - RATES.drawnCard; // having cards at all
