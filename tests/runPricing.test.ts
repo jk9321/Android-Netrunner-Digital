@@ -47,7 +47,9 @@ describe('run pricing', () => {
     it(`the planner runs HQ with ${name} instead of a plain run (plan.plannerRunEvents)`, () => {
       const s = openHq();
       const id = giveCard(s, 'runner', code);
-      const action = new HeuristicRunnerAI({ planner: true }).chooseAction(s);
+      // On the old horizon (plan.measuredTurnsLeft off): on the measured one it may keep the card for a guarded server, which
+      // is fine (Jeff: holding a card for later is fine); this checks the planner prices the card's run at all
+      const action = withPlan('measuredTurnsLeft', false, () => new HeuristicRunnerAI({ planner: true }).chooseAction(s));
       expect('cardInstanceId' in action && action.cardInstanceId).toBe(id);
     });
   }

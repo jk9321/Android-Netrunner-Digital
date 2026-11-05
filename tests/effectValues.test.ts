@@ -140,7 +140,13 @@ describe('the last hand-set cards, priced by what they do (Jeff, 2026-10-28)', (
     const programs = [...s.runner.grip, ...s.runner.stack].filter(c => getCardDefinition(c.cardCode).type_code === 'program').length;
     expect(rig('35028', s)).toBeGreaterThan(0);
     expect(rig('35028', s)).toBeLessThanOrEqual(programs * CLICK);
-    expect(rig('35028', late())).toBeLessThan(rig('35028', s));
+    // Late: on the old 2-turn horizon (plan.measuredTurnsLeft has 4 turns at 6 points, enough for every program)
+    tuning.plan.measuredTurnsLeft = false;
+    try {
+      expect(rig('35028', late())).toBeLessThan(rig('35028', s));
+    } finally {
+      tuning.plan.measuredTurnsLeft = true;
+    }
     const few = newGame();
     few.runner.stack = few.runner.stack.filter(c => getCardDefinition(c.cardCode).type_code !== 'program');
     few.runner.grip = few.runner.grip.filter(c => getCardDefinition(c.cardCode).type_code !== 'program');

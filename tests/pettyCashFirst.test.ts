@@ -32,11 +32,14 @@ describe('Petty Cash is played first, while it can be (plan.pettyCashFirst)', ()
     // plan.heldMoney (held Petty Cash no longer counted twice) plays it first on its own here
     tuning.plan.pettyCashFirst = false;
     tuning.plan.heldMoney = false;
+    // plan.measuredTurnsLeft (2026-11-05) plays it here too: on the longer horizon the old way didn't hold it
+    tuning.plan.measuredTurnsLeft = false;
     try {
       expect(inHq(play())).toContain('Petty Cash');
     } finally {
       tuning.plan.pettyCashFirst = true;
       tuning.plan.heldMoney = true;
+      tuning.plan.measuredTurnsLeft = true;
     }
   });
 });

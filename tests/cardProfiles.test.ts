@@ -33,11 +33,21 @@ describe('money cards are worth what they will still pay out (value model step 4
   it('payouts after the game is likely over count for nothing', () => {
     expect(payoutWorth(CARD_PROFILES['35022'], 2)).toBeCloseTo(0.85 + 0.85 ** 2);
     const s = newGame();
-    expect(turnsLeft(s)).toBe(8);
+    // plan.measuredTurnsLeft: the turns self-play games really had left (scripts/turns-left.ts)
+    expect(turnsLeft(s)).toBe(14);
     s.runner.score = 6;
-    expect(turnsLeft(s)).toBe(2);
-    // Late in the game an unrezzed Nico is barely worth its rez cost
-    expect(unrezzedWorth(s, '30037')!).toBeLessThan(unrezzedWorth(newGame(), '30037')!);
+    expect(turnsLeft(s)).toBe(4);
+    tuning.plan.measuredTurnsLeft = false;
+    try {
+      expect(turnsLeft(s)).toBe(2);
+      s.runner.score = 0;
+      expect(turnsLeft(s)).toBe(8);
+      s.runner.score = 6;
+      // Late in the game (2 turns on the old horizon) an unrezzed Nico is barely worth its rez cost; 4 measured turns pay it all
+      expect(unrezzedWorth(s, '30037')!).toBeLessThan(unrezzedWorth(newGame(), '30037')!);
+    } finally {
+      tuning.plan.measuredTurnsLeft = true;
+    }
   });
 });
 
