@@ -15,9 +15,11 @@ describe("Transfer of Wealth's run is worth the credits it moves (plan.transferO
   it('values a successful run at the credits moved less the tag', () => {
     const s = position();
     s.corp.credits = 8;
-    const rich = runEventOptions('35017', s).successBonus ?? 0;
+    // The Corp's loss and the tag in successBonus, the Runner's gain in successCredits (plan.runCreditsSlide)
+    const worth = (o: ReturnType<typeof runEventOptions>) => (o.successBonus ?? 0) + (o.successCredits ?? 0);
+    const rich = worth(runEventOptions('35017', s));
     s.corp.credits = 1;
-    const poor = runEventOptions('35017', s).successBonus ?? 0;
+    const poor = worth(runEventOptions('35017', s));
     expect(rich).toBeGreaterThan(0);
     expect(rich).toBeGreaterThan(poor); // 3 credits the Corp loses and 6 the Runner gains, against 1 and 2
   });

@@ -35,7 +35,7 @@ export interface PlannerAI {
   /** Any other decision in a playout (a prompt an operation raises). */
   answer(state: GameState): GameAction;
   /** A run's expected worth before it starts (runScore), or undefined for the Corp. */
-  runWorth?(state: GameState, serverId: string): number;
+  runWorth?(state: GameState, serverId: string, sourceCode?: string): number;
   /** The opponent's next turn played out from the end of this one, scored by `leaf` (plan.runnerReply, Corp). */
   reply?(state: GameState, leaf: (state: GameState) => number): number;
   /** The rest of this AI's last plan (one per agent, so a new game or a reloaded one starts without it). */
@@ -87,6 +87,26 @@ function dominated(state: GameState, action: GameAction, ranked: ScoredAction[])
 function playout(start: GameState, side: SideCode, first: GameAction, ai: PlannerAI, synergy: boolean, line: Line = []): number {
   let bonus = 0;
   let ran = false;
+  /** The position before the last main-phase action, and the card it used: where a run event's run is priced from. */
+  let mainBefore = start;
+  let mainCard: string | undefined;
+  const cardOf = (state: GameState, action: GameAction) => ('cardInstanceId' in action && action.cardInstanceId ? findCardAnywhere(state, action.cardInstanceId)?.cardCode : undefined);
+  /**
+   * plan.plannerRunEvents (Jeff, 2026-11-05, thread "Find why AI card valuation misses cards"): a run a card starts
+   * (Tailgate, Kompromat, Clean Getaway, Red Team) is priced like a plain run, with the card's riders, instead of
+   * ending the playout at the run's start with the card's cost paid and nothing for the run. The planner picked the
+   * plain run over every run event for that reason: in self-play run events were held on most turns.
+   */
+  const runStarted = (after: GameState): GameState | null => {
+    if (ran || !ai.runWorth || !after.activeRun) return null;
+    ran = true;
+    const worth = ai.runWorth(mainBefore, after.activeRun.server, mainCard);
+    if (!Number.isFinite(worth)) return null;
+    // runScore charges the run's clicks (one, and any the card's own options count); here they are the plan's
+    const clicks = Math.max(1, clicksOf(mainBefore, 'runner') - clicksOf(after, 'runner'));
+    bonus += worth + clicks * runClick(mainBefore);
+    return { ...after, activeRun: null, pendingPrompts: [] };
+  };
   const step = (state: GameState, action: GameAction): GameState | null => {
     if (action.type === 'INITIATE_RUN') {
       // Not played out: the run's click spent, its expected worth (net of its credits) added
@@ -97,8 +117,14 @@ function playout(start: GameState, side: SideCode, first: GameAction, ai: Planne
       bonus += worth + runClick(state); // runScore charges the click; here the click is the plan's
       return { ...state, runner: { ...state.runner, clicks: state.runner.clicks - 1 } };
     }
+    if (!activePrompt(state)) {
+      mainBefore = state;
+      mainCard = cardOf(state, action);
+    }
     try {
-      return executeAction(state, action);
+      const after = executeAction(state, action);
+      if (tuning.plan.plannerRunEvents && side === 'runner' && !state.activeRun && after.activeRun) return runStarted(after);
+      return after;
     } catch {
       return null;
     }

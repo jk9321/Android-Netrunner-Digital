@@ -9,6 +9,7 @@ import { cardRate, CLICK, flatRate, RATES } from '../valueModel';
 import { tagsWorth } from '../evaluate';
 import { bestBreakPlan } from '../runs';
 import { accessWorth, anySuccess, centralSuccess, conduitCounterWorth, counterWorthOf, damageWorth, lock, muWorth, PACE, perTurn, runSuccess, VIRUS_WAIT, virusWait } from '../effectValues';
+import type { RunOptions } from '../runs';
 import { CardAI } from './types';
 
 /**
@@ -101,7 +102,13 @@ export const SYSTEM_GATEWAY: Record<string, CardAI> = {
   // Mutual Favor
   '30011': { synergy: { gives: { breakers: 1 }, wants: { runs: 0.5 }, when: ['successfulRun'] } },
   // Tread Lightly
-  '30012': { synergy: { gives: { runs: 1 } } },
+  '30012': {
+    synergy: { gives: { runs: 1 } },
+    // Tread Lightly
+    run: (): RunOptions => {
+      return { rezTax: true };
+    },
+  },
   // Docklands Pass
   '30013': {
     synergy: { wants: { hq: 2 } },
@@ -145,6 +152,12 @@ export const SYSTEM_GATEWAY: Record<string, CardAI> = {
     runner: () => 0,
     counters: { credit: () => 0.7 }, // 3 per successful click-run on a central not yet run this turn
     counterFormulas: { credit: redTeamCredit },
+    run: (state?: GameState): RunOptions => {
+      // Red Team: if successful, take 3 credits from it (they leave its hosted credits, which count on the board)
+      const team = state?.runner.rig.resources.find(c => c.cardCode === '30018');
+      const take = team ? Math.min(3, team.tokens.credit ?? 0) : 3;
+      return state ? { successCredits: take, successBonus: -take * counterWorthOf(state, '30018', 'credit') } : { successBonus: 1 };
+    },
   },
   // Tāo Salonga
   '30019': { synergy: { when: ['onScore'] } },
@@ -187,6 +200,11 @@ export const SYSTEM_GATEWAY: Record<string, CardAI> = {
       return value;
     },
     counters: { virus: state => (tuning.plan.cardFixes ? conduitCounterWorth(state) : 1.2) }, // 1 more card accessed on each Conduit run still to come
+    run: (state?: GameState): RunOptions => {
+      // Conduit: if successful, X more R&D cards accessed, X its virus counters
+      const conduit = state?.runner.rig.programs.find(c => c.cardCode === '30024');
+      return { extraAccesses: conduit?.tokens.virus ?? 0 };
+    },
   },
   // Echelon
   '30025': { synergy: { gives: { breakers: 1 }, wants: { breakers: 1 } } },
@@ -199,9 +217,21 @@ export const SYSTEM_GATEWAY: Record<string, CardAI> = {
     profile: { load: 9, pay: 3, every: 'click', perTurn: 1 }, // Once per turn
   },
   // Jailbreak
-  '30028': { synergy: { gives: { runs: 1, hq: 1, rd: 1, draw: 0.5 } } },
+  '30028': {
+    synergy: { gives: { runs: 1, hq: 1, rd: 1, draw: 0.5 } },
+    // Jailbreak
+    run: (): RunOptions => {
+      return { extraAccesses: 1 };
+    },
+  },
   // Overclock
-  '30029': { synergy: { gives: { runs: 1 } } },
+  '30029': {
+    synergy: { gives: { runs: 1 } },
+    // Overclock
+    run: (): RunOptions => {
+      return { bonusCredits: 5 };
+    },
+  },
   // Sure Gamble
   '30030': { synergy: { gives: { econ: 1.5 } } },
   // T400 Memory Diamond

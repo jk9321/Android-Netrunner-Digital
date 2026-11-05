@@ -17,6 +17,6 @@ describe('heuristic AI', () => {
       const start = createInitialGameState(deckGameSetup(100 + i, corpDeck, runnerDeck));
       const { state } = playAIGame(start);
       expect(state.winner, `turn ${state.turnNumber}, score ${state.corp.score}-${state.runner.score}`).toBeTruthy();
-    }, 90000); // the whole-turn planner plays out every turn
+    }, 180000); // the whole-turn planner plays out every turn (2026-11-05: Agency vs Prick Thyself took 87 s on beta alone, about 3.5 s a turn)
   });
 });

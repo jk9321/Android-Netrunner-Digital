@@ -8,6 +8,9 @@ import { tuning } from '../synergy';
 import { cardRate, CLICK, handFilter, pointValue, RATES, sideCards } from '../valueModel';
 import { PRINCIPIA } from '../cardPlans';
 import { accessWorth, anySuccess, counterWorthOf, damageWorth, lock, muWorth, PACE, perTurn } from '../effectValues';
+import type { RunOptions } from '../runs';
+import { runClick } from '../runs';
+import { tagCost } from '../runs';
 import { CardAI } from './types';
 
 /**
@@ -109,11 +112,21 @@ export const ELEVATION: Record<string, CardAI> = {
   // Topan
   '35002': { synergy: { gives: { install: 2 } } },
   // Charm Offensive
-  '35003': { synergy: { gives: { runs: 1, archives: 1, trash: 0.5 } } },
+  '35003': {
+    synergy: { gives: { runs: 1, archives: 1, trash: 0.5 } },
+    // A plain Archives run: trashing a rezzed copy of a card accessed there needs a copy to be both rezzed and in Archives (rare)
+    run: (): RunOptions => ({}),
+  },
   // Scrounge
   '35004': { synergy: { wants: { discard: 1.5 } } },
   // Shred
-  '35005': { synergy: { gives: { runs: 1, denial: 0.5 } } },
+  '35005': {
+    synergy: { gives: { runs: 1, denial: 0.5 } },
+    // Shred
+    run: (): RunOptions => {
+      return { shred: true };
+    },
+  },
   // Bling
   '35006': {
     synergy: { gives: { draw: 0.5 }, wants: { install: 2 } },
@@ -160,13 +173,33 @@ export const ELEVATION: Record<string, CardAI> = {
   // MuslihaT
   '35013': { synergy: { gives: { draw: 1, breakers: 0.5 }, wants: { runs: 1 } } },
   // Clean Getaway
-  '35014': { synergy: { gives: { runs: 1, econ: 1 } } },
+  '35014': {
+    synergy: { gives: { runs: 1, econ: 1 } },
+    // 6 credits
+    run: (): RunOptions => {
+      return { successCredits: 6 };
+    },
+  },
   // Lie Low
   '35015': { synergy: { gives: { draw: 1 } } },
   // Maintenance Access
-  '35016': { synergy: { gives: { runs: 1, hq: 1 } } },
+  '35016': {
+    synergy: { gives: { runs: 1, hq: 1 } },
+    // Archives' ice, then HQ is breached instead; the extra click it costs
+    run: (state?: GameState): RunOptions => {
+      return { breachAs: 'hq', successBonus: -(state ? runClick(state) : 1) };
+    },
+  },
   // Transfer of Wealth
-  '35017': { synergy: { gives: { runs: 1, hq: 1, econ: 1, denial: 1.5 } } },
+  '35017': {
+    synergy: { gives: { runs: 1, hq: 1, econ: 1, denial: 1.5 } },
+    // A tag, the Corp loses up to 3 credits, the Runner gains twice that (plan.transferOfWealth)
+    run: (state?: GameState): RunOptions => {
+      if (!tuning.plan.transferOfWealth) return {};
+      // The Corp's loss counts flat, the Runner's gain on its credit slide
+      return state ? { successBonus: Math.min(3, state.corp.credits) - tagCost(state), successCredits: 2 * Math.min(3, state.corp.credits) } : { successBonus: 6 };
+    },
+  },
   // Detente
   '35018': {
     synergy: { wants: { hq: 1.5 }, when: ['successfulRun'] },

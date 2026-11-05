@@ -3,6 +3,10 @@ import { counters } from '../../core/engine/cardEffects';
 import { PAID_OUT, paidOneATurn } from '../counterValues';
 import { cardRate, CLICK, RATES } from '../valueModel';
 import { accessWorth, centralSuccess, counterWorthOf, damageWorth, deckCount, deckShare, lock, muWorth, PACE, perTurn, runSuccess } from '../effectValues';
+import type { RunOptions } from '../runs';
+import { runClick } from '../runs';
+import { tagCost } from '../runs';
+import { tuning } from '../synergy';
 import { CardAI } from './types';
 
 /**
@@ -58,6 +62,10 @@ export const LIBERATION: Record<string, CardAI> = {
       const extra = threat(state) >= 3 ? accessWorth(state) : 0;
       return perTurn(state, 0.4 * runSuccess(state, 'archives') * (accessWorth(state) + extra - 0.5 * RATES.tagAgainstRunner), 'runner');
     },
+    // A tag, then Archives breaches R&D instead (1 more card at threat 3)
+    run: (state?: GameState): RunOptions => {
+      return { breachAs: 'rd', extraAccesses: state && Math.max(state.corp.score, state.runner.score) >= 3 ? 1 : 0, successBonus: state ? -tagCost(state) : -3 };
+    },
   },
   // Hannah "Wheels" Pilintra
   '34008': {
@@ -65,6 +73,10 @@ export const LIBERATION: Record<string, CardAI> = {
     value: { rig: 1.5 },
     // A free click-run on a remote once a turn (a tag if it fails), or 2 clicks and a tag gone when trashed
     runner: state => Math.max(2 * CLICK + 0.5 * RATES.tagAgainstRunner * tagged(state), perTurn(state, 0.3 * (CLICK - (1 - PACE.success) * RATES.tagAgainstRunner * 0.5), 'runner')),
+    // Hannah: the click comes back
+    run: (state?: GameState): RunOptions => {
+      return { successBonus: state ? runClick(state) : 1 };
+    },
   },
   // Lago Paranoá Shelter
   '34009': {
@@ -78,7 +90,13 @@ export const LIBERATION: Record<string, CardAI> = {
   // Chrysopoeian Skimming
   '34011': { synergy: { gives: { draw: 0.5, rd: 0.5 } } },
   // S-Dobrado
-  '34012': { synergy: { gives: { runs: 1.5, hq: 1, rd: 1 }, when: ['threat'] } },
+  '34012': {
+    synergy: { gives: { runs: 1.5, hq: 1, rd: 1 }, when: ['threat'] },
+    // The first ice encountered is bypassed (rules 6.5.8a), a second for a click at threat 4
+    run: (): RunOptions => {
+      return tuning.plan.bypass ? { bypassFirst: true } : {};
+    },
+  },
   // Capybara
   '34013': {
     synergy: { gives: { denial: 1 } },
@@ -124,11 +142,19 @@ export const LIBERATION: Record<string, CardAI> = {
       return (threat(state) >= 4 ? 2 * counterWorthOf(state, code, 'credit') : 0) + perTurn(state, events * counterWorthOf(state, code, 'credit'), 'runner');
     },
     counters: { credit: () => 0.85 }, // Run credits, with a click-run
+    // Its click-run can spend its hosted credits
+    run: (state?: GameState): RunOptions => ({ bonusCredits: state?.runner.rig.resources.find(c => c.cardCode === '34019')?.tokens.credit ?? 0 }),
   },
   // Arissana Rocha Nahu: Street Artist
   '34020': { synergy: { gives: { install: 1.5, breakers: 0.5 } } },
   // Joy Ride
-  '34021': { synergy: { gives: { runs: 1, rd: 1, draw: 2 } } },
+  '34021': {
+    synergy: { gives: { runs: 1, rd: 1, draw: 2 } },
+    // 5 cards
+    run: (state?: GameState): RunOptions => {
+      return { successBonus: state ? Math.min(5, Math.max(1, state.runner.handSizeLimit - state.runner.grip.length + 1)) * cardRate(state, 'runner') : 4 };
+    },
+  },
   // AirbladeX (JSRF Ed.)
   '34022': {
     synergy: {},
@@ -163,6 +189,10 @@ export const LIBERATION: Record<string, CardAI> = {
     value: { rig: 1.5 },
     // A click more for an R&D breach of 2 cards past HQ's ice, now and then
     runner: state => perTurn(state, 0.3 * runSuccess(state, 'hq') * (2 * accessWorth(state) - CLICK), 'runner'),
+    // An extra click, then HQ breaches R&D with 1 more card
+    run: (state?: GameState): RunOptions => {
+      return { breachAs: 'rd', extraAccesses: 1, successBonus: -(state ? runClick(state) : 1) };
+    },
   },
   // Urban Art Vernissage
   '34029': {
@@ -176,6 +206,10 @@ export const LIBERATION: Record<string, CardAI> = {
   '34030': {
     synergy: { gives: { runs: 1, draw: 1, econ: 1, install: 0.5 } },
     counters: { credit: () => 0.9 }, // Trash-cost credits
+    // Two of 2 cards, a cheaper install, a tag gone, 4 credits
+    run: (): RunOptions => {
+      return { successBonus: 4 };
+    },
   },
   // Salvo Testing
   '34031': { synergy: { gives: { damage: 1 }, when: ['onScore'] } },
@@ -345,9 +379,21 @@ export const LIBERATION: Record<string, CardAI> = {
   // Sebastião Souza Pessoa: Activist Organizer
   '34066': { synergy: { gives: { install: 1 }, wants: { tags: 1 } } },
   // Eye for an Eye
-  '34067': { synergy: { gives: { runs: 1, hq: 1.5, trash: 1, tags: 0.5 } } },
+  '34067': {
+    synergy: { gives: { runs: 1, hq: 1.5, trash: 1, tags: 0.5 } },
+    // A tag, 1 more HQ card
+    run: (state?: GameState): RunOptions => {
+      return { extraAccesses: 1, successBonus: state ? -tagCost(state) : -3 };
+    },
+  },
   // Privileged Access
-  '34068': { synergy: { gives: { runs: 0.5, install: 1, tags: 0.5 }, wants: { discard: 1 }, when: ['threat'] } },
+  '34068': {
+    synergy: { gives: { runs: 0.5, install: 1, tags: 0.5 }, wants: { discard: 1 }, when: ['threat'] },
+    // No breach, a tag and a cheap resource from the heap
+    run: (state?: GameState): RunOptions => {
+      return { noBreach: true, successBonus: state ? (state.runner.heap.some(c => cardDef(c).type_code === 'resource') ? 3 : 0) - tagCost(state) : 0 };
+    },
+  },
   // Amanuensis
   '34069': {
     synergy: { gives: { draw: 1 }, wants: { tags: 1.5 } },
@@ -396,7 +442,13 @@ export const LIBERATION: Record<string, CardAI> = {
   // Meeting of Minds
   '34076': { synergy: { gives: { econ: 1, draw: 0.5 } } },
   // Window of Opportunity
-  '34077': { synergy: { gives: { runs: 1, install: 0.5 } } },
+  '34077': {
+    synergy: { gives: { runs: 1, install: 0.5 } },
+    // A rezzed ice derezzed as the run begins, and a free-click install
+    run: (): RunOptions => {
+      return tuning.plan.bypass ? { derezOne: true, successBonus: 0 } : {};
+    },
+  },
   // Alarm Clock
   '34078': {
     synergy: { gives: { runs: 1, hq: 1 } },
@@ -450,16 +502,28 @@ export const LIBERATION: Record<string, CardAI> = {
     counters: { power: () => CLICK }, // A click back
   },
   // Burner
-  '34085': { synergy: { gives: { runs: 1, hq: 1, denial: 0.5 } } },
+  '34085': {
+    synergy: { gives: { runs: 1, hq: 1, denial: 0.5 } },
+    // No breach, 2 HQ cards sent back to R&D
+    run: (state?: GameState): RunOptions => {
+      return { noBreach: true, successBonus: state && state.corp.hq.length > 0 ? 3 : 0 };
+    },
+  },
   // Spree (event)
   '34086': {
     synergy: { gives: { runs: 1 }, wants: { breakers: 0.5 } },
     counters: { power: () => 0.8 }, // Moves a trojan to the attacked server
+    // A plain run: moving a trojan to the attacked server is priced by its power counters
+    run: (): RunOptions => ({}),
   },
   // Trick Shot (event)
   '34087': {
     synergy: { gives: { runs: 1.5, rd: 1.5, econ: 0.5 } },
     counters: { credit: () => 0.9 }, // Run credits
+    // 4 credits for the run, 1 more R&D card, 2 credits after
+    run: (): RunOptions => {
+      return { bonusCredits: 4, extraAccesses: 1, successBonus: 1.5 };
+    },
   },
   // Cataloguer
   '34088': {
