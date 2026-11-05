@@ -258,3 +258,8 @@ Every self-play batch, newest last (Jeff, 2026-10-28). Made with `scripts/corp-l
 | 2026-11-05 | rezToll on | b619617 | 663 | **44.3%** | 34.7% / 9.7% | 48.6% / 7.1% | 44.4% / 24.1% / 26.9% / 4.5% | 7.1 | [txt](batch-logs/2026-11-05-reztoll-on.txt) |
 | 2026-11-05 | iceStopAnchor on | 473dbe8 | 663 | **37.4%** | 29.7% / 7.7% | 53.4% / 9.2% | 42.5% / 26.5% / 25.0% / 5.9% | 7.4 | [txt](batch-logs/2026-11-05-icestopanchor-on.txt) |
 | 2026-11-05 | iceStopAnchor off | 473dbe8 | 663 | **44.3%** | 34.7% / 9.7% | 48.6% / 7.1% | 44.4% / 24.1% / 26.9% / 4.5% | 7.1 | [txt](batch-logs/2026-11-05-icestopanchor-off.txt) |
+| 2026-11-05 | run pricing: all on | ccf254a | 663 | **33.8%** | 26.1% / 7.7% | 56.1% / 10.1% | 45.4% / 24.5% / 23.2% / 6.9% | 7.3 | [txt](batch-logs/2026-11-05-run-pricing-all-on.txt) |
+| 2026-11-05 | run pricing: all off | ccf254a | 663 | **36.2%** | 28.2% / 8.0% | 55.2% / 8.6% | 42.7% / 26.4% / 24.9% / 6.1% | 7.4 | [txt](batch-logs/2026-11-05-run-pricing-all-off.txt) |
+| 2026-11-05 | run pricing: runCreditsSlide off | ccf254a | 663 | **32.1%** | 25.0% / 7.1% | 58.1% / 9.8% | 45.4% / 23.9% / 24.1% / 6.7% | 7.3 | [txt](batch-logs/2026-11-05-run-pricing-runcreditsslide-off.txt) |
+| 2026-11-05 | run pricing: runRest off | ccf254a | 663 | **35.1%** | 27.1% / 8.0% | 54.9% / 10.0% | 45.3% / 24.5% / 23.2% / 6.9% | 7.3 | [txt](batch-logs/2026-11-05-run-pricing-runrest-off.txt) |
+| 2026-11-05 | card usage report: run pricing on | ccf254a | 1280 | **42.6%** |  /  |  /  |  /  /  /  |  | [txt](batch-logs/2026-11-05-card-usage-report-run-pricing-on.txt) |
