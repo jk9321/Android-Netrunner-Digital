@@ -277,3 +277,4 @@ Every self-play batch, newest last (Jeff, 2026-10-28). Made with `scripts/corp-l
 | 2026-11-05 | install value: incomeSlide off | 56edad6 | 663 | **36.5%** | 30.6% / 5.9% | 53.4% / 10.1% | 43.9% / 24.3% / 25.4% / 6.3% | 7.7 | [txt](batch-logs/2026-11-05-install-value-incomeslide-off.txt) |
 | 2026-11-05 | install value: card usage report on | 56edad6 | 1279 | **44.9%** |  /  |  /  |  /  /  /  |  | [txt](batch-logs/2026-11-05-install-value-card-usage-report-on.txt) |
 | 2026-11-05 | card payoff report | 56edad6 |  | **** |  /  |  /  |  /  /  /  |  | [txt](batch-logs/2026-11-05-card-payoff-report.txt) |
+| 2026-11-05 | turns left report | 39503c8 |  | **** |  /  |  /  |  /  /  /  |  | [txt](batch-logs/2026-11-05-turns-left-report.txt) |
