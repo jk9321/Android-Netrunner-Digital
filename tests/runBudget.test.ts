@@ -65,10 +65,12 @@ describe('Runner AI and Manegarm Skunkworks (rules 6.9.4g, 1.16.11b)', () => {
     // Without it: 0.7. With it: 2 clicks more (-2), a little back for an upgrade worth trashing. On the old horizon:
     // with the measured turns left (plan.measuredTurnsLeft, 14 at the start) trashing Manegarm is worth more than the 2 clicks
     tuning.plan.measuredTurnsLeft = false;
+    tuning.plan.measuredRunShares = false; // and the old run shares
     try {
       expect(runScore(manegarmGame(4, 7), 'rd')).toBeLessThan(runScore(manegarmGame(4, 7, false), 'rd') - 1);
     } finally {
       tuning.plan.measuredTurnsLeft = true;
+      tuning.plan.measuredRunShares = true;
     }
   });
 

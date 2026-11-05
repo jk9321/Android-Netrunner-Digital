@@ -405,6 +405,8 @@ export const tuning = {
     runRest: true,
     /** Jeff, 2026-11-05: turns left from the self-play measure by the higher score, not 8 less it (cardProfiles.ts turnsLeft). */
     measuredTurnsLeft: true,
+    /** Jeff, 2026-11-05: the share of runs on each server from the self-play measure (effectValues.ts RUN_SHARES). */
+    measuredRunShares: true,
     /** Jeff, 2026-10-31 (same report): an asset that only pays through a click ability (Humanoid Resources) is rezzed only with the clicks to use it (corpAI.ts clickOnly). */
     rezWhenUsed: true,
     /** Jeff, 2026-10-31 (Humanoid Resources rezzed, never used): a click-only asset is rezzed only in the action phase, when using it is then the best play (corpAI.ts rezToUse). */
