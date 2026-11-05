@@ -1,0 +1,183 @@
+Batch: card usage report (all decks) | ref 791e9f5b24b20fc3a92e0ce035a79572c5f4d3be | games 0-1 | PLAN_OFF= | decks  | card-usage corp | added run 
+1280 games: Corp 42.9%
+Cards playable on at least 15 turns, most held while clicking for credits first.
+"held" = still unplayed at the end of a turn it started playable; "held, clicked for credit" = of those, the turns the side clicked for a credit.
+Traps and upgrades waiting for their moment are expected high; anything else over about 30% needs a look.
+
+side   set            type      card                                     playable  held  held, clicked for credit
+runner vantage-point  resource  Word on the Street (36025)                     39   85%   64%
+corp   vantage-point  operation Reanimation Protocol (36062)                   41   85%   61%
+runner vantage-point  event     Kompromat (36010)                             714   87%   60%
+runner vantage-point  event     Take a Dive (36002)                           669   92%   59%
+runner liberation     hardware  Cataloguer (34088)                            107   87%   58%
+runner vantage-point  event     Tailgate (36012)                              420   84%   56%
+runner system-gateway hardware  T400 Memory Diamond (30031)                    77   84%   56%
+runner liberation     event     Burner (34085)                                314   93%   55%
+runner liberation     event     Privileged Access (34068)                     420   88%   54%
+runner liberation     hardware  LilyPAD (34023)                               329   92%   54%
+runner liberation     program   Saci (34017)                                  232   86%   53%
+runner system-gateway event     Wildcat Strike (30002)                        878   91%   53%
+runner liberation     event     Eye for an Eye (34067)                        210   92%   53%
+runner elevation      event     Lie Low (35015)                              1806   83%   50%
+corp   liberation     operation Active Policing (34102)                        45   96%   49%
+runner vantage-point  hardware  Rotary (36014)                                152   86%   48%
+runner system-gateway event     Mutual Favor (30011)                         1034   75%   48%
+runner elevation      resource  Fransofia Ward (35021)                         86   86%   48%
+runner elevation      event     Transfer of Wealth (35017)                   1765   79%   47%
+runner liberation     hardware  Solidarity Badge (34003)                      515   87%   47%
+runner system-gateway hardware  Docklands Pass (30013)                       1246   84%   47%
+runner elevation      resource  Cacophony (35010)                             117   77%   46%
+corp   system-gateway operation Sprint (30041)                                390   86%   46%
+runner liberation     event     Window of Opportunity (34077)                 340   79%   46%
+runner system-gateway resource  Cookbook (30009)                              919   79%   46%
+runner liberation     resource  Friend of a Friend (34074)                    394   81%   45%
+runner liberation     hardware  Alarm Clock (34078)                           208   78%   44%
+runner system-gateway hardware  Pennyshaver (30014)                          1151   85%   44%
+runner liberation     resource  Arruaceiras Crew (34073)                      387   80%   44%
+runner system-gateway hardware  Carnivore (30003)                             385   83%   44%
+runner liberation     resource  Eru Ayase-Pessoa (34007)                      264   83%   44%
+runner liberation     resource  Hannah "Wheels" Pilintra (34008)              141   80%   43%
+runner liberation     resource  “Pretty” Mary da Silva (34093)                429   86%   43%
+runner system-gateway program   Leech (30008)                                1703   80%   43%
+runner liberation     hardware  Amanuensis (34069)                            294   81%   43%
+runner system-gateway resource  Red Team (30018)                              749   86%   43%
+runner elevation      hardware  Maglectric Rapid (748 Mod) (35019)            780   78%   43%
+runner liberation     resource  Manuel Lattes de Moura (34075)                127   76%   43%
+runner system-gateway event     Tread Lightly (30012)                        2863   87%   42%
+runner elevation      event     Charm Offensive (35003)                       444   84%   42%
+runner liberation     resource  Beatriz Friere Gonzalez (34028)                51   90%   41%
+corp   liberation     asset     Behold! (34051)                               187  100%   41%
+runner liberation     program   Physarum Entangler (34082)                    255   68%   41%
+runner liberation     program   Cupellation (34080)                           353   83%   41%
+runner liberation     resource  Lago Paranoá Shelter (34009)                  207   73%   40%
+runner elevation      resource  Rent Rioters (35011)                          742   81%   39%
+runner elevation      event     Maintenance Access (35016)                   1063   78%   39%
+runner elevation      program   Hantu (35008)                                  49   67%   39%
+runner liberation     resource  Valentina Ferreira Carvalho (34095)            96   72%   39%
+runner liberation     hardware  Hermes (34014)                                356   79%   38%
+corp   system-gateway asset     Clearinghouse (30061)                        2394  100%   38%
+runner elevation      event     Illumination (35025)                         1226   90%   38%
+runner elevation      hardware  Detente (35018)                               224   82%   37%
+runner liberation     program   Pressure Spike (34092)                         27   70%   37%
+runner system-gateway program   Marjanah (30016)                              672   61%   37%
+runner elevation      resource  Side Hustle (35034)                          1405   77%   37%
+runner elevation      event     Scrounge (35004)                             2023   81%   36%
+runner elevation      hardware  Madani (35028)                                791   82%   36%
+runner system-gateway resource  Verbal Plasticity (30034)                    1781   77%   36%
+runner elevation      resource  “Knickknack” O’Brian (35033)                 1083   81%   36%
+runner liberation     program   Laser Pointer (34016)                          81   73%   36%
+runner system-gateway hardware  DZMZ Optimizer (30022)                       2429   82%   35%
+corp   elevation      upgrade   Mitra Aman (35056)                            692  100%   35%
+runner liberation     event     Bahia Bands (34030)                           202   68%   35%
+runner liberation     program   Coalescence (34089)                           253   67%   35%
+runner elevation      program   Sang Kancil (35020)                           317   71%   35%
+runner system-gateway program   Conduit (30024)                               645   84%   35%
+runner vantage-point  hardware  The Tungsten Tailor (36003)                   218   79%   34%
+corp   liberation     asset     B-1001 (34065)                                126   73%   34%
+runner vantage-point  resource  Underdome Irregulars (36016)                   88   66%   34%
+runner elevation      event     Shred (35005)                                 448   79%   34%
+runner liberation     program   Muse (34091)                                  283   72%   34%
+corp   elevation      asset     Humanoid Resources (35039)                   1363   95%   34%
+runner liberation     program   Curupira (34015)                               36   53%   33%
+runner liberation     resource  Amelia Earhart (34083)                        118   88%   33%
+runner system-gateway event     VRcation (30021)                             1717   84%   33%
+corp   elevation      upgrade   Mercia B4LL4RD (35045)                        197   94%   32%
+runner vantage-point  resource  Stick and Poke (36008)                         99   69%   32%
+runner liberation     event     S-Dobrado (34012)                             539   88%   32%
+corp   elevation      asset     Idiosyncresis (35061)                         156   74%   32%
+runner system-gateway program   Tranquilizer (30017)                          301   77%   32%
+runner elevation      hardware  Bling (35006)                                 491   81%   32%
+corp   system-gateway upgrade   Anoetic Void (30050)                          925  100%   31%
+corp   system-gateway operation Seamless Launch (30040)                       831   86%   31%
+runner liberation     event     Trick Shot (34087)                            564   67%   31%
+corp   system-gateway upgrade   Manegarm Skunkworks (30042)                  1380  100%   31%
+runner vantage-point  hardware  Methuselah (36020)                            193   89%   31%
+runner elevation      program   Azimat (35029)                                290   74%   30%
+runner system-gateway event     Jailbreak (30028)                            1218   60%   30%
+corp   vantage-point  asset     Magistrate Revontulet (36048)                  20   95%   30%
+runner elevation      program   Rising Tide (35009)                           924   63%   30%
+runner liberation     program   Malandragem (34081)                           158   75%   30%
+runner system-gateway program   Buzzsaw (30005)                               441   75%   29%
+runner system-gateway resource  Smartware Distributor (30033)                 909   67%   29%
+runner system-gateway event     Overclock (30029)                            1462   69%   29%
+runner system-gateway program   Fermenter (30007)                            1464   67%   29%
+corp   elevation      upgrade   Mahkota Langit Grid (35082)                   243   81%   29%
+runner elevation      event     Clean Getaway (35014)                        1216   67%   29%
+runner system-gateway program   Echelon (30025)                              1116   77%   29%
+runner elevation      program   Principia (35032)                             989   78%   28%
+corp   elevation      asset     Byte! (35050)                                 449  100%   28%
+runner system-gateway program   Mayfly (30032)                                378   66%   28%
+runner system-gateway program   Carmen (30015)                                497   70%   28%
+runner vantage-point  hardware  Borrowed Goods (36013)                         40   57%   28%
+runner vantage-point  program   Stowaway (36024)                              404   76%   27%
+corp   system-gateway asset     Urtica Cipher (30045)                        1993  100%   27%
+corp   vantage-point  operation Cultivate (36043)                              37   78%   27%
+runner vantage-point  event     Aircheck (36018)                              156   76%   26%
+runner elevation      resource  Open Market (35022)                           541   58%   26%
+runner vantage-point  event     Beta Build (36019)                            126   89%   26%
+runner system-gateway program   Unity (30026)                                 814   73%   26%
+runner elevation      event     Ritual (35026)                               1719   58%   25%
+runner elevation      program   Chromatophores (35030)                        500   71%   24%
+runner elevation      hardware  GAMEDRAGON™ Pro (35027)                       179   74%   24%
+corp   elevation      operation Key Performance Indicators (35077)            637   84%   24%
+runner vantage-point  hardware  Touchstone (36021)                            190   77%   24%
+corp   system-gateway operation Public Trail (30057)                          292   87%   24%
+runner system-gateway program   Cleaver (30006)                               216   69%   24%
+runner system-gateway resource  Telework Contract (30027)                    1037   60%   23%
+runner liberation     program   Audrey v2 (34004)                              66   48%   23%
+corp   liberation     upgrade   The Holo Man (34120)                           40   55%   23%
+runner elevation      program   Gourmand (35007)                              762   67%   22%
+runner elevation      program   Devadatta Drone (35031)                       467   60%   21%
+corp   liberation     operation Business As Usual (34128)                      29   93%   21%
+runner vantage-point  program   Read-Write Share (36022)                      270   65%   20%
+runner liberation     event     Strike Fund (34001)                           222   58%   20%
+corp   elevation      operation Measured Response (35078)                      84   68%   20%
+corp   system-gateway operation Neurospike (30049)                            109   88%   20%
+corp   system-gateway operation Retribution (30065)                            31   35%   19%
+corp   liberation     asset     Warm Reception (34098)                        158   37%   18%
+corp   liberation     operation Pivot (34062)                                  76   83%   17%
+runner system-gateway hardware  Pantograph (30023)                            310   79%   17%
+corp   liberation     operation Oppo Research (34055)                          90   90%   17%
+corp   system-gateway upgrade   AMAZE Amusements (30058)                      339  100%   15%
+runner system-gateway event     Creative Commission (30020)                  1372   65%   15%
+corp   liberation     asset     Janaína “JK” Dumont Kindelán (34115)          149   81%   15%
+runner liberation     program   Slap Vandal (34026)                            61   51%   15%
+corp   vantage-point  asset     Esca (36038)                                  204  100%   14%
+corp   elevation      operation Nanomanagement (35043)                        339   84%   14%
+corp   elevation      operation Petty Cash (35081)                           1590   79%   14%
+corp   liberation     operation Your Digital Life (34056)                     174   66%   14%
+runner system-gateway event     Sure Gamble (30030)                          1863   49%   13%
+corp   elevation      operation Touch-ups (35067)                             255   81%   13%
+corp   liberation     asset     Working Prototype (34099)                      16   13%   13%
+corp   vantage-point  upgrade   Hype Machine (36055)                           84   90%   12%
+corp   liberation     operation Sudden Commandment (34119)                     26   54%   12%
+corp   system-gateway upgrade   Malapert Data Vault (30066)                    18   44%   11%
+corp   vantage-point  operation Flood the Market (36053)                       59   88%   10%
+corp   elevation      asset     Otto Campaign (35040)                         298   18%   10%
+runner system-gateway program   Botulus (30004)                               411   34%    9%
+corp   vantage-point  operation Unleash (36044)                                22   55%    9%
+corp   liberation     operation Greasing the Palm (34037)                      58   86%    9%
+corp   system-gateway operation Government Subsidy (30064)                    196   62%    7%
+corp   liberation     operation Corporate Hospitality (34103)                  30   40%    7%
+corp   liberation     asset     Cohort Guidance Program (34108)               107    9%    7%
+corp   system-gateway asset     Nico Campaign (30037)                         273    9%    5%
+corp   system-gateway operation Predictive Planogram (30056)                  669   48%    4%
+corp   system-gateway operation Hedge Fund (30075)                           1561   51%    4%
+corp   system-gateway asset     Regolith Mining License (30071)               469   10%    4%
+corp   elevation      asset     Anthill Excavation Contract (35072)           369   13%    4%
+corp   elevation      operation Peer Review (35055)                           312   65%    3%
+corp   elevation      operation IP Enforcement (35066)                         35   51%    3%
+corp   elevation      operation Top-Down Solutions (35044)                     36   31%    3%
+corp   system-gateway operation Hansei Review (30048)                         628   76%    3%
+corp   elevation      operation Bigger Picture (35065)                         46   35%    2%
+corp   vantage-point  asset     Luana Campos (36057)                           49    4%    2%
+corp   elevation      asset     Public Access Plaza (35062)                   153    3%    2%
+corp   system-gateway asset     Spin Doctor (30053)                            64    2%    0%
+corp   liberation     operation Mindscaping (34045)                            69   39%    0%
+corp   liberation     asset     Balanced Coverage (34050)                      89    8%    0%
+corp   liberation     asset     Federal Fundraising (34052)                    83    0%    0%
+corp   liberation     operation Armed Asset Protection (34061)                 24   54%    0%
+corp   liberation     asset     Charlotte Caçador (34107)                      97    0%    0%
+corp   elevation      asset     Plutus (35073)                                109    2%    0%
+corp   vantage-point  operation Caveat Emptor (36032)                          24   42%    0%
+corp   vantage-point  operation Vulture Fund (36063)                           57   32%    0%
