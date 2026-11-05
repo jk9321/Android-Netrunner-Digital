@@ -278,3 +278,7 @@ Every self-play batch, newest last (Jeff, 2026-10-28). Made with `scripts/corp-l
 | 2026-11-05 | install value: card usage report on | 56edad6 | 1279 | **44.9%** |  /  |  /  |  /  /  /  |  | [txt](batch-logs/2026-11-05-install-value-card-usage-report-on.txt) |
 | 2026-11-05 | card payoff report | 56edad6 |  | **** |  /  |  /  |  /  /  /  |  | [txt](batch-logs/2026-11-05-card-payoff-report.txt) |
 | 2026-11-05 | turns left report | 39503c8 |  | **** |  /  |  /  |  /  /  /  |  | [txt](batch-logs/2026-11-05-turns-left-report.txt) |
+| 2026-11-05 | measuredTurnsLeft on | a78147c | 663 | **37.1%** | 30.2% / 6.9% | 54.4% / 8.4% | 44.5% / 25.1% / 23.6% / 6.8% | 7.3 | [txt](batch-logs/2026-11-05-measuredturnsleft-on.txt) |
+| 2026-11-05 | measuredTurnsLeft off | a78147c | 663 | **36.5%** | 30.8% / 5.7% | 53.2% / 10.3% | 42.3% / 24.5% / 25.6% / 7.6% | 7.7 | [txt](batch-logs/2026-11-05-measuredturnsleft-off.txt) |
+| 2026-11-05 | measuredTurnsLeft: card usage report | a78147c | 1280 | **42.5%** |  /  |  /  |  /  /  /  |  | [txt](batch-logs/2026-11-05-measuredturnsleft-card-usage-report.txt) |
+| 2026-11-05 | measuredTurnsLeft: card payoff report | a78147c |  | **** |  /  |  /  |  /  /  /  |  | [txt](batch-logs/2026-11-05-measuredturnsleft-card-payoff-report.txt) |
