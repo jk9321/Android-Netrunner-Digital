@@ -253,3 +253,5 @@ Every self-play batch, newest last (Jeff, 2026-10-28). Made with `scripts/corp-l
 | 2026-11-05 | money cards 2: transferOfWealth off | bfbe603 | 663 | **44.3%** | 35.3% / 9.0% | 47.8% / 7.8% | 44.9% / 23.3% / 27.1% / 4.7% | 7.2 | [txt](batch-logs/2026-11-05-money-cards-2-transferofwealth-off.txt) |
 | 2026-11-05 | tagFirst on | be888a1 | 663 | **44.0%** | 34.8% / 9.2% | 48.6% / 7.4% | 45.4% / 23.9% / 26.4% / 4.3% | 7.1 | [txt](batch-logs/2026-11-05-tagfirst-on.txt) |
 | 2026-11-05 | tagFirst off | be888a1 | 663 | **43.9%** | 34.8% / 9.0% | 48.3% / 7.8% | 45.2% / 24.0% / 26.5% / 4.3% | 7.1 | [txt](batch-logs/2026-11-05-tagfirst-off.txt) |
+| 2026-11-05 | rezToll off | b619617 | 663 | **44.0%** | 34.8% / 9.2% | 48.6% / 7.4% | 45.4% / 23.9% / 26.4% / 4.3% | 7.1 | [txt](batch-logs/2026-11-05-reztoll-off.txt) |
+| 2026-11-05 | rezToll on | b619617 | 663 | **44.3%** | 34.7% / 9.7% | 48.6% / 7.1% | 44.4% / 24.1% / 26.9% / 4.5% | 7.1 | [txt](batch-logs/2026-11-05-reztoll-on.txt) |
