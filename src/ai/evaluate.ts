@@ -230,6 +230,9 @@ export const agendaBoardValue = (counters: number, cost: number) => counters * R
 /** Chance the Runner runs a remote holding an advanced agenda on its turn (measured, scripts/pace.ts at b72eb3d: 40% of 6,689 turns). */
 export const AGENDA_RUN = 0.4;
 
+/** What a Corp click spent advancing could have built instead (plan.agendaClicks). */
+export const AGENDA_CLICK = 2;
+
 /**
  * An installed agenda (Jeff, 2026-10-28; plan.agendaBoard): its points on
  * the clock, if it survives the Runner's turns until it can be scored, less
@@ -270,7 +273,10 @@ export function agendaWorth(
   const runnerTurns =
     state.activePlayer === 'corp' ? Math.ceil(Math.max(0, clicks - budget.clicks) / 3) : 1 + Math.ceil(Math.max(0, clicks - 3) / 3);
   const late = 1 - 1 / turnsLeft(state);
-  return gain * ((1 - steal) * late) ** runnerTurns - need * (CLICK + 1);
+  // plan.agendaClicks (Jeff's Corp game 2, bug report #18): the clicks still needed are clicks a later turn can't spend
+  // building; priced at the flat click rate, building now and scoring next turn always beat scoring now and building next
+  const click = tuning.plan.agendaClicks ? AGENDA_CLICK : CLICK;
+  return gain * ((1 - steal) * late) ** runnerTurns - need * (click + 1);
 }
 
 /**

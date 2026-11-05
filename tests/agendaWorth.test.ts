@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
-import { agendaWorth, archivedAgendaLoss, evaluate, keepValue } from '../src/ai/evaluate';
+import { AGENDA_CLICK, agendaWorth, archivedAgendaLoss, evaluate, keepValue } from '../src/ai/evaluate';
 import { cardDef } from '../src/core';
+import { tuning } from '../src/ai/synergy';
 import { playedWorth } from '../src/ai/handValues';
 import { iceWorth } from '../src/ai/iceValues';
 import { CLICK, pointValue } from '../src/ai/valueModel';
@@ -37,10 +38,16 @@ describe('agendas on the board (Jeff, 2026-10-28; plan.agendaBoard)', () => {
     expect(bare).toBeCloseTo(0); // an open remote: as good as stolen (plan.openSteal)
   });
 
-  it('each advancement brings it closer: the click and credit it took come back', () => {
+  it('each advancement brings it closer: the click (at what it could build, plan.agendaClicks) and credit it took come back', () => {
     const s = remotes();
     s.activePlayer = 'corp';
-    expect(agendaWorth(s, 1, 3, 2, 'remote-1') - agendaWorth(s, 0, 3, 2, 'remote-1')).toBeCloseTo(CLICK + 1);
+    expect(agendaWorth(s, 1, 3, 2, 'remote-1') - agendaWorth(s, 0, 3, 2, 'remote-1')).toBeCloseTo(AGENDA_CLICK + 1);
+    tuning.plan.agendaClicks = false;
+    try {
+      expect(agendaWorth(s, 1, 3, 2, 'remote-1') - agendaWorth(s, 0, 3, 2, 'remote-1')).toBeCloseTo(CLICK + 1);
+    } finally {
+      tuning.plan.agendaClicks = true;
+    }
   });
 
   it('in HQ, an agenda is worth installing in the safest remote, as the board will value it', () => {

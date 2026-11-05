@@ -388,6 +388,8 @@ export const tuning = {
     brokeSlope: true,
     /** Jeff, 2026-10-31 (same report): on the Corp's turn the agendas on the board share its clicks and credits, nearest to scored first, instead of each counting on all of them (evaluate.ts agendaBudgets). */
     agendaBudget: true,
+    /** Jeff's Corp game 2 (bug report #18, 2026-11-05: Project Ingatan scorable on turn 7, the AI built instead): an agenda's remaining advances are priced at what a click builds (evaluate.ts AGENDA_CLICK, 2 against the flat 1.25), not the flat click rate. The smallest rate that scores in his turn-7 position. */
+    agendaClicks: true,
     /** Jeff, 2026-10-31 (same report): the turn planner's playouts score an agenda its last click finished (turnPlanner.ts). */
     plannerScores: true,
     /** Jeff, 2026-11-05: the planner prices a run a card starts (run events, Red Team) like a plain run with the card's riders, instead of ending the playout at the run's start (turnPlanner.ts runStarted). */
