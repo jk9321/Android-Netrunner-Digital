@@ -4,6 +4,9 @@ import { tuning } from '../synergy';
 import { cardRate, CLICK, RATES } from '../valueModel';
 import { VIC } from '../evaluate';
 import { accessWorth, centralSuccess, counterWorthOf, damageWorth, deckCount, deckShare, lock, muWorth, PACE, perTurn, priceIce, pricingIce, runSuccess } from '../effectValues';
+import type { RunOptions } from '../runs';
+import { badPublicityWorth } from '../prompts';
+import type { GameState } from '../../core';
 import { CardAI } from './types';
 
 /**
@@ -15,7 +18,13 @@ export const VANTAGE_POINT: Record<string, CardAI> = {
   // Chain Reaction
   '36001': { synergy: { gives: { trash: 2 }, wants: { runs: 2, hq: 1, rd: 1, archives: 1 }, when: ['successfulRun'] } },
   // Take a Dive
-  '36002': { synergy: { gives: { runs: 1, hq: 0.5, rd: 0.5 } } },
+  '36002': {
+    synergy: { gives: { runs: 1, hq: 0.5, rd: 0.5 } },
+    // A bad publicity on success, if a subroutine resolved (about half the time)
+    run: (state?: GameState): RunOptions => {
+      return { successBonus: 0.5 * (state ? badPublicityWorth(state) : 2) };
+    },
+  },
   // The Tungsten Tailor
   '36003': {
     synergy: { gives: { econ: 0.5 }, wants: { breakers: 1 } },
@@ -63,11 +72,23 @@ export const VANTAGE_POINT: Record<string, CardAI> = {
   // Vic
   '36009': { synergy: { gives: { draw: 1 }, wants: { tags: 0.5 } } },
   // Kompromat
-  '36010': { synergy: { gives: { runs: 1 } } },
+  '36010': {
+    synergy: { gives: { runs: 1 } },
+    // A bad publicity (or a derezzed ice) on success
+    run: (state?: GameState): RunOptions => {
+      return { successBonus: state ? badPublicityWorth(state) : 2 };
+    },
+  },
   // Sell Out
   '36011': { synergy: { gives: { econ: 1.5, draw: 1 } } },
   // Tailgate
-  '36012': { synergy: { gives: { runs: 1, hq: 2 } } },
+  '36012': {
+    synergy: { gives: { runs: 1, hq: 2 } },
+    // 2 more HQ accesses
+    run: (): RunOptions => {
+      return { extraAccesses: 2 };
+    },
+  },
   // Borrowed Goods
   '36013': {
     synergy: { wants: { tags: 0.5 } },
@@ -97,6 +118,10 @@ export const VANTAGE_POINT: Record<string, CardAI> = {
       const saved = Math.max(0, Math.min(4, Math.max(ice('hq'), ice('rd'))) - ice('archives'));
       return perTurn(state, (stealth ? 0.5 : 0.1) * (saved + accessWorth(state)), 'runner');
     },
+    // Baker
+    run: (): RunOptions => {
+      return { baker: true };
+    },
   },
   // Underdome Irregulars
   '36016': {
@@ -111,7 +136,13 @@ export const VANTAGE_POINT: Record<string, CardAI> = {
   // Hiram
   '36017': { synergy: { gives: { rd: 0.5 }, wants: { install: 1 } } },
   // Aircheck
-  '36018': { synergy: { gives: { runs: 1, hq: 0.5, rd: 0.5, econ: 0.5 } } },
+  '36018': {
+    synergy: { gives: { runs: 1, hq: 0.5, rd: 0.5, econ: 0.5 } },
+    // 4 credits of its own, the pool locked
+    run: (): RunOptions => {
+      return { bonusCredits: 4, poolLocked: true };
+    },
+  },
   // Beta Build
   '36019': { synergy: { gives: { runs: 1, install: 1.5 } } },
   // Methuselah

@@ -220,7 +220,7 @@ export class HeuristicRunnerAI implements Agent {
       state,
       'runner',
       ranked,
-      { rank: s => rollout.rankMainActions(s), answer: s => rollout.chooseAction(s), runWorth: (s, id) => runScore(s, id, options), memory: this.planMemory },
+      { rank: s => rollout.rankMainActions(s), answer: s => rollout.chooseAction(s), runWorth: (s, id, code) => runScore(s, id, code ? { ...runEventOptions(code, s), ...options } : options), memory: this.planMemory },
       this.synergy,
     );
   }

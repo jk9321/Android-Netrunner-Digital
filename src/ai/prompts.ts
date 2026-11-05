@@ -2,10 +2,11 @@ import { CardInstance, GameAction, GameState, Prompt, SideCode, activePrompt, ca
 import { runnerInstallBlocker, runnerInstallCost } from '../core/engine/actions/install';
 import { evaluate, keepValue, rigCoverage, runnerRigValue } from './evaluate';
 import { bakerWantsFuel, principiaFuel } from './cardPlans';
+import { CARDS } from './cards';
 import { CLICK, cardRate } from './valueModel';
 import { PACE, accessWorth, placedCounterWorth } from './effectValues';
 import { turnsLeft } from './cardProfiles';
-import { BLOCK, BOTULUS, MANEGARM, RunOptions, RunnerMemory, iceCost, isTrap, runClick, runScore, serverValue, spendCost, subroutineCost, tagCost, weakestIce, windowDerez } from './runs';
+import { BLOCK, BOTULUS, MANEGARM, RunOptions, RunnerMemory, iceCost, isTrap, runClick, runRestWorth, runScore, serverValue, spendCost, subroutineCost, tagCost, weakestIce, windowDerez } from './runs';
 import { breakerScript, encounteredIce, iceSubroutines, iceSubtypes, isIcebreaker } from '../core/engine/ice';
 import { keepBonus, tuning } from './synergy';
 import { freeInstallTarget, perfectRecallTarget } from './corpAI';
@@ -42,8 +43,11 @@ export function scoreOutcome(before: GameState, after: GameState, side: SideCode
   const drawn = (c: CardInstance) => tuning.plan.blindDraws && !hand(before, side).some(b => b.instanceId === c.instanceId) && fromDeck(before, side, c);
   score += 0.5 * (sumKeep(after, hand(after, side).filter(c => !drawn(c)), synergy) - sumKeep(before, hand(before, side), synergy));
   if (side === 'runner' && before.activeRun) {
-    const value = serverValue(before, before.activeRun.server, 0, memory, synergy && tuning.wary, synergy && tuning.plan.urgency) * 0.8;
-    if (after.activeRun && !after.activeRun.isJackedOut) score += value;
+    if (tuning.plan.runRest) score += 0.8 * runRestWorth(after, memory, synergy && tuning.wary, synergy && tuning.plan.urgency);
+    else {
+      const value = serverValue(before, before.activeRun.server, 0, memory, synergy && tuning.wary, synergy && tuning.plan.urgency) * 0.8;
+      if (after.activeRun && !after.activeRun.isJackedOut) score += value;
+    }
   }
   return score;
 }
@@ -124,60 +128,13 @@ export function badPublicityWorth(state: GameState): number {
   return Math.min(3, 0.8 * PACE.runs * turnsLeft(state));
 }
 
-/** Run-event bonuses, by the code of the card that asks which server to run. */
+/**
+ * A run card's riders, by the code of the card that starts the run (run events, Red Team, Conduit,
+ * Baker, Eru...): each card's `run` entry in src/ai/cards/ (2026-11-05, moved from a switch here so a
+ * card's worth and its run live in one place; tests/useAudit.test.ts checks every run card has one).
+ */
 export function runEventOptions(cardCode: string, state?: GameState): RunOptions {
-  switch (cardCode) {
-    case '36010': // Kompromat: a bad publicity (or a derezzed ice) on success
-      return { successBonus: state ? badPublicityWorth(state) : 2 };
-    case '36002': // Take a Dive: a bad publicity on success, if a subroutine resolved (about half the time)
-      return { successBonus: 0.5 * (state ? badPublicityWorth(state) : 2) };
-    case '30028': // Jailbreak
-      return { extraAccesses: 1 };
-    case '30029': // Overclock
-      return { bonusCredits: 5 };
-    case '30012': // Tread Lightly
-      return { rezTax: true };
-    case '35016': // Maintenance Access: Archives' ice, then HQ is breached instead; the extra click it costs
-      return { breachAs: 'hq', successBonus: -(state ? runClick(state) : 1) };
-    case '35014': // Clean Getaway
-      return { successBonus: 6 };
-    case '35017': // Transfer of Wealth: a tag, the Corp loses up to 3 credits, the Runner gains twice that (plan.transferOfWealth)
-      if (!tuning.plan.transferOfWealth) return {};
-      return { successBonus: state ? 3 * Math.min(3, state.corp.credits) - tagCost(state) : 6 };
-    case '35005': // Shred
-      return { shred: true };
-    case '36012': // Tailgate: 2 more HQ accesses
-      return { extraAccesses: 2 };
-    case '36018': // Aircheck: 4 credits of its own, the pool locked
-      return { bonusCredits: 4, poolLocked: true };
-    case '36015': // Baker
-      return { baker: true };
-    // Liberation
-    case '34007': // Eru Ayase-Pessoa: a tag, then Archives breaches R&D instead (1 more card at threat 3)
-      return { breachAs: 'rd', extraAccesses: state && Math.max(state.corp.score, state.runner.score) >= 3 ? 1 : 0, successBonus: state ? -tagCost(state) : -3 };
-    case '34028': // Beatriz Friere Gonzalez: an extra click, then HQ breaches R&D with 1 more card
-      return { breachAs: 'rd', extraAccesses: 1, successBonus: -(state ? runClick(state) : 1) };
-    case '34008': // Hannah: the click comes back
-      return { successBonus: state ? runClick(state) : 1 };
-    case '34021': // Joy Ride: 5 cards
-      return { successBonus: state ? Math.min(5, Math.max(1, state.runner.handSizeLimit - state.runner.grip.length + 1)) * cardRate(state, 'runner') : 4 };
-    case '34067': // Eye for an Eye: a tag, 1 more HQ card
-      return { extraAccesses: 1, successBonus: state ? -tagCost(state) : -3 };
-    case '34068': // Privileged Access: no breach, a tag and a cheap resource from the heap
-      return { noBreach: true, successBonus: state ? (state.runner.heap.some(c => cardDef(c).type_code === 'resource') ? 3 : 0) - tagCost(state) : 0 };
-    case '34085': // Burner: no breach, 2 HQ cards sent back to R&D
-      return { noBreach: true, successBonus: state && state.corp.hq.length > 0 ? 3 : 0 };
-    case '34087': // Trick Shot: 4 credits for the run, 1 more R&D card, 2 credits after
-      return { bonusCredits: 4, extraAccesses: 1, successBonus: 1.5 };
-    case '34012': // S-Dobrado: the first ice encountered is bypassed (rules 6.5.8a), a second for a click at threat 4
-      return tuning.plan.bypass ? { bypassFirst: true } : {};
-    case '34077': // Window of Opportunity: a rezzed ice derezzed as the run begins, and a free-click install
-      return tuning.plan.bypass ? { derezOne: true, successBonus: 0 } : {};
-    case '34030': // Bahia Bands: two of 2 cards, a cheaper install, a tag gone, 4 credits
-      return { successBonus: 4 };
-    default:
-      return {};
-  }
+  return CARDS[cardCode]?.run?.(state) ?? {};
 }
 
 /** Picks an answer to the active prompt, which belongs to `side`. */

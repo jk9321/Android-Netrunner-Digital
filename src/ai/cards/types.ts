@@ -3,6 +3,7 @@ import type { CardProfile } from '../cardProfiles';
 import type { CardValue } from '../cardValues';
 import type { CorpEffect } from '../effectValues';
 import type { CardSynergy } from '../synergyTags';
+import type { RunOptions } from '../runs';
 
 export type CounterType = 'credit' | 'virus' | 'power' | 'agenda';
 export type CounterWorth = (state: GameState, card: CardInstance) => number;
@@ -37,6 +38,8 @@ export interface CardAI {
   runner?: (state: GameState, code: string, card?: CardInstance) => number;
   /** Corp root card: its worth once rezzed, less the rez cost, where corp() doesn't say (effectValues.ts rezzedWorth). */
   rezzed?: (state: GameState, card: CardInstance, rezCost: number) => number;
+  /** A run it starts (run event, run ability): what the card adds to that run (prompts.ts runEventOptions; runs.ts RunOptions). */
+  run?: (state?: GameState) => RunOptions;
   /** One counter on it, by type (counterValues.ts COUNTER_WORTH). */
   counters?: Partial<Record<CounterType, CounterWorth>>;
   /** One counter on it worked out from what it turns into, while plan.counterFormulas is on. */

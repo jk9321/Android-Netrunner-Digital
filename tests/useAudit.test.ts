@@ -3,7 +3,7 @@ import { describe, expect, it } from 'vitest';
 import { ALL_CARDS, CardDefinition } from '../src/core';
 import { isIcebreaker } from '../src/core/engine/ice';
 import { CARD_PLANS } from '../src/ai/cardPlans';
-import { runEventOptions } from '../src/ai/prompts';
+import { CARDS } from '../src/ai/cards';
 
 /**
  * The every-card USE audit (Jeff, 2026-11-05, thread "Find why AI card valuation misses cards").
@@ -12,7 +12,7 @@ import { runEventOptions } from '../src/ai/prompts';
  * gets a worth (so it is installed or held) but no run is ever priced with it: Maintenance
  * Access, S-Dobrado, Window of Opportunity and the bypass programs were all found that way.
  *
- * A new card that fails: teach the run logic (a runEventOptions case in prompts.ts for its
+ * A new card that fails: teach the run logic (a `run` entry in its src/ai/cards/ file for its
  * rider, or a case in runs.ts / prompts.ts / runnerAI.ts / corpAI.ts that names its code),
  * or list it below with the reason it needs nothing. KNOWN_GAPS is the backlog of cards
  * still missing that logic: it may only shrink.
@@ -30,12 +30,7 @@ export const PRICED_ELSEWHERE: Record<string, string> = {
 
 /** Cards that still need run logic (the backlog, 2026-11-05). Remove a card once it has it; never add one. */
 const KNOWN_GAPS: Record<string, string> = {
-  '30018': 'Red Team: the 3 credits a successful run takes',
-  '30024': 'Conduit: the extra R&D accesses its run gives',
-  '35003': 'Charm Offensive: trashing a rezzed copy of a card accessed in Archives',
-  '36019': 'Beta Build: the program it installs for the run',
-  '34019': 'Debbie "Downtown" Moreira: credits from run events',
-  '34086': 'Spree: moving a trojan to the attacked server',
+  '36019': 'Beta Build: the program it installs goes back to the stack when the run ends, but the board prices it as kept',
   '30058': 'AMAZE Amusements: tags when an agenda is stolen from its server',
   '35019': 'Maglectric Rapid: derez a Corp card after an HQ run',
   '36021': 'Touchstone: its run ability',
@@ -58,7 +53,8 @@ const read = (list: string[]) => list.map(f => readFileSync(`src/ai/${f}`, 'utf8
 const logic = { runner: read(files.filter(f => f !== 'corpAI.ts')), corp: read(files.filter(f => f !== 'runnerAI.ts')) };
 /** The card's code is named by its own side's decision logic (not just its own entry in src/ai/cards/). */
 const named = (def: CardDefinition) => logic[def.side_code as 'corp' | 'runner'].includes(`'${def.code}'`);
-const hasRider = (def: CardDefinition) => Object.keys(runEventOptions(def.code)).length > 0;
+/** The card says what it adds to the run it starts: its `run` entry in src/ai/cards/ (a plain run says so with `run: () => ({})`). */
+const hasRider = (def: CardDefinition) => !!CARDS[def.code]?.run;
 
 function uncovered(def: CardDefinition): string | null {
   const text = def.stripped_text ?? '';

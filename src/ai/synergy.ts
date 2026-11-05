@@ -386,6 +386,12 @@ export const tuning = {
     agendaBudget: true,
     /** Jeff, 2026-10-31 (same report): the turn planner's playouts score an agenda its last click finished (turnPlanner.ts). */
     plannerScores: true,
+    /** Jeff, 2026-11-05: the planner prices a run a card starts (run events, Red Team) like a plain run with the card's riders, instead of ending the playout at the run's start (turnPlanner.ts runStarted). */
+    plannerRunEvents: true,
+    /** Jeff, 2026-11-05: credits a successful run gives (Clean Getaway, Transfer of Wealth, Trick Shot, Red Team) are priced on the credit slide (runs.ts successCredits). */
+    runCreditsSlide: true,
+    /** Jeff, 2026-11-05: a Runner choice during a run is scored with what the rest of the run is still worth (the breach less the ice ahead), not just that the run goes on (runs.ts runRestWorth). */
+    runRest: true,
     /** Jeff, 2026-10-31 (same report): an asset that only pays through a click ability (Humanoid Resources) is rezzed only with the clicks to use it (corpAI.ts clickOnly). */
     rezWhenUsed: true,
     /** Jeff, 2026-10-31 (Humanoid Resources rezzed, never used): a click-only asset is rezzed only in the action phase, when using it is then the best play (corpAI.ts rezToUse). */

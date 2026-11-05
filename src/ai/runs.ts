@@ -18,7 +18,7 @@ import { corpCardValue, tagThreat, tagsWorth } from './evaluate';
 import { agendaOdds, coreDamageWorth, counterWorthOf, damageWorth, runnerEffect } from './effectValues';
 import { clickPrice } from './handValues';
 import { tuning } from './synergy';
-import { RATES, clickRate, creditNeed, creditSlide, pointValue } from './valueModel';
+import { RATES, clickRate, creditNeed, creditSlide, payoutSlide, pointValue } from './valueModel';
 
 /**
  * What the Runner AI knows about runs. It only reads public information:
@@ -711,8 +711,14 @@ export interface RunOptions {
   extraAccesses?: number;
   /** Tread Lightly: unrezzed ice costs 3 more to rez, so it's less likely to be rezzed. */
   rezTax?: boolean;
-  /** Credits gained if the run is successful (Clean Getaway). */
+  /** Worth (in credits) the run's card adds if the run is successful, beyond the breach. */
   successBonus?: number;
+  /**
+   * Credits the Runner gains if the run is successful (Clean Getaway, Transfer of Wealth, Red Team), priced on the
+   * credit slide like the credits the run costs (plan.runCreditsSlide; Jeff, 2026-11-05): a broke Runner's 6 credits
+   * from Clean Getaway are worth more than 6, a rich one's less. With the flag off they count flat.
+   */
+  successCredits?: number;
   /** Shred: the first "end the run" is prevented unless the Corp trashes cards from HQ. */
   shred?: boolean;
   /** Aircheck: only the run's own credits can be spent, not the pool. */
@@ -859,7 +865,9 @@ export function runScore(state: GameState, serverId: string, options: RunOptions
   const server = state.corp.servers[serverId];
   if (!server) return -Infinity;
   const breached = options.noBreach ? 0 : serverValue(state, options.breachAs ?? serverId, options.extraAccesses ?? 0, options.memory, options.wary, options.urgent);
-  let value = breached + (tuning.plan.runModel ? 1 : 0.8) * (options.successBonus ?? 0);
+  const gained = options.successCredits ?? 0;
+  const credits = gained > 0 && tuning.plan.runCreditsSlide ? gained * payoutSlide(state, 'runner', 'runner', gained) : gained;
+  let value = breached + (tuning.plan.runModel ? 1 : 0.8) * ((options.successBonus ?? 0) + credits);
   if (options.baker && serverId === 'archives' && runStealthCredits(state) >= 1) {
     // Baker: after Archives' ice, a stealth credit turns the run on HQ or R&D, whose ice it skipped
     const redirect = Math.max(...['hq', 'rd'].map(id => serverValue(state, id, 0, options.memory, options.wary, options.urgent)));
@@ -907,6 +915,29 @@ export function runScore(state: GameState, serverId: string, options: RunOptions
   if (!approach) return -Infinity;
   const paid = Math.max(0, expected - (options.bonusCredits ?? 0));
   return value - spendCost(state, paid) - spendCost(state, waste) - approach.cost - runClick(state) - bypassed.price;
+}
+
+/**
+ * What the rest of a run in progress is still worth to the Runner (plan.runRest; Jeff, 2026-11-05, thread
+ * "Find why AI card valuation misses cards"): the breach, less what the ice still ahead will cost to get past
+ * (none if some of it can't be). A choice made during a run (pay or end the run, gain credits, derez or skip
+ * an ice further in) changes this; the board alone never saw it, only that the run was still going.
+ */
+export function runRestWorth(state: GameState, memory?: RunnerMemory, wary?: boolean, urgent?: boolean): number {
+  const run = state.activeRun;
+  if (!run || run.isJackedOut) return 0;
+  const server = state.corp.servers[run.server];
+  if (!server) return 0;
+  const pos = run.icePosition;
+  // Ice not yet passed: further in, and the one being approached (an encounter in progress is priced by its own answer)
+  const ahead = server.ice.filter((_, i) => pos === null || i < pos || (i === pos && run.phase === 'approach_ice'));
+  let cost = 0;
+  for (const ice of ahead) {
+    const c = iceCost(state, ice);
+    if (c === BLOCK) return 0;
+    cost += c;
+  }
+  return Math.max(0, serverValue(state, run.server, 0, memory, wary, urgent) - spendCost(state, cost));
 }
 
 const CHAIN_REACTION = '36001';
