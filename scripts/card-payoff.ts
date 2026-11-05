@@ -50,7 +50,6 @@ for (const c of pool.filter(d => d.side === 'corp')) for (const r of pool.filter
   const gr = new GameRunner(createInitialGameState(deckGameSetup(seed, c, r)), { corp: createAgent('corp', 'normal'), runner: createAgent('runner', 'normal') });
   const live = new Map<string, Live>();
   const done: Live[] = [];
-  let runServer: string | null = null, runOk = false;
   try {
     for (let steps = 0; steps < 4000 && gr.state.turnNumber <= 80; steps++) {
       const before = gr.state;
@@ -78,14 +77,9 @@ for (const c of pool.filter(d => d.side === 'corp')) for (const r of pool.filter
         const fromCard = Math.max(0, (rig(before).find(x => x.instanceId === l.id)?.tokens.credit ?? 0) - (rig(after).find(x => x.instanceId === l.id)?.tokens.credit ?? 0));
         if (gained > fromCard) l.credits += gained - fromCard;
       }
-      // Runs: the server, and whether it got in
-      if (after.activeRun) {
-        if (!before.activeRun) { runServer = after.activeRun.server; runOk = false; }
-        if (after.activeRun.isSuccessful) runOk = true;
-      } else if (before.activeRun && runServer) {
-        if (runOk || before.activeRun.isSuccessful) for (const l of live.values()) { l.runs++; if (runServer === 'hq') l.hq++; if (runServer === 'rd') l.rd++; }
-        runServer = null;
-      }
+      // Runs: from the run log as the turn passes (state.runsThisTurn; a run can start and end in one step)
+      if (after.runsThisTurn.length < before.runsThisTurn.length)
+        for (const run of before.runsThisTurn) if (run.successful) for (const l of live.values()) { l.runs++; if (run.server === 'hq') l.hq++; if (run.server === 'rd') l.rd++; }
       // A Runner turn ends: each card installed through it counts the turn
       if (before.activePlayer === 'runner' && after.activePlayer !== 'runner') for (const l of live.values()) l.turns++;
     }

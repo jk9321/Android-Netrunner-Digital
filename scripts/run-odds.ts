@@ -39,7 +39,16 @@ for (const c of pool.filter(d => d.side === 'corp')) for (const r of pool.filter
   seed++;
   if (deal++ % shards !== shard) continue;
   const gr = new GameRunner(createInitialGameState(deckGameSetup(seed, c, r)), { corp: createAgent('corp', 'normal'), runner: createAgent('runner', 'normal') });
-  let open: { kind: string; odds: number; ok: boolean } | null = null;
+  // The run log (state.runsThisTurn) says which runs succeeded; a run can start and end in one step, so the odds are
+  // noted as each run is logged and matched to the log when the turn passes
+  let odds: number[] = [];
+  const settle = (log: { server: string; successful: boolean }[]) => {
+    log.forEach((run, i) => {
+      const r2 = (runs[kind(run.server)] ??= [0, 0, 0]);
+      r2[0]++; r2[1] += odds[i] ?? 0; r2[2] += run.successful ? 1 : 0;
+    });
+    odds = [];
+  };
   try {
     for (let steps = 0; steps < 4000 && gr.state.turnNumber <= 80; steps++) {
       const before: GameState = gr.state;
@@ -49,15 +58,10 @@ for (const c of pool.filter(d => d.side === 'corp')) for (const r of pool.filter
         turns++;
         for (const id of ['hq', 'rd', 'archives']) { const a = (asked[id] ??= [0, 0]); a[0]++; a[1] += asSide('runner', () => runSuccess(after, id)); }
       }
-      if (after.activeRun && !before.activeRun) open = { kind: kind(after.activeRun.server), odds: asSide('runner', () => runSuccess(before, after.activeRun!.server)), ok: false };
-      if (open && after.activeRun?.isSuccessful) open.ok = true;
-      if (open && !after.activeRun) {
-        if (before.activeRun?.isSuccessful) open.ok = true;
-        const r2 = (runs[open.kind] ??= [0, 0, 0]);
-        r2[0]++; r2[1] += open.odds; r2[2] += open.ok ? 1 : 0;
-        open = null;
-      }
+      if (after.runsThisTurn.length < before.runsThisTurn.length) settle(before.runsThisTurn);
+      else for (let i = before.runsThisTurn.length; i < after.runsThisTurn.length; i++) odds.push(asSide('runner', () => runSuccess(before, after.runsThisTurn[i].server)));
     }
+    settle(gr.state.runsThisTurn);
   } catch (err) {
     crashed++;
     console.error(`deal ${seed}: ${err}`);
