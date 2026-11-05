@@ -39,10 +39,11 @@ const pool = [...ALL_DECKS, ...IDENTITY_TEST_DECKS, ...NRDB_TEST_DECKS].filter(d
 type Side = 'corp' | 'runner';
 /**
  * By card code: [turns it started playable, turns it was still unplayed at the end, of those the turns the side clicked for a credit,
- * copies ever playable, of those the copies never played by the game's end]. Holding a card for a better turn is fine (Jeff,
+ * copies ever playable, of those the copies never played by the game's end; of those, discarded to hand size, lost otherwise
+ * (damage, a card's effect), still in hand when the game ended]. Holding a card for a better turn is fine (Jeff,
  * 2026-11-05: "sometimes the runner holding a card for later instead of spending it is fine"); a copy never played at all is the miss.
  */
-const held: Record<string, [number, number, number, number, number]> = {};
+const held: Record<string, number[]> = {};
 let played = 0, corpWins = 0, crashed = 0;
 
 const PLAYS = new Set(['PLAY_OPERATION_OR_EVENT', 'INSTALL_CARD', 'REZ_CARD']);
@@ -68,6 +69,9 @@ for (const c of pool.filter(d => d.side === 'corp')) for (const r of pool.filter
   /** Copies seen playable this game, and the ones played since. */
   const everPlayable = new Map<string, string>();
   const usedIds = new Set<string>();
+  /** How an unplayed copy left the hand: 'size' (discarded to hand size) or 'lost' (damage, an effect). */
+  const fate = new Map<string, 'size' | 'lost'>();
+  const inHand = (s: GameState, id: string) => s.runner.grip.some(c => c.instanceId === id) || s.corp.hq.some(c => c.instanceId === id);
   try {
     for (let steps = 0; steps < 4000 && gr.state.turnNumber <= 80; steps++) {
       const before = gr.state;
@@ -82,10 +86,12 @@ for (const c of pool.filter(d => d.side === 'corp')) for (const r of pool.filter
       if (!gr.step()) break;
       const after = gr.state;
       if (gr.last && PLAYS.has(gr.last.type)) usedIds.add((gr.last as { cardInstanceId: string }).cardInstanceId);
+      const handSize = gr.last?.type === 'RESOLVE_PROMPT' && (before.pendingPrompts[0] as { kind?: string } | undefined)?.kind === 'discard';
+      for (const id of everPlayable.keys()) if (!usedIds.has(id) && !fate.has(id) && inHand(before, id) && !inHand(after, id)) fate.set(id, handSize ? 'size' : 'lost');
       if (before.activePlayer === side && !before.activeRun && after[side].credits - before[side].credits === 1 && before[side].clicks - after[side].clicks === 1) creditClick = true;
       if (start && before.activePlayer === side && after.activePlayer !== side) {
         for (const [id, code] of start) {
-          const h = (held[code] ??= [0, 0, 0, 0, 0]);
+          const h = (held[code] ??= [0, 0, 0, 0, 0, 0, 0, 0]);
           h[0]++;
           if (stillUnplayed(after, side, id)) {
             h[1]++;
@@ -102,9 +108,14 @@ for (const c of pool.filter(d => d.side === 'corp')) for (const r of pool.filter
     continue;
   }
   for (const [id, code] of everPlayable) {
-    const h = (held[code] ??= [0, 0, 0, 0, 0]);
+    const h = (held[code] ??= [0, 0, 0, 0, 0, 0, 0, 0]);
+    while (h.length < 8) h.push(0);
     h[3]++;
-    if (!usedIds.has(id)) h[4]++;
+    if (!usedIds.has(id)) {
+      h[4]++;
+      const f = fate.get(id);
+      h[f === 'size' ? 5 : f === 'lost' ? 6 : 7]++;
+    }
   }
   played++;
   if (gr.state.winner === 'corp') corpWins++;
