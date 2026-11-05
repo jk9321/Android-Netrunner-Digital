@@ -41,7 +41,9 @@ const withPlan = <T>(key: string, on: boolean, f: () => T): T => {
 };
 
 describe('run pricing', () => {
-  for (const [name, code] of [['Tailgate', TAILGATE], ['Jailbreak', JAILBREAK], ['Clean Getaway', CLEAN_GETAWAY]] as const) {
+  // Clean Getaway is left out: with runCreditsSlide off (Jeff, 2026-11-05) its 3 net credits are worth less than
+  // keeping it for a later run, and holding a run event for a better run is fine (Jeff: "holding a card for later is fine")
+  for (const [name, code] of [['Tailgate', TAILGATE], ['Jailbreak', JAILBREAK]] as const) {
     it(`the planner runs HQ with ${name} instead of a plain run (plan.plannerRunEvents)`, () => {
       const s = openHq();
       const id = giveCard(s, 'runner', code);
@@ -57,10 +59,10 @@ describe('run pricing', () => {
     expect(action.type).toBe('INITIATE_RUN');
   });
 
-  it("Clean Getaway's 6 credits are worth more to a broke Runner than a rich one (plan.runCreditsSlide)", () => {
+  it("Clean Getaway's 6 credits are worth more to a broke Runner than a rich one (plan.runCreditsSlide, off by default)", () => {
     const rider = (credits: number) => {
       const s = openHq(credits);
-      return runScore(s, 'hq', runEventOptions(CLEAN_GETAWAY, s)) - runScore(s, 'hq');
+      return withPlan('runCreditsSlide', true, () => runScore(s, 'hq', runEventOptions(CLEAN_GETAWAY, s)) - runScore(s, 'hq'));
     };
     expect(rider(2)).toBeGreaterThan(rider(25));
     expect(rider(2)).toBeGreaterThan(6);
