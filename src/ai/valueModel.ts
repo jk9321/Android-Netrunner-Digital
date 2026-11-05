@@ -87,10 +87,10 @@ export const clickRate = (viewer: SideCode): number => (tuning.plan.clickRate?.[
  * when broke, sliding to 1 at the need, then fading toward 0.3. The sum of
  * those marginal values.
  */
-export function creditSlide(credits: number, need: number): number {
+export function creditSlide(credits: number, need: number, steep = 0.8): number {
   const c = Math.max(credits, 0);
   const n = Math.max(need, 1);
-  const below = (x: number) => x + 0.8 * (x - (x * x) / (2 * n));
+  const below = (x: number) => x + steep * (x - (x * x) / (2 * n));
   if (c <= n) return below(c) + Math.min(credits, 0);
   const over = c - n;
   return below(n) + 0.3 * over + 3.5 * (1 - Math.exp(-over / 5));
@@ -276,6 +276,9 @@ export function reachCard(state: GameState): CardInstance | undefined {
   return best;
 }
 
+/** plan.brokeSlope: the Corp's first credit worth 1 + this (sliding to 1 at its need). */
+export const BROKE_SLOPE = 1.5;
+
 /** Worth of a side's credits on this board, as `viewer` (the deciding side) prices them. */
 export function sideCreditValue(state: GameState, side: SideCode, viewer: SideCode): number {
   const credits = side === 'corp' ? state.corp.credits : state.runner.credits;
@@ -283,7 +286,11 @@ export function sideCreditValue(state: GameState, side: SideCode, viewer: SideCo
   const reach = side === 'corp' && viewer === 'corp' && tuning.plan.moneyReach ? moneyReach(state) : 0;
   if (!tuning.plan.creditSlide?.[viewer]) return creditValue(credits) + reach;
   const need = creditNeed(state, side);
-  return reach ? creditSlide(credits + reach, need) + Math.min(credits, 0) : creditSlide(credits, need);
+  // plan.brokeSlope (Jeff, 2026-11-05: rez ice when needed, then build back up): the Corp's own first credits are worth
+  // up to 2.5 each, not 1.8. Broke, it made no more money than when rich (2.3 credits a turn): a credit click scored
+  // 1.8 - 1.25 and lost to advancing or installing almost anything, and it went into the Runner's turn unable to rez
+  const steep = side === 'corp' && viewer === 'corp' && tuning.plan.brokeSlope ? BROKE_SLOPE : 0.8;
+  return reach ? creditSlide(credits + reach, need, steep) + Math.min(credits, 0) : creditSlide(credits, need, steep);
 }
 
 /**
