@@ -49,11 +49,15 @@ describe('a protected agenda the Corp can finish is scored this turn (plan.agend
   it('without both it built instead', () => {
     tuning.plan.agendaClicks = false;
     tuning.plan.finishSetup = false;
+    // and on the old turns-left horizon (plan.measuredTurnsLeft, 2026-11-05), which this position was found on: on the
+    // measured one the Corp scores it here even without both
+    tuning.plan.measuredTurnsLeft = false;
     try {
       expect(scoredIngatan(playTurn(position()))).toBe(false);
     } finally {
       tuning.plan.agendaClicks = true;
       tuning.plan.finishSetup = true;
+      tuning.plan.measuredTurnsLeft = true;
     }
   }, 30_000);
 });
