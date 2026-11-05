@@ -32,8 +32,25 @@ export const RUNNER_TURN_INCOME = 4;
  * their credits plus two turns of income (at least the base 8), and unbreakable ice counts at that ceiling.
  */
 export function iceStop(state?: GameState): number {
-  if (tuning.plan.iceStopRunner && state) return Math.max(ICE_STOP, state.runner.credits + 2 * RUNNER_TURN_INCOME);
+  if (tuning.plan.iceStopRunner && state) return Math.max(ICE_STOP, stopCredits(state) + 2 * RUNNER_TURN_INCOME);
   return tuning.plan.iceStopHigh ? ICE_STOP_HIGH : ICE_STOP;
+}
+
+/**
+ * plan.iceStopAnchor (Jeff, 2026-11-05, thread "Find why AI card valuation misses cards"): the cap
+ * reads the Runner's credits as they were when the deciding AI started its decision, not in each
+ * position it looks at. Otherwise every credit the Runner gains raised each ice it can't break by a
+ * credit too, so Sure Gamble scored below clicking for a credit (and spending looked like a gain).
+ */
+let anchor: { id: string; credits: number } | null = null;
+
+/** Note the Runner's credits as a decision starts (handValues.ts noteKnownHand; held while a planner plays out). */
+export function noteIceStopCredits(state: GameState) {
+  anchor = { id: state.id, credits: state.runner.credits };
+}
+
+function stopCredits(state: GameState): number {
+  return tuning.plan.iceStopAnchor && anchor?.id === state.id ? anchor.credits : state.runner.credits;
 }
 
 /** Worth of one installed piece of ice, as `viewer` can judge it. */

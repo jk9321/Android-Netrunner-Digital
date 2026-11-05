@@ -2,7 +2,7 @@ import { CardInstance, GameState, SideCode, cardDef } from '../core';
 import { breakerScript, isIcebreaker } from '../core/engine/ice';
 import { CARD_PROFILES, payoutWait, payoutWorth, turnsLeft } from './cardProfiles';
 import { corpKeepValue, runnerCardValue } from './cardValues';
-import { breakerTypeWorth, iceStop, iceWorth } from './iceValues';
+import { breakerTypeWorth, iceStop, iceWorth, noteIceStopCredits } from './iceValues';
 import { agendaWorth, isOneUse, runnerRigValue } from './evaluate';
 import { counterWorth } from './counterValues';
 import { handPlanWorth } from './cardPlans';
@@ -125,6 +125,7 @@ export function freezeKnownHand(): () => void {
 /** Remember which cards are in `side`'s hand now: anything that arrives later in a look-ahead is unknown. */
 export function noteKnownHand(state: GameState, side: SideCode) {
   if (frozen) return;
+  noteIceStopCredits(state);
   const hand = side === 'corp' ? state.corp.hq : state.runner.grip;
   known[side] = new Set(hand.map(c => c.instanceId));
 }
