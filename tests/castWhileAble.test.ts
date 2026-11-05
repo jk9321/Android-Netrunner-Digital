@@ -31,10 +31,12 @@ describe('a money operation is played before rezzing ice strands it (plan.castWh
 
   it('without the plan Hedge Fund stays in HQ', () => {
     tuning.plan.castWhileAble = false;
+    tuning.plan.heldMoney = false;
     try {
       expect(inHq(play())).toContain('Hedge Fund');
     } finally {
       tuning.plan.castWhileAble = true;
+      tuning.plan.heldMoney = true;
     }
   });
 });

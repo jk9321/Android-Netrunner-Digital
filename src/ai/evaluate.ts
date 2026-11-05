@@ -11,7 +11,7 @@ import { AI_BREAKER_SHARE, breakerTypeWorth, flatIceWorth, iceWorth } from './ic
 import { payoutWait, payoutWorth, profileOf, turnsLeft } from './cardProfiles';
 import { resourceTrashHqCost } from '../core/engine/actions/basic';
 import { HAND_FLOOR, clickPrice, handByCard, heldWorth, ownHandValue, playedWorth } from './handValues';
-import { CLICK, RATES, cardRate, creditValue, flatRate, flatlineWorth, guardLoop, handFilter, memo, payoutSlide, pointValue, sideCreditValue } from './valueModel';
+import { CLICK, RATES, cardRate, creditValue, flatRate, flatlineWorth, guardLoop, handFilter, memo, payoutSlide, pointValue, reachCard, sideCreditValue } from './valueModel';
 import { PACE, STEAL, coreSlotWorth, flatlineOdds, lifeGrip, runSuccess, stealOdds } from './effectValues';
 import { trashedCardCost } from './runs';
 
@@ -465,7 +465,10 @@ function tagLoss(state: GameState, viewer: SideCode, skip: number): number {
 function handAndClicks(state: GameState, side: SideCode, viewer: SideCode): number {
   const player = side === 'corp' ? state.corp : state.runner;
   const hand = side === 'corp' ? state.corp.hq : state.runner.grip;
-  const own = side === viewer && handByCard(side) ? ownHandValue(state, side) : handValue(hand.length, player.handSizeLimit, viewer);
+  // plan.heldMoney: the money operation moneyReach puts on the Corp's credit slide is worth its credits there, not
+  // a card in HQ as well (held, Hedge Fund was counted twice and playing it scored below a click for a credit)
+  const reached = side === 'corp' && viewer === 'corp' && tuning.plan.heldMoney && tuning.plan.moneyReach && reachCard(state) ? 1 : 0;
+  const own = side === viewer && handByCard(side) ? ownHandValue(state, side) : handValue(hand.length - reached, player.handSizeLimit, viewer);
   return clickPrice(state, side, viewer) * player.clicks + own;
 }
 

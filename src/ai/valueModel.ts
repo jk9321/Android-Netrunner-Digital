@@ -252,15 +252,28 @@ export const MONEY_REACH = 0.5;
  * doesn't see HQ.
  */
 export function moneyReach(state: GameState): number {
+  const card = reachCard(state);
+  return card ? MONEY_REACH * moneyGain(card) : 0;
+}
+
+/** Net credits a money operation gains when played ("Gain N credits" less its cost), else 0. */
+export function moneyGain(card: CardInstance): number {
+  const def = cardDef(card);
+  if (def.type_code !== 'operation' && def.type_code !== 'event') return 0;
+  const gain = /(?:^|\. )Gain (\d+) credits/.exec(def.stripped_text ?? '');
+  return gain ? Number(gain[1]) - (def.cost ?? 0) : 0;
+}
+
+/** The money operation in HQ that moneyReach counts: the best net gain the Corp can pay for. */
+export function reachCard(state: GameState): CardInstance | undefined {
   const credits = state.corp.credits;
-  let best = 0;
+  let best: CardInstance | undefined;
   for (const card of state.corp.hq) {
     const def = cardDef(card);
     if (def.type_code !== 'operation' || (def.cost ?? 0) > credits) continue;
-    const gain = /(?:^|\. )Gain (\d+) credits/.exec(def.stripped_text ?? '');
-    if (gain) best = Math.max(best, Number(gain[1]) - (def.cost ?? 0));
+    if (moneyGain(card) > (best ? moneyGain(best) : 0)) best = card;
   }
-  return MONEY_REACH * best;
+  return best;
 }
 
 /** Worth of a side's credits on this board, as `viewer` (the deciding side) prices them. */
