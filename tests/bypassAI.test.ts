@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { GameState, actingSide, createCardInstance, executeAction } from '../src/core';
 import { answerPrompt, runEventOptions } from '../src/ai/prompts';
-import { runScore, runShortfall } from '../src/ai/runs';
+import { creditsAhead, runScore, runShortfall } from '../src/ai/runs';
 import { HeuristicRunnerAI } from '../src/ai/runnerAI';
 import { HeuristicCorpAI } from '../src/ai/corpAI';
 import { tuning } from '../src/ai/synergy';
@@ -17,6 +17,8 @@ const SEMAK_SAMUN = '35054'; // Barrier - AP: End the run unless the Runner suff
 const WHITESPACE = '30074'; // Code Gate: lose 3 credits; end the run if the Runner has 6 credits or less
 const AGENDA = '30067';
 const SURE_GAMBLE = '30030';
+const TITHE = '30073'; // Sentry - AP: 1 net damage, the Corp gains 1
+const ALARM_CLOCK = '34078';
 const CLEAVER = '30006'; // Fracter: 1 credit breaks up to 2 barrier subroutines
 
 /**
@@ -146,6 +148,29 @@ describe('Runner AI bypass (plan.bypass)', () => {
     for (let i = 0; i < 60 && state.activePlayer === 'runner' && !state.winner; i++) state = executeAction(state, ai[actingSide(state) ?? 'runner'].chooseAction(state));
     expect(state.runner.heap.some(c => c.cardCode === WINDOW)).toBe(true);
     expect(state.winner).toBe('runner');
+  });
+
+  it('keeps no credits for ice further in that Malandragem will bypass (creditsAhead)', () => {
+    let s = setup();
+    s.corp.servers.hq.ice = [];
+    installIceForTest(s, PALISADE, 'hq'); // inner: no breaker for it
+    installIceForTest(s, TITHE, 'hq'); // outer: tanked
+    const m = installProgramForTest(s, MALANDRAGEM);
+    s.runner.rig.programs.find(c => c.instanceId === m)!.tokens.power = 2;
+    s = cont(run(s, 'hq'));
+    expect(s.activeRun?.encounter).toBeTruthy();
+    expect(withPlan(false, () => creditsAhead(s))).toBe(Infinity);
+    expect(creditsAhead(s)).toBe(0);
+  });
+
+  it('Alarm Clock: takes its HQ run when the 2-click bypass gets past HQ\u2019s ice', () => {
+    const s = setup();
+    s.runner.score = 5;
+    const ac = createCardInstance(s, ALARM_CLOCK);
+    ac.isRezzed = true;
+    s.runner.rig.hardware.push(ac);
+    expect(runScore(s, 'hq', { alarmClock: true })).toBeGreaterThan(0);
+    expect(withPlan(false, () => runScore(s, 'hq', { alarmClock: true }))).toBe(-Infinity);
   });
 });
 

@@ -33,6 +33,10 @@ for (const r of runners) for (const c of corps) for (let g = 0; g < games; g++) 
       if (st.runner.grip.some(x => x.cardCode === '34077')) held.window++;
     }
     const action = choose(st);
+    if (prompt && prompt.kind === 'effect_choice' && 'source' in prompt && prompt.source.cardCode === '34078' && prompt.source.step === 'run') {
+      inc(offered, 'alarmRun');
+      if (action.type === 'RESOLVE_PROMPT' && action.choice.kind === 'effect_choice' && action.choice.optionId === 'yes') inc(taken, 'alarmRun');
+    }
     if (prompt && prompt.kind === 'effect_choice' && 'source' in prompt && prompt.source.step === 'bypass') {
       inc(offered, prompt.source.cardCode);
       const id = action.type === 'RESOLVE_PROMPT' && action.choice.kind === 'effect_choice' ? action.choice.optionId : 'no';

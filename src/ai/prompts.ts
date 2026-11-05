@@ -309,6 +309,13 @@ export function answerPrompt(state: GameState, side: SideCode, memory?: RunnerMe
     return { ...base, choice: { kind: 'effect_choice', optionId: scored[0].id } };
   }
 
+  // Alarm Clock (plan.bypass): its HQ run when the turn begins, priced with the 2-click bypass of the first ice
+  if (side === 'runner' && tuning.plan.bypass && prompt.kind === 'effect_choice' && prompt.source.cardCode === '34078' && prompt.source.step === 'run') {
+    // The run itself costs no click: runScore charges one, so it comes back
+    const go = runScore(state, 'hq', { alarmClock: true, memory, wary: synergy && tuning.wary, urgent: synergy && tuning.plan.urgency }) + runClick(state) > 0;
+    return { ...base, choice: { kind: 'effect_choice', optionId: go ? 'yes' : 'no' } };
+  }
+
   // Window of Opportunity (plan.bypass): derez the ice that costs the Runner most to get past (runs windowDerez)
   if (side === 'runner' && tuning.plan.bypass && prompt.kind === 'effect_cards' && prompt.source.cardCode === '34077' && prompt.source.step === 'derez' && state.activeRun) {
     const pick = windowDerez(state, state.activeRun.server)?.ice.instanceId;

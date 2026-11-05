@@ -365,7 +365,35 @@ export function iceCreditsAhead(state: GameState): number {
   const server = run ? state.corp.servers[run.server] : undefined;
   if (!run || !server || run.icePosition === null) return 0;
   const outside: GameState = { ...state, activeRun: { ...run, encounter: null } };
-  return server.ice.slice(0, run.icePosition).reduce((sum, ice) => sum + (ice.isRezzed ? iceCreditNeed(outside, ice) : 0), 0);
+  const inner = server.ice.slice(0, run.icePosition);
+  const skip = bypassesAhead(outside, inner, !!run.encounter);
+  return inner.reduce((sum, ice) => sum + (ice.isRezzed && !skip.has(ice.instanceId) ? iceCreditNeed(outside, ice) : 0), 0);
+}
+
+const S_DOBRADO = '34012';
+const ALARM_CLOCK = '34078';
+
+/**
+ * During a run, the ice further in that the Runner's bypasses will skip (plan.bypass;
+ * rules 6.5.8a): the run's S-Dobrado or Alarm Clock while their encounter is still to
+ * come, and rig bypasses not used yet. The current ice, if rezzed and not yet
+ * encountered, counts as the next encounter (it is approached first, 6.9.2c).
+ */
+function bypassesAhead(state: GameState, inner: CardInstance[], encountering: boolean): Set<string> {
+  const run = state.activeRun;
+  if (!tuning.plan.bypass || !run || run.icePosition === null) return new Set();
+  const current = state.corp.servers[run.server]?.ice[run.icePosition];
+  // Approaching (or just past) rezzed ice not being encountered: counted as encountered, to be safe
+  const encounters = (run.runFlags?.encounters ?? 0) + (current?.isRezzed && !encountering ? 1 : 0);
+  const options: RunOptions = {
+    bypassFirst: run.eventCode === S_DOBRADO,
+    alarmClock: run.runEffects.some(r => findRigCard(state, r.instanceId)?.cardCode === ALARM_CLOCK),
+  };
+  return runBypasses(state, run.server, options, { ice: [...inner].reverse(), encounters }).ids;
+}
+
+function findRigCard(state: GameState, id: string): CardInstance | undefined {
+  return [...state.runner.rig.hardware, ...state.runner.rig.programs, ...state.runner.rig.resources].find(c => c.instanceId === id);
 }
 
 export const MANEGARM = '30042';
@@ -695,6 +723,8 @@ export interface RunOptions {
   breachAs?: string;
   /** S-Dobrado: the first ice encountered is bypassed (plan.bypass). */
   bypassFirst?: boolean;
+  /** Alarm Clock's run: the first ice encountered can be bypassed for 2 clicks (plan.bypass). */
+  alarmClock?: boolean;
   /** Window of Opportunity: a rezzed ice is derezzed as the run begins (plan.bypass). */
   derezOne?: boolean;
   /** Privileged Access, Burner: a successful run breaches nothing (its worth is successBonus). */
@@ -726,21 +756,32 @@ export interface Bypasses {
  * Rig bypasses fit only rezzed ice: the Runner can't see what unrezzed ice is.
  * Physarum Entangler is in iceCost (it bypasses its host on every encounter).
  */
-export function runBypasses(state: GameState, serverId: string, options: RunOptions = {}): Bypasses {
+export function runBypasses(state: GameState, serverId: string, options: RunOptions = {}, ahead?: { ice: CardInstance[]; encounters: number }): Bypasses {
   const out: Bypasses = { ids: new Set(), price: 0 };
   const server = state.corp.servers[serverId];
   if (!tuning.plan.bypass || !server) return out;
-  const outward = [...server.ice].reverse(); // outermost first
+  // Before the run: all of its ice; during it, the ice still ahead (outermost first) after the encounters so far
+  const outward = ahead?.ice ?? [...server.ice].reverse();
+  const done = ahead?.encounters ?? 0;
+  const rezzed = outward.filter(ice => ice.isRezzed);
+  // The click S-Dobrado or Alarm Clock spends; before the run the play's click is spent too
+  const clicks = state.runner.clicks - (ahead ? 0 : 1);
   if (options.bypassFirst) {
-    const rezzed = outward.filter(ice => ice.isRezzed);
-    const first = rezzed[0] ?? outward[0];
-    if (first) out.ids.add(first.instanceId);
-    // Threat 4: the second ice encountered, for a click (the play's click is already spent)
-    const second = rezzed[1];
-    if (second && first?.isRezzed && threatLevel(state) >= 4 && state.runner.clicks >= 2 && iceCost(state, second) > runClick(state)) {
+    if (done === 0) {
+      const first = rezzed[0] ?? (ahead ? undefined : outward[0]);
+      if (first) out.ids.add(first.instanceId);
+    }
+    // Threat 4: the second ice encountered, for a click
+    const second = done === 0 ? rezzed[1] : done === 1 ? rezzed[0] : undefined;
+    if (second && (done === 1 || rezzed[0]) && threatLevel(state) >= 4 && clicks >= 1 && iceCost(state, second) > runClick(state)) {
       out.ids.add(second.instanceId);
       out.price += runClick(state);
     }
+  }
+  // Alarm Clock's run: the first ice encountered, for 2 clicks
+  if (options.alarmClock && done === 0 && rezzed[0] && clicks >= 2 && iceCost(state, rezzed[0]) > 2 * runClick(state)) {
+    out.ids.add(rezzed[0].instanceId);
+    out.price += 2 * runClick(state);
   }
   const uses: { fits: (ice: CardInstance) => boolean; price: number; uses: number }[] = [];
   for (const card of [...state.runner.rig.programs, ...state.runner.rig.resources]) {
