@@ -150,7 +150,10 @@ jobs:
           if [ -f base/deals.json ]; then paired=(--base base/deals.json); elif [ -d base ]; then paired=(--base base/*.json); fi
           {
             echo "Batch: ${{ inputs.label }} | ref ${{ inputs.ref }} | games ${{ inputs.game_from }}-${{ inputs.games }} | PLAN_OFF=${{ inputs.plan_off }} | decks ${{ inputs.decks }} | ${{ inputs.script }} ${{ inputs.h2h }} | added run ${{ inputs.add_run }} | paired with run ${{ inputs.base_run }}"
-            if [ -f "scripts/${{ inputs.script }}-sum.mjs" ]; then node "scripts/${{ inputs.script }}-sum.mjs" out/*.json; elif [ "${{ inputs.script }}" = pace ]; then node scripts/pace-sum.mjs out/*.json; else DEALS_OUT=deals.json node scripts/corp-losses-sum.mjs out/*.json "${paired[@]}"; fi
+            sum=scripts/corp-losses-sum.mjs
+            if [ -f "scripts/${{ inputs.script }}-sum.mjs" ]; then sum="scripts/${{ inputs.script }}-sum.mjs"; elif [ "${{ inputs.script }}" = pace ]; then sum=scripts/pace-sum.mjs; fi
+            # corp-losses and head-to-head batches save per-deal results and pair with base_run
+            if [ "$sum" = scripts/corp-losses-sum.mjs ]; then DEALS_OUT=deals.json node "$sum" out/*.json "${paired[@]}"; else node "$sum" out/*.json; fi
           } | tee summary.txt
       - uses: actions/upload-artifact@v4
         with:
