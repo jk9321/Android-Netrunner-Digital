@@ -5,6 +5,10 @@
 //
 //   node scripts/corp-losses-sum.mjs on/*.json --base off/*.json
 //   node scripts/paired-summary.mjs on/*.json --base off/*.json   (this block only)
+// Order matters: this batch's files first, then --base and the base batch's files.
+// The paired win-rate SE is only ~20% under the unpaired one (a small switch still flips the
+// winner on ~28% of deals), so judge a change by the paired alarm diffs (and human-agreement.ts),
+// with the win rate as a guard rail.
 import { readFileSync } from 'node:fs';
 import { pathToFileURL } from 'node:url';
 
@@ -77,10 +81,10 @@ export function printPaired(games, baseGames) {
   const p = pairBatches(games, baseGames);
   console.log(`PAIRED vs base batch (same deals): ${p.n} games counted (this batch ${p.games}, base ${p.baseGames})`);
   if (!p.n) {
-    console.log('  no deals in common: are both batches on the same decks and games per pairing?');
+    console.log('  no deals in common: this batch\'s files go first, then --base and its files; both batches need the same decks and games per pairing');
     return p;
   }
-  const verdict = Math.abs(p.diff) >= 2 * p.se && p.se > 0 ? 'outside noise (2 SE)' : 'inside noise (under 2 SE)';
+  const verdict = p.se === 0 && p.diff === 0 ? 'identical' : Math.abs(p.diff) >= 2 * p.se ? 'outside noise (2 SE)' : 'inside noise (under 2 SE)';
   console.log(`  Corp win: ${p.on.toFixed(1)}% this vs ${p.off.toFixed(1)}% base`);
   console.log(`  Paired Corp win diff: ${signed(p.diff)} pts ± ${p.se.toFixed(1)} SE over ${p.n} games, ${verdict}; unpaired SE would be ± ${p.unpairedSE.toFixed(1)}`);
   console.log(`  deals that changed winner: ${p.toCorp} to Corp, ${p.toRunner} to Runner, ${p.n - p.toCorp - p.toRunner} the same`);

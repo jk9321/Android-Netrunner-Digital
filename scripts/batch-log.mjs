@@ -33,7 +33,7 @@ if (existsSync(log) && readFileSync(log, 'utf8').includes(OLD_HEADER)) writeFile
 if (!existsSync(log)) {
   writeFileSync(log, `# AI self-play batch log
 
-Every self-play batch, newest last (Jeff, 2026-10-28). Made with \`scripts/corp-losses.sh 10 normal > out.txt\`, then \`node scripts/batch-log.mjs "<change>" out.txt\`. Noise: about ±2 points of Corp win rate at 2,210 games; for an on/off pair, run the second batch with \`--base\` (or the workflow's base_run) and read the paired column, where a diff under 2 SE is noise. Corp loss columns are the share of the Runner's points in Corp losses; full breakdowns (with per-deck win rates from 2026-10-28 on) are in \`docs/batch-logs/\`.
+Every self-play batch, newest last (Jeff, 2026-10-28). Made with \`scripts/corp-losses.sh 10 normal > out.txt\`, then \`node scripts/batch-log.mjs "<change>" out.txt\`. Noise: about ±2 points of Corp win rate at 2,210 games; for an on/off pair, run the second batch with \`--base\` (or the workflow's base_run) and read the paired column, where a diff under 2 SE is noise. Pairing cuts the win-rate SE only about 20%, so judge changes by the paired alarm diffs plus scripts/human-agreement.ts, with win rate as a guard rail. Corp loss columns are the share of the Runner's points in Corp losses; full breakdowns (with per-deck win rates from 2026-10-28 on) are in \`docs/batch-logs/\`.
 
 ${HEADER}`);
 }

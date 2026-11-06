@@ -6,7 +6,8 @@ name: AI batch
 # artifact hold the same breakdown as scripts/corp-losses.sh; the summary is
 # also committed to the ai-batch-results branch as results/<run id>.txt, with
 # the per-deal results as results/<run id>.deals.json. base_run pairs this batch
-# with an earlier one on the same deals (paired-summary.mjs).
+# with an earlier one on the same deals (paired-summary.mjs): this run is the
+# "this" side, base_run the base (say the switch off), so run the base first.
 on:
   workflow_dispatch:
     inputs:
