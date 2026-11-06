@@ -281,11 +281,13 @@ export function agendaWorth(
  * facedown cards faceup and the Runner accesses them all (rules 7.3.2,
  * 7.4), so a discarded agenda is a likely steal: its points to the Runner,
  * by the odds of a successful Archives run (as often as the Runner runs
- * Archives, scripts/pace.ts) on one of the turns left.
+ * Archives, scripts/pace.ts; plan.measuredNov6: as often as it breaches an Archives
+ * that holds facedown cards) on one of the turns left.
  */
 export function archivedAgendaLoss(state: GameState, points: number): number {
   const gain = pointValue(state.runner.score + points) - pointValue(state.runner.score);
-  const perTurn = Math.min(1, PACE.runs * PACE.archivesShare) * runSuccess(state, 'archives');
+  // plan.measuredNov6: the breach rate measured on turns that start with facedown cards in Archives
+  const perTurn = tuning.plan.measuredNov6 ? PACE.facedownBreach : Math.min(1, PACE.runs * PACE.archivesShare) * runSuccess(state, 'archives');
   return gain * (1 - (1 - perTurn) ** turnsLeft(state));
 }
 

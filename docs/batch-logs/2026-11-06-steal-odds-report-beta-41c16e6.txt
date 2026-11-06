@@ -1,0 +1,43 @@
+Batch: item 6: steal-odds on beta 41c16e6 (2210) | ref 41c16e67099c5179b2314fd72cfaf67e54dab584 | games 0-10 | PLAN_OFF= | decks  | steal-odds corp | added run 
+
+Agenda in a remote, by predicted steal chance:
+  0-0.05      4064 turns: predicted   3.4%  ran   7.7%  stolen   4.3%
+  0.2-0.3     2275 turns: predicted  23.9%  ran  58.4%  stolen  14.4%
+  0.1-0.15    1073 turns: predicted  13.3%  ran  65.1%  stolen  20.9%
+  0.3-0.4      659 turns: predicted  36.3%  ran  25.5%  stolen  10.0%
+  0.4-0.6      531 turns: predicted  41.7%  ran  57.4%  stolen  27.3%
+  0.6-1        398 turns: predicted 100.0%  ran  72.9%  stolen  72.9%
+  0.15-0.2     189 turns: predicted  19.1%  ran  19.6%  stolen   6.3%
+  0.05-0.1      55 turns: predicted   7.8%  ran  49.1%  stolen   3.6%
+
+Agenda in a remote, by ice on the server (rezzed/total):
+  1/2         2195 turns: predicted  11.8%  ran  20.4%  stolen   7.0%  old  10.5% income0  11.8% income2  13.8% income3  14.3% income4  14.3%
+  1/1         1887 turns: predicted  13.4%  ran  15.6%  stolen  11.0%  old  11.9% income0  13.4% income2  15.6% income3  16.9% income4  16.9%
+  0/1         1461 turns: predicted  26.3%  ran  77.3%  stolen  17.5%  old  23.4% income0  26.3% income2  26.3% income3  26.3% income4  26.3%
+  2/2         1207 turns: predicted  12.1%  ran   9.5%  stolen   4.4%  old  10.7% income0  12.1% income2  15.2% income3  16.4% income4  16.4%
+  0/2          826 turns: predicted  14.6%  ran  73.6%  stolen  23.1%  old  13.0% income0  14.6% income2  14.6% income3  14.6% income4  14.6%
+  2/3          528 turns: predicted  13.3%  ran  19.1%  stolen   6.1%  old  11.8% income0  13.3% income2  15.0% income3  15.9% income4  15.9%
+  0/0          398 turns: predicted 100.0%  ran  72.9%  stolen  72.9%  old  40.0% income0 100.0% income2 100.0% income3 100.0% income4 100.0%
+  1/3          313 turns: predicted  10.6%  ran  37.7%  stolen  12.5%  old   9.4% income0  10.6% income2  11.4% income3  11.5% income4  11.5%
+  3/3          204 turns: predicted  14.0%  ran   4.9%  stolen   2.0%  old  12.4% income0  14.0% income2  16.7% income3  17.9% income4  17.9%
+  2/4           63 turns: predicted  10.4%  ran  28.6%  stolen  11.1%  old   9.3% income0  10.4% income2  11.0% income3  11.0% income4  11.0%
+  3/4           61 turns: predicted  16.2%  ran  14.8%  stolen   3.3%  old  14.4% income0  16.2% income2  17.8% income3  18.3% income4  18.3%
+  4/4           46 turns: predicted  20.1%  ran   2.2%  stolen   2.2%  old  17.8% income0  20.1% income2  20.9% income3  22.3% income4  22.3%
+  0/3           39 turns: predicted   7.5%  ran  59.0%  stolen   5.1%  old   6.7% income0   7.5% income2   7.5% income3   7.5% income4   7.5%
+  1/4            7 turns: predicted   5.3%  ran  42.9%  stolen   0.0%  old   4.7% income0   5.3% income2   5.3% income3   5.3% income4   5.3%
+  4/5            5 turns: predicted  11.3%  ran   0.0%  stolen   0.0%  old  10.1% income0  11.3% income2  12.1% income3  15.7% income4  15.7%
+  2/5            2 turns: predicted   6.8%  ran   0.0%  stolen   0.0%  old   6.0% income0   6.8% income2   6.8% income3   6.8% income4   6.8%
+  3/5            2 turns: predicted   6.4%  ran   0.0%  stolen   0.0%  old   5.7% income0   6.4% income2  11.7% income3  11.7% income4  11.7%
+
+Agenda in a remote, by advancement counters (3 = 3+):
+  0           4191 turns: predicted  26.3%  ran  33.4%  stolen  15.9%
+  1           2636 turns: predicted  14.0%  ran  43.4%  stolen  12.3%
+  2           1674 turns: predicted  11.5%  ran  32.2%  stolen  13.2%
+  3            743 turns: predicted   7.8%  ran  11.6%  stolen   3.5%
+
+HQ, agendas in HQ (count, 3 = 3+): HQ run / stolen from HQ that turn:
+  1           7183 turns: predicted   3.2%  ran  26.6%  stolen   5.4%
+  3           5797 turns: predicted   5.9%  ran  12.0%  stolen   4.7%
+  2           5788 turns: predicted   4.7%  ran  19.3%  stolen   5.9%
+
+Brier score per agenda turn (lower is better): old 0.1057, income0 0.1071, income2 0.1086, income3 0.1104, income4 0.1104
