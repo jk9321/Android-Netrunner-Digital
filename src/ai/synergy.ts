@@ -405,6 +405,14 @@ export const tuning = {
     runCreditsSlide: false,
     /** Jeff, 2026-11-05: a Runner choice during a run is scored with what the rest of the run is still worth (the breach less the ice ahead), not just that the run goes on (runs.ts runRestWorth). */
     runRest: true,
+    /** Code audit (2026-11-05, thread "Audit AI code for overlaps and conflicts"): the Runner's draw bonuses for a trap run and for missing breakers stop at the hand size (runnerAI.ts scoreMain). */
+    drawCap: true,
+    /** Code audit (2026-11-05, from Gemini's second audit): a run the turn planner prices takes the credits its ice needs off the rest of the playout (turnPlanner.ts). */
+    plannerRunCredits: true,
+    /** Code audit (2026-11-05, from Gemini's second audit): lookahead re-deals keep the R&D cards the Runner remembers where they are, and faceup installed cards as they are (runnerReply.guessHidden, search.determinize). */
+    keepKnownRd: true,
+    /** Code audit (2026-11-05, from Gemini's second audit): the Runner prices a Corp card it has accessed as what it is, and Project Ingatan and Plutus only by the Archives cards it can see. */
+    runnerKnown: true,
     /** Jeff, 2026-11-05: turns left from the self-play measure by the higher score, not 8 less it (cardProfiles.ts turnsLeft). */
     measuredTurnsLeft: true,
     /** Jeff, 2026-11-05: the share of runs on each server from the self-play measure (effectValues.ts RUN_SHARES). */

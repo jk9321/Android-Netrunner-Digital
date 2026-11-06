@@ -4,7 +4,7 @@ import { isIcebreaker } from '../../core/engine/ice';
 import { PAYOUT_RISK } from '../payoutRisk';
 import { corpKeepValue } from '../cardValues';
 import { mean, PAID_OUT, paidOut, recurring } from '../counterValues';
-import { tuning } from '../synergy';
+import { actingSide, tuning } from '../synergy';
 import { cardRate, CLICK, handFilter, pointValue, RATES, sideCards } from '../valueModel';
 import { PRINCIPIA } from '../cardPlans';
 import { accessWorth, anySuccess, counterWorthOf, damageWorth, lock, muWorth, PACE, perTurn } from '../effectValues';
@@ -52,9 +52,12 @@ const gioanPower = (state: GameState): number => Math.min(1, 2 * PACE.agendaEven
 /** AU Co.: 2 counters look at 3 cards, keep 2: two cards drawn and a filter. */
 const auCoPower = (state: GameState): number => (2 * cardRate(state, 'corp') + handFilter()) / 2;
 
+/** Facedown Archives as the pricing side sees it: the Runner can't see those cards (Gemini audit 2.2a). */
+const corpArchivesHidden = (state: GameState): CardInstance[] => (tuning.plan.runnerKnown && actingSide() === 'runner' ? [] : state.corp.archives.faceDown);
+
 /** Project Ingatan: install the best card in Archives for nothing (a click and its install cost saved). */
 function ingatanAgenda(state: GameState): number {
-  const archived = [...state.corp.archives.faceUp, ...state.corp.archives.faceDown].filter(c => cardDef(c).type_code !== 'operation' && cardDef(c).type_code !== 'agenda');
+  const archived = [...state.corp.archives.faceUp, ...corpArchivesHidden(state)].filter(c => cardDef(c).type_code !== 'operation' && cardDef(c).type_code !== 'agenda');
   const worth = archived.map(c => (cardDef(c).type_code === 'ice' ? RATES.ice : corpKeepValue(c.cardCode, state)));
   return CLICK * (archived.length ? 1 : 0.5) + (worth.length ? Math.max(...worth) : 0);
 }
@@ -98,7 +101,7 @@ const cacophonyPower = (state: GameState): number => (3 * 0.5 * cardRate(state, 
 
 /** Average net credits of a transaction operation in the Corp's deck (Plutus replays them). */
 function transactionGain(state: GameState): number {
-  const ops = state.corp.archives.faceUp.concat(state.corp.archives.faceDown).filter(c => /transaction/i.test(cardDef(c).keywords ?? ''));
+  const ops = state.corp.archives.faceUp.concat(corpArchivesHidden(state)).filter(c => /transaction/i.test(cardDef(c).keywords ?? ''));
   const gains = ops.map(c => {
     const gain = (cardDef(c).stripped_text ?? '').match(/Gain (\d+) credits/i);
     return gain ? Number(gain[1]) - (cardDef(c).cost ?? 0) : 0;

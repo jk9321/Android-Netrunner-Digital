@@ -1,4 +1,4 @@
-import { GameState, cardDef, createRng, knownInHand, shuffleInPlace } from '../core';
+import { GameState, cardDef, createRng, knownInHand, knownInRd, shuffleInPlace } from '../core';
 import { HeuristicCorpAI } from './corpAI';
 import { GameRunner } from './playout';
 import { HeuristicRunnerAI } from './runnerAI';
@@ -24,6 +24,24 @@ export const REPLY = {
   maxSteps: 300,
 };
 
+/**
+ * R&D positions whose card the Runner knows exactly (plan.keepKnownRd; Gemini's second audit, 2026-11-05): both sides
+ * saw it stay there (rules 7.4.7a), so a lookahead's re-deal leaves it in place. Without this a known agenda on top of
+ * R&D became a random access in the Runner reply, and the Runner AI's memory pointed at a card no longer there.
+ */
+export function knownRdSlots(state: GameState): Set<number> {
+  const slots = new Set<number>();
+  if (!tuning.plan.keepKnownRd) return slots;
+  for (const e of knownInRd(state)) if (e.lo === e.hi && state.corp.rd[e.lo]?.instanceId === e.id) slots.add(e.lo);
+  return slots;
+}
+
+/** R&D shuffled except at `fixed` positions. */
+function shuffleRdKeeping<T>(rng: Parameters<typeof shuffleInPlace>[0], rd: T[], fixed: Set<number>): T[] {
+  const loose = shuffleInPlace(rng, rd.filter((_, i) => !fixed.has(i)));
+  return rd.map((c, i) => (fixed.has(i) ? c : loose.shift()!));
+}
+
 /** `state` with the cards the Corp can't see dealt at random (sample `k`). */
 export function guessHidden(state: GameState, k: number): GameState {
   const rng = createRng(((state.rng?.state ?? 1) ^ Math.imul(k + 1, 0x9e3779b1)) >>> 0);
@@ -33,7 +51,7 @@ export function guessHidden(state: GameState, k: number): GameState {
   const unseen = shuffleInPlace(rng, [...state.runner.grip.filter(c => !known.has(c.instanceId)), ...state.runner.stack]);
   const grip = [...seen, ...unseen.slice(0, state.runner.grip.length - seen.length)];
   const stack = unseen.slice(state.runner.grip.length - seen.length);
-  const rd = shuffleInPlace(rng, [...state.corp.rd]);
+  const rd = shuffleRdKeeping(rng, [...state.corp.rd], knownRdSlots(state));
   return { ...state, rng: createRng(rng.state), runner: { ...state.runner, grip, stack }, corp: { ...state.corp, rd } };
 }
 

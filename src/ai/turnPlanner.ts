@@ -36,6 +36,8 @@ export interface PlannerAI {
   answer(state: GameState): GameAction;
   /** A run's expected worth before it starts (runScore), or undefined for the Corp. */
   runWorth?(state: GameState, serverId: string, sourceCode?: string): number;
+  /** Credits that run is expected to spend getting in (plan.plannerRunCredits). */
+  runCredits?(state: GameState, serverId: string, sourceCode?: string): number;
   /** The opponent's next turn played out from the end of this one, scored by `leaf` (plan.runnerReply, Corp). */
   reply?(state: GameState, leaf: (state: GameState) => number): number;
   /** The rest of this AI's last plan (one per agent, so a new game or a reloaded one starts without it). */
@@ -105,7 +107,9 @@ function playout(start: GameState, side: SideCode, first: GameAction, ai: Planne
     // runScore charges the run's clicks (one, and any the card's own options count); here they are the plan's
     const clicks = Math.max(1, clicksOf(mainBefore, 'runner') - clicksOf(after, 'runner'));
     bonus += worth + clicks * runClick(mainBefore);
-    return { ...after, activeRun: null, pendingPrompts: [] };
+    // plan.plannerRunCredits (Gemini's second audit): the rest of the turn can't spend what the run will
+    const spent = tuning.plan.plannerRunCredits && ai.runCredits ? ai.runCredits(after, after.activeRun.server, mainCard) : 0;
+    return { ...after, activeRun: null, pendingPrompts: [], runner: { ...after.runner, credits: Math.max(0, after.runner.credits - spent) } };
   };
   const step = (state: GameState, action: GameAction): GameState | null => {
     if (action.type === 'INITIATE_RUN') {
@@ -115,7 +119,10 @@ function playout(start: GameState, side: SideCode, first: GameAction, ai: Planne
       const worth = ai.runWorth(state, action.targetServerId);
       if (!Number.isFinite(worth)) return null;
       bonus += worth + runClick(state); // runScore charges the click; here the click is the plan's
-      return { ...state, runner: { ...state.runner, clicks: state.runner.clicks - 1 } };
+      // plan.plannerRunCredits (Gemini's second audit, 2026-11-05): the run's credits are gone for the rest of the turn
+      // (runScore already charged them; the playout kept them, so a run then a 5-credit install looked affordable on 6)
+      const spent = tuning.plan.plannerRunCredits && ai.runCredits ? ai.runCredits(state, action.targetServerId) : 0;
+      return { ...state, runner: { ...state.runner, clicks: state.runner.clicks - 1, credits: Math.max(0, state.runner.credits - spent) } };
     }
     if (!activePrompt(state)) {
       mainBefore = state;

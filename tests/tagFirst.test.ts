@@ -29,10 +29,13 @@ describe('a tag is used while the Runner still has it (plan.tagFirst)', () => {
 
   it('without the plan the Corp installs first and leaves the tag unused', () => {
     tuning.plan.tagFirst = false;
+    // and without plan.runnerKnown (code audit, 2026-11-06), on which the Corp trashes Side Hustle here even without it
+    tuning.plan.runnerKnown = false;
     try {
       expect(rig(play())).toEqual(expect.arrayContaining(['Side Hustle', 'Open Market']));
     } finally {
       tuning.plan.tagFirst = true;
+      tuning.plan.runnerKnown = true;
     }
   });
 });

@@ -8,6 +8,7 @@ import { GameRunner } from './playout';
 import { RunnerMemory } from './runs';
 import { asSide, logNudge, tuning } from './synergy';
 import { noteKnownHand } from './handValues';
+import { knownRdSlots } from './runnerReply';
 
 /**
  * Hard AI: Monte Carlo look-ahead on top of the rule-based AI.
@@ -93,17 +94,23 @@ export function determinize(state: GameState, side: SideCode, random: Random, me
     const known = new Set(tuning.plan.keepKnownHand ? knownInHand(state, 'runner').map(k => k.id) : []);
     const hidden = [...s.runner.grip.filter(c => !known.has(c.instanceId)), ...s.runner.stack];
     assign(hidden, shuffle(hidden.map(c => c.cardCode), random));
-    assign(s.corp.rd, shuffle(s.corp.rd.map(c => c.cardCode), random));
+    // plan.keepKnownRd: R&D cards the Runner knows exactly, the Corp saw stay put too
+    const fixedRd = knownRdSlots(state);
+    const rdSlots = s.corp.rd.filter((_, i) => !fixedRd.has(i));
+    assign(rdSlots, shuffle(rdSlots.map(c => c.cardCode), random));
     return s;
   }
 
   // The Runner doesn't know HQ, R&D, face-down Archives or unrezzed cards it hasn't accessed
   const installed = Object.values(s.corp.servers);
   const iceSlots = installed.flatMap(sv => sv.ice).filter(c => !c.isRezzed);
-  const rootSlots = installed.flatMap(sv => sv.root).filter(c => !c.isRezzed && !memory?.has(c.instanceId));
+  // plan.keepKnownRd: faceup installed cards (BANGUN, Sacrifice Zone Expansion) are public, and so are the cards it has accessed
+  const keep = !!tuning.plan.keepKnownRd;
+  const rootSlots = installed.flatMap(sv => sv.root).filter(c => !c.isRezzed && !memory?.has(c.instanceId) && !(keep && (c.faceUp || c.runnerKnows)));
   // plan.keepKnownHand: HQ cards the Runner has seen (accessed and left, revealed) stay as they are
   const knownHq = new Set(tuning.plan.keepKnownHand ? knownInHand(state, 'corp').map(k => k.id) : []);
-  const loose = [...s.corp.hq.filter(c => !knownHq.has(c.instanceId)), ...s.corp.rd, ...s.corp.archives.faceDown];
+  const fixedRd = knownRdSlots(state);
+  const loose = [...s.corp.hq.filter(c => !knownHq.has(c.instanceId)), ...s.corp.rd.filter((_, i) => !fixedRd.has(i)), ...s.corp.archives.faceDown];
   const pool = shuffle([...iceSlots, ...rootSlots, ...loose].map(c => c.cardCode), random);
 
   const take = (fits: (code: string) => boolean): string | undefined => {

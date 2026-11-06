@@ -10,7 +10,7 @@ import type { HeuristicOptions } from './corpAI';
 import { asSide, logNudge, nudge, tuning } from './synergy';
 import { noteKnownHand } from './handValues';
 import { PlanMemory, planTurn, plannerOn } from './turnPlanner';
-import { BOTULUS, RunnerMemory, chainReactionBonus, TRANQUILIZER, MANEGARM, bestBreakPlan, botulusBreaks, hostedTrojans, creditsAhead, iceCreditsAhead, iceCost, iceCreditNeed, needsBiggerHand, runScore, runShortfall, serverValue, spendCost, subroutineCost } from './runs';
+import { BOTULUS, RunnerMemory, chainReactionBonus, TRANQUILIZER, MANEGARM, bestBreakPlan, botulusBreaks, runCreditSpend, hostedTrojans, creditsAhead, iceCreditsAhead, iceCost, iceCreditNeed, needsBiggerHand, runScore, runShortfall, serverValue, spendCost, subroutineCost } from './runs';
 import { RATES } from './valueModel';
 
 const TROJANS = [BOTULUS, TRANQUILIZER];
@@ -220,7 +220,7 @@ export class HeuristicRunnerAI implements Agent {
       state,
       'runner',
       ranked,
-      { rank: s => rollout.rankMainActions(s), answer: s => rollout.chooseAction(s), runWorth: (s, id, code) => runScore(s, id, code ? { ...runEventOptions(code, s), ...options } : options), memory: this.planMemory },
+      { rank: s => rollout.rankMainActions(s), answer: s => rollout.chooseAction(s), runWorth: (s, id, code) => runScore(s, id, code ? { ...runEventOptions(code, s), ...options } : options), runCredits: (s, id, code) => runCreditSpend(s, id, code ? runEventOptions(code, s) : {}), memory: this.planMemory },
       this.synergy,
     );
   }
@@ -312,8 +312,12 @@ export class HeuristicRunnerAI implements Agent {
       resolved = next;
     }
     let score = evaluate(resolved, 'runner', this.synergy) - before;
-    if (action.type === 'DRAW_CARD' && needsBiggerHand(state, this.memory)) score += 1.5;
-    if (action.type === 'DRAW_CARD' && this.digForBreakers && state.runner.stack.length > 5) score += 1.2;
+    // plan.drawCap (code audit, 2026-11-05): a card drawn past the hand size is discarded at the end of the turn
+    // (rules 5.7.4), so these bonuses stop at the limit; a bigger hand for a trap run still counts while a click is left to run
+    const room = state.runner.grip.length < state.runner.handSizeLimit;
+    const drawCap = !!tuning.plan.drawCap;
+    if (action.type === 'DRAW_CARD' && needsBiggerHand(state, this.memory) && (!drawCap || room || state.runner.clicks >= 2)) score += 1.5;
+    if (action.type === 'DRAW_CARD' && this.digForBreakers && state.runner.stack.length > 5 && (!drawCap || room)) score += 1.2;
     if (action.type === 'DRAW_CARD' && this.synergy && tuning.plan.dig?.runner && state.runner.grip.length < state.runner.handSizeLimit) score += digValue(state, 'runner');
     if (action.type === 'INSTALL_CARD' && action.hostInstanceId && cardCode && TROJANS.includes(cardCode)) {
       const host = Object.values(state.corp.servers).flatMap(s => s.ice).find(c => c.instanceId === action.hostInstanceId);

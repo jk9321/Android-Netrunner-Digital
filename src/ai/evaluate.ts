@@ -199,7 +199,8 @@ function inIcedServer(state: GameState, card: CardInstance): boolean {
 }
 
 /** A Corp card the Runner can't see: installed, unrezzed and facedown. */
-const isHidden = (card: CardInstance) => !card.isRezzed && !card.faceUp;
+// A card the Runner has accessed or been shown in place (runnerKnows) isn't hidden from it (Gemini audit 2.2b)
+const isHidden = (card: CardInstance) => !card.isRezzed && !card.faceUp && !(tuning.plan.runnerKnown && card.runnerKnows);
 
 /**
  * What the Runner can expect of a facedown installed Corp card, worked out

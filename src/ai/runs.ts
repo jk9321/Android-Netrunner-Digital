@@ -500,7 +500,7 @@ function stealWorth(state: GameState, points: number, deny: number): number {
 /** Chance an unseen card in a remote's root is an agenda (Jeff: higher the more the Corp has put into the server). */
 export function remoteAgendaOdds(state: GameState, server: { ice: CardInstance[] }, card: CardInstance, trap: number): number {
   if (card.advancementCounters > 0) return Math.max(0, 1 - trap);
-  const corp = [...state.corp.hq, ...state.corp.rd, ...state.corp.archives.faceDown, ...Object.values(state.corp.servers).flatMap(s => s.root.filter(c => !c.isRezzed && !c.faceUp))];
+  const corp = [...state.corp.hq, ...state.corp.rd, ...state.corp.archives.faceDown, ...Object.values(state.corp.servers).flatMap(s => s.root.filter(c => !c.isRezzed && !c.faceUp && !(tuning.plan.runnerKnown && c.runnerKnows)))];
   const kinds = corp.map(c => cardDef(c).type_code);
   const agendas = kinds.filter(t => t === 'agenda').length;
   const roots = kinds.filter(t => t === 'agenda' || t === 'asset' || t === 'upgrade').length;
@@ -855,6 +855,25 @@ export function runShortfall(state: GameState, serverId: string): number | null 
   // Manegarm Skunkworks: 5 credits too when a run won't leave 2 clicks for it
   if (state.runner.clicks - 1 - bioroidClicks(state, server.ice) < 2) known += 5 * server.root.filter(c => c.isRezzed && c.cardCode === MANEGARM).length;
   return known - runBudget(state);
+}
+
+/**
+ * Credits a run on this server is expected to spend getting in (plan.plannerRunCredits): what the rezzed ice it
+ * doesn't bypass needs to be got past, less the run's own credits, and Manegarm's toll when paid in credits.
+ */
+export function runCreditSpend(state: GameState, serverId: string, options: RunOptions = {}): number {
+  const server = state.corp.servers[serverId];
+  if (!server) return 0;
+  const bypassed = runBypasses(state, serverId, options);
+  let need = 0;
+  for (const ice of server.ice) {
+    if (!ice.isRezzed || bypassed.ids.has(ice.instanceId)) continue;
+    const n = iceCreditNeed(state, ice);
+    if (n !== BLOCK) need += n;
+  }
+  need = Math.max(0, need - (options.bonusCredits ?? 0));
+  const approach = approachCost(state, serverId, state.runner.clicks - 1 - bioroidClicks(state, server.ice), runBudget(state) - need);
+  return need + (approach?.credits ?? 0);
 }
 
 /**
