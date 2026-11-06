@@ -304,3 +304,4 @@ Every self-play batch, newest last (Jeff, 2026-10-28). Made with `scripts/corp-l
 | 2026-11-06 | cleanup items 2+3 same-seed (identical to b1bfebf) | a6e7042 | 663 | **37.6%** | 29.0% / 8.6% | 54.6% / 7.8% | 49.4% / 21.8% / 25.0% / 3.8% | 7.0 | [txt](batch-logs/2026-11-06-cleanup-items-2-3-same-seed-identical-to-b1bfebf.txt) |
 | 2026-11-06 | oneClickPrice on (cleanup item 5) | ef1ff4e | 2210 | **38.4%** | 30.2% / 8.1% | 54.6% / 7.1% | 45.8% / 23.8% / 25.4% / 4.9% | 7.1 | [txt](batch-logs/2026-11-06-oneclickprice-on-cleanup-item-5.txt) |
 | 2026-11-06 | oneClickPrice off | ef1ff4e | 2210 | **38.9%** | 29.7% / 9.2% | 54.4% / 6.7% | 46.1% / 23.9% / 25.2% / 4.9% | 6.9 | [txt](batch-logs/2026-11-06-oneclickprice-off.txt) |
+| 2026-11-06 | emptyGripRuns on (branch ai-empty-grip) | e7ef0de | 663 | **38.3%** | 29.1% / 9.2% | 54.1% / 7.5% | 49.1% / 21.9% / 25.0% / 3.9% | 6.9 | [txt](batch-logs/2026-11-06-emptygripruns-on-branch-ai-empty-grip.txt) |
