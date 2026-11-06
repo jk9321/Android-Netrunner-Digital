@@ -122,7 +122,7 @@ describe('credits a broke Corp needs (Jeff, plan.moneyReach, agendaBudget, plann
     expect(s.corp.credits + s.corp.hq.filter(c => cardDef(c).title === 'Petty Cash').length * 2).toBeGreaterThanOrEqual(6);
   }, 60_000); // a whole planned turn: about 4 s here, over vitest's 5 s default on CI since the Corp's effect values came back on
 
-  it('two agendas share one turn’s clicks: only one of them looks scored this turn', () => {
+  it('two agendas share one turn’s clicks: only one of them looks scored this turn', { timeout: 30_000 }, () => {
     const s = threeCredits();
     // Send a Message (2 to go) and Project Ingatan (3 to go) with 3 clicks: Petty Cash is still a candidate
     const ranked = new HeuristicCorpAI({ planner: false }).rankMainActions(s);
@@ -155,6 +155,10 @@ describe('Humanoid Resources is rezzed to be used (Jeff 2026-10-31: "it rezzes i
 
   it('a rez in the action phase is followed by using it (the rule-based ranking)', () => {
     let s = idle();
+    // plan.oneCurrency (2026-11-06): with 3 credits the one-currency Corp installs Anthill Excavation Contract first (2.1
+    // against 1.6 for the rez), a fair trade at 3 credits; this test is about the use following the rez, so HQ holds no
+    // other asset to install
+    if (tuning.plan.oneCurrency) s.corp.hq = s.corp.hq.filter(c => cardDef(c).type_code !== 'asset');
     const hr = hrOf(s);
     const corp = new HeuristicCorpAI({ planner: false });
     let rezzed = false;

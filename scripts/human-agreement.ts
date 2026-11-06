@@ -23,7 +23,7 @@ import { readFileSync, readdirSync } from 'node:fs';
 import { join } from 'node:path';
 import { GameAction, GameState, actingSide, cardDef, createInitialGameState, executeAction, findCardAnywhere } from '../src/core';
 import { deckGameSetup } from '../src/data/decks';
-import { createAgent } from '../src/ai';
+import { HeuristicCorpAI, createAgent } from '../src/ai';
 import { setAgendaClick } from '../src/ai/evaluate';
 import { KNOBS } from '../src/ai/valueModel';
 import { applyPlanOff } from '../src/ai/synergy';
@@ -88,6 +88,7 @@ const describe = (st: GameState, a: GameAction) => {
   return `${a.type}${card ? ' ' + cardDef(card).title : ''}${'targetServerId' in a && a.targetServerId ? ' @' + a.targetServerId : ''}`;
 };
 for (const file of readdirSync(dir).filter(f => f.endsWith('.json')).sort()) {
+  if (opt('at') && !opt('at')!.startsWith(file + ':')) continue;
   const report = JSON.parse(readFileSync(join(dir, file), 'utf8'));
   if (!report.moves?.length) continue;
   const human: 'corp' | 'runner' = report.config.ai === 'corp' ? 'runner' : 'corp';
@@ -126,6 +127,17 @@ for (const file of readdirSync(dir).filter(f => f.endsWith('.json')).sort()) {
     if (turnStart && move.player === human) humanMoves.push(move);
     if (main && move.type !== 'START_TURN' && move.type !== 'END_TURN') {
       const ai = createAgent(human, 'normal').chooseAction(s);
+      if (opt('at') === `${file}:${s.turnNumber}:${clicks}` && human === 'corp') {
+        // --at=file:turn:clicks prints the one-step ranking there (the planner's input) and the human's move
+        const ranked = new HeuristicCorpAI({ synergy: true, planner: false }).rankMainActions(s);
+        console.log(`at ${opt('at')}: human ${describe(s, move)}, AI ${describe(s, ai)}`);
+        for (const r of ranked.slice(0, 10)) console.log(`  ${r.score.toFixed(2)}  ${describe(s, r.action)}`);
+        const h = ranked.find(r => same(r.action, move));
+        if (h) console.log(`  human's move scored ${h.score.toFixed(2)}`);
+        const rig = [...s.runner.rig.programs, ...s.runner.rig.hardware, ...s.runner.rig.resources].map(c => `${cardDef(c).title}${Object.entries(c.tokens ?? {}).filter(([, n]) => n).map(([k, n]) => ` ${k}:${n}`).join('')}`);
+        const hosted = Object.values(s.corp.servers).flatMap(sv => sv.ice.map(i => `${sv.id}:${cardDef(i).title}${i.isRezzed ? '' : '(u)'}${(i.hostedCards ?? []).map(h => '+' + cardDef(h).title + JSON.stringify(h.tokens ?? {})).join('')}`));
+        console.log(`  rig: ${rig.join(', ')}\n  ice: ${hosted.join(', ')}\n  credits corp ${s.corp.credits} runner ${s.runner.credits}, score ${s.corp.score}-${s.runner.score}`);
+      }
       const key = (st: GameState, a: GameAction) => (human === 'corp' ? isAgendaMove(st, a) : a.type === 'INITIATE_RUN');
       const w = key(s, move) || key(s, ai) ? 3 : 1;
       weight += w;

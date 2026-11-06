@@ -323,6 +323,7 @@ export class HeuristicCorpAI implements Agent {
         // Agendas can't be rezzed (rule 3.2.3), traps spring on access, run-timed cards wait for the run's window
         if (type(card) === 'agenda' || isTrap(card.cardCode) || runTimed(card)) return -Infinity;
         if (tuning.plan.rezToUse && clickOnly(card)) return this.rezToUse(state, card, before);
+        if (state.turnStep?.kind === 'corp_turn_start' && type(card) === 'asset' && getCardScript(card.cardCode)?.triggers?.turn_begins) return this.preTurnRez(state, action);
         return this.playScore(state, action, before);
       }
       case 'TRASH_RESOURCE':
@@ -453,6 +454,26 @@ export class HeuristicCorpAI implements Agent {
   }
 
   /** Rez windows for a card in a server's root on the Corp's own turn: true while now is not its time (timing, not worth). */
+  /**
+   * plan.oneCurrency: a rez in the window before the turn begins (rule 5.6.1b), priced past the turn's start (5.6.1c:
+   * "when your turn begins" abilities, Anthill Excavation Contract's 4 credits and a card) against beginning the turn
+   * without it. Priced on the window's own position, a turn-start asset rezzed there was worth what it would be rezzed
+   * later less the rez, about 0, and the Corp never rezzed before its turn as players do (human games: 13 decisions).
+   * Only for assets with a "when your turn begins" ability (The Holo Man's turn-start move keeps the action-phase price).
+   */
+  private preTurnRez(state: GameState, action: GameAction): number {
+    const begin = (s: GameState | null) => {
+      let t = s && simulate(s, { type: 'START_TURN', player: 'corp' });
+      for (let i = 0; t && i < 3 && activePrompt(t)?.side === 'corp'; i++) t = simulate(t, answerPrompt(t, 'corp', undefined, this.synergy));
+      return t && !activePrompt(t) ? t : null;
+    };
+    const rezzed = begin(simulate(state, action));
+    const plain = begin(state);
+    if (!rezzed || !plain) return -Infinity;
+    const score = evaluate(rezzed, 'corp', this.synergy) - evaluate(plain, 'corp', this.synergy);
+    return score <= FREE_ACTION_FLOOR ? -Infinity : score;
+  }
+
   private rezTimingBlocked(state: GameState, card: CardInstance): boolean {
     const corp = state.corp;
     // A money asset that pays when the Corp's turn begins is rezzed in the window just before then
