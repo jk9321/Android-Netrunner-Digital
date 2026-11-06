@@ -137,8 +137,12 @@ let averaging = false;
 /** Average held worth of the cards left in a side's deck (what a draw is expected to bring). */
 function drawWorth(state: GameState, side: SideCode): number {
   const deck = side === 'corp' ? state.corp.rd : state.runner.stack;
-  // The cards, not just the count: the Runner reply deals guessed decks of the same size (runnerReply.ts)
-  const key = `${planSide()}:${side}:${state.id}:${state.turnNumber}:${deck.map(c => c.instanceId).join(',')}`;
+  // The cards, not just the count: the Runner reply deals guessed decks of the same size (runnerReply.ts).
+  // plan.drawWorthCredits (code audit, 2026-11-06): and the side's credits, which decide what each card would cost to play
+  // (heldWorth's SOON): without them the average from the turn's first credit count was used all turn, and in look-aheads
+  // that spend or gain money (found as a test that passed alone and failed after another, tests/brokeCorp.test.ts)
+  const credits = tuning.plan.drawWorthCredits ? `${side === 'corp' ? state.corp.credits : state.runner.credits}:` : '';
+  const key = `${planSide()}:${side}:${state.id}:${state.turnNumber}:${credits}${deck.map(c => c.instanceId).join(',')}`;
   const cached = deckAverage.get(key);
   if (cached !== undefined) return cached;
   // While the average is worked out, a card's worth that needs the average card (cardRate) gets the flat rate:

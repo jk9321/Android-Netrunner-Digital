@@ -321,6 +321,8 @@ export const tuning = {
     oneClickPrice: true,
     /** Code audit cleanup item 6 (2026-11-06): PACE's runs a turn, run success and agenda events as re-measured on beta 34391e2 (effectValues PACE_NOV6). */
     measuredNov6: true,
+    /** Code audit: a draw's worth cached by the side's credits too (handValues drawWorth). */
+    drawWorthCredits: true,
     /**
      * Structural review item 1 (Jeff approved 2026-11-06; spec "Item 1 spec" of the AI code review doc): the Corp ranks
      * every main-phase action in one currency, the change in evaluate(state, 'corp') after the action and its own prompts

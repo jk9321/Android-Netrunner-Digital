@@ -1,9 +1,9 @@
 # AI self-play batch log
 
-Every self-play batch, newest last (Jeff, 2026-10-28). Made with `scripts/corp-losses.sh 10 normal > out.txt`, then `node scripts/batch-log.mjs "<change>" out.txt`. Noise: about ±2 points of Corp win rate at 2,210 games. Corp loss columns are the share of the Runner's points in Corp losses; full breakdowns (with per-deck win rates from 2026-10-28 on) are in `docs/batch-logs/`.
+Every self-play batch, newest last (Jeff, 2026-10-28). Made with `scripts/corp-losses.sh 10 normal > out.txt`, then `node scripts/batch-log.mjs "<change>" out.txt`. Noise: about ±2 points of Corp win rate at 2,210 games; for an on/off pair, run the second batch with `--base` (or the workflow's base_run) and read the paired column, where a diff under 2 SE is noise. Pairing cuts the win-rate SE only about 20% (a small switch still flips the winner on ~28% of deals; 663 games: ± 2.1 paired vs ± 2.6), so a ±2 point win-rate pair is not decisive: judge changes, the Corp refactor included, by the paired alarm diffs in the full breakdown plus scripts/human-agreement.ts, with win rate as a guard rail. Corp loss columns are the share of the Runner's points in Corp losses; full breakdowns (with per-deck win rates from 2026-10-28 on) are in `docs/batch-logs/`.
 
-| Date | Change | Commit | Games | Corp win | Corp wins: points / flatline | Runner wins: points / Corp decked | Runner pts from remote / R&D / HQ / Archives | Corp credits at turn end (losses) | Full |
-| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| Date | Change | Commit | Games | Corp win | Corp wins: points / flatline | Runner wins: points / Corp decked | Runner pts from remote / R&D / HQ / Archives | Corp credits at turn end (losses) | Full | Paired vs base: Corp win diff ± SE (games) |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
 | 2026-10-27 | Baseline: value model all off (same as main 1724c6b) | 3648c23 | 2210 | **40.1%** | 31.9% / 8.2% | 56.9% / 3.0% | 39.0% / 31.0% / 23.8% / 6.2% | 6.3 | [txt](batch-logs/2026-10-27-baseline-value-model-all-off-same-as-main-1724c6b.txt) |
 | 2026-10-27 | Step 2 all on (incl. flat click rate) | 3648c23 | 2210 | **38.6%** | 31.1% / 7.5% | 59.8% / 1.7% | 36.5% / 30.4% / 26.0% / 7.2% | 5.8 | [txt](batch-logs/2026-10-27-step-2-all-on-incl-flat-click-rate.txt) |
 | 2026-10-27 | Step 2 ablation: click rate off | 3648c23 | 2210 | **37.7%** | 30.7% / 7.1% | 58.8% / 3.4% | 38.5% / 29.6% / 24.8% / 7.1% | 6.3 | [txt](batch-logs/2026-10-27-step-2-ablation-click-rate-off.txt) |
@@ -310,3 +310,5 @@ Every self-play batch, newest last (Jeff, 2026-10-28). Made with `scripts/corp-l
 | 2026-11-06 | item 6: measuredNov6 on (2210) | 7c9f6f1 | 2210 | **38.6%** | 30.6% / 8.0% | 54.6% / 6.7% | 45.2% / 24.5% / 25.5% / 4.8% | 7.1 | [txt](batch-logs/2026-11-06-item-6-measurednov6-on-2210.txt) |
 | 2026-11-06 | item 6: measuredNov6 off (2210) | 7c9f6f1 | 2210 | **39.1%** | 30.5% / 8.6% | 54.2% / 6.7% | 44.9% / 24.3% / 25.7% / 5.1% | 7.1 | [txt](batch-logs/2026-11-06-item-6-measurednov6-off-2210.txt) |
 | 2026-11-06 | beta after liquidity merge (663) | 6f5b17e | 663 | **36.2%** | 29.4% / 6.8% | 55.7% / 8.1% | 44.9% / 26.3% / 24.1% / 4.8% | 7.1 | [txt](batch-logs/2026-11-06-beta-after-liquidity-merge-663.txt) |
+| 2026-11-06 | drawWorthCredits on (oneRezMoney on, 2210) | 330957e | 2210 | **36.9%** | 29.0% / 7.9% | 56.2% / 6.8% | 45.8% / 24.1% / 25.2% / 4.9% | 6.9 | [txt](batch-logs/2026-11-06-drawworthcredits-on-onerezmoney-on-2210.txt) |  |
+| 2026-11-06 | drawWorthCredits off (oneRezMoney on, 2210) | 330957e | 2210 | **38.7%** | 31.0% / 7.7% | 54.6% / 6.7% | 45.5% / 24.7% / 25.5% / 4.3% | 6.9 | [txt](batch-logs/2026-11-06-drawworthcredits-off-onerezmoney-on-2210.txt) |  |
