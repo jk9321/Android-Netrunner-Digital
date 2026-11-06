@@ -113,6 +113,13 @@ describe('a remote identity without oneRemote', () => {
     expect(scoreOf(s, install(agenda, 'remote-1'))).toBeGreaterThan(scoreOf(s, install(agenda, 'new')));
   });
 
+  it('an agenda in HQ is worth installing behind a rezzed Palisade (it doesn’t wait in HQ)', () => {
+    const s = corpTurn();
+    installIceForTest(s, PALISADE, 'remote-1');
+    const agenda = giveCard(s, 'corp', OFFWORLD_OFFICE);
+    expect(scoreOf(s, install(agenda, 'remote-1'))).toBeGreaterThan(0);
+  });
+
   it('ice goes onto the remote holding an agenda rather than a new remote', () => {
     const s = corpTurn();
     agendaIn(s, 'remote-1');

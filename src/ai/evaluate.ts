@@ -547,8 +547,22 @@ function handAndClicks(state: GameState, side: SideCode, viewer: SideCode): numb
   // plan.heldMoney: the money operation moneyReach puts on the Corp's credit slide is worth its credits there, not
   // a card in HQ as well (held, Hedge Fund was counted twice and playing it scored below a click for a credit)
   const reached = side === 'corp' && viewer === 'corp' && tuning.plan.heldMoney && tuning.plan.moneyReach && reachCard(state) ? 1 : 0;
-  const own = side === viewer && handByCard(side) ? ownHandValue(state, side) : handValue(hand.length - reached, player.handSizeLimit, viewer);
+  // plan.oneCurrency: the Corp's own agendas in HQ (the ones it has seen) are worth what they will be once installed,
+  // a click later, behind a typical remote (agendaWorth inHand), not a card's worth: as a card, every install of an
+  // agenda behind ice traded a full card for an agenda priced net of its advances, and agendas sat in HQ
+  const agendas = side === 'corp' && viewer === 'corp' && tuning.plan.oneCurrency && !handByCard('corp') ? heldAgendas(state) : [];
+  const own =
+    side === viewer && handByCard(side)
+      ? ownHandValue(state, side)
+      : handValue(hand.length - reached - agendas.length, player.handSizeLimit, viewer) +
+        agendas.reduce((n, c) => n + agendaWorth(state, 0, cardDef(c).advancement_cost ?? 0, cardDef(c).agenda_points ?? 1, undefined, undefined, true), 0);
   return clickPrice(state, side, viewer) * player.clicks + own;
+}
+
+/** The agendas in HQ the deciding Corp has seen (one drawn in a look-ahead is an unknown card). */
+function heldAgendas(state: GameState): CardInstance[] {
+  const unseen = new Set(unseenInHand(state, 'corp').map(c => c.instanceId));
+  return state.corp.hq.filter(c => cardDef(c).type_code === 'agenda' && !unseen.has(c.instanceId));
 }
 
 /**
