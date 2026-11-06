@@ -302,3 +302,5 @@ Every self-play batch, newest last (Jeff, 2026-10-28). Made with `scripts/corp-l
 | 2026-11-06 | decking hunt: plannerRunCredits off | 5809cc6 | 663 | **37.3%** | 27.9% / 9.4% | 54.8% / 8.0% | 47.3% / 23.4% / 25.0% / 4.2% | 7.0 | [txt](batch-logs/2026-11-06-decking-hunt-plannerruncredits-off.txt) |
 | 2026-11-06 | decking hunt: drawCap off | 5809cc6 | 663 | **39.5%** | 29.4% / 10.1% | 53.4% / 7.1% | 47.1% / 23.2% / 24.5% / 5.1% | 6.9 | [txt](batch-logs/2026-11-06-decking-hunt-drawcap-off.txt) |
 | 2026-11-06 | cleanup items 2+3 same-seed (identical to b1bfebf) | a6e7042 | 663 | **37.6%** | 29.0% / 8.6% | 54.6% / 7.8% | 49.4% / 21.8% / 25.0% / 3.8% | 7.0 | [txt](batch-logs/2026-11-06-cleanup-items-2-3-same-seed-identical-to-b1bfebf.txt) |
+| 2026-11-06 | oneClickPrice on (cleanup item 5) | ef1ff4e | 2210 | **38.4%** | 30.2% / 8.1% | 54.6% / 7.1% | 45.8% / 23.8% / 25.4% / 4.9% | 7.1 | [txt](batch-logs/2026-11-06-oneclickprice-on-cleanup-item-5.txt) |
+| 2026-11-06 | oneClickPrice off | ef1ff4e | 2210 | **38.9%** | 29.7% / 9.2% | 54.4% / 6.7% | 46.1% / 23.9% / 25.2% / 4.9% | 6.9 | [txt](batch-logs/2026-11-06-oneclickprice-off.txt) |
