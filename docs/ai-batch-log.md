@@ -293,3 +293,7 @@ Every self-play batch, newest last (Jeff, 2026-10-28). Made with `scripts/corp-l
 | 2026-11-05 | measuredRunShares off | 8a26d0f | 663 | **38.9%** | 31.4% / 7.5% | 52.3% / 8.7% | 44.6% / 22.0% / 26.2% / 7.2% | 7.4 | [txt](batch-logs/2026-11-05-measuredrunshares-off.txt) |
 | 2026-11-05 | fermenterBank v2 on | d4f2519 | 2210 | **39.5%** | 32.8% / 6.7% | 51.9% / 8.6% | 44.1% / 25.4% / 24.3% / 6.3% | 7.6 | [txt](batch-logs/2026-11-05-fermenterbank-v2-on.txt) |
 | 2026-11-05 | fermenterBank v2 off | d4f2519 | 2210 | **38.1%** | 30.8% / 7.2% | 52.4% / 9.6% | 43.2% / 25.6% / 24.5% / 6.7% | 7.8 | [txt](batch-logs/2026-11-05-fermenterbank-v2-off.txt) |
+| 2026-11-06 | audit fixes on (drawCap plannerRunCredits keepKnownRd runnerKnown) | 71a747d | 663 | **37.9%** | 28.8% / 9.0% | 52.6% / 9.5% | 48.5% / 21.2% / 25.7% / 4.6% | 7.2 | [txt](batch-logs/2026-11-06-audit-fixes-on-drawcap-plannerruncredits-keepknownrd-runnerknown.txt) |
+| 2026-11-06 | audit fixes off | 71a747d | 663 | **40.1%** | 31.4% / 8.7% | 53.4% / 6.5% | 45.3% / 23.6% / 23.7% / 7.5% | 7.3 | [txt](batch-logs/2026-11-06-audit-fixes-off.txt) |
+| 2026-11-06 | breakerReach on (all audit fixes) | b1bfebf | 663 | **37.6%** | 29.0% / 8.6% | 54.6% / 7.8% | 49.4% / 21.8% / 25.0% / 3.8% | 7.0 | [txt](batch-logs/2026-11-06-breakerreach-on-all-audit-fixes.txt) |
+| 2026-11-06 | breakerReach off | b1bfebf | 663 | **37.9%** | 28.8% / 9.0% | 52.6% / 9.5% | 48.5% / 21.2% / 25.7% / 4.6% | 7.2 | [txt](batch-logs/2026-11-06-breakerreach-off.txt) |
