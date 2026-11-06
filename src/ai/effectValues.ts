@@ -8,6 +8,7 @@ import { actingSide, tuning } from './synergy';
 import { CLICK, RATES, cardRate, flatRate, flatlineWorth, memo, pointGain, pointValue, sideCards } from './valueModel';
 import { tagsWorth } from './evaluate';
 import { BLOCK, iceCost, iceCreditNeed, subroutineCost } from './runs';
+import { REZ_NOW_SHARE, rezBudget } from './iceValues';
 
 /**
  * The every-card audit's last 31 cards (Jeff, 2026-10-28): assets, upgrades
@@ -210,7 +211,10 @@ function passOdds(state: GameState, ices: CardInstance[], income = 0): number {
   let pass = 1;
   for (const ice of [...ices].reverse()) {
     if (!ice.isRezzed) {
-      pass *= state.corp.credits >= 3 ? UNREZZED_PASS.rich : UNREZZED_PASS.broke;
+      // plan.oneCurrency (review 2): whether the Corp can rez it is read from the one rez pool iceWorth reads (rezBudget),
+      // so an agenda's protection and the ice's worth agree on which ice the credits cover
+      const covered = tuning.plan.oneCurrency && tuning.plan.rezBudget ? (rezBudget(state).get(ice.instanceId) ?? 0) >= REZ_NOW_SHARE : state.corp.credits >= 3;
+      pass *= covered ? UNREZZED_PASS.rich : UNREZZED_PASS.broke;
       continue;
     }
     const cost = iceCost(state, ice);

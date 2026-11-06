@@ -41,7 +41,10 @@ export function hostedTrojans(state: GameState, ice: CardInstance, code: string)
 /** Subroutines Botulus breaks on this ice for free: the virus counters on the Botulus programs it hosts. */
 export function botulusBreaks(state: GameState, ice: CardInstance): number {
   if (!tuning.plan.trojans) return 0;
-  return hostedTrojans(state, ice, BOTULUS).reduce((n, c) => n + counters(c, 'virus'), 0);
+  // plan.oneCurrency: priced on the Corp's turn, each Botulus has the counter it places when the Runner's turn begins
+  // before any run of that turn (so a purge takes the counters it holds, not the one it is about to grow)
+  const grows = tuning.plan.oneCurrency && state.activePlayer === 'corp' && !state.activeRun ? 1 : 0;
+  return hostedTrojans(state, ice, BOTULUS).reduce((n, c) => n + counters(c, 'virus') + grows, 0);
 }
 
 /** Credits-equivalent cost of letting one subroutine resolve (Infinity: it ends the run). */

@@ -6,6 +6,7 @@ import { RATES, guardLoop, memo } from './valueModel';
 import { turnsLeft } from './cardProfiles';
 import { freeRezTargets } from './freeRez';
 import { tuning } from './synergy';
+import { LOCKDOWN, PACE } from './effectValues';
 
 /**
  * Value model step 5 (docs/ai-value-model-plan.md): ice priced in credits,
@@ -53,6 +54,7 @@ export function iceWorth(state: GameState, ice: CardInstance, viewer: SideCode):
 }
 
 function iceWorthOf(state: GameState, ice: CardInstance, viewer: SideCode): number {
+  if (tuning.plan.oneCurrency && viewer === 'corp') return iceToll(state, ice);
   if (ice.isRezzed) return RATES.ice + Math.min(iceStop(state), lastingIceCost(state, ice));
   // The Runner doesn't know what it is: iceCost's guess for unrezzed ice
   if (viewer === 'runner') return RATES.ice + iceCost(state, ice);
@@ -85,6 +87,33 @@ export function lastingIceCost(state: GameState, ice: CardInstance): number {
   const programs = state.runner.rig.programs.map(p => (p.cardCode === AUDREY ? { ...p, tokens: { ...p.tokens, virus: uses } } : p));
   const full = iceCost({ ...state, runner: { ...state.runner, rig: { ...state.runner.rig, programs } } }, ice);
   return Math.min(now, full + (uses - have) * AUDREY_REFILL);
+}
+
+/**
+ * plan.oneCurrency, the Corp's view (review 2): ice is worth the toll it takes, not a flat stop. What it protects is
+ * priced where it protects: centralExposure (HQ, R&D), stealOdds in agendaWorth (agenda remotes), the payout wait of an
+ * iced asset, heldAgendasWorth's best open remote (an empty iced remote is room for the agendas in HQ). Counted again
+ * here, ice read +6.75 even in a new empty remote and the Corp iced servers where Jeff clicked for credits. The toll is
+ * what the Runner pays to get past it on the runs it makes there (PACE: runs a turn by the server's share of them, a
+ * remote's share split over the remotes with something in them) over the turns left, by the share of the rez the Corp
+ * can pay for (rezBudget) when it is unrezzed. Ice the Runner can't get past takes none (its stop is the protection).
+ */
+function iceToll(state: GameState, ice: CardInstance): number {
+  const server = Object.values(state.corp.servers).find(sv => sv.ice.some(c => c.instanceId === ice.instanceId));
+  const remotes = Object.values(state.corp.servers).filter(sv => sv.isRemote && sv.root.length > 0).length;
+  const share = !server
+    ? 0
+    : server.id === 'hq' ? PACE.hqShare
+    : server.id === 'rd' ? PACE.rdShare
+    : server.id === 'archives' ? PACE.archivesShare
+    : server.root.length > 0 ? PACE.remoteShare / Math.max(1, remotes) : 0;
+  const rez = ice.isRezzed ? 1 : rezBudget(state).get(ice.instanceId) ?? 0;
+  let turns = 0;
+  for (let t = 0; t < turnsLeft(state); t++) turns += LOCKDOWN ** t;
+  // Ice it can't get past takes no toll: the Runner runs elsewhere, and the stop is priced in what the server protects
+  const cost = lastingIceCost(state, { ...ice, isRezzed: true });
+  const toll = cost < iceStop(state) ? cost : 0;
+  return RATES.ice + rez * PACE.runs * share * toll * turns;
 }
 
 /** Share of an unrezzed ice's rezzed worth the Corp counts while it can pay for the rez now (the rest is the rez still to pay). */

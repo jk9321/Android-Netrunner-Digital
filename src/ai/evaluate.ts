@@ -308,7 +308,9 @@ export function agendaWorth(
   const late = 1 - 1 / turnsLeft(state);
   // plan.agendaClicks (Jeff's Corp game 2, bug report #18): the clicks still needed are clicks a later turn can't spend
   // building; priced at the flat click rate, building now and scoring next turn always beat scoring now and building next
-  const click = tuning.plan.agendaClicks ? AGENDA_CLICK : CLICK;
+  // plan.oneCurrency (review 2): the advance click is a click like any other, at clickPrice (what this turn's clicks build),
+  // not AGENDA_CLICK 2: at 0.75 a click over every other use, ties between an advance and Regolith or Petty Cash went to the money
+  const click = tuning.plan.oneCurrency ? clickPrice(state, 'corp', 'corp') : tuning.plan.agendaClicks ? AGENDA_CLICK : CLICK;
   // plan.oneCurrency (review of item 1): a steal is not only the Corp's points lost but the Runner's points won (rule
   // 1.17.3: the Runner adds a stolen agenda to its score area), on the Runner's clock: evaluate is mine minus theirs, so
   // an agenda the Runner may take next turn is charged that chance of its point gain. The old install gates (exposureOk,

@@ -5,7 +5,8 @@ import { HeuristicCorpAI } from '../src/ai';
 import { installForTest, installIceForTest, newGame, newGameAtSetup } from './helpers';
 import { legacyRanking } from './legacyRanking';
 
-// plan.oneCurrency: these pin the old Corp ranking (tests/legacyRanking.ts)
+// plan.oneCurrency: OPEN (review 2, 2026-11-06): with ice worth its toll, a second Palisade on an R&D this Runner can't
+// get into adds nothing until the Runner finds a fracter, which the model does not foresee; the asset remote gets it
 legacyRanking(["puts ice the Runner can't get through on R&D rather than an empty remote"]);
 
 const PALISADE = '30072'; // barrier, rez 3
