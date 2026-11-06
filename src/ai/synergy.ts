@@ -299,6 +299,11 @@ export const tuning = {
      * toll when it doesn't. Replaces the importance table, rezToll and agendaMoney for ice (they still apply with it off).
      */
     modelRez: true,
+    /**
+     * Both sides' pricing (structural review items 1-2, 2026-11-06): unrezzed ice counts as rezzable from one pool of
+     * the Corp's credits, not each against the same credits (iceValues rezBudget). A measuring switch, not a knob.
+     */
+    rezBudget: true,
     /** Corp: click for credits toward a money operation in HQ it can't afford yet (Hedge Fund, Subsidy...). */
     saveForOps: true,
     /** Runner: Botulus counters count as free breaks when costing ice; trojans go on the ice they help most, not doubled up. */
