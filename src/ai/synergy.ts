@@ -401,6 +401,8 @@ export const tuning = {
     breakerReach: true,
     /** 2026-11-06 (thread "Find why self-play games end decked"): a Runner with an empty grip prices the one net damage a run might cost as a flatline only as often as the Corp can land a hit, not as a sure one (runs.ts runScore). */
     emptyGripRuns: true,
+    /** 2026-11-06 (same thread): tankProtection prices only ice with no run enders by its tank cost (corpAI.ts protectionCost). */
+    tankNoEtr: true,
     plannerRunCredits: true,
     /** Code audit (2026-11-05, from Gemini's second audit): lookahead re-deals keep the R&D cards the Runner remembers where they are, and faceup installed cards as they are (runnerReply.guessHidden, search.determinize). */
     keepKnownRd: true,

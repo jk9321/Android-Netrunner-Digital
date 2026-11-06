@@ -948,6 +948,11 @@ function virusThreat(state: GameState): number {
 export function protectionCost(state: GameState, ice: CardInstance): number {
   const cost = iceCost(state, ice);
   if (!tuning.plan.tankProtection) return cost;
+  // plan.tankNoEtr (2026-11-06, thread "Find why self-play games end decked"): only ice with no run enders (Doomscroll)
+  // is priced by what tanking it costs; a run ender the Runner pays to break keeps its full cost. Priced at the break
+  // cost alone (often 1), every rezzed ice counted as no layer, no remote looked safe and the Corp sat on its agendas
+  // until it decked out: 663 games, tankProtection on 54 decked (Corp 35.1%), off 16 (37.3%)
+  if (tuning.plan.tankNoEtr && hasEndTheRun(ice)) return cost;
   const worth = pointGain(state.runner.score, agendaOdds(state).points);
   for (const prep of tankPreps(state)) {
     const need = iceCreditNeed(prep.state, ice);
