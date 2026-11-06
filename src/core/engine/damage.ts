@@ -106,11 +106,11 @@ export function trashInstalledRunnerCard(state: GameState, card: CardInstance): 
 }
 
 /**
- * Takes an installed Runner card out of play to the heap, the grip (Lethe)
- * or the top or bottom of the stack (Beta Build, Scapegoat), freeing its
- * memory. What it hosted is trashed (rules 1.13).
+ * Takes an installed Runner card out of play to the heap, the grip (Lethe),
+ * the top or bottom of the stack (Beta Build, Scapegoat) or out of the game
+ * (Malandragem), freeing its memory (rules 3.9.3a). What it hosted is trashed (rules 1.13).
  */
-export function uninstallRunnerCard(state: GameState, card: CardInstance, to: 'heap' | 'grip' | 'stackTop' | 'stack'): void {
+export function uninstallRunnerCard(state: GameState, card: CardInstance, to: 'heap' | 'grip' | 'stackTop' | 'stack' | 'removed'): void {
   const { rig } = state.runner;
   if (removeCard(rig.programs, card)) {
     state.runner.memoryUnitsUsed -= cardDef(card).memory_cost || 0;
@@ -126,6 +126,7 @@ export function uninstallRunnerCard(state: GameState, card: CardInstance, to: 'h
   if (to === 'heap') state.runner.heap.push(card);
   else if (to === 'grip') state.runner.grip.push(card);
   else if (to === 'stackTop') state.runner.stack.unshift(card);
+  else if (to === 'removed') state.removedFromGame.push(card);
   else state.runner.stack.push(card);
   // Cards hosted faceup on it (Bling, Madani, Detente) go to their owners' discard piles
   for (const hosted of card.hostedCards ?? []) {

@@ -6,7 +6,7 @@ import { CounterType, PaymentPurpose } from '../scripts/types';
 import { addLog } from './log';
 import { beforeCorpCardUninstalled, drawCards, findCardAnywhere, findInstalledCorpCard, removeCard, trashInstalledCorpCard } from './helpers';
 import { activeCards, fireTrigger } from './triggers';
-import { trashInstalledRunnerCard } from './damage';
+import { trashInstalledRunnerCard, uninstallRunnerCard } from './damage';
 
 /**
  * Shared building blocks for card abilities: turn flags, counters, hosted
@@ -513,8 +513,11 @@ export function removeFromGame(state: GameState, card: CardInstance): void {
     beforeCorpCardUninstalled(state, card);
     removeCard(corp.server.root, card) || removeCard(corp.server.ice, card);
   } else {
-    const { rig } = state.runner;
-    removeCard(rig.programs, card) || removeCard(rig.hardware, card) || removeCard(rig.resources, card);
+    // An installed Runner card leaves play like any other: its memory is freed (rules 3.9.3a: Malandragem) and
+    // what it hosts is trashed (1.13)
+    uninstallRunnerCard(state, card, 'removed');
+    card.advancementCounters = 0;
+    return;
   }
   card.tokens = {};
   card.advancementCounters = 0;

@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { createCardInstance, effectTrashableFirst, executeAction, findCardAnywhere, GameState, iceStrength, isLegalAction } from '../src/core';
 import { makeRoomAnswers } from '../src/ai/prompts';
 import { breakerStrength, markSubroutinesBroken } from '../src/core/engine/ice';
-import { purgeVirusCounters } from '../src/core/engine/cardEffects';
+import { purgeVirusCounters, removeFromGame } from '../src/core/engine/cardEffects';
 import { dealNetDamage, giveTags, trashInstalledRunnerCard } from '../src/core/engine/damage';
 import { answer, cont, runIntoFirstIce, giveCard, installCorpForTest, installIceForTest, installProgramForTest, keepGoing, newGame, passTurn, play, run, runnerInstall, scoreForTest, setIdentity, startRunnerTurn, useAbility, toCorp } from './helpers';
 
@@ -754,6 +754,20 @@ describe('Rebellion Without Rehearsal: Criminal', () => {
     s = choose(s, 'counter');
     expect(card(s, m).tokens.power).toBe(1);
     expect(pastIce(s)).toBe(true);
+  });
+
+  it('Malandragem removed from the game frees its memory (rules 3.9.3a)', () => {
+    let s = newGame();
+    installIceForTest(s, SG.palisade, 'archives');
+    const [s1, m] = runnerInstall(s, L.malandragem);
+    s = s1;
+    const used = s.runner.memoryUnitsUsed;
+    expect(used).toBeGreaterThanOrEqual(1);
+    // Its last counter spent (or its 'remove' option) takes it out of the game
+    removeFromGame(s, card(s, m));
+    expect(s.removedFromGame.some(c => c.instanceId === m)).toBe(true);
+    expect(s.runner.rig.programs.some(c => c.instanceId === m)).toBe(false);
+    expect(s.runner.memoryUnitsUsed).toBe(used - 1);
   });
 
   it('Physarum Entangler pays 1 per subroutine to bypass its non-barrier host, and is trashed by a purge', () => {
