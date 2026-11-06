@@ -293,6 +293,12 @@ export const tuning = {
     tagFirst: true,
     /** Corp: in a run, breakable ice outside an agenda server is rezzed only when its toll is worth the rez (corpAI decideRez). */
     rezToll: true,
+    /**
+     * Corp (structural review item 2, Jeff 2026-11-06): in a run, ice is rezzed by the value model (rezModel.ts): the
+     * board change (rez cost on the credit slide, ice worth) plus what the run would take when the ice stops it, or the
+     * toll when it doesn't. Replaces the importance table, rezToll and agendaMoney for ice (they still apply with it off).
+     */
+    modelRez: true,
     /** Corp: click for credits toward a money operation in HQ it can't afford yet (Hedge Fund, Subsidy...). */
     saveForOps: true,
     /** Runner: Botulus counters count as free breaks when costing ice; trojans go on the ice they help most, not doubled up. */
