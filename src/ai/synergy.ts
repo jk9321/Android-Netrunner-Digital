@@ -403,6 +403,8 @@ export const tuning = {
     emptyGripRuns: true,
     /** 2026-11-06 (same thread): tankProtection prices only ice with no run enders by its tank cost (corpAI.ts protectionCost). */
     tankNoEtr: true,
+    /** 2026-11-06 (same thread): hqNoSafer also applies while HQ holds 2+ agendas, not only after a successful HQ run (corpAI.ts hqNoSafer). */
+    hqHeld: true,
     plannerRunCredits: true,
     /** Code audit (2026-11-05, from Gemini's second audit): lookahead re-deals keep the R&D cards the Runner remembers where they are, and faceup installed cards as they are (runnerReply.guessHidden, search.determinize). */
     keepKnownRd: true,

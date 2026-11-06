@@ -559,7 +559,11 @@ export class HeuristicCorpAI implements Agent {
    */
   private hqNoSafer(state: GameState, server: ServerState, credits: number): boolean {
     if (!(this.synergy && tuning.plan.hqNoSafer)) return false;
-    if (!state.runnerLastTurnRuns.some(r => r.server === 'hq' && r.successful)) return false;
+    // plan.hqHeld (2026-11-06, thread "Find why self-play games end decked"): with 2 or more agendas waiting in HQ, HQ is a
+    // target whether or not the Runner got in last turn; held there for a remote that never looks safe, they sat until
+    // the Corp decked out (decked games end with 3 agendas in HQ, other long games 1.3)
+    const held = tuning.plan.hqHeld && state.corp.hq.filter(c => type(c) === 'agenda').length >= 2;
+    if (!held && !state.runnerLastTurnRuns.some(r => r.server === 'hq' && r.successful)) return false;
     return entryCost(state, server, credits) >= entryCost(state, state.corp.servers.hq, credits);
   }
 
