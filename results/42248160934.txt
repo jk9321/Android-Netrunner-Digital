@@ -1,0 +1,1 @@
+Batch: modelRez v2 on (ai-model-rez 818b4f7) paired vs off 42239185113 | ref 818b4f72c8b4281a831f5ba39968309913f45c4d | games 0-10 | PLAN_OFF= | decks  | corp-losses corp | added run  | paired with run 42239185113
