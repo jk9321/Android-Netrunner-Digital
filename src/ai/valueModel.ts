@@ -334,11 +334,24 @@ export function sideCreditValue(state: GameState, side: SideCode, viewer: SideCo
  * each credit to come, as a multiple of a flat credit. Runner cards only: on the Corp's Regolith it made taking
  * the credits barely better than leaving them, so the Corp drew instead of taking.
  */
+/** plan.liquidity: credits on a card are worth this much more than at half the need while the side is short. */
+export const LIQUIDITY_LIFT = 1.1;
+
 export function payoutSlide(state: GameState, side: SideCode, viewer: SideCode, amount: number): number {
   if (!tuning.plan.payoutSlide || !tuning.plan.creditSlide?.[viewer] || amount <= 0) return 1;
   const credits = side === 'corp' ? state.corp.credits : state.runner.credits;
   const need = creditNeed(state, side);
-  return (creditSlide(credits + amount, need) - creditSlide(credits, need)) / amount;
+  // plan.liquidity (Jeff, 2026-11-06, his Teia game: the Runner sat on 0-5 credits for 13 turns and never played Sure
+  // Gamble): credits still on a card can't be spent this turn. Priced from the pool in hand, every credit gained made
+  // Telework Contract's credits look less needed: Sure Gamble at 5 credits gained 6.1 in cash, lost 3.5 on the contract
+  // and scored below drawing a card. They sit on the slide from half the need instead, whatever less is in hand, so cash
+  // keeps the broke end of the slide to itself; a bank past the need still slides off.
+  // A tenth on top while short (fading out from half the need to the need): credits on a card get spent while the
+  // Runner is still short, so a broke Runner keeps installing Telework Contract and Fermenter (payoutSlide.test.ts)
+  if (!tuning.plan.liquidity) return (creditSlide(credits + amount, need) - creditSlide(credits, need)) / amount;
+  const pool = Math.max(credits, need / 2);
+  const lift = 1 + (LIQUIDITY_LIFT - 1) * Math.min(1, Math.max(0, 2 - (2 * credits) / Math.max(need, 1)));
+  return ((creditSlide(pool + amount, need) - creditSlide(pool, need)) / amount) * lift;
 }
 
 /*

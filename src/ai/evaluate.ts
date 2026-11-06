@@ -512,7 +512,7 @@ export function sideStrength(state: GameState, side: SideCode, viewer: SideCode 
     (tuning.plan.tagClock ? tagsWorth(state, viewer) : (RATES.tagAgainstRunner + threat) * runner.tags) -
     coreSlotWorth(state) * runner.coreDamage -
     // The damage clock: a small grip against the Corp's damage is a step toward a flatline
-    (tuning.plan.damageClock ? flatlineWorth(state) * flatlineOdds(state, lifeGrip(state)) + lifeCards(runner.grip.length) : 0) +
+    (tuning.plan.damageClock ? flatlineWorth(state) * flatlineOdds(state, lifeGrip(state), true) + lifeCards(runner.grip.length) : 0) +
     runnerRigValue(state, aware, viewer)
   );
 }
