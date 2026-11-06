@@ -297,3 +297,8 @@ Every self-play batch, newest last (Jeff, 2026-10-28). Made with `scripts/corp-l
 | 2026-11-06 | audit fixes off | 71a747d | 663 | **40.1%** | 31.4% / 8.7% | 53.4% / 6.5% | 45.3% / 23.6% / 23.7% / 7.5% | 7.3 | [txt](batch-logs/2026-11-06-audit-fixes-off.txt) |
 | 2026-11-06 | breakerReach on (all audit fixes) | b1bfebf | 663 | **37.6%** | 29.0% / 8.6% | 54.6% / 7.8% | 49.4% / 21.8% / 25.0% / 3.8% | 7.0 | [txt](batch-logs/2026-11-06-breakerreach-on-all-audit-fixes.txt) |
 | 2026-11-06 | breakerReach off | b1bfebf | 663 | **37.9%** | 28.8% / 9.0% | 52.6% / 9.5% | 48.5% / 21.2% / 25.7% / 4.6% | 7.2 | [txt](batch-logs/2026-11-06-breakerreach-off.txt) |
+| 2026-11-06 | decking hunt: runnerKnown off | 5809cc6 | 663 | **38.5%** | 31.5% / 6.9% | 52.6% / 8.9% | 45.6% / 22.4% / 24.1% / 7.8% | 7.5 | [txt](batch-logs/2026-11-06-decking-hunt-runnerknown-off.txt) |
+| 2026-11-06 | decking hunt: keepKnownRd off | 5809cc6 | 663 | **37.3%** | 28.7% / 8.6% | 55.1% / 7.7% | 49.2% / 22.0% / 25.0% / 3.8% | 7.0 | [txt](batch-logs/2026-11-06-decking-hunt-keepknownrd-off.txt) |
+| 2026-11-06 | decking hunt: plannerRunCredits off | 5809cc6 | 663 | **37.3%** | 27.9% / 9.4% | 54.8% / 8.0% | 47.3% / 23.4% / 25.0% / 4.2% | 7.0 | [txt](batch-logs/2026-11-06-decking-hunt-plannerruncredits-off.txt) |
+| 2026-11-06 | decking hunt: drawCap off | 5809cc6 | 663 | **39.5%** | 29.4% / 10.1% | 53.4% / 7.1% | 47.1% / 23.2% / 24.5% / 5.1% | 6.9 | [txt](batch-logs/2026-11-06-decking-hunt-drawcap-off.txt) |
+| 2026-11-06 | cleanup items 2+3 same-seed (identical to b1bfebf) | a6e7042 | 663 | **37.6%** | 29.0% / 8.6% | 54.6% / 7.8% | 49.4% / 21.8% / 25.0% / 3.8% | 7.0 | [txt](batch-logs/2026-11-06-cleanup-items-2-3-same-seed-identical-to-b1bfebf.txt) |
