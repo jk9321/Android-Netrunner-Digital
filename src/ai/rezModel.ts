@@ -24,6 +24,10 @@ import { runLoss } from './corpAI';
  * Comparing after the run matters: evaluate on a board mid-run counts affordable unrezzed ice as protecting an agenda
  * the Runner is about to walk past, so "before" would look safer than the run really leaves it.
  * rezToll and the old importance table fall out: breakable ice off an agenda server only earns its toll.
+ *
+ * Not priced (review, 2026-11-06): inner ice rezzed in the playout is flipped by hand, so its on-rez effects (Ping's
+ * tag) count only for the approached ice, which goes through the engine; and both branches leave the Runner's
+ * remaining clicks as they are (a stopped Runner may run again this turn).
  */
 export function modelRezGain(state: GameState, ice: CardInstance, synergy: boolean): number {
   const parts = modelRezParts(state, ice, synergy);
