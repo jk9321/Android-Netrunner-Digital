@@ -1,0 +1,10 @@
+Batch: item 6: pace on beta 41c16e6 (2210, full sha) | ref 41c16e67099c5179b2314fd72cfaf67e54dab584 | games 0-10 | PLAN_OFF= | decks  | pace corp | added run 
+2210 games, 31896 Runner turns
+runs a turn: 1.01; success: 77.1%
+  hq: 22.0% of runs, success 69.1%
+  rd: 25.4% of runs, success 76.8%
+  archives: 5.6% of runs, success 99.1%
+  remote: 47.0% of runs, success 78.3%
+advanced agenda in a remote: run that turn 41.6% (5844 turns)
+R&D share of runs with Conduit: 20.0% (10 runs)
+agendas scored or stolen a Runner turn: 0.31; ice rezzed a turn: 0.40
