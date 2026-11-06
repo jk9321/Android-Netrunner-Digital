@@ -7,7 +7,7 @@ import { agendaWorth, isOneUse, runnerRigValue } from './evaluate';
 import { counterWorth } from './counterValues';
 import { handPlanWorth } from './cardPlans';
 import { planSide, tuning } from './synergy';
-import { CLICK, RATES, cardRate, flatRate, handFilter, payoutSlide, printedGain, reachCard, setDeckCard } from './valueModel';
+import { CLICK, RATES, cardRate, fingerprint, flatRate, handFilter, payoutSlide, printedGain, reachCard, setDeckCard } from './valueModel';
 
 /**
  * Cards in hand by what they do (Jeff, 2026-10-28; plan.handByCard). A card
@@ -135,7 +135,12 @@ function drawWorth(state: GameState, side: SideCode): number {
   // (heldWorth's SOON): without them the average from the turn's first credit count was used all turn, and in look-aheads
   // that spend or gain money (found as a test that passed alone and failed after another, tests/brokeCorp.test.ts)
   const credits = tuning.plan.drawWorthCredits ? `${side === 'corp' ? state.corp.credits : state.runner.credits}:` : '';
-  const key = `${planSide()}:${side}:${state.id}:${state.turnNumber}:${credits}${deck.map(c => c.instanceId).join(',')}`;
+  // and the whole position (valueModel fingerprint: scores, rezzed ice, rigs...): the in-run rez model's look-aheads
+  // (2026-11-06) price boards a turn would otherwise never see (a steal, a rez, a toll paid), and with the cache cleared
+  // at its size cap a value from one of those could be served for the real board, so a reloaded game played on
+  // differently from the one in memory (tests/savedGame.test.ts)
+  const board = tuning.plan.drawWorthCredits ? `${fingerprint(state)}:` : '';
+  const key = `${planSide()}:${side}:${state.id}:${state.turnNumber}:${credits}${board}${deck.map(c => c.instanceId).join(',')}`;
   const cached = deckAverage.get(key);
   if (cached !== undefined) return cached;
   // While the average is worked out, a card's worth that needs the average card (cardRate) gets the flat rate:
