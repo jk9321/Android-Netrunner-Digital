@@ -52,6 +52,11 @@ export function iceWorth(state: GameState, ice: CardInstance, viewer: SideCode):
 }
 
 function iceWorthOf(state: GameState, ice: CardInstance, viewer: SideCode): number {
+  // plan.iceGripCap (Jeff's Teia game, 2026-11-06: VRcation beat Sure Gamble because drawing to 7 cards halved what
+  // Empiricist's damage looked worth): the grip the ice will face on later turns is at most the hand size (rule 1.7.2b:
+  // the rest is discarded at the end of the turn), as the damage clock reads it (effectValues lifeGrip)
+  const limit = state.runner.handSizeLimit ?? 5;
+  if (tuning.plan.iceGripCap && state.runner.grip.length > limit) state = { ...state, runner: { ...state.runner, grip: state.runner.grip.slice(0, limit) } };
   if (ice.isRezzed) return RATES.ice + Math.min(iceStop(state), iceCost(state, ice));
   // The Runner doesn't know what it is: iceCost's guess for unrezzed ice
   if (viewer === 'runner') return RATES.ice + iceCost(state, ice);

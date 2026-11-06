@@ -363,6 +363,8 @@ export const tuning = {
     damageClock: true,
     /** Jeff, 2026-11-06 (his Teia game): the damage clock after the Runner's turn leaves out ice, which deals damage only in the Runner's own runs (effectValues damageThreat). */
     corpTurnDamage: true,
+    /** Jeff, 2026-11-06 (his Teia game): ice on the board is priced against a grip no bigger than the hand size, not the cards the Runner holds only until its turn ends (iceValues iceWorthOf). */
+    iceGripCap: true,
     /** Jeff, 2026-10-28: run-payoff cards (Leech, Conduit, Pennyshaver, Docklands, Red Team, Cacophony) by how open the servers they need are, fading as they lock down (effectValues.ts runSuccess). */
     runOpenness: true,
     /** Vantage Point (2026-10-30): a memory unit is worth more while the programs in the rig and grip want more than the base 4 MU (Hiram's breaker suite), so consoles get installed. */
