@@ -226,8 +226,6 @@ export function hiddenCardOdds(state: GameState): { agenda: number; agendaCost: 
   };
 }
 
-export const agendaBoardValue = (counters: number, cost: number) => counters * RATES.advancement + (counters >= cost ? RATES.scoreableAgenda : 0);
-
 /** Chance the Runner runs a remote holding an advanced agenda on its turn (measured, scripts/pace.ts at b72eb3d: 40% of 6,689 turns). */
 export const AGENDA_RUN = 0.4;
 
@@ -239,7 +237,7 @@ export function setAgendaClick(value: number): void {
 }
 
 /**
- * An installed agenda (Jeff, 2026-10-28; plan.agendaBoard): its points on
+ * An installed agenda (Jeff, 2026-10-28): its points on
  * the clock, if it survives the Runner's turns until it can be scored, less
  * the clicks and credits still needed to advance it. Safe only once it can
  * be scored on the Corp's own turn (a free action, rule 7.1); otherwise each
@@ -257,18 +255,13 @@ export function agendaWorth(
   /** The Corp's clicks and credits left for this agenda this turn, once others on the board have theirs (plan.agendaBudget). */
   budget: { clicks: number; credits: number } = state.corp
 ): number {
-  if (!tuning.plan.agendaBoard) return agendaBoardValue(counters, cost);
   const gain = pointValue(state.corp.score + points, KNOBS.corpPoints) - pointValue(state.corp.score, KNOBS.corpPoints);
   const need = Math.max(0, cost - counters);
   const steal =
     tuning.plan.stealOdds && success === undefined && serverId
       ? stealOdds(state, serverId)
       : (tuning.plan.stealOdds ? STEAL.run : AGENDA_RUN) * (success ?? (serverId ? runSuccess(state, serverId) : PACE.success));
-  if (!tuning.plan.agendaTempo) {
-    const runnerTurns = need === 0 && state.activePlayer === 'corp' ? 0 : Math.max(1, Math.ceil(need / 3));
-    return gain * (1 - steal) ** runnerTurns - need * (CLICK + 1);
-  }
-  // plan.agendaTempo: the Runner turns until the Corp has the clicks to finish it (installing from hand is one more),
+  // Agenda tempo (Jeff, 2026-10-28): the Runner turns until the Corp has the clicks to finish it (installing from hand is one more),
   // each a run that may get in and a turn closer to the end of the game (about 1 in turnsLeft)
   // plan.agendaCredits (Jeff's bug report, 2026-10-31): each advancement costs a credit (rule 5.2.6 basic actions: [click], 1[credit]: advance), so a Corp short of
   // credits needs a click to gain each missing one first ([click]: gain 1[credit]); at 0 credits an agenda can't be finished "this turn" on clicks alone
@@ -285,7 +278,7 @@ export function agendaWorth(
 }
 
 /**
- * An agenda in Archives (plan.agendaBoard): a breach of Archives turns its
+ * An agenda in Archives (Jeff, 2026-10-28): a breach of Archives turns its
  * facedown cards faceup and the Runner accesses them all (rules 7.3.2,
  * 7.4), so a discarded agenda is a likely steal: its points to the Runner,
  * by the odds of a successful Archives run (as often as the Runner runs
@@ -299,7 +292,6 @@ export function archivedAgendaLoss(state: GameState, points: number): number {
 
 /** Agendas in Archives as `viewer` can see them: the Corp knows its facedown cards, the Runner only the faceup ones. */
 function archivedAgendasValue(state: GameState, viewer: SideCode): number {
-  if (!tuning.plan.agendaBoard) return 0;
   const archives = viewer === 'corp' ? [...state.corp.archives.faceUp, ...state.corp.archives.faceDown] : state.corp.archives.faceUp;
   return -archives.filter(c => cardDef(c).type_code === 'agenda').reduce((n, c) => n + archivedAgendaLoss(state, cardDef(c).agenda_points ?? 1), 0);
 }
@@ -491,7 +483,7 @@ function handAndClicks(state: GameState, side: SideCode, viewer: SideCode): numb
 export function hqTrashCardsLoss(state: GameState, resource: CardInstance): number {
   const k = resourceTrashHqCost(state, resource);
   if (k <= 0) return 0;
-  const losses = state.corp.hq.map(c => Math.max(HAND_FLOOR, keepValue(state, c, true) - CLICK)).sort((a, b) => a - b);
+  const losses = state.corp.hq.map(c => Math.max(HAND_FLOOR, keepValue(state, c) - CLICK)).sort((a, b) => a - b);
   return losses.length < k ? Infinity : losses.slice(0, k).reduce((n, v) => n + v, 0);
 }
 
@@ -537,40 +529,9 @@ export function evaluate(state: GameState, side: SideCode, aware = false): numbe
  * How much a side would like to keep each card in hand (for discards and
  * for effects that trash, shuffle away or fetch cards).
  */
-export function keepValue(state: GameState, card: CardInstance, aware = false): number {
-  // Jeff, 2026-10-28 (plan.keepByModel): what the card adds once played, before its click (at least the hand floor)
-  if (tuning.plan.keepByModel) {
-    // An agenda let go goes to Archives, where the Runner likely steals it (plan.agendaBoard)
-    const loss = tuning.plan.agendaBoard && cardDef(card).type_code === 'agenda' ? archivedAgendaLoss(state, cardDef(card).agenda_points ?? 1) : 0;
-    return Math.max(HAND_FLOOR, playedWorth(state, card) + CLICK) + loss;
-  }
-  const def = cardDef(card);
-  if (def.side_code === 'corp') {
-    switch (def.type_code) {
-      case 'agenda':
-        return 4;
-      case 'ice': {
-        const iceCount = Object.values(state.corp.servers).reduce((n, s) => n + s.ice.length, 0);
-        return iceCount < 4 ? 3.5 : 2;
-      }
-      case 'operation':
-        return /gain \d+/i.test(def.stripped_text ?? '') ? 2.5 : 1.5;
-      case 'asset':
-        return corpKeepValue(card.cardCode, state) > 1 ? 2.5 : 1.5;
-      default:
-        return 1.2;
-    }
-  }
-  if (isIcebreaker(card)) {
-    const { covered } = rigCoverage(state.runner.rig.programs);
-    const breaks = breakerScript(card)?.breaks;
-    if (!breaks || breaks === 'any' || covered.has(breaks)) return 1.5;
-    if (tuning.plan.breakerCredits?.runner) return (5 / RATES.iceTypeCoverage) * breakerTypeWorth(state, breaks);
-    return aware && tuning.plan.breakerFocus ? 5 * (0.4 + 1.8 * shownIceShare(state)[breaks]) : 5;
-  }
-  if (def.uniqueness && [...state.runner.rig.programs, ...state.runner.rig.hardware, ...state.runner.rig.resources].some(c => c.cardCode === card.cardCode)) {
-    return 0.2;
-  }
-  if (def.type_code === 'event') return /gain \d+/i.test(def.stripped_text ?? '') ? 3 : 2;
-  return 2 + runnerCardValue(card.cardCode, state) * 0.3;
+export function keepValue(state: GameState, card: CardInstance): number {
+  // Jeff, 2026-10-28: what the card adds once played, before its click (at least the hand floor); an agenda let go goes
+  // to Archives, where the Runner likely steals it. (The old flat keep table, plan.keepByModel off, deleted 2026-11-06.)
+  const loss = cardDef(card).type_code === 'agenda' ? archivedAgendaLoss(state, cardDef(card).agenda_points ?? 1) : 0;
+  return Math.max(HAND_FLOOR, playedWorth(state, card) + CLICK) + loss;
 }

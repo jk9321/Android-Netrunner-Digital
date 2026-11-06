@@ -38,7 +38,7 @@ tuning.dividends = process.env.DIVIDENDS !== '0';
 tuning.wary = process.env.WARY !== '0';
 tuning.bluff = process.env.BLUFF !== '0';
 tuning.purge = process.env.PURGE !== '0';
-// PLAN_OFF=urgency,saveUp switches off planning terms (see tuning.plan)
+// PLAN_OFF=saveUp,tagThreat switches off planning terms (see tuning.plan)
 for (const key of (process.env.PLAN_OFF ?? '').split(',').filter(Boolean)) {
   // key.side (drawValue.runner) switches a per-side term off for one side only
   const [name, side] = key.split('.');

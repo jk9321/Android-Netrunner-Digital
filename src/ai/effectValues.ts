@@ -406,7 +406,7 @@ export { EFFECT_CODES } from './cards';
 export const effectsOn = (): boolean => !!tuning.plan.effectValues;
 
 /**
- * Value hacks replaced by the model (Jeff, 2026-10-28; plan.modelHacks).
+ * What replaced the old value hacks (Jeff, 2026-10-28; the hacks were deleted 2026-11-06).
  * Each returns credits.
  */
 

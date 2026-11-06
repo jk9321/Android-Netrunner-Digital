@@ -20,8 +20,6 @@ import { freeRezCover, freeRezTargets } from './freeRez';
 import { PETTY_CASH_REPLAY, iceAdvanceWorth, placedCounterWorth, rezEffectWorth, rezzedWorth, runTimed, topDownWorth } from './effectValues';
 import { CARD_PROFILES, ECON_SCALE, PAYOUT_RISK, bareAssetRisk, unrezzedWorth } from './cardProfiles';
 
-/** Whether a group of value hacks is replaced by the model (plan.modelHacks, Jeff 2026-10-28). */
-const hacksOff = (group: 'rez' | 'rezPriority' | 'purge' | 'bonuses' | 'iceAdvance' | 'finish' | 'conduit'): boolean => !!tuning.plan.modelHacks?.[group];
 import { BLOCK, iceCost, iceCreditNeed, isTrap, subroutineCost, tagCost, weakestIce } from './runs';
 import { cardSynergy } from './synergyTags';
 import { econValue, upgradeValue } from './cardValues';
@@ -176,7 +174,7 @@ export class HeuristicCorpAI implements Agent {
       let score: number;
       if (def.type_code === 'ice') {
         // Ping tags the Runner when rezzed during a run; ice that ends the run protects best
-        const onRez = hacksOff('rezPriority') ? ECON_SCALE * rezEffectWorth(card, tagCost(state)) : card.cardCode === '30055' ? 2 : 0;
+        const onRez = ECON_SCALE * rezEffectWorth(card, tagCost(state));
         score = importance + (hasEndTheRun(card) ? 1 : 0) + onRez;
         if (state.corp.credits - cost < 2 && importance < 4) score -= 2;
         // (Jeff) money kept to rez an agenda remote's ice isn't spent on ice elsewhere
@@ -190,12 +188,10 @@ export class HeuristicCorpAI implements Agent {
           if (need > 0 && need < BLOCK && need <= state.runner.credits && 2 * iceCost(state, rezzed) < cost) continue;
         }
       } else if (def.type_code === 'upgrade') {
-        if (hacksOff('rezPriority')) {
-          // Upgrades: by what they do here (model), up to the 2 an upgrade gives up against ice;
-          // one that does nothing in a run waits for the Corp's turn, keeping the money for ice
-          const [remote, central] = upgradeValue(card.cardCode, state);
-          score = !runTimed(card) ? -1 : importance - 2 + Math.min(2, Math.max(0, server.isRemote ? remote : central));
-        } else score = card.cardCode === '30042' || card.cardCode === '30050' ? importance : importance - 2;
+        // Upgrades: by what they do here (model), up to the 2 an upgrade gives up against ice;
+        // one that does nothing in a run waits for the Corp's turn, keeping the money for ice
+        const [remote, central] = upgradeValue(card.cardCode, state);
+        score = !runTimed(card) ? -1 : importance - 2 + Math.min(2, Math.max(0, server.isRemote ? remote : central));
       } else if (tuning.plan.spinDoctorWait && onRezOnly(card)) {
         score = 3; // Spin Doctor (Jeff): the Runner came anyway, so the same 2 cards cost it a run
       } else {
@@ -359,8 +355,7 @@ export class HeuristicCorpAI implements Agent {
     if (tuning.plan.turnStartRez && turnStartOnly(card) && state.turnStep?.kind !== 'corp_turn_start') return -Infinity;
     // (Jeff) Spin Doctor: left unrezzed it may draw a run, and is rezzed then for the same draw; or just before the
     // turn begins. Rezzed in the action phase only when the cards are needed now (digging, or an empty hand);
-    // spinDoctorUseNow: or while 2+ clicks are left to use them this turn
-    if (tuning.plan.spinDoctorWait && onRezOnly(card) && state.turnStep?.kind !== 'corp_turn_start' && corp.hq.length > 1 && digValue(state, 'corp') <= 0 && (!tuning.plan.spinDoctorUseNow || corp.clicks <= 1)) return -Infinity;
+    if (tuning.plan.spinDoctorWait && onRezOnly(card) && state.turnStep?.kind !== 'corp_turn_start' && corp.hq.length > 1 && digValue(state, 'corp') <= 0) return -Infinity;
     // (Jeff's bug report, 2026-10-31; plan.rezWhenUsed) An asset that only pays through a click ability (Humanoid Resources)
     // is rezzed in the paid ability window just before the action that uses it (rule 5.6.2a): rezzed with fewer clicks
     // left it does nothing yet, and spends the money a broke Corp needs for Petty Cash or its ice
@@ -374,31 +369,13 @@ export class HeuristicCorpAI implements Agent {
     if (tuning.plan.rezToUse && clickOnly(card)) return this.rezToUse(state, card);
     const econ = econValue(card.cardCode, state);
     if (econ) return econ + 1;
-    if (hacksOff('rez')) {
-      // Model: worth once rezzed, less the rez cost, on the install-score scale; upgrades still wait for ice money (Jeff)
-      if (type(card) === 'upgrade' && this.idleUpgrade(state, card)) return -Infinity;
-      if (type(card) === 'agenda' || isTrap(card.cardCode)) return -Infinity;
-      // Manegarm and the like are rezzed when the Runner comes (decideRez), not on the Corp's turn
-      if (runTimed(card)) return -Infinity;
-      const worth = rezzedWorth(state, card, rezCost(state, card));
-      return worth > 0 ? ECON_SCALE * worth : -Infinity;
-    }
-    if (card.cardCode === '30061') return 1; // Clearinghouse must be rezzed to fire
-    // Elevation cards whose effects need them rezzed
-    switch (card.cardCode) {
-      case '35051': // Phật Gioan Baotixita: gathers power counters
-        return 1.5;
-      case '35061': // Idiosyncresis: pays out when the turn begins
-        return card.advancementCounters >= 2 ? 2 : -Infinity;
-      case '35073': // Plutus: replays transactions from Archives
-        return corp.archives.faceUp.concat(corp.archives.faceDown).some(c => /transaction/i.test(cardDef(c).keywords ?? '')) ? 1.2 : -Infinity;
-      case '35082': // Mahkota Langit Grid: recurring credits
-        return this.idleUpgrade(state, card) ? -Infinity : 1.5;
-      case '35045': // Mercia B4LL4RD
-      case '35056': // Mitra Aman
-        return this.idleUpgrade(state, card) ? -Infinity : 1;
-    }
-    return -Infinity;
+    // Model: worth once rezzed, less the rez cost, on the install-score scale; upgrades still wait for ice money (Jeff)
+    if (type(card) === 'upgrade' && this.idleUpgrade(state, card)) return -Infinity;
+    if (type(card) === 'agenda' || isTrap(card.cardCode)) return -Infinity;
+    // Manegarm and the like are rezzed when the Runner comes (decideRez), not on the Corp's turn
+    if (runTimed(card)) return -Infinity;
+    const worth = rezzedWorth(state, card, rezCost(state, card));
+    return worth > 0 ? ECON_SCALE * worth : -Infinity;
   }
 
   /** Operations and other plays, scored by the position they lead to. */
@@ -472,7 +449,7 @@ export class HeuristicCorpAI implements Agent {
       if (gain !== undefined && gain > cost && cost >= 3 && corp.credits >= cost && corp.credits - unrezzedIceCost(state) < cost) return CAST_WHILE_ABLE * (gain - cost);
     }
     if (action.type === 'PLAY_OPERATION_OR_EVENT' && tuning.plan.pettyCash) {
-      return corp.hq.find(c => c.instanceId === action.cardInstanceId)?.cardCode === '35081' ? (hacksOff('bonuses') ? PETTY_CASH_REPLAY : 1.5) : 0;
+      return corp.hq.find(c => c.instanceId === action.cardInstanceId)?.cardCode === '35081' ? PETTY_CASH_REPLAY : 0;
     }
     // plan.digPastLimit (Jeff, 2026-10-31): a hand of duds digs one card past the limit, to discard the worst at the end of the turn (rules 4.3.6, 5.5.3)
     const digRoom = corp.handSizeLimit + (tuning.plan.digPastLimit ? 1 : 0);
@@ -493,23 +470,21 @@ export class HeuristicCorpAI implements Agent {
         // Nanomanagement (4 credits): +2 clicks, worth it if they finish an agenda
         const clicksAfter = corp.clicks - 1 + 2;
         const finishing = agendas.filter(a => need(a) > corp.clicks && need(a) <= clicksAfter && corp.credits - 4 >= need(a));
-        // Model (plan.modelHacks.finish): the clicks are priced by the evaluation; what it misses is the score they lead to
-        if (hacksOff('finish')) return Math.max(0, ...finishing.map(a => finishWorth(state, a)));
-        return finishing.length ? 42 : -Infinity;
+        // Model: the clicks are priced by the evaluation; what it misses is the score they lead to
+        return Math.max(0, ...finishing.map(a => finishWorth(state, a)));
       }
       case '35067': {
         // Touch-ups (2 clicks, 2 credits): 2 advancements, best when they finish an agenda
         const clicksAfter = corp.clicks - 2;
         if (clicksAfter < 0 || corp.credits < 2) return -Infinity;
         const finishing = agendas.filter(a => need(a) <= 2 + Math.min(clicksAfter, corp.credits - 2) && need(a) > 0);
-        if (hacksOff('finish')) return Math.max(0, ...finishing.map(a => finishWorth(state, a)));
-        return finishing.length ? 41 : 0;
+        return Math.max(0, ...finishing.map(a => finishWorth(state, a)));
       }
       case '35044': {
         // Top-Down Solutions: 2 cards and up to 2 installs for 1 click
         const installable = corp.hq.filter(c => ['ice', 'asset', 'upgrade', 'agenda'].includes(type(c))).length;
         if (!(corp.credits >= 3 && installable >= 1 && corp.hq.length <= corp.handSizeLimit)) return 0;
-        return hacksOff('bonuses') ? topDownWorth(installable, state) : 1.3;
+        return topDownWorth(installable, state);
       }
     }
     return 0;
@@ -544,13 +519,12 @@ export class HeuristicCorpAI implements Agent {
       return this.synergy && tuning.bluff && isTrap(card.cardCode) ? 1.2 + this.trapBluff(state, card) : 1.2;
     }
     // Pharos: +5 strength at 3 counters; Syailendra: places counters when encountered at 3
-    if (hacksOff('iceAdvance') && (card.cardCode === '35076' || card.cardCode === '30063')) {
+    if (card.cardCode === '35076' || card.cardCode === '30063') {
       const at = (n: number) => Math.min(iceStop(state), iceCost(state, { ...card, isRezzed: true, advancementCounters: n }));
       const worth = iceAdvanceWorth(state, card, at);
       return worth > 0 ? ECON_SCALE * worth : -Infinity;
     }
-    if (card.cardCode === '35076' && card.advancementCounters < 3 && corp.credits >= 4) return 0.8;
-    return card.cardCode === '30063' && card.advancementCounters < 3 && corp.credits >= 8 ? 1 : -Infinity;
+    return -Infinity;
   }
 
   /**
@@ -561,7 +535,7 @@ export class HeuristicCorpAI implements Agent {
   private trapBluff(state: GameState, card: CardInstance): number {
     if (card.cardCode === '30045' && 2 + card.advancementCounters + 1 >= state.runner.grip.length) {
       // Model: the counter that makes it lethal, at the chance it's accessed
-      return hacksOff('bonuses') ? ECON_SCALE * placedCounterWorth(state, card, false) : 1.5;
+      return ECON_SCALE * placedCounterWorth(state, card, false);
     }
     const shown = state.corp.archives.faceUp.some(c => isTrap(c.cardCode));
     return shown && card.advancementCounters === 0 ? 0.6 : 0;
@@ -569,16 +543,12 @@ export class HeuristicCorpAI implements Agent {
 
   /**
    * An agenda left installed over the Runner's turn needs a server they
-   * can't simply walk into. plan.exposureByCost (Jeff, 2026-10-29: two
-   * layers are no protection against a Runner who can pay for them): the
-   * ice (rezzed, or that `credits` can still rez) must cost more to get
-   * through than the Runner has plus a turn's income (STEAL.income, as the
-   * steal odds judge it). Before it: 2 real layers of ice, or ice that costs
-   * more than the Runner has.
+   * can't simply walk into: 2 real layers of ice, or ice that costs at least
+   * 2 more than the Runner has. (Judging by cost alone, Jeff's 2026-10-29
+   * plan.exposureByCost, lost its batches and was deleted 2026-11-06.)
    */
   private exposureOk(state: GameState, server: ServerState, credits: number): boolean {
     if (!(this.synergy && tuning.plan.exposure)) return true;
-    if (tuning.plan.exposureByCost) return outOfReach(state, server, credits);
     // (Jeff) unrezzed ice only protects if the money to rez it is still there on the Runner's turn
     if ((tuning.plan.fundedDepth ? fundedDepth(state, server, credits) : iceDepth(state, server)) >= 2) return true;
     return entryCost(state, server, credits) >= state.runner.credits + 2;
@@ -708,12 +678,8 @@ export class HeuristicCorpAI implements Agent {
         let need: number;
         // Deck-aware AI: one well-iced scoring remote rather than ice spread thin
         const main = this.synergy && tuning.plan.oneRemote ? mainRemote(state) : null;
-        // (Jeff) centrals first while R&D, or HQ holding agendas, has no ice
-        const bareCentral =
-          this.synergy && tuning.plan.centralsFirst && (corp.servers.rd.ice.length === 0 || (agendasInHand > 0 && corp.servers.hq.ice.length === 0));
         if (!server) {
           need = agendasInHand > 0 && !protectedEmptyRemote ? 5 : -1;
-          if (bareCentral && tuning.plan.centralsFirstRemotes) need -= 2;
           if (main && need > 0 && (iceDepth(state, main) < 2 || corp.credits < rezReserve(state, this.wideReserve) + (cardDef(card).cost ?? 0))) need = -1;
         }
         else if (server.isRemote) {
@@ -735,7 +701,6 @@ export class HeuristicCorpAI implements Agent {
           }
           else need = agendasInHand > 0 ? (depth < 2 ? 3 : 1) : 0.3;
           if (main && server !== main && !holdsAgenda && !holdsAsset) need = Math.min(need, 0.3);
-          if (bareCentral && tuning.plan.centralsFirstRemotes && !holdsAgenda) need -= 2;
         } else if (server.id === 'archives') {
           need = server.ice.length === 0 && corp.archives.faceDown.length > 0 ? 1.2 : -0.5;
         } else {
@@ -863,8 +828,8 @@ function iceFit(state: GameState, ice: CardInstance, server: ServerState | null,
   if (runs.length > 0) fit += runs.some(r => r.server === server.id) ? 0.6 : -0.2;
   const conduit = state.runner.rig.programs.find(p => p.cardCode === '30024');
   if (server.id === 'rd' && conduit) {
-    // Conduit: each run on R&D it gets through accesses 1 more card per counter (model, plan.modelHacks.conduit): ice here stops some of them
-    fit += hacksOff('conduit') ? Math.min(3, ICE_STOPS * PACE.runs * PACE.conduitRdShare * (1 + counters(conduit, 'virus')) * accessWorth(state)) - ICE_STOPS * PACE.runs * PACE.rdShare * accessWorth(state) : 0.6;
+    // Conduit: each run on R&D it gets through accesses 1 more card per counter (model): ice here stops some of them
+    fit += Math.min(3, ICE_STOPS * PACE.runs * PACE.conduitRdShare * (1 + counters(conduit, 'virus')) * accessWorth(state)) - ICE_STOPS * PACE.runs * PACE.rdShare * accessWorth(state);
   }
   if (stakes && (server.id === 'hq' || server.id === 'rd')) {
     // Guard what HQ holds: agendas in hand make HQ the server to ice, none make R&D the bigger risk
@@ -946,16 +911,6 @@ export function mainRemote(state: GameState): ServerState | null {
   return best;
 }
 
-// What one virus counter on each card is worth to the Runner, in about credits
-const VIRUS_WEIGHT: Record<string, number> = {
-  '30024': 1.5, // Conduit: an extra R&D access per counter
-  '30017': 1.2, // Tranquilizer: derezzes its host at 3
-  '30004': 1, // Botulus: breaks its host's subroutines
-  '30008': 0.8, // Leech: lowers ice strength
-  '30007': 0.7, // Fermenter: 2 credits per counter, once
-  '35008': 0.5, // Hantu
-};
-
 /** The Runner's virus counters, weighted by what they do. */
 /**
  * Clicks of the ability an asset pays through, when that is all it does (plan.rezWhenUsed): text that is only
@@ -975,7 +930,7 @@ export function clickOnly(card: CardInstance): number {
 
 function virusThreat(state: GameState): number {
   return [...state.runner.rig.programs, ...state.runner.rig.hardware, ...state.runner.rig.resources].reduce(
-    (n, c) => n + counters(c, 'virus') * (hacksOff('purge') ? counterWorth(state, c, 'virus', 'corp') : VIRUS_WEIGHT[c.cardCode] ?? 0.8),
+    (n, c) => n + counters(c, 'virus') * counterWorth(state, c, 'virus', 'corp'),
     0
   );
 }
@@ -1103,13 +1058,12 @@ function onRezOnly(card: CardInstance): boolean {
 /**
  * The Runner can't pay its way into the server on its next turn: the ice
  * (rezzed, or that `credits` can still rez) costs more to get through than
- * it has plus a turn's income (plan.exposureByCost).
+ * it has plus a turn's income.
  */
 export function outOfReach(state: GameState, server: ServerState, credits: number): boolean {
-  // exposureNoIncome: only what the Runner holds now (it must spend clicks on money first)
   // plan.stealCosts: other cards' additional costs to steal (Magistrate Revontulet's 3 credits, rules 1.16.10b) are paid at the access too
   const tax = tuning.plan.stealCosts ? stealCost(state, { instanceId: '', cardCode: '' } as CardInstance).credits : 0;
-  return entryCost(state, server, credits) + tax > state.runner.credits + (tuning.plan.exposureNoIncome ? 0 : STEAL.income);
+  return entryCost(state, server, credits) + tax > state.runner.credits + STEAL.income;
 }
 
 /**

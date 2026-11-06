@@ -63,13 +63,12 @@ export const tuning = {
      * between choices), tag threat -4, score setups +1. Noise is about ±16,
      * so only ice placement was a real signal; the rule is to keep pieces
      * that play more like a person unless they are clearly negative.
+     * (urgency only fed serverValue's old table, so it went with plan.runModel's off path, 2026-11-06.)
      */
     /** Tags are worth more while the Corp holds cards that punish them (per deciding side). */
     tagThreat: { corp: true, runner: true } as Record<SideCode, boolean>,
     /** Icebreakers for the ice types the Corp has shown are worth more. */
     breakerFocus: true,
-    /** Runner: run an agenda the Corp could finish next turn now; defend harder late in the game. */
-    urgency: true,
     /** Runner: take money toward a run it can't afford yet. */
     saveUp: true,
     /** Corp: plays that let an agenda be scored this turn (Seamless Launch, KPI...), and tagging before scoring Orbital Superiority. */
@@ -181,10 +180,9 @@ export const tuning = {
     /**
      * (Jeff) Spin Doctor waits for a run on its server or the window before the turn, unless digging. Self-play at
      * 5f827e6: 42.5% without, 44.3% with; with icePosition off 45.6% without, 47.9% with. (spinDoctorUseNow,
-     * rezzing while 2+ clicks are left, was no better.)
+     * rezzing while 2+ clicks are left, was no better; deleted 2026-11-06.)
      */
     spinDoctorWait: true,
-    spinDoctorUseNow: false,
     /** Runner: a rezzed Spin Doctor is worth only the Archives cards it can still shuffle back (bug report #5). */
     spentSpinDoctor: true,
     /** Synapse Global's free install from HQ is picked like an install action (freeInstallTarget), not by the board score, which kept unrezzed ice in HQ (bug report #13). */
@@ -211,10 +209,9 @@ export const tuning = {
     /**
      * The exposure check by what the Runner can pay, not by layers of ice (Jeff, 2026-10-29). Off: self-play
      * 39.0% (old rule 41.3%), new Corp vs old Runner 43.1% (45.8%); without income 38.9% / 44.1%; no
-     * exposure check at all 36.6% / 42.3%. Agendas waited in HQ and were raided there.
+     * exposure check at all 36.6% / 42.3%. Agendas waited in HQ and were raided there. Deleted 2026-11-06
+     * (outOfReach stays: lethalHq and the steal odds use it).
      */
-    exposureByCost: false,
-    exposureNoIncome: false,
     /* Funded depth (2026-10-26, self-play, 2,210 games): Corp 42.9% -> 44.8%; remote steals 1,714 -> 1,472, behind ice it couldn't afford to rez 883 -> 499. */
     /** Corp (Jeff): an agenda left over the Runner's turn counts unrezzed ice as a layer only if it can still pay to rez it. */
     fundedDepth: true,
@@ -247,8 +244,6 @@ export const tuning = {
      * costs that (Scatter Field). Off: self-play at 5f827e6 42.5% on, 45.6% off; with spinDoctorWait 44.3% on, 47.9% off.
      */
     icePosition: false,
-    /** ...and remotes wait for their ice until then. */
-    centralsFirstRemotes: false,
     /** Corp (Jeff): mulligan a hand with no ice it can rez early (rez cost 4 or less). */
     mulliganRez: true,
     /* Money target (2026-10-26, self-play, 2,210 games): off 42.7%, 0.3 46.8%, 0.6 46.8%. Kept the milder weight. */
@@ -354,30 +349,22 @@ export const tuning = {
     payoutRisk: true,
     /** Both sides (Jeff, 2026-10-28): the last 31 hand-set cards priced from what they do (effectValues.ts). */
     effectValues: true,
-    /** Runner (Jeff, 2026-10-28): runs scored in the model's units, credits on the slide, steals on the point clock (runs.ts). */
-    runModel: true,
     /** Jeff, 2026-10-28: Fermenter and other virus counters banked and at risk of a purge; Conduit counters worth the accesses still to come; one-use breakers (Mayfly) worth one run. */
     cardFixes: true,
     /** Jeff, 2026-10-28: the last hand-set counter rates (20 cards) worked out from what each counter turns into (counterValues.ts). */
     counterFormulas: true,
-    /** Jeff, 2026-10-28: discards and trashes from hand by each card's model worth, not flat numbers by type (evaluate.ts keepValue). */
-    keepByModel: true,
     /** Jeff, 2026-10-28: damage priced on a clock (flatline odds rise as the grip falls below the Corp's biggest hit) and tags by what the Corp can do with them (effectValues.ts, evaluate.ts tagsWorth). */
     damageClock: true,
     /** Jeff, 2026-10-28: run-payoff cards (Leech, Conduit, Pennyshaver, Docklands, Red Team, Cacophony) by how open the servers they need are, fading as they lock down (effectValues.ts runSuccess). */
     runOpenness: true,
     /** Vantage Point (2026-10-30): a memory unit is worth more while the programs in the rig and grip want more than the base 4 MU (Hiram's breaker suite), so consoles get installed. */
     muNeed: true,
-    /** Jeff, 2026-10-28: an installed agenda is its points on the clock if it survives the Runner's turns until scored, less the advancing left (evaluate.ts agendaWorth). */
-    agendaBoard: true,
     /** Jeff, 2026-10-28: an installed agenda's steal chance as measured (scripts/steal-odds.ts): the Runner runs a remote it can get into most turns, and raises credits for the ice first (effectValues stealOdds). */
     stealOdds: true,
     /** Jeff, 2026-10-28: the Corp's planner plays the Runner's next turn out (the Runner AI on the board, hidden cards guessed) and scores what it leaves (runnerReply.ts). */
     runnerReply: true,
     /** Jeff, 2026-10-29: an agenda in an open remote is as good as stolen: steal odds 1, and the Runner reply counts it stolen even when the sampled Runner didn't run it. */
     openSteal: true,
-    /** Jeff, 2026-10-28: agendas on the board count the Runner turns until the Corp can finish them, by its clicks (from hand, one more), and each is a turn closer to the end of the game. */
-    agendaTempo: true,
     /** Jeff's bug report, 2026-10-31 (LEO at 0 credits installing bare agendas): agenda tempo counts the clicks to gain the credits each advancement still needs. */
     agendaCredits: true,
     /** Jeff, 2026-10-31 ("a broke Corp can't do anything since it can't rez ice"): the Corp's credits are worth the best money operation in HQ they can pay for, half its net gain, on the credit slide (valueModel.ts moneyReach). */
@@ -452,8 +439,6 @@ export const tuning = {
     digPastLimit: true,
     /** Jeff, 2026-10-31 ("cheat out" expensive ice): an installed Send a Message (rezzes ice when scored or stolen) or Unleash with a Runner tag pays for the costliest unrezzed ice, so that ice counts as rezzable, may be installed past the ice pacing, and a free rez picks the ice that saves the most (freeRez.ts). */
     freeRez: true,
-    /** Jeff, 2026-10-31: ice worth is the Runner's cost to get past it up to 16 credits, not 8 (iceValues.ts iceStop). Batch 663: 46.6% vs 49.2% base; superseded by iceStopRunner. */
-    iceStopHigh: false,
     /** Jeff, 2026-10-31: the ice worth cap is this Runner's credits plus two turns of income, at least 8 (iceValues.ts iceStop); wins over iceStopHigh. Batch 663: 47.1% vs 49.2% base (noise, in band); kept on as Jeff's model. icePacing off (install ice it can't rez) was 45.4%, remote steals 487 -> 566: icePacing stays. */
     iceStopRunner: true,
     /** Jeff, 2026-11-05: iceStopRunner's cap reads the Runner's credits at the start of the decision, so gaining or spending credits doesn't move ice worth (iceValues.ts noteIceStopCredits). */
@@ -462,8 +447,6 @@ export const tuning = {
     turnPlanner: { corp: true, runner: true } as Record<SideCode, boolean>,
     /** With the planner: the hand at the end of a planned turn valued card by card (what each will do later). */
     plannerHand: true,
-    /** Value hacks replaced by the model, by group (Jeff, 2026-10-28; effectValues.ts). */
-    modelHacks: { rez: true, rezPriority: true, purge: true, bonuses: true, iceAdvance: true, finish: true, conduit: true } as Record<string, boolean>,
     /**
      * Per deciding side (Jeff, 2026-10-28): its own hand valued card by card, by what each will do once played (handValues.ts).
      * Batches: each side loses with it (Corp side 32.2% -> 28.0%, Runner side 32.2% -> 35.9% Corp) and the Runner draws at a

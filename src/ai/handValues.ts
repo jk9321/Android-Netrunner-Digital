@@ -2,13 +2,12 @@ import { CardInstance, GameState, SideCode, cardDef } from '../core';
 import { breakerScript, isIcebreaker } from '../core/engine/ice';
 import { CARD_PROFILES, payoutWait, payoutWorth, turnsLeft } from './cardProfiles';
 import { corpKeepValue, runnerCardValue } from './cardValues';
-import { breakerTypeWorth, iceStop, iceWorth, noteIceStopCredits } from './iceValues';
+import { breakerTypeWorth, iceWorth, noteIceStopCredits } from './iceValues';
 import { agendaWorth, isOneUse, runnerRigValue } from './evaluate';
 import { counterWorth } from './counterValues';
 import { handPlanWorth } from './cardPlans';
-import { iceCost } from './runs';
 import { planSide, tuning } from './synergy';
-import { CLICK, RATES, cardRate, flatRate, handFilter, payoutSlide, pointValue, reachCard, setDeckCard } from './valueModel';
+import { CLICK, RATES, cardRate, flatRate, handFilter, payoutSlide, reachCard, setDeckCard } from './valueModel';
 
 /**
  * Cards in hand by what they do (Jeff, 2026-10-28; plan.handByCard). A card
@@ -48,19 +47,14 @@ export function playedWorth(state: GameState, card: CardInstance): number {
     }
     case 'agenda': {
       const points = def.agenda_points ?? 1;
-      if (tuning.plan.agendaBoard) {
-        // Installed in the safest remote it could go in (or a new, bare one), as the board will value it (plan.agendaBoard)
-        const remotes = Object.values(state.corp.servers).filter(s => s.isRemote && !s.root.some(c => ['agenda', 'asset'].includes(cardDef(c).type_code ?? '')));
-        const best = Math.max(agendaWorth(state, 0, def.advancement_cost ?? 0, points, undefined, 1, true), ...remotes.map(s => agendaWorth(state, 0, def.advancement_cost ?? 0, points, s.id, undefined, true)));
-        return best - CLICK;
-      }
-      // Scored from hand about 40% of the time; the rest is stolen or stuck
-      return 0.4 * (pointValue(state.corp.score + points) - pointValue(state.corp.score));
+      // Installed in the safest remote it could go in (or a new, bare one), as the board will value it
+      const remotes = Object.values(state.corp.servers).filter(s => s.isRemote && !s.root.some(c => ['agenda', 'asset'].includes(cardDef(c).type_code ?? '')));
+      const best = Math.max(agendaWorth(state, 0, def.advancement_cost ?? 0, points, undefined, 1, true), ...remotes.map(s => agendaWorth(state, 0, def.advancement_cost ?? 0, points, s.id, undefined, true)));
+      return best - CLICK;
     }
     case 'ice':
-      // Installed unrezzed, as the board values it (plan.agendaBoard: the same check of what the Corp can rez)
-      if (tuning.plan.agendaBoard) return iceWorth(state, { ...card, isRezzed: false }, 'corp') - CLICK;
-      return RATES.ice + 0.6 * Math.min(iceStop(state), iceCost(state, { ...card, isRezzed: true })) - CLICK;
+      // Installed unrezzed, as the board values it (the same check of what the Corp can rez)
+      return iceWorth(state, { ...card, isRezzed: false }, 'corp') - CLICK;
     case 'asset':
     case 'upgrade':
       return corpKeepValue(card.cardCode, state) - CLICK;

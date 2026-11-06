@@ -215,7 +215,7 @@ export class HeuristicRunnerAI implements Agent {
   private plan(state: GameState, ranked: ScoredAction[]): GameAction | null {
     const rollout = new HeuristicRunnerAI({ synergy: this.synergy, planner: false });
     rollout.memory = new Map(this.memory);
-    const options = { memory: this.memory, wary: this.synergy && tuning.wary, urgent: this.synergy && tuning.plan.urgency };
+    const options = { memory: this.memory, wary: this.synergy && tuning.wary };
     return planTurn(
       state,
       'runner',
@@ -233,7 +233,7 @@ export class HeuristicRunnerAI implements Agent {
     // Nowhere worth running and breakers missing: dig for them
     this.digForBreakers =
       rigCoverage(state.runner.rig.programs).covered.size < 3 &&
-      !legal.some(a => a.type === 'INITIATE_RUN' && runScore(state, a.targetServerId, { memory: this.memory, wary: this.synergy && tuning.wary, urgent: this.synergy && tuning.plan.urgency }) > 0);
+      !legal.some(a => a.type === 'INITIATE_RUN' && runScore(state, a.targetServerId, { memory: this.memory, wary: this.synergy && tuning.wary }) > 0);
     this.savingFor = this.synergy && tuning.plan.saveUp ? saveUpTarget(state, this.memory) : null;
     return [...legal, ...makeRoomInstalls(state)]
       .map(action => {
@@ -261,7 +261,7 @@ export class HeuristicRunnerAI implements Agent {
         return -0.5;
       case 'INITIATE_RUN':
         // Chain Reaction: a run on a central it still needs is worth a share of the play, if it succeeds
-        return runScore(state, action.targetServerId, { memory: this.memory, wary: this.synergy && tuning.wary, urgent: this.synergy && tuning.plan.urgency, successBonus: chainReactionBonus(state, action.targetServerId) });
+        return runScore(state, action.targetServerId, { memory: this.memory, wary: this.synergy && tuning.wary, successBonus: chainReactionBonus(state, action.targetServerId) });
       case 'REMOVE_TAG':
         return state.runner.rig.resources.length > 0 ? 1.2 : 0.3;
     }
@@ -275,9 +275,9 @@ export class HeuristicRunnerAI implements Agent {
     const cardCode = 'cardInstanceId' in action ? state.runner.grip.concat(state.runner.rig.resources, state.runner.rig.programs).find(c => c.instanceId === action.cardInstanceId)?.cardCode : undefined;
     const paid = state.runner.credits - after.runner.credits;
     if (prompt?.kind === 'effect_choice' && prompt.side === 'runner' && prompt.options.every(o => after.corp.servers[o.id])) {
-      const options = { ...runEventOptions(prompt.source.cardCode, state), memory: this.memory, wary: this.synergy && tuning.wary, urgent: this.synergy && tuning.plan.urgency };
+      const options = { ...runEventOptions(prompt.source.cardCode, state), memory: this.memory, wary: this.synergy && tuning.wary };
       const best = Math.max(...prompt.options.map(o => runScore(state, o.id, options)));
-      return best - spendCost(state, paid) + (prompt.source.cardCode === '30028' ? (tuning.plan.runModel ? RATES.drawnCard : tuning.plan.drawValue?.runner ? 1.3 : 0.5) : 0); // Jailbreak draws a card
+      return best - spendCost(state, paid) + (prompt.source.cardCode === '30028' ? RATES.drawnCard : 0); // Jailbreak draws a card
     }
     // Window of Opportunity (plan.bypass): its install first (worth what the board gains, with no click), then its run
     if (cardCode === WINDOW_OF_OPPORTUNITY && tuning.plan.bypass && prompt?.side === 'runner' && !state.activeRun) {
@@ -291,14 +291,14 @@ export class HeuristicRunnerAI implements Agent {
       }
       const ask = activePrompt(ready);
       if (ask?.kind === 'effect_choice' && ask.options.every(o => ready.corp.servers[o.id])) {
-        const options = { ...runEventOptions(WINDOW_OF_OPPORTUNITY, ready), memory: this.memory, wary: this.synergy && tuning.wary, urgent: this.synergy && tuning.plan.urgency };
+        const options = { ...runEventOptions(WINDOW_OF_OPPORTUNITY, ready), memory: this.memory, wary: this.synergy && tuning.wary };
         const best = Math.max(...ask.options.map(o => runScore({ ...ready, runner: { ...ready.runner, clicks: state.runner.clicks } }, o.id, options)));
         const install = evaluate(ready, 'runner', this.synergy) - evaluate(after, 'runner', this.synergy);
         return best + install - spendCost(state, paid);
       }
     }
     if (!state.activeRun && after.activeRun) {
-      return runScore(state, after.activeRun.server, { ...runEventOptions(cardCode ?? '', state), memory: this.memory, wary: this.synergy && tuning.wary, urgent: this.synergy && tuning.plan.urgency }) - spendCost(state, paid) + 0.3;
+      return runScore(state, after.activeRun.server, { ...runEventOptions(cardCode ?? '', state), memory: this.memory, wary: this.synergy && tuning.wary }) - spendCost(state, paid) + 0.3;
     }
 
     // Follow our own prompts (Lie Low, Scrounge, Madani) a few steps
@@ -383,7 +383,7 @@ function saveUpTarget(state: GameState, memory: RunnerMemory): string | null {
   for (const id of Object.keys(state.corp.servers)) {
     const short = runShortfall(state, id);
     if (short === null || short <= 0 || short > 7) continue;
-    const value = serverValue(state, id, 0, memory, tuning.wary, tuning.plan.urgency);
+    const value = serverValue(state, id, 0, memory, tuning.wary);
     if (value >= bestValue) {
       best = id;
       bestValue = value;

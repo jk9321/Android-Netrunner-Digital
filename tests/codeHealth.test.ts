@@ -21,21 +21,16 @@ const CODES_IN_VALUE_FILES: Record<string, string> = {
   'effectValues:30045': 'Urtica Cipher: a placed-counter field in CardAI',
   'effectValues:35061': 'Idiosyncresis: a placed-counter field in CardAI',
   'effectValues:30061': 'Clearinghouse: a placed-counter field in CardAI',
-  'counterValues:30033': 'Smartware Distributor: dead behind counterEffects (cleanup item 3)',
-  'counterValues:30007': 'Fermenter: dead behind counterEffects (cleanup item 3)',
+  'counterValues:30033': 'Smartware Distributor: the step-1 rate when counterEffects is off (tested)',
+  'counterValues:30007': 'Fermenter: the step-1 rate when counterEffects is off (tested)',
 };
 
 /** Plan switches that are off, each with why it stays in the code. */
 const OFF_SWITCHES: Record<string, string> = {
   rigEffects: 'experiment, off until a batch says so',
-  spinDoctorUseNow: 'lost its batch; dead path (cleanup item 3)',
-  exposureByCost: 'lost its batch; dead path (cleanup item 3)',
-  exposureNoIncome: 'lost its batch; dead path (cleanup item 3)',
-  icePosition: 'lost its batch; dead path (cleanup item 3)',
-  centralsFirstRemotes: 'lost its batch; dead path (cleanup item 3)',
+  icePosition: "Jeff's ice-at-its-position model (Scatter Field); lost its batch, kept with its test for re-testing",
   'clickByPlay.corp': 'Corp side lost its batch; kept for re-testing',
   runCreditsSlide: 'breaks castWhileAble; retest once Runner income has one slide helper (cleanup item 4)',
-  iceStopHigh: 'superseded by iceStopRunner; dead path (cleanup item 3)',
   'handByCard.corp': 'used by the planner leaf; off in the rule ranking, kept for re-testing',
   'handByCard.runner': 'used by the planner leaf; off in the rule ranking, kept for re-testing',
 };

@@ -17,13 +17,6 @@ import { tuning } from './synergy';
 
 /** Worth of ice that stops the Runner outright (breakerTypeWorth keeps this base rate). */
 export const ICE_STOP = 8;
-/**
- * plan.iceStopHigh (Jeff, 2026-10-31: "the Runner's cost to boost their
- * breaker continues to scale"): ice worth follows what it costs the Runner
- * to get past it up to 16 credits, so a Pharos at 10 strength (16 against
- * Cleaver) is worth more than one at 5 (6), not the same capped 8.
- */
-export const ICE_STOP_HIGH = 16;
 /** Credits a Runner raises in a turn, for iceStopRunner (a named guess: 4 clicks at a credit each). */
 export const RUNNER_TURN_INCOME = 4;
 /**
@@ -33,7 +26,7 @@ export const RUNNER_TURN_INCOME = 4;
  */
 export function iceStop(state?: GameState): number {
   if (tuning.plan.iceStopRunner && state) return Math.max(ICE_STOP, stopCredits(state) + 2 * RUNNER_TURN_INCOME);
-  return tuning.plan.iceStopHigh ? ICE_STOP_HIGH : ICE_STOP;
+  return ICE_STOP;
 }
 
 /**

@@ -6,7 +6,7 @@ import { CARDS } from './cards';
 import { CLICK, cardRate } from './valueModel';
 import { PACE, accessWorth, placedCounterWorth } from './effectValues';
 import { turnsLeft } from './cardProfiles';
-import { BLOCK, BOTULUS, MANEGARM, RunOptions, RunnerMemory, iceCost, isTrap, runClick, runRestWorth, runScore, serverValue, spendCost, subroutineCost, tagCost, weakestIce, windowDerez } from './runs';
+import { BLOCK, BOTULUS, MANEGARM, RunOptions, RunnerMemory, iceCost, runClick, runRestWorth, runScore, serverValue, spendCost, subroutineCost, tagCost, weakestIce, windowDerez } from './runs';
 import { breakerScript, encounteredIce, iceSubroutines, iceSubtypes, isIcebreaker } from '../core/engine/ice';
 import { keepBonus, tuning } from './synergy';
 import { freeInstallTarget, perfectRecallTarget } from './corpAI';
@@ -26,7 +26,7 @@ export function simulate(state: GameState, action: GameAction): GameState | null
 
 const hand = (state: GameState, side: SideCode) => (side === 'corp' ? state.corp.hq : state.runner.grip);
 /** How much a side wants to keep a card, plus (deck-aware AI) how well it fits the deck's plan. */
-const keep = (state: GameState, card: CardInstance, synergy: boolean) => keepValue(state, card, synergy) + (synergy ? keepBonus(state, card) : 0);
+const keep = (state: GameState, card: CardInstance, synergy: boolean) => keepValue(state, card) + (synergy ? keepBonus(state, card) : 0);
 /** The card was on top of R&D or the stack before (so it was drawn, not fetched by name). */
 const fromDeck = (state: GameState, side: SideCode, card: CardInstance) =>
   (side === 'corp' ? state.corp.rd : state.runner.stack).some(c => c.instanceId === card.instanceId);
@@ -43,9 +43,9 @@ export function scoreOutcome(before: GameState, after: GameState, side: SideCode
   const drawn = (c: CardInstance) => tuning.plan.blindDraws && !hand(before, side).some(b => b.instanceId === c.instanceId) && fromDeck(before, side, c);
   score += 0.5 * (sumKeep(after, hand(after, side).filter(c => !drawn(c)), synergy) - sumKeep(before, hand(before, side), synergy));
   if (side === 'runner' && before.activeRun) {
-    if (tuning.plan.runRest) score += 0.8 * runRestWorth(after, memory, synergy && tuning.wary, synergy && tuning.plan.urgency);
+    if (tuning.plan.runRest) score += 0.8 * runRestWorth(after, memory, synergy && tuning.wary);
     else {
-      const value = serverValue(before, before.activeRun.server, 0, memory, synergy && tuning.wary, synergy && tuning.plan.urgency) * 0.8;
+      const value = serverValue(before, before.activeRun.server, 0, memory, synergy && tuning.wary) * 0.8;
       if (after.activeRun && !after.activeRun.isJackedOut) score += value;
     }
   }
@@ -261,7 +261,7 @@ export function answerPrompt(state: GameState, side: SideCode, memory?: RunnerMe
 
   const servers = side === 'runner' ? serverOptions(state, prompt) : null;
   if (servers && prompt.kind === 'effect_choice') {
-    const scored = servers.map(id => ({ id, score: runScore(state, id, { ...runEventOptions(prompt.source.cardCode, state), memory, wary: synergy && tuning.wary, urgent: synergy && tuning.plan.urgency }) }));
+    const scored = servers.map(id => ({ id, score: runScore(state, id, { ...runEventOptions(prompt.source.cardCode, state), memory, wary: synergy && tuning.wary }) }));
     scored.sort((a, b) => b.score - a.score);
     return { ...base, choice: { kind: 'effect_choice', optionId: scored[0].id } };
   }
@@ -269,7 +269,7 @@ export function answerPrompt(state: GameState, side: SideCode, memory?: RunnerMe
   // Alarm Clock (plan.bypass): its HQ run when the turn begins, priced with the 2-click bypass of the first ice
   if (side === 'runner' && tuning.plan.bypass && prompt.kind === 'effect_choice' && prompt.source.cardCode === '34078' && prompt.source.step === 'run') {
     // The run itself costs no click: runScore charges one, so it comes back
-    const go = runScore(state, 'hq', { alarmClock: true, memory, wary: synergy && tuning.wary, urgent: synergy && tuning.plan.urgency }) + runClick(state) > 0;
+    const go = runScore(state, 'hq', { alarmClock: true, memory, wary: synergy && tuning.wary }) + runClick(state) > 0;
     return { ...base, choice: { kind: 'effect_choice', optionId: go ? 'yes' : 'no' } };
   }
 
@@ -281,7 +281,7 @@ export function answerPrompt(state: GameState, side: SideCode, memory?: RunnerMe
 
   // Manegarm Skunkworks: pay the cheaper way in if the access is worth it, on the scale runScore planned the run with
   if (side === 'runner' && prompt.kind === 'effect_choice' && prompt.source.cardCode === MANEGARM && state.activeRun) {
-    const value = serverValue(state, state.activeRun.server, 0, memory, synergy && tuning.wary, synergy && tuning.plan.urgency);
+    const value = serverValue(state, state.activeRun.server, 0, memory, synergy && tuning.wary);
     const cost: Record<string, number> = { clicks: 2 * runClick(state), pay: spendCost(state, 5) };
     const ways = prompt.options.filter(o => o.id in cost && cost[o.id] < value).sort((a, b) => cost[a.id] - cost[b.id]);
     return { ...base, choice: { kind: 'effect_choice', optionId: ways[0]?.id ?? 'end' } };
@@ -289,7 +289,7 @@ export function answerPrompt(state: GameState, side: SideCode, memory?: RunnerMe
 
   // Baker: turn the run on Archives to whichever of HQ and R&D is worth more, if either beats Archives by the credit
   if (side === 'runner' && prompt.kind === 'effect_choice' && prompt.source.cardCode === '36015' && prompt.source.step === 'redirect') {
-    const value = (id: string) => serverValue(state, id, 0, memory, synergy && tuning.wary, synergy && tuning.plan.urgency) - (id === 'archives' ? 0 : spendCost(state, 1));
+    const value = (id: string) => serverValue(state, id, 0, memory, synergy && tuning.wary) - (id === 'archives' ? 0 : spendCost(state, 1));
     const best = ['hq', 'rd'].sort((a, b) => value(b) - value(a))[0];
     return { ...base, choice: { kind: 'effect_choice', optionId: value(best) > value('archives') ? best : 'no' } };
   }
@@ -476,7 +476,7 @@ function bypassSkips(state: GameState, side: SideCode, prompt: Prompt, memory?: 
   const ice = encounteredIce(state);
   if (!ice) return undefined;
   const cost = iceCost(state, ice);
-  const run = serverValue(state, state.activeRun.server, 0, memory, synergy && tuning.wary, synergy && tuning.plan.urgency) * 0.8;
+  const run = serverValue(state, state.activeRun.server, 0, memory, synergy && tuning.wary) * 0.8;
   return { iceId: ice.instanceId, cost: cost === BLOCK ? run : spendCost(state, cost) };
 }
 
@@ -544,17 +544,9 @@ export function untaianPick(state: GameState, candidateIds: string[]): string[] 
     for (const card of [...server.root, ...server.ice]) {
       if (!candidateIds.includes(card.instanceId)) continue;
       const def = cardDef(card);
-      let value = 0.3;
-      if (tuning.plan.modelHacks?.bonuses && (def.type_code !== 'ice' || card.cardCode === '30063' || card.cardCode === '35076')) {
-        // Model: what the counter adds on this card
-        value = def.type_code === 'ice' ? 0.5 : placedCounterWorth(state, card, server.ice.length > 0);
-        if (!best || value > best.value) best = { id: card.instanceId, value };
-        continue;
-      }
-      if (def.type_code === 'agenda') value = server.ice.length > 0 ? 3 + (card.advancementCounters > 0 ? 0.5 : 0) : 0.8;
-      else if (card.cardCode === '30045') value = 2.5; // Urtica Cipher: 1 more net damage
-      else if (isTrap(card.cardCode)) value = 1.5;
-      else if (def.type_code === 'asset') value = 1.2; // Clearinghouse and the like
+      // Model: what the counter adds on this card (Pharos and Syailendra use theirs; other ice, little)
+      const value =
+        def.type_code !== 'ice' ? placedCounterWorth(state, card, server.ice.length > 0) : card.cardCode === '30063' || card.cardCode === '35076' ? 0.5 : 0.3;
       if (!best || value > best.value) best = { id: card.instanceId, value };
     }
   }
@@ -569,7 +561,7 @@ export function untaianPick(state: GameState, candidateIds: string[]): string[] 
  */
 export function taoSwap(state: GameState, memory?: RunnerMemory): string[] {
   const servers = Object.values(state.corp.servers).filter(s => s.ice.length > 0);
-  const weight = new Map(servers.map(s => [s.id, Math.max(0.3, serverValue(state, s.id, 0, memory, tuning.wary, tuning.plan.urgency))]));
+  const weight = new Map(servers.map(s => [s.id, Math.max(0.3, serverValue(state, s.id, 0, memory, tuning.wary))]));
   const cost = (ice: CardInstance) => Math.min(iceStop(state), iceCost(state, ice));
   const placed = servers.flatMap(s => s.ice.map(ice => ({ ice, server: s.id })));
   let best: { ids: string[]; gain: number } | null = null;

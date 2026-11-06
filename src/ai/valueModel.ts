@@ -40,9 +40,8 @@ export const RATES = {
   /** An installed icebreaker, and the multiplier on other rig cards' CARD_VALUES worth. */
   icebreaker: 2,
   rigCardScale: 2,
-  /** An advancement counter on an installed agenda, and an agenda ready to score. */
+  /** An advancement counter on a card (Hearts and Minds moves them). */
   advancement: 1.5,
-  scoreableAgenda: 6,
   /** Counters, by what they do on the card (Jeff: never by counter type alone). */
   counters: {
     /** A hosted credit (Regolith, Azimat...). */

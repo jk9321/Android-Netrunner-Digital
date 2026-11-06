@@ -26,6 +26,8 @@ const IN_RUN = /bypass|derez|when you encounter|whenever you encounter|during (?
 /** Cards that need no run logic, each with the reason. */
 export const PRICED_ELSEWHERE: Record<string, string> = {
   '35025': 'Illumination: its installs after the run are priced by its card plan (cardPlans.ts)',
+  '30050': 'Anoetic Void: the Corp rezzes upgrades in runs by what they do there (corpAI decideRez, upgradeValue); its code only appeared in the old rez table, deleted 2026-11-06',
+  '35056': 'Mitra Aman: rezzed by its worth once rezzed (corpAI rezScore, rezzedWorth); its code only appeared in the old rez table, deleted 2026-11-06',
 };
 
 /** Cards that still need run logic (the backlog, 2026-11-05). Remove a card once it has it; never add one. */

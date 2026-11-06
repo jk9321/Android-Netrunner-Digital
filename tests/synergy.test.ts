@@ -239,19 +239,7 @@ describe('planning (setup scoring)', () => {
     const killer = createCardInstance(s, '30015'); // Carmen
     const decoder = createCardInstance(s, '30005'); // Buzzsaw
     // Value model step 5b: the odds of meeting each type (shown ice, then the decklist)
-    expect(keepValue(s, killer, false)).toBeGreaterThan(keepValue(s, decoder, false));
-    const shelved = tuning.plan.breakerFocus; // switched off for now; the logic is kept for re-testing
-    tuning.plan.breakerFocus = true;
-    tuning.plan.breakerCredits.runner = false;
-    tuning.plan.keepByModel = false; // the old flat keep values
-    try {
-      expect(keepValue(s, killer, true)).toBeGreaterThan(keepValue(s, decoder, true));
-      expect(keepValue(s, killer, false)).toBe(keepValue(s, decoder, false));
-    } finally {
-      tuning.plan.breakerFocus = shelved;
-      tuning.plan.breakerCredits.runner = true;
-      tuning.plan.keepByModel = true;
-    }
+    expect(keepValue(s, killer)).toBeGreaterThan(keepValue(s, decoder));
   });
 
   it('runs an agenda the Corp could finish next turn with more urgency', () => {
@@ -263,10 +251,10 @@ describe('planning (setup scoring)', () => {
     // plan.runModel: an advanced card is likelier an agenda the Corp is about to score, and denying it matters more as the Corp nears 7
     const fresh = structuredClone(s);
     fresh.corp.servers['remote-9'].root[0].advancementCounters = 0;
-    expect(serverValue(s, 'remote-9', 0, new Map(), false, true)).toBeGreaterThan(serverValue(fresh, 'remote-9', 0, new Map(), false, true));
+    expect(serverValue(s, 'remote-9', 0, new Map(), false)).toBeGreaterThan(serverValue(fresh, 'remote-9', 0, new Map(), false));
     const late = structuredClone(s);
     late.corp.score = 5;
-    expect(serverValue(late, 'remote-9', 0, new Map(), false, true)).toBeGreaterThan(serverValue(s, 'remote-9', 0, new Map(), false, true));
+    expect(serverValue(late, 'remote-9', 0, new Map(), false)).toBeGreaterThan(serverValue(s, 'remote-9', 0, new Map(), false));
   });
 
   it('plays Seamless Launch when it lets an agenda score this turn', () => {
