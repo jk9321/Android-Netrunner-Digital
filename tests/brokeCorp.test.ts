@@ -6,10 +6,6 @@ import { HeuristicCorpAI, createAgent } from '../src/ai';
 import { clickOnly } from '../src/ai/corpAI';
 import { tuning } from '../src/ai/synergy';
 import { sideCreditValue } from '../src/ai/valueModel';
-import { legacyRanking } from './legacyRanking';
-
-// plan.oneCurrency: these pin the old Corp ranking (tests/legacyRanking.ts)
-legacyRanking(["two agendas share one turn’s clicks: only one of them looks scored this turn", "installs no more bare agendas (Normal and Hard)", "the old way (plan off) is what the report saw", "finishes Send a Message this turn and keeps credits to rez with (Normal)"]);
 
 /**
  * Jeff's bug report (issue #2, 2026-10-31; LEO Construction vs Vic, Hard Corp): at 0 credits
@@ -56,14 +52,18 @@ describe('a Corp with no credits (Jeff’s bug report, plan.agendaCredits)', () 
 
   it('installs no more bare agendas (Normal and Hard)', () => {
     expect(bareAgendas(turn17())).toBe(2);
-    expect(bareAgendas(playTurn(turn17()))).toBe(2);
-    expect(bareAgendas(playTurn(turn17(), createAgent('corp', 'hard', { samples: 6, seed: 1 })))).toBe(2);
+    // plan.oneCurrency: at most the two already out. The one-currency Corp may take one off the board: Anthill
+    // Excavation Contract (an asset) installed over a bare agenda trashes it facedown (rules 8.5.6a, 4.4.6b: the Runner
+    // never saw it), where Spin Doctor shuffles it back into R&D, and a bare agenda is the Runner's points next turn
+    expect(bareAgendas(playTurn(turn17()))).toBeLessThanOrEqual(2);
+    expect(bareAgendas(playTurn(turn17(), createAgent('corp', 'hard', { samples: 6, seed: 1 })))).toBeLessThanOrEqual(2);
   }, 60_000);
 
   it('the old way (plan off) is what the report saw', () => {
     const was = { ...tuning.plan };
     // agendaBudget closes the same hole from the other side (two agendas no longer both look scored this turn)
-    Object.assign(tuning.plan, { agendaCredits: false, agendaBudget: false });
+    // and the report's ranking: the rule tiers, before the Corp ranked in one currency
+    Object.assign(tuning.plan, { agendaCredits: false, agendaBudget: false, oneCurrency: false });
     try {
       expect(bareAgendas(playTurn(turn17(), createAgent('corp', 'hard', { samples: 6, seed: 1 })))).toBeGreaterThan(2);
     } finally {

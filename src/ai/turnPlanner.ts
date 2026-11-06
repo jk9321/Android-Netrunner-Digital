@@ -174,7 +174,10 @@ function playout(start: GameState, side: SideCode, first: GameAction, ai: Planne
 
 /** The end of the turn: hand by what each card will do later (plan.plannerHand), clicks as the model prices them. */
 function leafValue(state: GameState, side: SideCode, synergy: boolean): number {
-  if (!tuning.plan.plannerHand) return evaluate(state, side, synergy);
+  // plan.oneCurrency: the Corp's line ends on the same evaluate its actions are ranked by (HQ by count, its seen agendas
+  // at heldAgendasWorth): a hand priced card by card here made the leaf a second currency (Petty Cash first ranked +2.8
+  // and lost the line to an install, its card worth in HQ counted against playing it)
+  if (!tuning.plan.plannerHand || (side === 'corp' && synergy && tuning.plan.oneCurrency)) return evaluate(state, side, synergy);
   const saved = tuning.plan.handByCard;
   tuning.plan.handByCard = { ...saved, [side]: true };
   try {

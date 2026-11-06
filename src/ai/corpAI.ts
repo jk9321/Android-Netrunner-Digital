@@ -32,6 +32,20 @@ const isAgendaOrAsset = (card: CardInstance) => ['agenda', 'asset'].includes(typ
 
 const CLEARINGHOUSE = '30061';
 
+/**
+ * plan.oneCurrency: what a free action (a rez, a paid ability) must gain to be taken, in credits; at or under it the
+ * free-action loop guard could spin on moves that change nothing (the same floor the old playScore used).
+ */
+const FREE_ACTION_FLOOR = 0.3;
+
+/**
+ * plan.oneCurrency: an advance toward an agenda this turn can finish is worth about 0 (evaluate prices the finish
+ * already), so a spare click's credit or draw ties with it; within this many credits of the best play the advance goes
+ * first. A timing rule, not a worth: the same turn either way, but a Runner prompt mid-turn or the planner's step cap
+ * can't leave the agenda an advance short over the Runner's turn.
+ */
+const FINISH_TIE = FREE_ACTION_FLOOR;
+
 /** The Corp's main-phase actions that cost a click (basic actions, rule 5.2.6b-h; an operation is played with one, 5.2.6e). */
 const CLICK_ACTIONS = new Set<GameAction['type']>(['GAIN_CREDIT', 'DRAW_CARD', 'INSTALL_CARD', 'PLAY_OPERATION_OR_EVENT', 'ADVANCE_CARD', 'PURGE_VIRUS', 'TRASH_RESOURCE']);
 
@@ -162,7 +176,7 @@ export class HeuristicCorpAI implements Agent {
         return { action, score };
       })
       .sort((a, b) => b.score - a.score);
-    if (this.oneCurrency) return ranked;
+    if (this.oneCurrency) return finishFirst(state, ranked);
     const first = this.synergy && tuning.plan.pettyCashFirst ? pettyCashFirst(state, ranked) : ranked;
     return this.synergy && tuning.plan.tagFirst ? tagFirst(state, first) : first;
   }
@@ -306,6 +320,14 @@ export class HeuristicCorpAI implements Agent {
       }
       case 'TRASH_RESOURCE':
         return this.trashScore(state, action, before);
+      case 'DRAW_CARD': {
+        // The drawn card is one the Corp hasn't seen, so evaluate prices it at the deck's average (no peeking: the
+        // look-ahead draw is pooled with R&D). What it may be is digValue's: the odds it is the missing ice or money,
+        // one card past the hand size when HQ is all duds (plan.digPastLimit; rules 4.3.6, 5.5.3: discard at the end of the turn)
+        const room = corp.handSizeLimit + (tuning.plan.digPastLimit ? 1 : 0);
+        const dig = tuning.plan.dig?.corp && corp.hq.length < room ? digValue(state, 'corp') : 0;
+        return this.playScore(state, action, before) + dig;
+      }
     }
     return this.playScore(state, action, before);
   }
@@ -390,10 +412,10 @@ export class HeuristicCorpAI implements Agent {
 
   /** Rezzing a click-only asset (plan.rezToUse): worth it only when its ability is then this AI's next play. */
   private rezToUse(state: GameState, card: CardInstance, before?: number): number {
-    if (state.turnStep?.kind === 'corp_turn_start' || rezzingToUse) return -Infinity;
+    if (state.turnStep?.kind === 'corp_turn_start' || (rezzingToUse.has(card.instanceId) || (!this.oneCurrency && rezzingToUse.size > 0))) return -Infinity;
     const after = simulate(state, { type: 'REZ_CARD', player: 'corp', cardInstanceId: card.instanceId });
     if (!after) return -Infinity;
-    rezzingToUse = true;
+    rezzingToUse.add(card.instanceId);
     try {
       const best = new HeuristicCorpAI({ synergy: this.synergy, planner: false }).rankMainActions(after)[0];
       if (!best || best.action.type !== 'USE_ABILITY' || best.action.cardInstanceId !== card.instanceId) return -Infinity;
@@ -401,7 +423,7 @@ export class HeuristicCorpAI implements Agent {
       if (before !== undefined) return evaluate(after, 'corp', this.synergy) - before + best.score;
       return best.score;
     } finally {
-      rezzingToUse = false;
+      rezzingToUse.delete(card.instanceId);
     }
   }
 
@@ -479,7 +501,7 @@ export class HeuristicCorpAI implements Agent {
       if (played && /terminal/i.test(cardDef(played).keywords ?? '')) score -= Math.max(0, corp.clicks - 1) * clickRate('corp');
     }
     // plan.oneCurrency: the delta alone (a free action still has to gain something, or the loop guard would spin)
-    if (one) return !spendsClick && !unfiltered && score <= 0.3 ? -Infinity : score;
+    if (one) return !spendsClick && !unfiltered && score <= FREE_ACTION_FLOOR ? -Infinity : score;
     if (this.synergy) score += this.moneyPlan(state, action);
     // Myōshu: keep the 10 credits once saved, unless the spend scores (its card plan does this when plans are on)
     if (this.synergy && !plansOn() && myoshuSaving(state, true) && resolved.corp.credits < MYOSHU_COST && resolved.corp.score === corp.score) score -= 1;
@@ -989,7 +1011,8 @@ export function mainRemote(state: GameState): ServerState | null {
  * a click ability, with nothing on rez, at the turn's start or while it sits rezzed. 0 for anything else.
  */
 /** A rez-to-use check is running (its ranking must not start another). */
-let rezzingToUse = false;
+/** Cards whose rezToUse look-ahead is running (plan.oneCurrency: per card, so a second Humanoid Resources is still priced inside the first's). */
+const rezzingToUse = new Set<string>();
 
 export function clickOnly(card: CardInstance): number {
   const def = cardDef(card);
@@ -1189,6 +1212,23 @@ export function agendaStakes(state: GameState, agenda: CardInstance): number {
 }
 
 /** Installed agendas with enough counters to score. */
+/** plan.oneCurrency: FINISH_TIE's ordering (rankMainActions). */
+function finishFirst(state: GameState, ranked: ScoredAction[]): ScoredAction[] {
+  const top = ranked[0];
+  if (!top || !Number.isFinite(top.score) || top.action.type === 'SCORE_AGENDA' || top.action.type === 'ADVANCE_CARD') return ranked;
+  const at = ranked.findIndex(r => r.action.type === 'ADVANCE_CARD' && Number.isFinite(r.score) && r.score >= top.score - FINISH_TIE && towardFinish(state, r.action.cardInstanceId));
+  if (at <= 0) return ranked;
+  return [ranked[at], ...ranked.slice(0, at), ...ranked.slice(at + 1)];
+}
+
+/** An installed agenda this turn's clicks and credits can finish (an advance is a click and a credit, rule 5.2.6f). */
+function towardFinish(state: GameState, id: string): boolean {
+  const card = Object.values(state.corp.servers).flatMap(s => s.root).find(c => c.instanceId === id);
+  if (!card || type(card) !== 'agenda') return false;
+  const need = (cardDef(card).advancement_cost ?? 0) - card.advancementCounters;
+  return need > 0 && need <= state.corp.clicks && need <= state.corp.credits;
+}
+
 /** Agendas in the root of a server the Corp can finish and score with the clicks and credits it has left (an advance is a click and a credit, rule 5.2.6). */
 function finishable(state: GameState): number {
   return Object.values(state.corp.servers)

@@ -7,7 +7,7 @@ import { tuning } from '../src/ai/synergy';
  * is listed in the oneCurrency hand-off with what the one-currency Corp does in its position instead.
  */
 export function legacyRanking(names: string[]): void {
-  const pinned = new Set(names);
+  const pinned = new Set(process.env.UNPIN ? [] : names);
   let saved: boolean | undefined;
   beforeEach(ctx => {
     if (!pinned.has(ctx.task.name)) return;

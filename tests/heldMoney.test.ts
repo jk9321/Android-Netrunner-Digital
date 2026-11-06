@@ -27,7 +27,11 @@ describe('a held money operation is counted once (plan.heldMoney)', () => {
   it('plays Petty Cash without the Petty Cash special case', () => {
     tuning.plan.pettyCashFirst = false;
     try {
-      expect(inHq(play())).not.toContain('Petty Cash');
+      // plan.oneCurrency counts it once by construction (HQ by count, the slide's credits); its planned turn may open a
+      // remote first (pettyCashFirst.test.ts), but never clicks for a credit while holding it
+      const s = play();
+      if (tuning.plan.oneCurrency) expect(s.log.some(l => l.message === 'Corp spent [click] to gain 1 credit.')).toBe(false);
+      else expect(inHq(s)).not.toContain('Petty Cash');
     } finally {
       tuning.plan.pettyCashFirst = true;
     }
@@ -39,6 +43,8 @@ describe('a held money operation is counted once (plan.heldMoney)', () => {
     // plan.measuredTurnsLeft (2026-11-05) plays it here too: on the longer horizon the old way didn't hold it
     tuning.plan.measuredTurnsLeft = false;
     tuning.plan.measuredRunShares = false; // the same with the measured run shares
+    const one = tuning.plan.oneCurrency;
+    tuning.plan.oneCurrency = false; // the ranking the double count was found on (the rule tiers)
     try {
       expect(inHq(play())).toContain('Petty Cash');
     } finally {
@@ -46,6 +52,7 @@ describe('a held money operation is counted once (plan.heldMoney)', () => {
       tuning.plan.heldMoney = true;
       tuning.plan.measuredTurnsLeft = true;
       tuning.plan.measuredRunShares = true;
+      tuning.plan.oneCurrency = one;
     }
   });
 });

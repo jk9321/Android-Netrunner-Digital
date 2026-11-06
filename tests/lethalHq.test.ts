@@ -4,10 +4,7 @@ import { GameState, executeAction } from '../src/core';
 import { createAgent } from '../src/ai';
 import { lethalHqAgenda } from '../src/ai/corpAI';
 import { sideOff, tuning } from '../src/ai/synergy';
-import { legacyRanking } from './legacyRanking';
 
-// plan.oneCurrency: these pin the old Corp ranking (tests/legacyRanking.ts)
-legacyRanking(["gets HQ another layer of ice, and no HQ ice is trashed (Normal and Hard)"]);
 
 /**
  * Jeff's bug report (issue #4, 2026-11-02; Jinteki: Restoring Humanity vs René Arcemont, Hard Corp):
@@ -53,12 +50,25 @@ describe('an agenda in HQ that would win the Runner the game (plan.lethalHq, bug
     const corpOff = sideOff.corp;
     tuning.plan.lethalHq = false;
     tuning.plan.heldMoney = false; // added after the report
+    tuning.plan.oneCurrency = false; // the report's ranking: the rule tiers, before the Corp ranked in one currency
     sideOff.corp = ['effectValues']; // as the report's game ran: before effect values came back on for the Corp (2026-11-03)
     try {
       expect(hqIce(playTurn(turn13(), createAgent('corp', 'hard', { samples: 6, seed: 1 })))).toBe(2);
     } finally {
       Object.assign(tuning.plan, was);
       sideOff.corp = corpOff;
+    }
+  }, 120_000);
+
+  it('the one-currency Corp needs no lethalHq gate: HQ gets its layer with the plan off', () => {
+    // The steal is priced in the model (agendaWorth and centralExposure charge the Runner's points on the clock; a held
+    // agenda no remote protects is worth keeping in HQ), so the gate that stood in for it has nothing left to do
+    const was = tuning.plan.lethalHq;
+    tuning.plan.lethalHq = false;
+    try {
+      expect(hqIce(playTurn(turn13()))).toBe(3);
+    } finally {
+      tuning.plan.lethalHq = was;
     }
   }, 120_000);
 });

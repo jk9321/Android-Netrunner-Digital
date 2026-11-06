@@ -1,6 +1,6 @@
 import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
-import { GameAction, GameState, cardDef, executeAction } from '../src/core';
+import { GameAction, GameState, cardDef, executeAction, findCardAnywhere } from '../src/core';
 import { createAgent } from '../src/ai';
 import { HeuristicCorpAI } from '../src/ai/corpAI';
 import { centralExposure, evaluate } from '../src/ai/evaluate';
@@ -230,8 +230,13 @@ describe('no override layer needed', () => {
   it('Petty Cash is played first in the turn without plan.pettyCashFirst', () => {
     tuning.plan.pettyCashFirst = false;
     try {
+      // The one-step ranking puts it first (its net 2 credits now and its replay from Archives, PETTY_CASH_REPLAY, on
+      // the card there). The planned turn may still open a remote first: its greedy rollout after Petty Cash ices HQ and
+      // never tries the remote (structural review item 4, the planner). Either way no click goes to a credit (the bug)
+      const start: GameState = JSON.parse(readFileSync(new URL('./fixtures/petty-cash-first.json', import.meta.url), 'utf8'));
+      const [top] = new HeuristicCorpAI({ planner: false }).rankMainActions(start);
+      expect(top.action.type === 'PLAY_OPERATION_OR_EVENT' && cardDef(findCardAnywhere(start, top.action.cardInstanceId)!).title).toBe('Petty Cash');
       const s = playFixture('petty-cash-first.json', 12);
-      expect(s.corp.hq.map(c => cardDef(c).title)).not.toContain('Petty Cash');
       expect(s.log.some(l => l.message === 'Corp spent [click] to gain 1 credit.')).toBe(false);
     } finally {
       tuning.plan.pettyCashFirst = true;

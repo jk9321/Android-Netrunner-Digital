@@ -7,7 +7,7 @@ import { mean, PAID_OUT, paidOut, recurring } from '../counterValues';
 import { actingSide, tuning } from '../synergy';
 import { cardRate, CLICK, handFilter, pointValue, printedGain, RATES, sideCards } from '../valueModel';
 import { PRINCIPIA } from '../cardPlans';
-import { accessWorth, anySuccess, counterWorthOf, damageWorth, lock, muWorth, PACE, perTurn } from '../effectValues';
+import { accessWorth, anySuccess, counterWorthOf, damageWorth, lock, muWorth, PACE, perTurn, PETTY_CASH_REPLAY } from '../effectValues';
 import type { RunOptions } from '../runs';
 import { runClick } from '../runs';
 import { tagCost } from '../runs';
@@ -525,7 +525,8 @@ export const ELEVATION: Record<string, CardAI> = {
   // Lamplighter
   '35080': { synergy: { gives: { ice: 1, tags: 1 }, wants: { tags: 0.5 }, when: ['ifTagged', 'onScore'] } },
   // Petty Cash
-  '35081': { synergy: { gives: { econ: 1 } } },
+  // Petty Cash: from Archives, a click plays it again (net 2 credits and the click back), then it is removed from the game
+  '35081': { synergy: { gives: { econ: 1 } }, archived: () => PETTY_CASH_REPLAY },
   // Mahkota Langit Grid
   '35082': {
     synergy: { gives: { econ: 1 } },

@@ -4,14 +4,11 @@ import { serverValue, tagCost } from '../src/ai/runs';
 import { corpEffect, rezzedWorth } from '../src/ai/effectValues';
 import { HeuristicCorpAI, outOfReach } from '../src/ai/corpAI';
 import { answerPrompt } from '../src/ai/prompts';
-import { asSide } from '../src/ai/synergy';
+import { asSide, tuning } from '../src/ai/synergy';
 import { guessHidden } from '../src/ai/runnerReply';
 import { determinize } from '../src/ai/search';
 import { cont, installCorpForTest, newGame, run, startRunnerTurn } from './helpers';
-import { legacyRanking } from './legacyRanking';
 
-// plan.oneCurrency: these pin the old Corp ranking (tests/legacyRanking.ts)
-legacyRanking(["not past one more than the grip"]);
 
 // Additional costs to steal (rules 1.16.10a-b): the Runner may decline them, and can't steal when it can't pay them all
 // (Gemini audit, 2026-11-01; plan.stealCosts)
@@ -97,7 +94,7 @@ describe('a tag the Runner can\'t clear before the Corp\'s turn (plan.tagNoClear
 });
 
 describe('Clearinghouse is advanced toward a flatline (plan.clearinghouseLethal; Gemini audit, 2026-11-01)', () => {
-  const advanceScore = (counters: number, grip: number) => {
+  const advanceScore = (counters: number, grip: number, type = 'ADVANCE_CARD') => {
     const s = newGame();
     s.activePlayer = 'corp';
     s.corp.credits = 10;
@@ -105,13 +102,16 @@ describe('Clearinghouse is advanced toward a flatline (plan.clearinghouseLethal;
     s.corp.servers['remote-1'].root[0].advancementCounters = counters;
     s.runner.grip = s.runner.grip.slice(0, grip);
     const ranked = asSide('corp', () => new HeuristicCorpAI({ planner: false }).rankMainActions(s));
-    return ranked.find(r => r.action.type === 'ADVANCE_CARD' && r.action.cardInstanceId === id)?.score ?? -Infinity;
+    return ranked.find(r => r.action.type === type && (type !== 'ADVANCE_CARD' || ('cardInstanceId' in r.action && r.action.cardInstanceId === id)))?.score ?? -Infinity;
   };
   it('past 3 counters while they are not yet more than the grip', () => {
     expect(advanceScore(3, 5)).toBeGreaterThan(-Infinity);
   });
   it('not past one more than the grip', () => {
-    expect(advanceScore(4, 3)).toBe(-Infinity);
+    // plan.oneCurrency ranks by the evaluate delta, so "not taken" is a delta below a click for a credit, not -Infinity:
+    // a counter past what can flatline is worth only the card it costs a Runner that draws back before it fires
+    if (tuning.plan.oneCurrency) expect(advanceScore(4, 3)).toBeLessThan(advanceScore(4, 3, 'GAIN_CREDIT'));
+    else expect(advanceScore(4, 3)).toBe(-Infinity);
   });
 });
 

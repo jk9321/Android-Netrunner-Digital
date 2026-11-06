@@ -44,4 +44,6 @@ export interface CardAI {
   counters?: Partial<Record<CounterType, CounterWorth>>;
   /** One counter on it worked out from what it turns into, while plan.counterFormulas is on. */
   counterFormulas?: Partial<Record<CounterType, CounterWorth>>;
+  /** Corp card faceup in Archives that plays again from there: its worth waiting there (plan.oneCurrency, evaluate.ts corpBoardValue). */
+  archived?: (state: GameState) => number;
 }
