@@ -310,6 +310,8 @@ export const tuning = {
      */
     /** Both sides: a click is worth 1.25 credits (at least 1), not 1 (per deciding side). */
     clickRate: { corp: true, runner: true } as Record<SideCode, boolean>,
+    /** Code audit cleanup item 5 (2026-11-06): the click a payout card takes is priced like every other click, 1.25, not the step-1 1 (valueModel payoutClick). */
+    oneClickPrice: true,
     /**
      * Per deciding side (Jeff, 2026-10-28): its own clicks priced by the best plays in hand, at least a credit (handValues.ts clickWorth).
      * Batches (2,210 games each): Corp side 29.7% -> 21.6% (the Corp clicks for cards over credits and runs dry), Runner side 29.7% -> 29.7%.

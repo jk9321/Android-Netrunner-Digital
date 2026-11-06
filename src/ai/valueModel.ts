@@ -77,9 +77,20 @@ export function creditValue(credits: number): number {
  * step-1 number above is used.
  */
 
-/** Worth of a click (Jeff: never under a credit, 1.25 by default). */
+/**
+ * The click prices (code audit cleanup item 5, 2026-11-06), one place for all of them:
+ * - CLICK 1.25: a click by default (Jeff: never under a credit). clickRate(viewer) is this, or RATES.click (1, step 1)
+ *   with plan.clickRate off for that side.
+ * - clickWorth (handValues): a side's own click priced by the best plays in its hand, 1 to 3 (plan.clickByPlay).
+ *   clickPrice(state, side, viewer) picks between them.
+ * - AGENDA_CLICK 2 (evaluate): a click spent advancing, priced as what it could have built instead (plan.agendaClicks).
+ * - payoutClick(): the click a payout card takes (Fermenter, Smartware, profiles paid "every click"). It was the
+ *   step-1 1 while everything else moved to 1.25, so click-taken money looked cheaper than clicking for a credit;
+ *   plan.oneClickPrice makes it CLICK.
+ */
 export const CLICK = 1.25;
 export const clickRate = (viewer: SideCode): number => (tuning.plan.clickRate?.[viewer] ? CLICK : RATES.click);
+export const payoutClick = (): number => (tuning.plan.oneClickPrice ? CLICK : RATES.click);
 
 /**
  * Worth of `credits` against a need (Jeff): each extra credit is worth 1.8

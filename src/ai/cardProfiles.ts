@@ -1,6 +1,6 @@
 import { GameState, getCardDefinition } from '../core';
 import { tuning } from './synergy';
-import { RATES, cardRate } from './valueModel';
+import { RATES, cardRate, payoutClick } from './valueModel';
 import { CARD_PROFILES } from './cards';
 import { PAYOUT_RISK } from './payoutRisk';
 
@@ -91,10 +91,10 @@ export function payoutWorth(profile: CardProfile, turns: number, hosted = profil
     turn = Math.floor(i / profile.perTurn) + 1;
     if (turn > turns) return value;
     const pay = Math.min(profile.pay, hosted - i * profile.pay);
-    const click = profile.every === 'click' ? RATES.click : 0;
+    const click = profile.every === 'click' ? payoutClick() : 0;
     value += wait ** turn * (pay - click + (profile.drawEach ?? 0) * card);
   }
-  if (turn + 1 <= turns) value += wait ** (turn + 1) * ((profile.drawAtEnd ?? 0) * card + (profile.clicksAtEnd ?? 0) * RATES.click);
+  if (turn + 1 <= turns) value += wait ** (turn + 1) * ((profile.drawAtEnd ?? 0) * card + (profile.clicksAtEnd ?? 0) * payoutClick());
   return value;
 }
 

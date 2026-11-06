@@ -6,9 +6,9 @@ import { newGame } from './helpers';
 const sum = (...terms: number[]) => terms.reduce((a, b) => a + b, 0);
 
 describe('money cards are worth what they will still pay out (value model step 4)', () => {
-  // These work through the step 4 wait of 15% a turn; plan.payoutRisk is tested below
-  beforeEach(() => { tuning.plan.payoutRisk = false; });
-  afterEach(() => { tuning.plan.payoutRisk = true; });
+  // These work through the step 4 wait of 15% a turn and its click at 1; plan.payoutRisk is tested below
+  beforeEach(() => { tuning.plan.payoutRisk = false; tuning.plan.oneClickPrice = false; });
+  afterEach(() => { tuning.plan.payoutRisk = true; tuning.plan.oneClickPrice = true; });
 
   it('Nico Campaign: 3 a turn for 3 turns, then a card', () => {
     expect(payoutWorth(CARD_PROFILES['30037'], 8)).toBeCloseTo(sum(3 * 0.85, 3 * 0.85 ** 2, 3 * 0.85 ** 3, 1.6 * 0.85 ** 4));
@@ -18,6 +18,9 @@ describe('money cards are worth what they will still pay out (value model step 4
     expect(payoutWorth(CARD_PROFILES['30071'], 8)).toBeCloseTo(sum(4 * 0.85, 4 * 0.85 ** 2, 2 * 0.85 ** 3));
     // Partly used: only what is left counts
     expect(payoutWorth(CARD_PROFILES['30071'], 8, 6)).toBeCloseTo(sum(4 * 0.85));
+    // plan.oneClickPrice (code audit cleanup item 5): the click it takes costs 1.25, like any other click
+    tuning.plan.oneClickPrice = true;
+    expect(payoutWorth(CARD_PROFILES['30071'], 8)).toBeCloseTo(sum(3.5 * 0.85, 3.5 * 0.85 ** 2, 1.75 * 0.85 ** 3));
   });
 
   it('Otto Campaign gives its 2 clicks when it empties; Anthill draws with each payout', () => {

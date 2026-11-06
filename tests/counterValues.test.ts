@@ -21,7 +21,7 @@ const worth = (code: string, type: 'credit' | 'virus' | 'power' | 'agenda') => {
 describe('counters are worth what they do on their card (value model step 3)', () => {
   it('prices money counters by how they pay out (hand-set rates, plan.counterFormulas off)', () => {
     tuning.plan.counterFormulas = false;
-    expect(worth('30071', 'credit')).toBeCloseTo(2 / 3); // Regolith: 3 credits for a click
+    expect(worth('30071', 'credit')).toBeCloseTo(1 - 1.25 / 3); // Regolith: 3 credits for a click (1.25, plan.oneClickPrice)
     expect(worth('30037', 'credit')).toBeCloseTo(0.85); // Nico: paid out free each turn
     expect(worth('35040', 'credit')).toBeCloseTo(0.85); // Otto
     expect(worth('35072', 'credit')).toBeCloseTo(0.85); // Anthill
@@ -31,7 +31,7 @@ describe('counters are worth what they do on their card (value model step 3)', (
     expect(worth('35034', 'credit')).toBeCloseTo(0.9); // Side Hustle: paid out at 6, with a card
     expect(worth('30014', 'credit')).toBeCloseTo(0.85); // Pennyshaver: a click takes them all
     tuning.plan.fermenterBank = false;
-    expect(worth('30007', 'virus')).toBeCloseTo(1.75); // Fermenter: 2 each, less a click shared by about 4
+    expect(worth('30007', 'virus')).toBeCloseTo(2 - 1.25 / 4); // Fermenter: 2 each, less a click (1.25) shared by about 4
     tuning.plan.fermenterBank = true;
     tuning.plan.counterFormulas = true;
   });
@@ -116,7 +116,7 @@ describe('counters are worth what they do on their card (value model step 3)', (
     expect(countersWorth(s, fermenter, 'virus', 'runner')).toBeCloseTo(3);
     tuning.plan.counterEffects.runner = true;
     tuning.plan.fermenterBank = false;
-    expect(countersWorth(s, fermenter, 'virus', 'runner')).toBeCloseTo(3.5);
+    expect(countersWorth(s, fermenter, 'virus', 'runner')).toBeCloseTo(2 * (2 - 1.25 / 4)); // the click at 1.25 (plan.oneClickPrice)
     tuning.plan.fermenterBank = true;
   });
 });

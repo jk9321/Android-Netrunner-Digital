@@ -5,7 +5,7 @@ import { turnsLeft } from '../cardProfiles';
 import { PAYOUT_RISK } from '../payoutRisk';
 import { counterWorth, PAID_OUT, paidOneATurn, paidOut, trojanHostWorth } from '../counterValues';
 import { tuning } from '../synergy';
-import { cardRate, CLICK, flatRate, payoutSlide, RATES } from '../valueModel';
+import { cardRate, CLICK, flatRate, payoutClick, payoutSlide, RATES } from '../valueModel';
 import { tagsWorth } from '../evaluate';
 import { bestBreakPlan } from '../runs';
 import { accessWorth, anySuccess, centralSuccess, conduitCounterWorth, counterWorthOf, damageWorth, lock, muWorth, PACE, perTurn, runSuccess, VIRUS_WAIT, virusWait } from '../effectValues';
@@ -85,10 +85,10 @@ export const SYSTEM_GATEWAY: Record<string, CardAI> = {
     // and the bigger the bank the likelier the Corp spends its turn on one
     counters: {
       virus: (state, card) => {
-        if (!tuning.plan.fermenterBank) return 2 - RATES.click / 4;
+        if (!tuning.plan.fermenterBank) return 2 - payoutClick() / 4;
         const n = Math.max(1, counters(card, 'virus'));
         const bank = state.runner.rig.programs.reduce((t, p) => t + (p.cardCode === '30007' ? counters(p, 'virus') : 0), 0);
-        return 2 * payoutSlide(state, 'runner', 'runner', 2 * Math.max(n, bank)) * Math.max(0.4, 1 - 0.02 * bank) - RATES.click / n;
+        return 2 * payoutSlide(state, 'runner', 'runner', 2 * Math.max(n, bank)) * Math.max(0.4, 1 - 0.02 * bank) - payoutClick() / n;
       },
     },
   },
@@ -416,7 +416,7 @@ export const SYSTEM_GATEWAY: Record<string, CardAI> = {
     synergy: { gives: { econ: 2 } },
     value: { keep: 6, econ: 4 },
     profile: { load: 15, pay: 3, every: 'click', perTurn: 2 }, // Regolith Mining License
-    counters: { credit: () => 1 - RATES.click / 3 }, // 3 credits per click
+    counters: { credit: () => 1 - payoutClick() / 3 }, // 3 credits per click
   },
   // Palisade
   '30072': { synergy: { gives: { ice: 1 } } },
