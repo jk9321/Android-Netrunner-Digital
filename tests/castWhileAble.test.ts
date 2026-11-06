@@ -3,6 +3,10 @@ import { describe, expect, it } from 'vitest';
 import { GameState, cardDef, executeAction } from '../src/core';
 import { createAgent } from '../src/ai';
 import { tuning } from '../src/ai/synergy';
+import { legacyRanking } from './legacyRanking';
+
+// plan.oneCurrency: these pin the old Corp ranking (tests/legacyRanking.ts)
+legacyRanking(["plays Hedge Fund this turn"]);
 
 /**
  * Jeff (2026-11-04): why can't the Corp manage its econ? The batch "Corp went broke" alarm: 60% of the times the Corp

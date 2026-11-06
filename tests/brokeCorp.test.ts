@@ -9,7 +9,7 @@ import { sideCreditValue } from '../src/ai/valueModel';
 import { legacyRanking } from './legacyRanking';
 
 // plan.oneCurrency: these pin the old Corp ranking (tests/legacyRanking.ts)
-legacyRanking(["installs no more bare agendas (Normal and Hard)", "the old way (plan off) is what the report saw", "finishes Send a Message this turn and keeps credits to rez with (Normal)"]);
+legacyRanking(["two agendas share one turn’s clicks: only one of them looks scored this turn", "installs no more bare agendas (Normal and Hard)", "the old way (plan off) is what the report saw", "finishes Send a Message this turn and keeps credits to rez with (Normal)"]);
 
 /**
  * Jeff's bug report (issue #2, 2026-10-31; LEO Construction vs Vic, Hard Corp): at 0 credits
