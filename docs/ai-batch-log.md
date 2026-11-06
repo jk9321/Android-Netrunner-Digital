@@ -309,3 +309,4 @@ Every self-play batch, newest last (Jeff, 2026-10-28). Made with `scripts/corp-l
 | 2026-11-06 | liquidity + corpTurnDamage off (2210) | acf0526 | 2210 | **39.0%** | 30.0% / 9.0% | 53.9% / 7.0% | 45.6% / 24.2% / 25.5% / 4.8% | 7.0 | [txt](batch-logs/2026-11-06-liquidity-corpturndamage-off-2210.txt) |
 | 2026-11-06 | item 6: measuredNov6 on (2210) | 7c9f6f1 | 2210 | **38.6%** | 30.6% / 8.0% | 54.6% / 6.7% | 45.2% / 24.5% / 25.5% / 4.8% | 7.1 | [txt](batch-logs/2026-11-06-item-6-measurednov6-on-2210.txt) |
 | 2026-11-06 | item 6: measuredNov6 off (2210) | 7c9f6f1 | 2210 | **39.1%** | 30.5% / 8.6% | 54.2% / 6.7% | 44.9% / 24.3% / 25.7% / 5.1% | 7.1 | [txt](batch-logs/2026-11-06-item-6-measurednov6-off-2210.txt) |
+| 2026-11-06 | beta after liquidity merge (663) | 6f5b17e | 663 | **36.2%** | 29.4% / 6.8% | 55.7% / 8.1% | 44.9% / 26.3% / 24.1% / 4.8% | 7.1 | [txt](batch-logs/2026-11-06-beta-after-liquidity-merge-663.txt) |
