@@ -14,7 +14,7 @@ import {
 import { availableCredits, counters, rezCost, stealthCredits, threatLevel, turnFlag } from '../core/engine/cardEffects';
 import { stealCost } from '../core/engine/actions/run';
 import { spikeKey } from '../core/scripts/liberationRunner';
-import { corpCardValue, tagThreat, tagsWorth } from './evaluate';
+import { corpCardValue, hiddenCardOdds, tagThreat, tagsWorth } from './evaluate';
 import { agendaOdds, coreDamageWorth, counterWorthOf, damageWorth, flatlineOdds, runnerEffect } from './effectValues';
 import { clickPrice } from './handValues';
 import { tuning } from './synergy';
@@ -500,14 +500,18 @@ function stealWorth(state: GameState, points: number, deny: number): number {
 /** Chance an unseen card in a remote's root is an agenda (Jeff: higher the more the Corp has put into the server). */
 export function remoteAgendaOdds(state: GameState, server: { ice: CardInstance[] }, card: CardInstance, trap: number): number {
   if (card.advancementCounters > 0) return Math.max(0, 1 - trap);
+  // plan.oneAgendaGuess (code audit cleanup item 9): the board's own odds for a facedown card (evaluate hiddenCardOdds,
+  // the same unseen pool), so the Runner's run choice and its board score start from one guess
+  if (tuning.plan.oneAgendaGuess) return iceBump(hiddenCardOdds(state).agenda, server);
   const corp = [...state.corp.hq, ...state.corp.rd, ...state.corp.archives.faceDown, ...Object.values(state.corp.servers).flatMap(s => s.root.filter(c => !c.isRezzed && !c.faceUp && !(tuning.plan.runnerKnown && c.runnerKnows)))];
   const kinds = corp.map(c => cardDef(c).type_code);
   const agendas = kinds.filter(t => t === 'agenda').length;
   const roots = kinds.filter(t => t === 'agenda' || t === 'asset' || t === 'upgrade').length;
-  const base = roots > 0 ? agendas / roots : 0;
-  // Ice in front of it: the Corp guards agendas more than assets
-  return Math.min(0.9, base + (1 - base) * Math.min(0.45, 0.15 * server.ice.length));
+  return iceBump(roots > 0 ? agendas / roots : 0, server);
 }
+
+/** Ice in front of it: the Corp guards agendas more than assets. */
+const iceBump = (base: number, server: { ice: CardInstance[] }) => Math.min(0.9, base + (1 - base) * Math.min(0.45, 0.15 * server.ice.length));
 
 /**
  * The R&D accesses priced card by card from what the Runner remembers (rules
@@ -634,7 +638,9 @@ function serverWorth(state: GameState, serverId: string, extraAccesses: number, 
       const agenda = remoteAgendaOdds(state, server, card, trap);
       // Not an agenda: a trap (Urtica: 2 net damage plus its counters) or an asset to trash
       const trapShare = Math.min(1 - agenda, trap);
-      value += agenda * taxedSteal(stealWorth(state, points, card.advancementCounters > 0 ? DENY.remote : DENY.central), unseenTax) - trapShare * damageWorth(state, 2 + card.advancementCounters) + (1 - agenda - trapShare) * 1;
+      // plan.oneAgendaGuess: the points of the agendas still unseen, as the board counts them (not the whole decklist's)
+      const hiddenPoints = tuning.plan.oneAgendaGuess ? hiddenCardOdds(state).agendaPoints : points;
+      value += agenda * taxedSteal(stealWorth(state, hiddenPoints, card.advancementCounters > 0 ? DENY.remote : DENY.central), unseenTax) - trapShare * damageWorth(state, 2 + card.advancementCounters) + (1 - agenda - trapShare) * 1;
     } else {
       const trash = cardDef(card).trash_cost;
       if (trash != null && trash <= state.runner.credits) value += Math.max(0.5, corpCardValue(card, state, 'runner') - creditCost(state, trash));
