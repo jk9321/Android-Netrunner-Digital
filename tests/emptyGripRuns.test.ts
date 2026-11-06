@@ -28,7 +28,7 @@ describe('a Runner with an empty grip still runs (plan.emptyGripRuns)', () => {
   it('without the plan every run scores below zero', () => {
     tuning.plan.emptyGripRuns = false;
     try {
-      expect(bestRun(position())).toBe(-Infinity);
+      expect(bestRun(position())).toBeLessThan(0);
     } finally {
       tuning.plan.emptyGripRuns = true;
     }

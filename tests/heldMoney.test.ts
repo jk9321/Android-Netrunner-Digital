@@ -26,10 +26,14 @@ const inHq = (s: GameState) => s.corp.hq.map(c => cardDef(c).title);
 describe('a held money operation is counted once (plan.heldMoney)', () => {
   it('plays Petty Cash without the Petty Cash special case', () => {
     tuning.plan.pettyCashFirst = false;
+    // plan.unseenOdds (2026-11-06) raises the Runner's agenda odds, and with them the worth the Corp puts on cards in HQ:
+    // the general fix alone then holds Petty Cash here, and pettyCashFirst (on in play) still plays it
+    tuning.plan.unseenOdds = false;
     try {
       expect(inHq(play())).not.toContain('Petty Cash');
     } finally {
       tuning.plan.pettyCashFirst = true;
+      tuning.plan.unseenOdds = true;
     }
   });
 
