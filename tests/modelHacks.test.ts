@@ -4,6 +4,7 @@ import { CLICK, RATES } from '../src/ai/valueModel';
 import { createCardInstance } from '../src/core/engine/gameState';
 import { newGame } from './helpers';
 import { HeuristicCorpAI } from '../src/ai';
+import { tuning } from '../src/ai/synergy';
 import { GameState, cardDef } from '../src/core';
 
 describe('value hacks replaced by the model (Jeff, 2026-10-28; plan.modelHacks)', () => {
@@ -68,7 +69,14 @@ describe('the last two hacks on the model (Jeff, 2026-10-28; plan.modelHacks.fin
   it('Nanomanagement: worth the agenda it lets the Corp score this turn, in points on the clock', () => {
     const { s, nano } = nanoGame(true);
     expect(score(s, nano.instanceId)).toBeGreaterThan(credit(s) + 5);
-    expect(score(s, nano.instanceId)).toBeLessThan(40); // a value, not a priority tier
+    // A value, not a priority tier: only with plan.oneSetupRule off (cleanup item 8, 2026-11-06, awaiting Jeff's call),
+    // which ranks it with the advance it lets the turn make (plan.finishSetup's tier) like any other such play
+    tuning.plan.oneSetupRule = false;
+    try {
+      expect(score(s, nano.instanceId)).toBeLessThan(40);
+    } finally {
+      tuning.plan.oneSetupRule = true;
+    }
   });
 
   it('Nanomanagement with nothing to finish: just 2 clicks for 4 credits and a click', () => {

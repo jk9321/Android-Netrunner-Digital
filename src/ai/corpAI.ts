@@ -464,6 +464,10 @@ export class HeuristicCorpAI implements Agent {
     const corp = state.corp;
     const agendas = Object.values(corp.servers).flatMap(s => s.root).filter(c => type(c) === 'agenda');
     const need = (c: CardInstance) => (cardDef(c).advancement_cost ?? 0) - c.advancementCounters;
+    // plan.oneSetupRule (code audit cleanup item 8, 2026-11-06): Nanomanagement's clicks and Touch-ups' advancements are
+    // what plan.finishSetup ranks for any play (it simulates the play and asks whether an agenda can now be finished this
+    // turn); this hand-made copy for two cards is left for the old way
+    if (tuning.plan.oneSetupRule && tuning.plan.finishSetup && (code === '35043' || code === '35067')) return 0;
     switch (code) {
       case '35043': {
         // Nanomanagement (4 credits): +2 clicks, worth it if they finish an agenda
