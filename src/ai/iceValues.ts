@@ -1,7 +1,7 @@
 import { CardInstance, GameState, ServerState, SideCode, cardDef } from '../core';
 import { rezCost } from '../core/engine/cardEffects';
 import { iceCost } from './runs';
-import { RATES, guardLoop } from './valueModel';
+import { RATES, guardLoop, memo } from './valueModel';
 import { turnsLeft } from './cardProfiles';
 import { freeRezTargets } from './freeRez';
 import { tuning } from './synergy';
@@ -55,10 +55,64 @@ function iceWorthOf(state: GameState, ice: CardInstance, viewer: SideCode): numb
   if (ice.isRezzed) return RATES.ice + Math.min(iceStop(state), iceCost(state, ice));
   // The Runner doesn't know what it is: iceCost's guess for unrezzed ice
   if (viewer === 'runner') return RATES.ice + iceCost(state, ice);
-  // plan.freeRez: ice a coming free rez pays for (Send a Message, Unleash) counts as rezzable
-  if (state.corp.credits < rezCost(state, ice) && !freeRezTargets(state).has(ice.instanceId)) return RATES.ice;
-  // The Corp knows: what it would cost the Runner once rezzed, held back a little for the rez still to pay
-  return RATES.ice + 0.6 * Math.min(iceStop(state), iceCost(state, { ...ice, isRezzed: true }));
+  // The Corp knows: what it would cost the Runner once rezzed, held back a little for the rez still to pay, by the
+  // share of the Corp's one pool of credits this ice can count on (rezBudget)
+  const share = tuning.plan.rezBudget
+    ? rezBudget(state).get(ice.instanceId) ?? 0
+    : state.corp.credits >= rezCost(state, ice) || freeRezTargets(state).has(ice.instanceId) ? REZ_NOW_SHARE : 0;
+  return RATES.ice + share * Math.min(iceStop(state), iceCost(state, { ...ice, isRezzed: true }));
+}
+
+/** Share of an unrezzed ice's rezzed worth the Corp counts while it can pay for the rez now (the rest is the rez still to pay). */
+export const REZ_NOW_SHARE = 0.6;
+/** The share for ice the pool can't cover now but next turn's income would: one Runner turn unprotected, not the whole game. */
+export const REZ_NEXT_SHARE = 0.3;
+/** Credits a Corp raises in a turn, for the rez budget (a named guess: 3 clicks at a credit each). */
+export const CORP_TURN_INCOME = 3;
+
+/**
+ * The rez budget (structural review item 2 follow-up, 2026-11-06): each unrezzed ice was counted rezzable when the
+ * Corp's credits covered its own rez cost, so 3 credits "protected" a 3-credit Palisade on a remote and a 3-credit
+ * Whitespace on HQ at once, and spending them cost both shares (3 credits to 0 priced at about 19, more than a 2-point
+ * steal). Now the unrezzed ice draws its rez costs from one pool, best stop first (what it would cost the Runner once
+ * rezzed, per credit of rez): the ice the pool covers gets REZ_NOW_SHARE, the ice a turn's income more would cover
+ * REZ_NEXT_SHARE, the rest nothing. plan.freeRez: ice a coming free rez pays for (Send a Message, Unleash) is covered
+ * without drawing on the pool.
+ */
+export function rezBudget(state: GameState): Map<string, number> {
+  // Keyed by what it reads that tests change in place (credits, the unrezzed ice, the free-rez switch)
+  const ice = Object.values(state.corp.servers).flatMap(s => s.ice.filter(c => !c.isRezzed).map(c => c.instanceId + c.cardCode)).join();
+  return memo(state, `rezBudget:${state.corp.credits}:${!!tuning.plan.freeRez}:${ice}`, () => countRezBudget(state));
+}
+
+function countRezBudget(state: GameState): Map<string, number> {
+  const free = freeRezTargets(state);
+  const shares = new Map<string, number>();
+  const waiting: { id: string; cost: number; stop: number }[] = [];
+  for (const server of Object.values(state.corp.servers)) {
+    for (const ice of server.ice) {
+      if (ice.isRezzed) continue;
+      if (free.has(ice.instanceId)) {
+        shares.set(ice.instanceId, REZ_NOW_SHARE);
+        continue;
+      }
+      waiting.push({ id: ice.instanceId, cost: rezCost(state, ice), stop: Math.min(iceStop(state), iceCost(state, { ...ice, isRezzed: true })) });
+    }
+  }
+  waiting.sort((a, b) => b.stop / Math.max(1, b.cost) - a.stop / Math.max(1, a.cost));
+  let now = Math.max(0, state.corp.credits);
+  let next = CORP_TURN_INCOME;
+  for (const ice of waiting) {
+    if (ice.cost <= now) {
+      now -= ice.cost;
+      shares.set(ice.id, REZ_NOW_SHARE);
+    } else if (ice.cost <= now + next) {
+      next -= ice.cost - now;
+      now = 0;
+      shares.set(ice.id, REZ_NEXT_SHARE);
+    }
+  }
+  return shares;
 }
 
 /** The step-1 rate, with plan.iceInCredits off. */

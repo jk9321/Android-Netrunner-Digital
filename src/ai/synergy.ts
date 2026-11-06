@@ -293,6 +293,11 @@ export const tuning = {
     tagFirst: true,
     /** Corp: in a run, breakable ice outside an agenda server is rezzed only when its toll is worth the rez (corpAI decideRez). */
     rezToll: true,
+    /**
+     * Both sides' pricing (structural review items 1-2, 2026-11-06): unrezzed ice counts as rezzable from one pool of
+     * the Corp's credits, not each against the same credits (iceValues rezBudget). A measuring switch, not a knob.
+     */
+    rezBudget: true,
     /** Corp: click for credits toward a money operation in HQ it can't afford yet (Hedge Fund, Subsidy...). */
     saveForOps: true,
     /** Runner: Botulus counters count as free breaks when costing ice; trojans go on the ice they help most, not doubled up. */
