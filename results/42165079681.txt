@@ -1,0 +1,119 @@
+Batch: gemini check: unseenOdds on (deck-outs) | ref 66c7e72703fb8f27593dd0ff075d92167f9dd1bd | games 0-3 | PLAN_OFF= | decks  | deck-outs corp | added run 
+663 games, Corp decked in 36 (5.4%)
+
+Decked by Corp deck:
+  The Syndicate (starter) (34 cards): 8 of 39 (20.5%)
+  Brutal Efficiency (44 cards): 6 of 39 (15.4%)
+  Hyper Velocity (44 cards): 5 of 39 (12.8%)
+  Hidden Funds (44 cards): 5 of 39 (12.8%)
+  Glyph of Warding (49 cards): 4 of 39 (10.3%)
+  Advanced Yomi (44 cards): 3 of 39 (7.7%)
+  Gimbatul (49 cards): 2 of 39 (5.1%)
+  Discretion Advised (44 cards): 1 of 39 (2.6%)
+  Brick Stack (44 cards): 1 of 39 (2.6%)
+  Not so subtle (49 cards): 1 of 39 (2.6%)
+
+Decked by Runner deck:
+  Sabbatical: 4 of 51 (7.8%)
+  Prick Thyself: 4 of 51 (7.8%)
+  Party Hard: 4 of 51 (7.8%)
+  Dashing Mad: 4 of 51 (7.8%)
+  Professional Opportunities: 4 of 51 (7.8%)
+  Shootin’ ‘n’ Lootin’: 3 of 51 (5.9%)
+  Stolen Goods: 3 of 51 (5.9%)
+  Bowel Movements: 3 of 51 (5.9%)
+  The Catalyst (starter): 2 of 51 (3.9%)
+  Enthusiasm: 2 of 51 (3.9%)
+  Planning Ahead: 1 of 51 (2.0%)
+  Tickets, please: 1 of 51 (2.0%)
+  Flow and Ebb: 1 of 51 (2.0%)
+
+(means)                                       decked   other
+  Corp turns                                   21.53   14.60
+  Corp click draws a game                       8.83    4.25
+    share of Corp clicks                        0.15    0.10
+  Corp click draws with R&D at 10 or less       1.83    0.14
+  Corp credit clicks a game                     7.92    7.51
+  Corp turns started with an agenda in HQ      17.39   10.85
+    share of Corp turns                         0.82    0.75
+  most agendas in HQ at once                    4.03    2.81
+  agendas in HQ at the end                      2.86    1.24
+  agendas installed at the end                  0.44    0.12
+  Corp credits at the end                       7.69    4.27
+  Corp last 3 turns: draws                      0.86    0.64
+  Corp last 3 turns: credit clicks              1.39    1.60
+  Corp last 3 turns: advances                   1.50    2.52
+  Corp last 3 turns: installs                   2.03    2.64
+  Corp score                                    3.78    3.70
+  Runner score                                  4.97    6.07
+  Runner runs a turn                            0.82    0.92
+  Runner last 3 turns: runs                     2.47    2.74
+  Runner last 3 turns: credit clicks            3.14    2.09
+  Runner last 3 turns: draws                    2.22    2.10
+  Runner credits at the end                     6.42    5.68
+  Runner Stack empty at the end                 0.33    0.15
+  Runner grip at the end                        3.89    3.92
+
+Other games at least as long as the shortest decked one (286):
+  Corp turns                                   19.47
+  Corp click draws a game                       5.35
+    share of Corp clicks                        0.10
+  Corp click draws with R&D at 10 or less       0.30
+  Corp credit clicks a game                    10.75
+  Corp turns started with an agenda in HQ      14.17
+    share of Corp turns                         0.72
+  most agendas in HQ at once                    3.03
+  agendas in HQ at the end                      1.37
+  agendas installed at the end                  0.13
+  Corp credits at the end                       4.38
+  Corp last 3 turns: draws                      0.51
+  Corp last 3 turns: credit clicks              1.67
+  Corp last 3 turns: advances                   2.98
+  Corp last 3 turns: installs                   2.32
+  Corp score                                    5.06
+  Runner score                                  6.13
+  Runner runs a turn                            0.82
+  Runner last 3 turns: runs                     2.65
+  Runner last 3 turns: credit clicks            2.55
+  Runner last 3 turns: draws                    1.79
+  Runner credits at the end                     7.12
+  Runner Stack empty at the end                 0.28
+  Runner grip at the end                        3.77
+
+Decked deals (seed turns score C-R, HQ agendas at end, Runner last-3 runs / credit clicks / bank):
+  1222 T20 6-5 hq3 runs3 cc3 bank 6/6/2 stack22 | Discretion Advised vs Professional Opportunities
+  1433 T19 5-5 hq3 runs3 cc5 bank 8/8/7 stack5 | Hyper Velocity vs Bowel Movements
+  1013 T27 5-6 hq1 runs6 cc6 bank 22/16/8 stack0 | The Syndicate (starter) vs Party Hard
+  1442 T20 6-6 hq2 runs2 cc3 bank 6/1/1 stack29 | Hyper Velocity vs Dashing Mad
+  1653 T25 5-6 hq2 runs2 cc3 bank 16/21/24 stack0 | Brutal Efficiency vs The Catalyst (starter)
+  2412 T24 6-6 hq2 runs1 cc2 bank 4/4/1 stack2 | Glyph of Warding vs Enthusiasm
+  1352 T25 3-4 hq3 runs3 cc7 bank 2/7/1 stack0 | Advanced Yomi vs Professional Opportunities
+  2421 T21 4-4 hq4 runs2 cc0 bank 1/1/2 stack6 | Glyph of Warding vs Sabbatical
+  2051 T21 0-6 hq5 runs3 cc2 bank 1/2/1 stack0 | Hidden Funds vs Party Hard
+  2691 T26 4-6 hq1 runs4 cc5 bank 7/5/4 stack0 | Gimbatul vs The Catalyst (starter)
+  1413 T17 2-5 hq3 runs1 cc3 bank 0/0/1 stack12 | Hyper Velocity vs Stolen Goods
+  1422 T20 5-5 hq2 runs5 cc6 bank 6/0/1 stack11 | Hyper Velocity vs Planning Ahead
+  2062 T21 5-5 hq0 runs1 cc0 bank 7/4/6 stack6 | Hidden Funds vs Stolen Goods
+  2102 T22 4-6 hq3 runs5 cc2 bank 4/12/13 stack0 | Hidden Funds vs Prick Thyself
+  1471 T16 4-5 hq3 runs1 cc4 bank 0/2/0 stack20 | Hyper Velocity vs Shootin’ ‘n’ Lootin’
+  2323 T23 4-6 hq3 runs1 cc4 bank 4/4/1 stack1 | Glyph of Warding vs Stolen Goods
+  1051 T16 5-6 hq2 runs4 cc2 bank 9/14/11 stack16 | The Syndicate (starter) vs Dashing Mad
+  1052 T19 3-6 hq2 runs2 cc2 bank 3/5/1 stack0 | The Syndicate (starter) vs Dashing Mad
+  1692 T24 2-6 hq3 runs2 cc1 bank 11/10/2 stack1 | Brutal Efficiency vs Bowel Movements
+  2121 T24 2-6 hq3 runs3 cc2 bank 7/3/2 stack0 | Hidden Funds vs Shootin’ ‘n’ Lootin’
+  1061 T25 3-5 hq2 runs2 cc0 bank 12/15/17 stack0 | The Syndicate (starter) vs Prick Thyself
+  1701 T24 6-4 hq2 runs4 cc5 bank 2/4/5 stack27 | Brutal Efficiency vs Dashing Mad
+  1072 T21 5-5 hq2 runs2 cc5 bank 7/4/1 stack0 | The Syndicate (starter) vs Tickets, please
+  2781 T20 6-6 hq4 runs1 cc7 bank 0/1/4 stack16 | Gimbatul vs Professional Opportunities
+  1713 T23 0-4 hq6 runs4 cc0 bank 3/9/6 stack3 | Brutal Efficiency vs Prick Thyself
+  2573 T22 4-5 hq4 runs1 cc4 bank 1/4/5 stack11 | Not so subtle vs Party Hard
+  1731 T24 4-6 hq2 runs2 cc3 bank 6/2/8 stack13 | Brutal Efficiency vs Shootin’ ‘n’ Lootin’
+  1303 T29 3-6 hq3 runs0 cc12 bank 24/28/32 stack0 | Advanced Yomi vs Bowel Movements
+  2161 T21 0-6 hq3 runs0 cc4 bank 2/5/10 stack13 | Hidden Funds vs Sabbatical
+  1101 T18 2-2 hq4 runs2 cc1 bank 6/7/7 stack1 | The Syndicate (starter) vs Flow and Ebb
+  1321 T24 4-2 hq4 runs1 cc4 bank 6/0/0 stack1 | Advanced Yomi vs Prick Thyself
+  2392 T26 4-6 hq4 runs0 cc5 bank 1/1/3 stack10 | Glyph of Warding vs Professional Opportunities
+  1122 T17 2-1 hq4 runs4 cc1 bank 2/3/2 stack12 | The Syndicate (starter) vs Sabbatical
+  1762 T24 6-2 hq4 runs4 cc0 bank 9/14/6 stack14 | Brutal Efficiency vs Enthusiasm
+  1123 T20 1-6 hq3 runs4 cc0 bank 1/3/2 stack0 | The Syndicate (starter) vs Sabbatical
+  2833 T22 6-3 hq2 runs4 cc0 bank 13/13/13 stack9 | Brick Stack vs Party Hard
