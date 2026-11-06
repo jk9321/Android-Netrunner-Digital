@@ -16,6 +16,7 @@ import { asSide, logNudge, nudge, opponentLean, tuning } from './synergy';
 import { noteKnownHand } from './handValues';
 import { PlanMemory, planTurn, plannerOn } from './turnPlanner';
 import { runnerReply } from './runnerReply';
+import { modelRezGain } from './rezModel';
 import { freeRezCover, freeRezTargets } from './freeRez';
 import { PETTY_CASH_REPLAY, iceAdvanceWorth, placedCounterWorth, rezEffectWorth, rezzedWorth, runTimed, topDownWorth } from './effectValues';
 import { CARD_PROFILES, ECON_SCALE, PAYOUT_RISK, bareAssetRisk, unrezzedWorth } from './cardProfiles';
@@ -196,7 +197,13 @@ export class HeuristicCorpAI implements Agent {
       const cost = rezCost(state, card);
       if (!isLegalAction(state, { type: 'REZ_CARD', player: 'corp', cardInstanceId: card.instanceId })) continue;
       let score: number;
-      if (def.type_code === 'ice') {
+      if (def.type_code === 'ice' && this.synergy && tuning.plan.modelRez) {
+        // plan.modelRez: the rez priced by the value model (rezModel.ts), in credits; rezzed when it gains anything.
+        // Lifted onto the old scale's threshold (2) so an upgrade in the same window still compares on its own terms
+        const gain = modelRezGain(state, card, this.synergy);
+        if (!(gain > 0)) continue;
+        score = 2 + gain;
+      } else if (def.type_code === 'ice') {
         // Ping tags the Runner when rezzed during a run; ice that ends the run protects best
         const onRez = ECON_SCALE * rezEffectWorth(card, tagCost(state));
         score = importance + (hasEndTheRun(card) ? 1 : 0) + onRez;

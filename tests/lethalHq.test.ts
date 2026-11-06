@@ -51,6 +51,7 @@ describe('an agenda in HQ that would win the Runner the game (plan.lethalHq, bug
     tuning.plan.lethalHq = false;
     tuning.plan.heldMoney = false; // added after the report
     tuning.plan.oneCurrency = false; // the report's ranking: the rule tiers, before the Corp ranked in one currency
+    tuning.plan.modelRez = false; // added after the report (the Hard AI's playouts rez by it)
     sideOff.corp = ['effectValues']; // as the report's game ran: before effect values came back on for the Corp (2026-11-03)
     try {
       expect(hqIce(playTurn(turn13(), createAgent('corp', 'hard', { samples: 6, seed: 1 })))).toBe(2);

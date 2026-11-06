@@ -44,6 +44,8 @@ describe('a spent Spin Doctor (plan.spentSpinDoctor, bug report #5)', () => {
   it('the old way (plan off) trashed it on an empty Archives', () => {
     const was = { ...tuning.plan };
     tuning.plan.spentSpinDoctor = false;
+    tuning.plan.rezBudget = false; // added after the report: the Runner's view of the board changed with it
+    tuning.plan.drawWorthCredits = false; // and the draw average keyed by the position (2026-11-06)
     try {
       expect(trashes(accessSpinDoctor(0), true)).toBe(true);
     } finally {

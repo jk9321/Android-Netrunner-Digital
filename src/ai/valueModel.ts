@@ -131,7 +131,7 @@ export function pointValue(score: number, scale = 1): number {
 }
 
 /** What a position holds that the value helpers read: two calls with the same fingerprint on the same state agree. */
-function fingerprint(state: GameState): string {
+export function fingerprint(state: GameState): string {
   const { corp, runner } = state;
   const ids = (cards: CardInstance[]) => cards.map(c => c.instanceId + (c.isRezzed ? 'r' : '') + (c.hostedCards?.length ?? '')).join(',');
   const servers = Object.values(corp.servers).map(s => s.id + ':' + ids(s.ice) + '/' + ids(s.root)).join(';');
