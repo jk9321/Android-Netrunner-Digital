@@ -3,6 +3,10 @@ import { describe, expect, it } from 'vitest';
 import { GameState, cardDef, executeAction } from '../src/core';
 import { createAgent } from '../src/ai';
 import { tuning } from '../src/ai/synergy';
+import { legacyRanking } from './legacyRanking';
+
+// plan.oneCurrency: these pin the old Corp ranking (tests/legacyRanking.ts)
+legacyRanking(["without the plan the Corp installs first and leaves the tag unused"]);
 
 /**
  * Jeff (2026-11-05): the Corp leaves tags unused. Once the Runner AI played its money resources, the "tag not used"

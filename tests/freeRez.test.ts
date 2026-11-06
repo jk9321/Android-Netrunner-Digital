@@ -7,6 +7,10 @@ import { pendingFreeRezzes } from '../src/ai/freeRez';
 import { tuning } from '../src/ai/synergy';
 import { RATES } from '../src/ai/valueModel';
 import { giveCard, installCorpForTest, installIceForTest, installProgramForTest, newGame } from './helpers';
+import { legacyRanking } from './legacyRanking';
+
+// plan.oneCurrency: these pin the old Corp ranking (tests/legacyRanking.ts)
+legacyRanking(["installs Pharos it cannot pay for while Send a Message waits on the board (ice pacing)", "with Send a Message one advance from scored and 4 credits, installs Pharos first and rezzes it for free"]);
 
 const PALISADE = '30072'; // barrier, rez 3
 const WHITESPACE = '30074'; // code gate

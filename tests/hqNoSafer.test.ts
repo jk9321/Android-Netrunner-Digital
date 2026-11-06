@@ -4,6 +4,10 @@ import { GameState, cardDef, executeAction, findCardAnywhere } from '../src/core
 import { HeuristicCorpAI } from '../src/ai/corpAI';
 import { createAgent } from '../src/ai';
 import { asSide, tuning } from '../src/ai/synergy';
+import { legacyRanking } from './legacyRanking';
+
+// plan.oneCurrency: these pin the old Corp ranking (tests/legacyRanking.ts)
+legacyRanking(["installs Offworld Office behind remote ice and advances it, on Hard"]);
 
 /**
  * Bug report #15 (Jeff, beta 777fe61, You May Fire When Ready vs Kessleroid Isn't Real): the Hard Corp held Offworld

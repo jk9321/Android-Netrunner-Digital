@@ -4,6 +4,10 @@ import { GameState, executeAction } from '../src/core';
 import { createAgent } from '../src/ai';
 import { lethalHqAgenda } from '../src/ai/corpAI';
 import { sideOff, tuning } from '../src/ai/synergy';
+import { legacyRanking } from './legacyRanking';
+
+// plan.oneCurrency: these pin the old Corp ranking (tests/legacyRanking.ts)
+legacyRanking(["gets HQ another layer of ice, and no HQ ice is trashed (Normal and Hard)"]);
 
 /**
  * Jeff's bug report (issue #4, 2026-11-02; Jinteki: Restoring Humanity vs René Arcemont, Hard Corp):

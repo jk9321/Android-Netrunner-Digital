@@ -3,6 +3,10 @@ import { describe, expect, it } from 'vitest';
 import { GameState, actingSide, cardDef, executeAction } from '../src/core';
 import { createAgent } from '../src/ai';
 import { tuning } from '../src/ai/synergy';
+import { legacyRanking } from './legacyRanking';
+
+// plan.oneCurrency: these pin the old Corp ranking (tests/legacyRanking.ts)
+legacyRanking(["scores Offworld Office on turn 3"]);
 
 /**
  * Bug report #17 (Jeff's Corp game 1, 2026-11-05): on turn 3 Jeff moved The Holo Man to Offworld Office's remote,

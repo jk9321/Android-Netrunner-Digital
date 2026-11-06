@@ -8,6 +8,10 @@ import { asSide } from '../src/ai/synergy';
 import { guessHidden } from '../src/ai/runnerReply';
 import { determinize } from '../src/ai/search';
 import { cont, installCorpForTest, newGame, run, startRunnerTurn } from './helpers';
+import { legacyRanking } from './legacyRanking';
+
+// plan.oneCurrency: these pin the old Corp ranking (tests/legacyRanking.ts)
+legacyRanking(["not past one more than the grip"]);
 
 // Additional costs to steal (rules 1.16.10a-b): the Runner may decline them, and can't steal when it can't pay them all
 // (Gemini audit, 2026-11-01; plan.stealCosts)

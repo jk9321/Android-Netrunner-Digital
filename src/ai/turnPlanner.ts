@@ -75,8 +75,10 @@ const sharedPlan: Record<SideCode, PlanMemory> = { corp: { line: [] }, runner: {
  * the same click for fewer credits. The planner tries each first action and plays the rest out with the
  * rule-based ranking, so it could pick the basic click just to steer the rest of the turn (Jeff, 2026-10-30).
  */
-function dominated(state: GameState, action: GameAction, ranked: ScoredAction[]): boolean {
+function dominated(state: GameState, action: GameAction, ranked: ScoredAction[], side: SideCode): boolean {
   if (action.type !== 'GAIN_CREDIT') return false;
+  // plan.oneCurrency: the Corp's ranking and the planner's leaf price the click the same way, so no override (item 1)
+  if (side === 'corp' && tuning.plan.oneCurrency) return false;
   return ranked.some(r => {
     if (r.score === -Infinity || r.action.type !== 'USE_ABILITY' || r.action.abilityIndex !== 0) return false;
     const card = findCardAnywhere(state, r.action.cardInstanceId);
@@ -159,7 +161,7 @@ function playout(start: GameState, side: SideCode, first: GameAction, ai: Planne
     if (outOfClicks && !(tuning.plan.plannerScores && side === 'corp')) break;
     const now = state;
     const ranked = ai.rank(now);
-    const best = ranked.find(r => r.score > -Infinity && r.action.type !== 'END_TURN' && (!outOfClicks || r.action.type === 'SCORE_AGENDA') && !(ran && r.action.type === 'INITIATE_RUN') && !dominated(now, r.action, ranked));
+    const best = ranked.find(r => r.score > -Infinity && r.action.type !== 'END_TURN' && (!outOfClicks || r.action.type === 'SCORE_AGENDA') && !(ran && r.action.type === 'INITIATE_RUN') && !dominated(now, r.action, ranked, side));
     if (!best) break;
     if (!ran) line.push({ key: positionKey(state, side), action: best.action }); // after a run the position can't be foreseen
     const next = step(state, best.action);
@@ -196,7 +198,7 @@ export function planTurn(state: GameState, side: SideCode, ranked: ScoredAction[
     return next.action;
   }
   memory.line = [];
-  const candidates = ranked.filter(r => r.score > -Infinity && r.action.type !== 'END_TURN' && r.action.type !== 'START_TURN' && !dominated(state, r.action, ranked)).slice(0, PLANNER.candidates);
+  const candidates = ranked.filter(r => r.score > -Infinity && r.action.type !== 'END_TURN' && r.action.type !== 'START_TURN' && !dominated(state, r.action, ranked, side)).slice(0, PLANNER.candidates);
   if (candidates.length <= 1 || clicksOf(state, side) <= 0) return null;
   const unfreeze = freezeKnownHand();
   try {

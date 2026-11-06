@@ -32,6 +32,9 @@ const isAgendaOrAsset = (card: CardInstance) => ['agenda', 'asset'].includes(typ
 
 const CLEARINGHOUSE = '30061';
 
+/** The Corp's main-phase actions that cost a click (basic actions, rule 5.2.6b-h; an operation is played with one, 5.2.6e). */
+const CLICK_ACTIONS = new Set<GameAction['type']>(['GAIN_CREDIT', 'DRAW_CARD', 'INSTALL_CARD', 'PLAY_OPERATION_OR_EVENT', 'ADVANCE_CARD', 'PURGE_VIRUS', 'TRASH_RESOURCE']);
+
 /** A Corp asset that pays when the Corp's turn begins, with nothing at the end of the turn before it (plan.turnStartRez). */
 export const turnStartOnly = (card: CardInstance): boolean => {
   const triggers = getCardScript(card.cardCode)?.triggers;
@@ -89,6 +92,11 @@ export class HeuristicCorpAI implements Agent {
     return this.synergy && tuning.plan.agendaTiming;
   }
 
+  /** plan.oneCurrency: every main-phase action ranked by the evaluate delta (oneCurrencyScore). */
+  private get oneCurrency() {
+    return this.synergy && tuning.plan.oneCurrency;
+  }
+
   chooseAction(state: GameState): GameAction {
     return asSide('corp', () => this.decide(state));
   }
@@ -102,9 +110,9 @@ export class HeuristicCorpAI implements Agent {
     let chosen = planned ?? (ranked[0]?.score > -Infinity ? ranked[0].action : legal.find(a => a.type === 'END_TURN') ?? legal[0]);
     // plan.pettyCashFirst: a click for a credit while Petty Cash can still be played is a click for 2 thrown away (the
     // planner valued Petty Cash held in HQ as the money it will make, though it is playable only as the turn's first action)
-    if (chosen.type === 'GAIN_CREDIT' && this.synergy && tuning.plan.pettyCashFirst) chosen = ranked.find(r => isPettyCash(state, r.action) && r.score > -Infinity)?.action ?? chosen;
+    if (chosen.type === 'GAIN_CREDIT' && this.synergy && tuning.plan.pettyCashFirst && !this.oneCurrency) chosen = ranked.find(r => isPettyCash(state, r.action) && r.score > -Infinity)?.action ?? chosen;
     // plan.tagFirst: the planner's leaf counts a tag kept as a trash still to come, but the Runner clears it on its turn
-    if (this.synergy && tuning.plan.tagFirst && ranked[0]?.action.type === 'TRASH_RESOURCE' && ranked[0].tagFirst) chosen = ranked[0].action;
+    if (this.synergy && tuning.plan.tagFirst && !this.oneCurrency && ranked[0]?.action.type === 'TRASH_RESOURCE' && ranked[0].tagFirst) chosen = ranked[0].action;
     // The reverse bluff: at most once a game
     if (chosen.type === 'INSTALL_CARD' && chosen.asNewRemote && state.corp.hq.some(c => c.instanceId === chosen.cardInstanceId && type(c) === 'agenda')) {
       const def = cardDef(state.corp.hq.find(c => c.instanceId === chosen.cardInstanceId)!);
@@ -135,6 +143,8 @@ export class HeuristicCorpAI implements Agent {
     const iceTrash = this.synergy && tuning.plan.iceTrash;
     const ranked = [...legal, ...(iceTrash ? iceTrashInstalls(state) : [])]
       .map(original => {
+        // plan.oneCurrency: the action as the engine plays it (an ice install's trashFirst included), by its evaluate delta
+        if (this.oneCurrency) return { action: original, score: this.oneCurrencyScore(state, original, before) };
         if (original.type === 'INSTALL_CARD' && original.trashFirst?.length) {
           // Score the plain install with the credits it saves, less what the trashed ice was worth
           const trashed = original.trashFirst;
@@ -152,6 +162,7 @@ export class HeuristicCorpAI implements Agent {
         return { action, score };
       })
       .sort((a, b) => b.score - a.score);
+    if (this.oneCurrency) return ranked;
     const first = this.synergy && tuning.plan.pettyCashFirst ? pettyCashFirst(state, ranked) : ranked;
     return this.synergy && tuning.plan.tagFirst ? tagFirst(state, first) : first;
   }
@@ -253,22 +264,59 @@ export class HeuristicCorpAI implements Agent {
     return evaluate(next(after), 'corp', this.synergy) - letIn;
   }
 
+  /**
+   * plan.oneCurrency (structural review item 1, spec "Item 1 spec"): every Corp main-phase action on one scale, the
+   * change in evaluate(state, 'corp') in credits once the action and its own prompts resolve (playScore). No install
+   * points, tiers or reserve penalties: what those covered by hand is now the value model's (agendaWorth with the
+   * server's steal odds, iceWorth only while the Corp can afford the rez, the credit slide against the board's rez need,
+   * centralExposure, advanced assets, an agenda this turn can finish priced as scored). What stays are timing rules,
+   * which say when, not how much: rez windows (rezTimingBlocked, rules 5.6.1b-d, 5.6.2a), ice rezzed only in runs (the
+   * turn's windows rez non-ice cards, 5.6.1b; ice is rezzed as it is approached, 6.9.2b), the free-action loop guard,
+   * terminal operations last, and BANGUN's faceup choice (an identity plan).
+   */
+  private oneCurrencyScore(state: GameState, action: GameAction, before: number): number {
+    const corp = state.corp;
+    switch (action.type) {
+      case 'END_TURN':
+      case 'START_TURN':
+        return -0.5;
+      case 'SCORE_AGENDA':
+        // Scoring costs no click and is no action (rule 1.17.3c), in every scoring window of the turn (5.6.2a), and need
+        // not be done at once (1.17.3b): taken when legal, except while a Dividends advance or a tag would make it worth
+        // more first, when it is scored by its delta (about 0: evaluate prices the finished agenda as scored already)
+        if (this.overAdvance(state, action.cardInstanceId) || this.tagFirst(state, action.cardInstanceId)) return this.playScore(state, action, before, true);
+        return 100;
+      case 'INSTALL_CARD': {
+        if (!corp.hq.some(c => c.instanceId === action.cardInstanceId)) return -Infinity;
+        if (action.faceUp && !tuning.plan.bangunFaceUp) return -Infinity;
+        const server = action.asNewRemote ? null : corp.servers[action.targetServerId ?? ''] ?? null;
+        if (action.faceUp && tuning.plan.bangunNoBareBait && !(server?.ice.length) && state.runner.grip.length > 2 && !(tuning.plan.bangunEarlyBait && state.runner.score <= 2)) return -Infinity;
+        const faceUp = action.faceUp ? (tuning.plan.identities ? -this.bangunBait(state) : 0.5) : 0;
+        return this.playScore(state, action, before) - faceUp;
+      }
+      case 'REZ_CARD': {
+        if (state.activeRun) return -Infinity;
+        const card = Object.values(corp.servers).flatMap(s => s.root).find(c => c.instanceId === action.cardInstanceId);
+        if (!card) return -Infinity; // ice waits for a run (decideRez)
+        if (this.rezTimingBlocked(state, card)) return -Infinity;
+        // Agendas can't be rezzed (rule 3.2.3), traps spring on access, run-timed cards wait for the run's window
+        if (type(card) === 'agenda' || isTrap(card.cardCode) || runTimed(card)) return -Infinity;
+        if (tuning.plan.rezToUse && clickOnly(card)) return this.rezToUse(state, card, before);
+        return this.playScore(state, action, before);
+      }
+      case 'TRASH_RESOURCE':
+        return this.trashScore(state, action, before);
+    }
+    return this.playScore(state, action, before);
+  }
+
   private score(state: GameState, action: GameAction, before: number): number {
     const corp = state.corp;
     switch (action.type) {
       case 'END_TURN':
         return -0.5;
-      case 'TRASH_RESOURCE': {
-        const score = this.playScore(state, action, before);
-        const resource = state.runner.rig.resources.find(c => c.instanceId === action.cardInstanceId);
-        const k = resource ? resourceTrashHqCost(state, resource) : 0;
-        if (!this.synergy || !tuning.plan.hqTrashCost || k === 0 || !resource || !Number.isFinite(score)) return score;
-        // plan.hqTrashCost: the board score took the HQ cards off at the flat worth of a card in hand;
-        // they are the Corp's least useful cards (Sebastião Souza Pessoa, Manuel Lattes de Moura)
-        const size = state.corp.hq.length;
-        const flat = handValue(size, state.corp.handSizeLimit, 'corp') - handValue(size - k, state.corp.handSizeLimit, 'corp');
-        return score + flat - hqTrashCardsLoss(state, resource);
-      }
+      case 'TRASH_RESOURCE':
+        return this.trashScore(state, action, before);
       case 'START_TURN':
         // After rezzing what is worth it, so "when your turn begins" cards fire this turn
         return -0.5;
@@ -317,6 +365,18 @@ export class HeuristicCorpAI implements Agent {
     return this.playScore(state, action, before);
   }
 
+  private trashScore(state: GameState, action: GameAction & { type: 'TRASH_RESOURCE' }, before: number): number {
+    const score = this.playScore(state, action, before);
+    const resource = state.runner.rig.resources.find(c => c.instanceId === action.cardInstanceId);
+    const k = resource ? resourceTrashHqCost(state, resource) : 0;
+    if (!this.synergy || !tuning.plan.hqTrashCost || k === 0 || !resource || !Number.isFinite(score)) return score;
+    // plan.hqTrashCost: the board score took the HQ cards off at the flat worth of a card in hand;
+    // they are the Corp's least useful cards (Sebastião Souza Pessoa, Manuel Lattes de Moura)
+    const size = state.corp.hq.length;
+    const flat = handValue(size, state.corp.handSizeLimit, 'corp') - handValue(size - k, state.corp.handSizeLimit, 'corp');
+    return score + flat - hqTrashCardsLoss(state, resource);
+  }
+
   /**
    * Deck-aware AI (Jeff): an upgrade in a remote with no agenda can be set up
    * in advance, but rezzing it must not eat the money kept for rezzing ice.
@@ -329,7 +389,7 @@ export class HeuristicCorpAI implements Agent {
   }
 
   /** Rezzing a click-only asset (plan.rezToUse): worth it only when its ability is then this AI's next play. */
-  private rezToUse(state: GameState, card: CardInstance): number {
+  private rezToUse(state: GameState, card: CardInstance, before?: number): number {
     if (state.turnStep?.kind === 'corp_turn_start' || rezzingToUse) return -Infinity;
     const after = simulate(state, { type: 'REZ_CARD', player: 'corp', cardInstanceId: card.instanceId });
     if (!after) return -Infinity;
@@ -337,6 +397,8 @@ export class HeuristicCorpAI implements Agent {
     try {
       const best = new HeuristicCorpAI({ synergy: this.synergy, planner: false }).rankMainActions(after)[0];
       if (!best || best.action.type !== 'USE_ABILITY' || best.action.cardInstanceId !== card.instanceId) return -Infinity;
+      // plan.oneCurrency: the rez and the use it leads to, as one delta from before the rez
+      if (before !== undefined) return evaluate(after, 'corp', this.synergy) - before + best.score;
       return best.score;
     } finally {
       rezzingToUse = false;
@@ -345,23 +407,7 @@ export class HeuristicCorpAI implements Agent {
 
   /** Worth of rezzing a card in a server's root on the Corp's own turn. */
   private rezValue(state: GameState, card: CardInstance): number {
-    const corp = state.corp;
-    // A money asset that pays when the Corp's turn begins is rezzed in the window just before then
-    // (rules 5.6.1b-d): it pays at once, and the Runner gets no turn to trash it full (plan.assetRezTiming)
-    if (tuning.plan.assetRezTiming && CARD_PROFILES[card.cardCode]?.every === 'turn' && state.turnStep?.kind !== 'corp_turn_start') return -Infinity;
-    // The same for any asset whose payoff is "when your turn begins" (plan.turnStartRez): rezzed earlier it pays no
-    // sooner, shows the Runner what it is, gives it a turn to trash it and spends credits the Corp's ice may need
-    if (tuning.plan.turnStartRez && turnStartOnly(card) && state.turnStep?.kind !== 'corp_turn_start') return -Infinity;
-    // (Jeff) Spin Doctor: left unrezzed it may draw a run, and is rezzed then for the same draw; or just before the
-    // turn begins. Rezzed in the action phase only when the cards are needed now (digging, or an empty hand);
-    if (tuning.plan.spinDoctorWait && onRezOnly(card) && state.turnStep?.kind !== 'corp_turn_start' && corp.hq.length > 1 && digValue(state, 'corp') <= 0) return -Infinity;
-    // (Jeff's bug report, 2026-10-31; plan.rezWhenUsed) An asset that only pays through a click ability (Humanoid Resources)
-    // is rezzed in the paid ability window just before the action that uses it (rule 5.6.2a): rezzed with fewer clicks
-    // left it does nothing yet, and spends the money a broke Corp needs for Petty Cash or its ice
-    if (tuning.plan.rezWhenUsed && clickOnly(card) && corp.clicks < clickOnly(card)) return -Infinity;
-    // plan.clickMoneyRez (Jeff, 2026-11-04: Regolith rezzed with no clicks left, then trashed before it paid): money
-    // taken with a click is rezzed when a click is left to take it, or in the window just before the turn begins
-    if (tuning.plan.clickMoneyRez && CARD_PROFILES[card.cardCode]?.every === 'click' && corp.clicks < 1 && state.turnStep?.kind !== 'corp_turn_start') return -Infinity;
+    if (this.rezTimingBlocked(state, card)) return -Infinity;
     // (Jeff, 2026-10-31: "it rezzes Humanoid Resources but never seems to use it"; plan.rezToUse) not before the turn
     // begins either, and in the action phase only when using it would then be the best play: rezzed and left, it is
     // just a credit spent and a trash target
@@ -377,10 +423,33 @@ export class HeuristicCorpAI implements Agent {
     return worth > 0 ? ECON_SCALE * worth : -Infinity;
   }
 
-  /** Operations and other plays, scored by the position they lead to. */
-  private playScore(state: GameState, action: GameAction, before: number): number {
+  /** Rez windows for a card in a server's root on the Corp's own turn: true while now is not its time (timing, not worth). */
+  private rezTimingBlocked(state: GameState, card: CardInstance): boolean {
     const corp = state.corp;
-    if (action.type === 'PLAY_OPERATION_OR_EVENT') {
+    // A money asset that pays when the Corp's turn begins is rezzed in the window just before then
+    // (rules 5.6.1b-d): it pays at once, and the Runner gets no turn to trash it full (plan.assetRezTiming)
+    if (tuning.plan.assetRezTiming && CARD_PROFILES[card.cardCode]?.every === 'turn' && state.turnStep?.kind !== 'corp_turn_start') return true;
+    // The same for any asset whose payoff is "when your turn begins" (plan.turnStartRez): rezzed earlier it pays no
+    // sooner, shows the Runner what it is, gives it a turn to trash it and spends credits the Corp's ice may need
+    if (tuning.plan.turnStartRez && turnStartOnly(card) && state.turnStep?.kind !== 'corp_turn_start') return true;
+    // (Jeff) Spin Doctor: left unrezzed it may draw a run, and is rezzed then for the same draw; or just before the
+    // turn begins. Rezzed in the action phase only when the cards are needed now (digging, or an empty hand);
+    if (tuning.plan.spinDoctorWait && onRezOnly(card) && state.turnStep?.kind !== 'corp_turn_start' && corp.hq.length > 1 && digValue(state, 'corp') <= 0) return true;
+    // (Jeff's bug report, 2026-10-31; plan.rezWhenUsed) An asset that only pays through a click ability (Humanoid Resources)
+    // is rezzed in the paid ability window just before the action that uses it (rule 5.6.2a): rezzed with fewer clicks
+    // left it does nothing yet, and spends the money a broke Corp needs for Petty Cash or its ice
+    if (tuning.plan.rezWhenUsed && clickOnly(card) && corp.clicks < clickOnly(card)) return true;
+    // plan.clickMoneyRez (Jeff, 2026-11-04: Regolith rezzed with no clicks left, then trashed before it paid): money
+    // taken with a click is rezzed when a click is left to take it, or in the window just before the turn begins
+    if (tuning.plan.clickMoneyRez && CARD_PROFILES[card.cardCode]?.every === 'click' && corp.clicks < 1 && state.turnStep?.kind !== 'corp_turn_start') return true;
+    return false;
+  }
+
+  /** Operations and other plays, scored by the position they lead to. */
+  private playScore(state: GameState, action: GameAction, before: number, unfiltered = false): number {
+    const corp = state.corp;
+    const one = this.oneCurrency;
+    if (action.type === 'PLAY_OPERATION_OR_EVENT' && !one) {
       const code = corp.hq.find(c => c.instanceId === action.cardInstanceId)?.cardCode;
       // The tag that sets up a waiting Orbital Superiority
       if (this.synergy && tuning.plan.scoreSetup && code && this.tagsBeforeScore(state, code) && simulate(state, action)) return 6;
@@ -392,7 +461,9 @@ export class HeuristicCorpAI implements Agent {
     }
     const after = simulate(state, action);
     if (!after) return -Infinity;
-    const spendsClick = after.corp.clicks < corp.clicks;
+    // plan.oneCurrency: an action is a click action by its type (rule 5.2.6: operations, installs, advances and the basic
+    // actions each cost a click) even when it gives clicks back (Nanomanagement nets +1 and is no free action)
+    const spendsClick = after.corp.clicks < corp.clicks || (one && CLICK_ACTIONS.has(action.type));
     if (!spendsClick && this.freeActions.exhausted) return -Infinity;
     // Follow our own prompts (Predictive Planogram, Seamless Launch) a few steps.
     let resolved = after;
@@ -407,6 +478,8 @@ export class HeuristicCorpAI implements Agent {
       const played = corp.hq.find(c => c.instanceId === action.cardInstanceId);
       if (played && /terminal/i.test(cardDef(played).keywords ?? '')) score -= Math.max(0, corp.clicks - 1) * clickRate('corp');
     }
+    // plan.oneCurrency: the delta alone (a free action still has to gain something, or the loop guard would spin)
+    if (one) return !spendsClick && !unfiltered && score <= 0.3 ? -Infinity : score;
     if (this.synergy) score += this.moneyPlan(state, action);
     // Myōshu: keep the 10 credits once saved, unless the spend scores (its card plan does this when plans are on)
     if (this.synergy && !plansOn() && myoshuSaving(state, true) && resolved.corp.credits < MYOSHU_COST && resolved.corp.score === corp.score) score -= 1;

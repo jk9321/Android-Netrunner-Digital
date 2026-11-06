@@ -8,6 +8,10 @@ import { HeuristicCorpAI, agendaRemoteNeed, fundedDepth, moneyTarget, unrezzedIc
 import { makeRoomInstalls } from '../src/ai/runnerAI';
 import { evaluate } from '../src/ai/evaluate';
 import { installForTest, installIceForTest, installProgramForTest, newGame, startRunnerTurn } from './helpers';
+import { legacyRanking } from './legacyRanking';
+
+// plan.oneCurrency: these pin the old Corp ranking (tests/legacyRanking.ts)
+legacyRanking(["Corp trashes weak ice to install where money is tight, not when it has plenty (rules 8.5.6b)"]);
 
 // Small fixed positions that check the AI's judgement directly, rather than through whole games
 const PALISADE = '30072'; // barrier, end the run

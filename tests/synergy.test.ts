@@ -10,6 +10,10 @@ import { CONDITIONS, CONDITION_PATTERNS, SYNERGY, THEMES, inferSynergy } from '.
 import { newGame } from './helpers';
 import { RunnerMemory, isTrap, serverValue, trapOdds } from '../src/ai/runs';
 import { answerPrompt, taoSwap, untaianPick } from '../src/ai/prompts';
+import { legacyRanking } from './legacyRanking';
+
+// plan.oneCurrency: these pin the old Corp ranking (tests/legacyRanking.ts)
+legacyRanking(["the Corp advances a Dividends agenda past its cost before scoring it", "plays Seamless Launch when it lets an agenda score this turn", "judges Scatter Field where it would go: strong alone, weak behind or in front of other ice", "does not leave an agenda half-advanced over the Runner's turn", "ices R&D before an HQ with nothing worth stealing", "keeps money to rez ice on R&D as well as an agenda remote", "adds a layer where the Runner already breaks the ice", "clicks for credits toward a Hedge Fund it can almost afford", "a full hand of duds still digs for ice, one card past the hand size (plan.digPastLimit)", "sets up upgrades in an empty remote, but does not rez them out of that money"]);
 
 
 describe('synergy tags', () => {

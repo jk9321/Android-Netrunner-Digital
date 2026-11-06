@@ -3,6 +3,10 @@ import { describe, expect, it } from 'vitest';
 import { GameState, cardDef, executeAction } from '../src/core';
 import { createAgent } from '../src/ai';
 import { tuning } from '../src/ai/synergy';
+import { legacyRanking } from './legacyRanking';
+
+// plan.oneCurrency: these pin the old Corp ranking (tests/legacyRanking.ts)
+legacyRanking(["either plan alone scores it (plan.finishSetup ranks the Seamless Launch that lets the turn finish it)"]);
 
 /**
  * Bug report #18 (Jeff's Corp game 2, 2026-11-05): on turn 7 Project Ingatan sat in Remote 1 behind rezzed Tatu-Bola

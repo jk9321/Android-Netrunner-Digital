@@ -5,6 +5,10 @@ import { createCardInstance } from '../src/core/engine/gameState';
 import { newGame } from './helpers';
 import { HeuristicCorpAI } from '../src/ai';
 import { GameState, cardDef } from '../src/core';
+import { legacyRanking } from './legacyRanking';
+
+// plan.oneCurrency: these pin the old Corp ranking (tests/legacyRanking.ts)
+legacyRanking(["Nanomanagement: worth the agenda it lets the Corp score this turn, in points on the clock"]);
 
 describe('value hacks replaced by the model (Jeff, 2026-10-28; plan.modelHacks)', () => {
   it('Ping: its rez tag is worth a tag', () => {

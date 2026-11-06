@@ -3,6 +3,10 @@ import { describe, expect, it } from 'vitest';
 import { GameState, createCardInstance, executeAction, findCardAnywhere } from '../src/core';
 import { createAgent } from '../src/ai';
 import { tuning } from '../src/ai/synergy';
+import { legacyRanking } from './legacyRanking';
+
+// plan.oneCurrency: these pin the old Corp ranking (tests/legacyRanking.ts)
+legacyRanking(["without the plan it rezzed Regolith at the end of the turn"]);
 
 /**
  * Jeff (2026-11-04): the Corp rezzed Regolith Mining License, then never used it before he trashed it, so it was just

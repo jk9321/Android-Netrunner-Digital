@@ -4,6 +4,10 @@ import { GameState, cardDef, createCardInstance, findCardAnywhere } from '../src
 import { HeuristicCorpAI } from '../src/ai/corpAI';
 import { asSide, tuning } from '../src/ai/synergy';
 import { PAYOUT_RISK, bareAssetRisk } from '../src/ai/cardProfiles';
+import { legacyRanking } from './legacyRanking';
+
+// plan.oneCurrency: these pin the old Corp ranking (tests/legacyRanking.ts)
+legacyRanking(["Otto Campaign in a new remote beats a click for a credit, until the Runner has trashed 6 of 7 bare assets", "then an empty iced side remote takes it"]);
 
 /**
  * Bug report #16 (Jeff, beta 38b2a86, Wage Working 9 to 5 vs Trick Shot Zahya): the Hard Corp kept installing money
