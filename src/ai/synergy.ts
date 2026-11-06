@@ -405,6 +405,8 @@ export const tuning = {
     tankNoEtr: true,
     /** 2026-11-06 (same thread): hqNoSafer also applies while HQ holds 2+ agendas, not only after a successful HQ run (corpAI.ts hqNoSafer). */
     hqHeld: true,
+    /** 2026-11-06 (Gemini's decking analysis): agenda odds leave out installed ice and rezzed root cards, which can't be agendas (effectValues.ts countAgendaOdds). */
+    unseenOdds: true,
     plannerRunCredits: true,
     /** Code audit (2026-11-05, from Gemini's second audit): lookahead re-deals keep the R&D cards the Runner remembers where they are, and faceup installed cards as they are (runnerReply.guessHidden, search.determinize). */
     keepKnownRd: true,

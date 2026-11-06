@@ -252,7 +252,12 @@ export function agendaOdds(state: GameState): { odds: number; points: number } {
 function countAgendaOdds(state: GameState): { odds: number; points: number } {
   const corp = sideCards(state, 'corp');
   const agendas = corp.filter(c => cardDef(c).type_code === 'agenda');
-  const unseen = corp.length - state.corp.scoreArea.length - state.runner.scoreArea.length - state.corp.archives.faceUp.length;
+  // plan.unseenOdds (Gemini's decking analysis, 2026-11-06): installed ice (faceup or not, its position shows it is ice)
+  // and rezzed root cards are seen not to be agendas, so they leave the pool too; counted in, they cut late-game odds
+  // to about two thirds (0.16 against 0.22 with 18 cards still hidden)
+  const board = Object.values(state.corp.servers).flatMap(s => [...s.ice, ...s.root.filter(c => c.isRezzed)]);
+  const seen = tuning.plan.unseenOdds ? board.length : 0;
+  const unseen = corp.length - state.corp.scoreArea.length - state.runner.scoreArea.length - state.corp.archives.faceUp.length - seen;
   const left = agendas.length - state.corp.scoreArea.length - state.runner.scoreArea.filter(c => cardDef(c).side_code === 'corp').length;
   const points = agendas.length ? agendas.reduce((n, c) => n + (cardDef(c).agenda_points ?? 0), 0) / agendas.length : 2;
   return { odds: unseen > 0 ? Math.max(0, left) / unseen : 0, points };
