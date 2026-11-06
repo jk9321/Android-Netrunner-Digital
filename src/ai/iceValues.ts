@@ -106,7 +106,10 @@ function iceToll(state: GameState, ice: CardInstance): number {
     : server.id === 'hq' ? PACE.hqShare
     : server.id === 'rd' ? PACE.rdShare
     : server.id === 'archives' ? PACE.archivesShare
-    : server.root.length > 0 ? PACE.remoteShare / Math.max(1, remotes) : 0;
+    : server.root.length > 0 ? PACE.remoteShare / Math.max(1, remotes)
+    // An empty remote with an agenda waiting in HQ is about to hold it (tempo round: building one read -2.5 and the
+    // agenda behind it +8.6, so the planner never looked at the first step)
+    : state.corp.hq.some(c => cardDef(c).type_code === 'agenda') ? PACE.remoteShare / (remotes + 1) : 0;
   const rez = ice.isRezzed ? 1 : rezBudget(state).get(ice.instanceId) ?? 0;
   let turns = 0;
   for (let t = 0; t < turnsLeft(state); t++) turns += LOCKDOWN ** t;

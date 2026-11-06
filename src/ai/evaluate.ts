@@ -12,7 +12,7 @@ import { boardPlansWorth } from './cardPlans';
 import { AI_BREAKER_SHARE, breakerTypeWorth, flatIceWorth, iceWorth } from './iceValues';
 import { payoutWait, payoutWorth, profileOf, turnsLeft } from './cardProfiles';
 import { resourceTrashHqCost } from '../core/engine/actions/basic';
-import { HAND_FLOOR, clickPrice, handByCard, heldWorth, ownHandValue, playedWorth, unseenInHand } from './handValues';
+import { HAND_FLOOR, clickPrice, clickWorth, handByCard, heldWorth, ownHandValue, playedWorth, unseenInHand } from './handValues';
 import { CLICK, KNOBS, RATES, cardRate, creditValue, flatRate, flatlineWorth, guardLoop, handFilter, mean, memo, payoutSlide, pointGain, pointValue, reachCard, sideCreditValue } from './valueModel';
 import { LOCKDOWN, PACE, STEAL, agendaOdds, coreSlotWorth, flatlineOdds, lifeGrip, placedCounterWorth, runSuccess, stealOdds } from './effectValues';
 import { archivedWorth } from './cards';
@@ -311,6 +311,9 @@ export function agendaWorth(
   // plan.oneCurrency (review 2): the advance click is a click like any other, at clickPrice (what this turn's clicks build),
   // not AGENDA_CLICK 2: at 0.75 a click over every other use, ties between an advance and Regolith or Petty Cash went to the money
   const click = tuning.plan.oneCurrency ? clickPrice(state, 'corp', 'corp') : tuning.plan.agendaClicks ? AGENDA_CLICK : CLICK;
+  // plan.oneCurrency (tempo round): the clicks a later turn spends on it come out of a fresh turn, with its own hand and
+  // all three clicks (the fresh-turn rate, about 2: AGENDA_CLICK's bug #18 gap), not this turn's spare click
+  const laterClick = tuning.plan.oneCurrency ? clickWorth(state, 'corp', 'fresh') : click;
   // plan.oneCurrency (review of item 1): a steal is not only the Corp's points lost but the Runner's points won (rule
   // 1.17.3: the Runner adds a stolen agenda to its score area), on the Runner's clock: evaluate is mine minus theirs, so
   // an agenda the Runner may take next turn is charged that chance of its point gain. The old install gates (exposureOk,
@@ -321,7 +324,7 @@ export function agendaWorth(
   // The clicks and credits still to go are paid only while it stands: the advances of this turn now, the rest on the
   // turns after the Runner's (a bare agenda the Runner takes next turn never costs its advances)
   const now = Math.min(need, budget.clicks);
-  return (gain + effect) * (standing * late ** runnerTurns) - stolen - (now + (need - now) * standing) * (click + 1);
+  return (gain + effect) * (standing * late ** runnerTurns) - stolen - now * (click + 1) - (need - now) * standing * (laterClick + 1);
 }
 
 /**
@@ -606,10 +609,13 @@ function heldAgendasWorth(state: GameState, agendas: CardInstance[]): number {
   if (agendas.length === 0) return 0;
   // Held, it is started on a later turn: none of this turn's clicks go to it (so an install now that beats waiting gains)
   // (the credits it will need then are the credit slide's to price, not a shortfall counted in clicks now)
-  const later = { clicks: 0, credits: Infinity };
+  // Tempo round: started next turn, with that turn's 3 clicks (rule 5.6.2: the Corp's 3 clicks), a turn later; until
+  // then it sits in HQ, where centralExposure prices it, not exposed in the remote for the Runner turn in between
+  const later = { clicks: 3, credits: Infinity };
+  const delay = 1 - 1 / turnsLeft(state);
   const worth = (agenda: CardInstance, serverId?: string) => {
     const def = cardDef(agenda);
-    return agendaWorth(state, 0, def.advancement_cost ?? 0, def.agenda_points ?? 1, serverId, undefined, true, later, undefined, scoreEffectWorth(state, agenda));
+    return delay * agendaWorth(state, 0, def.advancement_cost ?? 0, def.agenda_points ?? 1, serverId, undefined, true, later, undefined, scoreEffectWorth(state, agenda));
   };
   // ...in a typical remote, or the best one it could go into now (HQ's own risk is centralExposure's). Keeping it in
   // HQ is always open (and costs nothing beyond that exposure), so it is never worth less than 0: else an agenda no
@@ -624,7 +630,11 @@ function heldAgendasWorth(state: GameState, agendas: CardInstance[]): number {
     placed.set(p.a, p.w);
     used.add(p.sv);
   }
-  return agendas.reduce((n, a) => n + Math.max(0, worth(a), placed.get(a.instanceId) ?? -Infinity), 0);
+  // Tempo round (batch: agendas stuck in HQ +32 a 100 games, 157 with an iced remote ready): a typical remote is one
+  // the Corp has yet to build, an ice and a click away and a turn later, so it counts only at what is left after that;
+  // priced as if it stood, holding matched installing and building the remote gained nothing
+  const build = clickPrice(state, 'corp', 'corp') + RATES.drawnCard;
+  return agendas.reduce((n, a) => n + Math.max(0, (1 - 1 / turnsLeft(state)) * worth(a) - build, placed.get(a.instanceId) ?? -Infinity), 0);
 }
 
 /** The agendas in HQ the deciding Corp has seen (one drawn in a look-ahead is an unknown card). */

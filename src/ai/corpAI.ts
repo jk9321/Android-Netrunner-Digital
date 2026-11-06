@@ -1244,7 +1244,16 @@ export function agendaStakes(state: GameState, agenda: CardInstance): number {
 function finishFirst(state: GameState, ranked: ScoredAction[]): ScoredAction[] {
   const top = ranked[0];
   if (!top || !Number.isFinite(top.score) || top.action.type === 'SCORE_AGENDA' || top.action.type === 'ADVANCE_CARD') return ranked;
-  const at = ranked.findIndex(r => r.action.type === 'ADVANCE_CARD' && Number.isFinite(r.score) && r.score >= top.score - FINISH_TIE && towardFinish(state, r.action.cardInstanceId));
+  // Tempo round (human games): also when the top play leaves the finish in reach. Then advancing first ends the turn in
+  // the same place, and the agenda is done before a prompt, a run or a cut-off playout can stop it; Jeff advanced first
+  const after = simulate(state, top.action);
+  const at = ranked.findIndex(
+    r =>
+      r.action.type === 'ADVANCE_CARD' &&
+      Number.isFinite(r.score) &&
+      towardFinish(state, r.action.cardInstanceId) &&
+      (r.score >= top.score - FINISH_TIE || (!!after && towardFinish(after, r.action.cardInstanceId)))
+  );
   if (at <= 0) return ranked;
   return [ranked[at], ...ranked.slice(0, at), ...ranked.slice(at + 1)];
 }
