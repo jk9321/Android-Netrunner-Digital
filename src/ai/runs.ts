@@ -15,10 +15,10 @@ import { availableCredits, counters, rezCost, stealthCredits, threatLevel, turnF
 import { stealCost } from '../core/engine/actions/run';
 import { spikeKey } from '../core/scripts/liberationRunner';
 import { corpCardValue, tagThreat, tagsWorth } from './evaluate';
-import { agendaOdds, coreDamageWorth, counterWorthOf, damageWorth, runnerEffect } from './effectValues';
+import { agendaOdds, coreDamageWorth, counterWorthOf, damageWorth, flatlineOdds, runnerEffect } from './effectValues';
 import { clickPrice } from './handValues';
 import { tuning } from './synergy';
-import { RATES, clickRate, creditNeed, creditSlide, payoutSlide, pointValue } from './valueModel';
+import { RATES, clickRate, creditNeed, creditSlide, flatlineWorth, payoutSlide, pointValue } from './valueModel';
 
 /**
  * What the Runner AI knows about runs. It only reads public information:
@@ -849,7 +849,12 @@ export function runScore(state: GameState, serverId: string, options: RunOptions
     const redirect = Math.max(...['hq', 'rd'].map(id => serverValue(state, id, 0, options.memory, options.wary)));
     value = Math.max(value, redirect - spendCost(state, 1));
   }
-  if (state.runner.grip.length <= 1) value -= 0.25 * damageWorth(state, 1); // one net damage from flatlining
+  // One net damage from flatlining. plan.emptyGripRuns (2026-11-06, thread "Find why self-play games end decked"): with an
+  // empty grip that damage is a flatline only as often as the Corp has a hit to land (flatlineOdds), not every time; priced as
+  // a sure flatline, every run scored below zero, and a Runner with no cards left in grip or Stack never ran again while the
+  // Corp decked out (rules 4.2.7b, 10.4.4)
+  if (state.runner.grip.length === 0 && tuning.plan.emptyGripRuns) value -= 0.25 * flatlineWorth(state) * flatlineOdds(state, 0);
+  else if (state.runner.grip.length <= 1) value -= 0.25 * damageWorth(state, 1);
   if (value <= 0) return -Infinity;
   let known = 0;
   let expected = 0;
