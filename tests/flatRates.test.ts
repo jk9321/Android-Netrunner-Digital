@@ -52,7 +52,7 @@ describe('the last flat rates from the model (Jeff, 2026-10-28; plan.flatRates)'
   it('core damage: a hand slot for the rest of the game, more against a damage deck (rule 5.5.3b)', () => {
     const s = newGame();
     const limit = s.runner.handSizeLimit ?? 5;
-    const clock = Math.max(0, flatlineOdds(s, limit - 1) - flatlineOdds(s, limit));
+    const clock = Math.max(0, flatlineOdds(s, limit - 1, true) - flatlineOdds(s, limit, true));
     expect(coreSlotWorth(s)).toBeCloseTo(0.5 * cardRate(s, 'runner'));
     expect(coreDamageWorth(s)).toBeCloseTo(coreSlotWorth(s) + flatlineWorth(s) * clock);
     off('coreDamage');

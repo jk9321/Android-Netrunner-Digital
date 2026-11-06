@@ -327,7 +327,13 @@ export function payoutSlide(state: GameState, side: SideCode, viewer: SideCode, 
   if (!tuning.plan.payoutSlide || !tuning.plan.creditSlide?.[viewer] || amount <= 0) return 1;
   const credits = side === 'corp' ? state.corp.credits : state.runner.credits;
   const need = creditNeed(state, side);
-  return (creditSlide(credits + amount, need) - creditSlide(credits, need)) / amount;
+  // plan.liquidity (Jeff, 2026-11-06, his Teia game: the Runner sat on 0-5 credits for 13 turns and never played Sure
+  // Gamble): credits still on a card can't be spent this turn. Priced from the pool in hand, every credit gained made
+  // Telework Contract's credits look less needed: Sure Gamble at 5 credits gained 6.1 in cash, lost 3.5 on the contract
+  // and scored below drawing a card. They sit on the slide from half the need instead, whatever less is in hand, so cash
+  // keeps the broke end of the slide to itself; a bank past the need still slides off.
+  const pool = tuning.plan.liquidity ? Math.max(credits, need / 2) : credits;
+  return (creditSlide(pool + amount, need) - creditSlide(pool, need)) / amount;
 }
 
 /*

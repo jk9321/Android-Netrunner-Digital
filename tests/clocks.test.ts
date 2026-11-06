@@ -25,7 +25,8 @@ describe('the damage clock (Jeff, 2026-10-28; plan.damageClock)', () => {
     const s = newGame();
     s.runner.grip = s.runner.grip.slice(0, 5);
     const roomy = damageWorth(s, 1);
-    s.runner.grip = s.runner.grip.slice(0, 3);
+    // 4 cards, a card above the Corp's biggest hit of 4 (5 and 3 cards sit either side of the clock's middle: as close as 5)
+    s.runner.grip = s.runner.grip.slice(0, 4);
     expect(damageWorth(s, 1)).toBeGreaterThan(roomy);
     expect(roomy).toBeGreaterThan(cardRate(s, 'runner'));
     s.runner.grip = s.runner.grip.slice(0, 1);

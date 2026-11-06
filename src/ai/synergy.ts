@@ -162,6 +162,8 @@ export const tuning = {
     answerCorpChoice: true,
     /** Runner: credits a card will still pay out are priced on the credit slide, like credits in hand (valueModel payoutSlide). */
     payoutSlide: true,
+    /** Runner: credits still on a card (Telework Contract, Fermenter) sit on the credit slide from half the need, not from the cash in hand, so a broke Runner's cash keeps the steep end (valueModel payoutSlide). */
+    liquidity: true,
     /** Runner: cards over the hand size soak up no damage once its clicks are spent (effectValues damageWorth). */
     spareLastClick: true,
     /** Runner: Transfer of Wealth's run is worth the credits it moves (prompts runEventOptions); it was priced as a bare HQ run and never played. */
@@ -355,6 +357,8 @@ export const tuning = {
     counterFormulas: true,
     /** Jeff, 2026-10-28: damage priced on a clock (flatline odds rise as the grip falls below the Corp's biggest hit) and tags by what the Corp can do with them (effectValues.ts, evaluate.ts tagsWorth). */
     damageClock: true,
+    /** Jeff, 2026-11-06 (his Teia game): the damage clock after the Runner's turn leaves out ice, which deals damage only in the Runner's own runs (effectValues damageThreat). */
+    corpTurnDamage: true,
     /** Jeff, 2026-10-28: run-payoff cards (Leech, Conduit, Pennyshaver, Docklands, Red Team, Cacophony) by how open the servers they need are, fading as they lock down (effectValues.ts runSuccess). */
     runOpenness: true,
     /** Vantage Point (2026-10-30): a memory unit is worth more while the programs in the rig and grip want more than the base 4 MU (Hiram's breaker suite), so consoles get installed. */

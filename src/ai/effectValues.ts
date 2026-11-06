@@ -307,13 +307,18 @@ const threats = new Map<string, { burst: number; share: number }>();
  * hit one of its cards can still deal, and the share of its cards that deal
  * damage, from the decklist less what is scored or trashed faceup.
  */
-export function damageThreat(state: GameState): { burst: number; share: number } {
-  const key = `${state.id}:${state.corp.archives.faceUp.length}:${state.corp.scoreArea.length}:${state.runner.scoreArea.length}`;
+export function damageThreat(state: GameState, corpTurn = false): { burst: number; share: number } {
+  // plan.corpTurnDamage (Jeff, 2026-11-06, his Teia game: the Runner held Sure Gamble at 7 credits): on the Corp's turn
+  // ice deals no damage (it hits only in the Runner's own runs, rule 6.9, which damageWorth prices when they happen), so
+  // the clock left after the Runner's turn counts the Corp's other cards only. With ice, Attini, Boto, Cloud Eater and
+  // Empiricist made a 3-damage threat out of a fifth of the deck: playing Sure Gamble from 4 cards cost 6 of flatline odds.
+  const skipIce = corpTurn && !!tuning.plan.corpTurnDamage;
+  const key = `${state.id}:${state.corp.archives.faceUp.length}:${state.corp.scoreArea.length}:${state.runner.scoreArea.length}:${skipIce}`;
   const cached = threats.get(key);
   if (cached) return cached;
   const gone = new Set([...state.corp.archives.faceUp, ...state.corp.scoreArea, ...state.runner.scoreArea].map(c => c.instanceId));
   const live = sideCards(state, 'corp').filter(c => !gone.has(c.instanceId));
-  const hits = live.map(c => cardDamage(c.cardCode)).filter(n => n > 0);
+  const hits = live.filter(c => !skipIce || cardDef(c).type_code !== 'ice').map(c => cardDamage(c.cardCode)).filter(n => n > 0);
   const threat = { burst: hits.length ? Math.max(...hits) : 0, share: live.length ? hits.length / live.length : 0 };
   if (threats.size > 200) threats.clear();
   threats.set(key, threat);
@@ -329,8 +334,8 @@ export function damageThreat(state: GameState): { burst: number; share: number }
 /** Share of damage threats the Corp gets to land. */
 export const FLATLINE_LANDS = 0.5;
 
-export function flatlineOdds(state: GameState, grip: number): number {
-  const { burst, share } = damageThreat(state);
+export function flatlineOdds(state: GameState, grip: number, corpTurn = false): number {
+  const { burst, share } = damageThreat(state, corpTurn);
   if (burst === 0) return 0;
   // The Corp has to draw the card and land the hit (the Runner has to access or encounter it): about half the time when it holds one
   const presence = Math.min(1, 4 * share) * FLATLINE_LANDS;
@@ -353,7 +358,7 @@ export function coreSlotWorth(state: GameState): number {
 export function coreDamageWorth(state: GameState): number {
   if (!flatRate('coreDamage')) return RATES.coreDamage;
   const limit = state.runner.handSizeLimit ?? 5;
-  const clock = tuning.plan.damageClock ? Math.max(0, flatlineOdds(state, limit - 1) - flatlineOdds(state, limit)) : 0;
+  const clock = tuning.plan.damageClock ? Math.max(0, flatlineOdds(state, limit - 1, true) - flatlineOdds(state, limit, true)) : 0;
   return coreSlotWorth(state) + flatlineWorth(state) * clock;
 }
 

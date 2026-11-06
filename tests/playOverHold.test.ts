@@ -66,10 +66,10 @@ function scores(code: string, extra: number): { play: number; credit: number } {
 /**
  * Known gaps (2026-11-05), Runner side; test.fails flags each one once it is fixed, to come off this list:
  * - Wildcat Strike at 2 credits: the Corp picks "draw 4", which leaves the Runner on 0 credits (-1.4 vs 0.1).
- * - Creative Commission on the last click: the card leaving a 3-card grip with no click left to draw back is priced
- *   as about 6 of damage life, more than the 3 extra credits (-6.3 vs -5.1).
+ * (Creative Commission on the last click was one until plan.corpTurnDamage, 2026-11-06: the damage clock counted the
+ * Corp's damage ice, which can't hit on the Corp's turn.)
  */
-const KNOWN_GAPS = new Set(['Wildcat Strike', 'Creative Commission']);
+const KNOWN_GAPS = new Set(['Wildcat Strike']);
 
 describe('playing a money card scores above holding it and clicking for a credit', () => {
   for (const [code, title] of Object.entries(MONEY)) {
