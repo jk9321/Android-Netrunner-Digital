@@ -1,7 +1,8 @@
 import { CardInstance, GameState, activePrompt, cardDef } from '../core';
 import { evaluate } from './evaluate';
 import { answerPrompt, simulate } from './prompts';
-import { BLOCK, iceCost, iceCreditNeed, iceCreditsAhead } from './runs';
+import { BLOCK, iceCost, iceCreditNeed } from './runs';
+import { rezCost } from '../core/engine/cardEffects';
 import { iceStop } from './iceValues';
 import { runLoss } from './corpAI';
 
@@ -11,11 +12,12 @@ import { runLoss } from './corpAI';
  * ability window (rules 6.4.3, 6.9.2b); ice left unrezzed is not encountered and the Runner moves past it (6.9.2c).
  *
  * The run is played out both ways and the boards compared with evaluate, Corp view, with the run over:
- *   pass: the Runner gets in unless the rezzed ice further in already stops it (iceCreditsAhead against its credits).
+ *   pass: the Runner goes on to the ice further in (restOfRun: rezzed ice stops it or takes its toll, and the Corp
+ *         rezzes the unrezzed ice there when that plays out better) and, if nothing stops it, gets in.
  *   rez:  the rez cost on the Corp's credit slide (a broke Corp pays more per credit, and the slide's need counts the
  *         unrezzed ice on centrals and agenda remotes, which is what agendaMoney charged), the ice's worth rezzed
  *         rather than unrezzed (iceWorth), any on-rez effect (Ping's tag); then the ice stops the run if the Runner
- *         can't pay to get past it and the inner ice (iceCreditNeed), or the Runner pays its toll (iceCost) and gets in.
+ *         can't pay to get past it (iceCreditNeed), or the Runner pays its toll (iceCost) and goes on in as above, poorer.
  * Getting in takes the agendas in the root (stolen), the root cards the Runner has the credits left to trash (rules
  * 7.1.5), and on HQ, R&D and Archives the agendas by the odds (runLoss).
  *
@@ -31,26 +33,55 @@ export function modelRezGain(state: GameState, ice: CardInstance, synergy: boole
 /** Both outcomes of modelRezGain, and whether the rez stops the run (undefined: the rez can't be played out). */
 export function modelRezParts(state: GameState, ice: CardInstance, synergy: boolean): { pass: number; rez: number; stops: boolean } | undefined {
   const run = state.activeRun;
-  if (!run) return undefined;
+  if (!run || run.icePosition === null) return undefined;
   let after = simulate(state, { type: 'REZ_CARD', player: 'corp', cardInstanceId: ice.instanceId });
   for (let i = 0; after && i < 3 && activePrompt(after)?.side === 'corp'; i++) after = simulate(after, answerPrompt(after, 'corp', undefined, synergy));
   if (!after?.activeRun) return undefined;
   const rezzed = after.corp.servers[run.server]?.ice.find(c => c.instanceId === ice.instanceId);
   if (!rezzed?.isRezzed) return undefined;
-  const credits = state.runner.credits;
-  const inner = iceCreditsAhead(state);
-  if (inner === BLOCK || inner > credits) {
-    // Stopped further in either way: the rez only changes the board
-    return { pass: evaluate(ended(state), 'corp', synergy), rez: evaluate(ended(after), 'corp', synergy), stops: false };
-  }
-  const pass = gotIn(state, credits - inner, synergy);
+  const pass = restOfRun(state, run.icePosition - 1, synergy);
   const need = iceCreditNeed(after, rezzed);
-  if (need === BLOCK || need + inner > credits) return { pass, rez: evaluate(ended(after), 'corp', synergy), stops: true };
-  // Through: the toll is paid in credits where it can be, the rest (damage, a lost card) at a credit each
-  const toll = Math.min(iceCost(after, rezzed), iceStop(after));
-  const paid = Math.min(Math.max(toll, need), Math.max(0, credits - inner));
-  const poorer: GameState = { ...after, runner: { ...after.runner, credits: after.runner.credits - paid } };
-  return { pass, rez: gotIn(poorer, credits - inner - paid, synergy) + Math.max(0, toll - paid), stops: false };
+  const stops = need === BLOCK || need > after.runner.credits;
+  return { pass, rez: stops ? evaluate(ended(after), 'corp', synergy) : throughIce(after, rezzed, run.icePosition, synergy), stops };
+}
+
+/**
+ * The rest of the run from the ice at `position` inward (-1: the server), Corp view: rezzed ice stops a Runner that
+ * can't pay to get past it (iceCreditNeed) or takes its toll; at unrezzed ice the Corp can afford, the better of
+ * rezzing it and not (it will get that window too: rules 6.4.3, 6.9.2b), so a toll here can set up a stop further in.
+ */
+function restOfRun(state: GameState, position: number, synergy: boolean): number {
+  const server = state.activeRun ? state.corp.servers[state.activeRun.server] : undefined;
+  if (!server || position < 0) return gotIn(state, state.runner.credits, synergy);
+  const ice = server.ice[position];
+  if (!ice) return gotIn(state, state.runner.credits, synergy);
+  if (!ice.isRezzed) {
+    const pass = restOfRun(state, position - 1, synergy);
+    const cost = rezCost(state, ice);
+    if (cost > state.corp.credits) return pass;
+    const rezzed = { ...ice, isRezzed: true };
+    const after: GameState = {
+      ...state,
+      corp: { ...state.corp, credits: state.corp.credits - cost, servers: { ...state.corp.servers, [server.id]: { ...server, ice: server.ice.map((c, i) => (i === position ? rezzed : c)) } } },
+    };
+    return Math.max(pass, atRezzed(after, rezzed, position, synergy));
+  }
+  return atRezzed(state, ice, position, synergy);
+}
+
+function atRezzed(state: GameState, ice: CardInstance, position: number, synergy: boolean): number {
+  const need = iceCreditNeed(state, ice);
+  if (need === BLOCK || need > state.runner.credits) return evaluate(ended(state), 'corp', synergy);
+  return throughIce(state, ice, position, synergy);
+}
+
+/** The Runner pays to get past this rezzed ice (in credits where it can, the rest at a credit each) and goes on in. */
+function throughIce(state: GameState, ice: CardInstance, position: number, synergy: boolean): number {
+  const need = iceCreditNeed(state, ice);
+  const toll = Math.min(iceCost(state, ice), iceStop(state));
+  const paid = Math.min(Math.max(toll, need), Math.max(0, state.runner.credits));
+  const poorer: GameState = { ...state, runner: { ...state.runner, credits: state.runner.credits - paid } };
+  return restOfRun(poorer, position - 1, synergy) + Math.max(0, toll - paid);
 }
 
 const ended = (state: GameState): GameState => ({ ...state, activeRun: null });

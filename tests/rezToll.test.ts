@@ -63,8 +63,8 @@ describe('in-run ice rez (plan.rezToll, plan.modelRez)', () => {
     const { state, ice } = base();
     withPlans({ rezToll: false }, () => expect(choose(state, ice)).toBeNull());
     const parts = asSide('corp', () => modelRezParts(state, ice, true))!;
-    // 1 credit can't pay for both Palisades, so the rez would stop the run: it is the price that says no
-    expect(parts.stops).toBe(true);
+    // The Runner pays its 1 credit here and is stopped by the rezzed Palisade behind: the stop is real, the price says no
+    expect(parts.stops).toBe(false);
     expect(parts.rez).toBeLessThan(parts.pass);
   });
 
@@ -83,6 +83,16 @@ describe('in-run ice rez (plan.rezToll, plan.modelRez)', () => {
     const parts = asSide('corp', () => modelRezParts(state, ice, true))!;
     expect(parts.stops).toBe(false);
     expect(choose(state, ice)).toBeNull();
+  });
+
+  it('rezzes breakable ice on an agenda remote when its toll leaves the Runner short for the ice it can rez behind', () => {
+    const { state, ice } = agendaRemote(8, 3); // 3 credits break one Palisade, not two; 8 rez both
+    const servers = state.corp.servers;
+    const inner = { ...servers.rd.ice[0], instanceId: 'inner-palisade', isRezzed: false }; // an unrezzed Palisade behind it, which the Corp can rez when it gets there
+    const twoDeep: GameState = { ...state, activeRun: { ...state.activeRun!, icePosition: 1 }, corp: { ...state.corp, servers: { ...servers, 'remote-1': { ...servers['remote-1'], ice: [inner, ice] } } } };
+    const parts = asSide('corp', () => modelRezParts(twoDeep, ice, true))!;
+    expect(parts.stops).toBe(false);
+    expect(choose(twoDeep, ice)?.type).toBe('REZ_CARD');
   });
 
   it('does not rez when the rezzed ice further in stops the run already', () => {
