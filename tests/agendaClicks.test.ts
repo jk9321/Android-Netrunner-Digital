@@ -52,12 +52,15 @@ describe('a protected agenda the Corp can finish is scored this turn (plan.agend
     // and on the old turns-left horizon (plan.measuredTurnsLeft, 2026-11-05), which this position was found on: on the
     // measured one the Corp scores it here even without both
     tuning.plan.measuredTurnsLeft = false;
+    // and on the flat 8 credits for ice the Runner can't break yet (plan.breakerReach, 2026-11-06)
+    tuning.plan.breakerReach = false;
     try {
       expect(scoredIngatan(playTurn(position()))).toBe(false);
     } finally {
       tuning.plan.agendaClicks = true;
       tuning.plan.finishSetup = true;
       tuning.plan.measuredTurnsLeft = true;
+      tuning.plan.breakerReach = true;
     }
   }, 30_000);
 });

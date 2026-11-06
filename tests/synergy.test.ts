@@ -367,6 +367,9 @@ describe('planning (setup scoring)', () => {
     expect(advance(new HeuristicCorpAI({ synergy: false }))).toBeGreaterThan(0);
     // With 3 clicks it can get to 2 counters and score next turn: then it commits
     s.corp.clicks = 3;
+    // plan.breakerReach (2026-11-06): with Marjanah in the grip the Runner gets past Palisade for about 6 credits, not a
+    // flat 8, so on 5 credits the agenda would be exposed; on 2 it isn't
+    s.runner.credits = 2;
     expect(advance(new HeuristicCorpAI())).toBeGreaterThan(5);
   });
 

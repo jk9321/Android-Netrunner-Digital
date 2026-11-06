@@ -408,6 +408,8 @@ export const tuning = {
     /** Code audit (2026-11-05, thread "Audit AI code for overlaps and conflicts"): the Runner's draw bonuses for a trap run and for missing breakers stop at the hand size (runnerAI.ts scoreMain). */
     drawCap: true,
     /** Code audit (2026-11-05, from Gemini's second audit): a run the turn planner prices takes the credits its ice needs off the rest of the playout (turnPlanner.ts). */
+    /** Code audit (2026-11-06; Jeff: the flat 8 was a band-aid): in the Corp's entry cost, ice the Runner's rig can't get past costs the cheapest breaker in its deck that could (drawn, installed, used), a wall when none can; other ice isn't capped at 8 (corpAI.ts breakerReach). */
+    breakerReach: true,
     plannerRunCredits: true,
     /** Code audit (2026-11-05, from Gemini's second audit): lookahead re-deals keep the R&D cards the Runner remembers where they are, and faceup installed cards as they are (runnerReply.guessHidden, search.determinize). */
     keepKnownRd: true,

@@ -1,6 +1,6 @@
 import { CardInstance, GameAction, GameState, ServerState, activePrompt, cardDef, findCardAnywhere, getCardDefinition, getCardScript, getLegalActions, isLegalAction } from '../core';
 import { plansOn } from './cardPlans';
-import { iceScript, iceStrength, iceSubroutines, iceSubtypes } from '../core/engine/ice';
+import { iceScript, iceStrength, iceSubroutines, iceSubtypes, isIcebreaker } from '../core/engine/ice';
 import { iceStop, iceWorth, withIceInstalled } from './iceValues';
 import { rigCoverage } from './evaluate';
 import { counters, rezCost } from '../core/engine/cardEffects';
@@ -1049,7 +1049,8 @@ function tankCost(state: GameState, ice: CardInstance): number {
 
 /**
  * What the Runner would pay to get into a server, counting rezzed ice and
- * the unrezzed ice `credits` can still rez (8 for ice they can't break).
+ * the unrezzed ice `credits` can still rez (plan.breakerReach: ice their rig can't break by the
+ * breaker they'd find for it; off, 8).
  */
 function entryCost(state: GameState, server: ServerState, credits: number): number {
   let cost = 0;
@@ -1059,9 +1060,39 @@ function entryCost(state: GameState, server: ServerState, credits: number): numb
       if (rc > credits) continue;
       credits -= rc;
     }
-    cost += Math.min(8, protectionCost(state, { ...ice, isRezzed: true }));
+    const c = protectionCost(state, { ...ice, isRezzed: true });
+    cost += !tuning.plan.breakerReach ? Math.min(8, c) : c === Infinity ? breakerReach(state, { ...ice, isRezzed: true }) : c;
   }
   return cost;
+}
+
+/**
+ * plan.breakerReach (code audit, 2026-11-06; Jeff: the flat 8 was a band-aid): what the Runner pays to get past ice
+ * its rig can't, by the cheapest icebreaker in its deck that could: break it, install it, a click to install and the
+ * clicks to draw it (none from the grip; from the stack the expected draws to the first copy, (n + 1) / (k + 1)).
+ * Infinity when nothing in its grip or stack can: a wall. It reads the Runner's deck, not its order (the Corp knows
+ * the faction's breakers); memory limits aren't checked.
+ */
+export function breakerReach(state: GameState, ice: CardInstance): number {
+  const runner = state.runner;
+  const found = new Map<string, { card: CardInstance; grip: boolean; copies: number }>();
+  for (const [cards, grip] of [[runner.grip, true], [runner.stack, false]] as const) {
+    for (const card of cards) {
+      if (!isIcebreaker(card)) continue;
+      const seen = found.get(card.cardCode);
+      if (!seen) found.set(card.cardCode, { card, grip, copies: grip ? 0 : 1 });
+      else if (!grip && !seen.grip) seen.copies++;
+    }
+  }
+  let best = Infinity;
+  for (const { card, grip, copies } of found.values()) {
+    const trial: GameState = { ...state, runner: { ...runner, rig: { ...runner.rig, programs: [...runner.rig.programs, card] } } };
+    const pass = iceCost(trial, ice);
+    if (pass === Infinity) continue;
+    const draws = grip ? 0 : (runner.stack.length + 1) / (copies + 1);
+    best = Math.min(best, pass + (cardDef(card).cost ?? 0) + (1 + draws) * clickRate('runner'));
+  }
+  return best;
 }
 
 /** An asset whose whole worth is what it does when rezzed (Spin Doctor), not a money asset that pays out. */
