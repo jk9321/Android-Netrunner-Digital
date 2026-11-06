@@ -5,7 +5,7 @@ import { counters, rezCost, turnFlag } from '../core/engine/cardEffects';
 import { PAYOUT_RISK } from './payoutRisk';
 import { abilityUsedKey } from '../core/engine/actions/ability';
 import { cardSynergy } from './synergyTags';
-import { tuning } from './synergy';
+import { planSide, tuning } from './synergy';
 import { corpKeepValue, runnerCardValue } from './cardValues';
 import { countersWorth } from './counterValues';
 import { boardPlansWorth } from './cardPlans';
@@ -172,10 +172,14 @@ function corpCardWorth(card: CardInstance, state: GameState | undefined, viewer:
   const worth = unwaitedCardWorth(card, state, viewer);
   if (state && viewer === 'corp' && tuning.plan.oneCurrency && !card.isRezzed && cardDef(card).type_code !== 'agenda' && !isTrap(card.cardCode)) {
     const cost = rezCost(state, card);
-    // Rezzed worth: a profiled card's worth already nets its printed rez cost, so add that cost back
-    // (it is charged once, below, at the actual rezCost); an unprofiled card uses its rezzed formula.
+    // Rezzed worth: a profiled card at what it pays out once rezzed (payoutWorth, with the risk of its server: a money
+    // asset behind ice waits more safely than a bare one, plan.readAssetTrash); an unprofiled card its rezzed formula.
+    // (Its unrezzed worth, corpKeepValue, nets the printed rez cost; the cost is charged once, below, at the actual rezCost.)
     // Unrezzed = the rezzed worth after one wait (PAYOUT_RISK.wait) less the rez cost still to pay.
-    const rezzed = profileOf(card.cardCode) ? worth + (cardDef(card).cost ?? 0) : corpKeepValue(card.cardCode, state, true);
+    const profile = profileOf(card.cardCode);
+    const rezzed = profile
+      ? unwaitedCardWorth({ ...card, isRezzed: true, tokens: { ...card.tokens, credit: profile.load } }, state, viewer) // loaded on rez
+      : corpKeepValue(card.cardCode, state, true);
     return PAYOUT_RISK.wait * rezzed - cost;
   }
   return worth;
@@ -282,7 +286,9 @@ export function agendaWorth(
   /** The Corp's clicks and credits left for this agenda this turn, once others on the board have theirs (plan.agendaBudget). */
   budget: { clicks: number; credits: number } = state.corp,
   /** The Runner's chance a turn to steal it, when known otherwise (an agenda to go into a new, bare remote: 1). */
-  stealChance?: number
+  stealChance?: number,
+  /** plan.oneCurrency: what its "when you score" effect is worth, on the clock with its points (scoreEffectWorth). */
+  effect = 0
 ): number {
   const gain = pointValue(state.corp.score + points, KNOBS.corpPoints) - pointValue(state.corp.score, KNOBS.corpPoints);
   const need = Math.max(0, cost - counters);
@@ -313,7 +319,7 @@ export function agendaWorth(
   // The clicks and credits still to go are paid only while it stands: the advances of this turn now, the rest on the
   // turns after the Runner's (a bare agenda the Runner takes next turn never costs its advances)
   const now = Math.min(need, budget.clicks);
-  return gain * (standing * late ** runnerTurns) - stolen - (now + (need - now) * standing) * (click + 1);
+  return (gain + effect) * (standing * late ** runnerTurns) - stolen - (now + (need - now) * standing) * (click + 1);
 }
 
 /**
@@ -381,7 +387,7 @@ function corpBoardValue(state: GameState, viewer: SideCode): number {
         continue;
       }
       const def = cardDef(card);
-      if (def.type_code === 'agenda') value += agendaWorth(state, card.advancementCounters, def.advancement_cost ?? 0, def.agenda_points ?? 1, server.id, undefined, false, budgets?.get(card.instanceId));
+      if (def.type_code === 'agenda') value += agendaWorth(state, card.advancementCounters, def.advancement_cost ?? 0, def.agenda_points ?? 1, server.id, undefined, false, budgets?.get(card.instanceId), undefined, viewer === 'corp' ? scoreEffectWorth(state, card) : 0);
       else value += corpCardValue(card, state, viewer) + (tuning.plan.oneCurrency && viewer === 'corp' ? advancedAssetWorth(state, card, server.ice.length > 0) : 0);
     }
   }
@@ -601,7 +607,7 @@ function heldAgendasWorth(state: GameState, agendas: CardInstance[]): number {
   const later = { clicks: 0, credits: Infinity };
   const worth = (agenda: CardInstance, serverId?: string) => {
     const def = cardDef(agenda);
-    return agendaWorth(state, 0, def.advancement_cost ?? 0, def.agenda_points ?? 1, serverId, undefined, true, later);
+    return agendaWorth(state, 0, def.advancement_cost ?? 0, def.agenda_points ?? 1, serverId, undefined, true, later, undefined, scoreEffectWorth(state, agenda));
   };
   // ...in a typical remote, or the best one it could go into now (HQ's own risk is centralExposure's). Keeping it in
   // HQ is always open (and costs nothing beyond that exposure), so it is never worth less than 0: else an agenda no
@@ -700,9 +706,84 @@ export function keepValue(state: GameState, card: CardInstance): number {
  * positions too) agendas are taken as they are.
  */
 let projecting = false;
+let pricingEffect = false;
+/** The last measured on-score worth by card code, for positions where scoring can't be played out (the Runner's turn). */
+const lastEffect = new Map<string, number>();
+
+/**
+ * plan.oneCurrency: what an agenda's "when you score" effect is worth to the Corp (Offworld Office's 7 credits, Send a
+ * Message's free rez, Orbital Superiority's tag), played through the engine: the position with it scored, its prompts
+ * answered, less the same position with it moved to the score area and nothing done. The finish projection already
+ * plays these effects for an agenda the turn can finish, so without this an agenda one turn short (or still in HQ) was
+ * priced without them: Offworld finished now read 9.7 above Send a Message. Only for agendas tagged onScore; on the
+ * Runner's turn (no scoring window, rule 5.6.2a) the last measure of the card.
+ */
+export function scoreEffectWorth(state: GameState, agenda: CardInstance): number {
+  if (!tuning.plan.oneCurrency || pricingEffect) return 0;
+  const def = cardDef(agenda);
+  if (!cardSynergy(def).when?.includes('onScore')) return 0;
+  if (state.corp.score + (def.agenda_points ?? 1) >= 7) return 0; // the win is the points
+  const scorable = state.activePlayer === 'corp' && !state.activeRun && state.pendingPrompts.length === 0 && !state.winner;
+  if (!scorable) return lastEffect.get(agenda.cardCode) ?? 0;
+  // Played out once for what the effect reads (credits, scores, tags, the unrezzed ice a free rez could take), not once per
+  // position: the planner prices thousands of positions a turn that differ only in clicks and installs, and playing the
+  // score out in each made the suite's planner tests time out
+  const unrezzed = Object.values(state.corp.servers).flatMap(sv => sv.ice.filter(c => !c.isRezzed).map(c => c.instanceId)).join();
+  const key = [state.id, state.turnNumber, agenda.instanceId, state.corp.credits, state.corp.score, state.runner.score, state.runner.tags, unrezzed, planSide(), !!tuning.plan.freeRez].join('|');
+  const cached = effectCache.get(key);
+  if (cached !== undefined) return cached;
+  if (effectCache.size > 2000) effectCache.clear();
+  const value = measureScoreEffect(state, agenda, def);
+  effectCache.set(key, value);
+  return value;
+}
+
+const effectCache = new Map<string, number>();
+
+function measureScoreEffect(state: GameState, agenda: CardInstance, def: ReturnType<typeof cardDef>): number {
+  {
+    pricingEffect = true;
+    const wasProjecting = projecting;
+    projecting = true; // no finish projection inside: both sides of the difference as they stand
+    try {
+      const ready = (): { s: GameState; card: CardInstance } => {
+        const s = structuredClone(state);
+        const inHq = s.corp.hq.findIndex(c => c.instanceId === agenda.instanceId);
+        let card: CardInstance;
+        if (inHq >= 0) {
+          [card] = s.corp.hq.splice(inHq, 1);
+          const id = `remote-effect-${agenda.instanceId}`;
+          s.corp.servers[id] = { id, name: id, isRemote: true, ice: [], root: [card] };
+        } else card = Object.values(s.corp.servers).flatMap(sv => sv.root).find(c => c.instanceId === agenda.instanceId)!;
+        card.advancementCounters = def.advancement_cost ?? 0;
+        return { s, card };
+      };
+      const a = ready();
+      let scored = executeAction(a.s, { type: 'SCORE_AGENDA', player: 'corp', cardInstanceId: a.card.instanceId });
+      for (let i = 0; i < 4 && activePrompt(scored)?.side === 'corp'; i++) scored = executeAction(scored, answerPrompt(scored, 'corp', undefined, true));
+      if (activePrompt(scored) || scored.winner) return lastEffect.get(agenda.cardCode) ?? 0;
+      const b = ready();
+      for (const sv of Object.values(b.s.corp.servers)) sv.root = sv.root.filter(c => c.instanceId !== b.card.instanceId);
+      for (const id of Object.keys(b.s.corp.servers)) if (id.startsWith('remote-effect-')) delete b.s.corp.servers[id];
+      for (const id of Object.keys(scored.corp.servers)) if (id.startsWith('remote-effect-') && scored.corp.servers[id].root.length === 0 && scored.corp.servers[id].ice.length === 0) delete scored.corp.servers[id];
+      b.card.advancementCounters = 0;
+      b.card.isRezzed = true;
+      b.s.corp.scoreArea.push(b.card);
+      b.s.corp.score += def.agenda_points ?? 1;
+      const worth = evaluate(scored, 'corp') - evaluate(b.s, 'corp');
+      lastEffect.set(agenda.cardCode, worth);
+      return worth;
+    } catch {
+      return lastEffect.get(agenda.cardCode) ?? 0;
+    } finally {
+      pricingEffect = false;
+      projecting = wasProjecting;
+    }
+  }
+}
 const projections = new WeakMap<GameState, GameState | null>();
 
-function finishedAgendas(state: GameState): GameState | null {
+export function finishedAgendas(state: GameState): GameState | null {
   if (projecting || state.activePlayer !== 'corp' || state.activeRun || state.winner) return null;
   if (projections.has(state)) return projections.get(state)!;
   projecting = true;
@@ -714,7 +795,9 @@ function finishedAgendas(state: GameState): GameState | null {
       if (!next) break;
       s = next;
     }
-    out = s === state ? null : s;
+    // The turn may finish it, not must: kept only when the finished position is worth more than this one as it stands
+    // (a finish that spends Nanomanagement and every credit to score a turn early behind safe ice may not be)
+    out = s === state || evaluate(s, 'corp') <= evaluate(state, 'corp') ? null : s;
   } finally {
     projecting = false;
   }

@@ -2,13 +2,10 @@ import { describe, expect, it } from 'vitest';
 import { PETTY_CASH_REPLAY, iceAdvanceWorth, placedCounterWorth, rezEffectWorth, rezzedWorth, topDownWorth } from '../src/ai/effectValues';
 import { CLICK, RATES } from '../src/ai/valueModel';
 import { createCardInstance } from '../src/core/engine/gameState';
-import { newGame } from './helpers';
+import { installProgramForTest, newGame } from './helpers';
 import { HeuristicCorpAI } from '../src/ai';
 import { GameState, cardDef } from '../src/core';
-import { legacyRanking } from './legacyRanking';
-
-// plan.oneCurrency: these pin the old Corp ranking (tests/legacyRanking.ts)
-legacyRanking(["Nanomanagement: worth the agenda it lets the Corp score this turn, in points on the clock"]);
+import { tuning } from '../src/ai/synergy';
 
 describe('value hacks replaced by the model (Jeff, 2026-10-28; plan.modelHacks)', () => {
   it('Ping: its rez tag is worth a tag', () => {
@@ -71,7 +68,17 @@ describe('the last two hacks on the model (Jeff, 2026-10-28; plan.modelHacks.fin
 
   it('Nanomanagement: worth the agenda it lets the Corp score this turn, in points on the clock', () => {
     const { s, nano } = nanoGame(true);
-    expect(score(s, nano.instanceId)).toBeGreaterThan(credit(s) + 5);
+    if (tuning.plan.oneCurrency) {
+      // plan.oneCurrency (rewritten with the reason, 2026-11-06): the finish is worth what waiting a turn risks. Here the
+      // Runner has no breaker for the rezzed Palisade (steal odds about 5%), so 3 advances now and the last next turn
+      // keep Nanomanagement and its 4 credits for nearly the same points, and the model is close to indifferent. Once the
+      // Runner holds Cleaver and the money to use it, the finish now is the best play on the board.
+      installProgramForTest(s, '30006'); // Cleaver
+      s.runner.credits = 8;
+      const ranked = new HeuristicCorpAI({ planner: false }).rankMainActions(s);
+      expect(ranked[0].action).toMatchObject({ type: 'PLAY_OPERATION_OR_EVENT', cardInstanceId: nano.instanceId });
+      expect(score(s, nano.instanceId)).toBeGreaterThan(credit(s) + 5);
+    } else expect(score(s, nano.instanceId)).toBeGreaterThan(credit(s) + 5);
     expect(score(s, nano.instanceId)).toBeLessThan(40); // a value, not a priority tier
   });
 

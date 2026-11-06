@@ -1,6 +1,7 @@
 import { CardInstance, GameState, ServerState, SideCode, cardDef } from '../core';
 import { rezCost } from '../core/engine/cardEffects';
-import { iceCost } from './runs';
+import { iceSubroutines } from '../core/engine/ice';
+import { AUDREY, iceCost } from './runs';
 import { RATES, guardLoop, memo } from './valueModel';
 import { turnsLeft } from './cardProfiles';
 import { freeRezTargets } from './freeRez';
@@ -52,7 +53,7 @@ export function iceWorth(state: GameState, ice: CardInstance, viewer: SideCode):
 }
 
 function iceWorthOf(state: GameState, ice: CardInstance, viewer: SideCode): number {
-  if (ice.isRezzed) return RATES.ice + Math.min(iceStop(state), iceCost(state, ice));
+  if (ice.isRezzed) return RATES.ice + Math.min(iceStop(state), lastingIceCost(state, ice));
   // The Runner doesn't know what it is: iceCost's guess for unrezzed ice
   if (viewer === 'runner') return RATES.ice + iceCost(state, ice);
   // The Corp knows: what it would cost the Runner once rezzed, held back a little for the rez still to pay, by the
@@ -60,7 +61,30 @@ function iceWorthOf(state: GameState, ice: CardInstance, viewer: SideCode): numb
   const share = tuning.plan.rezBudget
     ? rezBudget(state).get(ice.instanceId) ?? 0
     : state.corp.credits >= rezCost(state, ice) || freeRezTargets(state).has(ice.instanceId) ? REZ_NOW_SHARE : 0;
-  return RATES.ice + share * Math.min(iceStop(state), iceCost(state, { ...ice, isRezzed: true }));
+  return RATES.ice + share * Math.min(iceStop(state), lastingIceCost(state, { ...ice, isRezzed: true }));
+}
+
+/** Credits it takes Audrey v2 to earn back one virus counter: a card trashed while accessing it (a trash cost and the run's click). */
+export const AUDREY_REFILL = 3;
+
+/**
+ * plan.oneCurrency: what it costs the Runner to get past rezzed ice for as long as the ice stays, not this instant. A
+ * breaker that runs on counters it has spent (Audrey v2 short of virus counters) is not gone: it earns one back whenever
+ * the Runner trashes a card it is accessing. Priced as gone, a purge of Audrey's 2 counters made every piece of ice it
+ * broke a full stop for the rest of the game and read +51, above installing an agenda. So the cost is the lower of now
+ * and with the counters this ice takes (one per 2 subroutines) earned back at AUDREY_REFILL each.
+ */
+export function lastingIceCost(state: GameState, ice: CardInstance): number {
+  const now = iceCost(state, ice);
+  if (!tuning.plan.oneCurrency || !ice.isRezzed) return now;
+  const audreys = state.runner.rig.programs.filter(p => p.cardCode === AUDREY);
+  if (audreys.length === 0) return now;
+  const have = Math.max(...audreys.map(p => p.tokens?.virus ?? 0));
+  const uses = Math.max(1, Math.ceil(iceSubroutines(state, ice).length / 2));
+  if (have >= uses) return now;
+  const programs = state.runner.rig.programs.map(p => (p.cardCode === AUDREY ? { ...p, tokens: { ...p.tokens, virus: uses } } : p));
+  const full = iceCost({ ...state, runner: { ...state.runner, rig: { ...state.runner.rig, programs } } }, ice);
+  return Math.min(now, full + (uses - have) * AUDREY_REFILL);
 }
 
 /** Share of an unrezzed ice's rezzed worth the Corp counts while it can pay for the rez now (the rest is the rez still to pay). */
@@ -96,7 +120,7 @@ function countRezBudget(state: GameState): Map<string, number> {
         shares.set(ice.instanceId, REZ_NOW_SHARE);
         continue;
       }
-      waiting.push({ id: ice.instanceId, cost: rezCost(state, ice), stop: Math.min(iceStop(state), iceCost(state, { ...ice, isRezzed: true })) });
+      waiting.push({ id: ice.instanceId, cost: rezCost(state, ice), stop: Math.min(iceStop(state), lastingIceCost(state, { ...ice, isRezzed: true })) });
     }
   }
   waiting.sort((a, b) => b.stop / Math.max(1, b.cost) - a.stop / Math.max(1, a.cost));

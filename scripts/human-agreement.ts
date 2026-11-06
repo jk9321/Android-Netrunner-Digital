@@ -14,8 +14,11 @@
  * Runner games (the AI plays the Corp) are compared the same way from the Runner's side: decisions (runs counted 3
  * times) and turns whose runs and steals match (the servers run, points stolen).
  *
- * Usage: npx vite-node scripts/human-agreement.ts -- [dir] [--agendaClick=2] [--corpPoints=1] [--quiet]
+ * Usage: npx vite-node scripts/human-agreement.ts -- [dir] [--agendaClick=2] [--corpPoints=1] [--quiet] [--dump=file.json]
+ * --dump writes every compared decision (file, turn, clicks left, the human's move, the AI's pick), so two runs (a switch
+ * on and off) can be diffed decision by decision.
  */
+import { writeFileSync } from 'node:fs';
 import { readFileSync, readdirSync } from 'node:fs';
 import { join } from 'node:path';
 import { GameAction, GameState, actingSide, cardDef, createInitialGameState, executeAction, findCardAnywhere } from '../src/core';
@@ -79,6 +82,11 @@ let agreed = 0;
 let turns = 0;
 let turnsMatched = 0;
 const misses: string[] = [];
+const dump: { file: string; turn: number; clicks: number; side: string; human: string; ai: string; w: number; same: boolean }[] = [];
+const describe = (st: GameState, a: GameAction) => {
+  const card = cardOf(st, a);
+  return `${a.type}${card ? ' ' + cardDef(card).title : ''}${'targetServerId' in a && a.targetServerId ? ' @' + a.targetServerId : ''}`;
+};
 for (const file of readdirSync(dir).filter(f => f.endsWith('.json')).sort()) {
   const report = JSON.parse(readFileSync(join(dir, file), 'utf8'));
   if (!report.moves?.length) continue;
@@ -122,6 +130,7 @@ for (const file of readdirSync(dir).filter(f => f.endsWith('.json')).sort()) {
       const w = key(s, move) || key(s, ai) ? 3 : 1;
       weight += w;
       if (same(move, ai)) agreed += w;
+      dump.push({ file, turn: s.turnNumber, clicks, side: human, human: describe(s, move), ai: describe(s, ai), w, same: same(move, ai) });
     }
     const before = s;
     s = executeAction(s, move);
@@ -131,4 +140,5 @@ for (const file of readdirSync(dir).filter(f => f.endsWith('.json')).sort()) {
 }
 
 console.log(`decisions ${((100 * agreed) / Math.max(1, weight)).toFixed(1)}% (weighted, agenda moves and runs x3) | turns ${turnsMatched}/${turns} | agendaClick ${opt('agendaClick') ?? 'default'} corpPoints ${KNOBS.corpPoints}`);
+if (opt('dump')) writeFileSync(opt('dump')!, JSON.stringify(dump, null, 1));
 if (!quiet) for (const m of misses) console.log('  ' + m);

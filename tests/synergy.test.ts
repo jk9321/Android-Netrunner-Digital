@@ -7,7 +7,7 @@ import { ALL_DECKS as DECKS } from '../scripts/nsg-sample-decks';
 import { HeuristicCorpAI, HeuristicRunnerAI, playAIGame } from '../src/ai';
 import { MAX_NUDGE, deckProfile, nudge, opponentProfile, tuning } from '../src/ai/synergy';
 import { CONDITIONS, CONDITION_PATTERNS, SYNERGY, THEMES, inferSynergy } from '../src/ai/synergyTags';
-import { newGame } from './helpers';
+import { installProgramForTest, newGame } from './helpers';
 import { RunnerMemory, isTrap, serverValue, trapOdds } from '../src/ai/runs';
 import { answerPrompt, taoSwap, untaianPick } from '../src/ai/prompts';
 
@@ -287,6 +287,13 @@ describe('planning (setup scoring)', () => {
     s.corp.credits = 5;
     const rank = (ai: HeuristicCorpAI) => ai.rankMainActions(s).find(r => 'cardInstanceId' in r.action && r.action.cardInstanceId === launch.instanceId)!.score;
     // plan.oneCurrency: no score tier (41 = the old finishing tier); the delta of the agenda it finishes puts it first
+    // once waiting is a risk (rewritten 2026-11-06): with the Runner unable to break the rezzed Palisade (steal odds 5%)
+    // the finish a turn later is worth nearly as much, Offworld's 7 credits included, and ice on a bare R&D outranks it;
+    // with Cleaver and the money to use it, the finish now comes first
+    if (tuning.plan.oneCurrency) {
+      installProgramForTest(s, '30006'); // Cleaver
+      s.runner.credits = 8;
+    }
     if (tuning.plan.oneCurrency) expect(new HeuristicCorpAI({ planner: false }).rankMainActions(s)[0].action).toMatchObject({ cardInstanceId: launch.instanceId });
     else expect(rank(new HeuristicCorpAI())).toBeGreaterThanOrEqual(41);
   });

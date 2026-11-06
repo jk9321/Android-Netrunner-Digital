@@ -6,7 +6,9 @@ import { createAgent } from '../src/ai';
 import { asSide, tuning } from '../src/ai/synergy';
 import { legacyRanking } from './legacyRanking';
 
-// plan.oneCurrency: these pin the old Corp ranking (tests/legacyRanking.ts)
+// plan.oneCurrency: OPEN (2026-11-06): the one-currency Corp purges Audrey v2 here (13.9 vs 3.9 for the install, was 51
+// before lastingIceCost). Arguably a fair answer to a Runner walking into HQ on Audrey every turn, but not what the report
+// asks for: pinned to the old ranking until the review thread rules on it
 legacyRanking(["installs Offworld Office behind remote ice and advances it, on Hard"]);
 
 /**

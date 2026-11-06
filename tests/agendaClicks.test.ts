@@ -3,10 +3,7 @@ import { describe, expect, it } from 'vitest';
 import { GameState, cardDef, executeAction } from '../src/core';
 import { createAgent } from '../src/ai';
 import { tuning } from '../src/ai/synergy';
-import { legacyRanking } from './legacyRanking';
 
-// plan.oneCurrency: these pin the old Corp ranking (tests/legacyRanking.ts)
-legacyRanking(["either plan alone scores it (plan.finishSetup ranks the Seamless Launch that lets the turn finish it)"]);
 
 /**
  * Bug report #18 (Jeff's Corp game 2, 2026-11-05): on turn 7 Project Ingatan sat in Remote 1 behind rezzed Tatu-Bola
@@ -60,6 +57,9 @@ describe('a protected agenda the Corp can finish is scored this turn (plan.agend
     tuning.plan.breakerReach = false;
     // and with each unrezzed ice priced against all the Corp's credits (plan.rezBudget, 2026-11-06)
     tuning.plan.rezBudget = false;
+    // and on the old ranking those plans patched (plan.oneCurrency, 2026-11-06: the one-currency Corp scores it on the
+    // finish projection with neither)
+    tuning.plan.oneCurrency = false;
     try {
       expect(scoredIngatan(playTurn(position()))).toBe(false);
     } finally {
@@ -68,6 +68,7 @@ describe('a protected agenda the Corp can finish is scored this turn (plan.agend
       tuning.plan.measuredTurnsLeft = true;
       tuning.plan.breakerReach = true;
       tuning.plan.rezBudget = true;
+      tuning.plan.oneCurrency = true;
     }
   }, 30_000);
 });

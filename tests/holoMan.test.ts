@@ -3,10 +3,7 @@ import { describe, expect, it } from 'vitest';
 import { GameState, actingSide, cardDef, executeAction } from '../src/core';
 import { createAgent } from '../src/ai';
 import { tuning } from '../src/ai/synergy';
-import { legacyRanking } from './legacyRanking';
 
-// plan.oneCurrency: these pin the old Corp ranking (tests/legacyRanking.ts)
-legacyRanking(["scores Offworld Office on turn 3"]);
 
 /**
  * Bug report #17 (Jeff's Corp game 1, 2026-11-05): on turn 3 Jeff moved The Holo Man to Offworld Office's remote,
@@ -35,10 +32,13 @@ describe('The Holo Man advances the agenda it sits with (plan.holoManMove, plan.
   for (const off of ['holoManMove', 'finishSetup'] as const) {
     it(`without plan.${off} it didn't`, () => {
       tuning.plan[off] = false;
+      // plan.finishSetup patched the old ranking; the one-currency Corp finds the finish without it (2026-11-06)
+      if (off === 'finishSetup') tuning.plan.oneCurrency = false;
       try {
         expect(scoredOffice(playTurn())).toBe(false);
       } finally {
         tuning.plan[off] = true;
+        tuning.plan.oneCurrency = true;
       }
     }, 30_000);
   }

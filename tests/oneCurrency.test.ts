@@ -138,14 +138,18 @@ describe('plays that finish an agenda this turn (what finishSetup and operationB
     expect(scoreOf(s, playOf(seamless))).toBeGreaterThan(scoreOf(s, playOf(hedge)));
   });
 
-  it('...and not when it can’t (2 clicks: Seamless Launch and one advance leave it a counter short)', () => {
-    const s = corpTurn(5);
-    s.corp.clicks = 2;
-    installIceForTest(s, PALISADE, 'remote-1');
-    agendaIn(s, 'remote-1');
-    const seamless = giveCard(s, 'corp', SEAMLESS_LAUNCH);
-    const hedge = giveCard(s, 'corp', HEDGE_FUND);
-    expect(scoreOf(s, playOf(seamless))).toBeLessThan(scoreOf(s, playOf(hedge)));
+  it('...and is worth less when it can’t (2 clicks: Seamless Launch and one advance leave it a counter short)', () => {
+    // Two counters for a click and a credit are worth having either way (about Hedge Fund's +4); the finish is what
+    // lifts it. (Once agendaWorth priced Offworld's 7 credits on score before the finish too, the short case rose to
+    // about Hedge Fund's level, so the comparison is between the two positions)
+    const at = (clicks: number) => {
+      const s = corpTurn(5);
+      s.corp.clicks = clicks;
+      installIceForTest(s, PALISADE, 'remote-1');
+      agendaIn(s, 'remote-1');
+      return scoreOf(s, playOf(giveCard(s, 'corp', SEAMLESS_LAUNCH)));
+    };
+    expect(at(3)).toBeGreaterThan(at(2) + 2);
   });
 
   it('Nanomanagement beats Hedge Fund when its 2 clicks finish the agenda', () => {
