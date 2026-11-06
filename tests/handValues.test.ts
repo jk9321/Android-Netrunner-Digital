@@ -13,9 +13,10 @@ describe('cards in hand by what they do (Jeff, 2026-10-28; plan.handByCard)', ()
     const played = playedWorth(s, verbal);
     expect(played).toBeGreaterThan(0);
     expect(heldWorth(s, verbal, 'runner')).toBeCloseTo(SOON.now * played);
-    // Can't afford it yet: worth less while it waits
+    // Can't afford it yet: worth less while it waits (its played worth too is priced at 0 credits: the cards it draws
+    // are worth less to a Runner who can't pay for them, plan.drawWorthCredits)
     s.runner.credits = 0;
-    expect(heldWorth(s, verbal, 'runner')).toBeCloseTo(Math.max(HAND_FLOOR, SOON.later * played));
+    expect(heldWorth(s, verbal, 'runner')).toBeCloseTo(Math.max(HAND_FLOOR, SOON.later * playedWorth(s, verbal)));
   });
 
   it('a card not worth playing is still worth the floor (a card to discard to damage or the limit)', () => {
