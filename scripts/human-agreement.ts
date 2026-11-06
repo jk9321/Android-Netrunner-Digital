@@ -23,6 +23,10 @@ import { deckGameSetup } from '../src/data/decks';
 import { createAgent } from '../src/ai';
 import { setAgendaClick } from '../src/ai/evaluate';
 import { KNOBS } from '../src/ai/valueModel';
+import { applyPlanOff } from '../src/ai/synergy';
+
+// PLAN_OFF=a,b as in the batch scripts (PLAN_OFF=oneCurrency: the old Corp ranking)
+applyPlanOff(process.env.PLAN_OFF ?? '');
 
 const args = process.argv.slice(2).filter(a => a !== '--');
 const dir = args.find(a => !a.startsWith('--')) ?? 'tests/fixtures/human-games';
