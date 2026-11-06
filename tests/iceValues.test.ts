@@ -22,8 +22,12 @@ describe('ice is worth what it costs the Runner to get past (value model step 5)
     const s = newGame();
     installIceForTest(s, PALISADE, 'remote-9', false);
     const ice = s.corp.servers['remote-9'].ice[0];
+    // Rez budget: with no credits it counts at the next-turn share while a turn's income covers the rez, else nothing
     s.corp.credits = 0;
-    expect(iceWorth(s, ice, 'corp')).toBe(1);
+    expect(iceWorth(s, ice, 'corp')).toBeCloseTo(1 + 0.3 * iceStop(s));
+    s.corp.servers['remote-9'].ice[0] = { ...ice, cardCode: '30063' }; // Pharos (7), a costlier ice: out of a turn's reach
+    expect(iceWorth(s, s.corp.servers['remote-9'].ice[0], 'corp')).toBe(1);
+    s.corp.servers['remote-9'].ice[0] = ice;
     s.corp.credits = 10;
     expect(iceWorth(s, ice, 'corp')).toBeCloseTo(1 + 0.6 * iceStop(s));
     expect(iceWorth(s, ice, 'runner')).toBeCloseTo(1 + iceCost(s, ice));
