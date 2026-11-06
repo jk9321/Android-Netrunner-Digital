@@ -305,3 +305,5 @@ Every self-play batch, newest last (Jeff, 2026-10-28). Made with `scripts/corp-l
 | 2026-11-06 | oneClickPrice on (cleanup item 5) | ef1ff4e | 2210 | **38.4%** | 30.2% / 8.1% | 54.6% / 7.1% | 45.8% / 23.8% / 25.4% / 4.9% | 7.1 | [txt](batch-logs/2026-11-06-oneclickprice-on-cleanup-item-5.txt) |
 | 2026-11-06 | oneClickPrice off | ef1ff4e | 2210 | **38.9%** | 29.7% / 9.2% | 54.4% / 6.7% | 46.1% / 23.9% / 25.2% / 4.9% | 6.9 | [txt](batch-logs/2026-11-06-oneclickprice-off.txt) |
 | 2026-11-06 | emptyGripRuns on (branch ai-empty-grip) | e7ef0de | 663 | **38.3%** | 29.1% / 9.2% | 54.1% / 7.5% | 49.1% / 21.9% / 25.0% / 3.9% | 6.9 | [txt](batch-logs/2026-11-06-emptygripruns-on-branch-ai-empty-grip.txt) |
+| 2026-11-06 | item 6: measuredNov6 on (2210) | 7c9f6f1 | 2210 | **38.6%** | 30.6% / 8.0% | 54.6% / 6.7% | 45.2% / 24.5% / 25.5% / 4.8% | 7.1 | [txt](batch-logs/2026-11-06-item-6-measurednov6-on-2210.txt) |
+| 2026-11-06 | item 6: measuredNov6 off (2210) | 7c9f6f1 | 2210 | **39.1%** | 30.5% / 8.6% | 54.2% / 6.7% | 44.9% / 24.3% / 25.7% / 5.1% | 7.1 | [txt](batch-logs/2026-11-06-item-6-measurednov6-off-2210.txt) |
