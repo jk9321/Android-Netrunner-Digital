@@ -18,7 +18,7 @@ import { COUNTER_FORMULAS, COUNTER_WORTH } from './cards';
  */
 
 /** Credits paid out a few at a time on the Corp's turn: a little under face value, since the Runner can trash the asset first. */
-export const PAID_OUT = 0.85;
+export const PAID_OUT = PAYOUT_RISK.wait;
 
 /** By card code: built from the per-set card files (src/ai/cards/), entry `counters`. */
 export { COUNTER_WORTH } from './cards';
@@ -34,7 +34,7 @@ export { COUNTER_WORTH } from './cards';
 export const paidOut = (): number => 1 - 2 * PAYOUT_RISK.corpBare;
 
 /** Average of a list, or a fallback for an empty one. */
-export const mean = (xs: number[], fallback: number): number => (xs.length ? xs.reduce((a, b) => a + b, 0) / xs.length : fallback);
+export { mean } from './valueModel';
 
 /** A recurring credit spent only on some costs: worth a credit if those costs come up before it refills (a turn). */
 export const recurring = (uses: number): number => Math.min(1, uses / 2);
@@ -43,8 +43,8 @@ export const recurring = (uses: number): number => Math.min(1, uses / 2);
 /** Average worth of `n` hosted credits taken 1 a turn: each turn of waiting costs 15%. */
 export function paidOneATurn(n: number): number {
   let total = 0;
-  for (let k = 1; k <= n; k++) total += 0.85 ** k;
-  return n > 0 ? total / n : 0.85;
+  for (let k = 1; k <= n; k++) total += PAID_OUT ** k;
+  return n > 0 ? total / n : PAID_OUT;
 }
 
 export function trojanHostWorth(state: GameState, card: CardInstance, worth: (host: CardInstance) => number): number {

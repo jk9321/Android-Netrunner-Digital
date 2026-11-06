@@ -203,7 +203,8 @@ export function sideCards(state: GameState, side: SideCode): CardInstance[] {
   return all.filter(c => cardDef(c).side_code === side);
 }
 
-const mean = (values: number[], fallback: number) => (values.length > 0 ? values.reduce((a, b) => a + b, 0) / values.length : fallback);
+/** The average of `values`, or `fallback` for none. */
+export const mean = (values: number[], fallback: number): number => (values.length > 0 ? values.reduce((a, b) => a + b, 0) / values.length : fallback);
 const buildTargets = new Map<string, number>();
 
 /**
@@ -271,12 +272,18 @@ export function moneyReach(state: GameState): number {
   return card ? MONEY_REACH * Math.max(0, moneyGain(card) - (tuning.plan.heldMoney ? 1 : 0)) : 0;
 }
 
+/** The credits a card's text gains outright ("Gain N credits" at the start of a sentence), or undefined. */
+export function printedGain(text: string | undefined): number | undefined {
+  const gain = /(?:^|\. )Gain (\d+) credits/.exec(text ?? '');
+  return gain ? Number(gain[1]) : undefined;
+}
+
 /** Net credits a money operation gains when played ("Gain N credits" less its cost), else 0. */
 export function moneyGain(card: CardInstance): number {
   const def = cardDef(card);
   if (def.type_code !== 'operation' && def.type_code !== 'event') return 0;
-  const gain = /(?:^|\. )Gain (\d+) credits/.exec(def.stripped_text ?? '');
-  return gain ? Number(gain[1]) - (def.cost ?? 0) : 0;
+  const gain = printedGain(def.stripped_text);
+  return gain !== undefined ? gain - (def.cost ?? 0) : 0;
 }
 
 /** The money operation in HQ that moneyReach counts: the best net gain the Corp can pay for. */

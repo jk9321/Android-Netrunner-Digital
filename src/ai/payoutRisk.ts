@@ -6,6 +6,11 @@
  * the click it costs is counted against each payout as well.
  */
 export const PAYOUT_RISK = {
+  /**
+   * A credit that comes a turn later, or a few at a time, is worth this much now (step 4): the Runner may trash the
+   * card first. The one 0.85 for payouts, paid-out counters and Petty Cash's replay (code audit cleanup, 2026-11-06).
+   */
+  wait: 0.85,
   /** Taken with a click: worth this much per turn it waits. */
   clickWait: 0.93,
   /** A Corp card trashed by the Runner, per turn: in a remote with ice, and without (other per-turn effects). */

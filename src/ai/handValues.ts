@@ -7,7 +7,7 @@ import { agendaWorth, isOneUse, runnerRigValue } from './evaluate';
 import { counterWorth } from './counterValues';
 import { handPlanWorth } from './cardPlans';
 import { planSide, tuning } from './synergy';
-import { CLICK, RATES, cardRate, flatRate, handFilter, payoutSlide, reachCard, setDeckCard } from './valueModel';
+import { CLICK, RATES, cardRate, flatRate, handFilter, payoutSlide, printedGain, reachCard, setDeckCard } from './valueModel';
 
 /**
  * Cards in hand by what they do (Jeff, 2026-10-28; plan.handByCard). A card
@@ -41,9 +41,9 @@ export function playedWorth(state: GameState, card: CardInstance): number {
       const planned = averaging ? undefined : handPlanWorth(state, card);
       if (planned !== undefined) return planned;
       // Played out when chosen (one-step simulation); in hand, a money card is worth its net gain
-      const gain = (def.stripped_text ?? '').match(/(?:^|\. )Gain (\d+) credits/);
+      const gain = printedGain(def.stripped_text);
       const average = cardRate(state, def.side_code);
-      return gain ? Math.max(average, Number(gain[1]) - cost) : average;
+      return gain !== undefined ? Math.max(average, gain - cost) : average;
     }
     case 'agenda': {
       const points = def.agenda_points ?? 1;

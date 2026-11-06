@@ -33,7 +33,7 @@ export interface CardProfile {
 export { CARD_PROFILES } from './cards';
 
 /** How much a payout is worth per turn it waits (step 4, before plan.payoutRisk). */
-const WAIT = 0.85;
+const WAIT = PAYOUT_RISK.wait;
 
 // PAYOUT_RISK lives in its own file with no imports, so the card files can read it while this one loads
 export { PAYOUT_RISK } from './payoutRisk';

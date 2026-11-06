@@ -1,5 +1,5 @@
 import { CardInstance, GameAction, GameState, ServerState, activePrompt, cardDef, findCardAnywhere, getCardDefinition, getCardScript, getLegalActions, isLegalAction } from '../core';
-import { plansOn } from './cardPlans';
+import { MYOSHU, plansOn } from './cardPlans';
 import { iceScript, iceStrength, iceSubroutines, iceSubtypes, isIcebreaker } from '../core/engine/ice';
 import { iceStop, iceWorth, withIceInstalled } from './iceValues';
 import { rigCoverage } from './evaluate';
@@ -9,7 +9,7 @@ import { stealCost } from '../core/engine/actions/run';
 import { Agent, FreeActionGuard, ScoredAction } from './agent';
 import { agendaWorth, digValue, evaluate, handValue, hqTrashCardsLoss } from './evaluate';
 import { resourceTrashHqCost } from '../core/engine/actions/basic';
-import { clickRate, pointGain, pointValue } from './valueModel';
+import { clickRate, pointGain, pointValue, printedGain } from './valueModel';
 import { PACE, STEAL, accessWorth, agendaOdds } from './effectValues';
 import { answerPrompt, simulate } from './prompts';
 import { asSide, logNudge, nudge, opponentLean, tuning } from './synergy';
@@ -46,8 +46,7 @@ export const turnStartOnly = (card: CardInstance): boolean => {
 export function moneyOpGain(code: string): number | undefined {
   const def = getCardDefinition(code);
   if (def.type_code !== 'operation') return undefined;
-  const gain = /(?:^|\. )Gain (\d+) credits/.exec(def.stripped_text ?? '');
-  return gain ? Number(gain[1]) : undefined;
+  return printedGain(def.stripped_text);
 }
 /** "Dividends N": agenda counters per advancement counter beyond the requirement (0: none). */
 const dividends = (card: CardInstance) => Number(/dividends (\d+)/i.exec(cardDef(card).stripped_text ?? '')?.[1] ?? 0);
@@ -1158,7 +1157,6 @@ export function runLoss(state: GameState): number {
   return loss;
 }
 
-const MYOSHU = '36061';
 const MYOSHU_COST = 10;
 
 /**

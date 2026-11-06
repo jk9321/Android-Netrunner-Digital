@@ -37,7 +37,7 @@ export interface CardPlan {
 export const PRINCIPIA = '35032';
 export const KNICKKNACK = '35033';
 export const BAKER = '36015';
-const MYOSHU = '36061';
+export const MYOSHU = '36061';
 
 const tagged = (state: GameState) => state.runner.tags > 0;
 const corpHas = (state: GameState, codes: string[]) => state.corp.hq.some(c => codes.includes(c.cardCode));

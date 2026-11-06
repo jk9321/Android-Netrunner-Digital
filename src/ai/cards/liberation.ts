@@ -141,7 +141,7 @@ export const LIBERATION: Record<string, CardAI> = {
       const events = Math.min(1, 3 * runnerShare(state, /\brun\b/i, 'event'));
       return (threat(state) >= 4 ? 2 * counterWorthOf(state, code, 'credit') : 0) + perTurn(state, events * counterWorthOf(state, code, 'credit'), 'runner');
     },
-    counters: { credit: () => 0.85 }, // Run credits, with a click-run
+    counters: { credit: () => PAID_OUT }, // Run credits, with a click-run
     // Its click-run can spend its hosted credits
     run: (state?: GameState): RunOptions => ({ bonusCredits: state?.runner.rig.resources.find(c => c.cardCode === '34019')?.tokens.credit ?? 0 }),
   },
@@ -200,7 +200,7 @@ export const LIBERATION: Record<string, CardAI> = {
     value: { rig: 1 },
     // 2 install credits for each trojan picked back up
     runner: (state, code) => perTurn(state, Math.min(1, 4 * runnerShare(state, /trojan/i)) * 0.5 * 2 * counterWorthOf(state, code, 'credit'), 'runner'),
-    counters: { credit: () => 0.85 }, // Install credits
+    counters: { credit: () => PAID_OUT }, // Install credits
   },
   // Bahia Bands (event)
   '34030': {
@@ -339,7 +339,7 @@ export const LIBERATION: Record<string, CardAI> = {
       const keep = Math.max(0.3, perTurn(state, PACE.rezzes * 2 * counterWorthOf(state, code, 'credit'), 'corp') - cost);
       return { keep, econ: keep };
     },
-    counters: { credit: () => 0.85 }, // Install credits, or all taken when trashed
+    counters: { credit: () => PAID_OUT }, // Install credits, or all taken when trashed
   },
   // Tree Line
   '34059': { synergy: { gives: { ice: 1, advance: 1.5 } } },

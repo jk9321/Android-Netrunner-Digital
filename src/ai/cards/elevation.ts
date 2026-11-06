@@ -5,7 +5,7 @@ import { PAYOUT_RISK } from '../payoutRisk';
 import { corpKeepValue } from '../cardValues';
 import { mean, PAID_OUT, paidOut, recurring } from '../counterValues';
 import { actingSide, tuning } from '../synergy';
-import { cardRate, CLICK, handFilter, pointValue, RATES, sideCards } from '../valueModel';
+import { cardRate, CLICK, handFilter, pointValue, printedGain, RATES, sideCards } from '../valueModel';
 import { PRINCIPIA } from '../cardPlans';
 import { accessWorth, anySuccess, counterWorthOf, damageWorth, lock, muWorth, PACE, perTurn } from '../effectValues';
 import type { RunOptions } from '../runs';
@@ -68,8 +68,8 @@ const sericultureAgenda = (): number => 2 * (CLICK + 1);
 /** Embedded Reporting: the best money operation left in R&D as the next draw, over an average draw. */
 function embeddedAgenda(state: GameState): number {
   const gains = state.corp.rd.map(c => {
-    const gain = (cardDef(c).stripped_text ?? '').match(/(?:^|\. )Gain (\d+) credits/);
-    return cardDef(c).type_code === 'operation' && gain ? Number(gain[1]) - (cardDef(c).cost ?? 0) : 0;
+    const gain = printedGain(cardDef(c).stripped_text);
+    return cardDef(c).type_code === 'operation' && gain !== undefined ? gain - (cardDef(c).cost ?? 0) : 0;
   });
   return Math.max(0, Math.max(0, ...gains) - cardRate(state, 'corp'));
 }

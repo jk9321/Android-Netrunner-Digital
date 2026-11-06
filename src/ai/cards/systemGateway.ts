@@ -145,7 +145,7 @@ export const SYSTEM_GATEWAY: Record<string, CardAI> = {
       if (tuning.plan.runOpenness) return muWorth(state) + perTurn(state, PACE.runs * anySuccess(state) * counterWorthOf(state, code, 'credit'), 'runner', 0, Infinity, 1, lock());
       return muWorth(state) + perTurn(state, PACE.runs * PACE.success * counterWorthOf(state, code, 'credit'), 'runner');
     },
-    counters: { credit: () => 0.85 }, // All taken with a click, which adds 1 more
+    counters: { credit: () => PAID_OUT }, // All taken with a click, which adds 1 more
     counterFormulas: { credit: (_s, card) => pennyshaverCredit(card) },
   },
   // Carmen

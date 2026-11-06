@@ -11,7 +11,7 @@ import { AI_BREAKER_SHARE, breakerTypeWorth, flatIceWorth, iceWorth } from './ic
 import { payoutWait, payoutWorth, profileOf, turnsLeft } from './cardProfiles';
 import { resourceTrashHqCost } from '../core/engine/actions/basic';
 import { HAND_FLOOR, clickPrice, handByCard, heldWorth, ownHandValue, playedWorth } from './handValues';
-import { CLICK, KNOBS, RATES, cardRate, creditValue, flatRate, flatlineWorth, guardLoop, handFilter, memo, payoutSlide, pointValue, reachCard, sideCreditValue } from './valueModel';
+import { CLICK, KNOBS, RATES, cardRate, creditValue, flatRate, flatlineWorth, guardLoop, handFilter, mean, memo, payoutSlide, pointValue, reachCard, sideCreditValue } from './valueModel';
 import { PACE, STEAL, coreSlotWorth, flatlineOdds, lifeGrip, runSuccess, stealOdds } from './effectValues';
 import { trashedCardCost } from './runs';
 
@@ -217,7 +217,6 @@ export function hiddenCardOdds(state: GameState): { agenda: number; agendaCost: 
     .filter(def => def.type_code === 'agenda' || def.type_code === 'asset' || def.type_code === 'upgrade');
   const agendas = unseen.filter(def => def.type_code === 'agenda');
   const others = unseen.filter(def => def.type_code !== 'agenda');
-  const mean = (values: number[], fallback: number) => (values.length > 0 ? values.reduce((a, b) => a + b, 0) / values.length : fallback);
   return {
     agenda: unseen.length > 0 ? agendas.length / unseen.length : 0,
     agendaCost: Math.round(mean(agendas.map(def => def.advancement_cost ?? 3), 3)),

@@ -462,7 +462,7 @@ export function placedCounterWorth(state: GameState, card: CardInstance, iced: b
 }
 
 /** Petty Cash comes back from Archives for its 5 credits and the click back: worth its net 2 credits again, a turn later. */
-export const PETTY_CASH_REPLAY = 2 * 0.85;
+export const PETTY_CASH_REPLAY = 2 * PAYOUT_RISK.wait;
 
 /** Top-Down Solutions: 2 cards and up to 2 installs that cost no click, for its click. */
 export function topDownWorth(installable: number, state?: GameState): number {
