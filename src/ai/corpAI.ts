@@ -417,7 +417,11 @@ export class HeuristicCorpAI implements Agent {
     // ranks with the advance that would, and the reserve isn't held against it
     if (this.synergy && tuning.plan.finishSetup && finishable(resolved) > finishable(state)) return Math.max(score, 40);
     if (!spendsClick && score <= 0.3) return -Infinity;
-    score -= reservePenalty(state, resolved.corp.credits, this.wideReserve);
+    // plan.oneRezMoney (code audit cleanup item 7, 2026-11-06): this score is the board's own change, and the board already
+    // prices the Corp's credits on the slide against the rez money its ice needs (valueModel boardNeed). The reserve gap
+    // and the money target, both the same need again, are left to the plays scored without the board; only the money
+    // that keeps an installed agenda's unrezzed ice rezzable (Jeff's rule) is held against it here
+    score -= tuning.plan.oneRezMoney ? agendaMoneyPenalty(state, resolved.corp.credits, this.wideReserve) : reservePenalty(state, resolved.corp.credits, this.wideReserve);
     return score;
   }
 
@@ -1247,9 +1251,12 @@ function reservePenalty(state: GameState, creditsAfter: number, wide = false): n
   if (!wide) return reserve > 0 && state.corp.credits >= reserve && creditsAfter < reserve ? 3 : 0;
   const before = Math.max(0, reserve - state.corp.credits);
   const after = Math.max(0, reserve - creditsAfter);
-  // (Jeff) an installed agenda's unrezzed ice is only protection while the money to rez it is there: don't spend it
-  const agendaMoney = tuning.plan.agendaMoney && creditsAfter < state.corp.credits && creditsAfter < agendaRemoteNeed(state) ? 6 : 0;
-  return agendaMoney + moneyTargetPenalty(state, creditsAfter) + (after > before ? Math.min(3, after - before) : -Math.min(1, 0.4 * (before - after)));
+  return agendaMoneyPenalty(state, creditsAfter, true) + moneyTargetPenalty(state, creditsAfter) + (after > before ? Math.min(3, after - before) : -Math.min(1, 0.4 * (before - after)));
+}
+
+/** (Jeff) an installed agenda's unrezzed ice is only protection while the money to rez it is there: don't spend it. */
+function agendaMoneyPenalty(state: GameState, creditsAfter: number, wide: boolean): number {
+  return wide && tuning.plan.agendaMoney && creditsAfter < state.corp.credits && creditsAfter < agendaRemoteNeed(state) ? 6 : 0;
 }
 
 /**

@@ -54,6 +54,8 @@ describe('a protected agenda the Corp can finish is scored this turn (plan.agend
     tuning.plan.measuredTurnsLeft = false;
     // and on the flat 8 credits for ice the Runner can't break yet (plan.breakerReach, 2026-11-06)
     tuning.plan.breakerReach = false;
+    // and with the reserve still counted on top of the board's own credit slide (plan.oneRezMoney, 2026-11-06)
+    tuning.plan.oneRezMoney = false;
     try {
       expect(scoredIngatan(playTurn(position()))).toBe(false);
     } finally {
@@ -61,6 +63,7 @@ describe('a protected agenda the Corp can finish is scored this turn (plan.agend
       tuning.plan.finishSetup = true;
       tuning.plan.measuredTurnsLeft = true;
       tuning.plan.breakerReach = true;
+      tuning.plan.oneRezMoney = true;
     }
   }, 30_000);
 });
