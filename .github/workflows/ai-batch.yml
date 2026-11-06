@@ -4,7 +4,9 @@ name: AI batch
 # runners so a batch takes minutes instead of an hour. Started by hand:
 # Actions > AI batch > Run workflow, or the API. The summary job's log and
 # artifact hold the same breakdown as scripts/corp-losses.sh; the summary is
-# also committed to the ai-batch-results branch as results/<run id>.txt.
+# also committed to the ai-batch-results branch as results/<run id>.txt, with
+# the per-deal results as results/<run id>.deals.json. base_run pairs this batch
+# with an earlier one on the same deals (paired-summary.mjs).
 on:
   workflow_dispatch:
     inputs:
@@ -50,6 +52,10 @@ on:
         default: ''
       add_run:
         description: Run id of an earlier batch to add in (a top-up sums both); empty for none
+        required: false
+        default: ''
+      base_run:
+        description: Run id of a batch on the same deals to pair against (say the switch off); prints the paired per-deal Corp win diff and SE. Empty for none
         required: false
         default: ''
 
@@ -120,25 +126,52 @@ jobs:
           merge-multiple: true
           run-id: ${{ inputs.add_run }}
           github-token: ${{ github.token }}
+      # The paired base: its saved per-deal results (the deals artifact), or its shards for a batch from before deals were saved
+      - if: inputs.base_run != ''
+        uses: actions/download-artifact@v4
+        with:
+          path: base
+          pattern: deals
+          merge-multiple: true
+          run-id: ${{ inputs.base_run }}
+          github-token: ${{ github.token }}
+      - if: inputs.base_run != '' && hashFiles('base/deals.json') == ''
+        uses: actions/download-artifact@v4
+        with:
+          path: base
+          pattern: shard-*
+          merge-multiple: true
+          run-id: ${{ inputs.base_run }}
+          github-token: ${{ github.token }}
       - name: Sum
         run: |
           [ -d earlier ] && for f in earlier/*.json; do cp "$f" "out/earlier-$(basename "$f")"; done
+          paired=()
+          if [ -f base/deals.json ]; then paired=(--base base/deals.json); elif [ -d base ]; then paired=(--base base/*.json); fi
           {
-            echo "Batch: ${{ inputs.label }} | ref ${{ inputs.ref }} | games ${{ inputs.game_from }}-${{ inputs.games }} | PLAN_OFF=${{ inputs.plan_off }} | decks ${{ inputs.decks }} | ${{ inputs.script }} ${{ inputs.h2h }} | added run ${{ inputs.add_run }}"
-            if [ -f "scripts/${{ inputs.script }}-sum.mjs" ]; then node "scripts/${{ inputs.script }}-sum.mjs" out/*.json; elif [ "${{ inputs.script }}" = pace ]; then node scripts/pace-sum.mjs out/*.json; else node scripts/corp-losses-sum.mjs out/*.json; fi
+            echo "Batch: ${{ inputs.label }} | ref ${{ inputs.ref }} | games ${{ inputs.game_from }}-${{ inputs.games }} | PLAN_OFF=${{ inputs.plan_off }} | decks ${{ inputs.decks }} | ${{ inputs.script }} ${{ inputs.h2h }} | added run ${{ inputs.add_run }} | paired with run ${{ inputs.base_run }}"
+            if [ -f "scripts/${{ inputs.script }}-sum.mjs" ]; then node "scripts/${{ inputs.script }}-sum.mjs" out/*.json; elif [ "${{ inputs.script }}" = pace ]; then node scripts/pace-sum.mjs out/*.json; else DEALS_OUT=deals.json node scripts/corp-losses-sum.mjs out/*.json "${paired[@]}"; fi
           } | tee summary.txt
       - uses: actions/upload-artifact@v4
         with:
           name: summary
           path: summary.txt
+      - if: hashFiles('deals.json') != ''
+        uses: actions/upload-artifact@v4
+        with:
+          name: deals
+          path: deals.json
       - name: Keep the summary on the ai-batch-results branch
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           cp summary.txt /tmp/summary.txt
+          [ -f deals.json ] && cp deals.json /tmp/deals.json
           if git fetch --depth=1 origin ai-batch-results; then git checkout -B ai-batch-results FETCH_HEAD; else git checkout --orphan ai-batch-results && git rm -rqf .; fi
           mkdir -p results
           cp /tmp/summary.txt "results/${{ github.run_id }}.txt"
+          # per-deal results, so a later batch can pair against this one after the artifacts expire
+          [ -f /tmp/deals.json ] && cp /tmp/deals.json "results/${{ github.run_id }}.deals.json"
           git add results
           git commit -qm "Batch ${{ github.run_id }}: ${{ inputs.label }}"
           for i in 1 2 3; do git push origin ai-batch-results && break; git pull --rebase origin ai-batch-results; done

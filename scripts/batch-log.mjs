@@ -14,19 +14,28 @@ const corp = grab(/games: Corp ([\d.]+%)/);
 const ending = name => grab(new RegExp(`${name}: \\d+ \\(([\\d.]+%)\\)`));
 const server = name => grab(new RegExp(`Runner points in Corp losses, by server:[\\s\\S]*?${name}: \\d+ \\(([\\d.]+%)\\)`));
 const credits = grab(/Corp money in Corp losses[\s\S]*?credits at end of turn ([\d.]+)/);
+// Paired vs a base batch on the same deals (corp-losses-sum --base): "+2.1 ± 0.9 (2210)", empty when unpaired
+const paired = text.match(/Paired Corp win diff: ([+-][\d.]+) pts ± ([\d.]+) SE over (\d+) games/);
+const pairedCell = paired ? `${paired[1]} ± ${paired[2]} (${paired[3]})` : '';
 const slug = label.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
 mkdirSync('docs/batch-logs', { recursive: true });
 const full = `docs/batch-logs/${date}-${slug}.txt`;
 copyFileSync(file, full);
 const log = 'docs/ai-batch-log.md';
+const OLD_HEADER = `| Date | Change | Commit | Games | Corp win | Corp wins: points / flatline | Runner wins: points / Corp decked | Runner pts from remote / R&D / HQ / Archives | Corp credits at turn end (losses) | Full |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
+`;
+const HEADER = `| Date | Change | Commit | Games | Corp win | Corp wins: points / flatline | Runner wins: points / Corp decked | Runner pts from remote / R&D / HQ / Archives | Corp credits at turn end (losses) | Full | Paired vs base: Corp win diff ± SE (games) |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
+`;
+// Logs from before the paired column get it added to the header (older rows leave it empty)
+if (existsSync(log) && readFileSync(log, 'utf8').includes(OLD_HEADER)) writeFileSync(log, readFileSync(log, 'utf8').replace(OLD_HEADER, HEADER));
 if (!existsSync(log)) {
   writeFileSync(log, `# AI self-play batch log
 
-Every self-play batch, newest last (Jeff, 2026-10-28). Made with \`scripts/corp-losses.sh 10 normal > out.txt\`, then \`node scripts/batch-log.mjs "<change>" out.txt\`. Noise: about ±2 points of Corp win rate at 2,210 games. Corp loss columns are the share of the Runner's points in Corp losses; full breakdowns (with per-deck win rates from 2026-10-28 on) are in \`docs/batch-logs/\`.
+Every self-play batch, newest last (Jeff, 2026-10-28). Made with \`scripts/corp-losses.sh 10 normal > out.txt\`, then \`node scripts/batch-log.mjs "<change>" out.txt\`. Noise: about ±2 points of Corp win rate at 2,210 games; for an on/off pair, run the second batch with \`--base\` (or the workflow's base_run) and read the paired column, where a diff under 2 SE is noise. Corp loss columns are the share of the Runner's points in Corp losses; full breakdowns (with per-deck win rates from 2026-10-28 on) are in \`docs/batch-logs/\`.
 
-| Date | Change | Commit | Games | Corp win | Corp wins: points / flatline | Runner wins: points / Corp decked | Runner pts from remote / R&D / HQ / Archives | Corp credits at turn end (losses) | Full |
-| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
-`);
+${HEADER}`);
 }
-appendFileSync(log, `| ${date} | ${label} | ${commit} | ${games} | **${corp}** | ${ending('corp corp points')} / ${ending('corp flatline')} | ${ending('runner runner points')} / ${ending('runner corp decked')} | ${server('remote')} / ${server('rd')} / ${server('hq')} / ${server('archives')} | ${credits} | [txt](batch-logs/${full.split('/').pop()}) |\n`);
-console.log(`logged ${label}: Corp ${corp}`);
+appendFileSync(log, `| ${date} | ${label} | ${commit} | ${games} | **${corp}** | ${ending('corp corp points')} / ${ending('corp flatline')} | ${ending('runner runner points')} / ${ending('runner corp decked')} | ${server('remote')} / ${server('rd')} / ${server('hq')} / ${server('archives')} | ${credits} | [txt](batch-logs/${full.split('/').pop()}) | ${pairedCell} |\n`);
+console.log(`logged ${label}: Corp ${corp}${pairedCell ? `, paired ${pairedCell}` : ''}`);

@@ -1,11 +1,22 @@
 // Prints the Corp loss breakdown from scripts/corp-losses.ts shards (see corp-losses.sh).
-import { readFileSync } from 'node:fs';
+//   node scripts/corp-losses-sum.mjs out/*.json [--base base/*.json]
+// --base: another batch on the same deals (say the switch off); prints the paired per-deal
+// difference first (paired-summary.mjs). The base can be shard files or a saved deals file.
+// DEALS_OUT=file saves this batch's per-deal results (seed, decks, winner, alarm kinds) for later pairing.
+import { writeFileSync } from 'node:fs';
 import { printLossSummary } from './loss-summary.mjs';
+import { printPaired, readGames, splitArgs } from './paired-summary.mjs';
 
-const games = process.argv.slice(2).flatMap(f => {
-  const lines = readFileSync(f, 'utf8').trim().split('\n');
-  return JSON.parse(lines[lines.length - 1]);
-});
+const { files, base } = splitArgs(process.argv.slice(2));
+const games = readGames(files);
+if (process.env.DEALS_OUT) {
+  const deals = games.map(g => ({ seed: g.seed, corpDeck: g.corpDeck, runnerDeck: g.runnerDeck, winner: g.winner, ...(g.crashed ? { crashed: true } : {}), ...(g.alarms?.length ? { alarms: g.alarms.map(a => ({ kind: a.kind })) } : {}) }));
+  writeFileSync(process.env.DEALS_OUT, JSON.stringify(deals) + '\n');
+}
+if (base.length) {
+  printPaired(games, readGames(base));
+  console.log('');
+}
 printLossSummary(games);
 
 // Win rate for each deck, for the batch log

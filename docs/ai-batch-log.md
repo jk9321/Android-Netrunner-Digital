@@ -1,6 +1,6 @@
 # AI self-play batch log
 
-Every self-play batch, newest last (Jeff, 2026-10-28). Made with `scripts/corp-losses.sh 10 normal > out.txt`, then `node scripts/batch-log.mjs "<change>" out.txt`. Noise: about ±2 points of Corp win rate at 2,210 games. Corp loss columns are the share of the Runner's points in Corp losses; full breakdowns (with per-deck win rates from 2026-10-28 on) are in `docs/batch-logs/`.
+Every self-play batch, newest last (Jeff, 2026-10-28). Made with `scripts/corp-losses.sh 10 normal > out.txt`, then `node scripts/batch-log.mjs "<change>" out.txt`. Noise: about ±2 points of Corp win rate at 2,210 games; for an on/off pair, run the second batch with `--base` (or the workflow's base_run) and read the paired column, where a diff under 2 SE is noise. Corp loss columns are the share of the Runner's points in Corp losses; full breakdowns (with per-deck win rates from 2026-10-28 on) are in `docs/batch-logs/`.
 
 | Date | Change | Commit | Games | Corp win | Corp wins: points / flatline | Runner wins: points / Corp decked | Runner pts from remote / R&D / HQ / Archives | Corp credits at turn end (losses) | Full |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
