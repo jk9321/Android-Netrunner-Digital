@@ -40,6 +40,11 @@ export const PACE = {
   conduitRdShare: 0.19,
   /** Share of runs that succeed. */
   success: 0.8,
+  /**
+   * Runner turns that breach Archives while it holds facedown cards (plan.measuredNov6; 10.4% of 1,471 such turns in
+   * 221 games at beta 34391e2, scripts/pace.ts): twice the average Archives run rate, as the Runner goes where cards are.
+   */
+  facedownBreach: 0.1,
   /** Turns the Runner steals or trashes a Corp card, and trashes something it pays for. */
   stealOrTrash: 0.35,
   paidTrashes: 0.3,
@@ -67,6 +72,25 @@ for (const key of Object.keys(RUN_SHARES) as (keyof typeof RUN_SHARES)[]) {
   let set: number | undefined; // a test's own pace (tests/runBudget.test.ts)
   Object.defineProperty(PACE, key, {
     get: () => set ?? (tuning.plan.measuredRunShares ? RUN_SHARES[key] : old),
+    set: (v: number) => (set = v),
+    enumerable: true,
+  });
+}
+
+/**
+ * plan.measuredNov6 (code audit cleanup item 6, 2026-11-06): the pace re-measured on beta 34391e2 with scripts/pace.ts,
+ * 2,210 games, 31,878 Runner turns (docs/batch-logs/2026-11-06-pace-report-beta-34391e2.txt): 1.01 runs a turn (was
+ * 1.2), 77% of them successful (0.8), 0.31 agendas scored or stolen a Runner turn (0.34). Ice rezzed a turn (0.40) and
+ * an advanced remote agenda run that turn (41.6%, AGENDA_RUN 0.4) still match. The run shares stay on run-odds'
+ * measure (plan.measuredRunShares). An agenda discarded to Archives is priced on PACE.facedownBreach, not the average
+ * Archives run (evaluate.ts archivedAgendaLoss).
+ */
+const PACE_NOV6 = { runs: 1.01, success: 0.77, agendaEvents: 0.31 };
+for (const key of Object.keys(PACE_NOV6) as (keyof typeof PACE_NOV6)[]) {
+  const old = PACE[key];
+  let set: number | undefined;
+  Object.defineProperty(PACE, key, {
+    get: () => set ?? (tuning.plan.measuredNov6 ? PACE_NOV6[key] : old),
     set: (v: number) => (set = v),
     enumerable: true,
   });

@@ -29,6 +29,9 @@ const stats = {
   /** Runner turns with Conduit installed, and runs on R&D / all runs on those turns. */
   conduitRuns: 0,
   conduitRdRuns: 0,
+  /** Runner turns that began with facedown cards in Archives, and how many of those turns ran Archives successfully (archivedAgendaLoss). */
+  facedownTurns: 0,
+  facedownBreach: 0,
   /** Agendas scored or stolen, and ice rezzed, in all (per Runner turn: divide by runnerTurns). */
   agendaEvents: 0,
   rezzes: 0,
@@ -66,6 +69,10 @@ for (const c of DECKS.filter(d => d.side === 'corp')) for (const r of DECKS.filt
         if (targets.length) {
           stats.agendaRemoteTurns++;
           if (runs.some(run => targets.includes(run.server))) stats.agendaRemoteRun++;
+        }
+        if (start.corp.archives.faceDown.length) {
+          stats.facedownTurns++;
+          if (runs.some(run => run.server === 'archives' && run.successful)) stats.facedownBreach++;
         }
         if (start.runner.rig.programs.some(p => p.cardCode === '30024')) {
           stats.conduitRuns += runs.length;
