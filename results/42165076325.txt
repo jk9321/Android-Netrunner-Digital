@@ -1,0 +1,92 @@
+Batch: gemini check: tankProtection off (deck-outs) | ref 34391e20868be04b5c5739d8e9d5fa4853ad34dc | games 0-3 | PLAN_OFF=tankProtection | decks  | deck-outs corp | added run 
+663 games, Corp decked in 16 (2.4%)
+
+Decked by Corp deck:
+  Brutal Efficiency (44 cards): 7 of 39 (17.9%)
+  The Syndicate (starter) (34 cards): 4 of 39 (10.3%)
+  Discretion Advised (44 cards): 1 of 39 (2.6%)
+  Peculiarity (49 cards): 1 of 39 (2.6%)
+  Fine Print (44 cards): 1 of 39 (2.6%)
+  Gimbatul (49 cards): 1 of 39 (2.6%)
+  Pork Chops (49 cards): 1 of 39 (2.6%)
+
+Decked by Runner deck:
+  The Catalyst (starter): 3 of 51 (5.9%)
+  Bowel Movements: 3 of 51 (5.9%)
+  Shootin’ ‘n’ Lootin’: 2 of 51 (3.9%)
+  Prick Thyself: 2 of 51 (3.9%)
+  Professional Opportunities: 2 of 51 (3.9%)
+  Sabbatical: 1 of 51 (2.0%)
+  Enthusiasm: 1 of 51 (2.0%)
+  Party Hard: 1 of 51 (2.0%)
+  Dashing Mad: 1 of 51 (2.0%)
+
+(means)                                       decked   other
+  Corp turns                                   24.56   13.83
+  Corp click draws a game                       8.44    3.65
+    share of Corp clicks                        0.13    0.09
+  Corp click draws with R&D at 10 or less       2.69    0.10
+  Corp credit clicks a game                    13.75    6.60
+  Corp turns started with an agenda in HQ      16.06    9.20
+    share of Corp turns                         0.65    0.69
+  most agendas in HQ at once                    3.38    2.46
+  agendas in HQ at the end                      2.50    0.81
+  agendas installed at the end                  0.69    0.13
+  Corp credits at the end                       4.94    4.45
+  Corp last 3 turns: draws                      0.44    0.62
+  Corp last 3 turns: credit clicks              2.00    1.41
+  Corp last 3 turns: advances                   1.38    2.95
+  Corp last 3 turns: installs                   2.25    2.65
+  Corp score                                    3.75    4.12
+  Runner score                                  5.19    6.04
+  Runner runs a turn                            0.76    0.89
+  Runner last 3 turns: runs                     1.75    2.59
+  Runner last 3 turns: credit clicks            5.69    2.07
+  Runner last 3 turns: draws                    0.81    2.31
+  Runner credits at the end                    18.00    5.95
+  Runner Stack empty at the end                 0.69    0.13
+  Runner grip at the end                        2.81    4.19
+
+Other games at least as long as the shortest decked one (95):
+  Corp turns                                   22.24
+  Corp click draws a game                       4.95
+    share of Corp clicks                        0.08
+  Corp click draws with R&D at 10 or less       0.42
+  Corp credit clicks a game                    12.84
+  Corp turns started with an agenda in HQ      14.26
+    share of Corp turns                         0.64
+  most agendas in HQ at once                    2.71
+  agendas in HQ at the end                      1.13
+  agendas installed at the end                  0.09
+  Corp credits at the end                       4.99
+  Corp last 3 turns: draws                      0.58
+  Corp last 3 turns: credit clicks              1.56
+  Corp last 3 turns: advances                   2.99
+  Corp last 3 turns: installs                   2.26
+  Corp score                                    5.93
+  Runner score                                  6.07
+  Runner runs a turn                            0.72
+  Runner last 3 turns: runs                     2.44
+  Runner last 3 turns: credit clicks            2.69
+  Runner last 3 turns: draws                    1.40
+  Runner credits at the end                    11.94
+  Runner Stack empty at the end                 0.54
+  Runner grip at the end                        3.53
+
+Decked deals (seed turns score C-R, HQ agendas at end, Runner last-3 runs / credit clicks / bank):
+  1001 T21 5-6 hq0 runs0 cc12 bank 13/17/21 stack0 | The Syndicate (starter) vs The Catalyst (starter)
+  1651 T23 0-5 hq6 runs1 cc5 bank 16/22/15 stack0 | Brutal Efficiency vs The Catalyst (starter)
+  1141 T28 4-6 hq2 runs0 cc5 bank 9/15/22 stack0 | Discretion Advised vs Party Hard
+  2261 T29 6-6 hq3 runs0 cc12 bank 25/29/33 stack0 | Peculiarity vs Professional Opportunities
+  2472 T26 4-4 hq3 runs5 cc3 bank 5/7/1 stack0 | Fine Print vs Bowel Movements
+  2691 T26 4-6 hq4 runs3 cc6 bank 12/11/9 stack0 | Gimbatul vs The Catalyst (starter)
+  1692 T24 2-6 hq4 runs3 cc5 bank 13/6/6 stack0 | Brutal Efficiency vs Bowel Movements
+  1693 T25 5-6 hq1 runs3 cc8 bank 7/14/18 stack0 | Brutal Efficiency vs Bowel Movements
+  1701 T24 0-4 hq4 runs3 cc1 bank 11/14/22 stack28 | Brutal Efficiency vs Dashing Mad
+  1711 T25 6-2 hq3 runs3 cc1 bank 12/14/20 stack0 | Brutal Efficiency vs Prick Thyself
+  1081 T20 3-6 hq1 runs1 cc9 bank 0/0/4 stack0 | The Syndicate (starter) vs Shootin’ ‘n’ Lootin’
+  1083 T22 5-6 hq0 runs1 cc7 bank 6/9/6 stack5 | The Syndicate (starter) vs Shootin’ ‘n’ Lootin’
+  3012 T35 4-6 hq2 runs0 cc9 bank 54/60/66 stack0 | Pork Chops vs Prick Thyself
+  1742 T26 5-4 hq2 runs0 cc2 bank 7/6/5 stack24 | Brutal Efficiency vs Professional Opportunities
+  1762 T24 6-4 hq2 runs2 cc6 bank 0/3/2 stack14 | Brutal Efficiency vs Enthusiasm
+  1123 T21 1-6 hq3 runs3 cc0 bank 11/11/7 stack2 | The Syndicate (starter) vs Sabbatical
