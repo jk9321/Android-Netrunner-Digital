@@ -22,6 +22,7 @@ Android: Netrunner digital game (React + TypeScript + Vite, Cloudflare Worker ho
 ## Commands
 - `npm test` (vitest run), `npm run lint` (eslint), `npm run typecheck` (tsc --noEmit), `npm run build` (tsc && vite build), `npm run test:e2e` (Playwright smoke).
 - CI (`.github/workflows/ci.yml`) runs typecheck, lint and test on main and beta. Run all three before pushing.
+- After every push to `main` or `beta`, check that push's CI run yourself (a PostToolUse hook, `.claude/hooks/ci-after-push.mjs`, reminds you) and fix failures before finishing; don't wait for Jeff to report them. Ignore `ai-batch-results` and other branch builds.
 - vitest 5 and eslint 10. `vite-node` is pinned at 3.2.4 on purpose: the AI batch scripts (`npx vite-node scripts/*.ts`) need it; don't bump it until vite itself is upgraded.
 - Card data: `npm run sync-cards`. Ban lists: `node scripts/print-banlist.mjs`.
 - Never mutate a game state after `isLegalAction`/`getLegalActions` (legality is cached per state in a WeakMap); tests edit a `structuredClone`.
