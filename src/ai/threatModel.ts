@@ -5,7 +5,7 @@ import { unseenInHand } from './handValues';
 import { BLOCK, RunnerMemory, iceCost, runClick, runCreditSpend, runScore, serverValue } from './runs';
 import { asSide, sideOff, tuning } from './synergy';
 import { fingerprint, memo, pointGain, sideCreditValue } from './valueModel';
-import { plan, pricing, withPricing } from './pricing';
+import { effectivePlan, plan, pricing, withPricing } from './pricing';
 
 /**
  * The Corp's threat model (structural review item 3, 2026-11-07; plan.threatModel): where the Runner will run on its
@@ -171,8 +171,8 @@ function threatKey(state: GameState): string {
 let planSig: { plan: unknown; json: string } | null = null;
 const planKey = (): string => {
   // The Corp's plan as it is now (tests flip switches in place, so the object alone won't do), with the Runner's own list
-  const json = JSON.stringify(plan()) + JSON.stringify(sideOff.runner) + tuning.wary;
-  if (planSig?.json !== json) planSig = { plan: plan(), json };
+  const json = JSON.stringify(effectivePlan()) + JSON.stringify(sideOff.runner) + tuning.wary;
+  if (planSig?.json !== json) planSig = { plan: effectivePlan(), json };
   return planSig.json;
 };
 const threatCache = new Map<string, Threat>();

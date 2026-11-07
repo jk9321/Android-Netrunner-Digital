@@ -31,8 +31,12 @@ export interface Pricing {
   known: Record<SideCode, Set<string> | null>;
   /** plan.iceStopAnchor: the Runner's credits when the decision started (iceValues.ts stopCredits). */
   anchor: { id: string; credits: number } | null;
-  /** The planner leaf prices this side's hand card by card (plan.plannerHand), whatever plan.handByCard says. */
-  leafHandByCard: SideCode | null;
+  /**
+   * The planner leaves being priced (plan.plannerHand): each prices its side's hand card by card, whatever
+   * plan.handByCard says (leafHandByCard). A list, not one side: a leaf can open a decision that has its own
+   * planner (the Corp's leaf prices the Runner reply), and an outer leaf still holds inside it.
+   */
+  leaves: { side: SideCode; plan: Plan }[];
   /** The deck's average card is being worked out (handValues.ts drawWorth): no card plans, no rig pricing inside. */
   averaging: boolean;
   /** The tag clock is pricing the rig: tags at the flat rate inside (evaluate.ts tagLossPerTurn). */
@@ -64,7 +68,7 @@ const context: Pricing = {
   frozen: false,
   known: { corp: null, runner: null },
   anchor: null,
-  leafHandByCard: null,
+  leaves: [],
   averaging: false,
   pricingTagLoss: false,
   pricingIce: false,
@@ -139,6 +143,29 @@ export function asSide<T>(side: SideCode, fn: () => T): T {
   }
 }
 
+/**
+ * A planner leaf prices `side`'s hand card by card here (handValues.ts handByCard). This is exactly where the
+ * in-place flip of tuning.plan.handByCard it replaces was seen: on the plan the leaf was priced with and, when
+ * that was the base plan (no sideOff for the side: the Corp on beta), on every plan built from the base inside it.
+ */
+export function leafHandByCard(side: SideCode): boolean {
+  const c = context;
+  if (c.leaves.length === 0) return false;
+  const current = plan();
+  return c.leaves.some(l => l.side === side && (l.plan === current || l.plan === basePlan));
+}
+
+/** The plan as its switches read here, leaves included, for caches keyed by the whole plan (threatModel.ts planKey). */
+export function effectivePlan(): Plan {
+  const current = plan();
+  if (context.leaves.length === 0) return current;
+  const sides = (['corp', 'runner'] as SideCode[]).filter(leafHandByCard);
+  if (sides.length === 0) return current;
+  const handByCard = { ...current.handByCard };
+  for (const side of context.leaves.map(l => l.side)) if (sides.includes(side)) handByCard[side] = true;
+  return { ...current, handByCard };
+}
+
 /** The side whose decision is being made (asSide), or null outside one. */
 export const actingSide = (): SideCode | null => context.side;
 
@@ -158,7 +185,8 @@ export function pricingKey(): string {
   key = [
     planSide(),
     c.side ?? '',
-    c.leafHandByCard ?? '',
+    leafHandByCard('corp') ? 'lc' : '',
+    leafHandByCard('runner') ? 'lr' : '',
     c.averaging ? 'a' : '',
     c.pricingTagLoss ? 't' : '',
     c.pricingIce ? 'i' : '',

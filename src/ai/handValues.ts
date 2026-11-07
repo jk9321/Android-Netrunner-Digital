@@ -8,7 +8,7 @@ import { counterWorth } from './counterValues';
 import { handPlanWorth } from './cardPlans';
 import { planSide } from './synergy';
 import { CLICK, RATES, cardRate, fingerprint, flatRate, handFilter, payoutSlide, printedGain, reachCard, setDeckCard } from './valueModel';
-import { holdPricing, noteDecision, plan, pricing, withPricing } from './pricing';
+import { holdPricing, leafHandByCard, noteDecision, plan, pricing, withPricing } from './pricing';
 
 /**
  * Cards in hand by what they do (Jeff, 2026-10-28; plan.handByCard). A card
@@ -180,7 +180,7 @@ export function ownHandValue(state: GameState, side: SideCode): number {
   return value;
 }
 
-export const handByCard = (side: SideCode): boolean => !!plan().handByCard?.[side];
+export const handByCard = (side: SideCode): boolean => leafHandByCard(side) || !!plan().handByCard?.[side];
 
 /**
  * A click priced by the best plays in hand (Jeff, 2026-10-28; plan.clickByPlay):

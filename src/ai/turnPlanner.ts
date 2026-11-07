@@ -2,10 +2,9 @@ import { GameAction, GameState, SideCode, activePrompt, cardDef, executeAction, 
 import { profileOf } from './cardProfiles';
 import { ScoredAction } from './agent';
 import { evaluate } from './evaluate';
-import { freezeKnownHand } from './handValues';
 import { runClick } from './runs';
 import { threat, turnSeed } from './threatModel';
-import { plan } from './pricing';
+import { plan, pricing, withPricing } from './pricing';
 
 /**
  * The whole-turn planner for Normal (Jeff, 2026-10-28; plan.turnPlanner).
@@ -63,8 +62,7 @@ export const plannerOn = (side: SideCode): boolean => !!plan().turnPlanner?.[sid
  * next decision of the turn gets a fresh one (Fable review, 2026-11-07: a seed per turn made one bad deal steer every
  * decision of the turn, stuck in HQ +3.5 per 100).
  */
-let decisionSeed: number | null = null;
-export const currentDecisionSeed = (): number | null => decisionSeed;
+export const currentDecisionSeed = (): number | null => pricing().decisionSeed;
 
 /** A piece of the widened search (structural review item 4), on only with plan.plannerSearch. */
 export const searchPiece = (piece: 'plannerSeed' | 'plannerBuild' | 'plannerDiscard' | 'plannerPatchesOff'): boolean => !!plan().plannerSearch && plan()[piece] !== false;
@@ -273,13 +271,7 @@ function leafValue(state: GameState, side: SideCode, synergy: boolean): number {
   // at heldAgendasWorth): a hand priced card by card here made the leaf a second currency (Petty Cash first ranked +2.8
   // and lost the line to an install, its card worth in HQ counted against playing it)
   if (!plan().plannerHand || (side === 'corp' && synergy && plan().oneCurrency)) return evaluate(state, side, synergy);
-  const saved = plan().handByCard;
-  plan().handByCard = { ...saved, [side]: true };
-  try {
-    return evaluate(state, side, synergy);
-  } finally {
-    plan().handByCard = saved;
-  }
+  return withPricing({ leaves: [...pricing().leaves, { side, plan: plan() }] }, () => evaluate(state, side, synergy));
 }
 
 /**
@@ -305,10 +297,9 @@ export function planTurn(state: GameState, side: SideCode, ranked: ScoredAction[
     plannerStats.withAdded++;
     plannerStats.added += added.length;
   }
-  const unfreeze = freezeKnownHand();
-  const outerSeed = decisionSeed;
-  if (searchPiece('plannerSeed')) decisionSeed = (turnSeed(state) ^ Math.imul(clicksOf(state, side) + 1, 0x85ebca6b)) >>> 0;
-  try {
+  // The hands stay as seen when the decision started (frozen); plan.plannerSeed: one seed for every playout of this decision
+  const decisionSeed = searchPiece('plannerSeed') ? (turnSeed(state) ^ Math.imul(clicksOf(state, side) + 1, 0x85ebca6b)) >>> 0 : pricing().decisionSeed;
+  return withPricing({ frozen: true, decisionSeed }, () => {
     let best: { action: GameAction; value: number; line: Line } | null = null;
     const values: number[] = [];
     for (const c of candidates) {
@@ -325,10 +316,7 @@ export function planTurn(state: GameState, side: SideCode, ranked: ScoredAction[
     }
     memory.line = best.line;
     return best.action;
-  } finally {
-    decisionSeed = outerSeed;
-    unfreeze();
-  }
+  });
 }
 
 const sameAction = (a: GameAction, b: GameAction): boolean => JSON.stringify(a) === JSON.stringify(b);
