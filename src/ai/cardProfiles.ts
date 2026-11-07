@@ -71,11 +71,19 @@ export function bareAssetRisk(state: GameState): number {
  */
 const MEASURED_TURNS_LEFT = [14, 12, 10, 9, 7, 5, 4];
 
-/** Turns each side has left, guessed from the score (Jeff: mostly points). */
+/**
+ * plan.rdTurnsLeft (2026-11-07, thread "Find why self-play games end decked"): R&D runs out too. The Corp draws 1 card
+ * each turn (rule 5.6.1e) and clicked for about 0.3 more a turn in self-play (deck-outs batch 42154583702: 4.3 click
+ * draws in 14.9 Corp turns), and loses when it must draw from an empty R&D (rule 4.2.7b). Card draws aren't counted.
+ */
+export const CORP_DRAWS_PER_TURN = 1.3;
+
+/** Turns each side has left, guessed from the score (Jeff: mostly points), and with plan.rdTurnsLeft no more than R&D lasts. */
 export function turnsLeft(state: GameState): number {
   const top = Math.max(state.corp.score, state.runner.score);
-  if (tuning.plan.measuredTurnsLeft) return MEASURED_TURNS_LEFT[Math.min(top, MEASURED_TURNS_LEFT.length - 1)] ?? 2;
-  return Math.max(2, 8 - top);
+  const byPoints = tuning.plan.measuredTurnsLeft ? MEASURED_TURNS_LEFT[Math.min(top, MEASURED_TURNS_LEFT.length - 1)] ?? 2 : Math.max(2, 8 - top);
+  if (!tuning.plan.rdTurnsLeft) return byPoints;
+  return Math.min(byPoints, Math.max(1, Math.ceil(state.corp.rd.length / CORP_DRAWS_PER_TURN)));
 }
 
 /**

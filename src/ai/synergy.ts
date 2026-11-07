@@ -438,6 +438,11 @@ export const tuning = {
     runnerKnown: true,
     /** Jeff, 2026-11-05: turns left from the self-play measure by the higher score, not 8 less it (cardProfiles.ts turnsLeft). */
     measuredTurnsLeft: true,
+    /** 2026-11-07 (thread "Find why self-play games end decked"): turns left are no more than R&D lasts at 1.3 draws a turn (cardProfiles.ts turnsLeft).
+     * Off: paired 2,210 games Corp +0.0 ± 0.4, decked 186 vs 173, stuck in HQ +0.7 ± 0.3 (turnsLeft only discounts payouts and
+     * agenda gain, so a shorter clock lowers scoring's worth instead of raising its urgency). Kept, the honest clock, for when
+     * urgency is priced by the Runner's points rather than by a discount. */
+    rdTurnsLeft: false,
     /** Jeff, 2026-11-05: the share of runs on each server from the self-play measure (effectValues.ts RUN_SHARES). */
     measuredRunShares: true,
     /** Jeff, 2026-10-31 (same report): an asset that only pays through a click ability (Humanoid Resources) is rezzed only with the clicks to use it (corpAI.ts clickOnly). */
