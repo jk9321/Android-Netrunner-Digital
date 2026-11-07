@@ -103,7 +103,7 @@ describe('steal odds as measured (Jeff, 2026-10-28; plan.stealOdds)', () => {
     // STEAL.run's arithmetic (plan.threatModel off): the threat model asks the Runner's scorer instead, and a Runner with
     // no breaker never runs a rezzed Palisade (tests/threatModel.test.ts)
     tuning.plan.threatModel = false;
-    onExit(() => (tuning.plan.threatModel = threatDefault));
+    onExit(() => { tuning.plan.threatModel = threatDefault; });
     const s = newGame();
     installIceForTest(s, PALISADE, 'remote-1');
     s.corp.servers['remote-1'].ice[0].isRezzed = true;
@@ -144,7 +144,7 @@ describe('ice that cannot end the run (Jeff, 2026-10-30; plan.tankIce)', () => {
     // passOdds' tank arithmetic under STEAL.run (plan.threatModel off); with it on, whether a broke Runner runs at all is
     // the Runner's scorer's call (tests/threatModel.test.ts)
     tuning.plan.threatModel = false;
-    onExit(() => (tuning.plan.threatModel = threatDefault));
+    onExit(() => { tuning.plan.threatModel = threatDefault; });
     const s = newGame();
     remote(s);
     s.runner.credits = 0;

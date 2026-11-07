@@ -826,7 +826,7 @@ describe('Corp AI: LEO Construction weighs the bioroid against the run (Jeff, pl
     const { tuning } = await import('../src/ai/synergy');
     const threat = tuning.plan.threatModel;
     tuning.plan.threatModel = false;
-    onTestFinished(() => (tuning.plan.threatModel = threat));
+    onTestFinished(() => { tuning.plan.threatModel = threat; });
     expect(createAgent('corp', 'normal').chooseRez!(at, [])).toBeNull();
     at.runner.clicks = 0; // the Runner's last click
     expect(createAgent('corp', 'normal').chooseRez!(at, [])?.type).toBe('USE_ABILITY');

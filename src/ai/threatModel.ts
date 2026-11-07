@@ -15,10 +15,10 @@ import { fingerprint, memo, pointGain, sideCreditValue } from './valueModel';
  * same Runner AI ran 1.35 times a turn against him (1.01 in self-play), 40% of them at R&D (21%), and never stole from
  * his HQ (scripts/human-pace.ts). So the Corp asks the Runner's question for every server and budgets the Runner's turn:
  *
- * - The turn: the clicks it will have (rules 5.7.1a: its allotted clicks; a Caveat Emptor change counts) and its
+ * - The turn: the clicks it will have (rule 5.7.1a: its allotted clicks; a Caveat Emptor change counts) and its
  *   credits now.
  * - Click by click, the Runner AI's arithmetic: the best run by runScore (its breach worth less the ice it expects to
- *   pay and the click) against its always-there click (a credit or a card, rules 5.2.5) as the Runner AI scores it; a
+ *   pay and the click) against its always-there click (rule 5.2.7b: a click for a credit) as the Runner AI scores it; a
  *   run that beats it is made and its credits charged (runCreditSpend), else that click is taken (a broke Runner clicks
  *   for credits, then runs). Each server once: a second run on it is what serverValue's repeat discounts, and without
  *   the first breach's accesses the Corp can't see more. Installs and events from the grip are not foreseen (the
@@ -32,8 +32,8 @@ import { fingerprint, memo, pointGain, sideCreditValue } from './valueModel';
  * No peeking (the spec's first review check). The scorer runs with the Runner's plan (asSide), on a view of the board:
  * unrezzed ice is iceCost's guess (1.5 or 0.5 by the Corp's credits), facedown root cards are agendaOdds/
  * remoteAgendaOdds, both pooled over every card the Runner hasn't seen; what the Runner remembers is what it accessed
- * (card.runnerKnows, open to both players: rules 7.1.2, the Corp sees accessed cards). The Runner's grip is hidden
- * from the Corp (rules 1.4.3 hidden information): the view deals it from the Runner's unseen cards (grip and stack
+ * (card.runnerKnows: rule 7.1.2, the Corp may look at accessed cards outside R&D). The Runner's grip is hidden
+ * from the Corp (rule 10.2.2a hidden information; its size is open, 10.2.3a): the view deals it from the Runner's unseen cards (grip and stack
  * together, in a fixed order) with a seed fixed for the turn, keeping the cards the Corp has seen, so the hand count
  * is right and nothing in it is real. tests/threatModel.test.ts pins both swaps.
  */
@@ -64,7 +64,7 @@ let computing = 0;
 /** The threat is read only by the Corp, with the switch on, and never from inside its own computation. */
 export const threatOn = (): boolean => !!tuning.plan.threatModel && computing === 0;
 
-/** What the Runner remembers of the Corp's installed cards: the ones it accessed and that stayed installed (rules 10.2.2b). */
+/** What the Runner remembers of the Corp's installed cards: the ones it accessed and that stayed installed (rule 7.1.2: the Corp saw the access). */
 export function runnerMemory(state: GameState): RunnerMemory {
   const memory: RunnerMemory = new Map();
   for (const server of Object.values(state.corp.servers)) for (const card of server.root) if (card.runnerKnows) memory.set(card.instanceId, card.cardCode);
@@ -103,9 +103,9 @@ export function runnerView(state: GameState): GameState {
 
 /**
  * What a successful run on `serverId` costs the Corp on the next Runner turn, in the Runner's points on the clock (the
- * evaluate scale), for the pieces evaluate does not already price: HQ and R&D accesses (one each, rules 7.4.1b-c)
- * unless plan.oneCurrency's centralExposure prices them, and the remote cards the Runner can afford to trash (rules
- * 7.4.4: trash cost, a credit each). Remote agendas are agendaWorth's (its steal chance reads this threat) and
+ * evaluate scale), for the pieces evaluate does not already price: HQ and R&D accesses (one each, rule 7.4.1b-c)
+ * unless plan.oneCurrency's centralExposure prices them, and the remote cards the Runner can afford to trash (rule
+ * 7.1.5: the trash cost paid on access). Remote agendas are agendaWorth's (its steal chance reads this threat) and
  * Archives agendas archivedAgendaLoss's.
  */
 export function accessLoss(state: GameState, serverId: string): number {
@@ -241,7 +241,7 @@ function budgetTurn(state: GameState): Threat {
 }
 
 /**
- * The Runner's always-there click (rules 5.2.5 basic action: [click]: gain 1[credit]), scored the way the Runner AI's
+ * The Runner's always-there click (rule 5.2.7b basic action: [click]: gain 1[credit]), scored the way the Runner AI's
  * evaluate prices it: the credit on its credit slide less the click (runClick: what its hand would do with the click).
  * A run is made when it beats that click, not when it beats nothing: a broke Runner clicks for credits first and runs
  * after, and late in a turn, rich, a credit click scores below 0 and the Runner AI runs on a run that does too

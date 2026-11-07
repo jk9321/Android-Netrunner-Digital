@@ -40,7 +40,7 @@ function board(): GameState {
   return s;
 }
 
-describe('the threat reads nothing the Runner cannot see (rules 1.4.3 hidden information)', () => {
+describe('the threat reads nothing the Runner cannot see (rule 10.2.2a hidden information)', () => {
   it('an unrezzed ice swapped for another of the same rez-cost class changes nothing', () => {
     const s = board();
     const before = runnerSide(s);
