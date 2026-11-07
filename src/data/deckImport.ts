@@ -246,7 +246,8 @@ export async function fetchNetrunnerDbDeck(url: string, fetchFn: typeof fetch = 
   } catch (e) {
     if (ref.kind === 'deck') {
       throw new Error(
-        `${(e as Error).message}. A private deck can only be fetched when it is shared ("Share your decks" in your NetrunnerDB account settings). You can also paste its text export.`
+        `${(e as Error).message}. A private deck can only be fetched when it is shared ("Share your decks" in your NetrunnerDB account settings). You can also paste its text export.`,
+        { cause: e }
       );
     }
     throw e;

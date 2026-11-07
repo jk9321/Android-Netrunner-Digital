@@ -599,10 +599,9 @@ describe('Vantage Point operations', () => {
     let s = newGame();
     const a = installIceForTest(s, SG.palisade, 'hq'); // 3
     const b = installIceForTest(s, SG.tithe, 'rd'); // 1
-    let credits = 0;
     corpTurn(s, 2);
     const id = giveCard(s, 'corp', V.realloc);
-    credits = s.corp.credits;
+    const credits = s.corp.credits;
     s = play(s, 'corp', id);
     expect(s.corp.clicks).toBe(0);
     s = pick(s, [a, b]);

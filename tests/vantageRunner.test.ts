@@ -197,13 +197,12 @@ describe('Vantage Point Runner events', () => {
     expect(s.runner.credits).toBe(0);
     s = cont(cont(s)); // pass both unrezzed ice
     s = cont(s);
-    let accessed = 0;
     for (let i = 0; i < 10 && s.activeRun; i++) {
       if (prompt(s)?.kind === 'access_trash') s = declineAccess(s);
       else if (prompt(s)) s = declineAll(s);
       else s = cont(s);
     }
-    accessed = s.log.filter(l => l.event === 'access').length;
+    const accessed = s.log.filter(l => l.event === 'access').length;
     expect(accessed).toBe(3);
   });
 
