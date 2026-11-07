@@ -99,13 +99,7 @@ export class HeuristicRunnerAI implements Agent {
     if (run.phase === 'movement' && run.icePosition !== null && server) {
       // Jack out (only possible after passing ice) if the rezzed ice further in is more than we can pay for.
       const credits = availableCredits(state, 'runner');
-      if (plan().runBudget) {
-        if (creditsAhead(state) > credits && find('JACK_OUT')) return find('JACK_OUT');
-      } else {
-        const remaining = server.ice.slice(0, run.icePosition).filter(c => c.isRezzed);
-        const cost = remaining.reduce((sum, ice) => sum + iceCost(state, ice), 0);
-        if (cost > credits + 0.5 && find('JACK_OUT')) return find('JACK_OUT');
-      }
+      if (creditsAhead(state) > credits && find('JACK_OUT')) return find('JACK_OUT');
     }
     return find('CONTINUE_RUN') ?? legal[0];
   }
@@ -131,7 +125,7 @@ export class HeuristicRunnerAI implements Agent {
     }
 
     // Bioroids: spare clicks break the worst subroutines first, run-ending or not (each one costs the Runner at least a credit)
-    if (plan().bioroidClicks && isBioroid(ice)) {
+    if (isBioroid(ice)) {
       const sorted = [...mustBreak].sort((a, b) => b.cost - a.cost);
       const worst = sorted[0];
       // Ansel 2.0: its clicks break up to 2 at once, so take the worst two together
@@ -146,10 +140,10 @@ export class HeuristicRunnerAI implements Agent {
     }
 
     // Runner (run budget): keep what the rezzed ice further in needs
-    const ahead = plan().runBudget ? creditsAhead(state) : 0;
+    const ahead = creditsAhead(state);
     const credits = availableCredits(state, 'runner') - ahead;
     const tank = mustBreak.reduce((sum, s) => sum + s.cost, 0);
-    if (plan().runBudget && mustBreak.some(s => s.cost === Infinity)) {
+    if (mustBreak.some(s => s.cost === Infinity)) {
       // Can't get through the whole way: paying here is wasted unless what fires before the run ends is worse
       const first = mustBreak.find(s => s.cost === Infinity)!;
       const before = mustBreak.filter(s => s.i < first.i).reduce((sum, s) => sum + s.cost, 0);
@@ -319,10 +313,10 @@ export class HeuristicRunnerAI implements Agent {
     const drawCap = !!plan().drawCap;
     if (action.type === 'DRAW_CARD' && needsBiggerHand(state, this.memory) && (!drawCap || room || state.runner.clicks >= 2)) score += 1.5;
     if (action.type === 'DRAW_CARD' && this.digForBreakers && state.runner.stack.length > 5 && (!drawCap || room)) score += 1.2;
-    if (action.type === 'DRAW_CARD' && this.synergy && plan().dig?.runner && state.runner.grip.length < state.runner.handSizeLimit) score += digValue(state, 'runner');
+    if (action.type === 'DRAW_CARD' && this.synergy && state.runner.grip.length < state.runner.handSizeLimit) score += digValue(state, 'runner');
     if (action.type === 'INSTALL_CARD' && action.hostInstanceId && cardCode && TROJANS.includes(cardCode)) {
       const host = Object.values(state.corp.servers).flatMap(s => s.ice).find(c => c.instanceId === action.hostInstanceId);
-      score += host?.isRezzed ? (plan().trojans ? trojanHostValue(state, cardCode, host) : 1.5) : -3;
+      score += host?.isRezzed ? trojanHostValue(state, cardCode, host) : -3;
     }
     // Saving up for a run: money now beats spending it elsewhere
     if (this.savingFor) {

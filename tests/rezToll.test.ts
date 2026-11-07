@@ -60,18 +60,12 @@ describe('in-run ice rez (plan.rezToll, plan.modelRez)', () => {
     expect(choose(state, ice)).toBeNull();
   });
 
-  it('the model alone keeps the credits too (rezToll off): a 3-in-16 R&D access is not worth a broke Corp\'s last 3', () => {
+  it('the model keeps the credits: a 3-in-16 R&D access is not worth a broke Corp\'s last 3', () => {
     const { state, ice } = base();
-    withPlans({ rezToll: false }, () => expect(choose(state, ice)).toBeNull());
     const parts = inDecision(state, 'corp', () => modelRezParts(state, ice, true))!;
     // The Runner pays its 1 credit here and is stopped by the rezzed Palisade behind: the stop is real, the price says no
     expect(parts.stops).toBe(false);
     expect(parts.rez).toBeLessThan(parts.pass);
-  });
-
-  it('with neither plan it rezzes (the old importance table)', () => {
-    const { state, ice } = base();
-    withPlans({ rezToll: false, modelRez: false }, () => expect(choose(state, ice)?.type).toBe('REZ_CARD'));
   });
 
   it('rezzes to stop a Runner that can\'t pay its way to an agenda', () => {

@@ -41,7 +41,7 @@ const sumKeep = (state: GameState, cards: CardInstance[], synergy: boolean) => c
 export function scoreOutcome(before: GameState, after: GameState, side: SideCode, memory?: RunnerMemory, synergy = false): number {
   let score = evaluate(after, side, synergy);
   // Cards that came from the deck are unknown until drawn: only the cards that left the hand count (plan.blindDraws)
-  const drawn = (c: CardInstance) => plan().blindDraws && !hand(before, side).some(b => b.instanceId === c.instanceId) && fromDeck(before, side, c);
+  const drawn = (c: CardInstance) => !hand(before, side).some(b => b.instanceId === c.instanceId) && fromDeck(before, side, c);
   score += 0.5 * (sumKeep(after, hand(after, side).filter(c => !drawn(c)), synergy) - sumKeep(before, hand(before, side), synergy));
   if (side === 'runner' && before.activeRun) {
     if (plan().runRest) score += 0.8 * runRestWorth(after, memory, synergy && tuning.wary);
@@ -55,7 +55,7 @@ export function scoreOutcome(before: GameState, after: GameState, side: SideCode
 
 function answers(state: GameState, side: SideCode, synergy = false): GameAction[] {
   const legal = getLegalActions(state, side).filter(a => a.type === 'RESOLVE_PROMPT').slice(0, 200);
-  const iceTrash = synergy && plan().iceTrash;
+  const iceTrash = synergy;
   return [...legal, ...legal.flatMap(a => makeRoomAnswers(state, a)), ...(iceTrash ? iceTrashAnswers(state) : [])];
 }
 
@@ -109,7 +109,7 @@ export function makeRoomAnswers(state: GameState, action: GameAction): GameActio
 function mulligan(state: GameState, prompt: Prompt, synergy: boolean): boolean {
   const cards = hand(state, prompt.side);
   // (Jeff) a Corp hand needs ice it can rez early (on 5 credits, with a credit to spare), not just any ice
-  if (prompt.side === 'corp') return !cards.some(c => cardDef(c).type_code === 'ice' && (!(synergy && plan().mulliganRez) || (cardDef(c).cost ?? 0) <= 4));
+  if (prompt.side === 'corp') return !cards.some(c => cardDef(c).type_code === 'ice' && (!synergy || (cardDef(c).cost ?? 0) <= 4));
   const useful = cards.some(c => /icebreaker/i.test(cardDef(c).keywords ?? '') || /gain \d+|load \d+/i.test(cardDef(c).stripped_text ?? ''));
   return !useful;
 }
@@ -401,7 +401,7 @@ export function answerPrompt(state: GameState, side: SideCode, memory?: RunnerMe
   }
 
   // Botulus: break the worst subroutine
-  if (side === 'runner' && prompt.kind === 'effect_choice' && prompt.source.cardCode === BOTULUS && plan().trojans) {
+  if (side === 'runner' && prompt.kind === 'effect_choice' && prompt.source.cardCode === BOTULUS) {
     const ice = encounteredIce(state);
     const subs = ice ? (iceSubroutines(state, ice)) : [];
     const worst = [...prompt.options].sort((a, b) => subroutineCost(state, subs[Number(b.id)]?.label ?? '') - subroutineCost(state, subs[Number(a.id)]?.label ?? ''))[0];

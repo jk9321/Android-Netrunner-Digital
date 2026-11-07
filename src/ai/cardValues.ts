@@ -1,4 +1,4 @@
-import { CardInstance, GameState, getCardDefinition } from '../core';
+import { CardInstance, GameState } from '../core';
 import { ECON_SCALE, unrezzedWorth } from './cardProfiles';
 import { corpEffect, effectsOn, runnerEffect } from './effectValues';
 import { RATES, guardLoop } from './valueModel';
@@ -30,7 +30,7 @@ export interface CardValue {
 export { CARD_VALUES } from './cards';
 
 /** Extra worth of the cards a card draws, now that a card in hand is worth about a credit. */
-const drawBonus = (code: string): number => (plan().drawValue?.[getCardDefinition(code).side_code] ? RATES.cardDrawn * (CARD_VALUES[code]?.draws ?? 0) : 0);
+const drawBonus = (code: string): number => RATES.cardDrawn * (CARD_VALUES[code]?.draws ?? 0);
 
 /** Worth of an installed Corp asset or upgrade (1 if not listed). With a game state, a card profile (step 4) prices it instead. */
 export const corpKeepValue = (code: string, state?: GameState, rezzed = false): number =>

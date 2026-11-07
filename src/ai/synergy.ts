@@ -105,19 +105,12 @@ export const tuning = {
      */
     rigEffects: false,
     /**
-     * (Jeff) ...but keep the bare bait while the Runner has 2 points or fewer. At 986f20b Pork Chops won
-     * 57.7% with it (48 of the 66 bare baits are early), 57.7% always allowed, 54.6% never.
-     */
-    bangunEarlyBait: true,
-    /**
      * The exposure check by what the Runner can pay, not by layers of ice (Jeff, 2026-10-29). Off: self-play
      * 39.0% (old rule 41.3%), new Corp vs old Runner 43.1% (45.8%); without income 38.9% / 44.1%; no
      * exposure check at all 36.6% / 42.3%. Agendas waited in HQ and were raided there. Deleted 2026-11-06
      * (outOfReach stays: lethalHq and the steal odds use it).
      */
     /* Funded depth (2026-10-26, self-play, 2,210 games): Corp 42.9% -> 44.8%; remote steals 1,714 -> 1,472, behind ice it couldn't afford to rez 883 -> 499. */
-    /** Corp (Jeff): an agenda left over the Runner's turn counts unrezzed ice as a layer only if it can still pay to rez it. */
-    fundedDepth: true,
     /** Corp (Jeff): spending (plays, installs, rezzes elsewhere) keeps the money to rez an installed agenda's ice. */
     agendaMoney: true,
     /*
@@ -125,11 +118,7 @@ export const tuning = {
      * Steals behind unrezzed ice the Corp couldn't afford: remote 287 -> 196,
      * R&D 581 -> 301, HQ 517 -> 268. Kept (Jeff's rule, plays like a person).
      */
-    /** Corp (Jeff): no ice it can't afford to rez on top of its unrezzed ice already out, unless HQ is over the hand-size limit. */
-    icePacing: true,
     /* Ice trashing (2026-10-27, self-play, 2,210 games each): 40.4% off -> 40.1% on (noise). Kept: plays like a person when short of money. */
-    /** Corp: when installing ice, weigh trashing the weakest rezzed ice there first (rules 8.5.6b), on its own turn and for effects (Mercia). */
-    iceTrash: true,
     /*
      * Opening round (2026-10-27, self-play, 2,210 games each). Before the
      * Manegarm fix: mulligan only 46.7%, + placement 46.1%, + centrals first
@@ -138,36 +127,22 @@ export const tuning = {
      * 3,797. Bare R&D on the Runner's first turn 74% -> 37%. Kept (Jeff's
      * rule: within noise, plays like a person).
      */
-    /** Corp (Jeff): R&D, and HQ while it holds agendas, get their first ice before any remote; HQ first while it holds agendas. */
-    centralsFirst: true,
-    /** Corp (Jeff): ice that would stop this Runner goes on a server that matters (R&D, the scoring remote, HQ holding agendas). */
-    stopperPlacement: true,
     /**
      * Corp (Jeff): ice is judged at the strength it has where it would go, and a layer that weakens the ice inside it
      * costs that (Scatter Field). Off: self-play at 5f827e6 42.5% on, 45.6% off; with spinDoctorWait 44.3% on, 47.9% off.
      */
     icePosition: false,
-    /** Corp (Jeff): mulligan a hand with no ice it can rez early (rez cost 4 or less). */
-    mulliganRez: true,
     /* Money target (2026-10-26, self-play, 2,210 games): off 42.7%, 0.3 46.8%, 0.6 46.8%. Kept the milder weight. */
     /** Corp (Jeff): aim for a surplus that rezzes the unrezzed ice on the centrals and scoring remote (credits-worth per credit short; 0 = off). */
     moneyTarget: 0.3,
     /** Corp (Jeff): push agendas through a remote the Runner can't get into yet. */
     tempo: true,
-    /** Corp: purge by what the counters do (Conduit, Tranquilizer...) against the 3 clicks it costs. */
-    purgeValue: true,
-    /** Corp: no ice it can't rez, nor ice that eats the rez money for ice already out. */
-    affordIce: true,
     /*
      * Run budget (2026-10-26, self-play, 2,210 games): runs the Runner paid
      * into and lost fell from 1,536 to 1,265, jack-outs before known ice from
      * 282 to 9. Runner +36 games (Corp 44.2% -> 42.8%). Rez allowance alone:
      * within noise (kept, plays more like a person).
      */
-    /** Runner: while breaking, keep the credits the rezzed ice further in needs; don't pay into a run it can't finish. */
-    runBudget: true,
-    /** Runner: a run that pays for outer ice counts the risk that unrezzed ice further in gets rezzed and stops it. */
-    rezAllowance: true,
     /** Corp (round 3): no half-advanced agendas: advance only when it can be scored next turn behind ice it can rez. */
     agendaTiming: true,
     /*
@@ -177,23 +152,11 @@ export const tuning = {
      * (2,210), for either side alone within noise; kept (Jeff's rule: within
      * noise and plays more like a person).
      */
-    /** Both sides (Jeff): a card in hand is worth about a credit up to the hand-size limit, not half of one (per deciding side). */
-    drawValue: { corp: true, runner: true } as Record<SideCode, boolean>,
-    /** Both sides: prompt answers don't count what the drawn cards are (the AI can't know), only how many. */
-    blindDraws: true,
-    /** Both sides (Jeff): draw harder for a missing answer (money, ice, a breaker) still in the deck, more under pressure (per side). */
-    dig: { corp: true, runner: true } as Record<SideCode, boolean>,
     /* Rez money (2026-10-26, 2,210 self-play games): both on 46.7%, neither 47.2% (noise). Halving upgrade worth in empty remotes instead cost about 2 points. */
-    /** Corp (Jeff): upgrades in a remote with no agenda can go out early, but are rezzed only with the ice reserve left over. */
-    idleUpgrades: true,
-    /** Corp: Petty Cash first thing in the turn (it can only be played then, and replays from Archives). */
-    pettyCash: true,
     /** Corp: Petty Cash goes first when it is among the actions the Corp has clicks for (corpAI pettyCashFirst). */
     pettyCashFirst: true,
     /** Corp: with the Runner tagged, a resource trash among the actions it has clicks for goes first (corpAI tagFirst). */
     tagFirst: true,
-    /** Corp: in a run, breakable ice outside an agenda server is rezzed only when its toll is worth the rez (corpAI decideRez). */
-    rezToll: true,
     /**
      * Corp (structural review item 2, Jeff 2026-11-06): in a run, ice is rezzed by the value model (rezModel.ts): the
      * board change (rez cost on the credit slide, ice worth) plus what the run would take when the ice stops it, or the
@@ -205,12 +168,6 @@ export const tuning = {
      * the Corp's credits, not each against the same credits (iceValues rezBudget). A measuring switch, not a knob.
      */
     rezBudget: true,
-    /** Corp: click for credits toward a money operation in HQ it can't afford yet (Hedge Fund, Subsidy...). */
-    saveForOps: true,
-    /** Runner: Botulus counters count as free breaks when costing ice; trojans go on the ice they help most, not doubled up. */
-    trojans: true,
-    /** Runner (Jeff): on bioroid ice, spend spare clicks on the worst subroutines, not only the run-ending ones. */
-    bioroidClicks: true,
     /*
      * Value model step 2 (docs/ai-value-model-plan.md, Jeff 2026-10-27): the
      * new exchange rates in valueModel.ts. Self-play, 2,210 games each: all
@@ -514,7 +471,10 @@ export const FOLDED: readonly string[] = [
   'assetRezTiming', 'turnStartRez', 'stealCosts', 'rezPaid', 'tagNoClear', 'knownHq', 'hqNoSafer', 'readAssetTrash',
   'castWhileAble', 'clickMoneyRez', 'drawBackLife', 'answerCorpChoice', 'payoutSlide', 'liquidity', 'spareLastClick',
   'transferOfWealth', 'clearinghouseLethal', 'keepKnownHand', 'spinDoctorWait', 'spentSpinDoctor', 'freeInstallPick',
-  'measuredAssetRisk', 'promptChains', 'leoValue', 'bangunFaceUp', 'bangunNoBareBait',
+  'measuredAssetRisk', 'promptChains', 'leoValue', 'bangunFaceUp', 'bangunNoBareBait', 'bangunEarlyBait',
+  'fundedDepth', 'icePacing', 'iceTrash', 'centralsFirst', 'stopperPlacement', 'mulliganRez', 'purgeValue',
+  'affordIce', 'runBudget', 'rezAllowance', 'drawValue', 'blindDraws', 'dig', 'idleUpgrades', 'pettyCash', 'rezToll',
+  'saveForOps', 'trojans', 'bioroidClicks',
 ];
 
 /** Throws on a name that isn't a plan switch (a typo, or a switch folded into the code). */

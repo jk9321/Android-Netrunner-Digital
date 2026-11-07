@@ -40,7 +40,6 @@ export function hostedTrojans(state: GameState, ice: CardInstance, code: string)
 
 /** Subroutines Botulus breaks on this ice for free: the virus counters on the Botulus programs it hosts. */
 export function botulusBreaks(state: GameState, ice: CardInstance): number {
-  if (!plan().trojans) return 0;
   return hostedTrojans(state, ice, BOTULUS).reduce((n, c) => n + counters(c, 'virus'), 0);
 }
 
@@ -872,7 +871,7 @@ export function runScore(state: GameState, serverId: string, options: RunOptions
   for (const ice of [...server.ice].reverse()) {
     if (bypassed.ids.has(ice.instanceId)) continue;
     if (ice.isRezzed) paidOutside += Math.min(iceCreditNeed(state, ice), budget);
-    else if (plan().rezAllowance && canRez && paidOutside > 0) {
+    else if (canRez && paidOutside > 0) {
       const spare = budget - paidOutside;
       waste += paidOutside * (spare < 2 ? 0.5 : spare < 4 ? 0.25 : 0.1);
     }

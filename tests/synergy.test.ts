@@ -537,10 +537,7 @@ describe('draws and money', () => {
     expect(handValue(4, 5, 'corp') - handValue(3, 5, 'corp')).toBeCloseTo(1.6);
     expect(handValue(6, 5, 'corp') - handValue(5, 5, 'corp')).toBeCloseTo(0.3);
     expect(handValue(7, 5, 'corp') - handValue(6, 5, 'corp')).toBe(0);
-    tuning.plan.drawValue.corp = false;
-    expect(handValue(4, 5, 'corp') - handValue(3, 5, 'corp')).toBeCloseTo(0.8);
     expect(handValue(4, 5, 'runner') - handValue(3, 5, 'runner')).toBeCloseTo(1.6);
-    tuning.plan.drawValue.corp = true;
   });
 
   it('the Runner draws below the limit with money in the bank, and stops at the limit', () => {
@@ -582,25 +579,16 @@ describe('draws and money', () => {
     const s = structuredClone(newGame());
     s.corp.hq = [createCardInstance(s, '30075'), ...s.corp.hq.slice(0, 2)];
     s.corp.credits = 3;
-    const credit = () => new HeuristicCorpAI().rankMainActions(s).find(r => r.action.type === 'GAIN_CREDIT')!.score;
-    if (tuning.plan.oneCurrency) {
-      // plan.oneCurrency: no saveForOps bonus (the old test compared it on and off). The planned turn clicks for the two
-      // credits and plays Hedge Fund (5 to play, +9) with its last click, ahead of a draw for ice (digValue)
-      let t = s;
-      const ai = new HeuristicCorpAI();
-      for (let i = 0; i < 8 && t.activePlayer === 'corp'; i++) {
-        const action = ai.chooseAction(t);
-        t = executeAction(t, action);
-        if (action.type === 'END_TURN') break;
-      }
-      expect(t.corp.archives.faceUp.map(c => c.cardCode)).toContain('30075');
-      return;
+    // The planned turn clicks for the two credits and plays Hedge Fund (5 to play, +9) with its last click, ahead of a
+    // draw for ice (digValue); plan.saveForOps (folded in item 6) was the old ranking's nudge toward it
+    let t = s;
+    const ai = new HeuristicCorpAI();
+    for (let i = 0; i < 8 && t.activePlayer === 'corp'; i++) {
+      const action = ai.chooseAction(t);
+      t = executeAction(t, action);
+      if (action.type === 'END_TURN') break;
     }
-    const on = credit();
-    tuning.plan.saveForOps = false;
-    const off = credit();
-    tuning.plan.saveForOps = true;
-    expect(on).toBeGreaterThan(off + 0.5);
+    expect(t.corp.archives.faceUp.map(c => c.cardCode)).toContain('30075');
   });
 });
 
