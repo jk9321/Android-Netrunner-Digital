@@ -11,6 +11,7 @@ const HEDGE_FUND = '30075';
 const OFFWORLD = '30067'; // agenda
 const ADRIAN = '34046'; // Adrian Seis: Psi Game on access
 const MELIES = '36036';
+const NICO = '30037'; // Nico Campaign: an asset with a trash cost
 
 /** Both sides' views of a state, with fresh id maps unless given. */
 function views(s: GameState, ids?: Record<SideCode, ViewIds>) {
@@ -136,7 +137,7 @@ describe('Per-player views', () => {
     expect(v.runner.corp.meliesServer).toBe('rd');
   });
 
-  it('a Psi Game: the Runner never sees the Corp\'s bid, the Corp sees only that the Runner is bidding (10.14.2)', () => {
+  it('a Psi Game: the Runner never sees the Corp\'s bid, the Corp gets no prompt entry, only who the game waits on (10.14.2)', () => {
     let s = newGame();
     s.corp.hq.splice(0);
     installCorpForTest(s, ADRIAN, 'remote-1', true);
@@ -144,16 +145,35 @@ describe('Per-player views', () => {
     s = cont(run(s, 'remote-1'));
     expect(s.pendingPrompts[0].side).toBe('corp');
     let v = views(s);
-    expect(v.runner.pendingPrompts[0]).toEqual({ id: s.pendingPrompts[0].id, kind: 'effect_choice', side: 'corp', mine: false });
+    expect(v.runner.pendingPrompts).toEqual([]);
+    expect(v.runner.waitingOn).toBe('corp');
     s = choose(s, '2');
     const p = s.pendingPrompts[0];
     expect(p.side).toBe('runner');
     expect(p.kind === 'effect_choice' && p.source.data?.corpBid).toBe(2); // the engine keeps the bid
     v = views(s);
     const mine = v.runner.pendingPrompts[0];
-    expect(mine.mine && mine.options?.map(o => o.id)).toEqual(['0', '1', '2']);
+    expect(mine.options?.map(o => o.id)).toEqual(['0', '1', '2']);
     expect(json(v.runner)).not.toContain('corpBid');
-    expect(v.corp.pendingPrompts[0]).toEqual({ id: p.id, kind: 'effect_choice', side: 'runner', mine: false });
+    expect(v.corp.pendingPrompts).toEqual([]);
+    expect(v.corp.waitingOn).toBe('runner');
+  });
+
+  it('a Runner accessing a trashable card in R&D: the Corp sees no prompt, so it cannot tell what its top card is (4.2.2, 7.1.2)', () => {
+    let s = newGame();
+    s.corp.rd.unshift(createCardInstance(s, NICO));
+    s.runner.credits = 10;
+    s = cont(run(s, 'rd'));
+    const p = s.pendingPrompts[0];
+    expect(p?.kind).toBe('access_trash');
+    const v = views(s);
+    expect(v.corp.pendingPrompts).toEqual([]);
+    expect(v.corp.waitingOn).toBe('runner');
+    expect(json(v.corp)).not.toContain('access_trash');
+    expect(json(v.corp)).not.toContain(`"${NICO}"`);
+    const mine = v.runner.pendingPrompts[0];
+    expect(mine.kind).toBe('access_trash');
+    expect(mine.cards.map(c => c.cardCode)).toEqual([NICO]);
   });
 
   it('a secret log line: the side it is kept from gets the public wording and no card', () => {

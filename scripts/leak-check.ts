@@ -33,7 +33,7 @@ export interface LeakFailure {
   seed: number;
   step: number;
   viewer: SideCode;
-  check: 'hidden-code' | 'hidden-title' | 'internal' | 'ids' | 'round-trip' | 'purity' | 'crash';
+  check: 'hidden-card' | 'hidden-code' | 'hidden-title' | 'view-id-shape' | 'internal' | 'ids' | 'round-trip' | 'purity' | 'crash';
   detail: string;
   /** JSON path in the view where it appeared. */
   path?: string;
@@ -52,7 +52,7 @@ const titleOf = (code: string): string => {
 const withHosted = (list: CardInstance[]): CardInstance[] => list.flatMap(c => [c, ...withHosted(c.hostedCards ?? [])]);
 
 /** Cards hidden from `side` now (rules 4.2.2, 4.3.2, 4.4.6c, 4.6.2), and codes it may see now. */
-function visibility(state: GameState, side: SideCode): { hidden: CardInstance[]; allowed: Set<string> } {
+function visibility(state: GameState, side: SideCode): { hidden: CardInstance[]; hiddenIds: Set<string>; allowed: Set<string> } {
   const c = state.corp;
   const r = state.runner;
   const hidden: CardInstance[] = [...c.rd, ...r.stack];
@@ -94,7 +94,9 @@ function visibility(state: GameState, side: SideCode): { hidden: CardInstance[];
     if (e.event === 'access' && e.cardCode && getCardScript(e.cardCode)?.revealedOnRdAccess) allowed.add(e.cardCode);
     if (/\breveal/i.test(e.message)) for (const x of all.values()) if (titleOf(x.cardCode) && e.message.includes(titleOf(x.cardCode))) allowed.add(x.cardCode);
   }
-  return { hidden: withHosted(hidden).filter(x => !allowed.has(x.cardCode)), allowed };
+  // Instance level: hosted faceup cards on a hidden card show with it (4.6.3), the rest are hidden as cards
+  const hiddenIds = new Set(hidden.map(x => x.instanceId));
+  return { hidden: withHosted(hidden).filter(x => !allowed.has(x.cardCode)), hiddenIds, allowed };
 }
 
 /** Every path in `value` whose string contains `needle` (or whose key is `needle`). */
@@ -109,6 +111,27 @@ function findPaths(value: unknown, test: (s: string) => boolean, path = '$', out
       if (test(k)) out.push(`${path}.${k} (key)`);
       findPaths(v, test, `${path}.${k}`, out);
     }
+  }
+  return out;
+}
+
+const VIEW_ID_SHAPE = /\b[cr]\d+\b/;
+
+/** Every string in a value, with its path (keys included). */
+function strings(value: unknown, path = '$', out: [string, string][] = []): [string, string][] {
+  if (typeof value === 'string') out.push([path, value]);
+  else if (Array.isArray(value)) value.forEach((v, i) => strings(v, `${path}[${i}]`, out));
+  else if (value && typeof value === 'object') for (const [k, v] of Object.entries(value)) strings(v, `${path}.${k}`, out);
+  return out;
+}
+
+/** Every card object in a view (anything with a string instanceId), with its path. */
+function cardObjects(value: unknown, path = '$', out: [string, { instanceId: string; cardCode?: string }][] = []) {
+  if (Array.isArray(value)) value.forEach((v, i) => cardObjects(v, `${path}[${i}]`, out));
+  else if (value && typeof value === 'object') {
+    const o = value as Record<string, unknown>;
+    if (typeof o.instanceId === 'string' && 'isRezzed' in o) out.push([path, o as { instanceId: string; cardCode?: string }]);
+    for (const [k, v] of Object.entries(o)) cardObjects(v, `${path}.${k}`, out);
   }
   return out;
 }
@@ -151,7 +174,14 @@ export class LeakChecker {
       }
 
       // 1. No hidden card's code or title, unless seen before
-      const { hidden, allowed } = visibility(state, side);
+      const { hidden, hiddenIds, allowed } = visibility(state, side);
+      // 1a. Instance level: no card object with a face may be a card hidden from this side now (prompts may show them)
+      for (const [path, obj] of cardObjects(view)) {
+        if (path.startsWith('$.pendingPrompts')) continue;
+        const real = ids.real[obj.instanceId];
+        if (real === undefined) this.fail(step, side, 'ids', `${obj.instanceId} not in the id map`, path);
+        else if (obj.cardCode !== undefined && hiddenIds.has(real)) this.fail(step, side, 'hidden-card', `${obj.cardCode} ${titleOf(obj.cardCode)} is in a zone hidden from ${side}`, path);
+      }
       for (const code of allowed) this.seen[side].add(code);
       const leaked = new Set(hidden.map(x => x.cardCode).filter(code => !this.seen[side].has(code)));
       for (const code of leaked) {
@@ -179,11 +209,17 @@ export class LeakChecker {
       for (const [real, entry] of last) entry.inSight = real in ids.view;
       for (const [real, vid] of Object.entries(ids.view)) last.set(real, { vid, inSight: true });
     }
+    // 3b. view.ts maps option ids token by token on /\b[cr]\d+\b/: no engine id may have that shape
+    for (const p of state.pendingPrompts) {
+      const ids = [...('options' in p ? p.options.map(o => o.id) : []), ...(p.kind === 'access_trash' ? (p.alternatives ?? []).map(a => a.id) : [])];
+      for (const id of ids) if (VIEW_ID_SHAPE.test(id)) this.fail(step, p.side, 'view-id-shape', `engine option id ${id} looks like a viewer id`);
+    }
     // 4. The acting side's legal actions round-trip through its ids
     const actor = actingSide(state);
     if (actor) {
       for (const a of getLegalActions(state, actor)) {
         if (a.player !== actor) continue;
+        for (const [path, str] of strings(a)) if (VIEW_ID_SHAPE.test(str)) this.fail(step, actor, 'view-id-shape', `action string ${str} looks like a viewer id`, path);
         const mine = fromEngineAction(a, this.ids[actor]);
         if (!mine) {
           this.fail(step, actor, 'round-trip', `legal action names a card not in view: ${JSON.stringify(a)}`);

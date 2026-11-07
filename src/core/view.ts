@@ -37,6 +37,7 @@ import type {
 import type { GameAction } from './types/actions';
 import type { Prompt, PromptChoice } from './types/prompts';
 import { IllegalActionError } from './engine/errors';
+import { actingSide } from './engine/priority';
 
 // --- Types ------------------------------------------------------------------------
 
@@ -137,14 +138,6 @@ export interface RunnerView {
   bonusClicksNextTurn?: number;
 }
 
-/** A prompt waiting on the other side: only that it exists. */
-export interface OpponentPromptView {
-  id: string;
-  kind: Prompt['kind'];
-  side: SideCode;
-  mine: false;
-}
-
 /**
  * A prompt waiting on the viewer. Card ids are viewer ids; `cards` holds every
  * card the prompt names, so a card the prompt lets the viewer look at (the top
@@ -156,7 +149,6 @@ export interface MyPromptView {
   id: string;
   kind: Prompt['kind'];
   side: SideCode;
-  mine: true;
   message: string;
   count?: number;
   cardInstanceId?: string;
@@ -174,7 +166,7 @@ export interface MyPromptView {
   cards: CardView[];
 }
 
-export type PromptView = OpponentPromptView | MyPromptView;
+export type PromptView = MyPromptView;
 
 export interface LogEntryView {
   id: string;
@@ -261,7 +253,14 @@ export interface GameView {
   id: string;
   /** Whose view this is. */
   viewer: SideCode;
+  /**
+   * The viewer's own pending prompts only. The opponent's prompts are left out
+   * altogether: whether one exists can tell what a hidden card is (an R&D card
+   * the Runner may trash gets an access_trash prompt, 4.2.2, 7.1.2).
+   */
   pendingPrompts: PromptView[];
+  /** Who the game is waiting on (actingSide), so a client can say "waiting for the Runner". */
+  waitingOn: SideCode | null;
   runsThisTurn: { server: string; successful: boolean }[];
   runnerLastTurnRuns: { server: string; successful: boolean }[];
   runnerLastTurnStoleOrTrashed?: boolean;
@@ -294,7 +293,7 @@ export const GAME_STATE_FIELDS = {
   id: 'redacted', // `game-<seed>` names the seed: replaced by the caller's game id
   rng: 'dropped', // the seed predicts every shuffle
   nextInstanceId: 'dropped',
-  pendingPrompts: 'redacted', // the prompted side sees its prompt (10.14.2: Psi Game bids are chosen in secret)
+  pendingPrompts: 'own', // only the prompted side gets it, whole but for source.data (10.14.2: Psi Game bids are secret); its existence can name a hidden card (7.1.2)
   nextPromptId: 'dropped',
   runsThisTurn: 'public',
   runnerLastTurnRuns: 'public',
@@ -601,7 +600,7 @@ export function viewFor(state: GameState, side: SideCode, ids: ViewIds, gameId: 
   const hand = (cards: CardView[], count: number, known: { code: string }[] | undefined): HandView => ({
     count,
     cards,
-    known: (known ?? []).filter(e => typeof e === 'object').map(e => e.code),
+    known: (known ?? []).map(e => e.code),
   });
 
   const corp: CorpView = {
@@ -647,9 +646,8 @@ export function viewFor(state: GameState, side: SideCode, ids: ViewIds, gameId: 
     ...(r.bonusClicksNextTurn !== undefined && { bonusClicksNextTurn: r.bonusClicksNextTurn }),
   };
 
-  const prompts: PromptView[] = state.pendingPrompts.map(p => {
-    if (p.side !== side) return { id: p.id, kind: p.kind, side: p.side, mine: false };
-    const v: MyPromptView = { id: p.id, kind: p.kind, side: p.side, mine: true, message: p.message, cards: promptCards.get(p.id) ?? [] };
+  const prompts: PromptView[] = state.pendingPrompts.filter(p => p.side === side).map(p => {
+    const v: MyPromptView = { id: p.id, kind: p.kind, side: p.side, message: p.message, cards: promptCards.get(p.id) ?? [] };
     const opts = (list: { id: string; label: string }[]) =>
       list.map(o => ({ id: refText(o.id) ?? o.id.replace(INST, '?'), label: o.label.replace(INST, '?') }));
     switch (p.kind) {
@@ -715,6 +713,7 @@ export function viewFor(state: GameState, side: SideCode, ids: ViewIds, gameId: 
     id: gameId,
     viewer: side,
     pendingPrompts: prompts,
+    waitingOn: actingSide(state),
     runsThisTurn: state.runsThisTurn.map(x => ({ ...x })),
     runnerLastTurnRuns: state.runnerLastTurnRuns.map(x => ({ ...x })),
     ...(state.runnerLastTurnStoleOrTrashed !== undefined && { runnerLastTurnStoleOrTrashed: state.runnerLastTurnStoleOrTrashed }),
