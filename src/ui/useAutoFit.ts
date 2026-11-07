@@ -55,10 +55,8 @@ export function useAutoFit(ref: RefObject<HTMLElement | null>): void {
             let lo = floor;
             let hi = base;
             setSize(el, floor);
-            if (overflows()) {
-              // Even the floor does not fit: stay at the floor and let it scroll
-              hi = floor;
-            } else {
+            // If even the floor does not fit, stay at the floor and let it scroll
+            if (!overflows()) {
               for (let i = 0; i < 7 && hi - lo > 1; i++) {
                 const mid = (lo + hi) / 2;
                 setSize(el, mid);
