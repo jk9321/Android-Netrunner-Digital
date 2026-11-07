@@ -9,7 +9,7 @@
  * credit slide against a need, clicks set by the best play, points and
  * damage clocks), each behind its own tuning.plan switch.
  */
-import { CardInstance, GameState, SideCode, cardDef } from '../core';
+import { CardInstance, GameState, SideCode, cardDef, rezCostOf } from '../core';
 import { plan, pricingKey } from './pricing';
 
 export const RATES = {
@@ -252,7 +252,8 @@ export function boardNeed(state: GameState, side: SideCode): number {
     let need = 0;
     for (const server of servers) {
       const counts = !server.isRemote || server.root.some(c => cardDef(c).type_code === 'agenda');
-      if (counts) for (const ice of server.ice) if (!ice.isRezzed) need += cardDef(ice).cost ?? 0;
+      // plan.oneRezMoney: what rezzing it costs now (Tread Lightly, Fransofia Ward), as the rule ranking's reserve counts it
+      if (counts) for (const ice of server.ice) if (!ice.isRezzed) need += plan().oneRezMoney ? rezCostOf(state, ice) : cardDef(ice).cost ?? 0;
     }
     return need;
   }

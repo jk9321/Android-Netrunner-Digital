@@ -320,6 +320,12 @@ export const tuning = {
     plannerDiscard: true,
     plannerPatchesOff: false,
     /**
+     * Tuning pass 1, part A (parked code audit items 7-9 and the decking/ice-grip experiments, rebased onto beta 5a17a31).
+     * oneRezMoney: Corp rez money counted once in plays scored by the board (corpAI playScore: only the agenda-money rule
+     * there, the reserve gap and money target left to plays scored without the board; valueModel boardNeed by rezCostOf).
+     */
+    oneRezMoney: false,
+    /**
      * Per deciding side (Jeff, 2026-10-28): its own hand valued card by card, by what each will do once played (handValues.ts).
      * Batches: each side loses with it (Corp side 32.2% -> 28.0%, Runner side 32.2% -> 35.9% Corp) and the Runner draws at a
      * full hand on 55% of turns. Off on both sides, kept for re-testing.
