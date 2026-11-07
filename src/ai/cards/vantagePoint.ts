@@ -102,7 +102,7 @@ export const VANTAGE_POINT: Record<string, CardAI> = {
     value: { rig: 2.5 },
     // +1 MU; a tag for one more access on HQ and R&D breaches, now and then (most breaches for Vic, who clears a tag a turn cheaply)
     runner: state => {
-      const takes = plan().vicTags && state.runner.identity.cardCode === VIC ? 0.8 : 0.3;
+      const takes = state.runner.identity.cardCode === VIC ? 0.8 : 0.3;
       return muWorth(state) + perTurn(state, PACE.runs * centralSuccess(state) * takes * accessWorth(state), 'runner');
     },
   },

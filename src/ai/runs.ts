@@ -14,10 +14,10 @@ import {
 import { availableCredits, counters, rezCost, stealthCredits, threatLevel, turnFlag } from '../core/engine/cardEffects';
 import { stealCost } from '../core/engine/actions/run';
 import { spikeKey } from '../core/scripts/liberationRunner';
-import { corpCardValue, tagThreat, tagsWorth } from './evaluate';
+import { corpCardValue, tagsWorth } from './evaluate';
 import { agendaOdds, coreDamageWorth, counterWorthOf, damageWorth, flatlineOdds, runnerEffect } from './effectValues';
 import { clickPrice } from './handValues';
-import { RATES, clickRate, creditNeed, creditSlide, flatlineWorth, payoutSlide, pointValue } from './valueModel';
+import { clickRate, creditNeed, creditSlide, flatlineWorth, payoutSlide, pointValue } from './valueModel';
 import { plan } from './pricing';
 
 /**
@@ -151,12 +151,9 @@ export const runClick = (state?: GameState): number => (state ? clickPrice(state
 
 /** A tag taken (Jeff): the cheaper of clearing it (a click and 2 credits) and what it costs to keep it. */
 export function tagCost(state: GameState): number {
-  if (plan().tagClock) {
-    // A run still to start takes its click first (plan.tagNoClear: what's left to clear the tag with)
-    const s = !state.activeRun ? { ...state, runner: { ...state.runner, clicks: state.runner.clicks - 1 } } : state;
-    return tagsWorth(s, 'runner', s.runner.tags + 1) - tagsWorth(s, 'runner', s.runner.tags); // both priced as given (plan.tagTrashNow)
-  }
-  return Math.min(clickRate() + creditCost(state, 2), RATES.tagAgainstRunner + tagThreat(state, 'runner'));
+  // A run still to start takes its click first (plan.tagNoClear: what's left to clear the tag with)
+  const s = !state.activeRun ? { ...state, runner: { ...state.runner, clicks: state.runner.clicks - 1 } } : state;
+  return tagsWorth(s, 'runner', s.runner.tags + 1) - tagsWorth(s, 'runner', s.runner.tags); // both priced as given (plan.tagTrashNow)
 }
 
 /** An installed card the Corp gets to trash: about the Runner's best, a breaker at its install cost and the time to replace it. */
@@ -498,7 +495,7 @@ function stealWorth(state: GameState, points: number, deny: number): number {
 /** Chance an unseen card in a remote's root is an agenda (Jeff: higher the more the Corp has put into the server). */
 export function remoteAgendaOdds(state: GameState, server: { ice: CardInstance[] }, card: CardInstance, trap: number): number {
   if (card.advancementCounters > 0) return Math.max(0, 1 - trap);
-  const corp = [...state.corp.hq, ...state.corp.rd, ...state.corp.archives.faceDown, ...Object.values(state.corp.servers).flatMap(s => s.root.filter(c => !c.isRezzed && !c.faceUp && !(plan().runnerKnown && c.runnerKnows)))];
+  const corp = [...state.corp.hq, ...state.corp.rd, ...state.corp.archives.faceDown, ...Object.values(state.corp.servers).flatMap(s => s.root.filter(c => !c.isRezzed && !c.faceUp && !c.runnerKnows))];
   const kinds = corp.map(c => cardDef(c).type_code);
   const agendas = kinds.filter(t => t === 'agenda').length;
   const roots = kinds.filter(t => t === 'agenda' || t === 'asset' || t === 'upgrade').length;
@@ -850,7 +847,7 @@ export function runScore(state: GameState, serverId: string, options: RunOptions
   // empty grip that damage is a flatline only as often as the Corp has a hit to land (flatlineOdds), not every time; priced as
   // a sure flatline, every run scored below zero, and a Runner with no cards left in grip or Stack never ran again while the
   // Corp decked out (rules 4.2.7b, 10.4.4)
-  if (state.runner.grip.length === 0 && plan().emptyGripRuns) value -= 0.25 * flatlineWorth(state) * flatlineOdds(state, 0);
+  if (state.runner.grip.length === 0) value -= 0.25 * flatlineWorth(state) * flatlineOdds(state, 0);
   else if (state.runner.grip.length <= 1) value -= 0.25 * damageWorth(state, 1);
   if (value <= 0) return -Infinity;
   let known = 0;

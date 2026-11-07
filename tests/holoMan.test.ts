@@ -32,24 +32,22 @@ describe('The Holo Man advances the agenda it sits with (plan.holoManMove, plan.
     expect(scoredOffice(playTurn())).toBe(true);
   }, 30_000);
 
-  for (const off of ['holoManMove', 'finishSetup'] as const) {
-    it(`without plan.${off} it didn't`, () => {
-      tuning.plan[off] = false;
-      // plan.finishSetup patched the old ranking; the one-currency Corp finds the finish without it (2026-11-06)
-      if (off === 'finishSetup') tuning.plan.oneCurrency = false;
-      // and the planner on the threat model (item 3) finds it without either patch: its leaf no longer charges the
-      // two-sample Runner reply's steals, so the patches are pinned on the old threat
-      tuning.plan.threatModel = false;
-      // and the planner before its search was widened (plan.plannerSearch, item 4): with it the finish is found without the patch
-      tuning.plan.plannerSearch = false;
-      try {
-        expect(scoredOffice(playTurn())).toBe(false);
-      } finally {
-        tuning.plan[off] = true;
-        tuning.plan.oneCurrency = oneCurrencyDefault;
-        tuning.plan.threatModel = threatDefault;
-        tuning.plan.plannerSearch = true;
-      }
-    }, 30_000);
-  }
+  it("without plan.finishSetup it didn't", () => {
+    tuning.plan.finishSetup = false;
+    // plan.finishSetup patched the old ranking; the one-currency Corp finds the finish without it (2026-11-06)
+    tuning.plan.oneCurrency = false;
+    // and the planner on the threat model (item 3) finds it without either patch: its leaf no longer charges the
+    // two-sample Runner reply's steals, so the patches are pinned on the old threat
+    tuning.plan.threatModel = false;
+    // and the planner before its search was widened (plan.plannerSearch, item 4): with it the finish is found without the patch
+    tuning.plan.plannerSearch = false;
+    try {
+      expect(scoredOffice(playTurn())).toBe(false);
+    } finally {
+      tuning.plan.finishSetup = true;
+      tuning.plan.oneCurrency = oneCurrencyDefault;
+      tuning.plan.threatModel = threatDefault;
+      tuning.plan.plannerSearch = true;
+    }
+  }, 30_000);
 });

@@ -5,7 +5,7 @@ import { PAYOUT_RISK } from './payoutRisk';
 import { COUNTER_WORTH } from './counterValues';
 import { CARDS, corpFormula, runnerFormula } from './cards';
 import { actingSide } from './synergy';
-import { CLICK, RATES, cardRate, flatRate, flatlineWorth, memo, pointGain, pointValue, sideCards } from './valueModel';
+import { CLICK, RATES, cardRate, flatlineWorth, memo, pointGain, pointValue, sideCards } from './valueModel';
 import { tagsWorth } from './evaluate';
 import { BLOCK, iceCost, iceCreditNeed, subroutineCost } from './runs';
 import { remoteRunChance, threatOn } from './threatModel';
@@ -70,10 +70,9 @@ export const PACE = {
  */
 const RUN_SHARES = { hqShare: 0.18, rdShare: 0.21, archivesShare: 0.05, remoteShare: 0.56 };
 for (const key of Object.keys(RUN_SHARES) as (keyof typeof RUN_SHARES)[]) {
-  const old = PACE[key];
   let set: number | undefined; // a test's own pace (tests/runBudget.test.ts)
   Object.defineProperty(PACE, key, {
-    get: () => set ?? (plan().measuredRunShares ? RUN_SHARES[key] : old),
+    get: () => set ?? RUN_SHARES[key],
     set: (v: number) => (set = v),
     enumerable: true,
   });
@@ -377,7 +376,7 @@ export const CORE_SLOT_USE = 0.5;
 
 /** Worth of a hand slot already lost to core damage (plan.flatRates.coreDamage; the damage clock already reads the lower limit). */
 export function coreSlotWorth(state: GameState): number {
-  return flatRate('coreDamage') ? CORE_SLOT_USE * cardRate(state, 'runner') : RATES.coreDamage;
+  return CORE_SLOT_USE * cardRate(state, 'runner');
 }
 
 /**
@@ -386,7 +385,6 @@ export function coreSlotWorth(state: GameState): number {
  * the slot, and the damage clock at a full hand with the limit one lower.
  */
 export function coreDamageWorth(state: GameState): number {
-  if (!flatRate('coreDamage')) return RATES.coreDamage;
   const limit = state.runner.handSizeLimit ?? 5;
   const clock = Math.max(0, flatlineOdds(state, limit - 1, true) - flatlineOdds(state, limit, true));
   return coreSlotWorth(state) + flatlineWorth(state) * clock;
@@ -410,7 +408,7 @@ export function corpEffect(state: GameState, code: string, rezzed = false): Corp
   const cost = rezzed ? 0 : getCardDefinition(code).cost ?? 0;
   const agenda = pointGain(state.corp.score, agendaOdds(state).points);
   const card = cardRate(state, 'corp');
-  const tag = flatRate('tags') && plan().tagClock ? tagsWorth(state, 'corp', 1) : RATES.tagAgainstRunner;
+  const tag = tagsWorth(state, 'corp', 1);
   return corpFormula(state, code, { cost, agenda, card, tag });
 }
 

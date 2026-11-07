@@ -26,13 +26,4 @@ describe('a Runner with an empty grip still runs (plan.emptyGripRuns)', () => {
     const ranked = inDecision(s, 'runner', () => new HeuristicRunnerAI({ synergy: true }).rankMainActions(s, getLegalActions(s, 'runner')));
     expect(ranked[0].action.type).toBe('INITIATE_RUN');
   });
-
-  it('without the plan every run scores below zero', () => {
-    tuning.plan.emptyGripRuns = false;
-    try {
-      expect(bestRun(position())).toBe(-Infinity);
-    } finally {
-      tuning.plan.emptyGripRuns = true;
-    }
-  });
 });

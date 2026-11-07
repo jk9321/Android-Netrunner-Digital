@@ -44,11 +44,7 @@ export function scoreOutcome(before: GameState, after: GameState, side: SideCode
   const drawn = (c: CardInstance) => !hand(before, side).some(b => b.instanceId === c.instanceId) && fromDeck(before, side, c);
   score += 0.5 * (sumKeep(after, hand(after, side).filter(c => !drawn(c)), synergy) - sumKeep(before, hand(before, side), synergy));
   if (side === 'runner' && before.activeRun) {
-    if (plan().runRest) score += 0.8 * runRestWorth(after, memory, synergy && tuning.wary);
-    else {
-      const value = serverValue(before, before.activeRun.server, 0, memory, synergy && tuning.wary) * 0.8;
-      if (after.activeRun && !after.activeRun.isJackedOut) score += value;
-    }
+    score += 0.8 * runRestWorth(after, memory, synergy && tuning.wary);
   }
   return score;
 }
@@ -298,7 +294,7 @@ export function answerPrompt(state: GameState, side: SideCode, memory?: RunnerMe
   // The Holo Man (Jeff's Corp game 1, bug report #17: the AI moved it off the remote holding Offworld Office, so it
   // never advanced it): it goes where its 3 counters do most, the server with the agenda they bring closest to scored
   // (one they finish counts its points), and stays put when no server has one (the board score had no sense of it)
-  if (side === 'corp' && plan().holoManMove && prompt.kind === 'effect_choice' && prompt.source.cardCode === '34120' && prompt.source.step === 'move') {
+  if (side === 'corp' && prompt.kind === 'effect_choice' && prompt.source.cardCode === '34120' && prompt.source.step === 'move') {
     const holo = findCardAnywhere(state, prompt.source.instanceId);
     const here = holo ? Object.values(state.corp.servers).find(v => v.root.some(c => c.instanceId === holo.instanceId))?.id : undefined;
     const pull = (serverId: string) =>

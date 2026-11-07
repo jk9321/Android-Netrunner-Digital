@@ -6,7 +6,7 @@ import { breakerTypeWorth, iceWorth } from './iceValues';
 import { agendaWorth, isOneUse, runnerRigValue } from './evaluate';
 import { counterWorth } from './counterValues';
 import { handPlanWorth } from './cardPlans';
-import { CLICK, RATES, cardRate, fingerprint, flatRate, handFilter, payoutSlide, printedGain, reachCard, setDeckCard } from './valueModel';
+import { CLICK, RATES, cardRate, fingerprint, handFilter, payoutSlide, printedGain, reachCard, setDeckCard } from './valueModel';
 import { leafHandByCard, noteDecision, plan, pricing, pricingKey, withPricing } from './pricing';
 
 /**
@@ -60,7 +60,7 @@ export function playedWorth(state: GameState, card: CardInstance): number {
   const profile = CARD_PROFILES[card.cardCode];
   if (profile) return payoutWorth(profile, turns, profile.load, payoutWait(state, profile, 'runner'), cardRate(state, 'runner')) * payoutSlide(state, 'runner', profile.load) - cost - CLICK;
   // (Not while the deck's average card is worked out: pricing the rig there prices the rig cards that asked for the average)
-  if (isIcebreaker(card) && flatRate('breakers') && plan().breakerCredits?.runner && !pricing().pricingBreakers.has(card.instanceId) && !pricing().averaging) {
+  if (isIcebreaker(card) && plan().breakerCredits?.runner && !pricing().pricingBreakers.has(card.instanceId) && !pricing().averaging) {
     // What it adds to the rig's coverage once installed (Mayfly's one use included), as the board will see it.
     // A breaker hosted on Bling or Madani is priced inside the rig too: while it is, the rule-based worth below
     const rig = state.runner.rig;
@@ -160,7 +160,7 @@ export function ownHandValue(state: GameState, side: SideCode): number {
   const limit = (side === 'corp' ? state.corp.handSizeLimit : state.runner.handSizeLimit) ?? 5;
   const seen = pricing().known[side];
   // plan.heldMoney: the money operation moneyReach already puts on the Corp's credit slide isn't counted again in HQ
-  const reach = side === 'corp' && plan().heldMoney ? reachCard(state) : undefined;
+  const reach = side === 'corp' ? reachCard(state) : undefined;
   const values = hand
     .map(c => (seen && !seen.has(c.instanceId) ? drawWorth(state, side) : c === reach ? HAND_FLOOR : heldWorth(state, c, side)))
     .sort((a, b) => b - a);

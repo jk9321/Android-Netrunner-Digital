@@ -41,23 +41,4 @@ describe('a held money operation is counted once (plan.heldMoney)', () => {
       tuning.plan.threatModel = threat;
     }
   });
-
-  it('without the plan it keeps Petty Cash', () => {
-    tuning.plan.pettyCashFirst = false;
-    tuning.plan.heldMoney = false;
-    // plan.measuredTurnsLeft (2026-11-05) plays it here too: on the longer horizon the old way didn't hold it
-    tuning.plan.measuredTurnsLeft = false;
-    tuning.plan.measuredRunShares = false; // the same with the measured run shares
-    const one = tuning.plan.oneCurrency;
-    tuning.plan.oneCurrency = false; // the ranking the double count was found on (the rule tiers)
-    try {
-      expect(inHq(play())).toContain('Petty Cash');
-    } finally {
-      tuning.plan.pettyCashFirst = true;
-      tuning.plan.heldMoney = true;
-      tuning.plan.measuredTurnsLeft = true;
-      tuning.plan.measuredRunShares = true;
-      tuning.plan.oneCurrency = one;
-    }
-  });
 });

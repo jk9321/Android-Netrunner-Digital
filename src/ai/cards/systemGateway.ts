@@ -4,7 +4,7 @@ import { boostCostOf, breakerScript, isIcebreaker } from '../../core/engine/ice'
 import { turnsLeft } from '../cardProfiles';
 import { PAYOUT_RISK } from '../payoutRisk';
 import { counterWorth, PAID_OUT, paidOneATurn, paidOut, trojanHostWorth } from '../counterValues';
-import { cardRate, CLICK, flatRate, payoutClick, payoutSlide, RATES } from '../valueModel';
+import { cardRate, CLICK, payoutClick, payoutSlide, RATES } from '../valueModel';
 import { tagsWorth } from '../evaluate';
 import { bestBreakPlan } from '../runs';
 import { accessWorth, anySuccess, centralSuccess, conduitCounterWorth, counterWorthOf, damageWorth, lock, muWorth, PACE, perTurn, runSuccess, VIRUS_WAIT, virusWait } from '../effectValues';
@@ -360,7 +360,7 @@ export const SYSTEM_GATEWAY: Record<string, CardAI> = {
     value: { keep: 2, upgrade: [1.5, 0] },
     // 2 tags whenever the Runner steals from this server
     corp: state => {
-      const tags = flatRate('tags') && plan().tagClock ? tagsWorth(state, 'corp', 2) : 2 * RATES.tagAgainstRunner;
+      const tags = tagsWorth(state, 'corp', 2);
       return { keep: 0.3 * tags, upgrade: [0.3 * tags, 0.15 * tags] };
     },
   },

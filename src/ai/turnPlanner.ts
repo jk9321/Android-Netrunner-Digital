@@ -128,7 +128,7 @@ function playout(start: GameState, side: SideCode, first: GameAction, ai: Planne
     const clicks = Math.max(1, clicksOf(mainBefore, 'runner') - clicksOf(after, 'runner'));
     bonus += worth + clicks * runClick(mainBefore);
     // plan.plannerRunCredits (Gemini's second audit): the rest of the turn can't spend what the run will
-    const spent = plan().plannerRunCredits && ai.runCredits ? ai.runCredits(after, after.activeRun.server, mainCard) : 0;
+    const spent = ai.runCredits ? ai.runCredits(after, after.activeRun.server, mainCard) : 0;
     return { ...after, activeRun: null, pendingPrompts: [], runner: { ...after.runner, credits: Math.max(0, after.runner.credits - spent) } };
   };
   const step = (state: GameState, action: GameAction): GameState | null => {
@@ -141,7 +141,7 @@ function playout(start: GameState, side: SideCode, first: GameAction, ai: Planne
       bonus += worth + runClick(state); // runScore charges the click; here the click is the plan's
       // plan.plannerRunCredits (Gemini's second audit, 2026-11-05): the run's credits are gone for the rest of the turn
       // (runScore already charged them; the playout kept them, so a run then a 5-credit install looked affordable on 6)
-      const spent = plan().plannerRunCredits && ai.runCredits ? ai.runCredits(state, action.targetServerId) : 0;
+      const spent = ai.runCredits ? ai.runCredits(state, action.targetServerId) : 0;
       return { ...state, runner: { ...state.runner, clicks: state.runner.clicks - 1, credits: Math.max(0, state.runner.credits - spent) } };
     }
     if (!activePrompt(state)) {
@@ -150,7 +150,7 @@ function playout(start: GameState, side: SideCode, first: GameAction, ai: Planne
     }
     try {
       const after = executeAction(state, action);
-      if (plan().plannerRunEvents && side === 'runner' && !state.activeRun && after.activeRun) return runStarted(after);
+      if (side === 'runner' && !state.activeRun && after.activeRun) return runStarted(after);
       return after;
     } catch {
       return null;
@@ -176,7 +176,7 @@ function playout(start: GameState, side: SideCode, first: GameAction, ai: Planne
     // Out of clicks, the turn can still score an agenda the last click finished: scoring costs no click (rule 7.1.1;
     // Jeff's bug report, 2026-10-31: Petty Cash first, then two advances, looked like leaving the agenda for the Runner)
     const outOfClicks = clicksOf(state, side) <= 0;
-    if (outOfClicks && !(plan().plannerScores && side === 'corp')) break;
+    if (outOfClicks && !(side === 'corp')) break;
     const now = state;
     const ranked = ai.rank(now);
     const best = ranked.find(r => r.score > -Infinity && r.action.type !== 'END_TURN' && (!outOfClicks || r.action.type === 'SCORE_AGENDA') && !(ran && r.action.type === 'INITIATE_RUN') && !dominated(now, r.action, ranked, side));

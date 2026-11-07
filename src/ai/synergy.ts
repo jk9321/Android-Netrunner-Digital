@@ -274,39 +274,11 @@ export const tuning = {
     runnerReply: true,
     /** Jeff, 2026-10-29: an agenda in an open remote is as good as stolen: steal odds 1, and the Runner reply counts it stolen even when the sampled Runner didn't run it. */
     openSteal: true,
-    /** Jeff, 2026-11-05 (build econ before scoring): a held Hedge Fund was counted twice, as a card in HQ and on the credit slide by moneyReach, so playing it scored below a click for a credit; the card moneyReach counts is left out of HQ's worth (evaluate.ts handAndClicks, handValues.ts ownHandValue). */
-    heldMoney: true,
-    /** Jeff, 2026-11-05 ("rez ice when needed, but build back up after"): the Corp's first 4 credits are worth up to 2.8 each, not 1.8 (valueModel.ts sideCreditValue, BROKE_SLOPE, BROKE_CREDITS). */
-    brokeSlope: true,
-    /** Jeff, 2026-10-31 (same report): on the Corp's turn the agendas on the board share its clicks and credits, nearest to scored first, instead of each counting on all of them (evaluate.ts agendaBudgets). */
-    agendaBudget: true,
-    /** Jeff's Corp game 2 (bug report #18, 2026-11-05: Project Ingatan scorable on turn 7, the AI built instead): an agenda's remaining advances are priced at what a click builds (evaluate.ts AGENDA_CLICK, 2 against the flat 1.25), not the flat click rate. The smallest rate that scores in his turn-7 position. */
-    agendaClicks: true,
-    /** Jeff's Corp game 1 (bug report #17, 2026-11-05): The Holo Man moves to (or stays with) the agenda its counters bring closest to scored, instead of drifting to R&D (prompts.ts). */
-    holoManMove: true,
     /** Same report: a play that lets this turn's clicks and credits finish an agenda (The Holo Man, Seamless Launch short of the last advance) ranks with that advance, free of the reserve penalty (corpAI.ts finishable). */
     finishSetup: true,
-    /** Jeff, 2026-10-31 (same report): the turn planner's playouts score an agenda its last click finished (turnPlanner.ts). */
-    plannerScores: true,
-    /** Jeff, 2026-11-05: the planner prices a run a card starts (run events, Red Team) like a plain run with the card's riders, instead of ending the playout at the run's start (turnPlanner.ts runStarted). */
-    plannerRunEvents: true,
     /** Jeff, 2026-11-05: credits a successful run gives (Clean Getaway, Transfer of Wealth, Trick Shot, Red Team) are priced on the credit slide (runs.ts successCredits). Off (Jeff, 2026-11-05): no batch gain, and the Corp's guessed Runner reply then plays
      * Transfer of Wealth when broke, so the Corp holds Hedge Fund (tests/castWhileAble.test.ts). */
     runCreditsSlide: false,
-    /** Jeff, 2026-11-05: a Runner choice during a run is scored with what the rest of the run is still worth (the breach less the ice ahead), not just that the run goes on (runs.ts runRestWorth). */
-    runRest: true,
-    /** Code audit (2026-11-05, thread "Audit AI code for overlaps and conflicts"): the Runner's draw bonuses for a trap run and for missing breakers stop at the hand size (runnerAI.ts scoreMain). */
-    drawCap: true,
-    /** Code audit (2026-11-05, from Gemini's second audit): a run the turn planner prices takes the credits its ice needs off the rest of the playout (turnPlanner.ts). */
-    /** Code audit (2026-11-06; Jeff: the flat 8 was a band-aid): in the Corp's entry cost, ice the Runner's rig can't get past costs the cheapest breaker in its deck that could (drawn, installed, used), a wall when none can; other ice isn't capped at 8 (corpAI.ts breakerReach). */
-    breakerReach: true,
-    /** 2026-11-06 (thread "Find why self-play games end decked"): a Runner with an empty grip prices the one net damage a run might cost as a flatline only as often as the Corp can land a hit, not as a sure one (runs.ts runScore). */
-    emptyGripRuns: true,
-    plannerRunCredits: true,
-    /** Code audit (2026-11-05, from Gemini's second audit): lookahead re-deals keep the R&D cards the Runner remembers where they are, and faceup installed cards as they are (runnerReply.guessHidden, search.determinize). */
-    keepKnownRd: true,
-    /** Code audit (2026-11-05, from Gemini's second audit): the Runner prices a Corp card it has accessed as what it is, and Project Ingatan and Plutus only by the Archives cards it can see. */
-    runnerKnown: true,
     /** Jeff, 2026-11-05: turns left from the self-play measure by the higher score, not 8 less it (cardProfiles.ts turnsLeft). */
     measuredTurnsLeft: true,
     /** 2026-11-07 (thread "Find why self-play games end decked"): turns left are no more than R&D lasts at 1.3 draws a turn (cardProfiles.ts turnsLeft).
@@ -314,25 +286,8 @@ export const tuning = {
      * agenda gain, so a shorter clock lowers scoring's worth instead of raising its urgency). Kept, the honest clock, for when
      * urgency is priced by the Runner's points rather than by a discount. */
     rdTurnsLeft: false,
-    /** Jeff, 2026-11-05: the share of runs on each server from the self-play measure (effectValues.ts RUN_SHARES). */
-    measuredRunShares: true,
-    /** Jeff, 2026-10-31 (same report): an asset that only pays through a click ability (Humanoid Resources) is rezzed only with the clicks to use it (corpAI.ts clickOnly). */
-    rezWhenUsed: true,
-    /** Jeff, 2026-10-31 (Humanoid Resources rezzed, never used): a click-only asset is rezzed only in the action phase, when using it is then the best play (corpAI.ts rezToUse). */
-    rezToUse: true,
     /** Jeff, 2026-10-31 (same report): the Runner reply counts as stolen only open-remote agendas the sampled Runner never ran; one it ran and was stopped from survived (runnerReply.ts). */
     openStealUnrun: true,
-    /**
-     * Jeff, 2026-10-28 (final flat-value scan): the last flat rates from the model. points: accesses and
-     * agenda effects on the point clock; flatline: a flatline worth the whole game; cards: a card lost or
-     * drawn worth the deck's average card; coreDamage: a hand slot for the rest of the game; tags: card
-     * formulas price tags as the board does; hosted: Bling/Madani cards at their worth in hand; breakers:
-     * a breaker in hand or play by what it adds to the rig, with no flat extra.
-     */
-    flatRates: { points: true, flatline: true, cards: true, coreDamage: true, tags: true, hosted: true, breakers: true } as Record<string, boolean>,
-    tagClock: true,
-    /** Jeff, 2026-10-30: tags on Vic cost what her once-a-turn ability takes to clear them: the first cheap, the second after a Corp turn, the rest as usual (evaluate.ts vicTagsWorth); Rotary counts on its tag most breaches. */
-    vicTags: true,
     /** Jeff, 2026-10-30: R&D runs priced card by card from what the Runner remembers of R&D (rdKnowledge.ts): a known agenda on top is a sure steal, known other cards are worth nothing, and the rest are unseen. Replaces the flat discount for a second R&D run in a turn. */
     rdMemory: true,
     /** Jeff, 2026-10-30 (playing Sourdough Starter): DZMZ Optimizer by the programs still to install; Methuselah fed only dead hardware (a copy of one installed, or unaffordable); Read-Write Share hosts the weakest grip card; Knickknack trashes only spent cards (effectValues.ts, prompts.ts). */
@@ -437,7 +392,9 @@ export const FOLDED: readonly string[] = [
   'saveForOps', 'trojans', 'bioroidClicks', 'clickRate', 'oneClickPrice', 'measuredNov6', 'drawWorthCredits',
   'creditSlide', 'handFilter', 'counterEffects', 'cardProfiles', 'payoutRisk', 'effectValues', 'cardFixes',
   'counterFormulas', 'damageClock', 'corpTurnDamage', 'runOpenness', 'muNeed', 'stealOdds', 'agendaCredits',
-  'moneyReach', 'fermenterBank',
+  'moneyReach', 'fermenterBank', 'heldMoney', 'brokeSlope', 'agendaBudget', 'agendaClicks', 'holoManMove',
+  'plannerScores', 'plannerRunEvents', 'runRest', 'drawCap', 'breakerReach', 'emptyGripRuns', 'plannerRunCredits',
+  'keepKnownRd', 'runnerKnown', 'measuredRunShares', 'rezWhenUsed', 'rezToUse', 'flatRates', 'tagClock', 'vicTags',
 ];
 
 /** Throws on a name that isn't a plan switch (a typo, or a switch folded into the code). */

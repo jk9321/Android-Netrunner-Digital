@@ -54,7 +54,7 @@ const gioanPower = (state: GameState): number => Math.min(1, 2 * PACE.agendaEven
 const auCoPower = (state: GameState): number => (2 * cardRate(state, 'corp') + handFilter()) / 2;
 
 /** Facedown Archives as the pricing side sees it: the Runner can't see those cards (Gemini audit 2.2a). */
-const corpArchivesHidden = (state: GameState): CardInstance[] => (plan().runnerKnown && actingSide() === 'runner' ? [] : state.corp.archives.faceDown);
+const corpArchivesHidden = (state: GameState): CardInstance[] => (actingSide() === 'runner' ? [] : state.corp.archives.faceDown);
 
 /** Project Ingatan: install the best card in Archives for nothing (a click and its install cost saved). */
 function ingatanAgenda(state: GameState): number {

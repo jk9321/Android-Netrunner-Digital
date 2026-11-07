@@ -310,9 +310,8 @@ export class HeuristicRunnerAI implements Agent {
     // plan.drawCap (code audit, 2026-11-05): a card drawn past the hand size is discarded at the end of the turn
     // (rules 5.7.4), so these bonuses stop at the limit; a bigger hand for a trap run still counts while a click is left to run
     const room = state.runner.grip.length < state.runner.handSizeLimit;
-    const drawCap = !!plan().drawCap;
-    if (action.type === 'DRAW_CARD' && needsBiggerHand(state, this.memory) && (!drawCap || room || state.runner.clicks >= 2)) score += 1.5;
-    if (action.type === 'DRAW_CARD' && this.digForBreakers && state.runner.stack.length > 5 && (!drawCap || room)) score += 1.2;
+    if (action.type === 'DRAW_CARD' && needsBiggerHand(state, this.memory) && (room || state.runner.clicks >= 2)) score += 1.5;
+    if (action.type === 'DRAW_CARD' && this.digForBreakers && state.runner.stack.length > 5 && room) score += 1.2;
     if (action.type === 'DRAW_CARD' && this.synergy && state.runner.grip.length < state.runner.handSizeLimit) score += digValue(state, 'runner');
     if (action.type === 'INSTALL_CARD' && action.hostInstanceId && cardCode && TROJANS.includes(cardCode)) {
       const host = Object.values(state.corp.servers).flatMap(s => s.ice).find(c => c.instanceId === action.hostInstanceId);

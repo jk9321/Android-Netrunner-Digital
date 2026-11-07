@@ -9,7 +9,6 @@ import { RunnerMemory } from './runs';
 import { asSide, logNudge } from './synergy';
 import { decisionContext } from './handValues';
 import { knownRdSlots } from './runnerReply';
-import { plan } from './pricing';
 
 /**
  * Hard AI: Monte Carlo look-ahead on top of the rule-based AI.
@@ -106,8 +105,7 @@ export function determinize(state: GameState, side: SideCode, random: Random, me
   const installed = Object.values(s.corp.servers);
   const iceSlots = installed.flatMap(sv => sv.ice).filter(c => !c.isRezzed);
   // plan.keepKnownRd: faceup installed cards (BANGUN, Sacrifice Zone Expansion) are public, and so are the cards it has accessed
-  const keep = !!plan().keepKnownRd;
-  const rootSlots = installed.flatMap(sv => sv.root).filter(c => !c.isRezzed && !memory?.has(c.instanceId) && !(keep && (c.faceUp || c.runnerKnows)));
+  const rootSlots = installed.flatMap(sv => sv.root).filter(c => !c.isRezzed && !memory?.has(c.instanceId) && !(c.faceUp || c.runnerKnows));
   // plan.keepKnownHand: HQ cards the Runner has seen (accessed and left, revealed) stay as they are
   const knownHq = new Set(knownInHand(state, 'corp').map(k => k.id));
   const fixedRd = knownRdSlots(state);

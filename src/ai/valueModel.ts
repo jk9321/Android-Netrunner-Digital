@@ -163,8 +163,6 @@ export function memo<T>(state: GameState, key: string, work: () => T): T {
   return value;
 }
 
-/** True while a plan.flatRates piece is on. */
-export const flatRate = (key: string): boolean => !!plan().flatRates?.[key];
 
 /** The deck's average card (handValues.ts registers it; valueModel can't import it without a cycle). */
 let deckCard: ((state: GameState, side: SideCode) => number) | null = null;
@@ -176,12 +174,11 @@ export const setDeckCard = (fn: (state: GameState, side: SideCode) => number) =>
  * hand), else the flat rate.
  */
 export function cardRate(state: GameState | undefined, side: SideCode): number {
-  return state && deckCard && flatRate('cards') ? deckCard(state, side) : RATES.drawnCard;
+  return state && deckCard ? deckCard(state, side) : RATES.drawnCard;
 }
 
 /** Worth of `points` more for a side on `score` (averaged decklist points can be fractional). */
 export function pointGain(score: number, points: number): number {
-  if (!flatRate('points')) return RATES.point * points;
   const whole = Math.floor(points);
   const base = pointValue(score + whole) - pointValue(score);
   return base + (points - whole) * (pointValue(score + whole + 1) - pointValue(score + whole));
@@ -189,7 +186,6 @@ export function pointGain(score: number, points: number): number {
 
 /** Worth of a flatline (plan.flatRates.flatline: the whole game, the Corp's points still to come and the Runner's lost). */
 export function flatlineWorth(state: GameState): number {
-  if (!flatRate('flatline')) return 4 * RATES.point;
   return pointValue(7) - pointValue(state.corp.score) + pointValue(state.runner.score);
 }
 
@@ -280,7 +276,7 @@ export function moneyReach(state: GameState): number {
   const card = reachCard(state);
   // plan.heldMoney: less the credit the click that plays it could have taken instead, so holding it is never worth
   // as much as playing it (a held Petty Cash, +2 for a click, was worth the same as a click for a credit)
-  return card ? MONEY_REACH * Math.max(0, moneyGain(card) - (plan().heldMoney ? 1 : 0)) : 0;
+  return card ? MONEY_REACH * Math.max(0, moneyGain(card) - 1) : 0;
 }
 
 /** The credits a card's text gains outright ("Gain N credits" at the start of a sentence), or undefined. */
@@ -322,7 +318,7 @@ export function sideCreditValue(state: GameState, side: SideCode, viewer: SideCo
   // worth up to 2.8 each, not 1.8 (a steeper slope all the way to the need made a click for a credit beat installing
   // Otto Campaign at 6 credits). Broke, it made no more money than when rich (2.3 credits a turn): a credit click scored
   // 1.8 - 1.25 and lost to advancing or installing almost anything, and it went into the Runner's turn unable to rez
-  const broke = side === 'corp' && viewer === 'corp' && plan().brokeSlope ? BROKE_SLOPE : 0;
+  const broke = side === 'corp' && viewer === 'corp' ? BROKE_SLOPE : 0;
   return reach ? creditSlide(credits + reach, need, broke) + Math.min(credits, 0) : creditSlide(credits, need, broke);
 }
 

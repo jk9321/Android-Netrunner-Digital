@@ -343,7 +343,7 @@ export class HeuristicCorpAI implements Agent {
         if (this.rezTimingBlocked(state, card)) return -Infinity;
         // Agendas can't be rezzed (rule 3.2.3), traps spring on access, run-timed cards wait for the run's window
         if (type(card) === 'agenda' || isTrap(card.cardCode) || runTimed(card)) return -Infinity;
-        if (plan().rezToUse && clickOnly(card)) return this.rezToUse(state, card, before);
+        if (clickOnly(card)) return this.rezToUse(state, card, before);
         if (state.turnStep?.kind === 'corp_turn_start' && type(card) === 'asset' && getCardScript(card.cardCode)?.triggers?.turn_begins) return this.preTurnRez(state, action);
         return this.playScore(state, action, before);
       }
@@ -463,7 +463,7 @@ export class HeuristicCorpAI implements Agent {
     // (Jeff, 2026-10-31: "it rezzes Humanoid Resources but never seems to use it"; plan.rezToUse) not before the turn
     // begins either, and in the action phase only when using it would then be the best play: rezzed and left, it is
     // just a credit spent and a trash target
-    if (plan().rezToUse && clickOnly(card)) return this.rezToUse(state, card);
+    if (clickOnly(card)) return this.rezToUse(state, card);
     const econ = econValue(card.cardCode, state);
     if (econ) return econ + 1;
     // Model: worth once rezzed, less the rez cost, on the install-score scale; upgrades still wait for ice money (Jeff)
@@ -510,7 +510,7 @@ export class HeuristicCorpAI implements Agent {
     // (Jeff's bug report, 2026-10-31; plan.rezWhenUsed) An asset that only pays through a click ability (Humanoid Resources)
     // is rezzed in the paid ability window just before the action that uses it (rule 5.6.2a): rezzed with fewer clicks
     // left it does nothing yet, and spends the money a broke Corp needs for Petty Cash or its ice
-    if (plan().rezWhenUsed && clickOnly(card) && corp.clicks < clickOnly(card)) return true;
+    if (clickOnly(card) && corp.clicks < clickOnly(card)) return true;
     // plan.clickMoneyRez (Jeff, 2026-11-04: Regolith rezzed with no clicks left, then trashed before it paid): money
     // taken with a click is rezzed when a click is left to take it, or in the window just before the turn begins
     if (CARD_PROFILES[card.cardCode]?.every === 'click' && corp.clicks < 1 && state.turnStep?.kind !== 'corp_turn_start') return true;
@@ -1157,7 +1157,7 @@ function entryCost(state: GameState, server: ServerState, credits: number): numb
       credits -= rc;
     }
     const c = protectionCost(state, { ...ice, isRezzed: true });
-    cost += !plan().breakerReach ? Math.min(8, c) : c === Infinity ? breakerReach(state, { ...ice, isRezzed: true }) : c;
+    cost += c === Infinity ? breakerReach(state, { ...ice, isRezzed: true }) : c;
   }
   return cost;
 }

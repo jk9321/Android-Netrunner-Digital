@@ -33,7 +33,6 @@ export const REPLY = {
  */
 export function knownRdSlots(state: GameState): Set<number> {
   const slots = new Set<number>();
-  if (!plan().keepKnownRd) return slots;
   for (const e of knownInRd(state)) if (e.lo === e.hi && state.corp.rd[e.lo]?.instanceId === e.id) slots.add(e.lo);
   return slots;
 }

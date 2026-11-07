@@ -12,7 +12,7 @@ import { AI_BREAKER_SHARE, RUNNER_TURN_INCOME, breakerTypeWorth, flatIceWorth, i
 import { payoutWait, payoutWorth, profileOf, turnsLeft } from './cardProfiles';
 import { resourceTrashHqCost } from '../core/engine/actions/basic';
 import { HAND_FLOOR, clickPrice, handByCard, heldWorth, ownHandValue, playedWorth, unseenInHand } from './handValues';
-import { CLICK, KNOBS, RATES, cardRate, creditValue, flatRate, flatlineWorth, guardLoop, handFilter, mean, memo, payoutSlide, pointGain, pointValue, reachCard, sideCreditValue } from './valueModel';
+import { CLICK, KNOBS, RATES, cardRate, creditValue, flatlineWorth, guardLoop, handFilter, mean, memo, payoutSlide, pointGain, pointValue, reachCard, sideCreditValue } from './valueModel';
 import { LOCKDOWN, PACE, STEAL, agendaOdds, coreSlotWorth, flatlineOdds, lifeGrip, placedCounterWorth, runSuccess, stealOdds } from './effectValues';
 import { archivedWorth } from './cards';
 import { isTrap, trashedCardCost } from './runs';
@@ -149,7 +149,7 @@ export function runnerRigValue(state: GameState, aware: boolean, viewer: SideCod
       continue;
     }
     // A breaker is worth its coverage above (plan.flatRates.breakers: no flat extra for having one)
-    value += isIcebreaker(card) ? (flatRate('breakers') && plan().breakerCredits?.[viewer] ? 0 : RATES.icebreaker) : RATES.rigCardScale * runnerCardValue(card.cardCode, state, card);
+    value += isIcebreaker(card) ? (plan().breakerCredits?.[viewer] ? 0 : RATES.icebreaker) : RATES.rigCardScale * runnerCardValue(card.cardCode, state, card);
     // Counters by what they do on this card (step 3), or the step-1 rates
     value += countersWorth(state, card, 'credit') + countersWorth(state, card, 'virus') + countersWorth(state, card, 'power');
     // Bling, Madani: cards to play later, worth what they would be in the grip (plan.flatRates.hosted);
@@ -157,7 +157,7 @@ export function runnerRigValue(state: GameState, aware: boolean, viewer: SideCod
     // Corp cards hosted on Detente are not the Runner's to play: Detente's own value covers them
     const hosted = (card.hostedCards ?? []).filter(h => cardDef(h).side_code === 'runner');
     const freeInstall = card.cardCode === MADANI && !!plan().madaniClick;
-    value += hosted.reduce((n, h) => n + (flatRate('hosted') ? heldWorth(state, h, 'runner', freeInstall) : RATES.hostedCard), 0);
+    value += hosted.reduce((n, h) => n + heldWorth(state, h, 'runner', freeInstall), 0);
   }
   // Combos in play (Knickknack burning Principia, Baker on stealth credits): plan.cardPlans
   return value + boardPlansWorth(state, 'runner');
@@ -233,7 +233,7 @@ function inIcedServer(state: GameState, card: CardInstance): boolean {
 
 /** A Corp card the Runner can't see: installed, unrezzed and facedown. */
 // A card the Runner has accessed or been shown in place (runnerKnows) isn't hidden from it (Gemini audit 2.2b)
-const isHidden = (card: CardInstance) => !card.isRezzed && !card.faceUp && !(plan().runnerKnown && card.runnerKnows);
+const isHidden = (card: CardInstance) => !card.isRezzed && !card.faceUp && !(card.runnerKnows);
 
 /**
  * What the Runner can expect of a facedown installed Corp card, worked out
@@ -312,7 +312,7 @@ export function agendaWorth(
   const late = 1 - 1 / turnsLeft(state);
   // plan.agendaClicks (Jeff's Corp game 2, bug report #18): the clicks still needed are clicks a later turn can't spend
   // building; priced at the flat click rate, building now and scoring next turn always beat scoring now and building next
-  const click = plan().agendaClicks ? AGENDA_CLICK : CLICK;
+  const click = AGENDA_CLICK;
   // plan.oneCurrency (review of item 1): a steal is not only the Corp's points lost but the Runner's points won (rule
   // 1.17.3: the Runner adds a stolen agenda to its score area), on the Runner's clock: evaluate is mine minus theirs, so
   // an agenda the Runner may take next turn is charged that chance of its point gain. The old install gates (exposureOk,
@@ -383,7 +383,7 @@ function archivedAgendasValue(state: GameState, viewer: SideCode): number {
  * be the turn's first action) looked like it threw a score away.
  */
 function agendaBudgets(state: GameState, viewer: SideCode): Map<string, { clicks: number; credits: number }> | undefined {
-  if (!plan().agendaBudget || viewer !== 'corp' || state.activePlayer !== 'corp') return undefined;
+  if (viewer !== 'corp' || state.activePlayer !== 'corp') return undefined;
   const agendas = Object.values(state.corp.servers)
     .flatMap(s => s.root)
     .filter(c => cardDef(c).type_code === 'agenda')
@@ -544,7 +544,7 @@ function tagClock(state: GameState, viewer: SideCode, tags: number, actual: bool
   const worth = corpTurn
     ? Math.min(tags * clear, 0.5 * perTurn + 0.1 * (tags - 1))
     : Math.min((stuck ? perTurn : 0) + tags * clear, 1.5 * perTurn + 0.1 * (tags - 1));
-  return plan().vicTags && state.runner.identity.cardCode === VIC ? Math.min(worth, vicTagsWorth(state, tags, perTurn)) : worth;
+  return state.runner.identity.cardCode === VIC ? Math.min(worth, vicTagsWorth(state, tags, perTurn)) : worth;
 }
 
 /** Virtual Intelligence, P.I.: "Once per turn → [click], 1[credit]: Draw 1 card and remove 1 tag." */
@@ -605,7 +605,7 @@ function handAndClicks(state: GameState, side: SideCode, viewer: SideCode): numb
   const hand = side === 'corp' ? state.corp.hq : state.runner.grip;
   // plan.heldMoney: the money operation moneyReach puts on the Corp's credit slide is worth its credits there, not
   // a card in HQ as well (held, Hedge Fund was counted twice and playing it scored below a click for a credit)
-  const reached = side === 'corp' && viewer === 'corp' && plan().heldMoney && reachCard(state) ? 1 : 0;
+  const reached = side === 'corp' && viewer === 'corp' && reachCard(state) ? 1 : 0;
   // plan.oneCurrency: the Corp's own agendas in HQ (the ones it has seen) are worth what they will be once installed,
   // a click later, behind a typical remote (agendaWorth inHand), not a card's worth: as a card, every install of an
   // agenda behind ice traded a full card for an agenda priced net of its advances, and agendas sat in HQ
@@ -672,7 +672,6 @@ export function hqTrashCardsLoss(state: GameState, resource: CardInstance): numb
 const lifeCards = (size: number): number => Math.min(size, RATES.handCoreCards) * (RATES.handCore - RATES.drawnCard);
 
 export function sideStrength(state: GameState, side: SideCode, viewer: SideCode = side, aware = false): number {
-  const threat = aware && state.runner.tags > 0 ? tagThreat(state, viewer) : 0;
   if (side === 'corp') {
     const corp = state.corp;
     return (
@@ -680,7 +679,7 @@ export function sideStrength(state: GameState, side: SideCode, viewer: SideCode 
       handAndClicks(state, 'corp', viewer) +
       pointValue(corp.score, viewer === 'corp' ? KNOBS.corpPoints : 1) +
       corpBoardValue(state, viewer) +
-      (plan().tagClock ? tagsWorth(state, viewer) : (RATES.tagForCorp + threat) * state.runner.tags) +
+      tagsWorth(state, viewer) +
       // Dividends and Next Big Thing counters, AU Co. power counters
       corp.scoreArea.reduce((n, a) => n + countersWorth(state, a, 'agenda'), 0) +
       countersWorth(state, corp.identity, 'power')
@@ -691,7 +690,7 @@ export function sideStrength(state: GameState, side: SideCode, viewer: SideCode 
     sideCreditValue(state, 'runner', viewer) +
     handAndClicks(state, 'runner', viewer) +
     pointValue(runner.score) -
-    (plan().tagClock ? tagsWorth(state, viewer) : (RATES.tagAgainstRunner + threat) * runner.tags) -
+    tagsWorth(state, viewer) -
     coreSlotWorth(state) * runner.coreDamage -
     // The damage clock: a small grip against the Corp's damage is a step toward a flatline
     (flatlineWorth(state) * flatlineOdds(state, lifeGrip(state), true) + lifeCards(runner.grip.length)) +
