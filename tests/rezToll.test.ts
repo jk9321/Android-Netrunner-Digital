@@ -75,7 +75,10 @@ describe('in-run ice rez (plan.rezToll, plan.modelRez)', () => {
 
   it('rezzes to stop a Runner that can\'t pay its way to an agenda', () => {
     const { state, ice } = agendaRemote(3, 0);
-    expect(choose(state, ice)?.type).toBe('REZ_CARD');
+    // Pinned to the old steal odds (STEAL.run). Under plan.threatModel (on, 2026-11-07) the Corp keeps its last 3: the
+    // stopped Runner has Cleaver, and a turn's income later (threatStanding) it pays through the Palisade, while the
+    // broke Corp needs 8 clicks (3 Runner turns) to score Offworld Office, so the agenda reads lost either way
+    withPlans({ threatModel: false }, () => expect(choose(state, ice)?.type).toBe('REZ_CARD'));
   });
 
   it('does not rez ice the Runner breaks on its way to the agenda anyway: the agenda goes either way, the credits needn\'t', () => {

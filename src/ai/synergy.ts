@@ -353,8 +353,11 @@ export const tuning = {
      * Round 2 (ai-threat-model-2): later waiting turns on a Runner a turn's income richer (evaluate threatStanding),
      * plus plan.measuredPass: -10.6 ± 1.2 and -10.9 ± 1.3 paired, stuck-in-HQ +9.8 / +10.3 (runs 42338471891,
      * 42338476397). Still off. Hand-off: /mnt/project-files/netrunner-ai/threat-model/handoff-round2.md.
+     * ON BY DEFAULT, VALUES ONLY (round 3, Fable review 2026-11-07): the decomposition put the whole loss at the leaf.
+     * The threat in the values with runnerReply kept at the leaf (threatLeaf off) is -1.0 ± 0.9 paired, no alarm worse
+     * (run 42347842219); at the leaf only -8.2 ± 1.3 (42347844568). Hand-off: handoff-round3.md, same folder.
      */
-    threatModel: false,
+    threatModel: true,
     /**
      * Item 3 round 2 (Fable review, 2026-11-07): the Corp's guess of a run getting past unrezzed ice (passOdds) is the
      * measured rate, not 0.55 a layer. Self-play (884 games, runs 42337257360 / 42337259763) and Jeff's 13 Corp games
@@ -367,20 +370,28 @@ export const tuning = {
     /**
      * Item 3 round 3 (Fable review, 2026-11-07): the planner leaf credits the Corp with the Runner's spend on its
      * budgeted turn (threatModel.ts threatLoss), as runnerReply's played-out leaf did. Corp only; read with threatModel.
+     * Off with the threat leaf it belongs to (-9.7 ± 1.2 with it, run 42343555205).
      */
     threatSpend: false,
     /**
      * Item 3 round 3: the threat's 0/1 per server read as the measured hit rate when the budget runs it and when it
      * doesn't (threatModel.ts CALIBRATED_RUN), everywhere the threat is read. Corp only; read with threatModel.
+     * Off: with the threat leaf, -9.9 ± 1.3 against -10.6 without it, stuck-in-HQ unchanged (run 42343557404). The
+     * table stays as measurement.
      */
     calibratedRun: false,
     /**
-     * Item 3 round 3, a decomposition (both on: the threat as built): with threatModel on, the threat's two halves can
-     * be switched off one at a time. threatLeaf: the planner leaf's charge (threatLoss; off, the two-sample
-     * runnerReply). threatValues: the readers in the values (stealOdds, agendaWorth, centralExposure; off, STEAL.run
-     * and PACE).
+     * Item 3 round 3, a decomposition: with threatModel on, the threat's two halves can be switched off one at a time.
+     * threatLeaf: the planner leaf's charge (threatLoss; off, the two-sample runnerReply). threatValues: the readers in
+     * the values (stealOdds, agendaWorth, centralExposure; off, STEAL.run and PACE).
+     * threatLeaf OFF BY DEFAULT (round 3, paired -8.2 ± 1.3 on its own, run 42347844568; with threatSpend and
+     * calibratedRun still about -10): a charge on the end-of-turn board drops four things the played-out reply sees:
+     * the Corp's own rezzes in the Runner's runs (and their cost), the board at the Corp's next turn (clicks, draw,
+     * turn-start payouts), steals made (the agenda gone, not priced as at risk), and the Runner's grip turn (installs
+     * and events that turn a run it couldn't make into one it can). The leaf is item 4's (a cheaper, deterministic
+     * playout), not a formula.
      */
-    threatLeaf: true,
+    threatLeaf: false,
     threatValues: true,
     /**
      * Per deciding side (Jeff, 2026-10-28): its own clicks priced by the best plays in hand, at least a credit (handValues.ts clickWorth).
