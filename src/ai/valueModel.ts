@@ -261,7 +261,17 @@ export function boardNeed(state: GameState, side: SideCode): number {
 }
 
 /** The need credits slide against: the build target or the board's need, whichever is more. */
-export const creditNeed = (state: GameState, side: SideCode): number => Math.max(buildTarget(state, side), boardNeed(state, side));
+export const creditNeed = (state: GameState, side: SideCode): number => {
+  const need = Math.max(buildTarget(state, side), boardNeed(state, side));
+  // plan.raceClock.money (tuning pass 1, round 2: off): the Corp's credits are worth less when its game is short
+  return side === 'corp' ? need * corpNeedScale(state) : need;
+};
+
+/** plan.raceClock.money's scale on the Corp's credit need, set by clock.ts (which imports this module). */
+let corpNeedScale: (state: GameState) => number = () => 1;
+export const setCorpNeedScale = (scale: (state: GameState) => number) => {
+  corpNeedScale = scale;
+};
 
 /** Share of a money operation's net gain that holding its cost already earns (plan.moneyReach): it still takes a click, and a turn. */
 export const MONEY_REACH = 0.5;

@@ -15,14 +15,15 @@ import { deckGameSetup } from '../src/data/decks';
 import { createAgent } from '../src/ai';
 import { GameRunner } from '../src/ai/playout';
 import { applyPlanOff, asSide } from '../src/ai/synergy';
-import { clock, runnerRateParts } from '../src/ai/clock';
+import { WIN_POINTS, clock, runnerRateParts } from '../src/ai/clock';
+import { turnsLeft } from '../src/ai/cardProfiles';
 import { ALL_DECKS as DECKS } from './nsg-sample-decks';
 // @ts-expect-error plain JS, shared with the batch workflow's summary job
 import { fresh, print, sum } from './race-calibration-sum.mjs';
 applyPlanOff(process.env.PLAN_OFF ?? '');
 
 /** One Runner turn's start: the clock, and the Runner's score then. */
-interface Mark { score: number; corpScore: number; rate: number; parts: Record<string, number>; turn: number }
+interface Mark { score: number; corpScore: number; rate: number; parts: Record<string, number>; turn: number; lateStep: number; openStep: number }
 /** One Corp turn's start: the Corp's score then. */
 interface CorpMark { score: number; runnerScore: number; turn: number }
 
@@ -36,7 +37,7 @@ function addGame(stats: ReturnType<typeof fresh>, marks: Mark[], after: number[]
     const next = after[i] - m.score;
     const turns = Math.min(3, marks.length - i);
     const three = after[i + turns - 1] - m.score;
-    const add = (key: string, table: Record<string, { n: number; predicted: number; observed: number; predicted3: number; observed3: number; turns3: number }>) => {
+    const add = (key: string, table: Record<string, { n: number; predicted: number; observed: number; predicted3: number; observed3: number; turns3: number; lateStep?: number; openStep?: number }>) => {
       const c = (table[key] ??= { n: 0, predicted: 0, observed: 0, predicted3: 0, observed3: 0, turns3: 0 });
       c.n++;
       c.predicted += m.rate;
@@ -44,6 +45,8 @@ function addGame(stats: ReturnType<typeof fresh>, marks: Mark[], after: number[]
       c.predicted3 += m.rate * turns;
       c.observed3 += three;
       c.turns3 += turns;
+      c.lateStep = (c.lateStep ?? 0) + m.lateStep;
+      c.openStep = (c.openStep ?? 0) + m.openStep;
     };
     add(`runner ${bucket(m.score)}`, stats.byScore);
     add(`corp ${bucket(m.corpScore)}`, stats.byCorpScore);
@@ -67,7 +70,8 @@ function addGame(stats: ReturnType<typeof fresh>, marks: Mark[], after: number[]
 function mark(s: GameState): Mark {
   return asSide('corp', () => {
     const c = clock(s);
-    return { score: s.runner.score, corpScore: s.corp.score, rate: c.runnerRate, parts: { ...runnerRateParts(s) }, turn: s.turnNumber };
+    const need = Math.max(1, WIN_POINTS - s.runner.score);
+    return { score: s.runner.score, corpScore: s.corp.score, rate: c.runnerRate, parts: { ...runnerRateParts(s) }, turn: s.turnNumber, lateStep: 1 / turnsLeft(s), openStep: 1 - c.open(1) };
   });
 }
 

@@ -18,6 +18,7 @@ import { archivedWorth } from './cards';
 import { isTrap, remoteAgendaOdds, trashedCardCost } from './runs';
 import { centralAccess, runChance, threatOn } from './threatModel';
 import { plan, pricing, pricingKey, withPricing } from './pricing';
+import { clock, raceOn } from './clock';
 
 const MADANI = '35028';
 
@@ -300,6 +301,15 @@ export function agendaWorth(
   const runnerTurns =
     state.activePlayer === 'corp' ? Math.ceil(Math.max(0, clicks - budget.clicks) / 3) : 1 + Math.ceil(Math.max(0, clicks - 3) / 3);
   const late = 1 - 1 / turnsLeft(state);
+  // plan.raceClock.agendas (tuning pass 1): each Runner turn the agenda waits is a turn the Runner may win in, at its
+  // pace on this board against the points it still needs (clock.ts open), not 1 in turnsLeft
+  const waited = (turns: number) => (raceOn('agendas') ? clock(state).open(turns) : late ** turns);
+  // plan.raceClock.tempo (tuning pass 1, piece 1b): the race margin a turn of waiting gives away. While the agenda waits
+  // the Runner keeps scoring at its pace on this board, a turn longer before the Corp gets there: each Runner turn
+  // waited costs the Runner's expected points that turn, on the Runner's clock (pointGain), for the agenda's share of a
+  // typical 2-point agenda's progress. open() above prices only the chance the game ends meanwhile, a fraction of the
+  // agenda; this is the margin itself (the spec's "half a point a turn"), the term open() turned out to leave out
+  const tempo = raceOn('tempo') && runnerTurns > 0 ? runnerTurns * Math.min(1, points / 2) * pointGain(state.runner.score, clock(state).runnerRate) : 0;
   // plan.agendaClicks (Jeff's Corp game 2, bug report #18): the clicks still needed are clicks a later turn can't spend
   // building; priced at the flat click rate, building now and scoring next turn always beat scoring now and building next
   const click = AGENDA_CLICK;
@@ -312,12 +322,12 @@ export function agendaWorth(
   // today" is not "safe for every turn it waits"
   const threatTurns = threatOn() && stealChance === undefined && openNew === undefined && success === undefined && !!serverId;
   const standing = threatTurns ? threatStanding(state, serverId!, runnerTurns, steal) : (1 - steal) ** runnerTurns;
-  if (!plan().oneCurrency) return gain * standing * late ** runnerTurns - need * (click + 1);
+  if (!plan().oneCurrency) return gain * standing * waited(runnerTurns) - need * (click + 1) - tempo;
   const stolen = (1 - standing) * pointGain(state.runner.score, points);
   // The clicks and credits still to go are paid only while it stands: the advances of this turn now, the rest on the
   // turns after the Runner's (a bare agenda the Runner takes next turn never costs its advances)
   const now = Math.min(need, budget.clicks);
-  return (gain + effect) * (standing * late ** runnerTurns) - stolen - (now + (need - now) * standing) * (click + 1);
+  return (gain + effect) * (standing * waited(runnerTurns)) - tempo - stolen - (now + (need - now) * standing) * (click + 1);
 }
 
 /**

@@ -45,6 +45,10 @@ const OFF_SWITCHES: Record<string, string> = {
   hqHeld: 'tuning pass 1 part A: awaiting its paired batch',
   unseenOdds: 'tuning pass 1 part A: awaiting its paired batch',
   iceGripCap: 'tuning pass 1 part A: awaiting its paired batch',
+  'raceClock.agendas': 'tuning pass 1 part B: awaiting its paired batch',
+  'raceClock.tempo': 'tuning pass 1 part B: awaiting its paired batch',
+  'raceClock.horizon': 'tuning pass 1 part B: awaiting its paired batch',
+  'raceClock.money': 'tuning pass 1 part B: round 2 (spec), off',
   threatLeaf: 'item 3: the threat as the planner leaf charge; lost to the played-out reply (-8.2 ± 1.3 alone, 2026-11-07), the leaf goes to item 4',
   plannerPatchesOff: 'item 4: dropping the ordering patches under the planner search cost "tag not used" +2.3 ± 1.1 (2026-11-07); patches go with item 6',
   measuredPass: 'item 3 round 2: the measured unrezzed pass rate; neutral in its paired batch (+0.0 ± 0.6, 2026-11-07), kept off with the threat it was measured for',
@@ -67,6 +71,7 @@ const MODULE_LETS: Record<string, string> = {
   'evaluate:AGENDA_CLICK': 'a measured rate a script sets (setAgendaClick), not per call',
   'threatModel:planSig': "a cache of the plan's JSON for the threat key, rebuilt when the plan changes",
   'valueModel:deckCard': 'the deck-average hook handValues registers once (an import cycle otherwise)',
+  'valueModel:corpNeedScale': 'the race clock hook clock.ts registers once (plan.raceClock.money; an import cycle otherwise)',
   'valueModel:nextStateId': "guardLoop's id counter for positions",
 };
 

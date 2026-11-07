@@ -3,6 +3,7 @@ import { RATES, cardRate, payoutClick } from './valueModel';
 import { CARD_PROFILES } from './cards';
 import { PAYOUT_RISK } from './payoutRisk';
 import { plan } from './pricing';
+import { CLOCK_CAP, clock, clockBuilding, raceOn } from './clock';
 
 /**
  * Value model step 4 (docs/ai-value-model-plan.md): money cards described
@@ -81,6 +82,13 @@ export const CORP_DRAWS_PER_TURN = 1.3;
 export function turnsLeft(state: GameState): number {
   const top = Math.max(state.corp.score, state.runner.score);
   const byPoints = plan().measuredTurnsLeft ? MEASURED_TURNS_LEFT[Math.min(top, MEASURED_TURNS_LEFT.length - 1)] ?? 2 : Math.max(2, 8 - top);
+  // plan.raceClock.horizon (tuning pass 1): the turns until either side is expected to reach 7 on this board's pace
+  // (clock.ts), or R&D runs out (rdTurnsLeft's term, folded in), at least 2 as the score guess has it
+  if (raceOn('horizon') && !clockBuilding()) {
+    const c = clock(state);
+    const rd = Math.max(1, Math.ceil(state.corp.rd.length / CORP_DRAWS_PER_TURN));
+    return Math.max(2, Math.min(c.runnerTurns, c.corpTurns, rd, CLOCK_CAP));
+  }
   if (!plan().rdTurnsLeft) return byPoints;
   return Math.min(byPoints, Math.max(1, Math.ceil(state.corp.rd.length / CORP_DRAWS_PER_TURN)));
 }

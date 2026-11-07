@@ -340,6 +340,15 @@ export const tuning = {
     /** Jeff, 2026-11-06 (his Teia game, ai-ice-grip): ice on the board is priced against a grip no bigger than the hand size, not the cards the Runner holds only until its turn ends (iceValues iceWorthOf). */
     iceGripCap: false,
     /**
+     * Tuning pass 1, part B (Fable spec 2026-11-07): one race clock (clock.ts) prices the Corp's time from the Runner's
+     * expected scoring rate on this board. agendas: agendaWorth's wait discount is clock.open, not 1 - 1/turnsLeft.
+     * horizon: turnsLeft is the turns until either side reaches 7 at the clock's pace, or R&D runs out. money: the Corp's
+     * credit need shrinks as its game shortens (round 2).
+     * tempo (piece 1b, added after the calibration: open() made waiting cheaper, not dearer): each Runner turn an agenda
+     * waits costs the Runner's expected points that turn on its clock.
+     */
+    raceClock: { agendas: false, tempo: false, horizon: false, money: false },
+    /**
      * Per deciding side (Jeff, 2026-10-28): its own hand valued card by card, by what each will do once played (handValues.ts).
      * Batches: each side loses with it (Corp side 32.2% -> 28.0%, Runner side 32.2% -> 35.9% Corp) and the Runner draws at a
      * full hand on 55% of turns. Off on both sides, kept for re-testing.
@@ -371,7 +380,7 @@ export const tuning = {
  */
 export const sideOff: Record<SideCode, string[]> = {
   corp: [],
-  runner: ['tagTrashNow', 'ownTrashRisk', 'hqTrashCost', 'oneCurrency', 'threatModel', 'measuredPass', 'threatSpend', 'calibratedRun'],
+  runner: ['tagTrashNow', 'ownTrashRisk', 'hqTrashCost', 'oneCurrency', 'threatModel', 'measuredPass', 'threatSpend', 'calibratedRun', 'raceClock'],
 };
 
 /**

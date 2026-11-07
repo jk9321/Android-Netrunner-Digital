@@ -51,6 +51,8 @@ export interface Pricing {
   planning: boolean;
   /** Depth of threat-model work (threatModel.ts): the threat is off inside its own computation. */
   computingThreat: number;
+  /** The race clock is being worked out (clock.ts): turnsLeft and the clock itself fall back to the score guess inside. */
+  buildingClock: boolean;
   /** The planner's per-decision seed for its playouts (turnPlanner.ts, plan.plannerSeed), or null. */
   decisionSeed: number | null;
   /**
@@ -76,6 +78,7 @@ const context: Pricing = {
   pricingEffect: false,
   planning: false,
   computingThreat: 0,
+  buildingClock: false,
   decisionSeed: null,
   rezzingToUse: new Set(),
   pricingBreakers: new Set(),
@@ -194,6 +197,7 @@ export function pricingKey(): string {
     c.pricingEffect ? 'e' : '',
     c.planning ? 'c' : '',
     c.computingThreat ? 'h' : '',
+    c.buildingClock ? 'k' : '',
   ].join(':');
   keyVersion = version;
   return key;

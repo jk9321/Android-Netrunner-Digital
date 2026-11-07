@@ -18,7 +18,8 @@ import { CardInstance, GameState, cardDef } from '../core';
 import { PACE, runSuccess, stealOdds } from './effectValues';
 import { unseenInHand } from './handValues';
 import { runChance, threatOn } from './threatModel';
-import { memo } from './valueModel';
+import { guardLoop, memo, setCorpNeedScale } from './valueModel';
+import { plan, pricing, withPricing } from './pricing';
 
 export const WIN_POINTS = 7; // rule 1.3.1 (a standard game is won at 7 agenda points)
 
@@ -76,8 +77,31 @@ export function runnerRateParts(state: GameState): RunnerRateParts {
   return { hq, rd, remotes, archives };
 }
 
+export type RacePart = 'agendas' | 'tempo' | 'horizon' | 'money';
+
+/** plan.raceClock's piece `part` is on (the switch is an object of parts; sideOff can set it false for a side). */
+export function raceOn(part: RacePart): boolean {
+  const race = plan().raceClock as Partial<Record<RacePart, boolean>> | false | undefined;
+  return !!race && !!race[part];
+}
+
+/** The clock is being worked out: what reads it (turnsLeft) falls back to its own guess inside (pricing buildingClock). */
+export const clockBuilding = (): boolean => pricing().buildingClock;
+
+/** A clock from the score alone (inside its own computation): the measured pace, both sides. */
+const flatClock = (state: GameState): Clock => {
+  const need = Math.max(1, WIN_POINTS - state.runner.score);
+  const step = 1 - 0.5 / need;
+  return { runnerRate: 0.5, corpRate: 0.5, runnerTurns: Math.min(CLOCK_CAP, need / 0.5), corpTurns: Math.min(CLOCK_CAP, Math.max(1, WIN_POINTS - state.corp.score) / 0.5), open: t => Math.max(OPEN_FLOOR, step ** t) };
+};
+
 export function clock(state: GameState): Clock {
-  return memo(state, 'raceClock', () => {
+  if (clockBuilding()) return flatClock(state);
+  return guardLoop(state, 'raceClock', () => flatClock(state), () => memo(state, 'raceClock', () => withPricing({ buildingClock: true }, () => buildClock(state))));
+}
+
+function buildClock(state: GameState): Clock {
+  {
     const parts = runnerRateParts(state);
     const runnerRate = parts.hq + parts.rd + parts.remotes + parts.archives;
     const runnerNeed = Math.max(1, WIN_POINTS - state.runner.score);
@@ -92,5 +116,8 @@ export function clock(state: GameState): Clock {
       corpTurns: turns(corpNeed, corpRate),
       open: (t: number) => Math.max(OPEN_FLOOR, step ** t),
     };
-  });
+  }
 }
+
+// plan.raceClock.money: the Corp's credit need (valueModel creditNeed) by min(1, corpTurns / 8)
+setCorpNeedScale(state => (raceOn('money') ? Math.min(1, clock(state).corpTurns / 8) : 1));

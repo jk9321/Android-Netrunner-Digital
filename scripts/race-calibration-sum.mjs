@@ -28,8 +28,8 @@ export function print(stats) {
   const f = (x, d = 2) => (Number.isFinite(x) ? x.toFixed(d) : ' - ');
   console.log(`${stats.games} games, ${stats.turns} Runner turns`);
   console.log('\nRunner points per turn: the clock\'s runnerRate at the turn\'s start vs taken (next turn; next 3 turns, per turn)');
-  console.log('state           turns  predicted  observed  obs/pred | 3-turn pred  obs  obs/pred');
-  const row = (k, c) => console.log(`${k.padEnd(15)} ${String(c.n).padStart(5)}  ${f(c.predicted / c.n, 3).padStart(9)}  ${f(c.observed / c.n, 3).padStart(8)}  ${f(c.observed / c.predicted).padStart(8)} | ${f(c.predicted3 / c.turns3, 3).padStart(11)}  ${f(c.observed3 / c.turns3, 3)}  ${f(c.observed3 / c.predicted3)}`);
+  console.log('state           turns  predicted  observed  obs/pred | 3-turn pred  obs  obs/pred | wait cost/turn: 1/turnsLeft  clock');
+  const row = (k, c) => console.log(`${k.padEnd(15)} ${String(c.n).padStart(5)}  ${f(c.predicted / c.n, 3).padStart(9)}  ${f(c.observed / c.n, 3).padStart(8)}  ${f(c.observed / c.predicted).padStart(8)} | ${f(c.predicted3 / c.turns3, 3).padStart(11)}  ${f(c.observed3 / c.turns3, 3)}  ${f(c.observed3 / c.predicted3)} | ${f((c.lateStep ?? 0) / c.n, 3).padStart(11)}  ${f((c.openStep ?? 0) / c.n, 3)}`);
   for (const k of Object.keys(stats.byScore).sort()) row(k, stats.byScore[k]);
   for (const k of Object.keys(stats.byCorpScore).sort()) row(k, stats.byCorpScore[k]);
   console.log('\nBy predicted rate (calibration curve)');
