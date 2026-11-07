@@ -361,6 +361,7 @@ export const tuning = {
      * (scripts/threat-calibration.ts): the first unrezzed layer passes about 0.6 against a Corp that can rez (0.52 on
      * Jeff's), but each further layer passes about 0.83, since the Corp's money rezzes about one ice a run; against a
      * broke Corp 0.87, then 0.93. Corp only (sideOff.runner). Shared by the old steal path and the threat.
+     * Paired with the threat off: +0.0 ± 0.6 (run 42338474356), no alarm moved: it changes nothing on its own.
      */
     measuredPass: false,
     /**
