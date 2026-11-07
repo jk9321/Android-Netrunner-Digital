@@ -206,6 +206,18 @@ export function priceIce(state: GameState, ice: CardInstance): number {
   }
 }
 
+/** passOdds for a server's ice, behind the re-entry guard (scripts/threat-calibration.ts). */
+export function passOddsOf(state: GameState, serverId: string): number {
+  const server = state.corp.servers[serverId];
+  if (!server) return 0;
+  pricingIce = true;
+  try {
+    return passOdds(state, server.ice);
+  } finally {
+    pricingIce = false;
+  }
+}
+
 function passOdds(state: GameState, ices: CardInstance[], income = 0): number {
   let credits = state.runner.credits + income;
   let pass = 1;
