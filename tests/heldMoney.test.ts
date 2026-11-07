@@ -26,6 +26,10 @@ const inHq = (s: GameState) => s.corp.hq.map(c => cardDef(c).title);
 describe('a held money operation is counted once (plan.heldMoney)', () => {
   it('plays Petty Cash without the Petty Cash special case', () => {
     tuning.plan.pettyCashFirst = false;
+    // On the old threat (plan.threatModel off): with the threat model's leaf the Corp's turn here is a near tie (Petty
+    // Cash's line 0.03 behind a credit click, the leaf's run charge deciding), flagged in the item 3 hand-off
+    const threat = tuning.plan.threatModel;
+    tuning.plan.threatModel = false;
     try {
       // plan.oneCurrency counts it once by construction (HQ by count, the slide's credits); its planned turn may open a
       // remote first (pettyCashFirst.test.ts), but never clicks for a credit while holding it
@@ -34,6 +38,7 @@ describe('a held money operation is counted once (plan.heldMoney)', () => {
       else expect(inHq(s)).not.toContain('Petty Cash');
     } finally {
       tuning.plan.pettyCashFirst = true;
+      tuning.plan.threatModel = threat;
     }
   });
 

@@ -66,13 +66,16 @@ describe('an agenda in HQ that would win the Runner the game (plan.lethalHq, bug
     // agenda no remote protects is worth keeping in HQ), so the gate that stood in for it has nothing left to do
     const was = tuning.plan.lethalHq;
     const one = tuning.plan.oneCurrency;
+    const threat = tuning.plan.threatModel;
     tuning.plan.lethalHq = false;
     tuning.plan.oneCurrency = true;
+    tuning.plan.threatModel = false; // item 1 as built, on the old threat (oneCurrency.test.ts)
     try {
       expect(hqIce(playTurn(turn13()))).toBe(3);
     } finally {
       tuning.plan.lethalHq = was;
       tuning.plan.oneCurrency = one;
+      tuning.plan.threatModel = threat;
     }
   }, 120_000);
 });

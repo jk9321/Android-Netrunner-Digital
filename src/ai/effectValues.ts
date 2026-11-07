@@ -8,6 +8,7 @@ import { actingSide, tuning } from './synergy';
 import { CLICK, RATES, cardRate, flatRate, flatlineWorth, memo, pointGain, pointValue, sideCards } from './valueModel';
 import { tagsWorth } from './evaluate';
 import { BLOCK, iceCost, iceCreditNeed, subroutineCost } from './runs';
+import { remoteRunChance, threatOn } from './threatModel';
 
 /**
  * The every-card audit's last 31 cards (Jeff, 2026-10-28): assets, upgrades
@@ -244,8 +245,14 @@ export function stealOdds(state: GameState, serverId: string, run = STEAL.run, i
   // On the Runner's own turn: the clicks it has left, one kept for the run
   const coming = state.activePlayer === 'runner' ? Math.max(0, Math.min(income, state.runner.clicks - 1)) : income;
   return memo(state, `stealOdds:${serverId}:${run}:${coming}`, () => {
+    // Outside the ice-pricing guard: the threat prices runs with the ice priced in full
+    const chance = threatOn() ? remoteRunChance(state, serverId) : undefined;
     pricingIce = true;
     try {
+      // plan.threatModel (structural review item 3): the chance the Runner runs it next turn is the Runner's own run
+      // scorer budgeted over its turn (threatModel.ts), times its ice against the rig; an open remote it can see is run
+      // by construction, so openSteal falls out
+      if (chance !== undefined) return chance * passOdds(state, server.ice, coming);
       // Jeff: nothing stops the Runner checking an open remote, so an agenda there is as good as stolen (plan.openSteal)
       if (tuning.plan.openSteal && server.isRemote && server.ice.length === 0) return 1;
       return run * passOdds(state, server.ice, coming);
