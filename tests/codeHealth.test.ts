@@ -47,6 +47,7 @@ const OFF_SWITCHES: Record<string, string> = {
   iceGripCap: 'tuning pass 1 part A: awaiting its paired batch',
   'raceClock.agendas': 'tuning pass 1 part B: awaiting its paired batch',
   'raceClock.tempo': 'tuning pass 1 part B: awaiting its paired batch',
+  'raceClock.tempoOnce': 'tuning pass 1 part B: awaiting its paired batch',
   'raceClock.horizon': 'tuning pass 1 part B: awaiting its paired batch',
   'raceClock.money': 'tuning pass 1 part B: round 2 (spec), off',
   threatLeaf: 'item 3: the threat as the planner leaf charge; lost to the played-out reply (-8.2 ± 1.3 alone, 2026-11-07), the leaf goes to item 4',

@@ -345,9 +345,11 @@ export const tuning = {
      * horizon: turnsLeft is the turns until either side reaches 7 at the clock's pace, or R&D runs out. money: the Corp's
      * credit need shrinks as its game shortens (round 2).
      * tempo (piece 1b, added after the calibration: open() made waiting cheaper, not dearer): each Runner turn an agenda
-     * waits costs the Runner's expected points that turn on its clock.
+     * waits costs the Runner's expected points that turn on its clock. tempoOnce (piece 1c, Fable's review): the same
+     * charge once per position, carried by the agenda nearest scoring (HQ's seen agendas included); the others pay
+     * only their turns beyond it (evaluate.ts nearestAgendaTurns, tempoOnceCharge).
      */
-    raceClock: { agendas: false, tempo: false, horizon: false, money: false },
+    raceClock: { agendas: false, tempo: false, tempoOnce: false, horizon: false, money: false },
     /**
      * Per deciding side (Jeff, 2026-10-28): its own hand valued card by card, by what each will do once played (handValues.ts).
      * Batches: each side loses with it (Corp side 32.2% -> 28.0%, Runner side 32.2% -> 35.9% Corp) and the Runner draws at a

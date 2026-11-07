@@ -1,7 +1,7 @@
 import { afterEach, describe, expect, it } from 'vitest';
 import { GameState } from '../src/core';
 import { OPEN_FLOOR, clock } from '../src/ai/clock';
-import { agendaWorth } from '../src/ai/evaluate';
+import { agendaWorth, nearestAgendaTurns } from '../src/ai/evaluate';
 import { turnsLeft } from '../src/ai/cardProfiles';
 import { tuning } from '../src/ai/synergy';
 import { installForTest, newGame } from './helpers';
@@ -46,5 +46,22 @@ describe('the race clock (plan.raceClock)', () => {
     const t = corp(s, () => turnsLeft(s));
     expect(t).toBeGreaterThanOrEqual(2);
     expect(t).toBeLessThanOrEqual(14);
+  });
+
+  it('tempoOnce: a held agenda waits a turn longer than the same agenda installed', () => {
+    const held = newGame();
+    held.corp.hq = [];
+    held.activePlayer = 'corp';
+    held.corp.clicks = 3;
+    held.corp.credits = 5;
+    const installed = JSON.parse(JSON.stringify(held)) as GameState;
+    installForTest(installed, 'agenda', 'remote-1');
+    const agenda = installed.corp.servers['remote-1'].root[0];
+    held.corp.hq.push({ ...agenda });
+    tuning.plan.raceClock = { ...off, tempoOnce: true };
+    const h = corp(held, () => nearestAgendaTurns(held));
+    const i = corp(installed, () => nearestAgendaTurns(installed));
+    expect(h).toBeGreaterThan(i);
+    expect(corp(newGame(), () => nearestAgendaTurns(newGame()))).toBeGreaterThanOrEqual(0);
   });
 });

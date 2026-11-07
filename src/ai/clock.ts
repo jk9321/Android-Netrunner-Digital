@@ -77,7 +77,7 @@ export function runnerRateParts(state: GameState): RunnerRateParts {
   return { hq, rd, remotes, archives };
 }
 
-export type RacePart = 'agendas' | 'tempo' | 'horizon' | 'money';
+export type RacePart = 'agendas' | 'tempo' | 'tempoOnce' | 'horizon' | 'money';
 
 /** plan.raceClock's piece `part` is on (the switch is an object of parts; sideOff can set it false for a side). */
 export function raceOn(part: RacePart): boolean {
