@@ -10,7 +10,6 @@ import { bestBreakPlan } from '../runs';
 import { accessWorth, anySuccess, centralSuccess, conduitCounterWorth, counterWorthOf, damageWorth, lock, muWorth, PACE, perTurn, runSuccess, VIRUS_WAIT, virusWait } from '../effectValues';
 import type { RunOptions } from '../runs';
 import { CardAI } from './types';
-import { plan } from '../pricing';
 
 /**
  * What the AI knows about each System Gateway card's worth, one entry per card
@@ -184,7 +183,6 @@ export const SYSTEM_GATEWAY: Record<string, CardAI> = {
     value: { rig: 2.5 },
     // +1 MU; first program each turn 1 credit cheaper: a credit for each program still to install, over the turns left (Jeff, 2026-10-30: early it saves a ton)
     runner: state => {
-      if (!plan().sourdough) return muWorth(state) + perTurn(state, PACE.programInstalls, 'runner');
       const programs = [...state.runner.grip, ...state.runner.stack].filter(c => cardDef(c).type_code === 'program').length;
       return muWorth(state) + 0.6 * perTurn(state, 1, 'runner', 0, programs);
     },

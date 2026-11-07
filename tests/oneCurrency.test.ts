@@ -67,10 +67,10 @@ describe('one currency: scores are evaluate deltas (plan.oneCurrency)', () => {
   it('a click for a credit and an ice install score exactly their change in evaluate', () => {
     const s = corpTurn();
     const ice = giveCard(s, 'corp', PALISADE);
-    const before = inDecision(s, 'corp', () => evaluate(s, 'corp', true));
+    const before = inDecision(s, 'corp', () => evaluate(s, 'corp'));
     for (const action of [{ type: 'GAIN_CREDIT', player: 'corp' } as GameAction, { type: 'INSTALL_CARD', player: 'corp', cardInstanceId: ice, targetServerId: 'rd' } as GameAction]) {
       const after = simulate(s, action)!;
-      const delta = inDecision(after, 'corp', () => evaluate(after, 'corp', true)) - before;
+      const delta = inDecision(after, 'corp', () => evaluate(after, 'corp')) - before;
       expect(scoreOf(s, a => JSON.stringify(a) === JSON.stringify(action))).toBeCloseTo(delta, 6);
     }
   });
@@ -211,10 +211,10 @@ describe('advanced traps (what advanceScore and trapBluff priced)', () => {
     const id = giveCard(s, 'corp', '30045');
     const urtica = s.corp.hq.pop()!;
     s.corp.servers['remote-1'] = { id: 'remote-1', name: 'remote-1', isRemote: true, ice: [], root: [urtica] };
-    const bare = inDecision(s, 'corp', () => evaluate(s, 'corp', true));
+    const bare = inDecision(s, 'corp', () => evaluate(s, 'corp'));
     const advanced = structuredClone(s);
     advanced.corp.servers['remote-1'].root[0].advancementCounters = 1;
-    expect(inDecision(advanced, 'corp', () => evaluate(advanced, 'corp', true))).toBeGreaterThan(bare + 0.3);
+    expect(inDecision(advanced, 'corp', () => evaluate(advanced, 'corp'))).toBeGreaterThan(bare + 0.3);
     expect(id).toBe(urtica.instanceId);
   });
 });

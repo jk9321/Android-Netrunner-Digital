@@ -46,7 +46,7 @@ export function modelRezParts(state: GameState, ice: CardInstance, synergy: bool
   const pass = restOfRun(state, run.icePosition - 1, synergy);
   const need = iceCreditNeed(after, rezzed);
   const stops = need === BLOCK || need > after.runner.credits;
-  return { pass, rez: stops ? evaluate(ended(after), 'corp', synergy) : throughIce(after, rezzed, run.icePosition, synergy), stops };
+  return { pass, rez: stops ? evaluate(ended(after), 'corp') : throughIce(after, rezzed, run.icePosition, synergy), stops };
 }
 
 /**
@@ -56,9 +56,9 @@ export function modelRezParts(state: GameState, ice: CardInstance, synergy: bool
  */
 function restOfRun(state: GameState, position: number, synergy: boolean): number {
   const server = state.activeRun ? state.corp.servers[state.activeRun.server] : undefined;
-  if (!server || position < 0) return gotIn(state, state.runner.credits, synergy);
+  if (!server || position < 0) return gotIn(state, state.runner.credits);
   const ice = server.ice[position];
-  if (!ice) return gotIn(state, state.runner.credits, synergy);
+  if (!ice) return gotIn(state, state.runner.credits);
   if (!ice.isRezzed) {
     const pass = restOfRun(state, position - 1, synergy);
     const cost = rezCost(state, ice);
@@ -75,7 +75,7 @@ function restOfRun(state: GameState, position: number, synergy: boolean): number
 
 function atRezzed(state: GameState, ice: CardInstance, position: number, synergy: boolean): number {
   const need = iceCreditNeed(state, ice);
-  if (need === BLOCK || need > state.runner.credits) return evaluate(ended(state), 'corp', synergy);
+  if (need === BLOCK || need > state.runner.credits) return evaluate(ended(state), 'corp');
   return throughIce(state, ice, position, synergy);
 }
 
@@ -94,9 +94,9 @@ const ended = (state: GameState): GameState => ({ ...state, activeRun: null });
  * The board after the Runner gets into the attacked server with `spare` credits for trash costs, Corp view: agendas in
  * the root stolen, the root cards it can afford trashed (cheapest first), and the central's agendas by the odds.
  */
-function gotIn(state: GameState, spare: number, synergy: boolean): number {
+function gotIn(state: GameState, spare: number): number {
   const server = state.activeRun ? state.corp.servers[state.activeRun.server] : undefined;
-  if (!server) return evaluate(ended(state), 'corp', synergy);
+  if (!server) return evaluate(ended(state), 'corp');
   const agendas = server.root.filter(c => cardDef(c).type_code === 'agenda');
   const trashable = server.root
     .filter(c => cardDef(c).type_code !== 'agenda' && typeof cardDef(c).trash_cost === 'number')
@@ -126,5 +126,5 @@ function gotIn(state: GameState, spare: number, synergy: boolean): number {
     },
   };
   // runLoss on the board with the root agendas already taken: what HQ, R&D or Archives would still give up
-  return evaluate(ended(after), 'corp', synergy) - runLoss(after);
+  return evaluate(ended(after), 'corp') - runLoss(after);
 }

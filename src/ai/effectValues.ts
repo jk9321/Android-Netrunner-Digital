@@ -220,7 +220,7 @@ function passOdds(state: GameState, ices: CardInstance[], income = 0): number {
     if (cost <= credits) {
       credits -= cost;
       pass *= 0.95;
-    } else if (plan().tankIce && canTank(state, ice, credits)) {
+    } else if (canTank(state, ice, credits)) {
       // Ice that can't end the run (Doomscroll) doesn't stop a Runner who can take what it does (Jeff, 2026-10-30)
       credits -= iceCreditNeed(state, ice);
       pass *= TANKED_PASS;

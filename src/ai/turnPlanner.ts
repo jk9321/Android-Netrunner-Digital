@@ -270,8 +270,8 @@ function leafValue(state: GameState, side: SideCode, synergy: boolean): number {
   // plan.oneCurrency: the Corp's line ends on the same evaluate its actions are ranked by (HQ by count, its seen agendas
   // at heldAgendasWorth): a hand priced card by card here made the leaf a second currency (Petty Cash first ranked +2.8
   // and lost the line to an install, its card worth in HQ counted against playing it)
-  if (!plan().plannerHand || (side === 'corp' && synergy && plan().oneCurrency)) return evaluate(state, side, synergy);
-  return withPricing({ leaves: [...pricing().leaves, { side, plan: plan() }] }, () => evaluate(state, side, synergy));
+  if ((side === 'corp' && synergy && plan().oneCurrency)) return evaluate(state, side);
+  return withPricing({ leaves: [...pricing().leaves, { side, plan: plan() }] }, () => evaluate(state, side));
 }
 
 /**

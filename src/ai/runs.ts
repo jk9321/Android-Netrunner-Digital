@@ -74,13 +74,12 @@ export function knownSubroutineCost(state: GameState, label: string): number | u
   if (threat) return Math.max(state.corp.score, runner.score) >= Number(threat[1]) ? BLOCK : 0;
   if (/end the run if the runner is tagged/i.test(label)) return runner.tags > 0 ? BLOCK : 1;
   if (/if the runner has at least 2 tags/i.test(label)) return runner.tags >= 2 ? (2 >= runner.grip.length ? BLOCK : 4) : 0;
-  const rates = !!plan().subCosts;
   // Vantage Point: "... unless the Runner pays N credits": the cheaper of paying and letting the rest resolve
   const pays = label.match(/^(.*?)\s*unless the runner pays (\d+) (?:\[credit\]|credits?)\.?$/i);
   if (pays) {
     const n = Number(pays[2]);
     const rest = /^end the run$/i.test(pays[1]) ? BLOCK : knownSubroutineCost(state, pays[1]) ?? 2;
-    return runner.credits >= n ? Math.min(rates ? creditCost(state, n) : n, rest) : rest;
+    return runner.credits >= n ? Math.min(creditCost(state, n), rest) : rest;
   }
   const jacks = label.match(/^(.*?)\s*unless the runner jacks out\.?$/i);
   if (jacks) return knownSubroutineCost(state, jacks[1]);
@@ -88,19 +87,19 @@ export function knownSubroutineCost(state: GameState, label: string): number | u
     // Vicsek: X is the Runner's tags
     const x = runner.tags;
     if (x === 0) return 0;
-    return x >= runner.grip.length ? BLOCK : (rates ? damageWorth(state, x) + tagCost(state) * x : 2 * x + 3 * x);
+    return x >= runner.grip.length ? BLOCK : damageWorth(state, x) + tagCost(state) * x;
   }
-  if (/loses? \[click\]/i.test(label)) return rates ? clickRate() : 2;
+  if (/loses? \[click\]/i.test(label)) return clickRate();
   if (/gets \+1 strength for the remainder of this run/i.test(label)) return 1.5; // ezaM: every ice after it costs more to break
   if (/each piece of ice gets \+2 strength for the remainder of this run/i.test(label)) return 2.5; // Tributary: every ice costs more to break
-  if (/installed runner card to the grip/i.test(label)) return rates ? 0.5 * trashedCardCost(state) + 1 : 2; // Lethe: a reinstall, not a loss
+  if (/installed runner card to the grip/i.test(label)) return 0.5 * trashedCardCost(state) + 1; // Lethe: a reinstall, not a loss
   if (/remove 1 card in the heap from the game/i.test(label)) return 0.3;
   if (/place 1 virus counter on this ice/i.test(label)) return 0; // Knowledge Seeker: counts down to its own derez
   if (/look at the top \d+ cards? of r&d|arrange|to the (?:top or )?bottom of r&d|shuffle 1 card from hq or archives into r&d/i.test(label)) return 0.4; // Corp card selection
-  if (/core damage/i.test(label)) return rates ? coreDamageWorth(state) + damageWorth(state, 1) : 6;
-  if (/unless they pay 3 credits/i.test(label)) return rates ? creditCost(state, 3) : 3;
+  if (/core damage/i.test(label)) return coreDamageWorth(state) + damageWorth(state, 1);
+  if (/unless they pay 3 credits/i.test(label)) return creditCost(state, 3);
   const loses = label.match(/loses? (\d+) (?:\[credit\]|credits?)/i);
-  if (loses) return rates ? creditCost(state, Math.min(Number(loses[1]), runner.credits)) : Math.min(Number(loses[1]), runner.credits);
+  if (loses) return creditCost(state, Math.min(Number(loses[1]), runner.credits));
   if (/or end the run/i.test(label)) return runner.rig.programs.length > 0 ? 5 : BLOCK;
   if (/odd cost/i.test(label)) return runner.grip.length <= 1 ? BLOCK : 4; // Diviner: half the time it ends the run
   if (/6 credits or less/i.test(label)) return runner.credits - 3 <= 6 ? BLOCK : 0;
@@ -112,18 +111,18 @@ export function knownSubroutineCost(state: GameState, label: string): number | u
   const damage = label.match(/(\d+) (net|meat) damage/i);
   if (damage) {
     const n = Number(damage[1]);
-    return n >= runner.grip.length ? BLOCK : rates ? damageWorth(state, n) : 2 * n;
+    return n >= runner.grip.length ? BLOCK : damageWorth(state, n);
   }
   if (/gain 1 \[credit\] for each tag/i.test(label)) return 0.3 * runner.tags; // Capacitor: Corp credits
-  if (/tag/i.test(label)) return rates ? tagCost(state) : 3;
-  if (/trash 1 installed runner card/i.test(label)) return rates ? trashedCardCost(state) : 4;
+  if (/tag/i.test(label)) return tagCost(state);
+  if (/trash 1 installed runner card/i.test(label)) return trashedCardCost(state);
   if (/gain 1 credit/i.test(label)) return 0.3;
   if (/gain 1 \[credit\]/i.test(label)) return 0.8; // Flywheel: a credit and maybe a card
   const gains = label.match(/^gain (\d+) \[credit\]/i);
   if (gains) return 0.4 * Number(gains[1]); // Valentão: Corp credits
   // Sorocaban Blade, Hammer, Lycian: a rig card lost, when there is one of that type (with none, the old flat 1.5 below)
   const trashType = label.match(/trash 1 installed (resource|piece of hardware|program)/i);
-  if (trashType && rates) {
+  if (trashType) {
     const zone = { resource: runner.rig.resources, 'piece of hardware': runner.rig.hardware, program: runner.rig.programs }[trashType[1].toLowerCase() as 'resource'];
     if (zone.length > 0) return trashedCardCost(state);
   }
@@ -588,9 +587,7 @@ function serverWorth(state: GameState, serverId: string, extraAccesses: number, 
   const central = taxedSteal(stealWorth(state, points, DENY.central), unseenTax);
   let value = 0;
   if (serverId === 'rd') {
-    value = plan().rdMemory
-      ? rdWorth(state, 1 + extraAccesses, odds, central)
-      : (1 + extraAccesses) * odds * central * 0.3 ** repeat; // a second look sees the same top card
+    value = rdWorth(state, 1 + extraAccesses, odds, central);
   }
   else if (serverId === 'hq') value = state.corp.hq.length === 0 ? 0 : Math.min(1 + extraAccesses, state.corp.hq.length) * hqAgendaOdds(state, odds) * central * 0.5 ** repeat;
   else if (serverId === 'archives') {

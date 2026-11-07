@@ -288,30 +288,14 @@ export const tuning = {
     rdTurnsLeft: false,
     /** Jeff, 2026-10-31 (same report): the Runner reply counts as stolen only open-remote agendas the sampled Runner never ran; one it ran and was stopped from survived (runnerReply.ts). */
     openStealUnrun: true,
-    /** Jeff, 2026-10-30: R&D runs priced card by card from what the Runner remembers of R&D (rdKnowledge.ts): a known agenda on top is a sure steal, known other cards are worth nothing, and the rest are unseen. Replaces the flat discount for a second R&D run in a turn. */
-    rdMemory: true,
-    /** Jeff, 2026-10-30 (playing Sourdough Starter): DZMZ Optimizer by the programs still to install; Methuselah fed only dead hardware (a copy of one installed, or unaffordable); Read-Write Share hosts the weakest grip card; Knickknack trashes only spent cards (effectValues.ts, prompts.ts). */
-    sourdough: true,
-    /** Jeff, 2026-10-30: card plans: conditional cards in hand by payoff x readiness, board combos (Knickknack fuel, Baker fuel) on top (cardPlans.ts). */
-    cardPlans: true,
-    /** Jeff, 2026-10-31: a program hosted on Madani keeps the click its free install will save, and hosting doesn't use up Madani's own worth (evaluate.ts, effectValues.ts). */
-    madaniClick: true,
-    /** Jeff, 2026-10-30 (Doomscroll): ice that can't end the run doesn't protect an agenda from a Runner who can take its subroutines (effectValues.ts passOdds). */
-    tankIce: true,
     /** Jeff, 2026-10-31 (Doomscroll again): the Corp's agenda safety checks (iceDepth, fundedDepth, entryCost) count ice the Runner can take as only the credits it needs (corpAI.ts protectionCost). */
     tankProtection: true,
-    /** Jeff, 2026-10-31 (dud draws): the Corp digs for ice one card past its hand size (discarding the worst at the end of the turn), and ice it can't afford to rez soon doesn't count as ice in hand (corpAI.ts, evaluate.ts digValue). */
-    digPastLimit: true,
-    /** Jeff, 2026-10-31 ("cheat out" expensive ice): an installed Send a Message (rezzes ice when scored or stolen) or Unleash with a Runner tag pays for the costliest unrezzed ice, so that ice counts as rezzable, may be installed past the ice pacing, and a free rez picks the ice that saves the most (freeRez.ts). */
-    freeRez: true,
     /** Jeff, 2026-10-31: the ice worth cap is this Runner's credits plus two turns of income, at least 8 (iceValues.ts iceStop); wins over iceStopHigh. Batch 663: 47.1% vs 49.2% base (noise, in band); kept on as Jeff's model. icePacing off (install ice it can't rez) was 45.4%, remote steals 487 -> 566: icePacing stays. */
     iceStopRunner: true,
     /** Jeff, 2026-11-05: iceStopRunner's cap reads the Runner's credits at the start of the decision, so gaining or spending credits doesn't move ice worth (iceValues.ts stopCredits, noted by handValues.ts decisionContext). */
     iceStopAnchor: true,
     /** Per deciding side (Jeff, 2026-10-28): Normal plays its best few actions through to the end of the turn and picks the best turn (turnPlanner.ts). */
     turnPlanner: { corp: true, runner: true } as Record<SideCode, boolean>,
-    /** With the planner: the hand at the end of a planned turn valued card by card (what each will do later). */
-    plannerHand: true,
     /**
      * Structural review item 4 (Fable spec, 2026-11-07; turnPlanner.ts): the planner's search widened, in pieces, each
      * read only with plannerSearch on and batched alone. On by default since review 1 (2026-11-07).
@@ -341,12 +325,6 @@ export const tuning = {
      * full hand on 55% of turns. Off on both sides, kept for re-testing.
      */
     handByCard: { corp: false, runner: false } as Record<SideCode, boolean>,
-    /** Both sides: subroutine costs (tags, damage, trashed cards, lost credits) from the rates (runs.ts). */
-    subCosts: true,
-    /** Both sides (step 5, Jeff): ice is worth what it costs the Runner to get past it, not its rez cost (per deciding side). */
-    iceInCredits: { corp: true, runner: true } as Record<SideCode, boolean>,
-    /** Both sides (step 5b): breakers are worth the full stops they save across the Corp's decklist ice, less late in the game (per deciding side). */
-    breakerCredits: { corp: true, runner: true } as Record<SideCode, boolean>,
   },
 };
 
@@ -395,6 +373,8 @@ export const FOLDED: readonly string[] = [
   'moneyReach', 'fermenterBank', 'heldMoney', 'brokeSlope', 'agendaBudget', 'agendaClicks', 'holoManMove',
   'plannerScores', 'plannerRunEvents', 'runRest', 'drawCap', 'breakerReach', 'emptyGripRuns', 'plannerRunCredits',
   'keepKnownRd', 'runnerKnown', 'measuredRunShares', 'rezWhenUsed', 'rezToUse', 'flatRates', 'tagClock', 'vicTags',
+  'rdMemory', 'sourdough', 'cardPlans', 'madaniClick', 'tankIce', 'digPastLimit', 'freeRez', 'plannerHand',
+  'subCosts', 'iceInCredits', 'breakerCredits',
 ];
 
 /** Throws on a name that isn't a plan switch (a typo, or a switch folded into the code). */

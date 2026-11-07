@@ -100,7 +100,7 @@ export const CORP_TURN_INCOME = 3;
 export function rezBudget(state: GameState): Map<string, number> {
   // Keyed by what it reads that tests change in place (credits, the unrezzed ice, the free-rez switch)
   const ice = Object.values(state.corp.servers).flatMap(s => s.ice.filter(c => !c.isRezzed).map(c => c.instanceId + c.cardCode)).join();
-  return memo(state, `rezBudget:${state.corp.credits}:${!!plan().freeRez}:${ice}`, () => countRezBudget(state));
+  return memo(state, `rezBudget:${state.corp.credits}:${ice}`, () => countRezBudget(state));
 }
 
 function countRezBudget(state: GameState): Map<string, number> {

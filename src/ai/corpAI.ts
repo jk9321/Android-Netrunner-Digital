@@ -1,5 +1,5 @@
 import { CardInstance, GameAction, GameState, ServerState, activePrompt, cardDef, findCardAnywhere, getCardDefinition, getCardScript, getLegalActions, isLegalAction } from '../core';
-import { MYOSHU, plansOn } from './cardPlans';
+import { MYOSHU } from './cardPlans';
 import { iceScript, iceStrength, iceSubroutines, iceSubtypes, isIcebreaker } from '../core/engine/ice';
 import { iceStop, iceWorth, withIceInstalled } from './iceValues';
 import { rigCoverage } from './evaluate';
@@ -176,7 +176,7 @@ export class HeuristicCorpAI implements Agent {
   rankMainActions(state: GameState, legal = getLegalActions(state, 'corp')): ScoredAction[] {
     decisionContext(state, 'corp');
     this.freeActions.start(state, state.corp.clicks);
-    const before = evaluate(state, 'corp', this.synergy);
+    const before = evaluate(state, 'corp');
     const iceTrash = this.synergy;
     const ranked = [...legal, ...(iceTrash ? iceTrashInstalls(state) : [])]
       .map(original => {
@@ -302,9 +302,9 @@ export class HeuristicCorpAI implements Agent {
         stolen.runner.score += cardDef(a).agenda_points ?? 0;
       }
       stolen.activeRun = null;
-      letIn = evaluate(next(stolen), 'corp', this.synergy);
-    } else letIn = evaluate(state, 'corp', this.synergy) - runLoss(state);
-    return evaluate(next(after), 'corp', this.synergy) - letIn;
+      letIn = evaluate(next(stolen), 'corp');
+    } else letIn = evaluate(state, 'corp') - runLoss(state);
+    return evaluate(next(after), 'corp') - letIn;
   }
 
   /**
@@ -353,7 +353,7 @@ export class HeuristicCorpAI implements Agent {
         // The drawn card is one the Corp hasn't seen, so evaluate prices it at the deck's average (no peeking: the
         // look-ahead draw is pooled with R&D). What it may be is digValue's: the odds it is the missing ice or money,
         // one card past the hand size when HQ is all duds (plan.digPastLimit; rules 4.3.6, 5.5.3: discard at the end of the turn)
-        const room = corp.handSizeLimit + (plan().digPastLimit ? 1 : 0);
+        const room = corp.handSizeLimit + 1;
         const dig = corp.hq.length < room ? digValue(state, 'corp') : 0;
         return this.playScore(state, action, before) + dig;
       }
@@ -450,7 +450,7 @@ export class HeuristicCorpAI implements Agent {
       const best = new HeuristicCorpAI({ synergy: this.synergy, planner: false }).rankMainActions(after)[0];
       if (!best || best.action.type !== 'USE_ABILITY' || best.action.cardInstanceId !== card.instanceId) return -Infinity;
       // plan.oneCurrency: the rez and the use it leads to, as one delta from before the rez
-      if (before !== undefined) return evaluate(after, 'corp', this.synergy) - before + best.score;
+      if (before !== undefined) return evaluate(after, 'corp') - before + best.score;
       return best.score;
     } finally {
       rezzingToUse.delete(card.instanceId);
@@ -492,7 +492,7 @@ export class HeuristicCorpAI implements Agent {
     const rezzed = begin(simulate(state, action));
     const plain = begin(state);
     if (!rezzed || !plain) return -Infinity;
-    const score = evaluate(rezzed, 'corp', this.synergy) - evaluate(plain, 'corp', this.synergy);
+    const score = evaluate(rezzed, 'corp') - evaluate(plain, 'corp');
     return score <= FREE_ACTION_FLOOR ? -Infinity : score;
   }
 
@@ -544,7 +544,7 @@ export class HeuristicCorpAI implements Agent {
       if (!next) break;
       resolved = next;
     }
-    let score = evaluate(resolved, 'corp', this.synergy) - before;
+    let score = evaluate(resolved, 'corp') - before;
     // Terminal operations (Liberation) end the action phase: the clicks left are lost, so play them last
     if (action.type === 'PLAY_OPERATION_OR_EVENT') {
       const played = corp.hq.find(c => c.instanceId === action.cardInstanceId);
@@ -553,8 +553,6 @@ export class HeuristicCorpAI implements Agent {
     // plan.oneCurrency: the delta alone (a free action still has to gain something, or the loop guard would spin)
     if (one) return !spendsClick && !unfiltered && score <= FREE_ACTION_FLOOR ? -Infinity : score;
     if (this.synergy) score += this.moneyPlan(state, action);
-    // Myōshu: keep the 10 credits once saved, unless the spend scores (its card plan does this when plans are on)
-    if (this.synergy && !plansOn() && myoshuSaving(state, true) && resolved.corp.credits < MYOSHU_COST && resolved.corp.score === corp.score) score -= 1;
     // Deck-aware AI: a play that makes an agenda scoreable this turn (Seamless Launch, Key Performance Indicators...)
     if (this.synergy && plan().scoreSetup && scoreable(resolved) > scoreable(state)) score = Math.max(score, 41);
     // plan.finishSetup (Jeff's Corp game 1, bug report #17: The Holo Man's 3 counters left Offworld Office one advance short,
@@ -581,7 +579,7 @@ export class HeuristicCorpAI implements Agent {
         const cost = cardDef(c).cost ?? 0;
         return gain !== undefined && cost > corp.credits && cost <= corp.credits + corp.clicks + 2;
       });
-      return reachable || (!plansOn() && myoshuSaving(state)) ? 0.6 : 0;
+      return reachable ? 0.6 : 0;
     }
     // plan.castWhileAble (Jeff, 2026-11-04: the Corp goes broke holding Hedge Fund): a money operation the Corp can
     // afford now but not once it pays to rez its ice is played while it still can; stranded, it's a dead card until
@@ -596,7 +594,7 @@ export class HeuristicCorpAI implements Agent {
       return corp.hq.find(c => c.instanceId === action.cardInstanceId)?.cardCode === '35081' ? PETTY_CASH_REPLAY : 0;
     }
     // plan.digPastLimit (Jeff, 2026-10-31): a hand of duds digs one card past the limit, to discard the worst at the end of the turn (rules 4.3.6, 5.5.3)
-    const digRoom = corp.handSizeLimit + (plan().digPastLimit ? 1 : 0);
+    const digRoom = corp.handSizeLimit + 1;
     if (action.type === 'DRAW_CARD' && corp.hq.length < digRoom) return digValue(state, 'corp');
     return 0;
   }

@@ -7,7 +7,6 @@ import type { RunOptions } from '../runs';
 import { badPublicityWorth } from '../prompts';
 import type { GameState } from '../../core';
 import { CardAI } from './types';
-import { plan } from '../pricing';
 
 /**
  * What the AI knows about each Vantage Point card's worth, one entry per card
@@ -151,13 +150,10 @@ export const VANTAGE_POINT: Record<string, CardAI> = {
     value: { rig: 2.5 },
     // +1 MU; a dead hardware in the grip (a copy of one installed, or one it can't afford) turns into 2 run credits now and then
     runner: (state, code) => {
-      if (plan().sourdough) {
-        const hardware = [...state.runner.grip, ...state.runner.stack].filter(c => cardDef(c).type_code === 'hardware');
-        const titles = new Set(hardware.map(c => cardDef(c).title));
-        const spare = (hardware.length - titles.size) / Math.max(1, state.runner.grip.length + state.runner.stack.length);
-        return muWorth(state) + perTurn(state, Math.min(1, 3 * spare) * 2 * counterWorthOf(state, code, 'credit'), 'runner');
-      }
-      return muWorth(state) + perTurn(state, Math.min(1, 3 * deckShare(state, 'runner', null, 'hardware')) * 0.5 * Math.max(0, 2 * counterWorthOf(state, code, 'credit') - cardRate(state, 'runner')), 'runner');
+      const hardware = [...state.runner.grip, ...state.runner.stack].filter(c => cardDef(c).type_code === 'hardware');
+      const titles = new Set(hardware.map(c => cardDef(c).title));
+      const spare = (hardware.length - titles.size) / Math.max(1, state.runner.grip.length + state.runner.stack.length);
+      return muWorth(state) + perTurn(state, Math.min(1, 3 * spare) * 2 * counterWorthOf(state, code, 'credit'), 'runner');
     },
     counters: { credit: () => 0.9 }, // Run credits only (Baker's fuel: cardPlans.ts)
   },

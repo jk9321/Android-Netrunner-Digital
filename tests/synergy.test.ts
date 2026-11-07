@@ -614,16 +614,11 @@ describe('digging for answers', () => {
     s.corp.rd = s.corp.rd.filter(c => !s.corp.hq.includes(c));
     s.corp.credits = 8;
     const draw = () => new HeuristicCorpAI({ synergy: true }).rankMainActions(s).find(r => r.action.type === 'DRAW_CARD')?.score ?? -Infinity;
-    const on = draw();
-    tuning.plan.digPastLimit = false;
-    const off = draw();
-    tuning.plan.digPastLimit = true;
-    expect(on).toBeGreaterThan(off + 0.5);
+    const five = draw();
     // Six cards: no more digging (a second discard)
     s.corp.hq.push(duds[5]);
-    expect(draw()).toBeLessThanOrEqual(off);
+    expect(five).toBeGreaterThan(draw() + 0.5);
   });
-
   it('ice the Corp cannot afford to rez soon is no answer: it still digs', () => {
     const s = structuredClone(newGame());
     s.corp.hq = s.corp.hq.filter(c => getCardDefinition(c.cardCode).type_code !== 'ice').slice(0, 2);

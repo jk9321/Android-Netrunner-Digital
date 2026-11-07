@@ -5,7 +5,7 @@ import { corpCardValue, tagsWorth } from './evaluate';
 import { damageWorth } from './effectValues';
 import { runStealthCredits, trashedCardCost } from './runs';
 import { CLICK, cardRate, pointGain } from './valueModel';
-import { plan, pricing, withPricing } from './pricing';
+import { pricing, withPricing } from './pricing';
 
 /**
  * Card plans (Jeff, 2026-10-30; plan.cardPlans): cards that pay off only
@@ -131,15 +131,14 @@ const installable = (state: GameState, card: CardInstance) => state.runner.grip.
 
 /** An installed Principia's worth as Knickknack fuel. */
 export function principiaFuel(state: GameState, card: CardInstance): number {
-  if (!plansOn() || card.cardCode !== PRINCIPIA || !state.runner.rig.resources.some(r => r.cardCode === KNICKKNACK)) return 0;
+  if (card.cardCode !== PRINCIPIA || !state.runner.rig.resources.some(r => r.cardCode === KNICKKNACK)) return 0;
   return 0.6 * ((cardDef(card).cost ?? 0) + cardRate(state, 'runner'));
 }
 
-export const plansOn = (): boolean => !!plan().cardPlans;
 
 /** A card's worth in hand by its plan (before the wait), or undefined if it has none. */
 export function handPlanWorth(state: GameState, card: CardInstance): number | undefined {
-  const hand = plansOn() ? CARD_PLANS[card.cardCode]?.hand : undefined;
+  const hand = CARD_PLANS[card.cardCode]?.hand;
   // A payoff priced from card values can come back here (the deck's average card counts this one): the average then
   if (!hand || pricing().planning) return undefined;
   return withPricing({ planning: true }, () => {
@@ -151,7 +150,6 @@ export function handPlanWorth(state: GameState, card: CardInstance): number | un
 
 /** What the installed board plans of `side` add to its board. */
 export function boardPlansWorth(state: GameState, side: SideCode): number {
-  if (!plansOn()) return 0;
   const cards = side === 'runner' ? [...state.runner.rig.programs, ...state.runner.rig.hardware, ...state.runner.rig.resources, state.runner.identity] : [...installedCorp(state), state.corp.identity];
   let worth = 0;
   for (const card of cards) {
@@ -162,5 +160,5 @@ export function boardPlansWorth(state: GameState, side: SideCode): number {
 }
 
 /** Baker installed and no stealth credit to run it on: worth feeding Methuselah for. */
-export const bakerWantsFuel = (state: GameState): boolean => plansOn() && state.runner.rig.programs.some(c => c.cardCode === BAKER) && runStealthCredits(state) < 1;
+export const bakerWantsFuel = (state: GameState): boolean => state.runner.rig.programs.some(c => c.cardCode === BAKER) && runStealthCredits(state) < 1;
 

@@ -54,7 +54,7 @@ export class HeuristicRunnerAI implements Agent {
       decisionContext(state, 'runner');
       this.remember(state);
       this.freeActions.start(state, state.runner.clicks);
-      const before = evaluate(state, 'runner', this.synergy);
+      const before = evaluate(state, 'runner');
       const best = getLegalActions(state, 'runner')
         .filter(a => a.type === 'USE_ABILITY')
         .map(action => ({ action, score: this.scoreMain(state, action, before) }))
@@ -224,7 +224,7 @@ export class HeuristicRunnerAI implements Agent {
   rankMainActions(state: GameState, legal = getLegalActions(state, 'runner')): ScoredAction[] {
     decisionContext(state, 'runner');
     this.freeActions.start(state, state.runner.clicks);
-    const before = evaluate(state, 'runner', this.synergy);
+    const before = evaluate(state, 'runner');
     // Nowhere worth running and breakers missing: dig for them
     this.digForBreakers =
       rigCoverage(state.runner.rig.programs).covered.size < 3 &&
@@ -288,7 +288,7 @@ export class HeuristicRunnerAI implements Agent {
       if (ask?.kind === 'effect_choice' && ask.options.every(o => ready.corp.servers[o.id])) {
         const options = { ...runEventOptions(WINDOW_OF_OPPORTUNITY, ready), memory: this.memory, wary: this.synergy && tuning.wary };
         const best = Math.max(...ask.options.map(o => runScore({ ...ready, runner: { ...ready.runner, clicks: state.runner.clicks } }, o.id, options)));
-        const install = evaluate(ready, 'runner', this.synergy) - evaluate(after, 'runner', this.synergy);
+        const install = evaluate(ready, 'runner') - evaluate(after, 'runner');
         return best + install - spendCost(state, paid);
       }
     }
@@ -306,7 +306,7 @@ export class HeuristicRunnerAI implements Agent {
       if (!next) break;
       resolved = next;
     }
-    let score = evaluate(resolved, 'runner', this.synergy) - before;
+    let score = evaluate(resolved, 'runner') - before;
     // plan.drawCap (code audit, 2026-11-05): a card drawn past the hand size is discarded at the end of the turn
     // (rules 5.7.4), so these bonuses stop at the limit; a bigger hand for a trap run still counts while a click is left to run
     const room = state.runner.grip.length < state.runner.handSizeLimit;

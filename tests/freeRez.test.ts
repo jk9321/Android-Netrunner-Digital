@@ -4,7 +4,6 @@ import { HeuristicCorpAI } from '../src/ai/corpAI';
 import { answerPrompt } from '../src/ai/prompts';
 import { iceWorth } from '../src/ai/iceValues';
 import { pendingFreeRezzes } from '../src/ai/freeRez';
-import { tuning } from '../src/ai/synergy';
 import { RATES } from '../src/ai/valueModel';
 import { giveCard, installCorpForTest, installIceForTest, installProgramForTest, newGame } from './helpers';
 
@@ -33,16 +32,6 @@ function withSendAMessage(s: GameState, counters: number): string {
   const id = installCorpForTest(s, SEND_A_MESSAGE, 'remote1');
   s.corp.servers.remote1.root[0].advancementCounters = counters;
   return id;
-}
-
-function withPlan<T>(on: boolean, work: () => T): T {
-  const was = tuning.plan.freeRez;
-  tuning.plan.freeRez = on;
-  try {
-    return work();
-  } finally {
-    tuning.plan.freeRez = was;
-  }
 }
 
 /** Plays the Corp AI's turn to its end. */
@@ -80,7 +69,6 @@ describe('Corp AI cheats out expensive ice with a free rez (plan.freeRez)', () =
     expect(iceWorth(s, pharos(), 'corp')).toBe(RATES.ice);
     withSendAMessage(s, 0);
     expect(iceWorth(s, pharos(), 'corp')).toBeGreaterThan(RATES.ice + 2);
-    expect(withPlan(false, () => iceWorth(s, pharos(), 'corp'))).toBe(RATES.ice);
   });
 
   it('installs Pharos it cannot pay for while Send a Message waits on the board (ice pacing)', () => {
@@ -91,15 +79,7 @@ describe('Corp AI cheats out expensive ice with a free rez (plan.freeRez)', () =
     giveCard(s, 'corp', PHAROS);
     const installsPharos = () =>
       new HeuristicCorpAI().rankMainActions(s).some(r => r.action.type === 'INSTALL_CARD' && cardDef(s.corp.hq.find(c => c.instanceId === (r.action as { cardInstanceId: string }).cardInstanceId)!).title === 'Pharos' && r.score > -Infinity);
-    if (tuning.plan.oneCurrency) {
-      // plan.oneCurrency gates no install at -Infinity: without the plan Pharos is still a (poor) install, with it the
-      // ice Send a Message will rez for free counts at its rezzed worth (fresh copies: the memo is per state, not per switch)
-      const pharos = (t: GameState) => Math.max(...new HeuristicCorpAI().rankMainActions(t).filter(r => r.action.type === 'INSTALL_CARD' && cardDef(t.corp.hq.find(c => c.instanceId === (r.action as { cardInstanceId: string }).cardInstanceId)!).title === 'Pharos').map(r => r.score));
-      const off = withPlan(false, () => pharos(structuredClone(s)));
-      expect(pharos(structuredClone(s))).toBeGreaterThan(off + 2);
-      return;
-    }
-    expect(withPlan(false, installsPharos)).toBe(false);
+    // (the rule-tier ranking; plan.oneCurrency, off by default, gates no install at -Infinity)
     expect(installsPharos()).toBe(true);
   });
 
@@ -115,10 +95,7 @@ describe('Corp AI cheats out expensive ice with a free rez (plan.freeRez)', () =
     const after = run();
     expect(after.corp.score).toBe(3);
     expect(allIce(after).some(c => c.cardCode === PHAROS && c.isRezzed)).toBe(true);
-    // Before: Pharos couldn't be installed, so the free rez went to a Palisade. plan.oneCurrency finds it without the
-    // plan: the finish projection scores Send a Message through the engine, whose free-rez prompt rezzes the Pharos
-    const old = withPlan(false, run);
-    expect(allIce(old).some(c => c.cardCode === PHAROS)).toBe(tuning.plan.oneCurrency);
+    // Before plan.freeRez (now folded) Pharos couldn't be installed, so the free rez went to a Palisade
   });
 
   it('the free rez goes to the ice that saves the most, when the Corp could pay for either', () => {

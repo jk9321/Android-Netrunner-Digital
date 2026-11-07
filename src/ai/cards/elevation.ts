@@ -12,7 +12,6 @@ import type { RunOptions } from '../runs';
 import { runClick } from '../runs';
 import { tagCost } from '../runs';
 import { CardAI } from './types';
-import { plan } from '../pricing';
 
 /**
  * What the AI knows about each Elevation card's worth, one entry per card
@@ -258,10 +257,6 @@ export const ELEVATION: Record<string, CardAI> = {
     value: { rig: 2.5 }, // Free program installs (hosted cards count too)
     // A hosted program installed each turn without a click
     runner: (state, _code, card) => {
-      if (!plan().madaniClick) {
-        const programs = [...state.runner.grip, ...state.runner.stack].filter(c => cardDef(c).type_code === 'program').length;
-        return CLICK * Math.min(3, programs * 0.5);
-      }
       // Like DZMZ Optimizer: a click for each program still to install (hosted ones too, so hosting doesn't use up
       // This worth; their own saved click is on them, evaluate.ts), over the turns left. It installs on the Runner's
       // Turn and again on the Corp's (rules 9.5.2), so 2 a round; a click to host about every 3 installs.
@@ -310,7 +305,7 @@ export const ELEVATION: Record<string, CardAI> = {
       // The Sourdough loop (Jeff, 2026-10-30): Principia pays its printed 4 but reinstalls for 1 less per other
       // Breaker installed (from the grip, or the heap with Scrounge), so trashing a spare copy is credits and a card most turns
       const principia = [...state.runner.grip, ...state.runner.stack, ...state.runner.heap, ...state.runner.rig.programs].some(c => c.cardCode === PRINCIPIA);
-      if (!plan().sourdough || !principia) return perTurn(state, spent, 'runner');
+      if (!principia) return perTurn(state, spent, 'runner');
       const breakers = state.runner.rig.programs.filter(c => isIcebreaker(c) && c.cardCode !== PRINCIPIA).length;
       const loop = 4 + cardRate(state, 'runner') - Math.max(0, 4 - Math.max(1, breakers)) - CLICK;
       return perTurn(state, Math.max(spent, 0.6 * loop), 'runner');

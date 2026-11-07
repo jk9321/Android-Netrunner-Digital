@@ -10,7 +10,6 @@ import { BLOCK, BOTULUS, MANEGARM, RunOptions, RunnerMemory, iceCost, runClick, 
 import { breakerScript, encounteredIce, iceSubroutines, iceSubtypes, isIcebreaker } from '../core/engine/ice';
 import { keepBonus, tuning } from './synergy';
 import { freeInstallTarget, perfectRecallTarget } from './corpAI';
-import { freeRezOn } from './freeRez';
 import { iceStop, iceWorth } from './iceValues';
 import { rezCost } from '../core/engine/cardEffects';
 import { isPsiStep } from '../core/scripts/effects';
@@ -39,7 +38,7 @@ const sumKeep = (state: GameState, cards: CardInstance[], synergy: boolean) => c
  * its least useful cards) and, for the Runner, the run still in progress.
  */
 export function scoreOutcome(before: GameState, after: GameState, side: SideCode, memory?: RunnerMemory, synergy = false): number {
-  let score = evaluate(after, side, synergy);
+  let score = evaluate(after, side);
   // Cards that came from the deck are unknown until drawn: only the cards that left the hand count (plan.blindDraws)
   const drawn = (c: CardInstance) => !hand(before, side).some(b => b.instanceId === c.instanceId) && fromDeck(before, side, c);
   score += 0.5 * (sumKeep(after, hand(after, side).filter(c => !drawn(c)), synergy) - sumKeep(before, hand(before, side), synergy));
@@ -331,7 +330,7 @@ export function answerPrompt(state: GameState, side: SideCode, memory?: RunnerMe
   }
 
   // Sourdough Starter (Jeff, 2026-10-30, plan.sourdough)
-  if (side === 'runner' && prompt.kind === 'effect_cards' && plan().sourdough) {
+  if (side === 'runner' && prompt.kind === 'effect_cards') {
     const code = prompt.source.cardCode;
     const cards = prompt.candidateIds.map(id => findCardAnywhere(state, id)).filter((c): c is CardInstance => !!c);
     const weakest = (list: CardInstance[]) => [...list].sort((a, b) => keepValue(state, a) - keepValue(state, b))[0];
@@ -358,12 +357,12 @@ export function answerPrompt(state: GameState, side: SideCode, memory?: RunnerMe
     }
     // Knickknack O'Brian: trash only a card that has stopped giving value (its loss to the rig well under the credits and card it pays)
     if (code === '35033' && prompt.source.step === 'trash') {
-      const rig = runnerRigValue(state, true, 'runner');
+      const rig = runnerRigValue(state);
       const loss = (c: CardInstance) => {
         const { programs, hardware, resources } = state.runner.rig;
         const without = { programs: programs.filter(x => x !== c), hardware: hardware.filter(x => x !== c), resources: resources.filter(x => x !== c) };
         // Fuel is there to be burnt: its loss is only the coverage it gives
-        const lost = rig - runnerRigValue({ ...state, runner: { ...state.runner, rig: without } }, true, 'runner') - principiaFuel(state, c);
+        const lost = rig - runnerRigValue({ ...state, runner: { ...state.runner, rig: without } }) - principiaFuel(state, c);
         if (!isIcebreaker(c)) return lost;
         // A breaker is cheap to lose when it comes back for its install (a copy in the grip, or this one from the
         // heap with Scrounge), and while no rezzed ice it breaks is out (Jeff, 2026-10-30: the Sourdough loop)
@@ -451,7 +450,7 @@ export function answerPrompt(state: GameState, side: SideCode, memory?: RunnerMe
     const after = simulate(state, action);
     if (!after) continue;
     let score = scoreOutcome(state, followChain(prompt, after, side, memory, synergy), side, memory, synergy);
-    if (side === 'corp' && freeRezOn()) score += freeRezSaving(state, after);
+    if (side === 'corp') score += freeRezSaving(state, after);
     if (skip && after.activeRun?.encounter?.iceId === skip.iceId) score -= skip.cost;
     if (score > bestScore) {
       bestScore = score;

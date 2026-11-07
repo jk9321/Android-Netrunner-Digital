@@ -60,7 +60,7 @@ export function playedWorth(state: GameState, card: CardInstance): number {
   const profile = CARD_PROFILES[card.cardCode];
   if (profile) return payoutWorth(profile, turns, profile.load, payoutWait(state, profile, 'runner'), cardRate(state, 'runner')) * payoutSlide(state, 'runner', profile.load) - cost - CLICK;
   // (Not while the deck's average card is worked out: pricing the rig there prices the rig cards that asked for the average)
-  if (isIcebreaker(card) && plan().breakerCredits?.runner && !pricing().pricingBreakers.has(card.instanceId) && !pricing().averaging) {
+  if (isIcebreaker(card) && !pricing().pricingBreakers.has(card.instanceId) && !pricing().averaging) {
     // What it adds to the rig's coverage once installed (Mayfly's one use included), as the board will see it.
     // A breaker hosted on Bling or Madani is priced inside the rig too: while it is, the rule-based worth below
     const rig = state.runner.rig;
@@ -69,7 +69,7 @@ export function playedWorth(state: GameState, card: CardInstance): number {
     const pricingBreakers = pricing().pricingBreakers;
     pricingBreakers.add(card.instanceId);
     try {
-      return runnerRigValue(after, true, 'runner') - runnerRigValue(state, true, 'runner') - cost - CLICK;
+      return runnerRigValue(after) - runnerRigValue(state) - cost - CLICK;
     } finally {
       pricingBreakers.delete(card.instanceId);
     }

@@ -8,7 +8,7 @@ import { cardSynergy } from './synergyTags';
 import { corpKeepValue, runnerCardValue } from './cardValues';
 import { countersWorth } from './counterValues';
 import { boardPlansWorth } from './cardPlans';
-import { AI_BREAKER_SHARE, RUNNER_TURN_INCOME, breakerTypeWorth, flatIceWorth, iceWorth } from './iceValues';
+import { AI_BREAKER_SHARE, RUNNER_TURN_INCOME, breakerTypeWorth, iceWorth } from './iceValues';
 import { payoutWait, payoutWorth, profileOf, turnsLeft } from './cardProfiles';
 import { resourceTrashHqCost } from '../core/engine/actions/basic';
 import { HAND_FLOOR, clickPrice, handByCard, heldWorth, ownHandValue, playedWorth, unseenInHand } from './handValues';
@@ -28,9 +28,8 @@ export { creditValue };
  * 1, a click about 1, a card in hand about 1.5 while the hand is small.
  * Scores compare positions one action apart, so only differences matter.
  *
- * `aware` (the deck-aware AI) turns on the planning terms: tags are worth
- * more while the Corp holds cards that punish them, and icebreakers for
- * the ice types the Corp has shown are worth more than the rest.
+ * The deck-aware AI's terms (tag threat, ice-type coverage) are in every
+ * evaluation since plan.tagClock and plan.breakerCredits were folded.
  */
 
 /**
@@ -66,7 +65,7 @@ export function digValue(state: GameState, side: SideCode): number {
     const pressure = state.runner.score >= 5 ? 1 : state.runner.score >= 3 ? 0.5 : 0;
     const iced = (id: string) => (corp.servers[id]?.ice.length ?? 0) > 0;
     // plan.digPastLimit: ice too dear to rez soon (its cost past the credits and a turn's clicks) is no answer either
-    const usableIce = (c: CardInstance) => cardDef(c).type_code === 'ice' && (!plan().digPastLimit || (cardDef(c).cost ?? 0) <= corp.credits + 3);
+    const usableIce = (c: CardInstance) => cardDef(c).type_code === 'ice' && ((cardDef(c).cost ?? 0) <= corp.credits + 3);
     const needIce = !corp.hq.some(usableIce) && (!iced('rd') || !iced('hq') || corp.hq.some(c => cardDef(c).type_code === 'agenda'));
     const needMoney = corp.credits < 5 && !corp.hq.some(isEcon);
     if (needIce) value += Math.min(1.2, 3 * odds(corp.rd, c => cardDef(c).type_code === 'ice') * (1 + pressure));
@@ -125,22 +124,13 @@ export function shownIceShare(state: GameState): Record<string, number> {
   return Object.fromEntries(ICE_TYPES.map(t => [t, count[t] / total]));
 }
 
-/** Worth of being able to break an ice type: 8 on average, more for the types the Corp plays. */
-function coverageValue(state: GameState, type: string, aware: boolean): number {
-  if (!aware) return RATES.iceTypeCoverage;
-  return RATES.iceTypeCoverage * (0.4 + 1.8 * shownIceShare(state)[type]);
-}
-
-export function runnerRigValue(state: GameState, aware: boolean, viewer: SideCode): number {
+export function runnerRigValue(state: GameState): number {
   const rig = state.runner.rig;
   const cards = [...rig.programs, ...rig.hardware, ...rig.resources];
   const { covered, anyBreakers } = rigCoverage(rig.programs);
-  let value: number;
-  if (plan().breakerCredits?.[viewer]) {
-    // Step 5b: each ice type by the stops it saves; an AI breaker covers the rest at a discount
-    const aiShare = anyBreakers === 0 ? 0 : Math.max(...rig.programs.filter(p => breakerScript(p)?.breaks === 'any').map(p => (isOneUse(p) ? AI_BREAKER_SHARE / 3 : AI_BREAKER_SHARE)));
-    value = ICE_TYPES.reduce((n, t) => n + (covered.has(t) ? 1 : aiShare) * breakerTypeWorth(state, t), 0);
-  } else value = [...covered].reduce((n, t) => n + coverageValue(state, t, aware), 0) + (anyBreakers > 0 ? RATES.anyBreaker : 0);
+  // Step 5b: each ice type by the stops it saves; an AI breaker covers the rest at a discount
+  const aiShare = anyBreakers === 0 ? 0 : Math.max(...rig.programs.filter(p => breakerScript(p)?.breaks === 'any').map(p => (isOneUse(p) ? AI_BREAKER_SHARE / 3 : AI_BREAKER_SHARE)));
+  let value = ICE_TYPES.reduce((n, t) => n + (covered.has(t) ? 1 : aiShare) * breakerTypeWorth(state, t), 0);
   for (const card of cards) {
     // Step 4: a card that pays out money is worth what it will still pay
     const profile = profileOf(card.cardCode);
@@ -149,14 +139,14 @@ export function runnerRigValue(state: GameState, aware: boolean, viewer: SideCod
       continue;
     }
     // A breaker is worth its coverage above (plan.flatRates.breakers: no flat extra for having one)
-    value += isIcebreaker(card) ? (plan().breakerCredits?.[viewer] ? 0 : RATES.icebreaker) : RATES.rigCardScale * runnerCardValue(card.cardCode, state, card);
+    value += isIcebreaker(card) ? 0 : RATES.rigCardScale * runnerCardValue(card.cardCode, state, card);
     // Counters by what they do on this card (step 3), or the step-1 rates
     value += countersWorth(state, card, 'credit') + countersWorth(state, card, 'virus') + countersWorth(state, card, 'power');
     // Bling, Madani: cards to play later, worth what they would be in the grip (plan.flatRates.hosted);
     // Madani's install takes no click, so its programs keep the click they will save (plan.madaniClick).
     // Corp cards hosted on Detente are not the Runner's to play: Detente's own value covers them
     const hosted = (card.hostedCards ?? []).filter(h => cardDef(h).side_code === 'runner');
-    const freeInstall = card.cardCode === MADANI && !!plan().madaniClick;
+    const freeInstall = card.cardCode === MADANI;
     value += hosted.reduce((n, h) => n + heldWorth(state, h, 'runner', freeInstall), 0);
   }
   // Combos in play (Knickknack burning Principia, Baker on stealth credits): plan.cardPlans
@@ -411,7 +401,7 @@ function corpBoardValue(state: GameState, viewer: SideCode): number {
   let odds: ReturnType<typeof hiddenCardOdds> | undefined;
   const budgets = agendaBudgets(state, viewer);
   for (const server of Object.values(state.corp.servers)) {
-    for (const ice of server.ice) value += plan().iceInCredits?.[viewer] ? iceWorth(state, ice, viewer) : flatIceWorth(ice);
+    for (const ice of server.ice) value += iceWorth(state, ice, viewer);
     for (const card of server.root) {
       if (viewer === 'runner' && isHidden(card)) {
         odds ??= hiddenCardOdds(state);
@@ -579,8 +569,8 @@ function tagLossPerTurn(state: GameState, viewer: SideCode, skip = 0): number {
 function tagLoss(state: GameState, viewer: SideCode, skip: number): number {
   const corp = state.corp;
   // The best resource the Corp would trash, net of what trashing costs it
-  const rig = runnerRigValue(state, true, viewer);
-  const resources = state.runner.rig.resources.map(r => rig - runnerRigValue({ ...state, runner: { ...state.runner, rig: { ...state.runner.rig, resources: state.runner.rig.resources.filter(c => c !== r) } } }, true, viewer));
+  const rig = runnerRigValue(state);
+  const resources = state.runner.rig.resources.map(r => rig - runnerRigValue({ ...state, runner: { ...state.runner, rig: { ...state.runner.rig, resources: state.runner.rig.resources.filter(c => c !== r) } } }));
   // plan.hqTrashCost: a resource that also costs cards from HQ to trash is worth that much less to trash
   const extra = (r: CardInstance) => (plan().hqTrashCost ? hqTrashCardsLoss(state, r) : 0);
   const nets = resources.map((v, i) => v - extra(state.runner.rig.resources[i])).sort((a, b) => b - a);
@@ -671,7 +661,7 @@ export function hqTrashCardsLoss(state: GameState, resource: CardInstance): numb
 /** The flat worth of the first cards in hand as life against damage, which the damage clock replaces. */
 const lifeCards = (size: number): number => Math.min(size, RATES.handCoreCards) * (RATES.handCore - RATES.drawnCard);
 
-export function sideStrength(state: GameState, side: SideCode, viewer: SideCode = side, aware = false): number {
+export function sideStrength(state: GameState, side: SideCode, viewer: SideCode = side): number {
   if (side === 'corp') {
     const corp = state.corp;
     return (
@@ -694,16 +684,16 @@ export function sideStrength(state: GameState, side: SideCode, viewer: SideCode 
     coreSlotWorth(state) * runner.coreDamage -
     // The damage clock: a small grip against the Corp's damage is a step toward a flatline
     (flatlineWorth(state) * flatlineOdds(state, lifeGrip(state), true) + lifeCards(runner.grip.length)) +
-    runnerRigValue(state, aware, viewer)
+    runnerRigValue(state)
   );
 }
 
 /** How good the position is for `side` (mine minus theirs; a win is decisive). */
-export function evaluate(state: GameState, side: SideCode, aware = false): number {
+export function evaluate(state: GameState, side: SideCode): number {
   if (state.winner) return state.winner === side ? 1000 : -1000;
   if (side === 'corp' && plan().oneCurrency) state = finishedAgendas(state) ?? state;
   const other: SideCode = side === 'corp' ? 'runner' : 'corp';
-  return sideStrength(state, side, side, aware) - sideStrength(state, other, side, aware);
+  return sideStrength(state, side, side) - sideStrength(state, other, side);
 }
 
 /**
@@ -739,7 +729,7 @@ export function scoreEffectWorth(state: GameState, agenda: CardInstance): number
   // position: the planner prices thousands of positions a turn that differ only in clicks and installs, and playing the
   // score out in each made the suite's planner tests time out
   const unrezzed = Object.values(state.corp.servers).flatMap(sv => sv.ice.filter(c => !c.isRezzed).map(c => c.instanceId)).join();
-  const key = [state.id, state.turnNumber, agenda.instanceId, state.corp.credits, state.corp.score, state.runner.score, state.runner.tags, unrezzed, pricingKey(), !!plan().freeRez].join('|');
+  const key = [state.id, state.turnNumber, agenda.instanceId, state.corp.credits, state.corp.score, state.runner.score, state.runner.tags, unrezzed, pricingKey()].join('|');
   const cached = effectCache.get(key);
   if (cached !== undefined) return cached;
   if (effectCache.size > 2000) effectCache.clear();

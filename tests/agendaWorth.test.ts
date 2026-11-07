@@ -69,9 +69,9 @@ describe('agendas on the board (Jeff, 2026-10-28; plan.agendaBoard)', () => {
     expect(archivedAgendaLoss(s, 2)).toBeGreaterThan(0);
     expect(archivedAgendaLoss(s, 2)).toBeLessThanOrEqual(pointValue(2));
     // On the board too: the Corp sees its facedown agenda in Archives as a likely steal
-    const before = evaluate(s, 'corp', true);
+    const before = evaluate(s, 'corp');
     s.corp.archives.faceDown.push(s.corp.hq.shift()!);
-    expect(evaluate(s, 'corp', true)).toBeLessThan(before);
+    expect(evaluate(s, 'corp')).toBeLessThan(before);
   });
 
   it('sooner is better: an agenda the Corp can finish this turn beats one that waits a Runner turn (plan.agendaTempo)', () => {
