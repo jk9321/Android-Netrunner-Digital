@@ -3,6 +3,8 @@ import { HeuristicCorpAI } from './corpAI';
 import { GameRunner } from './playout';
 import { HeuristicRunnerAI } from './runnerAI';
 import { pointValue } from './valueModel';
+import { turnSeed } from './threatModel';
+import { searchPiece } from './turnPlanner';
 import { tuning } from './synergy';
 
 /**
@@ -36,22 +38,35 @@ export function knownRdSlots(state: GameState): Set<number> {
   return slots;
 }
 
-/** R&D shuffled except at `fixed` positions. */
-function shuffleRdKeeping<T>(rng: Parameters<typeof shuffleInPlace>[0], rd: T[], fixed: Set<number>): T[] {
-  const loose = shuffleInPlace(rng, rd.filter((_, i) => !fixed.has(i)));
+/** R&D shuffled except at `fixed` positions (`canonical`: the loose cards put in instance-id order first, plannerSeed). */
+function shuffleRdKeeping<T extends { instanceId: string }>(rng: Parameters<typeof shuffleInPlace>[0], rd: T[], fixed: Set<number>, canonical = false): T[] {
+  const rest = rd.filter((_, i) => !fixed.has(i));
+  const loose = shuffleInPlace(rng, canonical ? byId(rest) : rest);
   return rd.map((c, i) => (fixed.has(i) ? c : loose.shift()!));
 }
 
-/** `state` with the cards the Corp can't see dealt at random (sample `k`). */
+const byId = <T extends { instanceId: string }>(cards: T[]): T[] => [...cards].sort((a, b) => (a.instanceId < b.instanceId ? -1 : a.instanceId > b.instanceId ? 1 : 0));
+
+/**
+ * `state` with the cards the Corp can't see dealt at random (sample `k`).
+ *
+ * plan.plannerSearch plannerSeed (structural review item 4): the seed is the game and turn's (threatModel.ts turnSeed,
+ * the threat's dealer), not the end state's rng, and the cards are dealt from a fixed order (by instance id). The
+ * planner's candidates end in different rng states whenever one of them drew or shuffled, so each was compared on its
+ * own deal as well as its own line; now all candidates of a turn see the same guessed grip, stack and R&D order. Nothing
+ * new is read: the same cards are hidden, only which guess is drawn changes.
+ */
 export function guessHidden(state: GameState, k: number): GameState {
-  const rng = createRng(((state.rng?.state ?? 1) ^ Math.imul(k + 1, 0x9e3779b1)) >>> 0);
+  const common = searchPiece('plannerSeed');
+  const rng = createRng(((common ? turnSeed(state) : state.rng?.state ?? 1) ^ Math.imul(k + 1, 0x9e3779b1)) >>> 0);
+  const order = common ? byId : <T,>(cards: T[]) => cards;
   // plan.keepKnownHand (Gemini audit, 2026-11-01): grip cards the Corp has seen (MuslihaT, Mutual Favor) stay where they are
   const known = new Set(tuning.plan.keepKnownHand ? knownInHand(state, 'runner').map(k => k.id) : []);
   const seen = state.runner.grip.filter(c => known.has(c.instanceId));
-  const unseen = shuffleInPlace(rng, [...state.runner.grip.filter(c => !known.has(c.instanceId)), ...state.runner.stack]);
+  const unseen = shuffleInPlace(rng, order([...state.runner.grip.filter(c => !known.has(c.instanceId)), ...state.runner.stack]));
   const grip = [...seen, ...unseen.slice(0, state.runner.grip.length - seen.length)];
   const stack = unseen.slice(state.runner.grip.length - seen.length);
-  const rd = shuffleRdKeeping(rng, [...state.corp.rd], knownRdSlots(state));
+  const rd = shuffleRdKeeping(rng, [...state.corp.rd], knownRdSlots(state), common);
   return { ...state, rng: createRng(rng.state), runner: { ...state.runner, grip, stack }, corp: { ...state.corp, rd } };
 }
 

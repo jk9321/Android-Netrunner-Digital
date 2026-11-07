@@ -16,7 +16,7 @@ export { uncommittedChoice } from './engine/uncommitted';
 export { locateCorpCard, findCardAnywhere, knownInHand } from './engine/helpers';
 export { knownInRd } from './engine/rdKnowledge';
 export { getCardScript, scriptedCardCodes } from './scripts';
-export { rezCost as rezCostOf, availableCredits, virusCountersInPlay } from './engine/cardEffects';
+export { rezCost as rezCostOf, availableCredits, virusCountersInPlay, maxHandSize } from './engine/cardEffects';
 export { trashableFirst } from './engine/actions/install';
 export { effectTrashableFirst } from './scripts/effects';
 export { installedIce } from './engine/cardEffects';

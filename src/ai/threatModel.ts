@@ -74,7 +74,7 @@ export function runnerMemory(state: GameState): RunnerMemory {
 }
 
 /** A seed fixed for the game and turn: every candidate of one decision sees the same guessed grip. */
-function turnSeed(state: GameState): number {
+export function turnSeed(state: GameState): number {
   let h = 2166136261 ^ state.turnNumber;
   for (let i = 0; i < state.id.length; i++) h = Math.imul(h ^ state.id.charCodeAt(i), 16777619);
   return h >>> 0;

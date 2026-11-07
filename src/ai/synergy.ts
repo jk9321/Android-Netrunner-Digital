@@ -540,6 +540,22 @@ export const tuning = {
     /** With the planner: the hand at the end of a planned turn valued card by card (what each will do later). */
     plannerHand: true,
     /**
+     * Structural review item 4 (Fable spec, 2026-11-07; turnPlanner.ts): the planner's search widened, in pieces, each
+     * read only with plannerSearch on and batched alone. Off by default until its paired batch passes.
+     * plannerSeed: the Corp's Runner reply deals the hidden cards from one seed for the game and turn (threatModel.ts
+     * turnSeed), so every candidate is played out on the same deal and differs only by its line.
+     * plannerBuild: the Corp's candidates add the ice install a two-step build starts (ice, then the agenda or asset
+     * behind it; ice on a central the threat runs), which the rule ranking puts outside its top few. Cap PLANNER.withBuild.
+     * plannerDiscard: a playout that ends the turn over its maximum hand size plays the discard step through the engine
+     * with the AI's own discard answer before the leaf (rules 5.6.3a Corp, 5.7.2a Runner).
+     * plannerPatchesOff: the ordering patches (pettyCashFirst, tagFirst, dominated) off for the planning side.
+     */
+    plannerSearch: false,
+    plannerSeed: true,
+    plannerBuild: true,
+    plannerDiscard: true,
+    plannerPatchesOff: true,
+    /**
      * Per deciding side (Jeff, 2026-10-28): its own hand valued card by card, by what each will do once played (handValues.ts).
      * Batches: each side loses with it (Corp side 32.2% -> 28.0%, Runner side 32.2% -> 35.9% Corp) and the Runner draws at a
      * full hand on 55% of turns. Off on both sides, kept for re-testing.

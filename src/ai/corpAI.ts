@@ -14,7 +14,7 @@ import { PACE, STEAL, accessWorth, agendaOdds } from './effectValues';
 import { answerPrompt, simulate } from './prompts';
 import { asSide, logNudge, nudge, opponentLean, tuning } from './synergy';
 import { noteKnownHand } from './handValues';
-import { PlanMemory, planTurn, plannerOn } from './turnPlanner';
+import { PlanMemory, planTurn, plannerOn, searchPiece } from './turnPlanner';
 import { runnerReply } from './runnerReply';
 import { threatLoss } from './threatModel';
 import { modelRezGain } from './rezModel';
@@ -108,6 +108,14 @@ export class HeuristicCorpAI implements Agent {
     return this.synergy && tuning.plan.agendaTiming;
   }
 
+  /**
+   * The ordering patches (pettyCashFirst, tagFirst): off while the Corp plans with plan.plannerSearch plannerPatchesOff
+   * (structural review item 4: the search over the turn is to make them unnecessary).
+   */
+  private get patches() {
+    return this.synergy && !this.oneCurrency && !(plannerOn('corp') && searchPiece('plannerPatchesOff'));
+  }
+
   /** plan.oneCurrency: every main-phase action ranked by the evaluate delta (oneCurrencyScore). */
   private get oneCurrency() {
     return this.synergy && tuning.plan.oneCurrency;
@@ -126,9 +134,9 @@ export class HeuristicCorpAI implements Agent {
     let chosen = planned ?? (ranked[0]?.score > -Infinity ? ranked[0].action : legal.find(a => a.type === 'END_TURN') ?? legal[0]);
     // plan.pettyCashFirst: a click for a credit while Petty Cash can still be played is a click for 2 thrown away (the
     // planner valued Petty Cash held in HQ as the money it will make, though it is playable only as the turn's first action)
-    if (chosen.type === 'GAIN_CREDIT' && this.synergy && tuning.plan.pettyCashFirst && !this.oneCurrency) chosen = ranked.find(r => isPettyCash(state, r.action) && r.score > -Infinity)?.action ?? chosen;
+    if (chosen.type === 'GAIN_CREDIT' && this.patches && tuning.plan.pettyCashFirst) chosen = ranked.find(r => isPettyCash(state, r.action) && r.score > -Infinity)?.action ?? chosen;
     // plan.tagFirst: the planner's leaf counts a tag kept as a trash still to come, but the Runner clears it on its turn
-    if (this.synergy && tuning.plan.tagFirst && !this.oneCurrency && ranked[0]?.action.type === 'TRASH_RESOURCE' && ranked[0].tagFirst) chosen = ranked[0].action;
+    if (this.patches && tuning.plan.tagFirst && ranked[0]?.action.type === 'TRASH_RESOURCE' && ranked[0].tagFirst) chosen = ranked[0].action;
     // The reverse bluff: at most once a game
     if (chosen.type === 'INSTALL_CARD' && chosen.asNewRemote && state.corp.hq.some(c => c.instanceId === chosen.cardInstanceId && type(c) === 'agenda')) {
       const def = cardDef(state.corp.hq.find(c => c.instanceId === chosen.cardInstanceId)!);
@@ -182,8 +190,8 @@ export class HeuristicCorpAI implements Agent {
       })
       .sort((a, b) => b.score - a.score);
     if (this.oneCurrency) return finishFirst(state, ranked);
-    const first = this.synergy && tuning.plan.pettyCashFirst ? pettyCashFirst(state, ranked) : ranked;
-    return this.synergy && tuning.plan.tagFirst ? tagFirst(state, first) : first;
+    const first = this.patches && tuning.plan.pettyCashFirst ? pettyCashFirst(state, ranked) : ranked;
+    return this.patches && tuning.plan.tagFirst ? tagFirst(state, first) : first;
   }
 
   chooseRez(state: GameState, cards: CardInstance[]): GameAction | null {
