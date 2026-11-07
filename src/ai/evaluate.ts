@@ -18,7 +18,7 @@ import { LOCKDOWN, PACE, STEAL, agendaOdds, coreSlotWorth, flatlineOdds, lifeGri
 import { archivedWorth } from './cards';
 import { isTrap, trashedCardCost } from './runs';
 import { centralAccess, runChance, threatOn } from './threatModel';
-import { plan } from './pricing';
+import { plan, pricing, withPricing } from './pricing';
 
 const MADANI = '35028';
 
@@ -520,7 +520,7 @@ export function tagsWorth(state: GameState, viewer: SideCode, count?: number): n
   const tags = count ?? state.runner.tags;
   if (tags <= 0) return 0;
   // Inside the tag clock's own pricing of the rig, a tag is the flat rate (a resource's worth can depend on tags)
-  if (pricingTagLoss) return tags * RATES.tagAgainstRunner;
+  if (pricing().pricingTagLoss) return tags * RATES.tagAgainstRunner;
   return guardLoop(state, `tags ${viewer}`, () => tags * RATES.tagAgainstRunner, () => tagClock(state, viewer, tags, actual));
 }
 
@@ -573,16 +573,9 @@ function vicTagsWorth(state: GameState, tags: number, perTurn: number): number {
 
 /** What a tagged Runner stands to lose each Corp turn, as `viewer` sees it. */
 function tagLossPerTurn(state: GameState, viewer: SideCode, skip = 0): number {
-  const was = pricingTagLoss;
-  pricingTagLoss = true;
-  try {
-    return tagLoss({ ...state }, viewer, skip);
-  } finally {
-    pricingTagLoss = was;
-  }
+  // The tag clock is pricing the rig: tags are the flat rate in there (a copy of the position, so it is not a value loop)
+  return withPricing({ pricingTagLoss: true }, () => tagLoss({ ...state }, viewer, skip));
 }
-/** The tag clock is pricing the rig: tags are the flat rate in there (a copy of the position, so it is not a value loop). */
-let pricingTagLoss = false;
 
 function tagLoss(state: GameState, viewer: SideCode, skip: number): number {
   const corp = state.corp;
@@ -726,20 +719,6 @@ export function keepValue(state: GameState, card: CardInstance): number {
   return Math.max(HAND_FLOOR, playedWorth(state, card) + CLICK) + loss;
 }
 
-/**
- * plan.oneCurrency: on the Corp's own turn, an agenda this turn's clicks and credits can finish is priced as scored,
- * by the engine: advanced (a click and a credit each, rule 5.2.6) and scored (no click and no action, rule 1.17.3c; in the action phase's scoring window, 5.6.2a), with what scoring
- * it does (Offworld Office's 7 credits) and the Corp's own prompts answered. So the money it takes is not also rez
- * money for the ice (iceWorth, the credit slide), and the clicks are not also clicks for anything else. Without it each
- * advance paid for the rez money it used up while the agenda's worth rose only by the click it saved, and a turn that
- * could score stopped an advance short (advanceScore's 40 forced it). With it an advance toward the finish is about 0,
- * any other use of those clicks or credits shows what the finish loses, and a play that makes an agenda finishable
- * (Nanomanagement, Seamless Launch) shows the whole finish. Agendas nearest to done first; one at a time, so a second
- * agenda is finished on what the first leaves. Null: nothing to finish. Inside a projection (prompts it answers price
- * positions too) agendas are taken as they are.
- */
-let projecting = false;
-let pricingEffect = false;
 /** The last measured on-score worth by card code, for positions where scoring can't be played out (the Runner's turn). */
 const lastEffect = new Map<string, number>();
 
@@ -752,7 +731,7 @@ const lastEffect = new Map<string, number>();
  * Runner's turn (no scoring window, rule 5.6.2a) the last measure of the card.
  */
 export function scoreEffectWorth(state: GameState, agenda: CardInstance): number {
-  if (!plan().oneCurrency || pricingEffect) return 0;
+  if (!plan().oneCurrency || pricing().pricingEffect) return 0;
   const def = cardDef(agenda);
   if (!cardSynergy(def).when?.includes('onScore')) return 0;
   if (state.corp.score + (def.agenda_points ?? 1) >= 7) return 0; // the win is the points
@@ -774,10 +753,8 @@ export function scoreEffectWorth(state: GameState, agenda: CardInstance): number
 const effectCache = new Map<string, number>();
 
 function measureScoreEffect(state: GameState, agenda: CardInstance, def: ReturnType<typeof cardDef>): number {
-  {
-    pricingEffect = true;
-    const wasProjecting = projecting;
-    projecting = true; // no finish projection inside: both sides of the difference as they stand
+  // No finish projection inside (projecting): both sides of the difference as they stand
+  return withPricing({ pricingEffect: true, projecting: true }, () => {
     try {
       const ready = (): { s: GameState; card: CardInstance } => {
         const s = structuredClone(state);
@@ -808,20 +785,27 @@ function measureScoreEffect(state: GameState, agenda: CardInstance, def: ReturnT
       return worth;
     } catch {
       return lastEffect.get(agenda.cardCode) ?? 0;
-    } finally {
-      pricingEffect = false;
-      projecting = wasProjecting;
     }
-  }
+  });
 }
 const projections = new WeakMap<GameState, GameState | null>();
 
+/**
+ * plan.oneCurrency: on the Corp's own turn, an agenda this turn's clicks and credits can finish is priced as scored,
+ * by the engine: advanced (a click and a credit each, rule 5.2.6) and scored (no click and no action, rule 1.17.3c; in the action phase's scoring window, 5.6.2a), with what scoring
+ * it does (Offworld Office's 7 credits) and the Corp's own prompts answered. So the money it takes is not also rez
+ * money for the ice (iceWorth, the credit slide), and the clicks are not also clicks for anything else. Without it each
+ * advance paid for the rez money it used up while the agenda's worth rose only by the click it saved, and a turn that
+ * could score stopped an advance short (advanceScore's 40 forced it). With it an advance toward the finish is about 0,
+ * any other use of those clicks or credits shows what the finish loses, and a play that makes an agenda finishable
+ * (Nanomanagement, Seamless Launch) shows the whole finish. Agendas nearest to done first; one at a time, so a second
+ * agenda is finished on what the first leaves. Null: nothing to finish. Inside a projection (prompts it answers price
+ * positions too) agendas are taken as they are.
+ */
 export function finishedAgendas(state: GameState): GameState | null {
-  if (projecting || state.activePlayer !== 'corp' || state.activeRun || state.winner) return null;
+  if (pricing().projecting || state.activePlayer !== 'corp' || state.activeRun || state.winner) return null;
   if (projections.has(state)) return projections.get(state)!;
-  projecting = true;
-  let out: GameState | null;
-  try {
+  const out = withPricing({ projecting: true }, () => {
     let s = state;
     for (;;) {
       const next = finishOne(s);
@@ -830,10 +814,8 @@ export function finishedAgendas(state: GameState): GameState | null {
     }
     // The turn may finish it, not must: kept only when the finished position is worth more than this one as it stands
     // (a finish that spends Nanomanagement and every credit to score a turn early behind safe ice may not be)
-    out = s === state || evaluate(s, 'corp') <= evaluate(state, 'corp') ? null : s;
-  } finally {
-    projecting = false;
-  }
+    return s === state || evaluate(s, 'corp') <= evaluate(state, 'corp') ? null : s;
+  });
   projections.set(state, out);
   return out;
 }
