@@ -480,22 +480,6 @@ export function centralExposure(state: GameState, viewer: SideCode): number {
 }
 
 /**
- * Extra worth of each tag on the Runner (deck-aware AI): the Corp's cards
- * that punish tags, as far as `viewer` can see them, and the Runner's
- * resources a tagged Runner can lose. 0 to about 2.5.
- */
-export function tagThreat(state: GameState, viewer: SideCode): number {
-  const punishes = (c: CardInstance) => cardSynergy(cardDef(c)).when?.includes('ifTagged') ?? false;
-  const corp = state.corp;
-  let threat = punishes(corp.identity) ? 1 : 0;
-  const installed = Object.values(corp.servers).flatMap(s => [...s.root, ...s.ice]);
-  const visible = viewer === 'corp' ? [...corp.hq, ...installed] : installed.filter(c => c.isRezzed || c.faceUp);
-  threat += 0.5 * Math.min(3, [...visible, ...corp.archives.faceUp].filter(punishes).length);
-  threat += 0.25 * Math.min(2, state.runner.rig.resources.length);
-  return Math.min(2.5, threat);
-}
-
-/**
  * The tag clock (Jeff, 2026-10-28; plan.tagClock): what tags on the Runner
  * are worth, to the Corp and against the Runner. Each Corp turn a tagged
  * Runner can lose its best resource (the Corp's basic trash action: a click

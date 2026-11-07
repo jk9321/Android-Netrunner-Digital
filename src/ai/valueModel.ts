@@ -26,7 +26,7 @@ export const RATES = {
   drawnCardOff: 0.8,
   /** An agenda point in a score area. */
   point: 8,
-  /** A tag, to the Corp and against the Runner (plus tagThreat with the deck-aware AI). */
+  /** A tag, to the Corp and against the Runner (the flat rate; tagsWorth prices tags on the tag clock). */
   tagForCorp: 1.5,
   tagAgainstRunner: 3,
   /** Each point of core damage taken. */

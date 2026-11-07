@@ -1,7 +1,7 @@
 import { FLATLINE } from '../src/ai/effectValues';
 import { describe, expect, it } from 'vitest';
 import { ALL_CARDS, CardInstance, GameAction, GameState, createCardInstance, createInitialGameState, executeAction, findCardAnywhere, getCardDefinition } from '../src/core';
-import { digValue, handValue, keepValue, tagThreat } from '../src/ai/evaluate';
+import { digValue, handValue, keepValue } from '../src/ai/evaluate';
 import { deckGameSetup } from '../src/data/decks';
 import { ALL_DECKS as DECKS } from '../scripts/nsg-sample-decks';
 import { HeuristicCorpAI, HeuristicRunnerAI, playAIGame } from '../src/ai';
@@ -237,12 +237,6 @@ describe('Corp bluffing', () => {
 describe('planning (setup scoring)', () => {
   const remote = (s: GameState, id: string, root: CardInstance[], ice: CardInstance[] = []) =>
     (s.corp.servers[id] = { id, name: id, isRemote: true, ice, root });
-
-  it('values tags more while the Corp holds cards that punish them, seen only by the Corp', () => {
-    const s = structuredClone(newGame());
-    s.corp.hq.push(createCardInstance(s, '30065')); // Retribution
-    expect(tagThreat(s, 'corp')).toBeGreaterThan(tagThreat(s, 'runner'));
-  });
 
   it('wants the breaker for the ice the Corp has shown', () => {
     const s = structuredClone(newGame());
