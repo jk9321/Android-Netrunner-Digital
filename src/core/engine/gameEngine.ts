@@ -58,19 +58,10 @@ const handlers: ActionHandlers = {
 };
 
 /**
- * Applies an action and returns the next state. The input state is never
- * mutated; on an illegal action an IllegalActionError is thrown.
+ * A deep copy of plain game data (objects, arrays, primitives), about twice as fast as structuredClone, which was a
+ * quarter of AI self-play time. Expects plain data only: no Maps, Sets, Dates or cycles, and shared sub-objects come out
+ * as separate copies (the log, whose entries are shared, is copied separately).
  */
-export function executeAction(prevState: GameState, action: GameAction): GameState {
-  const pre = checkedResults.get(prevState);
-  if (pre) {
-    const key = JSON.stringify(action);
-    const hit = pre.get(key);
-    if (hit) { pre.delete(key); return hit; }
-  }
-  return runAction(prevState, action);
-}
-
 function copyPlain(v: unknown): unknown {
   if (typeof v !== 'object' || v === null) return v;
   if (Array.isArray(v)) { const n = v.length; const out = new Array(n); for (let i = 0; i < n; i++) out[i] = copyPlain(v[i]); return out; }
@@ -79,9 +70,11 @@ function copyPlain(v: unknown): unknown {
   return out;
 }
 
-const checkedResults = new WeakMap<GameState, Map<string, GameState>>();
-
-function runAction(prevState: GameState, action: GameAction): GameState {
+/**
+ * Applies an action and returns the next state. The input state is never
+ * mutated; on an illegal action an IllegalActionError is thrown.
+ */
+export function executeAction(prevState: GameState, action: GameAction): GameState {
   if (prevState.winner) {
     throw new IllegalActionError('Game is already over.');
   }
@@ -278,10 +271,7 @@ export function isLegalAction(state: GameState, action: GameAction): boolean {
   if (cached !== undefined) return cached;
   let legal: boolean;
   try {
-    const next = runAction(state, action);
-    let pre = checkedResults.get(state);
-    if (!pre) { pre = new Map(); checkedResults.set(state, pre); }
-    pre.set(key, next);
+    executeAction(state, action);
     legal = true;
   } catch (err) {
     if (!(err instanceof IllegalActionError)) throw err;
