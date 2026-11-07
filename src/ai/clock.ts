@@ -44,10 +44,11 @@ export const OPEN_FLOOR = 0.25;
 const MIN_RATE = 0.05;
 
 /**
- * The Corp's points per Corp turn, by its score (0..6). Measured in self-play (scripts/race-calibration.ts); until that
- * is in, 7 points over the measured 14 turns.
+ * The Corp's points per Corp turn, by its score (0..6): self-play, 221 games, 3,131 turns (scripts/race-calibration.ts,
+ * run 42403908978, beta 5a17a31 AI), the Corp's points over its next 3 turns per turn. Jeff's 13 Corp games for
+ * comparison: 0.34 at 0 points, 0.63 at 2 (small samples).
  */
-export const CORP_RATE: number[] = [0.5, 0.5, 0.5, 0.5, 0.5, 0.5, 0.5];
+export const CORP_RATE: number[] = [0.26, 0.26, 0.37, 0.36, 0.39, 0.34, 0.41];
 
 export interface RunnerRateParts { hq: number; rd: number; remotes: number; archives: number }
 
