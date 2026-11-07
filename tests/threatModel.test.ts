@@ -7,7 +7,8 @@ import { HeuristicRunnerAI } from '../src/ai/runnerAI';
 import { stealOdds } from '../src/ai/effectValues';
 import { asSide, tuning } from '../src/ai/synergy';
 import { remoteRunChance, threat } from '../src/ai/threatModel';
-import { installIceForTest, newGame } from './helpers';
+import { installIceForTest, installProgramForTest, newGame } from './helpers';
+import { threatStanding } from '../src/ai/evaluate';
 
 /**
  * Structural review item 3 (plan.threatModel; spec "Item 3 spec" of the AI code review doc): the Corp's threat is the
@@ -121,6 +122,23 @@ describe('where the Runner runs', () => {
     }
     expect(gr.state.runnerLastTurnRuns.map(r => r.server)).toEqual(predicted);
     expect(predicted).toEqual(['rd']);
+  });
+
+  it('round 2: a remote the Runner can’t pay into today is still at risk on the turns after (threatStanding)', () => {
+    // Cleaver against one rezzed Palisade on a remote (strength 4): 3 credits to get through. Broke, the Runner can't
+    // this turn; a turn's income later (RUNNER_TURN_INCOME) it can, so an agenda waiting two turns is not safe
+    const s = newGame();
+    s.activePlayer = 'corp';
+    s.runner.rig.programs = [];
+    installProgramForTest(s, '30006');
+    s.runner.credits = 0;
+    const agenda = s.corp.rd.splice(s.corp.rd.indexOf(ofType(s.corp.rd, 'agenda')), 1)[0];
+    s.corp.servers['remote-1'] = { id: 'remote-1', name: 'Remote Server 1', isRemote: true, ice: [], root: [{ ...agenda, isRezzed: false, faceUp: false }] };
+    installIceForTest(s, PALISADE, 'remote-1');
+    const first = asSide('corp', () => stealOdds(s, 'remote-1'));
+    expect(first).toBe(0);
+    expect(asSide('corp', () => threatStanding(s, 'remote-1', 1, first))).toBe(1);
+    expect(asSide('corp', () => threatStanding(s, 'remote-1', 2, first))).toBeLessThan(0.2);
   });
 
   it('the switch is the Corp’s: the Runner AI keeps its own plan (sideOff.runner)', () => {
