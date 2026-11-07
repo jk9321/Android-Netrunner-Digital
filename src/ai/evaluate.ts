@@ -15,7 +15,7 @@ import { HAND_FLOOR, clickPrice, handByCard, heldWorth, ownHandValue, playedWort
 import { CLICK, KNOBS, RATES, cardRate, creditValue, flatlineWorth, guardLoop, handFilter, mean, memo, payoutSlide, pointGain, pointValue, reachCard, sideCreditValue } from './valueModel';
 import { LOCKDOWN, PACE, STEAL, agendaOdds, coreSlotWorth, flatlineOdds, lifeGrip, placedCounterWorth, runSuccess, stealOdds } from './effectValues';
 import { archivedWorth } from './cards';
-import { isTrap, trashedCardCost } from './runs';
+import { isTrap, remoteAgendaOdds, trashedCardCost } from './runs';
 import { centralAccess, runChance, threatOn } from './threatModel';
 import { plan, pricing, pricingKey, withPricing } from './pricing';
 
@@ -405,7 +405,11 @@ function corpBoardValue(state: GameState, viewer: SideCode): number {
     for (const card of server.root) {
       if (viewer === 'runner' && isHidden(card)) {
         odds ??= hiddenCardOdds(state);
-        value += odds.agenda * agendaWorth(state, card.advancementCounters, odds.agendaCost, odds.agendaPoints, server.id) + (1 - odds.agenda) * odds.other;
+        // plan.oneAgendaGuess (code audit cleanup item 9): the odds the run choice uses (runs.ts remoteAgendaOdds: more
+        // likely an agenda behind ice, and an advanced card one unless it's a trap), so a run doesn't look worth making
+        // while the board says the card isn't worth stealing, or the other way round
+        const agenda = plan().oneAgendaGuess && server.isRemote ? remoteAgendaOdds(state, server, card, 1 / 3) : odds.agenda;
+        value += agenda * agendaWorth(state, card.advancementCounters, odds.agendaCost, odds.agendaPoints, server.id) + (1 - agenda) * odds.other;
         continue;
       }
       const def = cardDef(card);

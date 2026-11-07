@@ -325,6 +325,8 @@ export const tuning = {
      * there, the reserve gap and money target left to plays scored without the board; valueModel boardNeed by rezCostOf).
      */
     oneRezMoney: false,
+    /** Code audit cleanup item 9: the Runner's board score and run choice guess a facedown card the same way (runs.ts remoteAgendaOdds, evaluate corpBoardValue). */
+    oneAgendaGuess: false,
     /**
      * Per deciding side (Jeff, 2026-10-28): its own hand valued card by card, by what each will do once played (handValues.ts).
      * Batches: each side loses with it (Corp side 32.2% -> 28.0%, Runner side 32.2% -> 35.9% Corp) and the Runner draws at a
