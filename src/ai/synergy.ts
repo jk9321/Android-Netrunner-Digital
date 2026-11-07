@@ -540,6 +540,29 @@ export const tuning = {
     /** With the planner: the hand at the end of a planned turn valued card by card (what each will do later). */
     plannerHand: true,
     /**
+     * Structural review item 4 (Fable spec, 2026-11-07; turnPlanner.ts): the planner's search widened, in pieces, each
+     * read only with plannerSearch on and batched alone. On by default since review 1 (2026-11-07).
+     * plannerSeed: the Corp's Runner reply deals the hidden cards from one seed per decision (game, turn, clicks left:
+     * turnPlanner.ts currentDecisionSeed), so every candidate of a decision is played out on the same deals and differs
+     * only by its line; the next decision gets fresh deals. (Round 1 seeded by turn: stuck in HQ +3.5, a scope error.)
+     * plannerBuild: the Corp's candidates add the ice install a two-step build starts (ice, then the agenda or asset
+     * behind it; ice on a central the threat runs), which the rule ranking puts outside its top few. Cap PLANNER.withBuild.
+     * plannerDiscard: a playout that ends the turn over its maximum hand size plays the discard step through the engine
+     * with the AI's own discard answer before the leaf (rules 5.6.3a Corp, 5.7.2a Runner). It matters for the Runner's
+     * planner (and a threat leaf): the Corp's played-out reply already starts with the Corp ending its turn and discarding.
+     * plannerPatchesOff: the ordering patches (pettyCashFirst, tagFirst, dominated) off for the planning side.
+     *
+     * Batches (2026-11-07, paired vs beta 706ec36, 36.7%, 2,210 games; docs/ai-batch-log.md): seed +1.9 ± 1.3, build
+     * +1.6 ± 1.0 (stuck in HQ -3.5 ± 1.0), discard -0.3 ± 0.8, the three together +0.6 ± 1.3 (stuck in HQ -2.0). With
+     * patches off as well (1ddd282) +0.3 ± 1.3, broke -4.2, stuck in HQ -2.1, but "tag not used" +2.3 ± 1.1: dropping
+     * tagFirst costs the trash-the-tagged-resource play it was written for, so the patches stay on for now (item 6).
+     */
+    plannerSearch: true,
+    plannerSeed: true,
+    plannerBuild: true,
+    plannerDiscard: true,
+    plannerPatchesOff: false,
+    /**
      * Per deciding side (Jeff, 2026-10-28): its own hand valued card by card, by what each will do once played (handValues.ts).
      * Batches: each side loses with it (Corp side 32.2% -> 28.0%, Runner side 32.2% -> 35.9% Corp) and the Runner draws at a
      * full hand on 55% of turns. Off on both sides, kept for re-testing.

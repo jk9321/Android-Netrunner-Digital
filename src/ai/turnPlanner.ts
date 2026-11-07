@@ -1,9 +1,10 @@
-import { GameAction, GameState, SideCode, activePrompt, executeAction, findCardAnywhere } from '../core';
+import { GameAction, GameState, SideCode, activePrompt, cardDef, executeAction, findCardAnywhere, maxHandSize } from '../core';
 import { profileOf } from './cardProfiles';
 import { ScoredAction } from './agent';
 import { evaluate } from './evaluate';
 import { freezeKnownHand } from './handValues';
 import { runClick } from './runs';
+import { threat, turnSeed } from './threatModel';
 import { tuning } from './synergy';
 
 /**
@@ -27,7 +28,12 @@ export const PLANNER = {
   candidates: 4,
   /** Steps in one playout (a safety net: a turn has at most 4 clicks and a few free actions). */
   maxSteps: 12,
+  /** plan.plannerSearch plannerBuild: the candidate set with the two-step builds added, at most (Hard's time). */
+  withBuild: 6,
 };
+
+/** Diagnostics (scripts): plannerBuild's added candidates, how often one was played out and how often it won. */
+export const plannerStats: { decisions: number; withAdded: number; added: number; addedWins: number; onAddedWin?: (state: GameState, action: GameAction) => void; onCandidates?: (side: SideCode, values: number[]) => void } = { decisions: 0, withAdded: 0, added: 0, addedWins: 0 };
 
 export interface PlannerAI {
   /** Main-phase actions, best first (the rule-based ranking). */
@@ -50,6 +56,18 @@ export interface PlanMemory {
 }
 
 export const plannerOn = (side: SideCode): boolean => !!tuning.plan.turnPlanner?.[side];
+
+/**
+ * plannerSeed: the seed of the decision being planned (game, turn and clicks left: threatModel.ts turnSeed mixed with
+ * the clicks), or null outside one. Every candidate of one decision is dealt from it, so they see the same deals; the
+ * next decision of the turn gets a fresh one (Fable review, 2026-11-07: a seed per turn made one bad deal steer every
+ * decision of the turn, stuck in HQ +3.5 per 100).
+ */
+let decisionSeed: number | null = null;
+export const currentDecisionSeed = (): number | null => decisionSeed;
+
+/** A piece of the widened search (structural review item 4), on only with plan.plannerSearch. */
+export const searchPiece = (piece: 'plannerSeed' | 'plannerBuild' | 'plannerDiscard' | 'plannerPatchesOff'): boolean => !!tuning.plan.plannerSearch && tuning.plan[piece] !== false;
 
 const clicksOf = (state: GameState, side: SideCode) => (side === 'corp' ? state.corp.clicks : state.runner.clicks);
 
@@ -77,6 +95,8 @@ const sharedPlan: Record<SideCode, PlanMemory> = { corp: { line: [] }, runner: {
  */
 function dominated(state: GameState, action: GameAction, ranked: ScoredAction[], side: SideCode): boolean {
   if (action.type !== 'GAIN_CREDIT') return false;
+  // plan.plannerSearch plannerPatchesOff (item 4): the search decides between the click and the money card
+  if (searchPiece('plannerPatchesOff')) return false;
   // plan.oneCurrency: the Corp's ranking and the planner's leaf price the click the same way, so no override (item 1)
   if (side === 'corp' && tuning.plan.oneCurrency) return false;
   return ranked.some(r => {
@@ -168,8 +188,83 @@ function playout(start: GameState, side: SideCode, first: GameAction, ai: Planne
     if (!next) break;
     state = next;
   }
+  if (searchPiece('plannerDiscard') && !state.winner) state = discardStep(state, side, ai);
   const leaf = (s: GameState) => leafValue(s, side, synergy);
   return (ai.reply && !state.winner ? ai.reply(state, leaf) : leaf(state)) + bonus;
+}
+
+/**
+ * plan.plannerSearch plannerDiscard (structural review item 4): a playout that has spent its clicks over its maximum
+ * hand size plays the discard step before it is scored, so a line that draws past the limit is not scored with the
+ * extra cards still in hand. The engine plays it (END_TURN, then the discard prompt answered by the AI's own discard
+ * choice: rules 5.6.3a for the Corp, 5.7.2a for the Runner); the leaf takes the hand and the discard pile from it and
+ * keeps the rest of the end-of-action-phase position, because the engine hands the turn over once the window after
+ * discarding (5.6.3b, 5.7.2b) closes, and every candidate must be scored at the same point of the turn.
+ * Under the limit, or with clicks left, the end state is left as it is.
+ */
+export function discardStep(state: GameState, side: SideCode, ai: PlannerAI): GameState {
+  if (state.activePlayer !== side || state.activeRun || activePrompt(state) || state.turnStep || clicksOf(state, side) > 0) return state;
+  const hand = side === 'corp' ? state.corp.hq.length : state.runner.grip.length;
+  if (hand <= Math.max(0, maxHandSize(state, side))) return state;
+  try {
+    let next = executeAction(state, { type: 'END_TURN', player: side } as GameAction);
+    for (let i = 0; i < 8 && !next.winner; i++) {
+      const prompt = activePrompt(next);
+      if (!prompt || prompt.kind !== 'discard' || prompt.side !== side) break;
+      next = executeAction(next, ai.answer(next));
+    }
+    if (next.winner) return next;
+    return side === 'corp'
+      ? { ...state, corp: { ...state.corp, hq: next.corp.hq, archives: next.corp.archives } }
+      : { ...state, runner: { ...state.runner, grip: next.runner.grip, heap: next.runner.heap } };
+  } catch {
+    return state;
+  }
+}
+
+/**
+ * plan.plannerSearch plannerBuild (structural review item 4): the Corp's two-step builds the rule ranking can't see,
+ * added as candidates (not scored higher; the playout and the leaf decide): the best-ranked ice install into a new
+ * remote, or a remote with nothing in it yet, while HQ holds an agenda or an asset that would go behind it; and the
+ * best-ranked ice install on a central the threat expects the Runner to run. Only the Corp's own legal actions, as the
+ * engine listed them (ranked); nothing of the Runner's is read but the threat, which reads the Runner's view.
+ */
+export function buildCandidates(state: GameState, ranked: ScoredAction[], chosen: ScoredAction[]): ScoredAction[] {
+  const hq = state.corp.hq;
+  const iceInstall = (r: ScoredAction) => {
+    if (r.score === -Infinity || r.action.type !== 'INSTALL_CARD') return null;
+    const id = r.action.cardInstanceId;
+    const card = hq.find(c => c.instanceId === id);
+    return card && cardDef(card).type_code === 'ice' ? card : null;
+  };
+  const rootCard = (exclude: string) => hq.some(c => c.instanceId !== exclude && ['agenda', 'asset'].includes(cardDef(c).type_code ?? ''));
+  const taken = new Set(chosen.map(r => JSON.stringify(r.action)));
+  const added: ScoredAction[] = [];
+  const pick = (test: (r: ScoredAction & { action: { type: 'INSTALL_CARD' } }) => boolean) => {
+    const found = ranked.find(r => {
+      const ice = iceInstall(r);
+      return !!ice && r.action.type === 'INSTALL_CARD' && !taken.has(JSON.stringify(r.action)) && test(r as ScoredAction & { action: { type: 'INSTALL_CARD' } });
+    });
+    if (found) {
+      added.push(found);
+      taken.add(JSON.stringify(found.action));
+    }
+  };
+  pick(r => {
+    const a = r.action;
+    if (!rootCard(a.cardInstanceId)) return false;
+    if (a.asNewRemote) return true;
+    const server = a.targetServerId ? state.corp.servers[a.targetServerId] : undefined;
+    return !!server?.isRemote && server.root.length === 0;
+  });
+  let runs: Record<string, { run: number }> | null = null;
+  pick(r => {
+    const id = r.action.targetServerId;
+    if (r.action.asNewRemote || (id !== 'hq' && id !== 'rd' && id !== 'archives')) return false;
+    runs ??= threat(state).servers;
+    return (runs[id]?.run ?? 0) >= 0.5;
+  });
+  return added;
 }
 
 /** The end of the turn: hand by what each card will do later (plan.plannerHand), clicks as the model prices them. */
@@ -202,19 +297,36 @@ export function planTurn(state: GameState, side: SideCode, ranked: ScoredAction[
   }
   memory.line = [];
   const candidates = ranked.filter(r => r.score > -Infinity && r.action.type !== 'END_TURN' && r.action.type !== 'START_TURN' && !dominated(state, r.action, ranked, side)).slice(0, PLANNER.candidates);
+  const added = side === 'corp' && searchPiece('plannerBuild') ? buildCandidates(state, ranked, candidates).slice(0, Math.max(0, PLANNER.withBuild - candidates.length)) : [];
+  candidates.push(...added);
   if (candidates.length <= 1 || clicksOf(state, side) <= 0) return null;
+  plannerStats.decisions++;
+  if (added.length) {
+    plannerStats.withAdded++;
+    plannerStats.added += added.length;
+  }
   const unfreeze = freezeKnownHand();
+  const outerSeed = decisionSeed;
+  if (searchPiece('plannerSeed')) decisionSeed = (turnSeed(state) ^ Math.imul(clicksOf(state, side) + 1, 0x85ebca6b)) >>> 0;
   try {
     let best: { action: GameAction; value: number; line: Line } | null = null;
+    const values: number[] = [];
     for (const c of candidates) {
       const line: Line = [];
       const value = playout(state, side, c.action, ai, synergy, line);
+      values.push(value);
       if (!best || value > best.value) best = { action: c.action, value, line };
     }
+    plannerStats.onCandidates?.(side, values);
     if (!best || best.value === -Infinity) return null;
+    if (added.some(a => a.action === best!.action)) {
+      plannerStats.addedWins++;
+      plannerStats.onAddedWin?.(state, best.action);
+    }
     memory.line = best.line;
     return best.action;
   } finally {
+    decisionSeed = outerSeed;
     unfreeze();
   }
 }

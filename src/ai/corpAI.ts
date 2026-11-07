@@ -14,7 +14,7 @@ import { PACE, STEAL, accessWorth, agendaOdds } from './effectValues';
 import { answerPrompt, simulate } from './prompts';
 import { asSide, logNudge, nudge, opponentLean, tuning } from './synergy';
 import { noteKnownHand } from './handValues';
-import { PlanMemory, planTurn, plannerOn } from './turnPlanner';
+import { PlanMemory, planTurn, plannerOn, searchPiece } from './turnPlanner';
 import { runnerReply } from './runnerReply';
 import { threatLoss } from './threatModel';
 import { modelRezGain } from './rezModel';
@@ -77,6 +77,12 @@ export interface HeuristicOptions {
   debug?: boolean;
   /** The whole-turn planner while plan.turnPlanner is on (default on; the Hard AI's search turns it off). */
   planner?: boolean;
+  /**
+   * This AI plays the planner's playouts (the rollout planTurn ranks and answers with): it counts as the planning side,
+   * so plan.plannerSearch plannerPatchesOff drops its ordering patches too. Every other planner-off Corp (the reply's
+   * Corp, Hard's search, probes) keeps them (review 1 of item 4, 2026-11-07).
+   */
+  searching?: boolean;
 }
 
 /**
@@ -91,12 +97,14 @@ export class HeuristicCorpAI implements Agent {
   readonly synergy: boolean;
   private debug: boolean;
   private planner: boolean;
+  private searching: boolean;
   private planMemory: PlanMemory = { line: [] };
 
   constructor(options: HeuristicOptions = {}) {
     this.synergy = options.synergy ?? true;
     this.debug = options.debug ?? false;
     this.planner = options.planner ?? true;
+    this.searching = options.searching ?? false;
   }
 
   /** Round 3: keep rez money for R&D and HQ as well as agenda remotes. */
@@ -106,6 +114,15 @@ export class HeuristicCorpAI implements Agent {
 
   private get timing() {
     return this.synergy && tuning.plan.agendaTiming;
+  }
+
+  /**
+   * The ordering patches (pettyCashFirst, tagFirst): off for the planning Corp (the planner and its rollout) while it
+   * plans with plan.plannerSearch plannerPatchesOff (structural review item 4: the search over the turn is to make them
+   * unnecessary). Other planner-off Corps keep them.
+   */
+  private get patches() {
+    return this.synergy && !this.oneCurrency && !((this.planner || this.searching) && plannerOn('corp') && searchPiece('plannerPatchesOff'));
   }
 
   /** plan.oneCurrency: every main-phase action ranked by the evaluate delta (oneCurrencyScore). */
@@ -126,9 +143,9 @@ export class HeuristicCorpAI implements Agent {
     let chosen = planned ?? (ranked[0]?.score > -Infinity ? ranked[0].action : legal.find(a => a.type === 'END_TURN') ?? legal[0]);
     // plan.pettyCashFirst: a click for a credit while Petty Cash can still be played is a click for 2 thrown away (the
     // planner valued Petty Cash held in HQ as the money it will make, though it is playable only as the turn's first action)
-    if (chosen.type === 'GAIN_CREDIT' && this.synergy && tuning.plan.pettyCashFirst && !this.oneCurrency) chosen = ranked.find(r => isPettyCash(state, r.action) && r.score > -Infinity)?.action ?? chosen;
+    if (chosen.type === 'GAIN_CREDIT' && this.patches && tuning.plan.pettyCashFirst) chosen = ranked.find(r => isPettyCash(state, r.action) && r.score > -Infinity)?.action ?? chosen;
     // plan.tagFirst: the planner's leaf counts a tag kept as a trash still to come, but the Runner clears it on its turn
-    if (this.synergy && tuning.plan.tagFirst && !this.oneCurrency && ranked[0]?.action.type === 'TRASH_RESOURCE' && ranked[0].tagFirst) chosen = ranked[0].action;
+    if (this.patches && tuning.plan.tagFirst && ranked[0]?.action.type === 'TRASH_RESOURCE' && ranked[0].tagFirst) chosen = ranked[0].action;
     // The reverse bluff: at most once a game
     if (chosen.type === 'INSTALL_CARD' && chosen.asNewRemote && state.corp.hq.some(c => c.instanceId === chosen.cardInstanceId && type(c) === 'agenda')) {
       const def = cardDef(state.corp.hq.find(c => c.instanceId === chosen.cardInstanceId)!);
@@ -146,7 +163,7 @@ export class HeuristicCorpAI implements Agent {
 
   /** The whole-turn planner's pick (plan.turnPlanner), its playouts by a fresh copy of this AI. */
   private plan(state: GameState, ranked: ScoredAction[]): GameAction | null {
-    const rollout = new HeuristicCorpAI({ synergy: this.synergy, planner: false });
+    const rollout = new HeuristicCorpAI({ synergy: this.synergy, planner: false, searching: true });
     // plan.threatModel (structural review item 3): the Runner's next turn charged from the threat, not played out twice
     const reply = tuning.plan.threatModel && tuning.plan.threatLeaf !== false
       ? (s: GameState, leaf: (s: GameState) => number) => leaf(s) - threatLoss(s)
@@ -182,8 +199,8 @@ export class HeuristicCorpAI implements Agent {
       })
       .sort((a, b) => b.score - a.score);
     if (this.oneCurrency) return finishFirst(state, ranked);
-    const first = this.synergy && tuning.plan.pettyCashFirst ? pettyCashFirst(state, ranked) : ranked;
-    return this.synergy && tuning.plan.tagFirst ? tagFirst(state, first) : first;
+    const first = this.patches && tuning.plan.pettyCashFirst ? pettyCashFirst(state, ranked) : ranked;
+    return this.patches && tuning.plan.tagFirst ? tagFirst(state, first) : first;
   }
 
   chooseRez(state: GameState, cards: CardInstance[]): GameAction | null {

@@ -74,7 +74,7 @@ export function runnerMemory(state: GameState): RunnerMemory {
 }
 
 /** A seed fixed for the game and turn: every candidate of one decision sees the same guessed grip. */
-function turnSeed(state: GameState): number {
+export function turnSeed(state: GameState): number {
   let h = 2166136261 ^ state.turnNumber;
   for (let i = 0; i < state.id.length; i++) h = Math.imul(h ^ state.id.charCodeAt(i), 16777619);
   return h >>> 0;
@@ -188,17 +188,38 @@ const remember = <T>(cache: Map<string, T>, key: string, work: () => T): T => {
 
 /** The Runner's next turn as the Corp foresees it. */
 export function threat(state: GameState): Threat {
-  return memo(state, 'threat', () =>
-    remember(threatCache, threatKey(state), () => {
+  threatStats.calls++;
+  return memo(state, 'threat', () => {
+    threatStats.keyed++;
+    const t0 = threatStats.timing ? performance.now() : 0;
+    const key = threatKey(state);
+    if (threatStats.timing) threatStats.keyMs += performance.now() - t0;
+    return remember(threatCache, key, () => {
+      threatStats.budgeted++;
+      const t1 = threatStats.timing ? performance.now() : 0;
       computing++;
       try {
         return asSide('runner', () => budgetTurn(state));
       } finally {
         computing--;
+        if (threatStats.timing) {
+          const ms = performance.now() - t1;
+          threatStats.budgetMs += ms;
+          if (threatStats.inReply) {
+            threatStats.replyBudgeted++;
+            threatStats.replyBudgetMs += ms;
+          }
+        }
       }
-    }),
-  );
+    });
+  });
 }
+
+/**
+ * Diagnostics (scripts/threat-profile.ts): threat() calls, how many missed the state memo (keyed) and the board cache
+ * (budgeted), their time, and the budgets made inside the Corp planner's played-out Runner reply.
+ */
+export const threatStats = { calls: 0, keyed: 0, budgeted: 0, keyMs: 0, budgetMs: 0, timing: false, inReply: false, replyBudgeted: 0, replyBudgetMs: 0 };
 
 function budgetTurn(state: GameState): Threat {
   const memory = runnerMemory(state);
