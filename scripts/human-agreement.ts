@@ -15,6 +15,8 @@
  * times) and turns whose runs and steals match (the servers run, points stolen).
  *
  * Usage: npx vite-node scripts/human-agreement.ts -- [dir] [--agendaClick=2] [--corpPoints=1] [--quiet] [--dump=file.json] [--at=file:turn:clicks [--detail]] [--noPlanner]
+ * --noise prints the leaf gap between the planner's best two candidates against the spread of the Runner reply's two
+ * samples (structural review item 4: is one sample enough once plannerSeed fixes the deal?).
  * --dump writes every compared decision (file, turn, clicks left, the human's move, the AI's pick), so two runs (a switch
  * on and off) can be diffed decision by decision.
  */
@@ -28,6 +30,8 @@ import { centralExposure, evaluate, setAgendaClick, sideStrength } from '../src/
 import { stealOdds } from '../src/ai/effectValues';
 import { KNOBS } from '../src/ai/valueModel';
 import { applyPlanOff } from '../src/ai/synergy';
+import { plannerStats } from '../src/ai/turnPlanner';
+import { replyStats } from '../src/ai/runnerReply';
 
 // PLAN_OFF=a,b as in the batch scripts (PLAN_OFF=oneCurrency: the old Corp ranking)
 applyPlanOff(process.env.PLAN_OFF ?? '');
@@ -38,6 +42,17 @@ const opt = (name: string) => args.find(a => a.startsWith(`--${name}=`))?.split(
 if (opt('agendaClick')) setAgendaClick(Number(opt('agendaClick')));
 if (opt('corpPoints')) KNOBS.corpPoints = Number(opt('corpPoints'));
 const quiet = args.includes('--quiet');
+const gaps: number[] = [];
+const spreads: number[] = [];
+if (args.includes('--noise')) {
+  plannerStats.onCandidates = (side, values) => {
+    const v = values.filter(Number.isFinite).sort((a, b) => b - a);
+    if (side === 'corp' && v.length >= 2) gaps.push(v[0] - v[1]);
+  };
+  replyStats.onSamples = values => {
+    if (values.length >= 2) spreads.push(Math.abs(values[0] - values[1]));
+  };
+}
 
 const same = (a: GameAction, b: GameAction) => JSON.stringify({ ...a, player: 0 }) === JSON.stringify({ ...b, player: 0 });
 const mainPhase = (s: GameState) => !s.activeRun && s.pendingPrompts.length === 0 && !(s.priority && s.priority.holder !== s.activePlayer);
@@ -160,5 +175,9 @@ for (const file of readdirSync(dir).filter(f => f.endsWith('.json')).sort()) {
 }
 
 console.log(`decisions ${((100 * agreed) / Math.max(1, weight)).toFixed(1)}% (weighted, agenda moves and runs x3) | turns ${turnsMatched}/${turns} | agendaClick ${opt('agendaClick') ?? 'default'} corpPoints ${KNOBS.corpPoints}`);
+if (gaps.length) {
+  const q = (a: number[], p: number) => [...a].sort((x, y) => x - y)[Math.floor(p * (a.length - 1))].toFixed(2);
+  console.log(`noise: best-vs-second leaf gap median ${q(gaps, 0.5)} (p25 ${q(gaps, 0.25)}, p75 ${q(gaps, 0.75)}; ${gaps.length} decisions) | reply sample spread |s1-s2| median ${q(spreads, 0.5)} (p25 ${q(spreads, 0.25)}, p75 ${q(spreads, 0.75)}; ${spreads.length} replies) | gap below half the spread on ${((100 * gaps.filter(g => g < Number(q(spreads, 0.5)) / 2).length) / gaps.length).toFixed(0)}% of decisions`);
+}
 if (opt('dump')) writeFileSync(opt('dump')!, JSON.stringify(dump, null, 1));
 if (!quiet) for (const m of misses) console.log('  ' + m);

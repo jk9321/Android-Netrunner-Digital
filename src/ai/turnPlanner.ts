@@ -33,7 +33,7 @@ export const PLANNER = {
 };
 
 /** Diagnostics (scripts): plannerBuild's added candidates, how often one was played out and how often it won. */
-export const plannerStats: { decisions: number; withAdded: number; added: number; addedWins: number; onAddedWin?: (state: GameState, action: GameAction) => void } = { decisions: 0, withAdded: 0, added: 0, addedWins: 0 };
+export const plannerStats: { decisions: number; withAdded: number; added: number; addedWins: number; onAddedWin?: (state: GameState, action: GameAction) => void; onCandidates?: (side: SideCode, values: number[]) => void } = { decisions: 0, withAdded: 0, added: 0, addedWins: 0 };
 
 export interface PlannerAI {
   /** Main-phase actions, best first (the rule-based ranking). */
@@ -299,11 +299,14 @@ export function planTurn(state: GameState, side: SideCode, ranked: ScoredAction[
   const unfreeze = freezeKnownHand();
   try {
     let best: { action: GameAction; value: number; line: Line } | null = null;
+    const values: number[] = [];
     for (const c of candidates) {
       const line: Line = [];
       const value = playout(state, side, c.action, ai, synergy, line);
+      values.push(value);
       if (!best || value > best.value) best = { action: c.action, value, line };
     }
+    plannerStats.onCandidates?.(side, values);
     if (!best || best.value === -Infinity) return null;
     if (added.some(a => a.action === best!.action)) {
       plannerStats.addedWins++;

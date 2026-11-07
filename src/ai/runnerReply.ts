@@ -71,7 +71,7 @@ export function guessHidden(state: GameState, k: number): GameState {
 }
 
 /** Diagnostics (scripts): reply turns that began with an agenda in a remote with no ice, and how many ran it. */
-export const replyStats = { nakedAgendaTurns: 0, nakedAgendaRuns: 0 };
+export const replyStats: { nakedAgendaTurns: number; nakedAgendaRuns: number; onSamples?: (values: number[]) => void } = { nakedAgendaTurns: 0, nakedAgendaRuns: 0 };
 const nakedAgendaRemotes = (s: GameState) =>
   Object.values(s.corp.servers)
     .filter(v => v.isRemote && v.ice.length === 0 && v.root.some(c => cardDef(c).type_code === 'agenda'))
@@ -97,6 +97,7 @@ function openAgendaLoss(state: GameState, ids: string[]): number {
 /** Plays the Runner's next turn from the end of a Corp turn; the average of `leaf` over the samples. */
 export function runnerReply(end: GameState, synergy: boolean, leaf: (state: GameState) => number): number {
   let total = 0;
+  const values: number[] = [];
   for (let k = 0; k < REPLY.samples; k++) {
     const gr = new GameRunner(guessHidden(end, k), {
       corp: new HeuristicCorpAI({ synergy, planner: false }),
@@ -122,7 +123,10 @@ export function runnerReply(end: GameState, synergy: boolean, leaf: (state: Game
     // (Jeff's bug report, 2026-10-31; plan.openStealUnrun) only agendas in remotes the Runner didn't run: one it ran and
     // was stopped from (The Red Room, LEO) survived the run it was counted stolen for
     const unrun = tuning.plan.openStealUnrun ? naked.filter(id => !ran.has(id)).flatMap(id => gr.state.corp.servers[id]?.root.map(c => c.instanceId) ?? []) : nakedAgendas;
-    total += leaf(gr.state) - (tuning.plan.openSteal ? openAgendaLoss(gr.state, nakedAgendas.filter(id => unrun.includes(id))) : 0);
+    const value = leaf(gr.state) - (tuning.plan.openSteal ? openAgendaLoss(gr.state, nakedAgendas.filter(id => unrun.includes(id))) : 0);
+    values.push(value);
+    total += value;
   }
+  replyStats.onSamples?.(values);
   return total / REPLY.samples;
 }
