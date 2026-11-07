@@ -37,6 +37,14 @@ const OFF_SWITCHES: Record<string, string> = {
   // Corp clicks for a credit over Petty Cash (item 4 hand-off, 2026-11-07)
   oneCurrency: 'missed its paired batch (stop rule, 2026-11-07); kept switchable for the next round',
   rdTurnsLeft: 'missed its paired batch (2026-11-07: decked 186 vs 173); the honest clock, kept for when urgency is priced by points',
+  // Tuning pass 1, part A (2026-11-07): the parked branches, rebased off until their paired batches decide
+  oneRezMoney: 'tuning pass 1 part A: awaiting its paired batch',
+  oneAgendaGuess: 'tuning pass 1 part A: awaiting its paired batch',
+  oneSetupRule: 'tuning pass 1 part A: awaiting its paired batch',
+  tankNoEtr: 'tuning pass 1 part A: awaiting its paired batch',
+  hqHeld: 'tuning pass 1 part A: awaiting its paired batch',
+  unseenOdds: 'tuning pass 1 part A: awaiting its paired batch',
+  iceGripCap: 'tuning pass 1 part A: awaiting its paired batch',
   threatLeaf: 'item 3: the threat as the planner leaf charge; lost to the played-out reply (-8.2 ± 1.3 alone, 2026-11-07), the leaf goes to item 4',
   plannerPatchesOff: 'item 4: dropping the ordering patches under the planner search cost "tag not used" +2.3 ± 1.1 (2026-11-07); patches go with item 6',
   measuredPass: 'item 3 round 2: the measured unrezzed pass rate; neutral in its paired batch (+0.0 ± 0.6, 2026-11-07), kept off with the threat it was measured for',

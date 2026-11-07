@@ -337,6 +337,8 @@ export const tuning = {
     tankNoEtr: false,
     hqHeld: false,
     unseenOdds: false,
+    /** Jeff, 2026-11-06 (his Teia game, ai-ice-grip): ice on the board is priced against a grip no bigger than the hand size, not the cards the Runner holds only until its turn ends (iceValues iceWorthOf). */
+    iceGripCap: false,
     /**
      * Per deciding side (Jeff, 2026-10-28): its own hand valued card by card, by what each will do once played (handValues.ts).
      * Batches: each side loses with it (Corp side 32.2% -> 28.0%, Runner side 32.2% -> 35.9% Corp) and the Runner draws at a
