@@ -9,7 +9,7 @@ import { planSide, tuning } from './synergy';
 import { corpKeepValue, runnerCardValue } from './cardValues';
 import { countersWorth } from './counterValues';
 import { boardPlansWorth } from './cardPlans';
-import { AI_BREAKER_SHARE, breakerTypeWorth, flatIceWorth, iceWorth } from './iceValues';
+import { AI_BREAKER_SHARE, RUNNER_TURN_INCOME, breakerTypeWorth, flatIceWorth, iceWorth } from './iceValues';
 import { payoutWait, payoutWorth, profileOf, turnsLeft } from './cardProfiles';
 import { resourceTrashHqCost } from '../core/engine/actions/basic';
 import { HAND_FLOOR, clickPrice, handByCard, heldWorth, ownHandValue, playedWorth, unseenInHand } from './handValues';
@@ -317,13 +317,37 @@ export function agendaWorth(
   // 1.17.3: the Runner adds a stolen agenda to its score area), on the Runner's clock: evaluate is mine minus theirs, so
   // an agenda the Runner may take next turn is charged that chance of its point gain. The old install gates (exposureOk,
   // no bare agendas, lethalHq) stood in for this charge; on the clock a game-winning steal is the whole game
-  if (!tuning.plan.oneCurrency) return gain * ((1 - steal) * late) ** runnerTurns - need * (click + 1);
-  const standing = (1 - steal) ** runnerTurns;
+  // plan.threatModel (round 2, the review of item 3): the threat is one crisp turn, the Runner's next; each later turn
+  // the agenda waits is priced on the Runner a turn's income richer (threatLater), so "it can't pay through this ice
+  // today" is not "safe for every turn it waits"
+  const threatTurns = threatOn() && stealChance === undefined && openNew === undefined && success === undefined && !!serverId && tuning.plan.stealOdds;
+  const standing = threatTurns ? threatStanding(state, serverId!, runnerTurns, steal) : (1 - steal) ** runnerTurns;
+  if (!tuning.plan.oneCurrency) return gain * standing * late ** runnerTurns - need * (click + 1);
   const stolen = (1 - standing) * pointGain(state.runner.score, points);
   // The clicks and credits still to go are paid only while it stands: the advances of this turn now, the rest on the
   // turns after the Runner's (a bare agenda the Runner takes next turn never costs its advances)
   const now = Math.min(need, budget.clicks);
   return (gain + effect) * (standing * late ** runnerTurns) - stolen - (now + (need - now) * standing) * (click + 1);
+}
+
+/**
+ * plan.threatModel: the chance an agenda in `serverId` stands through `turns` Runner turns. The first is the threat as
+ * it is (`first`, stealOdds); each later one is the same threat and passOdds with the Runner its turn income richer
+ * (iceValues RUNNER_TURN_INCOME: what iceStop's stopCredits adds for each turn the Runner saves), so a remote the Runner
+ * can't afford today is still at risk on the turns after. The rig is as it is: the Corp can't see the breakers coming.
+ */
+export function threatStanding(state: GameState, serverId: string, turns: number, first: number): number {
+  let standing = 1;
+  for (let t = 1; t <= turns; t++) {
+    if (t === 1) {
+      standing *= 1 - first;
+      continue;
+    }
+    // A later turn is a whole Runner turn (no clicks left now: runnerView reads the next one)
+    const richer = { ...state, runner: { ...state.runner, credits: state.runner.credits + (t - 1) * RUNNER_TURN_INCOME, clicks: state.activePlayer === 'runner' ? 0 : state.runner.clicks } };
+    standing *= 1 - stealOdds(richer, serverId);
+  }
+  return standing;
 }
 
 /**

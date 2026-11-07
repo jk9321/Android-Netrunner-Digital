@@ -178,6 +178,12 @@ function canTank(state: GameState, ice: CardInstance, credits: number): boolean 
 
 /** Unrezzed ice: the Corp rezzes it when it can afford to, about half the time. */
 const UNREZZED_PASS = { rich: 0.55, broke: 0.9 };
+/**
+ * plan.measuredPass: the pass rates measured on unrezzed ice (scripts/threat-calibration.ts, item 3 round 2): the first
+ * unrezzed layer a run meets, then each one after it (the Corp's money rezzes about one ice a run). A Corp with 3+
+ * credits is rich, as above.
+ */
+export const MEASURED_PASS = { rich: { first: 0.6, more: 0.83 }, broke: { first: 0.87, more: 0.93 } };
 
 /** Chance a run on `serverId` succeeds now, from its ice against the rig and the Runner's credits (PACE.success while plan.runOpenness is off). */
 export let pricingIce = false;
@@ -206,12 +212,29 @@ export function priceIce(state: GameState, ice: CardInstance): number {
   }
 }
 
+/** passOdds for a server's ice, behind the re-entry guard (scripts/threat-calibration.ts). */
+export function passOddsOf(state: GameState, serverId: string): number {
+  const server = state.corp.servers[serverId];
+  if (!server) return 0;
+  pricingIce = true;
+  try {
+    return passOdds(state, server.ice);
+  } finally {
+    pricingIce = false;
+  }
+}
+
 function passOdds(state: GameState, ices: CardInstance[], income = 0): number {
   let credits = state.runner.credits + income;
   let pass = 1;
+  let unrezzed = 0;
   for (const ice of [...ices].reverse()) {
     if (!ice.isRezzed) {
-      pass *= state.corp.credits >= 3 ? UNREZZED_PASS.rich : UNREZZED_PASS.broke;
+      const rich = state.corp.credits >= 3;
+      if (tuning.plan.measuredPass) {
+        const rate = rich ? MEASURED_PASS.rich : MEASURED_PASS.broke;
+        pass *= unrezzed++ ? rate.more : rate.first;
+      } else pass *= rich ? UNREZZED_PASS.rich : UNREZZED_PASS.broke;
       continue;
     }
     const cost = iceCost(state, ice);
