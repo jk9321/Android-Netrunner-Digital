@@ -10,8 +10,7 @@
  * damage clocks), each behind its own tuning.plan switch.
  */
 import { CardInstance, GameState, SideCode, cardDef } from '../core';
-import { actingSide, planSide } from './synergy';
-import { plan } from './pricing';
+import { plan, pricingKey } from './pricing';
 
 export const RATES = {
   /** A click left this turn. */
@@ -157,7 +156,7 @@ export function memo<T>(state: GameState, key: string, work: () => T): T {
     entry = { print, values: new Map() };
     memos.set(state, entry);
   }
-  key = planSide() + (plan().ownTrashRisk ? actingSide() ?? '' : '') + ':' + key; // values depend on the deciding side and its plan (synergy.ts sideOff; plan.ownTrashRisk)
+  key = pricingKey() + ':' + key; // values depend on the pricing context: the deciding side, its plan, the guards up (pricing.ts)
   if (entry.values.has(key)) return entry.values.get(key) as T;
   const value = work();
   entry.values.set(key, value);

@@ -5,7 +5,7 @@ import { unseenInHand } from './handValues';
 import { BLOCK, RunnerMemory, iceCost, runClick, runCreditSpend, runScore, serverValue } from './runs';
 import { asSide, sideOff, tuning } from './synergy';
 import { fingerprint, memo, pointGain, sideCreditValue } from './valueModel';
-import { effectivePlan, plan, pricing, withPricing } from './pricing';
+import { effectivePlan, plan, pricing, pricingKey, withPricing } from './pricing';
 
 /**
  * The Corp's threat model (structural review item 3, 2026-11-07; plan.threatModel): where the Runner will run on its
@@ -166,6 +166,7 @@ function threatKey(state: GameState): string {
     state.runsThisTurn.map(r => r.server + (r.successful ? '+' : '-')).join(','), JSON.stringify(state.corp.rdKnownToRunner ?? []),
     knownInHand(state, 'runner').map(k => k.id).join(','), knownInHand(state, 'corp').map(k => k.id).join(','), state.runner.bonusClicksNextTurn ?? 0,
     planKey(),
+    pricingKey(),
   ].join('|');
 }
 let planSig: { plan: unknown; json: string } | null = null;

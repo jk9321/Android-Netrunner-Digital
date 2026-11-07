@@ -6,9 +6,8 @@ import { breakerTypeWorth, iceWorth } from './iceValues';
 import { agendaWorth, isOneUse, runnerRigValue } from './evaluate';
 import { counterWorth } from './counterValues';
 import { handPlanWorth } from './cardPlans';
-import { planSide } from './synergy';
 import { CLICK, RATES, cardRate, fingerprint, flatRate, handFilter, payoutSlide, printedGain, reachCard, setDeckCard } from './valueModel';
-import { leafHandByCard, noteDecision, plan, pricing, withPricing } from './pricing';
+import { leafHandByCard, noteDecision, plan, pricing, pricingKey, withPricing } from './pricing';
 
 /**
  * Cards in hand by what they do (Jeff, 2026-10-28; plan.handByCard). A card
@@ -137,7 +136,7 @@ function drawWorth(state: GameState, side: SideCode): number {
   // at its size cap a value from one of those could be served for the real board, so a reloaded game played on
   // differently from the one in memory (tests/savedGame.test.ts)
   const board = plan().drawWorthCredits ? `${fingerprint(state)}:` : '';
-  const key = `${planSide()}:${side}:${state.id}:${state.turnNumber}:${credits}${board}${deck.map(c => c.instanceId).join(',')}`;
+  const key = `${pricingKey()}:${side}:${state.id}:${state.turnNumber}:${credits}${board}${deck.map(c => c.instanceId).join(',')}`;
   const cached = deckAverage.get(key);
   if (cached !== undefined) return cached;
   // While the average is worked out, a card's worth that needs the average card (cardRate) gets the flat rate:
@@ -187,7 +186,7 @@ export const handByCard = (side: SideCode): boolean => leafHandByCard(side) || !
 export function clickWorth(state: GameState, side: SideCode): number {
   const player = side === 'corp' ? state.corp : state.runner;
   const clicks = Math.max(1, player.clicks);
-  const key = `${planSide()}:${side}:${state.id}:${state.turnNumber}:${player.clicks}:${player.credits}:${(side === 'corp' ? state.corp.hq : state.runner.grip).map(c => c.instanceId).join(',')}`;
+  const key = `${pricingKey()}:${side}:${state.id}:${state.turnNumber}:${player.clicks}:${player.credits}:${(side === 'corp' ? state.corp.hq : state.runner.grip).map(c => c.instanceId).join(',')}`;
   const cached = clickCache.get(key);
   if (cached !== undefined) return cached;
   const hand = side === 'corp' ? state.corp.hq : state.runner.grip;

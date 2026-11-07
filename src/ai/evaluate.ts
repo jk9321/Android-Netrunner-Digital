@@ -5,7 +5,6 @@ import { counters, rezCost, turnFlag } from '../core/engine/cardEffects';
 import { PAYOUT_RISK } from './payoutRisk';
 import { abilityUsedKey } from '../core/engine/actions/ability';
 import { cardSynergy } from './synergyTags';
-import { planSide } from './synergy';
 import { corpKeepValue, runnerCardValue } from './cardValues';
 import { countersWorth } from './counterValues';
 import { boardPlansWorth } from './cardPlans';
@@ -18,7 +17,7 @@ import { LOCKDOWN, PACE, STEAL, agendaOdds, coreSlotWorth, flatlineOdds, lifeGri
 import { archivedWorth } from './cards';
 import { isTrap, trashedCardCost } from './runs';
 import { centralAccess, runChance, threatOn } from './threatModel';
-import { plan, pricing, withPricing } from './pricing';
+import { plan, pricing, pricingKey, withPricing } from './pricing';
 
 const MADANI = '35028';
 
@@ -741,7 +740,7 @@ export function scoreEffectWorth(state: GameState, agenda: CardInstance): number
   // position: the planner prices thousands of positions a turn that differ only in clicks and installs, and playing the
   // score out in each made the suite's planner tests time out
   const unrezzed = Object.values(state.corp.servers).flatMap(sv => sv.ice.filter(c => !c.isRezzed).map(c => c.instanceId)).join();
-  const key = [state.id, state.turnNumber, agenda.instanceId, state.corp.credits, state.corp.score, state.runner.score, state.runner.tags, unrezzed, planSide(), !!plan().freeRez].join('|');
+  const key = [state.id, state.turnNumber, agenda.instanceId, state.corp.credits, state.corp.score, state.runner.score, state.runner.tags, unrezzed, pricingKey(), !!plan().freeRez].join('|');
   const cached = effectCache.get(key);
   if (cached !== undefined) return cached;
   if (effectCache.size > 2000) effectCache.clear();
