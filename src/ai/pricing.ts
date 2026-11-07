@@ -85,6 +85,19 @@ let version = 0;
 
 /** Runs `fn` with the fields in `patch` set, and puts them back as they were afterwards (thrown or not). */
 export function withPricing<T>(patch: Partial<Pricing>, fn: () => T): T {
+  const undo = holdPricing(patch);
+  try {
+    return fn();
+  } finally {
+    undo();
+  }
+}
+
+/**
+ * withPricing for callers that can't wrap a callback (a test's setup): sets
+ * the fields and returns the undo, which must run in a finally.
+ */
+export function holdPricing(patch: Partial<Pricing>): () => void {
   const saved: Partial<Pricing> = {};
   const target = context as unknown as Record<string, unknown>;
   for (const key in patch) {
@@ -92,25 +105,16 @@ export function withPricing<T>(patch: Partial<Pricing>, fn: () => T): T {
     target[key] = (patch as Record<string, unknown>)[key];
   }
   version++;
-  try {
-    return fn();
-  } finally {
+  return () => {
     for (const key in saved) target[key] = (saved as Record<string, unknown>)[key];
     version++;
-  }
+  };
 }
 
 /** Notes, in the context, what the deciding AI knows as its decision starts: the hands it has seen and the Runner's credits. Not while frozen. */
 export function noteDecision(known: Partial<Record<SideCode, Set<string>>>, anchor: { id: string; credits: number }) {
-  if (context.frozen) return;
   context.anchor = anchor;
   for (const side in known) context.known[side as SideCode] = known[side as SideCode]!;
-  version++;
-}
-
-/** Notes the Runner's credits only (iceValues.ts noteIceStopCredits). */
-export function noteAnchor(anchor: { id: string; credits: number }) {
-  context.anchor = anchor;
   version++;
 }
 

@@ -2,13 +2,13 @@ import { CardInstance, GameState, SideCode, cardDef } from '../core';
 import { breakerScript, isIcebreaker } from '../core/engine/ice';
 import { CARD_PROFILES, payoutWait, payoutWorth, turnsLeft } from './cardProfiles';
 import { corpKeepValue, runnerCardValue } from './cardValues';
-import { breakerTypeWorth, iceWorth, noteIceStopCredits } from './iceValues';
+import { breakerTypeWorth, iceWorth } from './iceValues';
 import { agendaWorth, isOneUse, runnerRigValue } from './evaluate';
 import { counterWorth } from './counterValues';
 import { handPlanWorth } from './cardPlans';
 import { planSide } from './synergy';
 import { CLICK, RATES, cardRate, fingerprint, flatRate, handFilter, payoutSlide, printedGain, reachCard, setDeckCard } from './valueModel';
-import { plan } from './pricing';
+import { holdPricing, noteDecision, plan, pricing, withPricing } from './pricing';
 
 /**
  * Cards in hand by what they do (Jeff, 2026-10-28; plan.handByCard). A card
@@ -27,9 +27,6 @@ export const SOON = { now: 0.7, later: 0.45 };
 export const HAND_FLOOR = 0.5;
 
 /** Worth of a card once played, less its cost and click (credits), before the wait. */
-/** Breakers being priced by the rig they join (a hosted breaker would price itself again). */
-const pricingBreakers = new Set<string>();
-
 export function playedWorth(state: GameState, card: CardInstance): number {
   const def = cardDef(card);
   const cost = def.cost ?? 0;
@@ -39,7 +36,7 @@ export function playedWorth(state: GameState, card: CardInstance): number {
     case 'operation': {
       // A conditional card by its plan: payoff scaled by how ready its condition is (cardPlans.ts);
       // not inside the deck's average card, which a plan's payoff can be priced from (Chain Reaction > Corp card > damage > average)
-      const planned = averaging ? undefined : handPlanWorth(state, card);
+      const planned = pricing().averaging ? undefined : handPlanWorth(state, card);
       if (planned !== undefined) return planned;
       // Played out when chosen (one-step simulation); in hand, a money card is worth its net gain
       const gain = printedGain(def.stripped_text);
@@ -64,11 +61,13 @@ export function playedWorth(state: GameState, card: CardInstance): number {
   const profile = CARD_PROFILES[card.cardCode];
   if (profile && plan().cardProfiles) return payoutWorth(profile, turns, profile.load, payoutWait(state, profile, 'runner'), cardRate(state, 'runner')) * payoutSlide(state, 'runner', 'runner', profile.load) - cost - CLICK;
   // (Not while the deck's average card is worked out: pricing the rig there prices the rig cards that asked for the average)
-  if (isIcebreaker(card) && flatRate('breakers') && plan().breakerCredits?.runner && !pricingBreakers.has(card.instanceId) && !averaging) {
+  if (isIcebreaker(card) && flatRate('breakers') && plan().breakerCredits?.runner && !pricing().pricingBreakers.has(card.instanceId) && !pricing().averaging) {
     // What it adds to the rig's coverage once installed (Mayfly's one use included), as the board will see it.
     // A breaker hosted on Bling or Madani is priced inside the rig too: while it is, the rule-based worth below
     const rig = state.runner.rig;
     const after = { ...state, runner: { ...state.runner, rig: { ...rig, programs: [...rig.programs, card] } } } as GameState;
+    // (a hosted breaker would price itself again: pricing().pricingBreakers)
+    const pricingBreakers = pricing().pricingBreakers;
     pricingBreakers.add(card.instanceId);
     try {
       return runnerRigValue(after, true, 'runner') - runnerRigValue(state, true, 'runner') - cost - CLICK;
@@ -105,35 +104,32 @@ export function heldWorth(state: GameState, card: CardInstance, side: SideCode, 
   return Math.max(HAND_FLOOR, soon * (playedWorth(state, card) + (freeInstall ? CLICK : 0)));
 }
 
-/** The cards in each side's hand the deciding AI has seen (set as it starts a decision). */
-const known: Record<SideCode, Set<string> | null> = { corp: null, runner: null };
-
-let frozen = false;
-
 /** While a planner plays a turn out, keep the hands as they were seen (a card drawn in the playout stays unseen). Returns the undo. */
 export function freezeKnownHand(): () => void {
-  const was = frozen;
-  frozen = true;
-  return () => (frozen = was);
+  return holdPricing({ frozen: true });
 }
 
-/** Remember which cards are in `side`'s hand now: anything that arrives later in a look-ahead is unknown. */
-export function noteKnownHand(state: GameState, side: SideCode) {
-  if (frozen) return;
-  noteIceStopCredits(state);
+/**
+ * As `side`'s decision starts, note in the pricing context what it knows: which cards are in `side`'s hand now
+ * (anything that arrives later in a look-ahead is unknown) and the Runner's credits (iceValues.ts stopCredits).
+ * Not while a planner plays a turn out (frozen).
+ */
+export function decisionContext(state: GameState, side: SideCode) {
+  if (pricing().frozen) return;
   const hand = side === 'corp' ? state.corp.hq : state.runner.grip;
-  known[side] = new Set(hand.map(c => c.instanceId));
+  noteDecision({ [side]: new Set(hand.map(c => c.instanceId)) }, { id: state.id, credits: state.runner.credits });
 }
+/** The old name of decisionContext. */
+export const noteKnownHand = decisionContext;
 
 /** Cards in `side`'s hand the deciding AI hasn't seen (drawn in a look-ahead): it can't know what they are. */
 export function unseenInHand(state: GameState, side: SideCode): CardInstance[] {
-  const seen = known[side];
+  const seen = pricing().known[side];
   const hand = side === 'corp' ? state.corp.hq : state.runner.grip;
   return seen ? hand.filter(c => !seen.has(c.instanceId)) : [];
 }
 
 const deckAverage = new Map<string, number>();
-let averaging = false;
 
 /** Average held worth of the cards left in a side's deck (what a draw is expected to bring). */
 function drawWorth(state: GameState, side: SideCode): number {
@@ -153,21 +149,14 @@ function drawWorth(state: GameState, side: SideCode): number {
   if (cached !== undefined) return cached;
   // While the average is worked out, a card's worth that needs the average card (cardRate) gets the flat rate:
   // the deck's average card can't depend on itself (a value loop otherwise, valueModel.ts guardLoop)
-  const was = averaging;
-  averaging = true;
-  let value: number;
-  try {
-    value = deck.length ? deck.reduce((n, c) => n + heldWorth(state, c, side), 0) / deck.length : RATES.drawnCard;
-  } finally {
-    averaging = was;
-  }
+  const value = withPricing({ averaging: true }, () => (deck.length ? deck.reduce((n, c) => n + heldWorth(state, c, side), 0) / deck.length : RATES.drawnCard));
   if (deckAverage.size > 500) deckAverage.clear();
   deckAverage.set(key, value);
   return value;
 }
 
 /** The deck's average card for valueModel's cardRate (plan.flatRates.cards); the flat rate while it is being worked out. */
-setDeckCard((state, side) => (averaging ? RATES.drawnCard : drawWorth(state, side)));
+setDeckCard((state, side) => (pricing().averaging ? RATES.drawnCard : drawWorth(state, side)));
 
 /**
  * Worth of a side's own hand: the best `limit` cards by held worth, the
@@ -177,7 +166,7 @@ setDeckCard((state, side) => (averaging ? RATES.drawnCard : drawWorth(state, sid
 export function ownHandValue(state: GameState, side: SideCode): number {
   const hand = side === 'corp' ? state.corp.hq : state.runner.grip;
   const limit = (side === 'corp' ? state.corp.handSizeLimit : state.runner.handSizeLimit) ?? 5;
-  const seen = known[side];
+  const seen = pricing().known[side];
   // plan.heldMoney: the money operation moneyReach already puts on the Corp's credit slide isn't counted again in HQ
   const reach = side === 'corp' && plan().heldMoney && plan().moneyReach ? reachCard(state) : undefined;
   const values = hand

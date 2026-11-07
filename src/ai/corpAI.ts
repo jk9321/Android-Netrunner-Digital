@@ -13,7 +13,7 @@ import { clickRate, pointGain, pointValue, printedGain } from './valueModel';
 import { PACE, STEAL, accessWorth, agendaOdds } from './effectValues';
 import { answerPrompt, simulate } from './prompts';
 import { asSide, logNudge, nudge, opponentLean, tuning } from './synergy';
-import { noteKnownHand } from './handValues';
+import { decisionContext } from './handValues';
 import { PlanMemory, planTurn, plannerOn, searchPiece } from './turnPlanner';
 import { runnerReply } from './runnerReply';
 import { threatLoss } from './threatModel';
@@ -136,7 +136,7 @@ export class HeuristicCorpAI implements Agent {
   }
 
   private decide(state: GameState): GameAction {
-    noteKnownHand(state, 'corp');
+    decisionContext(state, 'corp');
     if (activePrompt(state)) return answerPrompt(state, 'corp', undefined, this.synergy);
     const legal = getLegalActions(state, 'corp');
     const ranked = this.rankMainActions(state, legal);
@@ -174,7 +174,7 @@ export class HeuristicCorpAI implements Agent {
 
   /** Main-phase actions, best first, with this AI's score for each (the search AI starts from these). */
   rankMainActions(state: GameState, legal = getLegalActions(state, 'corp')): ScoredAction[] {
-    noteKnownHand(state, 'corp');
+    decisionContext(state, 'corp');
     this.freeActions.start(state, state.corp.clicks);
     const before = evaluate(state, 'corp', this.synergy);
     const iceTrash = this.synergy && plan().iceTrash;

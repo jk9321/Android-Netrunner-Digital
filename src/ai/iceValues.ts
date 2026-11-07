@@ -5,7 +5,7 @@ import { AUDREY, iceCost } from './runs';
 import { RATES, guardLoop, memo } from './valueModel';
 import { turnsLeft } from './cardProfiles';
 import { freeRezTargets } from './freeRez';
-import { plan } from './pricing';
+import { plan, pricing } from './pricing';
 
 /**
  * Value model step 5 (docs/ai-value-model-plan.md): ice priced in credits,
@@ -35,16 +35,10 @@ export function iceStop(state?: GameState): number {
  * reads the Runner's credits as they were when the deciding AI started its decision, not in each
  * position it looks at. Otherwise every credit the Runner gains raised each ice it can't break by a
  * credit too, so Sure Gamble scored below clicking for a credit (and spending looked like a gain).
+ * The credits are noted in the pricing context as the decision starts (handValues.ts decisionContext).
  */
-let anchor: { id: string; credits: number } | null = null;
-
-/** Note the Runner's credits as a decision starts (handValues.ts noteKnownHand; held while a planner plays out). */
-export function noteIceStopCredits(state: GameState) {
-  anchor = { id: state.id, credits: state.runner.credits };
-}
-
 function stopCredits(state: GameState): number {
-  return plan().iceStopAnchor && anchor?.id === state.id ? anchor.credits : state.runner.credits;
+  return plan().iceStopAnchor && pricing().anchor?.id === state.id ? pricing().anchor!.credits : state.runner.credits;
 }
 
 /** Worth of one installed piece of ice, as `viewer` can judge it. */
