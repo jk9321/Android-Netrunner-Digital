@@ -2,7 +2,8 @@ import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
 import { GameState } from '../src/core';
 import { HeuristicRunnerAI } from '../src/ai/runnerAI';
-import { asSide, tuning } from '../src/ai/synergy';
+import { tuning } from '../src/ai/synergy';
+import { inDecision } from './helpers/pricing';
 
 /**
  * Self-play (2026-11-04, the credit-card audit): with a full grip the Runner spent its last click drawing a 6th card and
@@ -15,7 +16,7 @@ import { asSide, tuning } from '../src/ai/synergy';
 function ranks(): { draw: number; credit: number } {
   const s: GameState = JSON.parse(readFileSync(new URL('./fixtures/runner-sure-gamble.json', import.meta.url), 'utf8'));
   s.runner.clicks = 1;
-  const rk = asSide('runner', () => new HeuristicRunnerAI({ synergy: true, planner: false }).rankMainActions(s));
+  const rk = inDecision(s, 'runner', () => new HeuristicRunnerAI({ synergy: true, planner: false }).rankMainActions(s));
   const score = (type: string) => rk.find(r => r.action.type === type)!.score;
   return { draw: score('DRAW_CARD'), credit: score('GAIN_CREDIT') };
 }

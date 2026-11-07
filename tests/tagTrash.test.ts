@@ -3,7 +3,8 @@ import { describe, expect, it } from 'vitest';
 import { GameState, cardDef, createCardInstance, executeAction, findCardAnywhere } from '../src/core';
 import { HeuristicCorpAI } from '../src/ai/corpAI';
 import { createAgent } from '../src/ai';
-import { asSide, tuning } from '../src/ai/synergy';
+import { tuning } from '../src/ai/synergy';
+import { inDecision } from './helpers/pricing';
 
 /**
  * Jeff (2026-11-04, playing Sebastião Souza Pessoa against the Hard Corp): the Corp never trashed any of his
@@ -43,7 +44,7 @@ const title = (s: GameState, id: string) => cardDef(findCardAnywhere(s, id)!).ti
 
 /** The Corp's main actions, best first, as the deck-aware rule-based AI ranks them. */
 function ranked(s: GameState): string[] {
-  return asSide('corp', () => new HeuristicCorpAI({ synergy: true, planner: false }).rankMainActions(s)).map(r =>
+  return inDecision(s, 'corp', () => new HeuristicCorpAI({ synergy: true, planner: false }).rankMainActions(s)).map(r =>
     r.action.type === 'TRASH_RESOURCE' ? `trash ${title(s, r.action.cardInstanceId)}` : r.action.type,
   );
 }

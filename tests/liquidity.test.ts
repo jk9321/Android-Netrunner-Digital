@@ -3,7 +3,8 @@ import { describe, expect, it } from 'vitest';
 import { GameAction, GameState, cardDef, createInitialGameState, executeAction } from '../src/core';
 import { deckGameSetup } from '../src/data/decks';
 import { HeuristicRunnerAI } from '../src/ai/runnerAI';
-import { asSide, tuning } from '../src/ai/synergy';
+import { tuning } from '../src/ai/synergy';
+import { inDecision } from './helpers/pricing';
 
 /**
  * Jeff (2026-11-06, his Corp game with A Teia, bug report #28): "The runner should have saved up for Sure Gamble to fix
@@ -30,7 +31,7 @@ function position(): GameState {
 function ranks(): { gamble: number; draw: number } {
   const s = position();
   expect(s.runner.credits).toBe(5);
-  const rk = asSide('runner', () => new HeuristicRunnerAI({ synergy: true, planner: false }).rankMainActions(s));
+  const rk = inDecision(s, 'runner', () => new HeuristicRunnerAI({ synergy: true, planner: false }).rankMainActions(s));
   const gamble = rk.find(r => 'cardInstanceId' in r.action && s.runner.grip.some(c => c.instanceId === (r.action as { cardInstanceId: string }).cardInstanceId && cardDef(c).title === 'Sure Gamble'))!;
   return { gamble: gamble.score, draw: rk.find(r => r.action.type === 'DRAW_CARD')!.score };
 }

@@ -2,8 +2,9 @@ import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
 import { GameState, cardDef, createCardInstance, findCardAnywhere } from '../src/core';
 import { HeuristicCorpAI } from '../src/ai/corpAI';
-import { asSide, tuning } from '../src/ai/synergy';
+import { tuning } from '../src/ai/synergy';
 import { PAYOUT_RISK, bareAssetRisk } from '../src/ai/cardProfiles';
+import { inDecision } from './helpers/pricing';
 
 /**
  * Bug report #16 (Jeff, beta 38b2a86, Wage Working 9 to 5 vs Trick Shot Zahya): the Hard Corp kept installing money
@@ -26,7 +27,7 @@ function position(record?: { exposed: number; trashed: number }): GameState {
 
 const title = (s: GameState, id: string) => cardDef(findCardAnywhere(s, id)!).title;
 function ranked(s: GameState): string[] {
-  return asSide('corp', () => new HeuristicCorpAI({ synergy: true, planner: false }).rankMainActions(s)).map(r => {
+  return inDecision(s, 'corp', () => new HeuristicCorpAI({ synergy: true, planner: false }).rankMainActions(s)).map(r => {
     const a = r.action;
     if (a.type !== 'INSTALL_CARD') return a.type;
     return `install ${title(s, a.cardInstanceId)} ${a.asNewRemote ? 'new' : a.targetServerId}`;
@@ -46,7 +47,7 @@ describe('the Corp reads how this Runner treats unprotected assets (plan.readAss
       // plan.oneCurrency: a bare money asset is priced on its payout at the bare risk (here the self-play 'moneyBare'
       // already puts a bare Otto below a credit; the iced remote-9 is the place for it); the record moves that risk
       const score = (s: GameState, where: string) =>
-        asSide('corp', () => new HeuristicCorpAI({ synergy: true, planner: false }).rankMainActions(s)).find(r => r.action.type === 'INSTALL_CARD' && title(s, r.action.cardInstanceId) === 'Otto Campaign' && (where === 'new' ? r.action.asNewRemote : r.action.targetServerId === where))!.score;
+        inDecision(s, 'corp', () => new HeuristicCorpAI({ synergy: true, planner: false }).rankMainActions(s)).find(r => r.action.type === 'INSTALL_CARD' && title(s, r.action.cardInstanceId) === 'Otto Campaign' && (where === 'new' ? r.action.asNewRemote : r.action.targetServerId === where))!.score;
       expect(score(position(), 'new')).toBeGreaterThan(score(position({ exposed: 7, trashed: 6 }), 'new') + 1);
       expect(before(ranked(position()), 'install Otto Campaign remote-9', 'GAIN_CREDIT')).toBe(true);
       return;

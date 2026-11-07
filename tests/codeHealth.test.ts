@@ -1,4 +1,4 @@
-import { readFileSync } from 'node:fs';
+import { readFileSync, readdirSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
 import { tuning } from '../src/ai/synergy';
 
@@ -42,7 +42,34 @@ const OFF_SWITCHES: Record<string, string> = {
   calibratedRun: 'item 3 round 3: the threat read at measured hit rates; did not help (-9.9 vs -10.6), kept as measurement',
 };
 
+/**
+ * Module-level `let` in src/ai (review item 6): what a position is worth reads the pricing context (pricing.ts), not
+ * flags flipped around calls. These are the ones left, each with why it is not pricing state. May only shrink.
+ */
+const MODULE_LETS: Record<string, string> = {
+  'pricing:version': 'the context itself: bumped on every change so pricingKey is rebuilt only then',
+  'pricing:basePlan': "the context itself: the outermost decision's base plan, which nested asSide builds on",
+  'pricing:keyVersion': 'the context itself: the version pricingKey was last built at',
+  'pricing:key': 'the context itself: the last pricingKey',
+  'worker:agent': 'the web worker holds its one agent',
+  'synergyTags:SYNERGY': 'the card tag table, filled once from src/ai/cards at load',
+  'synergy:debug': 'a debug print switch',
+  'evaluate:AGENDA_CLICK': 'a measured rate a script sets (setAgendaClick), not per call',
+  'threatModel:planSig': "a cache of the plan's JSON for the threat key, rebuilt when the plan changes",
+  'valueModel:deckCard': 'the deck-average hook handValues registers once (an import cycle otherwise)',
+  'valueModel:nextStateId': "guardLoop's id counter for positions",
+};
+
 describe('AI code health (audit guards)', () => {
+  it('keeps pricing state in the pricing context: no new module-level let in src/ai', () => {
+    const dir = new URL('../src/ai/', import.meta.url);
+    const found = (readdirSync(dir, { recursive: true }) as string[]).filter(f => f.endsWith('.ts')).flatMap(file =>
+      [...readFileSync(new URL(file, dir), 'utf8').matchAll(/^(?:export )?let (\w+)/gm)].map(m => `${file.replace(/\.ts$/, '')}:${m[1]}`),
+    );
+    expect(found.filter(key => !(key in MODULE_LETS)), 'a flag that changes what a position is worth goes in pricing.ts (withPricing)').toEqual([]);
+    expect(Object.keys(MODULE_LETS).filter(key => !found.includes(key))).toEqual([]);
+  });
+
   it('names no new card codes in the shared value files', () => {
     const found = VALUE_FILES.flatMap(file =>
       [...readFileSync(new URL(`../src/ai/${file}.ts`, import.meta.url), 'utf8').matchAll(/'(3\d{4})'/g)].map(m => `${file}:${m[1]}`),

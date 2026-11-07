@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { HeuristicRunnerAI } from '../src/ai/runnerAI';
 import { iceWorth } from '../src/ai/iceValues';
-import { noteKnownHand } from '../src/ai/handValues';
+import { decisionContext } from '../src/ai/handValues';
 import { tuning } from '../src/ai/synergy';
 import { giveCard, installIceForTest, newGame, startRunnerTurn } from './helpers';
 
@@ -26,7 +26,7 @@ describe('ice cap anchored at the decision (plan.iceStopAnchor)', () => {
 
   it("gaining credits doesn't raise the worth of ice the Runner can't break", () => {
     const { s, hq } = setup();
-    noteKnownHand(s, 'runner');
+    decisionContext(s, 'runner');
     const ice = s.corp.servers.hq.ice.find(c => c.instanceId === hq)!;
     const richer = { ...s, runner: { ...s.runner, credits: 20 } };
     expect(iceWorth(richer, ice, 'runner')).toBe(iceWorth(s, ice, 'runner'));

@@ -2,7 +2,8 @@ import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
 import { GameState, cardDef, findCardAnywhere } from '../src/core';
 import { HeuristicRunnerAI } from '../src/ai';
-import { asSide, tuning } from '../src/ai/synergy';
+import { tuning } from '../src/ai/synergy';
+import { inDecision } from './helpers/pricing';
 
 /**
  * Bug report #17 (Jeff's Corp game 1, 2026-11-05): the Runner held two Fermenters, 10 and 5 counters (30 credits),
@@ -18,7 +19,7 @@ function position(): GameState {
 }
 
 const top = (s: GameState) => {
-  const [best] = asSide('runner', () => new HeuristicRunnerAI({ synergy: true, planner: false }).rankMainActions(s));
+  const [best] = inDecision(s, 'runner', () => new HeuristicRunnerAI({ synergy: true, planner: false }).rankMainActions(s));
   return best.action.type === 'USE_ABILITY' ? `use ${cardDef(findCardAnywhere(s, best.action.cardInstanceId)!).title}` : best.action.type;
 };
 

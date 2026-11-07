@@ -3,7 +3,8 @@ import { describe, expect, it } from 'vitest';
 import { GameState, getLegalActions } from '../src/core';
 import { HeuristicRunnerAI } from '../src/ai';
 import { runScore } from '../src/ai/runs';
-import { asSide, tuning } from '../src/ai/synergy';
+import { tuning } from '../src/ai/synergy';
+import { inDecision } from './helpers/pricing';
 
 /**
  * Thread "Find why self-play games end decked" (2026-11-06): with an empty grip the Runner priced the one net damage a
@@ -22,7 +23,7 @@ describe('a Runner with an empty grip still runs (plan.emptyGripRuns)', () => {
     expect(s.runner.grip.length).toBe(0);
     expect(bestRun(s)).toBeGreaterThan(0);
     // As the Runner AI ranks in play (chooseAction runs under its own plan: the Corp's switches off, sideOff.runner)
-    const ranked = asSide('runner', () => new HeuristicRunnerAI({ synergy: true }).rankMainActions(s, getLegalActions(s, 'runner')));
+    const ranked = inDecision(s, 'runner', () => new HeuristicRunnerAI({ synergy: true }).rankMainActions(s, getLegalActions(s, 'runner')));
     expect(ranked[0].action.type).toBe('INITIATE_RUN');
   });
 

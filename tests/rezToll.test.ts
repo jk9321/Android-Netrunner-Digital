@@ -3,7 +3,8 @@ import { describe, expect, it } from 'vitest';
 import { CardInstance, GameState, cardDef } from '../src/core';
 import { HeuristicCorpAI } from '../src/ai/corpAI';
 import { modelRezParts } from '../src/ai/rezModel';
-import { asSide, tuning } from '../src/ai/synergy';
+import { tuning } from '../src/ai/synergy';
+import { inDecision } from './helpers/pricing';
 
 /**
  * Jeff (2026-11-05): the Corp never banks money. Over 40 self-play games 40% of everything it spent went on rezzing
@@ -62,7 +63,7 @@ describe('in-run ice rez (plan.rezToll, plan.modelRez)', () => {
   it('the model alone keeps the credits too (rezToll off): a 3-in-16 R&D access is not worth a broke Corp\'s last 3', () => {
     const { state, ice } = base();
     withPlans({ rezToll: false }, () => expect(choose(state, ice)).toBeNull());
-    const parts = asSide('corp', () => modelRezParts(state, ice, true))!;
+    const parts = inDecision(state, 'corp', () => modelRezParts(state, ice, true))!;
     // The Runner pays its 1 credit here and is stopped by the rezzed Palisade behind: the stop is real, the price says no
     expect(parts.stops).toBe(false);
     expect(parts.rez).toBeLessThan(parts.pass);
@@ -83,7 +84,7 @@ describe('in-run ice rez (plan.rezToll, plan.modelRez)', () => {
 
   it('does not rez ice the Runner breaks on its way to the agenda anyway: the agenda goes either way, the credits needn\'t', () => {
     const { state, ice } = agendaRemote(3, 5);
-    const parts = asSide('corp', () => modelRezParts(state, ice, true))!;
+    const parts = inDecision(state, 'corp', () => modelRezParts(state, ice, true))!;
     expect(parts.stops).toBe(false);
     expect(choose(state, ice)).toBeNull();
   });
@@ -93,7 +94,7 @@ describe('in-run ice rez (plan.rezToll, plan.modelRez)', () => {
     const servers = state.corp.servers;
     const inner = { ...servers.rd.ice[0], instanceId: 'inner-palisade', isRezzed: false }; // an unrezzed Palisade behind it, which the Corp can rez when it gets there
     const twoDeep: GameState = { ...state, activeRun: { ...state.activeRun!, icePosition: 1 }, corp: { ...state.corp, servers: { ...servers, 'remote-1': { ...servers['remote-1'], ice: [inner, ice] } } } };
-    const parts = asSide('corp', () => modelRezParts(twoDeep, ice, true))!;
+    const parts = inDecision(twoDeep, 'corp', () => modelRezParts(twoDeep, ice, true))!;
     expect(parts.stops).toBe(false);
     expect(choose(twoDeep, ice)?.type).toBe('REZ_CARD');
   });

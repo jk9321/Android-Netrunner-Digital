@@ -2,7 +2,8 @@ import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
 import { GameState } from '../src/core';
 import { HeuristicRunnerAI } from '../src/ai/runnerAI';
-import { asSide, tuning } from '../src/ai/synergy';
+import { tuning } from '../src/ai/synergy';
+import { inDecision } from './helpers/pricing';
 
 /**
  * Jeff (2026-11-04): "was it using Fermenter and Telework correctly?" In 30 self-play games the Runner clicked for
@@ -16,7 +17,7 @@ function ranks(): { telework: number; credit: number } {
   const s: GameState = JSON.parse(readFileSync(new URL('./fixtures/runner-sure-gamble.json', import.meta.url), 'utf8'));
   s.runner.credits = 1;
   const card = s.runner.grip.find(c => c.cardCode === '30027')!; // Telework Contract
-  const rk = asSide('runner', () => new HeuristicRunnerAI({ synergy: true, planner: false }).rankMainActions(s));
+  const rk = inDecision(s, 'runner', () => new HeuristicRunnerAI({ synergy: true, planner: false }).rankMainActions(s));
   const score = (f: (a: { type: string; cardInstanceId?: string }) => boolean) => rk.find(r => f(r.action))!.score;
   return { telework: score(a => a.cardInstanceId === card.instanceId), credit: score(a => a.type === 'GAIN_CREDIT') };
 }

@@ -3,9 +3,10 @@ import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { GameState, cardDef, createRng, executeAction } from '../src/core';
 import { HeuristicCorpAI } from '../src/ai/corpAI';
 import { guessHidden } from '../src/ai/runnerReply';
-import { asSide, tuning } from '../src/ai/synergy';
+import { tuning } from '../src/ai/synergy';
 import { buildCandidates, discardStep, planTurn } from '../src/ai/turnPlanner';
 import { newGame, putInHand } from './helpers';
+import { inDecision } from './helpers/pricing';
 
 /**
  * Structural review item 4 (Fable spec, 2026-11-07): the planner's widened search, plan.plannerSearch and its pieces.
@@ -56,7 +57,7 @@ describe('plannerSeed: every candidate of a turn is played out on the same deal'
   it('the same decision with two rng histories picks the same action, and twice the same', () => {
     const s = newGame();
     const pick = (state: GameState) =>
-      asSide('corp', () => {
+      inDecision(state, 'corp', () => {
         const ai = new HeuristicCorpAI({ planner: false });
         const ranked = ai.rankMainActions(state);
         return planTurn(state, 'corp', ranked, { rank: x => ai.rankMainActions(x), answer: x => ai.chooseAction(x), memory: { line: [] } }, true);
@@ -73,7 +74,7 @@ describe('plannerBuild: the ice install a remote build starts is tried', () => {
     putInHand(s, 'corp', 'agenda');
     putInHand(s, 'corp', 'ice');
     s.corp.credits = 10;
-    const ranked = asSide('corp', () => new HeuristicCorpAI({ planner: false }).rankMainActions(s));
+    const ranked = inDecision(s, 'corp', () => new HeuristicCorpAI({ planner: false }).rankMainActions(s));
     const added = buildCandidates(s, ranked, []);
     const remote = added.find(r => r.action.type === 'INSTALL_CARD' && r.action.asNewRemote);
     expect(remote).toBeDefined();
@@ -91,7 +92,7 @@ describe('plannerBuild: the ice install a remote build starts is tried', () => {
     const s = newGame();
     s.corp.hq = s.corp.hq.filter(c => !['agenda', 'asset'].includes(cardDef(c).type_code ?? ''));
     putInHand(s, 'corp', 'ice');
-    const ranked = asSide('corp', () => new HeuristicCorpAI({ planner: false }).rankMainActions(s));
+    const ranked = inDecision(s, 'corp', () => new HeuristicCorpAI({ planner: false }).rankMainActions(s));
     expect(buildCandidates(s, ranked, []).some(r => r.action.type === 'INSTALL_CARD' && r.action.asNewRemote)).toBe(false);
   });
 });
@@ -106,7 +107,7 @@ describe('plannerDiscard: the discard step at the leaf (rules 5.6.3a, 5.7.2a)', 
     const s = newGame();
     while (s.corp.hq.length < 8) putInHand(s, 'corp', 'operation');
     s.corp.clicks = 0;
-    const after = asSide('corp', () => discardStep(s, 'corp', ai()));
+    const after = inDecision(s, 'corp', () => discardStep(s, 'corp', ai()));
     expect(after.corp.hq.length).toBe(5);
     expect(after.corp.archives.faceDown.length + after.corp.archives.faceUp.length).toBe(3);
     // the rest of the position is the end of the action phase, as for a line under the limit

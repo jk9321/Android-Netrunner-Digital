@@ -8,7 +8,7 @@ import { counterWorth } from './counterValues';
 import { handPlanWorth } from './cardPlans';
 import { planSide } from './synergy';
 import { CLICK, RATES, cardRate, fingerprint, flatRate, handFilter, payoutSlide, printedGain, reachCard, setDeckCard } from './valueModel';
-import { holdPricing, leafHandByCard, noteDecision, plan, pricing, withPricing } from './pricing';
+import { leafHandByCard, noteDecision, plan, pricing, withPricing } from './pricing';
 
 /**
  * Cards in hand by what they do (Jeff, 2026-10-28; plan.handByCard). A card
@@ -104,11 +104,6 @@ export function heldWorth(state: GameState, card: CardInstance, side: SideCode, 
   return Math.max(HAND_FLOOR, soon * (playedWorth(state, card) + (freeInstall ? CLICK : 0)));
 }
 
-/** While a planner plays a turn out, keep the hands as they were seen (a card drawn in the playout stays unseen). Returns the undo. */
-export function freezeKnownHand(): () => void {
-  return holdPricing({ frozen: true });
-}
-
 /**
  * As `side`'s decision starts, note in the pricing context what it knows: which cards are in `side`'s hand now
  * (anything that arrives later in a look-ahead is unknown) and the Runner's credits (iceValues.ts stopCredits).
@@ -119,8 +114,6 @@ export function decisionContext(state: GameState, side: SideCode) {
   const hand = side === 'corp' ? state.corp.hq : state.runner.grip;
   noteDecision({ [side]: new Set(hand.map(c => c.instanceId)) }, { id: state.id, credits: state.runner.credits });
 }
-/** The old name of decisionContext. */
-export const noteKnownHand = decisionContext;
 
 /** Cards in `side`'s hand the deciding AI hasn't seen (drawn in a look-ahead): it can't know what they are. */
 export function unseenInHand(state: GameState, side: SideCode): CardInstance[] {
