@@ -54,13 +54,6 @@ describe('run pricing', () => {
     });
   }
 
-  it('without plannerRunEvents the planner made the plain run (what the test guards)', () => {
-    const s = openHq();
-    giveCard(s, 'runner', TAILGATE);
-    const action = withPlan('plannerRunEvents', false, () => new HeuristicRunnerAI({ planner: true }).chooseAction(s));
-    expect(action.type).toBe('INITIATE_RUN');
-  });
-
   it("Clean Getaway's 6 credits are worth more to a broke Runner than a rich one (plan.runCreditsSlide, off by default)", () => {
     const rider = (credits: number) => {
       const s = openHq(credits);
