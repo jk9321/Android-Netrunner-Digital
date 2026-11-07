@@ -1,0 +1,47 @@
+Batch: item 3 round 2: threat calibration, self-play (threat on) | ref e4a56790c25628cf0fe21b4a42fb7da68fdea71e | games 0-3 | PLAN_OFF=+threatModel | decks  | threat-calibration corp | added run  | paired with run 
+64 games: Corp 0.0%, Runner 0.0%
+How games end:
+  undefined undefined: 64 (100.0%)
+Runner points in Corp losses, by server:
+Remote steals (0):
+  by ice on the server (rezzed/total):
+  already scoreable when stolen: 0
+  advanced at least once: 0
+  Corp credits when stolen: avg 0.0
+HQ steals (0): avg 0.0 agendas in a 0.0-card HQ, ice avg 0.0 (0.0 rezzed)
+R&D steals (0): ice avg 0.0 (0.0 rezzed)
+Corp losses:
+  Corp score at loss: avg 0.0; at 5+: 0
+  game length: avg 0.0 turns (Corp wins 0.0)
+  turns with an agenda in HQ and none in a remote: avg 0.0 (Corp wins 0.0)
+  agendas still in HQ at the end: avg 0.0
+Runner runs: NaN; paid to break then failed: NaN (NaN%), NaN credits wasted
+  jacked out before rezzed ice: known at run start NaN, rezzed during the run NaN
+  stopped by ice: known at run start NaN, rezzed during the run NaN
+  most stolen agendas:
+Corp decks (win %):
+  undefined: 0.0% of 64
+Runner decks (win %):
+  undefined: 0.0% of 64
+
+=== Weak Corp deck: undefined ===
+64 games: Corp 0.0%, Runner 0.0%
+How games end:
+  undefined undefined: 64 (100.0%)
+Runner points in Corp losses, by server:
+Remote steals (0):
+  by ice on the server (rezzed/total):
+  already scoreable when stolen: 0
+  advanced at least once: 0
+  Corp credits when stolen: avg 0.0
+HQ steals (0): avg 0.0 agendas in a 0.0-card HQ, ice avg 0.0 (0.0 rezzed)
+R&D steals (0): ice avg 0.0 (0.0 rezzed)
+Corp losses:
+  Corp score at loss: avg 0.0; at 5+: 0
+  game length: avg 0.0 turns (Corp wins 0.0)
+  turns with an agenda in HQ and none in a remote: avg 0.0 (Corp wins 0.0)
+  agendas still in HQ at the end: avg 0.0
+Runner runs: NaN; paid to break then failed: NaN (NaN%), NaN credits wasted
+  jacked out before rezzed ice: known at run start NaN, rezzed during the run NaN
+  stopped by ice: known at run start NaN, rezzed during the run NaN
+  most stolen agendas:
