@@ -62,9 +62,12 @@ describe('a protected agenda the Corp can finish is scored this turn (plan.agend
     // and on the old ranking those plans patched (plan.oneCurrency, 2026-11-06: the one-currency Corp scores it on the
     // finish projection with neither)
     tuning.plan.oneCurrency = false;
+    // and on the planner before its search was widened (plan.plannerSearch, item 4, 2026-11-07): with it the Corp scores here without both
+    tuning.plan.plannerSearch = false;
     try {
       expect(scoredIngatan(playTurn(position()))).toBe(false);
     } finally {
+      tuning.plan.plannerSearch = true;
       tuning.plan.agendaClicks = true;
       tuning.plan.finishSetup = true;
       tuning.plan.measuredTurnsLeft = true;

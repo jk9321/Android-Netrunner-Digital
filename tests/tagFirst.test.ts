@@ -37,9 +37,12 @@ describe('a tag is used while the Runner still has it (plan.tagFirst)', () => {
     tuning.plan.corpTurnDamage = false;
     // and the ranking it was found on: the one-currency Corp trashes Side Hustle without the plan (oneCurrency.test.ts)
     tuning.plan.oneCurrency = false;
+    // and the planner before its search was widened (plan.plannerSearch, item 4): with it the Corp trashes Side Hustle here without the plan
+    tuning.plan.plannerSearch = false;
     try {
       expect(rig(play())).toEqual(expect.arrayContaining(['Side Hustle', 'Open Market']));
     } finally {
+      tuning.plan.plannerSearch = true;
       tuning.plan.tagFirst = true;
       tuning.plan.runnerKnown = true;
       tuning.plan.corpTurnDamage = true;
