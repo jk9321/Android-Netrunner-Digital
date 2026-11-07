@@ -17,6 +17,8 @@ import { applyPlanOff, asSide } from '../src/ai/synergy';
 import { threat } from '../src/ai/threatModel';
 import { stealOdds, passOddsOf } from '../src/ai/effectValues';
 import { ALL_DECKS as DECKS } from './nsg-sample-decks';
+// @ts-expect-error plain JS, shared with the batch workflow's summary job
+import { print, sum } from './threat-calibration-sum.mjs';
 applyPlanOff(process.env.PLAN_OFF ?? '');
 
 type Kind = 'hq' | 'rd' | 'archives' | 'remote';
@@ -169,7 +171,4 @@ if (mode === 'human') {
   const stats = self(Number(args[1] ?? 1));
   console.log(JSON.stringify(stats));
   if (args.includes('--turns')) for (const g of gaps.sort((a, b) => b.gap - a.gap).slice(0, 40)) console.error(g.line);
-} else if (mode === 'sum') {
-  const { print, sum } = await import('./threat-calibration-sum.mjs');
-  print(sum(args.slice(1)));
-}
+} else if (mode === 'sum') print(sum(args.slice(1)));
