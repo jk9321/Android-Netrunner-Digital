@@ -438,6 +438,8 @@ export const tuning = {
     runnerKnown: true,
     /** Jeff, 2026-11-05: turns left from the self-play measure by the higher score, not 8 less it (cardProfiles.ts turnsLeft). */
     measuredTurnsLeft: true,
+    /** 2026-11-07 (thread "Find why self-play games end decked"): turns left are no more than R&D lasts at 1.3 draws a turn (cardProfiles.ts turnsLeft). */
+    rdTurnsLeft: true,
     /** Jeff, 2026-11-05: the share of runs on each server from the self-play measure (effectValues.ts RUN_SHARES). */
     measuredRunShares: true,
     /** Jeff, 2026-10-31 (same report): an asset that only pays through a click ability (Humanoid Resources) is rezzed only with the clicks to use it (corpAI.ts clickOnly). */
