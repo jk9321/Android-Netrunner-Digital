@@ -5,7 +5,7 @@ import { unseenInHand } from './handValues';
 import { BLOCK, RunnerMemory, iceCost, runClick, runCreditSpend, runScore, serverValue } from './runs';
 import { asSide, sideOff, tuning } from './synergy';
 import { fingerprint, memo, pointGain, sideCreditValue } from './valueModel';
-import { plan } from './pricing';
+import { plan, pricing, withPricing } from './pricing';
 
 /**
  * The Corp's threat model (structural review item 3, 2026-11-07; plan.threatModel): where the Runner will run on its
@@ -62,10 +62,9 @@ export interface Threat {
 const TIE = 1;
 
 /** True while the threat is being worked out: the Runner's scorer must not ask for the threat again. */
-let computing = 0;
 
 /** The threat is read only by the Corp, with the switch on, and never from inside its own computation. */
-export const threatOn = (): boolean => !!plan().threatModel && plan().threatValues !== false && computing === 0;
+export const threatOn = (): boolean => !!plan().threatModel && plan().threatValues !== false && pricing().computingThreat === 0;
 
 /** What the Runner remembers of the Corp's installed cards: the ones it accessed and that stayed installed (rule 7.1.2: the Corp saw the access). */
 export function runnerMemory(state: GameState): RunnerMemory {
@@ -198,11 +197,9 @@ export function threat(state: GameState): Threat {
     return remember(threatCache, key, () => {
       threatStats.budgeted++;
       const t1 = threatStats.timing ? performance.now() : 0;
-      computing++;
       try {
-        return asSide('runner', () => budgetTurn(state));
+        return withPricing({ computingThreat: pricing().computingThreat + 1 }, () => asSide('runner', () => budgetTurn(state)));
       } finally {
-        computing--;
         if (threatStats.timing) {
           const ms = performance.now() - t1;
           threatStats.budgetMs += ms;
@@ -337,18 +334,15 @@ function probeRun(state: GameState, serverId: string, server: GameState['corp'][
     // score at the turn's start against the base turn's runs. It is run when it beats the fallback click and fewer of
     // the base turn's runs outscore it than the Runner has clicks (the credits each run spends are not re-counted)
     const base = threat(state);
-    computing++;
-    try {
-      return asSide('runner', () => {
+    return withPricing({ computingThreat: pricing().computingThreat + 1 }, () =>
+      asSide('runner', () => {
         const view = runnerView(probed);
         const score = runScore(view, serverId, { memory: runnerMemory(probed), wary: !!tuning.wary });
         if (!(score > fallbackClick(view).score)) return 0;
         const ahead = base.order.filter(id => id !== serverId && base.servers[id].score > score).length;
         return ahead < view.runner.clicks ? 1 : 0;
-      });
-    } finally {
-      computing--;
-    }
+      })
+    );
   }));
 }
 

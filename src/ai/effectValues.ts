@@ -9,7 +9,7 @@ import { CLICK, RATES, cardRate, flatRate, flatlineWorth, memo, pointGain, point
 import { tagsWorth } from './evaluate';
 import { BLOCK, iceCost, iceCreditNeed, subroutineCost } from './runs';
 import { remoteRunChance, threatOn } from './threatModel';
-import { plan } from './pricing';
+import { plan, pricing, withPricing } from './pricing';
 
 /**
  * The every-card audit's last 31 cards (Jeff, 2026-10-28): assets, upgrades
@@ -186,43 +186,27 @@ const UNREZZED_PASS = { rich: 0.55, broke: 0.9 };
  */
 export const MEASURED_PASS = { rich: { first: 0.6, more: 0.83 }, broke: { first: 0.87, more: 0.93 } };
 
-/** Chance a run on `serverId` succeeds now, from its ice against the rig and the Runner's credits (PACE.success while plan.runOpenness is off). */
-export let pricingIce = false;
+/** Ice is being priced against the rig (pricing context): run odds are the flat guesses inside. */
+export const pricingIce = (): boolean => pricing().pricingIce;
 
+/** Chance a run on `serverId` succeeds now, from its ice against the rig and the Runner's credits (PACE.success while plan.runOpenness is off). */
 export function runSuccess(state: GameState, serverId: string): number {
   const server = state.corp.servers[serverId];
   // Pricing the ice can come back here (a subroutine that trashes a card prices the rig): the guess, inside
-  if (!plan().runOpenness || !server || pricingIce) return PACE.success;
-  return memo(state, 'runSuccess:' + serverId, () => {
-    pricingIce = true;
-    try {
-      return passOdds(state, server.ice);
-    } finally {
-      pricingIce = false;
-    }
-  });
+  if (!plan().runOpenness || !server || pricingIce()) return PACE.success;
+  return memo(state, 'runSuccess:' + serverId, () => withPricing({ pricingIce: true }, () => passOdds(state, server.ice)));
 }
 
 /** iceCost behind the re-entry guard. */
 export function priceIce(state: GameState, ice: CardInstance): number {
-  pricingIce = true;
-  try {
-    return iceCost(state, ice);
-  } finally {
-    pricingIce = false;
-  }
+  return withPricing({ pricingIce: true }, () => iceCost(state, ice));
 }
 
 /** passOdds for a server's ice, behind the re-entry guard (scripts/threat-calibration.ts). */
 export function passOddsOf(state: GameState, serverId: string): number {
   const server = state.corp.servers[serverId];
   if (!server) return 0;
-  pricingIce = true;
-  try {
-    return passOdds(state, server.ice);
-  } finally {
-    pricingIce = false;
-  }
+  return withPricing({ pricingIce: true }, () => passOdds(state, server.ice));
 }
 
 function passOdds(state: GameState, ices: CardInstance[], income = 0): number {
@@ -265,14 +249,13 @@ export const STEAL = { run: 0.45, income: 0 };
 
 export function stealOdds(state: GameState, serverId: string, run = STEAL.run, income = STEAL.income): number {
   const server = state.corp.servers[serverId];
-  if (!server || pricingIce) return run * PACE.success;
+  if (!server || pricingIce()) return run * PACE.success;
   // On the Runner's own turn: the clicks it has left, one kept for the run
   const coming = state.activePlayer === 'runner' ? Math.max(0, Math.min(income, state.runner.clicks - 1)) : income;
   return memo(state, `stealOdds:${serverId}:${run}:${coming}`, () => {
     // Outside the ice-pricing guard: the threat prices runs with the ice priced in full
     const chance = threatOn() ? remoteRunChance(state, serverId) : undefined;
-    pricingIce = true;
-    try {
+    return withPricing({ pricingIce: true }, () => {
       // plan.threatModel (structural review item 3): the chance the Runner runs it next turn is the Runner's own run
       // scorer budgeted over its turn (threatModel.ts), times its ice against the rig; an open remote it can see is run
       // by construction, so openSteal falls out
@@ -280,9 +263,7 @@ export function stealOdds(state: GameState, serverId: string, run = STEAL.run, i
       // Jeff: nothing stops the Runner checking an open remote, so an agenda there is as good as stolen (plan.openSteal)
       if (plan().openSteal && server.isRemote && server.ice.length === 0) return 1;
       return run * passOdds(state, server.ice, coming);
-    } finally {
-      pricingIce = false;
-    }
+    });
   });
 }
 
