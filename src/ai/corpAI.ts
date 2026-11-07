@@ -26,7 +26,7 @@ import { BLOCK, iceCost, iceCreditNeed, isTrap, subroutineCost, tagCost, weakest
 import { cardSynergy } from './synergyTags';
 import { econValue, upgradeValue } from './cardValues';
 import { counterWorth } from './counterValues';
-import { plan } from './pricing';
+import { plan, pricing } from './pricing';
 
 
 const type = (card: CardInstance) => cardDef(card).type_code;
@@ -442,6 +442,8 @@ export class HeuristicCorpAI implements Agent {
 
   /** Rezzing a click-only asset (plan.rezToUse): worth it only when its ability is then this AI's next play. */
   private rezToUse(state: GameState, card: CardInstance, before?: number): number {
+    // Assets whose rez-to-use is being ranked further up (pricing context): no nested rez-to-use inside
+    const rezzingToUse = pricing().rezzingToUse;
     if (state.turnStep?.kind === 'corp_turn_start' || (rezzingToUse.has(card.instanceId) || (!this.oneCurrency && rezzingToUse.size > 0))) return -Infinity;
     const after = simulate(state, { type: 'REZ_CARD', player: 'corp', cardInstanceId: card.instanceId });
     if (!after) return -Infinity;
@@ -1060,10 +1062,6 @@ export function mainRemote(state: GameState): ServerState | null {
  * Clicks of the ability an asset pays through, when that is all it does (plan.rezWhenUsed): text that is only
  * a click ability, with nothing on rez, at the turn's start or while it sits rezzed. 0 for anything else.
  */
-/** A rez-to-use check is running (its ranking must not start another). */
-/** Cards whose rezToUse look-ahead is running (plan.oneCurrency: per card, so a second Humanoid Resources is still priced inside the first's). */
-const rezzingToUse = new Set<string>();
-
 export function clickOnly(card: CardInstance): number {
   const def = cardDef(card);
   if (def.type_code !== 'asset') return 0;

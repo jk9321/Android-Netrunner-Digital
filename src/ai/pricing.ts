@@ -49,7 +49,10 @@ export interface Pricing {
   computingThreat: number;
   /** The planner's per-decision seed for its playouts (turnPlanner.ts, plan.plannerSeed), or null. */
   decisionSeed: number | null;
-  /** Assets whose rez-to-use is being ranked (corpAI.ts rezToUse): no nested rez-to-use inside. */
+  /**
+   * Assets whose rez-to-use look-ahead is running (corpAI.ts rezToUse): no nested rez-to-use inside (plan.oneCurrency:
+   * per card, so a second Humanoid Resources is still priced inside the first's).
+   */
   rezzingToUse: Set<string>;
   /** Breakers being priced by the rig they join (handValues.ts playedWorth): no breaker prices itself again. */
   pricingBreakers: Set<string>;
