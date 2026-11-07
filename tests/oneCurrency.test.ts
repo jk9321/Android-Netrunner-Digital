@@ -1,5 +1,5 @@
 import { readFileSync } from 'node:fs';
-import { describe, expect, it } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { GameAction, GameState, cardDef, executeAction, findCardAnywhere } from '../src/core';
 import { createAgent } from '../src/ai';
 import { HeuristicCorpAI } from '../src/ai/corpAI';
@@ -7,6 +7,11 @@ import { centralExposure, evaluate } from '../src/ai/evaluate';
 import { simulate } from '../src/ai/prompts';
 import { asSide, tuning } from '../src/ai/synergy';
 import { giveCard, installIceForTest, newGame } from './helpers';
+
+// The switch is off by default since the 2026-11-07 stop rule; these tests pin the one-currency behaviour itself.
+const oneCurrencyDefault = tuning.plan.oneCurrency;
+beforeEach(() => { tuning.plan.oneCurrency = true; });
+afterEach(() => { tuning.plan.oneCurrency = oneCurrencyDefault; });
 
 /**
  * plan.oneCurrency (structural review item 1, Jeff approved 2026-11-06; spec "Item 1 spec" of the AI code review doc):

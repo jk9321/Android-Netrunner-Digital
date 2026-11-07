@@ -4,6 +4,8 @@ import { GameState, cardDef, executeAction } from '../src/core';
 import { createAgent } from '../src/ai';
 import { tuning } from '../src/ai/synergy';
 
+const oneCurrencyDefault = tuning.plan.oneCurrency;
+
 
 /**
  * Bug report #18 (Jeff's Corp game 2, 2026-11-05): on turn 7 Project Ingatan sat in Remote 1 behind rezzed Tatu-Bola
@@ -68,7 +70,7 @@ describe('a protected agenda the Corp can finish is scored this turn (plan.agend
       tuning.plan.measuredTurnsLeft = true;
       tuning.plan.breakerReach = true;
       tuning.plan.rezBudget = true;
-      tuning.plan.oneCurrency = true;
+      tuning.plan.oneCurrency = oneCurrencyDefault;
     }
   }, 30_000);
 });

@@ -4,6 +4,8 @@ import { GameState, actingSide, cardDef, executeAction } from '../src/core';
 import { createAgent } from '../src/ai';
 import { tuning } from '../src/ai/synergy';
 
+const oneCurrencyDefault = tuning.plan.oneCurrency;
+
 
 /**
  * Bug report #17 (Jeff's Corp game 1, 2026-11-05): on turn 3 Jeff moved The Holo Man to Offworld Office's remote,
@@ -38,7 +40,7 @@ describe('The Holo Man advances the agenda it sits with (plan.holoManMove, plan.
         expect(scoredOffice(playTurn())).toBe(false);
       } finally {
         tuning.plan[off] = true;
-        tuning.plan.oneCurrency = true;
+        tuning.plan.oneCurrency = oneCurrencyDefault;
       }
     }, 30_000);
   }

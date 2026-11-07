@@ -65,11 +65,14 @@ describe('an agenda in HQ that would win the Runner the game (plan.lethalHq, bug
     // The steal is priced in the model (agendaWorth and centralExposure charge the Runner's points on the clock; a held
     // agenda no remote protects is worth keeping in HQ), so the gate that stood in for it has nothing left to do
     const was = tuning.plan.lethalHq;
+    const one = tuning.plan.oneCurrency;
     tuning.plan.lethalHq = false;
+    tuning.plan.oneCurrency = true;
     try {
       expect(hqIce(playTurn(turn13()))).toBe(3);
     } finally {
       tuning.plan.lethalHq = was;
+      tuning.plan.oneCurrency = one;
     }
   }, 120_000);
 });

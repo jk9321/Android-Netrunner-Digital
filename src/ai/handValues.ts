@@ -201,26 +201,12 @@ export const handByCard = (side: SideCode): boolean => !!tuning.plan.handByCard?
  * hand already holds most of its worth (SOON.now), so playing it now is
  * worth only the rest: what a click left unspent loses.
  */
-export function clickWorth(state: GameState, side: SideCode, mode: 'average' | 'marginal' | 'fresh' = 'average'): number {
+export function clickWorth(state: GameState, side: SideCode): number {
   const player = side === 'corp' ? state.corp : state.runner;
-  const clicks = mode === 'fresh' ? 3 : Math.max(1, player.clicks);
-  const key = `${mode}:${planSide()}:${side}:${state.id}:${state.turnNumber}:${player.clicks}:${player.credits}:${(side === 'corp' ? state.corp.hq : state.runner.grip).map(c => c.instanceId).join(',')}`;
+  const clicks = Math.max(1, player.clicks);
+  const key = `${planSide()}:${side}:${state.id}:${state.turnNumber}:${player.clicks}:${player.credits}:${(side === 'corp' ? state.corp.hq : state.runner.grip).map(c => c.instanceId).join(',')}`;
   const cached = clickCache.get(key);
   if (cached !== undefined) return cached;
-  // Pricing a play prices its position, whose clicks are priced here again: inside, a click is the flat rate
-  if (pricingClicks) return CLICK;
-  if (mode === 'average') return countClickWorth(state, side, mode, clicks, key);
-  pricingClicks = true;
-  try {
-    return countClickWorth(state, side, mode, clicks, key);
-  } finally {
-    pricingClicks = false;
-  }
-}
-let pricingClicks = false;
-
-function countClickWorth(state: GameState, side: SideCode, mode: 'average' | 'marginal' | 'fresh', clicks: number, key: string): number {
-  const player = side === 'corp' ? state.corp : state.runner;
   const hand = side === 'corp' ? state.corp.hq : state.runner.grip;
   const credits = player.credits;
   const plays = hand
@@ -232,8 +218,7 @@ function countClickWorth(state: GameState, side: SideCode, mode: 'average' | 'ma
   const repeatable = Math.max(1, drawWorth(state, side));
   let total = 0;
   for (let i = 0; i < clicks; i++) total += Math.max(repeatable, plays[i] ?? 0);
-  // marginal: the last of this turn's clicks, the use the k-th best play gives (what one click more or less changes)
-  const value = Math.max(1, Math.min(3, mode === 'marginal' ? Math.max(repeatable, plays[clicks - 1] ?? 0) : total / clicks));
+  const value = Math.max(1, Math.min(3, total / clicks));
   if (clickCache.size > 2000) clickCache.clear();
   clickCache.set(key, value);
   return value;
@@ -243,9 +228,6 @@ const clickCache = new Map<string, number>();
 /** Price of a click left to `side`, as `viewer` sees it: best play in hand for its own, the 1.25 default for the other side's. */
 export function clickPrice(state: GameState, side: SideCode, viewer: SideCode): number {
   if (!tuning.plan.clickRate?.[viewer]) return RATES.click;
-  // plan.oneCurrency (tempo round, review 2): the Corp's own clicks left this turn at the marginal rate, the use of the
-  // last of them (often a credit), not the average of the best k: a click spent on an advance gives up that use
-  if (tuning.plan.oneCurrency && side === 'corp' && viewer === 'corp' && tuning.plan.clickByPlay?.corp) return clickWorth(state, 'corp', 'marginal');
   return side === viewer && tuning.plan.clickByPlay?.[viewer] ? clickWorth(state, side) : CLICK;
 }
 

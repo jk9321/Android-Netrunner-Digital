@@ -335,8 +335,11 @@ export const tuning = {
      * (corpAI.ts oneCurrencyScore), instead of installScore/advanceScore points, tiers and reserve penalties; evaluate
      * adds what the hand-made points were covering: central exposure (agendas lost from HQ and R&D runs) and trap
      * advancement counters. Corp only: off in sideOff.runner, so the Runner AI is unchanged. Off: beta as it was.
+     * OFF BY DEFAULT (2026-11-07, the stop rule Jeff approved): paired against the old ranking on the same deals the Corp
+     * won 22.2% vs 36.7% at 40e7d52 (this code), 13.0% after a tempo round (reverted). Kept switchable for the next try;
+     * docs in /mnt/project-files/netrunner-ai/one-currency/handoff.md.
      */
-    oneCurrency: true,
+    oneCurrency: false,
     /**
      * Per deciding side (Jeff, 2026-10-28): its own clicks priced by the best plays in hand, at least a credit (handValues.ts clickWorth).
      * Batches (2,210 games each): Corp side 29.7% -> 21.6% (the Corp clicks for cards over credits and runs dry), Runner side 29.7% -> 29.7%.

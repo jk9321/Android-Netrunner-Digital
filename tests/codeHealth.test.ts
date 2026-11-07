@@ -33,6 +33,7 @@ const OFF_SWITCHES: Record<string, string> = {
   runCreditsSlide: 'breaks castWhileAble; retest once Runner income has one slide helper (cleanup item 4)',
   'handByCard.corp': 'used by the planner leaf; off in the rule ranking, kept for re-testing',
   'handByCard.runner': 'used by the planner leaf; off in the rule ranking, kept for re-testing',
+  oneCurrency: 'missed its paired batch (stop rule, 2026-11-07); kept switchable for the next round',
 };
 
 describe('AI code health (audit guards)', () => {

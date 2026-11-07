@@ -4,6 +4,8 @@ import { GameState, cardDef, executeAction } from '../src/core';
 import { createAgent } from '../src/ai';
 import { tuning } from '../src/ai/synergy';
 
+const oneCurrencyDefault = tuning.plan.oneCurrency;
+
 
 /**
  * Jeff (2026-11-04): why can't the Corp manage its econ? The batch "Corp went broke" alarm: 60% of the times the Corp
@@ -38,7 +40,7 @@ describe('a money operation is played before rezzing ice strands it (plan.castWh
     try {
       expect(inHq(play())).toContain('Hedge Fund');
     } finally {
-      tuning.plan.oneCurrency = true;
+      tuning.plan.oneCurrency = oneCurrencyDefault;
       tuning.plan.castWhileAble = true;
       tuning.plan.heldMoney = true;
     }

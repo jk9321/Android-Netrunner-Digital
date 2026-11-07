@@ -52,12 +52,10 @@ describe('an agenda leaves HQ when HQ is no safer (plan.hqNoSafer)', () => {
 
   it('without the plan the agenda stays in HQ', () => {
     tuning.plan.hqNoSafer = false;
-    tuning.plan.oneCurrency = false; // hqNoSafer patched the old ranking; the one-currency Corp installs it on its delta
     try {
       expect(top(position())).not.toBe('install Offworld Office in a remote');
     } finally {
       tuning.plan.hqNoSafer = true;
-      tuning.plan.oneCurrency = true;
     }
   });
 });
