@@ -2,7 +2,7 @@ import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
 import { GameState, createCardInstance } from '../src/core';
 import { HeuristicRunnerAI } from '../src/ai/runnerAI';
-import { asSide, tuning } from '../src/ai/synergy';
+import { inDecision } from './helpers/pricing';
 
 /**
  * Jeff (2026-11-04): "double check anything that gives credits". Wildcat Strike ("Resolve 1 of the following of the
@@ -18,7 +18,7 @@ function ranks(): { wildcat: number; credit: number } {
   const card = createCardInstance(s, '30002'); // Wildcat Strike
   s.runner.grip.push(card);
   s.runner.credits = 3;
-  const rk = asSide('runner', () => new HeuristicRunnerAI({ synergy: true, planner: false }).rankMainActions(s));
+  const rk = inDecision(s, 'runner', () => new HeuristicRunnerAI({ synergy: true, planner: false }).rankMainActions(s));
   const score = (f: (a: { type: string; cardInstanceId?: string }) => boolean) => rk.find(r => f(r.action))!.score;
   return { wildcat: score(a => a.cardInstanceId === card.instanceId), credit: score(a => a.type === 'GAIN_CREDIT') };
 }
@@ -27,14 +27,5 @@ describe("a card the Corp chooses for is scored after the Corp's choice (plan.an
   it('ranks Wildcat Strike above a click for a credit', () => {
     const r = ranks();
     expect(r.wildcat).toBeGreaterThan(r.credit);
-  });
-
-  it('without the plan Wildcat Strike scores as a loss', () => {
-    tuning.plan.answerCorpChoice = false;
-    try {
-      expect(ranks().wildcat).toBeLessThan(-2);
-    } finally {
-      tuning.plan.answerCorpChoice = true;
-    }
   });
 });

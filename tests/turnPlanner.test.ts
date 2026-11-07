@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { HeuristicCorpAI, HeuristicRunnerAI } from '../src/ai';
-import { noteKnownHand, ownHandValue } from '../src/ai/handValues';
+import { decisionContext, ownHandValue } from '../src/ai/handValues';
 import { PLANNER, planTurn } from '../src/ai/turnPlanner';
 import { isLegalAction } from '../src/core';
 import { simulate } from '../src/ai/prompts';
@@ -31,7 +31,7 @@ describe('the whole-turn planner (Jeff, 2026-10-28; plan.turnPlanner)', () => {
   it('never learns a card it would draw in a playout', () => {
     const s = newGame();
     startRunnerTurn(s);
-    noteKnownHand(s, 'runner');
+    decisionContext(s, 'runner');
     const before = ownHandValue(s, 'runner');
     new HeuristicRunnerAI().chooseAction(s);
     // The hand it knows is the same after planning: cards drawn in playouts were never noted as seen

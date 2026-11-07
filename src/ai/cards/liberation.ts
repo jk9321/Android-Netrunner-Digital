@@ -6,8 +6,8 @@ import { accessWorth, centralSuccess, counterWorthOf, damageWorth, deckCount, de
 import type { RunOptions } from '../runs';
 import { runClick } from '../runs';
 import { tagCost } from '../runs';
-import { tuning } from '../synergy';
 import { CardAI } from './types';
+import { plan } from '../pricing';
 
 /**
  * What the AI knows about each Liberation card's worth, one entry per card
@@ -94,7 +94,7 @@ export const LIBERATION: Record<string, CardAI> = {
     synergy: { gives: { runs: 1.5, hq: 1, rd: 1 }, when: ['threat'] },
     // The first ice encountered is bypassed (rules 6.5.8a), a second for a click at threat 4
     run: (): RunOptions => {
-      return tuning.plan.bypass ? { bypassFirst: true } : {};
+      return plan().bypass ? { bypassFirst: true } : {};
     },
   },
   // Capybara
@@ -446,7 +446,7 @@ export const LIBERATION: Record<string, CardAI> = {
     synergy: { gives: { runs: 1, install: 0.5 } },
     // A rezzed ice derezzed as the run begins, and a free-click install
     run: (): RunOptions => {
-      return tuning.plan.bypass ? { derezOne: true, successBonus: 0 } : {};
+      return plan().bypass ? { derezOne: true, successBonus: 0 } : {};
     },
   },
   // Alarm Clock

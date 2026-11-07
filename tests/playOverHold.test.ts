@@ -2,7 +2,6 @@ import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
 import { GameState, cardDef, createCardInstance, getCardDefinition } from '../src/core';
 import { HeuristicCorpAI, HeuristicRunnerAI } from '../src/ai';
-import { tuning } from '../src/ai/synergy';
 import { newGame, startRunnerTurn } from './helpers';
 
 /**
@@ -102,15 +101,5 @@ describe('a held Hedge Fund in self-play (plan.heldMoney)', () => {
   it('ranks playing it above a click for a credit', () => {
     const { play, credit } = ranks();
     expect(play).toBeGreaterThan(credit);
-  });
-
-  it('without the plan it ranks below', () => {
-    tuning.plan.heldMoney = false;
-    try {
-      const { play, credit } = ranks();
-      expect(play).toBeLessThan(credit);
-    } finally {
-      tuning.plan.heldMoney = true;
-    }
   });
 });

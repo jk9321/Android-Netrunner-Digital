@@ -1,6 +1,5 @@
 import { describe, expect, it } from 'vitest';
 import { PACE } from '../src/ai/effectValues';
-import { tuning } from '../src/ai/synergy';
 
 /**
  * Jeff, 2026-11-05 (thread "Find why AI card valuation misses cards"): the run-odds report (scripts/run-odds.ts,
@@ -10,14 +9,8 @@ import { tuning } from '../src/ai/synergy';
 const shares = () => [PACE.hqShare, PACE.rdShare, PACE.archivesShare, PACE.remoteShare];
 
 describe('the share of runs on each server (plan.measuredRunShares)', () => {
-  it('is the measured mix, and the old one with the plan off', () => {
+  it('is the measured mix', () => {
     expect(shares()).toEqual([0.18, 0.21, 0.05, 0.56]);
-    tuning.plan.measuredRunShares = false;
-    try {
-      expect(shares()).toEqual([0.27, 0.2, 0.15, 0.39]);
-    } finally {
-      tuning.plan.measuredRunShares = true;
-    }
   });
 
   it('adds up to every run', () => {

@@ -5,8 +5,9 @@ import { createAgent } from '../src/ai';
 import { HeuristicCorpAI } from '../src/ai/corpAI';
 import { centralExposure, evaluate } from '../src/ai/evaluate';
 import { simulate } from '../src/ai/prompts';
-import { asSide, tuning } from '../src/ai/synergy';
+import { tuning } from '../src/ai/synergy';
 import { giveCard, installIceForTest, newGame } from './helpers';
+import { inDecision } from './helpers/pricing';
 
 // The switch is off by default since the 2026-11-07 stop rule; these tests pin the one-currency behaviour itself.
 const oneCurrencyDefault = tuning.plan.oneCurrency;
@@ -40,7 +41,7 @@ function corpTurn(credits = 8): GameState {
   return s;
 }
 
-const ranked = (s: GameState) => asSide('corp', () => new HeuristicCorpAI({ planner: false }).rankMainActions(s));
+const ranked = (s: GameState) => inDecision(s, 'corp', () => new HeuristicCorpAI({ planner: false }).rankMainActions(s));
 const scoreOf = (s: GameState, match: (a: GameAction) => boolean): number => {
   const hit = ranked(s).find(r => match(r.action));
   if (!hit) throw new Error('no such action');
@@ -66,10 +67,10 @@ describe('one currency: scores are evaluate deltas (plan.oneCurrency)', () => {
   it('a click for a credit and an ice install score exactly their change in evaluate', () => {
     const s = corpTurn();
     const ice = giveCard(s, 'corp', PALISADE);
-    const before = asSide('corp', () => evaluate(s, 'corp', true));
+    const before = inDecision(s, 'corp', () => evaluate(s, 'corp'));
     for (const action of [{ type: 'GAIN_CREDIT', player: 'corp' } as GameAction, { type: 'INSTALL_CARD', player: 'corp', cardInstanceId: ice, targetServerId: 'rd' } as GameAction]) {
       const after = simulate(s, action)!;
-      const delta = asSide('corp', () => evaluate(after, 'corp', true)) - before;
+      const delta = inDecision(after, 'corp', () => evaluate(after, 'corp')) - before;
       expect(scoreOf(s, a => JSON.stringify(a) === JSON.stringify(action))).toBeCloseTo(delta, 6);
     }
   });
@@ -102,7 +103,7 @@ describe('central exposure prices where ice goes', () => {
   it('a card drawn in a look-ahead tells the Corp nothing: the exposure is the same whatever it is', () => {
     const s = corpTurn();
     // Seen as the decision starts: an empty HQ; then two different cards arrive unseen
-    asSide('corp', () => ranked(s));
+    inDecision(s, 'corp', () => ranked(s));
     const withAgenda = structuredClone(s);
     const withIce = structuredClone(s);
     const agenda = withAgenda.corp.rd.findIndex(c => cardDef(c).type_code === 'agenda');
@@ -210,10 +211,10 @@ describe('advanced traps (what advanceScore and trapBluff priced)', () => {
     const id = giveCard(s, 'corp', '30045');
     const urtica = s.corp.hq.pop()!;
     s.corp.servers['remote-1'] = { id: 'remote-1', name: 'remote-1', isRemote: true, ice: [], root: [urtica] };
-    const bare = asSide('corp', () => evaluate(s, 'corp', true));
+    const bare = inDecision(s, 'corp', () => evaluate(s, 'corp'));
     const advanced = structuredClone(s);
     advanced.corp.servers['remote-1'].root[0].advancementCounters = 1;
-    expect(asSide('corp', () => evaluate(advanced, 'corp', true))).toBeGreaterThan(bare + 0.3);
+    expect(inDecision(advanced, 'corp', () => evaluate(advanced, 'corp'))).toBeGreaterThan(bare + 0.3);
     expect(id).toBe(urtica.instanceId);
   });
 });

@@ -10,10 +10,10 @@ import { BLOCK, BOTULUS, MANEGARM, RunOptions, RunnerMemory, iceCost, runClick, 
 import { breakerScript, encounteredIce, iceSubroutines, iceSubtypes, isIcebreaker } from '../core/engine/ice';
 import { keepBonus, tuning } from './synergy';
 import { freeInstallTarget, perfectRecallTarget } from './corpAI';
-import { freeRezOn } from './freeRez';
 import { iceStop, iceWorth } from './iceValues';
 import { rezCost } from '../core/engine/cardEffects';
 import { isPsiStep } from '../core/scripts/effects';
+import { plan } from './pricing';
 
 /** Applies an action, or returns null if the engine rejects it. */
 export function simulate(state: GameState, action: GameAction): GameState | null {
@@ -38,23 +38,19 @@ const sumKeep = (state: GameState, cards: CardInstance[], synergy: boolean) => c
  * its least useful cards) and, for the Runner, the run still in progress.
  */
 export function scoreOutcome(before: GameState, after: GameState, side: SideCode, memory?: RunnerMemory, synergy = false): number {
-  let score = evaluate(after, side, synergy);
+  let score = evaluate(after, side);
   // Cards that came from the deck are unknown until drawn: only the cards that left the hand count (plan.blindDraws)
-  const drawn = (c: CardInstance) => tuning.plan.blindDraws && !hand(before, side).some(b => b.instanceId === c.instanceId) && fromDeck(before, side, c);
+  const drawn = (c: CardInstance) => !hand(before, side).some(b => b.instanceId === c.instanceId) && fromDeck(before, side, c);
   score += 0.5 * (sumKeep(after, hand(after, side).filter(c => !drawn(c)), synergy) - sumKeep(before, hand(before, side), synergy));
   if (side === 'runner' && before.activeRun) {
-    if (tuning.plan.runRest) score += 0.8 * runRestWorth(after, memory, synergy && tuning.wary);
-    else {
-      const value = serverValue(before, before.activeRun.server, 0, memory, synergy && tuning.wary) * 0.8;
-      if (after.activeRun && !after.activeRun.isJackedOut) score += value;
-    }
+    score += 0.8 * runRestWorth(after, memory, synergy && tuning.wary);
   }
   return score;
 }
 
 function answers(state: GameState, side: SideCode, synergy = false): GameAction[] {
   const legal = getLegalActions(state, side).filter(a => a.type === 'RESOLVE_PROMPT').slice(0, 200);
-  const iceTrash = synergy && tuning.plan.iceTrash;
+  const iceTrash = synergy;
   return [...legal, ...legal.flatMap(a => makeRoomAnswers(state, a)), ...(iceTrash ? iceTrashAnswers(state) : [])];
 }
 
@@ -108,7 +104,7 @@ export function makeRoomAnswers(state: GameState, action: GameAction): GameActio
 function mulligan(state: GameState, prompt: Prompt, synergy: boolean): boolean {
   const cards = hand(state, prompt.side);
   // (Jeff) a Corp hand needs ice it can rez early (on 5 credits, with a credit to spare), not just any ice
-  if (prompt.side === 'corp') return !cards.some(c => cardDef(c).type_code === 'ice' && (!(synergy && tuning.plan.mulliganRez) || (cardDef(c).cost ?? 0) <= 4));
+  if (prompt.side === 'corp') return !cards.some(c => cardDef(c).type_code === 'ice' && (!synergy || (cardDef(c).cost ?? 0) <= 4));
   const useful = cards.some(c => /icebreaker/i.test(cardDef(c).keywords ?? '') || /gain \d+|load \d+/i.test(cardDef(c).stripped_text ?? ''));
   return !useful;
 }
@@ -193,7 +189,7 @@ export function answerPrompt(state: GameState, side: SideCode, memory?: RunnerMe
   }
   // Synapse Global: a free install from HQ, judged like the Corp's own install choice; never an agenda,
   // which it would reveal (plan.freeInstallPick, bug report #13)
-  if (side === 'corp' && (prompt.kind === 'effect_cards' || prompt.kind === 'effect_choice') && prompt.source.cardCode === SYNAPSE && tuning.plan.freeInstallPick) {
+  if (side === 'corp' && (prompt.kind === 'effect_cards' || prompt.kind === 'effect_choice') && prompt.source.cardCode === SYNAPSE) {
     const servers = [...Object.keys(state.corp.servers), 'new'];
     if (prompt.kind === 'effect_cards' && prompt.source.step === 'pick') {
       const picks = prompt.candidateIds
@@ -267,14 +263,14 @@ export function answerPrompt(state: GameState, side: SideCode, memory?: RunnerMe
   }
 
   // Alarm Clock (plan.bypass): its HQ run when the turn begins, priced with the 2-click bypass of the first ice
-  if (side === 'runner' && tuning.plan.bypass && prompt.kind === 'effect_choice' && prompt.source.cardCode === '34078' && prompt.source.step === 'run') {
+  if (side === 'runner' && plan().bypass && prompt.kind === 'effect_choice' && prompt.source.cardCode === '34078' && prompt.source.step === 'run') {
     // The run itself costs no click: runScore charges one, so it comes back
     const go = runScore(state, 'hq', { alarmClock: true, memory, wary: synergy && tuning.wary }) + runClick(state) > 0;
     return { ...base, choice: { kind: 'effect_choice', optionId: go ? 'yes' : 'no' } };
   }
 
   // Window of Opportunity (plan.bypass): derez the ice that costs the Runner most to get past (runs windowDerez)
-  if (side === 'runner' && tuning.plan.bypass && prompt.kind === 'effect_cards' && prompt.source.cardCode === '34077' && prompt.source.step === 'derez' && state.activeRun) {
+  if (side === 'runner' && plan().bypass && prompt.kind === 'effect_cards' && prompt.source.cardCode === '34077' && prompt.source.step === 'derez' && state.activeRun) {
     const pick = windowDerez(state, state.activeRun.server)?.ice.instanceId;
     if (pick && prompt.candidateIds.includes(pick)) return { ...base, choice: { kind: 'effect_cards', cardInstanceIds: [pick] } };
   }
@@ -297,7 +293,7 @@ export function answerPrompt(state: GameState, side: SideCode, memory?: RunnerMe
   // The Holo Man (Jeff's Corp game 1, bug report #17: the AI moved it off the remote holding Offworld Office, so it
   // never advanced it): it goes where its 3 counters do most, the server with the agenda they bring closest to scored
   // (one they finish counts its points), and stays put when no server has one (the board score had no sense of it)
-  if (side === 'corp' && tuning.plan.holoManMove && prompt.kind === 'effect_choice' && prompt.source.cardCode === '34120' && prompt.source.step === 'move') {
+  if (side === 'corp' && prompt.kind === 'effect_choice' && prompt.source.cardCode === '34120' && prompt.source.step === 'move') {
     const holo = findCardAnywhere(state, prompt.source.instanceId);
     const here = holo ? Object.values(state.corp.servers).find(v => v.root.some(c => c.instanceId === holo.instanceId))?.id : undefined;
     const pull = (serverId: string) =>
@@ -334,7 +330,7 @@ export function answerPrompt(state: GameState, side: SideCode, memory?: RunnerMe
   }
 
   // Sourdough Starter (Jeff, 2026-10-30, plan.sourdough)
-  if (side === 'runner' && prompt.kind === 'effect_cards' && tuning.plan.sourdough) {
+  if (side === 'runner' && prompt.kind === 'effect_cards') {
     const code = prompt.source.cardCode;
     const cards = prompt.candidateIds.map(id => findCardAnywhere(state, id)).filter((c): c is CardInstance => !!c);
     const weakest = (list: CardInstance[]) => [...list].sort((a, b) => keepValue(state, a) - keepValue(state, b))[0];
@@ -361,12 +357,12 @@ export function answerPrompt(state: GameState, side: SideCode, memory?: RunnerMe
     }
     // Knickknack O'Brian: trash only a card that has stopped giving value (its loss to the rig well under the credits and card it pays)
     if (code === '35033' && prompt.source.step === 'trash') {
-      const rig = runnerRigValue(state, true, 'runner');
+      const rig = runnerRigValue(state);
       const loss = (c: CardInstance) => {
         const { programs, hardware, resources } = state.runner.rig;
         const without = { programs: programs.filter(x => x !== c), hardware: hardware.filter(x => x !== c), resources: resources.filter(x => x !== c) };
         // Fuel is there to be burnt: its loss is only the coverage it gives
-        const lost = rig - runnerRigValue({ ...state, runner: { ...state.runner, rig: without } }, true, 'runner') - principiaFuel(state, c);
+        const lost = rig - runnerRigValue({ ...state, runner: { ...state.runner, rig: without } }) - principiaFuel(state, c);
         if (!isIcebreaker(c)) return lost;
         // A breaker is cheap to lose when it comes back for its install (a copy in the grip, or this one from the
         // heap with Scrounge), and while no rezzed ice it breaks is out (Jeff, 2026-10-30: the Sourdough loop)
@@ -400,7 +396,7 @@ export function answerPrompt(state: GameState, side: SideCode, memory?: RunnerMe
   }
 
   // Botulus: break the worst subroutine
-  if (side === 'runner' && prompt.kind === 'effect_choice' && prompt.source.cardCode === BOTULUS && tuning.plan.trojans) {
+  if (side === 'runner' && prompt.kind === 'effect_choice' && prompt.source.cardCode === BOTULUS) {
     const ice = encounteredIce(state);
     const subs = ice ? (iceSubroutines(state, ice)) : [];
     const worst = [...prompt.options].sort((a, b) => subroutineCost(state, subs[Number(b.id)]?.label ?? '') - subroutineCost(state, subs[Number(a.id)]?.label ?? ''))[0];
@@ -420,7 +416,7 @@ export function answerPrompt(state: GameState, side: SideCode, memory?: RunnerMe
 
   // AU Co.: the power counters do nothing else, so 2 cards now beat 2 cards later. (Scored as an outcome
   // the cards drawn count for nothing: plan.blindDraws hides cards from R&D.)
-  if (side === 'corp' && tuning.plan.promptChains && prompt.kind === 'effect_choice' && prompt.source.cardCode === '35046' && prompt.source.step === 'use') {
+  if (side === 'corp' && prompt.kind === 'effect_choice' && prompt.source.cardCode === '35046' && prompt.source.step === 'use') {
     return { ...base, choice: { kind: 'effect_choice', optionId: 'use' } };
   }
 
@@ -431,12 +427,12 @@ export function answerPrompt(state: GameState, side: SideCode, memory?: RunnerMe
   }
 
   // Deck-aware AI: PT Untaian's paid advancement goes where it does the most
-  if (synergy && side === 'corp' && tuning.plan.identities && prompt.kind === 'effect_cards' && prompt.source.cardCode === '35047') {
+  if (synergy && side === 'corp' && prompt.kind === 'effect_cards' && prompt.source.cardCode === '35047') {
     return { ...base, choice: { kind: 'effect_cards', cardInstanceIds: untaianPick(state, prompt.candidateIds) } };
   }
 
   // Deck-aware AI: Tāo Salonga moves the hardest ice off the servers worth attacking
-  if (synergy && side === 'runner' && tuning.plan.runnerIdentities && prompt.kind === 'effect_cards' && prompt.source.cardCode === '30019') {
+  if (synergy && side === 'runner' && prompt.kind === 'effect_cards' && prompt.source.cardCode === '30019') {
     return { ...base, choice: { kind: 'effect_cards', cardInstanceIds: taoSwap(state, memory) } };
   }
 
@@ -454,7 +450,7 @@ export function answerPrompt(state: GameState, side: SideCode, memory?: RunnerMe
     const after = simulate(state, action);
     if (!after) continue;
     let score = scoreOutcome(state, followChain(prompt, after, side, memory, synergy), side, memory, synergy);
-    if (side === 'corp' && freeRezOn()) score += freeRezSaving(state, after);
+    if (side === 'corp') score += freeRezSaving(state, after);
     if (skip && after.activeRun?.encounter?.iceId === skip.iceId) score -= skip.cost;
     if (score > bestScore) {
       bestScore = score;
@@ -472,7 +468,7 @@ export function answerPrompt(state: GameState, side: SideCode, memory?: RunnerMe
  * when it can't be got past, the run itself (scoreOutcome counts a run still going).
  */
 function bypassSkips(state: GameState, side: SideCode, prompt: Prompt, memory?: RunnerMemory, synergy = false): { iceId: string; cost: number } | undefined {
-  if (side !== 'runner' || !tuning.plan.bypass || prompt.kind !== 'effect_choice' || prompt.source.step !== 'bypass' || !state.activeRun) return undefined;
+  if (side !== 'runner' || !plan().bypass || prompt.kind !== 'effect_choice' || prompt.source.step !== 'bypass' || !state.activeRun) return undefined;
   const ice = encounteredIce(state);
   if (!ice) return undefined;
   const cost = iceCost(state, ice);
@@ -585,7 +581,7 @@ export function taoSwap(state: GameState, memory?: RunnerMemory): string[] {
  */
 function followChain(prompt: Prompt, after: GameState, side: SideCode, memory?: RunnerMemory, synergy = false): GameState {
   // Identities only: following every card's chain made AI games about 4x slower
-  if (!tuning.plan.promptChains || !('source' in prompt) || getCardDefinition(prompt.source.cardCode).type_code !== 'identity') return after;
+  if (!('source' in prompt) || getCardDefinition(prompt.source.cardCode).type_code !== 'identity') return after;
   let state = after;
   for (let depth = 0; depth < 3; depth++) {
     const next = activePrompt(state);

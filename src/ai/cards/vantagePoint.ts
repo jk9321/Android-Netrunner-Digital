@@ -1,6 +1,5 @@
 import { cardDef, getCardScript } from '../../core';
 import { stealthCredits } from '../../core/engine/cardEffects';
-import { tuning } from '../synergy';
 import { cardRate, CLICK, RATES } from '../valueModel';
 import { VIC } from '../evaluate';
 import { accessWorth, centralSuccess, counterWorthOf, damageWorth, deckCount, deckShare, lock, muWorth, PACE, perTurn, priceIce, pricingIce, runSuccess } from '../effectValues';
@@ -102,7 +101,7 @@ export const VANTAGE_POINT: Record<string, CardAI> = {
     value: { rig: 2.5 },
     // +1 MU; a tag for one more access on HQ and R&D breaches, now and then (most breaches for Vic, who clears a tag a turn cheaply)
     runner: state => {
-      const takes = tuning.plan.vicTags && state.runner.identity.cardCode === VIC ? 0.8 : 0.3;
+      const takes = state.runner.identity.cardCode === VIC ? 0.8 : 0.3;
       return muWorth(state) + perTurn(state, PACE.runs * centralSuccess(state) * takes * accessWorth(state), 'runner');
     },
   },
@@ -114,7 +113,7 @@ export const VANTAGE_POINT: Record<string, CardAI> = {
     runner: state => {
       const stealth = deckCount(state, 'runner', c => /stealth/i.test(cardDef(c).keywords ?? '')) > 0;
       // Pricing the ice can price the rig (a subroutine that trashes a card), which comes back here: count each rezzed ice as 2 then
-      const ice = (id: string) => (state.corp.servers[id]?.ice ?? []).reduce((n, c) => n + (!c.isRezzed ? 1 : pricingIce ? 2 : Math.min(4, priceIce(state, c))), 0);
+      const ice = (id: string) => (state.corp.servers[id]?.ice ?? []).reduce((n, c) => n + (!c.isRezzed ? 1 : pricingIce() ? 2 : Math.min(4, priceIce(state, c))), 0);
       const saved = Math.max(0, Math.min(4, Math.max(ice('hq'), ice('rd'))) - ice('archives'));
       return perTurn(state, (stealth ? 0.5 : 0.1) * (saved + accessWorth(state)), 'runner');
     },
@@ -151,13 +150,10 @@ export const VANTAGE_POINT: Record<string, CardAI> = {
     value: { rig: 2.5 },
     // +1 MU; a dead hardware in the grip (a copy of one installed, or one it can't afford) turns into 2 run credits now and then
     runner: (state, code) => {
-      if (tuning.plan.sourdough) {
-        const hardware = [...state.runner.grip, ...state.runner.stack].filter(c => cardDef(c).type_code === 'hardware');
-        const titles = new Set(hardware.map(c => cardDef(c).title));
-        const spare = (hardware.length - titles.size) / Math.max(1, state.runner.grip.length + state.runner.stack.length);
-        return muWorth(state) + perTurn(state, Math.min(1, 3 * spare) * 2 * counterWorthOf(state, code, 'credit'), 'runner');
-      }
-      return muWorth(state) + perTurn(state, Math.min(1, 3 * deckShare(state, 'runner', null, 'hardware')) * 0.5 * Math.max(0, 2 * counterWorthOf(state, code, 'credit') - cardRate(state, 'runner')), 'runner');
+      const hardware = [...state.runner.grip, ...state.runner.stack].filter(c => cardDef(c).type_code === 'hardware');
+      const titles = new Set(hardware.map(c => cardDef(c).title));
+      const spare = (hardware.length - titles.size) / Math.max(1, state.runner.grip.length + state.runner.stack.length);
+      return muWorth(state) + perTurn(state, Math.min(1, 3 * spare) * 2 * counterWorthOf(state, code, 'credit'), 'runner');
     },
     counters: { credit: () => 0.9 }, // Run credits only (Baker's fuel: cardPlans.ts)
   },

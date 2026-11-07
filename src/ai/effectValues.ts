@@ -4,11 +4,12 @@ import { turnsLeft } from './cardProfiles';
 import { PAYOUT_RISK } from './payoutRisk';
 import { COUNTER_WORTH } from './counterValues';
 import { CARDS, corpFormula, runnerFormula } from './cards';
-import { actingSide, tuning } from './synergy';
-import { CLICK, RATES, cardRate, flatRate, flatlineWorth, memo, pointGain, pointValue, sideCards } from './valueModel';
+import { actingSide } from './synergy';
+import { CLICK, RATES, cardRate, flatlineWorth, memo, pointGain, pointValue, sideCards } from './valueModel';
 import { tagsWorth } from './evaluate';
 import { BLOCK, iceCost, iceCreditNeed, subroutineCost } from './runs';
 import { remoteRunChance, threatOn } from './threatModel';
+import { plan, pricing, withPricing } from './pricing';
 
 /**
  * The every-card audit's last 31 cards (Jeff, 2026-10-28): assets, upgrades
@@ -69,10 +70,9 @@ export const PACE = {
  */
 const RUN_SHARES = { hqShare: 0.18, rdShare: 0.21, archivesShare: 0.05, remoteShare: 0.56 };
 for (const key of Object.keys(RUN_SHARES) as (keyof typeof RUN_SHARES)[]) {
-  const old = PACE[key];
   let set: number | undefined; // a test's own pace (tests/runBudget.test.ts)
   Object.defineProperty(PACE, key, {
-    get: () => set ?? (tuning.plan.measuredRunShares ? RUN_SHARES[key] : old),
+    get: () => set ?? RUN_SHARES[key],
     set: (v: number) => (set = v),
     enumerable: true,
   });
@@ -88,10 +88,9 @@ for (const key of Object.keys(RUN_SHARES) as (keyof typeof RUN_SHARES)[]) {
  */
 const PACE_NOV6 = { runs: 1.01, success: 0.77, agendaEvents: 0.31 };
 for (const key of Object.keys(PACE_NOV6) as (keyof typeof PACE_NOV6)[]) {
-  const old = PACE[key];
   let set: number | undefined;
   Object.defineProperty(PACE, key, {
-    get: () => set ?? (tuning.plan.measuredNov6 ? PACE_NOV6[key] : old),
+    get: () => set ?? PACE_NOV6[key],
     set: (v: number) => (set = v),
     enumerable: true,
   });
@@ -105,7 +104,7 @@ for (const key of Object.keys(PACE_NOV6) as (keyof typeof PACE_NOV6)[]) {
 export const VIRUS_WAIT = PAYOUT_RISK.clickWait * 0.9;
 
 /** The virus wait while plan.cardFixes is on. */
-export const virusWait = (): number => (tuning.plan.cardFixes ? VIRUS_WAIT : 1);
+export const virusWait = (): number => VIRUS_WAIT;
 
 /**
  * Conduit (Jeff, 2026-10-28): each counter is one more card accessed on
@@ -113,11 +112,8 @@ export const virusWait = (): number => (tuning.plan.cardFixes ? VIRUS_WAIT : 1);
  * the successful Conduit runs left.
  */
 export function conduitCounterWorth(state: GameState): number {
-  let runsLeft = PACE.runs * PACE.conduitRdShare * PACE.success * Math.max(1, turnsLeft(state) - 1);
-  if (tuning.plan.runOpenness) {
-    runsLeft = 0;
-    for (let t = 1; t < Math.max(2, turnsLeft(state)); t++) runsLeft += PACE.runs * PACE.conduitRdShare * runSuccess(state, 'rd') * LOCKDOWN ** (t - 1);
-  }
+  let runsLeft = 0;
+  for (let t = 1; t < Math.max(2, turnsLeft(state)); t++) runsLeft += PACE.runs * PACE.conduitRdShare * runSuccess(state, 'rd') * LOCKDOWN ** (t - 1);
   return accessWorth(state) * Math.min(4, runsLeft) * VIRUS_WAIT;
 }
 
@@ -134,7 +130,6 @@ const BASE_MU = 4;
  * the base, not the current total, so the worth doesn't drop once installed.
  */
 export function muWorth(state: GameState): number {
-  if (!tuning.plan.muNeed) return MU;
   const grip = state.runner.grip.filter(c => cardDef(c).type_code === 'program').reduce((n, c) => n + (cardDef(c).memory_cost ?? 0), 0);
   return state.runner.memoryUnitsUsed + grip > BASE_MU ? 2 * MU : MU;
 }
@@ -142,7 +137,7 @@ export function muWorth(state: GameState): number {
 /** Worth of `x` each turn for the turns left, less the risk of losing the card each turn. */
 export function perTurn(state: GameState, x: number, owner: 'corp' | 'runner', minTurns = 0, maxTurns = Infinity, wait = 1, lock = 1): number {
   // plan.ownTrashRisk: the Corp's own trash action is no risk the Corp prices (it decides it)
-  const tagRisk = state.runner.tags > 0 && !(tuning.plan.ownTrashRisk && actingSide() === 'corp');
+  const tagRisk = state.runner.tags > 0 && !(plan().ownTrashRisk && actingSide() === 'corp');
   const risk = owner === 'corp' ? PAYOUT_RISK.corpBare : tagRisk ? PAYOUT_RISK.runnerTagged : PAYOUT_RISK.runnerUntagged;
   const turns = Math.min(maxTurns, Math.max(minTurns, turnsLeft(state)));
   let value = 0;
@@ -185,43 +180,27 @@ const UNREZZED_PASS = { rich: 0.55, broke: 0.9 };
  */
 export const MEASURED_PASS = { rich: { first: 0.6, more: 0.83 }, broke: { first: 0.87, more: 0.93 } };
 
-/** Chance a run on `serverId` succeeds now, from its ice against the rig and the Runner's credits (PACE.success while plan.runOpenness is off). */
-export let pricingIce = false;
+/** Ice is being priced against the rig (pricing context): run odds are the flat guesses inside. */
+export const pricingIce = (): boolean => pricing().pricingIce;
 
+/** Chance a run on `serverId` succeeds now, from its ice against the rig and the Runner's credits (PACE.success while plan.runOpenness is off). */
 export function runSuccess(state: GameState, serverId: string): number {
   const server = state.corp.servers[serverId];
   // Pricing the ice can come back here (a subroutine that trashes a card prices the rig): the guess, inside
-  if (!tuning.plan.runOpenness || !server || pricingIce) return PACE.success;
-  return memo(state, 'runSuccess:' + serverId, () => {
-    pricingIce = true;
-    try {
-      return passOdds(state, server.ice);
-    } finally {
-      pricingIce = false;
-    }
-  });
+  if (!server || pricingIce()) return PACE.success;
+  return memo(state, 'runSuccess:' + serverId, () => withPricing({ pricingIce: true }, () => passOdds(state, server.ice)));
 }
 
 /** iceCost behind the re-entry guard. */
 export function priceIce(state: GameState, ice: CardInstance): number {
-  pricingIce = true;
-  try {
-    return iceCost(state, ice);
-  } finally {
-    pricingIce = false;
-  }
+  return withPricing({ pricingIce: true }, () => iceCost(state, ice));
 }
 
 /** passOdds for a server's ice, behind the re-entry guard (scripts/threat-calibration.ts). */
 export function passOddsOf(state: GameState, serverId: string): number {
   const server = state.corp.servers[serverId];
   if (!server) return 0;
-  pricingIce = true;
-  try {
-    return passOdds(state, server.ice);
-  } finally {
-    pricingIce = false;
-  }
+  return withPricing({ pricingIce: true }, () => passOdds(state, server.ice));
 }
 
 function passOdds(state: GameState, ices: CardInstance[], income = 0): number {
@@ -231,7 +210,7 @@ function passOdds(state: GameState, ices: CardInstance[], income = 0): number {
   for (const ice of [...ices].reverse()) {
     if (!ice.isRezzed) {
       const rich = state.corp.credits >= 3;
-      if (tuning.plan.measuredPass) {
+      if (plan().measuredPass) {
         const rate = rich ? MEASURED_PASS.rich : MEASURED_PASS.broke;
         pass *= unrezzed++ ? rate.more : rate.first;
       } else pass *= rich ? UNREZZED_PASS.rich : UNREZZED_PASS.broke;
@@ -241,7 +220,7 @@ function passOdds(state: GameState, ices: CardInstance[], income = 0): number {
     if (cost <= credits) {
       credits -= cost;
       pass *= 0.95;
-    } else if (tuning.plan.tankIce && canTank(state, ice, credits)) {
+    } else if (canTank(state, ice, credits)) {
       // Ice that can't end the run (Doomscroll) doesn't stop a Runner who can take what it does (Jeff, 2026-10-30)
       credits -= iceCreditNeed(state, ice);
       pass *= TANKED_PASS;
@@ -264,24 +243,21 @@ export const STEAL = { run: 0.45, income: 0 };
 
 export function stealOdds(state: GameState, serverId: string, run = STEAL.run, income = STEAL.income): number {
   const server = state.corp.servers[serverId];
-  if (!server || pricingIce) return run * PACE.success;
+  if (!server || pricingIce()) return run * PACE.success;
   // On the Runner's own turn: the clicks it has left, one kept for the run
   const coming = state.activePlayer === 'runner' ? Math.max(0, Math.min(income, state.runner.clicks - 1)) : income;
   return memo(state, `stealOdds:${serverId}:${run}:${coming}`, () => {
     // Outside the ice-pricing guard: the threat prices runs with the ice priced in full
     const chance = threatOn() ? remoteRunChance(state, serverId) : undefined;
-    pricingIce = true;
-    try {
+    return withPricing({ pricingIce: true }, () => {
       // plan.threatModel (structural review item 3): the chance the Runner runs it next turn is the Runner's own run
       // scorer budgeted over its turn (threatModel.ts), times its ice against the rig; an open remote it can see is run
       // by construction, so openSteal falls out
       if (chance !== undefined) return chance * passOdds(state, server.ice, coming);
       // Jeff: nothing stops the Runner checking an open remote, so an agenda there is as good as stolen (plan.openSteal)
-      if (tuning.plan.openSteal && server.isRemote && server.ice.length === 0) return 1;
+      if (plan().openSteal && server.isRemote && server.ice.length === 0) return 1;
       return run * passOdds(state, server.ice, coming);
-    } finally {
-      pricingIce = false;
-    }
+    });
   });
 }
 
@@ -296,7 +272,7 @@ export function anySuccess(state: GameState): number {
 }
 
 /** The lock-down per turn while plan.runOpenness is on. */
-export const lock = (): number => (tuning.plan.runOpenness ? LOCKDOWN : 1);
+export const lock = (): number => LOCKDOWN;
 
 /** Chance a Corp card the Runner hasn't seen is an agenda, and the points of a typical agenda (decklist). */
 export function agendaOdds(state: GameState): { odds: number; points: number } {
@@ -322,11 +298,10 @@ export function accessWorth(state: GameState): number {
 export function damageWorth(state: GameState, n: number): number {
   // plan.spareLastClick: with no click left the Runner can't run again this turn, so cards over its hand size are
   // discarded before they can soak up any damage (it drew to 6 with its last click and discarded, for +6)
-  const spent = tuning.plan.spareLastClick && state.activePlayer === 'runner' && !state.activeRun && state.runner.clicks === 0;
+  const spent = state.activePlayer === 'runner' && !state.activeRun && state.runner.clicks === 0;
   const held = spent ? Math.min(state.runner.handSizeLimit ?? 5, state.runner.grip.length) : state.runner.grip.length;
   if (n > held) return flatlineWorth(state);
   const card = cardRate(state, 'runner');
-  if (!tuning.plan.damageClock) return n * card;
   // The damage clock: the cards, and the step closer to a flatline the smaller grip leaves
   // Cards over the hand limit are discarded before the Corp's turn: they are no life against its damage
   const grip = held;
@@ -342,7 +317,7 @@ export function damageWorth(state: GameState, n: number): number {
  */
 export function lifeGrip(state: GameState, grip = state.runner.grip.length, drawBack = true): number {
   const limit = state.runner.handSizeLimit ?? 5;
-  const back = drawBack && tuning.plan.drawBackLife && state.activePlayer === 'runner' && !state.activeRun ? state.runner.clicks : 0;
+  const back = drawBack && state.activePlayer === 'runner' && !state.activeRun ? state.runner.clicks : 0;
   return Math.min(limit, grip + back);
 }
 
@@ -366,7 +341,7 @@ export function damageThreat(state: GameState, corpTurn = false): { burst: numbe
   // ice deals no damage (it hits only in the Runner's own runs, rule 6.9, which damageWorth prices when they happen), so
   // the clock left after the Runner's turn counts the Corp's other cards only. With ice, Attini, Boto, Cloud Eater and
   // Empiricist made a 3-damage threat out of a fifth of the deck: playing Sure Gamble from 4 cards cost 6 of flatline odds.
-  const skipIce = corpTurn && !!tuning.plan.corpTurnDamage;
+  const skipIce = corpTurn;
   const key = `${state.id}:${state.corp.archives.faceUp.length}:${state.corp.scoreArea.length}:${state.runner.scoreArea.length}:${skipIce}`;
   const cached = threats.get(key);
   if (cached) return cached;
@@ -401,7 +376,7 @@ export const CORE_SLOT_USE = 0.5;
 
 /** Worth of a hand slot already lost to core damage (plan.flatRates.coreDamage; the damage clock already reads the lower limit). */
 export function coreSlotWorth(state: GameState): number {
-  return flatRate('coreDamage') ? CORE_SLOT_USE * cardRate(state, 'runner') : RATES.coreDamage;
+  return CORE_SLOT_USE * cardRate(state, 'runner');
 }
 
 /**
@@ -410,9 +385,8 @@ export function coreSlotWorth(state: GameState): number {
  * the slot, and the damage clock at a full hand with the limit one lower.
  */
 export function coreDamageWorth(state: GameState): number {
-  if (!flatRate('coreDamage')) return RATES.coreDamage;
   const limit = state.runner.handSizeLimit ?? 5;
-  const clock = tuning.plan.damageClock ? Math.max(0, flatlineOdds(state, limit - 1, true) - flatlineOdds(state, limit, true)) : 0;
+  const clock = Math.max(0, flatlineOdds(state, limit - 1, true) - flatlineOdds(state, limit, true));
   return coreSlotWorth(state) + flatlineWorth(state) * clock;
 }
 
@@ -431,10 +405,10 @@ export interface CorpEffect {
 /** Corp assets and upgrades, in credits: each card's formula is its `corp` entry in src/ai/cards/. */
 export function corpEffect(state: GameState, code: string, rezzed = false): CorpEffect | undefined {
   // A rezzed card's rez cost is paid already (plan.rezPaid; Gemini audit, 2026-11-01: rezzedWorth took it off twice)
-  const cost = rezzed && tuning.plan.rezPaid ? 0 : getCardDefinition(code).cost ?? 0;
+  const cost = rezzed ? 0 : getCardDefinition(code).cost ?? 0;
   const agenda = pointGain(state.corp.score, agendaOdds(state).points);
   const card = cardRate(state, 'corp');
-  const tag = flatRate('tags') && tuning.plan.tagClock ? tagsWorth(state, 'corp', 1) : RATES.tagAgainstRunner;
+  const tag = tagsWorth(state, 'corp', 1);
   return corpFormula(state, code, { cost, agenda, card, tag });
 }
 
@@ -462,7 +436,7 @@ export function counterWorthOf(state: GameState, code: string, type: 'credit' | 
 export { EFFECT_CODES } from './cards';
 
 /** Whether the effect formulas price cards (plan.effectValues). */
-export const effectsOn = (): boolean => !!tuning.plan.effectValues;
+export const effectsOn = (): boolean => true;
 
 /**
  * What replaced the old value hacks (Jeff, 2026-10-28; the hacks were deleted 2026-11-06).
@@ -523,7 +497,7 @@ export function placedCounterWorth(state: GameState, card: CardInstance, iced: b
   // its next turn: the cards it costs, not a step on the damage clock (that prices a smaller grip facing more damage
   // before it redraws, which put a counter here at about 8, above a click and a credit toward an agenda)
   if (card.cardCode === '30061') {
-    if (!tuning.plan.oneCurrency) return bluff + 0.6 * damageWorth(state, 1);
+    if (!plan().oneCurrency) return bluff + 0.6 * damageWorth(state, 1);
     const life = Math.max(state.runner.grip.length, state.runner.handSizeLimit ?? 5);
     const hit = (n: number) => (n > life ? flatlineWorth(state) : n * cardRate(state, 'runner'));
     return bluff + 0.6 * (hit(card.advancementCounters + 1) - hit(card.advancementCounters));

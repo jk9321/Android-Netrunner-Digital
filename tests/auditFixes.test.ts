@@ -4,10 +4,11 @@ import { serverValue, tagCost } from '../src/ai/runs';
 import { corpEffect, rezzedWorth } from '../src/ai/effectValues';
 import { HeuristicCorpAI, outOfReach } from '../src/ai/corpAI';
 import { answerPrompt } from '../src/ai/prompts';
-import { asSide, tuning } from '../src/ai/synergy';
+import { tuning } from '../src/ai/synergy';
 import { guessHidden } from '../src/ai/runnerReply';
 import { determinize } from '../src/ai/search';
 import { cont, installCorpForTest, newGame, run, startRunnerTurn } from './helpers';
+import { inDecision } from './helpers/pricing';
 
 
 // Additional costs to steal (rules 1.16.10a-b): the Runner may decline them, and can't steal when it can't pay them all
@@ -48,7 +49,7 @@ describe('additional costs to steal in the Runner AI', () => {
     installCorpForTest(s, MELIES, 'remote-1');
     startRunnerTurn(s);
     const t = cont(run(s, 'remote-1'));
-    const action = asSide('runner', () => answerPrompt(t, 'runner', new Map(), true));
+    const action = inDecision(t, 'runner', () => answerPrompt(t, 'runner', new Map(), true));
     expect(action).toMatchObject({ choice: { optionId: 'steal' } });
   });
 });
@@ -101,7 +102,7 @@ describe('Clearinghouse is advanced toward a flatline (plan.clearinghouseLethal;
     const id = installCorpForTest(s, '30061', 'remote-1', true);
     s.corp.servers['remote-1'].root[0].advancementCounters = counters;
     s.runner.grip = s.runner.grip.slice(0, grip);
-    const ranked = asSide('corp', () => new HeuristicCorpAI({ planner: false }).rankMainActions(s));
+    const ranked = inDecision(s, 'corp', () => new HeuristicCorpAI({ planner: false }).rankMainActions(s));
     return ranked.find(r => r.action.type === type && (type !== 'ADVANCE_CARD' || ('cardInstanceId' in r.action && r.action.cardInstanceId === id)))?.score ?? -Infinity;
   };
   it('past 3 counters while they are not yet more than the grip', () => {

@@ -2,6 +2,7 @@ import { describe, expect, it, onTestFinished as onExit } from 'vitest';
 import { AGENDA_CLICK, agendaWorth, archivedAgendaLoss, evaluate, keepValue } from '../src/ai/evaluate';
 import { cardDef } from '../src/core';
 import { tuning } from '../src/ai/synergy';
+import { plan } from '../src/ai/pricing';
 import { playedWorth } from '../src/ai/handValues';
 import { iceWorth } from '../src/ai/iceValues';
 import { CLICK, pointGain, pointValue } from '../src/ai/valueModel';
@@ -41,16 +42,10 @@ describe('agendas on the board (Jeff, 2026-10-28; plan.agendaBoard)', () => {
     expect(bare).toBeCloseTo(tuning.plan.oneCurrency ? -pointGain(s.runner.score, 2) : 0);
   });
 
-  it('each advancement brings it closer: the click (at what it could build, plan.agendaClicks) and credit it took come back', () => {
+  it('each advancement brings it closer: the click (at what it could build) and credit it took come back', () => {
     const s = remotes();
     s.activePlayer = 'corp';
     expect(agendaWorth(s, 1, 3, 2, 'remote-1') - agendaWorth(s, 0, 3, 2, 'remote-1')).toBeCloseTo(AGENDA_CLICK + 1);
-    tuning.plan.agendaClicks = false;
-    try {
-      expect(agendaWorth(s, 1, 3, 2, 'remote-1') - agendaWorth(s, 0, 3, 2, 'remote-1')).toBeCloseTo(CLICK + 1);
-    } finally {
-      tuning.plan.agendaClicks = true;
-    }
   });
 
   it('in HQ, an agenda is worth installing in the safest remote, as the board will value it', () => {
@@ -74,9 +69,9 @@ describe('agendas on the board (Jeff, 2026-10-28; plan.agendaBoard)', () => {
     expect(archivedAgendaLoss(s, 2)).toBeGreaterThan(0);
     expect(archivedAgendaLoss(s, 2)).toBeLessThanOrEqual(pointValue(2));
     // On the board too: the Corp sees its facedown agenda in Archives as a likely steal
-    const before = evaluate(s, 'corp', true);
+    const before = evaluate(s, 'corp');
     s.corp.archives.faceDown.push(s.corp.hq.shift()!);
-    expect(evaluate(s, 'corp', true)).toBeLessThan(before);
+    expect(evaluate(s, 'corp')).toBeLessThan(before);
   });
 
   it('sooner is better: an agenda the Corp can finish this turn beats one that waits a Runner turn (plan.agendaTempo)', () => {
@@ -119,13 +114,13 @@ describe('plan switches for one side (Jeff, 2026-10-29; synergy.ts sideOff)', ()
   it('a side decides with its own plan, nested inside the other side, and the base plan comes back', async () => {
     const { asSide, sideOff, tuning } = await import('../src/ai/synergy');
     const saved = sideOff.corp;
-    sideOff.corp = ['flatRates'];
+    sideOff.corp = ['tempo'];
     try {
       const base = tuning.plan;
       asSide('corp', () => {
-        expect(tuning.plan.flatRates).toBe(false);
-        asSide('runner', () => expect(tuning.plan.flatRates).toBe(base.flatRates));
-        expect(tuning.plan.flatRates).toBe(false);
+        expect(plan().tempo).toBe(false);
+        asSide('runner', () => expect(plan().tempo).toBe(base.tempo));
+        expect(plan().tempo).toBe(false);
       });
       expect(tuning.plan).toBe(base);
     } finally {

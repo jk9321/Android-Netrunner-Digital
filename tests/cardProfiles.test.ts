@@ -1,4 +1,4 @@
-import { afterEach, beforeEach, describe, expect, it } from 'vitest';
+import { describe, expect, it } from 'vitest';
 import { CARD_PROFILES, PAYOUT_RISK, payoutWait, payoutWorth, turnsLeft, unrezzedWorth } from '../src/ai/cardProfiles';
 import { tuning } from '../src/ai/synergy';
 import { newGame } from './helpers';
@@ -6,30 +6,26 @@ import { newGame } from './helpers';
 const sum = (...terms: number[]) => terms.reduce((a, b) => a + b, 0);
 
 describe('money cards are worth what they will still pay out (value model step 4)', () => {
-  // These work through the step 4 wait of 15% a turn and its click at 1; plan.payoutRisk is tested below
-  beforeEach(() => { tuning.plan.payoutRisk = false; tuning.plan.oneClickPrice = false; });
-  afterEach(() => { tuning.plan.payoutRisk = true; tuning.plan.oneClickPrice = true; });
+  // These work through the step 4 wait of 15% a turn (payoutWorth's default); the measured risk is tested below
 
   it('Nico Campaign: 3 a turn for 3 turns, then a card', () => {
     expect(payoutWorth(CARD_PROFILES['30037'], 8)).toBeCloseTo(sum(3 * 0.85, 3 * 0.85 ** 2, 3 * 0.85 ** 3, 1.6 * 0.85 ** 4));
   });
 
   it('Regolith Mining License: 3 per click, 2 clicks a turn, the click counted against it', () => {
-    expect(payoutWorth(CARD_PROFILES['30071'], 8)).toBeCloseTo(sum(4 * 0.85, 4 * 0.85 ** 2, 2 * 0.85 ** 3));
     // Partly used: only what is left counts
-    expect(payoutWorth(CARD_PROFILES['30071'], 8, 6)).toBeCloseTo(sum(4 * 0.85));
-    // plan.oneClickPrice (code audit cleanup item 5): the click it takes costs 1.25, like any other click
-    tuning.plan.oneClickPrice = true;
+    expect(payoutWorth(CARD_PROFILES['30071'], 8, 6)).toBeCloseTo(sum(3.5 * 0.85));
+    // code audit cleanup item 5: the click it takes costs 1.25, like any other click
     expect(payoutWorth(CARD_PROFILES['30071'], 8)).toBeCloseTo(sum(3.5 * 0.85, 3.5 * 0.85 ** 2, 1.75 * 0.85 ** 3));
   });
 
-  it('Otto Campaign gives its 2 clicks when it empties; Anthill draws with each payout', () => {
-    expect(payoutWorth(CARD_PROFILES['35040'], 8)).toBeCloseTo(sum(2 * 0.85, 2 * 0.85 ** 2, 2 * 0.85 ** 3, 2 * 0.85 ** 4));
+  it('Otto Campaign gives its 2 clicks (1.25 each) when it empties; Anthill draws with each payout', () => {
+    expect(payoutWorth(CARD_PROFILES['35040'], 8)).toBeCloseTo(sum(2 * 0.85, 2 * 0.85 ** 2, 2 * 0.85 ** 3, 2.5 * 0.85 ** 4));
     expect(payoutWorth(CARD_PROFILES['35072'], 8)).toBeCloseTo(sum(5.6 * 0.85, 5.6 * 0.85 ** 2));
   });
 
   it('Telework Contract pays once a turn; Open Market 1 a turn', () => {
-    expect(payoutWorth(CARD_PROFILES['30027'], 8)).toBeCloseTo(sum(2 * 0.85, 2 * 0.85 ** 2, 2 * 0.85 ** 3));
+    expect(payoutWorth(CARD_PROFILES['30027'], 8)).toBeCloseTo(sum(1.75 * 0.85, 1.75 * 0.85 ** 2, 1.75 * 0.85 ** 3)); // 3 a click, less the 1.25 click
     expect(payoutWorth(CARD_PROFILES['35022'], 8)).toBeCloseTo(sum(...[1, 2, 3, 4, 5, 6].map(t => 0.85 ** t)));
   });
 

@@ -3,7 +3,6 @@ import { GameState, cardDef } from '../src/core';
 import { revealInHand } from '../src/core/engine/helpers';
 import { HeuristicRunnerAI } from '../src/ai';
 import { serverValue } from '../src/ai/runs';
-import { tuning } from '../src/ai/synergy';
 import { newGame, startRunnerTurn } from './helpers';
 
 /**
@@ -23,36 +22,24 @@ function hqOf(types: ('agenda' | 'other')[]): GameState {
   return s;
 }
 
-const withPlan = <T>(on: boolean, fn: () => T): T => {
-  const was = tuning.plan.knownHq;
-  tuning.plan.knownHq = on;
-  try {
-    return fn();
-  } finally {
-    tuning.plan.knownHq = was;
-  }
-};
-
 const hqOverCredit = (s: GameState) => {
   const ranked = new HeuristicRunnerAI({ synergy: true, planner: false }).rankMainActions(s);
   const hq = ranked.find(r => r.action.type === 'INITIATE_RUN' && r.action.targetServerId === 'hq')?.score ?? -Infinity;
   return hq - ranked.find(r => r.action.type === 'GAIN_CREDIT')!.score;
 };
 
-describe('HQ cards the Runner has seen (plan.knownHq)', () => {
+describe('HQ cards the Runner has seen (bug report #13; plan.knownHq folded in item 6)', () => {
   it('an HQ it has seen all of, with no agenda, is worth nothing to run', () => {
     const s = hqOf(['other', 'other', 'other']);
     revealInHand(s, 'corp', s.corp.hq);
-    expect(withPlan(true, () => serverValue(s, 'hq'))).toBe(0);
-    expect(withPlan(false, () => serverValue(s, 'hq'))).toBeGreaterThan(0);
-    expect(withPlan(false, () => hqOverCredit(s))).toBeGreaterThan(0);
-    expect(withPlan(true, () => hqOverCredit(s))).toBeLessThan(0);
+    expect(serverValue(s, 'hq')).toBe(0);
+    expect(hqOverCredit(s)).toBeLessThan(0);
   });
 
   it('a known agenda in HQ makes it worth more than an unseen HQ', () => {
     const s = hqOf(['agenda', 'other', 'other']);
-    const unseen = withPlan(true, () => serverValue(s, 'hq'));
+    const unseen = serverValue(s, 'hq');
     revealInHand(s, 'corp', [s.corp.hq[0]]);
-    expect(withPlan(true, () => serverValue(s, 'hq'))).toBeGreaterThan(unseen);
+    expect(serverValue(s, 'hq')).toBeGreaterThan(unseen);
   });
 });

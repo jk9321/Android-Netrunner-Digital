@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { HeuristicCorpAI } from '../src/ai/corpAI';
 import { installCorpForTest, newGame, run, startRunnerTurn, toCorp } from './helpers';
-import { asSide } from '../src/ai/synergy';
+import { inDecision } from './helpers/pricing';
 
 const NICO = '30037';
 
@@ -69,7 +69,7 @@ describe('assets that pay when the turn begins wait for that window (rules 5.6.1
     s.corp.clicks = clicks;
     const id = installCorpForTest(s, code, 'remote-1');
     if (turnStart) s.turnStep = { kind: 'corp_turn_start' };
-    const ranked = asSide('corp', () => new HeuristicCorpAI({ planner: false }).rankMainActions(s));
+    const ranked = inDecision(s, 'corp', () => new HeuristicCorpAI({ planner: false }).rankMainActions(s));
     return ranked.find(r => r.action.type === 'REZ_CARD' && r.action.cardInstanceId === id)?.score ?? -Infinity;
   };
 

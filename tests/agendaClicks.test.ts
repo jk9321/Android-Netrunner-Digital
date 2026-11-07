@@ -4,7 +4,6 @@ import { GameState, cardDef, executeAction } from '../src/core';
 import { createAgent } from '../src/ai';
 import { tuning } from '../src/ai/synergy';
 
-const oneCurrencyDefault = tuning.plan.oneCurrency;
 
 
 /**
@@ -38,42 +37,12 @@ describe('a protected agenda the Corp can finish is scored this turn (plan.agend
     expect(scoredIngatan(playTurn(position()))).toBe(true);
   }, 30_000);
 
-  it('either plan alone scores it (plan.finishSetup ranks the Seamless Launch that lets the turn finish it)', () => {
-    for (const off of ['agendaClicks', 'finishSetup'] as const) {
-      tuning.plan[off] = false;
-      try {
-        expect(scoredIngatan(playTurn(position())), off).toBe(true);
-      } finally {
-        tuning.plan[off] = true;
-      }
+  it('scores it without plan.finishSetup too (agendaClicks alone finds the Seamless Launch line)', () => {
+    tuning.plan.finishSetup = false;
+    try {
+      expect(scoredIngatan(playTurn(position()))).toBe(true);
+    } finally {
+      tuning.plan.finishSetup = true;
     }
   }, 60_000);
-
-  it('without both it built instead', () => {
-    tuning.plan.agendaClicks = false;
-    tuning.plan.finishSetup = false;
-    // and on the old turns-left horizon (plan.measuredTurnsLeft, 2026-11-05), which this position was found on: on the
-    // measured one the Corp scores it here even without both
-    tuning.plan.measuredTurnsLeft = false;
-    // and on the flat 8 credits for ice the Runner can't break yet (plan.breakerReach, 2026-11-06)
-    tuning.plan.breakerReach = false;
-    // and with each unrezzed ice priced against all the Corp's credits (plan.rezBudget, 2026-11-06)
-    tuning.plan.rezBudget = false;
-    // and on the old ranking those plans patched (plan.oneCurrency, 2026-11-06: the one-currency Corp scores it on the
-    // finish projection with neither)
-    tuning.plan.oneCurrency = false;
-    // and on the planner before its search was widened (plan.plannerSearch, item 4, 2026-11-07): with it the Corp scores here without both
-    tuning.plan.plannerSearch = false;
-    try {
-      expect(scoredIngatan(playTurn(position()))).toBe(false);
-    } finally {
-      tuning.plan.plannerSearch = true;
-      tuning.plan.agendaClicks = true;
-      tuning.plan.finishSetup = true;
-      tuning.plan.measuredTurnsLeft = true;
-      tuning.plan.breakerReach = true;
-      tuning.plan.rezBudget = true;
-      tuning.plan.oneCurrency = oneCurrencyDefault;
-    }
-  }, 30_000);
 });

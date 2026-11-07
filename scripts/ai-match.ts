@@ -16,7 +16,7 @@ import { createInitialGameState } from '../src/core';
 import { deckGameSetup } from '../src/data/decks';
 import { ALL_DECKS as DECKS } from './nsg-sample-decks';
 import { createAgent, playAIGame } from '../src/ai';
-import { tuning } from '../src/ai/synergy';
+import { applyPlanOff, tuning } from '../src/ai/synergy';
 import { GameRecord, playLogged } from './lossLog';
 
 const [gamesArg, levelArg, synArg, ctrArg] = process.argv.slice(2).filter(a => a !== '--');
@@ -38,14 +38,9 @@ tuning.dividends = process.env.DIVIDENDS !== '0';
 tuning.wary = process.env.WARY !== '0';
 tuning.bluff = process.env.BLUFF !== '0';
 tuning.purge = process.env.PURGE !== '0';
-// PLAN_OFF=saveUp,tagThreat switches off planning terms (see tuning.plan)
-for (const key of (process.env.PLAN_OFF ?? '').split(',').filter(Boolean)) {
-  // key.side (drawValue.runner) switches a per-side term off for one side only
-  const [name, side] = key.split('.');
-  const plan = tuning.plan as Record<string, unknown>;
-  if (side) plan[name] = { ...(plan[name] as object), [side]: false };
-  else plan[name] = false;
-}
+// PLAN_OFF=tempo,threatModel switches off planning terms (see tuning.plan; applyPlanOff for name.key and corp:name).
+// A folded name (synergy.ts FOLDED) or a typo throws, so a pre-fold PLAN_OFF string fails instead of running unchanged
+applyPlanOff(process.env.PLAN_OFF ?? '');
 
 const corpDecks = DECKS.filter(d => d.side === 'corp');
 const runnerDecks = DECKS.filter(d => d.side === 'runner');

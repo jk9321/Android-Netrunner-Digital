@@ -5,6 +5,7 @@ import { unseenInHand } from './handValues';
 import { BLOCK, RunnerMemory, iceCost, runClick, runCreditSpend, runScore, serverValue } from './runs';
 import { asSide, sideOff, tuning } from './synergy';
 import { fingerprint, memo, pointGain, sideCreditValue } from './valueModel';
+import { effectivePlan, plan, pricing, pricingKey, withPricing } from './pricing';
 
 /**
  * The Corp's threat model (structural review item 3, 2026-11-07; plan.threatModel): where the Runner will run on its
@@ -61,10 +62,9 @@ export interface Threat {
 const TIE = 1;
 
 /** True while the threat is being worked out: the Runner's scorer must not ask for the threat again. */
-let computing = 0;
 
 /** The threat is read only by the Corp, with the switch on, and never from inside its own computation. */
-export const threatOn = (): boolean => !!tuning.plan.threatModel && tuning.plan.threatValues !== false && computing === 0;
+export const threatOn = (): boolean => !!plan().threatModel && plan().threatValues !== false && pricing().computingThreat === 0;
 
 /** What the Runner remembers of the Corp's installed cards: the ones it accessed and that stayed installed (rule 7.1.2: the Corp saw the access). */
 export function runnerMemory(state: GameState): RunnerMemory {
@@ -115,7 +115,7 @@ export function accessLoss(state: GameState, serverId: string): number {
   const server = corp.servers[serverId];
   if (!server) return 0;
   if (serverId === 'hq' || serverId === 'rd') {
-    if (tuning.plan.oneCurrency) return 0;
+    if (plan().oneCurrency) return 0;
     const { hqNow, density } = centralAccess(state);
     return serverId === 'hq' ? hqNow : density;
   }
@@ -166,13 +166,14 @@ function threatKey(state: GameState): string {
     state.runsThisTurn.map(r => r.server + (r.successful ? '+' : '-')).join(','), JSON.stringify(state.corp.rdKnownToRunner ?? []),
     knownInHand(state, 'runner').map(k => k.id).join(','), knownInHand(state, 'corp').map(k => k.id).join(','), state.runner.bonusClicksNextTurn ?? 0,
     planKey(),
+    pricingKey(),
   ].join('|');
 }
 let planSig: { plan: unknown; json: string } | null = null;
 const planKey = (): string => {
   // The Corp's plan as it is now (tests flip switches in place, so the object alone won't do), with the Runner's own list
-  const json = JSON.stringify(tuning.plan) + JSON.stringify(sideOff.runner) + tuning.wary;
-  if (planSig?.json !== json) planSig = { plan: tuning.plan, json };
+  const json = JSON.stringify(effectivePlan()) + JSON.stringify(sideOff.runner) + tuning.wary;
+  if (planSig?.json !== json) planSig = { plan: effectivePlan(), json };
   return planSig.json;
 };
 const threatCache = new Map<string, Threat>();
@@ -197,11 +198,9 @@ export function threat(state: GameState): Threat {
     return remember(threatCache, key, () => {
       threatStats.budgeted++;
       const t1 = threatStats.timing ? performance.now() : 0;
-      computing++;
       try {
-        return asSide('runner', () => budgetTurn(state));
+        return withPricing({ computingThreat: pricing().computingThreat + 1 }, () => asSide('runner', () => budgetTurn(state)));
       } finally {
-        computing--;
         if (threatStats.timing) {
           const ms = performance.now() - t1;
           threatStats.budgetMs += ms;
@@ -303,7 +302,7 @@ export const CALIBRATED_RUN = {
 };
 /** The budget's 0/1 for `serverId`, as the measured rate while plan.calibratedRun is on. */
 export function calibrated(serverId: string, crisp: number): number {
-  if (!tuning.plan.calibratedRun) return crisp;
+  if (!plan().calibratedRun) return crisp;
   const rate = CALIBRATED_RUN[serverId === 'hq' || serverId === 'rd' || serverId === 'archives' ? serverId : 'remote'];
   return crisp >= 0.5 ? rate.picked : rate.not;
 }
@@ -336,18 +335,15 @@ function probeRun(state: GameState, serverId: string, server: GameState['corp'][
     // score at the turn's start against the base turn's runs. It is run when it beats the fallback click and fewer of
     // the base turn's runs outscore it than the Runner has clicks (the credits each run spends are not re-counted)
     const base = threat(state);
-    computing++;
-    try {
-      return asSide('runner', () => {
+    return withPricing({ computingThreat: pricing().computingThreat + 1 }, () =>
+      asSide('runner', () => {
         const view = runnerView(probed);
         const score = runScore(view, serverId, { memory: runnerMemory(probed), wary: !!tuning.wary });
         if (!(score > fallbackClick(view).score)) return 0;
         const ahead = base.order.filter(id => id !== serverId && base.servers[id].score > score).length;
         return ahead < view.runner.clicks ? 1 : 0;
-      });
-    } finally {
-      computing--;
-    }
+      })
+    );
   }));
 }
 
@@ -370,7 +366,7 @@ export function threatLoss(state: GameState): number {
     const run = calibrated(id, s.run);
     if (run > 0) loss += run * s.success * accessLoss(state, id);
   }
-  if (tuning.plan.threatSpend && t.endCredits !== state.runner.credits) {
+  if (plan().threatSpend && t.endCredits !== state.runner.credits) {
     const end = { ...state, runner: { ...state.runner, credits: t.endCredits } };
     loss += sideCreditValue(end, 'runner', 'corp') - sideCreditValue(state, 'runner', 'corp');
   }

@@ -2,7 +2,6 @@ import { describe, expect, it } from 'vitest';
 import { GameState } from '../src/core';
 import { HeuristicRunnerAI } from '../src/ai';
 import { serverValue } from '../src/ai/runs';
-import { tuning } from '../src/ai/synergy';
 import { installIceForTest, newGame, startRunnerTurn } from './helpers';
 
 /**
@@ -19,16 +18,6 @@ function discarded(cards: number): GameState {
   return s;
 }
 
-const withPlan = <T>(on: boolean, fn: () => T): T => {
-  const was = { ...tuning.plan };
-  tuning.plan.archivesChosen = on;
-  try {
-    return fn();
-  } finally {
-    Object.assign(tuning.plan, was);
-  }
-};
-
 /** The Archives run's score over a click for a credit. */
 const archivesOverCredit = (s: GameState) => {
   const ranked = new HeuristicRunnerAI({ synergy: true, planner: false }).rankMainActions(s);
@@ -36,22 +25,17 @@ const archivesOverCredit = (s: GameState) => {
   return archives - ranked.find(r => r.action.type === 'GAIN_CREDIT')!.score;
 };
 
-describe('a facedown card in an Archives with no ice (plan.archivesChosen, bug report #5)', () => {
-  it('is worth a twentieth of a random card, a tenth behind ice', () => {
+describe('a facedown card in an Archives with no ice (bug report #5; plan.archivesChosen folded in item 6)', () => {
+  it('is worth little, and twice as much behind ice (a twentieth of a random card bare, a tenth iced)', () => {
     const s = discarded(1);
-    const on = withPlan(true, () => serverValue(s, 'archives'));
-    const off = withPlan(false, () => serverValue(s, 'archives'));
-    expect(on).toBeCloseTo(off * 0.05, 5);
+    const bare = serverValue(s, 'archives');
+    expect(bare).toBeGreaterThan(0);
     installIceForTest(s, '30072', 'archives');
-    const iced = withPlan(true, () => serverValue(s, 'archives'));
-    const icedOff = withPlan(false, () => serverValue(s, 'archives'));
-    expect(iced).toBeCloseTo(icedOff * 0.1, 5);
+    expect(serverValue(s, 'archives')).toBeGreaterThan(bare);
   });
 
-  it('neither one discard nor a pile of three is worth a click any more', () => {
-    expect(withPlan(false, () => archivesOverCredit(discarded(1)))).toBeGreaterThan(0);
-    expect(withPlan(true, () => archivesOverCredit(discarded(1)))).toBeLessThan(0);
-    expect(withPlan(false, () => archivesOverCredit(discarded(3)))).toBeGreaterThan(0);
-    expect(withPlan(true, () => archivesOverCredit(discarded(3)))).toBeLessThan(0);
+  it('neither one discard nor a pile of three is worth a click', () => {
+    expect(archivesOverCredit(discarded(1))).toBeLessThan(0);
+    expect(archivesOverCredit(discarded(3))).toBeLessThan(0);
   });
 });

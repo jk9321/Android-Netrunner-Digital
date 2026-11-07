@@ -6,8 +6,8 @@ import { HeuristicRunnerAI, readWriteFullShuffle } from './runnerAI';
 import { evaluate } from './evaluate';
 import { GameRunner } from './playout';
 import { RunnerMemory } from './runs';
-import { asSide, logNudge, tuning } from './synergy';
-import { noteKnownHand } from './handValues';
+import { asSide, logNudge } from './synergy';
+import { decisionContext } from './handValues';
 import { knownRdSlots } from './runnerReply';
 
 /**
@@ -91,7 +91,7 @@ export function determinize(state: GameState, side: SideCode, random: Random, me
   if (side === 'corp') {
     // The Corp doesn't know the Grip or the order of either deck
     // plan.keepKnownHand: grip cards the Corp has seen stay as they are
-    const known = new Set(tuning.plan.keepKnownHand ? knownInHand(state, 'runner').map(k => k.id) : []);
+    const known = new Set(knownInHand(state, 'runner').map(k => k.id));
     const hidden = [...s.runner.grip.filter(c => !known.has(c.instanceId)), ...s.runner.stack];
     assign(hidden, shuffle(hidden.map(c => c.cardCode), random));
     // plan.keepKnownRd: R&D cards the Runner knows exactly, the Corp saw stay put too
@@ -105,10 +105,9 @@ export function determinize(state: GameState, side: SideCode, random: Random, me
   const installed = Object.values(s.corp.servers);
   const iceSlots = installed.flatMap(sv => sv.ice).filter(c => !c.isRezzed);
   // plan.keepKnownRd: faceup installed cards (BANGUN, Sacrifice Zone Expansion) are public, and so are the cards it has accessed
-  const keep = !!tuning.plan.keepKnownRd;
-  const rootSlots = installed.flatMap(sv => sv.root).filter(c => !c.isRezzed && !memory?.has(c.instanceId) && !(keep && (c.faceUp || c.runnerKnows)));
+  const rootSlots = installed.flatMap(sv => sv.root).filter(c => !c.isRezzed && !memory?.has(c.instanceId) && !(c.faceUp || c.runnerKnows));
   // plan.keepKnownHand: HQ cards the Runner has seen (accessed and left, revealed) stay as they are
-  const knownHq = new Set(tuning.plan.keepKnownHand ? knownInHand(state, 'corp').map(k => k.id) : []);
+  const knownHq = new Set(knownInHand(state, 'corp').map(k => k.id));
   const fixedRd = knownRdSlots(state);
   const loose = [...s.corp.hq.filter(c => !knownHq.has(c.instanceId)), ...s.corp.rd.filter((_, i) => !fixedRd.has(i)), ...s.corp.archives.faceDown];
   const pool = shuffle([...iceSlots, ...rootSlots, ...loose].map(c => c.cardCode), random);
@@ -161,7 +160,7 @@ function playout(state: GameState, side: SideCode, first: GameAction | 'pass-rez
     }
     if (runner.state.log.length > 40) runner.state = { ...runner.state, log: runner.state.log.slice(-5) };
   }
-  return evaluate(runner.state, side, synergy);
+  return evaluate(runner.state, side);
 }
 
 export class SearchAI implements Agent {
@@ -187,12 +186,12 @@ export class SearchAI implements Agent {
   }
 
   private decide(state: GameState): GameAction {
-    noteKnownHand(state, this.side);
+    decisionContext(state, this.side);
     // Prompts and the steps of a run follow the rule-based AI's judgement
     if (activePrompt(state) || state.activeRun || state.turnStep?.kind === 'corp_turn_start') return this.base.chooseAction(state);
     if (this.base instanceof HeuristicRunnerAI) this.base.observe(state);
     // A rule, not a judgement: a full Read-Write Share is shuffled back (plan.readWriteFull)
-    if (this.side === 'runner' && tuning.plan.readWriteFull) {
+    if (this.side === 'runner') {
       const full = readWriteFullShuffle(state, getLegalActions(state, 'runner'));
       if (full) return full;
     }
@@ -205,7 +204,7 @@ export class SearchAI implements Agent {
       return ranked[0].action;
     }
     const best = this.search(state, ranked.slice(0, this.options.candidates).map(c => ({ ...c, first: c.action })), this.options.timeMs).action;
-    noteKnownHand(state, this.side); // the look-ahead noted its own hands
+    decisionContext(state, this.side); // the look-ahead noted its own hands
     this.base.notePlayed(best); // keeps the rule-based AI's loop guard in step
     if (this.options.debug) logNudge(state, this.side, best);
     return best;

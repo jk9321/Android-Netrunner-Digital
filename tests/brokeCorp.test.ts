@@ -59,17 +59,6 @@ describe('a Corp with no credits (Jeff’s bug report, plan.agendaCredits)', () 
     expect(bareAgendas(playTurn(turn17(), createAgent('corp', 'hard', { samples: 6, seed: 1 })))).toBeLessThanOrEqual(2);
   }, 60_000);
 
-  it('the old way (plan off) is what the report saw', () => {
-    const was = { ...tuning.plan };
-    // agendaBudget closes the same hole from the other side (two agendas no longer both look scored this turn)
-    // and the report's ranking: the rule tiers, before the Corp ranked in one currency
-    Object.assign(tuning.plan, { agendaCredits: false, agendaBudget: false, oneCurrency: false });
-    try {
-      expect(bareAgendas(playTurn(turn17(), createAgent('corp', 'hard', { samples: 6, seed: 1 })))).toBeGreaterThan(2);
-    } finally {
-      Object.assign(tuning.plan, was);
-    }
-  }, 60_000);
 });
 
 /**
@@ -100,12 +89,8 @@ describe('credits a broke Corp needs (Jeff, plan.moneyReach, agendaBudget, plann
   it('credits that pay for Petty Cash in HQ are worth the money it unlocks', () => {
     const s = threeCredits();
     const at = (credits: number) => sideCreditValue({ ...s, corp: { ...s.corp, credits } }, 'corp', 'corp');
-    const was = tuning.plan.moneyReach;
-    tuning.plan.moneyReach = false;
-    const plainDrop = at(3) - at(2);
-    tuning.plan.moneyReach = was;
     // dropping to 2 loses Petty Cash for next turn (plan.heldMoney: half its gain less the click's credit, 0.5)
-    expect(at(3) - at(2)).toBeGreaterThan(plainDrop + 0.4);
+    expect(at(3) - at(2)).toBeGreaterThan(0.4);
     expect(sideCreditValue(s, 'corp', 'runner')).toBeLessThan(at(3)); // the Runner can't see HQ
   });
 

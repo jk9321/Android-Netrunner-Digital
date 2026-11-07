@@ -24,14 +24,10 @@ describe('the last hand-set cards, priced by what they do (Jeff, 2026-10-28)', (
     }
   });
 
-  it('cardValues uses the formulas while plan.effectValues is on, the hand-set numbers when off', () => {
+  it('cardValues uses the formulas', () => {
     const s = newGame();
     expect(corpKeepValue('35039', s)).toBeCloseTo(keep('35039', s));
     expect(runnerCardValue('30013', s)).toBeCloseTo(rig('30013', s) / RATES.rigCardScale);
-    tuning.plan.effectValues = false;
-    expect(corpKeepValue('35039', s)).toBeCloseTo(3 + RATES.cardDrawn * 3);
-    expect(runnerCardValue('30013', s)).toBe(2.5);
-    tuning.plan.effectValues = true;
   });
 
   // ---- Corp assets ----
@@ -234,13 +230,6 @@ describe('the last hand-set cards, priced by what they do (Jeff, 2026-10-28)', (
 });
 
 describe('Fermenter, Conduit and Mayfly (Jeff, 2026-10-28; plan.cardFixes)', () => {
-  it('Fermenter: its counters are banked and can be purged, so it counts for less', () => {
-    const on = runnerEffect(newGame(), '30007')!;
-    tuning.plan.cardFixes = false;
-    const off = runnerEffect(newGame(), '30007')!;
-    tuning.plan.cardFixes = true;
-    expect(on).toBeLessThan(off);
-  });
 
   it('Conduit: worth the extra accesses on the Conduit runs still to come, less late in the game', () => {
     const early = runnerEffect(newGame(), '30024')!;
@@ -253,18 +242,10 @@ describe('Fermenter, Conduit and Mayfly (Jeff, 2026-10-28; plan.cardFixes)', () 
     expect(runnerEffect(late(), '30024')!).toBeLessThan(early);
   });
 
-  it('Mayfly: a breaker trashed after one run is worth a third of a lasting one', async () => {
+  it('Mayfly: a breaker trashed after one run counts as one-use', async () => {
     const { isOneUse } = await import('../src/ai/evaluate');
-    const { playedWorth } = await import('../src/ai/handValues');
     const { createCardInstance } = await import('../src/core/engine/gameState');
-    const s = newGame();
-    const mayfly = createCardInstance(s, '30032');
-    expect(isOneUse(mayfly)).toBe(true);
-    const on = playedWorth(s, mayfly);
-    tuning.plan.cardFixes = false;
-    const off = playedWorth(s, mayfly);
-    tuning.plan.cardFixes = true;
-    expect(on).toBeLessThan(off);
+    expect(isOneUse(createCardInstance(newGame(), '30032'))).toBe(true);
   });
 });
 
@@ -292,12 +273,6 @@ describe('run openness (Jeff, 2026-10-28; plan.runOpenness)', () => {
   });
 
   it('later turns count for less as the Corp locks its servers down', () => {
-    const s = open();
-    const fading = rig('30013', s);
     expect(LOCKDOWN).toBeLessThan(1);
-    tuning.plan.runOpenness = false;
-    const flat = rig('30013', s) * PACE.success; // the old guess had no success odds at all
-    tuning.plan.runOpenness = true;
-    expect(fading).toBeLessThan(flat / PACE.success);
   });
 });

@@ -2,7 +2,7 @@ import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
 import { GameState, cardDef, executeAction } from '../src/core';
 import { createAgent } from '../src/ai';
-import { tuning } from '../src/ai/synergy';
+
 
 /**
  * Jeff's bug report #13 (2026-11-04; Synapse Global vs Sebastião, Hard Corp): on turn 1 the Runner
@@ -27,16 +27,6 @@ describe('Synapse Global free install (plan.freeInstallPick, bug report #13)', (
       const s = answerAll(fixture(), agent);
       expect(s.corp.servers.rd.ice.map(c => cardDef(c).title)).toEqual(['Doomscroll']);
       expect(s.corp.hq.map(c => cardDef(c).title)).toEqual(['Offworld Office']);
-    }
-  });
-
-  it('without the plan the Corp kept Doomscroll in HQ', () => {
-    tuning.plan.freeInstallPick = false;
-    try {
-      const s = answerAll(fixture());
-      expect(s.corp.hq.map(c => cardDef(c).title)).toContain('Doomscroll');
-    } finally {
-      tuning.plan.freeInstallPick = true;
     }
   });
 });

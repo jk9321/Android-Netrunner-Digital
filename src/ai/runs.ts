@@ -14,11 +14,11 @@ import {
 import { availableCredits, counters, rezCost, stealthCredits, threatLevel, turnFlag } from '../core/engine/cardEffects';
 import { stealCost } from '../core/engine/actions/run';
 import { spikeKey } from '../core/scripts/liberationRunner';
-import { corpCardValue, tagThreat, tagsWorth } from './evaluate';
+import { corpCardValue, tagsWorth } from './evaluate';
 import { agendaOdds, coreDamageWorth, counterWorthOf, damageWorth, flatlineOdds, runnerEffect } from './effectValues';
 import { clickPrice } from './handValues';
-import { tuning } from './synergy';
-import { RATES, clickRate, creditNeed, creditSlide, flatlineWorth, payoutSlide, pointValue } from './valueModel';
+import { clickRate, creditNeed, creditSlide, flatlineWorth, payoutSlide, pointValue } from './valueModel';
+import { plan } from './pricing';
 
 /**
  * What the Runner AI knows about runs. It only reads public information:
@@ -40,7 +40,6 @@ export function hostedTrojans(state: GameState, ice: CardInstance, code: string)
 
 /** Subroutines Botulus breaks on this ice for free: the virus counters on the Botulus programs it hosts. */
 export function botulusBreaks(state: GameState, ice: CardInstance): number {
-  if (!tuning.plan.trojans) return 0;
   return hostedTrojans(state, ice, BOTULUS).reduce((n, c) => n + counters(c, 'virus'), 0);
 }
 
@@ -75,13 +74,12 @@ export function knownSubroutineCost(state: GameState, label: string): number | u
   if (threat) return Math.max(state.corp.score, runner.score) >= Number(threat[1]) ? BLOCK : 0;
   if (/end the run if the runner is tagged/i.test(label)) return runner.tags > 0 ? BLOCK : 1;
   if (/if the runner has at least 2 tags/i.test(label)) return runner.tags >= 2 ? (2 >= runner.grip.length ? BLOCK : 4) : 0;
-  const rates = !!tuning.plan.subCosts;
   // Vantage Point: "... unless the Runner pays N credits": the cheaper of paying and letting the rest resolve
   const pays = label.match(/^(.*?)\s*unless the runner pays (\d+) (?:\[credit\]|credits?)\.?$/i);
   if (pays) {
     const n = Number(pays[2]);
     const rest = /^end the run$/i.test(pays[1]) ? BLOCK : knownSubroutineCost(state, pays[1]) ?? 2;
-    return runner.credits >= n ? Math.min(rates ? creditCost(state, n) : n, rest) : rest;
+    return runner.credits >= n ? Math.min(creditCost(state, n), rest) : rest;
   }
   const jacks = label.match(/^(.*?)\s*unless the runner jacks out\.?$/i);
   if (jacks) return knownSubroutineCost(state, jacks[1]);
@@ -89,19 +87,19 @@ export function knownSubroutineCost(state: GameState, label: string): number | u
     // Vicsek: X is the Runner's tags
     const x = runner.tags;
     if (x === 0) return 0;
-    return x >= runner.grip.length ? BLOCK : (rates ? damageWorth(state, x) + tagCost(state) * x : 2 * x + 3 * x);
+    return x >= runner.grip.length ? BLOCK : damageWorth(state, x) + tagCost(state) * x;
   }
-  if (/loses? \[click\]/i.test(label)) return rates ? clickRate('runner') : 2;
+  if (/loses? \[click\]/i.test(label)) return clickRate();
   if (/gets \+1 strength for the remainder of this run/i.test(label)) return 1.5; // ezaM: every ice after it costs more to break
   if (/each piece of ice gets \+2 strength for the remainder of this run/i.test(label)) return 2.5; // Tributary: every ice costs more to break
-  if (/installed runner card to the grip/i.test(label)) return rates ? 0.5 * trashedCardCost(state) + 1 : 2; // Lethe: a reinstall, not a loss
+  if (/installed runner card to the grip/i.test(label)) return 0.5 * trashedCardCost(state) + 1; // Lethe: a reinstall, not a loss
   if (/remove 1 card in the heap from the game/i.test(label)) return 0.3;
   if (/place 1 virus counter on this ice/i.test(label)) return 0; // Knowledge Seeker: counts down to its own derez
   if (/look at the top \d+ cards? of r&d|arrange|to the (?:top or )?bottom of r&d|shuffle 1 card from hq or archives into r&d/i.test(label)) return 0.4; // Corp card selection
-  if (/core damage/i.test(label)) return rates ? coreDamageWorth(state) + damageWorth(state, 1) : 6;
-  if (/unless they pay 3 credits/i.test(label)) return rates ? creditCost(state, 3) : 3;
+  if (/core damage/i.test(label)) return coreDamageWorth(state) + damageWorth(state, 1);
+  if (/unless they pay 3 credits/i.test(label)) return creditCost(state, 3);
   const loses = label.match(/loses? (\d+) (?:\[credit\]|credits?)/i);
-  if (loses) return rates ? creditCost(state, Math.min(Number(loses[1]), runner.credits)) : Math.min(Number(loses[1]), runner.credits);
+  if (loses) return creditCost(state, Math.min(Number(loses[1]), runner.credits));
   if (/or end the run/i.test(label)) return runner.rig.programs.length > 0 ? 5 : BLOCK;
   if (/odd cost/i.test(label)) return runner.grip.length <= 1 ? BLOCK : 4; // Diviner: half the time it ends the run
   if (/6 credits or less/i.test(label)) return runner.credits - 3 <= 6 ? BLOCK : 0;
@@ -113,18 +111,18 @@ export function knownSubroutineCost(state: GameState, label: string): number | u
   const damage = label.match(/(\d+) (net|meat) damage/i);
   if (damage) {
     const n = Number(damage[1]);
-    return n >= runner.grip.length ? BLOCK : rates ? damageWorth(state, n) : 2 * n;
+    return n >= runner.grip.length ? BLOCK : damageWorth(state, n);
   }
   if (/gain 1 \[credit\] for each tag/i.test(label)) return 0.3 * runner.tags; // Capacitor: Corp credits
-  if (/tag/i.test(label)) return rates ? tagCost(state) : 3;
-  if (/trash 1 installed runner card/i.test(label)) return rates ? trashedCardCost(state) : 4;
+  if (/tag/i.test(label)) return tagCost(state);
+  if (/trash 1 installed runner card/i.test(label)) return trashedCardCost(state);
   if (/gain 1 credit/i.test(label)) return 0.3;
   if (/gain 1 \[credit\]/i.test(label)) return 0.8; // Flywheel: a credit and maybe a card
   const gains = label.match(/^gain (\d+) \[credit\]/i);
   if (gains) return 0.4 * Number(gains[1]); // Valentão: Corp credits
   // Sorocaban Blade, Hammer, Lycian: a rig card lost, when there is one of that type (with none, the old flat 1.5 below)
   const trashType = label.match(/trash 1 installed (resource|piece of hardware|program)/i);
-  if (trashType && rates) {
+  if (trashType) {
     const zone = { resource: runner.rig.resources, 'piece of hardware': runner.rig.hardware, program: runner.rig.programs }[trashType[1].toLowerCase() as 'resource'];
     if (zone.length > 0) return trashedCardCost(state);
   }
@@ -139,7 +137,6 @@ export function knownSubroutineCost(state: GameState, label: string): number | u
  */
 export function creditCost(state: GameState, credits: number): number {
   if (credits <= 0) return 0;
-  if (!tuning.plan.creditSlide?.runner) return credits;
   const have = state.runner.credits;
   const need = creditNeed(state, 'runner');
   return creditSlide(have, need) - creditSlide(have - credits, need);
@@ -149,23 +146,20 @@ export function creditCost(state: GameState, credits: number): number {
 export const spendCost = (state: GameState, credits: number): number => creditCost(state, credits);
 
 /** A click spent on a run, in runScore's units. */
-export const runClick = (state?: GameState): number => (state ? clickPrice(state, 'runner', 'runner') : clickRate('runner'));
+export const runClick = (state?: GameState): number => (state ? clickPrice(state, 'runner', 'runner') : clickRate());
 
 /** A tag taken (Jeff): the cheaper of clearing it (a click and 2 credits) and what it costs to keep it. */
 export function tagCost(state: GameState): number {
-  if (tuning.plan.tagClock) {
-    // A run still to start takes its click first (plan.tagNoClear: what's left to clear the tag with)
-    const s = tuning.plan.tagNoClear && !state.activeRun ? { ...state, runner: { ...state.runner, clicks: state.runner.clicks - 1 } } : state;
-    return tagsWorth(s, 'runner', s.runner.tags + 1) - tagsWorth(s, 'runner', s.runner.tags); // both priced as given (plan.tagTrashNow)
-  }
-  return Math.min(clickRate('runner') + creditCost(state, 2), RATES.tagAgainstRunner + tagThreat(state, 'runner'));
+  // A run still to start takes its click first (plan.tagNoClear: what's left to clear the tag with)
+  const s = !state.activeRun ? { ...state, runner: { ...state.runner, clicks: state.runner.clicks - 1 } } : state;
+  return tagsWorth(s, 'runner', s.runner.tags + 1) - tagsWorth(s, 'runner', s.runner.tags); // both priced as given (plan.tagTrashNow)
 }
 
 /** An installed card the Corp gets to trash: about the Runner's best, a breaker at its install cost and the time to replace it. */
 export function trashedCardCost(state: GameState): number {
   const rig = [...state.runner.rig.programs, ...state.runner.rig.hardware, ...state.runner.rig.resources];
   if (rig.length === 0) return 0;
-  return Math.min(8, Math.max(...rig.map(c => (cardDef(c).cost ?? 0) + clickRate('runner') + 1)));
+  return Math.min(8, Math.max(...rig.map(c => (cardDef(c).cost ?? 0) + clickRate() + 1)));
 }
 
 export interface BreakPlan {
@@ -300,7 +294,7 @@ const PHYSARUM = '34082';
  * or the Runner can't pay.
  */
 export function physarumCost(state: GameState, ice: CardInstance): number | undefined {
-  if (!tuning.plan.bypass || !ice.isRezzed || iceSubtypes(ice, state).includes('barrier')) return undefined;
+  if (!plan().bypass || !ice.isRezzed || iceSubtypes(ice, state).includes('barrier')) return undefined;
   if (!state.runner.rig.programs.some(p => p.cardCode === PHYSARUM && p.hostedOnId === ice.instanceId)) return undefined;
   const credits = iceSubroutines(state, ice).length;
   return credits <= runBudget(state) ? credits : undefined;
@@ -381,7 +375,7 @@ const ALARM_CLOCK = '34078';
  */
 function bypassesAhead(state: GameState, inner: CardInstance[], encountering: boolean): Set<string> {
   const run = state.activeRun;
-  if (!tuning.plan.bypass || !run || run.icePosition === null) return new Set();
+  if (!plan().bypass || !run || run.icePosition === null) return new Set();
   const current = state.corp.servers[run.server]?.ice[run.icePosition];
   // Approaching (or just past) rezzed ice not being encountered: counted as encountered, to be safe
   const encounters = (run.runFlags?.encounters ?? 0) + (current?.isRezzed && !encountering ? 1 : 0);
@@ -500,7 +494,7 @@ function stealWorth(state: GameState, points: number, deny: number): number {
 /** Chance an unseen card in a remote's root is an agenda (Jeff: higher the more the Corp has put into the server). */
 export function remoteAgendaOdds(state: GameState, server: { ice: CardInstance[] }, card: CardInstance, trap: number): number {
   if (card.advancementCounters > 0) return Math.max(0, 1 - trap);
-  const corp = [...state.corp.hq, ...state.corp.rd, ...state.corp.archives.faceDown, ...Object.values(state.corp.servers).flatMap(s => s.root.filter(c => !c.isRezzed && !c.faceUp && !(tuning.plan.runnerKnown && c.runnerKnows)))];
+  const corp = [...state.corp.hq, ...state.corp.rd, ...state.corp.archives.faceDown, ...Object.values(state.corp.servers).flatMap(s => s.root.filter(c => !c.isRezzed && !c.faceUp && !c.runnerKnows))];
   const kinds = corp.map(c => cardDef(c).type_code);
   const agendas = kinds.filter(t => t === 'agenda').length;
   const roots = kinds.filter(t => t === 'agenda' || t === 'asset' || t === 'upgrade').length;
@@ -559,7 +553,6 @@ const UNSEEN_AGENDA = { instanceId: '', cardCode: '' } as CardInstance;
  * it can't steal (plan.stealCosts; Gemini audit, 2026-11-01).
  */
 export function stealTax(state: GameState, serverId: string, agenda: CardInstance = UNSEEN_AGENDA): number | null {
-  if (!tuning.plan.stealCosts) return 0;
   const cost = stealCost(state, agenda);
   if (!cost.clicks && !cost.credits) return 0;
   const server = state.corp.servers[serverId];
@@ -567,7 +560,7 @@ export function stealTax(state: GameState, serverId: string, agenda: CardInstanc
   const ice = state.activeRun || !server ? 0 : server.ice.reduce((n, c) => n + (c.isRezzed ? iceCost(state, c) : 0), 0);
   const credits = (state.activeRun ? availableCredits(state, 'runner') : runBudget(state)) - ice;
   if (clicks < cost.clicks || credits < cost.credits) return null;
-  return cost.clicks * clickRate('runner') + creditCost(state, cost.credits);
+  return cost.clicks * clickRate() + creditCost(state, cost.credits);
 }
 
 /**
@@ -578,7 +571,7 @@ export function stealTax(state: GameState, serverId: string, agenda: CardInstanc
  */
 export function hqAgendaOdds(state: GameState, odds: number): number {
   const size = state.corp.hq.length;
-  if (!tuning.plan.knownHq || size === 0) return odds;
+  if (size === 0) return odds;
   const known = knownInHand(state, 'corp').slice(-size);
   const agendas = known.filter(k => getCardDefinition(k.code).type_code === 'agenda').length;
   return (agendas + (size - known.length) * odds) / size;
@@ -594,9 +587,7 @@ function serverWorth(state: GameState, serverId: string, extraAccesses: number, 
   const central = taxedSteal(stealWorth(state, points, DENY.central), unseenTax);
   let value = 0;
   if (serverId === 'rd') {
-    value = tuning.plan.rdMemory
-      ? rdWorth(state, 1 + extraAccesses, odds, central)
-      : (1 + extraAccesses) * odds * central * 0.3 ** repeat; // a second look sees the same top card
+    value = rdWorth(state, 1 + extraAccesses, odds, central);
   }
   else if (serverId === 'hq') value = state.corp.hq.length === 0 ? 0 : Math.min(1 + extraAccesses, state.corp.hq.length) * hqAgendaOdds(state, odds) * central * 0.5 ** repeat;
   else if (serverId === 'archives') {
@@ -604,7 +595,7 @@ function serverWorth(state: GameState, serverId: string, extraAccesses: number, 
     const faceUp = state.corp.archives.faceUp.filter(c => cardDef(c).type_code === 'agenda');
     // plan.archivesChosen (Jeff, bug report #5): facedown cards are ones the Corp chose to put there (discards,
     // Hansei Review); a Corp rarely chooses an agenda, with or without ice there
-    const chosen = !tuning.plan.archivesChosen ? 1 : state.corp.servers.archives.ice.length === 0 ? ARCHIVES_CHOSEN_ODDS : ARCHIVES_CHOSEN_ODDS_ICED;
+    const chosen = state.corp.servers.archives.ice.length === 0 ? ARCHIVES_CHOSEN_ODDS : ARCHIVES_CHOSEN_ODDS_ICED;
     value = faceUp.reduce((n, c) => n + taxedSteal(stealWorth(state, cardDef(c).agenda_points ?? 1, 0), stealTax(state, serverId, c)), 0) + Math.min(3, state.corp.archives.faceDown.length) * odds * chosen * taxedSteal(stealWorth(state, points, 0), unseenTax);
   }
   if (repeat > 0 && server.isRemote) return 0;
@@ -624,7 +615,7 @@ function serverWorth(state: GameState, serverId: string, extraAccesses: number, 
       // Seen it: only worth coming back to trash it, and never into a known trap
       if (accessTrap(card.cardCode)) return 0;
       // An agenda left behind (its additional cost to steal unpaid, Méliès City Luxury Line): back for it when it can pay
-      if (tuning.plan.stealCosts && cardDef(card).type_code === 'agenda') {
+      if (cardDef(card).type_code === 'agenda') {
         value += taxedSteal(stealWorth(state, cardDef(card).agenda_points ?? 1, DENY.remote), stealTax(state, serverId, card));
         continue;
       }
@@ -722,7 +713,7 @@ export interface Bypasses {
 export function runBypasses(state: GameState, serverId: string, options: RunOptions = {}, ahead?: { ice: CardInstance[]; encounters: number }): Bypasses {
   const out: Bypasses = { ids: new Set(), price: 0 };
   const server = state.corp.servers[serverId];
-  if (!tuning.plan.bypass || !server) return out;
+  if (!plan().bypass || !server) return out;
   // Before the run: all of its ice; during it, the ice still ahead (outermost first) after the encounters so far
   const outward = ahead?.ice ?? [...server.ice].reverse();
   const done = ahead?.encounters ?? 0;
@@ -842,7 +833,7 @@ export function runScore(state: GameState, serverId: string, options: RunOptions
   if (!server) return -Infinity;
   const breached = options.noBreach ? 0 : serverValue(state, options.breachAs ?? serverId, options.extraAccesses ?? 0, options.memory, options.wary);
   const gained = options.successCredits ?? 0;
-  const credits = gained > 0 && tuning.plan.runCreditsSlide ? gained * payoutSlide(state, 'runner', 'runner', gained) : gained;
+  const credits = gained > 0 && plan().runCreditsSlide ? gained * payoutSlide(state, 'runner', gained) : gained;
   let value = breached + ((options.successBonus ?? 0) + credits);
   if (options.baker && serverId === 'archives' && runStealthCredits(state) >= 1) {
     // Baker: after Archives' ice, a stealth credit turns the run on HQ or R&D, whose ice it skipped
@@ -853,7 +844,7 @@ export function runScore(state: GameState, serverId: string, options: RunOptions
   // empty grip that damage is a flatline only as often as the Corp has a hit to land (flatlineOdds), not every time; priced as
   // a sure flatline, every run scored below zero, and a Runner with no cards left in grip or Stack never ran again while the
   // Corp decked out (rules 4.2.7b, 10.4.4)
-  if (state.runner.grip.length === 0 && tuning.plan.emptyGripRuns) value -= 0.25 * flatlineWorth(state) * flatlineOdds(state, 0);
+  if (state.runner.grip.length === 0) value -= 0.25 * flatlineWorth(state) * flatlineOdds(state, 0);
   else if (state.runner.grip.length <= 1) value -= 0.25 * damageWorth(state, 1);
   if (value <= 0) return -Infinity;
   let known = 0;
@@ -867,13 +858,13 @@ export function runScore(state: GameState, serverId: string, options: RunOptions
   // Bypassed ice costs nothing to pass (rules 6.5.8a); Window of Opportunity's derezzed ice is
   // passed unencountered unless the Corp rezzes it again (6.9.2b-c), which costs it the rez
   const bypassed = runBypasses(state, serverId, options);
-  const derez = options.derezOne && tuning.plan.bypass ? windowDerez(state, serverId) : undefined;
+  const derez = options.derezOne && plan().bypass ? windowDerez(state, serverId) : undefined;
   if (derez && !derez.rerez) bypassed.ids.add(derez.ice.instanceId);
   if (derez?.rerez) value += 0.5 * rezCost(state, derez.ice); // the Corp pays it about half the time
   for (const ice of [...server.ice].reverse()) {
     if (bypassed.ids.has(ice.instanceId)) continue;
     if (ice.isRezzed) paidOutside += Math.min(iceCreditNeed(state, ice), budget);
-    else if (tuning.plan.rezAllowance && canRez && paidOutside > 0) {
+    else if (canRez && paidOutside > 0) {
       const spare = budget - paidOutside;
       waste += paidOutside * (spare < 2 ? 0.5 : spare < 4 ? 0.25 : 0.1);
     }

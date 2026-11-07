@@ -3,8 +3,8 @@ import { describe, expect, it } from 'vitest';
 import { GameState, cardDef, executeAction, findCardAnywhere } from '../src/core';
 import { HeuristicCorpAI } from '../src/ai/corpAI';
 import { createAgent } from '../src/ai';
-import { asSide, tuning } from '../src/ai/synergy';
 import { legacyRanking } from './legacyRanking';
+import { inDecision } from './helpers/pricing';
 
 // plan.oneCurrency: OPEN (2026-11-06): the one-currency Corp purges Audrey v2 here (13.9 vs 3.9 for the install, was 51
 // before lastingIceCost). Arguably a fair answer to a Runner walking into HQ on Audrey every turn, but not what the report
@@ -26,7 +26,7 @@ function position(): GameState {
 
 const title = (s: GameState, id: string) => cardDef(findCardAnywhere(s, id)!).title;
 const top = (s: GameState) => {
-  const [best] = asSide('corp', () => new HeuristicCorpAI({ synergy: true, planner: false }).rankMainActions(s));
+  const [best] = inDecision(s, 'corp', () => new HeuristicCorpAI({ synergy: true, planner: false }).rankMainActions(s));
   return best.action.type === 'INSTALL_CARD' ? `install ${title(s, best.action.cardInstanceId)}${best.action.targetServerId?.startsWith('remote') ? ' in a remote' : ''}` : best.action.type;
 };
 
@@ -49,13 +49,4 @@ describe('an agenda leaves HQ when HQ is no safer (plan.hqNoSafer)', () => {
     }
     expect(advanced).toBeGreaterThanOrEqual(2);
   }, 60_000);
-
-  it('without the plan the agenda stays in HQ', () => {
-    tuning.plan.hqNoSafer = false;
-    try {
-      expect(top(position())).not.toBe('install Offworld Office in a remote');
-    } finally {
-      tuning.plan.hqNoSafer = true;
-    }
-  });
 });

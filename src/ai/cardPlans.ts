@@ -4,8 +4,8 @@ import { turnKey } from '../core/engine/helpers';
 import { corpCardValue, tagsWorth } from './evaluate';
 import { damageWorth } from './effectValues';
 import { runStealthCredits, trashedCardCost } from './runs';
-import { tuning } from './synergy';
 import { CLICK, cardRate, pointGain } from './valueModel';
+import { pricing, withPricing } from './pricing';
 
 /**
  * Card plans (Jeff, 2026-10-30; plan.cardPlans): cards that pay off only
@@ -131,40 +131,34 @@ const installable = (state: GameState, card: CardInstance) => state.runner.grip.
 
 /** An installed Principia's worth as Knickknack fuel. */
 export function principiaFuel(state: GameState, card: CardInstance): number {
-  if (!plansOn() || card.cardCode !== PRINCIPIA || !state.runner.rig.resources.some(r => r.cardCode === KNICKKNACK)) return 0;
+  if (card.cardCode !== PRINCIPIA || !state.runner.rig.resources.some(r => r.cardCode === KNICKKNACK)) return 0;
   return 0.6 * ((cardDef(card).cost ?? 0) + cardRate(state, 'runner'));
 }
 
-export const plansOn = (): boolean => !!tuning.plan.cardPlans;
 
 /** A card's worth in hand by its plan (before the wait), or undefined if it has none. */
 export function handPlanWorth(state: GameState, card: CardInstance): number | undefined {
-  const plan = plansOn() ? CARD_PLANS[card.cardCode]?.hand : undefined;
+  const hand = CARD_PLANS[card.cardCode]?.hand;
   // A payoff priced from card values can come back here (the deck's average card counts this one): the average then
-  if (!plan || planning) return undefined;
-  planning = true;
-  try {
-    const ready = Math.max(0, Math.min(1, plan.ready(state, card)));
+  if (!hand || pricing().planning) return undefined;
+  return withPricing({ planning: true }, () => {
+    const ready = Math.max(0, Math.min(1, hand.ready(state, card)));
     // No floor here: a card whose setup is far off is worth little (heldWorth keeps the hand floor)
-    return ready * plan.payoff(state, card);
-  } finally {
-    planning = false;
-  }
+    return ready * hand.payoff(state, card);
+  });
 }
-let planning = false;
 
 /** What the installed board plans of `side` add to its board. */
 export function boardPlansWorth(state: GameState, side: SideCode): number {
-  if (!plansOn()) return 0;
   const cards = side === 'runner' ? [...state.runner.rig.programs, ...state.runner.rig.hardware, ...state.runner.rig.resources, state.runner.identity] : [...installedCorp(state), state.corp.identity];
   let worth = 0;
   for (const card of cards) {
-    const plan = card && CARD_PLANS[card.cardCode];
-    if (plan?.board && plan.side === side) worth += plan.board(state, card);
+    const cardPlan = card && CARD_PLANS[card.cardCode];
+    if (cardPlan?.board && cardPlan.side === side) worth += cardPlan.board(state, card);
   }
   return worth;
 }
 
 /** Baker installed and no stealth credit to run it on: worth feeding Methuselah for. */
-export const bakerWantsFuel = (state: GameState): boolean => plansOn() && state.runner.rig.programs.some(c => c.cardCode === BAKER) && runStealthCredits(state) < 1;
+export const bakerWantsFuel = (state: GameState): boolean => state.runner.rig.programs.some(c => c.cardCode === BAKER) && runStealthCredits(state) < 1;
 

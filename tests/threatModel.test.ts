@@ -6,9 +6,11 @@ import { GameRunner } from '../src/ai/playout';
 import { HeuristicRunnerAI } from '../src/ai/runnerAI';
 import { MEASURED_PASS, passOddsOf, stealOdds } from '../src/ai/effectValues';
 import { asSide, tuning } from '../src/ai/synergy';
+import { plan } from '../src/ai/pricing';
 import { CALIBRATED_RUN, remoteRunChance, runChance, threat, threatLoss } from '../src/ai/threatModel';
 import { installIceForTest, installProgramForTest, newGame } from './helpers';
 import { threatStanding } from '../src/ai/evaluate';
+import { inDecision } from './helpers/pricing';
 
 /**
  * Structural review item 3 (plan.threatModel; spec "Item 3 spec" of the AI code review doc): the Corp's threat is the
@@ -21,7 +23,7 @@ const PALISADE = '30072';
 const threatDefault = tuning.plan.threatModel;
 beforeEach(() => { tuning.plan.threatModel = true; });
 afterEach(() => { tuning.plan.threatModel = threatDefault; });
-const corpThreat = (s: GameState) => asSide('corp', () => threat(s));
+const corpThreat = (s: GameState) => inDecision(s, 'corp', () => threat(s));
 /** What the Runner does with the turn: where it runs, and its own scores (no Corp-side numbers). */
 const runnerSide = (s: GameState) => {
   const t = corpThreat(s);
@@ -89,14 +91,14 @@ describe('where the Runner runs', () => {
     const agenda = s.corp.rd.splice(s.corp.rd.indexOf(ofType(s.corp.rd, 'agenda')), 1)[0];
     s.corp.servers['remote-1'] = { id: 'remote-1', name: 'Remote Server 1', isRemote: true, ice: [], root: [{ ...agenda, isRezzed: false, faceUp: false }] };
     expect(corpThreat(s).servers['remote-1'].run).toBe(1);
-    expect(asSide('corp', () => stealOdds(s, 'remote-1'))).toBe(1);
+    expect(inDecision(s, 'corp', () => stealOdds(s, 'remote-1'))).toBe(1);
   });
 
   it('an agenda about to go into a new bare remote reads 1 too (the probe)', () => {
     const s = newGame();
     s.activePlayer = 'corp';
     s.corp.servers['remote-1'] = { id: 'remote-1', name: 'Remote Server 1', isRemote: true, ice: [], root: [] };
-    expect(asSide('corp', () => remoteRunChance(s, 'remote-1'))).toBe(1);
+    expect(inDecision(s, 'corp', () => remoteRunChance(s, 'remote-1'))).toBe(1);
   });
 
   it('a remote behind rezzed ice the rig cannot break reads 0', () => {
@@ -105,7 +107,7 @@ describe('where the Runner runs', () => {
     s.corp.servers['remote-1'].ice[0].isRezzed = true;
     installIceForTest(s, PALISADE, 'remote-1');
     expect(corpThreat(s).servers['remote-1'].run).toBe(0);
-    expect(asSide('corp', () => stealOdds(s, 'remote-1'))).toBe(0);
+    expect(inDecision(s, 'corp', () => stealOdds(s, 'remote-1'))).toBe(0);
   });
 
   it('bug report #15 (the Runner walked into HQ every turn): the threat runs where the Runner AI now runs', () => {
@@ -135,15 +137,15 @@ describe('where the Runner runs', () => {
     const agenda = s.corp.rd.splice(s.corp.rd.indexOf(ofType(s.corp.rd, 'agenda')), 1)[0];
     s.corp.servers['remote-1'] = { id: 'remote-1', name: 'Remote Server 1', isRemote: true, ice: [], root: [{ ...agenda, isRezzed: false, faceUp: false }] };
     installIceForTest(s, PALISADE, 'remote-1');
-    const first = asSide('corp', () => stealOdds(s, 'remote-1'));
+    const first = inDecision(s, 'corp', () => stealOdds(s, 'remote-1'));
     expect(first).toBe(0);
-    expect(asSide('corp', () => threatStanding(s, 'remote-1', 1, first))).toBe(1);
-    expect(asSide('corp', () => threatStanding(s, 'remote-1', 2, first))).toBeLessThan(0.2);
+    expect(inDecision(s, 'corp', () => threatStanding(s, 'remote-1', 1, first))).toBe(1);
+    expect(inDecision(s, 'corp', () => threatStanding(s, 'remote-1', 2, first))).toBeLessThan(0.2);
   });
 
   it('the switch is the Corp’s: the Runner AI keeps its own plan (sideOff.runner)', () => {
     expect(tuning.plan.threatModel).toBe(true);
-    expect(asSide('runner', () => tuning.plan.threatModel)).toBe(false);
+    expect(asSide('runner', () => plan().threatModel)).toBe(false);
   });
 
   it('round 2: plan.measuredPass prices unrezzed ice at the measured rates (the first layer, then each after it)', () => {
@@ -151,13 +153,13 @@ describe('where the Runner runs', () => {
     const measured = tuning.plan.measuredPass;
     try {
       tuning.plan.measuredPass = true;
-      expect(asSide('corp', () => passOddsOf(s, 'remote-1'))).toBeCloseTo(MEASURED_PASS.rich.first);
+      expect(inDecision(s, 'corp', () => passOddsOf(s, 'remote-1'))).toBeCloseTo(MEASURED_PASS.rich.first);
       installIceForTest(s, PALISADE, 'remote-1', false);
-      expect(asSide('corp', () => passOddsOf(s, 'remote-1'))).toBeCloseTo(MEASURED_PASS.rich.first * MEASURED_PASS.rich.more);
+      expect(inDecision(s, 'corp', () => passOddsOf(s, 'remote-1'))).toBeCloseTo(MEASURED_PASS.rich.first * MEASURED_PASS.rich.more);
       s.corp.credits = 1;
-      expect(asSide('corp', () => passOddsOf(s, 'remote-1'))).toBeCloseTo(MEASURED_PASS.broke.first * MEASURED_PASS.broke.more);
+      expect(inDecision(s, 'corp', () => passOddsOf(s, 'remote-1'))).toBeCloseTo(MEASURED_PASS.broke.first * MEASURED_PASS.broke.more);
       // The Runner's side keeps its own guess
-      expect(asSide('runner', () => tuning.plan.measuredPass)).toBe(false);
+      expect(asSide('runner', () => plan().measuredPass)).toBe(false);
     } finally {
       tuning.plan.measuredPass = measured;
     }
@@ -189,8 +191,8 @@ describe('where the Runner runs', () => {
     expect(t.order).toContain('remote-1');
     const spent = s.runner.credits + (4 - t.runs) - t.endCredits; // its credit clicks in, the tolls out
     expect(spent).toBeGreaterThan(0);
-    const off = withPlan({ threatSpend: false }, () => asSide('corp', () => threatLoss(structuredClone(s))));
-    const on = withPlan({ threatSpend: true }, () => asSide('corp', () => threatLoss(structuredClone(s))));
+    const off = withPlan({ threatSpend: false }, () => inDecision(s, 'corp', () => threatLoss(structuredClone(s))));
+    const on = withPlan({ threatSpend: true }, () => inDecision(s, 'corp', () => threatLoss(structuredClone(s))));
     expect(on).toBeLessThan(off);
   });
 
@@ -200,10 +202,10 @@ describe('where the Runner runs', () => {
     const agenda = s.corp.rd.splice(s.corp.rd.indexOf(ofType(s.corp.rd, 'agenda')), 1)[0];
     s.corp.servers['remote-1'] = { id: 'remote-1', name: 'Remote Server 1', isRemote: true, ice: [], root: [{ ...agenda, isRezzed: false, faceUp: false }] };
     withPlan({ calibratedRun: true }, () => {
-      expect(asSide('corp', () => runChance(structuredClone(s), 'remote-1'))).toBe(CALIBRATED_RUN.remote.picked);
+      expect(inDecision(s, 'corp', () => runChance(structuredClone(s), 'remote-1'))).toBe(CALIBRATED_RUN.remote.picked);
       const order = corpThreat(structuredClone(s)).order;
-      for (const id of ['hq', 'rd'] as const) expect(asSide('corp', () => runChance(structuredClone(s), id))).toBe(order.includes(id) ? CALIBRATED_RUN[id].picked : CALIBRATED_RUN[id].not);
+      for (const id of ['hq', 'rd'] as const) expect(inDecision(s, 'corp', () => runChance(structuredClone(s), id))).toBe(order.includes(id) ? CALIBRATED_RUN[id].picked : CALIBRATED_RUN[id].not);
     });
-    expect(asSide('corp', () => runChance(structuredClone(s), 'remote-1'))).toBe(1);
+    expect(inDecision(s, 'corp', () => runChance(structuredClone(s), 'remote-1'))).toBe(1);
   });
 });

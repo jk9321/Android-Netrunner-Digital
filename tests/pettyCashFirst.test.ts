@@ -30,24 +30,4 @@ describe('Petty Cash is played first, while it can be (plan.pettyCashFirst)', ()
     if (!tuning.plan.oneCurrency) expect(inHq(s)).not.toContain('Petty Cash');
     expect(s.log.some(l => l.message === 'Corp spent [click] to gain 1 credit.')).toBe(false);
   });
-
-  it('without the plan it clicks for a credit and keeps Petty Cash', () => {
-    // plan.heldMoney (held Petty Cash no longer counted twice) plays it first on its own here
-    tuning.plan.pettyCashFirst = false;
-    tuning.plan.heldMoney = false;
-    // plan.measuredTurnsLeft (2026-11-05) plays it here too: on the longer horizon the old way didn't hold it
-    tuning.plan.measuredTurnsLeft = false;
-    tuning.plan.measuredRunShares = false; // the same with the measured run shares
-    const one = tuning.plan.oneCurrency;
-    tuning.plan.oneCurrency = false; // the ranking the bug was found on (the rule tiers)
-    try {
-      expect(inHq(play())).toContain('Petty Cash');
-    } finally {
-      tuning.plan.pettyCashFirst = true;
-      tuning.plan.heldMoney = true;
-      tuning.plan.measuredTurnsLeft = true;
-      tuning.plan.measuredRunShares = true;
-      tuning.plan.oneCurrency = one;
-    }
-  });
 });

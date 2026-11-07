@@ -10,7 +10,7 @@
  * damage clocks), each behind its own tuning.plan switch.
  */
 import { CardInstance, GameState, SideCode, cardDef } from '../core';
-import { actingSide, planSide, tuning } from './synergy';
+import { plan, pricingKey } from './pricing';
 
 export const RATES = {
   /** A click left this turn. */
@@ -26,7 +26,7 @@ export const RATES = {
   drawnCardOff: 0.8,
   /** An agenda point in a score area. */
   point: 8,
-  /** A tag, to the Corp and against the Runner (plus tagThreat with the deck-aware AI). */
+  /** A tag, to the Corp and against the Runner (the flat rate; tagsWorth prices tags on the tag clock). */
   tagForCorp: 1.5,
   tagAgainstRunner: 3,
   /** Each point of core damage taken. */
@@ -79,7 +79,7 @@ export function creditValue(credits: number): number {
 
 /**
  * The click prices (code audit cleanup item 5, 2026-11-06), one place for all of them:
- * - CLICK 1.25: a click by default (Jeff: never under a credit). clickRate(viewer) is this, or RATES.click (1, step 1)
+ * - CLICK 1.25: a click by default (Jeff: never under a credit). clickRate() is this (RATES.click, 1, was step 1)
  *   with plan.clickRate off for that side.
  * - clickWorth (handValues): a side's own click priced by the best plays in its hand, 1 to 3 (plan.clickByPlay).
  *   clickPrice(state, side, viewer) picks between them.
@@ -89,8 +89,8 @@ export function creditValue(credits: number): number {
  *   plan.oneClickPrice makes it CLICK.
  */
 export const CLICK = 1.25;
-export const clickRate = (viewer: SideCode): number => (tuning.plan.clickRate?.[viewer] ? CLICK : RATES.click);
-export const payoutClick = (): number => (tuning.plan.oneClickPrice ? CLICK : RATES.click);
+export const clickRate = (): number => CLICK;
+export const payoutClick = (): number => CLICK;
 
 /**
  * Worth of `credits` against a need (Jeff): each extra credit is worth 1.8
@@ -124,7 +124,7 @@ export const KNOBS = {
 };
 /** Worth of a score of `score` points: the sum of its steps. */
 export function pointValue(score: number, scale = 1): number {
-  if (!tuning.plan.pointClock) return RATES.point * score * scale;
+  if (!plan().pointClock) return RATES.point * score * scale;
   let value = 0;
   for (let s = 1; s <= score; s++) value += POINT_STEPS[Math.min(s, 7)];
   return value * scale;
@@ -156,15 +156,13 @@ export function memo<T>(state: GameState, key: string, work: () => T): T {
     entry = { print, values: new Map() };
     memos.set(state, entry);
   }
-  key = planSide() + (tuning.plan.ownTrashRisk ? actingSide() ?? '' : '') + ':' + key; // values depend on the deciding side and its plan (synergy.ts sideOff; plan.ownTrashRisk)
+  key = pricingKey() + ':' + key; // values depend on the pricing context: the deciding side, its plan, the guards up (pricing.ts)
   if (entry.values.has(key)) return entry.values.get(key) as T;
   const value = work();
   entry.values.set(key, value);
   return value;
 }
 
-/** True while a plan.flatRates piece is on. */
-export const flatRate = (key: string): boolean => !!tuning.plan.flatRates?.[key];
 
 /** The deck's average card (handValues.ts registers it; valueModel can't import it without a cycle). */
 let deckCard: ((state: GameState, side: SideCode) => number) | null = null;
@@ -176,12 +174,11 @@ export const setDeckCard = (fn: (state: GameState, side: SideCode) => number) =>
  * hand), else the flat rate.
  */
 export function cardRate(state: GameState | undefined, side: SideCode): number {
-  return state && deckCard && flatRate('cards') ? deckCard(state, side) : RATES.drawnCard;
+  return state && deckCard ? deckCard(state, side) : RATES.drawnCard;
 }
 
 /** Worth of `points` more for a side on `score` (averaged decklist points can be fractional). */
 export function pointGain(score: number, points: number): number {
-  if (!flatRate('points')) return RATES.point * points;
   const whole = Math.floor(points);
   const base = pointValue(score + whole) - pointValue(score);
   return base + (points - whole) * (pointValue(score + whole + 1) - pointValue(score + whole));
@@ -189,12 +186,11 @@ export function pointGain(score: number, points: number): number {
 
 /** Worth of a flatline (plan.flatRates.flatline: the whole game, the Corp's points still to come and the Runner's lost). */
 export function flatlineWorth(state: GameState): number {
-  if (!flatRate('flatline')) return 4 * RATES.point;
   return pointValue(7) - pointValue(state.corp.score) + pointValue(state.runner.score);
 }
 
 /** Worth of the first card over the hand-size limit (Jeff: you pick the worst card to discard). */
-export const handFilter = (): number => (tuning.plan.handFilter ? 0.3 : 0);
+export const handFilter = (): number => 0.3;
 
 /** Every card a side owns, wherever it is (for decklist averages). */
 export function sideCards(state: GameState, side: SideCode): CardInstance[] {
@@ -280,7 +276,7 @@ export function moneyReach(state: GameState): number {
   const card = reachCard(state);
   // plan.heldMoney: less the credit the click that plays it could have taken instead, so holding it is never worth
   // as much as playing it (a held Petty Cash, +2 for a click, was worth the same as a click for a credit)
-  return card ? MONEY_REACH * Math.max(0, moneyGain(card) - (tuning.plan.heldMoney ? 1 : 0)) : 0;
+  return card ? MONEY_REACH * Math.max(0, moneyGain(card) - 1) : 0;
 }
 
 /** The credits a card's text gains outright ("Gain N credits" at the start of a sentence), or undefined. */
@@ -316,14 +312,13 @@ export const BROKE_SLOPE = 1;
 export function sideCreditValue(state: GameState, side: SideCode, viewer: SideCode): number {
   const credits = side === 'corp' ? state.corp.credits : state.runner.credits;
   // The money it unlocks in HQ sits on the slide with the credits: worth most to a broke Corp
-  const reach = side === 'corp' && viewer === 'corp' && tuning.plan.moneyReach ? moneyReach(state) : 0;
-  if (!tuning.plan.creditSlide?.[viewer]) return creditValue(credits) + reach;
+  const reach = side === 'corp' && viewer === 'corp' ? moneyReach(state) : 0;
   const need = creditNeed(state, side);
   // plan.brokeSlope (Jeff, 2026-11-05: rez ice when needed, then build back up): the Corp's own first 4 credits are
   // worth up to 2.8 each, not 1.8 (a steeper slope all the way to the need made a click for a credit beat installing
   // Otto Campaign at 6 credits). Broke, it made no more money than when rich (2.3 credits a turn): a credit click scored
   // 1.8 - 1.25 and lost to advancing or installing almost anything, and it went into the Runner's turn unable to rez
-  const broke = side === 'corp' && viewer === 'corp' && tuning.plan.brokeSlope ? BROKE_SLOPE : 0;
+  const broke = side === 'corp' && viewer === 'corp' ? BROKE_SLOPE : 0;
   return reach ? creditSlide(credits + reach, need, broke) + Math.min(credits, 0) : creditSlide(credits, need, broke);
 }
 
@@ -337,8 +332,8 @@ export function sideCreditValue(state: GameState, side: SideCode, viewer: SideCo
 /** plan.liquidity: credits on a card are worth this much more than at half the need while the side is short. */
 export const LIQUIDITY_LIFT = 1.1;
 
-export function payoutSlide(state: GameState, side: SideCode, viewer: SideCode, amount: number): number {
-  if (!tuning.plan.payoutSlide || !tuning.plan.creditSlide?.[viewer] || amount <= 0) return 1;
+export function payoutSlide(state: GameState, side: SideCode, amount: number): number {
+  if (amount <= 0) return 1;
   const credits = side === 'corp' ? state.corp.credits : state.runner.credits;
   const need = creditNeed(state, side);
   // plan.liquidity (Jeff, 2026-11-06, his Teia game: the Runner sat on 0-5 credits for 13 turns and never played Sure
@@ -348,7 +343,6 @@ export function payoutSlide(state: GameState, side: SideCode, viewer: SideCode, 
   // keeps the broke end of the slide to itself; a bank past the need still slides off.
   // A tenth on top while short (fading out from half the need to the need): credits on a card get spent while the
   // Runner is still short, so a broke Runner keeps installing Telework Contract and Fermenter (payoutSlide.test.ts)
-  if (!tuning.plan.liquidity) return (creditSlide(credits + amount, need) - creditSlide(credits, need)) / amount;
   const pool = Math.max(credits, need / 2);
   const lift = 1 + (LIQUIDITY_LIFT - 1) * Math.min(1, Math.max(0, 2 - (2 * credits) / Math.max(need, 1)));
   return ((creditSlide(pool + amount, need) - creditSlide(pool, need)) / amount) * lift;
