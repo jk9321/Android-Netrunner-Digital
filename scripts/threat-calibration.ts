@@ -5,7 +5,7 @@
  *   npx vite-node scripts/threat-calibration.ts -- human [dir] [--turns]
  *   SHARD=i/n npx vite-node scripts/threat-calibration.ts -- self [games per pairing] > cal-i.json   (self-play; the
  *     batch workflow's script=threat-calibration runs this, its shard artifacts summed with `sum`)
- *   npx vite-node scripts/threat-calibration.ts -- sum cal-*.json
+ *   node scripts/threat-calibration-sum.mjs cal-*.json (or `-- sum` here)
  */
 import { readFileSync, readdirSync } from 'node:fs';
 import { join } from 'node:path';
@@ -157,45 +157,6 @@ function self(games: number): Stats {
   return stats;
 }
 
-function sum(files: string[]): Stats {
-  const all = fresh();
-  for (const f of files) {
-    const s: Stats = JSON.parse(readFileSync(f, 'utf8'));
-    all.games += s.games;
-    all.turns += s.turns;
-    all.runs += s.runs;
-    all.predictedRuns += s.predictedRuns;
-    const merge = (a: Cell, b: Cell) => (Object.keys(a) as (keyof Cell)[]).forEach(k => (a[k] += b[k]));
-    for (const k of KINDS) merge(all.kinds[k], s.kinds[k]);
-    merge(all.facedown, s.facedown);
-    merge(all.agendaRemote, s.agendaRemote);
-    for (const [k, v] of Object.entries(s.unrezzed ?? {})) { const a = (all.unrezzed[k] ??= { runs: 0, successful: 0 }); a.runs += v.runs; a.successful += v.successful; }
-    for (const [k, v] of Object.entries(s.steals ?? {})) { const a = (all.steals[k] ??= { n: 0, predicted: 0, run: 0, pass: 0, stolen: 0, brier: 0 }); (Object.keys(a) as (keyof Steal)[]).forEach(f => (a[f] += v[f])); }
-  }
-  return all;
-}
-
-function print(stats: Stats) {
-  const f = (x: number, d = 2) => x.toFixed(d);
-  const r = (a: number, b: number) => (b ? f(a / b) : ' -  ');
-  console.log(`${stats.games} games, ${stats.turns} Runner turns`);
-  console.log(`runs a turn: observed ${r(stats.runs, stats.turns)}, predicted ${r(stats.predictedRuns, stats.turns)}`);
-  console.log('server        turns  observed  predicted   |  P=1 turns  ran   |  P=0 turns  ran');
-  const row = (name: string, c: Cell) =>
-    console.log(`${name.padEnd(13)} ${String(c.turns).padStart(5)}  ${r(c.ran, c.turns).padStart(8)}  ${r(c.predicted, c.turns).padStart(9)}   |  ${String(c.p1).padStart(9)}  ${r(c.p1ran, c.p1)}  |  ${String(c.p0).padStart(9)}  ${r(c.p0ran, c.p0)}`);
-  for (const k of KINDS) row(k === 'remote' ? 'any remote' : k, stats.kinds[k]);
-  row('facedown arc', stats.facedown);
-  row('agenda rem.', stats.agendaRemote);
-  console.log('\nruns on all-unrezzed ice (turn start): successful / runs, per-layer pass = share^(1/layers)');
-  for (const [k, v] of Object.entries(stats.unrezzed).sort()) console.log(`  ${k.padEnd(34)} ${String(v.successful).padStart(4)}/${String(v.runs).padEnd(4)} ${r(v.successful, v.runs)}  per layer ${f((v.successful / v.runs) ** (1 / Number(k.match(/(\d+) unrezzed/)![1])))}`);
-  const all = Object.values(stats.unrezzed);
-  const one = Object.entries(stats.unrezzed).filter(([k]) => / 1 unrezzed/.test(k)).map(([, v]) => v);
-  const sumL = (xs: Layer[]) => xs.reduce((a, v) => ({ runs: a.runs + v.runs, successful: a.successful + v.successful }), { runs: 0, successful: 0 });
-  console.log(`  all: ${sumL(all).successful}/${sumL(all).runs}; one layer: ${r(sumL(one).successful, sumL(one).runs)}`);
-  console.log('\nagenda remotes by rezzed/total ice: turns, predicted steals (stealOdds), threat runs, sum passOdds, stolen, stolen/(run x pass), Brier');
-  for (const [k, v] of Object.entries(stats.steals).sort()) console.log(`  ${k.padEnd(5)} ${String(v.n).padStart(5)}  pred ${f(v.predicted, 1).padStart(6)}  runs ${f(v.run, 0).padStart(4)}  pass ${f(v.pass, 1).padStart(6)}  stolen ${String(v.stolen).padStart(4)}  brier ${r(v.brier, v.n)}`);
-}
-
 const args = process.argv.slice(2).filter(a => a !== '--');
 // The batch workflow passes `-- <games> <level>`: a number first is self-play
 const numeric = /^\d+$/.test(args[0] ?? '');
@@ -208,4 +169,7 @@ if (mode === 'human') {
   const stats = self(Number(args[1] ?? 1));
   console.log(JSON.stringify(stats));
   if (args.includes('--turns')) for (const g of gaps.sort((a, b) => b.gap - a.gap).slice(0, 40)) console.error(g.line);
-} else if (mode === 'sum') print(sum(args.slice(1)));
+} else if (mode === 'sum') {
+  const { print, sum } = await import('./threat-calibration-sum.mjs');
+  print(sum(args.slice(1)));
+}
