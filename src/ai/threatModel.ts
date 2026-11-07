@@ -53,6 +53,8 @@ export interface Threat {
   runs: number;
   /** The order the budget ran them in. */
   order: string[];
+  /** The Runner's credits at the budgeted turn's end: after the runs it paid into and the credit clicks it took. */
+  endCredits: number;
 }
 
 /** A credit within which the Runner's choice between two servers is a coin the Corp can't see. */
@@ -237,7 +239,7 @@ function budgetTurn(state: GameState): Threat {
       runsThisTurn: [...view.runsThisTurn, { server: pick.id, successful: true } as GameState['runsThisTurn'][number]],
     };
   }
-  return { servers, runs: order.length, order };
+  return { servers, runs: order.length, order, endCredits: view.runner.credits };
 }
 
 /**
@@ -264,8 +266,29 @@ function corpLoss(state: GameState, serverId: string): number {
   return runSuccess(state, serverId) * (agendas + central + archives);
 }
 
+/**
+ * plan.calibratedRun (item 3 round 3, Fable review 2026-11-07): the budget's 0/1 read as the measured hit rate. Self-play,
+ * 884 games, 12,416 Runner turns (runs 42337257360 threat on, 42337259763 off; scripts/threat-calibration.ts): when the
+ * budget runs a server the Runner AI ran it this often, and when it doesn't, this often (it installs a breaker or plays
+ * money from the grip the Corp can't see, then runs). Jeff's 13 Corp games for comparison: HQ 0.68 / 0.09, R&D 0.78 /
+ * 0.17, a remote 0.94 / 0.09. A crisp 0 made an agenda held in HQ free whenever the budget ran elsewhere (HQ reads 0 on
+ * 77% of turns, run on 8% of those).
+ */
+export const CALIBRATED_RUN = {
+  hq: { picked: 0.62, not: 0.08 },
+  rd: { picked: 0.56, not: 0.085 },
+  archives: { picked: 0.33, not: 0.05 },
+  remote: { picked: 0.92, not: 0.12 },
+};
+/** The budget's 0/1 for `serverId`, as the measured rate while plan.calibratedRun is on. */
+export function calibrated(serverId: string, crisp: number): number {
+  if (!tuning.plan.calibratedRun) return crisp;
+  const rate = CALIBRATED_RUN[serverId === 'hq' || serverId === 'rd' || serverId === 'archives' ? serverId : 'remote'];
+  return crisp >= 0.5 ? rate.picked : rate.not;
+}
+
 /** Chance the Runner runs `serverId` on its next turn. */
-export const runChance = (state: GameState, serverId: string): number => threat(state).servers[serverId]?.run ?? 0;
+export const runChance = (state: GameState, serverId: string): number => calibrated(serverId, threat(state).servers[serverId]?.run ?? 0);
 
 /**
  * Chance the Runner runs a remote that holds an installed card it can't see (stealOdds for an agenda there): the remote
@@ -277,9 +300,14 @@ export const runChance = (state: GameState, serverId: string): number => threat(
 export function remoteRunChance(state: GameState, serverId: string): number {
   const server = state.corp.servers[serverId];
   if (!server?.isRemote || server.root.some(c => !c.isRezzed && !c.faceUp)) return runChance(state, serverId);
+  return calibrated(serverId, probeRun(state, serverId, server));
+}
+
+/** The probe's 0/1 (remoteRunChance). */
+function probeRun(state: GameState, serverId: string, server: GameState['corp']['servers'][string]): number {
   return memo(state, `remoteRunChance:${serverId}`, () => remember(probeCache, serverId + '|' + threatKey(state), () => {
     const like = [...state.corp.hq, ...state.corp.rd, ...state.corp.scoreArea].find(c => cardDef(c).type_code === 'agenda');
-    if (!like) return runChance(state, serverId);
+    if (!like) return threat(state).servers[serverId]?.run ?? 0;
     const probe: CardInstance = { ...like, instanceId: 'threat-probe', isRezzed: false, faceUp: false, advancementCounters: 0, runnerKnows: false, tokens: {} };
     const servers = { ...state.corp.servers, [serverId]: { ...server, root: [...server.root, probe] } };
     const probed = { ...state, corp: { ...state.corp, servers } };
@@ -305,11 +333,25 @@ export function remoteRunChance(state: GameState, serverId: string): number {
 /**
  * The planner leaf's charge for the Runner's next turn (in place of runnerReply): each server it runs, by the run's
  * success, times what the Corp loses there that evaluate doesn't price (accessLoss).
+ *
+ * plan.threatSpend (item 3 round 3, Fable review 2026-11-07): less what the Runner's turn costs it. runnerReply's leaf
+ * was evaluate after the Runner's played-out turn, the Runner poorer by every run it paid into and richer by its credit
+ * clicks; the threat charged the accesses and dropped the spend the budget had worked out (runCreditSpend), so an iced
+ * remote earned the Corp no tax and holding the agenda looked free. The Runner's credits are moved to the budget's end
+ * on its credit slide (the evaluate scale, as the Corp sees the Runner's money: sideStrength), not the whole board
+ * re-evaluated: a re-read of the threat on the poorer Runner would count the remote it just paid into as safe.
  */
 export function threatLoss(state: GameState): number {
   if (state.winner) return 0;
   const t = threat(state);
   let loss = 0;
-  for (const [id, s] of Object.entries(t.servers)) if (s.run > 0) loss += s.run * s.success * accessLoss(state, id);
+  for (const [id, s] of Object.entries(t.servers)) {
+    const run = calibrated(id, s.run);
+    if (run > 0) loss += run * s.success * accessLoss(state, id);
+  }
+  if (tuning.plan.threatSpend && t.endCredits !== state.runner.credits) {
+    const end = { ...state, runner: { ...state.runner, credits: t.endCredits } };
+    loss += sideCreditValue(end, 'runner', 'corp') - sideCreditValue(state, 'runner', 'corp');
+  }
   return loss;
 }

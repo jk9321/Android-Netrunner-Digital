@@ -365,6 +365,16 @@ export const tuning = {
      */
     measuredPass: false,
     /**
+     * Item 3 round 3 (Fable review, 2026-11-07): the planner leaf credits the Corp with the Runner's spend on its
+     * budgeted turn (threatModel.ts threatLoss), as runnerReply's played-out leaf did. Corp only; read with threatModel.
+     */
+    threatSpend: false,
+    /**
+     * Item 3 round 3: the threat's 0/1 per server read as the measured hit rate when the budget runs it and when it
+     * doesn't (threatModel.ts CALIBRATED_RUN), everywhere the threat is read. Corp only; read with threatModel.
+     */
+    calibratedRun: false,
+    /**
      * Per deciding side (Jeff, 2026-10-28): its own clicks priced by the best plays in hand, at least a credit (handValues.ts clickWorth).
      * Batches (2,210 games each): Corp side 29.7% -> 21.6% (the Corp clicks for cards over credits and runs dry), Runner side 29.7% -> 29.7%.
      * Corp off, kept for re-testing; Runner on (neutral, Jeff's design).
@@ -548,7 +558,7 @@ export const tuning = {
  */
 export const sideOff: Record<SideCode, string[]> = {
   corp: [],
-  runner: ['tagTrashNow', 'ownTrashRisk', 'hqTrashCost', 'oneCurrency', 'threatModel', 'measuredPass'],
+  runner: ['tagTrashNow', 'ownTrashRisk', 'hqTrashCost', 'oneCurrency', 'threatModel', 'measuredPass', 'threatSpend', 'calibratedRun'],
 };
 
 /** The plan with `keys` switched off (a key written +name turns it on). */
