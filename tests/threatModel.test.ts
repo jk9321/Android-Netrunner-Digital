@@ -1,5 +1,5 @@
 import { readFileSync } from 'node:fs';
-import { describe, expect, it } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { GameState, cardDef, executeAction } from '../src/core';
 import { HeuristicCorpAI } from '../src/ai/corpAI';
 import { GameRunner } from '../src/ai/playout';
@@ -16,6 +16,10 @@ import { installIceForTest, newGame } from './helpers';
  */
 
 const PALISADE = '30072';
+// Off by default on beta (the gate, 2026-11-07): these tests turn it on
+const threatDefault = tuning.plan.threatModel;
+beforeEach(() => { tuning.plan.threatModel = true; });
+afterEach(() => { tuning.plan.threatModel = threatDefault; });
 const corpThreat = (s: GameState) => asSide('corp', () => threat(s));
 /** What the Runner does with the turn: where it runs, and its own scores (no Corp-side numbers). */
 const runnerSide = (s: GameState) => {

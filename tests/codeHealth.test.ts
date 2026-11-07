@@ -34,6 +34,7 @@ const OFF_SWITCHES: Record<string, string> = {
   'handByCard.corp': 'used by the planner leaf; off in the rule ranking, kept for re-testing',
   'handByCard.runner': 'used by the planner leaf; off in the rule ranking, kept for re-testing',
   oneCurrency: 'missed its paired batch (stop rule, 2026-11-07); kept switchable for the next round',
+  threatModel: 'structural review item 3; missed its paired batch (-11.0 ± 1.2, 2026-11-07), merged off so items 4-6 batch both ways',
 };
 
 describe('AI code health (audit guards)', () => {

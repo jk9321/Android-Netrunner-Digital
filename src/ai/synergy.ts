@@ -346,8 +346,12 @@ export const tuning = {
      * as the Runner sees it (threatModel.ts), instead of PACE's shares, STEAL.run and the open-remote patches; the
      * planner's leaf charges that turn (threatLoss) in place of the two-sample Runner reply (plan.runnerReply). Corp
      * only: off in sideOff.runner.
+     * OFF BY DEFAULT (2026-11-07, the gate): paired on the same 2,210 deals the Corp won 26.6% vs 37.6% off (-11.0 ± 1.2),
+     * stuck-in-HQ +9.2/100, broke -13.1/100 (runs 42329361323 vs 42329359103). The threat reads well on Jeff's games
+     * (scripts/threat-calibration.ts) but is one turn, crisp: an agenda behind ice the Runner can't pay through this
+     * turn reads safe for every turn it waits. Hand-off: /mnt/project-files/netrunner-ai/threat-model/handoff.md.
      */
-    threatModel: true,
+    threatModel: false,
     /**
      * Per deciding side (Jeff, 2026-10-28): its own clicks priced by the best plays in hand, at least a credit (handValues.ts clickWorth).
      * Batches (2,210 games each): Corp side 29.7% -> 21.6% (the Corp clicks for cards over credits and runs dry), Runner side 29.7% -> 29.7%.
