@@ -10,8 +10,11 @@ import { giveCard, installIceForTest, newGame } from './helpers';
 
 // The switch is off by default since the 2026-11-07 stop rule; these tests pin the one-currency behaviour itself.
 const oneCurrencyDefault = tuning.plan.oneCurrency;
-beforeEach(() => { tuning.plan.oneCurrency = true; });
-afterEach(() => { tuning.plan.oneCurrency = oneCurrencyDefault; });
+const threatDefault = tuning.plan.threatModel;
+// Item 1 (parked) as it was built: on the old threat (PACE shares, STEAL.run, the Runner reply). The threat model
+// (item 3) inside its one-step evaluate deltas is untried; the combination is batched at the end of the list
+beforeEach(() => { tuning.plan.oneCurrency = true; tuning.plan.threatModel = false; });
+afterEach(() => { tuning.plan.oneCurrency = oneCurrencyDefault; tuning.plan.threatModel = threatDefault; });
 
 /**
  * plan.oneCurrency (structural review item 1, Jeff approved 2026-11-06; spec "Item 1 spec" of the AI code review doc):

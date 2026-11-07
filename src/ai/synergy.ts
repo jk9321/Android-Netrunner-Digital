@@ -341,6 +341,14 @@ export const tuning = {
      */
     oneCurrency: false,
     /**
+     * Structural review item 3 (Jeff approved 2026-11-06; spec "Item 3 spec" of the AI code review doc): the Corp's
+     * belief about where the Runner runs next turn is the Runner AI's own run scorer budgeted over its turn, on the board
+     * as the Runner sees it (threatModel.ts), instead of PACE's shares, STEAL.run and the open-remote patches; the
+     * planner's leaf charges that turn (threatLoss) in place of the two-sample Runner reply (plan.runnerReply). Corp
+     * only: off in sideOff.runner.
+     */
+    threatModel: true,
+    /**
      * Per deciding side (Jeff, 2026-10-28): its own clicks priced by the best plays in hand, at least a credit (handValues.ts clickWorth).
      * Batches (2,210 games each): Corp side 29.7% -> 21.6% (the Corp clicks for cards over credits and runs dry), Runner side 29.7% -> 29.7%.
      * Corp off, kept for re-testing; Runner on (neutral, Jeff's design).
@@ -519,7 +527,7 @@ export const tuning = {
  */
 export const sideOff: Record<SideCode, string[]> = {
   corp: [],
-  runner: ['tagTrashNow', 'ownTrashRisk', 'hqTrashCost', 'oneCurrency'],
+  runner: ['tagTrashNow', 'ownTrashRisk', 'hqTrashCost', 'oneCurrency', 'threatModel'],
 };
 
 /** The plan with `keys` switched off (a key written +name turns it on). */

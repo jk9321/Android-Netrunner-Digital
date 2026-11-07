@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, onTestFinished } from 'vitest';
 import { cardDef, createCardInstance, executeAction, findCardAnywhere, GameState, iceStrength, isLegalAction, knownInHand } from '../src/core';
 import { counters } from '../src/core/engine/cardEffects';
 import { answerPrompt } from '../src/ai/prompts';
@@ -819,7 +819,14 @@ describe('Corp AI: LEO Construction weighs the bioroid against the run (Jeff, pl
     installIceForTest(s, C.bumi, 'remote-1');
     installCorpForTest(s, C.greenmail, 'remote-1');
     const at = atServer(s, 'remote-1');
-    // With clicks left the Runner just runs the remote again once it is bare: not worth a bioroid
+    // With clicks left the Runner just runs the remote again once it is bare: not worth a bioroid. On the old threat
+    // (plan.threatModel off): the threat model reads the Runner AI's own scorer, which never runs again a server that
+    // ended its run this turn (runs.ts serverValue), so to it the bioroid buys the agenda a turn. A person would run
+    // again; flagged in the item 3 hand-off
+    const { tuning } = await import('../src/ai/synergy');
+    const threat = tuning.plan.threatModel;
+    tuning.plan.threatModel = false;
+    onTestFinished(() => (tuning.plan.threatModel = threat));
     expect(createAgent('corp', 'normal').chooseRez!(at, [])).toBeNull();
     at.runner.clicks = 0; // the Runner's last click
     expect(createAgent('corp', 'normal').chooseRez!(at, [])?.type).toBe('USE_ABILITY');

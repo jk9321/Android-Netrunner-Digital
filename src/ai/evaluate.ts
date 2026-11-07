@@ -17,6 +17,7 @@ import { CLICK, KNOBS, RATES, cardRate, creditValue, flatRate, flatlineWorth, gu
 import { LOCKDOWN, PACE, STEAL, agendaOdds, coreSlotWorth, flatlineOdds, lifeGrip, placedCounterWorth, runSuccess, stealOdds } from './effectValues';
 import { archivedWorth } from './cards';
 import { isTrap, trashedCardCost } from './runs';
+import { centralAccess, runChance, threatOn } from './threatModel';
 
 const MADANI = '35028';
 
@@ -292,7 +293,10 @@ export function agendaWorth(
 ): number {
   const gain = pointValue(state.corp.score + points, KNOBS.corpPoints) - pointValue(state.corp.score, KNOBS.corpPoints);
   const need = Math.max(0, cost - counters);
-  const steal = stealChance ?? (
+  // plan.threatModel: an agenda going into a new remote with no ice (no server yet, success 1: handValues) sits in an
+  // open remote the Runner can see, which it runs by construction (threatModel.ts)
+  const openNew = threatOn() && !serverId && success === 1 ? 1 : undefined;
+  const steal = stealChance ?? openNew ?? (
     tuning.plan.stealOdds && success === undefined && serverId
       ? stealOdds(state, serverId)
       : (tuning.plan.stealOdds ? STEAL.run : AGENDA_RUN) * (success ?? (serverId ? runSuccess(state, serverId) : PACE.success)));
@@ -333,6 +337,10 @@ export function agendaWorth(
 export function archivedAgendaLoss(state: GameState, points: number): number {
   const gain = pointValue(state.runner.score + points) - pointValue(state.runner.score);
   // plan.measuredNov6: the breach rate measured on turns that start with facedown cards in Archives
+  // plan.threatModel leaves this on the measured breach rate: the Runner's scorer prices a facedown Archives card as one the
+  // Corp rarely chose to discard (runs.ts ARCHIVES_CHOSEN_ODDS), so the threat says Archives is almost never run (0.10
+  // on Jeff's games against 0.31 breached, scripts/threat-calibration.ts): read as safety, the Corp would discard agendas
+  // into the Runner AI's blind spot, the first thing a person checks
   const perTurn = tuning.plan.measuredNov6 ? PACE.facedownBreach : Math.min(1, PACE.runs * PACE.archivesShare) * runSuccess(state, 'archives');
   return gain * (1 - (1 - perTurn) ** turnsLeft(state));
 }
@@ -434,22 +442,22 @@ export function centralExposure(state: GameState, viewer: SideCode): number {
     let density: number; // the agenda loss of one access to a card the viewer can't see
     let hqNow: number; // the agenda loss of one access to HQ as it is
     if (viewer === 'corp') {
-      const ids = new Set(unseen.map(c => c.instanceId));
-      const pool = [...corp.rd, ...unseen];
-      density = pool.length ? pool.reduce((n, c) => n + (cardDef(c).type_code === 'agenda' ? gain(cardDef(c).agenda_points ?? 1) : 0), 0) / pool.length : 0;
-      const known = corp.hq.filter(c => !ids.has(c.instanceId));
-      hqNow = corp.hq.length ? (known.reduce((n, c) => n + (cardDef(c).type_code === 'agenda' ? gain(cardDef(c).agenda_points ?? 1) : 0), 0) + unseen.length * density) / corp.hq.length : 0;
+      // One access to HQ and to a card the Corp can't place (threatModel.ts centralAccess: shared with the threat)
+      ({ hqNow, density } = centralAccess(state));
     } else {
       const { odds, points } = agendaOdds(state);
       density = odds * gain(points);
       hqNow = corp.hq.length ? density : 0;
     }
-    const hqRate = PACE.runs * PACE.hqShare * runSuccess(state, 'hq');
-    const rdRate = corp.rd.length ? PACE.runs * PACE.rdShare * runSuccess(state, 'rd') : 0;
+    // plan.threatModel: the runs the Runner's own scorer makes on this board (threatModel.ts), not the shares
+    const threat = threatOn();
+    const hqRate = (threat ? runChance(state, 'hq') : PACE.runs * PACE.hqShare) * runSuccess(state, 'hq');
+    const rdRate = corp.rd.length ? (threat ? runChance(state, 'rd') : PACE.runs * PACE.rdShare) * runSuccess(state, 'rd') : 0;
     // This Runner's next turn (bug report #15: it walked into HQ every turn while the Corp held its agendas there): the
     // measured rate half-weighted with the breaches it made there last turn (open information), as plan.readAssetTrash reads trashes
     const lastTurn = (server: string) => state.runnerLastTurnRuns.filter(r => r.server === server && r.successful).length;
-    const next = (rate: number, server: string) => (state.activePlayer === 'corp' ? (rate + lastTurn(server)) / 2 : rate);
+    // (the threat reads this board, bug #15's open HQ included, so it needs no last-turn patch)
+    const next = (rate: number, server: string) => (state.activePlayer === 'corp' && !threat ? (rate + lastTurn(server)) / 2 : rate);
     let loss = 0;
     const turns = turnsLeft(state);
     for (let t = 1; t <= turns; t++) loss += ((t === 1 ? next(hqRate, 'hq') * hqNow : hqRate * density) + (t === 1 ? next(rdRate, 'rd') : rdRate) * density) * LOCKDOWN ** (t - 1);

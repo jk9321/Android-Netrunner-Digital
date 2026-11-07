@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, onTestFinished as onExit } from 'vitest';
 import { AGENDA_CLICK, agendaWorth, archivedAgendaLoss, evaluate, keepValue } from '../src/ai/evaluate';
 import { cardDef } from '../src/core';
 import { tuning } from '../src/ai/synergy';
@@ -10,6 +10,7 @@ import { installIceForTest, newGame } from './helpers';
 import { STEAL, runSuccess, stealOdds } from '../src/ai/effectValues';
 
 const PALISADE = '30072';
+const threatDefault = tuning.plan.threatModel;
 
 /** A remote with two rezzed Palisades the rig can't break, and a bare one. */
 function remotes() {
@@ -99,6 +100,10 @@ describe('steal odds as measured (Jeff, 2026-10-28; plan.stealOdds)', () => {
   });
 
   it('ice is judged against the credits the Runner can raise on its turn, not what it holds now', () => {
+    // STEAL.run's arithmetic (plan.threatModel off): the threat model asks the Runner's scorer instead, and a Runner with
+    // no breaker never runs a rezzed Palisade (tests/threatModel.test.ts)
+    tuning.plan.threatModel = false;
+    onExit(() => (tuning.plan.threatModel = threatDefault));
     const s = newGame();
     installIceForTest(s, PALISADE, 'remote-1');
     s.corp.servers['remote-1'].ice[0].isRezzed = true;
@@ -136,6 +141,10 @@ describe('ice that cannot end the run (Jeff, 2026-10-30; plan.tankIce)', () => {
   };
 
   it('Doomscroll stops little against a broke Runner with a full grip', () => {
+    // passOdds' tank arithmetic under STEAL.run (plan.threatModel off); with it on, whether a broke Runner runs at all is
+    // the Runner's scorer's call (tests/threatModel.test.ts)
+    tuning.plan.threatModel = false;
+    onExit(() => (tuning.plan.threatModel = threatDefault));
     const s = newGame();
     remote(s);
     s.runner.credits = 0;
