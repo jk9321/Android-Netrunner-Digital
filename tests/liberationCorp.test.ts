@@ -1085,7 +1085,7 @@ describe('Rebellion Without Rehearsal: Weyland and neutral', () => {
     const echelon = installProgramForTest(s, SG.echelon);
     s.runner.credits = 20;
     s = cont(run(s, 'hq'));
-    s = markAndCheck(s);
+    markAndCheck(s);
     expect(echelon).toBeTruthy();
   });
 

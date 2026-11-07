@@ -819,7 +819,7 @@ export function finishedAgendas(state: GameState): GameState | null {
   if (projecting || state.activePlayer !== 'corp' || state.activeRun || state.winner) return null;
   if (projections.has(state)) return projections.get(state)!;
   projecting = true;
-  let out: GameState | null = null;
+  let out: GameState | null;
   try {
     let s = state;
     for (;;) {
