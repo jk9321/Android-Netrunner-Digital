@@ -4,7 +4,7 @@ import { ScoredAction } from './agent';
 import { evaluate } from './evaluate';
 import { freezeKnownHand } from './handValues';
 import { runClick } from './runs';
-import { threat } from './threatModel';
+import { threat, turnSeed } from './threatModel';
 import { tuning } from './synergy';
 
 /**
@@ -56,6 +56,15 @@ export interface PlanMemory {
 }
 
 export const plannerOn = (side: SideCode): boolean => !!tuning.plan.turnPlanner?.[side];
+
+/**
+ * plannerSeed: the seed of the decision being planned (game, turn and clicks left: threatModel.ts turnSeed mixed with
+ * the clicks), or null outside one. Every candidate of one decision is dealt from it, so they see the same deals; the
+ * next decision of the turn gets a fresh one (Fable review, 2026-11-07: a seed per turn made one bad deal steer every
+ * decision of the turn, stuck in HQ +3.5 per 100).
+ */
+let decisionSeed: number | null = null;
+export const currentDecisionSeed = (): number | null => decisionSeed;
 
 /** A piece of the widened search (structural review item 4), on only with plan.plannerSearch. */
 export const searchPiece = (piece: 'plannerSeed' | 'plannerBuild' | 'plannerDiscard' | 'plannerPatchesOff'): boolean => !!tuning.plan.plannerSearch && tuning.plan[piece] !== false;
@@ -297,6 +306,8 @@ export function planTurn(state: GameState, side: SideCode, ranked: ScoredAction[
     plannerStats.added += added.length;
   }
   const unfreeze = freezeKnownHand();
+  const outerSeed = decisionSeed;
+  if (searchPiece('plannerSeed')) decisionSeed = (turnSeed(state) ^ Math.imul(clicksOf(state, side) + 1, 0x85ebca6b)) >>> 0;
   try {
     let best: { action: GameAction; value: number; line: Line } | null = null;
     const values: number[] = [];
@@ -315,6 +326,7 @@ export function planTurn(state: GameState, side: SideCode, ranked: ScoredAction[
     memory.line = best.line;
     return best.action;
   } finally {
+    decisionSeed = outerSeed;
     unfreeze();
   }
 }

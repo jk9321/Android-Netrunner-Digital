@@ -131,7 +131,7 @@ describe('plannerBuild in self-play positions (the ice-then-install build, item 
   // and Urtica Cipher in HQ) where Palisade into a new remote ranked 8th, outside the planner's top 4. With plannerBuild
   // the Corp builds the remote and installs Send a Message behind it; without it, it ices remote-1 and advances there.
   const turn = (file: string) => {
-    tuning.plan = { ...tuning.plan, plannerSearch: true };
+    tuning.plan = { ...tuning.plan, plannerSearch: true, plannerSeed: false, plannerDiscard: false, plannerPatchesOff: false };
     let s: GameState = JSON.parse(readFileSync(new URL(`./fixtures/${file}`, import.meta.url), 'utf8'));
     const corp = new HeuristicCorpAI();
     for (let i = 0; i < 12 && s.activePlayer === 'corp' && s.corp.clicks > 0 && !s.winner; i++) s = executeAction(s, corp.chooseAction(s));

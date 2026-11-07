@@ -4,7 +4,7 @@ import { GameRunner } from './playout';
 import { HeuristicRunnerAI } from './runnerAI';
 import { pointValue } from './valueModel';
 import { turnSeed } from './threatModel';
-import { searchPiece } from './turnPlanner';
+import { currentDecisionSeed, searchPiece } from './turnPlanner';
 import { tuning } from './synergy';
 
 /**
@@ -50,15 +50,15 @@ const byId = <T extends { instanceId: string }>(cards: T[]): T[] => [...cards].s
 /**
  * `state` with the cards the Corp can't see dealt at random (sample `k`).
  *
- * plan.plannerSearch plannerSeed (structural review item 4): the seed is the game and turn's (threatModel.ts turnSeed,
- * the threat's dealer), not the end state's rng, and the cards are dealt from a fixed order (by instance id). The
+ * plan.plannerSearch plannerSeed (structural review item 4): the seed is the decision's (turnPlanner.ts
+ * currentDecisionSeed: the game, turn and clicks left; outside a decision the threat's turnSeed), not the end state's rng, and the cards are dealt from a fixed order (by instance id). The
  * planner's candidates end in different rng states whenever one of them drew or shuffled, so each was compared on its
- * own deal as well as its own line; now all candidates of a turn see the same guessed grip, stack and R&D order. Nothing
+ * own deal as well as its own line; now all candidates of a decision see the same guessed grip, stack and R&D order. Nothing
  * new is read: the same cards are hidden, only which guess is drawn changes.
  */
 export function guessHidden(state: GameState, k: number): GameState {
   const common = searchPiece('plannerSeed');
-  const rng = createRng(((common ? turnSeed(state) : state.rng?.state ?? 1) ^ Math.imul(k + 1, 0x9e3779b1)) >>> 0);
+  const rng = createRng(((common ? currentDecisionSeed() ?? turnSeed(state) : state.rng?.state ?? 1) ^ Math.imul(k + 1, 0x9e3779b1)) >>> 0);
   const order = common ? byId : <T,>(cards: T[]) => cards;
   // plan.keepKnownHand (Gemini audit, 2026-11-01): grip cards the Corp has seen (MuslihaT, Mutual Favor) stay where they are
   const known = new Set(tuning.plan.keepKnownHand ? knownInHand(state, 'runner').map(k => k.id) : []);

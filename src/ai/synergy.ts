@@ -542,12 +542,14 @@ export const tuning = {
     /**
      * Structural review item 4 (Fable spec, 2026-11-07; turnPlanner.ts): the planner's search widened, in pieces, each
      * read only with plannerSearch on and batched alone. Off by default until its paired batch passes.
-     * plannerSeed: the Corp's Runner reply deals the hidden cards from one seed for the game and turn (threatModel.ts
-     * turnSeed), so every candidate is played out on the same deal and differs only by its line.
+     * plannerSeed: the Corp's Runner reply deals the hidden cards from one seed per decision (game, turn, clicks left:
+     * turnPlanner.ts currentDecisionSeed), so every candidate of a decision is played out on the same deals and differs
+     * only by its line; the next decision gets fresh deals. (Round 1 seeded by turn: stuck in HQ +3.5, a scope error.)
      * plannerBuild: the Corp's candidates add the ice install a two-step build starts (ice, then the agenda or asset
      * behind it; ice on a central the threat runs), which the rule ranking puts outside its top few. Cap PLANNER.withBuild.
      * plannerDiscard: a playout that ends the turn over its maximum hand size plays the discard step through the engine
-     * with the AI's own discard answer before the leaf (rules 5.6.3a Corp, 5.7.2a Runner).
+     * with the AI's own discard answer before the leaf (rules 5.6.3a Corp, 5.7.2a Runner). It matters for the Runner's
+     * planner (and a threat leaf): the Corp's played-out reply already starts with the Corp ending its turn and discarding.
      * plannerPatchesOff: the ordering patches (pettyCashFirst, tagFirst, dominated) off for the planning side.
      */
     plannerSearch: false,
