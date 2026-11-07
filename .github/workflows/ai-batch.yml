@@ -13,7 +13,7 @@ on:
         required: true
         default: main
       games:
-        description: Games per pairing (3 = short batch, 10 = full)
+        description: Games per pairing (1 = an 'expect identical' check, 3 = short batch, 10 = full; a short batch tops up with game_from)
         required: true
         default: '3'
       game_from:

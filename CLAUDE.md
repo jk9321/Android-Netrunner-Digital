@@ -34,6 +34,7 @@ Android: Netrunner digital game (React + TypeScript + Vite, Cloudflare Worker ho
 - Behaviour is controlled by switches in `tuning.plan`. Folded switch names THROW when passed in `PLAN_OFF` (see `src/ai/synergy.ts`).
 - Per-card AI data (synergy tags, values, profiles, effect formulas, counter worths) lives in ONE entry per card in `src/ai/cards/<set>.ts`, joined in `src/ai/cards/index.ts`. Prompt answers, break plans and run options stay in `prompts.ts` / `runs.ts`.
 - Batches run on GitHub Actions: `.github/workflows/ai-batch.yml` (ref = branch name or full 40-char SHA). Use paired batches: run the base first, then pass its run id as `base_run`; compare with `scripts/corp-losses-sum.mjs`. Log every batch with `scripts/batch-log.mjs`.
+- Batch sizes (Jeff 2026-11-07: the repo runs at most 20 Actions jobs at once, a full batch is ~600 runner-minutes): "expect identical" checks use `games=1` (any difference shows); win-rate tests start at `games=3` and top up to 10 (`game_from=3`, `add_run`) only when the result is within about 2 SE of the gate. Launch at most 2-3 batches at a time.
 - Self-play hides holes. Pin human-usable holes with scenario tests.
 - Human-games fixtures: `tests/fixtures/human-games/report-N.json` (decode bug reports with `scripts/bug-report-state.mjs`); score with `npx vite-node scripts/human-agreement.ts`.
 - Branch-build failures on `ai-batch-results` are harmless noise.
