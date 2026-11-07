@@ -2,7 +2,6 @@ import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
 import { GameState, cardDef, findCardAnywhere } from '../src/core';
 import { HeuristicRunnerAI } from '../src/ai';
-import { tuning } from '../src/ai/synergy';
 import { inDecision } from './helpers/pricing';
 
 /**
@@ -26,14 +25,5 @@ const top = (s: GameState) => {
 describe('a big Fermenter bank is cashed when the Runner is short (plan.fermenterBank)', () => {
   it('cashes a Fermenter on 5 credits with 15 counters banked', () => {
     expect(top(position())).toBe('use Fermenter');
-  });
-
-  it('without the plan it held the bank', () => {
-    tuning.plan.fermenterBank = false;
-    try {
-      expect(top(position())).not.toBe('use Fermenter');
-    } finally {
-      tuning.plan.fermenterBank = true;
-    }
   });
 });

@@ -40,7 +40,6 @@ export { PAYOUT_RISK } from './payoutRisk';
 
 /** Worth kept per turn a payout of this card waits. */
 export function payoutWait(state: GameState, profile: CardProfile, owner: 'corp' | 'runner', iced = false): number {
-  if (!plan().payoutRisk) return WAIT;
   const time = profile.every === 'click' ? PAYOUT_RISK.clickWait : 1;
   const risk = owner === 'corp'
     ? (iced ? PAYOUT_RISK.moneyIced : bareAssetRisk(state))
@@ -107,7 +106,7 @@ export function payoutWorth(profile: CardProfile, turns: number, hosted = profil
 }
 
 /** The card's profile, while plan.cardProfiles is on. */
-export const profileOf = (code: string): CardProfile | undefined => (plan().cardProfiles ? CARD_PROFILES[code] : undefined);
+export const profileOf = (code: string): CardProfile | undefined => CARD_PROFILES[code];
 
 /** Worth of a profiled card still to be rezzed (Corp): its payouts less its rez cost. */
 export function unrezzedWorth(state: GameState, code: string, iced = false): number | undefined {

@@ -138,20 +138,20 @@ export function runnerRigValue(state: GameState, aware: boolean, viewer: SideCod
   let value: number;
   if (plan().breakerCredits?.[viewer]) {
     // Step 5b: each ice type by the stops it saves; an AI breaker covers the rest at a discount
-    const aiShare = anyBreakers === 0 ? 0 : plan().cardFixes ? Math.max(...rig.programs.filter(p => breakerScript(p)?.breaks === 'any').map(p => (isOneUse(p) ? AI_BREAKER_SHARE / 3 : AI_BREAKER_SHARE))) : AI_BREAKER_SHARE;
+    const aiShare = anyBreakers === 0 ? 0 : Math.max(...rig.programs.filter(p => breakerScript(p)?.breaks === 'any').map(p => (isOneUse(p) ? AI_BREAKER_SHARE / 3 : AI_BREAKER_SHARE)));
     value = ICE_TYPES.reduce((n, t) => n + (covered.has(t) ? 1 : aiShare) * breakerTypeWorth(state, t), 0);
   } else value = [...covered].reduce((n, t) => n + coverageValue(state, t, aware), 0) + (anyBreakers > 0 ? RATES.anyBreaker : 0);
   for (const card of cards) {
     // Step 4: a card that pays out money is worth what it will still pay
     const profile = profileOf(card.cardCode);
     if (profile) {
-      value += payoutWorth(profile, turnsLeft(state), counters(card, 'credit'), payoutWait(state, profile, 'runner'), cardRate(state, 'runner')) * payoutSlide(state, 'runner', viewer, counters(card, 'credit'));
+      value += payoutWorth(profile, turnsLeft(state), counters(card, 'credit'), payoutWait(state, profile, 'runner'), cardRate(state, 'runner')) * payoutSlide(state, 'runner', counters(card, 'credit'));
       continue;
     }
     // A breaker is worth its coverage above (plan.flatRates.breakers: no flat extra for having one)
     value += isIcebreaker(card) ? (flatRate('breakers') && plan().breakerCredits?.[viewer] ? 0 : RATES.icebreaker) : RATES.rigCardScale * runnerCardValue(card.cardCode, state, card);
     // Counters by what they do on this card (step 3), or the step-1 rates
-    value += countersWorth(state, card, 'credit', viewer) + countersWorth(state, card, 'virus', viewer) + countersWorth(state, card, 'power', viewer);
+    value += countersWorth(state, card, 'credit') + countersWorth(state, card, 'virus') + countersWorth(state, card, 'power');
     // Bling, Madani: cards to play later, worth what they would be in the grip (plan.flatRates.hosted);
     // Madani's install takes no click, so its programs keep the click they will save (plan.madaniClick).
     // Corp cards hosted on Detente are not the Runner's to play: Detente's own value covers them
@@ -189,11 +189,11 @@ function corpCardWorth(card: CardInstance, state: GameState | undefined, viewer:
 function unwaitedCardWorth(card: CardInstance, state: GameState | undefined, viewer: SideCode): number {
   if (state && viewer === 'runner' && card.isRezzed && card.cardCode === SPIN_DOCTOR) return spentSpinDoctorWorth(state);
   const hosted = counters(card, 'credit');
-  const power = state && card.isRezzed ? countersWorth(state, card, 'power', viewer) : 0;
+  const power = state && card.isRezzed ? countersWorth(state, card, 'power') : 0;
   const profile = state ? profileOf(card.cardCode) : undefined;
   if (state && profile) return card.isRezzed ? payoutWorth(profile, turnsLeft(state), hosted, payoutWait(state, profile, 'corp', inIcedServer(state, card)), cardRate(state, 'corp')) : corpKeepValue(card.cardCode, state);
   if (card.isRezzed && hosted > 0) {
-    const banked = 1 + (state ? countersWorth(state, card, 'credit', viewer) : hosted * RATES.counters.hostedCredit) + power;
+    const banked = 1 + (state ? countersWorth(state, card, 'credit') : hosted * RATES.counters.hostedCredit) + power;
     // plan.oneCurrency: a card that refills its credits (Mahkota Langit Grid) is worth its formula, which prices the
     // refills, as it was unrezzed: the credits on it alone priced the rez that put them there at a loss (6.3 -> 2)
     return state && plan().oneCurrency ? Math.max(banked, corpKeepValue(card.cardCode, state, true) + power) : banked;
@@ -297,14 +297,14 @@ export function agendaWorth(
   // open remote the Runner can see, which it runs by construction (threatModel.ts)
   const openNew = threatOn() && !serverId && success === 1 ? 1 : undefined;
   const steal = stealChance ?? openNew ?? (
-    plan().stealOdds && success === undefined && serverId
+    success === undefined && serverId
       ? stealOdds(state, serverId)
-      : (plan().stealOdds ? STEAL.run : AGENDA_RUN) * (success ?? (serverId ? runSuccess(state, serverId) : PACE.success)));
+      : STEAL.run * (success ?? (serverId ? runSuccess(state, serverId) : PACE.success)));
   // Agenda tempo (Jeff, 2026-10-28): the Runner turns until the Corp has the clicks to finish it (installing from hand is one more),
   // each a run that may get in and a turn closer to the end of the game (about 1 in turnsLeft)
   // plan.agendaCredits (Jeff's bug report, 2026-10-31): each advancement costs a credit (rule 5.2.6 basic actions: [click], 1[credit]: advance), so a Corp short of
   // credits needs a click to gain each missing one first ([click]: gain 1[credit]); at 0 credits an agenda can't be finished "this turn" on clicks alone
-  const short = plan().agendaCredits ? Math.max(0, need - budget.credits) : 0;
+  const short = Math.max(0, need - budget.credits);
   const clicks = need + (inHand ? 1 : 0) + short;
   // On the Runner's turn it is exposed now, then the Corp's next turn has 3 clicks
   const runnerTurns =
@@ -320,7 +320,7 @@ export function agendaWorth(
   // plan.threatModel (round 2, the review of item 3): the threat is one crisp turn, the Runner's next; each later turn
   // the agenda waits is priced on the Runner a turn's income richer (threatLater), so "it can't pay through this ice
   // today" is not "safe for every turn it waits"
-  const threatTurns = threatOn() && stealChance === undefined && openNew === undefined && success === undefined && !!serverId && plan().stealOdds;
+  const threatTurns = threatOn() && stealChance === undefined && openNew === undefined && success === undefined && !!serverId;
   const standing = threatTurns ? threatStanding(state, serverId!, runnerTurns, steal) : (1 - steal) ** runnerTurns;
   if (!plan().oneCurrency) return gain * standing * late ** runnerTurns - need * (click + 1);
   const stolen = (1 - standing) * pointGain(state.runner.score, points);
@@ -365,7 +365,7 @@ export function archivedAgendaLoss(state: GameState, points: number): number {
   // Corp rarely chose to discard (runs.ts ARCHIVES_CHOSEN_ODDS), so the threat says Archives is almost never run (0.10
   // on Jeff's games against 0.31 breached, scripts/threat-calibration.ts): read as safety, the Corp would discard agendas
   // into the Runner AI's blind spot, the first thing a person checks
-  const perTurn = plan().measuredNov6 ? PACE.facedownBreach : Math.min(1, PACE.runs * PACE.archivesShare) * runSuccess(state, 'archives');
+  const perTurn = PACE.facedownBreach;
   return gain * (1 - (1 - perTurn) ** turnsLeft(state));
 }
 
@@ -396,7 +396,7 @@ function agendaBudgets(state: GameState, viewer: SideCode): Map<string, { clicks
   for (const { id, need } of agendas) {
     budgets.set(id, { clicks, credits });
     // Clicks to finish it now: an advance each, and a click for each credit it is short (plan.agendaCredits)
-    const short = plan().agendaCredits ? Math.max(0, need - credits) : 0;
+    const short = Math.max(0, need - credits);
     if (need + short <= clicks) {
       clicks -= need + short;
       credits = Math.max(0, credits - need);
@@ -605,7 +605,7 @@ function handAndClicks(state: GameState, side: SideCode, viewer: SideCode): numb
   const hand = side === 'corp' ? state.corp.hq : state.runner.grip;
   // plan.heldMoney: the money operation moneyReach puts on the Corp's credit slide is worth its credits there, not
   // a card in HQ as well (held, Hedge Fund was counted twice and playing it scored below a click for a credit)
-  const reached = side === 'corp' && viewer === 'corp' && plan().heldMoney && plan().moneyReach && reachCard(state) ? 1 : 0;
+  const reached = side === 'corp' && viewer === 'corp' && plan().heldMoney && reachCard(state) ? 1 : 0;
   // plan.oneCurrency: the Corp's own agendas in HQ (the ones it has seen) are worth what they will be once installed,
   // a click later, behind a typical remote (agendaWorth inHand), not a card's worth: as a card, every install of an
   // agenda behind ice traded a full card for an agenda priced net of its advances, and agendas sat in HQ
@@ -682,8 +682,8 @@ export function sideStrength(state: GameState, side: SideCode, viewer: SideCode 
       corpBoardValue(state, viewer) +
       (plan().tagClock ? tagsWorth(state, viewer) : (RATES.tagForCorp + threat) * state.runner.tags) +
       // Dividends and Next Big Thing counters, AU Co. power counters
-      corp.scoreArea.reduce((n, a) => n + countersWorth(state, a, 'agenda', viewer), 0) +
-      countersWorth(state, corp.identity, 'power', viewer)
+      corp.scoreArea.reduce((n, a) => n + countersWorth(state, a, 'agenda'), 0) +
+      countersWorth(state, corp.identity, 'power')
     );
   }
   const runner = state.runner;
@@ -694,7 +694,7 @@ export function sideStrength(state: GameState, side: SideCode, viewer: SideCode 
     (plan().tagClock ? tagsWorth(state, viewer) : (RATES.tagAgainstRunner + threat) * runner.tags) -
     coreSlotWorth(state) * runner.coreDamage -
     // The damage clock: a small grip against the Corp's damage is a step toward a flatline
-    (plan().damageClock ? flatlineWorth(state) * flatlineOdds(state, lifeGrip(state), true) + lifeCards(runner.grip.length) : 0) +
+    (flatlineWorth(state) * flatlineOdds(state, lifeGrip(state), true) + lifeCards(runner.grip.length)) +
     runnerRigValue(state, aware, viewer)
   );
 }

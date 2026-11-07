@@ -20,7 +20,7 @@ import { plan } from '../pricing';
 /** Red Team: 3 credits per successful click-run, the click shared with the access it also gets. */
 function redTeamCredit(state: GameState): number {
   // A successful central run takes 3; a failed one waits for the next (plan.runOpenness: as open as HQ and R&D are)
-  const success = plan().runOpenness ? Math.max(runSuccess(state, 'hq'), runSuccess(state, 'rd')) : PACE.success;
+  const success = Math.max(runSuccess(state, 'hq'), runSuccess(state, 'rd'));
   return success * (1 - CLICK / 3 / 2) + (1 - success) * PAYOUT_RISK.clickWait * (1 - CLICK / 6);
 }
 
@@ -59,7 +59,7 @@ export const SYSTEM_GATEWAY: Record<string, CardAI> = {
     synergy: { gives: { virus: 1, breakers: 0.5 } },
     value: { rig: 2 },
     // A virus counter a turn, each breaking a subroutine on its host; useful for about 3 turns
-    runner: (state, _code, card) => perTurn(state, card ? counterWorth(state, card, 'virus', 'runner') : 1, 'runner', 0, 3, virusWait()),
+    runner: (state, _code, card) => perTurn(state, card ? counterWorth(state, card, 'virus') : 1, 'runner', 0, 3, virusWait()),
     // Each counter breaks 1 subroutine on its host, worth what breaking one costs (3 if nothing breaks it)
     counters: { virus: (state, card) => trojanHostWorth(state, card, host => Math.min(3, bestBreakPlan(state, host, 1)?.credits ?? 3)) },
   },
@@ -77,7 +77,7 @@ export const SYSTEM_GATEWAY: Record<string, CardAI> = {
     // past 12 counters holding on gains nothing
     runner: (state, code, card) =>
       perTurn(state, counterWorthOf(state, code, 'virus'), 'runner', 0, 4, virusWait()) *
-      (plan().fermenterBank && card ? Math.max(0, 1 - 0.08 * counters(card, 'virus')) : 1),
+      (card ? Math.max(0, 1 - 0.08 * counters(card, 'virus')) : 1),
     // 2 credits each, for a click and the card (cashed at about 4). plan.fermenterBank: the credits as the Runner's
     // credit slide prices them (flat, a bank of 10 outweighed 20 credits to a broke Runner), the whole bank on one
     // stretch of the slide (each Fermenter priced as the first credits counted every bank at the broke end), the
@@ -85,10 +85,9 @@ export const SYSTEM_GATEWAY: Record<string, CardAI> = {
     // and the bigger the bank the likelier the Corp spends its turn on one
     counters: {
       virus: (state, card) => {
-        if (!plan().fermenterBank) return 2 - payoutClick() / 4;
         const n = Math.max(1, counters(card, 'virus'));
         const bank = state.runner.rig.programs.reduce((t, p) => t + (p.cardCode === '30007' ? counters(p, 'virus') : 0), 0);
-        return 2 * payoutSlide(state, 'runner', 'runner', 2 * Math.max(n, bank)) * Math.max(0.4, 1 - 0.02 * bank) - payoutClick() / n;
+        return 2 * payoutSlide(state, 'runner', 2 * Math.max(n, bank)) * Math.max(0.4, 1 - 0.02 * bank) - payoutClick() / n;
       },
     },
   },
@@ -98,8 +97,7 @@ export const SYSTEM_GATEWAY: Record<string, CardAI> = {
     value: { rig: 2.5 },
     // A virus counter for each successful central run, spent on an encounter soon after: each waits about a turn, not from now
     runner: (state, code) => {
-      if (plan().runOpenness) return virusWait() * perTurn(state, PACE.runs * centralSuccess(state) * counterWorthOf(state, code, 'virus'), 'runner', 0, Infinity, 1, lock());
-      return virusWait() * perTurn(state, PACE.runs * (PACE.hqShare + PACE.rdShare) * PACE.success * counterWorthOf(state, code, 'virus'), 'runner');
+      return virusWait() * perTurn(state, PACE.runs * centralSuccess(state) * counterWorthOf(state, code, 'virus'), 'runner', 0, Infinity, 1, lock());
     },
     counters: { virus: () => 0.9 }, // -1 strength on an encounter, about a credit of boosting
     counterFormulas: { virus: leechVirus },
@@ -132,8 +130,7 @@ export const SYSTEM_GATEWAY: Record<string, CardAI> = {
     value: { rig: 2.5 },
     // One more HQ access the first time each turn, on a successful HQ run
     runner: state => {
-      if (plan().runOpenness) return perTurn(state, PACE.runs * PACE.hqShare * runSuccess(state, 'hq') * accessWorth(state), 'runner', 0, Infinity, 1, lock());
-      return perTurn(state, PACE.runs * PACE.hqShare * accessWorth(state), 'runner');
+      return perTurn(state, PACE.runs * PACE.hqShare * runSuccess(state, 'hq') * accessWorth(state), 'runner', 0, Infinity, 1, lock());
     },
   },
   // Pennyshaver
@@ -142,8 +139,7 @@ export const SYSTEM_GATEWAY: Record<string, CardAI> = {
     value: { rig: 3.5 },
     // +1 MU; a credit on it for each successful run
     runner: (state, code) => {
-      if (plan().runOpenness) return muWorth(state) + perTurn(state, PACE.runs * anySuccess(state) * counterWorthOf(state, code, 'credit'), 'runner', 0, Infinity, 1, lock());
-      return muWorth(state) + perTurn(state, PACE.runs * PACE.success * counterWorthOf(state, code, 'credit'), 'runner');
+      return muWorth(state) + perTurn(state, PACE.runs * anySuccess(state) * counterWorthOf(state, code, 'credit'), 'runner', 0, Infinity, 1, lock());
     },
     counters: { credit: () => PAID_OUT }, // All taken with a click, which adds 1 more
     counterFormulas: { credit: (_s, card) => pennyshaverCredit(card) },
@@ -157,7 +153,7 @@ export const SYSTEM_GATEWAY: Record<string, CardAI> = {
     synergy: { gives: { virus: 1 } },
     value: { rig: 2.5 },
     // A virus counter a turn; 3 derez its host
-    runner: (state, _code, card) => perTurn(state, card ? counterWorth(state, card, 'virus', 'runner') : 1, 'runner', 0, 3, virusWait()),
+    runner: (state, _code, card) => perTurn(state, card ? counterWorth(state, card, 'virus') : 1, 'runner', 0, 3, virusWait()),
     // 3 counters derez its host, a third of the rez cost each
     counters: { virus: (state, card) => trojanHostWorth(state, card, host => (host.isRezzed ? rezCost(state, host) / 3 : 0.3)) },
   },
@@ -204,8 +200,7 @@ export const SYSTEM_GATEWAY: Record<string, CardAI> = {
   '30024': {
     synergy: { gives: { rd: 2, runs: 1, virus: 1 }, wants: { rd: 1 }, when: ['successfulRun'] },
     value: { rig: 4 },
-    runner: (state, code) => {
-      if (!plan().cardFixes) return perTurn(state, PACE.runs * PACE.conduitRdShare * PACE.success * counterWorthOf(state, code, 'virus'), 'runner');
+    runner: state => {
       // A counter for each successful R&D run, each one more card on every Conduit run after it; counters gained later have fewer runs left
       const success = (t: number) => PACE.runs * PACE.conduitRdShare * runSuccess(state, 'rd') * lock() ** (t - 1);
       let value = 0;
@@ -216,7 +211,7 @@ export const SYSTEM_GATEWAY: Record<string, CardAI> = {
       }
       return value;
     },
-    counters: { virus: state => (plan().cardFixes ? conduitCounterWorth(state) : 1.2) }, // 1 more card accessed on each Conduit run still to come
+    counters: { virus: state => conduitCounterWorth(state) }, // 1 more card accessed on each Conduit run still to come
     run: (state?: GameState): RunOptions => {
       // Conduit: if successful, X more R&D cards accessed, X its virus counters
       const conduit = state?.runner.rig.programs.find(c => c.cardCode === '30024');

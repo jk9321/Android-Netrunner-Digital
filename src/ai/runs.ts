@@ -90,7 +90,7 @@ export function knownSubroutineCost(state: GameState, label: string): number | u
     if (x === 0) return 0;
     return x >= runner.grip.length ? BLOCK : (rates ? damageWorth(state, x) + tagCost(state) * x : 2 * x + 3 * x);
   }
-  if (/loses? \[click\]/i.test(label)) return rates ? clickRate('runner') : 2;
+  if (/loses? \[click\]/i.test(label)) return rates ? clickRate() : 2;
   if (/gets \+1 strength for the remainder of this run/i.test(label)) return 1.5; // ezaM: every ice after it costs more to break
   if (/each piece of ice gets \+2 strength for the remainder of this run/i.test(label)) return 2.5; // Tributary: every ice costs more to break
   if (/installed runner card to the grip/i.test(label)) return rates ? 0.5 * trashedCardCost(state) + 1 : 2; // Lethe: a reinstall, not a loss
@@ -138,7 +138,6 @@ export function knownSubroutineCost(state: GameState, label: string): number | u
  */
 export function creditCost(state: GameState, credits: number): number {
   if (credits <= 0) return 0;
-  if (!plan().creditSlide?.runner) return credits;
   const have = state.runner.credits;
   const need = creditNeed(state, 'runner');
   return creditSlide(have, need) - creditSlide(have - credits, need);
@@ -148,7 +147,7 @@ export function creditCost(state: GameState, credits: number): number {
 export const spendCost = (state: GameState, credits: number): number => creditCost(state, credits);
 
 /** A click spent on a run, in runScore's units. */
-export const runClick = (state?: GameState): number => (state ? clickPrice(state, 'runner', 'runner') : clickRate('runner'));
+export const runClick = (state?: GameState): number => (state ? clickPrice(state, 'runner', 'runner') : clickRate());
 
 /** A tag taken (Jeff): the cheaper of clearing it (a click and 2 credits) and what it costs to keep it. */
 export function tagCost(state: GameState): number {
@@ -157,14 +156,14 @@ export function tagCost(state: GameState): number {
     const s = !state.activeRun ? { ...state, runner: { ...state.runner, clicks: state.runner.clicks - 1 } } : state;
     return tagsWorth(s, 'runner', s.runner.tags + 1) - tagsWorth(s, 'runner', s.runner.tags); // both priced as given (plan.tagTrashNow)
   }
-  return Math.min(clickRate('runner') + creditCost(state, 2), RATES.tagAgainstRunner + tagThreat(state, 'runner'));
+  return Math.min(clickRate() + creditCost(state, 2), RATES.tagAgainstRunner + tagThreat(state, 'runner'));
 }
 
 /** An installed card the Corp gets to trash: about the Runner's best, a breaker at its install cost and the time to replace it. */
 export function trashedCardCost(state: GameState): number {
   const rig = [...state.runner.rig.programs, ...state.runner.rig.hardware, ...state.runner.rig.resources];
   if (rig.length === 0) return 0;
-  return Math.min(8, Math.max(...rig.map(c => (cardDef(c).cost ?? 0) + clickRate('runner') + 1)));
+  return Math.min(8, Math.max(...rig.map(c => (cardDef(c).cost ?? 0) + clickRate() + 1)));
 }
 
 export interface BreakPlan {
@@ -565,7 +564,7 @@ export function stealTax(state: GameState, serverId: string, agenda: CardInstanc
   const ice = state.activeRun || !server ? 0 : server.ice.reduce((n, c) => n + (c.isRezzed ? iceCost(state, c) : 0), 0);
   const credits = (state.activeRun ? availableCredits(state, 'runner') : runBudget(state)) - ice;
   if (clicks < cost.clicks || credits < cost.credits) return null;
-  return cost.clicks * clickRate('runner') + creditCost(state, cost.credits);
+  return cost.clicks * clickRate() + creditCost(state, cost.credits);
 }
 
 /**
@@ -840,7 +839,7 @@ export function runScore(state: GameState, serverId: string, options: RunOptions
   if (!server) return -Infinity;
   const breached = options.noBreach ? 0 : serverValue(state, options.breachAs ?? serverId, options.extraAccesses ?? 0, options.memory, options.wary);
   const gained = options.successCredits ?? 0;
-  const credits = gained > 0 && plan().runCreditsSlide ? gained * payoutSlide(state, 'runner', 'runner', gained) : gained;
+  const credits = gained > 0 && plan().runCreditsSlide ? gained * payoutSlide(state, 'runner', gained) : gained;
   let value = breached + ((options.successBonus ?? 0) + credits);
   if (options.baker && serverId === 'archives' && runStealthCredits(state) >= 1) {
     // Baker: after Archives' ice, a stealth credit turns the run on HQ or R&D, whose ice it skipped

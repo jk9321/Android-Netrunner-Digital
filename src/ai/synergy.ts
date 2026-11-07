@@ -179,14 +179,6 @@ export const tuning = {
      * Runner): off, kept for re-testing once a click is priced by the best
      * play in hand as planned. Points clock and hand filter: noise, kept.
      */
-    /** Both sides: a click is worth 1.25 credits (at least 1), not 1 (per deciding side). */
-    clickRate: { corp: true, runner: true } as Record<SideCode, boolean>,
-    /** Code audit cleanup item 5 (2026-11-06): the click a payout card takes is priced like every other click, 1.25, not the step-1 1 (valueModel payoutClick). */
-    oneClickPrice: true,
-    /** Code audit cleanup item 6 (2026-11-06): PACE's runs a turn, run success and agenda events as re-measured on beta 34391e2 (effectValues PACE_NOV6). */
-    measuredNov6: true,
-    /** Code audit: a draw's worth cached by the side's credits too (handValues drawWorth). */
-    drawWorthCredits: true,
     /**
      * Structural review item 1 (Jeff approved 2026-11-06; spec "Item 1 spec" of the AI code review doc): the Corp ranks
      * every main-phase action in one currency, the change in evaluate(state, 'corp') after the action and its own prompts
@@ -257,12 +249,8 @@ export const tuning = {
      * Corp off, kept for re-testing; Runner on (neutral, Jeff's design).
      */
     clickByPlay: { corp: false, runner: true } as Record<SideCode, boolean>,
-    /** Both sides: credits slide against a need (the deck's build target or the board's need, whichever is more) instead of a flat bonus under 6 (per deciding side). */
-    creditSlide: { corp: true, runner: true } as Record<SideCode, boolean>,
     /** Both sides: agenda points are worth more the closer they take a side to 7. */
     pointClock: true,
-    /** Both sides: one card over the hand-size limit is a small plus (you discard your worst card), not nothing. */
-    handFilter: true,
     /*
      * Value model step 6 (2026-10-27, self-play, 2,210 games each, base
      * 39.0%): off one at a time affordIce 38.5, deepReserve 38.6, iceReserve
@@ -282,38 +270,10 @@ export const tuning = {
      * Runner 8 points (it stacked Smartware instead of running); each stacked
      * credit now waits a turn longer and is worth less.
      */
-    /** Both sides (step 3, Jeff): counters are worth what they do on their card (counterValues.ts), not a flat rate per type (per deciding side). */
-    counterEffects: { corp: true, runner: true } as Record<SideCode, boolean>,
-    /** Both sides (step 4): money cards are worth what they will still pay out before the game ends (cardProfiles.ts). */
-    cardProfiles: true,
-    /** Both sides (Jeff, 2026-10-28): payouts that come when the turn begins keep full worth less the risk of losing the card; clicked payouts wait 7% a turn (cardProfiles.ts). */
-    payoutRisk: true,
-    /** Both sides (Jeff, 2026-10-28): the last 31 hand-set cards priced from what they do (effectValues.ts). */
-    effectValues: true,
-    /** Jeff, 2026-10-28: Fermenter and other virus counters banked and at risk of a purge; Conduit counters worth the accesses still to come; one-use breakers (Mayfly) worth one run. */
-    cardFixes: true,
-    /** Jeff, 2026-10-28: the last hand-set counter rates (20 cards) worked out from what each counter turns into (counterValues.ts). */
-    counterFormulas: true,
-    /** Jeff, 2026-10-28: damage priced on a clock (flatline odds rise as the grip falls below the Corp's biggest hit) and tags by what the Corp can do with them (effectValues.ts, evaluate.ts tagsWorth). */
-    damageClock: true,
-    /** Jeff, 2026-11-06 (his Teia game): the damage clock after the Runner's turn leaves out ice, which deals damage only in the Runner's own runs (effectValues damageThreat). */
-    corpTurnDamage: true,
-    /** Jeff, 2026-10-28: run-payoff cards (Leech, Conduit, Pennyshaver, Docklands, Red Team, Cacophony) by how open the servers they need are, fading as they lock down (effectValues.ts runSuccess). */
-    runOpenness: true,
-    /** Vantage Point (2026-10-30): a memory unit is worth more while the programs in the rig and grip want more than the base 4 MU (Hiram's breaker suite), so consoles get installed. */
-    muNeed: true,
-    /** Jeff, 2026-10-28: an installed agenda's steal chance as measured (scripts/steal-odds.ts): the Runner runs a remote it can get into most turns, and raises credits for the ice first (effectValues stealOdds). */
-    stealOdds: true,
     /** Jeff, 2026-10-28: the Corp's planner plays the Runner's next turn out (the Runner AI on the board, hidden cards guessed) and scores what it leaves (runnerReply.ts). */
     runnerReply: true,
     /** Jeff, 2026-10-29: an agenda in an open remote is as good as stolen: steal odds 1, and the Runner reply counts it stolen even when the sampled Runner didn't run it. */
     openSteal: true,
-    /** Jeff's bug report, 2026-10-31 (LEO at 0 credits installing bare agendas): agenda tempo counts the clicks to gain the credits each advancement still needs. */
-    agendaCredits: true,
-    /** Jeff, 2026-10-31 ("a broke Corp can't do anything since it can't rez ice"): the Corp's credits are worth the best money operation in HQ they can pay for, half its net gain, on the credit slide (valueModel.ts moneyReach). */
-    moneyReach: true,
-    /** Jeff, 2026-11-05 (his Corp game 1: the Runner clicked for credits on 0 credits beside 15 banked Fermenter counters): Fermenter counters priced on the Runner's credit slide, the click shared by the bank; the bank's purge risk ends the worth of holding past 10 (cards/systemGateway.ts). */
-    fermenterBank: true,
     /** Jeff, 2026-11-05 (build econ before scoring): a held Hedge Fund was counted twice, as a card in HQ and on the credit slide by moneyReach, so playing it scored below a click for a credit; the card moneyReach counts is left out of HQ's worth (evaluate.ts handAndClicks, handValues.ts ownHandValue). */
     heldMoney: true,
     /** Jeff, 2026-11-05 ("rez ice when needed, but build back up after"): the Corp's first 4 credits are worth up to 2.8 each, not 1.8 (valueModel.ts sideCreditValue, BROKE_SLOPE, BROKE_CREDITS). */
@@ -474,7 +434,10 @@ export const FOLDED: readonly string[] = [
   'measuredAssetRisk', 'promptChains', 'leoValue', 'bangunFaceUp', 'bangunNoBareBait', 'bangunEarlyBait',
   'fundedDepth', 'icePacing', 'iceTrash', 'centralsFirst', 'stopperPlacement', 'mulliganRez', 'purgeValue',
   'affordIce', 'runBudget', 'rezAllowance', 'drawValue', 'blindDraws', 'dig', 'idleUpgrades', 'pettyCash', 'rezToll',
-  'saveForOps', 'trojans', 'bioroidClicks',
+  'saveForOps', 'trojans', 'bioroidClicks', 'clickRate', 'oneClickPrice', 'measuredNov6', 'drawWorthCredits',
+  'creditSlide', 'handFilter', 'counterEffects', 'cardProfiles', 'payoutRisk', 'effectValues', 'cardFixes',
+  'counterFormulas', 'damageClock', 'corpTurnDamage', 'runOpenness', 'muNeed', 'stealOdds', 'agendaCredits',
+  'moneyReach', 'fermenterBank',
 ];
 
 /** Throws on a name that isn't a plan switch (a typo, or a switch folded into the code). */

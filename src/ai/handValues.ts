@@ -58,7 +58,7 @@ export function playedWorth(state: GameState, card: CardInstance): number {
   }
   // Runner rig cards
   const profile = CARD_PROFILES[card.cardCode];
-  if (profile && plan().cardProfiles) return payoutWorth(profile, turns, profile.load, payoutWait(state, profile, 'runner'), cardRate(state, 'runner')) * payoutSlide(state, 'runner', 'runner', profile.load) - cost - CLICK;
+  if (profile) return payoutWorth(profile, turns, profile.load, payoutWait(state, profile, 'runner'), cardRate(state, 'runner')) * payoutSlide(state, 'runner', profile.load) - cost - CLICK;
   // (Not while the deck's average card is worked out: pricing the rig there prices the rig cards that asked for the average)
   if (isIcebreaker(card) && flatRate('breakers') && plan().breakerCredits?.runner && !pricing().pricingBreakers.has(card.instanceId) && !pricing().averaging) {
     // What it adds to the rig's coverage once installed (Mayfly's one use included), as the board will see it.
@@ -78,7 +78,7 @@ export function playedWorth(state: GameState, card: CardInstance): number {
     const breaks = breakerScript(card)?.breaks;
     const covered = state.runner.rig.programs.some(p => isIcebreaker(p) && breakerScript(p)?.breaks === breaks);
     let worth = !breaks || breaks === 'any' ? RATES.anyBreaker + 4 : covered ? 1 : breakerTypeWorth(state, breaks);
-    if (plan().cardFixes && isOneUse(card)) worth /= 3; // Mayfly: one run, then trashed
+    if (isOneUse(card)) worth /= 3; // Mayfly: one run, then trashed
     return worth - cost - CLICK;
   }
   const unique = def.uniqueness && [...state.runner.rig.programs, ...state.runner.rig.hardware, ...state.runner.rig.resources].some(c => c.cardCode === card.cardCode);
@@ -92,7 +92,7 @@ function loadedWorth(state: GameState, card: CardInstance): number {
   const load = text.match(/When you install this [a-z]+(?:,| and[^,.]*,) (?:load|place) (\d+) ?(?:\[?credits?\]?|(virus|power) counters?)/i);
   if (!load) return 0;
   const type = (load[2]?.toLowerCase() ?? 'credit') as 'credit' | 'virus' | 'power';
-  return Number(load[1]) * counterWorth(state, card, type, 'runner');
+  return Number(load[1]) * counterWorth(state, card, type);
 }
 
 /** Worth of one card waiting in hand. */
@@ -130,12 +130,12 @@ function drawWorth(state: GameState, side: SideCode): number {
   // plan.drawWorthCredits (code audit, 2026-11-06): and the side's credits, which decide what each card would cost to play
   // (heldWorth's SOON): without them the average from the turn's first credit count was used all turn, and in look-aheads
   // that spend or gain money (found as a test that passed alone and failed after another, tests/brokeCorp.test.ts)
-  const credits = plan().drawWorthCredits ? `${side === 'corp' ? state.corp.credits : state.runner.credits}:` : '';
+  const credits = `${side === 'corp' ? state.corp.credits : state.runner.credits}:`;
   // and the whole position (valueModel fingerprint: scores, rezzed ice, rigs...): the in-run rez model's look-aheads
   // (2026-11-06) price boards a turn would otherwise never see (a steal, a rez, a toll paid), and with the cache cleared
   // at its size cap a value from one of those could be served for the real board, so a reloaded game played on
   // differently from the one in memory (tests/savedGame.test.ts)
-  const board = plan().drawWorthCredits ? `${fingerprint(state)}:` : '';
+  const board = `${fingerprint(state)}:`;
   const key = `${pricingKey()}:${side}:${state.id}:${state.turnNumber}:${credits}${board}${deck.map(c => c.instanceId).join(',')}`;
   const cached = deckAverage.get(key);
   if (cached !== undefined) return cached;
@@ -160,7 +160,7 @@ export function ownHandValue(state: GameState, side: SideCode): number {
   const limit = (side === 'corp' ? state.corp.handSizeLimit : state.runner.handSizeLimit) ?? 5;
   const seen = pricing().known[side];
   // plan.heldMoney: the money operation moneyReach already puts on the Corp's credit slide isn't counted again in HQ
-  const reach = side === 'corp' && plan().heldMoney && plan().moneyReach ? reachCard(state) : undefined;
+  const reach = side === 'corp' && plan().heldMoney ? reachCard(state) : undefined;
   const values = hand
     .map(c => (seen && !seen.has(c.instanceId) ? drawWorth(state, side) : c === reach ? HAND_FLOOR : heldWorth(state, c, side)))
     .sort((a, b) => b - a);
@@ -209,7 +209,6 @@ const clickCache = new Map<string, number>();
 
 /** Price of a click left to `side`, as `viewer` sees it: best play in hand for its own, the 1.25 default for the other side's. */
 export function clickPrice(state: GameState, side: SideCode, viewer: SideCode): number {
-  if (!plan().clickRate?.[viewer]) return RATES.click;
   return side === viewer && plan().clickByPlay?.[viewer] ? clickWorth(state, side) : CLICK;
 }
 

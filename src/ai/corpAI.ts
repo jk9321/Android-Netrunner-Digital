@@ -548,7 +548,7 @@ export class HeuristicCorpAI implements Agent {
     // Terminal operations (Liberation) end the action phase: the clicks left are lost, so play them last
     if (action.type === 'PLAY_OPERATION_OR_EVENT') {
       const played = corp.hq.find(c => c.instanceId === action.cardInstanceId);
-      if (played && /terminal/i.test(cardDef(played).keywords ?? '')) score -= Math.max(0, corp.clicks - 1) * clickRate('corp');
+      if (played && /terminal/i.test(cardDef(played).keywords ?? '')) score -= Math.max(0, corp.clicks - 1) * clickRate();
     }
     // plan.oneCurrency: the delta alone (a free action still has to gain something, or the loop guard would spin)
     if (one) return !spendsClick && !unfiltered && score <= FREE_ACTION_FLOOR ? -Infinity : score;
@@ -1071,7 +1071,7 @@ export function clickOnly(card: CardInstance): number {
 
 function virusThreat(state: GameState): number {
   return [...state.runner.rig.programs, ...state.runner.rig.hardware, ...state.runner.rig.resources].reduce(
-    (n, c) => n + counters(c, 'virus') * counterWorth(state, c, 'virus', 'corp'),
+    (n, c) => n + counters(c, 'virus') * counterWorth(state, c, 'virus'),
     0
   );
 }
@@ -1115,7 +1115,7 @@ function tankPreps(state: GameState): { state: GameState; cost: number; credits:
       const clicks = cleared + draws;
       preps.push({
         state: { ...state, runner: { ...runner, tags, grip: [...runner.grip, ...runner.stack.slice(0, draws)] } },
-        cost: clicks * clickRate('runner') + 2 * cleared,
+        cost: clicks * clickRate() + 2 * cleared,
         credits: 2 * cleared,
       });
     }
@@ -1186,7 +1186,7 @@ export function breakerReach(state: GameState, ice: CardInstance): number {
     const pass = iceCost(trial, ice);
     if (pass === Infinity) continue;
     const draws = grip ? 0 : (runner.stack.length + 1) / (copies + 1);
-    best = Math.min(best, pass + (cardDef(card).cost ?? 0) + (1 + draws) * clickRate('runner'));
+    best = Math.min(best, pass + (cardDef(card).cost ?? 0) + (1 + draws) * clickRate());
   }
   return best;
 }

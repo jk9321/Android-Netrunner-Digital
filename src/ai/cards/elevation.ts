@@ -159,8 +159,7 @@ export const ELEVATION: Record<string, CardAI> = {
     value: { rig: 4 },
     // A power counter the first time each turn it steals or trashes a Corp card
     runner: (state, code) => {
-      if (plan().runOpenness) return perTurn(state, PACE.stealOrTrash * (anySuccess(state) / PACE.success) * counterWorthOf(state, code, 'power'), 'runner', 0, Infinity, 1, lock());
-      return perTurn(state, PACE.stealOrTrash * counterWorthOf(state, code, 'power'), 'runner');
+      return perTurn(state, PACE.stealOrTrash * (anySuccess(state) / PACE.success) * counterWorthOf(state, code, 'power'), 'runner', 0, Infinity, 1, lock());
     },
     counters: { power: () => 1.2 }, // 2 counters sabotage 3
     counterFormulas: { power: cacophonyPower },

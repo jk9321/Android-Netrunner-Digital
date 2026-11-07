@@ -79,7 +79,7 @@ export function creditValue(credits: number): number {
 
 /**
  * The click prices (code audit cleanup item 5, 2026-11-06), one place for all of them:
- * - CLICK 1.25: a click by default (Jeff: never under a credit). clickRate(viewer) is this, or RATES.click (1, step 1)
+ * - CLICK 1.25: a click by default (Jeff: never under a credit). clickRate() is this (RATES.click, 1, was step 1)
  *   with plan.clickRate off for that side.
  * - clickWorth (handValues): a side's own click priced by the best plays in its hand, 1 to 3 (plan.clickByPlay).
  *   clickPrice(state, side, viewer) picks between them.
@@ -89,8 +89,8 @@ export function creditValue(credits: number): number {
  *   plan.oneClickPrice makes it CLICK.
  */
 export const CLICK = 1.25;
-export const clickRate = (viewer: SideCode): number => (plan().clickRate?.[viewer] ? CLICK : RATES.click);
-export const payoutClick = (): number => (plan().oneClickPrice ? CLICK : RATES.click);
+export const clickRate = (): number => CLICK;
+export const payoutClick = (): number => CLICK;
 
 /**
  * Worth of `credits` against a need (Jeff): each extra credit is worth 1.8
@@ -194,7 +194,7 @@ export function flatlineWorth(state: GameState): number {
 }
 
 /** Worth of the first card over the hand-size limit (Jeff: you pick the worst card to discard). */
-export const handFilter = (): number => (plan().handFilter ? 0.3 : 0);
+export const handFilter = (): number => 0.3;
 
 /** Every card a side owns, wherever it is (for decklist averages). */
 export function sideCards(state: GameState, side: SideCode): CardInstance[] {
@@ -316,8 +316,7 @@ export const BROKE_SLOPE = 1;
 export function sideCreditValue(state: GameState, side: SideCode, viewer: SideCode): number {
   const credits = side === 'corp' ? state.corp.credits : state.runner.credits;
   // The money it unlocks in HQ sits on the slide with the credits: worth most to a broke Corp
-  const reach = side === 'corp' && viewer === 'corp' && plan().moneyReach ? moneyReach(state) : 0;
-  if (!plan().creditSlide?.[viewer]) return creditValue(credits) + reach;
+  const reach = side === 'corp' && viewer === 'corp' ? moneyReach(state) : 0;
   const need = creditNeed(state, side);
   // plan.brokeSlope (Jeff, 2026-11-05: rez ice when needed, then build back up): the Corp's own first 4 credits are
   // worth up to 2.8 each, not 1.8 (a steeper slope all the way to the need made a click for a credit beat installing
@@ -337,8 +336,8 @@ export function sideCreditValue(state: GameState, side: SideCode, viewer: SideCo
 /** plan.liquidity: credits on a card are worth this much more than at half the need while the side is short. */
 export const LIQUIDITY_LIFT = 1.1;
 
-export function payoutSlide(state: GameState, side: SideCode, viewer: SideCode, amount: number): number {
-  if (!plan().creditSlide?.[viewer] || amount <= 0) return 1;
+export function payoutSlide(state: GameState, side: SideCode, amount: number): number {
+  if (amount <= 0) return 1;
   const credits = side === 'corp' ? state.corp.credits : state.runner.credits;
   const need = creditNeed(state, side);
   // plan.liquidity (Jeff, 2026-11-06, his Teia game: the Runner sat on 0-5 credits for 13 turns and never played Sure

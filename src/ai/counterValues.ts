@@ -1,11 +1,10 @@
-import { CardInstance, GameState, SideCode, cardDef } from '../core';
+import { CardInstance, GameState, cardDef } from '../core';
 import { findCardAnywhere } from '../core';
 import { counters } from '../core/engine/cardEffects';
 import { RATES } from './valueModel';
 import { PAYOUT_RISK } from './payoutRisk';
 import type { CounterType } from './cards';
 import { COUNTER_FORMULAS, COUNTER_WORTH } from './cards';
-import { plan } from './pricing';
 
 /**
  * Value model step 3 (docs/ai-value-model-plan.md): a counter is worth
@@ -69,14 +68,14 @@ function defaultWorth(card: CardInstance, type: CounterType): number {
   }
 }
 
-/** Worth of one counter of `type` on `card`, as `viewer` prices it. */
-export function counterWorth(state: GameState, card: CardInstance, type: CounterType, viewer: SideCode): number {
-  const entry = plan().counterEffects?.[viewer] ? ((plan().counterFormulas ? COUNTER_FORMULAS[card.cardCode]?.[type] : undefined) ?? COUNTER_WORTH[card.cardCode]?.[type]) : undefined;
+/** Worth of one counter of `type` on `card` (either side prices it the same since plan.counterEffects was folded). */
+export function counterWorth(state: GameState, card: CardInstance, type: CounterType): number {
+  const entry = COUNTER_FORMULAS[card.cardCode]?.[type] ?? COUNTER_WORTH[card.cardCode]?.[type];
   return entry ? entry(state, card) : defaultWorth(card, type);
 }
 
 /** Worth of all the counters of `type` on `card`. */
-export const countersWorth = (state: GameState, card: CardInstance, type: CounterType, viewer: SideCode): number => {
+export const countersWorth = (state: GameState, card: CardInstance, type: CounterType): number => {
   const n = counters(card, type);
-  return n > 0 ? n * counterWorth(state, card, type, viewer) : 0;
+  return n > 0 ? n * counterWorth(state, card, type) : 0;
 };
