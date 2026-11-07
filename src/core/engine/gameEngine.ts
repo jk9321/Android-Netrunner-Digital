@@ -62,6 +62,26 @@ const handlers: ActionHandlers = {
  * mutated; on an illegal action an IllegalActionError is thrown.
  */
 export function executeAction(prevState: GameState, action: GameAction): GameState {
+  const pre = checkedResults.get(prevState);
+  if (pre) {
+    const key = JSON.stringify(action);
+    const hit = pre.get(key);
+    if (hit) { pre.delete(key); return hit; }
+  }
+  return runAction(prevState, action);
+}
+
+function copyPlain(v: unknown): unknown {
+  if (typeof v !== 'object' || v === null) return v;
+  if (Array.isArray(v)) { const n = v.length; const out = new Array(n); for (let i = 0; i < n; i++) out[i] = copyPlain(v[i]); return out; }
+  const out: Record<string, unknown> = {};
+  for (const k in v as Record<string, unknown>) out[k] = copyPlain((v as Record<string, unknown>)[k]);
+  return out;
+}
+
+const checkedResults = new WeakMap<GameState, Map<string, GameState>>();
+
+function runAction(prevState: GameState, action: GameAction): GameState {
   if (prevState.winner) {
     throw new IllegalActionError('Game is already over.');
   }
@@ -75,7 +95,7 @@ export function executeAction(prevState: GameState, action: GameAction): GameSta
   // a new array holding the same entries instead of a deep copy of a log that
   // is most of the state late in a game.
   const { log, ...rest } = prevState;
-  const state: GameState = { ...structuredClone(rest), log: log.slice() };
+  const state: GameState = { ...(copyPlain(rest) as typeof rest), log: log.slice() };
   const handler = handlers[action.type] as (state: GameState, action: GameAction) => void;
   if (!handler) {
     throw new IllegalActionError(`Unknown action type: ${(action as { type: string }).type}`);
@@ -258,7 +278,10 @@ export function isLegalAction(state: GameState, action: GameAction): boolean {
   if (cached !== undefined) return cached;
   let legal: boolean;
   try {
-    executeAction(state, action);
+    const next = runAction(state, action);
+    let pre = checkedResults.get(state);
+    if (!pre) { pre = new Map(); checkedResults.set(state, pre); }
+    pre.set(key, next);
     legal = true;
   } catch (err) {
     if (!(err instanceof IllegalActionError)) throw err;
