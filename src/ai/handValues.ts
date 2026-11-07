@@ -124,6 +124,13 @@ export function noteKnownHand(state: GameState, side: SideCode) {
   known[side] = new Set(hand.map(c => c.instanceId));
 }
 
+/** Cards in `side`'s hand the deciding AI hasn't seen (drawn in a look-ahead): it can't know what they are. */
+export function unseenInHand(state: GameState, side: SideCode): CardInstance[] {
+  const seen = known[side];
+  const hand = side === 'corp' ? state.corp.hq : state.runner.grip;
+  return seen ? hand.filter(c => !seen.has(c.instanceId)) : [];
+}
+
 const deckAverage = new Map<string, number>();
 let averaging = false;
 

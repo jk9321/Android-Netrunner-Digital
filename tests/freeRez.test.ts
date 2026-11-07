@@ -91,6 +91,14 @@ describe('Corp AI cheats out expensive ice with a free rez (plan.freeRez)', () =
     giveCard(s, 'corp', PHAROS);
     const installsPharos = () =>
       new HeuristicCorpAI().rankMainActions(s).some(r => r.action.type === 'INSTALL_CARD' && cardDef(s.corp.hq.find(c => c.instanceId === (r.action as { cardInstanceId: string }).cardInstanceId)!).title === 'Pharos' && r.score > -Infinity);
+    if (tuning.plan.oneCurrency) {
+      // plan.oneCurrency gates no install at -Infinity: without the plan Pharos is still a (poor) install, with it the
+      // ice Send a Message will rez for free counts at its rezzed worth (fresh copies: the memo is per state, not per switch)
+      const pharos = (t: GameState) => Math.max(...new HeuristicCorpAI().rankMainActions(t).filter(r => r.action.type === 'INSTALL_CARD' && cardDef(t.corp.hq.find(c => c.instanceId === (r.action as { cardInstanceId: string }).cardInstanceId)!).title === 'Pharos').map(r => r.score));
+      const off = withPlan(false, () => pharos(structuredClone(s)));
+      expect(pharos(structuredClone(s))).toBeGreaterThan(off + 2);
+      return;
+    }
     expect(withPlan(false, installsPharos)).toBe(false);
     expect(installsPharos()).toBe(true);
   });
@@ -107,9 +115,10 @@ describe('Corp AI cheats out expensive ice with a free rez (plan.freeRez)', () =
     const after = run();
     expect(after.corp.score).toBe(3);
     expect(allIce(after).some(c => c.cardCode === PHAROS && c.isRezzed)).toBe(true);
-    // Before: Pharos couldn't be installed, so the free rez went to a Palisade
+    // Before: Pharos couldn't be installed, so the free rez went to a Palisade. plan.oneCurrency finds it without the
+    // plan: the finish projection scores Send a Message through the engine, whose free-rez prompt rezzes the Pharos
     const old = withPlan(false, run);
-    expect(allIce(old).some(c => c.cardCode === PHAROS)).toBe(false);
+    expect(allIce(old).some(c => c.cardCode === PHAROS)).toBe(tuning.plan.oneCurrency);
   });
 
   it('the free rez goes to the ice that saves the most, when the Corp could pay for either', () => {

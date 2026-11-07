@@ -4,6 +4,9 @@ import { GameState, cardDef, executeAction } from '../src/core';
 import { createAgent } from '../src/ai';
 import { tuning } from '../src/ai/synergy';
 
+const oneCurrencyDefault = tuning.plan.oneCurrency;
+
+
 /**
  * Bug report #18 (Jeff's Corp game 2, 2026-11-05): on turn 7 Project Ingatan sat in Remote 1 behind rezzed Tatu-Bola
  * and Manegarm Skunkworks with 5 credits and 3 clicks to score it. The AI installed Vovô Ozetti and Nico Campaign and
@@ -56,6 +59,9 @@ describe('a protected agenda the Corp can finish is scored this turn (plan.agend
     tuning.plan.breakerReach = false;
     // and with each unrezzed ice priced against all the Corp's credits (plan.rezBudget, 2026-11-06)
     tuning.plan.rezBudget = false;
+    // and on the old ranking those plans patched (plan.oneCurrency, 2026-11-06: the one-currency Corp scores it on the
+    // finish projection with neither)
+    tuning.plan.oneCurrency = false;
     try {
       expect(scoredIngatan(playTurn(position()))).toBe(false);
     } finally {
@@ -64,6 +70,7 @@ describe('a protected agenda the Corp can finish is scored this turn (plan.agend
       tuning.plan.measuredTurnsLeft = true;
       tuning.plan.breakerReach = true;
       tuning.plan.rezBudget = true;
+      tuning.plan.oneCurrency = oneCurrencyDefault;
     }
   }, 30_000);
 });

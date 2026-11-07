@@ -4,6 +4,10 @@ import { corpCardValue, evaluate } from '../src/ai/evaluate';
 import { heldWorth } from '../src/ai/handValues';
 import { ALL_CARDS, cardDef, createCardInstance, GameState } from '../src/core';
 import { giveCard, newGame, runnerInstall, startRunnerTurn } from './helpers';
+import { legacyRanking } from './legacyRanking';
+
+// plan.oneCurrency: these pin the old Corp ranking (tests/legacyRanking.ts)
+legacyRanking(["Myōshu: the planned turn values keeping the saved 10 credits by more than the old flat -1 (retires myoshuSaving)"]);
 
 const AGENDA = ALL_CARDS.find(d => d.type_code === 'agenda' && d.agenda_points === 2 && d.pack_code === 'sg')!.code;
 

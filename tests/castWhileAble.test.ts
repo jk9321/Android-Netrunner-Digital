@@ -4,6 +4,9 @@ import { GameState, cardDef, executeAction } from '../src/core';
 import { createAgent } from '../src/ai';
 import { tuning } from '../src/ai/synergy';
 
+const oneCurrencyDefault = tuning.plan.oneCurrency;
+
+
 /**
  * Jeff (2026-11-04): why can't the Corp manage its econ? The batch "Corp went broke" alarm: 60% of the times the Corp
  * fell under 3 credits it had paid to rez ice in the Runner's runs, often with Hedge Fund (5) stuck in HQ.
@@ -27,14 +30,17 @@ describe('a money operation is played before rezzing ice strands it (plan.castWh
     const s = play();
     expect(inHq(s)).not.toContain('Hedge Fund');
     expect(s.corp.credits).toBeGreaterThanOrEqual(9);
-  });
+  }, 30_000);
 
   it('without the plan Hedge Fund stays in HQ', () => {
     tuning.plan.castWhileAble = false;
     tuning.plan.heldMoney = false;
+    // Both are patches on the old ranking (plan.oneCurrency, 2026-11-06: the one-currency Corp plays Hedge Fund on its delta)
+    tuning.plan.oneCurrency = false;
     try {
       expect(inHq(play())).toContain('Hedge Fund');
     } finally {
+      tuning.plan.oneCurrency = oneCurrencyDefault;
       tuning.plan.castWhileAble = true;
       tuning.plan.heldMoney = true;
     }

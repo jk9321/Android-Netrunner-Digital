@@ -50,4 +50,6 @@ export const EFFECT_CODES: string[] = Object.keys(CARDS).filter(code => CARDS[co
 /** A Corp card's formula, if it has one. */
 export const corpFormula = (state: GameState, code: string, ctx: CorpEffectContext): CorpEffect | undefined => CARDS[code]?.corp?.(state, code, ctx);
 /** A Runner card's formula, if it has one. */
+/** plan.oneCurrency: a faceup Corp card's worth in Archives (Petty Cash, played again from there). */
+export const archivedWorth = (state: GameState, code: string): number => CARDS[code]?.archived?.(state) ?? 0;
 export const runnerFormula = (state: GameState, code: string, card?: CardInstance): number | undefined => CARDS[code]?.runner?.(state, code, card);

@@ -35,10 +35,19 @@ describe('click-paid money assets are rezzed when they can be used (plan.clickMo
 
   it('without the plan it rezzed Regolith at the end of the turn', () => {
     tuning.plan.clickMoneyRez = false;
+    // and the ranking it was found on: the one-currency Corp doesn't rez it there either (a rez with no click left to
+    // use it is worth only the wait, under the free-action floor), so the bug needs the old rule tiers to show
+    const one = tuning.plan.oneCurrency;
     try {
+      if (one) {
+        const { state, regolith } = endOfTurn();
+        expect(findCardAnywhere(finishTurn(state), regolith)?.isRezzed).toBe(false);
+      }
+      tuning.plan.oneCurrency = false;
       const { state, regolith } = endOfTurn();
       expect(findCardAnywhere(finishTurn(state), regolith)?.isRezzed).toBe(true);
     } finally {
+      tuning.plan.oneCurrency = one;
       tuning.plan.clickMoneyRez = true;
     }
   });

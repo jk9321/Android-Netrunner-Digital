@@ -4,6 +4,8 @@ import { GameState, cardDef, executeAction } from '../src/core';
 import { createAgent } from '../src/ai';
 import { tuning } from '../src/ai/synergy';
 
+const oneCurrencyDefault = tuning.plan.oneCurrency;
+
 /**
  * Jeff (2026-11-05): the Corp leaves tags unused. Once the Runner AI played its money resources, the "tag not used"
  * alarm rose from 52 to 79 per 663 games. A tag usually lasts only until the Runner's next turn (rule 5.2.7g: click,
@@ -33,12 +35,15 @@ describe('a tag is used while the Runner still has it (plan.tagFirst)', () => {
     tuning.plan.runnerKnown = false;
     // and plan.corpTurnDamage (2026-11-06), with which the Corp also trashes it here
     tuning.plan.corpTurnDamage = false;
+    // and the ranking it was found on: the one-currency Corp trashes Side Hustle without the plan (oneCurrency.test.ts)
+    tuning.plan.oneCurrency = false;
     try {
       expect(rig(play())).toEqual(expect.arrayContaining(['Side Hustle', 'Open Market']));
     } finally {
       tuning.plan.tagFirst = true;
       tuning.plan.runnerKnown = true;
       tuning.plan.corpTurnDamage = true;
+      tuning.plan.oneCurrency = oneCurrencyDefault;
     }
   });
 });

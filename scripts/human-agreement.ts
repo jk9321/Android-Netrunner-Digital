@@ -14,15 +14,23 @@
  * Runner games (the AI plays the Corp) are compared the same way from the Runner's side: decisions (runs counted 3
  * times) and turns whose runs and steals match (the servers run, points stolen).
  *
- * Usage: npx vite-node scripts/human-agreement.ts -- [dir] [--agendaClick=2] [--corpPoints=1] [--quiet]
+ * Usage: npx vite-node scripts/human-agreement.ts -- [dir] [--agendaClick=2] [--corpPoints=1] [--quiet] [--dump=file.json] [--at=file:turn:clicks [--detail]] [--noPlanner]
+ * --dump writes every compared decision (file, turn, clicks left, the human's move, the AI's pick), so two runs (a switch
+ * on and off) can be diffed decision by decision.
  */
+import { writeFileSync } from 'node:fs';
 import { readFileSync, readdirSync } from 'node:fs';
 import { join } from 'node:path';
 import { GameAction, GameState, actingSide, cardDef, createInitialGameState, executeAction, findCardAnywhere } from '../src/core';
 import { deckGameSetup } from '../src/data/decks';
-import { createAgent } from '../src/ai';
-import { setAgendaClick } from '../src/ai/evaluate';
+import { HeuristicCorpAI, createAgent } from '../src/ai';
+import { centralExposure, evaluate, setAgendaClick, sideStrength } from '../src/ai/evaluate';
+import { stealOdds } from '../src/ai/effectValues';
 import { KNOBS } from '../src/ai/valueModel';
+import { applyPlanOff } from '../src/ai/synergy';
+
+// PLAN_OFF=a,b as in the batch scripts (PLAN_OFF=oneCurrency: the old Corp ranking)
+applyPlanOff(process.env.PLAN_OFF ?? '');
 
 const args = process.argv.slice(2).filter(a => a !== '--');
 const dir = args.find(a => !a.startsWith('--')) ?? 'tests/fixtures/human-games';
@@ -75,7 +83,13 @@ let agreed = 0;
 let turns = 0;
 let turnsMatched = 0;
 const misses: string[] = [];
+const dump: { file: string; turn: number; clicks: number; side: string; human: string; ai: string; w: number; same: boolean }[] = [];
+const describe = (st: GameState, a: GameAction) => {
+  const card = cardOf(st, a);
+  return `${a.type}${card ? ' ' + cardDef(card).title : ''}${'targetServerId' in a && a.targetServerId ? ' @' + a.targetServerId : ''}`;
+};
 for (const file of readdirSync(dir).filter(f => f.endsWith('.json')).sort()) {
+  if (opt('at') && !opt('at')!.startsWith(file + ':')) continue;
   const report = JSON.parse(readFileSync(join(dir, file), 'utf8'));
   if (!report.moves?.length) continue;
   const human: 'corp' | 'runner' = report.config.ai === 'corp' ? 'runner' : 'corp';
@@ -113,11 +127,30 @@ for (const file of readdirSync(dir).filter(f => f.endsWith('.json')).sort()) {
     if (main && move.type !== 'START_TURN' && !turnStart && clicks > 0) turnStart = s;
     if (turnStart && move.player === human) humanMoves.push(move);
     if (main && move.type !== 'START_TURN' && move.type !== 'END_TURN') {
-      const ai = createAgent(human, 'normal').chooseAction(s);
+      const ai = (args.includes('--noPlanner') && human === 'corp' ? new HeuristicCorpAI({ planner: false }) : createAgent(human, 'normal')).chooseAction(s);
+      if (opt('at') === `${file}:${s.turnNumber}:${clicks}` && human === 'corp') {
+        // --at=file:turn:clicks prints the one-step ranking there (the planner's input) and the human's move
+        const ranked = new HeuristicCorpAI({ synergy: true, planner: false }).rankMainActions(s);
+        console.log(`at ${opt('at')}: human ${describe(s, move)}, AI ${describe(s, ai)}`);
+        for (const r of ranked.slice(0, 10)) console.log(`  ${r.score.toFixed(2)}  ${describe(s, r.action)}`);
+        const h = ranked.find(r => same(r.action, move));
+        if (h) console.log(`  human's move scored ${h.score.toFixed(2)}`);
+        const rig = [...s.runner.rig.programs, ...s.runner.rig.hardware, ...s.runner.rig.resources].map(c => `${cardDef(c).title}${Object.entries(c.tokens ?? {}).filter(([, n]) => n).map(([k, n]) => ` ${k}:${n}`).join('')}`);
+        const hosted = Object.values(s.corp.servers).flatMap(sv => sv.ice.map(i => `${sv.id}:${cardDef(i).title}${i.isRezzed ? '' : '(u)'}${(i.hostedCards ?? []).map(h => '+' + cardDef(h).title + JSON.stringify(h.tokens ?? {})).join('')}`));
+        if (args.includes('--detail')) {
+          for (const r of [{ action: move, score: 0 }, ...ranked.slice(0, 2)]) {
+            const t = executeAction(s, r.action);
+            const remotes = Object.values(t.corp.servers).filter(sv => sv.isRemote).map(sv => `${sv.id} steal ${stealOdds(t, sv.id).toFixed(2)}`).join(', ');
+            console.log(`  after ${describe(s, r.action)}: eval ${evaluate(t, 'corp', true).toFixed(2)} exposure ${centralExposure(t, 'corp').toFixed(2)} corp ${sideStrength(t, 'corp', 'corp', true).toFixed(2)} runner ${sideStrength(t, 'runner', 'corp', true).toFixed(2)} | ${remotes}`);
+          }
+        }
+        console.log(`  rig: ${rig.join(', ')}\n  ice: ${hosted.join(', ')}\n  credits corp ${s.corp.credits} runner ${s.runner.credits}, grip ${s.runner.grip.length}, score ${s.corp.score}-${s.runner.score}`);
+      }
       const key = (st: GameState, a: GameAction) => (human === 'corp' ? isAgendaMove(st, a) : a.type === 'INITIATE_RUN');
       const w = key(s, move) || key(s, ai) ? 3 : 1;
       weight += w;
       if (same(move, ai)) agreed += w;
+      dump.push({ file, turn: s.turnNumber, clicks, side: human, human: describe(s, move), ai: describe(s, ai), w, same: same(move, ai) });
     }
     const before = s;
     s = executeAction(s, move);
@@ -127,4 +160,5 @@ for (const file of readdirSync(dir).filter(f => f.endsWith('.json')).sort()) {
 }
 
 console.log(`decisions ${((100 * agreed) / Math.max(1, weight)).toFixed(1)}% (weighted, agenda moves and runs x3) | turns ${turnsMatched}/${turns} | agendaClick ${opt('agendaClick') ?? 'default'} corpPoints ${KNOBS.corpPoints}`);
+if (opt('dump')) writeFileSync(opt('dump')!, JSON.stringify(dump, null, 1));
 if (!quiet) for (const m of misses) console.log('  ' + m);

@@ -4,6 +4,9 @@ import { GameState, actingSide, cardDef, executeAction } from '../src/core';
 import { createAgent } from '../src/ai';
 import { tuning } from '../src/ai/synergy';
 
+const oneCurrencyDefault = tuning.plan.oneCurrency;
+
+
 /**
  * Bug report #17 (Jeff's Corp game 1, 2026-11-05): on turn 3 Jeff moved The Holo Man to Offworld Office's remote,
  * used it for 3 counters, advanced once and scored. The AI moved The Holo Man to R&D (the move prompt had no answer of
@@ -31,10 +34,13 @@ describe('The Holo Man advances the agenda it sits with (plan.holoManMove, plan.
   for (const off of ['holoManMove', 'finishSetup'] as const) {
     it(`without plan.${off} it didn't`, () => {
       tuning.plan[off] = false;
+      // plan.finishSetup patched the old ranking; the one-currency Corp finds the finish without it (2026-11-06)
+      if (off === 'finishSetup') tuning.plan.oneCurrency = false;
       try {
         expect(scoredOffice(playTurn())).toBe(false);
       } finally {
         tuning.plan[off] = true;
+        tuning.plan.oneCurrency = oneCurrencyDefault;
       }
     }, 30_000);
   }

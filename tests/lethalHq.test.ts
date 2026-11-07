@@ -5,6 +5,7 @@ import { createAgent } from '../src/ai';
 import { lethalHqAgenda } from '../src/ai/corpAI';
 import { sideOff, tuning } from '../src/ai/synergy';
 
+
 /**
  * Jeff's bug report (issue #4, 2026-11-02; Jinteki: Restoring Humanity vs René Arcemont, Hard Corp):
  * with the Runner on 4 points and Send a Message (3 points) in HQ, the Corp iced a remote holding a
@@ -49,6 +50,7 @@ describe('an agenda in HQ that would win the Runner the game (plan.lethalHq, bug
     const corpOff = sideOff.corp;
     tuning.plan.lethalHq = false;
     tuning.plan.heldMoney = false; // added after the report
+    tuning.plan.oneCurrency = false; // the report's ranking: the rule tiers, before the Corp ranked in one currency
     tuning.plan.modelRez = false; // added after the report (the Hard AI's playouts rez by it)
     sideOff.corp = ['effectValues']; // as the report's game ran: before effect values came back on for the Corp (2026-11-03)
     try {
@@ -56,6 +58,21 @@ describe('an agenda in HQ that would win the Runner the game (plan.lethalHq, bug
     } finally {
       Object.assign(tuning.plan, was);
       sideOff.corp = corpOff;
+    }
+  }, 120_000);
+
+  it('the one-currency Corp needs no lethalHq gate: HQ gets its layer with the plan off', () => {
+    // The steal is priced in the model (agendaWorth and centralExposure charge the Runner's points on the clock; a held
+    // agenda no remote protects is worth keeping in HQ), so the gate that stood in for it has nothing left to do
+    const was = tuning.plan.lethalHq;
+    const one = tuning.plan.oneCurrency;
+    tuning.plan.lethalHq = false;
+    tuning.plan.oneCurrency = true;
+    try {
+      expect(hqIce(playTurn(turn13()))).toBe(3);
+    } finally {
+      tuning.plan.lethalHq = was;
+      tuning.plan.oneCurrency = one;
     }
   }, 120_000);
 });

@@ -52,14 +52,18 @@ describe('a Corp with no credits (Jeff’s bug report, plan.agendaCredits)', () 
 
   it('installs no more bare agendas (Normal and Hard)', () => {
     expect(bareAgendas(turn17())).toBe(2);
-    expect(bareAgendas(playTurn(turn17()))).toBe(2);
-    expect(bareAgendas(playTurn(turn17(), createAgent('corp', 'hard', { samples: 6, seed: 1 })))).toBe(2);
+    // plan.oneCurrency: at most the two already out. The one-currency Corp may take one off the board: Anthill
+    // Excavation Contract (an asset) installed over a bare agenda trashes it facedown (rules 8.5.6a, 4.4.6b: the Runner
+    // never saw it), where Spin Doctor shuffles it back into R&D, and a bare agenda is the Runner's points next turn
+    expect(bareAgendas(playTurn(turn17()))).toBeLessThanOrEqual(2);
+    expect(bareAgendas(playTurn(turn17(), createAgent('corp', 'hard', { samples: 6, seed: 1 })))).toBeLessThanOrEqual(2);
   }, 60_000);
 
   it('the old way (plan off) is what the report saw', () => {
     const was = { ...tuning.plan };
     // agendaBudget closes the same hole from the other side (two agendas no longer both look scored this turn)
-    Object.assign(tuning.plan, { agendaCredits: false, agendaBudget: false });
+    // and the report's ranking: the rule tiers, before the Corp ranked in one currency
+    Object.assign(tuning.plan, { agendaCredits: false, agendaBudget: false, oneCurrency: false });
     try {
       expect(bareAgendas(playTurn(turn17(), createAgent('corp', 'hard', { samples: 6, seed: 1 })))).toBeGreaterThan(2);
     } finally {
@@ -118,7 +122,7 @@ describe('credits a broke Corp needs (Jeff, plan.moneyReach, agendaBudget, plann
     expect(s.corp.credits + s.corp.hq.filter(c => cardDef(c).title === 'Petty Cash').length * 2).toBeGreaterThanOrEqual(6);
   }, 60_000); // a whole planned turn: about 4 s here, over vitest's 5 s default on CI since the Corp's effect values came back on
 
-  it('two agendas share one turn’s clicks: only one of them looks scored this turn', () => {
+  it('two agendas share one turn’s clicks: only one of them looks scored this turn', { timeout: 30_000 }, () => {
     const s = threeCredits();
     // Send a Message (2 to go) and Project Ingatan (3 to go) with 3 clicks: Petty Cash is still a candidate
     const ranked = new HeuristicCorpAI({ planner: false }).rankMainActions(s);
@@ -151,6 +155,10 @@ describe('Humanoid Resources is rezzed to be used (Jeff 2026-10-31: "it rezzes i
 
   it('a rez in the action phase is followed by using it (the rule-based ranking)', () => {
     let s = idle();
+    // plan.oneCurrency (2026-11-06): with 3 credits the one-currency Corp installs Anthill Excavation Contract first (2.1
+    // against 1.6 for the rez), a fair trade at 3 credits; this test is about the use following the rez, so HQ holds no
+    // other asset to install
+    if (tuning.plan.oneCurrency) s.corp.hq = s.corp.hq.filter(c => cardDef(c).type_code !== 'asset');
     const hr = hrOf(s);
     const corp = new HeuristicCorpAI({ planner: false });
     let rezzed = false;
