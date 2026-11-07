@@ -63,6 +63,10 @@ Android: Netrunner digital game (React + TypeScript + Vite, Cloudflare Worker ho
 - Tap-to-inspect on touch devices only; mouse behaviour must not change with window width.
 - Fonts have been bumped one step for eye strain; don't shrink them.
 
+## Audits
+- Code audits use the `code-audit` skill (`.claude/skills/code-audit/SKILL.md`): focused (one area, a new set, an MP chunk, an AI item, a branch before merge) or full (tech-debt sprawl and drift). Audits only report; fixes go to separate threads (AI fixes via the AI Coordinator). Reports, findings.json and metrics go to `/mnt/project-files/audits/`; each audit compares with the previous one.
+- Run one after every 2-3 AI merges to beta, before beta merges to main, and before a new set's balance step.
+
 ## Hosting
 - Cloudflare Worker serves static assets and auto-deploys on every push to `main` (live: stackheap.run / android-netrunner-digital.jk9321.workers.dev). `beta` has its own preview (beta-android-netrunner-digital.jk9321.workers.dev) with separate localStorage, so decks don't carry over.
 - Card art loads from card-images.netrunnerdb.com; card backs are our own.
