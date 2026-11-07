@@ -28,6 +28,7 @@ Android: Netrunner digital game (React + TypeScript + Vite, Cloudflare Worker ho
 - Don't change the `inst-N` instance numbering in `src/core/engine/gameState.ts`.
 
 ## AI work
+- Guard: `.claude/hooks/guard-ai-dir.mjs` (PreToolUse, `.claude/settings.json`) blocks Edit/Write and obvious shell writes under `src/ai/**` unless the git branch starts with `ai-`. Don't work around it; ask the coordinator for an ai-* branch thread.
 - Goes through the Fable "AI Coordinator" thread for spec and review. Opus threads implement. Nothing merges to beta without its review.
 - Goal is playing strength, not matching Jeff's moves. Corp win rate should sit around 50 ± 5%.
 - Behaviour is controlled by switches in `tuning.plan`. Folded switch names THROW when passed in `PLAN_OFF` (see `src/ai/synergy.ts`).
