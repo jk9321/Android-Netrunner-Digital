@@ -3,7 +3,7 @@ import { HeuristicCorpAI } from './corpAI';
 import { GameRunner } from './playout';
 import { HeuristicRunnerAI } from './runnerAI';
 import { pointValue } from './valueModel';
-import { turnSeed } from './threatModel';
+import { threatStats, turnSeed } from './threatModel';
 import { currentDecisionSeed, searchPiece } from './turnPlanner';
 import { tuning } from './synergy';
 
@@ -98,34 +98,40 @@ function openAgendaLoss(state: GameState, ids: string[]): number {
 export function runnerReply(end: GameState, synergy: boolean, leaf: (state: GameState) => number): number {
   let total = 0;
   const values: number[] = [];
-  for (let k = 0; k < REPLY.samples; k++) {
-    const gr = new GameRunner(guessHidden(end, k), {
-      corp: new HeuristicCorpAI({ synergy, planner: false }),
-      runner: new HeuristicRunnerAI({ synergy, planner: false }),
-    });
-    let runnerTurn = false;
-    const naked = nakedAgendaRemotes(gr.state);
-    const nakedAgendas = naked.flatMap(id => gr.state.corp.servers[id].root.filter(c => cardDef(c).type_code === 'agenda').map(c => c.instanceId));
-    const ran = new Set<string>();
-    try {
-      for (let i = 0; i < REPLY.maxSteps && !gr.state.winner; i++) {
-        if (!gr.step()) break;
-        const s = gr.state;
-        if (s.activeRun) ran.add(s.activeRun.server);
-        if (s.activePlayer === 'runner') runnerTurn = true;
-        else if (runnerTurn && !s.activeRun) break;
+  const outer = threatStats.inReply;
+  threatStats.inReply = true;
+  try {
+    for (let k = 0; k < REPLY.samples; k++) {
+      const gr = new GameRunner(guessHidden(end, k), {
+        corp: new HeuristicCorpAI({ synergy, planner: false }),
+        runner: new HeuristicRunnerAI({ synergy, planner: false }),
+      });
+      let runnerTurn = false;
+      const naked = nakedAgendaRemotes(gr.state);
+      const nakedAgendas = naked.flatMap(id => gr.state.corp.servers[id].root.filter(c => cardDef(c).type_code === 'agenda').map(c => c.instanceId));
+      const ran = new Set<string>();
+      try {
+        for (let i = 0; i < REPLY.maxSteps && !gr.state.winner; i++) {
+          if (!gr.step()) break;
+          const s = gr.state;
+          if (s.activeRun) ran.add(s.activeRun.server);
+          if (s.activePlayer === 'runner') runnerTurn = true;
+          else if (runnerTurn && !s.activeRun) break;
+        }
+      } catch {
+        // A reply that breaks the engine is scored where it stopped
       }
-    } catch {
-      // A reply that breaks the engine is scored where it stopped
+      replyStats.nakedAgendaTurns += naked.length;
+      replyStats.nakedAgendaRuns += naked.filter(id => ran.has(id)).length;
+      // (Jeff's bug report, 2026-10-31; plan.openStealUnrun) only agendas in remotes the Runner didn't run: one it ran and
+      // was stopped from (The Red Room, LEO) survived the run it was counted stolen for
+      const unrun = tuning.plan.openStealUnrun ? naked.filter(id => !ran.has(id)).flatMap(id => gr.state.corp.servers[id]?.root.map(c => c.instanceId) ?? []) : nakedAgendas;
+      const value = leaf(gr.state) - (tuning.plan.openSteal ? openAgendaLoss(gr.state, nakedAgendas.filter(id => unrun.includes(id))) : 0);
+      values.push(value);
+      total += value;
     }
-    replyStats.nakedAgendaTurns += naked.length;
-    replyStats.nakedAgendaRuns += naked.filter(id => ran.has(id)).length;
-    // (Jeff's bug report, 2026-10-31; plan.openStealUnrun) only agendas in remotes the Runner didn't run: one it ran and
-    // was stopped from (The Red Room, LEO) survived the run it was counted stolen for
-    const unrun = tuning.plan.openStealUnrun ? naked.filter(id => !ran.has(id)).flatMap(id => gr.state.corp.servers[id]?.root.map(c => c.instanceId) ?? []) : nakedAgendas;
-    const value = leaf(gr.state) - (tuning.plan.openSteal ? openAgendaLoss(gr.state, nakedAgendas.filter(id => unrun.includes(id))) : 0);
-    values.push(value);
-    total += value;
+  } finally {
+    threatStats.inReply = outer;
   }
   replyStats.onSamples?.(values);
   return total / REPLY.samples;
