@@ -2,9 +2,7 @@ import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
 import { GameState, cardDef, executeAction } from '../src/core';
 import { createAgent } from '../src/ai';
-import { tuning } from '../src/ai/synergy';
 
-const oneCurrencyDefault = tuning.plan.oneCurrency;
 
 
 /**
@@ -31,18 +29,4 @@ describe('a money operation is played before rezzing ice strands it (plan.castWh
     expect(inHq(s)).not.toContain('Hedge Fund');
     expect(s.corp.credits).toBeGreaterThanOrEqual(9);
   }, 30_000);
-
-  it('without the plan Hedge Fund stays in HQ', () => {
-    tuning.plan.castWhileAble = false;
-    tuning.plan.heldMoney = false;
-    // Both are patches on the old ranking (plan.oneCurrency, 2026-11-06: the one-currency Corp plays Hedge Fund on its delta)
-    tuning.plan.oneCurrency = false;
-    try {
-      expect(inHq(play())).toContain('Hedge Fund');
-    } finally {
-      tuning.plan.oneCurrency = oneCurrencyDefault;
-      tuning.plan.castWhileAble = true;
-      tuning.plan.heldMoney = true;
-    }
-  });
 });

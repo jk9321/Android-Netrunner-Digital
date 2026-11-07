@@ -2,7 +2,6 @@ import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
 import { GameState, createCardInstance } from '../src/core';
 import { HeuristicRunnerAI } from '../src/ai/runnerAI';
-import { tuning } from '../src/ai/synergy';
 import { inDecision } from './helpers/pricing';
 
 /**
@@ -28,14 +27,5 @@ describe("a card the Corp chooses for is scored after the Corp's choice (plan.an
   it('ranks Wildcat Strike above a click for a credit', () => {
     const r = ranks();
     expect(r.wildcat).toBeGreaterThan(r.credit);
-  });
-
-  it('without the plan Wildcat Strike scores as a loss', () => {
-    tuning.plan.answerCorpChoice = false;
-    try {
-      expect(ranks().wildcat).toBeLessThan(-2);
-    } finally {
-      tuning.plan.answerCorpChoice = true;
-    }
   });
 });

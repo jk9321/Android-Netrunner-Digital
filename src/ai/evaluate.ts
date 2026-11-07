@@ -187,7 +187,7 @@ function corpCardWorth(card: CardInstance, state: GameState | undefined, viewer:
 }
 
 function unwaitedCardWorth(card: CardInstance, state: GameState | undefined, viewer: SideCode): number {
-  if (state && viewer === 'runner' && card.isRezzed && card.cardCode === SPIN_DOCTOR && plan().spentSpinDoctor) return spentSpinDoctorWorth(state);
+  if (state && viewer === 'runner' && card.isRezzed && card.cardCode === SPIN_DOCTOR) return spentSpinDoctorWorth(state);
   const hosted = counters(card, 'credit');
   const power = state && card.isRezzed ? countersWorth(state, card, 'power', viewer) : 0;
   const profile = state ? profileOf(card.cardCode) : undefined;

@@ -245,7 +245,7 @@ export class HeuristicCorpAI implements Agent {
         // one that does nothing in a run waits for the Corp's turn, keeping the money for ice
         const [remote, central] = upgradeValue(card.cardCode, state);
         score = !runTimed(card) ? -1 : importance - 2 + Math.min(2, Math.max(0, server.isRemote ? remote : central));
-      } else if (plan().spinDoctorWait && onRezOnly(card)) {
+      } else if (onRezOnly(card)) {
         score = 3; // Spin Doctor (Jeff): the Runner came anyway, so the same 2 cards cost it a run
       } else {
         score = -1; // assets are rezzed on the Corp's own turn
@@ -260,7 +260,7 @@ export class HeuristicCorpAI implements Agent {
   private runStopper(state: GameState, importance: number): GameAction | null {
     // (Jeff) LEO: worth it when the run would take more than the bioroid it trashes (plan.leoValue)
     const leo = getLegalActions(state, 'corp').find(a => a.type === 'USE_ABILITY' && findCardAnywhere(state, a.cardInstanceId)?.cardCode === '35035');
-    if (leo && plan().leoValue) return this.leoGain(state, leo) > 0 ? leo : null;
+    if (leo) return this.leoGain(state, leo) > 0 ? leo : null;
     if (importance < 6) return null;
     const archivesAgenda = state.corp.archives.faceDown.some(c => type(c) === 'agenda');
     for (const action of getLegalActions(state, 'corp')) {
@@ -331,9 +331,8 @@ export class HeuristicCorpAI implements Agent {
         return 100;
       case 'INSTALL_CARD': {
         if (!corp.hq.some(c => c.instanceId === action.cardInstanceId)) return -Infinity;
-        if (action.faceUp && !plan().bangunFaceUp) return -Infinity;
         const server = action.asNewRemote ? null : corp.servers[action.targetServerId ?? ''] ?? null;
-        if (action.faceUp && plan().bangunNoBareBait && !(server?.ice.length) && state.runner.grip.length > 2 && !(plan().bangunEarlyBait && state.runner.score <= 2)) return -Infinity;
+        if (action.faceUp && !(server?.ice.length) && state.runner.grip.length > 2 && !(plan().bangunEarlyBait && state.runner.score <= 2)) return -Infinity;
         const faceUp = action.faceUp ? -this.bangunBait(state) : 0;
         return this.playScore(state, action, before) - faceUp;
       }
@@ -398,10 +397,9 @@ export class HeuristicCorpAI implements Agent {
         const server = action.asNewRemote ? null : corp.servers[action.targetServerId ?? ''] ?? null;
         // BANGUN's faceup agendas hurt the Runner but tell them what is there
         const installCost = type(card) === 'ice' && server ? server.ice.length : 0;
-        if (action.faceUp && !plan().bangunFaceUp) return -Infinity;
         // (Jeff) a faceup agenda with no ice is stolen 98% of the time: only as a flatline threat (plan.bangunNoBareBait)
         // (Jeff) early on, 2 points cost less than 2 cards and a tag: the bait stays while the Runner has 2 points or fewer (plan.bangunEarlyBait)
-        if (action.faceUp && plan().bangunNoBareBait && !(server?.ice.length) && state.runner.grip.length > 2 && !(plan().bangunEarlyBait && state.runner.score <= 2)) return -Infinity;
+        if (action.faceUp && !(server?.ice.length) && state.runner.grip.length > 2 && !(plan().bangunEarlyBait && state.runner.score <= 2)) return -Infinity;
         const faceUp = action.faceUp ? (this.synergy ? -this.bangunBait(state) : 0.5) : 0;
         return this.installScore(state, card, server) - faceUp - reservePenalty(state, corp.credits - installCost, this.wideReserve);
       }
@@ -508,14 +506,14 @@ export class HeuristicCorpAI implements Agent {
     if (turnStartOnly(card) && state.turnStep?.kind !== 'corp_turn_start') return true;
     // (Jeff) Spin Doctor: left unrezzed it may draw a run, and is rezzed then for the same draw; or just before the
     // turn begins. Rezzed in the action phase only when the cards are needed now (digging, or an empty hand);
-    if (plan().spinDoctorWait && onRezOnly(card) && state.turnStep?.kind !== 'corp_turn_start' && corp.hq.length > 1 && digValue(state, 'corp') <= 0) return true;
+    if (onRezOnly(card) && state.turnStep?.kind !== 'corp_turn_start' && corp.hq.length > 1 && digValue(state, 'corp') <= 0) return true;
     // (Jeff's bug report, 2026-10-31; plan.rezWhenUsed) An asset that only pays through a click ability (Humanoid Resources)
     // is rezzed in the paid ability window just before the action that uses it (rule 5.6.2a): rezzed with fewer clicks
     // left it does nothing yet, and spends the money a broke Corp needs for Petty Cash or its ice
     if (plan().rezWhenUsed && clickOnly(card) && corp.clicks < clickOnly(card)) return true;
     // plan.clickMoneyRez (Jeff, 2026-11-04: Regolith rezzed with no clicks left, then trashed before it paid): money
     // taken with a click is rezzed when a click is left to take it, or in the window just before the turn begins
-    if (plan().clickMoneyRez && CARD_PROFILES[card.cardCode]?.every === 'click' && corp.clicks < 1 && state.turnStep?.kind !== 'corp_turn_start') return true;
+    if (CARD_PROFILES[card.cardCode]?.every === 'click' && corp.clicks < 1 && state.turnStep?.kind !== 'corp_turn_start') return true;
     return false;
   }
 
@@ -588,7 +586,7 @@ export class HeuristicCorpAI implements Agent {
     // plan.castWhileAble (Jeff, 2026-11-04: the Corp goes broke holding Hedge Fund): a money operation the Corp can
     // afford now but not once it pays to rez its ice is played while it still can; stranded, it's a dead card until
     // clicks for credits climb back to its cost
-    if (action.type === 'PLAY_OPERATION_OR_EVENT' && plan().castWhileAble) {
+    if (action.type === 'PLAY_OPERATION_OR_EVENT') {
       const card = corp.hq.find(c => c.instanceId === action.cardInstanceId);
       const gain = card ? moneyOpGain(card.cardCode) : undefined;
       const cost = card ? cardDef(card).cost ?? 0 : 0;
@@ -660,7 +658,7 @@ export class HeuristicCorpAI implements Agent {
       // Traps: advancing makes them look like agendas (Urtica Cipher, Clearinghouse)
       // plan.clearinghouseLethal (Gemini audit, 2026-11-01): Clearinghouse's meat damage is its counters, so it keeps going
       // toward a flatline (one more than the grip, at most 6) instead of stopping at 3
-      const cap = plan().clearinghouseLethal && card.cardCode === CLEARINGHOUSE ? Math.min(6, Math.max(3, state.runner.grip.length + 1)) : 3;
+      const cap = card.cardCode === CLEARINGHOUSE ? Math.min(6, Math.max(3, state.runner.grip.length + 1)) : 3;
       if (!(corp.credits >= 4 && card.advancementCounters < cap)) return -Infinity;
       return this.synergy && tuning.bluff && isTrap(card.cardCode) ? 1.2 + this.trapBluff(state, card) : 1.2;
     }
@@ -705,7 +703,7 @@ export class HeuristicCorpAI implements Agent {
    * HQ last turn and HQ costs them no more to enter than this remote (Corp `credits` left to rez).
    */
   private hqNoSafer(state: GameState, server: ServerState, credits: number): boolean {
-    if (!(this.synergy && plan().hqNoSafer)) return false;
+    if (!this.synergy) return false;
     if (!state.runnerLastTurnRuns.some(r => r.server === 'hq' && r.successful)) return false;
     return entryCost(state, server, credits) >= entryCost(state, state.corp.servers.hq, credits);
   }
@@ -924,7 +922,7 @@ export class HeuristicCorpAI implements Agent {
           if (server) {
             // plan.readAssetTrash (bug report #16): against a Runner who trashes unprotected assets, an empty iced
             // remote that isn't the scoring remote keeps a money asset alive (priced at the iced risk)
-            const iced = this.synergy && plan().readAssetTrash && server.isRemote && server.ice.length > 0 && server.root.length === 0 && server !== mainRemote(state);
+            const iced = this.synergy && server.isRemote && server.ice.length > 0 && server.root.length === 0 && server !== mainRemote(state);
             const worth = iced ? unrezzedWorth(state, card.cardCode, true) : undefined;
             if (worth === undefined || bareAssetRisk(state) <= PAYOUT_RISK.moneyBare) return -1;
             return ECON_SCALE * worth - (corp.credits < (cardDef(card).cost ?? 0) ? 1.5 : 0) - 0.5;

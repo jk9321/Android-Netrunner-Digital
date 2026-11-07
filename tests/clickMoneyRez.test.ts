@@ -2,7 +2,7 @@ import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
 import { GameState, createCardInstance, executeAction, findCardAnywhere } from '../src/core';
 import { createAgent } from '../src/ai';
-import { tuning } from '../src/ai/synergy';
+
 
 /**
  * Jeff (2026-11-04): the Corp rezzed Regolith Mining License, then never used it before he trashed it, so it was just
@@ -31,24 +31,5 @@ describe('click-paid money assets are rezzed when they can be used (plan.clickMo
   it('leaves Regolith unrezzed with no click left', () => {
     const { state, regolith } = endOfTurn();
     expect(findCardAnywhere(finishTurn(state), regolith)?.isRezzed).toBe(false);
-  });
-
-  it('without the plan it rezzed Regolith at the end of the turn', () => {
-    tuning.plan.clickMoneyRez = false;
-    // and the ranking it was found on: the one-currency Corp doesn't rez it there either (a rez with no click left to
-    // use it is worth only the wait, under the free-action floor), so the bug needs the old rule tiers to show
-    const one = tuning.plan.oneCurrency;
-    try {
-      if (one) {
-        const { state, regolith } = endOfTurn();
-        expect(findCardAnywhere(finishTurn(state), regolith)?.isRezzed).toBe(false);
-      }
-      tuning.plan.oneCurrency = false;
-      const { state, regolith } = endOfTurn();
-      expect(findCardAnywhere(finishTurn(state), regolith)?.isRezzed).toBe(true);
-    } finally {
-      tuning.plan.oneCurrency = one;
-      tuning.plan.clickMoneyRez = true;
-    }
   });
 });

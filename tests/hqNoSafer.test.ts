@@ -3,7 +3,6 @@ import { describe, expect, it } from 'vitest';
 import { GameState, cardDef, executeAction, findCardAnywhere } from '../src/core';
 import { HeuristicCorpAI } from '../src/ai/corpAI';
 import { createAgent } from '../src/ai';
-import { tuning } from '../src/ai/synergy';
 import { legacyRanking } from './legacyRanking';
 import { inDecision } from './helpers/pricing';
 
@@ -50,13 +49,4 @@ describe('an agenda leaves HQ when HQ is no safer (plan.hqNoSafer)', () => {
     }
     expect(advanced).toBeGreaterThanOrEqual(2);
   }, 60_000);
-
-  it('without the plan the agenda stays in HQ', () => {
-    tuning.plan.hqNoSafer = false;
-    try {
-      expect(top(position())).not.toBe('install Offworld Office in a remote');
-    } finally {
-      tuning.plan.hqNoSafer = true;
-    }
-  });
 });

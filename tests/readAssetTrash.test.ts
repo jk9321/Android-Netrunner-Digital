@@ -69,11 +69,5 @@ describe('the Corp reads how this Runner treats unprotected assets (plan.readAss
       return;
     }
     expect(before(ranked(s), 'install Otto Campaign remote-9', 'GAIN_CREDIT')).toBe(true);
-    tuning.plan.readAssetTrash = false;
-    try {
-      expect(before(ranked(s), 'install Otto Campaign remote-9', 'GAIN_CREDIT')).toBe(false);
-    } finally {
-      tuning.plan.readAssetTrash = true;
-    }
   });
 });

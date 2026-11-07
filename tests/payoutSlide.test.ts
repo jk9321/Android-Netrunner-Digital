@@ -2,7 +2,6 @@ import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
 import { GameState } from '../src/core';
 import { HeuristicRunnerAI } from '../src/ai/runnerAI';
-import { tuning } from '../src/ai/synergy';
 import { inDecision } from './helpers/pricing';
 
 /**
@@ -30,14 +29,4 @@ describe('credits a card will pay out are priced on the credit slide (plan.payou
 
   // Later plans closed most of the gap without it (2026-11-06: on its own, Telework 0.18 against a credit click 0.17;
   // it only failed after the first test had filled the value caches), so this checks the plan's own lead
-  it('without the plan Telework Contract leads a click for a credit by less', () => {
-    const on = ranks();
-    tuning.plan.payoutSlide = false;
-    try {
-      const r = ranks();
-      expect(r.telework - r.credit).toBeLessThan(on.telework - on.credit);
-    } finally {
-      tuning.plan.payoutSlide = true;
-    }
-  });
 });

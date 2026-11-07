@@ -194,7 +194,7 @@ export function answerPrompt(state: GameState, side: SideCode, memory?: RunnerMe
   }
   // Synapse Global: a free install from HQ, judged like the Corp's own install choice; never an agenda,
   // which it would reveal (plan.freeInstallPick, bug report #13)
-  if (side === 'corp' && (prompt.kind === 'effect_cards' || prompt.kind === 'effect_choice') && prompt.source.cardCode === SYNAPSE && plan().freeInstallPick) {
+  if (side === 'corp' && (prompt.kind === 'effect_cards' || prompt.kind === 'effect_choice') && prompt.source.cardCode === SYNAPSE) {
     const servers = [...Object.keys(state.corp.servers), 'new'];
     if (prompt.kind === 'effect_cards' && prompt.source.step === 'pick') {
       const picks = prompt.candidateIds
@@ -421,7 +421,7 @@ export function answerPrompt(state: GameState, side: SideCode, memory?: RunnerMe
 
   // AU Co.: the power counters do nothing else, so 2 cards now beat 2 cards later. (Scored as an outcome
   // the cards drawn count for nothing: plan.blindDraws hides cards from R&D.)
-  if (side === 'corp' && plan().promptChains && prompt.kind === 'effect_choice' && prompt.source.cardCode === '35046' && prompt.source.step === 'use') {
+  if (side === 'corp' && prompt.kind === 'effect_choice' && prompt.source.cardCode === '35046' && prompt.source.step === 'use') {
     return { ...base, choice: { kind: 'effect_choice', optionId: 'use' } };
   }
 
@@ -586,7 +586,7 @@ export function taoSwap(state: GameState, memory?: RunnerMemory): string[] {
  */
 function followChain(prompt: Prompt, after: GameState, side: SideCode, memory?: RunnerMemory, synergy = false): GameState {
   // Identities only: following every card's chain made AI games about 4x slower
-  if (!plan().promptChains || !('source' in prompt) || getCardDefinition(prompt.source.cardCode).type_code !== 'identity') return after;
+  if (!('source' in prompt) || getCardDefinition(prompt.source.cardCode).type_code !== 'identity') return after;
   let state = after;
   for (let depth = 0; depth < 3; depth++) {
     const next = activePrompt(state);

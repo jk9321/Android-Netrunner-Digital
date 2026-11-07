@@ -199,7 +199,6 @@ export const ELEVATION: Record<string, CardAI> = {
     synergy: { gives: { runs: 1, hq: 1, econ: 1, denial: 1.5 } },
     // A tag, the Corp loses up to 3 credits, the Runner gains twice that (plan.transferOfWealth)
     run: (state?: GameState): RunOptions => {
-      if (!plan().transferOfWealth) return {};
       // The Corp's loss counts flat, the Runner's gain on its credit slide
       return state ? { successBonus: Math.min(3, state.corp.credits) - tagCost(state), successCredits: 2 * Math.min(3, state.corp.credits) } : { successBonus: 6 };
     },

@@ -43,7 +43,7 @@ export function payoutWait(state: GameState, profile: CardProfile, owner: 'corp'
   if (!plan().payoutRisk) return WAIT;
   const time = profile.every === 'click' ? PAYOUT_RISK.clickWait : 1;
   const risk = owner === 'corp'
-    ? (plan().measuredAssetRisk ? (iced ? PAYOUT_RISK.moneyIced : bareAssetRisk(state)) : iced ? PAYOUT_RISK.corpIced : PAYOUT_RISK.corpBare)
+    ? (iced ? PAYOUT_RISK.moneyIced : bareAssetRisk(state))
     : (state.runner.tags > 0 ? PAYOUT_RISK.runnerTagged : PAYOUT_RISK.runnerUntagged);
   return time * (1 - risk);
 }
@@ -58,7 +58,7 @@ const BARE_PRIOR_TURNS = 3;
  */
 export function bareAssetRisk(state: GameState): number {
   const seen = state.bareAssets;
-  if (!plan().readAssetTrash || !seen) return PAYOUT_RISK.moneyBare;
+  if (!seen) return PAYOUT_RISK.moneyBare;
   return (BARE_PRIOR_TURNS * PAYOUT_RISK.moneyBare + seen.trashed) / (BARE_PRIOR_TURNS + seen.exposed);
 }
 

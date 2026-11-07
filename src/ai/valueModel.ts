@@ -338,7 +338,7 @@ export function sideCreditValue(state: GameState, side: SideCode, viewer: SideCo
 export const LIQUIDITY_LIFT = 1.1;
 
 export function payoutSlide(state: GameState, side: SideCode, viewer: SideCode, amount: number): number {
-  if (!plan().payoutSlide || !plan().creditSlide?.[viewer] || amount <= 0) return 1;
+  if (!plan().creditSlide?.[viewer] || amount <= 0) return 1;
   const credits = side === 'corp' ? state.corp.credits : state.runner.credits;
   const need = creditNeed(state, side);
   // plan.liquidity (Jeff, 2026-11-06, his Teia game: the Runner sat on 0-5 credits for 13 turns and never played Sure
@@ -348,7 +348,6 @@ export function payoutSlide(state: GameState, side: SideCode, viewer: SideCode, 
   // keeps the broke end of the slide to itself; a bank past the need still slides off.
   // A tenth on top while short (fading out from half the need to the need): credits on a card get spent while the
   // Runner is still short, so a broke Runner keeps installing Telework Contract and Fermenter (payoutSlide.test.ts)
-  if (!plan().liquidity) return (creditSlide(credits + amount, need) - creditSlide(credits, need)) / amount;
   const pool = Math.max(credits, need / 2);
   const lift = 1 + (LIQUIDITY_LIFT - 1) * Math.min(1, Math.max(0, 2 - (2 * credits) / Math.max(need, 1)));
   return ((creditSlide(pool + amount, need) - creditSlide(pool, need)) / amount) * lift;

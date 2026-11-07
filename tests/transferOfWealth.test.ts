@@ -2,7 +2,7 @@ import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
 import { GameState } from '../src/core';
 import { runEventOptions } from '../src/ai/prompts';
-import { tuning } from '../src/ai/synergy';
+
 
 /**
  * Jeff (2026-11-04): Transfer of Wealth ("Run HQ. If successful, take 1 tag and the Corp loses 3 credits. Gain 2
@@ -22,14 +22,5 @@ describe("Transfer of Wealth's run is worth the credits it moves (plan.transferO
     const poor = worth(runEventOptions('35017', s));
     expect(rich).toBeGreaterThan(0);
     expect(rich).toBeGreaterThan(poor); // 3 credits the Corp loses and 6 the Runner gains, against 1 and 2
-  });
-
-  it('without the plan the run is a bare HQ run', () => {
-    tuning.plan.transferOfWealth = false;
-    try {
-      expect(runEventOptions('35017', position()).successBonus).toBeUndefined();
-    } finally {
-      tuning.plan.transferOfWealth = true;
-    }
   });
 });

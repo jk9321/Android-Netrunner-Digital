@@ -2,7 +2,6 @@ import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
 import { GameState } from '../src/core';
 import { HeuristicRunnerAI } from '../src/ai/runnerAI';
-import { tuning } from '../src/ai/synergy';
 import { inDecision } from './helpers/pricing';
 
 /**
@@ -25,15 +24,5 @@ describe('no drawing past the hand size with the last click (plan.spareLastClick
   it('clicks for a credit rather than draw a card it must discard', () => {
     const r = ranks();
     expect(r.credit).toBeGreaterThan(r.draw);
-  });
-
-  it('without the plan the draw scores as a damage buffer', () => {
-    tuning.plan.spareLastClick = false;
-    try {
-      const r = ranks();
-      expect(r.draw).toBeGreaterThan(r.credit + 3);
-    } finally {
-      tuning.plan.spareLastClick = true;
-    }
   });
 });

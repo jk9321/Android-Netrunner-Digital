@@ -304,7 +304,7 @@ export function accessWorth(state: GameState): number {
 export function damageWorth(state: GameState, n: number): number {
   // plan.spareLastClick: with no click left the Runner can't run again this turn, so cards over its hand size are
   // discarded before they can soak up any damage (it drew to 6 with its last click and discarded, for +6)
-  const spent = plan().spareLastClick && state.activePlayer === 'runner' && !state.activeRun && state.runner.clicks === 0;
+  const spent = state.activePlayer === 'runner' && !state.activeRun && state.runner.clicks === 0;
   const held = spent ? Math.min(state.runner.handSizeLimit ?? 5, state.runner.grip.length) : state.runner.grip.length;
   if (n > held) return flatlineWorth(state);
   const card = cardRate(state, 'runner');
@@ -324,7 +324,7 @@ export function damageWorth(state: GameState, n: number): number {
  */
 export function lifeGrip(state: GameState, grip = state.runner.grip.length, drawBack = true): number {
   const limit = state.runner.handSizeLimit ?? 5;
-  const back = drawBack && plan().drawBackLife && state.activePlayer === 'runner' && !state.activeRun ? state.runner.clicks : 0;
+  const back = drawBack && state.activePlayer === 'runner' && !state.activeRun ? state.runner.clicks : 0;
   return Math.min(limit, grip + back);
 }
 

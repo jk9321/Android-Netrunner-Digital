@@ -92,7 +92,7 @@ export function determinize(state: GameState, side: SideCode, random: Random, me
   if (side === 'corp') {
     // The Corp doesn't know the Grip or the order of either deck
     // plan.keepKnownHand: grip cards the Corp has seen stay as they are
-    const known = new Set(plan().keepKnownHand ? knownInHand(state, 'runner').map(k => k.id) : []);
+    const known = new Set(knownInHand(state, 'runner').map(k => k.id));
     const hidden = [...s.runner.grip.filter(c => !known.has(c.instanceId)), ...s.runner.stack];
     assign(hidden, shuffle(hidden.map(c => c.cardCode), random));
     // plan.keepKnownRd: R&D cards the Runner knows exactly, the Corp saw stay put too
@@ -109,7 +109,7 @@ export function determinize(state: GameState, side: SideCode, random: Random, me
   const keep = !!plan().keepKnownRd;
   const rootSlots = installed.flatMap(sv => sv.root).filter(c => !c.isRezzed && !memory?.has(c.instanceId) && !(keep && (c.faceUp || c.runnerKnows)));
   // plan.keepKnownHand: HQ cards the Runner has seen (accessed and left, revealed) stay as they are
-  const knownHq = new Set(plan().keepKnownHand ? knownInHand(state, 'corp').map(k => k.id) : []);
+  const knownHq = new Set(knownInHand(state, 'corp').map(k => k.id));
   const fixedRd = knownRdSlots(state);
   const loose = [...s.corp.hq.filter(c => !knownHq.has(c.instanceId)), ...s.corp.rd.filter((_, i) => !fixedRd.has(i)), ...s.corp.archives.faceDown];
   const pool = shuffle([...iceSlots, ...rootSlots, ...loose].map(c => c.cardCode), random);

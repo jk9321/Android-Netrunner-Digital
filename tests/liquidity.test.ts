@@ -3,7 +3,6 @@ import { describe, expect, it } from 'vitest';
 import { GameAction, GameState, cardDef, createInitialGameState, executeAction } from '../src/core';
 import { deckGameSetup } from '../src/data/decks';
 import { HeuristicRunnerAI } from '../src/ai/runnerAI';
-import { tuning } from '../src/ai/synergy';
 import { inDecision } from './helpers/pricing';
 
 /**
@@ -40,15 +39,5 @@ describe('money still on a card is no reason to skip Sure Gamble (plan.liquidity
   it('plays Sure Gamble at 5 credits rather than drawing', () => {
     const r = ranks();
     expect(r.gamble).toBeGreaterThan(r.draw);
-  });
-
-  it('without the plan it draws', () => {
-    tuning.plan.liquidity = false;
-    try {
-      const r = ranks();
-      expect(r.gamble).toBeLessThan(r.draw);
-    } finally {
-      tuning.plan.liquidity = true;
-    }
   });
 });

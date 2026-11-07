@@ -97,65 +97,13 @@ export const tuning = {
      * that risk is the Corp's choice, already in the tag clock, so it made keeping the tag look as good as trashing.
      */
     ownTrashRisk: true,
-    /**
-     * Corp (bug report #15, Jeff: an agenda sat in HQ all game while the Runner walked into HQ every turn): an agenda may go
-     * into a remote that falls short of plan.exposure when the Runner keeps getting into HQ and the remote costs them at
-     * least as much to enter, since HQ is no safer.
-     */
-    hqNoSafer: true,
-    /** Corp: the trash risk of an asset with no ice follows what this Runner has done to such assets this game (cardProfiles.ts bareAssetRisk; bug report #16). */
-    readAssetTrash: true,
-    /** Corp: play a money operation while it can, when rezzing its ice would leave it short of the cost (corpAI moneyPlan; Corp-broke alarm: 60% went broke rezzing ice in a run). */
-    castWhileAble: true,
-    /** Corp: a money asset paid out by clicks (Regolith Mining License) isn't rezzed with no click left to use it, except just before the turn begins. */
-    clickMoneyRez: true,
-    /** Both sides: on the Runner's turn outside a run, the damage clock counts the cards its clicks left can draw back (effectValues lifeGrip). */
-    drawBackLife: true,
-    /** Runner: a card the Corp answers a choice for (Wildcat Strike, Urban Art Vernissage) is scored after the Corp's answer, not before anything is gained (runnerAI scoreMain). */
-    answerCorpChoice: true,
-    /** Runner: credits a card will still pay out are priced on the credit slide, like credits in hand (valueModel payoutSlide). */
-    payoutSlide: true,
-    /** Runner: credits still on a card (Telework Contract, Fermenter) sit on the credit slide from half the need, not from the cash in hand, so a broke Runner's cash keeps the steep end (valueModel payoutSlide). */
-    liquidity: true,
-    /** Runner: cards over the hand size soak up no damage once its clicks are spent (effectValues damageWorth). */
-    spareLastClick: true,
-    /** Runner: Transfer of Wealth's run is worth the credits it moves (prompts runEventOptions); it was priced as a bare HQ run and never played. */
-    transferOfWealth: true,
     /** Runner: bypass (rules 6.5.8) is priced: S-Dobrado and Window of Opportunity runs skip their ice, bypass cards in the rig cut ice costs, and "bypass this ice?" prompts weigh the encounter they skip (runs runBypasses, prompts). */
     bypass: true,
-    /** Clearinghouse is advanced toward a flatline (grip + 1 counters, at most 6), not stopped at 3 like other assets. */
-    clearinghouseLethal: true,
-    /** Lookahead guesses (runnerReply.guessHidden, search.determinize) keep hand cards the guessing side has seen. */
-    keepKnownHand: true,
     /**
      * Experiment (Gemini audit 2.1c, 2026-11-01): sideOff.corp's effectValues also stops the Corp valuing the Runner's
      * rig by what each card does. On, only the Corp's own cards lose their effect values. Off until a batch says so.
      */
     rigEffects: false,
-    /**
-     * (Jeff) Spin Doctor waits for a run on its server or the window before the turn, unless digging. Self-play at
-     * 5f827e6: 42.5% without, 44.3% with; with icePosition off 45.6% without, 47.9% with. (spinDoctorUseNow,
-     * rezzing while 2+ clicks are left, was no better; deleted 2026-11-06.)
-     */
-    spinDoctorWait: true,
-    /** Runner: a rezzed Spin Doctor is worth only the Archives cards it can still shuffle back (bug report #5). */
-    spentSpinDoctor: true,
-    /** Synapse Global's free install from HQ is picked like an install action (freeInstallTarget), not by the board score, which kept unrezzed ice in HQ (bug report #13). */
-    freeInstallPick: true,
-    /** Money assets priced with the trash risk measured in self-play (PAYOUT_RISK.moneyIced/moneyBare): self-play 47.9% -> 49.5%, new Corp vs old Runner 48.3% -> 48.8% (727d238). */
-    measuredAssetRisk: true,
-    /** Prompts that open the same card's next choice are judged after that choice too (AU Co., Poétrï, Synapse Global). */
-    promptChains: true,
-    /** (Jeff) LEO Construction ends a run when what the run would take is worth more than the bioroid it trashes. */
-    leoValue: true,
-    /** BANGUN installs agendas faceup when it pays (off: always facedown, to measure what faceup is worth). */
-    bangunFaceUp: true,
-    /**
-     * No faceup agenda in a server without ice unless the Runner's grip is 2 or less. At d85fe6e faceup
-     * was worth +9 to Pork Chops (57.7% vs 48.5%), but the 66 bare ones were stolen 98% of the time. With this
-     * on (ccbc397) bare faceups 66 -> 8, Pork Chops 54.6% (within noise); kept as the sounder play.
-     */
-    bangunNoBareBait: true,
     /**
      * (Jeff) ...but keep the bare bait while the Runner has 2 points or fewer. At 986f20b Pork Chops won
      * 57.7% with it (48 of the 66 bare baits are early), 57.7% always allowed, 54.6% never.
@@ -563,7 +511,10 @@ export const sideOff: Record<SideCode, string[]> = {
 export const FOLDED: readonly string[] = [
   'tagThreat', 'breakerFocus', 'saveUp', 'icePlacement', 'agendaStakes', 'lethalHq', 'readWriteFull',
   'archivesChosen', 'centralIce', 'iceDepth', 'oneRemote', 'identities', 'runnerIdentities', 'exposure',
-  'assetRezTiming', 'turnStartRez', 'stealCosts', 'rezPaid', 'tagNoClear', 'knownHq',
+  'assetRezTiming', 'turnStartRez', 'stealCosts', 'rezPaid', 'tagNoClear', 'knownHq', 'hqNoSafer', 'readAssetTrash',
+  'castWhileAble', 'clickMoneyRez', 'drawBackLife', 'answerCorpChoice', 'payoutSlide', 'liquidity', 'spareLastClick',
+  'transferOfWealth', 'clearinghouseLethal', 'keepKnownHand', 'spinDoctorWait', 'spentSpinDoctor', 'freeInstallPick',
+  'measuredAssetRisk', 'promptChains', 'leoValue', 'bangunFaceUp', 'bangunNoBareBait',
 ];
 
 /** Throws on a name that isn't a plan switch (a typo, or a switch folded into the code). */
