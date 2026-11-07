@@ -146,3 +146,15 @@ describe('plannerBuild in self-play positions (the ice-then-install build, item 
     }, 60_000);
   }
 });
+
+describe('plannerPatchesOff reaches only the planning Corp (review 1 of item 4)', () => {
+  it('a planner-off Corp (the reply, Hard, probes) keeps the Petty Cash patch; the planner and its rollout drop it', () => {
+    tuning.plan = { ...tuning.plan, plannerSearch: true, plannerPatchesOff: true };
+    const patches = (ai: HeuristicCorpAI) => (ai as unknown as { patches: boolean }).patches;
+    expect(patches(new HeuristicCorpAI({ planner: false }))).toBe(true);
+    expect(patches(new HeuristicCorpAI({ planner: false, searching: true }))).toBe(false);
+    expect(patches(new HeuristicCorpAI())).toBe(false);
+    tuning.plan = { ...tuning.plan, plannerPatchesOff: false };
+    expect(patches(new HeuristicCorpAI())).toBe(true);
+  });
+});
