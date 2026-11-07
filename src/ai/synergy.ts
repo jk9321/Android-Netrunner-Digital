@@ -353,6 +353,14 @@ export const tuning = {
      */
     threatModel: false,
     /**
+     * Item 3 round 2 (Fable review, 2026-11-07): the Corp's guess of a run getting past unrezzed ice (passOdds) is the
+     * measured rate, not 0.55 a layer. Self-play (884 games, runs 42337257360 / 42337259763) and Jeff's 13 Corp games
+     * (scripts/threat-calibration.ts): the first unrezzed layer passes about 0.6 against a Corp that can rez (0.52 on
+     * Jeff's), but each further layer passes about 0.83, since the Corp's money rezzes about one ice a run; against a
+     * broke Corp 0.87, then 0.93. Corp only (sideOff.runner). Shared by the old steal path and the threat.
+     */
+    measuredPass: false,
+    /**
      * Per deciding side (Jeff, 2026-10-28): its own clicks priced by the best plays in hand, at least a credit (handValues.ts clickWorth).
      * Batches (2,210 games each): Corp side 29.7% -> 21.6% (the Corp clicks for cards over credits and runs dry), Runner side 29.7% -> 29.7%.
      * Corp off, kept for re-testing; Runner on (neutral, Jeff's design).
@@ -536,7 +544,7 @@ export const tuning = {
  */
 export const sideOff: Record<SideCode, string[]> = {
   corp: [],
-  runner: ['tagTrashNow', 'ownTrashRisk', 'hqTrashCost', 'oneCurrency', 'threatModel'],
+  runner: ['tagTrashNow', 'ownTrashRisk', 'hqTrashCost', 'oneCurrency', 'threatModel', 'measuredPass'],
 };
 
 /** The plan with `keys` switched off (a key written +name turns it on). */

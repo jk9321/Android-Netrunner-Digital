@@ -36,6 +36,7 @@ const OFF_SWITCHES: Record<string, string> = {
   oneCurrency: 'missed its paired batch (stop rule, 2026-11-07); kept switchable for the next round',
   rdTurnsLeft: 'missed its paired batch (2026-11-07: decked 186 vs 173); the honest clock, kept for when urgency is priced by points',
   threatModel: 'structural review item 3; missed its paired batch (-11.0 ± 1.2, 2026-11-07), merged off so items 4-6 batch both ways',
+  measuredPass: 'item 3 round 2: the measured unrezzed pass rate, off until its paired batch',
 };
 
 describe('AI code health (audit guards)', () => {
