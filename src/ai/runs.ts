@@ -155,7 +155,7 @@ export const runClick = (state?: GameState): number => (state ? clickPrice(state
 export function tagCost(state: GameState): number {
   if (plan().tagClock) {
     // A run still to start takes its click first (plan.tagNoClear: what's left to clear the tag with)
-    const s = plan().tagNoClear && !state.activeRun ? { ...state, runner: { ...state.runner, clicks: state.runner.clicks - 1 } } : state;
+    const s = !state.activeRun ? { ...state, runner: { ...state.runner, clicks: state.runner.clicks - 1 } } : state;
     return tagsWorth(s, 'runner', s.runner.tags + 1) - tagsWorth(s, 'runner', s.runner.tags); // both priced as given (plan.tagTrashNow)
   }
   return Math.min(clickRate('runner') + creditCost(state, 2), RATES.tagAgainstRunner + tagThreat(state, 'runner'));
@@ -559,7 +559,6 @@ const UNSEEN_AGENDA = { instanceId: '', cardCode: '' } as CardInstance;
  * it can't steal (plan.stealCosts; Gemini audit, 2026-11-01).
  */
 export function stealTax(state: GameState, serverId: string, agenda: CardInstance = UNSEEN_AGENDA): number | null {
-  if (!plan().stealCosts) return 0;
   const cost = stealCost(state, agenda);
   if (!cost.clicks && !cost.credits) return 0;
   const server = state.corp.servers[serverId];
@@ -578,7 +577,7 @@ export function stealTax(state: GameState, serverId: string, agenda: CardInstanc
  */
 export function hqAgendaOdds(state: GameState, odds: number): number {
   const size = state.corp.hq.length;
-  if (!plan().knownHq || size === 0) return odds;
+  if (size === 0) return odds;
   const known = knownInHand(state, 'corp').slice(-size);
   const agendas = known.filter(k => getCardDefinition(k.code).type_code === 'agenda').length;
   return (agendas + (size - known.length) * odds) / size;
@@ -604,7 +603,7 @@ function serverWorth(state: GameState, serverId: string, extraAccesses: number, 
     const faceUp = state.corp.archives.faceUp.filter(c => cardDef(c).type_code === 'agenda');
     // plan.archivesChosen (Jeff, bug report #5): facedown cards are ones the Corp chose to put there (discards,
     // Hansei Review); a Corp rarely chooses an agenda, with or without ice there
-    const chosen = !plan().archivesChosen ? 1 : state.corp.servers.archives.ice.length === 0 ? ARCHIVES_CHOSEN_ODDS : ARCHIVES_CHOSEN_ODDS_ICED;
+    const chosen = state.corp.servers.archives.ice.length === 0 ? ARCHIVES_CHOSEN_ODDS : ARCHIVES_CHOSEN_ODDS_ICED;
     value = faceUp.reduce((n, c) => n + taxedSteal(stealWorth(state, cardDef(c).agenda_points ?? 1, 0), stealTax(state, serverId, c)), 0) + Math.min(3, state.corp.archives.faceDown.length) * odds * chosen * taxedSteal(stealWorth(state, points, 0), unseenTax);
   }
   if (repeat > 0 && server.isRemote) return 0;
@@ -624,7 +623,7 @@ function serverWorth(state: GameState, serverId: string, extraAccesses: number, 
       // Seen it: only worth coming back to trash it, and never into a known trap
       if (accessTrap(card.cardCode)) return 0;
       // An agenda left behind (its additional cost to steal unpaid, Méliès City Luxury Line): back for it when it can pay
-      if (plan().stealCosts && cardDef(card).type_code === 'agenda') {
+      if (cardDef(card).type_code === 'agenda') {
         value += taxedSteal(stealWorth(state, cardDef(card).agenda_points ?? 1, DENY.remote), stealTax(state, serverId, card));
         continue;
       }

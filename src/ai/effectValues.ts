@@ -413,7 +413,7 @@ export interface CorpEffect {
 /** Corp assets and upgrades, in credits: each card's formula is its `corp` entry in src/ai/cards/. */
 export function corpEffect(state: GameState, code: string, rezzed = false): CorpEffect | undefined {
   // A rezzed card's rez cost is paid already (plan.rezPaid; Gemini audit, 2026-11-01: rezzedWorth took it off twice)
-  const cost = rezzed && plan().rezPaid ? 0 : getCardDefinition(code).cost ?? 0;
+  const cost = rezzed ? 0 : getCardDefinition(code).cost ?? 0;
   const agenda = pointGain(state.corp.score, agendaOdds(state).points);
   const card = cardRate(state, 'corp');
   const tag = flatRate('tags') && plan().tagClock ? tagsWorth(state, 'corp', 1) : RATES.tagAgainstRunner;

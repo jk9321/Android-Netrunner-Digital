@@ -470,15 +470,9 @@ describe('planning (setup scoring)', () => {
     const unbroken = score();
     s.runner.rig.programs = [createCardInstance(s, '30006')]; // Cleaver breaks barriers
     const broken = score();
-    // plan.oneCurrency: runSuccess prices the layer the rig breaks through (plan.iceDepth is an installScore term)
-    if (tuning.plan.oneCurrency) {
-      expect(broken - unbroken).toBeGreaterThan(1);
-      return;
-    }
-    tuning.plan.iceDepth = false;
-    const plain = score();
-    tuning.plan.iceDepth = true;
-    expect(broken - unbroken).toBeGreaterThan(plain - unbroken + 0.5);
+    // plan.oneCurrency: runSuccess prices the layer the rig breaks through; otherwise iceDepth (an installScore term,
+    // folded in item 6) does
+    expect(broken - unbroken).toBeGreaterThan(tuning.plan.oneCurrency ? 1 : 0.5);
   });
 });
 

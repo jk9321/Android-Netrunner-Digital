@@ -3,7 +3,7 @@ import { describe, expect, it } from 'vitest';
 import { GameState, executeAction } from '../src/core';
 import { createAgent } from '../src/ai';
 import { lethalHqAgenda } from '../src/ai/corpAI';
-import { sideOff, tuning } from '../src/ai/synergy';
+import { tuning } from '../src/ai/synergy';
 
 
 /**
@@ -46,35 +46,15 @@ describe('an agenda in HQ that would win the Runner the game (plan.lethalHq, bug
     }
   }, 120_000);
 
-  it('the old way (plan off) is what the report saw', () => {
-    const was = { ...tuning.plan };
-    const corpOff = sideOff.corp;
-    tuning.plan.lethalHq = false;
-    tuning.plan.heldMoney = false; // added after the report
-    tuning.plan.oneCurrency = false; // the report's ranking: the rule tiers, before the Corp ranked in one currency
-    tuning.plan.modelRez = false; // added after the report (the Hard AI's playouts rez by it)
-    sideOff.corp = ['effectValues']; // as the report's game ran: before effect values came back on for the Corp (2026-11-03)
-    try {
-      expect(hqIce(playTurn(turn13(), createAgent('corp', 'hard', { samples: 6, seed: 1 })))).toBe(2);
-    } finally {
-      Object.assign(tuning.plan, was);
-      sideOff.corp = corpOff;
-    }
-  }, 120_000);
-
-  it('the one-currency Corp needs no lethalHq gate: HQ gets its layer with the plan off', () => {
-    // The steal is priced in the model (agendaWorth and centralExposure charge the Runner's points on the clock; a held
-    // agenda no remote protects is worth keeping in HQ), so the gate that stood in for it has nothing left to do
-    const was = tuning.plan.lethalHq;
+  it('the one-currency Corp gets HQ its layer too', () => {
+    // (plan.lethalHq folded in item 6: the gate is always on; this pinned that oneCurrency didn't need it)
     const one = tuning.plan.oneCurrency;
     const threat = tuning.plan.threatModel;
-    tuning.plan.lethalHq = false;
     tuning.plan.oneCurrency = true;
     tuning.plan.threatModel = false; // item 1 as built, on the old threat (oneCurrency.test.ts)
     try {
       expect(hqIce(playTurn(turn13()))).toBe(3);
     } finally {
-      tuning.plan.lethalHq = was;
       tuning.plan.oneCurrency = one;
       tuning.plan.threatModel = threat;
     }

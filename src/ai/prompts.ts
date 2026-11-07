@@ -432,12 +432,12 @@ export function answerPrompt(state: GameState, side: SideCode, memory?: RunnerMe
   }
 
   // Deck-aware AI: PT Untaian's paid advancement goes where it does the most
-  if (synergy && side === 'corp' && plan().identities && prompt.kind === 'effect_cards' && prompt.source.cardCode === '35047') {
+  if (synergy && side === 'corp' && prompt.kind === 'effect_cards' && prompt.source.cardCode === '35047') {
     return { ...base, choice: { kind: 'effect_cards', cardInstanceIds: untaianPick(state, prompt.candidateIds) } };
   }
 
   // Deck-aware AI: Tāo Salonga moves the hardest ice off the servers worth attacking
-  if (synergy && side === 'runner' && plan().runnerIdentities && prompt.kind === 'effect_cards' && prompt.source.cardCode === '30019') {
+  if (synergy && side === 'runner' && prompt.kind === 'effect_cards' && prompt.source.cardCode === '30019') {
     return { ...base, choice: { kind: 'effect_cards', cardInstanceIds: taoSwap(state, memory) } };
   }
 

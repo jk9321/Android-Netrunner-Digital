@@ -65,24 +65,8 @@ export const tuning = {
      * that play more like a person unless they are clearly negative.
      * (urgency only fed serverValue's old table, so it went with plan.runModel's off path, 2026-11-06.)
      */
-    /** Tags are worth more while the Corp holds cards that punish them (per deciding side). */
-    tagThreat: { corp: true, runner: true } as Record<SideCode, boolean>,
-    /** Icebreakers for the ice types the Corp has shown are worth more. */
-    breakerFocus: true,
-    /** Runner: take money toward a run it can't afford yet. */
-    saveUp: true,
     /** Corp: plays that let an agenda be scored this turn (Seamless Launch, KPI...), and tagging before scoring Orbital Superiority. */
     scoreSetup: true,
-    /** Corp: ice the Runner can't break, on servers under attack, mixing types. */
-    icePlacement: true,
-    /** Corp: guard agendas by their stakes (points, a winning steal, counters), HQ while it holds them. */
-    agendaStakes: true,
-    /** Corp: an agenda in HQ that would win the Runner the game gets HQ iced first, past the ice pacing limit (bug report #4). */
-    lethalHq: true,
-    /** Runner: a Read-Write Share full at 4 hosted cards is trashed to shuffle them back (Jeff, bug report #8). */
-    readWriteFull: true,
-    /** Runner: a facedown card the Corp put into an Archives with no ice is rarely an agenda (Jeff, bug report #5). */
-    archivesChosen: true,
     /*
      * Round 3 batches (1,105 deals, Corp only, 2026-10-25): all on +46 games
      * vs the old Corp (round 2 alone was -15). Leaving one out: rez money
@@ -98,41 +82,12 @@ export const tuning = {
      */
     /** Corp (round 3): keep credits to rez ice on two key servers (R&D, an agenda remote, HQ holding agendas). */
     rezMoney: true,
-    /** Corp (round 3): ice R&D first, then HQ; more HQ ice only while it holds agendas. */
-    centralIce: true,
-    /** Corp (round 3): ice counts by what it costs the Runner to get through (free: not there); servers they keep getting into want more. */
-    iceDepth: true,
-    /** Corp (round 3): one scoring remote: no assets in it, new remotes iced only once it has 2 layers and rez money; money assets iced once attacked. */
-    oneRemote: true,
     /*
      * Identity plans (2026-10-25): self-play, Pork Chops + Peculiarity, 520
      * games: Corp 39.6% on vs 36.3% off (each deck about +3 points);
      * flatline wins 91 vs 65. All decks: new Corp +113 vs old (noise vs +121).
      */
-    /** Identity plans: BANGUN's faceup agenda bait, PT Untaian's end-of-turn advancement (and the Runner reading faceup agendas). */
-    identities: true,
     /* Tāo swap: used on 128 of 244 chances (was 6 of 221); self-play with the two Tāo decks, 1,360 games: Runner 55.8% vs 54.9% off (noise, kept). */
-    /** Runner identity plans: Tāo Salonga's ice swap. */
-    runnerIdentities: true,
-    /** Corp: an agenda left over the Runner's turn only behind 2 real layers, or ice that costs more than the Runner has. */
-    exposure: true,
-    /** Money assets that pay when the turn begins wait for the window before it to be rezzed (2026-10-29: 75-96% were trashed before paying). */
-    assetRezTiming: true,
-    /**
-     * Every other asset that pays only when the Corp's turn begins (Idiosyncresis, Public Access Plaza, Plutus, Luana
-     * Campos) waits for that window too (rules 5.6.1b-d), not rezzed at 0 clicks before END_TURN (Gemini audit, 2026-11-01).
-     * Assets with a discard-phase payoff (Nihilo Agent, Phật Gioan Baotixita) still rez in the action phase.
-     */
-    turnStartRez: true,
-    /**
-     * Both sides: additional costs to steal (Méliès City Luxury Line's click, Magistrate Revontulet's 3 credits; rules
-     * 1.16.10) count in the Runner's run values and in the Corp's reach checks (Gemini audit, 2026-11-01).
-     */
-    stealCosts: true,
-    /** A rezzed Corp card's effect worth no longer takes its rez cost off again (rezzedWorth paid it twice; Gemini audit, 2026-11-01). */
-    rezPaid: true,
-    /** A tag the Runner can't clear before the Corp's next turn costs that turn's loss first (evaluate.ts tagClock). */
-    tagNoClear: true,
     /** On the Corp's turn, with a click and 2 credits, a tag's worth leaves out this turn's resource trash, which the trash action itself takes (Jeff: the Corp never trashed Sebastião's connections). */
     tagTrashNow: true,
     /** The cards from HQ that trashing a resource also costs (Sebastião, Manuel at threat 3) are priced as the Corp's least useful ones, not the flat worth of a card in hand. */
@@ -142,8 +97,6 @@ export const tuning = {
      * that risk is the Corp's choice, already in the tag clock, so it made keeping the tag look as good as trashing.
      */
     ownTrashRisk: true,
-    /** Runner: an HQ access counts the cards it knows are in HQ at what they are, the rest at the deck's agenda odds (runs.ts hqAgendaOdds; Jeff: Teia's open HQ). */
-    knownHq: true,
     /**
      * Corp (bug report #15, Jeff: an agenda sat in HQ all game while the Runner walked into HQ every turn): an agenda may go
      * into a remote that falls short of plan.exposure when the Runner keeps getting into HQ and the remote costs them at
@@ -603,12 +556,29 @@ export const sideOff: Record<SideCode, string[]> = {
   runner: ['tagTrashNow', 'ownTrashRisk', 'hqTrashCost', 'oneCurrency', 'threatModel', 'measuredPass', 'threatSpend', 'calibratedRun'],
 };
 
+/**
+ * Switches folded into the code by review item 6 (2026-11-07): always on, their off paths deleted. A PLAN_OFF or
+ * planWith naming one throws, so a batch written before the fold can't silently test nothing.
+ */
+export const FOLDED: readonly string[] = [
+  'tagThreat', 'breakerFocus', 'saveUp', 'icePlacement', 'agendaStakes', 'lethalHq', 'readWriteFull',
+  'archivesChosen', 'centralIce', 'iceDepth', 'oneRemote', 'identities', 'runnerIdentities', 'exposure',
+  'assetRezTiming', 'turnStartRez', 'stealCosts', 'rezPaid', 'tagNoClear', 'knownHq',
+];
+
+/** Throws on a name that isn't a plan switch (a typo, or a switch folded into the code). */
+function checkSwitch(name: string) {
+  if (name in tuning.plan) return;
+  throw new Error(FOLDED.includes(name) ? `plan.${name} was folded into the code (review item 6): it is always on` : `no plan switch named ${name}`);
+}
+
 /** The plan with `keys` switched off (a key written +name turns it on). */
 export function planWith(plan: typeof tuning.plan, keys: string[]): typeof tuning.plan {
   const out = { ...plan } as Record<string, unknown>;
   for (const key of keys) {
     const on = key.startsWith('+');
     const [name, part] = key.replace(/^\+/, '').split('.');
+    checkSwitch(name);
     if (part) out[name] = { ...(out[name] as object), [part]: on };
     else out[name] = on;
   }
@@ -629,6 +599,7 @@ export function applyPlanOff(list: string) {
     }
     const side = m[1] as SideCode;
     const name = m[2];
+    checkSwitch(name.replace(/^\+/, ''));
     sideOff[side] = name.startsWith('+') ? sideOff[side].filter(k => k !== name.slice(1)) : [...sideOff[side], name];
   }
 }

@@ -194,7 +194,7 @@ export class HeuristicRunnerAI implements Agent {
   }
 
   private mainAction(state: GameState, legal: GameAction[]): GameAction {
-    const full = plan().readWriteFull ? readWriteFullShuffle(state, legal) : undefined;
+    const full = readWriteFullShuffle(state, legal);
     if (full) {
       this.notePlayed(full);
       return full;
@@ -235,7 +235,7 @@ export class HeuristicRunnerAI implements Agent {
     this.digForBreakers =
       rigCoverage(state.runner.rig.programs).covered.size < 3 &&
       !legal.some(a => a.type === 'INITIATE_RUN' && runScore(state, a.targetServerId, { memory: this.memory, wary: this.synergy && tuning.wary }) > 0);
-    this.savingFor = this.synergy && plan().saveUp ? saveUpTarget(state, this.memory) : null;
+    this.savingFor = this.synergy ? saveUpTarget(state, this.memory) : null;
     return [...legal, ...makeRoomInstalls(state)]
       .map(action => {
         let score = this.scoreMain(state, action, before);

@@ -193,7 +193,7 @@ export class SearchAI implements Agent {
     if (activePrompt(state) || state.activeRun || state.turnStep?.kind === 'corp_turn_start') return this.base.chooseAction(state);
     if (this.base instanceof HeuristicRunnerAI) this.base.observe(state);
     // A rule, not a judgement: a full Read-Write Share is shuffled back (plan.readWriteFull)
-    if (this.side === 'runner' && plan().readWriteFull) {
+    if (this.side === 'runner') {
       const full = readWriteFullShuffle(state, getLegalActions(state, 'runner'));
       if (full) return full;
     }

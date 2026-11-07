@@ -127,7 +127,7 @@ export function shownIceShare(state: GameState): Record<string, number> {
 
 /** Worth of being able to break an ice type: 8 on average, more for the types the Corp plays. */
 function coverageValue(state: GameState, type: string, aware: boolean): number {
-  if (!aware || !plan().breakerFocus) return RATES.iceTypeCoverage;
+  if (!aware) return RATES.iceTypeCoverage;
   return RATES.iceTypeCoverage * (0.4 + 1.8 * shownIceShare(state)[type]);
 }
 
@@ -534,7 +534,7 @@ function tagClock(state: GameState, viewer: SideCode, tags: number, actual: bool
   // plan.tagNoClear (Gemini audit, 2026-11-01): a Runner that can't clear before the Corp's next turn (the Corp's turn
   // now, or its last click or 2 credits spent) sits through that turn first
   const runner = state.runner;
-  const stuck = plan().tagNoClear && !(state.activePlayer === 'runner' && runner.clicks >= 1 && runner.credits >= 2);
+  const stuck = !(state.activePlayer === 'runner' && runner.clicks >= 1 && runner.credits >= 2);
   // Kept, a tag costs this turn's loss and maybe the next; the Runner clears the ones that cost more than clearing
   // plan.tagTrashNow (Jeff, 2026-11-04): on the Corp's turn, this turn's loss is what its trash action takes, and the
   // action is scored by that; counted in the tag as well, keeping the tag looked as good as using it, so the Corp
@@ -672,7 +672,7 @@ export function hqTrashCardsLoss(state: GameState, resource: CardInstance): numb
 const lifeCards = (size: number): number => Math.min(size, RATES.handCoreCards) * (RATES.handCore - RATES.drawnCard);
 
 export function sideStrength(state: GameState, side: SideCode, viewer: SideCode = side, aware = false): number {
-  const threat = aware && plan().tagThreat?.[viewer] && state.runner.tags > 0 ? tagThreat(state, viewer) : 0;
+  const threat = aware && state.runner.tags > 0 ? tagThreat(state, viewer) : 0;
   if (side === 'corp') {
     const corp = state.corp;
     return (
