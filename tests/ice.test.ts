@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { cardDef, executeAction, getLegalActions, IllegalActionError, GameState, GameAction } from '../src/core';
+import { cardDef, executeAction, getLegalActions, IllegalActionError, GameState, GameAction, isLegalAction } from '../src/core';
 import { breakerStrength, iceStrength } from '../src/core/engine/ice';
 import { answer, cont, keepGoing, step, giveCard, installForTest, installIceForTest, installProgramForTest, newGame, runIntoFirstIce, startRunnerTurn, toCorp } from './helpers';
 
@@ -194,6 +194,25 @@ describe('Breaking subroutines', () => {
 });
 
 describe('Bioroid ice', () => {
+  // Rules 9.5.6a: a paid ability that could break subroutines can only be used during an encounter
+  it('clicks break bioroid subroutines only during the encounter', () => {
+    let s = newGame();
+    installIceForTest(s, ICE.bran, 'hq');
+    const brk: GameAction = { type: 'BIOROID_BREAK', player: 'runner', subroutineIndex: 1 };
+    startRunnerTurn(s);
+    expect(isLegalAction(s, brk)).toBe(false); // outside a run
+    s = executeAction(s, { type: 'INITIATE_RUN', player: 'runner', targetServerId: 'hq' });
+    const before: string[] = [];
+    for (let i = 0; i < 6 && s.activeRun && s.activeRun.phase !== 'encounter_ice'; i++) {
+      before.push(s.activeRun.phase);
+      expect(isLegalAction(s, brk)).toBe(false);
+      s = step(s);
+    }
+    expect(before.length).toBeGreaterThan(0);
+    expect(s.activeRun?.phase).toBe('encounter_ice');
+    expect(isLegalAction(s, brk)).toBe(true);
+  });
+
   it('the Runner can lose clicks to break Brân 1.0 subroutines', () => {
     let s = newGame();
     installIceForTest(s, ICE.bran, 'hq');
