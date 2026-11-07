@@ -375,6 +375,14 @@ export const tuning = {
      */
     calibratedRun: false,
     /**
+     * Item 3 round 3, a decomposition (both on: the threat as built): with threatModel on, the threat's two halves can
+     * be switched off one at a time. threatLeaf: the planner leaf's charge (threatLoss; off, the two-sample
+     * runnerReply). threatValues: the readers in the values (stealOdds, agendaWorth, centralExposure; off, STEAL.run
+     * and PACE).
+     */
+    threatLeaf: true,
+    threatValues: true,
+    /**
      * Per deciding side (Jeff, 2026-10-28): its own clicks priced by the best plays in hand, at least a credit (handValues.ts clickWorth).
      * Batches (2,210 games each): Corp side 29.7% -> 21.6% (the Corp clicks for cards over credits and runs dry), Runner side 29.7% -> 29.7%.
      * Corp off, kept for re-testing; Runner on (neutral, Jeff's design).

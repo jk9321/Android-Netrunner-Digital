@@ -64,7 +64,7 @@ const TIE = 1;
 let computing = 0;
 
 /** The threat is read only by the Corp, with the switch on, and never from inside its own computation. */
-export const threatOn = (): boolean => !!tuning.plan.threatModel && computing === 0;
+export const threatOn = (): boolean => !!tuning.plan.threatModel && tuning.plan.threatValues !== false && computing === 0;
 
 /** What the Runner remembers of the Corp's installed cards: the ones it accessed and that stayed installed (rule 7.1.2: the Corp saw the access). */
 export function runnerMemory(state: GameState): RunnerMemory {
