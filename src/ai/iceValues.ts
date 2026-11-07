@@ -5,7 +5,7 @@ import { AUDREY, iceCost } from './runs';
 import { RATES, guardLoop, memo } from './valueModel';
 import { turnsLeft } from './cardProfiles';
 import { freeRezTargets } from './freeRez';
-import { tuning } from './synergy';
+import { plan } from './pricing';
 
 /**
  * Value model step 5 (docs/ai-value-model-plan.md): ice priced in credits,
@@ -26,7 +26,7 @@ export const RUNNER_TURN_INCOME = 4;
  * their credits plus two turns of income (at least the base 8), and unbreakable ice counts at that ceiling.
  */
 export function iceStop(state?: GameState): number {
-  if (tuning.plan.iceStopRunner && state) return Math.max(ICE_STOP, stopCredits(state) + 2 * RUNNER_TURN_INCOME);
+  if (plan().iceStopRunner && state) return Math.max(ICE_STOP, stopCredits(state) + 2 * RUNNER_TURN_INCOME);
   return ICE_STOP;
 }
 
@@ -44,7 +44,7 @@ export function noteIceStopCredits(state: GameState) {
 }
 
 function stopCredits(state: GameState): number {
-  return tuning.plan.iceStopAnchor && anchor?.id === state.id ? anchor.credits : state.runner.credits;
+  return plan().iceStopAnchor && anchor?.id === state.id ? anchor.credits : state.runner.credits;
 }
 
 /** Worth of one installed piece of ice, as `viewer` can judge it. */
@@ -58,7 +58,7 @@ function iceWorthOf(state: GameState, ice: CardInstance, viewer: SideCode): numb
   if (viewer === 'runner') return RATES.ice + iceCost(state, ice);
   // The Corp knows: what it would cost the Runner once rezzed, held back a little for the rez still to pay, by the
   // share of the Corp's one pool of credits this ice can count on (rezBudget)
-  const share = tuning.plan.rezBudget
+  const share = plan().rezBudget
     ? rezBudget(state).get(ice.instanceId) ?? 0
     : state.corp.credits >= rezCost(state, ice) || freeRezTargets(state).has(ice.instanceId) ? REZ_NOW_SHARE : 0;
   return RATES.ice + share * Math.min(iceStop(state), lastingIceCost(state, { ...ice, isRezzed: true }));
@@ -76,7 +76,7 @@ export const AUDREY_REFILL = 3;
  */
 export function lastingIceCost(state: GameState, ice: CardInstance): number {
   const now = iceCost(state, ice);
-  if (!tuning.plan.oneCurrency || !ice.isRezzed) return now;
+  if (!plan().oneCurrency || !ice.isRezzed) return now;
   const audreys = state.runner.rig.programs.filter(p => p.cardCode === AUDREY);
   if (audreys.length === 0) return now;
   const have = Math.max(...audreys.map(p => p.tokens?.virus ?? 0));
@@ -106,7 +106,7 @@ export const CORP_TURN_INCOME = 3;
 export function rezBudget(state: GameState): Map<string, number> {
   // Keyed by what it reads that tests change in place (credits, the unrezzed ice, the free-rez switch)
   const ice = Object.values(state.corp.servers).flatMap(s => s.ice.filter(c => !c.isRezzed).map(c => c.instanceId + c.cardCode)).join();
-  return memo(state, `rezBudget:${state.corp.credits}:${!!tuning.plan.freeRez}:${ice}`, () => countRezBudget(state));
+  return memo(state, `rezBudget:${state.corp.credits}:${!!plan().freeRez}:${ice}`, () => countRezBudget(state));
 }
 
 function countRezBudget(state: GameState): Map<string, number> {

@@ -1,9 +1,9 @@
 import { CardInstance, GameState, getCardDefinition } from '../core';
 import { ECON_SCALE, unrezzedWorth } from './cardProfiles';
 import { corpEffect, effectsOn, runnerEffect } from './effectValues';
-import { tuning } from './synergy';
 import { RATES, guardLoop } from './valueModel';
 import { CARD_VALUES } from './cards';
+import { plan } from './pricing';
 
 /**
  * The AI's per-card numbers, by card code (each card's `value` in its set's
@@ -30,7 +30,7 @@ export interface CardValue {
 export { CARD_VALUES } from './cards';
 
 /** Extra worth of the cards a card draws, now that a card in hand is worth about a credit. */
-const drawBonus = (code: string): number => (tuning.plan.drawValue?.[getCardDefinition(code).side_code] ? RATES.cardDrawn * (CARD_VALUES[code]?.draws ?? 0) : 0);
+const drawBonus = (code: string): number => (plan().drawValue?.[getCardDefinition(code).side_code] ? RATES.cardDrawn * (CARD_VALUES[code]?.draws ?? 0) : 0);
 
 /** Worth of an installed Corp asset or upgrade (1 if not listed). With a game state, a card profile (step 4) prices it instead. */
 export const corpKeepValue = (code: string, state?: GameState, rezzed = false): number =>
@@ -56,6 +56,6 @@ export const runnerCardValue = (code: string, state?: GameState, card?: CardInst
   const flat = () => (CARD_VALUES[code]?.rig ?? RATES.defaultRig) + drawBonus(code);
   // Effect formulas give credits; rig worth is on the board at RATES.rigCardScale per point
   // plan.rigEffects: the Runner's cards by what they do even where effectValues is off (the Corp's side; Gemini audit 2.1c)
-  const fx = state && (effectsOn() || tuning.plan.rigEffects) ? guardLoop(state, `runner card ${code} ${card?.instanceId ?? ''}`, () => undefined, () => runnerEffect(state, code, card)) : undefined;
+  const fx = state && (effectsOn() || plan().rigEffects) ? guardLoop(state, `runner card ${code} ${card?.instanceId ?? ''}`, () => undefined, () => runnerEffect(state, code, card)) : undefined;
   return fx !== undefined ? fx / RATES.rigCardScale : flat();
 };

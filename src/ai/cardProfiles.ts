@@ -1,8 +1,8 @@
 import { GameState, getCardDefinition } from '../core';
-import { tuning } from './synergy';
 import { RATES, cardRate, payoutClick } from './valueModel';
 import { CARD_PROFILES } from './cards';
 import { PAYOUT_RISK } from './payoutRisk';
+import { plan } from './pricing';
 
 /**
  * Value model step 4 (docs/ai-value-model-plan.md): money cards described
@@ -40,10 +40,10 @@ export { PAYOUT_RISK } from './payoutRisk';
 
 /** Worth kept per turn a payout of this card waits. */
 export function payoutWait(state: GameState, profile: CardProfile, owner: 'corp' | 'runner', iced = false): number {
-  if (!tuning.plan.payoutRisk) return WAIT;
+  if (!plan().payoutRisk) return WAIT;
   const time = profile.every === 'click' ? PAYOUT_RISK.clickWait : 1;
   const risk = owner === 'corp'
-    ? (tuning.plan.measuredAssetRisk ? (iced ? PAYOUT_RISK.moneyIced : bareAssetRisk(state)) : iced ? PAYOUT_RISK.corpIced : PAYOUT_RISK.corpBare)
+    ? (plan().measuredAssetRisk ? (iced ? PAYOUT_RISK.moneyIced : bareAssetRisk(state)) : iced ? PAYOUT_RISK.corpIced : PAYOUT_RISK.corpBare)
     : (state.runner.tags > 0 ? PAYOUT_RISK.runnerTagged : PAYOUT_RISK.runnerUntagged);
   return time * (1 - risk);
 }
@@ -58,7 +58,7 @@ const BARE_PRIOR_TURNS = 3;
  */
 export function bareAssetRisk(state: GameState): number {
   const seen = state.bareAssets;
-  if (!tuning.plan.readAssetTrash || !seen) return PAYOUT_RISK.moneyBare;
+  if (!plan().readAssetTrash || !seen) return PAYOUT_RISK.moneyBare;
   return (BARE_PRIOR_TURNS * PAYOUT_RISK.moneyBare + seen.trashed) / (BARE_PRIOR_TURNS + seen.exposed);
 }
 
@@ -81,8 +81,8 @@ export const CORP_DRAWS_PER_TURN = 1.3;
 /** Turns each side has left, guessed from the score (Jeff: mostly points), and with plan.rdTurnsLeft no more than R&D lasts. */
 export function turnsLeft(state: GameState): number {
   const top = Math.max(state.corp.score, state.runner.score);
-  const byPoints = tuning.plan.measuredTurnsLeft ? MEASURED_TURNS_LEFT[Math.min(top, MEASURED_TURNS_LEFT.length - 1)] ?? 2 : Math.max(2, 8 - top);
-  if (!tuning.plan.rdTurnsLeft) return byPoints;
+  const byPoints = plan().measuredTurnsLeft ? MEASURED_TURNS_LEFT[Math.min(top, MEASURED_TURNS_LEFT.length - 1)] ?? 2 : Math.max(2, 8 - top);
+  if (!plan().rdTurnsLeft) return byPoints;
   return Math.min(byPoints, Math.max(1, Math.ceil(state.corp.rd.length / CORP_DRAWS_PER_TURN)));
 }
 
@@ -107,7 +107,7 @@ export function payoutWorth(profile: CardProfile, turns: number, hosted = profil
 }
 
 /** The card's profile, while plan.cardProfiles is on. */
-export const profileOf = (code: string): CardProfile | undefined => (tuning.plan.cardProfiles ? CARD_PROFILES[code] : undefined);
+export const profileOf = (code: string): CardProfile | undefined => (plan().cardProfiles ? CARD_PROFILES[code] : undefined);
 
 /** Worth of a profiled card still to be rezzed (Corp): its payouts less its rez cost. */
 export function unrezzedWorth(state: GameState, code: string, iced = false): number | undefined {

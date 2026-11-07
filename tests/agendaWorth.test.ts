@@ -2,6 +2,7 @@ import { describe, expect, it, onTestFinished as onExit } from 'vitest';
 import { AGENDA_CLICK, agendaWorth, archivedAgendaLoss, evaluate, keepValue } from '../src/ai/evaluate';
 import { cardDef } from '../src/core';
 import { tuning } from '../src/ai/synergy';
+import { plan } from '../src/ai/pricing';
 import { playedWorth } from '../src/ai/handValues';
 import { iceWorth } from '../src/ai/iceValues';
 import { CLICK, pointGain, pointValue } from '../src/ai/valueModel';
@@ -123,9 +124,9 @@ describe('plan switches for one side (Jeff, 2026-10-29; synergy.ts sideOff)', ()
     try {
       const base = tuning.plan;
       asSide('corp', () => {
-        expect(tuning.plan.flatRates).toBe(false);
-        asSide('runner', () => expect(tuning.plan.flatRates).toBe(base.flatRates));
-        expect(tuning.plan.flatRates).toBe(false);
+        expect(plan().flatRates).toBe(false);
+        asSide('runner', () => expect(plan().flatRates).toBe(base.flatRates));
+        expect(plan().flatRates).toBe(false);
       });
       expect(tuning.plan).toBe(base);
     } finally {

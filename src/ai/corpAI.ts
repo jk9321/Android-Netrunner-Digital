@@ -26,6 +26,7 @@ import { BLOCK, iceCost, iceCreditNeed, isTrap, subroutineCost, tagCost, weakest
 import { cardSynergy } from './synergyTags';
 import { econValue, upgradeValue } from './cardValues';
 import { counterWorth } from './counterValues';
+import { plan } from './pricing';
 
 
 const type = (card: CardInstance) => cardDef(card).type_code;
@@ -109,11 +110,11 @@ export class HeuristicCorpAI implements Agent {
 
   /** Round 3: keep rez money for R&D and HQ as well as agenda remotes. */
   private get wideReserve() {
-    return this.synergy && tuning.plan.rezMoney;
+    return this.synergy && plan().rezMoney;
   }
 
   private get timing() {
-    return this.synergy && tuning.plan.agendaTiming;
+    return this.synergy && plan().agendaTiming;
   }
 
   /**
@@ -127,7 +128,7 @@ export class HeuristicCorpAI implements Agent {
 
   /** plan.oneCurrency: every main-phase action ranked by the evaluate delta (oneCurrencyScore). */
   private get oneCurrency() {
-    return this.synergy && tuning.plan.oneCurrency;
+    return this.synergy && plan().oneCurrency;
   }
 
   chooseAction(state: GameState): GameAction {
@@ -143,9 +144,9 @@ export class HeuristicCorpAI implements Agent {
     let chosen = planned ?? (ranked[0]?.score > -Infinity ? ranked[0].action : legal.find(a => a.type === 'END_TURN') ?? legal[0]);
     // plan.pettyCashFirst: a click for a credit while Petty Cash can still be played is a click for 2 thrown away (the
     // planner valued Petty Cash held in HQ as the money it will make, though it is playable only as the turn's first action)
-    if (chosen.type === 'GAIN_CREDIT' && this.patches && tuning.plan.pettyCashFirst) chosen = ranked.find(r => isPettyCash(state, r.action) && r.score > -Infinity)?.action ?? chosen;
+    if (chosen.type === 'GAIN_CREDIT' && this.patches && plan().pettyCashFirst) chosen = ranked.find(r => isPettyCash(state, r.action) && r.score > -Infinity)?.action ?? chosen;
     // plan.tagFirst: the planner's leaf counts a tag kept as a trash still to come, but the Runner clears it on its turn
-    if (this.patches && tuning.plan.tagFirst && ranked[0]?.action.type === 'TRASH_RESOURCE' && ranked[0].tagFirst) chosen = ranked[0].action;
+    if (this.patches && plan().tagFirst && ranked[0]?.action.type === 'TRASH_RESOURCE' && ranked[0].tagFirst) chosen = ranked[0].action;
     // The reverse bluff: at most once a game
     if (chosen.type === 'INSTALL_CARD' && chosen.asNewRemote && state.corp.hq.some(c => c.instanceId === chosen.cardInstanceId && type(c) === 'agenda')) {
       const def = cardDef(state.corp.hq.find(c => c.instanceId === chosen.cardInstanceId)!);
@@ -165,9 +166,9 @@ export class HeuristicCorpAI implements Agent {
   private plan(state: GameState, ranked: ScoredAction[]): GameAction | null {
     const rollout = new HeuristicCorpAI({ synergy: this.synergy, planner: false, searching: true });
     // plan.threatModel (structural review item 3): the Runner's next turn charged from the threat, not played out twice
-    const reply = tuning.plan.threatModel && tuning.plan.threatLeaf !== false
+    const reply = plan().threatModel && plan().threatLeaf !== false
       ? (s: GameState, leaf: (s: GameState) => number) => leaf(s) - threatLoss(s)
-      : tuning.plan.runnerReply ? (s: GameState, leaf: (s: GameState) => number) => runnerReply(s, this.synergy, leaf) : undefined;
+      : plan().runnerReply ? (s: GameState, leaf: (s: GameState) => number) => runnerReply(s, this.synergy, leaf) : undefined;
     return planTurn(state, 'corp', ranked, { rank: s => rollout.rankMainActions(s), answer: s => rollout.chooseAction(s), reply, memory: this.planMemory }, this.synergy);
   }
 
@@ -176,7 +177,7 @@ export class HeuristicCorpAI implements Agent {
     noteKnownHand(state, 'corp');
     this.freeActions.start(state, state.corp.clicks);
     const before = evaluate(state, 'corp', this.synergy);
-    const iceTrash = this.synergy && tuning.plan.iceTrash;
+    const iceTrash = this.synergy && plan().iceTrash;
     const ranked = [...legal, ...(iceTrash ? iceTrashInstalls(state) : [])]
       .map(original => {
         // plan.oneCurrency: the action as the engine plays it (an ice install's trashFirst included), by its evaluate delta
@@ -199,8 +200,8 @@ export class HeuristicCorpAI implements Agent {
       })
       .sort((a, b) => b.score - a.score);
     if (this.oneCurrency) return finishFirst(state, ranked);
-    const first = this.patches && tuning.plan.pettyCashFirst ? pettyCashFirst(state, ranked) : ranked;
-    return this.patches && tuning.plan.tagFirst ? tagFirst(state, first) : first;
+    const first = this.patches && plan().pettyCashFirst ? pettyCashFirst(state, ranked) : ranked;
+    return this.patches && plan().tagFirst ? tagFirst(state, first) : first;
   }
 
   chooseRez(state: GameState, cards: CardInstance[]): GameAction | null {
@@ -211,14 +212,14 @@ export class HeuristicCorpAI implements Agent {
     const run = state.activeRun;
     if (!run) return null;
     const server = state.corp.servers[run.server];
-    const importance = serverImportance(state, server, this.synergy && tuning.plan.agendaStakes);
+    const importance = serverImportance(state, server, this.synergy && plan().agendaStakes);
     let best: { card: CardInstance; score: number } | null = null;
     for (const card of cards) {
       const def = cardDef(card);
       const cost = rezCost(state, card);
       if (!isLegalAction(state, { type: 'REZ_CARD', player: 'corp', cardInstanceId: card.instanceId })) continue;
       let score: number;
-      if (def.type_code === 'ice' && this.synergy && tuning.plan.modelRez) {
+      if (def.type_code === 'ice' && this.synergy && plan().modelRez) {
         // plan.modelRez: the rez priced by the value model (rezModel.ts), in credits; rezzed when it gains anything.
         // Lifted onto the old scale's threshold (2) so an upgrade in the same window still compares on its own terms
         const gain = modelRezGain(state, card, this.synergy);
@@ -230,11 +231,11 @@ export class HeuristicCorpAI implements Agent {
         score = importance + (hasEndTheRun(card) ? 1 : 0) + onRez;
         if (state.corp.credits - cost < 2 && importance < 4) score -= 2;
         // (Jeff) money kept to rez an agenda remote's ice isn't spent on ice elsewhere
-        if (this.synergy && tuning.plan.agendaMoney && state.corp.credits - cost < agendaRemoteNeed(state, server.id)) score -= 3;
+        if (this.synergy && plan().agendaMoney && state.corp.credits - cost < agendaRemoteNeed(state, server.id)) score -= 3;
         // plan.rezToll (Jeff, 2026-11-05: the Corp's money goes on ice rezzed in runs): ice the Runner can pay its way
         // through doesn't stop the run, it only takes a toll. Outside a server holding an agenda, paying more to rez it
         // than twice the toll (this run's and about one more) loses money: 27% of the Corp's in-run rez money went there
-        if (this.synergy && tuning.plan.rezToll && importance < 7) {
+        if (this.synergy && plan().rezToll && importance < 7) {
           const rezzed = { ...card, isRezzed: true };
           const need = iceCreditNeed(state, rezzed);
           if (need > 0 && need < BLOCK && need <= state.runner.credits && 2 * iceCost(state, rezzed) < cost) continue;
@@ -244,7 +245,7 @@ export class HeuristicCorpAI implements Agent {
         // one that does nothing in a run waits for the Corp's turn, keeping the money for ice
         const [remote, central] = upgradeValue(card.cardCode, state);
         score = !runTimed(card) ? -1 : importance - 2 + Math.min(2, Math.max(0, server.isRemote ? remote : central));
-      } else if (tuning.plan.spinDoctorWait && onRezOnly(card)) {
+      } else if (plan().spinDoctorWait && onRezOnly(card)) {
         score = 3; // Spin Doctor (Jeff): the Runner came anyway, so the same 2 cards cost it a run
       } else {
         score = -1; // assets are rezzed on the Corp's own turn
@@ -259,7 +260,7 @@ export class HeuristicCorpAI implements Agent {
   private runStopper(state: GameState, importance: number): GameAction | null {
     // (Jeff) LEO: worth it when the run would take more than the bioroid it trashes (plan.leoValue)
     const leo = getLegalActions(state, 'corp').find(a => a.type === 'USE_ABILITY' && findCardAnywhere(state, a.cardInstanceId)?.cardCode === '35035');
-    if (leo && tuning.plan.leoValue) return this.leoGain(state, leo) > 0 ? leo : null;
+    if (leo && plan().leoValue) return this.leoGain(state, leo) > 0 ? leo : null;
     if (importance < 6) return null;
     const archivesAgenda = state.corp.archives.faceDown.some(c => type(c) === 'agenda');
     for (const action of getLegalActions(state, 'corp')) {
@@ -330,10 +331,10 @@ export class HeuristicCorpAI implements Agent {
         return 100;
       case 'INSTALL_CARD': {
         if (!corp.hq.some(c => c.instanceId === action.cardInstanceId)) return -Infinity;
-        if (action.faceUp && !tuning.plan.bangunFaceUp) return -Infinity;
+        if (action.faceUp && !plan().bangunFaceUp) return -Infinity;
         const server = action.asNewRemote ? null : corp.servers[action.targetServerId ?? ''] ?? null;
-        if (action.faceUp && tuning.plan.bangunNoBareBait && !(server?.ice.length) && state.runner.grip.length > 2 && !(tuning.plan.bangunEarlyBait && state.runner.score <= 2)) return -Infinity;
-        const faceUp = action.faceUp ? (tuning.plan.identities ? -this.bangunBait(state) : 0.5) : 0;
+        if (action.faceUp && plan().bangunNoBareBait && !(server?.ice.length) && state.runner.grip.length > 2 && !(plan().bangunEarlyBait && state.runner.score <= 2)) return -Infinity;
+        const faceUp = action.faceUp ? (plan().identities ? -this.bangunBait(state) : 0.5) : 0;
         return this.playScore(state, action, before) - faceUp;
       }
       case 'REZ_CARD': {
@@ -343,7 +344,7 @@ export class HeuristicCorpAI implements Agent {
         if (this.rezTimingBlocked(state, card)) return -Infinity;
         // Agendas can't be rezzed (rule 3.2.3), traps spring on access, run-timed cards wait for the run's window
         if (type(card) === 'agenda' || isTrap(card.cardCode) || runTimed(card)) return -Infinity;
-        if (tuning.plan.rezToUse && clickOnly(card)) return this.rezToUse(state, card, before);
+        if (plan().rezToUse && clickOnly(card)) return this.rezToUse(state, card, before);
         if (state.turnStep?.kind === 'corp_turn_start' && type(card) === 'asset' && getCardScript(card.cardCode)?.triggers?.turn_begins) return this.preTurnRez(state, action);
         return this.playScore(state, action, before);
       }
@@ -353,8 +354,8 @@ export class HeuristicCorpAI implements Agent {
         // The drawn card is one the Corp hasn't seen, so evaluate prices it at the deck's average (no peeking: the
         // look-ahead draw is pooled with R&D). What it may be is digValue's: the odds it is the missing ice or money,
         // one card past the hand size when HQ is all duds (plan.digPastLimit; rules 4.3.6, 5.5.3: discard at the end of the turn)
-        const room = corp.handSizeLimit + (tuning.plan.digPastLimit ? 1 : 0);
-        const dig = tuning.plan.dig?.corp && corp.hq.length < room ? digValue(state, 'corp') : 0;
+        const room = corp.handSizeLimit + (plan().digPastLimit ? 1 : 0);
+        const dig = plan().dig?.corp && corp.hq.length < room ? digValue(state, 'corp') : 0;
         return this.playScore(state, action, before) + dig;
       }
     }
@@ -375,7 +376,7 @@ export class HeuristicCorpAI implements Agent {
         // Dividends: put spare clicks into the agenda first (scoring stays possible all turn)
         if (this.synergy && this.overAdvance(state, action.cardInstanceId)) return 5;
         // Orbital Superiority and the like: tag the Runner first if we can this turn
-        if (this.synergy && tuning.plan.scoreSetup && this.tagFirst(state, action.cardInstanceId)) return 5;
+        if (this.synergy && plan().scoreSetup && this.tagFirst(state, action.cardInstanceId)) return 5;
         return 100;
       case 'PURGE_VIRUS': {
         const viruses = [...state.runner.rig.programs, ...state.runner.rig.hardware, ...state.runner.rig.resources].reduce(
@@ -383,7 +384,7 @@ export class HeuristicCorpAI implements Agent {
           0
         );
         // Deck-aware AI: weigh each counter by what it does, against the 3 clicks a purge costs
-        if (this.synergy && tuning.plan.purgeValue) return virusThreat(state) - 5;
+        if (this.synergy && plan().purgeValue) return virusThreat(state) - 5;
         // Against a virus deck, purge a little sooner
         return viruses - 3.5 + (this.synergy && tuning.purge ? opponentLean(state, 'corp', 'virus') : 0);
       }
@@ -397,11 +398,11 @@ export class HeuristicCorpAI implements Agent {
         const server = action.asNewRemote ? null : corp.servers[action.targetServerId ?? ''] ?? null;
         // BANGUN's faceup agendas hurt the Runner but tell them what is there
         const installCost = type(card) === 'ice' && server ? server.ice.length : 0;
-        if (action.faceUp && !tuning.plan.bangunFaceUp) return -Infinity;
+        if (action.faceUp && !plan().bangunFaceUp) return -Infinity;
         // (Jeff) a faceup agenda with no ice is stolen 98% of the time: only as a flatline threat (plan.bangunNoBareBait)
         // (Jeff) early on, 2 points cost less than 2 cards and a tag: the bait stays while the Runner has 2 points or fewer (plan.bangunEarlyBait)
-        if (action.faceUp && tuning.plan.bangunNoBareBait && !(server?.ice.length) && state.runner.grip.length > 2 && !(tuning.plan.bangunEarlyBait && state.runner.score <= 2)) return -Infinity;
-        const faceUp = action.faceUp ? (this.synergy && tuning.plan.identities ? -this.bangunBait(state) : 0.5) : 0;
+        if (action.faceUp && plan().bangunNoBareBait && !(server?.ice.length) && state.runner.grip.length > 2 && !(plan().bangunEarlyBait && state.runner.score <= 2)) return -Infinity;
+        const faceUp = action.faceUp ? (this.synergy && plan().identities ? -this.bangunBait(state) : 0.5) : 0;
         return this.installScore(state, card, server) - faceUp - reservePenalty(state, corp.credits - installCost, this.wideReserve);
       }
       case 'REZ_CARD': {
@@ -420,7 +421,7 @@ export class HeuristicCorpAI implements Agent {
     const score = this.playScore(state, action, before);
     const resource = state.runner.rig.resources.find(c => c.instanceId === action.cardInstanceId);
     const k = resource ? resourceTrashHqCost(state, resource) : 0;
-    if (!this.synergy || !tuning.plan.hqTrashCost || k === 0 || !resource || !Number.isFinite(score)) return score;
+    if (!this.synergy || !plan().hqTrashCost || k === 0 || !resource || !Number.isFinite(score)) return score;
     // plan.hqTrashCost: the board score took the HQ cards off at the flat worth of a card in hand;
     // they are the Corp's least useful cards (Sebastião Souza Pessoa, Manuel Lattes de Moura)
     const size = state.corp.hq.length;
@@ -433,7 +434,7 @@ export class HeuristicCorpAI implements Agent {
    * in advance, but rezzing it must not eat the money kept for rezzing ice.
    */
   private idleUpgrade(state: GameState, card: CardInstance): boolean {
-    if (!this.synergy || !tuning.plan.idleUpgrades) return false;
+    if (!this.synergy || !plan().idleUpgrades) return false;
     const server = Object.values(state.corp.servers).find(s => s.root.some(c => c.instanceId === card.instanceId));
     if (!server?.isRemote || server.root.some(c => type(c) === 'agenda')) return false;
     return state.corp.credits - rezCost(state, card) < rezReserve(state, this.wideReserve);
@@ -462,7 +463,7 @@ export class HeuristicCorpAI implements Agent {
     // (Jeff, 2026-10-31: "it rezzes Humanoid Resources but never seems to use it"; plan.rezToUse) not before the turn
     // begins either, and in the action phase only when using it would then be the best play: rezzed and left, it is
     // just a credit spent and a trash target
-    if (tuning.plan.rezToUse && clickOnly(card)) return this.rezToUse(state, card);
+    if (plan().rezToUse && clickOnly(card)) return this.rezToUse(state, card);
     const econ = econValue(card.cardCode, state);
     if (econ) return econ + 1;
     // Model: worth once rezzed, less the rez cost, on the install-score scale; upgrades still wait for ice money (Jeff)
@@ -499,20 +500,20 @@ export class HeuristicCorpAI implements Agent {
     const corp = state.corp;
     // A money asset that pays when the Corp's turn begins is rezzed in the window just before then
     // (rules 5.6.1b-d): it pays at once, and the Runner gets no turn to trash it full (plan.assetRezTiming)
-    if (tuning.plan.assetRezTiming && CARD_PROFILES[card.cardCode]?.every === 'turn' && state.turnStep?.kind !== 'corp_turn_start') return true;
+    if (plan().assetRezTiming && CARD_PROFILES[card.cardCode]?.every === 'turn' && state.turnStep?.kind !== 'corp_turn_start') return true;
     // The same for any asset whose payoff is "when your turn begins" (plan.turnStartRez): rezzed earlier it pays no
     // sooner, shows the Runner what it is, gives it a turn to trash it and spends credits the Corp's ice may need
-    if (tuning.plan.turnStartRez && turnStartOnly(card) && state.turnStep?.kind !== 'corp_turn_start') return true;
+    if (plan().turnStartRez && turnStartOnly(card) && state.turnStep?.kind !== 'corp_turn_start') return true;
     // (Jeff) Spin Doctor: left unrezzed it may draw a run, and is rezzed then for the same draw; or just before the
     // turn begins. Rezzed in the action phase only when the cards are needed now (digging, or an empty hand);
-    if (tuning.plan.spinDoctorWait && onRezOnly(card) && state.turnStep?.kind !== 'corp_turn_start' && corp.hq.length > 1 && digValue(state, 'corp') <= 0) return true;
+    if (plan().spinDoctorWait && onRezOnly(card) && state.turnStep?.kind !== 'corp_turn_start' && corp.hq.length > 1 && digValue(state, 'corp') <= 0) return true;
     // (Jeff's bug report, 2026-10-31; plan.rezWhenUsed) An asset that only pays through a click ability (Humanoid Resources)
     // is rezzed in the paid ability window just before the action that uses it (rule 5.6.2a): rezzed with fewer clicks
     // left it does nothing yet, and spends the money a broke Corp needs for Petty Cash or its ice
-    if (tuning.plan.rezWhenUsed && clickOnly(card) && corp.clicks < clickOnly(card)) return true;
+    if (plan().rezWhenUsed && clickOnly(card) && corp.clicks < clickOnly(card)) return true;
     // plan.clickMoneyRez (Jeff, 2026-11-04: Regolith rezzed with no clicks left, then trashed before it paid): money
     // taken with a click is rezzed when a click is left to take it, or in the window just before the turn begins
-    if (tuning.plan.clickMoneyRez && CARD_PROFILES[card.cardCode]?.every === 'click' && corp.clicks < 1 && state.turnStep?.kind !== 'corp_turn_start') return true;
+    if (plan().clickMoneyRez && CARD_PROFILES[card.cardCode]?.every === 'click' && corp.clicks < 1 && state.turnStep?.kind !== 'corp_turn_start') return true;
     return false;
   }
 
@@ -523,7 +524,7 @@ export class HeuristicCorpAI implements Agent {
     if (action.type === 'PLAY_OPERATION_OR_EVENT' && !one) {
       const code = corp.hq.find(c => c.instanceId === action.cardInstanceId)?.cardCode;
       // The tag that sets up a waiting Orbital Superiority
-      if (this.synergy && tuning.plan.scoreSetup && code && this.tagsBeforeScore(state, code) && simulate(state, action)) return 6;
+      if (this.synergy && plan().scoreSetup && code && this.tagsBeforeScore(state, code) && simulate(state, action)) return 6;
       const bonus = code ? this.operationBonus(state, code) : 0;
       if (bonus !== 0) {
         const after = simulate(state, action);
@@ -555,11 +556,11 @@ export class HeuristicCorpAI implements Agent {
     // Myōshu: keep the 10 credits once saved, unless the spend scores (its card plan does this when plans are on)
     if (this.synergy && !plansOn() && myoshuSaving(state, true) && resolved.corp.credits < MYOSHU_COST && resolved.corp.score === corp.score) score -= 1;
     // Deck-aware AI: a play that makes an agenda scoreable this turn (Seamless Launch, Key Performance Indicators...)
-    if (this.synergy && tuning.plan.scoreSetup && scoreable(resolved) > scoreable(state)) score = Math.max(score, 41);
+    if (this.synergy && plan().scoreSetup && scoreable(resolved) > scoreable(state)) score = Math.max(score, 41);
     // plan.finishSetup (Jeff's Corp game 1, bug report #17: The Holo Man's 3 counters left Offworld Office one advance short,
     // and the reserve penalty on the 4 credits buried it): a play that lets this turn's clicks and credits finish an agenda
     // ranks with the advance that would, and the reserve isn't held against it
-    if (this.synergy && tuning.plan.finishSetup && finishable(resolved) > finishable(state)) return Math.max(score, 40);
+    if (this.synergy && plan().finishSetup && finishable(resolved) > finishable(state)) return Math.max(score, 40);
     if (!spendsClick && score <= 0.3) return -Infinity;
     score -= reservePenalty(state, resolved.corp.credits, this.wideReserve);
     return score;
@@ -573,7 +574,7 @@ export class HeuristicCorpAI implements Agent {
    */
   private moneyPlan(state: GameState, action: GameAction): number {
     const corp = state.corp;
-    if (action.type === 'GAIN_CREDIT' && tuning.plan.saveForOps) {
+    if (action.type === 'GAIN_CREDIT' && plan().saveForOps) {
       // Reachable: this turn with a click left to play it, or early next turn
       const reachable = corp.hq.some(c => {
         const gain = moneyOpGain(c.cardCode);
@@ -585,18 +586,18 @@ export class HeuristicCorpAI implements Agent {
     // plan.castWhileAble (Jeff, 2026-11-04: the Corp goes broke holding Hedge Fund): a money operation the Corp can
     // afford now but not once it pays to rez its ice is played while it still can; stranded, it's a dead card until
     // clicks for credits climb back to its cost
-    if (action.type === 'PLAY_OPERATION_OR_EVENT' && tuning.plan.castWhileAble) {
+    if (action.type === 'PLAY_OPERATION_OR_EVENT' && plan().castWhileAble) {
       const card = corp.hq.find(c => c.instanceId === action.cardInstanceId);
       const gain = card ? moneyOpGain(card.cardCode) : undefined;
       const cost = card ? cardDef(card).cost ?? 0 : 0;
       if (gain !== undefined && gain > cost && cost >= 3 && corp.credits >= cost && corp.credits - unrezzedIceCost(state) < cost) return CAST_WHILE_ABLE * (gain - cost);
     }
-    if (action.type === 'PLAY_OPERATION_OR_EVENT' && tuning.plan.pettyCash) {
+    if (action.type === 'PLAY_OPERATION_OR_EVENT' && plan().pettyCash) {
       return corp.hq.find(c => c.instanceId === action.cardInstanceId)?.cardCode === '35081' ? PETTY_CASH_REPLAY : 0;
     }
     // plan.digPastLimit (Jeff, 2026-10-31): a hand of duds digs one card past the limit, to discard the worst at the end of the turn (rules 4.3.6, 5.5.3)
-    const digRoom = corp.handSizeLimit + (tuning.plan.digPastLimit ? 1 : 0);
-    if (action.type === 'DRAW_CARD' && tuning.plan.dig?.corp && corp.hq.length < digRoom) return digValue(state, 'corp');
+    const digRoom = corp.handSizeLimit + (plan().digPastLimit ? 1 : 0);
+    if (action.type === 'DRAW_CARD' && plan().dig?.corp && corp.hq.length < digRoom) return digValue(state, 'corp');
     return 0;
   }
 
@@ -657,7 +658,7 @@ export class HeuristicCorpAI implements Agent {
       // Traps: advancing makes them look like agendas (Urtica Cipher, Clearinghouse)
       // plan.clearinghouseLethal (Gemini audit, 2026-11-01): Clearinghouse's meat damage is its counters, so it keeps going
       // toward a flatline (one more than the grip, at most 6) instead of stopping at 3
-      const cap = tuning.plan.clearinghouseLethal && card.cardCode === CLEARINGHOUSE ? Math.min(6, Math.max(3, state.runner.grip.length + 1)) : 3;
+      const cap = plan().clearinghouseLethal && card.cardCode === CLEARINGHOUSE ? Math.min(6, Math.max(3, state.runner.grip.length + 1)) : 3;
       if (!(corp.credits >= 4 && card.advancementCounters < cap)) return -Infinity;
       return this.synergy && tuning.bluff && isTrap(card.cardCode) ? 1.2 + this.trapBluff(state, card) : 1.2;
     }
@@ -691,9 +692,9 @@ export class HeuristicCorpAI implements Agent {
    * plan.exposureByCost, lost its batches and was deleted 2026-11-06.)
    */
   private exposureOk(state: GameState, server: ServerState, credits: number): boolean {
-    if (!(this.synergy && tuning.plan.exposure)) return true;
+    if (!(this.synergy && plan().exposure)) return true;
     // (Jeff) unrezzed ice only protects if the money to rez it is still there on the Runner's turn
-    if ((tuning.plan.fundedDepth ? fundedDepth(state, server, credits) : iceDepth(state, server)) >= 2) return true;
+    if ((plan().fundedDepth ? fundedDepth(state, server, credits) : iceDepth(state, server)) >= 2) return true;
     return entryCost(state, server, credits) >= state.runner.credits + 2;
   }
 
@@ -702,7 +703,7 @@ export class HeuristicCorpAI implements Agent {
    * HQ last turn and HQ costs them no more to enter than this remote (Corp `credits` left to rez).
    */
   private hqNoSafer(state: GameState, server: ServerState, credits: number): boolean {
-    if (!(this.synergy && tuning.plan.hqNoSafer)) return false;
+    if (!(this.synergy && plan().hqNoSafer)) return false;
     if (!state.runnerLastTurnRuns.some(r => r.server === 'hq' && r.successful)) return false;
     return entryCost(state, server, credits) >= entryCost(state, state.corp.servers.hq, credits);
   }
@@ -713,14 +714,14 @@ export class HeuristicCorpAI implements Agent {
    * agendas through it before the Runner finds the answer.
    */
   private locked(state: GameState, server: ServerState, credits: number): boolean {
-    if (!(this.synergy && tuning.plan.tempo) || !server.isRemote) return false;
+    if (!(this.synergy && plan().tempo) || !server.isRemote) return false;
     return entryCost(state, server, credits) >= state.runner.credits + 5;
   }
 
   /** PT Untaian's paid advancement at the end of this turn (1), if HQ will be small enough; `leaving` cards are about to leave HQ. */
   private untaianAdvance(state: GameState, leaving: number): number {
     const corp = state.corp;
-    return this.synergy && tuning.plan.identities && corp.identity.cardCode === '35047' && corp.hq.length - leaving <= 3 && corp.credits >= 2 ? 1 : 0;
+    return this.synergy && plan().identities && corp.identity.cardCode === '35047' && corp.hq.length - leaving <= 3 && corp.credits >= 2 ? 1 : 0;
   }
 
   /**
@@ -808,19 +809,19 @@ export class HeuristicCorpAI implements Agent {
         const installCost = server ? server.ice.length : 0;
         // Deck-aware AI: ice the Runner already breaks counts as half a layer
         const depth =
-          server && this.synergy && tuning.plan.iceDepth ? iceDepth(state, server) : server?.ice.length ?? 0;
+          server && this.synergy && plan().iceDepth ? iceDepth(state, server) : server?.ice.length ?? 0;
         // (Jeff) no ice the Corp can't afford to rez on top of the unrezzed ice already out, unless HQ must shrink to avoid a discard
         // (a free install, Synapse Global, costs no click or credit and only pays the affordIce penalty below)
         // plan.freeRez: a coming free rez (Send a Message, Unleash) pays for the costliest of them
         const freeTargets = freeRezTargets(state, card);
         const covered = freeRezCover(state, card);
         // plan.lethalHq: HQ holds an agenda whose steal wins the Runner the game, and the Runner can get in
-        const lethalHq = server?.id === 'hq' && this.synergy && tuning.plan.lethalHq && lethalHqAgenda(state, corp.credits - installCost);
+        const lethalHq = server?.id === 'hq' && this.synergy && plan().lethalHq && lethalHqAgenda(state, corp.credits - installCost);
         const paceOk = lethalHq && corp.credits - installCost >= (cardDef(card).cost ?? 0);
-        if (this.synergy && tuning.plan.icePacing && !paceOk && !free && unrezzedIceCost(state) + (cardDef(card).cost ?? 0) - covered > corp.credits - installCost + ICE_PACING_INCOME && hq.length <= corp.handSizeLimit) return -Infinity;
+        if (this.synergy && plan().icePacing && !paceOk && !free && unrezzedIceCost(state) + (cardDef(card).cost ?? 0) - covered > corp.credits - installCost + ICE_PACING_INCOME && hq.length <= corp.handSizeLimit) return -Infinity;
         let need: number;
         // Deck-aware AI: one well-iced scoring remote rather than ice spread thin
-        const main = this.synergy && tuning.plan.oneRemote ? mainRemote(state) : null;
+        const main = this.synergy && plan().oneRemote ? mainRemote(state) : null;
         if (!server) {
           need = agendasInHand > 0 && !protectedEmptyRemote ? 5 : -1;
           if (main && need > 0 && (iceDepth(state, main) < 2 || corp.credits < rezReserve(state, this.wideReserve) + (cardDef(card).cost ?? 0))) need = -1;
@@ -832,7 +833,7 @@ export class HeuristicCorpAI implements Agent {
             need = depth < 2 ? 7 : 3;
             // Deck-aware AI: guard a key agenda (more points, or one that would win them the game) harder
             const agenda = server.root.find(c => type(c) === 'agenda');
-            if (this.synergy && tuning.plan.agendaStakes && agenda) need *= 0.7 + 0.15 * agendaStakes(state, agenda);
+            if (this.synergy && plan().agendaStakes && agenda) need *= 0.7 + 0.15 * agendaStakes(state, agenda);
           }
           else if (holdsAsset) {
             need = server.ice.length === 0 ? 1.5 : 0.2;
@@ -848,28 +849,28 @@ export class HeuristicCorpAI implements Agent {
           need = server.ice.length === 0 && corp.archives.faceDown.length > 0 ? 1.2 : -0.5;
         } else {
           need = (depth <= 1 ? 4 - 2 * depth : Math.max(0.6, 2 - 1.4 * (depth - 1))) + (server.id === 'rd' ? 0.3 : 0);
-          if (this.synergy && tuning.plan.centralIce) {
+          if (this.synergy && plan().centralIce) {
             // Deck-aware AI: R&D always holds agendas; HQ only matters while it does
             if (server.id === 'rd') need += 0.4;
             // ...but HQ still gets its first ice once R&D has one
             else if (agendasInHand === 0) need -= server.ice.length === 0 ? (corp.servers.rd.ice.length > 0 ? 0 : 1.5) : 0.8;
             // ...and agendas waiting in HQ for a safe remote (exposure) want HQ iced deeper
-            else if (tuning.plan.exposure && agendasInHand >= 2) need += Math.min(2, 0.8 * (agendasInHand - 1));
+            else if (plan().exposure && agendasInHand >= 2) need += Math.min(2, 0.8 * (agendasInHand - 1));
           }
           if (lethalHq) need += LETHAL_HQ_NEED;
           // (Jeff) a bare central gets its first ice before anything else; HQ ahead of R&D while it holds agendas
-          if (this.synergy && tuning.plan.centralsFirst && server.ice.length === 0 && (server.id === 'rd' || agendasInHand > 0)) {
+          if (this.synergy && plan().centralsFirst && server.ice.length === 0 && (server.id === 'rd' || agendasInHand > 0)) {
             need += 2 + (server.id === 'hq' ? 1 : 0);
           }
         }
         // Deck-aware AI: a server the Runner keeps getting into needs another layer
-        if (server && this.synergy && tuning.plan.iceDepth) {
+        if (server && this.synergy && plan().iceDepth) {
           const breaches = state.runnerLastTurnRuns.filter(r => r.server === server.id && r.successful).length;
           need += Math.min(1, 0.5 * breaches);
         }
         const rezCost = freeTargets.has(card.instanceId) ? 0 : cardDef(card).cost ?? 0;
         // (Jeff) ice whose strength depends on where it sits (Scatter Field) is judged where it would go
-        const placed = this.synergy && tuning.plan.icePosition ? withIceInstalled(state, card, server) : state;
+        const placed = this.synergy && plan().icePosition ? withIceInstalled(state, card, server) : state;
         const strength = placed === state ? cardDef(card).strength ?? 0 : iceStrength(placed, card);
         return (
           (placed === state ? 0 : ICE_POSITION_RATE * shiftedIceWorth(state, placed, server)) +
@@ -877,11 +878,11 @@ export class HeuristicCorpAI implements Agent {
           0.8 * installCost +
           (hasEndTheRun(card) ? 1 : 0) +
           0.15 * Math.min(strength, 5) -
-          (corp.credits - installCost < rezCost ? (this.synergy && tuning.plan.affordIce ? 3 : 1.5) : 0) -
+          (corp.credits - installCost < rezCost ? (this.synergy && plan().affordIce ? 3 : 1.5) : 0) -
           // Deck-aware AI: ice we can't rez is no protection; rez money for the ice already out comes first
-          (this.synergy && tuning.plan.affordIce && corp.credits - installCost >= rezCost && corp.credits - installCost < rezCost + rezReserve(state, this.wideReserve) ? 1 : 0) +
-          (this.synergy && tuning.plan.icePlacement ? iceFit(state, card, server, tuning.plan.agendaStakes) : 0) +
-          (this.synergy && tuning.plan.stopperPlacement ? stopperPlacement(placed, card, server) : 0)
+          (this.synergy && plan().affordIce && corp.credits - installCost >= rezCost && corp.credits - installCost < rezCost + rezReserve(state, this.wideReserve) ? 1 : 0) +
+          (this.synergy && plan().icePlacement ? iceFit(state, card, server, plan().agendaStakes) : 0) +
+          (this.synergy && plan().stopperPlacement ? stopperPlacement(placed, card, server) : 0)
         );
       }
       case 'agenda': {
@@ -891,7 +892,7 @@ export class HeuristicCorpAI implements Agent {
         if (!server) {
           if (finishNow) return 44;
           // Deck-aware AI (exposure): an overfull HQ goes behind ice rather than into a bare remote
-          if (hq.length > corp.handSizeLimit) return this.synergy && tuning.plan.exposure ? 0.1 : 0.5;
+          if (hq.length > corp.handSizeLimit) return this.synergy && plan().exposure ? 0.1 : 0.5;
           if (this.synergy && tuning.bluff && tuning.reverseBluff && this.nakedAgenda(state, card)) {
             // A rare treat: worth it early (a steal costs little yet) or with the Runner too poor or too low on cards to check
             const risky = state.turnNumber <= 6 && state.runner.score <= 2;
@@ -921,21 +922,21 @@ export class HeuristicCorpAI implements Agent {
           if (server) {
             // plan.readAssetTrash (bug report #16): against a Runner who trashes unprotected assets, an empty iced
             // remote that isn't the scoring remote keeps a money asset alive (priced at the iced risk)
-            const iced = this.synergy && tuning.plan.readAssetTrash && server.isRemote && server.ice.length > 0 && server.root.length === 0 && server !== mainRemote(state);
+            const iced = this.synergy && plan().readAssetTrash && server.isRemote && server.ice.length > 0 && server.root.length === 0 && server !== mainRemote(state);
             const worth = iced ? unrezzedWorth(state, card.cardCode, true) : undefined;
             if (worth === undefined || bareAssetRisk(state) <= PAYOUT_RISK.moneyBare) return -1;
             return ECON_SCALE * worth - (corp.credits < (cardDef(card).cost ?? 0) ? 1.5 : 0) - 0.5;
           }
           const rezCost = cardDef(card).cost ?? 0;
           // Deck-aware AI (one remote): every extra remote spreads the Corp thinner
-          const spread = this.synergy && tuning.plan.oneRemote ? (remotes.length >= 4 ? 2 : remotes.length >= 3 ? 1 : 0) : remotes.length >= 4 ? 1 : 0;
+          const spread = this.synergy && plan().oneRemote ? (remotes.length >= 4 ? 2 : remotes.length >= 3 ? 1 : 0) : remotes.length >= 4 ? 1 : 0;
           return econ - (corp.credits < rezCost ? 1.5 : 0) - spread;
         }
         // Traps and Clearinghouse: bluff in a new remote, or an empty protected one
         if (!server) return remotes.length >= 4 ? 0.2 : 1.2;
         if (server.root.some(isAgendaOrAsset)) return -Infinity;
         // Deck-aware AI: keep the scoring remote free for agendas
-        if (this.synergy && tuning.plan.oneRemote && server === mainRemote(state)) return -Infinity;
+        if (this.synergy && plan().oneRemote && server === mainRemote(state)) return -Infinity;
         // Deck-aware AI: a trap behind ice looks like the real thing
         const sell = this.synergy && tuning.bluff && isTrap(card.cardCode) && server.ice.length > 0 ? 0.5 : 0;
         return (server.ice.length > 0 && agendasInHand === 0 ? 1.8 : 0.5) + sell;
@@ -1092,7 +1093,7 @@ function virusThreat(state: GameState): number {
  */
 export function protectionCost(state: GameState, ice: CardInstance): number {
   const cost = iceCost(state, ice);
-  if (!tuning.plan.tankProtection) return cost;
+  if (!plan().tankProtection) return cost;
   const worth = pointGain(state.runner.score, agendaOdds(state).points);
   for (const prep of tankPreps(state)) {
     const need = iceCreditNeed(prep.state, ice);
@@ -1160,7 +1161,7 @@ function entryCost(state: GameState, server: ServerState, credits: number): numb
       credits -= rc;
     }
     const c = protectionCost(state, { ...ice, isRezzed: true });
-    cost += !tuning.plan.breakerReach ? Math.min(8, c) : c === Infinity ? breakerReach(state, { ...ice, isRezzed: true }) : c;
+    cost += !plan().breakerReach ? Math.min(8, c) : c === Infinity ? breakerReach(state, { ...ice, isRezzed: true }) : c;
   }
   return cost;
 }
@@ -1206,7 +1207,7 @@ function onRezOnly(card: CardInstance): boolean {
  */
 export function outOfReach(state: GameState, server: ServerState, credits: number): boolean {
   // plan.stealCosts: other cards' additional costs to steal (Magistrate Revontulet's 3 credits, rules 1.16.10b) are paid at the access too
-  const tax = tuning.plan.stealCosts ? stealCost(state, { instanceId: '', cardCode: '' } as CardInstance).credits : 0;
+  const tax = plan().stealCosts ? stealCost(state, { instanceId: '', cardCode: '' } as CardInstance).credits : 0;
   return entryCost(state, server, credits) + tax > state.runner.credits + STEAL.income;
 }
 
@@ -1410,7 +1411,7 @@ function reservePenalty(state: GameState, creditsAfter: number, wide = false): n
   const before = Math.max(0, reserve - state.corp.credits);
   const after = Math.max(0, reserve - creditsAfter);
   // (Jeff) an installed agenda's unrezzed ice is only protection while the money to rez it is there: don't spend it
-  const agendaMoney = tuning.plan.agendaMoney && creditsAfter < state.corp.credits && creditsAfter < agendaRemoteNeed(state) ? 6 : 0;
+  const agendaMoney = plan().agendaMoney && creditsAfter < state.corp.credits && creditsAfter < agendaRemoteNeed(state) ? 6 : 0;
   return agendaMoney + moneyTargetPenalty(state, creditsAfter) + (after > before ? Math.min(3, after - before) : -Math.min(1, 0.4 * (before - after)));
 }
 
@@ -1431,7 +1432,7 @@ export function moneyTarget(state: GameState): number {
 }
 
 function moneyTargetPenalty(state: GameState, creditsAfter: number): number {
-  const weight = tuning.plan.moneyTarget;
+  const weight = plan().moneyTarget;
   if (!weight) return 0;
   const target = moneyTarget(state);
   const before = Math.max(0, target - state.corp.credits);
@@ -1483,7 +1484,7 @@ export function iceTrashInstalls(state: GameState): GameAction[] {
   if (state.activePlayer !== 'corp' || state.activeRun || corp.clicks < 1) return [];
   const installs: GameAction[] = [];
   // plan.lethalHq: HQ keeps every layer while it holds the agenda that would lose the game
-  const keepHq = tuning.plan.lethalHq && lethalHqAgenda(state);
+  const keepHq = plan().lethalHq && lethalHqAgenda(state);
   for (const card of corp.hq) {
     if (type(card) !== 'ice') continue;
     for (const server of Object.values(corp.servers)) {

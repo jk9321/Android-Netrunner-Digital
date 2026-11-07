@@ -1,11 +1,11 @@
 import { CardInstance, GameState, SideCode, cardDef } from '../core';
 import { findCardAnywhere } from '../core';
 import { counters } from '../core/engine/cardEffects';
-import { tuning } from './synergy';
 import { RATES } from './valueModel';
 import { PAYOUT_RISK } from './payoutRisk';
 import type { CounterType } from './cards';
 import { COUNTER_FORMULAS, COUNTER_WORTH } from './cards';
+import { plan } from './pricing';
 
 /**
  * Value model step 3 (docs/ai-value-model-plan.md): a counter is worth
@@ -71,7 +71,7 @@ function defaultWorth(card: CardInstance, type: CounterType): number {
 
 /** Worth of one counter of `type` on `card`, as `viewer` prices it. */
 export function counterWorth(state: GameState, card: CardInstance, type: CounterType, viewer: SideCode): number {
-  const entry = tuning.plan.counterEffects?.[viewer] ? ((tuning.plan.counterFormulas ? COUNTER_FORMULAS[card.cardCode]?.[type] : undefined) ?? COUNTER_WORTH[card.cardCode]?.[type]) : undefined;
+  const entry = plan().counterEffects?.[viewer] ? ((plan().counterFormulas ? COUNTER_FORMULAS[card.cardCode]?.[type] : undefined) ?? COUNTER_WORTH[card.cardCode]?.[type]) : undefined;
   return entry ? entry(state, card) : defaultWorth(card, type);
 }
 

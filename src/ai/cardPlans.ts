@@ -4,8 +4,8 @@ import { turnKey } from '../core/engine/helpers';
 import { corpCardValue, tagsWorth } from './evaluate';
 import { damageWorth } from './effectValues';
 import { runStealthCredits, trashedCardCost } from './runs';
-import { tuning } from './synergy';
 import { CLICK, cardRate, pointGain } from './valueModel';
+import { plan } from './pricing';
 
 /**
  * Card plans (Jeff, 2026-10-30; plan.cardPlans): cards that pay off only
@@ -135,7 +135,7 @@ export function principiaFuel(state: GameState, card: CardInstance): number {
   return 0.6 * ((cardDef(card).cost ?? 0) + cardRate(state, 'runner'));
 }
 
-export const plansOn = (): boolean => !!tuning.plan.cardPlans;
+export const plansOn = (): boolean => !!plan().cardPlans;
 
 /** A card's worth in hand by its plan (before the wait), or undefined if it has none. */
 export function handPlanWorth(state: GameState, card: CardInstance): number | undefined {

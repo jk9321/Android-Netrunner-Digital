@@ -5,7 +5,7 @@ import { evaluate } from './evaluate';
 import { freezeKnownHand } from './handValues';
 import { runClick } from './runs';
 import { threat, turnSeed } from './threatModel';
-import { tuning } from './synergy';
+import { plan } from './pricing';
 
 /**
  * The whole-turn planner for Normal (Jeff, 2026-10-28; plan.turnPlanner).
@@ -55,7 +55,7 @@ export interface PlanMemory {
   line: Line;
 }
 
-export const plannerOn = (side: SideCode): boolean => !!tuning.plan.turnPlanner?.[side];
+export const plannerOn = (side: SideCode): boolean => !!plan().turnPlanner?.[side];
 
 /**
  * plannerSeed: the seed of the decision being planned (game, turn and clicks left: threatModel.ts turnSeed mixed with
@@ -67,7 +67,7 @@ let decisionSeed: number | null = null;
 export const currentDecisionSeed = (): number | null => decisionSeed;
 
 /** A piece of the widened search (structural review item 4), on only with plan.plannerSearch. */
-export const searchPiece = (piece: 'plannerSeed' | 'plannerBuild' | 'plannerDiscard' | 'plannerPatchesOff'): boolean => !!tuning.plan.plannerSearch && tuning.plan[piece] !== false;
+export const searchPiece = (piece: 'plannerSeed' | 'plannerBuild' | 'plannerDiscard' | 'plannerPatchesOff'): boolean => !!plan().plannerSearch && plan()[piece] !== false;
 
 const clicksOf = (state: GameState, side: SideCode) => (side === 'corp' ? state.corp.clicks : state.runner.clicks);
 
@@ -98,7 +98,7 @@ function dominated(state: GameState, action: GameAction, ranked: ScoredAction[],
   // plan.plannerSearch plannerPatchesOff (item 4): the search decides between the click and the money card
   if (searchPiece('plannerPatchesOff')) return false;
   // plan.oneCurrency: the Corp's ranking and the planner's leaf price the click the same way, so no override (item 1)
-  if (side === 'corp' && tuning.plan.oneCurrency) return false;
+  if (side === 'corp' && plan().oneCurrency) return false;
   return ranked.some(r => {
     if (r.score === -Infinity || r.action.type !== 'USE_ABILITY' || r.action.abilityIndex !== 0) return false;
     const card = findCardAnywhere(state, r.action.cardInstanceId);
@@ -130,7 +130,7 @@ function playout(start: GameState, side: SideCode, first: GameAction, ai: Planne
     const clicks = Math.max(1, clicksOf(mainBefore, 'runner') - clicksOf(after, 'runner'));
     bonus += worth + clicks * runClick(mainBefore);
     // plan.plannerRunCredits (Gemini's second audit): the rest of the turn can't spend what the run will
-    const spent = tuning.plan.plannerRunCredits && ai.runCredits ? ai.runCredits(after, after.activeRun.server, mainCard) : 0;
+    const spent = plan().plannerRunCredits && ai.runCredits ? ai.runCredits(after, after.activeRun.server, mainCard) : 0;
     return { ...after, activeRun: null, pendingPrompts: [], runner: { ...after.runner, credits: Math.max(0, after.runner.credits - spent) } };
   };
   const step = (state: GameState, action: GameAction): GameState | null => {
@@ -143,7 +143,7 @@ function playout(start: GameState, side: SideCode, first: GameAction, ai: Planne
       bonus += worth + runClick(state); // runScore charges the click; here the click is the plan's
       // plan.plannerRunCredits (Gemini's second audit, 2026-11-05): the run's credits are gone for the rest of the turn
       // (runScore already charged them; the playout kept them, so a run then a 5-credit install looked affordable on 6)
-      const spent = tuning.plan.plannerRunCredits && ai.runCredits ? ai.runCredits(state, action.targetServerId) : 0;
+      const spent = plan().plannerRunCredits && ai.runCredits ? ai.runCredits(state, action.targetServerId) : 0;
       return { ...state, runner: { ...state.runner, clicks: state.runner.clicks - 1, credits: Math.max(0, state.runner.credits - spent) } };
     }
     if (!activePrompt(state)) {
@@ -152,7 +152,7 @@ function playout(start: GameState, side: SideCode, first: GameAction, ai: Planne
     }
     try {
       const after = executeAction(state, action);
-      if (tuning.plan.plannerRunEvents && side === 'runner' && !state.activeRun && after.activeRun) return runStarted(after);
+      if (plan().plannerRunEvents && side === 'runner' && !state.activeRun && after.activeRun) return runStarted(after);
       return after;
     } catch {
       return null;
@@ -178,7 +178,7 @@ function playout(start: GameState, side: SideCode, first: GameAction, ai: Planne
     // Out of clicks, the turn can still score an agenda the last click finished: scoring costs no click (rule 7.1.1;
     // Jeff's bug report, 2026-10-31: Petty Cash first, then two advances, looked like leaving the agenda for the Runner)
     const outOfClicks = clicksOf(state, side) <= 0;
-    if (outOfClicks && !(tuning.plan.plannerScores && side === 'corp')) break;
+    if (outOfClicks && !(plan().plannerScores && side === 'corp')) break;
     const now = state;
     const ranked = ai.rank(now);
     const best = ranked.find(r => r.score > -Infinity && r.action.type !== 'END_TURN' && (!outOfClicks || r.action.type === 'SCORE_AGENDA') && !(ran && r.action.type === 'INITIATE_RUN') && !dominated(now, r.action, ranked, side));
@@ -272,13 +272,13 @@ function leafValue(state: GameState, side: SideCode, synergy: boolean): number {
   // plan.oneCurrency: the Corp's line ends on the same evaluate its actions are ranked by (HQ by count, its seen agendas
   // at heldAgendasWorth): a hand priced card by card here made the leaf a second currency (Petty Cash first ranked +2.8
   // and lost the line to an install, its card worth in HQ counted against playing it)
-  if (!tuning.plan.plannerHand || (side === 'corp' && synergy && tuning.plan.oneCurrency)) return evaluate(state, side, synergy);
-  const saved = tuning.plan.handByCard;
-  tuning.plan.handByCard = { ...saved, [side]: true };
+  if (!plan().plannerHand || (side === 'corp' && synergy && plan().oneCurrency)) return evaluate(state, side, synergy);
+  const saved = plan().handByCard;
+  plan().handByCard = { ...saved, [side]: true };
   try {
     return evaluate(state, side, synergy);
   } finally {
-    tuning.plan.handByCard = saved;
+    plan().handByCard = saved;
   }
 }
 

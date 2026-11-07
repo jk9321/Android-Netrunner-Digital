@@ -6,6 +6,7 @@ import { GameRunner } from '../src/ai/playout';
 import { HeuristicRunnerAI } from '../src/ai/runnerAI';
 import { MEASURED_PASS, passOddsOf, stealOdds } from '../src/ai/effectValues';
 import { asSide, tuning } from '../src/ai/synergy';
+import { plan } from '../src/ai/pricing';
 import { CALIBRATED_RUN, remoteRunChance, runChance, threat, threatLoss } from '../src/ai/threatModel';
 import { installIceForTest, installProgramForTest, newGame } from './helpers';
 import { threatStanding } from '../src/ai/evaluate';
@@ -143,7 +144,7 @@ describe('where the Runner runs', () => {
 
   it('the switch is the Corp’s: the Runner AI keeps its own plan (sideOff.runner)', () => {
     expect(tuning.plan.threatModel).toBe(true);
-    expect(asSide('runner', () => tuning.plan.threatModel)).toBe(false);
+    expect(asSide('runner', () => plan().threatModel)).toBe(false);
   });
 
   it('round 2: plan.measuredPass prices unrezzed ice at the measured rates (the first layer, then each after it)', () => {
@@ -157,7 +158,7 @@ describe('where the Runner runs', () => {
       s.corp.credits = 1;
       expect(asSide('corp', () => passOddsOf(s, 'remote-1'))).toBeCloseTo(MEASURED_PASS.broke.first * MEASURED_PASS.broke.more);
       // The Runner's side keeps its own guess
-      expect(asSide('runner', () => tuning.plan.measuredPass)).toBe(false);
+      expect(asSide('runner', () => plan().measuredPass)).toBe(false);
     } finally {
       tuning.plan.measuredPass = measured;
     }

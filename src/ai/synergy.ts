@@ -633,36 +633,8 @@ export function applyPlanOff(list: string) {
   }
 }
 
-let acting: SideCode | null = null;
-let basePlan: typeof tuning.plan | null = null;
-
-/** The side whose decision is being made (asSide), or null outside one. */
-export const actingSide = (): SideCode | null => acting;
-
-/** Which side's plan is in use, for caches whose values depend on it. */
-export const planSide = (): string => (acting && sideOff[acting].length ? acting : '');
-
-/**
- * Runs `fn` with `side`'s plan: tuning.plan with sideOff[side] off. Each
- * agent's decisions run inside it; it nests (the Corp's Runner reply plays
- * the Runner with the Runner's own plan).
- */
-export function asSide<T>(side: SideCode, fn: () => T): T {
-  if (acting === side) return fn();
-  const outer = basePlan === null;
-  const base = basePlan ?? tuning.plan;
-  const was = { plan: tuning.plan, acting };
-  basePlan = base;
-  acting = side;
-  tuning.plan = sideOff[side].length ? planWith(base, sideOff[side]) : base;
-  try {
-    return fn();
-  } finally {
-    tuning.plan = was.plan;
-    acting = was.acting;
-    if (outer) basePlan = null;
-  }
-}
+// The deciding side and its plan live in the pricing context (pricing.ts, structural review item 6)
+export { actingSide, asSide, planSide } from './pricing';
 
 const IDENTITY = 3;
 const LIVE = 1.5; // in hand or installed

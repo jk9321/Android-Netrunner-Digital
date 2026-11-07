@@ -5,6 +5,7 @@ import { unseenInHand } from './handValues';
 import { BLOCK, RunnerMemory, iceCost, runClick, runCreditSpend, runScore, serverValue } from './runs';
 import { asSide, sideOff, tuning } from './synergy';
 import { fingerprint, memo, pointGain, sideCreditValue } from './valueModel';
+import { plan } from './pricing';
 
 /**
  * The Corp's threat model (structural review item 3, 2026-11-07; plan.threatModel): where the Runner will run on its
@@ -64,7 +65,7 @@ const TIE = 1;
 let computing = 0;
 
 /** The threat is read only by the Corp, with the switch on, and never from inside its own computation. */
-export const threatOn = (): boolean => !!tuning.plan.threatModel && tuning.plan.threatValues !== false && computing === 0;
+export const threatOn = (): boolean => !!plan().threatModel && plan().threatValues !== false && computing === 0;
 
 /** What the Runner remembers of the Corp's installed cards: the ones it accessed and that stayed installed (rule 7.1.2: the Corp saw the access). */
 export function runnerMemory(state: GameState): RunnerMemory {
@@ -115,7 +116,7 @@ export function accessLoss(state: GameState, serverId: string): number {
   const server = corp.servers[serverId];
   if (!server) return 0;
   if (serverId === 'hq' || serverId === 'rd') {
-    if (tuning.plan.oneCurrency) return 0;
+    if (plan().oneCurrency) return 0;
     const { hqNow, density } = centralAccess(state);
     return serverId === 'hq' ? hqNow : density;
   }
@@ -171,8 +172,8 @@ function threatKey(state: GameState): string {
 let planSig: { plan: unknown; json: string } | null = null;
 const planKey = (): string => {
   // The Corp's plan as it is now (tests flip switches in place, so the object alone won't do), with the Runner's own list
-  const json = JSON.stringify(tuning.plan) + JSON.stringify(sideOff.runner) + tuning.wary;
-  if (planSig?.json !== json) planSig = { plan: tuning.plan, json };
+  const json = JSON.stringify(plan()) + JSON.stringify(sideOff.runner) + tuning.wary;
+  if (planSig?.json !== json) planSig = { plan: plan(), json };
   return planSig.json;
 };
 const threatCache = new Map<string, Threat>();
@@ -303,7 +304,7 @@ export const CALIBRATED_RUN = {
 };
 /** The budget's 0/1 for `serverId`, as the measured rate while plan.calibratedRun is on. */
 export function calibrated(serverId: string, crisp: number): number {
-  if (!tuning.plan.calibratedRun) return crisp;
+  if (!plan().calibratedRun) return crisp;
   const rate = CALIBRATED_RUN[serverId === 'hq' || serverId === 'rd' || serverId === 'archives' ? serverId : 'remote'];
   return crisp >= 0.5 ? rate.picked : rate.not;
 }
@@ -370,7 +371,7 @@ export function threatLoss(state: GameState): number {
     const run = calibrated(id, s.run);
     if (run > 0) loss += run * s.success * accessLoss(state, id);
   }
-  if (tuning.plan.threatSpend && t.endCredits !== state.runner.credits) {
+  if (plan().threatSpend && t.endCredits !== state.runner.credits) {
     const end = { ...state, runner: { ...state.runner, credits: t.endCredits } };
     loss += sideCreditValue(end, 'runner', 'corp') - sideCreditValue(state, 'runner', 'corp');
   }

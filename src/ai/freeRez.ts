@@ -1,6 +1,6 @@
 import { CardInstance, GameState, cardDef } from '../core';
 import { rezCost } from '../core/engine/cardEffects';
-import { tuning } from './synergy';
+import { plan } from './pricing';
 
 /**
  * Free rezzes the Corp can count on (plan.freeRez, Jeff 2026-10-31: "cheat
@@ -20,7 +20,7 @@ import { tuning } from './synergy';
 export const SEND_A_MESSAGE = '30069';
 export const UNLEASH = '36044';
 
-export const freeRezOn = (): boolean => !!tuning.plan.freeRez;
+export const freeRezOn = (): boolean => !!plan().freeRez;
 
 /** Free rezzes the Corp can count on: installed Send a Message, and Unleash in HQ it can pay for with a Runner tag. */
 export function pendingFreeRezzes(state: GameState): number {

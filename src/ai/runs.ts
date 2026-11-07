@@ -17,8 +17,8 @@ import { spikeKey } from '../core/scripts/liberationRunner';
 import { corpCardValue, tagThreat, tagsWorth } from './evaluate';
 import { agendaOdds, coreDamageWorth, counterWorthOf, damageWorth, flatlineOdds, runnerEffect } from './effectValues';
 import { clickPrice } from './handValues';
-import { tuning } from './synergy';
 import { RATES, clickRate, creditNeed, creditSlide, flatlineWorth, payoutSlide, pointValue } from './valueModel';
+import { plan } from './pricing';
 
 /**
  * What the Runner AI knows about runs. It only reads public information:
@@ -40,7 +40,7 @@ export function hostedTrojans(state: GameState, ice: CardInstance, code: string)
 
 /** Subroutines Botulus breaks on this ice for free: the virus counters on the Botulus programs it hosts. */
 export function botulusBreaks(state: GameState, ice: CardInstance): number {
-  if (!tuning.plan.trojans) return 0;
+  if (!plan().trojans) return 0;
   return hostedTrojans(state, ice, BOTULUS).reduce((n, c) => n + counters(c, 'virus'), 0);
 }
 
@@ -75,7 +75,7 @@ export function knownSubroutineCost(state: GameState, label: string): number | u
   if (threat) return Math.max(state.corp.score, runner.score) >= Number(threat[1]) ? BLOCK : 0;
   if (/end the run if the runner is tagged/i.test(label)) return runner.tags > 0 ? BLOCK : 1;
   if (/if the runner has at least 2 tags/i.test(label)) return runner.tags >= 2 ? (2 >= runner.grip.length ? BLOCK : 4) : 0;
-  const rates = !!tuning.plan.subCosts;
+  const rates = !!plan().subCosts;
   // Vantage Point: "... unless the Runner pays N credits": the cheaper of paying and letting the rest resolve
   const pays = label.match(/^(.*?)\s*unless the runner pays (\d+) (?:\[credit\]|credits?)\.?$/i);
   if (pays) {
@@ -139,7 +139,7 @@ export function knownSubroutineCost(state: GameState, label: string): number | u
  */
 export function creditCost(state: GameState, credits: number): number {
   if (credits <= 0) return 0;
-  if (!tuning.plan.creditSlide?.runner) return credits;
+  if (!plan().creditSlide?.runner) return credits;
   const have = state.runner.credits;
   const need = creditNeed(state, 'runner');
   return creditSlide(have, need) - creditSlide(have - credits, need);
@@ -153,9 +153,9 @@ export const runClick = (state?: GameState): number => (state ? clickPrice(state
 
 /** A tag taken (Jeff): the cheaper of clearing it (a click and 2 credits) and what it costs to keep it. */
 export function tagCost(state: GameState): number {
-  if (tuning.plan.tagClock) {
+  if (plan().tagClock) {
     // A run still to start takes its click first (plan.tagNoClear: what's left to clear the tag with)
-    const s = tuning.plan.tagNoClear && !state.activeRun ? { ...state, runner: { ...state.runner, clicks: state.runner.clicks - 1 } } : state;
+    const s = plan().tagNoClear && !state.activeRun ? { ...state, runner: { ...state.runner, clicks: state.runner.clicks - 1 } } : state;
     return tagsWorth(s, 'runner', s.runner.tags + 1) - tagsWorth(s, 'runner', s.runner.tags); // both priced as given (plan.tagTrashNow)
   }
   return Math.min(clickRate('runner') + creditCost(state, 2), RATES.tagAgainstRunner + tagThreat(state, 'runner'));
@@ -300,7 +300,7 @@ const PHYSARUM = '34082';
  * or the Runner can't pay.
  */
 export function physarumCost(state: GameState, ice: CardInstance): number | undefined {
-  if (!tuning.plan.bypass || !ice.isRezzed || iceSubtypes(ice, state).includes('barrier')) return undefined;
+  if (!plan().bypass || !ice.isRezzed || iceSubtypes(ice, state).includes('barrier')) return undefined;
   if (!state.runner.rig.programs.some(p => p.cardCode === PHYSARUM && p.hostedOnId === ice.instanceId)) return undefined;
   const credits = iceSubroutines(state, ice).length;
   return credits <= runBudget(state) ? credits : undefined;
@@ -381,7 +381,7 @@ const ALARM_CLOCK = '34078';
  */
 function bypassesAhead(state: GameState, inner: CardInstance[], encountering: boolean): Set<string> {
   const run = state.activeRun;
-  if (!tuning.plan.bypass || !run || run.icePosition === null) return new Set();
+  if (!plan().bypass || !run || run.icePosition === null) return new Set();
   const current = state.corp.servers[run.server]?.ice[run.icePosition];
   // Approaching (or just past) rezzed ice not being encountered: counted as encountered, to be safe
   const encounters = (run.runFlags?.encounters ?? 0) + (current?.isRezzed && !encountering ? 1 : 0);
@@ -500,7 +500,7 @@ function stealWorth(state: GameState, points: number, deny: number): number {
 /** Chance an unseen card in a remote's root is an agenda (Jeff: higher the more the Corp has put into the server). */
 export function remoteAgendaOdds(state: GameState, server: { ice: CardInstance[] }, card: CardInstance, trap: number): number {
   if (card.advancementCounters > 0) return Math.max(0, 1 - trap);
-  const corp = [...state.corp.hq, ...state.corp.rd, ...state.corp.archives.faceDown, ...Object.values(state.corp.servers).flatMap(s => s.root.filter(c => !c.isRezzed && !c.faceUp && !(tuning.plan.runnerKnown && c.runnerKnows)))];
+  const corp = [...state.corp.hq, ...state.corp.rd, ...state.corp.archives.faceDown, ...Object.values(state.corp.servers).flatMap(s => s.root.filter(c => !c.isRezzed && !c.faceUp && !(plan().runnerKnown && c.runnerKnows)))];
   const kinds = corp.map(c => cardDef(c).type_code);
   const agendas = kinds.filter(t => t === 'agenda').length;
   const roots = kinds.filter(t => t === 'agenda' || t === 'asset' || t === 'upgrade').length;
@@ -559,7 +559,7 @@ const UNSEEN_AGENDA = { instanceId: '', cardCode: '' } as CardInstance;
  * it can't steal (plan.stealCosts; Gemini audit, 2026-11-01).
  */
 export function stealTax(state: GameState, serverId: string, agenda: CardInstance = UNSEEN_AGENDA): number | null {
-  if (!tuning.plan.stealCosts) return 0;
+  if (!plan().stealCosts) return 0;
   const cost = stealCost(state, agenda);
   if (!cost.clicks && !cost.credits) return 0;
   const server = state.corp.servers[serverId];
@@ -578,7 +578,7 @@ export function stealTax(state: GameState, serverId: string, agenda: CardInstanc
  */
 export function hqAgendaOdds(state: GameState, odds: number): number {
   const size = state.corp.hq.length;
-  if (!tuning.plan.knownHq || size === 0) return odds;
+  if (!plan().knownHq || size === 0) return odds;
   const known = knownInHand(state, 'corp').slice(-size);
   const agendas = known.filter(k => getCardDefinition(k.code).type_code === 'agenda').length;
   return (agendas + (size - known.length) * odds) / size;
@@ -594,7 +594,7 @@ function serverWorth(state: GameState, serverId: string, extraAccesses: number, 
   const central = taxedSteal(stealWorth(state, points, DENY.central), unseenTax);
   let value = 0;
   if (serverId === 'rd') {
-    value = tuning.plan.rdMemory
+    value = plan().rdMemory
       ? rdWorth(state, 1 + extraAccesses, odds, central)
       : (1 + extraAccesses) * odds * central * 0.3 ** repeat; // a second look sees the same top card
   }
@@ -604,7 +604,7 @@ function serverWorth(state: GameState, serverId: string, extraAccesses: number, 
     const faceUp = state.corp.archives.faceUp.filter(c => cardDef(c).type_code === 'agenda');
     // plan.archivesChosen (Jeff, bug report #5): facedown cards are ones the Corp chose to put there (discards,
     // Hansei Review); a Corp rarely chooses an agenda, with or without ice there
-    const chosen = !tuning.plan.archivesChosen ? 1 : state.corp.servers.archives.ice.length === 0 ? ARCHIVES_CHOSEN_ODDS : ARCHIVES_CHOSEN_ODDS_ICED;
+    const chosen = !plan().archivesChosen ? 1 : state.corp.servers.archives.ice.length === 0 ? ARCHIVES_CHOSEN_ODDS : ARCHIVES_CHOSEN_ODDS_ICED;
     value = faceUp.reduce((n, c) => n + taxedSteal(stealWorth(state, cardDef(c).agenda_points ?? 1, 0), stealTax(state, serverId, c)), 0) + Math.min(3, state.corp.archives.faceDown.length) * odds * chosen * taxedSteal(stealWorth(state, points, 0), unseenTax);
   }
   if (repeat > 0 && server.isRemote) return 0;
@@ -624,7 +624,7 @@ function serverWorth(state: GameState, serverId: string, extraAccesses: number, 
       // Seen it: only worth coming back to trash it, and never into a known trap
       if (accessTrap(card.cardCode)) return 0;
       // An agenda left behind (its additional cost to steal unpaid, Méliès City Luxury Line): back for it when it can pay
-      if (tuning.plan.stealCosts && cardDef(card).type_code === 'agenda') {
+      if (plan().stealCosts && cardDef(card).type_code === 'agenda') {
         value += taxedSteal(stealWorth(state, cardDef(card).agenda_points ?? 1, DENY.remote), stealTax(state, serverId, card));
         continue;
       }
@@ -722,7 +722,7 @@ export interface Bypasses {
 export function runBypasses(state: GameState, serverId: string, options: RunOptions = {}, ahead?: { ice: CardInstance[]; encounters: number }): Bypasses {
   const out: Bypasses = { ids: new Set(), price: 0 };
   const server = state.corp.servers[serverId];
-  if (!tuning.plan.bypass || !server) return out;
+  if (!plan().bypass || !server) return out;
   // Before the run: all of its ice; during it, the ice still ahead (outermost first) after the encounters so far
   const outward = ahead?.ice ?? [...server.ice].reverse();
   const done = ahead?.encounters ?? 0;
@@ -842,7 +842,7 @@ export function runScore(state: GameState, serverId: string, options: RunOptions
   if (!server) return -Infinity;
   const breached = options.noBreach ? 0 : serverValue(state, options.breachAs ?? serverId, options.extraAccesses ?? 0, options.memory, options.wary);
   const gained = options.successCredits ?? 0;
-  const credits = gained > 0 && tuning.plan.runCreditsSlide ? gained * payoutSlide(state, 'runner', 'runner', gained) : gained;
+  const credits = gained > 0 && plan().runCreditsSlide ? gained * payoutSlide(state, 'runner', 'runner', gained) : gained;
   let value = breached + ((options.successBonus ?? 0) + credits);
   if (options.baker && serverId === 'archives' && runStealthCredits(state) >= 1) {
     // Baker: after Archives' ice, a stealth credit turns the run on HQ or R&D, whose ice it skipped
@@ -853,7 +853,7 @@ export function runScore(state: GameState, serverId: string, options: RunOptions
   // empty grip that damage is a flatline only as often as the Corp has a hit to land (flatlineOdds), not every time; priced as
   // a sure flatline, every run scored below zero, and a Runner with no cards left in grip or Stack never ran again while the
   // Corp decked out (rules 4.2.7b, 10.4.4)
-  if (state.runner.grip.length === 0 && tuning.plan.emptyGripRuns) value -= 0.25 * flatlineWorth(state) * flatlineOdds(state, 0);
+  if (state.runner.grip.length === 0 && plan().emptyGripRuns) value -= 0.25 * flatlineWorth(state) * flatlineOdds(state, 0);
   else if (state.runner.grip.length <= 1) value -= 0.25 * damageWorth(state, 1);
   if (value <= 0) return -Infinity;
   let known = 0;
@@ -867,13 +867,13 @@ export function runScore(state: GameState, serverId: string, options: RunOptions
   // Bypassed ice costs nothing to pass (rules 6.5.8a); Window of Opportunity's derezzed ice is
   // passed unencountered unless the Corp rezzes it again (6.9.2b-c), which costs it the rez
   const bypassed = runBypasses(state, serverId, options);
-  const derez = options.derezOne && tuning.plan.bypass ? windowDerez(state, serverId) : undefined;
+  const derez = options.derezOne && plan().bypass ? windowDerez(state, serverId) : undefined;
   if (derez && !derez.rerez) bypassed.ids.add(derez.ice.instanceId);
   if (derez?.rerez) value += 0.5 * rezCost(state, derez.ice); // the Corp pays it about half the time
   for (const ice of [...server.ice].reverse()) {
     if (bypassed.ids.has(ice.instanceId)) continue;
     if (ice.isRezzed) paidOutside += Math.min(iceCreditNeed(state, ice), budget);
-    else if (tuning.plan.rezAllowance && canRez && paidOutside > 0) {
+    else if (plan().rezAllowance && canRez && paidOutside > 0) {
       const spare = budget - paidOutside;
       waste += paidOutside * (spare < 2 ? 0.5 : spare < 4 ? 0.25 : 0.1);
     }

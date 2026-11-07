@@ -4,7 +4,7 @@ import { isIcebreaker } from '../../core/engine/ice';
 import { PAYOUT_RISK } from '../payoutRisk';
 import { corpKeepValue } from '../cardValues';
 import { mean, PAID_OUT, paidOut, recurring } from '../counterValues';
-import { actingSide, tuning } from '../synergy';
+import { actingSide } from '../synergy';
 import { cardRate, CLICK, handFilter, pointValue, printedGain, RATES, sideCards } from '../valueModel';
 import { PRINCIPIA } from '../cardPlans';
 import { accessWorth, anySuccess, counterWorthOf, damageWorth, lock, muWorth, PACE, perTurn, PETTY_CASH_REPLAY } from '../effectValues';
@@ -12,6 +12,7 @@ import type { RunOptions } from '../runs';
 import { runClick } from '../runs';
 import { tagCost } from '../runs';
 import { CardAI } from './types';
+import { plan } from '../pricing';
 
 /**
  * What the AI knows about each Elevation card's worth, one entry per card
@@ -53,7 +54,7 @@ const gioanPower = (state: GameState): number => Math.min(1, 2 * PACE.agendaEven
 const auCoPower = (state: GameState): number => (2 * cardRate(state, 'corp') + handFilter()) / 2;
 
 /** Facedown Archives as the pricing side sees it: the Runner can't see those cards (Gemini audit 2.2a). */
-const corpArchivesHidden = (state: GameState): CardInstance[] => (tuning.plan.runnerKnown && actingSide() === 'runner' ? [] : state.corp.archives.faceDown);
+const corpArchivesHidden = (state: GameState): CardInstance[] => (plan().runnerKnown && actingSide() === 'runner' ? [] : state.corp.archives.faceDown);
 
 /** Project Ingatan: install the best card in Archives for nothing (a click and its install cost saved). */
 function ingatanAgenda(state: GameState): number {
@@ -158,7 +159,7 @@ export const ELEVATION: Record<string, CardAI> = {
     value: { rig: 4 },
     // A power counter the first time each turn it steals or trashes a Corp card
     runner: (state, code) => {
-      if (tuning.plan.runOpenness) return perTurn(state, PACE.stealOrTrash * (anySuccess(state) / PACE.success) * counterWorthOf(state, code, 'power'), 'runner', 0, Infinity, 1, lock());
+      if (plan().runOpenness) return perTurn(state, PACE.stealOrTrash * (anySuccess(state) / PACE.success) * counterWorthOf(state, code, 'power'), 'runner', 0, Infinity, 1, lock());
       return perTurn(state, PACE.stealOrTrash * counterWorthOf(state, code, 'power'), 'runner');
     },
     counters: { power: () => 1.2 }, // 2 counters sabotage 3
@@ -198,7 +199,7 @@ export const ELEVATION: Record<string, CardAI> = {
     synergy: { gives: { runs: 1, hq: 1, econ: 1, denial: 1.5 } },
     // A tag, the Corp loses up to 3 credits, the Runner gains twice that (plan.transferOfWealth)
     run: (state?: GameState): RunOptions => {
-      if (!tuning.plan.transferOfWealth) return {};
+      if (!plan().transferOfWealth) return {};
       // The Corp's loss counts flat, the Runner's gain on its credit slide
       return state ? { successBonus: Math.min(3, state.corp.credits) - tagCost(state), successCredits: 2 * Math.min(3, state.corp.credits) } : { successBonus: 6 };
     },
@@ -259,7 +260,7 @@ export const ELEVATION: Record<string, CardAI> = {
     value: { rig: 2.5 }, // Free program installs (hosted cards count too)
     // A hosted program installed each turn without a click
     runner: (state, _code, card) => {
-      if (!tuning.plan.madaniClick) {
+      if (!plan().madaniClick) {
         const programs = [...state.runner.grip, ...state.runner.stack].filter(c => cardDef(c).type_code === 'program').length;
         return CLICK * Math.min(3, programs * 0.5);
       }
@@ -311,7 +312,7 @@ export const ELEVATION: Record<string, CardAI> = {
       // The Sourdough loop (Jeff, 2026-10-30): Principia pays its printed 4 but reinstalls for 1 less per other
       // Breaker installed (from the grip, or the heap with Scrounge), so trashing a spare copy is credits and a card most turns
       const principia = [...state.runner.grip, ...state.runner.stack, ...state.runner.heap, ...state.runner.rig.programs].some(c => c.cardCode === PRINCIPIA);
-      if (!tuning.plan.sourdough || !principia) return perTurn(state, spent, 'runner');
+      if (!plan().sourdough || !principia) return perTurn(state, spent, 'runner');
       const breakers = state.runner.rig.programs.filter(c => isIcebreaker(c) && c.cardCode !== PRINCIPIA).length;
       const loop = 4 + cardRate(state, 'runner') - Math.max(0, 4 - Math.max(1, breakers)) - CLICK;
       return perTurn(state, Math.max(spent, 0.6 * loop), 'runner');

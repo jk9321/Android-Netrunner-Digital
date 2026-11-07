@@ -5,7 +5,7 @@ import { HeuristicRunnerAI } from './runnerAI';
 import { pointValue } from './valueModel';
 import { threatStats, turnSeed } from './threatModel';
 import { currentDecisionSeed, searchPiece } from './turnPlanner';
-import { tuning } from './synergy';
+import { plan } from './pricing';
 
 /**
  * The Runner's reply (Jeff, 2026-10-28; plan.runnerReply): the Corp's
@@ -33,7 +33,7 @@ export const REPLY = {
  */
 export function knownRdSlots(state: GameState): Set<number> {
   const slots = new Set<number>();
-  if (!tuning.plan.keepKnownRd) return slots;
+  if (!plan().keepKnownRd) return slots;
   for (const e of knownInRd(state)) if (e.lo === e.hi && state.corp.rd[e.lo]?.instanceId === e.id) slots.add(e.lo);
   return slots;
 }
@@ -61,7 +61,7 @@ export function guessHidden(state: GameState, k: number): GameState {
   const rng = createRng(((common ? currentDecisionSeed() ?? turnSeed(state) : state.rng?.state ?? 1) ^ Math.imul(k + 1, 0x9e3779b1)) >>> 0);
   const order = common ? byId : <T,>(cards: T[]) => cards;
   // plan.keepKnownHand (Gemini audit, 2026-11-01): grip cards the Corp has seen (MuslihaT, Mutual Favor) stay where they are
-  const known = new Set(tuning.plan.keepKnownHand ? knownInHand(state, 'runner').map(k => k.id) : []);
+  const known = new Set(plan().keepKnownHand ? knownInHand(state, 'runner').map(k => k.id) : []);
   const seen = state.runner.grip.filter(c => known.has(c.instanceId));
   const unseen = shuffleInPlace(rng, order([...state.runner.grip.filter(c => !known.has(c.instanceId)), ...state.runner.stack]));
   const grip = [...seen, ...unseen.slice(0, state.runner.grip.length - seen.length)];
@@ -125,8 +125,8 @@ export function runnerReply(end: GameState, synergy: boolean, leaf: (state: Game
       replyStats.nakedAgendaRuns += naked.filter(id => ran.has(id)).length;
       // (Jeff's bug report, 2026-10-31; plan.openStealUnrun) only agendas in remotes the Runner didn't run: one it ran and
       // was stopped from (The Red Room, LEO) survived the run it was counted stolen for
-      const unrun = tuning.plan.openStealUnrun ? naked.filter(id => !ran.has(id)).flatMap(id => gr.state.corp.servers[id]?.root.map(c => c.instanceId) ?? []) : nakedAgendas;
-      const value = leaf(gr.state) - (tuning.plan.openSteal ? openAgendaLoss(gr.state, nakedAgendas.filter(id => unrun.includes(id))) : 0);
+      const unrun = plan().openStealUnrun ? naked.filter(id => !ran.has(id)).flatMap(id => gr.state.corp.servers[id]?.root.map(c => c.instanceId) ?? []) : nakedAgendas;
+      const value = leaf(gr.state) - (plan().openSteal ? openAgendaLoss(gr.state, nakedAgendas.filter(id => unrun.includes(id))) : 0);
       values.push(value);
       total += value;
     }
