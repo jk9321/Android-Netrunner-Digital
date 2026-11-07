@@ -330,6 +330,14 @@ export const tuning = {
     /** Code audit cleanup item 8: Nanomanagement and Touch-ups ranked by plan.finishSetup, not their own bonus (corpAI operationBonus). */
     oneSetupRule: false,
     /**
+     * Thread "Find why self-play games end decked" (2026-11-06, branch ai-decking-fixes): tankNoEtr prices only ice with no
+     * run enders by its tank cost (corpAI.ts protectionCost); hqHeld lets hqNoSafer apply while HQ holds 2+ agendas;
+     * unseenOdds leaves installed ice and rezzed root cards out of the agenda odds (effectValues.ts countAgendaOdds).
+     */
+    tankNoEtr: false,
+    hqHeld: false,
+    unseenOdds: false,
+    /**
      * Per deciding side (Jeff, 2026-10-28): its own hand valued card by card, by what each will do once played (handValues.ts).
      * Batches: each side loses with it (Corp side 32.2% -> 28.0%, Runner side 32.2% -> 35.9% Corp) and the Runner draws at a
      * full hand on 55% of turns. Off on both sides, kept for re-testing.

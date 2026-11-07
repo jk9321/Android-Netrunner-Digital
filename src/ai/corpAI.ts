@@ -710,7 +710,11 @@ export class HeuristicCorpAI implements Agent {
    */
   private hqNoSafer(state: GameState, server: ServerState, credits: number): boolean {
     if (!this.synergy) return false;
-    if (!state.runnerLastTurnRuns.some(r => r.server === 'hq' && r.successful)) return false;
+    // plan.hqHeld (2026-11-06, thread "Find why self-play games end decked"): with 2 or more agendas waiting in HQ, HQ is a
+    // target whether or not the Runner got in last turn; held there for a remote that never looks safe, they sat until
+    // the Corp decked out (decked games end with 3 agendas in HQ, other long games 1.3)
+    const held = plan().hqHeld && state.corp.hq.filter(c => type(c) === 'agenda').length >= 2;
+    if (!held && !state.runnerLastTurnRuns.some(r => r.server === 'hq' && r.successful)) return false;
     return entryCost(state, server, credits) >= entryCost(state, state.corp.servers.hq, credits);
   }
 
@@ -1096,6 +1100,11 @@ function virusThreat(state: GameState): number {
 export function protectionCost(state: GameState, ice: CardInstance): number {
   const cost = iceCost(state, ice);
   if (!plan().tankProtection) return cost;
+  // plan.tankNoEtr (2026-11-06, thread "Find why self-play games end decked"): only ice with no run enders (Doomscroll)
+  // is priced by what tanking it costs; a run ender the Runner pays to break keeps its full cost. Priced at the break
+  // cost alone (often 1), every rezzed ice counted as no layer, no remote looked safe and the Corp sat on its agendas
+  // until it decked out: 663 games, tankProtection on 54 decked (Corp 35.1%), off 16 (37.3%)
+  if (plan().tankNoEtr && hasEndTheRun(ice)) return cost;
   const worth = pointGain(state.runner.score, agendaOdds(state).points);
   for (const prep of tankPreps(state)) {
     const need = iceCreditNeed(prep.state, ice);
