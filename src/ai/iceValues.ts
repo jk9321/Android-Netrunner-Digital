@@ -67,6 +67,8 @@ function iceWorthOf(state: GameState, ice: CardInstance, viewer: SideCode): numb
   const share = plan().rezBudget
     ? rezBudget(state).get(ice.instanceId) ?? 0
     : state.corp.credits >= rezCost(state, ice) || freeRezTargets(state).has(ice.instanceId) ? REZ_NOW_SHARE : 0;
+  // (No share, nothing to scale: ice in HQ under plan.rezBudget skips protects' look over every server)
+  if (share <= 0) return RATES.ice;
   return RATES.ice + share * Math.min(iceStop(state), lastingIceCost(state, { ...ice, isRezzed: true })) * protects(original, ice, viewer);
 }
 
