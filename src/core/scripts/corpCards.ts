@@ -292,7 +292,10 @@ const regolithMiningLicense: CardScript = {
 // hosted advancement counter. (Works while unrezzed: it triggers on access.)
 const urticaDamage = (card: CardInstance) => 2 + card.advancementCounters;
 const urticaCipher: CardScript = {
-  onAccessed: ({ state, card }) => void dealNetDamage(state, urticaDamage(card)),
+  // "While it is installed" is a static condition (rules 9.3.2c): nothing when accessed in HQ, R&D or Archives
+  onAccessed: ({ state, card }, where) => {
+    if (where === 'installed') dealNetDamage(state, urticaDamage(card));
+  },
   liveValue: (_state, card) => `On access now: ${urticaDamage(card)} net damage`,
 };
 

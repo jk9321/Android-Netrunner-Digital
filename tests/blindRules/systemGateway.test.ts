@@ -214,9 +214,8 @@ describe('Urtica Cipher ("When the Runner accesses this asset while it is instal
     expect(s.winner).toBeNull();
   });
 
-  // KNOWN BUG (found by these tests, 2026-11-08): the script does the damage wherever Urtica is accessed.
-  // When it is fixed, this test starts failing: change it.fails back to it.
-  it.fails('does nothing when accessed in HQ', () => {
+  // Fixed 2026-11-08 (main 61abd52): the damage only applies while Urtica is installed.
+  it('does nothing when accessed in HQ', () => {
     const s0 = newGame();
     s0.corp.hq = [];
     giveCard(s0, 'corp', URTICA);
@@ -432,10 +431,9 @@ describe('Ping and Send a Message during a run ("during a run against this serve
     return { s, ping };
   }
 
-  // KNOWN BUG (found by these tests, 2026-11-08): only a paid rez (the rez action, completeRez) fires
-  // "when you rez this ice during a run against this server"; free rezzes (Send a Message, Lightning
-  // Laboratory, Tucana) skip it. When it is fixed, this test starts failing: change it.fails back to it.
-  it.fails('Ping on the attacked server, rezzed after it was passed: tag', () => {
+  // Fixed 2026-11-08 (main 61abd52): free rezzes by card abilities (Send a Message, Lightning
+  // Laboratory, Tucana) meet "when you rez this ice during a run against this server" too.
+  it('Ping on the attacked server, rezzed after it was passed: tag', () => {
     const { s, ping } = stealSaMWithPingOn('remote-1');
     expect(s.runner.scoreArea.map(c => c.cardCode)).toContain(SEND_A_MESSAGE);
     expect(s.corp.servers['remote-1'].ice.find(c => c.instanceId === ping)!.isRezzed).toBe(true);
@@ -450,8 +448,8 @@ describe('Ping and Send a Message during a run ("during a run against this serve
 });
 
 describe('Urtica Cipher accessed in R&D', () => {
-  // Same static condition "while it is installed" (9.3.2c). KNOWN BUG, see above.
-  it.fails('does nothing', () => {
+  // Same static condition "while it is installed" (9.3.2c).
+  it('does nothing', () => {
     const s0 = newGame();
     const u = giveCard(s0, 'corp', URTICA);
     s0.corp.rd.unshift(s0.corp.hq.splice(s0.corp.hq.findIndex(c => c.instanceId === u), 1)[0]);
