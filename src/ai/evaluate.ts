@@ -234,6 +234,12 @@ const isHidden = (card: CardInstance) => !card.isRezzed && !card.faceUp && !(car
  * `other` the average worth of the assets and upgrades it could be instead.
  */
 export function hiddenCardOdds(state: GameState): { agenda: number; agendaCost: number; agendaPoints: number; other: number } {
+  // Memoised per position and pricing context: plan.oneAgendaGuess reads it once per remote card inside the threat
+  // model's run scoring (review-2 R5: +18% time per decision unmemoised)
+  return memo(state, 'hiddenCardOdds', () => hiddenCardOddsOf(state));
+}
+
+function hiddenCardOddsOf(state: GameState): { agenda: number; agendaCost: number; agendaPoints: number; other: number } {
   const corp = state.corp;
   const installed = Object.values(corp.servers).flatMap(server => server.root.filter(isHidden));
   const unseen = [...corp.hq, ...corp.rd, ...corp.archives.faceDown, ...installed]
