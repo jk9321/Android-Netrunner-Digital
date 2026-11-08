@@ -7,9 +7,9 @@ import { counters, rezCost } from '../core/engine/cardEffects';
 import { turnKey } from '../core/engine/helpers';
 import { stealCost } from '../core/engine/actions/run';
 import { Agent, FreeActionGuard, ScoredAction } from './agent';
-import { agendaWorth, digValue, evaluate, handValue, hqTrashCardsLoss } from './evaluate';
+import { digValue, evaluate, handValue, hqTrashCardsLoss } from './evaluate';
 import { resourceTrashHqCost } from '../core/engine/actions/basic';
-import { clickRate, pointGain, pointValue, printedGain } from './valueModel';
+import { clickRate, pointGain, printedGain } from './valueModel';
 import { PACE, STEAL, accessWorth, agendaOdds } from './effectValues';
 import { answerPrompt, simulate } from './prompts';
 import { asSide, logNudge, nudge, opponentLean, tuning } from './synergy';
@@ -610,27 +610,10 @@ export class HeuristicCorpAI implements Agent {
    */
   private operationBonus(state: GameState, code: string): number {
     const corp = state.corp;
-    const agendas = Object.values(corp.servers).flatMap(s => s.root).filter(c => type(c) === 'agenda');
-    const need = (c: CardInstance) => (cardDef(c).advancement_cost ?? 0) - c.advancementCounters;
-    // plan.oneSetupRule (code audit cleanup item 8, 2026-11-06): Nanomanagement's clicks and Touch-ups' advancements are
-    // what plan.finishSetup ranks for any play (it simulates the play and asks whether an agenda can now be finished this
-    // turn); this hand-made copy for two cards is left for the old way
-    if (plan().oneSetupRule && plan().finishSetup && setupOperation(code)) return 0;
+    // Nanomanagement's clicks and Touch-ups' advancements (CardAI setup) are what plan.finishSetup ranks for any play: it
+    // simulates the play and asks whether an agenda can now be finished this turn (tuning pass 1, the old plan.oneSetupRule)
+    if (setupOperation(code)) return 0;
     switch (code) {
-      case '35043': {
-        // Nanomanagement (4 credits): +2 clicks, worth it if they finish an agenda
-        const clicksAfter = corp.clicks - 1 + 2;
-        const finishing = agendas.filter(a => need(a) > corp.clicks && need(a) <= clicksAfter && corp.credits - 4 >= need(a));
-        // Model: the clicks are priced by the evaluation; what it misses is the score they lead to
-        return Math.max(0, ...finishing.map(a => finishWorth(state, a)));
-      }
-      case '35067': {
-        // Touch-ups (2 clicks, 2 credits): 2 advancements, best when they finish an agenda
-        const clicksAfter = corp.clicks - 2;
-        if (clicksAfter < 0 || corp.credits < 2) return -Infinity;
-        const finishing = agendas.filter(a => need(a) <= 2 + Math.min(clicksAfter, corp.credits - 2) && need(a) > 0);
-        return Math.max(0, ...finishing.map(a => finishWorth(state, a)));
-      }
       case '35044': {
         // Top-Down Solutions: 2 cards and up to 2 installs for 1 click
         const installable = corp.hq.filter(c => ['ice', 'asset', 'upgrade', 'agenda'].includes(type(c))).length;
@@ -1008,18 +991,6 @@ function shiftedIceWorth(state: GameState, placed: GameState, server: ServerStat
 
 /** Share of runs a new ice on a server stops (a guess, Jeff 2026-10-28: about one run in three). */
 const ICE_STOPS = 0.3;
-
-/**
- * Worth of scoring `agenda` this turn rather than leaving it advanced on
- * the board: its points on the clock, less what the evaluation already
- * counts for it installed.
- */
-function finishWorth(state: GameState, agenda: CardInstance): number {
-  const def = cardDef(agenda);
-  const points = def.agenda_points ?? 1;
-  const server = Object.values(state.corp.servers).find(s => s.root.some(c => c.instanceId === agenda.instanceId));
-  return pointValue(state.corp.score + points) - pointValue(state.corp.score) - agendaWorth(state, agenda.advancementCounters, def.advancement_cost ?? 0, points, server?.id);
-}
 
 /**
  * (Jeff) Ice that would stop this Runner (its rig can't break it, or it

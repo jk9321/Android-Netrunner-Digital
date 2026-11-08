@@ -10,9 +10,9 @@ import { tuning } from '../src/ai/synergy';
  * Thread "Find why self-play games end decked" (2026-11-06), from Gemini's analysis. Position: self-play deal 2172
  * (Peculiarity vs The Catalyst), the Runner's turn 23, late game with 7 rezzed cards on the board.
  */
-// Off by default since the rebase (tuning pass 1): the tests switch them on
-beforeEach(() => { tuning.plan.unseenOdds = true; tuning.plan.tankNoEtr = true; });
-afterEach(() => { tuning.plan.unseenOdds = false; tuning.plan.tankNoEtr = false; });
+// unseenOdds stays off (tuning pass 1); tankNoEtr is on by default
+beforeEach(() => { tuning.plan.unseenOdds = true; });
+afterEach(() => { tuning.plan.unseenOdds = false; tuning.plan.tankNoEtr = true; });
 
 const position = (): GameState => JSON.parse(readFileSync(new URL('./fixtures/empty-grip-runner.json', import.meta.url), 'utf8'));
 

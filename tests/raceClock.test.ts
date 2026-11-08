@@ -11,8 +11,10 @@ import { inDecision } from './helpers/pricing';
  * The race clock (tuning pass 1, plan.raceClock; src/ai/clock.ts): the Runner's expected points a turn on this board,
  * as the Corp sees it, and the pieces that read it.
  */
-const off = { ...tuning.plan.raceClock };
-afterEach(() => { tuning.plan.raceClock = { ...off }; });
+// Every part named explicitly, so a test doesn't depend on the shipped defaults
+const defaults = { ...tuning.plan.raceClock };
+const off = { agendas: false, tempo: false, tempoOnce: false, horizon: false, money: false };
+afterEach(() => { tuning.plan.raceClock = { ...defaults }; });
 const corp = <T>(s: GameState, fn: () => T) => inDecision(s, 'corp', fn);
 
 describe('the race clock (plan.raceClock)', () => {
@@ -35,6 +37,7 @@ describe('the race clock (plan.raceClock)', () => {
   it('tempo: an agenda held in HQ costs more to wait with than the old discount', () => {
     const s = newGame();
     const held = () => corp(s, () => agendaWorth(s, 0, 3, 2, undefined, 1, true));
+    tuning.plan.raceClock = { ...off };
     const old = held();
     tuning.plan.raceClock = { ...off, tempo: true };
     expect(corp({ ...s, id: `${s.id}-tempo` }, () => agendaWorth(s, 0, 3, 2, undefined, 1, true))).toBeLessThan(old);

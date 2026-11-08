@@ -324,21 +324,19 @@ export const tuning = {
      * oneRezMoney: Corp rez money counted once in plays scored by the board (corpAI playScore: only the agenda-money rule
      * there, the reserve gap and money target left to plays scored without the board; valueModel boardNeed by rezCostOf).
      */
-    oneRezMoney: false,
+    oneRezMoney: true,
     /** Code audit cleanup item 9: the Runner's board score and run choice guess a facedown card the same way (runs.ts remoteAgendaOdds, evaluate corpBoardValue). */
-    oneAgendaGuess: false,
-    /** Code audit cleanup item 8: Nanomanagement and Touch-ups ranked by plan.finishSetup, not their own bonus (corpAI operationBonus). */
-    oneSetupRule: false,
+    oneAgendaGuess: true,
     /**
      * Thread "Find why self-play games end decked" (2026-11-06, branch ai-decking-fixes): tankNoEtr prices only ice with no
      * run enders by its tank cost (corpAI.ts protectionCost); hqHeld lets hqNoSafer apply while HQ holds 2+ agendas;
      * unseenOdds leaves installed ice and rezzed root cards out of the agenda odds (effectValues.ts countAgendaOdds).
      */
-    tankNoEtr: false,
+    tankNoEtr: true,
     hqHeld: false,
     unseenOdds: false,
     /** Jeff, 2026-11-06 (his Teia game, ai-ice-grip): ice on the board is priced against a grip no bigger than the hand size, not the cards the Runner holds only until its turn ends (iceValues iceWorthOf). */
-    iceGripCap: false,
+    iceGripCap: true,
     /**
      * Tuning pass 1, part B (Fable spec 2026-11-07): one race clock (clock.ts) prices the Corp's time from the Runner's
      * expected scoring rate on this board. agendas: agendaWorth's wait discount is clock.open, not 1 - 1/turnsLeft.
@@ -406,6 +404,8 @@ export const FOLDED: readonly string[] = [
   'keepKnownRd', 'runnerKnown', 'measuredRunShares', 'rezWhenUsed', 'rezToUse', 'flatRates', 'tagClock', 'vicTags',
   'rdMemory', 'sourdough', 'cardPlans', 'madaniClick', 'tankIce', 'digPastLimit', 'freeRez', 'plannerHand',
   'subCosts', 'iceInCredits', 'breakerCredits',
+  // Tuning pass 1 (2026-11-08): Nanomanagement/Touch-ups' own bonus deleted, plan.finishSetup ranks them (CardAI setup); +0.0 ± 0.2, run 42403917371
+  'oneSetupRule',
 ];
 
 /** Throws on a name that isn't a plan switch (a typo, or a switch folded into the code). */

@@ -79,7 +79,8 @@ describe('the last two hacks on the model (Jeff, 2026-10-28; plan.modelHacks.fin
       expect(ranked[0].action).toMatchObject({ type: 'PLAY_OPERATION_OR_EVENT', cardInstanceId: nano.instanceId });
       expect(score(s, nano.instanceId)).toBeGreaterThan(credit(s) + 5);
     } else expect(score(s, nano.instanceId)).toBeGreaterThan(credit(s) + 5);
-    expect(score(s, nano.instanceId)).toBeLessThan(40); // a value, not a priority tier
+    // (tuning pass 1, oneSetupRule folded: plan.finishSetup now ranks the finish in the advance's tier, so the old
+    // "a value, not a priority tier" cap no longer holds; tests/oneSetupRule.test.ts pins the tier)
   });
 
   it('Nanomanagement with nothing to finish: just 2 clicks for 4 credits and a click', () => {

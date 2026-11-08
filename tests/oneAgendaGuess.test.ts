@@ -1,4 +1,4 @@
-import { afterEach, beforeEach, describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it } from 'vitest';
 import { cardDef } from '../src/core';
 import { hiddenCardOdds, sideStrength } from '../src/ai/evaluate';
 import { remoteAgendaOdds } from '../src/ai/runs';
@@ -12,9 +12,8 @@ import { installForTest, newGame } from './helpers';
  * look worth making while the board said the card wasn't worth stealing. Now both use the run choice's guess.
  */
 describe('one guess for a facedown remote card (plan.oneAgendaGuess)', () => {
-  // Off by default since the rebase (tuning pass 1): the tests switch it on
-  beforeEach(() => { tuning.plan.oneAgendaGuess = true; });
-  afterEach(() => { tuning.plan.oneAgendaGuess = false; });
+  // On by default since tuning pass 1: the old-way test switches it off
+  afterEach(() => { tuning.plan.oneAgendaGuess = true; });
   const position = () => {
     const s = newGame();
     const id = installForTest(s, 'asset', 'remote-1');

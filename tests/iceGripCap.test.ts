@@ -1,5 +1,5 @@
 import { readFileSync } from 'node:fs';
-import { afterEach, beforeEach, describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it } from 'vitest';
 import { GameState, cardDef } from '../src/core';
 import { HeuristicRunnerAI } from '../src/ai/runnerAI';
 import { tuning } from '../src/ai/synergy';
@@ -21,9 +21,8 @@ const best = (s: GameState) => {
 };
 
 describe('board ice priced against a grip no bigger than the hand size (plan.iceGripCap)', () => {
-  // Off by default since the rebase (tuning pass 1): the test switches it on
-  beforeEach(() => { tuning.plan.iceGripCap = true; });
-  afterEach(() => { tuning.plan.iceGripCap = false; });
+  // On by default since tuning pass 1: the old-way test switches it off
+  afterEach(() => { tuning.plan.iceGripCap = true; });
 
   it('plays Sure Gamble before VRcation', () => {
     expect(best(position())).toBe('Sure Gamble');
