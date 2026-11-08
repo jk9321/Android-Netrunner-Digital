@@ -1,4 +1,4 @@
-import { GameState, cardDef, createRng, knownInHand, knownInRd, shuffleInPlace } from '../core';
+import { GameState, cardDef, createRng, knownInRd, shuffleInPlace } from '../core';
 import { HeuristicCorpAI } from './corpAI';
 import { GameRunner } from './playout';
 import { HeuristicRunnerAI } from './runnerAI';
@@ -6,6 +6,7 @@ import { pointValue } from './valueModel';
 import { threatStats, turnSeed } from './threatModel';
 import { currentDecisionSeed, searchPiece } from './turnPlanner';
 import { plan } from './pricing';
+import { corpSeenGrip } from './oracle';
 
 /**
  * The Runner's reply (Jeff, 2026-10-28; plan.runnerReply): the Corp's
@@ -60,7 +61,7 @@ export function guessHidden(state: GameState, k: number): GameState {
   const rng = createRng(((common ? currentDecisionSeed() ?? turnSeed(state) : state.rng?.state ?? 1) ^ Math.imul(k + 1, 0x9e3779b1)) >>> 0);
   const order = common ? byId : <T,>(cards: T[]) => cards;
   // plan.keepKnownHand (Gemini audit, 2026-11-01): grip cards the Corp has seen (MuslihaT, Mutual Favor) stay where they are
-  const known = new Set(knownInHand(state, 'runner').map(k => k.id));
+  const known = corpSeenGrip(state) // plan.oracle.grip: the whole grip;
   const seen = state.runner.grip.filter(c => known.has(c.instanceId));
   const unseen = shuffleInPlace(rng, order([...state.runner.grip.filter(c => !known.has(c.instanceId)), ...state.runner.stack]));
   const grip = [...seen, ...unseen.slice(0, state.runner.grip.length - seen.length)];

@@ -6,6 +6,7 @@ import { BLOCK, RunnerMemory, iceCost, runClick, runCreditSpend, runScore, serve
 import { asSide, sideOff, tuning } from './synergy';
 import { fingerprint, memo, pointGain, sideCreditValue } from './valueModel';
 import { effectivePlan, plan, pricing, pricingKey, withPricing } from './pricing';
+import { corpSeenGrip } from './oracle';
 
 /**
  * The Corp's threat model (structural review item 3, 2026-11-07; plan.threatModel): where the Runner will run on its
@@ -85,7 +86,7 @@ export function turnSeed(state: GameState): number {
  * from the Runner's unseen cards in a fixed order (by instance id, so which unseen card sat in the grip can't matter).
  */
 function guessedGrip(state: GameState): { grip: CardInstance[]; stack: CardInstance[] } {
-  const known = new Set(knownInHand(state, 'runner').map(k => k.id));
+  const known = corpSeenGrip(state) // plan.oracle.grip: the whole grip;
   const seen = state.runner.grip.filter(c => known.has(c.instanceId));
   const pool = [...state.runner.grip.filter(c => !known.has(c.instanceId)), ...state.runner.stack].sort((a, b) => (a.instanceId < b.instanceId ? -1 : a.instanceId > b.instanceId ? 1 : 0));
   const unseen = shuffleInPlace(createRng(turnSeed(state)), pool);
