@@ -330,7 +330,12 @@ export const tuning = {
      * it protects (iceValues.ts protects): the break cost is the cap, scaled by the server's stake. Corp only.
      */
     iceProtects: false,
-    /** Probe P2: the planner's two best Corp candidates re-scored on REPLY.extra more Runner-reply samples (turnPlanner.ts contenders). */
+    /**
+     * Probe P2: the planner's two best Corp candidates re-scored on REPLY.extra more Runner-reply samples when within
+     * REPLY.contendGap (turnPlanner.ts contenders). OFF (2026-11-08): -0.6 ± 2.2 paired (run 42498949422, games 0-3) for
+     * +19% time per decision; human agreement up (29.0 -> 31.0%) but no win-rate gain, so the reply's sampling noise is
+     * not what loses the Corp games. Code kept: the oracle's 4-sample ceiling reuses it.
+     */
     replyContenders: false,
     /** Probe P3: the planner's Corp candidates always include the best agenda install into an iced remote and the best advance (turnPlanner.ts agendaCandidates). */
     plannerAgenda: false,
