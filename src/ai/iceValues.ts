@@ -67,9 +67,10 @@ function iceWorthOf(state: GameState, ice: CardInstance, viewer: SideCode): numb
   const share = plan().rezBudget
     ? rezBudget(state).get(ice.instanceId) ?? 0
     : state.corp.credits >= rezCost(state, ice) || freeRezTargets(state).has(ice.instanceId) ? REZ_NOW_SHARE : 0;
-  // (No share, nothing to scale: ice in HQ under plan.rezBudget skips protects' look over every server)
-  if (share <= 0) return RATES.ice;
-  return RATES.ice + share * Math.min(iceStop(state), lastingIceCost(state, { ...ice, isRezzed: true })) * protects(original, ice, viewer);
+  // (No share, nothing to scale: ice in HQ under plan.rezBudget skips protects' look over every server. The break cost
+  // is still worked out: skipping it changed play with every switch off, so something it calls keeps state; audit item)
+  const stop = Math.min(iceStop(state), lastingIceCost(state, { ...ice, isRezzed: true }));
+  return RATES.ice + (share > 0 ? share * stop * protects(original, ice, viewer) : 0);
 }
 
 /** plan.iceProtects: the share of its break cost an ice in a server holding nothing (and planned for nothing) keeps. */
