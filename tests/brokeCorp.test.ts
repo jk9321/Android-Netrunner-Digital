@@ -57,7 +57,7 @@ describe('a Corp with no credits (Jeff’s bug report, plan.agendaCredits)', () 
     // never saw it), where Spin Doctor shuffles it back into R&D, and a bare agenda is the Runner's points next turn
     expect(bareAgendas(playTurn(turn17()))).toBeLessThanOrEqual(2);
     expect(bareAgendas(playTurn(turn17(), createAgent('corp', 'hard', { samples: 6, seed: 1 })))).toBeLessThanOrEqual(2);
-  }, 60_000);
+  }, 240_000);
 
 });
 

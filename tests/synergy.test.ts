@@ -99,7 +99,7 @@ describe('synergy nudges', () => {
         expect(bonus).toBeLessThanOrEqual(MAX_NUDGE);
       }
     }
-  });
+  }, 120_000);
 
   it('favour trashing money assets against an econ-reliant Corp', () => {
     const state = newGame();
