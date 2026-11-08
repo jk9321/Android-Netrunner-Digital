@@ -12,6 +12,7 @@ import { createAgent } from "../src/ai";
 import { applyPlanOff } from "../src/ai/synergy";
 import { threatStats } from "../src/ai/threatModel";
 import { replyStats } from "../src/ai/runnerReply";
+import { oracleStats } from "../src/ai/oracle";
 
 applyPlanOff(process.env.PLAN_OFF ?? "");
 const [nArg, levelArg] = process.argv.slice(2).filter((a) => a !== "--");
@@ -91,6 +92,9 @@ console.log(
     threatBudgetMs: Math.round(threatStats.budgetMs),
     replyBudgeted: threatStats.replyBudgeted,
     replyBudgetMs: Math.round(threatStats.replyBudgetMs),
+    oracleTurns: oracleStats.turns,
+    oracleHits: oracleStats.hits,
+    oracleMs: Math.round(oracleStats.ms),
     threatShare: +((threatStats.keyMs + threatStats.budgetMs) / total).toFixed(
       2,
     ),

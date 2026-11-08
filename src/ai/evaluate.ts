@@ -19,6 +19,7 @@ import { isTrap, remoteAgendaOdds, trashedCardCost } from './runs';
 import { centralAccess, runChance, threatOn } from './threatModel';
 import { plan, pricing, pricingKey, withPricing } from './pricing';
 import { clock, raceOn } from './clock';
+import { oracleSteal } from './oracle';
 
 const MADANI = '35028';
 
@@ -295,7 +296,7 @@ export function agendaWorth(
   const openNew = threatOn() && !serverId && success === 1 ? 1 : undefined;
   const steal = stealChance ?? openNew ?? (
     success === undefined && serverId
-      ? stealOdds(state, serverId)
+      ? oracleSteal(state, serverId) ?? stealOdds(state, serverId) // plan.oracle.safestRemote: told the Runner's next turn
       : STEAL.run * (success ?? (serverId ? runSuccess(state, serverId) : PACE.success)));
   // Agenda tempo (Jeff, 2026-10-28): the Runner turns until the Corp has the clicks to finish it (installing from hand is one more),
   // each a run that may get in and a turn closer to the end of the game (about 1 in turnsLeft)
