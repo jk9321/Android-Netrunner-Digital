@@ -243,10 +243,11 @@ export const tuning = {
      */
     threatLeaf: false,
     /**
-     * threatValues stays ON (Phase 2 pruning, group (c)): it carries every read of the threat in the Corp's values
-     * (with it off the Corp makes ~11 threat calls a profile instead of ~37k). Off for the Corp with the other six
-     * no-test switches: -8.0 ± 2.3 paired (run 42526354323 vs base 42525924644), Runner points from remotes 63% vs 46%;
-     * it is also the whole time saving of that set (909 -> 480 ms per decision, threat-profile.ts; 870-900 ms without it).
+     * threatValues (Phase 2 pruning): it carries every read of the threat in the Corp's values (off, the Corp makes
+     * ~11 threat calls a profile instead of ~37k) and is the whole time saving of pruning group (a): 909 -> 480 ms per
+     * decision with it off (threat-profile.ts), 870-900 ms with only the other six off. The set's loss is the other six's:
+     * all seven off -8.0 ± 2.3 (run 42526354323), the six without it -10.1 ± 2.3 (run 42531131425), vs base 42525924644.
+     * Off alone: batched next.
      */
     threatValues: true,
     /**
