@@ -131,16 +131,17 @@ export function rezCard(state: GameState, action: RezCardAction): void {
   completeRez(state, card);
 }
 
-/** Finishes a paid rez: the card is rezzed and "when you rez this during a run on this server" resolves. */
+/** Finishes a paid rez (after payment, or a script's alternative cost). */
 export function completeRez(state: GameState, card: CardInstance): void {
   rezForFree(state, card);
-  const server = findInstalledCorpCard(state, card.instanceId)?.server;
-  if (server && state.activeRun?.server === server.id) {
-    getCardScript(card.cardCode)?.ice?.onRezDuringRunOnServer?.({ state, card, side: 'corp' });
-  }
 }
 
-/** Rezzes a card without paying (rez action after payment, or "ignoring all costs") and fires rez triggers. */
+/**
+ * Rezzes a card without paying (rez action after payment, or "ignoring all
+ * costs") and fires rez triggers, including "when you rez this ice during a
+ * run against this server" (Ping): that triggers on any rez during such a
+ * run, paid or by a card ability (rules 8.1.2b), e.g. Send a Message.
+ */
 export function rezForFree(state: GameState, card: CardInstance): void {
   card.isRezzed = true;
   // Rezzed, it is faceup and the Runner sees it; they may remember it if it is derezzed (rules 1.12.5)
@@ -150,4 +151,8 @@ export function rezForFree(state: GameState, card: CardInstance): void {
   refillRecurring(card);
   enforceInstallLimits(state, card);
   fireTrigger(state, { type: 'rezzed', card });
+  const server = findInstalledCorpCard(state, card.instanceId)?.server;
+  if (server && state.activeRun?.server === server.id) {
+    getCardScript(card.cardCode)?.ice?.onRezDuringRunOnServer?.({ state, card, side: 'corp' });
+  }
 }
