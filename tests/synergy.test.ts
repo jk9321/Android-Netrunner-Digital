@@ -316,13 +316,19 @@ describe('planning (setup scoring)', () => {
       s.corp.credits = 10;
       return s;
     };
+    // plan.icePosition alone: with plan.iceProtects a server's ice shares what the server holds (the stake over the summed
+    // break costs), so the strength icePosition gives a layer moves the other layers' worth too (HQ's second layer:
+    // 0.13 against 0.60); that is iceProtects' doing, pinned in tests/iceProtects.test.ts
     const score = (s: GameState, card: CardInstance, server: string, on: boolean) => {
       const was = tuning.plan.icePosition;
+      const protects = tuning.plan.iceProtects;
       tuning.plan.icePosition = on;
+      tuning.plan.iceProtects = false;
       try {
         return new HeuristicCorpAI().rankMainActions(s).find(r => r.action.type === 'INSTALL_CARD' && r.action.cardInstanceId === card.instanceId && r.action.targetServerId === server)!.score;
       } finally {
         tuning.plan.icePosition = was;
+        tuning.plan.iceProtects = protects;
       }
     };
     // Alone on R&D it counts its +4 strength; as HQ's second layer it doesn't get it
