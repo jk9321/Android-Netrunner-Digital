@@ -251,7 +251,8 @@ export const tuning = {
      * ~11 threat calls a profile instead of ~37k) and is the whole time saving of pruning group (a): 909 -> 480 ms per
      * decision with it off (threat-profile.ts), 870-900 ms with only the other six off. The set's loss is the other six's:
      * all seven off -8.0 ± 2.3 (run 42526354323), the six without it -10.1 ± 2.3 (run 42531131425), vs base 42525924644.
-     * Off alone: batched next.
+     * Off alone: -2.6 ± 1.8 (run 42534791260, 663 games), went broke +5.7 ± 2.8, 0.53x time. PARKED ON (AI Coordinator
+     * 2026-11-08): a probable real loss; re-measure after K1 (reach) changes what the threat feeds.
      */
     threatValues: true,
     /**

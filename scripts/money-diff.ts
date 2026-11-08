@@ -16,7 +16,8 @@ import { deckGameSetup } from '../src/data/decks';
 import { ALL_DECKS } from './nsg-sample-decks';
 import { GameRunner, createAgent } from '../src/ai';
 import { withOracleMoney } from './oracle-money';
-import { moneyGain } from '../src/ai/valueModel';
+import { creditNeed, moneyGain } from '../src/ai/valueModel';
+import { asSide } from '../src/ai/pricing';
 
 const corpDecks = ALL_DECKS.filter(d => d.side === 'corp');
 const runnerDecks = ALL_DECKS.filter(d => d.side === 'runner');
@@ -27,7 +28,22 @@ const dealOf = (seed: number) => {
 const TURNS = Number(process.env.TURNS ?? 6);
 
 interface Act { turn: number; kind: string; title: string }
-interface Played { winner: string; acts: Act[]; scored: Map<string, number>; installed: Map<string, number> }
+interface Played {
+  winner: string;
+  acts: Act[];
+  scored: Map<string, number>;
+  installed: Map<string, number>;
+  /** Credit clicks with the bank already at its credit need (valueModel creditNeed, Corp view); draws with HQ at its hand size or more */
+  idleCredit: number;
+  fullDraw: number;
+  /** Runner turns where the Corp rezzed ice in a run and so started its next turn short of the advancement a remote agenda still needed, which it could have paid without those rezzes */
+  rezBlocked: number;
+  rezRunnerTurns: number;
+}
+
+/** Credits still short on the remote agendas (1 per advancement, rule 5.2.6f). */
+const advanceShort = (s: GameState) =>
+  Object.values(s.corp.servers).filter(sv => sv.isRemote).flatMap(sv => sv.root).filter(c => cardDef(c).type_code === 'agenda').reduce((n, c) => n + Math.max(0, (cardDef(c).advancement_cost ?? 0) - c.advancementCounters), 0);
 
 const findCard = (s: GameState, id: string) =>
   [...s.corp.hq, ...Object.values(s.corp.servers).flatMap(sv => [...sv.root, ...sv.ice])].find(c => c.instanceId === id);
@@ -62,12 +78,25 @@ function play(seed: number, money: boolean): Played {
   const scored = new Map<string, number>();
   const installed = new Map<string, number>();
   let told = -1;
+  let idleCredit = 0, fullDraw = 0, rezBlocked = 0, rezRunnerTurns = 0;
+  let runnerTurn = -1, rezSpent = 0;
   for (let steps = 0; steps < 4000 && game.state.turnNumber <= 80; steps++) {
     if (money && game.state.activePlayer === 'corp' && game.state.turnNumber !== told) {
       told = game.state.turnNumber;
       game.state = withOracleMoney(game.state);
     }
     const before = game.state;
+    // A Corp turn begins: did this Runner turn's in-run rezzes leave it short of the advancement it needs?
+    if (before.activePlayer === 'corp' && runnerTurn >= 0 && before.turnNumber !== runnerTurn) {
+      if (rezSpent > 0 && before.turnNumber <= TURNS + 1) {
+        rezRunnerTurns++;
+        const short = advanceShort(before);
+        if (short > 0 && before.corp.credits < short && before.corp.credits + rezSpent >= short) rezBlocked++;
+      }
+      runnerTurn = -1;
+      rezSpent = 0;
+    }
+    if (before.activePlayer === 'runner') runnerTurn = before.turnNumber;
     if (!game.step()) break;
     const after = game.state;
     const a = game.last;
@@ -77,6 +106,8 @@ function play(seed: number, money: boolean): Played {
     for (const c of after.corp.scoreArea) if (!scored.has(c.instanceId)) scored.set(c.instanceId, turn);
     if (turn > TURNS || !a) continue;
     if (before.activePlayer === 'corp' && !before.activeRun && a.player === 'corp') {
+      if (a.type === 'GAIN_CREDIT' && before.corp.credits >= asSide('corp', () => creditNeed(before, 'corp'))) idleCredit++;
+      if (a.type === 'DRAW_CARD' && before.corp.hq.length >= before.corp.handSizeLimit) fullDraw++;
       const k = kindOf(before, after, a);
       if (k.kind) acts.push({ turn, ...k });
     }
@@ -84,15 +115,17 @@ function play(seed: number, money: boolean): Played {
     if (before.activeRun) {
       const rezzed = Object.values(before.corp.servers).flatMap(sv => sv.ice).filter(i => !i.isRezzed && Object.values(after.corp.servers).some(sv => sv.ice.some(x => x.instanceId === i.instanceId && x.isRezzed)));
       for (const i of rezzed) acts.push({ turn, kind: 'rez ice in a run', title: cardDef(i).title });
+      if (rezzed.length && before.activePlayer === 'runner') rezSpent += Math.max(0, before.corp.credits - after.corp.credits);
     }
   }
-  return { winner: game.state.winner ?? 'draw', acts, scored, installed };
+  return { winner: game.state.winner ?? 'draw', acts, scored, installed, idleCredit, fullDraw, rezBlocked, rezRunnerTurns };
 }
 
 const seeds = (process.env.SEEDS ?? '').split(',').filter(Boolean).map(Number);
 const totals = new Map<string, [number, number]>();
 const timing = { honestScoreTurn: [] as number[], moneyScoreTurn: [] as number[], honestInstallTurn: [] as number[], moneyInstallTurn: [] as number[] };
 const firstDiffs: string[] = [];
+const counts = { honest: { idleCredit: 0, fullDraw: 0, rezBlocked: 0, rezRunnerTurns: 0 }, money: { idleCredit: 0, fullDraw: 0, rezBlocked: 0, rezRunnerTurns: 0 } };
 for (const seed of seeds) {
   const h = play(seed, false);
   const m = play(seed, true);
@@ -101,6 +134,7 @@ for (const seed of seeds) {
     t[i]++;
     totals.set(a.kind, t);
   }
+  for (const [k, p] of [['honest', h], ['money', m]] as const) for (const key of Object.keys(counts[k]) as (keyof typeof counts.honest)[]) counts[k][key] += p[key];
   const first = (map: Map<string, number>) => (map.size ? Math.min(...map.values()) : NaN);
   timing.honestScoreTurn.push(first(h.scored));
   timing.moneyScoreTurn.push(first(m.scored));
@@ -116,5 +150,7 @@ console.log(`\nCorp actions in its first ${TURNS} turns over ${seeds.length} dea
 for (const [k, [a, b]] of [...totals].sort((x, y) => y[1][0] + y[1][1] - x[1][0] - x[1][1])) if (k !== 'end turn') console.log(`  ${k}: ${a} / ${b}`);
 console.log(`first agenda installed in a remote, turn: ${avg(timing.honestInstallTurn)} / ${avg(timing.moneyInstallTurn)}`);
 console.log(`first agenda scored, turn: ${avg(timing.honestScoreTurn)} / ${avg(timing.moneyScoreTurn)}`);
+console.log(`credit clicks with the bank at its need: ${counts.honest.idleCredit} / ${counts.money.idleCredit}; draws with a full hand: ${counts.honest.fullDraw} / ${counts.money.fullDraw}`);
+console.log(`Runner turns with in-run ice rezzes: ${counts.honest.rezRunnerTurns} / ${counts.money.rezRunnerTurns}; of those, the next Corp turn began short of a remote agenda's advancement it could have paid without the rezzes: ${counts.honest.rezBlocked} / ${counts.money.rezBlocked}`);
 console.log('\nFirst differing Corp action:');
 for (const d of firstDiffs) console.log('  ' + d);
