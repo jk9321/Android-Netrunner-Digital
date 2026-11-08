@@ -66,6 +66,7 @@ export const tuning = {
      * (urgency only fed serverValue's old table, so it went with plan.runModel's off path, 2026-11-06.)
      */
     /** Corp: plays that let an agenda be scored this turn (Seamless Launch, KPI...), and tagging before scoring Orbital Superiority. */
+    // Phase 2 pruning (2026-11-08): no pinned test, but kept ON: measured -10.1 ± 2.3 as a set of six off for the Corp (run 42531131425 vs base 42525924644)
     scoreSetup: true,
     /*
      * Round 3 batches (1,105 deals, Corp only, 2026-10-25): all on +46 games
@@ -81,6 +82,7 @@ export const tuning = {
      * 36.6% before round 3; Jeff's target is 50 ±5%.
      */
     /** Corp (round 3): keep credits to rez ice on two key servers (R&D, an agenda remote, HQ holding agendas). */
+    // Phase 2 pruning (2026-11-08): no pinned test, but kept ON: measured -10.1 ± 2.3 as a set of six off for the Corp (run 42531131425 vs base 42525924644)
     rezMoney: true,
     /*
      * Identity plans (2026-10-25): self-play, Pork Chops + Peculiarity, 520
@@ -112,6 +114,7 @@ export const tuning = {
      */
     /* Funded depth (2026-10-26, self-play, 2,210 games): Corp 42.9% -> 44.8%; remote steals 1,714 -> 1,472, behind ice it couldn't afford to rez 883 -> 499. */
     /** Corp (Jeff): spending (plays, installs, rezzes elsewhere) keeps the money to rez an installed agenda's ice. */
+    // Phase 2 pruning (2026-11-08): no pinned test, but kept ON: measured -10.1 ± 2.3 as a set of six off for the Corp (run 42531131425 vs base 42525924644)
     agendaMoney: true,
     /*
      * Ice pacing (2026-10-27, self-play, 2,210 games): 46.8% -> 46.2% (noise).
@@ -144,6 +147,7 @@ export const tuning = {
      * within noise (kept, plays more like a person).
      */
     /** Corp (round 3): no half-advanced agendas: advance only when it can be scored next turn behind ice it can rez. */
+    // Phase 2 pruning (2026-11-08): no pinned test, but kept ON: measured -10.1 ± 2.3 as a set of six off for the Corp (run 42531131425 vs base 42525924644)
     agendaTiming: true,
     /*
      * Draw and money round (2026-10-26, self-play): all on Corp 45.4% (2,210
@@ -257,6 +261,7 @@ export const tuning = {
      */
     clickByPlay: { corp: false, runner: true } as Record<SideCode, boolean>,
     /** Both sides: agenda points are worth more the closer they take a side to 7. */
+    // Phase 2 pruning (2026-11-08): no pinned test, but kept ON: measured -10.1 ± 2.3 as a set of six off for the Corp (run 42531131425 vs base 42525924644)
     pointClock: true,
     /*
      * Value model step 6 (2026-10-27, self-play, 2,210 games each, base
@@ -331,6 +336,7 @@ export const tuning = {
      * oneRezMoney: Corp rez money counted once in plays scored by the board (corpAI playScore: only the agenda-money rule
      * there, the reserve gap and money target left to plays scored without the board; valueModel boardNeed by rezCostOf).
      */
+    // Phase 2 pruning (2026-11-08): no pinned test, but kept ON: measured -10.1 ± 2.3 as a set of six off for the Corp (run 42531131425 vs base 42525924644)
     oneRezMoney: true,
     /**
      * Install-worth side check, probe P1 (AI Coordinator addendum, 2026-11-08): the Corp prices its installed ice by what
