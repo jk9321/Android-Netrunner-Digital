@@ -25,7 +25,7 @@ export const REPLY = {
   /** Steps in one Runner turn (a safety net). */
   maxSteps: 300,
   /** plan.replyContenders: the samples the planner's two best candidates get on top of the first `samples`. */
-  extra: 4,
+  extra: 2,
   /** Index of the first sample dealt (guessHidden k): 0, or `samples` while the extra samples are played. */
   first: 0,
 };
