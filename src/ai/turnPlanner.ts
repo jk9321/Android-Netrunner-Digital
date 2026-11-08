@@ -5,6 +5,7 @@ import { evaluate } from './evaluate';
 import { runClick } from './runs';
 import { threat, turnSeed } from './threatModel';
 import { plan, pricing, withPricing } from './pricing';
+import { REPLY, extraReplySamples } from './runnerReply';
 
 /**
  * The whole-turn planner for Normal (Jeff, 2026-10-28; plan.turnPlanner).
@@ -106,7 +107,7 @@ function dominated(state: GameState, action: GameAction, ranked: ScoredAction[],
 }
 
 /** Plays `side`'s turn on from `state` after `first`, and returns how good the end of the turn is. */
-function playout(start: GameState, side: SideCode, first: GameAction, ai: PlannerAI, synergy: boolean, line: Line = []): number {
+function playout(start: GameState, side: SideCode, first: GameAction, ai: PlannerAI, synergy: boolean, line: Line = [], ends?: { state?: GameState; bonus?: number }): number {
   let bonus = 0;
   let ran = false;
   /** The position before the last main-phase action, and the card it used: where a run event's run is priced from. */
@@ -188,6 +189,10 @@ function playout(start: GameState, side: SideCode, first: GameAction, ai: Planne
   }
   if (searchPiece('plannerDiscard') && !state.winner) state = discardStep(state, side, ai);
   const leaf = (s: GameState) => leafValue(s, side, synergy);
+  if (ends) {
+    ends.state = state;
+    ends.bonus = bonus;
+  }
   return (ai.reply && !state.winner ? ai.reply(state, leaf) : leaf(state)) + bonus;
 }
 
@@ -302,12 +307,16 @@ export function planTurn(state: GameState, side: SideCode, ranked: ScoredAction[
   return withPricing({ frozen: true, decisionSeed }, () => {
     let best: { action: GameAction; value: number; line: Line } | null = null;
     const values: number[] = [];
+    const scored: { action: GameAction; value: number; line: Line; ends: { state?: GameState; bonus?: number } }[] = [];
     for (const c of candidates) {
       const line: Line = [];
-      const value = playout(state, side, c.action, ai, synergy, line);
+      const ends: { state?: GameState; bonus?: number } = {};
+      const value = playout(state, side, c.action, ai, synergy, line, ends);
       values.push(value);
+      scored.push({ action: c.action, value, line, ends });
       if (!best || value > best.value) best = { action: c.action, value, line };
     }
+    if (side === 'corp' && plan().replyContenders && ai.reply) best = contenders(scored, ai, side, synergy) ?? best;
     plannerStats.onCandidates?.(side, values);
     if (!best || best.value === -Infinity) return null;
     if (added.some(a => a.action === best!.action)) {
@@ -317,6 +326,26 @@ export function planTurn(state: GameState, side: SideCode, ranked: ScoredAction[
     memory.line = best.line;
     return best.action;
   });
+}
+
+/**
+ * plan.replyContenders (install-worth side check, probe P2, AI Coordinator addendum 2026-11-08): the two-sample Runner
+ * reply decided 3-4 of 10 of Jeff's positions, one losing sample (-1000) throwing a line out on its own. So the best two
+ * candidates, after every candidate is scored on REPLY.samples, get REPLY.extra more samples each (the same new deals for
+ * both: extraReplySamples) and the better mean over all of them is the pick.
+ */
+function contenders<T extends { action: GameAction; value: number; line: Line; ends: { state?: GameState; bonus?: number } }>(scored: T[], ai: PlannerAI, side: SideCode, synergy: boolean): T | null {
+  const live = scored.filter(r => Number.isFinite(r.value) && r.ends.state && !r.ends.state.winner).sort((a, b) => b.value - a.value);
+  if (live.length < 2) return null;
+  const leaf = (s: GameState) => leafValue(s, side, synergy);
+  const top = live.slice(0, 2).map(r => {
+    const bonus = r.ends.bonus ?? 0;
+    const extra = extraReplySamples(() => ai.reply!(r.ends.state!, leaf));
+    return { ...r, value: (REPLY.samples * (r.value - bonus) + REPLY.extra * extra) / (REPLY.samples + REPLY.extra) + bonus };
+  });
+  // A candidate outside the two (a won game, or one the extra samples can't change) keeps its value
+  const rest = scored.filter(r => !top.some(t => t.action === r.action));
+  return [...top, ...rest].reduce((a, b) => (b.value > a.value ? b : a));
 }
 
 const sameAction = (a: GameAction, b: GameAction): boolean => JSON.stringify(a) === JSON.stringify(b);

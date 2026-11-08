@@ -325,6 +325,13 @@ export const tuning = {
      * there, the reserve gap and money target left to plays scored without the board; valueModel boardNeed by rezCostOf).
      */
     oneRezMoney: true,
+    /**
+     * Install-worth side check, probe P1 (AI Coordinator addendum, 2026-11-08): the Corp prices its installed ice by what
+     * it protects (iceValues.ts protects): the break cost is the cap, scaled by the server's stake. Corp only.
+     */
+    iceProtects: false,
+    /** Probe P2: the planner's two best Corp candidates re-scored on REPLY.extra more Runner-reply samples (turnPlanner.ts contenders). */
+    replyContenders: false,
     /** Code audit cleanup item 9: the Runner's board score and run choice guess a facedown card the same way (runs.ts remoteAgendaOdds, evaluate corpBoardValue). */
     oneAgendaGuess: false,
     /**
@@ -380,7 +387,7 @@ export const tuning = {
  */
 export const sideOff: Record<SideCode, string[]> = {
   corp: [],
-  runner: ['tagTrashNow', 'ownTrashRisk', 'hqTrashCost', 'oneCurrency', 'threatModel', 'measuredPass', 'threatSpend', 'calibratedRun', 'raceClock'],
+  runner: ['tagTrashNow', 'ownTrashRisk', 'hqTrashCost', 'oneCurrency', 'threatModel', 'measuredPass', 'threatSpend', 'calibratedRun', 'raceClock', 'iceProtects', 'replyContenders'],
 };
 
 /**

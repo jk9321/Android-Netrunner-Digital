@@ -24,7 +24,27 @@ export const REPLY = {
   samples: 2,
   /** Steps in one Runner turn (a safety net). */
   maxSteps: 300,
+  /** plan.replyContenders: the samples the planner's two best candidates get on top of the first `samples`. */
+  extra: 4,
+  /** Index of the first sample dealt (guessHidden k): 0, or `samples` while the extra samples are played. */
+  first: 0,
 };
+
+/**
+ * plan.replyContenders (install-worth side check, probe P2): `fn` with runnerReply playing the extra samples, dealt
+ * from sample indexes samples .. samples + extra - 1, so the two contenders of one decision see the same new deals.
+ */
+export function extraReplySamples<T>(fn: () => T): T {
+  const { samples, first } = REPLY;
+  REPLY.first = samples;
+  REPLY.samples = REPLY.extra;
+  try {
+    return fn();
+  } finally {
+    REPLY.samples = samples;
+    REPLY.first = first;
+  }
+}
 
 /**
  * R&D positions whose card the Runner knows exactly (plan.keepKnownRd; Gemini's second audit, 2026-11-05): both sides
@@ -100,7 +120,7 @@ export function runnerReply(end: GameState, synergy: boolean, leaf: (state: Game
   const outer = threatStats.inReply;
   threatStats.inReply = true;
   try {
-    for (let k = 0; k < REPLY.samples; k++) {
+    for (let k = REPLY.first; k < REPLY.first + REPLY.samples; k++) {
       const gr = new GameRunner(guessHidden(end, k), {
         corp: new HeuristicCorpAI({ synergy, planner: false }),
         runner: new HeuristicRunnerAI({ synergy, planner: false }),
