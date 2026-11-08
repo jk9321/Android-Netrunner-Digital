@@ -28,7 +28,28 @@ export const REPLY = {
   samples: 2,
   /** Steps in one Runner turn (a safety net). */
   maxSteps: 300,
+  /** plan.replyContenders: the samples the planner's two best candidates get on top of the first `samples`. */
+  extra: 2,
+  /**
+   * plan.replyContenders: the extra samples are played only when the best two candidates are closer than this. At Jeff's
+   * positions (human-agreement --noise, 2026-11-08) one candidate's two reply samples differ by a median 7.06 and the
+   * best two candidates by a median 2.45: a gap under 4 is well inside one sample's noise, a wider one is left to the
+   * first samples, which keeps the time per decision nearer the base.
+   */
+  contendGap: 4,
 };
+
+/** Which samples a reply plays: guessHidden deals `from` .. `from + count - 1`. */
+export interface ReplyRange { from: number; count: number }
+
+/**
+ * Whether the Corp planner's reply is this sampled Runner turn (corpAI.ts plan: plan.runnerReply, unless the threat
+ * leaf stands in for it: plan.threatModel with threatLeaf). plan.replyContenders plays extra samples only then; the
+ * threat leaf is deterministic, more of it would recompute the same number.
+ */
+export function sampledReply(): boolean {
+  return !!plan().runnerReply && !(plan().threatModel && plan().threatLeaf !== false);
+}
 
 /**
  * R&D positions whose card the Runner knows exactly (plan.keepKnownRd; Gemini's second audit, 2026-11-05): both sides
@@ -98,15 +119,14 @@ function openAgendaLoss(state: GameState, ids: string[]): number {
   return loss;
 }
 
-/** Plays the Runner's next turn from the end of a Corp turn; the average of `leaf` over the samples. */
-export function runnerReply(end: GameState, synergy: boolean, leaf: (state: GameState) => number): number {
+/** Plays the Runner's next turn from the end of a Corp turn; the average of `leaf` over the samples (`range`: plan.replyContenders' extra ones). */
+export function runnerReply(end: GameState, synergy: boolean, leaf: (state: GameState) => number, range: ReplyRange = { from: 0, count: replySamples(REPLY.samples) /* plan.oracle.think: more samples */ }): number {
   let total = 0;
   const values: number[] = [];
   const outer = threatStats.inReply;
   threatStats.inReply = true;
-  const samples = replySamples(REPLY.samples); // plan.oracle.think: more samples
   try {
-    for (let k = 0; k < samples; k++) {
+    for (let k = range.from; k < range.from + range.count; k++) {
       const gr = new GameRunner(guessHidden(end, k), {
         corp: new HeuristicCorpAI({ synergy, planner: false }),
         runner: new HeuristicRunnerAI({ synergy, planner: false }),
@@ -139,5 +159,5 @@ export function runnerReply(end: GameState, synergy: boolean, leaf: (state: Game
     threatStats.inReply = outer;
   }
   replyStats.onSamples?.(values);
-  return total / samples;
+  return total / range.count;
 }

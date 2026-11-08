@@ -453,7 +453,7 @@ function agendaBudgets(state: GameState, viewer: SideCode): Map<string, { clicks
 }
 
 /** The Corp's installed cards, as `viewer` can judge them: the Runner values facedown cards by the odds, not by what they are. */
-function corpBoardValue(state: GameState, viewer: SideCode): number {
+export function corpBoardValue(state: GameState, viewer: SideCode): number {
   let value = 0;
   let odds: ReturnType<typeof hiddenCardOdds> | undefined;
   const budgets = agendaBudgets(state, viewer);
@@ -635,7 +635,7 @@ function tagLoss(state: GameState, viewer: SideCode, skip: number): number {
 }
 
 /** A side's clicks left and its hand, each on its own. */
-function handAndClicks(state: GameState, side: SideCode, viewer: SideCode): number {
+export function handAndClicks(state: GameState, side: SideCode, viewer: SideCode): number {
   const player = side === 'corp' ? state.corp : state.runner;
   const hand = side === 'corp' ? state.corp.hq : state.runner.grip;
   // plan.heldMoney: the money operation moneyReach puts on the Corp's credit slide is worth its credits there, not

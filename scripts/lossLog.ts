@@ -567,6 +567,7 @@ export function playLogged(
     });
   }
   const s = runner.state;
+  alarms.done(runner.state);
   return {
     corpDeck: decks.corp,
     runnerDeck: decks.runner,

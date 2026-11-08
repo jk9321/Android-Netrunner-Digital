@@ -325,6 +325,25 @@ export const tuning = {
      * there, the reserve gap and money target left to plays scored without the board; valueModel boardNeed by rezCostOf).
      */
     oneRezMoney: true,
+    /**
+     * Install-worth side check, probe P1 (AI Coordinator addendum, 2026-11-08): the Corp prices its installed ice by what
+     * it protects (iceValues.ts protects): the break cost is the cap, scaled by the server's stake. Corp only.
+     * ON (2026-11-08, with plannerAgenda): +8.4 ± 2.1 paired (run 42516641684 vs fresh base 42511678009, games 0-3;
+     * 42.5% vs 34.1%), agenda stuck in HQ -4.5 ± 2.1; about +15% time per decision for the two (threat-profile.ts).
+     */
+    iceProtects: true,
+    /**
+     * Probe P2: the planner's two best Corp candidates re-scored on REPLY.extra more Runner-reply samples when within
+     * REPLY.contendGap (turnPlanner.ts contenders). OFF (2026-11-08): -0.6 ± 2.2 paired (run 42498949422, games 0-3) for
+     * +19% time per decision; human agreement up (29.0 -> 31.0%) but no win-rate gain, so the reply's sampling noise is
+     * not what loses the Corp games. Code kept for the oracle thread's think-harder bundle (4 reply samples).
+     */
+    replyContenders: false,
+    /**
+     * Probe P3: the planner's Corp candidates always include the best agenda install into an empty iced remote and the
+     * best advance (turnPlanner.ts agendaCandidates). ON with iceProtects (2026-11-08, above).
+     */
+    plannerAgenda: true,
     /** Code audit cleanup item 9: the Runner's board score and run choice guess a facedown card the same way (runs.ts remoteAgendaOdds, evaluate corpBoardValue). */
     oneAgendaGuess: false,
     /**
@@ -390,7 +409,7 @@ export const tuning = {
  */
 export const sideOff: Record<SideCode, string[]> = {
   corp: [],
-  runner: ['tagTrashNow', 'ownTrashRisk', 'hqTrashCost', 'oneCurrency', 'threatModel', 'measuredPass', 'threatSpend', 'calibratedRun', 'raceClock', 'oracle'],
+  runner: ['tagTrashNow', 'ownTrashRisk', 'hqTrashCost', 'oneCurrency', 'threatModel', 'measuredPass', 'threatSpend', 'calibratedRun', 'raceClock', 'iceProtects', 'replyContenders', 'plannerAgenda', 'oracle'],
 };
 
 /**

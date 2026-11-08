@@ -1,11 +1,16 @@
 import { CardInstance, GameState, ServerState, SideCode, cardDef } from '../core';
 import { maxHandSize, rezCost } from '../core/engine/cardEffects';
 import { iceSubroutines } from '../core/engine/ice';
-import { AUDREY, iceCost } from './runs';
-import { RATES, guardLoop, memo } from './valueModel';
+import { AUDREY, iceCost, isTrap } from './runs';
+import { KNOBS, RATES, guardLoop, memo, pointGain, pointValue } from './valueModel';
+import { PACE } from './effectValues';
+import { archivedAgendaLoss } from './evaluate';
+import { corpKeepValue } from './cardValues';
+import { centralAccess } from './threatModel';
 import { turnsLeft } from './cardProfiles';
 import { freeRezTargets } from './freeRez';
 import { plan, pricing } from './pricing';
+import { mainRemote } from './corpAI';
 
 /**
  * Value model step 5 (docs/ai-value-model-plan.md): ice priced in credits,
@@ -51,8 +56,10 @@ function iceWorthOf(state: GameState, ice: CardInstance, viewer: SideCode): numb
   // Empiricist's damage looked worth): the grip the ice will face on later turns is at most the hand size (rule 1.7.2b:
   // the rest is discarded at the end of the turn), as the damage clock reads it (effectValues lifeGrip)
   const limit = maxHandSize(state, 'runner');
+  // (What the ice protects doesn't depend on the grip: priced on the state as given, so its memo holds)
+  const original = state;
   if (plan().iceGripCap && state.runner.grip.length > limit) state = { ...state, runner: { ...state.runner, grip: state.runner.grip.slice(0, limit) } };
-  if (ice.isRezzed) return RATES.ice + Math.min(iceStop(state), lastingIceCost(state, ice));
+  if (ice.isRezzed) return RATES.ice + Math.min(iceStop(state), lastingIceCost(state, ice)) * protects(original, ice, viewer);
   // The Runner doesn't know what it is: iceCost's guess for unrezzed ice
   if (viewer === 'runner') return RATES.ice + iceCost(state, ice);
   // The Corp knows: what it would cost the Runner once rezzed, held back a little for the rez still to pay, by the
@@ -60,7 +67,83 @@ function iceWorthOf(state: GameState, ice: CardInstance, viewer: SideCode): numb
   const share = plan().rezBudget
     ? rezBudget(state).get(ice.instanceId) ?? 0
     : state.corp.credits >= rezCost(state, ice) || freeRezTargets(state).has(ice.instanceId) ? REZ_NOW_SHARE : 0;
-  return RATES.ice + share * Math.min(iceStop(state), lastingIceCost(state, { ...ice, isRezzed: true }));
+  // (No share, nothing to scale: ice in HQ under plan.rezBudget skips protects' look over every server. The break cost
+  // is still worked out: skipping it changed play with every switch off, so something it calls keeps state; audit item)
+  const stop = Math.min(iceStop(state), lastingIceCost(state, { ...ice, isRezzed: true }));
+  return RATES.ice + (share > 0 ? share * stop * protects(original, ice, viewer) : 0);
+}
+
+/** plan.iceProtects: the share of its break cost an ice in a server holding nothing (and planned for nothing) keeps. */
+export const ICE_UNGUARDED = 0.2;
+/** plan.iceProtects: the share of the average agenda's stake an empty scoring remote counts, as the place the next one goes. */
+export const ICE_PLANNED = 0.5;
+
+/**
+ * plan.iceProtects (install-worth side check, AI Coordinator addendum 2026-11-08; Corp view only): ice is worth what it
+ * protects, not only what it costs the Runner. The break cost (above) stays the cap; this is the share of it the
+ * server's stake supports: the stake over the summed break costs of the server's ice, at most 1, at least ICE_UNGUARDED.
+ * At Jeff's positions an ice on any server read 0.2 to 2 agenda points (1 point = 8) whatever sat behind it, and one ice
+ * install outscored one advance (install-worth/report.md). Rules: a successful run breaches the attacked server and
+ * accesses its cards (7.4.1a-d), so what ice holds back is what the breach would take.
+ */
+function protects(state: GameState, ice: CardInstance, viewer: SideCode): number {
+  if (viewer !== 'corp' || !plan().iceProtects) return 1;
+  const server = Object.values(state.corp.servers).find(s => s.ice.some(c => c.instanceId === ice.instanceId));
+  if (server) return protectsIn(state, server);
+  // Ice not installed (in HQ, as handValues prices it): what it would protect on the best server it could join, so
+  // holding it and installing it compare like with like. A new remote holds nothing, unless the Corp has no scoring
+  // remote yet: then this ice would found one, the place the next agenda goes (as serverStake prices one)
+  return memo(state, `iceProtects:hand:${ice.cardCode}`, () => {
+    const existing = Object.values(state.corp.servers).map(s => protectsIn(state, s, ice));
+    const found = mainRemote(state) ? 0 : Math.min(1, plannedStake(state) / Math.max(1e-9, Math.min(iceStop(state), lastingIceCost(state, { ...ice, isRezzed: true }))));
+    return Math.max(ICE_UNGUARDED, found, ...existing);
+  });
+}
+
+/** The share for `server`'s ice (with `extra` added to it, for ice not yet installed). */
+function protectsIn(state: GameState, server: ServerState, extra?: CardInstance): number {
+  return memo(state, `iceProtects:${server.id}:${extra?.cardCode ?? ''}`, () => {
+    const ice = extra ? [...server.ice, extra] : server.ice;
+    const breaks = ice.reduce((n, c) => n + Math.min(iceStop(state), lastingIceCost(state, { ...c, isRezzed: true })), 0);
+    if (breaks <= 0) return 1;
+    return Math.max(ICE_UNGUARDED, Math.min(1, serverStake(state, server) / breaks));
+  });
+}
+
+/** What a breach of `server` would cost the Corp over the turns its ice stands, as the Corp sees it (plan.iceProtects). */
+export function serverStake(state: GameState, server: ServerState): number {
+  const swing = (points: number) => pointValue(state.corp.score + points, KNOBS.corpPoints) - pointValue(state.corp.score, KNOBS.corpPoints) + pointGain(state.runner.score, points);
+  const turns = turnsLeft(state);
+  if (server.id === 'hq' || server.id === 'rd') {
+    // One access each run (7.4.1b-c), at the agenda loss centralExposure prices one access at, on the runs the Runner
+    // makes there over the turns left (PACE); HQ as it is on the next run, the deck's average after
+    const { hqNow, density } = centralAccess(state);
+    const runs = PACE.runs * (server.id === 'hq' ? PACE.hqShare : PACE.rdShare);
+    return server.id === 'hq' ? runs * (hqNow + density * Math.max(0, turns - 1)) : runs * density * turns;
+  }
+  if (server.id === 'archives') {
+    return [...state.corp.archives.faceDown, ...state.corp.archives.faceUp].filter(c => cardDef(c).type_code === 'agenda').reduce((n, c) => n + archivedAgendaLoss(state, cardDef(c).agenda_points ?? 1), 0);
+  }
+  let stake = 0;
+  for (const card of server.root) {
+    const def = cardDef(card);
+    if (def.type_code === 'agenda') stake += swing(def.agenda_points ?? 1);
+    // An asset or upgrade at its listed keep worth, not its priced worth: that reads the server's ice (Manegarm
+    // Skunkworks' tax, an asset's trash risk behind ice), which reads this stake, a value loop (review 2 batch: 639 games)
+    else if (!isTrap(card.cardCode)) stake += Math.max(0, corpKeepValue(card.cardCode));
+  }
+  // An empty remote that is the scoring remote (most ice, no asset: corpAI.ts mainRemote) is where the next agenda goes:
+  // the deck's average agenda (HQ and R&D, as the Corp knows them). Scoring the agenda in it doesn't make its ice idle
+  if (server.root.length === 0 && server.isRemote && mainRemote(state)?.id === server.id) stake += plannedStake(state);
+  return stake;
+}
+
+/** The stake of the empty scoring remote: ICE_PLANNED of the swing of the deck's average agenda (HQ and R&D, as the Corp knows them). */
+function plannedStake(state: GameState): number {
+  const agendas = [...state.corp.hq, ...state.corp.rd].filter(c => cardDef(c).type_code === 'agenda');
+  if (!agendas.length) return 0;
+  const points = agendas.reduce((n, c) => n + (cardDef(c).agenda_points ?? 1), 0) / agendas.length;
+  return ICE_PLANNED * (pointValue(state.corp.score + points, KNOBS.corpPoints) - pointValue(state.corp.score, KNOBS.corpPoints) + pointGain(state.runner.score, points));
 }
 
 /** Credits it takes Audrey v2 to earn back one virus counter: a card trashed while accessing it (a trash cost and the run's click). */

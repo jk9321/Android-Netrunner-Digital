@@ -5,7 +5,8 @@ import { evaluate } from './evaluate';
 import { runClick } from './runs';
 import { threat, turnSeed } from './threatModel';
 import { plan, pricing, withPricing } from './pricing';
-import { plannerCandidates, thinkAlwaysTries } from './oracle';
+import { REPLY, runnerReply, sampledReply } from './runnerReply';
+import { plannerCandidates, replySamples, thinkAlwaysTries } from './oracle';
 
 /**
  * The whole-turn planner for Normal (Jeff, 2026-10-28; plan.turnPlanner).
@@ -33,7 +34,7 @@ export const PLANNER = {
 };
 
 /** Diagnostics (scripts): plannerBuild's added candidates, how often one was played out and how often it won. */
-export const plannerStats: { decisions: number; withAdded: number; added: number; addedWins: number; onAddedWin?: (state: GameState, action: GameAction) => void; onCandidates?: (side: SideCode, values: number[]) => void } = { decisions: 0, withAdded: 0, added: 0, addedWins: 0 };
+export const plannerStats: { decisions: number; withAdded: number; added: number; addedWins: number; onAddedWin?: (state: GameState, action: GameAction) => void; onCandidates?: (side: SideCode, values: number[], actions: GameAction[]) => void } = { decisions: 0, withAdded: 0, added: 0, addedWins: 0 };
 
 export interface PlannerAI {
   /** Main-phase actions, best first (the rule-based ranking). */
@@ -107,7 +108,7 @@ function dominated(state: GameState, action: GameAction, ranked: ScoredAction[],
 }
 
 /** Plays `side`'s turn on from `state` after `first`, and returns how good the end of the turn is. */
-function playout(start: GameState, side: SideCode, first: GameAction, ai: PlannerAI, synergy: boolean, line: Line = []): number {
+function playout(start: GameState, side: SideCode, first: GameAction, ai: PlannerAI, synergy: boolean, line: Line = [], ends?: { state?: GameState; bonus?: number }): number {
   let bonus = 0;
   let ran = false;
   /** The position before the last main-phase action, and the card it used: where a run event's run is priced from. */
@@ -189,6 +190,10 @@ function playout(start: GameState, side: SideCode, first: GameAction, ai: Planne
   }
   if (searchPiece('plannerDiscard') && !state.winner) state = discardStep(state, side, ai);
   const leaf = (s: GameState) => leafValue(s, side, synergy);
+  if (ends) {
+    ends.state = state;
+    ends.bonus = bonus;
+  }
   return (ai.reply && !state.winner ? ai.reply(state, leaf) : leaf(state)) + bonus;
 }
 
@@ -219,6 +224,40 @@ export function discardStep(state: GameState, side: SideCode, ai: PlannerAI): Ga
   } catch {
     return state;
   }
+}
+
+/**
+ * plan.plannerAgenda (install-worth side check, probe P3, AI Coordinator 2026-11-08): the agenda moves the rule ranking
+ * puts outside the planner's top few, added as candidates (not scored higher; the playout and the leaf decide). The
+ * one-step score charges an installed agenda its whole steal and advancement cost at once (Jeff's agenda installs: median
+ * -2.37, p25 -13.4), so at report-17 turn 2 Offworld Office into remote-1 was never played out though its line beat the
+ * AI's pick. Added: the best-ranked agenda install into an existing empty remote with ice, and the best-ranked advance on an
+ * installed agenda. Rules: installed agendas can always be advanced (1.18.1, 1.18.3; basic action 5.2.6a) and are
+ * scored once their counters reach the advancement requirement (1.17.3a).
+ */
+export function agendaCandidates(state: GameState, ranked: ScoredAction[], chosen: ScoredAction[]): ScoredAction[] {
+  const taken = new Set(chosen.map(r => JSON.stringify(r.action)));
+  const agenda = (r: ScoredAction) => {
+    const id = 'cardInstanceId' in r.action ? r.action.cardInstanceId : undefined;
+    const card = id ? findCardAnywhere(state, id) : undefined;
+    return !!card && cardDef(card).type_code === 'agenda';
+  };
+  const added: ScoredAction[] = [];
+  const pick = (test: (r: ScoredAction) => boolean) => {
+    const found = ranked.find(r => r.score > -Infinity && !taken.has(JSON.stringify(r.action)) && agenda(r) && test(r));
+    if (found) {
+      added.push(found);
+      taken.add(JSON.stringify(found.action));
+    }
+  };
+  pick(r => {
+    if (r.action.type !== 'INSTALL_CARD' || r.action.asNewRemote || !r.action.targetServerId) return false;
+    const server = state.corp.servers[r.action.targetServerId];
+    // Into an empty remote only: an agenda installed over an asset or agenda trashes it (rule 8.5.6a), as buildCandidates
+    return !!server?.isRemote && server.ice.length > 0 && server.root.length === 0;
+  });
+  pick(r => r.action.type === 'ADVANCE_CARD');
+  return added;
 }
 
 /**
@@ -302,6 +341,7 @@ export function planTurn(state: GameState, side: SideCode, ranked: ScoredAction[
   const buildRoom = thinkAlwaysTries(side) ? PLANNER.withBuild - PLANNER.candidates : PLANNER.withBuild - candidates.length;
   const added = side === 'corp' && searchPiece('plannerBuild') ? buildCandidates(state, ranked, candidates).slice(0, Math.max(0, buildRoom)) : [];
   candidates.push(...added);
+  if (side === 'corp' && plan().plannerAgenda) candidates.push(...agendaCandidates(state, ranked, candidates).slice(0, Math.max(0, PLANNER.withBuild + 2 - candidates.length)));
   if (candidates.length <= 1 || clicksOf(state, side) <= 0) return null;
   plannerStats.decisions++;
   if (added.length) {
@@ -313,13 +353,17 @@ export function planTurn(state: GameState, side: SideCode, ranked: ScoredAction[
   return withPricing({ frozen: true, decisionSeed }, () => {
     let best: { action: GameAction; value: number; line: Line } | null = null;
     const values: number[] = [];
+    const scored: { action: GameAction; value: number; line: Line; ends: { state?: GameState; bonus?: number } }[] = [];
     for (const c of candidates) {
       const line: Line = [];
-      const value = playout(state, side, c.action, ai, synergy, line);
+      const ends: { state?: GameState; bonus?: number } = {};
+      const value = playout(state, side, c.action, ai, synergy, line, ends);
       values.push(value);
+      scored.push({ action: c.action, value, line, ends });
       if (!best || value > best.value) best = { action: c.action, value, line };
     }
-    plannerStats.onCandidates?.(side, values);
+    if (side === 'corp' && plan().replyContenders && ai.reply && sampledReply()) best = contenders(scored, side, synergy) ?? best;
+    plannerStats.onCandidates?.(side, values, candidates.map(c => c.action));
     if (!best || best.value === -Infinity) return null;
     if (added.some(a => a.action === best!.action)) {
       plannerStats.addedWins++;
@@ -328,6 +372,28 @@ export function planTurn(state: GameState, side: SideCode, ranked: ScoredAction[
     memory.line = best.line;
     return best.action;
   });
+}
+
+/**
+ * plan.replyContenders (install-worth side check, probe P2, AI Coordinator addendum 2026-11-08): the two-sample Runner
+ * reply decided 3-4 of 10 of Jeff's positions, one losing sample (-1000) throwing a line out on its own. So the best two
+ * candidates, after every candidate is scored on REPLY.samples, get REPLY.extra more samples each (the same new deals for
+ * both: samples REPLY.samples .. REPLY.samples + REPLY.extra - 1) and the better mean over all of them is the pick, when the two are closer than
+ * REPLY.contendGap (a wider gap is left to the first samples).
+ */
+function contenders<T extends { action: GameAction; value: number; line: Line; ends: { state?: GameState; bonus?: number } }>(scored: T[], side: SideCode, synergy: boolean): T | null {
+  const live = scored.filter(r => Number.isFinite(r.value) && r.ends.state && !r.ends.state.winner).sort((a, b) => b.value - a.value);
+  if (live.length < 2 || live[0].value - live[1].value >= REPLY.contendGap) return null;
+  const leaf = (s: GameState) => leafValue(s, side, synergy);
+  const top = live.slice(0, 2).map(r => {
+    const bonus = r.ends.bonus ?? 0;
+    const first = replySamples(REPLY.samples); // (plan.oracle.think plays more first samples)
+    const extra = runnerReply(r.ends.state!, synergy, leaf, { from: first, count: REPLY.extra });
+    return { ...r, value: (first * (r.value - bonus) + REPLY.extra * extra) / (first + REPLY.extra) + bonus };
+  });
+  // A candidate outside the two (a won game, or one the extra samples can't change) keeps its value
+  const rest = scored.filter(r => !top.some(t => t.action === r.action));
+  return [...top, ...rest].reduce((a, b) => (b.value > a.value ? b : a));
 }
 
 const sameAction = (a: GameAction, b: GameAction): boolean => JSON.stringify(a) === JSON.stringify(b);
