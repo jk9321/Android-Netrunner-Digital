@@ -4,7 +4,7 @@ import { PersonStops, saveStops, savedStops } from './stops';
 import { AIClient } from '../ai/client';
 import { deckGameSetup } from '../data/decks';
 import { AccessedCard, GameConfig, SavedGame, clearSavedGame, saveGame } from './savedGame';
-import { noteMoves } from './bugReport';
+import { noteMoves, noteState } from './bugReport';
 import { ShownFate } from './components/CardFates';
 import { cardFates } from './cardFates';
 import { showAlert, showConfirm } from './components/Dialog';
@@ -80,6 +80,8 @@ export function useGameController(config: GameConfig, saved: SavedGame | null) {
   const fateTimersRef = useRef(new Set<number>());
   const startStops = useRef(saved ? saved.table.startStops : table.state.stops).current;
   noteMoves(config.seed, table.moves, startStops);
+  // The bug report sends the real state (the screen has only the viewer's view of it)
+  noteState(config.seed, table.state);
   // Bumped to ask the computer again after it failed to move
   const [aiRetry, setAiRetry] = useState(0);
 

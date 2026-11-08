@@ -12,7 +12,7 @@ import { animationsEnabled, setAnimationsEnabled } from '../animations';
 import { CardSize, isAutoFitOn, savedCardSize, setAutoFit, setCardSize } from '../cardSize';
 import { PhaseTracker } from './PhaseTracker';
 import { BugReportButton } from './BugReportButton';
-import { savedTableFor } from '../bugReport';
+import { savedTableFor, liveStateFor } from '../bugReport';
 import { PersonStops, STOP_LABELS, nextStops } from '../stops';
 
 interface GameHeaderProps {
@@ -105,7 +105,7 @@ export function GameHeader({
           <BugReportButton
             screen="game"
             textFrom="xl"
-            game={() => ({ config, state, table: savedTableFor(config.seed) })}
+            game={() => ({ config, state: liveStateFor(config.seed) ?? state, table: savedTableFor(config.seed) })}
           />
         </div>
         <div className="flex items-center gap-1.5 min-w-0">
@@ -551,7 +551,7 @@ export function GameHeader({
                   <span className="text-[11px] text-slate-400">Found an issue?</span>
                   <BugReportButton
                     screen="game"
-                    game={() => ({ config, state, table: savedTableFor(config.seed) })}
+                    game={() => ({ config, state: liveStateFor(config.seed) ?? state, table: savedTableFor(config.seed) })}
                   />
                 </div>
                 <div className="grid grid-cols-2 gap-2 pt-1">
