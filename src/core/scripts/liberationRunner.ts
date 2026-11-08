@@ -1531,7 +1531,8 @@ const muse: CardScript = {
         if (card && trashIds.some(t => !effectTrashableFirst(state, card, source.data).some(c => c.instanceId === t))) {
           illegal(`Can't trash those programs to install ${title(card)} on Muse`);
         }
-        if (card) addLog(state, 'runner', `Runner found ${title(card)} (Muse).`, card.cardCode);
+        // Searched for without a reveal: the Corp learns the card only once it is installed (rules 4.2.2, 4.3.2)
+        if (card) addLog(state, 'runner', `Runner found ${title(card)} (Muse).`, card.cardCode, undefined, { from: 'corp', publicMessage: 'Runner searched for a program (Muse).' });
         const installed = installRunnerChoice(ctx, id, 'host', 0, {}, trashIds);
         const muse = ctx.card;
         if (installed && card && state.runner.rig.programs.includes(muse) && state.runner.rig.programs.includes(card)) {
