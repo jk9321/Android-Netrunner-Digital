@@ -18,4 +18,14 @@ describe('Leak fuzzer', () => {
     }
     expect(failures).toEqual([]);
   }, 60_000);
+
+  it('4 random games with the screen\'s checks: reconstructions hold nothing hidden, the seat agrees with the engine', () => {
+    const failures = [];
+    for (let g = 0; g < 4; g++) {
+      const res = fuzzGame(800 + g, corps[(g * 3) % corps.length], runners[(g * 5 + 1) % runners.length], 'random', 250, true);
+      failures.push(...res.failures);
+      expect(res.stats.probeDisagreements).toEqual([]);
+    }
+    expect(failures).toEqual([]);
+  }, 60_000);
 });

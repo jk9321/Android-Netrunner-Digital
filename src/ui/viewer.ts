@@ -1,4 +1,5 @@
-import { CardInstance, GameAction, GameState, SideCode, WindowStep, actingSide, activePrompt, getLegalActions, isLegalAction } from '../core';
+import { CardInstance, GameAction, SideCode, WindowStep, actingSide, activePrompt } from '../core';
+import type { Seat } from './table';
 
 /** Whose eyes are on the screen: one side, or both (open table, for testing). */
 export type Viewer = SideCode | 'both';
@@ -24,7 +25,8 @@ export interface RezWindow {
  * Whether the Corp gets this window depends only on what the Runner can see
  * (an unrezzed card in that position), never on whether it can pay (rules 4.6.3).
  */
-export function corpRezWindow(state: GameState): RezWindow | null {
+export function corpRezWindow(seat: Seat): RezWindow | null {
+  const { state } = seat;
   const run = state.activeRun;
   const w = state.priority;
   if (!run || !w || w.holder !== 'corp' || state.winner || activePrompt(state)) return null;
@@ -36,8 +38,8 @@ export function corpRezWindow(state: GameState): RezWindow | null {
       : w.step === 'approach_server' || w.step === 'move_inward' || w.step === 'run_initiation'
         ? server.root
         : [];
-  const cards = at.filter(c => !c.isRezzed && isLegalAction(state, { type: 'REZ_CARD', player: 'corp', cardInstanceId: c.instanceId }));
-  const abilities = getLegalActions(state, 'corp').filter((a): a is RezWindow['abilities'][number] => a.type === 'USE_ABILITY');
+  const cards = at.filter(c => !c.isRezzed && seat.can({ type: 'REZ_CARD', player: 'corp', cardInstanceId: c.instanceId }));
+  const abilities = seat.legal.filter((a): a is RezWindow['abilities'][number] => a.type === 'USE_ABILITY' && a.player === 'corp');
   return { cards, abilities };
 }
 

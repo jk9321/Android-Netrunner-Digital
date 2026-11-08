@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { CardInstance, GameAction, SideCode, cardDef, findCardAnywhere, iceSubtypes, isLegalAction, knownInHand, knownInRd } from './core';
+import { CardInstance, GameAction, SideCode, actingSide, cardDef, findCardAnywhere, iceSubtypes, knownInHand, knownInRd } from './core';
+import { SeatContext } from './ui/seat';
 import { breakerTypes } from './ui/components/IceTypeIcons';
 import { DEFAULT_CORP_DECK, DEFAULT_RUNNER_DECK } from './data/decks';
 import { GameConfig, SavedGame, clearSavedGame } from './ui/savedGame';
@@ -95,6 +96,7 @@ function Game({
   onRematch: () => void;
 }) {
   const {
+    seat,
     gameState,
     handleAction,
     selectedCardId,
@@ -252,13 +254,13 @@ function Game({
           onScoreCard={(cId) =>
             handleAction({ type: 'SCORE_AGENDA', player: 'corp', cardInstanceId: cId })
           }
-          canRez={(card) => corpCanAct && isLegalAction(gameState, rezAction(card))}
+          canRez={(card) => corpCanAct && seat.can(rezAction(card))}
           canAdvance={(card) =>
             corpCanAct &&
-            isLegalAction(gameState, { type: 'ADVANCE_CARD', player: 'corp', cardInstanceId: card.instanceId, serverId: server.id })
+            seat.can({ type: 'ADVANCE_CARD', player: 'corp', cardInstanceId: card.instanceId, serverId: server.id })
           }
           canScore={(card) =>
-            corpCanAct && isLegalAction(gameState, { type: 'SCORE_AGENDA', player: 'corp', cardInstanceId: card.instanceId })
+            corpCanAct && seat.can({ type: 'SCORE_AGENDA', player: 'corp', cardInstanceId: card.instanceId })
           }
           onInspectCard={(card) => setInspectedCard(card)}
           hostedOnIce={(ice) => onIce.filter(c => c.hostedOnId === ice.instanceId)}
@@ -299,7 +301,7 @@ function Game({
         />
       )),
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [gameState, viewer, corpCanAct, runnerCanAct],
+    [gameState, seat, viewer, corpCanAct, runnerCanAct],
   );
   const rigView = useMemo(
     () => (
@@ -346,6 +348,7 @@ function Game({
 
   return (
     <GameStateContext.Provider value={gameState}>
+    <SeatContext.Provider value={seat}>
     <div
       className="min-h-screen lg:h-screen lg:overflow-hidden text-slate-100 flex flex-col font-mono selection:bg-cyber-neonYellow selection:text-black"
     >
@@ -531,6 +534,7 @@ function Game({
           }}
           onInspectCard={setInspectedCard}
           onCancel={cancelChoice}
+          waitingFor={seat.waitingOn && seat.waitingOn !== actingSide(gameState) ? seat.waitingOn : null}
           canAnswer={
             !gameState.pendingPrompts[0] ||
             (canActAs(viewer, gameState.pendingPrompts[0].side) && gameState.pendingPrompts[0].side !== aiSide)
@@ -543,7 +547,7 @@ function Game({
       {!handoffTo && <CardFates fates={fates} />}
 
       {accessed.length > 0 && !handoffTo && (
-        <AccessedPanel cards={accessed} viewer={viewer} onInspect={setInspectedCard} onClose={clearAccessed} />
+        <AccessedPanel cards={accessed} onInspect={setInspectedCard} onClose={clearAccessed} />
       )}
 
       {zoneView && (
@@ -598,6 +602,7 @@ function Game({
         onClose={() => setInspectedCard(null)}
       />
     </div>
+    </SeatContext.Provider>
     </GameStateContext.Provider>
   );
 }

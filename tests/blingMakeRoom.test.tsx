@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
-import { renderToStaticMarkup } from 'react-dom/server';
-import { cardDef, createCardInstance, executeAction, findCardAnywhere, isLegalAction } from '../src/core';
+import { renderAs } from './seatHelpers';
+import { cardDef, createCardInstance, executeAction, findCardAnywhere, getLegalActions, isLegalAction } from '../src/core';
 import { memoryLimit } from '../src/core/engine/cardEffects';
 import { RunnerActions } from '../src/ui/components/ActionBars';
 import { hostedCardActions } from '../src/ui/legal';
@@ -38,9 +38,10 @@ describe('Bling-hosted program with full memory', () => {
 
   it('shows a "trashing programs first" button for the hosted card', () => {
     const { s, gourmand } = fullMemoryWithHostedGourmand();
-    expect(hostedCardActions(s).some(a => 'cardInstanceId' in a && a.cardInstanceId === gourmand.instanceId)).toBe(false);
-    const html = renderToStaticMarkup(<RunnerActions state={s} selectedCard={undefined} onAction={() => {}} />);
-    expect(html).toContain(`data-testid="hosted-room-${gourmand.instanceId}"`);
+    expect(hostedCardActions(s, getLegalActions(s, 'runner')).some(a => 'cardInstanceId' in a && a.cardInstanceId === gourmand.instanceId)).toBe(false);
+    const html = renderAs(s, 'runner', seat => <RunnerActions state={seat.state} selectedCard={undefined} onAction={() => {}} />);
+    // The seat names cards by the Runner's own ids (core/view.ts)
+    expect(html).toMatch(/data-testid="hosted-room-r\d+"/);
     expect(html).toContain('Install hosted Gourmand, trashing programs first');
   });
 });

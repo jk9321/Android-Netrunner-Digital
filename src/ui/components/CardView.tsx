@@ -1,6 +1,7 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { CardInstance } from '../../core/types/card';
 import { cardDef, getCardImageUrl, getCardBackUrl } from '../../data/cards';
+import { isHidden } from '../../core/cards';
 import { Lock, Eye, ArrowRight } from 'lucide-react';
 import { CardPopout } from './CardPopout';
 import { motion } from 'framer-motion';
@@ -406,7 +407,11 @@ const CardOverlays: React.FC<{
  * A card that flips when it turns over: dealt face down or face up, rezzed,
  * or revealed. The key changes with what the viewer sees, which replays the flip.
  */
-export const CardView: React.FC<CardViewProps> = props => {
+export const CardView: React.FC<CardViewProps> = props =>
+  // A placeholder (a card this screen may not see, core/view/reconstruct.ts) only ever shows its back
+  isHidden(props.card) ? <FlippingCard {...props} isFaceDown canPeek={false} /> : <FlippingCard {...props} />;
+
+const FlippingCard: React.FC<CardViewProps> = props => {
   const showsBack = Boolean(props.isFaceDown) && props.canPeek === false;
   const face = showsBack ? 'back' : props.card.isRezzed ? 'rezzed' : props.seen ? 'seen' : 'face';
   // Only table cards (inside the zoom provider) answer to the prompt's hover; the prompt's own copies don't

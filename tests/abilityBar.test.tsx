@@ -1,11 +1,11 @@
 import { describe, it, expect } from 'vitest';
-import { renderToStaticMarkup } from 'react-dom/server';
+import { renderAs } from './seatHelpers';
 import { AbilityBar } from '../src/ui/components/AbilityBar';
 import { installProgramForTest, newGame, startRunnerTurn } from './helpers';
 
 const FERMENTER = '30007';
 const buttons = (s: ReturnType<typeof newGame>) =>
-  [...renderToStaticMarkup(<AbilityBar state={s} side="runner" onAction={() => {}} />).matchAll(/<button[^>]*>(.*?)<\/button>/g)].map(m =>
+  [...renderAs(s, 'runner', seat => <AbilityBar state={seat.state} side="runner" onAction={() => {}} />).matchAll(/<button[^>]*>(.*?)<\/button>/g)].map(m =>
     m[1].replace(/<[^>]+>/g, ''),
   );
 

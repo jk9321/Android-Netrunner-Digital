@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { executeAction } from '../src/core';
 import { actingSide, corpRezWindow } from '../src/ui/viewer';
+import { seatOf } from './seatHelpers';
 import { soundFor } from '../src/ui/sound';
 import { zoneContents } from '../src/ui/components/ZoneViewer';
 import { installCorpForTest, installIceForTest, keepGoing, newGame, newGameAtSetup, run, step, toCorp } from './helpers';
@@ -25,10 +26,10 @@ describe('who acts (pass and play)', () => {
     // The Runner, as active player, has priority first (rules 9.2.7a)
     expect(state.activeRun?.phase).toBe('approach_ice');
     expect(actingSide(state)).toBe('runner');
-    expect(corpRezWindow(state)).toBeNull();
+    expect(corpRezWindow(seatOf(state, 'corp'))).toBeNull();
     state = toCorp(state);
     expect(actingSide(state)).toBe('corp');
-    expect(corpRezWindow(state)?.cards.map(c => c.cardCode)).toEqual([PALISADE]);
+    expect(corpRezWindow(seatOf(state, 'corp'))?.cards.map(c => c.cardCode)).toEqual([PALISADE]);
     // The Corp passes without rezzing: the window closes and the unrezzed ice is passed (rules 6.9.2c)
     state = executeAction(state, { type: 'PASS', player: 'corp' });
     expect(state.activeRun?.phase).toBe('movement');
@@ -39,7 +40,7 @@ describe('who acts (pass and play)', () => {
     const state = newGame();
     installIceForTest(state, PALISADE, 'hq', true);
     const passed = toCorp(run(state, 'hq'));
-    expect(corpRezWindow(passed)).toBeNull();
+    expect(corpRezWindow(seatOf(passed, 'corp'))).toBeNull();
     expect(passed.activeRun?.phase).toBe('encounter_ice');
   });
 
@@ -47,7 +48,7 @@ describe('who acts (pass and play)', () => {
     const state = newGame();
     installIceForTest(state, PALISADE, 'hq', false);
     state.corp.credits = 0;
-    const window = corpRezWindow(toCorp(run(state, 'hq')));
+    const window = corpRezWindow(seatOf(toCorp(run(state, 'hq')), 'corp'));
     expect(window).not.toBeNull();
     expect(window?.cards).toEqual([]);
   });
@@ -56,9 +57,9 @@ describe('who acts (pass and play)', () => {
     let state = newGame();
     installCorpForTest(state, URTICA, 'hq');
     state = run(state, 'hq');
-    while (state.activeRun && !corpRezWindow(state)) state = toCorp(state);
+    while (state.activeRun && !corpRezWindow(seatOf(state, 'corp'))) state = toCorp(state);
     expect(state.priority?.step).toBe('approach_server');
-    expect(corpRezWindow(state)?.cards.map(c => c.cardCode)).toEqual([URTICA]);
+    expect(corpRezWindow(seatOf(state, 'corp'))?.cards.map(c => c.cardCode)).toEqual([URTICA]);
   });
 });
 

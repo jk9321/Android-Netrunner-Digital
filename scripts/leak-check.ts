@@ -28,12 +28,13 @@ import type { DeckList } from '../src/data/decks';
 import { createAgent } from '../src/ai';
 import type { Agent } from '../src/ai/agent';
 import { GameRunner } from '../src/ai/playout';
+import { reconChecks, type ReconStats } from './leak-check-recon';
 
 export interface LeakFailure {
   seed: number;
   step: number;
   viewer: SideCode;
-  check: 'hidden-card' | 'hidden-code' | 'hidden-title' | 'view-id-shape' | 'internal' | 'ids' | 'round-trip' | 'purity' | 'crash';
+  check: 'hidden-card' | 'hidden-code' | 'hidden-title' | 'view-id-shape' | 'internal' | 'ids' | 'round-trip' | 'purity' | 'crash' | 'recon' | 'seat';
   detail: string;
   /** JSON path in the view where it appeared. */
   path?: string;
@@ -41,7 +42,7 @@ export interface LeakFailure {
 
 const SIDES: SideCode[] = ['corp', 'runner'];
 
-const titleOf = (code: string): string => {
+export const titleOf = (code: string): string => {
   try {
     return getCardDefinition(code).title;
   } catch {
@@ -100,7 +101,7 @@ function visibility(state: GameState, side: SideCode): { hidden: CardInstance[];
 }
 
 /** Every path in `value` whose string contains `needle` (or whose key is `needle`). */
-function findPaths(value: unknown, test: (s: string) => boolean, path = '$', out: string[] = []): string[] {
+export function findPaths(value: unknown, test: (s: string) => boolean, path = '$', out: string[] = []): string[] {
   if (out.length >= 3) return out;
   if (typeof value === 'string') {
     if (test(value)) out.push(`${path} "${value.slice(0, 140)}"`);
@@ -126,7 +127,7 @@ function strings(value: unknown, path = '$', out: [string, string][] = []): [str
 }
 
 /** Every card object in a view (anything with a string instanceId), with its path. */
-function cardObjects(value: unknown, path = '$', out: [string, { instanceId: string; cardCode?: string }][] = []) {
+export function cardObjects(value: unknown, path = '$', out: [string, { instanceId: string; cardCode?: string }][] = []) {
   if (Array.isArray(value)) value.forEach((v, i) => cardObjects(v, `${path}[${i}]`, out));
   else if (value && typeof value === 'object') {
     const o = value as Record<string, unknown>;
@@ -136,7 +137,7 @@ function cardObjects(value: unknown, path = '$', out: [string, { instanceId: str
   return out;
 }
 
-const escape = (s: string) => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+export const escape = (s: string) => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 
 /** Follows one game, checking both views after each action. */
 export class LeakChecker {
@@ -148,10 +149,17 @@ export class LeakChecker {
   /** Viewer ids ever handed out, to the real card they named. */
   issued: Record<SideCode, Map<string, string>> = { corp: new Map(), runner: new Map() };
   failures: LeakFailure[] = [];
+  /** With `recon`: the screen's reconstructions and seats are checked too (chunk 2, leak-check-recon.ts). */
+  stats: ReconStats = { probes: 0, probeDisagreements: [], uiShapes: 0 };
+  private prevRecon: Partial<Record<SideCode, GameState>> = {};
 
-  constructor(private seed: number) {}
+  constructor(private seed: number, private recon = false) {}
 
-  private fail(step: number, viewer: SideCode, check: LeakFailure['check'], detail: string, path?: string) {
+  seedOf(): number {
+    return this.seed;
+  }
+
+  fail(step: number, viewer: SideCode, check: LeakFailure['check'], detail: string, path?: string) {
     if (this.failures.length < 50) this.failures.push({ seed: this.seed, step, viewer, check, detail, ...(path && { path }) });
   }
 
@@ -192,6 +200,11 @@ export class LeakChecker {
           const paths = findPaths(view, s => re.test(s));
           if (paths.length) this.fail(step, side, 'hidden-title', `${code} ${title}`, paths[0]);
         }
+      }
+
+      if (this.recon) {
+        const leakedCodes = new Set(hidden.map(x => x.cardCode).filter(code => !this.seen[side].has(code)));
+        this.prevRecon[side] = reconChecks(this, { state, side, view, ids, hiddenIds, leakedCodes, step, prev: this.prevRecon[side] });
       }
 
       // 3. Ids: one card per id, ids never reused, a card back from out of sight gets a new id
@@ -264,13 +277,14 @@ export interface FuzzResult {
   steps: number;
   winner: SideCode | null;
   failures: LeakFailure[];
+  stats: ReconStats;
 }
 
 /** Plays one game with leak checks after every action. */
-export function fuzzGame(seed: number, corp: DeckList, runner: DeckList, players: 'ai' | 'random', maxSteps = 4000): FuzzResult {
+export function fuzzGame(seed: number, corp: DeckList, runner: DeckList, players: 'ai' | 'random', maxSteps = 4000, recon = false): FuzzResult {
   const agent = (side: SideCode): Agent => (players === 'ai' ? createAgent(side, 'normal') : new RandomAgent(side, seed));
   const game = new GameRunner(createInitialGameState(deckGameSetup(seed, corp, runner)), { corp: agent('corp'), runner: agent('runner') });
-  const checker = new LeakChecker(seed);
+  const checker = new LeakChecker(seed, recon);
   let steps = 0;
   checker.check(game.state, 0);
   try {
@@ -281,5 +295,5 @@ export function fuzzGame(seed: number, corp: DeckList, runner: DeckList, players
   } catch (e) {
     checker.failures.push({ seed, step: steps, viewer: 'corp', check: 'crash', detail: `${e}`.slice(0, 200) });
   }
-  return { seed, corp: corp.id, runner: runner.id, steps, winner: game.state.winner, failures: checker.failures };
+  return { seed, corp: corp.id, runner: runner.id, steps, winner: game.state.winner, failures: checker.failures, stats: checker.stats };
 }
