@@ -52,4 +52,6 @@ export const corpFormula = (state: GameState, code: string, ctx: CorpEffectConte
 /** A Runner card's formula, if it has one. */
 /** plan.oneCurrency: a faceup Corp card's worth in Archives (Petty Cash, played again from there). */
 export const archivedWorth = (state: GameState, code: string): number => CARDS[code]?.archived?.(state) ?? 0;
+/** plan.oneSetupRule: an operation finishSetup ranks (CardAI setup). */
+export const setupOperation = (code: string): boolean => !!CARDS[code]?.setup;
 export const runnerFormula = (state: GameState, code: string, card?: CardInstance): number | undefined => CARDS[code]?.runner?.(state, code, card);

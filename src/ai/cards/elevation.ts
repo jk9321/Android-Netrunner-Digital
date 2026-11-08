@@ -359,7 +359,7 @@ export const ELEVATION: Record<string, CardAI> = {
   // Scatter Field
   '35042': { synergy: { gives: { ice: 1, install: 0.5 } } },
   // Nanomanagement
-  '35043': { synergy: { gives: { advance: 1 } } },
+  '35043': { synergy: { gives: { advance: 1 } }, setup: true },
   // Top-Down Solutions
   '35044': { synergy: { gives: { draw: 1, install: 1 } } },
   // Mercia B4LL4RD
@@ -473,7 +473,7 @@ export const ELEVATION: Record<string, CardAI> = {
   // IP Enforcement
   '35066': { synergy: { wants: { tags: 1 }, when: ['ifTagged'] } },
   // Touch-ups
-  '35067': { synergy: { gives: { advance: 2 } } },
+  '35067': { synergy: { gives: { advance: 2 } }, setup: true },
   // BANGUN
   '35068': { synergy: { gives: { damage: 1, tags: 0.5 } } },
   // The Zwicky Group
