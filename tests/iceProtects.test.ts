@@ -70,3 +70,49 @@ describe('plan.iceProtects: the scoring remote', () => {
     expect(worth()).toBeGreaterThan(idle);
   });
 });
+
+describe('plan.iceProtects: ice in HQ (review R1)', () => {
+  const rezBudgetOn = tuning.plan.rezBudget;
+  afterEach(() => { tuning.plan.rezBudget = rezBudgetOn; });
+  const handWorth = (s: GameState, ice: ReturnType<typeof createCardInstance>) => inDecision(s, 'corp', () => iceWorth(s, { ...ice, isRezzed: false }, 'corp'));
+
+  // Shipped config (plan.rezBudget on): ice in HQ has no share of the rez budget, so its break-cost term is 0 and the
+  // switch can't change the hand copy (handValues prices it at RATES.ice; protects() never enters)
+  it('with the rez budget on, the HQ copy is worth the same with the switch on or off', () => {
+    const { s } = remoteWithJaguarundi(true);
+    const held = createCardInstance(s, JAGUARUNDI);
+    s.corp.hq = [held];
+    tuning.plan.iceProtects = false;
+    const off = handWorth(s, held);
+    tuning.plan.iceProtects = true;
+    expect(handWorth(s, held)).toBe(off);
+  });
+
+  // Without the rez budget the hand copy keeps a break-cost term: priced at the best server it could join, so holding
+  // it never reads more than installing it there
+  it('rez budget off: a second Jaguarundi in HQ is worth what it would be in front of the advanced Offworld Office', () => {
+    tuning.plan.iceProtects = true;
+    tuning.plan.rezBudget = false;
+    const { s } = remoteWithJaguarundi(true);
+    const held = createCardInstance(s, JAGUARUNDI);
+    s.corp.hq = [held];
+    const inHq = handWorth(s, held);
+    const installed: GameState = structuredClone(s);
+    installed.corp.hq = [];
+    installed.corp.servers['remote-1'].ice.push({ ...held, isRezzed: false });
+    const there = inDecision(installed, 'corp', () => iceWorth(installed, installed.corp.servers['remote-1'].ice[1], 'corp'));
+    // (within 1%: the board around it differs by the card leaving HQ)
+    expect(Math.abs(inHq - there)).toBeLessThan(0.01 * there);
+  });
+
+  it('rez budget off: with nothing to protect anywhere, the HQ copy is priced as unguarded ice, below the switch-off worth', () => {
+    tuning.plan.rezBudget = false;
+    const { s } = remoteWithJaguarundi(false);
+    const held = createCardInstance(s, JAGUARUNDI);
+    s.corp.hq = [held];
+    tuning.plan.iceProtects = false;
+    const off = handWorth(s, held);
+    tuning.plan.iceProtects = true;
+    expect(handWorth(s, held)).toBeLessThan(off);
+  });
+});

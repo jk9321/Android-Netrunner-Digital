@@ -11,12 +11,13 @@ import { newGame } from './helpers';
 function play(credits: number[]): AlarmTracker {
   const tracker = new AlarmTracker();
   const base = newGame();
-  let prev: GameState = { ...structuredClone(base), activePlayer: 'runner', turnNumber: 1 };
-  credits.forEach((c, i) => {
-    const runnerTurn: GameState = { ...structuredClone(base), activePlayer: 'runner', turnNumber: i + 1 };
+  // The engine counts rounds: a Corp turn and the Runner turn after it share a turnNumber, +1 at the next Corp turn (turn.ts)
+  let prev: GameState = { ...structuredClone(base), activePlayer: 'corp', turnNumber: 1 };
+  credits.forEach(c => {
+    const runnerTurn: GameState = { ...structuredClone(base), activePlayer: 'runner', turnNumber: prev.turnNumber };
     runnerTurn.corp.credits = prev.corp.credits;
     tracker.step(prev, runnerTurn);
-    const corpTurn: GameState = { ...structuredClone(base), activePlayer: 'corp', turnNumber: i + 2 };
+    const corpTurn: GameState = { ...structuredClone(base), activePlayer: 'corp', turnNumber: prev.turnNumber + 1 };
     corpTurn.corp.credits = c;
     tracker.step(runnerTurn, corpTurn);
     prev = corpTurn;

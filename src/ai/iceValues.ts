@@ -9,6 +9,7 @@ import { centralAccess } from './threatModel';
 import { turnsLeft } from './cardProfiles';
 import { freeRezTargets } from './freeRez';
 import { plan, pricing } from './pricing';
+import { mainRemote } from './corpAI';
 
 /**
  * Value model step 5 (docs/ai-value-model-plan.md): ice priced in credits,
@@ -54,8 +55,10 @@ function iceWorthOf(state: GameState, ice: CardInstance, viewer: SideCode): numb
   // Empiricist's damage looked worth): the grip the ice will face on later turns is at most the hand size (rule 1.7.2b:
   // the rest is discarded at the end of the turn), as the damage clock reads it (effectValues lifeGrip)
   const limit = maxHandSize(state, 'runner');
+  // (What the ice protects doesn't depend on the grip: priced on the state as given, so its memo holds)
+  const original = state;
   if (plan().iceGripCap && state.runner.grip.length > limit) state = { ...state, runner: { ...state.runner, grip: state.runner.grip.slice(0, limit) } };
-  if (ice.isRezzed) return RATES.ice + Math.min(iceStop(state), lastingIceCost(state, ice)) * protects(state, ice, viewer);
+  if (ice.isRezzed) return RATES.ice + Math.min(iceStop(state), lastingIceCost(state, ice)) * protects(original, ice, viewer);
   // The Runner doesn't know what it is: iceCost's guess for unrezzed ice
   if (viewer === 'runner') return RATES.ice + iceCost(state, ice);
   // The Corp knows: what it would cost the Runner once rezzed, held back a little for the rez still to pay, by the
@@ -63,7 +66,7 @@ function iceWorthOf(state: GameState, ice: CardInstance, viewer: SideCode): numb
   const share = plan().rezBudget
     ? rezBudget(state).get(ice.instanceId) ?? 0
     : state.corp.credits >= rezCost(state, ice) || freeRezTargets(state).has(ice.instanceId) ? REZ_NOW_SHARE : 0;
-  return RATES.ice + share * Math.min(iceStop(state), lastingIceCost(state, { ...ice, isRezzed: true })) * protects(state, ice, viewer);
+  return RATES.ice + share * Math.min(iceStop(state), lastingIceCost(state, { ...ice, isRezzed: true })) * protects(original, ice, viewer);
 }
 
 /** plan.iceProtects: the share of its break cost an ice in a server holding nothing (and planned for nothing) keeps. */
@@ -82,9 +85,22 @@ export const ICE_PLANNED = 0.5;
 function protects(state: GameState, ice: CardInstance, viewer: SideCode): number {
   if (viewer !== 'corp' || !plan().iceProtects) return 1;
   const server = Object.values(state.corp.servers).find(s => s.ice.some(c => c.instanceId === ice.instanceId));
-  if (!server) return 1;
-  return memo(state, `iceProtects:${server.id}:${state.corp.credits}`, () => {
-    const breaks = server.ice.reduce((n, c) => n + Math.min(iceStop(state), lastingIceCost(state, { ...c, isRezzed: true })), 0);
+  if (server) return protectsIn(state, server);
+  // Ice not installed (in HQ, as handValues prices it): what it would protect on the best server it could join, so
+  // holding it and installing it compare like with like. A new remote holds nothing, unless the Corp has no scoring
+  // remote yet: then this ice would found one, the place the next agenda goes (as serverStake prices one)
+  return memo(state, `iceProtects:hand:${ice.cardCode}`, () => {
+    const existing = Object.values(state.corp.servers).map(s => protectsIn(state, s, ice));
+    const found = mainRemote(state) ? 0 : Math.min(1, plannedStake(state) / Math.max(1e-9, Math.min(iceStop(state), lastingIceCost(state, { ...ice, isRezzed: true }))));
+    return Math.max(ICE_UNGUARDED, found, ...existing);
+  });
+}
+
+/** The share for `server`'s ice (with `extra` added to it, for ice not yet installed). */
+function protectsIn(state: GameState, server: ServerState, extra?: CardInstance): number {
+  return memo(state, `iceProtects:${server.id}:${extra?.cardCode ?? ''}`, () => {
+    const ice = extra ? [...server.ice, extra] : server.ice;
+    const breaks = ice.reduce((n, c) => n + Math.min(iceStop(state), lastingIceCost(state, { ...c, isRezzed: true })), 0);
     if (breaks <= 0) return 1;
     return Math.max(ICE_UNGUARDED, Math.min(1, serverStake(state, server) / breaks));
   });
@@ -112,14 +128,16 @@ export function serverStake(state: GameState, server: ServerState): number {
   }
   // An empty remote that is the scoring remote (most ice, no asset: corpAI.ts mainRemote) is where the next agenda goes:
   // the deck's average agenda (HQ and R&D, as the Corp knows them). Scoring the agenda in it doesn't make its ice idle
-  if (server.root.length === 0 && server.isRemote) {
-    const remotes = Object.values(state.corp.servers).filter(s => s.isRemote && s.ice.length > 0 && !s.root.some(c => cardDef(c).type_code === 'asset'));
-    const main = remotes.reduce<ServerState | null>((best, s) => (!best || s.ice.length > best.ice.length ? s : best), null);
-    const agendas = [...state.corp.hq, ...state.corp.rd].filter(c => cardDef(c).type_code === 'agenda');
-    const points = agendas.length ? agendas.reduce((n, c) => n + (cardDef(c).agenda_points ?? 1), 0) / agendas.length : 0;
-    if (main?.id === server.id && points > 0) stake += ICE_PLANNED * swing(points);
-  }
+  if (server.root.length === 0 && server.isRemote && mainRemote(state)?.id === server.id) stake += plannedStake(state);
   return stake;
+}
+
+/** The stake of the empty scoring remote: ICE_PLANNED of the swing of the deck's average agenda (HQ and R&D, as the Corp knows them). */
+function plannedStake(state: GameState): number {
+  const agendas = [...state.corp.hq, ...state.corp.rd].filter(c => cardDef(c).type_code === 'agenda');
+  if (!agendas.length) return 0;
+  const points = agendas.reduce((n, c) => n + (cardDef(c).agenda_points ?? 1), 0) / agendas.length;
+  return ICE_PLANNED * (pointValue(state.corp.score + points, KNOBS.corpPoints) - pointValue(state.corp.score, KNOBS.corpPoints) + pointGain(state.runner.score, points));
 }
 
 /** Credits it takes Audrey v2 to earn back one virus counter: a card trashed while accessing it (a trash cost and the run's click). */

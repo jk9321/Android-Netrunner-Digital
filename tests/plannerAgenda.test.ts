@@ -3,6 +3,7 @@ import { afterEach, describe, expect, it } from 'vitest';
 import { GameAction, GameState, cardDef, createInitialGameState, executeAction, findCardAnywhere } from '../src/core';
 import { deckGameSetup } from '../src/data/decks';
 import { createAgent } from '../src/ai';
+import { plannerStats } from '../src/ai/turnPlanner';
 import { tuning } from '../src/ai/synergy';
 
 /**
@@ -31,18 +32,27 @@ const describeAction = (s: GameState, a: GameAction) => {
 };
 
 const defaultOn = tuning.plan.plannerAgenda;
-afterEach(() => { tuning.plan.plannerAgenda = defaultOn; });
+afterEach(() => { tuning.plan.plannerAgenda = defaultOn; plannerStats.onCandidates = undefined; });
 
 describe('plan.plannerAgenda', () => {
   it('is off by default', () => expect(defaultOn).toBe(false));
 
-  it('report-17 turn 2: installs Offworld Office behind remote-1\'s ice, as Jeff did', () => {
+  it('report-17 turn 2: the agenda install is among the candidates only with the switch, and wins its playout', () => {
     const s = position();
-    tuning.plan.plannerAgenda = false;
-    const off = describeAction(s, createAgent('corp', 'normal').chooseAction(s));
-    tuning.plan.plannerAgenda = true;
-    const on = describeAction(s, createAgent('corp', 'normal').chooseAction(s));
-    expect(off).not.toBe('INSTALL_CARD Offworld Office @remote-1');
-    expect(on).toBe('INSTALL_CARD Offworld Office @remote-1');
+    const target = 'INSTALL_CARD Offworld Office @remote-1';
+    const candidates = (on: boolean) => {
+      tuning.plan.plannerAgenda = on;
+      let seen: string[] = [];
+      plannerStats.onCandidates = (side, _values, actions) => { if (side === 'corp') seen = actions.map(a => describeAction(s, a)); };
+      const pick = describeAction(s, createAgent('corp', 'normal').chooseAction(s));
+      return { seen, pick };
+    };
+    const off = candidates(false);
+    const on = candidates(true);
+    // What the switch changes: the planner's candidate list (not what the rest of the AI picks without it)
+    expect(off.seen.length).toBeGreaterThan(0);
+    expect(off.seen).not.toContain(target);
+    expect(on.seen).toContain(target);
+    expect(on.pick).toBe(target);
   });
 });

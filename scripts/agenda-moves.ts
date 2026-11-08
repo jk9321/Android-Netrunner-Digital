@@ -58,7 +58,7 @@ function reply(end: GameState, agendaId: string): { value: number; stolen: numbe
   const outer = threatStats.inReply;
   threatStats.inReply = true;
   try {
-    for (let k = REPLY.first; k < REPLY.first + REPLY.samples; k++) {
+    for (let k = 0; k < REPLY.samples; k++) {
       const gr = new GameRunner(guessHidden(end, k), { corp: new HeuristicCorpAI({ synergy: true, planner: false }), runner: new HeuristicRunnerAI({ synergy: true, planner: false }) });
       let runnerTurn = false;
       try {

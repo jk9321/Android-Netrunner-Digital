@@ -33,24 +33,18 @@ export const REPLY = {
    * first samples, which keeps the time per decision nearer the base.
    */
   contendGap: 4,
-  /** Index of the first sample dealt (guessHidden k): 0, or `samples` while the extra samples are played. */
-  first: 0,
 };
 
+/** Which samples a reply plays: guessHidden deals `from` .. `from + count - 1`. */
+export interface ReplyRange { from: number; count: number }
+
 /**
- * plan.replyContenders (install-worth side check, probe P2): `fn` with runnerReply playing the extra samples, dealt
- * from sample indexes samples .. samples + extra - 1, so the two contenders of one decision see the same new deals.
+ * Whether the Corp planner's reply is this sampled Runner turn (corpAI.ts plan: plan.runnerReply, unless the threat
+ * leaf stands in for it: plan.threatModel with threatLeaf). plan.replyContenders plays extra samples only then; the
+ * threat leaf is deterministic, more of it would recompute the same number.
  */
-export function extraReplySamples<T>(fn: () => T): T {
-  const { samples, first } = REPLY;
-  REPLY.first = samples;
-  REPLY.samples = REPLY.extra;
-  try {
-    return fn();
-  } finally {
-    REPLY.samples = samples;
-    REPLY.first = first;
-  }
+export function sampledReply(): boolean {
+  return !!plan().runnerReply && !(plan().threatModel && plan().threatLeaf !== false);
 }
 
 /**
@@ -120,14 +114,14 @@ function openAgendaLoss(state: GameState, ids: string[]): number {
   return loss;
 }
 
-/** Plays the Runner's next turn from the end of a Corp turn; the average of `leaf` over the samples. */
-export function runnerReply(end: GameState, synergy: boolean, leaf: (state: GameState) => number): number {
+/** Plays the Runner's next turn from the end of a Corp turn; the average of `leaf` over the samples (`range`: plan.replyContenders' extra ones). */
+export function runnerReply(end: GameState, synergy: boolean, leaf: (state: GameState) => number, range: ReplyRange = { from: 0, count: REPLY.samples }): number {
   let total = 0;
   const values: number[] = [];
   const outer = threatStats.inReply;
   threatStats.inReply = true;
   try {
-    for (let k = REPLY.first; k < REPLY.first + REPLY.samples; k++) {
+    for (let k = range.from; k < range.from + range.count; k++) {
       const gr = new GameRunner(guessHidden(end, k), {
         corp: new HeuristicCorpAI({ synergy, planner: false }),
         runner: new HeuristicRunnerAI({ synergy, planner: false }),
@@ -160,5 +154,5 @@ export function runnerReply(end: GameState, synergy: boolean, leaf: (state: Game
     threatStats.inReply = outer;
   }
   replyStats.onSamples?.(values);
-  return total / REPLY.samples;
+  return total / range.count;
 }
