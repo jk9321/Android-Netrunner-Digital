@@ -15,6 +15,7 @@ import { deckGameSetup } from '../src/data/decks';
 import { ALL_DECKS } from './nsg-sample-decks';
 import { Agent, GameRunner, HeuristicCorpAI, HeuristicRunnerAI } from '../src/ai';
 import { applyPlanOff, asSide, tuning } from '../src/ai/synergy';
+import { batchTokens } from './oracle-ice';
 import { oracleStats } from '../src/ai/oracle';
 import { runnerView } from '../src/ai/threatModel';
 import { stealOdds } from '../src/ai/effectValues';
@@ -22,7 +23,8 @@ import { pricing } from '../src/ai/pricing';
 import { decisionContext } from '../src/ai/handValues';
 import { cardSynergy } from '../src/ai/synergyTags';
 
-applyPlanOff(process.env.PLAN_OFF ?? '');
+// Batch-only tokens (ORACLE_ICE, money) are board setups for corp-losses.ts, not plan switches: dropped here
+applyPlanOff(batchTokens(process.env.PLAN_OFF ?? '').plan);
 const maxDeals = Number(process.argv.slice(2).filter(a => a !== '--')[0] ?? 20);
 oracleStats.reach = true;
 // The honest number for the same server (stealOdds itself never asks the oracle)

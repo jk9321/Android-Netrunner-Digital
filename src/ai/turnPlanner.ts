@@ -297,7 +297,10 @@ export function planTurn(state: GameState, side: SideCode, ranked: ScoredAction[
     const advance = open.find(r => r.action.type === 'ADVANCE_CARD');
     for (const r of [agendaInstall, advance]) if (r && !candidates.includes(r)) candidates.push(r);
   }
-  const added = side === 'corp' && searchPiece('plannerBuild') ? buildCandidates(state, ranked, candidates).slice(0, Math.max(0, PLANNER.withBuild - candidates.length)) : [];
+  // Build lines get the room the shipped planner gives them (withBuild over its candidates): a wider search (plan.oracle.think)
+  // never drops one
+  const buildRoom = thinkAlwaysTries(side) ? PLANNER.withBuild - PLANNER.candidates : PLANNER.withBuild - candidates.length;
+  const added = side === 'corp' && searchPiece('plannerBuild') ? buildCandidates(state, ranked, candidates).slice(0, Math.max(0, buildRoom)) : [];
   candidates.push(...added);
   if (candidates.length <= 1 || clicksOf(state, side) <= 0) return null;
   plannerStats.decisions++;

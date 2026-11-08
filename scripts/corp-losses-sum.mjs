@@ -10,7 +10,7 @@ import { printPaired, readGames, splitArgs } from './paired-summary.mjs';
 const { files, base } = splitArgs(process.argv.slice(2));
 const games = readGames(files);
 if (process.env.DEALS_OUT) {
-  const deals = games.map(g => ({ seed: g.seed, corpDeck: g.corpDeck, runnerDeck: g.runnerDeck, winner: g.winner, ...(g.crashed ? { crashed: true } : {}), ...(g.alarms?.length ? { alarms: g.alarms.map(a => ({ kind: a.kind })) } : {}) }));
+  const deals = games.map(g => ({ seed: g.seed, corpDeck: g.corpDeck, runnerDeck: g.runnerDeck, winner: g.winner, ...(g.crashed ? { crashed: true } : {}), ...(g.oracleIceSkipped ? { oracleIceSkipped: true } : {}), ...(g.alarms?.length ? { alarms: g.alarms.map(a => ({ kind: a.kind })) } : {}) }));
   writeFileSync(process.env.DEALS_OUT, JSON.stringify(deals) + '\n');
 }
 if (base.length) {
@@ -18,6 +18,9 @@ if (base.length) {
   console.log('');
 }
 printLossSummary(games);
+// ORACLE_ICE batches: deals whose R&D held no ice played without the free ice, so the arm is a lower bound
+const iced = games.filter(g => g.oracleIce);
+if (iced.length) console.log(`ORACLE_ICE ${iced[0].oracleIce}: skipped (no ice in R&D): ${iced.filter(g => g.oracleIceSkipped).length} of ${iced.length}`);
 
 // Win rate for each deck, for the batch log
 for (const side of ['corp', 'runner']) {

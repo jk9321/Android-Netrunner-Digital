@@ -117,6 +117,8 @@ export function decisionContext(state: GameState, side: SideCode) {
 
 /** Cards in `side`'s hand the deciding AI hasn't seen (drawn in a look-ahead): it can't know what they are. */
 export function unseenInHand(state: GameState, side: SideCode): CardInstance[] {
+  // plan.oracle.rd: a card the Corp drew in a look-ahead is one it knew was coming
+  if (side === 'corp' && corpKnowsRd()) return [];
   const seen = pricing().known[side];
   const hand = side === 'corp' ? state.corp.hq : state.runner.grip;
   return seen ? hand.filter(c => !seen.has(c.instanceId)) : [];

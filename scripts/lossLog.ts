@@ -82,6 +82,9 @@ export interface RezLog {
 }
 
 export interface GameRecord {
+  /** ORACLE_ICE batches (scripts/oracle-ice.ts): the setup, and whether this deal's R&D held no ice (played without it). */
+  oracleIce?: string;
+  oracleIceSkipped?: boolean;
   corpDeck: string;
   runnerDeck: string;
   winner: string;

@@ -184,3 +184,12 @@ describe('oracle.ts load order (hand-off identical check, 2026-11-08)', () => {
     expect(imports.filter(i => /corpAI|runnerAI|playout|turnPlanner|runnerReply|search|evaluate/.test(i))).toEqual([]);
   });
 });
+
+describe('batch-only PLAN_OFF tokens (scripts/oracle-ice.ts batchTokens)', () => {
+  it('splits ORACLE_ICE and money out of the plan switches, and rejects an unknown ice target', async () => {
+    const { batchTokens } = await import('../scripts/oracle-ice');
+    expect(batchTokens('+oracle.grip,+oracle.ice.remote,+oracle.money,corp:tempo')).toEqual({ ice: 'remote', money: true, plan: '+oracle.grip,corp:tempo' });
+    expect(batchTokens('')).toEqual({ ice: undefined, money: false, plan: '' });
+    expect(() => batchTokens('+oracle.ice.rd')).toThrow();
+  });
+});

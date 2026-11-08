@@ -16,7 +16,7 @@ import { createAgent } from '../src/ai';
 import { GameRecord, playLogged } from './lossLog';
 import { valueLoops } from '../src/ai/valueModel';
 import { applyPlanOff, tuning } from '../src/ai/synergy';
-import { OracleIce, placeOracleIce } from './oracle-ice';
+import { batchTokens, placeOracleIce } from './oracle-ice';
 import { withOracleMoney } from './oracle-money';
 
 const [gamesArg, levelArg] = process.argv.slice(2).filter(a => a !== '--');
@@ -27,12 +27,9 @@ const [shard, shards] = (process.env.SHARD ?? '0/1').split('/').map(Number);
 // PLAN_OFF=a,b switches off planning terms; CORP_DECKS / RUNNER_DECKS=name,name play only those decks
 // Round 2 oracle 3 (spec-round2.md): +oracle.ice.hq|archives|remote in PLAN_OFF is a board setup read here, not a
 // plan switch (the ai-batch workflow has no other input for it): taken out before applyPlanOff
-const planOff = (process.env.PLAN_OFF ?? '').split(',').filter(Boolean);
-const iceOracle = planOff.find(k => /^\+oracle\.ice\./.test(k))?.replace('+oracle.ice.', '') as OracleIce | undefined;
-if (iceOracle && !['hq', 'archives', 'remote'].includes(iceOracle)) throw new Error(`oracle.ice.${iceOracle}: hq, archives or remote`);
 // +oracle.money (the money ceiling): +1 credit at the start of every Corp turn, read here too (scripts/oracle-money.ts)
-const moneyOracle = planOff.includes('+oracle.money');
-applyPlanOff(planOff.filter(k => !/^\+oracle\.ice\./.test(k) && k !== '+oracle.money').join(','));
+const { ice: iceOracle, money: moneyOracle, plan: planSwitches } = batchTokens(process.env.PLAN_OFF ?? '');
+applyPlanOff(planSwitches);
 if (process.env.BLUFF === '0') tuning.bluff = false;
 const only = (process.env.CORP_DECKS ?? '').split(',').filter(Boolean);
 // DECKS=vp-,core- plays only decks whose id starts with one of the prefixes; corp=x / runner=x narrow one side only
@@ -80,7 +77,8 @@ for (const c of corpDecks) {
         const iced = iceOracle ? placeOracleIce(start, iceOracle) : undefined;
         const record = playLogged(start, { corp: agent('corp'), runner: agent('runner') }, { corp: c.name, runner: r.name }, moneyOracle ? s => withOracleMoney(s) : undefined);
         // Value loops met in the game (valueModel.ts guardLoop): played on with flat values, listed in the summary to fix
-        const tagged = iced === false ? { ...record, seed, oracleIceSkipped: true } : { ...record, seed };
+        // ORACLE_ICE: every game names the setup; one whose R&D held no ice played without it (counted in the summary)
+        const tagged = iceOracle ? { ...record, seed, oracleIce: iceOracle, oracleIceSkipped: iced === false } : { ...record, seed };
         records.push(valueLoops.size ? { ...tagged, loops: Object.fromEntries(valueLoops) } : tagged);
       } catch (err) {
         // A crashed game is listed in the summary, not dropped silently

@@ -33,14 +33,13 @@ export function setOraclePlayout(fn: OraclePlayout): void {
   hooks.playout = fn;
 }
 
-/** What the Runner AI did on its next turn from one position: the agendas it stole and the servers it breached. */
+/** What the Runner AI did on its next turn from one position: the agendas it stole. */
 interface RunnerTurn {
   stolen: Set<string>;
-  breached: Set<string>;
 }
 
 /** Positions already played out for plan.oracle.safestRemote (a planner meets the same end state from several lines). */
-const playedOut = new Map<string, RunnerTurn>();
+const playedOut = new Map<string, RunnerTurn | null>();
 /**
  * Diagnostics (scripts/threat-profile.ts, scripts/oracle-reach.ts): Runner turns played out for the oracle, cache hits,
  * their time; with `reach` set, the Corp decisions (by their noted HQ set) where the oracle answered, and where its
@@ -49,28 +48,39 @@ const playedOut = new Map<string, RunnerTurn>();
 export const oracleStats = { turns: 0, hits: 0, ms: 0, reach: false, told: new WeakSet<object>(), flipped: new WeakSet<object>(), honest: undefined as ((s: GameState, id: string) => number) | undefined };
 const ORACLE_STEPS = 400;
 
-/** Everything a Runner turn from `state` can depend on, as a key (the real hidden cards and the shuffler included). */
+/**
+ * The whole position as a key (review 1 R2: a partial key let a sibling line with a different shuffle or deeper deck
+ * order share a cached turn): the state itself (every zone in order, counters, the shuffler's state, the heap) and the
+ * cards the deciding sides had noted, which the play-out's decisions read, hashed (cyrb53).
+ */
 function positionKey(state: GameState): string {
-  const roots = Object.values(state.corp.servers).map(v => v.root.map(c => `${c.instanceId}${c.advancementCounters}${c.runnerKnows ? 'k' : ''}`).join('.')).join(';');
-  return [
-    state.id, fingerprint(state), roots, state.phase, state.corp.hq.map(c => c.instanceId).join(','), state.runner.grip.map(c => c.instanceId).join(','),
-    state.corp.rd.slice(0, 5).map(c => c.instanceId).join(','), state.runner.stack.slice(0, 5).map(c => c.instanceId).join(','),
-    state.runsThisTurn.map(r => r.server + (r.successful ? '+' : '-')).join(','),
-  ].join('|');
+  const c = pricing();
+  // fingerprint kept in: the import stays, and with it the AI modules' load order (see the play-out hook below)
+  const text = fingerprint(state) + '|' + JSON.stringify(state) + '|' + [...(c.known.corp ?? [])].join(',') + '|' + [...(c.known.runner ?? [])].join(',');
+  let h1 = 0xdeadbeef;
+  let h2 = 0x41c6ce57;
+  for (let i = 0; i < text.length; i++) {
+    const ch = text.charCodeAt(i);
+    h1 = Math.imul(h1 ^ ch, 2654435761);
+    h2 = Math.imul(h2 ^ ch, 1597334677);
+  }
+  h1 = Math.imul(h1 ^ (h1 >>> 16), 2246822507) ^ Math.imul(h2 ^ (h2 >>> 13), 3266489909);
+  h2 = Math.imul(h2 ^ (h2 >>> 16), 2246822507) ^ Math.imul(h1 ^ (h1 >>> 13), 3266489909);
+  return `${text.length}:${(h2 >>> 0).toString(16)}${(h1 >>> 0).toString(16)}`;
 }
 
 /**
  * plan.oracle.safestRemote: plays the Runner AI's next turn from `state` with the real hidden cards (the grip, the
  * stack, R&D and every facedown card as they are), the Corp giving up any clicks it has left, and reads what the Runner
- * did. The Runner plays as the batch Runner does (HeuristicRunnerAI, its planner on); the Corp answers its rez windows
- * and prompts with the rule-based Corp. Null when the engine refuses the position (a look-ahead's hand-built board).
+ * did. The Runner plays as the Normal batch Runner does (HeuristicRunnerAI, its planner on; a Hard batch's Runner
+ * differs, and only Normal batches were run); the Corp answers its rez windows and prompts with the rule-based Corp. Null when the engine refuses the position (a look-ahead's hand-built board).
  */
 function runnerNextTurn(state: GameState): RunnerTurn | null {
   const key = positionKey(state);
-  const hit = playedOut.get(key);
-  if (hit) {
+  if (!hooks.playout) return null;
+  if (playedOut.has(key)) {
     oracleStats.hits++;
-    return hit;
+    return playedOut.get(key) ?? null;
   }
   const t0 = performance.now();
   const c = pricing();
@@ -78,16 +88,12 @@ function runnerNextTurn(state: GameState): RunnerTurn | null {
   const result = withPricing({ oracleRunning: true, frozen: false, leaves: [], known: { ...c.known }, anchor: c.anchor, decisionSeed: null }, () => {
     const start = state.activePlayer === 'corp' && !state.activeRun ? { ...state, corp: { ...state.corp, clicks: 0 } } : state;
     const before = new Set(start.runner.scoreArea.map(a => a.instanceId));
-    if (!hooks.playout) return null;
-    const game = hooks.playout(start);
-    const breached = new Set<string>();
+    const game = hooks.playout!(start);
     let runnerTurn = start.activePlayer === 'runner';
     try {
       for (let i = 0; i < ORACLE_STEPS && !game.state.winner; i++) {
         if (!game.step()) break;
         const s = game.state;
-        if (s.activeRun?.isSuccessful) breached.add(s.activeRun.server);
-        for (const r of s.runsThisTurn) if (r.successful) breached.add(r.server);
         if (s.activePlayer === 'runner') runnerTurn = true;
         else if (runnerTurn && !s.activeRun) break;
       }
@@ -95,19 +101,22 @@ function runnerNextTurn(state: GameState): RunnerTurn | null {
       return null;
     }
     const stolen = new Set(game.state.runner.scoreArea.map(a => a.instanceId).filter(id => !before.has(id)));
-    return { stolen, breached };
+    return { stolen };
   });
-  oracleStats.turns++;
-  oracleStats.ms += performance.now() - t0;
+  // A position the engine refused is cached too, so it isn't played again on every evaluation; only real turns count
+  if (result) {
+    oracleStats.turns++;
+    oracleStats.ms += performance.now() - t0;
+  }
   if (playedOut.size > 2000) playedOut.clear();
-  if (result) playedOut.set(key, result);
+  playedOut.set(key, result);
   return result;
 }
 
 /**
  * plan.oracle.safestRemote (spec-round2.md oracle 2: Jeff's "put it somewhere safe" measured): the Runner's chance to
  * steal an agenda in remote `serverId` on its next turn, as the Runner AI's own next turn from this position says: 1
- * if it stole an agenda there (or, with none there yet, got into the server), else 0. Undefined (the honest estimate
+ * if it stole an agenda there, else 0 (a server with no agenda in it is not told). Undefined (the honest estimate
  * stands) with the switch off, for the Runner, inside the oracle's own play-out or another pricing guard, or for a
  * central server. Only the next turn is told; later turns keep the Corp's own estimate (evaluate.ts threatStanding).
  */
