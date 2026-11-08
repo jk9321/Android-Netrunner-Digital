@@ -143,7 +143,15 @@ describe('plannerBuild in self-play positions (the ice-then-install build, item 
   for (const file of ['planner-build-2.json']) {
     it(`${file}: the turn ends with an agenda installed behind ice`, () => {
       const before: GameState = JSON.parse(readFileSync(new URL(`./fixtures/${file}`, import.meta.url), 'utf8'));
-      expect(agendasBehindIce(turn(file))).toBe(agendasBehindIce(before) + 1);
+      const after = turn(file);
+      // Main's Urtica Cipher fix (rule 9.3.2c, 2026-11-08): with no damage from HQ the planner double-advances Offworld Office behind
+      // a second ice instead of building a new remote; both are agenda progress behind ice. plannerBuild itself gets its own
+      // fixture later (planner-build-3, AI Coordinator).
+      const nearlyScored = (s: GameState) =>
+        Object.values(s.corp.servers).some(
+          v => v.isRemote && v.ice.length > 0 && v.root.some(c => cardDef(c).type_code === 'agenda' && c.advancementCounters >= (cardDef(c).advancement_cost ?? 0) - 1),
+        );
+      expect(agendasBehindIce(after) === agendasBehindIce(before) + 1 || (nearlyScored(after) && !nearlyScored(before))).toBe(true);
     }, 60_000);
   }
 });
