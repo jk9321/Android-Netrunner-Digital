@@ -6,7 +6,10 @@ import { pointValue } from './valueModel';
 import { threatStats, turnSeed } from './threatModel';
 import { currentDecisionSeed, searchPiece } from './turnPlanner';
 import { plan } from './pricing';
-import { corpKnowsRd, corpSeenGrip, replySamples } from './oracle';
+import { corpKnowsRd, corpSeenGrip, replySamples, setOraclePlayout } from './oracle';
+
+// plan.oracle.safestRemote's play-out: the batch Runner (HeuristicRunnerAI, its planner on) against the rule-based Corp
+setOraclePlayout(start => new GameRunner(start, { corp: new HeuristicCorpAI({ planner: false }), runner: new HeuristicRunnerAI({}) }));
 
 /**
  * The Runner's reply (Jeff, 2026-10-28; plan.runnerReply): the Corp's

@@ -175,3 +175,12 @@ describe('oracle.money (scripts/oracle-money.ts)', () => {
     expect(next.runner).toBe(s.runner);
   });
 });
+
+describe('oracle.ts load order (hand-off identical check, 2026-11-08)', () => {
+  it('imports no AI decision module: a new import edge moved 39 of 221 deals with every oracle off', async () => {
+    const { readFileSync } = await import('node:fs');
+    const src = readFileSync('src/ai/oracle.ts', 'utf8');
+    const imports = [...src.matchAll(/^import .* from '(.*)';$/gm)].map(m => m[1]);
+    expect(imports.filter(i => /corpAI|runnerAI|playout|turnPlanner|runnerReply|search|evaluate/.test(i))).toEqual([]);
+  });
+});

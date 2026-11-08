@@ -1,8 +1,5 @@
 import { GameState, cardDef, knownInHand } from '../core';
-import { HeuristicCorpAI } from './corpAI';
-import { GameRunner } from './playout';
 import { actingSide, plan, pricing, withPricing } from './pricing';
-import { HeuristicRunnerAI } from './runnerAI';
 import { fingerprint } from './valueModel';
 
 /**
@@ -23,6 +20,17 @@ import { fingerprint } from './valueModel';
 export function corpSeenGrip(state: GameState): Set<string> {
   if (plan().oracle?.grip) return new Set(state.runner.grip.map(c => c.instanceId));
   return new Set(knownInHand(state, 'runner').map(k => k.id));
+}
+
+/**
+ * The play-out's game runner, handed in by runnerReply.ts (which already imports the AIs): oracle.ts imports no AI module
+ * itself, because a new import edge changes the AI modules' load order, and play depended on that order (hand-off
+ * identical check 2026-11-08: 39 of 221 deals moved with every oracle off). Unset, the oracle answers nothing.
+ */
+export type OraclePlayout = (start: GameState) => { step(): boolean; state: GameState };
+const hooks: { playout?: OraclePlayout } = {};
+export function setOraclePlayout(fn: OraclePlayout): void {
+  hooks.playout = fn;
 }
 
 /** What the Runner AI did on its next turn from one position: the agendas it stole and the servers it breached. */
@@ -70,7 +78,8 @@ function runnerNextTurn(state: GameState): RunnerTurn | null {
   const result = withPricing({ oracleRunning: true, frozen: false, leaves: [], known: { ...c.known }, anchor: c.anchor, decisionSeed: null }, () => {
     const start = state.activePlayer === 'corp' && !state.activeRun ? { ...state, corp: { ...state.corp, clicks: 0 } } : state;
     const before = new Set(start.runner.scoreArea.map(a => a.instanceId));
-    const game = new GameRunner(start, { corp: new HeuristicCorpAI({ planner: false }), runner: new HeuristicRunnerAI({}) });
+    if (!hooks.playout) return null;
+    const game = hooks.playout(start);
     const breached = new Set<string>();
     let runnerTurn = start.activePlayer === 'runner';
     try {
