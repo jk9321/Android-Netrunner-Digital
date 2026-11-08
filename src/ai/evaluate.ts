@@ -19,6 +19,7 @@ import { isTrap, remoteAgendaOdds, trashedCardCost } from './runs';
 import { centralAccess, runChance, threatOn } from './threatModel';
 import { plan, pricing, pricingKey, withPricing } from './pricing';
 import { clock, raceOn } from './clock';
+import { corpDrawPool, oracleSteal } from './oracle';
 
 const MADANI = '35028';
 
@@ -69,8 +70,10 @@ export function digValue(state: GameState, side: SideCode): number {
     const usableIce = (c: CardInstance) => cardDef(c).type_code === 'ice' && ((cardDef(c).cost ?? 0) <= corp.credits + 3);
     const needIce = !corp.hq.some(usableIce) && (!iced('rd') || !iced('hq') || corp.hq.some(c => cardDef(c).type_code === 'agenda'));
     const needMoney = corp.credits < 5 && !corp.hq.some(isEcon);
-    if (needIce) value += Math.min(1.2, 3 * odds(corp.rd, c => cardDef(c).type_code === 'ice') * (1 + pressure));
-    if (needMoney) value += Math.min(1.2, 3 * odds(corp.rd, isEcon) * (1 + pressure));
+    // plan.oracle.rd: the next card itself
+    const deck = corpDrawPool(state);
+    if (needIce) value += Math.min(1.2, 3 * odds(deck, c => cardDef(c).type_code === 'ice') * (1 + pressure));
+    if (needMoney) value += Math.min(1.2, 3 * odds(deck, isEcon) * (1 + pressure));
     return value;
   }
   const runner = state.runner;
@@ -295,7 +298,7 @@ export function agendaWorth(
   const openNew = threatOn() && !serverId && success === 1 ? 1 : undefined;
   const steal = stealChance ?? openNew ?? (
     success === undefined && serverId
-      ? stealOdds(state, serverId)
+      ? oracleSteal(state, serverId) ?? stealOdds(state, serverId) // plan.oracle.safestRemote: told the Runner's next turn
       : STEAL.run * (success ?? (serverId ? runSuccess(state, serverId) : PACE.success)));
   // Agenda tempo (Jeff, 2026-10-28): the Runner turns until the Corp has the clicks to finish it (installing from hand is one more),
   // each a run that may get in and a turn closer to the end of the game (about 1 in turnsLeft)

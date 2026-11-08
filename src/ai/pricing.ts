@@ -62,6 +62,8 @@ export interface Pricing {
   rezzingToUse: Set<string>;
   /** Breakers being priced by the rig they join (handValues.ts playedWorth): no breaker prices itself again. */
   pricingBreakers: Set<string>;
+  /** plan.oracle.safestRemote (oracle.ts): the Runner's next turn is being played out for the oracle: no oracle inside. */
+  oracleRunning: boolean;
 }
 
 const context: Pricing = {
@@ -82,6 +84,7 @@ const context: Pricing = {
   decisionSeed: null,
   rezzingToUse: new Set(),
   pricingBreakers: new Set(),
+  oracleRunning: false,
 };
 
 /** The current context (read only: change it with withPricing). */
@@ -198,6 +201,7 @@ export function pricingKey(): string {
     c.planning ? 'c' : '',
     c.computingThreat ? 'h' : '',
     c.buildingClock ? 'k' : '',
+    c.oracleRunning ? 'o' : '',
   ].join(':');
   keyVersion = version;
   return key;

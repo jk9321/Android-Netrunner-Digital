@@ -6,6 +6,7 @@ import { runClick } from './runs';
 import { threat, turnSeed } from './threatModel';
 import { plan, pricing, withPricing } from './pricing';
 import { REPLY, runnerReply, sampledReply } from './runnerReply';
+import { plannerCandidates, replySamples, thinkAlwaysTries } from './oracle';
 
 /**
  * The whole-turn planner for Normal (Jeff, 2026-10-28; plan.turnPlanner).
@@ -327,8 +328,18 @@ export function planTurn(state: GameState, side: SideCode, ranked: ScoredAction[
     return next.action;
   }
   memory.line = [];
-  const candidates = ranked.filter(r => r.score > -Infinity && r.action.type !== 'END_TURN' && r.action.type !== 'START_TURN' && !dominated(state, r.action, ranked, side)).slice(0, PLANNER.candidates);
-  const added = side === 'corp' && searchPiece('plannerBuild') ? buildCandidates(state, ranked, candidates).slice(0, Math.max(0, PLANNER.withBuild - candidates.length)) : [];
+  const open = ranked.filter(r => r.score > -Infinity && r.action.type !== 'END_TURN' && r.action.type !== 'START_TURN' && !dominated(state, r.action, ranked, side));
+  // plan.oracle.think: a wider search, the best agenda install and the best advance always among the candidates
+  const candidates = open.slice(0, plannerCandidates(side, PLANNER.candidates));
+  if (thinkAlwaysTries(side)) {
+    const agendaInstall = open.find(r => r.action.type === 'INSTALL_CARD' && state.corp.hq.some(c => c.instanceId === (r.action as { cardInstanceId: string }).cardInstanceId && cardDef(c).type_code === 'agenda'));
+    const advance = open.find(r => r.action.type === 'ADVANCE_CARD');
+    for (const r of [agendaInstall, advance]) if (r && !candidates.includes(r)) candidates.push(r);
+  }
+  // Build lines get the room the shipped planner gives them (withBuild over its candidates): a wider search (plan.oracle.think)
+  // never drops one
+  const buildRoom = thinkAlwaysTries(side) ? PLANNER.withBuild - PLANNER.candidates : PLANNER.withBuild - candidates.length;
+  const added = side === 'corp' && searchPiece('plannerBuild') ? buildCandidates(state, ranked, candidates).slice(0, Math.max(0, buildRoom)) : [];
   candidates.push(...added);
   if (side === 'corp' && plan().plannerAgenda) candidates.push(...agendaCandidates(state, ranked, candidates).slice(0, Math.max(0, PLANNER.withBuild + 2 - candidates.length)));
   if (candidates.length <= 1 || clicksOf(state, side) <= 0) return null;
@@ -376,8 +387,9 @@ function contenders<T extends { action: GameAction; value: number; line: Line; e
   const leaf = (s: GameState) => leafValue(s, side, synergy);
   const top = live.slice(0, 2).map(r => {
     const bonus = r.ends.bonus ?? 0;
-    const extra = runnerReply(r.ends.state!, synergy, leaf, { from: REPLY.samples, count: REPLY.extra });
-    return { ...r, value: (REPLY.samples * (r.value - bonus) + REPLY.extra * extra) / (REPLY.samples + REPLY.extra) + bonus };
+    const first = replySamples(REPLY.samples); // (plan.oracle.think plays more first samples)
+    const extra = runnerReply(r.ends.state!, synergy, leaf, { from: first, count: REPLY.extra });
+    return { ...r, value: (first * (r.value - bonus) + REPLY.extra * extra) / (first + REPLY.extra) + bonus };
   });
   // A candidate outside the two (a won game, or one the extra samples can't change) keeps its value
   const rest = scored.filter(r => !top.some(t => t.action === r.action));

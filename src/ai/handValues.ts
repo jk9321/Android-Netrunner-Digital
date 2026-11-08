@@ -8,6 +8,7 @@ import { counterWorth } from './counterValues';
 import { handPlanWorth } from './cardPlans';
 import { CLICK, RATES, cardRate, fingerprint, handFilter, payoutSlide, printedGain, reachCard, setDeckCard } from './valueModel';
 import { leafHandByCard, noteDecision, plan, pricing, pricingKey, withPricing } from './pricing';
+import { corpDrawPool, corpKnowsRd } from './oracle';
 
 /**
  * Cards in hand by what they do (Jeff, 2026-10-28; plan.handByCard). A card
@@ -116,6 +117,8 @@ export function decisionContext(state: GameState, side: SideCode) {
 
 /** Cards in `side`'s hand the deciding AI hasn't seen (drawn in a look-ahead): it can't know what they are. */
 export function unseenInHand(state: GameState, side: SideCode): CardInstance[] {
+  // plan.oracle.rd: a card the Corp drew in a look-ahead is one it knew was coming
+  if (side === 'corp' && corpKnowsRd()) return [];
   const seen = pricing().known[side];
   const hand = side === 'corp' ? state.corp.hq : state.runner.grip;
   return seen ? hand.filter(c => !seen.has(c.instanceId)) : [];
@@ -125,7 +128,8 @@ const deckAverage = new Map<string, number>();
 
 /** Average held worth of the cards left in a side's deck (what a draw is expected to bring). */
 function drawWorth(state: GameState, side: SideCode): number {
-  const deck = side === 'corp' ? state.corp.rd : state.runner.stack;
+  // plan.oracle.rd: the Corp's next draw is R&D's top card itself
+  const deck = side === 'corp' ? corpDrawPool(state) : state.runner.stack;
   // The cards, not just the count: the Runner reply deals guessed decks of the same size (runnerReply.ts).
   // plan.drawWorthCredits (code audit, 2026-11-06): and the side's credits, which decide what each card would cost to play
   // (heldWorth's SOON): without them the average from the turn's first credit count was used all turn, and in look-aheads
@@ -162,7 +166,8 @@ export function ownHandValue(state: GameState, side: SideCode): number {
   // plan.heldMoney: the money operation moneyReach already puts on the Corp's credit slide isn't counted again in HQ
   const reach = side === 'corp' ? reachCard(state) : undefined;
   const values = hand
-    .map(c => (seen && !seen.has(c.instanceId) ? drawWorth(state, side) : c === reach ? HAND_FLOOR : heldWorth(state, c, side)))
+    // plan.oracle.rd: a card the Corp drew in a look-ahead is one it knew was coming
+    .map(c => (seen && !seen.has(c.instanceId) && !(side === 'corp' && corpKnowsRd()) ? drawWorth(state, side) : c === reach ? HAND_FLOOR : heldWorth(state, c, side)))
     .sort((a, b) => b - a);
   let value = 0;
   for (let i = 0; i < values.length; i++) {

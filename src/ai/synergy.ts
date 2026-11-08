@@ -363,6 +363,16 @@ export const tuning = {
      */
     raceClock: { agendas: false, tempo: false, tempoOnce: false, horizon: false, money: false },
     /**
+     * Tuning pass round 2, phase 1 (Fable spec 2026-11-08, spec-round2.md): measurement oracles. Each gives the Corp an
+     * answer it can't honestly have, one at a time in a batch (plan_off=+oracle.<name>), to measure what that knowledge
+     * is worth before anything is built for it. Every hidden read lives in oracle.ts. Never a default (codeHealth test);
+     * off for the Runner (sideOff.runner). grip: the Runner's whole grip counts as seen. safestRemote: the Corp is told
+     * whether the Runner AI steals a remote's agenda on its next turn. rd: the Corp knows its own R&D order. think (AI
+     * Coordinator 2026-11-08, a decision-quality ceiling, not knowledge): the Corp planner plays 8 candidates, the best agenda
+     * install and advance always among them, against 4 Runner-reply samples.
+     */
+    oracle: { grip: false, safestRemote: false, rd: false, think: false },
+    /**
      * Per deciding side (Jeff, 2026-10-28): its own hand valued card by card, by what each will do once played (handValues.ts).
      * Batches: each side loses with it (Corp side 32.2% -> 28.0%, Runner side 32.2% -> 35.9% Corp) and the Runner draws at a
      * full hand on 55% of turns. Off on both sides, kept for re-testing.
@@ -394,7 +404,7 @@ export const tuning = {
  */
 export const sideOff: Record<SideCode, string[]> = {
   corp: [],
-  runner: ['tagTrashNow', 'ownTrashRisk', 'hqTrashCost', 'oneCurrency', 'threatModel', 'measuredPass', 'threatSpend', 'calibratedRun', 'raceClock', 'iceProtects', 'replyContenders', 'plannerAgenda'],
+  runner: ['tagTrashNow', 'ownTrashRisk', 'hqTrashCost', 'oneCurrency', 'threatModel', 'measuredPass', 'threatSpend', 'calibratedRun', 'raceClock', 'iceProtects', 'replyContenders', 'plannerAgenda', 'oracle'],
 };
 
 /**
