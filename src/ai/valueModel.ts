@@ -246,7 +246,7 @@ export function buildTarget(state: GameState, side: SideCode): number {
  * cost of the rezzed ice on the most expensive server (rez cost standing
  * in for break cost until step 5 prices ice by what it costs to break).
  */
-export function boardNeed(state: GameState, side: SideCode, viewer: SideCode = side): number {
+export function boardNeed(state: GameState, side: SideCode): number {
   const servers = Object.values(state.corp.servers);
   if (side === 'corp') {
     let need = 0;
@@ -255,7 +255,7 @@ export function boardNeed(state: GameState, side: SideCode, viewer: SideCode = s
       // plan.oneRezMoney: what rezzing it costs now (Tread Lightly, Fransofia Ward), as the rule ranking's reserve counts it
       if (counts) for (const ice of server.ice) if (!ice.isRezzed) need += plan().oneRezMoney ? rezCostOf(state, ice) : cardDef(ice).cost ?? 0;
     }
-    return need + (viewer === 'corp' && plan().scoreBudget ? scoreNeed(state) : 0);
+    return need;
   }
   return Math.max(0, ...servers.map(s => s.ice.filter(i => i.isRezzed).reduce((n, i) => n + (cardDef(i).cost ?? 0), 0)));
 }
@@ -263,8 +263,8 @@ export function boardNeed(state: GameState, side: SideCode, viewer: SideCode = s
 /**
  * plan.scoreBudget (Phase 2 E1, spec-phase2.md; Corp's own view): the credits still to pay to score the agendas installed
  * in its remotes: one per advancement counter still short of the advancement requirement (advancing costs a click and
- * 1 credit, rule 5.2.6f; an agenda scores once its counters reach the requirement, 1.17.3a). The unrezzed ice holding
- * each agenda (its rez cost, 1.16.8) is already in boardNeed. The agenda a line installs counts once it is on the board
+ * 1 credit, rule 5.2.6f; an agenda scores once its counters reach the requirement, 1.17.3a), added to creditNeed on top
+ * of the build target or board need. The unrezzed ice holding each agenda (its rez cost, 1.16.8) is in boardNeed. The agenda a line installs counts once it is on the board
  * the line leaves, so a planner leaf that installs one prices the credits to finish it. Only the Corp knows a facedown
  * root card is an agenda (the Runner's view leaves it out).
  */
@@ -282,7 +282,10 @@ export function scoreNeed(state: GameState): number {
 
 /** The need credits slide against: the build target or the board's need, whichever is more. */
 export const creditNeed = (state: GameState, side: SideCode, viewer: SideCode = side): number => {
-  const need = Math.max(buildTarget(state, side), boardNeed(state, side, viewer));
+  // plan.scoreBudget: the credits to finish the score sit on top of the bank the board and the deck ask for. Inside
+  // boardNeed (the spec's first form) they counted only once the board's need passed the build target, which it rarely
+  // does: -0.5 ± 0.5 paired, 11 of 663 deals changed (run 42527652038)
+  const need = Math.max(buildTarget(state, side), boardNeed(state, side)) + (side === 'corp' && viewer === 'corp' && plan().scoreBudget ? scoreNeed(state) : 0);
   // plan.raceClock.money (tuning pass 1, round 2: off): the Corp's credits are worth less when its game is short
   return side === 'corp' ? need * corpNeedScale(state) : need;
 };

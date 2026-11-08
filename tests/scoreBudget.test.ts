@@ -21,7 +21,7 @@ function remote(s: GameState, id: string, root: string[], ice: number, counters 
   s.corp.servers[id] = { id, name: id, isRemote: true, ice: Array.from({ length: ice }, () => createCardInstance(s, JAGUARUNDI)), root: cards };
 }
 
-/** A Corp with an Offworld Office on 1 counter behind 3 unrezzed Jaguarundi (board need above its build target). */
+/** A Corp with an Offworld Office on 1 counter behind 3 unrezzed Jaguarundi. */
 function scoringBoard(): GameState {
   const s = newGame();
   s.corp.credits = 5;
@@ -42,15 +42,20 @@ describe('plan.scoreBudget', () => {
     expect(scoreNeed(s)).toBe(0);
   });
 
-  it('adds it to the Corp’s own board need only with the switch on', () => {
+  it('adds it to the Corp’s own credit need on top of the build target or board need, only with the switch on', () => {
     const s = scoringBoard();
     tuning.plan.scoreBudget = false;
-    const off = inDecision(s, 'corp', () => boardNeed(s, 'corp', 'corp'));
+    const off = inDecision(s, 'corp', () => creditNeed(s, 'corp', 'corp'));
+    expect(off).toBe(Math.max(buildTarget(s, 'corp'), inDecision(s, 'corp', () => boardNeed(s, 'corp'))));
     tuning.plan.scoreBudget = true;
-    const on = inDecision(s, 'corp', () => boardNeed(s, 'corp', 'corp'));
-    expect(on - off).toBe(scoreNeed(s));
-    expect(on).toBeGreaterThan(buildTarget(s, 'corp'));
-    expect(inDecision(s, 'corp', () => creditNeed(s, 'corp', 'corp'))).toBe(on);
+    expect(inDecision(s, 'corp', () => creditNeed(s, 'corp', 'corp')) - off).toBe(scoreNeed(s));
+    // with less ice than the build target needs, it still counts
+    s.corp.servers['remote-1'].ice = s.corp.servers['remote-1'].ice.slice(0, 1);
+    tuning.plan.scoreBudget = false;
+    const small = inDecision(s, 'corp', () => creditNeed(s, 'corp', 'corp'));
+    expect(small).toBe(buildTarget(s, 'corp'));
+    tuning.plan.scoreBudget = true;
+    expect(inDecision(s, 'corp', () => creditNeed(s, 'corp', 'corp')) - small).toBe(scoreNeed(s));
   });
 
   it('makes the Corp’s next credit worth more while the score is unpaid', () => {
