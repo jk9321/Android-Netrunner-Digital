@@ -56,6 +56,12 @@ const KINDS: Record<string, (code: string) => boolean> = {
 };
 const kindGaps: Record<string, number> = {};
 
+/** Per game: the Corp turn (1 = its first) its first HQ ice went down, or null if never (AI Coordinator's control for ORACLE_ICE hq). */
+const firstHqIce: (number | null)[] = [];
+let corpTurn = 0;
+let lastTurn = -1;
+let hqIcedAt: number | null = null;
+
 let decisions = 0;
 let gripGaps = 0;
 const seenSets: object[] = [];
@@ -65,6 +71,11 @@ class Counting implements Agent {
   constructor(private inner: HeuristicCorpAI) {}
   chooseAction(state: GameState): GameAction {
     const main = !state.pendingPrompts.length && !state.activeRun && state.activePlayer === 'corp';
+    if (state.activePlayer === 'corp' && state.turnNumber !== lastTurn) {
+      lastTurn = state.turnNumber;
+      corpTurn++;
+    }
+    if (hqIcedAt === null && state.corp.servers.hq.ice.length > 0) hqIcedAt = corpTurn;
     if (main) {
       decisions++;
       const saved = tuning.plan.oracle.grip;
@@ -106,7 +117,11 @@ for (const c of corps) {
     if (played >= maxDeals || (pairing - 1) % stride !== 0) continue;
     const seed = 1000 + (pairing - 1) * 10 + 1;
     const game = new GameRunner(createInitialGameState(deckGameSetup(seed, c, r)), { corp: new Counting(new HeuristicCorpAI()), runner: new HeuristicRunnerAI() });
+    corpTurn = 0;
+    lastTurn = -1;
+    hqIcedAt = null;
     for (let i = 0; i < 4000 && game.state.turnNumber <= 80 && game.step(); i++);
+    firstHqIce.push(hqIcedAt);
     played++;
   }
 }
@@ -121,6 +136,12 @@ console.log(JSON.stringify({
   gripGapOver1Breaker: gripGaps,
   gripKindMissed: Object.fromEntries(Object.entries(kindGaps).map(([k, n]) => [k, +(n / decisions).toFixed(3)])),
   shares: { told: +(told / decisions).toFixed(3), flipped: +(flipped / decisions).toFixed(3), gripGap: +(gripGaps / decisions).toFixed(3) },
+  // hqIcedAt is read at the next Corp decision, so ice installed on Corp turn t shows as t+1 at most (or t, mid-turn)
+  firstHqIce: {
+    byCorpTurn3: +(firstHqIce.filter(t => t !== null && t <= 3).length / firstHqIce.length).toFixed(3),
+    never: firstHqIce.filter(t => t === null).length,
+    meanTurn: +(firstHqIce.filter((t): t is number => t !== null).reduce((a, b) => a + b, 0) / Math.max(1, firstHqIce.filter(t => t !== null).length)).toFixed(2),
+  },
   oracleTurns: oracleStats.turns,
   secs: Math.round((Date.now() - t0) / 1000),
 }));
