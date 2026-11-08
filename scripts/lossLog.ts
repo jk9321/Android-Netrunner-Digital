@@ -553,6 +553,7 @@ export function playLogged(start: GameState, agents: { corp: Agent; runner: Agen
     });
   }
   const s = runner.state;
+  alarms.done(runner.state);
   return {
     corpDeck: decks.corp,
     runnerDeck: decks.runner,

@@ -27,7 +27,14 @@ export type AlarmKind =
   /** Runner: a successful run on an empty Archives */
   | 'empty Archives run'
   /** Corp: starts a turn (3 or later) with under 3 credits after starting the last one with 3 or more; detail is where most of its credits went since */
-  | 'Corp went broke';
+  | 'Corp went broke'
+  /**
+   * Corp: starts a 2nd turn in a row (turn 3 or later) under 3 credits; fired once per stretch, at its 2nd turn start. Jeff
+   * (2026-11-08): going broke is fine to secure an agenda or rez key ice as long as the Corp builds back up, so this
+   * counts the stretches that don't. The note gives how many turn starts the stretch lasted; the detail is 'recovered'
+   * or 'never recovered' (still under 3 when the game ended: done()).
+   */
+  | 'Corp stayed broke';
 
 export interface Alarm {
   kind: AlarmKind;
@@ -83,6 +90,8 @@ export class AlarmTracker {
   private spent = new Map<string, number>();
   private gained = new Map<string, number>();
   private lastCorpCredits = 99;
+  /** The Corp's current run of turn starts under 3 credits (turn 3+), and its 'Corp stayed broke' alarm once fired */
+  private brokeStretch: { from: number; starts: number; alarm?: Alarm } | null = null;
 
   private fire(kind: AlarmKind, turn: number, side: 'corp' | 'runner', note: string, detail?: string) {
     this.alarms.push({ kind, turn, side, note, ...(detail ? { detail } : {}) });
@@ -115,6 +124,35 @@ export class AlarmTracker {
     }
   }
 
+  /** 'Corp stayed broke': opens, extends or closes the stretch of turn starts under 3 credits. */
+  private trackBrokeStretch(s: GameState) {
+    const stretch = this.brokeStretch;
+    if (s.turnNumber >= 3 && s.corp.credits < 3) {
+      if (!stretch) {
+        this.brokeStretch = { from: s.turnNumber, starts: 1 };
+        return;
+      }
+      stretch.starts++;
+      if (!stretch.alarm) {
+        this.fire('Corp stayed broke', s.turnNumber, 'corp', '', 'never recovered');
+        stretch.alarm = this.alarms[this.alarms.length - 1];
+      }
+      stretch.alarm.note = `under 3 credits at ${stretch.starts} turn starts in a row from turn ${stretch.from}, ${s.corp.credits} credits now`;
+      return;
+    }
+    if (stretch?.alarm) {
+      stretch.alarm.detail = 'recovered';
+      stretch.alarm.note = `under 3 credits at ${stretch.starts} turn starts in a row from turn ${stretch.from}, back to ${s.corp.credits} on turn ${s.turnNumber}`;
+    }
+    this.brokeStretch = null;
+  }
+
+  /** At the game's end: a 'Corp stayed broke' stretch still open never recovered (its detail already says so). */
+  done(end: GameState) {
+    const stretch = this.brokeStretch;
+    if (stretch?.alarm) stretch.alarm.note += `; the game ended on turn ${end.turnNumber} still under 3`;
+  }
+
   private startCorpTurn(s: GameState) {
     this.corpStart = s;
     if (s.turnNumber >= 3 && s.corp.credits < 3 && this.lastCorpCredits >= 3) {
@@ -124,6 +162,7 @@ export class AlarmTracker {
       const biggest = [...this.spent].sort((x, y) => y[1] - x[1])[0]?.[0] ?? 'nothing spent';
       this.fire('Corp went broke', s.turnNumber, 'corp', `${s.corp.credits} credits; since last turn spent: ${top(this.spent)}; gained: ${top(this.gained)}; HQ operations: ${ops.join(', ') || 'none'}; assets: ${assets.join(', ') || 'none'}`, biggest);
     }
+    this.trackBrokeStretch(s);
     this.lastCorpCredits = s.corp.credits;
     this.spent = new Map();
     this.gained = new Map();
