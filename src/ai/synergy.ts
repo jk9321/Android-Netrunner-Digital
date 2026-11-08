@@ -326,7 +326,7 @@ export const tuning = {
      */
     oneRezMoney: true,
     /** Code audit cleanup item 9: the Runner's board score and run choice guess a facedown card the same way (runs.ts remoteAgendaOdds, evaluate corpBoardValue). */
-    oneAgendaGuess: true,
+    oneAgendaGuess: false,
     /**
      * Thread "Find why self-play games end decked" (2026-11-06, branch ai-decking-fixes): tankNoEtr prices only ice with no
      * run enders by its tank cost (corpAI.ts protectionCost); hqHeld lets hqNoSafer apply while HQ holds 2+ agendas;
