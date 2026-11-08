@@ -168,7 +168,13 @@ for (const file of readdirSync(dir).filter(f => f.endsWith('.json')).sort()) {
       dump.push({ file, turn: s.turnNumber, clicks, side: human, human: describe(s, move), ai: describe(s, ai), w, same: same(move, ai) });
     }
     const before = s;
-    s = executeAction(s, move);
+    try {
+      s = executeAction(s, move);
+    } catch (e) {
+      // A fixture recorded on an older engine can stop replaying after a rules fix: the game is counted up to here
+      console.log(`${file}: replay stopped at turn ${s.turnNumber} (${(e as Error).message})`);
+      break;
+    }
     if (turnStart && (s.activePlayer !== human || s.turnNumber !== before.turnNumber || s.winner)) finishTurn(s.winner || s.activePlayer !== human ? s : before);
   }
   finishTurn(s);

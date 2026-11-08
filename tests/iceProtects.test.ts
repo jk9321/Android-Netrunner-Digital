@@ -1,5 +1,6 @@
 import { afterEach, describe, expect, it } from 'vitest';
 import { iceWorth } from '../src/ai/iceValues';
+import { evaluate } from '../src/ai/evaluate';
 import { tuning } from '../src/ai/synergy';
 import { cardDef, createCardInstance, GameState } from '../src/core';
 import { newGame } from './helpers';
@@ -114,5 +115,21 @@ describe('plan.iceProtects: ice in HQ (review R1)', () => {
     const off = handWorth(s, held);
     tuning.plan.iceProtects = true;
     expect(handWorth(s, held)).toBeLessThan(off);
+  });
+});
+
+describe('plan.iceProtects: no value loop through the root card (review 2 batch)', () => {
+  // The stake of an asset or upgrade was its priced worth, which reads the server's ice (Manegarm's tax, a money
+  // asset's trash risk behind ice), which read the stake: a loop, played on with flat values (vitest throws on one)
+  it.each([['Manegarm Skunkworks', '30042', '30039'], ['Regolith Mining License', '30071', '35079']])('%s behind rezzed ice prices without a loop', (_title, root, iceCode) => {
+    tuning.plan.iceProtects = true;
+    const s = newGame();
+    s.corp.credits = 10;
+    const card = createCardInstance(s, root);
+    card.isRezzed = true;
+    const ice = createCardInstance(s, iceCode);
+    ice.isRezzed = true;
+    s.corp.servers['remote-1'] = { id: 'remote-1', name: 'Remote Server 1', isRemote: true, ice: [ice], root: [card] };
+    expect(() => inDecision(s, 'corp', () => evaluate(s, 'corp'))).not.toThrow();
   });
 });

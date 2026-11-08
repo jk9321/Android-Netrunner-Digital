@@ -4,7 +4,8 @@ import { iceSubroutines } from '../core/engine/ice';
 import { AUDREY, iceCost, isTrap } from './runs';
 import { KNOBS, RATES, guardLoop, memo, pointGain, pointValue } from './valueModel';
 import { PACE } from './effectValues';
-import { archivedAgendaLoss, corpCardValue } from './evaluate';
+import { archivedAgendaLoss } from './evaluate';
+import { corpKeepValue } from './cardValues';
 import { centralAccess } from './threatModel';
 import { turnsLeft } from './cardProfiles';
 import { freeRezTargets } from './freeRez';
@@ -124,7 +125,9 @@ export function serverStake(state: GameState, server: ServerState): number {
   for (const card of server.root) {
     const def = cardDef(card);
     if (def.type_code === 'agenda') stake += swing(def.agenda_points ?? 1);
-    else if (!isTrap(card.cardCode)) stake += Math.max(0, corpCardValue(card, state, 'corp'));
+    // An asset or upgrade at its listed keep worth, not its priced worth: that reads the server's ice (Manegarm
+    // Skunkworks' tax, an asset's trash risk behind ice), which reads this stake, a value loop (review 2 batch: 639 games)
+    else if (!isTrap(card.cardCode)) stake += Math.max(0, corpKeepValue(card.cardCode));
   }
   // An empty remote that is the scoring remote (most ice, no asset: corpAI.ts mainRemote) is where the next agenda goes:
   // the deck's average agenda (HQ and R&D, as the Corp knows them). Scoring the agenda in it doesn't make its ice idle
