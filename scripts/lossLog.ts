@@ -108,7 +108,7 @@ export interface GameRecord {
   agendaInstalls: AgendaInstall[];
   /** At the start of the Runner's turns 1 and 2: which centrals had ice, and what ice the Corp still held */
   early: { turn: number; rdIce: number; hqIce: number; remoteIce: number; iceInHand: number; cheapIceInHand: number; hqAgendas: number; credits: number }[];
-  money: { spent: Record<string, number>; gained: Record<string, number>; corpTurns: number; creditsAtTurnEnd: number; clicks: number; creditClicks: number };
+  money: { spent: Record<string, number>; gained: Record<string, number>; corpTurns: number; creditsAtTurnEnd: number; clicks: number; creditClicks: number; creditsAtTurnStart?: number[] };
   /** Assets and upgrades rezzed, by card title: during a run or on the Corp's turn, and the credits paid */
   rootRezzes: Record<string, { run: number; turn: number; credits: number }>;
   /** Unrezzed ice the Runner approached that the Corp couldn't afford to rez, and how many of those it could have had it not rezzed assets/upgrades since its last turn began */
@@ -270,7 +270,7 @@ export function playLogged(
   const board = { remotes: 0, icedRemotes: 0, remoteIce: 0, maxRemoteIce: 0, hqIce: 0, rdIce: 0 };
   let corpTurns = 0;
   let lastTurn = -1;
-  const money: GameRecord['money'] = { spent: {}, gained: {}, corpTurns: 0, creditsAtTurnEnd: 0, clicks: 0, creditClicks: 0 };
+  const money: GameRecord['money'] = { spent: {}, gained: {}, corpTurns: 0, creditsAtTurnEnd: 0, clicks: 0, creditClicks: 0, creditsAtTurnStart: [] };
   const runs: RunWaste = { total: 0, paidAndFailed: 0, credits: 0, jackOutKnown: 0, jackOutFresh: 0, stoppedKnown: 0, stoppedFresh: 0 };
   let rezzedAtStart = new Set<string>();
   let paid = 0;
@@ -359,6 +359,8 @@ export function playLogged(
     }
     if (before.turnNumber !== lastTurn && before.activePlayer === 'corp') {
       corpTurnStart = before;
+      // Phase 2 E0: the Corp's credits as each of its turns begins (the bank the Runner's turn left it)
+      money.creditsAtTurnStart!.push(before.corp.credits);
       rootSpent = 0;
       lastTurn = before.turnNumber;
       const remoteAgenda = Object.entries(before.corp.servers).some(([id, s]) => id.startsWith('remote') && s.root.some(isAgenda));

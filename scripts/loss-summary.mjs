@@ -105,6 +105,9 @@ export function printLossSummary(all, detail = !!process.env.DETAIL) {
       console.log(`  spent ${book('spent')}`);
       console.log(`  gained ${book('gained')}`);
       console.log(`  credits at end of turn ${(sum(list, g => g.money.creditsAtTurnEnd) / Math.max(turns, 1)).toFixed(1)}; clicks for a credit ${pct(sum(list, g => g.money.creditClicks), sum(list, g => g.money.clicks))}`);
+      // Phase 2 E0: the bank at each Corp turn start (records from before E0 have none)
+      const starts = list.flatMap(g => g.money.creditsAtTurnStart ?? []);
+      if (starts.length) console.log(`  credits at start of turn ${(starts.reduce((a, b) => a + b, 0) / starts.length).toFixed(1)}; turn starts under 3 credits ${pct(starts.filter(c => c < 3).length, starts.length)}`);
     }
   }
   if (games[0]?.rootRezzes) {
