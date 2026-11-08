@@ -332,6 +332,8 @@ export const tuning = {
     iceProtects: false,
     /** Probe P2: the planner's two best Corp candidates re-scored on REPLY.extra more Runner-reply samples (turnPlanner.ts contenders). */
     replyContenders: false,
+    /** Probe P3: the planner's Corp candidates always include the best agenda install into an iced remote and the best advance (turnPlanner.ts agendaCandidates). */
+    plannerAgenda: false,
     /** Code audit cleanup item 9: the Runner's board score and run choice guess a facedown card the same way (runs.ts remoteAgendaOdds, evaluate corpBoardValue). */
     oneAgendaGuess: false,
     /**
@@ -387,7 +389,7 @@ export const tuning = {
  */
 export const sideOff: Record<SideCode, string[]> = {
   corp: [],
-  runner: ['tagTrashNow', 'ownTrashRisk', 'hqTrashCost', 'oneCurrency', 'threatModel', 'measuredPass', 'threatSpend', 'calibratedRun', 'raceClock', 'iceProtects', 'replyContenders'],
+  runner: ['tagTrashNow', 'ownTrashRisk', 'hqTrashCost', 'oneCurrency', 'threatModel', 'measuredPass', 'threatSpend', 'calibratedRun', 'raceClock', 'iceProtects', 'replyContenders', 'plannerAgenda'],
 };
 
 /**

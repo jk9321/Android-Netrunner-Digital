@@ -226,6 +226,39 @@ export function discardStep(state: GameState, side: SideCode, ai: PlannerAI): Ga
 }
 
 /**
+ * plan.plannerAgenda (install-worth side check, probe P3, AI Coordinator 2026-11-08): the agenda moves the rule ranking
+ * puts outside the planner's top few, added as candidates (not scored higher; the playout and the leaf decide). The
+ * one-step score charges an installed agenda its whole steal and advancement cost at once (Jeff's agenda installs: median
+ * -2.37, p25 -13.4), so at report-17 turn 2 Offworld Office into remote-1 was never played out though its line beat the
+ * AI's pick. Added: the best-ranked agenda install into an existing remote with ice, and the best-ranked advance on an
+ * installed agenda. Rules: installed agendas can always be advanced (1.18.1, 1.18.3; basic action 5.2.6a) and are
+ * scored once their counters reach the advancement requirement (1.17.3a).
+ */
+export function agendaCandidates(state: GameState, ranked: ScoredAction[], chosen: ScoredAction[]): ScoredAction[] {
+  const taken = new Set(chosen.map(r => JSON.stringify(r.action)));
+  const agenda = (r: ScoredAction) => {
+    const id = 'cardInstanceId' in r.action ? r.action.cardInstanceId : undefined;
+    const card = id ? findCardAnywhere(state, id) : undefined;
+    return !!card && cardDef(card).type_code === 'agenda';
+  };
+  const added: ScoredAction[] = [];
+  const pick = (test: (r: ScoredAction) => boolean) => {
+    const found = ranked.find(r => r.score > -Infinity && !taken.has(JSON.stringify(r.action)) && agenda(r) && test(r));
+    if (found) {
+      added.push(found);
+      taken.add(JSON.stringify(found.action));
+    }
+  };
+  pick(r => {
+    if (r.action.type !== 'INSTALL_CARD' || r.action.asNewRemote || !r.action.targetServerId) return false;
+    const server = state.corp.servers[r.action.targetServerId];
+    return !!server?.isRemote && server.ice.length > 0;
+  });
+  pick(r => r.action.type === 'ADVANCE_CARD');
+  return added;
+}
+
+/**
  * plan.plannerSearch plannerBuild (structural review item 4): the Corp's two-step builds the rule ranking can't see,
  * added as candidates (not scored higher; the playout and the leaf decide): the best-ranked ice install into a new
  * remote, or a remote with nothing in it yet, while HQ holds an agenda or an asset that would go behind it; and the
@@ -296,6 +329,7 @@ export function planTurn(state: GameState, side: SideCode, ranked: ScoredAction[
   const candidates = ranked.filter(r => r.score > -Infinity && r.action.type !== 'END_TURN' && r.action.type !== 'START_TURN' && !dominated(state, r.action, ranked, side)).slice(0, PLANNER.candidates);
   const added = side === 'corp' && searchPiece('plannerBuild') ? buildCandidates(state, ranked, candidates).slice(0, Math.max(0, PLANNER.withBuild - candidates.length)) : [];
   candidates.push(...added);
+  if (side === 'corp' && plan().plannerAgenda) candidates.push(...agendaCandidates(state, ranked, candidates).slice(0, Math.max(0, PLANNER.withBuild + 2 - candidates.length)));
   if (candidates.length <= 1 || clicksOf(state, side) <= 0) return null;
   plannerStats.decisions++;
   if (added.length) {

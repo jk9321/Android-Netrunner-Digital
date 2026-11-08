@@ -77,7 +77,7 @@ export const ICE_PLANNED = 0.5;
  * server's stake supports: the stake over the summed break costs of the server's ice, at most 1, at least ICE_UNGUARDED.
  * At Jeff's positions an ice on any server read 0.2 to 2 agenda points (1 point = 8) whatever sat behind it, and one ice
  * install outscored one advance (install-worth/report.md). Rules: a successful run breaches the attacked server and
- * accesses its cards (7.4.1, 7.4.1b-c), so what ice holds back is what the breach would take.
+ * accesses its cards (7.4.1a-d), so what ice holds back is what the breach would take.
  */
 function protects(state: GameState, ice: CardInstance, viewer: SideCode): number {
   if (viewer !== 'corp' || !plan().iceProtects) return 1;
