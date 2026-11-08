@@ -246,7 +246,7 @@ export function buildTarget(state: GameState, side: SideCode): number {
  * cost of the rezzed ice on the most expensive server (rez cost standing
  * in for break cost until step 5 prices ice by what it costs to break).
  */
-export function boardNeed(state: GameState, side: SideCode): number {
+export function boardNeed(state: GameState, side: SideCode, viewer: SideCode = side): number {
   const servers = Object.values(state.corp.servers);
   if (side === 'corp') {
     let need = 0;
@@ -255,14 +255,34 @@ export function boardNeed(state: GameState, side: SideCode): number {
       // plan.oneRezMoney: what rezzing it costs now (Tread Lightly, Fransofia Ward), as the rule ranking's reserve counts it
       if (counts) for (const ice of server.ice) if (!ice.isRezzed) need += plan().oneRezMoney ? rezCostOf(state, ice) : cardDef(ice).cost ?? 0;
     }
-    return need;
+    return need + (viewer === 'corp' && plan().scoreBudget ? scoreNeed(state) : 0);
   }
   return Math.max(0, ...servers.map(s => s.ice.filter(i => i.isRezzed).reduce((n, i) => n + (cardDef(i).cost ?? 0), 0)));
 }
 
+/**
+ * plan.scoreBudget (Phase 2 E1, spec-phase2.md; Corp's own view): the credits still to pay to score the agendas installed
+ * in its remotes: one per advancement counter still short of the advancement requirement (advancing costs a click and
+ * 1 credit, rule 5.2.6f; an agenda scores once its counters reach the requirement, 1.17.3a). The unrezzed ice holding
+ * each agenda (its rez cost, 1.16.8) is already in boardNeed. The agenda a line installs counts once it is on the board
+ * the line leaves, so a planner leaf that installs one prices the credits to finish it. Only the Corp knows a facedown
+ * root card is an agenda (the Runner's view leaves it out).
+ */
+export function scoreNeed(state: GameState): number {
+  let need = 0;
+  for (const server of Object.values(state.corp.servers)) {
+    if (!server.isRemote) continue;
+    for (const card of server.root) {
+      const def = cardDef(card);
+      if (def.type_code === 'agenda') need += Math.max(0, (def.advancement_cost ?? 0) - card.advancementCounters);
+    }
+  }
+  return need;
+}
+
 /** The need credits slide against: the build target or the board's need, whichever is more. */
-export const creditNeed = (state: GameState, side: SideCode): number => {
-  const need = Math.max(buildTarget(state, side), boardNeed(state, side));
+export const creditNeed = (state: GameState, side: SideCode, viewer: SideCode = side): number => {
+  const need = Math.max(buildTarget(state, side), boardNeed(state, side, viewer));
   // plan.raceClock.money (tuning pass 1, round 2: off): the Corp's credits are worth less when its game is short
   return side === 'corp' ? need * corpNeedScale(state) : need;
 };
@@ -324,7 +344,7 @@ export function sideCreditValue(state: GameState, side: SideCode, viewer: SideCo
   const credits = side === 'corp' ? state.corp.credits : state.runner.credits;
   // The money it unlocks in HQ sits on the slide with the credits: worth most to a broke Corp
   const reach = side === 'corp' && viewer === 'corp' ? moneyReach(state) : 0;
-  const need = creditNeed(state, side);
+  const need = creditNeed(state, side, viewer);
   // plan.brokeSlope (Jeff, 2026-11-05: rez ice when needed, then build back up): the Corp's own first 4 credits are
   // worth up to 2.8 each, not 1.8 (a steeper slope all the way to the need made a click for a credit beat installing
   // Otto Campaign at 6 credits). Broke, it made no more money than when rich (2.3 credits a turn): a credit click scored
