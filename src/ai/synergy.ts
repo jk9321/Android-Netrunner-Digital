@@ -325,13 +325,6 @@ export const tuning = {
      * there, the reserve gap and money target left to plays scored without the board; valueModel boardNeed by rezCostOf).
      */
     oneRezMoney: true,
-    /**
-     * Install-worth side check (2026-11-08, Jeff: "is a value bugged?"): an unrezzed asset or upgrade the Corp prices as its
-     * own is worth its rezzed worth after one wait less the rez cost still to pay (evaluate.ts corpCardWorth, the
-     * plan.oneCurrency pricing) with oneCurrency on or off. Off: worth corpKeepValue from the click it lands, before any
-     * rez (rules 5.6.1b, 5.6.2a: it pays nothing until rezzed). Corp only (sideOff.runner).
-     */
-    installWait: false,
     /** Code audit cleanup item 9: the Runner's board score and run choice guess a facedown card the same way (runs.ts remoteAgendaOdds, evaluate corpBoardValue). */
     oneAgendaGuess: false,
     /**
@@ -387,7 +380,7 @@ export const tuning = {
  */
 export const sideOff: Record<SideCode, string[]> = {
   corp: [],
-  runner: ['tagTrashNow', 'ownTrashRisk', 'hqTrashCost', 'oneCurrency', 'threatModel', 'measuredPass', 'threatSpend', 'calibratedRun', 'raceClock', 'installWait'],
+  runner: ['tagTrashNow', 'ownTrashRisk', 'hqTrashCost', 'oneCurrency', 'threatModel', 'measuredPass', 'threatSpend', 'calibratedRun', 'raceClock'],
 };
 
 /**
