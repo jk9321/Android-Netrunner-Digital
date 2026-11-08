@@ -1,9 +1,10 @@
 import { afterEach, describe, expect, it } from 'vitest';
-import { GameState } from '../src/core';
+import { GameState, cardDef } from '../src/core';
 import { tuning } from '../src/ai/synergy';
 import { runnerView } from '../src/ai/threatModel';
 import { corpSeenGrip, oracleSteal } from '../src/ai/oracle';
-import { installIceForTest, newGame, putInHand } from './helpers';
+import { installIceForTest, newGame, newGameAtSetup, putInHand } from './helpers';
+import { placeOracleIce } from '../scripts/oracle-ice';
 import { inDecision } from './helpers/pricing';
 import { pricing } from '../src/ai/pricing';
 
@@ -106,5 +107,28 @@ describe('oracle.safestRemote', () => {
     const midTurn = { ...end, corp: { ...end.corp, clicks: 1 } };
     expect(inDecision(start, 'corp', () => oracleSteal(midTurn, 'remote-9'))).toBeUndefined();
     expect(inDecision(start, 'runner', () => oracleSteal(end, 'remote-9'))).toBeUndefined();
+  });
+});
+
+describe('ORACLE_ICE board setup (scripts/oracle-ice.ts)', () => {
+  it.each(['hq', 'archives', 'remote'] as const)('puts the first ice of R&D rezzed on %s, from the deck, with no new instance', target => {
+    const s = newGameAtSetup(2);
+    const ice = s.corp.rd.find(c => cardDef(c).type_code === 'ice')!;
+    const hq = ids(s.corp.hq);
+    const rd = s.corp.rd.length;
+    const next = s.nextInstanceId;
+    expect(placeOracleIce(s, target)).toBe(true);
+    const server = target === 'remote' ? s.corp.servers[`remote-${s.corp.remoteCounter}`] : s.corp.servers[target];
+    expect(server.ice).toEqual([expect.objectContaining({ instanceId: ice.instanceId, isRezzed: true })]);
+    expect(s.corp.rd.length).toBe(rd - 1);
+    expect(ids(s.corp.hq)).toEqual(hq);
+    expect(s.nextInstanceId).toBe(next);
+  });
+
+  it('skips a deal whose R&D holds no ice', () => {
+    const s = newGameAtSetup(2);
+    s.corp.rd = s.corp.rd.filter(c => cardDef(c).type_code !== 'ice');
+    expect(placeOracleIce(s, 'hq')).toBe(false);
+    expect(s.corp.servers.hq.ice).toEqual([]);
   });
 });

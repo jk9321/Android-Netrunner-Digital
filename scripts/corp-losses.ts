@@ -16,6 +16,7 @@ import { createAgent } from '../src/ai';
 import { GameRecord, playLogged } from './lossLog';
 import { valueLoops } from '../src/ai/valueModel';
 import { applyPlanOff, tuning } from '../src/ai/synergy';
+import { OracleIce, placeOracleIce } from './oracle-ice';
 
 const [gamesArg, levelArg] = process.argv.slice(2).filter(a => a !== '--');
 const games = Number(gamesArg ?? 1);
@@ -23,7 +24,12 @@ const level = (levelArg ?? 'normal') as 'normal' | 'hard';
 const [shard, shards] = (process.env.SHARD ?? '0/1').split('/').map(Number);
 
 // PLAN_OFF=a,b switches off planning terms; CORP_DECKS / RUNNER_DECKS=name,name play only those decks
-applyPlanOff(process.env.PLAN_OFF ?? '');
+// Round 2 oracle 3 (spec-round2.md): +oracle.ice.hq|archives|remote in PLAN_OFF is a board setup read here, not a
+// plan switch (the ai-batch workflow has no other input for it): taken out before applyPlanOff
+const planOff = (process.env.PLAN_OFF ?? '').split(',').filter(Boolean);
+const iceOracle = planOff.find(k => /^\+oracle\.ice\./.test(k))?.replace('+oracle.ice.', '') as OracleIce | undefined;
+if (iceOracle && !['hq', 'archives', 'remote'].includes(iceOracle)) throw new Error(`oracle.ice.${iceOracle}: hq, archives or remote`);
+applyPlanOff(planOff.filter(k => !/^\+oracle\.ice\./.test(k)).join(','));
 if (process.env.BLUFF === '0') tuning.bluff = false;
 const only = (process.env.CORP_DECKS ?? '').split(',').filter(Boolean);
 // DECKS=vp-,core- plays only decks whose id starts with one of the prefixes; corp=x / runner=x narrow one side only
@@ -67,9 +73,12 @@ for (const c of corpDecks) {
       if (process.env.TRACE) console.error(`start deal ${seed} ${c.name} vs ${r.name}`);
       valueLoops.clear();
       try {
-        const record = playLogged(createInitialGameState(deckGameSetup(seed, c, r)), { corp: agent('corp'), runner: agent('runner') }, { corp: c.name, runner: r.name });
+        const start = createInitialGameState(deckGameSetup(seed, c, r));
+        const iced = iceOracle ? placeOracleIce(start, iceOracle) : undefined;
+        const record = playLogged(start, { corp: agent('corp'), runner: agent('runner') }, { corp: c.name, runner: r.name });
         // Value loops met in the game (valueModel.ts guardLoop): played on with flat values, listed in the summary to fix
-        records.push(valueLoops.size ? { ...record, seed, loops: Object.fromEntries(valueLoops) } : { ...record, seed });
+        const tagged = iced === false ? { ...record, seed, oracleIceSkipped: true } : { ...record, seed };
+        records.push(valueLoops.size ? { ...tagged, loops: Object.fromEntries(valueLoops) } : tagged);
       } catch (err) {
         // A crashed game is listed in the summary, not dropped silently
         records.push({ crashed: `${err}`.slice(0, 200), seed, corpDeck: c.name, runnerDeck: r.name } as unknown as GameRecord);

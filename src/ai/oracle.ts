@@ -106,6 +106,7 @@ export function oracleSteal(state: GameState, serverId: string): number | undefi
   if (state.activePlayer !== 'corp' || state.activeRun || state.corp.clicks > 0) return undefined;
   const server = state.corp.servers[serverId];
   if (!server?.isRemote) return undefined;
+  // A steal moves the agenda to the Runner's score area (rules 8.2.10), read from the played-out turn
   // Limited to agenda installs (the spec's fallback when the full oracle costs over 2x a decision): only an agenda this
   // line installs, one in HQ as the decision started, is told; an agenda already installed keeps the honest estimate
   const agendas = server.root.filter(card => cardDef(card).type_code === 'agenda');
