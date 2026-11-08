@@ -35,7 +35,7 @@ const defaultOn = tuning.plan.plannerAgenda;
 afterEach(() => { tuning.plan.plannerAgenda = defaultOn; plannerStats.onCandidates = undefined; });
 
 describe('plan.plannerAgenda', () => {
-  it('is off by default', () => expect(defaultOn).toBe(false));
+  it('is on by default', () => expect(defaultOn).toBe(true));
 
   it('report-17 turn 2: the agenda install is among the candidates only with the switch, and wins its playout', () => {
     const s = position();

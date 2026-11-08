@@ -34,7 +34,7 @@ function remoteWithJaguarundi(agenda: boolean): { s: GameState; worth: (viewer?:
 }
 
 describe('plan.iceProtects', () => {
-  it('is off by default', () => expect(defaultOn).toBe(false));
+  it('is on by default', () => expect(defaultOn).toBe(true));
 
   it('the same unrezzed Jaguarundi is worth more in front of an advanced Offworld Office than an empty remote', () => {
     tuning.plan.iceProtects = true;
