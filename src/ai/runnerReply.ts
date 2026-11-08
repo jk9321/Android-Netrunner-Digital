@@ -6,7 +6,7 @@ import { pointValue } from './valueModel';
 import { threatStats, turnSeed } from './threatModel';
 import { currentDecisionSeed, searchPiece } from './turnPlanner';
 import { plan } from './pricing';
-import { corpKnowsRd, corpSeenGrip } from './oracle';
+import { corpKnowsRd, corpSeenGrip, replySamples } from './oracle';
 
 /**
  * The Runner's reply (Jeff, 2026-10-28; plan.runnerReply): the Corp's
@@ -101,8 +101,9 @@ export function runnerReply(end: GameState, synergy: boolean, leaf: (state: Game
   const values: number[] = [];
   const outer = threatStats.inReply;
   threatStats.inReply = true;
+  const samples = replySamples(REPLY.samples); // plan.oracle.think: more samples
   try {
-    for (let k = 0; k < REPLY.samples; k++) {
+    for (let k = 0; k < samples; k++) {
       const gr = new GameRunner(guessHidden(end, k), {
         corp: new HeuristicCorpAI({ synergy, planner: false }),
         runner: new HeuristicRunnerAI({ synergy, planner: false }),
@@ -135,5 +136,5 @@ export function runnerReply(end: GameState, synergy: boolean, leaf: (state: Game
     threatStats.inReply = outer;
   }
   replyStats.onSamples?.(values);
-  return total / REPLY.samples;
+  return total / samples;
 }

@@ -152,3 +152,26 @@ describe('oracle.rd', () => {
     expect(inDecision(s, 'runner', () => corpDrawPool(s))).toBe(s.corp.rd);
   });
 });
+
+describe('oracle.think', () => {
+  it('off: the shipped planner width and reply samples; on: wider for the Corp only', async () => {
+    const { plannerCandidates, replySamples, thinkAlwaysTries, THINK } = await import('../src/ai/oracle');
+    const s = newGame(4);
+    expect(inDecision(s, 'corp', () => [plannerCandidates('corp', 4), replySamples(2), thinkAlwaysTries('corp')])).toEqual([4, 2, false]);
+    tuning.plan.oracle.think = true;
+    expect(inDecision(s, 'corp', () => [plannerCandidates('corp', 4), replySamples(2), thinkAlwaysTries('corp')])).toEqual([THINK.candidates, THINK.samples, true]);
+    expect(inDecision(s, 'runner', () => [plannerCandidates('runner', 4), replySamples(2), thinkAlwaysTries('runner')])).toEqual([4, 2, false]);
+  });
+});
+
+describe('oracle.money (scripts/oracle-money.ts)', () => {
+  it('gives the Corp one credit as a new state, leaving the old one as it was', async () => {
+    const { withOracleMoney } = await import('../scripts/oracle-money');
+    const s = newGame(4);
+    const credits = s.corp.credits;
+    const next = withOracleMoney(s);
+    expect(next.corp.credits).toBe(credits + 1);
+    expect(s.corp.credits).toBe(credits);
+    expect(next.runner).toBe(s.runner);
+  });
+});

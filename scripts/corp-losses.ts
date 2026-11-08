@@ -17,6 +17,7 @@ import { GameRecord, playLogged } from './lossLog';
 import { valueLoops } from '../src/ai/valueModel';
 import { applyPlanOff, tuning } from '../src/ai/synergy';
 import { OracleIce, placeOracleIce } from './oracle-ice';
+import { withOracleMoney } from './oracle-money';
 
 const [gamesArg, levelArg] = process.argv.slice(2).filter(a => a !== '--');
 const games = Number(gamesArg ?? 1);
@@ -29,7 +30,9 @@ const [shard, shards] = (process.env.SHARD ?? '0/1').split('/').map(Number);
 const planOff = (process.env.PLAN_OFF ?? '').split(',').filter(Boolean);
 const iceOracle = planOff.find(k => /^\+oracle\.ice\./.test(k))?.replace('+oracle.ice.', '') as OracleIce | undefined;
 if (iceOracle && !['hq', 'archives', 'remote'].includes(iceOracle)) throw new Error(`oracle.ice.${iceOracle}: hq, archives or remote`);
-applyPlanOff(planOff.filter(k => !/^\+oracle\.ice\./.test(k)).join(','));
+// +oracle.money (the money ceiling): +1 credit at the start of every Corp turn, read here too (scripts/oracle-money.ts)
+const moneyOracle = planOff.includes('+oracle.money');
+applyPlanOff(planOff.filter(k => !/^\+oracle\.ice\./.test(k) && k !== '+oracle.money').join(','));
 if (process.env.BLUFF === '0') tuning.bluff = false;
 const only = (process.env.CORP_DECKS ?? '').split(',').filter(Boolean);
 // DECKS=vp-,core- plays only decks whose id starts with one of the prefixes; corp=x / runner=x narrow one side only
@@ -75,7 +78,7 @@ for (const c of corpDecks) {
       try {
         const start = createInitialGameState(deckGameSetup(seed, c, r));
         const iced = iceOracle ? placeOracleIce(start, iceOracle) : undefined;
-        const record = playLogged(start, { corp: agent('corp'), runner: agent('runner') }, { corp: c.name, runner: r.name });
+        const record = playLogged(start, { corp: agent('corp'), runner: agent('runner') }, { corp: c.name, runner: r.name }, moneyOracle ? s => withOracleMoney(s) : undefined);
         // Value loops met in the game (valueModel.ts guardLoop): played on with flat values, listed in the summary to fix
         const tagged = iced === false ? { ...record, seed, oracleIceSkipped: true } : { ...record, seed };
         records.push(valueLoops.size ? { ...tagged, loops: Object.fromEntries(valueLoops) } : tagged);

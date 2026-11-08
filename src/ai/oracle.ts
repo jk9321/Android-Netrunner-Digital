@@ -140,3 +140,13 @@ export const corpKnowsRd = (): boolean => !!plan().oracle?.rd && actingSide() ==
 export function corpDrawPool(state: GameState): GameState['corp']['rd'] {
   return corpKnowsRd() && state.corp.rd.length ? state.corp.rd.slice(0, 1) : state.corp.rd;
 }
+
+/**
+ * plan.oracle.think (AI Coordinator 2026-11-08: the "think harder" ceiling): the same knowledge, more search. The
+ * Corp planner's candidate count and Runner-reply samples for the deciding side; the shipped values otherwise.
+ */
+export const THINK = { candidates: 8, samples: 4 };
+const thinking = (): boolean => !!plan().oracle?.think && actingSide() === 'corp';
+export const plannerCandidates = (side: string, base: number): number => (side === 'corp' && thinking() ? THINK.candidates : base);
+export const replySamples = (base: number): number => (thinking() ? THINK.samples : base);
+export const thinkAlwaysTries = (side: string): boolean => side === 'corp' && thinking();
