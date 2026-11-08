@@ -9,6 +9,16 @@
             "command": "node \"$CLAUDE_PROJECT_DIR/.claude/hooks/guard-ai-dir.mjs\""
           }
         ]
+      },
+      {
+        "matcher": "Bash|mcp__github__push_files|mcp__github__create_or_update_file|mcp__github__delete_file",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node \"$CLAUDE_PROJECT_DIR/.claude/hooks/gate-main-beta.mjs\"",
+            "timeout": 300
+          }
+        ]
       }
     ],
     "PostToolUse": [
