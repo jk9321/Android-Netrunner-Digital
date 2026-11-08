@@ -324,14 +324,39 @@ export function remoteRunChance(state: GameState, serverId: string): number {
   return calibrated(serverId, probeRun(state, serverId, server));
 }
 
+/**
+ * `state` with remoteRunChance's stand-in agenda in remote `serverId` when it holds no facedown card (state itself
+ * otherwise, or when the Corp has no agenda to copy).
+ */
+export function probedState(state: GameState, serverId: string): GameState {
+  const server = state.corp.servers[serverId];
+  if (!server?.isRemote || server.root.some(c => !c.isRezzed && !c.faceUp)) return state;
+  const like = [...state.corp.hq, ...state.corp.rd, ...state.corp.scoreArea].find(c => cardDef(c).type_code === 'agenda');
+  if (!like) return state;
+  const probe: CardInstance = { ...like, instanceId: 'threat-probe', isRezzed: false, faceUp: false, advancementCounters: 0, runnerKnows: false, tokens: {} };
+  const servers = { ...state.corp.servers, [serverId]: { ...server, root: [...server.root, probe] } };
+  return { ...state, corp: { ...state.corp, servers } };
+}
+
+/**
+ * plan.reach (reach.ts): whether the Runner AI would run `serverId` on its next turn from `view` (a board reach has
+ * given breakers it may find): the server's score at the turn's start against its always-there click, as the probe
+ * reads it. 1 or 0.
+ */
+export function wouldRun(view: GameState, serverId: string): number {
+  return withPricing({ computingThreat: pricing().computingThreat + 1 }, () =>
+    asSide('runner', () => {
+      const v = runnerView(view);
+      return runScore(v, serverId, { memory: runnerMemory(view), wary: !!tuning.wary }) > fallbackClick(v).score ? 1 : 0;
+    })
+  );
+}
+
 /** The probe's 0/1 (remoteRunChance). */
 function probeRun(state: GameState, serverId: string, server: GameState['corp']['servers'][string]): number {
   return memo(state, `remoteRunChance:${serverId}`, () => remember(probeCache, serverId + '|' + threatKey(state), () => {
-    const like = [...state.corp.hq, ...state.corp.rd, ...state.corp.scoreArea].find(c => cardDef(c).type_code === 'agenda');
-    if (!like) return threat(state).servers[serverId]?.run ?? 0;
-    const probe: CardInstance = { ...like, instanceId: 'threat-probe', isRezzed: false, faceUp: false, advancementCounters: 0, runnerKnows: false, tokens: {} };
-    const servers = { ...state.corp.servers, [serverId]: { ...server, root: [...server.root, probe] } };
-    const probed = { ...state, corp: { ...state.corp, servers } };
+    const probed = probedState(state, serverId);
+    if (probed === state || probed.corp.servers[serverId] === server) return threat(state).servers[serverId]?.run ?? 0;
     // Not a whole budget per probe (handValues asks for every remote, for every agenda in HQ): the probed server's
     // score at the turn's start against the base turn's runs. It is run when it beats the fallback click and fewer of
     // the base turn's runs outscore it than the Runner has clicks (the credits each run spends are not re-counted)

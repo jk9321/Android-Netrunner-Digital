@@ -64,6 +64,8 @@ export interface Pricing {
   pricingBreakers: Set<string>;
   /** plan.oracle.safestRemote (oracle.ts): the Runner's next turn is being played out for the oracle: no oracle inside. */
   oracleRunning: boolean;
+  /** plan.reach (reach.ts): a capability case is being worked out: nothing inside asks reach again. */
+  reaching: boolean;
 }
 
 const context: Pricing = {
@@ -85,6 +87,7 @@ const context: Pricing = {
   rezzingToUse: new Set(),
   pricingBreakers: new Set(),
   oracleRunning: false,
+  reaching: false,
 };
 
 /** The current context (read only: change it with withPricing). */
@@ -201,7 +204,7 @@ export function pricingKey(): string {
     c.planning ? 'c' : '',
     c.computingThreat ? 'h' : '',
     c.buildingClock ? 'k' : '',
-    c.oracleRunning ? 'o' : '',
+    (c.oracleRunning ? 'o' : '') + (c.reaching ? 'r' : ''),
   ].join(':');
   keyVersion = version;
   return key;

@@ -368,6 +368,16 @@ export const tuning = {
      */
     raceClock: { agendas: false, tempo: false, tempoOnce: false, horizon: false, money: false },
     /**
+     * Round 2 Phase 2 K (spec-phase2.md K, design-k1.md): the Runner capability model (reach.ts). reach: an agenda's steal
+     * odds over the breakers the Runner may hold or draw from its unseen pool (hypergeometric), each case priced with that
+     * breaker installed, in place of the threat on the rig as it is. reachStrength (K2): the Corp's own unrezzed ice
+     * priced as the real ice when its rez budget covers it (rule 3.4.3a), and HQ/R&D exposure from reach's get-in odds.
+     * reachTime (K3): each turn an agenda waits at its own horizon (income and draws by then). All off until batched.
+     */
+    reach: false,
+    reachStrength: false,
+    reachTime: false,
+    /**
      * Tuning pass round 2, phase 1 (Fable spec 2026-11-08, spec-round2.md): measurement oracles. Each gives the Corp an
      * answer it can't honestly have, one at a time in a batch (plan_off=+oracle.<name>), to measure what that knowledge
      * is worth before anything is built for it. Every hidden read lives in oracle.ts. Never a default (codeHealth test);
@@ -411,7 +421,7 @@ export const tuning = {
  */
 export const sideOff: Record<SideCode, string[]> = {
   corp: [],
-  runner: ['tagTrashNow', 'ownTrashRisk', 'hqTrashCost', 'oneCurrency', 'threatModel', 'measuredPass', 'threatSpend', 'calibratedRun', 'raceClock', 'iceProtects', 'replyContenders', 'plannerAgenda', 'oracle'],
+  runner: ['tagTrashNow', 'ownTrashRisk', 'hqTrashCost', 'oneCurrency', 'threatModel', 'measuredPass', 'threatSpend', 'calibratedRun', 'raceClock', 'iceProtects', 'replyContenders', 'plannerAgenda', 'oracle', 'reach', 'reachStrength', 'reachTime'],
 };
 
 /**
