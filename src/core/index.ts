@@ -27,3 +27,4 @@ export { FORMATS, DEFAULT_FORMAT, SET_NAMES, getFormat, isFormatId, isBanned, is
 export type { Format, FormatId, BanList, FormatStatus } from './formats';
 export { viewFor, newViewIds, toEngineAction, fromEngineAction } from './view';
 export type { ViewIds, GameView, CardView, HandView, DeckView, ServerView, CorpView, RunnerView, PromptView, MyPromptView, LogEntryView, RunView, EncounterView, PriorityView } from './view';
+export { stateFromView } from './view/reconstruct';

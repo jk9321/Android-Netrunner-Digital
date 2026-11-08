@@ -20,7 +20,35 @@ export const CARD_SETS: { code: string; name: string }[] = [
   { code: 'rwr', name: 'Rebellion Without Rehearsal' },
 ];
 
-const CARDS_BY_CODE = new Map<string, CardDefinition>(ALL_CARDS.map(c => [c.code, c]));
+/**
+ * Placeholder cards (multiplayer phase 1, chunk 2). A table rebuilt from one
+ * player's view (core/view/reconstruct.ts) holds these where the player may
+ * not see a card: the opponent's hand, the decks, a facedown installed card
+ * (rules 4.2.2, 4.3.2, 4.6.2). They are not in ALL_CARDS, so no deck, card
+ * list or title index sees them; `type_code` is 'unknown', which no rules
+ * code tests for.
+ */
+export const HIDDEN_CORP = 'hidden-corp';
+export const HIDDEN_RUNNER = 'hidden-runner';
+const placeholder = (code: string, side: 'corp' | 'runner'): CardDefinition => ({
+  code,
+  title: 'Facedown card',
+  pack_code: '',
+  side_code: side,
+  faction_code: side === 'corp' ? 'neutral-corp' : 'neutral-runner',
+  type_code: 'unknown' as CardDefinition['type_code'],
+  text: '',
+});
+
+/** A placeholder for a card the viewer may not see (see HIDDEN_CORP). */
+export const isHiddenCode = (code: string | undefined): boolean => code === HIDDEN_CORP || code === HIDDEN_RUNNER;
+export const isHidden = (card: CardInstance): boolean => isHiddenCode(card.cardCode);
+
+const CARDS_BY_CODE = new Map<string, CardDefinition>([
+  ...ALL_CARDS.map(c => [c.code, c] as const),
+  [HIDDEN_CORP, placeholder(HIDDEN_CORP, 'corp')],
+  [HIDDEN_RUNNER, placeholder(HIDDEN_RUNNER, 'runner')],
+]);
 
 export function getCardDefinition(code: string): CardDefinition {
   const card = CARDS_BY_CODE.get(code);

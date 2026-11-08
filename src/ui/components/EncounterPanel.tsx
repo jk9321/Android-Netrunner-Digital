@@ -9,13 +9,13 @@ import {
   encounteredIce,
   findCardAnywhere,
   getCardScript,
-  getLegalActions,
   iceScript,
   iceStrength,
   iceSubroutines,
   iceSubtypes,
   installedIcebreakers,
 } from '../../core';
+import { legalFor, useSeat } from '../seat';
 import { Scissors, TrendingUp, Clock, Sparkles } from 'lucide-react';
 import { Credits } from './CreditIcon';
 import { Keyword } from './Keyword';
@@ -45,6 +45,7 @@ function subroutineSlots(count: number, max: number): number[][] {
  * the BREAK / BOOST / BIOROID_BREAK actions the engine reports as legal.
  */
 export const EncounterPanel: React.FC<EncounterPanelProps> = ({ state, onAction, readOnly = false }) => {
+  const seat = useSeat();
   const encounter = state.activeRun?.encounter;
   const ice = encounteredIce(state);
   // Rows that have offered break buttons during this encounter keep every
@@ -59,7 +60,7 @@ export const EncounterPanel: React.FC<EncounterPanelProps> = ({ state, onAction,
   };
 
   const subs = iceSubroutines(state, ice);
-  const legal = readOnly ? [] : getLegalActions(state, 'runner');
+  const legal = readOnly ? [] : legalFor(seat, 'runner');
   const titleOf = (id: string) => {
     const card = state.runner.rig.programs.find(c => c.instanceId === id);
     return card ? cardDef(card).title : id;

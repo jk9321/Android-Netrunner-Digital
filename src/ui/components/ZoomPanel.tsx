@@ -30,6 +30,12 @@ export function createZoomStore() {
       current = target;
       listeners.forEach(l => l());
     },
+    /** Forgets the card shown (a new viewer sits down: it was the last one's card). */
+    clear() {
+      if (!current) return;
+      current = null;
+      listeners.forEach(l => l());
+    },
     subscribe(listener: () => void) {
       listeners.add(listener);
       return () => listeners.delete(listener);

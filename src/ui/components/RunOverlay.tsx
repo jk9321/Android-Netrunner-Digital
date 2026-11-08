@@ -3,7 +3,8 @@ import { GameState } from '../../core/types/state';
 import { CardInstance } from '../../core/types/card';
 import { CardView } from './CardView';
 import { cardDef } from '../../data/cards';
-import { GameAction, findCardAnywhere, getCardScript, iceStrength, iceSubtypes, isLegalAction, rezCostOf } from '../../core';
+import { GameAction, findCardAnywhere, getCardScript, iceStrength, iceSubtypes, rezCostOf } from '../../core';
+import { useSeat } from '../seat';
 import { EncounterPanel } from './EncounterPanel';
 import { ArrowRight, LogOut, CheckCircle2, ShieldAlert, Sparkles } from 'lucide-react';
 import { Credits } from './CreditIcon';
@@ -53,6 +54,7 @@ export const RunOverlay: React.FC<RunOverlayProps> = ({
   onInspectCard,
   onAction,
 }) => {
+  const seat = useSeat();
   const { activeRun } = state;
   if (!activeRun) return null;
 
@@ -60,7 +62,7 @@ export const RunOverlay: React.FC<RunOverlayProps> = ({
   const pools = runCreditPools(state);
   const currentIce =
     activeRun.icePosition !== null && server ? server.ice[activeRun.icePosition] : null;
-  const canJackOut = isLegalAction(state, { type: 'JACK_OUT', player: 'runner' });
+  const canJackOut = seat.can({ type: 'JACK_OUT', player: 'runner' });
   const step = state.priority?.step;
   const continueLabel =
     step === 'run_initiation'

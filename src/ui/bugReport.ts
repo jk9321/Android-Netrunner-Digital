@@ -49,6 +49,21 @@ export function noteMoves(seed: number, moves: GameAction[], startStops?: GameSt
   liveMoves = { seed, moves, startStops };
 }
 
+/**
+ * The real state of the game being played, for the report (the screen draws only the viewer's view of it,
+ * so the report can't take its state from the screen). Kept by the game controller after every change.
+ */
+let liveState: { seed: number; state: GameState } | null = null;
+
+export function noteState(seed: number, state: GameState) {
+  liveState = { seed, state };
+}
+
+/** The real state of the game with this seed, if it is the one being played. */
+export function liveStateFor(seed: number): GameState | undefined {
+  return liveState?.seed === seed ? liveState.state : undefined;
+}
+
 /** The table state autosaved for this game (rez windows passed, accesses shown), if there is one. */
 export function savedTableFor(seed: number): SavedTable | undefined {
   const saved = loadSavedGame();
