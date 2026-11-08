@@ -6,7 +6,7 @@ import { pointValue } from './valueModel';
 import { threatStats, turnSeed } from './threatModel';
 import { currentDecisionSeed, searchPiece } from './turnPlanner';
 import { plan } from './pricing';
-import { corpSeenGrip } from './oracle';
+import { corpKnowsRd, corpSeenGrip } from './oracle';
 
 /**
  * The Runner's reply (Jeff, 2026-10-28; plan.runnerReply): the Corp's
@@ -66,7 +66,8 @@ export function guessHidden(state: GameState, k: number): GameState {
   const unseen = shuffleInPlace(rng, order([...state.runner.grip.filter(c => !known.has(c.instanceId)), ...state.runner.stack]));
   const grip = [...seen, ...unseen.slice(0, state.runner.grip.length - seen.length)];
   const stack = unseen.slice(state.runner.grip.length - seen.length);
-  const rd = shuffleRdKeeping(rng, [...state.corp.rd], knownRdSlots(state), common);
+  // plan.oracle.rd: the Corp knows its R&D order, so its guess keeps it
+  const rd = corpKnowsRd() ? [...state.corp.rd] : shuffleRdKeeping(rng, [...state.corp.rd], knownRdSlots(state), common);
   return { ...state, rng: createRng(rng.state), runner: { ...state.runner, grip, stack }, corp: { ...state.corp, rd } };
 }
 

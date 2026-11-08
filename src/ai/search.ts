@@ -9,7 +9,7 @@ import { RunnerMemory } from './runs';
 import { asSide, logNudge } from './synergy';
 import { decisionContext } from './handValues';
 import { knownRdSlots } from './runnerReply';
-import { corpSeenGrip } from './oracle';
+import { corpKnowsRd, corpSeenGrip } from './oracle';
 
 /**
  * Hard AI: Monte Carlo look-ahead on top of the rule-based AI.
@@ -97,6 +97,8 @@ export function determinize(state: GameState, side: SideCode, random: Random, me
     assign(hidden, shuffle(hidden.map(c => c.cardCode), random));
     // plan.keepKnownRd: R&D cards the Runner knows exactly, the Corp saw stay put too
     const fixedRd = knownRdSlots(state);
+    // plan.oracle.rd: the Corp knows its R&D order
+    if (corpKnowsRd()) return s;
     const rdSlots = s.corp.rd.filter((_, i) => !fixedRd.has(i));
     assign(rdSlots, shuffle(rdSlots.map(c => c.cardCode), random));
     return s;

@@ -33,8 +33,12 @@ interface RunnerTurn {
 
 /** Positions already played out for plan.oracle.safestRemote (a planner meets the same end state from several lines). */
 const playedOut = new Map<string, RunnerTurn>();
-/** Diagnostics for scripts/threat-profile.ts: Runner turns played out for the oracle, cache hits, and their time. */
-export const oracleStats = { turns: 0, hits: 0, ms: 0 };
+/**
+ * Diagnostics (scripts/threat-profile.ts, scripts/oracle-reach.ts): Runner turns played out for the oracle, cache hits,
+ * their time; with `reach` set, the Corp decisions (by their noted HQ set) where the oracle answered, and where its
+ * answer moved the honest steal odds by half or more.
+ */
+export const oracleStats = { turns: 0, hits: 0, ms: 0, reach: false, told: new WeakSet<object>(), flipped: new WeakSet<object>(), honest: undefined as ((s: GameState, id: string) => number) | undefined };
 const ORACLE_STEPS = 400;
 
 /** Everything a Runner turn from `state` can depend on, as a key (the real hidden cards and the shuffler included). */
@@ -114,5 +118,25 @@ export function oracleSteal(state: GameState, serverId: string): number | undefi
   if (!agendas.length || !fresh || !agendas.some(a => fresh.has(a.instanceId))) return undefined;
   const turn = runnerNextTurn(state);
   if (!turn) return undefined;
-  return agendas.some(a => turn.stolen.has(a.instanceId)) ? 1 : 0;
+  const told = agendas.some(a => turn.stolen.has(a.instanceId)) ? 1 : 0;
+  if (oracleStats.reach) {
+    oracleStats.told.add(fresh);
+    const honest = oracleStats.honest?.(state, serverId);
+    if (honest !== undefined && Math.abs(honest - told) >= 0.5) oracleStats.flipped.add(fresh);
+  }
+  return told;
+}
+
+/**
+ * plan.oracle.rd (spec-round2.md oracle 4): the Corp deciding knows its own R&D order (hidden information to both
+ * players, rules 10.2.2a; the Hard Runner already has this edge). Off, or for the Runner, false.
+ */
+export const corpKnowsRd = (): boolean => !!plan().oracle?.rd && actingSide() === 'corp';
+
+/**
+ * The Corp's cards a draw brings, as the deciding Corp can know them: R&D's contents, never its order (each card is
+ * as likely); with plan.oracle.rd, the top card itself. The Runner's stack is unchanged.
+ */
+export function corpDrawPool(state: GameState): GameState['corp']['rd'] {
+  return corpKnowsRd() && state.corp.rd.length ? state.corp.rd.slice(0, 1) : state.corp.rd;
 }

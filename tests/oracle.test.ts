@@ -2,7 +2,8 @@ import { afterEach, describe, expect, it } from 'vitest';
 import { GameState, cardDef } from '../src/core';
 import { tuning } from '../src/ai/synergy';
 import { runnerView } from '../src/ai/threatModel';
-import { corpSeenGrip, oracleSteal } from '../src/ai/oracle';
+import { corpDrawPool, corpSeenGrip, oracleSteal } from '../src/ai/oracle';
+import { guessHidden } from '../src/ai/runnerReply';
 import { installIceForTest, newGame, newGameAtSetup, putInHand } from './helpers';
 import { placeOracleIce } from '../scripts/oracle-ice';
 import { inDecision } from './helpers/pricing';
@@ -130,5 +131,24 @@ describe('ORACLE_ICE board setup (scripts/oracle-ice.ts)', () => {
     s.corp.rd = s.corp.rd.filter(c => cardDef(c).type_code !== 'ice');
     expect(placeOracleIce(s, 'hq')).toBe(false);
     expect(s.corp.servers.hq.ice).toEqual([]);
+  });
+});
+
+describe('oracle.rd', () => {
+  it("off: a draw is R&D's contents, and the Corp's guesses re-deal R&D", () => {
+    const s = newGame(4);
+    expect(inDecision(s, 'corp', () => corpDrawPool(s))).toBe(s.corp.rd);
+    const guess = inDecision(s, 'corp', () => guessHidden(s, 0));
+    expect(guess.corp.rd.map(c => c.instanceId)).not.toEqual(s.corp.rd.map(c => c.instanceId));
+  });
+
+  it("on: the Corp's next draw is R&D's top card, and its guesses keep R&D's order", () => {
+    tuning.plan.oracle.rd = true;
+    const s = newGame(4);
+    expect(inDecision(s, 'corp', () => corpDrawPool(s))).toEqual([s.corp.rd[0]]);
+    const guess = inDecision(s, 'corp', () => guessHidden(s, 0));
+    expect(guess.corp.rd.map(c => c.instanceId)).toEqual(s.corp.rd.map(c => c.instanceId));
+    // The Runner deciding never knows it
+    expect(inDecision(s, 'runner', () => corpDrawPool(s))).toBe(s.corp.rd);
   });
 });
