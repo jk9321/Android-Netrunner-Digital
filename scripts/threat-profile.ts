@@ -10,10 +10,13 @@ import { GameState, createInitialGameState, executeAction } from "../src/core";
 import { deckGameSetup } from "../src/data/decks";
 import { createAgent } from "../src/ai";
 import { applyPlanOff } from "../src/ai/synergy";
+import { batchTokens } from "./oracle-ice";
 import { threatStats } from "../src/ai/threatModel";
 import { replyStats } from "../src/ai/runnerReply";
+import { oracleStats } from "../src/ai/oracle";
 
-applyPlanOff(process.env.PLAN_OFF ?? "");
+// Batch-only tokens (ORACLE_ICE, money) are board setups for corp-losses.ts, not plan switches: dropped here
+applyPlanOff(batchTokens(process.env.PLAN_OFF ?? "").plan);
 const [nArg, levelArg] = process.argv.slice(2).filter((a) => a !== "--");
 const perFile = Number(nArg ?? 6);
 const level = (levelArg ?? "normal") as "normal" | "hard";
@@ -91,6 +94,9 @@ console.log(
     threatBudgetMs: Math.round(threatStats.budgetMs),
     replyBudgeted: threatStats.replyBudgeted,
     replyBudgetMs: Math.round(threatStats.replyBudgetMs),
+    oracleTurns: oracleStats.turns,
+    oracleHits: oracleStats.hits,
+    oracleMs: Math.round(oracleStats.ms),
     threatShare: +((threatStats.keyMs + threatStats.budgetMs) / total).toFixed(
       2,
     ),

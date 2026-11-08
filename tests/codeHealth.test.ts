@@ -1,6 +1,6 @@
 import { readFileSync, readdirSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
-import { tuning } from '../src/ai/synergy';
+import { sideOff, tuning } from '../src/ai/synergy';
 
 /**
  * Guards from the AI code audit (2026-11-05, thread "Audit AI code for overlaps and conflicts", cleanup item 1).
@@ -50,6 +50,11 @@ const OFF_SWITCHES: Record<string, string> = {
   plannerPatchesOff: 'item 4: dropping the ordering patches under the planner search cost "tag not used" +2.3 ± 1.1 (2026-11-07); patches go with item 6',
   measuredPass: 'item 3 round 2: the measured unrezzed pass rate; neutral in its paired batch (+0.0 ± 0.6, 2026-11-07), kept off with the threat it was measured for',
   threatSpend: 'item 3 round 3: the Runner spend at the threat leaf; read only with threatLeaf (off)',
+  // Tuning pass round 2 (spec-round2.md): oracles measure headroom; they can never ship on
+  'oracle.grip': 'measurement oracle, never a default',
+  'oracle.safestRemote': 'measurement oracle, never a default',
+  'oracle.rd': 'measurement oracle, never a default',
+  'oracle.think': 'measurement oracle (decision-quality ceiling), never a default',
   calibratedRun: 'item 3 round 3: the threat read at measured hit rates; did not help (-9.9 vs -10.6), kept as measurement',
 };
 
@@ -90,6 +95,11 @@ describe('AI code health (audit guards)', () => {
     expect(unlisted, 'move the card logic to its entry in src/ai/cards/').toEqual([]);
     // A listed code that's gone: take it off the list
     expect(Object.keys(CODES_IN_VALUE_FILES).filter(key => !found.includes(key))).toEqual([]);
+  });
+
+  it('keeps every measurement oracle off and off for the Runner (spec-round2.md: an oracle never ships on)', () => {
+    expect(Object.values(tuning.plan.oracle).every(v => v === false)).toBe(true);
+    expect(sideOff.runner).toContain('oracle');
   });
 
   it('has no off switch without a reason', () => {

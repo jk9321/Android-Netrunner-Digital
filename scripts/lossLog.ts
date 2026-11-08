@@ -82,6 +82,9 @@ export interface RezLog {
 }
 
 export interface GameRecord {
+  /** ORACLE_ICE batches (scripts/oracle-ice.ts): the setup, and whether this deal's R&D held no ice (played without it). */
+  oracleIce?: string;
+  oracleIceSkipped?: boolean;
   corpDeck: string;
   runnerDeck: string;
   winner: string;
@@ -249,8 +252,15 @@ function reasonOf(state: GameState): string {
 /** Money assets still out when the game ends. */
 let closeAssets: () => GameRecord['assets'] = () => ({});
 
-export function playLogged(start: GameState, agents: { corp: Agent; runner: Agent }, decks: { corp: string; runner: string }): GameRecord {
+export function playLogged(
+  start: GameState,
+  agents: { corp: Agent; runner: Agent },
+  decks: { corp: string; runner: string },
+  // A batch-only board change at the start of each Corp turn (scripts/oracle-money.ts): returns a new state
+  onCorpTurn?: (state: GameState) => GameState
+): GameRecord {
   const runner = new GameRunner(start, agents);
+  let toldTurn = -1;
   const alarms = new AlarmTracker();
   // DUMP_TURN=n DUMP_SIDE=corp|runner DUMP_FILE=x.json: write the position at the start of that turn and stop (an alarm's position, for a test)
   const dumpTurn = Number(process.env.DUMP_TURN ?? 0);
@@ -313,6 +323,10 @@ export function playLogged(start: GameState, agents: { corp: Agent; runner: Agen
   let tracedTurn = -1;
   let t0 = Date.now();
   for (let steps = 0; steps < 4000 && runner.state.turnNumber <= 80; steps++) {
+    if (onCorpTurn && runner.state.activePlayer === 'corp' && runner.state.turnNumber !== toldTurn) {
+      toldTurn = runner.state.turnNumber;
+      runner.state = onCorpTurn(runner.state);
+    }
     const before = runner.state;
     if (traced && before.turnNumber !== tracedTurn) {
       console.error(`  turn ${before.turnNumber} ${before.activePlayer} step ${steps} +${((Date.now() - t0) / 1000).toFixed(1)} s`);

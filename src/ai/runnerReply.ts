@@ -1,4 +1,4 @@
-import { GameState, cardDef, createRng, knownInHand, knownInRd, shuffleInPlace } from '../core';
+import { GameState, cardDef, createRng, knownInRd, shuffleInPlace } from '../core';
 import { HeuristicCorpAI } from './corpAI';
 import { GameRunner } from './playout';
 import { HeuristicRunnerAI } from './runnerAI';
@@ -6,6 +6,10 @@ import { pointValue } from './valueModel';
 import { threatStats, turnSeed } from './threatModel';
 import { currentDecisionSeed, searchPiece } from './turnPlanner';
 import { plan } from './pricing';
+import { corpKnowsRd, corpSeenGrip, replySamples, setOraclePlayout } from './oracle';
+
+// plan.oracle.safestRemote's play-out: the batch Runner (HeuristicRunnerAI, its planner on) against the rule-based Corp
+setOraclePlayout(start => new GameRunner(start, { corp: new HeuristicCorpAI({ planner: false }), runner: new HeuristicRunnerAI({}) }));
 
 /**
  * The Runner's reply (Jeff, 2026-10-28; plan.runnerReply): the Corp's
@@ -60,12 +64,13 @@ export function guessHidden(state: GameState, k: number): GameState {
   const rng = createRng(((common ? currentDecisionSeed() ?? turnSeed(state) : state.rng?.state ?? 1) ^ Math.imul(k + 1, 0x9e3779b1)) >>> 0);
   const order = common ? byId : <T,>(cards: T[]) => cards;
   // plan.keepKnownHand (Gemini audit, 2026-11-01): grip cards the Corp has seen (MuslihaT, Mutual Favor) stay where they are
-  const known = new Set(knownInHand(state, 'runner').map(k => k.id));
+  const known = corpSeenGrip(state); // plan.oracle.grip: the whole grip
   const seen = state.runner.grip.filter(c => known.has(c.instanceId));
   const unseen = shuffleInPlace(rng, order([...state.runner.grip.filter(c => !known.has(c.instanceId)), ...state.runner.stack]));
   const grip = [...seen, ...unseen.slice(0, state.runner.grip.length - seen.length)];
   const stack = unseen.slice(state.runner.grip.length - seen.length);
-  const rd = shuffleRdKeeping(rng, [...state.corp.rd], knownRdSlots(state), common);
+  // plan.oracle.rd: the Corp knows its R&D order, so its guess keeps it
+  const rd = corpKnowsRd() ? [...state.corp.rd] : shuffleRdKeeping(rng, [...state.corp.rd], knownRdSlots(state), common);
   return { ...state, rng: createRng(rng.state), runner: { ...state.runner, grip, stack }, corp: { ...state.corp, rd } };
 }
 
@@ -99,8 +104,9 @@ export function runnerReply(end: GameState, synergy: boolean, leaf: (state: Game
   const values: number[] = [];
   const outer = threatStats.inReply;
   threatStats.inReply = true;
+  const samples = replySamples(REPLY.samples); // plan.oracle.think: more samples
   try {
-    for (let k = 0; k < REPLY.samples; k++) {
+    for (let k = 0; k < samples; k++) {
       const gr = new GameRunner(guessHidden(end, k), {
         corp: new HeuristicCorpAI({ synergy, planner: false }),
         runner: new HeuristicRunnerAI({ synergy, planner: false }),
@@ -133,5 +139,5 @@ export function runnerReply(end: GameState, synergy: boolean, leaf: (state: Game
     threatStats.inReply = outer;
   }
   replyStats.onSamples?.(values);
-  return total / REPLY.samples;
+  return total / samples;
 }

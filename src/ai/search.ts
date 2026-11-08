@@ -9,6 +9,7 @@ import { RunnerMemory } from './runs';
 import { asSide, logNudge } from './synergy';
 import { decisionContext } from './handValues';
 import { knownRdSlots } from './runnerReply';
+import { corpKnowsRd, corpSeenGrip } from './oracle';
 
 /**
  * Hard AI: Monte Carlo look-ahead on top of the rule-based AI.
@@ -91,9 +92,11 @@ export function determinize(state: GameState, side: SideCode, random: Random, me
   if (side === 'corp') {
     // The Corp doesn't know the Grip or the order of either deck
     // plan.keepKnownHand: grip cards the Corp has seen stay as they are
-    const known = new Set(knownInHand(state, 'runner').map(k => k.id));
+    const known = corpSeenGrip(state); // plan.oracle.grip: the whole grip
     const hidden = [...s.runner.grip.filter(c => !known.has(c.instanceId)), ...s.runner.stack];
     assign(hidden, shuffle(hidden.map(c => c.cardCode), random));
+    // plan.oracle.rd: the Corp knows its R&D order
+    if (corpKnowsRd()) return s;
     // plan.keepKnownRd: R&D cards the Runner knows exactly, the Corp saw stay put too
     const fixedRd = knownRdSlots(state);
     const rdSlots = s.corp.rd.filter((_, i) => !fixedRd.has(i));
