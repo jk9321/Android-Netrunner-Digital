@@ -86,7 +86,7 @@ export function turnSeed(state: GameState): number {
  * from the Runner's unseen cards in a fixed order (by instance id, so which unseen card sat in the grip can't matter).
  */
 function guessedGrip(state: GameState): { grip: CardInstance[]; stack: CardInstance[] } {
-  const known = corpSeenGrip(state); // plan.oracle.grip: the whole grip
+  const known = corpSeenGrip(state, 'threat'); // plan.oracle.grip: the whole grip
   const seen = state.runner.grip.filter(c => known.has(c.instanceId));
   const pool = [...state.runner.grip.filter(c => !known.has(c.instanceId)), ...state.runner.stack].sort((a, b) => (a.instanceId < b.instanceId ? -1 : a.instanceId > b.instanceId ? 1 : 0));
   const unseen = shuffleInPlace(createRng(turnSeed(state)), pool);

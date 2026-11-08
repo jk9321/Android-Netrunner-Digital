@@ -374,9 +374,11 @@ export const tuning = {
      * off for the Runner (sideOff.runner). grip: the Runner's whole grip counts as seen. safestRemote: the Corp is told
      * whether the Runner AI steals a remote's agenda on its next turn. rd: the Corp knows its own R&D order. think (AI
      * Coordinator 2026-11-08, a decision-quality ceiling, not knowledge): the Corp planner plays 8 candidates, the best agenda
-     * install and advance always among them, against 4 Runner-reply samples.
+     * install and advance always among them, against 4 Runner-reply samples. gripThreat / gripReply (Phase 2 K0,
+     * design-k1.md call 1): grip's knowledge in one channel only, the threat's (and the Hard search's) deal or the
+     * planner's played-out Runner reply, to find where grip's worth flows.
      */
-    oracle: { grip: false, safestRemote: false, rd: false, think: false },
+    oracle: { grip: false, safestRemote: false, rd: false, think: false, gripThreat: false, gripReply: false },
     /**
      * Per deciding side (Jeff, 2026-10-28): its own hand valued card by card, by what each will do once played (handValues.ts).
      * Batches: each side loses with it (Corp side 32.2% -> 28.0%, Runner side 32.2% -> 35.9% Corp) and the Runner draws at a

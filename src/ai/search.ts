@@ -92,7 +92,7 @@ export function determinize(state: GameState, side: SideCode, random: Random, me
   if (side === 'corp') {
     // The Corp doesn't know the Grip or the order of either deck
     // plan.keepKnownHand: grip cards the Corp has seen stay as they are
-    const known = corpSeenGrip(state); // plan.oracle.grip: the whole grip
+    const known = corpSeenGrip(state, 'threat'); // plan.oracle.grip: the whole grip
     const hidden = [...s.runner.grip.filter(c => !known.has(c.instanceId)), ...s.runner.stack];
     assign(hidden, shuffle(hidden.map(c => c.cardCode), random));
     // plan.oracle.rd: the Corp knows its R&D order

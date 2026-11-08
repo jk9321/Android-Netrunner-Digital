@@ -56,6 +56,8 @@ const OFF_SWITCHES: Record<string, string> = {
   'oracle.safestRemote': 'measurement oracle, never a default',
   'oracle.rd': 'measurement oracle, never a default',
   'oracle.think': 'measurement oracle (decision-quality ceiling), never a default',
+  'oracle.gripThreat': 'measurement oracle (Phase 2 K0: grip in the threat and search deals only), never a default',
+  'oracle.gripReply': 'measurement oracle (Phase 2 K0: grip in the Runner reply only), never a default',
   calibratedRun: 'item 3 round 3: the threat read at measured hit rates; did not help (-9.9 vs -10.6), kept as measurement',
 };
 
