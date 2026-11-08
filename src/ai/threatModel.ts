@@ -198,6 +198,7 @@ export function threat(state: GameState): Threat {
     if (threatStats.timing) threatStats.keyMs += performance.now() - t0;
     return remember(threatCache, key, () => {
       threatStats.budgeted++;
+      if (threatStats.timing) countRepeats(key, state);
       const t1 = threatStats.timing ? performance.now() : 0;
       try {
         return withPricing({ computingThreat: pricing().computingThreat + 1 }, () => asSide('runner', () => budgetTurn(state)));
@@ -219,7 +220,33 @@ export function threat(state: GameState): Threat {
  * Diagnostics (scripts/threat-profile.ts): threat() calls, how many missed the state memo (keyed) and the board cache
  * (budgeted), their time, and the budgets made inside the Corp planner's played-out Runner reply.
  */
-export const threatStats = { calls: 0, keyed: 0, budgeted: 0, keyMs: 0, budgetMs: 0, timing: false, inReply: false, replyBudgeted: 0, replyBudgetMs: 0 };
+export const threatStats = { calls: 0, keyed: 0, budgeted: 0, keyMs: 0, budgetMs: 0, timing: false, inReply: false, replyBudgeted: 0, replyBudgetMs: 0, fullRepeats: 0, coarseRepeats: 0, bothRepeats: 0, dropRepeats: [] as number[] };
+
+/**
+ * K4(a) diagnostics (scripts/threat-profile.ts): budgets of a key already budgeted once (lost to the cache's clear), and
+ * budgets whose key with the grip read as its size only (the threat reads the dealt grip by its size, K0) was.
+ */
+const seenFull = new Set<string>();
+const seenCoarse = new Set<string>();
+function countRepeats(key: string, state: GameState): void {
+  if (seenFull.has(key)) threatStats.fullRepeats++;
+  seenFull.add(key);
+  const coarse = key.replace(state.runner.grip.map(c => c.instanceId).join(','), `#${state.runner.grip.length}`);
+  const both = coarse.split('|').slice(0, -1).join('|');
+  if (seenBoth.has(both)) threatStats.bothRepeats++;
+  seenBoth.add(both);
+  if (seenCoarse.has(coarse)) threatStats.coarseRepeats++;
+  seenCoarse.add(coarse);
+  // Upper bound: the key's parts one at a time left out (which part tells budgets apart)
+  const parts = key.split('|');
+  parts.forEach((_, i) => {
+    const k = i + ':' + parts.filter((__, j) => j !== i).join('|');
+    if (seenDrop.has(k)) threatStats.dropRepeats[i] = (threatStats.dropRepeats[i] ?? 0) + 1;
+    seenDrop.add(k);
+  });
+}
+const seenDrop = new Set<string>();
+const seenBoth = new Set<string>();
 
 function budgetTurn(state: GameState): Threat {
   const memory = runnerMemory(state);
