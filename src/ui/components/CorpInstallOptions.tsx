@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { Plus } from 'lucide-react';
-import { CardInstance, GameAction, GameState, cardDef, getLegalActions, isLegalAction, trashableFirst } from '../../core';
+import { CardInstance, GameAction, GameState, cardDef, trashableFirst } from '../../core';
+import { legalFor, useSeat } from '../seat';
 import { TrashFirstButton, TrashFirstPicker } from './TrashFirstPicker';
 import { hoverPromptServer, hoverPromptTarget } from '../promptHighlight';
 
@@ -18,6 +19,7 @@ export function CorpInstallOptions({
   onAction: (action: GameAction) => void;
 }) {
   const def = cardDef(card);
+  const seat = useSeat();
   // Clear any hovered target/server when this options bar closes or card changes
   useEffect(() => () => {
     hoverPromptServer(null);
@@ -35,7 +37,7 @@ export function CorpInstallOptions({
   });
   const replaceable = Object.values(state.corp.servers).filter(s => {
     const cards = trashableFirst(state, card, s.id);
-    return cards.length > 0 && isLegalAction(state, installWithTrash(s.id, cards.map(c => c.instanceId)));
+    return cards.length > 0 && seat.can(installWithTrash(s.id, cards.map(c => c.instanceId)));
   });
   const what = def.type_code === 'ice' ? 'ice' : 'cards';
   if (replacing?.cardId === card.instanceId) {
@@ -52,7 +54,7 @@ export function CorpInstallOptions({
           const cost = def.type_code === 'ice' ? Math.max(0, server.ice.length - trash.length) : 0;
           return `Install${cost > 0 ? ` (${cost}c)` : ''}${trash.length > 0 ? `, trash ${trash.length}` : ''}`;
         }}
-        canConfirm={trash => isLegalAction(state, installWithTrash(server.id, trash))}
+        canConfirm={trash => seat.can(installWithTrash(server.id, trash))}
         onConfirm={trash => {
           hoverPromptServer(null);
           setReplacing(null);
@@ -65,7 +67,7 @@ export function CorpInstallOptions({
       />
     );
   }
-  const options = getLegalActions(state, 'corp').filter(
+  const options = legalFor(seat, 'corp').filter(
     (a): a is Extract<GameAction, { type: 'INSTALL_CARD' }> => a.type === 'INSTALL_CARD' && a.cardInstanceId === card.instanceId
   );
   if (options.length === 0 && replaceable.length === 0) {

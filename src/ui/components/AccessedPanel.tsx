@@ -1,25 +1,22 @@
-import { CardInstance, getCardDefinition } from '../../core';
+import { CardInstance, HIDDEN_CORP, getCardDefinition } from '../../core';
 import { CardView } from './CardView';
 import { AccessedCard } from '../savedGame';
-import { Viewer } from '../viewer';
 
 /** The cards the Runner accessed in the latest run, so accesses with nothing to decide are still seen. */
 export function AccessedPanel({
   cards,
-  viewer,
   onInspect,
   onClose,
 }: {
+  /** As the viewer saw them: a card with no code (an R&D access seen by the Corp, rules 7.1.2) shows face down. */
   cards: AccessedCard[];
-  /** Cards accessed from R&D show face down to the Corp (rules 7.1.2). */
-  viewer: Viewer;
   onInspect: (card: CardInstance) => void;
   onClose: () => void;
 }) {
   // Rules 7.1.5a: only cards with a trash cost can be trashed on access. Explains a
   // card the viewer can see that got no trash offer (agendas are stolen instead).
-  const untrashable = cards.some(({ code, secretFrom }) => {
-    if (secretFrom === viewer) return false;
+  const untrashable = cards.some(({ code }) => {
+    if (!code) return false;
     const def = getCardDefinition(code);
     return def.type_code !== 'agenda' && def.trash_cost == null;
   });
@@ -35,16 +32,16 @@ export function AccessedPanel({
         </button>
       </div>
       <div className="flex gap-2 overflow-x-auto pb-1">
-        {cards.map(({ code, secretFrom }, i) => (
+        {cards.map(({ code }, i) => (
           <CardView
-            key={`${code}-${i}`}
-            card={{ instanceId: `accessed-${i}`, cardCode: code, isRezzed: true, advancementCounters: 0, tokens: {}, hostedCardIds: [] }}
+            key={`${code ?? 'hidden'}-${i}`}
+            card={{ instanceId: `accessed-${i}`, cardCode: code ?? HIDDEN_CORP, isRezzed: true, advancementCounters: 0, tokens: {}, hostedCardIds: [] }}
             size="xs"
             notInstalled
-            isFaceDown={secretFrom === viewer}
-            canPeek={secretFrom !== viewer}
+            isFaceDown={!code}
+            canPeek={!!code}
             plainBack
-            onInspect={secretFrom !== viewer ? onInspect : undefined}
+            onInspect={code ? onInspect : undefined}
           />
         ))}
       </div>

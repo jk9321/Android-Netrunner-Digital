@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from 'react';
-import { CardInstance, GameState, PromptChoice, activePrompt, availableCredits, cardDef, findCardAnywhere, isLegalAction, locateCorpCard, trashableFirst, effectTrashableFirst } from '../../core';
+import { CardInstance, GameState, PromptChoice, SideCode, activePrompt, availableCredits, cardDef, findCardAnywhere, locateCorpCard, trashableFirst, effectTrashableFirst } from '../../core';
+import { useSeat } from '../seat';
 import { TrashFirstButton, TrashFirstPicker } from './TrashFirstPicker';
 import { CardView } from './CardView';
 import { Check, RefreshCw, Trash2, X } from 'lucide-react';
@@ -26,6 +27,11 @@ interface PromptPanelProps {
    * action is applied (Red Team's server): backs out as if it was never used.
    */
   onCancel?: () => void;
+  /**
+   * The side the game waits on for a decision this screen can't see (the
+   * opponent's prompt is not in the viewer's view): shows the waiting note.
+   */
+  waitingFor?: SideCode | null;
 }
 
 /**
@@ -33,8 +39,9 @@ interface PromptPanelProps {
  * It floats over the board without dimming it: drag it by its header or
  * minimize it to a bar to look at the board while deciding.
  */
-export const PromptPanel: React.FC<PromptPanelProps> = ({ state, onAnswer, onInspectCard, canAnswer = true, onCancel }) => {
+export const PromptPanel: React.FC<PromptPanelProps> = ({ state, onAnswer, onInspectCard, canAnswer = true, onCancel, waitingFor = null }) => {
   const prompt = activePrompt(state);
+  const seat = useSeat();
   const [selected, setSelected] = useState<string[]>([]);
   // An effect installing a card: the option (server) whose cards to trash first (rules 8.5.6)
   const [trashingFor, setTrashingFor] = useState<{ promptId: string; optionId: string } | null>(null);
@@ -44,11 +51,12 @@ export const PromptPanel: React.FC<PromptPanelProps> = ({ state, onAnswer, onIns
     hoverPromptTarget(null);
     selectPromptTargets([]);
   }, [prompt?.id]);
-  if (!prompt) return null;
-  if (!canAnswer) {
+  if (!prompt && !waitingFor) return null;
+  if (!prompt || !canAnswer) {
+    const side = waitingFor ?? prompt?.side;
     return (
       <div className="fixed top-20 left-1/2 -translate-x-1/2 z-40 bg-[#090d15]/95 border border-slate-700 rounded-[2px] px-4 py-2 text-xs font-mono text-slate-300 shadow-xl">
-        Waiting on the {prompt.side === 'corp' ? 'Corp' : 'Runner'} to decide…
+        Waiting on the {side === 'corp' ? 'Corp' : 'Runner'} to decide…
       </div>
     );
   }
@@ -194,7 +202,7 @@ export const PromptPanel: React.FC<PromptPanelProps> = ({ state, onAnswer, onIns
               confirmLabel={trash => `Install${trash.length > 0 ? `, trash ${trash.length}` : ''}`}
               canConfirm={trash =>
                 trash.length > 0 &&
-                isLegalAction(state, { type: 'RESOLVE_PROMPT', player: prompt.side, promptId: prompt.id, choice: trashingChoice(trashing, trash) })
+                seat.can({ type: 'RESOLVE_PROMPT', player: prompt.side, promptId: prompt.id, choice: trashingChoice(trashing, trash) })
               }
               onConfirm={trash => {
                 setTrashingFor(null);
@@ -323,7 +331,7 @@ export const PromptPanel: React.FC<PromptPanelProps> = ({ state, onAnswer, onIns
           const card = locateCorpCard(state, prompt.cardInstanceId)?.card;
           // Count every credit the Runner could pay the trash cost with, and only offer it when affordable
           const canPay = card ? availableCredits(state, 'runner', { kind: 'trash', card }) : state.runner.credits;
-          const canTrash = isLegalAction(state, {
+          const canTrash = seat.can({
             type: 'RESOLVE_PROMPT',
             player: 'runner',
             promptId: prompt.id,

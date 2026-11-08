@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { renderToStaticMarkup } from 'react-dom/server';
+import { renderAs } from './seatHelpers';
 import { createCardInstance, executeAction, GameAction } from '../src/core';
 import { EncounterPanel } from '../src/ui/components/EncounterPanel';
 import { installIceForTest, installProgramForTest, newGame, runIntoFirstIce } from './helpers';
@@ -19,7 +19,7 @@ describe('Encounter panel', () => {
     for (let i = 0; i < 4; i++) s = executeAction(s, boost);
     s = executeAction(s, { type: 'BREAK_SUBROUTINE', player: 'runner', breakerInstanceId: mayfly, subroutineIndices: [0] });
 
-    const html = renderToStaticMarkup(<EncounterPanel state={s} onAction={() => {}} />);
+    const html = renderAs(s, 'runner', seat => <EncounterPanel state={seat.state} onAction={() => {}} />);
     const labels = [...html.matchAll(/<button([^>]*)>(.*?)<\/button>/g)].map(m => ({
       disabled: /\sdisabled=""/.test(m[1]),
       text: m[2].replace(/<[^>]+>/g, ''),
@@ -34,7 +34,7 @@ describe('Encounter panel: counter-spending breakers', () => {
   const HANTU = '35008';
   const BUMI = '35041'; // sentry, strength 3
   const buttons = (s: ReturnType<typeof newGame>) =>
-    [...renderToStaticMarkup(<EncounterPanel state={s} onAction={() => {}} />).matchAll(/<button([^>]*)>(.*?)<\/button>/g)].map(m =>
+    [...renderAs(s, 'runner', seat => <EncounterPanel state={seat.state} onAction={() => {}} />).matchAll(/<button([^>]*)>(.*?)<\/button>/g)].map(m =>
       m[2].replace(/<[^>]+>/g, '').replace(/&#x27;/g, "'"),
     );
 
@@ -80,7 +80,7 @@ describe('Encounter panel: a card with two abilities', () => {
     s.runner.rig.resources.push(crew);
     s.runner.credits = 5;
     s.activeRun!.encounter!.flags = { [`arruaceiras:${crew.instanceId}`]: 1 }; // -2 strength already
-    const html = renderToStaticMarkup(<EncounterPanel state={s} onAction={() => {}} />);
+    const html = renderAs(s, 'runner', seat => <EncounterPanel state={seat.state} onAction={() => {}} />);
     const texts = [...html.matchAll(/<button([^>]*)>(.*?)<\/button>/g)].map(m => m[2].replace(/<[^>]+>/g, ''));
     expect(texts).toContain('Arruaceiras Crew: Take 1 tag: the encountered ice gets -2 strength this encounter');
     expect(texts).toContain('Arruaceiras Crew: Trash the encountered ice if its strength is 0 or less (2 credits, trash)');

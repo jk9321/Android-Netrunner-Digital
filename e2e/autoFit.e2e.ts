@@ -36,8 +36,13 @@ test('auto fit shrinks cards to avoid scrolling and can be switched off', async 
   }
   expect(seen.size).toBeGreaterThan(2);
   await expect.poll(cardWidth).toBeLessThan(unfit);
-  await expect.poll(overflowing).toBe(false);
-  expect(await cardWidth()).toBeGreaterThanOrEqual(unfit * 0.5 - 1); // never below the floor
+  // Scrolling is gone, unless the deal built a board too big even at the floor (half the
+  // normal width), when auto fit stops there and lets it scroll (CI 2026-11-08 hit such a deal)
+  const floor = unfit * 0.5;
+  await expect
+    .poll(async () => !(await overflowing()) || Math.abs((await cardWidth()) - floor) <= 1)
+    .toBe(true);
+  expect(await cardWidth()).toBeGreaterThanOrEqual(floor - 1); // never below the floor
 
   expect(errors).toEqual([]);
 });

@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { createInitialGameState } from '../src/core';
+import { createInitialGameState, newViewIds } from '../src/core';
 import { playAIGame } from '../src/ai';
 import { deckGameSetup } from '../src/data/decks';
 import { ALL_DECKS as DECKS } from '../scripts/nsg-sample-decks';
@@ -26,7 +26,13 @@ afterEach(() => vi.unstubAllGlobals());
 const corpDeck = DECKS.find(d => d.side === 'corp')!;
 const runnerDeck = DECKS.find(d => d.side === 'runner')!;
 const config: GameConfig = { seed: 4242, corpDeck, runnerDeck, ai: 'corp', difficulty: 'normal' };
-const table = { runSerial: 3, passedRezWindows: ['a'], hotseatSide: 'runner' as const, accessed: ['30001'] };
+const table = {
+  runSerial: 3,
+  passedRezWindows: ['a'],
+  hotseatSide: 'runner' as const,
+  accessed: { corp: [{}], runner: [{ code: '30001' }], both: [{ code: '30001' }] },
+  ids: { corp: newViewIds(), runner: newViewIds() },
+};
 
 describe('saved game', () => {
   it('resumes a game mid-play exactly where it was', () => {
