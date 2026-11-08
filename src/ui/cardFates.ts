@@ -17,14 +17,14 @@ const ids = (cards: CardInstance[]) => new Set(cards.map(c => c.instanceId));
 /** Every card id in a state, in any zone. */
 function everyId(state: GameState): Set<string> {
   const { corp, runner } = state;
-  return ids([
-    corp.identity,
-    runner.identity,
-    ...Object.values(corp.servers).flatMap(s => [...s.root, ...s.ice]),
-    ...corp.hq, ...corp.rd, ...corp.archives.faceUp, ...corp.archives.faceDown, ...corp.scoreArea,
-    ...runner.grip, ...runner.stack, ...runner.heap, ...runner.rig.programs, ...runner.rig.hardware, ...runner.rig.resources, ...runner.scoreArea,
-    ...state.removedFromGame,
-  ]);
+  const lists: (CardInstance[] | undefined)[] = [
+    [corp.identity, runner.identity].filter(Boolean),
+    Object.values(corp.servers).flatMap(s => [...s.root, ...s.ice]),
+    corp.hq, corp.rd, corp.archives.faceUp, corp.archives.faceDown, corp.scoreArea,
+    runner.grip, runner.stack, runner.heap, runner.rig.programs, runner.rig.hardware, runner.rig.resources, runner.scoreArea,
+    state.removedFromGame,
+  ];
+  return ids(lists.flatMap(l => l ?? []));
 }
 
 /** Every installed card, Corp and Runner. */
@@ -63,7 +63,7 @@ export function cardFates(prev: GameState, next: GameState): CardFate[] {
   }
   // On one player's screen (a table rebuilt from their view) a card from HQ or R&D they couldn't see
   // shows up in Archives with an id of its own: during an access it was trashed from there
-  const before = everyId(prev);
+  const before = accessing ? everyId(prev) : new Set<string>();
   const trashedBefore = ids([...prev.runner.heap, ...prev.corp.archives.faceUp, ...prev.corp.archives.faceDown]);
   const pushTrashed = (cards: CardInstance[], corpSecret: boolean) => {
     for (const card of cards) {

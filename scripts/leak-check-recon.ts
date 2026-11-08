@@ -204,22 +204,24 @@ export function reconChecks(checker: LeakChecker, { state, side, view, ids, hidd
     for (const a of legal) {
       if (!isProbeAction(a)) continue;
       stats.probes++;
-      let ok = false;
-      try {
-        ok = isLegalAction(recon, a);
-      } catch {
-        ok = false;
-      }
+      const ok = (() => {
+        try {
+          return isLegalAction(recon, a);
+        } catch {
+          return false;
+        }
+      })();
       if (!ok && stats.probeDisagreements.length < 200) stats.probeDisagreements.push(`${checker.seedOf()} step ${step} ${JSON.stringify(a)}`);
     }
     for (const a of screenActions(recon, side)) {
       stats.uiShapes++;
-      let real = false;
-      try {
-        real = isLegalAction(state, toEngineAction(a, ids));
-      } catch {
-        real = false;
-      }
+      const real = (() => {
+        try {
+          return isLegalAction(state, toEngineAction(a, ids));
+        } catch {
+          return false;
+        }
+      })();
       const seat = seatCan(legal, side, recon, a);
       if (seat !== real) fail('seat', `${JSON.stringify(a)}: seat says ${seat}, engine ${real}`);
     }

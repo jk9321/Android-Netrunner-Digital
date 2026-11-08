@@ -90,14 +90,16 @@ export function useGameController(config: GameConfig, saved: SavedGame | null) {
 
   const acting = table.acting;
   const winner = table.winner;
-  // Once the game is over nothing is secret any more, so everyone sees the open table
+  const handoffTo = !aiSide && viewMode === 'hotseat' && acting && acting !== hotseatSide ? acting : null;
+  // Once the game is over nothing is secret any more, so everyone sees the open table. In pass and play
+  // the table under the hand-off cover already holds only the next side's view.
   const viewer: Viewer =
     winner || viewMode === 'open'
       ? 'both'
       : humanSide
         ? humanSide
         : viewMode === 'hotseat'
-          ? hotseatSide
+          ? (handoffTo ?? hotseatSide)
           : viewMode;
   const seat = table.seatFor(viewer);
   const gameState = seat.state;
@@ -107,7 +109,6 @@ export function useGameController(config: GameConfig, saved: SavedGame | null) {
   // The Corp's priority in a paid ability window during a run: what it can rez there
   const rezWindow = corpRezWindow(seat);
   const rezWindowOpen = rezWindow !== null;
-  const handoffTo = !aiSide && viewMode === 'hotseat' && acting && acting !== hotseatSide ? acting : null;
   // Nobody acts once the game is over (rule 1.7.1: the game ends when a player wins)
   const corpCanAct = !winner && canActAs(viewer, 'corp') && aiSide !== 'corp';
   const runnerCanAct = !winner && canActAs(viewer, 'runner') && aiSide !== 'runner';
@@ -211,7 +212,7 @@ export function useGameController(config: GameConfig, saved: SavedGame | null) {
   // During a run the person's Runner stops only where they have a choice (with auto-skip): approaching
   // ice or the server, or the run's other windows, is skipped when Continue is the only move.
   useEffect(() => {
-    if (stops === 'full' || !runnerCanAct || table.winner || table.acting !== 'runner') return;
+    if (stops === 'full' || !runnerCanAct || handoffTo || table.winner || table.acting !== 'runner') return;
     const runner = table.seatFor('runner');
     const s = runner.state;
     const run = s.activeRun;

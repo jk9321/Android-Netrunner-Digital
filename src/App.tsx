@@ -128,6 +128,12 @@ function Game({
   const [inspectedCard, setInspectedCard] = useState<CardInstance | null>(null);
   const [zone, setZone] = useState<ZoneId | null>(null);
   const zoneView = zone ? zoneContents(zone, gameState, viewer) : null;
+  // A new viewer at the screen (pass and play hands over): nothing the last one was looking at stays up
+  useEffect(() => {
+    zoomStore.clear();
+    setInspectedCard(null);
+    setZone(null);
+  }, [viewer, zoomStore]);
 
   // Adaptive background music driven by the active side and match tension
   useEffect(() => {
@@ -537,7 +543,10 @@ function Game({
           waitingFor={seat.waitingOn && seat.waitingOn !== actingSide(gameState) ? seat.waitingOn : null}
           canAnswer={
             !gameState.pendingPrompts[0] ||
-            (canActAs(viewer, gameState.pendingPrompts[0].side) && gameState.pendingPrompts[0].side !== aiSide)
+            (canActAs(viewer, gameState.pendingPrompts[0].side) &&
+              gameState.pendingPrompts[0].side !== aiSide &&
+              // The viewer's own prompt may wait behind the other side's, which this screen doesn't see
+              seat.waitingOn === gameState.pendingPrompts[0].side)
           }
         />
       )}

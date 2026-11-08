@@ -140,9 +140,9 @@ export function GameHeader({
           </div>
           <span
             className="text-[11px] text-slate-500 font-mono whitespace-nowrap truncate min-w-0 shrink-[100] hidden 2xl:inline"
-            title={`Open the app with ?seed=${state.rng.seed}&corp=${config.corpDeck.id}&runner=${config.runnerDeck.id}${aiSide ? `&ai=${aiSide}&difficulty=${config.difficulty}` : ''} to replay this deal`}
+            title={`Open the app with ?seed=${config.seed}&corp=${config.corpDeck.id}&runner=${config.runnerDeck.id}${aiSide ? `&ai=${aiSide}&difficulty=${config.difficulty}` : ''} to replay this deal`}
           >
-            SEED {state.rng.seed}
+            SEED {config.seed}
           </span>
         </div>
       </div>
@@ -410,7 +410,7 @@ export function GameHeader({
                 <div className="space-y-2 bg-[#05080e] border border-slate-800/90 rounded-[2px] p-3">
                   <div className="text-[11px] font-cyber font-bold text-slate-400 tracking-wider">GAME STATUS</div>
                   <PhaseTracker state={state} />
-                  <div className="text-[11px] text-slate-500 pt-1">SEED {state.rng.seed}</div>
+                  <div className="text-[11px] text-slate-500 pt-1">SEED {config.seed}</div>
                 </div>
 
                 {/* Display & View Controls */}
