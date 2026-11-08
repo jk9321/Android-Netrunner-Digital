@@ -332,11 +332,12 @@ export function planTurn(state: GameState, side: SideCode, ranked: ScoredAction[
  * plan.replyContenders (install-worth side check, probe P2, AI Coordinator addendum 2026-11-08): the two-sample Runner
  * reply decided 3-4 of 10 of Jeff's positions, one losing sample (-1000) throwing a line out on its own. So the best two
  * candidates, after every candidate is scored on REPLY.samples, get REPLY.extra more samples each (the same new deals for
- * both: extraReplySamples) and the better mean over all of them is the pick.
+ * both: extraReplySamples) and the better mean over all of them is the pick, when the two are closer than
+ * REPLY.contendGap (a wider gap is left to the first samples).
  */
 function contenders<T extends { action: GameAction; value: number; line: Line; ends: { state?: GameState; bonus?: number } }>(scored: T[], ai: PlannerAI, side: SideCode, synergy: boolean): T | null {
   const live = scored.filter(r => Number.isFinite(r.value) && r.ends.state && !r.ends.state.winner).sort((a, b) => b.value - a.value);
-  if (live.length < 2) return null;
+  if (live.length < 2 || live[0].value - live[1].value >= REPLY.contendGap) return null;
   const leaf = (s: GameState) => leafValue(s, side, synergy);
   const top = live.slice(0, 2).map(r => {
     const bonus = r.ends.bonus ?? 0;

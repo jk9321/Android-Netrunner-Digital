@@ -26,6 +26,13 @@ export const REPLY = {
   maxSteps: 300,
   /** plan.replyContenders: the samples the planner's two best candidates get on top of the first `samples`. */
   extra: 2,
+  /**
+   * plan.replyContenders: the extra samples are played only when the best two candidates are closer than this. At Jeff's
+   * positions (human-agreement --noise, 2026-11-08) one candidate's two reply samples differ by a median 7.06 and the
+   * best two candidates by a median 2.45: a gap under 4 is well inside one sample's noise, a wider one is left to the
+   * first samples, which keeps the time per decision nearer the base.
+   */
+  contendGap: 4,
   /** Index of the first sample dealt (guessHidden k): 0, or `samples` while the extra samples are played. */
   first: 0,
 };
