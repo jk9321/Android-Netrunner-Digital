@@ -53,6 +53,9 @@ describe('atLeastOne (hypergeometric)', () => {
   it('matches a brute-force count over every grip of a small pool', () => {
     for (let n = 0; n <= 8; n++) for (const hits of [0, 1, 2, 3]) expect(atLeastOne(8, hits, n)).toBeCloseTo(n === 0 ? 0 : brute(8, hits, n), 10);
   });
+  it('reads a fractional draw count between its whole neighbours', () => {
+    expect(atLeastOne(30, 2, 6.5)).toBeCloseTo((atLeastOne(30, 2, 6) + atLeastOne(30, 2, 7)) / 2, 10);
+  });
   it('is 0 with no hits and 1 once the misses run out', () => {
     expect(atLeastOne(30, 0, 10)).toBe(0);
     expect(atLeastOne(10, 2, 9)).toBe(1);
@@ -74,8 +77,8 @@ describe('plan.reach', () => {
     const cs = inDecision(s, 'corp', () => cases(s, 'remote-9', 1));
     expect(cs).toHaveLength(2);
     const found = cs.find(c => c.added.length)!;
-    // 5 grip + 1 draw from a 30-card pool holding 1 Cleaver
-    expect(found.weight).toBeCloseTo(6 / 30, 6);
+    // 5 grip + 1.6 draws from a 30-card pool holding 1 Cleaver: between 6/30 and 7/30
+    expect(found.weight).toBeCloseTo(0.4 * (6 / 30) + 0.6 * (7 / 30), 6);
     expect(found.view.runner.rig.programs.map(p => p.cardCode)).toContain(CLEAVER);
     expect(found.view.runner.credits).toBe(8 - (cardDef(found.added[0]).cost ?? 0));
   });

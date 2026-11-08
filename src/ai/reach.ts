@@ -25,8 +25,12 @@ import { runEventOptions } from './prompts';
  * beyond what corpSeenGrip allows.
  */
 
-/** Cards the Runner draws a turn, besides its grip (rule 5.2.7c). Unverified: a first figure, to be measured from self-play. */
-export const RUNNER_TURN_DRAWS = 1;
+/**
+ * Cards the Runner takes from its stack a turn, besides its grip (rule 5.2.7c draws, card draws and tutors), measured
+ * in self-play at beta 51214e4 (scripts/runner-draws.ts, 22 deals over the shipped decks, 371 Runner turns: 1.64 a
+ * turn; by deal pool 1.47-1.85).
+ */
+export const RUNNER_TURN_DRAWS = 1.6;
 
 type BreakType = 'barrier' | 'code gate' | 'sentry';
 const TYPES: BreakType[] = ['barrier', 'code gate', 'sentry'];
@@ -34,8 +38,13 @@ const TYPES: BreakType[] = ['barrier', 'code gate', 'sentry'];
 /** plan.reach for the deciding Corp, outside its own computation. */
 export const reachOn = (): boolean => !!plan().reach && actingSide() === 'corp' && !pricing().reaching && pricing().computingThreat === 0 && !pricing().pricingIce;
 
-/** P(at least one of `hits` cards among `n` dealt from `pool`): 1 - C(pool - hits, n) / C(pool, n). */
+/**
+ * P(at least one of `hits` cards among `n` dealt from `pool`): 1 - C(pool - hits, n) / C(pool, n). A fractional `n` (an
+ * expected draw count) is read between its two whole neighbours.
+ */
 export function atLeastOne(pool: number, hits: number, n: number): number {
+  const lo = Math.floor(n);
+  if (n > lo) return (lo + 1 - n) * atLeastOne(pool, hits, lo) + (n - lo) * atLeastOne(pool, hits, lo + 1);
   if (hits <= 0 || n <= 0 || pool <= 0) return 0;
   if (n > pool - hits) return 1;
   let miss = 1;
