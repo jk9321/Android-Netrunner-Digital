@@ -4,7 +4,8 @@
  *   safestRemote: share of Corp main-phase decisions where the oracle answered for an agenda being installed, and
  *     where its 0/1 moved the honest steal odds by half or more.
  *   grip: share of Corp decisions where the honest guessed grip (threatModel runnerView, oracle off) and the real grip
- *     differ by more than one icebreaker (by card code, either way).
+ *     differ by more than one icebreaker (by card code, either way), and the share where the guess holds the wrong
+ *     number of each kind (fracters, decoders, killers, run events, economy).
  * Plays the first deal (as a games=1 batch) of every stride-th pairing, max deals in all, with PLAN_OFF as given.
  *
  *   PLAN_OFF=+oracle.safestRemote npx vite-node scripts/oracle-reach.ts -- [max deals]
@@ -19,6 +20,7 @@ import { runnerView } from '../src/ai/threatModel';
 import { stealOdds } from '../src/ai/effectValues';
 import { pricing } from '../src/ai/pricing';
 import { decisionContext } from '../src/ai/handValues';
+import { cardSynergy } from '../src/ai/synergyTags';
 
 applyPlanOff(process.env.PLAN_OFF ?? '');
 const maxDeals = Number(process.argv.slice(2).filter(a => a !== '--')[0] ?? 20);
@@ -39,6 +41,21 @@ function breakerGap(a: string[], b: string[]): number {
   return gap + rest.length;
 }
 
+/**
+ * Kinds of grip card (AI Coordinator 2026-11-08: split what the grip reveals): breakers by the ice type they break
+ * (an AI breaker counts for all three), run events, and economy (the AI's own econ tag, as evaluate.ts isEcon).
+ */
+const kw = (code: string) => getCardDefinition(code).keywords ?? '';
+const breaks = (type: string) => (code: string) => isBreaker(code) && (new RegExp(type, 'i').test(kw(code)) || /\bAI\b/.test(kw(code)));
+const KINDS: Record<string, (code: string) => boolean> = {
+  fracter: breaks('Fracter'),
+  decoder: breaks('Decoder'),
+  killer: breaks('Killer'),
+  runEvent: code => getCardDefinition(code).type_code === 'event' && /\brun\b/i.test(getCardDefinition(code).text ?? ''),
+  econ: code => (cardSynergy(getCardDefinition(code)).gives?.econ ?? 0) >= 0.5,
+};
+const kindGaps: Record<string, number> = {};
+
 let decisions = 0;
 let gripGaps = 0;
 const seenSets: object[] = [];
@@ -58,6 +75,11 @@ class Counting implements Agent {
           return runnerView(state).runner.grip;
         });
         if (breakerGap(breakers(guess), breakers(state.runner.grip)) > 1) gripGaps++;
+        // What the honest guess got wrong, by kind: a kind counts when the guess holds a different number of them
+        for (const [kind, is] of Object.entries(KINDS)) {
+          const n = (cards: { cardCode: string }[]) => cards.filter(c => is(c.cardCode)).length;
+          if (n(guess) !== n(state.runner.grip)) kindGaps[kind] = (kindGaps[kind] ?? 0) + 1;
+        }
       } finally {
         tuning.plan.oracle.grip = saved;
       }
@@ -97,6 +119,7 @@ console.log(JSON.stringify({
   safestRemoteTold: told,
   safestRemoteFlipped: flipped,
   gripGapOver1Breaker: gripGaps,
+  gripKindMissed: Object.fromEntries(Object.entries(kindGaps).map(([k, n]) => [k, +(n / decisions).toFixed(3)])),
   shares: { told: +(told / decisions).toFixed(3), flipped: +(flipped / decisions).toFixed(3), gripGap: +(gripGaps / decisions).toFixed(3) },
   oracleTurns: oracleStats.turns,
   secs: Math.round((Date.now() - t0) / 1000),
