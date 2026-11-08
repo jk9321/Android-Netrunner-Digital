@@ -15,7 +15,7 @@ import { deckGameSetup } from '../src/data/decks';
 import { createAgent } from '../src/ai';
 import { GameRunner } from '../src/ai/playout';
 import { applyPlanOff, asSide } from '../src/ai/synergy';
-import { WIN_POINTS, clock, runnerRateParts } from '../src/ai/clock';
+import { clock, runnerRateParts } from '../src/ai/clock';
 import { turnsLeft } from '../src/ai/cardProfiles';
 import { ALL_DECKS as DECKS } from './nsg-sample-decks';
 // @ts-expect-error plain JS, shared with the batch workflow's summary job
@@ -70,7 +70,6 @@ function addGame(stats: ReturnType<typeof fresh>, marks: Mark[], after: number[]
 function mark(s: GameState): Mark {
   return asSide('corp', () => {
     const c = clock(s);
-    const need = Math.max(1, WIN_POINTS - s.runner.score);
     return { score: s.runner.score, corpScore: s.corp.score, rate: c.runnerRate, parts: { ...runnerRateParts(s) }, turn: s.turnNumber, lateStep: 1 / turnsLeft(s), openStep: 1 - c.open(1) };
   });
 }
