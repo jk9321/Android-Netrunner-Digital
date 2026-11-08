@@ -161,13 +161,17 @@ export function centralAccess(state: GameState): { hqNow: number; density: numbe
  * Runner's scorer or the tie-break reads, and the plans (tests change them in place).
  */
 function threatKey(state: GameState): string {
+  // plan.threatKey (K4b): the grip as the threat reads it (the dealt grip's cards: its size and what is in it, Chain
+  // Reaction included) instead of the real grip's ids, and the outer pricing context left out (the budget sets its own)
+  const coarse = !!plan().threatKey;
+  const grip = coarse ? guessedGrip(state).grip.map(c => c.cardCode).sort().join(',') : state.runner.grip.map(c => c.instanceId).join(',');
   const roots = Object.values(state.corp.servers).map(v => v.root.map(c => `${c.advancementCounters}${c.runnerKnows ? 'k' : ''}${c.faceUp ? 'u' : ''}`).join('.')).join(';');
   return [
-    state.id, fingerprint(state), roots, state.corp.hq.map(c => c.instanceId).join(','), state.runner.grip.map(c => c.instanceId).join(','),
+    state.id, fingerprint(state), roots, state.corp.hq.map(c => c.instanceId).join(','), grip,
     state.runsThisTurn.map(r => r.server + (r.successful ? '+' : '-')).join(','), JSON.stringify(state.corp.rdKnownToRunner ?? []),
     knownInHand(state, 'runner').map(k => k.id).join(','), knownInHand(state, 'corp').map(k => k.id).join(','), state.runner.bonusClicksNextTurn ?? 0,
     planKey(),
-    pricingKey(),
+    coarse ? '' : pricingKey(),
   ].join('|');
 }
 let planSig: { plan: unknown; json: string } | null = null;

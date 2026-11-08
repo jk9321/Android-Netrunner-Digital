@@ -378,6 +378,12 @@ export const tuning = {
     reachStrength: false,
     reachTime: false,
     /**
+     * K4b (AI Coordinator 2026-11-08, Jeff: make threatValues cheaper): the threat's cache key reads the grip as the
+     * threat deals it (its cards, not the real grip's ids) and leaves the outer pricing context out. K4(a) measured 36%
+     * of budgets reused on the human-games positions. Off until its games=1 identical check.
+     */
+    threatKey: false,
+    /**
      * Tuning pass round 2, phase 1 (Fable spec 2026-11-08, spec-round2.md): measurement oracles. Each gives the Corp an
      * answer it can't honestly have, one at a time in a batch (plan_off=+oracle.<name>), to measure what that knowledge
      * is worth before anything is built for it. Every hidden read lives in oracle.ts. Never a default (codeHealth test);
@@ -421,7 +427,7 @@ export const tuning = {
  */
 export const sideOff: Record<SideCode, string[]> = {
   corp: [],
-  runner: ['tagTrashNow', 'ownTrashRisk', 'hqTrashCost', 'oneCurrency', 'threatModel', 'measuredPass', 'threatSpend', 'calibratedRun', 'raceClock', 'iceProtects', 'replyContenders', 'plannerAgenda', 'oracle', 'reach', 'reachStrength', 'reachTime'],
+  runner: ['tagTrashNow', 'ownTrashRisk', 'hqTrashCost', 'oneCurrency', 'threatModel', 'measuredPass', 'threatSpend', 'calibratedRun', 'raceClock', 'iceProtects', 'replyContenders', 'plannerAgenda', 'oracle', 'reach', 'reachStrength', 'reachTime', 'threatKey'],
 };
 
 /**

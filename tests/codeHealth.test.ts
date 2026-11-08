@@ -59,6 +59,7 @@ const OFF_SWITCHES: Record<string, string> = {
   'oracle.gripThreat': 'measurement oracle (Phase 2 K0: grip in the threat and search deals only), never a default',
   reach: 'Phase 2 K1: the Runner capability model; off until its paired batch',
   reachStrength: 'Phase 2 K2: own ice as known + HQ/R&D exposure from reach; off until its paired batch',
+  threatKey: 'Phase 2 K4b: coarser threat cache key; off until its identical check',
   reachTime: 'Phase 2 K3: waiting turns at their horizon; off until its paired batch',
   'oracle.gripReply': 'measurement oracle (Phase 2 K0: grip in the Runner reply only), never a default',
   calibratedRun: 'item 3 round 3: the threat read at measured hit rates; did not help (-9.9 vs -10.6), kept as measurement',

@@ -2,6 +2,7 @@ import { afterEach, describe, expect, it } from 'vitest';
 import { GameState, cardDef, createCardInstance } from '../src/core';
 import { tuning } from '../src/ai/synergy';
 import { atLeastOne, cases, getIn, reachOn, reachStanding } from '../src/ai/reach';
+import { threat, threatStats } from '../src/ai/threatModel';
 import { newGame } from './helpers';
 import { inDecision } from './helpers/pricing';
 
@@ -142,5 +143,36 @@ describe('plan.reach', () => {
     scored.corp.scoreArea.push(agenda);
     // No agenda left in the remote: standing over 0 waiting turns is whole, nothing is charged
     expect(inDecision(scored, 'corp', () => reachStanding(scored, 'remote-9', 0))).toBe(1);
+  });
+});
+
+describe('plan.threatKey (K4b)', () => {
+  const savedKey = tuning.plan.threatKey;
+  afterEach(() => { tuning.plan.threatKey = savedKey; });
+  /** The same pool with a different card in the grip: the threat deals the same grip either way (rule 10.2.2a: the Corp can't tell them apart). */
+  const pair = () => {
+    const a = structuredClone(newGame(3));
+    const b = structuredClone(a);
+    const g = b.runner.grip[0];
+    b.runner.grip[0] = b.runner.stack[0];
+    b.runner.stack[0] = g;
+    return [a, b];
+  };
+  it('on: two boards that differ only in which pool card sits in the grip share one budget', () => {
+    tuning.plan.threatKey = true;
+    const [a, b] = pair();
+    inDecision(a, 'corp', () => threat(a));
+    const before = threatStats.budgeted;
+    const tb = inDecision(b, 'corp', () => threat(b));
+    expect(threatStats.budgeted).toBe(before);
+    expect(tb).toEqual(inDecision(a, 'corp', () => threat(a)));
+  });
+  it('off: each is budgeted', () => {
+    tuning.plan.threatKey = false;
+    const [a, b] = pair();
+    inDecision(a, 'corp', () => threat(a));
+    const before = threatStats.budgeted;
+    inDecision(b, 'corp', () => threat(b));
+    expect(threatStats.budgeted).toBe(before + 1);
   });
 });
