@@ -2,7 +2,7 @@ import { CardInstance, GameState, cardDef, createRng, knownInHand, shuffleInPlac
 import { corpCardValue } from './evaluate';
 import { runSuccess } from './effectValues';
 import { unseenInHand } from './handValues';
-import { BLOCK, RunnerMemory, iceCost, runClick, runCreditSpend, runScore, serverValue } from './runs';
+import { BLOCK, RunOptions, RunnerMemory, iceCost, runClick, runCreditSpend, runScore, serverValue } from './runs';
 import { asSide, sideOff, tuning } from './synergy';
 import { fingerprint, memo, pointGain, sideCreditValue } from './valueModel';
 import { effectivePlan, plan, pricing, pricingKey, withPricing } from './pricing';
@@ -343,11 +343,11 @@ export function probedState(state: GameState, serverId: string): GameState {
  * given breakers it may find): the server's score at the turn's start against its always-there click, as the probe
  * reads it. 1 or 0.
  */
-export function wouldRun(view: GameState, serverId: string): number {
+export function wouldRun(view: GameState, serverId: string, options: RunOptions = {}): number {
   return withPricing({ computingThreat: pricing().computingThreat + 1 }, () =>
     asSide('runner', () => {
       const v = runnerView(view);
-      return runScore(v, serverId, { memory: runnerMemory(view), wary: !!tuning.wary }) > fallbackClick(v).score ? 1 : 0;
+      return runScore(v, serverId, { ...options, memory: runnerMemory(view), wary: !!tuning.wary }) > fallbackClick(v).score ? 1 : 0;
     })
   );
 }

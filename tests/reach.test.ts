@@ -104,6 +104,22 @@ describe('plan.reach', () => {
     expect(seenCase?.weight).toBe(1);
   });
 
+  it('a run event that helps get in is a case of its own: Overclock\'s credits pay for the break', () => {
+    tuning.plan.reach = true;
+    const OVERCLOCK = '30029';
+    const broke = (stack: string[]) => {
+      const s = board(filler(5), stack, 1);
+      s.runner.rig.programs = [createCardInstance(s, CLEAVER)];
+      return s;
+    };
+    const without = broke(filler(25));
+    const withIt = broke([OVERCLOCK, OVERCLOCK, ...filler(23)]);
+    const cs = inDecision(withIt, 'corp', () => cases(withIt, 'remote-9', 1));
+    expect(cs.some(c => c.event?.cardCode === OVERCLOCK && c.options?.bonusCredits === 5)).toBe(true);
+    const g = (s: GameState) => inDecision(s, 'corp', () => getIn(s, 'remote-9'));
+    expect(g(withIt)).toBeGreaterThan(g(without));
+  });
+
   it('K3: a later horizon has more draws and credits, so standing falls with the turns waited', () => {
     tuning.plan.reach = true;
     tuning.plan.reachTime = true;
