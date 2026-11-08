@@ -242,6 +242,12 @@ export const tuning = {
      * playout), not a formula.
      */
     threatLeaf: false,
+    /**
+     * threatValues stays ON (Phase 2 pruning, group (c)): it carries every read of the threat in the Corp's values
+     * (with it off the Corp makes ~11 threat calls a profile instead of ~37k). Off for the Corp with the other six
+     * no-test switches: -8.0 ± 2.3 paired (run 42526354323 vs base 42525924644), Runner points from remotes 63% vs 46%;
+     * it is also the whole time saving of that set (909 -> 480 ms per decision, threat-profile.ts; 870-900 ms without it).
+     */
     threatValues: true,
     /**
      * Per deciding side (Jeff, 2026-10-28): its own clicks priced by the best plays in hand, at least a credit (handValues.ts clickWorth).
