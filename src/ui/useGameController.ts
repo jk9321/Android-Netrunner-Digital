@@ -132,8 +132,14 @@ export function useGameController(config: GameConfig, saved: SavedGame | null) {
     }
   }, [viewMode, aiSide]);
 
-  // A selection is in the viewer's ids: it means nothing to the next viewer
-  useEffect(() => setSelectedCardId(null), [viewer]);
+  // A selection is in the viewer's ids, and a card fate was worked out from the last viewer's view:
+  // neither belongs on the next viewer's screen
+  useEffect(() => {
+    setSelectedCardId(null);
+    setFates([]);
+    fateTimersRef.current.forEach(t => window.clearTimeout(t));
+    fateTimersRef.current.clear();
+  }, [viewer]);
 
   // Save after every move so a reload (the browser discarding a background
   // tab, or the dev server reconnecting) resumes this game; a finished game is dropped
