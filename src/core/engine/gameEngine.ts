@@ -58,6 +58,19 @@ const handlers: ActionHandlers = {
 };
 
 /**
+ * A deep copy of plain game data (objects, arrays, primitives), about twice as fast as structuredClone, which was a
+ * quarter of AI self-play time. Expects plain data only: no Maps, Sets, Dates or cycles, and shared sub-objects come out
+ * as separate copies (the log, whose entries are shared, is copied separately).
+ */
+function copyPlain(v: unknown): unknown {
+  if (typeof v !== 'object' || v === null) return v;
+  if (Array.isArray(v)) { const n = v.length; const out = new Array(n); for (let i = 0; i < n; i++) out[i] = copyPlain(v[i]); return out; }
+  const out: Record<string, unknown> = {};
+  for (const k in v as Record<string, unknown>) out[k] = copyPlain((v as Record<string, unknown>)[k]);
+  return out;
+}
+
+/**
  * Applies an action and returns the next state. The input state is never
  * mutated; on an illegal action an IllegalActionError is thrown.
  */
@@ -75,7 +88,7 @@ export function executeAction(prevState: GameState, action: GameAction): GameSta
   // a new array holding the same entries instead of a deep copy of a log that
   // is most of the state late in a game.
   const { log, ...rest } = prevState;
-  const state: GameState = { ...structuredClone(rest), log: log.slice() };
+  const state: GameState = { ...(copyPlain(rest) as typeof rest), log: log.slice() };
   const handler = handlers[action.type] as (state: GameState, action: GameAction) => void;
   if (!handler) {
     throw new IllegalActionError(`Unknown action type: ${(action as { type: string }).type}`);
