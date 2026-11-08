@@ -162,7 +162,7 @@ export function corpCardValue(card: CardInstance, state?: GameState, viewer: Sid
 
 function corpCardWorth(card: CardInstance, state: GameState | undefined, viewer: SideCode): number {
   const worth = unwaitedCardWorth(card, state, viewer);
-  if (state && viewer === 'corp' && plan().oneCurrency && !card.isRezzed && cardDef(card).type_code !== 'agenda' && !isTrap(card.cardCode)) {
+  if (state && viewer === 'corp' && (plan().oneCurrency || plan().installWait) && !card.isRezzed && cardDef(card).type_code !== 'agenda' && !isTrap(card.cardCode)) {
     const cost = rezCost(state, card);
     // Rezzed worth: a profiled card at what it pays out once rezzed (payoutWorth, with the risk of its server: a money
     // asset behind ice waits more safely than a bare one, plan.readAssetTrash); an unprofiled card its rezzed formula.
