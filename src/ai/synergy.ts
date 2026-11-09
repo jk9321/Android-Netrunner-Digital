@@ -397,6 +397,13 @@ export const tuning = {
      */
     agendaLine: false,
     /**
+     * Phase 2 O (opening-audit/report.md; Corp only): a held agenda is priced by its best install line with no floor at 0
+     * (evaluate.ts heldAgendasWorth). The floor read every agenda whose line was below 0 better held for ever than
+     * installed, the outlet plannerHold found (agenda stuck in HQ 16.6 -> 24.3 beside open windows). HQ's own steal
+     * risk is priced by centralExposure / the threat. Rules: an agenda scores only once installed and advanced (1.17).
+     */
+    heldNoFloor: true,
+    /**
      * Phase 2 O2b (opening-audit/report.md; Corp only): an advance the timing guard rules out (it can't be scoreable next
      * turn, nothing guards it, or its server is exposed) is priced ADVANCE_GUARD_PENALTY below the advance it would be,
      * instead of -Infinity, so the planner can play it out and the leaf decide (corpAI.ts advanceScore). Rules: installed
@@ -498,7 +505,7 @@ export const tuning = {
  */
 export const sideOff: Record<SideCode, string[]> = {
   corp: [],
-  runner: ['tagTrashNow', 'ownTrashRisk', 'hqTrashCost', 'oneCurrency', 'threatModel', 'measuredPass', 'threatSpend', 'calibratedRun', 'raceClock', 'iceProtects', 'replyContenders', 'plannerAgenda', 'clearinghouseRez', 'plannerHold', 'agendaPaidWhileStanding', 'agendaLine', 'advanceGuardPriced', 'scoreBudget', 'oracle', 'reach', 'reachStrength', 'reachTime', 'threatKey', 'threatKeyPricing'],
+  runner: ['tagTrashNow', 'ownTrashRisk', 'hqTrashCost', 'oneCurrency', 'threatModel', 'measuredPass', 'threatSpend', 'calibratedRun', 'raceClock', 'iceProtects', 'replyContenders', 'plannerAgenda', 'clearinghouseRez', 'plannerHold', 'agendaPaidWhileStanding', 'agendaLine', 'heldNoFloor', 'advanceGuardPriced', 'scoreBudget', 'oracle', 'reach', 'reachStrength', 'reachTime', 'threatKey', 'threatKeyPricing'],
 };
 
 /**
