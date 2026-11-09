@@ -73,6 +73,9 @@ export const plannerStats: {
   addedWins: number;
   holds?: number;
   held?: number;
+  /** plan.searchSamples: decisions given the extra samples, and how often they changed the pick */
+  closeCalls?: number;
+  closeFlips?: number;
   onAddedWin?: (state: GameState, action: GameAction) => void;
   onCandidates?: (side: SideCode, values: number[], actions: GameAction[]) => void;
   /** Spec-search S1 (measurement only): every Corp decision's continuations, read by scripts/search-audit.ts. */
@@ -469,6 +472,8 @@ export function planTurn(state: GameState, side: SideCode, ranked: ScoredAction[
     let best: { action: GameAction; value: number; line: Line } | null = null;
     const values: number[] = [];
     const scored: { action: GameAction; value: number; line: Line; ends: Ends }[] = [];
+    // plan.searchSamples (S3): every line the pick may come from, the windows S2 refused by the margin among them
+    const pool: { action: GameAction; value: number; line: Line; ends: Ends }[] = [];
     for (const c of candidates) {
       let line: Line = [];
       let ends: Ends = {};
@@ -498,13 +503,25 @@ export function planTurn(state: GameState, side: SideCode, ranked: ScoredAction[
         if (accepted) {
           plannerStats.held = (plannerStats.held ?? 0) + 1;
           [value, line, ends] = [heldValue, heldLine, held];
-        }
+        } else if (builds && Number.isFinite(heldValue)) pool.push({ action: c.action, value: heldValue, line: heldLine, ends: held });
       }
       values.push(value);
       scored.push({ action: c.action, value, line, ends });
+      pool.push({ action: c.action, value, line, ends });
       if (!best || value > best.value) best = { action: c.action, value, line };
     }
     if (side === 'corp' && plan().replyContenders && ai.reply && sampledReply()) best = contenders(scored, side, synergy) ?? best;
+    // plan.searchSamples (spec-search S3): on an agenda decision, the two best lines (candidates, or a candidate's rule
+    // and window-building held line) closer than SEARCH.margin get REPLY.extra more reply samples each, and the better
+    // mean stands. S1: a re-sample of the same line beats the pick by more than 3 on 28% of decisions.
+    if (side === 'corp' && plan().searchSamples && ai.reply && sampledReply() && agendaKind(state) !== 'neither') {
+      const close = contenders(pool, side, synergy, SEARCH.margin);
+      if (close) {
+        plannerStats.closeCalls = (plannerStats.closeCalls ?? 0) + 1;
+        if (!best || close.action !== best.action || close.line !== best.line) plannerStats.closeFlips = (plannerStats.closeFlips ?? 0) + 1;
+        best = close;
+      }
+    }
     plannerStats.onCandidates?.(side, values, candidates.map(c => c.action));
     if (audit) auditSearch(audit, state, side, candidates, scored, best, ai, synergy, performance.now() - started, searchClock.replyMs - replyBefore);
     if (!best || best.value === -Infinity) return null;
@@ -524,9 +541,9 @@ export function planTurn(state: GameState, side: SideCode, ranked: ScoredAction[
  * both: samples REPLY.samples .. REPLY.samples + REPLY.extra - 1) and the better mean over all of them is the pick, when the two are closer than
  * REPLY.contendGap (a wider gap is left to the first samples).
  */
-function contenders<T extends { action: GameAction; value: number; line: Line; ends: Ends }>(scored: T[], side: SideCode, synergy: boolean): T | null {
+function contenders<T extends { action: GameAction; value: number; line: Line; ends: Ends }>(scored: T[], side: SideCode, synergy: boolean, gap = REPLY.contendGap): T | null {
   const live = scored.filter(r => Number.isFinite(r.value) && r.ends.state && !r.ends.state.winner).sort((a, b) => b.value - a.value);
-  if (live.length < 2 || live[0].value - live[1].value >= REPLY.contendGap) return null;
+  if (live.length < 2 || live[0].value - live[1].value >= gap) return null;
   const leaf = (s: GameState) => leafValue(s, side, synergy);
   const top = live.slice(0, 2).map(r => {
     const bonus = r.ends.bonus ?? 0;
@@ -535,7 +552,7 @@ function contenders<T extends { action: GameAction; value: number; line: Line; e
     return { ...r, value: (first * (r.value - bonus) + REPLY.extra * extra) / (first + REPLY.extra) + bonus };
   });
   // A candidate outside the two (a won game, or one the extra samples can't change) keeps its value
-  const rest = scored.filter(r => !top.some(t => t.action === r.action));
+  const rest = scored.filter(r => !top.some(t => t.action === r.action && t.line === r.line));
   return [...top, ...rest].reduce((a, b) => (b.value > a.value ? b : a));
 }
 

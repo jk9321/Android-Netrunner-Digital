@@ -386,6 +386,14 @@ export const tuning = {
      */
     searchLines: false,
     /**
+     * Phase 3 S3 (spec-search.md; Corp only, on top of searchLines): the 2-sample reply decides most close picks (S1: a
+     * plain re-sample of the same line beats the pick by more than 3 on 28% of agenda decisions). On a decision with an
+     * agenda in HQ or installed, the two best lines (candidates, or a candidate's rule line and its window-building held
+     * line) closer than SEARCH.margin get REPLY.extra more reply samples each and the better mean stands
+     * (turnPlanner.ts contenders). replyContenders, the same on every decision with a gap of 4, read -0.6 ± 2.2.
+     */
+    searchSamples: false,
+    /**
      * Phase 2 O2 (opening-audit/report.md; AI Coordinator call 2026-11-09: the leaf first, in the one place that prices an
      * installed unscored agenda): agendaWorth charges the advances still to go after this turn only by the odds the agenda
      * stands to take them, as it already discounts the points (evaluate.ts agendaWorth). Off: charged in full.
@@ -522,7 +530,7 @@ export const tuning = {
  */
 export const sideOff: Record<SideCode, string[]> = {
   corp: [],
-  runner: ['tagTrashNow', 'ownTrashRisk', 'hqTrashCost', 'oneCurrency', 'threatModel', 'measuredPass', 'threatSpend', 'calibratedRun', 'raceClock', 'iceProtects', 'replyContenders', 'plannerAgenda', 'clearinghouseRez', 'plannerHold', 'searchLines', 'agendaPaidWhileStanding', 'agendaLine', 'heldNoFloor', 'advanceGuardPriced', 'scoreBudget', 'oracle', 'reach', 'reachStrength', 'reachTime', 'threatKey', 'threatKeyPricing'],
+  runner: ['tagTrashNow', 'ownTrashRisk', 'hqTrashCost', 'oneCurrency', 'threatModel', 'measuredPass', 'threatSpend', 'calibratedRun', 'raceClock', 'iceProtects', 'replyContenders', 'plannerAgenda', 'clearinghouseRez', 'plannerHold', 'searchLines', 'searchSamples', 'agendaPaidWhileStanding', 'agendaLine', 'heldNoFloor', 'advanceGuardPriced', 'scoreBudget', 'oracle', 'reach', 'reachStrength', 'reachTime', 'threatKey', 'threatKeyPricing'],
 };
 
 /**

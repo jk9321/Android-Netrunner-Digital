@@ -4,6 +4,8 @@
  * window (the hoarding plannerHold produced). With a dump dir, those positions are written there as JSON (fixtures).
  *
  *   npx vite-node scripts/search-holds.ts -- [games] [dump dir] [first seed]
+ *
+ * SAMPLES=1 also turns plan.searchSamples (S3) on and prints its close calls, flips and the Corp's time per decision.
  */
 import { writeFileSync } from 'node:fs';
 import { createInitialGameState } from '../src/core';
@@ -18,6 +20,8 @@ const [gamesArg, dump, seedArg] = process.argv.slice(2).filter(a => a !== '--');
 const games = Number(gamesArg ?? 4);
 applyPlanOff(process.env.PLAN_OFF ?? '');
 tuning.plan.searchLines = true;
+if (process.env.SAMPLES === '1') tuning.plan.searchSamples = true;
+const time = { ms: 0, n: 0 };
 const n = { held: 0, accepted: 0, noWindow: 0, small: 0 };
 let dumped = 0;
 let seed = 0;
@@ -37,6 +41,14 @@ for (let g = 0; g < games; g++) {
   const c = corp[Math.floor(pairing / runner.length) % corp.length];
   const r = runner[pairing % runner.length];
   const gr = new GameRunner(createInitialGameState(deckGameSetup(seed, c, r)), { corp: createAgent('corp'), runner: createAgent('runner') });
-  for (let i = 0; i < 6000 && !gr.state.winner && gr.state.turnNumber <= 80; i++) if (!gr.step()) break;
+  for (let i = 0; i < 6000 && !gr.state.winner && gr.state.turnNumber <= 80; i++) {
+    const corp = gr.state.activePlayer === 'corp';
+    const t = performance.now();
+    if (!gr.step()) break;
+    if (corp) {
+      time.ms += performance.now() - t;
+      time.n++;
+    }
+  }
 }
-console.log(JSON.stringify({ games, ...n }));
+console.log(JSON.stringify({ games, ...n, decisions: plannerStats.decisions, closeCalls: plannerStats.closeCalls ?? 0, closeFlips: plannerStats.closeFlips ?? 0, corpMs: +(time.ms / Math.max(1, time.n)).toFixed(1) }));

@@ -34,10 +34,11 @@ const describeAction = (s: GameState, a: GameAction) => {
   return `${a.type}${card ? ' ' + cardDef(card).type_code : ''}${where}`;
 };
 
-const saved = { hold: tuning.plan.plannerHold, lines: tuning.plan.searchLines };
+const saved = { hold: tuning.plan.plannerHold, lines: tuning.plan.searchLines, samples: tuning.plan.searchSamples };
 afterEach(() => {
   tuning.plan.plannerHold = saved.hold;
   tuning.plan.searchLines = saved.lines;
+  tuning.plan.searchSamples = saved.samples;
 });
 
 const choose = (s: GameState, hold: boolean, lines: boolean) => {
@@ -49,9 +50,20 @@ const pick = (s: GameState, hold: boolean, lines: boolean) => describeAction(s, 
 const exact = (s: GameState, hold: boolean, lines: boolean) => JSON.stringify(choose(s, hold, lines));
 
 describe('plan.searchLines', () => {
-  it('is off by default', () => {
+  it('is off by default (and S3 searchSamples)', () => {
     expect(saved.lines).toBe(false);
+    expect(saved.samples).toBe(false);
   });
+
+  // Not pinned: deal 1491 T1 with S3 on. The held new-remote line (28.90) and ice on a central (27.82) are within
+  // SEARCH.margin, and on 4 or 8 reply samples the central wins (s2-report.md, S3 section): T1's remote is a close call.
+  it('S3 searchSamples on top: a hold without a window still does not flip the pick (1491 T2)', () => {
+    const s = fixture.state as unknown as GameState;
+    tuning.plan.searchSamples = false;
+    const plain = exact(s, false, false);
+    tuning.plan.searchSamples = true;
+    expect(exact(s, false, true)).toBe(plain);
+  }, 120000);
 
   it('deal 1491 turn 1: ices a new remote and holds the agenda for it (the held line builds the window)', () => {
     const s = turnOne();
