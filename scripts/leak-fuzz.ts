@@ -47,7 +47,10 @@ for (let g = 0; g < games; g++) {
   const r = runners[(g * 5 + 3) % runners.length];
   const players = twin ? 'random' : mode === 'both' ? (g % 2 === 0 ? 'ai' : 'random') : mode;
   const res = twin ? fuzzTwinGame(seed0 + g, c, r, 1500, recon) : fuzzGame(seed0 + g, c, r, players, players === 'ai' ? 4000 : 1500, recon);
-  if ('twin' in res) for (const k of Object.keys(twins) as (keyof typeof twins)[]) twins[k] += res.twin[k];
+  if ('twin' in res) {
+    for (const k of ['built', 'compared', 'revealed', 'illegal', 'illegalBlind', 'legalCompared'] as const) twins[k] += res.twin[k];
+    twins.illegalBlindExamples.push(...res.twin.illegalBlindExamples.slice(0, Math.max(0, 5 - twins.illegalBlindExamples.length)));
+  }
   steps += res.steps;
   probes += res.stats.probes;
   shapes += res.stats.uiShapes;
@@ -58,6 +61,7 @@ for (let g = 0; g < games; g++) {
   if (res.failures.length) failed++;
 }
 console.log(`${failed} of ${Math.ceil((games - shard) / shards)} games failed; ${steps} steps checked`);
-if (twin) console.log(`twin: ${twins.built} pairs built, ${twins.compared} compared, ${twins.revealed} skipped as revealed, ${twins.illegal} skipped as illegal in the twin`);
+if (twin) console.log(`twin: ${twins.built} pairs built, ${twins.compared} compared, ${twins.revealed} skipped as revealed, ${twins.illegal} skipped as illegal in the twin (${twins.illegalBlind} of them the blind side's own action), ${twins.legalCompared} legal lists compared`);
+if (twin) for (const x of twins.illegalBlindExamples) console.log(`  blind side's own action illegal in the twin: ${x}`);
 if (recon) console.log(`recon: ${shapes} screen actions compared, ${probes} own-side probes, ${disagreements} probe disagreements`);
 process.exit(failed ? 1 : 0);
