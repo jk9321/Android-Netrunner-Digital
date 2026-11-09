@@ -257,6 +257,10 @@ function twinFork(room: RoomCore, clients: Record<SideCode, Client>, first: Clie
   const copy = RoomCore.load(structuredClone(snap), 0);
   const twin = RoomCore.load({ ...structuredClone(snap), state: twinOf(snap.state!, a, b) }, 0);
   const label = `${pair![0].cardCode} <-> ${pair![1].cardCode}`;
+  // The seeing side's next move acts on one of the cards: nothing to compare (see below)
+  const firstBy = first.type === 'act' ? first.action.player : null;
+  if (first.type === 'act' && firstBy !== blind && touches(copy, firstBy!, first.action, [a, b])) return;
+  if (firstBy !== blind && [a, b].some(id => JSON.stringify(real.pendingPrompts).includes(`"${id}"`))) return;
   const d0 = firstDiff(copy.connect(blind), twin.connect(blind));
   if (d0) {
     checker.fail(step, blind, 'twin', `greeting differs before any move (${label})`, d0);
@@ -309,8 +313,11 @@ function twinFork(room: RoomCore, clients: Record<SideCode, Client>, first: Clie
     const fake = new Client(next);
     fake.last = last[next];
     msg = randomMessage(fake, local);
-    // The seeing side acting on one of the cards (installing it, declaring it): what follows is the card's own doing, in public
-    if (msg?.type === 'act' && next !== blind && touches(copy, next, msg.action, [a, b])) {
+    // The seeing side acting on one of the cards (installing it, declaring it), or answering a prompt of its own that
+    // names one (it looks at the top of R&D): its answer means something else in the twin, and what follows is the
+    // card's own doing. Compared up to here; the blind seat's messages of the move that raised the prompt were.
+    const named = (room: RoomCore) => JSON.stringify(room.realState!.pendingPrompts.filter(p => p.side === next));
+    if (msg?.type === 'act' && next !== blind && (touches(copy, next, msg.action, [a, b]) || [copy, twin].some(r => [a, b].some(id => named(r).includes(`"${id}"`))))) {
       stats.revealed++;
       return;
     }
