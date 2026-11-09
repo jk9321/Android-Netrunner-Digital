@@ -13,7 +13,7 @@
  *  - 'rez asset/upgrade': the card never fired (no log line naming it after the rez other than its access or trash,
  *    no credits it paid out). Outcome: 'paid back' (credits out >= rez cost) | 'fired' | 'trashed unfired' | 'unfired'.
  *  - 'advance' (credits paid with the advance action): the agenda was stolen, trashed or still installed at the end;
- *    a non-agenda card never fired.
+ *    a non-agenda card never fired; advanced ice (Pharos) is judged by the ice's life, as a rez is.
  *  - 'install ice' (the install cost, rules 1.16.6b and 8.5.11a: 1 credit per ice already protecting the server; 0-credit installs
  *    are counted too, for the clicks): never rezzed.
  *    Detail: whether the Runner ever ran that server while the ice stood.
@@ -57,6 +57,8 @@ interface IceLife {
   rezzes: { kind: string; credits: number; outcome: string; stake: string }[];
   /** Install items (credits) waiting on whether it is ever rezzed, and whether its server is run while it stands */
   installs: { credits: number; server: string; ran: boolean; rezzed: boolean }[];
+  /** Credits paid to advance this ice (Pharos, Syailendra): judged by the ice's life too */
+  advanceCredits: number;
 }
 
 interface RootLife {
@@ -116,7 +118,7 @@ export class SpendTracker {
 
   private iceLife(c: CardInstance): IceLife {
     let life = this.ice.get(c.instanceId);
-    if (!life) this.ice.set(c.instanceId, (life = { title: titleOf(c), stops: 0, fired: 0, tax: 0, rezzes: [], installs: [] }));
+    if (!life) this.ice.set(c.instanceId, (life = { title: titleOf(c), stops: 0, fired: 0, tax: 0, rezzes: [], installs: [], advanceCredits: 0 }));
     return life;
   }
 
@@ -187,7 +189,12 @@ export class SpendTracker {
 
     // Advances paid with credits (the advance action; Seamless Launch's free counters are its own effect)
     if (action?.type === 'ADVANCE_CARD' && spent > 0) {
-      const target = rootAfter.get(action.cardInstanceId)?.card ?? iceAfter.get(action.cardInstanceId)?.card;
+      const ice = iceAfter.get(action.cardInstanceId)?.card;
+      if (ice) {
+        this.iceLife(ice).advanceCredits += spent;
+        accounted += spent;
+      }
+      const target = rootAfter.get(action.cardInstanceId)?.card;
       if (target) {
         const life = this.rootLife(target);
         life.advanceCredits += spent;
@@ -281,7 +288,15 @@ export class SpendTracker {
     }
 
     // Cards that left play: settle their lives
-    for (const [id, x] of rootBefore) if (!rootAfter.has(id)) this.settleRoot(id, after, x.card, !!run);
+    for (const [id, x] of rootBefore) {
+      if (rootAfter.has(id)) continue;
+      // A card that trashes itself for its effect outside a run (Clearinghouse's meat damage) fired as it left
+      const life = this.roots.get(id);
+      const sa = signature(before);
+      const sb = signature(after);
+      if (life && !run && (newLogs.some(l => l.event === 'damage') || [0, 1, 2, 3].some(j => sa[j] !== sb[j]))) life.fired = true;
+      this.settleRoot(id, after, x.card, !!run);
+    }
     for (const [id] of iceBefore) if (!iceAfter.has(id)) this.settleIce(id);
   }
 
@@ -322,6 +337,7 @@ export class SpendTracker {
     if (!life) return;
     const verdict = this.iceVerdict(life);
     for (const r of life.rezzes) this.push(r.kind, r.credits, r.outcome || verdict, verdict === 'nothing', `${verdict}; ${r.stake}`);
+    if (life.advanceCredits > 0) this.push('advance', life.advanceCredits, `advanced ice, ${verdict}`, verdict === 'nothing', life.title);
     for (const inst of life.installs) this.push('install ice', inst.credits, inst.rezzed ? 'rezzed' : 'never rezzed', !inst.rezzed, inst.ran ? 'server run' : 'server never run');
     this.ice.delete(id);
   }
@@ -352,7 +368,9 @@ export class SpendTracker {
     const b = signature(end);
     // The operation itself leaves HQ for Archives: count draws as HQ growing past that
     const drew = end.corp.hq.length - w.start.corp.hq.length + (w.kind === 'operation' ? 1 : 0) > 0;
-    const changed = a.some((v, i) => v !== b[i]) || drew;
+    // Clicks gained (Nanomanagement): more than the click the play itself cost
+    const clicks = end.corp.clicks - w.start.corp.clicks + (w.kind === 'operation' ? 1 : 0) > 0;
+    const changed = a.some((v, i) => v !== b[i]) || drew || clicks;
     const outcome = returned >= w.paid && returned > 0 ? 'income' : returned > 0 ? 'part refund' : changed ? 'other effect' : 'nothing observed';
     if (w.paid > 0 || w.kind === 'operation') this.push(w.kind, w.paid, outcome, returned <= 0 && !changed, w.title);
   }

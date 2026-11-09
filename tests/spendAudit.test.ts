@@ -44,6 +44,17 @@ describe('spend audit (scripts/spend-audit.ts)', () => {
     }
   });
 
+  it('advancing ice is judged by the ice, not as a card that never fired', () => {
+    const t = new SpendTracker();
+    const s0 = corpTurn();
+    const id = installIceForTest(s0, '30072', 'hq');
+    const s1 = structuredClone(s0);
+    s1.corp.servers.hq.ice[0].advancementCounters = 1;
+    s1.corp.credits = s0.corp.credits - 1;
+    t.step(s0, s1, corpAction({ type: 'ADVANCE_CARD', cardInstanceId: id, serverId: 'hq' } as Partial<GameAction> & { type: 'ADVANCE_CARD' }));
+    expect(t.done(s1).items.filter(i => i[0] === 'advance')).toEqual([['advance', 1, 'advanced ice, nothing', 1, 'Palisade']]);
+  });
+
   it('an asset rezzed and trashed in a run without firing bought nothing', () => {
     const t = new SpendTracker();
     const s0 = corpTurn();
