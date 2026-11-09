@@ -22,7 +22,7 @@ import { freeRezCover, freeRezTargets } from './freeRez';
 import { PETTY_CASH_REPLAY, iceAdvanceWorth, placedCounterWorth, rezEffectWorth, rezzedWorth, runTimed, topDownWorth } from './effectValues';
 import { CARD_PROFILES, ECON_SCALE, PAYOUT_RISK, bareAssetRisk, unrezzedWorth } from './cardProfiles';
 
-import { BLOCK, iceCost, iceCreditNeed, isTrap, subroutineCost, tagCost, weakestIce } from './runs';
+import { BLOCK, accessTrap, iceCost, iceCreditNeed, isTrap, subroutineCost, tagCost, weakestIce } from './runs';
 import { cardSynergy } from './synergyTags';
 import { econValue, upgradeValue } from './cardValues';
 import { counterWorth } from './counterValues';
@@ -49,6 +49,14 @@ const FREE_ACTION_FLOOR = 0.3;
  * can't leave the agenda an advance short over the Runner's turn.
  */
 const FINISH_TIE = FREE_ACTION_FLOOR;
+
+/**
+ * plan.clearinghouseRez (Phase 2 O4c, spend audit: Clearinghouse advanced 39 times, never fired): a trap waits unrezzed
+ * for the Runner's access, but a Hostile asset that fires on the Corp's own turn (Clearinghouse: "when your turn begins,
+ * you may trash this asset") is inactive until rezzed (rule 8.5.2) and has to be rezzed in the window before the turn
+ * begins (5.6.1b-d). Only access traps (accessTrap) skip the rez on the Corp's turn; off: every Hostile/Ambush asset did.
+ */
+const springsOnAccess = (code: string): boolean => (plan().clearinghouseRez ? accessTrap(code) : isTrap(code));
 
 /** The Corp's main-phase actions that cost a click (basic actions, rule 5.2.6b-h; an operation is played with one, 5.2.6e). */
 const CLICK_ACTIONS = new Set<GameAction['type']>(['GAIN_CREDIT', 'DRAW_CARD', 'INSTALL_CARD', 'PLAY_OPERATION_OR_EVENT', 'ADVANCE_CARD', 'PURGE_VIRUS', 'TRASH_RESOURCE']);
@@ -343,7 +351,7 @@ export class HeuristicCorpAI implements Agent {
         if (!card) return -Infinity; // ice waits for a run (decideRez)
         if (this.rezTimingBlocked(state, card)) return -Infinity;
         // Agendas can't be rezzed (rule 3.2.3), traps spring on access, run-timed cards wait for the run's window
-        if (type(card) === 'agenda' || isTrap(card.cardCode) || runTimed(card)) return -Infinity;
+        if (type(card) === 'agenda' || springsOnAccess(card.cardCode) || runTimed(card)) return -Infinity;
         if (clickOnly(card)) return this.rezToUse(state, card, before);
         if (state.turnStep?.kind === 'corp_turn_start' && type(card) === 'asset' && getCardScript(card.cardCode)?.triggers?.turn_begins) return this.preTurnRez(state, action);
         return this.playScore(state, action, before);
@@ -469,7 +477,7 @@ export class HeuristicCorpAI implements Agent {
     if (econ) return econ + 1;
     // Model: worth once rezzed, less the rez cost, on the install-score scale; upgrades still wait for ice money (Jeff)
     if (type(card) === 'upgrade' && this.idleUpgrade(state, card)) return -Infinity;
-    if (type(card) === 'agenda' || isTrap(card.cardCode)) return -Infinity;
+    if (type(card) === 'agenda' || springsOnAccess(card.cardCode)) return -Infinity;
     // Manegarm and the like are rezzed when the Runner comes (decideRez), not on the Corp's turn
     if (runTimed(card)) return -Infinity;
     const worth = rezzedWorth(state, card, rezCost(state, card));

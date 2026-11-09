@@ -359,6 +359,12 @@ export const tuning = {
      */
     plannerAgenda: true,
     /**
+     * Phase 2 O4c (opening-audit/report.md): Clearinghouse is rezzed before the Corp's turn begins, so its trash can fire
+     * (corpAI.ts springsOnAccess; rules 8.5.2, 5.6.1b-d). Off: every Hostile asset was treated as an access trap and never
+     * rezzed on the Corp's turn (0 of 119 Clearinghouse installs fired in run 42558416772).
+     */
+    clearinghouseRez: true,
+    /**
      * Round 2 Phase 2 E1 (spec-phase2.md; Corp only): the Corp's credit need (valueModel boardNeed) adds the advancement
      * still short on the agendas installed in its remotes (valueModel scoreNeed, 1 credit each, rule 5.2.6f), so credits
      * slide against a need that includes finishing the score as well as rezzing the ice that holds it.
@@ -453,7 +459,7 @@ export const tuning = {
  */
 export const sideOff: Record<SideCode, string[]> = {
   corp: [],
-  runner: ['tagTrashNow', 'ownTrashRisk', 'hqTrashCost', 'oneCurrency', 'threatModel', 'measuredPass', 'threatSpend', 'calibratedRun', 'raceClock', 'iceProtects', 'replyContenders', 'plannerAgenda', 'scoreBudget', 'oracle', 'reach', 'reachStrength', 'reachTime', 'threatKey', 'threatKeyPricing'],
+  runner: ['tagTrashNow', 'ownTrashRisk', 'hqTrashCost', 'oneCurrency', 'threatModel', 'measuredPass', 'threatSpend', 'calibratedRun', 'raceClock', 'iceProtects', 'replyContenders', 'plannerAgenda', 'clearinghouseRez', 'scoreBudget', 'oracle', 'reach', 'reachStrength', 'reachTime', 'threatKey', 'threatKeyPricing'],
 };
 
 /**
