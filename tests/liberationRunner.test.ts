@@ -852,6 +852,20 @@ describe('Rebellion Without Rehearsal: Shaper and neutral', () => {
     expect(s.activeRun?.server).toBe('remote-1');
   });
 
+  // Rules 9.6.9: "When that run ends, you may run a remote server" is optional, so the Runner can decline it
+  it('Trick Shot lets the Runner decline the remote run', () => {
+    let s = newGame();
+    emptyHQ(s);
+    installCorpForTest(s, SG.nico, 'remote-1');
+    nicosOnRD(s);
+    [s] = playRunner(s, L.trickShot);
+    s = finishBreach(cont(s));
+    expect(source(s)).toMatchObject({ cardCode: L.trickShot, step: 'remote' });
+    s = choose(s, 'no');
+    expect(s.activeRun).toBeNull();
+    expect(s.pendingPrompts).toHaveLength(0);
+  });
+
   it('Cataloguer arranges the top 4 of R&D instead of breaching, and breaches R&D for a click later', () => {
     let s = newGame();
     const [s1, cat] = runnerInstall(s, L.cataloguer);

@@ -62,11 +62,12 @@ function inBreakWindow(state: GameState): boolean {
   return Boolean(encounter && encounter.resolvingIndex === null && state.activeRun?.phase === 'encounter_ice' && !encounter.onEncounterPending);
 }
 
-/** Asks which of these servers a run event or ability runs. */
-function askServer(ctx: EffectContext, label: string, ids: string[], step = 'run'): boolean {
+/** Asks which of these servers a run event or ability runs; `optional` ("you may run") adds a "Don't run" answer, 'no'. */
+function askServer(ctx: EffectContext, label: string, ids: string[], step = 'run', optional = false): boolean {
   const serverIds = ids.filter(id => !runBlocked(ctx.state, id)); // Front Company
   if (serverIds.length === 0) return false;
-  askChoice(ctx, 'runner', `${label}: run which server?`, serverIds.map(id => ({ id, label: ctx.state.corp.servers[id].name })), step);
+  const options = serverIds.map(id => ({ id, label: ctx.state.corp.servers[id].name }));
+  askChoice(ctx, 'runner', `${label}: run which server?`, optional ? [...options, { id: 'no', label: "Don't run" }] : options, step);
   return true;
 }
 
@@ -1395,10 +1396,11 @@ const trickShot: CardScript = {
     if (state.activeRun) state.activeRun.extraAccesses += 1;
   },
   onRunEnds: ctx => {
-    if (!ctx.state.winner && runnerTurn(ctx.state)) askServer(ctx, 'Trick Shot (you may run a remote server)', remoteServers(ctx.state), 'remote');
+    if (!ctx.state.winner && runnerTurn(ctx.state)) askServer(ctx, 'Trick Shot (you may run a remote server)', remoteServers(ctx.state), 'remote', true);
   },
   onPromptAnswer: (ctx, source, answer) => {
-    if (source.step === 'remote' && answer.kind === 'effect_choice' && !ctx.state.activeRun) {
+    // "You may run a remote server" is optional (rules 9.6.9): 'no' declines it
+    if (source.step === 'remote' && answer.kind === 'effect_choice' && answer.optionId !== 'no' && !ctx.state.activeRun) {
       // The second run is not "that run" (no source: its end offers no other run); the hosted credits still pay
       startRun(ctx.state, answer.optionId, { creditHosts: counters(ctx.card, 'credit') > 0 ? [ctx.card.instanceId] : [] });
     }
