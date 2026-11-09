@@ -1,4 +1,4 @@
-import { GameAction, GameState, SideCode, activePrompt, cardDef, executeAction, findCardAnywhere, maxHandSize } from '../core';
+import { GameAction, GameState, SideCode, activePrompt, cardDef, executeAction, findCardAnywhere, maxHandSize, rezCostOf } from '../core';
 import { profileOf } from './cardProfiles';
 import { ScoredAction } from './agent';
 import { evaluate } from './evaluate';
@@ -33,6 +33,38 @@ export const PLANNER = {
   withBuild: 6,
 };
 
+/** plan.searchLines (spec-search S2). */
+export const SEARCH = {
+  /**
+   * A held line must beat its rule line by more than this to stand: S1's net-of-noise share is 8.4% of HQ-only
+   * decisions at a margin of 3 against 13.3% at 0, and a re-sample of the same line moves it by more than 3 on 28% of
+   * decisions (s1-report.md).
+   */
+  margin: 3,
+};
+
+/**
+ * plan.searchLines: the remotes that are agenda windows in `state`, by id: a remote with ice the Corp has rezzed or can pay
+ * to rez now (rezCostOf, its credits), and no agenda or asset in its root (rule 8.5.6a: one agenda or asset per remote
+ * root; upgrades may share it).
+ */
+export function readyRemotes(state: GameState): Set<string> {
+  const ready = new Set<string>();
+  for (const s of Object.values(state.corp.servers)) {
+    if (!s.isRemote || s.ice.length === 0) continue;
+    if (s.root.some(c => ['agenda', 'asset'].includes(cardDef(c).type_code ?? ''))) continue;
+    if (s.ice.some(i => i.isRezzed || rezCostOf(state, i) <= state.corp.credits)) ready.add(s.id);
+  }
+  return ready;
+}
+
+/** plan.searchLines: the end of a held line builds a window: an agenda still in HQ and a ready remote that was not ready at `start`. */
+export function buildsWindow(start: GameState, end: GameState): boolean {
+  if (!end.corp.hq.some(c => cardDef(c).type_code === 'agenda')) return false;
+  const before = readyRemotes(start);
+  return [...readyRemotes(end)].some(id => !before.has(id));
+}
+
 /** Diagnostics (scripts): plannerBuild's added candidates, how often one was played out and how often it won. */
 export const plannerStats: {
   decisions: number;
@@ -45,6 +77,8 @@ export const plannerStats: {
   onCandidates?: (side: SideCode, values: number[], actions: GameAction[]) => void;
   /** Spec-search S1 (measurement only): every Corp decision's continuations, read by scripts/search-audit.ts. */
   onSearch?: (row: SearchRow) => void;
+  /** plan.searchLines: a held line played (accepted: it stood; why not otherwise) */
+  onHold?: (state: GameState, action: GameAction, held: { accepted: boolean; gain: number; builds: boolean }) => void;
 } = { decisions: 0, withAdded: 0, added: 0, addedWins: 0 };
 
 /**
@@ -62,7 +96,7 @@ export interface SearchLine { mode: LineMode; value: number | null; distinct: bo
 export interface SearchRow {
   /** 'installed': an agenda installed and unscored; 'hq': agenda(s) in HQ only; 'neither' */
   kind: 'installed' | 'hq' | 'neither';
-  /** state.turnNumber (both sides' turns counted) */
+  /** state.turnNumber (one a round: the Corp turn number) */
   turn: number;
   clicks: number;
   credits: number;
@@ -430,6 +464,7 @@ export function planTurn(state: GameState, side: SideCode, ranked: ScoredAction[
   const audit = side === 'corp' ? plannerStats.onSearch : undefined;
   const started = performance.now();
   const replyBefore = searchClock.replyMs;
+  const hqOnly = side === 'corp' && plan().searchLines && agendaKind(state) === 'hq';
   return withPricing({ frozen: true, decisionSeed }, () => {
     let best: { action: GameAction; value: number; line: Line } | null = null;
     const values: number[] = [];
@@ -446,6 +481,21 @@ export function planTurn(state: GameState, side: SideCode, ranked: ScoredAction[
         const heldValue = playout(state, side, c.action, ai, synergy, heldLine, held, 'hold');
         plannerStats.holds = (plannerStats.holds ?? 0) + 1;
         if (heldValue > value) {
+          plannerStats.held = (plannerStats.held ?? 0) + 1;
+          [value, line, ends] = [heldValue, heldLine, held];
+        }
+      }
+      // plan.searchLines (spec-search S2): the held line where it builds a window, by more than the reply's noise
+      if (side === 'corp' && plan().searchLines && !plan().plannerHold && hqOnly && ends.installedAgenda && value > -Infinity) {
+        const heldLine: Line = [];
+        const held: Ends = {};
+        const heldValue = playout(state, side, c.action, ai, synergy, heldLine, held, 'hold');
+        const gain = heldValue - value;
+        const builds = !!held.state && !held.state.winner && buildsWindow(state, held.state);
+        const accepted = gain > SEARCH.margin && builds;
+        plannerStats.holds = (plannerStats.holds ?? 0) + 1;
+        plannerStats.onHold?.(state, c.action, { accepted, gain, builds });
+        if (accepted) {
           plannerStats.held = (plannerStats.held ?? 0) + 1;
           [value, line, ends] = [heldValue, heldLine, held];
         }
@@ -501,8 +551,8 @@ const lineKey = (first: GameAction, line: Line) => JSON.stringify([first, ...lin
 /**
  * Spec-search S1 (measurement only, plannerStats.onSearch): every candidate of a Corp decision also played on the hold
  * and the finish-first lines, after the pick is made, so play is unchanged (the pick, its line and the plan memory come
- * from the shipped search). The rule line is the one already played; with plan.plannerHold on, `scored` holds the better
- * of rule and hold, so the rule line is played again here (it is deterministic: the decision's seed is fixed).
+ * from the shipped search). The rule line is the one already played; with plan.plannerHold or plan.searchLines on, `scored`
+ * may hold the held line, so the rule line is played again here (it is deterministic: the decision's seed is fixed).
  */
 function auditSearch(
   audit: (row: SearchRow) => void,
@@ -527,7 +577,7 @@ function auditSearch(
     let ruleValue = scored[i]?.value ?? -Infinity;
     let ruleLine = scored[i]?.line ?? [];
     let ruleEnds: Ends = scored[i]?.ends ?? {};
-    if (plan().plannerHold) {
+    if (plan().plannerHold || plan().searchLines) {
       ruleLine = [];
       ruleEnds = {};
       ruleValue = playout(state, side, c.action, ai, synergy, ruleLine, ruleEnds);

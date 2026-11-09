@@ -376,6 +376,16 @@ export const tuning = {
      */
     plannerHold: false,
     /**
+     * Phase 3 S2 (spec-search.md; Corp only): the hold line where it builds a window. On a decision with an agenda in HQ
+     * and none installed, a candidate whose rule line installs the agenda is also played holding it (plannerHold's line);
+     * the held line stands only when it beats the rule line by more than SEARCH.margin (the 2-sample reply's noise, S1
+     * report) AND its end position has a window the held agenda can use next turn that the turn built: a remote with ice
+     * the Corp has rezzed or can pay to rez, and no agenda or asset in its root (one per root, rule 8.5.6a; ice protects
+     * it, 8.5.4), not ready when the decision began. S1 (run 42663183482 + local net sample): the hold line beats the pick
+     * net of the noise on 8.4% (margin 3) of HQ-only decisions; finish-first and installed-agenda turns ~0, left out.
+     */
+    searchLines: false,
+    /**
      * Phase 2 O2 (opening-audit/report.md; AI Coordinator call 2026-11-09: the leaf first, in the one place that prices an
      * installed unscored agenda): agendaWorth charges the advances still to go after this turn only by the odds the agenda
      * stands to take them, as it already discounts the points (evaluate.ts agendaWorth). Off: charged in full.
@@ -512,7 +522,7 @@ export const tuning = {
  */
 export const sideOff: Record<SideCode, string[]> = {
   corp: [],
-  runner: ['tagTrashNow', 'ownTrashRisk', 'hqTrashCost', 'oneCurrency', 'threatModel', 'measuredPass', 'threatSpend', 'calibratedRun', 'raceClock', 'iceProtects', 'replyContenders', 'plannerAgenda', 'clearinghouseRez', 'plannerHold', 'agendaPaidWhileStanding', 'agendaLine', 'heldNoFloor', 'advanceGuardPriced', 'scoreBudget', 'oracle', 'reach', 'reachStrength', 'reachTime', 'threatKey', 'threatKeyPricing'],
+  runner: ['tagTrashNow', 'ownTrashRisk', 'hqTrashCost', 'oneCurrency', 'threatModel', 'measuredPass', 'threatSpend', 'calibratedRun', 'raceClock', 'iceProtects', 'replyContenders', 'plannerAgenda', 'clearinghouseRez', 'plannerHold', 'searchLines', 'agendaPaidWhileStanding', 'agendaLine', 'heldNoFloor', 'advanceGuardPriced', 'scoreBudget', 'oracle', 'reach', 'reachStrength', 'reachTime', 'threatKey', 'threatKeyPricing'],
 };
 
 /**

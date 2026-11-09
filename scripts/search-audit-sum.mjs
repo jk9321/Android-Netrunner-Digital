@@ -16,7 +16,7 @@ const MARGINS = [0, 1, 3, 6];
 /** One decision as an object, with the alternative continuations' best gains */
 function decision(t) {
   const [kind, turn, clicks, credits, chosen, pick, cands, ms, replyMs, extraMs] = t;
-  const corpTurn = Math.ceil(turn / 2);
+  const corpTurn = turn; // state.turnNumber counts rounds: the Corp turn (turn.ts endTurn)
   const alt = []; // every distinct non-rule line: { i, mode, gain over chosen, same first }
   cands.forEach((c, i) => {
     const [type, agenda, rule, hold, holdD, finish, finishD] = c;
