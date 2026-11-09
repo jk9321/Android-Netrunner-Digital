@@ -95,6 +95,32 @@ export function printOpeningAudit(all, { human = false, label = 'OPENING AUDIT (
     const kinds = idle.flatMap(t => t.kinds);
     console.log(`  ${name}: Corp turns with a window: ${turnRows.size}; with no agenda move in it ${idle.length} (${pct(idle.length, turnRows.size)}); their window clicks went on: ${mix(tally(kinds), kinds.length)}`);
   }
+  printSupply(games, { human });
+}
+
+/** Window supply (opening-audit.ts supplyAt): how each Corp turn opens, turns 1-6 and all. */
+export function printSupply(all, { human = false } = {}) {
+  const games = all.filter(g => g.opening?.supply && !g.crashed);
+  if (!games.length) return;
+  console.log('Window supply: how each Corp turn opens (first main-phase decision; opening-audit.ts supplyAt):');
+  for (const [name, list] of groupsOf(games, human)) {
+    for (const [span, lo, hi] of [['T1-6', 1, 6], ['all turns', 1, 999]]) {
+      const rows = list.flatMap(g => g.opening.supply).filter(r => r[0] >= lo && r[0] <= hi);
+      const t = tally(rows.map(r => r[1]));
+      console.log(`  ${name} ${span} (${rows.length} turns): ${Object.keys(t).sort((a, b) => t[b] - t[a]).map(k => `${k} ${pct(t[k], rows.length)}`).join(', ')}`);
+      const hq = rows.filter(r => r[5] > 0 && !r[1].startsWith('window'));
+      if (hq.length) console.log(`    agenda in HQ, no window (${hq.length}): iced agenda-free remotes avg ${f2(mean(hq, r => r[3]))}, those holding an asset avg ${f2(mean(hq, r => r[4]))}, credits avg ${f1(mean(hq, r => r[2]))}`);
+    }
+    // The first window and what turns 1-3 built
+    const firsts = list.map(g => g.opening.firstWindow ?? 0);
+    const hit = firsts.filter(t => t > 0);
+    console.log(`  ${name}: first window on Corp turn ${f1(mean(hit))} (none at all ${pct(firsts.length - hit.length, firsts.length)}); by T3 ${pct(firsts.filter(t => t > 0 && t <= 3).length, firsts.length)}`);
+    for (const [label, sel] of [['first window by T3', t => t > 0 && t <= 3], ['first window T4+ or never', t => !(t > 0 && t <= 3)]]) {
+      const gs = list.filter(g => sel(g.opening.firstWindow ?? 0));
+      const kinds = gs.flatMap(g => g.opening.clicks.slice(0, 3).flat());
+      console.log(`    ${label} (${gs.length} games): T1-3 clicks: ${mix(tally(kinds), kinds.length)}`);
+    }
+  }
 }
 
 /**

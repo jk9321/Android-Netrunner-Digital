@@ -81,6 +81,10 @@ export interface OpeningRecord {
   firstAdvance: number;
   firstScore: number;
   windows: WindowRow[];
+  /** Window supply: one row per Corp turn, at its first main-phase decision: [corp turn, status, credits, iced agenda-free remotes, of them holding an asset, agendas in HQ] (supplyAt) */
+  supply?: [number, string, number, number, number, number][];
+  /** Corp turn of the first supply row with a window (0: none) */
+  firstWindow?: number;
   values: ValueRow[];
   /** Corp turns played */
   corpTurns: number;
@@ -152,7 +156,8 @@ function holdable(s: GameState, sv: Server): boolean {
 export class OpeningTracker {
   private corpTurn = 0;
   private lastTurnNumber = -1;
-  private rec: OpeningRecord = { startCredits: [], clicks: [], firstIce: 0, firstIceWhere: '', firstRemote: 0, firstAgendaInstall: 0, firstAdvance: 0, firstScore: 0, windows: [], values: [], corpTurns: 0 };
+  private rec: OpeningRecord = { startCredits: [], clicks: [], firstIce: 0, firstIceWhere: '', firstRemote: 0, firstAgendaInstall: 0, firstAdvance: 0, firstScore: 0, windows: [], supply: [], values: [], corpTurns: 0 };
+  private suppliedTurn = -1;
   /** Remote id -> run since its agenda went in */
   private runSince = new Map<string, boolean>();
   private byId = new Map<string, ValueRow>();
@@ -202,6 +207,10 @@ export class OpeningTracker {
     if (!this.rec.firstRemote && Object.values(after.corp.servers).some(sv => sv.isRemote && sv.root.length + sv.ice.length > 0)) this.rec.firstRemote = k;
 
     if (!action || !corpMainPhase(before) || action.player !== 'corp' || action.type === 'START_TURN' || action.type === 'SET_STOPS') return;
+    if (this.suppliedTurn !== k) {
+      this.suppliedTurn = k;
+      this.rec.supply!.push(this.supplyAt(before, k));
+    }
     const kind = actionKind(before, action);
     if (k <= 6 && before.corp.clicks > after.corp.clicks) this.rec.clicks[k - 1]?.push(kind);
     if (!this.rec.firstIce && (kind === 'ice: central' || kind === 'ice: remote')) {
@@ -265,6 +274,37 @@ export class OpeningTracker {
     else this.byId.set(card.instanceId, row);
   }
 
+  /**
+   * Window supply (AI Coordinator 2026-11-09): how a Corp turn opens, tagged with ONE thing in a fixed order so the shares
+   * sum to 100%. 'window: advance' (windowAt) or 'window: install' (an agenda in HQ and a remote with no agenda or asset
+   * in its root, ice on it and that ice rezzed or affordable: an upgrade can share the root with an agenda, rule 8.5.6a,
+   * an asset is trashed by the install, so a remote holding one is counted apart). Otherwise the missing thing:
+   * 'installed agenda, unsafe' (one is out, none in HQ, its server run since and its ice not holdable) | 'no agenda in HQ'
+   * | 'no remote' | 'remote holds an asset' | 'remote empty, no ice' | 'ice not holdable' | 'other' (e.g. every iced
+   * remote already holds an agenda).
+   */
+  supplyAt(s: GameState, k: number): [number, string, number, number, number, number] {
+    const remotes = Object.values(s.corp.servers).filter(sv => sv.isRemote);
+    const free = remotes.filter(sv => !sv.root.some(isAgenda));
+    const hasAsset = (sv: Server) => sv.root.some(c => cardDef(c).type_code === 'asset');
+    const iced = free.filter(sv => sv.ice.length > 0);
+    const hqAgendas = s.corp.hq.filter(isAgenda).length;
+    const row = (status: string): [number, string, number, number, number, number] => [k, status, s.corp.credits, iced.length, iced.filter(hasAsset).length, hqAgendas];
+    if (s.corp.clicks > 0 && hqAgendas && iced.some(sv => !hasAsset(sv) && holdable(s, sv))) return row('window: install');
+    if (this.windowAt(s) === 'advance') return row('window: advance');
+    if (!hqAgendas) return row(remotes.some(sv => sv.root.some(isAgenda)) ? 'installed agenda, unsafe' : 'no agenda in HQ');
+    if (!remotes.length) return row('no remote');
+    if (iced.some(sv => hasAsset(sv) && holdable(s, sv))) return row('remote holds an asset');
+    if (free.some(sv => sv.ice.length === 0 && !hasAsset(sv))) return row('remote empty, no ice');
+    if (iced.length) return row('ice not holdable');
+    return row('other');
+  }
+
+  /** The Corp turn of the first 'window: install' or 'window: advance' (supplyAt), 0 if none. */
+  firstWindow(): number {
+    return this.rec.supply?.find(r => r[1].startsWith('window'))?.[0] ?? 0;
+  }
+
   windowAt(s: GameState): string | null {
     if (s.corp.clicks <= 0) return null;
     const remotes = Object.values(s.corp.servers).filter(sv => sv.isRemote);
@@ -284,6 +324,7 @@ export class OpeningTracker {
       row.fate = final.corp.scoreArea.some(c => c.instanceId === id) ? 'scored' : final.runner.scoreArea.some(c => c.instanceId === id) ? 'stolen' : serverOf(final, id) ? 'out' : 'gone';
     }
     this.rec.corpTurns = this.corpTurn;
+    this.rec.firstWindow = this.firstWindow();
     return this.rec;
   }
 }
