@@ -1,5 +1,5 @@
-import { cardDef, GameState } from '../../core';
-import { counters } from '../../core/engine/cardEffects';
+import { cardDef, GameState, getCardScript } from '../../core';
+import { counters, threatLevel } from '../../core/engine/cardEffects';
 import { PAID_OUT, paidOneATurn } from '../counterValues';
 import { cardRate, CLICK, RATES } from '../valueModel';
 import { accessWorth, centralSuccess, counterWorthOf, damageWorth, deckCount, deckShare, lock, muWorth, PACE, perTurn, runSuccess } from '../effectValues';
@@ -321,7 +321,19 @@ export const LIBERATION: Record<string, CardAI> = {
     },
   },
   // Starlit Knight
-  '34053': { synergy: { gives: { ice: 1, tags: 1 }, wants: { tags: 1 }, when: ['threat'] } },
+  // Threat 4 (rules 9.3.6f, 1.17.1a) -> when the Runner encounters it, it gains X "End the run." subroutines for the
+  // rest of the run, after its other subroutines (rules 9.8.3e), X = the Runner's tags at that moment.
+  '34053': {
+    synergy: { gives: { ice: 1, tags: 1 }, wants: { tags: 1 }, when: ['threat'] },
+    gainsOnEncounter: (state, ice) => {
+      const tags = state.runner.tags;
+      if (threatLevel(state) < 4 || tags === 0) return [];
+      // Already gained this run (the encounter has started, or it was met earlier): iceSubroutines lists them
+      if (state.activeRun?.iceGains?.[ice.instanceId]?.some(g => g.cardCode === '34053')) return [];
+      const etr = getCardScript('34053')?.grantedSubroutines?.[0];
+      return etr ? Array.from({ length: tags }, () => etr) : [];
+    },
+  },
   // Virtual Service Agent
   '34054': { synergy: { gives: { ice: 1, tags: 1, denial: 0.5 } } },
   // Oppo Research

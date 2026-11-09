@@ -1,4 +1,5 @@
 import type { CardInstance, GameState } from '../../core';
+import type { Subroutine } from '../../core/scripts/types';
 import type { CardProfile } from '../cardProfiles';
 import type { CardValue } from '../cardValues';
 import type { CorpEffect } from '../effectValues';
@@ -49,4 +50,8 @@ export interface CardAI {
   /** Corp operation that buys clicks or advancements to finish an agenda this turn: plan.finishSetup ranks it, and corpAI
    * operationBonus adds no bonus of its own (tuning pass 1, the old plan.oneSetupRule). */
   setup?: true;
+  /** Rezzed ice that gains subroutines when the Runner encounters it, by the state now (Starlit Knight): the ones it
+   * would gain on the next encounter this run, after its other subroutines, or none if it already has them. Run
+   * planning reads them through runs.ts plannedSubroutines, so a run is priced against the ice as it will be met. */
+  gainsOnEncounter?: (state: GameState, ice: CardInstance) => Subroutine[];
 }

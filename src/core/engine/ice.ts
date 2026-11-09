@@ -95,7 +95,7 @@ export function grantedBefore(state: GameState, ice: CardInstance): number {
 
 /**
  * The ice gains `count` copies of a subroutine for the rest of the run, after
- * its other subroutines (Starlit Knight, Thunderbolt Armaments; rules 9.8.3a).
+ * its other subroutines (Starlit Knight, Thunderbolt Armaments; rules 9.8.3e).
  * They start unbroken if it is being encountered.
  */
 export function grantRunSubroutines(state: GameState, ice: CardInstance, cardCode: string, index: number, count = 1): void {

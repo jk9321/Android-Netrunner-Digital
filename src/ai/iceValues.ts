@@ -1,7 +1,6 @@
 import { CardInstance, GameState, ServerState, SideCode, cardDef } from '../core';
 import { maxHandSize, rezCost } from '../core/engine/cardEffects';
-import { iceSubroutines } from '../core/engine/ice';
-import { AUDREY, iceCost, isTrap } from './runs';
+import { AUDREY, iceCost, isTrap, plannedSubroutines } from './runs';
 import { KNOBS, RATES, guardLoop, memo, pointGain, pointValue } from './valueModel';
 import { PACE } from './effectValues';
 import { archivedAgendaLoss } from './evaluate';
@@ -162,7 +161,7 @@ export function lastingIceCost(state: GameState, ice: CardInstance): number {
   const audreys = state.runner.rig.programs.filter(p => p.cardCode === AUDREY);
   if (audreys.length === 0) return now;
   const have = Math.max(...audreys.map(p => p.tokens?.virus ?? 0));
-  const uses = Math.max(1, Math.ceil(iceSubroutines(state, ice).length / 2));
+  const uses = Math.max(1, Math.ceil(plannedSubroutines(state, ice).length / 2));
   if (have >= uses) return now;
   const programs = state.runner.rig.programs.map(p => (p.cardCode === AUDREY ? { ...p, tokens: { ...p.tokens, virus: uses } } : p));
   const full = iceCost({ ...state, runner: { ...state.runner, rig: { ...state.runner.rig, programs } } }, ice);
