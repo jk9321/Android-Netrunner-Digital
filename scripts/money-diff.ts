@@ -18,6 +18,7 @@ import { GameRunner, createAgent } from '../src/ai';
 import { withOracleMoney } from './oracle-money';
 import { creditNeed, moneyGain } from '../src/ai/valueModel';
 import { asSide } from '../src/ai/pricing';
+import { CARD_PROFILES } from '../src/ai/cardProfiles';
 
 const corpDecks = ALL_DECKS.filter(d => d.side === 'corp');
 const runnerDecks = ALL_DECKS.filter(d => d.side === 'runner');
@@ -39,7 +40,15 @@ interface Played {
   /** Runner turns where the Corp rezzed ice in a run and so started its next turn short of the advancement a remote agenda still needed, which it could have paid without those rezzes */
   rezBlocked: number;
   rezRunnerTurns: number;
+  /** Credit clicks with a money operation it could pay for in HQ; with an econ asset (a card profile) in HQ; all credit clicks */
+  creditWithOp: number;
+  creditWithAsset: number;
+  creditClicks: number;
+  /** Turn each money operation / econ asset (by instance) was played or installed */
+  econTurn: Map<string, number>;
 }
+
+const isEconAsset = (c: { cardCode: string }) => cardDef(c as never).type_code === 'asset' && !!CARD_PROFILES[c.cardCode];
 
 /** Credits still short on the remote agendas (1 per advancement, rule 5.2.6f). */
 const advanceShort = (s: GameState) =>
@@ -78,7 +87,8 @@ function play(seed: number, money: boolean): Played {
   const scored = new Map<string, number>();
   const installed = new Map<string, number>();
   let told = -1;
-  let idleCredit = 0, fullDraw = 0, rezBlocked = 0, rezRunnerTurns = 0;
+  let idleCredit = 0, fullDraw = 0, rezBlocked = 0, rezRunnerTurns = 0, creditWithOp = 0, creditWithAsset = 0, creditClicks = 0;
+  const econTurn = new Map<string, number>();
   let runnerTurn = -1, rezSpent = 0;
   for (let steps = 0; steps < 4000 && game.state.turnNumber <= 80; steps++) {
     if (money && game.state.activePlayer === 'corp' && game.state.turnNumber !== told) {
@@ -108,6 +118,14 @@ function play(seed: number, money: boolean): Played {
     if (before.activePlayer === 'corp' && !before.activeRun && a.player === 'corp') {
       if (a.type === 'GAIN_CREDIT' && before.corp.credits >= asSide('corp', () => creditNeed(before, 'corp'))) idleCredit++;
       if (a.type === 'DRAW_CARD' && before.corp.hq.length >= before.corp.handSizeLimit) fullDraw++;
+      if (a.type === 'GAIN_CREDIT') {
+        creditClicks++;
+        if (before.corp.hq.some(c => moneyGain(c) > 0 && (cardDef(c).cost ?? 0) <= before.corp.credits)) creditWithOp++;
+        if (before.corp.hq.some(isEconAsset)) creditWithAsset++;
+      }
+      const played = (a as { cardInstanceId?: string }).cardInstanceId;
+      const pc = played ? before.corp.hq.find(c => c.instanceId === played) : undefined;
+      if (pc && (moneyGain(pc) > 0 || isEconAsset(pc)) && (a.type === 'PLAY_OPERATION_OR_EVENT' || a.type === 'INSTALL_CARD')) econTurn.set(pc.instanceId, turn);
       const k = kindOf(before, after, a);
       if (k.kind) acts.push({ turn, ...k });
     }
@@ -118,14 +136,16 @@ function play(seed: number, money: boolean): Played {
       if (rezzed.length && before.activePlayer === 'runner') rezSpent += Math.max(0, before.corp.credits - after.corp.credits);
     }
   }
-  return { winner: game.state.winner ?? 'draw', acts, scored, installed, idleCredit, fullDraw, rezBlocked, rezRunnerTurns };
+  return { winner: game.state.winner ?? 'draw', acts, scored, installed, idleCredit, fullDraw, rezBlocked, rezRunnerTurns, creditWithOp, creditWithAsset, creditClicks, econTurn };
 }
 
 const seeds = (process.env.SEEDS ?? '').split(',').filter(Boolean).map(Number);
 const totals = new Map<string, [number, number]>();
 const timing = { honestScoreTurn: [] as number[], moneyScoreTurn: [] as number[], honestInstallTurn: [] as number[], moneyInstallTurn: [] as number[] };
 const firstDiffs: string[] = [];
-const counts = { honest: { idleCredit: 0, fullDraw: 0, rezBlocked: 0, rezRunnerTurns: 0 }, money: { idleCredit: 0, fullDraw: 0, rezBlocked: 0, rezRunnerTurns: 0 } };
+const zero = () => ({ idleCredit: 0, fullDraw: 0, rezBlocked: 0, rezRunnerTurns: 0, creditWithOp: 0, creditWithAsset: 0, creditClicks: 0 });
+const counts = { honest: zero(), money: zero() };
+const econ = { both: 0, earlier: 0, later: 0, honestOnly: 0, moneyOnly: 0, shift: 0 };
 for (const seed of seeds) {
   const h = play(seed, false);
   const m = play(seed, true);
@@ -135,6 +155,12 @@ for (const seed of seeds) {
     totals.set(a.kind, t);
   }
   for (const [k, p] of [['honest', h], ['money', m]] as const) for (const key of Object.keys(counts[k]) as (keyof typeof counts.honest)[]) counts[k][key] += p[key];
+  for (const [id, t] of h.econTurn) {
+    const u = m.econTurn.get(id);
+    if (u === undefined) econ.honestOnly++;
+    else { econ.both++; econ.shift += u - t; if (u < t) econ.earlier++; else if (u > t) econ.later++; }
+  }
+  for (const id of m.econTurn.keys()) if (!h.econTurn.has(id)) econ.moneyOnly++;
   const first = (map: Map<string, number>) => (map.size ? Math.min(...map.values()) : NaN);
   timing.honestScoreTurn.push(first(h.scored));
   timing.moneyScoreTurn.push(first(m.scored));
@@ -152,5 +178,7 @@ console.log(`first agenda installed in a remote, turn: ${avg(timing.honestInstal
 console.log(`first agenda scored, turn: ${avg(timing.honestScoreTurn)} / ${avg(timing.moneyScoreTurn)}`);
 console.log(`credit clicks with the bank at its need: ${counts.honest.idleCredit} / ${counts.money.idleCredit}; draws with a full hand: ${counts.honest.fullDraw} / ${counts.money.fullDraw}`);
 console.log(`Runner turns with in-run ice rezzes: ${counts.honest.rezRunnerTurns} / ${counts.money.rezRunnerTurns}; of those, the next Corp turn began short of a remote agenda's advancement it could have paid without the rezzes: ${counts.honest.rezBlocked} / ${counts.money.rezBlocked}`);
+console.log(`credit clicks: ${counts.honest.creditClicks} / ${counts.money.creditClicks}; with a money operation it could pay for in HQ: ${counts.honest.creditWithOp} / ${counts.money.creditWithOp}; with an econ asset in HQ: ${counts.honest.creditWithAsset} / ${counts.money.creditWithAsset}`);
+console.log(`money operations and econ assets played in turns 1-${TURNS}: both ways ${econ.both} (the +1 Corp earlier ${econ.earlier}, later ${econ.later}, mean shift ${(econ.shift / Math.max(econ.both, 1)).toFixed(2)} turns), honest only ${econ.honestOnly}, +1 only ${econ.moneyOnly}`);
 console.log('\nFirst differing Corp action:');
 for (const d of firstDiffs) console.log('  ' + d);
