@@ -389,20 +389,25 @@ export const tuning = {
     raceClock: { agendas: false, tempo: false, tempoOnce: false, horizon: false, money: false },
     /**
      * Round 2 Phase 2 K (spec-phase2.md K, design-k1.md): the Runner capability model (reach.ts). reach: an agenda's steal
-     * odds over the breakers the Runner may hold or draw from its unseen pool (hypergeometric), each case priced with that
-     * breaker installed, in place of the threat on the rig as it is. reachStrength (K2): the Corp's own unrezzed ice
-     * priced as the real ice when its rez budget covers it (rule 3.4.3a), and HQ/R&D exposure from reach's get-in odds.
-     * reachTime (K3): each turn an agenda waits at its own horizon (income and draws by then). All off until batched.
+     * odds over the breakers and run events the Runner may hold or draw from its unseen pool (hypergeometric), each case
+     * priced with that card installed or played, in place of the threat on the rig as it is. reachStrength (K2): the Corp's
+     * own unrezzed ice priced as the real ice when its rez budget covers it (rule 3.4.3a), and HQ/R&D exposure from reach's
+     * get-in odds. reachTime (K3): each turn an agenda waits at its own horizon (income and draws by then).
+     * All OFF, measured vs the Phase 2 base (beta 51214e4): reach +0.3 ± 0.7 at 10 games (run 42549985741) with stayed broke
+     * +1.5 ± 0.7, over the 2 SE line; reach + reachStrength -0.9 ± 1.4 at 3 games (42538399856), opening unchanged
+     * (scripts/reach-opening.ts); reach + reachTime +0.6 ± 0.8 at 10 games (42543840540), stayed broke +2.8 ± 0.9. The model
+     * prices odds the planner already plays out; it is kept as the ground for replacing threatValues' sampled turn.
      */
     reach: false,
     reachStrength: false,
     reachTime: false,
     /**
      * K4b (AI Coordinator 2026-11-08, Jeff: make threatValues cheaper): the threat's cache key reads the grip as the
-     * threat deals it (its cards, not the real grip's ids) and leaves the outer pricing context out. K4(a) measured 36%
-     * of budgets reused on the human-games positions. Off until its games=1 identical check.
+     * threat deals it (its cards, not the real grip's ids). ON: plays identically (games=1, 221/221, run 42541440924), threat
+     * budgets 4931 -> 4136 and about 9% off a decision on the human-games positions. threatKeyPricing also leaves the outer
+     * pricing context out: OFF, it moved 4 of 221 deals (run 42537621348), so some outer flag reaches the budget.
      */
-    threatKey: false,
+    threatKey: true,
     threatKeyPricing: false,
     /**
      * Tuning pass round 2, phase 1 (Fable spec 2026-11-08, spec-round2.md): measurement oracles. Each gives the Corp an
