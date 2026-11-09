@@ -171,6 +171,7 @@ export function printLossSummary(all, detail = !!process.env.DETAIL) {
     console.log(`Rezzes in runs (all games): ${r('total')} (${r('credits')} credits); on low-value servers ${r('low')} (${pct(r('low'), r('total'))}), ${r('lowCredits')} credits (${pct(r('lowCredits'), r('credits'))})`);
   }
   show('  most stolen agendas:', count(steals, s => s.title), steals.length);
+  if (games[0]?.spend) printSpendAudit(games);
 
   if (detail) {
     const decks = new Map();
@@ -182,4 +183,89 @@ export function printLossSummary(all, detail = !!process.env.DETAIL) {
     }
     for (const [name, d] of decks) console.log(`  corp ${name}: ${pct(d.w, d.n)} of ${d.n}`);
   }
+}
+
+/** The first spend table of a summary is printed in full; later ones (the weak-deck sections) only by kind */
+let spendTables = 0;
+
+/**
+ * Phase 2 S, the spend audit (spec-phase2.md; spend-audit.ts says what each kind's "bought nothing" means): every
+ * Corp credit spent, by kind and outcome, per Corp turn, in Corp losses vs wins.
+ */
+export function printSpendAudit(games) {
+  const full = spendTables++ === 0;
+  const groups = [['losses', games.filter(g => g.winner === 'runner')], ['wins', games.filter(g => g.winner === 'corp')], ['all', games]];
+  const turnsOf = list => Math.max(1, list.reduce((n, g) => n + g.spend.corpTurns, 0));
+  const items = list => list.flatMap(g => g.spend.items);
+  const f2 = x => x.toFixed(2);
+  const pc = (x, n) => `${((100 * x) / Math.max(n, 1)).toFixed(0)}%`;
+  const KINDS = ['rez ice in a run', 'rez ice', 'rez asset/upgrade', 'advance', 'install ice', 'operation', "runner's turn", 'ability', 'trash resource'];
+  const kinds = [...new Set([...KINDS, ...items(games).map(i => i[0])])].filter(k => items(games).some(i => i[0] === k));
+  console.log('SPEND AUDIT (Corp credits spent per Corp turn, and the share that bought nothing; operations gross; see scripts/spend-audit.ts):');
+  console.log(`  ${'kind'.padEnd(20)} ${groups.map(([l, list]) => `${l} (${list.length} games)`.padEnd(30)).join('')}`);
+  const row = (label, test) => {
+    const cells = groups.map(([, list]) => {
+      const its = items(list).filter(test);
+      const cr = its.reduce((n, i) => n + i[1], 0);
+      const wasted = its.filter(i => i[3]).reduce((n, i) => n + i[1], 0);
+      const t = turnsOf(list);
+      return `${f2(cr / t)}/turn, nothing ${f2(wasted / t)} (${pc(wasted, cr)})`.padEnd(30);
+    });
+    console.log(`  ${label.padEnd(20)} ${cells.join('')}`);
+  };
+  for (const k of kinds) row(k, i => i[0] === k);
+  row('all but income ops', i => !(i[0] === 'operation' && i[2] === 'income'));
+  row('all', () => true);
+  // Top three "bought nothing" kinds, by credits per Corp turn
+  for (const [label, list] of groups.slice(0, 2)) {
+    const t = turnsOf(list);
+    const m = new Map();
+    for (const i of items(list)) if (i[3]) m.set(i[0], (m.get(i[0]) ?? 0) + i[1]);
+    console.log(`  top "bought nothing" in ${label}: ${[...m].sort((a, b) => b[1] - a[1]).slice(0, 3).map(([k, v]) => `${k} ${f2(v / t)}`).join(', ')}`);
+  }
+  if (!full) return;
+  // Outcomes by kind
+  const table = (title, test, key) => {
+    console.log(title);
+    const keys = [...new Set(items(games).filter(test).map(key))];
+    const totals = groups.map(([, list]) => items(list).filter(test).reduce((n, i) => n + i[1], 0));
+    const lines = keys.map(k => {
+      const per = groups.map(([, list], gi) => {
+        const its = items(list).filter(i => test(i) && key(i) === k);
+        const cr = its.reduce((n, i) => n + i[1], 0);
+        return { cr, n: its.length, t: turnsOf(list), total: totals[gi] };
+      });
+      return { k, per };
+    });
+    for (const { k, per } of lines.sort((a, b) => b.per[2].cr - a.per[2].cr)) {
+      console.log(`    ${k.padEnd(44)} ${per.map(p => `${f2(p.cr / p.t)} (${pc(p.cr, p.total)}, n ${p.n})`.padEnd(24)).join('')}`);
+    }
+  };
+  console.log(`  outcomes (credits per Corp turn, share of the kind's credits, count): columns ${groups.map(g => g[0]).join(' | ')}`);
+  for (const k of ['rez ice in a run', 'rez ice', 'rez asset/upgrade', 'advance', 'install ice', 'operation']) {
+    if (!kinds.includes(k)) continue;
+    table(`  ${k}, by outcome:`, i => i[0] === k, i => i[2]);
+  }
+  table('  rez ice (in a run or not), by the ice\'s life and the server\'s stake when rezzed:', i => i[0] === 'rez ice in a run' || i[0] === 'rez ice', i => i[4]);
+  table('  install ice, by whether the server was ever run while it stood:', i => i[0] === 'install ice', i => `${i[2]}, ${i[4]}`);
+  // By card: operations, assets/upgrades, non-agenda advances, other paid things
+  const byCard = (title, test) => {
+    const m = new Map();
+    for (const [gi, [, list]] of groups.slice(0, 2).entries()) for (const i of items(list).filter(test)) {
+      const e = m.get(i[4]) ?? { n: [0, 0], cr: [0, 0], nothing: [0, 0], outcomes: new Map() };
+      e.n[gi]++;
+      e.cr[gi] += i[1];
+      if (i[3]) e.nothing[gi] += i[1];
+      e.outcomes.set(i[2], (e.outcomes.get(i[2]) ?? 0) + 1);
+      m.set(i[4], e);
+    }
+    console.log(`${title} (losses | wins: count, credits, bought nothing; outcomes over all)`);
+    for (const [k, e] of [...m].sort((a, b) => b[1].nothing[0] + b[1].nothing[1] - a[1].nothing[0] - a[1].nothing[1] || b[1].cr[0] + b[1].cr[1] - a[1].cr[0] - a[1].cr[1]).slice(0, 15)) {
+      console.log(`    ${k}: ${e.n[0]}, ${e.cr[0]} cr, nothing ${e.nothing[0]} | ${e.n[1]}, ${e.cr[1]} cr, nothing ${e.nothing[1]}; ${[...e.outcomes].sort((a, b) => b[1] - a[1]).map(([o, n]) => `${o} ${n}`).join(', ')}`);
+    }
+  };
+  byCard('  operations by card', i => i[0] === 'operation');
+  byCard('  assets/upgrades rezzed, by card', i => i[0] === 'rez asset/upgrade');
+  byCard('  advances, by card', i => i[0] === 'advance');
+  byCard("  Runner's-turn costs, paid abilities and resource trashes, by card", i => ["runner's turn", 'ability', 'trash resource'].includes(i[0]));
 }

@@ -15,6 +15,7 @@ import { counters } from '../src/core/engine/cardEffects';
 import { Agent, GameRunner } from '../src/ai';
 import { writeFileSync } from 'node:fs';
 import { Alarm, AlarmTracker, moneyKind } from './alarms';
+import { SpendRecord, SpendTracker } from './spend-audit';
 
 export interface Steal {
   turn: number;
@@ -123,6 +124,8 @@ export interface GameRecord {
   identity: Record<'corp' | 'runner', IdentityUse>;
   /** Symptom alarms (alarms.ts): patterns a human opponent would punish */
   alarms: Alarm[];
+  /** Phase 2 S: every Corp credit spent, tagged with what it bought (spend-audit.ts) */
+  spend?: SpendRecord;
   /** The deal's seed (corp-losses.ts adds it) */
   seed?: number;
 }
@@ -262,6 +265,7 @@ export function playLogged(
   const runner = new GameRunner(start, agents);
   let toldTurn = -1;
   const alarms = new AlarmTracker();
+  const spendTracker = new SpendTracker();
   // DUMP_TURN=n DUMP_SIDE=corp|runner DUMP_FILE=x.json: write the position at the start of that turn and stop (an alarm's position, for a test)
   const dumpTurn = Number(process.env.DUMP_TURN ?? 0);
   const dumpSide = process.env.DUMP_SIDE ?? 'corp';
@@ -382,6 +386,7 @@ export function playLogged(
     if (!runner.step()) break;
     const after = runner.state;
     alarms.step(before, after, runner.last ?? undefined);
+    spendTracker.step(before, after, runner.last ?? undefined);
     for (const side of sides) {
       const use = identity[side];
       const id = before[side].identity;
@@ -595,5 +600,6 @@ export function playLogged(
     early,
     money,
     alarms: alarms.alarms,
+    spend: spendTracker.done(s),
   };
 }
