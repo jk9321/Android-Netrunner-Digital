@@ -386,6 +386,9 @@ export const tuning = {
      * (turnPlanner.ts contenders, topOnly): a third line read on two samples only must not re-enter on the two's
      * regression to the mean, which is the same noise again (it flipped deal 1491 T1). replyContenders, the same on every
      * decision with a gap of 4 and the rest re-admitted, read -0.6 ± 2.2.
+     * PARKED OFF (2026-11-09): -4.2 ± 1.8 vs searchLines ON (run 42697176557 vs 42681282303, games=3), stayed broke
+     * +2.9, remote steals 558 -> 625, 0 hold flips: it only re-sorts close candidates. Unverified reading: four-sample
+     * means are pulled by rare losing samples, so close calls get decided by tail risk instead of the line.
      */
     searchSamples: false,
     /**
@@ -409,16 +412,6 @@ export const tuning = {
      * floor at 0 (evaluate.ts heldAgendasWorth) is the other half, next. Rules: advancing is a click and 1 credit (5.2.6f).
      */
     agendaLine: false,
-    /**
-     * Phase 2 O (opening-audit/report.md; Corp only): a held agenda is priced by its best install line with no floor at 0
-     * (evaluate.ts heldAgendasWorth). The floor read every agenda whose line was below 0 better held for ever than
-     * installed, the outlet plannerHold found (agenda stuck in HQ 16.6 -> 24.3 beside open windows). HQ's own steal
-     * risk is priced by centralExposure / the threat. Rules: an agenda scores only once installed and advanced (1.17).
-     * PARKED OFF (2026-11-09): identical alone (663/663, run 42636920759 vs 42630827843); with plannerHold stuck in HQ
-     * stayed 24.4 (run 42631360358). No static held-agenda term changes the pick: the hold's gain comes from the
-     * post-install playout and the Runner reply, not from agenda worth.
-     */
-    heldNoFloor: false,
     /**
      * Phase 2 O2b (opening-audit/report.md; Corp only): an advance the timing guard rules out (it can't be scoreable next
      * turn, nothing guards it, or its server is exposed) is priced ADVANCE_GUARD_PENALTY below the advance it would be,
@@ -525,7 +518,7 @@ export const tuning = {
  */
 export const sideOff: Record<SideCode, string[]> = {
   corp: [],
-  runner: ['tagTrashNow', 'ownTrashRisk', 'hqTrashCost', 'oneCurrency', 'threatModel', 'measuredPass', 'threatSpend', 'calibratedRun', 'raceClock', 'iceProtects', 'replyContenders', 'plannerAgenda', 'clearinghouseRez', 'searchLines', 'searchSamples', 'agendaPaidWhileStanding', 'agendaLine', 'heldNoFloor', 'advanceGuardPriced', 'scoreBudget', 'oracle', 'reach', 'reachStrength', 'reachTime', 'threatKey', 'threatKeyPricing'],
+  runner: ['tagTrashNow', 'ownTrashRisk', 'hqTrashCost', 'oneCurrency', 'threatModel', 'measuredPass', 'threatSpend', 'calibratedRun', 'raceClock', 'iceProtects', 'replyContenders', 'plannerAgenda', 'clearinghouseRez', 'searchLines', 'searchSamples', 'agendaPaidWhileStanding', 'agendaLine', 'advanceGuardPriced', 'scoreBudget', 'oracle', 'reach', 'reachStrength', 'reachTime', 'threatKey', 'threatKeyPricing'],
 };
 
 /**

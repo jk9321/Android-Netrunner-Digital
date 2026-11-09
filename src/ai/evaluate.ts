@@ -694,11 +694,7 @@ function heldAgendasWorth(state: GameState, agendas: CardInstance[]): number {
     placed.set(p.a, p.w);
     used.add(p.sv);
   }
-  // plan.heldNoFloor (Phase 2 O): no floor at 0. Held is its best install line, and HQ's own steal risk is
-  // centralExposure's / the threat's: floored, an agenda whose line reads below 0 (a 1-pointer with any steal risk) read
-  // better held for ever than installed (deal 1491 T1: Superconducting Hub installed -5.7, held -7.6 floored to 0)
-  const floor = plan().heldNoFloor ? -Infinity : 0;
-  return agendas.reduce((n, a) => n + Math.max(floor, worth(a), placed.get(a.instanceId) ?? -Infinity), 0);
+  return agendas.reduce((n, a) => n + Math.max(0, worth(a), placed.get(a.instanceId) ?? -Infinity), 0);
 }
 
 /** The agendas in HQ the deciding Corp has seen (one drawn in a look-ahead is an unknown card). */
