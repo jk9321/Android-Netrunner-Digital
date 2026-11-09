@@ -26,7 +26,7 @@ describe('oracle.grip', () => {
 
   it('off: the Corp counts none of an unrevealed grip as seen, and guesses the grip from the unseen pool', () => {
     const s = start();
-    const seen = inDecision(s, 'corp', () => corpSeenGrip(s));
+    const seen = inDecision(s, 'corp', () => corpSeenGrip(s, 'threat'));
     expect(seen.size).toBe(0);
     // The threat's grip is a deal from grip + stack in instance order: not the real grip
     const guessed = inDecision(s, 'corp', () => runnerView(s).runner.grip);
@@ -36,7 +36,7 @@ describe('oracle.grip', () => {
   it('on: the whole grip counts as seen, so the threat plays the real grip (the stack stays a guess)', () => {
     tuning.plan.oracle.grip = true;
     const s = start();
-    const seen = inDecision(s, 'corp', () => corpSeenGrip(s));
+    const seen = inDecision(s, 'corp', () => corpSeenGrip(s, 'threat'));
     expect([...seen].sort()).toEqual(ids(s.runner.grip));
     const view = inDecision(s, 'corp', () => runnerView(s));
     expect(ids(view.runner.grip)).toEqual(ids(s.runner.grip));
@@ -46,7 +46,19 @@ describe('oracle.grip', () => {
   it('is off for the Runner deciding (sideOff.runner): it never tells the Runner anything', () => {
     tuning.plan.oracle.grip = true;
     const s = start();
-    expect(inDecision(s, 'runner', () => corpSeenGrip(s)).size).toBe(0);
+    expect(inDecision(s, 'runner', () => corpSeenGrip(s, 'threat')).size).toBe(0);
+  });
+
+  it('gripThreat / gripReply open the grip to one channel only (Phase 2 K0 decomposition)', () => {
+    const s = start();
+    tuning.plan.oracle.gripThreat = true;
+    expect([...inDecision(s, 'corp', () => corpSeenGrip(s, 'threat'))].sort()).toEqual(ids(s.runner.grip));
+    expect(inDecision(s, 'corp', () => corpSeenGrip(s, 'reply')).size).toBe(0);
+    tuning.plan.oracle.gripThreat = false;
+    tuning.plan.oracle.gripReply = true;
+    expect(inDecision(s, 'corp', () => corpSeenGrip(s, 'threat')).size).toBe(0);
+    expect([...inDecision(s, 'corp', () => corpSeenGrip(s, 'reply'))].sort()).toEqual(ids(s.runner.grip));
+    expect(inDecision(s, 'runner', () => corpSeenGrip(s, 'reply')).size).toBe(0);
   });
 });
 

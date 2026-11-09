@@ -14,11 +14,13 @@ import { fingerprint } from './valueModel';
 
 /**
  * The Runner's grip cards the deciding Corp counts as seen: those it has seen there (knownInHand; the rest is hidden
- * information, rules 10.2.2a-b), or every card in the grip with plan.oracle.grip on.
- * The stack and its order stay hidden either way.
+ * information, rules 10.2.2a-b), or every card in the grip with plan.oracle.grip on. `channel` is the caller's deal:
+ * plan.oracle.gripThreat opens the grip to the threat's and the Hard search's deals only, gripReply to the planner's
+ * played-out Runner reply only (Phase 2 K0: where the grip's worth flows). The stack and its order stay hidden either way.
  */
-export function corpSeenGrip(state: GameState): Set<string> {
-  if (plan().oracle?.grip) return new Set(state.runner.grip.map(c => c.instanceId));
+export function corpSeenGrip(state: GameState, channel: 'threat' | 'reply'): Set<string> {
+  const o = plan().oracle;
+  if (o?.grip || (channel === 'threat' ? o?.gripThreat : o?.gripReply)) return new Set(state.runner.grip.map(c => c.instanceId));
   return new Set(knownInHand(state, 'runner').map(k => k.id));
 }
 

@@ -2,7 +2,7 @@ import { CardInstance, GameState, cardDef, createRng, knownInHand, shuffleInPlac
 import { corpCardValue } from './evaluate';
 import { runSuccess } from './effectValues';
 import { unseenInHand } from './handValues';
-import { BLOCK, RunnerMemory, iceCost, runClick, runCreditSpend, runScore, serverValue } from './runs';
+import { BLOCK, RunOptions, RunnerMemory, iceCost, runClick, runCreditSpend, runScore, serverValue } from './runs';
 import { asSide, sideOff, tuning } from './synergy';
 import { fingerprint, memo, pointGain, sideCreditValue } from './valueModel';
 import { effectivePlan, plan, pricing, pricingKey, withPricing } from './pricing';
@@ -86,7 +86,7 @@ export function turnSeed(state: GameState): number {
  * from the Runner's unseen cards in a fixed order (by instance id, so which unseen card sat in the grip can't matter).
  */
 function guessedGrip(state: GameState): { grip: CardInstance[]; stack: CardInstance[] } {
-  const known = corpSeenGrip(state); // plan.oracle.grip: the whole grip
+  const known = corpSeenGrip(state, 'threat'); // plan.oracle.grip: the whole grip
   const seen = state.runner.grip.filter(c => known.has(c.instanceId));
   const pool = [...state.runner.grip.filter(c => !known.has(c.instanceId)), ...state.runner.stack].sort((a, b) => (a.instanceId < b.instanceId ? -1 : a.instanceId > b.instanceId ? 1 : 0));
   const unseen = shuffleInPlace(createRng(turnSeed(state)), pool);
@@ -161,13 +161,18 @@ export function centralAccess(state: GameState): { hqNow: number; density: numbe
  * Runner's scorer or the tie-break reads, and the plans (tests change them in place).
  */
 function threatKey(state: GameState): string {
+  // plan.threatKey (K4b): the grip as the threat reads it (the dealt grip's cards: its size and what is in it, Chain
+  // Reaction included) instead of the real grip's ids; with plan.threatKeyPricing also the outer pricing context left out
+  // (games=1 check 42537621348: 4 of 221 deals moved with both, so some outer flag reaches the budget)
+  const coarse = !!plan().threatKey;
+  const grip = coarse ? guessedGrip(state).grip.map(c => c.cardCode).sort().join(',') : state.runner.grip.map(c => c.instanceId).join(',');
   const roots = Object.values(state.corp.servers).map(v => v.root.map(c => `${c.advancementCounters}${c.runnerKnows ? 'k' : ''}${c.faceUp ? 'u' : ''}`).join('.')).join(';');
   return [
-    state.id, fingerprint(state), roots, state.corp.hq.map(c => c.instanceId).join(','), state.runner.grip.map(c => c.instanceId).join(','),
+    state.id, fingerprint(state), roots, state.corp.hq.map(c => c.instanceId).join(','), grip,
     state.runsThisTurn.map(r => r.server + (r.successful ? '+' : '-')).join(','), JSON.stringify(state.corp.rdKnownToRunner ?? []),
     knownInHand(state, 'runner').map(k => k.id).join(','), knownInHand(state, 'corp').map(k => k.id).join(','), state.runner.bonusClicksNextTurn ?? 0,
     planKey(),
-    pricingKey(),
+    coarse && plan().threatKeyPricing ? '' : pricingKey(),
   ].join('|');
 }
 let planSig: { plan: unknown; json: string } | null = null;
@@ -198,6 +203,7 @@ export function threat(state: GameState): Threat {
     if (threatStats.timing) threatStats.keyMs += performance.now() - t0;
     return remember(threatCache, key, () => {
       threatStats.budgeted++;
+      if (threatStats.timing) countRepeats(key, state);
       const t1 = threatStats.timing ? performance.now() : 0;
       try {
         return withPricing({ computingThreat: pricing().computingThreat + 1 }, () => asSide('runner', () => budgetTurn(state)));
@@ -219,7 +225,33 @@ export function threat(state: GameState): Threat {
  * Diagnostics (scripts/threat-profile.ts): threat() calls, how many missed the state memo (keyed) and the board cache
  * (budgeted), their time, and the budgets made inside the Corp planner's played-out Runner reply.
  */
-export const threatStats = { calls: 0, keyed: 0, budgeted: 0, keyMs: 0, budgetMs: 0, timing: false, inReply: false, replyBudgeted: 0, replyBudgetMs: 0 };
+export const threatStats = { calls: 0, keyed: 0, budgeted: 0, keyMs: 0, budgetMs: 0, timing: false, inReply: false, replyBudgeted: 0, replyBudgetMs: 0, fullRepeats: 0, coarseRepeats: 0, bothRepeats: 0, dropRepeats: [] as number[] };
+
+/**
+ * K4(a) diagnostics (scripts/threat-profile.ts): budgets of a key already budgeted once (lost to the cache's clear), and
+ * budgets whose key with the grip read as its size only (the threat reads the dealt grip by its size, K0) was.
+ */
+const seenFull = new Set<string>();
+const seenCoarse = new Set<string>();
+function countRepeats(key: string, state: GameState): void {
+  if (seenFull.has(key)) threatStats.fullRepeats++;
+  seenFull.add(key);
+  const coarse = key.replace(state.runner.grip.map(c => c.instanceId).join(','), `#${state.runner.grip.length}`);
+  const both = coarse.split('|').slice(0, -1).join('|');
+  if (seenBoth.has(both)) threatStats.bothRepeats++;
+  seenBoth.add(both);
+  if (seenCoarse.has(coarse)) threatStats.coarseRepeats++;
+  seenCoarse.add(coarse);
+  // Upper bound: the key's parts one at a time left out (which part tells budgets apart)
+  const parts = key.split('|');
+  parts.forEach((_, i) => {
+    const k = i + ':' + parts.filter((__, j) => j !== i).join('|');
+    if (seenDrop.has(k)) threatStats.dropRepeats[i] = (threatStats.dropRepeats[i] ?? 0) + 1;
+    seenDrop.add(k);
+  });
+}
+const seenDrop = new Set<string>();
+const seenBoth = new Set<string>();
 
 function budgetTurn(state: GameState): Threat {
   const memory = runnerMemory(state);
@@ -324,14 +356,39 @@ export function remoteRunChance(state: GameState, serverId: string): number {
   return calibrated(serverId, probeRun(state, serverId, server));
 }
 
+/**
+ * `state` with remoteRunChance's stand-in agenda in remote `serverId` when it holds no facedown card (state itself
+ * otherwise, or when the Corp has no agenda to copy).
+ */
+export function probedState(state: GameState, serverId: string): GameState {
+  const server = state.corp.servers[serverId];
+  if (!server?.isRemote || server.root.some(c => !c.isRezzed && !c.faceUp)) return state;
+  const like = [...state.corp.hq, ...state.corp.rd, ...state.corp.scoreArea].find(c => cardDef(c).type_code === 'agenda');
+  if (!like) return state;
+  const probe: CardInstance = { ...like, instanceId: 'threat-probe', isRezzed: false, faceUp: false, advancementCounters: 0, runnerKnows: false, tokens: {} };
+  const servers = { ...state.corp.servers, [serverId]: { ...server, root: [...server.root, probe] } };
+  return { ...state, corp: { ...state.corp, servers } };
+}
+
+/**
+ * plan.reach (reach.ts): whether the Runner AI would run `serverId` on its next turn from `view` (a board reach has
+ * given breakers it may find): the server's score at the turn's start against its always-there click, as the probe
+ * reads it. 1 or 0.
+ */
+export function wouldRun(view: GameState, serverId: string, options: RunOptions = {}): number {
+  return withPricing({ computingThreat: pricing().computingThreat + 1 }, () =>
+    asSide('runner', () => {
+      const v = runnerView(view);
+      return runScore(v, serverId, { ...options, memory: runnerMemory(view), wary: !!tuning.wary }) > fallbackClick(v).score ? 1 : 0;
+    })
+  );
+}
+
 /** The probe's 0/1 (remoteRunChance). */
 function probeRun(state: GameState, serverId: string, server: GameState['corp']['servers'][string]): number {
   return memo(state, `remoteRunChance:${serverId}`, () => remember(probeCache, serverId + '|' + threatKey(state), () => {
-    const like = [...state.corp.hq, ...state.corp.rd, ...state.corp.scoreArea].find(c => cardDef(c).type_code === 'agenda');
-    if (!like) return threat(state).servers[serverId]?.run ?? 0;
-    const probe: CardInstance = { ...like, instanceId: 'threat-probe', isRezzed: false, faceUp: false, advancementCounters: 0, runnerKnows: false, tokens: {} };
-    const servers = { ...state.corp.servers, [serverId]: { ...server, root: [...server.root, probe] } };
-    const probed = { ...state, corp: { ...state.corp, servers } };
+    const probed = probedState(state, serverId);
+    if (probed === state || probed.corp.servers[serverId] === server) return threat(state).servers[serverId]?.run ?? 0;
     // Not a whole budget per probe (handValues asks for every remote, for every agenda in HQ): the probed server's
     // score at the turn's start against the base turn's runs. It is run when it beats the fallback click and fewer of
     // the base turn's runs outscore it than the Runner has clicks (the credits each run spends are not re-counted)

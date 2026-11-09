@@ -388,15 +388,39 @@ export const tuning = {
      */
     raceClock: { agendas: false, tempo: false, tempoOnce: false, horizon: false, money: false },
     /**
+     * Round 2 Phase 2 K (spec-phase2.md K, design-k1.md): the Runner capability model (reach.ts). reach: an agenda's steal
+     * odds over the breakers and run events the Runner may hold or draw from its unseen pool (hypergeometric), each case
+     * priced with that card installed or played, in place of the threat on the rig as it is. reachStrength (K2): the Corp's
+     * own unrezzed ice priced as the real ice when its rez budget covers it (rule 3.4.3a), and HQ/R&D exposure from reach's
+     * get-in odds. reachTime (K3): each turn an agenda waits at its own horizon (income and draws by then).
+     * All OFF, measured vs the Phase 2 base (beta 51214e4): reach +0.3 ± 0.7 at 10 games (run 42549985741) with stayed broke
+     * +1.5 ± 0.7, over the 2 SE line; reach + reachStrength -0.9 ± 1.4 at 3 games (42538399856), opening unchanged
+     * (scripts/reach-opening.ts); reach + reachTime +0.6 ± 0.8 at 10 games (42543840540), stayed broke +2.8 ± 0.9. The model
+     * prices odds the planner already plays out; it is kept as the ground for replacing threatValues' sampled turn.
+     */
+    reach: false,
+    reachStrength: false,
+    reachTime: false,
+    /**
+     * K4b (AI Coordinator 2026-11-08, Jeff: make threatValues cheaper): the threat's cache key reads the grip as the
+     * threat deals it (its cards, not the real grip's ids). ON: plays identically (games=1, 221/221, run 42541440924), threat
+     * budgets 4931 -> 4136 and about 9% off a decision on the human-games positions. threatKeyPricing also leaves the outer
+     * pricing context out: OFF, it moved 4 of 221 deals (run 42537621348), so some outer flag reaches the budget.
+     */
+    threatKey: true,
+    threatKeyPricing: false,
+    /**
      * Tuning pass round 2, phase 1 (Fable spec 2026-11-08, spec-round2.md): measurement oracles. Each gives the Corp an
      * answer it can't honestly have, one at a time in a batch (plan_off=+oracle.<name>), to measure what that knowledge
      * is worth before anything is built for it. Every hidden read lives in oracle.ts. Never a default (codeHealth test);
      * off for the Runner (sideOff.runner). grip: the Runner's whole grip counts as seen. safestRemote: the Corp is told
      * whether the Runner AI steals a remote's agenda on its next turn. rd: the Corp knows its own R&D order. think (AI
      * Coordinator 2026-11-08, a decision-quality ceiling, not knowledge): the Corp planner plays 8 candidates, the best agenda
-     * install and advance always among them, against 4 Runner-reply samples.
+     * install and advance always among them, against 4 Runner-reply samples. gripThreat / gripReply (Phase 2 K0,
+     * design-k1.md call 1): grip's knowledge in one channel only, the threat's (and the Hard search's) deal or the
+     * planner's played-out Runner reply, to find where grip's worth flows.
      */
-    oracle: { grip: false, safestRemote: false, rd: false, think: false },
+    oracle: { grip: false, safestRemote: false, rd: false, think: false, gripThreat: false, gripReply: false },
     /**
      * Per deciding side (Jeff, 2026-10-28): its own hand valued card by card, by what each will do once played (handValues.ts).
      * Batches: each side loses with it (Corp side 32.2% -> 28.0%, Runner side 32.2% -> 35.9% Corp) and the Runner draws at a
@@ -429,7 +453,7 @@ export const tuning = {
  */
 export const sideOff: Record<SideCode, string[]> = {
   corp: [],
-  runner: ['tagTrashNow', 'ownTrashRisk', 'hqTrashCost', 'oneCurrency', 'threatModel', 'measuredPass', 'threatSpend', 'calibratedRun', 'raceClock', 'iceProtects', 'replyContenders', 'plannerAgenda', 'scoreBudget', 'oracle'],
+  runner: ['tagTrashNow', 'ownTrashRisk', 'hqTrashCost', 'oneCurrency', 'threatModel', 'measuredPass', 'threatSpend', 'calibratedRun', 'raceClock', 'iceProtects', 'replyContenders', 'plannerAgenda', 'scoreBudget', 'oracle', 'reach', 'reachStrength', 'reachTime', 'threatKey', 'threatKeyPricing'],
 };
 
 /**
