@@ -189,6 +189,24 @@ describe('Per-player views', () => {
     expect(json(corp)).not.toContain('"secret"');
   });
 
+  it('log ids are the viewer\'s own: a line kept from the Corp leaves no gap, and ids stay put as the log grows (4.2.2, 7.1.2)', () => {
+    const s = newGame();
+    const n = s.log.length;
+    addLog(s, 'runner', 'Runner accessed Offworld Office.', OFFWORLD, 'access', { from: 'corp', publicMessage: 'Runner accessed a card in R&D.' });
+    addLog(s, 'runner', 'Runner cannot pay to steal Offworld Office.', undefined, undefined, { from: 'corp', publicMessage: '' });
+    addLog(s, 'runner', 'The run ends.');
+    const first = views(s);
+    expect(first.corp.log.map(e => e.id)).toEqual(Array.from({ length: n + 2 }, (_, i) => `v${i}`));
+    expect(first.runner.log.map(e => e.id)).toEqual(Array.from({ length: n + 3 }, (_, i) => `v${i}`));
+    expect(json(first.corp)).not.toContain('log-');
+    // A later view keeps every earlier line's id
+    const t = structuredClone(s);
+    addLog(t, 'corp', 'Corp gained 1 [credit].');
+    const later = views(t, first.ids);
+    expect(later.corp.log.slice(0, -1)).toEqual(first.corp.log);
+    expect(later.corp.log.at(-1)?.id).toBe(`v${n + 2}`);
+  });
+
   it('the opponent never sees a declared intent (5.6.2a-b)', () => {
     const s = newGame();
     const card = s.corp.hq[0];

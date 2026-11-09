@@ -169,6 +169,11 @@ export interface MyPromptView {
 export type PromptView = MyPromptView;
 
 export interface LogEntryView {
+  /**
+   * The line's place in this viewer's log ('v0', 'v1', ...), not the engine's id: a line kept from the viewer
+   * leaves no gap that would say a hidden card was an agenda (rules 4.2.2, 7.1.2). Stable across a viewer's
+   * successive views, since which lines a viewer gets is fixed when they are written.
+   */
   id: string;
   turnNumber: number;
   player: LogEntry['player'];
@@ -313,7 +318,7 @@ export const GAME_STATE_FIELDS = {
   activeRun: 'redacted',
   winner: 'public',
   winReason: 'public',
-  log: 'redacted', // LogEntry.secret
+  log: 'redacted', // LogEntry.secret; view-local ids (4.2.2, 7.1.2)
 } as const satisfies Record<keyof GameState, Vis>;
 
 export const CORP_STATE_FIELDS = {
@@ -689,7 +694,7 @@ export function viewFor(state: GameState, side: SideCode, ids: ViewIds, gameId: 
     const hidden = e.secret?.from === side;
     if (hidden && !e.secret!.publicMessage) continue;
     log.push({
-      id: e.id,
+      id: `v${log.length}`,
       turnNumber: e.turnNumber,
       player: e.player,
       message: hidden ? e.secret!.publicMessage : e.message,
