@@ -323,7 +323,10 @@ export function agendaWorth(
     : raceOn('tempo') && runnerTurns > 0 ? runnerTurns * Math.min(1, points / 2) * tempoProgress(state) : 0;
   // plan.agendaClicks (Jeff's Corp game 2, bug report #18): the clicks still needed are clicks a later turn can't spend
   // building; priced at the flat click rate, building now and scoring next turn always beat scoring now and building next
-  const click = AGENDA_CLICK;
+  // plan.agendaLine (Phase 2 O2 v2): the advance's click at the one click price (valueModel CLICK, 1.25), not
+  // AGENDA_CLICK 2: at 2 a safe 1-point agenda (8) costs more to score than it is worth (3 x 3 = 9), so the leaf read
+  // every 1-pointer, and any agenda with steal risk, better held in HQ (floored at 0) than installed
+  const click = plan().agendaLine ? CLICK : AGENDA_CLICK;
   // plan.oneCurrency (review of item 1): a steal is not only the Corp's points lost but the Runner's points won (rule
   // 1.17.3: the Runner adds a stolen agenda to its score area), on the Runner's clock: evaluate is mine minus theirs, so
   // an agenda the Runner may take next turn is charged that chance of its point gain. The old install gates (exposureOk,
@@ -333,12 +336,16 @@ export function agendaWorth(
   // today" is not "safe for every turn it waits"
   const threatTurns = threatOn() && stealChance === undefined && openNew === undefined && success === undefined && !!serverId;
   const standing = threatTurns ? threatStanding(state, serverId!, runnerTurns, steal) : (1 - steal) ** runnerTurns;
-  if (!plan().oneCurrency) return gain * standing * waited(runnerTurns) - need * (click + 1) - tempo;
-  const stolen = (1 - standing) * pointGain(state.runner.score, points);
   // The clicks and credits still to go are paid only while it stands: the advances of this turn now, the rest on the
-  // turns after the Runner's (a bare agenda the Runner takes next turn never costs its advances)
+  // turns after the Runner's (a bare agenda the Runner takes next turn never costs its advances). plan.agendaPaidWhileStanding
+  // (Phase 2 O2, opening-audit/report.md): the shipped ranking charged every advance still to go in full while it counted
+  // the points only by the odds the agenda stands, so an agenda with any steal risk read below a held card (Offworld
+  // Office's install median -4.3 at the leaf) and the AI passed 78% of its safe install windows (Jeff 69%)
   const now = Math.min(need, budget.clicks);
-  return (gain + effect) * (standing * waited(runnerTurns)) - tempo - stolen - (now + (need - now) * standing) * (click + 1);
+  const advances = plan().oneCurrency || plan().agendaPaidWhileStanding ? now + (need - now) * standing : need;
+  if (!plan().oneCurrency) return gain * standing * waited(runnerTurns) - advances * (click + 1) - tempo;
+  const stolen = (1 - standing) * pointGain(state.runner.score, points);
+  return (gain + effect) * (standing * waited(runnerTurns)) - tempo - stolen - advances * (click + 1);
 }
 
 /**
@@ -687,7 +694,11 @@ function heldAgendasWorth(state: GameState, agendas: CardInstance[]): number {
     placed.set(p.a, p.w);
     used.add(p.sv);
   }
-  return agendas.reduce((n, a) => n + Math.max(0, worth(a), placed.get(a.instanceId) ?? -Infinity), 0);
+  // plan.heldNoFloor (Phase 2 O): no floor at 0. Held is its best install line, and HQ's own steal risk is
+  // centralExposure's / the threat's: floored, an agenda whose line reads below 0 (a 1-pointer with any steal risk) read
+  // better held for ever than installed (deal 1491 T1: Superconducting Hub installed -5.7, held -7.6 floored to 0)
+  const floor = plan().heldNoFloor ? -Infinity : 0;
+  return agendas.reduce((n, a) => n + Math.max(floor, worth(a), placed.get(a.instanceId) ?? -Infinity), 0);
 }
 
 /** The agendas in HQ the deciding Corp has seen (one drawn in a look-ahead is an unknown card). */

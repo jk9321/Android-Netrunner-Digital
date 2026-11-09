@@ -104,8 +104,16 @@ function signature(s: GameState): number[] {
   ];
 }
 
+/** Phase 2 O3 (opening-audit.ts): each card's life as it is settled, for the realised-return side of the value audit. */
+export interface SpendListener {
+  ice?(id: string, life: { title: string; stops: number; fired: number; tax: number; rezzed: boolean }): void;
+  root?(id: string, life: { title: string; agenda: boolean; rezCost: number | null; paidOut: number; fired: boolean }): void;
+  operation?(title: string, paid: number, returned: number, drew: number): void;
+}
+
 export class SpendTracker {
   readonly items: SpendItem[] = [];
+  constructor(private listener: SpendListener = {}) {}
   private corpTurns = 0;
   private ice = new Map<string, IceLife>();
   private roots = new Map<string, RootLife>();
@@ -336,6 +344,7 @@ export class SpendTracker {
     const life = this.ice.get(id);
     if (!life) return;
     const verdict = this.iceVerdict(life);
+    this.listener.ice?.(id, { title: life.title, stops: life.stops, fired: life.fired, tax: life.tax, rezzed: life.rezzes.length > 0 || life.installs.some(i => i.rezzed) });
     for (const r of life.rezzes) this.push(r.kind, r.credits, r.outcome || verdict, verdict === 'nothing', `${verdict}; ${r.stake}`);
     if (life.advanceCredits > 0) this.push('advance', life.advanceCredits, `advanced ice, ${verdict}`, verdict === 'nothing', life.title);
     for (const inst of life.installs) this.push('install ice', inst.credits, inst.rezzed ? 'rezzed' : 'never rezzed', !inst.rezzed, inst.ran ? 'server run' : 'server never run');
@@ -345,6 +354,7 @@ export class SpendTracker {
   private settleRoot(id: string, after: GameState, card: CardInstance | null, inRun: boolean) {
     const life = this.roots.get(id);
     if (!life) return;
+    this.listener.root?.(id, { title: life.title, agenda: life.agenda, rezCost: life.rezCost, paidOut: life.paidOut, fired: life.fired });
     if (life.rezCost !== null) {
       const outcome = life.paidOut >= life.rezCost && life.paidOut > 0 ? 'paid back' : life.fired ? 'fired' : card && inRun ? 'trashed unfired' : 'unfired';
       this.push('rez asset/upgrade', life.rezCost, outcome, !life.fired, life.title);
@@ -367,7 +377,9 @@ export class SpendTracker {
     const a = signature(w.start);
     const b = signature(end);
     // The operation itself leaves HQ for Archives: count draws as HQ growing past that
-    const drew = end.corp.hq.length - w.start.corp.hq.length + (w.kind === 'operation' ? 1 : 0) > 0;
+    const drawn = end.corp.hq.length - w.start.corp.hq.length + (w.kind === 'operation' ? 1 : 0);
+    const drew = drawn > 0;
+    if (w.kind === 'operation') this.listener.operation?.(w.title, w.paid, returned, Math.max(0, drawn));
     // Clicks gained (Nanomanagement): more than the click the play itself cost
     const clicks = end.corp.clicks - w.start.corp.clicks + (w.kind === 'operation' ? 1 : 0) > 0;
     const changed = a.some((v, i) => v !== b[i]) || drew || clicks;

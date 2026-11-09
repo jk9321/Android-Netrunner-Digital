@@ -359,6 +359,65 @@ export const tuning = {
      */
     plannerAgenda: true,
     /**
+     * Phase 2 O4c (opening-audit/report.md): Clearinghouse is rezzed before the Corp's turn begins, so its trash can fire
+     * (corpAI.ts springsOnAccess; rules 8.5.2, 5.6.1b-d). Off: every Hostile asset was treated as an access trap and never
+     * rezzed on the Corp's turn (0 of 119 Clearinghouse installs fired in run 42558416772).
+     */
+    clearinghouseRez: true,
+    /**
+     * Phase 2 O (window supply, opening-audit/report.md; Corp only): the planner plays each candidate on with the rule
+     * ranking, which installs an agenda whenever one can go in (installScore 8+), so "ice a new remote, then hold the
+     * agenda" was never played (deal 1491 T1, tests/plannerHold.test.ts). A continuation that installs an agenda is also
+     * played holding every agenda this turn, and the better line stands (turnPlanner.ts planTurn); the mirror of
+     * plannerAgenda. PARKED OFF (AI Coordinator 2026-11-09): +2.8 ± 1.0 at 10 games (run 42612102629 vs O4c), but the
+     * gain is defence through the leaf's low worth for an installed unscored agenda, not tempo: remote steals -25%, agenda
+     * stuck in HQ 16.6 -> 24.3 (most beside an open window), first score unchanged, +21% game time. Holding only while no
+     * remote is ready removed the gain (+0.5 ± 1.4, run 42612283883). Re-measure with O2 (the leaf's agenda worth).
+     */
+    plannerHold: false,
+    /**
+     * Phase 2 O2 (opening-audit/report.md; AI Coordinator call 2026-11-09: the leaf first, in the one place that prices an
+     * installed unscored agenda): agendaWorth charges the advances still to go after this turn only by the odds the agenda
+     * stands to take them, as it already discounts the points (evaluate.ts agendaWorth). Off: charged in full.
+     * OFF (2026-11-09): -1.2 ± 1.2 paired (run 42562609024 vs the O4c run 42560731594, games 0-3); window turns with no
+     * agenda move 42.5% -> 41.6%, first score unchanged (T6.9). Why it can't move the opening: the planner's agenda lines
+     * mostly end with the agenda finished or nearly (little advancement left to discount), and from Jeff's own positions
+     * the AI already makes agenda progress on as many turns as he does (human-agreement turns: AI moved where Jeff didn't
+     * 29 vs the reverse 13). The tempo gap is in reaching the windows, not in taking them; feeds the O1 follow-up.
+     */
+    agendaPaidWhileStanding: false,
+    /**
+     * Phase 2 O2 v2 (opening-audit/report.md; Corp only): an installed or held agenda's advances are charged at the one
+     * click price (valueModel CLICK) plus their credit, not AGENDA_CLICK 2 (evaluate.ts agendaWorth): at 2 a click and 8
+     * a point, a 1-point agenda read worth less than the advances that score it even with no steal risk, and held agendas
+     * are floored at 0, so holding beat installing (deal 1491 T1: Superconducting Hub installed -5.7, held 0). PARKED OFF
+     * (2026-11-09): -0.8 ± 1.6 alone (run 42623099845, remote steals 631 vs 607: cheaper advances went in riskier), +0.9
+     * ± 2.1 with plannerHold (run 42623106258, stuck in HQ +3.9): the click price is not what holds agendas back; the held
+     * floor at 0 (evaluate.ts heldAgendasWorth) is the other half, next. Rules: advancing is a click and 1 credit (5.2.6f).
+     */
+    agendaLine: false,
+    /**
+     * Phase 2 O (opening-audit/report.md; Corp only): a held agenda is priced by its best install line with no floor at 0
+     * (evaluate.ts heldAgendasWorth). The floor read every agenda whose line was below 0 better held for ever than
+     * installed, the outlet plannerHold found (agenda stuck in HQ 16.6 -> 24.3 beside open windows). HQ's own steal
+     * risk is priced by centralExposure / the threat. Rules: an agenda scores only once installed and advanced (1.17).
+     * PARKED OFF (2026-11-09): identical alone (663/663, run 42636920759 vs 42630827843); with plannerHold stuck in HQ
+     * stayed 24.4 (run 42631360358). No static held-agenda term changes the pick: the hold's gain comes from the
+     * post-install playout and the Runner reply, not from agenda worth.
+     */
+    heldNoFloor: false,
+    /**
+     * Phase 2 O2b (opening-audit/report.md; Corp only): an advance the timing guard rules out (it can't be scoreable next
+     * turn, nothing guards it, or its server is exposed) is priced ADVANCE_GUARD_PENALTY below the advance it would be,
+     * instead of -Infinity, so the planner can play it out and the leaf decide (corpAI.ts advanceScore). Rules: installed
+     * agendas can always be advanced (1.18.3; basic action 5.2.6f). Off: the guard left it out of every candidate list.
+     * PARKED OFF (2026-11-09): +0.9 ± 0.9 in the shipping shape (run 42630827843 vs O4c), but it reopens the pinned
+     * hole tests/synergy.test.ts "does not leave an agenda half-advanced over the Runner's turn": with one click left the
+     * planner plays the priced advance and leaves the agenda half-advanced for the Runner. A noise-level self-play gain
+     * doesn't buy back a human-usable hole; the guard's job belongs to the leaf (what O taught), not a price on it.
+     */
+    advanceGuardPriced: false,
+    /**
      * Round 2 Phase 2 E1 (spec-phase2.md; Corp only): the Corp's credit need (valueModel boardNeed) adds the advancement
      * still short on the agendas installed in its remotes (valueModel scoreNeed, 1 credit each, rule 5.2.6f), so credits
      * slide against a need that includes finishing the score as well as rezzing the ice that holds it.
@@ -453,7 +512,7 @@ export const tuning = {
  */
 export const sideOff: Record<SideCode, string[]> = {
   corp: [],
-  runner: ['tagTrashNow', 'ownTrashRisk', 'hqTrashCost', 'oneCurrency', 'threatModel', 'measuredPass', 'threatSpend', 'calibratedRun', 'raceClock', 'iceProtects', 'replyContenders', 'plannerAgenda', 'scoreBudget', 'oracle', 'reach', 'reachStrength', 'reachTime', 'threatKey', 'threatKeyPricing'],
+  runner: ['tagTrashNow', 'ownTrashRisk', 'hqTrashCost', 'oneCurrency', 'threatModel', 'measuredPass', 'threatSpend', 'calibratedRun', 'raceClock', 'iceProtects', 'replyContenders', 'plannerAgenda', 'clearinghouseRez', 'plannerHold', 'agendaPaidWhileStanding', 'agendaLine', 'heldNoFloor', 'advanceGuardPriced', 'scoreBudget', 'oracle', 'reach', 'reachStrength', 'reachTime', 'threatKey', 'threatKeyPricing'],
 };
 
 /**
