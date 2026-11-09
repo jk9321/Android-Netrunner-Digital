@@ -149,6 +149,7 @@ describe('plan.reach', () => {
 describe('plan.threatKey (K4b)', () => {
   const savedKey = tuning.plan.threatKey;
   afterEach(() => { tuning.plan.threatKey = savedKey; });
+  // (grip part only: the pricing part is plan.threatKeyPricing)
   /** The same pool with a different card in the grip: the threat deals the same grip either way (rule 10.2.2a: the Corp can't tell them apart). */
   const pair = () => {
     const a = structuredClone(newGame(3));

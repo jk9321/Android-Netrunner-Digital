@@ -383,6 +383,7 @@ export const tuning = {
      * of budgets reused on the human-games positions. Off until its games=1 identical check.
      */
     threatKey: false,
+    threatKeyPricing: false,
     /**
      * Tuning pass round 2, phase 1 (Fable spec 2026-11-08, spec-round2.md): measurement oracles. Each gives the Corp an
      * answer it can't honestly have, one at a time in a batch (plan_off=+oracle.<name>), to measure what that knowledge
@@ -427,7 +428,7 @@ export const tuning = {
  */
 export const sideOff: Record<SideCode, string[]> = {
   corp: [],
-  runner: ['tagTrashNow', 'ownTrashRisk', 'hqTrashCost', 'oneCurrency', 'threatModel', 'measuredPass', 'threatSpend', 'calibratedRun', 'raceClock', 'iceProtects', 'replyContenders', 'plannerAgenda', 'oracle', 'reach', 'reachStrength', 'reachTime', 'threatKey'],
+  runner: ['tagTrashNow', 'ownTrashRisk', 'hqTrashCost', 'oneCurrency', 'threatModel', 'measuredPass', 'threatSpend', 'calibratedRun', 'raceClock', 'iceProtects', 'replyContenders', 'plannerAgenda', 'oracle', 'reach', 'reachStrength', 'reachTime', 'threatKey', 'threatKeyPricing'],
 };
 
 /**
