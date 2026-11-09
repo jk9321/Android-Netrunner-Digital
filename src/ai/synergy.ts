@@ -411,8 +411,12 @@ export const tuning = {
      * turn, nothing guards it, or its server is exposed) is priced ADVANCE_GUARD_PENALTY below the advance it would be,
      * instead of -Infinity, so the planner can play it out and the leaf decide (corpAI.ts advanceScore). Rules: installed
      * agendas can always be advanced (1.18.3; basic action 5.2.6f). Off: the guard left it out of every candidate list.
+     * PARKED OFF (2026-11-09): +0.9 ± 0.9 in the shipping shape (run 42630827843 vs O4c), but it reopens the pinned
+     * hole tests/synergy.test.ts "does not leave an agenda half-advanced over the Runner's turn": with one click left the
+     * planner plays the priced advance and leaves the agenda half-advanced for the Runner. A noise-level self-play gain
+     * doesn't buy back a human-usable hole; the guard's job belongs to the leaf (what O taught), not a price on it.
      */
-    advanceGuardPriced: true,
+    advanceGuardPriced: false,
     /**
      * Round 2 Phase 2 E1 (spec-phase2.md; Corp only): the Corp's credit need (valueModel boardNeed) adds the advancement
      * still short on the agendas installed in its remotes (valueModel scoreNeed, 1 credit each, rule 5.2.6f), so credits
