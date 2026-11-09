@@ -216,6 +216,25 @@ describe('Runner events', () => {
       expect(state.runner.stack.some(c => c.instanceId === breaker)).toBe(false);
     });
 
+    // Carmen: "If you made a successful run this turn, this program costs 2 less to install." Rules 1.16.4a:
+    // install costs apply to any ability that installs, so Mutual Favor shows and charges the discounted cost
+    it('shows and charges Carmen\'s discounted cost', () => {
+      let state = runnerTurn(20);
+      state = executeAction(state, { type: 'INITIATE_RUN', player: 'runner', targetServerId: 'archives' });
+      state = executeAction(state, { type: 'CONTINUE_RUN', player: 'runner' });
+      state = executeAction(state, { type: 'CONTINUE_RUN', player: 'runner' });
+      const carmen = giveCard(state, 'runner', '30015');
+      state.runner.stack.push(state.runner.grip.splice(state.runner.grip.findIndex(c => c.instanceId === carmen), 1)[0]);
+      state = play(state, 'runner', giveCard(state, 'runner', MUTUAL_FAVOR));
+      state = answer(state, { kind: 'effect_cards', cardInstanceIds: [carmen] });
+      const prompt = state.pendingPrompts[0];
+      expect(prompt.kind === 'effect_choice' && prompt.options.find(o => o.id === 'install')?.label).toBe('Install (3 credits)');
+      const credits = state.runner.credits;
+      state = answer(state, { kind: 'effect_choice', optionId: 'install' });
+      expect(state.runner.rig.programs.map(c => c.instanceId)).toContain(carmen);
+      expect(state.runner.credits).toBe(credits - 3);
+    });
+
     it('can trash programs to make room, and goes to the grip if it still does not fit (rules 8.5.6c)', () => {
       let state = runnerTurn(20);
       state = executeAction(state, { type: 'INITIATE_RUN', player: 'runner', targetServerId: 'archives' });
