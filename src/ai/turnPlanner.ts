@@ -34,7 +34,7 @@ export const PLANNER = {
 };
 
 /** Diagnostics (scripts): plannerBuild's added candidates, how often one was played out and how often it won. */
-export const plannerStats: { decisions: number; withAdded: number; added: number; addedWins: number; onAddedWin?: (state: GameState, action: GameAction) => void; onCandidates?: (side: SideCode, values: number[], actions: GameAction[]) => void } = { decisions: 0, withAdded: 0, added: 0, addedWins: 0 };
+export const plannerStats: { decisions: number; withAdded: number; added: number; addedWins: number; holds?: number; held?: number; onAddedWin?: (state: GameState, action: GameAction) => void; onCandidates?: (side: SideCode, values: number[], actions: GameAction[]) => void } = { decisions: 0, withAdded: 0, added: 0, addedWins: 0 };
 
 export interface PlannerAI {
   /** Main-phase actions, best first (the rule-based ranking). */
@@ -107,8 +107,18 @@ function dominated(state: GameState, action: GameAction, ranked: ScoredAction[],
   });
 }
 
-/** Plays `side`'s turn on from `state` after `first`, and returns how good the end of the turn is. */
-function playout(start: GameState, side: SideCode, first: GameAction, ai: PlannerAI, synergy: boolean, line: Line = [], ends?: { state?: GameState; bonus?: number }): number {
+/** Where a playout ended (the reply is sampled from it) and what it added on the way; installedAgenda: its continuation installed an agenda. */
+type Ends = { state?: GameState; bonus?: number; installedAgenda?: boolean };
+
+/** An agenda from HQ installed (rule 8.5.6: into a remote root). */
+const agendaInstall = (state: GameState, action: GameAction): boolean =>
+  action.type === 'INSTALL_CARD' && state.corp.hq.some(c => c.instanceId === action.cardInstanceId && cardDef(c).type_code === 'agenda');
+
+/**
+ * Plays `side`'s turn on from `state` after `first`, and returns how good the end of the turn is. `hold`
+ * (plan.plannerHold): the continuation installs no agenda from HQ this turn.
+ */
+function playout(start: GameState, side: SideCode, first: GameAction, ai: PlannerAI, synergy: boolean, line: Line = [], ends?: Ends, hold = false): number {
   let bonus = 0;
   let ran = false;
   /** The position before the last main-phase action, and the card it used: where a run event's run is priced from. */
@@ -181,8 +191,9 @@ function playout(start: GameState, side: SideCode, first: GameAction, ai: Planne
     if (outOfClicks && !(side === 'corp')) break;
     const now = state;
     const ranked = ai.rank(now);
-    const best = ranked.find(r => r.score > -Infinity && r.action.type !== 'END_TURN' && (!outOfClicks || r.action.type === 'SCORE_AGENDA') && !(ran && r.action.type === 'INITIATE_RUN') && !dominated(now, r.action, ranked, side));
+    const best = ranked.find(r => r.score > -Infinity && r.action.type !== 'END_TURN' && (!outOfClicks || r.action.type === 'SCORE_AGENDA') && !(ran && r.action.type === 'INITIATE_RUN') && !dominated(now, r.action, ranked, side) && !(hold && agendaInstall(now, r.action)));
     if (!best) break;
+    if (ends && agendaInstall(now, best.action)) ends.installedAgenda = true;
     if (!ran) line.push({ key: positionKey(state, side), action: best.action }); // after a run the position can't be foreseen
     const next = step(state, best.action);
     if (!next) break;
@@ -353,11 +364,23 @@ export function planTurn(state: GameState, side: SideCode, ranked: ScoredAction[
   return withPricing({ frozen: true, decisionSeed }, () => {
     let best: { action: GameAction; value: number; line: Line } | null = null;
     const values: number[] = [];
-    const scored: { action: GameAction; value: number; line: Line; ends: { state?: GameState; bonus?: number } }[] = [];
+    const scored: { action: GameAction; value: number; line: Line; ends: Ends }[] = [];
     for (const c of candidates) {
-      const line: Line = [];
-      const ends: { state?: GameState; bonus?: number } = {};
-      const value = playout(state, side, c.action, ai, synergy, line, ends);
+      let line: Line = [];
+      let ends: Ends = {};
+      let value = playout(state, side, c.action, ai, synergy, line, ends);
+      // plan.plannerHold (Phase 2 O, window supply): a continuation that installs an agenda is also played holding it,
+      // and the better of the two lines stands
+      if (side === 'corp' && plan().plannerHold && ends.installedAgenda && value > -Infinity) {
+        const heldLine: Line = [];
+        const held: Ends = {};
+        const heldValue = playout(state, side, c.action, ai, synergy, heldLine, held, true);
+        plannerStats.holds = (plannerStats.holds ?? 0) + 1;
+        if (heldValue > value) {
+          plannerStats.held = (plannerStats.held ?? 0) + 1;
+          [value, line, ends] = [heldValue, heldLine, held];
+        }
+      }
       values.push(value);
       scored.push({ action: c.action, value, line, ends });
       if (!best || value > best.value) best = { action: c.action, value, line };
@@ -381,7 +404,7 @@ export function planTurn(state: GameState, side: SideCode, ranked: ScoredAction[
  * both: samples REPLY.samples .. REPLY.samples + REPLY.extra - 1) and the better mean over all of them is the pick, when the two are closer than
  * REPLY.contendGap (a wider gap is left to the first samples).
  */
-function contenders<T extends { action: GameAction; value: number; line: Line; ends: { state?: GameState; bonus?: number } }>(scored: T[], side: SideCode, synergy: boolean): T | null {
+function contenders<T extends { action: GameAction; value: number; line: Line; ends: Ends }>(scored: T[], side: SideCode, synergy: boolean): T | null {
   const live = scored.filter(r => Number.isFinite(r.value) && r.ends.state && !r.ends.state.winner).sort((a, b) => b.value - a.value);
   if (live.length < 2 || live[0].value - live[1].value >= REPLY.contendGap) return null;
   const leaf = (s: GameState) => leafValue(s, side, synergy);

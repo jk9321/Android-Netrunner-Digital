@@ -365,6 +365,14 @@ export const tuning = {
      */
     clearinghouseRez: true,
     /**
+     * Phase 2 O (window supply, opening-audit/report.md; Corp only): the planner plays each candidate on with the rule
+     * ranking, which installs an agenda whenever one can go in (installScore 8+), so "ice a new remote, then hold the
+     * agenda" was never played: at deal 1281 T1 it beat the pick by the leaf, yet the remote-ice line was scored with the
+     * agenda stuffed behind one unrezzed ice. A continuation that installs an agenda is also played holding every agenda
+     * this turn, and the better line stands (turnPlanner.ts planTurn); the mirror of plannerAgenda.
+     */
+    plannerHold: true,
+    /**
      * Phase 2 O2 (opening-audit/report.md; AI Coordinator call 2026-11-09: the leaf first, in the one place that prices an
      * installed unscored agenda): agendaWorth charges the advances still to go after this turn only by the odds the agenda
      * stands to take them, as it already discounts the points (evaluate.ts agendaWorth). Off: charged in full.
@@ -470,7 +478,7 @@ export const tuning = {
  */
 export const sideOff: Record<SideCode, string[]> = {
   corp: [],
-  runner: ['tagTrashNow', 'ownTrashRisk', 'hqTrashCost', 'oneCurrency', 'threatModel', 'measuredPass', 'threatSpend', 'calibratedRun', 'raceClock', 'iceProtects', 'replyContenders', 'plannerAgenda', 'clearinghouseRez', 'agendaPaidWhileStanding', 'scoreBudget', 'oracle', 'reach', 'reachStrength', 'reachTime', 'threatKey', 'threatKeyPricing'],
+  runner: ['tagTrashNow', 'ownTrashRisk', 'hqTrashCost', 'oneCurrency', 'threatModel', 'measuredPass', 'threatSpend', 'calibratedRun', 'raceClock', 'iceProtects', 'replyContenders', 'plannerAgenda', 'clearinghouseRez', 'plannerHold', 'agendaPaidWhileStanding', 'scoreBudget', 'oracle', 'reach', 'reachStrength', 'reachTime', 'threatKey', 'threatKeyPricing'],
 };
 
 /**
