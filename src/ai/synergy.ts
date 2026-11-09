@@ -401,8 +401,11 @@ export const tuning = {
      * (evaluate.ts heldAgendasWorth). The floor read every agenda whose line was below 0 better held for ever than
      * installed, the outlet plannerHold found (agenda stuck in HQ 16.6 -> 24.3 beside open windows). HQ's own steal
      * risk is priced by centralExposure / the threat. Rules: an agenda scores only once installed and advanced (1.17).
+     * PARKED OFF (2026-11-09): identical alone (663/663, run 42636920759 vs 42630827843); with plannerHold stuck in HQ
+     * stayed 24.4 (run 42631360358). No static held-agenda term changes the pick: the hold's gain comes from the
+     * post-install playout and the Runner reply, not from agenda worth.
      */
-    heldNoFloor: true,
+    heldNoFloor: false,
     /**
      * Phase 2 O2b (opening-audit/report.md; Corp only): an advance the timing guard rules out (it can't be scoreable next
      * turn, nothing guards it, or its server is exposed) is priced ADVANCE_GUARD_PENALTY below the advance it would be,
