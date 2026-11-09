@@ -131,8 +131,21 @@ export function executeAction(prevState: GameState, action: GameAction): GameSta
     whenSettled(state, { type: 'action_finished', side: taken.player, count });
   }
   fireSettled(state);
+  refreshActivePrompt(state);
   syncDerivedStats(state);
   return state;
+}
+
+/** An effect_cards prompt now at the front lists only the cards its card can still choose (rules 9.2.8d). */
+function refreshActivePrompt(state: GameState): void {
+  const prompt = state.pendingPrompts[0];
+  if (prompt?.kind !== 'effect_cards') return;
+  const live = getCardScript(prompt.source.cardCode)?.liveCandidates?.(state, prompt.source);
+  if (!live) return;
+  prompt.candidateIds = prompt.candidateIds.filter(id => live.includes(id));
+  // Nothing left to choose: the answer is no card
+  prompt.min = Math.min(prompt.min, prompt.candidateIds.length);
+  prompt.max = Math.min(prompt.max, prompt.candidateIds.length);
 }
 
 /** The declared action carried out when the window it waited on closed during this executeAction. */

@@ -374,6 +374,8 @@ const hermesAsk = (ctx: EffectContext) => {
 const hermes: CardScript = {
   modifiers: { memory: 1 },
   triggers: { agenda_scored: hermesAsk, agenda_stolen: hermesAsk },
+  // Resolving after another "scored" ability (Send a Message rezzing a card), only still-unrezzed cards
+  liveCandidates: state => ids(hermesTargets(state)),
   onPromptAnswer: ({ state }, _source, answer) => {
     const target = hermesTargets(state).find(c => c.instanceId === picked(answer)[0]);
     if (target && returnInstalledToHQ(state, target)) addLog(state, 'runner', 'Runner added an unrezzed card to HQ (Hermes).');
