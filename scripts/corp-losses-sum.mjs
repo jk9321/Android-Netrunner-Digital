@@ -5,6 +5,7 @@
 // DEALS_OUT=file saves this batch's per-deal results (seed, decks, winner, alarm kinds) for later pairing.
 import { writeFileSync } from 'node:fs';
 import { printLossSummary } from './loss-summary.mjs';
+import { printOpeningAudit, printValueAudit } from './opening-summary.mjs';
 import { printPaired, readGames, splitArgs } from './paired-summary.mjs';
 
 const { files, base } = splitArgs(process.argv.slice(2));
@@ -88,4 +89,10 @@ for (const g of games) {
 for (const [name] of [...corpRates].sort((a, b) => a[1].w / a[1].n - b[1].w / b[1].n).slice(0, 2)) {
   console.log(`\n=== Weak Corp deck: ${name} ===`);
   printLossSummary(games.filter(g => g.corpDeck === name));
+}
+
+// Phase 2 O: the opening audit and the card value audit (scripts/opening-audit.ts), last so the batch log's fields stay put
+if (games.some(g => g.opening)) {
+  printOpeningAudit(games);
+  printValueAudit(games);
 }

@@ -16,6 +16,7 @@ import { Agent, GameRunner } from '../src/ai';
 import { writeFileSync } from 'node:fs';
 import { Alarm, AlarmTracker, moneyKind } from './alarms';
 import { SpendRecord, SpendTracker } from './spend-audit';
+import { OpeningRecord, OpeningTracker } from './opening-audit';
 
 export interface Steal {
   turn: number;
@@ -126,6 +127,8 @@ export interface GameRecord {
   alarms: Alarm[];
   /** Phase 2 S: every Corp credit spent, tagged with what it bought (spend-audit.ts) */
   spend?: SpendRecord;
+  /** Phase 2 O: openings, agenda windows and card values (opening-audit.ts) */
+  opening?: OpeningRecord;
   /** The deal's seed (corp-losses.ts adds it) */
   seed?: number;
 }
@@ -265,7 +268,9 @@ export function playLogged(
   const runner = new GameRunner(start, agents);
   let toldTurn = -1;
   const alarms = new AlarmTracker();
-  const spendTracker = new SpendTracker();
+  // OPENING=0 leaves the opening audit out (its one-step rankings cost time)
+  const openingTracker = process.env.OPENING === '0' ? null : new OpeningTracker();
+  const spendTracker = new SpendTracker(openingTracker?.listener);
   // DUMP_TURN=n DUMP_SIDE=corp|runner DUMP_FILE=x.json: write the position at the start of that turn and stop (an alarm's position, for a test)
   const dumpTurn = Number(process.env.DUMP_TURN ?? 0);
   const dumpSide = process.env.DUMP_SIDE ?? 'corp';
@@ -387,6 +392,7 @@ export function playLogged(
     const after = runner.state;
     alarms.step(before, after, runner.last ?? undefined);
     spendTracker.step(before, after, runner.last ?? undefined);
+    openingTracker?.step(before, after, runner.last ?? undefined);
     for (const side of sides) {
       const use = identity[side];
       const id = before[side].identity;
@@ -601,5 +607,6 @@ export function playLogged(
     money,
     alarms: alarms.alarms,
     spend: spendTracker.done(s),
+    opening: openingTracker?.done(s),
   };
 }
