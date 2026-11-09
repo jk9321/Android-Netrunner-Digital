@@ -63,6 +63,7 @@ const OFF_SWITCHES: Record<string, string> = {
   threatKeyPricing: 'Phase 2 K4b: threat key without the pricing context; moved 4 of 221 deals (run 42537621348)',
   reachTime: 'Phase 2 K3: waiting turns at their horizon; off until its paired batch',
   'oracle.gripReply': 'measurement oracle (Phase 2 K0: grip in the Runner reply only), never a default',
+  scoreBudget: 'Phase 2 E1: built off, batched against the Phase 2 base before any flip',
   calibratedRun: 'item 3 round 3: the threat read at measured hit rates; did not help (-9.9 vs -10.6), kept as measurement',
 };
 
