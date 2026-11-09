@@ -4,6 +4,7 @@ import { drawCards, madeSuccessfulRunThisTurn, revealInHand } from '../engine/he
 import { shuffleInPlace } from '../rng';
 import { CardScript, EffectContext } from './types';
 import { startRun } from '../engine/actions/run';
+import { runnerInstallCost } from '../engine/actions/install';
 import { drawForEffect } from '../engine/cardEffects';
 import { askCards, askChoice, gainCredits, installRunnerTrashing, installableRunnerCards, loseClickIfAny } from './effects';
 
@@ -92,7 +93,8 @@ const mutualFavor: CardScript = {
           'runner',
           `Mutual Favor: install ${cardDef(card).title}?`,
           [
-            { id: 'install', label: `Install (${cardDef(card).cost ?? 0} credits)` },
+            // The cost after modifiers such as Carmen's (rules 1.16.4a: the install cost applies to effect installs)
+            { id: 'install', label: `Install (${runnerInstallCost(state, card)} credits)` },
             { id: 'grip', label: 'Add to grip' },
           ],
           'install',
