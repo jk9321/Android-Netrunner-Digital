@@ -13,8 +13,12 @@ import { deckGameSetup } from '../src/data/decks';
 import { createAgent } from '../src/ai';
 import { OpeningTracker, actionKind, corpMainPhase } from './opening-audit';
 import { SpendTracker } from './spend-audit';
+import { applyPlanOff } from '../src/ai/synergy';
 // @ts-expect-error plain JS module
 import { printOpeningAudit, printValueAudit } from './opening-summary.mjs';
+
+// PLAN_OFF=a,b as in the batch scripts
+applyPlanOff(process.env.PLAN_OFF ?? '');
 
 const args = process.argv.slice(2).filter(a => a !== '--');
 const dir = args.find(a => !a.startsWith('--')) ?? 'tests/fixtures/human-games';

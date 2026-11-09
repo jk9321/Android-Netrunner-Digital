@@ -365,6 +365,12 @@ export const tuning = {
      */
     clearinghouseRez: true,
     /**
+     * Phase 2 O2 (opening-audit/report.md; AI Coordinator call 2026-11-09: the leaf first, in the one place that prices an
+     * installed unscored agenda): agendaWorth charges the advances still to go after this turn only by the odds the agenda
+     * stands to take them, as it already discounts the points (evaluate.ts agendaWorth). Off: charged in full.
+     */
+    agendaPaidWhileStanding: true,
+    /**
      * Round 2 Phase 2 E1 (spec-phase2.md; Corp only): the Corp's credit need (valueModel boardNeed) adds the advancement
      * still short on the agendas installed in its remotes (valueModel scoreNeed, 1 credit each, rule 5.2.6f), so credits
      * slide against a need that includes finishing the score as well as rezzing the ice that holds it.
@@ -459,7 +465,7 @@ export const tuning = {
  */
 export const sideOff: Record<SideCode, string[]> = {
   corp: [],
-  runner: ['tagTrashNow', 'ownTrashRisk', 'hqTrashCost', 'oneCurrency', 'threatModel', 'measuredPass', 'threatSpend', 'calibratedRun', 'raceClock', 'iceProtects', 'replyContenders', 'plannerAgenda', 'clearinghouseRez', 'scoreBudget', 'oracle', 'reach', 'reachStrength', 'reachTime', 'threatKey', 'threatKeyPricing'],
+  runner: ['tagTrashNow', 'ownTrashRisk', 'hqTrashCost', 'oneCurrency', 'threatModel', 'measuredPass', 'threatSpend', 'calibratedRun', 'raceClock', 'iceProtects', 'replyContenders', 'plannerAgenda', 'clearinghouseRez', 'agendaPaidWhileStanding', 'scoreBudget', 'oracle', 'reach', 'reachStrength', 'reachTime', 'threatKey', 'threatKeyPricing'],
 };
 
 /**
