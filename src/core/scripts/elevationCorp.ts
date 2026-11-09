@@ -42,6 +42,7 @@ import { getCardScript } from './index';
 import {
   advanceableInstalled,
   askCards,
+  askEvenIfNone,
   askChoice,
   askCorpInstall,
   corpInstallOptions,
@@ -195,8 +196,15 @@ const ptUntaian: CardScript = {
       const { state } = ctx;
       if (e.side !== 'corp' || state.corp.hq.length > 3 || state.corp.credits < 1) return;
       const targets = untaianTargets(state);
-      if (targets.length === 0) return;
-      askCards(ctx, 'corp', 'PT Untaian: you may pay 1 credit to place 1 advancement counter on an unrezzed card.', ids(targets), 0, 1, 'advance');
+      // Asked even with no target when the Corp's stops are on ALL, so the wait doesn't tell the Runner whether an
+      // unrezzed card can be advanced (4.6.3)
+      askEvenIfNone(
+        ctx,
+        'corp',
+        targets.length > 0,
+        () => askCards(ctx, 'corp', 'PT Untaian: you may pay 1 credit to place 1 advancement counter on an unrezzed card.', ids(targets), 0, 1, 'advance'),
+        'PT Untaian: no unrezzed card you can advance.',
+      );
     },
   },
   onPromptAnswer: ({ state }, _source, answer) => {
