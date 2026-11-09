@@ -324,6 +324,18 @@ describe('Reconnect and persistence (spec rules 4 and 5)', () => {
   });
 });
 
+describe('Bug reports (spec rule 9)', () => {
+  it('attach the real state, moves, seed and decks, also mid-game (Jeff 2026-11-09)', () => {
+    const { room } = started();
+    pastMulligans(room);
+    const att = room.reportFor('runner');
+    expect(att).toMatchObject({ full: true, seat: 'runner', seed: 7, over: null, moveCount: room.moves.length });
+    expect(att.state).toBe(room.realState);
+    expect(att.decks).toEqual({ corp: corpStarter, runner: runnerStarter });
+    expect(newRoom().reportFor('corp')).toMatchObject({ full: false, state: null });
+  });
+});
+
 describe('Settled points (audit LEAK-ACCESS-PAUSE; rules 4.2.2, 7.1.2)', () => {
   it('the Corp is not sent the moment the Runner decides inside an access of a card from R&D', () => {
     let s = newGame(5);

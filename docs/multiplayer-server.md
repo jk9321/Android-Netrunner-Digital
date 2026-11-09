@@ -62,7 +62,7 @@ Alarm: 7 days after the last move, or 1 day after the game ended, the room delet
 
 ## Bug reports
 
-The room's attachment never reaches the browser: the site Worker asks the game Worker (`/internal/games/:code/report`), builds the report and files it through `worker/bugReport.ts` as usual. Issues go to a public repository, so **while the game is on, the attachment is the reporter's own view and the move count only**; the real state and moves are attached once the game is over. (Attaching the real state mid-game would let a player read the opponent's hand from the issue.)
+The room's attachment never reaches the browser: the site Worker asks the game Worker (`/internal/games/:code/report`), builds the report and files it through `worker/bugReport.ts` as usual. It is the whole game (real state, moves, seed, both decks, full log), also mid-game. Issues go to a public repository, so a report filed mid-game shows the opponent's hidden cards to anyone reading the issue; Jeff accepted that for bug fixing (2026-11-09, "if it's a problem we can change it later"). The fix, if needed: attach the reporter's view until the game ends (`RoomCore.reportFor`).
 
 ## Checks
 

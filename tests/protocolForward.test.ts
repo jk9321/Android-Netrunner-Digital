@@ -59,11 +59,11 @@ describe('Site forwarding to the game Worker', () => {
     expect(await res.text()).toBe('');
   });
 
-  it('a report while the game is on carries the reporter view only', async () => {
-    const live: RoomReport = { ...finished, over: null, full: false, seed: null, decks: null, view: { log: [{ id: 'v0', turnNumber: 1, player: 'runner', message: 'mine' }] } as never };
+  it('a report carries the real game: log, both decks, seed (Jeff 2026-11-09)', async () => {
+    const live: RoomReport = { ...finished, over: null, state: { log: [{ id: 'log-1', turnNumber: 1, player: 'corp', message: 'Corp drew Hedge Fund.' }] } as never };
     const body = (await onlineReportBody({ description: 'x' }, live)) as { game: Record<string, unknown> };
-    expect(body.game).toMatchObject({ seed: 0, corpDeck: '', runnerDeck: '', log: '1 runner: mine' });
-    expect(String(body.game.replay)).toMatch(/reporter view only/);
+    expect(body.game).toMatchObject({ seed: 42, corpDeck: 'c\n1', runnerDeck: 'r\n2', log: '1 corp: Corp drew Hedge Fund.' });
+    expect(body.game.snapshot).toEqual(expect.any(String));
   });
 });
 

@@ -56,9 +56,8 @@ const deckText = (deck: { identity: string; cards: string[] } | null | undefined
 
 /**
  * The report the bug-report path files: the player's own fields, with the
- * room's attachment as the game. While the game is on the attachment is the
- * reporter's own view (issues are public, and the real state would show the
- * opponent's hand); once it is over, the real state and moves.
+ * room's attachment as the game (the real state and moves, RoomCore.reportFor;
+ * before the game starts there is none and the reporter's view is null too).
  */
 export async function onlineReportBody(client: Record<string, unknown>, att: RoomReport): Promise<Record<string, unknown>> {
   const log = att.full ? (att.state?.log ?? []).map(e => `${e.turnNumber} ${e.player}: ${e.message}`) : (att.view?.log ?? []).map(e => `${e.turnNumber} ${e.player}: ${e.message}`);
@@ -80,7 +79,7 @@ export async function onlineReportBody(client: Record<string, unknown>, att: Roo
       format: att.format,
       opponent: `online (reporter: ${att.seat})`,
       turn: `move ${att.moveCount}${att.over ? ', game over' : ''}`,
-      replay: `online room ${att.code}${att.full ? '' : ' (game in progress: reporter view only)'}`,
+      replay: `online room ${att.code}${att.full ? '' : ' (game not started)'}`,
       corpDeck: att.full ? deckText(att.decks?.corp) : '',
       runnerDeck: att.full ? deckText(att.decks?.runner) : '',
       log: log.join('\n'),

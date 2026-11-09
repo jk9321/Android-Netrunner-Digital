@@ -511,16 +511,16 @@ export class RoomCore {
   }
 
   /**
-   * What a bug report from `side` attaches. The issue goes to a public
-   * repository, so while the game is on it carries only what the reporter
-   * may see (their own view and the move count); the real state and moves
-   * once the game is over, when nothing is secret any more (rule 1.7.1).
+   * What a bug report from `side` attaches: the real state, the moves, the
+   * seed and both decks, also while the game is on. The issue goes to a
+   * public repository, so it does show the opponent's hidden cards; Jeff
+   * chose that for its use in bug fixing (2026-11-09: "we can change it
+   * later"). The browser never gets it (server/forward.ts).
    */
   reportFor(side: SideCode): RoomReport {
     const table = this.table;
     const base = { code: this.meta.code, format: this.meta.format, build: this.meta.build, seat: side, moveCount: table?.moves.length ?? 0, over: this.meta.over };
     if (!table) return { ...base, full: false, view: null, seed: null, state: null, moves: null, decks: null };
-    if (!this.meta.over) return { ...base, full: false, view: table.committed.views[side], seed: null, state: null, moves: null, decks: null };
     return { ...base, full: true, view: null, seed: this.meta.seed, state: table.state, moves: table.moves, decks: this.meta.decks };
   }
 }
@@ -532,7 +532,7 @@ export interface RoomReport {
   seat: SideCode;
   moveCount: number;
   over: RoomMeta['over'];
-  /** True when the real state and moves are attached (the game is over). */
+  /** True when the real state and moves are attached (always, once the game has started). */
   full: boolean;
   view: import('../src/core').GameView | null;
   seed: number | null;
