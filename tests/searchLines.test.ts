@@ -12,8 +12,9 @@ import robust from './fixtures/search-hold-window-robust.json';
 /**
  * plan.searchLines (spec-search S2): the planner's hold line (no agenda installed from HQ this turn) stands only when it
  * beats the rule line by more than the reply's noise AND it builds a window: a remote with ice the Corp has rezzed or can
- * pay to rez, no agenda or asset in its root (one per remote root, rule 8.5.6a; ice protects its server, 8.5.4), not
- * ready when the decision began. Holding without building one is the hoarding plannerHold produced (stuck in HQ +7.7).
+ * pay to rez, no agenda or asset in its root (one per remote root, rule 8.5.6a; ice protects its server, 3.4.2), not
+ * ready when the decision began. Holding without building one is the hoarding plannerHold produced (stuck in HQ +7.7);
+ * plannerHold is folded into this switch (S4), and this file carries its pinned position (deal 1491 T1).
  */
 const SEED = 1491;
 
@@ -36,24 +37,23 @@ const describeAction = (s: GameState, a: GameAction) => {
   return `${a.type}${card ? ' ' + cardDef(card).type_code : ''}${where}`;
 };
 
-const saved = { hold: tuning.plan.plannerHold, lines: tuning.plan.searchLines, samples: tuning.plan.searchSamples };
+const saved = { lines: tuning.plan.searchLines, samples: tuning.plan.searchSamples };
 afterEach(() => {
-  tuning.plan.plannerHold = saved.hold;
   tuning.plan.searchLines = saved.lines;
   tuning.plan.searchSamples = saved.samples;
 });
 
-const choose = (s: GameState, hold: boolean, lines: boolean) => {
-  tuning.plan.plannerHold = hold;
+// (`_` was plan.plannerHold, folded into searchLines in S4; kept so the calls read the same)
+const choose = (s: GameState, _: false, lines: boolean) => {
   tuning.plan.searchLines = lines;
   return createAgent('corp').chooseAction(structuredClone(s));
 };
-const pick = (s: GameState, hold: boolean, lines: boolean) => describeAction(s, choose(s, hold, lines));
-const exact = (s: GameState, hold: boolean, lines: boolean) => JSON.stringify(choose(s, hold, lines));
+const pick = (s: GameState, _: false, lines: boolean) => describeAction(s, choose(s, _, lines));
+const exact = (s: GameState, _: false, lines: boolean) => JSON.stringify(choose(s, _, lines));
 
 describe('plan.searchLines', () => {
-  it('is off by default (and S3 searchSamples)', () => {
-    expect(saved.lines).toBe(false);
+  it('is on by default (S2 shipped; S3 searchSamples off)', () => {
+    expect(saved.lines).toBe(true);
     expect(saved.samples).toBe(false);
   });
 
@@ -103,9 +103,16 @@ describe('plan.searchLines', () => {
     const s = fixture.state as unknown as GameState;
     expect(s.corp.hq.some(c => cardDef(c).type_code === 'agenda')).toBe(true);
     const plain = exact(s, false, false);
-    // plannerHold's best-of-two takes the held line here (a different ice onto R&D, the agenda kept in HQ)
-    expect(exact(s, true, false)).not.toBe(plain);
-    expect(exact(s, false, true)).toBe(plain);
+    // A held line beats its rule line by more than the margin here without building a window (plannerHold, folded in S4,
+    // took it: a different ice onto R&D, the agenda kept in HQ); searchLines refuses it
+    const holds: { gain: number; builds: boolean; accepted: boolean }[] = [];
+    plannerStats.onHold = (_s, _a, h) => holds.push(h);
+    try {
+      expect(exact(s, false, true)).toBe(plain);
+    } finally {
+      plannerStats.onHold = undefined;
+    }
+    expect(holds.some(h => h.gain > 3 && !h.builds && !h.accepted)).toBe(true);
   }, 60000);
 
   // The robust pin (AI Coordinator 2026-11-09: a hold that still wins on 8 reply samples). scripts/search-holds.ts

@@ -365,26 +365,19 @@ export const tuning = {
      */
     clearinghouseRez: true,
     /**
-     * Phase 2 O (window supply, opening-audit/report.md; Corp only): the planner plays each candidate on with the rule
-     * ranking, which installs an agenda whenever one can go in (installScore 8+), so "ice a new remote, then hold the
-     * agenda" was never played (deal 1491 T1, tests/plannerHold.test.ts). A continuation that installs an agenda is also
-     * played holding every agenda this turn, and the better line stands (turnPlanner.ts planTurn); the mirror of
-     * plannerAgenda. PARKED OFF (AI Coordinator 2026-11-09): +2.8 ± 1.0 at 10 games (run 42612102629 vs O4c), but the
-     * gain is defence through the leaf's low worth for an installed unscored agenda, not tempo: remote steals -25%, agenda
-     * stuck in HQ 16.6 -> 24.3 (most beside an open window), first score unchanged, +21% game time. Holding only while no
-     * remote is ready removed the gain (+0.5 ± 1.4, run 42612283883). Re-measure with O2 (the leaf's agenda worth).
-     */
-    plannerHold: false,
-    /**
      * Phase 3 S2 (spec-search.md; Corp only): the hold line where it builds a window. On a decision with an agenda in HQ
-     * and none installed, a candidate whose rule line installs the agenda is also played holding it (plannerHold's line);
+     * and none installed, a candidate whose rule line installs the agenda is also played holding it (the 'hold' line);
      * the held line stands only when it beats the rule line by more than SEARCH.margin (the 2-sample reply's noise, S1
      * report) AND its end position has a window the held agenda can use next turn that the turn built: a remote with ice
      * the Corp has rezzed or can pay to rez, and no agenda or asset in its root (one per root, rule 8.5.6a; ice protects
-     * it, 8.5.4), not ready when the decision began. S1 (run 42663183482 + local net sample): the hold line beats the pick
+     * it, 3.4.2), not ready when the decision began. S1 (run 42663183482 + local net sample): the hold line beats the pick
      * net of the noise on 8.4% (margin 3) of HQ-only decisions; finish-first and installed-agenda turns ~0, left out.
+     * ON (AI Coordinator 2026-11-09): +1.1 ± 0.7 at 10 games (runs 42686212950 + 42681282303 vs 42686206493 +
+     * 42654315875), stuck in HQ +0.3 ± 0.7, first score T6.8 -> 6.6, remote steals -6%, no time cost; 34 of 39 accepted
+     * holds still win on 8 reply samples. S4: plannerHold (Phase 2 O, the same hold kept whenever it read better: +2.8
+     * ± 1.0 but by defence, stuck in HQ 16.6 -> 24.3) is folded into this switch: the window rule is what it lacked.
      */
-    searchLines: false,
+    searchLines: true,
     /**
      * Phase 3 S3 (spec-search.md; Corp only, on top of searchLines): the 2-sample reply decides most close picks (S1: a
      * plain re-sample of the same line beats the pick by more than 3 on 28% of agenda decisions). On a decision with an
@@ -532,7 +525,7 @@ export const tuning = {
  */
 export const sideOff: Record<SideCode, string[]> = {
   corp: [],
-  runner: ['tagTrashNow', 'ownTrashRisk', 'hqTrashCost', 'oneCurrency', 'threatModel', 'measuredPass', 'threatSpend', 'calibratedRun', 'raceClock', 'iceProtects', 'replyContenders', 'plannerAgenda', 'clearinghouseRez', 'plannerHold', 'searchLines', 'searchSamples', 'agendaPaidWhileStanding', 'agendaLine', 'heldNoFloor', 'advanceGuardPriced', 'scoreBudget', 'oracle', 'reach', 'reachStrength', 'reachTime', 'threatKey', 'threatKeyPricing'],
+  runner: ['tagTrashNow', 'ownTrashRisk', 'hqTrashCost', 'oneCurrency', 'threatModel', 'measuredPass', 'threatSpend', 'calibratedRun', 'raceClock', 'iceProtects', 'replyContenders', 'plannerAgenda', 'clearinghouseRez', 'searchLines', 'searchSamples', 'agendaPaidWhileStanding', 'agendaLine', 'heldNoFloor', 'advanceGuardPriced', 'scoreBudget', 'oracle', 'reach', 'reachStrength', 'reachTime', 'threatKey', 'threatKeyPricing'],
 };
 
 /**
@@ -558,6 +551,8 @@ export const FOLDED: readonly string[] = [
   'subCosts', 'iceInCredits', 'breakerCredits',
   // Tuning pass 1 (2026-11-08): Nanomanagement/Touch-ups' own bonus deleted, plan.finishSetup ranks them (CardAI setup); +0.0 ± 0.2, run 42403917371
   'oneSetupRule',
+  // Phase 3 S4 (spec-search.md, 2026-11-09): plannerHold folded into plan.searchLines (the hold that builds a window)
+  'plannerHold',
 ];
 
 /** Throws on a name that isn't a plan switch (a typo, or a switch folded into the code). */

@@ -91,7 +91,7 @@ export const plannerStats: {
 
 /**
  * How a playout continues after its first action. 'rule': the rule-based ranking's best each step. 'hold'
- * (plan.plannerHold): the same, but no agenda is installed from HQ this turn. 'finish' (spec-search S1): an agenda
+ * (plan.searchLines): the same, but no agenda is installed from HQ this turn. 'finish' (spec-search S1): an agenda
  * score (rule 7.1.1, 1.17.3a) and then an advance on an installed agenda (rules 1.18.1, 5.2.6a) are taken before
  * anything else the ranking allows, the rule ranking for the rest.
  */
@@ -215,7 +215,7 @@ function finishStep(state: GameState, ranked: ScoredAction[]): ScoredAction | un
 
 /**
  * Plays `side`'s turn on from `state` after `first`, and returns how good the end of the turn is. `mode` (LineMode):
- * how the continuation picks its actions ('hold', plan.plannerHold: it installs no agenda from HQ this turn).
+ * how the continuation picks its actions ('hold', plan.searchLines: it installs no agenda from HQ this turn).
  */
 function playout(start: GameState, side: SideCode, first: GameAction, ai: PlannerAI, synergy: boolean, line: Line = [], ends?: Ends, mode: LineMode = 'rule'): number {
   const hold = mode === 'hold';
@@ -484,20 +484,8 @@ export function planTurn(state: GameState, side: SideCode, ranked: ScoredAction[
       let line: Line = [];
       let ends: Ends = {};
       let value = playout(state, side, c.action, ai, synergy, line, ends);
-      // plan.plannerHold (Phase 2 O, window supply): a continuation that installs an agenda is also played holding it,
-      // and the better of the two lines stands
-      if (side === 'corp' && plan().plannerHold && ends.installedAgenda && value > -Infinity) {
-        const heldLine: Line = [];
-        const held: Ends = {};
-        const heldValue = playout(state, side, c.action, ai, synergy, heldLine, held, 'hold');
-        plannerStats.holds = (plannerStats.holds ?? 0) + 1;
-        if (heldValue > value) {
-          plannerStats.held = (plannerStats.held ?? 0) + 1;
-          [value, line, ends] = [heldValue, heldLine, held];
-        }
-      }
       // plan.searchLines (spec-search S2): the held line where it builds a window, by more than the reply's noise
-      if (side === 'corp' && plan().searchLines && !plan().plannerHold && hqOnly && ends.installedAgenda && value > -Infinity) {
+      if (side === 'corp' && plan().searchLines && hqOnly && ends.installedAgenda && value > -Infinity) {
         const heldLine: Line = [];
         const held: Ends = {};
         const heldValue = playout(state, side, c.action, ai, synergy, heldLine, held, 'hold');
@@ -583,7 +571,7 @@ const lineKey = (first: GameAction, line: Line) => JSON.stringify([first, ...lin
 /**
  * Spec-search S1 (measurement only, plannerStats.onSearch): every candidate of a Corp decision also played on the hold
  * and the finish-first lines, after the pick is made, so play is unchanged (the pick, its line and the plan memory come
- * from the shipped search). The rule line is the one already played; with plan.plannerHold or plan.searchLines on, `scored`
+ * from the shipped search). The rule line is the one already played; with plan.searchLines on, `scored`
  * may hold the held line, so the rule line is played again here (it is deterministic: the decision's seed is fixed).
  */
 function auditSearch(
@@ -609,7 +597,7 @@ function auditSearch(
     let ruleValue = scored[i]?.value ?? -Infinity;
     let ruleLine = scored[i]?.line ?? [];
     let ruleEnds: Ends = scored[i]?.ends ?? {};
-    if (plan().plannerHold || plan().searchLines) {
+    if (plan().searchLines) {
       ruleLine = [];
       ruleEnds = {};
       ruleValue = playout(state, side, c.action, ai, synergy, ruleLine, ruleEnds);
