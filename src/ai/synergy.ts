@@ -368,8 +368,13 @@ export const tuning = {
      * Phase 2 O2 (opening-audit/report.md; AI Coordinator call 2026-11-09: the leaf first, in the one place that prices an
      * installed unscored agenda): agendaWorth charges the advances still to go after this turn only by the odds the agenda
      * stands to take them, as it already discounts the points (evaluate.ts agendaWorth). Off: charged in full.
+     * OFF (2026-11-09): -1.2 ± 1.2 paired (run 42562609024 vs the O4c run 42560731594, games 0-3); window turns with no
+     * agenda move 42.5% -> 41.6%, first score unchanged (T6.9). Why it can't move the opening: the planner's agenda lines
+     * mostly end with the agenda finished or nearly (little advancement left to discount), and from Jeff's own positions
+     * the AI already makes agenda progress on as many turns as he does (human-agreement turns: AI moved where Jeff didn't
+     * 29 vs the reverse 13). The tempo gap is in reaching the windows, not in taking them; feeds the O1 follow-up.
      */
-    agendaPaidWhileStanding: true,
+    agendaPaidWhileStanding: false,
     /**
      * Round 2 Phase 2 E1 (spec-phase2.md; Corp only): the Corp's credit need (valueModel boardNeed) adds the advancement
      * still short on the agendas installed in its remotes (valueModel scoreNeed, 1 credit each, rule 5.2.6f), so credits
