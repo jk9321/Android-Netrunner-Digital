@@ -10,7 +10,8 @@
  *
  * - the opponent's hand, both decks, and facedown Archives seen by the Runner
  *   are `count` placeholders with ids like `hidden-hq-0` (rules 4.2.2, 4.3.2, 4.4.6c);
- * - a facedown installed Corp card keeps its viewer id and gets HIDDEN_CORP (4.6.2);
+ * - a facedown installed Corp card keeps its viewer id (its place is open, 4.6.2)
+ *   and gets HIDDEN_CORP (what it is is secret, 4.6.3);
  * - cards still to be accessed are placeholders (`accessQueueCount`).
  *
  * A card the viewer's own prompt shows from a hidden zone (the card being

@@ -53,8 +53,8 @@ export interface ViewIds {
 
 /**
  * A card as one viewer sees it. `cardCode` is missing when the viewer may see
- * where the card is but not what it is (an unrezzed Corp card seen by the
- * Runner, rules 4.6.2).
+ * where the card is (rules 4.6.2) but not what it is (an unrezzed Corp card
+ * seen by the Runner: facedown cards are secret, 4.6.3).
  */
 export interface CardView {
   instanceId: string;
@@ -365,7 +365,7 @@ export const RUNNER_STATE_FIELDS = {
 /** CardInstance keys: 'public' is shown even on a card whose face is hidden; 'own' only with the face. */
 export const CARD_FIELDS = {
   instanceId: 'redacted', // remapped
-  cardCode: 'own', // 4.6.2: hidden while the card is facedown
+  cardCode: 'own', // 4.6.3: hidden while the card is facedown
   isRezzed: 'public',
   advancementCounters: 'public', // counters are on the table (4.6.2)
   tokens: 'public',
@@ -499,10 +499,16 @@ export function viewFor(state: GameState, side: SideCode, ids: ViewIds, gameId: 
     return ok ? res : undefined;
   };
 
-  /** A flags record whose keys may name cards ("once:inst-5"): those keys remapped, or left out if the card is out of sight. */
+  /** Real ids of the cards this view shows with their face. */
+  const faced = new Set<string>();
+  /**
+   * A flags record whose keys may name cards ("once:inst-5"): those keys remapped, or left out unless the viewer
+   * sees the named card's face (a flag on a facedown card would say what it is, 4.6.3). Call once every card is shown.
+   */
   const flagKeys = (rec: Record<string, number>): Record<string, number> => {
     const res: Record<string, number> = {};
     for (const [k, n] of Object.entries(rec)) {
+      if ((k.match(INST) ?? []).some(id => !faced.has(id))) continue;
       const key = refText(k);
       if (key !== undefined) res[key] = n;
     }
@@ -526,6 +532,7 @@ export function viewFor(state: GameState, side: SideCode, ids: ViewIds, gameId: 
       ...(c.runnerKnows && { runnerKnows: true }),
     };
     if (face) {
+      faced.add(c.instanceId);
       v.cardCode = c.cardCode;
       if (c.flipped !== undefined) v.flipped = c.flipped;
       if (c.hostedCards?.length) v.hostedCards = c.hostedCards.map(h => card(h, true));

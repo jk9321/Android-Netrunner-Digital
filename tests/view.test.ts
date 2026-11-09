@@ -244,6 +244,20 @@ describe('Per-player views', () => {
     expect(later.corp.log.at(-1)?.id).toBe(`v${n + 2}`);
   });
 
+  it('a flag naming a card is kept only for a viewer who sees that card\'s face (4.6.3)', () => {
+    const s = newGame();
+    const facedown = installCorpForTest(s, NICO, 'remote-1');
+    const rezzed = installCorpForTest(s, NICO, 'remote-2', true);
+    s.turnFlags[`once:${facedown}`] = 1;
+    s.turnFlags[`once:${rezzed}`] = 1;
+    s.turnFlags[`once:${s.corp.rd[0].instanceId}`] = 1;
+    const { corp, runner, ids } = views(s);
+    expect(Object.keys(corp.turnFlags).sort()).toEqual([`once:${ids.corp.view[facedown]}`, `once:${ids.corp.view[rezzed]}`].sort());
+    // The Runner sees where the facedown card is (it has an id) but not what it is: no flag for it
+    expect(ids.runner.view[facedown]).toBeDefined();
+    expect(Object.keys(runner.turnFlags)).toEqual([`once:${ids.runner.view[rezzed]}`]);
+  });
+
   it('the opponent never sees a declared intent (5.6.2a-b)', () => {
     const s = newGame();
     const card = s.corp.hq[0];
