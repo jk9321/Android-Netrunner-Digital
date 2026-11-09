@@ -389,8 +389,10 @@ export const tuning = {
      * Phase 3 S3 (spec-search.md; Corp only, on top of searchLines): the 2-sample reply decides most close picks (S1: a
      * plain re-sample of the same line beats the pick by more than 3 on 28% of agenda decisions). On a decision with an
      * agenda in HQ or installed, the two best lines (candidates, or a candidate's rule line and its window-building held
-     * line) closer than SEARCH.margin get REPLY.extra more reply samples each and the better mean stands
-     * (turnPlanner.ts contenders). replyContenders, the same on every decision with a gap of 4, read -0.6 ± 2.2.
+     * line) closer than SEARCH.margin get REPLY.extra more reply samples each and the better of those two means stands
+     * (turnPlanner.ts contenders, topOnly): a third line read on two samples only must not re-enter on the two's
+     * regression to the mean, which is the same noise again (it flipped deal 1491 T1). replyContenders, the same on every
+     * decision with a gap of 4 and the rest re-admitted, read -0.6 ± 2.2.
      */
     searchSamples: false,
     /**
