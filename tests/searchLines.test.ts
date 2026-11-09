@@ -4,8 +4,10 @@ import { deckGameSetup } from '../src/data/decks';
 import { ALL_DECKS } from '../scripts/nsg-sample-decks';
 import { GameRunner, createAgent } from '../src/ai';
 import { tuning } from '../src/ai/synergy';
-import { buildsWindow, readyRemotes } from '../src/ai/turnPlanner';
+import { REPLY } from '../src/ai/runnerReply';
+import { buildsWindow, plannerStats, readyRemotes } from '../src/ai/turnPlanner';
 import fixture from './fixtures/search-hold-no-window.json';
+import robust from './fixtures/search-hold-window-robust.json';
 
 /**
  * plan.searchLines (spec-search S2): the planner's hold line (no agenda installed from HQ this turn) stands only when it
@@ -55,6 +57,27 @@ describe('plan.searchLines', () => {
     expect(saved.samples).toBe(false);
   });
 
+  it('S3 searchSamples at deal 1491 T1: a close call, both lines get the extra samples, the pick is the better mean', () => {
+    const calls: Parameters<NonNullable<typeof plannerStats.onClose>>[] = [];
+    plannerStats.onClose = (top, chosen) => calls.push([top, chosen]);
+    try {
+      tuning.plan.searchSamples = true;
+      const s = turnOne();
+      const chosen = choose(s, false, true);
+      expect(calls.length).toBe(1);
+      const [top, picked] = calls[0];
+      expect(top.length).toBe(2);
+      expect(Math.abs(top[0].first - top[1].first)).toBeLessThan(3);
+      for (const t of top) expect(t.samples).toBe(2 + REPLY.extra);
+      expect(top.some(t => t.held)).toBe(true);
+      const better = top.reduce((a, b) => (b.value > a.value ? b : a));
+      expect(picked).toBe(better.action);
+      expect(chosen).toEqual(better.action);
+    } finally {
+      plannerStats.onClose = undefined;
+    }
+  }, 60000);
+
   // Not pinned: deal 1491 T1 with S3 on. The held new-remote line (28.90) and ice on a central (27.82) are within
   // SEARCH.margin, and on 4 or 8 reply samples the central wins (s2-report.md, S3 section): T1's remote is a close call.
   it('S3 searchSamples on top: a hold without a window still does not flip the pick (1491 T2)', () => {
@@ -65,7 +88,10 @@ describe('plan.searchLines', () => {
     expect(exact(s, false, true)).toBe(plain);
   }, 120000);
 
-  it('deal 1491 turn 1: ices a new remote and holds the agenda for it (the held line builds the window)', () => {
+  // A MECHANISM test for S2 alone (searchSamples off): the held, window-building line can stand. Not "the right move":
+  // the held new-remote line (28.90) and ice on a central (27.82) are within SEARCH.margin, and on 4 or 8 reply samples
+  // the central ice wins at this position (s2-report.md, S3 section; AI Coordinator ruling 2026-11-09).
+  it('deal 1491 turn 1, S2 alone: the held line that ices a new remote can stand (the held line builds the window)', () => {
     const s = turnOne();
     expect(s.corp.hq.some(c => cardDef(c).type_code === 'agenda')).toBe(true);
     expect(readyRemotes(s).size).toBe(0);
@@ -81,6 +107,23 @@ describe('plan.searchLines', () => {
     expect(exact(s, true, false)).not.toBe(plain);
     expect(exact(s, false, true)).toBe(plain);
   }, 60000);
+
+  // The robust pin (AI Coordinator 2026-11-09: a hold that still wins on 8 reply samples). scripts/search-holds.ts
+  // DUMP=accepted over 48 games gave 39 accepted holds; scripts/search-robust.ts re-read them on 8 samples: 34 still beat
+  // their rule line by more than SEARCH.margin (median gain 11.9 -> 12.6). Deal 1031, Corp turn 9: off, a Regolith
+  // click; on, Brân 1.0 on a new remote for the agenda in HQ (gain 11.0 on 2 samples, 13.2 on 8).
+  it('deal 1031 turn 9: ices a new remote for the agenda, and still does on 8 reply samples', () => {
+    const s = robust.state as unknown as GameState;
+    expect(pick(s, false, false)).toBe('USE_ABILITY asset');
+    expect(pick(s, false, true)).toBe('INSTALL_CARD ice @new remote');
+    const samples = REPLY.samples;
+    try {
+      REPLY.samples = 8;
+      expect(pick(s, false, true)).toBe('INSTALL_CARD ice @new remote');
+    } finally {
+      REPLY.samples = samples;
+    }
+  }, 120000);
 
   it('a window: iced remote, rezzable, empty root, new since the decision began', () => {
     const s = turnOne();

@@ -76,6 +76,11 @@ export const plannerStats: {
   /** plan.searchSamples: decisions given the extra samples, and how often they changed the pick */
   closeCalls?: number;
   closeFlips?: number;
+  /** plan.searchSamples flips toward a held line and away from one */
+  closeToHold?: number;
+  closeFromHold?: number;
+  /** plan.searchSamples: the two lines re-sampled, their first value, the mean over all their samples, held or not */
+  onClose?: (top: { action: GameAction; first: number; value: number; held: boolean; samples: number }[], pick: GameAction) => void;
   onAddedWin?: (state: GameState, action: GameAction) => void;
   onCandidates?: (side: SideCode, values: number[], actions: GameAction[]) => void;
   /** Spec-search S1 (measurement only): every Corp decision's continuations, read by scripts/search-audit.ts. */
@@ -189,7 +194,7 @@ function dominated(state: GameState, action: GameAction, ranked: ScoredAction[],
 }
 
 /** Where a playout ended (the reply is sampled from it) and what it added on the way; installedAgenda: its continuation installed an agenda. */
-type Ends = { state?: GameState; bonus?: number; installedAgenda?: boolean };
+type Ends = { state?: GameState; bonus?: number; installedAgenda?: boolean; held?: boolean };
 
 /** An agenda from HQ installed (rule 8.5.6: into a remote root). */
 const agendaInstall = (state: GameState, action: GameAction): boolean =>
@@ -301,6 +306,7 @@ function playout(start: GameState, side: SideCode, first: GameAction, ai: Planne
   if (ends) {
     ends.state = state;
     ends.bonus = bonus;
+    if (hold) ends.held = true;
   }
   if (ai.reply && !state.winner) {
     const t = performance.now();
@@ -515,10 +521,15 @@ export function planTurn(state: GameState, side: SideCode, ranked: ScoredAction[
     // and window-building held line) closer than SEARCH.margin get REPLY.extra more reply samples each, and the better
     // mean stands. S1: a re-sample of the same line beats the pick by more than 3 on 28% of decisions.
     if (side === 'corp' && plan().searchSamples && ai.reply && sampledReply() && agendaKind(state) !== 'neither') {
-      const close = contenders(pool, side, synergy, SEARCH.margin);
+      const close = contenders(pool, side, synergy, SEARCH.margin, true);
       if (close) {
+        const before = pool.reduce((a, b) => (b.value > a.value ? b : a));
         plannerStats.closeCalls = (plannerStats.closeCalls ?? 0) + 1;
-        if (!best || close.action !== best.action || close.line !== best.line) plannerStats.closeFlips = (plannerStats.closeFlips ?? 0) + 1;
+        if (close.action !== before.action || close.line !== before.line) {
+          plannerStats.closeFlips = (plannerStats.closeFlips ?? 0) + 1;
+          if (close.ends.held && !before.ends.held) plannerStats.closeToHold = (plannerStats.closeToHold ?? 0) + 1;
+          if (before.ends.held && !close.ends.held) plannerStats.closeFromHold = (plannerStats.closeFromHold ?? 0) + 1;
+        }
         best = close;
       }
     }
@@ -541,7 +552,7 @@ export function planTurn(state: GameState, side: SideCode, ranked: ScoredAction[
  * both: samples REPLY.samples .. REPLY.samples + REPLY.extra - 1) and the better mean over all of them is the pick, when the two are closer than
  * REPLY.contendGap (a wider gap is left to the first samples).
  */
-function contenders<T extends { action: GameAction; value: number; line: Line; ends: Ends }>(scored: T[], side: SideCode, synergy: boolean, gap = REPLY.contendGap): T | null {
+function contenders<T extends { action: GameAction; value: number; line: Line; ends: Ends }>(scored: T[], side: SideCode, synergy: boolean, gap = REPLY.contendGap, topOnly = false): T | null {
   const live = scored.filter(r => Number.isFinite(r.value) && r.ends.state && !r.ends.state.winner).sort((a, b) => b.value - a.value);
   if (live.length < 2 || live[0].value - live[1].value >= gap) return null;
   const leaf = (s: GameState) => leafValue(s, side, synergy);
@@ -549,11 +560,15 @@ function contenders<T extends { action: GameAction; value: number; line: Line; e
     const bonus = r.ends.bonus ?? 0;
     const first = replySamples(REPLY.samples); // (plan.oracle.think plays more first samples)
     const extra = runnerReply(r.ends.state!, synergy, leaf, { from: first, count: REPLY.extra });
-    return { ...r, value: (first * (r.value - bonus) + REPLY.extra * extra) / (first + REPLY.extra) + bonus };
+    return { ...r, firstValue: r.value, samples: first + REPLY.extra, value: (first * (r.value - bonus) + REPLY.extra * extra) / (first + REPLY.extra) + bonus };
   });
   // A candidate outside the two (a won game, or one the extra samples can't change) keeps its value
-  const rest = scored.filter(r => !top.some(t => t.action === r.action && t.line === r.line));
-  return [...top, ...rest].reduce((a, b) => (b.value > a.value ? b : a));
+  // plan.searchSamples (topOnly): the pick is the better of the two re-sampled lines; a third line read on two samples
+  // only was already below both, and letting it back in on their regression to the mean is the noise S3 removes
+  const rest = topOnly ? [] : scored.filter(r => !top.some(t => t.action === r.action && t.line === r.line));
+  const pick = [...top, ...rest].reduce((a, b) => (b.value > a.value ? b : a));
+  plannerStats.onClose?.(top.map(t => ({ action: t.action, first: t.firstValue, value: t.value, held: !!t.ends.held, samples: t.samples })), pick.action);
+  return pick;
 }
 
 /** The Corp's agenda situation at a decision (spec-search S1 kinds). */

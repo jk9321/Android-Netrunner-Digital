@@ -5,6 +5,7 @@
  *
  *   npx vite-node scripts/search-holds.ts -- [games] [dump dir] [first seed]
  *
+ * DUMP=accepted writes the held lines that stood instead (for the 8-sample robustness check, scripts/search-robust.ts).
  * SAMPLES=1 also turns plan.searchSamples (S3) on and prints its close calls, flips and the Corp's time per decision.
  */
 import { writeFileSync } from 'node:fs';
@@ -27,10 +28,12 @@ let dumped = 0;
 let seed = 0;
 plannerStats.onHold = (state, action, h) => {
   n.held++;
-  if (h.accepted) n.accepted++;
-  else if (h.gain > SEARCH.margin) {
+  if (h.accepted) {
+    n.accepted++;
+    if (dump && process.env.DUMP === 'accepted' && dumped < 200) writeFileSync(`${dump}/hold-accepted-${seed}-${++dumped}.json`, JSON.stringify({ seed, gain: h.gain, action, state }));
+  } else if (h.gain > SEARCH.margin) {
     n.noWindow++;
-    if (dump && dumped < 20) writeFileSync(`${dump}/hold-no-window-${++dumped}.json`, JSON.stringify({ seed, gain: h.gain, action, state }));
+    if (dump && process.env.DUMP !== 'accepted' && dumped < 20) writeFileSync(`${dump}/hold-no-window-${++dumped}.json`, JSON.stringify({ seed, gain: h.gain, action, state }));
   } else n.small++;
 };
 const corp = ALL_DECKS.filter(d => d.side === 'corp');
@@ -51,4 +54,4 @@ for (let g = 0; g < games; g++) {
     }
   }
 }
-console.log(JSON.stringify({ games, ...n, decisions: plannerStats.decisions, closeCalls: plannerStats.closeCalls ?? 0, closeFlips: plannerStats.closeFlips ?? 0, corpMs: +(time.ms / Math.max(1, time.n)).toFixed(1) }));
+console.log(JSON.stringify({ games, ...n, decisions: plannerStats.decisions, closeCalls: plannerStats.closeCalls ?? 0, closeFlips: plannerStats.closeFlips ?? 0, closeToHold: plannerStats.closeToHold ?? 0, closeFromHold: plannerStats.closeFromHold ?? 0, corpMs: +(time.ms / Math.max(1, time.n)).toFixed(1) }));
