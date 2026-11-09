@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
-import { GameState, GameView, SideCode, ViewIds, addLog, createCardInstance, executeAction, newViewIds, toEngineAction, fromEngineAction, viewFor, IllegalActionError } from '../src/core';
+import { GameState, GameView, SideCode, StopLevel, ViewIds, actingSide, addLog, createCardInstance, executeAction, getLegalActions, newViewIds, toEngineAction, fromEngineAction, viewFor, IllegalActionError } from '../src/core';
 import { GAME_STATE_FIELDS } from '../src/core/view';
-import { answer, cont, installCorpForTest, keepGoing, newGame, run, setIdentity } from './helpers';
+import { answer, cont, installCorpForTest, keepGoing, newGame, run, setIdentity, startRunnerTurn } from './helpers';
 import { LeakChecker } from '../scripts/leak-check';
 
 // Per-player views (multiplayer phase 1): one scenario per row of the visibility table in
@@ -159,7 +159,7 @@ describe('Per-player views', () => {
     expect(v.corp.waitingOn).toBe('runner');
   });
 
-  it('a Runner accessing a trashable card in R&D: the Corp sees no prompt, so it cannot tell what its top card is (4.2.2, 7.1.2)', () => {
+  it('a Runner accessing a trashable card in R&D: the Corp sees no prompt and no card (4.2.2, 7.1.2)', () => {
     let s = newGame();
     s.corp.rd.unshift(createCardInstance(s, NICO));
     s.runner.credits = 10;
@@ -168,12 +168,49 @@ describe('Per-player views', () => {
     expect(p?.kind).toBe('access_trash');
     const v = views(s);
     expect(v.corp.pendingPrompts).toEqual([]);
-    expect(v.corp.waitingOn).toBe('runner');
     expect(json(v.corp)).not.toContain('access_trash');
     expect(json(v.corp)).not.toContain(`"${NICO}"`);
     const mine = v.runner.pendingPrompts[0];
     expect(mine.kind).toBe('access_trash');
     expect(mine.cards.map(c => c.cardCode)).toEqual([NICO]);
+  });
+
+  /** The Corp's views, one per action, of a run on R&D with `top` on top: passing, continuing, declining to trash. */
+  function corpViewsOfRdRun(top: string, runnerStops: StopLevel): string[] {
+    let s = newGame();
+    s.stops = { corp: 'ai', runner: runnerStops };
+    s.corp.rd.unshift(createCardInstance(s, top));
+    startRunnerTurn(s);
+    s.runner.credits = 10;
+    let ids = newViewIds();
+    const out: string[] = [];
+    const see = () => {
+      const v = viewFor(s, 'corp', ids, 'g');
+      ids = v.ids;
+      out.push(JSON.stringify(v.view));
+    };
+    s = executeAction(s, { type: 'INITIATE_RUN', player: 'runner', targetServerId: 'rd' });
+    see();
+    for (let i = 0; i < 40 && s.activeRun; i++) {
+      const side = actingSide(s)!;
+      const legal = getLegalActions(s, side);
+      const action = legal.find(a => a.type === 'RESOLVE_PROMPT' && a.choice.kind === 'access_trash' && !a.choice.trash && !a.choice.alternativeId) ?? legal.find(a => (a.type === 'PASS' && !a.restOfRun) || a.type === 'CONTINUE_RUN');
+      s = executeAction(s, action!);
+      see();
+    }
+    return out;
+  }
+
+  it('Runner stops at full: the Corp\'s views of an R&D access are the same for an operation and a trashable asset, before and after the Runner answers (4.2.2, 7.1.2)', () => {
+    const hedge = corpViewsOfRdRun(HEDGE_FUND, 'full');
+    const nico = corpViewsOfRdRun(NICO, 'full');
+    expect(nico).toEqual(hedge);
+    // The access did wait on the Runner (one view with the run still on and the Runner to act)
+    expect(hedge.some(v => JSON.parse(v).waitingOn === 'runner' && JSON.parse(v).activeRun?.accessedCount === 1)).toBe(true);
+  });
+
+  it('Runner stops at auto: the views differ (only the trashable card pauses), a tell Jeff accepted for AUTO (2026-11-08)', () => {
+    expect(corpViewsOfRdRun(NICO, 'auto')).not.toEqual(corpViewsOfRdRun(HEDGE_FUND, 'auto'));
   });
 
   it('a secret log line: the side it is kept from gets the public wording and no card', () => {
