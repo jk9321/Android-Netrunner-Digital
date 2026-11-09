@@ -388,6 +388,30 @@ export const tuning = {
      */
     ownIceKnown: true,
     /**
+     * #34b (bug report #34, Jeff's Runner test game 2, 2026-11-09; Corp, Normal): the threat blends in the runs the Runner
+     * actually made on its last turns (threatModel.ts recordRun; public, rules 6.1.2a, 6.9.1a), noted turn by turn by the
+     * deciding Corp (corpAI noteRuns). Off: the threat is our Runner AI's arithmetic only, and Jeff's Alarm Clock ran HQ
+     * every turn while it read HQ as never run. Inert in self-play by construction (our Runner runs where the model says).
+     */
+    runRecord: true,
+    /**
+     * Bug report #43 (Jeff's Runner test game 11, 2026-11-09; Corp only): with plan.ownIceKnown on, the ice-pacing guard
+     * (corpAI installScore: -Infinity for ice the Corp can't afford to rez on top of every unrezzed ice already out) is
+     * dropped and the pricing decides (Jeff: "that ICE just shouldn't count as protection unless it CAN rez it"; it
+     * needn't rez every ice on every run). Off: the guard counted ice the Corp never rezzes (two Attini on remotes
+     * holding nothing) and blocked every new install: at T7, 20 credits, the Runner on 5 and HQ bare, Cloud Eater and
+     * Mycoweb in hand ranked -Infinity and the Corp clicked to draw three times.
+     */
+    icePacingPriced: true,
+    /**
+     * Bug report #44 (Jeff's Runner test game 12, 2026-11-09): the damage clock left after the Runner's turn (effectValues
+     * damageThreat on the Corp's turn) counts only damage the Corp can deal on its own turn: not damage on access (Urtica
+     * Cipher) and not damage "if the Runner is tagged" while it has no tag (Orbital Superiority). Off: both made a 4-damage
+     * burst, so a Runner left on 1 card in grip was worth 33 points of flatline, and at T2 the planner put Tithe on an empty
+     * remote (its reply Runner ran into it and lost cards) over icing an HQ holding three agendas: Send a Message stolen.
+     */
+    corpTurnDamageOwn: true,
+    /**
      * Phase 2 O (window supply, opening-audit/report.md; Corp only): the planner plays each candidate on with the rule
      * ranking, which installs an agenda whenever one can go in (installScore 8+), so "ice a new remote, then hold the
      * agenda" was never played (deal 1491 T1, tests/plannerHold.test.ts). A continuation that installs an agenda is also
@@ -535,7 +559,7 @@ export const tuning = {
  */
 export const sideOff: Record<SideCode, string[]> = {
   corp: [],
-  runner: ['tagTrashNow', 'ownTrashRisk', 'hqTrashCost', 'oneCurrency', 'threatModel', 'measuredPass', 'threatSpend', 'calibratedRun', 'raceClock', 'iceProtects', 'replyContenders', 'plannerAgenda', 'clearinghouseRez', 'ownIceKnown', 'plannerHold', 'agendaPaidWhileStanding', 'agendaLine', 'heldNoFloor', 'advanceGuardPriced', 'scoreBudget', 'oracle', 'reach', 'reachStrength', 'reachTime', 'threatKey', 'threatKeyPricing'],
+  runner: ['tagTrashNow', 'ownTrashRisk', 'hqTrashCost', 'oneCurrency', 'threatModel', 'measuredPass', 'threatSpend', 'calibratedRun', 'raceClock', 'iceProtects', 'replyContenders', 'plannerAgenda', 'clearinghouseRez', 'ownIceKnown', 'runRecord', 'icePacingPriced', 'plannerHold', 'agendaPaidWhileStanding', 'agendaLine', 'heldNoFloor', 'advanceGuardPriced', 'scoreBudget', 'oracle', 'reach', 'reachStrength', 'reachTime', 'threatKey', 'threatKeyPricing'],
 };
 
 /**

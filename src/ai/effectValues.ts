@@ -188,7 +188,11 @@ export function runSuccess(state: GameState, serverId: string): number {
   const server = state.corp.servers[serverId];
   // Pricing the ice can come back here (a subroutine that trashes a card prices the rig): the guess, inside
   if (!server || pricingIce()) return PACE.success;
-  return memo(state, 'runSuccess:' + serverId, () => withPricing({ pricingIce: true }, () => passOdds(state, ownIce(state, server))));
+  return memo(state, 'runSuccess:' + serverId, () => {
+    // The rez budget outside the guard: the same memo entry the leaf's ice pricing already filled
+    const ice = ownIce(state, server);
+    return withPricing({ pricingIce: true }, () => passOdds(state, ice));
+  });
 }
 
 /**
@@ -273,14 +277,15 @@ export function stealOdds(state: GameState, serverId: string, run = STEAL.run, i
   return memo(state, `stealOdds:${serverId}:${run}:${coming}`, () => {
     // Outside the ice-pricing guard: the threat prices runs with the ice priced in full
     const chance = threatOn() ? remoteRunChance(state, serverId) : undefined;
+    const ice = ownIce(state, server);
     return withPricing({ pricingIce: true }, () => {
       // plan.threatModel (structural review item 3): the chance the Runner runs it next turn is the Runner's own run
       // scorer budgeted over its turn (threatModel.ts), times its ice against the rig; an open remote it can see is run
       // by construction, so openSteal falls out
-      if (chance !== undefined) return chance * passOdds(state, ownIce(state, server), coming);
+      if (chance !== undefined) return chance * passOdds(state, ice, coming);
       // Jeff: nothing stops the Runner checking an open remote, so an agenda there is as good as stolen (plan.openSteal)
       if (plan().openSteal && server.isRemote && server.ice.length === 0) return 1;
-      return run * passOdds(state, ownIce(state, server), coming);
+      return run * passOdds(state, ice, coming);
     });
   });
 }
@@ -371,16 +376,35 @@ export function damageThreat(state: GameState, corpTurn = false): { burst: numbe
   // the clock left after the Runner's turn counts the Corp's other cards only. With ice, Attini, Boto, Cloud Eater and
   // Empiricist made a 3-damage threat out of a fifth of the deck: playing Sure Gamble from 4 cards cost 6 of flatline odds.
   const skipIce = corpTurn;
-  const key = `${state.id}:${state.corp.archives.faceUp.length}:${state.corp.scoreArea.length}:${state.runner.scoreArea.length}:${skipIce}`;
+  // plan.corpTurnDamageOwn: on the Corp's turn only damage the Corp deals itself (see ownTurnHit)
+  const own = corpTurn && plan().corpTurnDamageOwn;
+  const tagged = state.runner.tags > 0;
+  const key = `${state.id}:${state.corp.archives.faceUp.length}:${state.corp.scoreArea.length}:${state.runner.scoreArea.length}:${skipIce}:${own}:${own && tagged}`;
   const cached = threats.get(key);
   if (cached) return cached;
   const gone = new Set([...state.corp.archives.faceUp, ...state.corp.scoreArea, ...state.runner.scoreArea].map(c => c.instanceId));
   const live = sideCards(state, 'corp').filter(c => !gone.has(c.instanceId));
-  const hits = live.filter(c => !skipIce || cardDef(c).type_code !== 'ice').map(c => cardDamage(c.cardCode)).filter(n => n > 0);
+  const hits = live
+    .filter(c => !skipIce || cardDef(c).type_code !== 'ice')
+    .map(c => (own ? ownTurnDamage(state, c.cardCode) : cardDamage(c.cardCode)))
+    .filter(n => n > 0);
   const threat = { burst: hits.length ? Math.max(...hits) : 0, share: live.length ? hits.length / live.length : 0 };
   if (threats.size > 200) threats.clear();
   threats.set(key, threat);
   return threat;
+}
+
+/**
+ * plan.corpTurnDamageOwn (bug report #44, Jeff's Runner test game 12, 2026-11-09): the damage a card can deal on the Corp's
+ * own turn, from its card entry (CardAI corpTurnDamage: 0 for damage on access, rules 7.1.3 and 7.2.1, or during the
+ * Runner's runs; Orbital Superiority's 4 meat only while the Runner is tagged), else from its text. Counted from the text,
+ * Urtica Cipher and an untagged Runner's Orbital Superiority made a 4-damage burst: a Runner left on 1 card in grip was
+ * worth 33 points of flatline to the Corp.
+ */
+function ownTurnDamage(state: GameState, code: string): number {
+  const own = CARDS[code]?.corpTurnDamage;
+  if (own === undefined) return cardDamage(code);
+  return typeof own === 'function' ? own(state) : own;
 }
 
 /**

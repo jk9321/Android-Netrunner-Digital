@@ -201,7 +201,7 @@ export function threat(state: GameState): Threat {
     const t0 = threatStats.timing ? performance.now() : 0;
     const key = threatKey(state);
     if (threatStats.timing) threatStats.keyMs += performance.now() - t0;
-    return remember(threatCache, key, () => {
+    return withRecord(remember(threatCache, key, () => {
       threatStats.budgeted++;
       if (threatStats.timing) countRepeats(key, state);
       const t1 = threatStats.timing ? performance.now() : 0;
@@ -217,8 +217,46 @@ export function threat(state: GameState): Threat {
           }
         }
       }
-    });
+    }));
   });
+}
+
+/**
+ * plan.runRecord (#34b, bug report #34: Jeff's Alarm Clock ran HQ every turn T8-T14 while the budget, our Runner AI's
+ * arithmetic, read HQ as never run). The threat is a model of our Runner; a human runs where it would not. So the runs
+ * the Runner actually made (public: it announces the attacked server, rules 6.1.2a, 6.9.1a), noted by the deciding Corp
+ * turn by turn (pricing().runRecord, corpAI noteRuns), are blended into each server's run chance: the share of its last
+ * RECORD.turns turns that ran the server, recent turns weighing more (RECORD.decay), scaled by the evidence (full at
+ * RECORD.full turns noted). Three straight HQ runs read as an HQ run next turn; one as a third of one. The budget's own
+ * read stands where it is higher. Corp only.
+ */
+export const RECORD = { turns: 4, decay: 0.6, full: 3 };
+
+/** The record's run chance for `serverId` (0 without a record or with the switch off). */
+export function recordRun(serverId: string): number {
+  const record = pricing().runRecord;
+  if (!plan().runRecord || !record?.length) return 0;
+  let weight = 1;
+  let all = 0;
+  let ran = 0;
+  for (const turn of record.slice(0, RECORD.turns)) {
+    all += weight;
+    if (turn.includes(serverId)) ran += weight;
+    weight *= RECORD.decay;
+  }
+  return (Math.min(1, record.length / RECORD.full) * ran) / all;
+}
+
+function withRecord(t: Threat): Threat {
+  if (!plan().runRecord || !pricing().runRecord?.length) return t;
+  let changed = false;
+  const servers: Record<string, ServerThreat> = {};
+  for (const [id, s] of Object.entries(t.servers)) {
+    const run = Math.max(s.run, recordRun(id));
+    if (run !== s.run) changed = true;
+    servers[id] = run === s.run ? s : { ...s, run };
+  }
+  return changed ? { ...t, servers } : t;
 }
 
 /**
@@ -387,7 +425,7 @@ export const runChance = (state: GameState, serverId: string): number => calibra
 export function remoteRunChance(state: GameState, serverId: string): number {
   const server = state.corp.servers[serverId];
   if (!server?.isRemote || server.root.some(c => !c.isRezzed && !c.faceUp)) return runChance(state, serverId);
-  return calibrated(serverId, probeRun(state, serverId, server));
+  return calibrated(serverId, Math.max(probeRun(state, serverId, server), recordRun(serverId)));
 }
 
 /**

@@ -91,7 +91,7 @@ export function knownIce(state: GameState, serverId: string, t: number, always =
   const server = state.corp.servers[serverId];
   if (!server) return [];
   if (!always && !plan().reachStrength) return server.ice;
-  const budget = rezBudget(state);
+  const budget = rezBudget(state, always);
   return server.ice.flatMap(ice => {
     if (ice.isRezzed) return [ice];
     const share = budget.get(ice.instanceId);

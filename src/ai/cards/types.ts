@@ -54,4 +54,7 @@ export interface CardAI {
    * would gain on the next encounter this run, after its other subroutines, or none if it already has them. Run
    * planning reads them through runs.ts plannedSubroutines, so a run is priced against the ice as it will be met. */
   gainsOnEncounter?: (state: GameState, ice: CardInstance) => Subroutine[];
+  /** Corp card whose damage can't all land on the Corp's own turn (plan.corpTurnDamageOwn, effectValues.ts damageThreat):
+   * the most it can deal there, by the state now. Unset: what its text says (on access, during a run, if tagged: 0). */
+  corpTurnDamage?: number | ((state: GameState) => number);
 }
