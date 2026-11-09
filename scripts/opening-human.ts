@@ -8,7 +8,7 @@
  */
 import { readFileSync, readdirSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { GameAction, GameState, createInitialGameState, executeAction } from '../src/core';
+import { GameAction, GameState, cardDef, createInitialGameState, executeAction } from '../src/core';
 import { deckGameSetup } from '../src/data/decks';
 import { createAgent } from '../src/ai';
 import { OpeningTracker, actionKind, corpMainPhase } from './opening-audit';
@@ -20,6 +20,11 @@ const args = process.argv.slice(2).filter(a => a !== '--');
 const dir = args.find(a => !a.startsWith('--')) ?? 'tests/fixtures/human-games';
 const out = args.find(a => a.startsWith('--json='))?.split('=')[1];
 
+const titleOf = (s: GameState, a: GameAction): string => {
+  const id = 'cardInstanceId' in a ? a.cardInstanceId : undefined;
+  const card = id ? [...s.corp.hq, ...Object.values(s.corp.servers).flatMap(sv => [...sv.root, ...sv.ice])].find(c => c.instanceId === id) : undefined;
+  return card ? cardDef(card).title : a.type;
+};
 const games: unknown[] = [];
 for (const file of readdirSync(dir).filter(f => f.endsWith('.json')).sort()) {
   const report = JSON.parse(readFileSync(join(dir, file), 'utf8'));
@@ -32,7 +37,7 @@ for (const file of readdirSync(dir).filter(f => f.endsWith('.json')).sort()) {
   for (const move of report.moves as GameAction[]) {
     const before = s;
     // The AI's own pick at a window decision, asked before the human's move is played
-    const aiKind = move.player === 'corp' && corpMainPhase(before) && move.type !== 'START_TURN' && tracker.windowAt(before) ? actionKind(before, createAgent('corp', 'normal').chooseAction(before)) : null;
+    const aiMove = move.player === 'corp' && corpMainPhase(before) && move.type !== 'START_TURN' && tracker.windowAt(before) ? createAgent('corp', 'normal').chooseAction(before) : null;
     try {
       s = executeAction(s, move);
     } catch (e) {
@@ -43,7 +48,8 @@ for (const file of readdirSync(dir).filter(f => f.endsWith('.json')).sort()) {
     const had = rows.length;
     spend.step(before, s, move);
     tracker.step(before, s, move);
-    if (aiKind && rows.length > had) rows[rows.length - 1].push(aiKind);
+    // Window rows get [10] the AI's pick by kind, [11] its card, [12] Jeff's card
+    if (aiMove && rows.length > had) rows[rows.length - 1].push(actionKind(before, aiMove), titleOf(before, aiMove), titleOf(before, move));
   }
   if (stopped) console.log(stopped);
   spend.done(s);
@@ -66,5 +72,8 @@ console.log(`  where Jeff made an agenda move and the AI didn't, the AI chose: $
 const kinds2 = new Map<string, number>();
 for (const r of rows.filter(r => !(r[2] as string).startsWith('agenda:') && (r[10] as string).startsWith('agenda:'))) kinds2.set(r[2] as string, (kinds2.get(r[2] as string) ?? 0) + 1);
 console.log(`  where the AI made an agenda move and Jeff didn't, Jeff chose: ${[...kinds2].sort((a, b) => b[1] - a[1]).map(([k, n]) => `${k} ${n}`).join(', ')}`);
+const titles = new Map<string, number>();
+for (const r of rows.filter(r => (r[2] as string).startsWith('agenda:') && !(r[10] as string).startsWith('agenda:'))) titles.set(r[11] as string, (titles.get(r[11] as string) ?? 0) + 1);
+console.log(`  ... by the AI's card: ${[...titles].sort((a, b) => b[1] - a[1]).map(([k, n]) => `${k} ${n}`).join(', ')}`);
 printValueAudit(games, { human: true, label: `${label}: card value audit` });
 if (out) writeFileSync(out, JSON.stringify(games));

@@ -6,6 +6,13 @@ const pct = (n, d) => (d ? `${((100 * n) / d).toFixed(1)}%` : '-');
 const f1 = x => (Number.isFinite(x) ? x.toFixed(1) : '-');
 const f2 = x => (Number.isFinite(x) ? x.toFixed(2) : '-');
 const mean = (xs, f = x => x) => (xs.length ? xs.reduce((n, x) => n + f(x), 0) / xs.length : NaN);
+/** Median of the finite values (a move that wins the game on the spot has a huge evaluate delta) */
+const median = (xs, f = x => x) => {
+  const v = xs.map(f).filter(Number.isFinite).sort((a, b) => a - b);
+  if (!v.length) return NaN;
+  const m = v.length >> 1;
+  return v.length % 2 ? v[m] : (v[m - 1] + v[m]) / 2;
+};
 const CLICK = 1.25;
 
 const groupsOf = (games, human) =>
@@ -66,11 +73,12 @@ export function printOpeningAudit(all, { human = false, label = 'OPENING AUDIT (
       const instead = w.filter(r => !r[2].startsWith('agenda:'));
       const blocked = instead.filter(r => r[4] === -999 || r[4] === null);
       const finite = instead.filter(r => r[4] !== -999 && r[4] !== null);
+      const gaps = finite.filter(r => Number.isFinite(r[3]) && Number.isFinite(r[4]));
       const override = instead.filter(r => r[6] === 1);
       console.log(`  ${name} ${kind} windows: ${w.length} (${f2(w.length / Math.max(1, turns))} a Corp turn); agenda move taken ${pct(moved.length, w.length)}`);
       if (!instead.length) continue;
       console.log(`    instead (${instead.length}): ${mix(tally(instead.map(r => r[2])), instead.length)}`);
-      console.log(`    of those: every agenda move ruled out by the one-step rules (-Infinity) ${pct(blocked.length, instead.length)}; open but ranked lower ${pct(finite.length, instead.length)} (rule-score gap chosen - best agenda move: mean ${f2(mean(finite, r => r[3] - r[4]))}); planner chose other than the one-step top ${pct(override.length, instead.length)}`);
+      console.log(`    of those: every agenda move ruled out by the one-step rules (-Infinity) ${pct(blocked.length, instead.length)}; open but ranked lower ${pct(finite.length, instead.length)} (rule-score gap chosen - best agenda move: median ${f2(median(gaps, r => r[3] - r[4]))}); ${human ? 'the human' : 'the planner'} chose other than the one-step top ${pct(override.length, instead.length)}`);
       if (blocked.length) console.log(`    ruled-out windows by the agenda move that was ruled out: ${mix(tally(blocked.map(r => r[5])), blocked.length)}`);
       if (finite.length) console.log(`    open-but-lower windows, chosen: ${mix(tally(finite.map(r => r[2])), finite.length)}`);
     }
@@ -106,7 +114,7 @@ export function printValueAudit(all, { human = false, label = 'CARD VALUE AUDIT 
     by.set(r.title, list);
   }
   console.log('');
-  console.log(`${label}: ${rows.length} cards installed or played in ${games.length} games (worth = evaluate delta of the move, score = one-step rule score; Corp win % of games holding it)`);
+  console.log(`${label}: ${rows.length} cards installed or played in ${games.length} games (worth = median evaluate delta of the move, score = median one-step rule score; Corp win % of games holding it)`);
   const realised = r => {
     if (r.type === 'asset' || r.type === 'upgrade') return (r.out ?? 0) - (r.rez ?? 0) - CLICK;
     if (r.type === 'operation') return (r.out ?? 0) - (r.paid ?? 0) - CLICK;
@@ -116,12 +124,12 @@ export function printValueAudit(all, { human = false, label = 'CARD VALUE AUDIT 
   for (const [title, list] of by) {
     const t = list[0].type;
     const n = list.length;
-    const base = { title, type: t, n, worth: mean(list, r => r.worth), score: mean(list.filter(r => Number.isFinite(r.score)), r => r.score), win: list.filter(r => r.won).length / n };
+    const base = { title, type: t, n, worth: median(list, r => r.worth), score: median(list, r => r.score), win: list.filter(r => r.won).length / n };
     if (t === 'asset' || t === 'upgrade') {
       const rezzed = list.filter(r => r.rezzed);
-      table.push({ ...base, rezzed: rezzed.length / n, rez: mean(rezzed, r => r.rez ?? 0), out: mean(list, r => r.out ?? 0), fired: list.filter(r => r.fired).length / n, real: mean(list, realised) });
+      table.push({ ...base, rezzed: rezzed.length / n, rez: mean(rezzed, r => r.rez ?? 0), out: mean(list, r => r.out ?? 0), fired: list.filter(r => r.fired).length / n, real: median(list, realised) });
     } else if (t === 'operation') {
-      table.push({ ...base, paid: mean(list, r => r.paid ?? 0), out: mean(list, r => r.out ?? 0), drew: mean(list, r => r.drew ?? 0), real: mean(list, realised) });
+      table.push({ ...base, paid: mean(list, r => r.paid ?? 0), out: mean(list, r => r.out ?? 0), drew: mean(list, r => r.drew ?? 0), real: median(list, realised) });
     } else if (t === 'ice') {
       table.push({ ...base, rezzed: list.filter(r => r.rezzed).length / n, stops: mean(list, r => r.stops ?? 0), subs: mean(list, r => r.subs ?? 0), tax: mean(list, r => r.tax ?? 0), nothing: list.filter(r => !r.stops && !r.subs && !r.tax).length / n, central: list.filter(r => r.where === 'central').length / n });
     } else if (t === 'agenda') {
@@ -140,12 +148,12 @@ export function printValueAudit(all, { human = false, label = 'CARD VALUE AUDIT 
   for (const r of [...priced].sort((a, b) => b.worth - b.real - (a.worth - a.real)).slice(0, 10)) console.log(gapLine(r));
   console.log('Underpriced (realised credits above worth), top 10:');
   for (const r of [...priced].sort((a, b) => a.worth - a.real - (b.worth - b.real)).slice(0, 10)) console.log(gapLine(r));
-  console.log('  (realised = paid out - rez - 1.25 click; an upgrade or asset that fires without paying credits reads low here: see its fired %)');
+  console.log('  (medians; realised = paid out - rez - 1.25 click, operations credits back - paid - the click; a card whose effect is not credits (draws, damage, ETR upgrades) reads low here: see its fired % / drew)');
   // Families
   const fam = (name, f) => {
     const list = rows.filter(f);
     const real = list.map(realised).filter(Number.isFinite);
-    console.log(`  family ${name}: ${list.length} copies, worth ${f2(mean(list, r => r.worth))}, realised ${f2(mean(real))}, fired ${pct(list.filter(r => r.fired).length, list.length)}`);
+    console.log(`  family ${name}: ${list.length} copies, worth median ${f2(median(list, r => r.worth))} mean ${f2(mean(list.filter(r => Number.isFinite(r.worth) && Math.abs(r.worth) < 50), r => r.worth))}, realised median ${f2(median(real))} mean ${f2(mean(real))}, fired ${pct(list.filter(r => r.fired).length, list.length)}`);
   };
   console.log('Families (credit-priced):');
   fam('assets', r => r.type === 'asset');
