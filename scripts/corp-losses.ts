@@ -2,7 +2,7 @@
  * How the Corp AI loses: plays the shipped AI against itself on every deck
  * pairing and logs each game (see lossLog.ts).
  *
- *   npx vite-node scripts/corp-losses.ts -- [games per pairing] [normal|hard]
+ *   npx vite-node scripts/corp-losses.ts -- [games per pairing] [normal|hard|corp-hard|runner-hard]
  *
  * SHARD=i/n plays every n-th deal starting at i. scripts/corp-losses.sh runs
  * four shards and prints the breakdown. ai-match.sh logs its new-Corp games
@@ -21,7 +21,10 @@ import { withOracleMoney } from './oracle-money';
 
 const [gamesArg, levelArg] = process.argv.slice(2).filter(a => a !== '--');
 const games = Number(gamesArg ?? 1);
-const level = (levelArg ?? 'normal') as 'normal' | 'hard';
+// normal | hard (both sides) | corp-hard | runner-hard (one side's Hard AI against the other's Normal: is Hard still
+// ahead of Normal after the planner work? Jeff 2026-11-09)
+const level = (levelArg ?? 'normal') as 'normal' | 'hard' | 'corp-hard' | 'runner-hard';
+const levelOf = (side: 'corp' | 'runner'): 'normal' | 'hard' => (level === 'hard' || level === `${side}-hard` ? 'hard' : 'normal');
 const [shard, shards] = (process.env.SHARD ?? '0/1').split('/').map(Number);
 
 // PLAN_OFF=a,b switches off planning terms; CORP_DECKS / RUNNER_DECKS=name,name play only those decks
@@ -68,7 +71,7 @@ for (const c of corpDecks) {
       }
       if (deal++ % shards !== shard) continue;
       const agent = (side: 'corp' | 'runner') =>
-        createAgent(side, level, level === 'hard' ? { samples: 6, candidates: 3, seed } : {});
+        createAgent(side, levelOf(side), levelOf(side) === 'hard' ? { samples: 6, candidates: 3, seed } : {});
       const started = Date.now();
       if (process.env.TRACE) console.error(`start deal ${seed} ${c.name} vs ${r.name}`);
       valueLoops.clear();
