@@ -372,8 +372,10 @@ export function planTurn(state: GameState, side: SideCode, ranked: ScoredAction[
       let ends: Ends = {};
       let value = playout(state, side, c.action, ai, synergy, line, ends);
       // plan.plannerHold (Phase 2 O, window supply): a continuation that installs an agenda is also played holding it,
-      // and the better of the two lines stands. Only while no remote is ready for it at the decision: with one ready the
-      // hold kept agendas in HQ beside an open window (stuck in HQ, 'empty iced remote ready' 36 -> 63, run 42569400568)
+      // and the better of the two lines stands. Only while no remote is ready for it at the decision. That guard stands in
+      // for the leaf, which prices an installed unscored agenda too low (O1/O2, install-worth): with a remote ready the
+      // hold let that bias keep agendas in HQ beside an open window ('empty iced remote ready' 36 -> 63, run
+      // 42569400568). Not the design: once O2 fixes the leaf's agenda worth, drop the guard and re-measure.
       if (side === 'corp' && plan().plannerHold && ends.installedAgenda && value > -Infinity && !remoteReady) {
         const heldLine: Line = [];
         const held: Ends = {};
