@@ -1,5 +1,4 @@
 import { CardInstance, GameState, cardDef, getCardDefinition } from '../core';
-import { iceSubroutines } from '../core/engine/ice';
 import { turnsLeft } from './cardProfiles';
 import { PAYOUT_RISK } from './payoutRisk';
 import { COUNTER_WORTH } from './counterValues';
@@ -7,7 +6,7 @@ import { CARDS, corpFormula, runnerFormula } from './cards';
 import { actingSide } from './synergy';
 import { CLICK, RATES, cardRate, flatlineWorth, memo, pointGain, pointValue, sideCards } from './valueModel';
 import { tagsWorth } from './evaluate';
-import { BLOCK, iceCost, iceCreditNeed, subroutineCost } from './runs';
+import { BLOCK, iceCost, iceCreditNeed, plannedSubroutines, subroutineCost } from './runs';
 import { remoteRunChance, threatOn } from './threatModel';
 import { plan, pricing, withPricing } from './pricing';
 
@@ -167,7 +166,7 @@ const TANKED_PASS = 0.85;
  */
 function canTank(state: GameState, ice: CardInstance, credits: number): boolean {
   if (iceCreditNeed(state, ice) > credits) return false;
-  const tank = iceSubroutines(state, ice).map(s => subroutineCost(state, s.label)).filter(c => c < BLOCK).reduce((n, c) => n + c, 0);
+  const tank = plannedSubroutines(state, ice).map(s => subroutineCost(state, s.label)).filter(c => c < BLOCK).reduce((n, c) => n + c, 0);
   return tank < 0.5 * pointGain(state.runner.score, agendaOdds(state).points);
 }
 

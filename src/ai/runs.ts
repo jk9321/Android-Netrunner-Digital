@@ -19,6 +19,8 @@ import { agendaOdds, coreDamageWorth, counterWorthOf, damageWorth, flatlineOdds,
 import { clickPrice } from './handValues';
 import { clickRate, creditNeed, creditSlide, flatlineWorth, payoutSlide, pointValue } from './valueModel';
 import { plan } from './pricing';
+import { CARDS } from './cards';
+import type { Subroutine } from '../core/scripts/types';
 
 /**
  * What the Runner AI knows about runs. It only reads public information:
@@ -27,6 +29,19 @@ import { plan } from './pricing';
  */
 
 export const BLOCK = Infinity;
+
+/**
+ * The subroutines the Runner plans a run against: the ones the ice has now, plus any it would gain when the
+ * encounter begins by the state now (CardAI gainsOnEncounter: Starlit Knight's X "End the run." at threat 4,
+ * rules 9.8.3e after its other subroutines). The engine adds those only once the encounter starts, so without
+ * this the Runner chose the run and its price against the printed subroutines alone.
+ */
+export function plannedSubroutines(state: GameState, ice: CardInstance): Subroutine[] {
+  const subs = iceSubroutines(state, ice);
+  if (!ice.isRezzed) return subs;
+  const gains = CARDS[ice.cardCode]?.gainsOnEncounter?.(state, ice) ?? [];
+  return gains.length ? [...subs, ...gains] : subs;
+}
 const MAYFLY = '30032';
 const BANGUN = '35068';
 const HANTU = '35008'; // boosts by spending hosted virus counters (+2 each), not credits
@@ -218,7 +233,7 @@ export function bestBreakPlan(state: GameState, ice: CardInstance, subCount: num
     const strength = breakerStrength(state, breaker);
     // Banner (no break ability): 2 credits and a barrier's subroutines can't end the run; only for barriers whose every subroutine just ends the run
     if (breaker.cardCode === BANNER) {
-      const subs = iceSubroutines(state, ice);
+      const subs = plannedSubroutines(state, ice);
       if (types.includes('barrier') && strength >= iceStr && subs.length > 0 && subs.every(sub => /^end the run\.?$/i.test(sub.label.trim()))) {
         if (!best || 2 < best.credits) best = { breaker, credits: 2, boostsNeeded: 0, breakByAbility: true };
       }
@@ -296,13 +311,13 @@ const PHYSARUM = '34082';
 export function physarumCost(state: GameState, ice: CardInstance): number | undefined {
   if (!plan().bypass || !ice.isRezzed || iceSubtypes(ice, state).includes('barrier')) return undefined;
   if (!state.runner.rig.programs.some(p => p.cardCode === PHYSARUM && p.hostedOnId === ice.instanceId)) return undefined;
-  const credits = iceSubroutines(state, ice).length;
+  const credits = plannedSubroutines(state, ice).length;
   return credits <= runBudget(state) ? credits : undefined;
 }
 
 function plainIceCost(state: GameState, ice: CardInstance): number {
   // Botulus breaks the worst subroutines for free; the rest are tanked or broken
-  const costs = (iceSubroutines(state, ice)).map(s => subroutineCost(state, s.label)).sort((a, b) => b - a);
+  const costs = (plannedSubroutines(state, ice)).map(s => subroutineCost(state, s.label)).sort((a, b) => b - a);
   const subs = costs.slice(botulusBreaks(state, ice));
   const funhouse = ice.cardCode === '30054' ? tagCost(state) : 0; // Funhouse: take a tag or the run ends
   if (subs.length === 0) return funhouse;
@@ -327,7 +342,7 @@ export function iceCreditNeed(state: GameState, ice: CardInstance, broken: boole
 }
 
 function plainCreditNeed(state: GameState, ice: CardInstance, broken: boolean[] = []): number {
-  const subs = iceSubroutines(state, ice);
+  const subs = plannedSubroutines(state, ice);
   const blocking = Math.max(0, subs.filter((s, i) => !broken[i] && subroutineCost(state, s.label) === BLOCK).length - botulusBreaks(state, ice));
   if (blocking === 0) return 0;
   const plan = bestBreakPlan(state, ice, blocking);
@@ -421,7 +436,7 @@ export function bioroidClicks(state: GameState, ice: CardInstance[]): number {
   let clicks = 0;
   for (const card of ice) {
     if (!card.isRezzed || !isBioroid(card)) continue;
-    const blocking = iceSubroutines(state, card).filter(s => subroutineCost(state, s.label) === BLOCK).length - botulusBreaks(state, card);
+    const blocking = plannedSubroutines(state, card).filter(s => subroutineCost(state, s.label) === BLOCK).length - botulusBreaks(state, card);
     if (blocking > 0 && !bestBreakPlan(state, card, blocking)) clicks += bioroidBreakClicks(card, blocking);
   }
   return clicks;
