@@ -18,6 +18,7 @@ import { PlanMemory, planTurn, plannerOn, searchPiece } from './turnPlanner';
 import { runnerReply } from './runnerReply';
 import { threatLoss } from './threatModel';
 import { modelRezGain } from './rezModel';
+import { winNowAction } from './winNow';
 import { freeRezCover, freeRezTargets } from './freeRez';
 import { PETTY_CASH_REPLAY, iceAdvanceWorth, placedCounterWorth, rezEffectWorth, rezzedWorth, runTimed, topDownWorth } from './effectValues';
 import { CARD_PROFILES, ECON_SCALE, PAYOUT_RISK, bareAssetRisk, unrezzedWorth } from './cardProfiles';
@@ -146,6 +147,14 @@ export class HeuristicCorpAI implements Agent {
 
   private decide(state: GameState): GameAction {
     decisionContext(state, 'corp');
+    // plan.winNow (bug report #33): a line that wins the game this turn is played before any judgement (winNow.ts)
+    if (this.synergy && this.planner) {
+      const win = winNowAction(state);
+      if (win) {
+        this.notePlayed(win);
+        return win;
+      }
+    }
     if (activePrompt(state)) return answerPrompt(state, 'corp', undefined, this.synergy);
     const legal = getLegalActions(state, 'corp');
     const ranked = this.rankMainActions(state, legal);

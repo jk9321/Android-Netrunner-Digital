@@ -9,6 +9,7 @@ import { tagsWorth } from './evaluate';
 import { BLOCK, iceCost, iceCreditNeed, plannedSubroutines, subroutineCost } from './runs';
 import { remoteRunChance, threatOn } from './threatModel';
 import { plan, pricing, withPricing } from './pricing';
+import { knownIce } from './reach';
 
 /**
  * The every-card audit's last 31 cards (Jeff, 2026-10-28): assets, upgrades
@@ -187,7 +188,31 @@ export function runSuccess(state: GameState, serverId: string): number {
   const server = state.corp.servers[serverId];
   // Pricing the ice can come back here (a subroutine that trashes a card prices the rig): the guess, inside
   if (!server || pricingIce()) return PACE.success;
-  return memo(state, 'runSuccess:' + serverId, () => withPricing({ pricingIce: true }, () => passOdds(state, server.ice)));
+  return memo(state, 'runSuccess:' + serverId, () => withPricing({ pricingIce: true }, () => passOdds(state, ownIce(state, server))));
+}
+
+/**
+ * runSuccess with some of the server's ice bypassed (rules 6.5.8a: bypassed ice is passed, its subroutines never
+ * resolve): Alarm Clock's free HQ run in the threat (plan.alarmClockThreat).
+ */
+export function runSuccessBypassing(state: GameState, serverId: string, bypassed: ReadonlySet<string>): number {
+  const server = state.corp.servers[serverId];
+  if (!server || pricingIce()) return PACE.success;
+  return withPricing({ pricingIce: true }, () => passOdds(state, server.ice.filter(ice => !bypassed.has(ice.instanceId))));
+}
+
+/**
+ * plan.ownIceKnown (bug reports #39 and #41, Jeff's Runner test games 7 and 9, 2026-11-09; Corp only): the Corp prices its
+ * OWN unrezzed ice as it knows it, not by the Runner-side pass rates (MEASURED_PASS / UNREZZED_PASS: what a Runner meets
+ * when it can't see the ice). Ice its rez budget covers now (iceValues rezBudget: one pool, best stop first) is priced as
+ * the real ice against the rig, since the Corp can rez it as it is approached (rules 3.4.3a, 6.9.2b); ice the budget
+ * doesn't cover stays unrezzed and is passed (6.9.2c). The single copy is reach.ts knownIce (plan.reachStrength,
+ * K2), which only runs inside plan.reach: both OFF since Phase 2 K, which is why it never priced these positions. With
+ * plan.reach on, reach owns the pricing and this stays out of its way.
+ */
+function ownIce(state: GameState, server: GameState['corp']['servers'][string]): CardInstance[] {
+  if (!plan().ownIceKnown || plan().reach || !server.ice.some(ice => !ice.isRezzed)) return server.ice;
+  return knownIce(state, server.id, 1, true);
 }
 
 /** iceCost behind the re-entry guard. */
@@ -252,10 +277,10 @@ export function stealOdds(state: GameState, serverId: string, run = STEAL.run, i
       // plan.threatModel (structural review item 3): the chance the Runner runs it next turn is the Runner's own run
       // scorer budgeted over its turn (threatModel.ts), times its ice against the rig; an open remote it can see is run
       // by construction, so openSteal falls out
-      if (chance !== undefined) return chance * passOdds(state, server.ice, coming);
+      if (chance !== undefined) return chance * passOdds(state, ownIce(state, server), coming);
       // Jeff: nothing stops the Runner checking an open remote, so an agenda there is as good as stolen (plan.openSteal)
       if (plan().openSteal && server.isRemote && server.ice.length === 0) return 1;
-      return run * passOdds(state, server.ice, coming);
+      return run * passOdds(state, ownIce(state, server), coming);
     });
   });
 }

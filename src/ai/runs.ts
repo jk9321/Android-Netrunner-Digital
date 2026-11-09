@@ -380,7 +380,7 @@ export function iceCreditsAhead(state: GameState): number {
 }
 
 const S_DOBRADO = '34012';
-const ALARM_CLOCK = '34078';
+export const ALARM_CLOCK = '34078';
 
 /**
  * During a run, the ice further in that the Runner's bypasses will skip (plan.bypass;

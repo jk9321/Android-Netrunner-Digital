@@ -365,6 +365,29 @@ export const tuning = {
      */
     clearinghouseRez: true,
     /**
+     * Bug report #34 (Jeff's Runner test game 2, 2026-11-09; Corp only): the threat model counts Alarm Clock's free HQ run
+     * at the start of the Runner's turn (threatModel.ts alarmClockRun; rules 5.7.1d, 6.5.8a). Off: the budget only spent
+     * clicks, so HQ read as never run while Alarm Clock ran it every turn. At Jeff's own game-2 positions the Runner AI's
+     * sum declines the run (2-click bypass above HQ's worth to it), so it pins the modelling; what the Runner actually ran
+     * is a separate item.
+     */
+    alarmClockThreat: true,
+    /**
+     * Bug report #33 (Jeff's Runner test game 1, 2026-11-09; Corp, Normal and Hard): an exact search of the Corp's turn for
+     * a line that wins the game, played before any judgement (winNow.ts; rules 1.17.2, 1.17.3). Off: the planner and
+     * Hard's look-ahead play on with the rule ranking, which missed a one-turn win through Slash and Burn Agriculture.
+     */
+    winNow: true,
+    /**
+     * Bug reports #39, #41 (Jeff's Runner test games 7 and 9, 2026-11-09; Corp only): the Corp's own unrezzed ice is priced
+     * as it knows it (effectValues.ts ownIce: the real ice when its rez budget covers it, passed when not; rules 3.4.3a,
+     * 6.9.2b-c) in runSuccess and stealOdds. Off: the Runner-side pass rates, so an agenda behind a Pharos the Corp could
+     * not pay for (game 9 T16) or a rezzed Boto the rig breaks plus an unaffordable Tatu-Bola (game 7) read as defended.
+     * It uses reach.ts knownIce, plan.reachStrength's copy, which never ran because it lives inside plan.reach (OFF):
+     * fold this one and reachStrength together.
+     */
+    ownIceKnown: true,
+    /**
      * Phase 2 O (window supply, opening-audit/report.md; Corp only): the planner plays each candidate on with the rule
      * ranking, which installs an agenda whenever one can go in (installScore 8+), so "ice a new remote, then hold the
      * agenda" was never played (deal 1491 T1, tests/plannerHold.test.ts). A continuation that installs an agenda is also
@@ -512,7 +535,7 @@ export const tuning = {
  */
 export const sideOff: Record<SideCode, string[]> = {
   corp: [],
-  runner: ['tagTrashNow', 'ownTrashRisk', 'hqTrashCost', 'oneCurrency', 'threatModel', 'measuredPass', 'threatSpend', 'calibratedRun', 'raceClock', 'iceProtects', 'replyContenders', 'plannerAgenda', 'clearinghouseRez', 'plannerHold', 'agendaPaidWhileStanding', 'agendaLine', 'heldNoFloor', 'advanceGuardPriced', 'scoreBudget', 'oracle', 'reach', 'reachStrength', 'reachTime', 'threatKey', 'threatKeyPricing'],
+  runner: ['tagTrashNow', 'ownTrashRisk', 'hqTrashCost', 'oneCurrency', 'threatModel', 'measuredPass', 'threatSpend', 'calibratedRun', 'raceClock', 'iceProtects', 'replyContenders', 'plannerAgenda', 'clearinghouseRez', 'ownIceKnown', 'plannerHold', 'agendaPaidWhileStanding', 'agendaLine', 'heldNoFloor', 'advanceGuardPriced', 'scoreBudget', 'oracle', 'reach', 'reachStrength', 'reachTime', 'threatKey', 'threatKeyPricing'],
 };
 
 /**

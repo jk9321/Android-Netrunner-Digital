@@ -1,8 +1,8 @@
 import { CardInstance, GameState, cardDef, createRng, knownInHand, shuffleInPlace } from '../core';
 import { corpCardValue } from './evaluate';
-import { runSuccess } from './effectValues';
+import { runSuccess, runSuccessBypassing } from './effectValues';
 import { unseenInHand } from './handValues';
-import { BLOCK, RunOptions, RunnerMemory, iceCost, runClick, runCreditSpend, runScore, serverValue } from './runs';
+import { ALARM_CLOCK, BLOCK, RunOptions, RunnerMemory, iceCost, runBypasses, runClick, runCreditSpend, runScore, serverValue } from './runs';
 import { asSide, sideOff, tuning } from './synergy';
 import { fingerprint, memo, pointGain, sideCreditValue } from './valueModel';
 import { effectivePlan, plan, pricing, pricingKey, withPricing } from './pricing';
@@ -264,6 +264,14 @@ function budgetTurn(state: GameState): Threat {
   // Nothing there for the Runner (an empty remote, an Archives with nothing to take): runScore can't rise above
   // -Infinity this turn (its breach worth is the same before any run), so it is not scored again each click
   for (const id of Object.keys(view.corp.servers)) if (!done.has(id) && serverValue(view, id, 0, memory, wary) <= 0) done.add(id);
+  // plan.alarmClockThreat: Alarm Clock's HQ run when the Runner's turn begins, before its first click
+  const alarm = done.has('hq') ? null : alarmClockRun(state, view, memory, wary);
+  if (alarm) {
+    servers.hq = { run: 1, score: alarm.score, success: alarm.success };
+    order.push('hq');
+    done.add('hq');
+    view = alarm.after;
+  }
   for (let step = 0; view.runner.clicks >= 1 && step < 8; step++) {
     const scored = Object.keys(view.corp.servers)
       .filter(id => !done.has(id))
@@ -293,6 +301,32 @@ function budgetTurn(state: GameState): Threat {
     };
   }
   return { servers, runs: order.length, order, endCredits: view.runner.credits };
+}
+
+/**
+ * plan.alarmClockThreat (bug report #34, Jeff's Runner game 2: HQ read as never run while Alarm Clock ran it every turn).
+ * Alarm Clock: "When your turn begins, you may run HQ. The first time you encounter a piece of ice during that run, you
+ * may spend [click][click] to bypass it." A "when your turn begins" ability triggers at step 5.7.1d, before the Runner
+ * takes its first action (5.7.1f), so the run costs no click: it comes before the click-by-click budget. It is made the
+ * way the Runner AI answers the prompt (prompts.ts: runScore with the 2-click bypass, its click given back, run when
+ * above 0); the bypass, when taken, spends 2 of the turn's clicks and its ice is passed (rule 6.5.8a). Only for the
+ * Runner's next turn: on its own turn the turn has begun.
+ */
+function alarmClockRun(state: GameState, view: GameState, memory: RunnerMemory, wary: boolean): { score: number; success: number; after: GameState } | null {
+  if (!plan().alarmClockThreat || state.activePlayer === 'runner' || !view.corp.servers.hq) return null;
+  if (!view.runner.rig.hardware.some(card => card.cardCode === ALARM_CLOCK)) return null;
+  const options: RunOptions = { alarmClock: true, memory, wary };
+  const score = runScore(view, 'hq', options) + runClick(view);
+  if (!(score > 0)) return null;
+  const bypassed = runBypasses(view, 'hq', options);
+  const clicks = bypassed.ids.size > runBypasses(view, 'hq', { memory, wary }).ids.size ? 2 : 0;
+  const spent = runCreditSpend(view, 'hq', options);
+  const after: GameState = {
+    ...view,
+    runner: { ...view.runner, clicks: view.runner.clicks - clicks, credits: Math.max(0, view.runner.credits - spent) },
+    runsThisTurn: [...view.runsThisTurn, { server: 'hq', successful: true } as GameState['runsThisTurn'][number]],
+  };
+  return { score, success: runSuccessBypassing(state, 'hq', bypassed.ids), after };
 }
 
 /**

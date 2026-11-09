@@ -86,11 +86,11 @@ export interface Case {
   options?: RunOptions;
 }
 
-/** The ice of `serverId` as the Corp prices it: with plan.reachStrength its own unrezzed ice as the real ice when its rez budget covers it by then (rule 3.4.3a: rezzed on approach), else passed. */
-function knownIce(state: GameState, serverId: string, t: number): CardInstance[] {
+/** The ice of `serverId` as the Corp prices it (also effectValues ownIce, plan.ownIceKnown, `always`): with plan.reachStrength its own unrezzed ice as the real ice when its rez budget covers it by then (rule 3.4.3a: rezzed on approach), else passed. */
+export function knownIce(state: GameState, serverId: string, t: number, always = false): CardInstance[] {
   const server = state.corp.servers[serverId];
   if (!server) return [];
-  if (!plan().reachStrength) return server.ice;
+  if (!always && !plan().reachStrength) return server.ice;
   const budget = rezBudget(state);
   return server.ice.flatMap(ice => {
     if (ice.isRezzed) return [ice];
