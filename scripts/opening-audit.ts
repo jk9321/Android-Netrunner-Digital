@@ -280,8 +280,8 @@ export class OpeningTracker {
    * in its root, ice on it and that ice rezzed or affordable: an upgrade can share the root with an agenda, rule 8.5.6a,
    * an asset is trashed by the install, so a remote holding one is counted apart). Otherwise the missing thing:
    * 'installed agenda, unsafe' (one is out, none in HQ, its server run since and its ice not holdable) | 'no agenda in HQ'
-   * | 'no remote' | 'remote holds an asset' | 'remote empty, no ice' | 'ice not holdable' | 'other' (e.g. every iced
-   * remote already holds an agenda).
+   * | 'no remote' | 'remote holds an asset' (iced, holdable) | 'remote empty, no ice' | 'ice not holdable' | 'bare remote
+   * holds an asset' | 'iced remotes hold agendas' | 'other'.
    */
   supplyAt(s: GameState, k: number): [number, string, number, number, number, number] {
     const remotes = Object.values(s.corp.servers).filter(sv => sv.isRemote);
@@ -297,6 +297,8 @@ export class OpeningTracker {
     if (iced.some(sv => hasAsset(sv) && holdable(s, sv))) return row('remote holds an asset');
     if (free.some(sv => sv.ice.length === 0 && !hasAsset(sv))) return row('remote empty, no ice');
     if (iced.length) return row('ice not holdable');
+    if (free.some(sv => sv.ice.length === 0 && hasAsset(sv))) return row('bare remote holds an asset');
+    if (remotes.some(sv => sv.ice.length > 0)) return row('iced remotes hold agendas');
     return row('other');
   }
 
