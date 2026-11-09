@@ -387,8 +387,11 @@ export const tuning = {
      * regression to the mean, which is the same noise again (it flipped deal 1491 T1). replyContenders, the same on every
      * decision with a gap of 4 and the rest re-admitted, read -0.6 ± 2.2.
      * PARKED OFF (2026-11-09): -4.2 ± 1.8 vs searchLines ON (run 42697176557 vs 42681282303, games=3), stayed broke
-     * +2.9, remote steals 558 -> 625, 0 hold flips: it only re-sorts close candidates. Unverified reading: four-sample
-     * means are pulled by rare losing samples, so close calls get decided by tail risk instead of the line.
+     * +2.9, remote steals 558 -> 625, 0 hold flips: it only re-sorts close candidates. More reply samples playing worse
+     * outside noise is a finding about the reply values, not only about S3: the leaf under the reply carried about 33
+     * points of flatline credit for damage the Corp can't deal on its own turn (plan.corpTurnDamageOwn, fixes thread),
+     * and extra samples settle close calls on such a term. Unverified reading: rare losing samples pull four-sample
+     * means. Re-measure once after corpTurnDamageOwn lands on beta, against #45 (tests/searchOpen45.test.ts).
      */
     searchSamples: false,
     /**

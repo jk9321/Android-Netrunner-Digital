@@ -67,7 +67,7 @@ const OFF_SWITCHES: Record<string, string> = {
   agendaPaidWhileStanding: 'Phase 2 O2: later advances charged by standing odds at the leaf; -1.2 +/- 1.2 (run 42562609024)',
   agendaLine: 'Phase 2 O2 v2: advances at the one click price; -0.8 +/- 1.6 (run 42623099845), riskier remote advances',
   advanceGuardPriced: 'Phase 2 O2b: +0.9 +/- 0.9 (run 42630827843) but reopens the half-advanced agenda hole (synergy.test)',
-  searchSamples: 'Phase 3 S3 (spec-search.md): PARKED OFF, -4.2 ± 1.8 vs searchLines ON (run 42697176557); re-sorts close candidates only',
+  searchSamples: 'Phase 3 S3 (spec-search.md): PARKED OFF, -4.2 ± 1.8 vs searchLines ON (run 42697176557); re-measure after corpTurnDamageOwn lands on beta, against #45',
 };
 
 /**
