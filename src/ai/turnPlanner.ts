@@ -365,13 +365,16 @@ export function planTurn(state: GameState, side: SideCode, ranked: ScoredAction[
     let best: { action: GameAction; value: number; line: Line } | null = null;
     const values: number[] = [];
     const scored: { action: GameAction; value: number; line: Line; ends: Ends }[] = [];
+    // A remote with ice and nothing in its root: an agenda can go in now (rule 8.5.6a)
+    const remoteReady = Object.values(state.corp.servers).some(sv => sv.isRemote && sv.ice.length > 0 && sv.root.length === 0);
     for (const c of candidates) {
       let line: Line = [];
       let ends: Ends = {};
       let value = playout(state, side, c.action, ai, synergy, line, ends);
       // plan.plannerHold (Phase 2 O, window supply): a continuation that installs an agenda is also played holding it,
-      // and the better of the two lines stands
-      if (side === 'corp' && plan().plannerHold && ends.installedAgenda && value > -Infinity) {
+      // and the better of the two lines stands. Only while no remote is ready for it at the decision: with one ready the
+      // hold kept agendas in HQ beside an open window (stuck in HQ, 'empty iced remote ready' 36 -> 63, run 42569400568)
+      if (side === 'corp' && plan().plannerHold && ends.installedAgenda && value > -Infinity && !remoteReady) {
         const heldLine: Line = [];
         const held: Ends = {};
         const heldValue = playout(state, side, c.action, ai, synergy, heldLine, held, true);
