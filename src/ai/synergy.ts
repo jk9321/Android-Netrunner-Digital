@@ -367,11 +367,14 @@ export const tuning = {
     /**
      * Phase 2 O (window supply, opening-audit/report.md; Corp only): the planner plays each candidate on with the rule
      * ranking, which installs an agenda whenever one can go in (installScore 8+), so "ice a new remote, then hold the
-     * agenda" was never played: at deal 1281 T1 it beat the pick by the leaf, yet the remote-ice line was scored with the
-     * agenda stuffed behind one unrezzed ice. A continuation that installs an agenda is also played holding every agenda
-     * this turn, and the better line stands (turnPlanner.ts planTurn); the mirror of plannerAgenda.
+     * agenda" was never played (deal 1491 T1, tests/plannerHold.test.ts). A continuation that installs an agenda is also
+     * played holding every agenda this turn, and the better line stands (turnPlanner.ts planTurn); the mirror of
+     * plannerAgenda. PARKED OFF (AI Coordinator 2026-11-09): +2.8 ± 1.0 at 10 games (run 42612102629 vs O4c), but the
+     * gain is defence through the leaf's low worth for an installed unscored agenda, not tempo: remote steals -25%, agenda
+     * stuck in HQ 16.6 -> 24.3 (most beside an open window), first score unchanged, +21% game time. Holding only while no
+     * remote is ready removed the gain (+0.5 ± 1.4, run 42612283883). Re-measure with O2 (the leaf's agenda worth).
      */
-    plannerHold: true,
+    plannerHold: false,
     /**
      * Phase 2 O2 (opening-audit/report.md; AI Coordinator call 2026-11-09: the leaf first, in the one place that prices an
      * installed unscored agenda): agendaWorth charges the advances still to go after this turn only by the odds the agenda
