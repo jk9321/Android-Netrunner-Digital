@@ -67,12 +67,16 @@ export function moneyKind(before: GameState, after: GameState): string {
   return 'other';
 }
 
-/** Why an HQ agenda may be waiting: the Corp is broke, has no iced remote, its iced remotes are all taken, or an empty iced remote stands ready. */
+/**
+ * Why an HQ agenda may be waiting: the Corp is broke, has no iced remote, its iced remotes are all taken (split since
+ * 2026-11-09: by an agenda being scored there, so the HQ agenda queues behind it, or by assets and upgrades), or an empty
+ * iced remote stands ready. The queue is remote supply, not a hold beside an open window (runner-games report, deal 2231).
+ */
 function stuckReason(s: GameState): string {
   if (s.corp.credits < 3) return 'broke (under 3 credits)';
   const iced = Object.values(s.corp.servers).filter(sv => sv.isRemote && sv.ice.length > 0);
   if (iced.length === 0) return 'no iced remote';
-  if (iced.every(sv => sv.root.length > 0)) return 'iced remotes taken';
+  if (iced.every(sv => sv.root.length > 0)) return iced.some(sv => sv.root.some(isAgenda)) ? 'queued behind a scoring remote' : 'iced remotes taken';
   return 'empty iced remote ready';
 }
 
