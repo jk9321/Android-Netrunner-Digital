@@ -23,9 +23,12 @@ function decision(t) {
     if (holdD && hold !== null) alt.push({ i, mode: 'hold', type, agenda, gain: hold - chosen, same: i === pick, overRule: rule === null ? Infinity : hold - rule });
     if (finishD && finish !== null) alt.push({ i, mode: 'finish', type, agenda, gain: finish - chosen, same: i === pick, overRule: rule === null ? Infinity : finish - rule });
   });
+  // The noise floor: any candidate's rule line, re-scored on two fresh reply deals, against the pick
+  const resamples = cands.map(c => c[7]).filter(v => v !== null && v !== undefined);
+  const nullGain = resamples.length ? Math.max(...resamples) - chosen : null;
   const best = alt.reduce((a, b) => (!a || b.gain > a.gain ? b : a), null);
   const sameBest = alt.filter(a => a.same).reduce((a, b) => (!a || b.overRule > a.overRule ? b : a), null);
-  return { kind, corpTurn, clicks, credits, chosen, pick, cands, ms, replyMs, extraMs, alt, best, sameBest, anyDistinct: alt.length > 0 };
+  return { kind, corpTurn, clicks, credits, chosen, pick, cands, ms, replyMs, extraMs, alt, best, sameBest, nullGain, anyDistinct: alt.length > 0 };
 }
 
 function block(label, ds) {
@@ -36,6 +39,10 @@ function block(label, ds) {
   const gains = ds.filter(d => d.best && d.best.gain > 0).map(d => d.best.gain);
   console.log(`  ${label} (${n} decisions): any distinct alt line ${pct(ds.filter(d => d.anyDistinct).length, n)}`);
   console.log(`    another continuation (any candidate) beats the pick by > ${MARGINS.join(' / ')}: ${MARGINS.map(m => pct(beats(m), n)).join(' / ')}; median gain when > 0: ${f1(median(gains))}`);
+  if (ds.some(d => d.nullGain !== null)) {
+    const nulls = m => ds.filter(d => d.nullGain !== null && d.nullGain > m).length;
+    console.log(`    noise floor: a candidate's rule line re-sampled (2 fresh reply deals) beats the pick by > ${MARGINS.join(' / ')}: ${MARGINS.map(m => pct(nulls(m), n)).join(' / ')}`);
+  }
   console.log(`    same first action, alt line beats its rule line by > ${MARGINS.join(' / ')}: ${MARGINS.map(m => pct(sameBeats(m), n)).join(' / ')}`);
   const winners = ds.filter(d => d.best && d.best.gain > 3).map(d => d.best);
   if (winners.length) {

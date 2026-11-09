@@ -46,5 +46,7 @@ describe('spec-search S1 continuation audit', () => {
     expect(row.chosen).toBeCloseTo(rules[row.pick], 5);
     // The hold line differs from the rule line exactly where the rule line installs the agenda; at deal 1491 one does
     expect(row.candidates.some(c => c.lines[1].distinct)).toBe(true);
-  });
+    // The noise floor: each live rule line re-scored on two fresh reply deals
+    expect(row.candidates.some(c => c.resample !== null)).toBe(true);
+  }, 30000);
 });

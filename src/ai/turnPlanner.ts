@@ -69,7 +69,7 @@ export interface SearchRow {
   /** The pick's value as the planner scored it, and the pick's index in `candidates` */
   chosen: number;
   pick: number;
-  candidates: { type: string; agenda: boolean; lines: SearchLine[] }[];
+  candidates: { type: string; agenda: boolean; lines: SearchLine[]; resample: number | null }[];
   /** Time of the decision as played (playouts and their replies), and the replies' share of it */
   ms: number;
   replyMs: number;
@@ -509,7 +509,7 @@ function auditSearch(
   state: GameState,
   side: SideCode,
   candidates: ScoredAction[],
-  scored: { action: GameAction; value: number; line: Line }[],
+  scored: { action: GameAction; value: number; line: Line; ends: Ends }[],
   best: { action: GameAction; value: number } | null,
   ai: PlannerAI,
   synergy: boolean,
@@ -526,9 +526,18 @@ function auditSearch(
     })();
     let ruleValue = scored[i]?.value ?? -Infinity;
     let ruleLine = scored[i]?.line ?? [];
+    let ruleEnds: Ends = scored[i]?.ends ?? {};
     if (plan().plannerHold) {
       ruleLine = [];
-      ruleValue = playout(state, side, c.action, ai, synergy, ruleLine);
+      ruleEnds = {};
+      ruleValue = playout(state, side, c.action, ai, synergy, ruleLine, ruleEnds);
+    }
+    // The noise floor: the same rule line scored on two fresh reply deals (samples 2-3, as plan.replyContenders plays them).
+    // An alternative line that "beats" the pick no more often than this re-sample does is the max of noise, not a better line.
+    let resample: number | null = null;
+    if (ai.reply && sampledReply() && Number.isFinite(ruleValue) && ruleEnds.state && !ruleEnds.state.winner) {
+      const leaf = (s: GameState) => leafValue(s, side, synergy);
+      resample = num(runnerReply(ruleEnds.state, synergy, leaf, { from: replySamples(REPLY.samples), count: REPLY.samples }) + (ruleEnds.bonus ?? 0));
     }
     const ruleKey = lineKey(c.action, ruleLine);
     const lines: SearchLine[] = [{ mode: 'rule', value: num(ruleValue), distinct: false }];
@@ -537,7 +546,7 @@ function auditSearch(
       const v = playout(state, side, c.action, ai, synergy, l, {}, mode);
       lines.push({ mode, value: num(v), distinct: lineKey(c.action, l) !== ruleKey });
     }
-    return { type: c.action.type, agenda, lines };
+    return { type: c.action.type, agenda, lines, resample };
   });
   const pick = best ? candidates.findIndex(c => c.action === best.action) : -1;
   audit({
