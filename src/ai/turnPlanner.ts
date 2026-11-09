@@ -34,7 +34,51 @@ export const PLANNER = {
 };
 
 /** Diagnostics (scripts): plannerBuild's added candidates, how often one was played out and how often it won. */
-export const plannerStats: { decisions: number; withAdded: number; added: number; addedWins: number; holds?: number; held?: number; onAddedWin?: (state: GameState, action: GameAction) => void; onCandidates?: (side: SideCode, values: number[], actions: GameAction[]) => void } = { decisions: 0, withAdded: 0, added: 0, addedWins: 0 };
+export const plannerStats: {
+  decisions: number;
+  withAdded: number;
+  added: number;
+  addedWins: number;
+  holds?: number;
+  held?: number;
+  onAddedWin?: (state: GameState, action: GameAction) => void;
+  onCandidates?: (side: SideCode, values: number[], actions: GameAction[]) => void;
+  /** Spec-search S1 (measurement only): every Corp decision's continuations, read by scripts/search-audit.ts. */
+  onSearch?: (row: SearchRow) => void;
+} = { decisions: 0, withAdded: 0, added: 0, addedWins: 0 };
+
+/**
+ * How a playout continues after its first action. 'rule': the rule-based ranking's best each step. 'hold'
+ * (plan.plannerHold): the same, but no agenda is installed from HQ this turn. 'finish' (spec-search S1): an agenda
+ * score (rule 7.1.1, 1.17.3a) and then an advance on an installed agenda (rules 1.18.1, 5.2.6a) are taken before
+ * anything else the ranking allows, the rule ranking for the rest.
+ */
+export type LineMode = 'rule' | 'hold' | 'finish';
+
+/** One continuation of a candidate: its value (null: the first action failed) and whether its line differs from the rule line. */
+export interface SearchLine { mode: LineMode; value: number | null; distinct: boolean }
+
+/** Spec-search S1: one Corp planner decision, the candidate the planner picked and every candidate's continuations. */
+export interface SearchRow {
+  /** 'installed': an agenda installed and unscored; 'hq': agenda(s) in HQ only; 'neither' */
+  kind: 'installed' | 'hq' | 'neither';
+  /** state.turnNumber (both sides' turns counted) */
+  turn: number;
+  clicks: number;
+  credits: number;
+  /** The pick's value as the planner scored it, and the pick's index in `candidates` */
+  chosen: number;
+  pick: number;
+  candidates: { type: string; agenda: boolean; lines: SearchLine[] }[];
+  /** Time of the decision as played (playouts and their replies), and the replies' share of it */
+  ms: number;
+  replyMs: number;
+  /** Time of the measurement's extra lines (not part of play) */
+  extraMs: number;
+}
+
+/** Time spent in the Runner reply (ms, process total): S1's time split. */
+export const searchClock = { replyMs: 0 };
 
 export interface PlannerAI {
   /** Main-phase actions, best first (the rule-based ranking). */
@@ -114,11 +158,25 @@ type Ends = { state?: GameState; bonus?: number; installedAgenda?: boolean };
 const agendaInstall = (state: GameState, action: GameAction): boolean =>
   action.type === 'INSTALL_CARD' && state.corp.hq.some(c => c.instanceId === action.cardInstanceId && cardDef(c).type_code === 'agenda');
 
+/** An installed agenda's id, when `action` advances one (rules 1.18.1, 5.2.6a). */
+const advancesAgenda = (state: GameState, action: GameAction): boolean => {
+  if (action.type !== 'ADVANCE_CARD') return false;
+  const card = findCardAnywhere(state, action.cardInstanceId);
+  return !!card && cardDef(card).type_code === 'agenda';
+};
+
+/** The first action the 'finish' line takes, if any: a score, else an advance on an installed agenda, best-ranked first. */
+function finishStep(state: GameState, ranked: ScoredAction[]): ScoredAction | undefined {
+  const open = ranked.filter(r => r.score > -Infinity);
+  return open.find(r => r.action.type === 'SCORE_AGENDA') ?? open.find(r => advancesAgenda(state, r.action));
+}
+
 /**
- * Plays `side`'s turn on from `state` after `first`, and returns how good the end of the turn is. `hold`
- * (plan.plannerHold): the continuation installs no agenda from HQ this turn.
+ * Plays `side`'s turn on from `state` after `first`, and returns how good the end of the turn is. `mode` (LineMode):
+ * how the continuation picks its actions ('hold', plan.plannerHold: it installs no agenda from HQ this turn).
  */
-function playout(start: GameState, side: SideCode, first: GameAction, ai: PlannerAI, synergy: boolean, line: Line = [], ends?: Ends, hold = false): number {
+function playout(start: GameState, side: SideCode, first: GameAction, ai: PlannerAI, synergy: boolean, line: Line = [], ends?: Ends, mode: LineMode = 'rule'): number {
+  const hold = mode === 'hold';
   let bonus = 0;
   let ran = false;
   /** The position before the last main-phase action, and the card it used: where a run event's run is priced from. */
@@ -191,7 +249,9 @@ function playout(start: GameState, side: SideCode, first: GameAction, ai: Planne
     if (outOfClicks && !(side === 'corp')) break;
     const now = state;
     const ranked = ai.rank(now);
-    const best = ranked.find(r => r.score > -Infinity && r.action.type !== 'END_TURN' && (!outOfClicks || r.action.type === 'SCORE_AGENDA') && !(ran && r.action.type === 'INITIATE_RUN') && !dominated(now, r.action, ranked, side) && !(hold && agendaInstall(now, r.action)));
+    const ruled = ranked.find(r => r.score > -Infinity && r.action.type !== 'END_TURN' && (!outOfClicks || r.action.type === 'SCORE_AGENDA') && !(ran && r.action.type === 'INITIATE_RUN') && !dominated(now, r.action, ranked, side) && !(hold && agendaInstall(now, r.action)));
+    const finish = mode === 'finish' && side === 'corp' ? finishStep(now, ranked) : undefined;
+    const best = finish && (!outOfClicks || finish.action.type === 'SCORE_AGENDA') ? finish : ruled;
     if (!best) break;
     if (ends && agendaInstall(now, best.action)) ends.installedAgenda = true;
     if (!ran) line.push({ key: positionKey(state, side), action: best.action }); // after a run the position can't be foreseen
@@ -205,7 +265,13 @@ function playout(start: GameState, side: SideCode, first: GameAction, ai: Planne
     ends.state = state;
     ends.bonus = bonus;
   }
-  return (ai.reply && !state.winner ? ai.reply(state, leaf) : leaf(state)) + bonus;
+  if (ai.reply && !state.winner) {
+    const t = performance.now();
+    const replied = ai.reply(state, leaf);
+    searchClock.replyMs += performance.now() - t;
+    return replied + bonus;
+  }
+  return leaf(state) + bonus;
 }
 
 /**
@@ -361,6 +427,9 @@ export function planTurn(state: GameState, side: SideCode, ranked: ScoredAction[
   }
   // The hands stay as seen when the decision started (frozen); plan.plannerSeed: one seed for every playout of this decision
   const decisionSeed = searchPiece('plannerSeed') ? (turnSeed(state) ^ Math.imul(clicksOf(state, side) + 1, 0x85ebca6b)) >>> 0 : pricing().decisionSeed;
+  const audit = side === 'corp' ? plannerStats.onSearch : undefined;
+  const started = performance.now();
+  const replyBefore = searchClock.replyMs;
   return withPricing({ frozen: true, decisionSeed }, () => {
     let best: { action: GameAction; value: number; line: Line } | null = null;
     const values: number[] = [];
@@ -374,7 +443,7 @@ export function planTurn(state: GameState, side: SideCode, ranked: ScoredAction[
       if (side === 'corp' && plan().plannerHold && ends.installedAgenda && value > -Infinity) {
         const heldLine: Line = [];
         const held: Ends = {};
-        const heldValue = playout(state, side, c.action, ai, synergy, heldLine, held, true);
+        const heldValue = playout(state, side, c.action, ai, synergy, heldLine, held, 'hold');
         plannerStats.holds = (plannerStats.holds ?? 0) + 1;
         if (heldValue > value) {
           plannerStats.held = (plannerStats.held ?? 0) + 1;
@@ -387,6 +456,7 @@ export function planTurn(state: GameState, side: SideCode, ranked: ScoredAction[
     }
     if (side === 'corp' && plan().replyContenders && ai.reply && sampledReply()) best = contenders(scored, side, synergy) ?? best;
     plannerStats.onCandidates?.(side, values, candidates.map(c => c.action));
+    if (audit) auditSearch(audit, state, side, candidates, scored, best, ai, synergy, performance.now() - started, searchClock.replyMs - replyBefore);
     if (!best || best.value === -Infinity) return null;
     if (added.some(a => a.action === best!.action)) {
       plannerStats.addedWins++;
@@ -417,6 +487,71 @@ function contenders<T extends { action: GameAction; value: number; line: Line; e
   // A candidate outside the two (a won game, or one the extra samples can't change) keeps its value
   const rest = scored.filter(r => !top.some(t => t.action === r.action));
   return [...top, ...rest].reduce((a, b) => (b.value > a.value ? b : a));
+}
+
+/** The Corp's agenda situation at a decision (spec-search S1 kinds). */
+export function agendaKind(state: GameState): SearchRow['kind'] {
+  const installed = Object.values(state.corp.servers).some(s => s.root.some(c => cardDef(c).type_code === 'agenda'));
+  if (installed) return 'installed';
+  return state.corp.hq.some(c => cardDef(c).type_code === 'agenda') ? 'hq' : 'neither';
+}
+
+const lineKey = (first: GameAction, line: Line) => JSON.stringify([first, ...line.map(l => l.action)]);
+
+/**
+ * Spec-search S1 (measurement only, plannerStats.onSearch): every candidate of a Corp decision also played on the hold
+ * and the finish-first lines, after the pick is made, so play is unchanged (the pick, its line and the plan memory come
+ * from the shipped search). The rule line is the one already played; with plan.plannerHold on, `scored` holds the better
+ * of rule and hold, so the rule line is played again here (it is deterministic: the decision's seed is fixed).
+ */
+function auditSearch(
+  audit: (row: SearchRow) => void,
+  state: GameState,
+  side: SideCode,
+  candidates: ScoredAction[],
+  scored: { action: GameAction; value: number; line: Line }[],
+  best: { action: GameAction; value: number } | null,
+  ai: PlannerAI,
+  synergy: boolean,
+  ms: number,
+  replyMs: number
+): void {
+  const t = performance.now();
+  const num = (v: number) => (Number.isFinite(v) ? Math.round(v * 100) / 100 : null);
+  const rows = candidates.map((c, i) => {
+    const agenda = (() => {
+      const id = 'cardInstanceId' in c.action ? c.action.cardInstanceId : undefined;
+      const card = id ? findCardAnywhere(state, id) : undefined;
+      return !!card && cardDef(card).type_code === 'agenda';
+    })();
+    let ruleValue = scored[i]?.value ?? -Infinity;
+    let ruleLine = scored[i]?.line ?? [];
+    if (plan().plannerHold) {
+      ruleLine = [];
+      ruleValue = playout(state, side, c.action, ai, synergy, ruleLine);
+    }
+    const ruleKey = lineKey(c.action, ruleLine);
+    const lines: SearchLine[] = [{ mode: 'rule', value: num(ruleValue), distinct: false }];
+    for (const mode of ['hold', 'finish'] as const) {
+      const l: Line = [];
+      const v = playout(state, side, c.action, ai, synergy, l, {}, mode);
+      lines.push({ mode, value: num(v), distinct: lineKey(c.action, l) !== ruleKey });
+    }
+    return { type: c.action.type, agenda, lines };
+  });
+  const pick = best ? candidates.findIndex(c => c.action === best.action) : -1;
+  audit({
+    kind: agendaKind(state),
+    turn: state.turnNumber,
+    clicks: clicksOf(state, side),
+    credits: state.corp.credits,
+    chosen: num(best?.value ?? -Infinity) ?? -1e9,
+    pick,
+    candidates: rows,
+    ms: Math.round(ms),
+    replyMs: Math.round(replyMs),
+    extraMs: Math.round(performance.now() - t),
+  });
 }
 
 const sameAction = (a: GameAction, b: GameAction): boolean => JSON.stringify(a) === JSON.stringify(b);
