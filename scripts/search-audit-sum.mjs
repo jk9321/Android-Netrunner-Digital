@@ -42,6 +42,10 @@ function block(label, ds) {
   if (ds.some(d => d.nullGain !== null)) {
     const nulls = m => ds.filter(d => d.nullGain !== null && d.nullGain > m).length;
     console.log(`    noise floor: a candidate's rule line re-sampled (2 fresh reply deals) beats the pick by > ${MARGINS.join(' / ')}: ${MARGINS.map(m => pct(nulls(m), n)).join(' / ')}`);
+    // Net of the noise (AI Coordinator 2026-11-09): an alt line counts only where it beats the pick by more than the
+    // re-sample's own gain over the pick at that decision (0 when the re-sample is lower), plus the margin
+    const net = m => ds.filter(d => d.best && d.nullGain !== null && d.best.gain > Math.max(0, d.nullGain) + m).length;
+    console.log(`    net of the noise floor: alt line beats the pick by more than the re-sample's gain + ${MARGINS.join(' / ')}: ${MARGINS.map(m => pct(net(m), n)).join(' / ')}`);
   }
   console.log(`    same first action, alt line beats its rule line by > ${MARGINS.join(' / ')}: ${MARGINS.map(m => pct(sameBeats(m), n)).join(' / ')}`);
   const winners = ds.filter(d => d.best && d.best.gain > 3).map(d => d.best);
