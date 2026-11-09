@@ -1,0 +1,77 @@
+# The game server (multiplayer phase 2, chunk 2b)
+
+A second Cloudflare Worker owns every online game. The browser never talks to
+it directly: the site Worker forwards `/api/games/*` to it through a service
+binding, so the page only ever calls its own origin (no CORS, no second domain).
+
+| Worker | Config | Built from | Used by |
+| --- | --- | --- | --- |
+| `netrunner-games` | `wrangler.games.jsonc` | `main` | `stackheap.run`, `android-netrunner-digital.jk9321.workers.dev` |
+| `netrunner-games-staging` | `wrangler.games.staging.jsonc` | `beta` | the beta preview and every branch preview |
+
+Both have `workers_dev: false` and `preview_urls: false`: they have no public
+URL, only the site's bindings reach them (`GAMES`, `GAMES_STAGING` in
+`wrangler.jsonc`; `server/forward.ts` picks by hostname). This matters: the
+game Worker's internal report route returns the real state of a finished game.
+
+## Code
+
+| File | What |
+| --- | --- |
+| `src/net/protocol.ts` | Message and HTTP types, room codes, `parseClientMessage`, fixed error wording. Shared with the 2c client. |
+| `src/core/table.ts` | `TableCore`: real state, held choice, moves, both id maps. Shared by `LocalTable` (`src/ui/table.ts`) and the room. |
+| `server/room.ts` | `RoomCore`: the room's logic with no Cloudflare types (runs under vitest). `settledFor`, `checkDeck`. |
+| `server/gameRoom.ts` | `GameRoom`, the Durable Object (SQLite-backed): storage, sockets (Hibernation API), alarm. |
+| `server/index.ts` | The game Worker's router: create (rate-limited), join, lobby, socket, internal report. |
+| `server/forward.ts` | The site Worker's forwarding and the online bug report. |
+| `server/tokens.ts` | Seat tokens (only SHA-256 hashes stored), room codes, seeds. |
+| `server/cf.ts` | The few Workers runtime types used (instead of `@cloudflare/workers-types`, which clashes with the DOM types). |
+
+## Protocol
+
+HTTP (all JSON):
+
+- `POST /api/games` `{ side, deck: { identity, cards }, format, visibility?: 'invite', playerId? }` -> 201 `{ code, seat, token }`. Startup and Standard use `validateDeck`; Casual only with a System Gateway starter deck as it comes (rules 1.4.1a). 5 per minute per address.
+- `POST /api/games/:code/join` `{ deck, playerId? }` -> `{ seat, token }`; 404 unknown, 409 full, 422 `{ reasons }` illegal for the host's format. The game starts at once.
+- `GET /api/games/:code` -> `{ code, format, hostSide, hostIdentity, open, over, build, protocol }` (never the decklist).
+- `POST /api/games/:code/report?token=` `{ description, screen, version, website? }` -> 204 or an error status, no body (see Bug reports).
+- Lookups, joins and socket connects: 30 per minute per address.
+
+WebSocket `GET /api/games/:code/ws?token=`:
+
+- Server: `hello { seat, build, protocol }`, `state { seq, view, legal, waitingOn, held }`, `opponent { connected }`, `error { code, message }`, `over { winner, reason }`, `pong`.
+- Client: `act { seq, action }` (viewer ids), `cancel { seq }`, `ping` (answered by the runtime without waking the room).
+
+No free-text field anywhere (no names, no chat). A seat is `playerId` plus token.
+
+## What each seat is sent
+
+- **seq is per seat**: it counts the states sent to that seat. An `act` must carry the latest one (`SET_STOPS` and `CONCEDE` need not). A global move counter would tell each seat how many moves the other made between its states.
+- **The mover** gets its new state at once, unless its move led into a decision of the other side's inside an R&D access (below); then at the next settled point.
+- **The other seat** gets a state only at a settled point, and only if what it would be sent changed.
+- **Settled** for a viewer (`settledFor` in `server/room.ts`): the game waits on the viewer, or on nobody, or the decision it waits on is not inside the access of a card from R&D. "Inside the access of a card from R&D": the card most recently accessed this run was not accessed in Archives and is still in R&D (once stolen or trashed, where it went is public). This is audit finding LEAK-ACCESS-PAUSE (rules 4.2.2, 7.1.2): whether the Runner has something to decide about an R&D card says what the card is. At ALL stops every R&D access pauses (chunk 2a), so the sequence is the same anyway; at AUTO/NONE the Corp hears a move later when the Runner had something to decide, a timing tell only (accepted by Jeff for AUTO).
+- **A held choice** (`uncommitted.ts`) is shown to its player only. Answering commits the action and the answer as one move; cancel sends nothing to the other seat. If the other seat changes its stops meanwhile, the stops go on the committed state and the choice is worked out again on top (dropped if it can no longer be held).
+- **Errors** are fixed wording (`SOCKET_ERROR_TEXT`); the engine's text is logged on the server only.
+- **Reconnect**: `hello`, then the state the seat was last sent (and `over` if the game ended). A second socket on a seat closes the first (code 4000).
+
+## Storage and lifetime
+
+Three values per room, written together after every change and before anything is sent: `meta` (seats, token hashes, decks, format, build, seq and last-sent hashes, both id maps, the held action, result), `state` (the real `GameState`) and `moves`. The held choice is stored as its action and worked out again on load. Measured in the 200-game fuzz: see the hand-off (late-game state about 55-66 KB, moves under 40 KB, meta a few KB).
+
+Alarm: 7 days after the last move, or 1 day after the game ended, the room deletes itself. A state that no longer loads after a deploy ends the game as a draw (`over { winner: null, reason: 'server update' }`).
+
+## Bug reports
+
+The room's attachment never reaches the browser: the site Worker asks the game Worker (`/internal/games/:code/report`), builds the report and files it through `worker/bugReport.ts` as usual. Issues go to a public repository, so **while the game is on, the attachment is the reporter's own view and the move count only**; the real state and moves are attached once the game is over. (Attaching the real state mid-game would let a player read the opponent's hand from the issue.)
+
+## Checks
+
+- `tests/room.test.ts`: create, join, illegal decks, full room, stale seq, wrong seat, reconnect, held choice and cancel, concede, game over, lifetime, broken state, generic errors, settled points.
+- `scripts/room-fuzz.ts` (library `scripts/leak-check-room.ts`, short version `tests/roomFuzz.test.ts`): two clients play through `RoomCore`; every message is leak-checked, seq and settled rules checked, snapshots reloaded, and the twin check runs at the message level (stops at ALL; odd seeds with the Runner at AUTO compare message sequences, Corp blind, R&D pairs).
+- Dry runs: `npx wrangler deploy --dry-run -c wrangler.games.jsonc` (and `.staging.jsonc`), and of the site with the bindings.
+
+## Cloudflare setup (once)
+
+See the hand-off for the steps sent to Jeff. In short: two new Workers from the same repository, each with its own deploy command (`-c wrangler.games.jsonc` / `-c wrangler.games.staging.jsonc`), production branch `main` / `beta`, no builds for other branches. The site's bindings go in only after the Workers exist, because the site's deploy needs them.
+
+`BUILD_ID`: the deploy command passes the commit (`--var BUILD_ID:$WORKERS_CI_COMMIT_SHA`); without it the build id is `dev`. Chunk 2c compares it with the page's build to ask for a refresh.
