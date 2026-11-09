@@ -387,6 +387,13 @@ export const tuning = {
      */
     agendaPaidWhileStanding: false,
     /**
+     * Phase 2 O2 v2 (opening-audit/report.md; Corp only): an installed or held agenda's advances are charged at the one
+     * click price (valueModel CLICK) plus their credit, not AGENDA_CLICK 2 (evaluate.ts agendaWorth): at 2 a click and 8
+     * a point, a 1-point agenda read worth less than the advances that score it even with no steal risk, and held agendas
+     * are floored at 0, so holding beat installing (deal 1491 T1: Superconducting Hub installed -5.7, held 0). Rules: advancing is a click and 1 credit (5.2.6f).
+     */
+    agendaLine: true,
+    /**
      * Phase 2 O2b (opening-audit/report.md; Corp only): an advance the timing guard rules out (it can't be scoreable next
      * turn, nothing guards it, or its server is exposed) is priced ADVANCE_GUARD_PENALTY below the advance it would be,
      * instead of -Infinity, so the planner can play it out and the leaf decide (corpAI.ts advanceScore). Rules: installed
@@ -488,7 +495,7 @@ export const tuning = {
  */
 export const sideOff: Record<SideCode, string[]> = {
   corp: [],
-  runner: ['tagTrashNow', 'ownTrashRisk', 'hqTrashCost', 'oneCurrency', 'threatModel', 'measuredPass', 'threatSpend', 'calibratedRun', 'raceClock', 'iceProtects', 'replyContenders', 'plannerAgenda', 'clearinghouseRez', 'plannerHold', 'agendaPaidWhileStanding', 'advanceGuardPriced', 'scoreBudget', 'oracle', 'reach', 'reachStrength', 'reachTime', 'threatKey', 'threatKeyPricing'],
+  runner: ['tagTrashNow', 'ownTrashRisk', 'hqTrashCost', 'oneCurrency', 'threatModel', 'measuredPass', 'threatSpend', 'calibratedRun', 'raceClock', 'iceProtects', 'replyContenders', 'plannerAgenda', 'clearinghouseRez', 'plannerHold', 'agendaPaidWhileStanding', 'agendaLine', 'advanceGuardPriced', 'scoreBudget', 'oracle', 'reach', 'reachStrength', 'reachTime', 'threatKey', 'threatKeyPricing'],
 };
 
 /**

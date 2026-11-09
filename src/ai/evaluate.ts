@@ -323,7 +323,10 @@ export function agendaWorth(
     : raceOn('tempo') && runnerTurns > 0 ? runnerTurns * Math.min(1, points / 2) * tempoProgress(state) : 0;
   // plan.agendaClicks (Jeff's Corp game 2, bug report #18): the clicks still needed are clicks a later turn can't spend
   // building; priced at the flat click rate, building now and scoring next turn always beat scoring now and building next
-  const click = AGENDA_CLICK;
+  // plan.agendaLine (Phase 2 O2 v2): the advance's click at the one click price (valueModel CLICK, 1.25), not
+  // AGENDA_CLICK 2: at 2 a safe 1-point agenda (8) costs more to score than it is worth (3 x 3 = 9), so the leaf read
+  // every 1-pointer, and any agenda with steal risk, better held in HQ (floored at 0) than installed
+  const click = plan().agendaLine ? CLICK : AGENDA_CLICK;
   // plan.oneCurrency (review of item 1): a steal is not only the Corp's points lost but the Runner's points won (rule
   // 1.17.3: the Runner adds a stolen agenda to its score area), on the Runner's clock: evaluate is mine minus theirs, so
   // an agenda the Runner may take next turn is charged that chance of its point gain. The old install gates (exposureOk,
