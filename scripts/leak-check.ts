@@ -34,7 +34,7 @@ export interface LeakFailure {
   seed: number;
   step: number;
   viewer: SideCode;
-  check: 'hidden-card' | 'hidden-code' | 'hidden-title' | 'view-id-shape' | 'internal' | 'ids' | 'round-trip' | 'purity' | 'crash' | 'recon' | 'seat';
+  check: 'hidden-card' | 'hidden-code' | 'hidden-title' | 'view-id-shape' | 'internal' | 'ids' | 'round-trip' | 'purity' | 'crash' | 'recon' | 'seat' | 'twin';
   detail: string;
   /** JSON path in the view where it appeared. */
   path?: string;
@@ -52,8 +52,13 @@ export const titleOf = (code: string): string => {
 
 const withHosted = (list: CardInstance[]): CardInstance[] => list.flatMap(c => [c, ...withHosted(c.hostedCards ?? [])]);
 
-/** Cards hidden from `side` now (rules 4.2.2, 4.3.2, 4.4.6c, 4.6.2), and codes it may see now. */
-function visibility(state: GameState, side: SideCode): { hidden: CardInstance[]; hiddenIds: Set<string>; allowed: Set<string> } {
+/**
+ * What `side` may see now. `hidden`: cards in zones hidden from it (rules 4.2.2, 4.3.2, 4.4.6c, 4.6.3)
+ * that it has not been shown. `shownIds`: hidden-zone cards it is shown or knows by instance (its
+ * prompts, what it remembers of the other hand or R&D). `allowed`: codes it may see in the view now;
+ * per code only where the allowance comes from text (a log line, a prompt's wording) or an open card.
+ */
+export function visibility(state: GameState, side: SideCode): { hidden: CardInstance[]; hiddenIds: Set<string>; shownIds: Set<string>; allowed: Set<string>; textCodes: Set<string>; openCodes: Set<string> } {
   const c = state.corp;
   const r = state.runner;
   const hidden: CardInstance[] = [...c.rd, ...r.stack];
@@ -66,38 +71,44 @@ function visibility(state: GameState, side: SideCode): { hidden: CardInstance[];
     open.push(...r.grip, ...installed.filter(x => x.isRezzed || x.faceUp || x.runnerKnows));
     hidden.push(...c.hq, ...c.archives.faceDown, ...installed.filter(x => !(x.isRezzed || x.faceUp || x.runnerKnows)));
   }
-  const allowed = new Set(withHosted(open).map(x => x.cardCode));
+  const openCodes = new Set(withHosted(open).map(x => x.cardCode));
+  const allowed = new Set(openCodes);
+  /** Codes allowed by text (log lines, prompt wording): these can't be tied to an instance. */
+  const textCodes = new Set<string>();
+  const shownIds = new Set<string>();
   // Hosted faceup cards show whatever the host is (4.6.3)
-  for (const x of hidden) for (const h of withHosted(x.hostedCards ?? [])) allowed.add(h.cardCode);
-  // What the side remembers: cards seen in the other hand, the Runner's R&D knowledge
-  for (const k of (side === 'corp' ? r.knownToCorp : c.knownToRunner) ?? []) allowed.add(k.code);
-  if (side === 'runner') for (const k of c.rdKnownToRunner ?? []) allowed.add(k.code);
+  for (const x of hidden) for (const h of withHosted(x.hostedCards ?? [])) shownIds.add(h.instanceId);
+  // What the side remembers, by instance: cards seen in the other hand, the Runner's R&D knowledge
+  for (const k of (side === 'corp' ? r.knownToCorp : c.knownToRunner) ?? []) shownIds.add(k.id);
+  if (side === 'runner') for (const k of c.rdKnownToRunner ?? []) shownIds.add(k.id);
   // The side's own prompts may show it cards from hidden zones (the top of R&D, the card being accessed)
   const all = new Map(withHosted([...hidden, ...open, ...installed]).map(x => [x.instanceId, x]));
   for (const p of state.pendingPrompts) {
     if (p.side !== side) continue;
     const text = JSON.stringify(p);
-    for (const id of text.match(/inst-\d+/g) ?? []) {
-      const card = all.get(id);
-      if (card) allowed.add(card.cardCode);
-    }
+    for (const id of text.match(/inst-\d+/g) ?? []) if (all.has(id)) shownIds.add(id);
     for (const x of all.values()) {
       const t = titleOf(x.cardCode);
-      if (t && text.includes(t)) allowed.add(x.cardCode);
+      if (t && text.includes(t)) textCodes.add(x.cardCode);
     }
-    if ('source' in p) allowed.add(p.source.cardCode);
+    if ('source' in p) {
+      if (p.source.instanceId && all.has(p.source.instanceId)) shownIds.add(p.source.instanceId);
+      else textCodes.add(p.source.cardCode);
+    }
   }
   // Cards revealed to both players (rules 1.21.3): a log line that says so, or an R&D access that is revealed (Byte!)
   for (const e of state.log) {
     // A line kept from the other side was written for this one (the Runner looking at the top of R&D)
-    if (e.secret && e.secret.from !== side && e.cardCode) allowed.add(e.cardCode);
+    if (e.secret && e.secret.from !== side && e.cardCode) textCodes.add(e.cardCode);
     if (e.secret) continue;
-    if (e.event === 'access' && e.cardCode && getCardScript(e.cardCode)?.revealedOnRdAccess) allowed.add(e.cardCode);
-    if (/\breveal/i.test(e.message)) for (const x of all.values()) if (titleOf(x.cardCode) && e.message.includes(titleOf(x.cardCode))) allowed.add(x.cardCode);
+    if (e.event === 'access' && e.cardCode && getCardScript(e.cardCode)?.revealedOnRdAccess) textCodes.add(e.cardCode);
+    if (/\breveal/i.test(e.message)) for (const x of all.values()) if (titleOf(x.cardCode) && e.message.includes(titleOf(x.cardCode))) textCodes.add(x.cardCode);
   }
-  // Instance level: hosted faceup cards on a hidden card show with it (4.6.3), the rest are hidden as cards
   const hiddenIds = new Set(hidden.map(x => x.instanceId));
-  return { hidden: withHosted(hidden).filter(x => !allowed.has(x.cardCode)), hiddenIds, allowed };
+  // A card shown by instance lets its code appear (the view can't say which copy a code means)
+  for (const x of withHosted(hidden)) if (shownIds.has(x.instanceId)) allowed.add(x.cardCode);
+  for (const code of textCodes) allowed.add(code);
+  return { hidden: withHosted(hidden).filter(x => !shownIds.has(x.instanceId) && !allowed.has(x.cardCode)), hiddenIds, shownIds, allowed, textCodes, openCodes };
 }
 
 /** Every path in `value` whose string contains `needle` (or whose key is `needle`). */
@@ -142,8 +153,10 @@ export const escape = (s: string) => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 /** Follows one game, checking both views after each action. */
 export class LeakChecker {
   ids: Record<SideCode, ViewIds> = { corp: newViewIds(), runner: newViewIds() };
-  /** Codes each side has legitimately seen so far this game. */
+  /** Codes each side has seen in text or an open place so far this game: per code, as text names no copy. */
   seen: Record<SideCode, Set<string>> = { corp: new Set(), runner: new Set() };
+  /** Cards each side has been shown so far this game (prompts, knowledge), per instance. */
+  seenIds: Record<SideCode, Set<string>> = { corp: new Set(), runner: new Set() };
   /** The viewer id each real card had when last in sight, and whether it was in sight at the last step. */
   last: Record<SideCode, Map<string, { vid: string; inSight: boolean }>> = { corp: new Map(), runner: new Map() };
   /** Viewer ids ever handed out, to the real card they named. */
@@ -182,7 +195,7 @@ export class LeakChecker {
       }
 
       // 1. No hidden card's code or title, unless seen before
-      const { hidden, hiddenIds, allowed } = visibility(state, side);
+      const { hidden, hiddenIds, shownIds, textCodes, openCodes } = visibility(state, side);
       // 1a. Instance level: no card object with a face may be a card hidden from this side now (prompts may show them)
       for (const [path, obj] of cardObjects(view)) {
         if (path.startsWith('$.pendingPrompts')) continue;
@@ -190,8 +203,13 @@ export class LeakChecker {
         if (real === undefined) this.fail(step, side, 'ids', `${obj.instanceId} not in the id map`, path);
         else if (obj.cardCode !== undefined && hiddenIds.has(real)) this.fail(step, side, 'hidden-card', `${obj.cardCode} ${titleOf(obj.cardCode)} is in a zone hidden from ${side}`, path);
       }
-      for (const code of allowed) this.seen[side].add(code);
-      const leaked = new Set(hidden.map(x => x.cardCode).filter(code => !this.seen[side].has(code)));
+      // Codes seen in text or in an open place stay allowed (old log lines name them); cards shown in a hidden place, per instance
+      for (const code of [...textCodes, ...openCodes]) this.seen[side].add(code);
+      for (const id of shownIds) this.seenIds[side].add(id);
+      const unseen = (x: CardInstance) => !this.seenIds[side].has(x.instanceId) && !this.seen[side].has(x.cardCode);
+      // A code some copy of which was shown may appear: the view can't tie a code to a copy
+      const shownCodes = new Set(withHosted([...state.corp.rd, ...state.corp.hq, ...state.runner.grip, ...state.runner.stack, ...state.corp.archives.faceDown, ...Object.values(state.corp.servers).flatMap(s => [...s.ice, ...s.root])]).filter(x => this.seenIds[side].has(x.instanceId)).map(x => x.cardCode));
+      const leaked = new Set(hidden.filter(unseen).map(x => x.cardCode).filter(code => !shownCodes.has(code)));
       for (const code of leaked) {
         if (json.includes(`"${code}"`)) this.fail(step, side, 'hidden-code', `${code} ${titleOf(code)}`, findPaths(view, s => s === code)[0]);
         const title = titleOf(code);
@@ -203,8 +221,7 @@ export class LeakChecker {
       }
 
       if (this.recon) {
-        const leakedCodes = new Set(hidden.map(x => x.cardCode).filter(code => !this.seen[side].has(code)));
-        this.prevRecon[side] = reconChecks(this, { state, side, view, ids, hiddenIds, leakedCodes, step, prev: this.prevRecon[side] });
+        this.prevRecon[side] = reconChecks(this, { state, side, view, ids, hiddenIds, leakedCodes: leaked, step, prev: this.prevRecon[side] });
       }
 
       // 3. Ids: one card per id, ids never reused, a card back from out of sight gets a new id
