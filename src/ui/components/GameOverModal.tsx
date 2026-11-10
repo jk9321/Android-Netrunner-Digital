@@ -5,14 +5,18 @@ import { RotateCcw, LayoutGrid, Eye } from 'lucide-react';
 import { FloatingPanel } from './FloatingPanel';
 
 interface GameOverModalProps {
-  winner: SideCode;
+  /** Null: the game ended with no winner (online: the server could no longer read the game). */
+  winner: SideCode | null;
   reason: string | null | undefined;
   corpScore: number;
   runnerScore: number;
   /** Set when one side is the computer: says "You win" or "You lose". */
   humanSide: SideCode | null;
-  onRematch: () => void;
+  /** Not offered online (no rematch yet). */
+  onRematch?: () => void;
   onDeckSelect: () => void;
+  /** The deck-select button's label (online: back to the start screen). */
+  deckSelectLabel?: string;
   /** Collapsed to a bar so the final board shows ("Look at the final board" or the minimize button). */
   minimized: boolean;
   onMinimizedChange: (minimized: boolean) => void;
@@ -27,11 +31,12 @@ export const GameOverModal: React.FC<GameOverModalProps> = ({
   humanSide,
   onRematch,
   onDeckSelect,
+  deckSelectLabel = 'Back to deck selection',
   minimized,
   onMinimizedChange,
 }) => {
   const isCorp = winner === 'corp';
-  const title = humanSide ? (humanSide === winner ? 'YOU WIN' : 'YOU LOSE') : `${isCorp ? 'CORP' : 'RUNNER'} WINS`;
+  const title = !winner ? 'NO WINNER' : humanSide ? (humanSide === winner ? 'YOU WIN' : 'YOU LOSE') : `${isCorp ? 'CORP' : 'RUNNER'} WINS`;
   return createPortal(
     <FloatingPanel
       testId="game-over"
@@ -75,7 +80,7 @@ export const GameOverModal: React.FC<GameOverModalProps> = ({
         >
           {title}
         </h2>
-        {humanSide && <p className="text-xs text-slate-400 mb-1">The {isCorp ? 'Corp' : 'Runner'} wins.</p>}
+        {humanSide && winner && <p className="text-xs text-slate-400 mb-1">The {isCorp ? 'Corp' : 'Runner'} wins.</p>}
         {reason && <p className="text-sm text-slate-200 mb-4">{reason}</p>}
         <div className="flex items-center justify-center gap-4 text-sm font-bold mb-6">
           <span className="text-cyan-300">Corp {corpScore}</span>
@@ -83,20 +88,21 @@ export const GameOverModal: React.FC<GameOverModalProps> = ({
           <span className="text-pink-300">Runner {runnerScore}</span>
         </div>
         <div className="flex flex-col gap-2">
-          <button
+          {onRematch && <button
             onClick={onRematch}
             autoFocus
             data-testid="rematch"
             className="w-full px-5 py-3 bg-gradient-to-b from-amber-400 to-amber-500 hover:from-amber-300 hover:to-amber-400 text-black font-bold rounded-[2px] border-b-2 border-amber-700 text-sm flex items-center justify-center gap-2 active:translate-y-[1px] active:border-b-[1px]"
           >
             <RotateCcw className="w-4 h-4" /> Play again (same decks)
-          </button>
+          </button>}
           <button
             onClick={onDeckSelect}
+            autoFocus={!onRematch}
             data-testid="deck-select"
             className="w-full px-5 py-2.5 bg-slate-800 hover:bg-slate-700 text-slate-100 font-bold rounded-[2px] border border-slate-700 border-b-2 border-b-slate-600 text-sm flex items-center justify-center gap-2 active:translate-y-[1px] active:border-b-[1px]"
           >
-            <LayoutGrid className="w-4 h-4" /> Back to deck selection
+            <LayoutGrid className="w-4 h-4" /> {deckSelectLabel}
           </button>
           <button
             onClick={() => onMinimizedChange(true)}

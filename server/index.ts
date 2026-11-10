@@ -13,7 +13,7 @@
  *
  * One Durable Object per game (GameRoom, server/gameRoom.ts), by idFromName(code).
  */
-import { PLAYER_ID, PROTOCOL_VERSION, parseRoomCode } from '../src/net/protocol';
+import { PLAYER_ID, parseRoomCode } from '../src/net/protocol';
 import type { CreateGameRequest, CreateGameResponse, HttpError, JoinGameRequest, JoinGameResponse } from '../src/net/protocol';
 import type { CreateInput, JoinInput } from './room';
 import type { DurableObjectNamespace, RateLimiter } from './cf';
@@ -124,6 +124,3 @@ export default {
     });
   },
 };
-
-/** For tests: the protocol version this Worker speaks. */
-export const SERVER_PROTOCOL = PROTOCOL_VERSION;

@@ -349,9 +349,11 @@ describe('Concede, the end and lifetime (spec rules 7 and 8)', () => {
     const r = lastState(room, 'runner');
     expect(r.waitingOn).toBe('corp');
     const res = room.receive('runner', { type: 'act', seq: r.seq, action: { type: 'CONCEDE', player: 'runner' } }, 9000);
-    expect(res.out.filter(o => o.msg.type === 'over')).toEqual([
-      { to: 'corp', msg: { type: 'over', winner: 'corp', reason: 'Runner conceded' } },
-      { to: 'runner', msg: { type: 'over', winner: 'corp', reason: 'Runner conceded' } },
+    // Chunk 2d: a concession ends the game like any other end, so both seats get the final table (rule 1.7.1)
+    const final = room.realState!;
+    expect(res.out.filter(o => o.msg.type === 'over').map(o => ({ to: o.to, msg: o.msg }))).toEqual([
+      { to: 'corp', msg: { type: 'over', winner: 'corp', reason: 'Runner conceded', final } },
+      { to: 'runner', msg: { type: 'over', winner: 'corp', reason: 'Runner conceded', final } },
     ]);
     expect(statesTo(res.out, 'corp')).toHaveLength(1);
     expect(room.lobby()).toMatchObject({ over: true, open: false });
@@ -377,6 +379,87 @@ describe('Concede, the end and lifetime (spec rules 7 and 8)', () => {
     expect(broken.meta.over).toEqual({ winner: null, reason: 'server update' });
     expect(broken.connect('runner')).toEqual([{ type: 'hello', seat: 'runner', build: 'test', protocol: 1 }, { type: 'over', winner: null, reason: 'server update' }]);
     expect(broken.errors[0]).toMatch(/load failed/);
+  });
+});
+
+/** Every message of a game played out with random legal moves (no conceding), in the order sent. */
+function playOut(seed: number, maxMoves = 4000): { room: RoomCore; sent: Outbox } {
+  const { room, out } = started();
+  const sent: Outbox = [...out];
+  let x = seed;
+  const rand = (n: number) => {
+    x = (Math.imul(x, 1103515245) + 12345) >>> 0;
+    return (x >>> 8) % n;
+  };
+  for (let i = 0; i < maxMoves && !room.meta.over; i++) {
+    const side = (['corp', 'runner'] as SideCode[]).find(s => lastState(room, s).waitingOn === s && lastState(room, s).legal.length > 0);
+    if (!side) break;
+    const s = lastState(room, side);
+    const legal = s.legal.filter(a => a.type !== 'CONCEDE' && a.type !== 'SET_STOPS');
+    const busy = legal.filter(a => a.type !== 'END_TURN' && a.type !== 'PASS');
+    const pool = busy.length > 0 && rand(4) > 0 ? busy : legal;
+    sent.push(...room.receive(side, { type: 'act', seq: s.seq, action: pool[rand(pool.length)] }, 3000 + i).out);
+  }
+  return { room, sent };
+}
+
+describe('The final table (chunk 2d; rule 1.7.1)', () => {
+  it('a game won at the table sends both seats the whole final state with `over`, and no message before it carries one', () => {
+    const { room, sent } = playOut(11);
+    expect(room.meta.over?.winner).toBeTruthy();
+    expect(room.meta.over?.reason).not.toMatch(/conceded/);
+    const firstOver = sent.findIndex(o => o.msg.type === 'over');
+    expect(firstOver).toBeGreaterThan(0);
+    // Nothing before the end carries the real state, by key or by its JSON
+    for (const o of sent.slice(0, firstOver)) {
+      expect('final' in o.msg).toBe(false);
+      expect(o.text ?? JSON.stringify(o.msg)).not.toContain('"final"');
+    }
+    const overs = sent.slice(firstOver);
+    expect(overs.map(o => [o.to, o.msg.type])).toEqual([
+      ['corp', 'over'],
+      ['runner', 'over'],
+    ]);
+    for (const o of overs) {
+      expect(o.msg).toEqual({ type: 'over', ...room.meta.over, final: room.realState });
+      // Sent as JSON, and the JSON reads back as the same state (both hands, R&D, everything)
+      expect(JSON.parse(o.text!)).toEqual(JSON.parse(JSON.stringify(o.msg)));
+    }
+    const final = (overs[0].msg as ServerMessage & { type: 'over' }).final!;
+    expect(final.winner).toBe(room.meta.over!.winner);
+    expect(final.corp.hq.length + final.runner.grip.length).toBeGreaterThan(0);
+  });
+
+  it('a reconnect to a finished room, live or reloaded from storage, gets the final table again', () => {
+    const { room } = started();
+    pastMulligans(room);
+    room.receive('corp', { type: 'act', seq: lastState(room, 'corp').seq, action: { type: 'CONCEDE', player: 'corp' } }, 9000);
+    const final = room.realState!;
+    for (const r of [room, RoomCore.load(JSON.parse(JSON.stringify(room.snapshot())) as RoomSnapshot, 10_000)]) {
+      for (const side of ['corp', 'runner'] as SideCode[]) {
+        const msgs = r.connect(side);
+        expect(msgs.map(m => m.type)).toEqual(['hello', 'state', 'over']);
+        expect(msgs[2]).toEqual({ type: 'over', winner: 'runner', reason: 'Corp conceded', final: JSON.parse(JSON.stringify(final)) });
+      }
+    }
+  });
+
+  it('not for a game the room could not read ("server update": nothing trustworthy to show)', () => {
+    const { room } = started();
+    const snap = structuredClone(room.snapshot());
+    (snap.state as unknown as Record<string, unknown>).corp = null;
+    const broken = RoomCore.load(snap, 7000);
+    const over = broken.connect('corp').find(m => m.type === 'over')!;
+    expect(over).toEqual({ type: 'over', winner: null, reason: 'server update' });
+    expect('final' in over).toBe(false);
+  });
+
+  it('bug reports are unchanged by it', () => {
+    const { room } = started();
+    pastMulligans(room);
+    room.receive('runner', { type: 'act', seq: lastState(room, 'runner').seq, action: { type: 'CONCEDE', player: 'runner' } }, 9000);
+    expect(room.reportFor('corp')).toMatchObject({ full: true, state: room.realState, over: { winner: 'corp', reason: 'Runner conceded' } });
+    expect(Object.keys(room.reportFor('corp')).sort()).toEqual(['build', 'code', 'decks', 'format', 'full', 'moveCount', 'moves', 'over', 'seat', 'seed', 'state', 'view']);
   });
 });
 

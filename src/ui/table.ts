@@ -7,13 +7,15 @@
  * state, because nothing is secret there (open table is for testing and is
  * never offered online).
  *
- * This is the only file under src/ui that runs the engine
- * (tests/uiBoundary.test.ts). The computer (AIClient) keeps receiving the
- * full state, exactly as before. No React here: the controller
- * (useGameController.ts) subscribes and draws.
+ * The only file under src/ui that runs the engine on a real state
+ * (tests/uiBoundary.test.ts; seatLegality.ts runs the own-side probes on a
+ * reconstruction). The computer (AIClient) keeps receiving the full state,
+ * exactly as before. No React here: the controller (useGameController.ts)
+ * subscribes and draws.
  *
- * Phase 2 swaps the seat for one fed by the game server: `legal` comes in
- * with each view, and `can` keeps the same own-side probes.
+ * Online, the seat comes from the game server instead (src/net/client.ts,
+ * OnlineTable): `legal` comes in with each view, and `can` uses the same
+ * own-side probes (seatLegality.ts).
  */
 import {
   GameAction,
@@ -26,7 +28,6 @@ import {
   actingSide,
   TableCore,
   createInitialGameState,
-  executeAction,
   getLegalActions,
   isLegalAction,
   stateFromView,
@@ -39,92 +40,13 @@ import type { AIClient } from '../ai/client';
 import { rezCandidates } from '../ai/playout';
 import type { Viewer } from './viewer';
 import { installedCardsGained, installedCardsLost, isInstallAction, replacementMessage } from './installReplacements';
+import { Seat, probeReason, seatCan, seatReason } from './seatLegality';
+
+export type { Seat } from './seatLegality';
+// scripts/leak-check-recon.ts reads these from here
+export { isProbeAction, seatCan } from './seatLegality';
 
 const SIDES: SideCode[] = ['corp', 'runner'];
-
-/** One viewer's place at the table. */
-export interface Seat {
-  side: Viewer;
-  /** The viewer's view; null on the open table. */
-  view: GameView | null;
-  /** stateFromView(view), or the real state for 'both' (and once the game is over). */
-  state: GameState;
-  /** The viewer's legal actions in their ids; [] when the viewer is not acting. On the open table, both sides'. */
-  legal: GameAction[];
-  /** Who the game is waiting on (public). */
-  waitingOn: SideCode | null;
-  /** Is this action (in the viewer's ids) legal now? From `legal`, plus own-side probes (seatCan). */
-  can(action: GameAction): boolean;
-  /** Why an action is not possible now, for a tooltip; null if it is. */
-  reason(action: GameAction): string | null;
-  act(action: GameAction): Promise<void>;
-  /** Drops a held (uncommitted) choice. */
-  cancel?(): void;
-}
-
-// --- Legality without the real state (the part phase 2 keeps) ---------------------
-
-/** A canonical form of an action for comparison: keys sorted, undefined left out, id sets sorted. */
-function canonical(action: GameAction): string {
-  const norm = structuredClone(action) as GameAction;
-  if (norm.type === 'RESOLVE_PROMPT' && 'cardInstanceIds' in norm.choice) norm.choice.cardInstanceIds = [...norm.choice.cardInstanceIds].sort();
-  return JSON.stringify(norm, (_k, v: unknown) =>
-    v && typeof v === 'object' && !Array.isArray(v)
-      ? Object.fromEntries(Object.entries(v as Record<string, unknown>).filter(([, x]) => x !== undefined).sort(([a], [b]) => (a < b ? -1 : a > b ? 1 : 0)))
-      : v,
-  );
-}
-
-export const sameAction = (a: GameAction, b: GameAction) => canonical(a) === canonical(b);
-
-/**
- * Own-side actions the legal list can't spell out, checked against the
- * viewer's own reconstruction: installs that trash cards first or go onto a
- * host (any subset of installed cards, rules 8.5.6), and prompt answers that
- * trash first. Everything they read is the viewer's own side.
- */
-export function isProbeAction(action: GameAction): boolean {
-  if (action.type === 'INSTALL_CARD') return !!action.trashFirst?.length || action.hostInstanceId !== undefined;
-  if (action.type === 'RESOLVE_PROMPT') return 'trashFirst' in action.choice && !!action.choice.trashFirst?.length;
-  return false;
-}
-
-/**
- * "Any number of cards" prompts list at most 256 answers (legalActions.ts), so
- * a pick from the viewer's own prompt is checked against the prompt itself.
- */
-function validCardsAnswer(state: GameState, action: GameAction): boolean {
-  if (action.type !== 'RESOLVE_PROMPT' || action.choice.kind !== 'effect_cards' || action.choice.trashFirst?.length) return false;
-  const p = state.pendingPrompts[0];
-  if (!p || p.id !== action.promptId || p.kind !== 'effect_cards' || p.side !== action.player) return false;
-  const ids = action.choice.cardInstanceIds;
-  return new Set(ids).size === ids.length && ids.length >= p.min && ids.length <= p.max && ids.every(id => p.candidateIds.includes(id));
-}
-
-/** `can` for a seat that has only its view: the legal list, then the own-side probes on the reconstruction. */
-export function seatCan(legal: GameAction[], side: SideCode, state: GameState, action: GameAction): boolean {
-  if (action.player !== side) return false;
-  const key = canonical(action);
-  if (legal.some(a => canonical(a) === key)) return true;
-  if (legal.length === 0) return false;
-  if (validCardsAnswer(state, action)) return true;
-  if (!isProbeAction(action)) return false;
-  try {
-    return isLegalAction(state, action);
-  } catch {
-    return false;
-  }
-}
-
-/** The engine's reason, on the viewer's own reconstruction: display text only, never legality. */
-function probeReason(state: GameState, action: GameAction): string {
-  try {
-    executeAction(state, action);
-    return 'Not possible right now';
-  } catch (err) {
-    return err instanceof Error ? err.message : 'Not possible right now';
-  }
-}
 
 /** A new game's state (the table is the only place under src/ui that starts the engine). */
 export const newTableState = (setup: GameSetup): GameState => createInitialGameState(setup);
@@ -262,7 +184,7 @@ export class LocalTable {
       legal,
       waitingOn,
       can: a => seatCan(legal, side, state, a),
-      reason: a => (seatCan(legal, side, state, a) ? null : a.player === side ? probeReason(state, a) : 'Not your decision'),
+      reason: a => seatReason(legal, side, state, a),
       act: async a => {
         let engine: GameAction;
         try {

@@ -18,7 +18,7 @@ game Worker's internal report route returns the real state of a finished game.
 
 | File | What |
 | --- | --- |
-| `src/net/protocol.ts` | Message and HTTP types, room codes, `parseClientMessage`, fixed error wording. Shared with the 2c client. |
+| `src/net/protocol.ts` | Message and HTTP types, room codes, `parseClientMessage`, fixed error wording. Shared with the browser (`src/net/client.ts`, below). |
 | `src/core/table.ts` | `TableCore`: real state, held choice, moves, both id maps. Shared by `LocalTable` (`src/ui/table.ts`) and the room. |
 | `server/room.ts` | `RoomCore`: the room's logic with no Cloudflare types (runs under vitest). `settledFor`, `checkDeck`. |
 | `server/gameRoom.ts` | `GameRoom`, the Durable Object (SQLite-backed): storage, sockets (Hibernation API), alarm. |
@@ -39,7 +39,7 @@ HTTP (all JSON):
 
 WebSocket `GET /api/games/:code/ws?token=`:
 
-- Server: `hello { seat, build, protocol }`, `state { seq, view, legal, waitingOn, held }`, `opponent { connected }`, `error { code, message }`, `over { winner, reason }`, `pong`.
+- Server: `hello { seat, build, protocol }`, `state { seq, view, legal, waitingOn, held }`, `opponent { connected }`, `error { code, message }`, `over { winner, reason, final? }`, `pong`.
 - Client: `act { seq, action }` (viewer ids), `cancel { seq }`, `ping` (answered by the runtime without waking the room).
 
 No free-text field anywhere (no names, no chat). A seat is `playerId` plus token.
@@ -51,8 +51,9 @@ No free-text field anywhere (no names, no chat). A seat is `playerId` plus token
 - **The other seat** gets a state only at a settled point, and only if what it would be sent changed.
 - **Settled** for a viewer (`settledFor` in `server/room.ts`): the game waits on the viewer, or on nobody, or the decision it waits on is not inside the access of a card from R&D. "Inside the access of a card from R&D": the card most recently accessed this run was not accessed in Archives and is still in R&D (once stolen or trashed, where it went is public). This is audit finding LEAK-ACCESS-PAUSE (rules 4.2.2, 7.1.2): whether the Runner has something to decide about an R&D card says what the card is. At ALL stops every R&D access pauses (chunk 2a), so the sequence is the same anyway; at AUTO/NONE the Corp hears a move later when the Runner had something to decide, a timing tell only (accepted by Jeff for AUTO).
 - **A held choice** (`uncommitted.ts`) is shown to its player only. Answering commits the action and the answer as one move; cancel sends nothing to the other seat. If the other seat changes its stops meanwhile, the stops go on the committed state and the choice is worked out again on top (dropped if it can no longer be held).
+- **The final table** (chunk 2d): `over` carries `final`, the real `GameState` at the end, to both seats, once the game has a winner (a concession too). Rule 1.7.1 ends the game, so nothing is hidden any more: both hands, R&D, facedown cards, as a local game shows at its end. It is built from the stored `state` (no second copy) and serialised once for both seats; it is as big as the stored state (up to about 86 KB), one message per seat. Not sent for the "server update" draw (`winner: null`: the room could not read its game, so there is nothing trustworthy to show). No message before `over` carries it; the room fuzzer's leak check allows `over.final` and nothing else, and checks it is the real final state. The field is optional and additive, so `PROTOCOL_VERSION` stays 1: an older client ignores it, and a newer client on an older server (a branch preview against staging built from beta before this merged) gets no `final` and keeps the end screen it had.
 - **Errors** are fixed wording (`SOCKET_ERROR_TEXT`); the engine's text is logged on the server only.
-- **Reconnect**: `hello`, then the last state the seat was sent, exactly as sent and stored with the room (`last:corp`, `last:runner`), never the state as it is now: at an unsettled point that would show the withheld moment. Then `over` if the game ended. A second socket on a seat closes the first (code 4000).
+- **Reconnect**: `hello`, then the last state the seat was sent, exactly as sent and stored with the room (`last:corp`, `last:runner`), never the state as it is now: at an unsettled point that would show the withheld moment. Then `over` if the game ended (with `final`, as above). A second socket on a seat closes the first (code 4000).
 - **Client actions are rebuilt** (`sanitizeAction` in `src/net/protocol.ts`): known keys only, each value of a known shape (viewer ids, server ids, prompt and option ids, enums, bounded integers and lists); stops only `auto`, `full` or `none`. The room then accepts only what the seat was offered (its legal list), plus the own-side choices that list can't spell out, as on the local table: installs that trash first or go onto a host (8.5.6), a prompt answer that trashes first, an "any number of cards" answer to its own prompt. Cards discarded down to hand size and cards trashed first are a set: any order of an offered set is taken. So nothing a client sends reaches the other seat's view or the stored moves unchecked (no free text, no chat).
 
 ## Storage and lifetime
@@ -71,7 +72,7 @@ The room's attachment never reaches the browser: the site Worker asks the game W
 
 ## Checks
 
-- `tests/room.test.ts`: create, join, illegal decks, full room, stale seq, wrong seat, reconnect, held choice and cancel, concede, game over, lifetime, broken state, generic errors, settled points.
+- `tests/room.test.ts`: create, join, illegal decks, full room, stale seq, wrong seat, reconnect, held choice and cancel, concede, game over, lifetime, broken state, generic errors, settled points, the final table (sent with `over` for a win, a concession and a reconnect to a finished room; not for the "server update" draw; in no message before `over`).
 - `scripts/room-fuzz.ts` (library `scripts/leak-check-room.ts`, short version `tests/roomFuzz.test.ts`): two clients play through `RoomCore`; every message is leak-checked, seq and settled rules checked, snapshots reloaded, and the twin check runs at the message level (stops at ALL; odd seeds with the Runner at AUTO compare message sequences, Corp blind, R&D pairs).
 - Dry runs: `npx wrangler deploy --dry-run -c wrangler.games.jsonc` (and `.staging.jsonc`), and of the site with the bindings.
 
@@ -86,4 +87,25 @@ See the hand-off for the steps sent to Jeff. In short: two new Workers from the 
 
 Cloudflare shows the game Workers a note asking to update the name in `wrangler.jsonc`: it reads the root file and ignores `-c`. Ignore it, and never merge an automatic PR that renames `wrangler.jsonc` (that is the site's Worker).
 
-`BUILD_ID`: the deploy command passes the commit (`--var BUILD_ID:$WORKERS_CI_COMMIT_SHA`); without it the build id is `dev`. Chunk 2c compares it with the page's build to ask for a refresh.
+`BUILD_ID`: the deploy command passes the commit (`--var BUILD_ID:$WORKERS_CI_COMMIT_SHA`); without it the build id is `dev`. The browser compares `protocol`, not the build (branch previews talk to staging built from beta), to ask for a refresh.
+
+## The browser side (chunk 2c)
+
+| File | What |
+| --- | --- |
+| `src/net/client.ts` | `OnlineTable`: one seat fed by the room's socket (what `LocalTable` gives the controller), reconnects, keep-alive, the saved session and player id. No React, no engine. |
+| `src/net/lobby.ts` | Host, look up and join (`/api/games`), with fixed wording for each failure; `onlineDeckProblems` (the server's own `checkDeck`); invite links. |
+| `src/ui/seatLegality.ts` | The seat's legality without the real state (`seatCan`, `seatReason`), shared by the local and the online table. |
+| `src/ui/useOnlineController.ts` | The online game's controller, the same shape as `useGameController`; both use `src/ui/controllerShared.ts`. |
+| `src/ui/components/OnlineScreens.tsx` | The host's waiting room and the notices (open somewhere else, room gone, new version). |
+
+- **Start screen** (`DeckPicker`): how to play first (computer, pass and play, online), then that choice's settings, then only the decks it needs. Online decks not legal in the game's format are greyed out with the reasons on hover.
+- **Invite link**: `/play/K7QM-2X` opens Join with the code filled in and looked up (the site serves the app for unknown paths). The address goes back to `/` when the person leaves Join or the game starts. The link and the address bar never carry the token.
+- **Session**: `{ code, seat, token }` under `netrunner.online` in localStorage (a reload or a closed tab resumes the game), cleared when the game ends or the player leaves; a random 22-character `playerId` under `netrunner.playerId`. Nothing else of an online game is stored in the browser.
+- **No optimistic updates**: after an action the seat offers nothing until the next `state` (or an error). `stale` and `not_your_turn` end or keep the wait quietly; `illegal` shows the fixed text.
+- **Reconnect**: 1, 2, 4, 8, then every 15 s. A socket refused before `hello` asks the lobby; a 404 means the room is gone; 4 refusals in a row while the lobby answers 200 for the room (a token it no longer knows; offline or a busy lobby counts nothing) stop the retries: "This browser is no longer seated at that game". 4000: "This game is open somewhere else" with Play here instead; leaving that notice keeps the saved session, which the playing tab of the same browser needs. The invite shows only to a host whose game has not started (`inviting` in the saved session, dropped at the first state); anyone else sees "Connecting to the game…" until the first state. 4001: the room is gone. A `hello` (or lobby) with another `protocol` asks for a refresh and sends nothing.
+- **The end**: on `over` with `final` the seat becomes the open table's seat (`side: 'both'`, `view: null`, the final state, nothing legal, `act` sends nothing) and the controller's viewer becomes `'both'`, so the screen opens up as a local game does at its end. The switch fires no move listener (the ids change from the player's view-local ones to the engine's, so a before-and-after would show cards moving that did not): no sounds, card showings or accesses for it; the selection and showings from before are cleared. Without `final` the end screen stays as it was.
+- **Stops**: the toggle sends `SET_STOPS` for the player's own side; on the first state the saved setting is sent once if the room has another.
+- **Bug reports**: `POST /api/games/:code/report?token=` with only the description, screen, version and the honeypot; the dialog says the whole game goes with it, both players' hidden cards included.
+
+**Local run on the Workers runtime**: `npm run test:e2e:online` builds the site and runs `wrangler dev -c wrangler.jsonc -c wrangler.games.staging.jsonc` (site and game Worker together, local SQLite Durable Object), then `e2e/online.workerd.ts` plays with two browsers: host, join by link, a turn each, a reload, concede. Wrangler is not a repo dependency (the Cloudflare builds bring their own): the config fetches `wrangler@4.155.0` with npx, or uses `$WRANGLER`. On its first run (2026-11-10) the local workerd refused to start the game Worker because its entry exported a constant, `SERVER_PROTOCOL` ("Incorrect type for map entry"; Cloudflare's own builds had accepted it). The constant was unused and is removed.

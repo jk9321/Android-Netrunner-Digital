@@ -166,3 +166,27 @@ export async function sendReport(payload: ReportPayload): Promise<string | null>
   if (response.ok && body.ok) return null;
   return body.error ?? 'The report could not be sent. Please try again later.';
 }
+
+/**
+ * An online game's report (multiplayer phase 2, chunk 2c): the browser has
+ * only its own view, so it sends the description and the room attaches the
+ * game (server/forward.ts): the whole game, both players' hidden cards
+ * included (Jeff, 2026-11-09). Resolves to true when it went through.
+ */
+export async function sendOnlineReport(
+  room: { code: string; token: string },
+  input: { description: string; website?: string },
+  f: (input: string, init?: RequestInit) => Promise<Response> = (i, init) => fetch(i, init),
+): Promise<boolean> {
+  const body = { description: input.description.trim().slice(0, MAX_DESCRIPTION), screen: 'game' as ReportScreen, version: appVersion(), website: input.website ?? '' };
+  try {
+    const res = await f(`/api/games/${room.code}/report?token=${encodeURIComponent(room.token)}`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body),
+    });
+    return res.ok;
+  } catch {
+    return false;
+  }
+}

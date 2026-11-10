@@ -12,7 +12,8 @@
     "lint": "eslint .",
     "typecheck": "tsc --noEmit",
     "sync-cards": "node scripts/sync-cards.mjs",
-    "test:e2e": "playwright test"
+    "test:e2e": "playwright test",
+    "test:e2e:online": "playwright test -c e2e/online.config.ts"
   },
   "dependencies": {
     "clsx": "^2.1.1",

@@ -1,21 +1,19 @@
 import { useEffect, useRef, useState, useSyncExternalStore } from 'react';
-import { GameAction, GameState, LogEntry, SideCode, StopLevel, isHidden } from '../core';
+import { GameAction, GameState, SideCode, StopLevel } from '../core';
 import { PersonStops, saveStops, savedStops } from './stops';
 import { AIClient } from '../ai/client';
 import { deckGameSetup } from '../data/decks';
 import { AccessedCard, GameConfig, SavedGame, clearSavedGame, saveGame } from './savedGame';
 import { noteMoves, noteState } from './bugReport';
-import { ShownFate } from './components/CardFates';
-import { cardFates } from './cardFates';
+import { autoContinueRun, autoStartTurn, nextAccessed, nextSelection, useCardFates } from './controllerShared';
 import { showAlert, showConfirm } from './components/Dialog';
 import { ViewMode, Viewer, canActAs, corpRezWindow } from './viewer';
 import { playForAction } from './sound';
 import { VIEW_MODE_KEY, savedViewMode } from './gameStart';
 import { LocalTable, TableMove, newTableState } from './table';
+import type { OnlineInfo } from './useOnlineController';
 
 const AI_DELAY_MS = 650;
-/** How long a stolen, scored or trashed card stays in the middle of the table. */
-const FATE_SHOW_MS = 1300;
 
 /** The game's stops: the computer's side where it always stops, the person's side(s) as they chose. */
 function withStops(state: GameState, aiSide: SideCode | null | undefined, level: PersonStops): GameState {
@@ -27,14 +25,6 @@ function withStops(state: GameState, aiSide: SideCode | null | undefined, level:
 type Accessed = Record<Viewer, AccessedCard[]>;
 const VIEWERS: Viewer[] = ['corp', 'runner', 'both'];
 const noAccesses = (): Accessed => ({ corp: [], runner: [], both: [] });
-
-/** Accesses in a viewer's log since the last move (an access they may not see has no code). */
-function newAccesses(prev: GameState, next: GameState): AccessedCard[] {
-  const seen = new Set(prev.log.map(e => e.id));
-  return next.log
-    .filter((e: LogEntry) => !seen.has(e.id) && e.event === 'access')
-    .map(e => (e.cardCode ? { code: e.cardCode } : {}));
-}
 
 /**
  * One game and the rules of the table around it: who is looking and who may
@@ -75,9 +65,7 @@ export function useGameController(config: GameConfig, saved: SavedGame | null) {
   // Cards the Runner accessed in the latest run, as each viewer saw them, shown until dismissed or the next run
   const [accessed, setAccessed] = useState<Accessed>(() => saved?.table.accessed ?? noAccesses());
   // Cards just stolen, scored or trashed, shown briefly in the middle of the table
-  const [fates, setFates] = useState<ShownFate[]>([]);
-  // Timers that end each card-fate showing, cleared if the game is left
-  const fateTimersRef = useRef(new Set<number>());
+  const { fates, showFates, clearFates } = useCardFates();
   const startStops = useRef(saved ? saved.table.startStops : table.state.stops).current;
   noteMoves(config.seed, table.moves, startStops);
   // Bumped to ask the computer again after it failed to move
@@ -134,9 +122,8 @@ export function useGameController(config: GameConfig, saved: SavedGame | null) {
   // neither belongs on the next viewer's screen
   useEffect(() => {
     setSelectedCardId(null);
-    setFates([]);
-    fateTimersRef.current.forEach(t => window.clearTimeout(t));
-    fateTimersRef.current.clear();
+    clearFates();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [viewer]);
 
   // The bug report sends the real state (the screen has only the viewer's view of it); noted after every
@@ -168,56 +155,22 @@ export function useGameController(config: GameConfig, saved: SavedGame | null) {
         playForAction(move.prev[hearing ?? 'both'], move.next[hearing ?? 'both'], hearing);
         setAccessed(cur => {
           const res = { ...cur };
-          for (const v of VIEWERS) {
-            const prev = move.prev[v];
-            const next = move.next[v];
-            const runStarted = !prev.activeRun && next.activeRun;
-            const found = newAccesses(prev, next);
-            if (runStarted || found.length > 0) res[v] = [...(runStarted ? [] : cur[v]), ...found];
-          }
+          for (const v of VIEWERS) res[v] = nextAccessed(cur[v], move.prev[v], move.next[v]) ?? cur[v];
           return res;
         });
         showFates(move.prev[who], move.next[who]);
-        // Keep the selected card across actions that leave it in hand (gaining credits, drawing),
-        // so the player can afford it and then play it; drop it once it leaves hand or the turn passes.
-        const prev = move.prev[who];
-        const next = move.next[who];
-        setSelectedCardId(id => {
-          if (!id || next.turnNumber !== prev.turnNumber || next.activePlayer !== prev.activePlayer) return null;
-          return [...next.corp.hq, ...next.runner.grip].some(c => c.instanceId === id) ? id : null;
-        });
+        setSelectedCardId(id => nextSelection(id, move.prev[who], move.next[who]));
       }),
     // eslint-disable-next-line react-hooks/exhaustive-deps
     [table],
   );
 
-  const showFates = (prev: GameState, next: GameState) => {
-    const found = cardFates(prev, next);
-    if (found.length === 0) return;
-    const stamp = Date.now();
-    const shown = found.map((f, i) => ({ ...f, key: `${f.card.instanceId}-${stamp}-${i}`, canSee: !isHidden(f.card) }));
-    setFates(cur => [...cur, ...shown]);
-    // Not cleared on the next change: each showing ends on its own timer
-    const timer = window.setTimeout(() => {
-      fateTimersRef.current.delete(timer);
-      const keys = new Set(shown.map(f => f.key));
-      setFates(cur => cur.filter(f => !keys.has(f.key)));
-    }, FATE_SHOW_MS);
-    fateTimersRef.current.add(timer);
-  };
-
-  useEffect(() => {
-    const timers = fateTimersRef.current;
-    return () => timers.forEach(t => window.clearTimeout(t));
-  }, []);
-
   // Before the Corp's turn begins the person stops only if they can rez, score or use something
   useEffect(() => {
     if (aiSide === 'corp' || table.winner) return;
     const corp = table.seatFor('corp');
-    const s = corp.state;
-    if (s.pendingPrompts.length > 0 || s.turnStep?.kind !== 'corp_turn_start') return;
-    if (corp.legal.length > 0 && corp.legal.every(a => a.type === 'START_TURN')) void corp.act({ type: 'START_TURN', player: 'corp' });
+    const start = autoStartTurn(corp);
+    if (start) void corp.act(start);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [version]);
 
@@ -226,11 +179,8 @@ export function useGameController(config: GameConfig, saved: SavedGame | null) {
   useEffect(() => {
     if (stops === 'full' || !runnerCanAct || handoffTo || table.winner || table.acting !== 'runner') return;
     const runner = table.seatFor('runner');
-    const s = runner.state;
-    const run = s.activeRun;
-    if (!run || s.pendingPrompts.length > 0) return;
-    if (run.phase === 'encounter_ice' || (run.phase === 'movement' && !s.priority)) return;
-    if (runner.legal.length === 1 && runner.legal[0].type === 'CONTINUE_RUN') void runner.act(runner.legal[0]);
+    const go = autoContinueRun(runner);
+    if (go) void runner.act(go);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [version]);
 
@@ -323,5 +273,10 @@ export function useGameController(config: GameConfig, saved: SavedGame | null) {
     corpCanAct,
     runnerCanAct,
     aiThinking,
+    /** Online games only (useOnlineController). */
+    online: null as OnlineInfo | null,
   };
 }
+
+/** What the game screen gets from either controller (useGameController here, useOnlineController online). */
+export type GameController = ReturnType<typeof useGameController>;

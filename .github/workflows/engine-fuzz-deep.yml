@@ -1,0 +1,81 @@
+name: Engine fuzz (deep)
+
+# Engine-invariant fuzzer, tier 3: the long run before each new card set merges and before beta merges to main.
+# Started by hand (Actions > Engine fuzz (deep) > Run workflow). Parallel jobs each play every jobs-th game
+# (SHARD) for the given minutes; seeds start at the seed input, so a deep run is repeatable. Each failing job
+# uploads engine-fuzz-failures-<job> with one fail-<seed>.json per failing game; reproduce with
+#   npx vite-node scripts/engine-fuzz-replay.ts -- fail-<seed>.json
+# The repo runs at most 20 Actions jobs at once, shared with the AI batches: keep jobs at 8 or fewer while a
+# batch is running.
+on:
+  workflow_dispatch:
+    inputs:
+      ref:
+        description: Branch or commit to fuzz
+        required: true
+        default: beta
+      jobs:
+        description: Parallel jobs (1-16)
+        required: true
+        default: '8'
+      minutes:
+        description: Minutes of play per job
+        required: true
+        default: '30'
+      ai:
+        description: Every N-th game is the Normal AI on both sides (0 = random moves only; an AI game takes about a minute, a random one well under a second)
+        required: true
+        default: '0'
+      seed:
+        description: First seed (a different block from the nightly runs, which start at day number x 100000)
+        required: true
+        default: '1000000000'
+
+permissions:
+  contents: read
+
+jobs:
+  plan:
+    runs-on: ubuntu-latest
+    outputs:
+      shards: ${{ steps.s.outputs.shards }}
+    steps:
+      - id: s
+        env:
+          JOBS: ${{ inputs.jobs }}
+        run: |
+          N=$(( JOBS ))
+          if [ "$N" -lt 1 ] || [ "$N" -gt 16 ]; then echo "jobs must be 1-16"; exit 1; fi
+          echo "shards=$(seq -s, 0 $((N - 1)) | sed 's/^/[/; s/$/]/')" >> "$GITHUB_OUTPUT"
+
+  fuzz:
+    needs: plan
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    strategy:
+      fail-fast: false
+      matrix:
+        shard: ${{ fromJSON(needs.plan.outputs.shards) }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.ref }}
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - name: Fuzz
+        env:
+          SHARD: ${{ matrix.shard }}/${{ inputs.jobs }}
+          SEED: ${{ inputs.seed }}
+          MINUTES: ${{ inputs.minutes }}
+          AI: ${{ inputs.ai }}
+        run: npx vite-node scripts/engine-fuzz.ts -- --seed "$SEED" --minutes "$MINUTES" --ai "$AI" --out engine-fuzz-out
+      - if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: engine-fuzz-failures-${{ matrix.shard }}
+          path: engine-fuzz-out/
+          if-no-files-found: ignore
+          retention-days: 30

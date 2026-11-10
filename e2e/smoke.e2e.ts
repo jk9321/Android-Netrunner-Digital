@@ -8,6 +8,7 @@ test('play against the computer and resume after a reload', async ({ page }) => 
   await page.route(/^https?:\/\/(?!localhost)/, route => route.abort());
 
   await page.goto('/');
+  await page.getByTestId('mode-computer').click();
   await page.getByTestId('opponent-ai-corp').click();
   await page.getByTestId('difficulty-normal').click();
   await page.getByTestId('start-game').click();
@@ -46,3 +47,33 @@ test('play against the computer and resume after a reload', async ({ page }) => 
 
   expect(errors).toEqual([]);
 });
+
+// The start screen asks how to play first, then shows only what that choice needs (chunk 2c)
+test('the start screen shows the settings and decks each way of playing needs', async ({ page }) => {
+  await page.route(/^https?:\/\/(?!localhost)/, route => route.abort());
+  await page.goto('/');
+  const columns = page.getByTestId('deck-columns');
+  await page.getByTestId('mode-computer').click();
+  await page.getByTestId('opponent-ai-corp').click();
+  await expect(columns.locator('h2')).toHaveText(["COMPUTER'S CORP DECK", 'YOUR RUNNER DECK']);
+  await expect(page.getByTestId('difficulty-normal')).toBeVisible();
+  await page.getByTestId('mode-hotseat').click();
+  await expect(columns.locator('h2')).toHaveText(['CORP DECK', 'RUNNER DECK']);
+  await expect(page.getByTestId('difficulty-normal')).toHaveCount(0);
+  await page.getByTestId('mode-online').click();
+  await page.getByTestId('online-host').click();
+  await page.getByTestId('host-side-runner').click();
+  await expect(columns.locator('h2')).toHaveText(['YOUR RUNNER DECK']);
+  await expect(page.getByTestId('create-game')).toBeVisible();
+  await page.getByTestId('online-join').click();
+  await expect(columns.locator('h2')).toHaveCount(0);
+  await expect(page.getByTestId('join-code')).toBeVisible();
+  // An invite link opens Join with the code filled in (the preview server has no game server: the lookup fails)
+  await page.goto('/play/K7QM-2X');
+  await expect(page.getByTestId('join-code')).toHaveValue('K7QM-2X');
+  await expect(page.getByTestId('online-error')).toBeVisible();
+  // Leaving Join puts the address back to /
+  await page.getByTestId('mode-computer').click();
+  await expect(page).toHaveURL(/\/$/);
+});
+

@@ -8,6 +8,7 @@ test('cancel an ability whose first step is choosing', async ({ page }) => {
   await page.route(/^https?:\/\/(?!localhost)/, route => route.abort());
 
   await page.goto('/');
+  await page.getByTestId('mode-computer').click();
   await page.getByTestId('opponent-ai-corp').click();
   await page.getByTestId('difficulty-normal').click();
   await page.getByTestId('start-game').click();
