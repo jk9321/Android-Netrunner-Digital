@@ -64,6 +64,7 @@ const OFF_SWITCHES: Record<string, string> = {
   'oracle.gripReply': 'measurement oracle (Phase 2 K0: grip in the Runner reply only), never a default',
   scoreBudget: 'Phase 2 E1: built off, batched against the Phase 2 base before any flip',
   calibratedRun: 'item 3 round 3: the threat read at measured hit rates; did not help (-9.9 vs -10.6), kept as measurement',
+  icePacingPriced: 'bug report #43: about -7 points through over-icing (batch 3 42715002281 vs batch 4 42720370875: went-broke +22, stayed-broke +14); off until the leaf prices the rezzes an ice install commits to',
   agendaLine: 'Phase 2 O2 v2: advances at the one click price; -0.8 +/- 1.6 (run 42623099845), riskier remote advances',
   advanceGuardPriced: 'Phase 2 O2b: +0.9 +/- 0.9 (run 42630827843) but reopens the half-advanced agenda hole (synergy.test)',
   searchSamples: 'Phase 3 S3 (spec-search.md): PARKED OFF, -4.2 ± 1.8 vs searchLines ON (run 42697176557); re-measure after corpTurnDamageOwn lands on beta, against #45',

@@ -124,9 +124,26 @@ describe('credits a broke Corp needs (Jeff, plan.moneyReach, agendaBudget, plann
       const st = { ...s, corp: { ...s.corp, clicks } };
       return new HeuristicCorpAI({ planner: false }).rankMainActions(st).some(r => r.action.type === 'REZ_CARD' && r.action.cardInstanceId === hr.instanceId && r.score > -Infinity);
     };
-    expect(rezzesHr(1)).toBe(false);
-    expect(rezzesHr(3)).toBe(true);
-  });
+    // plan.ownIceKnown (2026-11-09) pinned off for the one-step check: with it a credit no longer buys the Brân on empty
+    // Archives the rez budget won't fund, so using Humanoid Resources scores 2.06 against the free The Red Room rez's 2.15
+    // and rezToUse's "the use is the next best play" reads no; the turn still rezzes and uses it (below)
+    tuning.plan.ownIceKnown = false;
+    try {
+      expect(rezzesHr(1)).toBe(false);
+      expect(rezzesHr(3)).toBe(true);
+    } finally {
+      tuning.plan.ownIceKnown = true;
+    }
+    // The whole turn with it on: The Red Room, then Humanoid Resources rezzed and used
+    let t: GameState = { ...s, corp: { ...s.corp, clicks: 3 } };
+    const ai = new HeuristicCorpAI({ planner: false });
+    for (let i = 0; i < 6 && t.activePlayer === 'corp'; i++) {
+      const action = ai.chooseAction(t);
+      t = executeAction(t, action);
+      if (action.type === 'END_TURN') break;
+    }
+    expect([...t.corp.archives.faceUp, ...t.corp.archives.faceDown].some(c => c.instanceId === hr.instanceId)).toBe(true);
+  }, 60_000);
 });
 
 describe('Humanoid Resources is rezzed to be used (Jeff 2026-10-31: "it rezzes it but never seems to use it"; plan.rezToUse)', () => {

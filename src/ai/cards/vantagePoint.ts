@@ -241,6 +241,8 @@ export const VANTAGE_POINT: Record<string, CardAI> = {
   },
   // Esca
   '36038': {
+    // plan.corpTurnDamageOwn: on access only
+    corpTurnDamage: 0,
     synergy: { gives: { denial: 0.5, damage: 0.5 }, when: ['ifTagged'] },
     value: { keep: 1 }, // A credit and a net damage on a tagged Runner, on access
     // On access (about half the time), 1 credit off the Runner and 1 net damage if tagged
@@ -308,7 +310,7 @@ export const VANTAGE_POINT: Record<string, CardAI> = {
     },
   },
   // Sacrifice Zone Expansion
-  '36056': { synergy: { gives: { econ: 1, damage: 0.5 }, wants: { advance: 1 }, when: ['successfulRun'] } },
+  '36056': { corpTurnDamage: 0 /* plan.corpTurnDamageOwn: on the Runner's successful runs only */, synergy: { gives: { econ: 1, damage: 0.5 }, wants: { advance: 1 }, when: ['successfulRun'] } },
   // Luana Campos
   '36057': {
     synergy: { gives: { econ: 1.5, draw: 1 } },
@@ -344,6 +346,8 @@ export const VANTAGE_POINT: Record<string, CardAI> = {
   },
   // Shackleton Grid
   '36065': {
+    // plan.corpTurnDamageOwn: during a run against its server only
+    corpTurnDamage: 0,
     synergy: { gives: { damage: 1.5 } },
     value: { keep: 1.5, upgrade: [1.5, 1] }, // 4 meat damage when the Runner spends hosted credits
     // 4 meat damage when the Runner spends credits from outside its pool here

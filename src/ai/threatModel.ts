@@ -1,8 +1,8 @@
 import { CardInstance, GameState, cardDef, createRng, knownInHand, shuffleInPlace } from '../core';
 import { corpCardValue } from './evaluate';
-import { runSuccess } from './effectValues';
+import { runSuccess, runSuccessBypassing } from './effectValues';
 import { unseenInHand } from './handValues';
-import { BLOCK, RunOptions, RunnerMemory, iceCost, runClick, runCreditSpend, runScore, serverValue } from './runs';
+import { ALARM_CLOCK, BLOCK, RunOptions, RunnerMemory, iceCost, runBypasses, runClick, runCreditSpend, runScore, serverValue } from './runs';
 import { asSide, sideOff, tuning } from './synergy';
 import { fingerprint, memo, pointGain, sideCreditValue } from './valueModel';
 import { effectivePlan, plan, pricing, pricingKey, withPricing } from './pricing';
@@ -201,7 +201,7 @@ export function threat(state: GameState): Threat {
     const t0 = threatStats.timing ? performance.now() : 0;
     const key = threatKey(state);
     if (threatStats.timing) threatStats.keyMs += performance.now() - t0;
-    return remember(threatCache, key, () => {
+    return withRecord(remember(threatCache, key, () => {
       threatStats.budgeted++;
       if (threatStats.timing) countRepeats(key, state);
       const t1 = threatStats.timing ? performance.now() : 0;
@@ -217,8 +217,46 @@ export function threat(state: GameState): Threat {
           }
         }
       }
-    });
+    }));
   });
+}
+
+/**
+ * plan.runRecord (#34b, bug report #34: Jeff's Alarm Clock ran HQ every turn T8-T14 while the budget, our Runner AI's
+ * arithmetic, read HQ as never run). The threat is a model of our Runner; a human runs where it would not. So the runs
+ * the Runner actually made (public: it announces the attacked server, rules 6.1.2a, 6.9.1a), noted by the deciding Corp
+ * turn by turn (pricing().runRecord, corpAI noteRuns), are blended into each server's run chance: the share of its last
+ * RECORD.turns turns that ran the server, recent turns weighing more (RECORD.decay), scaled by the evidence (full at
+ * RECORD.full turns noted). Three straight HQ runs read as an HQ run next turn; one as a third of one. The budget's own
+ * read stands where it is higher. Corp only.
+ */
+export const RECORD = { turns: 4, decay: 0.6, full: 3 };
+
+/** The record's run chance for `serverId` (0 without a record or with the switch off). */
+export function recordRun(serverId: string): number {
+  const record = pricing().runRecord;
+  if (!plan().runRecord || !record?.length) return 0;
+  let weight = 1;
+  let all = 0;
+  let ran = 0;
+  for (const turn of record.slice(0, RECORD.turns)) {
+    all += weight;
+    if (turn.includes(serverId)) ran += weight;
+    weight *= RECORD.decay;
+  }
+  return (Math.min(1, record.length / RECORD.full) * ran) / all;
+}
+
+function withRecord(t: Threat): Threat {
+  if (!plan().runRecord || !pricing().runRecord?.length) return t;
+  let changed = false;
+  const servers: Record<string, ServerThreat> = {};
+  for (const [id, s] of Object.entries(t.servers)) {
+    const run = Math.max(s.run, recordRun(id));
+    if (run !== s.run) changed = true;
+    servers[id] = run === s.run ? s : { ...s, run };
+  }
+  return changed ? { ...t, servers } : t;
 }
 
 /**
@@ -264,6 +302,14 @@ function budgetTurn(state: GameState): Threat {
   // Nothing there for the Runner (an empty remote, an Archives with nothing to take): runScore can't rise above
   // -Infinity this turn (its breach worth is the same before any run), so it is not scored again each click
   for (const id of Object.keys(view.corp.servers)) if (!done.has(id) && serverValue(view, id, 0, memory, wary) <= 0) done.add(id);
+  // plan.alarmClockThreat: Alarm Clock's HQ run when the Runner's turn begins, before its first click
+  const alarm = done.has('hq') ? null : alarmClockRun(state, view, memory, wary);
+  if (alarm) {
+    servers.hq = { run: 1, score: alarm.score, success: alarm.success };
+    order.push('hq');
+    done.add('hq');
+    view = alarm.after;
+  }
   for (let step = 0; view.runner.clicks >= 1 && step < 8; step++) {
     const scored = Object.keys(view.corp.servers)
       .filter(id => !done.has(id))
@@ -293,6 +339,32 @@ function budgetTurn(state: GameState): Threat {
     };
   }
   return { servers, runs: order.length, order, endCredits: view.runner.credits };
+}
+
+/**
+ * plan.alarmClockThreat (bug report #34, Jeff's Runner game 2: HQ read as never run while Alarm Clock ran it every turn).
+ * Alarm Clock: "When your turn begins, you may run HQ. The first time you encounter a piece of ice during that run, you
+ * may spend [click][click] to bypass it." A "when your turn begins" ability triggers at step 5.7.1d, before the Runner
+ * takes its first action (5.7.1f), so the run costs no click: it comes before the click-by-click budget. It is made the
+ * way the Runner AI answers the prompt (prompts.ts: runScore with the 2-click bypass, its click given back, run when
+ * above 0); the bypass, when taken, spends 2 of the turn's clicks and its ice is passed (rule 6.5.8a). Only for the
+ * Runner's next turn: on its own turn the turn has begun.
+ */
+function alarmClockRun(state: GameState, view: GameState, memory: RunnerMemory, wary: boolean): { score: number; success: number; after: GameState } | null {
+  if (!plan().alarmClockThreat || state.activePlayer === 'runner' || !view.corp.servers.hq) return null;
+  if (!view.runner.rig.hardware.some(card => card.cardCode === ALARM_CLOCK)) return null;
+  const options: RunOptions = { alarmClock: true, memory, wary };
+  const score = runScore(view, 'hq', options) + runClick(view);
+  if (!(score > 0)) return null;
+  const bypassed = runBypasses(view, 'hq', options);
+  const clicks = bypassed.ids.size > runBypasses(view, 'hq', { memory, wary }).ids.size ? 2 : 0;
+  const spent = runCreditSpend(view, 'hq', options);
+  const after: GameState = {
+    ...view,
+    runner: { ...view.runner, clicks: view.runner.clicks - clicks, credits: Math.max(0, view.runner.credits - spent) },
+    runsThisTurn: [...view.runsThisTurn, { server: 'hq', successful: true } as GameState['runsThisTurn'][number]],
+  };
+  return { score, success: runSuccessBypassing(state, 'hq', bypassed.ids), after };
 }
 
 /**
@@ -353,7 +425,7 @@ export const runChance = (state: GameState, serverId: string): number => calibra
 export function remoteRunChance(state: GameState, serverId: string): number {
   const server = state.corp.servers[serverId];
   if (!server?.isRemote || server.root.some(c => !c.isRezzed && !c.faceUp)) return runChance(state, serverId);
-  return calibrated(serverId, probeRun(state, serverId, server));
+  return calibrated(serverId, Math.max(probeRun(state, serverId, server), recordRun(serverId)));
 }
 
 /**
