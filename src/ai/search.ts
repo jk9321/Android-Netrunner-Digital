@@ -1,5 +1,5 @@
 import { CardInstance, GameAction, GameState, SideCode, activePrompt, getCardDefinition, getLegalActions, isLegalAction, knownInHand } from '../core';
-import { winNowAction } from './winNow';
+import { scoreNowAction, winNowAction } from './winNow';
 import { isAdvanceable } from '../core/engine/helpers';
 import { Agent } from './agent';
 import { HeuristicCorpAI } from './corpAI';
@@ -197,6 +197,12 @@ export class SearchAI implements Agent {
       if (win) {
         this.base.notePlayed(win);
         return win;
+      }
+      // plan.scoreNow (counted scoring C1): a line that scores an agenda this turn, the same search
+      const score = scoreNowAction(state);
+      if (score) {
+        this.base.notePlayed(score);
+        return score;
       }
     }
     // Prompts and the steps of a run follow the rule-based AI's judgement

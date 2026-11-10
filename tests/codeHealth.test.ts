@@ -57,6 +57,7 @@ const OFF_SWITCHES: Record<string, string> = {
   'oracle.rd': 'measurement oracle, never a default',
   'oracle.think': 'measurement oracle (decision-quality ceiling), never a default',
   'oracle.gripThreat': 'measurement oracle (Phase 2 K0: grip in the threat and search deals only), never a default',
+  scoreNow: 'counted scoring C1: off until its paired batch passes the ship rule (spec-counted-scoring.md)',
   // Corp redesign stage 0b (spec-stage0b.md): instruments that size the scoring ceiling, src/ai/countedScore.ts
   'oracle.countedScore': 'stage 0b instrument I1 (play every counted score the check finds), measurement only, never a default',
   'oracle.countedStrict': 'stage 0b instrument I1, strict setting (lines must hold with the Runner on +4 credits), measurement only, never a default',

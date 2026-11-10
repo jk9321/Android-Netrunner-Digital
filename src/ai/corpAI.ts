@@ -18,7 +18,7 @@ import { PlanMemory, planTurn, plannerOn, searchPiece } from './turnPlanner';
 import { runnerReply } from './runnerReply';
 import { threatLoss } from './threatModel';
 import { modelRezGain } from './rezModel';
-import { winNowAction } from './winNow';
+import { scoreNowAction, winNowAction } from './winNow';
 import { freeRezCover, freeRezTargets } from './freeRez';
 import { PETTY_CASH_REPLAY, iceAdvanceWorth, placedCounterWorth, rezEffectWorth, rezzedWorth, runTimed, topDownWorth } from './effectValues';
 import { CARD_PROFILES, ECON_SCALE, PAYOUT_RISK, bareAssetRisk, unrezzedWorth } from './cardProfiles';
@@ -170,6 +170,12 @@ export class HeuristicCorpAI implements Agent {
       if (win) {
         this.notePlayed(win);
         return win;
+      }
+      // plan.scoreNow (counted scoring C1): a line that scores an agenda this turn, the same search (winNow.ts)
+      const score = scoreNowAction(state);
+      if (score) {
+        this.notePlayed(score);
+        return score;
       }
     }
     if (activePrompt(state)) return answerPrompt(state, 'corp', undefined, this.synergy);
