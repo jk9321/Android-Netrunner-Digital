@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { GameAction, GameState, StopLevel, actingSide, createCardInstance, executeAction, getLegalActions, newViewIds, viewFor } from '../src/core';
+import { CardInstance, GameAction, GameState, StopLevel, actingSide, createCardInstance, executeAction, getLegalActions, newViewIds, viewFor } from '../src/core';
 import { twinCompare } from '../scripts/leak-check-twin';
 import { cardDef } from '../src/core';
 import { installCorpForTest, newGame, setIdentity, startRunnerTurn } from './helpers';
@@ -20,6 +20,8 @@ const POETRI = '35036'; // Poétrï Luxury Brands
 const HUB = '30070'; // Superconducting Hub (agenda)
 const MYCOWEB = '35053'; // code gate: install ice from Archives; rez 1 installed ice paying 2 less
 const ANSEL = '30038'; // ice, rez cost 6
+const MUTUAL_FAVOR = '30011'; // event: search the Stack for 1 icebreaker
+const PIVOT = '34062'; // operation: search R&D for 1 operation or agenda
 
 /** Plays the plain move (pass, continue, start or end the turn, first answer) until `until` holds for the state about to act. */
 function driveTo(s: GameState, until: (s: GameState) => boolean): GameState {
@@ -139,6 +141,59 @@ function mycoweb(corpStops: StopLevel, which: 'rez' | 'install') {
   const ids = viewFor(s, 'runner', newViewIds(), 'g').ids;
   return twinCompare(s, action, next, ids, 'runner', hidden, s.corp.hq[0].instanceId);
 }
+
+const isBreaker = (c: CardInstance) => /icebreaker/i.test(cardDef(c).keywords ?? '');
+
+/**
+ * Mutual Favor played with exactly one icebreaker in the Stack; the twin swaps it with a non-breaker in the grip, so
+ * the twin's Stack has none. Finding nothing is allowed either way (rules 8.7.2e), so the search is a hidden choice.
+ */
+function mutualFavor(runnerStops: StopLevel) {
+  const s = newGame(5);
+  s.stops = { corp: 'ai', runner: runnerStops };
+  startRunnerTurn(s);
+  s.runner.credits = 5;
+  const breakers = s.runner.stack.filter(c => isBreaker(c));
+  s.runner.stack = s.runner.stack.filter(c => !isBreaker(c) || c === breakers[0]);
+  const favor = createCardInstance(s, MUTUAL_FAVOR);
+  const other = s.runner.grip.find(c => !isBreaker(c))!;
+  s.runner.grip.push(favor);
+  const action: GameAction = { type: 'PLAY_OPERATION_OR_EVENT', player: 'runner', cardInstanceId: favor.instanceId };
+  const ids = viewFor(s, 'corp', newViewIds(), 'g').ids;
+  return twinCompare(s, action, executeAction(s, action), ids, 'corp', breakers[0].instanceId, other.instanceId);
+}
+
+/** Pivot played with one operation in R&D; the twin swaps it with a piece of ice in HQ, so the twin's R&D has none. */
+function pivot(corpStops: StopLevel) {
+  const s = newGame(5);
+  s.stops = { corp: corpStops, runner: 'ai' };
+  const op = createCardInstance(s, HEDGE_FUND);
+  s.corp.rd = s.corp.rd.filter(c => !['operation', 'agenda'].includes(cardDef(c).type_code));
+  s.corp.rd.push(op);
+  const ice = createCardInstance(s, ICE_WALL);
+  const card = createCardInstance(s, PIVOT);
+  s.corp.hq.splice(0, s.corp.hq.length, ice, card);
+  s.corp.clicks = 3;
+  s.corp.credits = 5;
+  const action: GameAction = { type: 'PLAY_OPERATION_OR_EVENT', player: 'corp', cardInstanceId: card.instanceId };
+  const ids = viewFor(s, 'runner', newViewIds(), 'g').ids;
+  return twinCompare(s, action, executeAction(s, action), ids, 'runner', op.instanceId, ice.instanceId);
+}
+
+describe('Searches that may fail to find (rules 8.7.2e, 4.2.2)', () => {
+  it('Mutual Favor, Runner stops on ALL: the Corp can\'t tell whether the Stack held an icebreaker', () => {
+    expect(mutualFavor('full')).toMatchObject({ kind: 'same' });
+  });
+
+  it('Mutual Favor, Runner stops on AUTO: unchanged, asked only with an icebreaker to find (accepted tell)', () => {
+    expect(mutualFavor('auto')).toMatchObject({ kind: 'differ' });
+  });
+
+  it('Pivot: the Runner can\'t tell whether R&D held an operation or agenda (always asked)', () => {
+    expect(pivot('full')).toMatchObject({ kind: 'same' });
+    expect(pivot('auto')).toMatchObject({ kind: 'same' });
+  });
+});
 
 describe('Card prompts that depend on a hidden card (4.2.2, 4.6.3)', () => {
   it('Mycoweb, Corp stops on ALL: the Runner can\'t tell whether an unrezzed ice is cheap enough to rez (4.6.3)', () => {
