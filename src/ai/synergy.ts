@@ -383,10 +383,6 @@ export const tuning = {
     finishNowInstall: true,
     /** Step 2 TEMPORARY: corpAI advanceScore's 40 + counters for an advance this turn can finish. */
     advanceFinish: true,
-    /** Step 2 TEMPORARY: countedScore knownIncome reads the card entries' turnIncome (off: 0, as the old text match). */
-    turnIncome: true,
-    /** Step 2 TEMPORARY: winNow canStillWin counts the clicks a card gives from its entry (clicksGiven; off: 0, as the old text match). */
-    clicksGiven: true,
     /**
      * Counted scoring C2 (spec-counted-scoring.md; stage 0b's two-turn half measured +3.0 ± 1.8): a two-turn score the
      * counting check finds (countedScore.ts scoreInTwo: the server holds through the Runner's turn against its credits
@@ -434,24 +430,10 @@ export const tuning = {
      */
     corpTurnDamageOwn: true,
     /**
-     * Phase 3 S2 (spec-search.md; Corp only): the hold line where it builds a window. On a decision with an agenda in HQ
-     * and none installed, a candidate whose rule line installs the agenda is also played holding it (the 'hold' line);
-     * the held line stands only when it beats the rule line by more than SEARCH.margin (the 2-sample reply's noise, S1
-     * report) AND its end position has a window the held agenda can use next turn that the turn built: a remote with ice
-     * the Corp has rezzed or can pay to rez, and no agenda or asset in its root (one per root, rule 8.5.6a; ice protects
-     * it, 3.4.2), not ready when the decision began. S1 (run 42663183482 + local net sample): the hold line beats the pick
-     * net of the noise on 8.4% (margin 3) of HQ-only decisions; finish-first and installed-agenda turns ~0, left out.
-     * ON (AI Coordinator 2026-11-09): +1.1 ± 0.7 at 10 games (runs 42686212950 + 42681282303 vs 42686206493 +
-     * 42654315875), stuck in HQ +0.3 ± 0.7, first score T6.8 -> 6.6, remote steals -6%, no time cost; 34 of 39 accepted
-     * holds still win on 8 reply samples. S4: plannerHold (Phase 2 O, the same hold kept whenever it read better: +2.8
-     * ± 1.0 but by defence, stuck in HQ 16.6 -> 24.3) is folded into this switch: the window rule is what it lacked.
-     */
-    searchLines: true,
-    /**
-     * Phase 3 S3 (spec-search.md; Corp only, on top of searchLines): the 2-sample reply decides most close picks (S1: a
+     * Phase 3 S3 (spec-search.md; Corp only; searchLines, the held line it was built on top of, was deleted in step 2 at
+     * -0.3 ± 1.0 off, run 42875007030): the 2-sample reply decides most close picks (S1: a
      * plain re-sample of the same line beats the pick by more than 3 on 28% of agenda decisions). On a decision with an
-     * agenda in HQ or installed, the two best lines (candidates, or a candidate's rule line and its window-building held
-     * line) closer than SEARCH.margin get REPLY.extra more reply samples each and the better of those two means stands
+     * agenda in HQ or installed, the two best candidate lines closer than SEARCH.margin get REPLY.extra more reply samples each and the better of those two means stands
      * (turnPlanner.ts contenders, topOnly): a third line read on two samples only must not re-enter on the two's
      * regression to the mean, which is the same noise again (it flipped deal 1491 T1). replyContenders, the same on every
      * decision with a gap of 4 and the rest re-admitted, read -0.6 ± 2.2.
@@ -555,7 +537,7 @@ export const tuning = {
  */
 export const sideOff: Record<SideCode, string[]> = {
   corp: [],
-  runner: ['scoreNow', 'scoreInTwo', 'finishNowInstall', 'advanceFinish', 'turnIncome', 'clicksGiven', 'tagTrashNow', 'ownTrashRisk', 'hqTrashCost', 'oneCurrency', 'threatModel', 'measuredPass', 'threatSpend', 'calibratedRun', 'iceProtects', 'replyContenders', 'plannerAgenda', 'clearinghouseRez', 'ownIceKnown', 'runRecord', 'icePacingPriced', 'searchLines', 'searchSamples', 'hiddenDraws', 'oracle', 'reach', 'reachStrength', 'reachTime', 'threatKey', 'threatKeyPricing'],
+  runner: ['scoreNow', 'scoreInTwo', 'finishNowInstall', 'advanceFinish', 'tagTrashNow', 'ownTrashRisk', 'hqTrashCost', 'oneCurrency', 'threatModel', 'measuredPass', 'threatSpend', 'calibratedRun', 'iceProtects', 'replyContenders', 'plannerAgenda', 'clearinghouseRez', 'ownIceKnown', 'runRecord', 'icePacingPriced', 'searchSamples', 'hiddenDraws', 'oracle', 'reach', 'reachStrength', 'reachTime', 'threatKey', 'threatKeyPricing'],
 };
 
 /**
@@ -581,7 +563,8 @@ export const FOLDED: readonly string[] = [
   'subCosts', 'iceInCredits', 'breakerCredits',
   // Tuning pass 1 (2026-11-08): Nanomanagement/Touch-ups' own bonus deleted, the rank went to plan.finishSetup, deleted in step 2 (counted scoring plays the finish); +0.0 ± 0.2, run 42403917371
   'oneSetupRule',
-  // Phase 3 S4 (spec-search.md, 2026-11-09): plannerHold folded into plan.searchLines (the hold that builds a window)
+  // Phase 3 S4 (spec-search.md, 2026-11-09): plannerHold folded into plan.searchLines (the hold that builds a window);
+  // searchLines itself was deleted in step 2 (2026-11-10): counted scoring (plan.scoreInTwo) decides that hold now
   'plannerHold',
 ];
 

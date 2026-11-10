@@ -82,8 +82,8 @@ function canStillWin(state: GameState, need = 7 - state.corp.score): boolean {
   for (const card of sources) {
     const text = cardDef(card).stripped_text ?? '';
     // Clicks from the card entry (step 2: the text match this replaced looked for "[click]", which the stripped text
-    // spells "click", so it never counted Nanomanagement); plan.clicksGiven is step 2's temporary measuring switch
-    const gives = (plan().clicksGiven ? clicksGivenOf(card.cardCode) : 0) + Math.max(0, places(card.cardCode, text) - 1);
+    // spells "click", so it never counted Nanomanagement; +0.2 ± 0.5 at games=3, run 42862141885)
+    const gives = clicksGivenOf(card.cardCode) + Math.max(0, places(card.cardCode, text) - 1);
     budget += gives;
     own.set(card.instanceId, gives);
   }
