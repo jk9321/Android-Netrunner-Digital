@@ -149,3 +149,33 @@ describe('stage 0b I1 dial: strict (Runner on +4 credits) against loose', () => 
     expect(countedStats.lines).toHaveLength(0);
   });
 });
+
+describe('stage 0b I1 halves (countedNowOnly / countedTwoOnly)', () => {
+  it('score-this-turn only: the score now is played, a two-turn line is not begun', () => {
+    on({ countedScore: true, countedNowOnly: true } as never);
+    const s = corpMain(3, 1);
+    installCorpForTest(s, ABOVE_THE_LAW, 'remote-1');
+    s.corp.servers['remote-1'].root[0].advancementCounters = 2;
+    expect(pick(s, credit(s)).type).toBe('ADVANCE_CARD');
+    const t = corpMain(8, 3);
+    giveCard(t, 'corp', OFFWORLD_OFFICE);
+    giveCard(t, 'corp', PALISADE);
+    const c = credit(t);
+    expect(pick(t, c)).toBe(c);
+    expect(countedStats.lines).toHaveLength(0);
+  });
+
+  it('two-turn only: the score now is left to the Corp, the two-turn line is begun', () => {
+    on({ countedScore: true, countedTwoOnly: true } as never);
+    const s = corpMain(3, 1);
+    installCorpForTest(s, ABOVE_THE_LAW, 'remote-1');
+    s.corp.servers['remote-1'].root[0].advancementCounters = 2;
+    const c = credit(s);
+    expect(pick(s, c)).toBe(c);
+    const t = corpMain(8, 3);
+    giveCard(t, 'corp', OFFWORLD_OFFICE);
+    giveCard(t, 'corp', PALISADE);
+    expect(pick(t, credit(t)).type).toBe('INSTALL_CARD');
+    expect(countedStats.lines).toHaveLength(1);
+  });
+});

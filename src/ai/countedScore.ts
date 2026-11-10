@@ -319,9 +319,11 @@ function heavyCentral(state: GameState, a: GameAction, lethalHq: (s: GameState) 
  *    line that holds (scoreInTwo) is begun and its steps played (ice, agenda, advances), and the turn's spare clicks go
  *    to the Corp's own pick only while the line still holds after it (lineHolds), a click for a credit otherwise.
  *    With plan.oracle.countedStrict on too, every hold is judged with the Runner on STRICT_EXTRA credits more.
+ *    countedNowOnly / countedTwoOnly (AI Coordinator 2026-11-10: I1's two halves apart) keep only the score-this-turn
+ *    half or only the two-turn half.
  */
 export function oracleCorpPick(state: GameState, chosen: GameAction, ranked: { action: GameAction; score: number }[], lethalHq: (s: GameState) => boolean): GameAction {
-  const o = plan().oracle as { countedScore?: boolean; countedStrict?: boolean; centralsLight?: boolean } | undefined;
+  const o = plan().oracle as { countedScore?: boolean; countedStrict?: boolean; countedNowOnly?: boolean; countedTwoOnly?: boolean; centralsLight?: boolean } | undefined;
   if (!o?.countedScore && !o?.centralsLight) return chosen;
   if (activePrompt(state)) return chosen;
   let pick = chosen;
@@ -335,7 +337,7 @@ export function oracleCorpPick(state: GameState, chosen: GameAction, ranked: { a
   const saved = CHECK.runnerExtra;
   if (o.countedStrict) CHECK.runnerExtra = saved + STRICT_EXTRA;
   try {
-    return countedPick(state, pick);
+    return countedPick(state, pick, { now: !o.countedTwoOnly, two: !o.countedNowOnly });
   } finally {
     CHECK.runnerExtra = saved;
   }
@@ -344,17 +346,18 @@ export function oracleCorpPick(state: GameState, chosen: GameAction, ranked: { a
 /** The strict setting's extra Runner credits (stage 0's runnerExtra=4 sensitivity check). */
 export const STRICT_EXTRA = 4;
 
-function countedPick(state: GameState, pick: GameAction): GameAction {
+function countedPick(state: GameState, pick: GameAction, halves: { now: boolean; two: boolean }): GameAction {
   noteNextTurn(state);
   if (state.corp.clicks <= 0) return pick;
-  const now = scoreThisTurn(state);
-  if (now.feasible && now.line.length) {
+  const now = halves.now ? scoreThisTurn(state) : null;
+  if (now?.feasible && now.line.length) {
     countedStats.nowFound++;
     if (mem.lock?.line.agendaId !== now.agendaId) mem.lock = null;
     if (!sameAction(pick, now.line[0] as unknown as Record<string, unknown>)) countedStats.nowForced++;
     return now.line[0];
   }
   if (mem.lock && (mem.lock.game !== state.id || mem.lock.turn !== state.turnNumber)) mem.lock = null;
+  if (!halves.two) return pick;
   if (!mem.lock) {
     const line = scoreInTwo(state);
     if (!line) return pick;
