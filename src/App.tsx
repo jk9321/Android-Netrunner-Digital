@@ -8,7 +8,7 @@ import { randomSeed, startingGame } from './ui/gameStart';
 import { GameController, useGameController } from './ui/useGameController';
 import { useOnlineController } from './ui/useOnlineController';
 import { OnlineSession, OnlineTable, browserSocket, clearSession, leavingForgetsSeat, loadSession, saveSession } from './net/client';
-import { codeFromPath, roomExists } from './net/lobby';
+import { codeFromPath, roomPresence } from './net/lobby';
 import { ConnectingScreen, OnlineNotice, WaitingRoom } from './ui/components/OnlineScreens';
 import { DeckPicker } from './ui/components/DeckPicker';
 import { CardView } from './ui/components/CardView';
@@ -167,7 +167,7 @@ function OnlineGame({ session, onLeave }: { session: OnlineSession; onLeave: (fo
       new OnlineTable(session, {
         connect: browserSocket,
         alert: message => void showAlert(message, { title: 'Action blocked' }),
-        roomExists: code => roomExists(code),
+        roomPresence: code => roomPresence(code),
       }),
   );
   useEffect(() => {

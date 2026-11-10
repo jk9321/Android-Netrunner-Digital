@@ -113,13 +113,19 @@ export async function joinGame(code: string, input: { deck: DeckList; playerId: 
   return { ok: true, session: { code, seat: joined.seat, token: joined.token } };
 }
 
-/** Is the room still there? false only on a 404 (anything else: unknown, keep trying). */
-export async function roomExists(code: string, f: Fetch = defaultFetch): Promise<boolean> {
+/**
+ * Is the room still there? 'there' only when the lobby answered 200 for it,
+ * 'gone' on a 404; anything else (offline, 429, 5xx) is 'unknown': keep trying.
+ */
+export type RoomPresence = 'there' | 'gone' | 'unknown';
+
+export async function roomPresence(code: string, f: Fetch = defaultFetch): Promise<RoomPresence> {
   try {
     const res = await f(`/api/games/${code}`);
-    return res.status !== 404;
+    if (res.status === 404) return 'gone';
+    return res.ok ? 'there' : 'unknown';
   } catch {
-    return true;
+    return 'unknown';
   }
 }
 

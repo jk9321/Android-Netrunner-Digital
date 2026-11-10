@@ -10,7 +10,7 @@ import { renderToStaticMarkup } from 'react-dom/server';
 import { DeckPicker } from '../src/ui/components/DeckPicker';
 import type { OnlineRole, PlayMode } from '../src/ui/components/DeckPicker';
 import { STARTER_DECKS, DeckList } from '../src/data/decks';
-import { LOBBY_ERROR_TEXT, codeFromPath, createGame, inviteLink, joinGame, lookupGame, onlineDeckProblems, roomExists, submission } from '../src/net/lobby';
+import { LOBBY_ERROR_TEXT, codeFromPath, createGame, inviteLink, joinGame, lookupGame, onlineDeckProblems, roomPresence, submission } from '../src/net/lobby';
 import { PROTOCOL_VERSION } from '../src/net/protocol';
 import type { LobbyInfo } from '../src/net/protocol';
 import type { FormatId, SideCode } from '../src/core';
@@ -204,9 +204,11 @@ describe('Lobby calls against a stubbed fetch', () => {
   });
 
   it('a room is gone only on a 404', async () => {
-    expect(await roomExists('K7QM2X', stub(404, { error: 'not_found' }))).toBe(false);
-    expect(await roomExists('K7QM2X', stub(200, lobby()))).toBe(true);
-    expect(await roomExists('K7QM2X', stub(500, {}))).toBe(true);
+    expect(await roomPresence('K7QM2X', stub(404, { error: 'not_found' }))).toBe('gone');
+    expect(await roomPresence('K7QM2X', stub(200, lobby()))).toBe('there');
+    expect(await roomPresence('K7QM2X', stub(500, {}))).toBe('unknown');
+    expect(await roomPresence('K7QM2X', stub(429, { error: 'rate_limited' }))).toBe('unknown');
+    expect(await roomPresence('K7QM2X', () => Promise.reject(new Error('offline')))).toBe('unknown');
   });
 
   it('invite links carry only the code', () => {

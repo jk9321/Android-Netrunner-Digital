@@ -459,7 +459,7 @@ describe('Online table: waiting, errors and reconnects', () => {
       },
       alert: () => {},
       timers: s.timers,
-      roomExists: async () => true,
+      roomPresence: async () => 'there' as const,
     });
     t.start();
     for (let i = 0; i < REFUSED_LIMIT + 2; i++) {
@@ -479,7 +479,7 @@ describe('Online table: waiting, errors and reconnects', () => {
   it('a refusal now and then (the room there) keeps trying: a hello resets the count', async () => {
     const s = setup(32);
     s.tables.runner.dispose();
-    const t = new OnlineTable(s.sessions.runner, { connect: x => s.hub.connect(x), alert: () => {}, timers: s.timers, roomExists: async () => true });
+    const t = new OnlineTable(s.sessions.runner, { connect: x => s.hub.connect(x), alert: () => {}, timers: s.timers, roomPresence: async () => 'there' as const });
     const refuseFor = async (times: number) => {
       s.hub.down = true;
       for (let i = 0; i < times; i++) {
@@ -498,6 +498,39 @@ describe('Online table: waiting, errors and reconnects', () => {
     expect(t.status).toBe('open');
     s.hub.drop('runner');
     await refuseFor(REFUSED_LIMIT - 1);
+    expect(t.status).toBe('open');
+    t.dispose();
+  });
+
+  it('offline (the lobby unreachable too): retries go on, still reconnecting, and it recovers when the network is back', async () => {
+    const s = setup(34);
+    s.tables.runner.dispose();
+    let asked = 0;
+    const t = new OnlineTable(s.sessions.runner, {
+      connect: x => s.hub.connect(x),
+      alert: () => {},
+      timers: s.timers,
+      roomPresence: () => {
+        asked++;
+        return Promise.reject(new Error('offline')).catch(() => 'unknown' as const);
+      },
+    });
+    s.hub.down = true;
+    t.start();
+    for (let i = 0; i < REFUSED_LIMIT * 3; i++) {
+      s.hub.flush();
+      await Promise.resolve();
+      await Promise.resolve();
+      await Promise.resolve();
+      s.timers.advance(16_000);
+    }
+    expect(asked).toBeGreaterThanOrEqual(REFUSED_LIMIT * 2);
+    s.hub.flush();
+    await Promise.resolve();
+    expect(t.status).toBe('reconnecting');
+    s.hub.down = false;
+    s.timers.advance(16_000);
+    s.hub.flush();
     expect(t.status).toBe('open');
     t.dispose();
   });
@@ -528,7 +561,7 @@ describe('Online table: waiting, errors and reconnects', () => {
   it('a socket refused before hello asks the lobby; a 404 means the room is gone', async () => {
     const s = setup(27);
     s.hub.down = true;
-    const t = new OnlineTable(s.sessions.runner, { connect: x => s.hub.connect(x), alert: () => {}, timers: s.timers, roomExists: async () => false });
+    const t = new OnlineTable(s.sessions.runner, { connect: x => s.hub.connect(x), alert: () => {}, timers: s.timers, roomPresence: async () => 'gone' as const });
     t.start();
     s.hub.flush();
     await Promise.resolve();

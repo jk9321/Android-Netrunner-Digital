@@ -96,7 +96,7 @@ export interface OnlineTableOptions {
   /** Shows a message to the person (an illegal action, a server error). */
   alert(message: string): void;
   /** Asked when a socket closed before `hello`: is the room still there? Resolves false when it is gone (404). */
-  roomExists?(code: string): Promise<boolean>;
+  roomPresence?(code: string): Promise<'there' | 'gone' | 'unknown'>;
   timers?: Timers;
 }
 
@@ -320,14 +320,15 @@ export class OnlineTable {
     const delay = RECONNECT_DELAYS_MS[this.attempts] ?? RECONNECT_EVERY_MS;
     this.attempts++;
     // A socket refused before hello may be a room that no longer exists (it expired): ask the lobby
-    if (neverOpened && this.opts.roomExists) {
-      this.opts.roomExists(this.session.code).then(
-        exists => {
+    if (neverOpened && this.opts.roomPresence) {
+      this.opts.roomPresence(this.session.code).then(
+        presence => {
           if (this.disposed || this.status === 'open' || this.status === 'replaced') return;
-          if (!exists) {
+          // Unknown (offline, a busy lobby): no conclusion, keep trying
+          if (presence === 'gone') {
             this.stopTimers();
             this.setStatus('gone');
-          } else if (++this.refused >= REFUSED_LIMIT) {
+          } else if (presence === 'there' && ++this.refused >= REFUSED_LIMIT) {
             this.stopTimers();
             this.setStatus('unseated');
           }
