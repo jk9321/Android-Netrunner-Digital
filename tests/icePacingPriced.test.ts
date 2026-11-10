@@ -9,6 +9,8 @@
  * so the board's own unrezzed ice locked out the ice HQ needed. plan.icePacingPriced drops the guard while
  * plan.ownIceKnown prices the ice (Jeff: "that ICE just shouldn't count as protection unless it CAN rez it").
  *
+ * plan.icePacingPriced is PARKED OFF (about -7 points through over-icing, synergy.ts): these tests pin what it does when on.
+ *
  * Turn 6 (plan.ownIceKnown, effectValues.ts): Fujii Asset Retrieval on 2 counters behind an unrezzed Attini, the Corp on
  * 20 credits; the Runner approached and the Corp passed (rules 6.9.2b-c: unrezzed ice is passed) and lost 3 points.
  */
@@ -92,7 +94,7 @@ describe('game 11 (bug report #43): the Corp with money ices HQ and rezzes its i
       const st = { ...s, corp: { ...s.corp, credits } };
       return iceInstalls(st, 'hq').find(r => r.action.type === 'INSTALL_CARD' && cardDef(findCardAnywhere(st, r.action.cardInstanceId)!).title === 'Cloud Eater')!.score;
     };
-    expect(cloud(5)).toBeLessThan(cloud(20));
+    expect(withSwitch('icePacingPriced', true, () => cloud(5) < cloud(20))).toBe(true);
   });
 
   it('turn 6: the Attini in front of Fujii Asset Retrieval (2 counters) is rezzed with plan.ownIceKnown; passed without it', { timeout: 60_000 }, () => {
