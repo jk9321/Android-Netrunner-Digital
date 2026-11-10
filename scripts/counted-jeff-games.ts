@@ -2,7 +2,8 @@
  * Counted scoring (spec /mnt/project-files/netrunner-ai/redesign/spec-counted-scoring.md): every Corp decision in
  * Jeff's Runner games (human-games reports 33-45, and any others named) where plan.scoreNow or plan.scoreInTwo would
  * play something other than the recorded move. Replays the recorded moves; the held two-turn line is carried as the
- * agent would carry it, against the recorded picks. Measurement only.
+ * agent would carry it, against the recorded picks; the recorded pick stands while it keeps a score this turn (winNow.ts
+ * keepsScore), as the agents play it. Measurement only.
  *
  *   npx vite-node scripts/counted-jeff-games.ts -- [report numbers, default 33-45]
  */
@@ -12,7 +13,7 @@ import { deckGameSetup } from '../src/data/decks';
 import { tuning } from '../src/ai/synergy';
 import { asSide } from '../src/ai/pricing';
 import { decisionContext } from '../src/ai/handValues';
-import { scoreNowAction, scoreNowStats } from '../src/ai/winNow';
+import { keepsScore, scoreNowPlan, scoreNowStats } from '../src/ai/winNow';
 import { HeldLine, isCorpMain, scoreInTwoPick } from '../src/ai/countedScore';
 
 const args = process.argv.slice(2).filter(a => a !== '--').map(Number);
@@ -44,8 +45,9 @@ for (const n of reports) {
     if (s.activePlayer === 'corp' && actingSide(s) === 'corp' && isCorpMain(s) && m.type !== 'START_TURN') {
       const result = asSide('corp', () => {
         decisionContext(s, 'corp');
-        const now = scoreNowAction(s);
-        if (now) return { action: now, why: 'scoreNow', held };
+        // As the agent: the recorded pick stands while it keeps the score
+        const now = scoreNowPlan(s);
+        if (now) return { action: keepsScore(s, m, now) ? m : now.first, why: 'scoreNow', held };
         const two = scoreInTwoPick(s, m, held);
         return { action: two.action, why: two.held ? `scoreInTwo ${two.held.line.agenda} (${two.held.line.form}, ${two.held.line.server}, ${two.held.line.advanceNow} now + ${two.held.line.advanceNext} next)` : 'scoreInTwo', held: two.held };
       });

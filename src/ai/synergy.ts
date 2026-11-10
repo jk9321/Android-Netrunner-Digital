@@ -382,16 +382,18 @@ export const tuning = {
      * Corp redesign, counted scoring C1 (spec-counted-scoring.md; stage 0b's score-this-turn half measured +2.9 ± 1.7): the
      * same exact search as winNow with the target "score an agenda this turn" (winNow.ts scoreNowAction; rules 1.17.3a-c,
      * 1.18.1, 5.2.6f), played after winNow and before any judgement. Off: the rule ranking and planner, which ended about
-     * 0.4 turns a game without a score the search found (ice, an asset, a draw or a purge instead).
+     * 0.4 turns a game without a score the search found (ice, an asset, a draw or a purge instead). ON: +1.1 ± 1.6
+     * paired (run 42786339692 vs 42784619451, games=3), inside noise and within the ship rule.
      */
-    scoreNow: false,
+    scoreNow: true,
     /**
      * Counted scoring C2 (spec-counted-scoring.md; stage 0b's two-turn half measured +3.0 ± 1.8): a two-turn score the
      * counting check finds (countedScore.ts scoreInTwo: the server holds through the Runner's turn against its credits
      * and click credits, rules 3.4.3a, 6.9.2b-c) is held in the Corp agent's memory and played: its steps first, the
      * spare clicks the Corp's own only while the line's rez money stays, the agenda finished next turn (1.17.3a, 5.2.6f).
+     * ON: +5.1 ± 1.9 paired (run 42786343982 vs 42784619451, games=3); both ON +7.2 ± 2.1 (run 42791327244).
      */
-    scoreInTwo: false,
+    scoreInTwo: true,
     /**
      * Bug reports #39, #41 (Jeff's Runner test games 7 and 9, 2026-11-09; Corp only): the Corp's own unrezzed ice is priced
      * as it knows it (effectValues.ts ownIce: the real ice when its rez budget covers it, passed when not; rules 3.4.3a,

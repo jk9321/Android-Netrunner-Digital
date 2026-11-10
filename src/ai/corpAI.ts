@@ -18,7 +18,7 @@ import { PlanMemory, planTurn, plannerOn, searchPiece } from './turnPlanner';
 import { runnerReply } from './runnerReply';
 import { threatLoss } from './threatModel';
 import { modelRezGain } from './rezModel';
-import { scoreNowAction, winNowAction } from './winNow';
+import { keepsScore, scoreNowPlan, winNowAction } from './winNow';
 import { freeRezCover, freeRezTargets } from './freeRez';
 import { PETTY_CASH_REPLAY, iceAdvanceWorth, placedCounterWorth, rezEffectWorth, rezzedWorth, runTimed, topDownWorth } from './effectValues';
 import { CARD_PROFILES, ECON_SCALE, PAYOUT_RISK, bareAssetRisk, unrezzedWorth } from './cardProfiles';
@@ -173,12 +173,13 @@ export class HeuristicCorpAI implements Agent {
         this.notePlayed(win);
         return win;
       }
-      // plan.scoreNow (counted scoring C1): a line that scores an agenda this turn, the same search (winNow.ts)
-      const score = scoreNowAction(state);
-      if (score) {
-        this.notePlayed(score);
-        return score;
-      }
+    }
+    // plan.scoreNow (counted scoring C1): a line that scores an agenda this turn, the same search (winNow.ts); the
+    // Corp's own pick stands while it keeps the score (keepsScore), the line's action is played otherwise
+    const score = this.synergy && this.planner ? scoreNowPlan(state) : null;
+    if (score && activePrompt(state)) {
+      this.notePlayed(score.first);
+      return score.first;
     }
     if (activePrompt(state)) return answerPrompt(state, 'corp', undefined, this.synergy);
     const legal = getLegalActions(state, 'corp');
@@ -190,17 +191,19 @@ export class HeuristicCorpAI implements Agent {
     if (chosen.type === 'GAIN_CREDIT' && this.patches && plan().pettyCashFirst) chosen = ranked.find(r => isPettyCash(state, r.action) && r.score > -Infinity)?.action ?? chosen;
     // plan.tagFirst: the planner's leaf counts a tag kept as a trash still to come, but the Runner clears it on its turn
     if (this.patches && plan().tagFirst && ranked[0]?.action.type === 'TRASH_RESOURCE' && ranked[0].tagFirst) chosen = ranked[0].action;
-    // The reverse bluff: at most once a game
-    if (chosen.type === 'INSTALL_CARD' && chosen.asNewRemote && state.corp.hq.some(c => c.instanceId === chosen.cardInstanceId && type(c) === 'agenda')) {
-      const def = cardDef(state.corp.hq.find(c => c.instanceId === chosen.cardInstanceId)!);
-      if ((def.advancement_cost ?? 0) > state.corp.clicks - 1) this.reverseBluffed = true;
-    }
     let picked = chosen;
+    if (score && !keepsScore(state, picked, score)) picked = score.first;
     // plan.scoreInTwo (counted scoring C2): a held two-turn score line's step, or the pick vetoed while it would spend the line's rez money
-    if (this.synergy && this.planner) {
+    if (!score && this.synergy && this.planner) {
       const two = scoreInTwoPick(state, picked, this.heldLine);
       this.heldLine = two.held;
       picked = two.action;
+    }
+    // The reverse bluff: at most once a game
+    const bluff = chosen;
+    if (bluff.type === 'INSTALL_CARD' && bluff.asNewRemote && state.corp.hq.some(c => c.instanceId === bluff.cardInstanceId && type(c) === 'agenda')) {
+      const def = cardDef(state.corp.hq.find(c => c.instanceId === bluff.cardInstanceId)!);
+      if ((def.advancement_cost ?? 0) > state.corp.clicks - 1) this.reverseBluffed = true;
     }
     this.notePlayed(picked);
     if (this.debug) logNudge(state, 'corp', picked);

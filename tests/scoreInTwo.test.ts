@@ -175,7 +175,7 @@ describe('plan.scoreInTwo: the Corp scores over two turns when the count holds (
     expect(pick(s, c, stale)).toEqual({ action: c, held: null });
   });
 
-  it('off by default until its paired batch: the pick stands', () => {
+  it('switched off: the pick stands', () => {
     tuning.plan.scoreInTwo = false;
     const s = corpMain(8);
     giveCard(s, 'corp', OFFWORLD_OFFICE);

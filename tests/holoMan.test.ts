@@ -43,9 +43,12 @@ describe('The Holo Man advances the agenda it sits with (plan.holoManMove, plan.
     tuning.plan.plannerSearch = false;
     // and before plan.hiddenDraws (S6): on one guess of R&D the old planner happens to find the finish here
     tuning.plan.hiddenDraws = false;
+    // and before counted scoring (plan.scoreNow, spec-counted-scoring.md C1): its search finds the finish too
+    tuning.plan.scoreNow = false;
     try {
       expect(scoredOffice(playTurn())).toBe(false);
     } finally {
+      tuning.plan.scoreNow = true;
       tuning.plan.hiddenDraws = true;
       tuning.plan.finishSetup = true;
       tuning.plan.oneCurrency = oneCurrencyDefault;

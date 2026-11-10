@@ -121,7 +121,7 @@ describe('plan.scoreNow: the Corp scores what it can score this turn (1.17.3a-c,
     expect(inDecision(s, 'corp', () => scoreNowAction(s))).toBeNull();
   });
 
-  it('off by default until its paired batch: no line', () => {
+  it('switched off: no line', () => {
     tuning.plan.scoreNow = false;
     const s = structuredClone(newGame(1));
     s.corp.clicks = 1;

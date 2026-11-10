@@ -1,4 +1,4 @@
-import { CardInstance, GameAction, GameState, activePrompt, cardDef, executeAction, findCardAnywhere, getLegalActions } from '../core';
+import { CardInstance, GameAction, GameState, activePrompt, cardDef, executeAction, findCardAnywhere, getLegalActions, isLegalAction } from '../core';
 import { plan } from './pricing';
 
 /**
@@ -266,14 +266,54 @@ export function scoreNowAction(state: GameState): GameAction | null {
   return plan().scoreNow ? scoreNowLine(state) : null;
 }
 
+/** A score this turn: the line's first action, and the points it scores. */
+export interface ScoreLine {
+  first: GameAction;
+  points: number;
+}
+
+/** plan.scoreNow's line with its points (the agents' hook: corpAI.ts and search.ts decide), or null. */
+export function scoreNowPlan(state: GameState): ScoreLine | null {
+  return plan().scoreNow ? bestScoreLine(state, true) : null;
+}
+
 /** scoreNowAction's search whatever the switch (the stage 0 measurement scripts read it through countedScore.ts scoreThisTurn). */
 export function scoreNowLine(state: GameState): GameAction | null {
+  return bestScoreLine(state, true)?.first ?? null;
+}
+
+/**
+ * Whether the Corp's own pick keeps the line's points this turn (the agents play their pick then, and the search's
+ * line only when the pick would cost a score): the pick is the line's first action, or after it the same search still
+ * reaches the points (with any the pick itself scored). A pick that changes R&D (a draw) is not followed: what it would
+ * show is hidden. The pick's judgement keeps what the search's tie-break cannot see, such as installing Pharos before
+ * Send a Message's "when you score" free rez.
+ */
+export function keepsScore(state: GameState, pick: GameAction, line: ScoreLine): boolean {
+  if (JSON.stringify(pick) === JSON.stringify(line.first)) return true;
+  if (!isLegalAction(state, pick)) return false;
+  let next: GameState;
+  try {
+    next = executeAction(state, pick);
+  } catch {
+    return false;
+  }
+  if (next.corp.rd.map(c => c.instanceId).join() !== state.corp.rd.map(c => c.instanceId).join()) return false;
+  const scored = next.corp.scoreArea
+    .filter(c => cardDef(c).type_code === 'agenda' && !state.corp.scoreArea.some(x => x.instanceId === c.instanceId))
+    .reduce((n, c) => n + (cardDef(c).agenda_points ?? 0), 0);
+  if (scored >= line.points) return true;
+  if (next.activePlayer !== 'corp' || next.winner) return false;
+  return scored + (bestScoreLine(next, false)?.points ?? 0) >= line.points;
+}
+
+function bestScoreLine(state: GameState, count: boolean): ScoreLine | null {
   if (state.winner || state.activePlayer !== 'corp' || state.activeRun) return null;
   const prompt = activePrompt(state);
   if (prompt && prompt.side !== 'corp') return null;
   if (state.turnStep?.kind === 'corp_turn_start') return null;
   if (!canStillWin(state, 1)) return null;
-  scoreNowStats.searches++;
+  if (count) scoreNowStats.searches++;
   const points = (a: GameAction) => {
     const id = (a as { cardInstanceId?: string }).cardInstanceId;
     const card = id ? findCardAnywhere(state, id) : undefined;
@@ -289,9 +329,11 @@ export function scoreNowLine(state: GameState): GameAction | null {
   );
   const scoreable = getLegalActions(state, 'corp').filter(a => a.type === 'SCORE_AGENDA' && !dividends.has((a as { cardInstanceId: string }).cardInstanceId));
   if (scoreable.length) {
-    scoreNowStats.found++;
-    if (scoreable.length > 1) scoreNowStats.choices++;
-    return scoreable.reduce((a, b) => (points(b) > points(a) ? b : a));
+    if (count) {
+      scoreNowStats.found++;
+      if (scoreable.length > 1) scoreNowStats.choices++;
+    }
+    return { first: scoreable.reduce((a, b) => (points(b) > points(a) ? b : a)), points: scoreable.reduce((n, a) => n + points(a), 0) };
   }
   const rd = state.corp.rd.map(c => c.instanceId).join();
   const scoredAt = (s: GameState) => s.corp.scoreArea.filter(c => cardDef(c).type_code === 'agenda' && !dividends.has(c.instanceId) && !state.corp.scoreArea.some(x => x.instanceId === c.instanceId));
@@ -346,9 +388,11 @@ export function scoreNowLine(state: GameState): GameAction | null {
     if (!next.winner) search(next, 1, action, now);
     if (nodes >= WIN_NOW.nodes) break;
   }
-  scoreNowStats.nodes += nodes;
+  if (count) scoreNowStats.nodes += nodes;
   if (!best.first) return null;
-  scoreNowStats.found++;
-  if (best.agendas.size > 1) scoreNowStats.choices++;
-  return best.first;
+  if (count) {
+    scoreNowStats.found++;
+    if (best.agendas.size > 1) scoreNowStats.choices++;
+  }
+  return { first: best.first, points: best.points };
 }

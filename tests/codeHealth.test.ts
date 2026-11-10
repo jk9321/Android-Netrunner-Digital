@@ -57,8 +57,6 @@ const OFF_SWITCHES: Record<string, string> = {
   'oracle.rd': 'measurement oracle, never a default',
   'oracle.think': 'measurement oracle (decision-quality ceiling), never a default',
   'oracle.gripThreat': 'measurement oracle (Phase 2 K0: grip in the threat and search deals only), never a default',
-  scoreInTwo: 'counted scoring C2: off until its paired batch passes the ship rule (spec-counted-scoring.md)',
-  scoreNow: 'counted scoring C1: off until its paired batch passes the ship rule (spec-counted-scoring.md)',
   reach: 'Phase 2 K1: +0.3 +/- 0.7 at 10 games (run 42549985741) but stayed broke +1.5 +/- 0.7, over the 2 SE line',
   reachStrength: 'Phase 2 K2: -0.9 +/- 1.4 at 3 games (run 42538399856), opening unchanged',
   threatKeyPricing: 'Phase 2 K4b: threat key without the pricing context; moved 4 of 221 deals (run 42537621348)',
