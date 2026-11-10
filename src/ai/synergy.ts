@@ -475,33 +475,6 @@ export const tuning = {
      * 2.3 at games=3 (run 42733984975 vs 42733969084): what the peek was worth; it resets the base.
      */
     hiddenDraws: true,
-    /**
-     * Phase 2 O2 v2 (opening-audit/report.md; Corp only): an installed or held agenda's advances are charged at the one
-     * click price (valueModel CLICK) plus their credit, not AGENDA_CLICK 2 (evaluate.ts agendaWorth): at 2 a click and 8
-     * a point, a 1-point agenda read worth less than the advances that score it even with no steal risk, and held agendas
-     * are floored at 0, so holding beat installing (deal 1491 T1: Superconducting Hub installed -5.7, held 0). PARKED OFF
-     * (2026-11-09): -0.8 ± 1.6 alone (run 42623099845, remote steals 631 vs 607: cheaper advances went in riskier), +0.9
-     * ± 2.1 with plannerHold (run 42623106258, stuck in HQ +3.9): the click price is not what holds agendas back; the held
-     * floor at 0 (evaluate.ts heldAgendasWorth) is the other half, next. Rules: advancing is a click and 1 credit (5.2.6f).
-     */
-    agendaLine: false,
-    /**
-     * Phase 2 O2b (opening-audit/report.md; Corp only): an advance the timing guard rules out (it can't be scoreable next
-     * turn, nothing guards it, or its server is exposed) is priced ADVANCE_GUARD_PENALTY below the advance it would be,
-     * instead of -Infinity, so the planner can play it out and the leaf decide (corpAI.ts advanceScore). Rules: installed
-     * agendas can always be advanced (1.18.3; basic action 5.2.6f). Off: the guard left it out of every candidate list.
-     * PARKED OFF (2026-11-09): +0.9 ± 0.9 in the shipping shape (run 42630827843 vs O4c), but it reopens the pinned
-     * hole tests/synergy.test.ts "does not leave an agenda half-advanced over the Runner's turn": with one click left the
-     * planner plays the priced advance and leaves the agenda half-advanced for the Runner. A noise-level self-play gain
-     * doesn't buy back a human-usable hole; the guard's job belongs to the leaf (what O taught), not a price on it.
-     */
-    advanceGuardPriced: false,
-    /**
-     * Round 2 Phase 2 E1 (spec-phase2.md; Corp only): the Corp's credit need (valueModel boardNeed) adds the advancement
-     * still short on the agendas installed in its remotes (valueModel scoreNeed, 1 credit each, rule 5.2.6f), so credits
-     * slide against a need that includes finishing the score as well as rezzing the ice that holds it.
-     */
-    scoreBudget: false,
     /** Code audit cleanup item 9: the Runner's board score and run choice guess a facedown card the same way (runs.ts remoteAgendaOdds, evaluate corpBoardValue). */
     oneAgendaGuess: false,
     /**
@@ -514,17 +487,6 @@ export const tuning = {
     unseenOdds: false,
     /** Jeff, 2026-11-06 (his Teia game, ai-ice-grip): ice on the board is priced against a grip no bigger than the hand size, not the cards the Runner holds only until its turn ends (iceValues iceWorthOf). */
     iceGripCap: true,
-    /**
-     * Tuning pass 1, part B (Fable spec 2026-11-07): one race clock (clock.ts) prices the Corp's time from the Runner's
-     * expected scoring rate on this board. agendas: agendaWorth's wait discount is clock.open, not 1 - 1/turnsLeft.
-     * horizon: turnsLeft is the turns until either side reaches 7 at the clock's pace, or R&D runs out. money: the Corp's
-     * credit need shrinks as its game shortens (round 2).
-     * tempo (piece 1b, added after the calibration: open() made waiting cheaper, not dearer): each Runner turn an agenda
-     * waits costs the Runner's expected points that turn on its clock. tempoOnce (piece 1c, Fable's review): the same
-     * charge once per position, carried by the agenda nearest scoring (HQ's seen agendas included); the others pay
-     * only their turns beyond it (evaluate.ts nearestAgendaTurns, tempoOnceCharge).
-     */
-    raceClock: { agendas: false, tempo: false, tempoOnce: false, horizon: false, money: false },
     /**
      * Round 2 Phase 2 K (spec-phase2.md K, design-k1.md): the Runner capability model (reach.ts). reach: an agenda's steal
      * odds over the breakers and run events the Runner may hold or draw from its unseen pool (hypergeometric), each case
@@ -592,7 +554,7 @@ export const tuning = {
  */
 export const sideOff: Record<SideCode, string[]> = {
   corp: [],
-  runner: ['scoreNow', 'scoreInTwo', 'tagTrashNow', 'ownTrashRisk', 'hqTrashCost', 'oneCurrency', 'threatModel', 'measuredPass', 'threatSpend', 'calibratedRun', 'raceClock', 'iceProtects', 'replyContenders', 'plannerAgenda', 'clearinghouseRez', 'ownIceKnown', 'runRecord', 'icePacingPriced', 'searchLines', 'searchSamples', 'hiddenDraws', 'agendaLine', 'advanceGuardPriced', 'scoreBudget', 'oracle', 'reach', 'reachStrength', 'reachTime', 'threatKey', 'threatKeyPricing'],
+  runner: ['scoreNow', 'scoreInTwo', 'tagTrashNow', 'ownTrashRisk', 'hqTrashCost', 'oneCurrency', 'threatModel', 'measuredPass', 'threatSpend', 'calibratedRun', 'iceProtects', 'replyContenders', 'plannerAgenda', 'clearinghouseRez', 'ownIceKnown', 'runRecord', 'icePacingPriced', 'searchLines', 'searchSamples', 'hiddenDraws', 'oracle', 'reach', 'reachStrength', 'reachTime', 'threatKey', 'threatKeyPricing'],
 };
 
 /**

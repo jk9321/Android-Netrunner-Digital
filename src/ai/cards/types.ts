@@ -57,4 +57,8 @@ export interface CardAI {
   /** Corp card whose damage can't all land on the Corp's own turn (plan.corpTurnDamageOwn, effectValues.ts damageThreat):
    * the most it can deal there, by the state now. Unset: what its text says (on access, during a run, if tagged: 0). */
   corpTurnDamage?: number | ((state: GameState) => number);
+  /** Agenda with Dividends N: agenda counters placed for each excess advancement counter when it is scored (the Corp
+   * over-advances it: corpAI overAdvance; counted scoring leaves it to the Corp at its requirement: winNow.ts,
+   * countedScore.ts). */
+  dividends?: number;
 }

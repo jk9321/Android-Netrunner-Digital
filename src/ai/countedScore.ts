@@ -3,6 +3,7 @@ import { scoreNowLine } from './winNow';
 import { iceCreditNeed } from './runs';
 import { plan } from './pricing';
 import { withIceInstalled } from './iceValues';
+import { dividendsOf } from './cards';
 
 /**
  * Counted scores (Corp redesign stage 0, /mnt/project-files/netrunner-ai/redesign/spec-stage0.md M2; moved here from
@@ -262,7 +263,7 @@ function finishTurnStep(state: GameState, held: HeldLine): GameAction | 'drop' |
   if (!at) return state.corp.scoreArea.some(c => c.instanceId === held.line.agendaId) ? 'done' : 'drop';
   const left = (cardDef(at.card).advancement_cost ?? 0) - at.card.advancementCounters;
   // A Dividends agenda at its requirement: over-advancing it is the Corp's choice (excess counters become agenda counters)
-  if (left <= 0 && /\bDividends\b/.test(cardDef(at.card).stripped_text ?? '')) return 'done';
+  if (left <= 0 && dividendsOf(at.card.cardCode) > 0) return 'done';
   if (left <= 0) return legalShape(state, { type: 'SCORE_AGENDA', cardInstanceId: at.card.instanceId }) ?? 'drop';
   if (left > state.corp.clicks || left > state.corp.credits) return 'drop';
   return legalShape(state, { type: 'ADVANCE_CARD', cardInstanceId: at.card.instanceId }) ?? 'drop';

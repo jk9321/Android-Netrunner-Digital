@@ -331,6 +331,7 @@ export const ELEVATION: Record<string, CardAI> = {
   '35037': { synergy: {} },
   // Project Ingatan
   '35038': {
+    dividends: 1,
     synergy: { wants: { advance: 1, discard: 0.5 }, when: ['onScore'] },
     // Agenda counters in the score area, by what spending one does
     counters: { agenda: () => 3 }, // Install a card from Archives for free
@@ -388,6 +389,7 @@ export const ELEVATION: Record<string, CardAI> = {
   },
   // Sericulture Expansion
   '35049': {
+    dividends: 1,
     synergy: { gives: { advance: 1 }, wants: { advance: 1 }, when: ['onScore'] },
     counters: { agenda: () => 4 }, // 2 advancement counters (2 clicks and 2 credits)
     counterFormulas: { agenda: sericultureAgenda },
@@ -437,6 +439,7 @@ export const ELEVATION: Record<string, CardAI> = {
   '35058': { synergy: { gives: { econ: 0.5 }, wants: { tags: 1.5 }, when: ['ifTagged'] } },
   // Embedded Reporting
   '35059': {
+    dividends: 2,
     synergy: { wants: { advance: 1.5, operations: 0.5 }, when: ['onScore'] },
     counters: { agenda: () => 1.5 }, // An operation to the top of R&D
     counterFormulas: { agenda: embeddedAgenda },
@@ -484,6 +487,7 @@ export const ELEVATION: Record<string, CardAI> = {
   '35070': { synergy: { gives: { econ: 1 }, when: ['onScore'] } },
   // Off the Books
   '35071': {
+    dividends: 1,
     synergy: { gives: { install: 0.5 }, wants: { advance: 1 }, when: ['onScore'] },
     counters: { agenda: () => 3.5 }, // Fetch any card, installed for free
     counterFormulas: { agenda: offTheBooksAgenda },

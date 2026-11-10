@@ -28,7 +28,7 @@ import { cardSynergy } from './synergyTags';
 import { econValue, upgradeValue } from './cardValues';
 import { counterWorth } from './counterValues';
 import { plan, pricing, withPricing } from './pricing';
-import { setupOperation } from './cards';
+import { dividendsOf, setupOperation } from './cards';
 // Last: its imports (winNow, runs, pricing) are loaded by then, so the AI modules' load order is unchanged (oracle.ts)
 import { HeldLine, scoreInTwoPick } from './countedScore';
 
@@ -81,7 +81,7 @@ export function moneyOpGain(code: string): number | undefined {
   return printedGain(def.stripped_text);
 }
 /** "Dividends N": agenda counters per advancement counter beyond the requirement (0: none). */
-const dividends = (card: CardInstance) => Number(/dividends (\d+)/i.exec(cardDef(card).stripped_text ?? '')?.[1] ?? 0);
+const dividends = (card: CardInstance) => dividendsOf(card.cardCode);
 
 export interface HeuristicOptions {
   /** Deck-aware nudges and opponent reading (synergy.ts). Off: the AI as it was before them. */
@@ -691,9 +691,8 @@ export class HeuristicCorpAI implements Agent {
         const spend = Math.min(corp.clicks, corp.credits) + this.untaianAdvance(state, 0);
         const locked = this.locked(state, server, corp.credits - spend);
         const ruledOut = need - spend > (locked ? 6 : 3) || guards(state, server, corp.credits - spend) === 0 || (!this.exposureOk(state, server, corp.credits - spend) && !this.hqNoSafer(state, server, corp.credits - spend));
-        // plan.advanceGuardPriced (O2b): ruled out is priced, not -Infinity, so the planner can still play it out
-        if (ruledOut && !plan().advanceGuardPriced) return -Infinity;
-        return (locked ? 8 : 6) + card.advancementCounters - (ruledOut ? ADVANCE_GUARD_PENALTY : 0); // and then finish the job: a half-advanced agenda is the Runner's best target
+        if (ruledOut) return -Infinity;
+        return (locked ? 8 : 6) + card.advancementCounters; // and then finish the job: a half-advanced agenda is the Runner's best target
       }
       // Can't finish this turn: build counters only behind ice we can rez
       return guards(state, server, corp.credits - 1) > 0 ? 3 + 0.5 * card.advancementCounters : -Infinity;
@@ -1070,9 +1069,6 @@ const CAST_WHILE_ABLE = 0.5;
 
 /** Credits the Corp counts on making before the Runner tests its newest ice (ice pacing: 2 and 0 played the same). */
 const ICE_PACING_INCOME = 0;
-/** plan.advanceGuardPriced (O2b): what an advance the timing guard rules out gives up against the advance it would be (one-step points). */
-const ADVANCE_GUARD_PENALTY = 6;
-
 /** Credits to rez every unrezzed ice the Corp has installed. */
 /**
  * plan.icePacingPriced (bug report #43, Jeff 2026-11-09: "that ICE just shouldn't count as protection unless it CAN rez

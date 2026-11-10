@@ -1,5 +1,6 @@
 import { CardInstance, GameAction, GameState, activePrompt, cardDef, executeAction, findCardAnywhere, getLegalActions, isLegalAction } from '../core';
 import { plan } from './pricing';
+import { dividendsOf } from './cards';
 
 /**
  * Win now (bug report #33, Jeff's Runner test game 1, 2026-11-09; plan.winNow): an exact search of the Corp's own turn for
@@ -325,7 +326,7 @@ function bestScoreLine(state: GameState, count: boolean): ScoreLine | null {
     getLegalActions(state, 'corp')
       .filter(a => a.type === 'SCORE_AGENDA')
       .map(a => (a as { cardInstanceId: string }).cardInstanceId)
-      .filter(id => /\bDividends\b/.test(cardDef(findCardAnywhere(state, id)!).stripped_text ?? '')),
+      .filter(id => dividendsOf(findCardAnywhere(state, id)!.cardCode) > 0),
   );
   const scoreable = getLegalActions(state, 'corp').filter(a => a.type === 'SCORE_AGENDA' && !dividends.has((a as { cardInstanceId: string }).cardInstanceId));
   if (scoreable.length) {
