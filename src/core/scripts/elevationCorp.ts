@@ -134,11 +134,13 @@ const poetri: CardScript = {
     agenda_scored: ctx => {
       const top = installable(ctx.state, ctx.state.corp.rd.slice(0, 3).filter(c => type(c) !== 'agenda'));
       addLog(ctx.state, 'corp', 'Corp looked at the top 3 cards of R&D (Poétrï Luxury Brands).');
-      if (top.length > 0) askCards(ctx, 'corp', 'Poétrï: you may install 1 non-agenda card from the top 3 of R&D.', ids(top), 0, 1, 'pick');
+      // Asked even with nothing to install when the Corp's stops are on ALL, so the wait doesn't tell the Runner what R&D holds (4.2.2)
+      askEvenIfNone(ctx, 'corp', top.length > 0, () => askCards(ctx, 'corp', 'Poétrï: you may install 1 non-agenda card from the top 3 of R&D.', ids(top), 0, 1, 'pick'), 'Poétrï: no non-agenda card in the top 3 of R&D you can install.');
     },
     agenda_stolen: ctx => {
       const cards = installable(ctx.state, ctx.state.corp.hq.filter(c => type(c) !== 'agenda'));
-      if (cards.length > 0) askCards(ctx, 'corp', 'Poétrï: you may install 1 non-agenda card from HQ.', ids(cards), 0, 1, 'pick');
+      // Likewise for HQ (4.3.2: HQ is hidden from the Runner)
+      askEvenIfNone(ctx, 'corp', cards.length > 0, () => askCards(ctx, 'corp', 'Poétrï: you may install 1 non-agenda card from HQ.', ids(cards), 0, 1, 'pick'), 'Poétrï: no non-agenda card in HQ you can install.');
     },
   },
   onPromptAnswer: (ctx, source, answer) => {
