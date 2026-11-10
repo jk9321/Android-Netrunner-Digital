@@ -255,8 +255,12 @@ export const scoreNowStats = { searches: 0, found: 0, choices: 0, nodes: 0 };
  * an action, no click), on the real state, so cards that read the Corp's score see it as it is.
  *
  * Which line, when several score: the most points scored this turn, then the most credits left at the last score (a
- * free or click-neutral money action the turn still affords before the score, Petty Cash first, makes the richer line).
- * The search keeps going past a score for a second one and keeps the best line found within WIN_NOW.nodes.
+ * free or click-neutral money action the turn still affords before the score, Petty Cash first, makes the richer line),
+ * then the fewest steps (no free ability used for nothing, Spin Doctor removed with no card to shuffle). The search
+ * keeps going past a score for a second one and keeps the best line found within WIN_NOW.nodes. An agenda that can be
+ * scored now is scored first: scoring costs nothing (1.17.3c), so it never takes a point from the rest of the turn,
+ * and nothing played before it can be undone. Not a Dividends agenda already at its requirement: over-advancing it
+ * is the Corp's choice (its excess counters become agenda counters), so that one is left to its judgement.
  */
 export function scoreNowAction(state: GameState): GameAction | null {
   if (!plan().scoreNow || state.winner || state.activePlayer !== 'corp' || state.activeRun) return null;
@@ -265,9 +269,30 @@ export function scoreNowAction(state: GameState): GameAction | null {
   if (state.turnStep?.kind === 'corp_turn_start') return null;
   if (!canStillWin(state, 1)) return null;
   scoreNowStats.searches++;
+  const points = (a: GameAction) => {
+    const id = (a as { cardInstanceId?: string }).cardInstanceId;
+    const card = id ? findCardAnywhere(state, id) : undefined;
+    return card ? (cardDef(card).agenda_points ?? 0) : 0;
+  };
+  // A Dividends agenda already at its requirement is the Corp's to over-advance (its excess counters become agenda
+  // counters when scored): left to its judgement, here and in the search
+  const dividends = new Set(
+    getLegalActions(state, 'corp')
+      .filter(a => a.type === 'SCORE_AGENDA')
+      .map(a => (a as { cardInstanceId: string }).cardInstanceId)
+      .filter(id => /\bDividends\b/.test(cardDef(findCardAnywhere(state, id)!).stripped_text ?? '')),
+  );
+  const scoreable = getLegalActions(state, 'corp').filter(a => a.type === 'SCORE_AGENDA' && !dividends.has((a as { cardInstanceId: string }).cardInstanceId));
+  if (scoreable.length) {
+    scoreNowStats.found++;
+    if (scoreable.length > 1) scoreNowStats.choices++;
+    return scoreable.reduce((a, b) => (points(b) > points(a) ? b : a));
+  }
   const rd = state.corp.rd.map(c => c.instanceId).join();
-  const scoredAt = (s: GameState) => s.corp.scoreArea.filter(c => cardDef(c).type_code === 'agenda' && !state.corp.scoreArea.some(x => x.instanceId === c.instanceId));
-  const best = { points: 0, credits: -Infinity, first: null as GameAction | null, agendas: new Set<string>() };
+  const scoredAt = (s: GameState) => s.corp.scoreArea.filter(c => cardDef(c).type_code === 'agenda' && !dividends.has(c.instanceId) && !state.corp.scoreArea.some(x => x.instanceId === c.instanceId));
+  const best = { points: 0, credits: -Infinity, steps: Infinity, first: null as GameAction | null, agendas: new Set<string>() };
+  const better = (now: number, credits: number, steps: number) =>
+    now > best.points || (now === best.points && (credits > best.credits || (credits === best.credits && steps < best.steps)));
   const seen = new Set<string>();
   let nodes = 0;
   const search = (s: GameState, depth: number, first: GameAction, points: number) => {
@@ -291,7 +316,7 @@ export function scoreNowAction(state: GameState): GameAction | null {
       const now = scored.reduce((sum, c) => sum + (cardDef(c).agenda_points ?? 0), 0);
       if (scored.length && now > points) {
         for (const c of scored) best.agendas.add(c.instanceId);
-        if (now > best.points || (now === best.points && next.corp.credits > best.credits)) Object.assign(best, { points: now, credits: next.corp.credits, first });
+        if (better(now, next.corp.credits, depth + 1)) Object.assign(best, { points: now, credits: next.corp.credits, steps: depth + 1, first });
       }
       if (next.winner) continue;
       search(next, depth + 1, first, scored.length ? now : points);
@@ -311,7 +336,7 @@ export function scoreNowAction(state: GameState): GameAction | null {
     const now = scored.reduce((sum, c) => sum + (cardDef(c).agenda_points ?? 0), 0);
     if (scored.length) {
       for (const c of scored) best.agendas.add(c.instanceId);
-      if (now > best.points || (now === best.points && next.corp.credits > best.credits)) Object.assign(best, { points: now, credits: next.corp.credits, first: action });
+      if (better(now, next.corp.credits, 1)) Object.assign(best, { points: now, credits: next.corp.credits, steps: 1, first: action });
     }
     if (!next.winner) search(next, 1, action, now);
     if (nodes >= WIN_NOW.nodes) break;

@@ -451,11 +451,16 @@ function startTurnStep(state: GameState, held: HeldLine): GameAction | null | 'd
   return null;
 }
 
-/** On a later turn: score the agenda once its counters reach the requirement (1.17.3a), advance it while the turn can finish it (5.2.6f); 'drop' otherwise. */
-function finishTurnStep(state: GameState, held: HeldLine): GameAction | 'drop' {
+/**
+ * On a later turn: score the agenda once its counters reach the requirement (1.17.3a), advance it while the turn can
+ * finish it (5.2.6f); 'drop' otherwise; 'done' for a Dividends agenda at its requirement (left to the Corp's pick).
+ */
+function finishTurnStep(state: GameState, held: HeldLine): GameAction | 'drop' | 'done' {
   const at = installedAgendas(state).find(a => a.card.instanceId === held.line.agendaId);
   if (!at) return 'drop';
   const left = (cardDef(at.card).advancement_cost ?? 0) - at.card.advancementCounters;
+  // A Dividends agenda at its requirement: over-advancing it is the Corp's choice (excess counters become agenda counters)
+  if (left <= 0 && /\bDividends\b/.test(cardDef(at.card).stripped_text ?? '')) return 'done';
   if (left <= 0) return legalShape(state, { type: 'SCORE_AGENDA', cardInstanceId: at.card.instanceId }) ?? 'drop';
   if (left > state.corp.clicks || left > state.corp.credits) return 'drop';
   return legalShape(state, { type: 'ADVANCE_CARD', cardInstanceId: at.card.instanceId }) ?? 'drop';
@@ -475,6 +480,10 @@ export function scoreInTwoPick(state: GameState, pick: GameAction, held: HeldLin
   let h = held && held.game === state.id && held.turn <= state.turnNumber ? held : null;
   if (h && h.turn < state.turnNumber) {
     const step = finishTurnStep(state, h);
+    if (step === 'done') {
+      scoreInTwoStats.finished++;
+      return { action: pick, held: null };
+    }
     if (step === 'drop') {
       scoreInTwoStats.dropped++;
       h = null;

@@ -151,6 +151,22 @@ describe('plan.scoreInTwo: the Corp scores over two turns when the count holds (
     expect(inDecision(three, 'corp', () => scoreInTwo(three))).toBeNull();
   });
 
+  it('next turn, a Dividends agenda at its requirement is left to the Corp (it may over-advance it); another is scored', () => {
+    tuning.plan.scoreInTwo = true;
+    for (const [code, dividends] of [['35038', true], ['30060', false]] as const) {
+      const s = corpMain(5);
+      s.turnNumber = 3;
+      const id = installCorpForTest(s, code, 'remote-1'); // Project Ingatan (Dividends 1) or Above the Law, both 3 to advance
+      s.corp.servers['remote-1'].root[0].advancementCounters = 3;
+      installIceForTest(s, PALISADE, 'remote-1', true);
+      const held = { game: s.id, turn: 2, line: { agenda: '', agendaId: id, server: 'remote-1', form: 'installed' as const, advanceNow: 1, advanceNext: 1, rez: 0 }, server: 'remote-1', counters: 2 };
+      const c = credit(s);
+      const r = pick(s, c, held);
+      expect(r.held).toBeNull();
+      expect(r.action).toEqual(dividends ? c : expect.objectContaining({ type: 'SCORE_AGENDA', cardInstanceId: id }));
+    }
+  });
+
   it("a line held for another game is not this game's: it is dropped", () => {
     tuning.plan.scoreInTwo = true;
     const s = corpMain(4);

@@ -9,6 +9,8 @@
  *    an action and costs no click.
  *  - 1.18.1 advancement counters are placed by advancing; 5.2.6f the basic action "[click], 1[credit]: Advance 1
  *    installed card".
+ *  - Dividends N (Project Ingatan): "When you score this agenda, place N agenda counters on it for each excess
+ *    advancement counter", so over-advancing one at its requirement is a choice the search leaves to the Corp.
  *  - 1.17.2 "If at any time a player's score is greater than or equal to 7, they win the game at the next checkpoint"
  *    (winNow's case, searched first).
  */
@@ -19,7 +21,7 @@ import { deckGameSetup } from '../src/data/decks';
 import { createAgent } from '../src/ai';
 import { tuning } from '../src/ai/synergy';
 import { scoreNowAction } from '../src/ai/winNow';
-import { installCorpForTest, newGame } from './helpers';
+import { giveCard, installCorpForTest, newGame } from './helpers';
 import { inDecision } from './helpers/pricing';
 
 /** A recorded game (a human report, or a self-play deal in the same shape) replayed to the Corp's first main-phase decision of turn `turn`. */
@@ -84,6 +86,29 @@ describe('plan.scoreNow: the Corp scores what it can score this turn (1.17.3a-c,
     const a = inDecision(s, 'corp', () => scoreNowAction(s));
     expect(a).toMatchObject({ type: 'ADVANCE_CARD', cardInstanceId: message });
     expect(above).not.toBe(message);
+  });
+
+  it('an agenda that can be scored now is scored first, not after a Hedge Fund the turn still affords (1.17.3c)', () => {
+    tuning.plan.scoreNow = true;
+    const s = structuredClone(newGame(1));
+    s.corp.rd.push(...s.corp.hq.splice(0));
+    s.corp.clicks = 2;
+    s.corp.credits = 5;
+    giveCard(s, 'corp', '30075'); // Hedge Fund
+    const above = installCorpForTest(s, '30060', 'remote-1'); // Above the Law, 3 to advance
+    s.corp.servers['remote-1'].root[0].advancementCounters = 3;
+    expect(inDecision(s, 'corp', () => scoreNowAction(s))).toMatchObject({ type: 'SCORE_AGENDA', cardInstanceId: above });
+  });
+
+  it('a Dividends agenda at its requirement is left to the Corp, which may over-advance it', () => {
+    tuning.plan.scoreNow = true;
+    const s = structuredClone(newGame(1));
+    s.corp.rd.push(...s.corp.hq.splice(0));
+    s.corp.clicks = 3;
+    s.corp.credits = 5;
+    installCorpForTest(s, '35038', 'remote-1'); // Project Ingatan, 3 to advance, Dividends 1
+    s.corp.servers['remote-1'].root[0].advancementCounters = 3;
+    expect(inDecision(s, 'corp', () => scoreNowAction(s))).toBeNull();
   });
 
   it('nothing scorable: no line (the clicks and credits cannot reach the requirement)', () => {
