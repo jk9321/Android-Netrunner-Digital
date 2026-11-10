@@ -605,6 +605,22 @@ describe('The Automata Initiative: Weyland and neutral', () => {
     expect(s.corp.credits).toBe(credits + 4);
   });
 
+  // Rules 8.7.2e: searching a deck with criteria, the Corp may fail to find even when a match exists
+  it('Pivot may fail to find an operation that is in R&D (rules 8.7.2e), and the threat 3 play still follows', () => {
+    let s = newGame();
+    emptyHQ(s);
+    const hedge = createCardInstance(s, SG.hedgeFund);
+    s.corp.rd.push(hedge);
+    s.corp.hq.push(createCardInstance(s, SG.hedgeFund));
+    threat(s, 3);
+    const [s1] = playCorp(s, L.pivot, 3);
+    s = s1;
+    expect(s.pendingPrompts[0]).toMatchObject({ kind: 'effect_cards', min: 0, max: 1 });
+    s = pick(s, []);
+    expect(s.corp.rd.some(c => c.instanceId === hedge.instanceId)).toBe(true);
+    expect(source(s)).toMatchObject({ step: 'use' });
+  });
+
   it('Angelique Garza Correa does meat damage from HQ at threat 3, and 2 for 2 credits when accessed rezzed', () => {
     let s = newGame();
     threat(s, 3);
