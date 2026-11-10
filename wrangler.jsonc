@@ -27,6 +27,12 @@
       "simple": { "limit": 2, "period": 60 }
     }
   ],
+  // The game Workers (multiplayer, server/forward.ts): production hosts use GAMES, previews GAMES_STAGING.
+  // Both Workers must exist before the site deploys with these lines (docs/multiplayer-server.md).
+  "services": [
+    { "binding": "GAMES", "service": "netrunner-games" },
+    { "binding": "GAMES_STAGING", "service": "netrunner-games-staging" }
+  ],
   "observability": {
     "enabled": true
   },

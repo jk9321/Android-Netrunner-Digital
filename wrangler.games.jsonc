@@ -1,0 +1,32 @@
+// The game Worker (production: built from main). Multiplayer phase 2, chunk 2b:
+// one Durable Object per online game (GameRoom, server/gameRoom.ts). A
+// separate Worker from the site because a Worker that implements a Durable
+// Object gets no preview URLs. It has no public URL of its own: the site
+// Worker reaches it through a service binding (wrangler.jsonc, GAMES /
+// GAMES_STAGING) and forwards /api/games/* to it (server/forward.ts).
+{
+  "name": "netrunner-games",
+  "main": "server/index.ts",
+  "compatibility_date": "2026-10-19",
+  // Reachable only through the site Worker's service binding
+  "workers_dev": false,
+  "preview_urls": false,
+  // src/data/decks.ts reads this build flag (vite.config.ts sets it for the site)
+  "define": { "__ALL_DECKS__": "false" },
+  "vars": {
+    // The deploy command passes the commit with --var BUILD_ID:...; 'dev' when it doesn't
+    "BUILD_ID": "dev"
+  },
+  "durable_objects": {
+    "bindings": [{ "name": "ROOMS", "class_name": "GameRoom" }]
+  },
+  // SQLite-backed Durable Objects: the kind the free plan allows
+  "migrations": [{ "tag": "v1", "new_sqlite_classes": ["GameRoom"] }],
+  "ratelimits": [
+    // Creating rooms, per address
+    { "name": "GAME_CREATE_LIMITER", "namespace_id": "1101", "simple": { "limit": 5, "period": 60 } },
+    // Lobby lookups, joins and socket connects, per address (room codes can't be guessed by brute force)
+    { "name": "GAME_LOOKUP_LIMITER", "namespace_id": "1102", "simple": { "limit": 30, "period": 60 } }
+  ],
+  "observability": { "enabled": true }
+}

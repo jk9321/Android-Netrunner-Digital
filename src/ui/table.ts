@@ -24,18 +24,17 @@ import {
   SideCode,
   ViewIds,
   actingSide,
+  TableCore,
   createInitialGameState,
   executeAction,
   getLegalActions,
   isLegalAction,
-  newViewIds,
   stateFromView,
   toEngineAction,
   fromEngineAction,
-  uncommittedChoice,
-  viewFor,
   wantsStop,
 } from '../core';
+import type { TableViews } from '../core';
 import type { AIClient } from '../ai/client';
 import { rezCandidates } from '../ai/playout';
 import type { Viewer } from './viewer';
@@ -145,29 +144,25 @@ export interface TableMove {
   next: Record<Viewer, GameState>;
 }
 
-interface Held {
-  base: GameState;
-  next: GameState;
-  action: GameAction;
-  ids: Record<SideCode, ViewIds>;
-}
-
 interface Shown {
   state: GameState;
   views: Record<SideCode, GameView>;
   recon: Record<SideCode, GameState>;
 }
 
+/** The table core's views with each side's reconstruction (what the screen draws). */
+function withRecon(shown: TableViews): Shown {
+  return { state: shown.state, views: shown.views, recon: { corp: stateFromView(shown.views.corp), runner: stateFromView(shown.views.runner) } };
+}
+
 export class LocalTable {
-  private realState: GameState;
-  private held: Held | null = null;
-  private committedIds: Record<SideCode, ViewIds>;
-  private committed!: Shown;
+  /** The real state, the held choice, the moves and both id maps (shared with the game server, src/core/table.ts). */
+  private core: TableCore;
+  private committed: Shown;
   private heldShown: Shown | null = null;
   private listeners = new Set<() => void>();
   private moveListeners = new Set<(move: TableMove) => void>();
   private seats = new Map<Viewer, Seat>();
-  moves: GameAction[];
   /** Bumped on every change, for React's useSyncExternalStore. */
   version = 0;
 
@@ -177,57 +172,34 @@ export class LocalTable {
     private hooks: TableHooks,
     saved?: { moves?: GameAction[]; ids?: Record<SideCode, ViewIds> },
   ) {
-    this.realState = start;
-    this.moves = saved?.moves ?? [];
-    const ids = saved?.ids ?? { corp: newViewIds(), runner: newViewIds() };
-    this.committedIds = ids;
-    this.committed = this.show(start, ids, true);
+    this.core = new TableCore(start, 'local', saved);
+    this.committed = withRecon(this.core.committed);
   }
 
   /** The committed real state: for saving, bug reports and the computer, never for drawing. */
   get state(): GameState {
-    return this.realState;
+    return this.core.state;
   }
 
   get ids(): Record<SideCode, ViewIds> {
-    return this.committedIds;
+    return this.core.ids;
+  }
+
+  get moves(): GameAction[] {
+    return this.core.moves;
   }
 
   /** Whose move the game waits on (public: every view says so). */
   get acting(): SideCode | null {
-    return actingSide(this.shownState);
+    return actingSide(this.core.shown);
   }
 
   get winner(): SideCode | null {
-    return this.realState.winner;
-  }
-
-  private get shownState(): GameState {
-    return this.held?.next ?? this.realState;
-  }
-
-  /** Views of `state` for both sides, chained from `ids`; `commit` keeps the new ids as the table's. */
-  private show(state: GameState, ids: Record<SideCode, ViewIds>, commit: boolean): Shown {
-    const views = {} as Record<SideCode, GameView>;
-    const recon = {} as Record<SideCode, GameState>;
-    const next = {} as Record<SideCode, ViewIds>;
-    for (const side of SIDES) {
-      const res = viewFor(state, side, ids[side], 'local');
-      views[side] = res.view;
-      next[side] = res.ids;
-      recon[side] = stateFromView(res.view);
-    }
-    if (commit) this.committedIds = next;
-    else if (this.held) this.held.ids = next;
-    return { state, views, recon };
+    return this.core.state.winner;
   }
 
   private get current(): Shown {
     return this.heldShown ?? this.committed;
-  }
-
-  private idsNow(side: SideCode): ViewIds {
-    return this.held ? this.held.ids[side] : this.committedIds[side];
   }
 
   subscribe(fn: () => void): () => void {
@@ -259,7 +231,7 @@ export class LocalTable {
   private makeSeat(viewer: Viewer): Seat {
     const shown = this.current;
     const waitingOn = actingSide(shown.state);
-    const cancel = this.held ? () => this.cancel() : undefined;
+    const cancel = this.core.held ? () => this.cancel() : undefined;
     // Once the game is over nothing is secret any more (rule 1.7.1 ends the game; every card may be shown)
     if (viewer === 'both' || shown.state.winner) {
       const state = shown.state;
@@ -277,7 +249,7 @@ export class LocalTable {
       };
     }
     const side = viewer;
-    const ids = this.idsNow(side);
+    const ids = this.core.idsNow(side);
     const state = shown.recon[side];
     const legal = getLegalActions(shown.state, side).flatMap(a => {
       const mine = fromEngineAction(a, ids);
@@ -294,7 +266,7 @@ export class LocalTable {
       act: async a => {
         let engine: GameAction;
         try {
-          engine = toEngineAction(a, this.idsNow(side));
+          engine = toEngineAction(a, this.core.idsNow(side));
         } catch (err) {
           this.hooks.alert(err instanceof Error ? err.message : 'Illegal action', { title: 'Action blocked' });
           return;
@@ -307,8 +279,7 @@ export class LocalTable {
 
   /** Dropping a held choice: the action was never applied, so the game is as it was. */
   cancel() {
-    if (!this.held) return;
-    this.held = null;
+    if (!this.core.cancel()) return;
     this.heldShown = null;
     this.changed();
   }
@@ -319,23 +290,19 @@ export class LocalTable {
    * choice instead).
    */
   async apply(action: GameAction): Promise<void> {
-    const hold = action.type === 'CONCEDE' ? null : this.held;
-    const base = hold?.base ?? this.realState;
-    const current = hold?.next ?? base;
-    // The game is over (rule 1.7.1): a move still on its way (the computer's, a click) is dropped quietly
-    if (current.winner) return;
     const person = action.player !== this.aiSide;
     try {
       // The person's ability or event whose first step is their own choice (Red Team's server):
       // shown with the choice open, but not applied until they choose, so Cancel can drop it (uncommitted.ts)
-      const uncommitted = !hold && person ? uncommittedChoice(current, action) : null;
-      if (uncommitted) {
-        this.held = { base: current, next: uncommitted.next, action, ids: this.committedIds };
-        this.heldShown = this.show(uncommitted.next, this.committedIds, false);
+      const step = this.core.step(action, person);
+      // The game is over (rule 1.7.1): a move still on its way (the computer's, a click) is dropped quietly
+      if (!step) return;
+      if (step.kind === 'held') {
+        this.heldShown = withRecon(this.core.hold(step.held));
         this.changed();
         return;
       }
-      const next = executeAction(current, action);
+      const { current, next } = step;
       // The person installing over their own cards confirms first, with Cancel as the safe default
       if (person && isInstallAction(current, action)) {
         const lost = installedCardsLost(current, next, action.player);
@@ -346,16 +313,12 @@ export class LocalTable {
             danger: true,
           });
           // Nothing happens if cancelled, or if the game moved on while asking
-          if (!ok || this.realState !== base || this.held !== hold) return;
+          if (!ok || !this.core.isFresh(step)) return;
         }
       }
       const prev = this.committed;
-      const ids = hold ? hold.ids : this.committedIds;
-      this.moves = [...this.moves, ...(hold ? [hold.action] : []), action];
-      this.realState = next;
-      this.held = null;
+      this.committed = withRecon(this.core.commit(step));
       this.heldShown = null;
-      this.committed = this.show(next, ids, true);
       const move: TableMove = {
         action,
         prev: { corp: prev.recon.corp, runner: prev.recon.runner, both: prev.state },
@@ -377,8 +340,8 @@ export class LocalTable {
    */
   askComputer(ai: AIClient): { request: Promise<GameAction | null>; apply: (action: GameAction | null) => 'stale' | 'illegal' | 'none' | 'ok' } | null {
     const aiSide = this.aiSide;
-    const state = this.realState;
-    if (!aiSide || this.held || state.winner || actingSide(state) !== aiSide) return null;
+    const state = this.core.state;
+    if (!aiSide || this.core.held || state.winner || actingSide(state) !== aiSide) return null;
     const window: PriorityWindow | null =
       state.pendingPrompts.length === 0 && state.priority?.holder === aiSide && aiSide !== state.activePlayer ? state.priority : null;
     const asked = window && wantsStop(state, aiSide, window) ? window.step : null;
@@ -393,7 +356,7 @@ export class LocalTable {
       request,
       apply: action => {
         // The game moved on (or ended) since the computer was asked
-        if (this.realState !== state || this.held) return 'stale';
+        if (this.core.state !== state || this.core.held) return 'stale';
         if (action && !isLegalAction(state, action)) return 'illegal';
         if (action) void this.apply(action);
         else if (window) void this.apply({ type: 'PASS', player: aiSide });
