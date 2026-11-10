@@ -22,7 +22,7 @@ export function printStage0b(games) {
   console.log(`  points stolen a game by server: ${Object.entries(steals).sort().map(([k, v]) => `${k} ${(v / measured.length).toFixed(2)}`).join(', ')}`);
   const sum = k => m.reduce((a, x) => a + x[k], 0);
   const two = k => m.reduce((a, x) => a + (x.two?.[k] ?? 0), 0) / m.length;
-  console.log(`  per game: score-now found ${(sum('nowFound') / m.length).toFixed(2)}; two-turn lines begun ${two('begun').toFixed(2)}, steps over the Corp's pick ${two('steps').toFixed(2)}, spare clicks vetoed ${two('vetoed').toFixed(2)}, dropped ${two('dropped').toFixed(2)}, finished ${two('finished').toFixed(2)}`);
+  console.log(`  per game: score-now found ${(sum('nowFound') / m.length).toFixed(2)} (more than one agenda scorable: ${m.reduce((a, x) => a + (x.nowChoices ?? 0), 0)} decisions in all); two-turn lines begun ${two('begun').toFixed(2)}, steps over the Corp's pick ${two('steps').toFixed(2)}, spare clicks vetoed ${two('vetoed').toFixed(2)}, dropped ${two('dropped').toFixed(2)}, finished ${two('finished').toFixed(2)}`);
   const lines = m.flatMap(x => x.lines);
   if (lines.length) {
     const count = (k, v) => lines.filter(l => l[k] === v).length;

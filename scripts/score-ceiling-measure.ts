@@ -30,12 +30,14 @@ if (measuring) {
 }
 
 let nowFound = 0;
+let nowChoices = 0;
 /** Before each game: the agents whose moves to keep, the layers' counts cleared. */
 export function startMeasure(pair: object) {
   agents = pair;
   moves = [];
   resetScoreInTwoStats();
   nowFound = scoreNowStats.found;
+  nowChoices = scoreNowStats.choices;
 }
 
 export interface Stage0bGame {
@@ -46,6 +48,8 @@ export interface Stage0bGame {
   firstScore: number | null;
   /** plan.scoreNow: decisions where its search found a score this turn. */
   nowFound: number;
+  /** Of those, decisions where more than one agenda could be scored. */
+  nowChoices: number;
   /** plan.scoreInTwo: lines begun, steps played over the Corp's pick, spare-click picks vetoed, lines dropped, finished. */
   two: { begun: number; steps: number; vetoed: number; dropped: number; finished: number };
   /** Each two-turn line begun: its form and the agenda's fate. */
@@ -58,6 +62,7 @@ export interface Stage0bGame {
 export function stage0bMeasure(seed: number, corpDeck: DeckList, runnerDeck: DeckList): Stage0bGame | { error: string } {
   try {
     const found = scoreNowStats.found - nowFound;
+    const choices = scoreNowStats.choices - nowChoices;
     const two = { begun: scoreInTwoStats.begun, steps: scoreInTwoStats.steps, vetoed: scoreInTwoStats.vetoed, dropped: scoreInTwoStats.dropped, finished: scoreInTwoStats.finished };
     const begunLines = [...scoreInTwoStats.lines];
     const game = replayGame({ config: { seed, corpDeck, runnerDeck, ai: 'both' }, moves });
@@ -90,6 +95,7 @@ export function stage0bMeasure(seed: number, corpDeck: DeckList, runnerDeck: Dec
       labels,
       firstScore: first >= 0 ? first + 1 : null,
       nowFound: found,
+      nowChoices: choices,
       two,
       lines,
       replayed: !!game.winner,
