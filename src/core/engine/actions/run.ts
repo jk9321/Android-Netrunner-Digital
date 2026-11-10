@@ -14,7 +14,7 @@ import { AccessZone } from '../../scripts/types';
 import { agendaPoints, availableCredits, bumpRunFlag, bumpTurnFlag, runFlag, RunFlag, spendCredits, trashCost, TurnFlag } from '../cardEffects';
 import { RunState } from '../../types/state';
 import { runnerSeesRd } from '../rdKnowledge';
-import { onWindowClose, openWindow } from '../priority';
+import { onWindowClose, openWindow, stopLevel } from '../priority';
 
 export function initiateRun(state: GameState, action: InitiateRunAction): void {
   if (action.player !== 'runner') illegal('Only Runner can initiate runs');
@@ -517,7 +517,30 @@ function offerMidAccess(state: GameState, card: CardInstance, zone: CardInstance
     });
     return;
   }
+  // Rules 4.2.2, 7.1.2: the Corp may not see what a card accessed from R&D is, so whether the Runner pauses on it
+  // must not depend on the card. With the Runner's stops at 'full' every R&D access waits for a Continue (Jeff,
+  // 2026-11-08: the Runner's stops decide, as for paid ability windows); an agenda whose steal cost asks the Runner
+  // anyway waits there instead. At every other level the access finishes here, as before.
+  if (zone === state.corp.rd && !inArchives && stopLevel(state, 'runner') === 'full' && !stealCostPromptFollows(state, card)) {
+    pushPrompt(state, {
+      kind: 'access_trash',
+      side: 'runner',
+      cardInstanceId: card.instanceId,
+      trashCost: null,
+      alternatives: [],
+      message: `Runner: accessing ${def.title}.`,
+    });
+    return;
+  }
   finishAccess(state, card, zone);
+}
+
+/** Will finishAccess ask the Runner whether to pay an additional cost to steal this card? */
+function stealCostPromptFollows(state: GameState, card: CardInstance): boolean {
+  if (cardDef(card).type_code !== 'agenda' || cannotStealOrTrash(state, card)) return false;
+  const cost = stealCost(state, card);
+  if (!(cost.clicks || cost.credits || cost.gripToBottom)) return false;
+  return state.runner.clicks >= cost.clicks && availableCredits(state, 'runner') >= cost.credits && state.runner.grip.length >= cost.gripToBottom;
 }
 
 /** Mid-access abilities installed cards offer for this card. */

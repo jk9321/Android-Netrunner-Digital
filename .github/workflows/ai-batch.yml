@@ -28,7 +28,7 @@ on:
         required: false
         default: ''
       level:
-        description: normal or hard
+        description: normal, hard (both sides), corp-hard or runner-hard (corp-losses only; one side's Hard AI vs the other's Normal)
         required: true
         default: normal
       label:

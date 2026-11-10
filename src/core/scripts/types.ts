@@ -26,6 +26,13 @@ export interface CardScript {
   onPlay?(ctx: EffectContext): void;
   /** Continues a multi-step effect after a prompt this script queued is answered. */
   onPromptAnswer?(ctx: EffectContext, source: EffectSource, answer: EffectAnswer): void;
+  /**
+   * The current candidates of an effect_cards prompt this script queued, worked out again when the
+   * prompt comes to the front: abilities triggered together resolve one at a time, each fully
+   * before the next (rules 9.2.8d), so an earlier one can change what a later one may choose
+   * (Send a Message rezzing a card Hermes would have returned).
+   */
+  liveCandidates?(state: GameState, source: EffectSource): string[];
   /** Ice behavior: subroutines, strength modifiers, encounter/rez triggers. */
   ice?: IceScript;
   /** Icebreaker behavior: what it breaks, costs, and strength abilities. */

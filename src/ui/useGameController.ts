@@ -80,8 +80,6 @@ export function useGameController(config: GameConfig, saved: SavedGame | null) {
   const fateTimersRef = useRef(new Set<number>());
   const startStops = useRef(saved ? saved.table.startStops : table.state.stops).current;
   noteMoves(config.seed, table.moves, startStops);
-  // The bug report sends the real state (the screen has only the viewer's view of it)
-  noteState(config.seed, table.state);
   // Bumped to ask the computer again after it failed to move
   const [aiRetry, setAiRetry] = useState(0);
 
@@ -140,6 +138,12 @@ export function useGameController(config: GameConfig, saved: SavedGame | null) {
     fateTimersRef.current.forEach(t => window.clearTimeout(t));
     fateTimersRef.current.clear();
   }, [viewer]);
+
+  // The bug report sends the real state (the screen has only the viewer's view of it); noted after every
+  // change at the table, not while rendering
+  useEffect(() => {
+    noteState(config.seed, table.state);
+  }, [config.seed, table, version]);
 
   // Save after every move so a reload (the browser discarding a background
   // tab, or the dev server reconnecting) resumes this game; a finished game is dropped
