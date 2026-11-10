@@ -3,6 +3,8 @@ import { scoreNowLine } from './winNow';
 import { iceCreditNeed } from './runs';
 import { plan } from './pricing';
 import { withIceInstalled } from './iceValues';
+import { dividendsOf, turnIncomeOf } from './cards';
+import { counters } from '../core/engine/cardEffects';
 
 /**
  * Counted scores (Corp redesign stage 0, /mnt/project-files/netrunner-ai/redesign/spec-stage0.md M2; moved here from
@@ -19,7 +21,6 @@ import { withIceInstalled } from './iceValues';
 
 const typeOf = (c: CardInstance | undefined) => (c ? cardDef(c).type_code : undefined);
 const isAgenda = (c: CardInstance | undefined) => typeOf(c) === 'agenda';
-const text = (c: CardInstance) => cardDef(c).stripped_text ?? '';
 const remotes = (s: GameState) => Object.values(s.corp.servers).filter(v => v.isRemote);
 const installedAgendas = (s: GameState) => Object.values(s.corp.servers).flatMap(v => v.root.filter(isAgenda).map(c => ({ card: c, server: v.id })));
 const serverOf = (s: GameState, id: string): string | undefined =>
@@ -60,13 +61,16 @@ export function scoreThisTurn(state: GameState): ThisTurn {
   return { feasible: true, line, usedCard: line.some(a => a.type === 'USE_ABILITY' || a.type === 'PLAY_OPERATION_OR_EVENT'), agenda: cardDef(scored).title, agendaId: scored.instanceId };
 }
 
-/** Credits the Corp can count on next turn: rezzed cards whose text pays it as its turn begins. */
+/**
+ * Credits the Corp can count on next turn: rezzed cards that pay it as its turn begins (the card entry's turnIncome;
+ * a campaign pays no more than the credits it holds). The card-text match this replaced never matched ("take 3
+ * credits" has no [credit] symbol in the stripped text), so it counted nothing.
+ */
 export function knownIncome(state: GameState): number {
   let n = 0;
   for (const c of Object.values(state.corp.servers).flatMap(v => v.root)) {
-    if (!c.isRezzed) continue;
-    const m = /when your turn begins, (?:you may )?(?:take|gain) (\d+)\s*\[credit\]/i.exec(text(c));
-    if (m) n += Number(m[1]);
+    const pay = c.isRezzed ? turnIncomeOf(c.cardCode) : undefined;
+    if (pay) n += pay.hosted ? Math.min(pay.credits, counters(c, 'credit')) : pay.credits;
   }
   return n;
 }
@@ -262,7 +266,7 @@ function finishTurnStep(state: GameState, held: HeldLine): GameAction | 'drop' |
   if (!at) return state.corp.scoreArea.some(c => c.instanceId === held.line.agendaId) ? 'done' : 'drop';
   const left = (cardDef(at.card).advancement_cost ?? 0) - at.card.advancementCounters;
   // A Dividends agenda at its requirement: over-advancing it is the Corp's choice (excess counters become agenda counters)
-  if (left <= 0 && /\bDividends\b/.test(cardDef(at.card).stripped_text ?? '')) return 'done';
+  if (left <= 0 && dividendsOf(at.card.cardCode) > 0) return 'done';
   if (left <= 0) return legalShape(state, { type: 'SCORE_AGENDA', cardInstanceId: at.card.instanceId }) ?? 'drop';
   if (left > state.corp.clicks || left > state.corp.credits) return 'drop';
   return legalShape(state, { type: 'ADVANCE_CARD', cardInstanceId: at.card.instanceId }) ?? 'drop';

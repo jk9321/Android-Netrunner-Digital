@@ -65,9 +65,6 @@ export const tuning = {
      * that play more like a person unless they are clearly negative.
      * (urgency only fed serverValue's old table, so it went with plan.runModel's off path, 2026-11-06.)
      */
-    /** Corp: plays that let an agenda be scored this turn (Seamless Launch, KPI...), and tagging before scoring Orbital Superiority. */
-    // Phase 2 pruning (2026-11-08): no pinned test, but kept ON: measured -10.1 ± 2.3 as a set of six off for the Corp (run 42531131425 vs base 42525924644)
-    scoreSetup: true,
     /*
      * Round 3 batches (1,105 deals, Corp only, 2026-10-25): all on +46 games
      * vs the old Corp (round 2 alone was -15). Leaving one out: rez money
@@ -113,9 +110,6 @@ export const tuning = {
      * (outOfReach stays: lethalHq and the steal odds use it).
      */
     /* Funded depth (2026-10-26, self-play, 2,210 games): Corp 42.9% -> 44.8%; remote steals 1,714 -> 1,472, behind ice it couldn't afford to rez 883 -> 499. */
-    /** Corp (Jeff): spending (plays, installs, rezzes elsewhere) keeps the money to rez an installed agenda's ice. */
-    // Phase 2 pruning (2026-11-08): no pinned test, but kept ON: measured -10.1 ± 2.3 as a set of six off for the Corp (run 42531131425 vs base 42525924644)
-    agendaMoney: true,
     /*
      * Ice pacing (2026-10-27, self-play, 2,210 games): 46.8% -> 46.2% (noise).
      * Steals behind unrezzed ice the Corp couldn't afford: remote 287 -> 196,
@@ -138,8 +132,6 @@ export const tuning = {
     /* Money target (2026-10-26, self-play, 2,210 games): off 42.7%, 0.3 46.8%, 0.6 46.8%. Kept the milder weight. */
     /** Corp (Jeff): aim for a surplus that rezzes the unrezzed ice on the centrals and scoring remote (credits-worth per credit short; 0 = off). */
     moneyTarget: 0.3,
-    /** Corp (Jeff): push agendas through a remote the Runner can't get into yet. */
-    tempo: true,
     /*
      * Run budget (2026-10-26, self-play, 2,210 games): runs the Runner paid
      * into and lost fell from 1,536 to 1,265, jack-outs before known ice from
@@ -148,6 +140,7 @@ export const tuning = {
      */
     /** Corp (round 3): no half-advanced agendas: advance only when it can be scored next turn behind ice it can rez. */
     // Phase 2 pruning (2026-11-08): no pinned test, but kept ON: measured -10.1 ± 2.3 as a set of six off for the Corp (run 42531131425 vs base 42525924644)
+    // Step 2 (spec-step2-delete-redundant.md, 2026-11-10): still load-bearing beside counted scoring: off alone -13.6 ± 3.9 at games=1 (run 42848499337 vs 42834389263)
     agendaTiming: true,
     /*
      * Draw and money round (2026-10-26, self-play): all on Corp 45.4% (2,210
@@ -287,8 +280,6 @@ export const tuning = {
     runnerReply: true,
     /** Jeff, 2026-10-29: an agenda in an open remote is as good as stolen: steal odds 1, and the Runner reply counts it stolen even when the sampled Runner didn't run it. */
     openSteal: true,
-    /** Same report: a play that lets this turn's clicks and credits finish an agenda (The Holo Man, Seamless Launch short of the last advance) ranks with that advance, free of the reserve penalty (corpAI.ts finishable). */
-    finishSetup: true,
     /** Jeff, 2026-11-05: credits a successful run gives (Clean Getaway, Transfer of Wealth, Trick Shot, Red Team) are priced on the credit slide (runs.ts successCredits). Off (Jeff, 2026-11-05): no batch gain, and the Corp's guessed Runner reply then plays
      * Transfer of Wealth when broke, so the Corp holds Hedge Fund (tests/castWhileAble.test.ts). */
     runCreditsSlide: false,
@@ -356,6 +347,8 @@ export const tuning = {
     /**
      * Probe P3: the planner's Corp candidates always include the best agenda install into an empty iced remote and the
      * best advance (turnPlanner.ts agendaCandidates). ON with iceProtects (2026-11-08, above).
+     * Step 2 (spec-step2-delete-redundant.md, 2026-11-10): search supply, kept, out of scope (it adds candidates, it weighs
+     * nothing): off -1.1 ± 1.1 at games=3, agenda stuck in HQ +2.3 ± 1.0 (run 42869504419 vs 42834394529).
      */
     plannerAgenda: true,
     /**
@@ -376,6 +369,9 @@ export const tuning = {
      * Bug report #33 (Jeff's Runner test game 1, 2026-11-09; Corp, Normal and Hard): an exact search of the Corp's turn for
      * a line that wins the game, played before any judgement (winNow.ts; rules 1.17.2, 1.17.3). Off: the planner and
      * Hard's look-ahead play on with the rule ranking, which missed a one-turn win through Slash and Burn Agriculture.
+     * Step 2 (spec-step2-delete-redundant.md, 2026-11-10): kept without a batch. scoreNow does not cover it: winNow also
+     * wins by flatline and by a 7th point that does not come from scoring an agenda, and its lines are tried before
+     * keepsScore lets the Corp's own pick stand.
      */
     winNow: true,
     /**
@@ -433,24 +429,10 @@ export const tuning = {
      */
     corpTurnDamageOwn: true,
     /**
-     * Phase 3 S2 (spec-search.md; Corp only): the hold line where it builds a window. On a decision with an agenda in HQ
-     * and none installed, a candidate whose rule line installs the agenda is also played holding it (the 'hold' line);
-     * the held line stands only when it beats the rule line by more than SEARCH.margin (the 2-sample reply's noise, S1
-     * report) AND its end position has a window the held agenda can use next turn that the turn built: a remote with ice
-     * the Corp has rezzed or can pay to rez, and no agenda or asset in its root (one per root, rule 8.5.6a; ice protects
-     * it, 3.4.2), not ready when the decision began. S1 (run 42663183482 + local net sample): the hold line beats the pick
-     * net of the noise on 8.4% (margin 3) of HQ-only decisions; finish-first and installed-agenda turns ~0, left out.
-     * ON (AI Coordinator 2026-11-09): +1.1 ± 0.7 at 10 games (runs 42686212950 + 42681282303 vs 42686206493 +
-     * 42654315875), stuck in HQ +0.3 ± 0.7, first score T6.8 -> 6.6, remote steals -6%, no time cost; 34 of 39 accepted
-     * holds still win on 8 reply samples. S4: plannerHold (Phase 2 O, the same hold kept whenever it read better: +2.8
-     * ± 1.0 but by defence, stuck in HQ 16.6 -> 24.3) is folded into this switch: the window rule is what it lacked.
-     */
-    searchLines: true,
-    /**
-     * Phase 3 S3 (spec-search.md; Corp only, on top of searchLines): the 2-sample reply decides most close picks (S1: a
+     * Phase 3 S3 (spec-search.md; Corp only; searchLines, the held line it was built on top of, was deleted in step 2 at
+     * -0.3 ± 1.0 off, run 42875007030): the 2-sample reply decides most close picks (S1: a
      * plain re-sample of the same line beats the pick by more than 3 on 28% of agenda decisions). On a decision with an
-     * agenda in HQ or installed, the two best lines (candidates, or a candidate's rule line and its window-building held
-     * line) closer than SEARCH.margin get REPLY.extra more reply samples each and the better of those two means stands
+     * agenda in HQ or installed, the two best candidate lines closer than SEARCH.margin get REPLY.extra more reply samples each and the better of those two means stands
      * (turnPlanner.ts contenders, topOnly): a third line read on two samples only must not re-enter on the two's
      * regression to the mean, which is the same noise again (it flipped deal 1491 T1). replyContenders, the same on every
      * decision with a gap of 4 and the rest re-admitted, read -0.6 ± 2.2.
@@ -475,33 +457,6 @@ export const tuning = {
      * 2.3 at games=3 (run 42733984975 vs 42733969084): what the peek was worth; it resets the base.
      */
     hiddenDraws: true,
-    /**
-     * Phase 2 O2 v2 (opening-audit/report.md; Corp only): an installed or held agenda's advances are charged at the one
-     * click price (valueModel CLICK) plus their credit, not AGENDA_CLICK 2 (evaluate.ts agendaWorth): at 2 a click and 8
-     * a point, a 1-point agenda read worth less than the advances that score it even with no steal risk, and held agendas
-     * are floored at 0, so holding beat installing (deal 1491 T1: Superconducting Hub installed -5.7, held 0). PARKED OFF
-     * (2026-11-09): -0.8 ± 1.6 alone (run 42623099845, remote steals 631 vs 607: cheaper advances went in riskier), +0.9
-     * ± 2.1 with plannerHold (run 42623106258, stuck in HQ +3.9): the click price is not what holds agendas back; the held
-     * floor at 0 (evaluate.ts heldAgendasWorth) is the other half, next. Rules: advancing is a click and 1 credit (5.2.6f).
-     */
-    agendaLine: false,
-    /**
-     * Phase 2 O2b (opening-audit/report.md; Corp only): an advance the timing guard rules out (it can't be scoreable next
-     * turn, nothing guards it, or its server is exposed) is priced ADVANCE_GUARD_PENALTY below the advance it would be,
-     * instead of -Infinity, so the planner can play it out and the leaf decide (corpAI.ts advanceScore). Rules: installed
-     * agendas can always be advanced (1.18.3; basic action 5.2.6f). Off: the guard left it out of every candidate list.
-     * PARKED OFF (2026-11-09): +0.9 ± 0.9 in the shipping shape (run 42630827843 vs O4c), but it reopens the pinned
-     * hole tests/synergy.test.ts "does not leave an agenda half-advanced over the Runner's turn": with one click left the
-     * planner plays the priced advance and leaves the agenda half-advanced for the Runner. A noise-level self-play gain
-     * doesn't buy back a human-usable hole; the guard's job belongs to the leaf (what O taught), not a price on it.
-     */
-    advanceGuardPriced: false,
-    /**
-     * Round 2 Phase 2 E1 (spec-phase2.md; Corp only): the Corp's credit need (valueModel boardNeed) adds the advancement
-     * still short on the agendas installed in its remotes (valueModel scoreNeed, 1 credit each, rule 5.2.6f), so credits
-     * slide against a need that includes finishing the score as well as rezzing the ice that holds it.
-     */
-    scoreBudget: false,
     /** Code audit cleanup item 9: the Runner's board score and run choice guess a facedown card the same way (runs.ts remoteAgendaOdds, evaluate corpBoardValue). */
     oneAgendaGuess: false,
     /**
@@ -514,17 +469,6 @@ export const tuning = {
     unseenOdds: false,
     /** Jeff, 2026-11-06 (his Teia game, ai-ice-grip): ice on the board is priced against a grip no bigger than the hand size, not the cards the Runner holds only until its turn ends (iceValues iceWorthOf). */
     iceGripCap: true,
-    /**
-     * Tuning pass 1, part B (Fable spec 2026-11-07): one race clock (clock.ts) prices the Corp's time from the Runner's
-     * expected scoring rate on this board. agendas: agendaWorth's wait discount is clock.open, not 1 - 1/turnsLeft.
-     * horizon: turnsLeft is the turns until either side reaches 7 at the clock's pace, or R&D runs out. money: the Corp's
-     * credit need shrinks as its game shortens (round 2).
-     * tempo (piece 1b, added after the calibration: open() made waiting cheaper, not dearer): each Runner turn an agenda
-     * waits costs the Runner's expected points that turn on its clock. tempoOnce (piece 1c, Fable's review): the same
-     * charge once per position, carried by the agenda nearest scoring (HQ's seen agendas included); the others pay
-     * only their turns beyond it (evaluate.ts nearestAgendaTurns, tempoOnceCharge).
-     */
-    raceClock: { agendas: false, tempo: false, tempoOnce: false, horizon: false, money: false },
     /**
      * Round 2 Phase 2 K (spec-phase2.md K, design-k1.md): the Runner capability model (reach.ts). reach: an agenda's steal
      * odds over the breakers and run events the Runner may hold or draw from its unseen pool (hypergeometric), each case
@@ -592,7 +536,7 @@ export const tuning = {
  */
 export const sideOff: Record<SideCode, string[]> = {
   corp: [],
-  runner: ['scoreNow', 'scoreInTwo', 'tagTrashNow', 'ownTrashRisk', 'hqTrashCost', 'oneCurrency', 'threatModel', 'measuredPass', 'threatSpend', 'calibratedRun', 'raceClock', 'iceProtects', 'replyContenders', 'plannerAgenda', 'clearinghouseRez', 'ownIceKnown', 'runRecord', 'icePacingPriced', 'searchLines', 'searchSamples', 'hiddenDraws', 'agendaLine', 'advanceGuardPriced', 'scoreBudget', 'oracle', 'reach', 'reachStrength', 'reachTime', 'threatKey', 'threatKeyPricing'],
+  runner: ['scoreNow', 'scoreInTwo', 'tagTrashNow', 'ownTrashRisk', 'hqTrashCost', 'oneCurrency', 'threatModel', 'measuredPass', 'threatSpend', 'calibratedRun', 'iceProtects', 'replyContenders', 'plannerAgenda', 'clearinghouseRez', 'ownIceKnown', 'runRecord', 'icePacingPriced', 'searchSamples', 'hiddenDraws', 'oracle', 'reach', 'reachStrength', 'reachTime', 'threatKey', 'threatKeyPricing'],
 };
 
 /**
@@ -616,9 +560,10 @@ export const FOLDED: readonly string[] = [
   'keepKnownRd', 'runnerKnown', 'measuredRunShares', 'rezWhenUsed', 'rezToUse', 'flatRates', 'tagClock', 'vicTags',
   'rdMemory', 'sourdough', 'cardPlans', 'madaniClick', 'tankIce', 'digPastLimit', 'freeRez', 'plannerHand',
   'subCosts', 'iceInCredits', 'breakerCredits',
-  // Tuning pass 1 (2026-11-08): Nanomanagement/Touch-ups' own bonus deleted, plan.finishSetup ranks them (CardAI setup); +0.0 ± 0.2, run 42403917371
+  // Tuning pass 1 (2026-11-08): Nanomanagement/Touch-ups' own bonus deleted, the rank went to plan.finishSetup, deleted in step 2 (counted scoring plays the finish); +0.0 ± 0.2, run 42403917371
   'oneSetupRule',
-  // Phase 3 S4 (spec-search.md, 2026-11-09): plannerHold folded into plan.searchLines (the hold that builds a window)
+  // Phase 3 S4 (spec-search.md, 2026-11-09): plannerHold folded into plan.searchLines (the hold that builds a window);
+  // searchLines itself was deleted in step 2 (2026-11-10): counted scoring (plan.scoreInTwo) decides that hold now
   'plannerHold',
 ];
 

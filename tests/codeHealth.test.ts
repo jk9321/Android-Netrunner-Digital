@@ -42,11 +42,6 @@ const OFF_SWITCHES: Record<string, string> = {
   oneAgendaGuess: 'Runner-view consistency (runs.ts remoteAgendaOdds in corpBoardValue); -0.6 ± 0.7 alone (run 42403914400); carried broke +1.3 ± 1.0 alone and the set\'s +4.0 ± 2.0 (run 42463624862); +7% time; on when a human hole needs it',
   hqHeld: 'tuning pass 1: carried the decking bundle\'s broke +5.7 ± 2.4 (run 42403919890, with unseenOdds); not re-tried apart',
   unseenOdds: 'tuning pass 1: carried the decking bundle\'s broke +5.7 ± 2.4 (run 42403919890, with hqHeld); not re-tried apart',
-  'raceClock.agendas': 'tuning pass 1: open() prices waiting cheaper than 1/turnsLeft; fails on broke +7.5 ± 2.5 (run 42438797249)',
-  'raceClock.horizon': 'tuning pass 1: a shorter horizon only cuts payouts, no scoring urgency; stuck in HQ +4.2 ± 2.4 (run 42435460576)',
-  'raceClock.money': 'tuning pass 1: not batched; round 2 (spec)',
-  'raceClock.tempo': 'tuning pass 1: charged to installed agendas only under oneCurrency OFF and fails the same pinned tests (brokeCorp bug #5, planner-build-2); +0.8 ± 0.9 alone (run 42438794329); redesign in round 2',
-  'raceClock.tempoOnce': 'tuning pass 1: reopens pinned holes (brokeCorp bug #5, planner-build-2): scoring the nearest agenda hands the position charge to the next one, so scoring raises the charge; +0.5 ± 1.2 alone (run 42429708914); redesign in round 2',
   threatLeaf: 'item 3: the threat as the planner leaf charge; lost to the played-out reply (-8.2 ± 1.3 alone, 2026-11-07), the leaf goes to item 4',
   plannerPatchesOff: 'item 4: dropping the ordering patches under the planner search cost "tag not used" +2.3 ± 1.1 (2026-11-07); patches go with item 6',
   measuredPass: 'item 3 round 2: the measured unrezzed pass rate; neutral in its paired batch (+0.0 ± 0.6, 2026-11-07), kept off with the threat it was measured for',
@@ -62,12 +57,9 @@ const OFF_SWITCHES: Record<string, string> = {
   threatKeyPricing: 'Phase 2 K4b: threat key without the pricing context; moved 4 of 221 deals (run 42537621348)',
   reachTime: 'Phase 2 K3: +0.6 +/- 0.8 at 10 games (run 42543840540), stayed broke +2.8 +/- 0.9',
   'oracle.gripReply': 'measurement oracle (Phase 2 K0: grip in the Runner reply only), never a default',
-  scoreBudget: 'Phase 2 E1: built off, batched against the Phase 2 base before any flip',
   calibratedRun: 'item 3 round 3: the threat read at measured hit rates; did not help (-9.9 vs -10.6), kept as measurement',
   icePacingPriced: 'bug report #43: about -7 points through over-icing (batch 3 42715002281 vs batch 4 42720370875: went-broke +22, stayed-broke +14); off until the leaf prices the rezzes an ice install commits to',
-  agendaLine: 'Phase 2 O2 v2: advances at the one click price; -0.8 +/- 1.6 (run 42623099845), riskier remote advances',
-  advanceGuardPriced: 'Phase 2 O2b: +0.9 +/- 0.9 (run 42630827843) but reopens the half-advanced agenda hole (synergy.test)',
-  searchSamples: 'Phase 3 S3 (spec-search.md): PARKED OFF, -4.2 ± 1.8 vs searchLines ON (run 42697176557); re-measure after corpTurnDamageOwn lands on beta, against #45',
+  searchSamples: 'Phase 3 S3 (spec-search.md): PARKED OFF, -4.2 ± 1.8 vs searchLines ON (run 42697176557; searchLines deleted in step 2); re-measure after corpTurnDamageOwn lands on beta, against #45',
 };
 
 /**
@@ -85,7 +77,6 @@ const MODULE_LETS: Record<string, string> = {
   'evaluate:AGENDA_CLICK': 'a measured rate a script sets (setAgendaClick), not per call',
   'threatModel:planSig': "a cache of the plan's JSON for the threat key, rebuilt when the plan changes",
   'valueModel:deckCard': 'the deck-average hook handValues registers once (an import cycle otherwise)',
-  'valueModel:corpNeedScale': 'the race clock hook clock.ts registers once (plan.raceClock.money; an import cycle otherwise)',
   'valueModel:nextStateId': "guardLoop's id counter for positions",
 };
 

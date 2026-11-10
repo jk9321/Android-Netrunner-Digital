@@ -1,4 +1,4 @@
-import { GameAction, GameState, SideCode, activePrompt, cardDef, executeAction, findCardAnywhere, maxHandSize, rezCostOf } from '../core';
+import { GameAction, GameState, SideCode, activePrompt, cardDef, executeAction, findCardAnywhere, maxHandSize } from '../core';
 import { profileOf } from './cardProfiles';
 import { ScoredAction } from './agent';
 import { evaluate } from './evaluate';
@@ -33,37 +33,14 @@ export const PLANNER = {
   withBuild: 6,
 };
 
-/** plan.searchLines (spec-search S2). */
+/** plan.searchSamples (spec-search S3, parked OFF). */
 export const SEARCH = {
   /**
-   * A held line must beat its rule line by more than this to stand: S1's net-of-noise share is 8.4% of HQ-only
-   * decisions at a margin of 3 against 13.3% at 0, and a re-sample of the same line moves it by more than 3 on 28% of
+   * Two lines closer than this are a close call: a re-sample of the same line moves it by more than 3 on 28% of
    * decisions (s1-report.md).
    */
   margin: 3,
 };
-
-/**
- * plan.searchLines: the remotes that are agenda windows in `state`, by id: a remote with ice the Corp has rezzed or can pay
- * to rez now (rezCostOf, its credits), and no agenda or asset in its root (rule 8.5.6a: one agenda or asset per remote
- * root; upgrades may share it).
- */
-export function readyRemotes(state: GameState): Set<string> {
-  const ready = new Set<string>();
-  for (const s of Object.values(state.corp.servers)) {
-    if (!s.isRemote || s.ice.length === 0) continue;
-    if (s.root.some(c => ['agenda', 'asset'].includes(cardDef(c).type_code ?? ''))) continue;
-    if (s.ice.some(i => i.isRezzed || rezCostOf(state, i) <= state.corp.credits)) ready.add(s.id);
-  }
-  return ready;
-}
-
-/** plan.searchLines: the end of a held line builds a window: an agenda still in HQ and a ready remote that was not ready at `start`. */
-export function buildsWindow(start: GameState, end: GameState): boolean {
-  if (!end.corp.hq.some(c => cardDef(c).type_code === 'agenda')) return false;
-  const before = readyRemotes(start);
-  return [...readyRemotes(end)].some(id => !before.has(id));
-}
 
 /** Diagnostics (scripts): plannerBuild's added candidates, how often one was played out and how often it won. */
 export const plannerStats: {
@@ -71,29 +48,22 @@ export const plannerStats: {
   withAdded: number;
   added: number;
   addedWins: number;
-  holds?: number;
-  held?: number;
   /** plan.searchSamples: decisions given the extra samples, and how often they changed the pick */
   closeCalls?: number;
   closeFlips?: number;
-  /** plan.searchSamples flips toward a held line and away from one */
-  closeToHold?: number;
-  closeFromHold?: number;
-  /** plan.searchSamples: the two lines re-sampled, their first value, the mean over all their samples, held or not */
-  onClose?: (top: { action: GameAction; first: number; value: number; held: boolean; samples: number }[], pick: GameAction) => void;
+  /** plan.searchSamples: the two lines re-sampled, their first value and the mean over all their samples */
+  onClose?: (top: { action: GameAction; first: number; value: number; samples: number }[], pick: GameAction) => void;
   onAddedWin?: (state: GameState, action: GameAction) => void;
   onCandidates?: (side: SideCode, values: number[], actions: GameAction[]) => void;
   /** Spec-search S1 (measurement only): every Corp decision's continuations, read by scripts/search-audit.ts. */
   onSearch?: (row: SearchRow) => void;
-  /** plan.searchLines: a held line played (accepted: it stood; why not otherwise) */
-  onHold?: (state: GameState, action: GameAction, held: { accepted: boolean; gain: number; builds: boolean }) => void;
   /** plan.hiddenDraws (S6, measurement): a Corp decision, how many of its candidate lines drew from R&D, and the pick */
   onDraws?: (state: GameState, drawLines: number, lines: number, pick: GameAction | null) => void;
 } = { decisions: 0, withAdded: 0, added: 0, addedWins: 0 };
 
 /**
  * How a playout continues after its first action. 'rule': the rule-based ranking's best each step. 'hold'
- * (plan.searchLines): the same, but no agenda is installed from HQ this turn. 'finish' (spec-search S1): an agenda
+ * (spec-search S1, measurement only): the same, but no agenda is installed from HQ this turn. 'finish' (spec-search S1): an agenda
  * score (rule 7.1.1, 1.17.3a) and then an advance on an installed agenda (rules 1.18.1, 5.2.6a) are taken before
  * anything else the ranking allows, the rule ranking for the rest.
  */
@@ -196,7 +166,7 @@ function dominated(state: GameState, action: GameAction, ranked: ScoredAction[],
 }
 
 /** Where a playout ended (the reply is sampled from it) and what it added on the way; installedAgenda: its continuation installed an agenda. */
-type Ends = { state?: GameState; bonus?: number; installedAgenda?: boolean; held?: boolean };
+type Ends = { state?: GameState; bonus?: number; installedAgenda?: boolean };
 
 /** An agenda from HQ installed (rule 8.5.6: into a remote root). */
 const agendaInstall = (state: GameState, action: GameAction): boolean =>
@@ -217,7 +187,7 @@ function finishStep(state: GameState, ranked: ScoredAction[]): ScoredAction | un
 
 /**
  * Plays `side`'s turn on from `state` after `first`, and returns how good the end of the turn is. `mode` (LineMode):
- * how the continuation picks its actions ('hold', plan.searchLines: it installs no agenda from HQ this turn).
+ * how the continuation picks its actions ('hold': it installs no agenda from HQ this turn).
  */
 function playout(start: GameState, side: SideCode, first: GameAction, ai: PlannerAI, synergy: boolean, line: Line = [], ends?: Ends, mode: LineMode = 'rule'): number {
   const hold = mode === 'hold';
@@ -308,7 +278,6 @@ function playout(start: GameState, side: SideCode, first: GameAction, ai: Planne
   if (ends) {
     ends.state = state;
     ends.bonus = bonus;
-    if (hold) ends.held = true;
   }
   if (ai.reply && !state.winner) {
     const t = performance.now();
@@ -485,7 +454,6 @@ export function planTurn(state: GameState, side: SideCode, ranked: ScoredAction[
   const audit = side === 'corp' ? plannerStats.onSearch : undefined;
   const started = performance.now();
   const replyBefore = searchClock.replyMs;
-  const hqOnly = side === 'corp' && plan().searchLines && agendaKind(state) === 'hq';
   return withPricing({ frozen: true, decisionSeed }, () => {
     // plan.hiddenDraws (spec-search S6): the Corp's candidates are played from its guess of R&D (and of the Runner's
     // grip), dealt once for the decision, so a line that draws draws a guess, not the real top of R&D (rule 10.2.2a)
@@ -493,46 +461,26 @@ export function planTurn(state: GameState, side: SideCode, ranked: ScoredAction[
     let best: { action: GameAction; value: number; line: Line } | null = null;
     const values: number[] = [];
     const scored: { action: GameAction; value: number; line: Line; ends: Ends }[] = [];
-    // plan.searchSamples (S3): every line the pick may come from, the windows S2 refused by the margin among them
+    // plan.searchSamples (S3): every line the pick may come from
     const pool: { action: GameAction; value: number; line: Line; ends: Ends }[] = [];
     for (const c of candidates) {
-      let line: Line = [];
-      let ends: Ends = {};
-      let value = playout(root, side, c.action, ai, synergy, line, ends);
-      // plan.searchLines (spec-search S2): the held line where it builds a window, by more than the reply's noise
-      if (side === 'corp' && plan().searchLines && hqOnly && ends.installedAgenda && value > -Infinity) {
-        const heldLine: Line = [];
-        const held: Ends = {};
-        const heldValue = playout(root, side, c.action, ai, synergy, heldLine, held, 'hold');
-        const gain = heldValue - value;
-        const builds = !!held.state && !held.state.winner && buildsWindow(state, held.state);
-        const accepted = gain > SEARCH.margin && builds;
-        plannerStats.holds = (plannerStats.holds ?? 0) + 1;
-        plannerStats.onHold?.(state, c.action, { accepted, gain, builds });
-        if (accepted) {
-          plannerStats.held = (plannerStats.held ?? 0) + 1;
-          [value, line, ends] = [heldValue, heldLine, held];
-        } else if (builds && Number.isFinite(heldValue)) pool.push({ action: c.action, value: heldValue, line: heldLine, ends: held });
-      }
+      const line: Line = [];
+      const ends: Ends = {};
+      const value = playout(root, side, c.action, ai, synergy, line, ends);
       values.push(value);
       scored.push({ action: c.action, value, line, ends });
       pool.push({ action: c.action, value, line, ends });
       if (!best || value > best.value) best = { action: c.action, value, line };
     }
     if (side === 'corp' && plan().replyContenders && ai.reply && sampledReply()) best = contenders(scored, side, synergy) ?? best;
-    // plan.searchSamples (spec-search S3): on an agenda decision, the two best lines (candidates, or a candidate's rule
-    // and window-building held line) closer than SEARCH.margin get REPLY.extra more reply samples each, and the better
+    // plan.searchSamples (spec-search S3): on an agenda decision, the two best candidate lines closer than SEARCH.margin get REPLY.extra more reply samples each, and the better
     // mean stands. S1: a re-sample of the same line beats the pick by more than 3 on 28% of decisions.
     if (side === 'corp' && plan().searchSamples && ai.reply && sampledReply() && agendaKind(state) !== 'neither') {
       const close = contenders(pool, side, synergy, SEARCH.margin, true);
       if (close) {
         const before = pool.reduce((a, b) => (b.value > a.value ? b : a));
         plannerStats.closeCalls = (plannerStats.closeCalls ?? 0) + 1;
-        if (close.action !== before.action || close.line !== before.line) {
-          plannerStats.closeFlips = (plannerStats.closeFlips ?? 0) + 1;
-          if (close.ends.held && !before.ends.held) plannerStats.closeToHold = (plannerStats.closeToHold ?? 0) + 1;
-          if (before.ends.held && !close.ends.held) plannerStats.closeFromHold = (plannerStats.closeFromHold ?? 0) + 1;
-        }
+        if (close.action !== before.action || close.line !== before.line) plannerStats.closeFlips = (plannerStats.closeFlips ?? 0) + 1;
         best = close;
       }
     }
@@ -571,7 +519,7 @@ function contenders<T extends { action: GameAction; value: number; line: Line; e
   // only was already below both, and letting it back in on their regression to the mean is the noise S3 removes
   const rest = topOnly ? [] : scored.filter(r => !top.some(t => t.action === r.action && t.line === r.line));
   const pick = [...top, ...rest].reduce((a, b) => (b.value > a.value ? b : a));
-  plannerStats.onClose?.(top.map(t => ({ action: t.action, first: t.firstValue, value: t.value, held: !!t.ends.held, samples: t.samples })), pick.action);
+  plannerStats.onClose?.(top.map(t => ({ action: t.action, first: t.firstValue, value: t.value, samples: t.samples })), pick.action);
   return pick;
 }
 
@@ -587,8 +535,7 @@ const lineKey = (first: GameAction, line: Line) => JSON.stringify([first, ...lin
 /**
  * Spec-search S1 (measurement only, plannerStats.onSearch): every candidate of a Corp decision also played on the hold
  * and the finish-first lines, after the pick is made, so play is unchanged (the pick, its line and the plan memory come
- * from the shipped search). The rule line is the one already played; with plan.searchLines on, `scored`
- * may hold the held line, so the rule line is played again here (it is deterministic: the decision's seed is fixed).
+ * from the shipped search). The rule line is the one already played.
  */
 function auditSearch(
   audit: (row: SearchRow) => void,
@@ -610,14 +557,9 @@ function auditSearch(
       const card = id ? findCardAnywhere(state, id) : undefined;
       return !!card && cardDef(card).type_code === 'agenda';
     })();
-    let ruleValue = scored[i]?.value ?? -Infinity;
-    let ruleLine = scored[i]?.line ?? [];
-    let ruleEnds: Ends = scored[i]?.ends ?? {};
-    if (plan().searchLines) {
-      ruleLine = [];
-      ruleEnds = {};
-      ruleValue = playout(state, side, c.action, ai, synergy, ruleLine, ruleEnds);
-    }
+    const ruleValue = scored[i]?.value ?? -Infinity;
+    const ruleLine = scored[i]?.line ?? [];
+    const ruleEnds: Ends = scored[i]?.ends ?? {};
     // The noise floor: the same rule line scored on two fresh reply deals (samples 2-3, as plan.replyContenders plays them).
     // An alternative line that "beats" the pick no more often than this re-sample does is the max of noise, not a better line.
     let resample: number | null = null;

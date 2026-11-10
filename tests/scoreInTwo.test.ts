@@ -20,7 +20,7 @@ import { afterEach, describe, expect, it } from 'vitest';
 import { GameAction, GameState, actingSide, executeAction, getLegalActions } from '../src/core';
 import { createAgent } from '../src/ai';
 import { tuning } from '../src/ai/synergy';
-import { scoreInTwo, scoreInTwoPick } from '../src/ai/countedScore';
+import { knownIncome, scoreInTwo, scoreInTwoPick } from '../src/ai/countedScore';
 import { giveCard, installCorpForTest, installIceForTest, installProgramForTest, newGame } from './helpers';
 import { inDecision } from './helpers/pricing';
 
@@ -164,6 +164,32 @@ describe('plan.scoreInTwo: the Corp scores over two turns when the count holds (
       const r = pick(s, c, held);
       expect(r.held).toBeNull();
       expect(r.action).toEqual(dividends ? c : expect.objectContaining({ type: 'SCORE_AGENDA', cardInstanceId: id }));
+    }
+  });
+
+  it("next turn's income: the card entry's turnIncome of rezzed cards, a campaign no more than it holds", () => {
+    const s = corpMain(4);
+    const nico = installCorpForTest(s, '30037', 'remote-1', true); // Nico Campaign: when your turn begins, take 3 credits from this asset
+    installCorpForTest(s, '35062', 'remote-2', true); // Public Access Plaza: when your turn begins, gain 1 credit
+    installCorpForTest(s, '35062', 'remote-3'); // unrezzed: pays nothing
+    const at = (id: string) => Object.values(s.corp.servers).flatMap(v => v.root).find(c => c.instanceId === id)!;
+    at(nico).tokens = { credit: 9 };
+    expect(knownIncome(s)).toBe(4);
+    at(nico).tokens = { credit: 2 };
+    expect(knownIncome(s)).toBe(3);
+  });
+
+  it('each income card pays through its entry: Otto 2, Nico 3, Anthill 4 (no more than they hold), Public Access Plaza 1', () => {
+    for (const [code, pays] of [['35040', 2], ['30037', 3], ['35072', 4], ['35062', 1]] as const) {
+      const s = corpMain(4);
+      const id = installCorpForTest(s, code, 'remote-1', true);
+      const card = s.corp.servers['remote-1'].root.find(c => c.instanceId === id)!;
+      card.tokens = { credit: 9 };
+      expect(knownIncome(s)).toBe(pays);
+      card.tokens = { credit: 1 };
+      expect(knownIncome(s)).toBe(1); // a campaign holding 1 pays 1; the Plaza pays 1 regardless
+      card.isRezzed = false;
+      expect(knownIncome(s)).toBe(0);
     }
   });
 

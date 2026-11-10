@@ -331,6 +331,7 @@ export const ELEVATION: Record<string, CardAI> = {
   '35037': { synergy: {} },
   // Project Ingatan
   '35038': {
+    dividends: 1,
     synergy: { wants: { advance: 1, discard: 0.5 }, when: ['onScore'] },
     // Agenda counters in the score area, by what spending one does
     counters: { agenda: () => 3 }, // Install a card from Archives for free
@@ -348,6 +349,7 @@ export const ELEVATION: Record<string, CardAI> = {
   },
   // Otto Campaign
   '35040': {
+    turnIncome: { credits: 2, hosted: true }, // When your turn begins, take 2 credits from this asset
     synergy: { gives: { econ: 1.5 } },
     value: { keep: 4, econ: 3.5 },
     profile: { load: 6, pay: 2, every: 'turn', perTurn: 1, clicksAtEnd: 2 }, // Otto Campaign
@@ -359,7 +361,7 @@ export const ELEVATION: Record<string, CardAI> = {
   // Scatter Field
   '35042': { synergy: { gives: { ice: 1, install: 0.5 } } },
   // Nanomanagement
-  '35043': { synergy: { gives: { advance: 1 } }, setup: true },
+  '35043': { synergy: { gives: { advance: 1 } }, setup: true, clicksGiven: 1 },
   // Top-Down Solutions
   '35044': { synergy: { gives: { draw: 1, install: 1 } } },
   // Mercia B4LL4RD
@@ -388,6 +390,7 @@ export const ELEVATION: Record<string, CardAI> = {
   },
   // Sericulture Expansion
   '35049': {
+    dividends: 1,
     synergy: { gives: { advance: 1 }, wants: { advance: 1 }, when: ['onScore'] },
     counters: { agenda: () => 4 }, // 2 advancement counters (2 clicks and 2 credits)
     counterFormulas: { agenda: sericultureAgenda },
@@ -437,6 +440,7 @@ export const ELEVATION: Record<string, CardAI> = {
   '35058': { synergy: { gives: { econ: 0.5 }, wants: { tags: 1.5 }, when: ['ifTagged'] } },
   // Embedded Reporting
   '35059': {
+    dividends: 2,
     synergy: { wants: { advance: 1.5, operations: 0.5 }, when: ['onScore'] },
     counters: { agenda: () => 1.5 }, // An operation to the top of R&D
     counterFormulas: { agenda: embeddedAgenda },
@@ -458,6 +462,7 @@ export const ELEVATION: Record<string, CardAI> = {
   },
   // Public Access Plaza
   '35062': {
+    turnIncome: { credits: 1 }, // When your turn begins, gain 1 credit
     synergy: { gives: { econ: 1 }, when: ['threat'] },
     value: { keep: 3, econ: 2.5 },
     // 1 credit each turn
@@ -484,12 +489,14 @@ export const ELEVATION: Record<string, CardAI> = {
   '35070': { synergy: { gives: { econ: 1 }, when: ['onScore'] } },
   // Off the Books
   '35071': {
+    dividends: 1,
     synergy: { gives: { install: 0.5 }, wants: { advance: 1 }, when: ['onScore'] },
     counters: { agenda: () => 3.5 }, // Fetch any card, installed for free
     counterFormulas: { agenda: offTheBooksAgenda },
   },
   // Anthill Excavation Contract
   '35072': {
+    turnIncome: { credits: 4, hosted: true }, // When your turn begins, take 4 credits from this asset
     synergy: { gives: { econ: 2, draw: 0.5 } },
     value: { keep: 5, econ: 4 },
     profile: { load: 8, pay: 4, every: 'turn', perTurn: 1, drawEach: 1 }, // Anthill Excavation Contract

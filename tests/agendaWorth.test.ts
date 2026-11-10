@@ -114,13 +114,13 @@ describe('plan switches for one side (Jeff, 2026-10-29; synergy.ts sideOff)', ()
   it('a side decides with its own plan, nested inside the other side, and the base plan comes back', async () => {
     const { asSide, sideOff, tuning } = await import('../src/ai/synergy');
     const saved = sideOff.corp;
-    sideOff.corp = ['tempo'];
+    sideOff.corp = ['agendaTiming'];
     try {
       const base = tuning.plan;
       asSide('corp', () => {
-        expect(plan().tempo).toBe(false);
-        asSide('runner', () => expect(plan().tempo).toBe(base.tempo));
-        expect(plan().tempo).toBe(false);
+        expect(plan().agendaTiming).toBe(false);
+        asSide('runner', () => expect(plan().agendaTiming).toBe(base.agendaTiming));
+        expect(plan().agendaTiming).toBe(false);
       });
       expect(tuning.plan).toBe(base);
     } finally {

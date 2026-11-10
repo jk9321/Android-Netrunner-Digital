@@ -1,13 +1,13 @@
 import { FLATLINE } from '../src/ai/effectValues';
 import { describe, expect, it } from 'vitest';
-import { ALL_CARDS, CardInstance, GameAction, GameState, createCardInstance, createInitialGameState, executeAction, findCardAnywhere, getCardDefinition } from '../src/core';
+import { ALL_CARDS, CardInstance, GameAction, GameState, createCardInstance, actingSide, createInitialGameState, executeAction, findCardAnywhere, getCardDefinition } from '../src/core';
 import { digValue, handValue, keepValue } from '../src/ai/evaluate';
 import { deckGameSetup } from '../src/data/decks';
 import { ALL_DECKS as DECKS } from '../scripts/nsg-sample-decks';
-import { HeuristicCorpAI, HeuristicRunnerAI, playAIGame } from '../src/ai';
+import { HeuristicCorpAI, HeuristicRunnerAI, createAgent, playAIGame } from '../src/ai';
 import { MAX_NUDGE, deckProfile, nudge, opponentProfile, tuning } from '../src/ai/synergy';
 import { CONDITIONS, CONDITION_PATTERNS, SYNERGY, THEMES, inferSynergy } from '../src/ai/synergyTags';
-import { installProgramForTest, newGame } from './helpers';
+import { newGame } from './helpers';
 import { RunnerMemory, isTrap, serverValue, trapOdds } from '../src/ai/runs';
 import { answerPrompt, taoSwap, untaianPick } from '../src/ai/prompts';
 
@@ -279,17 +279,13 @@ describe('planning (setup scoring)', () => {
     s.corp.hq.push(launch);
     s.corp.clicks = 1;
     s.corp.credits = 5;
-    const rank = (ai: HeuristicCorpAI) => ai.rankMainActions(s).find(r => 'cardInstanceId' in r.action && r.action.cardInstanceId === launch.instanceId)!.score;
-    // plan.oneCurrency: no score tier (41 = the old finishing tier); the delta of the agenda it finishes puts it first
-    // once waiting is a risk (rewritten 2026-11-06): with the Runner unable to break the rezzed Palisade (steal odds 5%)
-    // the finish a turn later is worth nearly as much, Offworld's 7 credits included, and ice on a bare R&D outranks it;
-    // with Cleaver and the money to use it, the finish now comes first
-    if (tuning.plan.oneCurrency) {
-      installProgramForTest(s, '30006'); // Cleaver
-      s.runner.credits = 8;
-    }
-    if (tuning.plan.oneCurrency) expect(new HeuristicCorpAI({ planner: false }).rankMainActions(s)[0].action).toMatchObject({ cardInstanceId: launch.instanceId });
-    else expect(rank(new HeuristicCorpAI())).toBeGreaterThanOrEqual(41);
+    // The old score tier (plan.scoreSetup's 41) went in step 2 (+0.5 ± 0.5 at games=3): counted scoring (plan.scoreNow)
+    // finds the line. 1 click: Seamless Launch places the 2 counters Offworld Office still needs (rule 1.17.3a)
+    let t: GameState = s;
+    const corp = createAgent('corp', 'normal', {});
+    const runner = createAgent('runner', 'normal', {});
+    for (let i = 0; i < 12 && t.activePlayer === 'corp' && !t.winner; i++) t = executeAction(t, (actingSide(t) === 'corp' ? corp : runner).chooseAction(t));
+    expect(t.corp.scoreArea.map(c => c.instanceId)).toContain(agenda.instanceId);
   });
 
   it('ices against the Runner: a type they cannot break, on a server they attacked', () => {

@@ -28,7 +28,7 @@ import { cardSynergy } from './synergyTags';
 import { econValue, upgradeValue } from './cardValues';
 import { counterWorth } from './counterValues';
 import { plan, pricing, withPricing } from './pricing';
-import { setupOperation } from './cards';
+import { dividendsOf, setupOperation } from './cards';
 // Last: its imports (winNow, runs, pricing) are loaded by then, so the AI modules' load order is unchanged (oracle.ts)
 import { HeldLine, scoreInTwoPick } from './countedScore';
 
@@ -81,7 +81,7 @@ export function moneyOpGain(code: string): number | undefined {
   return printedGain(def.stripped_text);
 }
 /** "Dividends N": agenda counters per advancement counter beyond the requirement (0: none). */
-const dividends = (card: CardInstance) => Number(/dividends (\d+)/i.exec(cardDef(card).stripped_text ?? '')?.[1] ?? 0);
+const dividends = (card: CardInstance) => dividendsOf(card.cardCode);
 
 export interface HeuristicOptions {
   /** Deck-aware nudges and opponent reading (synergy.ts). Off: the AI as it was before them. */
@@ -283,8 +283,6 @@ export class HeuristicCorpAI implements Agent {
         const onRez = ECON_SCALE * rezEffectWorth(card, tagCost(state));
         score = importance + (hasEndTheRun(card) ? 1 : 0) + onRez;
         if (state.corp.credits - cost < 2 && importance < 4) score -= 2;
-        // (Jeff) money kept to rez an agenda remote's ice isn't spent on ice elsewhere
-        if (this.synergy && plan().agendaMoney && state.corp.credits - cost < agendaRemoteNeed(state, server.id)) score -= 3;
         // plan.rezToll (Jeff, 2026-11-05: the Corp's money goes on ice rezzed in runs): ice the Runner can pay its way
         // through doesn't stop the run, it only takes a toll. Outside a server holding an agenda, paying more to rez it
         // than twice the toll (this run's and about one more) loses money: 27% of the Corp's in-run rez money went there
@@ -427,8 +425,9 @@ export class HeuristicCorpAI implements Agent {
       case 'SCORE_AGENDA':
         // Dividends: put spare clicks into the agenda first (scoring stays possible all turn)
         if (this.synergy && this.overAdvance(state, action.cardInstanceId)) return 5;
-        // Orbital Superiority and the like: tag the Runner first if we can this turn
-        if (this.synergy && plan().scoreSetup && this.tagFirst(state, action.cardInstanceId)) return 5;
+        // Orbital Superiority and the like: tag the Runner first if we can this turn (the old plan.scoreSetup's tag half,
+        // kept in step 2: counted scoring scores an agenda as soon as it can and does not see an "if tagged" score effect)
+        if (this.synergy && this.tagFirst(state, action.cardInstanceId)) return 5;
         return 100;
       case 'PURGE_VIRUS': {
         const viruses = [...state.runner.rig.programs, ...state.runner.rig.hardware, ...state.runner.rig.resources].reduce(
@@ -577,7 +576,7 @@ export class HeuristicCorpAI implements Agent {
     if (action.type === 'PLAY_OPERATION_OR_EVENT' && !one) {
       const code = corp.hq.find(c => c.instanceId === action.cardInstanceId)?.cardCode;
       // The tag that sets up a waiting Orbital Superiority
-      if (this.synergy && plan().scoreSetup && code && this.tagsBeforeScore(state, code) && simulate(state, action)) return 6;
+      if (this.synergy && code && this.tagsBeforeScore(state, code) && simulate(state, action)) return 6;
       const bonus = code ? this.operationBonus(state, code) : 0;
       if (bonus !== 0) {
         const after = simulate(state, action);
@@ -606,18 +605,12 @@ export class HeuristicCorpAI implements Agent {
     // plan.oneCurrency: the delta alone (a free action still has to gain something, or the loop guard would spin)
     if (one) return !spendsClick && !unfiltered && score <= FREE_ACTION_FLOOR ? -Infinity : score;
     if (this.synergy) score += this.moneyPlan(state, action);
-    // Deck-aware AI: a play that makes an agenda scoreable this turn (Seamless Launch, Key Performance Indicators...)
-    if (this.synergy && plan().scoreSetup && scoreable(resolved) > scoreable(state)) score = Math.max(score, 41);
-    // plan.finishSetup (Jeff's Corp game 1, bug report #17: The Holo Man's 3 counters left Offworld Office one advance short,
-    // and the reserve penalty on the 4 credits buried it): a play that lets this turn's clicks and credits finish an agenda
-    // ranks with the advance that would, and the reserve isn't held against it
-    if (this.synergy && plan().finishSetup && finishable(resolved) > finishable(state)) return Math.max(score, 40);
     if (!spendsClick && score <= 0.3) return -Infinity;
     // plan.oneRezMoney (code audit cleanup item 7, 2026-11-06; rebased in tuning pass 1): this score is the board's own change,
     // and the board already prices the Corp's credits on the slide against the rez money its ice needs (valueModel boardNeed).
-    // The reserve gap and the money target, both the same need again, are left to the plays scored without the board; only
-    // the money that keeps an installed agenda's unrezzed ice rezzable (Jeff's rule) is held against it here
-    score -= plan().oneRezMoney ? agendaMoneyPenalty(state, resolved.corp.credits, this.wideReserve) : reservePenalty(state, resolved.corp.credits, this.wideReserve);
+    // The reserve gap and the money target, both the same need again, are left to the plays scored without the board
+    // (the agenda-money rule that stayed here, plan.agendaMoney, went in step 2: off was +0.2 ± 0.8 at games=3)
+    if (!plan().oneRezMoney) score -= reservePenalty(state, resolved.corp.credits, this.wideReserve);
     return score;
   }
 
@@ -662,8 +655,8 @@ export class HeuristicCorpAI implements Agent {
    */
   private operationBonus(state: GameState, code: string): number {
     const corp = state.corp;
-    // Nanomanagement's clicks and Touch-ups' advancements (CardAI setup) are what plan.finishSetup ranks for any play: it
-    // simulates the play and asks whether an agenda can now be finished this turn (tuning pass 1, the old plan.oneSetupRule)
+    // Nanomanagement's clicks and Touch-ups' advancements (CardAI setup): counted scoring (plan.scoreNow) plays the line
+    // they finish (step 2 deleted plan.finishSetup, the rank that used to stand in for it)
     if (setupOperation(code)) return 0;
     switch (code) {
       case '35044': {
@@ -685,15 +678,13 @@ export class HeuristicCorpAI implements Agent {
     if (def.type_code === 'agenda') {
       const need = (def.advancement_cost ?? 0) - card.advancementCounters;
       if (need <= 0) return this.synergy && this.overAdvance(state, card.instanceId) ? 6 + 1.5 * dividends(card) : -Infinity;
-      if (need <= corp.clicks && need <= corp.credits) return 40 + card.advancementCounters;
+      // (an advance this turn can finish ranked 40 + counters here; step 2 deleted it, off +0.6 ± 1.2 at games=3: counted scoring plays it)
       if (this.timing) {
         // Deck-aware AI: only if the rest of this turn leaves it scoreable next turn, behind ice we can still rez
         const spend = Math.min(corp.clicks, corp.credits) + this.untaianAdvance(state, 0);
-        const locked = this.locked(state, server, corp.credits - spend);
-        const ruledOut = need - spend > (locked ? 6 : 3) || guards(state, server, corp.credits - spend) === 0 || (!this.exposureOk(state, server, corp.credits - spend) && !this.hqNoSafer(state, server, corp.credits - spend));
-        // plan.advanceGuardPriced (O2b): ruled out is priced, not -Infinity, so the planner can still play it out
-        if (ruledOut && !plan().advanceGuardPriced) return -Infinity;
-        return (locked ? 8 : 6) + card.advancementCounters - (ruledOut ? ADVANCE_GUARD_PENALTY : 0); // and then finish the job: a half-advanced agenda is the Runner's best target
+        const ruledOut = need - spend > 3 || guards(state, server, corp.credits - spend) === 0 || (!this.exposureOk(state, server, corp.credits - spend) && !this.hqNoSafer(state, server, corp.credits - spend));
+        if (ruledOut) return -Infinity;
+        return 6 + card.advancementCounters; // and then finish the job: a half-advanced agenda is the Runner's best target
       }
       // Can't finish this turn: build counters only behind ice we can rez
       return guards(state, server, corp.credits - 1) > 0 ? 3 + 0.5 * card.advancementCounters : -Infinity;
@@ -754,16 +745,6 @@ export class HeuristicCorpAI implements Agent {
     const held = plan().hqHeld && state.corp.hq.filter(c => type(c) === 'agenda').length >= 2;
     if (!held && !state.runnerLastTurnRuns.some(r => r.server === 'hq' && r.successful)) return false;
     return entryCost(state, server, credits) >= entryCost(state, state.corp.servers.hq, credits);
-  }
-
-  /**
-   * Tempo (Jeff): a server the Runner can't get into for now (ice they
-   * can't break, or far more than they can pay), so the Corp should push
-   * agendas through it before the Runner finds the answer.
-   */
-  private locked(state: GameState, server: ServerState, credits: number): boolean {
-    if (!(this.synergy && plan().tempo) || !server.isRemote) return false;
-    return entryCost(state, server, credits) >= state.runner.credits + 5;
   }
 
   /** PT Untaian's paid advancement at the end of this turn (1), if HQ will be small enough; `leaving` cards are about to leave HQ. */
@@ -935,10 +916,8 @@ export class HeuristicCorpAI implements Agent {
       }
       case 'agenda': {
         const def = cardDef(card);
-        const finishNow = (def.advancement_cost ?? 0) <= corp.clicks - 1 && (def.advancement_cost ?? 0) <= corp.credits;
         // A naked remote only to dodge a discard (or to score it straight away)
         if (!server) {
-          if (finishNow) return 44;
           // Deck-aware AI (exposure): an overfull HQ goes behind ice rather than into a bare remote
           if (hq.length > corp.handSizeLimit) return this.synergy ? 0.1 : 0.5;
           if (this.synergy && tuning.bluff && tuning.reverseBluff && this.nakedAgenda(state, card)) {
@@ -950,13 +929,11 @@ export class HeuristicCorpAI implements Agent {
           return -2;
         }
         if (server.root.some(isAgendaOrAsset)) return -Infinity;
-        if (finishNow) return 45;
+        // (an install that scores this turn ranked 44/45 here; step 2 deleted it, off +0.0 ± 0.4 at games=3: counted scoring plays it)
         if (this.timing) {
           // Deck-aware AI: install only if this turn's advances leave it scoreable next turn, behind ice we can still rez
           const spend = Math.min(corp.clicks - 1, corp.credits) + this.untaianAdvance(state, 1);
           const left = (def.advancement_cost ?? 0) - spend;
-          const locked = this.locked(state, server, corp.credits - spend);
-          if (locked) return 11 + Math.min(guards(state, server, corp.credits), 3) * 0.6; // push it through while they can't get in
           const exposed = !this.exposureOk(state, server, corp.credits - spend) && !this.hqNoSafer(state, server, corp.credits - spend);
           if (left > 3 || guards(state, server, corp.credits - spend) === 0 || exposed) return hq.length > corp.handSizeLimit ? (server.ice.length > 0 ? 0.6 : 0.5) : -2;
         }
@@ -1070,9 +1047,6 @@ const CAST_WHILE_ABLE = 0.5;
 
 /** Credits the Corp counts on making before the Runner tests its newest ice (ice pacing: 2 and 0 played the same). */
 const ICE_PACING_INCOME = 0;
-/** plan.advanceGuardPriced (O2b): what an advance the timing guard rules out gives up against the advance it would be (one-step points). */
-const ADVANCE_GUARD_PENALTY = 6;
-
 /** Credits to rez every unrezzed ice the Corp has installed. */
 /**
  * plan.icePacingPriced (bug report #43, Jeff 2026-11-09: "that ICE just shouldn't count as protection unless it CAN rez
@@ -1325,23 +1299,6 @@ function towardFinish(state: GameState, id: string): boolean {
   return need > 0 && need <= state.corp.clicks && need <= state.corp.credits;
 }
 
-/** Agendas in the root of a server the Corp can finish and score with the clicks and credits it has left (an advance is a click and a credit, rule 5.2.6). */
-function finishable(state: GameState): number {
-  return Object.values(state.corp.servers)
-    .flatMap(s => s.root)
-    .filter(c => {
-      if (type(c) !== 'agenda') return false;
-      const need = Math.max(0, (cardDef(c).advancement_cost ?? 99) - c.advancementCounters);
-      return need <= state.corp.clicks && need <= state.corp.credits;
-    }).length;
-}
-
-function scoreable(state: GameState): number {
-  return Object.values(state.corp.servers)
-    .flatMap(s => s.root)
-    .filter(c => type(c) === 'agenda' && c.advancementCounters >= (cardDef(c).advancement_cost ?? 99)).length;
-}
-
 /** How much the Corp cares about keeping the Runner out of this server (for rez decisions). */
 /**
  * What the Runner's run takes if it gets in, on the value model's scale: the agendas it would
@@ -1456,12 +1413,7 @@ function reservePenalty(state: GameState, creditsAfter: number, wide = false): n
   if (!wide) return reserve > 0 && state.corp.credits >= reserve && creditsAfter < reserve ? 3 : 0;
   const before = Math.max(0, reserve - state.corp.credits);
   const after = Math.max(0, reserve - creditsAfter);
-  return agendaMoneyPenalty(state, creditsAfter, true) + moneyTargetPenalty(state, creditsAfter) + (after > before ? Math.min(3, after - before) : -Math.min(1, 0.4 * (before - after)));
-}
-
-/** (Jeff) an installed agenda's unrezzed ice is only protection while the money to rez it is there: don't spend it. */
-function agendaMoneyPenalty(state: GameState, creditsAfter: number, wide: boolean): number {
-  return wide && plan().agendaMoney && creditsAfter < state.corp.credits && creditsAfter < agendaRemoteNeed(state) ? 6 : 0;
+  return moneyTargetPenalty(state, creditsAfter) + (after > before ? Math.min(3, after - before) : -Math.min(1, 0.4 * (before - after)));
 }
 
 /**
@@ -1487,20 +1439,6 @@ function moneyTargetPenalty(state: GameState, creditsAfter: number): number {
   const before = Math.max(0, target - state.corp.credits);
   const after = Math.max(0, target - creditsAfter);
   return after > before ? Math.min(2, weight * (after - before)) : -Math.min(1.5, weight * (before - after));
-}
-
-/**
- * Credits to rez every unrezzed ice on the remotes holding an agenda that
- * can't be scored yet (other than `except`).
- */
-export function agendaRemoteNeed(state: GameState, except?: string): number {
-  let need = 0;
-  for (const server of Object.values(state.corp.servers)) {
-    if (!server.isRemote || server.id === except) continue;
-    if (!server.root.some(c => type(c) === 'agenda' && c.advancementCounters < (cardDef(c).advancement_cost ?? 0))) continue;
-    for (const ice of server.ice) if (!ice.isRezzed) need += rezCost(state, ice);
-  }
-  return need;
 }
 
 /**

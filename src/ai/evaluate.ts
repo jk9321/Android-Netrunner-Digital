@@ -18,7 +18,6 @@ import { archivedWorth } from './cards';
 import { isTrap, remoteAgendaOdds, trashedCardCost } from './runs';
 import { centralAccess, runChance, threatOn } from './threatModel';
 import { plan, pricing, pricingKey, withPricing } from './pricing';
-import { clock, raceOn } from './clock';
 import { corpDrawPool, oracleSteal } from './oracle';
 import { getIn, reachOn, reachStanding } from './reach';
 
@@ -307,26 +306,10 @@ export function agendaWorth(
   // credits needs a click to gain each missing one first ([click]: gain 1[credit]); at 0 credits an agenda can't be finished "this turn" on clicks alone
   const runnerTurns = agendaRunnerTurns(state, need, inHand, budget);
   const late = 1 - 1 / turnsLeft(state);
-  // plan.raceClock.agendas (tuning pass 1): each Runner turn the agenda waits is a turn the Runner may win in, at its
-  // pace on this board against the points it still needs (clock.ts open), not 1 in turnsLeft
-  const waited = (turns: number) => (raceOn('agendas') ? clock(state).open(turns) : late ** turns);
-  // plan.raceClock.tempo (tuning pass 1, piece 1b): the race margin a turn of waiting gives away. While the agenda waits
-  // the Runner keeps scoring at its pace on this board, a turn longer before the Corp gets there: each Runner turn
-  // waited costs the Runner's expected points that turn, on the Runner's clock (pointGain), for the agenda's share of a
-  // typical 2-point agenda's progress. open() above prices only the chance the game ends meanwhile, a fraction of the
-  // agenda; this is the margin itself (the spec's "half a point a turn"), the term open() turned out to leave out
-  // plan.raceClock.tempoOnce (piece 1c, Fable review 2026-11-07): the turn given away is one turn whatever the agenda
-  // count, so the agenda nearest scoring carries it once for the position (sideStrength: tempoOnceCharge) and each
-  // agenda here pays only its turns beyond that one
-  const tempo =
-    raceOn('tempoOnce') ? Math.max(0, runnerTurns - nearestAgendaTurns(state)) * tempoProgress(state)
-    : raceOn('tempo') && runnerTurns > 0 ? runnerTurns * Math.min(1, points / 2) * tempoProgress(state) : 0;
+  const waited = (turns: number) => late ** turns;
   // plan.agendaClicks (Jeff's Corp game 2, bug report #18): the clicks still needed are clicks a later turn can't spend
   // building; priced at the flat click rate, building now and scoring next turn always beat scoring now and building next
-  // plan.agendaLine (Phase 2 O2 v2): the advance's click at the one click price (valueModel CLICK, 1.25), not
-  // AGENDA_CLICK 2: at 2 a safe 1-point agenda (8) costs more to score than it is worth (3 x 3 = 9), so the leaf read
-  // every 1-pointer, and any agenda with steal risk, better held in HQ (floored at 0) than installed
-  const click = plan().agendaLine ? CLICK : AGENDA_CLICK;
+  const click = AGENDA_CLICK;
   // plan.oneCurrency (review of item 1): a steal is not only the Corp's points lost but the Runner's points won (rule
   // 1.17.3: the Runner adds a stolen agenda to its score area), on the Runner's clock: evaluate is mine minus theirs, so
   // an agenda the Runner may take next turn is charged that chance of its point gain. The old install gates (exposureOk,
@@ -336,12 +319,12 @@ export function agendaWorth(
   // today" is not "safe for every turn it waits"
   const threatTurns = threatOn() && stealChance === undefined && openNew === undefined && success === undefined && !!serverId;
   const standing = threatTurns ? threatStanding(state, serverId!, runnerTurns, steal) : (1 - steal) ** runnerTurns;
-  if (!plan().oneCurrency) return gain * standing * waited(runnerTurns) - need * (click + 1) - tempo;
+  if (!plan().oneCurrency) return gain * standing * waited(runnerTurns) - need * (click + 1);
   const stolen = (1 - standing) * pointGain(state.runner.score, points);
   // The clicks and credits still to go are paid only while it stands: the advances of this turn now, the rest on the
   // turns after the Runner's (a bare agenda the Runner takes next turn never costs its advances)
   const now = Math.min(need, budget.clicks);
-  return (gain + effect) * (standing * waited(runnerTurns)) - tempo - stolen - (now + (need - now) * standing) * (click + 1);
+  return (gain + effect) * (standing * waited(runnerTurns)) - stolen - (now + (need - now) * standing) * (click + 1);
 }
 
 /**
@@ -352,33 +335,6 @@ function agendaRunnerTurns(state: GameState, need: number, inHand: boolean, budg
   const short = Math.max(0, need - budget.credits);
   const clicks = need + (inHand ? 1 : 0) + short;
   return state.activePlayer === 'corp' ? Math.ceil(Math.max(0, clicks - budget.clicks) / 3) : 1 + Math.ceil(Math.max(0, clicks - 3) / 3);
-}
-
-/** plan.raceClock.tempo: the Runner's expected progress in one turn on this board, on its clock (clock.ts). */
-const tempoProgress = (state: GameState): number => pointGain(state.runner.score, clock(state).runnerRate);
-
-/**
- * plan.raceClock.tempoOnce: the fewest Runner turns any agenda the Corp holds or has installed waits before it can be
- * scored (Infinity with none): installed ones from where they are, the ones in HQ it has seen from a later turn.
- */
-export function nearestAgendaTurns(state: GameState): number {
-  return memo(state, 'nearestAgendaTurns', () => {
-    let best = Infinity;
-    const need = (c: CardInstance) => Math.max(0, (cardDef(c).advancement_cost ?? 0) - c.advancementCounters);
-    for (const server of Object.values(state.corp.servers)) {
-      for (const c of server.root) if (cardDef(c).type_code === 'agenda') best = Math.min(best, agendaRunnerTurns(state, need(c), false, state.corp));
-    }
-    // Held, it is started on a later turn, as heldAgendasWorth prices it: none of this turn's clicks go to it
-    for (const c of heldAgendas(state)) best = Math.min(best, agendaRunnerTurns(state, need(c), true, { clicks: 0, credits: Infinity }));
-    return best;
-  });
-}
-
-/** plan.raceClock.tempoOnce: the position's one tempo charge, the nearest agenda's turns of the Runner's progress. */
-function tempoOnceCharge(state: GameState, viewer: SideCode): number {
-  if (viewer !== 'corp' || !raceOn('tempoOnce')) return 0;
-  const turns = nearestAgendaTurns(state);
-  return Number.isFinite(turns) && turns > 0 ? turns * tempoProgress(state) : 0;
 }
 
 /**
@@ -721,8 +677,7 @@ export function sideStrength(state: GameState, side: SideCode, viewer: SideCode 
       sideCreditValue(state, 'corp', viewer) +
       handAndClicks(state, 'corp', viewer) +
       pointValue(corp.score, viewer === 'corp' ? KNOBS.corpPoints : 1) +
-      corpBoardValue(state, viewer) -
-      tempoOnceCharge(state, viewer) +
+      corpBoardValue(state, viewer) +
       tagsWorth(state, viewer) +
       // Dividends and Next Big Thing counters, AU Co. power counters
       corp.scoreArea.reduce((n, a) => n + countersWorth(state, a, 'agenda'), 0) +

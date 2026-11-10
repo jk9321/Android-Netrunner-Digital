@@ -275,6 +275,7 @@ export const SYSTEM_GATEWAY: Record<string, CardAI> = {
   '30036': { synergy: { gives: { advance: 0.5 }, when: ['onScore'] } },
   // Nico Campaign
   '30037': {
+    turnIncome: { credits: 3, hosted: true }, // When your turn begins, take 3 credits from this asset
     synergy: { gives: { econ: 2 } },
     value: { keep: 5, econ: 3.5, draws: 1 },
     profile: { load: 9, pay: 3, every: 'turn', perTurn: 1, drawAtEnd: 1 }, // Nico Campaign

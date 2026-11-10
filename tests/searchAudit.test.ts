@@ -3,13 +3,12 @@ import { GameState, createInitialGameState } from '../src/core';
 import { deckGameSetup } from '../src/data/decks';
 import { ALL_DECKS } from '../scripts/nsg-sample-decks';
 import { GameRunner, createAgent } from '../src/ai';
-import { tuning } from '../src/ai/synergy';
 import { SearchRow, plannerStats } from '../src/ai/turnPlanner';
 
 /**
  * Spec-search S1 (measurement only): plannerStats.onSearch plays every candidate of a Corp planner decision on the
  * rule, hold and finish-first lines after the pick, and must not change the pick. Position: batch deal 1491's Corp turn 1
- * (tests/searchLines.test.ts), an agenda in HQ and no remote yet (rule 8.5.6: an agenda goes into a remote root).
+ * (tests/searchSamples.test.ts), an agenda in HQ and no remote yet (rule 8.5.6: an agenda goes into a remote root).
  */
 const SEED = 1491;
 
@@ -26,16 +25,12 @@ function position(): GameState {
   throw new Error('Corp turn 1 not reached');
 }
 
-const lines = tuning.plan.searchLines;
 afterEach(() => {
   plannerStats.onSearch = undefined;
-  tuning.plan.searchLines = lines;
 });
 
 describe('spec-search S1 continuation audit', () => {
   it('logs every candidate on three lines and leaves the pick unchanged', () => {
-    // The rule-line search alone (plan.searchLines may replace a candidate's line with its held one)
-    tuning.plan.searchLines = false;
     const s = position();
     const plain = createAgent('corp').chooseAction(structuredClone(s));
     const rows: SearchRow[] = [];
@@ -47,7 +42,7 @@ describe('spec-search S1 continuation audit', () => {
     expect(row.kind).toBe('hq');
     expect(row.candidates.length).toBeGreaterThan(1);
     for (const c of row.candidates) expect(c.lines.map(l => l.mode)).toEqual(['rule', 'hold', 'finish']);
-    // The pick is the best rule line (searchLines off here)
+    // The pick is the best rule line
     const rules = row.candidates.map(c => c.lines[0].value ?? -Infinity);
     expect(row.chosen).toBeCloseTo(Math.max(...rules), 1);
     expect(row.chosen).toBeCloseTo(rules[row.pick], 5);

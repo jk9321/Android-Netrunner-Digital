@@ -125,7 +125,7 @@ function runnerNextTurn(state: GameState): RunnerTurn | null {
 export function oracleSteal(state: GameState, serverId: string): number | undefined {
   if (!plan().oracle?.safestRemote || actingSide() !== 'corp') return undefined;
   const c = pricing();
-  if (c.oracleRunning || c.averaging || c.pricingIce || c.pricingTagLoss || c.projecting || c.pricingEffect || c.planning || c.computingThreat || c.buildingClock) return undefined;
+  if (c.oracleRunning || c.averaging || c.pricingIce || c.pricingTagLoss || c.projecting || c.pricingEffect || c.planning || c.computingThreat) return undefined;
   // The end of the Corp's turn (a planner leaf, or the last click's ranking): the Runner's next turn is the one told
   if (state.activePlayer !== 'corp' || state.activeRun || state.corp.clicks > 0) return undefined;
   const server = state.corp.servers[serverId];

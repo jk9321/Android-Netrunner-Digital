@@ -2,7 +2,6 @@ import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
 import { GameState, cardDef, executeAction } from '../src/core';
 import { createAgent } from '../src/ai';
-import { tuning } from '../src/ai/synergy';
 
 
 
@@ -36,13 +35,4 @@ describe('a protected agenda the Corp can finish is scored this turn (plan.agend
   it('scores Project Ingatan on turn 7', () => {
     expect(scoredIngatan(playTurn(position()))).toBe(true);
   }, 30_000);
-
-  it('scores it without plan.finishSetup too (agendaClicks alone finds the Seamless Launch line)', () => {
-    tuning.plan.finishSetup = false;
-    try {
-      expect(scoredIngatan(playTurn(position()))).toBe(true);
-    } finally {
-      tuning.plan.finishSetup = true;
-    }
-  }, 60_000);
 });

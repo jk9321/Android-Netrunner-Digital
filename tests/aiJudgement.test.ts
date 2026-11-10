@@ -4,7 +4,7 @@ import { describe, expect, it } from 'vitest';
 import { GameAction, cardDef, createCardInstance, executeAction, getCardDefinition, getLegalActions, isLegalAction } from '../src/core';
 import { makeRoomAnswers } from '../src/ai/prompts';
 import { runScore, serverValue, subroutineCost } from '../src/ai/runs';
-import { HeuristicCorpAI, agendaRemoteNeed, fundedDepth, moneyTarget, unrezzedIceCost, rezReserve, withDeadIceTrashed } from '../src/ai/corpAI';
+import { HeuristicCorpAI, fundedDepth, moneyTarget, unrezzedIceCost, rezReserve, withDeadIceTrashed } from '../src/ai/corpAI';
 import { makeRoomInstalls } from '../src/ai/runnerAI';
 import { evaluate } from '../src/ai/evaluate';
 import { installForTest, installIceForTest, installProgramForTest, newGame, startRunnerTurn } from './helpers';
@@ -64,7 +64,6 @@ describe('AI judgement in fixed positions', () => {
     installIceForTest(state, PALISADE, 'remote1', false);
     installIceForTest(state, PALISADE, 'remote1', false);
     const rez = getCardDefinition(PALISADE).cost ?? 0;
-    expect(agendaRemoteNeed(state)).toBe(2 * rez);
     const server = state.corp.servers.remote1;
     expect(fundedDepth(state, server, 2 * rez)).toBe(2);
     expect(fundedDepth(state, server, rez)).toBe(1);
