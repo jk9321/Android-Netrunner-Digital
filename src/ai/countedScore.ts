@@ -3,7 +3,7 @@ import { scoreNowLine } from './winNow';
 import { iceCreditNeed } from './runs';
 import { plan } from './pricing';
 import { withIceInstalled } from './iceValues';
-import { dividendsOf, turnIncomeOf } from './cards';
+import { clickMoneyOf, dividendsOf, scoreCreditsOf, turnIncomeOf } from './cards';
 import { counters } from '../core/engine/cardEffects';
 
 /**
@@ -78,8 +78,51 @@ export function knownIncome(state: GameState): number {
 /** Sensitivity knob for the stage 0 report: extra credits granted to the Runner's run (an economy event from the grip it may hold). */
 export const CHECK = { runnerExtra: 0 };
 
-/** The Runner's budget for one run on its next turn, from public facts: its credits, and every click but the run's spent on credits (5.2.7a). */
-export const runnerBudget = (s: GameState) => s.runner.credits + Math.max(0, s.runner.maxClicks - 1) + CHECK.runnerExtra;
+/**
+ * The Runner's budget for one run on its next turn, from public facts: its credits, and every click but the run's spent
+ * on credits (5.2.7a). plan.runnerMoney adds its installed money cards (card entries, never the grip): turn-start
+ * credits (turnIncome) and the best use of those clicks on its click abilities that pay (clickMoney).
+ */
+export const runnerBudget = (s: GameState) =>
+  s.runner.credits + (plan().runnerMoney ? runnerMoney(s) : Math.max(0, s.runner.maxClicks - 1)) + CHECK.runnerExtra;
+
+const hosted = (c: CardInstance) => counters(c, 'credit');
+
+/**
+ * The credits the Runner's installed cards and its clicks but the run's make on its next turn: each installed card's
+ * turn-start payment (no more than it holds), then the best set of its paying click abilities (one use each: Telework
+ * Contract is once per turn, Fermenter and Rent Rioters are trashed, Pennyshaver pays 1 after its first use), the
+ * other clicks 1 credit each (5.2.7a).
+ */
+export function runnerMoney(s: GameState): number {
+  const rig = [...s.runner.rig.programs, ...s.runner.rig.hardware, ...s.runner.rig.resources];
+  let drip = 0;
+  const uses: { clicks: number; credits: number }[] = [];
+  for (const c of rig) {
+    const pay = turnIncomeOf(c.cardCode);
+    if (pay) drip += pay.hosted ? Math.min(pay.credits, hosted(c)) : pay.credits;
+    const m = clickMoneyOf(c.cardCode);
+    if (!m) continue;
+    let credits = m.credits;
+    if (m.hosted === 'cap') credits = Math.min(credits, hosted(c));
+    if (m.hosted === 'add') credits += hosted(c);
+    if (m.perVirus) credits += m.perVirus.credits * (counters(c, 'virus') + m.perVirus.turnStart);
+    if (credits > m.clicks) uses.push({ clicks: m.clicks, credits });
+  }
+  const clicks = Math.max(0, s.runner.maxClicks - 1);
+  let best = clicks;
+  const n = Math.min(uses.length, 10);
+  for (let mask = 1; mask < 1 << n; mask++) {
+    let k = 0;
+    let got = 0;
+    for (let i = 0; i < n; i++) if (mask & (1 << i)) {
+      k += uses[i].clicks;
+      got += uses[i].credits;
+    }
+    if (k <= clicks) best = Math.max(best, got + clicks - k);
+  }
+  return drip + best;
+}
 
 /**
  * The cheapest rez spend that keeps the Runner out of a server with these ice, or null when no affordable set does. The
@@ -181,6 +224,10 @@ export function scoreInTwo(state: GameState): TwoTurnLine | null {
       if (rez === null) continue;
       const nextCredits = end - rez + income + (N - r);
       if (nextCredits < r) continue;
+      if (plan().afterLine && nextCredits - r + scoreCreditsOf(t.agenda.cardCode) + income < afterLineFloor(t.view, t.agenda.instanceId)) {
+        scoreInTwoStats.floorRefused++;
+        continue;
+      }
       const line: TwoTurnLine = { agenda: cardDef(t.agenda).title, agendaId: t.agenda.instanceId, server: t.server, form: t.form, ...(t.iceId ? { iceId: t.iceId } : {}), advanceNow: a, advanceNext: r, rez };
       if (!best || r < best.advanceNext) best = line;
       break;
@@ -206,7 +253,31 @@ export function lineHolds(state: GameState, agendaId: string): boolean {
   if (r > N) return false;
   const end = state.corp.credits + (state.activePlayer === 'corp' ? state.corp.clicks : 0);
   const rez = holdCost(state, state.corp.servers[server.server].ice, end);
-  return rez !== null && end - rez + knownIncome(state) + (N - r) >= r;
+  if (rez === null) return false;
+  const income = knownIncome(state);
+  const next = end - rez + income + (N - r);
+  if (next < r) return false;
+  return !plan().afterLine || next - r + scoreCreditsOf(card.cardCode) + income >= afterLineFloor(state, agendaId);
+}
+
+/**
+ * plan.afterLine (count inputs F1): the credits the Corp needs left once a two-turn line has scored (its credits then,
+ * the agenda's own scoreCredits and the next turn's income count against it), for the Runner's
+ * turn after it: the cheapest rez spend that keeps the Runner out (holdCost) of R&D, of HQ while an agenda stays there,
+ * and of each other remote holding an unscored agenda, summed. Rezzed ice that holds costs 0; a server no set holds
+ * costs 0 too (money can't fix it, and it must not veto every line), counted in scoreInTwoStats.unholdable.
+ */
+export function afterLineFloor(state: GameState, agendaId: string): number {
+  const ice: CardInstance[][] = [state.corp.servers.rd.ice];
+  if (state.corp.hq.some(c => isAgenda(c) && c.instanceId !== agendaId)) ice.push(state.corp.servers.hq.ice);
+  for (const v of remotes(state)) if (v.root.some(c => isAgenda(c) && c.instanceId !== agendaId)) ice.push(v.ice);
+  let floor = 0;
+  for (const set of ice) {
+    const cost = holdCost(state, set, Infinity);
+    if (cost === null) scoreInTwoStats.unholdable++;
+    else floor += cost;
+  }
+  return floor;
 }
 
 const sameAction = (a: GameAction, want: Partial<GameAction> & Record<string, unknown>) =>
@@ -230,10 +301,10 @@ export interface HeldLine {
 }
 
 /** Diagnostics for plan.scoreInTwo (scripts read them): lines begun, steps played over the Corp's pick, picks vetoed, lines dropped, scored, and each line begun. */
-export const scoreInTwoStats = { begun: 0, steps: 0, vetoed: 0, dropped: 0, finished: 0, lines: [] as { turn: number; agendaId: string; form: TwoTurnLine['form'] }[] };
+export const scoreInTwoStats = { begun: 0, steps: 0, vetoed: 0, dropped: 0, finished: 0, floorRefused: 0, unholdable: 0, lines: [] as { turn: number; agendaId: string; form: TwoTurnLine['form'] }[] };
 /** Clears scoreInTwoStats (scripts/score-ceiling-measure.ts, before each game). */
 export function resetScoreInTwoStats() {
-  Object.assign(scoreInTwoStats, { begun: 0, steps: 0, vetoed: 0, dropped: 0, finished: 0, lines: [] });
+  Object.assign(scoreInTwoStats, { begun: 0, steps: 0, vetoed: 0, dropped: 0, finished: 0, floorRefused: 0, unholdable: 0, lines: [] });
 }
 
 const legalShape = (state: GameState, want: Record<string, unknown>) => getLegalActions(state, 'corp').find(a => sameAction(a, want));

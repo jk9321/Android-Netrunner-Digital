@@ -165,6 +165,7 @@ export const ELEVATION: Record<string, CardAI> = {
   },
   // Rent Rioters
   '35011': {
+    clickMoney: { clicks: 3, credits: 9, once: true }, // [click][click][click], trash: gain 9,
     synergy: { gives: { econ: 1.5 } },
     value: { rig: 3 }, // 9 credits waiting
     // 3 clicks for 9 credits
@@ -229,6 +230,7 @@ export const ELEVATION: Record<string, CardAI> = {
   },
   // Open Market
   '35022': {
+    turnIncome: { credits: 1, hosted: true }, // when your turn begins, take 1 of the 6 loaded,
     synergy: { gives: { econ: 1 } },
     value: { rig: 2.5 },
     profile: { load: 6, pay: 1, every: 'turn', perTurn: 1 }, // Open Market
@@ -486,7 +488,7 @@ export const ELEVATION: Record<string, CardAI> = {
   // The Zwicky Group
   '35069': { synergy: { wants: { operations: 1.5 } } },
   // Greenmail
-  '35070': { synergy: { gives: { econ: 1 }, when: ['onScore'] } },
+  '35070': { synergy: { gives: { econ: 1 }, when: ['onScore'] }, scoreCredits: 2 },
   // Off the Books
   '35071': {
     dividends: 1,

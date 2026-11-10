@@ -665,7 +665,7 @@ export const LIBERATION: Record<string, CardAI> = {
   // Kingmaking
   '34113': { synergy: { gives: { draw: 1 }, when: ['onScore'] } },
   // Stoke the Embers
-  '34114': { synergy: { gives: { econ: 1, advance: 1 }, when: ['onScore'] } },
+  '34114': { synergy: { gives: { econ: 1, advance: 1 }, when: ['onScore'] }, scoreCredits: 3 },
   // Janaína "JK" Dumont Kindelán
   '34115': {
     synergy: { gives: { econ: 1.5, install: 0.5 } },
