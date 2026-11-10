@@ -68,6 +68,7 @@ export function scoreThisTurn(state: GameState): ThisTurn {
  */
 export function knownIncome(state: GameState): number {
   let n = 0;
+  if (!plan().turnIncome) return 0;
   for (const c of Object.values(state.corp.servers).flatMap(v => v.root)) {
     const pay = c.isRezzed ? turnIncomeOf(c.cardCode) : undefined;
     if (pay) n += pay.hosted ? Math.min(pay.credits, counters(c, 'credit')) : pay.credits;
