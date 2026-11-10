@@ -17,6 +17,7 @@ const SLOW_TESTS = [
   'tests/lethalHq.test.ts',
   'tests/savedGame.test.ts',
   'tests/hqNoSafer.test.ts', // beta
+  'tests/roomFuzz.test.ts', // ~15 s: the game server's room fuzzer (multiplayer chunk 2b)
 ];
 
 const bin = (name) => `node_modules/.bin/${name}`;

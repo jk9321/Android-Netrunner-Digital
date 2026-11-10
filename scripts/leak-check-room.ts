@@ -35,7 +35,7 @@ import type { Agent } from '../src/ai/agent';
 import { GameRunner } from '../src/ai/playout';
 import { RoomCore, settledFor } from '../server/room';
 import type { Outbox } from '../server/room';
-import { SOCKET_ERROR_TEXT } from '../src/net/protocol';
+import { SOCKET_ERROR_TEXT, parseClientMessage } from '../src/net/protocol';
 import type { ClientMessage, DeckSubmission, ServerMessage } from '../src/net/protocol';
 import { LeakChecker, type LeakFailure } from './leak-check';
 import { firstDiff, pickPair, shown, twinOf } from './leak-check-twin';
@@ -64,6 +64,8 @@ export interface RoomFuzzResult {
   sizes: number[];
   /** Milliseconds per receive() call that applied a move. */
   times: number[];
+  /** With opts.wake, sampled: milliseconds for a whole wake (read the stored values, load, receive, write them back, the sent texts). */
+  wakes: number[];
   /** Largest stored values seen (bytes of JSON): meta, state, moves. */
   stored: { meta: number; state: number; moves: number };
   twin: RoomTwinStats;
@@ -122,7 +124,7 @@ function aiMessage(room: RoomCore, client: Client, agents: Record<SideCode, Agen
   return randomMessage(client, rng);
 }
 
-export function fuzzRoomGame(seed: number, corp: DeckList, runner: DeckList, players: 'random' | 'ai', opts: { maxMoves?: number; twinEvery?: number } = {}): RoomFuzzResult {
+export function fuzzRoomGame(seed: number, corp: DeckList, runner: DeckList, players: 'random' | 'ai', opts: { maxMoves?: number; twinEvery?: number; wake?: boolean } = {}): RoomFuzzResult {
   const maxMoves = opts.maxMoves ?? (players === 'ai' ? 4000 : 1500);
   const twinEvery = opts.twinEvery ?? 8;
   const checker = new LeakChecker(seed);
@@ -138,6 +140,7 @@ export function fuzzRoomGame(seed: number, corp: DeckList, runner: DeckList, pla
     failures: checker.failures,
     sizes: [],
     times: [],
+    wakes: [],
     stored: { meta: 0, state: 0, moves: 0 },
     twin: { forks: 0, compared: 0, revealed: 0, illegal: 0 },
   };
@@ -183,8 +186,9 @@ export function fuzzRoomGame(seed: number, corp: DeckList, runner: DeckList, pla
   // Odd seeds of random play: the Runner at 'auto', where an R&D access pauses only on cards the Runner may do
   // something with; the room's settled rule must keep that from the Corp (twins: R&D pairs, Corp blind only)
   const rdOnly = players === 'random' && seed % 2 === 1;
-  const levels: Record<SideCode, StopLevel> = players === 'ai' ? { corp: 'ai', runner: 'ai' } : { corp: 'full', runner: rdOnly ? 'auto' : 'full' };
-  for (const side of SIDES) deliver(room.receive(side, { type: 'act', seq: clients[side].seq, action: { type: 'SET_STOPS', player: side, level: levels[side] } }, 0).out, side);
+  // (AI clients keep the engine's default, 'ai': online seats can't choose it, review R2)
+  const levels: Record<SideCode, StopLevel> | null = players === 'ai' ? null : { corp: 'full', runner: rdOnly ? 'auto' : 'full' };
+  if (levels) for (const side of SIDES) deliver(room.receive(side, { type: 'act', seq: clients[side].seq, action: { type: 'SET_STOPS', player: side, level: levels[side] } }, 0).out, side);
 
   const agents = players === 'ai' ? { corp: createAgent('corp', 'normal'), runner: createAgent('runner', 'normal') } : null;
   let stuck = 0;
@@ -198,6 +202,7 @@ export function fuzzRoomGame(seed: number, corp: DeckList, runner: DeckList, pla
       const msg = agents ? aiMessage(room, clients[acting], agents, rng) : randomMessage(clients[acting], rng);
       if (!msg) break;
       if (players === 'random' && !room.meta.held && step > 0 && nextInt(rng, twinEvery) === 0) twinFork(room, clients, msg, checker, step, rng, result.twin, rdOnly);
+      if (opts.wake && nextInt(rng, 4) === 0) result.wakes.push(timeWake(room, acting, msg, step + 1));
       const t0 = performance.now();
       const res = room.receive(acting, msg, step + 1);
       const ms = performance.now() - t0;
@@ -214,6 +219,10 @@ export function fuzzRoomGame(seed: number, corp: DeckList, runner: DeckList, pla
       if (accepted) stuck = 0;
       deliver(res.out, acting);
       if (step % 50 === 0) persistenceCheck(room, checker, step, result.stored);
+      // A seat reconnects now and then: it must get exactly the last state it was sent (review R1)
+      if (nextInt(rng, 20) === 0) reconnectCheck(room, clients, checker, step, SIDES[nextInt(rng, 2)]);
+      // Junk from a client now and then: refused, or cleaned before it reaches a view or the moves (review R2)
+      if (nextInt(rng, 15) === 0) junkCheck(room, clients, checker, step, rng, deliver);
     }
   } catch (e) {
     checker.failures.push({ seed, step, viewer: 'corp', check: 'crash', detail: `${e instanceof Error ? e.stack : e}`.slice(0, 400) });
@@ -224,6 +233,53 @@ export function fuzzRoomGame(seed: number, corp: DeckList, runner: DeckList, pla
   return result;
 }
 
+/**
+ * One Durable Object wake for a move, on a copy: the stored values read back
+ * (JSON here; the runtime's structured clone is of the same order), the room
+ * loaded, the move received, every stored value and sent message serialised.
+ */
+function timeWake(room: RoomCore, side: SideCode, msg: ClientMessage, now: number): number {
+  const snap = room.snapshot();
+  const stored = { meta: JSON.stringify(snap.meta), state: JSON.stringify(snap.state), moves: JSON.stringify(snap.moves), last: JSON.stringify(snap.last) };
+  const t0 = performance.now();
+  const copy = RoomCore.load({ meta: JSON.parse(stored.meta), state: JSON.parse(stored.state), moves: JSON.parse(stored.moves), last: JSON.parse(stored.last) }, now);
+  const res = copy.receive(side, msg, now);
+  if (res.persist) {
+    const out = copy.snapshot();
+    JSON.stringify(out.meta);
+    JSON.stringify(out.state);
+    JSON.stringify(out.moves);
+  }
+  for (const o of res.out) if (!o.text) JSON.stringify(o.msg);
+  return performance.now() - t0;
+}
+
+function reconnectCheck(room: RoomCore, clients: Record<SideCode, Client>, checker: LeakChecker, step: number, side: SideCode) {
+  const got = room.connect(side).find(m => m.type === 'state');
+  const d = firstDiff(got ?? null, clients[side].last);
+  if (d) checker.fail(step, side, 'seat', 'a reconnect is not the last state the seat was sent', d);
+}
+
+const JUNK = 'JUNK chat text';
+
+/** Sends a junk variant of a legal move (or of nothing); whatever happens, the junk text reaches no message and no stored move. */
+function junkCheck(room: RoomCore, clients: Record<SideCode, Client>, checker: LeakChecker, step: number, rng: RngState, deliver: (out: Outbox, mover: SideCode | null) => void) {
+  const side = SIDES[nextInt(rng, 2)];
+  const client = clients[side];
+  const base = client.last?.legal[nextInt(rng, Math.max(1, client.last.legal.length))];
+  const variants: unknown[] = [
+    { type: 'SET_STOPS', player: side, level: JUNK },
+    { type: 'SET_STOPS', player: side, level: 'ai' },
+    { type: 'CHAT', player: side, text: JUNK },
+    ...(base ? [{ ...base, note: JUNK }, { ...base, cardInstanceId: JUNK }, { ...base, targetServerId: JUNK }, { ...base, choice: { kind: 'effect_choice', optionId: JUNK } }] : []),
+  ];
+  const raw = JSON.stringify({ type: 'act', seq: client.seq, action: variants[nextInt(rng, variants.length)] });
+  const res = room.receive(side, parseClientMessage(raw), step);
+  for (const o of res.out) if (JSON.stringify(o.msg).includes(JUNK)) checker.fail(step, o.to, 'seat', 'junk from a client reached a message');
+  if (JSON.stringify(room.moves).includes(JUNK)) checker.fail(step, side, 'seat', 'junk from a client reached the stored moves');
+  deliver(res.out, res.out.some(o => o.to === side && o.msg.type === 'state') ? side : null);
+}
+
 /** The stored snapshot, loaded again, greets both seats exactly like the live room. */
 function persistenceCheck(room: RoomCore, checker: LeakChecker, step: number, stored: RoomFuzzResult['stored']) {
   const snap = room.snapshot();
@@ -231,7 +287,7 @@ function persistenceCheck(room: RoomCore, checker: LeakChecker, step: number, st
   stored.meta = Math.max(stored.meta, json.meta.length);
   stored.state = Math.max(stored.state, json.state.length);
   stored.moves = Math.max(stored.moves, json.moves.length);
-  const loaded = RoomCore.load({ meta: JSON.parse(json.meta), state: JSON.parse(json.state), moves: JSON.parse(json.moves) }, 0);
+  const loaded = RoomCore.load({ meta: JSON.parse(json.meta), state: JSON.parse(json.state), moves: JSON.parse(json.moves), last: snap.last }, 0);
   for (const side of SIDES) {
     const d = firstDiff(room.connect(side), loaded.connect(side));
     if (d) checker.fail(step, side, 'seat', 'a reloaded room greets the seat differently', d);
@@ -302,6 +358,14 @@ function twinFork(room: RoomCore, clients: Record<SideCode, Client>, first: Clie
       checker.fail(step + i, blind, 'twin', `${msg.type === 'act' ? `${msg.action.type} by ${msg.action.player}` : msg.type}: the blind seat's messages differ (${label})`, d);
       return;
     }
+    // Both twins greet a reconnecting blind seat alike (review R1)
+    if (nextInt(local, 5) === 0) {
+      const dc = firstDiff(copy.connect(blind), twin.connect(blind));
+      if (dc) {
+        checker.fail(step + i, blind, 'twin', `a reconnect differs between the twins (${label})`, dc);
+        return;
+      }
+    }
     for (const { to, msg: m } of r1) {
       if (m.type !== 'state') continue;
       last[to] = m;
@@ -340,12 +404,14 @@ const quantile = (xs: number[], q: number) => {
 export function summarize(results: RoomFuzzResult[]): string {
   const sizes = results.flatMap(r => r.sizes);
   const times = results.flatMap(r => r.times);
+  const wakes = results.flatMap(r => r.wakes);
   const stored = results.reduce((m, r) => ({ meta: Math.max(m.meta, r.stored.meta), state: Math.max(m.state, r.stored.state), moves: Math.max(m.moves, r.stored.moves) }), { meta: 0, state: 0, moves: 0 });
   const twin = results.reduce((t, r) => ({ forks: t.forks + r.twin.forks, compared: t.compared + r.twin.compared, revealed: t.revealed + r.twin.revealed, illegal: t.illegal + r.twin.illegal }), { forks: 0, compared: 0, revealed: 0, illegal: 0 });
   const kb = (n: number) => `${(n / 1024).toFixed(1)} KB`;
   return [
     `state messages: ${sizes.length}, size p50 ${kb(quantile(sizes, 0.5))}, p99 ${kb(quantile(sizes, 0.99))}, max ${kb(Math.max(0, ...sizes))}`,
     `time per accepted move (receive, incl. both views and legal actions): p50 ${quantile(times, 0.5).toFixed(2)} ms, p99 ${quantile(times, 0.99).toFixed(2)} ms, max ${Math.max(0, ...times).toFixed(2)} ms`,
+    ...(wakes.length ? [`whole wake (sampled ${wakes.length}): p50 ${quantile(wakes, 0.5).toFixed(2)} ms, p99 ${quantile(wakes, 0.99).toFixed(2)} ms, max ${Math.max(...wakes).toFixed(2)} ms`] : []),
     `largest stored values: meta ${kb(stored.meta)}, state ${kb(stored.state)}, moves ${kb(stored.moves)}`,
     `twin: ${twin.forks} forks, ${twin.compared} moves compared, ${twin.revealed} ended as revealed, ${twin.illegal} ended as illegal in the twin`,
   ].join('\n');

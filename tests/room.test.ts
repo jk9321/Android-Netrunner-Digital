@@ -78,6 +78,37 @@ describe('Room codes and client messages', () => {
   });
 });
 
+describe('Client actions are rebuilt and checked (review R2: no free text anywhere)', () => {
+  const act = (action: unknown) => parseClientMessage(JSON.stringify({ type: 'act', seq: 1, action }));
+  it('stops only auto, full or none; no free text', () => {
+    expect(act({ type: 'SET_STOPS', player: 'corp', level: 'full' })).toEqual({ type: 'act', seq: 1, action: { type: 'SET_STOPS', player: 'corp', level: 'full' } });
+    expect(act({ type: 'SET_STOPS', player: 'corp', level: 'hello runner, this is chat' })).toBeNull();
+    expect(act({ type: 'SET_STOPS', player: 'corp', level: 'ai' })).toBeNull();
+  });
+  it('extra keys are dropped; ids, servers, prompt ids and numbers must have their shape', () => {
+    expect(act({ type: 'GAIN_CREDIT', player: 'corp', note: 'hi' })).toEqual({ type: 'act', seq: 1, action: { type: 'GAIN_CREDIT', player: 'corp' } });
+    expect(act({ type: 'INSTALL_CARD', player: 'corp', cardInstanceId: 'c4', targetServerId: 'remote-2', trashFirst: ['c1'], x: 1 })).toMatchObject({ action: { type: 'INSTALL_CARD', cardInstanceId: 'c4', targetServerId: 'remote-2', trashFirst: ['c1'] } });
+    expect(act({ type: 'INSTALL_CARD', player: 'corp', cardInstanceId: 'inst-4' })).toBeNull();
+    expect(act({ type: 'INITIATE_RUN', player: 'runner', targetServerId: 'hq; chat' })).toBeNull();
+    expect(act({ type: 'USE_ABILITY', player: 'runner', cardInstanceId: 'r3', abilityIndex: 1.5 })).toBeNull();
+    expect(act({ type: 'RESOLVE_PROMPT', player: 'runner', promptId: 'prompt-3', choice: { kind: 'effect_choice', optionId: 'a long free text message' } })).toBeNull();
+    expect(act({ type: 'RESOLVE_PROMPT', player: 'runner', promptId: 'prompt-3', choice: { kind: 'effect_cards', cardInstanceIds: ['r1', 'r2'], note: 'x' } })).toMatchObject({ action: { choice: { kind: 'effect_cards', cardInstanceIds: ['r1', 'r2'] } } });
+    expect(act({ type: 'CHAT', player: 'corp' })).toBeNull();
+  });
+  it('the room takes only what the seat was offered, and stores nothing it did not check', () => {
+    const { room } = started();
+    pastMulligans(room);
+    const s = lastState(room, 'corp');
+    // Well-formed but not offered (a server the Corp can't run on)
+    const res = room.receive('corp', { type: 'act', seq: s.seq, action: { type: 'INITIATE_RUN', player: 'corp', targetServerId: 'hq' } }, 0);
+    expect(errorsTo(res.out, 'corp')).toEqual(['illegal']);
+    const credit = parseClientMessage(JSON.stringify({ type: 'act', seq: s.seq, action: { type: 'GAIN_CREDIT', player: 'corp', note: 'chat' } }));
+    room.receive('corp', credit, 0);
+    expect(JSON.stringify(room.moves)).not.toContain('chat');
+    expect(room.moves.at(-1)).toEqual({ type: 'GAIN_CREDIT', player: 'corp' });
+  });
+});
+
 describe('Creating and joining (rules 1.4.1a, deck legality)', () => {
   it('creates a room with the host seated and nothing started', () => {
     const room = newRoom('runner');
@@ -321,6 +352,34 @@ describe('Reconnect and persistence (spec rules 4 and 5)', () => {
     act(room, 'corp', a => a.type === 'GAIN_CREDIT');
     const loaded = RoomCore.load(JSON.parse(JSON.stringify(room.snapshot())), 0);
     for (const side of ['corp', 'runner'] as SideCode[]) expect(loaded.connect(side)).toEqual(room.connect(side));
+  });
+});
+
+describe('Reconnect at an unsettled point (review R1; rules 4.2.2, 7.1.2)', () => {
+  it('a Corp that reconnects while the Runner decides on an R&D card gets the state it was last sent, not the withheld moment', () => {
+    const s = newGame(5);
+    s.stops = { corp: 'ai', runner: 'auto' };
+    startRunnerTurn(s);
+    s.runner.credits = 10;
+    const nico = s.corp.rd.findIndex(c => c.cardCode === '30037');
+    s.corp.rd.unshift(nico >= 0 ? s.corp.rd.splice(nico, 1)[0] : giveCardTo(s));
+    const room = roomWith(s);
+    const got: Record<SideCode, StateMsg> = { corp: lastState(room, 'corp'), runner: lastState(room, 'runner') };
+    const play = (side: SideCode, action: GameAction) => {
+      for (const o of room.receive(side, { type: 'act', seq: got[side].seq, action }, 0).out) if (o.msg.type === 'state') got[o.to] = o.msg;
+    };
+    play('runner', got.runner.legal.find(a => a.type === 'INITIATE_RUN' && a.targetServerId === 'rd')!);
+    for (let i = 0; i < 30 && !room.realState!.pendingPrompts.some(p => p.kind === 'access_trash'); i++) {
+      const side = (['corp', 'runner'] as SideCode[]).find(x => got[x].waitingOn === x && got[x].legal.length > 0)!;
+      play(side, got[side].legal.find(a => a.type === 'PASS' || a.type === 'CONTINUE_RUN') ?? got[side].legal[0]);
+    }
+    expect(room.realState!.pendingPrompts[0]).toMatchObject({ kind: 'access_trash', side: 'runner' });
+    expect(settledFor(room.realState!, 'corp')).toBe(false);
+    // The Corp's reconnect is the last thing it was sent, and a reloaded room says the same
+    const again = room.connect('corp').find(m => m.type === 'state');
+    expect(again).toEqual(got.corp);
+    expect(RoomCore.load(JSON.parse(JSON.stringify(room.snapshot())), 0).connect('corp').find(m => m.type === 'state')).toEqual(got.corp);
+    expect(JSON.stringify(again)).not.toContain('access_trash');
   });
 });
 

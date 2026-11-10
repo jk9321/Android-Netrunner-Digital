@@ -47,6 +47,8 @@ import {
   ServerMessage,
   SocketErrorCode,
   ClientMessage,
+  actionKey,
+  sanitizeAction,
 } from '../src/net/protocol';
 
 const SIDES: SideCode[] = ['corp', 'runner'];
@@ -93,9 +95,16 @@ export interface RoomSnapshot {
   meta: RoomMeta;
   state: GameState | null;
   moves: GameAction[];
+  /**
+   * The last `state` message each seat was sent, as sent (JSON). A seat that
+   * connects again gets exactly this, never the state as it is now: at an
+   * unsettled point that would show the moment withheld from it.
+   */
+  last?: Record<SideCode, string | null>;
 }
 
-export type Outbox = { to: SideCode; msg: ServerMessage }[];
+/** `text`: the message as JSON when it was already serialised (state messages), so the socket sends it without a second stringify. */
+export type Outbox = { to: SideCode; msg: ServerMessage; text?: string }[];
 
 export interface RoomResult {
   out: Outbox;
@@ -182,6 +191,9 @@ export function rdAccessInProgress(state: GameState): boolean {
   return state.corp.rd.some(c => c.instanceId === last.id);
 }
 
+/** How every state message's JSON starts (stateMessage puts type, then seq, first). */
+const STATE_PREFIX = '{"type":"state","seq":';
+
 const error = (to: SideCode, code: SocketErrorCode): Outbox => [{ to, msg: { type: 'error', code, message: SOCKET_ERROR_TEXT[code] } }];
 
 export interface CreateInput {
@@ -212,9 +224,13 @@ export class RoomCore {
   /** Server-side log of engine errors (never sent to a client). */
   readonly errors: string[] = [];
 
-  private constructor(meta: RoomMeta, table: TableCore | null) {
+  /** The last state message each seat was sent (RoomSnapshot.last). */
+  private last: Record<SideCode, string | null> = { corp: null, runner: null };
+
+  private constructor(meta: RoomMeta, table: TableCore | null, last?: Record<SideCode, string | null>) {
     this.meta = meta;
     this.table = table;
+    if (last) this.last = { ...last };
   }
 
   // --- Creating, joining, loading -------------------------------------------------
@@ -262,10 +278,10 @@ export class RoomCore {
     const meta = snapshot.meta;
     if (!snapshot.state) return new RoomCore(meta, null);
     try {
+      // Both views are worked out here (TableCore), which proves the state still reads with this engine; legal
+      // actions wait until a state is sent (most wakes are a move that sends one anyway)
       const table = new TableCore(snapshot.state, meta.code, { moves: snapshot.moves, ids: meta.ids ?? undefined });
-      const room = new RoomCore(meta, table);
-      // Legal actions are worked out once to prove the state still works with this engine
-      for (const side of SIDES) getLegalActions(table.state, side);
+      const room = new RoomCore(meta, table, snapshot.last);
       if (meta.held) {
         const step = table.step(meta.held.action, true);
         if (step?.kind === 'held') table.hold(step.held);
@@ -281,7 +297,7 @@ export class RoomCore {
   }
 
   snapshot(): RoomSnapshot {
-    return { meta: this.meta, state: this.table?.state ?? null, moves: this.table?.moves ?? [] };
+    return { meta: this.meta, state: this.table?.state ?? null, moves: this.table?.moves ?? [], last: { ...this.last } };
   }
 
   get started(): boolean {
@@ -342,11 +358,23 @@ export class RoomCore {
 
   // --- Sockets ----------------------------------------------------------------------
 
-  /** What a seat's socket gets when it connects or reconnects (spec rule 5): hello, then the current state. */
+  /**
+   * What a seat's socket gets when it connects or reconnects (spec rule 5):
+   * hello, then the last state it was sent (never the state as it is now,
+   * which at an unsettled point would show it the withheld moment), then the
+   * result if the game is over.
+   */
   connect(side: SideCode): ServerMessage[] {
-    const out: ServerMessage[] = [{ type: 'hello', seat: side, build: this.meta.build, protocol: this.meta.protocol }];
-    if (this.table) out.push(this.stateMessage(side, false));
-    if (this.meta.over) out.push({ type: 'over', ...this.meta.over });
+    return this.connectTexts(side).map(t => JSON.parse(t) as ServerMessage);
+  }
+
+  /** connect() as JSON strings, for the socket. */
+  connectTexts(side: SideCode): string[] {
+    const out = [JSON.stringify({ type: 'hello', seat: side, build: this.meta.build, protocol: this.meta.protocol } satisfies ServerMessage)];
+    // A room stored before seats' last states were kept (or built for a test) has none: the current state, if settled
+    const last = this.last[side] ?? (this.table && settledFor(this.viewsFor(side).state, side) ? JSON.stringify(this.stateMessage(side)) : null);
+    if (last) out.push(last);
+    if (this.meta.over) out.push(JSON.stringify({ type: 'over', ...this.meta.over } satisfies ServerMessage));
     return out;
   }
 
@@ -365,13 +393,17 @@ export class RoomCore {
       return { out: this.stateFor(side, true), persist: true };
     }
 
-    const { action } = msg;
+    // Rebuilt from known keys even when the caller parsed it already (parseClientMessage does the same)
+    const action = sanitizeAction(msg.action);
+    if (!action) return { out: error(side, 'bad_message'), persist: false };
     if (action.player !== side) return { out: error(side, 'not_your_turn'), persist: false };
     // Rule 1: only the acting seat acts; stops and conceding are one's own business at any time
     const anyTime = action.type === 'SET_STOPS' || action.type === 'CONCEDE';
     if (!anyTime && msg.seq !== this.meta.seq[side]) return { out: error(side, 'stale'), persist: false };
     if (!anyTime && actingSide(this.viewsFor(side).state) !== side) return { out: error(side, 'not_your_turn'), persist: false };
 
+    // Review R2: only what the seat was offered, or an own-side choice the legal list can't spell out
+    if (!anyTime && !this.offered(side, action)) return this.illegal(side, new Error(`not offered: ${action.type}`));
     let engine: GameAction;
     try {
       engine = toEngineAction(action, this.idsFor(side));
@@ -460,6 +492,42 @@ export class RoomCore {
     this.meta.endedAt = now;
   }
 
+  /** The seat's legal actions in its own ids (empty unless it is acting). Cheap to ask twice: the engine caches legality per state. */
+  private legalFor(side: SideCode): GameAction[] {
+    const shown = this.viewsFor(side).state;
+    if (actingSide(shown) !== side) return [];
+    const ids = this.idsFor(side);
+    return getLegalActions(shown, side).flatMap(a => {
+      const mine = fromEngineAction(a, ids);
+      return mine ? [mine] : [];
+    });
+  }
+
+  /**
+   * Was the seat offered this action? Its legal list, or, as on the local
+   * table (src/ui/table.ts seatCan), the own-side choices that list can't
+   * spell out: installs that trash cards first or go onto a host (rules
+   * 8.5.6), a prompt answer that trashes first (the same answer without it
+   * must be offered), and an "any number of cards" answer to the seat's own
+   * prompt (at most 256 answers are listed). The engine judges those.
+   */
+  private offered(side: SideCode, action: GameAction): boolean {
+    const legal = this.legalFor(side);
+    const keys = new Set(legal.map(actionKey));
+    if (keys.has(actionKey(action))) return true;
+    if (legal.length === 0) return false;
+    if (action.type === 'INSTALL_CARD') return !!action.trashFirst?.length || action.hostInstanceId !== undefined;
+    if (action.type !== 'RESOLVE_PROMPT') return false;
+    const prompt = this.viewsFor(side).views[side].pendingPrompts[0];
+    if (!prompt || prompt.id !== action.promptId) return false;
+    const c = action.choice;
+    if ('trashFirst' in c && c.trashFirst?.length) {
+      const base = { ...action, choice: { ...c, trashFirst: undefined } } as GameAction;
+      return keys.has(actionKey(base)) || c.kind === 'effect_cards';
+    }
+    return c.kind === 'effect_cards';
+  }
+
   /** What a seat is shown: the held choice only to its holder (spec rule 3), the committed state to everyone else. */
   private viewsFor(side: SideCode): TableViews {
     const table = this.table!;
@@ -473,19 +541,10 @@ export class RoomCore {
   }
 
   /** The `state` message for a seat now, numbered by the seat's count (bumped only when actually sent). */
-  private stateMessage(side: SideCode, bump: boolean): ServerMessage & { type: 'state' } {
+  private stateMessage(side: SideCode): ServerMessage & { type: 'state' } {
     const views = this.viewsFor(side);
-    const shown = views.state;
-    const ids = this.idsFor(side);
-    const acting = actingSide(shown);
-    const legal =
-      acting === side
-        ? getLegalActions(shown, side).flatMap(a => {
-            const mine = fromEngineAction(a, ids);
-            return mine ? [mine] : [];
-          })
-        : [];
-    if (bump) this.meta.seq[side]++;
+    const acting = actingSide(views.state);
+    const legal = this.legalFor(side);
     return { type: 'state', seq: this.meta.seq[side], view: views.views[side], legal, waitingOn: acting, held: this.meta.held?.side === side };
   }
 
@@ -495,12 +554,16 @@ export class RoomCore {
    */
   private stateFor(side: SideCode, force: boolean): Outbox {
     if (!this.table) return [];
-    const draft = this.stateMessage(side, false);
-    const hash = quickHash(JSON.stringify({ ...draft, seq: 0 }));
+    const draft = this.stateMessage(side);
+    // One stringify for the hash, the socket and the stored copy: the seq is spliced in front
+    const body = JSON.stringify({ ...draft, seq: 0 });
+    const hash = quickHash(body);
     if (!force && hash === this.meta.sent[side]) return [];
     this.meta.sent[side] = hash;
     this.meta.seq[side]++;
-    return [{ to: side, msg: { ...draft, seq: this.meta.seq[side] } }];
+    const text = STATE_PREFIX + this.meta.seq[side] + body.slice(STATE_PREFIX.length + 1);
+    this.last[side] = text;
+    return [{ to: side, msg: { ...draft, seq: this.meta.seq[side] }, text }];
   }
 
   // --- Lifetime and reports -------------------------------------------------------

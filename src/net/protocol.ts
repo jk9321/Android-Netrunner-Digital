@@ -11,6 +11,7 @@
  */
 import type { SideCode } from '../core/types/card';
 import type { GameAction } from '../core/types/actions';
+import type { PromptChoice } from '../core/types/prompts';
 import type { FormatId } from '../core/formats';
 import type { GameView } from '../core/view';
 
@@ -159,9 +160,146 @@ export function parseClientMessage(raw: unknown): ClientMessage | null {
   if (msg.type === 'ping') return { type: 'ping' };
   if (msg.type === 'cancel') return isSeq(msg.seq) ? { type: 'cancel', seq: msg.seq } : null;
   if (msg.type === 'act') {
-    const a = msg.action;
-    if (!isSeq(msg.seq) || !isObject(a) || typeof a.type !== 'string' || (a.player !== 'corp' && a.player !== 'runner')) return null;
-    return { type: 'act', seq: msg.seq, action: a as unknown as GameAction };
+    if (!isSeq(msg.seq)) return null;
+    const action = sanitizeAction(msg.action);
+    return action ? { type: 'act', seq: msg.seq, action } : null;
   }
   return null;
+}
+
+// --- Actions ----------------------------------------------------------------------
+//
+// Nothing a client sends may reach a view or the stored moves unless it was
+// checked here: every action is rebuilt from its known keys, each value of
+// a known shape (viewer ids, server ids, prompt ids, option ids, enums,
+// bounded integers and arrays). Extra keys are dropped; a value of the wrong
+// shape refuses the message. The room then checks it against the seat's
+// legal actions (server/room.ts) and the engine has the last word.
+
+const VIEWER_ID = /^[cr]\d{1,6}$/;
+const SERVER_ID = /^(hq|rd|archives|new|remote-\d{1,3})$/;
+const PROMPT_ID = /^prompt-\d{1,7}$/;
+/** Engine option ids: server ids, words, viewer ids, card codes ('steal', 'remote-2', 'c12', '30037'). */
+const OPTION_ID = /^[A-Za-z0-9_:.-]{1,40}$/;
+const STOP_LEVELS = ['auto', 'full', 'none'] as const;
+const MAX_LIST = 60;
+
+type Raw = Record<string, unknown>;
+class Bad extends Error {}
+
+const id = (v: unknown): string => {
+  if (typeof v !== 'string' || !VIEWER_ID.test(v)) throw new Bad();
+  return v;
+};
+const ids = (v: unknown): string[] => {
+  if (!Array.isArray(v) || v.length > MAX_LIST) throw new Bad();
+  return v.map(id);
+};
+const match = (v: unknown, re: RegExp): string => {
+  if (typeof v !== 'string' || !re.test(v)) throw new Bad();
+  return v;
+};
+const int = (v: unknown, max: number): number => {
+  if (typeof v !== 'number' || !Number.isInteger(v) || v < 0 || v > max) throw new Bad();
+  return v;
+};
+const ints = (v: unknown, max: number): number[] => {
+  if (!Array.isArray(v) || v.length > MAX_LIST) throw new Bad();
+  return v.map(x => int(x, max));
+};
+const bool = (v: unknown): boolean => {
+  if (typeof v !== 'boolean') throw new Bad();
+  return v;
+};
+/** Optional keys: left out when missing, checked when present. */
+const opt = <T>(raw: Raw, key: string, check: (v: unknown) => T): Partial<Record<string, T>> => (raw[key] === undefined ? {} : { [key]: check(raw[key]) });
+
+function choiceOf(v: unknown): PromptChoice {
+  if (!isObject(v)) throw new Bad();
+  switch (v.kind) {
+    case 'mulligan':
+      return { kind: 'mulligan', mulligan: bool(v.mulligan) };
+    case 'discard':
+      return { kind: 'discard', cardInstanceIds: ids(v.cardInstanceIds) };
+    case 'access_trash':
+      return { kind: 'access_trash', trash: bool(v.trash), ...opt(v, 'alternativeId', x => match(x, OPTION_ID)) };
+    case 'access_order':
+      return { kind: 'access_order', optionId: match(v.optionId, OPTION_ID) };
+    case 'effect_choice':
+      return { kind: 'effect_choice', optionId: match(v.optionId, OPTION_ID), ...opt(v, 'trashFirst', ids) };
+    case 'effect_cards':
+      return { kind: 'effect_cards', cardInstanceIds: ids(v.cardInstanceIds), ...opt(v, 'trashFirst', ids) };
+    default:
+      throw new Bad();
+  }
+}
+
+/** A client's action rebuilt from its known keys with checked values, or null. */
+export function sanitizeAction(raw: unknown): GameAction | null {
+  if (!isObject(raw) || (raw.player !== 'corp' && raw.player !== 'runner')) return null;
+  const player = raw.player as SideCode;
+  try {
+    const a = raw;
+    switch (a.type) {
+      case 'GAIN_CREDIT':
+      case 'DRAW_CARD':
+      case 'PURGE_VIRUS':
+      case 'CONTINUE_RUN':
+      case 'JACK_OUT':
+      case 'REMOVE_TAG':
+      case 'END_TURN':
+      case 'START_TURN':
+      case 'CONCEDE':
+        return { type: a.type, player };
+      case 'PASS':
+        return { type: 'PASS', player, ...opt(a, 'restOfRun', bool) };
+      case 'SET_STOPS':
+        if (!STOP_LEVELS.includes(a.level as (typeof STOP_LEVELS)[number])) return null;
+        return { type: 'SET_STOPS', player, level: a.level as (typeof STOP_LEVELS)[number] };
+      case 'INSTALL_CARD':
+        return {
+          type: 'INSTALL_CARD',
+          player,
+          cardInstanceId: id(a.cardInstanceId),
+          ...opt(a, 'targetServerId', x => match(x, SERVER_ID)),
+          ...opt(a, 'asNewRemote', bool),
+          ...opt(a, 'hostInstanceId', id),
+          ...opt(a, 'faceUp', bool),
+          ...opt(a, 'trashFirst', ids),
+        };
+      case 'PLAY_OPERATION_OR_EVENT':
+      case 'SCORE_AGENDA':
+      case 'REZ_CARD':
+      case 'TRASH_RESOURCE':
+        return { type: a.type, player, cardInstanceId: id(a.cardInstanceId) };
+      case 'ADVANCE_CARD':
+        return { type: 'ADVANCE_CARD', player, cardInstanceId: id(a.cardInstanceId), serverId: match(a.serverId, SERVER_ID) };
+      case 'INITIATE_RUN':
+        return { type: 'INITIATE_RUN', player, targetServerId: match(a.targetServerId, SERVER_ID) };
+      case 'BREAK_SUBROUTINE':
+        return { type: 'BREAK_SUBROUTINE', player, breakerInstanceId: id(a.breakerInstanceId), subroutineIndices: ints(a.subroutineIndices, 30) };
+      case 'BOOST_BREAKER':
+        return { type: 'BOOST_BREAKER', player, breakerInstanceId: id(a.breakerInstanceId) };
+      case 'BIOROID_BREAK':
+        return { type: 'BIOROID_BREAK', player, subroutineIndex: int(a.subroutineIndex, 30), ...opt(a, 'subroutineIndices', x => ints(x, 30)) };
+      case 'USE_ABILITY':
+        return { type: 'USE_ABILITY', player, cardInstanceId: id(a.cardInstanceId), abilityIndex: int(a.abilityIndex, 20) };
+      case 'RESOLVE_PROMPT':
+        return { type: 'RESOLVE_PROMPT', player, promptId: match(a.promptId, PROMPT_ID), choice: choiceOf(a.choice) };
+      default:
+        return null;
+    }
+  } catch (err) {
+    if (err instanceof Bad) return null;
+    throw err;
+  }
+}
+
+/** A canonical form of an action for comparison (keys sorted, undefined left out). */
+export function actionKey(action: GameAction): string {
+  return JSON.stringify(action, (_k, v: unknown) =>
+    v && typeof v === 'object' && !Array.isArray(v)
+      ? Object.fromEntries(Object.entries(v as Record<string, unknown>).filter(([, x]) => x !== undefined).sort(([x], [y]) => (x < y ? -1 : x > y ? 1 : 0)))
+      : v,
+  );
 }

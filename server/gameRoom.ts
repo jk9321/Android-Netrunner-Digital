@@ -8,7 +8,7 @@
  * Reached only from the game Worker (server/index.ts) on these paths:
  *   POST /create, POST /join, GET /lobby, GET /ws?token=, POST /report?token=
  */
-import { PING, PONG, parseClientMessage } from '../src/net/protocol';
+import { PING, PONG, SOCKET_ERROR_TEXT, parseClientMessage } from '../src/net/protocol';
 import type { ServerMessage } from '../src/net/protocol';
 import type { SideCode } from '../src/core';
 import { RoomCore, RoomSnapshot, Outbox } from './room';
@@ -28,10 +28,15 @@ export class GameRoom {
   /** The runtime also passes the Worker's env; the room needs none of it. */
   constructor(private ctx: DurableObjectState) {
     void ctx.blockConcurrencyWhile(async () => {
-      const got = await ctx.storage.get<unknown>(['meta', 'state', 'moves']);
+      const got = await ctx.storage.get<unknown>(['meta', 'state', 'moves', 'last:corp', 'last:runner']);
       const meta = got.get('meta') as RoomMeta | undefined;
       if (!meta) return;
-      const snapshot: RoomSnapshot = { meta, state: (got.get('state') as RoomSnapshot['state']) ?? null, moves: (got.get('moves') as RoomSnapshot['moves']) ?? [] };
+      const snapshot: RoomSnapshot = {
+        meta,
+        state: (got.get('state') as RoomSnapshot['state']) ?? null,
+        moves: (got.get('moves') as RoomSnapshot['moves']) ?? [],
+        last: { corp: (got.get('last:corp') as string | undefined) ?? null, runner: (got.get('last:runner') as string | undefined) ?? null },
+      };
       this.room = RoomCore.load(snapshot, Date.now());
       // A state that no longer loads ended the game as a draw: keep that
       if (this.room.errors.length) {
@@ -45,13 +50,13 @@ export class GameRoom {
 
   private async save() {
     const room = this.room!;
-    const { meta, state, moves } = room.snapshot();
-    await this.ctx.storage.put({ meta, state, moves });
+    const { meta, state, moves, last } = room.snapshot();
+    await this.ctx.storage.put({ meta, state, moves, 'last:corp': last?.corp ?? null, 'last:runner': last?.runner ?? null });
     await this.ctx.storage.setAlarm(room.expiresAt());
   }
 
   private send(out: Outbox) {
-    for (const { to, msg } of out) for (const ws of this.ctx.getWebSockets(to)) trySend(ws, msg);
+    for (const { to, msg, text } of out) for (const ws of this.ctx.getWebSockets(to)) trySend(ws, text ?? JSON.stringify(msg));
   }
 
   async fetch(request: Request): Promise<Response> {
@@ -119,10 +124,10 @@ export class GameRoom {
     const server = pair[1];
     this.ctx.acceptWebSocket(server, [side]);
     server.serializeAttachment({ side });
-    for (const msg of this.room.connect(side)) trySend(server, msg);
+    for (const text of this.room.connectTexts(side)) trySend(server, text);
     const opp = side === 'corp' ? 'runner' : 'corp';
-    trySend(server, { type: 'opponent', connected: this.ctx.getWebSockets(opp).length > 0 });
-    for (const ws of this.ctx.getWebSockets(opp)) trySend(ws, { type: 'opponent', connected: true });
+    trySend(server, encode({ type: 'opponent', connected: this.ctx.getWebSockets(opp).length > 0 }));
+    for (const ws of this.ctx.getWebSockets(opp)) trySend(ws, encode({ type: 'opponent', connected: true }));
     return upgradeResponse(pair[0]);
   }
 
@@ -130,7 +135,15 @@ export class GameRoom {
     const side = sideOf(ws);
     if (!side || !this.room) return;
     const before = this.room.errors.length;
-    const res = this.room.receive(side, parseClientMessage(typeof message === 'string' ? message : null), Date.now());
+    let res;
+    try {
+      res = this.room.receive(side, parseClientMessage(typeof message === 'string' ? message : null), Date.now());
+    } catch (err) {
+      // A state the engine can't work with any more: the seat hears a generic error, the log keeps the cause
+      console.error('GameRoom receive', this.room.meta.code, err);
+      trySend(ws, encode({ type: 'error', code: 'server', message: SOCKET_ERROR_TEXT.server }));
+      return;
+    }
     if (this.room.errors.length > before) console.warn('GameRoom', this.room.meta.code, this.room.errors.slice(before).join('; '));
     if (res.persist) await this.save();
     this.send(res.out);
@@ -142,7 +155,7 @@ export class GameRoom {
     const still = this.ctx.getWebSockets(side).filter(s => s !== ws).length > 0;
     if (still) return;
     const opp = side === 'corp' ? 'runner' : 'corp';
-    for (const s of this.ctx.getWebSockets(opp)) trySend(s, { type: 'opponent', connected: false });
+    for (const s of this.ctx.getWebSockets(opp)) trySend(s, encode({ type: 'opponent', connected: false }));
   }
 
   async webSocketError(ws: CfWebSocket): Promise<void> {
@@ -184,9 +197,11 @@ function sideOf(ws: CfWebSocket): SideCode | null {
   return att?.side === 'corp' || att?.side === 'runner' ? att.side : null;
 }
 
-function trySend(ws: CfWebSocket, msg: ServerMessage) {
+const encode = (msg: ServerMessage) => JSON.stringify(msg);
+
+function trySend(ws: CfWebSocket, text: string) {
   try {
-    ws.send(JSON.stringify(msg));
+    ws.send(text);
   } catch {
     // The socket closed; the player gets the current state when they reconnect
   }

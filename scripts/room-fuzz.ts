@@ -6,13 +6,16 @@
  *
  *   npx vite-node scripts/room-fuzz.ts -- [games] [seed] [random|ai|both]
  *
- * 'both' alternates random clients and AI clients. SHARD=i/n and SEEDS=a,b as
+ * 'both' alternates random clients and AI clients. --wake also times whole
+ * Durable Object wakes (load, move, save) on a copy. SHARD=i/n and SEEDS=a,b as
  * in leak-fuzz.ts. Exits 1 on any failure; prints message sizes, time per
  * move and the largest stored values at the end.
  */
 import { fuzzRoomGame, roomPairing, summarize, type RoomFuzzResult } from './leak-check-room';
 
-const args = process.argv.slice(2).filter(a => a !== '--');
+// --wake: also time a whole Durable Object wake per move on a copy (sampled), for the CPU budget
+const wake = process.argv.includes('--wake');
+const args = process.argv.slice(2).filter(a => a !== '--' && a !== '--wake');
 const games = Number(args[0] ?? 20);
 const seed0 = Number(args[1] ?? 9000);
 const mode = (args[2] ?? 'both') as 'random' | 'ai' | 'both';
@@ -24,7 +27,7 @@ for (let g = 0; g < games; g++) {
   if (g % shards !== shard || (only.length > 0 && !only.includes(seed0 + g))) continue;
   const [c, r] = roomPairing(g);
   const players = mode === 'both' ? (g % 2 === 0 ? 'random' : 'ai') : mode;
-  const res = fuzzRoomGame(seed0 + g, c, r, players);
+  const res = fuzzRoomGame(seed0 + g, c, r, players, { wake });
   results.push(res);
   console.log(`${res.seed} ${players} ${res.format} ${res.corp} ${res.runner} ${res.moves} ${res.winner ?? '-'} ${res.failures.length === 0 ? 'ok' : `FAIL ${res.failures.length}`}`);
   for (const f of res.failures) console.log(`  step ${f.step} ${f.viewer} ${f.check}: ${f.detail}${f.path ? ` at ${f.path}` : ''}`);
