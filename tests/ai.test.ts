@@ -17,6 +17,6 @@ describe('heuristic AI', () => {
       const start = createInitialGameState(deckGameSetup(100 + i, corpDeck, runnerDeck));
       const { state } = playAIGame(start);
       expect(state.winner, `turn ${state.turnNumber}, score ${state.corp.score}-${state.runner.score}`).toBeTruthy();
-    }, 180000); // the whole-turn planner plays out every turn (2026-11-05: Agency vs Prick Thyself took 87 s on beta alone, about 3.5 s a turn)
+    }, 300000); // the whole-turn planner plays out every turn (2026-11-05: Agency vs Prick Thyself took 87 s on beta alone, about 3.5 s a turn; 2026-11-10: Fashion Lab vs Tickets, please, 17 turns, 170 s on beta 4773081 and 200 s with ownIceKnown's rez budget)
   });
 });
