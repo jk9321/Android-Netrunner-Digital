@@ -65,9 +65,6 @@ export const tuning = {
      * that play more like a person unless they are clearly negative.
      * (urgency only fed serverValue's old table, so it went with plan.runModel's off path, 2026-11-06.)
      */
-    /** Corp: plays that let an agenda be scored this turn (Seamless Launch, KPI...), and tagging before scoring Orbital Superiority. */
-    // Phase 2 pruning (2026-11-08): no pinned test, but kept ON: measured -10.1 ± 2.3 as a set of six off for the Corp (run 42531131425 vs base 42525924644)
-    scoreSetup: true,
     /*
      * Round 3 batches (1,105 deals, Corp only, 2026-10-25): all on +46 games
      * vs the old Corp (round 2 alone was -15). Leaving one out: rez money
@@ -138,8 +135,6 @@ export const tuning = {
     /* Money target (2026-10-26, self-play, 2,210 games): off 42.7%, 0.3 46.8%, 0.6 46.8%. Kept the milder weight. */
     /** Corp (Jeff): aim for a surplus that rezzes the unrezzed ice on the centrals and scoring remote (credits-worth per credit short; 0 = off). */
     moneyTarget: 0.3,
-    /** Corp (Jeff): push agendas through a remote the Runner can't get into yet. */
-    tempo: true,
     /*
      * Run budget (2026-10-26, self-play, 2,210 games): runs the Runner paid
      * into and lost fell from 1,536 to 1,265, jack-outs before known ice from
