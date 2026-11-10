@@ -9,11 +9,15 @@
  * averaged; the parts here are averaged the same way, with the Runner's points stolen in the reply. The planner's own
  * candidate values (plannerStats.onCandidates) are printed beside it so the replication can be checked.
  *
- * Usage: npx vite-node scripts/leaf-decompose.ts -- [--n=10] [--per=2] [--at=file:turn:clicks] [--json=out.json]
+ * Usage: npx vite-node scripts/leaf-decompose.ts -- [--n=10] [--per=2] [--at=file:turn:clicks] [--alt=TYPE[:title[:server]]] [--json=out.json]
+ *
+ * --alt (fixes thread, 2026-11-09): with --at, the line compared with the AI's pick is this legal action instead of the
+ * move played there (e.g. --alt=GAIN_CREDIT, --alt=INSTALL_CARD:Tithe:hq); then Jeff's Runner games (the AI as Corp) are
+ * read too, where the move played is the AI's own.
  */
 import { readFileSync, readdirSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { GameAction, GameState, actingSide, activePrompt, cardDef, createInitialGameState, executeAction, findCardAnywhere } from '../src/core';
+import { GameAction, GameState, actingSide, activePrompt, cardDef, createInitialGameState, executeAction, findCardAnywhere, getLegalActions } from '../src/core';
 import { deckGameSetup } from '../src/data/decks';
 import { HeuristicCorpAI, createAgent } from '../src/ai';
 import { corpBoardValue, corpCardValue, evaluate, handAndClicks, sideStrength } from '../src/ai/evaluate';
@@ -119,10 +123,24 @@ function replyParts(end: GameState): { parts: Parts; stolen: number; ran: string
 
 const picks: { file: string; turn: number; clicks: number; s: GameState; jeff: GameAction; ai: GameAction }[] = [];
 const at = opt('at');
+const alt = opt('alt');
+/** The legal action --alt names at `s`. */
+function altAction(s: GameState): GameAction {
+  const [type, title, server] = alt!.split(':');
+  const found = getLegalActions(s, 'corp').find(a => {
+    if (a.type !== type) return false;
+    const c = cardOf(s, a);
+    if (title && (!c || cardDef(c).title !== title)) return false;
+    if (server) return server === 'new' ? 'asNewRemote' in a && !!a.asNewRemote : 'targetServerId' in a && a.targetServerId === server;
+    return true;
+  });
+  if (!found) throw new Error(`--alt=${alt}: no such legal action`);
+  return found;
+}
 for (const file of readdirSync(dir).filter(f => f.endsWith('.json')).sort()) {
   if (at && !at.startsWith(file + ':')) continue;
   const report = JSON.parse(readFileSync(join(dir, file), 'utf8'));
-  if (!report.moves?.length || report.config.ai !== 'runner') continue; // Jeff played the Corp
+  if (!report.moves?.length || (report.config.ai !== 'runner' && !(at && alt))) continue; // Jeff played the Corp (or --alt names the other line)
   let s: GameState = createInitialGameState(deckGameSetup(report.config.seed, report.config.corpDeck, report.config.runnerDeck));
   if (report.startStops) s = { ...s, stops: report.startStops };
   let taken = 0;
@@ -131,7 +149,7 @@ for (const file of readdirSync(dir).filter(f => f.endsWith('.json')).sort()) {
     if (main && taken < PER && (at ? at === `${file}:${s.turnNumber}:${s.corp.clicks}` : jeffAgendaMove(s, move))) {
       const ai = createAgent('corp', 'normal').chooseAction(s);
       if (at || (aiInstall(s, ai) && !same(ai, move))) {
-        picks.push({ file, turn: s.turnNumber, clicks: s.corp.clicks, s, jeff: move, ai });
+        picks.push({ file, turn: s.turnNumber, clicks: s.corp.clicks, s, jeff: at && alt ? altAction(s) : move, ai });
         taken++;
       }
     }

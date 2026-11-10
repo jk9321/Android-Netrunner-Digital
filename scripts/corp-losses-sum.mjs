@@ -6,6 +6,7 @@
 import { writeFileSync } from 'node:fs';
 import { printLossSummary } from './loss-summary.mjs';
 import { printOpeningAudit, printValueAudit } from './opening-summary.mjs';
+import { printSearchAudit } from './search-audit-sum.mjs';
 import { printPaired, readGames, splitArgs } from './paired-summary.mjs';
 
 const { files, base } = splitArgs(process.argv.slice(2));
@@ -96,3 +97,6 @@ if (games.some(g => g.opening)) {
   printOpeningAudit(games);
   printValueAudit(games);
 }
+
+// Spec-search S1: the Corp planner's continuations (batch token +audit.search), after the opening audit
+printSearchAudit(games);

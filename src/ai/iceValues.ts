@@ -184,16 +184,29 @@ export const CORP_TURN_INCOME = 3;
  * REZ_NEXT_SHARE, the rest nothing. plan.freeRez: ice a coming free rez pays for (Send a Message, Unleash) is covered
  * without drawing on the pool.
  */
-export function rezBudget(state: GameState): Map<string, number> {
+export function rezBudget(state: GameState, decisionStops = false): Map<string, number> {
   // Keyed by what it reads that tests change in place (credits, the unrezzed ice, the free-rez switch)
   const ice = Object.values(state.corp.servers).flatMap(s => s.ice.filter(c => !c.isRezzed).map(c => c.instanceId + c.cardCode)).join();
-  return memo(state, `rezBudget:${state.corp.credits}:${ice}`, () => countRezBudget(state));
+  const stops = decisionStops ? decisionStopCache() : null;
+  return memo(state, `rezBudget:${state.corp.credits}:${ice}${stops ? ':d' : ''}`, () => countRezBudget(state, stops));
 }
 
-function countRezBudget(state: GameState): Map<string, number> {
+/**
+ * Stops noted once per decision (the anchor pricing notes as a decision starts), for plan.ownIceKnown's rez budget
+ * (effectValues ownIce): it asks on every position the planner looks at, and the stop (lastingIceCost against the rig)
+ * only orders the ice that compete for the money, which a turn's plays barely move. Null outside a decision.
+ */
+function decisionStopCache(): Map<string, number> | null {
+  // The anchor is a new object with every decision (pricing noteDecision): the stops live on it
+  const anchor = pricing().anchor;
+  if (!anchor) return null;
+  return (anchor.stops ??= new Map());
+}
+
+function countRezBudget(state: GameState, stops: Map<string, number> | null = null): Map<string, number> {
   const free = freeRezTargets(state);
   const shares = new Map<string, number>();
-  const waiting: { id: string; cost: number; stop: number }[] = [];
+  const waiting: { ice: CardInstance; id: string; cost: number; stop: number }[] = [];
   for (const server of Object.values(state.corp.servers)) {
     for (const ice of server.ice) {
       if (ice.isRezzed) continue;
@@ -201,12 +214,25 @@ function countRezBudget(state: GameState): Map<string, number> {
         shares.set(ice.instanceId, REZ_NOW_SHARE);
         continue;
       }
-      waiting.push({ id: ice.instanceId, cost: rezCost(state, ice), stop: Math.min(iceStop(state), lastingIceCost(state, { ...ice, isRezzed: true })) });
+      waiting.push({ ice, id: ice.instanceId, cost: rezCost(state, ice), stop: 0 });
     }
   }
-  waiting.sort((a, b) => b.stop / Math.max(1, b.cost) - a.stop / Math.max(1, a.cost));
   let now = Math.max(0, state.corp.credits);
   let next = CORP_TURN_INCOME;
+  // The order only matters when ice competes for the money: when the ice the credits cover now fits all at once and no
+  // ice waits on next turn's income, the shares are the same in any order (the rest is out of reach either way), and
+  // the stops (lastingIceCost, the costly part) aren't needed
+  const cheap = waiting.filter(w => w.cost <= now);
+  if (cheap.reduce((sum, w) => sum + w.cost, 0) <= now && !waiting.some(w => w.cost > now && w.cost <= now + next)) {
+    for (const w of cheap) shares.set(w.id, REZ_NOW_SHARE);
+    return shares;
+  }
+  for (const w of waiting) {
+    const noted = stops?.get(w.id);
+    w.stop = noted ?? Math.min(iceStop(state), lastingIceCost(state, { ...w.ice, isRezzed: true }));
+    if (stops && noted === undefined) stops.set(w.id, w.stop);
+  }
+  waiting.sort((a, b) => b.stop / Math.max(1, b.cost) - a.stop / Math.max(1, a.cost));
   for (const ice of waiting) {
     if (ice.cost <= now) {
       now -= ice.cost;

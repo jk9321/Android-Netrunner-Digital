@@ -245,6 +245,9 @@ describe('no override layer needed', () => {
     // OPEN (item 4, 2026-11-07): with plan.plannerSearch the one-currency Corp without pettyCashFirst clicks for a credit
     // here (a non-default pairing: oneCurrency is off); pinned to the planner before the search was widened until item 6
     tuning.plan.plannerSearch = false;
+    // plan.ownIceKnown (2026-11-09) pinned off too: with it the one-currency Corp prices the Ansel it can't rez as passed and
+    // takes the turn's last click as a credit instead of icing HQ with it, after Petty Cash's window has gone (not the bug)
+    tuning.plan.ownIceKnown = false;
     try {
       // The one-step ranking puts it first (its net 2 credits now and its replay from Archives, PETTY_CASH_REPLAY, on
       // the card there). The planned turn may still open a remote first: its greedy rollout after Petty Cash ices HQ and
@@ -257,6 +260,7 @@ describe('no override layer needed', () => {
     } finally {
       tuning.plan.pettyCashFirst = true;
       tuning.plan.plannerSearch = true;
+      tuning.plan.ownIceKnown = true;
     }
   }, 60_000);
 

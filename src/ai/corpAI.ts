@@ -18,6 +18,7 @@ import { PlanMemory, planTurn, plannerOn, searchPiece } from './turnPlanner';
 import { runnerReply } from './runnerReply';
 import { threatLoss } from './threatModel';
 import { modelRezGain } from './rezModel';
+import { winNowAction } from './winNow';
 import { freeRezCover, freeRezTargets } from './freeRez';
 import { PETTY_CASH_REPLAY, iceAdvanceWorth, placedCounterWorth, rezEffectWorth, rezzedWorth, runTimed, topDownWorth } from './effectValues';
 import { CARD_PROFILES, ECON_SCALE, PAYOUT_RISK, bareAssetRisk, unrezzedWorth } from './cardProfiles';
@@ -26,7 +27,7 @@ import { BLOCK, accessTrap, iceCost, iceCreditNeed, isTrap, subroutineCost, tagC
 import { cardSynergy } from './synergyTags';
 import { econValue, upgradeValue } from './cardValues';
 import { counterWorth } from './counterValues';
-import { plan, pricing } from './pricing';
+import { plan, pricing, withPricing } from './pricing';
 import { setupOperation } from './cards';
 
 
@@ -141,11 +142,34 @@ export class HeuristicCorpAI implements Agent {
   }
 
   chooseAction(state: GameState): GameAction {
-    return asSide('corp', () => this.decide(state));
+    return asSide('corp', () => (this.planner && this.synergy && plan().runRecord ? withPricing({ runRecord: this.noteRuns(state) }, () => this.decide(state)) : this.decide(state)));
+  }
+
+  /** plan.runRecord: the servers the Runner ran, by its turn, noted as this Corp sees each of its own turns (one game at a time). */
+  private runs: { game: string; turns: Map<number, string[]> } = { game: '', turns: new Map() };
+
+  /**
+   * plan.runRecord (threatModel.ts recordRun): notes the Runner's last turn's runs (public, rules 6.1.2a, 6.9.1a) on the
+   * Corp's turn, and returns the record, most recent turn first. A new game, or a turn already past (a reload), starts
+   * it over. Only the deciding Corp keeps one; the planner's rollouts read it from the context.
+   */
+  noteRuns(state: GameState): string[][] {
+    const latest = Math.max(0, ...this.runs.turns.keys());
+    if (this.runs.game !== state.id || state.turnNumber - 1 < latest) this.runs = { game: state.id, turns: new Map() };
+    if (state.activePlayer === 'corp' && state.turnNumber > 1) this.runs.turns.set(state.turnNumber - 1, state.runnerLastTurnRuns.map(r => r.server));
+    return [...this.runs.turns.entries()].sort((a, b) => b[0] - a[0]).map(([, servers]) => servers);
   }
 
   private decide(state: GameState): GameAction {
     decisionContext(state, 'corp');
+    // plan.winNow (bug report #33): a line that wins the game this turn is played before any judgement (winNow.ts)
+    if (this.synergy && this.planner) {
+      const win = winNowAction(state);
+      if (win) {
+        this.notePlayed(win);
+        return win;
+      }
+    }
     if (activePrompt(state)) return answerPrompt(state, 'corp', undefined, this.synergy);
     const legal = getLegalActions(state, 'corp');
     const ranked = this.rankMainActions(state, legal);
@@ -822,7 +846,7 @@ export class HeuristicCorpAI implements Agent {
         // plan.lethalHq: HQ holds an agenda whose steal wins the Runner the game, and the Runner can get in
         const lethalHq = server?.id === 'hq' && this.synergy && lethalHqAgenda(state, corp.credits - installCost);
         const paceOk = lethalHq && corp.credits - installCost >= (cardDef(card).cost ?? 0);
-        if (this.synergy && !paceOk && !free && unrezzedIceCost(state) + (cardDef(card).cost ?? 0) - covered > corp.credits - installCost + ICE_PACING_INCOME && hq.length <= corp.handSizeLimit) return -Infinity;
+        if (this.synergy && !paceOk && !free && !pacingPriced() && unrezzedIceCost(state) + (cardDef(card).cost ?? 0) - covered > corp.credits - installCost + ICE_PACING_INCOME && hq.length <= corp.handSizeLimit) return -Infinity;
         let need: number;
         // Deck-aware AI: one well-iced scoring remote rather than ice spread thin
         const main = this.synergy ? mainRemote(state) : null;
@@ -1030,6 +1054,13 @@ const ICE_PACING_INCOME = 0;
 const ADVANCE_GUARD_PENALTY = 6;
 
 /** Credits to rez every unrezzed ice the Corp has installed. */
+/**
+ * plan.icePacingPriced (bug report #43, Jeff 2026-11-09: "that ICE just shouldn't count as protection unless it CAN rez
+ * it"): with plan.ownIceKnown pricing the Corp's unrezzed ice by its rez budget, the ice-pacing guard's -Infinity is
+ * left to that pricing: ice the Corp can't pay for counts as no protection, and ice it never needs to rez costs nothing.
+ */
+const pacingPriced = (): boolean => plan().icePacingPriced && plan().ownIceKnown && !plan().reach;
+
 export function unrezzedIceCost(state: GameState): number {
   return Object.values(state.corp.servers)
     .flatMap(server => server.ice)

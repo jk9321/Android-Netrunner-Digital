@@ -307,6 +307,8 @@ export const SYSTEM_GATEWAY: Record<string, CardAI> = {
   '30044': { synergy: { gives: { discard: 1 }, when: ['onScore'] } },
   // Urtica Cipher
   '30045': {
+    // plan.corpTurnDamageOwn: its damage lands on access, in the Runner's runs only (rules 7.1.3, 7.2.1)
+    corpTurnDamage: 0,
     synergy: { gives: { damage: 1.5 }, wants: { advance: 1 } },
     value: { keep: 2 }, // A trap, worth keeping for trap decks
     // 2 net damage plus 1 per advancement, accessed about half the time
@@ -399,7 +401,7 @@ export const SYSTEM_GATEWAY: Record<string, CardAI> = {
   // Offworld Office
   '30067': { synergy: { gives: { econ: 1 }, when: ['onScore'] } },
   // Orbital Superiority
-  '30068': { synergy: { gives: { tags: 1, damage: 1 }, wants: { tags: 1 }, when: ['ifTagged', 'onScore'] } },
+  '30068': { corpTurnDamage: state => (state.runner.tags > 0 ? 4 : 0) /* plan.corpTurnDamageOwn: 4 meat only if the Runner is tagged */, synergy: { gives: { tags: 1, damage: 1 }, wants: { tags: 1 }, when: ['ifTagged', 'onScore'] } },
   // Send a Message
   '30069': { synergy: { gives: { ice: 0.5 }, when: ['onScore'] } },
   // Superconducting Hub
