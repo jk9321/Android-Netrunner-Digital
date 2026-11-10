@@ -5,7 +5,7 @@ import { evaluate } from './evaluate';
 import { runClick } from './runs';
 import { threat, turnSeed } from './threatModel';
 import { plan, pricing, withPricing } from './pricing';
-import { REPLY, runnerReply, sampledReply } from './runnerReply';
+import { REPLY, guessHidden, runnerReply, sampledReply } from './runnerReply';
 import { plannerCandidates, replySamples, thinkAlwaysTries } from './oracle';
 
 /**
@@ -87,6 +87,8 @@ export const plannerStats: {
   onSearch?: (row: SearchRow) => void;
   /** plan.searchLines: a held line played (accepted: it stood; why not otherwise) */
   onHold?: (state: GameState, action: GameAction, held: { accepted: boolean; gain: number; builds: boolean }) => void;
+  /** plan.hiddenDraws (S6, measurement): a Corp decision, how many of its candidate lines drew from R&D, and the pick */
+  onDraws?: (state: GameState, drawLines: number, lines: number, pick: GameAction | null) => void;
 } = { decisions: 0, withAdded: 0, added: 0, addedWins: 0 };
 
 /**
@@ -438,6 +440,16 @@ function leafValue(state: GameState, side: SideCode, synergy: boolean): number {
  * The planner's pick among the rule-based AI's best candidates (`ranked`,
  * best first): the one whose turn ends best. Falls back to the favourite.
  */
+/** Whether a playout from `start` ended with a card in HQ that was in R&D at the start (S6 measurement). */
+function drewFromRd(start: GameState, end: GameState | undefined): boolean {
+  if (!end) return false;
+  const rd = new Set(start.corp.rd.map(c => c.instanceId));
+  return end.corp.hq.some(c => rd.has(c.instanceId));
+}
+
+/** plan.hiddenDraws: the guessHidden deal the planner's own playouts start from (the replies use deals 0 ..). */
+const HIDDEN_DRAW_SAMPLE = 4096;
+
 export function planTurn(state: GameState, side: SideCode, ranked: ScoredAction[], ai: PlannerAI, synergy: boolean): GameAction | null {
   // Still on the last plan: its next step, if the rule-based AI still rates it
   const key = positionKey(state, side);
@@ -475,6 +487,9 @@ export function planTurn(state: GameState, side: SideCode, ranked: ScoredAction[
   const replyBefore = searchClock.replyMs;
   const hqOnly = side === 'corp' && plan().searchLines && agendaKind(state) === 'hq';
   return withPricing({ frozen: true, decisionSeed }, () => {
+    // plan.hiddenDraws (spec-search S6): the Corp's candidates are played from its guess of R&D (and of the Runner's
+    // grip), dealt once for the decision, so a line that draws draws a guess, not the real top of R&D (rule 10.2.2a)
+    const root = side === 'corp' && plan().hiddenDraws ? guessHidden(state, HIDDEN_DRAW_SAMPLE) : state;
     let best: { action: GameAction; value: number; line: Line } | null = null;
     const values: number[] = [];
     const scored: { action: GameAction; value: number; line: Line; ends: Ends }[] = [];
@@ -483,12 +498,12 @@ export function planTurn(state: GameState, side: SideCode, ranked: ScoredAction[
     for (const c of candidates) {
       let line: Line = [];
       let ends: Ends = {};
-      let value = playout(state, side, c.action, ai, synergy, line, ends);
+      let value = playout(root, side, c.action, ai, synergy, line, ends);
       // plan.searchLines (spec-search S2): the held line where it builds a window, by more than the reply's noise
       if (side === 'corp' && plan().searchLines && hqOnly && ends.installedAgenda && value > -Infinity) {
         const heldLine: Line = [];
         const held: Ends = {};
-        const heldValue = playout(state, side, c.action, ai, synergy, heldLine, held, 'hold');
+        const heldValue = playout(root, side, c.action, ai, synergy, heldLine, held, 'hold');
         const gain = heldValue - value;
         const builds = !!held.state && !held.state.winner && buildsWindow(state, held.state);
         const accepted = gain > SEARCH.margin && builds;
@@ -522,6 +537,7 @@ export function planTurn(state: GameState, side: SideCode, ranked: ScoredAction[
       }
     }
     plannerStats.onCandidates?.(side, values, candidates.map(c => c.action));
+    if (side === 'corp' && plannerStats.onDraws) plannerStats.onDraws(state, scored.filter(x => drewFromRd(root, x.ends.state)).length, scored.length, best?.action ?? null);
     if (audit) auditSearch(audit, state, side, candidates, scored, best, ai, synergy, performance.now() - started, searchClock.replyMs - replyBefore);
     if (!best || best.value === -Infinity) return null;
     if (added.some(a => a.action === best!.action)) {

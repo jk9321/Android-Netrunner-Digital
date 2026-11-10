@@ -52,11 +52,15 @@ describe('an agenda in HQ that would win the Runner the game (plan.lethalHq, bug
     const threat = tuning.plan.threatModel;
     tuning.plan.oneCurrency = true;
     tuning.plan.threatModel = false; // item 1 as built, on the old threat (oneCurrency.test.ts)
+    // plan.ownIceKnown (2026-11-09) pinned off in this non-default pairing, as in oneCurrency.test.ts: with it the
+    // one-currency Corp prices HQ's unrezzable ice as passed and spends the turn otherwise (not the bug pinned here)
+    tuning.plan.ownIceKnown = false;
     try {
       expect(hqIce(playTurn(turn13()))).toBe(3);
     } finally {
       tuning.plan.oneCurrency = one;
       tuning.plan.threatModel = threat;
+      tuning.plan.ownIceKnown = true;
     }
   }, 120_000);
 });

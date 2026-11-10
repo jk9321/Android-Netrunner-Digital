@@ -1,4 +1,5 @@
 import { CardInstance, GameAction, GameState, SideCode, activePrompt, getCardDefinition, getLegalActions, isLegalAction, knownInHand } from '../core';
+import { winNowAction } from './winNow';
 import { isAdvanceable } from '../core/engine/helpers';
 import { Agent } from './agent';
 import { HeuristicCorpAI } from './corpAI';
@@ -190,6 +191,14 @@ export class SearchAI implements Agent {
 
   private decide(state: GameState): GameAction {
     decisionContext(state, this.side);
+    // plan.winNow (bug report #33): a line that wins the game this turn first, prompts on the way included (winNow.ts)
+    if (this.side === 'corp' && (this.options.synergy ?? true)) {
+      const win = winNowAction(state);
+      if (win) {
+        this.base.notePlayed(win);
+        return win;
+      }
+    }
     // Prompts and the steps of a run follow the rule-based AI's judgement
     if (activePrompt(state) || state.activeRun || state.turnStep?.kind === 'corp_turn_start') return this.base.chooseAction(state);
     if (this.base instanceof HeuristicRunnerAI) this.base.observe(state);

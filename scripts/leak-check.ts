@@ -16,7 +16,6 @@ import {
   createRng,
   fromEngineAction,
   getCardDefinition,
-  getCardScript,
   getLegalActions,
   nextInt,
   newViewIds,
@@ -101,7 +100,9 @@ export function visibility(state: GameState, side: SideCode): { hidden: CardInst
     // A line kept from the other side was written for this one (the Runner looking at the top of R&D)
     if (e.secret && e.secret.from !== side && e.cardCode) textCodes.add(e.cardCode);
     if (e.secret) continue;
-    if (e.event === 'access' && e.cardCode && getCardScript(e.cardCode)?.revealedOnRdAccess) textCodes.add(e.cardCode);
+    // An access line both may read names a card both were shown: revealed in R&D (Byte!), or accessed elsewhere (7.1.2),
+    // including a facedown card added to Archives during the breach, which stays facedown once accessed (7.3.2a)
+    if (e.event === 'access' && e.cardCode) textCodes.add(e.cardCode);
     if (/\breveal/i.test(e.message)) for (const x of all.values()) if (titleOf(x.cardCode) && e.message.includes(titleOf(x.cardCode))) textCodes.add(x.cardCode);
   }
   const hiddenIds = new Set(hidden.map(x => x.instanceId));

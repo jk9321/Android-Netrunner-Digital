@@ -35,6 +35,8 @@ describe('an agenda leaves HQ when HQ is no safer (plan.hqNoSafer)', () => {
     expect(top(position())).toBe('install Offworld Office in a remote');
     // Fixed samples, not the time budget, so a busy test run plays the same search. The search finds it on 8 of 10
     // seeds, so most of 3 is the check (about 7 s: its own time limit, as a full test run passed 5 s)
+    // The either-answer form (more HQ ice also counts) belongs to plan.icePacingPriced, parked OFF: at the default switches
+    // Hard moves Offworld Office out and advances it, so the strict check stands (coordinator review-1, S1)
     let advanced = 0;
     for (const seed of [1, 2, 3]) {
       let s = position();
