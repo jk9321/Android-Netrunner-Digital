@@ -8,6 +8,7 @@ test('auto fit shrinks cards to avoid scrolling and can be switched off', async 
   await page.setViewportSize({ width: 1366, height: 768 });
 
   await page.goto('/');
+  await page.getByTestId('mode-computer').click();
   await page.getByTestId('opponent-ai-corp').click();
   await page.getByTestId('difficulty-normal').click();
   await page.getByTestId('start-game').click();

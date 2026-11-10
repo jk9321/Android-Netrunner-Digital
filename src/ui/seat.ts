@@ -1,6 +1,6 @@
 import { createContext, useContext } from 'react';
 import type { GameAction, SideCode } from '../core';
-import type { Seat } from './table';
+import type { Seat } from './seatLegality';
 
 /**
  * The viewer's seat at the table (table.ts): components ask it what is legal

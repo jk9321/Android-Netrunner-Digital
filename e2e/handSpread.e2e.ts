@@ -7,6 +7,7 @@ test('own hand spreads on hover and closes when the pointer leaves', async ({ pa
   await page.route(/^https?:\/\/(?!localhost)/, route => route.abort());
 
   await page.goto('/');
+  await page.getByTestId('mode-computer').click();
   await page.getByTestId('opponent-ai-corp').click();
   await page.getByTestId('difficulty-normal').click();
   await page.getByTestId('start-game').click();
@@ -49,6 +50,7 @@ test('a spread hand stays within its board', async ({ page }) => {
   await page.route(/^https?:\/\/(?!localhost)/, route => route.abort());
   await page.setViewportSize({ width: 1366, height: 768 });
   await page.goto('/');
+  await page.getByTestId('mode-computer').click();
   await page.getByTestId('opponent-ai-corp').click();
   await page.getByTestId('difficulty-normal').click();
   await page.getByTestId('start-game').click();
@@ -70,6 +72,7 @@ test('a spread hand stays within its board', async ({ page }) => {
 test('the zoom panel waits for the spread to finish', async ({ page }) => {
   await page.route(/^https?:\/\/(?!localhost)/, route => route.abort());
   await page.goto('/');
+  await page.getByTestId('mode-computer').click();
   await page.getByTestId('opponent-ai-corp').click();
   await page.getByTestId('difficulty-normal').click();
   // The zoom panel keeps the last card hovered, and a real click leaves the pointer where the
@@ -112,6 +115,7 @@ test('the zoom panel waits for the spread to finish', async ({ page }) => {
 test('clicking a card in the spread hand keeps the spread', async ({ page }) => {
   await page.route(/^https?:\/\/(?!localhost)/, route => route.abort());
   await page.goto('/');
+  await page.getByTestId('mode-computer').click();
   await page.getByTestId('opponent-ai-corp').click();
   await page.getByTestId('difficulty-normal').click();
   await page.getByTestId('start-game').click();

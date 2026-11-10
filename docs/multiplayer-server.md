@@ -18,7 +18,7 @@ game Worker's internal report route returns the real state of a finished game.
 
 | File | What |
 | --- | --- |
-| `src/net/protocol.ts` | Message and HTTP types, room codes, `parseClientMessage`, fixed error wording. Shared with the 2c client. |
+| `src/net/protocol.ts` | Message and HTTP types, room codes, `parseClientMessage`, fixed error wording. Shared with the browser (`src/net/client.ts`, below). |
 | `src/core/table.ts` | `TableCore`: real state, held choice, moves, both id maps. Shared by `LocalTable` (`src/ui/table.ts`) and the room. |
 | `server/room.ts` | `RoomCore`: the room's logic with no Cloudflare types (runs under vitest). `settledFor`, `checkDeck`. |
 | `server/gameRoom.ts` | `GameRoom`, the Durable Object (SQLite-backed): storage, sockets (Hibernation API), alarm. |
@@ -86,4 +86,24 @@ See the hand-off for the steps sent to Jeff. In short: two new Workers from the 
 
 Cloudflare shows the game Workers a note asking to update the name in `wrangler.jsonc`: it reads the root file and ignores `-c`. Ignore it, and never merge an automatic PR that renames `wrangler.jsonc` (that is the site's Worker).
 
-`BUILD_ID`: the deploy command passes the commit (`--var BUILD_ID:$WORKERS_CI_COMMIT_SHA`); without it the build id is `dev`. Chunk 2c compares it with the page's build to ask for a refresh.
+`BUILD_ID`: the deploy command passes the commit (`--var BUILD_ID:$WORKERS_CI_COMMIT_SHA`); without it the build id is `dev`. The browser compares `protocol`, not the build (branch previews talk to staging built from beta), to ask for a refresh.
+
+## The browser side (chunk 2c)
+
+| File | What |
+| --- | --- |
+| `src/net/client.ts` | `OnlineTable`: one seat fed by the room's socket (what `LocalTable` gives the controller), reconnects, keep-alive, the saved session and player id. No React, no engine. |
+| `src/net/lobby.ts` | Host, look up and join (`/api/games`), with fixed wording for each failure; `onlineDeckProblems` (the server's own `checkDeck`); invite links. |
+| `src/ui/seatLegality.ts` | The seat's legality without the real state (`seatCan`, `seatReason`), shared by the local and the online table. |
+| `src/ui/useOnlineController.ts` | The online game's controller, the same shape as `useGameController`; both use `src/ui/controllerShared.ts`. |
+| `src/ui/components/OnlineScreens.tsx` | The host's waiting room and the notices (open somewhere else, room gone, new version). |
+
+- **Start screen** (`DeckPicker`): how to play first (computer, pass and play, online), then that choice's settings, then only the decks it needs. Online decks not legal in the game's format are greyed out with the reasons on hover.
+- **Invite link**: `/play/K7QM-2X` opens Join with the code filled in and looked up (the site serves the app for unknown paths). The address goes back to `/` when the person leaves Join or the game starts. The link and the address bar never carry the token.
+- **Session**: `{ code, seat, token }` under `netrunner.online` in localStorage (a reload or a closed tab resumes the game), cleared when the game ends or the player leaves; a random 22-character `playerId` under `netrunner.playerId`. Nothing else of an online game is stored in the browser.
+- **No optimistic updates**: after an action the seat offers nothing until the next `state` (or an error). `stale` and `not_your_turn` end or keep the wait quietly; `illegal` shows the fixed text.
+- **Reconnect**: 1, 2, 4, 8, then every 15 s. A socket refused before `hello` asks the lobby; a 404 means the room is gone; 4 refusals in a row while the lobby answers 200 for the room (a token it no longer knows; offline or a busy lobby counts nothing) stop the retries: "This browser is no longer seated at that game". 4000: "This game is open somewhere else" with Play here instead; leaving that notice keeps the saved session, which the playing tab of the same browser needs. The invite shows only to a host whose game has not started (`inviting` in the saved session, dropped at the first state); anyone else sees "Connecting to the game…" until the first state. 4001: the room is gone. A `hello` (or lobby) with another `protocol` asks for a refresh and sends nothing.
+- **Stops**: the toggle sends `SET_STOPS` for the player's own side; on the first state the saved setting is sent once if the room has another.
+- **Bug reports**: `POST /api/games/:code/report?token=` with only the description, screen, version and the honeypot; the dialog says the whole game goes with it, both players' hidden cards included.
+
+**Local run on the Workers runtime**: `npm run test:e2e:online` builds the site and runs `wrangler dev -c wrangler.jsonc -c wrangler.games.staging.jsonc` (site and game Worker together, local SQLite Durable Object), then `e2e/online.workerd.ts` plays with two browsers: host, join by link, a turn each, a reload, concede. Wrangler is not a repo dependency (the Cloudflare builds bring their own): the config fetches `wrangler@4.155.0` with npx, or uses `$WRANGLER`. On its first run (2026-11-10) the local workerd refused to start the game Worker because its entry exported a constant, `SERVER_PROTOCOL` ("Incorrect type for map entry"; Cloudflare's own builds had accepted it). The constant was unused and is removed.
