@@ -401,8 +401,12 @@ export const tuning = {
      * needn't rez every ice on every run). Off: the guard counted ice the Corp never rezzes (two Attini on remotes
      * holding nothing) and blocked every new install: at T7, 20 credits, the Runner on 5 and HQ bare, Cloud Eater and
      * Mycoweb in hand ranked -Infinity and the Corp clicked to draw three times.
+     * PARKED OFF (2026-11-09, batches 42715002281 vs 42720370875): it costs about 7 points of Corp win rate through
+     * over-icing (installs ice it then rezzes in runs: went-broke +22 per 100 games, stayed-broke +14). The leaf doesn't
+     * price what an install commits the Corp to rezzing, so with the guard gone it ices past its money. Stays off until ice
+     * pacing is priced by the leaf (credits left after the rezzes the install commits to); #43 T7 stays open meanwhile.
      */
-    icePacingPriced: true,
+    icePacingPriced: false,
     /**
      * Bug report #44 (Jeff's Runner test game 12, 2026-11-09): the damage clock left after the Runner's turn (effectValues
      * damageThreat on the Corp's turn) counts only damage the Corp can deal on its own turn: not damage on access (Urtica
