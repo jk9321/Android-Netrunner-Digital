@@ -157,7 +157,7 @@ function BugReportForm({
             <p className="text-[11px] text-slate-400 leading-relaxed" data-testid="bug-report-privacy">
               Reports are public. Please don't include your name, email or any other personal details.
               {online
-                ? " The whole game is sent with your report so the bug can be replayed: the moves, the log, both deck lists and both players' hidden cards (hands, face-down cards and decks), also while the game is still going."
+                ? " Your report includes the whole game so the bug can be replayed: every move, the log, both deck lists, and both players' hidden cards (hands, face-down cards and decks). This is sent even if the game isn't over yet."
                 : inGame
                 ? ' Both deck lists, the game log and the game seed are sent with your report so the bug can be replayed.'
                 : ' The report includes which screen you were on and the app version.'}
