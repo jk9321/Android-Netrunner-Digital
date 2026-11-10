@@ -20,10 +20,12 @@ import {
   OnlineSession,
   OnlineTable,
   PLAYER_ID_KEY,
+  REFUSED_LIMIT,
   SESSION_KEY,
   SocketLike,
   Timers,
   clearSession,
+  leavingForgetsSeat,
   loadSession,
   playerId,
   saveSession,
@@ -422,6 +424,96 @@ describe('Online table: waiting, errors and reconnects', () => {
     expect(s.tables.corp.status).toBe('open');
     expect(second.status).toBe('replaced');
     second.dispose();
+  });
+
+  it('leaving the "open somewhere else" notice keeps the saved session the playing tab of this browser needs', () => {
+    const s = setup(30);
+    saveSession(s.sessions.corp);
+    const second = s.make('corp');
+    s.hub.flush();
+    expect(s.tables.corp.status).toBe('replaced');
+    // What App does on "Back to the start screen": forget the seat only if leaving gives it up
+    if (leavingForgetsSeat(s.tables.corp.status)) clearSession();
+    s.tables.corp.dispose();
+    expect(loadSession()).toEqual(s.sessions.corp);
+    // The playing tab reloads and comes back to its seat
+    second.dispose();
+    const reloaded = new OnlineTable(loadSession()!, { connect: x => s.hub.connect(x), alert: () => {}, timers: s.timers });
+    reloaded.start();
+    s.hub.flush();
+    expect(reloaded.status).toBe('open');
+    expect(reloaded.started).toBe(true);
+    reloaded.dispose();
+    // Every other way out gives the seat up
+    for (const st of ['connecting', 'open', 'reconnecting', 'gone', 'unseated', 'refresh'] as const) expect(leavingForgetsSeat(st)).toBe(true);
+  });
+
+  it('a socket refused again and again while the lobby says the room is there: the seat is lost, and it stops trying', async () => {
+    const s = setup(31);
+    s.hub.down = true;
+    let tries = 0;
+    const t = new OnlineTable(s.sessions.runner, {
+      connect: x => {
+        tries++;
+        return s.hub.connect(x);
+      },
+      alert: () => {},
+      timers: s.timers,
+      roomExists: async () => true,
+    });
+    t.start();
+    for (let i = 0; i < REFUSED_LIMIT + 2; i++) {
+      s.hub.flush();
+      await Promise.resolve();
+      await Promise.resolve();
+      s.timers.advance(16_000);
+    }
+    expect(t.status).toBe('unseated');
+    expect(tries).toBe(REFUSED_LIMIT);
+    s.timers.advance(120_000);
+    s.hub.flush();
+    expect(tries).toBe(REFUSED_LIMIT);
+    t.dispose();
+  });
+
+  it('a refusal now and then (the room there) keeps trying: a hello resets the count', async () => {
+    const s = setup(32);
+    s.tables.runner.dispose();
+    const t = new OnlineTable(s.sessions.runner, { connect: x => s.hub.connect(x), alert: () => {}, timers: s.timers, roomExists: async () => true });
+    const refuseFor = async (times: number) => {
+      s.hub.down = true;
+      for (let i = 0; i < times; i++) {
+        s.hub.flush();
+        await Promise.resolve();
+        await Promise.resolve();
+        if (i < times - 1) s.timers.advance(16_000);
+      }
+      s.hub.down = false;
+      s.timers.advance(16_000);
+      s.hub.flush();
+    };
+    s.hub.down = true;
+    t.start();
+    await refuseFor(REFUSED_LIMIT - 1);
+    expect(t.status).toBe('open');
+    s.hub.drop('runner');
+    await refuseFor(REFUSED_LIMIT - 1);
+    expect(t.status).toBe('open');
+    t.dispose();
+  });
+
+  it("the host's invite shows until the first state; after that a reload connects without it", () => {
+    const s = setup(33);
+    const inviting = { ...s.sessions.corp, inviting: true };
+    saveSession(inviting);
+    expect(loadSession()).toEqual(inviting);
+    const t = new OnlineTable(loadSession()!, { connect: x => s.hub.connect(x), alert: () => {}, timers: s.timers });
+    t.start();
+    s.hub.flush();
+    expect(t.started).toBe(true);
+    expect(loadSession()).toEqual(s.sessions.corp);
+    expect(loadSession()?.inviting).toBeUndefined();
+    t.dispose();
   });
 
   it('close code 4001: the room is gone', () => {

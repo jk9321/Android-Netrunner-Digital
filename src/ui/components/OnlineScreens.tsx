@@ -73,21 +73,46 @@ export function WaitingRoom({ code, connected, onCancel }: { code: string; conne
   );
 }
 
-const NOTICES: Record<'replaced' | 'gone' | 'refresh', { title: string; text: string }> = {
+/**
+ * Everyone but a host whose game has not started (a joiner, a reload
+ * mid-game) until the first state arrives. Leaving here keeps the seat: a
+ * reload comes back to the game.
+ */
+export function ConnectingScreen({ onLeave }: { onLeave: () => void }) {
+  return (
+    <div className="min-h-screen text-slate-100 font-mono flex flex-col items-center px-4 py-10" data-testid="online-connecting">
+      <Title />
+      <div className={panel}>
+        <p className="text-sm text-slate-200 flex items-center justify-center gap-2">
+          <Loader2 className="w-4 h-4 animate-spin text-cyan-400" />
+          Connecting to the game…
+        </p>
+        <button type="button" onClick={onLeave} className={secondary} data-testid="connecting-back">
+          Back to the start screen
+        </button>
+      </div>
+    </div>
+  );
+}
+
+type NoticeStatus = Extract<OnlineStatus, 'replaced' | 'gone' | 'unseated' | 'refresh'>;
+
+const NOTICES: Record<NoticeStatus, { title: string; text: string }> = {
   replaced: { title: 'This game is open somewhere else', text: 'You opened this game in another tab or on another device. Only one place can play it at a time.' },
   gone: { title: 'This game no longer exists', text: 'The game has ended or expired.' },
+  unseated: { title: 'This browser is no longer seated at that game', text: 'The game is still there, but it no longer lets this browser in.' },
   refresh: { title: 'A new version is available', text: 'The game has been updated. Refresh the page to keep playing.' },
 };
 
-/** Shown instead of the table when the seat is taken elsewhere, the room is gone, or the page must be refreshed. */
-export function OnlineNotice({ status, onTakeOver, onLeave }: { status: Extract<OnlineStatus, 'replaced' | 'gone' | 'refresh'>; onTakeOver: () => void; onLeave: () => void }) {
+/** Shown instead of the table when the seat is taken elsewhere or lost, the room is gone, or the page must be refreshed. */
+export function OnlineNotice({ status, onTakeOver, onLeave }: { status: NoticeStatus; onTakeOver: () => void; onLeave: () => void }) {
   const n = NOTICES[status];
   return (
     <div className="min-h-screen text-slate-100 font-mono flex flex-col items-center px-4 py-10" data-testid={`online-${status}`}>
       <Title />
       <div className={panel}>
         <div className="flex justify-center text-amber-300">
-          {status === 'replaced' ? <Smartphone className="w-8 h-8" /> : status === 'gone' ? <WifiOff className="w-8 h-8" /> : <RefreshCw className="w-8 h-8" />}
+          {status === 'replaced' ? <Smartphone className="w-8 h-8" /> : status === 'gone' || status === 'unseated' ? <WifiOff className="w-8 h-8" /> : <RefreshCw className="w-8 h-8" />}
         </div>
         <h2 className="font-cyber font-bold text-lg text-amber-300">{n.title}</h2>
         <p className="text-sm text-slate-300">{n.text}</p>

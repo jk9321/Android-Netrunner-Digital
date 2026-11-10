@@ -939,7 +939,7 @@ export const DeckPicker: React.FC<DeckPickerProps> = ({
                   setOnlineError(null);
                   const res = await createGame({ side: hostSide, deck, format: hostFormat, playerId: playerId() }, lobbyFetch);
                   setBusy(null);
-                  if (res.ok) onOnline(res.session);
+                  if (res.ok) onOnline({ ...res.session, inviting: true });
                   else setOnlineError(res);
                 }}
                 disabled={hostProblems.length > 0 || busy !== null}

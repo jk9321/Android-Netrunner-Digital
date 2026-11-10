@@ -7,9 +7,9 @@ import { GameConfig, SavedGame, clearSavedGame } from './ui/savedGame';
 import { randomSeed, startingGame } from './ui/gameStart';
 import { GameController, useGameController } from './ui/useGameController';
 import { useOnlineController } from './ui/useOnlineController';
-import { OnlineSession, OnlineTable, browserSocket, clearSession, loadSession, saveSession } from './net/client';
+import { OnlineSession, OnlineTable, browserSocket, clearSession, leavingForgetsSeat, loadSession, saveSession } from './net/client';
 import { codeFromPath, roomExists } from './net/lobby';
-import { OnlineNotice, WaitingRoom } from './ui/components/OnlineScreens';
+import { ConnectingScreen, OnlineNotice, WaitingRoom } from './ui/components/OnlineScreens';
 import { DeckPicker } from './ui/components/DeckPicker';
 import { CardView } from './ui/components/CardView';
 import { ServerColumn } from './ui/components/ServerColumn';
@@ -110,8 +110,8 @@ export default function App() {
         <OnlineGame
           key={screen.session.code}
           session={screen.session}
-          onLeave={() => {
-            clearSession();
+          onLeave={forget => {
+            if (forget) clearSession();
             toStart();
           }}
         />
@@ -161,7 +161,7 @@ function LocalGame({
  * player joins). A seat taken by another tab, a room that is gone or a new
  * version of the game replace the table with a notice.
  */
-function OnlineGame({ session, onLeave }: { session: OnlineSession; onLeave: () => void }) {
+function OnlineGame({ session, onLeave }: { session: OnlineSession; onLeave: (forgetSeat: boolean) => void }) {
   const [table] = useState(
     () =>
       new OnlineTable(session, {
@@ -177,11 +177,16 @@ function OnlineGame({ session, onLeave }: { session: OnlineSession; onLeave: () 
   const [subscribe] = useState(() => (fn: () => void) => table.subscribe(fn));
   useSyncExternalStore(subscribe, () => table.version);
 
-  if (table.status === 'replaced' || table.status === 'gone' || table.status === 'refresh') {
-    return <OnlineNotice status={table.status} onTakeOver={() => table.takeOver()} onLeave={onLeave} />;
+  const status = table.status;
+  if (status === 'replaced' || status === 'gone' || status === 'unseated' || status === 'refresh') {
+    return <OnlineNotice status={status} onTakeOver={() => table.takeOver()} onLeave={() => onLeave(leavingForgetsSeat(status))} />;
   }
-  if (!table.started) return <WaitingRoom code={session.code} connected={table.status === 'open'} onCancel={onLeave} />;
-  return <OnlineTableScreen table={table} onLeave={onLeave} />;
+  if (!table.started) {
+    // Only a host whose game has not started gets the invite; a joiner or a reload mid-game just connects
+    if (!session.inviting) return <ConnectingScreen onLeave={() => onLeave(false)} />;
+    return <WaitingRoom code={session.code} connected={status === 'open'} onCancel={() => onLeave(true)} />;
+  }
+  return <OnlineTableScreen table={table} onLeave={() => onLeave(true)} />;
 }
 
 function OnlineTableScreen({ table, onLeave }: { table: OnlineTable; onLeave: () => void }) {

@@ -32,6 +32,12 @@ export const CLOSE_ROOM_GONE = 4001;
 export const RECONNECT_DELAYS_MS = [1000, 2000, 4000, 8000];
 export const RECONNECT_EVERY_MS = 15_000;
 export const KEEPALIVE_MS = 30_000;
+/**
+ * Sockets refused before hello, in a row, while the lobby says the room is
+ * there: the room no longer knows this browser's token, so it stops trying
+ * (about 15 s at the delays above).
+ */
+export const REFUSED_LIMIT = 4;
 
 export type OnlineStatus =
   /** Opening the first socket. */
@@ -45,13 +51,26 @@ export type OnlineStatus =
   /** The server speaks another protocol: the page must be reloaded. */
   | 'refresh'
   /** The room no longer exists. */
-  | 'gone';
+  | 'gone'
+  /** The room is there but keeps refusing this browser's token: the seat is lost. */
+  | 'unseated';
 
 /** What the browser keeps to come back to a game: never put in the address bar or a link. */
 export interface OnlineSession {
   code: string;
   seat: SideCode;
   token: string;
+  /** The host's game has not started yet: show the invite (dropped from the saved session at the first state). */
+  inviting?: boolean;
+}
+
+/**
+ * Does leaving this screen give up the seat (forget the saved session)? Not
+ * from "open somewhere else": the other tab of this browser that plays the
+ * game shares the saved session and needs it for its next reload.
+ */
+export function leavingForgetsSeat(status: OnlineStatus): boolean {
+  return status !== 'replaced';
 }
 
 /** The little of a WebSocket the table uses (a browser WebSocket, or an in-memory pair in tests). */
@@ -116,6 +135,8 @@ export class OnlineTable {
   private socket: SocketLike | null = null;
   private helloSeen = false;
   private attempts = 0;
+  /** Sockets refused before hello in a row with the room confirmed there. */
+  private refused = 0;
   private retryTimer: unknown = null;
   private pingTimer: unknown = null;
   private disposed = false;
@@ -158,6 +179,7 @@ export class OnlineTable {
   takeOver() {
     if (this.status !== 'replaced' || this.disposed) return;
     this.attempts = 0;
+    this.refused = 0;
     this.setStatus('connecting');
     this.open();
   }
@@ -285,7 +307,7 @@ export class OnlineTable {
   private closed(code: number) {
     this.socket = null;
     this.stopTimers();
-    if (this.disposed || this.status === 'refresh' || this.status === 'gone') return;
+    if (this.disposed || this.status === 'refresh' || this.status === 'gone' || this.status === 'unseated') return;
     // Taking a waiting action back: the reconnect brings the last state, and the person acts again if it is still theirs
     if (this.waiting) {
       this.waiting = false;
@@ -301,9 +323,13 @@ export class OnlineTable {
     if (neverOpened && this.opts.roomExists) {
       this.opts.roomExists(this.session.code).then(
         exists => {
-          if (!exists && !this.disposed) {
+          if (this.disposed || this.status === 'open' || this.status === 'replaced') return;
+          if (!exists) {
             this.stopTimers();
             this.setStatus('gone');
+          } else if (++this.refused >= REFUSED_LIMIT) {
+            this.stopTimers();
+            this.setStatus('unseated');
           }
         },
         () => {
@@ -372,6 +398,7 @@ export class OnlineTable {
     }
     this.helloSeen = true;
     this.attempts = 0;
+    this.refused = 0;
     if (this.pingTimer === null) this.pingTimer = this.timers.setInterval(() => this.socket?.send(PING), KEEPALIVE_MS);
     this.setStatus('open');
   }
@@ -384,9 +411,16 @@ export class OnlineTable {
     const next = stateFromView(msg.view);
     this.last = msg;
     this.shown = next;
+    if (!prevMsg && this.session.inviting) this.stopInviting();
     this.waiting = false;
     this.changed();
     if (prev) for (const fn of this.moveListeners) fn({ prev, next });
+  }
+
+  /** The game has started: a reload no longer shows the invite. */
+  private stopInviting() {
+    const saved = loadSession();
+    if (saved && saved.code === this.session.code && saved.token === this.session.token && saved.inviting) saveSession({ ...saved, inviting: false });
   }
 
   private error(code: SocketErrorCode) {
@@ -444,7 +478,7 @@ export function loadSession(): OnlineSession | null {
     if (typeof s.code !== 'string' || parseRoomCode(s.code) !== s.code) return null;
     if (s.seat !== 'corp' && s.seat !== 'runner') return null;
     if (typeof s.token !== 'string' || s.token.length < 8 || s.token.length > 200) return null;
-    return { code: s.code, seat: s.seat, token: s.token };
+    return { code: s.code, seat: s.seat, token: s.token, ...(s.inviting === true ? { inviting: true } : {}) };
   } catch {
     return null;
   }
@@ -452,7 +486,7 @@ export function loadSession(): OnlineSession | null {
 
 export function saveSession(session: OnlineSession): void {
   try {
-    window.localStorage.setItem(SESSION_KEY, JSON.stringify({ code: session.code, seat: session.seat, token: session.token }));
+    window.localStorage.setItem(SESSION_KEY, JSON.stringify({ code: session.code, seat: session.seat, token: session.token, ...(session.inviting ? { inviting: true } : {}) }));
   } catch {
     // Not saved: a reload loses the seat, the game itself goes on
   }
