@@ -404,6 +404,12 @@ export const tuning = {
      */
     hiddenDraws: false,
     /**
+     * Phase 3 S6 follow-up (AI Coordinator, 2026-11-10; Corp only, on top of hiddenDraws): a candidate whose line drew
+     * from R&D is read on HIDDEN.deals guesses of R&D (turnPlanner.ts), the same deals for every candidate, and the
+     * mean stands, so the pick doesn't hang on one random order. Lines that drew nothing keep their one reading.
+     */
+    hiddenDrawsAverage: false,
+    /**
      * Phase 2 O2 v2 (opening-audit/report.md; Corp only): an installed or held agenda's advances are charged at the one
      * click price (valueModel CLICK) plus their credit, not AGENDA_CLICK 2 (evaluate.ts agendaWorth): at 2 a click and 8
      * a point, a 1-point agenda read worth less than the advances that score it even with no steal risk, and held agendas
@@ -519,7 +525,7 @@ export const tuning = {
  */
 export const sideOff: Record<SideCode, string[]> = {
   corp: [],
-  runner: ['tagTrashNow', 'ownTrashRisk', 'hqTrashCost', 'oneCurrency', 'threatModel', 'measuredPass', 'threatSpend', 'calibratedRun', 'raceClock', 'iceProtects', 'replyContenders', 'plannerAgenda', 'clearinghouseRez', 'searchLines', 'searchSamples', 'hiddenDraws', 'agendaLine', 'advanceGuardPriced', 'scoreBudget', 'oracle', 'reach', 'reachStrength', 'reachTime', 'threatKey', 'threatKeyPricing'],
+  runner: ['tagTrashNow', 'ownTrashRisk', 'hqTrashCost', 'oneCurrency', 'threatModel', 'measuredPass', 'threatSpend', 'calibratedRun', 'raceClock', 'iceProtects', 'replyContenders', 'plannerAgenda', 'clearinghouseRez', 'searchLines', 'searchSamples', 'hiddenDraws', 'hiddenDrawsAverage', 'agendaLine', 'advanceGuardPriced', 'scoreBudget', 'oracle', 'reach', 'reachStrength', 'reachTime', 'threatKey', 'threatKeyPricing'],
 };
 
 /**
