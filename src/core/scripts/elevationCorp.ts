@@ -827,14 +827,16 @@ const mycoweb: CardScript = {
         label: 'You may install 1 piece of ice from Archives, ignoring all costs.',
         resolve: ctx => {
           const ice = archivesIce(ctx.state);
-          if (ice.length > 0) askCards(ctx, 'corp', 'Mycoweb: you may install 1 ice from Archives, ignoring all costs.', ids(ice), 0, 1, 'install');
+          // Facedown Archives cards are hidden from the Runner (4.4.6c): asked even with no ice when the Corp's stops are on ALL
+          askEvenIfNone(ctx, 'corp', ice.length > 0, () => askCards(ctx, 'corp', 'Mycoweb: you may install 1 ice from Archives, ignoring all costs.', ids(ice), 0, 1, 'install'), 'Mycoweb: no ice in Archives to install.');
         },
       },
       {
         label: 'You may rez 1 installed piece of ice, paying 2 credits less.',
         resolve: ctx => {
           const ice = mycowebRezTargets(ctx.state);
-          if (ice.length > 0) askCards(ctx, 'corp', 'Mycoweb: you may rez 1 installed ice, paying 2 credits less.', ids(ice), 0, 1, 'rez');
+          // Whether an unrezzed ice is affordable says what it is (4.6.3): asked even with none when the Corp's stops are on ALL
+          askEvenIfNone(ctx, 'corp', ice.length > 0, () => askCards(ctx, 'corp', 'Mycoweb: you may rez 1 installed ice, paying 2 credits less.', ids(ice), 0, 1, 'rez'), 'Mycoweb: no installed ice you can rez.');
         },
       },
       {

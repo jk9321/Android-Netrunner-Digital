@@ -18,6 +18,8 @@ const OFFWORLD = '30067'; // agenda: can be advanced
 const NICO = '30037'; // asset that can't be advanced
 const POETRI = '35036'; // Poétrï Luxury Brands
 const HUB = '30070'; // Superconducting Hub (agenda)
+const MYCOWEB = '35053'; // code gate: install ice from Archives; rez 1 installed ice paying 2 less
+const ANSEL = '30038'; // ice, rez cost 6
 
 /** Plays the plain move (pass, continue, start or end the turn, first answer) until `until` holds for the state about to act. */
 function driveTo(s: GameState, until: (s: GameState) => boolean): GameState {
@@ -107,7 +109,54 @@ function poetriScored(corpStops: StopLevel) {
   return twinCompare(s, action, executeAction(s, action), ids, 'runner', s.corp.rd[0].instanceId, s.corp.rd[3].instanceId);
 }
 
+/**
+ * A run into a rezzed Mycoweb on R&D, its subroutines resolving. `which` 'rez': an unrezzed Palisade on HQ the Corp
+ * can afford at 2 less, twin an Ansel 1.0 from HQ it can't. 'install': a facedown ice in Archives, twin a facedown Hedge Fund.
+ */
+function mycoweb(corpStops: StopLevel, which: 'rez' | 'install') {
+  let s = newGame(5);
+  s.stops = { corp: corpStops, runner: 'full' };
+  s.corp.hq.splice(0, s.corp.hq.length, createCardInstance(s, which === 'rez' ? ANSEL : HEDGE_FUND));
+  const web = createCardInstance(s, MYCOWEB);
+  web.isRezzed = true;
+  s.corp.servers.rd.ice.push(web);
+  let hidden: string;
+  if (which === 'rez') {
+    const wall = createCardInstance(s, ICE_WALL);
+    s.corp.servers.hq.ice.push(wall);
+    hidden = wall.instanceId;
+  } else {
+    const ice = createCardInstance(s, ICE_WALL);
+    s.corp.archives.faceDown.push(ice);
+    hidden = ice.instanceId;
+  }
+  s.corp.credits = 1;
+  startRunnerTurn(s);
+  s.runner.credits = 0;
+  s = executeAction(s, { type: 'INITIATE_RUN', player: 'runner', targetServerId: 'rd' });
+  s = driveTo(s, st => prompted(MYCOWEB, which)(plainMove(st).next));
+  const { action, next } = plainMove(s);
+  const ids = viewFor(s, 'runner', newViewIds(), 'g').ids;
+  return twinCompare(s, action, next, ids, 'runner', hidden, s.corp.hq[0].instanceId);
+}
+
 describe('Card prompts that depend on a hidden card (4.2.2, 4.6.3)', () => {
+  it('Mycoweb, Corp stops on ALL: the Runner can\'t tell whether an unrezzed ice is cheap enough to rez (4.6.3)', () => {
+    expect(mycoweb('full', 'rez')).toMatchObject({ kind: 'same' });
+  });
+
+  it('Mycoweb, Corp stops on AUTO: unchanged for the rez (accepted tell)', () => {
+    expect(mycoweb('auto', 'rez')).toMatchObject({ kind: 'differ' });
+  });
+
+  it('Mycoweb, Corp stops on ALL: the Runner can\'t tell whether a facedown card in Archives is ice (4.4.6c)', () => {
+    expect(mycoweb('full', 'install')).toMatchObject({ kind: 'same' });
+  });
+
+  it('Mycoweb, Corp stops on AUTO: unchanged for the install (accepted tell)', () => {
+    expect(mycoweb('auto', 'install')).toMatchObject({ kind: 'differ' });
+  });
+
   it('Poétrï, Corp stops on ALL: when an agenda is stolen, the Runner can\'t tell whether HQ holds a non-agenda card (4.3.2)', () => {
     expect(poetriStolen('full')).toMatchObject({ kind: 'same' });
   });
