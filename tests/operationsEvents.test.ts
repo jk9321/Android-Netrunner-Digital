@@ -276,5 +276,16 @@ describe('Runner events', () => {
       state = play(state, 'runner', giveCard(state, 'runner', MUTUAL_FAVOR));
       expect(state.pendingPrompts).toHaveLength(0);
     });
+
+    // The Corp can't see the Stack: with the Runner's stops on ALL the search is asked even when nothing qualifies (4.2.2)
+    it('still asks with no icebreakers in the Stack when the Runner stops on ALL', () => {
+      let state = runnerTurn(5);
+      state.stops = { corp: 'ai', runner: 'full' };
+      state.runner.stack = state.runner.stack.filter(c => !/icebreaker/i.test(cardDef(c).keywords ?? ''));
+      state = play(state, 'runner', giveCard(state, 'runner', MUTUAL_FAVOR));
+      expect(state.pendingPrompts[0]).toMatchObject({ kind: 'effect_choice', side: 'runner' });
+      state = answer(state, { kind: 'effect_choice', optionId: 'no' });
+      expect(state.pendingPrompts).toHaveLength(0);
+    });
   });
 });

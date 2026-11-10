@@ -6,7 +6,7 @@ import { CardScript, EffectContext } from './types';
 import { runBlocked, startRun } from '../engine/actions/run';
 import { runnerInstallCost } from '../engine/actions/install';
 import { drawForEffect } from '../engine/cardEffects';
-import { askCards, askChoice, gainCredits, installRunnerTrashing, installableRunnerCards, loseClickIfAny } from './effects';
+import { askCards, askChoice, askEvenIfNone, gainCredits, installRunnerTrashing, installableRunnerCards, loseClickIfAny } from './effects';
 
 /** Runner events from System Gateway. */
 
@@ -72,6 +72,8 @@ const mutualFavor: CardScript = {
     if (breakers.length === 0) {
       shuffleInPlace(state.rng, state.runner.stack);
       addLog(state, 'runner', 'Runner searched their Stack but found no icebreaker.');
+      // Whether the Stack holds an icebreaker is hidden from the Corp: at stops ALL the Runner is still asked (4.2.2)
+      askEvenIfNone(ctx, 'runner', false, () => {}, 'Mutual Favor: no icebreaker in your Stack.');
       return;
     }
     // A search with criteria may fail to find even when a match exists (rules 8.7.2e)

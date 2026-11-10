@@ -939,7 +939,8 @@ const pivot: CardScript = {
   extraClicks: 1,
   onPlay: ctx => {
     const cards = ctx.state.corp.rd.filter(c => type(c) === 'operation' || type(c) === 'agenda');
-    askCards(ctx, 'corp', 'Pivot: search R&D for 1 operation or agenda.', ids(cards), Math.min(1, cards.length), 1, 'search');
+    // A search with criteria may fail to find even when a match exists (rules 8.7.2e); asked even with none, so no tell
+    askCards(ctx, 'corp', 'Pivot: you may search R&D for 1 operation or agenda.', ids(cards), 0, 1, 'search');
   },
   onPromptAnswer: (ctx, source, answer) => {
     const { state } = ctx;
