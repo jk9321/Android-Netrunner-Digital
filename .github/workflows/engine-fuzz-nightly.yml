@@ -1,0 +1,55 @@
+name: Engine fuzz (nightly)
+
+# Engine-invariant fuzzer, tier 2 (tier 1 runs inside npm test; tier 3 is engine-fuzz-deep.yml). Random legal
+# moves on every deck with fresh seeds each night, every Comprehensive Rules invariant in
+# scripts/engine-fuzz-check.ts checked after every action. ONE job of about 15 minutes, so it never crowds the
+# AI batches out of the repo's 20-job cap. Scheduled workflows run from the default branch, so this file lives on
+# main and fuzzes beta, which holds every engine change main has plus the new sets. On a failure the run goes red
+# and the engine-fuzz-failures artifact holds one fail-<seed>.json per failing game (seed, decks, stops, broken
+# invariant with its rule, action list): reproduce with
+#   npx vite-node scripts/engine-fuzz-replay.ts -- fail-<seed>.json
+on:
+  schedule:
+    - cron: '17 7 * * *' # 07:17 UTC, after the US evening's pushes
+  workflow_dispatch:
+    inputs:
+      ref:
+        description: Branch or commit to fuzz
+        required: true
+        default: beta
+      minutes:
+        description: Minutes of play
+        required: true
+        default: '15'
+
+permissions:
+  contents: read
+
+jobs:
+  fuzz:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.ref || 'beta' }}
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      # Fresh seeds every night: the day number picks a block of 100000 seeds no other night uses
+      - name: Fuzz
+        env:
+          MINUTES: ${{ inputs.minutes || '15' }}
+        run: |
+          SEED=$(( $(date -u +%s) / 86400 * 100000 ))
+          echo "seeds from $SEED"
+          npx vite-node scripts/engine-fuzz.ts -- --seed "$SEED" --minutes "$MINUTES" --out engine-fuzz-out
+      - if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: engine-fuzz-failures
+          path: engine-fuzz-out/
+          if-no-files-found: ignore
+          retention-days: 30
