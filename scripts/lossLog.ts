@@ -17,6 +17,8 @@ import { writeFileSync } from 'node:fs';
 import { Alarm, AlarmTracker, moneyKind } from './alarms';
 import { SpendRecord, SpendTracker } from './spend-audit';
 import { OpeningRecord, OpeningTracker } from './opening-audit';
+import { plannerStats } from '../src/ai/turnPlanner';
+import { SearchTuple, searchTuple } from './search-audit';
 
 export interface Steal {
   turn: number;
@@ -129,6 +131,8 @@ export interface GameRecord {
   spend?: SpendRecord;
   /** Phase 2 O: openings, agenda windows and card values (opening-audit.ts) */
   opening?: OpeningRecord;
+  /** Spec-search S1: every Corp planner decision's continuations (SEARCH_AUDIT=1, the batch token +audit.search) */
+  search?: SearchTuple[];
   /** The deal's seed (corp-losses.ts adds it) */
   seed?: number;
 }
@@ -271,6 +275,9 @@ export function playLogged(
   // OPENING=0 leaves the opening audit out (its one-step rankings cost time)
   const openingTracker = process.env.OPENING === '0' ? null : new OpeningTracker();
   const spendTracker = new SpendTracker(openingTracker?.listener);
+  // SEARCH_AUDIT=1 (spec-search S1): the Corp planner's decisions with every candidate's continuations
+  const search: SearchTuple[] | undefined = process.env.SEARCH_AUDIT === '1' ? [] : undefined;
+  plannerStats.onSearch = search ? row => search.push(searchTuple(row)) : undefined;
   // DUMP_TURN=n DUMP_SIDE=corp|runner DUMP_FILE=x.json: write the position at the start of that turn and stop (an alarm's position, for a test)
   const dumpTurn = Number(process.env.DUMP_TURN ?? 0);
   const dumpSide = process.env.DUMP_SIDE ?? 'corp';
@@ -608,5 +615,6 @@ export function playLogged(
     alarms: alarms.alarms,
     spend: spendTracker.done(s),
     opening: openingTracker?.done(s),
+    ...(search ? { search } : {}),
   };
 }
