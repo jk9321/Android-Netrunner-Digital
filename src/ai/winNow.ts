@@ -77,6 +77,10 @@ function canStillWin(state: GameState): boolean {
   const corp = state.corp;
   const need = 7 - corp.score;
   if (need <= 0) return true;
+  // A prompt of the Corp's own open (Seamless Launch's target): the card resolving has left HQ and what it places is
+  // not on the board yet, so neither side of the count sees it. Not cut there: the bound stays an upper bound (stage 0b,
+  // spec-stage0b.md; rules 1.17.2, 1.17.3a), and the line is judged again once the prompt is answered.
+  if (activePrompt(state)?.side === 'corp') return true;
   const installed = Object.values(corp.servers).flatMap(s => s.root);
   // What can be used this turn: operations in HQ and cards with an ability from HQ, installed cards other than ice, and
   // cards with an ability from Archives (Petty Cash)

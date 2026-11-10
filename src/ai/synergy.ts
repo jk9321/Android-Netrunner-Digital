@@ -539,9 +539,11 @@ export const tuning = {
      * Coordinator 2026-11-08, a decision-quality ceiling, not knowledge): the Corp planner plays 8 candidates, the best agenda
      * install and advance always among them, against 4 Runner-reply samples. gripThreat / gripReply (Phase 2 K0,
      * design-k1.md call 1): grip's knowledge in one channel only, the threat's (and the Hard search's) deal or the
-     * planner's played-out Runner reply, to find where grip's worth flows.
+     * planner's played-out Runner reply, to find where grip's worth flows. countedScore / centralsLight (Corp redesign
+     * stage 0b, spec-stage0b.md; countedScore.ts oracleCorpPick): instruments, not knowledge: the Corp plays every score
+     * the counting check finds (I1; countedStrict: holding against the Runner on +4 credits; countedNowOnly / countedTwoOnly: one half of it), or puts no ice on a central past the first piece without a recent successful run (I2).
      */
-    oracle: { grip: false, safestRemote: false, rd: false, think: false, gripThreat: false, gripReply: false },
+    oracle: { grip: false, safestRemote: false, rd: false, think: false, gripThreat: false, gripReply: false, countedScore: false, countedStrict: false, countedNowOnly: false, countedTwoOnly: false, centralsLight: false },
     /**
      * Per deciding side (Jeff, 2026-10-28): its own hand valued card by card, by what each will do once played (handValues.ts).
      * Batches: each side loses with it (Corp side 32.2% -> 28.0%, Runner side 32.2% -> 35.9% Corp) and the Runner draws at a

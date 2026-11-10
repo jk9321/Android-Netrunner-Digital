@@ -8,6 +8,7 @@ import { printLossSummary } from './loss-summary.mjs';
 import { printOpeningAudit, printValueAudit } from './opening-summary.mjs';
 import { printSearchAudit } from './search-audit-sum.mjs';
 import { printPaired, readGames, splitArgs } from './paired-summary.mjs';
+import { printStage0b } from './stage0b-sum.mjs';
 
 const { files, base } = splitArgs(process.argv.slice(2));
 const games = readGames(files);
@@ -100,3 +101,6 @@ if (games.some(g => g.opening)) {
 
 // Spec-search S1: the Corp planner's continuations (batch token +audit.search), after the opening audit
 printSearchAudit(games);
+
+// Corp redesign stage 0b (spec-stage0b.md): turn labels, first score, steals by server, the instruments' counts
+printStage0b(games);

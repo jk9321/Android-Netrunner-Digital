@@ -29,6 +29,8 @@ import { econValue, upgradeValue } from './cardValues';
 import { counterWorth } from './counterValues';
 import { plan, pricing, withPricing } from './pricing';
 import { setupOperation } from './cards';
+// Last: its imports (winNow, runs, pricing) are loaded by then, so the AI modules' load order is unchanged (oracle.ts)
+import { oracleCorpPick } from './countedScore';
 
 
 const type = (card: CardInstance) => cardDef(card).type_code;
@@ -185,9 +187,11 @@ export class HeuristicCorpAI implements Agent {
       const def = cardDef(state.corp.hq.find(c => c.instanceId === chosen.cardInstanceId)!);
       if ((def.advancement_cost ?? 0) > state.corp.clicks - 1) this.reverseBluffed = true;
     }
-    this.notePlayed(chosen);
-    if (this.debug) logNudge(state, 'corp', chosen);
-    return chosen;
+    // plan.oracle.countedScore / centralsLight (Corp redesign stage 0b, countedScore.ts): measurement instruments, default off
+    const picked = this.synergy && this.planner ? oracleCorpPick(state, chosen, ranked, lethalHqAgenda) : chosen;
+    this.notePlayed(picked);
+    if (this.debug) logNudge(state, 'corp', picked);
+    return picked;
   }
 
   /** Counts actions in a row that spent no click (loop guard). */
