@@ -8,6 +8,7 @@ import { shuffleRD } from '../rdKnowledge';
 import { addLog } from '../log';
 import { findCardAnywhere, illegal, locateCorpCard, noteTrashedFromHand, removeCard } from '../helpers';
 import { getCardScript } from '../../scripts';
+import { NOTHING_QUALIFIES_STEP } from '../../scripts/types';
 import { activePrompt, sideName } from '../prompts';
 import { beginCorpTurn, finishDiscard, resumeTurn } from './turn';
 import { initiationWindow, chooseBreachCandidate, continueAccess, finishAccess, gripToBottomOfStack, resolveStealCost, STEAL_COST_STEP, succeedRun, trashAccessedCard } from './run';
@@ -160,6 +161,8 @@ function runScriptAnswer(
   source: EffectSource,
   answer: Extract<PromptChoice, { kind: 'effect_choice' | 'effect_cards' }>
 ): void {
+  // A question asked only so the wait looks the same (askEvenIfNone, rules 4.2.2, 4.6.3): nothing to resolve
+  if (source.step === NOTHING_QUALIFIES_STEP) return;
   const card = findCardAnywhere(state, source.instanceId);
   const script = getCardScript(source.cardCode);
   if (!card || !script?.onPromptAnswer) illegal('The effect waiting on this prompt is gone');

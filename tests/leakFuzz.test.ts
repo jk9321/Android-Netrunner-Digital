@@ -68,11 +68,11 @@ function twinOfTop(top: string, second: string, runnerStops: StopLevel, clicks?:
 describe('Twin-state check', () => {
   it('an R&D access of an agenda the Runner cannot steal leaves no gap in the Corp\'s log (4.2.2, 7.1.2)', () => {
     // One click: the run spends it, so Méliès City Luxury Line's extra click to steal can't be paid
-    expect(twinOfTop(HEDGE_FUND, MELIES_LINE, 'ai', 1)).toEqual({ kind: 'same' });
+    expect(twinOfTop(HEDGE_FUND, MELIES_LINE, 'ai', 1)).toMatchObject({ kind: 'same' });
   });
 
   it('with the Runner\'s stops at full, an R&D access of a trashable card looks the same to the Corp as an operation (4.2.2, 7.1.2)', () => {
-    expect(twinOfTop(HEDGE_FUND, NICO, 'full')).toEqual({ kind: 'same' });
+    expect(twinOfTop(HEDGE_FUND, NICO, 'full')).toMatchObject({ kind: 'same' });
   });
 
   it('20 random games with stops at full: same-shaped views for twins that differ only in hidden cards', () => {

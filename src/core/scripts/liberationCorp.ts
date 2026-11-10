@@ -45,6 +45,7 @@ import {
   arrangeTop,
   askCards,
   askChoice,
+  askEvenIfNone,
   askCorpInstall,
   corpInstallOptions,
   corpZoneOf,
@@ -687,7 +688,14 @@ const balancedCoverage: CardScript = {
     if (!top || answer.kind !== 'effect_choice') return;
     if (source.step === 'type' && answer.optionId !== 'no') {
       addLog(state, 'corp', `Corp named ${answer.optionId} and looked at the top card of R&D (Balanced Coverage).`);
-      if (type(top) === answer.optionId) askChoice(ctx, 'corp', `Balanced Coverage: the top card is ${title(top)}. Reveal it to gain 2 [credit]?`, yesNo('Reveal and gain 2 [credit]'), 'reveal');
+      // Asked even on a miss when the Corp's stops are on ALL, so the wait doesn't tell the Runner the type matched (4.2.2)
+      askEvenIfNone(
+        ctx,
+        'corp',
+        type(top) === answer.optionId,
+        () => askChoice(ctx, 'corp', `Balanced Coverage: the top card is ${title(top)}. Reveal it to gain 2 [credit]?`, yesNo('Reveal and gain 2 [credit]'), 'reveal'),
+        `Balanced Coverage: the top card is ${title(top)}, not the type you named.`,
+      );
     } else if (source.step === 'reveal' && said(answer)) {
       runnerSeesRd(state, top);
       gainFromCard(state, 'corp', 2, ctx.card);

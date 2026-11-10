@@ -539,7 +539,13 @@ function offerMidAccess(state: GameState, card: CardInstance, zone: CardInstance
 function stealCostPromptFollows(state: GameState, card: CardInstance): boolean {
   if (cardDef(card).type_code !== 'agenda' || cannotStealOrTrash(state, card)) return false;
   const cost = stealCost(state, card);
-  if (!(cost.clicks || cost.credits || cost.gripToBottom)) return false;
+  return hasStealCost(cost) && canPayStealCost(state, cost);
+}
+
+const hasStealCost = (cost: FullStealCost) => !!(cost.clicks || cost.credits || cost.gripToBottom);
+
+/** Can the Runner pay this additional cost to steal (rules 1.16.3a)? */
+function canPayStealCost(state: GameState, cost: FullStealCost): boolean {
   return state.runner.clicks >= cost.clicks && availableCredits(state, 'runner') >= cost.credits && state.runner.grip.length >= cost.gripToBottom;
 }
 
@@ -575,10 +581,10 @@ export function finishAccess(state: GameState, card: CardInstance, zone: CardIns
     return;
   }
   const cost = stealCost(state, card);
-  if (cost.clicks || cost.credits || cost.gripToBottom) {
+  if (hasStealCost(cost)) {
     // Additional costs to steal: the Runner may decline them, and then does not steal (rules 1.16.3a-b)
     const what = stealCostLabel(cost);
-    const canPay = state.runner.clicks >= cost.clicks && availableCredits(state, 'runner') >= cost.credits && state.runner.grip.length >= cost.gripToBottom;
+    const canPay = canPayStealCost(state, cost);
     const secret = rdSecret(zone === state.corp.rd ? 'rd' : 'other', '');
     if (!canPay) {
       addLog(state, 'runner', `Runner cannot pay ${what} to steal ${def.title}.`, undefined, undefined, secret);
@@ -653,7 +659,7 @@ export function resolveStealCost(state: GameState, agendaId: string, pay: boolea
     addLog(state, 'runner', `Runner declined to steal ${cardDef(found.card).title}.`, undefined, undefined, rdSecret(found.zone === state.corp.rd ? 'rd' : 'other', ''));
     return;
   }
-  if (state.runner.clicks < cost.clicks || availableCredits(state, 'runner') < cost.credits || state.runner.grip.length < cost.gripToBottom) {
+  if (!canPayStealCost(state, cost)) {
     illegal('Cannot pay the cost to steal');
   }
   state.runner.clicks -= cost.clicks;

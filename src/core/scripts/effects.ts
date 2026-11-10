@@ -20,7 +20,7 @@ import {
   trashableFirst,
 } from '../engine/actions/install';
 import { getCardScript } from './index';
-import { EffectAnswer, EffectContext } from './types';
+import { EffectAnswer, EffectContext, NOTHING_QUALIFIES_STEP } from './types';
 
 /** Helpers shared by card scripts. */
 
@@ -46,6 +46,25 @@ export function askChoice(
   data?: EffectSource['data']
 ): void {
   pushPrompt(ctx.state, { kind: 'effect_choice', side, message, options, source: source(ctx, step, data) });
+}
+
+/**
+ * A "you may" follow-up that is offered only when a card hidden from the opponent qualifies (the top of R&D has the
+ * named type, an installed card is advanceable). Asking only then would let the opponent read the hidden card from
+ * who the game waits on (rules 4.2.2, 4.6.3). Jeff's policy (2026-11-08, as for paid windows and the R&D access
+ * step): the side the tell would hurt, the asked side, chooses with its stops. At 'full' the question is always
+ * asked, with only `declineLabel` when nothing qualifies; at every other level nothing changes.
+ * Returns whether a prompt was pushed.
+ */
+export function askEvenIfNone(ctx: EffectContext, side: SideCode, qualifies: boolean, ask: () => void, noneMessage: string, declineLabel = 'OK'): boolean {
+  if (qualifies) {
+    ask();
+    return true;
+  }
+  // stopLevel() from engine/priority.ts, read directly: importing priority.ts here closes an import cycle
+  if ((ctx.state.stops?.[side] ?? 'ai') !== 'full') return false;
+  askChoice(ctx, side, noneMessage, [{ id: 'no', label: declineLabel }], NOTHING_QUALIFIES_STEP);
+  return true;
 }
 
 export function askCards(
