@@ -369,6 +369,9 @@ export const tuning = {
      * Bug report #33 (Jeff's Runner test game 1, 2026-11-09; Corp, Normal and Hard): an exact search of the Corp's turn for
      * a line that wins the game, played before any judgement (winNow.ts; rules 1.17.2, 1.17.3). Off: the planner and
      * Hard's look-ahead play on with the rule ranking, which missed a one-turn win through Slash and Burn Agriculture.
+     * Step 2 (spec-step2-delete-redundant.md, 2026-11-10): kept without a batch. scoreNow does not cover it: winNow also
+     * wins by flatline and by a 7th point that does not come from scoring an agenda, and its lines are tried before
+     * keepsScore lets the Corp's own pick stand.
      */
     winNow: true,
     /**
