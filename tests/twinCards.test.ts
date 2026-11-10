@@ -257,7 +257,7 @@ function dividend(code: string, level: StopLevel): Case {
 
 /** Top-Down Solutions: install up to 2 cards from HQ. HQ holds a Palisade or (twin) only operations (4.3.2). */
 function topDown(level: StopLevel): Case {
-  let s = newGame(5);
+  const s = newGame(5);
   corpStops(s, level);
   const [td, ice] = setHQ(s, TOP_DOWN, ICE_WALL);
   s.corp.rd.unshift(make(s, HEDGE_FUND), make(s, HEDGE_FUND));
@@ -393,7 +393,7 @@ function kingmaking(level: StopLevel): Case {
 
 /** Sudden Commandment: may play a non-terminal operation from HQ, which holds Hedge Fund or (twin) Nico (4.3.2). */
 function sudden(level: StopLevel): Case {
-  let s = newGame(5);
+  const s = newGame(5);
   corpStops(s, level);
   const [sc, hedge] = setHQ(s, SUDDEN, HEDGE_FUND);
   const b = facedownInArchives(s, NICO);
@@ -405,7 +405,7 @@ function sudden(level: StopLevel): Case {
 
 /** Eminent Domain trashed from HQ: install and rez 1 card from HQ, which holds Nico or (twin) Hedge Fund (4.3.2). */
 function eminent(level: StopLevel): Case {
-  let s = newGame(5);
+  const s = newGame(5);
   corpStops(s, level);
   const [ed, nico] = setHQ(s, EMINENT, NICO);
   const b = facedownInArchives(s, HEDGE_FUND);
@@ -416,7 +416,7 @@ function eminent(level: StopLevel): Case {
 
 /** Descent trashed from HQ: reveal up to 2 agendas in HQ or Archives. HQ holds an agenda or (twin) Nico (4.3.2). */
 function descent(level: StopLevel): Case {
-  let s = newGame(5);
+  const s = newGame(5);
   corpStops(s, level);
   const [d, agenda] = setHQ(s, DESCENT, OFFWORLD);
   const b = rdBottom(s, NICO);
@@ -428,7 +428,7 @@ function descent(level: StopLevel): Case {
 
 /** Chrysopoeian Skimming: the Corp may reveal an agenda from HQ, which holds one or (twin) Nico (4.3.2). The Corp is asked. */
 function skimming(level: StopLevel): Case {
-  let s = newGame(5);
+  const s = newGame(5);
   corpStops(s, level);
   const [agenda] = setHQ(s, OFFWORLD);
   const b = rdBottom(s, NICO);
@@ -493,7 +493,7 @@ function meeting(level: StopLevel, which: 'search' | 'reveal'): Case {
 
 /** Window of Opportunity: may install a program or hardware from the grip, which holds Cleaver or (twin) Sure Gamble (4.3.2). */
 function windowOf(level: StopLevel): Case {
-  let s = newGame(5);
+  const s = newGame(5);
   runnerStops(s, level);
   startRunnerTurn(s);
   s.runner.credits = 10;
