@@ -179,6 +179,20 @@ describe('plan.scoreInTwo: the Corp scores over two turns when the count holds (
     expect(knownIncome(s)).toBe(3);
   });
 
+  it('each income card pays through its entry: Otto 2, Nico 3, Anthill 4 (no more than they hold), Public Access Plaza 1', () => {
+    for (const [code, pays] of [['35040', 2], ['30037', 3], ['35072', 4], ['35062', 1]] as const) {
+      const s = corpMain(4);
+      const id = installCorpForTest(s, code, 'remote-1', true);
+      const card = s.corp.servers['remote-1'].root.find(c => c.instanceId === id)!;
+      card.tokens = { credit: 9 };
+      expect(knownIncome(s)).toBe(pays);
+      card.tokens = { credit: 1 };
+      expect(knownIncome(s)).toBe(1); // a campaign holding 1 pays 1; the Plaza pays 1 regardless
+      card.isRezzed = false;
+      expect(knownIncome(s)).toBe(0);
+    }
+  });
+
   it("a line held for another game is not this game's: it is dropped", () => {
     tuning.plan.scoreInTwo = true;
     const s = corpMain(4);
