@@ -395,6 +395,15 @@ export const tuning = {
      */
     searchSamples: false,
     /**
+     * Phase 3 S6 (spec-search.md; Corp only): the planner plays its candidate turns from a guess of R&D, not R&D itself.
+     * Without it a playout that draws (a click to draw, Hedge Fund's riders, Petty Cash) drew the real top cards, and the
+     * Runner reply then accessed HQ holding those real cards: the Corp priced lines on cards it can't know (rule 10.2.2a:
+     * the cards in R&D are hidden information). The guess is runnerReply.ts guessHidden at the decision's own seed (the same deal
+     * for every candidate, plan.plannerSeed), so R&D positions both players saw stay put (knownRdSlots) and the Runner's
+     * grip is the reply's guess. The plan memory then re-decides after a real draw (its key holds HQ).
+     */
+    hiddenDraws: false,
+    /**
      * Phase 2 O2 v2 (opening-audit/report.md; Corp only): an installed or held agenda's advances are charged at the one
      * click price (valueModel CLICK) plus their credit, not AGENDA_CLICK 2 (evaluate.ts agendaWorth): at 2 a click and 8
      * a point, a 1-point agenda read worth less than the advances that score it even with no steal risk, and held agendas
@@ -510,7 +519,7 @@ export const tuning = {
  */
 export const sideOff: Record<SideCode, string[]> = {
   corp: [],
-  runner: ['tagTrashNow', 'ownTrashRisk', 'hqTrashCost', 'oneCurrency', 'threatModel', 'measuredPass', 'threatSpend', 'calibratedRun', 'raceClock', 'iceProtects', 'replyContenders', 'plannerAgenda', 'clearinghouseRez', 'searchLines', 'searchSamples', 'agendaLine', 'advanceGuardPriced', 'scoreBudget', 'oracle', 'reach', 'reachStrength', 'reachTime', 'threatKey', 'threatKeyPricing'],
+  runner: ['tagTrashNow', 'ownTrashRisk', 'hqTrashCost', 'oneCurrency', 'threatModel', 'measuredPass', 'threatSpend', 'calibratedRun', 'raceClock', 'iceProtects', 'replyContenders', 'plannerAgenda', 'clearinghouseRez', 'searchLines', 'searchSamples', 'hiddenDraws', 'agendaLine', 'advanceGuardPriced', 'scoreBudget', 'oracle', 'reach', 'reachStrength', 'reachTime', 'threatKey', 'threatKeyPricing'],
 };
 
 /**
