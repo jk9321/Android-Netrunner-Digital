@@ -65,21 +65,37 @@ const wildcatStrike: CardScript = {
 // Mutual Favor: Search your stack for 1 icebreaker and reveal it. (Shuffle
 // your stack after searching it.) If you made a successful run this turn, you
 // may install that program. If you do not, add it to your grip.
+/** Mutual Favor finding nothing, whether or not the Stack had an icebreaker (rules 8.7.2e); the Stack is still shuffled (8.7.3). */
+function foundNone({ state }: EffectContext): void {
+  shuffleInPlace(state.rng, state.runner.stack);
+  addLog(state, 'runner', 'Runner searched their Stack and found no icebreaker.');
+}
+
 const mutualFavor: CardScript = {
   onPlay: ctx => {
     const { state } = ctx;
     const breakers = state.runner.stack.filter(c => /icebreaker/i.test(cardDef(c).keywords ?? ''));
     if (breakers.length === 0) {
-      shuffleInPlace(state.rng, state.runner.stack);
-      addLog(state, 'runner', 'Runner searched their Stack but found no icebreaker.');
+      // Whether the Stack holds an icebreaker is hidden from the Corp (4.2.2): with the Runner's stops on ALL they are
+      // still asked, as askEvenIfNone does, but on the search step so the answer logs the same line as failing to find
+      if ((state.stops?.runner ?? 'ai') === 'full') {
+        askChoice(ctx, 'runner', 'Mutual Favor: no icebreaker in your Stack.', [{ id: 'no', label: 'OK' }], 'search');
+        return;
+      }
+      foundNone(ctx);
       return;
     }
-    askCards(ctx, 'runner', 'Mutual Favor: choose 1 icebreaker from your Stack.', breakers.map(c => c.instanceId), 1, 1, 'search');
+    // A search with criteria may fail to find even when a match exists (rules 8.7.2e)
+    askCards(ctx, 'runner', 'Mutual Favor: you may choose 1 icebreaker from your Stack.', breakers.map(c => c.instanceId), 0, 1, 'search');
   },
   onPromptAnswer: (ctx, source, answer) => {
     const { state } = ctx;
-    if (source.step === 'search' && answer.kind === 'effect_cards') {
-      const id = answer.cardInstanceIds[0];
+    if (source.step === 'search') {
+      const id = answer.kind === 'effect_cards' ? answer.cardInstanceIds[0] : undefined;
+      if (!id) {
+        foundNone(ctx);
+        return;
+      }
       const card = state.runner.stack.find(c => c.instanceId === id)!;
       // Pull the card aside, shuffle, and keep it at the top while deciding.
       state.runner.stack = state.runner.stack.filter(c => c.instanceId !== id);

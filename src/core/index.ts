@@ -28,3 +28,5 @@ export type { Format, FormatId, BanList, FormatStatus } from './formats';
 export { viewFor, newViewIds, toEngineAction, fromEngineAction } from './view';
 export type { ViewIds, GameView, CardView, HandView, DeckView, ServerView, CorpView, RunnerView, PromptView, MyPromptView, LogEntryView, RunView, EncounterView, PriorityView } from './view';
 export { stateFromView } from './view/reconstruct';
+export { TableCore, viewsOf, TABLE_SIDES } from './table';
+export type { TableHeld, TableViews, TableStep } from './table';

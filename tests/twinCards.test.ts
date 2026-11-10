@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { GameAction, GameState, SideCode, StopLevel, actingSide, cardDef, createCardInstance, executeAction, getLegalActions, newViewIds, viewFor } from '../src/core';
+import { CardInstance, GameAction, GameState, SideCode, StopLevel, actingSide, cardDef, createCardInstance, executeAction, getLegalActions, newViewIds, viewFor } from '../src/core';
 import { markSubroutinesBroken } from '../src/core/engine/ice';
 import { twinCompare, twinCompareDeclined } from '../scripts/leak-check-twin';
 import { installCorpForTest, installIceForTest, newGame, setIdentity, startRunnerTurn } from './helpers';
@@ -47,6 +47,7 @@ const FOF = '34074'; // Friend of a Friend (connection resource)
 const TELEWORK = '30027'; // resource
 const SURE_GAMBLE = '30030'; // event
 const CLEAVER = '30006'; // program
+const MUTUAL_FAVOR = '30011'; // event: search the Stack for 1 icebreaker
 const PING = '30055'; // ice: gives a tag when rezzed during a run on its server
 
 /** Plays the plain move (pass, continue, start or end the turn, first answer) until `until` holds for the state about to act. */
@@ -215,6 +216,43 @@ function mycoweb(corpStops: StopLevel, which: 'rez' | 'install'): Case {
   s = executeAction(s, { type: 'INITIATE_RUN', player: 'runner', targetServerId: 'rd' });
   s = driveTo(s, st => prompted(MYCOWEB, which)(plainMove(st).next));
   return { s, action: plainMove(s).action, a: hidden, b: s.corp.hq[0].instanceId, blind: 'runner' };
+}
+
+const isBreaker = (c: CardInstance) => /icebreaker/i.test(cardDef(c).keywords ?? '');
+
+/**
+ * Mutual Favor played with exactly one icebreaker in the Stack; the twin swaps it with a non-breaker in the grip, so
+ * the twin's Stack has none. Finding nothing is allowed either way (rules 8.7.2e), so the search is a hidden choice.
+ */
+function mutualFavor(runnerStops: StopLevel): Case {
+  const s = newGame(5);
+  s.stops = { corp: 'ai', runner: runnerStops };
+  startRunnerTurn(s);
+  s.runner.credits = 5;
+  const breakers = s.runner.stack.filter(c => isBreaker(c));
+  s.runner.stack = s.runner.stack.filter(c => !isBreaker(c) || c === breakers[0]);
+  const favor = createCardInstance(s, MUTUAL_FAVOR);
+  const other = s.runner.grip.find(c => !isBreaker(c))!;
+  s.runner.grip.push(favor);
+  const action: GameAction = { type: 'PLAY_OPERATION_OR_EVENT', player: 'runner', cardInstanceId: favor.instanceId };
+  return { s, action, a: breakers[0].instanceId, b: other.instanceId, blind: 'corp' };
+}
+
+/** Pivot played with one operation in R&D; the twin swaps it with a piece of ice in HQ, so the twin's R&D has none. */
+function pivotSearch(corpStops: StopLevel) {
+  const s = newGame(5);
+  s.stops = { corp: corpStops, runner: 'ai' };
+  const op = createCardInstance(s, HEDGE_FUND);
+  s.corp.rd = s.corp.rd.filter(c => !['operation', 'agenda'].includes(cardDef(c).type_code));
+  s.corp.rd.push(op);
+  const ice = createCardInstance(s, ICE_WALL);
+  const card = createCardInstance(s, PIVOT);
+  s.corp.hq.splice(0, s.corp.hq.length, ice, card);
+  s.corp.clicks = 3;
+  s.corp.credits = 5;
+  const action: GameAction = { type: 'PLAY_OPERATION_OR_EVENT', player: 'corp', cardInstanceId: card.instanceId };
+  const ids = viewFor(s, 'runner', newViewIds(), 'g').ids;
+  return twinCompare(s, action, executeAction(s, action), ids, 'runner', op.instanceId, ice.instanceId);
 }
 
 // --- Chunk 2a-3: the cards the fuzz did not reach ---------------------------------------------------------------
@@ -564,5 +602,22 @@ describe('Card prompts that depend on a hidden card (4.2.2, 4.3.2, 4.4.6c, 4.6.3
     const stack = twin.runner.stack.find(x => x.instanceId === c.b)!;
     [grip.cardCode, stack.cardCode] = [stack.cardCode, grip.cardCode];
     expect(prompted(WINDOW, 'run')(executeAction(twin, c.action))).toBe(true);
+  });
+});
+
+describe('Searches that may fail to find (rules 8.7.2e, 4.2.2)', () => {
+  it('Mutual Favor, Runner stops on ALL: the Corp can\'t tell whether the Stack held an icebreaker', () => {
+    expect(compare(mutualFavor('full'))).toMatchObject({ kind: 'same' });
+    // One answer further: the search declined in S, the one answer given in the twin (both go on to finding nothing)
+    expect(declined(mutualFavor('full'))).toMatchObject({ kind: 'same' });
+  });
+
+  it('Mutual Favor, Runner stops on AUTO: unchanged, asked only with an icebreaker to find (accepted tell)', () => {
+    expect(compare(mutualFavor('auto'))).toMatchObject({ kind: 'differ' });
+  });
+
+  it('Pivot: the Runner can\'t tell whether R&D held an operation or agenda (always asked)', () => {
+    expect(pivotSearch('full')).toMatchObject({ kind: 'same' });
+    expect(pivotSearch('auto')).toMatchObject({ kind: 'same' });
   });
 });

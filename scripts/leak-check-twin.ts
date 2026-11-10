@@ -94,7 +94,7 @@ export function firstDiff(a: unknown, b: unknown, path = '$'): string | null {
 }
 
 /** Two cards hidden from `blind` with different codes, of one kind; null when there are none. */
-function pickPair(state: GameState, blind: SideCode, rng: RngState): [CardInstance, CardInstance] | null {
+export function pickPair(state: GameState, blind: SideCode, rng: RngState): [CardInstance, CardInstance] | null {
   const { hiddenIds, shownIds } = visibility(state, blind);
   // A card a declared intent or a pending prompt names was chosen for what it is: in the twin that choice could be
   // impossible and silently dropped (an install intent of an asset as ice), which says nothing about the views
@@ -153,7 +153,7 @@ function withProbeLine(state: GameState): GameState {
 }
 
 /** S with the codes of cards `a` and `b` swapped. */
-function twinOf(state: GameState, a: string, b: string): GameState {
+export function twinOf(state: GameState, a: string, b: string): GameState {
   const twin = structuredClone(state);
   const cards = cardsById(twin);
   const x = cards.get(a)!;
@@ -163,7 +163,7 @@ function twinOf(state: GameState, a: string, b: string): GameState {
 }
 
 /** Has either swapped card been shown to `blind` by the action (left the hidden set, shown by instance, named in its prompt or by a new log line it may read)? */
-function shown(before: GameState, after: GameState, blind: SideCode, ids: string[]): boolean {
+export function shown(before: GameState, after: GameState, blind: SideCode, ids: string[]): boolean {
   const post = visibility(after, blind);
   const cards = cardsById(after);
   const codes = ids.map(id => cards.get(id)?.cardCode).filter((x): x is string => !!x);
