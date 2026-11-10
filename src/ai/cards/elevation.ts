@@ -394,6 +394,8 @@ export const ELEVATION: Record<string, CardAI> = {
   },
   // Byte!
   '35050': {
+    // plan.corpTurnDamageOwn: on access only
+    corpTurnDamage: 0,
     synergy: { gives: { damage: 1.5, tags: 0.5 } },
     value: { keep: 1.5 }, // A trap, but costs 4 to fire
     // Pay 4 on access for 1 tag and 3 net damage; accessed about half the time
@@ -475,7 +477,7 @@ export const ELEVATION: Record<string, CardAI> = {
   // Touch-ups
   '35067': { synergy: { gives: { advance: 2 } }, setup: true },
   // BANGUN
-  '35068': { synergy: { gives: { damage: 1, tags: 0.5 } } },
+  '35068': { corpTurnDamage: 0 /* plan.corpTurnDamageOwn: on access to a faceup agenda only */, synergy: { gives: { damage: 1, tags: 0.5 } } },
   // The Zwicky Group
   '35069': { synergy: { wants: { operations: 1.5 } } },
   // Greenmail

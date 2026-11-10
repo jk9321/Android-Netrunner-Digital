@@ -41,9 +41,12 @@ describe('The Holo Man advances the agenda it sits with (plan.holoManMove, plan.
     tuning.plan.threatModel = false;
     // and the planner before its search was widened (plan.plannerSearch, item 4): with it the finish is found without the patch
     tuning.plan.plannerSearch = false;
+    // and before plan.hiddenDraws (S6): on one guess of R&D the old planner happens to find the finish here
+    tuning.plan.hiddenDraws = false;
     try {
       expect(scoredOffice(playTurn())).toBe(false);
     } finally {
+      tuning.plan.hiddenDraws = true;
       tuning.plan.finishSetup = true;
       tuning.plan.oneCurrency = oneCurrencyDefault;
       tuning.plan.threatModel = threatDefault;

@@ -29,8 +29,11 @@ export interface Pricing {
   frozen: boolean;
   /** The cards in each side's hand the deciding AI has seen (noted as a decision starts). */
   known: Record<SideCode, Set<string> | null>;
-  /** plan.iceStopAnchor: the Runner's credits when the decision started (iceValues.ts stopCredits). */
-  anchor: { id: string; credits: number } | null;
+  /**
+   * plan.iceStopAnchor: the Runner's credits when the decision started (iceValues.ts stopCredits). stops: plan.ownIceKnown's
+   * rez-budget stops, noted once per decision (iceValues.ts rezBudget).
+   */
+  anchor: { id: string; credits: number; stops?: Map<string, number> } | null;
   /**
    * The planner leaves being priced (plan.plannerHand): each prices its side's hand card by card, whatever
    * plan.handByCard says (leafHandByCard). A list, not one side: a leaf can open a decision that has its own
@@ -66,6 +69,11 @@ export interface Pricing {
   oracleRunning: boolean;
   /** plan.reach (reach.ts): a capability case is being worked out: nothing inside asks reach again. */
   reaching: boolean;
+  /**
+   * plan.runRecord (threatModel.ts recordRun): the servers the Runner ran on each of its last turns, most recent first, as
+   * the deciding Corp saw them (public: rules 6.1.2a, 6.9.1a, the Runner announces the server it runs). Null: none noted.
+   */
+  runRecord: string[][] | null;
 }
 
 const context: Pricing = {
@@ -88,6 +96,7 @@ const context: Pricing = {
   pricingBreakers: new Set(),
   oracleRunning: false,
   reaching: false,
+  runRecord: null,
 };
 
 /** The current context (read only: change it with withPricing). */
@@ -205,6 +214,7 @@ export function pricingKey(): string {
     c.computingThreat ? 'h' : '',
     c.buildingClock ? 'k' : '',
     (c.oracleRunning ? 'o' : '') + (c.reaching ? 'r' : ''),
+    c.runRecord ? c.runRecord.map(turn => turn.join('+')).join('/') : '',
   ].join(':');
   keyVersion = version;
   return key;

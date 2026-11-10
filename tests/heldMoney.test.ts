@@ -30,6 +30,8 @@ describe('a held money operation is counted once (plan.heldMoney)', () => {
     // Cash's line 0.03 behind a credit click, the leaf's run charge deciding), flagged in the item 3 hand-off
     const threat = tuning.plan.threatModel;
     tuning.plan.threatModel = false;
+    // plan.hiddenDraws (S6) off: on one guess of R&D the turn ends on a click for a credit (pettyCashFirst.test.ts)
+    tuning.plan.hiddenDraws = false;
     try {
       // plan.oneCurrency counts it once by construction (HQ by count, the slide's credits); its planned turn may open a
       // remote first (pettyCashFirst.test.ts), but never clicks for a credit while holding it
@@ -39,6 +41,7 @@ describe('a held money operation is counted once (plan.heldMoney)', () => {
     } finally {
       tuning.plan.pettyCashFirst = true;
       tuning.plan.threatModel = threat;
+      tuning.plan.hiddenDraws = true;
     }
   });
 });

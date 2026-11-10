@@ -249,6 +249,8 @@ export const LIBERATION: Record<string, CardAI> = {
   '34040': { synergy: { gives: { damage: 1.5 }, when: ['onScore'] } },
   // Front Company
   '34041': {
+    // plan.corpTurnDamageOwn: when a run on Archives begins only
+    corpTurnDamage: 0,
     synergy: { gives: { damage: 1 } },
     value: { keep: 1.5 },
     // No first run on a remote each turn; 2 net damage on an Archives run past no ice
@@ -363,6 +365,8 @@ export const LIBERATION: Record<string, CardAI> = {
   '34062': { synergy: { gives: { draw: 0.5, operations: 0.5 }, when: ['threat'] } },
   // Angelique Garza Correa
   '34063': {
+    // plan.corpTurnDamageOwn: its HQ ability (1 meat) is the Corp's; the 2 is on access
+    corpTurnDamage: 1,
     synergy: { gives: { damage: 1 }, when: ['threat'] },
     value: { keep: 1, upgrade: [1, 1] },
     // A trap: pay 2 on access for meat damage

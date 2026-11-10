@@ -365,6 +365,57 @@ export const tuning = {
      */
     clearinghouseRez: true,
     /**
+     * Bug report #34 (Jeff's Runner test game 2, 2026-11-09; Corp only): the threat model counts Alarm Clock's free HQ run
+     * at the start of the Runner's turn (threatModel.ts alarmClockRun; rules 5.7.1d, 6.5.8a). Off: the budget only spent
+     * clicks, so HQ read as never run while Alarm Clock ran it every turn. At Jeff's own game-2 positions the Runner AI's
+     * sum declines the run (2-click bypass above HQ's worth to it), so it pins the modelling; what the Runner actually ran
+     * is a separate item.
+     */
+    alarmClockThreat: true,
+    /**
+     * Bug report #33 (Jeff's Runner test game 1, 2026-11-09; Corp, Normal and Hard): an exact search of the Corp's turn for
+     * a line that wins the game, played before any judgement (winNow.ts; rules 1.17.2, 1.17.3). Off: the planner and
+     * Hard's look-ahead play on with the rule ranking, which missed a one-turn win through Slash and Burn Agriculture.
+     */
+    winNow: true,
+    /**
+     * Bug reports #39, #41 (Jeff's Runner test games 7 and 9, 2026-11-09; Corp only): the Corp's own unrezzed ice is priced
+     * as it knows it (effectValues.ts ownIce: the real ice when its rez budget covers it, passed when not; rules 3.4.3a,
+     * 6.9.2b-c) in runSuccess and stealOdds. Off: the Runner-side pass rates, so an agenda behind a Pharos the Corp could
+     * not pay for (game 9 T16) or a rezzed Boto the rig breaks plus an unaffordable Tatu-Bola (game 7) read as defended.
+     * It uses reach.ts knownIce, plan.reachStrength's copy, which never ran because it lives inside plan.reach (OFF):
+     * fold this one and reachStrength together.
+     */
+    ownIceKnown: true,
+    /**
+     * #34b (bug report #34, Jeff's Runner test game 2, 2026-11-09; Corp, Normal): the threat blends in the runs the Runner
+     * actually made on its last turns (threatModel.ts recordRun; public, rules 6.1.2a, 6.9.1a), noted turn by turn by the
+     * deciding Corp (corpAI noteRuns). Off: the threat is our Runner AI's arithmetic only, and Jeff's Alarm Clock ran HQ
+     * every turn while it read HQ as never run. Inert in self-play by construction (our Runner runs where the model says).
+     */
+    runRecord: true,
+    /**
+     * Bug report #43 (Jeff's Runner test game 11, 2026-11-09; Corp only): with plan.ownIceKnown on, the ice-pacing guard
+     * (corpAI installScore: -Infinity for ice the Corp can't afford to rez on top of every unrezzed ice already out) is
+     * dropped and the pricing decides (Jeff: "that ICE just shouldn't count as protection unless it CAN rez it"; it
+     * needn't rez every ice on every run). Off: the guard counted ice the Corp never rezzes (two Attini on remotes
+     * holding nothing) and blocked every new install: at T7, 20 credits, the Runner on 5 and HQ bare, Cloud Eater and
+     * Mycoweb in hand ranked -Infinity and the Corp clicked to draw three times.
+     * PARKED OFF (2026-11-09, batches 42715002281 vs 42720370875): it costs about 7 points of Corp win rate through
+     * over-icing (installs ice it then rezzes in runs: went-broke +22 per 100 games, stayed-broke +14). The leaf doesn't
+     * price what an install commits the Corp to rezzing, so with the guard gone it ices past its money. Stays off until ice
+     * pacing is priced by the leaf (credits left after the rezzes the install commits to); #43 T7 stays open meanwhile.
+     */
+    icePacingPriced: false,
+    /**
+     * Bug report #44 (Jeff's Runner test game 12, 2026-11-09): the damage clock left after the Runner's turn (effectValues
+     * damageThreat on the Corp's turn) counts only damage the Corp can deal on its own turn: not damage on access (Urtica
+     * Cipher) and not damage "if the Runner is tagged" while it has no tag (Orbital Superiority). Off: both made a 4-damage
+     * burst, so a Runner left on 1 card in grip was worth 33 points of flatline, and at T2 the planner put Tithe on an empty
+     * remote (its reply Runner ran into it and lost cards) over icing an HQ holding three agendas: Send a Message stolen.
+     */
+    corpTurnDamageOwn: true,
+    /**
      * Phase 3 S2 (spec-search.md; Corp only): the hold line where it builds a window. On a decision with an agenda in HQ
      * and none installed, a candidate whose rule line installs the agenda is also played holding it (the 'hold' line);
      * the held line stands only when it beats the rule line by more than SEARCH.margin (the 2-sample reply's noise, S1
@@ -523,7 +574,7 @@ export const tuning = {
  */
 export const sideOff: Record<SideCode, string[]> = {
   corp: [],
-  runner: ['tagTrashNow', 'ownTrashRisk', 'hqTrashCost', 'oneCurrency', 'threatModel', 'measuredPass', 'threatSpend', 'calibratedRun', 'raceClock', 'iceProtects', 'replyContenders', 'plannerAgenda', 'clearinghouseRez', 'searchLines', 'searchSamples', 'hiddenDraws', 'agendaLine', 'advanceGuardPriced', 'scoreBudget', 'oracle', 'reach', 'reachStrength', 'reachTime', 'threatKey', 'threatKeyPricing'],
+  runner: ['tagTrashNow', 'ownTrashRisk', 'hqTrashCost', 'oneCurrency', 'threatModel', 'measuredPass', 'threatSpend', 'calibratedRun', 'raceClock', 'iceProtects', 'replyContenders', 'plannerAgenda', 'clearinghouseRez', 'ownIceKnown', 'runRecord', 'icePacingPriced', 'searchLines', 'searchSamples', 'hiddenDraws', 'agendaLine', 'advanceGuardPriced', 'scoreBudget', 'oracle', 'reach', 'reachStrength', 'reachTime', 'threatKey', 'threatKeyPricing'],
 };
 
 /**
