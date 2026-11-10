@@ -379,8 +379,6 @@ export const tuning = {
      * paired (run 42786339692 vs 42784619451, games=3), inside noise and within the ship rule.
      */
     scoreNow: true,
-    /** Step 2 TEMPORARY (spec-step2-delete-redundant.md, deleted before hand-off): corpAI installScore's 44/45 for an agenda this turn can finish. */
-    finishNowInstall: true,
     /** Step 2 TEMPORARY: corpAI advanceScore's 40 + counters for an advance this turn can finish. */
     advanceFinish: true,
     /**
@@ -537,7 +535,7 @@ export const tuning = {
  */
 export const sideOff: Record<SideCode, string[]> = {
   corp: [],
-  runner: ['scoreNow', 'scoreInTwo', 'finishNowInstall', 'advanceFinish', 'tagTrashNow', 'ownTrashRisk', 'hqTrashCost', 'oneCurrency', 'threatModel', 'measuredPass', 'threatSpend', 'calibratedRun', 'iceProtects', 'replyContenders', 'plannerAgenda', 'clearinghouseRez', 'ownIceKnown', 'runRecord', 'icePacingPriced', 'searchSamples', 'hiddenDraws', 'oracle', 'reach', 'reachStrength', 'reachTime', 'threatKey', 'threatKeyPricing'],
+  runner: ['scoreNow', 'scoreInTwo', 'advanceFinish', 'tagTrashNow', 'ownTrashRisk', 'hqTrashCost', 'oneCurrency', 'threatModel', 'measuredPass', 'threatSpend', 'calibratedRun', 'iceProtects', 'replyContenders', 'plannerAgenda', 'clearinghouseRez', 'ownIceKnown', 'runRecord', 'icePacingPriced', 'searchSamples', 'hiddenDraws', 'oracle', 'reach', 'reachStrength', 'reachTime', 'threatKey', 'threatKeyPricing'],
 };
 
 /**

@@ -505,3 +505,4 @@ Every self-play batch, newest last (Jeff, 2026-10-28). Made with `scripts/corp-l
 | 2026-11-10 | step2 g1 finishNowInstall off | 6924007 | 221 | **50.7%** | 39.8% / 10.9% | 43.9% / 5.4% | 39.8% / 31.7% / 25.7% / 2.5% | 7.0 | [txt](batch-logs/2026-11-10-step2-g1-finishnowinstall-off.txt) | +0.0 ± 0.6 (221) |
 | 2026-11-10 | step2 g3 searchLines off | 6924007 | 663 | **46.3%** | 38.0% / 8.3% | 49.2% / 4.5% | 45.2% / 29.7% / 23.6% / 1.6% | 7.2 | [txt](batch-logs/2026-11-10-step2-g3-searchlines-off.txt) | -0.3 ± 1.0 (663) |
 | 2026-11-10 | step2 g1 advanceFinish off | 6924007 | 221 | **51.1%** | 41.2% / 10.0% | 43.4% / 5.4% | 41.6% / 29.7% / 25.7% / 3.0% | 7.4 | [txt](batch-logs/2026-11-10-step2-g1-advancefinish-off.txt) | +0.5 ± 2.1 (221) |
+| 2026-11-10 | step2 g3 finishNowInstall off | 6924007 | 663 | **46.6%** | 38.5% / 8.1% | 48.7% / 4.7% | 44.2% / 29.9% / 24.1% / 1.7% | 7.3 | [txt](batch-logs/2026-11-10-step2-g3-finishnowinstall-off.txt) | +0.0 ± 0.4 (663) |

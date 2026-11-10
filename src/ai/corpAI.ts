@@ -916,10 +916,8 @@ export class HeuristicCorpAI implements Agent {
       }
       case 'agenda': {
         const def = cardDef(card);
-        const finishNow = (def.advancement_cost ?? 0) <= corp.clicks - 1 && (def.advancement_cost ?? 0) <= corp.credits;
         // A naked remote only to dodge a discard (or to score it straight away)
         if (!server) {
-          if (finishNow && plan().finishNowInstall) return 44;
           // Deck-aware AI (exposure): an overfull HQ goes behind ice rather than into a bare remote
           if (hq.length > corp.handSizeLimit) return this.synergy ? 0.1 : 0.5;
           if (this.synergy && tuning.bluff && tuning.reverseBluff && this.nakedAgenda(state, card)) {
@@ -931,7 +929,7 @@ export class HeuristicCorpAI implements Agent {
           return -2;
         }
         if (server.root.some(isAgendaOrAsset)) return -Infinity;
-        if (finishNow && plan().finishNowInstall) return 45;
+        // (an install that scores this turn ranked 44/45 here; step 2 deleted it, off +0.0 ± 0.4 at games=3: counted scoring plays it)
         if (this.timing) {
           // Deck-aware AI: install only if this turn's advances leave it scoreable next turn, behind ice we can still rez
           const spend = Math.min(corp.clicks - 1, corp.credits) + this.untaianAdvance(state, 1);
