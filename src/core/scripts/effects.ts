@@ -54,16 +54,26 @@ export function askChoice(
  * who the game waits on (rules 4.2.2, 4.6.3). Jeff's policy (2026-11-08, as for paid windows and the R&D access
  * step): the side the tell would hurt, the asked side, chooses with its stops. At 'full' the question is always
  * asked, with only `declineLabel` when nothing qualifies; at every other level nothing changes.
- * Returns whether a prompt was pushed.
+ * `then`: when the card goes on after the decline (Sudden Commandment, Window of Opportunity), the one answer comes
+ * back to the card at that step (an effect_choice 'no'), so it takes the same path as declining the real question.
+ * Without it the answer resolves nothing. Returns whether a prompt was pushed.
  */
-export function askEvenIfNone(ctx: EffectContext, side: SideCode, qualifies: boolean, ask: () => void, noneMessage: string, declineLabel = 'OK'): boolean {
+export function askEvenIfNone(
+  ctx: EffectContext,
+  side: SideCode,
+  qualifies: boolean,
+  ask: () => void,
+  noneMessage: string,
+  declineLabel = 'OK',
+  then?: { step: string; data?: EffectSource['data'] }
+): boolean {
   if (qualifies) {
     ask();
     return true;
   }
   // stopLevel() from engine/priority.ts, read directly: importing priority.ts here closes an import cycle
   if ((ctx.state.stops?.[side] ?? 'ai') !== 'full') return false;
-  askChoice(ctx, side, noneMessage, [{ id: 'no', label: declineLabel }], NOTHING_QUALIFIES_STEP);
+  askChoice(ctx, side, noneMessage, [{ id: 'no', label: declineLabel }], then?.step ?? NOTHING_QUALIFIES_STEP, then?.data);
   return true;
 }
 

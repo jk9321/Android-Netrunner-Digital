@@ -303,8 +303,14 @@ const ablativeBarrier: CardScript = {
       const { state } = ctx;
       if (threatLevel(state) < 3) return;
       const cards = installable(state, [...state.corp.hq, ...archivesCards(state)].filter(c => type(c) !== 'agenda'));
-      if (cards.length === 0) return;
-      askCards(ctx, 'corp', 'Ablative Barrier: you may install 1 non-agenda card from HQ or Archives in or protecting another server.', ids(cards), 0, 1, 'pick');
+      // Asked even with nothing to install when the Corp's stops are on ALL (4.3.2, 4.4.6c, see askEvenIfNone)
+      askEvenIfNone(
+        ctx,
+        'corp',
+        cards.length > 0,
+        () => askCards(ctx, 'corp', 'Ablative Barrier: you may install 1 non-agenda card from HQ or Archives in or protecting another server.', ids(cards), 0, 1, 'pick'),
+        'Ablative Barrier: no non-agenda card in HQ or Archives you can install.',
+      );
     },
   },
   onPromptAnswer: (ctx, source, answer) => {
@@ -436,8 +442,14 @@ const aTeia: CardScript = {
       const server = serverOf(state, e.card);
       if (!server?.isRemote || !useOncePerTurn(state, onceKey(ctx.card))) return;
       const cards = state.corp.hq.filter(c => type(c) !== 'operation' && aTeiaOptions(state, c, server.id).length > 0);
-      if (cards.length === 0) return;
-      askCards(ctx, 'corp', 'A Teia: you may install 1 card from HQ in or protecting another remote server, ignoring all costs.', ids(cards), 0, 1, 'pick', { from: server.id });
+      // Asked even with nothing to install when the Corp's stops are on ALL (4.3.2, see askEvenIfNone)
+      askEvenIfNone(
+        ctx,
+        'corp',
+        cards.length > 0,
+        () => askCards(ctx, 'corp', 'A Teia: you may install 1 card from HQ in or protecting another remote server, ignoring all costs.', ids(cards), 0, 1, 'pick', { from: server.id }),
+        'A Teia: no card in HQ you can install in another remote server.',
+      );
     },
   },
   onPromptAnswer: (ctx, source, answer) => {
@@ -517,7 +529,8 @@ const tatuBola: CardScript = {
   ice: {
     onPass: ctx => {
       const ice = ctx.state.corp.hq.filter(c => type(c) === 'ice');
-      if (ice.length > 0) askCards(ctx, 'corp', 'Tatu-Bola: you may swap it with a piece of ice from HQ and gain 4 [credit].', ids(ice), 0, 1, 'swap');
+      // Asked even with no ice in HQ when the Corp's stops are on ALL (4.3.2, see askEvenIfNone)
+      askEvenIfNone(ctx, 'corp', ice.length > 0, () => askCards(ctx, 'corp', 'Tatu-Bola: you may swap it with a piece of ice from HQ and gain 4 [credit].', ids(ice), 0, 1, 'swap'), 'Tatu-Bola: no ice in HQ to swap in.');
     },
     subroutines: [endTheRunSub],
   },
@@ -951,7 +964,9 @@ const pivot: CardScript = {
         revealInHand(state, 'corp', [card]);
       }
       const options = state.corp.hq.filter(c => playableFromHQ(state, c));
-      if (threatLevel(state) >= 3 && options.length > 0) askCards(ctx, 'corp', 'Pivot: you may play or install 1 card from HQ.', ids(options), 0, 1, 'use');
+      // Asked even with nothing playable when the Corp's stops are on ALL (4.3.2, see askEvenIfNone)
+      if (threatLevel(state) >= 3)
+        askEvenIfNone(ctx, 'corp', options.length > 0, () => askCards(ctx, 'corp', 'Pivot: you may play or install 1 card from HQ.', ids(options), 0, 1, 'use'), 'Pivot: no card in HQ you can play or install.');
     } else if (source.step === 'use') {
       const card = state.corp.hq.find(c => c.instanceId === picked(answer)[0]);
       if (!card) return;
@@ -1641,9 +1656,15 @@ const tributary: CardScript = {
 function tributaryInstall(ctx: EffectContext): void {
   const here = ctx.state.activeRun?.server;
   const ice = ctx.state.corp.hq.filter(c => type(c) === 'ice');
-  if (ice.length > 0 && Object.keys(ctx.state.corp.servers).some(id => id !== here)) {
-    askCards(ctx, 'corp', 'Tributary: you may install 1 piece of ice from HQ protecting another server, ignoring all costs.', ids(ice), 0, 1, 'pick');
-  }
+  if (!Object.keys(ctx.state.corp.servers).some(id => id !== here)) return;
+  // Asked even with no ice in HQ when the Corp's stops are on ALL (4.3.2, see askEvenIfNone)
+  askEvenIfNone(
+    ctx,
+    'corp',
+    ice.length > 0,
+    () => askCards(ctx, 'corp', 'Tributary: you may install 1 piece of ice from HQ protecting another server, ignoring all costs.', ids(ice), 0, 1, 'pick'),
+    'Tributary: no ice in HQ to install.',
+  );
 }
 
 // Bring Them Home (Terminal - Black Ops): Play only if the Runner stole or trashed a Corp card
@@ -1691,7 +1712,14 @@ const kingmaking: CardScript = {
     if (source.step === 'draw' && answer.kind === 'effect_choice') {
       drawForEffect(state, 'corp', Number(answer.optionId), 'Kingmaking');
       const small = state.corp.hq.filter(c => type(c) === 'agenda' && (cardDef(c).agenda_points ?? 0) <= 1);
-      if (small.length > 0) askCards(ctx, 'corp', 'Kingmaking: you may add 1 agenda worth 1 or less agenda points from HQ to your score area.', ids(small), 0, 1, 'add');
+      // Asked even with no such agenda in HQ when the Corp's stops are on ALL (4.3.2, see askEvenIfNone)
+      askEvenIfNone(
+        ctx,
+        'corp',
+        small.length > 0,
+        () => askCards(ctx, 'corp', 'Kingmaking: you may add 1 agenda worth 1 or less agenda points from HQ to your score area.', ids(small), 0, 1, 'add'),
+        'Kingmaking: no agenda worth 1 or less agenda points in HQ.',
+      );
     } else if (source.step === 'add') {
       const agenda = state.corp.hq.find(c => c.instanceId === picked(answer)[0]);
       if (!agenda) return;
@@ -1846,8 +1874,18 @@ const suddenCommandment: CardScript = {
     if (turnFlag(state, TurnFlag.mandatesPlayed) === 1) state.turnFlags[`sudden-first:${card.instanceId}`] = 1;
     drawForEffect(state, 'corp', 2, 'Sudden Commandment');
     const ops = state.corp.hq.filter(c => type(c) === 'operation' && !hasKeyword(c, 'terminal') && playableFromHQ(state, c));
-    if (ops.length > 0) askCards(ctx, 'corp', 'Sudden Commandment: you may play 1 non-terminal operation from HQ.', ids(ops), 0, 1, 'play');
-    else suddenThreat(ctx);
+    // Asked even with no operation to play when the Corp's stops are on ALL (4.3.2, see askEvenIfNone); the one answer
+    // goes on to the Threat question like a decline
+    const asked = askEvenIfNone(
+      ctx,
+      'corp',
+      ops.length > 0,
+      () => askCards(ctx, 'corp', 'Sudden Commandment: you may play 1 non-terminal operation from HQ.', ids(ops), 0, 1, 'play'),
+      'Sudden Commandment: no non-terminal operation in HQ you can play.',
+      'OK',
+      { step: 'play' },
+    );
+    if (!asked) suddenThreat(ctx);
   },
   onPromptAnswer: (ctx, source, answer) => {
     const { state } = ctx;
@@ -1930,7 +1968,14 @@ const eminentDomain: CardScript = {
         corpTrashFromHQ(state, [card.instanceId], true);
         addLog(state, 'corp', 'Corp revealed and trashed Eminent Domain from HQ.');
         const cards = state.corp.hq.filter(c => rezzable(c) && installAndRezOptions(state, c, 5).length > 0);
-        if (cards.length > 0) askCards(ctx, 'corp', 'Eminent Domain: install and rez 1 card from HQ, paying 5 [credit] less in total.', ids(cards), 0, 1, 'hq');
+        // Asked even with nothing to install and rez when the Corp's stops are on ALL (4.3.2, see askEvenIfNone)
+        askEvenIfNone(
+          ctx,
+          'corp',
+          cards.length > 0,
+          () => askCards(ctx, 'corp', 'Eminent Domain: install and rez 1 card from HQ, paying 5 [credit] less in total.', ids(cards), 0, 1, 'hq'),
+          'Eminent Domain: no card in HQ you can install and rez.',
+        );
       },
     },
   ],
@@ -2043,7 +2088,14 @@ const descent: CardScript = {
         addLog(state, 'corp', 'Corp revealed and trashed Descent from HQ.');
         drawForEffect(state, 'corp', 1, 'Descent');
         const agendas = [...state.corp.hq, ...archivesCards(state)].filter(c => type(c) === 'agenda');
-        if (agendas.length > 0) askCards(ctx, 'corp', 'Descent: reveal up to 2 agendas in HQ and/or Archives to shuffle into R&D.', ids(agendas), 0, 2, 'shuffle');
+        // Asked even with no agenda when the Corp's stops are on ALL (4.3.2, 4.4.6c, see askEvenIfNone)
+        askEvenIfNone(
+          ctx,
+          'corp',
+          agendas.length > 0,
+          () => askCards(ctx, 'corp', 'Descent: reveal up to 2 agendas in HQ and/or Archives to shuffle into R&D.', ids(agendas), 0, 2, 'shuffle'),
+          'Descent: no agenda in HQ or Archives.',
+        );
       },
     },
   ],

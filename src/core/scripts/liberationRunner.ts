@@ -31,7 +31,7 @@ import {
 import { addBreakerStrength, breakerStrength, bypassIce, encounteredIce, enterMovement, iceScript, iceStrength, iceSubroutines, iceSubtypes, markSubroutinesBroken } from '../engine/ice';
 import { rezForFree } from '../engine/actions/corp';
 import { CardScript, EffectAnswer, EffectContext } from './types';
-import { arrangeNext, arrangeTop, askCards, askChoice, askRunnerInstall, effectTrashableFirst, gainCredits, iceLabel, installableRunnerCards, installRunnerChoice, installRunnerHostChoice } from './effects';
+import { arrangeNext, arrangeTop, askCards, askChoice, askEvenIfNone, askRunnerInstall, effectTrashableFirst, gainCredits, iceLabel, installableRunnerCards, installRunnerChoice, installRunnerHostChoice } from './effects';
 import { returnInstalledToHQ } from './liberationCorp';
 
 /** Runner cards from Liberation: The Automata Initiative (34001-34030) and Rebellion Without Rehearsal (34066-34095). */
@@ -308,8 +308,18 @@ const mercury: CardScript = {
 const chrysopoeian: CardScript = {
   onPlay: ctx => {
     const agendas = ctx.state.corp.hq.filter(c => type(c) === 'agenda');
-    if (agendas.length > 0) askCards(ctx, 'corp', 'Chrysopoeian Skimming: you may reveal an agenda from HQ (the Runner gains [click] and draws 1).', ids(agendas), 0, 1, 'reveal');
-    else skimLook(ctx.state);
+    // The Corp is asked even with no agenda in HQ when its stops are on ALL (4.3.2, see askEvenIfNone); the one answer
+    // goes on to the look like a decline
+    const asked = askEvenIfNone(
+      ctx,
+      'corp',
+      agendas.length > 0,
+      () => askCards(ctx, 'corp', 'Chrysopoeian Skimming: you may reveal an agenda from HQ (the Runner gains [click] and draws 1).', ids(agendas), 0, 1, 'reveal'),
+      'Chrysopoeian Skimming: no agenda in HQ to reveal.',
+      'OK',
+      { step: 'reveal' },
+    );
+    if (!asked) skimLook(ctx.state);
   },
   onPromptAnswer: ({ state }, _source, answer) => {
     const agenda = state.corp.hq.find(c => c.instanceId === picked(answer)[0]);
@@ -750,7 +760,14 @@ const sebastiao: CardScript = {
     tags_taken: (ctx, e) => {
       if (ctx.state.runner.tags !== e.count) return; // had tags before
       const options = connectionsInGrip(ctx.state);
-      if (options.length > 0) askRunnerInstall(ctx, 'Sebastião Souza Pessoa: you may install 1 connection resource from your grip, paying 2 [credit] less.', ids(options), 0, 1, 'install');
+      // Asked even with no connection to install when the Runner's stops are on ALL (4.3.2, see askEvenIfNone)
+      askEvenIfNone(
+        ctx,
+        'runner',
+        options.length > 0,
+        () => askRunnerInstall(ctx, 'Sebastião Souza Pessoa: you may install 1 connection resource from your grip, paying 2 [credit] less.', ids(options), 0, 1, 'install'),
+        'Sebastião Souza Pessoa: no connection resource in your grip you can install.',
+      );
     },
   },
   modifiers: { resourceTrashHqCost: (_state, _self, resource) => (hasKeyword(resource, 'connection') ? 1 : 0) },
@@ -1038,8 +1055,18 @@ const meetingOfMinds: CardScript = {
     if (source.step === 'subtype' && answer.kind === 'effect_choice') {
       const kind = answer.optionId;
       const options = state.runner.stack.filter(c => type(c) === 'resource' && hasKeyword(c, kind));
-      if (options.length > 0) askCards(ctx, 'runner', `Meeting of Minds: you may search your stack for 1 ${kind} resource.`, ids(options), 0, 1, 'search', { kind });
-      else meetingReveal(ctx, kind);
+      // Asked even with no such resource in the stack when the Runner's stops are on ALL (4.2.2, see askEvenIfNone);
+      // the one answer goes on like a decline
+      const asked = askEvenIfNone(
+        ctx,
+        'runner',
+        options.length > 0,
+        () => askCards(ctx, 'runner', `Meeting of Minds: you may search your stack for 1 ${kind} resource.`, ids(options), 0, 1, 'search', { kind }),
+        `Meeting of Minds: no ${kind} resource in your stack.`,
+        'OK',
+        { step: 'search', data: { kind } },
+      );
+      if (!asked) meetingReveal(ctx, kind);
     } else if (source.step === 'search') {
       const card = state.runner.stack.find(c => c.instanceId === picked(answer)[0]);
       if (card) {
@@ -1061,7 +1088,14 @@ const meetingOfMinds: CardScript = {
 /** Meeting of Minds: reveal any number of grip cards of the chosen subtype, a credit each. */
 function meetingReveal(ctx: EffectContext, kind: string): void {
   const cards = ctx.state.runner.grip.filter(c => hasKeyword(c, kind));
-  if (cards.length > 0) askCards(ctx, 'runner', `Meeting of Minds: reveal any number of ${kind} cards in your grip, gaining 1 [credit] each.`, ids(cards), 0, cards.length, 'reveal');
+  // Asked even with no such card in the grip when the Runner's stops are on ALL (4.3.2, see askEvenIfNone)
+  askEvenIfNone(
+    ctx,
+    'runner',
+    cards.length > 0,
+    () => askCards(ctx, 'runner', `Meeting of Minds: reveal any number of ${kind} cards in your grip, gaining 1 [credit] each.`, ids(cards), 0, cards.length, 'reveal'),
+    `Meeting of Minds: no ${kind} card in your grip.`,
+  );
 }
 
 // Window of Opportunity (Run): You may install 1 program or piece of hardware from your grip. Run any
@@ -1070,8 +1104,18 @@ function meetingReveal(ctx: EffectContext, kind: string): void {
 const windowOfOpportunity: CardScript = {
   onPlay: ctx => {
     const options = installableRunnerCards(ctx.state, ctx.state.runner.grip.filter(c => type(c) === 'program' || type(c) === 'hardware'));
-    if (options.length > 0) askRunnerInstall(ctx, 'Window of Opportunity: you may install 1 program or piece of hardware from your grip.', ids(options), 0, 1, 'install');
-    else askServer(ctx, 'Window of Opportunity', allServers(ctx.state));
+    // Asked even with nothing to install when the Runner's stops are on ALL (4.3.2, see askEvenIfNone): the one answer
+    // goes on to the server choice like a decline
+    const asked = askEvenIfNone(
+      ctx,
+      'runner',
+      options.length > 0,
+      () => askRunnerInstall(ctx, 'Window of Opportunity: you may install 1 program or piece of hardware from your grip.', ids(options), 0, 1, 'install'),
+      'Window of Opportunity: no program or hardware in your grip you can install.',
+      'OK',
+      { step: 'install' },
+    );
+    if (!asked) askServer(ctx, 'Window of Opportunity', allServers(ctx.state));
   },
   triggers: {
     run_begins: (ctx, e) => {

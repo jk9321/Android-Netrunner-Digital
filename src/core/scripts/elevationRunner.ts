@@ -34,6 +34,7 @@ import {
   installRunnerHostChoice,
   installableRunnerCards,
   askRunnerInstall,
+  askEvenIfNone,
   sabotage,
   resolveSabotage,
 } from './effects';
@@ -113,8 +114,14 @@ const baz: CardScript = {
     rezzed: (ctx, e) => {
       if (cardDef(e.card).type_code !== 'ice') return;
       const targets = bazTargets(ctx.state);
-      if (targets.length === 0) return;
-      askCards(ctx, 'runner', 'Barry "Baz" Wong: you may install 1 resource or piece of hardware from your grip.', targets.map(c => c.instanceId), 0, 1, 'install');
+      // Asked even with nothing to install when the Runner's stops are on ALL (4.3.2, see askEvenIfNone)
+      askEvenIfNone(
+        ctx,
+        'runner',
+        targets.length > 0,
+        () => askCards(ctx, 'runner', 'Barry "Baz" Wong: you may install 1 resource or piece of hardware from your grip.', targets.map(c => c.instanceId), 0, 1, 'install'),
+        'Barry "Baz" Wong: no resource or hardware in your grip you can install.',
+      );
     },
   },
   onPromptAnswer: (ctx, _source, answer) => {
