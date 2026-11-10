@@ -678,7 +678,7 @@ export class HeuristicCorpAI implements Agent {
     if (def.type_code === 'agenda') {
       const need = (def.advancement_cost ?? 0) - card.advancementCounters;
       if (need <= 0) return this.synergy && this.overAdvance(state, card.instanceId) ? 6 + 1.5 * dividends(card) : -Infinity;
-      if (need <= corp.clicks && need <= corp.credits && plan().advanceFinish) return 40 + card.advancementCounters;
+      // (an advance this turn can finish ranked 40 + counters here; step 2 deleted it, off +0.6 ± 1.2 at games=3: counted scoring plays it)
       if (this.timing) {
         // Deck-aware AI: only if the rest of this turn leaves it scoreable next turn, behind ice we can still rez
         const spend = Math.min(corp.clicks, corp.credits) + this.untaianAdvance(state, 0);
