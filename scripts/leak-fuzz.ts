@@ -3,24 +3,28 @@
  * action that neither player's view (src/core/view.ts) holds anything that
  * side may not see. Checks in scripts/leak-check.ts.
  *
- *   npx vite-node scripts/leak-fuzz.ts -- [games] [seed] [ai|random|both] [--recon]
+ *   npx vite-node scripts/leak-fuzz.ts -- [games] [seed] [ai|random|both] [--recon] [--twin]
  *
  * Games walk the deck pairings like same-seed.ts, over every test deck
  * (starters, NSG samples, NRDB lists, one per identity). 'both' alternates AI
  * self-play (the shipped normal AI) and random legal moves. SHARD=i/n plays
  * every n-th game starting at i; SEEDS=a,b plays only those seeds. Prints one line per game and every failure
  * with its step, viewer, check and the JSON path where it appeared; exits 1
- * on any failure.
+ * on any failure. --twin plays random games with both stops at 'full' and
+ * adds the twin-state check (scripts/leak-check-twin.ts) after every action.
  */
 import { ALL_DECKS } from './nsg-sample-decks';
 import { NRDB_TEST_DECKS } from '../src/data/testDecks/nrdb';
 import { IDENTITY_TEST_DECKS } from '../src/data/testDecks/identityDecks';
 import { fuzzGame } from './leak-check';
+import { fuzzTwinGame, newTwinStats } from './leak-check-twin';
 
 const args = process.argv.slice(2).filter(a => a !== '--');
 // --recon adds the chunk 2 checks (the screen's reconstructions and seats, leak-check-recon.ts)
 const recon = args.includes('--recon');
-const [gamesArg, seedArg, playersArg] = args.filter(a => a !== '--recon');
+// --twin: random players, stops 'full', twin-state shape check (leak-check-twin.ts)
+const twin = args.includes('--twin');
+const [gamesArg, seedArg, playersArg] = args.filter(a => a !== '--recon' && a !== '--twin');
 const games = Number(gamesArg ?? 20);
 const seed0 = Number(seedArg ?? 9000);
 const mode = (playersArg ?? 'both') as 'ai' | 'random' | 'both';
@@ -36,12 +40,14 @@ let steps = 0;
 let probes = 0;
 let shapes = 0;
 let disagreements = 0;
+const twins = newTwinStats();
 for (let g = 0; g < games; g++) {
   if (g % shards !== shard || (only.length > 0 && !only.includes(seed0 + g))) continue;
   const c = corps[(g * 7) % corps.length];
   const r = runners[(g * 5 + 3) % runners.length];
-  const players = mode === 'both' ? (g % 2 === 0 ? 'ai' : 'random') : mode;
-  const res = fuzzGame(seed0 + g, c, r, players, players === 'ai' ? 4000 : 1500, recon);
+  const players = twin ? 'random' : mode === 'both' ? (g % 2 === 0 ? 'ai' : 'random') : mode;
+  const res = twin ? fuzzTwinGame(seed0 + g, c, r, 1500, recon) : fuzzGame(seed0 + g, c, r, players, players === 'ai' ? 4000 : 1500, recon);
+  if ('twin' in res) for (const k of Object.keys(twins) as (keyof typeof twins)[]) twins[k] += res.twin[k];
   steps += res.steps;
   probes += res.stats.probes;
   shapes += res.stats.uiShapes;
@@ -52,5 +58,6 @@ for (let g = 0; g < games; g++) {
   if (res.failures.length) failed++;
 }
 console.log(`${failed} of ${Math.ceil((games - shard) / shards)} games failed; ${steps} steps checked`);
+if (twin) console.log(`twin: ${twins.built} pairs built, ${twins.compared} compared, ${twins.revealed} skipped as revealed, ${twins.illegal} skipped as illegal in the twin`);
 if (recon) console.log(`recon: ${shapes} screen actions compared, ${probes} own-side probes, ${disagreements} probe disagreements`);
 process.exit(failed ? 1 : 0);

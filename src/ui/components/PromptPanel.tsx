@@ -337,6 +337,23 @@ export const PromptPanel: React.FC<PromptPanelProps> = ({ state, onAnswer, onIns
             promptId: prompt.id,
             choice: { kind: 'access_trash', trash: true },
           });
+          // Nothing to decide (with stops on ALL every R&D access stops here, rules 4.2.2, 7.1.2): the card and Continue
+          const justLooking = prompt.trashCost === null && (prompt.alternatives ?? []).length === 0;
+          if (justLooking) {
+            return (
+              <>
+                <div className="flex items-center gap-4 mb-4">
+                  {card && <CardView card={card} size="md" typeIcons onInspect={onInspectCard} />}
+                  {card && <div className="text-xs font-bold text-slate-100">{cardDef(card).title}</div>}
+                </div>
+                <div className="flex gap-2 justify-end">
+                  <button className={`${button} bg-slate-800 hover:bg-slate-700 border-slate-600 text-slate-200`} onClick={() => answer({ kind: 'access_trash', trash: false })}>
+                    Continue
+                  </button>
+                </div>
+              </>
+            );
+          }
           return (
             <>
               <div className="flex items-center gap-4 mb-4">

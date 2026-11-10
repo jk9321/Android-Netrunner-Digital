@@ -295,6 +295,23 @@ describe('The Automata Initiative: Criminal', () => {
     expect(s.corp.hq.map(c => c.instanceId)).toContain(nico);
   });
 
+  // Rules 9.2.8d: the Corp's Send a Message (active player first) resolves fully before Hermes, so the ice
+  // it rezzes is no longer a choice for Hermes (Jeff's playtest report)
+  it('Hermes chooses among the cards still unrezzed when it resolves, after Send a Message', () => {
+    let s = newGame();
+    rig(s, L.hermes, 'hardware');
+    const ice = installIceForTest(s, SG.palisade, 'hq', false);
+    const nico = installCorpForTest(s, SG.nico, 'remote-1');
+    s = scoreForTest(s, '30069'); // Send a Message
+    expect(s.pendingPrompts.map(p => p.side)).toEqual(['corp', 'runner']);
+    s = pick(s, [ice]); // the Corp rezzes Palisade
+    const hermes = s.pendingPrompts[0];
+    expect(hermes.kind === 'effect_cards' && hermes.candidateIds).toEqual([nico]);
+    expect(isLegalAction(s, { type: 'RESOLVE_PROMPT', player: 'runner', promptId: hermes.id, choice: { kind: 'effect_cards', cardInstanceIds: [ice] } })).toBe(false);
+    s = pick(s, [nico]);
+    expect(s.corp.hq.map(c => c.instanceId)).toContain(nico);
+  });
+
   it('Curupira collects power counters by fully breaking ice and spends 3 to bypass a barrier', () => {
     let s = newGame();
     installIceForTest(s, SG.palisade, 'archives');
