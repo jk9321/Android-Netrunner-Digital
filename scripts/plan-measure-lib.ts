@@ -13,10 +13,9 @@
  *  - M1: labelTurn() gives each Corp turn one plan shape; commitments() / followUp() find intent flips.
  *  - M2: scoreThisTurn() (an exact engine search, plan.winNow's own) and scoreInTwo() (counting only).
  */
-import { CardInstance, GameAction, GameState, actingSide, cardDef, createInitialGameState, executeAction, findCardAnywhere, installedIcebreakers, rezCostOf } from '../src/core';
+import { CardInstance, GameAction, GameState, actingSide, cardDef, createInitialGameState, executeAction, findCardAnywhere, installedIcebreakers } from '../src/core';
 import { deckGameSetup } from '../src/data/decks';
-import { winNowAction } from '../src/ai/winNow';
-import { iceCreditNeed } from '../src/ai/runs';
+import { isCorpMain, scoreThisTurn } from '../src/ai/countedScore';
 import type { GameConfig } from '../src/ui/savedGame';
 
 // ---------------------------------------------------------------------------------------------------------------- turns
@@ -43,8 +42,6 @@ export interface ReplayedGame {
   winner: string | null;
 }
 
-const isCorpMain = (s: GameState) =>
-  s.activePlayer === 'corp' && !s.activeRun && s.pendingPrompts.length === 0 && !s.turnStep && !(s.priority && s.priority.holder !== 'corp') && !s.winner;
 
 /**
  * Replays a game from its seed, decks and moves (as scripts/replay-report.ts does) and cuts it into Corp turns. AI games
@@ -95,7 +92,6 @@ export function replayGame(report: { config: ReplayedGame['config']; moves: Game
 const typeOf = (c: CardInstance | undefined) => (c ? cardDef(c).type_code : undefined);
 export const isAgenda = (c: CardInstance | undefined) => typeOf(c) === 'agenda';
 const idOf = (a: GameAction) => (a as { cardInstanceId?: string }).cardInstanceId;
-const remotes = (s: GameState) => Object.values(s.corp.servers).filter(v => v.isRemote);
 export const serverOf = (s: GameState, id: string): string | undefined => Object.values(s.corp.servers).find(v => v.root.some(c => c.instanceId === id) || v.ice.some(c => c.instanceId === id))?.id;
 const isCentral = (id: string | undefined) => id === 'hq' || id === 'rd' || id === 'archives';
 const installedAgendas = (s: GameState) => Object.values(s.corp.servers).flatMap(v => v.root.filter(isAgenda).map(c => ({ card: c, server: v.id })));
@@ -334,158 +330,9 @@ export function cheaperDraw(c: Commitment, t: CorpTurn, next: CorpTurn): boolean
 
 // ---------------------------------------------------------------------------------------------------------------- M2
 
-export interface ThisTurn {
-  feasible: boolean;
-  /** The line found (plan.winNow's search): its actions, and whether it used a card ability or an operation. */
-  line: GameAction[];
-  usedCard: boolean;
-  agenda?: string;
-  agendaId?: string;
-}
-
-/**
- * Can the Corp score an agenda this turn with the clicks and credits it has (rules 1.17.3a-c: scored once its
- * advancement counters reach the requirement, not an action, no click; 5.2.6f / 1.18.1: [click], 1[credit]: advance 1
- * installed card)? The exact search of plan.winNow (src/ai/winNow.ts, called unchanged): with the Corp's score set to 6
- * on a copy, a line that scores any agenda wins (1.17.2), so its win search becomes a score search. It plays only the
- * Corp's own turn and cuts every line that changes R&D. Blind spot: cards whose text reads the Corp's score.
- */
-export function scoreThisTurn(state: GameState): ThisTurn {
-  if (!isCorpMain(state) || state.corp.clicks <= 0) return { feasible: false, line: [], usedCard: false };
-  const agendas = [...state.corp.hq.filter(isAgenda), ...installedAgendas(state).map(a => a.card)];
-  if (!agendas.length) return { feasible: false, line: [], usedCard: false };
-  // The engine adds the agenda's points to the score (actions/corp.ts), so from 6 any 1-point agenda wins
-  let s: GameState = structuredClone(state);
-  s.corp.score = 6;
-  const line: GameAction[] = [];
-  for (let i = 0; i < 20 && !s.winner; i++) {
-    const a = winNowAction(s);
-    if (!a) break;
-    line.push(a);
-    s = executeAction(s, a);
-  }
-  // A win some other way (a flatline, points added without scoring: 1.17.3e) is not a score line
-  const scored = s.winner === 'corp' ? s.corp.scoreArea.find(c => isAgenda(c) && !state.corp.scoreArea.some(x => x.instanceId === c.instanceId)) : undefined;
-  const won = !!scored;
-  return { feasible: won, line: won ? line : [], usedCard: won && line.some(a => a.type === 'USE_ABILITY' || a.type === 'PLAY_OPERATION_OR_EVENT'), agenda: scored ? cardDef(scored).title : undefined, agendaId: scored?.instanceId };
-}
-
-/** Credits the Corp can count on next turn: rezzed cards whose text pays it as its turn begins. */
-export function knownIncome(state: GameState): number {
-  let n = 0;
-  for (const c of Object.values(state.corp.servers).flatMap(v => v.root)) {
-    if (!c.isRezzed) continue;
-    const m = /when your turn begins, (?:you may )?(?:take|gain) (\d+)\s*\[credit\]/i.exec(text(c));
-    if (m) n += Number(m[1]);
-  }
-  return n;
-}
-
-/** Sensitivity knob for the report: extra credits granted to the Runner's run (an economy event from the grip it may hold). */
-export const CHECK = { runnerExtra: 0 };
-
-/** The Runner's budget for one run on its next turn, from public facts: its credits, and every click but the run's spent on credits (5.2.7a). */
-export const runnerBudget = (s: GameState) => s.runner.credits + Math.max(0, s.runner.maxClicks - 1) + CHECK.runnerExtra;
-
-/**
- * The cheapest rez spend that keeps the Runner out of a server with these ice, or null when no affordable set does. The
- * Corp rezzes ice as it is approached (rules 3.4.3a, 6.9.2b); unrezzed ice is passed (6.9.2c). With a set S rezzed, the
- * Runner needs the sum of iceCreditNeed (runs.ts: the credits to break the ice's run-ending subroutines with its
- * installed breakers, the engine's breaker scripts; BLOCK when none can) over S, against runnerBudget. Capability, not
- * our Runner AI's choice.
- */
-export function holdCost(state: GameState, ice: CardInstance[], corpCredits: number): number | null {
-  const budget = runnerBudget(state);
-  // The Runner's turn: its clicks back (a bioroid broken by clicks, runs.ts plainCreditNeed), one kept for the run
-  const view: GameState = { ...state, runner: { ...state.runner, clicks: Math.max(0, state.runner.maxClicks - 1) } };
-  const n = Math.min(ice.length, 10);
-  let best: number | null = null;
-  for (let mask = 0; mask < 1 << n; mask++) {
-    let rez = 0;
-    let need = 0;
-    for (let i = 0; i < n; i++) {
-      const c = ice[i];
-      const on = !!(mask & (1 << i));
-      if (c.isRezzed && on) {
-        rez = Infinity; // each set once: a rezzed ice's bit stays clear
-        break;
-      }
-      if (!c.isRezzed && !on) continue;
-      if (!c.isRezzed) rez += rezCostOf(view, c);
-      const up = c.isRezzed ? c : { ...c, isRezzed: true };
-      need += iceCreditNeed(withIce(view, up), up);
-    }
-    if (rez <= corpCredits && need > budget && (best === null || rez < best)) best = rez;
-  }
-  return best;
-}
-
-/** A copy-free view with this one ice standing in for its unrezzed self (iceCreditNeed reads the board for strength). */
-function withIce(state: GameState, ice: CardInstance): GameState {
-  const server = Object.values(state.corp.servers).find(v => v.ice.some(c => c.instanceId === ice.instanceId));
-  if (!server) return state;
-  return { ...state, corp: { ...state.corp, servers: { ...state.corp.servers, [server.id]: { ...server, ice: server.ice.map(c => (c.instanceId === ice.instanceId ? ice : c)) } } } };
-}
-
-export interface TwoTurnLine {
-  agenda: string;
-  agendaId: string;
-  server: string;
-  /** 'installed' | 'install' (from HQ into an iced remote) | 'install+ice' (with an ice from HQ in front) */
-  form: 'installed' | 'install' | 'install+ice';
-  advanceNow: number;
-  advanceNext: number;
-  rez: number;
-}
-
-/**
- * Can the Corp score an agenda by the end of its next turn, by counting only (spec M2 "feasible in two turns")? This
- * turn: (install it and) advance it a times, the rest of the clicks for credits (5.2.6a); next turn advance the rest
- * (1.18.1, 5.2.6f) and score (1.17.3a-c). In between, the server must hold through the Runner's turn: holdCost finds a
- * rez set it can afford with what it ends the turn with. Next turn's credits: what is left after that rez, its known
- * income and any clicks spare. Agendas only go in a remote with no agenda or asset in its root (a new one only with an
- * ice from HQ in front: 8.5.11a, 1 credit per ice already protecting it). No card abilities: those are the blind spot.
- */
-export function scoreInTwo(state: GameState): TwoTurnLine | null {
-  if (!isCorpMain(state)) return null;
-  const C = state.corp.clicks;
-  const N = state.corp.maxClicks + (state.corp.bonusClicksNextTurn ?? 0);
-  const K = state.corp.credits;
-  const income = knownIncome(state);
-  const hqIce = state.corp.hq.filter(c => typeOf(c) === 'ice');
-  const open = remotes(state).filter(v => !v.root.some(c => isAgenda(c) || typeOf(c) === 'asset'));
-  type Try = { agenda: CardInstance; server: string; ice: CardInstance[]; clicks: number; credits: number; form: TwoTurnLine['form'] };
-  const tries: Try[] = [];
-  for (const a of installedAgendas(state)) tries.push({ agenda: a.card, server: a.server, ice: state.corp.servers[a.server].ice, clicks: 0, credits: 0, form: 'installed' });
-  for (const agenda of state.corp.hq.filter(isAgenda)) {
-    for (const v of open) {
-      if (v.ice.length) tries.push({ agenda, server: v.id, ice: v.ice, clicks: 1, credits: 0, form: 'install' });
-      for (const ice of uniqueByCode(hqIce)) tries.push({ agenda, server: v.id, ice: [...v.ice, ice], clicks: 2, credits: v.ice.length, form: 'install+ice' });
-    }
-    for (const ice of uniqueByCode(hqIce)) tries.push({ agenda, server: 'new remote', ice: [ice], clicks: 2, credits: 0, form: 'install+ice' });
-  }
-  let best: TwoTurnLine | null = null;
-  for (const t of tries) {
-    const left = (cardDef(t.agenda).advancement_cost ?? 0) - t.agenda.advancementCounters;
-    if (left <= 0) continue; // scorable now: the this-turn check's case
-    for (let a = 0; a <= Math.min(left - 1, C - t.clicks); a++) {
-      const r = left - a;
-      if (r > N) continue;
-      const end = K - t.credits - a + (C - t.clicks - a);
-      if (end < 0) continue;
-      const rez = holdCost(state, t.ice, end);
-      if (rez === null) continue;
-      const nextCredits = end - rez + income + (N - r);
-      if (nextCredits < r) continue;
-      const line: TwoTurnLine = { agenda: cardDef(t.agenda).title, agendaId: t.agenda.instanceId, server: t.server, form: t.form, advanceNow: a, advanceNext: r, rez };
-      if (!best || r < best.advanceNext) best = line;
-      break;
-    }
-  }
-  return best;
-}
-
-const uniqueByCode = (cards: CardInstance[]) => [...new Map(cards.map(c => [c.cardCode, c])).values()];
+// Moved to src/ai/countedScore.ts for stage 0b (spec-stage0b.md): the AI's instruments use the same check
+export { CHECK, holdCost, knownIncome, runnerBudget, scoreInTwo, scoreThisTurn } from '../src/ai/countedScore';
+export type { ThisTurn, TwoTurnLine } from '../src/ai/countedScore';
 
 /** Agendas the counting cannot cost: a requirement missing, or text that changes a requirement or places counters. */
 export const uncostable = (c: CardInstance) => isAgenda(c) && (cardDef(c).advancement_cost == null || /advancement requirement/i.test(text(c)));

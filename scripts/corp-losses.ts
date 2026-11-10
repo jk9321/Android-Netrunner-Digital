@@ -18,6 +18,7 @@ import { valueLoops } from '../src/ai/valueModel';
 import { applyPlanOff, tuning } from '../src/ai/synergy';
 import { batchTokens, placeOracleIce } from './oracle-ice';
 import { withOracleMoney } from './oracle-money';
+import { measuring, startMeasure, stage0bMeasure } from './score-ceiling-measure';
 
 const [gamesArg, levelArg] = process.argv.slice(2).filter(a => a !== '--');
 const games = Number(gamesArg ?? 1);
@@ -78,10 +79,14 @@ for (const c of corpDecks) {
       try {
         const start = createInitialGameState(deckGameSetup(seed, c, r));
         const iced = iceOracle ? placeOracleIce(start, iceOracle) : undefined;
-        const record = playLogged(start, { corp: agent('corp'), runner: agent('runner') }, { corp: c.name, runner: r.name }, moneyOracle ? s => withOracleMoney(s) : undefined);
+        const agents = { corp: agent('corp'), runner: agent('runner') };
+        // Stage 0b (spec-stage0b.md): a batch naming oracle.countedScore or oracle.centralsLight also records the moves
+        if (measuring) startMeasure(agents);
+        const record = playLogged(start, agents, { corp: c.name, runner: r.name }, moneyOracle ? s => withOracleMoney(s) : undefined);
         // Value loops met in the game (valueModel.ts guardLoop): played on with flat values, listed in the summary to fix
         // ORACLE_ICE: every game names the setup; one whose R&D held no ice played without it (counted in the summary)
-        const tagged = iceOracle ? { ...record, seed, oracleIce: iceOracle, oracleIceSkipped: iced === false } : { ...record, seed };
+        const tagged0 = iceOracle ? { ...record, seed, oracleIce: iceOracle, oracleIceSkipped: iced === false } : { ...record, seed };
+        const tagged = measuring ? { ...tagged0, stage0b: stage0bMeasure(seed, c, r) } : tagged0;
         records.push(valueLoops.size ? { ...tagged, loops: Object.fromEntries(valueLoops) } : tagged);
       } catch (err) {
         // A crashed game is listed in the summary, not dropped silently

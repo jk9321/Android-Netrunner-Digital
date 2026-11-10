@@ -57,6 +57,10 @@ const OFF_SWITCHES: Record<string, string> = {
   'oracle.rd': 'measurement oracle, never a default',
   'oracle.think': 'measurement oracle (decision-quality ceiling), never a default',
   'oracle.gripThreat': 'measurement oracle (Phase 2 K0: grip in the threat and search deals only), never a default',
+  // Corp redesign stage 0b (spec-stage0b.md): instruments that size the scoring ceiling, src/ai/countedScore.ts
+  'oracle.countedScore': 'stage 0b instrument I1 (play every counted score the check finds), measurement only, never a default',
+  'oracle.countedStrict': 'stage 0b instrument I1, strict setting (lines must hold with the Runner on +4 credits), measurement only, never a default',
+  'oracle.centralsLight': 'stage 0b instrument I2 (no central ice past the first piece without a recent successful run), measurement only, never a default',
   reach: 'Phase 2 K1: +0.3 +/- 0.7 at 10 games (run 42549985741) but stayed broke +1.5 +/- 0.7, over the 2 SE line',
   reachStrength: 'Phase 2 K2: -0.9 +/- 1.4 at 3 games (run 42538399856), opening unchanged',
   threatKeyPricing: 'Phase 2 K4b: threat key without the pricing context; moved 4 of 221 deals (run 42537621348)',

@@ -61,14 +61,16 @@ describe('M2 score this turn (exact search, rules 1.17.3a-c, 5.2.6f)', () => {
     expect(r.usedCard).toBe(false);
   });
 
-  it('blind spot, pinned: a line whose placing card resolves in a prompt is not found (winNow canStillWin prunes it)', () => {
-    // Seamless Launch onto an installed Above the Law (0 counters), then one advance: 2 clicks, 2 credits, scores. While
-    // Seamless Launch's target prompt is open the card has left HQ and its 2 counters are not placed yet, so winNow's
-    // upper bound (canStillWin) reads 3 advancements against 1 click and cuts the line. Counted in the report's blind spots.
+  it('a line whose placing card resolves in a prompt is found (winNow canStillWin no longer cuts at an open Corp prompt)', () => {
+    // Seamless Launch onto an installed Above the Law (0 counters), then one advance: 2 clicks, 2 credits, scores
+    // (1.17.3a: scored at its requirement; 1.17.2: the win search). While Seamless Launch's target prompt is open the card
+    // has left HQ and its 2 counters are not placed yet; the bound used to read 3 advancements against 1 click and cut it.
     const s = corpMain(5, 2);
     installCorpForTest(s, ABOVE_THE_LAW, 'remote-1');
     giveCard(s, 'corp', SEAMLESS_LAUNCH);
-    expect(scoreThisTurn(s).feasible).toBe(false);
+    const r = scoreThisTurn(s);
+    expect(r.feasible).toBe(true);
+    expect(r.usedCard).toBe(true);
   });
 
   it('credits count too: 3 clicks for an installed 3-advancement agenda but only 2 credits', () => {
