@@ -1,7 +1,8 @@
-import { CardInstance, GameAction, GameState, activePrompt, cardDef, executeAction, getLegalActions, rezCostOf } from '../core';
+import { CardInstance, GameAction, GameState, activePrompt, cardDef, executeAction, getLegalActions, isLegalAction, rezCostOf } from '../core';
 import { winNowAction } from './winNow';
 import { iceCreditNeed } from './runs';
 import { plan } from './pricing';
+import { withIceInstalled } from './iceValues';
 
 /**
  * Counted scores (Corp redesign stage 0, /mnt/project-files/netrunner-ai/redesign/spec-stage0.md M2; moved here from
@@ -151,15 +152,22 @@ export function scoreInTwo(state: GameState): TwoTurnLine | null {
   const income = knownIncome(state);
   const hqIce = state.corp.hq.filter(c => typeOf(c) === 'ice');
   const open = remotes(state).filter(v => !v.root.some(c => isAgenda(c) || typeOf(c) === 'asset'));
-  type Try = { agenda: CardInstance; server: string; ice: CardInstance[]; clicks: number; credits: number; form: TwoTurnLine['form']; iceId?: string };
+  // view: the board with the new ice in place, so holdCost reads its strength there (a remote's bonus: Palisade +2)
+  type Try = { agenda: CardInstance; server: string; ice: CardInstance[]; clicks: number; credits: number; form: TwoTurnLine['form']; iceId?: string; view: GameState };
   const tries: Try[] = [];
-  for (const a of installedAgendas(state)) tries.push({ agenda: a.card, server: a.server, ice: state.corp.servers[a.server].ice, clicks: 0, credits: 0, form: 'installed' });
+  for (const a of installedAgendas(state)) tries.push({ agenda: a.card, server: a.server, ice: state.corp.servers[a.server].ice, clicks: 0, credits: 0, form: 'installed', view: state });
   for (const agenda of state.corp.hq.filter(isAgenda)) {
     for (const v of open) {
-      if (v.ice.length) tries.push({ agenda, server: v.id, ice: v.ice, clicks: 1, credits: 0, form: 'install' });
-      for (const ice of uniqueByCode(hqIce)) tries.push({ agenda, server: v.id, ice: [...v.ice, ice], clicks: 2, credits: v.ice.length, form: 'install+ice', iceId: ice.instanceId });
+      if (v.ice.length) tries.push({ agenda, server: v.id, ice: v.ice, clicks: 1, credits: 0, form: 'install', view: state });
+      for (const ice of uniqueByCode(hqIce)) {
+        const view = withIceInstalled(state, ice, v);
+        tries.push({ agenda, server: v.id, ice: view.corp.servers[v.id].ice, clicks: 2, credits: v.ice.length, form: 'install+ice', iceId: ice.instanceId, view });
+      }
     }
-    for (const ice of uniqueByCode(hqIce)) tries.push({ agenda, server: 'new remote', ice: [ice], clicks: 2, credits: 0, form: 'install+ice', iceId: ice.instanceId });
+    for (const ice of uniqueByCode(hqIce)) {
+      const view = withIceInstalled(state, ice, null);
+      tries.push({ agenda, server: 'new remote', ice: view.corp.servers['remote-placed'].ice, clicks: 2, credits: 0, form: 'install+ice', iceId: ice.instanceId, view });
+    }
   }
   let best: TwoTurnLine | null = null;
   for (const t of tries) {
@@ -170,7 +178,7 @@ export function scoreInTwo(state: GameState): TwoTurnLine | null {
       if (r > N) continue;
       const end = K - t.credits - a + (C - t.clicks - a);
       if (end < 0) continue;
-      const rez = holdCost(state, t.ice, end);
+      const rez = holdCost(t.view, t.ice, end);
       if (rez === null) continue;
       const nextCredits = end - rez + income + (N - r);
       if (nextCredits < r) continue;
@@ -401,4 +409,114 @@ function noteNextTurn(state: GameState) {
       l.next = now.feasible && now.agendaId === l.agendaId ? 'scorable' : 'dropped';
     }
   }
+}
+
+// ------------------------------------------------------------------------------------------- plan.scoreInTwo (C2)
+
+/**
+ * A two-turn line the Corp holds (counted scoring C2): kept in the Corp agent's own memory (corpAI.ts heldLine), keyed
+ * by game id, re-checked at every decision.
+ */
+export interface HeldLine {
+  game: string;
+  /** The Corp turn (state.turnNumber) the line began on. */
+  turn: number;
+  line: TwoTurnLine;
+  /** The server once known (a new remote's id after its ice goes in). */
+  server: string | null;
+  /** Counters on the agenda when the line began (0 for an agenda from HQ). */
+  counters: number;
+}
+
+/** Diagnostics for plan.scoreInTwo (scripts read them): lines begun, steps played over the Corp's pick, picks vetoed, lines dropped, scored. */
+export const scoreInTwoStats = { begun: 0, steps: 0, vetoed: 0, dropped: 0, finished: 0 };
+
+const legalShape = (state: GameState, want: Record<string, unknown>) => getLegalActions(state, 'corp').find(a => sameAction(a, want));
+
+/** The held line's next step on the turn it began: ice, agenda, the advances now; null when only spare clicks remain; 'drop' when it can't go on. */
+function startTurnStep(state: GameState, held: HeldLine): GameAction | null | 'drop' {
+  const { line } = held;
+  const id = line.agendaId;
+  if (held.server === null && line.server !== 'new remote') held.server = line.server;
+  if (held.server === null && line.iceId) held.server = serverOf(state, line.iceId) ?? null;
+  if (state.corp.hq.some(c => c.instanceId === id)) {
+    if (line.form === 'install+ice' && line.iceId && state.corp.hq.some(c => c.instanceId === line.iceId))
+      return legalShape(state, held.server ? { type: 'INSTALL_CARD', cardInstanceId: line.iceId, targetServerId: held.server } : { type: 'INSTALL_CARD', cardInstanceId: line.iceId, asNewRemote: true }) ?? 'drop';
+    if (!held.server) return 'drop';
+    return legalShape(state, { type: 'INSTALL_CARD', cardInstanceId: id, targetServerId: held.server }) ?? 'drop';
+  }
+  const at = installedAgendas(state).find(a => a.card.instanceId === id);
+  if (!at) return 'drop';
+  if (at.card.advancementCounters - held.counters < line.advanceNow) return legalShape(state, { type: 'ADVANCE_CARD', cardInstanceId: id }) ?? 'drop';
+  return null;
+}
+
+/** On a later turn: score the agenda once its counters reach the requirement (1.17.3a), advance it while the turn can finish it (5.2.6f); 'drop' otherwise. */
+function finishTurnStep(state: GameState, held: HeldLine): GameAction | 'drop' {
+  const at = installedAgendas(state).find(a => a.card.instanceId === held.line.agendaId);
+  if (!at) return 'drop';
+  const left = (cardDef(at.card).advancement_cost ?? 0) - at.card.advancementCounters;
+  if (left <= 0) return legalShape(state, { type: 'SCORE_AGENDA', cardInstanceId: at.card.instanceId }) ?? 'drop';
+  if (left > state.corp.clicks || left > state.corp.credits) return 'drop';
+  return legalShape(state, { type: 'ADVANCE_CARD', cardInstanceId: at.card.instanceId }) ?? 'drop';
+}
+
+/**
+ * plan.scoreInTwo (counted scoring C2; stage 0b's two-turn half measured +3.0 ± 1.8): called with the Corp's own pick at
+ * a main-phase decision and the line it holds. A held line is re-checked every decision and continued while the count
+ * still holds (dropped otherwise); with none held, scoreInTwo may begin one. On the line's first turn its steps are
+ * played (ice from HQ, the agenda, the advances now), and the spare clicks follow the Corp's pick only while the line
+ * still holds after it (lineHolds: the rez money the line keeps for the Runner's turn stays; a click for a credit
+ * otherwise). On a later turn the agenda is advanced and scored (1.17.3a-c, 1.18.1, 5.2.6f). The hold is judged by
+ * capability against the Runner's credits as they stand plus its clicks' credits (holdCost; 3.4.3a, 6.9.2b-c).
+ */
+export function scoreInTwoPick(state: GameState, pick: GameAction, held: HeldLine | null): { action: GameAction; held: HeldLine | null } {
+  if (!plan().scoreInTwo || !isCorpMain(state) || state.corp.clicks <= 0) return { action: pick, held: held && held.game === state.id ? held : null };
+  let h = held && held.game === state.id && held.turn <= state.turnNumber ? held : null;
+  if (h && h.turn < state.turnNumber) {
+    const step = finishTurnStep(state, h);
+    if (step === 'drop') {
+      scoreInTwoStats.dropped++;
+      h = null;
+    } else {
+      if (step.type === 'SCORE_AGENDA') {
+        scoreInTwoStats.finished++;
+        return { action: step, held: null };
+      }
+      if (!sameAction(pick, step as unknown as Record<string, unknown>)) scoreInTwoStats.steps++;
+      return { action: step, held: h };
+    }
+  }
+  if (h && h.turn === state.turnNumber && !state.corp.hq.some(c => c.instanceId === h!.line.agendaId) && !lineHolds(state, h.line.agendaId)) {
+    scoreInTwoStats.dropped++;
+    h = null;
+  }
+  if (!h) {
+    const line = scoreInTwo(state);
+    if (!line) return { action: pick, held: null };
+    const card = installedAgendas(state).find(a => a.card.instanceId === line.agendaId)?.card;
+    h = { game: state.id, turn: state.turnNumber, line, server: line.server === 'new remote' ? null : line.server, counters: card?.advancementCounters ?? 0 };
+    scoreInTwoStats.begun++;
+  }
+  const step = startTurnStep(state, h);
+  if (step === 'drop') {
+    scoreInTwoStats.dropped++;
+    return { action: pick, held: null };
+  }
+  if (step) {
+    if (!sameAction(pick, step as unknown as Record<string, unknown>)) scoreInTwoStats.steps++;
+    return { action: step, held: h };
+  }
+  // The spare clicks: the Corp's pick while the line still holds after it (an illegal pick is the engine's to refuse)
+  if (lineHolds(spareAfter(state, pick), h.line.agendaId)) return { action: pick, held: h };
+  const credit = legalShape(state, { type: 'GAIN_CREDIT' });
+  if (!credit) return { action: pick, held: h };
+  scoreInTwoStats.vetoed++;
+  return { action: credit, held: h };
+}
+
+/** The state after the Corp's pick, for the hold check; a pick the engine refuses leaves the state as it is. */
+function spareAfter(state: GameState, pick: GameAction): GameState {
+  if (!isLegalAction(state, pick)) return state;
+  return executeAction(state, pick);
 }

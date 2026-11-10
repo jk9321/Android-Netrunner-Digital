@@ -30,7 +30,7 @@ import { counterWorth } from './counterValues';
 import { plan, pricing, withPricing } from './pricing';
 import { setupOperation } from './cards';
 // Last: its imports (winNow, runs, pricing) are loaded by then, so the AI modules' load order is unchanged (oracle.ts)
-import { oracleCorpPick } from './countedScore';
+import { HeldLine, oracleCorpPick, scoreInTwoPick } from './countedScore';
 
 
 const type = (card: CardInstance) => cardDef(card).type_code;
@@ -112,6 +112,8 @@ export class HeuristicCorpAI implements Agent {
   private planner: boolean;
   private searching: boolean;
   private planMemory: PlanMemory = { line: [] };
+  /** plan.scoreInTwo (counted scoring C2): the two-turn score line this Corp holds, keyed by game id (countedScore.ts). */
+  private heldLine: HeldLine | null = null;
 
   constructor(options: HeuristicOptions = {}) {
     this.synergy = options.synergy ?? true;
@@ -194,7 +196,13 @@ export class HeuristicCorpAI implements Agent {
       if ((def.advancement_cost ?? 0) > state.corp.clicks - 1) this.reverseBluffed = true;
     }
     // plan.oracle.countedScore / centralsLight (Corp redesign stage 0b, countedScore.ts): measurement instruments, default off
-    const picked = this.synergy && this.planner ? oracleCorpPick(state, chosen, ranked, lethalHqAgenda) : chosen;
+    let picked = this.synergy && this.planner ? oracleCorpPick(state, chosen, ranked, lethalHqAgenda) : chosen;
+    // plan.scoreInTwo (counted scoring C2): a held two-turn score line's step, or the pick vetoed while it would spend the line's rez money
+    if (this.synergy && this.planner) {
+      const two = scoreInTwoPick(state, picked, this.heldLine);
+      this.heldLine = two.held;
+      picked = two.action;
+    }
     this.notePlayed(picked);
     if (this.debug) logNudge(state, 'corp', picked);
     return picked;
