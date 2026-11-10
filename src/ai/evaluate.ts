@@ -336,16 +336,12 @@ export function agendaWorth(
   // today" is not "safe for every turn it waits"
   const threatTurns = threatOn() && stealChance === undefined && openNew === undefined && success === undefined && !!serverId;
   const standing = threatTurns ? threatStanding(state, serverId!, runnerTurns, steal) : (1 - steal) ** runnerTurns;
-  // The clicks and credits still to go are paid only while it stands: the advances of this turn now, the rest on the
-  // turns after the Runner's (a bare agenda the Runner takes next turn never costs its advances). plan.agendaPaidWhileStanding
-  // (Phase 2 O2, opening-audit/report.md): the shipped ranking charged every advance still to go in full while it counted
-  // the points only by the odds the agenda stands, so an agenda with any steal risk read below a held card (Offworld
-  // Office's install median -4.3 at the leaf) and the AI passed 78% of its safe install windows (Jeff 69%)
-  const now = Math.min(need, budget.clicks);
-  const advances = plan().oneCurrency || plan().agendaPaidWhileStanding ? now + (need - now) * standing : need;
-  if (!plan().oneCurrency) return gain * standing * waited(runnerTurns) - advances * (click + 1) - tempo;
+  if (!plan().oneCurrency) return gain * standing * waited(runnerTurns) - need * (click + 1) - tempo;
   const stolen = (1 - standing) * pointGain(state.runner.score, points);
-  return (gain + effect) * (standing * waited(runnerTurns)) - tempo - stolen - advances * (click + 1);
+  // The clicks and credits still to go are paid only while it stands: the advances of this turn now, the rest on the
+  // turns after the Runner's (a bare agenda the Runner takes next turn never costs its advances)
+  const now = Math.min(need, budget.clicks);
+  return (gain + effect) * (standing * waited(runnerTurns)) - tempo - stolen - (now + (need - now) * standing) * (click + 1);
 }
 
 /**

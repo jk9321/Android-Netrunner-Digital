@@ -395,17 +395,6 @@ export const tuning = {
      */
     searchSamples: false,
     /**
-     * Phase 2 O2 (opening-audit/report.md; AI Coordinator call 2026-11-09: the leaf first, in the one place that prices an
-     * installed unscored agenda): agendaWorth charges the advances still to go after this turn only by the odds the agenda
-     * stands to take them, as it already discounts the points (evaluate.ts agendaWorth). Off: charged in full.
-     * OFF (2026-11-09): -1.2 ± 1.2 paired (run 42562609024 vs the O4c run 42560731594, games 0-3); window turns with no
-     * agenda move 42.5% -> 41.6%, first score unchanged (T6.9). Why it can't move the opening: the planner's agenda lines
-     * mostly end with the agenda finished or nearly (little advancement left to discount), and from Jeff's own positions
-     * the AI already makes agenda progress on as many turns as he does (human-agreement turns: AI moved where Jeff didn't
-     * 29 vs the reverse 13). The tempo gap is in reaching the windows, not in taking them; feeds the O1 follow-up.
-     */
-    agendaPaidWhileStanding: false,
-    /**
      * Phase 2 O2 v2 (opening-audit/report.md; Corp only): an installed or held agenda's advances are charged at the one
      * click price (valueModel CLICK) plus their credit, not AGENDA_CLICK 2 (evaluate.ts agendaWorth): at 2 a click and 8
      * a point, a 1-point agenda read worth less than the advances that score it even with no steal risk, and held agendas
@@ -521,7 +510,7 @@ export const tuning = {
  */
 export const sideOff: Record<SideCode, string[]> = {
   corp: [],
-  runner: ['tagTrashNow', 'ownTrashRisk', 'hqTrashCost', 'oneCurrency', 'threatModel', 'measuredPass', 'threatSpend', 'calibratedRun', 'raceClock', 'iceProtects', 'replyContenders', 'plannerAgenda', 'clearinghouseRez', 'searchLines', 'searchSamples', 'agendaPaidWhileStanding', 'agendaLine', 'advanceGuardPriced', 'scoreBudget', 'oracle', 'reach', 'reachStrength', 'reachTime', 'threatKey', 'threatKeyPricing'],
+  runner: ['tagTrashNow', 'ownTrashRisk', 'hqTrashCost', 'oneCurrency', 'threatModel', 'measuredPass', 'threatSpend', 'calibratedRun', 'raceClock', 'iceProtects', 'replyContenders', 'plannerAgenda', 'clearinghouseRez', 'searchLines', 'searchSamples', 'agendaLine', 'advanceGuardPriced', 'scoreBudget', 'oracle', 'reach', 'reachStrength', 'reachTime', 'threatKey', 'threatKeyPricing'],
 };
 
 /**
