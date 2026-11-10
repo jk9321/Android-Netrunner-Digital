@@ -32,12 +32,16 @@ const describeAction = (s: GameState, a: GameAction) => {
 };
 
 const defaultOn = tuning.plan.plannerAgenda;
-afterEach(() => { tuning.plan.plannerAgenda = defaultOn; plannerStats.onCandidates = undefined; });
+const hiddenDraws = tuning.plan.hiddenDraws;
+afterEach(() => { tuning.plan.plannerAgenda = defaultOn; tuning.plan.hiddenDraws = hiddenDraws; plannerStats.onCandidates = undefined; });
 
 describe('plan.plannerAgenda', () => {
   it('is on by default', () => expect(defaultOn).toBe(true));
 
   it('report-17 turn 2: the agenda install is among the candidates only with the switch, and wins its playout', () => {
+    // plan.hiddenDraws (S6) OFF here: with the playouts on one guess of R&D the pick is ice on R&D (deal-dependent);
+    // this pins the candidate mechanism on the old path. Listed in the S6 hand-off as a known gap.
+    tuning.plan.hiddenDraws = false;
     const s = position();
     const target = 'INSTALL_CARD Offworld Office @remote-1';
     const candidates = (on: boolean) => {

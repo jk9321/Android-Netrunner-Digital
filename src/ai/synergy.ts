@@ -446,6 +446,19 @@ export const tuning = {
      */
     searchSamples: false,
     /**
+     * Phase 3 S6 (spec-search.md; Corp only): the planner plays its candidate turns from a guess of R&D, not R&D itself.
+     * Without it a playout that draws (a click to draw, Hedge Fund's riders, Petty Cash) drew the real top cards, and the
+     * Runner reply then accessed HQ holding those real cards: the Corp priced lines on cards it can't know (rule 10.2.2a:
+     * the cards in R&D are hidden information). The guess is runnerReply.ts guessHidden at the decision's own seed (the same deal
+     * for every candidate, plan.plannerSeed), so R&D positions both players saw stay put (knownRdSlots) and the Runner's
+     * grip is the reply's guess. The plan memory then re-decides after a real draw (its key holds HQ). One deal per
+     * decision: every candidate and its held line start from it, and later or multi-card draws take its next cards.
+     * Measured (scripts/hidden-draws.ts, 24 games): 50.8% of Corp planner decisions had a line drawing the real R&D;
+     * the guess changed 22.2% of those picks (control 2.2%). ON (Jeff 2026-11-10, "ship the honest version"): -5.4 ±
+     * 2.3 at games=3 (run 42733984975 vs 42733969084): what the peek was worth; it resets the base.
+     */
+    hiddenDraws: true,
+    /**
      * Phase 2 O2 v2 (opening-audit/report.md; Corp only): an installed or held agenda's advances are charged at the one
      * click price (valueModel CLICK) plus their credit, not AGENDA_CLICK 2 (evaluate.ts agendaWorth): at 2 a click and 8
      * a point, a 1-point agenda read worth less than the advances that score it even with no steal risk, and held agendas
@@ -561,7 +574,7 @@ export const tuning = {
  */
 export const sideOff: Record<SideCode, string[]> = {
   corp: [],
-  runner: ['tagTrashNow', 'ownTrashRisk', 'hqTrashCost', 'oneCurrency', 'threatModel', 'measuredPass', 'threatSpend', 'calibratedRun', 'raceClock', 'iceProtects', 'replyContenders', 'plannerAgenda', 'clearinghouseRez', 'ownIceKnown', 'runRecord', 'icePacingPriced', 'searchLines', 'searchSamples', 'agendaLine', 'advanceGuardPriced', 'scoreBudget', 'oracle', 'reach', 'reachStrength', 'reachTime', 'threatKey', 'threatKeyPricing'],
+  runner: ['tagTrashNow', 'ownTrashRisk', 'hqTrashCost', 'oneCurrency', 'threatModel', 'measuredPass', 'threatSpend', 'calibratedRun', 'raceClock', 'iceProtects', 'replyContenders', 'plannerAgenda', 'clearinghouseRez', 'ownIceKnown', 'runRecord', 'icePacingPriced', 'searchLines', 'searchSamples', 'hiddenDraws', 'agendaLine', 'advanceGuardPriced', 'scoreBudget', 'oracle', 'reach', 'reachStrength', 'reachTime', 'threatKey', 'threatKeyPricing'],
 };
 
 /**
