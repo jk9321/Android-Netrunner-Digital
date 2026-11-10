@@ -379,6 +379,23 @@ export const tuning = {
      */
     winNow: true,
     /**
+     * Corp redesign, counted scoring C1 (spec-counted-scoring.md; stage 0b's score-this-turn half measured +2.9 ± 1.7): the
+     * same exact search as winNow with the target "score an agenda this turn" (winNow.ts scoreNowAction; rules 1.17.3a-c,
+     * 1.18.1, 5.2.6f), played after winNow and before any judgement. Off: the rule ranking and planner, which ended about
+     * 0.4 turns a game without a score the search found (ice, an asset, a draw or a purge instead). ON: +1.1 ± 1.6
+     * paired (run 42786339692 vs 42784619451, games=3), inside noise and within the ship rule.
+     */
+    scoreNow: true,
+    /**
+     * Counted scoring C2 (spec-counted-scoring.md; stage 0b's two-turn half measured +3.0 ± 1.8): a two-turn score the
+     * counting check finds (countedScore.ts scoreInTwo: the server holds through the Runner's turn against its credits
+     * and click credits, rules 3.4.3a, 6.9.2b-c) is held in the Corp agent's memory and played: its steps first, the
+     * spare clicks the Corp's own only while the line's rez money stays, the agenda finished next turn (1.17.3a, 5.2.6f).
+     * ON: +5.1 ± 1.9 paired (run 42786343982 vs 42784619451, games=3); both ON +7.2 ± 2.1 (run 42791327244); the
+     * shipping pair at 10 games +2.8 ± 1.1 (run 42800495659 vs 42797275838; games 3-10 alone +1.4 ± 1.3).
+     */
+    scoreInTwo: true,
+    /**
      * Bug reports #39, #41 (Jeff's Runner test games 7 and 9, 2026-11-09; Corp only): the Corp's own unrezzed ice is priced
      * as it knows it (effectValues.ts ownIce: the real ice when its rez budget covers it, passed when not; rules 3.4.3a,
      * 6.9.2b-c) in runSuccess and stealOdds. Off: the Runner-side pass rates, so an agenda behind a Pharos the Corp could
@@ -539,11 +556,10 @@ export const tuning = {
      * Coordinator 2026-11-08, a decision-quality ceiling, not knowledge): the Corp planner plays 8 candidates, the best agenda
      * install and advance always among them, against 4 Runner-reply samples. gripThreat / gripReply (Phase 2 K0,
      * design-k1.md call 1): grip's knowledge in one channel only, the threat's (and the Hard search's) deal or the
-     * planner's played-out Runner reply, to find where grip's worth flows. countedScore / centralsLight (Corp redesign
-     * stage 0b, spec-stage0b.md; countedScore.ts oracleCorpPick): instruments, not knowledge: the Corp plays every score
-     * the counting check finds (I1; countedStrict: holding against the Runner on +4 credits; countedNowOnly / countedTwoOnly: one half of it), or puts no ice on a central past the first piece without a recent successful run (I2).
+     * planner's played-out Runner reply, to find where grip's worth flows. (Stage 0b's countedScore and centralsLight
+     * instruments were deleted once plan.scoreNow and plan.scoreInTwo reproduced them, spec-counted-scoring.md.)
      */
-    oracle: { grip: false, safestRemote: false, rd: false, think: false, gripThreat: false, gripReply: false, countedScore: false, countedStrict: false, countedNowOnly: false, countedTwoOnly: false, centralsLight: false },
+    oracle: { grip: false, safestRemote: false, rd: false, think: false, gripThreat: false, gripReply: false },
     /**
      * Per deciding side (Jeff, 2026-10-28): its own hand valued card by card, by what each will do once played (handValues.ts).
      * Batches: each side loses with it (Corp side 32.2% -> 28.0%, Runner side 32.2% -> 35.9% Corp) and the Runner draws at a
@@ -576,7 +592,7 @@ export const tuning = {
  */
 export const sideOff: Record<SideCode, string[]> = {
   corp: [],
-  runner: ['tagTrashNow', 'ownTrashRisk', 'hqTrashCost', 'oneCurrency', 'threatModel', 'measuredPass', 'threatSpend', 'calibratedRun', 'raceClock', 'iceProtects', 'replyContenders', 'plannerAgenda', 'clearinghouseRez', 'ownIceKnown', 'runRecord', 'icePacingPriced', 'searchLines', 'searchSamples', 'hiddenDraws', 'agendaLine', 'advanceGuardPriced', 'scoreBudget', 'oracle', 'reach', 'reachStrength', 'reachTime', 'threatKey', 'threatKeyPricing'],
+  runner: ['scoreNow', 'scoreInTwo', 'tagTrashNow', 'ownTrashRisk', 'hqTrashCost', 'oneCurrency', 'threatModel', 'measuredPass', 'threatSpend', 'calibratedRun', 'raceClock', 'iceProtects', 'replyContenders', 'plannerAgenda', 'clearinghouseRez', 'ownIceKnown', 'runRecord', 'icePacingPriced', 'searchLines', 'searchSamples', 'hiddenDraws', 'agendaLine', 'advanceGuardPriced', 'scoreBudget', 'oracle', 'reach', 'reachStrength', 'reachTime', 'threatKey', 'threatKeyPricing'],
 };
 
 /**

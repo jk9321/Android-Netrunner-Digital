@@ -1,4 +1,4 @@
-// Corp redesign stage 0b (spec-stage0b.md): the per-game measures of scripts/score-ceiling-measure.ts, summed for the
+// Counted scoring (spec-counted-scoring.md; first stage 0b's): the per-game measures of scripts/score-ceiling-measure.ts, summed for the
 // batch summary (corp-losses-sum.mjs prints this last, only for a batch whose games carry them).
 const pct = (n, d) => (d ? ((100 * n) / d).toFixed(1) : '-');
 const median = xs => {
@@ -11,7 +11,7 @@ export function printStage0b(games) {
   if (!measured.length) return;
   const errors = games.filter(g => g.stage0b?.error).length;
   const m = measured.map(g => g.stage0b);
-  console.log(`\nStage 0b measures (${measured.length} games; replay errors ${errors}; replays cut short ${m.filter(x => !x.replayed).length}):`);
+  console.log(`\nCounted scoring measures (${measured.length} games; replay errors ${errors}; replays cut short ${m.filter(x => !x.replayed).length}):`);
   const turns = m.reduce((a, x) => a + x.corpTurns, 0);
   const shapes = ['score', 'kill', 'build', 'shore', 'money', 'mixed'];
   console.log(`  turn labels (% of ${turns} Corp turns): ${shapes.map(k => `${k} ${pct(m.reduce((a, x) => a + (x.labels[k] ?? 0), 0), turns)}`).join(', ')}`);
@@ -21,12 +21,12 @@ export function printStage0b(games) {
   for (const g of measured) for (const s of g.steals ?? []) steals[s.from] = (steals[s.from] ?? 0) + s.points;
   console.log(`  points stolen a game by server: ${Object.entries(steals).sort().map(([k, v]) => `${k} ${(v / measured.length).toFixed(2)}`).join(', ')}`);
   const sum = k => m.reduce((a, x) => a + x[k], 0);
-  console.log(`  instrument per game: score-now found ${(sum('nowFound') / m.length).toFixed(2)}, forced ${(sum('nowForced') / m.length).toFixed(2)}; line steps forced ${(sum('stepsForced') / m.length).toFixed(2)}; spare clicks vetoed ${(sum('restVetoed') / m.length).toFixed(2)}; central ice held back ${(sum('centralHeld') / m.length).toFixed(2)}`);
+  const two = k => m.reduce((a, x) => a + (x.two?.[k] ?? 0), 0) / m.length;
+  console.log(`  per game: score-now found ${(sum('nowFound') / m.length).toFixed(2)} (more than one agenda scorable: ${m.reduce((a, x) => a + (x.nowChoices ?? 0), 0)} decisions in all); two-turn lines begun ${two('begun').toFixed(2)}, steps over the Corp's pick ${two('steps').toFixed(2)}, spare clicks vetoed ${two('vetoed').toFixed(2)}, dropped ${two('dropped').toFixed(2)}, finished ${two('finished').toFixed(2)}`);
   const lines = m.flatMap(x => x.lines);
   if (lines.length) {
     const count = (k, v) => lines.filter(l => l[k] === v).length;
-    console.log(`  forced two-turn lines: ${lines.length} (${(lines.length / m.length).toFixed(2)} a game; forms installed ${count('form', 'installed')}, install ${count('form', 'install')}, install+ice ${count('form', 'install+ice')})`);
-    console.log(`    next turn the check: still scores ${count('next', 'scorable')}, dropped it ${count('next', 'dropped')}, agenda gone ${count('next', 'gone')}, game over ${count('next', 'none')}`);
+    console.log(`  two-turn lines: ${lines.length} (${(lines.length / m.length).toFixed(2)} a game; forms installed ${count('form', 'installed')}, install ${count('form', 'install')}, install+ice ${count('form', 'install+ice')})`);
     console.log(`    agenda: scored next turn ${count('end', 'scoredNext')}, scored later ${count('end', 'scoredLater')}, stolen ${count('end', 'stolen')}, trashed ${count('end', 'trashed')}, other ${count('end', 'other')}`);
   }
 }

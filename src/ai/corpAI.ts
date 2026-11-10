@@ -18,7 +18,7 @@ import { PlanMemory, planTurn, plannerOn, searchPiece } from './turnPlanner';
 import { runnerReply } from './runnerReply';
 import { threatLoss } from './threatModel';
 import { modelRezGain } from './rezModel';
-import { winNowAction } from './winNow';
+import { keepsScore, scoreNowPlan, winNowAction } from './winNow';
 import { freeRezCover, freeRezTargets } from './freeRez';
 import { PETTY_CASH_REPLAY, iceAdvanceWorth, placedCounterWorth, rezEffectWorth, rezzedWorth, runTimed, topDownWorth } from './effectValues';
 import { CARD_PROFILES, ECON_SCALE, PAYOUT_RISK, bareAssetRisk, unrezzedWorth } from './cardProfiles';
@@ -30,7 +30,7 @@ import { counterWorth } from './counterValues';
 import { plan, pricing, withPricing } from './pricing';
 import { setupOperation } from './cards';
 // Last: its imports (winNow, runs, pricing) are loaded by then, so the AI modules' load order is unchanged (oracle.ts)
-import { oracleCorpPick } from './countedScore';
+import { HeldLine, scoreInTwoPick } from './countedScore';
 
 
 const type = (card: CardInstance) => cardDef(card).type_code;
@@ -112,6 +112,8 @@ export class HeuristicCorpAI implements Agent {
   private planner: boolean;
   private searching: boolean;
   private planMemory: PlanMemory = { line: [] };
+  /** plan.scoreInTwo (counted scoring C2): the two-turn score line this Corp holds, keyed by game id (countedScore.ts). */
+  private heldLine: HeldLine | null = null;
 
   constructor(options: HeuristicOptions = {}) {
     this.synergy = options.synergy ?? true;
@@ -172,6 +174,13 @@ export class HeuristicCorpAI implements Agent {
         return win;
       }
     }
+    // plan.scoreNow (counted scoring C1): a line that scores an agenda this turn, the same search (winNow.ts); the
+    // Corp's own pick stands while it keeps the score (keepsScore), the line's action is played otherwise
+    const score = this.synergy && this.planner ? scoreNowPlan(state) : null;
+    if (score && activePrompt(state)) {
+      this.notePlayed(score.first);
+      return score.first;
+    }
     if (activePrompt(state)) return answerPrompt(state, 'corp', undefined, this.synergy);
     const legal = getLegalActions(state, 'corp');
     const ranked = this.rankMainActions(state, legal);
@@ -182,13 +191,20 @@ export class HeuristicCorpAI implements Agent {
     if (chosen.type === 'GAIN_CREDIT' && this.patches && plan().pettyCashFirst) chosen = ranked.find(r => isPettyCash(state, r.action) && r.score > -Infinity)?.action ?? chosen;
     // plan.tagFirst: the planner's leaf counts a tag kept as a trash still to come, but the Runner clears it on its turn
     if (this.patches && plan().tagFirst && ranked[0]?.action.type === 'TRASH_RESOURCE' && ranked[0].tagFirst) chosen = ranked[0].action;
+    let picked = chosen;
+    if (score && !keepsScore(state, picked, score)) picked = score.first;
+    // plan.scoreInTwo (counted scoring C2): a held two-turn score line's step, or the pick vetoed while it would spend the line's rez money
+    if (!score && this.synergy && this.planner) {
+      const two = scoreInTwoPick(state, picked, this.heldLine);
+      this.heldLine = two.held;
+      picked = two.action;
+    }
     // The reverse bluff: at most once a game
-    if (chosen.type === 'INSTALL_CARD' && chosen.asNewRemote && state.corp.hq.some(c => c.instanceId === chosen.cardInstanceId && type(c) === 'agenda')) {
-      const def = cardDef(state.corp.hq.find(c => c.instanceId === chosen.cardInstanceId)!);
+    const bluff = chosen;
+    if (bluff.type === 'INSTALL_CARD' && bluff.asNewRemote && state.corp.hq.some(c => c.instanceId === bluff.cardInstanceId && type(c) === 'agenda')) {
+      const def = cardDef(state.corp.hq.find(c => c.instanceId === bluff.cardInstanceId)!);
       if ((def.advancement_cost ?? 0) > state.corp.clicks - 1) this.reverseBluffed = true;
     }
-    // plan.oracle.countedScore / centralsLight (Corp redesign stage 0b, countedScore.ts): measurement instruments, default off
-    const picked = this.synergy && this.planner ? oracleCorpPick(state, chosen, ranked, lethalHqAgenda) : chosen;
     this.notePlayed(picked);
     if (this.debug) logNudge(state, 'corp', picked);
     return picked;

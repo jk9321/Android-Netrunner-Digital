@@ -36,7 +36,12 @@ const describeAction = (s: GameState, a: GameAction) => {
 };
 
 const defaultOn = tuning.plan.agendaLine;
-afterEach(() => { tuning.plan.agendaLine = defaultOn; });
+const counted = { now: tuning.plan.scoreNow, two: tuning.plan.scoreInTwo };
+afterEach(() => {
+  tuning.plan.agendaLine = defaultOn;
+  tuning.plan.scoreNow = counted.now;
+  tuning.plan.scoreInTwo = counted.two;
+});
 
 describe('plan.agendaLine', () => {
   it('deal 1771 turn 1: ice goes on a new remote only with the agenda line priced at the one click price', () => {
@@ -45,6 +50,9 @@ describe('plan.agendaLine', () => {
     expect(Object.values(s.corp.servers).some(sv => sv.isRemote)).toBe(false);
     const pick = (on: boolean) => {
       tuning.plan.agendaLine = on;
+      // The ranking's own pick: counted scoring sits above it (at 1771 T1 scoreInTwo begins its new-remote line either way)
+      tuning.plan.scoreNow = false;
+      tuning.plan.scoreInTwo = false;
       return describeAction(s, createAgent('corp').chooseAction(s));
     };
     expect(pick(false)).toBe('INSTALL_CARD ice @hq');

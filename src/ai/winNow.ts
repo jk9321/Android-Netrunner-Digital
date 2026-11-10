@@ -1,4 +1,4 @@
-import { CardInstance, GameAction, GameState, activePrompt, cardDef, executeAction, findCardAnywhere, getLegalActions } from '../core';
+import { CardInstance, GameAction, GameState, activePrompt, cardDef, executeAction, findCardAnywhere, getLegalActions, isLegalAction } from '../core';
 import { plan } from './pricing';
 
 /**
@@ -67,15 +67,15 @@ function clicksOf(card: CardInstance, text: string): number {
 }
 
 /**
- * Whether some set of the Corp's agendas could still be scored this turn for the win: an upper bound, so a line that
+ * Whether some set of the Corp's agendas worth `need` points (by default the points still needed to win) could still be
+ * scored this turn: an upper bound, so a line that
  * wins is never cut. Every click (with the clicks the Corp's cards can give) places one counter, and each card that can
  * place counters (an operation or ability in HQ, an installed non-ice card) adds what one use places beyond the click
  * it costs; an agenda in HQ takes a click to install. The cheapest set of agendas worth the points still needed must
  * fit (rule 1.17.3a: scored at its advancement requirement).
  */
-function canStillWin(state: GameState): boolean {
+function canStillWin(state: GameState, need = 7 - state.corp.score): boolean {
   const corp = state.corp;
-  const need = 7 - corp.score;
   if (need <= 0) return true;
   // A prompt of the Corp's own open (Seamless Launch's target): the card resolving has left HQ and what it places is
   // not on the board yet, so neither side of the count sees it. Not cut there: the bound stays an upper bound (stage 0b,
@@ -242,4 +242,157 @@ export function winNowAction(state: GameState): GameAction | null {
   }
   winNowStats.nodes += nodes;
   return null;
+}
+
+/** Diagnostics for plan.scoreNow: searches, those that found a score, those where more than one agenda could be scored. */
+export const scoreNowStats = { searches: 0, found: 0, choices: 0, nodes: 0 };
+
+/**
+ * plan.scoreNow (Corp redesign, spec-counted-scoring.md C1; measured as stage 0b's I1 score-this-turn half, +2.9 ± 1.7):
+ * the first action of the best line that scores an agenda this turn, or null. The same exact search as winNowAction
+ * over the Corp's own turn (the same moves, the same cut of every line that changes R&D), with the target passed in:
+ * a line succeeds when an agenda is scored (1.17.3a: once its advancement counters reach its requirement; 1.17.3c not
+ * an action, no click), on the real state, so cards that read the Corp's score see it as it is.
+ *
+ * Which line, when several score: the most points scored this turn, then the most credits left at the last score (a
+ * free or click-neutral money action the turn still affords before the score, Petty Cash first, makes the richer line),
+ * then the fewest steps (no free ability used for nothing, Spin Doctor removed with no card to shuffle). The search
+ * keeps going past a score for a second one and keeps the best line found within WIN_NOW.nodes. An agenda that can be
+ * scored now is scored first: scoring costs nothing (1.17.3c), so it never takes a point from the rest of the turn,
+ * and nothing played before it can be undone. Not a Dividends agenda already at its requirement: over-advancing it
+ * is the Corp's choice (its excess counters become agenda counters), so that one is left to its judgement.
+ */
+export function scoreNowAction(state: GameState): GameAction | null {
+  return plan().scoreNow ? scoreNowLine(state) : null;
+}
+
+/** A score this turn: the line's first action, and the points it scores. */
+export interface ScoreLine {
+  first: GameAction;
+  points: number;
+}
+
+/** plan.scoreNow's line with its points (the agents' hook: corpAI.ts and search.ts decide), or null. */
+export function scoreNowPlan(state: GameState): ScoreLine | null {
+  return plan().scoreNow ? bestScoreLine(state, true) : null;
+}
+
+/** scoreNowAction's search whatever the switch (the stage 0 measurement scripts read it through countedScore.ts scoreThisTurn). */
+export function scoreNowLine(state: GameState): GameAction | null {
+  return bestScoreLine(state, true)?.first ?? null;
+}
+
+/**
+ * Whether the Corp's own pick keeps the line's points this turn (the agents play their pick then, and the search's
+ * line only when the pick would cost a score): the pick is the line's first action, or after it the same search still
+ * reaches the points (with any the pick itself scored). A pick that changes R&D (a draw) is not followed: what it would
+ * show is hidden. The pick's judgement keeps what the search's tie-break cannot see, such as installing Pharos before
+ * Send a Message's "when you score" free rez.
+ */
+export function keepsScore(state: GameState, pick: GameAction, line: ScoreLine): boolean {
+  if (JSON.stringify(pick) === JSON.stringify(line.first)) return true;
+  if (!isLegalAction(state, pick)) return false;
+  let next: GameState;
+  try {
+    next = executeAction(state, pick);
+  } catch {
+    return false;
+  }
+  if (next.corp.rd.map(c => c.instanceId).join() !== state.corp.rd.map(c => c.instanceId).join()) return false;
+  const scored = next.corp.scoreArea
+    .filter(c => cardDef(c).type_code === 'agenda' && !state.corp.scoreArea.some(x => x.instanceId === c.instanceId))
+    .reduce((n, c) => n + (cardDef(c).agenda_points ?? 0), 0);
+  if (scored >= line.points) return true;
+  if (next.activePlayer !== 'corp' || next.winner) return false;
+  return scored + (bestScoreLine(next, false)?.points ?? 0) >= line.points;
+}
+
+function bestScoreLine(state: GameState, count: boolean): ScoreLine | null {
+  if (state.winner || state.activePlayer !== 'corp' || state.activeRun) return null;
+  const prompt = activePrompt(state);
+  if (prompt && prompt.side !== 'corp') return null;
+  if (state.turnStep?.kind === 'corp_turn_start') return null;
+  if (!canStillWin(state, 1)) return null;
+  if (count) scoreNowStats.searches++;
+  const points = (a: GameAction) => {
+    const id = (a as { cardInstanceId?: string }).cardInstanceId;
+    const card = id ? findCardAnywhere(state, id) : undefined;
+    return card ? (cardDef(card).agenda_points ?? 0) : 0;
+  };
+  // A Dividends agenda already at its requirement is the Corp's to over-advance (its excess counters become agenda
+  // counters when scored): left to its judgement, here and in the search
+  const dividends = new Set(
+    getLegalActions(state, 'corp')
+      .filter(a => a.type === 'SCORE_AGENDA')
+      .map(a => (a as { cardInstanceId: string }).cardInstanceId)
+      .filter(id => /\bDividends\b/.test(cardDef(findCardAnywhere(state, id)!).stripped_text ?? '')),
+  );
+  const scoreable = getLegalActions(state, 'corp').filter(a => a.type === 'SCORE_AGENDA' && !dividends.has((a as { cardInstanceId: string }).cardInstanceId));
+  if (scoreable.length) {
+    if (count) {
+      scoreNowStats.found++;
+      if (scoreable.length > 1) scoreNowStats.choices++;
+    }
+    return { first: scoreable.reduce((a, b) => (points(b) > points(a) ? b : a)), points: scoreable.reduce((n, a) => n + points(a), 0) };
+  }
+  const rd = state.corp.rd.map(c => c.instanceId).join();
+  const scoredAt = (s: GameState) => s.corp.scoreArea.filter(c => cardDef(c).type_code === 'agenda' && !dividends.has(c.instanceId) && !state.corp.scoreArea.some(x => x.instanceId === c.instanceId));
+  const best = { points: 0, credits: -Infinity, steps: Infinity, first: null as GameAction | null, agendas: new Set<string>() };
+  const better = (now: number, credits: number, steps: number) =>
+    now > best.points || (now === best.points && (credits > best.credits || (credits === best.credits && steps < best.steps)));
+  const seen = new Set<string>();
+  let nodes = 0;
+  const search = (s: GameState, depth: number, first: GameAction, points: number) => {
+    if (s.winner || s.activePlayer !== 'corp' || s.activeRun || depth >= WIN_NOW.depth || nodes >= WIN_NOW.nodes) return;
+    // Only lines that can still match the best found go on (an upper bound, as for the win)
+    if (!canStillWin(s, Math.max(1, best.points - points))) return;
+    const k = key(s);
+    if (seen.has(k)) return;
+    seen.add(k);
+    for (const action of steps(s)) {
+      nodes++;
+      let next: GameState;
+      try {
+        next = executeAction(s, action);
+      } catch {
+        continue;
+      }
+      // Nothing hidden is read: R&D as it was (no draw, shuffle or mill)
+      if (next.corp.rd.map(c => c.instanceId).join() !== rd) continue;
+      const scored = scoredAt(next);
+      const now = scored.reduce((sum, c) => sum + (cardDef(c).agenda_points ?? 0), 0);
+      if (scored.length && now > points) {
+        for (const c of scored) best.agendas.add(c.instanceId);
+        if (better(now, next.corp.credits, depth + 1)) Object.assign(best, { points: now, credits: next.corp.credits, steps: depth + 1, first });
+      }
+      if (next.winner) continue;
+      search(next, depth + 1, first, scored.length ? now : points);
+      if (nodes >= WIN_NOW.nodes) return;
+    }
+  };
+  for (const action of steps(state)) {
+    nodes++;
+    let next: GameState;
+    try {
+      next = executeAction(state, action);
+    } catch {
+      continue;
+    }
+    if (next.corp.rd.map(c => c.instanceId).join() !== rd) continue;
+    const scored = scoredAt(next);
+    const now = scored.reduce((sum, c) => sum + (cardDef(c).agenda_points ?? 0), 0);
+    if (scored.length) {
+      for (const c of scored) best.agendas.add(c.instanceId);
+      if (better(now, next.corp.credits, 1)) Object.assign(best, { points: now, credits: next.corp.credits, steps: 1, first: action });
+    }
+    if (!next.winner) search(next, 1, action, now);
+    if (nodes >= WIN_NOW.nodes) break;
+  }
+  if (count) scoreNowStats.nodes += nodes;
+  if (!best.first) return null;
+  if (count) {
+    scoreNowStats.found++;
+    if (best.agendas.size > 1) scoreNowStats.choices++;
+  }
+  return { first: best.first, points: best.points };
 }

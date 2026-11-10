@@ -37,15 +37,21 @@ const describeAction = (s: GameState, a: GameAction) => {
   return `${a.type}${card ? ' ' + cardDef(card).type_code : ''}${where}`;
 };
 
-const saved = { lines: tuning.plan.searchLines, samples: tuning.plan.searchSamples };
+const saved = { lines: tuning.plan.searchLines, samples: tuning.plan.searchSamples, now: tuning.plan.scoreNow, two: tuning.plan.scoreInTwo };
 afterEach(() => {
   tuning.plan.searchLines = saved.lines;
   tuning.plan.searchSamples = saved.samples;
+  tuning.plan.scoreNow = saved.now;
+  tuning.plan.scoreInTwo = saved.two;
 });
 
 // (`_` was plan.plannerHold, folded into searchLines in S4; kept so the calls read the same)
+// The planner's own pick: counted scoring (plan.scoreNow, plan.scoreInTwo) sits above it and is off here (at 1491 T1
+// scoreInTwo begins its line, ice into a new remote, whatever the planner picks)
 const choose = (s: GameState, _: false, lines: boolean) => {
   tuning.plan.searchLines = lines;
+  tuning.plan.scoreNow = false;
+  tuning.plan.scoreInTwo = false;
   return createAgent('corp').chooseAction(structuredClone(s));
 };
 const pick = (s: GameState, _: false, lines: boolean) => describeAction(s, choose(s, _, lines));

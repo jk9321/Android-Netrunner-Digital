@@ -1,19 +1,22 @@
 /**
- * Corp redesign stage 0b (spec /mnt/project-files/netrunner-ai/redesign/spec-stage0b.md): the per-game measures a
- * corp-losses batch adds when its PLAN_OFF names oracle.countedScore or oracle.centralsLight (the base names them off,
- * "oracle.countedScore,oracle.centralsLight", a no-op that turns the measures on). Measurement only: the moves are
- * read from GameRunner.apply as plan-measure-record.ts reads them, and nothing the agents see or decide changes.
+ * Counted scoring (spec /mnt/project-files/netrunner-ai/redesign/spec-counted-scoring.md; first written for stage 0b,
+ * spec-stage0b.md): the per-game measures a corp-losses batch adds when its PLAN_OFF names plan.scoreNow or
+ * plan.scoreInTwo in either form ("scoreNow" off, "+scoreNow" on: a base names them off while they default off).
+ * Measurement only: the moves are read from GameRunner.apply as plan-measure-record.ts reads them, and nothing the
+ * agents see or decide changes.
  *
  * Each game gets `stage0b`: stage 0's turn labels (labelTurn) counted over the Corp's turns, the Corp turn of its first
- * score, and the instruments' own counts (countedScore.ts countedStats) with what became of each forced line.
+ * score, the two layers' own counts (winNow.ts scoreNowStats, countedScore.ts scoreInTwoStats) and what became of each
+ * two-turn line begun.
  */
 import { GameAction } from '../src/core';
 import { GameRunner } from '../src/ai/playout';
-import { countedStats, resetCountedStats } from '../src/ai/countedScore';
+import { resetScoreInTwoStats, scoreInTwoStats } from '../src/ai/countedScore';
+import { scoreNowStats } from '../src/ai/winNow';
 import { labelTurn, replayGame } from './plan-measure-lib';
 import type { DeckList } from '../src/data/decks';
 
-export const measuring = /(^|,)\+?(oracle\.)?(countedScore|countedStrict|centralsLight)(,|$)/.test(process.env.PLAN_OFF ?? '');
+export const measuring = /(^|,)\+?(scoreNow|scoreInTwo)(,|$)/.test(process.env.PLAN_OFF ?? '');
 
 let moves: GameAction[] = [];
 let agents: object | null = null;
@@ -26,11 +29,15 @@ if (measuring) {
   };
 }
 
-/** Before each game: the agents whose moves to keep, the instruments' counts cleared. */
+let nowFound = 0;
+let nowChoices = 0;
+/** Before each game: the agents whose moves to keep, the layers' counts cleared. */
 export function startMeasure(pair: object) {
   agents = pair;
   moves = [];
-  resetCountedStats();
+  resetScoreInTwoStats();
+  nowFound = scoreNowStats.found;
+  nowChoices = scoreNowStats.choices;
 }
 
 export interface Stage0bGame {
@@ -39,13 +46,14 @@ export interface Stage0bGame {
   labels: Record<string, number>;
   /** The Corp turn (1 = its first) that ended with its first point scored, or null. */
   firstScore: number | null;
+  /** plan.scoreNow: decisions where its search found a score this turn. */
   nowFound: number;
-  nowForced: number;
-  stepsForced: number;
-  restVetoed: number;
-  centralHeld: number;
-  /** Each forced two-turn line: its form, the check's verdict at the next Corp turn, and the agenda's fate. */
-  lines: { form: string; next: string; end: 'scoredNext' | 'scoredLater' | 'stolen' | 'trashed' | 'other' }[];
+  /** Of those, decisions where more than one agenda could be scored. */
+  nowChoices: number;
+  /** plan.scoreInTwo: lines begun, steps played over the Corp's pick, spare-click picks vetoed, lines dropped, finished. */
+  two: { begun: number; steps: number; vetoed: number; dropped: number; finished: number };
+  /** Each two-turn line begun: its form and the agenda's fate. */
+  lines: { form: string; end: 'scoredNext' | 'scoredLater' | 'stolen' | 'trashed' | 'other' }[];
   /** False when the replay stopped short of the game's end (a move the engine refused). */
   replayed: boolean;
 }
@@ -53,6 +61,10 @@ export interface Stage0bGame {
 /** After each game: replays the recorded moves into Corp turns and counts the measures. */
 export function stage0bMeasure(seed: number, corpDeck: DeckList, runnerDeck: DeckList): Stage0bGame | { error: string } {
   try {
+    const found = scoreNowStats.found - nowFound;
+    const choices = scoreNowStats.choices - nowChoices;
+    const two = { begun: scoreInTwoStats.begun, steps: scoreInTwoStats.steps, vetoed: scoreInTwoStats.vetoed, dropped: scoreInTwoStats.dropped, finished: scoreInTwoStats.finished };
+    const begunLines = [...scoreInTwoStats.lines];
     const game = replayGame({ config: { seed, corpDeck, runnerDeck, ai: 'both' }, moves });
     const labels: Record<string, number> = {};
     for (const t of game.turns) {
@@ -61,7 +73,7 @@ export function stage0bMeasure(seed: number, corpDeck: DeckList, runnerDeck: Dec
     }
     const first = game.turns.findIndex(t => t.end.corp.score > 0);
     const corpTurnOf = new Map(game.turns.map((t, i) => [t.turn, i]));
-    const lines = countedStats.lines.map(l => {
+    const lines = begunLines.map(l => {
       const scoredAt = game.turns.find(t => t.end.corp.scoreArea.some(c => c.instanceId === l.agendaId));
       const stolen = game.final.runner.scoreArea.some(c => c.instanceId === l.agendaId);
       // Trashed: accessed and trashed by the Runner, or by the Corp itself, it ends in Archives
@@ -76,17 +88,15 @@ export function stage0bMeasure(seed: number, corpDeck: DeckList, runnerDeck: Dec
           : trashed
             ? 'trashed'
             : 'other';
-      return { form: l.form, next: l.next ?? 'none', end };
+      return { form: l.form, end };
     });
     return {
       corpTurns: game.turns.length,
       labels,
       firstScore: first >= 0 ? first + 1 : null,
-      nowFound: countedStats.nowFound,
-      nowForced: countedStats.nowForced,
-      stepsForced: countedStats.stepsForced,
-      restVetoed: countedStats.restVetoed,
-      centralHeld: countedStats.centralHeld,
+      nowFound: found,
+      nowChoices: choices,
+      two,
       lines,
       replayed: !!game.winner,
     };

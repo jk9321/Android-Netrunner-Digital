@@ -1,5 +1,5 @@
 import { CardInstance, GameAction, GameState, SideCode, activePrompt, getCardDefinition, getLegalActions, isLegalAction, knownInHand } from '../core';
-import { winNowAction } from './winNow';
+import { keepsScore, scoreNowPlan, winNowAction } from './winNow';
 import { isAdvanceable } from '../core/engine/helpers';
 import { Agent } from './agent';
 import { HeuristicCorpAI } from './corpAI';
@@ -11,6 +11,8 @@ import { asSide, logNudge } from './synergy';
 import { decisionContext } from './handValues';
 import { knownRdSlots } from './runnerReply';
 import { corpKnowsRd, corpSeenGrip } from './oracle';
+// Loaded by corpAI already (its last import), so the AI modules' load order is unchanged
+import { HeldLine, scoreInTwoPick } from './countedScore';
 
 /**
  * Hard AI: Monte Carlo look-ahead on top of the rule-based AI.
@@ -186,8 +188,23 @@ export class SearchAI implements Agent {
   }
 
   chooseAction(state: GameState): GameAction {
-    return asSide(this.side, () => this.decide(state));
+    return asSide(this.side, () => {
+      this.scoring = false;
+      const action = this.decide(state);
+      // A score this turn (plan.scoreNow) comes before a two-turn line
+      if (this.side !== 'corp' || !(this.options.synergy ?? true) || this.scoring) return action;
+      // plan.scoreInTwo (counted scoring C2): a held two-turn score line's step, or the pick vetoed while it would spend the line's rez money
+      const two = scoreInTwoPick(state, action, this.heldLine);
+      this.heldLine = two.held;
+      if (two.action !== action) this.base.notePlayed(two.action);
+      return two.action;
+    });
   }
+
+  /** plan.scoreInTwo: the two-turn score line this Corp holds, keyed by game id (countedScore.ts). */
+  private heldLine: HeldLine | null = null;
+  /** This decision found a score this turn (plan.scoreNow), or decide is finding the pick it is weighed against. */
+  private scoring = false;
 
   private decide(state: GameState): GameAction {
     decisionContext(state, this.side);
@@ -197,6 +214,16 @@ export class SearchAI implements Agent {
       if (win) {
         this.base.notePlayed(win);
         return win;
+      }
+      // plan.scoreNow (counted scoring C1): a line that scores an agenda this turn, the same search; the look-ahead's own
+      // pick stands while it keeps the score (keepsScore), the line's action is played otherwise
+      const score = this.scoring ? null : scoreNowPlan(state);
+      if (score) {
+        this.scoring = true;
+        const own = activePrompt(state) ? score.first : this.decide(state);
+        if (keepsScore(state, own, score)) return own;
+        this.base.notePlayed(score.first);
+        return score.first;
       }
     }
     // Prompts and the steps of a run follow the rule-based AI's judgement
