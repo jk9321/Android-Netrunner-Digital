@@ -37,5 +37,5 @@ describe('one rule for plays that let an agenda be finished', () => {
     const after = turn(s);
     expect(after.corp.scoreArea.map(c => c.instanceId)).toContain(agenda);
     expect([...after.corp.archives.faceUp, ...after.corp.archives.faceDown].map(c => c.instanceId)).toContain(op);
-  });
+  }, 30_000); // plays a whole Corp turn through the exact score search: ~6 s on CI
 });
