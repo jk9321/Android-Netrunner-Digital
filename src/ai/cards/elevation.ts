@@ -361,7 +361,7 @@ export const ELEVATION: Record<string, CardAI> = {
   // Scatter Field
   '35042': { synergy: { gives: { ice: 1, install: 0.5 } } },
   // Nanomanagement
-  '35043': { synergy: { gives: { advance: 1 } }, setup: true },
+  '35043': { synergy: { gives: { advance: 1 } }, setup: true, clicksGiven: 1 },
   // Top-Down Solutions
   '35044': { synergy: { gives: { draw: 1, install: 1 } } },
   // Mercia B4LL4RD

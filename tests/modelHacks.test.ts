@@ -2,10 +2,11 @@ import { describe, expect, it } from 'vitest';
 import { PETTY_CASH_REPLAY, iceAdvanceWorth, placedCounterWorth, rezEffectWorth, rezzedWorth, topDownWorth } from '../src/ai/effectValues';
 import { CLICK, RATES } from '../src/ai/valueModel';
 import { createCardInstance } from '../src/core/engine/gameState';
-import { installProgramForTest, newGame } from './helpers';
-import { HeuristicCorpAI } from '../src/ai';
-import { GameState, cardDef } from '../src/core';
-import { tuning } from '../src/ai/synergy';
+import { newGame } from './helpers';
+import { HeuristicCorpAI, createAgent } from '../src/ai';
+import { GameState, actingSide, cardDef, executeAction } from '../src/core';
+
+const actingSideIsRunner = (s: GameState) => actingSide(s) === 'runner';
 
 describe('value hacks replaced by the model (Jeff, 2026-10-28; plan.modelHacks)', () => {
   it('Ping: its rez tag is worth a tag', () => {
@@ -66,21 +67,17 @@ describe('the last two hacks on the model (Jeff, 2026-10-28; plan.modelHacks.fin
   const score = (s: GameState, id: string) => new HeuristicCorpAI({ planner: false }).rankMainActions(s).find(r => r.action.type === 'PLAY_OPERATION_OR_EVENT' && r.action.cardInstanceId === id)?.score ?? -Infinity;
   const credit = (s: GameState) => new HeuristicCorpAI({ planner: false }).rankMainActions(s).find(r => r.action.type === 'GAIN_CREDIT')!.score;
 
-  it('Nanomanagement: worth the agenda it lets the Corp score this turn, in points on the clock', () => {
-    const { s, nano } = nanoGame(true);
-    if (tuning.plan.oneCurrency) {
-      // plan.oneCurrency (rewritten with the reason, 2026-11-06): the finish is worth what waiting a turn risks. Here the
-      // Runner has no breaker for the rezzed Palisade (steal odds about 5%), so 3 advances now and the last next turn
-      // keep Nanomanagement and its 4 credits for nearly the same points, and the model is close to indifferent. Once the
-      // Runner holds Cleaver and the money to use it, the finish now is the best play on the board.
-      installProgramForTest(s, '30006'); // Cleaver
-      s.runner.credits = 8;
-      const ranked = new HeuristicCorpAI({ planner: false }).rankMainActions(s);
-      expect(ranked[0].action).toMatchObject({ type: 'PLAY_OPERATION_OR_EVENT', cardInstanceId: nano.instanceId });
-      expect(score(s, nano.instanceId)).toBeGreaterThan(credit(s) + 5);
-    } else expect(score(s, nano.instanceId)).toBeGreaterThan(credit(s) + 5);
-    // (tuning pass 1, oneSetupRule folded: plan.finishSetup now ranks the finish in the advance's tier, so the old
-    // "a value, not a priority tier" cap no longer holds; tests/oneSetupRule.test.ts pins the tier)
+  it('Nanomanagement: the Corp plays it for the agenda it lets the turn score (counted scoring, plan.scoreNow)', () => {
+    // The rank that stood for this (plan.finishSetup, the folded oneSetupRule) went in step 2: counted scoring counts the
+    // 2 clicks (the card entry's clicksGiven) and plays the finish. 4 to go with 3 clicks: Nanomanagement's clicks make 4.
+    const game = nanoGame(true);
+    const nano = game.nano;
+    let s = game.s;
+    const agenda = s.corp.servers['remote-9'].root[0].instanceId;
+    const corp = createAgent('corp', 'normal', {});
+    for (let i = 0; i < 20 && s.activePlayer === 'corp' && !s.winner && !actingSideIsRunner(s); i++) s = executeAction(s, corp.chooseAction(s));
+    expect(s.corp.scoreArea.map(c => c.instanceId)).toContain(agenda);
+    expect(s.corp.hq.map(c => c.instanceId)).not.toContain(nano.instanceId);
   });
 
   it('Nanomanagement with nothing to finish: just 2 clicks for 4 credits and a click', () => {

@@ -12,8 +12,8 @@ const threatDefault = tuning.plan.threatModel;
  * Bug report #17 (Jeff's Corp game 1, 2026-11-05): on turn 3 Jeff moved The Holo Man to Offworld Office's remote,
  * used it for 3 counters, advanced once and scored. The AI moved The Holo Man to R&D (the move prompt had no answer of
  * its own), and its ability ranked -7 even next to the agenda: the 4 credits fell under the reserve penalty.
- * plan.holoManMove keeps it with the agenda; plan.finishSetup ranks a play that lets the turn finish an agenda like the
- * advance that would.
+ * plan.holoManMove keeps it with the agenda. The finish was first a rank (plan.finishSetup); counted scoring
+ * (plan.scoreNow) now plays it, and step 2 deleted the rank (spec-step2-delete-redundant.md, +0.3 ± 0.4 at games=3).
  *
  * Position: the start of the Corp's turn 3 (before its turn begins), rebuilt from the report.
  */
@@ -27,14 +27,13 @@ function playTurn(): GameState {
 }
 const scoredOffice = (s: GameState) => s.corp.scoreArea.some(c => cardDef(c).title === 'Offworld Office');
 
-describe('The Holo Man advances the agenda it sits with (plan.holoManMove, plan.finishSetup)', () => {
+describe('The Holo Man advances the agenda it sits with (plan.holoManMove, plan.scoreNow)', () => {
   it('scores Offworld Office on turn 3', () => {
     expect(scoredOffice(playTurn())).toBe(true);
   }, 30_000);
 
-  it("without plan.finishSetup it didn't", () => {
-    tuning.plan.finishSetup = false;
-    // plan.finishSetup patched the old ranking; the one-currency Corp finds the finish without it (2026-11-06)
+  it("without counted scoring (and the planner fixes that also find it) it didn't", () => {
+    // the one-currency Corp finds the finish too (2026-11-06)
     tuning.plan.oneCurrency = false;
     // and the planner on the threat model (item 3) finds it without either patch: its leaf no longer charges the
     // two-sample Runner reply's steals, so the patches are pinned on the old threat
@@ -50,7 +49,6 @@ describe('The Holo Man advances the agenda it sits with (plan.holoManMove, plan.
     } finally {
       tuning.plan.scoreNow = true;
       tuning.plan.hiddenDraws = true;
-      tuning.plan.finishSetup = true;
       tuning.plan.oneCurrency = oneCurrencyDefault;
       tuning.plan.threatModel = threatDefault;
       tuning.plan.plannerSearch = true;

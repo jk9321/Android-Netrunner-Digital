@@ -65,4 +65,6 @@ export interface CardAI {
    * credits hosted on it (a campaign: no more than it holds). Counted scoring reads it as next turn's income
    * (countedScore.ts knownIncome). */
   turnIncome?: { credits: number; hosted?: true };
+  /** Clicks one use gives beyond the click it costs (Nanomanagement: gain 2, 1 to play it), read by winNow.ts's count of what this turn can still score. */
+  clicksGiven?: number;
 }

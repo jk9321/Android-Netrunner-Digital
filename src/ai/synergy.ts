@@ -287,8 +287,6 @@ export const tuning = {
     runnerReply: true,
     /** Jeff, 2026-10-29: an agenda in an open remote is as good as stolen: steal odds 1, and the Runner reply counts it stolen even when the sampled Runner didn't run it. */
     openSteal: true,
-    /** Same report: a play that lets this turn's clicks and credits finish an agenda (The Holo Man, Seamless Launch short of the last advance) ranks with that advance, free of the reserve penalty (corpAI.ts finishable). */
-    finishSetup: true,
     /** Jeff, 2026-11-05: credits a successful run gives (Clean Getaway, Transfer of Wealth, Trick Shot, Red Team) are priced on the credit slide (runs.ts successCredits). Off (Jeff, 2026-11-05): no batch gain, and the Corp's guessed Runner reply then plays
      * Transfer of Wealth when broke, so the Corp holds Hedge Fund (tests/castWhileAble.test.ts). */
     runCreditsSlide: false,
@@ -392,6 +390,8 @@ export const tuning = {
     advanceFinish: true,
     /** Step 2 TEMPORARY: countedScore knownIncome reads the card entries' turnIncome (off: 0, as the old text match). */
     turnIncome: true,
+    /** Step 2 TEMPORARY: winNow canStillWin counts the clicks a card gives from its entry (clicksGiven; off: 0, as the old text match). */
+    clicksGiven: true,
     /**
      * Counted scoring C2 (spec-counted-scoring.md; stage 0b's two-turn half measured +3.0 ± 1.8): a two-turn score the
      * counting check finds (countedScore.ts scoreInTwo: the server holds through the Runner's turn against its credits
@@ -560,7 +560,7 @@ export const tuning = {
  */
 export const sideOff: Record<SideCode, string[]> = {
   corp: [],
-  runner: ['scoreNow', 'scoreInTwo', 'finishNowInstall', 'advanceFinish', 'turnIncome', 'tagTrashNow', 'ownTrashRisk', 'hqTrashCost', 'oneCurrency', 'threatModel', 'measuredPass', 'threatSpend', 'calibratedRun', 'iceProtects', 'replyContenders', 'plannerAgenda', 'clearinghouseRez', 'ownIceKnown', 'runRecord', 'icePacingPriced', 'searchLines', 'searchSamples', 'hiddenDraws', 'oracle', 'reach', 'reachStrength', 'reachTime', 'threatKey', 'threatKeyPricing'],
+  runner: ['scoreNow', 'scoreInTwo', 'finishNowInstall', 'advanceFinish', 'turnIncome', 'clicksGiven', 'tagTrashNow', 'ownTrashRisk', 'hqTrashCost', 'oneCurrency', 'threatModel', 'measuredPass', 'threatSpend', 'calibratedRun', 'iceProtects', 'replyContenders', 'plannerAgenda', 'clearinghouseRez', 'ownIceKnown', 'runRecord', 'icePacingPriced', 'searchLines', 'searchSamples', 'hiddenDraws', 'oracle', 'reach', 'reachStrength', 'reachTime', 'threatKey', 'threatKeyPricing'],
 };
 
 /**
@@ -584,7 +584,7 @@ export const FOLDED: readonly string[] = [
   'keepKnownRd', 'runnerKnown', 'measuredRunShares', 'rezWhenUsed', 'rezToUse', 'flatRates', 'tagClock', 'vicTags',
   'rdMemory', 'sourdough', 'cardPlans', 'madaniClick', 'tankIce', 'digPastLimit', 'freeRez', 'plannerHand',
   'subCosts', 'iceInCredits', 'breakerCredits',
-  // Tuning pass 1 (2026-11-08): Nanomanagement/Touch-ups' own bonus deleted, plan.finishSetup ranks them (CardAI setup); +0.0 ± 0.2, run 42403917371
+  // Tuning pass 1 (2026-11-08): Nanomanagement/Touch-ups' own bonus deleted, the rank went to plan.finishSetup, deleted in step 2 (counted scoring plays the finish); +0.0 ± 0.2, run 42403917371
   'oneSetupRule',
   // Phase 3 S4 (spec-search.md, 2026-11-09): plannerHold folded into plan.searchLines (the hold that builds a window)
   'plannerHold',

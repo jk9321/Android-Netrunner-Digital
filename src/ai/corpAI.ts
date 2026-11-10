@@ -608,10 +608,6 @@ export class HeuristicCorpAI implements Agent {
     if (this.synergy) score += this.moneyPlan(state, action);
     // Deck-aware AI: a play that makes an agenda scoreable this turn (Seamless Launch, Key Performance Indicators...)
     if (this.synergy && plan().scoreSetup && scoreable(resolved) > scoreable(state)) score = Math.max(score, 41);
-    // plan.finishSetup (Jeff's Corp game 1, bug report #17: The Holo Man's 3 counters left Offworld Office one advance short,
-    // and the reserve penalty on the 4 credits buried it): a play that lets this turn's clicks and credits finish an agenda
-    // ranks with the advance that would, and the reserve isn't held against it
-    if (this.synergy && plan().finishSetup && finishable(resolved) > finishable(state)) return Math.max(score, 40);
     if (!spendsClick && score <= 0.3) return -Infinity;
     // plan.oneRezMoney (code audit cleanup item 7, 2026-11-06; rebased in tuning pass 1): this score is the board's own change,
     // and the board already prices the Corp's credits on the slide against the rez money its ice needs (valueModel boardNeed).
@@ -662,8 +658,8 @@ export class HeuristicCorpAI implements Agent {
    */
   private operationBonus(state: GameState, code: string): number {
     const corp = state.corp;
-    // Nanomanagement's clicks and Touch-ups' advancements (CardAI setup) are what plan.finishSetup ranks for any play: it
-    // simulates the play and asks whether an agenda can now be finished this turn (tuning pass 1, the old plan.oneSetupRule)
+    // Nanomanagement's clicks and Touch-ups' advancements (CardAI setup): counted scoring (plan.scoreNow) plays the line
+    // they finish (step 2 deleted plan.finishSetup, the rank that used to stand in for it)
     if (setupOperation(code)) return 0;
     switch (code) {
       case '35044': {
@@ -1319,17 +1315,6 @@ function towardFinish(state: GameState, id: string): boolean {
   if (!card || type(card) !== 'agenda') return false;
   const need = (cardDef(card).advancement_cost ?? 0) - card.advancementCounters;
   return need > 0 && need <= state.corp.clicks && need <= state.corp.credits;
-}
-
-/** Agendas in the root of a server the Corp can finish and score with the clicks and credits it has left (an advance is a click and a credit, rule 5.2.6). */
-function finishable(state: GameState): number {
-  return Object.values(state.corp.servers)
-    .flatMap(s => s.root)
-    .filter(c => {
-      if (type(c) !== 'agenda') return false;
-      const need = Math.max(0, (cardDef(c).advancement_cost ?? 99) - c.advancementCounters);
-      return need <= state.corp.clicks && need <= state.corp.credits;
-    }).length;
 }
 
 function scoreable(state: GameState): number {

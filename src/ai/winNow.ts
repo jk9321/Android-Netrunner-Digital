@@ -1,6 +1,6 @@
 import { CardInstance, GameAction, GameState, activePrompt, cardDef, executeAction, findCardAnywhere, getLegalActions, isLegalAction } from '../core';
 import { plan } from './pricing';
-import { dividendsOf } from './cards';
+import { clicksGivenOf, dividendsOf } from './cards';
 
 /**
  * Win now (bug report #33, Jeff's Runner test game 1, 2026-11-09; plan.winNow): an exact search of the Corp's own turn for
@@ -57,17 +57,6 @@ function places(code: string, text: string): number {
   return n;
 }
 /**
- * Clicks a card's text can give in one use beyond what the use costs ("gain [click][click]" on an operation: 2 gained, 1
- * spent playing it; Petty Cash's "[click]: play this from Archives ... gain [click]": none).
- */
-function clicksOf(card: CardInstance, text: string): number {
-  const gained = Math.max(0, ...[...text.matchAll(/gain ((?:\[click\])+)/gi)].map(m => m[1].length / 7));
-  if (!gained) return 0;
-  const spent = cardDef(card).type_code === 'operation' || /\[click\][^.]*:/i.test(text) ? 1 : 0;
-  return Math.max(0, gained - spent);
-}
-
-/**
  * Whether some set of the Corp's agendas worth `need` points (by default the points still needed to win) could still be
  * scored this turn: an upper bound, so a line that
  * wins is never cut. Every click (with the clicks the Corp's cards can give) places one counter, and each card that can
@@ -92,7 +81,9 @@ function canStillWin(state: GameState, need = 7 - state.corp.score): boolean {
   const own = new Map<string, number>();
   for (const card of sources) {
     const text = cardDef(card).stripped_text ?? '';
-    const gives = clicksOf(card, text) + Math.max(0, places(card.cardCode, text) - 1);
+    // Clicks from the card entry (step 2: the text match this replaced looked for "[click]", which the stripped text
+    // spells "click", so it never counted Nanomanagement); plan.clicksGiven is step 2's temporary measuring switch
+    const gives = (plan().clicksGiven ? clicksGivenOf(card.cardCode) : 0) + Math.max(0, places(card.cardCode, text) - 1);
     budget += gives;
     own.set(card.instanceId, gives);
   }
