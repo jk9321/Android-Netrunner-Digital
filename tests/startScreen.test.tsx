@@ -79,10 +79,10 @@ describe('Start screen: each way of playing shows what it needs', () => {
     stubStorage({ 'netrunner.opponent': 'ai-corp' });
     const html = render('computer');
     expect(has(html, 'opponent-ai-corp') && has(html, 'opponent-ai-runner') && has(html, 'difficulty-hard')).toBe(true);
-    expect(columns(html)).toEqual(['YOUR RUNNER DECK', "COMPUTER'S CORP DECK"]);
+    expect(columns(html)).toEqual(["COMPUTER'S CORP DECK", 'YOUR RUNNER DECK']);
     expect(has(html, 'start-game')).toBe(true);
     stubStorage({ 'netrunner.opponent': 'ai-runner' });
-    expect(columns(render('computer'))).toEqual(['YOUR CORP DECK', "COMPUTER'S RUNNER DECK"]);
+    expect(columns(render('computer'))).toEqual(['YOUR CORP DECK', "COMPUTER'S RUNNER DECK"]); // Corp left either way
   });
 
   it('Pass and play: no settings, both decks as before', () => {

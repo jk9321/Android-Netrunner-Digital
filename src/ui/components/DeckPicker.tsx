@@ -442,10 +442,11 @@ export const DeckPicker: React.FC<DeckPickerProps> = ({
   const mySide: SideCode = opponent === 'ai-corp' ? 'runner' : 'corp';
   const deckColumns: { side: SideCode; opts?: ColumnOpts }[] =
     mode === 'computer'
-      ? [
-          { side: mySide, opts: { title: `YOUR ${sideName(mySide).toUpperCase()} DECK` } },
-          { side: other(mySide), opts: { title: `COMPUTER'S ${sideName(other(mySide)).toUpperCase()} DECK` } },
-        ]
+      ? // Corp on the left, Runner on the right, whichever side is yours
+        (['corp', 'runner'] as const).map(side => ({
+          side,
+          opts: { title: `${side === mySide ? 'YOUR' : "COMPUTER'S"} ${sideName(side).toUpperCase()} DECK` },
+        }))
       : mode === 'hotseat'
         ? [{ side: 'corp' }, { side: 'runner' }]
         : onlineFormat && onlineSide

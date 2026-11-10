@@ -55,7 +55,7 @@ test('the start screen shows the settings and decks each way of playing needs', 
   const columns = page.getByTestId('deck-columns');
   await page.getByTestId('mode-computer').click();
   await page.getByTestId('opponent-ai-corp').click();
-  await expect(columns.locator('h2')).toHaveText(['YOUR RUNNER DECK', "COMPUTER'S CORP DECK"]);
+  await expect(columns.locator('h2')).toHaveText(["COMPUTER'S CORP DECK", 'YOUR RUNNER DECK']);
   await expect(page.getByTestId('difficulty-normal')).toBeVisible();
   await page.getByTestId('mode-hotseat').click();
   await expect(columns.locator('h2')).toHaveText(['CORP DECK', 'RUNNER DECK']);
