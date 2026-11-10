@@ -7,6 +7,7 @@
  */
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { GameAction, SideCode, createRng, nextInt, stateFromView } from '../src/core';
+import { isHiddenCode } from '../src/core/cards';
 import type { RngState } from '../src/core';
 import { STARTER_DECKS } from '../src/data/decks';
 import { RoomCore, settledFor } from '../server/room';
@@ -223,6 +224,13 @@ function expectInSync(s: Setup) {
     const sent = s.hub.states[side][s.hub.states[side].length - 1];
     expect(t.lastState?.seq).toBe(sent.seq);
     const seat = t.seatFor(side);
+    // After the end the seat shows the final table the room sent with `over` (chunk 2d)
+    if (t.final) {
+      expect(seat.view).toBeNull();
+      expect(seat.state).toEqual(JSON.parse(JSON.stringify(s.hub.room.realState)));
+      expect(seat.waitingOn).toBeNull();
+      continue;
+    }
     expect(seat.view).toEqual(sent.view);
     expect(seat.state).toEqual(stateFromView(sent.view));
     expect(seat.waitingOn).toBe(t.over ? null : sent.waitingOn);
@@ -290,8 +298,9 @@ describe('Online table: full games against the room', () => {
       expect(s.tables.runner.over).toEqual(s.tables.corp.over);
       expect(s.tables.corp.winner).toBe(s.hub.room.realState!.winner);
       expect(s.alerts).toEqual({ corp: [], runner: [] });
-      // After the end nothing is offered
+      // After the end nothing is offered, and both seats show the whole final table (chunk 2d)
       for (const side of SIDES) expect(s.tables[side].seatFor(side).legal).toEqual([]);
+      for (const side of SIDES) expect(s.tables[side].seatFor(side)).toMatchObject({ side: 'both', view: null, state: JSON.parse(JSON.stringify(s.hub.room.realState)) });
     }, 60_000);
   }
 });
@@ -596,6 +605,67 @@ describe('Online table: waiting, errors and reconnects', () => {
     expect(s.tables.corp.over).toMatchObject({ winner: 'runner' });
     expect(s.tables.runner.over).toMatchObject({ winner: 'runner' });
     expect(loadSession()).toBeNull();
+  });
+});
+
+describe('Online table: the final table (chunk 2d; rule 1.7.1)', () => {
+  it('after `over` with the final state: the seat shows it (both hands), offers nothing, sends nothing, and no move listener fires', () => {
+    const s = setup(31);
+    const moves: Record<SideCode, number> = { corp: 0, runner: 0 };
+    for (const side of SIDES) s.tables[side].onMove(() => moves[side]++);
+    const before = { corp: s.tables.corp.seatFor('corp').state, runner: s.tables.runner.seatFor('runner').state };
+    // Before the end each seat sees the other's hand face down only
+    expect(before.corp.runner.grip.every(c => isHiddenCode(c.cardCode))).toBe(true);
+    expect(before.runner.corp.hq.every(c => isHiddenCode(c.cardCode))).toBe(true);
+    void s.tables.runner.seatFor('runner').act({ type: 'CONCEDE', player: 'runner' });
+    s.hub.flush();
+    const final = JSON.parse(JSON.stringify(s.hub.room.realState));
+    const movesAtEnd = { ...moves };
+    for (const side of SIDES) {
+      const t = s.tables[side];
+      expect(t.over).toEqual({ winner: 'corp', reason: 'Runner conceded' });
+      expect(t.final).toEqual(final);
+      const seat = t.seatFor(side);
+      expect(seat).toMatchObject({ side: 'both', view: null, legal: [], waitingOn: null });
+      expect(seat.state).toEqual(final);
+      expect(seat.state.runner.grip.length).toBeGreaterThan(0);
+      expect(seat.state.runner.grip.some(c => isHiddenCode(c.cardCode))).toBe(false);
+      expect(seat.state.corp.hq.some(c => isHiddenCode(c.cardCode))).toBe(false);
+      expect(seat.can({ type: 'GAIN_CREDIT', player: 'corp' })).toBe(false);
+      expect(t.acting).toBeNull();
+      expect(t.winner).toBe('corp');
+    }
+    // The switch to the final table is not a move (its ids are the engine's): no sounds, fates or accesses for it
+    expect(moves).toEqual(movesAtEnd);
+    // Acting after the end sends nothing
+    const ws = s.hub.sockets.corp!;
+    const sentBefore = ws.sent.length;
+    void s.tables.corp.seatFor('corp').act({ type: 'GAIN_CREDIT', player: 'corp' });
+    expect(ws.sent.length).toBe(sentBefore);
+    // A reconnect after the end brings the same final table again, and still no move
+    s.hub.drop('corp');
+    s.hub.flush();
+    s.timers.advance(1000);
+    s.hub.flush();
+    expect(s.tables.corp.seatFor('corp').state).toEqual(final);
+    expect(moves).toEqual(movesAtEnd);
+  });
+
+  it('after `over` without it (an older server, or a game the room could not read): the seat is as today', () => {
+    const s = setup(32);
+    const t = s.tables.corp;
+    const last = t.seatFor('corp');
+    // What an older server sends (no `final`)
+    const ws = s.hub.sockets.corp!;
+    ws.onmessage?.({ data: JSON.stringify({ type: 'over', winner: null, reason: 'server update' }) });
+    expect(t.over).toEqual({ winner: null, reason: 'server update' });
+    expect(t.final).toBeNull();
+    const seat = t.seatFor('corp');
+    expect(seat.side).toBe('corp');
+    expect(seat.view).toEqual(last.view);
+    expect(seat.state).toEqual(last.state);
+    expect(seat.legal).toEqual([]);
+    expect(seat.waitingOn).toBeNull();
   });
 });
 

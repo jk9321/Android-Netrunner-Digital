@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState, useSyncExternalStore } from 'react';
 import type { GameAction, SideCode } from '../core';
+import type { Viewer } from './viewer';
 import type { OnlineStatus, OnlineTable } from '../net/client';
 import { PersonStops, saveStops, savedStops } from './stops';
 import type { AccessedCard } from './savedGame';
@@ -26,7 +27,8 @@ const noop = () => {};
 /**
  * The online game's controller: the same shape as useGameController, fed by
  * an OnlineTable (src/net/client.ts) instead of a LocalTable. The viewer is
- * always the player's own seat: no open table, no pass-and-play cover, no
+ * the player's own seat until the game ends (then the final table the room
+ * sends, chunk 2d): no open table during play, no pass-and-play cover, no
  * computer, no rematch, and nothing of the game kept in the browser (only
  * the session, in the client). The automatic answers the local controller
  * sends on the person's behalf go through the seat (seat.act) here too.
@@ -40,7 +42,7 @@ export function useOnlineController(table: OnlineTable): GameController {
   const [stops, setStopsState] = useState<PersonStops>(savedStops);
   const [selectedCardId, setSelectedCardId] = useState<string | null>(null);
   const [accessed, setAccessed] = useState<AccessedCard[]>([]);
-  const { fates, showFates } = useCardFates();
+  const { fates, showFates, clearFates } = useCardFates();
 
   const winner = table.winner;
   const over = !!table.over || !!winner;
@@ -48,6 +50,17 @@ export function useOnlineController(table: OnlineTable): GameController {
   const corpCanAct = !over && side === 'corp';
   const runnerCanAct = !over && side === 'runner';
   const rezWindow = corpRezWindow(seat);
+  // The final table (chunk 2d): once the room sent it, the open table, as a local game opens up at its end
+  const viewer: Viewer = table.final ? 'both' : side;
+
+  // The switch to the final table changes every id (the player's view-local ids before, the engine's after):
+  // a selection or a card showing from before belongs to the old ids. No sounds, accesses or showings for it.
+  useEffect(() => {
+    if (viewer !== 'both') return;
+    setSelectedCardId(null);
+    clearFates();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [viewer]);
 
   // Every new state: sounds, accesses, the brief showings and the selection, from the player's own before-and-after
   useEffect(
@@ -120,7 +133,7 @@ export function useOnlineController(table: OnlineTable): GameController {
     passWindow,
     stops,
     setStops,
-    viewer: side,
+    viewer,
     handoffTo: null,
     corpCanAct,
     runnerCanAct,

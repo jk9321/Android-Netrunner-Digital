@@ -414,7 +414,7 @@ export class RoomCore {
     // A room stored before seats' last states were kept (or built for a test) has none: the current state, if settled
     const last = this.last[side] ?? (this.table && settledFor(this.viewsFor(side).state, side) ? JSON.stringify(this.stateMessage(side)) : null);
     if (last) out.push(last);
-    if (this.meta.over) out.push(JSON.stringify({ type: 'over', ...this.meta.over } satisfies ServerMessage));
+    if (this.meta.over) out.push(this.overMessage().text);
     return out;
   }
 
@@ -522,9 +522,25 @@ export class RoomCore {
     if (force || settledFor(state, opp)) out.push(...this.stateFor(opp, force));
     if (state.winner && !this.meta.over) {
       this.end({ winner: state.winner, reason: state.winReason ?? 'game over' }, now);
-      for (const s of SIDES) out.push({ to: s, msg: { type: 'over', ...this.meta.over! } });
+      const { msg, text } = this.overMessage();
+      for (const s of SIDES) out.push({ to: s, msg, text });
     }
     return out;
+  }
+
+  /**
+   * The `over` message, the same for both seats. Once the game has a winner
+   * nothing is hidden any more (rule 1.7.1 ends the game), so it carries the
+   * whole final table (chunk 2d): the committed real state, built from what
+   * the room already stores (no second copy). A game the room could not read
+   * (winner null, "server update") has no table to show. Serialised once.
+   */
+  private overMessage(): { msg: ServerMessage & { type: 'over' }; text: string } {
+    const over = this.meta.over!;
+    // A held choice is never on top at the end (a committed move ended the game), and `state` is the committed one anyway
+    const final = over.winner !== null && this.table?.state.winner ? this.table.state : undefined;
+    const msg: ServerMessage & { type: 'over' } = { type: 'over', ...over, ...(final ? { final } : {}) };
+    return { msg, text: JSON.stringify(msg) };
   }
 
   private end(over: { winner: SideCode | null; reason: string }, now: number) {
