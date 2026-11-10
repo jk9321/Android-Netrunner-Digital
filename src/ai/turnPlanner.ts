@@ -449,8 +449,6 @@ function drewFromRd(start: GameState, end: GameState | undefined): boolean {
 
 /** plan.hiddenDraws: the guessHidden deal the planner's own playouts start from (the replies use deals 0 ..). */
 const HIDDEN_DRAW_SAMPLE = 4096;
-/** plan.hiddenDrawsAverage: the R&D guesses a line that draws is read on. */
-export const HIDDEN = { deals: 3 };
 
 export function planTurn(state: GameState, side: SideCode, ranked: ScoredAction[], ai: PlannerAI, synergy: boolean): GameAction | null {
   // Still on the last plan: its next step, if the rule-based AI still rates it
@@ -515,20 +513,6 @@ export function planTurn(state: GameState, side: SideCode, ranked: ScoredAction[
           plannerStats.held = (plannerStats.held ?? 0) + 1;
           [value, line, ends] = [heldValue, heldLine, held];
         } else if (builds && Number.isFinite(heldValue)) pool.push({ action: c.action, value: heldValue, line: heldLine, ends: held });
-      }
-      // plan.hiddenDrawsAverage (S6 follow-up): a line that drew is read on HIDDEN.deals guesses of R&D (the same deals
-      // for every candidate of the decision), not on one random order; the first deal's line is the one remembered
-      if (side === 'corp' && plan().hiddenDraws && plan().hiddenDrawsAverage && value > -Infinity && drewFromRd(root, ends.state)) {
-        let total = value;
-        let n = 1;
-        for (let d = 1; d < HIDDEN.deals; d++) {
-          const v = playout(guessHidden(state, HIDDEN_DRAW_SAMPLE + d), side, c.action, ai, synergy, [], {}, ends.held ? 'hold' : 'rule');
-          if (v > -Infinity) {
-            total += v;
-            n++;
-          }
-        }
-        value = total / n;
       }
       values.push(value);
       scored.push({ action: c.action, value, line, ends });

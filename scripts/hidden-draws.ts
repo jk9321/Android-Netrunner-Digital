@@ -18,8 +18,6 @@ const [gamesArg, seedArg] = process.argv.slice(2).filter(a => a !== '--');
 const games = Number(gamesArg ?? 4);
 applyPlanOff(process.env.PLAN_OFF ?? '');
 tuning.plan.hiddenDraws = false;
-// AVERAGE=1: the switch-ON reading also averages drawing lines over HIDDEN.deals (plan.hiddenDrawsAverage)
-if (process.env.AVERAGE === '1') tuning.plan.hiddenDrawsAverage = true;
 const n = { decisions: 0, withDraw: 0, drawLines: 0, lines: 0, flips: 0, compared: 0, noDrawFlips: 0, noDrawCompared: 0 };
 let inner = false;
 const same = (a: GameAction | null, b: GameAction | null) => JSON.stringify(a) === JSON.stringify(b);
