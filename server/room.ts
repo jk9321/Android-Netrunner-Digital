@@ -218,6 +218,21 @@ export interface JoinInput {
 /** Why a room couldn't be created or joined; reasons are about the sender's own deck only. */
 export type RoomRefusal = { error: 'bad_request' | 'full' | 'illegal_deck'; reasons?: string[] };
 
+/**
+ * actionKey with the card lists that are sets sorted: cards discarded down to
+ * hand size and cards trashed first are offered once per set, in one order,
+ * and a client may send them in any order.
+ */
+function unorderedKey(action: GameAction): string {
+  if (action.type === 'INSTALL_CARD' && action.trashFirst) return actionKey({ ...action, trashFirst: [...action.trashFirst].sort() });
+  if (action.type !== 'RESOLVE_PROMPT') return actionKey(action);
+  const c = action.choice;
+  const sorted = { ...c } as Record<string, unknown>;
+  if (c.kind === 'discard') sorted.cardInstanceIds = [...c.cardInstanceIds].sort();
+  if ('trashFirst' in c && c.trashFirst) sorted.trashFirst = [...c.trashFirst].sort();
+  return actionKey({ ...action, choice: sorted as typeof c });
+}
+
 export class RoomCore {
   meta: RoomMeta;
   private table: TableCore | null;
@@ -513,8 +528,8 @@ export class RoomCore {
    */
   private offered(side: SideCode, action: GameAction): boolean {
     const legal = this.legalFor(side);
-    const keys = new Set(legal.map(actionKey));
-    if (keys.has(actionKey(action))) return true;
+    const keys = new Set(legal.map(unorderedKey));
+    if (keys.has(unorderedKey(action))) return true;
     if (legal.length === 0) return false;
     if (action.type === 'INSTALL_CARD') return !!action.trashFirst?.length || action.hostInstanceId !== undefined;
     if (action.type !== 'RESOLVE_PROMPT') return false;
@@ -523,7 +538,7 @@ export class RoomCore {
     const c = action.choice;
     if ('trashFirst' in c && c.trashFirst?.length) {
       const base = { ...action, choice: { ...c, trashFirst: undefined } } as GameAction;
-      return keys.has(actionKey(base)) || c.kind === 'effect_cards';
+      return keys.has(unorderedKey(base)) || c.kind === 'effect_cards';
     }
     return c.kind === 'effect_cards';
   }

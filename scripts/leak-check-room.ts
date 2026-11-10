@@ -277,6 +277,9 @@ function junkCheck(room: RoomCore, clients: Record<SideCode, Client>, checker: L
   const res = room.receive(side, parseClientMessage(raw), step);
   for (const o of res.out) if (JSON.stringify(o.msg).includes(JUNK)) checker.fail(step, o.to, 'seat', 'junk from a client reached a message');
   if (JSON.stringify(room.moves).includes(JUNK)) checker.fail(step, side, 'seat', 'junk from a client reached the stored moves');
+  // Junk that cleans up into a legal move is a move: a deferred answer leaves the client waiting, as in the main loop
+  const accepted = res.persist && !res.out.some(o => o.to === side && o.msg.type === 'error');
+  if (accepted && !res.out.some(o => o.to === side && o.msg.type === 'state')) client.waiting = true;
   deliver(res.out, res.out.some(o => o.to === side && o.msg.type === 'state') ? side : null);
 }
 

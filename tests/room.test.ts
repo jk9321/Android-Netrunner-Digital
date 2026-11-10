@@ -107,6 +107,21 @@ describe('Client actions are rebuilt and checked (review R2: no free text anywhe
     expect(JSON.stringify(room.moves)).not.toContain('chat');
     expect(room.moves.at(-1)).toEqual({ type: 'GAIN_CREDIT', player: 'corp' });
   });
+
+  it('cards discarded down to hand size count as a set: any order of an offered set is taken (rules 4.3.6, 5.5.3)', () => {
+    const s = newGame(7);
+    startRunnerTurn(s);
+    s.pendingPrompts = [{ id: 'prompt-1', kind: 'discard', side: 'runner', message: 'Discard down to hand size.', cards: [], count: 2 }] as never;
+    const room = roomWith(s);
+    const st = lastState(room, 'runner');
+    const offered = st.legal.find(a => a.type === 'RESOLVE_PROMPT' && a.choice.kind === 'discard')!;
+    expect(offered).toBeDefined();
+    const ids = (offered as GameAction & { choice: { cardInstanceIds: string[] } }).choice.cardInstanceIds;
+    const reversed = { ...offered, choice: { kind: 'discard', cardInstanceIds: [...ids].reverse() } } as GameAction;
+    const res = room.receive('runner', { type: 'act', seq: st.seq, action: reversed }, 0);
+    expect(errorsTo(res.out, 'runner')).toEqual([]);
+    expect(room.moves.length).toBe(1);
+  });
 });
 
 describe('Creating and joining (rules 1.4.1a, deck legality)', () => {
