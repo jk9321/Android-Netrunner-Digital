@@ -6,7 +6,7 @@
 import { describe, expect, it } from 'vitest';
 import { GameAction, GameState, SideCode, executeAction } from '../src/core';
 import { STARTER_DECKS } from '../src/data/decks';
-import { RoomCore, checkDeck, settledFor, ENDED_LIFETIME_MS, IDLE_LIFETIME_MS } from '../server/room';
+import { RoomCore, checkDeck, settledFor, storageWrites, ENDED_LIFETIME_MS, IDLE_LIFETIME_MS } from '../server/room';
 import type { Outbox, RoomSnapshot } from '../server/room';
 import { SOCKET_ERROR_TEXT, displayRoomCode, parseClientMessage, parseRoomCode } from '../src/net/protocol';
 import type { ServerMessage } from '../src/net/protocol';
@@ -309,6 +309,36 @@ describe('The held choice (spec rule 3)', () => {
     const again = RoomCore.load(structuredClone(room.snapshot()), 0);
     expect(again.connect('runner')).toEqual(room.connect('runner'));
     expect(again.connect('corp')).toEqual(room.connect('corp'));
+  });
+});
+
+describe('Storage writes (rows written are the free plan\'s daily limit)', () => {
+  it('a save writes meta, and the rest only when it changed', () => {
+    const { room } = started();
+    pastMulligans(room);
+    let { put, refs } = storageWrites(null, room.snapshot());
+    expect(Object.keys(put).sort()).toEqual(['last:corp', 'last:runner', 'meta', 'moves', 'state']);
+    // A committed move: the state, the moves, and the last state of each seat that was sent one
+    const res = act(room, 'corp', a => a.type === 'GAIN_CREDIT');
+    ({ put, refs } = storageWrites(refs, room.snapshot()));
+    const sent = (['corp', 'runner'] as SideCode[]).filter(x => statesTo(res.out, x).length > 0);
+    expect(sent).toContain('corp');
+    expect(Object.keys(put).sort()).toEqual([...sent.map(x => `last:${x}`), 'meta', 'moves', 'state'].sort());
+    // Nothing changed: meta only
+    expect(Object.keys(storageWrites(refs, room.snapshot()).put)).toEqual(['meta']);
+  });
+
+  it('a held choice writes meta and the holder\'s last state only', () => {
+    const s = newGame(3);
+    startRunnerTurn(s);
+    const id = giveCard(s, 'runner', JAILBREAK);
+    const room = roomWith(s);
+    const r = lastState(room, 'runner');
+    const play = r.legal.find(a => a.type === 'PLAY_OPERATION_OR_EVENT' && room.inspect('runner')!.ids.real[a.cardInstanceId] === id)!;
+    const { refs } = storageWrites(null, room.snapshot());
+    const res = room.receive('runner', { type: 'act', seq: r.seq, action: play }, 0);
+    expect(statesTo(res.out, 'runner')[0].held).toBe(true);
+    expect(Object.keys(storageWrites(refs, room.snapshot()).put).sort()).toEqual(['last:runner', 'meta']);
   });
 });
 

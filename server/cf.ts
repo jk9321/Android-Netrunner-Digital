@@ -11,6 +11,7 @@ export interface DurableObjectStorage {
   put(entries: Record<string, unknown>): Promise<void>;
   put(key: string, value: unknown): Promise<void>;
   deleteAll(): Promise<void>;
+  getAlarm(): Promise<number | null>;
   setAlarm(scheduledTime: number): Promise<void>;
   deleteAlarm(): Promise<void>;
 }

@@ -57,9 +57,13 @@ No free-text field anywhere (no names, no chat). A seat is `playerId` plus token
 
 ## Storage and lifetime
 
-Five values per room (`meta`, `state`, `moves`, `last:corp`, `last:runner`), written together after every change and before anything is sent: `meta` (seats, token hashes, decks, format, build, seq and last-sent hashes, both id maps, the held action, result), `state` (the real `GameState`), `moves`, and each seat's last state message as sent. The held choice is stored as its action and worked out again on load. Measured in the 200-game fuzz: see the hand-off (late-game state about 55-66 KB, moves under 40 KB, meta a few KB).
+Five values per room (`meta`, `state`, `moves`, `last:corp`, `last:runner`), one row each: `meta` (seats, token hashes, decks, format, build, seq and last-sent hashes, both id maps, the held action, result), `state` (the real `GameState`), `moves`, and each seat's last state message as sent. The held choice is stored as its action and worked out again on load. Every change is written before anything is sent, but only what changed (`storageWrites` in `server/room.ts`): `meta` always, `state` and `moves` on a committed move, a seat's `last:*` when it was sent a state. A move writes 2-4 rows. Measured in the 200-game fuzz: late-game state up to about 86 KB, moves about 50 KB, meta about 7 KB, messages up to about 98 KB.
 
-Alarm: 7 days after the last move, or 1 day after the game ended, the room deletes itself. A state that no longer loads after a deploy ends the game as a draw (`over { winner: null, reason: 'server update' }`).
+**Daily ceiling (free plan).** Durable Objects storage allows 100,000 rows written a day. At about 3 rows a move and 200-500 moves a game that is roughly 65-165 games a day across all rooms. The limit is per account, so staging and production share it (figure from the reviewer's reading of Cloudflare's pricing, unverified here). Past it, writes fail until the next day; if online play outgrows that, the paid plan's allowance is far higher.
+
+**CPU.** A Durable Object gets 30 s of CPU per incoming request or WebSocket message, on the free plan too (Cloudflare's Durable Objects limits page, read through a search summary on 2026-11-10 because developers.cloudflare.com is blocked in these threads). Measured (room fuzz `--wake`, 16 games, 1,384 wakes: load from JSON, move, snapshot): p50 2.0 ms, p99 13.4 ms, max 19.5 ms. No saving needed.
+
+Alarm: 7 days after the last move, or 1 day after the game ended, the room deletes itself. The alarm is set only when there is none or the room now expires sooner (the game ended); after more moves it fires early, sees the room isn't due yet and sets itself again, so moves don't each write an alarm. A state that no longer loads after a deploy ends the game as a draw (`over { winner: null, reason: 'server update' }`).
 
 ## Bug reports
 

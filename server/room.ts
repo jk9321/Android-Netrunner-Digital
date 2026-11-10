@@ -103,6 +103,31 @@ export interface RoomSnapshot {
   last?: Record<SideCode, string | null>;
 }
 
+/** What a room last wrote to storage, by reference (state and moves are replaced, never changed in place). */
+export interface StoredRefs {
+  state: GameState | null;
+  moves: GameAction[];
+  last: Record<SideCode, string | null>;
+}
+
+/** The storage keys a room keeps, one row each. */
+export const STORAGE_KEYS = ['meta', 'state', 'moves', 'last:corp', 'last:runner'] as const;
+
+/**
+ * The values to write after a change: meta always, the rest only when it
+ * changed since `prev` (null: everything). The free plan allows 100,000 rows
+ * written a day, so a move writes 2-4 rows instead of 5 (state and moves only
+ * on a committed move, a seat's last state only when it was sent one).
+ */
+export function storageWrites(prev: StoredRefs | null, snap: RoomSnapshot): { put: Record<string, unknown>; refs: StoredRefs } {
+  const last = { corp: snap.last?.corp ?? null, runner: snap.last?.runner ?? null };
+  const put: Record<string, unknown> = { meta: snap.meta };
+  if (!prev || prev.state !== snap.state) put.state = snap.state;
+  if (!prev || prev.moves !== snap.moves) put.moves = snap.moves;
+  for (const side of ['corp', 'runner'] as const) if (!prev || prev.last[side] !== last[side]) put[`last:${side}`] = last[side];
+  return { put, refs: { state: snap.state, moves: snap.moves, last } };
+}
+
 /** `text`: the message as JSON when it was already serialised (state messages), so the socket sends it without a second stringify. */
 export type Outbox = { to: SideCode; msg: ServerMessage; text?: string }[];
 

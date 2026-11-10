@@ -11,7 +11,8 @@
 import { PING, PONG, SOCKET_ERROR_TEXT, parseClientMessage } from '../src/net/protocol';
 import type { ServerMessage } from '../src/net/protocol';
 import type { SideCode } from '../src/core';
-import { RoomCore, RoomSnapshot, Outbox } from './room';
+import { RoomCore, RoomSnapshot, Outbox, STORAGE_KEYS, storageWrites } from './room';
+import type { StoredRefs } from './room';
 import type { CreateInput, JoinInput, RoomMeta } from './room';
 import { hashToken } from './tokens';
 import { CfWebSocket, DurableObjectState, upgradeResponse } from './cf';
@@ -24,11 +25,15 @@ export const CLOSE_ROOM_DELETED = 4001;
 
 export class GameRoom {
   private room: RoomCore | null = null;
+  /** What storage holds now (by reference), so a save writes only what changed. */
+  private stored: StoredRefs | null = null;
+  /** When the alarm is set for, once known (undefined: not read yet). */
+  private alarmAt: number | null | undefined = undefined;
 
   /** The runtime also passes the Worker's env; the room needs none of it. */
   constructor(private ctx: DurableObjectState) {
     void ctx.blockConcurrencyWhile(async () => {
-      const got = await ctx.storage.get<unknown>(['meta', 'state', 'moves', 'last:corp', 'last:runner']);
+      const got = await ctx.storage.get<unknown>([...STORAGE_KEYS]);
       const meta = got.get('meta') as RoomMeta | undefined;
       if (!meta) return;
       const snapshot: RoomSnapshot = {
@@ -38,6 +43,7 @@ export class GameRoom {
         last: { corp: (got.get('last:corp') as string | undefined) ?? null, runner: (got.get('last:runner') as string | undefined) ?? null },
       };
       this.room = RoomCore.load(snapshot, Date.now());
+      this.stored = { state: snapshot.state, moves: snapshot.moves, last: snapshot.last! };
       // A state that no longer loads ended the game as a draw: keep that
       if (this.room.errors.length) {
         console.error('GameRoom load', meta.code, this.room.errors.join('; '));
@@ -50,9 +56,17 @@ export class GameRoom {
 
   private async save() {
     const room = this.room!;
-    const { meta, state, moves, last } = room.snapshot();
-    await this.ctx.storage.put({ meta, state, moves, 'last:corp': last?.corp ?? null, 'last:runner': last?.runner ?? null });
-    await this.ctx.storage.setAlarm(room.expiresAt());
+    const { put, refs } = storageWrites(this.stored, room.snapshot());
+    await this.ctx.storage.put(put);
+    this.stored = refs;
+    // The alarm is a write too: set only when there is none or the room now expires sooner (the game ended).
+    // A later expiry (another move) is handled when the alarm fires: alarm() sets it again for then.
+    const at = room.expiresAt();
+    if (this.alarmAt === undefined) this.alarmAt = await this.ctx.storage.getAlarm();
+    if (this.alarmAt === null || at < this.alarmAt) {
+      await this.ctx.storage.setAlarm(at);
+      this.alarmAt = at;
+    }
   }
 
   private send(out: Outbox) {
@@ -175,6 +189,7 @@ export class GameRoom {
     const room = this.room;
     if (room && Date.now() < room.expiresAt()) {
       await this.ctx.storage.setAlarm(room.expiresAt());
+      this.alarmAt = room.expiresAt();
       return;
     }
     for (const side of SIDES) {
@@ -187,6 +202,8 @@ export class GameRoom {
       }
     }
     this.room = null;
+    this.stored = null;
+    this.alarmAt = null;
     await this.ctx.storage.deleteAlarm();
     await this.ctx.storage.deleteAll();
   }
