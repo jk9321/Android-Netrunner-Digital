@@ -365,27 +365,35 @@ export const tuning = {
      */
     clearinghouseRez: true,
     /**
-     * Phase 2 O (window supply, opening-audit/report.md; Corp only): the planner plays each candidate on with the rule
-     * ranking, which installs an agenda whenever one can go in (installScore 8+), so "ice a new remote, then hold the
-     * agenda" was never played (deal 1491 T1, tests/plannerHold.test.ts). A continuation that installs an agenda is also
-     * played holding every agenda this turn, and the better line stands (turnPlanner.ts planTurn); the mirror of
-     * plannerAgenda. PARKED OFF (AI Coordinator 2026-11-09): +2.8 ± 1.0 at 10 games (run 42612102629 vs O4c), but the
-     * gain is defence through the leaf's low worth for an installed unscored agenda, not tempo: remote steals -25%, agenda
-     * stuck in HQ 16.6 -> 24.3 (most beside an open window), first score unchanged, +21% game time. Holding only while no
-     * remote is ready removed the gain (+0.5 ± 1.4, run 42612283883). Re-measure with O2 (the leaf's agenda worth).
+     * Phase 3 S2 (spec-search.md; Corp only): the hold line where it builds a window. On a decision with an agenda in HQ
+     * and none installed, a candidate whose rule line installs the agenda is also played holding it (the 'hold' line);
+     * the held line stands only when it beats the rule line by more than SEARCH.margin (the 2-sample reply's noise, S1
+     * report) AND its end position has a window the held agenda can use next turn that the turn built: a remote with ice
+     * the Corp has rezzed or can pay to rez, and no agenda or asset in its root (one per root, rule 8.5.6a; ice protects
+     * it, 3.4.2), not ready when the decision began. S1 (run 42663183482 + local net sample): the hold line beats the pick
+     * net of the noise on 8.4% (margin 3) of HQ-only decisions; finish-first and installed-agenda turns ~0, left out.
+     * ON (AI Coordinator 2026-11-09): +1.1 ± 0.7 at 10 games (runs 42686212950 + 42681282303 vs 42686206493 +
+     * 42654315875), stuck in HQ +0.3 ± 0.7, first score T6.8 -> 6.6, remote steals -6%, no time cost; 34 of 39 accepted
+     * holds still win on 8 reply samples. S4: plannerHold (Phase 2 O, the same hold kept whenever it read better: +2.8
+     * ± 1.0 but by defence, stuck in HQ 16.6 -> 24.3) is folded into this switch: the window rule is what it lacked.
      */
-    plannerHold: false,
+    searchLines: true,
     /**
-     * Phase 2 O2 (opening-audit/report.md; AI Coordinator call 2026-11-09: the leaf first, in the one place that prices an
-     * installed unscored agenda): agendaWorth charges the advances still to go after this turn only by the odds the agenda
-     * stands to take them, as it already discounts the points (evaluate.ts agendaWorth). Off: charged in full.
-     * OFF (2026-11-09): -1.2 ± 1.2 paired (run 42562609024 vs the O4c run 42560731594, games 0-3); window turns with no
-     * agenda move 42.5% -> 41.6%, first score unchanged (T6.9). Why it can't move the opening: the planner's agenda lines
-     * mostly end with the agenda finished or nearly (little advancement left to discount), and from Jeff's own positions
-     * the AI already makes agenda progress on as many turns as he does (human-agreement turns: AI moved where Jeff didn't
-     * 29 vs the reverse 13). The tempo gap is in reaching the windows, not in taking them; feeds the O1 follow-up.
+     * Phase 3 S3 (spec-search.md; Corp only, on top of searchLines): the 2-sample reply decides most close picks (S1: a
+     * plain re-sample of the same line beats the pick by more than 3 on 28% of agenda decisions). On a decision with an
+     * agenda in HQ or installed, the two best lines (candidates, or a candidate's rule line and its window-building held
+     * line) closer than SEARCH.margin get REPLY.extra more reply samples each and the better of those two means stands
+     * (turnPlanner.ts contenders, topOnly): a third line read on two samples only must not re-enter on the two's
+     * regression to the mean, which is the same noise again (it flipped deal 1491 T1). replyContenders, the same on every
+     * decision with a gap of 4 and the rest re-admitted, read -0.6 ± 2.2.
+     * PARKED OFF (2026-11-09): -4.2 ± 1.8 vs searchLines ON (run 42697176557 vs 42681282303, games=3), stayed broke
+     * +2.9, remote steals 558 -> 625, 0 hold flips: it only re-sorts close candidates. More reply samples playing worse
+     * outside noise is a finding about the reply values, not only about S3: the leaf under the reply carried about 33
+     * points of flatline credit for damage the Corp can't deal on its own turn (plan.corpTurnDamageOwn, fixes thread),
+     * and extra samples settle close calls on such a term. Unverified reading: rare losing samples pull four-sample
+     * means. Re-measure once after corpTurnDamageOwn lands on beta, against #45 (tests/searchOpen45.test.ts).
      */
-    agendaPaidWhileStanding: false,
+    searchSamples: false,
     /**
      * Phase 2 O2 v2 (opening-audit/report.md; Corp only): an installed or held agenda's advances are charged at the one
      * click price (valueModel CLICK) plus their credit, not AGENDA_CLICK 2 (evaluate.ts agendaWorth): at 2 a click and 8
@@ -396,16 +404,6 @@ export const tuning = {
      * floor at 0 (evaluate.ts heldAgendasWorth) is the other half, next. Rules: advancing is a click and 1 credit (5.2.6f).
      */
     agendaLine: false,
-    /**
-     * Phase 2 O (opening-audit/report.md; Corp only): a held agenda is priced by its best install line with no floor at 0
-     * (evaluate.ts heldAgendasWorth). The floor read every agenda whose line was below 0 better held for ever than
-     * installed, the outlet plannerHold found (agenda stuck in HQ 16.6 -> 24.3 beside open windows). HQ's own steal
-     * risk is priced by centralExposure / the threat. Rules: an agenda scores only once installed and advanced (1.17).
-     * PARKED OFF (2026-11-09): identical alone (663/663, run 42636920759 vs 42630827843); with plannerHold stuck in HQ
-     * stayed 24.4 (run 42631360358). No static held-agenda term changes the pick: the hold's gain comes from the
-     * post-install playout and the Runner reply, not from agenda worth.
-     */
-    heldNoFloor: false,
     /**
      * Phase 2 O2b (opening-audit/report.md; Corp only): an advance the timing guard rules out (it can't be scoreable next
      * turn, nothing guards it, or its server is exposed) is priced ADVANCE_GUARD_PENALTY below the advance it would be,
@@ -512,7 +510,7 @@ export const tuning = {
  */
 export const sideOff: Record<SideCode, string[]> = {
   corp: [],
-  runner: ['tagTrashNow', 'ownTrashRisk', 'hqTrashCost', 'oneCurrency', 'threatModel', 'measuredPass', 'threatSpend', 'calibratedRun', 'raceClock', 'iceProtects', 'replyContenders', 'plannerAgenda', 'clearinghouseRez', 'plannerHold', 'agendaPaidWhileStanding', 'agendaLine', 'heldNoFloor', 'advanceGuardPriced', 'scoreBudget', 'oracle', 'reach', 'reachStrength', 'reachTime', 'threatKey', 'threatKeyPricing'],
+  runner: ['tagTrashNow', 'ownTrashRisk', 'hqTrashCost', 'oneCurrency', 'threatModel', 'measuredPass', 'threatSpend', 'calibratedRun', 'raceClock', 'iceProtects', 'replyContenders', 'plannerAgenda', 'clearinghouseRez', 'searchLines', 'searchSamples', 'agendaLine', 'advanceGuardPriced', 'scoreBudget', 'oracle', 'reach', 'reachStrength', 'reachTime', 'threatKey', 'threatKeyPricing'],
 };
 
 /**
@@ -538,6 +536,8 @@ export const FOLDED: readonly string[] = [
   'subCosts', 'iceInCredits', 'breakerCredits',
   // Tuning pass 1 (2026-11-08): Nanomanagement/Touch-ups' own bonus deleted, plan.finishSetup ranks them (CardAI setup); +0.0 ± 0.2, run 42403917371
   'oneSetupRule',
+  // Phase 3 S4 (spec-search.md, 2026-11-09): plannerHold folded into plan.searchLines (the hold that builds a window)
+  'plannerHold',
 ];
 
 /** Throws on a name that isn't a plan switch (a typo, or a switch folded into the code). */

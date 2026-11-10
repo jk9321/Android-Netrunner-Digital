@@ -21,7 +21,9 @@ export function batchTokens(planOff: string): { ice?: OracleIce; money: boolean;
   const ice = keys.find(k => /^\+oracle\.ice\./.test(k))?.replace('+oracle.ice.', '') as OracleIce | undefined;
   if (ice && !['hq', 'archives', 'remote'].includes(ice)) throw new Error(`oracle.ice.${ice}: hq, archives or remote`);
   const money = keys.includes('+oracle.money');
-  return { ice, money, plan: keys.filter(k => !/^\+oracle\.ice\./.test(k) && k !== '+oracle.money').join(',') };
+  // +audit.search (spec-search S1): log every Corp planner decision's continuations (lossLog.ts SEARCH_AUDIT); no play change
+  if (keys.includes('+audit.search')) process.env.SEARCH_AUDIT = '1';
+  return { ice, money, plan: keys.filter(k => !/^\+oracle\.ice\./.test(k) && k !== '+oracle.money' && k !== '+audit.search').join(',') };
 }
 
 /** Places the cheat ice on `target`. False when the Corp's R&D holds no ice (the deal is played without the cheat). */
