@@ -168,6 +168,9 @@ describe('Per-player views', () => {
     expect(p?.kind).toBe('access_trash');
     const v = views(s);
     expect(v.corp.pendingPrompts).toEqual([]);
+    // The Corp sees only that the game waits on the Runner. At these (AI) stops only cards with a decision pause, the
+    // tell Jeff accepted below 'full' (2026-11-08); at 'full' every R&D card pauses (the next two tests)
+    expect(v.corp.waitingOn).toBe('runner');
     expect(json(v.corp)).not.toContain('access_trash');
     expect(json(v.corp)).not.toContain(`"${NICO}"`);
     const mine = v.runner.pendingPrompts[0];

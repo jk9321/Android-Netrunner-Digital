@@ -28,6 +28,8 @@ import {
   createInitialGameState,
   createRng,
   executeAction,
+  fromEngineAction,
+  getLegalActions,
   getCardDefinition,
   nextInt,
   viewFor,
@@ -46,9 +48,15 @@ export interface TwinStats {
   revealed: number;
   /** Skipped: the action was not legal in the twin, or threw. */
   illegal: number;
+  /** Of those, actions taken by the blind side itself (it chose from its own view, so these deserve a look). */
+  illegalBlind: number;
+  /** A few examples of those, for the report. */
+  illegalBlindExamples: string[];
+  /** Steps where the blind side was to act and its legal lists in S and the twin were compared. */
+  legalCompared: number;
 }
 
-export const newTwinStats = (): TwinStats => ({ built: 0, compared: 0, revealed: 0, illegal: 0 });
+export const newTwinStats = (): TwinStats => ({ built: 0, compared: 0, revealed: 0, illegal: 0, illegalBlind: 0, illegalBlindExamples: [], legalCompared: 0 });
 
 type Kind = 'rd' | 'hq' | 'grip' | 'installed';
 const KINDS: Record<SideCode, Kind[]> = { corp: ['rd', 'grip'], runner: ['rd', 'hq', 'installed'] };
@@ -170,7 +178,7 @@ function shown(before: GameState, after: GameState, blind: SideCode, ids: string
   });
 }
 
-export type TwinOutcome = { kind: 'same' | 'revealed' | 'illegal' } | { kind: 'differ'; before: boolean; path: string };
+export type TwinOutcome = { kind: 'same' | 'revealed' | 'illegal'; legalCompared?: boolean } | { kind: 'differ'; before: boolean; path: string; legalCompared?: boolean };
 
 /**
  * The twin check for one pair: `blind`'s views of S (`state`) and of its twin with the codes of cards `a` and `b`
@@ -182,18 +190,25 @@ export function twinCompare(state: GameState, action: GameAction, next: GameStat
   const v2 = viewFor(twin, blind, ids, 'game');
   const d0 = firstDiff(v1.view, v2.view) ?? firstDiff(v1.ids, v2.ids);
   if (d0) return { kind: 'differ', before: true, path: d0 };
+  // The blind side to act: what it may do must not depend on the hidden cards either (in its own ids)
+  const legalCompared = actingSide(state) === blind;
+  if (legalCompared) {
+    const mine = (s: GameState, vids: ViewIds) => getLegalActions(s, blind).map(x => fromEngineAction(x, vids));
+    const d = firstDiff(mine(state, v1.ids), mine(twin, v2.ids));
+    if (d) return { kind: 'differ', before: true, path: `legal actions ${d}`, legalCompared };
+  }
   let nextTwin: GameState;
   try {
     nextTwin = executeAction(twin, action);
   } catch {
-    return { kind: 'illegal' };
+    return { kind: 'illegal', legalCompared };
   }
-  if (shown(state, next, blind, [a, b]) || shown(twin, nextTwin, blind, [a, b])) return { kind: 'revealed' };
+  if (shown(state, next, blind, [a, b]) || shown(twin, nextTwin, blind, [a, b])) return { kind: 'revealed', legalCompared };
   // The next public line, whoever writes it, shows how the log is numbered: a line dropped from the view must leave no gap
   const w1 = viewFor(withProbeLine(next), blind, v1.ids, 'game');
   const w2 = viewFor(withProbeLine(nextTwin), blind, v2.ids, 'game');
   const d = firstDiff(w1.view, w2.view) ?? firstDiff(w1.ids, w2.ids);
-  return d ? { kind: 'differ', before: false, path: d } : { kind: 'same' };
+  return d ? { kind: 'differ', before: false, path: d, legalCompared } : { kind: 'same', legalCompared };
 }
 
 /**
@@ -208,7 +223,14 @@ export function twinStep(checker: LeakChecker, state: GameState, action: GameAct
     const label = `${a.cardCode} ${titleOf(a.cardCode)} <-> ${b.cardCode} ${titleOf(b.cardCode)}`;
     stats.built++;
     const res = twinCompare(state, action, next, ids[blind], blind, a.instanceId, b.instanceId);
-    if (res.kind === 'illegal') stats.illegal++;
+    if (res.legalCompared) stats.legalCompared++;
+    if (res.kind === 'illegal') {
+      stats.illegal++;
+      if (action.player === blind) {
+        stats.illegalBlind++;
+        if (stats.illegalBlindExamples.length < 5) stats.illegalBlindExamples.push(`seed ${checker.seedOf()} step ${step}: ${JSON.stringify(action)} (${label})`);
+      }
+    }
     else if (res.kind === 'revealed') stats.revealed++;
     else {
       if (!(res.kind === 'differ' && res.before)) stats.compared++;

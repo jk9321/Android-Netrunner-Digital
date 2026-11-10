@@ -383,3 +383,6 @@ export interface BreakerScript {
   /** The strength ability costs trashing 1 card from the grip instead of credits (Audrey v2): the Runner picks it in a prompt. */
   boostDiscard?: boolean;
 }
+
+/** The step of a question asked only so the wait looks the same (askEvenIfNone in effects.ts): its one answer does nothing. */
+export const NOTHING_QUALIFIES_STEP = 'nothing-qualifies';
