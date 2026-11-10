@@ -254,6 +254,22 @@ describe('Runner events', () => {
       expect(state.runner.rig.programs.map(c => c.instanceId)).toEqual([breaker]);
     });
 
+    // Rules 8.7.2e: searching a deck with criteria, a player may fail to find even when a match exists; 8.7.3: still shuffle
+    it('lets the Runner fail to find an icebreaker that is in the Stack (rules 8.7.2e)', () => {
+      let state = runnerTurn(5);
+      state = play(state, 'runner', giveCard(state, 'runner', MUTUAL_FAVOR));
+      const prompt = state.pendingPrompts[0];
+      expect(prompt).toMatchObject({ kind: 'effect_cards', min: 0, max: 1 });
+      const grip = state.runner.grip.length;
+      const stack = state.runner.stack.length;
+      const shuffles = state.rng;
+      state = answer(state, { kind: 'effect_cards', cardInstanceIds: [] });
+      expect(state.pendingPrompts).toHaveLength(0);
+      expect(state.runner.grip).toHaveLength(grip);
+      expect(state.runner.stack).toHaveLength(stack);
+      expect(state.rng).not.toEqual(shuffles);
+    });
+
     it('does nothing but shuffle when the Stack has no icebreakers', () => {
       let state = runnerTurn(5);
       state.runner.stack = state.runner.stack.filter(c => !/icebreaker/i.test(cardDef(c).keywords ?? ''));

@@ -74,12 +74,19 @@ const mutualFavor: CardScript = {
       addLog(state, 'runner', 'Runner searched their Stack but found no icebreaker.');
       return;
     }
-    askCards(ctx, 'runner', 'Mutual Favor: choose 1 icebreaker from your Stack.', breakers.map(c => c.instanceId), 1, 1, 'search');
+    // A search with criteria may fail to find even when a match exists (rules 8.7.2e)
+    askCards(ctx, 'runner', 'Mutual Favor: you may choose 1 icebreaker from your Stack.', breakers.map(c => c.instanceId), 0, 1, 'search');
   },
   onPromptAnswer: (ctx, source, answer) => {
     const { state } = ctx;
     if (source.step === 'search' && answer.kind === 'effect_cards') {
       const id = answer.cardInstanceIds[0];
+      if (!id) {
+        // Failing to find still shuffles the Stack (rules 8.7.3)
+        shuffleInPlace(state.rng, state.runner.stack);
+        addLog(state, 'runner', 'Runner searched their Stack and chose not to find an icebreaker.');
+        return;
+      }
       const card = state.runner.stack.find(c => c.instanceId === id)!;
       // Pull the card aside, shuffle, and keep it at the top while deciding.
       state.runner.stack = state.runner.stack.filter(c => c.instanceId !== id);
