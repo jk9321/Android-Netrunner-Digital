@@ -110,9 +110,6 @@ export const tuning = {
      * (outOfReach stays: lethalHq and the steal odds use it).
      */
     /* Funded depth (2026-10-26, self-play, 2,210 games): Corp 42.9% -> 44.8%; remote steals 1,714 -> 1,472, behind ice it couldn't afford to rez 883 -> 499. */
-    /** Corp (Jeff): spending (plays, installs, rezzes elsewhere) keeps the money to rez an installed agenda's ice. */
-    // Phase 2 pruning (2026-11-08): no pinned test, but kept ON: measured -10.1 ± 2.3 as a set of six off for the Corp (run 42531131425 vs base 42525924644)
-    agendaMoney: true,
     /*
      * Ice pacing (2026-10-27, self-play, 2,210 games): 46.8% -> 46.2% (noise).
      * Steals behind unrezzed ice the Corp couldn't afford: remote 287 -> 196,

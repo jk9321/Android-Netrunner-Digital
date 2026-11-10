@@ -283,8 +283,6 @@ export class HeuristicCorpAI implements Agent {
         const onRez = ECON_SCALE * rezEffectWorth(card, tagCost(state));
         score = importance + (hasEndTheRun(card) ? 1 : 0) + onRez;
         if (state.corp.credits - cost < 2 && importance < 4) score -= 2;
-        // (Jeff) money kept to rez an agenda remote's ice isn't spent on ice elsewhere
-        if (this.synergy && plan().agendaMoney && state.corp.credits - cost < agendaRemoteNeed(state, server.id)) score -= 3;
         // plan.rezToll (Jeff, 2026-11-05: the Corp's money goes on ice rezzed in runs): ice the Runner can pay its way
         // through doesn't stop the run, it only takes a toll. Outside a server holding an agenda, paying more to rez it
         // than twice the toll (this run's and about one more) loses money: 27% of the Corp's in-run rez money went there
@@ -610,9 +608,9 @@ export class HeuristicCorpAI implements Agent {
     if (!spendsClick && score <= 0.3) return -Infinity;
     // plan.oneRezMoney (code audit cleanup item 7, 2026-11-06; rebased in tuning pass 1): this score is the board's own change,
     // and the board already prices the Corp's credits on the slide against the rez money its ice needs (valueModel boardNeed).
-    // The reserve gap and the money target, both the same need again, are left to the plays scored without the board; only
-    // the money that keeps an installed agenda's unrezzed ice rezzable (Jeff's rule) is held against it here
-    score -= plan().oneRezMoney ? agendaMoneyPenalty(state, resolved.corp.credits, this.wideReserve) : reservePenalty(state, resolved.corp.credits, this.wideReserve);
+    // The reserve gap and the money target, both the same need again, are left to the plays scored without the board
+    // (the agenda-money rule that stayed here, plan.agendaMoney, went in step 2: off was +0.2 ± 0.8 at games=3)
+    if (!plan().oneRezMoney) score -= reservePenalty(state, resolved.corp.credits, this.wideReserve);
     return score;
   }
 
@@ -1417,12 +1415,7 @@ function reservePenalty(state: GameState, creditsAfter: number, wide = false): n
   if (!wide) return reserve > 0 && state.corp.credits >= reserve && creditsAfter < reserve ? 3 : 0;
   const before = Math.max(0, reserve - state.corp.credits);
   const after = Math.max(0, reserve - creditsAfter);
-  return agendaMoneyPenalty(state, creditsAfter, true) + moneyTargetPenalty(state, creditsAfter) + (after > before ? Math.min(3, after - before) : -Math.min(1, 0.4 * (before - after)));
-}
-
-/** (Jeff) an installed agenda's unrezzed ice is only protection while the money to rez it is there: don't spend it. */
-function agendaMoneyPenalty(state: GameState, creditsAfter: number, wide: boolean): number {
-  return wide && plan().agendaMoney && creditsAfter < state.corp.credits && creditsAfter < agendaRemoteNeed(state) ? 6 : 0;
+  return moneyTargetPenalty(state, creditsAfter) + (after > before ? Math.min(3, after - before) : -Math.min(1, 0.4 * (before - after)));
 }
 
 /**
@@ -1448,20 +1441,6 @@ function moneyTargetPenalty(state: GameState, creditsAfter: number): number {
   const before = Math.max(0, target - state.corp.credits);
   const after = Math.max(0, target - creditsAfter);
   return after > before ? Math.min(2, weight * (after - before)) : -Math.min(1.5, weight * (before - after));
-}
-
-/**
- * Credits to rez every unrezzed ice on the remotes holding an agenda that
- * can't be scored yet (other than `except`).
- */
-export function agendaRemoteNeed(state: GameState, except?: string): number {
-  let need = 0;
-  for (const server of Object.values(state.corp.servers)) {
-    if (!server.isRemote || server.id === except) continue;
-    if (!server.root.some(c => type(c) === 'agenda' && c.advancementCounters < (cardDef(c).advancement_cost ?? 0))) continue;
-    for (const ice of server.ice) if (!ice.isRezzed) need += rezCost(state, ice);
-  }
-  return need;
 }
 
 /**
