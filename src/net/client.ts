@@ -126,6 +126,13 @@ export class OnlineTable {
   waiting = false;
   /** The result once the game is over (winner null: a draw, e.g. the server could no longer read the game). */
   over: { winner: SideCode | null; reason: string } | null = null;
+  /**
+   * The whole table at the end (chunk 2d: both hands, every card face up), when
+   * the room sent it with `over`. From then on the seat shows it, as the local
+   * table does once there is a winner. Null before the end, and after an end
+   * with no table to show (an older server, a game the room could not read).
+   */
+  final: GameState | null = null;
   /** Bumped on every change, for React's useSyncExternalStore. */
   version = 0;
 
@@ -186,7 +193,7 @@ export class OnlineTable {
 
   /** Has the first state arrived (the game has started)? */
   get started(): boolean {
-    return this.last !== null;
+    return this.last !== null || this.final !== null;
   }
 
   /** The last state message, for tests. */
@@ -216,6 +223,7 @@ export class OnlineTable {
   /** The player's seat at the last state (the same object until something changes). Only the own side has one. */
   seatFor(side: SideCode): Seat {
     if (side !== this.side) throw new Error(`This table is the ${this.side}'s seat`);
+    if (this.final) return (this.seat ??= finalSeat(this.final));
     if (!this.last || !this.shown) throw new Error('No state yet');
     if (!this.seat) this.seat = this.makeSeat(this.last, this.shown);
     return this.seat;
@@ -371,6 +379,9 @@ export class OnlineTable {
         return this.changed();
       case 'over':
         this.over = { winner: msg.winner, reason: msg.reason };
+        // No move listener for the switch to the final table: its ids are the engine's, not this seat's, so a
+        // before-and-after would show cards moving that did not move (sounds, fates, accesses)
+        if (msg.final && typeof msg.final === 'object') this.final = msg.final;
         this.waiting = false;
         clearSession();
         return this.changed();
@@ -453,6 +464,15 @@ export class OnlineTable {
         this.opts.alert(SOCKET_ERROR_TEXT[code] ?? SOCKET_ERROR_TEXT.server);
     }
   }
+}
+
+/**
+ * The seat once the room sent the final table: the open table's seat (view
+ * null, as on the local table at the end), with nothing to do and nothing to
+ * send.
+ */
+function finalSeat(state: GameState): Seat {
+  return { side: 'both', view: null, state, legal: [], waitingOn: null, can: () => false, reason: () => SOCKET_ERROR_TEXT.over, act: async () => {} };
 }
 
 // --- The browser's socket ------------------------------------------------------------

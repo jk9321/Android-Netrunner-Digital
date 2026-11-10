@@ -14,6 +14,7 @@ import type { GameAction } from '../core/types/actions';
 import type { PromptChoice } from '../core/types/prompts';
 import type { FormatId } from '../core/formats';
 import type { GameView } from '../core/view';
+import type { GameState } from '../core/types/state';
 
 /** Bumped whenever a message shape or the meaning of a field changes. */
 export const PROTOCOL_VERSION = 1;
@@ -110,7 +111,14 @@ export type ServerMessage =
   | { type: 'state'; seq: number; view: GameView; legal: GameAction[]; waitingOn: WaitingOn; held: boolean }
   | { type: 'opponent'; connected: boolean }
   | { type: 'error'; code: SocketErrorCode; message: string }
-  | { type: 'over'; winner: SideCode | null; reason: string }
+  /**
+   * The game is over. `final` (chunk 2d): the real state at the end, the
+   * whole table with both hands, sent to both seats once nothing is hidden
+   * any more (rule 1.7.1 ends the game). Left out when the room could not
+   * read its game (winner null, "server update"): nothing trustworthy to
+   * show. Optional and additive, so PROTOCOL_VERSION stays 1.
+   */
+  | { type: 'over'; winner: SideCode | null; reason: string; final?: GameState }
   | { type: 'pong' };
 
 export type SocketErrorCode = 'bad_message' | 'stale' | 'not_your_turn' | 'illegal' | 'nothing_held' | 'not_started' | 'over' | 'server';

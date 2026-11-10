@@ -172,7 +172,12 @@ export function fuzzRoomGame(seed: number, corp: DeckList, runner: DeckList, pla
         client.waiting = false;
       } else if (msg.type === 'error') {
         if (msg.message !== SOCKET_ERROR_TEXT[msg.code]) checker.fail(step, to, 'seat', `error text is not the fixed wording: ${msg.message}`);
-      } else if (msg.type === 'over') client.over = true;
+      } else if (msg.type === 'over') {
+        client.over = true;
+        overCheck(room, msg, checker, step, to);
+      }
+      // The one place full information may go to a seat is `over.final`, once the game is over (chunk 2d, rule 1.7.1)
+      if (msg.type !== 'over' && 'final' in msg) checker.fail(step, to, 'seat', `a ${msg.type} message carries a final table`);
     }
   };
 
@@ -228,6 +233,8 @@ export function fuzzRoomGame(seed: number, corp: DeckList, runner: DeckList, pla
     checker.failures.push({ seed, step, viewer: 'corp', check: 'crash', detail: `${e instanceof Error ? e.stack : e}`.slice(0, 400) });
   }
   persistenceCheck(room, checker, step, result.stored);
+  // A reconnect to the finished room greets each seat with the final table again
+  if (room.meta.over) for (const side of SIDES) for (const m of room.connect(side)) if (m.type === 'over') overCheck(room, m, checker, step, side);
   result.moves = room.moves.length;
   result.winner = room.realState?.winner ?? null;
   return result;
@@ -253,6 +260,27 @@ function timeWake(room: RoomCore, side: SideCode, msg: ClientMessage, now: numbe
   for (const o of res.out) if (!o.text) JSON.stringify(o.msg);
   return performance.now() - t0;
 }
+
+/**
+ * `over` is the only message that may carry the real state (chunk 2d): only
+ * once the room's game is over with a winner, and then exactly the real final
+ * state (as JSON, as sent). No winner (the room could not read its game): no
+ * final table.
+ */
+function overCheck(room: RoomCore, msg: ServerMessage & { type: 'over' }, checker: LeakChecker, step: number, to: SideCode) {
+  const real = room.realState;
+  if (!room.meta.over) return checker.fail(step, to, 'seat', '`over` sent before the room ended the game');
+  if (msg.winner === null || !real?.winner) {
+    if (msg.final !== undefined) checker.fail(step, to, 'seat', 'a final table sent for a game with no winner');
+    return;
+  }
+  if (!msg.final) return checker.fail(step, to, 'seat', 'a won game ended without the final table');
+  const d = firstDiff(JSON.parse(JSON.stringify(msg.final)), JSON.parse(JSON.stringify(real)));
+  if (d) checker.fail(step, to, 'seat', 'the final table is not the real final state', d);
+}
+
+/** A message as the twin check compares it: the final table is full information by design (both twins' real states), so it is left out. */
+const comparable = (msg: ServerMessage): ServerMessage => (msg.type === 'over' && msg.final ? { type: 'over', winner: msg.winner, reason: msg.reason } : msg);
 
 function reconnectCheck(room: RoomCore, clients: Record<SideCode, Client>, checker: LeakChecker, step: number, side: SideCode) {
   const got = room.connect(side).find(m => m.type === 'state');
@@ -320,7 +348,7 @@ function twinFork(room: RoomCore, clients: Record<SideCode, Client>, first: Clie
   const firstBy = first.type === 'act' ? first.action.player : null;
   if (first.type === 'act' && firstBy !== blind && touches(copy, firstBy!, first.action, [a, b])) return;
   if (firstBy !== blind && [a, b].some(id => JSON.stringify(real.pendingPrompts).includes(`"${id}"`))) return;
-  const d0 = firstDiff(copy.connect(blind), twin.connect(blind));
+  const d0 = firstDiff(copy.connect(blind).map(comparable), twin.connect(blind).map(comparable));
   if (d0) {
     checker.fail(step, blind, 'twin', `greeting differs before any move (${label})`, d0);
     return;
@@ -351,7 +379,7 @@ function twinFork(room: RoomCore, clients: Record<SideCode, Client>, first: Clie
     // A prompt the seeing side gets for one of the cards (an R&D access) is not a stop: it must not show in the blind seat's messages.
     // At 'full' each move must send the blind seat the same messages. With the Runner at 'auto' only the sequence must be the
     // same: a pause on an R&D access may hold the Corp's next state back for a move (a timing tell Jeff accepted for AUTO).
-    const toBlind = (out: Outbox) => out.filter(o => o.to === blind).map(o => o.msg);
+    const toBlind = (out: Outbox) => out.filter(o => o.to === blind).map(o => comparable(o.msg));
     seqs[0].push(...toBlind(r1));
     seqs[1].push(...toBlind(r2));
     const n = rdOnly ? Math.min(seqs[0].length, seqs[1].length) : Math.max(seqs[0].length, seqs[1].length);
@@ -363,7 +391,7 @@ function twinFork(room: RoomCore, clients: Record<SideCode, Client>, first: Clie
     }
     // Both twins greet a reconnecting blind seat alike (review R1)
     if (nextInt(local, 5) === 0) {
-      const dc = firstDiff(copy.connect(blind), twin.connect(blind));
+      const dc = firstDiff(copy.connect(blind).map(comparable), twin.connect(blind).map(comparable));
       if (dc) {
         checker.fail(step + i, blind, 'twin', `a reconnect differs between the twins (${label})`, dc);
         return;
