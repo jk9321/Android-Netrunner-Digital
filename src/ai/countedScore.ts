@@ -1,5 +1,5 @@
-import { CardInstance, GameAction, GameState, activePrompt, cardDef, executeAction, getLegalActions, isLegalAction, rezCostOf } from '../core';
-import { winNowAction } from './winNow';
+import { CardInstance, GameAction, GameState, cardDef, executeAction, getLegalActions, isLegalAction, rezCostOf } from '../core';
+import { scoreNowLine } from './winNow';
 import { iceCreditNeed } from './runs';
 import { plan } from './pricing';
 import { withIceInstalled } from './iceValues';
@@ -41,28 +41,23 @@ export interface ThisTurn {
 /**
  * Can the Corp score an agenda this turn with the clicks and credits it has (rules 1.17.3a-c: scored once its
  * advancement counters reach the requirement, not an action, no click; 5.2.6f / 1.18.1: [click], 1[credit]: advance 1
- * installed card)? The exact search of plan.winNow (src/ai/winNow.ts, called unchanged): with the Corp's score set to 6
- * on a copy, a line that scores any agenda wins (1.17.2), so its win search becomes a score search. It plays only the
- * Corp's own turn and cuts every line that changes R&D. Blind spot: cards whose text reads the Corp's score.
+ * installed card)? plan.scoreNow's search (winNow.ts scoreNowLine), played out on the real state until the score: it
+ * plays only the Corp's own turn and cuts every line that changes R&D. For the stage 0 measurement scripts.
  */
 export function scoreThisTurn(state: GameState): ThisTurn {
   if (!isCorpMain(state) || state.corp.clicks <= 0) return { feasible: false, line: [], usedCard: false };
-  const agendas = [...state.corp.hq.filter(isAgenda), ...installedAgendas(state).map(a => a.card)];
-  if (!agendas.length) return { feasible: false, line: [], usedCard: false };
-  // The engine adds the agenda's points to the score (actions/corp.ts), so from 6 any 1-point agenda wins
-  let s: GameState = structuredClone(state);
-  s.corp.score = 6;
+  let s = state;
   const line: GameAction[] = [];
-  for (let i = 0; i < 20 && !s.winner; i++) {
-    const a = winNowAction(s);
+  let scored: CardInstance | undefined;
+  for (let i = 0; i < 20 && !s.winner && !scored; i++) {
+    const a = scoreNowLine(s);
     if (!a) break;
     line.push(a);
     s = executeAction(s, a);
+    scored = s.corp.scoreArea.find(c => isAgenda(c) && !state.corp.scoreArea.some(x => x.instanceId === c.instanceId));
   }
-  // A win some other way (a flatline, points added without scoring: 1.17.3e) is not a score line
-  const scored = s.winner === 'corp' ? s.corp.scoreArea.find(c => isAgenda(c) && !state.corp.scoreArea.some(x => x.instanceId === c.instanceId)) : undefined;
-  const won = !!scored;
-  return { feasible: won, line: won ? line : [], usedCard: won && line.some(a => a.type === 'USE_ABILITY' || a.type === 'PLAY_OPERATION_OR_EVENT'), agenda: scored ? cardDef(scored).title : undefined, agendaId: scored?.instanceId };
+  if (!scored) return { feasible: false, line: [], usedCard: false };
+  return { feasible: true, line, usedCard: line.some(a => a.type === 'USE_ABILITY' || a.type === 'PLAY_OPERATION_OR_EVENT'), agenda: cardDef(scored).title, agendaId: scored.instanceId };
 }
 
 /** Credits the Corp can count on next turn: rezzed cards whose text pays it as its turn begins. */
@@ -210,206 +205,8 @@ export function lineHolds(state: GameState, agendaId: string): boolean {
   return rez !== null && end - rez + knownIncome(state) + (N - r) >= r;
 }
 
-// ------------------------------------------------------------------------------------------- stage 0b instruments
-
-/** One forced two-turn line (I1), and what became of it (filled in as the game goes; scripts/corp-losses.ts reads it). */
-export interface ForcedLine {
-  turn: number;
-  agendaId: string;
-  form: TwoTurnLine['form'];
-  /** At the Corp's next turn: the check found the score ('scorable'), did not ('dropped'), or the agenda had gone ('gone'). */
-  next?: 'scorable' | 'dropped' | 'gone';
-}
-
-/**
- * Diagnostics for one game at a time (scripts/corp-losses.ts resets them per deal): Corp decisions where the
- * instruments changed the pick, by why; forced two-turn lines; central-ice installs held back.
- */
-export const countedStats = {
-  /** Decisions where a score this turn was found and its next action played over the Corp's own pick. */
-  nowForced: 0,
-  /** Decisions where a score-this-turn line was found (forced or the Corp's own pick already). */
-  nowFound: 0,
-  /** Two-turn lines begun. */
-  lines: [] as ForcedLine[],
-  /** Decisions where a line's next step (install ice, install the agenda, advance) was played over the Corp's own pick. */
-  stepsForced: 0,
-  /** Decisions where the Corp's own pick would have broken a line under way, and a click for a credit was taken. */
-  restVetoed: 0,
-  /** Central ice installs held back (I2). */
-  centralHeld: 0,
-};
-export function resetCountedStats() {
-  countedStats.nowForced = 0;
-  countedStats.nowFound = 0;
-  countedStats.lines = [];
-  countedStats.stepsForced = 0;
-  countedStats.restVetoed = 0;
-  countedStats.centralHeld = 0;
-  mem.lock = null;
-  mem.successes = { game: '', turns: new Map() };
-}
-
-interface Lock {
-  game: string;
-  turn: number;
-  line: TwoTurnLine;
-  /** The server once known (a new remote's id after its ice goes in). */
-  server: string | null;
-  /** Counters on the agenda when the line began (installed form), or 0. */
-  counters: number;
-  record: ForcedLine;
-}
-/** The instruments' memory across one game's decisions (a lock on a line, the run record): one holder, reset per game. */
-const mem: { lock: Lock | null; successes: { game: string; turns: Map<number, Set<string>> } } = { lock: null, successes: { game: '', turns: new Map() } };
-
 const sameAction = (a: GameAction, want: Partial<GameAction> & Record<string, unknown>) =>
   Object.entries(want).every(([k, v]) => (a as unknown as Record<string, unknown>)[k] === v) && !(a as { trashFirst?: string[] }).trashFirst?.length && !(a as { faceUp?: boolean }).faceUp;
-
-/** The legal action of this shape, or undefined. */
-function legalOf(state: GameState, want: Partial<GameAction> & Record<string, unknown>): GameAction | undefined {
-  return getLegalActions(state, 'corp').find(a => sameAction(a, want));
-}
-
-/** The locked line's next concrete step this turn (ice, agenda, advance), null when only the spare clicks remain, 'drop' when it can't go on. */
-function lockStep(state: GameState, l: Lock): GameAction | null | 'drop' {
-  const { line } = l;
-  const id = line.agendaId;
-  const inHq = state.corp.hq.some(c => c.instanceId === id);
-  if (l.server === null && line.server !== 'new remote') l.server = line.server;
-  if (l.server === null && line.iceId) l.server = serverOf(state, line.iceId) ?? null;
-  if (inHq) {
-    if (line.form === 'install+ice' && line.iceId && state.corp.hq.some(c => c.instanceId === line.iceId)) {
-      const want = l.server ? { type: 'INSTALL_CARD', cardInstanceId: line.iceId, targetServerId: l.server } : { type: 'INSTALL_CARD', cardInstanceId: line.iceId, asNewRemote: true };
-      return legalOf(state, want as Record<string, unknown>) ?? 'drop';
-    }
-    if (!l.server) return 'drop';
-    return legalOf(state, { type: 'INSTALL_CARD', cardInstanceId: id, targetServerId: l.server } as Record<string, unknown>) ?? 'drop';
-  }
-  const at = installedAgendas(state).find(a => a.card.instanceId === id);
-  if (!at) return 'drop';
-  if (at.card.advancementCounters - l.counters < line.advanceNow) return legalOf(state, { type: 'ADVANCE_CARD', cardInstanceId: id } as Record<string, unknown>) ?? 'drop';
-  return null;
-}
-
-/** plan.oracle.centralsLight: the servers the Runner ran successfully on, by the Corp turn it was noted on (the public run record, rules 6.9.1a). */
-function recentSuccess(state: GameState, server: string): boolean {
-  if (mem.successes.game !== state.id || [...mem.successes.turns.keys()].some(t => t > state.turnNumber)) mem.successes = { game: state.id, turns: new Map() };
-  if (state.activePlayer === 'corp' && !mem.successes.turns.has(state.turnNumber))
-    mem.successes.turns.set(state.turnNumber, new Set(state.runnerLastTurnRuns.filter(r => r.successful).map(r => r.server)));
-  // The Runner's last two turns: the two latest Corp turns noted
-  const latest = [...mem.successes.turns.keys()].sort((a, b) => b - a).slice(0, 2);
-  return latest.some(t => mem.successes.turns.get(t)!.has(server));
-}
-
-const CENTRALS = new Set(['hq', 'rd', 'archives']);
-
-/** plan.oracle.centralsLight: an ice install the instrument forbids (a second or later ice on a central, no recent successful run there, not lethal HQ). */
-function heavyCentral(state: GameState, a: GameAction, lethalHq: (s: GameState) => boolean): boolean {
-  if (a.type !== 'INSTALL_CARD') return false;
-  const target = (a as { targetServerId?: string }).targetServerId;
-  if (!target || !CENTRALS.has(target)) return false;
-  const card = state.corp.hq.find(c => c.instanceId === a.cardInstanceId);
-  if (typeOf(card) !== 'ice') return false;
-  const ice = state.corp.servers[target].ice.length - ((a as { trashFirst?: string[] }).trashFirst?.length ?? 0);
-  if (ice < 1) return false;
-  if (recentSuccess(state, target)) return false;
-  return !(target === 'hq' && lethalHq(state));
-}
-
-/**
- * Stage 0b's instruments (spec-stage0b.md), called by the Corp after its own pick (corpAI.ts decide, after the winNow
- * hook): `chosen` is the Corp's pick, `ranked` its ranked main actions. Measurement only, default off.
- *
- *  - plan.oracle.centralsLight (I2): no ice on HQ, R&D or Archives beyond the first piece each, unless the Runner ran
- *    successfully on that server in its last two turns or the lethal-HQ rule applies; the next-ranked action instead.
- *  - plan.oracle.countedScore (I1): a score this turn the check finds is played (its next action); otherwise a two-turn
- *    line that holds (scoreInTwo) is begun and its steps played (ice, agenda, advances), and the turn's spare clicks go
- *    to the Corp's own pick only while the line still holds after it (lineHolds), a click for a credit otherwise.
- *    With plan.oracle.countedStrict on too, every hold is judged with the Runner on STRICT_EXTRA credits more.
- *    countedNowOnly / countedTwoOnly (AI Coordinator 2026-11-10: I1's two halves apart) keep only the score-this-turn
- *    half or only the two-turn half.
- */
-export function oracleCorpPick(state: GameState, chosen: GameAction, ranked: { action: GameAction; score: number }[], lethalHq: (s: GameState) => boolean): GameAction {
-  const o = plan().oracle as { countedScore?: boolean; countedStrict?: boolean; countedNowOnly?: boolean; countedTwoOnly?: boolean; centralsLight?: boolean } | undefined;
-  if (!o?.countedScore && !o?.centralsLight) return chosen;
-  if (activePrompt(state)) return chosen;
-  let pick = chosen;
-  if (o.centralsLight && heavyCentral(state, pick, lethalHq)) {
-    countedStats.centralHeld++;
-    pick = ranked.find(r => r.score > -Infinity && !heavyCentral(state, r.action, lethalHq))?.action ?? getLegalActions(state, 'corp').find(a => a.type === 'END_TURN') ?? pick;
-  }
-  if (!o.countedScore || !isCorpMain(state)) return pick;
-  // plan.oracle.countedStrict (the dial's strict setting, AI Coordinator 2026-11-10): the line must hold with the
-  // Runner on 4 credits more than it has (an economy event it may hold); loose: against its credits as they stand
-  const saved = CHECK.runnerExtra;
-  if (o.countedStrict) CHECK.runnerExtra = saved + STRICT_EXTRA;
-  try {
-    return countedPick(state, pick, { now: !o.countedTwoOnly, two: !o.countedNowOnly });
-  } finally {
-    CHECK.runnerExtra = saved;
-  }
-}
-
-/** The strict setting's extra Runner credits (stage 0's runnerExtra=4 sensitivity check). */
-export const STRICT_EXTRA = 4;
-
-function countedPick(state: GameState, pick: GameAction, halves: { now: boolean; two: boolean }): GameAction {
-  noteNextTurn(state);
-  if (state.corp.clicks <= 0) return pick;
-  const now = halves.now ? scoreThisTurn(state) : null;
-  if (now?.feasible && now.line.length) {
-    countedStats.nowFound++;
-    if (mem.lock?.line.agendaId !== now.agendaId) mem.lock = null;
-    if (!sameAction(pick, now.line[0] as unknown as Record<string, unknown>)) countedStats.nowForced++;
-    return now.line[0];
-  }
-  if (mem.lock && (mem.lock.game !== state.id || mem.lock.turn !== state.turnNumber)) mem.lock = null;
-  if (!halves.two) return pick;
-  if (!mem.lock) {
-    const line = scoreInTwo(state);
-    if (!line) return pick;
-    const card = installedAgendas(state).find(a => a.card.instanceId === line.agendaId)?.card;
-    const record: ForcedLine = { turn: state.turnNumber, agendaId: line.agendaId, form: line.form };
-    countedStats.lines.push(record);
-    mem.lock = { game: state.id, turn: state.turnNumber, line, server: line.server === 'new remote' ? null : line.server, counters: card?.advancementCounters ?? 0, record };
-  }
-  const lock = mem.lock;
-  const step = lockStep(state, lock);
-  if (step === 'drop') {
-    mem.lock = null;
-    return pick;
-  }
-  if (step) {
-    if (!sameAction(pick, step as unknown as Record<string, unknown>)) countedStats.stepsForced++;
-    return step;
-  }
-  // The spare clicks: the Corp's own pick while the line still holds after it
-  let after: GameState | null;
-  try {
-    after = executeAction(state, pick);
-  } catch {
-    after = null;
-  }
-  if (after && lineHolds(after, lock.line.agendaId)) return pick;
-  const credit = legalOf(state, { type: 'GAIN_CREDIT' } as Record<string, unknown>);
-  if (!credit) return pick;
-  countedStats.restVetoed++;
-  return credit;
-}
-
-/** At the Corp's first decision of a later turn: what the check says now of each line begun on an earlier turn. */
-function noteNextTurn(state: GameState) {
-  for (const l of countedStats.lines) {
-    if (l.next || l.turn >= state.turnNumber) continue;
-    const installed = installedAgendas(state).some(a => a.card.instanceId === l.agendaId);
-    if (!installed) l.next = 'gone';
-    else {
-      const now = scoreThisTurn(state);
-      l.next = now.feasible && now.agendaId === l.agendaId ? 'scorable' : 'dropped';
-    }
-  }
-}
 
 // ------------------------------------------------------------------------------------------- plan.scoreInTwo (C2)
 
@@ -428,8 +225,12 @@ export interface HeldLine {
   counters: number;
 }
 
-/** Diagnostics for plan.scoreInTwo (scripts read them): lines begun, steps played over the Corp's pick, picks vetoed, lines dropped, scored. */
-export const scoreInTwoStats = { begun: 0, steps: 0, vetoed: 0, dropped: 0, finished: 0 };
+/** Diagnostics for plan.scoreInTwo (scripts read them): lines begun, steps played over the Corp's pick, picks vetoed, lines dropped, scored, and each line begun. */
+export const scoreInTwoStats = { begun: 0, steps: 0, vetoed: 0, dropped: 0, finished: 0, lines: [] as { turn: number; agendaId: string; form: TwoTurnLine['form'] }[] };
+/** Clears scoreInTwoStats (scripts/score-ceiling-measure.ts, before each game). */
+export function resetScoreInTwoStats() {
+  Object.assign(scoreInTwoStats, { begun: 0, steps: 0, vetoed: 0, dropped: 0, finished: 0, lines: [] });
+}
 
 const legalShape = (state: GameState, want: Record<string, unknown>) => getLegalActions(state, 'corp').find(a => sameAction(a, want));
 
@@ -457,7 +258,8 @@ function startTurnStep(state: GameState, held: HeldLine): GameAction | null | 'd
  */
 function finishTurnStep(state: GameState, held: HeldLine): GameAction | 'drop' | 'done' {
   const at = installedAgendas(state).find(a => a.card.instanceId === held.line.agendaId);
-  if (!at) return 'drop';
+  // Scored already (plan.scoreNow, which the Corp consults first, may finish it)
+  if (!at) return state.corp.scoreArea.some(c => c.instanceId === held.line.agendaId) ? 'done' : 'drop';
   const left = (cardDef(at.card).advancement_cost ?? 0) - at.card.advancementCounters;
   // A Dividends agenda at its requirement: over-advancing it is the Corp's choice (excess counters become agenda counters)
   if (left <= 0 && /\bDividends\b/.test(cardDef(at.card).stripped_text ?? '')) return 'done';
@@ -506,6 +308,7 @@ export function scoreInTwoPick(state: GameState, pick: GameAction, held: HeldLin
     const card = installedAgendas(state).find(a => a.card.instanceId === line.agendaId)?.card;
     h = { game: state.id, turn: state.turnNumber, line, server: line.server === 'new remote' ? null : line.server, counters: card?.advancementCounters ?? 0 };
     scoreInTwoStats.begun++;
+    scoreInTwoStats.lines.push({ turn: state.turnNumber, agendaId: line.agendaId, form: line.form });
   }
   const step = startTurnStep(state, h);
   if (step === 'drop') {

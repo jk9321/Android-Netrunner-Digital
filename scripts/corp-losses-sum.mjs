@@ -2,24 +2,27 @@
 //   node scripts/corp-losses-sum.mjs out/*.json [--base base/*.json]
 // --base: another batch on the same deals (say the switch off); prints the paired per-deal
 // difference first (paired-summary.mjs). The base can be shard files or a saved deals file.
-// DEALS_OUT=file saves this batch's per-deal results (seed, decks, winner, alarm kinds) for later pairing.
+// DEALS_OUT=file saves this batch's per-deal results (seed, decks, winner, alarm kinds, the Corp's credits and score
+// at each of its turns) for later pairing.
 import { writeFileSync } from 'node:fs';
 import { printLossSummary } from './loss-summary.mjs';
 import { printOpeningAudit, printValueAudit } from './opening-summary.mjs';
 import { printSearchAudit } from './search-audit-sum.mjs';
 import { printPaired, readGames, splitArgs } from './paired-summary.mjs';
 import { printStage0b } from './stage0b-sum.mjs';
+import { printBrokeAfterScoring } from './counted-broke-sum.mjs';
 
 const { files, base } = splitArgs(process.argv.slice(2));
 const games = readGames(files);
 if (process.env.DEALS_OUT) {
-  const deals = games.map(g => ({ seed: g.seed, corpDeck: g.corpDeck, runnerDeck: g.runnerDeck, winner: g.winner, ...(g.crashed ? { crashed: true } : {}), ...(g.oracleIceSkipped ? { oracleIceSkipped: true } : {}), ...(g.alarms?.length ? { alarms: g.alarms.map(a => ({ kind: a.kind })) } : {}) }));
+  const deals = games.map(g => ({ seed: g.seed, corpDeck: g.corpDeck, runnerDeck: g.runnerDeck, winner: g.winner, ...(g.crashed ? { crashed: true } : {}), ...(g.oracleIceSkipped ? { oracleIceSkipped: true } : {}), ...(g.alarms?.length ? { alarms: g.alarms.map(a => ({ kind: a.kind })) } : {}), ...(g.money?.scoreAtTurnStart ? { cr: g.money.creditsAtTurnStart, sc: g.money.scoreAtTurnStart } : {}) }));
   writeFileSync(process.env.DEALS_OUT, JSON.stringify(deals) + '\n');
 }
 if (base.length) {
   printPaired(games, readGames(base));
   console.log('');
 }
+printBrokeAfterScoring(games, base.length ? readGames(base) : []);
 printLossSummary(games);
 // ORACLE_ICE batches: deals whose R&D held no ice played without the free ice, so the arm is a lower bound
 const iced = games.filter(g => g.oracleIce);
@@ -102,5 +105,5 @@ if (games.some(g => g.opening)) {
 // Spec-search S1: the Corp planner's continuations (batch token +audit.search), after the opening audit
 printSearchAudit(games);
 
-// Corp redesign stage 0b (spec-stage0b.md): turn labels, first score, steals by server, the instruments' counts
+// Counted scoring (spec-counted-scoring.md): turn labels, first score, steals by server, the layers' counts
 printStage0b(games);

@@ -80,7 +80,7 @@ for (const c of corpDecks) {
         const start = createInitialGameState(deckGameSetup(seed, c, r));
         const iced = iceOracle ? placeOracleIce(start, iceOracle) : undefined;
         const agents = { corp: agent('corp'), runner: agent('runner') };
-        // Stage 0b (spec-stage0b.md): a batch naming oracle.countedScore or oracle.centralsLight also records the moves
+        // Counted scoring (spec-counted-scoring.md): a batch naming plan.scoreNow or plan.scoreInTwo also records the moves
         if (measuring) startMeasure(agents);
         const record = playLogged(start, agents, { corp: c.name, runner: r.name }, moneyOracle ? s => withOracleMoney(s) : undefined);
         // Value loops met in the game (valueModel.ts guardLoop): played on with flat values, listed in the summary to fix

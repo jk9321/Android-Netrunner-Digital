@@ -263,7 +263,12 @@ export const scoreNowStats = { searches: 0, found: 0, choices: 0, nodes: 0 };
  * is the Corp's choice (its excess counters become agenda counters), so that one is left to its judgement.
  */
 export function scoreNowAction(state: GameState): GameAction | null {
-  if (!plan().scoreNow || state.winner || state.activePlayer !== 'corp' || state.activeRun) return null;
+  return plan().scoreNow ? scoreNowLine(state) : null;
+}
+
+/** scoreNowAction's search whatever the switch (the stage 0 measurement scripts read it through countedScore.ts scoreThisTurn). */
+export function scoreNowLine(state: GameState): GameAction | null {
+  if (state.winner || state.activePlayer !== 'corp' || state.activeRun) return null;
   const prompt = activePrompt(state);
   if (prompt && prompt.side !== 'corp') return null;
   if (state.turnStep?.kind === 'corp_turn_start') return null;
