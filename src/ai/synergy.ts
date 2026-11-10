@@ -391,7 +391,8 @@ export const tuning = {
      * counting check finds (countedScore.ts scoreInTwo: the server holds through the Runner's turn against its credits
      * and click credits, rules 3.4.3a, 6.9.2b-c) is held in the Corp agent's memory and played: its steps first, the
      * spare clicks the Corp's own only while the line's rez money stays, the agenda finished next turn (1.17.3a, 5.2.6f).
-     * ON: +5.1 ± 1.9 paired (run 42786343982 vs 42784619451, games=3); both ON +7.2 ± 2.1 (run 42791327244).
+     * ON: +5.1 ± 1.9 paired (run 42786343982 vs 42784619451, games=3); both ON +7.2 ± 2.1 (run 42791327244); the
+     * shipping pair at 10 games +2.8 ± 1.1 (run 42800495659 vs 42797275838; games 3-10 alone +1.4 ± 1.3).
      */
     scoreInTwo: true,
     /**
