@@ -211,6 +211,40 @@ export function twinCompare(state: GameState, action: GameAction, next: GameStat
   return d ? { kind: 'differ', before: false, path: d, legalCompared } : { kind: 'same', legalCompared };
 }
 
+/** The asked side's "no" to the question pending in `state`: an empty pick or the 'no' option (askEvenIfNone's one answer). */
+function declineOf(state: GameState): GameAction {
+  const side = actingSide(state);
+  const action = side
+    ? getLegalActions(state, side).find(
+        a =>
+          a.type === 'RESOLVE_PROMPT' &&
+          ((a.choice.kind === 'effect_cards' && a.choice.cardInstanceIds.length === 0) || (a.choice.kind === 'effect_choice' && a.choice.optionId === 'no'))
+      )
+    : undefined;
+  if (!action) throw new Error('No decline to the pending question');
+  return action;
+}
+
+/**
+ * Like twinCompare, one answer further (multiplayer phase 2, chunk 2a-3): after `action`, S declines the question a
+ * hidden card qualified for and the twin gives askEvenIfNone's one answer. The blind side's views must still match,
+ * so the stand-in goes on the way a decline does (rules 4.2.2, 4.3.2). The fuzz can't see this step: the sighted
+ * side's answer in S is illegal in the twin.
+ */
+export function twinCompareDeclined(state: GameState, action: GameAction, ids: ViewIds, blind: SideCode, a: string, b: string): TwinOutcome {
+  const twin = twinOf(state, a, b);
+  const v1 = viewFor(state, blind, ids, 'game');
+  const v2 = viewFor(twin, blind, ids, 'game');
+  const after = (s: GameState) => {
+    const next = executeAction(s, action);
+    return executeAction(next, declineOf(next));
+  };
+  const w1 = viewFor(withProbeLine(after(state)), blind, v1.ids, 'game');
+  const w2 = viewFor(withProbeLine(after(twin)), blind, v2.ids, 'game');
+  const d = firstDiff(w1.view, w2.view) ?? firstDiff(w1.ids, w2.ids);
+  return d ? { kind: 'differ', before: false, path: d } : { kind: 'same' };
+}
+
 /**
  * One twin check per side at a step: S is `state`, `next` is S after
  * `action`, `ids` the checker's id maps for S. Failures go to the checker.

@@ -19,7 +19,7 @@ import {
   TurnFlag,
 } from '../engine/cardEffects';
 import { CardScript, EffectContext } from './types';
-import { askCards, askChoice, gainCredits } from './effects';
+import { askCards, askChoice, askEvenIfNone, gainCredits } from './effects';
 
 /** Corp identities, agendas, assets and upgrades from System Gateway. */
 
@@ -400,8 +400,14 @@ const malapertDataVault: CardScript = {
     agenda_scored: (ctx, e) => {
       if (serverOf(ctx.state, ctx.card) !== e.serverId) return;
       const options = ctx.state.corp.rd.filter(c => cardDef(c).type_code !== 'agenda');
-      if (options.length === 0) return;
-      askCards(ctx, 'corp', 'Malapert Data Vault: you may search R&D for 1 non-agenda card.', options.map(c => c.instanceId), 0, 1, 'search');
+      // Asked even when R&D holds only agendas when the Corp's stops are on ALL (4.2.2, see askEvenIfNone)
+      askEvenIfNone(
+        ctx,
+        'corp',
+        options.length > 0,
+        () => askCards(ctx, 'corp', 'Malapert Data Vault: you may search R&D for 1 non-agenda card.', options.map(c => c.instanceId), 0, 1, 'search'),
+        'Malapert Data Vault: no non-agenda card in R&D.',
+      );
     },
   },
   onPromptAnswer: ({ state }, _source, answer) => {

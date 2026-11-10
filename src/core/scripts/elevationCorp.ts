@@ -79,11 +79,20 @@ function dividendAgenda(perExcess: number, label: string, canUse: (state: GameSt
     triggers: {
       agenda_scored: (ctx, e) => isSelf(ctx, e.card) && placeDividends(ctx.state, ctx.card, perExcess, e.advancementCounters),
       discard_phase_ends: (ctx, e) => {
-        if (e.side !== 'corp' || counters(ctx.card, 'agenda') === 0 || !canUse(ctx.state)) return;
-        askChoice(ctx, 'corp', `${cardDef(ctx.card).title}: remove 1 agenda counter to ${label}?`, [
-          { id: 'use', label: `Remove 1 agenda counter: ${label}` },
-          { id: 'no', label: 'No' },
-        ], 'dividend');
+        if (e.side !== 'corp' || counters(ctx.card, 'agenda') === 0) return;
+        // canUse can depend on hidden cards (an operation in R&D, a facedown card in Archives): asked anyway when the
+        // Corp's stops are on ALL (4.2.2, 4.4.6c, see askEvenIfNone)
+        askEvenIfNone(
+          ctx,
+          'corp',
+          canUse(ctx.state),
+          () =>
+            askChoice(ctx, 'corp', `${cardDef(ctx.card).title}: remove 1 agenda counter to ${label}?`, [
+              { id: 'use', label: `Remove 1 agenda counter: ${label}` },
+              { id: 'no', label: 'No' },
+            ], 'dividend'),
+          `${cardDef(ctx.card).title}: nothing to ${label} with.`,
+        );
       },
     },
     onPromptAnswer: (ctx, source, answer) => {
@@ -493,15 +502,28 @@ const greenmail: CardScript = {
 // up to 2 cards from HQ (one at a time). You may play 1 operation from HQ.
 function askInstallFromHQ(ctx: EffectContext, left: number, then: string): void {
   const cards = installable(ctx.state, ctx.state.corp.hq);
-  if (left > 0 && cards.length > 0) {
-    askCards(ctx, 'corp', `${cardDef(ctx.card).title}: you may install a card from HQ (${left} left).`, ids(cards), 0, 1, 'install_pick', { left, then });
+  // Asked even when nothing in HQ can be installed when the Corp's stops are on ALL (4.3.2, see askEvenIfNone); the
+  // one answer takes the decline's path
+  const title = cardDef(ctx.card).title;
+  if (
+    left > 0 &&
+    askEvenIfNone(
+      ctx,
+      'corp',
+      cards.length > 0,
+      () => askCards(ctx, 'corp', `${title}: you may install a card from HQ (${left} left).`, ids(cards), 0, 1, 'install_pick', { left, then }),
+      `${title}: no card in HQ you can install.`,
+      'OK',
+      { step: 'install_pick', data: { left, then } },
+    )
+  )
     return;
-  }
   if (then === 'operation') askPlayOperation(ctx);
 }
 function askPlayOperation(ctx: EffectContext): void {
   const ops = ctx.state.corp.hq.filter(c => type(c) === 'operation' && !safePlayBlocker(ctx.state, c));
-  if (ops.length > 0) askCards(ctx, 'corp', `${cardDef(ctx.card).title}: you may play 1 operation from HQ.`, ids(ops), 0, 1, 'operation');
+  const title = cardDef(ctx.card).title;
+  askEvenIfNone(ctx, 'corp', ops.length > 0, () => askCards(ctx, 'corp', `${title}: you may play 1 operation from HQ.`, ids(ops), 0, 1, 'operation'), `${title}: no operation in HQ you can play.`);
 }
 const safePlayBlocker = (state: GameState, card: CardInstance) => {
   try {
@@ -514,8 +536,9 @@ const safePlayBlocker = (state: GameState, card: CardInstance) => {
 function installFromHQAnswer(ctx: EffectContext, source: Parameters<NonNullable<CardScript['onPromptAnswer']>>[1], answer: Parameters<NonNullable<CardScript['onPromptAnswer']>>[2]): boolean {
   const left = Number(source.data?.left ?? 0);
   const then = String(source.data?.then ?? '');
-  if (source.step === 'install_pick' && answer.kind === 'effect_cards') {
-    if (answer.cardInstanceIds.length === 0) {
+  if (source.step === 'install_pick') {
+    // effect_choice: the one answer of askEvenIfNone, a decline
+    if (answer.kind !== 'effect_cards' || answer.cardInstanceIds.length === 0) {
       if (then === 'operation') askPlayOperation(ctx);
       return true;
     }
@@ -1366,9 +1389,10 @@ const merciaTargets = (state: GameState) => installable(state, state.corp.hq.fil
 const mercia: CardScript = {
   triggers: {
     action_phase_ends: (ctx, e) => {
+      if (e.side !== 'corp') return;
       const ice = merciaTargets(ctx.state);
-      if (e.side !== 'corp' || ice.length === 0) return;
-      askCards(ctx, 'corp', 'Mercia B4LL4RD: you may install 1 ice from HQ, paying 1 credit less.', ids(ice), 0, 1, 'pick');
+      // Asked even with no ice in HQ when the Corp's stops are on ALL (4.3.2, see askEvenIfNone)
+      askEvenIfNone(ctx, 'corp', ice.length > 0, () => askCards(ctx, 'corp', 'Mercia B4LL4RD: you may install 1 ice from HQ, paying 1 credit less.', ids(ice), 0, 1, 'pick'), 'Mercia B4LL4RD: no ice in HQ you can install.');
     },
   },
   onPromptAnswer: (ctx, source, answer) => {
@@ -1407,11 +1431,14 @@ const mitraAman: CardScript = {
       gainCredits(state, 'corp', 3);
       addLog(state, 'corp', 'Corp trashed Mitra Aman and gained 3 [credit].');
       const swaps = [...state.corp.hq, ...archivesCards(state)].filter(c => type(c) === 'ice');
-      if (swaps.length > 0) {
-        askCards(ctx, 'corp', 'Mitra Aman: you may swap the approached ice with ice from HQ or Archives.', ids(swaps), 0, 1, 'swap', {
-          iceId: source.data!.iceId as string,
-        });
-      }
+      // Asked even with no ice in HQ or Archives when the Corp's stops are on ALL (4.3.2, 4.4.6c, see askEvenIfNone)
+      askEvenIfNone(
+        ctx,
+        'corp',
+        swaps.length > 0,
+        () => askCards(ctx, 'corp', 'Mitra Aman: you may swap the approached ice with ice from HQ or Archives.', ids(swaps), 0, 1, 'swap', { iceId: source.data!.iceId as string }),
+        'Mitra Aman: no ice in HQ or Archives to swap in.',
+      );
     } else if (source.step === 'swap' && answer.kind === 'effect_cards' && answer.cardInstanceIds.length > 0) {
       swapWithInstalled(state, source.data!.iceId as string, answer.cardInstanceIds[0]);
     }
