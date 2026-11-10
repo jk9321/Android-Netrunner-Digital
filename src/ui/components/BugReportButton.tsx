@@ -1,13 +1,15 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { Bug, Check, Send, X } from 'lucide-react';
-import { GameForReport, MAX_DESCRIPTION, MIN_DESCRIPTION, ReportScreen, buildReport, sendReport } from '../bugReport';
+import { GameForReport, MAX_DESCRIPTION, MIN_DESCRIPTION, ReportScreen, buildReport, sendOnlineReport, sendReport } from '../bugReport';
 
 interface BugReportButtonProps {
   screen: ReportScreen;
   /** The game to attach (deck lists, log, seed, snapshot), read when the report is sent. */
   game?: () => GameForReport | null;
   crash?: { message: string; stack?: string };
+  /** An online game: the room attaches the whole game itself (the browser has only its own view). */
+  online?: { code: string; token: string };
   /** Hide the "Report a bug" text below this width; the icon always shows. */
   textFrom?: 'always' | 'xl';
   className?: string;
@@ -16,7 +18,7 @@ interface BugReportButtonProps {
 type Status = { kind: 'editing' } | { kind: 'sending' } | { kind: 'sent' } | { kind: 'error'; message: string };
 
 /** The "Report a bug" button and its small form. Shown on every screen next to the title. */
-export function BugReportButton({ screen, game, crash, textFrom = 'always', className = '' }: BugReportButtonProps) {
+export function BugReportButton({ screen, game, crash, online, textFrom = 'always', className = '' }: BugReportButtonProps) {
   const [open, setOpen] = useState(false);
   return (
     <>
@@ -32,7 +34,7 @@ export function BugReportButton({ screen, game, crash, textFrom = 'always', clas
         <span className={textFrom === 'xl' ? 'hidden xl:inline' : ''}>Report a bug</span>
       </button>
       {/* On <body>: the game header is its own stacking context, which would keep the form under the prompt panel */}
-      {open && createPortal(<BugReportForm screen={screen} game={game} crash={crash} onClose={() => setOpen(false)} />, document.body)}
+      {open && createPortal(<BugReportForm screen={screen} game={game} crash={crash} online={online} onClose={() => setOpen(false)} />, document.body)}
     </>
   );
 }
@@ -41,8 +43,9 @@ function BugReportForm({
   screen,
   game,
   crash,
+  online,
   onClose,
-}: Pick<BugReportButtonProps, 'screen' | 'game' | 'crash'> & { onClose: () => void }) {
+}: Pick<BugReportButtonProps, 'screen' | 'game' | 'crash' | 'online'> & { onClose: () => void }) {
   const [text, setText] = useState('');
   const [website, setWebsite] = useState('');
   const [status, setStatus] = useState<Status>({ kind: 'editing' });
@@ -61,6 +64,12 @@ function BugReportForm({
     e.preventDefault();
     if (tooShort || sending) return;
     setStatus({ kind: 'sending' });
+    if (online) {
+      // Online the answer is only sent or failed (the server says no more)
+      const ok = await sendOnlineReport(online, { description: text, website });
+      setStatus(ok ? { kind: 'sent' } : { kind: 'error', message: 'The report could not be sent. Please try again later.' });
+      return;
+    }
     const payload = await buildReport({ description: text, screen, website, game: game?.() ?? null, crash });
     const error = await sendReport(payload);
     setStatus(error ? { kind: 'error', message: error } : { kind: 'sent' });
@@ -147,7 +156,9 @@ function BugReportForm({
             />
             <p className="text-[11px] text-slate-400 leading-relaxed" data-testid="bug-report-privacy">
               Reports are public. Please don't include your name, email or any other personal details.
-              {inGame
+              {online
+                ? " The whole game is sent with your report so the bug can be replayed: the moves, the log, both deck lists and both players' hidden cards (hands, face-down cards and decks), also while the game is still going."
+                : inGame
                 ? ' Both deck lists, the game log and the game seed are sent with your report so the bug can be replayed.'
                 : ' The report includes which screen you were on and the app version.'}
             </p>

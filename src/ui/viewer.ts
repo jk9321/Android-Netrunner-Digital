@@ -1,5 +1,5 @@
 import { CardInstance, GameAction, SideCode, WindowStep, actingSide, activePrompt } from '../core';
-import type { Seat } from './table';
+import type { Seat } from './seatLegality';
 
 /** Whose eyes are on the screen: one side, or both (open table, for testing). */
 export type Viewer = SideCode | 'both';

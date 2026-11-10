@@ -1,11 +1,15 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState, useSyncExternalStore } from 'react';
 import { CardInstance, GameAction, SideCode, actingSide, cardDef, findCardAnywhere, iceSubtypes, knownInHand, knownInRd } from './core';
 import { SeatContext } from './ui/seat';
 import { breakerTypes } from './ui/components/IceTypeIcons';
 import { DEFAULT_CORP_DECK, DEFAULT_RUNNER_DECK } from './data/decks';
 import { GameConfig, SavedGame, clearSavedGame } from './ui/savedGame';
 import { randomSeed, startingGame } from './ui/gameStart';
-import { useGameController } from './ui/useGameController';
+import { GameController, useGameController } from './ui/useGameController';
+import { useOnlineController } from './ui/useOnlineController';
+import { OnlineSession, OnlineTable, browserSocket, clearSession, loadSession, saveSession } from './net/client';
+import { codeFromPath, roomExists } from './net/lobby';
+import { OnlineNotice, WaitingRoom } from './ui/components/OnlineScreens';
 import { DeckPicker } from './ui/components/DeckPicker';
 import { CardView } from './ui/components/CardView';
 import { ServerColumn } from './ui/components/ServerColumn';
@@ -32,7 +36,7 @@ import { AccessedPanel } from './ui/components/AccessedPanel';
 import { canActAs, canSeeCorpSecrets, canSeeRunnerSecrets } from './ui/viewer';
 import { Keyword } from './ui/components/Keyword';
 import { KnownInHandButton } from './ui/components/KnownInHandButton';
-import { showConfirm } from './ui/components/Dialog';
+import { showAlert, showConfirm } from './ui/components/Dialog';
 import { SectorRimTrace } from './ui/components/SectorRimTrace';
 import { MotionConfig } from 'framer-motion';
 import { useAnimationsEnabled } from './ui/animations';
@@ -42,49 +46,101 @@ import { stopMusic, updateMusic } from './ui/music';
 /** Reversed: Archives sorts first; remotes (-1) keep their order after HQ. */
 const CENTRAL_ORDER = ['hq', 'rd', 'archives'];
 
+/** What the app shows: the start screen (maybe joining from an invite link), a local game, or an online one. */
+type Screen = { kind: 'start'; joinCode: string | null } | { kind: 'local'; config: GameConfig } | { kind: 'online'; session: OnlineSession };
+
+/**
+ * Where the app opens: an invite link (/play/K7QM-2X) on Join with the code
+ * filled in, unless this browser is already seated at that game; the online
+ * game this browser is seated at (a reload or a closed tab resumes it); else
+ * a local game in progress or a ?seed= link, else the start screen.
+ */
+function startingScreen(local: ReturnType<typeof startingGame>): Screen {
+  const linkCode = codeFromPath(window.location.pathname);
+  const session = loadSession();
+  if (linkCode && session?.code !== linkCode) return { kind: 'start', joinCode: linkCode };
+  if (session) return { kind: 'online', session };
+  return local.config ? { kind: 'local', config: local.config } : { kind: 'start', joinCode: null };
+}
+
+/** Puts the address back to / (leaving an invite link or a replay link). */
+function homeAddress() {
+  if (window.location.pathname !== '/' || window.location.search) window.history.replaceState(null, '', '/');
+}
+
 export default function App() {
   const [start] = useState(startingGame);
-  const [config, setConfig] = useState<GameConfig | null>(start.config);
+  const [screen, setScreen] = useState<Screen>(() => startingScreen(start));
   const [lastDecks, setLastDecks] = useState({ corp: DEFAULT_CORP_DECK, runner: DEFAULT_RUNNER_DECK });
   const animationsOn = useAnimationsEnabled();
+  // An online game on screen lives at /, never at its invite link (which would offer to join it again)
+  useEffect(() => {
+    if (screen.kind === 'online') homeAddress();
+  }, [screen.kind]);
 
-  if (!config) {
+  const toStart = () => {
+    homeAddress();
+    setScreen({ kind: 'start', joinCode: null });
+  };
+
+  if (screen.kind === 'start') {
     return (
       <MotionConfig reducedMotion={animationsOn ? 'user' : 'always'}>
         <DeckPicker
           initialCorpDeckId={lastDecks.corp}
           initialRunnerDeckId={lastDecks.runner}
+          joinCode={screen.joinCode}
+          onLeaveLink={homeAddress}
           onStart={(corpDeck, runnerDeck, ai, difficulty) => {
             setLastDecks({ corp: corpDeck.id, runner: runnerDeck.id });
-            setConfig({ seed: randomSeed(), corpDeck, runnerDeck, ai, difficulty });
+            setScreen({ kind: 'local', config: { seed: randomSeed(), corpDeck, runnerDeck, ai, difficulty } });
+          }}
+          onOnline={session => {
+            saveSession(session);
+            homeAddress();
+            setScreen({ kind: 'online', session });
           }}
         />
       </MotionConfig>
     );
   }
+  if (screen.kind === 'online') {
+    return (
+      <MotionConfig reducedMotion={animationsOn ? 'user' : 'always'}>
+        <OnlineGame
+          key={screen.session.code}
+          session={screen.session}
+          onLeave={() => {
+            clearSession();
+            toStart();
+          }}
+        />
+      </MotionConfig>
+    );
+  }
+  const config = screen.config;
   return (
     <MotionConfig reducedMotion={animationsOn ? 'user' : 'always'}>
-      <Game
+      <LocalGame
         key={config.seed}
         config={config}
         saved={start.saved?.config.seed === config.seed ? start.saved : null}
         onNewGame={() => {
           clearSavedGame();
           // Drop ?seed=... so a reload doesn't restart the old deal
-          if (window.location.search) window.history.replaceState(null, '', window.location.pathname);
-          setConfig(null);
+          toStart();
         }}
         onRematch={() => {
           clearSavedGame();
-          if (window.location.search) window.history.replaceState(null, '', window.location.pathname);
-          setConfig({ ...config, seed: randomSeed() });
+          homeAddress();
+          setScreen({ kind: 'local', config: { ...config, seed: randomSeed() } });
         }}
       />
     </MotionConfig>
   );
 }
 
-function Game({
+function LocalGame({
   config,
   saved,
   onNewGame,
@@ -94,6 +150,58 @@ function Game({
   saved: SavedGame | null;
   onNewGame: () => void;
   onRematch: () => void;
+}) {
+  const ctl = useGameController(config, saved);
+  return <GameScreen ctl={ctl} config={config} onNewGame={onNewGame} onRematch={onRematch} />;
+}
+
+/**
+ * An online game: the table connects to the room; until the first state
+ * arrives the host sees the invite (the game starts by itself when the second
+ * player joins). A seat taken by another tab, a room that is gone or a new
+ * version of the game replace the table with a notice.
+ */
+function OnlineGame({ session, onLeave }: { session: OnlineSession; onLeave: () => void }) {
+  const [table] = useState(
+    () =>
+      new OnlineTable(session, {
+        connect: browserSocket,
+        alert: message => void showAlert(message, { title: 'Action blocked' }),
+        roomExists: code => roomExists(code),
+      }),
+  );
+  useEffect(() => {
+    table.start();
+    return () => table.dispose();
+  }, [table]);
+  const [subscribe] = useState(() => (fn: () => void) => table.subscribe(fn));
+  useSyncExternalStore(subscribe, () => table.version);
+
+  if (table.status === 'replaced' || table.status === 'gone' || table.status === 'refresh') {
+    return <OnlineNotice status={table.status} onTakeOver={() => table.takeOver()} onLeave={onLeave} />;
+  }
+  if (!table.started) return <WaitingRoom code={session.code} connected={table.status === 'open'} onCancel={onLeave} />;
+  return <OnlineTableScreen table={table} onLeave={onLeave} />;
+}
+
+function OnlineTableScreen({ table, onLeave }: { table: OnlineTable; onLeave: () => void }) {
+  const ctl = useOnlineController(table);
+  return <GameScreen ctl={ctl} config={null} onNewGame={onLeave} />;
+}
+
+/** The game screen, the same for local and online games: everything it shows comes from the controller. */
+function GameScreen({
+  ctl,
+  config,
+  onNewGame,
+  onRematch,
+}: {
+  ctl: GameController;
+  /** The local game's settings; null online. */
+  config: GameConfig | null;
+  onNewGame: () => void;
+  /** Local games only. */
+  onRematch?: () => void;
 }) {
   const {
     seat,
@@ -121,7 +229,8 @@ function Game({
     runnerCanAct,
     aiThinking,
     cancelChoice,
-  } = useGameController(config, saved);
+    online,
+  } = ctl;
 
   const [gameOverHidden, setGameOverHidden] = useState(false);
   const [zoomStore] = useState(createZoomStore);
@@ -150,8 +259,16 @@ function Game({
 
   // Back to the deck picker; a game still in progress is lost, so ask first
   const leaveGame = async () => {
+    if (online && !ended) {
+      const ok = await showConfirm(
+        "Leave this online game? You won't be able to come back to it, and your opponent is left waiting. To end the game, concede instead.",
+        { title: 'Leave game', confirmLabel: 'Leave', danger: true },
+      );
+      if (ok) onNewGame();
+      return;
+    }
     if (
-      !gameState.winner &&
+      !ended &&
       !(await showConfirm('Leave this game and go back to deck selection? The game in progress will be lost.', {
         title: 'Leave game',
         confirmLabel: 'Leave',
@@ -190,7 +307,10 @@ function Game({
     setViewMode(mode);
   };
 
-  const { corp, runner, activePlayer, activeRun, winner, winReason } = gameState;
+  const { corp, runner, activePlayer, activeRun, winner } = gameState;
+  // Online the room can also end a game with no winner (a server update), and says why
+  const ended = !!winner || !!online?.over;
+  const winReason = online?.over?.reason ?? gameState.winReason;
 
   const corpTabRef = useRef<HTMLDivElement>(null);
   const corpChassisRef = useRef<HTMLElement>(null);
@@ -361,6 +481,7 @@ function Game({
       <GameHeader
         state={gameState}
         config={config}
+        online={online}
         aiThinking={aiThinking}
         stops={stops}
         onStops={setStops}
@@ -378,11 +499,11 @@ function Game({
       <ZoomContext.Provider value={zoomStore}>
       <main className="flex-1 min-w-0 min-h-0 flex flex-col gap-2">
         {/* Victory Banner */}
-        {winner && (
+        {ended && (
           <div className="shrink-0 p-3 bg-gradient-to-r from-amber-950/80 to-pink-950/80 border-2 border-amber-500 rounded-[4px] flex flex-wrap items-center justify-between gap-2 shadow-2xl">
             <div>
               <h2 className="text-lg sm:text-xl font-cyber font-black text-amber-400">
-                GAME OVER // {winner.toUpperCase()} VICTORIOUS
+                GAME OVER // {winner ? `${winner.toUpperCase()} VICTORIOUS` : "NO WINNER"}
               </h2>
               <p className="text-xs text-slate-300 mt-1">{winReason}</p>
             </div>
@@ -397,7 +518,7 @@ function Game({
                 onClick={onNewGame}
                 className="px-5 py-2 bg-gradient-to-b from-amber-400 to-amber-500 hover:from-amber-300 hover:to-amber-400 text-black font-bold rounded-[2px] border-b-2 border-amber-700 text-xs shadow-lg active:translate-y-[1px] active:border-b-[1px] transition-all"
               >
-                Play Again
+                {online ? "Back to start" : "Play Again"}
               </button>
             </div>
           </div>
@@ -513,7 +634,7 @@ function Game({
       </div>
 
       {/* Active Run Overlay; the run and any open decision end with the game (rule 1.7.1) */}
-      {!winner && (
+      {!ended && (
         <RunOverlay
           state={gameState}
           onContinueRun={() => handleAction({ type: 'CONTINUE_RUN', player: 'runner' })}
@@ -531,7 +652,7 @@ function Game({
       )}
 
       {/* Pending player decision (mulligan, discard, trash on access) */}
-      {!winner && (
+      {!ended && (
         <PromptPanel
           state={gameState}
           onAnswer={(choice) => {
@@ -551,7 +672,7 @@ function Game({
         />
       )}
 
-      {!winner && <TurnBanner activePlayer={activePlayer} humanSide={humanSide} />}
+      {!ended && <TurnBanner activePlayer={activePlayer} humanSide={humanSide} />}
 
       {!handoffTo && <CardFates fates={fates} />}
 
@@ -591,15 +712,16 @@ function Game({
         />
       )}
 
-      {winner && (
+      {ended && (
         <GameOverModal
-          winner={winner}
+          winner={winner ?? null}
           reason={winReason}
           corpScore={corp.score}
           runnerScore={runner.score}
           humanSide={humanSide}
           onRematch={onRematch}
           onDeckSelect={onNewGame}
+          deckSelectLabel={online ? 'Back to the start screen' : undefined}
           minimized={gameOverHidden}
           onMinimizedChange={setGameOverHidden}
         />
