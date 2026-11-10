@@ -17,6 +17,7 @@ const SLOW_TESTS = [
   'tests/lethalHq.test.ts',
   'tests/savedGame.test.ts',
   'tests/hqNoSafer.test.ts', // beta
+  'tests/hiddenDraws.test.ts', // beta, about 8 s
 ];
 
 const bin = (name) => `node_modules/.bin/${name}`;
