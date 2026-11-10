@@ -148,6 +148,7 @@ export const tuning = {
      */
     /** Corp (round 3): no half-advanced agendas: advance only when it can be scored next turn behind ice it can rez. */
     // Phase 2 pruning (2026-11-08): no pinned test, but kept ON: measured -10.1 ± 2.3 as a set of six off for the Corp (run 42531131425 vs base 42525924644)
+    // Step 2 (spec-step2-delete-redundant.md, 2026-11-10): still load-bearing beside counted scoring: off alone -13.6 ± 3.9 at games=1 (run 42848499337 vs 42834389263)
     agendaTiming: true,
     /*
      * Draw and money round (2026-10-26, self-play): all on Corp 45.4% (2,210
