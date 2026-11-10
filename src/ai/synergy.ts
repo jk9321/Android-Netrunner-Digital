@@ -347,6 +347,8 @@ export const tuning = {
     /**
      * Probe P3: the planner's Corp candidates always include the best agenda install into an empty iced remote and the
      * best advance (turnPlanner.ts agendaCandidates). ON with iceProtects (2026-11-08, above).
+     * Step 2 (spec-step2-delete-redundant.md, 2026-11-10): search supply, kept, out of scope (it adds candidates, it weighs
+     * nothing): off -1.1 ± 1.1 at games=3, agenda stuck in HQ +2.3 ± 1.0 (run 42869504419 vs 42834394529).
      */
     plannerAgenda: true,
     /**
