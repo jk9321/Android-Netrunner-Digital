@@ -28,6 +28,9 @@ function reorderUnseen(s: GameState): GameState {
 const pick = (s: GameState) => JSON.stringify(createAgent('corp').chooseAction(structuredClone(s)));
 
 describe('plan.hiddenDraws', () => {
+  it('is on by default', () => {
+    expect(saved).toBe(true);
+  });
   it('deal 1001 T10: off, the real order of the unseen R&D cards changes the pick; on, it does not', () => {
     const s = t10 as unknown as GameState;
     tuning.plan.hiddenDraws = false;
