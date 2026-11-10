@@ -386,6 +386,10 @@ export const tuning = {
      * paired (run 42786339692 vs 42784619451, games=3), inside noise and within the ship rule.
      */
     scoreNow: true,
+    /** Step 2 TEMPORARY (spec-step2-delete-redundant.md, deleted before hand-off): corpAI installScore's 44/45 for an agenda this turn can finish. */
+    finishNowInstall: true,
+    /** Step 2 TEMPORARY: corpAI advanceScore's 40 + counters for an advance this turn can finish. */
+    advanceFinish: true,
     /**
      * Counted scoring C2 (spec-counted-scoring.md; stage 0b's two-turn half measured +3.0 ± 1.8): a two-turn score the
      * counting check finds (countedScore.ts scoreInTwo: the server holds through the Runner's turn against its credits
@@ -554,7 +558,7 @@ export const tuning = {
  */
 export const sideOff: Record<SideCode, string[]> = {
   corp: [],
-  runner: ['scoreNow', 'scoreInTwo', 'tagTrashNow', 'ownTrashRisk', 'hqTrashCost', 'oneCurrency', 'threatModel', 'measuredPass', 'threatSpend', 'calibratedRun', 'iceProtects', 'replyContenders', 'plannerAgenda', 'clearinghouseRez', 'ownIceKnown', 'runRecord', 'icePacingPriced', 'searchLines', 'searchSamples', 'hiddenDraws', 'oracle', 'reach', 'reachStrength', 'reachTime', 'threatKey', 'threatKeyPricing'],
+  runner: ['scoreNow', 'scoreInTwo', 'finishNowInstall', 'advanceFinish', 'tagTrashNow', 'ownTrashRisk', 'hqTrashCost', 'oneCurrency', 'threatModel', 'measuredPass', 'threatSpend', 'calibratedRun', 'iceProtects', 'replyContenders', 'plannerAgenda', 'clearinghouseRez', 'ownIceKnown', 'runRecord', 'icePacingPriced', 'searchLines', 'searchSamples', 'hiddenDraws', 'oracle', 'reach', 'reachStrength', 'reachTime', 'threatKey', 'threatKeyPricing'],
 };
 
 /**

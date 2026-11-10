@@ -52,6 +52,8 @@ export const corpFormula = (state: GameState, code: string, ctx: CorpEffectConte
 /** A Runner card's formula, if it has one. */
 /** plan.oneCurrency: a faceup Corp card's worth in Archives (Petty Cash, played again from there). */
 export const archivedWorth = (state: GameState, code: string): number => CARDS[code]?.archived?.(state) ?? 0;
+/** What a rezzed Corp card pays when the Corp's turn begins (CardAI turnIncome), or undefined. */
+export const turnIncomeOf = (code: string): { credits: number; hosted?: true } | undefined => CARDS[code]?.turnIncome;
 /** Dividends N (CardAI dividends), 0 for a card without it. */
 export const dividendsOf = (code: string): number => CARDS[code]?.dividends ?? 0;
 /** An operation plan.finishSetup ranks, with no bonus of its own (CardAI setup). */

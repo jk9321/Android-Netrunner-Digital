@@ -685,7 +685,7 @@ export class HeuristicCorpAI implements Agent {
     if (def.type_code === 'agenda') {
       const need = (def.advancement_cost ?? 0) - card.advancementCounters;
       if (need <= 0) return this.synergy && this.overAdvance(state, card.instanceId) ? 6 + 1.5 * dividends(card) : -Infinity;
-      if (need <= corp.clicks && need <= corp.credits) return 40 + card.advancementCounters;
+      if (need <= corp.clicks && need <= corp.credits && plan().advanceFinish) return 40 + card.advancementCounters;
       if (this.timing) {
         // Deck-aware AI: only if the rest of this turn leaves it scoreable next turn, behind ice we can still rez
         const spend = Math.min(corp.clicks, corp.credits) + this.untaianAdvance(state, 0);
@@ -937,7 +937,7 @@ export class HeuristicCorpAI implements Agent {
         const finishNow = (def.advancement_cost ?? 0) <= corp.clicks - 1 && (def.advancement_cost ?? 0) <= corp.credits;
         // A naked remote only to dodge a discard (or to score it straight away)
         if (!server) {
-          if (finishNow) return 44;
+          if (finishNow && plan().finishNowInstall) return 44;
           // Deck-aware AI (exposure): an overfull HQ goes behind ice rather than into a bare remote
           if (hq.length > corp.handSizeLimit) return this.synergy ? 0.1 : 0.5;
           if (this.synergy && tuning.bluff && tuning.reverseBluff && this.nakedAgenda(state, card)) {
@@ -949,7 +949,7 @@ export class HeuristicCorpAI implements Agent {
           return -2;
         }
         if (server.root.some(isAgendaOrAsset)) return -Infinity;
-        if (finishNow) return 45;
+        if (finishNow && plan().finishNowInstall) return 45;
         if (this.timing) {
           // Deck-aware AI: install only if this turn's advances leave it scoreable next turn, behind ice we can still rez
           const spend = Math.min(corp.clicks - 1, corp.credits) + this.untaianAdvance(state, 1);

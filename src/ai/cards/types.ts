@@ -61,4 +61,8 @@ export interface CardAI {
    * over-advances it: corpAI overAdvance; counted scoring leaves it to the Corp at its requirement: winNow.ts,
    * countedScore.ts). */
   dividends?: number;
+  /** Corp card that pays it credits when its turn begins while rezzed: the credits, and whether they are taken from the
+   * credits hosted on it (a campaign: no more than it holds). Counted scoring reads it as next turn's income
+   * (countedScore.ts knownIncome). */
+  turnIncome?: { credits: number; hosted?: true };
 }

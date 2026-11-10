@@ -349,6 +349,7 @@ export const ELEVATION: Record<string, CardAI> = {
   },
   // Otto Campaign
   '35040': {
+    turnIncome: { credits: 2, hosted: true }, // When your turn begins, take 2 credits from this asset
     synergy: { gives: { econ: 1.5 } },
     value: { keep: 4, econ: 3.5 },
     profile: { load: 6, pay: 2, every: 'turn', perTurn: 1, clicksAtEnd: 2 }, // Otto Campaign
@@ -461,6 +462,7 @@ export const ELEVATION: Record<string, CardAI> = {
   },
   // Public Access Plaza
   '35062': {
+    turnIncome: { credits: 1 }, // When your turn begins, gain 1 credit
     synergy: { gives: { econ: 1 }, when: ['threat'] },
     value: { keep: 3, econ: 2.5 },
     // 1 credit each turn
@@ -494,6 +496,7 @@ export const ELEVATION: Record<string, CardAI> = {
   },
   // Anthill Excavation Contract
   '35072': {
+    turnIncome: { credits: 4, hosted: true }, // When your turn begins, take 4 credits from this asset
     synergy: { gives: { econ: 2, draw: 0.5 } },
     value: { keep: 5, econ: 4 },
     profile: { load: 8, pay: 4, every: 'turn', perTurn: 1, drawEach: 1 }, // Anthill Excavation Contract
