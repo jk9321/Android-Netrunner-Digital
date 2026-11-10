@@ -94,7 +94,7 @@ export function firstDiff(a: unknown, b: unknown, path = '$'): string | null {
 }
 
 /** Two cards hidden from `blind` with different codes, of one kind; null when there are none. */
-function pickPair(state: GameState, blind: SideCode, rng: RngState): [CardInstance, CardInstance] | null {
+export function pickPair(state: GameState, blind: SideCode, rng: RngState): [CardInstance, CardInstance] | null {
   const { hiddenIds, shownIds } = visibility(state, blind);
   // A card a declared intent or a pending prompt names was chosen for what it is: in the twin that choice could be
   // impossible and silently dropped (an install intent of an asset as ice), which says nothing about the views
@@ -153,7 +153,7 @@ function withProbeLine(state: GameState): GameState {
 }
 
 /** S with the codes of cards `a` and `b` swapped. */
-function twinOf(state: GameState, a: string, b: string): GameState {
+export function twinOf(state: GameState, a: string, b: string): GameState {
   const twin = structuredClone(state);
   const cards = cardsById(twin);
   const x = cards.get(a)!;
@@ -163,7 +163,7 @@ function twinOf(state: GameState, a: string, b: string): GameState {
 }
 
 /** Has either swapped card been shown to `blind` by the action (left the hidden set, shown by instance, named in its prompt or by a new log line it may read)? */
-function shown(before: GameState, after: GameState, blind: SideCode, ids: string[]): boolean {
+export function shown(before: GameState, after: GameState, blind: SideCode, ids: string[]): boolean {
   const post = visibility(after, blind);
   const cards = cardsById(after);
   const codes = ids.map(id => cards.get(id)?.cardCode).filter((x): x is string => !!x);
@@ -209,6 +209,40 @@ export function twinCompare(state: GameState, action: GameAction, next: GameStat
   const w2 = viewFor(withProbeLine(nextTwin), blind, v2.ids, 'game');
   const d = firstDiff(w1.view, w2.view) ?? firstDiff(w1.ids, w2.ids);
   return d ? { kind: 'differ', before: false, path: d, legalCompared } : { kind: 'same', legalCompared };
+}
+
+/** The asked side's "no" to the question pending in `state`: an empty pick or the 'no' option (askEvenIfNone's one answer). */
+function declineOf(state: GameState): GameAction {
+  const side = actingSide(state);
+  const action = side
+    ? getLegalActions(state, side).find(
+        a =>
+          a.type === 'RESOLVE_PROMPT' &&
+          ((a.choice.kind === 'effect_cards' && a.choice.cardInstanceIds.length === 0) || (a.choice.kind === 'effect_choice' && a.choice.optionId === 'no'))
+      )
+    : undefined;
+  if (!action) throw new Error('No decline to the pending question');
+  return action;
+}
+
+/**
+ * Like twinCompare, one answer further (multiplayer phase 2, chunk 2a-3): after `action`, S declines the question a
+ * hidden card qualified for and the twin gives askEvenIfNone's one answer. The blind side's views must still match,
+ * so the stand-in goes on the way a decline does (rules 4.2.2, 4.3.2). The fuzz can't see this step: the sighted
+ * side's answer in S is illegal in the twin.
+ */
+export function twinCompareDeclined(state: GameState, action: GameAction, ids: ViewIds, blind: SideCode, a: string, b: string): TwinOutcome {
+  const twin = twinOf(state, a, b);
+  const v1 = viewFor(state, blind, ids, 'game');
+  const v2 = viewFor(twin, blind, ids, 'game');
+  const after = (s: GameState) => {
+    const next = executeAction(s, action);
+    return executeAction(next, declineOf(next));
+  };
+  const w1 = viewFor(withProbeLine(after(state)), blind, v1.ids, 'game');
+  const w2 = viewFor(withProbeLine(after(twin)), blind, v2.ids, 'game');
+  const d = firstDiff(w1.view, w2.view) ?? firstDiff(w1.ids, w2.ids);
+  return d ? { kind: 'differ', before: false, path: d } : { kind: 'same' };
 }
 
 /**

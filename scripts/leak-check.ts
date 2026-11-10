@@ -177,6 +177,45 @@ export class LeakChecker {
     if (this.failures.length < 50) this.failures.push({ seed: this.seed, step, viewer, check, detail, ...(path && { path }) });
   }
 
+  /**
+   * The content checks on one thing a side is sent (a view, or a whole server message: multiplayer phase 2's room
+   * fuzzer, scripts/room-fuzz.ts): no engine internals, no card object with a face from a zone hidden from the side,
+   * no hidden card's code or title it has not seen. `ids` is the side's id map for it. Returns the codes still secret.
+   */
+  checkContent(state: GameState, side: SideCode, view: unknown, ids: ViewIds, step: number, json = JSON.stringify(view)): Set<string> {
+    // 2. No engine internals
+    for (const bad of ['inst-', '"rng"', '"seed"', '"nextInstanceId"', '"nextPromptId"', '"rdNotes"', '"secret"']) {
+      if (json.includes(bad)) this.fail(step, side, 'internal', bad, findPaths(view, s => s.includes(bad.replace(/"/g, '')))[0]);
+    }
+
+    // 1. No hidden card's code or title, unless seen before
+    const { hidden, hiddenIds, shownIds, textCodes, openCodes } = visibility(state, side);
+    // 1a. Instance level: no card object with a face may be a card hidden from this side now (prompts may show them)
+    for (const [path, obj] of cardObjects(view)) {
+      if (path.startsWith('$.pendingPrompts') || path.startsWith('$.view.pendingPrompts')) continue;
+      const real = ids.real[obj.instanceId];
+      if (real === undefined) this.fail(step, side, 'ids', `${obj.instanceId} not in the id map`, path);
+      else if (obj.cardCode !== undefined && hiddenIds.has(real)) this.fail(step, side, 'hidden-card', `${obj.cardCode} ${titleOf(obj.cardCode)} is in a zone hidden from ${side}`, path);
+    }
+    // Codes seen in text or in an open place stay allowed (old log lines name them); cards shown in a hidden place, per instance
+    for (const code of [...textCodes, ...openCodes]) this.seen[side].add(code);
+    for (const id of shownIds) this.seenIds[side].add(id);
+    const unseen = (x: CardInstance) => !this.seenIds[side].has(x.instanceId) && !this.seen[side].has(x.cardCode);
+    // A code some copy of which was shown may appear: the view can't tie a code to a copy
+    const shownCodes = new Set(withHosted([...state.corp.rd, ...state.corp.hq, ...state.runner.grip, ...state.runner.stack, ...state.corp.archives.faceDown, ...Object.values(state.corp.servers).flatMap(s => [...s.ice, ...s.root])]).filter(x => this.seenIds[side].has(x.instanceId)).map(x => x.cardCode));
+    const leaked = new Set(hidden.filter(unseen).map(x => x.cardCode).filter(code => !shownCodes.has(code)));
+    for (const code of leaked) {
+      if (json.includes(`"${code}"`)) this.fail(step, side, 'hidden-code', `${code} ${titleOf(code)}`, findPaths(view, s => s === code)[0]);
+      const title = titleOf(code);
+      if (title.length >= 4 && json.includes(title)) {
+        const re = new RegExp(`(^|[^\\w])${escape(title)}($|[^\\w])`);
+        const paths = findPaths(view, s => re.test(s));
+        if (paths.length) this.fail(step, side, 'hidden-title', `${code} ${title}`, paths[0]);
+      }
+    }
+    return leaked;
+  }
+
   check(state: GameState, step: number): void {
     const before = JSON.stringify(state);
     for (const side of SIDES) {
@@ -190,39 +229,10 @@ export class LeakChecker {
       if (JSON.stringify(prevIds) !== prevIdsJson) this.fail(step, side, 'purity', 'viewFor changed the id map passed in');
       this.ids[side] = ids;
 
-      // 2. No engine internals
-      for (const bad of ['inst-', '"rng"', '"seed"', '"nextInstanceId"', '"nextPromptId"', '"rdNotes"', '"secret"']) {
-        if (json.includes(bad)) this.fail(step, side, 'internal', bad, findPaths(view, s => s.includes(bad.replace(/"/g, '')))[0]);
-      }
-
-      // 1. No hidden card's code or title, unless seen before
-      const { hidden, hiddenIds, shownIds, textCodes, openCodes } = visibility(state, side);
-      // 1a. Instance level: no card object with a face may be a card hidden from this side now (prompts may show them)
-      for (const [path, obj] of cardObjects(view)) {
-        if (path.startsWith('$.pendingPrompts')) continue;
-        const real = ids.real[obj.instanceId];
-        if (real === undefined) this.fail(step, side, 'ids', `${obj.instanceId} not in the id map`, path);
-        else if (obj.cardCode !== undefined && hiddenIds.has(real)) this.fail(step, side, 'hidden-card', `${obj.cardCode} ${titleOf(obj.cardCode)} is in a zone hidden from ${side}`, path);
-      }
-      // Codes seen in text or in an open place stay allowed (old log lines name them); cards shown in a hidden place, per instance
-      for (const code of [...textCodes, ...openCodes]) this.seen[side].add(code);
-      for (const id of shownIds) this.seenIds[side].add(id);
-      const unseen = (x: CardInstance) => !this.seenIds[side].has(x.instanceId) && !this.seen[side].has(x.cardCode);
-      // A code some copy of which was shown may appear: the view can't tie a code to a copy
-      const shownCodes = new Set(withHosted([...state.corp.rd, ...state.corp.hq, ...state.runner.grip, ...state.runner.stack, ...state.corp.archives.faceDown, ...Object.values(state.corp.servers).flatMap(s => [...s.ice, ...s.root])]).filter(x => this.seenIds[side].has(x.instanceId)).map(x => x.cardCode));
-      const leaked = new Set(hidden.filter(unseen).map(x => x.cardCode).filter(code => !shownCodes.has(code)));
-      for (const code of leaked) {
-        if (json.includes(`"${code}"`)) this.fail(step, side, 'hidden-code', `${code} ${titleOf(code)}`, findPaths(view, s => s === code)[0]);
-        const title = titleOf(code);
-        if (title.length >= 4 && json.includes(title)) {
-          const re = new RegExp(`(^|[^\\w])${escape(title)}($|[^\\w])`);
-          const paths = findPaths(view, s => re.test(s));
-          if (paths.length) this.fail(step, side, 'hidden-title', `${code} ${title}`, paths[0]);
-        }
-      }
+      const leaked = this.checkContent(state, side, view, ids, step, json);
 
       if (this.recon) {
-        this.prevRecon[side] = reconChecks(this, { state, side, view, ids, hiddenIds, leakedCodes: leaked, step, prev: this.prevRecon[side] });
+        this.prevRecon[side] = reconChecks(this, { state, side, view, ids, hiddenIds: visibility(state, side).hiddenIds, leakedCodes: leaked, step, prev: this.prevRecon[side] });
       }
 
       // 3. Ids: one card per id, ids never reused, a card back from out of sight gets a new id
