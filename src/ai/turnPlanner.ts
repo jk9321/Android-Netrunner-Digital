@@ -36,8 +36,10 @@ export const PLANNER = {
    * time goes (a board costs 3 ms or 75 ms by how many it needs). Past it, the candidate being played out is dropped, the
    * ones not started are left out, and the best fully scored stands; with none finished, the first candidate (the rule
    * ranking's best) is played, so the pick is never worse than the planner-free one. TEMPORARY plan.budgetCap.
+   * 2000: about p97 of planner decisions (p99 of all Corp decisions) on 32 deals with the per-decision cache, so it
+   * fires only on the tail (15 of 553 planner decisions; those took 24-63 s).
    */
-  budgetCap: Infinity,
+  budgetCap: 2000,
   /** plan.plannerSearch plannerBuild: the candidate set with the two-step builds added, at most (Hard's time). */
   withBuild: 6,
 };
