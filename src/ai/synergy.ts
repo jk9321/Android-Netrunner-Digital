@@ -393,6 +393,10 @@ export const tuning = {
     scoreInTwo: true,
     /** TEMPORARY (planner speed P1, spec-planner-speed.md; deleted before hand-off): no plan() when the count has decided the click (corpAI decide). */
     plannerSkip: true,
+    /** TEMPORARY (planner speed P2a, spec-planner-speed.md; deleted before hand-off): the threat's key reads look-ahead draws in HQ by their number (threatModel.ts hqKey). */
+    threatHqKey: true,
+    /** TEMPORARY (planner speed P2(i), spec-planner-speed.md; deleted before hand-off): the threat cache's cap one decision does not reach (threatModel.ts remember). */
+    threatCacheCap: true,
     /**
      * Bug reports #39, #41 (Jeff's Runner test games 7 and 9, 2026-11-09; Corp only): the Corp's own unrezzed ice is priced
      * as it knows it (effectValues.ts ownIce: the real ice when its rez budget covers it, passed when not; rules 3.4.3a,
@@ -538,7 +542,7 @@ export const tuning = {
  */
 export const sideOff: Record<SideCode, string[]> = {
   corp: [],
-  runner: ['scoreNow', 'scoreInTwo', 'plannerSkip', 'tagTrashNow', 'ownTrashRisk', 'hqTrashCost', 'oneCurrency', 'threatModel', 'measuredPass', 'threatSpend', 'calibratedRun', 'iceProtects', 'replyContenders', 'plannerAgenda', 'clearinghouseRez', 'ownIceKnown', 'runRecord', 'icePacingPriced', 'searchSamples', 'hiddenDraws', 'oracle', 'reach', 'reachStrength', 'reachTime', 'threatKey', 'threatKeyPricing'],
+  runner: ['scoreNow', 'scoreInTwo', 'plannerSkip', 'threatHqKey', 'threatCacheCap', 'tagTrashNow', 'ownTrashRisk', 'hqTrashCost', 'oneCurrency', 'threatModel', 'measuredPass', 'threatSpend', 'calibratedRun', 'iceProtects', 'replyContenders', 'plannerAgenda', 'clearinghouseRez', 'ownIceKnown', 'runRecord', 'icePacingPriced', 'searchSamples', 'hiddenDraws', 'oracle', 'reach', 'reachStrength', 'reachTime', 'threatKey', 'threatKeyPricing'],
 };
 
 /**

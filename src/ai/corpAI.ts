@@ -102,6 +102,9 @@ export interface HeuristicOptions {
  * Rule-based Corp: builds money, ices its centrals, sets up a remote with
  * ice to score agendas from, and rezzes ice when the Runner comes in.
  */
+/** TEMPORARY (planner speed P1 split; deleted with plan.plannerSkip): scripts/p1-split.ts sets `on` to see each decision the skip would have made. */
+export const plannerSkipProbe: { on: ((r: { state: GameState; skip: GameAction; planned: GameAction | null; picked: GameAction; scoreFirst: GameAction | null; ranked0: GameAction | null; kind: 'scoreNow' | 'held' }) => void) | null } = { on: null };
+
 export class HeuristicCorpAI implements Agent {
   readonly side = 'corp' as const;
   /** Has this Corp made its once-a-game reverse bluff? */
@@ -199,6 +202,18 @@ export class HeuristicCorpAI implements Agent {
       }
       Object.assign(scoreInTwoStats, stats);
     }
+    // TEMPORARY (P1 split, scripts/p1-split.ts; deleted with plannerSkip): with the switch off, what the skip would have played
+    let skipPick: GameAction | null = null;
+    if (!plan().plannerSkip && plannerSkipProbe.on && this.planner && plannerOn('corp') && state.turnStep?.kind !== 'corp_turn_start') {
+      const first = ranked[0]?.score > -Infinity ? ranked[0].action : legal.find(a => a.type === 'END_TURN') ?? legal[0];
+      if (score) skipPick = keepsScore(state, first, score) ? first : score.first;
+      else if (this.synergy && this.heldLine && this.heldLine.game === state.id && this.heldLine.turn < state.turnNumber) {
+        const stats = { ...scoreInTwoStats, lines: [...scoreInTwoStats.lines] };
+        const probe = scoreInTwoPick(state, first, { ...this.heldLine });
+        if (probe.held && probe.held.turn < state.turnNumber) skipPick = probe.action;
+        Object.assign(scoreInTwoStats, stats);
+      }
+    }
     if (!plan().plannerSkip) decided = false;
     const planned = this.planner && plannerOn('corp') && state.turnStep?.kind !== 'corp_turn_start' && !decided ? this.plan(state, ranked) : null;
     let chosen = planned ?? (ranked[0]?.score > -Infinity ? ranked[0].action : legal.find(a => a.type === 'END_TURN') ?? legal[0]);
@@ -221,6 +236,7 @@ export class HeuristicCorpAI implements Agent {
       const def = cardDef(state.corp.hq.find(c => c.instanceId === bluff.cardInstanceId)!);
       if ((def.advancement_cost ?? 0) > state.corp.clicks - 1) this.reverseBluffed = true;
     }
+    if (skipPick) plannerSkipProbe.on?.({ state, skip: skipPick, planned, picked, scoreFirst: score?.first ?? null, ranked0: ranked[0]?.action ?? null, kind: score ? 'scoreNow' : 'held' });
     this.notePlayed(picked);
     if (this.debug) logNudge(state, 'corp', picked);
     return picked;

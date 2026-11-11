@@ -168,12 +168,24 @@ function threatKey(state: GameState): string {
   const grip = coarse ? guessedGrip(state).grip.map(c => c.cardCode).sort().join(',') : state.runner.grip.map(c => c.instanceId).join(',');
   const roots = Object.values(state.corp.servers).map(v => v.root.map(c => `${c.advancementCounters}${c.runnerKnows ? 'k' : ''}${c.faceUp ? 'u' : ''}`).join('.')).join(';');
   return [
-    state.id, fingerprint(state), roots, state.corp.hq.map(c => c.instanceId).join(','), grip,
+    state.id, fingerprint(state), roots, hqKey(state), grip,
     state.runsThisTurn.map(r => r.server + (r.successful ? '+' : '-')).join(','), JSON.stringify(state.corp.rdKnownToRunner ?? []),
     knownInHand(state, 'runner').map(k => k.id).join(','), knownInHand(state, 'corp').map(k => k.id).join(','), state.runner.bonusClicksNextTurn ?? 0,
     planKey(),
     coarse && plan().threatKeyPricing ? '' : pricingKey(),
   ].join('|');
+}
+/**
+ * HQ as the threat reads it. TEMPORARY plan.threatHqKey (planner speed P2a, spec-planner-speed.md; deleted before
+ * hand-off): the cards the Corp drew in a look-ahead (unseenInHand) only by their number, since centralAccess prices
+ * them at R&D's density whatever they are; the planner's playouts deal different such cards per candidate.
+ */
+function hqKey(state: GameState): string {
+  if (!plan().threatHqKey) return state.corp.hq.map(c => c.instanceId).join(',');
+  const unseen = new Set(unseenInHand(state, 'corp').map(c => c.instanceId));
+  // probedState copies the first agenda of HQ, then R&D: which one that is can depend on the draw
+  const like = [...state.corp.hq, ...state.corp.rd, ...state.corp.scoreArea].find(c => cardDef(c).type_code === 'agenda');
+  return state.corp.hq.filter(c => !unseen.has(c.instanceId)).map(c => c.instanceId).join(',') + '#' + unseen.size + '~' + (like?.cardCode ?? '');
 }
 let planSig: { plan: unknown; json: string } | null = null;
 const planKey = (): string => {
@@ -188,7 +200,9 @@ const remember = <T>(cache: Map<string, T>, key: string, work: () => T): T => {
   const hit = cache.get(key);
   if (hit !== undefined) return hit;
   const value = work();
-  if (cache.size > 4000) cache.clear();
+  // TEMPORARY plan.threatCacheCap (planner speed P2(i); deleted before hand-off): a cap one planner decision does not reach
+  // (the turn-17 fixture budgets 8,854 boards in one decision, and the 4000 cap lost 1,226 of them to the clear)
+  if (cache.size > (plan().threatCacheCap ? 40000 : 4000)) cache.clear();
   cache.set(key, value);
   return value;
 };
