@@ -23,6 +23,9 @@ const TROJANS = [BOTULUS, TRANQUILIZER];
  */
 const WINDOW_OF_OPPORTUNITY = '34077';
 
+/** plan.pressureRunner diagnostics (scripts read them): each run the pressure Runner forced, by game, turn and server. */
+export const pressureStats = { runs: [] as { game: string; turn: number; server: string }[] };
+
 export class HeuristicRunnerAI implements Agent {
   readonly side = 'runner' as const;
   private freeActions = new FreeActionGuard(['END_TURN', 'INITIATE_RUN']);
@@ -233,6 +236,7 @@ export class HeuristicRunnerAI implements Agent {
       if (score === -Infinity) continue;
       if (!best || score > best.score) best = { action, score };
     }
+    if (best) pressureStats.runs.push({ game: state.id, turn: state.turnNumber, server: (best.action as { targetServerId: string }).targetServerId });
     return best?.action ?? null;
   }
 
