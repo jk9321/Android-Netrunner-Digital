@@ -105,6 +105,9 @@ describe('counted rez on approached ice (6.4.3, 6.9.2b-c)', () => {
     // 3 credits: the rez (3) leaves 0, and HQ (agendas there) still needs its unrezzed Whitespace (2)
     const { s, ice } = at('remote-1', { runnerCredits: 0, rootAgenda: true, alone: true });
     expect(call(s, ice)).toBeNull();
+    tuning.plan.rezFloorR2 = false;
+    expect(call(s, ice)).toBe('rez');
+    tuning.plan.rezFloorR2 = true;
     tuning.plan.rezFloor = false;
     expect(call(s, ice)).toBe('rez');
   });

@@ -164,11 +164,12 @@ export function countedRez(state: GameState, ice: CardInstance): 'rez' | 'pass' 
   const isAgenda = (c: CardInstance) => cardDef(c).type_code === 'agenda';
   // Can afford it (spec R2-R4): after the rez, the Corp's credits and its known next-turn income still cover the money
   // floor after a line (countedScore.ts afterLineFloor) on the board with this ice rezzed. Otherwise no opinion.
-  if (p.rezFloor) {
+  const isStopper = stops && server.root.some(isAgenda);
+  if (p.rezFloor && !(isStopper && p.rezStopper && !p.rezFloorR2)) {
     const after: GameState = { ...view, corp: { ...view.corp, credits: state.corp.credits - rezCost(state, ice) } };
     if (after.corp.credits + knownIncome(after) < afterLineFloor(after, '')) return null;
   }
-  if (p.rezStopper && stops && server.root.some(isAgenda)) return 'rez';
+  if (p.rezStopper && isStopper) return 'rez';
   const hqAgendas = state.corp.hq.filter(isAgenda).length;
   if (run.server === 'hq' && hqAgendas > 0 && ((stops && p.rezHqStop) || (!stops && p.rezHqToll))) return 'rez';
   if (run.server === 'rd' && hqAgendas === 0 && agendasUnseen(state) > 0 && ((stops && p.rezRdStop) || (!stops && p.rezRdToll))) return 'rez';
