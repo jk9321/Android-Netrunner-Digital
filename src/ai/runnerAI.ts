@@ -193,12 +193,47 @@ export class HeuristicRunnerAI implements Agent {
       this.notePlayed(full);
       return full;
     }
+    const pressed = this.planner && plan().pressureRunner ? this.pressureRun(state, legal) : null;
+    if (pressed) {
+      this.notePlayed(pressed);
+      return pressed;
+    }
     const ranked = this.rankMainActions(state, legal);
     const planned = this.planner && plannerOn('runner') ? this.plan(state, ranked) : null;
     const chosen = planned ?? (ranked[0]?.score > -Infinity ? ranked[0].action : legal.find(a => a.type === 'END_TURN') ?? legal[0]);
     this.notePlayed(chosen);
     if (this.debug) logNudge(state, 'runner', chosen);
     return chosen;
+  }
+
+  /**
+   * plan.pressureRunner (test opponent, spec-step4-placement.md, Jeff 2026-11-11): a run on any server the Runner can
+   * pay through by what it sees, ahead of its own pick, when the server is HQ or R&D or its root holds a card it has
+   * not seen. "Can pay": the rezzed ice it doesn't bypass has a price (runShortfall, no BLOCK) and that price plus its
+   * own guess for each unrezzed ice (iceCost) fits its run budget. Once per server a turn, so an open HQ isn't run
+   * every click. The best such run by its own runScore; null when none (its own play then). Reads nothing hidden.
+   * Only the agent at the table (this.planner): the playout and reply copies keep the normal Runner, so the Corp's
+   * model of the Runner is unchanged.
+   */
+  private pressureRun(state: GameState, legal: GameAction[]): GameAction | null {
+    const ran = new Set(state.runsThisTurn.map(r => r.server));
+    const options = { memory: this.memory, wary: this.synergy && tuning.wary };
+    let best: { action: GameAction; score: number } | null = null;
+    for (const action of legal) {
+      if (action.type !== 'INITIATE_RUN' || ran.has(action.targetServerId)) continue;
+      const server = state.corp.servers[action.targetServerId];
+      if (!server) continue;
+      const central = server.id === 'hq' || server.id === 'rd';
+      if (!central && !server.root.some(c => !c.isRezzed && !this.memory.has(c.instanceId))) continue;
+      const short = runShortfall(state, server.id);
+      if (short === null) continue;
+      const unrezzed = server.ice.filter(i => !i.isRezzed).reduce((n, i) => n + iceCost(state, i), 0);
+      if (short + unrezzed > 0) continue;
+      const score = runScore(state, server.id, options);
+      if (score === -Infinity) continue;
+      if (!best || score > best.score) best = { action, score };
+    }
+    return best?.action ?? null;
   }
 
   /** Counts actions in a row that spent no click (loop guard). */

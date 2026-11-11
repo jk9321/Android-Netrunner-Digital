@@ -57,6 +57,7 @@ const OFF_SWITCHES: Record<string, string> = {
   threatKeyPricing: 'Phase 2 K4b: threat key without the pricing context; moved 4 of 221 deals (run 42537621348)',
   reachTime: 'Phase 2 K3: +0.6 +/- 0.8 at 10 games (run 42543840540), stayed broke +2.8 +/- 0.9',
   'oracle.gripReply': 'measurement oracle (Phase 2 K0: grip in the Runner reply only), never a default',
+  pressureRunner: 'test opponent for step 4 (spec-step4-placement.md): the Runner runs whenever it can pay; never a default',
   calibratedRun: 'item 3 round 3: the threat read at measured hit rates; did not help (-9.9 vs -10.6), kept as measurement',
   icePacingPriced: 'bug report #43: about -7 points through over-icing (batch 3 42715002281 vs batch 4 42720370875: went-broke +22, stayed-broke +14); off until the leaf prices the rezzes an ice install commits to',
   searchSamples: 'Phase 3 S3 (spec-search.md): PARKED OFF, -4.2 ± 1.8 vs searchLines ON (run 42697176557; searchLines deleted in step 2); re-measure after corpTurnDamageOwn lands on beta, against #45',
@@ -103,6 +104,10 @@ describe('AI code health (audit guards)', () => {
   it('keeps every measurement oracle off and off for the Runner (spec-round2.md: an oracle never ships on)', () => {
     expect(Object.values(tuning.plan.oracle).every(v => v === false)).toBe(true);
     expect(sideOff.runner).toContain('oracle');
+  });
+
+  it('keeps the pressure Runner test opponent off (spec-step4-placement.md: an instrument, never the shipped Runner)', () => {
+    expect(tuning.plan.pressureRunner).toBe(false);
   });
 
   it('has no off switch without a reason', () => {

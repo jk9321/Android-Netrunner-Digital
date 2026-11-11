@@ -505,6 +505,12 @@ export const tuning = {
      */
     oracle: { grip: false, safestRemote: false, rd: false, think: false, gripThreat: false, gripReply: false },
     /**
+     * Test opponent, step 4 (spec-step4-placement.md, Jeff 2026-11-11 "use that as a testing method until we get around
+     * to fixing our runner AI"): the Runner AI at the table runs any server it can pay through (runnerAI.ts pressureRun).
+     * A batch turns it on with plan_off=+pressureRunner. Never a default (codeHealth test); kept as an instrument.
+     */
+    pressureRunner: false,
+    /**
      * Per deciding side (Jeff, 2026-10-28): its own hand valued card by card, by what each will do once played (handValues.ts).
      * Batches: each side loses with it (Corp side 32.2% -> 28.0%, Runner side 32.2% -> 35.9% Corp) and the Runner draws at a
      * full hand on 55% of turns. Off on both sides, kept for re-testing.
