@@ -66,13 +66,16 @@ export interface CardAI {
    * Counted scoring reads it as the Corp's next-turn income (countedScore.ts knownIncome) and as the Runner's turn-start
    * money (runnerBudget). */
   turnIncome?: { credits: number; hosted?: true };
+  /** Runner card that pays off an Archives run, or turns one into a run on something else (Maintenance Access, Baker):
+   * the Corp ices and rezzes Archives only against these, or with an agenda there (rezModel.ts archivesWantsIce). */
+  archivesPayoff?: true;
+  /** Agenda that gains the Corp credits when it is scored (Offworld Office 7): counted scoring's money left after a
+   * two-turn line (countedScore.ts afterLineFloor). */
+  scoreCredits?: number;
   /** Installed Runner card with a click ability that pays credits, one use on the Runner's next turn (countedScore.ts
    * runnerBudget): the clicks it costs and the credits it pays. hosted 'cap': no more than the credits hosted on it
    * (Telework Contract); 'add': plus every credit hosted on it (Pennyshaver). perVirus: credits per hosted virus counter,
    * with turnStart counters added as the Runner's turn begins (Fermenter). once: once per turn, or the card is trashed. */
-  /** Agenda that gains the Corp credits when it is scored (Offworld Office 7): counted scoring's money left after a
-   * two-turn line (countedScore.ts afterLineFloor). */
-  scoreCredits?: number;
   clickMoney?: { clicks: number; credits: number; hosted?: 'cap' | 'add'; perVirus?: { credits: number; turnStart: number }; once?: true };
   /** Clicks one use gives beyond the click it costs (Nanomanagement: gain 2, 1 to play it), read by winNow.ts's count of what this turn can still score. */
   clicksGiven?: number;

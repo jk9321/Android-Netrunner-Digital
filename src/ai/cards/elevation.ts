@@ -116,6 +116,7 @@ export const ELEVATION: Record<string, CardAI> = {
   '35002': { synergy: { gives: { install: 2 } } },
   // Charm Offensive
   '35003': {
+    archivesPayoff: true, // Charm Offensive: run Archives, trash a rezzed copy of a card accessed there
     synergy: { gives: { runs: 1, archives: 1, trash: 0.5 } },
     // A plain Archives run: trashing a rezzed copy of a card accessed there needs a copy to be both rezzed and in Archives (rare)
     run: (): RunOptions => ({}),
@@ -187,6 +188,7 @@ export const ELEVATION: Record<string, CardAI> = {
   '35015': { synergy: { gives: { draw: 1 } } },
   // Maintenance Access
   '35016': {
+    archivesPayoff: true, // Maintenance Access: run Archives, then approach HQ
     synergy: { gives: { runs: 1, hq: 1 } },
     // Archives' ice, then HQ is breached instead; the extra click it costs
     run: (state?: GameState): RunOptions => {
