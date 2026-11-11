@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { GameState, GameView, SideCode, StopLevel, ViewIds, actingSide, addLog, createCardInstance, executeAction, getLegalActions, newViewIds, toEngineAction, fromEngineAction, viewFor, IllegalActionError } from '../src/core';
 import { GAME_STATE_FIELDS } from '../src/core/view';
-import { answer, cont, installCorpForTest, keepGoing, newGame, run, setIdentity, startRunnerTurn } from './helpers';
+import { answer, cont, installCorpForTest, keepGoing, newGame, newGameAtSetup, run, setIdentity, startRunnerTurn } from './helpers';
 import { LeakChecker } from '../scripts/leak-check';
 
 // Per-player views (multiplayer phase 1): one scenario per row of the visibility table in
@@ -34,6 +34,28 @@ describe('Per-player views', () => {
       expect.arrayContaining(['rng', 'nextInstanceId', 'nextPromptId']),
     );
     expect(s.id).toBe('game-7'); // the state itself is untouched
+  });
+
+  it('never carries the game seed, at the start or after moves (chunk 2f: the seed predicts every shuffle, 1.12 / 4.2.2)', () => {
+    const SEED = 987654321;
+    let s = newGameAtSetup(SEED);
+    expect(s.log[0].message).toBe('Game started. Both players may mulligan, then the Corp takes the first turn.');
+    const ids: Record<SideCode, ViewIds> = { corp: newViewIds(), runner: newViewIds() };
+    let x = 1;
+    for (let step = 0; step < 150 && !s.winner; step++) {
+      for (const side of ['corp', 'runner'] as SideCode[]) {
+        const v = viewFor(s, side, ids[side], 'g');
+        ids[side] = v.ids;
+        expect(JSON.stringify(v.view), `${side} at step ${step}`).not.toContain(String(SEED));
+      }
+      const side = actingSide(s);
+      if (!side) break;
+      const legal = getLegalActions(s, side).filter(a => a.type !== 'CONCEDE');
+      if (legal.length === 0) break;
+      x = (Math.imul(x, 1103515245) + 12345) >>> 0;
+      s = executeAction(s, legal[(x >>> 8) % legal.length]);
+    }
+    expect(s.log.length).toBeGreaterThan(20); // the game moved on
   });
 
   it('R&D and the stack are a count for both sides (4.2.2, 4.2.4)', () => {
