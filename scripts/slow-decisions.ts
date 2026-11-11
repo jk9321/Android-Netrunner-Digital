@@ -4,10 +4,6 @@
  * scoreNow had a line on that click (winNow.ts scoreNowPlan), whether a held two-turn line (corpAI heldLine,
  * countedScore.ts scoreInTwoPick) was being continued, or neither, and the number of remotes.
  *
- * Planner budget: each decision's threat budgets (threatStats.budgeted) and the planner's (plannerStats.lastBudgets) are
- * recorded; DCACHE=0 keeps the threat cache across decisions (plan.decisionCache off), CAP=n caps the planner at n
- * threat budgets (PLANNER.budgetCap), DIFF=1 also plays a cut decision's left-out candidates to count changed picks.
- *
  *   DEALS=1001,1071 npx vite-node scripts/slow-decisions.ts
  */
 import { GameState, createInitialGameState } from '../src/core';
@@ -19,27 +15,7 @@ import { valueLoops } from '../src/ai/valueModel';
 import { scoreNowPlan } from '../src/ai/winNow';
 import { asSide } from '../src/ai/pricing';
 import { decisionContext } from '../src/ai/handValues';
-import { PLANNER, plannerStats } from '../src/ai/turnPlanner';
-import { threatStats } from '../src/ai/threatModel';
-import { tuning } from '../src/ai/synergy';
 import { HeldLine, heldLaterStep } from '../src/ai/countedScore';
-
-if (process.env.DCACHE === '0') (tuning.plan as Record<string, unknown>).decisionCache = false;
-if (process.env.CAP) PLANNER.budgetCap = Number(process.env.CAP);
-let planBudgets = 0;
-let cut = false;
-let cuts = 0;
-let changed = 0;
-plannerStats.onCandidates = side => {
-  if (side !== 'corp') return;
-  planBudgets += plannerStats.lastBudgets ?? 0;
-  if (plannerStats.lastCut) cut = true;
-};
-if (process.env.DIFF === '1')
-  plannerStats.onCut = (capped, uncapped) => {
-    if (JSON.stringify(capped) !== JSON.stringify(uncapped)) changed++;
-  };
-const rows: { seed: number; turn: number; s: number; budgets: number; planBudgets: number }[] = [];
 
 const corpDecks = ALL_DECKS.filter(d => d.side === 'corp');
 const runnerDecks = ALL_DECKS.filter(d => d.side === 'runner');
@@ -59,15 +35,10 @@ for (const seed of deals) {
     const held = !!heldLine;
     const later = asSide('corp', () => heldLaterStep(s, heldLine));
     if (later) heldSteps[later.type === 'SCORE_AGENDA' ? 'score' : 'advance']++;
-    planBudgets = 0;
-    cut = false;
-    const b0 = threatStats.budgeted;
     const t = performance.now();
     const a = choose(s);
     const d = performance.now() - t;
     ms.push(d);
-    rows.push({ seed, turn: s.turnNumber, s: +(d / 1000).toFixed(2), budgets: threatStats.budgeted - b0, planBudgets });
-    if (cut) cuts++;
     if (d > 5000) {
       const score = asSide('corp', () => (decisionContext(s, 'corp'), scoreNowPlan(s)));
       slow.push({ seed, turn: s.turnNumber, s: +(d / 1000).toFixed(1), remotes: Object.values(s.corp.servers).filter(v => v.isRemote).length, kind: score ? 'scoreNow' : held ? 'held' : 'neither' });
@@ -87,8 +58,5 @@ console.log(JSON.stringify({
   over5: { scoreNow: by('scoreNow', 5), held: by('held', 5), neither: by('neither', 5) },
   over10: { scoreNow: by('scoreNow', 10), held: by('held', 10), neither: by('neither', 10) },
   slow,
-  cutPer100Decisions: +((cuts * 100) / ms.length).toFixed(2),
-  cutPicksChanged: changed,
   heldSteps,
-  rows,
 }));

@@ -3,7 +3,7 @@ import { profileOf } from './cardProfiles';
 import { ScoredAction } from './agent';
 import { evaluate } from './evaluate';
 import { runClick } from './runs';
-import { threat, threatStats, turnSeed } from './threatModel';
+import { threat, turnSeed } from './threatModel';
 import { plan, pricing, withPricing } from './pricing';
 import { REPLY, guessHidden, runnerReply, sampledReply } from './runnerReply';
 import { plannerCandidates, replySamples, thinkAlwaysTries } from './oracle';
@@ -29,17 +29,6 @@ export const PLANNER = {
   candidates: 4,
   /** Steps in one playout (a safety net: a turn has at most 4 clicks and a few free actions). */
   maxSteps: 12,
-  /**
-   * Planner budget (P4, AI Coordinator 2026-11-11 20:46Z): the threat budgets one Corp planner decision may compute.
-   * Counted, not timed, so batches stay deterministic; with the threat cache cleared at each Corp decision's start
-   * (plan.decisionCache), the count does not depend on earlier decisions. Threat budgets are where a slow decision's
-   * time goes (a board costs 3 ms or 75 ms by how many it needs). Past it, the candidate being played out is dropped, the
-   * ones not started are left out, and the best fully scored stands; with none finished, the first candidate (the rule
-   * ranking's best) is played, so the pick is never worse than the planner-free one. TEMPORARY plan.budgetCap.
-   * 2000: about p97 of planner decisions (p99 of all Corp decisions) on 32 deals with the per-decision cache, so it
-   * fires only on the tail (15 of 553 planner decisions; those took 24-63 s).
-   */
-  budgetCap: 2000,
   /** plan.plannerSearch plannerBuild: the candidate set with the two-step builds added, at most (Hard's time). */
   withBuild: 6,
 };
@@ -70,16 +59,7 @@ export const plannerStats: {
   onSearch?: (row: SearchRow) => void;
   /** plan.hiddenDraws (S6, measurement): a Corp decision, how many of its candidate lines drew from R&D, and the pick */
   onDraws?: (state: GameState, drawLines: number, lines: number, pick: GameAction | null) => void;
-  /** Planner budget: the last Corp decision's threat budgets, and whether the cap cut it short */
-  lastBudgets?: number;
-  lastCut?: boolean;
-  /** Planner budget measurement: a cut decision's pick and the pick it would have had with no cap */
-  onCut?: (capped: GameAction, uncapped: GameAction) => void;
 } = { decisions: 0, withAdded: 0, added: 0, addedWins: 0 };
-
-/** Planner budget: threat budgets at the Corp decision's start, and its cap (Infinity outside a capped search). */
-const work = { start: 0, limit: Infinity };
-const overBudget = () => threatStats.budgeted - work.start >= work.limit;
 
 /**
  * How a playout continues after its first action. 'rule': the rule-based ranking's best each step. 'hold'
@@ -282,8 +262,6 @@ function playout(start: GameState, side: SideCode, first: GameAction, ai: Planne
     const outOfClicks = clicksOf(state, side) <= 0;
     if (outOfClicks && !(side === 'corp')) break;
     const now = state;
-    // Planner budget: past the cap, this candidate is dropped unfinished
-    if (overBudget()) return NaN;
     const ranked = ai.rank(now);
     const ruled = ranked.find(r => r.score > -Infinity && r.action.type !== 'END_TURN' && (!outOfClicks || r.action.type === 'SCORE_AGENDA') && !(ran && r.action.type === 'INITIATE_RUN') && !dominated(now, r.action, ranked, side) && !(hold && agendaInstall(now, r.action)));
     const finish = mode === 'finish' && side === 'corp' ? finishStep(now, ranked) : undefined;
@@ -302,7 +280,6 @@ function playout(start: GameState, side: SideCode, first: GameAction, ai: Planne
     ends.bonus = bonus;
   }
   if (ai.reply && !state.winner) {
-    if (overBudget()) return NaN;
     const t = performance.now();
     const replied = ai.reply(state, leaf);
     searchClock.replyMs += performance.now() - t;
@@ -486,46 +463,14 @@ export function planTurn(state: GameState, side: SideCode, ranked: ScoredAction[
     const scored: { action: GameAction; value: number; line: Line; ends: Ends }[] = [];
     // plan.searchSamples (S3): every line the pick may come from
     const pool: { action: GameAction; value: number; line: Line; ends: Ends }[] = [];
-    // Planner budget (the Corp's decisions; a planner run inside this one keeps this one's count and cap)
-    const outer = { ...work };
-    if (side === 'corp') {
-      work.start = threatStats.budgeted;
-      work.limit = plan().budgetCap ? PLANNER.budgetCap : Infinity;
-      plannerStats.lastCut = false;
-    }
     for (const c of candidates) {
-      if (side === 'corp' && overBudget()) {
-        plannerStats.lastCut = true;
-        break;
-      }
       const line: Line = [];
       const ends: Ends = {};
       const value = playout(root, side, c.action, ai, synergy, line, ends);
-      if (Number.isNaN(value)) {
-        plannerStats.lastCut = true;
-        break;
-      }
       values.push(value);
       scored.push({ action: c.action, value, line, ends });
       pool.push({ action: c.action, value, line, ends });
       if (!best || value > best.value) best = { action: c.action, value, line };
-    }
-    if (side === 'corp') plannerStats.lastBudgets = threatStats.budgeted - work.start;
-    // Measurement (scripts/slow-decisions.ts DIFF=1): a cut decision's pick with no cap (the rest played out in full)
-    if (side === 'corp' && plannerStats.lastCut && plannerStats.onCut) {
-      work.limit = Infinity;
-      let full: { action: GameAction; value: number } | null = best;
-      for (const c of candidates.slice(scored.length)) {
-        const value = playout(root, side, c.action, ai, synergy, [], {});
-        if (!full || value > full.value) full = { action: c.action, value };
-      }
-      plannerStats.onCut((best ?? candidates[0]).action, full!.action);
-    }
-    if (side === 'corp') Object.assign(work, outer);
-    // Cut inside the first candidate: the first candidate's action, as it alone would pick
-    if (!best) {
-      plannerStats.onCandidates?.(side, values, candidates.map(c => c.action));
-      return candidates[0].action;
     }
     if (side === 'corp' && plan().replyContenders && ai.reply && sampledReply()) best = contenders(scored, side, synergy) ?? best;
     // plan.searchSamples (spec-search S3): on an agenda decision, the two best candidate lines closer than SEARCH.margin get REPLY.extra more reply samples each, and the better
