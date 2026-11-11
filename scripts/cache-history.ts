@@ -17,6 +17,8 @@ import { asSide } from '../src/ai/pricing';
 import { clearThreatCaches, threatAudit } from '../src/ai/threatModel';
 
 const t = tuning.plan as Record<string, unknown>;
+(tuning.plan as Record<string, unknown>).workCap5 = process.env.CAP5 === '1';
+(tuning.plan as Record<string, unknown>).workCap10 = process.env.CAP10 === '1';
 t.plannerSkip = false;
 t.threatHqKey = false;
 t.threatCacheCap = process.env.CAP === '1';

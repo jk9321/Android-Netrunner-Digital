@@ -172,7 +172,7 @@ function threatKey(state: GameState): string {
     state.runsThisTurn.map(r => r.server + (r.successful ? '+' : '-')).join(','), JSON.stringify(state.corp.rdKnownToRunner ?? []),
     knownInHand(state, 'runner').map(k => k.id).join(','), knownInHand(state, 'corp').map(k => k.id).join(','), state.runner.bonusClicksNextTurn ?? 0,
     planKey(),
-    coarse && plan().threatKeyPricing ? '' : pricingKey(),
+    coarse && plan().threatKeyPricing ? '' : budgetPricing(pricingKey),
   ].join('|');
   // TEMPORARY (P2(ii) audit, scripts/cache-history.ts): key parts left out by name, to test what budgetTurn does not read
   const drop = threatAudit.drop;
@@ -259,7 +259,7 @@ export function threat(state: GameState): Threat {
     if (threatStats.timing) threatStats.keyMs += performance.now() - t0;
     // TEMPORARY audit (planner speed P2, scripts/cache-history.ts): a cached board recomputed must give the same threat
     if (threatAudit.on && threatCache.has(key)) {
-      const fresh = withPricing({ computingThreat: pricing().computingThreat + 1 }, () => asSide('runner', () => budgetTurn(state)));
+      const fresh = budgetIn(state);
       // A server's success is read only where the Runner runs it (corpLoss: run * success); runChance, the planner and
       // probeRun read run, score and order. Where run is 0 it is left out of the comparison: HQ's unseen draws, keyed by
       // their number (threatHqKey), can change the guessed ice's pass odds there and nothing reads it.
@@ -273,7 +273,7 @@ export function threat(state: GameState): Threat {
       if (a !== b && !near) {
         threatAudit.mismatches++;
         const was = threatAudit.filled.get(key);
-        const budget = (x: GameState) => JSON.stringify(withPricing({ computingThreat: pricing().computingThreat + 1 }, () => asSide('runner', () => budgetTurn(x))));
+        const budget = (x: GameState) => JSON.stringify(budgetIn(x));
         const noKnown: GameState = { ...state, corp: { ...state.corp, rdKnownToRunner: [] } };
         const base = budget(noKnown);
         const rev: GameState = { ...noKnown, corp: { ...noKnown.corp, rd: [...noKnown.corp.rd].reverse() } };
@@ -306,7 +306,7 @@ export function threat(state: GameState): Threat {
       if (threatStats.timing) countRepeats(key, state);
       const t1 = threatStats.timing ? performance.now() : 0;
       try {
-        const value = withPricing({ computingThreat: pricing().computingThreat + 1 }, () => asSide('runner', () => budgetTurn(state)));
+        const value = budgetIn(state);
         if (threatAudit.collect) threatAudit.budgets.push({ key, state, value: JSON.stringify(value) });
         return value;
       } finally {
@@ -393,6 +393,18 @@ function countRepeats(key: string, state: GameState): void {
 const seenDrop = new Set<string>();
 const seenBoth = new Set<string>();
 
+/**
+ * TEMPORARY plan.threatNoAveraging (planner speed P2; folded before hand-off): the Runner's next turn does not depend on
+ * whether the Corp is averaging over its deck when it asks (handValues deckAverage sets pricing.averaging, which reaches
+ * the budget through the hand prices of damage and breakers: handValues heldWorth). The budget runs with it off, and the
+ * key leaves it out: on the turn-17 fixture 3,001 of 4,566 boards were budgeted twice, once in each context.
+ */
+function budgetPricing<T>(fn: () => T): T {
+  return plan().threatNoAveraging && pricing().averaging ? withPricing({ averaging: false }, fn) : fn();
+}
+function budgetIn(state: GameState): Threat {
+  return budgetPricing(() => withPricing({ computingThreat: pricing().computingThreat + 1 }, () => asSide('runner', () => budgetTurn(state))));
+}
 function budgetTurn(state: GameState): Threat {
   const memory = runnerMemory(state);
   const wary = !!tuning.wary;
@@ -567,7 +579,7 @@ function probeRun(state: GameState, serverId: string, server: GameState['corp'][
     // score at the turn's start against the base turn's runs. It is run when it beats the fallback click and fewer of
     // the base turn's runs outscore it than the Runner has clicks (the credits each run spends are not re-counted)
     const base = threat(state);
-    return withPricing({ computingThreat: pricing().computingThreat + 1 }, () =>
+    return budgetPricing(() => withPricing({ computingThreat: pricing().computingThreat + 1 }, () =>
       asSide('runner', () => {
         const view = runnerView(probed);
         const score = runScore(view, serverId, { memory: runnerMemory(probed), wary: !!tuning.wary });
@@ -575,7 +587,7 @@ function probeRun(state: GameState, serverId: string, server: GameState['corp'][
         const ahead = base.order.filter(id => id !== serverId && base.servers[id].score > score).length;
         return ahead < view.runner.clicks ? 1 : 0;
       })
-    );
+    ));
   }));
 }
 

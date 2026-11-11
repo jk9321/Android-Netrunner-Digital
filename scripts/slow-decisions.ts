@@ -18,17 +18,29 @@ import { decisionContext } from '../src/ai/handValues';
 import { PLANNER, plannerStats } from '../src/ai/turnPlanner';
 import { tuning } from '../src/ai/synergy';
 
-// P4: STEPS=n sets the planner's step budget (default: none). Every decision's playout steps are recorded (the largest
-// single planner call in it), to set the budget above the largest seen.
-if (process.env.STEPS) PLANNER.stepBudget = Number(process.env.STEPS);
 (tuning.plan as Record<string, unknown>).threatRdPool = process.env.POOL === '1';
+(tuning.plan as Record<string, unknown>).workCap5 = process.env.CAP5 === '1';
+(tuning.plan as Record<string, unknown>).workCap10 = process.env.CAP10 === '1';
+// BASE=1: the temporary planner-speed switches off, as on beta
+if (process.env.BASE === '1') Object.assign(tuning.plan as Record<string, unknown>, { plannerSkip: false, threatHqKey: false, threatCacheCap: false, threatRdKey: 0, threatLeanKey: false, threatRdPool: false, threatNoAveraging: false });
+if (process.env.NOAVG === '0') (tuning.plan as Record<string, unknown>).threatNoAveraging = false;
+// P4: WORK=n sets the planner's work budget (boards evaluated; default: none). Every decision's work is recorded (the
+// largest single planner call in it); with a budget, the decisions it cut and, with DIFF=1 (the left-out candidates
+// played out too), how often the pick changed
+if (process.env.WORK) PLANNER.workBudget = Number(process.env.WORK);
 let steps = 0;
 let cuts = 0;
+let cutDecision = false;
+let changed = 0;
 plannerStats.onCandidates = side => {
   if (side !== 'corp') return;
-  steps = Math.max(steps, plannerStats.lastSteps ?? 0);
-  if (plannerStats.lastCut) cuts++;
+  steps = Math.max(steps, plannerStats.lastWork ?? 0);
+  if (plannerStats.lastCut) cutDecision = true;
 };
+if (process.env.DIFF === '1')
+  plannerStats.onCut = (capped, uncapped) => {
+    if (JSON.stringify(capped) !== JSON.stringify(uncapped)) changed++;
+  };
 const stepRows: { s: number; steps: number }[] = [];
 
 const corpDecks = ALL_DECKS.filter(d => d.side === 'corp');
@@ -45,11 +57,13 @@ for (const seed of deals) {
   corp.chooseAction = (s: GameState) => {
     const held = !!(corp as unknown as { heldLine: unknown }).heldLine;
     steps = 0;
+    cutDecision = false;
     const t = performance.now();
     const a = choose(s);
     const d = performance.now() - t;
     ms.push(d);
     stepRows.push({ s: +(d / 1000).toFixed(2), steps });
+    if (cutDecision) cuts++;
     if (d > 5000) {
       const score = asSide('corp', () => (decisionContext(s, 'corp'), scoreNowPlan(s)));
       slow.push({ seed, turn: s.turnNumber, s: +(d / 1000).toFixed(1), remotes: Object.values(s.corp.servers).filter(v => v.isRemote).length, kind: score ? 'scoreNow' : held ? 'held' : 'neither' });
@@ -69,8 +83,9 @@ console.log(JSON.stringify({
   over5: { scoreNow: by('scoreNow', 5), held: by('held', 5), neither: by('neither', 5) },
   over10: { scoreNow: by('scoreNow', 10), held: by('held', 10), neither: by('neither', 10) },
   slow,
-  maxSteps: Math.max(...stepRows.map(r => r.steps)),
-  cuts,
-  topSteps: [...stepRows].sort((x, y) => y.steps - x.steps).slice(0, 15),
-  slowSteps: stepRows.filter(r => r.s > 5).sort((x, y) => y.s - x.s).slice(0, 30),
+  maxWork: Math.max(...stepRows.map(r => r.steps)),
+  cutPer100: per100(cuts),
+  cutPicksChanged: changed,
+  topWork: [...stepRows].sort((x, y) => y.steps - x.steps).slice(0, 15),
+  slowWork: stepRows.filter(r => r.s > 5).sort((x, y) => y.s - x.s).slice(0, 30),
 }));

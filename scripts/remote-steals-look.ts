@@ -29,6 +29,10 @@ import { decisionContext } from '../src/ai/handValues';
 (tuning.plan as Record<string, unknown>).threatCacheCap = false;
 (tuning.plan as Record<string, unknown>).threatRdKey = 0;
 (tuning.plan as Record<string, unknown>).threatLeanKey = false;
+(tuning.plan as Record<string, unknown>).workCap5 = process.env.CAP5 === '1';
+(tuning.plan as Record<string, unknown>).workCap10 = process.env.CAP10 === '1';
+(tuning.plan as Record<string, unknown>).threatNoAveraging = false;
+(tuning.plan as Record<string, unknown>).threatRdPool = false;
 
 const title = (c: CardInstance) => cardDef(c).title;
 const isAgenda = (c: CardInstance) => cardDef(c).type_code === 'agenda';
