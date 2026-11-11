@@ -244,9 +244,9 @@ async function handle(request: Request, env: BugReportEnv): Promise<Result> {
 
   const ip = request.headers.get('CF-Connecting-IP') ?? 'unknown';
   const reporter = await reporterId(ip, env.GITHUB_TOKEN);
-  // Jeff (2026-11-05): only he tests on the beta preview, so its reports skip the burst and daily limits
+  // Beta preview reports skip the daily caps (Jeff, 2026-11-05) but keep the burst limit: online invite links bring other people there
   const beta = siteName(new URL(request.url).host) === 'beta preview';
-  if (env.BUG_RATE_LIMITER && !beta) {
+  if (env.BUG_RATE_LIMITER) {
     const { success } = await env.BUG_RATE_LIMITER.limit({ key: reporter });
     if (!success) return fail(429, 'Too many reports at once. Please wait a minute and try again.');
   }
