@@ -30,7 +30,7 @@ import { counterWorth } from './counterValues';
 import { plan, pricing, withPricing } from './pricing';
 import { dividendsOf, setupOperation } from './cards';
 // Last: its imports (winNow, runs, pricing) are loaded by then, so the AI modules' load order is unchanged (oracle.ts)
-import { HeldLine, advanceCounted, installCounted, scoreInTwoPick, scoreInTwoStats } from './countedScore';
+import { HeldLine, advanceCounted, installCounted, placementStats, scoreInTwoPick, scoreInTwoStats } from './countedScore';
 
 
 const type = (card: CardInstance) => cardDef(card).type_code;
@@ -266,8 +266,18 @@ export class HeuristicCorpAI implements Agent {
         if (this.synergy && Number.isFinite(score) && score < 40 && action.type !== 'END_TURN' && action.type !== 'START_TURN') score += nudge(state, 'corp', action).bonus;
         return { action, score };
       })
-      .map(r => (this.synergy && ((plan().placementAdvance && this.uncountedAdvance(state, r.action)) || (plan().placementInstall && this.uncountedInstall(state, r.action))) ? { ...r, score: -Infinity } : r))
       .sort((a, b) => b.score - a.score);
+    // Step 4 G1/G2 (temporary): the moves no counted line covers are not played; the table's agent notes the agendas it
+    // stopped where the move was its first pick (diagnostics, placementStats)
+    if (this.synergy && (plan().placementAdvance || plan().placementInstall)) {
+      ranked.forEach((r, i) => {
+        const advance = plan().placementAdvance && this.uncountedAdvance(state, r.action);
+        if (!advance && !(plan().placementInstall && this.uncountedInstall(state, r.action))) return;
+        if (i === 0 && this.planner && !this.searching && Number.isFinite(r.score)) placementStats.stopped.push({ game: state.id, turn: state.turnNumber, id: (r.action as { cardInstanceId: string }).cardInstanceId, kind: advance ? 'advance' : 'install' });
+        ranked[i] = { ...r, score: -Infinity };
+      });
+      ranked.sort((a, b) => b.score - a.score);
+    }
     if (this.oneCurrency) return finishFirst(state, ranked);
     const first = this.patches && plan().pettyCashFirst ? pettyCashFirst(state, ranked) : ranked;
     return this.patches && plan().tagFirst ? tagFirst(state, first) : first;
