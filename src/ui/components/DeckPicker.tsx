@@ -118,7 +118,7 @@ const SIDE_OFF: Record<SideCode, string> = {
 const FORMAT_HINTS: Record<FormatId, string> = {
   startup: 'Startup: the newest sets only, with its ban list',
   standard: 'Standard: the current card pool, with its ban list',
-  casual: 'Casual: the two System Gateway starter decks only, as they come',
+  casual: 'Casual: any card, no ban list (deck-building rules still apply)',
 };
 
 // Corp before Runner, matching the deck columns below; each side's button wears its side colour
@@ -246,7 +246,7 @@ export const DeckPicker: React.FC<DeckPickerProps> = ({
   const [mode, setMode] = useState<PlayMode>(() => initialMode ?? (joinCode ? 'online' : savedMode()));
   const [role, setRole] = useState<OnlineRole>(() => initialRole ?? (joinCode ? 'join' : 'host'));
   const [hostSide, setHostSide] = useState<SideCode>(initialHost?.side ?? 'corp');
-  // Casual first (the starter decks, the decks everyone has), then whatever was last hosted
+  // Casual first (every deck that follows the deck-building rules), then whatever was last hosted
   const [hostFormat, setHostFormat] = useState<FormatId>(() => {
     if (initialHost) return initialHost.format;
     try {

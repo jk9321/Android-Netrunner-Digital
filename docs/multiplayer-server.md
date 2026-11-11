@@ -33,7 +33,7 @@ game Worker's internal report route returns the real state of a finished game.
 
 HTTP (all JSON):
 
-- `POST /api/games` `{ side, deck: { identity, cards }, format, visibility?: 'invite', playerId? }` -> 201 `{ code, seat, token }`. Startup and Standard use `validateDeck`; Casual only with a System Gateway starter deck as it comes (rules 1.4.1a). 5 per minute per address.
+- `POST /api/games` `{ side, deck: { identity, cards }, format, visibility?: 'invite', playerId? }` -> 201 `{ code, seat, token }`. Every format uses `validateDeck` (Casual: deck-building rules only, no card pool or ban list); The Catalyst and The Syndicate only with their System Gateway starter deck as it comes (rule 1.4.1a). 5 per minute per address.
 - `POST /api/games/:code/join` `{ deck, playerId? }` -> `{ seat, token }`; 404 unknown, 409 full, 422 `{ reasons }` illegal for the host's format. The game starts at once.
 - `GET /api/games/:code` -> `{ code, format, hostSide, hostIdentity, open, over, build, protocol }` (never the decklist).
 - `POST /api/games/:code/report?token=` `{ description, screen, version, website? }` -> 204 or an error status, no body (see Bug reports).

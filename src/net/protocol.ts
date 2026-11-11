@@ -23,7 +23,7 @@ export const PROTOCOL_VERSION = 1;
 export const ROOM_CODE_ALPHABET = '23456789ABCDEFGHJKLMNPQRSTUVWXYZ';
 export const ROOM_CODE_LENGTH = 6;
 
-/** Formats a game can be hosted in online. Casual only with the System Gateway starter decks (rules 1.4.1a). */
+/** Formats a game can be hosted in online. Casual: any card, no ban list (the starter identities only with their starter decks, rule 1.4.1a). */
 export const ONLINE_FORMATS: FormatId[] = ['startup', 'standard', 'casual'];
 
 /** K7QM2X -> K7QM-2X. */
