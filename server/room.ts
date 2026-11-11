@@ -160,7 +160,11 @@ export type DeckCheck = { ok: true } | { ok: false; reasons: string[] };
 const STARTER_SPECS = STARTER_DECKS.map(d => deckCodes(d));
 const sameCards = (a: string[], b: string[]) => a.length === b.length && [...a].sort().join() === [...b].sort().join();
 
-/** Is the deck legal online in this format? Casual only with a System Gateway starter deck as it comes (rules 1.4.1a). */
+/**
+ * Is the deck legal online in this format? Every format uses validateDeck (rules 1.4.2-1.4.7, and
+ * the format's card pool and ban list; Casual has none). The starter identities, The Catalyst and
+ * The Syndicate, are legal only with their own System Gateway starter deck as it comes (rule 1.4.1a).
+ */
 export function checkDeck(deck: unknown, format: FormatId, side: SideCode): DeckCheck {
   if (!deck || typeof deck !== 'object') return { ok: false, reasons: ['The deck could not be read.'] };
   const d = deck as Record<string, unknown>;
@@ -168,10 +172,11 @@ export function checkDeck(deck: unknown, format: FormatId, side: SideCode): Deck
     return { ok: false, reasons: ['The deck could not be read.'] };
   }
   const spec = { identity: d.identity, cards: d.cards as string[] };
-  if (format === 'casual') {
-    const starter = STARTER_SPECS.find(s => s.identity === spec.identity && sameCards(s.cards, spec.cards));
-    if (starter && identitySide(spec.identity) !== side) return { ok: false, reasons: [`That deck is not a ${side === 'corp' ? 'Corp' : 'Runner'} deck.`] };
-    return starter ? { ok: true } : { ok: false, reasons: ['Casual games online are for the System Gateway starter decks only. Pick Startup or Standard for other decks.'] };
+  if (format === 'casual' && STARTER_SPECS.some(s => s.identity === spec.identity)) {
+    const starter = STARTER_SPECS.some(s => s.identity === spec.identity && sameCards(s.cards, spec.cards));
+    if (!starter) return { ok: false, reasons: [`${identityTitle(spec.identity)} can only be played with its System Gateway starter deck as it comes (rule 1.4.1a).`] };
+    if (identitySide(spec.identity) !== side) return { ok: false, reasons: [`That deck is not a ${side === 'corp' ? 'Corp' : 'Runner'} deck.`] };
+    return { ok: true };
   }
   let problems: string[];
   try {
@@ -182,6 +187,14 @@ export function checkDeck(deck: unknown, format: FormatId, side: SideCode): Deck
   // validateDeck checks the cards against the identity; the identity must also be this seat's side
   if (problems.length === 0 && identitySide(spec.identity) !== side) problems = [`That deck is not a ${side === 'corp' ? 'Corp' : 'Runner'} deck.`];
   return problems.length ? { ok: false, reasons: problems } : { ok: true };
+}
+
+function identityTitle(code: string): string {
+  try {
+    return getCardDefinition(code).title;
+  } catch {
+    return 'That identity';
+  }
 }
 
 function identitySide(code: string): string | null {

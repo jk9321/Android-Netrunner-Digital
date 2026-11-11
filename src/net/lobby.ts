@@ -36,8 +36,8 @@ export const submission = (deck: DeckList): DeckSubmission => {
 /**
  * Why a deck can't be played online in this format on this side (empty: it
  * can). The same test the server runs when a game is hosted or joined
- * (checkDeck in server/room.ts): validateDeck with that format, and Casual
- * only with a System Gateway starter deck as it comes (rules 1.4.1a).
+ * (checkDeck in server/room.ts): validateDeck with that format; the starter
+ * identities only with their System Gateway starter deck as it comes (rule 1.4.1a).
  */
 export function onlineDeckProblems(deck: DeckList, format: FormatId, side: SideCode): string[] {
   let check;

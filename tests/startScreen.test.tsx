@@ -125,12 +125,12 @@ describe('Start screen: each way of playing shows what it needs', () => {
 });
 
 describe('Start screen: online decks not legal in the format are greyed out', () => {
-  it('Casual: only the starter decks as they come (rules 1.4.1a); a tweaked starter is disabled with the reason', () => {
+  it('Casual: a starter identity only with its starter deck as it comes (rules 1.4.1a); a tweaked starter is disabled with the reason', () => {
     const html = render('online', { role: 'host', host: { side: 'corp', format: 'casual' } });
     expect(deckTag(html, corpStarter.id)).not.toContain('aria-disabled');
     const tag = deckTag(html, tweaked.id);
     expect(tag).toContain('aria-disabled="true"');
-    expect(tag).toContain('System Gateway starter decks only');
+    expect(tag).toContain('only be played with its System Gateway starter deck');
     expect(has(html, `online-illegal-${tweaked.id}`)).toBe(true);
     expect(has(html, `online-legal-${corpStarter.id}`)).toBe(true);
   });
