@@ -25,7 +25,9 @@ import { asSide } from '../src/ai/pricing';
 import { decisionContext } from '../src/ai/handValues';
 
 (tuning.plan as Record<string, unknown>).plannerSkip = false;
-(tuning.plan as Record<string, unknown>).threatHqKey = false; // planner-speed P2a work in progress: off, as on 5715b08
+(tuning.plan as Record<string, unknown>).threatHqKey = false; // planner-speed P2 work in progress: off, as on 5715b08
+(tuning.plan as Record<string, unknown>).threatCacheCap = false;
+(tuning.plan as Record<string, unknown>).threatRdKey = 0;
 
 const title = (c: CardInstance) => cardDef(c).title;
 const isAgenda = (c: CardInstance) => cardDef(c).type_code === 'agenda';
