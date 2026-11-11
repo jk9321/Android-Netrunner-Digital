@@ -21,13 +21,13 @@ export interface BucketRule {
 
 /**
  * Stops changes per seat (a stops change is a stored move: replays need it).
- * The stops toggle is one click per change; a person trying every level in
- * turn makes 2-3 changes in a few seconds and then plays on. 5 at once with
- * one back every 5 s leaves that room (spec's suggestion, not tested with a
- * person). Sustained, it still allows 1 row a second per seat: see "Daily
- * ceiling" in docs/multiplayer-server.md.
+ * The stops toggle is one click per change; a person cycling AUTO/ALL/NONE
+ * makes 2-3 changes and gets them back within a few minutes. 5 at once, one
+ * back every 60 s (MP coordinator's ruling on review, 2026-11-11; 5 s was
+ * about 86,400 rows a day per seat sustained): about 7,200 rows a day per
+ * seat at most. See "Daily ceiling" in docs/multiplayer-server.md.
  */
-export const STOPS_BUDGET: BucketRule = { burst: 5, refillMs: 5000 };
+export const STOPS_BUDGET: BucketRule = { burst: 5, refillMs: 60_000 };
 
 /**
  * Messages per seat's socket, of any kind (acts, stale acts, cancels, pings

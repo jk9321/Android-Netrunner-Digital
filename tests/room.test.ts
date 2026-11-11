@@ -598,9 +598,11 @@ describe('Server limits (chunk 2e; audit MP-STOPS-WRITE-FLOOD)', () => {
     expect(room.moves.length).toBe(moves);
   });
 
-  it('stops changes are budgeted per seat: 5 at once, one back every 5 s; past it the fixed wording, nothing applied or written', () => {
+  it('stops changes are budgeted per seat: 5 at once, one back every 60 s; past it the fixed wording, nothing applied or written', () => {
     const { room } = started();
     pastMulligans(room);
+    // The ruling on review (2026-11-11): one back every 60 s, about 7,200 rows a day per seat at most
+    expect(STOPS_BUDGET).toEqual({ burst: 5, refillMs: 60_000 });
     const levels = ['full', 'auto'] as const;
     for (let i = 0; i < STOPS_BUDGET.burst; i++) expect(room.receive('runner', stops('runner', levels[i % 2]), 10_000).persist).toBe(true);
     const moves = room.moves.length;
@@ -613,7 +615,7 @@ describe('Server limits (chunk 2e; audit MP-STOPS-WRITE-FLOOD)', () => {
     expect(room.realState!.stops!.runner).toBe(level);
     // The other seat has its own budget
     expect(room.receive('corp', stops('corp', 'full'), 10_000).persist).toBe(true);
-    // One back after 5 s, and it survives the room going to sleep (kept in meta, written with the allowed change)
+    // One back after 60 s, and it survives the room going to sleep (kept in meta, written with the allowed change)
     const slept = RoomCore.load(JSON.parse(JSON.stringify(room.snapshot())) as RoomSnapshot, 0);
     expect(slept.receive('runner', stops('runner', level === 'full' ? 'auto' : 'full'), 10_000 + STOPS_BUDGET.refillMs - 1).persist).toBe(false);
     expect(slept.receive('runner', stops('runner', level === 'full' ? 'auto' : 'full'), 10_000 + STOPS_BUDGET.refillMs).persist).toBe(true);
@@ -648,11 +650,13 @@ describe('Server limits (chunk 2e; audit MP-STOPS-WRITE-FLOOD)', () => {
       room.receive('runner', stops('runner', 'full'), 0);
       const moves = room.moves.length;
       const count = rowCounter(room);
-      for (let i = 0; i < 1000; i++) count.send('runner', make(room, i), 10_000 + i);
+      // From a full stops budget again (the setup change took one)
+      const t0 = STOPS_BUDGET.refillMs * STOPS_BUDGET.burst;
+      for (let i = 0; i < 1000; i++) count.send('runner', make(room, i), t0 + i);
       rows[kind] = count.rows;
       expect(room.moves.length - moves, kind).toBeLessThanOrEqual(STOPS_BUDGET.burst);
     }
-    // Alternating stops: the burst of 5 changes (one second of messages refills 0.2), 5 rows each (meta, state, moves,
+    // Alternating stops: the burst of 5 changes (one second of messages refills a sixtieth), 5 rows each (meta, state, moves,
     // both seats' last state: stops are public); everything else writes nothing (it was 5,000 rows on beta 22277c4)
     expect(rows).toEqual({ 'repeated stops': 0, 'alternating stops': 25, 'stale act': 0, 'act out of turn': 0, 'cancel with nothing held': 0, ping: 0, junk: 0 });
   });
