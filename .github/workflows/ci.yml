@@ -32,7 +32,17 @@ jobs:
           node-version: 22
           cache: npm
       - run: npm ci
-      - run: npx playwright install --with-deps chromium
+      - run: npx playwright install chromium
+      # The system libraries come from Ubuntu's apt mirrors, which runners sometimes can't
+      # reach (DNS failures on 2026-11-11). Retry, then fall back to the image's own
+      # libraries rather than failing here; the e2e step shows whether they were enough.
+      - name: Install browser system libraries
+        run: |
+          for i in 1 2 3; do
+            timeout 300 npx playwright install-deps chromium && exit 0
+            echo "apt attempt $i failed"; sleep 30
+          done
+          echo "::warning::Could not install Playwright system libraries (apt mirrors unreachable); using the runner image's libraries"
       - run: npm run test:e2e
         env:
           CI: true
