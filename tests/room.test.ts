@@ -7,7 +7,10 @@ import { describe, expect, it } from 'vitest';
 import { GameAction, GameState, SideCode, executeAction } from '../src/core';
 import { STARTER_DECKS } from '../src/data/decks';
 import { RoomCore, checkDeck, settledFor, storageWrites, ENDED_LIFETIME_MS, IDLE_LIFETIME_MS } from '../server/room';
-import type { Outbox, RoomSnapshot } from '../server/room';
+import type { Outbox, RoomSnapshot, StoredRefs } from '../server/room';
+import { MAX_GAME_MOVES, SOCKET_BUDGET, STOPS_BUDGET, TOO_LONG_REASON, lifetimeOverride, take } from '../server/limits';
+import type { Bucket } from '../server/limits';
+import type { ClientMessage } from '../src/net/protocol';
 import { SOCKET_ERROR_TEXT, displayRoomCode, parseClientMessage, parseRoomCode } from '../src/net/protocol';
 import type { ServerMessage } from '../src/net/protocol';
 import { submission } from '../scripts/leak-check-room';
@@ -220,9 +223,9 @@ describe('Acting (spec rules 1 and 2)', () => {
     const first = room.receive('runner', { type: 'act', seq: r.seq, action: { type: 'SET_STOPS', player: 'runner', level: 'full' } }, 0);
     expect(statesTo(first.out, 'runner')).toHaveLength(1);
     expect(statesTo(first.out, 'corp')).toHaveLength(1);
+    // Chunk 2e: the same level again is no move at all, so neither seat hears anything (it used to send the mover its state)
     const again = room.receive('runner', { type: 'act', seq: r.seq + 1, action: { type: 'SET_STOPS', player: 'runner', level: 'full' } }, 0);
-    expect(statesTo(again.out, 'runner')).toHaveLength(1);
-    expect(statesTo(again.out, 'corp')).toHaveLength(0);
+    expect(again).toEqual({ out: [], persist: false });
   });
 
   it('errors are fixed wording, never the engine text (which can name a hidden card)', () => {
@@ -326,6 +329,18 @@ describe('Storage writes (rows written are the free plan\'s daily limit)', () =>
     expect(Object.keys(put).sort()).toEqual([...sent.map(x => `last:${x}`), 'meta', 'moves', 'state'].sort());
     // Nothing changed: meta only
     expect(Object.keys(storageWrites(refs, room.snapshot()).put)).toEqual(['meta']);
+  });
+
+  it('creating a room writes meta only (a missing key loads as empty); joining then writes the game (chunk 2e)', () => {
+    const room = newRoom();
+    const created = storageWrites(null, room.snapshot());
+    expect(Object.keys(created.put)).toEqual(['meta']);
+    const res = room.join({ deck: runnerStarter, playerId: 'guest-player', tokenHash: 'guest-hash', now: 2000 });
+    expect('error' in res).toBe(false);
+    expect(Object.keys(storageWrites(created.refs, room.snapshot()).put).sort()).toEqual(['last:corp', 'last:runner', 'meta', 'state']);
+    // What the Durable Object would load from meta alone is the room as created
+    const loaded = RoomCore.load({ meta: newRoom().meta, state: null, moves: [], last: { corp: null, runner: null } }, 0);
+    expect(loaded.snapshot()).toEqual(newRoom().snapshot());
   });
 
   it('a held choice writes meta and the holder\'s last state only', () => {
@@ -549,3 +564,143 @@ function giveCardTo(s: GameState) {
   const i = s.corp.hq.findIndex(c => c.instanceId === id);
   return s.corp.hq.splice(i, 1)[0];
 }
+
+/** Counts the rows a room writes for each message, as the Durable Object would save them (server/gameRoom.ts save). */
+function rowCounter(room: RoomCore) {
+  let refs: StoredRefs = storageWrites(null, room.snapshot()).refs;
+  let rows = 0;
+  return {
+    send(side: SideCode, msg: ClientMessage | null, now: number) {
+      const res = room.receive(side, msg, now);
+      if (res.persist) {
+        const w = storageWrites(refs, room.snapshot());
+        rows += Object.keys(w.put).length;
+        refs = w.refs;
+      }
+      return res;
+    },
+    get rows() {
+      return rows;
+    },
+  };
+}
+
+const stops = (side: SideCode, level: 'auto' | 'full' | 'none', seq = 0): ClientMessage => ({ type: 'act', seq, action: { type: 'SET_STOPS', player: side, level } });
+
+describe('Server limits (chunk 2e; audit MP-STOPS-WRITE-FLOOD)', () => {
+  it('a stops change to the level the seat already has is nothing: no move, no write, no message', () => {
+    const { room } = started();
+    pastMulligans(room);
+    expect(room.receive('runner', stops('runner', 'full'), 10_000).persist).toBe(true);
+    const moves = room.moves.length;
+    const res = room.receive('runner', stops('runner', 'full'), 10_001);
+    expect(res).toEqual({ out: [], persist: false });
+    expect(room.moves.length).toBe(moves);
+  });
+
+  it('stops changes are budgeted per seat: 5 at once, one back every 60 s; past it the fixed wording, nothing applied or written', () => {
+    const { room } = started();
+    pastMulligans(room);
+    // The ruling on review (2026-11-11): one back every 60 s, about 7,200 rows a day per seat at most
+    expect(STOPS_BUDGET).toEqual({ burst: 5, refillMs: 60_000 });
+    const levels = ['full', 'auto'] as const;
+    for (let i = 0; i < STOPS_BUDGET.burst; i++) expect(room.receive('runner', stops('runner', levels[i % 2]), 10_000).persist).toBe(true);
+    const moves = room.moves.length;
+    const level = room.realState!.stops!.runner as 'auto' | 'full';
+    const res = room.receive('runner', stops('runner', level === 'full' ? 'auto' : 'full'), 10_000);
+    expect(res.persist).toBe(false);
+    expect(res.out).toEqual([{ to: 'runner', msg: { type: 'error', code: 'too_many', message: 'Too many changes, wait a moment' } }]);
+    expect(SOCKET_ERROR_TEXT.too_many).toBe('Too many changes, wait a moment');
+    expect(room.moves.length).toBe(moves);
+    expect(room.realState!.stops!.runner).toBe(level);
+    // The other seat has its own budget
+    expect(room.receive('corp', stops('corp', 'full'), 10_000).persist).toBe(true);
+    // One back after 60 s, and it survives the room going to sleep (kept in meta, written with the allowed change)
+    const slept = RoomCore.load(JSON.parse(JSON.stringify(room.snapshot())) as RoomSnapshot, 0);
+    expect(slept.receive('runner', stops('runner', level === 'full' ? 'auto' : 'full'), 10_000 + STOPS_BUDGET.refillMs - 1).persist).toBe(false);
+    expect(slept.receive('runner', stops('runner', level === 'full' ? 'auto' : 'full'), 10_000 + STOPS_BUDGET.refillMs).persist).toBe(true);
+    const again = RoomCore.load(JSON.parse(JSON.stringify(slept.snapshot())) as RoomSnapshot, 0);
+    expect(again.receive('runner', stops('runner', level), 10_000 + STOPS_BUDGET.refillMs).persist).toBe(false);
+  });
+
+  it('a room stored before the budget existed starts with a full one', () => {
+    const { room } = started();
+    pastMulligans(room);
+    const snap = JSON.parse(JSON.stringify(room.snapshot())) as RoomSnapshot;
+    delete snap.meta.stopsBudget;
+    const old = RoomCore.load(snap, 0);
+    expect(old.receive('runner', stops('runner', 'full'), 10_000).persist).toBe(true);
+  });
+
+  it('guard: 1,000 messages of each kind a seat can send out of turn write a small, bounded number of rows', () => {
+    const kinds: Record<string, (room: RoomCore, i: number) => ClientMessage | null> = {
+      'repeated stops': () => stops('runner', 'full'),
+      'alternating stops': (_, i) => stops('runner', i % 2 ? 'full' : 'auto'),
+      'stale act': () => ({ type: 'act', seq: 0, action: { type: 'PASS', player: 'runner' } }),
+      'act out of turn': room => ({ type: 'act', seq: lastState(room, 'runner').seq, action: { type: 'GAIN_CREDIT', player: 'runner' } }),
+      'cancel with nothing held': room => ({ type: 'cancel', seq: lastState(room, 'runner').seq }),
+      ping: () => ({ type: 'ping' }),
+      junk: () => parseClientMessage('{"type":"act","seq":1,"action":{"type":"CHAT","text":"x"}}'),
+    };
+    const rows: Record<string, number> = {};
+    for (const [kind, make] of Object.entries(kinds)) {
+      const { room } = started();
+      pastMulligans(room);
+      // The Runner is the one out of turn (the Corp's first turn), at 'full' already for the repeated ones
+      room.receive('runner', stops('runner', 'full'), 0);
+      const moves = room.moves.length;
+      const count = rowCounter(room);
+      // From a full stops budget again (the setup change took one)
+      const t0 = STOPS_BUDGET.refillMs * STOPS_BUDGET.burst;
+      for (let i = 0; i < 1000; i++) count.send('runner', make(room, i), t0 + i);
+      rows[kind] = count.rows;
+      expect(room.moves.length - moves, kind).toBeLessThanOrEqual(STOPS_BUDGET.burst);
+    }
+    // Alternating stops: the burst of 5 changes (one second of messages refills a sixtieth), 5 rows each (meta, state, moves,
+    // both seats' last state: stops are public); everything else writes nothing (it was 5,000 rows on beta 22277c4)
+    expect(rows).toEqual({ 'repeated stops': 0, 'alternating stops': 25, 'stale act': 0, 'act out of turn': 0, 'cancel with nothing held': 0, ping: 0, junk: 0 });
+  });
+
+  it('the socket budget: 40 at once, 5 a second back; take() never goes below empty and a stored clock from the future is full', () => {
+    let b: Bucket | undefined;
+    for (let i = 0; i < SOCKET_BUDGET.burst; i++) {
+      const next = take(b, SOCKET_BUDGET, 1000);
+      expect(next).not.toBeNull();
+      b = next!;
+    }
+    expect(take(b!, SOCKET_BUDGET, 1000)).toBeNull();
+    expect(take(b!, SOCKET_BUDGET, 1000 + SOCKET_BUDGET.refillMs)).not.toBeNull();
+    expect(take({ tokens: 0, at: 5000 }, SOCKET_BUDGET, 1000)).toEqual({ tokens: SOCKET_BUDGET.burst - 1, at: 1000 });
+  });
+
+  it(`a game that reaches ${MAX_GAME_MOVES} moves ends as a draw ("game too long"), with no final table`, () => {
+    const { room } = started();
+    const snap = room.snapshot();
+    const filler: GameAction = { type: 'SET_STOPS', player: 'corp', level: 'auto' };
+    const long = RoomCore.load({ ...structuredClone(snap), moves: Array.from({ length: MAX_GAME_MOVES - 1 }, () => filler) }, 0);
+    const res = act(long, long.realState!.pendingPrompts[0].side, a => a.type === 'RESOLVE_PROMPT', 7000);
+    expect(long.moves.length).toBe(MAX_GAME_MOVES);
+    expect(long.meta.over).toEqual({ winner: null, reason: TOO_LONG_REASON });
+    expect(long.meta.endedAt).toBe(7000);
+    expect(res.out.filter(o => o.msg.type === 'over').map(o => ({ to: o.to, msg: o.msg }))).toEqual([
+      { to: 'corp', msg: { type: 'over', winner: null, reason: 'game too long' } },
+      { to: 'runner', msg: { type: 'over', winner: null, reason: 'game too long' } },
+    ]);
+    expect(long.lobby()).toMatchObject({ over: true, open: false });
+    expect(errorsTo(long.receive('corp', stops('corp', 'full'), 8000).out, 'corp')).toEqual(['over']);
+    expect(long.moves.length).toBe(MAX_GAME_MOVES);
+  });
+
+  it('lifetime overrides are used only when they are a positive number (production keeps 7 days / 1 day)', () => {
+    expect(lifetimeOverride(undefined, 7)).toBe(7);
+    expect(lifetimeOverride('', 7)).toBe(7);
+    expect(lifetimeOverride('0', 7)).toBe(7);
+    expect(lifetimeOverride('-5', 7)).toBe(7);
+    expect(lifetimeOverride('soon', 7)).toBe(7);
+    expect(lifetimeOverride('Infinity', 7)).toBe(7);
+    expect(lifetimeOverride('3000', 7)).toBe(3000);
+    const { room } = started();
+    expect(room.expiresAt()).toBe(2000 + IDLE_LIFETIME_MS);
+    expect(room.expiresAt({ idle: 10, ended: 5 })).toBe(2010);
+  });
+});

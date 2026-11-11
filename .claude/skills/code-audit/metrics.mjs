@@ -71,9 +71,9 @@ function count(files, re) {
 
 function snapshot() {
   const git = args => { try { return execFileSync('git', args, { cwd: ROOT, encoding: 'utf8' }).trim(); } catch { return ''; } };
-  const areas = ['src/core', 'src/ai', 'src/ui', 'src/data', 'src/beta', 'worker', 'scripts', 'tests', 'e2e'];
+  const areas = ['src/core', 'src/ai', 'src/ui', 'src/data', 'src/beta', 'src/net', 'server', 'worker', 'scripts', 'tests', 'e2e'];
   const files = areas.flatMap(a => walk(a));
-  const src = files.filter(f => f.startsWith('src/') || f.startsWith('worker/'));
+  const src = files.filter(f => f.startsWith('src/') || f.startsWith('worker/') || f.startsWith('server/'));
   const lineCount = f => read(f).split('\n').length;
   const titles = cardTitles();
 

@@ -612,6 +612,13 @@ const SIZES: { size: CardSize; label: string; active: string }[] = [
 ];
 
 /**
+ * Until a disconnect timer exists (phase 3, audit MP-ABANDON): the player may
+ * leave, and the room is deleted 7 days after its last move
+ * (server/room.ts IDLE_LIFETIME_MS).
+ */
+const AWAY_NOTE = 'You can leave: a game is deleted after 7 days without a move.';
+
+/**
  * Online, in place of the seed: the room code, the connection, and what the
  * game is waiting on (the opponent away, or the opponent's move).
  */
@@ -631,8 +638,9 @@ function OnlineMarks({ online, compact = true }: { online: OnlineInfo; compact?:
         GAME {displayRoomCode(online.code)}
       </span>
       {!online.over && !online.opponentConnected && (
-        <span className="text-amber-300 truncate" data-testid="opponent-away" title="Opponent disconnected, waiting for them to come back">
+        <span className={`text-amber-300 ${compact ? 'truncate' : ''}`} data-testid="opponent-away" title={`Opponent disconnected, waiting for them to come back. ${AWAY_NOTE}`}>
           Opponent disconnected<span className={compact ? 'hidden xl:inline' : ''}>, waiting for them to come back</span>
+          {!compact && <span className="block text-slate-400 whitespace-normal">{AWAY_NOTE}</span>}
         </span>
       )}
       {!online.over && online.opponentConnected && online.waitingForOpponent && (

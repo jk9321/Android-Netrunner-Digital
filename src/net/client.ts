@@ -11,7 +11,8 @@
  *   as the opponent thinks. A second click while waiting sends nothing.
  * - Reconnects on a closed socket after 1, 2, 4, 8, then every 15 s; the room
  *   sends `hello` and the last state again. Close code 4000: another tab or
- *   device took the seat (no retry); 4001: the room is gone.
+ *   device took the seat (no retry); 4001: the room is gone; 4002: the
+ *   socket sent too many messages (chunk 2e), a drop like any other.
  * - A `hello` (or a lobby) speaking another protocol than this build's asks
  *   for a refresh, and nothing more is sent.
  *
@@ -27,6 +28,8 @@ import type { ClientMessage, ServerMessage, SocketErrorCode, WaitingOn } from '.
 /** Close codes the room uses (server/gameRoom.ts). */
 export const CLOSE_REPLACED = 4000;
 export const CLOSE_ROOM_GONE = 4001;
+/** The socket went past its message budget (server/limits.ts): reconnects with the normal delays, like any drop. */
+export const CLOSE_TOO_MANY = 4002;
 
 /** Reconnect delays: 1, 2, 4, 8 s, then every 15 s. */
 export const RECONNECT_DELAYS_MS = [1000, 2000, 4000, 8000];
@@ -149,6 +152,7 @@ export class OnlineTable {
   private disposed = false;
   private listeners = new Set<() => void>();
   private moveListeners = new Set<(move: OnlineMove) => void>();
+  private refusedListeners = new Set<() => void>();
   private readonly timers: Timers;
 
   constructor(
@@ -218,6 +222,15 @@ export class OnlineTable {
   onMove(fn: (move: OnlineMove) => void): () => void {
     this.moveListeners.add(fn);
     return () => this.moveListeners.delete(fn);
+  }
+
+  /**
+   * The room refused a stops change (over the seat's budget, chunk 2e): the
+   * seat's stops are still what the last state says. Nothing is sent again.
+   */
+  onStopsRefused(fn: () => void): () => void {
+    this.refusedListeners.add(fn);
+    return () => this.refusedListeners.delete(fn);
   }
 
   /** The player's seat at the last state (the same object until something changes). Only the own side has one. */
@@ -447,6 +460,11 @@ export class OnlineTable {
           this.waiting = false;
           this.changed();
         }
+        return;
+      case 'too_many':
+        // Stops changes past the seat's budget: say so, and show the stops the room has; never sent again by itself
+        this.opts.alert(SOCKET_ERROR_TEXT.too_many);
+        for (const fn of this.refusedListeners) fn();
         return;
       case 'over':
       case 'not_started':
