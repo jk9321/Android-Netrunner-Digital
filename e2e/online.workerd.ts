@@ -10,6 +10,9 @@ import type { Page } from '@playwright/test';
  * the whole final table, the other's hand face up (chunk 2d).
  */
 
+/** A finished room's lifetime in this run (e2e/online.config.ts passes it to wrangler dev). */
+const ROOM_ENDED_MS = 4000;
+
 const offline = (page: Page) => page.route(/^https?:\/\/(?!127\.0\.0\.1)/, route => route.abort());
 
 /** Passes any paid-ability window the page is stopped at (the stops are AUTO). */
@@ -33,7 +36,7 @@ async function discardDown(page: Page) {
   await discard.click();
 }
 
-test('host, join by link, a turn each, reload, concede', async ({ browser }) => {
+test('host, join by link, a turn each, reload, concede', async ({ browser, request }) => {
   const hostCtx = await browser.newContext();
   const guestCtx = await browser.newContext();
   await hostCtx.grantPermissions(['clipboard-read', 'clipboard-write']);
@@ -149,4 +152,15 @@ test('host, join by link, a turn each, reload, concede', async ({ browser }) => 
   expect(errors).toEqual([]);
   await hostCtx.close();
   await guestCtx.close();
+
+  // The clean-up alarm on the real runtime (chunk 2e, audit MP-ALARM-UNTESTED): this run gives finished rooms a
+  // lifetime of ROOM_ENDED_MS (e2e/online.config.ts) instead of a day; once it passes, the room deletes itself
+  const code = link.split('/play/')[1];
+  const ended = Date.now();
+  expect((await request.get(`/api/games/${code}`)).status()).toBe(200);
+  // Lookups are rate-limited (30 a minute per address, and this test has used many): wait past the lifetime,
+  // then ask every 5 s; a 429 just means ask again
+  await new Promise(resolve => setTimeout(resolve, ROOM_ENDED_MS + 2000));
+  await expect.poll(async () => (await request.get(`/api/games/${code}`)).status(), { timeout: 90_000, intervals: [5000] }).toBe(404);
+  expect(Date.now() - ended).toBeGreaterThanOrEqual(ROOM_ENDED_MS);
 });

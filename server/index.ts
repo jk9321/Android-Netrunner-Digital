@@ -18,7 +18,7 @@ import type { CreateGameRequest, CreateGameResponse, HttpError, JoinGameRequest,
 import type { CreateInput, JoinInput } from './room';
 import type { DurableObjectNamespace, RateLimiter } from './cf';
 import { hashToken, newRoomCode, newSeed, newToken } from './tokens';
-import { json, readJson } from './http';
+import { json, readBody } from './http';
 
 export { GameRoom } from './gameRoom';
 
@@ -55,7 +55,9 @@ async function relay(res: Response): Promise<Response> {
 
 async function create(request: Request, env: GamesEnv): Promise<Response> {
   if (await limited(env.GAME_CREATE_LIMITER, request)) return fail('rate_limited', 429);
-  const body = (await readJson(request)) as Partial<CreateGameRequest> | null;
+  const read = await readBody(request);
+  if (!read.ok) return fail('bad_request', read.tooBig ? 413 : 400);
+  const body = read.value as Partial<CreateGameRequest> | null;
   if (!body || typeof body !== 'object') return fail('bad_request', 400);
   if (body.visibility !== undefined && body.visibility !== 'invite') return fail('bad_request', 400);
   const token = newToken();
@@ -80,7 +82,9 @@ async function create(request: Request, env: GamesEnv): Promise<Response> {
 }
 
 async function join(request: Request, env: GamesEnv, code: string): Promise<Response> {
-  const body = (await readJson(request)) as Partial<JoinGameRequest> | null;
+  const read = await readBody(request);
+  if (!read.ok) return fail('bad_request', read.tooBig ? 413 : 400);
+  const body = read.value as Partial<JoinGameRequest> | null;
   if (!body || typeof body !== 'object') return fail('bad_request', 400);
   const token = newToken();
   const input: Omit<JoinInput, 'now'> = { deck: body.deck as JoinInput['deck'], playerId: playerIdOf(body.playerId), tokenHash: await hashToken(token) };

@@ -50,6 +50,7 @@ import {
   actionKey,
   sanitizeAction,
 } from '../src/net/protocol';
+import { Bucket, MAX_GAME_MOVES, STOPS_BUDGET, TOO_LONG_REASON, take } from './limits';
 
 const SIDES: SideCode[] = ['corp', 'runner'];
 const other = (side: SideCode): SideCode => (side === 'corp' ? 'runner' : 'corp');
@@ -57,6 +58,11 @@ const other = (side: SideCode): SideCode => (side === 'corp' ? 'runner' : 'corp'
 /** Delete a room this long after its last move, and this long after its game ended (spec rule 7). */
 export const IDLE_LIFETIME_MS = 7 * 24 * 60 * 60 * 1000;
 export const ENDED_LIFETIME_MS = 24 * 60 * 60 * 1000;
+export interface Lifetimes {
+  idle: number;
+  ended: number;
+}
+export const DEFAULT_LIFETIMES: Lifetimes = { idle: IDLE_LIFETIME_MS, ended: ENDED_LIFETIME_MS };
 
 export interface SeatRecord {
   playerId: string;
@@ -89,6 +95,13 @@ export interface RoomMeta {
   /** The held choice's action (engine ids), worked out again from the state on load. */
   held: { side: SideCode; action: GameAction } | null;
   over: { winner: SideCode | null; reason: string } | null;
+  /**
+   * Each seat's stops-change budget (server/limits.ts STOPS_BUDGET). Kept in
+   * meta, which every allowed change writes anyway, so it survives the room
+   * going to sleep without a write of its own. Missing (a room stored before
+   * chunk 2e): full.
+   */
+  stopsBudget?: Partial<Record<SideCode, Bucket>>;
 }
 
 export interface RoomSnapshot {
@@ -115,16 +128,21 @@ export const STORAGE_KEYS = ['meta', 'state', 'moves', 'last:corp', 'last:runner
 
 /**
  * The values to write after a change: meta always, the rest only when it
- * changed since `prev` (null: everything). The free plan allows 100,000 rows
+ * changed since `prev` (null: nothing stored yet, so everything that isn't
+ * empty). The free plan allows 100,000 rows
  * written a day, so a move writes 2-4 rows instead of 5 (state and moves only
  * on a committed move, a seat's last state only when it was sent one).
  */
 export function storageWrites(prev: StoredRefs | null, snap: RoomSnapshot): { put: Record<string, unknown>; refs: StoredRefs } {
   const last = { corp: snap.last?.corp ?? null, runner: snap.last?.runner ?? null };
   const put: Record<string, unknown> = { meta: snap.meta };
-  if (!prev || prev.state !== snap.state) put.state = snap.state;
-  if (!prev || prev.moves !== snap.moves) put.moves = snap.moves;
-  for (const side of ['corp', 'runner'] as const) if (!prev || prev.last[side] !== last[side]) put[`last:${side}`] = last[side];
+  // Nothing stored yet (a new room): a missing key loads as null or [] (GameRoom's constructor), so those are not
+  // written; creating a room writes meta only (chunk 2e: creating rooms is one of the ways to spend the day's rows)
+  const empty = (v: unknown) => v === null || v === undefined || (Array.isArray(v) && v.length === 0);
+  const changed = (before: unknown, now: unknown) => (prev ? before !== now && !(empty(before) && empty(now)) : !empty(now));
+  if (changed(prev?.state, snap.state)) put.state = snap.state;
+  if (changed(prev?.moves, snap.moves)) put.moves = snap.moves;
+  for (const side of ['corp', 'runner'] as const) if (changed(prev?.last[side], last[side])) put[`last:${side}`] = last[side];
   return { put, refs: { state: snap.state, moves: snap.moves, last } };
 }
 
@@ -450,8 +468,16 @@ export class RoomCore {
     } catch (err) {
       return this.illegal(side, err);
     }
-    // Stops changed while a choice is held: applied to the committed state, the held choice kept on top of it
-    if (engine.type === 'SET_STOPS' && this.meta.held) return this.stopsUnderHold(side, engine, now);
+    if (engine.type === 'SET_STOPS') {
+      // The level the seat already has is nothing: no move, no write, no message (audit MP-STOPS-WRITE-FLOOD)
+      if (table.state.stops?.[side] === engine.level) return { out: [], persist: false };
+      // A change is a stored move (a replay needs it: it changes where the game stops), so it is budgeted per seat
+      const budget = take(this.meta.stopsBudget?.[side], STOPS_BUDGET, now);
+      if (!budget) return { out: error(side, 'too_many'), persist: false };
+      this.meta.stopsBudget = { ...this.meta.stopsBudget, [side]: budget };
+      // Stops changed while a choice is held: applied to the committed state, the held choice kept on top of it
+      if (this.meta.held) return this.stopsUnderHold(side, engine, now);
+    }
 
     let step;
     try {
@@ -524,6 +550,13 @@ export class RoomCore {
       this.end({ winner: state.winner, reason: state.winReason ?? 'game over' }, now);
       const { msg, text } = this.overMessage();
       for (const s of SIDES) out.push({ to: s, msg, text });
+    } else if (!this.meta.over && this.table!.moves.length >= MAX_GAME_MOVES) {
+      // The move list may not grow without bound (audit MP-STOPS-WRITE-FLOOD): a game this long ends as a draw.
+      // Not a rules end (rules 1.7 has none for length); a server limit, like the "server update" draw: no winner,
+      // so no final table
+      this.end({ winner: null, reason: TOO_LONG_REASON }, now);
+      const { msg, text } = this.overMessage();
+      for (const s of SIDES) out.push({ to: s, msg, text });
     }
     return out;
   }
@@ -564,8 +597,9 @@ export class RoomCore {
    * table (src/ui/table.ts seatCan), the own-side choices that list can't
    * spell out: installs that trash cards first or go onto a host (rules
    * 8.5.6), a prompt answer that trashes first (the same answer without it
-   * must be offered), and an "any number of cards" answer to the seat's own
-   * prompt (at most 256 answers are listed). The engine judges those.
+   * must be offered), and an "any number of cards" answer or a discard down
+   * to hand size for the seat's own prompt (at most 256 answers are listed).
+   * The engine judges those.
    */
   private offered(side: SideCode, action: GameAction): boolean {
     const legal = this.legalFor(side);
@@ -581,6 +615,9 @@ export class RoomCore {
       const base = { ...action, choice: { ...c, trashFirst: undefined } } as GameAction;
       return keys.has(unorderedKey(base)) || c.kind === 'effect_cards';
     }
+    // A discard down to hand size beyond the 256 listed (MP-DISCARD-COMBINATORICS): exactly `count` different
+    // cards; the engine checks they are in the hand (rules 5.5.4c)
+    if (c.kind === 'discard') return prompt.kind === 'discard' && new Set(c.cardInstanceIds).size === c.cardInstanceIds.length && c.cardInstanceIds.length === prompt.count;
     return c.kind === 'effect_cards';
   }
 
@@ -624,9 +661,9 @@ export class RoomCore {
 
   // --- Lifetime and reports -------------------------------------------------------
 
-  /** When the room should be deleted (spec rule 7). */
-  expiresAt(): number {
-    return this.meta.endedAt !== null ? this.meta.endedAt + ENDED_LIFETIME_MS : this.meta.lastMoveAt + IDLE_LIFETIME_MS;
+  /** When the room should be deleted (spec rule 7). The Durable Object may pass shorter lifetimes (wrangler dev only, server/gameRoom.ts). */
+  expiresAt(lifetimes: Lifetimes = DEFAULT_LIFETIMES): number {
+    return this.meta.endedAt !== null ? this.meta.endedAt + lifetimes.ended : this.meta.lastMoveAt + lifetimes.idle;
   }
 
   /**

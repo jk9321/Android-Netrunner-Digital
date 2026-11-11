@@ -33,7 +33,7 @@ import type { FormatId, RngState, StopLevel } from '../src/core';
 import { createAgent } from '../src/ai';
 import type { Agent } from '../src/ai/agent';
 import { GameRunner } from '../src/ai/playout';
-import { RoomCore, settledFor } from '../server/room';
+import { RoomCore, settledFor, storageWrites } from '../server/room';
 import type { Outbox } from '../server/room';
 import { SOCKET_ERROR_TEXT, parseClientMessage } from '../src/net/protocol';
 import type { ClientMessage, DeckSubmission, ServerMessage } from '../src/net/protocol';
@@ -68,6 +68,8 @@ export interface RoomFuzzResult {
   wakes: number[];
   /** Largest stored values seen (bytes of JSON): meta, state, moves. */
   stored: { meta: number; state: number; moves: number };
+  /** Rows each stored move or held choice of the main loop wrote (storageWrites), for the daily write allowance. */
+  rows: number[];
   twin: RoomTwinStats;
 }
 
@@ -142,6 +144,7 @@ export function fuzzRoomGame(seed: number, corp: DeckList, runner: DeckList, pla
     times: [],
     wakes: [],
     stored: { meta: 0, state: 0, moves: 0 },
+    rows: [],
     twin: { forks: 0, compared: 0, revealed: 0, illegal: 0 },
   };
   if (!result.format) return result;
@@ -208,9 +211,12 @@ export function fuzzRoomGame(seed: number, corp: DeckList, runner: DeckList, pla
       if (!msg) break;
       if (players === 'random' && !room.meta.held && step > 0 && nextInt(rng, twinEvery) === 0) twinFork(room, clients, msg, checker, step, rng, result.twin, rdOnly);
       if (opts.wake && nextInt(rng, 4) === 0) result.wakes.push(timeWake(room, acting, msg, step + 1));
+      // What storage holds before the move (by reference, nothing serialised), to count the rows the move writes
+      const before = storageWrites(null, room.snapshot()).refs;
       const t0 = performance.now();
       const res = room.receive(acting, msg, step + 1);
       const ms = performance.now() - t0;
+      if (res.persist) result.rows.push(Object.keys(storageWrites(before, room.snapshot()).put).length);
       step++;
       const refused = res.out.some(o => o.to === acting && o.msg.type === 'error');
       const accepted = !refused;
@@ -228,6 +234,8 @@ export function fuzzRoomGame(seed: number, corp: DeckList, runner: DeckList, pla
       if (nextInt(rng, 20) === 0) reconnectCheck(room, clients, checker, step, SIDES[nextInt(rng, 2)]);
       // Junk from a client now and then: refused, or cleaned before it reaches a view or the moves (review R2)
       if (nextInt(rng, 15) === 0) junkCheck(room, clients, checker, step, rng, deliver);
+      // A flood of messages that must change nothing (chunk 2e, MP-STOPS-WRITE-FLOOD)
+      if (nextInt(rng, 40) === 0) floodCheck(room, clients, checker, step, rng);
     }
   } catch (e) {
     checker.failures.push({ seed, step, viewer: 'corp', check: 'crash', detail: `${e instanceof Error ? e.stack : e}`.slice(0, 400) });
@@ -309,6 +317,30 @@ function junkCheck(room: RoomCore, clients: Record<SideCode, Client>, checker: L
   const accepted = res.persist && !res.out.some(o => o.to === side && o.msg.type === 'error');
   if (accepted && !res.out.some(o => o.to === side && o.msg.type === 'state')) client.waiting = true;
   deliver(res.out, res.out.some(o => o.to === side && o.msg.type === 'state') ? side : null);
+}
+
+/**
+ * 20 messages from one seat that must neither store nor change anything
+ * (chunk 2e): its stops at the level it already has, and acts and cancels
+ * with a seq it was never sent. Nothing is delivered (errors only).
+ */
+function floodCheck(room: RoomCore, clients: Record<SideCode, Client>, checker: LeakChecker, step: number, rng: RngState) {
+  const side = SIDES[nextInt(rng, 2)];
+  const client = clients[side];
+  const level = room.realState?.stops?.[side];
+  const msgs: ClientMessage[] = [
+    { type: 'cancel', seq: client.seq + 7 },
+    { type: 'act', seq: client.seq + 7, action: { type: 'PASS', player: side } },
+    ...(level === 'auto' || level === 'full' || level === 'none' ? [{ type: 'act', seq: client.seq, action: { type: 'SET_STOPS', player: side, level } } as ClientMessage] : []),
+  ];
+  const moves = room.moves.length;
+  const seq = { ...room.meta.seq };
+  for (let i = 0; i < 20; i++) {
+    const res = room.receive(side, msgs[i % msgs.length], step);
+    if (res.persist) checker.fail(step, side, 'seat', `a flood message was stored: ${JSON.stringify(msgs[i % msgs.length])}`);
+    if (res.out.some(o => o.msg.type === 'state')) checker.fail(step, side, 'seat', 'a flood message sent a state');
+  }
+  if (room.moves.length !== moves || room.meta.seq.corp !== seq.corp || room.meta.seq.runner !== seq.runner) checker.fail(step, side, 'seat', 'a flood changed the moves or a seq');
 }
 
 /** The stored snapshot, loaded again, greets both seats exactly like the live room. */
@@ -439,7 +471,11 @@ export function summarize(results: RoomFuzzResult[]): string {
   const stored = results.reduce((m, r) => ({ meta: Math.max(m.meta, r.stored.meta), state: Math.max(m.state, r.stored.state), moves: Math.max(m.moves, r.stored.moves) }), { meta: 0, state: 0, moves: 0 });
   const twin = results.reduce((t, r) => ({ forks: t.forks + r.twin.forks, compared: t.compared + r.twin.compared, revealed: t.revealed + r.twin.revealed, illegal: t.illegal + r.twin.illegal }), { forks: 0, compared: 0, revealed: 0, illegal: 0 });
   const kb = (n: number) => `${(n / 1024).toFixed(1)} KB`;
+  const rows = results.flatMap(r => r.rows);
+  const longest = results.reduce((m, r) => Math.max(m, r.moves), 0);
   return [
+    `moves per game: max ${longest} (seed ${results.find(r => r.moves === longest)?.seed ?? '-'})`,
+    `rows written per stored move: min ${rows.length ? Math.min(...rows) : 0}, p50 ${quantile(rows, 0.5)}, max ${rows.length ? Math.max(...rows) : 0}, mean ${(rows.reduce((a, b) => a + b, 0) / Math.max(1, rows.length)).toFixed(2)} (${rows.length} saves)`,
     `state messages: ${sizes.length}, size p50 ${kb(quantile(sizes, 0.5))}, p99 ${kb(quantile(sizes, 0.99))}, max ${kb(Math.max(0, ...sizes))}`,
     `time per accepted move (receive, incl. both views and legal actions): p50 ${quantile(times, 0.5).toFixed(2)} ms, p99 ${quantile(times, 0.99).toFixed(2)} ms, max ${Math.max(0, ...times).toFixed(2)} ms`,
     ...(wakes.length ? [`whole wake (sampled ${wakes.length}): p50 ${quantile(wakes, 0.5).toFixed(2)} ms, p99 ${quantile(wakes, 0.99).toFixed(2)} ms, max ${Math.max(...wakes).toFixed(2)} ms`] : []),

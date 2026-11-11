@@ -9,6 +9,7 @@ import type { Fetcher } from '../server/cf';
 import type { RoomReport } from '../server/room';
 import { handleGames } from '../server/index';
 import type { GamesEnv } from '../server/index';
+import { MAX_BODY_BYTES, readBody, readJson } from '../server/http';
 
 const fake = (name: string, seen: string[], answer: (req: Request) => Response = () => new Response('{}')): Fetcher => ({
   fetch: async (req: Request) => {
@@ -104,5 +105,38 @@ describe('Game Worker routes', () => {
     expect(JSON.stringify(sent)).not.toContain(out.token);
     expect(sent.code).toBe(out.code);
     expect(sent.build).toBe('abc1234');
+  });
+
+  it('request bodies are read as a stream with a byte cap: 413 past 64 KB, also with no Content-Length (audit MP-BODY-READ)', async () => {
+    // A chunked body (a stream: no Content-Length), sent in 8 KB pieces, 100 KB in all, that never ends on its own
+    let pulled = 0;
+    const endless = () =>
+      new ReadableStream<Uint8Array>({
+        pull(c) {
+          pulled += 8192;
+          c.enqueue(new Uint8Array(8192).fill(32));
+        },
+      });
+    const big = new Request('https://x/api/games', { method: 'POST', body: endless(), duplex: 'half' } as RequestInit);
+    expect(big.headers.get('Content-Length')).toBeNull();
+    expect(await readBody(big)).toEqual({ ok: false, tooBig: true });
+    // It stopped just past the cap instead of reading on
+    expect(pulled).toBeLessThan(MAX_BODY_BYTES + 3 * 8192);
+    const seen: string[] = [];
+    pulled = 0;
+    const res = await handleGames(new Request('https://x/api/games', { method: 'POST', body: endless(), duplex: 'half' } as RequestInit), env(seen));
+    expect(res.status).toBe(413);
+    expect(seen).toEqual([]);
+    const join = await handleGames(new Request('https://x/api/games/K7QM2X/join', { method: 'POST', body: endless(), duplex: 'half' } as RequestInit), env(seen));
+    expect(join.status).toBe(413);
+    // A declared length past the cap is refused before reading
+    expect(await readBody(new Request('https://x', { method: 'POST', body: 'x', headers: { 'Content-Length': String(MAX_BODY_BYTES + 1) } }))).toEqual({ ok: false, tooBig: true });
+    // A small chunked body is read; junk and no body are a 400, not a 413
+    const small = new Request('https://x', { method: 'POST', body: new Blob(['{"a":1}']).stream(), duplex: 'half' } as RequestInit);
+    expect(await readBody(small)).toEqual({ ok: true, value: { a: 1 } });
+    expect(await readBody(new Request('https://x', { method: 'POST', body: 'not json' }))).toEqual({ ok: false, tooBig: false });
+    expect(await readBody(new Request('https://x', { method: 'POST' }))).toEqual({ ok: false, tooBig: false });
+    expect(await readJson(new Request('https://x', { method: 'POST', body: '"\u00e9t\u00e9"' }))).toBe('été');
+    expect((await handleGames(new Request('https://x/api/games', { method: 'POST', body: 'not json' }), env(seen))).status).toBe(400);
   });
 });
