@@ -6,6 +6,7 @@
 import { describe, expect, it } from 'vitest';
 import { GameAction, GameState, SideCode, executeAction } from '../src/core';
 import { STARTER_DECKS } from '../src/data/decks';
+import { IDENTITY_TEST_DECKS } from '../src/data/testDecks/identityDecks';
 import { RoomCore, checkDeck, settledFor, storageWrites, ENDED_LIFETIME_MS, IDLE_LIFETIME_MS } from '../server/room';
 import type { Outbox, RoomSnapshot, StoredRefs } from '../server/room';
 import { MAX_GAME_MOVES, SOCKET_BUDGET, STOPS_BUDGET, TOO_LONG_REASON, lifetimeOverride, take } from '../server/limits';
@@ -138,10 +139,20 @@ describe('Creating and joining (rules 1.4.1a, deck legality)', () => {
     expect(errorsTo(room.receive('runner', { type: 'act', seq: 0, action: { type: 'PASS', player: 'runner' } }, 0).out, 'runner')).toEqual(['not_started']);
   });
 
-  it('casual online is for the starter decks only (rules 1.4.1a); Startup and Standard use validateDeck', () => {
+  it('every format uses validateDeck; the starter identities only with their starter deck as it comes (rules 1.4.1a)', () => {
     expect(checkDeck(corpStarter, 'casual', 'corp')).toEqual({ ok: true });
     const changed = { ...corpStarter, cards: corpStarter.cards.slice(1) };
-    expect(checkDeck(changed, 'casual', 'corp').ok).toBe(false);
+    const tweakedStarter = checkDeck(changed, 'casual', 'corp');
+    expect(tweakedStarter.ok).toBe(false);
+    expect(!tweakedStarter.ok && tweakedStarter.reasons.join(' ')).toMatch(/1\.4\.1a/);
+    // Casual has no card pool or ban list: a deck with a card banned in Standard (Trick Shot) is fine there
+    const banned = submission(IDENTITY_TEST_DECKS.find(d => d.id === 'nrdb-baz-tax-evasion')!);
+    expect(checkDeck(banned, 'standard', 'runner').ok).toBe(false);
+    expect(checkDeck(banned, 'casual', 'runner')).toEqual({ ok: true });
+    expect(checkDeck(banned, 'casual', 'corp')).toEqual({ ok: false, reasons: ['That deck is not a Corp deck.'] });
+    // ...but the deck-building rules still apply in Casual (1.4.3: minimum deck size)
+    const short = checkDeck({ ...banned, cards: banned.cards.slice(0, 30) }, 'casual', 'runner');
+    expect(!short.ok && short.reasons.join(' ')).toMatch(/needs at least/);
     // The starter identities are not legal under full deck construction (1.4.1a)
     const res = checkDeck(corpStarter, 'standard', 'corp');
     expect(res.ok).toBe(false);

@@ -33,7 +33,7 @@ import type { FormatId, RngState, StopLevel } from '../src/core';
 import { createAgent } from '../src/ai';
 import type { Agent } from '../src/ai/agent';
 import { GameRunner } from '../src/ai/playout';
-import { RoomCore, settledFor, storageWrites } from '../server/room';
+import { RoomCore, checkDeck, settledFor, storageWrites } from '../server/room';
 import type { Outbox } from '../server/room';
 import { SOCKET_ERROR_TEXT, parseClientMessage } from '../src/net/protocol';
 import type { ClientMessage, DeckSubmission, ServerMessage } from '../src/net/protocol';
@@ -73,13 +73,14 @@ export interface RoomFuzzResult {
   twin: RoomTwinStats;
 }
 
-/** The format both decks are legal in online, or null (casual only for two starter decks, rules 1.4.1a). */
+/** The format both decks are legal in online, or null (the same test as the server's checkDeck). */
 export function onlineFormat(corp: DeckList, runner: DeckList): FormatId | null {
   const starters = new Set(STARTER_DECKS.map(d => d.id));
   if (starters.has(corp.id) && starters.has(runner.id)) return 'casual';
   for (const format of ['standard', 'startup'] as FormatId[]) {
     if ([corp, runner].every(d => validateDeck({ ...deckCodes(d), format }).length === 0)) return format;
   }
+  if (checkDeck(submission(corp), 'casual', 'corp').ok && checkDeck(submission(runner), 'casual', 'runner').ok) return 'casual';
   return null;
 }
 
