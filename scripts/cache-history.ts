@@ -1,9 +1,10 @@
 /**
  * Planner speed P2 (coordinator 2026-11-11): does play depend on call history? Plays a deal twice, once plain and once
  * with an extra evaluate() for the deciding side at every main-phase decision (as the 'valuation not a number' alarm
- * does), and finds the first Corp/Runner action that differs. CLEAR_AT=k (with the plain run) empties the threat caches
- * just before action k, to see whether that alone gives the other run's pick.
- *   SEEDS=1001,1011 [CAP=1] npx vite-node scripts/cache-history.ts
+ * does), and finds the first Corp/Runner action that differs (BISECT=1: also with the threat caches emptied just before
+ * it, to see whether that alone gives the other run's pick). AUDIT=1 instead plays each deal once with the threat cache's
+ * on-hit audit (threatModel.ts threatAudit) and prints its count of wrong values served (STOP=k: the first k actions).
+ *   SEEDS=1001,1011 [AUDIT=1] npx vite-node scripts/cache-history.ts
  */
 import { GameAction, GameState, actingSide, createInitialGameState } from '../src/core';
 import { deckGameSetup } from '../src/data/decks';
@@ -11,21 +12,10 @@ import { ALL_DECKS } from './nsg-sample-decks';
 import { createAgent } from '../src/ai';
 import { GameRunner } from '../src/ai/playout';
 import { valueLoops } from '../src/ai/valueModel';
-import { tuning } from '../src/ai/synergy';
 import { evaluate } from '../src/ai/evaluate';
 import { asSide } from '../src/ai/pricing';
 import { clearThreatCaches, threatAudit } from '../src/ai/threatModel';
 
-const t = tuning.plan as Record<string, unknown>;
-(tuning.plan as Record<string, unknown>).workCap5 = process.env.CAP5 === '1';
-(tuning.plan as Record<string, unknown>).workCap10 = process.env.CAP10 === '1';
-t.plannerSkip = false;
-t.threatHqKey = false;
-t.threatCacheCap = process.env.CAP === '1';
-t.threatRdKey = Number(process.env.RDKEY ?? 0);
-t.threatHqKey = process.env.HQKEY === '1';
-t.threatLeanKey = process.env.LEAN === '1';
-t.threatRdPool = process.env.POOL === '1';
 
 function play(seed: number, extra: boolean, clearAt = -1): { actions: string[]; winner: string | null } {
   const corpDecks = ALL_DECKS.filter(d => d.side === 'corp');
@@ -50,10 +40,9 @@ function play(seed: number, extra: boolean, clearAt = -1): { actions: string[]; 
 
 if (process.env.AUDIT === '1') {
   threatAudit.on = true;
-  for (const d of (process.env.DROP ?? '').split(',').filter(Boolean)) threatAudit.drop.add(d);
   for (const seed of (process.env.SEEDS ?? '').split(',').filter(Boolean).map(Number)) {
     const r = play(seed, false, Number(process.env.STOP ?? -1));
-    console.log(JSON.stringify({ seed, winner: r.winner, checked: threatAudit.checked, mismatches: threatAudit.mismatches, near: threatAudit.near, examples: threatAudit.examples, orderMatters: threatAudit.orderMatters, archivesMatter: threatAudit.archivesMatter, rdMatters: threatAudit.rdMatters, paths: [...new Set(threatAudit.paths.map(x => x.replace(/inst-\d+/g, 'inst-N')))].slice(0, 12) }));
+    console.log(JSON.stringify({ seed, winner: r.winner, checked: threatAudit.checked, mismatches: threatAudit.mismatches, near: threatAudit.near, examples: threatAudit.examples }));
   }
   process.exit(0);
 }
@@ -61,7 +50,7 @@ for (const seed of (process.env.SEEDS ?? '').split(',').filter(Boolean).map(Numb
   const plain = play(seed, false);
   const withEval = play(seed, true);
   const k = plain.actions.findIndex((a, i) => a !== withEval.actions[i]);
-  const out: Record<string, unknown> = { seed, cap: t.threatCacheCap, actions: plain.actions.length, firstDiff: k, winners: [plain.winner, withEval.winner] };
+  const out: Record<string, unknown> = { seed, actions: plain.actions.length, firstDiff: k, winners: [plain.winner, withEval.winner] };
   if (k >= 0) {
     out.plainPick = plain.actions[k];
     out.evalPick = withEval.actions[k];

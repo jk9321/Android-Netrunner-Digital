@@ -1,6 +1,6 @@
 /**
  * Remote steals look (AI Coordinator, 2026-11-11; read-only, decides whether money or placement is specced next). Plays
- * the game-0 deals with the shipped AI (Normal v Normal, beta 5715b08 behaviour: plannerSkip off) and records every
+ * the game-0 deals with the shipped AI (Normal v Normal; the 2026-11-11 report was run on beta 5715b08) and records every
  * agenda the Runner steals from a remote (rule 7.1: accessed, 7.2.1 stolen), classified by how it got there:
  *  A  the Corp held a two-turn line on it (corpAI heldLine names it) at the start of the Runner's turn of the steal:
  *     the count said the server holds; the Runner's actual turn is compared with runnerBudget (countedScore.ts);
@@ -20,19 +20,9 @@ import { GameRunner } from '../src/ai/playout';
 import { HeldLine, runnerBudget, scoreInTwo } from '../src/ai/countedScore';
 import { iceCreditNeed } from '../src/ai/runs';
 import { valueLoops } from '../src/ai/valueModel';
-import { tuning } from '../src/ai/synergy';
 import { asSide } from '../src/ai/pricing';
 import { decisionContext } from '../src/ai/handValues';
 
-(tuning.plan as Record<string, unknown>).plannerSkip = false;
-(tuning.plan as Record<string, unknown>).threatHqKey = false; // planner-speed P2 work in progress: off, as on 5715b08
-(tuning.plan as Record<string, unknown>).threatCacheCap = false;
-(tuning.plan as Record<string, unknown>).threatRdKey = 0;
-(tuning.plan as Record<string, unknown>).threatLeanKey = false;
-(tuning.plan as Record<string, unknown>).workCap5 = process.env.CAP5 === '1';
-(tuning.plan as Record<string, unknown>).workCap10 = process.env.CAP10 === '1';
-(tuning.plan as Record<string, unknown>).threatNoAveraging = false;
-(tuning.plan as Record<string, unknown>).threatRdPool = false;
 
 const title = (c: CardInstance) => cardDef(c).title;
 const isAgenda = (c: CardInstance) => cardDef(c).type_code === 'agenda';

@@ -167,54 +167,44 @@ function threatKey(state: GameState): string {
   const coarse = !!plan().threatKey;
   const grip = coarse ? guessedGrip(state).grip.map(c => c.cardCode).sort().join(',') : state.runner.grip.map(c => c.instanceId).join(',');
   const roots = Object.values(state.corp.servers).map(v => v.root.map(c => `${c.advancementCounters}${c.runnerKnows ? 'k' : ''}${c.faceUp ? 'u' : ''}`).join('.')).join(';');
-  const full = [
+  return [
     state.id, boardPrint(state), roots, hqKey(state), rdKey(state), grip,
     state.runsThisTurn.map(r => r.server + (r.successful ? '+' : '-')).join(','), JSON.stringify(state.corp.rdKnownToRunner ?? []),
     knownInHand(state, 'runner').map(k => k.id).join(','), knownInHand(state, 'corp').map(k => k.id).join(','), state.runner.bonusClicksNextTurn ?? 0,
     planKey(),
+    // the pricing context as the budget runs in it (budgetPricing: outside deck averaging)
     coarse && plan().threatKeyPricing ? '' : budgetPricing(pricingKey),
   ].join('|');
-  // TEMPORARY (P2(ii) audit, scripts/cache-history.ts): key parts left out by name, to test what budgetTurn does not read
-  const drop = threatAudit.drop;
-  return drop.size ? full.split('|').filter((_, i) => !drop.has(KEY_PARTS[i])).join('|') : full;
 }
 /**
- * HQ as the threat reads it. TEMPORARY plan.threatHqKey (planner speed P2a, spec-planner-speed.md; deleted before
- * hand-off): the cards the Corp drew in a look-ahead (unseenInHand) only by their number, since centralAccess prices
- * them at R&D's density whatever they are; the planner's playouts deal different such cards per candidate.
+ * HQ as the threat reads it (planner speed P2): the cards the Corp drew in a look-ahead (unseenInHand) only by their
+ * number, since centralAccess prices them at R&D's density whatever they are; the planner's playouts deal different such
+ * cards per candidate. The cards the Runner can know of are there by id.
  */
 function hqKey(state: GameState): string {
-  if (!plan().threatHqKey) return state.corp.hq.map(c => c.instanceId).join(',');
   const unseen = new Set(unseenInHand(state, 'corp').map(c => c.instanceId));
   // probedState copies the first agenda of HQ, then R&D: which one that is can depend on the draw
   const like = [...state.corp.hq, ...state.corp.rd, ...state.corp.scoreArea].find(c => cardDef(c).type_code === 'agenda');
   return state.corp.hq.filter(c => !unseen.has(c.instanceId)).map(c => c.instanceId).join(',') + '#' + unseen.size + '~' + (like?.cardCode ?? '');
 }
 /**
- * R&D as the threat reads it. TEMPORARY plan.threatRdKey (planner speed P2(i); folded before hand-off): the threat reads
- * what R&D holds (not its order: cache-history audit), which the size in fingerprint left out, so a cached threat was
- * served for a board whose R&D the planner's playouts had re-dealt (hiddenDraws). 1: its agendas' points; 2: its codes.
+ * R&D as the threat reads it (planner speed P2): what it holds, by card code, not its order (the on-hit audit found no
+ * order dependence). fingerprint has only its size, so a cached threat was served for a board whose R&D the planner's
+ * playouts had re-dealt (plan.hiddenDraws): 179 wrong values in 5,397 hits on deal 1421.
  */
 function rdKey(state: GameState): string {
-  const mode = plan().threatRdPool && plan().threatRdKey ? 3 : plan().threatRdKey;
-  if (!mode) return '';
-  if (mode === 2) return state.corp.rd.map(c => c.cardCode).sort().join(',');
-  // 3: with threatHqKey, R&D together with HQ's look-ahead draws (the pool the threat prices at density)
-  if (mode === 3) return [...state.corp.rd, ...(plan().threatHqKey ? unseenInHand(state, 'corp') : [])].map(c => c.cardCode).sort().join(',');
-  return state.corp.rd.filter(c => cardDef(c).type_code === 'agenda').map(c => cardDef(c).agenda_points ?? 0).sort().join(',');
+  return state.corp.rd.map(c => c.cardCode).sort().join(',');
 }
 /**
- * fingerprint as the threat reads it. TEMPORARY plan.threatLeanKey (planner speed P2(ii); folded before hand-off): the
- * Corp's clicks left out (nothing the threat calls reads them: the Runner's next turn), and Archives by what it holds
- * (runs.ts serverValue reads its face-up agendas and the face-down cards' pool, trapOdds), not only its sizes.
+ * fingerprint as the threat reads it (planner speed P2): without the Corp's clicks (nothing the Runner's next turn reads
+ * them), with Archives by what it holds (runs.ts serverValue reads its face-up agendas and the face-down cards' pool,
+ * trapOdds), and with the counters on installed cards (advanced ice, Regolith Mining License's credits, virus counters:
+ * fingerprint has the cards but not their counters; 74 wrong values in 835 hits on deal 1001).
  */
 function boardPrint(state: GameState): string {
-  if (!plan().threatLeanKey) return fingerprint(state);
   const parts = fingerprint(state).split('|');
   parts[3] = '';
   const codes = (cards: CardInstance[]) => cards.map(c => c.cardCode).sort().join(',');
-  // and the counters on installed cards (advanced ice, Regolith Mining License's credits, virus counters): fingerprint
-  // has the cards but not their counters (cache-history audit, deal 1001)
   const counted = (cards: CardInstance[]): string => cards.filter(c => c.advancementCounters || c.tokens && Object.keys(c.tokens).length || c.hostedCards?.length).map(c => `${c.instanceId}:${c.advancementCounters}:${JSON.stringify(c.tokens ?? {})}[${counted(c.hostedCards ?? [])}]`).join(',');
   const { rig } = state.runner;
   const installed = [...Object.values(state.corp.servers).flatMap(v => [...v.ice, ...v.root]), ...rig.programs, ...rig.hardware, ...rig.resources, state.runner.identity, state.corp.identity];
@@ -229,11 +219,13 @@ const planKey = (): string => {
 };
 const threatCache = new Map<string, Threat>();
 const probeCache = new Map<string, number>();
-/** TEMPORARY (planner speed P2, scripts/cache-history.ts; deleted before hand-off): empties the threat's board caches. */
-export const threatAudit = { on: false, checked: 0, mismatches: 0, examples: [] as { turn: number; active: string; cached: string; fresh: string }[], filled: new Map<string, GameState>(), paths: [] as string[], orderMatters: 0, archivesMatter: 0, rdMatters: 0, near: 0, drop: new Set<string>(), collect: false, budgets: [] as { key: string; state: GameState; value: string }[] };
-const KEY_PARTS = ['id','turn','active','cCred','cClicks','cScore','hq#','rd#','arcU','arcD','rCred','rClicks','rScore','tags','grip#','stack#','progs','hw','res','servers','roots','hqKey','rdKey','grip','runs','rdKnown','knownR','knownC','bonus','plan','pricing'];
-/** TEMPORARY (P2 key table): the threat's key of a board. */
-export const threatKeyOf = (state: GameState): string => threatKey(state);
+/**
+ * The threat cache's on-hit audit (test-only, tests/threatCacheAudit.test.ts, scripts/cache-history.ts): with `on`, every
+ * hit is budgeted again and compared with the value served. A key that leaves out something budgetTurn reads shows as a
+ * mismatch. 'near': the same values but for the last bits of a float sum taken in another order (R&D re-dealt).
+ */
+export const threatAudit = { on: false, checked: 0, mismatches: 0, near: 0, examples: [] as { turn: number; active: string; cached: string; fresh: string }[] };
+/** Empties the threat's board caches (tests and scripts that play several games in one process). */
 export function clearThreatCaches(): void {
   threatCache.clear();
   probeCache.clear();
@@ -242,9 +234,9 @@ const remember = <T>(cache: Map<string, T>, key: string, work: () => T): T => {
   const hit = cache.get(key);
   if (hit !== undefined) return hit;
   const value = work();
-  // TEMPORARY plan.threatCacheCap (planner speed P2(i); deleted before hand-off): a cap one planner decision does not reach
-  // (the turn-17 fixture budgets 8,854 boards in one decision, and the 4000 cap lost 1,226 of them to the clear)
-  if (cache.size > (plan().threatCacheCap ? 40000 : 4000)) cache.clear();
+  // A cap one planner decision does not reach (the turn-17 fixture budgets 8,854 boards in one decision; a cap of 4000
+  // lost 1,226 of them to the clear)
+  if (cache.size > 40000) cache.clear();
   cache.set(key, value);
   return value;
 };
@@ -257,12 +249,12 @@ export function threat(state: GameState): Threat {
     const t0 = threatStats.timing ? performance.now() : 0;
     const key = threatKey(state);
     if (threatStats.timing) threatStats.keyMs += performance.now() - t0;
-    // TEMPORARY audit (planner speed P2, scripts/cache-history.ts): a cached board recomputed must give the same threat
+    // The audit (test-only): a cached board recomputed must give the same threat
     if (threatAudit.on && threatCache.has(key)) {
       const fresh = budgetIn(state);
       // A server's success is read only where the Runner runs it (corpLoss: run * success); runChance, the planner and
       // probeRun read run, score and order. Where run is 0 it is left out of the comparison: HQ's unseen draws, keyed by
-      // their number (threatHqKey), can change the guessed ice's pass odds there and nothing reads it.
+      // their number (hqKey), can change the guessed ice's pass odds there and nothing reads it.
       const read = (t: Threat) => JSON.stringify({ ...t, servers: Object.fromEntries(Object.entries(t.servers).map(([id, v]) => [id, v.run ? v : { ...v, success: 0 }])) });
       const a = read(fresh);
       const b = read(threatCache.get(key)!);
@@ -272,42 +264,15 @@ export function threat(state: GameState): Threat {
       if (near) threatAudit.near++;
       if (a !== b && !near) {
         threatAudit.mismatches++;
-        const was = threatAudit.filled.get(key);
-        const budget = (x: GameState) => JSON.stringify(budgetIn(x));
-        const noKnown: GameState = { ...state, corp: { ...state.corp, rdKnownToRunner: [] } };
-        const base = budget(noKnown);
-        const rev: GameState = { ...noKnown, corp: { ...noKnown.corp, rd: [...noKnown.corp.rd].reverse() } };
-        if (budget(rev) !== base) threatAudit.orderMatters++;
-        if (was) {
-          const arch: GameState = { ...noKnown, corp: { ...noKnown.corp, archives: was.corp.archives } };
-          if (budget(arch) !== base) threatAudit.archivesMatter++;
-          const rdComp: GameState = { ...noKnown, corp: { ...noKnown.corp, rd: was.corp.rd } };
-          if (budget(rdComp) !== base) threatAudit.rdMatters++;
-        }
-        if (was) {
-          const paths: string[] = [];
-          const walk = (x: unknown, y: unknown, at: string) => {
-            if (paths.length > 12 || x === y) return;
-            if (typeof x !== 'object' || typeof y !== 'object' || x === null || y === null) {
-              if (JSON.stringify(x) !== JSON.stringify(y)) paths.push(`${at}: ${JSON.stringify(x)?.slice(0, 60)} -> ${JSON.stringify(y)?.slice(0, 60)}`);
-              return;
-            }
-            for (const k of new Set([...Object.keys(x as object), ...Object.keys(y as object)])) walk((x as Record<string, unknown>)[k], (y as Record<string, unknown>)[k], `${at}.${k}`);
-          };
-          walk(was, state, 'state');
-          threatAudit.paths.push(paths.join(' | '));
-        }
         if (threatAudit.examples.length < 3) threatAudit.examples.push({ turn: state.turnNumber, active: state.activePlayer, cached: b.slice(0, 400), fresh: a.slice(0, 400) });
       }
     }
-    if (threatAudit.on && !threatCache.has(key)) threatAudit.filled.set(key, state);
     return withRecord(remember(threatCache, key, () => {
       threatStats.budgeted++;
       if (threatStats.timing) countRepeats(key, state);
       const t1 = threatStats.timing ? performance.now() : 0;
       try {
         const value = budgetIn(state);
-        if (threatAudit.collect) threatAudit.budgets.push({ key, state, value: JSON.stringify(value) });
         return value;
       } finally {
         if (threatStats.timing) {
@@ -394,13 +359,13 @@ const seenDrop = new Set<string>();
 const seenBoth = new Set<string>();
 
 /**
- * TEMPORARY plan.threatNoAveraging (planner speed P2; folded before hand-off): the Runner's next turn does not depend on
+ * The Runner's next turn does not depend on
  * whether the Corp is averaging over its deck when it asks (handValues deckAverage sets pricing.averaging, which reaches
  * the budget through the hand prices of damage and breakers: handValues heldWorth). The budget runs with it off, and the
  * key leaves it out: on the turn-17 fixture 3,001 of 4,566 boards were budgeted twice, once in each context.
  */
 function budgetPricing<T>(fn: () => T): T {
-  return plan().threatNoAveraging && pricing().averaging ? withPricing({ averaging: false }, fn) : fn();
+  return pricing().averaging ? withPricing({ averaging: false }, fn) : fn();
 }
 function budgetIn(state: GameState): Threat {
   return budgetPricing(() => withPricing({ computingThreat: pricing().computingThreat + 1 }, () => asSide('runner', () => budgetTurn(state))));

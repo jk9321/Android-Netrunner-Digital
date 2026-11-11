@@ -8,6 +8,8 @@
  * four shards and prints the breakdown. ai-match.sh logs its new-Corp games
  * the same way.
  */
+import { createHash } from 'node:crypto';
+import { threatStats } from '../src/ai/threatModel';
 import { createInitialGameState } from '../src/core';
 import { deckGameSetup } from '../src/data/decks';
 import { ALL_DECKS as SHIPPED_DECKS } from './nsg-sample-decks';
@@ -88,6 +90,11 @@ for (const c of corpDecks) {
         const tagged0 = iceOracle ? { ...record, seed, oracleIce: iceOracle, oracleIceSkipped: iced === false } : { ...record, seed };
         const tagged = measuring ? { ...tagged0, stage0b: stage0bMeasure(seed, c, r) } : tagged0;
         records.push(valueLoops.size ? { ...tagged, loops: Object.fromEntries(valueLoops) } : tagged);
+        // THREAT_STATS=1 (planner speed: do the threat-key switches reach a batch game?): the threat cache's work per game
+        if (process.env.THREAT_STATS) {
+          const h = createHash('sha1').update(JSON.stringify(record)).digest('hex').slice(0, 12);
+          console.error(JSON.stringify({ seed, calls: threatStats.calls, keyed: threatStats.keyed, budgeted: threatStats.budgeted, hits: threatStats.keyed - threatStats.budgeted, record: h }));
+        }
       } catch (err) {
         // A crashed game is listed in the summary, not dropped silently
         records.push({ crashed: `${err}`.slice(0, 200), seed, corpDeck: c.name, runnerDeck: r.name } as unknown as GameRecord);

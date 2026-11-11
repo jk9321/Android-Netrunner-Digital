@@ -391,23 +391,6 @@ export const tuning = {
      * shipping pair at 10 games +2.8 ± 1.1 (run 42800495659 vs 42797275838; games 3-10 alone +1.4 ± 1.3).
      */
     scoreInTwo: true,
-    /** TEMPORARY (planner speed P1, spec-planner-speed.md; deleted before hand-off): no plan() when the count has decided the click (corpAI decide). */
-    plannerSkip: true,
-    /** TEMPORARY (planner speed P2a, spec-planner-speed.md; deleted before hand-off): the threat's key reads look-ahead draws in HQ by their number (threatModel.ts hqKey). */
-    threatHqKey: true,
-    /** TEMPORARY (planner speed P2(i), spec-planner-speed.md; deleted before hand-off): the threat cache's cap one decision does not reach (threatModel.ts remember). */
-    threatCacheCap: true,
-    /** TEMPORARY (planner speed P2(i)): what R&D holds in the threat's key, 0 off, 1 agenda points, 2 card codes (threatModel.ts rdKey). */
-    threatRdKey: 2 as number,
-    /** TEMPORARY (planner speed P2(ii)): the threat's key without the Corp's clicks and with Archives' contents (threatModel.ts boardPrint). */
-    threatLeanKey: true,
-    /** TEMPORARY (planner speed P2, batch slot only): R&D keyed together with HQ's look-ahead draws (threatModel.ts rdKey mode 3), a measured approximation. PLAN_OFF=threatRdPool gives the exact key. */
-    threatRdPool: true,
-    /** TEMPORARY (planner speed P2): the threat's budget priced outside the deck-averaging context (threatModel.ts budgetPricing). */
-    threatNoAveraging: true,
-    /** TEMPORARY (planner speed P4, batch slots only): the planner's work budget, 30 boards (about 5 s on the turn-17 fixture) with workCap5, else 80 (about 10 s) with workCap10, else none (turnPlanner.ts PLANNER.workBudget). */
-    workCap5: true,
-    workCap10: true,
     /**
      * Bug reports #39, #41 (Jeff's Runner test games 7 and 9, 2026-11-09; Corp only): the Corp's own unrezzed ice is priced
      * as it knows it (effectValues.ts ownIce: the real ice when its rez budget covers it, passed when not; rules 3.4.3a,
@@ -553,7 +536,7 @@ export const tuning = {
  */
 export const sideOff: Record<SideCode, string[]> = {
   corp: [],
-  runner: ['scoreNow', 'scoreInTwo', 'plannerSkip', 'threatHqKey', 'threatCacheCap', 'threatRdKey', 'threatLeanKey', 'threatRdPool', 'threatNoAveraging', 'workCap5', 'workCap10', 'tagTrashNow', 'ownTrashRisk', 'hqTrashCost', 'oneCurrency', 'threatModel', 'measuredPass', 'threatSpend', 'calibratedRun', 'iceProtects', 'replyContenders', 'plannerAgenda', 'clearinghouseRez', 'ownIceKnown', 'runRecord', 'icePacingPriced', 'searchSamples', 'hiddenDraws', 'oracle', 'reach', 'reachStrength', 'reachTime', 'threatKey', 'threatKeyPricing'],
+  runner: ['scoreNow', 'scoreInTwo', 'tagTrashNow', 'ownTrashRisk', 'hqTrashCost', 'oneCurrency', 'threatModel', 'measuredPass', 'threatSpend', 'calibratedRun', 'iceProtects', 'replyContenders', 'plannerAgenda', 'clearinghouseRez', 'ownIceKnown', 'runRecord', 'icePacingPriced', 'searchSamples', 'hiddenDraws', 'oracle', 'reach', 'reachStrength', 'reachTime', 'threatKey', 'threatKeyPricing'],
 };
 
 /**

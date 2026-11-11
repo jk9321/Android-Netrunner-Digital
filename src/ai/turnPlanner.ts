@@ -29,15 +29,6 @@ export const PLANNER = {
   candidates: 4,
   /** Steps in one playout (a safety net: a turn has at most 4 clicks and a few free actions). */
   maxSteps: 12,
-  /**
-   * Planner speed P4 (spec-planner-speed.md, AI Coordinator 2026-11-11 18:49Z): the work one decision may do, counted in
-   * boards evaluated (each action a playout step ranks is one evaluate of the board after it; each reply at a playout's
-   * end is one more), not timed, so batches stay deterministic and machine-independent. Counted above the value caches
-   * (not threat budgets, whose number depends on what earlier decisions left in the cache). Past it, the candidate being
-   * played out is dropped unfinished, the ones not started are left out, and the best fully scored stands; with none
-   * finished, the rule ranking's best (the first candidate) is played, so the pick is never worse than the planner-free one.
-   */
-  workBudget: Infinity,
   /** plan.plannerSearch plannerBuild: the candidate set with the two-step builds added, at most (Hard's time). */
   withBuild: 6,
 };
@@ -68,15 +59,7 @@ export const plannerStats: {
   onSearch?: (row: SearchRow) => void;
   /** plan.hiddenDraws (S6, measurement): a Corp decision, how many of its candidate lines drew from R&D, and the pick */
   onDraws?: (state: GameState, drawLines: number, lines: number, pick: GameAction | null) => void;
-  /** P4: the last decision's work (boards evaluated), and whether the work budget cut it short */
-  lastWork?: number;
-  lastCut?: boolean;
-  /** P4 measurement: a cut decision's pick and the pick it would have had with no budget */
-  onCut?: (capped: GameAction, uncapped: GameAction) => void;
 } = { decisions: 0, withAdded: 0, added: 0, addedWins: 0 };
-
-/** P4: the work of the decision being made (planTurn resets it); `limit` is the budget once a candidate is finished. */
-const work = { boards: 0, limit: Infinity };
 
 /**
  * How a playout continues after its first action. 'rule': the rule-based ranking's best each step. 'hold'
@@ -279,10 +262,7 @@ function playout(start: GameState, side: SideCode, first: GameAction, ai: Planne
     const outOfClicks = clicksOf(state, side) <= 0;
     if (outOfClicks && !(side === 'corp')) break;
     const now = state;
-    // P4: past the work budget, this candidate is dropped unfinished (the first candidate runs with no limit)
-    if (work.boards >= work.limit) return NaN;
     const ranked = ai.rank(now);
-    work.boards += ranked.length;
     const ruled = ranked.find(r => r.score > -Infinity && r.action.type !== 'END_TURN' && (!outOfClicks || r.action.type === 'SCORE_AGENDA') && !(ran && r.action.type === 'INITIATE_RUN') && !dominated(now, r.action, ranked, side) && !(hold && agendaInstall(now, r.action)));
     const finish = mode === 'finish' && side === 'corp' ? finishStep(now, ranked) : undefined;
     const best = finish && (!outOfClicks || finish.action.type === 'SCORE_AGENDA') ? finish : ruled;
@@ -300,8 +280,6 @@ function playout(start: GameState, side: SideCode, first: GameAction, ai: Planne
     ends.bonus = bonus;
   }
   if (ai.reply && !state.winner) {
-    if (work.boards >= work.limit) return NaN;
-    work.boards++;
     const t = performance.now();
     const replied = ai.reply(state, leaf);
     searchClock.replyMs += performance.now() - t;
@@ -485,50 +463,14 @@ export function planTurn(state: GameState, side: SideCode, ranked: ScoredAction[
     const scored: { action: GameAction; value: number; line: Line; ends: Ends }[] = [];
     // plan.searchSamples (S3): every line the pick may come from
     const pool: { action: GameAction; value: number; line: Line; ends: Ends }[] = [];
-    // P4 (the Corp's decisions): a planner run inside this one (the Runner's, in a reply) adds its work to this one's
-    const outer = { ...work };
-    work.boards = 0;
-    work.limit = Infinity;
-    if (side === 'corp') plannerStats.lastCut = false;
     for (const c of candidates) {
-      // P4: past the work budget, the candidates not played out yet are left out. Cut inside the first (the rule
-      // ranking's best), the planner returns no pick and the ranking's best is played: the pick the first candidate
-      // alone would give, so the fallback is never worse than the planner-free pick
-      if (side === 'corp') work.limit = Math.min(PLANNER.workBudget, plan().workCap5 ? 30 : plan().workCap10 ? 80 : Infinity);
-      if (work.boards >= work.limit) {
-        plannerStats.lastCut = true;
-        break;
-      }
       const line: Line = [];
       const ends: Ends = {};
       const value = playout(root, side, c.action, ai, synergy, line, ends);
-      if (Number.isNaN(value)) {
-        plannerStats.lastCut = true;
-        break;
-      }
       values.push(value);
       scored.push({ action: c.action, value, line, ends });
       pool.push({ action: c.action, value, line, ends });
       if (!best || value > best.value) best = { action: c.action, value, line };
-    }
-    // P4 measurement (scripts/slow-decisions.ts): on a cut decision, the pick with no budget (the candidates left out
-    // played out in full), to count how often the budget changed the planner's pick
-    if (plannerStats.lastCut && side === 'corp' && plannerStats.onCut) {
-      work.limit = Infinity;
-      let full: { action: GameAction; value: number } | null = best;
-      for (const c of candidates.slice(scored.length)) {
-        const value = playout(root, side, c.action, ai, synergy, [], {});
-        if (!full || value > full.value) full = { action: c.action, value };
-      }
-      plannerStats.onCut((best ?? candidates[0]).action, full!.action);
-    }
-    // Cut inside the first candidate: the first candidate's action, as the first alone would pick
-    if (!best) {
-      plannerStats.lastWork = work.boards;
-      plannerStats.onCandidates?.(side, values, candidates.map(c => c.action));
-      work.boards += outer.boards;
-      work.limit = outer.limit;
-      return candidates[0].action;
     }
     if (side === 'corp' && plan().replyContenders && ai.reply && sampledReply()) best = contenders(scored, side, synergy) ?? best;
     // plan.searchSamples (spec-search S3): on an agenda decision, the two best candidate lines closer than SEARCH.margin get REPLY.extra more reply samples each, and the better
@@ -542,9 +484,6 @@ export function planTurn(state: GameState, side: SideCode, ranked: ScoredAction[
         best = close;
       }
     }
-    if (side === 'corp') plannerStats.lastWork = work.boards;
-    work.boards += outer.boards;
-    work.limit = outer.limit;
     plannerStats.onCandidates?.(side, values, candidates.map(c => c.action));
     if (side === 'corp' && plannerStats.onDraws) plannerStats.onDraws(state, scored.filter(x => drewFromRd(root, x.ends.state)).length, scored.length, best?.action ?? null);
     if (audit) auditSearch(audit, state, side, candidates, scored, best, ai, synergy, performance.now() - started, searchClock.replyMs - replyBefore);
