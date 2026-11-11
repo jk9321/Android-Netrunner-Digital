@@ -17,6 +17,8 @@ describe('heuristic AI', () => {
       const start = createInitialGameState(deckGameSetup(100 + i, corpDeck, runnerDeck));
       const { state } = playAIGame(start);
       expect(state.winner, `turn ${state.turnNumber}, score ${state.corp.score}-${state.runner.score}`).toBeTruthy();
-    }, 180000); // the whole-turn planner plays out every turn (2026-11-05: Agency vs Prick Thyself took 87 s on beta alone, about 3.5 s a turn)
+    }, 420000); // the whole-turn planner plays out every turn (2026-11-05: Agency vs Prick Thyself took 87 s on beta alone, about 3.5 s a turn;
+    // 2026-11-11 step 3: Discretion Advised vs Party Hard now runs a longer game with four remotes, 307 s alone, 153 s of it
+    // the Corp's turn 17; the counted rez code itself took 0.05 s of it)
   });
 });

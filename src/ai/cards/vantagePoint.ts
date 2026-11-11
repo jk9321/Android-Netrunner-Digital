@@ -15,7 +15,7 @@ import { CardAI } from './types';
 
 export const VANTAGE_POINT: Record<string, CardAI> = {
   // Chain Reaction
-  '36001': { synergy: { gives: { trash: 2 }, wants: { runs: 2, hq: 1, rd: 1, archives: 1 }, when: ['successfulRun'] } },
+  '36001': { synergy: { gives: { trash: 2 }, wants: { runs: 2, hq: 1, rd: 1, archives: 1 }, when: ['successfulRun'] }, archivesPayoff: true }, // Chain Reaction: needs a successful Archives run
   // Take a Dive
   '36002': {
     synergy: { gives: { runs: 1, hq: 0.5, rd: 0.5 } },
@@ -53,6 +53,7 @@ export const VANTAGE_POINT: Record<string, CardAI> = {
   },
   // Nurse Hạnh
   '36007': {
+    archivesPayoff: true, // Nurse Hạnh: draws when Archives cards turn faceup
     synergy: { gives: { draw: 1 }, wants: { archives: 1.5 } },
     value: { rig: 1 },
     // 2 cards when an Archives breach turns 2 or more cards faceup
@@ -107,6 +108,7 @@ export const VANTAGE_POINT: Record<string, CardAI> = {
   },
   // Baker
   '36015': {
+    archivesPayoff: true, // Baker: run Archives, pay 1 to approach HQ or R&D instead
     synergy: { gives: { runs: 1.5, hq: 1, rd: 1, archives: 0.5 } },
     value: { rig: 2 },
     // Once a turn, an HQ or R&D breach past Archives' ice instead of theirs, for a stealth credit

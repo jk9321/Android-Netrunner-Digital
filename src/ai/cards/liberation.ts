@@ -55,6 +55,7 @@ export const LIBERATION: Record<string, CardAI> = {
   },
   // Eru Ayase-Pessoa
   '34007': {
+    archivesPayoff: true, // Eru Ayase-Pessoa: run Archives, breach R&D instead
     synergy: { gives: { runs: 1, rd: 1.5, archives: 0.5 }, wants: { tags: 0.5 }, when: ['threat'] },
     value: { rig: 2 },
     // Once a turn, a tag for an R&D breach past Archives' ice (and 1 more card at threat 3)
@@ -404,6 +405,7 @@ export const LIBERATION: Record<string, CardAI> = {
   },
   // Privileged Access
   '34068': {
+    archivesPayoff: true, // Privileged Access: run Archives, a tag and a resource from the heap instead
     synergy: { gives: { runs: 0.5, install: 1, tags: 0.5 }, wants: { discard: 1 }, when: ['threat'] },
     // No breach, a tag and a cheap resource from the heap
     run: (state?: GameState): RunOptions => {
@@ -420,6 +422,7 @@ export const LIBERATION: Record<string, CardAI> = {
   },
   // The Wizard's Chest
   '34070': {
+    archivesPayoff: true, // The Wizard's Chest: needs a successful Archives run
     synergy: { gives: { install: 1 }, wants: { runs: 1.5, hq: 1, rd: 1, archives: 1 }, when: ['successfulRun'] },
     value: { rig: 0.5 },
     // Once, after all three centrals in a turn: a free install of a set-aside card
@@ -429,6 +432,7 @@ export const LIBERATION: Record<string, CardAI> = {
   '34071': { synergy: { gives: { breakers: 1 } } },
   // Heliamphora
   '34072': {
+    archivesPayoff: true, // Heliamphora: hosts a card accessed in Archives
     synergy: { gives: { virus: 1 }, wants: { archives: 1.5 } },
     value: { rig: 1 },
     // Archives cards hosted, so the Corp can't get them back
@@ -474,6 +478,7 @@ export const LIBERATION: Record<string, CardAI> = {
   },
   // Jeitinho
   '34079': {
+    archivesPayoff: true, // Jeitinho: needs a successful Archives run
     synergy: { wants: { runs: 1.5, hq: 1, rd: 1, archives: 1 }, when: ['successfulRun', 'threat'] },
     value: { rig: 0.5 },
     // Three of these scored win the game: rare

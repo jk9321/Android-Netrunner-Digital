@@ -17,7 +17,7 @@ import { decisionContext } from './handValues';
 import { PlanMemory, planTurn, plannerOn, searchPiece } from './turnPlanner';
 import { runnerReply } from './runnerReply';
 import { threatLoss } from './threatModel';
-import { modelRezGain } from './rezModel';
+import { archivesWantsIce, countedRez, modelRezGain } from './rezModel';
 import { keepsScore, scoreNowPlan, winNowAction } from './winNow';
 import { freeRezCover, freeRezTargets } from './freeRez';
 import { PETTY_CASH_REPLAY, iceAdvanceWorth, placedCounterWorth, rezEffectWorth, rezzedWorth, runTimed, topDownWorth } from './effectValues';
@@ -271,6 +271,12 @@ export class HeuristicCorpAI implements Agent {
       const def = cardDef(card);
       const cost = rezCost(state, card);
       if (!isLegalAction(state, { type: 'REZ_CARD', player: 'corp', cardInstanceId: card.instanceId })) continue;
+      // Counted rez (step 3): rez, pass, or no opinion (the value model decides)
+      if (def.type_code === 'ice' && this.synergy && run.phase === 'approach_ice') {
+        const call = countedRez(state, card);
+        if (call === 'rez') return { type: 'REZ_CARD', player: 'corp', cardInstanceId: card.instanceId };
+        if (call === 'pass') continue;
+      }
       let score: number;
       if (def.type_code === 'ice' && this.synergy && plan().modelRez) {
         // plan.modelRez: the rez priced by the value model (rezModel.ts), in credits; rezzed when it gains anything.
@@ -875,6 +881,8 @@ export class HeuristicCorpAI implements Agent {
           else need = agendasInHand > 0 ? (depth < 2 ? 3 : 1) : 0.3;
           if (main && server !== main && !holdsAgenda && !holdsAsset) need = Math.min(need, 0.3);
         } else if (server.id === 'archives') {
+          // Step 3 R6 (Jeff): no ice on Archives without an agenda there or a Runner card that pays off an Archives run
+          if (this.synergy && !archivesWantsIce(state)) return -Infinity;
           need = server.ice.length === 0 && corp.archives.faceDown.length > 0 ? 1.2 : -0.5;
         } else {
           need = (depth <= 1 ? 4 - 2 * depth : Math.max(0.6, 2 - 1.4 * (depth - 1))) + (server.id === 'rd' ? 0.3 : 0);

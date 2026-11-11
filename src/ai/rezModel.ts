@@ -5,6 +5,8 @@ import { BLOCK, iceCost, iceCreditNeed } from './runs';
 import { rezCost } from '../core/engine/cardEffects';
 import { iceStop } from './iceValues';
 import { runLoss } from './corpAI';
+import { deckCount } from './effectValues';
+import { archivesPayoffOf } from './cards';
 
 /**
  * plan.modelRez (structural review item 2, Jeff approved 2026-11-06): what rezzing the approached ice in a run is
@@ -127,4 +129,59 @@ function gotIn(state: GameState, spare: number): number {
   };
   // runLoss on the board with the root agendas already taken: what HQ, R&D or Archives would still give up
   return evaluate(ended(after), 'corp') - runLoss(after);
+}
+
+/**
+ * Counted rez (roadmap step 3, spec-step3-rez.md): a rez decision on approached ice by counting, consulted before
+ * modelRezGain. 'rez', 'pass', or null (no opinion: modelRezGain decides). The Corp may rez the approached ice in the
+ * approach-ice window (rules 6.4.3, 6.9.2b); ice left unrezzed is passed (6.9.2c). Uses the run's real numbers:
+ *  - stops: the Runner can't pay through this ice with its credits now (iceCreditNeed, 7.1 aside), counting the rezzed
+ *    ice still ahead of it, while that ice alone would not stop it (the rez is what ends the run);
+ *  - toll: it can, for credits; free: it passes for no credits (no opinion: the rez costs the Runner nothing).
+ * R2 an agenda in the root and the rez stops the run: rez. R3 a run on HQ with an agenda in HQ (R3s stops, R3t toll):
+ * rez. R4 a run on R&D with no agenda in HQ and agendas left in R&D by the Corp's own deck list minus what it has seen
+ * (never the order; R4s, R4t): rez. R5 Archives ice with no agenda in Archives and no Runner card that pays off an
+ * Archives run (installed or in its deck list, CardAI archivesPayoff): don't rez. Stacked with corpAI's R6 at 10 games
+ * +0.4 ± 0.7 (run 42981640841 vs 42978477338), 130 fewer central points in Corp losses; went broke +3.8 ± 1.2 and stayed
+ * broke +2.1 ± 0.9, never recovered flat (292 vs 293): shipped on recovery (AI Coordinator ruling, step3-report.md).
+ */
+export function countedRez(state: GameState, ice: CardInstance): 'rez' | 'pass' | null {
+  const run = state.activeRun;
+  if (!run || run.icePosition === null) return null;
+  const server = state.corp.servers[run.server];
+  if (!server) return null;
+  // R5: Archives ice with no agenda there and no Runner Archives card is not rezzed
+  if (run.server === 'archives' && !archivesWantsIce(state)) return 'pass';
+  const up = { ...ice, isRezzed: true };
+  const view: GameState = { ...state, corp: { ...state.corp, servers: { ...state.corp.servers, [server.id]: { ...server, ice: server.ice.map(c => (c.instanceId === ice.instanceId ? up : c)) } } } };
+  const need = iceCreditNeed(view, up);
+  if (need === 0) return null;
+  const ahead = server.ice.slice(0, run.icePosition).filter(c => c.isRezzed).reduce((n, c) => n + iceCreditNeed(view, c), 0);
+  const credits = state.runner.credits;
+  // The ice ahead stops the Runner already: this rez adds nothing the run needs
+  if (ahead === BLOCK || ahead > credits) return null;
+  const stops = need === BLOCK || need + ahead > credits;
+  const isAgenda = (c: CardInstance) => cardDef(c).type_code === 'agenda';
+  const isStopper = stops && server.root.some(isAgenda);
+  // R2: the rez stops a steal from the root on this run
+  if (isStopper) return 'rez';
+  const hqAgendas = state.corp.hq.filter(isAgenda).length;
+  // R3 (Jeff): a run on HQ with an agenda in it, stop or toll
+  if (run.server === 'hq' && hqAgendas > 0) return 'rez';
+  // R4 (Jeff): a run on R&D with no agenda in HQ and agendas left in R&D by the deck list, stop or toll
+  if (run.server === 'rd' && hqAgendas === 0 && agendasUnseen(state) > 0) return 'rez';
+  return null;
+}
+
+/** Agendas the Corp's deck list still has in R&D: the list's agendas less the ones it knows are elsewhere (HQ, installed, either score area, Archives). */
+export function agendasUnseen(state: GameState): number {
+  const isAgenda = (c: CardInstance) => cardDef(c).type_code === 'agenda';
+  const known = [...state.corp.hq, ...Object.values(state.corp.servers).flatMap(v => v.root), ...state.corp.scoreArea, ...state.runner.scoreArea, ...state.corp.archives.faceUp, ...state.corp.archives.faceDown];
+  return deckCount(state, 'corp', isAgenda) - known.filter(isAgenda).length;
+}
+
+/** Archives is worth ice (Jeff, 2026-11-11): an agenda is in it, or the Runner's deck list has a card that pays off an Archives run (CardAI archivesPayoff). */
+export function archivesWantsIce(state: GameState): boolean {
+  const archives = [...state.corp.archives.faceUp, ...state.corp.archives.faceDown];
+  return archives.some(c => cardDef(c).type_code === 'agenda') || deckCount(state, 'runner', c => archivesPayoffOf(c.cardCode)) > 0;
 }

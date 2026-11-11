@@ -56,6 +56,8 @@ export const archivedWorth = (state: GameState, code: string): number => CARDS[c
 export const clicksGivenOf = (code: string): number => CARDS[code]?.clicksGiven ?? 0;
 /** What a card pays its owner when its turn begins (CardAI turnIncome), or undefined. */
 export const turnIncomeOf = (code: string): CardAI['turnIncome'] => CARDS[code]?.turnIncome;
+/** A Runner card that pays off an Archives run (CardAI archivesPayoff). */
+export const archivesPayoffOf = (code: string): boolean => !!CARDS[code]?.archivesPayoff;
 /** Credits an agenda gains the Corp when it is scored (CardAI scoreCredits), 0 when none. */
 export const scoreCreditsOf = (code: string): number => CARDS[code]?.scoreCredits ?? 0;
 /** A Runner card's click ability that pays credits (CardAI clickMoney), or undefined. */
