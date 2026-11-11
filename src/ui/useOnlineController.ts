@@ -84,6 +84,20 @@ export function useOnlineController(table: OnlineTable): GameController {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [version]);
 
+  // A stops change the room refused (too many too fast, chunk 2e): back to what the room has, not sent again
+  useEffect(
+    () =>
+      table.onStopsRefused(() => {
+        const level = table.seatFor(side).view?.stops?.[side];
+        if (level === 'auto' || level === 'full' || level === 'none') {
+          setStopsState(level);
+          saveStops(level);
+        }
+      }),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [table],
+  );
+
   const setStops = (level: PersonStops) => {
     setStopsState(level);
     saveStops(level);

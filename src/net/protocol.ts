@@ -121,7 +121,7 @@ export type ServerMessage =
   | { type: 'over'; winner: SideCode | null; reason: string; final?: GameState }
   | { type: 'pong' };
 
-export type SocketErrorCode = 'bad_message' | 'stale' | 'not_your_turn' | 'illegal' | 'nothing_held' | 'not_started' | 'over' | 'server';
+export type SocketErrorCode = 'bad_message' | 'stale' | 'not_your_turn' | 'illegal' | 'nothing_held' | 'not_started' | 'over' | 'server' | 'too_many';
 
 /** Fixed wording per error: never engine text, which could name a hidden card. */
 export const SOCKET_ERROR_TEXT: Record<SocketErrorCode, string> = {
@@ -133,6 +133,9 @@ export const SOCKET_ERROR_TEXT: Record<SocketErrorCode, string> = {
   not_started: 'Waiting for the second player.',
   over: 'The game is over.',
   server: 'Something went wrong on the server.',
+  // Chunk 2e: a seat's stops changes past its budget (server/limits.ts). Additive: an older client shows the
+  // generic text for a code it doesn't know, so PROTOCOL_VERSION stays 1
+  too_many: 'Too many changes, wait a moment',
 };
 
 export type ClientMessage =

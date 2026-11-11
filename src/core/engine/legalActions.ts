@@ -226,11 +226,16 @@ function promptAnswers(state: GameState): GameAction[] {
       return answers;
     }
     case 'discard': {
+      // Discarding down to maximum hand size (rules 4.3.6, 5.5.4c; steps 5.6.3a, 5.7.2a): a hand of 16 or more has thousands of
+      // answers (MP-DISCARD-COMBINATORICS), so the listing stops as for effect_cards; every answer of exactly
+      // `count` different cards from the hand is still legal (the engine checks the answer, not the list)
       const hand = prompt.side === 'corp' ? state.corp.hq : state.runner.grip;
-      return combinations(hand.map(c => c.instanceId), prompt.count).map(cardInstanceIds => ({
-        ...base,
-        choice: { kind: 'discard' as const, cardInstanceIds },
-      }));
+      const answers: GameAction[] = [];
+      for (const cardInstanceIds of combinationsOf(hand.map(c => c.instanceId), prompt.count)) {
+        answers.push({ ...base, choice: { kind: 'discard' as const, cardInstanceIds } });
+        if (answers.length >= MAX_LISTED_ANSWERS) break;
+      }
+      return answers;
     }
   }
 }

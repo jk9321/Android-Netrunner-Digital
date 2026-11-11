@@ -11,8 +11,9 @@
 import { PING, PONG, SOCKET_ERROR_TEXT, parseClientMessage } from '../src/net/protocol';
 import type { ServerMessage } from '../src/net/protocol';
 import type { SideCode } from '../src/core';
-import { RoomCore, RoomSnapshot, Outbox, STORAGE_KEYS, storageWrites } from './room';
-import type { StoredRefs } from './room';
+import { DEFAULT_LIFETIMES, RoomCore, RoomSnapshot, Outbox, STORAGE_KEYS, storageWrites } from './room';
+import type { Lifetimes, StoredRefs } from './room';
+import { Bucket, SOCKET_BUDGET, lifetimeOverride, take } from './limits';
 import type { CreateInput, JoinInput, RoomMeta } from './room';
 import { hashToken } from './tokens';
 import { CfWebSocket, DurableObjectState, upgradeResponse } from './cf';
@@ -22,6 +23,20 @@ const SIDES: SideCode[] = ['corp', 'runner'];
 /** Close code for a socket replaced by a newer one on the same seat (spec rule 5). */
 export const CLOSE_REPLACED = 4000;
 export const CLOSE_ROOM_DELETED = 4001;
+/** Close code for a socket past its message budget (server/limits.ts SOCKET_BUDGET); the client reconnects as after any drop. */
+export const CLOSE_TOO_MANY = 4002;
+
+/**
+ * The room's variables. Only for a local `wrangler dev` of the game Worker
+ * (`--var ROOM_ENDED_MS:4000`): shorter lifetimes, so the clean-up alarm can
+ * be seen to run (docs/multiplayer-server.md, "Storage and lifetime").
+ * Neither wrangler.games*.jsonc sets them, and a value that is not a
+ * positive number is ignored, so production keeps 7 days / 1 day.
+ */
+export interface GameRoomEnv {
+  ROOM_IDLE_MS?: string;
+  ROOM_ENDED_MS?: string;
+}
 
 export class GameRoom {
   private room: RoomCore | null = null;
@@ -29,9 +44,25 @@ export class GameRoom {
   private stored: StoredRefs | null = null;
   /** When the alarm is set for, once known (undefined: not read yet). */
   private alarmAt: number | null | undefined = undefined;
+  private readonly lifetimes: Lifetimes;
+  /**
+   * Each seat's message budget (SOCKET_BUDGET), by seat, so a reconnect does
+   * not refill it. In memory only, never written: a flood keeps the object
+   * awake (it hibernates only after a while with no message), so the bucket
+   * lives as long as the flood; after a sleep it starts full, which the quiet
+   * time would have refilled anyway. What a message can write is bounded
+   * apart from this (the stops budget in meta, the seq and acting checks).
+   */
+  private budgets: Partial<Record<SideCode, Bucket>> = {};
 
-  /** The runtime also passes the Worker's env; the room needs none of it. */
-  constructor(private ctx: DurableObjectState) {
+  constructor(
+    private ctx: DurableObjectState,
+    env?: GameRoomEnv,
+  ) {
+    this.lifetimes = {
+      idle: lifetimeOverride(env?.ROOM_IDLE_MS, DEFAULT_LIFETIMES.idle),
+      ended: lifetimeOverride(env?.ROOM_ENDED_MS, DEFAULT_LIFETIMES.ended),
+    };
     void ctx.blockConcurrencyWhile(async () => {
       const got = await ctx.storage.get<unknown>([...STORAGE_KEYS]);
       const meta = got.get('meta') as RoomMeta | undefined;
@@ -61,7 +92,7 @@ export class GameRoom {
     this.stored = refs;
     // The alarm is a write too: set only when there is none or the room now expires sooner (the game ended).
     // A later expiry (another move) is handled when the alarm fires: alarm() sets it again for then.
-    const at = room.expiresAt();
+    const at = room.expiresAt(this.lifetimes);
     if (this.alarmAt === undefined) this.alarmAt = await this.ctx.storage.getAlarm();
     if (this.alarmAt === null || at < this.alarmAt) {
       await this.ctx.storage.setAlarm(at);
@@ -148,6 +179,17 @@ export class GameRoom {
   async webSocketMessage(ws: CfWebSocket, message: string | ArrayBuffer): Promise<void> {
     const side = sideOf(ws);
     if (!side || !this.room) return;
+    // Every message counts, whatever it is: past the budget the socket is closed and nothing is read or written
+    const budget = take(this.budgets[side], SOCKET_BUDGET, Date.now());
+    if (!budget) {
+      try {
+        ws.close(CLOSE_TOO_MANY, 'too many messages');
+      } catch {
+        // already closed
+      }
+      return;
+    }
+    this.budgets[side] = budget;
     const before = this.room.errors.length;
     let res;
     try {
@@ -187,9 +229,10 @@ export class GameRoom {
   /** Deletes the room once it has expired (spec rule 7). */
   async alarm(): Promise<void> {
     const room = this.room;
-    if (room && Date.now() < room.expiresAt()) {
-      await this.ctx.storage.setAlarm(room.expiresAt());
-      this.alarmAt = room.expiresAt();
+    const at = room?.expiresAt(this.lifetimes);
+    if (at !== undefined && Date.now() < at) {
+      await this.ctx.storage.setAlarm(at);
+      this.alarmAt = at;
       return;
     }
     for (const side of SIDES) {

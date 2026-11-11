@@ -11,12 +11,15 @@ import { isHiddenCode } from '../src/core/cards';
 import type { RngState } from '../src/core';
 import { STARTER_DECKS } from '../src/data/decks';
 import { RoomCore, settledFor } from '../server/room';
+import { SOCKET_BUDGET, take } from '../server/limits';
+import type { Bucket } from '../server/limits';
 import type { Outbox } from '../server/room';
 import { PING, PONG, PROTOCOL_VERSION, parseClientMessage } from '../src/net/protocol';
 import type { ServerMessage } from '../src/net/protocol';
 import {
   CLOSE_REPLACED,
   CLOSE_ROOM_GONE,
+  CLOSE_TOO_MANY,
   KEEPALIVE_MS,
   OnlineSession,
   OnlineTable,
@@ -113,6 +116,11 @@ class Hub {
   /** Refuse new sockets (the room or the network is down). */
   down = false;
   hello: { protocol: number } = { protocol: PROTOCOL_VERSION };
+  /** The room's clock (ms), moved by the test; the socket budget (server/gameRoom.ts) runs on it. */
+  clock = 0;
+  budgets: Partial<Record<SideCode, Bucket>> = {};
+  /** The fewest tokens each seat's socket budget had left after a message. */
+  lowest: Record<SideCode, number> = { corp: SOCKET_BUDGET.burst, runner: SOCKET_BUDGET.burst };
   constructor(readonly room: RoomCore) {}
 
   connect(session: OnlineSession): FakeSocket {
@@ -146,6 +154,11 @@ class Hub {
 
   fromClient(ws: FakeSocket, text: string) {
     if (text === PING) return this.toSocket(ws, PONG);
+    // As the Durable Object: every message that reaches the room counts; past the budget the socket is closed
+    const budget = take(this.budgets[ws.side], SOCKET_BUDGET, this.clock);
+    if (!budget) return this.drop(ws.side, CLOSE_TOO_MANY);
+    this.budgets[ws.side] = budget;
+    this.lowest[ws.side] = Math.min(this.lowest[ws.side], budget.tokens);
     const res = this.room.receive(ws.side, parseClientMessage(text), 1000);
     this.deliver(res.out);
   }
@@ -274,6 +287,9 @@ describe('Online table: full games against the room', () => {
       const rng = createRng(seed);
       let moves = 0;
       for (; moves < 6000 && !s.tables.corp.over; moves++) {
+        // A fast clicker: a move every 200 ms between the two seats, round trips included (5 a second, faster than a
+        // person keeps up; the random seats also pass every window a person at AUTO never sees)
+        s.hub.clock += 200;
         const mover = randomMove(s, rng);
         expect(mover, 'a seat is told it is acting').not.toBeNull();
         // The mover waits: no second action goes out until the room answers
@@ -298,6 +314,9 @@ describe('Online table: full games against the room', () => {
       expect(s.tables.runner.over).toEqual(s.tables.corp.over);
       expect(s.tables.corp.winner).toBe(s.hub.room.realState!.winner);
       expect(s.alerts).toEqual({ corp: [], runner: [] });
+      // The socket budget (chunk 2e) never closed an honest socket; the most a seat used is in the hand-off
+      console.log(`seed ${seed}: ${moves} moves, socket budget used at most corp ${(SOCKET_BUDGET.burst - s.hub.lowest.corp).toFixed(1)}, runner ${(SOCKET_BUDGET.burst - s.hub.lowest.runner).toFixed(1)} of ${SOCKET_BUDGET.burst}`);
+      for (const side of SIDES) expect(s.hub.lowest[side]).toBeGreaterThan(0);
       // After the end nothing is offered, and both seats show the whole final table (chunk 2d)
       for (const side of SIDES) expect(s.tables[side].seatFor(side).legal).toEqual([]);
       for (const side of SIDES) expect(s.tables[side].seatFor(side)).toMatchObject({ side: 'both', view: null, state: JSON.parse(JSON.stringify(s.hub.room.realState)) });
@@ -565,6 +584,45 @@ describe('Online table: waiting, errors and reconnects', () => {
     expect(s.tables.runner.status).toBe('gone');
     s.timers.advance(60_000);
     expect(s.tables.runner.status).toBe('gone');
+  });
+
+  it('close code 4002 (too many messages, chunk 2e): a drop like any other, back after 1 s where it was', () => {
+    const s = setup(27);
+    const before = s.tables.runner.lastState!.seq;
+    // 41 messages at one instant: the 41st closes the socket
+    for (let i = 0; i < SOCKET_BUDGET.burst + 1; i++) s.hub.sockets.runner?.send(JSON.stringify({ type: 'cancel', seq: 0 }));
+    s.hub.flush();
+    expect(s.tables.runner.status).toBe('reconnecting');
+    expect(s.alerts.runner.every(a => a === 'The game has moved on. Please try again.' || a === 'There is nothing to cancel.')).toBe(true);
+    s.hub.clock += 10_000;
+    s.timers.advance(1000);
+    s.hub.flush();
+    expect(s.tables.runner.status).toBe('open');
+    expect(s.tables.runner.lastState!.seq).toBe(before);
+  });
+
+  it('a stops change refused (too many, chunk 2e): the fixed wording, the listener hears it, and nothing is sent again', () => {
+    const s = setup(28);
+    const t = s.tables.runner;
+    const heard: number[] = [];
+    t.onStopsRefused(() => heard.push(1));
+    const seat = () => t.seatFor('runner');
+    const sent = () => s.hub.sockets.runner!.sent.length;
+    for (let i = 0; i < 5; i++) {
+      void seat().act({ type: 'SET_STOPS', player: 'runner', level: i % 2 ? 'auto' : 'full' });
+      s.hub.flush();
+    }
+    expect(seat().view!.stops?.runner).toBe('full');
+    void seat().act({ type: 'SET_STOPS', player: 'runner', level: 'none' });
+    const after = sent();
+    s.hub.flush();
+    expect(s.alerts.runner).toEqual(['Too many changes, wait a moment']);
+    expect(heard).toEqual([1]);
+    expect(seat().view!.stops?.runner).toBe('full');
+    s.timers.advance(20_000);
+    s.hub.flush();
+    // Only keep-alive pings went out after the refusal
+    expect(s.hub.sockets.runner!.sent.slice(after).every(m => m === PING)).toBe(true);
   });
 
   it('a socket refused before hello asks the lobby; a 404 means the room is gone', async () => {

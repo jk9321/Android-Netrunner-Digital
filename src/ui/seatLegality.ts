@@ -58,11 +58,21 @@ export function isProbeAction(action: GameAction): boolean {
 }
 
 /**
- * "Any number of cards" prompts list at most 256 answers (legalActions.ts), so
- * a pick from the viewer's own prompt is checked against the prompt itself.
+ * "Any number of cards" prompts and discards down to hand size list at most
+ * 256 answers (legalActions.ts), so a pick from the viewer's own prompt is
+ * checked against the prompt itself: for a discard, exactly `count` different
+ * cards of the viewer's own hand (rules 5.5.4c).
  */
 function validCardsAnswer(state: GameState, action: GameAction): boolean {
-  if (action.type !== 'RESOLVE_PROMPT' || action.choice.kind !== 'effect_cards' || action.choice.trashFirst?.length) return false;
+  if (action.type !== 'RESOLVE_PROMPT') return false;
+  if (action.choice.kind === 'discard') {
+    const p = state.pendingPrompts[0];
+    if (!p || p.id !== action.promptId || p.kind !== 'discard' || p.side !== action.player) return false;
+    const ids = action.choice.cardInstanceIds;
+    const hand = (p.side === 'corp' ? state.corp.hq : state.runner.grip).map(c => c.instanceId);
+    return new Set(ids).size === ids.length && ids.length === p.count && ids.every(id => hand.includes(id));
+  }
+  if (action.choice.kind !== 'effect_cards' || action.choice.trashFirst?.length) return false;
   const p = state.pendingPrompts[0];
   if (!p || p.id !== action.promptId || p.kind !== 'effect_cards' || p.side !== action.player) return false;
   const ids = action.choice.cardInstanceIds;
