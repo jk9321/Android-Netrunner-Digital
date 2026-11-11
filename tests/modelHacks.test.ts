@@ -78,11 +78,7 @@ describe('the last two hacks on the model (Jeff, 2026-10-28; plan.modelHacks.fin
     for (let i = 0; i < 20 && s.activePlayer === 'corp' && !s.winner && !actingSideIsRunner(s); i++) s = executeAction(s, corp.chooseAction(s));
     expect(s.corp.scoreArea.map(c => c.instanceId)).toContain(agenda);
     expect(s.corp.hq.map(c => c.instanceId)).not.toContain(nano.instanceId);
-<<<<<<< HEAD
-  }, 30000); // plays the whole turn through the score search (6-7 s on a loaded runner)
-=======
   }, 30_000); // plays the turn through the exact score search: slow on CI
->>>>>>> origin/beta
 
   it('Nanomanagement with nothing to finish: just 2 clicks for 4 credits and a click', () => {
     const { s, nano } = nanoGame(true);
