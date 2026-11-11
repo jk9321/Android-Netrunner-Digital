@@ -13,7 +13,9 @@
 import { CardInstance, GameState } from '../src/core';
 import { cardDef } from '../src/core/cards';
 import { iceCost, isTrap } from '../src/ai/runs';
-import { GameAction } from '../src/core';
+import { GameAction, actingSide } from '../src/core';
+import { evaluate } from '../src/ai/evaluate';
+import { asSide } from '../src/ai/pricing';
 
 export type AlarmKind =
   /** Corp: an agenda sat in HQ 4+ Corp turns while the Runner got into HQ on 2+ of the Runner's turns in between */
@@ -34,7 +36,13 @@ export type AlarmKind =
    * counts the stretches that don't. The note gives how many turn starts the stretch lasted; the detail is 'recovered'
    * or 'never recovered' (still under 3 when the game ended: done()).
    */
-  | 'Corp stayed broke';
+  | 'Corp stayed broke'
+  /**
+   * Either side (issue #47, 2026-11-11): evaluate() for the side making a main-phase decision was not a finite number
+   * (NaN or infinite) on the board it decided from. Every rez and every ranked action then compares against NaN, so the
+   * AI plays at random. Must read 0 in every batch; the note names the action, the turn and side say where to dump.
+   */
+  | 'valuation not a number';
 
 export interface Alarm {
   kind: AlarmKind;
@@ -102,6 +110,12 @@ export class AlarmTracker {
   }
 
   step(before: GameState, after: GameState, action?: GameAction) {
+    // 'valuation not a number': the board the acting side just decided from, in the pricing context of that decision
+    const side = actingSide(before);
+    if (action && side && action.player === side && !before.activeRun && !before.pendingPrompts.length) {
+      const value = asSide(side, () => evaluate(before, side));
+      if (!Number.isFinite(value)) this.fire('valuation not a number', before.turnNumber, side, `evaluate ${value} before ${action.type}`);
+    }
     const delta = after.corp.credits - before.corp.credits;
     if (delta !== 0) {
       const book = delta < 0 ? this.spent : this.gained;
