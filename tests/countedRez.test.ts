@@ -43,7 +43,7 @@ function at(server: 'rd' | 'hq' | 'archives' | 'remote-1', opts: { runnerCredits
   const ice = opts.alone ? [outer] : [...inner, outer];
   const agenda = state.corp.hq.find(isAgenda)!;
   const hq = opts.hqAgenda === false ? state.corp.hq.filter(c => !isAgenda(c)) : opts.rootAgenda ? state.corp.hq.filter(c => c !== agenda) : state.corp.hq;
-  const servers = { ...state.corp.servers, rd: { ...rd, ice: server === 'rd' ? ice : [] } };
+  const servers: GameState['corp']['servers'] = { ...state.corp.servers, rd: { ...rd, ice: server === 'rd' ? ice : [] } };
   servers[server] = { ...(servers[server] ?? { id: server, name: server, isRemote: true, ice: [], root: [] }), ice, root: opts.rootAgenda ? [agenda] : servers[server]?.root ?? [] };
   const s: GameState = {
     ...state,
@@ -58,7 +58,8 @@ const choose = (s: GameState, ice: CardInstance) => new HeuristicCorpAI({ synerg
 
 describe('counted rez on approached ice (6.4.3, 6.9.2b-c)', () => {
   it('R2: an agenda in the root and the Runner cannot pay through: rez', () => {
-    const { s, ice } = at('remote-1', { runnerCredits: 0, rootAgenda: true, alone: true });
+    // 5 credits: the rez (3) leaves 2, which still covers HQ's unrezzed Whitespace (the floor after a line, 2)
+    const { s, ice } = at('remote-1', { runnerCredits: 0, rootAgenda: true, alone: true, corpCredits: 5 });
     expect(call(s, ice)).toBe('rez');
     expect(choose(s, ice)?.type).toBe('REZ_CARD');
     tuning.plan.rezStopper = false;
@@ -66,7 +67,7 @@ describe('counted rez on approached ice (6.4.3, 6.9.2b-c)', () => {
   });
 
   it("Hard: the counted rez reaches Hard's rez decision (its search starts from the rule-based AI's choice)", () => {
-    const { s, ice } = at('remote-1', { runnerCredits: 0, rootAgenda: true, alone: true });
+    const { s, ice } = at('remote-1', { runnerCredits: 0, rootAgenda: true, alone: true, corpCredits: 5 });
     const hard = createAgent('corp', 'hard', { samples: 2, candidates: 2, seed: 1 });
     expect(hard.chooseRez!(s, [ice])?.type).toBe('REZ_CARD');
   }, 30000);
@@ -98,6 +99,14 @@ describe('counted rez on approached ice (6.4.3, 6.9.2b-c)', () => {
     // An agenda in HQ: R4 has no opinion (the value model decides, as rezToll.test.ts pins)
     const held = at('rd');
     expect(call(held.s, held.ice)).toBeNull();
+  });
+
+  it("can afford it: no opinion when the rez leaves the Corp under the floor after a line (countedScore.ts afterLineFloor)", () => {
+    // 3 credits: the rez (3) leaves 0, and HQ (agendas there) still needs its unrezzed Whitespace (2)
+    const { s, ice } = at('remote-1', { runnerCredits: 0, rootAgenda: true, alone: true });
+    expect(call(s, ice)).toBeNull();
+    tuning.plan.rezFloor = false;
+    expect(call(s, ice)).toBe('rez');
   });
 
   it('no opinion when the ice ahead stops the Runner already', () => {
