@@ -15,6 +15,21 @@ import { valueLoops } from '../src/ai/valueModel';
 import { scoreNowPlan } from '../src/ai/winNow';
 import { asSide } from '../src/ai/pricing';
 import { decisionContext } from '../src/ai/handValues';
+import { PLANNER, plannerStats } from '../src/ai/turnPlanner';
+import { tuning } from '../src/ai/synergy';
+
+// P4: STEPS=n sets the planner's step budget (default: none). Every decision's playout steps are recorded (the largest
+// single planner call in it), to set the budget above the largest seen.
+if (process.env.STEPS) PLANNER.stepBudget = Number(process.env.STEPS);
+(tuning.plan as Record<string, unknown>).threatRdPool = process.env.POOL === '1';
+let steps = 0;
+let cuts = 0;
+plannerStats.onCandidates = side => {
+  if (side !== 'corp') return;
+  steps = Math.max(steps, plannerStats.lastSteps ?? 0);
+  if (plannerStats.lastCut) cuts++;
+};
+const stepRows: { s: number; steps: number }[] = [];
 
 const corpDecks = ALL_DECKS.filter(d => d.side === 'corp');
 const runnerDecks = ALL_DECKS.filter(d => d.side === 'runner');
@@ -29,10 +44,12 @@ for (const seed of deals) {
   const choose = corp.chooseAction.bind(corp);
   corp.chooseAction = (s: GameState) => {
     const held = !!(corp as unknown as { heldLine: unknown }).heldLine;
+    steps = 0;
     const t = performance.now();
     const a = choose(s);
     const d = performance.now() - t;
     ms.push(d);
+    stepRows.push({ s: +(d / 1000).toFixed(2), steps });
     if (d > 5000) {
       const score = asSide('corp', () => (decisionContext(s, 'corp'), scoreNowPlan(s)));
       slow.push({ seed, turn: s.turnNumber, s: +(d / 1000).toFixed(1), remotes: Object.values(s.corp.servers).filter(v => v.isRemote).length, kind: score ? 'scoreNow' : held ? 'held' : 'neither' });
@@ -52,4 +69,8 @@ console.log(JSON.stringify({
   over5: { scoreNow: by('scoreNow', 5), held: by('held', 5), neither: by('neither', 5) },
   over10: { scoreNow: by('scoreNow', 10), held: by('held', 10), neither: by('neither', 10) },
   slow,
+  maxSteps: Math.max(...stepRows.map(r => r.steps)),
+  cuts,
+  topSteps: [...stepRows].sort((x, y) => y.steps - x.steps).slice(0, 15),
+  slowSteps: stepRows.filter(r => r.s > 5).sort((x, y) => y.s - x.s).slice(0, 30),
 }));

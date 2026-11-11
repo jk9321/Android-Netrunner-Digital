@@ -22,6 +22,8 @@ t.threatHqKey = false;
 t.threatCacheCap = process.env.CAP === '1';
 t.threatRdKey = Number(process.env.RDKEY ?? 0);
 t.threatHqKey = process.env.HQKEY === '1';
+t.threatLeanKey = process.env.LEAN === '1';
+t.threatRdPool = process.env.POOL === '1';
 
 function play(seed: number, extra: boolean, clearAt = -1): { actions: string[]; winner: string | null } {
   const corpDecks = ALL_DECKS.filter(d => d.side === 'corp');
@@ -46,9 +48,10 @@ function play(seed: number, extra: boolean, clearAt = -1): { actions: string[]; 
 
 if (process.env.AUDIT === '1') {
   threatAudit.on = true;
+  for (const d of (process.env.DROP ?? '').split(',').filter(Boolean)) threatAudit.drop.add(d);
   for (const seed of (process.env.SEEDS ?? '').split(',').filter(Boolean).map(Number)) {
     const r = play(seed, false, Number(process.env.STOP ?? -1));
-    console.log(JSON.stringify({ seed, winner: r.winner, checked: threatAudit.checked, mismatches: threatAudit.mismatches, orderMatters: threatAudit.orderMatters, archivesMatter: threatAudit.archivesMatter, rdMatters: threatAudit.rdMatters, paths: [...new Set(threatAudit.paths.map(x => x.replace(/inst-\d+/g, 'inst-N')))].slice(0, 12) }));
+    console.log(JSON.stringify({ seed, winner: r.winner, checked: threatAudit.checked, mismatches: threatAudit.mismatches, near: threatAudit.near, examples: threatAudit.examples, orderMatters: threatAudit.orderMatters, archivesMatter: threatAudit.archivesMatter, rdMatters: threatAudit.rdMatters, paths: [...new Set(threatAudit.paths.map(x => x.replace(/inst-\d+/g, 'inst-N')))].slice(0, 12) }));
   }
   process.exit(0);
 }

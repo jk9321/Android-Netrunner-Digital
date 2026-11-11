@@ -29,6 +29,12 @@ export const PLANNER = {
   candidates: 4,
   /** Steps in one playout (a safety net: a turn has at most 4 clicks and a few free actions). */
   maxSteps: 12,
+  /**
+   * Planner speed P4 (spec-planner-speed.md): the work one decision may do, in playout steps (a ranking of the position,
+   * or a reply sampled at a playout's end), counted, not timed, so batches stay deterministic. Past it, the candidates
+   * not yet played out are left out and the best one fully scored stands. A backstop for the runaway case only.
+   */
+  stepBudget: Infinity,
   /** plan.plannerSearch plannerBuild: the candidate set with the two-step builds added, at most (Hard's time). */
   withBuild: 6,
 };
@@ -59,7 +65,13 @@ export const plannerStats: {
   onSearch?: (row: SearchRow) => void;
   /** plan.hiddenDraws (S6, measurement): a Corp decision, how many of its candidate lines drew from R&D, and the pick */
   onDraws?: (state: GameState, drawLines: number, lines: number, pick: GameAction | null) => void;
+  /** P4: the last decision's playout steps, and whether the step budget cut it short */
+  lastSteps?: number;
+  lastCut?: boolean;
 } = { decisions: 0, withAdded: 0, added: 0, addedWins: 0 };
+
+/** P4: playout steps of the decision being made (planTurn resets it). */
+const work = { steps: 0 };
 
 /**
  * How a playout continues after its first action. 'rule': the rule-based ranking's best each step. 'hold'
@@ -262,6 +274,7 @@ function playout(start: GameState, side: SideCode, first: GameAction, ai: Planne
     const outOfClicks = clicksOf(state, side) <= 0;
     if (outOfClicks && !(side === 'corp')) break;
     const now = state;
+    work.steps++;
     const ranked = ai.rank(now);
     const ruled = ranked.find(r => r.score > -Infinity && r.action.type !== 'END_TURN' && (!outOfClicks || r.action.type === 'SCORE_AGENDA') && !(ran && r.action.type === 'INITIATE_RUN') && !dominated(now, r.action, ranked, side) && !(hold && agendaInstall(now, r.action)));
     const finish = mode === 'finish' && side === 'corp' ? finishStep(now, ranked) : undefined;
@@ -280,6 +293,7 @@ function playout(start: GameState, side: SideCode, first: GameAction, ai: Planne
     ends.bonus = bonus;
   }
   if (ai.reply && !state.winner) {
+    work.steps++;
     const t = performance.now();
     const replied = ai.reply(state, leaf);
     searchClock.replyMs += performance.now() - t;
@@ -463,7 +477,14 @@ export function planTurn(state: GameState, side: SideCode, ranked: ScoredAction[
     const scored: { action: GameAction; value: number; line: Line; ends: Ends }[] = [];
     // plan.searchSamples (S3): every line the pick may come from
     const pool: { action: GameAction; value: number; line: Line; ends: Ends }[] = [];
+    work.steps = 0;
+    plannerStats.lastCut = false;
     for (const c of candidates) {
+      // P4: past the step budget, the candidates not played out yet are left out (the first, the ranking's best, never is)
+      if (work.steps >= PLANNER.stepBudget && scored.length) {
+        plannerStats.lastCut = true;
+        break;
+      }
       const line: Line = [];
       const ends: Ends = {};
       const value = playout(root, side, c.action, ai, synergy, line, ends);
@@ -484,6 +505,7 @@ export function planTurn(state: GameState, side: SideCode, ranked: ScoredAction[
         best = close;
       }
     }
+    plannerStats.lastSteps = work.steps;
     plannerStats.onCandidates?.(side, values, candidates.map(c => c.action));
     if (side === 'corp' && plannerStats.onDraws) plannerStats.onDraws(state, scored.filter(x => drewFromRd(root, x.ends.state)).length, scored.length, best?.action ?? null);
     if (audit) auditSearch(audit, state, side, candidates, scored, best, ai, synergy, performance.now() - started, searchClock.replyMs - replyBefore);

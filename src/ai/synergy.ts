@@ -399,6 +399,10 @@ export const tuning = {
     threatCacheCap: true,
     /** TEMPORARY (planner speed P2(i)): what R&D holds in the threat's key, 0 off, 1 agenda points, 2 card codes (threatModel.ts rdKey). */
     threatRdKey: 2 as number,
+    /** TEMPORARY (planner speed P2(ii)): the threat's key without the Corp's clicks and with Archives' contents (threatModel.ts boardPrint). */
+    threatLeanKey: true,
+    /** TEMPORARY (planner speed P2, batch slot only): R&D keyed together with HQ's look-ahead draws (threatModel.ts rdKey mode 3), a measured approximation. PLAN_OFF=threatRdPool gives the exact key. */
+    threatRdPool: true,
     /**
      * Bug reports #39, #41 (Jeff's Runner test games 7 and 9, 2026-11-09; Corp only): the Corp's own unrezzed ice is priced
      * as it knows it (effectValues.ts ownIce: the real ice when its rez budget covers it, passed when not; rules 3.4.3a,
@@ -544,7 +548,7 @@ export const tuning = {
  */
 export const sideOff: Record<SideCode, string[]> = {
   corp: [],
-  runner: ['scoreNow', 'scoreInTwo', 'plannerSkip', 'threatHqKey', 'threatCacheCap', 'threatRdKey', 'tagTrashNow', 'ownTrashRisk', 'hqTrashCost', 'oneCurrency', 'threatModel', 'measuredPass', 'threatSpend', 'calibratedRun', 'iceProtects', 'replyContenders', 'plannerAgenda', 'clearinghouseRez', 'ownIceKnown', 'runRecord', 'icePacingPriced', 'searchSamples', 'hiddenDraws', 'oracle', 'reach', 'reachStrength', 'reachTime', 'threatKey', 'threatKeyPricing'],
+  runner: ['scoreNow', 'scoreInTwo', 'plannerSkip', 'threatHqKey', 'threatCacheCap', 'threatRdKey', 'threatLeanKey', 'threatRdPool', 'tagTrashNow', 'ownTrashRisk', 'hqTrashCost', 'oneCurrency', 'threatModel', 'measuredPass', 'threatSpend', 'calibratedRun', 'iceProtects', 'replyContenders', 'plannerAgenda', 'clearinghouseRez', 'ownIceKnown', 'runRecord', 'icePacingPriced', 'searchSamples', 'hiddenDraws', 'oracle', 'reach', 'reachStrength', 'reachTime', 'threatKey', 'threatKeyPricing'],
 };
 
 /**

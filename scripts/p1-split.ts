@@ -23,6 +23,7 @@ const skip = process.env.SKIP === '1';
 (tuning.plan as Record<string, unknown>).threatHqKey = false;
 (tuning.plan as Record<string, unknown>).threatCacheCap = false;
 (tuning.plan as Record<string, unknown>).threatRdKey = 0;
+(tuning.plan as Record<string, unknown>).threatLeanKey = false;
 
 const same = (a: GameAction | null, b: GameAction | null) => JSON.stringify(a) === JSON.stringify(b);
 const say = (s: GameState, a: GameAction | null) => {

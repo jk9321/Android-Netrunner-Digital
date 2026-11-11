@@ -167,13 +167,16 @@ function threatKey(state: GameState): string {
   const coarse = !!plan().threatKey;
   const grip = coarse ? guessedGrip(state).grip.map(c => c.cardCode).sort().join(',') : state.runner.grip.map(c => c.instanceId).join(',');
   const roots = Object.values(state.corp.servers).map(v => v.root.map(c => `${c.advancementCounters}${c.runnerKnows ? 'k' : ''}${c.faceUp ? 'u' : ''}`).join('.')).join(';');
-  return [
-    state.id, fingerprint(state), roots, hqKey(state), rdKey(state), grip,
+  const full = [
+    state.id, boardPrint(state), roots, hqKey(state), rdKey(state), grip,
     state.runsThisTurn.map(r => r.server + (r.successful ? '+' : '-')).join(','), JSON.stringify(state.corp.rdKnownToRunner ?? []),
     knownInHand(state, 'runner').map(k => k.id).join(','), knownInHand(state, 'corp').map(k => k.id).join(','), state.runner.bonusClicksNextTurn ?? 0,
     planKey(),
     coarse && plan().threatKeyPricing ? '' : pricingKey(),
   ].join('|');
+  // TEMPORARY (P2(ii) audit, scripts/cache-history.ts): key parts left out by name, to test what budgetTurn does not read
+  const drop = threatAudit.drop;
+  return drop.size ? full.split('|').filter((_, i) => !drop.has(KEY_PARTS[i])).join('|') : full;
 }
 /**
  * HQ as the threat reads it. TEMPORARY plan.threatHqKey (planner speed P2a, spec-planner-speed.md; deleted before
@@ -193,10 +196,29 @@ function hqKey(state: GameState): string {
  * served for a board whose R&D the planner's playouts had re-dealt (hiddenDraws). 1: its agendas' points; 2: its codes.
  */
 function rdKey(state: GameState): string {
-  const mode = plan().threatRdKey;
+  const mode = plan().threatRdPool && plan().threatRdKey ? 3 : plan().threatRdKey;
   if (!mode) return '';
   if (mode === 2) return state.corp.rd.map(c => c.cardCode).sort().join(',');
+  // 3: with threatHqKey, R&D together with HQ's look-ahead draws (the pool the threat prices at density)
+  if (mode === 3) return [...state.corp.rd, ...(plan().threatHqKey ? unseenInHand(state, 'corp') : [])].map(c => c.cardCode).sort().join(',');
   return state.corp.rd.filter(c => cardDef(c).type_code === 'agenda').map(c => cardDef(c).agenda_points ?? 0).sort().join(',');
+}
+/**
+ * fingerprint as the threat reads it. TEMPORARY plan.threatLeanKey (planner speed P2(ii); folded before hand-off): the
+ * Corp's clicks left out (nothing the threat calls reads them: the Runner's next turn), and Archives by what it holds
+ * (runs.ts serverValue reads its face-up agendas and the face-down cards' pool, trapOdds), not only its sizes.
+ */
+function boardPrint(state: GameState): string {
+  if (!plan().threatLeanKey) return fingerprint(state);
+  const parts = fingerprint(state).split('|');
+  parts[3] = '';
+  const codes = (cards: CardInstance[]) => cards.map(c => c.cardCode).sort().join(',');
+  // and the counters on installed cards (advanced ice, Regolith Mining License's credits, virus counters): fingerprint
+  // has the cards but not their counters (cache-history audit, deal 1001)
+  const counted = (cards: CardInstance[]): string => cards.filter(c => c.advancementCounters || c.tokens && Object.keys(c.tokens).length || c.hostedCards?.length).map(c => `${c.instanceId}:${c.advancementCounters}:${JSON.stringify(c.tokens ?? {})}[${counted(c.hostedCards ?? [])}]`).join(',');
+  const { rig } = state.runner;
+  const installed = [...Object.values(state.corp.servers).flatMap(v => [...v.ice, ...v.root]), ...rig.programs, ...rig.hardware, ...rig.resources, state.runner.identity, state.corp.identity];
+  return parts.join('|') + '~' + codes(state.corp.archives.faceUp) + '/' + codes(state.corp.archives.faceDown) + '~' + counted(installed);
 }
 let planSig: { plan: unknown; json: string } | null = null;
 const planKey = (): string => {
@@ -208,7 +230,10 @@ const planKey = (): string => {
 const threatCache = new Map<string, Threat>();
 const probeCache = new Map<string, number>();
 /** TEMPORARY (planner speed P2, scripts/cache-history.ts; deleted before hand-off): empties the threat's board caches. */
-export const threatAudit = { on: false, checked: 0, mismatches: 0, examples: [] as { turn: number; active: string; cached: string; fresh: string }[], filled: new Map<string, GameState>(), paths: [] as string[], orderMatters: 0, archivesMatter: 0, rdMatters: 0 };
+export const threatAudit = { on: false, checked: 0, mismatches: 0, examples: [] as { turn: number; active: string; cached: string; fresh: string }[], filled: new Map<string, GameState>(), paths: [] as string[], orderMatters: 0, archivesMatter: 0, rdMatters: 0, near: 0, drop: new Set<string>(), collect: false, budgets: [] as { key: string; state: GameState; value: string }[] };
+const KEY_PARTS = ['id','turn','active','cCred','cClicks','cScore','hq#','rd#','arcU','arcD','rCred','rClicks','rScore','tags','grip#','stack#','progs','hw','res','servers','roots','hqKey','rdKey','grip','runs','rdKnown','knownR','knownC','bonus','plan','pricing'];
+/** TEMPORARY (P2 key table): the threat's key of a board. */
+export const threatKeyOf = (state: GameState): string => threatKey(state);
 export function clearThreatCaches(): void {
   threatCache.clear();
   probeCache.clear();
@@ -235,10 +260,17 @@ export function threat(state: GameState): Threat {
     // TEMPORARY audit (planner speed P2, scripts/cache-history.ts): a cached board recomputed must give the same threat
     if (threatAudit.on && threatCache.has(key)) {
       const fresh = withPricing({ computingThreat: pricing().computingThreat + 1 }, () => asSide('runner', () => budgetTurn(state)));
-      const a = JSON.stringify(fresh);
-      const b = JSON.stringify(threatCache.get(key));
+      // A server's success is read only where the Runner runs it (corpLoss: run * success); runChance, the planner and
+      // probeRun read run, score and order. Where run is 0 it is left out of the comparison: HQ's unseen draws, keyed by
+      // their number (threatHqKey), can change the guessed ice's pass odds there and nothing reads it.
+      const read = (t: Threat) => JSON.stringify({ ...t, servers: Object.fromEntries(Object.entries(t.servers).map(([id, v]) => [id, v.run ? v : { ...v, success: 0 }])) });
+      const a = read(fresh);
+      const b = read(threatCache.get(key)!);
       threatAudit.checked++;
-      if (a !== b) {
+      // Float sums taken in another order (R&D re-dealt) differ in the last bits: counted apart, as 'near'
+      const near = a !== b && a.replace(/\d+\.\d{9,}/g, m => Number(m).toPrecision(9)) === b.replace(/\d+\.\d{9,}/g, m => Number(m).toPrecision(9));
+      if (near) threatAudit.near++;
+      if (a !== b && !near) {
         threatAudit.mismatches++;
         const was = threatAudit.filled.get(key);
         const budget = (x: GameState) => JSON.stringify(withPricing({ computingThreat: pricing().computingThreat + 1 }, () => asSide('runner', () => budgetTurn(x))));
@@ -274,7 +306,9 @@ export function threat(state: GameState): Threat {
       if (threatStats.timing) countRepeats(key, state);
       const t1 = threatStats.timing ? performance.now() : 0;
       try {
-        return withPricing({ computingThreat: pricing().computingThreat + 1 }, () => asSide('runner', () => budgetTurn(state)));
+        const value = withPricing({ computingThreat: pricing().computingThreat + 1 }, () => asSide('runner', () => budgetTurn(state)));
+        if (threatAudit.collect) threatAudit.budgets.push({ key, state, value: JSON.stringify(value) });
+        return value;
       } finally {
         if (threatStats.timing) {
           const ms = performance.now() - t1;
