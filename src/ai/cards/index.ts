@@ -52,12 +52,16 @@ export const corpFormula = (state: GameState, code: string, ctx: CorpEffectConte
 /** A Runner card's formula, if it has one. */
 /** plan.oneCurrency: a faceup Corp card's worth in Archives (Petty Cash, played again from there). */
 export const archivedWorth = (state: GameState, code: string): number => CARDS[code]?.archived?.(state) ?? 0;
-/** What a rezzed Corp card pays when the Corp's turn begins (CardAI turnIncome), or undefined. */
 /** Clicks one use of the card gives beyond its own click (CardAI clicksGiven), 0 when none. */
 export const clicksGivenOf = (code: string): number => CARDS[code]?.clicksGiven ?? 0;
-export const turnIncomeOf = (code: string): { credits: number; hosted?: true } | undefined => CARDS[code]?.turnIncome;
+/** What a card pays its owner when its turn begins (CardAI turnIncome), or undefined. */
+export const turnIncomeOf = (code: string): CardAI['turnIncome'] => CARDS[code]?.turnIncome;
+/** Credits an agenda gains the Corp when it is scored (CardAI scoreCredits), 0 when none. */
+export const scoreCreditsOf = (code: string): number => CARDS[code]?.scoreCredits ?? 0;
+/** A Runner card's click ability that pays credits (CardAI clickMoney), or undefined. */
+export const clickMoneyOf = (code: string): CardAI['clickMoney'] => CARDS[code]?.clickMoney;
 /** Dividends N (CardAI dividends), 0 for a card without it. */
 export const dividendsOf = (code: string): number => CARDS[code]?.dividends ?? 0;
-/** An operation plan.finishSetup ranks, with no bonus of its own (CardAI setup). */
+/** An operation with no bonus of its own in the Corp's operation ranking (CardAI setup; counted scoring plays its finish). */
 export const setupOperation = (code: string): boolean => !!CARDS[code]?.setup;
 export const runnerFormula = (state: GameState, code: string, card?: CardInstance): number | undefined => CARDS[code]?.runner?.(state, code, card);

@@ -178,14 +178,18 @@ describe('bug report endpoint (worker)', () => {
     expect(gh.posted).toHaveLength(0);
   });
 
-  it('has no limits on the beta preview (Jeff, 2026-11-05: only he tests there), and beta reports leave the live caps alone', async () => {
+  it('skips the daily caps on the beta preview (Jeff, 2026-11-05) but keeps the burst limit, and beta reports leave the live caps alone', async () => {
     const me = await reporterId('203.0.113.9', env.GITHUB_TOKEN);
     const full = Array.from({ length: DAILY_LIMIT_TOTAL }, () => ({ title: `${TITLE_PREFIX} x`, body: `Reporter: \`${me}\`\n**Version:** v (beta preview)`, created_at: new Date().toISOString() }));
     const limiter = { limit: vi.fn(async () => ({ success: false })) };
     const gh = fakeGithub(full);
-    let response = await handleBugReport(post({ description: 'beta report number 31' }), { ...env, BUG_RATE_LIMITER: limiter });
+    let response = await handleBugReport(post({ description: 'beta report too fast' }), { ...env, BUG_RATE_LIMITER: limiter });
+    expect(response.status).toBe(429);
+    expect(gh.posted).toHaveLength(0);
+
+    fakeGithub(full);
+    response = await handleBugReport(post({ description: 'beta report number 31' }), env);
     expect(response.status).toBe(200);
-    expect(gh.posted.length).toBeGreaterThan(0);
 
     fakeGithub(full);
     response = await handleBugReport(post({ description: 'a live site report' }, {}, LIVE), env);

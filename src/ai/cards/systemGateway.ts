@@ -68,6 +68,7 @@ export const SYSTEM_GATEWAY: Record<string, CardAI> = {
   '30006': { synergy: { gives: { breakers: 1 } } },
   // Fermenter
   '30007': {
+    clickMoney: { clicks: 1, credits: 0, perVirus: { credits: 2, turnStart: 1 }, once: true }, // [click], trash: 2 per virus counter; +1 counter as the turn begins,
     synergy: { gives: { virus: 1, econ: 1 } },
     value: { rig: 1 },
     // A virus counter a turn (2 credits each when cashed), banked until cashed within about 4 turns, and lost to a purge.
@@ -134,6 +135,7 @@ export const SYSTEM_GATEWAY: Record<string, CardAI> = {
   },
   // Pennyshaver
   '30014': {
+    clickMoney: { clicks: 1, credits: 1, hosted: 'add', once: true }, // [click]: place 1, then take all (a second use pays 1, as a click for a credit),
     synergy: { gives: { econ: 1 }, wants: { runs: 2 }, when: ['successfulRun'] },
     value: { rig: 3.5 },
     // +1 MU; a credit on it for each successful run
@@ -222,6 +224,7 @@ export const SYSTEM_GATEWAY: Record<string, CardAI> = {
   '30026': { synergy: { gives: { breakers: 1 }, wants: { breakers: 1 } } },
   // Telework Contract
   '30027': {
+    clickMoney: { clicks: 1, credits: 3, hosted: 'cap', once: true }, // once per turn, [click]: take 3 of the 9 loaded,
     synergy: { gives: { econ: 1.5 } },
     value: { rig: 1.5 },
     profile: { load: 9, pay: 3, every: 'click', perTurn: 1 }, // Once per turn
@@ -255,6 +258,7 @@ export const SYSTEM_GATEWAY: Record<string, CardAI> = {
   '30032': { synergy: { gives: { breakers: 0.5 } } },
   // Smartware Distributor
   '30033': {
+    turnIncome: { credits: 1, hosted: true }, // when your turn begins, take 1 from it,
     synergy: { gives: { econ: 1 } },
     value: { rig: 2.5 },
     // A spare click turns into 3 credits paid out over 3 turns, about every other turn
@@ -400,7 +404,7 @@ export const SYSTEM_GATEWAY: Record<string, CardAI> = {
     },
   },
   // Offworld Office
-  '30067': { synergy: { gives: { econ: 1 }, when: ['onScore'] } },
+  '30067': { synergy: { gives: { econ: 1 }, when: ['onScore'] }, scoreCredits: 7 },
   // Orbital Superiority
   '30068': { corpTurnDamage: state => (state.runner.tags > 0 ? 4 : 0) /* plan.corpTurnDamageOwn: 4 meat only if the Runner is tagged */, synergy: { gives: { tags: 1, damage: 1 }, wants: { tags: 1 }, when: ['ifTagged', 'onScore'] } },
   // Send a Message
