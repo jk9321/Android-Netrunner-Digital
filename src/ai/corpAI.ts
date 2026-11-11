@@ -30,7 +30,7 @@ import { counterWorth } from './counterValues';
 import { plan, pricing, withPricing } from './pricing';
 import { dividendsOf, setupOperation } from './cards';
 // Last: its imports (winNow, runs, pricing) are loaded by then, so the AI modules' load order is unchanged (oracle.ts)
-import { HeldLine, advanceCounted, scoreInTwoPick, scoreInTwoStats } from './countedScore';
+import { HeldLine, advanceCounted, installCounted, scoreInTwoPick, scoreInTwoStats } from './countedScore';
 
 
 const type = (card: CardInstance) => cardDef(card).type_code;
@@ -266,11 +266,19 @@ export class HeuristicCorpAI implements Agent {
         if (this.synergy && Number.isFinite(score) && score < 40 && action.type !== 'END_TURN' && action.type !== 'START_TURN') score += nudge(state, 'corp', action).bonus;
         return { action, score };
       })
-      .map(r => (this.synergy && plan().placementAdvance && this.uncountedAdvance(state, r.action) ? { ...r, score: -Infinity } : r))
+      .map(r => (this.synergy && ((plan().placementAdvance && this.uncountedAdvance(state, r.action)) || (plan().placementInstall && this.uncountedInstall(state, r.action))) ? { ...r, score: -Infinity } : r))
       .sort((a, b) => b.score - a.score);
     if (this.oneCurrency) return finishFirst(state, ranked);
     const first = this.patches && plan().pettyCashFirst ? pettyCashFirst(state, ranked) : ranked;
     return this.patches && plan().tagFirst ? tagFirst(state, first) : first;
+  }
+
+  /** Step 4 G2: an agenda install into a remote the count does not let it go to (countedScore.ts installCounted). */
+  private uncountedInstall(state: GameState, action: GameAction): boolean {
+    if (action.type !== 'INSTALL_CARD') return false;
+    const card = state.corp.hq.find(c => c.instanceId === action.cardInstanceId);
+    if (!card || type(card) !== 'agenda') return false;
+    return !installCounted(state, card, action.asNewRemote ? null : action.targetServerId ?? null, this.heldLine);
   }
 
   /** Step 4 G1: an agenda advance that is no step of a counted line (countedScore.ts advanceCounted). */

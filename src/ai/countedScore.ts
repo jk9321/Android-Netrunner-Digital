@@ -356,6 +356,38 @@ export function advanceCounted(state: GameState, agendaId: string, held: HeldLin
   return memo(state, 'advanceCounted:scoreNow', () => !!scoreNowPlan(state));
 }
 
+/** Step 4 G2 diagnostics (scripts read them): agenda installs into a remote let through as a hand-size discard's way out. */
+export const placementStats = { handSize: 0 };
+
+/**
+ * Step 4 G2 (spec-step4-placement.md, temporary plan.placementInstall): an agenda goes into a remote only as the first
+ * step of a counted line (scoreNow's; scoreInTwoPick plays a two-turn line's own install over the pick), or into a
+ * remote that holds for the Runner's coming turn by the count: holdCost non-null against runnerBudget with what the Corp
+ * ends the turn on (the clicks after this one to credits, scoreInTwo's assumption) less afterLineFloor's money for the
+ * rest of the board. A remote the Runner can pay through gives the agenda up for certain; HQ gives it up at most as one
+ * random card of several (7.1, 7.4.1), so otherwise the agenda stays in HQ. Hand size (1.7.2b): on the last click, when
+ * the end-of-turn discard would have to take an agenda (to Archives, where every card is accessed), it may go to the
+ * remote with the most ice instead. HQ, R&D and Archives installs are not agendas' (only remotes take them).
+ */
+export function installCounted(state: GameState, agenda: CardInstance, serverId: string | null, held: HeldLine | null): boolean {
+  if (held && held.game === state.id && held.line.agendaId === agenda.instanceId) return true;
+  if (memo(state, 'advanceCounted:scoreNow', () => !!scoreNowPlan(state))) return true;
+  const server = serverId ? state.corp.servers[serverId] : null;
+  const ice = server?.ice ?? [];
+  const end = state.corp.credits + Math.max(0, state.corp.clicks - 1);
+  if (ice.length && holdCost(state, ice, end - afterLineFloor(state, agenda.instanceId)) !== null) return true;
+  // Hand size: the discard would take an agenda; the remote with the most ice takes it instead
+  const excess = state.corp.hq.length - state.corp.handSizeLimit;
+  if (state.corp.clicks === 1 && excess > 0 && state.corp.hq.filter(c => !isAgenda(c)).length < excess) {
+    const most = Math.max(0, ...remotes(state).filter(v => !v.root.some(c => isAgenda(c) || typeOf(c) === 'asset')).map(v => v.ice.length));
+    if (ice.length >= most) {
+      placementStats.handSize++;
+      return true;
+    }
+  }
+  return false;
+}
+
 /**
  * plan.scoreInTwo (counted scoring C2; stage 0b's two-turn half measured +3.0 ± 1.8): called with the Corp's own pick at
  * a main-phase decision and the line it holds. A held line is re-checked every decision and continued while the count

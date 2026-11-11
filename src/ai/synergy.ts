@@ -154,6 +154,8 @@ export const tuning = {
     pettyCashFirst: true,
     /** TEMPORARY step 4 G1 (spec-step4-placement.md): no agenda advance without a counted line (countedScore.ts advanceCounted). */
     placementAdvance: true,
+    /** TEMPORARY step 4 G2 (spec-step4-placement.md): no agenda into a remote the Runner can pay through (countedScore.ts installCounted). */
+    placementInstall: true,
     /** Corp: with the Runner tagged, a resource trash among the actions it has clicks for goes first (corpAI tagFirst). */
     tagFirst: true,
     /**
