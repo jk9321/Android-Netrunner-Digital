@@ -152,6 +152,8 @@ export const tuning = {
     /* Rez money (2026-10-26, 2,210 self-play games): both on 46.7%, neither 47.2% (noise). Halving upgrade worth in empty remotes instead cost about 2 points. */
     /** Corp: Petty Cash goes first when it is among the actions the Corp has clicks for (corpAI pettyCashFirst). */
     pettyCashFirst: true,
+    /** TEMPORARY step 4 G1 (spec-step4-placement.md): no agenda advance without a counted line (countedScore.ts advanceCounted). */
+    placementAdvance: true,
     /** Corp: with the Runner tagged, a resource trash among the actions it has clicks for goes first (corpAI tagFirst). */
     tagFirst: true,
     /**

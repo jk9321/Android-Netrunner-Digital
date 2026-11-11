@@ -1,5 +1,6 @@
 import { CardInstance, GameAction, GameState, cardDef, executeAction, getLegalActions, isLegalAction, rezCostOf } from '../core';
-import { scoreNowLine } from './winNow';
+import { scoreNowLine, scoreNowPlan } from './winNow';
+import { memo } from './valueModel';
 import { iceCreditNeed } from './runs';
 import { plan } from './pricing';
 import { withIceInstalled } from './iceValues';
@@ -342,6 +343,17 @@ function finishTurnStep(state: GameState, held: HeldLine): GameAction | 'drop' |
   if (left <= 0) return legalShape(state, { type: 'SCORE_AGENDA', cardInstanceId: at.card.instanceId }) ?? 'drop';
   if (left > state.corp.clicks || left > state.corp.credits) return 'drop';
   return legalShape(state, { type: 'ADVANCE_CARD', cardInstanceId: at.card.instanceId }) ?? 'drop';
+}
+
+/**
+ * Step 4 G1 (spec-step4-placement.md, temporary plan.placementAdvance): an agenda is advanced only as a step of a counted
+ * line, scoreNow's (this turn scores) or the held two-turn line on this agenda (1.17.3a, 5.2.6f). The Corp ranking and
+ * every planner candidate and playout read it through corpAI.ts rankMainActions; scoreInTwoPick still plays a line's
+ * own steps over the pick. Non-agenda advanceables are not asked (the Runner sees the same thing either way).
+ */
+export function advanceCounted(state: GameState, agendaId: string, held: HeldLine | null): boolean {
+  if (held && held.game === state.id && held.line.agendaId === agendaId) return true;
+  return memo(state, 'advanceCounted:scoreNow', () => !!scoreNowPlan(state));
 }
 
 /**
