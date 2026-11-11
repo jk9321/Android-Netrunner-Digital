@@ -15,19 +15,13 @@
  * the outer unrezzed Palisade on R&D with a rezzed Palisade behind it; the Corp has 3 credits and Offworld Office in HQ.
  */
 import { readFileSync } from 'node:fs';
-import { afterEach, describe, expect, it } from 'vitest';
+import { describe, expect, it } from 'vitest';
 import { CardInstance, GameState, cardDef, createCardInstance } from '../src/core';
 import { HeuristicCorpAI } from '../src/ai/corpAI';
 import { createAgent } from '../src/ai';
 import { archivesWantsIce, countedRez } from '../src/ai/rezModel';
-import { tuning } from '../src/ai/synergy';
 import { inDecision } from './helpers/pricing';
 import { giveCard, newGame } from './helpers';
-
-const saved = { ...tuning.plan };
-afterEach(() => {
-  Object.assign(tuning.plan, saved);
-});
 
 function position(): { state: GameState; cards: string[] } {
   return JSON.parse(readFileSync(new URL('./fixtures/rez-toll.json', import.meta.url), 'utf8'));
@@ -58,12 +52,12 @@ const choose = (s: GameState, ice: CardInstance) => new HeuristicCorpAI({ synerg
 
 describe('counted rez on approached ice (6.4.3, 6.9.2b-c)', () => {
   it('R2: an agenda in the root and the Runner cannot pay through: rez', () => {
-    // 5 credits: the rez (3) leaves 2, which still covers HQ's unrezzed Whitespace (the floor after a line, 2)
     const { s, ice } = at('remote-1', { runnerCredits: 0, rootAgenda: true, alone: true, corpCredits: 5 });
     expect(call(s, ice)).toBe('rez');
     expect(choose(s, ice)?.type).toBe('REZ_CARD');
-    tuning.plan.rezStopper = false;
-    expect(call(s, ice)).toBeNull();
+    // The same remote with nothing in its root: no opinion (the value model decides)
+    const empty = at('remote-1', { runnerCredits: 0, alone: true, corpCredits: 5 });
+    expect(call(empty.s, empty.ice)).toBeNull();
   });
 
   it("Hard: the counted rez reaches Hard's rez decision (its search starts from the rule-based AI's choice)", () => {
@@ -77,13 +71,7 @@ describe('counted rez on approached ice (6.4.3, 6.9.2b-c)', () => {
     expect(call(stop.s, stop.ice)).toBe('rez');
     const toll = at('hq', { runnerCredits: 5, alone: true });
     expect(call(toll.s, toll.ice)).toBe('rez');
-    tuning.plan.rezHqToll = false;
-    expect(call(toll.s, toll.ice)).toBeNull();
-    expect(call(stop.s, stop.ice)).toBe('rez');
-    tuning.plan.rezHqStop = false;
-    expect(call(stop.s, stop.ice)).toBeNull();
     // No agenda in HQ: no opinion
-    tuning.plan.rezHqStop = true;
     const none = at('hq', { runnerCredits: 0, alone: true, hqAgenda: false });
     expect(call(none.s, none.ice)).toBeNull();
   });
@@ -94,22 +82,9 @@ describe('counted rez on approached ice (6.4.3, 6.9.2b-c)', () => {
     expect(call(stop.s, stop.ice)).toBe('rez');
     const toll = at('rd', { hqAgenda: false, runnerCredits: 9 });
     expect(call(toll.s, toll.ice)).toBe('rez');
-    tuning.plan.rezRdToll = false;
-    expect(call(toll.s, toll.ice)).toBeNull();
     // An agenda in HQ: R4 has no opinion (the value model decides, as rezToll.test.ts pins)
     const held = at('rd');
     expect(call(held.s, held.ice)).toBeNull();
-  });
-
-  it("can afford it: no opinion when the rez leaves the Corp under the floor after a line (countedScore.ts afterLineFloor)", () => {
-    // 3 credits: the rez (3) leaves 0, and HQ (agendas there) still needs its unrezzed Whitespace (2)
-    const { s, ice } = at('remote-1', { runnerCredits: 0, rootAgenda: true, alone: true });
-    expect(call(s, ice)).toBeNull();
-    tuning.plan.rezFloorR2 = false;
-    expect(call(s, ice)).toBe('rez');
-    tuning.plan.rezFloorR2 = true;
-    tuning.plan.rezFloor = false;
-    expect(call(s, ice)).toBe('rez');
   });
 
   it('no opinion when the ice ahead stops the Runner already', () => {
@@ -130,17 +105,18 @@ describe('counted rez on approached ice (6.4.3, 6.9.2b-c)', () => {
 });
 
 describe('R6: no ice installed on Archives without an agenda there or a Runner Archives card', () => {
-  it('the install on Archives is never ranked; with the switch off it is', () => {
-    const s = structuredClone(newGame(1));
-    s.corp.rd.push(...s.corp.hq.splice(0));
-    const ice = giveCard(s, 'corp', '30072'); // Palisade
-    s.runner.stack = s.runner.stack.filter(c => !['35016', '36015', '34007', '34068', '35003', '34072', '36007', '36001', '34070', '34079'].includes(c.cardCode));
-    const archivesInstall = () =>
+  it('the install on Archives is never ranked; with Maintenance Access in the Runner\'s list it is', () => {
+    const base = structuredClone(newGame(1));
+    base.corp.rd.push(...base.corp.hq.splice(0));
+    const ice = giveCard(base, 'corp', '30072'); // Palisade
+    base.runner.stack = base.runner.stack.filter(c => !['35016', '36015', '34007', '34068', '35003', '34072', '36007', '36001', '34070', '34079'].includes(c.cardCode));
+    const ma = structuredClone(base);
+    ma.runner.stack.push(createCardInstance(ma, '35016'));
+    const archivesInstall = (s: GameState) =>
       new HeuristicCorpAI({ synergy: true })
         .rankMainActions(s)
         .find(r => r.action.type === 'INSTALL_CARD' && r.action.cardInstanceId === ice && (r.action as { targetServerId?: string }).targetServerId === 'archives');
-    expect(archivesInstall()?.score ?? -Infinity).toBe(-Infinity);
-    tuning.plan.iceArchives = false;
-    expect(archivesInstall()?.score ?? -Infinity).toBeGreaterThan(-Infinity);
+    expect(archivesInstall(base)?.score ?? -Infinity).toBe(-Infinity);
+    expect(archivesInstall(ma)?.score ?? -Infinity).toBeGreaterThan(-Infinity);
   }, 30000);
 });

@@ -5,7 +5,8 @@
  * income, and what followed (the Runner stole on that run; the Corp's credits at its next turn start). Also the mean
  * and 95th-percentile time of a Corp decision (chooseAction and chooseRez), for the hand-off's per-decision time.
  *
- *   DEALS=1001,1211,1641,2301 [PLAN_OFF=...] npx vite-node scripts/step3-measure.ts
+ *   DEALS=1001,1211,1641,2301 [FULL=1] npx vite-node scripts/step3-measure.ts
+ * (Measured while the rules had temporary switches, since deleted: the rules-off runs used PLAN_OFF with them.)
  */
 import { CardInstance, GameState, cardDef, createInitialGameState } from '../src/core';
 import { deckGameSetup } from '../src/data/decks';
@@ -26,6 +27,8 @@ const runnerDecks = ALL_DECKS.filter(d => d.side === 'runner');
 const deals = (process.env.DEALS ?? '').split(',').filter(Boolean).map(Number);
 
 interface Rez { seed: number; turn: number; rule: string; credits: number; floor: number; under: boolean; stole?: boolean; nextStart?: number }
+/** Corp credits at each of its turn starts, by deal (for pairing against a run with the rules off). */
+const starts: Record<number, Record<number, number>> = {};
 const rezzes: Rez[] = [];
 const ms: number[] = [];
 let games = 0;
@@ -85,6 +88,7 @@ for (const seed of deals) {
     const s = runner.state;
     if (s.activePlayer === 'corp' && s.turnNumber !== lastTurn) {
       lastTurn = s.turnNumber;
+      (starts[seed] ??= {})[s.turnNumber] = s.corp.credits;
       for (const x of open.splice(0)) x.nextStart = s.corp.credits;
     }
     const stolen = s.runner.scoreArea.length;
@@ -115,3 +119,4 @@ console.log(JSON.stringify({
   under: rezzes.filter(x => x.under).map(x => `${x.seed} t${x.turn} ${x.rule} ${x.credits}cr floor ${x.floor} next ${x.nextStart ?? '-'}${x.stole ? ' stole' : ''}`),
   decisions: sorted.length, meanMs: mean(sorted), p95Ms: +(sorted[Math.floor(sorted.length * 0.95)] ?? 0).toFixed(1),
 }));
+if (process.env.FULL) console.log(JSON.stringify({ rezzes, starts }));

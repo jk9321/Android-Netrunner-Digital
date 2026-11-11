@@ -882,7 +882,7 @@ export class HeuristicCorpAI implements Agent {
           if (main && server !== main && !holdsAgenda && !holdsAsset) need = Math.min(need, 0.3);
         } else if (server.id === 'archives') {
           // Step 3 R6 (Jeff): no ice on Archives without an agenda there or a Runner card that pays off an Archives run
-          if (this.synergy && plan().iceArchives && !archivesWantsIce(state)) return -Infinity;
+          if (this.synergy && !archivesWantsIce(state)) return -Infinity;
           need = server.ice.length === 0 && corp.archives.faceDown.length > 0 ? 1.2 : -0.5;
         } else {
           need = (depth <= 1 ? 4 - 2 * depth : Math.max(0.6, 2 - 1.4 * (depth - 1))) + (server.id === 'rd' ? 0.3 : 0);

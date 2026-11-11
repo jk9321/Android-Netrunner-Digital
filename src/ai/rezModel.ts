@@ -7,8 +7,6 @@ import { iceStop } from './iceValues';
 import { runLoss } from './corpAI';
 import { deckCount } from './effectValues';
 import { archivesPayoffOf } from './cards';
-import { plan } from './pricing';
-import { afterLineFloor, knownIncome } from './countedScore';
 
 /**
  * plan.modelRez (structural review item 2, Jeff approved 2026-11-06): what rezzing the approached ice in a run is
@@ -143,15 +141,17 @@ function gotIn(state: GameState, spare: number): number {
  * R2 an agenda in the root and the rez stops the run: rez. R3 a run on HQ with an agenda in HQ (R3s stops, R3t toll):
  * rez. R4 a run on R&D with no agenda in HQ and agendas left in R&D by the Corp's own deck list minus what it has seen
  * (never the order; R4s, R4t): rez. R5 Archives ice with no agenda in Archives and no Runner card that pays off an
- * Archives run (installed or in its deck list, CardAI archivesPayoff): don't rez.
+ * Archives run (installed or in its deck list, CardAI archivesPayoff): don't rez. Stacked with corpAI's R6 at 10 games
+ * +0.4 ± 0.7 (run 42981640841 vs 42978477338), 130 fewer central points in Corp losses; went broke +3.8 ± 1.2 and stayed
+ * broke +2.1 ± 0.9, never recovered flat (292 vs 293): shipped on recovery (AI Coordinator ruling, step3-report.md).
  */
 export function countedRez(state: GameState, ice: CardInstance): 'rez' | 'pass' | null {
   const run = state.activeRun;
   if (!run || run.icePosition === null) return null;
   const server = state.corp.servers[run.server];
   if (!server) return null;
-  const p = plan();
-  if (p.rezArchives && run.server === 'archives' && !archivesWantsIce(state)) return 'pass';
+  // R5: Archives ice with no agenda there and no Runner Archives card is not rezzed
+  if (run.server === 'archives' && !archivesWantsIce(state)) return 'pass';
   const up = { ...ice, isRezzed: true };
   const view: GameState = { ...state, corp: { ...state.corp, servers: { ...state.corp.servers, [server.id]: { ...server, ice: server.ice.map(c => (c.instanceId === ice.instanceId ? up : c)) } } } };
   const need = iceCreditNeed(view, up);
@@ -162,17 +162,14 @@ export function countedRez(state: GameState, ice: CardInstance): 'rez' | 'pass' 
   if (ahead === BLOCK || ahead > credits) return null;
   const stops = need === BLOCK || need + ahead > credits;
   const isAgenda = (c: CardInstance) => cardDef(c).type_code === 'agenda';
-  // Can afford it (spec R2-R4): after the rez, the Corp's credits and its known next-turn income still cover the money
-  // floor after a line (countedScore.ts afterLineFloor) on the board with this ice rezzed. Otherwise no opinion.
   const isStopper = stops && server.root.some(isAgenda);
-  if (p.rezFloor && !(isStopper && p.rezStopper && !p.rezFloorR2)) {
-    const after: GameState = { ...view, corp: { ...view.corp, credits: state.corp.credits - rezCost(state, ice) } };
-    if (after.corp.credits + knownIncome(after) < afterLineFloor(after, '')) return null;
-  }
-  if (p.rezStopper && isStopper) return 'rez';
+  // R2: the rez stops a steal from the root on this run
+  if (isStopper) return 'rez';
   const hqAgendas = state.corp.hq.filter(isAgenda).length;
-  if (run.server === 'hq' && hqAgendas > 0 && ((stops && p.rezHqStop) || (!stops && p.rezHqToll))) return 'rez';
-  if (run.server === 'rd' && hqAgendas === 0 && agendasUnseen(state) > 0 && ((stops && p.rezRdStop) || (!stops && p.rezRdToll))) return 'rez';
+  // R3 (Jeff): a run on HQ with an agenda in it, stop or toll
+  if (run.server === 'hq' && hqAgendas > 0) return 'rez';
+  // R4 (Jeff): a run on R&D with no agenda in HQ and agendas left in R&D by the deck list, stop or toll
+  if (run.server === 'rd' && hqAgendas === 0 && agendasUnseen(state) > 0) return 'rez';
   return null;
 }
 
