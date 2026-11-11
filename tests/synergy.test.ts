@@ -122,7 +122,10 @@ describe('synergy nudges', () => {
     const on = new HeuristicCorpAI().rankMainActions(state);
     const off = new HeuristicCorpAI({ synergy: false }).rankMainActions(state);
     expect(on.length).toBe(off.length);
-    const finite = (r: typeof on) => r.filter(x => Number.isFinite(x.score)).length;
+    // R6 (step 3, corpAI installScore): with synergy on, ice is never installed on Archives without an agenda there or a
+    // Runner Archives card, so those installs rank -Infinity only on that side
+    const archivesIce = (x: (typeof on)[number]) => x.action.type === 'INSTALL_CARD' && (x.action as { targetServerId?: string }).targetServerId === 'archives';
+    const finite = (r: typeof on) => r.filter(x => Number.isFinite(x.score) && !archivesIce(x)).length;
     expect(finite(on)).toBe(finite(off));
   });
 });
