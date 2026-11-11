@@ -199,6 +199,15 @@ const AUDREY_DISCARD = 1.5;
 const AUDREY_COUNTER = 1;
 
 const CORSAIR = '36004';
+const SLAP_VANDAL = '34026';
+
+/**
+ * Credits for `boosts` strength boosts: none cost nothing, also for a breaker that cannot boost (Slap Vandal, Umbrella:
+ * boostCost Infinity, where 0 * Infinity was NaN and made the Corp's whole board value NaN, issue #47).
+ */
+function boostCredits(state: GameState, breaker: CardInstance, boosts: number): number {
+  return boosts > 0 ? boosts * boostCostOf(state, breaker) : 0;
+}
 
 /**
  * Credits the Runner can spend on a run it is planning: what it can spend
@@ -242,13 +251,16 @@ export function bestBreakPlan(state: GameState, ice: CardInstance, subCount: num
     // Lobisomem on a barrier: X credits and a power counter break X subroutines (rules: its second interface ability)
     if (breaker.cardCode === LOBISOMEM && script && types.includes('barrier') && counters(breaker, 'power') > 0 && canBreakSubroutinesWith(ice, breaker)) {
       const boosts = Math.max(0, Math.ceil((iceStr - strength) / Math.max(1, script.boostAmount(state, breaker))));
-      const credits = boosts * boostCostOf(state, breaker) + subCount + 1; // the counter is worth about a credit
+      const credits = boostCredits(state, breaker, boosts) + subCount + 1; // the counter is worth about a credit
       if (!best || credits < best.credits) best = { breaker, credits, boostsNeeded: boosts, breakByAbility: true };
       continue;
     }
     if (!script || (script.breaks !== 'any' && !types.includes(script.breaks))) continue;
     if (!canBreakSubroutinesWith(ice, breaker)) continue; // Semak-samun: fracters only
     if (script.canInterface?.(state, breaker, ice)) continue; // Slap Vandal, Living Mural, Umbrella
+    // Slap Vandal: "Interface -> 1 credit: Break 1 subroutine on host ice. Use this ability only once per encounter." One
+    // subroutine is all it breaks; a plan for more is another breaker's (the Runner tanks the rest, iceCreditNeed BLOCKs)
+    if (breaker.cardCode === SLAP_VANDAL && subCount > 1) continue;
     if (breaker.cardCode === AUDREY) {
       // Audrey v2: a virus counter breaks up to 2; a card from the grip is +3 strength
       const uses = Math.ceil(subCount / script.breakMax);
@@ -285,7 +297,7 @@ export function bestBreakPlan(state: GameState, ice: CardInstance, subCount: num
     if (strength < iceStr && amount <= 0) continue;
     const boostsNeeded = Math.max(0, Math.ceil((iceStr - strength) / Math.max(amount, 1)));
     const credits =
-      boostsNeeded * boostCostOf(state, breaker) +
+      boostCredits(state, breaker, boostsNeeded) +
       Math.ceil(subCount / script.breakMax) * script.breakCost(state, breaker) +
       (breaker.cardCode === MAYFLY ? 2 : 0); // Mayfly is trashed after the run
     if (!best || credits < best.credits) best = { breaker, credits, boostsNeeded };
