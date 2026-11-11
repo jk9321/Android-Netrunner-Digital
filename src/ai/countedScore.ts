@@ -79,12 +79,11 @@ export function knownIncome(state: GameState): number {
 export const CHECK = { runnerExtra: 0 };
 
 /**
- * The Runner's budget for one run on its next turn, from public facts: its credits, and every click but the run's spent
- * on credits (5.2.7a). plan.runnerMoney adds its installed money cards (card entries, never the grip): turn-start
- * credits (turnIncome) and the best use of those clicks on its click abilities that pay (clickMoney).
+ * The Runner's budget for one run on its next turn, from public facts: its credits, and what its installed cards and
+ * every click but the run's make (runnerMoney: card entries, never the grip; 5.2.7a). Count inputs F2: before it, 1
+ * credit a click, so a loaded Telework Contract was missed (paired +0.0 ± 0.4 at games=3, run 42918973725).
  */
-export const runnerBudget = (s: GameState) =>
-  s.runner.credits + (plan().runnerMoney ? runnerMoney(s) : Math.max(0, s.runner.maxClicks - 1)) + CHECK.runnerExtra;
+export const runnerBudget = (s: GameState) => s.runner.credits + runnerMoney(s) + CHECK.runnerExtra;
 
 const hosted = (c: CardInstance) => counters(c, 'credit');
 
@@ -224,7 +223,8 @@ export function scoreInTwo(state: GameState): TwoTurnLine | null {
       if (rez === null) continue;
       const nextCredits = end - rez + income + (N - r);
       if (nextCredits < r) continue;
-      if (plan().afterLine && nextCredits - r + scoreCreditsOf(t.agenda.cardCode) + income < afterLineFloor(t.view, t.agenda.instanceId)) {
+      // The money once it scores (the agenda's own score credits and the turn after's income with it) keeps the board held
+      if (nextCredits - r + scoreCreditsOf(t.agenda.cardCode) + income < afterLineFloor(t.view, t.agenda.instanceId)) {
         scoreInTwoStats.floorRefused++;
         continue;
       }
@@ -257,15 +257,16 @@ export function lineHolds(state: GameState, agendaId: string): boolean {
   const income = knownIncome(state);
   const next = end - rez + income + (N - r);
   if (next < r) return false;
-  return !plan().afterLine || next - r + scoreCreditsOf(card.cardCode) + income >= afterLineFloor(state, agendaId);
+  return next - r + scoreCreditsOf(card.cardCode) + income >= afterLineFloor(state, agendaId);
 }
 
 /**
- * plan.afterLine (count inputs F1): the credits the Corp needs left once a two-turn line has scored (its credits then,
+ * Count inputs F1 (spec-count-inputs.md): the credits the Corp needs left once a two-turn line has scored (its credits then,
  * the agenda's own scoreCredits and the next turn's income count against it), for the Runner's
  * turn after it: the cheapest rez spend that keeps the Runner out (holdCost) of R&D, of HQ while an agenda stays there,
  * and of each other remote holding an unscored agenda, summed. Rezzed ice that holds costs 0; a server no set holds
- * costs 0 too (money can't fix it, and it must not veto every line), counted in scoreInTwoStats.unholdable.
+ * costs 0 too (money can't fix it, and it must not veto every line), counted in scoreInTwoStats.unholdable. Measured
+ * alone -1.1 ± 0.7 (games=3, run 42918968349); with F2 at 10 games +0.2 ± 0.4 (run 42940051464 vs 42940033908).
  */
 export function afterLineFloor(state: GameState, agendaId: string): number {
   const ice: CardInstance[][] = [state.corp.servers.rd.ice];

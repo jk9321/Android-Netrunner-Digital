@@ -1,7 +1,7 @@
 /**
  * Count inputs F1 measurements (spec-count-inputs.md): over a set of deals (Normal v Normal), how many two-turn lines
- * the afterLine floor refuses, the Corp's credits at the two turn starts after each line begins, and how often a score
- * (scoreNow's or a line's) leaves the Corp under the same floor. Run with PLAN_OFF=afterLine for the base side.
+ * the money floor after a line (countedScore.ts afterLineFloor) refuses, the Corp's credits at the two turn starts after each line begins, and how often a score
+ * (scoreNow's or a line's) leaves the Corp under the same floor. (Measured with the temporary switches afterLine and runnerMoney, since deleted.)
  *
  *   DEALS=1001,1011 npx vite-node scripts/count-inputs-measure.ts
  */

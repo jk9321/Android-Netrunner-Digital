@@ -37,11 +37,9 @@ const RENT_RIOTERS = '35011';
 const OPEN_MARKET = '35022';
 const SURE_GAMBLE = '30030';
 
-const was = { ...tuning.plan };
+const was = tuning.plan.scoreInTwo;
 afterEach(() => {
-  tuning.plan.afterLine = was.afterLine;
-  tuning.plan.runnerMoney = was.runnerMoney;
-  tuning.plan.scoreInTwo = was.scoreInTwo;
+  tuning.plan.scoreInTwo = was;
 });
 
 /** Corp turn 1 of a starter game with an empty HQ and the given credits (a copy). */
@@ -65,7 +63,6 @@ function rig(s: GameState, code: string, tokens: CardInstance['tokens'] = {}): C
 
 describe("F2 runnerMoney: the Runner's installed money cards, from the card entries (5.2.7a)", () => {
   it('each card pays through its entry; clicks left over are a credit each, one kept for the run', () => {
-    tuning.plan.runnerMoney = true;
     const at = (build: (s: GameState) => void) => {
       const s = corpMain(5);
       s.runner.maxClicks = 4;
@@ -87,36 +84,32 @@ describe("F2 runnerMoney: the Runner's installed money cards, from the card entr
     expect(at(s => void giveCard(s, 'runner', SURE_GAMBLE))).toBe(3);
   });
 
-  it('off: 1 credit per click, as before', () => {
-    tuning.plan.runnerMoney = false;
+  it("runnerBudget: the Runner's credits plus what its cards and clicks make", () => {
     const s = corpMain(5);
     s.runner.maxClicks = 4;
     s.runner.credits = 2;
-    rig(s, TELEWORK, { credit: 9 });
     expect(runnerBudget(s)).toBe(5);
-    tuning.plan.runnerMoney = true;
+    rig(s, TELEWORK, { credit: 9 });
     expect(runnerBudget(s)).toBe(7);
   });
 
   it('pin: a new remote that holds against 1 credit a click does not hold against a loaded Telework Contract; the line is not started', () => {
     // Palisade protecting a remote is strength 4: Cleaver needs 2 credits (+1) and 1 to break, 3 in all. The Runner on
     // 0 credits with 3 clicks (2 spare): 2 credits by clicking, 4 with Telework's 3 for one of them
-    const build = () => {
+    const build = (telework: boolean) => {
       const s = corpMain(8);
       giveCard(s, 'corp', OFFWORLD_OFFICE);
       giveCard(s, 'corp', PALISADE);
       installProgramForTest(s, CLEAVER);
       s.runner.credits = 0;
       s.runner.maxClicks = 3;
-      rig(s, TELEWORK, { credit: 9 });
+      if (telework) rig(s, TELEWORK, { credit: 9 });
       return s;
     };
     tuning.plan.scoreInTwo = true;
-    tuning.plan.runnerMoney = false;
-    const off = build();
+    const off = build(false);
     expect(inDecision(off, 'corp', () => scoreInTwo(off))).toMatchObject({ agenda: 'Offworld Office', server: 'new remote', form: 'install+ice' });
-    tuning.plan.runnerMoney = true;
-    const on = build();
+    const on = build(true);
     expect(inDecision(on, 'corp', () => scoreInTwo(on))).toBeNull();
   });
 });
@@ -135,12 +128,9 @@ describe('F1 afterLine: the money left once a two-turn line scores holds R&D, HQ
 
   it("an unrezzed Palisade on R&D needs its 3 rez credits after the score: a line that ends on 0 is refused", () => {
     tuning.plan.scoreInTwo = true;
-    tuning.plan.afterLine = false;
-    const off = build().s;
-    installIceForTest(off, PALISADE, 'rd', false);
-    // Three clicks for credits now, three advances next turn: it scores on 0 credits
-    expect(inDecision(off, 'corp', () => scoreInTwo(off))).toMatchObject({ agenda: 'Send a Message', form: 'installed', advanceNow: 0, advanceNext: 3 });
-    tuning.plan.afterLine = true;
+    // R&D bare: three clicks for credits now, three advances next turn, scored on 0 credits
+    const bare = build().s;
+    expect(inDecision(bare, 'corp', () => scoreInTwo(bare))).toMatchObject({ agenda: 'Send a Message', form: 'installed', advanceNow: 0, advanceNext: 3 });
     const { s: on, id } = build();
     installIceForTest(on, PALISADE, 'rd', false);
     expect(afterLineFloor(on, id)).toBe(3);
@@ -153,7 +143,6 @@ describe('F1 afterLine: the money left once a two-turn line scores holds R&D, HQ
 
   it('a server no rez set holds (R&D bare) costs nothing: it does not veto the line', () => {
     tuning.plan.scoreInTwo = true;
-    tuning.plan.afterLine = true;
     const { s, id } = build();
     expect(afterLineFloor(s, id)).toBe(0);
     expect(inDecision(s, 'corp', () => scoreInTwo(s))).toMatchObject({ agenda: 'Send a Message' });
@@ -161,7 +150,6 @@ describe('F1 afterLine: the money left once a two-turn line scores holds R&D, HQ
 
   it('HQ counts only while an agenda stays there; another agenda remote counts too', () => {
     tuning.plan.scoreInTwo = true;
-    tuning.plan.afterLine = true;
     const { s, id } = build();
     installIceForTest(s, PALISADE, 'hq', false);
     expect(afterLineFloor(s, id)).toBe(0);
@@ -175,7 +163,6 @@ describe('F1 afterLine: the money left once a two-turn line scores holds R&D, HQ
 
   it("the agenda's own score money counts: Offworld Office's 7 credits pay the floor", () => {
     tuning.plan.scoreInTwo = true;
-    tuning.plan.afterLine = true;
     const s = corpMain(0);
     const id = installCorpForTest(s, OFFWORLD_OFFICE, 'remote-1');
     s.corp.servers['remote-1'].root[0].advancementCounters = 1;
