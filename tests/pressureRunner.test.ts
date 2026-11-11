@@ -11,8 +11,8 @@ interface Pressed {
 
 /**
  * plan.pressureRunner, the step 4 test opponent (spec-step4-placement.md, Jeff 2026-11-11): the Runner at the table runs
- * any server it can pay through by what it sees, HQ and R&D or a root holding a card it hasn't seen, once per server a
- * turn (rules 6.1: a run is a click action on any server; 7.4.1: HQ is accessed at random, so it is always worth a look).
+ * any remote it can pay through by what it sees whose root holds a card it hasn't seen, once per server a turn; HQ and
+ * R&D stay its own pick (rule 6.1: a run is a click action on any server; 7.1: it accesses the root's cards).
  * Position: deal 2172's Runner turn 23 (empty grip, 20 credits), as in emptyGripRuns.test.ts.
  */
 const position = (): GameState => JSON.parse(readFileSync(new URL('./fixtures/empty-grip-runner.json', import.meta.url), 'utf8'));
@@ -30,6 +30,7 @@ describe('the pressure Runner test opponent (plan.pressureRunner)', () => {
     expect(first?.type).toBe('INITIATE_RUN');
     const target = (first as { targetServerId: string }).targetServerId;
     expect(runShortfall(s, target)).not.toBeNull();
+    expect(s.corp.servers[target].isRemote).toBe(true);
     expect(new HeuristicRunnerAI({ synergy: true }).chooseAction(s)).toEqual(first);
     const ran = structuredClone(s);
     ran.runsThisTurn = [...ran.runsThisTurn, { server: target, successful: true }];

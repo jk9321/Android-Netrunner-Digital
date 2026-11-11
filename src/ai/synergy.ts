@@ -506,7 +506,7 @@ export const tuning = {
     oracle: { grip: false, safestRemote: false, rd: false, think: false, gripThreat: false, gripReply: false },
     /**
      * Test opponent, step 4 (spec-step4-placement.md, Jeff 2026-11-11 "use that as a testing method until we get around
-     * to fixing our runner AI"): the Runner AI at the table runs any server it can pay through (runnerAI.ts pressureRun).
+     * to fixing our runner AI"): the Runner AI at the table runs any remote holding a card it has not seen that it can pay through (runnerAI.ts pressureRun).
      * A batch turns it on with plan_off=+pressureRunner. Never a default (codeHealth test); kept as an instrument.
      */
     pressureRunner: false,

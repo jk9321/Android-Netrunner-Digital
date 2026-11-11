@@ -210,11 +210,12 @@ export class HeuristicRunnerAI implements Agent {
   }
 
   /**
-   * plan.pressureRunner (test opponent, spec-step4-placement.md, Jeff 2026-11-11): a run on any server the Runner can
-   * pay through by what it sees, ahead of its own pick, when the server is HQ or R&D or its root holds a card it has
-   * not seen. "Can pay": the rezzed ice it doesn't bypass has a price (runShortfall, no BLOCK) and that price plus its
-   * own guess for each unrezzed ice (iceCost) fits its run budget. Once per server a turn, so an open HQ isn't run
-   * every click. The best such run by its own runScore; null when none (its own play then). Reads nothing hidden.
+   * plan.pressureRunner (test opponent, spec-step4-placement.md, Jeff 2026-11-11): a run on any remote the Runner can
+   * pay through by what it sees, ahead of its own pick, when its root holds a card it has not seen. HQ and R&D are its
+   * own pick (AI Coordinator 22:29Z: forcing them every turn ate its clicks, Corp 56.9% vs 45.4%). "Can pay": the rezzed
+   * ice it doesn't bypass has a price (runShortfall, no BLOCK) and that price plus its own guess for each unrezzed ice
+   * (iceCost) fits its run budget. Bounded by itself (an accessed card is seen) and once per server a turn. The best
+   * such run by its own runScore; null when none (its own play then). Reads nothing hidden.
    * Only the agent at the table (this.planner): the playout and reply copies keep the normal Runner, so the Corp's
    * model of the Runner is unchanged.
    */
@@ -226,8 +227,7 @@ export class HeuristicRunnerAI implements Agent {
       if (action.type !== 'INITIATE_RUN' || ran.has(action.targetServerId)) continue;
       const server = state.corp.servers[action.targetServerId];
       if (!server) continue;
-      const central = server.id === 'hq' || server.id === 'rd';
-      if (!central && !server.root.some(c => !c.isRezzed && !this.memory.has(c.instanceId))) continue;
+      if (!server.isRemote || !server.root.some(c => !c.isRezzed && !this.memory.has(c.instanceId))) continue;
       const short = runShortfall(state, server.id);
       if (short === null) continue;
       const unrezzed = server.ice.filter(i => !i.isRezzed).reduce((n, i) => n + iceCost(state, i), 0);
