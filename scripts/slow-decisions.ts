@@ -22,6 +22,7 @@ import { decisionContext } from '../src/ai/handValues';
 import { PLANNER, plannerStats } from '../src/ai/turnPlanner';
 import { threatStats } from '../src/ai/threatModel';
 import { tuning } from '../src/ai/synergy';
+import { HeldLine, heldLaterStep } from '../src/ai/countedScore';
 
 if (process.env.DCACHE === '0') (tuning.plan as Record<string, unknown>).decisionCache = false;
 if (process.env.CAP) PLANNER.budgetCap = Number(process.env.CAP);
@@ -46,13 +47,18 @@ const deals = (process.env.DEALS ?? '').split(',').filter(Boolean).map(Number);
 const ms: number[] = [];
 const slow: { seed: number; turn: number; s: number; remotes: number; kind: 'scoreNow' | 'held' | 'neither' }[] = [];
 let games = 0;
+/** Review R3: decisions where a held line's later-turn step decided the click (the planner is skipped), by kind. */
+const heldSteps = { score: 0, advance: 0 };
 for (const seed of deals) {
   const p = Math.floor((seed - 1001) / 10);
   valueLoops.clear();
   const corp = createAgent('corp', 'normal');
   const choose = corp.chooseAction.bind(corp);
   corp.chooseAction = (s: GameState) => {
-    const held = !!(corp as unknown as { heldLine: unknown }).heldLine;
+    const heldLine = (corp as unknown as { heldLine: HeldLine | null }).heldLine;
+    const held = !!heldLine;
+    const later = asSide('corp', () => heldLaterStep(s, heldLine));
+    if (later) heldSteps[later.type === 'SCORE_AGENDA' ? 'score' : 'advance']++;
     planBudgets = 0;
     cut = false;
     const b0 = threatStats.budgeted;
@@ -83,5 +89,6 @@ console.log(JSON.stringify({
   slow,
   cutPer100Decisions: +((cuts * 100) / ms.length).toFixed(2),
   cutPicksChanged: changed,
+  heldSteps,
   rows,
 }));
