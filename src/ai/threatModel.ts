@@ -168,12 +168,47 @@ function threatKey(state: GameState): string {
   const grip = coarse ? guessedGrip(state).grip.map(c => c.cardCode).sort().join(',') : state.runner.grip.map(c => c.instanceId).join(',');
   const roots = Object.values(state.corp.servers).map(v => v.root.map(c => `${c.advancementCounters}${c.runnerKnows ? 'k' : ''}${c.faceUp ? 'u' : ''}`).join('.')).join(';');
   return [
-    state.id, fingerprint(state), roots, state.corp.hq.map(c => c.instanceId).join(','), grip,
+    state.id, boardPrint(state), roots, hqKey(state), rdKey(state), grip,
     state.runsThisTurn.map(r => r.server + (r.successful ? '+' : '-')).join(','), JSON.stringify(state.corp.rdKnownToRunner ?? []),
     knownInHand(state, 'runner').map(k => k.id).join(','), knownInHand(state, 'corp').map(k => k.id).join(','), state.runner.bonusClicksNextTurn ?? 0,
     planKey(),
-    coarse && plan().threatKeyPricing ? '' : pricingKey(),
+    // the pricing context as the budget runs in it (budgetPricing: outside deck averaging)
+    coarse && plan().threatKeyPricing ? '' : budgetPricing(pricingKey),
   ].join('|');
+}
+/**
+ * HQ as the threat reads it (planner speed P2): the cards the Corp drew in a look-ahead (unseenInHand) only by their
+ * number, since centralAccess prices them at R&D's density whatever they are; the planner's playouts deal different such
+ * cards per candidate. The cards the Runner can know of are there by id.
+ */
+function hqKey(state: GameState): string {
+  const unseen = new Set(unseenInHand(state, 'corp').map(c => c.instanceId));
+  // probedState copies the first agenda of HQ, then R&D: which one that is can depend on the draw
+  const like = [...state.corp.hq, ...state.corp.rd, ...state.corp.scoreArea].find(c => cardDef(c).type_code === 'agenda');
+  return state.corp.hq.filter(c => !unseen.has(c.instanceId)).map(c => c.instanceId).join(',') + '#' + unseen.size + '~' + (like?.cardCode ?? '');
+}
+/**
+ * R&D as the threat reads it (planner speed P2): what it holds, by card code, not its order (the on-hit audit found no
+ * order dependence). fingerprint has only its size, so a cached threat was served for a board whose R&D the planner's
+ * playouts had re-dealt (plan.hiddenDraws): 179 wrong values in 5,397 hits on deal 1421.
+ */
+function rdKey(state: GameState): string {
+  return state.corp.rd.map(c => c.cardCode).sort().join(',');
+}
+/**
+ * fingerprint as the threat reads it (planner speed P2): without the Corp's clicks (nothing the Runner's next turn reads
+ * them), with Archives by what it holds (runs.ts serverValue reads its face-up agendas and the face-down cards' pool,
+ * trapOdds), and with the counters on installed cards (advanced ice, Regolith Mining License's credits, virus counters:
+ * fingerprint has the cards but not their counters; 74 wrong values in 835 hits on deal 1001).
+ */
+function boardPrint(state: GameState): string {
+  const parts = fingerprint(state).split('|');
+  parts[3] = '';
+  const codes = (cards: CardInstance[]) => cards.map(c => c.cardCode).sort().join(',');
+  const counted = (cards: CardInstance[]): string => cards.filter(c => c.advancementCounters || c.tokens && Object.keys(c.tokens).length || c.hostedCards?.length).map(c => `${c.instanceId}:${c.advancementCounters}:${JSON.stringify(c.tokens ?? {})}[${counted(c.hostedCards ?? [])}]`).join(',');
+  const { rig } = state.runner;
+  const installed = [...Object.values(state.corp.servers).flatMap(v => [...v.ice, ...v.root]), ...rig.programs, ...rig.hardware, ...rig.resources, state.runner.identity, state.corp.identity];
+  return parts.join('|') + '~' + codes(state.corp.archives.faceUp) + '/' + codes(state.corp.archives.faceDown) + '~' + counted(installed);
 }
 let planSig: { plan: unknown; json: string } | null = null;
 const planKey = (): string => {
@@ -184,11 +219,24 @@ const planKey = (): string => {
 };
 const threatCache = new Map<string, Threat>();
 const probeCache = new Map<string, number>();
+/**
+ * The threat cache's on-hit audit (test-only, tests/threatCacheAudit.test.ts, scripts/cache-history.ts): with `on`, every
+ * hit is budgeted again and compared with the value served. A key that leaves out something budgetTurn reads shows as a
+ * mismatch. 'near': the same values but for the last bits of a float sum taken in another order (R&D re-dealt).
+ */
+export const threatAudit = { on: false, checked: 0, mismatches: 0, near: 0, examples: [] as { turn: number; active: string; cached: string; fresh: string }[] };
+/** Empties the threat's board caches (tests and scripts that play several games in one process). */
+export function clearThreatCaches(): void {
+  threatCache.clear();
+  probeCache.clear();
+}
 const remember = <T>(cache: Map<string, T>, key: string, work: () => T): T => {
   const hit = cache.get(key);
   if (hit !== undefined) return hit;
   const value = work();
-  if (cache.size > 4000) cache.clear();
+  // A cap one planner decision does not reach (the turn-17 fixture budgets 8,854 boards in one decision; a cap of 4000
+  // lost 1,226 of them to the clear)
+  if (cache.size > 40000) cache.clear();
   cache.set(key, value);
   return value;
 };
@@ -201,12 +249,31 @@ export function threat(state: GameState): Threat {
     const t0 = threatStats.timing ? performance.now() : 0;
     const key = threatKey(state);
     if (threatStats.timing) threatStats.keyMs += performance.now() - t0;
+    // The audit (test-only): a cached board recomputed must give the same threat
+    if (threatAudit.on && threatCache.has(key)) {
+      const fresh = budgetIn(state);
+      // A server's success is read only where the Runner runs it (corpLoss: run * success); runChance, the planner and
+      // probeRun read run, score and order. Where run is 0 it is left out of the comparison: HQ's unseen draws, keyed by
+      // their number (hqKey), can change the guessed ice's pass odds there and nothing reads it.
+      const read = (t: Threat) => JSON.stringify({ ...t, servers: Object.fromEntries(Object.entries(t.servers).map(([id, v]) => [id, v.run ? v : { ...v, success: 0 }])) });
+      const a = read(fresh);
+      const b = read(threatCache.get(key)!);
+      threatAudit.checked++;
+      // Float sums taken in another order (R&D re-dealt) differ in the last bits: counted apart, as 'near'
+      const near = a !== b && a.replace(/\d+\.\d{9,}/g, m => Number(m).toPrecision(9)) === b.replace(/\d+\.\d{9,}/g, m => Number(m).toPrecision(9));
+      if (near) threatAudit.near++;
+      if (a !== b && !near) {
+        threatAudit.mismatches++;
+        if (threatAudit.examples.length < 3) threatAudit.examples.push({ turn: state.turnNumber, active: state.activePlayer, cached: b.slice(0, 400), fresh: a.slice(0, 400) });
+      }
+    }
     return withRecord(remember(threatCache, key, () => {
       threatStats.budgeted++;
       if (threatStats.timing) countRepeats(key, state);
       const t1 = threatStats.timing ? performance.now() : 0;
       try {
-        return withPricing({ computingThreat: pricing().computingThreat + 1 }, () => asSide('runner', () => budgetTurn(state)));
+        const value = budgetIn(state);
+        return value;
       } finally {
         if (threatStats.timing) {
           const ms = performance.now() - t1;
@@ -291,6 +358,18 @@ function countRepeats(key: string, state: GameState): void {
 const seenDrop = new Set<string>();
 const seenBoth = new Set<string>();
 
+/**
+ * The Runner's next turn does not depend on
+ * whether the Corp is averaging over its deck when it asks (handValues deckAverage sets pricing.averaging, which reaches
+ * the budget through the hand prices of damage and breakers: handValues heldWorth). The budget runs with it off, and the
+ * key leaves it out: on the turn-17 fixture 3,001 of 4,566 boards were budgeted twice, once in each context.
+ */
+function budgetPricing<T>(fn: () => T): T {
+  return pricing().averaging ? withPricing({ averaging: false }, fn) : fn();
+}
+function budgetIn(state: GameState): Threat {
+  return budgetPricing(() => withPricing({ computingThreat: pricing().computingThreat + 1 }, () => asSide('runner', () => budgetTurn(state))));
+}
 function budgetTurn(state: GameState): Threat {
   const memory = runnerMemory(state);
   const wary = !!tuning.wary;
@@ -465,7 +544,7 @@ function probeRun(state: GameState, serverId: string, server: GameState['corp'][
     // score at the turn's start against the base turn's runs. It is run when it beats the fallback click and fewer of
     // the base turn's runs outscore it than the Runner has clicks (the credits each run spends are not re-counted)
     const base = threat(state);
-    return withPricing({ computingThreat: pricing().computingThreat + 1 }, () =>
+    return budgetPricing(() => withPricing({ computingThreat: pricing().computingThreat + 1 }, () =>
       asSide('runner', () => {
         const view = runnerView(probed);
         const score = runScore(view, serverId, { memory: runnerMemory(probed), wary: !!tuning.wary });
@@ -473,7 +552,7 @@ function probeRun(state: GameState, serverId: string, server: GameState['corp'][
         const ahead = base.order.filter(id => id !== serverId && base.servers[id].score > score).length;
         return ahead < view.runner.clicks ? 1 : 0;
       })
-    );
+    ));
   }));
 }
 

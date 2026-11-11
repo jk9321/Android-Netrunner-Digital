@@ -30,7 +30,7 @@ import { counterWorth } from './counterValues';
 import { plan, pricing, withPricing } from './pricing';
 import { dividendsOf, setupOperation } from './cards';
 // Last: its imports (winNow, runs, pricing) are loaded by then, so the AI modules' load order is unchanged (oracle.ts)
-import { HeldLine, scoreInTwoPick } from './countedScore';
+import { HeldLine, scoreInTwoPick, scoreInTwoStats } from './countedScore';
 
 
 const type = (card: CardInstance) => cardDef(card).type_code;
@@ -184,7 +184,22 @@ export class HeuristicCorpAI implements Agent {
     if (activePrompt(state)) return answerPrompt(state, 'corp', undefined, this.synergy);
     const legal = getLegalActions(state, 'corp');
     const ranked = this.rankMainActions(state, legal);
-    const planned = this.planner && plannerOn('corp') && state.turnStep?.kind !== 'corp_turn_start' ? this.plan(state, ranked) : null;
+    // Planner speed P1: the count has decided this click, so the planner's search is not run. A scoreNow line: the Corp's
+    // pick is then the rule ranking's, kept while it keeps the score (keepsScore), the line's action otherwise. A held
+    // two-turn line on a later turn: its step (advance or score) does not depend on the pick (scoreInTwoPick).
+    const decided = !!score;
+    if (!score && this.synergy && this.planner && this.heldLine && this.heldLine.game === state.id && this.heldLine.turn < state.turnNumber) {
+      const stats = { ...scoreInTwoStats, lines: [...scoreInTwoStats.lines] };
+      const probe = scoreInTwoPick(state, ranked[0]?.action ?? legal[0], this.heldLine);
+      if (probe.held && probe.held.turn < state.turnNumber) {
+        this.heldLine = probe.held;
+        this.notePlayed(probe.action);
+        if (this.debug) logNudge(state, 'corp', probe.action);
+        return probe.action;
+      }
+      Object.assign(scoreInTwoStats, stats);
+    }
+    const planned = this.planner && plannerOn('corp') && state.turnStep?.kind !== 'corp_turn_start' && !decided ? this.plan(state, ranked) : null;
     let chosen = planned ?? (ranked[0]?.score > -Infinity ? ranked[0].action : legal.find(a => a.type === 'END_TURN') ?? legal[0]);
     // plan.pettyCashFirst: a click for a credit while Petty Cash can still be played is a click for 2 thrown away (the
     // planner valued Petty Cash held in HQ as the money it will make, though it is playable only as the turn's first action)
