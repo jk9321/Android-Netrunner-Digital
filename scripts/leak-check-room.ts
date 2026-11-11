@@ -37,7 +37,7 @@ import { RoomCore, settledFor, storageWrites } from '../server/room';
 import type { Outbox } from '../server/room';
 import { SOCKET_ERROR_TEXT, parseClientMessage } from '../src/net/protocol';
 import type { ClientMessage, DeckSubmission, ServerMessage } from '../src/net/protocol';
-import { LeakChecker, type LeakFailure } from './leak-check';
+import { LeakChecker, seedIn, type LeakFailure } from './leak-check';
 import { firstDiff, pickPair, shown, twinOf } from './leak-check-twin';
 
 const SIDES: SideCode[] = ['corp', 'runner'];
@@ -179,6 +179,8 @@ export function fuzzRoomGame(seed: number, corp: DeckList, runner: DeckList, pla
         client.over = true;
         overCheck(room, msg, checker, step, to);
       }
+      // No message but a won game's `over.final` may carry the room's seed: it predicts every shuffle (chunk 2f)
+      if (!(msg.type === 'over' && msg.final) && seedIn(JSON.stringify(msg), seed)) checker.fail(step, to, 'seat', `a ${msg.type} message carries the seed ${seed}`);
       // The one place full information may go to a seat is `over.final`, once the game is over (chunk 2d, rule 1.7.1)
       if (msg.type !== 'over' && 'final' in msg) checker.fail(step, to, 'seat', `a ${msg.type} message carries a final table`);
     }

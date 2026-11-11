@@ -118,7 +118,7 @@ export function createInitialGameState(setup: GameSetup): GameState {
         id: 'log-0',
         turnNumber: 1,
         player: 'system',
-        message: `Game started (seed ${rng.seed}). Both players may mulligan, then the Corp takes the first turn.`,
+        message: `Game started. Both players may mulligan, then the Corp takes the first turn.`,
       },
     ],
   };

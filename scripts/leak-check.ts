@@ -113,6 +113,12 @@ export function visibility(state: GameState, side: SideCode): { hidden: CardInst
 }
 
 /** Every path in `value` whose string contains `needle` (or whose key is `needle`). */
+/** Whether `text` holds `seed` as a whole number (not inside a longer number or word). False for seeds under 1000. */
+export function seedIn(text: string, seed: number): boolean {
+  if (!Number.isInteger(seed) || seed < 1000) return false;
+  return new RegExp(`(?<![\\w.])${seed}(?![\\d.])`).test(text);
+}
+
 export function findPaths(value: unknown, test: (s: string) => boolean, path = '$', out: string[] = []): string[] {
   if (out.length >= 3) return out;
   if (typeof value === 'string') {
@@ -187,6 +193,10 @@ export class LeakChecker {
     for (const bad of ['inst-', '"rng"', '"seed"', '"nextInstanceId"', '"nextPromptId"', '"rdNotes"', '"secret"']) {
       if (json.includes(bad)) this.fail(step, side, 'internal', bad, findPaths(view, s => s.includes(bad.replace(/"/g, '')))[0]);
     }
+
+    // 2b. Not the game seed itself: it predicts every shuffle, so R&D and stack order (rules 1.12 / 4.2.2 via view.ts).
+    // Short seeds would match ordinary numbers, so this runs only for seeds of 4+ digits (the fuzzers use 9000 up).
+    if (seedIn(json, this.seed)) this.fail(step, side, 'internal', `the seed ${this.seed}`, findPaths(view, s => seedIn(s, this.seed))[0]);
 
     // 1. No hidden card's code or title, unless seen before
     const { hidden, hiddenIds, shownIds, textCodes, openCodes } = visibility(state, side);
