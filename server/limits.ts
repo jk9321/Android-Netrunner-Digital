@@ -21,25 +21,28 @@ export interface BucketRule {
 
 /**
  * Stops changes per seat (a stops change is a stored move: replays need it).
- * Measured by hand: the stops menu takes about a second a change, so a person
- * trying every level in turn makes 2-3 in a few seconds and then stops;
- * 5 at once with one back every 5 s never gets in their way.
+ * The stops toggle is one click per change; a person trying every level in
+ * turn makes 2-3 changes in a few seconds and then plays on. 5 at once with
+ * one back every 5 s leaves that room (spec's suggestion, not tested with a
+ * person). Sustained, it still allows 1 row a second per seat: see "Daily
+ * ceiling" in docs/multiplayer-server.md.
  */
 export const STOPS_BUDGET: BucketRule = { burst: 5, refillMs: 5000 };
 
 /**
  * Messages per seat's socket, of any kind (acts, stale acts, cancels, pings
  * that reach the room, junk). An honest client sends one message per click,
- * one automatic answer per state and a keep-alive ping every 25 s (answered
- * by the runtime without waking the room): the full-game client test peaks
- * far below this (see the hand-off).
+ * one automatic answer per state and a keep-alive ping every 30 s (answered
+ * by the runtime without waking the room). tests/onlineClient.test.ts plays
+ * full games through this budget (docs/multiplayer-server.md, "Limits").
  */
 export const SOCKET_BUDGET: BucketRule = { burst: 40, refillMs: 200 };
 
 /**
  * The longest game the room plays: at this many committed moves it ends as a
- * draw ("game too long"). More than five times the longest game measured in
- * `room-fuzz.ts -- 200 9000 both`, stops at ALL (docs/multiplayer-server.md).
+ * draw ("game too long"). About 8 times the longest game measured in
+ * `room-fuzz.ts -- 200 9000 both` on beta 22277c4 (1,244 moves, random
+ * clients at ALL stops; AI games at most 526); docs/multiplayer-server.md.
  */
 export const MAX_GAME_MOVES = 10_000;
 export const TOO_LONG_REASON = 'game too long';

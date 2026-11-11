@@ -27,9 +27,10 @@ export const CLOSE_ROOM_DELETED = 4001;
 export const CLOSE_TOO_MANY = 4002;
 
 /**
- * The room's variables. Only for `wrangler dev` (e2e/online.config.ts passes
- * them with --var): shorter lifetimes, so the clean-up alarm can be seen to
- * run. Neither wrangler.games*.jsonc sets them, and a value that is not a
+ * The room's variables. Only for a local `wrangler dev` of the game Worker
+ * (`--var ROOM_ENDED_MS:4000`): shorter lifetimes, so the clean-up alarm can
+ * be seen to run (docs/multiplayer-server.md, "Storage and lifetime").
+ * Neither wrangler.games*.jsonc sets them, and a value that is not a
  * positive number is ignored, so production keeps 7 days / 1 day.
  */
 export interface GameRoomEnv {
