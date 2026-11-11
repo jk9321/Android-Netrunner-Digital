@@ -73,6 +73,7 @@ describe('End of turn', () => {
 
     const two = state.runner.grip.slice(0, 2).map(c => c.instanceId);
     expect(() => answer(state, { kind: 'discard', cardInstanceIds: two.slice(0, 1) })).toThrow(/exactly 2/);
+    expect(() => answer(state, { kind: 'discard', cardInstanceIds: [two[0], two[0], two[1]] })).toThrow(/exactly 2/);
 
     state = answer(state, { kind: 'discard', cardInstanceIds: two });
     expect(state.runner.grip).toHaveLength(5);

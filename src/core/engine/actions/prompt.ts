@@ -60,7 +60,8 @@ function answerPrompt(state: GameState, action: ResolvePromptAction): void {
       const ids = new Set(choice.cardInstanceIds);
       const hand = prompt.side === 'corp' ? state.corp.hq : state.runner.grip;
       const chosen = hand.filter(c => ids.has(c.instanceId));
-      if (ids.size !== prompt.count || chosen.length !== prompt.count) {
+      // Each card once: [a, a, b] has 2 distinct cards but is not an answer of 2 (rules 4.3.6: discard down to maximum hand size)
+      if (choice.cardInstanceIds.length !== prompt.count || ids.size !== prompt.count || chosen.length !== prompt.count) {
         illegal(`Choose exactly ${prompt.count} card(s) from your hand`);
       }
       for (const card of chosen) {
