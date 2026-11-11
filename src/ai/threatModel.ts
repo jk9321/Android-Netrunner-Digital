@@ -202,13 +202,13 @@ function rdKey(state: GameState): string {
  * fingerprint has the cards but not their counters; 74 wrong values in 835 hits on deal 1001).
  */
 function boardPrint(state: GameState): string {
-  const parts = fingerprint(state).split('|');
-  parts[3] = '';
+  // Corp clicks set to 0 on a shallow copy, not blanked by position in fingerprint's string (review R1)
+  const print = fingerprint({ ...state, corp: { ...state.corp, clicks: 0 } });
   const codes = (cards: CardInstance[]) => cards.map(c => c.cardCode).sort().join(',');
   const counted = (cards: CardInstance[]): string => cards.filter(c => c.advancementCounters || c.tokens && Object.keys(c.tokens).length || c.hostedCards?.length).map(c => `${c.instanceId}:${c.advancementCounters}:${JSON.stringify(c.tokens ?? {})}[${counted(c.hostedCards ?? [])}]`).join(',');
   const { rig } = state.runner;
   const installed = [...Object.values(state.corp.servers).flatMap(v => [...v.ice, ...v.root]), ...rig.programs, ...rig.hardware, ...rig.resources, state.runner.identity, state.corp.identity];
-  return parts.join('|') + '~' + codes(state.corp.archives.faceUp) + '/' + codes(state.corp.archives.faceDown) + '~' + counted(installed);
+  return print + '~' + codes(state.corp.archives.faceUp) + '/' + codes(state.corp.archives.faceDown) + '~' + counted(installed);
 }
 let planSig: { plan: unknown; json: string } | null = null;
 const planKey = (): string => {
