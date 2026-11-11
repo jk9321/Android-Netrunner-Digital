@@ -16,7 +16,7 @@ import { asSide, logNudge, nudge, opponentLean, tuning } from './synergy';
 import { decisionContext } from './handValues';
 import { PlanMemory, planTurn, plannerOn, searchPiece } from './turnPlanner';
 import { runnerReply } from './runnerReply';
-import { threatLoss } from './threatModel';
+import { clearThreatCaches, threatLoss } from './threatModel';
 import { archivesWantsIce, countedRez, modelRezGain } from './rezModel';
 import { keepsScore, scoreNowPlan, winNowAction } from './winNow';
 import { freeRezCover, freeRezTargets } from './freeRez';
@@ -146,6 +146,9 @@ export class HeuristicCorpAI implements Agent {
   }
 
   chooseAction(state: GameState): GameAction {
+    // TEMPORARY plan.decisionCache (planner budget): each Corp decision starts from empty threat caches, so the number of
+    // budgets it computes (the planner's cap counts them) depends on this decision only; not the planner's own rollouts
+    if (!this.searching && plan().decisionCache) clearThreatCaches();
     return asSide('corp', () => (this.planner && this.synergy && plan().runRecord ? withPricing({ runRecord: this.noteRuns(state) }, () => this.decide(state)) : this.decide(state)));
   }
 

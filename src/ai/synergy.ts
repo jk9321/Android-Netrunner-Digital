@@ -152,6 +152,10 @@ export const tuning = {
     /* Rez money (2026-10-26, 2,210 self-play games): both on 46.7%, neither 47.2% (noise). Halving upgrade worth in empty remotes instead cost about 2 points. */
     /** Corp: Petty Cash goes first when it is among the actions the Corp has clicks for (corpAI pettyCashFirst). */
     pettyCashFirst: true,
+    /** TEMPORARY (planner budget, ai-planner-budget; folded or deleted before hand-off): the threat caches emptied at the start of each Corp decision (corpAI chooseAction), so a decision's threat budgets do not depend on earlier decisions. */
+    decisionCache: true,
+    /** TEMPORARY (planner budget): the Corp planner's cap in threat budgets (turnPlanner.ts PLANNER.budgetCap). */
+    budgetCap: true,
     /** Corp: with the Runner tagged, a resource trash among the actions it has clicks for goes first (corpAI tagFirst). */
     tagFirst: true,
     /**
@@ -536,7 +540,7 @@ export const tuning = {
  */
 export const sideOff: Record<SideCode, string[]> = {
   corp: [],
-  runner: ['scoreNow', 'scoreInTwo', 'tagTrashNow', 'ownTrashRisk', 'hqTrashCost', 'oneCurrency', 'threatModel', 'measuredPass', 'threatSpend', 'calibratedRun', 'iceProtects', 'replyContenders', 'plannerAgenda', 'clearinghouseRez', 'ownIceKnown', 'runRecord', 'icePacingPriced', 'searchSamples', 'hiddenDraws', 'oracle', 'reach', 'reachStrength', 'reachTime', 'threatKey', 'threatKeyPricing'],
+  runner: ['scoreNow', 'scoreInTwo', 'decisionCache', 'budgetCap', 'tagTrashNow', 'ownTrashRisk', 'hqTrashCost', 'oneCurrency', 'threatModel', 'measuredPass', 'threatSpend', 'calibratedRun', 'iceProtects', 'replyContenders', 'plannerAgenda', 'clearinghouseRez', 'ownIceKnown', 'runRecord', 'icePacingPriced', 'searchSamples', 'hiddenDraws', 'oracle', 'reach', 'reachStrength', 'reachTime', 'threatKey', 'threatKeyPricing'],
 };
 
 /**
