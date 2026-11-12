@@ -31,7 +31,7 @@ import { plan, pricing, withPricing } from './pricing';
 import { dividendsOf, setupOperation } from './cards';
 // Last: its imports (winNow, runs, pricing) are loaded by then, so the AI modules' load order is unchanged (oracle.ts)
 import { HeldLine, heldLaterStep, iceRedirect, iceRedirectStats, scoreInTwoPick } from './countedScore';
-import { moneyPick } from './incomeLine';
+import { assetPick, moneyPick } from './incomeLine';
 
 
 const type = (card: CardInstance) => cardDef(card).type_code;
@@ -199,6 +199,8 @@ export class HeuristicCorpAI implements Agent {
     // plan.pettyCashFirst: a click for a credit while Petty Cash can still be played is a click for 2 thrown away (the
     // planner valued Petty Cash held in HQ as the money it will make, though it is playable only as the turn's first action)
     if (chosen.type === 'GAIN_CREDIT' && this.patches && plan().pettyCashFirst) chosen = ranked.find(r => isPettyCash(state, r.action) && r.score > -Infinity)?.action ?? chosen;
+    // Money step A1 (incomeLine.ts assetPick): an econ asset that pays back in place of a click for a credit or a draw
+    if (!score && !later && this.synergy && this.planner && state.turnStep?.kind !== 'corp_turn_start') chosen = assetPick(state, chosen) ?? chosen;
     // plan.tagFirst: the planner's leaf counts a tag kept as a trash still to come, but the Runner clears it on its turn
     if (this.patches && plan().tagFirst && ranked[0]?.action.type === 'TRASH_RESOURCE' && ranked[0].tagFirst) chosen = ranked[0].action;
     let picked = chosen;

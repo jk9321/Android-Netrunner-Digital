@@ -13,7 +13,7 @@ import { knownRdSlots } from './runnerReply';
 import { corpKnowsRd, corpSeenGrip } from './oracle';
 // Loaded by corpAI already (its last import), so the AI modules' load order is unchanged
 import { HeldLine, heldLaterStep, iceRedirect, scoreInTwoPick } from './countedScore';
-import { moneyPick } from './incomeLine';
+import { assetPick, moneyPick } from './incomeLine';
 
 /**
  * Hard AI: Monte Carlo look-ahead on top of the rule-based AI.
@@ -195,13 +195,17 @@ export class SearchAI implements Agent {
       // A score this turn (plan.scoreNow) comes before a two-turn line
       if (this.side !== 'corp' || !(this.options.synergy ?? true) || this.scoring) return action;
       // plan.scoreInTwo (counted scoring C2): a held two-turn score line's step, or the pick vetoed while it would spend the line's rez money
-      const two = scoreInTwoPick(state, action, this.heldLine);
+      // Money step A1 (incomeLine.ts assetPick): an econ asset that pays back in place of a click for a credit or a draw
+      const asset = heldLaterStep(state, this.heldLine) || state.turnStep?.kind === 'corp_turn_start' ? null : assetPick(state, action);
+      if (asset) this.base.notePlayed(asset);
+      const own = asset ?? action;
+      const two = scoreInTwoPick(state, own, this.heldLine);
       this.heldLine = two.held;
-      if (two.action !== action) this.base.notePlayed(two.action);
+      if (two.action !== own) this.base.notePlayed(two.action);
       // Ice redirect (countedScore.ts iceRedirect): the search's own remote ice install goes to the scoring remote until it
       // holds, nothing while a two-turn line is held (as Normal's, corpAI decide)
       const held = this.heldLine && this.heldLine.game === state.id;
-      const redirect = two.action === action && !held ? iceRedirect(state, action) : null;
+      const redirect = two.action === own && !held ? iceRedirect(state, action) : null;
       if (redirect) this.base.notePlayed(redirect);
       return redirect ?? two.action;
     });

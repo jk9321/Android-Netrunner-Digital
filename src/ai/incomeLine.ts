@@ -1,7 +1,9 @@
 import { GameAction, GameState, activePrompt, cardDef, executeAction, findCardAnywhere, getLegalActions } from '../core';
 import { answerPrompt } from './prompts';
 import { cardSynergy } from './synergyTags';
-import { knownIncome } from './countedScore';
+import { holdCost, knownIncome, scoringRemote } from './countedScore';
+import { profileOf } from './cardProfiles';
+import { plan } from './pricing';
 import { scoreNowPlan } from './winNow';
 
 /**
@@ -78,4 +80,42 @@ export function moneyPick(state: GameState, own?: GameAction | null): GameAction
   const ranked = ops.map(o => ({ o, first: enables(o) })).sort((a, b) => Number(b.first) - Number(a.first) || b.o.net - a.o.net);
   moneyStats.ops++;
   return ranked[0].o.action;
+}
+
+export const assetStats = { fired: 0, scoring: 0 };
+
+/**
+ * Money step A1 (temporary switches plan.assetFirst, plan.assetScoring; from H0: Jeff's Corp makes 8.4 credits by turn 10
+ * from econ assets' abilities and drips against the AI's 3.7, and the AI draws 3.4 times by then against his 1.6). When
+ * the Corp's own pick is a click for a credit or a draw (rule 5.2.6: basic actions), an econ asset in HQ whose card
+ * entry pays back (profile: credits per payout, more loaded than its rez cost) is installed in its place, as a new
+ * remote (rule 3.3.1: an asset goes only in a remote's root, one asset or agenda per root). plan.assetScoring: in the scoring remote's root instead
+ * while that root is empty and the remote holds by the count (holdCost), else a new remote. Rezzing stays with the
+ * Corp's rez rules (corpAI: rezzed when its drip starts or a click is left to use it). Never in place of an install,
+ * advance, operation or anything else. Null: no change.
+ */
+export function assetPick(state: GameState, pick: GameAction): GameAction | null {
+  const p = plan();
+  if (!p.assetFirst && !p.assetScoring) return null;
+  if (pick.type !== 'GAIN_CREDIT' && pick.type !== 'DRAW_CARD') return null;
+  if (state.activePlayer !== 'corp' || activePrompt(state) || state.activeRun || state.corp.clicks <= 0) return null;
+  const pays = (c: GameState['corp']['hq'][number]) => {
+    const pr = cardDef(c).type_code === 'asset' ? profileOf(c.cardCode) : undefined;
+    return pr && pr.pay > 0 && pr.load > (cardDef(c).cost ?? 0) ? pr.load - (cardDef(c).cost ?? 0) : 0;
+  };
+  const asset = state.corp.hq.filter(c => pays(c) > 0).sort((a, b) => pays(b) - pays(a))[0];
+  if (!asset) return null;
+  const legal = getLegalActions(state, 'corp').filter(a => a.type === 'INSTALL_CARD' && a.cardInstanceId === asset.instanceId && !(a as { faceUp?: boolean }).faceUp);
+  let install = legal.find(a => (a as { asNewRemote?: boolean }).asNewRemote);
+  if (p.assetScoring) {
+    const scoring = scoringRemote(state);
+    const end = state.corp.credits + Math.max(0, state.corp.clicks - 1);
+    const there = scoring && scoring.root.length === 0 && holdCost(state, scoring.ice, end) !== null ? legal.find(a => (a as { targetServerId?: string }).targetServerId === scoring.id) : undefined;
+    if (there) {
+      install = there;
+      assetStats.scoring++;
+    }
+  }
+  if (install) assetStats.fired++;
+  return install ?? null;
 }

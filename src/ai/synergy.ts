@@ -391,6 +391,10 @@ export const tuning = {
      * shipping pair at 10 games +2.8 ± 1.1 (run 42800495659 vs 42797275838; games 3-10 alone +1.4 ± 1.3).
      */
     scoreInTwo: true,
+    /** Money step A1 (temporary switch, folded or deleted at hand-off; incomeLine.ts assetPick): an econ asset that pays back is installed in place of a click for a credit or a draw. */
+    assetFirst: false,
+    /** Money step A1 second arm (temporary switch; incomeLine.ts assetPick): the asset goes to the scoring remote's empty root while it holds. */
+    assetScoring: false,
     /**
      * Bug reports #39, #41 (Jeff's Runner test games 7 and 9, 2026-11-09; Corp only): the Corp's own unrezzed ice is priced
      * as it knows it (effectValues.ts ownIce: the real ice when its rez budget covers it, passed when not; rules 3.4.3a,
