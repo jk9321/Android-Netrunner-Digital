@@ -476,7 +476,7 @@ export function iceRedirect(state: GameState, pick: GameAction): GameAction | nu
   return legalShape(state, { type: 'INSTALL_CARD', cardInstanceId: card.instanceId, targetServerId: scoring.id }) ?? null;
 }
 
-/** Asset cover diagnostics (any caller, search included): econ installs asked about, and why no line: an agenda in HQ while the scoring remote is short, the pick's place already iced, under 2 clicks, no ice in HQ, ice in HQ but not its rez on top of the asset's (rezMoney: form (i) would begin these); lines begun. */
+/** Asset cover diagnostics (any caller, search included): econ installs asked about, and why no line: an agenda in HQ while the scoring remote is short, the pick's place already iced, under 2 clicks, no ice in HQ, not the asset's rez next turn (rezMoney); lines begun. */
 export const assetCoverStats = { asked: 0, scoringShort: 0, iced: 0, clicks: 0, noIce: 0, rezMoney: 0, begun: 0 };
 
 /**
@@ -488,9 +488,10 @@ export const assetCoverStats = { asked: 0, scoringShort: 0, iced: 0, clicks: 0, 
  * against up to 15 left on them; Jeff 2026-11-12: "I trash unused regoliths regularly against the AI. Usually because
  * they are easy to get to", and as Corp he puts them behind ice, "not my best ICE". So the line is
  * the cheapest ice from HQ (rez cost, then install cost, 8.5.11a) in front first, then the asset ('install+ice'),
- * counted for affordability only: 2 clicks, the ice's install cost, and after it the ice's rez (3.4.3a, rezzed when the
- * Runner approaches) and the asset's rez on the next turn (5.6.1b, 5.6.2a) out of what the Corp ends on plus its known
- * income. Not a hold count: one ice that a rigged Runner breaks for 1-3 credits never holds by holdCost, and that arm
+ * counted for affordability only: 2 clicks, the ice's install cost, and after it the asset's rez on the next turn
+ * (5.6.1b, 5.6.2a) out of what the Corp ends on plus its known income. Not the ice's rez too (3.4.3a): with it the line
+ * began on 1 of 22 econ installs in 12 deals, without it on 3 (asset-cover-fires.ts); an ice the Corp cannot rez
+ * deters a human Runner, not ours. Not a hold count: one ice that a rigged Runner breaks for 1-3 credits never holds by holdCost, and that arm
  * fired 0 times in 12 deals. On the pick's own place (a new remote, or its remote; one asset per root, 3.3.1), never
  * the scoring remote. While an agenda waits in HQ and the scoring remote does not hold (iceRedirect's count), the ice
  * goes there and no line begins. No line: the pick stands. Null: no change.
@@ -511,8 +512,8 @@ export function assetCover(state: GameState, pick: GameAction): TwoTurnLine | nu
   const end = state.corp.credits + (state.corp.clicks - 2);
   const all = uniqueByCode(state.corp.hq.filter(c => typeOf(c) === 'ice')).map(c => ({ c, rez: rezCostOf(state, c) }));
   if (!all.length) return (assetCoverStats.noIce++, null);
-  const ice = all.filter(x => end - x.rez + income >= rezCost).sort((x, y) => x.rez - y.rez)[0];
-  if (!ice) return (assetCoverStats.rezMoney++, null);
+  if (end + income < rezCost) return (assetCoverStats.rezMoney++, null);
+  const ice = all.sort((x, y) => x.rez - y.rez)[0];
   assetCoverStats.begun++;
   return { kind: 'asset', agenda: cardDef(asset).title, agendaId: asset.instanceId, server: target ? target.id : 'new remote', form: 'install+ice', iceId: ice.c.instanceId, advanceNow: 0, advanceNext: 0, rez: ice.rez };
 }
