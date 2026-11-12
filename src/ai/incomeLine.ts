@@ -1,4 +1,4 @@
-import { CardInstance, GameAction, GameState, activePrompt, cardDef, executeAction, getLegalActions } from '../core';
+import { CardInstance, GameAction, GameState, activePrompt, cardDef, executeAction, getLegalActions, isLegalAction } from '../core';
 import { answerPrompt } from './prompts';
 import { cardSynergy } from './synergyTags';
 import { plan } from './pricing';
@@ -13,7 +13,7 @@ import { scoreNowPlan } from './winNow';
  * Corp answers them, plus the known turn-start income (countedScore knownIncome), against the same before (1.10).
  */
 
-export const moneyStats = { ops: 0, freeAbilities: 0, clickAbilities: 0 };
+export const moneyStats = { ops: 0, freeAbilities: 0, clickAbilities: 0, owedPlayed: 0, owedDropped: 0 };
 
 const isEcon = (c: CardInstance) => (cardSynergy(cardDef(c)).gives?.econ ?? 0) > 0;
 const worth = (s: GameState) => s.corp.credits + knownIncome(s);
@@ -67,6 +67,13 @@ export function moneyPick(state: GameState): GameAction | null {
     }
   }
   if (!plan().moneyFirst) return null;
+  const op = bestOp(state, legal);
+  if (op) moneyStats.ops++;
+  return op;
+}
+
+/** The netting econ operation to play first among those legal now (moneyPick's order), or null. */
+function bestOp(state: GameState, legal: GameAction[]): GameAction | null {
   const ops = options(state, legal, 'op');
   if (!ops.length) return null;
   const enables = (o: Option): boolean => {
@@ -76,8 +83,51 @@ export function moneyPick(state: GameState): GameAction | null {
     return now.some(x => !was.has((x.action as { cardInstanceId: string }).cardInstanceId)) || !!scoreNowPlan(o.after);
   };
   const ranked = ops.map(o => ({ o, first: enables(o) })).sort((a, b) => Number(b.first) - Number(a.first) || b.o.net - a.o.net);
-  moneyStats.ops++;
   return ranked[0].o.action;
+}
+
+/** M1' (a): the Corp's own pick put after the operation that took its click, to be played on the next decision of the same turn. */
+export interface OwedPick { game: string; turn: number; action: GameAction }
+
+/**
+ * M1' (plan.moneyOrder, a; plan.moneyCheap, b): the operation is ordered around the Corp's own pick (its planner's, run as
+ * usual) instead of taking the click from it. M0's diagnosis of M1: the pick it displaced was played later the same turn
+ * 17 times in 67 (agenda installs 0 of 10). (a) The operation goes first while the clicks left after it still cover the
+ * pick (its click cost, 5.2.6; a purge is 3), and the pick is owed to the next decision; otherwise the pick stands and the
+ * operation waits. (b) No ordering: the operation replaces the pick only when the pick is a click for a credit or a draw
+ * (a legal pick's credit cost is always covered, so the spec's "cost not covered" case does not arise).
+ */
+export function moneyOrderPick(state: GameState, pick: GameAction, owed: OwedPick | null): { action: GameAction; owed: OwedPick | null } {
+  if ((!plan().moneyOrder && !plan().moneyCheap) || state.activePlayer !== 'corp' || activePrompt(state) || state.activeRun || state.corp.clicks <= 0)
+    return { action: pick, owed: null };
+  // The pick owed from this turn's earlier decision, while still legal
+  if (owed && owed.game === state.id && owed.turn === state.turnNumber) {
+    if (isLegalAction(state, owed.action)) {
+      moneyStats.owedPlayed++;
+      return { action: owed.action, owed: null };
+    }
+    moneyStats.owedDropped++;
+  }
+  if (pick.type === 'PLAY_OPERATION_OR_EVENT' || pick.type === 'END_TURN') return { action: pick, owed: null };
+  if (plan().moneyCheap) {
+    if (pick.type !== 'GAIN_CREDIT' && pick.type !== 'DRAW_CARD') return { action: pick, owed: null };
+    const op = bestOp(state, getLegalActions(state, 'corp'));
+    if (op) moneyStats.ops++;
+    return { action: op ?? pick, owed: null };
+  }
+  let cost: number;
+  try {
+    cost = Math.max(0, state.corp.clicks - executeAction(state, pick).corp.clicks);
+  } catch {
+    return { action: pick, owed: null };
+  }
+  if (state.corp.clicks - 1 < cost) return { action: pick, owed: null };
+  const op = bestOp(state, getLegalActions(state, 'corp'));
+  if (!op) return { action: pick, owed: null };
+  moneyStats.ops++;
+  // A click for a credit or a draw is not owed: the operation took its place
+  const owe = pick.type === 'GAIN_CREDIT' || pick.type === 'DRAW_CARD' ? null : { game: state.id, turn: state.turnNumber, action: pick };
+  return { action: op, owed: owe };
 }
 
 /** M1b (plan.moneyAbility): in place of the Corp's click for a credit, an econ ability that spends that one click and nets more than the credit. */

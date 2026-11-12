@@ -13,7 +13,7 @@ import { knownRdSlots } from './runnerReply';
 import { corpKnowsRd, corpSeenGrip } from './oracle';
 // Loaded by corpAI already (its last import), so the AI modules' load order is unchanged
 import { HeldLine, heldLaterStep, scoreInTwoPick } from './countedScore';
-import { moneyForCredit, moneyPick } from './incomeLine';
+import { OwedPick, moneyForCredit, moneyOrderPick, moneyPick } from './incomeLine';
 
 /**
  * Hard AI: Monte Carlo look-ahead on top of the rule-based AI.
@@ -196,7 +196,14 @@ export class SearchAI implements Agent {
       if (this.side !== 'corp' || !(this.options.synergy ?? true) || this.scoring) return action;
       // plan.scoreInTwo (counted scoring C2): a held two-turn score line's step, or the pick vetoed while it would spend the line's rez money
       // Money step M1b (incomeLine.ts): an econ ability for one click in place of a click for a credit when it nets more
-      const ability = heldLaterStep(state, this.heldLine) ? null : moneyForCredit(state, action);
+      const later = !!heldLaterStep(state, this.heldLine);
+      let ability = later ? null : moneyForCredit(state, action);
+      // Money step M1' (a, b): the operation ordered around the look-ahead's pick (incomeLine.ts moneyOrderPick)
+      if (!later && state.turnStep?.kind !== 'corp_turn_start') {
+        const order = moneyOrderPick(state, ability ?? action, this.owed);
+        this.owed = order.owed;
+        if (order.action !== (ability ?? action)) ability = order.action;
+      }
       if (ability) this.base.notePlayed(ability);
       const two = scoreInTwoPick(state, ability ?? action, this.heldLine);
       this.heldLine = two.held;
@@ -207,6 +214,8 @@ export class SearchAI implements Agent {
 
   /** plan.scoreInTwo: the two-turn score line this Corp holds, keyed by game id (countedScore.ts). */
   private heldLine: HeldLine | null = null;
+  /** Money step M1' (a): the pick owed after the operation that took its click (incomeLine.ts). */
+  private owed: OwedPick | null = null;
   /** This decision found a score this turn (plan.scoreNow), or decide is finding the pick it is weighed against. */
   private scoring = false;
 

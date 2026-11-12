@@ -31,7 +31,7 @@ import { plan, pricing, withPricing } from './pricing';
 import { dividendsOf, setupOperation } from './cards';
 // Last: its imports (winNow, runs, pricing) are loaded by then, so the AI modules' load order is unchanged (oracle.ts)
 import { HeldLine, heldLaterStep, scoreInTwoPick } from './countedScore';
-import { moneyForCredit, moneyPick } from './incomeLine';
+import { OwedPick, moneyForCredit, moneyOrderPick, moneyPick } from './incomeLine';
 
 
 const type = (card: CardInstance) => cardDef(card).type_code;
@@ -115,6 +115,8 @@ export class HeuristicCorpAI implements Agent {
   private planMemory: PlanMemory = { line: [] };
   /** plan.scoreInTwo (counted scoring C2): the two-turn score line this Corp holds, keyed by game id (countedScore.ts). */
   private heldLine: HeldLine | null = null;
+  /** Money step M1' (a): the Corp's pick owed after the operation that took its click (incomeLine.ts). */
+  private owed: OwedPick | null = null;
 
   constructor(options: HeuristicOptions = {}) {
     this.synergy = options.synergy ?? true;
@@ -198,6 +200,12 @@ export class HeuristicCorpAI implements Agent {
     let chosen = money ?? planned ?? (ranked[0]?.score > -Infinity ? ranked[0].action : legal.find(a => a.type === 'END_TURN') ?? legal[0]);
     // M1b: an econ ability for one click in place of a click for a credit when it nets more
     if (!score && !later && this.synergy && this.planner) chosen = moneyForCredit(state, chosen) ?? chosen;
+    // M1' (a, b): the operation ordered around the Corp's own pick (incomeLine.ts moneyOrderPick)
+    if (!score && !later && this.synergy && this.planner && state.turnStep?.kind !== 'corp_turn_start') {
+      const order = moneyOrderPick(state, chosen, this.owed);
+      this.owed = order.owed;
+      chosen = order.action;
+    }
     // plan.pettyCashFirst: a click for a credit while Petty Cash can still be played is a click for 2 thrown away (the
     // planner valued Petty Cash held in HQ as the money it will make, though it is playable only as the turn's first action)
     if (chosen.type === 'GAIN_CREDIT' && this.patches && plan().pettyCashFirst) chosen = ranked.find(r => isPettyCash(state, r.action) && r.score > -Infinity)?.action ?? chosen;

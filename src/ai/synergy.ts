@@ -395,6 +395,10 @@ export const tuning = {
     moneyFirst: false,
     /** Money step M1b (temporary switch, folded at hand-off; incomeLine.ts): a netting econ ability with no click cost is taken; one with a click replaces a click for a credit. */
     moneyAbility: false,
+    /** Money step M1' (a) (temporary switch, folded at hand-off; incomeLine.ts moneyOrderPick): the operation goes first while the clicks after it cover the Corp's pick, which is then played. */
+    moneyOrder: false,
+    /** Money step M1' (b) (temporary switch, folded at hand-off; incomeLine.ts moneyOrderPick): the operation replaces only a click for a credit or a draw. */
+    moneyCheap: false,
     /**
      * Bug reports #39, #41 (Jeff's Runner test games 7 and 9, 2026-11-09; Corp only): the Corp's own unrezzed ice is priced
      * as it knows it (effectValues.ts ownIce: the real ice when its rez budget covers it, passed when not; rules 3.4.3a,

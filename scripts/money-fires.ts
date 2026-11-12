@@ -20,7 +20,7 @@ for (const seed of seeds) {
   const runnerDecks = ALL_DECKS.filter(d => d.side === 'runner');
   const p = Math.floor((seed - 1001) / 10);
   valueLoops.clear();
-  Object.assign(moneyStats, { ops: 0, freeAbilities: 0, clickAbilities: 0 });
+  Object.assign(moneyStats, { ops: 0, freeAbilities: 0, clickAbilities: 0, owedPlayed: 0, owedDropped: 0 });
   const start = createInitialGameState(deckGameSetup(seed, corpDecks[Math.floor(p / runnerDecks.length)], runnerDecks[p % runnerDecks.length]));
   const t0 = Date.now();
   const game = new GameRunner(start, { corp: createAgent('corp', 'normal'), runner: createAgent('runner', 'normal') });
