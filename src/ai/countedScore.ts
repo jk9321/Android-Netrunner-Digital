@@ -129,10 +129,10 @@ export function runnerMoney(s: GameState): number {
  * Corp rezzes ice as it is approached (rules 3.4.3a, 6.9.2b); unrezzed ice is passed (6.9.2c). With a set S rezzed, the
  * Runner needs the sum of iceCreditNeed (runs.ts: the credits to break the ice's run-ending subroutines with its
  * installed breakers, the engine's breaker scripts; BLOCK when none can) over S, against runnerBudget. Capability, not
- * our Runner AI's choice. `budget`: the Runner's credits for this question (plan.assetCover: runnerBudget less the
- * asset's trash cost, 2.6.1).
+ * our Runner AI's choice.
  */
-export function holdCost(state: GameState, ice: CardInstance[], corpCredits: number, budget = runnerBudget(state)): number | null {
+export function holdCost(state: GameState, ice: CardInstance[], corpCredits: number): number | null {
+  const budget = runnerBudget(state);
   // The Runner's turn: its clicks back (a bioroid broken by clicks, runs.ts plainCreditNeed), one kept for the run
   const view: GameState = { ...state, runner: { ...state.runner, clicks: Math.max(0, state.runner.maxClicks - 1) } };
   const n = Math.min(ice.length, 10);
@@ -476,20 +476,24 @@ export function iceRedirect(state: GameState, pick: GameAction): GameAction | nu
   return legalShape(state, { type: 'INSTALL_CARD', cardInstanceId: card.instanceId, targetServerId: scoring.id }) ?? null;
 }
 
-/** Asset cover diagnostics: asset lines begun by the top-level Corp's count (any caller). */
-export const assetCoverStats = { begun: 0 };
+/** Asset cover diagnostics (any caller, search included): econ installs asked about, and why no line: an agenda in HQ while the scoring remote is short, the pick's place already iced, under 2 clicks, no ice in HQ, ice in HQ but not its rez on top of the asset's (rezMoney: form (i) would begin these); lines begun. */
+export const assetCoverStats = { asked: 0, scoringShort: 0, iced: 0, clicks: 0, noIce: 0, rezMoney: 0, begun: 0 };
 
 /**
- * plan.assetCover (asset cover step 2, redesign/spec-asset-cover.md): the Corp's own pick installs an econ asset (its
- * card entry's profile pays credits, when the turn begins or for a click, and loads more than its rez cost; Jeff
- * 2026-11-12: as Runner he trashes the AI's bare Regoliths) on a server that does not hold through
- * the Runner's next turn against the trash: holdCost with the Runner's budget less the asset's printed trash cost
- * (2.6.1; 1.19.2), and the Corp's credits after the line with its spare clicks for credits. Then a line the count finds:
- * the asset into an open remote that holds ('install'; one agenda or asset per root, 3.3.1), or the cheapest ice from HQ
- * that makes a new or open remote hold, by rez cost then install cost (8.5.11a: 1 credit per ice already there), in
- * front of it ('install+ice'), keeping the money to rez the asset on the next turn (5.6.1b, 5.6.2a) after the holding
- * rez and the known income. Never the scoring remote; nothing while the scoring remote does not hold for the agendas
- * (iceRedirect's count: the ice goes there). No line: the pick stands. Null: no change.
+ * plan.assetCover (asset cover step 2, redesign/spec-asset-cover.md, form A): the Corp's own pick installs an econ asset
+ * (its card entry's profile pays credits, when the turn begins or for a click, and loads more than its rez cost) on a
+ * remote with no ice. This is Jeff's rule with a counted affordability check, not a hold count: a deterministic hold
+ * count cannot express what his games show (an unknown ice is a risk to the Runner, not a known price). As Runner
+ * against the AI Corp he trashed 9 of its 17 bare econ assets and 0 of its 2 iced ones, paying 1-3 credits each (2.6.1)
+ * against up to 15 left on them; Jeff 2026-11-12: "I trash unused regoliths regularly against the AI. Usually because
+ * they are easy to get to", and as Corp he puts them behind ice, "not my best ICE". So the line is
+ * the cheapest ice from HQ (rez cost, then install cost, 8.5.11a) in front first, then the asset ('install+ice'),
+ * counted for affordability only: 2 clicks, the ice's install cost, and after it the ice's rez (3.4.3a, rezzed when the
+ * Runner approaches) and the asset's rez on the next turn (5.6.1b, 5.6.2a) out of what the Corp ends on plus its known
+ * income. Not a hold count: one ice that a rigged Runner breaks for 1-3 credits never holds by holdCost, and that arm
+ * fired 0 times in 12 deals. On the pick's own place (a new remote, or its remote; one asset per root, 3.3.1), never
+ * the scoring remote. While an agenda waits in HQ and the scoring remote does not hold (iceRedirect's count), the ice
+ * goes there and no line begins. No line: the pick stands. Null: no change.
  */
 export function assetCover(state: GameState, pick: GameAction): TwoTurnLine | null {
   if (pick.type !== 'INSTALL_CARD') return null;
@@ -498,38 +502,17 @@ export function assetCover(state: GameState, pick: GameAction): TwoTurnLine | nu
   const p = asset && typeOf(asset) === 'asset' ? profileOf(asset.cardCode) : undefined;
   const rezCost = asset ? (cardDef(asset).cost ?? 0) : 0;
   if (!asset || !p || p.pay <= 0 || p.load <= rezCost) return null;
-  if (scoringShort(state)) return null;
-  const budget = runnerBudget(state) - (cardDef(asset).trash_cost ?? 0);
-  const C = state.corp.clicks;
-  const K = state.corp.credits;
-  const income = knownIncome(state);
-  const holds = (view: GameState, ice: CardInstance[], clicks: number, credits: number) => {
-    const end = K - credits + (C - clicks);
-    if (end < 0) return null;
-    const rez = holdCost(view, ice, end, budget);
-    return rez !== null && end - rez + income >= rezCost ? rez : null;
-  };
-  // The pick's own place holds: nothing changes
+  assetCoverStats.asked++;
+  if (state.corp.hq.some(isAgenda) && scoringShort(state)) return (assetCoverStats.scoringShort++, null);
   const target = a.asNewRemote ? null : a.targetServerId ? state.corp.servers[a.targetServerId] : null;
-  if (holds(state, target?.ice ?? [], 1, 0) !== null) return null;
-  const scoring = scoringRemote(state);
-  const open = remotes(state).filter(v => v.id !== scoring?.id && !v.root.some(c => isAgenda(c) || typeOf(c) === 'asset'));
-  const line = (server: string, form: TwoTurnLine['form'], rez: number, iceId?: string): TwoTurnLine => ({ kind: 'asset', agenda: cardDef(asset).title, agendaId: asset.instanceId, server, form, ...(iceId ? { iceId } : {}), advanceNow: 0, advanceNext: 0, rez });
-  for (const v of open) if (v.ice.length) {
-    const rez = holds(state, v.ice, 1, 0);
-    if (rez !== null) return line(v.id, 'install', rez);
-  }
-  if (C < 2) return null;
-  const hqIce = uniqueByCode(state.corp.hq.filter(c => typeOf(c) === 'ice')).sort((x, y) => (cardDef(x).cost ?? 0) - (cardDef(y).cost ?? 0));
-  let best: { line: TwoTurnLine; cost: number; install: number } | null = null;
-  for (const ice of hqIce) for (const v of [null, ...open]) {
-    const view = withIceInstalled(state, ice, v);
-    const install = v ? v.ice.length : 0;
-    const rez = holds(view, view.corp.servers[v ? v.id : 'remote-placed'].ice, 2, install);
-    if (rez === null) continue;
-    const cost = cardDef(ice).cost ?? 0;
-    if (!best || cost < best.cost || (cost === best.cost && install < best.install)) best = { line: line(v ? v.id : 'new remote', 'install+ice', rez, ice.instanceId), cost, install };
-  }
-  if (best) assetCoverStats.begun++;
-  return best?.line ?? null;
+  if (target && (!target.isRemote || target.ice.length > 0 || target.id === scoringRemote(state)?.id)) return (assetCoverStats.iced++, null);
+  if (state.corp.clicks < 2) return (assetCoverStats.clicks++, null);
+  const income = knownIncome(state);
+  const end = state.corp.credits + (state.corp.clicks - 2);
+  const all = uniqueByCode(state.corp.hq.filter(c => typeOf(c) === 'ice')).map(c => ({ c, rez: rezCostOf(state, c) }));
+  if (!all.length) return (assetCoverStats.noIce++, null);
+  const ice = all.filter(x => end - x.rez + income >= rezCost).sort((x, y) => x.rez - y.rez)[0];
+  if (!ice) return (assetCoverStats.rezMoney++, null);
+  assetCoverStats.begun++;
+  return { kind: 'asset', agenda: cardDef(asset).title, agendaId: asset.instanceId, server: target ? target.id : 'new remote', form: 'install+ice', iceId: ice.c.instanceId, advanceNow: 0, advanceNext: 0, rez: ice.rez };
 }

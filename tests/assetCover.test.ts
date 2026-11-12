@@ -7,20 +7,22 @@ import { asSide } from '../src/ai/pricing';
 import { decisionContext } from '../src/ai/handValues';
 
 /**
- * plan.assetCover (asset cover step 2, redesign/spec-asset-cover.md): an econ asset the Corp's own pick installs where
- * it would not hold through the Runner's next turn goes behind the cheapest ice from HQ that holds it, counted against
- * the Runner's budget less the asset's printed trash cost (rule 2.6.1: the Runner pays it to trash an accessed card).
- * Pin: deal 1001 turn 10 (tests/fixtures/ice-redirect-1001-t10.json), The Syndicate, 15 credits, 2 clicks, with
- * Palisade inst-23 in HQ made a Nico Campaign (rez 2, trash 2; pays 3 when the turn begins), the Runner's breakers
- * gone (so Whitespace and Palisade each hold, Brân 1.0 is broken with clicks) and remote-1's ice cleared (no scoring
- * remote). One agenda or asset per remote root (3.3.1); 1 credit per ice already protecting a server (8.5.11a).
+ * plan.assetCover (asset cover step 2, redesign/spec-asset-cover.md, form A: Jeff's rule with a counted affordability
+ * check): an econ asset the Corp's own pick installs on a remote with no ice goes behind the cheapest ice from HQ, played
+ * first, when the Corp has 2 clicks, the ice's install cost (8.5.11a) and, after it, the ice's rez and the asset's rez
+ * next turn. One agenda or asset per remote root (3.3.1). Jeff's Runner games: 9 of the AI's 17 bare econ assets
+ * trashed (2.6.1), 0 of 2 iced.
+ * Pin 1: deal 1001 turn 10 (tests/fixtures/ice-redirect-1001-t10.json), The Syndicate, 15 credits, 2 clicks, with
+ * Palisade inst-23 in HQ made a Nico Campaign (rez 2, trash 2) and remote-1's ice cleared (no scoring remote).
+ * Pin 2: Jeff's Runner game report-39 (tests/fixtures/asset-cover-r39-t6.json, from tests/fixtures/human-games), turn 6:
+ * the AI Corp, 3 clicks and 3 credits, installed Regolith Mining License bare on a new remote with Tatu-Bola (rez 2) in
+ * HQ, and Jeff trashed it that turn for 3.
  */
 const read = (name: string): GameState => JSON.parse(readFileSync(new URL(`./fixtures/${name}`, import.meta.url), 'utf8'));
 const NICO = '30037';
 const position = (edit?: (s: GameState) => void): GameState => {
   const s: GameState = structuredClone(read('ice-redirect-1001-t10.json'));
   s.corp.hq.find(c => c.instanceId === 'inst-23')!.cardCode = NICO;
-  s.runner.rig.programs = [];
   s.corp.servers['remote-1'].ice = [];
   edit?.(s);
   return s;
@@ -36,8 +38,8 @@ const inCorp = <T>(s: GameState, f: () => T, on = true): T => {
   }
 };
 
-describe('plan.assetCover: a drip asset behind the cheapest ice that holds it', () => {
-  it('plays Whitespace (rez 2, under Palisade 3) onto a new remote, then Nico Campaign behind it', () => {
+describe('plan.assetCover: an econ asset behind the cheapest ice in HQ', () => {
+  it('plays Whitespace (rez 2, under Palisade 3 and Brân 6) onto a new remote, then Nico Campaign behind it', () => {
     const s = position();
     expect(inCorp(s, () => assetCover(s, newRemote))).toMatchObject({ kind: 'asset', agendaId: 'inst-23', server: 'new remote', form: 'install+ice', iceId: 'inst-29' });
     const first = inCorp(s, () => scoreInTwoPick(s, newRemote, null));
@@ -49,13 +51,14 @@ describe('plan.assetCover: a drip asset behind the cheapest ice that holds it', 
     // The line is done once the asset is in: the next pick stands
     const m = executeAction(n, second.action);
     const pick = { type: 'GAIN_CREDIT', player: 'corp' } as GameAction;
-    expect(m.corp.clicks).toBe(0);
     expect(inCorp(m, () => scoreInTwoPick({ ...m, corp: { ...m.corp, clicks: 1 } }, pick, second.held)).held).toBeNull();
   });
 
-  it('covers a click asset too: Regolith Mining License (rez 2, trash 3; Jeff trashes the bare ones)', () => {
-    const s = position(x => (x.corp.hq.find(c => c.instanceId === 'inst-23')!.cardCode = '30071'));
-    expect(inCorp(s, () => assetCover(s, newRemote))).toMatchObject({ kind: 'asset', form: 'install+ice', iceId: 'inst-29' });
+  it("Jeff's game report-39 turn 6: Tatu-Bola goes in front of the Regolith he trashed", () => {
+    const s = read('asset-cover-r39-t6.json');
+    const pick = { type: 'INSTALL_CARD', player: 'corp', cardInstanceId: 'inst-18', asNewRemote: true } as GameAction;
+    expect(inCorp(s, () => assetCover(s, pick))).toMatchObject({ kind: 'asset', agendaId: 'inst-18', server: 'new remote', iceId: 'inst-29' });
+    expect(inCorp(s, () => scoreInTwoPick(s, pick, null).action)).toMatchObject({ type: 'INSTALL_CARD', cardInstanceId: 'inst-29', asNewRemote: true });
   });
 
   it('switch off: the pick stands', () => {
@@ -63,17 +66,22 @@ describe('plan.assetCover: a drip asset behind the cheapest ice that holds it', 
     expect(inCorp(s, () => scoreInTwoPick(s, newRemote, null), false).action).toBe(newRemote);
   });
 
-  it('leaves the bare install with no money for the ice and the rez', () => {
-    const s = position(x => (x.corp.credits = 1));
-    expect(inCorp(s, () => assetCover(s, newRemote))).toBeNull();
-    expect(inCorp(s, () => scoreInTwoPick(s, newRemote, null).action)).toBe(newRemote);
+  it('leaves the bare install without the money for the ice and the rez, or with one click', () => {
+    for (const s of [position(x => (x.corp.credits = 1)), position(x => (x.corp.clicks = 1))]) {
+      expect(inCorp(s, () => assetCover(s, newRemote))).toBeNull();
+      expect(inCorp(s, () => scoreInTwoPick(s, newRemote, null).action)).toBe(newRemote);
+    }
   });
 
-  it('nothing while the scoring remote does not hold: the ice goes there (iceRedirect)', () => {
-    // remote-1 with an unrezzed Brân 1.0 alone: the scoring remote, broken with clicks
-    const s = position(x => x.corp.servers['remote-1'].ice.push({ ...structuredClone(x.corp.servers.rd.ice[1]), instanceId: 'inst-bran', isRezzed: false }));
+  it('an agenda in HQ and a scoring remote that does not hold: the ice goes there (iceRedirect), no line', () => {
+    // remote-1 with an unrezzed Brân 1.0 alone (broken with clicks): the scoring remote, short by the count
+    const bran = (x: GameState) => x.corp.servers['remote-1'].ice.push({ ...structuredClone(x.corp.servers.rd.ice[1]), instanceId: 'inst-bran', isRezzed: false });
+    const s = position(x => (bran(x), x.corp.hq.push({ ...structuredClone(x.corp.hq[0]), instanceId: 'inst-agenda', cardCode: '30068' })));
     expect(inCorp(s, () => scoringRemote(s)?.id)).toBe('remote-1');
     expect(inCorp(s, () => assetCover(s, newRemote))).toBeNull();
+    // With no agenda in HQ the scoring remote has nothing to protect this turn: the cover goes ahead
+    const t = position(bran);
+    expect(inCorp(t, () => assetCover(t, newRemote))).toMatchObject({ kind: 'asset', iceId: 'inst-29' });
   });
 
   it('a score line wins: deal 1411 turn 6 keeps Whitespace for Orbital Superiority', () => {
