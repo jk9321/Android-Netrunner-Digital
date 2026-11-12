@@ -456,6 +456,44 @@ export function buildPick(state: GameState): GameAction | null {
   return null;
 }
 
+/** Step 4 G3' diagnostics: redirects made by the top-level Corp (corpAI counts them). */
+export const focusStats = { fired: 0 };
+
+/**
+ * The scoring remote (step 4 G3', Jeff 01:56Z "ice spread thin"): the remote with the most ice; on a tie the one holding
+ * an agenda or an advanced card, then the lowest id. None while no remote has ice.
+ */
+export function scoringRemote(state: GameState): ServerLike | null {
+  const key = (v: ServerLike) => [v.ice.length, v.root.some(c => isAgenda(c) || (c.advancementCounters ?? 0) > 0) ? 1 : 0] as const;
+  const num = (v: ServerLike) => Number(v.id.replace(/\D/g, '')) || 0;
+  const iced = remotes(state).filter(v => v.ice.length > 0);
+  iced.sort((a, b) => key(b)[0] - key(a)[0] || key(b)[1] - key(a)[1] || num(a) - num(b));
+  return iced[0] ?? null;
+}
+
+/**
+ * Step 4 G3' (temporary plan.placementFocus): when the Corp's own pick installs ice onto a remote or a new remote, and the
+ * scoring remote does not hold by the count (holdCost against runnerBudget with what the Corp ends the turn on, less
+ * afterLineFloor for the agenda that would go there, G2's test), the ice goes to the scoring remote instead, outermost
+ * (8.5.11a: its install cost is 1 credit per ice already there; the redirect is made only when that is legal). Central
+ * ice and the choice to install ice at all are the pick's. A pure redirect: no veto, no extra install. Null = no change.
+ */
+export function focusRedirect(state: GameState, pick: GameAction): GameAction | null {
+  if (!plan().placementFocus || pick.type !== 'INSTALL_CARD' || !isCorpMain(state)) return null;
+  const a = pick as GameAction & { cardInstanceId?: string; targetServerId?: string; asNewRemote?: boolean };
+  const card = state.corp.hq.find(c => c.instanceId === a.cardInstanceId);
+  if (!card || typeOf(card) !== 'ice') return null;
+  const target = a.asNewRemote ? null : a.targetServerId ? state.corp.servers[a.targetServerId] : null;
+  if (!a.asNewRemote && !target?.isRemote) return null;
+  const scoring = scoringRemote(state);
+  if (!scoring || scoring.id === target?.id) return null;
+  const agendas = state.corp.hq.filter(isAgenda);
+  const floor = agendas.length ? Math.min(...agendas.map(x => afterLineFloor(state, x.instanceId))) : afterLineFloor(state, '');
+  const end = state.corp.credits + Math.max(0, state.corp.clicks - 1);
+  if (holdCost(state, scoring.ice, end - floor) !== null) return null;
+  return legalShape(state, { type: 'INSTALL_CARD', cardInstanceId: card.instanceId, targetServerId: scoring.id }) ?? null;
+}
+
 type ServerLike = GameState['corp']['servers'][string];
 const open = (s: GameState) => remotes(s).filter(v => !v.root.some(c => isAgenda(c) || typeOf(c) === 'asset'));
 function combos<T>(items: T[], k: number): T[][] {

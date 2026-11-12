@@ -158,6 +158,8 @@ export const tuning = {
     placementInstall: true,
     /** TEMPORARY step 4 G3/G3b (spec-step4-placement.md): the counted ice install that makes a server hold (countedScore.ts buildPick). */
     placementBuild: true,
+    /** TEMPORARY step 4 G3' (Jeff 01:56Z "ice spread thin"): remote ice the Corp installs goes to the scoring remote until it holds (countedScore.ts focusRedirect). */
+    placementFocus: true,
     /** Corp: with the Runner tagged, a resource trash among the actions it has clicks for goes first (corpAI tagFirst). */
     tagFirst: true,
     /**

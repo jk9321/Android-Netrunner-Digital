@@ -30,7 +30,7 @@ import { counterWorth } from './counterValues';
 import { plan, pricing, withPricing } from './pricing';
 import { dividendsOf, setupOperation } from './cards';
 // Last: its imports (winNow, runs, pricing) are loaded by then, so the AI modules' load order is unchanged (oracle.ts)
-import { HeldLine, advanceCounted, buildPick, heldLaterStep, installCounted, placementStats, scoreInTwoPick } from './countedScore';
+import { HeldLine, advanceCounted, buildPick, focusRedirect, focusStats, heldLaterStep, installCounted, placementStats, scoreInTwoPick } from './countedScore';
 
 
 const type = (card: CardInstance) => cardDef(card).type_code;
@@ -207,6 +207,14 @@ export class HeuristicCorpAI implements Agent {
       const two = scoreInTwoPick(state, picked, this.heldLine);
       this.heldLine = two.held;
       picked = two.action;
+    }
+    // Step 4 G3' (temporary plan.placementFocus): the Corp's own remote ice install goes to the scoring remote until it holds
+    if (!score && !build && picked === chosen && this.synergy) {
+      const focus = focusRedirect(state, picked);
+      if (focus) {
+        if (this.planner && !this.searching) focusStats.fired++;
+        picked = focus;
+      }
     }
     // The reverse bluff: at most once a game
     const bluff = chosen;
