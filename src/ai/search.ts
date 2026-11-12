@@ -12,7 +12,7 @@ import { decisionContext } from './handValues';
 import { knownRdSlots } from './runnerReply';
 import { corpKnowsRd, corpSeenGrip } from './oracle';
 // Loaded by corpAI already (its last import), so the AI modules' load order is unchanged
-import { HeldLine, assetPartner, heldLaterStep, iceRedirect, scoreInTwoPick, spareIce } from './countedScore';
+import { HeldLine, assetPartner, heldLaterStep, iceRedirect, scoreInTwoPick } from './countedScore';
 import { moneyPick } from './incomeLine';
 
 /**
@@ -201,7 +201,7 @@ export class SearchAI implements Agent {
       // Ice redirect (countedScore.ts iceRedirect): the search's own remote ice install goes to the scoring remote until it
       // holds, nothing while a two-turn line is held (as Normal's, corpAI decide)
       const held = this.heldLine && this.heldLine.game === state.id;
-      const redirect = two.action === action && !held ? (iceRedirect(state, action) ?? spareIce(state, action) ?? assetPartner(state, action)) : null;
+      const redirect = two.action === action && !held ? (iceRedirect(state, action) ?? assetPartner(state, action)) : null;
       if (redirect) this.base.notePlayed(redirect);
       return redirect ?? two.action;
     });

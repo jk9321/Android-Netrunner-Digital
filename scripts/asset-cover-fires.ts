@@ -11,7 +11,7 @@
  * strayed: non-econ assets and upgrades installed on a new remote while a remote with ice and no agenda or asset in its
  * root existed (play test round 2). steals: agenda points the Runner stole, by server (the scoring remote as scoringRemote names it at the steal, other
  * remotes, hq, rd, archives); assets: per econ asset copy, iced at install, trashed by the Runner, credits taken off it
- * (rule 1.10). cover: assetCoverStats, spare: spareIceStats (countedScore.ts; any caller, the planner's search included). One JSON line per game.
+ * (rule 1.10). cover: assetCoverStats, partner: assetPartnerStats (countedScore.ts; any caller, the planner's search included). One JSON line per game.
  *
  *   SEEDS=1001,1011 [PLAN_OFF=+scoringNoAsset,+assetCover] [SHARD=0/2] npx vite-node scripts/asset-cover-fires.ts > fires.jsonl
  */
@@ -22,7 +22,7 @@ import { createAgent } from '../src/ai';
 import { GameRunner } from '../src/ai/playout';
 import { valueLoops } from '../src/ai/valueModel';
 import { applyPlanOff, tuning } from '../src/ai/synergy';
-import { assetCoverStats, iceRedirectStats, isCorpMain, scoringRemote, spareIceStats } from '../src/ai/countedScore';
+import { assetCoverStats, iceRedirectStats, isCorpMain, scoringRemote, assetPartnerStats } from '../src/ai/countedScore';
 import { profileOf } from '../src/ai/cardProfiles';
 import { asSide } from '../src/ai/pricing';
 
@@ -53,7 +53,7 @@ for (const [i, seed] of seeds.entries()) {
   valueLoops.clear();
   iceRedirectStats.fired = 0;
   for (const k of Object.keys(assetCoverStats) as (keyof typeof assetCoverStats)[]) assetCoverStats[k] = 0;
-  for (const k of Object.keys(spareIceStats) as (keyof typeof spareIceStats)[]) spareIceStats[k] = 0;
+  assetPartnerStats.moved = 0;
   const game = new GameRunner(createInitialGameState(deckGameSetup(seed, corpDeck, runnerDecks[p % runnerDecks.length])), { corp: createAgent('corp', 'normal'), runner: createAgent('runner', 'normal') });
   let noAssetDiff = 0;
   let installs = 0;
@@ -103,5 +103,5 @@ for (const [i, seed] of seeds.entries()) {
     console.error(`deal ${seed}: ${err}`);
     continue;
   }
-  console.log(JSON.stringify({ seed, deck: corpDeck.name, winner: game.state.winner ?? null, turns: game.state.turnNumber, noAssetDiff, redirects: iceRedirectStats.fired, installs, covered, bare, strayed, steals, assets: [...assets.values()], cover: { ...assetCoverStats }, spare: { ...spareIceStats } }));
+  console.log(JSON.stringify({ seed, deck: corpDeck.name, winner: game.state.winner ?? null, turns: game.state.turnNumber, noAssetDiff, redirects: iceRedirectStats.fired, installs, covered, bare, strayed, steals, assets: [...assets.values()], cover: { ...assetCoverStats }, partner: { ...assetPartnerStats } }));
 }

@@ -395,8 +395,6 @@ export const tuning = {
     scoringNoAsset: false,
     /** Asset cover step 2 (temporary switch; countedScore.ts assetCover): an econ asset the Corp installs where it would not hold goes behind the cheapest ice that holds it. */
     assetCover: false,
-    /** Asset cover follow-up (temporary switch; countedScore.ts spareIce): a credit or draw click ices a new remote ahead for econ assets, which go there. */
-    spareIce: false,
     /** Asset cover alternative (temporary switch; countedScore.ts assetPartner): an asset or upgrade headed for a new bare remote goes to a waiting iced remote. */
     assetPartner: false,
     /**
