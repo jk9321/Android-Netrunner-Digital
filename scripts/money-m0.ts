@@ -78,7 +78,7 @@ const lineValue = (s: GameState) => s.corp.credits + knownIncome(s);
 const stockValue = (s: GameState) => lineValue(s) + corpCards(s).reduce((n, c) => n + (c.tokens?.credit ?? 0), 0);
 
 /** The best income line from a Corp turn start: credits at the turn's end plus known turn-start income. */
-function bestLine(s: GameState, hqAtStart: Set<string>, measure = lineValue, depth = 0): { value: number; moves: string[] } {
+function bestLine(s: GameState, hqAtStart: Set<string>, measure = lineValue, depth = 0, budget = Infinity, clicks0 = s.corp.clicks): { value: number; moves: string[] } {
   let best = { value: measure(s), moves: [] as string[] };
   if (depth > 6 || s.activePlayer !== 'corp' || s.activeRun) return best;
   const seen = new Set<string>();
@@ -93,11 +93,14 @@ function bestLine(s: GameState, hqAtStart: Set<string>, measure = lineValue, dep
       continue;
     }
     if (!next || next.turnNumber !== s.turnNumber || next.activePlayer !== 'corp') continue;
-    const sub = bestLine(next, hqAtStart, measure, depth + 1);
+    if (clicks0 - next.corp.clicks > budget) continue;
+    const sub = bestLine(next, hqAtStart, measure, depth + 1, budget, clicks0);
     if (sub.value > best.value) best = { value: sub.value, moves: [key.split(':').slice(0, 2).join(':'), ...sub.moves] };
   }
   return best;
 }
+
+const INCOME_KINDS = new Set(['credit', 'econ operation', 'econ ability', 'install econ']);
 
 function clickKind(s: GameState, a: GameAction): string {
   const id = (a as { cardInstanceId?: string }).cardInstanceId;
@@ -122,6 +125,13 @@ function clickKind(s: GameState, a: GameAction): string {
 
 interface Turn {
   turn: number;
+  /** M4 sizing: the best income line held to the clicks the turn did not spend on other things, and what those clicks made. */
+  fixedBest?: number;
+  incomeMade?: number;
+  otherClicks: number;
+  otherSpend: number;
+  startState?: GameState;
+  hqAtStart?: Set<string>;
   best: number;
   bestMoves: string[];
   /** The line and the netted credits with hosted credits counted as owned. */
@@ -155,6 +165,7 @@ function playDeal(seed: number) {
   let creditWhilePlayable = 0;
   let abilityUnused = 0;
   const draws: { turn: number; hqIce: number; hqEcon: number }[] = [];
+  const discards: { turn: number; credits: number; gone: object[]; kept: object[] }[] = [];
   let abilityLegal = false;
   let abilityUsed = false;
 
@@ -162,6 +173,12 @@ function playDeal(seed: number) {
     if (!cur) return;
     cur.netted = lineValue(s);
     cur.nettedStock = stockValue(s);
+    // M4 sizing: the line from the turn start within the clicks left over from the turn's other actions; what the turn's
+    // income clicks made is the netted value with the other actions' credit spend added back
+    if (cur.startState) cur.fixedBest = bestLine(cur.startState, cur.hqAtStart!, lineValue, 0, Math.max(0, cur.startState.corp.clicks - cur.otherClicks)).value;
+    cur.incomeMade = cur.netted + cur.otherSpend;
+    delete cur.startState;
+    delete cur.hqAtStart;
     if (abilityLegal && !abilityUsed) abilityUnused++;
     cur = null;
   };
@@ -169,12 +186,19 @@ function playDeal(seed: number) {
   const choose = corp.chooseAction.bind(corp);
   corp.chooseAction = (s: GameState) => {
     const a = choose(s);
+    // Hand-size discards (1.7.2b): what went and what was kept, with the Corp's credits
+    const pr = s.pendingPrompts[0];
+    if (pr?.kind === 'discard' && pr.side === 'corp') {
+      const gone = new Set((a as { choice?: { cardInstanceIds?: string[] } }).choice?.cardInstanceIds ?? []);
+      const card = (x: CardInstance) => ({ title: cardDef(x).title, type: typeOf(x), econ: isEcon(x), cost: cardDef(x).cost ?? 0 });
+      discards.push({ turn: s.turnNumber, credits: s.corp.credits, gone: s.corp.hq.filter(x => gone.has(x.instanceId)).map(card), kept: s.corp.hq.filter(x => !gone.has(x.instanceId)).map(card) });
+    }
     if (s.activePlayer !== 'corp' || s.activeRun || s.pendingPrompts.length || s.turnStep?.kind === 'corp_turn_start') return a;
     if (!cur || cur.turn !== s.turnNumber) {
       // A Corp turn's first main decision: the income line from here, the ops and econ cards in HQ
       const hq = new Set(s.corp.hq.map(x => x.instanceId));
       const line = bestLine(s, hq);
-      cur = { turn: s.turnNumber, best: line.value, bestMoves: line.moves, bestStock: bestLine(s, hq, stockValue).value, start: s.corp.credits, held: !!heldOf() && heldOf()!.game === s.id, clicks: {}, touched: [] };
+      cur = { turn: s.turnNumber, best: line.value, bestMoves: line.moves, bestStock: bestLine(s, hq, stockValue).value, start: s.corp.credits, held: !!heldOf() && heldOf()!.game === s.id, clicks: {}, touched: [], otherClicks: 0, otherSpend: 0, startState: s, hqAtStart: hq };
       turns.push(cur);
       abilityLegal = false;
       abilityUsed = false;
@@ -205,6 +229,16 @@ function playDeal(seed: number) {
     const legal = getLegalActions(s, 'corp');
     if (legal.some(l => l.type === 'USE_ABILITY' && (() => { const x = find(s, (l as { cardInstanceId: string }).cardInstanceId); return !!x && isEcon(x); })())) abilityLegal = true;
     const k = clickKind(s, a);
+    const econRez = a.type === 'REZ_CARD' && (() => { const x = find(s, (a as { cardInstanceId: string }).cardInstanceId); return !!x && isEcon(x) && typeOf(x) !== 'ice'; })();
+    if (!INCOME_KINDS.has(k) && !econRez) {
+      try {
+        const after = executeAction(s, a);
+        cur.otherClicks += Math.max(0, s.corp.clicks - after.corp.clicks);
+        cur.otherSpend += Math.max(0, s.corp.credits - after.corp.credits);
+      } catch {
+        /* the engine refuses it: nothing spent */
+      }
+    }
     if (k) {
       cur.clicks[k] = (cur.clicks[k] ?? 0) + 1;
       const id = (a as { cardInstanceId?: string }).cardInstanceId;
@@ -285,7 +319,7 @@ function playDeal(seed: number) {
   return {
     seed, corp: c.name, runner: r.name, winner: s.winner ?? null, lastTurn: s.turnNumber,
     turns: turns.map(t => ({ ...t, fates: t.touched.map(x => ({ kind: x.kind, fate: fate(x) })).filter(x => x.fate), touched: undefined })),
-    ops: [...ops.values()], creditWhilePlayable, never, assets: [...assets.values()], abilityUnused, draws,
+    ops: [...ops.values()], creditWhilePlayable, never, assets: [...assets.values()], abilityUnused, draws, discards,
   };
 }
 
