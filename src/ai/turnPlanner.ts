@@ -424,7 +424,10 @@ export function planTurn(state: GameState, side: SideCode, ranked: ScoredAction[
   const key = positionKey(state, side);
   const memory = ai.memory ?? sharedPlan[side];
   const next = memory.line[0];
-  if (next && next.key === key && ranked.some(r => r.score > -Infinity && sameAction(r.action, next.action))) {
+  // plan.drawResearch (money step W2 arm B, temporary): a remembered draw is searched again (W1: a fresh search here
+  // picks something else on 48% of them; the position is the one the line foresaw, so the difference is the search's own sampling)
+  const redraw = side === 'corp' && !!plan().drawResearch && next?.action.type === 'DRAW_CARD';
+  if (next && !redraw && next.key === key && ranked.some(r => r.score > -Infinity && sameAction(r.action, next.action))) {
     memory.line.shift();
     return next.action;
   }
