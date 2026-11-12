@@ -3,6 +3,7 @@ import { createInitialGameState, newViewIds } from '../src/core';
 import { playAIGame } from '../src/ai';
 import { deckGameSetup } from '../src/data/decks';
 import { ALL_DECKS as DECKS } from '../scripts/nsg-sample-decks';
+import { startingGame } from '../src/ui/gameStart';
 import { GameConfig, SAVE_VERSION, clearSavedGame, loadSavedGame, saveGame } from '../src/ui/savedGame';
 
 function fakeStorage() {
@@ -74,6 +75,20 @@ describe('saved game', () => {
     expect(raw.version).toBe(SAVE_VERSION);
     store['netrunner.savedGame.v1'] = JSON.stringify({ ...raw, version: SAVE_VERSION + 1 });
     expect(loadSavedGame()).toBeNull();
+  });
+
+  it('resumes a game saved on Hard as Normal (Hard is switched off)', () => {
+    fakeStorage();
+    const start = createInitialGameState(deckGameSetup(config.seed, corpDeck, runnerDeck));
+    saveGame({ config: { ...config, difficulty: 'hard' }, state: start, table });
+    expect(loadSavedGame()!.config.difficulty).toBe('normal');
+  });
+
+  it('opens a ?difficulty=hard link as Normal', () => {
+    fakeStorage();
+    const w = (globalThis as unknown as { window: Record<string, unknown> }).window;
+    w.location = { search: `?seed=4242&corp=${corpDeck.id}&runner=${runnerDeck.id}&ai=corp&difficulty=hard` };
+    expect(startingGame().config!.difficulty).toBe('normal');
   });
 
   it('works without storage', () => {

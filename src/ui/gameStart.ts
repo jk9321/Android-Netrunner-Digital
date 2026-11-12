@@ -24,7 +24,7 @@ export function randomSeed(): number {
 /**
  * `?seed=123&corp=<deck id>&runner=<deck id>` starts that exact game (to
  * replay a deal), and `&ai=corp` or `&ai=runner` hands one side to the
- * computer (`&difficulty=hard` for the search AI); without a seed the app opens on the deck picker.
+ * computer; without a seed the app opens on the deck picker.
  */
 function configFromUrl(): GameConfig | null {
   const params = new URLSearchParams(window.location.search);
@@ -38,7 +38,8 @@ function configFromUrl(): GameConfig | null {
     corpDeck: find(params.get('corp'), 'corp', DEFAULT_CORP_DECK),
     runnerDeck: find(params.get('runner'), 'runner', DEFAULT_RUNNER_DECK),
     ai: params.get('ai') === 'corp' || params.get('ai') === 'runner' ? (params.get('ai') as SideCode) : null,
-    difficulty: params.get('difficulty') === 'hard' ? 'hard' : 'normal',
+    // Hard is switched off, so `&difficulty=hard` opens as Normal
+    difficulty: 'normal',
   };
 }
 

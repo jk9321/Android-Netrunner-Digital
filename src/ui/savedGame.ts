@@ -82,7 +82,8 @@ export function loadSavedGame(): SavedGame | null {
     if (!raw) return null;
     const parsed: unknown = JSON.parse(raw);
     if (!isSavedGame(parsed) || parsed.state.winner) return null;
-    return parsed;
+    // Hard is switched off: a game saved on Hard resumes as Normal
+    return parsed.config.difficulty === 'normal' ? parsed : { ...parsed, config: { ...parsed.config, difficulty: 'normal' } };
   } catch {
     return null;
   }

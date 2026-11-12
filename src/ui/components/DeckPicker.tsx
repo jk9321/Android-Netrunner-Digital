@@ -57,20 +57,8 @@ const MODES: { id: PlayMode; label: string; hint: string }[] = [
 /** Which side the computer plays (kept from the old opponent setting). */
 type Opponent = 'people' | 'ai-corp' | 'ai-runner';
 const OPPONENT_KEY = 'netrunner.opponent';
-const DIFFICULTY_KEY = 'netrunner.difficulty';
-
-function savedDifficulty(): Difficulty {
-  try {
-    return window.localStorage.getItem(DIFFICULTY_KEY) === 'hard' ? 'hard' : 'normal';
-  } catch {
-    return 'normal';
-  }
-}
-
-const DIFFICULTIES: { id: Difficulty; label: string; hint: string }[] = [
-  { id: 'normal', label: 'Normal', hint: 'Rule-based: plays a solid, readable game and moves quickly' },
-  { id: 'hard', label: 'Hard', hint: 'Looks ahead by playing out its best options many times before each move (thinks for a second or two)' },
-];
+/** Hard is switched off until it is clearly stronger than Normal; every AI game uses Normal (an old stored 'hard' choice is ignored). */
+const AI_DIFFICULTY: Difficulty = 'normal';
 
 function savedOpponent(): Opponent {
   try {
@@ -289,15 +277,6 @@ export const DeckPicker: React.FC<DeckPickerProps> = ({
     // Only on returning to the list; later selections scroll themselves
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [showingList]);
-  const [difficulty, setDifficulty] = useState<Difficulty>(savedDifficulty);
-  const chooseDifficulty = (id: Difficulty) => {
-    setDifficulty(id);
-    try {
-      window.localStorage.setItem(DIFFICULTY_KEY, id);
-    } catch {
-      // Not saved; the choice still applies now
-    }
-  };
   const chooseOpponent = (id: Exclude<Opponent, 'people'>) => {
     setOpponent(id);
     remember(OPPONENT_KEY, id);
@@ -751,31 +730,6 @@ export const DeckPicker: React.FC<DeckPickerProps> = ({
                 </div>
                 <span className="text-[12px] text-slate-500">{OPPONENTS.find(o => o.id === opponent)!.hint}</span>
               </div>
-              <div className="flex flex-col items-center gap-2">
-                <span className="text-[12px] uppercase tracking-wider text-slate-500 font-bold">Difficulty</span>
-                <div className="flex flex-wrap justify-center gap-2" role="radiogroup" aria-label="Difficulty">
-                  {DIFFICULTIES.map(d => (
-                    <button
-                      key={d.id}
-                      role="radio"
-                      aria-checked={difficulty === d.id}
-                      onClick={() => chooseDifficulty(d.id)}
-                      title={d.hint}
-                      data-testid={`difficulty-${d.id}`}
-                      className={`px-4 py-2 rounded-[2px] border border-b-2 text-xs font-bold transition-all active:translate-y-[1px] active:border-b-[1px] ${
-                        difficulty === d.id
-                          ? d.id === 'hard'
-                            ? 'bg-gradient-to-b from-red-600 to-red-800 border-red-400 border-b-red-300 text-white'
-                            : 'bg-gradient-to-b from-indigo-600 to-indigo-800 border-indigo-400 border-b-indigo-300 text-white'
-                          : 'bg-gradient-to-b from-slate-900 to-slate-950 border-slate-700/80 border-b-slate-600 text-slate-300 hover:border-slate-500'
-                      }`}
-                    >
-                      {d.label}
-                    </button>
-                  ))}
-                </div>
-                <span className="text-[12px] text-slate-500 text-center max-w-xs">{DIFFICULTIES.find(d => d.id === difficulty)!.hint}</span>
-              </div>
             </>
           )}
           {mode === 'online' && (
@@ -918,7 +872,7 @@ export const DeckPicker: React.FC<DeckPickerProps> = ({
             <button
               onClick={() => {
                 const deck = (id: string) => summaries.find(s => s.deck.id === id)!.deck;
-                onStart(deck(corpId), deck(runnerId), mode === 'computer' ? (opponent === 'ai-corp' ? 'corp' : 'runner') : null, difficulty);
+                onStart(deck(corpId), deck(runnerId), mode === 'computer' ? (opponent === 'ai-corp' ? 'corp' : 'runner') : null, AI_DIFFICULTY);
               }}
               disabled={selectedProblems.length > 0}
               data-testid="start-game"
