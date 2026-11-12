@@ -91,6 +91,15 @@ if (process.env.MODE === 'record') {
           return (corp as unknown as { plan(x: GameState, r: typeof ranked): GameAction | null }).plan(state, ranked);
         });
         plannerStats.onCandidates = undefined;
+        // PIN=turn: every candidate and the rule ranking's top at that turn's draw decisions, to stderr
+        if (process.env.PIN && Number(process.env.PIN) === state.turnNumber) {
+          const shown = seen as { values: number[]; actions: GameAction[] } | null;
+          const name = (x: GameAction) => `${classOf(state, x)} ${'cardInstanceId' in x ? cardDef(findCardAnywhere(state, (x as { cardInstanceId: string }).cardInstanceId)!).title : ''} ${JSON.stringify(x).slice(0, 120)}`;
+          console.error(`T${state.turnNumber} clicks ${state.corp.clicks} credits ${state.corp.credits} HQ ${state.corp.hq.map(h => cardDef(h).title).join(', ')}`);
+          shown?.actions.forEach((x, j) => console.error(`  candidate ${shown.values[j].toFixed(2)} ${name(x)}`));
+          const ranked = asSide('corp', () => corp.rankMainActions(state));
+          ranked.slice(0, 12).forEach(r => console.error(`  ranked ${r.score.toFixed(2)} ${name(r.action)}`));
+        }
         const c = seen as { values: number[]; actions: GameAction[] } | null;
         let draw: number | null = null;
         let other: { cls: string; value: number } | null = null;
