@@ -3,7 +3,7 @@ import { scoreNowLine } from './winNow';
 import { iceCreditNeed } from './runs';
 import { plan } from './pricing';
 import { withIceInstalled } from './iceValues';
-import { CARD_PROFILES, clickMoneyOf, dividendsOf, scoreCreditsOf, turnIncomeOf } from './cards';
+import { clickMoneyOf, dividendsOf, scoreCreditsOf, turnIncomeOf } from './cards';
 import { counters } from '../core/engine/cardEffects';
 
 /**
@@ -132,30 +132,10 @@ export function runnerMoney(s: GameState): number {
  */
 export function holdCost(state: GameState, ice: CardInstance[], corpCredits: number): number | null {
   const budget = runnerBudget(state);
-  let best: number | null = null;
-  rezSets(state, ice, (rez, need) => {
-    if (rez <= corpCredits && need > budget && (best === null || rez < best)) best = rez;
-  });
-  return best;
-}
-
-/**
- * The credits the Runner needs to break through these ice at the Corp's best rez set it can afford (the same sets as
- * holdCost; Infinity when some affordable set has ice it cannot break). Money step A2 (incomeLine.ts assetRedirect).
- */
-export function iceNeed(state: GameState, ice: CardInstance[], corpCredits: number): number {
-  let most = 0;
-  rezSets(state, ice, (rez, need) => {
-    if (rez <= corpCredits) most = Math.max(most, need);
-  });
-  return most;
-}
-
-/** Each set of the unrezzed ice the Corp could rez (rezzed ice always in), with its rez cost and the Runner's iceCreditNeed. */
-function rezSets(state: GameState, ice: CardInstance[], each: (rez: number, need: number) => void) {
   // The Runner's turn: its clicks back (a bioroid broken by clicks, runs.ts plainCreditNeed), one kept for the run
   const view: GameState = { ...state, runner: { ...state.runner, clicks: Math.max(0, state.runner.maxClicks - 1) } };
   const n = Math.min(ice.length, 10);
+  let best: number | null = null;
   for (let mask = 0; mask < 1 << n; mask++) {
     let rez = 0;
     let need = 0;
@@ -171,8 +151,9 @@ function rezSets(state: GameState, ice: CardInstance[], each: (rez: number, need
       const up = c.isRezzed ? c : { ...c, isRezzed: true };
       need += iceCreditNeed(withIce(view, up), up);
     }
-    if (rez !== Infinity) each(rez, need);
+    if (rez <= corpCredits && need > budget && (best === null || rez < best)) best = rez;
   }
+  return best;
 }
 
 /** A copy-free view with this one ice standing in for its unrezzed self (iceCreditNeed reads the board for strength). */
@@ -474,7 +455,6 @@ export function iceRedirect(state: GameState, pick: GameAction): GameAction | nu
   if (!card || typeOf(card) !== 'ice') return null;
   const target = a.asNewRemote ? null : a.targetServerId ? state.corp.servers[a.targetServerId] : null;
   if (!a.asNewRemote && !target?.isRemote) return null;
-  if (plan().assetIceKeep && target && keepsAssetIce(state, card, target)) return null;
   const scoring = scoringRemote(state);
   if (!scoring || scoring.id === target?.id) return null;
   const agendas = state.corp.hq.filter(isAgenda);
@@ -482,21 +462,4 @@ export function iceRedirect(state: GameState, pick: GameAction): GameAction | nu
   const end = state.corp.credits + Math.max(0, state.corp.clicks - 1);
   if (holdCost(state, scoring.ice, end - floor) !== null) return null;
   return legalShape(state, { type: 'INSTALL_CARD', cardInstanceId: card.instanceId, targetServerId: scoring.id }) ?? null;
-}
-
-/**
- * Money step A2 (e) (temporary switch plan.assetIceKeep; Jeff 2026-11-12: "something in front to discourage a free
- * trashing but not my best ICE"): the Corp's cheapest-to-rez ice in HQ going onto a server whose root holds an econ
- * asset (its profile pays more than its rez cost) stays there, while HQ holds another ice at least as costly to rez for
- * the scoring remote. The ice redirect is left alone; nothing else changes.
- */
-function keepsAssetIce(state: GameState, ice: CardInstance, server: ServerLike): boolean {
-  const econ = server.root.some(c => {
-    const pr = typeOf(c) === 'asset' ? CARD_PROFILES[c.cardCode] : undefined;
-    return !!pr && pr.pay > 0 && pr.load > (cardDef(c).cost ?? 0);
-  });
-  if (!econ) return false;
-  const others = state.corp.hq.filter(c => typeOf(c) === 'ice' && c.instanceId !== ice.instanceId).map(c => cardDef(c).cost ?? 0);
-  const mine = cardDef(ice).cost ?? 0;
-  return others.length > 0 && others.every(x => x >= mine);
 }

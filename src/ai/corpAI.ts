@@ -31,7 +31,7 @@ import { plan, pricing, withPricing } from './pricing';
 import { dividendsOf, setupOperation } from './cards';
 // Last: its imports (winNow, runs, pricing) are loaded by then, so the AI modules' load order is unchanged (oracle.ts)
 import { HeldLine, heldLaterStep, iceRedirect, iceRedirectStats, scoreInTwoPick } from './countedScore';
-import { assetPick, assetRedirect, moneyPick } from './incomeLine';
+import { assetPick, moneyPick } from './incomeLine';
 
 
 const type = (card: CardInstance) => cardDef(card).type_code;
@@ -221,8 +221,6 @@ export class HeuristicCorpAI implements Agent {
         if (this.planner && !this.searching) iceRedirectStats.fired++;
         picked = redirect;
       }
-      // Money step A2 (incomeLine.ts assetRedirect): an econ asset installed bare goes behind ice
-      picked = assetRedirect(state, picked) ?? picked;
     }
     // The reverse bluff: at most once a game
     const bluff = chosen;
