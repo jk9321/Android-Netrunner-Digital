@@ -1,8 +1,8 @@
 /**
- * Money step M1/M1b (incomeLine.ts): how often the counted money pick fires per game (operations, free abilities,
- * abilities in place of a click for a credit). One JSON line per deal, with the time taken.
+ * Money step M1 (incomeLine.ts): how often the counted money pick fires per game. One JSON line per deal, with the
+ * time taken.
  *
- *   SEEDS=1001,1011 [PLAN_OFF=+moneyFirst,+moneyAbility] npx vite-node scripts/money-fires.ts
+ *   SEEDS=1001,1011 [PLAN_OFF=+moneyFirst] npx vite-node scripts/money-fires.ts
  */
 import { createInitialGameState } from '../src/core';
 import { deckGameSetup } from '../src/data/decks';
@@ -20,7 +20,7 @@ for (const seed of seeds) {
   const runnerDecks = ALL_DECKS.filter(d => d.side === 'runner');
   const p = Math.floor((seed - 1001) / 10);
   valueLoops.clear();
-  Object.assign(moneyStats, { ops: 0, freeAbilities: 0, clickAbilities: 0, owedPlayed: 0, owedDropped: 0 });
+  Object.assign(moneyStats, { ops: 0 });
   const start = createInitialGameState(deckGameSetup(seed, corpDecks[Math.floor(p / runnerDecks.length)], runnerDecks[p % runnerDecks.length]));
   const t0 = Date.now();
   const game = new GameRunner(start, { corp: createAgent('corp', 'normal'), runner: createAgent('runner', 'normal') });
