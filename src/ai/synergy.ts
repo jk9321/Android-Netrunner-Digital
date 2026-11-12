@@ -395,6 +395,12 @@ export const tuning = {
     assetFirst: false,
     /** Money step A1 second arm (temporary switch; incomeLine.ts assetPick): the asset goes to the scoring remote's empty root while it holds. */
     assetScoring: false,
+    /** Money step A2 (a) (temporary switch; incomeLine.ts assetRedirect): an econ asset the Corp installs bare goes to an iced remote with an empty root. */
+    assetRedirect: false,
+    /** Money step A2 (b) (temporary switch): only where the Runner's cost through the ice covers the asset's rez cost. */
+    assetRedirectProtects: false,
+    /** Money step A2 (c) (temporary switch): never the scoring remote while an agenda is in HQ. */
+    assetRedirectNoScoring: false,
     /**
      * Bug reports #39, #41 (Jeff's Runner test games 7 and 9, 2026-11-09; Corp only): the Corp's own unrezzed ice is priced
      * as it knows it (effectValues.ts ownIce: the real ice when its rez budget covers it, passed when not; rules 3.4.3a,

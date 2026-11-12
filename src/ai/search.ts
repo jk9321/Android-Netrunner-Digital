@@ -13,7 +13,7 @@ import { knownRdSlots } from './runnerReply';
 import { corpKnowsRd, corpSeenGrip } from './oracle';
 // Loaded by corpAI already (its last import), so the AI modules' load order is unchanged
 import { HeldLine, heldLaterStep, iceRedirect, scoreInTwoPick } from './countedScore';
-import { assetPick, moneyPick } from './incomeLine';
+import { assetPick, assetRedirect, moneyPick } from './incomeLine';
 
 /**
  * Hard AI: Monte Carlo look-ahead on top of the rule-based AI.
@@ -207,7 +207,10 @@ export class SearchAI implements Agent {
       const held = this.heldLine && this.heldLine.game === state.id;
       const redirect = two.action === own && !held ? iceRedirect(state, action) : null;
       if (redirect) this.base.notePlayed(redirect);
-      return redirect ?? two.action;
+      // Money step A2 (incomeLine.ts assetRedirect): an econ asset installed bare goes behind ice (as Normal's)
+      const behind = two.action === own && !held ? assetRedirect(state, two.action) : null;
+      if (behind) this.base.notePlayed(behind);
+      return behind ?? redirect ?? two.action;
     });
   }
 

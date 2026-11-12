@@ -132,10 +132,30 @@ export function runnerMoney(s: GameState): number {
  */
 export function holdCost(state: GameState, ice: CardInstance[], corpCredits: number): number | null {
   const budget = runnerBudget(state);
+  let best: number | null = null;
+  rezSets(state, ice, (rez, need) => {
+    if (rez <= corpCredits && need > budget && (best === null || rez < best)) best = rez;
+  });
+  return best;
+}
+
+/**
+ * The credits the Runner needs to break through these ice at the Corp's best rez set it can afford (the same sets as
+ * holdCost; Infinity when some affordable set has ice it cannot break). Money step A2 (incomeLine.ts assetRedirect).
+ */
+export function iceNeed(state: GameState, ice: CardInstance[], corpCredits: number): number {
+  let most = 0;
+  rezSets(state, ice, (rez, need) => {
+    if (rez <= corpCredits) most = Math.max(most, need);
+  });
+  return most;
+}
+
+/** Each set of the unrezzed ice the Corp could rez (rezzed ice always in), with its rez cost and the Runner's iceCreditNeed. */
+function rezSets(state: GameState, ice: CardInstance[], each: (rez: number, need: number) => void) {
   // The Runner's turn: its clicks back (a bioroid broken by clicks, runs.ts plainCreditNeed), one kept for the run
   const view: GameState = { ...state, runner: { ...state.runner, clicks: Math.max(0, state.runner.maxClicks - 1) } };
   const n = Math.min(ice.length, 10);
-  let best: number | null = null;
   for (let mask = 0; mask < 1 << n; mask++) {
     let rez = 0;
     let need = 0;
@@ -151,9 +171,8 @@ export function holdCost(state: GameState, ice: CardInstance[], corpCredits: num
       const up = c.isRezzed ? c : { ...c, isRezzed: true };
       need += iceCreditNeed(withIce(view, up), up);
     }
-    if (rez <= corpCredits && need > budget && (best === null || rez < best)) best = rez;
+    if (rez !== Infinity) each(rez, need);
   }
-  return best;
 }
 
 /** A copy-free view with this one ice standing in for its unrezzed self (iceCreditNeed reads the board for strength). */

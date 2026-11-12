@@ -1,7 +1,7 @@
-import { GameAction, GameState, activePrompt, cardDef, executeAction, findCardAnywhere, getLegalActions } from '../core';
+import { CardInstance, GameAction, GameState, activePrompt, cardDef, executeAction, findCardAnywhere, getLegalActions } from '../core';
 import { answerPrompt } from './prompts';
 import { cardSynergy } from './synergyTags';
-import { holdCost, knownIncome, scoringRemote } from './countedScore';
+import { holdCost, iceNeed, knownIncome, scoringRemote } from './countedScore';
 import { profileOf } from './cardProfiles';
 import { plan } from './pricing';
 import { scoreNowPlan } from './winNow';
@@ -99,10 +99,6 @@ export function assetPick(state: GameState, pick: GameAction): GameAction | null
   if (!p.assetFirst && !p.assetScoring) return null;
   if (pick.type !== 'GAIN_CREDIT' && pick.type !== 'DRAW_CARD') return null;
   if (state.activePlayer !== 'corp' || activePrompt(state) || state.activeRun || state.corp.clicks <= 0) return null;
-  const pays = (c: GameState['corp']['hq'][number]) => {
-    const pr = cardDef(c).type_code === 'asset' ? profileOf(c.cardCode) : undefined;
-    return pr && pr.pay > 0 && pr.load > (cardDef(c).cost ?? 0) ? pr.load - (cardDef(c).cost ?? 0) : 0;
-  };
   const asset = state.corp.hq.filter(c => pays(c) > 0).sort((a, b) => pays(b) - pays(a))[0];
   if (!asset) return null;
   const legal = getLegalActions(state, 'corp').filter(a => a.type === 'INSTALL_CARD' && a.cardInstanceId === asset.instanceId && !(a as { faceUp?: boolean }).faceUp);
@@ -118,4 +114,49 @@ export function assetPick(state: GameState, pick: GameAction): GameAction | null
   }
   if (install) assetStats.fired++;
   return install ?? null;
+}
+
+/** An econ asset's payback: its profile's credits loaded over its rez cost, 0 for any other card. */
+function pays(c: CardInstance): number {
+  const pr = cardDef(c).type_code === 'asset' ? profileOf(c.cardCode) : undefined;
+  return pr && pr.pay > 0 && pr.load > (cardDef(c).cost ?? 0) ? pr.load - (cardDef(c).cost ?? 0) : 0;
+}
+
+export const assetRedirectStats = { fired: 0 };
+
+/**
+ * Money step A2 (temporary switches plan.assetRedirect, plan.assetRedirectProtects, plan.assetRedirectNoScoring; from A0:
+ * the AI puts its econ assets on a bare remote 86% of the time against Jeff's 35%, and 55% are trashed by turn 10
+ * against his 29%). When the Corp's own pick installs an econ asset (pays above) on a new remote or a remote with no
+ * ice, and a remote with ice and no asset or agenda in its root exists (rule 3.3.1: one asset or agenda per root), the
+ * asset goes there instead, the most iced first. Protects: only where the Runner's cost through that ice at the Corp's
+ * affordable rez (iceNeed, after the asset's own rez) is at least the asset's rez cost, so the ice guards what the Corp
+ * pays for. NoScoring: never the scoring remote while an agenda is in HQ. A pure redirect of the pick, no veto, no
+ * extra install. Null: no change.
+ */
+export function assetRedirect(state: GameState, pick: GameAction): GameAction | null {
+  const p = plan();
+  if (!p.assetRedirect && !p.assetRedirectProtects && !p.assetRedirectNoScoring) return null;
+  if (pick.type !== 'INSTALL_CARD' || state.activePlayer !== 'corp' || activePrompt(state) || state.activeRun) return null;
+  const a = pick as GameAction & { cardInstanceId: string; targetServerId?: string; asNewRemote?: boolean };
+  const card = state.corp.hq.find(c => c.instanceId === a.cardInstanceId);
+  if (!card || pays(card) <= 0) return null;
+  const target = a.targetServerId ? state.corp.servers[a.targetServerId] : undefined;
+  if (!a.asNewRemote && !(target?.isRemote && target.ice.length === 0)) return null;
+  const rez = cardDef(card).cost ?? 0;
+  const end = state.corp.credits + Math.max(0, state.corp.clicks - 1) - rez;
+  const scoring = p.assetRedirectNoScoring && state.corp.hq.some(c => cardDef(c).type_code === 'agenda') ? scoringRemote(state) : null;
+  const num = (id: string) => Number(id.replace(/\D/g, '')) || 0;
+  const open = Object.values(state.corp.servers)
+    .filter(v => v.isRemote && v.ice.length > 0 && v.root.every(c => cardDef(c).type_code === 'upgrade') && v.id !== scoring?.id)
+    .filter(v => !p.assetRedirectProtects || iceNeed(state, v.ice, end) >= rez)
+    .sort((x, y) => y.ice.length - x.ice.length || num(x.id) - num(y.id));
+  for (const v of open) {
+    const there = getLegalActions(state, 'corp').find(x => x.type === 'INSTALL_CARD' && x.cardInstanceId === card.instanceId && (x as { targetServerId?: string }).targetServerId === v.id && !(x as { faceUp?: boolean }).faceUp);
+    if (there) {
+      assetRedirectStats.fired++;
+      return there;
+    }
+  }
+  return null;
 }
