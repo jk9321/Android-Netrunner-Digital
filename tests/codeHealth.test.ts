@@ -28,9 +28,6 @@ const CODES_IN_VALUE_FILES: Record<string, string> = {
 /** Plan switches that are off, each with why it stays in the code. */
 const OFF_SWITCHES: Record<string, string> = {
   // TEMPORARY ice-redirect arms (folded or deleted at hand-off)
-  iceRedirectMoney: 'ice redirect arm being measured: only when the Corp keeps the holding rez',
-  iceRedirectNarrow: 'ice redirect arm being measured: skip only a held line\'s own ice',
-  iceRedirectRoot: 'ice redirect arm being measured: keep the first ice on a server with a root card',
   rigEffects: 'experiment, off until a batch says so',
   icePosition: "Jeff's ice-at-its-position model (Scatter Field); lost its batch, kept with its test for re-testing",
   'clickByPlay.corp': 'Corp side lost its batch; kept for re-testing',

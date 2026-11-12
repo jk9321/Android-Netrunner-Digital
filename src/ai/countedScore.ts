@@ -439,17 +439,17 @@ export function scoringRemote(state: GameState): ServerLike | null {
 }
 
 /**
- * plan.iceRedirect (step 4 G3', Jeff 2026-11-12 "ice spread thin"; +2.2 ± 0.7 over 2,873 paired games): when the Corp's
+ * Ice redirect (step 4 G3', Jeff 2026-11-12 "ice spread thin"; +2.2 ± 0.7 over 2,873 paired games): when the Corp's
  * own pick installs ice onto a remote or a new remote, and the scoring remote does not hold by the count (holdCost
  * against runnerBudget with what the Corp ends the turn on: credits and the clicks after this one, less afterLineFloor
  * for its agendas), the ice goes to the scoring remote instead, outermost. Its install cost there is 1 credit for each
- * ice already protecting it (8.5.11a), against none on a new remote. plan.iceRedirectMoney: only when the Corp, after
- * that install cost, still covers the cheapest rez that makes the scoring remote hold, with afterLineFloor kept (the
- * redirect then never spends the money the server needs). Central ice and the choice to install ice at all are the
+ * ice already protecting it (8.5.11a), against none on a new remote. Measured and not kept: redirecting only while the
+ * Corp still covers the holding rez after that cost (+0.5 ± 0.6, run 43158132282: it removes most fires), and keeping the
+ * first ice on a server with a card in its root (-1.4 ± 0.8 against this, run 43167848111). Central ice and the choice to install ice at all are the
  * pick's: a pure redirect, no veto, no extra install. Null: no change.
  */
 export function iceRedirect(state: GameState, pick: GameAction): GameAction | null {
-  if (!plan().iceRedirect || pick.type !== 'INSTALL_CARD' || !isCorpMain(state)) return null;
+  if (pick.type !== 'INSTALL_CARD' || !isCorpMain(state)) return null;
   const a = pick as GameAction & { cardInstanceId?: string; targetServerId?: string; asNewRemote?: boolean };
   const card = state.corp.hq.find(c => c.instanceId === a.cardInstanceId);
   if (!card || typeOf(card) !== 'ice') return null;
@@ -457,15 +457,9 @@ export function iceRedirect(state: GameState, pick: GameAction): GameAction | nu
   if (!a.asNewRemote && !target?.isRemote) return null;
   const scoring = scoringRemote(state);
   if (!scoring || scoring.id === target?.id) return null;
-  // plan.iceRedirectRoot: the pick is the first ice on a server with a card in its root (that card is free to reach without it)
-  if (plan().iceRedirectRoot && target && target.ice.length === 0 && target.root.length > 0) return null;
   const agendas = state.corp.hq.filter(isAgenda);
   const floor = agendas.length ? Math.min(...agendas.map(x => afterLineFloor(state, x.instanceId))) : afterLineFloor(state, '');
   const end = state.corp.credits + Math.max(0, state.corp.clicks - 1);
   if (holdCost(state, scoring.ice, end - floor) !== null) return null;
-  if (plan().iceRedirectMoney) {
-    const view = withIceInstalled(state, card, scoring);
-    if (holdCost(view, view.corp.servers[scoring.id].ice, end - scoring.ice.length - floor) === null) return null;
-  }
   return legalShape(state, { type: 'INSTALL_CARD', cardInstanceId: card.instanceId, targetServerId: scoring.id }) ?? null;
 }

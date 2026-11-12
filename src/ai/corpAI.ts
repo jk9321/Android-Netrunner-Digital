@@ -204,13 +204,12 @@ export class HeuristicCorpAI implements Agent {
       this.heldLine = two.held;
       picked = two.action;
     }
-    // plan.iceRedirect: the Corp's own remote ice install goes to the scoring remote until it holds
-    // (not the ice of a counted two-turn line: it goes where the line puts it; plan.iceRedirectNarrow: only that ice,
-    // otherwise nothing while a line is held)
+    // Ice redirect (step 4 G3', countedScore.ts iceRedirect): the Corp's own remote ice install goes to the scoring remote
+    // until it holds; nothing while a counted two-turn line is held (its ice goes where the line puts it; skipping only
+    // the line's own ice played the same 663 games, run 43158341651)
     const held = this.heldLine && this.heldLine.game === state.id ? this.heldLine : null;
-    const lineIce = !!held && held.line.iceId === (picked as { cardInstanceId?: string }).cardInstanceId;
-    if (held && this.planner && !this.searching && picked.type === 'INSTALL_CARD') iceRedirectStats[lineIce ? 'lineIce' : 'heldOther']++;
-    if (!score && picked === chosen && this.synergy && (plan().iceRedirectNarrow ? !lineIce : !held)) {
+    if (held && this.planner && !this.searching && picked.type === 'INSTALL_CARD') iceRedirectStats[held.line.iceId === (picked as { cardInstanceId?: string }).cardInstanceId ? 'lineIce' : 'heldOther']++;
+    if (!score && picked === chosen && this.synergy && !held) {
       const redirect = iceRedirect(state, picked);
       if (redirect) {
         if (this.planner && !this.searching) iceRedirectStats.fired++;

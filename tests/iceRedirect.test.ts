@@ -3,7 +3,6 @@ import { describe, expect, it } from 'vitest';
 import { GameAction, GameState, getLegalActions } from '../src/core';
 import { HeuristicCorpAI, createAgent } from '../src/ai';
 import { iceRedirect, scoringRemote } from '../src/ai/countedScore';
-import { applyPlanOff } from '../src/ai/synergy';
 import { asSide } from '../src/ai/pricing';
 import { decisionContext } from '../src/ai/handValues';
 
@@ -34,16 +33,10 @@ describe('plan.iceRedirect: remote ice to the scoring remote', () => {
     expect(inCorp(s, () => iceRedirect(s, hq))).toBeNull();
   });
 
-  it('the Normal and the Hard Corp play it; without the switch both put it on remote-4', () => {
+  // Before the redirect both Corps put it on remote-4 (checked with the temporary switch off before the fold, 7e82679)
+  it('the Normal and the Hard Corp play it', () => {
     expect(new HeuristicCorpAI({ synergy: true }).chooseAction(position())).toMatchObject({ cardInstanceId: 'inst-29', targetServerId: 'remote-1' });
     expect(createAgent('corp', 'hard').chooseAction(position())).toMatchObject({ cardInstanceId: 'inst-29', targetServerId: 'remote-1' });
-    applyPlanOff('iceRedirect');
-    try {
-      expect(new HeuristicCorpAI({ synergy: true }).chooseAction(position())).toMatchObject({ cardInstanceId: 'inst-29', targetServerId: 'remote-4' });
-      expect(createAgent('corp', 'hard').chooseAction(position())).toMatchObject({ cardInstanceId: 'inst-29', targetServerId: 'remote-4' });
-    } finally {
-      applyPlanOff('+iceRedirect');
-    }
   }, 480_000);
 
   it("keeps a two-turn line's own ice where the line puts it (deal 1411 turn 6: Whitespace on a new remote for Orbital Superiority)", () => {
