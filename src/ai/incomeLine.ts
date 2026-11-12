@@ -125,18 +125,18 @@ function pays(c: CardInstance): number {
 export const assetRedirectStats = { fired: 0 };
 
 /**
- * Money step A2 (temporary switches plan.assetRedirect, plan.assetRedirectProtects, plan.assetRedirectNoScoring; from A0:
+ * Money step A2 (temporary switches plan.assetRedirect, plan.assetRedirectProtects, plan.assetRedirectNoScoring, plan.assetRedirectLight; from A0:
  * the AI puts its econ assets on a bare remote 86% of the time against Jeff's 35%, and 55% are trashed by turn 10
  * against his 29%). When the Corp's own pick installs an econ asset (pays above) on a new remote or a remote with no
  * ice, and a remote with ice and no asset or agenda in its root exists (rule 3.3.1: one asset or agenda per root), the
  * asset goes there instead, the most iced first. Protects: only where the Runner's cost through that ice at the Corp's
  * affordable rez (iceNeed, after the asset's own rez) is at least the asset's rez cost, so the ice guards what the Corp
- * pays for. NoScoring: never the scoring remote while an agenda is in HQ. A pure redirect of the pick, no veto, no
+ * pays for. NoScoring: never the scoring remote while an agenda is in HQ. Light: never the scoring remote, least iced first. A pure redirect of the pick, no veto, no
  * extra install. Null: no change.
  */
 export function assetRedirect(state: GameState, pick: GameAction): GameAction | null {
   const p = plan();
-  if (!p.assetRedirect && !p.assetRedirectProtects && !p.assetRedirectNoScoring) return null;
+  if (!p.assetRedirect && !p.assetRedirectProtects && !p.assetRedirectNoScoring && !p.assetRedirectLight) return null;
   if (pick.type !== 'INSTALL_CARD' || state.activePlayer !== 'corp' || activePrompt(state) || state.activeRun) return null;
   const a = pick as GameAction & { cardInstanceId: string; targetServerId?: string; asNewRemote?: boolean };
   const card = state.corp.hq.find(c => c.instanceId === a.cardInstanceId);
@@ -145,12 +145,14 @@ export function assetRedirect(state: GameState, pick: GameAction): GameAction | 
   if (!a.asNewRemote && !(target?.isRemote && target.ice.length === 0)) return null;
   const rez = cardDef(card).cost ?? 0;
   const end = state.corp.credits + Math.max(0, state.corp.clicks - 1) - rez;
-  const scoring = p.assetRedirectNoScoring && state.corp.hq.some(c => cardDef(c).type_code === 'agenda') ? scoringRemote(state) : null;
+  // Light (Jeff 2026-11-12: "something in front to discourage a free trashing but not my best ICE"): never the scoring
+  // remote, the least iced first
+  const scoring = p.assetRedirectLight || (p.assetRedirectNoScoring && state.corp.hq.some(c => cardDef(c).type_code === 'agenda')) ? scoringRemote(state) : null;
   const num = (id: string) => Number(id.replace(/\D/g, '')) || 0;
   const open = Object.values(state.corp.servers)
     .filter(v => v.isRemote && v.ice.length > 0 && v.root.every(c => cardDef(c).type_code === 'upgrade') && v.id !== scoring?.id)
     .filter(v => !p.assetRedirectProtects || iceNeed(state, v.ice, end) >= rez)
-    .sort((x, y) => y.ice.length - x.ice.length || num(x.id) - num(y.id));
+    .sort((x, y) => (p.assetRedirectLight ? x.ice.length - y.ice.length : y.ice.length - x.ice.length) || num(x.id) - num(y.id));
   for (const v of open) {
     const there = getLegalActions(state, 'corp').find(x => x.type === 'INSTALL_CARD' && x.cardInstanceId === card.instanceId && (x as { targetServerId?: string }).targetServerId === v.id && !(x as { faceUp?: boolean }).faceUp);
     if (there) {

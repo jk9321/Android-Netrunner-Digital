@@ -32,6 +32,7 @@ const OFF_SWITCHES: Record<string, string> = {
   assetRedirect: 'money step A2 (a), temporary: under its g3 batch',
   assetRedirectProtects: 'money step A2 (b), temporary: under its g3 batch',
   assetRedirectNoScoring: 'money step A2 (c), temporary: under its g3 batch',
+  assetRedirectLight: 'money step A2 (d), temporary: under its g3 batch',
   rigEffects: 'experiment, off until a batch says so',
   icePosition: "Jeff's ice-at-its-position model (Scatter Field); lost its batch, kept with its test for re-testing",
   'clickByPlay.corp': 'Corp side lost its batch; kept for re-testing',

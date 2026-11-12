@@ -401,6 +401,8 @@ export const tuning = {
     assetRedirectProtects: false,
     /** Money step A2 (c) (temporary switch): never the scoring remote while an agenda is in HQ. */
     assetRedirectNoScoring: false,
+    /** Money step A2 (d) (temporary switch; Jeff 2026-11-12): never the scoring remote, the least iced remote first. */
+    assetRedirectLight: false,
     /**
      * Bug reports #39, #41 (Jeff's Runner test games 7 and 9, 2026-11-09; Corp only): the Corp's own unrezzed ice is priced
      * as it knows it (effectValues.ts ownIce: the real ice when its rez budget covers it, passed when not; rules 3.4.3a,
