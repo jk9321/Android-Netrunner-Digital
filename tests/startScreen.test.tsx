@@ -75,10 +75,11 @@ function deckTag(html: string, id: string): string {
 }
 
 describe('Start screen: each way of playing shows what it needs', () => {
-  it('Play the computer: side and difficulty, your deck first, the other labelled as the computer\'s', () => {
+  it('Play the computer: side (no difficulty choice, Hard is switched off), your deck first, the other labelled as the computer\'s', () => {
     stubStorage({ 'netrunner.opponent': 'ai-corp' });
     const html = render('computer');
-    expect(has(html, 'opponent-ai-corp') && has(html, 'opponent-ai-runner') && has(html, 'difficulty-hard')).toBe(true);
+    expect(has(html, 'opponent-ai-corp') && has(html, 'opponent-ai-runner')).toBe(true);
+    expect(has(html, 'difficulty-normal') || has(html, 'difficulty-hard')).toBe(false);
     expect(columns(html)).toEqual(["COMPUTER'S CORP DECK", 'YOUR RUNNER DECK']);
     expect(has(html, 'start-game')).toBe(true);
     stubStorage({ 'netrunner.opponent': 'ai-runner' });

@@ -1,0 +1,63 @@
+# Deletes remote branches that are fully merged into beta or main.
+# Scheduled runs delete for real. Manual runs default to a dry run (list only).
+# A branch is deleted only if it has ZERO commits not already in beta or main,
+# is not on the protected list, has no open pull request, and its tip is not
+# the current tip of main/beta (a brand-new branch looks "merged" until it
+# gets its first commit).
+name: Cleanup merged branches
+
+on:
+  schedule:
+    - cron: '17 9 * * *'
+  workflow_dispatch:
+    inputs:
+      dry_run:
+        description: 'Dry run: only list what would be deleted'
+        type: boolean
+        default: true
+
+permissions:
+  contents: write
+  pull-requests: read
+
+jobs:
+  cleanup:
+    runs-on: ubuntu-latest
+    env:
+      GH_TOKEN: ${{ github.token }}
+      REPO: ${{ github.repository }}
+      # Scheduled runs have no input: treat them as a real run.
+      DRY_RUN: ${{ github.event_name == 'workflow_dispatch' && inputs.dry_run || 'false' }}
+      # Long-lived branches that must never be deleted (space separated).
+      PROTECTED: 'main beta ai-batch-results'
+    steps:
+      - name: Delete merged branches
+        shell: bash
+        run: |
+          set -euo pipefail
+          main_sha=$(gh api "repos/$REPO/git/ref/heads/main" --jq .object.sha)
+          beta_sha=$(gh api "repos/$REPO/git/ref/heads/beta" --jq .object.sha)
+          default=$(gh api "repos/$REPO" --jq .default_branch)
+          PROTECTED="$PROTECTED $default"
+          open_heads=$(gh api --paginate "repos/$REPO/pulls?state=open&per_page=100" --jq '.[] | select(.head.repo.full_name == "'"$REPO"'") | .head.ref')
+          echo "dry_run=$DRY_RUN"
+          deleted=0
+          while IFS=$'\t' read -r name sha; do
+            [ -z "$name" ] && continue
+            if [[ " $PROTECTED " == *" $name "* ]]; then echo "keep  $name (protected)"; continue; fi
+            if grep -qxF "$name" <<<"$open_heads"; then echo "keep  $name (open PR)"; continue; fi
+            if [ "$sha" = "$main_sha" ] || [ "$sha" = "$beta_sha" ]; then echo "keep  $name (tip equals main/beta tip)"; continue; fi
+            merged=""
+            for base in beta main; do
+              ahead=$(gh api "repos/$REPO/compare/$base...$sha" --jq .ahead_by 2>/dev/null || echo "?")
+              if [ "$ahead" = "0" ]; then merged="$base"; break; fi
+            done
+            if [ -z "$merged" ]; then echo "keep  $name (has unmerged commits)"; continue; fi
+            if [ "$DRY_RUN" = "true" ]; then
+              echo "WOULD DELETE $name (merged into $merged, tip $sha)"
+            else
+              gh api -X DELETE "repos/$REPO/git/refs/heads/$name" && echo "DELETED $name (merged into $merged, tip $sha)"
+            fi
+            deleted=$((deleted+1))
+          done < <(gh api --paginate "repos/$REPO/branches?per_page=100" --jq '.[] | [.name, .commit.sha] | @tsv')
+          echo "Total: $deleted"
