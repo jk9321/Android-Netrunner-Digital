@@ -158,6 +158,8 @@ export const tuning = {
     iceRedirectMoney: false,
     /** TEMPORARY arm: while a two-turn line is held, skip only the line's own ice (not every remote ice install). */
     iceRedirectNarrow: false,
+    /** TEMPORARY arm: no redirect of the first ice onto a server with a card in its root. */
+    iceRedirectRoot: false,
     /** Corp: with the Runner tagged, a resource trash among the actions it has clicks for goes first (corpAI tagFirst). */
     tagFirst: true,
     /**

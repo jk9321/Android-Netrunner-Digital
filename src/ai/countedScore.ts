@@ -457,6 +457,8 @@ export function iceRedirect(state: GameState, pick: GameAction): GameAction | nu
   if (!a.asNewRemote && !target?.isRemote) return null;
   const scoring = scoringRemote(state);
   if (!scoring || scoring.id === target?.id) return null;
+  // plan.iceRedirectRoot: the pick is the first ice on a server with a card in its root (that card is free to reach without it)
+  if (plan().iceRedirectRoot && target && target.ice.length === 0 && target.root.length > 0) return null;
   const agendas = state.corp.hq.filter(isAgenda);
   const floor = agendas.length ? Math.min(...agendas.map(x => afterLineFloor(state, x.instanceId))) : afterLineFloor(state, '');
   const end = state.corp.credits + Math.max(0, state.corp.clicks - 1);
