@@ -428,12 +428,14 @@ export const iceRedirectStats = { fired: 0 };
 
 /**
  * The scoring remote (ice redirect): the remote with the most ice; on a tie the one holding an agenda or an advanced
- * card, then the lowest id. None while no remote has ice.
+ * card, then the lowest id. None while no remote has ice. plan.scoringNoAsset (asset cover step 1, temporary): not a
+ * remote whose root holds an asset, where no agenda can be installed (rule 3.3.1: one agenda or asset per remote root);
+ * it can be the scoring remote again once the asset leaves.
  */
 export function scoringRemote(state: GameState): ServerLike | null {
   const key = (v: ServerLike) => [v.ice.length, v.root.some(c => isAgenda(c) || (c.advancementCounters ?? 0) > 0) ? 1 : 0] as const;
   const num = (v: ServerLike) => Number(v.id.replace(/\D/g, '')) || 0;
-  const iced = remotes(state).filter(v => v.ice.length > 0);
+  const iced = remotes(state).filter(v => v.ice.length > 0 && !(plan().scoringNoAsset && v.root.some(c => typeOf(c) === 'asset')));
   iced.sort((a, b) => key(b)[0] - key(a)[0] || key(b)[1] - key(a)[1] || num(a) - num(b));
   return iced[0] ?? null;
 }
