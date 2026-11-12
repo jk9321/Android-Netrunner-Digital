@@ -391,6 +391,10 @@ export const tuning = {
      * shipping pair at 10 games +2.8 ± 1.1 (run 42800495659 vs 42797275838; games 3-10 alone +1.4 ± 1.3).
      */
     scoreInTwo: true,
+    /** Money step M1 (temporary switch, folded at hand-off; incomeLine.ts moneyPick): a netting econ operation is the counted pick for its click. */
+    moneyFirst: false,
+    /** Money step M1b (temporary switch, folded at hand-off; incomeLine.ts): a netting econ ability with no click cost is taken; one with a click replaces a click for a credit. */
+    moneyAbility: false,
     /**
      * Bug reports #39, #41 (Jeff's Runner test games 7 and 9, 2026-11-09; Corp only): the Corp's own unrezzed ice is priced
      * as it knows it (effectValues.ts ownIce: the real ice when its rez budget covers it, passed when not; rules 3.4.3a,

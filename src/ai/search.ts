@@ -12,7 +12,8 @@ import { decisionContext } from './handValues';
 import { knownRdSlots } from './runnerReply';
 import { corpKnowsRd, corpSeenGrip } from './oracle';
 // Loaded by corpAI already (its last import), so the AI modules' load order is unchanged
-import { HeldLine, scoreInTwoPick } from './countedScore';
+import { HeldLine, heldLaterStep, scoreInTwoPick } from './countedScore';
+import { moneyForCredit, moneyPick } from './incomeLine';
 
 /**
  * Hard AI: Monte Carlo look-ahead on top of the rule-based AI.
@@ -194,9 +195,12 @@ export class SearchAI implements Agent {
       // A score this turn (plan.scoreNow) comes before a two-turn line
       if (this.side !== 'corp' || !(this.options.synergy ?? true) || this.scoring) return action;
       // plan.scoreInTwo (counted scoring C2): a held two-turn score line's step, or the pick vetoed while it would spend the line's rez money
-      const two = scoreInTwoPick(state, action, this.heldLine);
+      // Money step M1b (incomeLine.ts): an econ ability for one click in place of a click for a credit when it nets more
+      const ability = heldLaterStep(state, this.heldLine) ? null : moneyForCredit(state, action);
+      if (ability) this.base.notePlayed(ability);
+      const two = scoreInTwoPick(state, ability ?? action, this.heldLine);
       this.heldLine = two.held;
-      if (two.action !== action) this.base.notePlayed(two.action);
+      if (two.action !== (ability ?? action)) this.base.notePlayed(two.action);
       return two.action;
     });
   }
@@ -228,6 +232,12 @@ export class SearchAI implements Agent {
     }
     // Prompts and the steps of a run follow the rule-based AI's judgement
     if (activePrompt(state) || state.activeRun || state.turnStep?.kind === 'corp_turn_start') return this.base.chooseAction(state);
+    // Money step M1/M1b (incomeLine.ts): the counted money pick, as Normal's (corpAI decide)
+    const money = this.side === 'corp' && (this.options.synergy ?? true) && !heldLaterStep(state, this.heldLine) ? moneyPick(state) : null;
+    if (money) {
+      this.base.notePlayed(money);
+      return money;
+    }
     if (this.base instanceof HeuristicRunnerAI) this.base.observe(state);
     // A rule, not a judgement: a full Read-Write Share is shuffled back (plan.readWriteFull)
     if (this.side === 'runner') {

@@ -27,6 +27,8 @@ const CODES_IN_VALUE_FILES: Record<string, string> = {
 
 /** Plan switches that are off, each with why it stays in the code. */
 const OFF_SWITCHES: Record<string, string> = {
+  moneyFirst: 'money step M1, temporary switch for its batch',
+  moneyAbility: 'money step M1b, temporary switch for its batch',
   rigEffects: 'experiment, off until a batch says so',
   icePosition: "Jeff's ice-at-its-position model (Scatter Field); lost its batch, kept with its test for re-testing",
   'clickByPlay.corp': 'Corp side lost its batch; kept for re-testing',
