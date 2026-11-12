@@ -3,7 +3,7 @@
  * end of Corp turns 5 and 10, and its credits at each Corp turn start. Normal v Normal, one JSON line per deal; pair
  * two runs (base and arm, same seeds) with scripts/money-flow-sum.mjs.
  *
- *   SEEDS=1001,1011 [PLAN_OFF=+moneyFirst] npx vite-node scripts/money-flow.ts
+ *   SEEDS=1001,1011 [PLAN_OFF=...] npx vite-node scripts/money-flow.ts
  */
 import { createInitialGameState } from '../src/core';
 import { deckGameSetup } from '../src/data/decks';

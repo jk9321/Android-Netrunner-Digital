@@ -2,10 +2,9 @@ import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
 import { GameAction, GameState, cardDef, executeAction } from '../src/core';
 import { Agent, HeuristicCorpAI, createAgent } from '../src/ai';
-import { applyPlanOff } from '../src/ai/synergy';
 
 /**
- * Money step M1 (plan.moneyFirst, incomeLine.ts moneyPick): a playable econ operation that nets credits is the counted
+ * Money step M1 (incomeLine.ts moneyPick): a playable econ operation that nets credits is the counted
  * pick for its click (rules 1.10, 5.2.6), behind a held two-turn score line's steps. Pin from M0: deal 1001 turn 1, The
  * Syndicate, 5 credits, 3 clicks, Hedge Fund in HQ (play 5, gain 9). The held line installs Palisade and Superconducting
  * Hub; the spare click was a click for a credit (6 credits at the turn's end). With M1 it is Hedge Fund (9).
@@ -26,23 +25,15 @@ function turn(ai: Agent): { picks: string[]; credits: number } {
   return { picks, credits: s.corp.credits };
 }
 
-describe('plan.moneyFirst: a netting econ operation is the counted pick', () => {
-  it('the Normal and the Hard Corp play Hedge Fund on the spare click; without the switch both click for a credit', { timeout: 120_000 }, () => {
-    applyPlanOff('+moneyFirst');
-    try {
-      for (const ai of [new HeuristicCorpAI({ synergy: true }), createAgent('corp', 'hard')]) {
-        const t = turn(ai);
-        expect(t.picks.slice(0, 2)).toEqual(['INSTALL_CARD:Palisade', 'INSTALL_CARD:Superconducting Hub']);
-        expect(t.picks).toContain('PLAY_OPERATION_OR_EVENT:Hedge Fund');
-        expect(t.credits).toBe(9);
-      }
-    } finally {
-      applyPlanOff('moneyFirst');
-    }
+// Before M1 both Corps clicked for a credit on the spare click and ended on 6 (checked with the temporary switch off
+// before the fold, 7db8eb5)
+describe('money step M1: a netting econ operation is the counted pick', () => {
+  it('the Normal and the Hard Corp play Hedge Fund on the spare click', { timeout: 120_000 }, () => {
     for (const ai of [new HeuristicCorpAI({ synergy: true }), createAgent('corp', 'hard')]) {
       const t = turn(ai);
-      expect(t.picks).toContain('GAIN_CREDIT');
-      expect(t.credits).toBe(6);
+      expect(t.picks.slice(0, 2)).toEqual(['INSTALL_CARD:Palisade', 'INSTALL_CARD:Superconducting Hub']);
+      expect(t.picks).toContain('PLAY_OPERATION_OR_EVENT:Hedge Fund');
+      expect(t.credits).toBe(9);
     }
   });
 });

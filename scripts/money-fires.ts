@@ -2,7 +2,7 @@
  * Money step M1 (incomeLine.ts): how often the counted money pick fires per game. One JSON line per deal, with the
  * time taken.
  *
- *   SEEDS=1001,1011 [PLAN_OFF=+moneyFirst] npx vite-node scripts/money-fires.ts
+ *   SEEDS=1001,1011 npx vite-node scripts/money-fires.ts
  */
 import { createInitialGameState } from '../src/core';
 import { deckGameSetup } from '../src/data/decks';

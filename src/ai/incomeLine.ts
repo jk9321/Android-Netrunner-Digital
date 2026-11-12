@@ -1,7 +1,6 @@
 import { GameAction, GameState, activePrompt, cardDef, executeAction, getLegalActions } from '../core';
 import { answerPrompt } from './prompts';
 import { cardSynergy } from './synergyTags';
-import { plan } from './pricing';
 import { knownIncome } from './countedScore';
 import { scoreNowPlan } from './winNow';
 
@@ -49,11 +48,11 @@ function options(state: GameState, legal: GameAction[]): Option[] {
 }
 
 /**
- * M1 (plan.moneyFirst): the econ operation to play now, or null. Several: the one whose gain makes another of them, or a
+ * M1: the econ operation to play now, or null. Several: the one whose gain makes another of them, or a
  * score this turn (winNow scoreNowPlan), affordable first; otherwise the largest net gain.
  */
 export function moneyPick(state: GameState): GameAction | null {
-  if (!plan().moneyFirst || state.activePlayer !== 'corp' || activePrompt(state) || state.activeRun || state.corp.clicks <= 0) return null;
+  if (state.activePlayer !== 'corp' || activePrompt(state) || state.activeRun || state.corp.clicks <= 0) return null;
   const ops = options(state, getLegalActions(state, 'corp'));
   if (!ops.length) return null;
   const enables = (o: Option): boolean => {
