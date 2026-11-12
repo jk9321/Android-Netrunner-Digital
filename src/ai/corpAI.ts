@@ -273,7 +273,7 @@ export class HeuristicCorpAI implements Agent {
       ranked.forEach((r, i) => {
         const advance = plan().placementAdvance && this.uncountedAdvance(state, r.action);
         if (!advance && !(plan().placementInstall && this.uncountedInstall(state, r.action))) return;
-        if (i === 0 && this.planner && !this.searching && Number.isFinite(r.score)) placementStats.stopped.push({ game: state.id, turn: state.turnNumber, id: (r.action as { cardInstanceId: string }).cardInstanceId, kind: advance ? 'advance' : 'install' });
+        if (i === 0 && this.planner && !this.searching && Number.isFinite(r.score)) placementStats.stopped.push({ game: state.id, turn: state.turnNumber, id: (r.action as { cardInstanceId: string }).cardInstanceId, kind: advance ? 'advance' : 'install', server: r.action.type === 'INSTALL_CARD' ? (r.action.asNewRemote ? null : r.action.targetServerId ?? null) : undefined });
         ranked[i] = { ...r, score: -Infinity };
       });
       ranked.sort((a, b) => b.score - a.score);

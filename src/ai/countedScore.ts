@@ -357,7 +357,7 @@ export function advanceCounted(state: GameState, agendaId: string, held: HeldLin
 }
 
 /** Step 4 G1/G2 diagnostics (scripts read them): hand-size installs let through; agendas whose advance or install was the Corp's first pick and was stopped. */
-export const placementStats = { handSize: 0, stopped: [] as { game: string; turn: number; id: string; kind: 'advance' | 'install' }[] };
+export const placementStats = { handSize: 0, stopped: [] as { game: string; turn: number; id: string; kind: 'advance' | 'install'; server?: string | null }[] };
 
 /**
  * Step 4 G2 (spec-step4-placement.md, temporary plan.placementInstall): an agenda goes into a remote only as the first
