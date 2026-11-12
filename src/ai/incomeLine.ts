@@ -1,4 +1,4 @@
-import { GameAction, GameState, activePrompt, cardDef, executeAction, getLegalActions } from '../core';
+import { GameAction, GameState, activePrompt, cardDef, executeAction, findCardAnywhere, getLegalActions } from '../core';
 import { answerPrompt } from './prompts';
 import { cardSynergy } from './synergyTags';
 import { knownIncome } from './countedScore';
@@ -51,12 +51,22 @@ function options(state: GameState, legal: GameAction[]): Option[] {
   return out;
 }
 
+/** The action installs an agenda or advances an installed agenda (rule 1.17.3a: an agenda is scored once its advancement counters meet its requirement). */
+export function agendaStep(state: GameState, a: GameAction): boolean {
+  if (a.type !== 'INSTALL_CARD' && a.type !== 'ADVANCE_CARD') return false;
+  const card = a.type === 'INSTALL_CARD' ? state.corp.hq.find(c => c.instanceId === a.cardInstanceId) : findCardAnywhere(state, a.cardInstanceId);
+  return !!card && cardDef(card).type_code === 'agenda';
+}
+
 /**
  * M1: the econ operation to play now, or null. Several: the one whose gain makes another of them, or a
  * score this turn (winNow scoreNowPlan), affordable first; otherwise the largest net gain.
  */
-export function moneyPick(state: GameState): GameAction | null {
+export function moneyPick(state: GameState, own?: GameAction | null): GameAction | null {
   if (state.activePlayer !== 'corp' || activePrompt(state) || state.activeRun || state.corp.clicks <= 0) return null;
+  // The Corp's own pick moves an agenda toward a score (installs or advances one): that click belongs to the agenda's
+  // line, not to money (bug report #15: Hedge Fund and Greasing the Palm took the clicks that move Offworld Office out of HQ)
+  if (own && agendaStep(state, own)) return null;
   const ops = options(state, getLegalActions(state, 'corp'));
   if (!ops.length) return null;
   const enables = (o: Option): boolean => {

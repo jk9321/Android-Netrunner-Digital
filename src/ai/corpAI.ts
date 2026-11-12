@@ -190,11 +190,11 @@ export class HeuristicCorpAI implements Agent {
     // two-turn line on a later turn: its step (advance or score, heldLaterStep) does not depend on the pick, and
     // scoreInTwoPick below plays it.
     const later = this.synergy && this.planner && !!heldLaterStep(state, this.heldLine);
-    // Money step M1 (incomeLine.ts): an econ operation that nets credits is the counted pick
-    // for its click, ahead of the Corp's own; a score this turn or a held two-turn line's step keeps the click
-    const money = !score && !later && this.synergy && this.planner && state.turnStep?.kind !== 'corp_turn_start' ? moneyPick(state) : null;
-    const decided = !!score || later || !!money;
+    const decided = !!score || later;
     const planned = this.planner && plannerOn('corp') && state.turnStep?.kind !== 'corp_turn_start' && !decided ? this.plan(state, ranked) : null;
+    // Money step M1 (incomeLine.ts): an econ operation that nets credits is the counted pick for its click, ahead of the
+    // Corp's own; a score this turn, a held two-turn line's step, or the Corp's own pick moving an agenda keeps the click
+    const money = !decided && this.synergy && this.planner && state.turnStep?.kind !== 'corp_turn_start' ? moneyPick(state, planned ?? ranked[0]?.action) : null;
     let chosen = money ?? planned ?? (ranked[0]?.score > -Infinity ? ranked[0].action : legal.find(a => a.type === 'END_TURN') ?? legal[0]);
     // plan.pettyCashFirst: a click for a credit while Petty Cash can still be played is a click for 2 thrown away (the
     // planner valued Petty Cash held in HQ as the money it will make, though it is playable only as the turn's first action)

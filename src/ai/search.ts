@@ -234,12 +234,6 @@ export class SearchAI implements Agent {
     }
     // Prompts and the steps of a run follow the rule-based AI's judgement
     if (activePrompt(state) || state.activeRun || state.turnStep?.kind === 'corp_turn_start') return this.base.chooseAction(state);
-    // Money step M1 (incomeLine.ts): the counted money pick, as Normal's (corpAI decide)
-    const money = this.side === 'corp' && (this.options.synergy ?? true) && !heldLaterStep(state, this.heldLine) ? moneyPick(state) : null;
-    if (money) {
-      this.base.notePlayed(money);
-      return money;
-    }
     if (this.base instanceof HeuristicRunnerAI) this.base.observe(state);
     // A rule, not a judgement: a full Read-Write Share is shuffled back (plan.readWriteFull)
     if (this.side === 'runner') {
@@ -247,6 +241,12 @@ export class SearchAI implements Agent {
       if (full) return full;
     }
     const ranked = this.base.rankMainActions(state).filter(c => c.score > -Infinity);
+    // Money step M1 (incomeLine.ts): the counted money pick, as Normal's (corpAI decide), the rule ranking's favourite as the Corp's own pick
+    const money = this.side === 'corp' && (this.options.synergy ?? true) && !heldLaterStep(state, this.heldLine) ? moneyPick(state, ranked[0]?.action) : null;
+    if (money) {
+      this.base.notePlayed(money);
+      return money;
+    }
     if (ranked.length === 0) return this.base.chooseAction(state);
     if (ranked[0].action.type === 'SCORE_AGENDA') return ranked[0].action;
     // Only one sensible move, or the favourite is far ahead: no need to think it over
