@@ -7,6 +7,7 @@
  *      after paying the most the Corp can make it pay: runnerBudget less the highest iceCreditNeed sum over the rez
  *      sets it can afford, with the credits installCounted uses), and whether one or two ice from HQ would close it;
  *  (c) whether the Corp could not afford a set that holds but would with unlimited credits (the money case).
+ * Per game: decked (the Corp lost on an empty R&D, 4.2.7b), turns, optional draw clicks, agendas in HQ at the end.
  * One JSON line per deal.
  *
  *   SEEDS=1001,1011 PLAN_OFF=placementAdvance npx vite-node scripts/g2-stuck.ts
@@ -105,10 +106,12 @@ function playDeal(seed: number) {
   const short: ReturnType<typeof look>[] = [];
   const seen = new Set<string>();
   const choose = corp.chooseAction.bind(corp);
+  let draws = 0;
   corp.chooseAction = (s: GameState) => {
     const before = placementStats.stopped.length;
     const a = choose(s);
     if (s.activePlayer !== 'corp' || s.activeRun) return a;
+    if (a.type === 'DRAW_CARD') draws++;
     const t = turns.get(s.turnNumber) ?? { stopped: false, clicks: {} };
     turns.set(s.turnNumber, t);
     for (const x of placementStats.stopped.slice(before)) {
@@ -129,7 +132,7 @@ function playDeal(seed: number) {
   const stuckTurns = [...turns.values()].filter(t => t.stopped);
   const clicks: Record<string, number> = {};
   for (const t of stuckTurns) for (const [k, n] of Object.entries(t.clicks)) clicks[k] = (clicks[k] ?? 0) + n;
-  return { seed, winner: game.state.winner ?? null, decked: game.state.corp.rd.length === 0, stuckTurns: stuckTurns.length, clicks, short };
+  return { seed, winner: game.state.winner ?? null, decked: game.state.winner === 'runner' && game.state.corp.rd.length === 0, turns: game.state.turnNumber, draws, hqAgendasEnd: game.state.corp.hq.filter(c => typeOf(c) === 'agenda').length, stuckTurns: stuckTurns.length, clicks, short };
 }
 
 const seeds = (process.env.SEEDS ?? '').split(',').filter(Boolean).map(Number);

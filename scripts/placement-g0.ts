@@ -10,6 +10,7 @@
  *  - g3Money: no such build with its credits, but one with more; hqIce: ice in HQ at all;
  *  - fate: what happened to the agenda (stolen from a remote, scored, other).
  * At each Corp turn start with agendas in HQ: each one, and whether it was stolen from HQ within the next 2 Runner turns.
+ * Per game: turns, optional draw clicks, agendas in HQ at the end, decked (the Corp lost on an empty R&D, 4.2.7b).
  * One JSON line per deal; scripts/placement-g0-sum.mjs sums them.
  *
  *   SEEDS=1001,1011 PLAN_OFF=placementAdvance,placementInstall,placementBuild npx vite-node scripts/placement-g0.ts
@@ -143,11 +144,13 @@ function playDeal(seed: number) {
   const events: Event[] = [];
   const hqWatch: { id: string; turn: number; stolen: boolean }[] = [];
   let lastCorpTurn = -1;
+  let draws = 0;
 
   const choose = corp.chooseAction.bind(corp);
   corp.chooseAction = (s: GameState) => {
     const held = heldOf();
     const a = choose(s);
+    if (s.activePlayer === 'corp' && !s.activeRun && a.type === 'DRAW_CARD') draws++;
     const id = (a as { cardInstanceId?: string }).cardInstanceId;
     if (s.activePlayer === 'corp' && s.turnStep?.kind !== 'corp_turn_start' && s.turnNumber !== lastCorpTurn && !s.activeRun) {
       lastCorpTurn = s.turnNumber;
@@ -203,6 +206,8 @@ function playDeal(seed: number) {
     events,
     hqTurns: hqWatch.length,
     hqStolen2: hqWatch.filter(w => w.stolen).length,
+    turns: game.state.turnNumber, draws, hqAgendasEnd: game.state.corp.hq.filter(isAgenda).length,
+    decked: game.state.winner === 'runner' && game.state.corp.rd.length === 0,
   };
 }
 
