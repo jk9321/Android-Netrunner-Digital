@@ -17,8 +17,8 @@ concurrency:
 
 jobs:
   save:
-    # Only issues the Worker opened with the label, and only once per issue
-    if: contains(github.event.issue.labels.*.name, 'playtest-game') && startsWith(github.event.issue.title, '[Playtest game]')
+    # Title prefix, not the label: the Worker drops the label if GitHub refuses it
+    if: startsWith(github.event.issue.title, '[Playtest game]')
     runs-on: ubuntu-latest
     env:
       GH_TOKEN: ${{ github.token }}
