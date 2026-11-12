@@ -163,7 +163,7 @@ function playDeal(seed: number) {
   const pickR = runner.chooseAction.bind(runner);
   runner.chooseAction = (s: GameState) => {
     const a = pickR(s);
-    lastRunnerAction = a.type;
+    if (a.type !== 'RESOLVE_PROMPT' && a.type !== 'PASS') lastRunnerAction = a.type;
     if (a.type === 'PLAY_OPERATION_OR_EVENT' && s.activePlayer === 'runner') {
       const card = s.runner.grip.find(x => x.instanceId === (a as { cardInstanceId?: string }).cardInstanceId);
       if (card) runnerEvents.push({ turn: s.turnNumber, code: card.cardCode, title: cardDef(card).title });
