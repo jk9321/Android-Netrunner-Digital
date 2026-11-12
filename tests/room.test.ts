@@ -715,3 +715,32 @@ describe('Server limits (chunk 2e; audit MP-STOPS-WRITE-FLOOD)', () => {
     expect(room.expiresAt({ idle: 10, ended: 5 })).toBe(2010);
   });
 });
+
+describe('The seed never reaches a seat (chunk 2f)', () => {
+  it('no message before a won game\'s final table carries the room seed (the seed predicts every shuffle, 1.12 / 4.2.2)', () => {
+    const SEED = 987654321;
+    const made = RoomCore.create({ code: 'K7QM2X', side: 'corp', deck: corpStarter, format: 'casual', playerId: 'host-player', tokenHash: 'host-hash', build: 'test', seed: SEED, now: 1000 });
+    if (!(made instanceof RoomCore)) throw new Error(JSON.stringify(made));
+    const room = made;
+    const joined = room.join({ deck: runnerStarter, playerId: 'guest-player', tokenHash: 'guest-hash', now: 2000 });
+    if ('error' in joined) throw new Error(JSON.stringify(joined));
+    const sent: Outbox = [...joined.out];
+    let x = 3;
+    for (let i = 0; i < 400 && !room.meta.over; i++) {
+      const side = (['corp', 'runner'] as SideCode[]).find(s => lastState(room, s).waitingOn === s && lastState(room, s).legal.length > 0);
+      if (!side) break;
+      const s = lastState(room, side);
+      const legal = s.legal.filter(a => a.type !== 'CONCEDE' && a.type !== 'SET_STOPS');
+      x = (Math.imul(x, 1103515245) + 12345) >>> 0;
+      sent.push(...room.receive(side, { type: 'act', seq: s.seq, action: legal[(x >>> 8) % legal.length] }, 3000 + i).out);
+    }
+    for (const side of ['corp', 'runner'] as SideCode[]) sent.push(...room.connect(side).map(msg => ({ to: side, msg })));
+    expect(sent.filter(o => o.msg.type === 'state').length).toBeGreaterThan(50);
+    for (const { to, msg } of sent) {
+      if (msg.type === 'over' && msg.final) continue; // the real final state, by design (chunk 2d)
+      expect(JSON.stringify(msg), `${msg.type} to ${to}`).not.toContain(String(SEED));
+    }
+    // The real state does hold it (the game id and the rng), so the check above is not vacuous
+    expect(JSON.stringify(room.inspect('corp')!.state)).toContain(String(SEED));
+  });
+});

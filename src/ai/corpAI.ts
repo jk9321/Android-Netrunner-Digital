@@ -30,7 +30,7 @@ import { counterWorth } from './counterValues';
 import { plan, pricing, withPricing } from './pricing';
 import { dividendsOf, setupOperation } from './cards';
 // Last: its imports (winNow, runs, pricing) are loaded by then, so the AI modules' load order is unchanged (oracle.ts)
-import { HeldLine, advanceCounted, buildPick, installCounted, placementStats, scoreInTwoPick, scoreInTwoStats } from './countedScore';
+import { HeldLine, advanceCounted, buildPick, heldLaterStep, installCounted, placementStats, scoreInTwoPick } from './countedScore';
 
 
 const type = (card: CardInstance) => cardDef(card).type_code;
@@ -186,22 +186,12 @@ export class HeuristicCorpAI implements Agent {
     const ranked = this.rankMainActions(state, legal);
     // Planner speed P1: the count has decided this click, so the planner's search is not run. A scoreNow line: the Corp's
     // pick is then the rule ranking's, kept while it keeps the score (keepsScore), the line's action otherwise. A held
-    // two-turn line on a later turn: its step (advance or score) does not depend on the pick (scoreInTwoPick).
-    // Step 4 G3/G3b (temporary plan.placementBuild): the ice install that makes a server hold for an agenda in HQ
+    // two-turn line on a later turn: its step (advance or score, heldLaterStep) does not depend on the pick, and
+    // scoreInTwoPick below plays it. Step 4 G3/G3b (temporary plan.placementBuild): the ice install that makes a server
+    // hold for an agenda in HQ.
     const held = this.heldLine && this.heldLine.game === state.id ? this.heldLine : null;
     const build = !score && !held && this.synergy && this.planner && plan().placementBuild ? buildPick(state) : null;
-    const decided = !!score || !!build;
-    if (!score && this.synergy && this.planner && this.heldLine && this.heldLine.game === state.id && this.heldLine.turn < state.turnNumber) {
-      const stats = { ...scoreInTwoStats, lines: [...scoreInTwoStats.lines] };
-      const probe = scoreInTwoPick(state, ranked[0]?.action ?? legal[0], this.heldLine);
-      if (probe.held && probe.held.turn < state.turnNumber) {
-        this.heldLine = probe.held;
-        this.notePlayed(probe.action);
-        if (this.debug) logNudge(state, 'corp', probe.action);
-        return probe.action;
-      }
-      Object.assign(scoreInTwoStats, stats);
-    }
+    const decided = !!score || !!build || (this.synergy && this.planner && !!heldLaterStep(state, this.heldLine));
     const planned = this.planner && plannerOn('corp') && state.turnStep?.kind !== 'corp_turn_start' && !decided ? this.plan(state, ranked) : null;
     let chosen = planned ?? (ranked[0]?.score > -Infinity ? ranked[0].action : legal.find(a => a.type === 'END_TURN') ?? legal[0]);
     // plan.pettyCashFirst: a click for a credit while Petty Cash can still be played is a click for 2 thrown away (the

@@ -473,6 +473,18 @@ function combos<T>(items: T[], k: number): T[][] {
 }
 
 /**
+ * The held line's step on a later turn (score or advance), or null when there is none (no line, the line's own turn,
+ * done or dropped). It does not depend on the Corp's pick, so the planner's search can be skipped (planner speed P1,
+ * corpAI.ts); scoreInTwoPick then plays it and counts it. Reads and changes nothing else.
+ */
+export function heldLaterStep(state: GameState, held: HeldLine | null): GameAction | null {
+  if (!plan().scoreInTwo || !isCorpMain(state) || state.corp.clicks <= 0) return null;
+  if (!held || held.game !== state.id || held.turn >= state.turnNumber) return null;
+  const step = finishTurnStep(state, held);
+  return step === 'done' || step === 'drop' ? null : step;
+}
+
+/**
  * plan.scoreInTwo (counted scoring C2; stage 0b's two-turn half measured +3.0 ± 1.8): called with the Corp's own pick at
  * a main-phase decision and the line it holds. A held line is re-checked every decision and continued while the count
  * still holds (dropped otherwise); with none held, scoreInTwo may begin one. On the line's first turn its steps are
