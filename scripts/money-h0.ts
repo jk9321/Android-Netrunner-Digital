@@ -6,7 +6,7 @@
  * its own cost), spending by kind, credits at turn start, ice installed and rezzed, econ cards played and how long they
  * sat in HQ first, econ cards discarded at hand size (rule 1.7.2b), agendas installed and scored. One JSON line per game.
  *
- *   [EXTRA=3] [ONLY=report-18.json] [SHARD=0/4] npx vite-node scripts/money-h0.ts > h0.jsonl
+ *   [EXTRA=3] [ONLY=report-18.json] [SHARD=0/4] [PLAN_OFF=...] npx vite-node scripts/money-h0.ts > h0.jsonl
  */
 import { readFileSync, readdirSync } from 'node:fs';
 import { join } from 'node:path';
@@ -16,6 +16,9 @@ import { createAgent } from '../src/ai';
 import { GameRunner } from '../src/ai/playout';
 import { valueLoops } from '../src/ai/valueModel';
 import { cardSynergy } from '../src/ai/synergyTags';
+import { applyPlanOff } from '../src/ai/synergy';
+
+applyPlanOff(process.env.PLAN_OFF ?? '');
 
 const DIR = 'tests/fixtures/human-games';
 const TURNS = 10;
