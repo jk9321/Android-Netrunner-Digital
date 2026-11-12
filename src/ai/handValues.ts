@@ -96,21 +96,10 @@ function loadedWorth(state: GameState, card: CardInstance): number {
   return Number(load[1]) * counterWorth(state, card, type);
 }
 
-/**
- * The wait clock (SOON): the share of a card's worth held while it waits, by whether it can be played now (a click
- * free for it and its cost covered) or only later. heldWorth's and, with plan.drawQueue, drawWorth's.
- */
-export function soonShare(cost: number, credits: number, click = true): number {
-  return click && cost <= credits ? SOON.now : SOON.later;
-}
-
-/** What a card drawn now waits behind (plan.drawQueue): the credits and whether a click are left once the playable cards already in hand are played. */
-export interface Queue { credits: number; click: boolean }
-
-/** Worth of one card waiting in hand; `queue`: a card still to be drawn, played after the hand's playable cards (drawWorth). */
-export function heldWorth(state: GameState, card: CardInstance, side: SideCode, freeInstall = false, queue?: Queue): number {
+/** Worth of one card waiting in hand. */
+export function heldWorth(state: GameState, card: CardInstance, side: SideCode, freeInstall = false): number {
   const credits = side === 'corp' ? state.corp.credits : state.runner.credits;
-  const soon = soonShare(cardDef(card).cost ?? 0, queue?.credits ?? credits, queue?.click ?? true);
+  const soon = (cardDef(card).cost ?? 0) <= credits ? SOON.now : SOON.later;
   // Installed later without spending a click (a program hosted on Madani): the click playedWorth charges is saved
   return Math.max(HAND_FLOOR, soon * (playedWorth(state, card) + (freeInstall ? CLICK : 0)));
 }
@@ -137,25 +126,6 @@ export function unseenInHand(state: GameState, side: SideCode): CardInstance[] {
 
 const deckAverage = new Map<string, number>();
 
-/**
- * Money step W2 (temporary switch plan.drawQueue; W1: the Corp's draws tie with a click for money, priced at the deck's
- * average held card as if it were played soon, yet half the drawn cards sit unplayed two turns on): a card the Corp draws
- * is played after the cards already in HQ it can play (an install or operation it can pay for, as clickWorth counts
- * them), so its wait is read on the same clock from what is left of this turn once those are played: the credits after
- * their costs, and a click left for it. At a turn's end (no clicks: a look-ahead's leaf) the next turn's clicks.
- * Undefined: the switch off, or the Runner (its draws are not this step's).
- */
-function handQueue(state: GameState, side: SideCode): Queue | undefined {
-  if (side !== 'corp' || !plan().drawQueue) return undefined;
-  const corp = state.corp;
-  const clicks = corp.clicks > 0 ? corp.clicks : corp.maxClicks;
-  // The cards it knows it holds: one drawn in a look-ahead is priced by this average, not queued ahead of itself
-  const seen = pricing().known.corp;
-  const playable = corp.hq.filter(c => (!seen || seen.has(c.instanceId)) && cardDef(c).type_code !== 'agenda' && (cardDef(c).cost ?? 0) <= corp.credits);
-  const first = playable.slice(0, clicks);
-  return { credits: corp.credits - first.reduce((n, c) => n + (cardDef(c).cost ?? 0), 0), click: playable.length < clicks };
-}
-
 /** Average held worth of the cards left in a side's deck (what a draw is expected to bring). */
 function drawWorth(state: GameState, side: SideCode): number {
   // plan.oracle.rd: the Corp's next draw is R&D's top card itself
@@ -170,15 +140,12 @@ function drawWorth(state: GameState, side: SideCode): number {
   // at its size cap a value from one of those could be served for the real board, so a reloaded game played on
   // differently from the one in memory (tests/savedGame.test.ts)
   const board = `${fingerprint(state)}:`;
-  // plan.drawQueue: and what the drawn card waits behind (the hand and the clicks left)
-  const queue = handQueue(state, side);
-  const waits = queue ? `${queue.credits}:${queue.click}:` : '';
-  const key = `${pricingKey()}:${side}:${state.id}:${state.turnNumber}:${credits}${waits}${board}${deck.map(c => c.instanceId).join(',')}`;
+  const key = `${pricingKey()}:${side}:${state.id}:${state.turnNumber}:${credits}${board}${deck.map(c => c.instanceId).join(',')}`;
   const cached = deckAverage.get(key);
   if (cached !== undefined) return cached;
   // While the average is worked out, a card's worth that needs the average card (cardRate) gets the flat rate:
   // the deck's average card can't depend on itself (a value loop otherwise, valueModel.ts guardLoop)
-  const value = withPricing({ averaging: true }, () => (deck.length ? deck.reduce((n, c) => n + heldWorth(state, c, side, false, queue), 0) / deck.length : RATES.drawnCard));
+  const value = withPricing({ averaging: true }, () => (deck.length ? deck.reduce((n, c) => n + heldWorth(state, c, side), 0) / deck.length : RATES.drawnCard));
   if (deckAverage.size > 500) deckAverage.clear();
   deckAverage.set(key, value);
   return value;

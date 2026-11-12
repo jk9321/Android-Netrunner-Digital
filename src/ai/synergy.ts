@@ -391,8 +391,6 @@ export const tuning = {
      * shipping pair at 10 games +2.8 ± 1.1 (run 42800495659 vs 42797275838; games 3-10 alone +1.4 ± 1.3).
      */
     scoreInTwo: true,
-    /** Money step W2 (temporary switch; handValues.ts handQueue): a card the Corp draws waits behind the playable cards already in HQ on heldWorth's clock. */
-    drawQueue: false,
     /** Money step W2 arm B (temporary switch; turnPlanner.ts planTurn): the planner's remembered draw is searched again. */
     drawResearch: false,
     /**
