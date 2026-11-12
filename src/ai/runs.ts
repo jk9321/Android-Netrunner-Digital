@@ -63,17 +63,19 @@ export function subroutineCost(state: GameState, label: string): number {
   return knownSubroutineCost(state, label) ?? 2;
 }
 
+/** A rule's answer that passes to the next rule (the trash-a-type rule with no card of that type). */
+const NEXT = Symbol('next');
+type SubRule = [RegExp, (state: GameState, m: RegExpMatchArray) => number | undefined | typeof NEXT];
+
 /**
- * The cost of a subroutine whose wording one of the patterns below
- * recognises, or undefined for wording none of them knows (counted as 2).
- * A test checks every subroutine in the card pool is recognised.
+ * knownSubroutineCost's patterns, in order: the first that matches the label (and doesn't pass) prices it. Which
+ * patterns match depends on the label alone, so it is worked out once per label (planner speed 2026-11-12: the
+ * regex chain was ~4% of the Corp's decision time); the prices still read the board each time.
  */
-export function knownSubroutineCost(state: GameState, label: string): number | undefined {
-  const runner = state.runner;
-  if (/cannot steal or trash/i.test(label)) return BLOCK;
+const SUB_RULES: SubRule[] = [
+  [/cannot steal or trash/i, () => BLOCK],
   // Mycoweb: as bad as the worst subroutine on a rezzed ice of that type
-  const borrowed = label.match(/resolve 1 subroutine on (?:a|another) rezzed (barrier|code gate|sentry)/i);
-  if (borrowed) {
+  [/resolve 1 subroutine on (?:a|another) rezzed (barrier|code gate|sentry)/i, (state, borrowed) => {
     const type = borrowed[1].toLowerCase();
     const costs = Object.values(state.corp.servers)
       .flatMap(server => server.ice)
@@ -81,68 +83,85 @@ export function knownSubroutineCost(state: GameState, label: string): number | u
       .flatMap(ice => (iceSubroutines(state, ice)).filter(sub => !/resolve 1 subroutine on/i.test(sub.label)))
       .map(sub => subroutineCost(state, sub.label));
     return costs.length > 0 ? Math.max(...costs) : 0;
-  }
+  }],
   // Elevation conditions
-  const unless = label.match(/end the run unless the runner suffers (\d+) net damage/i);
-  if (unless) return Number(unless[1]) >= runner.grip.length ? BLOCK : 2 * Number(unless[1]);
-  const threat = label.match(/threat level is (\d+) or greater, end the run/i);
-  if (threat) return Math.max(state.corp.score, runner.score) >= Number(threat[1]) ? BLOCK : 0;
-  if (/end the run if the runner is tagged/i.test(label)) return runner.tags > 0 ? BLOCK : 1;
-  if (/if the runner has at least 2 tags/i.test(label)) return runner.tags >= 2 ? (2 >= runner.grip.length ? BLOCK : 4) : 0;
+  [/end the run unless the runner suffers (\d+) net damage/i, (state, unless) => (Number(unless[1]) >= state.runner.grip.length ? BLOCK : 2 * Number(unless[1]))],
+  [/threat level is (\d+) or greater, end the run/i, (state, threat) => (Math.max(state.corp.score, state.runner.score) >= Number(threat[1]) ? BLOCK : 0)],
+  [/end the run if the runner is tagged/i, state => (state.runner.tags > 0 ? BLOCK : 1)],
+  [/if the runner has at least 2 tags/i, state => (state.runner.tags >= 2 ? (2 >= state.runner.grip.length ? BLOCK : 4) : 0)],
   // Vantage Point: "... unless the Runner pays N credits": the cheaper of paying and letting the rest resolve
-  const pays = label.match(/^(.*?)\s*unless the runner pays (\d+) (?:\[credit\]|credits?)\.?$/i);
-  if (pays) {
+  [/^(.*?)\s*unless the runner pays (\d+) (?:\[credit\]|credits?)\.?$/i, (state, pays) => {
     const n = Number(pays[2]);
     const rest = /^end the run$/i.test(pays[1]) ? BLOCK : knownSubroutineCost(state, pays[1]) ?? 2;
-    return runner.credits >= n ? Math.min(creditCost(state, n), rest) : rest;
-  }
-  const jacks = label.match(/^(.*?)\s*unless the runner jacks out\.?$/i);
-  if (jacks) return knownSubroutineCost(state, jacks[1]);
-  if (/do x net damage and give the runner x tags/i.test(label)) {
+    return state.runner.credits >= n ? Math.min(creditCost(state, n), rest) : rest;
+  }],
+  [/^(.*?)\s*unless the runner jacks out\.?$/i, (state, jacks) => knownSubroutineCost(state, jacks[1])],
+  [/do x net damage and give the runner x tags/i, state => {
     // Vicsek: X is the Runner's tags
-    const x = runner.tags;
+    const x = state.runner.tags;
     if (x === 0) return 0;
-    return x >= runner.grip.length ? BLOCK : damageWorth(state, x) + tagCost(state) * x;
-  }
-  if (/loses? \[click\]/i.test(label)) return clickRate();
-  if (/gets \+1 strength for the remainder of this run/i.test(label)) return 1.5; // ezaM: every ice after it costs more to break
-  if (/each piece of ice gets \+2 strength for the remainder of this run/i.test(label)) return 2.5; // Tributary: every ice costs more to break
-  if (/installed runner card to the grip/i.test(label)) return 0.5 * trashedCardCost(state) + 1; // Lethe: a reinstall, not a loss
-  if (/remove 1 card in the heap from the game/i.test(label)) return 0.3;
-  if (/place 1 virus counter on this ice/i.test(label)) return 0; // Knowledge Seeker: counts down to its own derez
-  if (/look at the top \d+ cards? of r&d|arrange|to the (?:top or )?bottom of r&d|shuffle 1 card from hq or archives into r&d/i.test(label)) return 0.4; // Corp card selection
-  if (/core damage/i.test(label)) return coreDamageWorth(state) + damageWorth(state, 1);
-  if (/unless they pay 3 credits/i.test(label)) return creditCost(state, 3);
-  const loses = label.match(/loses? (\d+) (?:\[credit\]|credits?)/i);
-  if (loses) return creditCost(state, Math.min(Number(loses[1]), runner.credits));
-  if (/or end the run/i.test(label)) return runner.rig.programs.length > 0 ? 5 : BLOCK;
-  if (/odd cost/i.test(label)) return runner.grip.length <= 1 ? BLOCK : 4; // Diviner: half the time it ends the run
-  if (/6 credits or less/i.test(label)) return runner.credits - 3 <= 6 ? BLOCK : 0;
+    return x >= state.runner.grip.length ? BLOCK : damageWorth(state, x) + tagCost(state) * x;
+  }],
+  [/loses? \[click\]/i, () => clickRate()],
+  [/gets \+1 strength for the remainder of this run/i, () => 1.5], // ezaM: every ice after it costs more to break
+  [/each piece of ice gets \+2 strength for the remainder of this run/i, () => 2.5], // Tributary: every ice costs more to break
+  [/installed runner card to the grip/i, state => 0.5 * trashedCardCost(state) + 1], // Lethe: a reinstall, not a loss
+  [/remove 1 card in the heap from the game/i, () => 0.3],
+  [/place 1 virus counter on this ice/i, () => 0], // Knowledge Seeker: counts down to its own derez
+  [/look at the top \d+ cards? of r&d|arrange|to the (?:top or )?bottom of r&d|shuffle 1 card from hq or archives into r&d/i, () => 0.4], // Corp card selection
+  [/core damage/i, state => coreDamageWorth(state) + damageWorth(state, 1)],
+  [/unless they pay 3 credits/i, state => creditCost(state, 3)],
+  [/loses? (\d+) (?:\[credit\]|credits?)/i, (state, loses) => creditCost(state, Math.min(Number(loses[1]), state.runner.credits))],
+  [/or end the run/i, state => (state.runner.rig.programs.length > 0 ? 5 : BLOCK)],
+  [/odd cost/i, state => (state.runner.grip.length <= 1 ? BLOCK : 4)], // Diviner: half the time it ends the run
+  [/6 credits or less/i, state => (state.runner.credits - 3 <= 6 ? BLOCK : 0)],
   // Liberation conditions
-  if (/end the run if you have more credits than the runner/i.test(label)) return state.corp.credits > runner.credits ? BLOCK : 1; // Valentão
-  if (/end the run if there are more cards in hq than in the grip/i.test(label)) return state.corp.hq.length > runner.grip.length ? BLOCK : 0; // Piranhas
-  if (/trash 1 card from hq to end the run/i.test(label)) return state.corp.hq.length > 0 ? BLOCK : 0; // Boto
-  if (/end the run/i.test(label)) return BLOCK;
-  const damage = label.match(/(\d+) (net|meat) damage/i);
-  if (damage) {
+  [/end the run if you have more credits than the runner/i, state => (state.corp.credits > state.runner.credits ? BLOCK : 1)], // Valentão
+  [/end the run if there are more cards in hq than in the grip/i, state => (state.corp.hq.length > state.runner.grip.length ? BLOCK : 0)], // Piranhas
+  [/trash 1 card from hq to end the run/i, state => (state.corp.hq.length > 0 ? BLOCK : 0)], // Boto
+  [/end the run/i, () => BLOCK],
+  [/(\d+) (net|meat) damage/i, (state, damage) => {
     const n = Number(damage[1]);
-    return n >= runner.grip.length ? BLOCK : damageWorth(state, n);
-  }
-  if (/gain 1 \[credit\] for each tag/i.test(label)) return 0.3 * runner.tags; // Capacitor: Corp credits
-  if (/tag/i.test(label)) return tagCost(state);
-  if (/trash 1 installed runner card/i.test(label)) return trashedCardCost(state);
-  if (/gain 1 credit/i.test(label)) return 0.3;
-  if (/gain 1 \[credit\]/i.test(label)) return 0.8; // Flywheel: a credit and maybe a card
-  const gains = label.match(/^gain (\d+) \[credit\]/i);
-  if (gains) return 0.4 * Number(gains[1]); // Valentão: Corp credits
+    return n >= state.runner.grip.length ? BLOCK : damageWorth(state, n);
+  }],
+  [/gain 1 \[credit\] for each tag/i, state => 0.3 * state.runner.tags], // Capacitor: Corp credits
+  [/tag/i, state => tagCost(state)],
+  [/trash 1 installed runner card/i, state => trashedCardCost(state)],
+  [/gain 1 credit/i, () => 0.3],
+  [/gain 1 \[credit\]/i, () => 0.8], // Flywheel: a credit and maybe a card
+  [/^gain (\d+) \[credit\]/i, (_state, gains) => 0.4 * Number(gains[1])], // Valentão: Corp credits
   // Sorocaban Blade, Hammer, Lycian: a rig card lost, when there is one of that type (with none, the old flat 1.5 below)
-  const trashType = label.match(/trash 1 installed (resource|piece of hardware|program)/i);
-  if (trashType) {
-    const zone = { resource: runner.rig.resources, 'piece of hardware': runner.rig.hardware, program: runner.rig.programs }[trashType[1].toLowerCase() as 'resource'];
-    if (zone.length > 0) return trashedCardCost(state);
+  [/trash 1 installed (resource|piece of hardware|program)/i, (state, trashType) => {
+    const rig = state.runner.rig;
+    const zone = { resource: rig.resources, 'piece of hardware': rig.hardware, program: rig.programs }[trashType[1].toLowerCase() as 'resource'];
+    return zone.length > 0 ? trashedCardCost(state) : NEXT;
+  }],
+  [/^(?:you may )?draw 1 card/i, () => 0.5], // Empiricist: helps the Corp a little
+  [/install/i, () => 1.5],
+];
+
+/** The rules whose pattern matches each label seen, in order, with their matches. */
+const labelRules = new Map<string, [SubRule[1], RegExpMatchArray][]>();
+
+/**
+ * The cost of a subroutine whose wording one of the patterns above
+ * recognises, or undefined for wording none of them knows (counted as 2).
+ * A test checks every subroutine in the card pool is recognised.
+ */
+export function knownSubroutineCost(state: GameState, label: string): number | undefined {
+  let rules = labelRules.get(label);
+  if (!rules) {
+    rules = [];
+    for (const [re, price] of SUB_RULES) {
+      const m = label.match(re);
+      if (m) rules.push([price, m]);
+    }
+    labelRules.set(label, rules);
   }
-  if (/^(?:you may )?draw 1 card/i.test(label)) return 0.5; // Empiricist: helps the Corp a little
-  if (/install/i.test(label)) return 1.5;
+  for (const [price, m] of rules) {
+    const cost = price(state, m);
+    if (cost !== NEXT) return cost;
+  }
   return undefined;
 }
 
