@@ -55,7 +55,7 @@ export function atLeastOne(pool: number, hits: number, n: number): number {
 /** What a breaker breaks ('any' for an AI breaker). */
 const breaks = (card: CardInstance): BreakType | 'any' | undefined => breakerScript(card)?.breaks as BreakType | 'any' | undefined;
 
-interface Pool {
+export interface Pool {
   /** The cards the Corp can't place: the unseen part of the grip and the stack. */
   unseen: CardInstance[];
   /** Grip cards the Corp has seen there. */
@@ -64,7 +64,7 @@ interface Pool {
   gripUnseen: number;
 }
 
-function runnerPool(state: GameState): Pool {
+export function runnerPool(state: GameState): Pool {
   const known = corpSeenGrip(state, 'threat');
   const seen = state.runner.grip.filter(c => known.has(c.instanceId));
   const unseen = [...state.runner.grip.filter(c => !known.has(c.instanceId)), ...state.runner.stack];
