@@ -1,6 +1,6 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
-import { Bug, Check, Send, X } from 'lucide-react';
+import { Bug, Check, Gamepad2, Send, X } from 'lucide-react';
 import { GameForReport, MAX_DESCRIPTION, MIN_DESCRIPTION, ReportScreen, buildReport, sendOnlineReport, sendReport } from '../bugReport';
 
 interface BugReportButtonProps {
@@ -51,6 +51,8 @@ function BugReportForm({
   const [status, setStatus] = useState<Status>({ kind: 'editing' });
   const textRef = useRef<HTMLTextAreaElement>(null);
   const inGame = !!game;
+  // Beta builds only (like the bulk importer): file this game as a playtest game for the AI fixtures
+  const canPlaytest = __BETA_TOOLS__ && inGame && !online && !crash;
 
   useEffect(() => {
     textRef.current?.focus();
@@ -60,9 +62,9 @@ function BugReportForm({
   const tooShort = length < MIN_DESCRIPTION;
   const sending = status.kind === 'sending';
 
-  const submit = async (e: React.FormEvent) => {
+  const submit = async (e: React.FormEvent, playtest = false) => {
     e.preventDefault();
-    if (tooShort || sending) return;
+    if ((tooShort && !playtest) || sending) return;
     setStatus({ kind: 'sending' });
     if (online) {
       // Online the answer is only sent or failed (the server says no more)
@@ -70,7 +72,7 @@ function BugReportForm({
       setStatus(ok ? { kind: 'sent' } : { kind: 'error', message: 'The report could not be sent. Please try again later.' });
       return;
     }
-    const payload = await buildReport({ description: text, screen, website, game: game?.() ?? null, crash });
+    const payload = await buildReport({ description: text, screen, website, playtest, game: game?.() ?? null, crash });
     const error = await sendReport(payload);
     setStatus(error ? { kind: 'error', message: error } : { kind: 'sent' });
   };
@@ -184,6 +186,18 @@ function BugReportForm({
               >
                 <Send className="w-3.5 h-3.5" /> {sending ? 'Sending…' : 'Send report'}
               </button>
+              {canPlaytest && (
+                <button
+                  type="button"
+                  disabled={sending}
+                  onClick={e => void submit(e, true)}
+                  title="Beta only: files this whole game as a playtest game for the AI team (the note is optional), not as a bug"
+                  data-testid="bug-report-playtest"
+                  className="px-4 py-2 text-xs font-bold rounded-[2px] border border-cyan-700 border-b-2 border-b-cyan-600 bg-cyan-900/60 hover:bg-cyan-800/60 text-cyan-100 disabled:opacity-40 disabled:cursor-not-allowed flex items-center gap-1.5 active:translate-y-[1px] active:border-b-[1px]"
+                >
+                  <Gamepad2 className="w-3.5 h-3.5" /> Submit playtest game
+                </button>
+              )}
             </div>
           </form>
         )}

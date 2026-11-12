@@ -9,7 +9,6 @@ test('own hand spreads on hover and closes when the pointer leaves', async ({ pa
   await page.goto('/');
   await page.getByTestId('mode-computer').click();
   await page.getByTestId('opponent-ai-corp').click();
-  await page.getByTestId('difficulty-normal').click();
   await page.getByTestId('start-game').click();
   await page.getByRole('button', { name: 'Keep hand' }).click({ timeout: 30_000 });
   await expect(page.getByTestId('runner-credits')).toBeVisible({ timeout: 60_000 });
@@ -52,7 +51,6 @@ test('a spread hand stays within its board', async ({ page }) => {
   await page.goto('/');
   await page.getByTestId('mode-computer').click();
   await page.getByTestId('opponent-ai-corp').click();
-  await page.getByTestId('difficulty-normal').click();
   await page.getByTestId('start-game').click();
   await page.getByRole('button', { name: 'Keep hand' }).click({ timeout: 30_000 });
   await expect(page.getByTestId('runner-credits')).toBeVisible({ timeout: 60_000 });
@@ -74,7 +72,6 @@ test('the zoom panel waits for the spread to finish', async ({ page }) => {
   await page.goto('/');
   await page.getByTestId('mode-computer').click();
   await page.getByTestId('opponent-ai-corp').click();
-  await page.getByTestId('difficulty-normal').click();
   // The zoom panel keeps the last card hovered, and a real click leaves the pointer where the
   // board then draws cards (CI failed on 2026-11-08 that way): click these without moving it
   await page.getByTestId('start-game').dispatchEvent('click');
@@ -117,7 +114,6 @@ test('clicking a card in the spread hand keeps the spread', async ({ page }) => 
   await page.goto('/');
   await page.getByTestId('mode-computer').click();
   await page.getByTestId('opponent-ai-corp').click();
-  await page.getByTestId('difficulty-normal').click();
   await page.getByTestId('start-game').click();
   await page.getByRole('button', { name: 'Keep hand' }).click({ timeout: 30_000 });
   await expect(page.getByTestId('runner-credits')).toBeVisible({ timeout: 60_000 });

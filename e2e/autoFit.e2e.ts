@@ -10,7 +10,6 @@ test('auto fit shrinks cards to avoid scrolling and can be switched off', async 
   await page.goto('/');
   await page.getByTestId('mode-computer').click();
   await page.getByTestId('opponent-ai-corp').click();
-  await page.getByTestId('difficulty-normal').click();
   await page.getByTestId('start-game').click();
   await page.getByRole('button', { name: 'Keep hand' }).click({ timeout: 30_000 });
   await expect(page.getByTestId('runner-credits')).toBeVisible({ timeout: 60_000 });

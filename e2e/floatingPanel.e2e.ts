@@ -29,7 +29,6 @@ test('the run panel reopens centred after being dragged', async ({ page }) => {
   await page.goto('/');
   await page.getByTestId('mode-computer').click();
   await page.getByTestId('opponent-ai-corp').click();
-  await page.getByTestId('difficulty-normal').click();
   await page.getByTestId('start-game').click();
   await page.getByRole('button', { name: 'Keep hand' }).click({ timeout: 30_000 });
   await expect(page.getByRole('button', { name: '+1 Credit' })).toBeEnabled({ timeout: 60_000 });

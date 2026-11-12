@@ -27,6 +27,8 @@ export interface ReportPayload {
   screen: ReportScreen;
   version: string;
   website: string;
+  /** Beta only: a playtest game for the AI fixtures, not a bug (worker/bugReport.ts labels it and the playtest-game workflow files it). */
+  playtest?: boolean;
   game?: {
     seed: number;
     format: string;
@@ -131,6 +133,7 @@ export async function buildReport(input: {
   description: string;
   screen: ReportScreen;
   website?: string;
+  playtest?: boolean;
   game?: GameForReport | null;
   crash?: { message: string; stack?: string };
 }): Promise<ReportPayload> {
@@ -140,6 +143,7 @@ export async function buildReport(input: {
     version: appVersion(),
     website: input.website ?? '',
   };
+  if (input.playtest) payload.playtest = true;
   if (input.game) payload.game = await gameReport(input.game);
   if (input.crash) payload.crash = input.crash;
   return payload;

@@ -10,7 +10,6 @@ test('play against the computer and resume after a reload', async ({ page }) => 
   await page.goto('/');
   await page.getByTestId('mode-computer').click();
   await page.getByTestId('opponent-ai-corp').click();
-  await page.getByTestId('difficulty-normal').click();
   await page.getByTestId('start-game').click();
 
   // The computer keeps or mulligans its hand, then the Runner decides
@@ -56,7 +55,8 @@ test('the start screen shows the settings and decks each way of playing needs', 
   await page.getByTestId('mode-computer').click();
   await page.getByTestId('opponent-ai-corp').click();
   await expect(columns.locator('h2')).toHaveText(["COMPUTER'S CORP DECK", 'YOUR RUNNER DECK']);
-  await expect(page.getByTestId('difficulty-normal')).toBeVisible();
+  await expect(page.getByTestId('difficulty-normal')).toHaveCount(0);
+  await expect(page.getByTestId('difficulty-hard')).toHaveCount(0);
   await page.getByTestId('mode-hotseat').click();
   await expect(columns.locator('h2')).toHaveText(['CORP DECK', 'RUNNER DECK']);
   await expect(page.getByTestId('difficulty-normal')).toHaveCount(0);
