@@ -31,6 +31,7 @@ import { plan, pricing, withPricing } from './pricing';
 import { dividendsOf, setupOperation } from './cards';
 // Last: its imports (winNow, runs, pricing) are loaded by then, so the AI modules' load order is unchanged (oracle.ts)
 import { HeldLine, heldLaterStep, iceRedirect, iceRedirectStats, scoreInTwoPick } from './countedScore';
+import { moneyPick } from './incomeLine';
 
 
 const type = (card: CardInstance) => cardDef(card).type_code;
@@ -188,9 +189,13 @@ export class HeuristicCorpAI implements Agent {
     // pick is then the rule ranking's, kept while it keeps the score (keepsScore), the line's action otherwise. A held
     // two-turn line on a later turn: its step (advance or score, heldLaterStep) does not depend on the pick, and
     // scoreInTwoPick below plays it.
-    const decided = !!score || (this.synergy && this.planner && !!heldLaterStep(state, this.heldLine));
+    const later = this.synergy && this.planner && !!heldLaterStep(state, this.heldLine);
+    const decided = !!score || later;
     const planned = this.planner && plannerOn('corp') && state.turnStep?.kind !== 'corp_turn_start' && !decided ? this.plan(state, ranked) : null;
-    let chosen = planned ?? (ranked[0]?.score > -Infinity ? ranked[0].action : legal.find(a => a.type === 'END_TURN') ?? legal[0]);
+    // Money step M1 (incomeLine.ts): an econ operation that nets credits is the counted pick for its click, ahead of the
+    // Corp's own; a score this turn, a held two-turn line's step, or the Corp's own pick moving an agenda keeps the click
+    const money = !decided && this.synergy && this.planner && state.turnStep?.kind !== 'corp_turn_start' ? moneyPick(state, planned ?? ranked[0]?.action) : null;
+    let chosen = money ?? planned ?? (ranked[0]?.score > -Infinity ? ranked[0].action : legal.find(a => a.type === 'END_TURN') ?? legal[0]);
     // plan.pettyCashFirst: a click for a credit while Petty Cash can still be played is a click for 2 thrown away (the
     // planner valued Petty Cash held in HQ as the money it will make, though it is playable only as the turn's first action)
     if (chosen.type === 'GAIN_CREDIT' && this.patches && plan().pettyCashFirst) chosen = ranked.find(r => isPettyCash(state, r.action) && r.score > -Infinity)?.action ?? chosen;
@@ -208,7 +213,6 @@ export class HeuristicCorpAI implements Agent {
     // until it holds; nothing while a counted two-turn line is held (its ice goes where the line puts it; skipping only
     // the line's own ice played the same 663 games, run 43158341651)
     const held = this.heldLine && this.heldLine.game === state.id ? this.heldLine : null;
-    if (held && this.planner && !this.searching && picked.type === 'INSTALL_CARD') iceRedirectStats[held.line.iceId === (picked as { cardInstanceId?: string }).cardInstanceId ? 'lineIce' : 'heldOther']++;
     if (!score && picked === chosen && this.synergy && !held) {
       const redirect = iceRedirect(state, picked);
       if (redirect) {

@@ -12,7 +12,8 @@ import { decisionContext } from './handValues';
 import { knownRdSlots } from './runnerReply';
 import { corpKnowsRd, corpSeenGrip } from './oracle';
 // Loaded by corpAI already (its last import), so the AI modules' load order is unchanged
-import { HeldLine, iceRedirect, scoreInTwoPick } from './countedScore';
+import { HeldLine, heldLaterStep, iceRedirect, scoreInTwoPick } from './countedScore';
+import { moneyPick } from './incomeLine';
 
 /**
  * Hard AI: Monte Carlo look-ahead on top of the rule-based AI.
@@ -240,6 +241,12 @@ export class SearchAI implements Agent {
       if (full) return full;
     }
     const ranked = this.base.rankMainActions(state).filter(c => c.score > -Infinity);
+    // Money step M1 (incomeLine.ts): the counted money pick, as Normal's (corpAI decide), the rule ranking's favourite as the Corp's own pick
+    const money = this.side === 'corp' && (this.options.synergy ?? true) && !heldLaterStep(state, this.heldLine) ? moneyPick(state, ranked[0]?.action) : null;
+    if (money) {
+      this.base.notePlayed(money);
+      return money;
+    }
     if (ranked.length === 0) return this.base.chooseAction(state);
     if (ranked[0].action.type === 'SCORE_AGENDA') return ranked[0].action;
     // Only one sensible move, or the favourite is far ahead: no need to think it over

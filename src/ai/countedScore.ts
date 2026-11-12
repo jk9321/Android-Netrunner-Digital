@@ -424,7 +424,7 @@ function spareAfter(state: GameState, pick: GameAction): GameState {
 type ServerLike = GameState['corp']['servers'][string];
 
 /** Ice redirect diagnostics: redirects made by the top-level Corp (corpAI counts them). */
-export const iceRedirectStats = { fired: 0, lineIce: 0, heldOther: 0 };
+export const iceRedirectStats = { fired: 0 };
 
 /**
  * The scoring remote (ice redirect): the remote with the most ice; on a tie the one holding an agenda or an advanced
@@ -439,7 +439,7 @@ export function scoringRemote(state: GameState): ServerLike | null {
 }
 
 /**
- * Ice redirect (step 4 G3', Jeff 2026-11-12 "ice spread thin"; +2.2 ± 0.7 over 2,873 paired games): when the Corp's
+ * Ice redirect (step 4 G3', Jeff 2026-11-12 "ice spread thin"; +2.1 ± 0.7 over 2,873 paired games, runs 43158129121 + 43164127215): when the Corp's
  * own pick installs ice onto a remote or a new remote, and the scoring remote does not hold by the count (holdCost
  * against runnerBudget with what the Corp ends the turn on: credits and the clicks after this one, less afterLineFloor
  * for its agendas), the ice goes to the scoring remote instead, outermost. Its install cost there is 1 credit for each

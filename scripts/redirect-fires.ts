@@ -1,8 +1,8 @@
 /**
- * Ice redirect (plan.iceRedirect): how often the top-level Corp's redirect fires per game, and how often a held line's
- * exclusion applies (its own ice / other remote ice while a line is held). One JSON line per deal.
+ * Ice redirect (countedScore.ts iceRedirect): how often the top-level Corp's redirect fires per game. One JSON line
+ * per deal.
  *
- *   SEEDS=1001,1011 [PLAN_OFF=+iceRedirectNarrow] npx vite-node scripts/redirect-fires.ts
+ *   SEEDS=1001,1011 npx vite-node scripts/redirect-fires.ts
  */
 import { createInitialGameState } from '../src/core';
 import { deckGameSetup } from '../src/data/decks';
@@ -20,7 +20,7 @@ for (const seed of seeds) {
   const runnerDecks = ALL_DECKS.filter(d => d.side === 'runner');
   const p = Math.floor((seed - 1001) / 10);
   valueLoops.clear();
-  Object.assign(iceRedirectStats, { fired: 0, lineIce: 0, heldOther: 0 });
+  Object.assign(iceRedirectStats, { fired: 0 });
   const start = createInitialGameState(deckGameSetup(seed, corpDecks[Math.floor(p / runnerDecks.length)], runnerDecks[p % runnerDecks.length]));
   const game = new GameRunner(start, { corp: createAgent('corp', 'normal'), runner: createAgent('runner', 'normal') });
   for (let i = 0; i < 6000 && game.step(); i++);

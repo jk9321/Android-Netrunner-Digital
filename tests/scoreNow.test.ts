@@ -48,13 +48,15 @@ afterEach(() => {
   tuning.plan.scoreNow = was;
 });
 
-const PINS: { name: string; file: string; turn: number; agenda: string; points: number }[] = [
+const PINS: { name: string; file: string; turn: number; agenda: string; points: number; offScores?: true }[] = [
   // Send a Message +2 of 5 behind ice, 13 credits: the Corp installed Palisade on another remote and advanced twice, one short
   { name: 'deal 1051 turn 11 (Send a Message one advance short after a Palisade install)', file: 'counted-scoring/deal-1051.json', turn: 11, agenda: 'inst-7', points: 3 },
   // Project Ingatan +0 of 3, 3 credits: the Corp installed and rezzed Spin Doctor, took a credit, installed a second
   { name: 'deal 1711 turn 9 (two Spin Doctors instead of Project Ingatan)', file: 'counted-scoring/deal-1711.json', turn: 9, agenda: 'inst-8', points: 2 },
   // Send a Message +4 of 5, 16 credits: the Corp purged (all three clicks) with a one-advance score open
-  { name: 'deal 2931 turn 14 (a purge with a one-advance score open)', file: 'counted-scoring/deal-2931.json', turn: 14, agenda: 'inst-10', points: 3 },
+  // Since money M1 + agenda-step (incomeLine.ts moneyPick takes the Corp's own pick, so Normal's planner now runs on this
+  // turn) the planner finds the advance and score without scoreNow too: the off path no longer shows the miss
+  { name: 'deal 2931 turn 14 (a purge with a one-advance score open)', file: 'counted-scoring/deal-2931.json', turn: 14, agenda: 'inst-10', points: 3, offScores: true },
   // Jeff's game: Fujii Asset Retrieval +2 of 5 with 3 credits and 3 clicks; the Corp installed Phật Gioan Baotixita instead
   { name: "report 39 turn 7 (Jeff's game: Fujii Asset Retrieval, three advances and score)", file: 'human-games/report-39.json', turn: 7, agenda: 'inst-25', points: 3 },
 ];
@@ -65,7 +67,7 @@ describe('plan.scoreNow: the Corp scores what it can score this turn (1.17.3a-c,
       const s = corpTurn(pin.file, pin.turn);
       tuning.plan.scoreNow = false;
       const off = playTurn(structuredClone(s));
-      expect(off.corp.scoreArea.some(c => c.instanceId === pin.agenda)).toBe(false);
+      expect(off.corp.scoreArea.some(c => c.instanceId === pin.agenda)).toBe(!!pin.offScores);
       tuning.plan.scoreNow = true;
       const on = playTurn(structuredClone(s));
       expect(on.corp.scoreArea.some(c => c.instanceId === pin.agenda)).toBe(true);
