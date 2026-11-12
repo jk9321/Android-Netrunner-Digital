@@ -29,6 +29,7 @@ import { withIceInstalled } from '../src/ai/iceValues';
 import { asSide } from '../src/ai/pricing';
 import { decisionContext } from '../src/ai/handValues';
 import { applyPlanOff } from '../src/ai/synergy';
+import { cardSynergy } from '../src/ai/synergyTags';
 
 applyPlanOff(process.env.PLAN_OFF ?? '');
 
@@ -195,6 +196,32 @@ function playDeal(seed: number) {
   const start = createInitialGameState(deckGameSetup(seed, c, r));
   const corp = createAgent('corp', 'normal');
   const runner = createAgent('runner', 'normal');
+  // Income by source over turns 1-10 (coordinator 02:10Z): each side's credit gain on each action, by the action's kind
+  const income = { corp: {} as Record<string, number[]>, runner: {} as Record<string, number[]> };
+  const last: Record<'corp' | 'runner', string> = { corp: 'other', runner: 'other' };
+  const sourceOf = (s: GameState, a: { type: string; cardInstanceId?: string }): string | null => {
+    if (a.type === 'RESOLVE_PROMPT' || a.type === 'PASS') return null; // keeps the action the prompt belongs to
+    if (a.type === 'GAIN_CREDIT') return 'click';
+    if (a.type === 'PLAY_OPERATION_OR_EVENT') return 'operation/event';
+    if (a.type === 'START_TURN') return 'turn start';
+    if (a.type === 'USE_ABILITY') return 'ability';
+    if (a.type === 'SCORE_AGENDA') return 'agenda';
+    if (a.type === 'REZ_CARD' || a.type === 'INSTALL_CARD' || a.type === 'ADVANCE_CARD') return 'install/rez/advance';
+    if (['INITIATE_RUN', 'CONTINUE_RUN', 'JACK_OUT', 'BREAK_SUBROUTINE', 'BOOST_BREAKER', 'BIOROID_BREAK'].includes(a.type)) return 'run';
+    return 'other';
+  };
+  const wrap = (agent: typeof corp, side: 'corp' | 'runner') => {
+    const pick = agent.chooseAction.bind(agent);
+    agent.chooseAction = (s: GameState) => {
+      const a = pick(s);
+      last[side] = sourceOf(s, a as { type: string }) ?? last[side];
+      return a;
+    };
+  };
+  wrap(runner, 'runner');
+  // Econ cards (synergy tag econ: gains credits): first turn seen in HQ, turn played or installed, trashed by the Runner
+  const isEcon = (c: CardInstance) => (cardSynergy(cardDef(c)).gives?.econ ?? 0) > 0;
+  const econ = new Map<string, { title: string; type: string; seen: number; used?: number; trashed?: boolean }>();
   const heldOf = () => (corp as unknown as { heldLine: HeldLine | null }).heldLine;
   const events: Event[] = [];
   const hqWatch: { id: string; turn: number; stolen: boolean }[] = [];
@@ -210,6 +237,12 @@ function playDeal(seed: number) {
   corp.chooseAction = (s: GameState) => {
     const held = heldOf();
     const a = choose(s);
+    last.corp = sourceOf(s, a as { type: string }) ?? last.corp;
+    for (const c of s.corp.hq) if (isEcon(c) && !econ.has(c.instanceId)) econ.set(c.instanceId, { title: cardDef(c).title, type: typeOf(c), seen: s.turnNumber });
+    if ((a.type === 'PLAY_OPERATION_OR_EVENT' || a.type === 'INSTALL_CARD') && s.activePlayer === 'corp') {
+      const e = econ.get((a as { cardInstanceId?: string }).cardInstanceId ?? '');
+      if (e && e.used === undefined) e.used = s.turnNumber;
+    }
     if (s.activePlayer === 'corp' && !s.activeRun && a.type === 'DRAW_CARD') draws++;
     if (s.activePlayer === 'corp' && !s.activeRun && s.turnNumber <= 5 && s.turnStep?.kind !== 'corp_turn_start') {
       const k = clickKind(s, a);
@@ -260,6 +293,18 @@ function playDeal(seed: number) {
     }
     const scored = new Set(prev.corp.scoreArea.map(x => x.instanceId));
     for (const x of s.corp.scoreArea) if (!scored.has(x.instanceId)) for (const e of events) if (e.id === x.instanceId && !e.fate) e.fate = 'scored';
+    if (s.activePlayer === 'runner' || s.activeRun)
+      for (const v of Object.values(prev.corp.servers)) for (const c of v.root) {
+        const e = econ.get(c.instanceId);
+        if (e && !e.trashed && !Object.values(s.corp.servers).some(w => w.root.some(x => x.instanceId === c.instanceId))) e.trashed = true;
+      }
+    if (s.turnNumber <= 10) for (const side of ['corp', 'runner'] as const) {
+      const gain = s[side].credits - prev[side].credits;
+      if (gain <= 0) continue;
+      // By that side's last action kind (its turn start for drip; a gain on the other side's action goes to its own last kind)
+      const row = (income[side][last[side]] ??= new Array(11).fill(0));
+      row[s.turnNumber] += gain;
+    }
     prev = s;
   };
   for (let i = 0; i < 6000; i++) {
@@ -273,7 +318,7 @@ function playDeal(seed: number) {
     events,
     hqTurns: hqWatch.length,
     hqStolen2: hqWatch.filter(w => w.stolen).length,
-    turns: game.state.turnNumber, draws, boards, supplies, turnStart, clicks15, hqAgendasEnd: game.state.corp.hq.filter(isAgenda).length,
+    turns: game.state.turnNumber, draws, boards, supplies, turnStart, clicks15, income, econ: [...econ.values()], hqAgendasEnd: game.state.corp.hq.filter(isAgenda).length,
     decked: game.state.winner === 'runner' && game.state.corp.rd.length === 0,
   };
 }
