@@ -424,7 +424,7 @@ function spareAfter(state: GameState, pick: GameAction): GameState {
 type ServerLike = GameState['corp']['servers'][string];
 
 /** Ice redirect diagnostics: redirects made by the top-level Corp (corpAI counts them). */
-export const iceRedirectStats = { fired: 0, keptMoney: 0 };
+export const iceRedirectStats = { fired: 0, lineIce: 0, heldOther: 0 };
 
 /**
  * The scoring remote (ice redirect): the remote with the most ice; on a tie the one holding an agenda or an advanced

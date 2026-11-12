@@ -156,6 +156,8 @@ export const tuning = {
     iceRedirect: true,
     /** TEMPORARY arm: the redirect only when the Corp keeps the rez that makes the scoring remote hold (countedScore.ts iceRedirect). */
     iceRedirectMoney: false,
+    /** TEMPORARY arm: while a two-turn line is held, skip only the line's own ice (not every remote ice install). */
+    iceRedirectNarrow: false,
     /** Corp: with the Runner tagged, a resource trash among the actions it has clicks for goes first (corpAI tagFirst). */
     tagFirst: true,
     /**

@@ -8,6 +8,7 @@ import { evaluate } from './evaluate';
 import { GameRunner } from './playout';
 import { RunnerMemory } from './runs';
 import { asSide, logNudge } from './synergy';
+import { plan } from './pricing';
 import { decisionContext } from './handValues';
 import { knownRdSlots } from './runnerReply';
 import { corpKnowsRd, corpSeenGrip } from './oracle';
@@ -198,7 +199,9 @@ export class SearchAI implements Agent {
       this.heldLine = two.held;
       if (two.action !== action) this.base.notePlayed(two.action);
       // plan.iceRedirect: the search's own remote ice install goes to the scoring remote until it holds
-      const redirect = two.action === action && !(this.heldLine && this.heldLine.game === state.id) ? iceRedirect(state, action) : null;
+      const held = this.heldLine && this.heldLine.game === state.id ? this.heldLine : null;
+      const lineIce = !!held && held.line.iceId === (action as { cardInstanceId?: string }).cardInstanceId;
+      const redirect = two.action === action && (plan().iceRedirectNarrow ? !lineIce : !held) ? iceRedirect(state, action) : null;
       if (redirect) this.base.notePlayed(redirect);
       return redirect ?? two.action;
     });
