@@ -6,7 +6,7 @@
  * its own cost), spending by kind, credits at turn start, ice installed and rezzed, econ cards played and how long they
  * sat in HQ first, econ cards discarded at hand size (rule 1.7.2b), agendas installed and scored. One JSON line per game.
  *
- *   [EXTRA=3] [ONLY=report-18.json] npx vite-node scripts/money-h0.ts > h0.jsonl
+ *   [EXTRA=3] [ONLY=report-18.json] [SHARD=0/4] npx vite-node scripts/money-h0.ts > h0.jsonl
  */
 import { readFileSync, readdirSync } from 'node:fs';
 import { join } from 'node:path';
@@ -126,8 +126,12 @@ class Ledger {
 const out = (game: string, who: string, seed: number, l: Ledger, end: GameState) =>
   console.log(JSON.stringify({ game, who, seed, winner: end.winner ?? null, turns: end.turnNumber, ledger: l.turns, econPlayed: l.econPlayed, econDiscarded: l.econDiscarded, agendasInstalled: l.agendasInstalled, agendasScored: l.agendasScored }));
 
-for (const file of readdirSync(DIR).filter(f => f.endsWith('.json')).sort()) {
+// SHARD=k/n: every n-th game from the k-th (k from 0), so several processes split the games
+const [shard, shards] = (process.env.SHARD ?? '0/1').split('/').map(Number);
+const files = readdirSync(DIR).filter(f => f.endsWith('.json')).sort().filter(f => JSON.parse(readFileSync(join(DIR, f), 'utf8')).config.ai === 'runner');
+for (const [index, file] of files.entries()) {
   if (process.env.ONLY && file !== process.env.ONLY) continue;
+  if (index % shards !== shard) continue;
   const report = JSON.parse(readFileSync(join(DIR, file), 'utf8'));
   if (report.config.ai !== 'runner' || !report.moves?.length) continue;
   const { seed, corpDeck, runnerDeck } = report.config;
