@@ -395,6 +395,8 @@ export const tuning = {
     scoringNoAsset: false,
     /** Asset cover step 2 (temporary switch; countedScore.ts assetCover): an econ asset the Corp installs where it would not hold goes behind the cheapest ice that holds it. */
     assetCover: false,
+    /** Asset cover follow-up (temporary switch; countedScore.ts spareIce): a credit or draw click ices a new remote ahead for econ assets, which go there. */
+    spareIce: false,
     /**
      * Bug reports #39, #41 (Jeff's Runner test games 7 and 9, 2026-11-09; Corp only): the Corp's own unrezzed ice is priced
      * as it knows it (effectValues.ts ownIce: the real ice when its rez budget covers it, passed when not; rules 3.4.3a,

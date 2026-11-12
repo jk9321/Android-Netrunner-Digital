@@ -396,7 +396,7 @@ export function scoreInTwoPick(state: GameState, pick: GameAction, held: HeldLin
     h = null;
   }
   if (!h) {
-    const line = scoreInTwo(state) ?? (plan().assetCover ? assetCover(state, pick) : null);
+    const line = scoreInTwo(state) ?? (plan().assetCover || plan().spareIce ? assetCover(state, pick) : null);
     if (!line) return { action: pick, held: null };
     const card = installedAgendas(state).find(a => a.card.instanceId === line.agendaId)?.card;
     h = { game: state.id, turn: state.turnNumber, line, server: line.server === 'new remote' ? null : line.server, counters: card?.advancementCounters ?? 0 };
@@ -504,16 +504,64 @@ export function assetCover(state: GameState, pick: GameAction): TwoTurnLine | nu
   const rezCost = asset ? (cardDef(asset).cost ?? 0) : 0;
   if (!asset || !p || p.pay <= 0 || p.load <= rezCost) return null;
   assetCoverStats.asked++;
-  if (state.corp.hq.some(isAgenda) && scoringShort(state)) return (assetCoverStats.scoringShort++, null);
   const target = a.asNewRemote ? null : a.targetServerId ? state.corp.servers[a.targetServerId] : null;
   if (target && (!target.isRemote || target.ice.length > 0 || target.id === scoringRemote(state)?.id)) return (assetCoverStats.iced++, null);
-  if (state.corp.clicks < 2) return (assetCoverStats.clicks++, null);
   const income = knownIncome(state);
+  const line = (server: string, form: TwoTurnLine['form'], ice?: { id: string; rez: number }): TwoTurnLine => ({ kind: 'asset', agenda: cardDef(asset).title, agendaId: asset.instanceId, server, form, ...(ice ? { iceId: ice.id } : {}), advanceNow: 0, advanceNext: 0, rez: ice?.rez ?? 0 });
+  // plan.spareIce's partner: an iced remote waiting with an open root (3.3.1) takes the asset, one click; not the
+  // scoring remote while an agenda waits in HQ
+  if (plan().spareIce) {
+    const scoring = scoringRemote(state);
+    const agenda = state.corp.hq.some(isAgenda);
+    const waiting = remotes(state).find(v => v.ice.length > 0 && !v.root.some(c => isAgenda(c) || typeOf(c) === 'asset') && !(agenda && v.id === scoring?.id));
+    if (waiting && state.corp.credits + (state.corp.clicks - 1) + income >= rezCost) return (spareIceStats.moved++, line(waiting.id, 'install'));
+  }
+  if (!plan().assetCover) return null;
+  if (state.corp.hq.some(isAgenda) && scoringShort(state)) return (assetCoverStats.scoringShort++, null);
+  if (state.corp.clicks < 2) return (assetCoverStats.clicks++, null);
   const end = state.corp.credits + (state.corp.clicks - 2);
   const all = uniqueByCode(state.corp.hq.filter(c => typeOf(c) === 'ice')).map(c => ({ c, rez: rezCostOf(state, c) }));
   if (!all.length) return (assetCoverStats.noIce++, null);
   if (end + income < rezCost) return (assetCoverStats.rezMoney++, null);
   const ice = all.sort((x, y) => x.rez - y.rez)[0];
   assetCoverStats.begun++;
-  return { kind: 'asset', agenda: cardDef(asset).title, agendaId: asset.instanceId, server: target ? target.id : 'new remote', form: 'install+ice', iceId: ice.c.instanceId, advanceNow: 0, advanceNext: 0, rez: ice.rez };
+  return line(target ? target.id : 'new remote', 'install+ice', { id: ice.c.instanceId, rez: ice.rez });
+}
+
+/** plan.spareIce diagnostics (any caller, search included): spare ice installed on a new remote, by the pick it took over (a draw past the hand size, another draw, a credit) and whether an econ asset was in HQ already (Jeff's other case: ice now, the asset next); econ assets moved onto a waiting iced remote. */
+export const spareIceStats = { installed: 0, drawOver: 0, draw: 0, credit: 0, assetInHq: 0, moved: 0 };
+
+/**
+ * plan.spareIce (asset cover follow-up; Jeff 2026-11-12: "Sometimes if I have extra ice in hand I will ice an empty
+ * remote to be used in the future for econ assets"): when the Corp's own pick is a click for a credit or a draw (5.6.2,
+ * its cheapest click) and an ice in HQ is spare by the count, the cheapest to rez of them goes on a new remote instead
+ * (no install cost there, 8.5.11a). Jeff: a low-priority play when he has plenty of credits and a draw would
+ * overdraw him for no reason, or when he badly needs econ and has an asset to protect (the asset follows next turn).
+ * Spare: HQ and R&D each have ice, the scoring remote is not short by iceRedirect's
+ * count or no agenda waits in HQ, no iced remote with an open root is waiting already, and an econ asset (card entry
+ * profile: pays credits, loads more than its rez cost) is still in HQ or R&D (the Corp's own deck list). It never
+ * displaces an install, an advance or an operation. Its partner is in assetCover: the asset goes to the waiting
+ * remote (one agenda or asset per root, 3.3.1), which scoringRemote may adopt later for an agenda. Null: no change.
+ */
+export function spareIce(state: GameState, pick: GameAction): GameAction | null {
+  if (!plan().spareIce || !isCorpMain(state) || (pick.type !== 'GAIN_CREDIT' && pick.type !== 'DRAW_CARD')) return null;
+  const { servers } = state.corp;
+  if (!servers.hq.ice.length || !servers.rd.ice.length) return null;
+  if (state.corp.hq.some(isAgenda) && scoringShort(state)) return null;
+  if (remotes(state).some(v => v.ice.length > 0 && !v.root.some(c => isAgenda(c) || typeOf(c) === 'asset'))) return null;
+  const econ = (c: CardInstance) => {
+    const p = typeOf(c) === 'asset' ? profileOf(c.cardCode) : undefined;
+    return !!p && p.pay > 0 && p.load > (cardDef(c).cost ?? 0);
+  };
+  if (!state.corp.hq.some(econ) && !state.corp.rd.some(econ)) return null;
+  const ice = state.corp.hq.filter(c => typeOf(c) === 'ice').sort((x, y) => rezCostOf(state, x) - rezCostOf(state, y))[0];
+  const install = ice ? legalShape(state, { type: 'INSTALL_CARD', cardInstanceId: ice.instanceId, asNewRemote: true }) : undefined;
+  if (install) {
+    spareIceStats.installed++;
+    if (pick.type === 'GAIN_CREDIT') spareIceStats.credit++;
+    else if (state.corp.hq.length + 1 > state.corp.handSizeLimit) spareIceStats.drawOver++;
+    else spareIceStats.draw++;
+    if (state.corp.hq.some(econ)) spareIceStats.assetInHq++;
+  }
+  return install ?? null;
 }

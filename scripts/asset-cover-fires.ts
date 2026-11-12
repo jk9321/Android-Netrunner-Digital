@@ -8,7 +8,7 @@
  *   - econ asset installs into a remote, and how many went behind ice installed on that server earlier the same turn
  *     ("covered"), and how many onto a remote with no ice ("bare"). Run once with the arm on and once off on the same
  *     deals: the difference is the arm's fires.
- * cover: assetCoverStats (countedScore.ts; any caller, the planner's search included). One JSON line per game.
+ * cover: assetCoverStats, spare: spareIceStats (countedScore.ts; any caller, the planner's search included). One JSON line per game.
  *
  *   SEEDS=1001,1011 [PLAN_OFF=+scoringNoAsset,+assetCover] [SHARD=0/2] npx vite-node scripts/asset-cover-fires.ts > fires.jsonl
  */
@@ -19,7 +19,7 @@ import { createAgent } from '../src/ai';
 import { GameRunner } from '../src/ai/playout';
 import { valueLoops } from '../src/ai/valueModel';
 import { applyPlanOff, tuning } from '../src/ai/synergy';
-import { assetCoverStats, iceRedirectStats, isCorpMain, scoringRemote } from '../src/ai/countedScore';
+import { assetCoverStats, iceRedirectStats, isCorpMain, scoringRemote, spareIceStats } from '../src/ai/countedScore';
 import { profileOf } from '../src/ai/cardProfiles';
 import { asSide } from '../src/ai/pricing';
 
@@ -50,6 +50,7 @@ for (const [i, seed] of seeds.entries()) {
   valueLoops.clear();
   iceRedirectStats.fired = 0;
   for (const k of Object.keys(assetCoverStats) as (keyof typeof assetCoverStats)[]) assetCoverStats[k] = 0;
+  for (const k of Object.keys(spareIceStats) as (keyof typeof spareIceStats)[]) spareIceStats[k] = 0;
   const game = new GameRunner(createInitialGameState(deckGameSetup(seed, corpDeck, runnerDecks[p % runnerDecks.length])), { corp: createAgent('corp', 'normal'), runner: createAgent('runner', 'normal') });
   let noAssetDiff = 0;
   let installs = 0;
@@ -79,5 +80,5 @@ for (const [i, seed] of seeds.entries()) {
     console.error(`deal ${seed}: ${err}`);
     continue;
   }
-  console.log(JSON.stringify({ seed, deck: corpDeck.name, winner: game.state.winner ?? null, turns: game.state.turnNumber, noAssetDiff, redirects: iceRedirectStats.fired, installs, covered, bare, cover: { ...assetCoverStats } }));
+  console.log(JSON.stringify({ seed, deck: corpDeck.name, winner: game.state.winner ?? null, turns: game.state.turnNumber, noAssetDiff, redirects: iceRedirectStats.fired, installs, covered, bare, cover: { ...assetCoverStats }, spare: { ...spareIceStats } }));
 }

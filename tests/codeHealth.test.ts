@@ -29,6 +29,7 @@ const CODES_IN_VALUE_FILES: Record<string, string> = {
 const OFF_SWITCHES: Record<string, string> = {
   scoringNoAsset: 'asset cover step 1, temporary: under its g3 batch',
   assetCover: 'asset cover step 2, temporary: under its g3 batch',
+  spareIce: 'asset cover follow-up, temporary: under its fire count and g3 batch',
   rigEffects: 'experiment, off until a batch says so',
   icePosition: "Jeff's ice-at-its-position model (Scatter Field); lost its batch, kept with its test for re-testing",
   'clickByPlay.corp': 'Corp side lost its batch; kept for re-testing',

@@ -1,7 +1,7 @@
 import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
-import { GameAction, GameState, executeAction } from '../src/core';
-import { assetCover, scoreInTwoPick, scoringRemote } from '../src/ai/countedScore';
+import { CardInstance, GameAction, GameState, cardDef, executeAction } from '../src/core';
+import { assetCover, scoreInTwoPick, scoringRemote, spareIce } from '../src/ai/countedScore';
 import { tuning } from '../src/ai/synergy';
 import { asSide } from '../src/ai/pricing';
 import { decisionContext } from '../src/ai/handValues';
@@ -92,5 +92,43 @@ describe('plan.assetCover: an econ asset behind the cheapest ice in HQ', () => {
     expect(two.held?.line.kind).toBeUndefined();
     expect(two.held?.line.agendaId).toBe('inst-4');
     expect(two.action).toMatchObject({ cardInstanceId: 'inst-41' });
+  });
+});
+
+describe('plan.spareIce: a credit or draw click ices a new remote ahead for econ assets (Jeff 2026-11-12)', () => {
+  const spare = <T>(s: GameState, f: () => T): T => {
+    const keep = tuning.plan;
+    tuning.plan = { ...keep, spareIce: true, scoringNoAsset: true };
+    try {
+      return asSide('corp', () => (decisionContext(s, 'corp'), f()));
+    } finally {
+      tuning.plan = keep;
+    }
+  };
+  const credit = { type: 'GAIN_CREDIT', player: 'corp' } as GameAction;
+
+  it('the credit click installs Whitespace, the cheapest to rez, on a new remote (HQ and R&D iced, Nico Campaign in HQ)', () => {
+    const s = position();
+    expect(spare(s, () => spareIce(s, credit))).toMatchObject({ type: 'INSTALL_CARD', cardInstanceId: 'inst-29', asNewRemote: true });
+    expect(spare(s, () => spareIce(s, { type: 'ADVANCE_CARD', player: 'corp', cardInstanceId: 'inst-x' } as GameAction))).toBeNull();
+    // Switch off
+    expect(asSide('corp', () => spareIce(s, credit))).toBeNull();
+  });
+
+  it('not while an iced remote with an open root waits already; the asset goes there instead (3.3.1)', () => {
+    // remote-1: Palisade and Karunā, root empty
+    const s: GameState = structuredClone(read('ice-redirect-1001-t10.json'));
+    s.corp.hq.find(c => c.instanceId === 'inst-23')!.cardCode = NICO;
+    expect(spare(s, () => spareIce(s, credit))).toBeNull();
+    expect(spare(s, () => assetCover(s, newRemote))).toMatchObject({ kind: 'asset', server: 'remote-1', form: 'install' });
+    expect(spare(s, () => scoreInTwoPick(s, newRemote, null).action)).toMatchObject({ type: 'INSTALL_CARD', cardInstanceId: 'inst-23', targetServerId: 'remote-1' });
+  });
+
+  it('not with no econ asset left in HQ or R&D', () => {
+    const s = position(x => {
+      x.corp.hq = x.corp.hq.filter(c => c.instanceId !== 'inst-23');
+      x.corp.rd = x.corp.rd.filter((c: CardInstance) => cardDef(c).type_code !== 'asset');
+    });
+    expect(spare(s, () => spareIce(s, credit))).toBeNull();
   });
 });
