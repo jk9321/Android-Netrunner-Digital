@@ -10,7 +10,7 @@
  *  - g3Money: no such build with its credits, but one with more; hqIce: ice in HQ at all;
  *  - fate: what happened to the agenda (stolen from a remote, scored, other).
  * At each Corp turn start with agendas in HQ: each one, and whether it was stolen from HQ within the next 2 Runner turns.
- * Per game: turns, optional draw clicks, agendas in HQ at the end, decked (the Corp lost on an empty R&D, 4.2.7b).
+ * Per game: ice per server at the turn 6 and 12 starts, turns, optional draw clicks, agendas in HQ at the end, decked (the Corp lost on an empty R&D, 4.2.7b).
  * One JSON line per deal; scripts/placement-g0-sum.mjs sums them.
  *
  *   SEEDS=1001,1011 PLAN_OFF=placementAdvance,placementInstall,placementBuild npx vite-node scripts/placement-g0.ts
@@ -54,6 +54,8 @@ interface Event {
   /** Ice on the target and the Runner's credits left after paying the most the Corp can make it pay there (runnerBudget less the best affordable rez set's need). */
   targetIce: number;
   margin: number;
+  /** An iced target that does not hold: would all the ice on the other remotes, there too, make it hold (ice spread thin). */
+  pooled?: boolean;
   fate?: 'stolen' | 'scored' | 'other';
   stolenFrom?: string;
 }
@@ -82,6 +84,21 @@ function bestNeed(state: GameState, ice: CardInstance[], credits: number): numbe
 }
 
 const open = (s: GameState) => Object.values(s.corp.servers).filter(v => v.isRemote && !v.root.some(c => isAgenda(c) || typeOf(c) === 'asset'));
+
+/** All the ice on the other remotes moved onto this one (outermost after its own): does it hold by the count. */
+function pooledHolds(s: GameState, server: string, end: number): boolean {
+  const others = Object.values(s.corp.servers).filter(v => v.isRemote && v.id !== server).flatMap(v => v.ice);
+  if (!others.length) return false;
+  let view = s;
+  for (const ice of others) view = withIceInstalled(view, ice, view.corp.servers[server]);
+  return holdCost(view, view.corp.servers[server].ice, end) !== null;
+}
+
+/** Ice per server at a Corp turn start: HQ, R&D, the most-iced remote, all other remotes, and how many remotes have ice. */
+function iceBoard(s: GameState) {
+  const remotes = Object.values(s.corp.servers).filter(v => v.isRemote).map(v => v.ice.length).sort((a, b) => b - a);
+  return { turn: s.turnNumber, hq: s.corp.servers.hq.ice.length, rd: s.corp.servers.rd.ice.length, most: remotes[0] ?? 0, others: remotes.slice(1).reduce((a, b) => a + b, 0), iced: remotes.filter(n => n > 0).length };
+}
 
 function look(s: GameState, kind: Event['kind'], card: CardInstance, server: string): Event {
   return asSide('corp', () => {
@@ -126,6 +143,7 @@ function look(s: GameState, kind: Event['kind'], card: CardInstance, server: str
       hqSize: s.corp.hq.length - (kind === 'install' ? 1 : 0), hqAgendas: s.corp.hq.filter(isAgenda).length - (kind === 'install' ? 1 : 0),
       g3, g3Money, hqIce: hqIce.length, credits: s.corp.credits,
       targetIce: targetIce.length, margin: runnerBudget(s) - bestNeed(s, targetIce, end),
+      pooled: targetIce.length > 0 && !target ? pooledHolds(s, server, end) : undefined,
     };
   });
 }
@@ -145,6 +163,7 @@ function playDeal(seed: number) {
   const hqWatch: { id: string; turn: number; stolen: boolean }[] = [];
   let lastCorpTurn = -1;
   let draws = 0;
+  const boards: ReturnType<typeof iceBoard>[] = [];
 
   const choose = corp.chooseAction.bind(corp);
   corp.chooseAction = (s: GameState) => {
@@ -154,6 +173,7 @@ function playDeal(seed: number) {
     const id = (a as { cardInstanceId?: string }).cardInstanceId;
     if (s.activePlayer === 'corp' && s.turnStep?.kind !== 'corp_turn_start' && s.turnNumber !== lastCorpTurn && !s.activeRun) {
       lastCorpTurn = s.turnNumber;
+      if (s.turnNumber === 6 || s.turnNumber === 12) boards.push(iceBoard(s));
       for (const x of s.corp.hq.filter(isAgenda)) hqWatch.push({ id: x.instanceId, turn: s.turnNumber, stolen: false });
     }
     const after = heldOf();
@@ -206,7 +226,7 @@ function playDeal(seed: number) {
     events,
     hqTurns: hqWatch.length,
     hqStolen2: hqWatch.filter(w => w.stolen).length,
-    turns: game.state.turnNumber, draws, hqAgendasEnd: game.state.corp.hq.filter(isAgenda).length,
+    turns: game.state.turnNumber, draws, boards, hqAgendasEnd: game.state.corp.hq.filter(isAgenda).length,
     decked: game.state.winner === 'runner' && game.state.corp.rd.length === 0,
   };
 }
