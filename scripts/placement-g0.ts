@@ -16,6 +16,7 @@
  *   SEEDS=1001,1011 PLAN_OFF=placementAdvance,placementInstall,placementBuild npx vite-node scripts/placement-g0.ts
  */
 import { CardInstance, GameState, cardDef, createInitialGameState, rezCostOf } from '../src/core';
+import { isIcebreaker } from '../src/core/engine/ice';
 import { deckGameSetup } from '../src/data/decks';
 import { ALL_DECKS } from './nsg-sample-decks';
 import { createAgent } from '../src/ai';
@@ -94,6 +95,28 @@ function pooledHolds(s: GameState, server: string, end: number): boolean {
   return holdCost(view, view.corp.servers[server].ice, end) !== null;
 }
 
+/**
+ * Corp supply at a Corp turn start (coordinator 02:02Z): cards seen (out of R&D), ice seen, installed and in HQ; of the
+ * ice in HQ, how much the Corp could not pay to install and rez (cheapest server: 8.5.11a install cost, then the rez);
+ * both sides' credits; the Runner's installed breakers; and whether the Runner can pay through every installed ice
+ * piece alone (iceCreditNeed of each, rezzed, within runnerBudget).
+ */
+function supply(s: GameState, deck: { cards: number; ice: number }) {
+  const isIce = (c: CardInstance) => typeOf(c) === 'ice';
+  const installed = Object.values(s.corp.servers).flatMap(v => v.ice);
+  const cheapest = 0; // a new remote takes ice for no install cost
+  const hqIce = s.corp.hq.filter(isIce);
+  const unpaid = hqIce.filter(c => cheapest + rezCostOf(s, c) > s.corp.credits).length;
+  const view: GameState = { ...s, runner: { ...s.runner, clicks: Math.max(0, s.runner.maxClicks - 1) } };
+  const budget = runnerBudget(s);
+  const payAll = installed.length > 0 && asSide('corp', () => (decisionContext(s, 'corp'), installed.every(c => iceCreditNeed(view, { ...c, isRezzed: true }) <= budget)));
+  return {
+    turn: s.turnNumber, seen: deck.cards - s.corp.rd.length, iceSeen: deck.ice - s.corp.rd.filter(isIce).length, iceInstalled: installed.length,
+    iceHq: hqIce.length, iceHqUnpaid: unpaid, corpCredits: s.corp.credits, runnerCredits: s.runner.credits, runnerBudget: budget,
+    breakers: [...s.runner.rig.programs].filter(isIcebreaker).length, payAll,
+  };
+}
+
 /** Ice per server at a Corp turn start: HQ, R&D, the most-iced remote, all other remotes, and how many remotes have ice. */
 function iceBoard(s: GameState) {
   const remotes = Object.values(s.corp.servers).filter(v => v.isRemote).map(v => v.ice.length).sort((a, b) => b - a);
@@ -148,6 +171,20 @@ function look(s: GameState, kind: Event['kind'], card: CardInstance, server: str
   });
 }
 
+/** A Corp main-phase action by kind (clicks over turns 1-5). */
+function clickKind(s: GameState, a: { type: string }): string {
+  const id = (a as { cardInstanceId?: string }).cardInstanceId;
+  if (a.type === 'DRAW_CARD') return 'draw';
+  if (a.type === 'GAIN_CREDIT') return 'credit';
+  if (a.type === 'ADVANCE_CARD') return 'advance';
+  if (a.type === 'PLAY_OPERATION_OR_EVENT') return 'operation';
+  if (a.type === 'INSTALL_CARD') {
+    const c = s.corp.hq.find(x => x.instanceId === id);
+    return c && typeOf(c) === 'ice' ? 'install ice' : 'install other';
+  }
+  return a.type === 'END_TURN' || a.type === 'START_TURN' || a.type === 'PASS' || a.type === 'RESOLVE_PROMPT' ? '' : 'other';
+}
+
 function playDeal(seed: number) {
   const corpDecks = ALL_DECKS.filter(d => d.side === 'corp');
   const runnerDecks = ALL_DECKS.filter(d => d.side === 'runner');
@@ -164,16 +201,26 @@ function playDeal(seed: number) {
   let lastCorpTurn = -1;
   let draws = 0;
   const boards: ReturnType<typeof iceBoard>[] = [];
+  const supplies: ReturnType<typeof supply>[] = [];
+  const turnStart: { turn: number; corp: number; runner: number }[] = [];
+  const clicks15: Record<string, number> = {};
+  const deck = { cards: start.corp.rd.length + start.corp.hq.length, ice: [...start.corp.rd, ...start.corp.hq].filter(c => typeOf(c) === 'ice').length };
 
   const choose = corp.chooseAction.bind(corp);
   corp.chooseAction = (s: GameState) => {
     const held = heldOf();
     const a = choose(s);
     if (s.activePlayer === 'corp' && !s.activeRun && a.type === 'DRAW_CARD') draws++;
+    if (s.activePlayer === 'corp' && !s.activeRun && s.turnNumber <= 5 && s.turnStep?.kind !== 'corp_turn_start') {
+      const k = clickKind(s, a);
+      if (k) clicks15[k] = (clicks15[k] ?? 0) + 1;
+    }
     const id = (a as { cardInstanceId?: string }).cardInstanceId;
     if (s.activePlayer === 'corp' && s.turnStep?.kind !== 'corp_turn_start' && s.turnNumber !== lastCorpTurn && !s.activeRun) {
       lastCorpTurn = s.turnNumber;
       if (s.turnNumber === 6 || s.turnNumber === 12) boards.push(iceBoard(s));
+      if (s.turnNumber === 6 || s.turnNumber === 12) supplies.push(supply(s, deck));
+      turnStart.push({ turn: s.turnNumber, corp: s.corp.credits, runner: s.runner.credits });
       for (const x of s.corp.hq.filter(isAgenda)) hqWatch.push({ id: x.instanceId, turn: s.turnNumber, stolen: false });
     }
     const after = heldOf();
@@ -226,7 +273,7 @@ function playDeal(seed: number) {
     events,
     hqTurns: hqWatch.length,
     hqStolen2: hqWatch.filter(w => w.stolen).length,
-    turns: game.state.turnNumber, draws, boards, hqAgendasEnd: game.state.corp.hq.filter(isAgenda).length,
+    turns: game.state.turnNumber, draws, boards, supplies, turnStart, clicks15, hqAgendasEnd: game.state.corp.hq.filter(isAgenda).length,
     decked: game.state.winner === 'runner' && game.state.corp.rd.length === 0,
   };
 }
