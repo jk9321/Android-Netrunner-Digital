@@ -1,6 +1,5 @@
 /**
- * Step 4 G0 (spec-step4-placement.md): measure before building. Plays the game-0 deals Normal v Normal (PRESSURE=1: the
- * pressure Runner, plan.pressureRunner) and, at every Corp decision that installs an agenda into a remote with no
+ * Step 4 G0 (spec-step4-placement.md): measure before building. Plays the game-0 deals Normal v Normal (PLAN_OFF as in a batch) and, at every Corp decision that installs an agenda into a remote with no
  * counted line for it (B/C install) or advances an agenda with no counted line (B advance), records by the count:
  *  - target: does the target remote hold for the Runner's coming turn (holdCost non-null against runnerBudget, with the
  *    credits the Corp ends on: this action's cost out, spare clicks to credits, scoreInTwo's assumption);
@@ -13,22 +12,23 @@
  * At each Corp turn start with agendas in HQ: each one, and whether it was stolen from HQ within the next 2 Runner turns.
  * One JSON line per deal; scripts/placement-g0-sum.mjs sums them.
  *
- *   SEEDS=1001,1011 [PRESSURE=1] npx vite-node scripts/placement-g0.ts
+ *   SEEDS=1001,1011 PLAN_OFF=placementAdvance,placementInstall,placementBuild npx vite-node scripts/placement-g0.ts
  */
-import { CardInstance, GameState, cardDef, createInitialGameState } from '../src/core';
+import { CardInstance, GameState, cardDef, createInitialGameState, rezCostOf } from '../src/core';
 import { deckGameSetup } from '../src/data/decks';
 import { ALL_DECKS } from './nsg-sample-decks';
 import { createAgent } from '../src/ai';
 import { GameRunner } from '../src/ai/playout';
 import { valueLoops } from '../src/ai/valueModel';
-import { HeldLine, holdCost, scoreInTwo } from '../src/ai/countedScore';
+import { HeldLine, holdCost, runnerBudget, scoreInTwo } from '../src/ai/countedScore';
+import { iceCreditNeed } from '../src/ai/runs';
 import { scoreNowPlan } from '../src/ai/winNow';
 import { withIceInstalled } from '../src/ai/iceValues';
 import { asSide } from '../src/ai/pricing';
 import { decisionContext } from '../src/ai/handValues';
 import { applyPlanOff } from '../src/ai/synergy';
 
-if (process.env.PRESSURE === '1') applyPlanOff('+pressureRunner');
+applyPlanOff(process.env.PLAN_OFF ?? '');
 
 const typeOf = (c: CardInstance) => cardDef(c).type_code;
 const isAgenda = (c: CardInstance) => typeOf(c) === 'agenda';
@@ -50,8 +50,34 @@ interface Event {
   g3Money: boolean;
   hqIce: number;
   credits: number;
+  /** Ice on the target and the Runner's credits left after paying the most the Corp can make it pay there (runnerBudget less the best affordable rez set's need). */
+  targetIce: number;
+  margin: number;
   fate?: 'stolen' | 'scored' | 'other';
   stolenFrom?: string;
+}
+
+/** The most the Corp can make the Runner pay on these ice with this many credits for rezzes (holdCost's sets and view). */
+function bestNeed(state: GameState, ice: CardInstance[], credits: number): number {
+  const view: GameState = { ...state, runner: { ...state.runner, clicks: Math.max(0, state.runner.maxClicks - 1) } };
+  const n = Math.min(ice.length, 10);
+  let best = 0;
+  for (let mask = 0; mask < 1 << n; mask++) {
+    let rez = 0;
+    let need = 0;
+    let ok = true;
+    for (let i = 0; i < n && ok; i++) {
+      const c = ice[i];
+      const on = !!(mask & (1 << i));
+      if (c.isRezzed && on) ok = false;
+      else if (c.isRezzed || on) {
+        if (!c.isRezzed) rez += rezCostOf(view, c);
+        need += iceCreditNeed(view, c.isRezzed ? c : { ...c, isRezzed: true });
+      }
+    }
+    if (ok && rez <= credits) best = Math.max(best, need);
+  }
+  return best;
 }
 
 const open = (s: GameState) => Object.values(s.corp.servers).filter(v => v.isRemote && !v.root.some(c => isAgenda(c) || typeOf(c) === 'asset'));
@@ -98,6 +124,7 @@ function look(s: GameState, kind: Event['kind'], card: CardInstance, server: str
       kind, turn: s.turnNumber, agenda: cardDef(card).title, id: card.instanceId, server, target, anyRemote, line, hq,
       hqSize: s.corp.hq.length - (kind === 'install' ? 1 : 0), hqAgendas: s.corp.hq.filter(isAgenda).length - (kind === 'install' ? 1 : 0),
       g3, g3Money, hqIce: hqIce.length, credits: s.corp.credits,
+      targetIce: targetIce.length, margin: runnerBudget(s) - bestNeed(s, targetIce, end),
     };
   });
 }
