@@ -1,4 +1,4 @@
-import { CardInstance, GameState, ServerState, SideCode, cardDef } from '../core';
+import { CardInstance, GameState, ServerState, SideCode, cardDef, getCardDefinition } from '../core';
 import { maxHandSize, rezCost } from '../core/engine/cardEffects';
 import { AUDREY, iceCost, isTrap, plannedSubroutines } from './runs';
 import { KNOBS, RATES, guardLoop, memo, pointGain, pointValue } from './valueModel';
@@ -283,11 +283,24 @@ export function deckIceShare(state: GameState): Record<string, number> {
  * Worth of being able to break an ice type (step 5b): the full stops it
  * saves across the Corp's ice of that type, by the odds of meeting that
  * type (shown ice and the decklist), less as the game runs out of turns. Three even types give 8 each, as the
- * flat rate did.
+ * flat rate did. `odds`: iceTypeOdds(state), passed in by a caller that prices all three types on one board
+ * (runnerRigValue).
  */
-export function breakerTypeWorth(state: GameState, type: string): number {
+export function breakerTypeWorth(state: GameState, type: string, odds: Record<string, number> = iceTypeOdds(state)): number {
   const clock = Math.min(1, turnsLeft(state) / 4);
-  return 3 * ICE_STOP * iceTypeOdds(state)[type] * clock;
+  return 3 * ICE_STOP * odds[type] * clock;
+}
+
+const typeFlags = new Map<string, boolean[]>();
+/** Which of ICE_TYPES a card's printed keywords name (static card data, so kept by card code: iceTypeOdds is asked on every board, planner speed 2026-11-12). */
+function iceTypeFlags(code: string): boolean[] {
+  let flags = typeFlags.get(code);
+  if (!flags) {
+    const keywords = (getCardDefinition(code).keywords ?? '').toLowerCase();
+    flags = ICE_TYPES.map(t => keywords.includes(t));
+    typeFlags.set(code, flags);
+  }
+  return flags;
 }
 
 /** Weight of the decklist against the ice the Corp has actually shown, in pieces of ice. */
@@ -306,8 +319,8 @@ export function iceTypeOdds(state: GameState): Record<string, number> {
   ];
   const count: Record<string, number> = Object.fromEntries(ICE_TYPES.map(t => [t, DECK_PRIOR * deck[t]]));
   for (const ice of shown) {
-    const keywords = (cardDef(ice).keywords ?? '').toLowerCase();
-    for (const t of ICE_TYPES) if (keywords.includes(t)) count[t]++;
+    const flags = iceTypeFlags(ice.cardCode);
+    for (let i = 0; i < ICE_TYPES.length; i++) if (flags[i]) count[ICE_TYPES[i]]++;
   }
   const total = ICE_TYPES.reduce((n, t) => n + count[t], 0);
   return Object.fromEntries(ICE_TYPES.map(t => [t, count[t] / total]));
