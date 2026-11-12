@@ -1,7 +1,7 @@
 /**
  * Money step M0 (spec-money-generation.md): measurement only. Plays the game-0 deals Normal v Normal on this code and
  * records, one JSON line per deal:
- * * 1. turns[]: at each Corp turn start, the best income line, the most credits (1.10) the Corp can be sure to have at its next
+ *  1. turns[]: at each Corp turn start, the best income line, the most credits (1.10) the Corp can be sure to have at its next
  *     turn start from this turn's clicks (a click for a credit, 5.2.6; econ operations in HQ at the turn start at what
  *     they give; econ asset and upgrade abilities; installing and rezzing econ assets, 8.5, 8.1.2), searched with the
  *     engine, counting credits at the turn's end plus the board's known turn-start payments (countedScore knownIncome),
