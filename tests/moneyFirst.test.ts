@@ -2,6 +2,9 @@ import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
 import { GameAction, GameState, cardDef, executeAction } from '../src/core';
 import { Agent, HeuristicCorpAI, createAgent } from '../src/ai';
+import { moneyPick } from '../src/ai/incomeLine';
+import { giveCard, installIceForTest, newGame } from './helpers';
+import { inDecision } from './helpers/pricing';
 
 /**
  * Money step M1 (incomeLine.ts moneyPick): a playable econ operation that nets credits is the counted
@@ -35,5 +38,36 @@ describe('money step M1: a netting econ operation is the counted pick', () => {
       expect(t.picks).toContain('PLAY_OPERATION_OR_EVENT:Hedge Fund');
       expect(t.credits).toBe(9);
     }
+  });
+});
+
+/**
+ * Review R1 (review-money-m1.md): the count sees credits only, so a play that pays with something else is the Corp's own
+ * pick, not the counted one. A Corp turn, 3 clicks, 10 credits, two rezzed Palisades on HQ, the one operation in HQ.
+ * realloc() derezzes rezzed ice for credits (rule 8.1.3: turned facedown, its rez cost paid again, 8.1.2); Vulture Fund
+ * gives the Corp bad publicity (rule 10.6: credits for the Runner during its runs).
+ */
+describe('money step M1: a play that pays with something credits do not count is left to the Corp', () => {
+  const position = (op: string) => {
+    const s = structuredClone(newGame(1));
+    s.corp.rd.push(...s.corp.hq.splice(0));
+    s.corp.clicks = 3;
+    s.corp.credits = 10;
+    installIceForTest(s, '30072', 'hq'); // Palisade
+    installIceForTest(s, '30072', 'hq');
+    giveCard(s, 'corp', op);
+    return s;
+  };
+  it('realloc() (derezzes rezzed ice) is not the counted pick', () => {
+    const s = position('36033');
+    expect(inDecision(s, 'corp', () => moneyPick(s))).toBeNull();
+  });
+  it('Vulture Fund (bad publicity) is not the counted pick', () => {
+    const s = position('36063');
+    expect(inDecision(s, 'corp', () => moneyPick(s))).toBeNull();
+  });
+  it('Hedge Fund in the same position still is', () => {
+    const s = position('30075');
+    expect(inDecision(s, 'corp', () => moneyPick(s))).toMatchObject({ type: 'PLAY_OPERATION_OR_EVENT' });
   });
 });

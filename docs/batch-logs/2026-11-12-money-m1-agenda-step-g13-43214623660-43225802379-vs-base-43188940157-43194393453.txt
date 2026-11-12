@@ -1,0 +1,11 @@
+PAIRED vs base batch (same deals): 2873 games counted (this batch 2873, base 2873)
+  Corp win: 46.8% this vs 46.6% base
+  Paired Corp win diff: +0.2 pts ± 1.0 SE over 2873 games, inside noise (under 2 SE); unpaired SE would be ± 1.3
+  deals that changed winner: 417 to Corp, 411 to Runner, 2045 the same
+  alarms per 100 games (this / base, paired diff ± SE):
+    Corp stayed broke: 66.6 / 71.9, -5.4 ± 1.3
+    Corp went broke: 106.7 / 118.3, -11.6 ± 1.9
+    agenda stuck in HQ: 16.4 / 16.6, -0.2 ± 0.9
+    fruitless runs: 3.6 / 3.6, +0.0 ± 0.3
+    open target skipped: 1.4 / 1.3, +0.1 ± 0.3
+    tag not used: 7.6 / 7.1, +0.5 ± 0.7

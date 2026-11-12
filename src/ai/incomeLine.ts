@@ -34,6 +34,12 @@ function played(s: GameState, a: GameAction): GameState | null {
 
 interface Option { action: GameAction; after: GameState; net: number }
 
+/** A card rezzed before is installed and unrezzed after. */
+function derezzed(before: GameState, after: GameState): boolean {
+  const rezzed = new Set(Object.values(before.corp.servers).flatMap(v => [...v.root, ...v.ice]).filter(c => c.isRezzed).map(c => c.instanceId));
+  return Object.values(after.corp.servers).some(v => [...v.root, ...v.ice].some(c => rezzed.has(c.instanceId) && !c.isRezzed));
+}
+
 /** Each legal econ operation with what it nets this turn (credits plus known turn-start income). */
 function options(state: GameState, legal: GameAction[]): Option[] {
   const out: Option[] = [];
@@ -44,9 +50,11 @@ function options(state: GameState, legal: GameAction[]): Option[] {
     if (!card || !((cardSynergy(cardDef(card)).gives?.econ ?? 0) > 0)) continue;
     const after = played(state, a);
     if (!after) continue;
-    // A play that also costs a card from HQ (Hansei Review) is not money alone: the card is not counted in credits, so
-    // the Corp's own pick decides it
+    // A play that also pays with something credits do not count is not money alone, so the Corp's own pick decides it:
+    // a card from HQ (Hansei Review), a rezzed card derezzed (rule 8.1.3: turned facedown, its rez cost paid again to
+    // use it, 8.1.2), or bad publicity taken (rule 10.6: credits for the Runner during its runs)
     if (state.corp.hq.some(c => c.instanceId !== card.instanceId && !after.corp.hq.some(x => x.instanceId === c.instanceId))) continue;
+    if (derezzed(state, after) || after.corp.badPublicity > state.corp.badPublicity) continue;
     const net = worth(after) - before;
     if (net > 0) out.push({ action: a, after, net });
   }
@@ -74,8 +82,11 @@ export function moneyPick(state: GameState, own?: GameAction | null): GameAction
   const enables = (o: Option): boolean => {
     if (ops.length < 2) return false;
     const was = new Set(ops.map(x => (x.action as { cardInstanceId: string }).cardInstanceId));
-    const now = options(o.after, getLegalActions(o.after, 'corp'));
-    return now.some(x => !was.has((x.action as { cardInstanceId: string }).cardInstanceId)) || !!scoreNowPlan(o.after);
+    // Only cards that were in HQ before the play: one the play drew is the real top of R&D, which the Corp does not know
+    // ahead (plan.hiddenDraws)
+    const held = new Set(state.corp.hq.map(c => c.instanceId));
+    const now = options(o.after, getLegalActions(o.after, 'corp')).map(x => (x.action as { cardInstanceId: string }).cardInstanceId).filter(id => held.has(id));
+    return now.some(id => !was.has(id)) || !!scoreNowPlan(o.after);
   };
   const ranked = ops.map(o => ({ o, first: enables(o) })).sort((a, b) => Number(b.first) - Number(a.first) || b.o.net - a.o.net);
   moneyStats.ops++;
