@@ -192,8 +192,12 @@ export function clickWorth(state: GameState, side: SideCode): number {
   const player = side === 'corp' ? state.corp : state.runner;
   const clicks = Math.max(1, player.clicks);
   const key = `${pricingKey()}:${side}:${state.id}:${state.turnNumber}:${player.clicks}:${player.credits}:${(side === 'corp' ? state.corp.hq : state.runner.grip).map(c => c.instanceId).join(',')}`;
-  const cached = clickCache.get(key);
-  if (cached !== undefined) return cached;
+  const fp = `${fingerprint(state)}:${(side === 'corp' ? corpDrawPool(state) : state.runner.stack).map(c => c.instanceId).join(',')}:${JSON.stringify(state.corp.servers).length}`;
+  const cachedAt = clickCache.get(key);
+  if (cachedAt !== undefined) {
+    if (cachedAt.fp !== fp) clickStale.n++;
+    return cachedAt.v;
+  }
   const hand = side === 'corp' ? state.corp.hq : state.runner.grip;
   const credits = player.credits;
   const plays = hand
@@ -207,10 +211,12 @@ export function clickWorth(state: GameState, side: SideCode): number {
   for (let i = 0; i < clicks; i++) total += Math.max(repeatable, plays[i] ?? 0);
   const value = Math.max(1, Math.min(3, total / clicks));
   if (clickCache.size > 2000) clickCache.clear();
-  clickCache.set(key, value);
+  clickCache.set(key, { v: value, fp });
   return value;
 }
-const clickCache = new Map<string, number>();
+const clickCache = new Map<string, { v: number; fp: string }>();
+/** TEMP (tag cache audit): clickCache hits served for a different board or deck. */
+export const clickStale = { n: 0 };
 
 /** Price of a click left to `side`, as `viewer` sees it: best play in hand for its own, the 1.25 default for the other side's. */
 export function clickPrice(state: GameState, side: SideCode, viewer: SideCode): number {
