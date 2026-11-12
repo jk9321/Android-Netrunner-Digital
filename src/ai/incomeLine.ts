@@ -8,7 +8,8 @@ import { scoreNowPlan } from './winNow';
  * Money step 5a, M1 (spec-money-generation.md; M0: econ operations sat playable in HQ 5.34 op-turns a game). The
  * counted pick for an econ operation that nets credits (rule 5.2.6: playing an operation is a Corp action, a click).
  * Nets: the Corp's credits after the play, its prompts answered as the Corp answers them, plus the known turn-start
- * income (countedScore knownIncome), against the same before (1.10). Measured and not kept: econ abilities the same way
+ * income (countedScore knownIncome), against the same before (1.10); an operation that also costs a card from HQ is left to
+ * the Corp's own pick. Measured and not kept: econ abilities the same way
  * (never fired: the Corp never clicks for a credit while one is legal, run 43168471217), the operation ordered around
  * the Corp's own pick (-1.8 ± 2.1, run 43175743297), and only in place of a click for a credit or a draw (+0.9 ± 1.5,
  * run 43175972281).
@@ -41,6 +42,9 @@ function options(state: GameState, legal: GameAction[]): Option[] {
     if (!card || !((cardSynergy(cardDef(card)).gives?.econ ?? 0) > 0)) continue;
     const after = played(state, a);
     if (!after) continue;
+    // A play that also costs a card from HQ (Hansei Review) is not money alone: the card is not counted in credits, so
+    // the Corp's own pick decides it
+    if (state.corp.hq.some(c => c.instanceId !== card.instanceId && !after.corp.hq.some(x => x.instanceId === c.instanceId))) continue;
     const net = worth(after) - before;
     if (net > 0) out.push({ action: a, after, net });
   }
