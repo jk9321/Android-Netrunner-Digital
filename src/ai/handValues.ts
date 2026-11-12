@@ -126,6 +126,15 @@ export function unseenInHand(state: GameState, side: SideCode): CardInstance[] {
 
 const deckAverage = new Map<string, number>();
 
+/**
+ * Money W1 (measurement only, scripts/money-w1.ts): with `check` on, every cache hit of drawWorth is worked out again and
+ * counted stale when the fresh average differs (the key leaves out HQ and clicks). Off in play.
+ */
+export const drawWorthStats = { check: false, hits: 0, stale: 0 };
+
+/** Money W1 (measurement only): the deck's average card as a decision sees it, what a draw is priced at. */
+export const drawWorthAt = (state: GameState, side: SideCode): number => drawWorth(state, side);
+
 /** Average held worth of the cards left in a side's deck (what a draw is expected to bring). */
 function drawWorth(state: GameState, side: SideCode): number {
   // plan.oracle.rd: the Corp's next draw is R&D's top card itself
@@ -141,11 +150,18 @@ function drawWorth(state: GameState, side: SideCode): number {
   // differently from the one in memory (tests/savedGame.test.ts)
   const board = `${fingerprint(state)}:`;
   const key = `${pricingKey()}:${side}:${state.id}:${state.turnNumber}:${credits}${board}${deck.map(c => c.instanceId).join(',')}`;
-  const cached = deckAverage.get(key);
-  if (cached !== undefined) return cached;
   // While the average is worked out, a card's worth that needs the average card (cardRate) gets the flat rate:
   // the deck's average card can't depend on itself (a value loop otherwise, valueModel.ts guardLoop)
-  const value = withPricing({ averaging: true }, () => (deck.length ? deck.reduce((n, c) => n + heldWorth(state, c, side), 0) / deck.length : RATES.drawnCard));
+  const average = () => withPricing({ averaging: true }, () => (deck.length ? deck.reduce((n, c) => n + heldWorth(state, c, side), 0) / deck.length : RATES.drawnCard));
+  const cached = deckAverage.get(key);
+  if (cached !== undefined) {
+    if (drawWorthStats.check) {
+      drawWorthStats.hits++;
+      if (Math.abs(average() - cached) > 1e-6) drawWorthStats.stale++;
+    }
+    return cached;
+  }
+  const value = average();
   if (deckAverage.size > 500) deckAverage.clear();
   deckAverage.set(key, value);
   return value;
