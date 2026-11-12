@@ -30,7 +30,7 @@ import { counterWorth } from './counterValues';
 import { plan, pricing, withPricing } from './pricing';
 import { dividendsOf, setupOperation } from './cards';
 // Last: its imports (winNow, runs, pricing) are loaded by then, so the AI modules' load order is unchanged (oracle.ts)
-import { HeldLine, advanceCounted, installCounted, placementStats, scoreInTwoPick, scoreInTwoStats } from './countedScore';
+import { HeldLine, advanceCounted, buildPick, installCounted, placementStats, scoreInTwoPick, scoreInTwoStats } from './countedScore';
 
 
 const type = (card: CardInstance) => cardDef(card).type_code;
@@ -187,7 +187,10 @@ export class HeuristicCorpAI implements Agent {
     // Planner speed P1: the count has decided this click, so the planner's search is not run. A scoreNow line: the Corp's
     // pick is then the rule ranking's, kept while it keeps the score (keepsScore), the line's action otherwise. A held
     // two-turn line on a later turn: its step (advance or score) does not depend on the pick (scoreInTwoPick).
-    const decided = !!score;
+    // Step 4 G3/G3b (temporary plan.placementBuild): the ice install that makes a server hold for an agenda in HQ
+    const held = this.heldLine && this.heldLine.game === state.id ? this.heldLine : null;
+    const build = !score && !held && this.synergy && this.planner && plan().placementBuild ? buildPick(state) : null;
+    const decided = !!score || !!build;
     if (!score && this.synergy && this.planner && this.heldLine && this.heldLine.game === state.id && this.heldLine.turn < state.turnNumber) {
       const stats = { ...scoreInTwoStats, lines: [...scoreInTwoStats.lines] };
       const probe = scoreInTwoPick(state, ranked[0]?.action ?? legal[0], this.heldLine);
@@ -206,6 +209,7 @@ export class HeuristicCorpAI implements Agent {
     if (chosen.type === 'GAIN_CREDIT' && this.patches && plan().pettyCashFirst) chosen = ranked.find(r => isPettyCash(state, r.action) && r.score > -Infinity)?.action ?? chosen;
     // plan.tagFirst: the planner's leaf counts a tag kept as a trash still to come, but the Runner clears it on its turn
     if (this.patches && plan().tagFirst && ranked[0]?.action.type === 'TRASH_RESOURCE' && ranked[0].tagFirst) chosen = ranked[0].action;
+    if (build) chosen = build;
     let picked = chosen;
     if (score && !keepsScore(state, picked, score)) picked = score.first;
     // plan.scoreInTwo (counted scoring C2): a held two-turn score line's step, or the pick vetoed while it would spend the line's rez money

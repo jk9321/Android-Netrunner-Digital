@@ -156,6 +156,8 @@ export const tuning = {
     placementAdvance: true,
     /** TEMPORARY step 4 G2 (spec-step4-placement.md): no agenda into a remote the Runner can pay through (countedScore.ts installCounted). */
     placementInstall: true,
+    /** TEMPORARY step 4 G3/G3b (spec-step4-placement.md): the counted ice install that makes a server hold (countedScore.ts buildPick). */
+    placementBuild: true,
     /** Corp: with the Runner tagged, a resource trash among the actions it has clicks for goes first (corpAI tagFirst). */
     tagFirst: true,
     /**

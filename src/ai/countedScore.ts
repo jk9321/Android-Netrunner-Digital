@@ -388,6 +388,90 @@ export function installCounted(state: GameState, agenda: CardInstance, serverId:
   return false;
 }
 
+/** Step 4 G3 diagnostics: builds found (by size), HQ lock-downs (G3b), and decisions with an agenda in HQ, no line and no ice in HQ. */
+export const buildStats = { looked: 0, builds: [0, 0, 0, 0], hq: 0, noIce: 0 };
+
+/**
+ * Step 4 G3 (spec-step4-placement.md, temporary plan.placementBuild): with an agenda in HQ, no counted line and no open
+ * remote that holds, the fewest ice installs from HQ (one, two or three) onto one remote, an empty one or a new one,
+ * after which scoreInTwo has a line next turn: the ice in place unrezzed, the Corp's credits after their install costs
+ * (8.5.11a: 1 credit per ice already on the server) and the spare clicks, plus its known income, and a full turn of
+ * clicks. The first install is the counted pick; no build, no opinion. G3b (Jeff 17:57Z "if no server is safe then I try
+ * to lock down HQ"): only when the ice in hand can make no remote hold, an agenda is in HQ and the Runner can pay through
+ * HQ by the count: the one ice install onto HQ that makes HQ hold (rez covered, afterLineFloor kept); an HQ that holds
+ * already, or no install that makes it hold, is no opinion. Remotes come first, and there is no "adds the most" fallback.
+ */
+export function buildPick(state: GameState): GameAction | null {
+  if (!isCorpMain(state) || state.corp.clicks <= 0) return null;
+  const agendas = state.corp.hq.filter(isAgenda);
+  if (!agendas.length || scoreInTwo(state)) return null;
+  const end = (credits: number, clicks: number) => credits + Math.max(0, state.corp.clicks - clicks);
+  const floor = Math.min(...agendas.map(a => afterLineFloor(state, a.instanceId)));
+  const hold = (st: GameState, ice: CardInstance[], credits: number) => ice.length > 0 && holdCost(st, ice, credits - floor) !== null;
+  if (open(state).some(v => hold(state, v.ice, end(state.corp.credits, 1)))) return null;
+  buildStats.looked++;
+  const hqIce = state.corp.hq.filter(c => typeOf(c) === 'ice');
+  if (!hqIce.length) {
+    buildStats.noIce++;
+    return null;
+  }
+  const income = knownIncome(state);
+  const targets: (ServerLike | null)[] = [...open(state), null];
+  for (let k = 1; k <= Math.min(3, hqIce.length); k++) {
+    let best: { first: CardInstance; server: ServerLike | null; cost: number } | null = null;
+    for (const set of combos(hqIce, k)) {
+      for (const target of targets) {
+        let view = state;
+        let server = target;
+        let cost = 0;
+        for (const ice of set) {
+          cost += server?.ice.length ?? 0;
+          view = withIceInstalled(view, ice, server);
+          server = view.corp.servers[server?.id ?? 'remote-placed'];
+        }
+        const credits = state.corp.credits - cost;
+        if (credits < 0) continue;
+        const next: GameState = { ...view, corp: { ...view.corp, credits: end(credits, k) + income, clicks: view.corp.maxClicks } };
+        if (!scoreInTwo(next)) continue;
+        if (!best || cost < best.cost) best = { first: set[0], server: target, cost };
+      }
+    }
+    if (best) {
+      buildStats.builds[k]++;
+      const want = best.server ? { type: 'INSTALL_CARD', cardInstanceId: best.first.instanceId, targetServerId: best.server.id } : { type: 'INSTALL_CARD', cardInstanceId: best.first.instanceId, asNewRemote: true };
+      return legalShape(state, want) ?? null;
+    }
+  }
+  // G3b: HQ, when no remote build exists
+  const hq = state.corp.servers.hq;
+  if (hold(state, hq.ice, end(state.corp.credits, 1))) return null;
+  for (const ice of uniqueByCode(hqIce)) {
+    const view = withIceInstalled(state, ice, hq);
+    if (hold(view, view.corp.servers.hq.ice, end(state.corp.credits - hq.ice.length, 1))) {
+      const pick = legalShape(state, { type: 'INSTALL_CARD', cardInstanceId: ice.instanceId, targetServerId: 'hq' });
+      if (pick) buildStats.hq++;
+      return pick ?? null;
+    }
+  }
+  return null;
+}
+
+type ServerLike = GameState['corp']['servers'][string];
+const open = (s: GameState) => remotes(s).filter(v => !v.root.some(c => isAgenda(c) || typeOf(c) === 'asset'));
+function combos<T>(items: T[], k: number): T[][] {
+  const unique = items.slice(0, 8);
+  const out: T[][] = [];
+  const walk = (from: number, acc: T[]) => {
+    if (acc.length === k) {
+      out.push(acc);
+      return;
+    }
+    for (let i = from; i < unique.length; i++) walk(i + 1, [...acc, unique[i]]);
+  };
+  walk(0, []);
+  return out;
+}
+
 /**
  * plan.scoreInTwo (counted scoring C2; stage 0b's two-turn half measured +3.0 ± 1.8): called with the Corp's own pick at
  * a main-phase decision and the line it holds. A held line is re-checked every decision and continued while the count
