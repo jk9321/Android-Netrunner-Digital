@@ -12,7 +12,7 @@ import { decisionContext } from './handValues';
 import { knownRdSlots } from './runnerReply';
 import { corpKnowsRd, corpSeenGrip } from './oracle';
 // Loaded by corpAI already (its last import), so the AI modules' load order is unchanged
-import { HeldLine, scoreInTwoPick } from './countedScore';
+import { HeldLine, iceRedirect, scoreInTwoPick } from './countedScore';
 
 /**
  * Hard AI: Monte Carlo look-ahead on top of the rule-based AI.
@@ -197,7 +197,10 @@ export class SearchAI implements Agent {
       const two = scoreInTwoPick(state, action, this.heldLine);
       this.heldLine = two.held;
       if (two.action !== action) this.base.notePlayed(two.action);
-      return two.action;
+      // plan.iceRedirect: the search's own remote ice install goes to the scoring remote until it holds
+      const redirect = two.action === action && !(this.heldLine && this.heldLine.game === state.id) ? iceRedirect(state, action) : null;
+      if (redirect) this.base.notePlayed(redirect);
+      return redirect ?? two.action;
     });
   }
 

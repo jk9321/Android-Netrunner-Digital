@@ -152,6 +152,10 @@ export const tuning = {
     /* Rez money (2026-10-26, 2,210 self-play games): both on 46.7%, neither 47.2% (noise). Halving upgrade worth in empty remotes instead cost about 2 points. */
     /** Corp: Petty Cash goes first when it is among the actions the Corp has clicks for (corpAI pettyCashFirst). */
     pettyCashFirst: true,
+    /** TEMPORARY (ice redirect, folded at hand-off): remote ice the Corp installs goes to the scoring remote until it holds (countedScore.ts iceRedirect). */
+    iceRedirect: true,
+    /** TEMPORARY arm: the redirect only when the Corp keeps the rez that makes the scoring remote hold (countedScore.ts iceRedirect). */
+    iceRedirectMoney: false,
     /** Corp: with the Runner tagged, a resource trash among the actions it has clicks for goes first (corpAI tagFirst). */
     tagFirst: true,
     /**

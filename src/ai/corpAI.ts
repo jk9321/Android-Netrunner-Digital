@@ -30,7 +30,7 @@ import { counterWorth } from './counterValues';
 import { plan, pricing, withPricing } from './pricing';
 import { dividendsOf, setupOperation } from './cards';
 // Last: its imports (winNow, runs, pricing) are loaded by then, so the AI modules' load order is unchanged (oracle.ts)
-import { HeldLine, heldLaterStep, scoreInTwoPick } from './countedScore';
+import { HeldLine, heldLaterStep, iceRedirect, iceRedirectStats, scoreInTwoPick } from './countedScore';
 
 
 const type = (card: CardInstance) => cardDef(card).type_code;
@@ -203,6 +203,15 @@ export class HeuristicCorpAI implements Agent {
       const two = scoreInTwoPick(state, picked, this.heldLine);
       this.heldLine = two.held;
       picked = two.action;
+    }
+    // plan.iceRedirect: the Corp's own remote ice install goes to the scoring remote until it holds
+    // (not while a counted two-turn line is held: its ice goes where the line puts it)
+    if (!score && picked === chosen && this.synergy && !(this.heldLine && this.heldLine.game === state.id)) {
+      const redirect = iceRedirect(state, picked);
+      if (redirect) {
+        if (this.planner && !this.searching) iceRedirectStats.fired++;
+        picked = redirect;
+      }
     }
     // The reverse bluff: at most once a game
     const bluff = chosen;
