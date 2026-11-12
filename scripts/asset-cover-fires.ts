@@ -8,7 +8,8 @@
  *   - econ asset installs into a remote, and how many went behind ice installed on that server earlier the same turn
  *     ("covered"), and how many onto a remote with no ice ("bare"). Run once with the arm on and once off on the same
  *     deals: the difference is the arm's fires.
- * steals: agenda points the Runner stole, by server (the scoring remote as scoringRemote names it at the steal, other
+ * strayed: non-econ assets and upgrades installed on a new remote while a remote with ice and no agenda or asset in its
+ * root existed (play test round 2). steals: agenda points the Runner stole, by server (the scoring remote as scoringRemote names it at the steal, other
  * remotes, hq, rd, archives); assets: per econ asset copy, iced at install, trashed by the Runner, credits taken off it
  * (rule 1.10). cover: assetCoverStats, spare: spareIceStats (countedScore.ts; any caller, the planner's search included). One JSON line per game.
  *
@@ -58,6 +59,7 @@ for (const [i, seed] of seeds.entries()) {
   let installs = 0;
   let covered = 0;
   let bare = 0;
+  let strayed = 0; // non-econ assets and upgrades put on a new bare remote while an iced remote with an open root waited
   const iceThisTurn = new Map<string, number>(); // server id -> turn of the Corp's last ice install there
   const steals: Record<string, number> = {};
   const assets = new Map<string, { iced: boolean; trashed: boolean; credits: number }>();
@@ -86,7 +88,10 @@ for (const [i, seed] of seeds.entries()) {
       if (!card) continue;
       const v = Object.values(n.corp.servers).find(x => x.ice.some(c => c.instanceId === card.instanceId) || x.root.some(c => c.instanceId === card.instanceId));
       if (!v?.isRemote) continue;
-      if (cardDef(card).type_code === 'ice') iceThisTurn.set(v.id, s.turnNumber);
+      const waited = Object.values(s.corp.servers).some(x => x.isRemote && x.ice.length > 0 && !x.root.some(c => ['agenda', 'asset'].includes(cardDef(c).type_code)));
+      const t = cardDef(card).type_code;
+      if ((t === 'upgrade' || (t === 'asset' && !econ(card.cardCode, cardDef(card).cost ?? 0))) && !s.corp.servers[v.id] && waited) strayed++;
+      if (t === 'ice') iceThisTurn.set(v.id, s.turnNumber);
       else if (cardDef(card).type_code === 'asset' && econ(card.cardCode, cardDef(card).cost ?? 0)) {
         installs++;
         assets.set(card.instanceId, { iced: v.ice.length > 0, trashed: false, credits: 0 });
@@ -98,5 +103,5 @@ for (const [i, seed] of seeds.entries()) {
     console.error(`deal ${seed}: ${err}`);
     continue;
   }
-  console.log(JSON.stringify({ seed, deck: corpDeck.name, winner: game.state.winner ?? null, turns: game.state.turnNumber, noAssetDiff, redirects: iceRedirectStats.fired, installs, covered, bare, steals, assets: [...assets.values()], cover: { ...assetCoverStats }, spare: { ...spareIceStats } }));
+  console.log(JSON.stringify({ seed, deck: corpDeck.name, winner: game.state.winner ?? null, turns: game.state.turnNumber, noAssetDiff, redirects: iceRedirectStats.fired, installs, covered, bare, strayed, steals, assets: [...assets.values()], cover: { ...assetCoverStats }, spare: { ...spareIceStats } }));
 }

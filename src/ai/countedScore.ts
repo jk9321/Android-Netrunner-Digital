@@ -564,8 +564,11 @@ export const spareIceStats = { installed: 0, drawOver: 0, draw: 0, credit: 0, as
  * (no install cost there, 8.5.11a). Jeff: a low-priority play when he has plenty of credits and a draw would
  * overdraw him for no reason, or when he badly needs econ and has an asset to protect (the asset follows next turn).
  * Spare: HQ and R&D each have ice, the scoring remote is not short by iceRedirect's
- * count or no agenda waits in HQ, no iced remote with an open root is waiting already, and an econ asset (card entry
- * profile: pays credits, loads more than its rez cost) is still in HQ or R&D (the Corp's own deck list). It never
+ * count or no agenda waits in HQ, no iced remote with an open root is waiting already, an econ asset (card entry
+ * profile: pays credits, loads more than its rez cost) is in HQ, and the Corp's credits cover the ice's rez on top of
+ * that asset's ("plenty of credits"). Measured looser (an econ asset in HQ or R&D, no money check): 31 spare remotes in
+ * 56 deals, 19 taken by agendas and 4 by econ assets, credit clicks spent at 0-2 credits (scripts/spare-ice-cost.ts;
+ * stack run 43317479677 -2.4 ± 1.4). It never
  * displaces an install, an advance or an operation. Its partner is in assetCover: the asset goes to the waiting
  * remote (one agenda or asset per root, 3.3.1), which scoringRemote may adopt later for an agenda. Null: no change.
  */
@@ -579,8 +582,11 @@ export function spareIce(state: GameState, pick: GameAction): GameAction | null 
     const p = typeOf(c) === 'asset' ? profileOf(c.cardCode) : undefined;
     return !!p && p.pay > 0 && p.load > (cardDef(c).cost ?? 0);
   };
-  if (!state.corp.hq.some(econ) && !state.corp.rd.some(econ)) return null;
+  const assets = state.corp.hq.filter(econ);
+  if (!assets.length) return null;
   const ice = state.corp.hq.filter(c => typeOf(c) === 'ice').sort((x, y) => rezCostOf(state, x) - rezCostOf(state, y))[0];
+  // Plenty of credits: what the Corp has covers this ice's rez on top of the asset's (3.4.3a; the asset next turn, 5.6.1b)
+  if (ice && state.corp.credits < rezCostOf(state, ice) + Math.min(...assets.map(c => cardDef(c).cost ?? 0))) return null;
   const install = ice ? legalShape(state, { type: 'INSTALL_CARD', cardInstanceId: ice.instanceId, asNewRemote: true }) : undefined;
   if (install) {
     spareIceStats.installed++;

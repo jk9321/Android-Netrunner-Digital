@@ -124,7 +124,14 @@ describe('plan.spareIce: a credit or draw click ices a new remote ahead for econ
     expect(spare(s, () => scoreInTwoPick(s, newRemote, null).action)).toMatchObject({ type: 'INSTALL_CARD', cardInstanceId: 'inst-23', targetServerId: 'remote-1' });
   });
 
-  it('not with no econ asset left in HQ or R&D', () => {
+  it('not without plenty of credits: 3 do not cover Whitespace (2) on top of Nico Campaign (2)', () => {
+    const s = position(x => (x.corp.credits = 3));
+    expect(spare(s, () => spareIce(s, credit))).toBeNull();
+    const t = position(x => (x.corp.credits = 4));
+    expect(spare(t, () => spareIce(t, credit))).toMatchObject({ cardInstanceId: 'inst-29', asNewRemote: true });
+  });
+
+  it('not with no econ asset in HQ', () => {
     const s = position(x => {
       x.corp.hq = x.corp.hq.filter(c => c.instanceId !== 'inst-23');
       x.corp.rd = x.corp.rd.filter((c: CardInstance) => cardDef(c).type_code !== 'asset');
