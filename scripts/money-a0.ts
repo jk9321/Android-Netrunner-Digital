@@ -76,11 +76,14 @@ class Tracker {
 const out = (game: string, who: string, seed: number, t: Tracker) => console.log(JSON.stringify({ game, who, seed, assets: [...t.assets.values()], heldClicks: t.heldClicks }));
 
 const [shard, shards] = (process.env.SHARD ?? '0/1').split('/').map(Number);
+// SKIP=done.jsonl: rows already written (game, who, seed) are not played again, so a stopped run can resume
+const done = new Set((process.env.SKIP ? readFileSync(process.env.SKIP, 'utf8') : '').split('\n').filter(Boolean).map(l => { const r = JSON.parse(l); return `${r.game}|${r.who}|${r.seed}`; }));
 const files = readdirSync(DIR).filter(f => f.endsWith('.json')).sort().filter(f => JSON.parse(readFileSync(join(DIR, f), 'utf8')).config.ai === 'runner');
 for (const [index, file] of files.entries()) {
   if (index % shards !== shard) continue;
   const report = JSON.parse(readFileSync(join(DIR, file), 'utf8'));
   const { seed, corpDeck, runnerDeck } = report.config;
+  if (!done.has(`${file}|jeff|${seed}`)) {
   let s: GameState = createInitialGameState(deckGameSetup(seed, corpDeck, runnerDeck));
   if (report.startStops) s = { ...s, stops: report.startStops };
   const human = new Tracker();
@@ -95,7 +98,9 @@ for (const [index, file] of files.entries()) {
     s = n;
   }
   out(file, 'jeff', seed, human);
+  }
   for (let k = 0; k <= EXTRA; k++) {
+    if (done.has(`${file}|ai|${seed + k}`)) continue;
     valueLoops.clear();
     const game = new GameRunner(createInitialGameState(deckGameSetup(seed + k, corpDeck, runnerDeck)), { corp: createAgent('corp', 'normal'), runner: createAgent('runner', 'normal') });
     const ai = new Tracker();
