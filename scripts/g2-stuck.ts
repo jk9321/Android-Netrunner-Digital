@@ -6,6 +6,7 @@
  *  (b) for each stop into a remote that has ice: how far short the server is by the count (the Runner's spare credits
  *      after paying the most the Corp can make it pay: runnerBudget less the highest iceCreditNeed sum over the rez
  *      sets it can afford, with the credits installCounted uses), and whether one or two ice from HQ would close it;
+ *  (b2) pooled: whether all the ice on the other remotes, moved onto it, would make it hold (ice spread thin);
  *  (c) whether the Corp could not afford a set that holds but would with unlimited credits (the money case).
  * Per game: decked (the Corp lost on an empty R&D, 4.2.7b), turns, optional draw clicks, agendas in HQ at the end.
  * One JSON line per deal.
@@ -76,7 +77,12 @@ function look(s: GameState, agendaId: string, serverId: string) {
           const v2 = withIceInstalled(v1, b, v1.corp.servers[serverId]);
           if (holdCost(v2, v2.corp.servers[serverId].ice, end - 2 - server.ice.length * 2 - 1) !== null) two = true;
         }
-    return { turn: s.turnNumber, ice: server.ice.length, spare, money, hqIce: hqIce.length, one, two, credits: s.corp.credits };
+    // All the ice on the other remotes moved onto this one: does it hold (ice spread thin)
+    const others = Object.values(s.corp.servers).filter(v => v.isRemote && v.id !== serverId).flatMap(v => v.ice);
+    let pool = s;
+    for (const ice of others) pool = withIceInstalled(pool, ice, pool.corp.servers[serverId]);
+    const pooled = others.length > 0 && holdCost(pool, pool.corp.servers[serverId].ice, end) !== null;
+    return { turn: s.turnNumber, ice: server.ice.length, spare, pooled, money, hqIce: hqIce.length, one, two, credits: s.corp.credits };
   });
 }
 
