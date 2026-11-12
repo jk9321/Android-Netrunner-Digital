@@ -7,7 +7,8 @@ import { agendaWorth, isOneUse, runnerRigValue } from './evaluate';
 import { counterWorth } from './counterValues';
 import { handPlanWorth } from './cardPlans';
 import { CLICK, RATES, cardRate, fingerprint, handFilter, payoutSlide, printedGain, reachCard, setDeckCard } from './valueModel';
-import { leafHandByCard, noteDecision, plan, pricing, pricingKey, withPricing } from './pricing';
+import { effectivePlan, leafHandByCard, noteDecision, plan, pricing, pricingKey, withPricing } from './pricing';
+import { sideOff, tuning } from './synergy';
 import { corpDrawPool, corpKnowsRd } from './oracle';
 
 /**
@@ -140,7 +141,7 @@ function drawWorth(state: GameState, side: SideCode): number {
   // at its size cap a value from one of those could be served for the real board, so a reloaded game played on
   // differently from the one in memory (tests/savedGame.test.ts)
   const board = `${fingerprint(state)}:`;
-  const key = `${pricingKey()}:${side}:${state.id}:${state.turnNumber}:${credits}${board}${deck.map(c => c.instanceId).join(',')}`;
+  const key = `${side}:${credits}${board}${deck.map(c => c.instanceId).join(',')}:${positionKey(state)}`;
   const cached = deckAverage.get(key);
   if (cached !== undefined) return cached;
   // While the average is worked out, a card's worth that needs the average card (cardRate) gets the flat rate:
@@ -191,9 +192,14 @@ export const handByCard = (side: SideCode): boolean => leafHandByCard(side) || !
 export function clickWorth(state: GameState, side: SideCode): number {
   const player = side === 'corp' ? state.corp : state.runner;
   const clicks = Math.max(1, player.clicks);
-  const key = `${pricingKey()}:${side}:${state.id}:${state.turnNumber}:${player.clicks}:${player.credits}:${(side === 'corp' ? state.corp.hq : state.runner.grip).map(c => c.instanceId).join(',')}`;
+  // The whole position the price reads (playedWorth reads the board, drawWorth the deck): the old key (side, game, turn,
+  // clicks, credits, hand ids) served one board's price for another, 11,681 times by turn 7 of deal 1563 (tag cache audit)
+  const key = `${side}:${player.clicks}:${player.credits}:${positionKey(state)}`;
   const cached = clickCache.get(key);
-  if (cached !== undefined) return cached;
+  if (cached !== undefined) {
+    if (clickAudit.on) auditClick(state, side, key, cached);
+    return cached;
+  }
   const hand = side === 'corp' ? state.corp.hq : state.runner.grip;
   const credits = player.credits;
   const plays = hand
@@ -211,6 +217,49 @@ export function clickWorth(state: GameState, side: SideCode): number {
   return value;
 }
 const clickCache = new Map<string, number>();
+
+let planSig = { plan: undefined as unknown, json: '' };
+/**
+ * What a price in this file can read of a position, as one string: the pricing context (pricingKey, the plan switches,
+ * the cards the deciding side has seen, the run anchor), whose turn it is, both sides in full (the Runner's state and
+ * the Corp's servers with every counter, token and hosted card; HQ, R&D and Archives by what they hold).
+ */
+export function positionKey(state: GameState): string {
+  const p = effectivePlan();
+  if (planSig.plan !== p) planSig = { plan: p, json: JSON.stringify(p) + JSON.stringify(sideOff) + JSON.stringify(tuning) };
+  const { corp } = state;
+  const ctx = pricing();
+  const seen = (side: SideCode) => (ctx.known[side] ? (side === 'corp' ? corp.hq : state.runner.grip).map(c => (ctx.known[side]!.has(c.instanceId) ? '' : '?')).join('') : '-');
+  const cards = (cs: CardInstance[]): string => cs.map(c => `${c.instanceId}${c.isRezzed ? 'r' : ''}${c.faceUp ? 'u' : ''}:${c.advancementCounters ?? 0}:${JSON.stringify(c.tokens ?? {})}[${cards(c.hostedCards ?? [])}]`).join(',');
+  const servers = Object.values(corp.servers).map(v => `${v.id}:${cards(v.ice)}/${cards(v.root)}`).join(';');
+  const { hq, rd, archives, scoreArea } = corp;
+  return [
+    pricingKey(), planSig.json, seen('corp'), seen('runner'), JSON.stringify(ctx.anchor ? { id: ctx.anchor.id, credits: ctx.anchor.credits } : null),
+    state.id, state.turnNumber, state.activePlayer, state.turnStep?.kind ?? '', JSON.stringify(state.activeRun ?? null), JSON.stringify(state.runner), JSON.stringify({ ...corp, hq: 0, rd: 0, archives: 0, scoreArea: 0, servers: 0 }), servers,
+    hq.map(c => c.cardCode).sort().join(','), rd.map(c => c.cardCode).sort().join(','), corpDrawPool(state).map(c => c.cardCode).sort().join(','),
+    cards(archives.faceUp), archives.faceDown.map(c => c.cardCode).sort().join(','), cards(scoreArea),
+  ].join('|');
+}
+
+/** Test-only on-hit audit: each served click price is worked out again with the cache bypassed and compared. */
+export const clickAudit = { on: false, checked: 0, mismatches: 0, examples: [] as { turn: number; active: string; side: string; cached: number; fresh: number }[] };
+function auditClick(state: GameState, side: SideCode, key: string, cached: number) {
+  clickCache.delete(key);
+  clickAudit.on = false;
+  let fresh: number;
+  try {
+    fresh = clickWorth(state, side);
+  } finally {
+    clickAudit.on = true;
+  }
+  clickCache.set(key, cached);
+  clickAudit.checked++;
+  if (Math.abs(fresh - cached) > 1e-9 * Math.max(1, Math.abs(cached))) {
+    clickAudit.mismatches++;
+    if (clickAudit.examples.length < 5) clickAudit.examples.push({ turn: state.turnNumber, active: state.activePlayer, side, cached, fresh });
+  }
+}
+export const clearClickCache = () => clickCache.clear();
 
 /** Price of a click left to `side`, as `viewer` sees it: best play in hand for its own, the 1.25 default for the other side's. */
 export function clickPrice(state: GameState, side: SideCode, viewer: SideCode): number {
