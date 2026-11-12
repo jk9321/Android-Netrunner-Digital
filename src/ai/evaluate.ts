@@ -8,7 +8,7 @@ import { cardSynergy } from './synergyTags';
 import { corpKeepValue, runnerCardValue } from './cardValues';
 import { countersWorth } from './counterValues';
 import { boardPlansWorth } from './cardPlans';
-import { AI_BREAKER_SHARE, RUNNER_TURN_INCOME, breakerTypeWorth, iceWorth } from './iceValues';
+import { AI_BREAKER_SHARE, RUNNER_TURN_INCOME, breakerTypeWorth, iceTypeOdds, iceWorth } from './iceValues';
 import { payoutWait, payoutWorth, profileOf, turnsLeft } from './cardProfiles';
 import { resourceTrashHqCost } from '../core/engine/actions/basic';
 import { HAND_FLOOR, clickPrice, handByCard, heldWorth, ownHandValue, playedWorth, unseenInHand } from './handValues';
@@ -134,7 +134,8 @@ export function runnerRigValue(state: GameState): number {
   const { covered, anyBreakers } = rigCoverage(rig.programs);
   // Step 5b: each ice type by the stops it saves; an AI breaker covers the rest at a discount
   const aiShare = anyBreakers === 0 ? 0 : Math.max(...rig.programs.filter(p => breakerScript(p)?.breaks === 'any').map(p => (isOneUse(p) ? AI_BREAKER_SHARE / 3 : AI_BREAKER_SHARE)));
-  let value = ICE_TYPES.reduce((n, t) => n + (covered.has(t) ? 1 : aiShare) * breakerTypeWorth(state, t), 0);
+  const odds = iceTypeOdds(state);
+  let value = ICE_TYPES.reduce((n, t) => n + (covered.has(t) ? 1 : aiShare) * breakerTypeWorth(state, t, odds), 0);
   for (const card of cards) {
     // Step 4: a card that pays out money is worth what it will still pay
     const profile = profileOf(card.cardCode);

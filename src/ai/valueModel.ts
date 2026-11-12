@@ -130,15 +130,30 @@ export function pointValue(score: number, scale = 1): number {
   return value * scale;
 }
 
-/** What a position holds that the value helpers read: two calls with the same fingerprint on the same state agree. */
+/**
+ * What a position holds that the value helpers read: two calls with the same fingerprint on the same state agree.
+ * Built by concatenation (planner speed 2026-11-12: memo builds it on every call); the same string the array join gave.
+ */
 export function fingerprint(state: GameState): string {
   const { corp, runner } = state;
-  const ids = (cards: CardInstance[]) => cards.map(c => c.instanceId + (c.isRezzed ? 'r' : '') + (c.hostedCards?.length ?? '')).join(',');
-  const servers = Object.values(corp.servers).map(s => s.id + ':' + ids(s.ice) + '/' + ids(s.root)).join(';');
-  return [
-    state.turnNumber, state.activePlayer, corp.credits, corp.clicks, corp.score, corp.hq.length, corp.rd.length, corp.archives.faceUp.length, corp.archives.faceDown.length,
-    runner.credits, runner.clicks, runner.score, runner.tags, runner.grip.length, runner.stack.length, ids(runner.rig.programs), ids(runner.rig.hardware), ids(runner.rig.resources), servers,
-  ].join('|');
+  let servers = '';
+  let first = true;
+  for (const s of Object.values(corp.servers)) {
+    servers += (first ? '' : ';') + s.id + ':' + printIds(s.ice) + '/' + printIds(s.root);
+    first = false;
+  }
+  return state.turnNumber + '|' + state.activePlayer + '|' + corp.credits + '|' + corp.clicks + '|' + corp.score + '|' + corp.hq.length + '|' + corp.rd.length + '|' + corp.archives.faceUp.length + '|' + corp.archives.faceDown.length + '|' +
+    runner.credits + '|' + runner.clicks + '|' + runner.score + '|' + runner.tags + '|' + runner.grip.length + '|' + runner.stack.length + '|' + printIds(runner.rig.programs) + '|' + printIds(runner.rig.hardware) + '|' + printIds(runner.rig.resources) + '|' + servers;
+}
+
+/** fingerprint's list of cards: instance id, 'r' if rezzed, the count of hosted cards (when the card has a list). */
+function printIds(cards: CardInstance[]): string {
+  let out = '';
+  for (let i = 0; i < cards.length; i++) {
+    const c = cards[i];
+    out += (i ? ',' : '') + c.instanceId + (c.isRezzed ? 'r' : '') + (c.hostedCards?.length ?? '');
+  }
+  return out;
 }
 
 const memos = new WeakMap<GameState, { print: string; values: Map<string, unknown> }>();
