@@ -15,6 +15,7 @@ import { valueLoops } from '../src/ai/valueModel';
 import { scoreNowPlan } from '../src/ai/winNow';
 import { asSide } from '../src/ai/pricing';
 import { decisionContext } from '../src/ai/handValues';
+import { HeldLine, heldLaterStep } from '../src/ai/countedScore';
 
 const corpDecks = ALL_DECKS.filter(d => d.side === 'corp');
 const runnerDecks = ALL_DECKS.filter(d => d.side === 'runner');
@@ -22,13 +23,18 @@ const deals = (process.env.DEALS ?? '').split(',').filter(Boolean).map(Number);
 const ms: number[] = [];
 const slow: { seed: number; turn: number; s: number; remotes: number; kind: 'scoreNow' | 'held' | 'neither' }[] = [];
 let games = 0;
+/** Review R3: decisions where a held line's later-turn step decided the click (the planner is skipped), by kind. */
+const heldSteps = { score: 0, advance: 0 };
 for (const seed of deals) {
   const p = Math.floor((seed - 1001) / 10);
   valueLoops.clear();
   const corp = createAgent('corp', 'normal');
   const choose = corp.chooseAction.bind(corp);
   corp.chooseAction = (s: GameState) => {
-    const held = !!(corp as unknown as { heldLine: unknown }).heldLine;
+    const heldLine = (corp as unknown as { heldLine: HeldLine | null }).heldLine;
+    const held = !!heldLine;
+    const later = asSide('corp', () => heldLaterStep(s, heldLine));
+    if (later) heldSteps[later.type === 'SCORE_AGENDA' ? 'score' : 'advance']++;
     const t = performance.now();
     const a = choose(s);
     const d = performance.now() - t;
@@ -52,4 +58,5 @@ console.log(JSON.stringify({
   over5: { scoreNow: by('scoreNow', 5), held: by('held', 5), neither: by('neither', 5) },
   over10: { scoreNow: by('scoreNow', 10), held: by('held', 10), neither: by('neither', 10) },
   slow,
+  heldSteps,
 }));
