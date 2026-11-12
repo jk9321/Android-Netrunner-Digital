@@ -112,7 +112,10 @@ export function heldWorth(state: GameState, card: CardInstance, side: SideCode, 
 export function decisionContext(state: GameState, side: SideCode) {
   if (pricing().frozen) return;
   const hand = side === 'corp' ? state.corp.hq : state.runner.grip;
-  noteDecision({ [side]: new Set(hand.map(c => c.instanceId)) }, { id: state.id, credits: state.runner.credits });
+  // The deck's card prices at this decision's root (rootDeckAverage), kept while the decision notes the same board again
+  const was = pricing().anchor;
+  const deckValues = was?.root === state && was.side === side ? was.deckValues : undefined;
+  noteDecision({ [side]: new Set(hand.map(c => c.instanceId)) }, { id: state.id, credits: state.runner.credits, root: state, side, deckValues });
 }
 
 /** Cards in `side`'s hand the deciding AI hasn't seen (drawn in a look-ahead): it can't know what they are. */
@@ -134,6 +137,8 @@ function drawWorth(state: GameState, side: SideCode): number {
   // plan.drawWorthCredits (code audit, 2026-11-06): and the side's credits, which decide what each card would cost to play
   // (heldWorth's SOON): without them the average from the turn's first credit count was used all turn, and in look-aheads
   // that spend or gain money (found as a test that passed alone and failed after another, tests/brokeCorp.test.ts)
+  const rootAvg = rootDeckAverage(state, side, deck);
+  if (rootAvg !== undefined) return rootAvg;
   const credits = `${side === 'corp' ? state.corp.credits : state.runner.credits}:`;
   // and the whole position (valueModel fingerprint: scores, rezzed ice, rigs...): the in-run rez model's look-aheads
   // (2026-11-06) price boards a turn would otherwise never see (a steal, a rez, a toll paid), and with the cache cleared
@@ -149,6 +154,38 @@ function drawWorth(state: GameState, side: SideCode): number {
   if (deckAverage.size > 500) deckAverage.clear();
   deckAverage.set(key, value);
   return value;
+}
+
+/** Counts for scripts: averages served from the root prices, and deck cards priced at a root. */
+export const deckAvgStats = { served: 0, priced: 0 };
+/**
+ * Planner speed tier 2 (bars/planner-fast-deckavg.md): in the Corp's decisions, the deck's average card prices each
+ * deck card once, on the decision's own board (its root, noted by decisionContext), and averages those prices over
+ * the deck the asking board holds, so a card the line drew is out of it. Repricing every deck card on every board
+ * was 59% of the Corp's decision time (planner-fast-step1.md). Undefined outside a Corp decision (the per-board price).
+ */
+function rootDeckAverage(state: GameState, side: SideCode, deck: CardInstance[]): number | undefined {
+  const anchor = pricing().anchor;
+  if (!anchor?.root || anchor.side !== 'corp' || anchor.root.id !== state.id || pricing().side === null) return undefined;
+  if (!deck.length) return RATES.drawnCard;
+  const all = (anchor.deckValues ??= new Map());
+  const key = `${pricingKey()}:${side}`;
+  let values = all.get(key);
+  if (!values) all.set(key, (values = new Map()));
+  const root = anchor.root;
+  deckAvgStats.served++;
+  let sum = 0;
+  for (const c of deck) {
+    let v = values.get(c.instanceId);
+    if (v === undefined) {
+      // As the per-board average does: inside it, a card's worth that needs the average card gets the flat rate
+      v = withPricing({ averaging: true }, () => heldWorth(root, c, side));
+      values.set(c.instanceId, v);
+      deckAvgStats.priced++;
+    }
+    sum += v;
+  }
+  return sum / deck.length;
 }
 
 /** The deck's average card for valueModel's cardRate (plan.flatRates.cards); the flat rate while it is being worked out. */
