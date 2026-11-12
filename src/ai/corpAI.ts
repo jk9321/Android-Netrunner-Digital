@@ -30,7 +30,7 @@ import { counterWorth } from './counterValues';
 import { plan, pricing, withPricing } from './pricing';
 import { dividendsOf, setupOperation } from './cards';
 // Last: its imports (winNow, runs, pricing) are loaded by then, so the AI modules' load order is unchanged (oracle.ts)
-import { HeldLine, heldLaterStep, iceRedirect, iceRedirectStats, scoreInTwoPick, spareIce } from './countedScore';
+import { HeldLine, assetPartner, heldLaterStep, iceRedirect, iceRedirectStats, scoreInTwoPick, spareIce } from './countedScore';
 import { moneyPick } from './incomeLine';
 
 
@@ -218,7 +218,7 @@ export class HeuristicCorpAI implements Agent {
       if (redirect) {
         if (this.planner && !this.searching) iceRedirectStats.fired++;
         picked = redirect;
-      } else picked = spareIce(state, picked) ?? picked; // plan.spareIce (countedScore.ts): a credit or draw click ices a new remote ahead for econ assets
+      } else picked = spareIce(state, picked) ?? assetPartner(state, picked) ?? picked; // plan.spareIce, plan.assetPartner (countedScore.ts)
     }
     // The reverse bluff: at most once a game
     const bluff = chosen;

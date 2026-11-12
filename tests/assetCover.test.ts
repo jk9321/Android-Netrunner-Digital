@@ -1,7 +1,7 @@
 import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
 import { CardInstance, GameAction, GameState, cardDef, executeAction } from '../src/core';
-import { assetCover, scoreInTwoPick, scoringRemote, spareIce } from '../src/ai/countedScore';
+import { assetCover, assetPartner, scoreInTwoPick, scoringRemote, spareIce } from '../src/ai/countedScore';
 import { tuning } from '../src/ai/synergy';
 import { asSide } from '../src/ai/pricing';
 import { decisionContext } from '../src/ai/handValues';
@@ -130,5 +130,40 @@ describe('plan.spareIce: a credit or draw click ices a new remote ahead for econ
       x.corp.rd = x.corp.rd.filter((c: CardInstance) => cardDef(c).type_code !== 'asset');
     });
     expect(spare(s, () => spareIce(s, credit))).toBeNull();
+  });
+});
+
+describe('plan.assetPartner: an asset or upgrade headed for a new bare remote goes to a waiting iced remote (3.3.1)', () => {
+  const partner = <T>(s: GameState, f: () => T): T => {
+    const keep = tuning.plan;
+    tuning.plan = { ...keep, assetPartner: true, scoringNoAsset: true };
+    try {
+      return asSide('corp', () => (decisionContext(s, 'corp'), f()));
+    } finally {
+      tuning.plan = keep;
+    }
+  };
+  // Claude's play test round 2, game 2 action #177 (turn 11, 9 credits): remote-1 has Palisade and Ansel 1.0 and an
+  // empty root, no agenda in HQ; the Corp put Clearinghouse on a new remote and the Runner trashed it for 3
+  const g2 = () => read('asset-partner-pt2-g2-177.json');
+  const clearinghouse = { type: 'INSTALL_CARD', player: 'corp', cardInstanceId: 'inst-22', asNewRemote: true } as GameAction;
+
+  it('play test G2 #177: Clearinghouse goes to remote-1', () => {
+    const s = g2();
+    expect(partner(s, () => assetPartner(s, clearinghouse))).toMatchObject({ type: 'INSTALL_CARD', cardInstanceId: 'inst-22', targetServerId: 'remote-1' });
+    expect(asSide('corp', () => assetPartner(s, clearinghouse))).toBeNull();
+  });
+
+  it('not the scoring remote while an agenda waits in HQ', () => {
+    const s: GameState = structuredClone(g2());
+    s.corp.hq.push({ ...structuredClone(s.corp.hq[0]), instanceId: 'inst-agenda', cardCode: '30068' });
+    expect(partner(s, () => scoringRemote(s)?.id)).toBe('remote-1');
+    expect(partner(s, () => assetPartner(s, clearinghouse))).toBeNull();
+  });
+
+  it('an econ asset takes the same move ahead of a cover pair (assetCover)', () => {
+    const s: GameState = structuredClone(read('ice-redirect-1001-t10.json'));
+    s.corp.hq.find(c => c.instanceId === 'inst-23')!.cardCode = NICO;
+    expect(partner(s, () => assetCover(s, newRemote))).toMatchObject({ kind: 'asset', server: 'remote-1', form: 'install' });
   });
 });

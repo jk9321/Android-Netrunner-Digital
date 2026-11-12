@@ -396,7 +396,7 @@ export function scoreInTwoPick(state: GameState, pick: GameAction, held: HeldLin
     h = null;
   }
   if (!h) {
-    const line = scoreInTwo(state) ?? (plan().assetCover || plan().spareIce ? assetCover(state, pick) : null);
+    const line = scoreInTwo(state) ?? (plan().assetCover || plan().spareIce || plan().assetPartner ? assetCover(state, pick) : null);
     if (!line) return { action: pick, held: null };
     const card = installedAgendas(state).find(a => a.card.instanceId === line.agendaId)?.card;
     h = { game: state.id, turn: state.turnNumber, line, server: line.server === 'new remote' ? null : line.server, counters: card?.advancementCounters ?? 0 };
@@ -510,7 +510,7 @@ export function assetCover(state: GameState, pick: GameAction): TwoTurnLine | nu
   const line = (server: string, form: TwoTurnLine['form'], ice?: { id: string; rez: number }): TwoTurnLine => ({ kind: 'asset', agenda: cardDef(asset).title, agendaId: asset.instanceId, server, form, ...(ice ? { iceId: ice.id } : {}), advanceNow: 0, advanceNext: 0, rez: ice?.rez ?? 0 });
   // plan.spareIce's partner: an iced remote waiting with an open root (3.3.1) takes the asset, one click; not the
   // scoring remote while an agenda waits in HQ
-  if (plan().spareIce) {
+  if (plan().spareIce || plan().assetPartner) {
     const scoring = scoringRemote(state);
     const agenda = state.corp.hq.some(isAgenda);
     const waiting = remotes(state).find(v => v.ice.length > 0 && !v.root.some(c => isAgenda(c) || typeOf(c) === 'asset') && !(agenda && v.id === scoring?.id));
@@ -526,6 +526,32 @@ export function assetCover(state: GameState, pick: GameAction): TwoTurnLine | nu
   const ice = all.sort((x, y) => x.rez - y.rez)[0];
   assetCoverStats.begun++;
   return line(target ? target.id : 'new remote', 'install+ice', { id: ice.c.instanceId, rez: ice.rez });
+}
+
+/** plan.assetPartner diagnostics (any caller, search included): asset or upgrade installs moved onto a waiting iced remote. */
+export const assetPartnerStats = { moved: 0 };
+
+/**
+ * plan.assetPartner (asset cover alternative; Claude's play test round 2, 2026-11-12: six times in two games the Corp had
+ * a remote with 2-3 ice and an empty root and put Humanoid Resources, Clearinghouse and Spin Doctor into new bare
+ * remotes, and the Runner trashed them): the Corp's own pick installs an asset or an upgrade on a new remote, and a
+ * remote with ice and no agenda or asset in its root waits (one agenda or asset per root, 3.3.1; any number of upgrades,
+ * 3.6.2); then the card goes there instead, the one with the most ice. Never the scoring remote
+ * while an agenda waits in HQ. A pure redirect: no click or credit more (installing in a remote costs nothing for a
+ * root card, 8.5.11a counts ice only). Econ assets take the same move in assetCover, ahead of a cover pair. Null: no change.
+ */
+export function assetPartner(state: GameState, pick: GameAction): GameAction | null {
+  if (!plan().assetPartner || !isCorpMain(state) || pick.type !== 'INSTALL_CARD' || !(pick as { asNewRemote?: boolean }).asNewRemote) return null;
+  const card = state.corp.hq.find(c => c.instanceId === pick.cardInstanceId);
+  if (!card || (typeOf(card) !== 'asset' && typeOf(card) !== 'upgrade')) return null;
+  const scoring = scoringRemote(state);
+  const agenda = state.corp.hq.some(isAgenda);
+  const waiting = remotes(state)
+    .filter(v => v.ice.length > 0 && !v.root.some(c => isAgenda(c) || typeOf(c) === 'asset') && !(agenda && v.id === scoring?.id))
+    .sort((x, y) => y.ice.length - x.ice.length)[0];
+  const move = waiting ? legalShape(state, { type: 'INSTALL_CARD', cardInstanceId: card.instanceId, targetServerId: waiting.id }) : undefined;
+  if (move) assetPartnerStats.moved++;
+  return move ?? null;
 }
 
 /** plan.spareIce diagnostics (any caller, search included): spare ice installed on a new remote, by the pick it took over (a draw past the hand size, another draw, a credit) and whether an econ asset was in HQ already (Jeff's other case: ice now, the asset next); econ assets moved onto a waiting iced remote. */
