@@ -118,7 +118,7 @@ class Ledger {
     // Econ operations leaving HQ on the Corp's own turn without being played: discarded (1.7.2b)
     if (s.activePlayer === 'corp' && !(a.type === 'PLAY_OPERATION_OR_EVENT')) {
       const gone = s.corp.hq.filter(c => econ(c) && kindOf(c) === 'operation' && !n.corp.hq.some(x => x.instanceId === c.instanceId));
-      for (const c of gone) if (n.corp.archives.some(x => x.instanceId === c.instanceId)) this.econDiscarded++;
+      for (const c of gone) if ([...n.corp.archives.faceUp, ...n.corp.archives.faceDown].some(x => x.instanceId === c.instanceId)) this.econDiscarded++;
     }
   }
 }
