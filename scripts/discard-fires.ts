@@ -15,7 +15,8 @@ import { createAgent } from '../src/ai';
 import { GameRunner } from '../src/ai/playout';
 import { valueLoops } from '../src/ai/valueModel';
 import { applyPlanOff } from '../src/ai/synergy';
-import { discardRescue, isCorpMain, reservedForAgenda } from '../src/ai/countedScore';
+import { afterLineFloor, discardRescue, isCorpMain, knownIncome, reservedForAgenda } from '../src/ai/countedScore';
+import { rezCostOf } from '../src/core';
 import { keep } from '../src/ai/prompts';
 import { tuning } from '../src/ai/synergy';
 import { asSide } from '../src/ai/pricing';
@@ -34,11 +35,19 @@ for (const [k, seed] of seeds.entries()) {
   const stats = { fired: 0, hq: 0, rd: 0 };
   const corpAgent = createAgent('corp', 'normal');
   const discarded: Record<string, number> = {};
-  const fires: { turn: number; firedAt: number }[] = [];
+  const fires: { turn: number; firedAt: number; under: boolean; rezIn2: boolean }[] = [];
+  let turnStarts = 0, broke = 0;
+  let lastTurn = -1;
   const onlyRemote: { turn: number; to: string }[] = [];
   const choose = corpAgent.chooseAction.bind(corpAgent);
   corpAgent.chooseAction = (st: GameState) => {
     const a = choose(st) as GameAction & { choice?: { kind?: string; cardInstanceIds?: string[] }; cardInstanceId?: string; targetServerId?: string; asNewRemote?: boolean };
+    // went broke: Corp turns begun under 3 credits (the batch alarm's count)
+    if (isCorpMain(st) && st.turnNumber !== lastTurn) {
+      lastTurn = st.turnNumber;
+      turnStarts++;
+      if (st.corp.credits < 3) broke++;
+    }
     const card = a.type === 'INSTALL_CARD' && isCorpMain(st) ? st.corp.hq.find(x => x.instanceId === a.cardInstanceId) : undefined;
     if (card && ['asset', 'upgrade'].includes(cardDef(card).type_code)) {
       const was = tuning.plan.onlyRemoteHold;
@@ -54,7 +63,10 @@ for (const [k, seed] of seeds.entries()) {
       if (hit) {
         stats.fired++;
         stats[to]++;
-        fires.push({ turn: st.turnNumber, firedAt: st.corp.clicks });
+        const c = st.corp.hq.find(x => x.instanceId === a.cardInstanceId)!;
+        const { floor, income } = asSide('corp', () => (decisionContext(st, 'corp'), { floor: afterLineFloor(st, ''), income: knownIncome(st) }));
+        const left = st.corp.credits - st.corp.servers[to].ice.length;
+        fires.push({ turn: st.turnNumber, firedAt: st.corp.clicks, under: st.corp.credits < floor, rezIn2: left + 2 * income >= rezCostOf(st, c) });
       }
     }
     const pr = activePrompt(st);
@@ -73,5 +85,5 @@ for (const [k, seed] of seeds.entries()) {
     console.error(`deal ${seed}: ${err}`);
     continue;
   }
-  console.log(JSON.stringify({ seed, deck: corpDeck.name, winner: game.state.winner ?? null, turns: game.state.turnNumber, score: [game.state.corp.score, game.state.runner.score], ms: Math.round(performance.now() - t0), stats, fires, discarded, onlyRemote }));
+  console.log(JSON.stringify({ seed, deck: corpDeck.name, winner: game.state.winner ?? null, turns: game.state.turnNumber, score: [game.state.corp.score, game.state.runner.score], ms: Math.round(performance.now() - t0), stats, fires, discarded, onlyRemote, turnStarts, broke }));
 }

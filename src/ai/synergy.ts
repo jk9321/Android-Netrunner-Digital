@@ -494,6 +494,8 @@ export const tuning = {
      * an ice from HQ on a central that does not hold instead (countedScore.ts discardRescue). Temporary: folded at hand-off.
      */
     discardRescue: true,
+    /** Arm A': the floor is tested only when the Corp is at or above it before the install. Temporary. */
+    discardRescueUnder: true,
     /**
      * Ice discard arm B: the scoring remote stays reserved for an agenda in HQ while it is the only remote with ice,
      * though no counted line holds it (countedScore.ts reservedForAgenda). Temporary: folded at hand-off.

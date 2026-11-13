@@ -674,7 +674,9 @@ export function discardRescue(state: GameState, pick: GameAction, keep: (card: C
   const floor = afterLineFloor(state, '');
   const open = (['hq', 'rd'] as const).filter(id => {
     const v = state.corp.servers[id];
-    return state.corp.credits - v.ice.length >= floor && holdCost(state, v.ice, end) === null;
+    // A' (plan.discardRescueUnder): a Corp already under its floor may still save the ice when the install is affordable
+    const pays = state.corp.credits - v.ice.length >= floor || (plan().discardRescueUnder && state.corp.credits < floor && state.corp.credits >= v.ice.length);
+    return pays && holdCost(state, v.ice, end) === null;
   });
   if (!open.length) return null;
   // The discard answer's order (prompts.ts): the lowest-kept cards go; an ice among the `excess` lowest is the one saved
