@@ -2,7 +2,7 @@ import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
 import { GameAction, GameState, createInitialGameState, executeAction } from '../src/core';
 import { deckGameSetup } from '../src/data/decks';
-import { centralIce, centralIceWhy } from '../src/ai/countedScore';
+import { centralIce } from '../src/ai/countedScore';
 import { asSide } from '../src/ai/pricing';
 import { decisionContext } from '../src/ai/handValues';
 
@@ -25,7 +25,6 @@ describe('central ice: remote ice to a central with no ice', () => {
   it('#51 #23: Funhouse goes to R&D', () => {
     const { s, pick } = at(51, 23);
     expect(ask(s, pick)).toMatchObject({ type: 'INSTALL_CARD', targetServerId: 'rd' });
-    expect(centralIceWhy.central).toBe('rd');
   });
 
   it('#51 #33: Tithe goes to R&D', () => {
@@ -48,7 +47,6 @@ describe('central ice: remote ice to a central with no ice', () => {
   it('#52 #2: Doomscroll goes to HQ', () => {
     const { s, pick } = at(52, 2);
     expect(ask(s, pick)).toMatchObject({ type: 'INSTALL_CARD', targetServerId: 'hq' });
-    expect(centralIceWhy.central).toBe('hq');
   });
 
   // Both centrals already have ice: the pick stands

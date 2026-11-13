@@ -1,6 +1,7 @@
 /**
  * Central ice (countedScore.ts centralIce, spec-central-ice.md): fire count and what follows, one JSON line per deal.
- * Plays the deal as PLAN_OFF gives. The fires are the top-level Corp's redirects (centralIceStats, by caller and central). For each fire (made or would-be): Runner
+ * Plays the deal as PLAN_OFF gives. The fires are the top-level Corp's ice installs on a bare central that centralIce gives for
+ * the same ice sent to a new remote (centralIce called on the state; a planner pick of the same install counts too). For each fire: Runner
  * points stolen from that central within the next 2 Runner turns, and Corp points scored from any remote within the
  * next 2 Corp turns (turns counted by the active player changing).
  * Per fire also: Runner runs on that central within 2 Runner turns, and the fate of the agendas in HQ at the fire after
@@ -16,7 +17,9 @@ import { createAgent } from '../src/ai';
 import { GameRunner } from '../src/ai/playout';
 import { valueLoops } from '../src/ai/valueModel';
 import { applyPlanOff } from '../src/ai/synergy';
-import { centralIceStats, iceRedirectStats, isCorpMain } from '../src/ai/countedScore';
+import { centralIce, iceRedirectStats, isCorpMain } from '../src/ai/countedScore';
+import { asSide } from '../src/ai/pricing';
+import { decisionContext } from '../src/ai/handValues';
 
 applyPlanOff(process.env.PLAN_OFF ?? '');
 const corpDecks = ALL_DECKS.filter(d => d.side === 'corp');
@@ -29,7 +32,7 @@ for (const [k, seed] of seeds.entries()) {
   const p = Math.floor((seed - 1001) / 10);
   const corpDeck = corpDecks[Math.floor(p / runnerDecks.length)];
   valueLoops.clear();
-  for (const key of Object.keys(centralIceStats)) (centralIceStats as Record<string, number>)[key] = 0;
+  const centralIceStats = { hq: 0, rd: 0 };
   iceRedirectStats.fired = 0;
   const corpAgent = createAgent('corp', 'normal');
   // (c): the Corp's main-phase actions, by Corp turn (its click actions and what they install where)
@@ -38,6 +41,11 @@ for (const [k, seed] of seeds.entries()) {
   const choose = corpAgent.chooseAction.bind(corpAgent);
   corpAgent.chooseAction = (st: GameState) => {
     const a = choose(st) as GameAction & { cardInstanceId?: string; targetServerId?: string; asNewRemote?: boolean };
+    const to = a.type === 'INSTALL_CARD' && isCorpMain(st) && (a.targetServerId === 'hq' || a.targetServerId === 'rd') && st.corp.servers[a.targetServerId].ice.length === 0 ? a.targetServerId : undefined;
+    if (to) {
+      const would = asSide('corp', () => (decisionContext(st, 'corp'), centralIce(st, { type: 'INSTALL_CARD', player: 'corp', cardInstanceId: a.cardInstanceId, asNewRemote: true } as GameAction))) as { targetServerId?: string } | null;
+      if (would?.targetServerId === to) centralIceStats[to]++;
+    }
     if (isCorpMain(st) && a.type !== 'START_TURN') {
       const c = a.cardInstanceId ? [...st.corp.hq, ...Object.values(st.corp.servers).flatMap(v => [...v.ice, ...v.root])].find(x => x.instanceId === a.cardInstanceId) : undefined;
       acts.push({ corpTurn, what: `${a.type}${c ? ' ' + cardDef(c).title + ' (' + cardDef(c).type_code + ')' : ''}${a.targetServerId ? ' ' + a.targetServerId : a.asNewRemote ? ' new' : ''}` });

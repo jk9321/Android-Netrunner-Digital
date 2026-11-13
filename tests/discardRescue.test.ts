@@ -2,7 +2,7 @@ import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
 import { GameAction, GameState, cardDef, createInitialGameState, executeAction } from '../src/core';
 import { deckGameSetup } from '../src/data/decks';
-import { assetPartner, discardRescue, discardRescueWhy } from '../src/ai/countedScore';
+import { assetPartner, discardRescue } from '../src/ai/countedScore';
 import { keep } from '../src/ai/prompts';
 import { asSide } from '../src/ai/pricing';
 import { decisionContext } from '../src/ai/handValues';
@@ -37,7 +37,6 @@ describe('discard rescue: an ice the discard would throw away goes on a central 
     expect(r).toMatchObject({ type: 'INSTALL_CARD' });
     expect(['hq', 'rd']).toContain((r as { targetServerId?: string }).targetServerId);
     expect(title(s, r)).toBe('Ablative Barrier');
-    expect(discardRescueWhy.fromDiscard).toBe(true);
   });
 
   // #50 T8: the same with Bumi 1.0

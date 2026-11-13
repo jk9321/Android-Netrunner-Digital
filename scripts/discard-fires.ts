@@ -1,6 +1,7 @@
 /**
- * Ice discard (spec ice-discard, bars/ice-discard.md): one JSON line per deal. Arm A: the top-level Corp's discard
- * rescues (discardRescueStats, by central, and how many saved an ice the discard would have thrown away). Per game: the
+ * Ice discard (spec ice-discard, bars/ice-discard.md): one JSON line per deal. Arm A: the top-level Corp's ice installs
+ * on a central that discardRescue gives for a credit or draw click on the same state (called on the state; a planner
+ * pick of the same install counts too, so read on against off), by central. Per game: the
  * cards the Corp discarded at the end of its turns (5.6.3a), by type, so the fires can be read against what the discard
  * became (another ice, an agenda, something else, nothing). Arm B: the top-level asset or upgrade installs made while
  * the only-iced-remote reservation holds and the old rule would have released it (onlyRemote), and where they went.
@@ -14,7 +15,8 @@ import { createAgent } from '../src/ai';
 import { GameRunner } from '../src/ai/playout';
 import { valueLoops } from '../src/ai/valueModel';
 import { applyPlanOff } from '../src/ai/synergy';
-import { discardRescueStats, isCorpMain, reservedForAgenda } from '../src/ai/countedScore';
+import { discardRescue, isCorpMain, reservedForAgenda } from '../src/ai/countedScore';
+import { keep } from '../src/ai/prompts';
 import { tuning } from '../src/ai/synergy';
 import { asSide } from '../src/ai/pricing';
 import { decisionContext } from '../src/ai/handValues';
@@ -29,14 +31,13 @@ for (const [k, seed] of seeds.entries()) {
   const p = Math.floor((seed - 1001) / 10);
   const corpDeck = corpDecks[Math.floor(p / runnerDecks.length)];
   valueLoops.clear();
-  for (const key of Object.keys(discardRescueStats)) (discardRescueStats as Record<string, number>)[key] = 0;
+  const stats = { fired: 0, hq: 0, rd: 0 };
   const corpAgent = createAgent('corp', 'normal');
   const discarded: Record<string, number> = {};
   const fires: { turn: number; firedAt: number }[] = [];
   const onlyRemote: { turn: number; to: string }[] = [];
   const choose = corpAgent.chooseAction.bind(corpAgent);
   corpAgent.chooseAction = (st: GameState) => {
-    const before = discardRescueStats.fired;
     const a = choose(st) as GameAction & { choice?: { kind?: string; cardInstanceIds?: string[] }; cardInstanceId?: string; targetServerId?: string; asNewRemote?: boolean };
     const card = a.type === 'INSTALL_CARD' && isCorpMain(st) ? st.corp.hq.find(x => x.instanceId === a.cardInstanceId) : undefined;
     if (card && ['asset', 'upgrade'].includes(cardDef(card).type_code)) {
@@ -46,7 +47,16 @@ for (const [k, seed] of seeds.entries()) {
       tuning.plan.onlyRemoteHold = was;
       if (on !== off) onlyRemote.push({ turn: st.turnNumber, to: a.asNewRemote ? 'new' : a.targetServerId ?? '?' });
     }
-    if (discardRescueStats.fired > before) fires.push({ turn: st.turnNumber, firedAt: st.corp.clicks });
+    const to = a.type === 'INSTALL_CARD' && isCorpMain(st) && (a.targetServerId === 'hq' || a.targetServerId === 'rd') ? a.targetServerId : undefined;
+    if (to) {
+      const same = (type: 'GAIN_CREDIT' | 'DRAW_CARD') => asSide('corp', () => (decisionContext(st, 'corp'), discardRescue(st, { type, player: 'corp' } as GameAction, c => keep(st, c, true)))) as { cardInstanceId?: string; targetServerId?: string } | null;
+      const hit = [same('GAIN_CREDIT'), same('DRAW_CARD')].some(r => r?.cardInstanceId === a.cardInstanceId && r?.targetServerId === to);
+      if (hit) {
+        stats.fired++;
+        stats[to]++;
+        fires.push({ turn: st.turnNumber, firedAt: st.corp.clicks });
+      }
+    }
     const pr = activePrompt(st);
     if (pr?.kind === 'discard' && a.choice?.kind === 'discard') for (const id of a.choice.cardInstanceIds ?? []) {
       const c = st.corp.hq.find(x => x.instanceId === id);
@@ -63,5 +73,5 @@ for (const [k, seed] of seeds.entries()) {
     console.error(`deal ${seed}: ${err}`);
     continue;
   }
-  console.log(JSON.stringify({ seed, deck: corpDeck.name, winner: game.state.winner ?? null, turns: game.state.turnNumber, score: [game.state.corp.score, game.state.runner.score], ms: Math.round(performance.now() - t0), stats: { ...discardRescueStats }, fires, discarded, onlyRemote }));
+  console.log(JSON.stringify({ seed, deck: corpDeck.name, winner: game.state.winner ?? null, turns: game.state.turnNumber, score: [game.state.corp.score, game.state.runner.score], ms: Math.round(performance.now() - t0), stats, fires, discarded, onlyRemote }));
 }

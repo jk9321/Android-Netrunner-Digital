@@ -610,17 +610,6 @@ export function assetPartner(state: GameState, pick: GameAction): GameAction | n
   return move ?? null;
 }
 
-/** Central ice diagnostics: the top-level Corp's redirects, by caller and central (corpAI and search count them). */
-export const centralIceStats = { planner: 0, ranking: 0, search: 0, hq: 0, rd: 0 };
-/** The central the last centralIce call chose, for the counters (diagnostics: it changes no price). */
-export const centralIceWhy: { central?: 'hq' | 'rd' } = {};
-
-export function countCentralIce(caller: 'planner' | 'ranking' | 'search', taken: boolean) {
-  if (!taken || !centralIceWhy.central) return;
-  centralIceStats[caller]++;
-  centralIceStats[centralIceWhy.central]++;
-}
-
 /**
  * Central ice before remote ice (spec-central-ice.md variant (6), bars/central-ice-bare.md; Jeff 2026-11-13: "fix the
  * icing remotes while HQ and R&D were thin"; his #51 had R&D bare for turns 1-5 on 13-17 credits). When the Corp's own
@@ -633,7 +622,6 @@ export function countCentralIce(caller: 'planner' | 'ranking' | 'search', taken:
  * click): no veto, no extra install. Null: no change.
  */
 export function centralIce(state: GameState, pick: GameAction): GameAction | null {
-  delete centralIceWhy.central;
   if (pick.type !== 'INSTALL_CARD' || !isCorpMain(state)) return null;
   const a = pick as GameAction & { cardInstanceId?: string; targetServerId?: string; asNewRemote?: boolean };
   const card = state.corp.hq.find(c => c.instanceId === a.cardInstanceId);
@@ -644,9 +632,7 @@ export function centralIce(state: GameState, pick: GameAction): GameAction | nul
   if (!bare.length) return null;
   const stake = centralStake(state, card.instanceId);
   const to = bare.sort((x, y) => stake[y] - stake[x])[0];
-  const move = legalShape(state, { type: 'INSTALL_CARD', cardInstanceId: card.instanceId, targetServerId: to });
-  if (move) centralIceWhy.central = to;
-  return move ?? null;
+  return legalShape(state, { type: 'INSTALL_CARD', cardInstanceId: card.instanceId, targetServerId: to }) ?? null;
 }
 
 /**
@@ -664,18 +650,6 @@ function centralStake(state: GameState, leaving: string): { hq: number; rd: numb
   };
 }
 
-/** Discard rescue diagnostics: the top-level Corp's redirects, by central, and whether the ice was one the discard would throw away (corpAI and search count them). */
-export const discardRescueStats = { fired: 0, hq: 0, rd: 0, fromDiscard: 0 };
-/** What the last discardRescue call chose, for the counters (diagnostics: it changes no price). */
-export const discardRescueWhy: { central?: 'hq' | 'rd'; fromDiscard?: boolean } = {};
-
-export function countDiscardRescue(taken: boolean) {
-  if (!taken || !discardRescueWhy.central) return;
-  discardRescueStats.fired++;
-  discardRescueStats[discardRescueWhy.central]++;
-  if (discardRescueWhy.fromDiscard) discardRescueStats.fromDiscard++;
-}
-
 /**
  * Discard rescue (spec ice-discard arm A, bars/ice-discard.md; M1: 26 credit and draw clicks, 0.46 a game, while an ice
  * later went to the discard pile). When the Corp's own pick is a click for a credit or a draw (5.2.6a, 5.2.6b) and by the
@@ -688,7 +662,6 @@ export function countDiscardRescue(taken: boolean) {
  * A pure redirect of one click: no veto. Null: no change.
  */
 export function discardRescue(state: GameState, pick: GameAction, keep: (card: CardInstance) => number): GameAction | null {
-  delete discardRescueWhy.central;
   if (!plan().discardRescue || !isCorpMain(state) || state.corp.clicks <= 0) return null;
   if (pick.type !== 'GAIN_CREDIT' && pick.type !== 'DRAW_CARD') return null;
   const after = state.corp.clicks - 1;
@@ -710,10 +683,7 @@ export function discardRescue(state: GameState, pick: GameAction, keep: (card: C
   const stake = centralStake(state, card.instanceId);
   for (const to of open.sort((x, y) => stake[y] - stake[x])) {
     const move = legalShape(state, { type: 'INSTALL_CARD', cardInstanceId: card.instanceId, targetServerId: to });
-    if (!move) continue;
-    discardRescueWhy.central = to;
-    discardRescueWhy.fromDiscard = thrown.length > 0;
-    return move;
+    if (move) return move;
   }
   return null;
 }
