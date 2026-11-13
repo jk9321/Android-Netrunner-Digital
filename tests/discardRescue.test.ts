@@ -47,6 +47,15 @@ describe('discard rescue: an ice the discard would throw away goes on a central 
     expect(title(s, r)).toBe('Bumi 1.0');
   });
 
+  // #48 T8: 7 cards in HQ, 2 clicks, 1 credit against afterLineFloor 4; Funhouse was then discarded. A Corp already under
+  // its floor may still save the ice when the install is affordable (arm A', plan.discardRescueUnder: 1 credit on R&D, 8.5.11a)
+  it('#48 #93: Funhouse is installed on a central though the Corp is under its floor', () => {
+    const { s, pick } = at(48, 93);
+    const r = ask(s, pick);
+    expect(r).toMatchObject({ type: 'INSTALL_CARD', targetServerId: 'rd' });
+    expect(title(s, r)).toBe('Funhouse');
+  });
+
   it('no rescue while the hand fits after the clicks left (#50 #93: one click left could still play a card)', () => {
     const { s, pick } = at(50, 93);
     expect(ask(s, pick)).toBeNull();
