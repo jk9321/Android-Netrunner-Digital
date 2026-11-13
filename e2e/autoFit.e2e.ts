@@ -13,6 +13,10 @@ test('auto fit shrinks cards to avoid scrolling and can be switched off', async 
   await page.getByTestId('start-game').click();
   await page.getByRole('button', { name: 'Keep hand' }).click({ timeout: 30_000 });
   await expect(page.getByTestId('runner-credits')).toBeVisible({ timeout: 60_000 });
+  // Wait for the Runner's own turn: while the Corp is still playing its turn every install
+  // re-fits the board and starts a new glide, and mid-glide the area can overflow for a moment
+  // (a local stress run failed 2 of 60 that way, with each check landing in a fresh glide)
+  await expect(page.getByRole('button', { name: '+1 Credit' })).toBeEnabled({ timeout: 60_000 });
 
   const size = page.getByTestId('card-size');
   await size.getByRole('button', { name: 'Large' }).click();
@@ -24,7 +28,12 @@ test('auto fit shrinks cards to avoid scrolling and can be switched off', async 
   await expect(auto).toHaveAttribute('aria-pressed', 'true');
   await auto.click();
   await expect(auto).toHaveAttribute('aria-pressed', 'false');
-  await expect.poll(overflowing).toBe(true); // too cramped without auto fit
+  // Turning auto fit off glides the cards back to full size: read the size once the glide ends,
+  // not at its start (a local stress run read the fitted size there and failed 1 of 60)
+  const gliding = () =>
+    page.locator('[data-testid=auto-fit-area]').evaluateAll(els => els.some(el => el.getAnimations().length > 0));
+  // (the glide starts a frame after the click, so both are checked together)
+  await expect.poll(async () => (await overflowing()) && !(await gliding())).toBe(true); // too cramped without auto fit
   const unfit = await cardWidth();
 
   // The shrink glides: sizes between the start and the end are seen on the way. Sampled inside
@@ -46,8 +55,21 @@ test('auto fit shrinks cards to avoid scrolling and can be switched off', async 
   // Scrolling is gone, unless the deal built a board too big even at the floor (half the
   // normal width), when auto fit stops there and lets it scroll (CI 2026-11-08 hit such a deal)
   const floor = unfit * 0.5;
+  // Checked in one page call once the glides have finished, so no reading lands mid-glide.
+  // Each area on its own: it fits, or it stopped at the floor because even that did not fit.
   await expect
-    .poll(async () => !(await overflowing()) || Math.abs((await cardWidth()) - floor) <= 1)
+    .poll(() =>
+      page.locator('[data-testid=auto-fit-area]').evaluateAll(
+        (els, floorPx) =>
+          els.every(el => {
+            if (el.getAnimations().length > 0) return false;
+            if (el.scrollWidth <= el.clientWidth + 1 && el.scrollHeight <= el.clientHeight + 1) return true;
+            const card = el.querySelector('.card-fit');
+            return !!card && Math.abs(card.getBoundingClientRect().width - floorPx) <= 1;
+          }),
+        floor,
+      ),
+    )
     .toBe(true);
   expect(await cardWidth()).toBeGreaterThanOrEqual(floor - 1); // never below the floor
 

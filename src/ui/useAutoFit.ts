@@ -33,6 +33,9 @@ export function useAutoFit(ref: RefObject<HTMLElement | null>): void {
     if (!el || typeof ResizeObserver === 'undefined') return;
     let frame = 0;
     let running = false;
+    // A real change (a card added, the size or Auto fit toggled) that arrives while our own
+    // changes settle must not be lost: it re-fits once they have settled
+    let pending = false;
 
     const fit = () => {
       frame = 0;
@@ -43,6 +46,7 @@ export function useAutoFit(ref: RefObject<HTMLElement | null>): void {
       clearSize(el);
       if (isAutoFitOn()) {
         const probe = document.createElement('div');
+        probe.dataset.autoFitProbe = '';
         probe.style.cssText = 'position:absolute;visibility:hidden;width:var(--card-w);height:0';
         el.appendChild(probe);
         const base = probe.getBoundingClientRect().width;
@@ -81,28 +85,41 @@ export function useAutoFit(ref: RefObject<HTMLElement | null>): void {
       // Let observers triggered by our own changes settle before listening again
       requestAnimationFrame(() => {
         running = false;
+        if (pending) request();
       });
     };
+    // Size changes while we settle are our own doing, so they are dropped
     const schedule = () => {
       if (running || frame) return;
       frame = requestAnimationFrame(fit);
     };
+    const request = () => {
+      if (running) pending = true;
+      else {
+        pending = false;
+        schedule();
+      }
+    };
+    const isProbe = (n: Node) => n instanceof HTMLElement && n.dataset.autoFitProbe !== undefined;
 
     const resize = new ResizeObserver(schedule);
     resize.observe(el);
     if (el.parentElement) resize.observe(el.parentElement);
-    const mutation = new MutationObserver(schedule);
+    // The measuring probe's own insert and removal are not changes to the board
+    const mutation = new MutationObserver(records => {
+      if (records.some(r => [...r.addedNodes, ...r.removedNodes].some(n => !isProbe(n)))) request();
+    });
     mutation.observe(el, { childList: true, subtree: true });
-    const settings = new MutationObserver(schedule);
+    const settings = new MutationObserver(request);
     settings.observe(document.documentElement, { attributes: true, attributeFilter: ['data-card-size'] });
-    window.addEventListener(AUTO_FIT_EVENT, schedule);
+    window.addEventListener(AUTO_FIT_EVENT, request);
     schedule();
     return () => {
       if (frame) cancelAnimationFrame(frame);
       resize.disconnect();
       mutation.disconnect();
       settings.disconnect();
-      window.removeEventListener(AUTO_FIT_EVENT, schedule);
+      window.removeEventListener(AUTO_FIT_EVENT, request);
       clearSize(el);
       el.style.removeProperty('transition');
     };

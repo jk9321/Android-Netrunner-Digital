@@ -1,6 +1,8 @@
 # Saves a game submitted with the beta "Submit playtest game" button (an issue
 # labelled playtest-game, opened by the Worker) into tests/fixtures/human-games,
 # commits it to beta, comments with the path and closes the issue.
+# This file must be on main: GitHub runs issue-triggered workflows only from the
+# default branch. It checks out beta itself, so the script and fixtures come from there.
 name: Save playtest game
 
 on:
@@ -45,7 +47,8 @@ jobs:
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git add "${{ steps.decode.outputs.path }}"
-          git commit -m "Add playtest game from issue #$NUMBER"
+          # Already saved by hand: nothing to commit, still comment and close
+          git diff --cached --quiet || git commit -m "Add playtest game from issue #$NUMBER"
           for i in 1 2 3; do git pull --rebase origin beta && git push origin HEAD:beta && break; sleep 5; done
       - name: Comment and close
         run: |
