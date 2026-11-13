@@ -53,6 +53,14 @@ describe('plan.shortCentral: remote ice to a central with no ice', () => {
     expect(ask(s, pick)).toMatchObject({ type: 'INSTALL_CARD', targetServerId: 'rd' });
   });
 
+  // #52 #2, Corp turn 1, every server bare, 2 agendas in HQ: the planner put Doomscroll on a new remote and the Runner
+  // took Orbital Superiority from HQ. HQ's stake (its agendas over the cards left) is above R&D's (unseen agendas over R&D)
+  it('#52 #2: Doomscroll goes to HQ', () => {
+    const { s, pick } = at(52, 2);
+    expect(ask(s, pick)).toMatchObject({ type: 'INSTALL_CARD', targetServerId: 'hq' });
+    expect(centralIceWhy.central).toBe('hq');
+  });
+
   // Both centrals already have ice: the pick stands
   it('#49 #82 and #50 #253: no redirect', () => {
     for (const [n, m] of [[49, 82], [50, 253]]) {
