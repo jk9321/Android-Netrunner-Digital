@@ -565,6 +565,9 @@ export const FOLDED: readonly string[] = [
   // Phase 3 S4 (spec-search.md, 2026-11-09): plannerHold folded into plan.searchLines (the hold that builds a window);
   // searchLines itself was deleted in step 2 (2026-11-10): counted scoring (plan.scoreInTwo) decides that hold now
   'plannerHold',
+  // Asset cover (2026-11-12, bars/asset-cover-x.md, run 43331672692: -0.3 ± 1.6 vs 43264551835): the scoring remote is never an
+  // asset root (3.3.1), an econ asset goes behind the cheapest ice in HQ, any asset or upgrade goes to a waiting iced remote
+  'scoringNoAsset', 'assetCover', 'assetPartner',
 ];
 
 /** Throws on a name that isn't a plan switch (a typo, or a switch folded into the code). */

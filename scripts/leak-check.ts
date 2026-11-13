@@ -80,12 +80,20 @@ export function visibility(state: GameState, side: SideCode): { hidden: CardInst
   // What the side remembers, by instance: cards seen in the other hand, the Runner's R&D knowledge
   for (const k of (side === 'corp' ? r.knownToCorp : c.knownToRunner) ?? []) shownIds.add(k.id);
   if (side === 'runner') for (const k of c.rdKnownToRunner ?? []) shownIds.add(k.id);
-  // The side's own prompts may show it cards from hidden zones (the top of R&D, the card being accessed)
+  // The side's own prompts may show it cards from hidden zones (the top of R&D, the card being accessed), but only
+  // the cards a prompt is about (view.ts): the accessed card (access_trash, 7.1.2), and effect_cards candidates and
+  // the card being installed when they come from a hidden zone. A card an access_order or effect_choice option names,
+  // or an installed card the side sees only facedown, is not shown by the prompt (10.2.2a-b, 7.3.4, 8.5.3a).
   const all = new Map(withHosted([...hidden, ...open, ...installed]).map(x => [x.instanceId, x]));
+  const installedIds = new Set(installed.map(x => x.instanceId));
   for (const p of state.pendingPrompts) {
     if (p.side !== side) continue;
     const text = JSON.stringify(p);
-    for (const id of text.match(/inst-\d+/g) ?? []) if (all.has(id)) shownIds.add(id);
+    const shows: string[] = [];
+    if (p.kind === 'access_trash') shows.push(p.cardInstanceId);
+    if (p.kind === 'effect_cards') shows.push(...p.candidateIds.filter(id => !installedIds.has(id)));
+    if ((p.kind === 'effect_choice' || p.kind === 'effect_cards') && p.source.data?.install && typeof p.source.data.cardId === 'string' && !installedIds.has(p.source.data.cardId)) shows.push(p.source.data.cardId);
+    for (const id of shows) if (all.has(id)) shownIds.add(id);
     for (const x of all.values()) {
       const t = titleOf(x.cardCode);
       if (t && text.includes(t)) textCodes.add(x.cardCode);
@@ -200,12 +208,13 @@ export class LeakChecker {
 
     // 1. No hidden card's code or title, unless seen before
     const { hidden, hiddenIds, shownIds, textCodes, openCodes } = visibility(state, side);
-    // 1a. Instance level: no card object with a face may be a card hidden from this side now (prompts may show them)
+    // 1a. Instance level: no card object with a face may be a card hidden from this side now; a prompt may show only
+    // the hidden cards it is about (shownIds: the accessed card, effect_cards candidates from hidden zones, see visibility)
     for (const [path, obj] of cardObjects(view)) {
-      if (path.startsWith('$.pendingPrompts') || path.startsWith('$.view.pendingPrompts')) continue;
+      const inPrompt = path.startsWith('$.pendingPrompts') || path.startsWith('$.view.pendingPrompts');
       const real = ids.real[obj.instanceId];
       if (real === undefined) this.fail(step, side, 'ids', `${obj.instanceId} not in the id map`, path);
-      else if (obj.cardCode !== undefined && hiddenIds.has(real)) this.fail(step, side, 'hidden-card', `${obj.cardCode} ${titleOf(obj.cardCode)} is in a zone hidden from ${side}`, path);
+      else if (obj.cardCode !== undefined && hiddenIds.has(real) && !(inPrompt && shownIds.has(real))) this.fail(step, side, 'hidden-card', `${obj.cardCode} ${titleOf(obj.cardCode)} is in a zone hidden from ${side}`, path);
     }
     // Codes seen in text or in an open place stay allowed (old log lines name them); cards shown in a hidden place, per instance
     for (const code of [...textCodes, ...openCodes]) this.seen[side].add(code);
