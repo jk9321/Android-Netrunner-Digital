@@ -449,14 +449,31 @@ export function scoringRemote(state: GameState): ServerLike | null {
   return iced[0] ?? null;
 }
 
+/** What the Corp ends this turn on (credits and the clicks after this one) and the floor it keeps for its agendas (afterLineFloor). */
+function endAndFloor(state: GameState): { end: number; floor: number } {
+  const agendas = state.corp.hq.filter(isAgenda);
+  const floor = agendas.length ? Math.min(...agendas.map(x => afterLineFloor(state, x.instanceId))) : afterLineFloor(state, '');
+  return { end: state.corp.credits + Math.max(0, state.corp.clicks - 1), floor };
+}
+
 /** The scoring remote when it does not hold by the count (holdCost against runnerBudget with what the Corp ends the turn on, less afterLineFloor for its agendas); null when it holds or there is none. iceRedirect and assetCover read it. */
 function scoringShort(state: GameState): ServerLike | null {
   const scoring = scoringRemote(state);
   if (!scoring) return null;
-  const agendas = state.corp.hq.filter(isAgenda);
-  const floor = agendas.length ? Math.min(...agendas.map(x => afterLineFloor(state, x.instanceId))) : afterLineFloor(state, '');
-  const end = state.corp.credits + Math.max(0, state.corp.clicks - 1);
+  const { end, floor } = endAndFloor(state);
   return holdCost(state, scoring.ice, end - floor) !== null ? null : scoring;
+}
+
+/**
+ * The Corp is short of money by scoringShort's own count, in a way credits can mend: it ends the turn under the floor
+ * it keeps for its agendas (afterLineFloor), or the scoring remote does not hold now but would with more credits
+ * (holdCost with no limit finds a set). moneyPick reads it (M1c): an econ ability takes a draw's click only then.
+ */
+export function moneyShort(state: GameState): boolean {
+  const { end, floor } = endAndFloor(state);
+  if (end < floor) return true;
+  const scoring = scoringShort(state);
+  return !!scoring && holdCost(state, scoring.ice, Infinity) !== null;
 }
 
 /**

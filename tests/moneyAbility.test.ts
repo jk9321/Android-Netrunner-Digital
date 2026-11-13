@@ -1,24 +1,28 @@
+import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
 import { GameAction, GameState } from '../src/core';
 import { moneyPick, moneyStats } from '../src/ai/incomeLine';
 import { tuning } from '../src/ai/synergy';
-import { installCorpForTest, newGame, rezForTest } from './helpers';
+import { installCorpForTest, installIceForTest, newGame, rezForTest } from './helpers';
 import { inDecision } from './helpers/pricing';
 
 /**
  * Money step M1c (incomeLine.ts moneyPick): a one-click paid ability of a rezzed installed card (rules 1.8.3a, 5.2.6a,
  * 9.5.1) that nets credits takes a click the Corp's own pick spends on a draw or a click for a credit (5.2.6a-b). Click
  * asset trace (redesign/money/click-asset-trace.txt): the Corp AI drew 50 times while a rezzed Regolith Mining License
- * held credits, Jeff 4. A Corp turn, 3 clicks, 5 credits, a rezzed Regolith (15 loaded) on a remote, an empty HQ.
+ * held credits, Jeff 4. A Corp turn, 3 clicks, 0 credits, a rezzed Regolith (15 loaded) on a remote, an unrezzed Palisade on R&D, an empty HQ.
  */
 const REGOLITH = '30071';
 const position = (): { s: GameState; reg: string } => {
   let s = structuredClone(newGame(1));
   s.corp.rd.push(...s.corp.hq.splice(0));
   s.corp.clicks = 3;
-  s.corp.credits = 5;
+  s.corp.credits = 0;
+  // Short of money by the count (moneyShort): an unrezzed Palisade on R&D the Corp cannot yet rez (3)
+  installIceForTest(s, '30072', 'rd', false);
   const reg = installCorpForTest(s, REGOLITH, 'remote-1');
   s = rezForTest(s, reg);
+  s.corp.credits = 0;
   return { s, reg };
 };
 const draw = { type: 'DRAW_CARD', player: 'corp' } as GameAction;
@@ -58,4 +62,22 @@ describe('money step M1c: an installed econ ability in place of a draw or a cred
     const { s } = position();
     expect(withSwitch(false, () => inDecision(s, 'corp', () => moneyPick(s, draw)))).toBeNull();
   });
+});
+
+/**
+ * M1c input (moneyShort, countedScore.ts): the ability takes a draw's click only while the Corp is short of money by
+ * scoringShort's count. The first M1c batch (run 43348252028, -1.4 ± 1.1) flipped deals where it took draws with
+ * credits to spare; the states before the first changed decision (scripts/m1c-diverge.ts, the 56-deal map):
+ * deal 1281 turn 14, 10 credits, HQ empty, 2 clicks: the draws found Urtica Cipher and Spin Doctor, then Offworld
+ * Office (scored turn 17); deal 2521 turn 11, 17 credits, no agenda in HQ: the draw found Offworld Office.
+ */
+describe('money step M1c: with credits to spare the draw stands', () => {
+  const read = (name: string): GameState => JSON.parse(readFileSync(new URL(`./fixtures/${name}`, import.meta.url), 'utf8'));
+  for (const name of ['m1c-flip-1281-t14.json', 'm1c-flip-2521-t11.json']) {
+    it(`${name}: the draw is kept; a click for a credit still goes to the ability`, () => {
+      const s = read(name);
+      expect(withSwitch(true, () => inDecision(s, 'corp', () => moneyPick(s, draw)))).toBeNull();
+      expect(withSwitch(true, () => inDecision(s, 'corp', () => moneyPick(s, credit)))).toMatchObject({ type: 'USE_ABILITY' });
+    });
+  }
 });

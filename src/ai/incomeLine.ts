@@ -1,7 +1,7 @@
 import { GameAction, GameState, activePrompt, cardDef, executeAction, findCardAnywhere, getLegalActions } from '../core';
 import { answerPrompt } from './prompts';
 import { cardSynergy } from './synergyTags';
-import { knownIncome } from './countedScore';
+import { knownIncome, moneyShort } from './countedScore';
 import { scoreNowPlan } from './winNow';
 import { tuning } from './synergy';
 
@@ -16,7 +16,8 @@ import { tuning } from './synergy';
  * run 43175972281).
  */
 
-export const moneyStats = { ops: 0, abilities: 0 };
+/** Picks by kind (any caller, the planner's search included); opsSlack: operations picked over a draw with credits to spare (moneyShort false) and no agenda in HQ, counted only. */
+export const moneyStats = { ops: 0, abilities: 0, opsSlack: 0 };
 
 const worth = (s: GameState) => s.corp.credits + knownIncome(s);
 
@@ -88,7 +89,9 @@ export function moneyPick(state: GameState, own?: GameAction | null): GameAction
   if (own && agendaStep(state, own)) return null;
   // M1c: an installed econ ability competes only for a click the Corp's own pick spends on a draw or a credit (rule
   // 5.2.6), and must net more than that pick does; an install, an advance, a score or a held line's step keeps its click
-  const abilities = tuning.plan.moneyAbility && (own?.type === 'DRAW_CARD' || own?.type === 'GAIN_CREDIT');
+  // A draw's click only while credits are short by the count (moneyShort): with credits to spare the card is the Corp's
+  // need (deals 1281 T14 and 2521 T11 in the first batch: the ability took draws that would have found an agenda)
+  const abilities = tuning.plan.moneyAbility && (own?.type === 'GAIN_CREDIT' || (own?.type === 'DRAW_CARD' && moneyShort(state)));
   const beat = abilities && own ? Math.max(0, worth(played(state, own) ?? state) - worth(state)) : 0;
   const ops = options(state, getLegalActions(state, 'corp'), abilities, beat);
   if (!ops.length) return null;
@@ -103,6 +106,9 @@ export function moneyPick(state: GameState, own?: GameAction | null): GameAction
   };
   const ranked = ops.map(o => ({ o, first: enables(o) })).sort((a, b) => Number(b.first) - Number(a.first) || b.o.net - a.o.net);
   if (ranked[0].o.action.type === 'USE_ABILITY') moneyStats.abilities++;
-  else moneyStats.ops++;
+  else {
+    moneyStats.ops++;
+    if (own?.type === 'DRAW_CARD' && !state.corp.hq.some(c => cardDef(c).type_code === 'agenda') && !moneyShort(state)) moneyStats.opsSlack++;
+  }
   return ranked[0].o.action;
 }

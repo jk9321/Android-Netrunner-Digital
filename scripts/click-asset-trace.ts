@@ -96,10 +96,12 @@ class Trace {
 }
 
 const out = (game: string, who: string, seed: number, end: GameState, t: Trace) =>
-  console.log(JSON.stringify({ game, who, seed, turns: end.turnNumber, winner: end.winner ?? null, abilities: moneyStats.abilities, copies: [...t.copies.values()] }));
+  console.log(JSON.stringify({ game, who, seed, turns: end.turnNumber, winner: end.winner ?? null, abilities: moneyStats.abilities, opsSlack: moneyStats.opsSlack, ops: moneyStats.ops, copies: [...t.copies.values()] }));
 const play = (s0: GameState) => {
   valueLoops.clear();
   moneyStats.abilities = 0;
+  moneyStats.opsSlack = 0;
+  moneyStats.ops = 0;
   const game = new GameRunner(s0, { corp: createAgent('corp', 'normal'), runner: createAgent('runner', 'normal') });
   const t = new Trace();
   for (let i = 0; i < 8000; i++) {
