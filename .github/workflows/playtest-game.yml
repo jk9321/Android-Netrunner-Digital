@@ -1,0 +1,56 @@
+# Saves a game submitted with the beta "Submit playtest game" button (an issue
+# labelled playtest-game, opened by the Worker) into tests/fixtures/human-games,
+# commits it to beta, comments with the path and closes the issue.
+# This file must be on main: GitHub runs issue-triggered workflows only from the
+# default branch. It checks out beta itself, so the script and fixtures come from there.
+name: Save playtest game
+
+on:
+  issues:
+    types: [opened]
+
+permissions:
+  contents: write
+  issues: write
+
+concurrency:
+  group: playtest-game
+  cancel-in-progress: false
+
+jobs:
+  save:
+    # Title prefix, not the label: the Worker drops the label if GitHub refuses it
+    if: startsWith(github.event.issue.title, '[Playtest game]')
+    runs-on: ubuntu-latest
+    env:
+      GH_TOKEN: ${{ github.token }}
+      NUMBER: ${{ github.event.issue.number }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: beta
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Decode the game
+        id: decode
+        run: |
+          gh api "repos/${{ github.repository }}/issues/$NUMBER/comments" --paginate > "$RUNNER_TEMP/comments.json"
+          if node scripts/playtest-issue-to-fixture.mjs "$NUMBER" "$RUNNER_TEMP/comments.json" > "$RUNNER_TEMP/path.txt" 2> "$RUNNER_TEMP/err.txt"; then
+            echo "path=$(cat "$RUNNER_TEMP/path.txt")" >> "$GITHUB_OUTPUT"
+          else
+            gh issue comment "$NUMBER" --body "Could not save this playtest game: $(cat "$RUNNER_TEMP/err.txt")"
+            exit 1
+          fi
+      - name: Commit to beta
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add "${{ steps.decode.outputs.path }}"
+          # Already saved by hand: nothing to commit, still comment and close
+          git diff --cached --quiet || git commit -m "Add playtest game from issue #$NUMBER"
+          for i in 1 2 3; do git pull --rebase origin beta && git push origin HEAD:beta && break; sleep 5; done
+      - name: Comment and close
+        run: |
+          gh issue comment "$NUMBER" --body "Saved to \`${{ steps.decode.outputs.path }}\` on beta (score it with \`npx vite-node scripts/human-agreement.ts\`)."
+          gh issue close "$NUMBER" --reason completed
