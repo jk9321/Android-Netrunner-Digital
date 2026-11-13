@@ -15,7 +15,7 @@ import { printBrokeAfterScoring } from './counted-broke-sum.mjs';
 const { files, base } = splitArgs(process.argv.slice(2));
 const games = readGames(files);
 if (process.env.DEALS_OUT) {
-  const deals = games.map(g => ({ seed: g.seed, corpDeck: g.corpDeck, runnerDeck: g.runnerDeck, winner: g.winner, ...(g.crashed ? { crashed: true } : {}), ...(g.oracleIceSkipped ? { oracleIceSkipped: true } : {}), ...(g.alarms?.length ? { alarms: g.alarms.map(a => ({ kind: a.kind })) } : {}), ...(g.money?.scoreAtTurnStart ? { cr: g.money.creditsAtTurnStart, sc: g.money.scoreAtTurnStart } : {}) }));
+  const deals = games.map(g => ({ seed: g.seed, corpDeck: g.corpDeck, runnerDeck: g.runnerDeck, winner: g.winner, ...(g.crashed ? { crashed: true } : {}), ...(g.oracleIceSkipped ? { oracleIceSkipped: true } : {}), ...(g.alarms?.length ? { alarms: g.alarms.map(a => ({ kind: a.kind })) } : {}), ...(g.money?.scoreAtTurnStart ? { cr: g.money.creditsAtTurnStart, sc: g.money.scoreAtTurnStart } : {}), ...(g.corpDiscards ? { dc: g.corpDiscards } : {}), ...(g.rescues ? { rs: g.rescues } : {}) }));
   writeFileSync(process.env.DEALS_OUT, JSON.stringify(deals) + '\n');
 }
 if (base.length) {

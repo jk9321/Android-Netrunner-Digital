@@ -91,6 +91,8 @@ export interface GameRecord {
   oracleIceSkipped?: boolean;
   corpDeck: string;
   runnerDeck: string;
+  /** Cards the Corp discarded to its maximum hand size (5.6.3a), by card type (ice discard bar, bars/ice-discard.md) */
+  corpDiscards?: Record<string, number>;
   winner: string;
   reason: string;
   turns: number;
@@ -282,6 +284,7 @@ export function playLogged(
   const dumpTurn = Number(process.env.DUMP_TURN ?? 0);
   const dumpSide = process.env.DUMP_SIDE ?? 'corp';
   const steals: Steal[] = [];
+  const corpDiscards: Record<string, number> = {};
   let idleAgendaTurns = 0;
   const board = { remotes: 0, icedRemotes: 0, remoteIce: 0, maxRemoteIce: 0, hqIce: 0, rdIce: 0 };
   let corpTurns = 0;
@@ -400,6 +403,15 @@ export function playLogged(
     if (!runner.step()) break;
     const after = runner.state;
     alarms.step(before, after, runner.last ?? undefined);
+    // The Corp's discard to hand size (5.6.3a): the chosen cards, by type
+    const last = runner.last;
+    if (last?.type === 'RESOLVE_PROMPT' && last.player === 'corp' && last.choice.kind === 'discard' && before.pendingPrompts[0]?.kind === 'discard') {
+      for (const id of last.choice.cardInstanceIds) {
+        const c = before.corp.hq.find(x => x.instanceId === id);
+        const t = c ? cardDef(c).type_code : 'other';
+        corpDiscards[t] = (corpDiscards[t] ?? 0) + 1;
+      }
+    }
     spendTracker.step(before, after, runner.last ?? undefined);
     openingTracker?.step(before, after, runner.last ?? undefined);
     for (const side of sides) {
@@ -593,6 +605,7 @@ export function playLogged(
   return {
     corpDeck: decks.corp,
     runnerDeck: decks.runner,
+    corpDiscards,
     winner: s.winner ?? 'draw',
     reason: reasonOf(s),
     turns: s.turnNumber,
