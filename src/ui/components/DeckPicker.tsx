@@ -658,7 +658,7 @@ export const DeckPicker: React.FC<DeckPickerProps> = ({
       </div>
 
       <div className="flex flex-col items-center mb-5">
-        <h1 className="font-cyber font-black tracking-wider text-2xl sm:text-4xl select-none" data-testid="app-title">
+        <h1 className="font-cyber font-black tracking-wider text-3xl sm:text-5xl select-none" data-testid="app-title">
           <span className="text-cyan-400">STACK</span>
           <span className="text-amber-400 mx-1.5 font-mono font-normal">//</span>
           <span className="text-pink-500">HEAP</span>
