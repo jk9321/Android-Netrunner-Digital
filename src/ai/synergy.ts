@@ -544,6 +544,8 @@ export const sideOff: Record<SideCode, string[]> = {
  * planWith naming one throws, so a batch written before the fold can't silently test nothing.
  */
 export const FOLDED: readonly string[] = [
+  // Ice discard arm A' (bars/ice-discard.md): a credit or draw click while a discard is certain saves an ice onto a central
+  'discardRescue', 'discardRescueUnder',
   'shortCentral',
   'bypassHold', 'assetReserve',
   'tagThreat', 'breakerFocus', 'saveUp', 'icePlacement', 'agendaStakes', 'lethalHq', 'readWriteFull',

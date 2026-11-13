@@ -6,8 +6,7 @@ import { withIceInstalled } from './iceValues';
 import { clickMoneyOf, dividendsOf, scoreCreditsOf, turnIncomeOf } from './cards';
 import { counters } from '../core/engine/cardEffects';
 import { profileOf } from './cardProfiles';
-import { agendasUnseen } from './rezModel';
-import { agendaOdds } from './effectValues';
+import { rdAgendaOdds } from './rezModel';
 import { pointGain } from './valueModel';
 
 /**
@@ -607,17 +606,6 @@ export function assetPartner(state: GameState, pick: GameAction): GameAction | n
   return move ?? null;
 }
 
-/** Central ice diagnostics: the top-level Corp's redirects, by caller and central (corpAI and search count them). */
-export const centralIceStats = { planner: 0, ranking: 0, search: 0, hq: 0, rd: 0 };
-/** The central the last centralIce call chose, for the counters (diagnostics: it changes no price). */
-export const centralIceWhy: { central?: 'hq' | 'rd' } = {};
-
-export function countCentralIce(caller: 'planner' | 'ranking' | 'search', taken: boolean) {
-  if (!taken || !centralIceWhy.central) return;
-  centralIceStats[caller]++;
-  centralIceStats[centralIceWhy.central]++;
-}
-
 /**
  * Central ice before remote ice (spec-central-ice.md variant (6), bars/central-ice-bare.md; Jeff 2026-11-13: "fix the
  * icing remotes while HQ and R&D were thin"; his #51 had R&D bare for turns 1-5 on 13-17 credits). When the Corp's own
@@ -625,12 +613,11 @@ export function countCentralIce(caller: 'planner' | 'ranking' | 'search', taken:
  * R&D has no ice at all, the ice goes to that central instead, when the Corp can still pay the ice's rez after the
  * install (none to pay on a central with no ice, 8.5.11a). Both bare: the one with more points at stake for one access
  * (HQ: its agendas' pointGain over the cards left in HQ, the Corp's own hand, 10.2.2a; R&D: the deck list's agendas not
- * yet seen, rezModel agendasUnseen, over R&D's cards, times the deck list's average agenda's pointGain, never R&D's
+ * yet seen over R&D's cards, times their average pointGain (rezModel rdAgendaOdds, the Corp's one R&D pool), never R&D's
  * order). At most once per central, as the central then has ice. A pure redirect (5.2.6: the same install action, one
  * click): no veto, no extra install. Null: no change.
  */
 export function centralIce(state: GameState, pick: GameAction): GameAction | null {
-  delete centralIceWhy.central;
   if (pick.type !== 'INSTALL_CARD' || !isCorpMain(state)) return null;
   const a = pick as GameAction & { cardInstanceId?: string; targetServerId?: string; asNewRemote?: boolean };
   const card = state.corp.hq.find(c => c.instanceId === a.cardInstanceId);
@@ -639,15 +626,63 @@ export function centralIce(state: GameState, pick: GameAction): GameAction | nul
   if (state.corp.credits < rezCostOf(state, card)) return null;
   const bare = (['hq', 'rd'] as const).filter(id => state.corp.servers[id].ice.length === 0);
   if (!bare.length) return null;
-  const score = state.runner.score;
-  const hand = state.corp.hq.filter(c => c.instanceId !== card.instanceId);
-  const unseen = agendasUnseen(state);
-  const stake = {
-    hq: hand.length ? hand.filter(isAgenda).reduce((n, c) => n + pointGain(score, cardDef(c).agenda_points ?? 0), 0) / hand.length : 0,
-    rd: state.corp.rd.length ? (Math.min(unseen, state.corp.rd.length) / state.corp.rd.length) * pointGain(score, agendaOdds(state).points) : 0,
-  };
+  const stake = centralStake(state, card.instanceId);
   const to = bare.sort((x, y) => stake[y] - stake[x])[0];
-  const move = legalShape(state, { type: 'INSTALL_CARD', cardInstanceId: card.instanceId, targetServerId: to });
-  if (move) centralIceWhy.central = to;
-  return move ?? null;
+  return legalShape(state, { type: 'INSTALL_CARD', cardInstanceId: card.instanceId, targetServerId: to }) ?? null;
+}
+
+/**
+ * The points at stake for one access to each central (centralIce's order): HQ, its agendas' pointGain over the cards left
+ * in HQ once `leaving` goes (the Corp's own hand, 10.2.2a); R&D, the deck list's agendas not yet seen (rezModel
+ * rdAgendaOdds: the Corp's one R&D pool) over R&D's cards, times their average pointGain, never R&D's order.
+ */
+function centralStake(state: GameState, leaving: string): { hq: number; rd: number } {
+  const score = state.runner.score;
+  const hand = state.corp.hq.filter(c => c.instanceId !== leaving);
+  const rd = rdAgendaOdds(state);
+  return {
+    hq: hand.length ? hand.filter(isAgenda).reduce((n, c) => n + pointGain(score, cardDef(c).agenda_points ?? 0), 0) / hand.length : 0,
+    rd: rd.odds * pointGain(score, rd.points),
+  };
+}
+
+/**
+ * Discard rescue (spec ice-discard arm A, bars/ice-discard.md; M1: 26 credit and draw clicks, 0.46 a game, while an ice
+ * later went to the discard pile). When the Corp's own pick is a click for a credit or a draw (5.2.6a, 5.2.6b) and by the
+ * count a card must be discarded at the end of the turn anyway (4.3.6, 5.5.3, 5.6.3a: more cards in HQ than its maximum
+ * hand size, even if each click after this one played a card from HQ), and an ice in HQ can be installed now on a central
+ * that does not hold (holdCost with what the Corp ends the turn on), paying its install cost (8.5.11a: 1 credit per ice
+ * already protecting it) and keeping afterLineFloor when it is at or above it, the click installs that ice there instead. The ice: the one the
+ * discard would throw away (`keep`, the discard answer's order), else the cheapest to rez. The central: centralIce's
+ * stake order. The callers skip a click a counted line holds (scoreNow, a held two-turn line, moneyPick's operation).
+ * A pure redirect of one click: no veto. Null: no change.
+ */
+export function discardRescue(state: GameState, pick: GameAction, keep: (card: CardInstance) => number): GameAction | null {
+  if (!isCorpMain(state) || state.corp.clicks <= 0) return null;
+  if (pick.type !== 'GAIN_CREDIT' && pick.type !== 'DRAW_CARD') return null;
+  const after = state.corp.clicks - 1;
+  const ends = state.corp.hq.length + (pick.type === 'DRAW_CARD' ? 1 : 0) - after;
+  const excess = ends - state.corp.handSizeLimit;
+  if (excess <= 0) return null;
+  const ice = state.corp.hq.filter(c => typeOf(c) === 'ice');
+  if (!ice.length) return null;
+  const end = state.corp.credits + after;
+  const floor = afterLineFloor(state, '');
+  const open = (['hq', 'rd'] as const).filter(id => {
+    const v = state.corp.servers[id];
+    // The floor is kept when the Corp is at or above it; one already under it may still save the ice when the install is
+    // affordable (arm A', Jeff's #48 #93: 1 credit against a floor of 4, and facedown ice deters a breakerless Runner, #52)
+    const pays = state.corp.credits >= floor ? state.corp.credits - v.ice.length >= floor : state.corp.credits >= v.ice.length;
+    return pays && holdCost(state, v.ice, end) === null;
+  });
+  if (!open.length) return null;
+  // The discard answer's order (prompts.ts): the lowest-kept cards go; an ice among the `excess` lowest is the one saved
+  const thrown = [...state.corp.hq].sort((a, b) => keep(a) - keep(b)).slice(0, excess).filter(c => typeOf(c) === 'ice');
+  const card = thrown[0] ?? [...ice].sort((a, b) => rezCostOf(state, a) - rezCostOf(state, b))[0];
+  const stake = centralStake(state, card.instanceId);
+  for (const to of open.sort((x, y) => stake[y] - stake[x])) {
+    const move = legalShape(state, { type: 'INSTALL_CARD', cardInstanceId: card.instanceId, targetServerId: to });
+    if (move) return move;
+  }
+  return null;
 }

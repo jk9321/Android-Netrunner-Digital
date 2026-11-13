@@ -12,7 +12,8 @@ import { decisionContext } from './handValues';
 import { knownRdSlots } from './runnerReply';
 import { corpKnowsRd, corpSeenGrip } from './oracle';
 // Loaded by corpAI already (its last import), so the AI modules' load order is unchanged
-import { HeldLine, assetPartner, centralIce, countCentralIce, heldLaterStep, iceRedirect, scoreInTwoPick } from './countedScore';
+import { keep } from './prompts';
+import { HeldLine, assetPartner, centralIce, discardRescue, heldLaterStep, iceRedirect, scoreInTwoPick } from './countedScore';
 import { moneyPick } from './incomeLine';
 
 /**
@@ -202,8 +203,10 @@ export class SearchAI implements Agent {
       // holds, nothing while a two-turn line is held (as Normal's, corpAI decide)
       const held = this.heldLine && this.heldLine.game === state.id;
       const central = two.action === action && !held ? centralIce(state, action) : null; // central ice first, as corpAI decide
-      if (two.action === action && !held) countCentralIce('search', !!central);
-      const redirect = two.action === action && !held ? (central ?? iceRedirect(state, action) ?? assetPartner(state, action)) : null;
+      const placed = two.action === action && !held ? (central ?? iceRedirect(state, action) ?? assetPartner(state, action)) : null;
+      // Discard rescue (countedScore.ts discardRescue), as corpAI decide
+      const rescue = two.action === action && !held && !placed ? discardRescue(state, action, c => keep(state, c, true)) : null;
+      const redirect = placed ?? rescue;
       if (redirect) this.base.notePlayed(redirect);
       return redirect ?? two.action;
     });

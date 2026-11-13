@@ -4,7 +4,7 @@
  * how advanced the agenda was). Used by ai-match.ts and corp-losses.ts;
  * loss-summary.mjs prints the breakdown.
  */
-import { GameState } from '../src/core';
+import { GameAction, GameState } from '../src/core';
 import { cardDef } from '../src/core/cards';
 import { rezCost } from '../src/core/engine/cardEffects';
 import { CardInstance } from '../src/core';
@@ -19,6 +19,10 @@ import { SpendRecord, SpendTracker } from './spend-audit';
 import { OpeningRecord, OpeningTracker } from './opening-audit';
 import { plannerStats } from '../src/ai/turnPlanner';
 import { SearchTuple, searchTuple } from './search-audit';
+import { discardRescue, isCorpMain } from '../src/ai/countedScore';
+import { keep } from '../src/ai/prompts';
+import { asSide } from '../src/ai/pricing';
+import { decisionContext } from '../src/ai/handValues';
 
 export interface Steal {
   turn: number;
@@ -93,6 +97,8 @@ export interface GameRecord {
   runnerDeck: string;
   /** Cards the Corp discarded to its maximum hand size (5.6.3a), by card type (ice discard bar, bars/ice-discard.md) */
   corpDiscards?: Record<string, number>;
+  /** Discard rescues (countedScore.ts discardRescue, found by calling it on the state before the Corp's ice install) and what became of each ice: rezzed in the game, still unrezzed at the end, or gone */
+  rescues?: { rezzed: number; unrezzed: number; gone: number };
   winner: string;
   reason: string;
   turns: number;
@@ -285,6 +291,7 @@ export function playLogged(
   const dumpSide = process.env.DUMP_SIDE ?? 'corp';
   const steals: Steal[] = [];
   const corpDiscards: Record<string, number> = {};
+  const rescued = new Map<string, boolean>();
   let idleAgendaTurns = 0;
   const board = { remotes: 0, icedRemotes: 0, remoteIce: 0, maxRemoteIce: 0, hqIce: 0, rdIce: 0 };
   let corpTurns = 0;
@@ -405,6 +412,11 @@ export function playLogged(
     alarms.step(before, after, runner.last ?? undefined);
     // The Corp's discard to hand size (5.6.3a): the chosen cards, by type
     const last = runner.last;
+    if (last?.type === 'INSTALL_CARD' && last.player === 'corp' && (last.targetServerId === 'hq' || last.targetServerId === 'rd') && isCorpMain(before)) {
+      const same = (type: 'GAIN_CREDIT' | 'DRAW_CARD') => asSide('corp', () => (decisionContext(before, 'corp'), discardRescue(before, { type, player: 'corp' } as GameAction, c => keep(before, c, true)))) as { cardInstanceId?: string; targetServerId?: string } | null;
+      if ([same('GAIN_CREDIT'), same('DRAW_CARD')].some(r => r?.cardInstanceId === last.cardInstanceId && r?.targetServerId === last.targetServerId)) rescued.set(last.cardInstanceId, false);
+    }
+    for (const id of rescued.keys()) if (!rescued.get(id) && [after.corp.servers.hq, after.corp.servers.rd].some(v => v.ice.some(c => c.instanceId === id && c.isRezzed))) rescued.set(id, true);
     if (last?.type === 'RESOLVE_PROMPT' && last.player === 'corp' && last.choice.kind === 'discard' && before.pendingPrompts[0]?.kind === 'discard') {
       for (const id of last.choice.cardInstanceIds) {
         const c = before.corp.hq.find(x => x.instanceId === id);
@@ -606,6 +618,7 @@ export function playLogged(
     corpDeck: decks.corp,
     runnerDeck: decks.runner,
     corpDiscards,
+    ...(rescued.size ? { rescues: [...rescued].reduce((m, [id, rez]) => (rez ? m.rezzed++ : [s.corp.servers.hq, s.corp.servers.rd].some(v => v.ice.some(c => c.instanceId === id)) ? m.unrezzed++ : m.gone++, m), { rezzed: 0, unrezzed: 0, gone: 0 }) } : {}),
     winner: s.winner ?? 'draw',
     reason: reasonOf(s),
     turns: s.turnNumber,
