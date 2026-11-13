@@ -42,6 +42,7 @@ describe('Bling-hosted program with full memory', () => {
     const html = renderAs(s, 'runner', seat => <RunnerActions state={seat.state} selectedCard={undefined} onAction={() => {}} />);
     // The seat names cards by the Runner's own ids (core/view.ts)
     expect(html).toMatch(/data-testid="hosted-room-r\d+"/);
-    expect(html).toContain('Install hosted Gourmand, trashing programs first');
+    expect(html).toContain('Install hosted Gourmand');
+    expect(html).toContain('free MU');
   });
 });
