@@ -6,7 +6,7 @@ import { rezCost } from '../core/engine/cardEffects';
 import { iceStop } from './iceValues';
 import { runLoss } from './corpAI';
 import { deckCount } from './effectValues';
-import { archivesPayoffOf } from './cards';
+import { archivesPayoffOf, rezEffectOf } from './cards';
 
 /**
  * plan.modelRez (structural review item 2, Jeff approved 2026-11-06): what rezzing the approached ice in a run is
@@ -169,7 +169,7 @@ export function countedRez(state: GameState, ice: CardInstance): 'rez' | 'pass' 
   // The declared run bypasses this ice once rezzed (runBypassed), so its subroutines never resolve
   // (6.5.8a-b) and the rez buys nothing on this run; it can still be rezzed on a later run's approach (6.9.2b). Ice with
   // its own rez effect (Ping's tag) goes to modelRez, which prices the rez with the ice passed
-  if (runBypassed(view, up)) return /when you rez this/i.test(cardDef(ice).stripped_text ?? '') ? null : 'pass';
+  if (runBypassed(view, up)) return rezEffectOf(cardDef(ice).code) ? null : 'pass';
   const need = iceCreditNeed(view, up);
   if (need === 0) return null;
   const ahead = server.ice.slice(0, run.icePosition).filter(c => c.isRezzed).reduce((n, c) => n + iceCreditNeed(view, c), 0);

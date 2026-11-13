@@ -12,7 +12,8 @@
 import { spawn } from 'node:child_process';
 
 const SLOW_TESTS = [
-  'tests/ai.test.ts',
+  'tests/ai.test.ts', // main
+  'tests/aiGames.part*.test.ts', // beta: the AI games, split in four
   'tests/brokeCorp.test.ts',
   'tests/lethalHq.test.ts',
   'tests/savedGame.test.ts',

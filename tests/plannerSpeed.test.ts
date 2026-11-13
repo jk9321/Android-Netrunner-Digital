@@ -4,7 +4,7 @@
  * Rules (Comprehensive Rules v26.03): 1.17.3a the Corp may score an installed agenda with advancement counters equal to or
  * greater than its advancement requirement; 5.2.6f it may advance a card in its action phase.
  *
- * Position (tests/fixtures/planner-speed-t17.json): Discretion Advised vs Party Hard (tests/ai.test.ts), turn 17, the
+ * Position (tests/fixtures/planner-speed-t17.json): Discretion Advised vs Party Hard (tests/aiGames.ts), turn 17, the
  * Corp with 3 clicks and 1 credit, Luminal Transubstantiation (2 advancement counters) on remote-2 behind rezzed Ansel 1.0
  * and Pharos. Advancing it scores it this turn, which scoreNow finds; the planner took 60 s here to pick the same advance.
  */

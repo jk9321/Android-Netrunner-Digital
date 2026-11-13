@@ -64,8 +64,10 @@ export const scoreCreditsOf = (code: string): number => CARDS[code]?.scoreCredit
 export const clickMoneyOf = (code: string): CardAI['clickMoney'] => CARDS[code]?.clickMoney;
 /** Dividends N (CardAI dividends), 0 for a card without it. */
 export const dividendsOf = (code: string): number => CARDS[code]?.dividends ?? 0;
-/** An operation with no bonus of its own in the Corp's operation ranking (CardAI setup; counted scoring plays its finish). */
+/** A trap whose advancement counters are its effect (CardAI advancePayload; effectValues knownTrap readers). */
 export const advancePayloadOf = (code: string): boolean => !!CARDS[code]?.advancePayload;
-
+/** Ice with an effect of its own when it is rezzed (CardAI rezEffect; rezModel countedRez). */
+export const rezEffectOf = (code: string): boolean => !!CARDS[code]?.rezEffect;
+/** An operation with no bonus of its own in the Corp's operation ranking (CardAI setup; counted scoring plays its finish). */
 export const setupOperation = (code: string): boolean => !!CARDS[code]?.setup;
 export const runnerFormula = (state: GameState, code: string, card?: CardInstance): number | undefined => CARDS[code]?.runner?.(state, code, card);

@@ -227,7 +227,7 @@ export const LIBERATION: Record<string, CardAI> = {
     },
   },
   // Ablative Barrier
-  '34034': { synergy: { gives: { ice: 1, install: 0.5 }, when: ['threat'] } },
+  '34034': { synergy: { gives: { ice: 1, install: 0.5 }, when: ['threat'] }, rezEffect: true },
   // Jaguarundi
   '34035': { synergy: { gives: { ice: 1, tags: 1, damage: 1 }, wants: { tags: 0.5 }, when: ['ifTagged', 'threat'] } },
   // M.I.C.
@@ -618,7 +618,7 @@ export const LIBERATION: Record<string, CardAI> = {
     counters: { power: () => 3 - CLICK }, // 3 credits for a click
   },
   // Lycian Multi-Munition
-  '34100': { synergy: { gives: { ice: 1 } } },
+  '34100': { synergy: { gives: { ice: 1 } }, rezEffect: true },
   // Sorocaban Blade
   '34101': { synergy: { gives: { ice: 1 } } },
   // Active Policing
@@ -724,7 +724,7 @@ export const LIBERATION: Record<string, CardAI> = {
   // Hammer
   '34126': { synergy: { gives: { ice: 1, tags: 0.5 } } },
   // Logjam
-  '34127': { synergy: { gives: { ice: 1, econ: 0.5 }, wants: { advance: 1, discard: 0.5 } } },
+  '34127': { synergy: { gives: { ice: 1, econ: 0.5 }, wants: { advance: 1, discard: 0.5 } }, rezEffect: true },
   // Business As Usual
   '34128': { synergy: { gives: { advance: 1 }, when: ['threat'] } },
   // Isaac Liberdade
