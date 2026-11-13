@@ -12,7 +12,7 @@ import { describe, expect, it } from 'vitest';
 import { GameAction, GameState, cardDef, createInitialGameState, executeAction } from '../src/core';
 import { deckGameSetup } from '../src/data/decks';
 import { createAgent } from '../src/ai';
-import { agendasUnseen, countedRez, matchPoint, rdAgendaOdds, reachablePoints } from '../src/ai/rezModel';
+import { agendasUnseen, countedRez, matchPoint, matchPointRez, rdAgendaOdds, reachablePoints } from '../src/ai/rezModel';
 import { asSide } from '../src/ai/pricing';
 import { decisionContext } from '../src/ai/handValues';
 
@@ -42,10 +42,20 @@ describe('rez at match point (game #51)', () => {
     expect(after.corp.servers.rd.ice[1].isRezzed).toBe(true);
   });
 
-  it('#219: Paywall alone only tolls, and with it rezzed N-Pot is out of reach, so no opinion', () => {
+  // Review round 2 (R4): Paywall (rez 1) only tolls, and rezzed it leaves 3 of the 4 credits the N-Pot inside needs.
+  // The same count that rezzes N-Pot at #222 answers pass here. On 96593be countedRez had no opinion and chooseRez
+  // already passed (modelRez), so this pins the answer rather than a live hole.
+  it('#219: Paywall only tolls and would leave N-Pot out of reach, so the Corp passes', () => {
     const s = at(219);
-    expect(cardDef(approached(s)).title).toBe('Paywall');
-    expect(matchPoint(s, approached(s))).toBe(false);
+    const ice = approached(s);
+    expect(cardDef(ice).title).toBe('Paywall');
+    expect(s.corp.credits).toBe(4);
+    expect(matchPoint(s, ice)).toBe(false);
+    expect(countedRez(s, ice)).toBe('pass');
+    expect(createAgent('corp', 'normal').chooseRez!(s, [ice])).toBeNull();
+    // With 5 credits Paywall leaves the 4 for N-Pot: no match-point opinion, the other rules decide
+    const rich = { ...s, corp: { ...s.corp, credits: 5 } };
+    expect(matchPointRez(rich, ice)).toBeNull();
   });
 
   it('no opinion off match point, or when the Runner can pay through', () => {

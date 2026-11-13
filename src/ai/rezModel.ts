@@ -163,8 +163,10 @@ export function countedRez(state: GameState, ice: CardInstance): 'rez' | 'pass' 
   if (!run || run.icePosition === null) return null;
   const server = state.corp.servers[run.server];
   if (!server) return null;
-  // Match point (spec-match-point-rez.md E1): a rez that stops a game-winning run is made, ahead of every other rule
-  if (matchPoint(state, ice)) return 'rez';
+  // Match point (spec-match-point-rez.md E1): a rez that stops a game-winning run is made, and a rez that would leave
+  // the Corp short of the inner ice that stops it is not, ahead of every other rule
+  const atMatch = matchPointRez(state, ice);
+  if (atMatch) return atMatch;
   // R5: Archives ice with no agenda there and no Runner Archives card is not rezzed
   if (run.server === 'archives' && !archivesWantsIce(state)) return 'pass';
   const up = { ...ice, isRezzed: true };
@@ -201,14 +203,29 @@ const WIN = 7;
  * the rezzed ice further in, and some set of the unrezzed ice further in that the Corp can still afford after this rez
  * (it gets each of their windows: 6.4.3, 6.9.2b), the Runner's credits now can't pay through (iceCreditNeed, as
  * countedRez's stop test). Then the rez is made: the other side of it is a chance the game ends now. A rez that only
- * tolls is no opinion here.
+ * tolls is not a match-point rez (matchPointRez says when it is a pass).
  */
 export function matchPoint(state: GameState, ice: CardInstance): boolean {
+  return matchPointRez(state, ice) === 'rez';
+}
+
+/**
+ * The match-point answer at this window. 'rez': rezzing this ice stops the run, and no set without it stops for less
+ * (rezStops). 'pass': rezzing it doesn't stop the run, but some affordable set of the ice further in does, and paying
+ * for this rez would leave the Corp short of that set (game #51 #219: Paywall for 1 of 4 credits, N-Pot needs 4).
+ * null: off match point, or neither (a toll that keeps the inner stop affordable is left to the other rules).
+ */
+export function matchPointRez(state: GameState, ice: CardInstance): 'rez' | 'pass' | null {
   const run = state.activeRun;
   const server = run ? state.corp.servers[run.server] : undefined;
-  if (!run || !server || run.icePosition === null) return false;
+  if (!run || !server || run.icePosition === null) return null;
   const need = WIN - state.runner.score;
-  return need > 0 && reachablePoints(state) >= need && rezStops(state, ice);
+  if (need <= 0 || reachablePoints(state) < need) return null;
+  const withIt = stopCost(state, ice, true);
+  const without = stopCost(state, null, true);
+  if (withIt !== Infinity) return without < withIt ? null : 'rez';
+  if (without !== Infinity && state.corp.credits - rezCost(state, ice) < without) return 'pass';
+  return null;
 }
 
 /**
