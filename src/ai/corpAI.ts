@@ -1344,8 +1344,9 @@ export function runLoss(state: GameState): number {
     const agendas = state.corp.hq.filter(c => type(c) === 'agenda');
     loss += (Math.min(accesses, state.corp.hq.length) / state.corp.hq.length) * agendas.reduce((n, c) => n + steal(c), 0);
   } else if (server.id === 'rd') {
-    // plan.rdOwnOdds (spec-match-point-rez.md E2): R&D's odds by the Corp's own list (R4's pool), not the deck-wide pool
-    const { odds, points } = plan().rdOwnOdds ? rdAgendaOdds(state) : agendaOdds(state);
+    // R&D's odds by the Corp's own list (rezModel rdAgendaOdds, R4's pool; spec-match-point-rez.md E2), not the deck-wide
+    // pool the Runner prices from (agendaOdds: it can't see HQ)
+    const { odds, points } = rdAgendaOdds(state);
     loss += Math.min(accesses, state.corp.rd.length) * odds * pointGain(state.runner.score, points);
   } else if (server.id === 'archives') {
     loss += state.corp.archives.faceDown.filter(c => type(c) === 'agenda').reduce((n, c) => n + steal(c), 0);

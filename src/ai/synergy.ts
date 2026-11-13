@@ -161,17 +161,6 @@ export const tuning = {
      */
     modelRez: true,
     /**
-     * Corp (spec-match-point-rez.md E1, temporary until hand-off): at match point (the Runner needs p more points to win,
-     * rules 1.7.2a) on a run whose server can give it p points, ice whose rez stops the run by the count is rezzed
-     * (rezModel.ts matchPoint), ahead of R2-R5 and modelRez.
-     */
-    matchPointRez: true,
-    /**
-     * Corp (spec-match-point-rez.md E2, temporary until hand-off): runLoss prices an R&D access by the Corp's own list of
-     * what R&D still holds (rezModel.ts rdAgendaOdds, R4's pool), not by the deck-wide unseen pool.
-     */
-    rdOwnOdds: true,
-    /**
      * Both sides' pricing (structural review items 1-2, 2026-11-06): unrezzed ice counts as rezzable from one pool of
      * the Corp's credits, not each against the same credits (iceValues rezBudget). A measuring switch, not a knob.
      */
@@ -580,6 +569,10 @@ export const FOLDED: readonly string[] = [
   // Asset cover (2026-11-12, bars/asset-cover-x.md, run 43331672692: -0.3 ± 1.6 vs 43264551835): the scoring remote is never an
   // asset root (3.3.1), an econ asset goes behind the cheapest ice in HQ, any asset or upgrade goes to a waiting iced remote
   'scoringNoAsset', 'assetCover', 'assetPartner',
+  // Match point rez (2026-11-13, spec-match-point-rez.md, bars/match-point-rez.md, g10 +0.1 ± 0.3 run 43468233993 vs
+  // 43468203978): a rez that stops a game-winning run is made (rezModel matchPoint), and the Corp's R&D odds are its own
+  // list's (rezModel rdAgendaOdds, R4's pool)
+  'matchPointRez', 'rdOwnOdds',
 ];
 
 /** Throws on a name that isn't a plan switch (a typo, or a switch folded into the code). */

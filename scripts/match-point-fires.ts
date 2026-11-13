@@ -1,18 +1,19 @@
 /**
  * Fire counts for spec-match-point-rez.md (bar redesign/bars/match-point-rez.md). The Normal Corp against the Normal
- * Runner on the given deals (mapped as scripts/corp-losses.ts), PLAN_OFF as given; or Jeff's games replayed move by move
- * (REPORTS=48,49,50,51). At every Corp rez window (the agent's chooseRez) the decision is also taken with each arm's
- * switch flipped, so one run reports both arms' fires:
- *   e1: windows where plan.matchPointRez decides (matchPoint), whether the Corp rezzes without it, and the band of the
- *       chance a card that wins the game is among the cards accessed (R&D: by the Corp's list; HQ, remotes, Archives: known);
- *   e2: windows where plan.rdOwnOdds changes the decision, by phase (approach_ice: ice; approach_server: LEO/upgrades;
- *       runLoss has no other caller);
- *   gap (no build): HQ/R&D approach-ice windows off match point where the Corp passed on an affordable ice whose rez stops
- *       the run (rezStops), and the Runner then stole an agenda in that run.
+ * Runner on the given deals (mapped as scripts/corp-losses.ts); or Jeff's games replayed move by move
+ * (REPORTS=48,49,50,51). At every Corp rez window (the agent's chooseRez):
+ *   e1: windows where the match-point rule decides (rezModel matchPoint), whether the Corp rezzed, by server and by the
+ *       band of the chance a card that wins the game is among the cards accessed (R&D: by the Corp's list; else known);
+ *       each one is printed to stderr;
+ *   r4Skip (count only): R&D windows with an agenda in HQ, off match point, with what R4 would answer without its HQ
+ *       condition, whether the rez stops the run (rezStops), and the points stolen in that run;
+ *   gap (count only): HQ/R&D approach-ice windows off match point where the Corp passed on an affordable ice whose rez
+ *       stops the run, and whether the Runner then stole an agenda in that run.
  * Also per game: match-point windows the Corp passed where the Runner then won in that run (lost at match point), and
- * after a match-point rez the Corp's credits and whether the game went on. One JSON line per game.
+ * after a match-point rez the Corp's credits and whether the game went on. One JSON line per game. Replayed games list
+ * the match-point windows where the recorded move was not the rez.
  *
- *   SEEDS=1001,1041 [PLAN_OFF=+matchPointRez] npx vite-node scripts/match-point-fires.ts > fires.jsonl
+ *   SEEDS=1001,1041 [SHARD=0/4] npx vite-node scripts/match-point-fires.ts > fires.jsonl
  *   REPORTS=48,49,50,51 npx vite-node scripts/match-point-fires.ts
  */
 import { readFileSync } from 'node:fs';
@@ -22,23 +23,13 @@ import { ALL_DECKS } from './nsg-sample-decks';
 import { createAgent } from '../src/ai';
 import { GameRunner } from '../src/ai/playout';
 import { sideCards, valueLoops } from '../src/ai/valueModel';
-import { applyPlanOff, tuning } from '../src/ai/synergy';
+import { applyPlanOff } from '../src/ai/synergy';
 import { asSide } from '../src/ai/pricing';
 import { agendasUnseen, matchPoint, rezStops } from '../src/ai/rezModel';
 
 applyPlanOff(process.env.PLAN_OFF ?? '');
 
 type Agent = ReturnType<typeof createAgent>;
-const flip = <T>(key: 'matchPointRez' | 'rdOwnOdds', work: () => T): T => {
-  const keep = tuning.plan;
-  tuning.plan = { ...keep, [key]: !keep[key] };
-  try {
-    return work();
-  } finally {
-    tuning.plan = keep;
-  }
-};
-const key = (a: GameAction | null) => JSON.stringify(a);
 const isAgenda = (c: CardInstance) => cardDef(c).type_code === 'agenda';
 
 /** The chance a game-winning agenda is among the cards this run accesses, by what the Corp knows (R&D: its list). */
@@ -59,27 +50,24 @@ const band = (p: number) => (p < 0.1 ? 'under10' : p <= 0.2 ? '10to20' : 'over20
 
 interface Count {
   e1: number;
-  e1Changed: number;
+  e1Rezzed: number;
   e1Bands: Record<string, number>;
   e1Servers: Record<string, number>;
-  e2: Record<string, number>;
   gapWindows: number;
   gapStolen: number;
   lostAtMatch: number;
   afterRez: { credits: number; gameWent: boolean }[];
   r4Skip: { turn: number; ice: string; r4: string; stops: boolean; rezzed: boolean; corpCredits: number; runnerCredits: number; runnerScore: number; unseen: number; rd: number; stole?: number }[];
 }
-const fresh = (): Count => ({ e1: 0, e1Changed: 0, e1Bands: {}, e1Servers: {}, e2: {}, gapWindows: 0, gapStolen: 0, lostAtMatch: 0, afterRez: [], r4Skip: [] });
+const fresh = (): Count => ({ e1: 0, e1Rezzed: 0, e1Bands: {}, e1Servers: {}, gapWindows: 0, gapStolen: 0, lostAtMatch: 0, afterRez: [], r4Skip: [] });
 
-/** Wraps the Corp's chooseRez: the decision as played, with each switch flipped beside it. */
+/** Wraps the Corp's chooseRez: the decision as played, and what the match-point rule and R4 read at each window. */
 function watch(corp: Agent, c: Count, pending: { gap?: string; match?: boolean; rezTurn?: number; r4?: number }) {
   const choose = corp.chooseRez!.bind(corp);
   corp.chooseRez = (s: GameState, cards: CardInstance[]) => {
     const played = choose(s, cards);
     const run = s.activeRun;
     if (!run) return played;
-    const e2 = flip('rdOwnOdds', () => choose(s, cards));
-    if (key(e2) !== key(played)) c.e2[run.phase] = (c.e2[run.phase] ?? 0) + 1;
     if (run.phase !== 'approach_ice' || run.icePosition === null) return played;
     const ice = s.corp.servers[run.server]?.ice[run.icePosition];
     if (!ice || ice.isRezzed || !isLegalAction(s, { type: 'REZ_CARD', player: 'corp', cardInstanceId: ice.instanceId })) return played;
@@ -95,14 +83,12 @@ function watch(corp: Agent, c: Count, pending: { gap?: string; match?: boolean; 
       pending.r4 = c.r4Skip.length - 1;
     }
     if (mp) {
-      const on = tuning.plan.matchPointRez ? played : flip('matchPointRez', () => choose(s, cards));
-      const off = tuning.plan.matchPointRez ? flip('matchPointRez', () => choose(s, cards)) : played;
       c.e1++;
       c.e1Servers[s.corp.servers[run.server].isRemote ? 'remote' : run.server] = (c.e1Servers[s.corp.servers[run.server].isRemote ? 'remote' : run.server] ?? 0) + 1;
       const b = band(winOdds(s));
       c.e1Bands[b] = (c.e1Bands[b] ?? 0) + 1;
-      if (rezzes(on) && !rezzes(off)) {
-        c.e1Changed++;
+      if (rezzes(played)) {
+        c.e1Rezzed++;
         console.error(`fire T${s.turnNumber} ${cardDef(ice).title} on ${run.server} pos ${run.icePosition}: Corp ${s.corp.credits} cr, rez ${cardDef(ice).cost}; Runner ${s.runner.score} pts ${s.runner.credits} cr, odds ${winOdds(s).toFixed(2)}`);
       }
       if (!rezzes(played)) pending.match = true;
@@ -161,11 +147,10 @@ if (reports.length) {
       if (run && m.player === 'corp' && run.phase === 'approach_ice' && run.icePosition !== null) {
         const ice = s.corp.servers[run.server]?.ice[run.icePosition];
         if (ice && !ice.isRezzed) {
-          const before = c.e1Changed + Object.values(c.e2).reduce((a, b) => a + b, 0);
+          const mp = asSide('corp', () => matchPoint(s, ice));
           const pick = corp.chooseRez!(s, [ice]);
-          const now = c.e1Changed + Object.values(c.e2).reduce((a, b) => a + b, 0);
-          if (m.type !== 'REZ_CARD' && asSide('corp', () => matchPoint(s, ice))) pending.match = true;
-          if (now > before) fires.push(`#${i} T${s.turnNumber} ${cardDef(ice).title} on ${run.server}: played ${m.type}, arm ${pick?.type ?? 'pass'}`);
+          if (m.type !== 'REZ_CARD' && mp) pending.match = true;
+          if (mp && m.type !== 'REZ_CARD') fires.push(`#${i} T${s.turnNumber} ${cardDef(ice).title} on ${run.server}: played ${m.type}, arm ${pick?.type ?? 'pass'}`);
         }
       }
       const n = executeAction(s, m);

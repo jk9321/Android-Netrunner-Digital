@@ -8,7 +8,6 @@ import { runLoss } from './corpAI';
 import { deckCount } from './effectValues';
 import { sideCards } from './valueModel';
 import { archivesPayoffOf } from './cards';
-import { plan } from './pricing';
 
 /**
  * plan.modelRez (structural review item 2, Jeff approved 2026-11-06): what rezzing the approached ice in a run is
@@ -153,7 +152,7 @@ export function countedRez(state: GameState, ice: CardInstance): 'rez' | 'pass' 
   const server = state.corp.servers[run.server];
   if (!server) return null;
   // Match point (spec-match-point-rez.md E1): a rez that stops a game-winning run is made, ahead of every other rule
-  if (plan().matchPointRez && matchPoint(state, ice)) return 'rez';
+  if (matchPoint(state, ice)) return 'rez';
   // R5: Archives ice with no agenda there and no Runner Archives card is not rezzed
   if (run.server === 'archives' && !archivesWantsIce(state)) return 'pass';
   const up = { ...ice, isRezzed: true };
@@ -161,10 +160,10 @@ export function countedRez(state: GameState, ice: CardInstance): 'rez' | 'pass' 
   const need = iceCreditNeed(view, up);
   if (need === 0) return null;
   const ahead = server.ice.slice(0, run.icePosition).filter(c => c.isRezzed).reduce((n, c) => n + iceCreditNeed(view, c), 0);
-  const credits = state.runner.credits;
   // The ice ahead stops the Runner already: this rez adds nothing the run needs
-  if (ahead === BLOCK || ahead > credits) return null;
-  const stops = need === BLOCK || need + ahead > credits;
+  if (ahead === BLOCK || ahead > state.runner.credits) return null;
+  // The one stop count (rezStops), here with no further rezzes: this ice and the rezzed ice further in
+  const stops = rezStops(state, ice, false);
   const isAgenda = (c: CardInstance) => cardDef(c).type_code === 'agenda';
   const isStopper = stops && server.root.some(isAgenda);
   // R2: the rez stops a steal from the root on this run
@@ -200,14 +199,14 @@ export function matchPoint(state: GameState, ice: CardInstance): boolean {
  * Rezzing this approached ice stops the run by the count: with it rezzed, the rezzed ice further in, and some set of the
  * unrezzed ice further in that the Corp can still afford after this rez, the Runner's credits now can't pay through.
  */
-export function rezStops(state: GameState, ice: CardInstance): boolean {
+export function rezStops(state: GameState, ice: CardInstance, further = true): boolean {
   const run = state.activeRun;
   const server = run ? state.corp.servers[run.server] : undefined;
   if (!run || !server || run.icePosition === null) return false;
   const left = state.corp.credits - rezCost(state, ice);
   if (left < 0) return false;
   const inner = server.ice.slice(0, run.icePosition);
-  const open = inner.filter(c => !c.isRezzed).slice(0, 10);
+  const open = further ? inner.filter(c => !c.isRezzed).slice(0, 10) : [];
   for (let mask = 0; mask < 1 << open.length; mask++) {
     const extra = open.filter((_, i) => mask & (1 << i));
     if (extra.reduce((n, c) => n + rezCost(state, c), 0) > left) continue;
