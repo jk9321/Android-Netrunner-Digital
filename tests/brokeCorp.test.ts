@@ -57,9 +57,9 @@ describe('a Corp with no credits (Jeff’s bug report, plan.agendaCredits)', () 
     // never saw it), where Spin Doctor shuffles it back into R&D, and a bare agenda is the Runner's points next turn
     expect(bareAgendas(playTurn(turn17()))).toBeLessThanOrEqual(2);
     expect(bareAgendas(playTurn(turn17(), createAgent('corp', 'hard', { samples: 6, seed: 1 })))).toBeLessThanOrEqual(2);
-  // 480 s: the exact threat cache key (beta e11ed48) made the planner slower; CI took 171 s on one runner and timed out at 240 s on
-  // the next (run 43109376334). Bring it back down when the planner time work lands.
-  }, 480_000);
+  // 410 s: twice the slowest of the last five beta CI runs (205 s, run 43507030194; 144-205 s in runs 43504371759 to
+  // 43510792338, audit Step 0d)
+  }, 410_000);
 
 });
 

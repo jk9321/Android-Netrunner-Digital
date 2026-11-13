@@ -44,7 +44,7 @@ describe('an agenda in HQ that would win the Runner the game (plan.lethalHq, bug
       expect(hqIce(s)).toBeGreaterThanOrEqual(3);
       expect(s.corp.servers.hq.ice.filter(c => c.isRezzed).map(c => c.cardCode).sort()).toEqual(['30046', '30074']) // Diviner, Whitespace;
     }
-  }, 240_000); // 240 s: the planner is slower since the exact threat key (beta e11ed48); restore 120 s when planner time comes down
+  }, 170_000); // 170 s: twice the slowest of the last five beta CI runs (85 s, run 43508803367; audit Step 0d)
 
   it('the one-currency Corp gets HQ its layer too', () => {
     // (plan.lethalHq folded in item 6: the gate is always on; this pinned that oneCurrency didn't need it)
@@ -62,5 +62,5 @@ describe('an agenda in HQ that would win the Runner the game (plan.lethalHq, bug
       tuning.plan.threatModel = threat;
       tuning.plan.ownIceKnown = true;
     }
-  }, 240_000); // 240 s: the planner is slower since the exact threat key (beta e11ed48); restore 120 s when planner time comes down
+  }, 15_000); // 15 s: twice the slowest of the last five beta CI runs (7.3 s, run 43508803367; audit Step 0d)
 });
