@@ -5,7 +5,7 @@ import { getCardScript } from '../scripts';
 import { BreakerScript, IceScript, IceSubtype, Subroutine } from '../scripts/types';
 import { addLog } from './log';
 import { endRun } from './runEnd';
-import { activeCards, fireTrigger } from './triggers';
+import { eachActiveCard, fireTrigger } from './triggers';
 import { findCardAnywhere } from './helpers';
 import { bumpRunFlag, RunFlag } from './cardEffects';
 
@@ -66,7 +66,10 @@ export function installedIcebreakers(state: GameState): CardInstance[] {
 export function iceStrength(state: GameState, ice: CardInstance): number {
   const run = state.activeRun;
   const encounterMod = run?.encounter?.iceId === ice.instanceId ? run.encounter.iceStrengthModifier : 0;
-  const fromCards = activeCards(state).reduce((n, c) => n + (getCardScript(c.cardCode)?.modifiers?.iceStrength?.(state, c, ice) ?? 0), 0);
+  let fromCards = 0;
+  eachActiveCard(state, undefined, c => {
+    fromCards += getCardScript(c.cardCode)?.modifiers?.iceStrength?.(state, c, ice) ?? 0;
+  });
   const forRun = run?.iceRunStrength?.[ice.instanceId] ?? 0;
   return (cardDef(ice).strength ?? 0) + (iceScript(ice)?.strengthModifier?.(state, ice) ?? 0) + encounterMod + fromCards + (run?.iceStrengthBonus ?? 0) + forRun;
 }
@@ -143,7 +146,10 @@ export function markSubroutinesBroken(state: GameState, indices: number[], break
 
 /** Current breaker strength, including boosts for the encounter in progress. */
 export function breakerStrength(state: GameState, breaker: CardInstance): number {
-  const fromCards = activeCards(state).reduce((n, c) => n + (getCardScript(c.cardCode)?.modifiers?.breakerStrength?.(state, c, breaker) ?? 0), 0);
+  let fromCards = 0;
+  eachActiveCard(state, undefined, c => {
+    fromCards += getCardScript(c.cardCode)?.modifiers?.breakerStrength?.(state, c, breaker) ?? 0;
+  });
   const base = (cardDef(breaker).strength ?? 0) + (breakerScript(breaker)?.strengthModifier?.(state, breaker) ?? 0) + fromCards;
   // Hosted hardware (GAMEDRAGON™ Pro) can change strength too
   const hosted = state.runner.rig.hardware

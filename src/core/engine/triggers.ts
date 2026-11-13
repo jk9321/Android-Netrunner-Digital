@@ -11,22 +11,35 @@ import { findCardAnywhere } from './helpers';
  * (Agendas in the Runner's score area are inactive.)
  */
 export function activeCards(state: GameState, side?: SideCode): CardInstance[] {
-  const corp = (): CardInstance[] => [
-    state.corp.identity,
-    // Agendas whose printed text installs them faceup are active while installed (rules 3.2.3a)
-    ...Object.values(state.corp.servers)
-      .flatMap(s => [...s.ice, ...s.root])
-      .filter(c => c.isRezzed || (c.faceUp && getCardScript(c.cardCode)?.installFaceUpOnly)),
+  const out: CardInstance[] = [];
+  eachActiveCard(state, side, c => {
+    out.push(c);
+  });
+  return out;
+}
+
+/**
+ * Visits the active cards in activeCards' order (Corp first) without building a list: the strength helpers
+ * (ice.ts) ask on every board the AI prices, and the lists were a few percent of its time (planner speed 2026-11-12).
+ */
+export function eachActiveCard(state: GameState, side: SideCode | undefined, visit: (card: CardInstance) => void): void {
+  if (side !== 'runner') {
+    visit(state.corp.identity);
+    for (const server of Object.values(state.corp.servers)) {
+      // Agendas whose printed text installs them faceup are active while installed (rules 3.2.3a)
+      for (const c of server.ice) if (c.isRezzed || (c.faceUp && getCardScript(c.cardCode)?.installFaceUpOnly)) visit(c);
+      for (const c of server.root) if (c.isRezzed || (c.faceUp && getCardScript(c.cardCode)?.installFaceUpOnly)) visit(c);
+    }
     // Runner cards added to the Corp's score area as agendas (Word on the Street) are not the Corp's to use
-    ...state.corp.scoreArea.filter(c => cardDef(c).side_code === 'corp'),
-  ];
-  const runner = (): CardInstance[] => {
+    for (const c of state.corp.scoreArea) if (cardDef(c).side_code === 'corp') visit(c);
+  }
+  if (side !== 'corp') {
     const { programs, hardware, resources } = state.runner.rig;
-    return [state.runner.identity, ...programs, ...hardware, ...resources];
-  };
-  if (side === 'corp') return corp();
-  if (side === 'runner') return runner();
-  return [...corp(), ...runner()];
+    visit(state.runner.identity);
+    for (const c of programs) visit(c);
+    for (const c of hardware) visit(c);
+    for (const c of resources) visit(c);
+  }
 }
 
 /**
