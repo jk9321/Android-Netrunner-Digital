@@ -2,11 +2,11 @@ import { CardInstance, GameState, cardDef, getCardDefinition } from '../core';
 import { turnsLeft } from './cardProfiles';
 import { PAYOUT_RISK } from './payoutRisk';
 import { COUNTER_WORTH } from './counterValues';
-import { CARDS, corpFormula, runnerFormula } from './cards';
+import { CARDS, advancePayloadOf, corpFormula, runnerFormula } from './cards';
 import { actingSide } from './synergy';
 import { CLICK, RATES, cardRate, flatlineWorth, memo, pointGain, pointValue, sideCards } from './valueModel';
 import { tagsWorth } from './evaluate';
-import { BLOCK, iceCost, iceCreditNeed, plannedSubroutines, subroutineCost } from './runs';
+import { BLOCK, iceCost, iceCreditNeed, isTrap, plannedSubroutines, subroutineCost } from './runs';
 import { remoteRunChance, threatOn } from './threatModel';
 import { plan, pricing, withPricing } from './pricing';
 import { knownIce } from './reach';
@@ -531,6 +531,14 @@ export function iceAdvanceWorth(state: GameState, card: CardInstance, iceCostAt:
   return Math.max(0, iceCostAt(3) - iceCostAt(card.advancementCounters)) / left;
 }
 
+/**
+ * A trap the Runner has accessed (spec-jeff-games-48-50.md Part D; card.runnerKnows): the Runner saw it (7.1.2) and
+ * learned it through a rule (10.2.2b), and the Corp saw that access too, so it knows the Runner knows. Advancing it no
+ * longer reads as an agenda, and the Runner has no reason to access it again. Read by placedCounterWorth and corpAI's
+ * install scoring (trap roots).
+ */
+export const knownTrap = (card: CardInstance): boolean => !!card.runnerKnows && isTrap(card.cardCode);
+
 /** Worth of an advancement counter placed by an effect (Sericulture, Syailendra) on this card. */
 export function placedCounterWorth(state: GameState, card: CardInstance, iced: boolean): number {
   const def = cardDef(card);
@@ -540,7 +548,11 @@ export function placedCounterWorth(state: GameState, card: CardInstance, iced: b
     return iced ? share : 0.3 * share;
   }
   // Traps: an advanced card reads as an agenda and draws a run (about a third of the time, a click and 2 credits wasted)
-  const bluff = /ambush|hostile/i.test(def.keywords ?? '') ? 0.3 * (CLICK + 2) : 0;
+  // A known trap (knownTrap: 7.1.2, 10.2.2b) draws no run: no bluff, and nothing from being accessed again (Urtica's
+  // damage). A trap whose counters are its turn-start effect (advancePayload: Clearinghouse) keeps that effect.
+  const known = knownTrap(card);
+  const bluff = /ambush|hostile/i.test(def.keywords ?? '') && !known ? 0.3 * (CLICK + 2) : 0;
+  if (known && !advancePayloadOf(card.cardCode)) return 0;
   if (card.cardCode === '30045') return bluff + 0.5 * (damageWorth(state, 3 + card.advancementCounters) - damageWorth(state, 2 + card.advancementCounters)); // Urtica: 1 more net damage
   if (card.cardCode === '35061') return 0.6 * 5; // Idiosyncresis
   // Clearinghouse: plan.oneCurrency prices the counter's step in damage, which stops at the flatline (a counter past one

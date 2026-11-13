@@ -20,7 +20,7 @@ import { threatLoss } from './threatModel';
 import { archivesWantsIce, countedRez, modelRezGain } from './rezModel';
 import { keepsScore, scoreNowPlan, winNowAction } from './winNow';
 import { freeRezCover, freeRezTargets } from './freeRez';
-import { PETTY_CASH_REPLAY, iceAdvanceWorth, placedCounterWorth, rezEffectWorth, rezzedWorth, runTimed, topDownWorth } from './effectValues';
+import { PETTY_CASH_REPLAY, iceAdvanceWorth, knownTrap, placedCounterWorth, rezEffectWorth, rezzedWorth, runTimed, topDownWorth } from './effectValues';
 import { CARD_PROFILES, ECON_SCALE, PAYOUT_RISK, bareAssetRisk, unrezzedWorth } from './cardProfiles';
 
 import { BLOCK, accessTrap, iceCost, iceCreditNeed, isTrap, subroutineCost, tagCost, weakestIce } from './runs';
@@ -726,6 +726,10 @@ export class HeuristicCorpAI implements Agent {
       // toward a flatline (one more than the grip, at most 6) instead of stopping at 3
       const cap = card.cardCode === CLEARINGHOUSE ? Math.min(6, Math.max(3, state.runner.grip.length + 1)) : 3;
       if (!(corp.credits >= 4 && card.advancementCounters < cap)) return -Infinity;
+      // A trap the Runner has accessed (knownTrap: 7.1.2, 10.2.2b) no longer reads as an agenda: the flat "looks like an
+      // agenda" and trapBluff are gone, and the counter is worth what it does (placedCounterWorth: 0 for an access trap,
+      // the turn-start damage of an advancePayload trap)
+      if (knownTrap(card)) return ECON_SCALE * placedCounterWorth(state, card, server.ice.length > 0);
       return this.synergy && tuning.bluff && isTrap(card.cardCode) ? 1.2 + this.trapBluff(state, card) : 1.2;
     }
     // Pharos: +5 strength at 3 counters; Syailendra: places counters when encountered at 3
@@ -898,9 +902,10 @@ export class HeuristicCorpAI implements Agent {
           else if (holdsAsset) {
             need = server.ice.length === 0 ? 1.5 : 0.2;
             // ...money assets get ice only once the Runner goes after them
-            if (main && !server.root.some(c => isTrap(c.cardCode)) && !state.runnerLastTurnRuns.some(r => r.server === server.id)) need = Math.min(need, 0.2);
+            // (a trap the Runner has accessed, knownTrap, is no trap root here: it draws no run, 7.1.2 and 10.2.2b)
+            if (main && !server.root.some(c => isTrap(c.cardCode) && !knownTrap(c)) && !state.runnerLastTurnRuns.some(r => r.server === server.id)) need = Math.min(need, 0.2);
             // Deck-aware AI: one cheap ice sells a trap as an agenda
-            const trap = server.root.some(c => !c.isRezzed && isTrap(c.cardCode));
+            const trap = server.root.some(c => !c.isRezzed && isTrap(c.cardCode) && !knownTrap(c));
             if (this.synergy && tuning.bluff && trap && server.ice.length === 0 && (cardDef(card).cost ?? 0) <= 3) need += 0.6;
           }
           else need = agendasInHand > 0 ? (depth < 2 ? 3 : 1) : 0.3;
