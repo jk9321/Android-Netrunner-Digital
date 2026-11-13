@@ -43,6 +43,7 @@ export const VANTAGE_POINT: Record<string, CardAI> = {
   },
   // Hackerspace
   '36006': {
+    readsRig: true,
     synergy: { gives: { install: 1 } },
     value: { rig: 1.5 },
     // Companions and connections a credit cheaper, +2 hand size with one of each
@@ -53,6 +54,7 @@ export const VANTAGE_POINT: Record<string, CardAI> = {
   },
   // Nurse Hạnh
   '36007': {
+    readsRig: true,
     archivesPayoff: true, // Nurse Hạnh: draws when Archives cards turn faceup
     synergy: { gives: { draw: 1 }, wants: { archives: 1.5 } },
     value: { rig: 1 },
@@ -126,6 +128,7 @@ export const VANTAGE_POINT: Record<string, CardAI> = {
   },
   // Underdome Irregulars
   '36016': {
+    readsRig: true,
     synergy: { gives: { draw: 1 } },
     value: { rig: 1.5, draws: 1 },
     // 2 cards each turn the Corp rezzes ice, trashed the first turn it doesn't
@@ -169,6 +172,7 @@ export const VANTAGE_POINT: Record<string, CardAI> = {
   },
   // Read-Write Share
   '36022': {
+    readsRig: true,
     synergy: { gives: { draw: 1 } },
     value: { rig: 1, draws: 1 },
     // A card in the grip parked for a fresh draw each turn, 4 at most
@@ -194,6 +198,7 @@ export const VANTAGE_POINT: Record<string, CardAI> = {
   },
   // Word on the Street
   '36025': {
+    readsRig: true,
     synergy: { gives: { econ: 1, draw: 0.5 }, when: ['notInstalledThisTurn'] },
     value: { rig: 2 },
     // A tax on fast advances, then 4 credits and a card when the Corp scores a card it installed earlier

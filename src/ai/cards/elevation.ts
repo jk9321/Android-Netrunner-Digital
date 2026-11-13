@@ -140,6 +140,7 @@ export const ELEVATION: Record<string, CardAI> = {
   },
   // Gourmand
   '35007': {
+    readsRig: true,
     synergy: { gives: { trash: 1.5, draw: 0.5 } },
     value: { rig: 2.5, draws: 1 }, // Trash and draw, once
     // Once, trash a non-agenda card accessed (about 4 to the Corp) and draw 1
@@ -317,6 +318,7 @@ export const ELEVATION: Record<string, CardAI> = {
   },
   // Side Hustle
   '35034': {
+    readsRig: true,
     synergy: { gives: { econ: 0.5 }, wants: { runs: 1.5 } },
     value: { rig: 2.5 },
     // A credit for each run until it holds 6, then a card

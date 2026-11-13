@@ -33,6 +33,7 @@ export const LIBERATION: Record<string, CardAI> = {
   '34002': { synergy: { gives: { discard: 1.5, install: 1 } } },
   // Solidarity Badge
   '34003': {
+    readsRig: true,
     synergy: { gives: { draw: 1 }, wants: { trash: 1.5, tags: 0.5 } },
     value: { rig: 1.5, draws: 0.5 },
     // A counter on turns it trashes a Corp card, each a card or a tag gone
@@ -81,6 +82,7 @@ export const LIBERATION: Record<string, CardAI> = {
   },
   // Lago Paranoá Shelter
   '34009': {
+    readsRig: true,
     synergy: { gives: { draw: 1, discard: 0.5 } },
     value: { rig: 1, draws: 1 },
     // A card off the top of the stack for a fresh draw when the Corp installs in a root
@@ -135,6 +137,7 @@ export const LIBERATION: Record<string, CardAI> = {
   '34018': { synergy: { gives: { breakers: 1 }, when: ['threat'] } },
   // Debbie "Downtown" Moreira
   '34019': {
+    readsRig: true,
     synergy: { gives: { econ: 1, runs: 1 }, wants: { runs: 1 }, when: ['threat'] },
     value: { rig: 1.5 },
     // A credit on each run event (2 at threat 4), spent on click-runs
@@ -166,6 +169,7 @@ export const LIBERATION: Record<string, CardAI> = {
   },
   // LilyPAD
   '34023': {
+    readsRig: true,
     synergy: { gives: { draw: 1 }, wants: { install: 1 } },
     value: { rig: 2.5, draws: 1 },
     // +2 MU; a card the first time each turn it installs a program
@@ -197,6 +201,7 @@ export const LIBERATION: Record<string, CardAI> = {
   },
   // Urban Art Vernissage
   '34029': {
+    readsRig: true,
     synergy: { gives: { econ: 1, install: 0.5 } },
     value: { rig: 1 },
     // 2 install credits for each trojan picked back up
@@ -414,6 +419,7 @@ export const LIBERATION: Record<string, CardAI> = {
   },
   // Amanuensis
   '34069': {
+    readsRig: true,
     synergy: { gives: { draw: 1 }, wants: { tags: 1.5 } },
     value: { rig: 1.5, draws: 1 },
     // +1 MU; 2 cards when it removes a tag, after a turn ended tagged

@@ -48,6 +48,7 @@ export const SYSTEM_GATEWAY: Record<string, CardAI> = {
   '30002': { synergy: { gives: { econ: 1, draw: 1 } } },
   // Carnivore
   '30003': {
+    readsRig: true,
     synergy: { gives: { trash: 2, discard: 1 }, wants: { draw: 1 } },
     value: { rig: 3 },
     // +1 MU; trash an accessed card for 2 cards from the grip (its trash cost and the Corp's loss, about 4)
@@ -249,6 +250,7 @@ export const SYSTEM_GATEWAY: Record<string, CardAI> = {
   '30030': { synergy: { gives: { econ: 1.5 } } },
   // T400 Memory Diamond
   '30031': {
+    readsRig: true,
     synergy: { wants: { draw: 1 } },
     value: { rig: 2 },
     // +1 MU and one more card in hand (and one more point of life against damage)
@@ -268,6 +270,7 @@ export const SYSTEM_GATEWAY: Record<string, CardAI> = {
   },
   // Verbal Plasticity
   '30034': {
+    readsRig: true,
     synergy: { gives: { draw: 1 }, wants: { draw: 1 } },
     value: { rig: 3.5, draws: 1 },
     // One more card the first time each turn it clicks to draw

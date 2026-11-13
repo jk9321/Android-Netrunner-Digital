@@ -14,7 +14,7 @@ import { resourceTrashHqCost } from '../core/engine/actions/basic';
 import { HAND_FLOOR, clickPrice, handByCard, heldWorth, ownHandValue, playedWorth, unseenInHand } from './handValues';
 import { CLICK, KNOBS, RATES, cardRate, creditValue, flatlineWorth, guardLoop, handFilter, mean, memo, payoutSlide, pointGain, pointValue, reachCard, sideCreditValue } from './valueModel';
 import { LOCKDOWN, PACE, STEAL, agendaOdds, coreSlotWorth, flatlineOdds, lifeGrip, placedCounterWorth, runSuccess, stealOdds } from './effectValues';
-import { archivedWorth } from './cards';
+import { archivedWorth, readsRigOf } from './cards';
 import { isTrap, remoteAgendaOdds, trashedCardCost } from './runs';
 import { centralAccess, runChance, threatOn } from './threatModel';
 import { plan, pricing, pricingKey, withPricing } from './pricing';
@@ -130,32 +130,47 @@ export function shownIceShare(state: GameState): Record<string, number> {
 
 export function runnerRigValue(state: GameState): number {
   const rig = state.runner.rig;
-  const cards = [...rig.programs, ...rig.hardware, ...rig.resources];
+  const coverage = coverageWorth(state);
+  return rigSum(state, coverage, [...rig.programs, ...rig.hardware, ...rig.resources].map(card => rigCardTerms(state, card)));
+}
+
+/** The rig's coverage (step 5b): each ice type by the stops it saves; an AI breaker covers the rest at a discount. */
+function coverageWorth(state: GameState): number {
+  const rig = state.runner.rig;
   const { covered, anyBreakers } = rigCoverage(rig.programs);
-  // Step 5b: each ice type by the stops it saves; an AI breaker covers the rest at a discount
   const aiShare = anyBreakers === 0 ? 0 : Math.max(...rig.programs.filter(p => breakerScript(p)?.breaks === 'any').map(p => (isOneUse(p) ? AI_BREAKER_SHARE / 3 : AI_BREAKER_SHARE)));
   const odds = iceTypeOdds(state);
-  let value = ICE_TYPES.reduce((n, t) => n + (covered.has(t) ? 1 : aiShare) * breakerTypeWorth(state, t, odds), 0);
-  for (const card of cards) {
-    // Step 4: a card that pays out money is worth what it will still pay
-    const profile = profileOf(card.cardCode);
-    if (profile) {
-      value += payoutWorth(profile, turnsLeft(state), counters(card, 'credit'), payoutWait(state, profile, 'runner'), cardRate(state, 'runner')) * payoutSlide(state, 'runner', counters(card, 'credit'));
-      continue;
-    }
-    // A breaker is worth its coverage above (plan.flatRates.breakers: no flat extra for having one)
-    value += isIcebreaker(card) ? 0 : RATES.rigCardScale * runnerCardValue(card.cardCode, state, card);
-    // Counters by what they do on this card (step 3), or the step-1 rates
-    value += countersWorth(state, card, 'credit') + countersWorth(state, card, 'virus') + countersWorth(state, card, 'power');
-    // Bling, Madani: cards to play later, worth what they would be in the grip (plan.flatRates.hosted);
-    // Madani's install takes no click, so its programs keep the click they will save (plan.madaniClick).
-    // Corp cards hosted on Detente are not the Runner's to play: Detente's own value covers them
-    const hosted = (card.hostedCards ?? []).filter(h => cardDef(h).side_code === 'runner');
-    const freeInstall = card.cardCode === MADANI;
-    value += hosted.reduce((n, h) => n + heldWorth(state, h, 'runner', freeInstall), 0);
-  }
+  return ICE_TYPES.reduce((n, t) => n + (covered.has(t) ? 1 : aiShare) * breakerTypeWorth(state, t, odds), 0);
+}
+
+/**
+ * runnerRigValue from its parts, added in the same order as one pass over the rig (coverage, then each card's terms in
+ * rig order, then the combos), so a sum from reused terms is the same number to the last bit.
+ */
+function rigSum(state: GameState, coverage: number, terms: number[][]): number {
+  let value = coverage;
+  for (const card of terms) for (const t of card) value += t;
   // Combos in play (Knickknack burning Principia, Baker on stealth credits): plan.cardPlans
   return value + boardPlansWorth(state, 'runner');
+}
+
+/** What one installed Runner card adds to runnerRigValue, as the addends it is summed from. */
+export function rigCardTerms(state: GameState, card: CardInstance): number[] {
+  // Step 4: a card that pays out money is worth what it will still pay
+  const profile = profileOf(card.cardCode);
+  if (profile) return [payoutWorth(profile, turnsLeft(state), counters(card, 'credit'), payoutWait(state, profile, 'runner'), cardRate(state, 'runner')) * payoutSlide(state, 'runner', counters(card, 'credit'))];
+  // Bling, Madani: cards to play later, worth what they would be in the grip (plan.flatRates.hosted);
+  // Madani's install takes no click, so its programs keep the click they will save (plan.madaniClick).
+  // Corp cards hosted on Detente are not the Runner's to play: Detente's own value covers them
+  const hosted = (card.hostedCards ?? []).filter(h => cardDef(h).side_code === 'runner');
+  const freeInstall = card.cardCode === MADANI;
+  return [
+    // A breaker is worth its coverage above (plan.flatRates.breakers: no flat extra for having one)
+    isIcebreaker(card) ? 0 : RATES.rigCardScale * runnerCardValue(card.cardCode, state, card),
+    // Counters by what they do on this card (step 3), or the step-1 rates
+    countersWorth(state, card, 'credit') + countersWorth(state, card, 'virus') + countersWorth(state, card, 'power'),
+    hosted.reduce((n, h) => n + heldWorth(state, h, 'runner', freeInstall), 0),
+  ];
 }
 
 
@@ -576,11 +591,43 @@ function tagLossPerTurn(state: GameState, viewer: SideCode, skip = 0): number {
   return withPricing({ pricingTagLoss: true }, () => tagLoss({ ...state }, viewer, skip));
 }
 
+/**
+ * What each installed resource is worth to the Runner's rig: runnerRigValue with it less runnerRigValue without it,
+ * the trash the tag clock prices. A card's terms are the same on the board without a resource unless the card reads
+ * the rest of the rig (CardAI readsRig, tests/rigLossTerms.test.ts), so they are worked out once and summed again
+ * without the resource (planner-fast-rigloss-sizing.md: 99% of the terms recomputed were the same). The coverage and
+ * the combos are priced on each board.
+ */
+function rigLosses(state: GameState): number[] {
+  const rig = state.runner.rig;
+  const cards = [...rig.programs, ...rig.hardware, ...rig.resources];
+  const coverage = coverageWorth(state);
+  const terms = cards.map(card => rigCardTerms(state, card));
+  const full = rigSum(state, coverage, terms);
+  return rig.resources.map(r => {
+    const without = { ...state, runner: { ...state.runner, rig: { ...rig, resources: rig.resources.filter(c => c !== r) } } };
+    const keptCoverage = coverageWorth(without);
+    const kept = cards.flatMap((card, i) => (card === r ? [] : [readsRigOf(card.cardCode) ? rigCardTerms(without, card) : rigTermAudit.on ? audited(without, card, terms[i]) : terms[i]]));
+    return full - rigSum(without, keptCoverage, kept);
+  });
+}
+/** A reused term priced again on the board without the resource (the audit, test-only): it must be the same. */
+function audited(without: GameState, card: CardInstance, reused: number[]): number[] {
+  const fresh = rigCardTerms(without, card);
+  rigTermAudit.checked++;
+  if (fresh.length !== reused.length || fresh.some((v, i) => v !== reused[i])) {
+    rigTermAudit.mismatches++;
+    rigTermAudit.cards[card.cardCode] = (rigTermAudit.cards[card.cardCode] ?? 0) + 1;
+  }
+  return fresh;
+}
+/** On-hit audit of rigLosses' reused terms (tests/rigLossTerms.test.ts): with `on`, every reused term is priced again. */
+export const rigTermAudit = { on: false, checked: 0, mismatches: 0, cards: {} as Record<string, number> };
+
 function tagLoss(state: GameState, viewer: SideCode, skip: number): number {
   const corp = state.corp;
   // The best resource the Corp would trash, net of what trashing costs it
-  const rig = runnerRigValue(state);
-  const resources = state.runner.rig.resources.map(r => rig - runnerRigValue({ ...state, runner: { ...state.runner, rig: { ...state.runner.rig, resources: state.runner.rig.resources.filter(c => c !== r) } } }));
+  const resources = rigLosses(state);
   // plan.hqTrashCost: a resource that also costs cards from HQ to trash is worth that much less to trash
   const extra = (r: CardInstance) => (plan().hqTrashCost ? hqTrashCardsLoss(state, r) : 0);
   const nets = resources.map((v, i) => v - extra(state.runner.rig.resources[i])).sort((a, b) => b - a);

@@ -37,6 +37,10 @@ export interface CardAI {
   corp?: (state: GameState, code: string, ctx: CorpEffectContext) => CorpEffect;
   /** Runner rig card that isn't an icebreaker: its worth installed, in credits (effectValues.ts runnerEffect). */
   runner?: (state: GameState, code: string, card?: CardInstance) => number;
+  /** Installed Runner card whose worth in the rig changes when one of the Runner's resources is taken out (through the
+   * Runner's draws, cardRate, or the rig itself): the tag clock prices it again on each board without a resource
+   * (evaluate.ts rigLosses). tests/rigLossTerms.test.ts fails for a card whose worth changes and that lacks it. */
+  readsRig?: true;
   /** Corp root card: its worth once rezzed, less the rez cost, where corp() doesn't say (effectValues.ts rezzedWorth). */
   rezzed?: (state: GameState, card: CardInstance, rezCost: number) => number;
   /** A run it starts (run event, run ability): what the card adds to that run (prompts.ts runEventOptions; runs.ts RunOptions). */
