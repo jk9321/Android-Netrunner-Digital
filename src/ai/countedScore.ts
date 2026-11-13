@@ -396,7 +396,7 @@ export function scoreInTwoPick(state: GameState, pick: GameAction, held: HeldLin
     h = null;
   }
   if (!h) {
-    const line = scoreInTwo(state) ?? (plan().assetCover || plan().assetPartner ? assetCover(state, pick) : null);
+    const line = scoreInTwo(state) ?? assetCover(state, pick);
     if (!line) return { action: pick, held: null };
     const card = installedAgendas(state).find(a => a.card.instanceId === line.agendaId)?.card;
     h = { game: state.id, turn: state.turnNumber, line, server: line.server === 'new remote' ? null : line.server, counters: card?.advancementCounters ?? 0 };
@@ -433,14 +433,14 @@ export const iceRedirectStats = { fired: 0 };
 
 /**
  * The scoring remote (ice redirect): the remote with the most ice; on a tie the one holding an agenda or an advanced
- * card, then the lowest id. None while no remote has ice. plan.scoringNoAsset (asset cover step 1, temporary): not a
+ * card, then the lowest id. None while no remote has ice. Not a
  * remote whose root holds an asset, where no agenda can be installed (rule 3.3.1: one agenda or asset per remote root);
  * it can be the scoring remote again once the asset leaves.
  */
 export function scoringRemote(state: GameState): ServerLike | null {
   const key = (v: ServerLike) => [v.ice.length, v.root.some(c => isAgenda(c) || (c.advancementCounters ?? 0) > 0) ? 1 : 0] as const;
   const num = (v: ServerLike) => Number(v.id.replace(/\D/g, '')) || 0;
-  const iced = remotes(state).filter(v => v.ice.length > 0 && !(plan().scoringNoAsset && v.root.some(c => typeOf(c) === 'asset')));
+  const iced = remotes(state).filter(v => v.ice.length > 0 && !v.root.some(c => typeOf(c) === 'asset'));
   iced.sort((a, b) => key(b)[0] - key(a)[0] || key(b)[1] - key(a)[1] || num(a) - num(b));
   return iced[0] ?? null;
 }
@@ -505,19 +505,16 @@ export function assetCover(state: GameState, pick: GameAction): TwoTurnLine | nu
   if (!asset || !p || p.pay <= 0 || p.load <= rezCost) return null;
   assetCoverStats.asked++;
   const target = a.asNewRemote ? null : a.targetServerId ? state.corp.servers[a.targetServerId] : null;
-  if (target && (!target.isRemote || target.ice.length > 0 || target.id === scoringRemote(state)?.id)) return (assetCoverStats.iced++, null);
+  const scoring = scoringRemote(state);
+  if (target && (!target.isRemote || target.ice.length > 0 || target.id === scoring?.id)) return (assetCoverStats.iced++, null);
   const income = knownIncome(state);
   const line = (server: string, form: TwoTurnLine['form'], ice?: { id: string; rez: number }): TwoTurnLine => ({ kind: 'asset', agenda: cardDef(asset).title, agendaId: asset.instanceId, server, form, ...(ice ? { iceId: ice.id } : {}), advanceNow: 0, advanceNext: 0, rez: ice?.rez ?? 0 });
-  // plan.assetPartner: an iced remote waiting with an open root (3.3.1) takes the asset, one click; not the
+  // assetPartner's econ case: an iced remote waiting with an open root (3.3.1) takes the asset, one click; not the
   // scoring remote while an agenda waits in HQ
-  if (plan().assetPartner) {
-    const scoring = scoringRemote(state);
-    const agenda = state.corp.hq.some(isAgenda);
-    const waiting = remotes(state).find(v => v.ice.length > 0 && !v.root.some(c => isAgenda(c) || typeOf(c) === 'asset') && !(agenda && v.id === scoring?.id));
-    if (waiting && state.corp.credits + (state.corp.clicks - 1) + income >= rezCost) return (assetPartnerStats.moved++, line(waiting.id, 'install'));
-  }
-  if (!plan().assetCover) return null;
-  if (state.corp.hq.some(isAgenda) && scoringShort(state)) return (assetCoverStats.scoringShort++, null);
+  const agenda = state.corp.hq.some(isAgenda);
+  const waiting = remotes(state).find(v => v.ice.length > 0 && !v.root.some(c => isAgenda(c) || typeOf(c) === 'asset') && !(agenda && v.id === scoring?.id));
+  if (waiting && state.corp.credits + (state.corp.clicks - 1) + income >= rezCost) return (assetPartnerStats.moved++, line(waiting.id, 'install'));
+  if (agenda && scoringShort(state)) return (assetCoverStats.scoringShort++, null);
   if (state.corp.clicks < 2) return (assetCoverStats.clicks++, null);
   const end = state.corp.credits + (state.corp.clicks - 2);
   const all = uniqueByCode(state.corp.hq.filter(c => typeOf(c) === 'ice')).map(c => ({ c, rez: rezCostOf(state, c) }));
@@ -541,7 +538,7 @@ export const assetPartnerStats = { moved: 0 };
  * root card, 8.5.11a counts ice only). Econ assets take the same move in assetCover, ahead of a cover pair. Null: no change.
  */
 export function assetPartner(state: GameState, pick: GameAction): GameAction | null {
-  if (!plan().assetPartner || !isCorpMain(state) || pick.type !== 'INSTALL_CARD' || !(pick as { asNewRemote?: boolean }).asNewRemote) return null;
+  if (!isCorpMain(state) || pick.type !== 'INSTALL_CARD' || !(pick as { asNewRemote?: boolean }).asNewRemote) return null;
   const card = state.corp.hq.find(c => c.instanceId === pick.cardInstanceId);
   if (!card || (typeOf(card) !== 'asset' && typeOf(card) !== 'upgrade')) return null;
   const scoring = scoringRemote(state);

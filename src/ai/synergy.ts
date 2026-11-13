@@ -391,12 +391,6 @@ export const tuning = {
      * shipping pair at 10 games +2.8 ± 1.1 (run 42800495659 vs 42797275838; games 3-10 alone +1.4 ± 1.3).
      */
     scoreInTwo: true,
-    /** Asset cover step 1 (temporary switch; countedScore.ts scoringRemote): the scoring remote is never one whose root holds an asset (rule 3.3.1). */
-    scoringNoAsset: false,
-    /** Asset cover step 2 (temporary switch; countedScore.ts assetCover): an econ asset the Corp installs where it would not hold goes behind the cheapest ice that holds it. */
-    assetCover: false,
-    /** Asset cover alternative (temporary switch; countedScore.ts assetPartner): an asset or upgrade headed for a new bare remote goes to a waiting iced remote. */
-    assetPartner: false,
     /**
      * Bug reports #39, #41 (Jeff's Runner test games 7 and 9, 2026-11-09; Corp only): the Corp's own unrezzed ice is priced
      * as it knows it (effectValues.ts ownIce: the real ice when its rez budget covers it, passed when not; rules 3.4.3a,
@@ -571,6 +565,9 @@ export const FOLDED: readonly string[] = [
   // Phase 3 S4 (spec-search.md, 2026-11-09): plannerHold folded into plan.searchLines (the hold that builds a window);
   // searchLines itself was deleted in step 2 (2026-11-10): counted scoring (plan.scoreInTwo) decides that hold now
   'plannerHold',
+  // Asset cover (2026-11-12, bars/asset-cover-x.md, run 43331672692: -0.3 ± 1.6 vs 43264551835): the scoring remote is never an
+  // asset root (3.3.1), an econ asset goes behind the cheapest ice in HQ, any asset or upgrade goes to a waiting iced remote
+  'scoringNoAsset', 'assetCover', 'assetPartner',
 ];
 
 /** Throws on a name that isn't a plan switch (a typo, or a switch folded into the code). */

@@ -2,12 +2,11 @@ import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
 import { GameAction, GameState, executeAction } from '../src/core';
 import { assetCover, assetPartner, scoreInTwoPick, scoringRemote } from '../src/ai/countedScore';
-import { tuning } from '../src/ai/synergy';
 import { asSide } from '../src/ai/pricing';
 import { decisionContext } from '../src/ai/handValues';
 
 /**
- * plan.assetCover (asset cover step 2, redesign/spec-asset-cover.md, form A: Jeff's rule with a counted affordability
+ * assetCover (asset cover step 2, folded, redesign/spec-asset-cover.md, form A: Jeff's rule with a counted affordability
  * check): an econ asset the Corp's own pick installs on a remote with no ice goes behind the cheapest ice from HQ, played
  * first, when the Corp has 2 clicks, the ice's install cost (8.5.11a) and, after it, the ice's rez and the asset's rez
  * next turn. One agenda or asset per remote root (3.3.1). Jeff's Runner games: 9 of the AI's 17 bare econ assets
@@ -28,17 +27,9 @@ const position = (edit?: (s: GameState) => void): GameState => {
   return s;
 };
 const newRemote = { type: 'INSTALL_CARD', player: 'corp', cardInstanceId: 'inst-23', asNewRemote: true } as GameAction;
-const inCorp = <T>(s: GameState, f: () => T, on = true): T => {
-  const keep = tuning.plan;
-  tuning.plan = { ...keep, assetCover: on, scoringNoAsset: true };
-  try {
-    return asSide('corp', () => (decisionContext(s, 'corp'), f()));
-  } finally {
-    tuning.plan = keep;
-  }
-};
+const inCorp = <T>(s: GameState, f: () => T): T => asSide('corp', () => (decisionContext(s, 'corp'), f()));
 
-describe('plan.assetCover: an econ asset behind the cheapest ice in HQ', () => {
+describe('assetCover: an econ asset behind the cheapest ice in HQ', () => {
   it('plays Whitespace (rez 2, under Palisade 3 and Brân 6) onto a new remote, then Nico Campaign behind it', () => {
     const s = position();
     expect(inCorp(s, () => assetCover(s, newRemote))).toMatchObject({ kind: 'asset', agendaId: 'inst-23', server: 'new remote', form: 'install+ice', iceId: 'inst-29' });
@@ -61,11 +52,6 @@ describe('plan.assetCover: an econ asset behind the cheapest ice in HQ', () => {
     expect(inCorp(s, () => scoreInTwoPick(s, pick, null).action)).toMatchObject({ type: 'INSTALL_CARD', cardInstanceId: 'inst-29', asNewRemote: true });
   });
 
-  it('switch off: the pick stands', () => {
-    const s = position();
-    expect(inCorp(s, () => scoreInTwoPick(s, newRemote, null), false).action).toBe(newRemote);
-  });
-
   it('leaves the bare install without the money for the ice and the rez, or with one click', () => {
     for (const s of [position(x => (x.corp.credits = 1)), position(x => (x.corp.clicks = 1))]) {
       expect(inCorp(s, () => assetCover(s, newRemote))).toBeNull();
@@ -79,9 +65,9 @@ describe('plan.assetCover: an econ asset behind the cheapest ice in HQ', () => {
     const s = position(x => (bran(x), x.corp.hq.push({ ...structuredClone(x.corp.hq[0]), instanceId: 'inst-agenda', cardCode: '30068' })));
     expect(inCorp(s, () => scoringRemote(s)?.id)).toBe('remote-1');
     expect(inCorp(s, () => assetCover(s, newRemote))).toBeNull();
-    // With no agenda in HQ the scoring remote has nothing to protect this turn: the cover goes ahead
+    // With no agenda in HQ the scoring remote has nothing to protect this turn: the asset goes behind its Brân (assetPartner's econ case)
     const t = position(bran);
-    expect(inCorp(t, () => assetCover(t, newRemote))).toMatchObject({ kind: 'asset', iceId: 'inst-29' });
+    expect(inCorp(t, () => assetCover(t, newRemote))).toMatchObject({ kind: 'asset', server: 'remote-1', form: 'install' });
   });
 
   it('a score line wins: deal 1411 turn 6 keeps Whitespace for Orbital Superiority', () => {
@@ -95,16 +81,7 @@ describe('plan.assetCover: an econ asset behind the cheapest ice in HQ', () => {
   });
 });
 
-describe('plan.assetPartner: an asset or upgrade headed for a new bare remote goes to a waiting iced remote (3.3.1)', () => {
-  const partner = <T>(s: GameState, f: () => T): T => {
-    const keep = tuning.plan;
-    tuning.plan = { ...keep, assetPartner: true, scoringNoAsset: true };
-    try {
-      return asSide('corp', () => (decisionContext(s, 'corp'), f()));
-    } finally {
-      tuning.plan = keep;
-    }
-  };
+describe('assetPartner: an asset or upgrade headed for a new bare remote goes to a waiting iced remote (3.3.1)', () => {
   // Claude's play test round 2, game 2 action #177 (turn 11, 9 credits): remote-1 has Palisade and Ansel 1.0 and an
   // empty root, no agenda in HQ; the Corp put Clearinghouse on a new remote and the Runner trashed it for 3
   const g2 = () => read('asset-partner-pt2-g2-177.json');
@@ -112,20 +89,19 @@ describe('plan.assetPartner: an asset or upgrade headed for a new bare remote go
 
   it('play test G2 #177: Clearinghouse goes to remote-1', () => {
     const s = g2();
-    expect(partner(s, () => assetPartner(s, clearinghouse))).toMatchObject({ type: 'INSTALL_CARD', cardInstanceId: 'inst-22', targetServerId: 'remote-1' });
-    expect(asSide('corp', () => assetPartner(s, clearinghouse))).toBeNull();
+    expect(inCorp(s, () => assetPartner(s, clearinghouse))).toMatchObject({ type: 'INSTALL_CARD', cardInstanceId: 'inst-22', targetServerId: 'remote-1' });
   });
 
   it('not the scoring remote while an agenda waits in HQ', () => {
     const s: GameState = structuredClone(g2());
     s.corp.hq.push({ ...structuredClone(s.corp.hq[0]), instanceId: 'inst-agenda', cardCode: '30068' });
-    expect(partner(s, () => scoringRemote(s)?.id)).toBe('remote-1');
-    expect(partner(s, () => assetPartner(s, clearinghouse))).toBeNull();
+    expect(inCorp(s, () => scoringRemote(s)?.id)).toBe('remote-1');
+    expect(inCorp(s, () => assetPartner(s, clearinghouse))).toBeNull();
   });
 
   it('an econ asset takes the same move ahead of a cover pair (assetCover)', () => {
     const s: GameState = structuredClone(read('ice-redirect-1001-t10.json'));
     s.corp.hq.find(c => c.instanceId === 'inst-23')!.cardCode = NICO;
-    expect(partner(s, () => assetCover(s, newRemote))).toMatchObject({ kind: 'asset', server: 'remote-1', form: 'install' });
+    expect(inCorp(s, () => assetCover(s, newRemote))).toMatchObject({ kind: 'asset', server: 'remote-1', form: 'install' });
   });
 });
