@@ -2,7 +2,7 @@ import { GameState, cardDef, createRng, knownInRd, shuffleInPlace } from '../cor
 import { HeuristicCorpAI } from './corpAI';
 import { GameRunner } from './playout';
 import { HeuristicRunnerAI } from './runnerAI';
-import { pointValue, sampledEndWorth } from './valueModel';
+import { pointValue, pointsTerm, sampledEndWorth } from './valueModel';
 import { threatStats, turnSeed } from './threatModel';
 import { currentDecisionSeed, searchPiece } from './turnPlanner';
 import { plan } from './pricing';
@@ -96,7 +96,7 @@ export function guessHidden(state: GameState, k: number): GameState {
 }
 
 /** Diagnostics (scripts): reply turns that began with an agenda in a remote with no ice, and how many ran it. */
-export const replyStats: { nakedAgendaTurns: number; nakedAgendaRuns: number; onSamples?: (values: number[]) => void; onTerminal?: (end: { winner: string; board: number; settled: number; old: number }) => void } = { nakedAgendaTurns: 0, nakedAgendaRuns: 0 };
+export const replyStats: { nakedAgendaTurns: number; nakedAgendaRuns: number; onSamples?: (values: number[]) => void; onSample?: (end: { winner: string | null; root: number; board: number; old: number }) => void } = { nakedAgendaTurns: 0, nakedAgendaRuns: 0 };
 const nakedAgendaRemotes = (s: GameState) =>
   Object.values(s.corp.servers)
     .filter(v => v.isRemote && v.ice.length === 0 && v.root.some(c => cardDef(c).type_code === 'agenda'))
@@ -123,6 +123,7 @@ function openAgendaLoss(state: GameState, ids: string[]): number {
 export function runnerReply(end: GameState, synergy: boolean, leaf: (state: GameState) => number, range: ReplyRange = { from: 0, count: replySamples(REPLY.samples) /* plan.oracle.think: more samples */ }): number {
   let total = 0;
   const values: number[] = [];
+  let rootBoard: number | undefined; // the reply root's board, read once, only when a sample ends the game
   const outer = threatStats.inReply;
   threatStats.inReply = true;
   try {
@@ -152,12 +153,14 @@ export function runnerReply(end: GameState, synergy: boolean, leaf: (state: Game
       // was stopped from (The Red Room, LEO) survived the run it was counted stolen for
       const unrun = plan().openStealUnrun ? naked.filter(id => !ran.has(id)).flatMap(id => gr.state.corp.servers[id]?.root.map(c => c.instanceId) ?? []) : nakedAgendas;
       // Audit Step 1 (plan.terminalClock): a game end in this sample is one deal of hidden cards, a chance, not a certainty:
-      // priced on the point clock (valueModel sampledEndWorth, 1.7.2) instead of the leaf's ±1000
+      // priced on the point clock from the reply root's board (valueModel sampledEndWorth, 1.7.2) instead of the leaf's ±1000
       const last = gr.state;
-      const open = last.winner && (plan().terminalClock || replyStats.onTerminal) ? leaf({ ...last, winner: null, winReason: null }) : 0;
-      if (last.winner) replyStats.onTerminal?.({ winner: last.winner, board: open - (pointValue(last.corp.score) - pointValue(last.runner.score)), settled: sampledEndWorth(last), old: leaf(last) });
-      const scored = last.winner && plan().terminalClock ? open + sampledEndWorth(last) : leaf(last);
-      const value = scored - (plan().openSteal ? openAgendaLoss(gr.state, nakedAgendas.filter(id => unrun.includes(id))) : 0);
+      const settle = !!last.winner && plan().terminalClock;
+      if (settle || replyStats.onSample) rootBoard ??= leaf({ ...end, winner: null, winReason: null }) - pointsTerm(end);
+      if (replyStats.onSample) replyStats.onSample({ winner: last.winner, root: rootBoard!, board: leaf({ ...last, winner: null, winReason: null }) - pointsTerm(last), old: leaf(last) });
+      const value = settle
+        ? sampledEndWorth(last.winner!, rootBoard!)
+        : leaf(last) - (plan().openSteal ? openAgendaLoss(gr.state, nakedAgendas.filter(id => unrun.includes(id))) : 0);
       values.push(value);
       total += value;
     }

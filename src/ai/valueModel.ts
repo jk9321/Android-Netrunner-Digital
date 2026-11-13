@@ -204,15 +204,22 @@ export function flatlineWorth(state: GameState): number {
   return pointValue(7) - pointValue(state.corp.score) + pointValue(state.runner.score);
 }
 
+/** evaluate's points term for the Corp (sideStrength: the Corp's points less the Runner's). */
+export function pointsTerm(state: GameState): number {
+  return pointValue(state.corp.score) - pointValue(state.runner.score);
+}
+
 /**
- * A game end met inside a SAMPLED Runner reply (audit Step 1, spec-step1-terminal-price.md), settled on the point clock for
- * the Corp: the points term goes to winner 7, loser 0 (1.7.2a: 7 agenda points win; 1.7.2b flatline; 1.7.2c Corp
- * decked), so a sampled end is pointValue(7) either way instead of evaluate's ±1000. Added to evaluate on the state with
- * no winner: for a flatline it is flatlineWorth, for the Corp decked its mirror. Read by runnerReply only.
+ * A game end met inside a SAMPLED Runner reply (audit Step 1, spec-step1-terminal-price.md), priced for the Corp on the
+ * point clock instead of evaluate's ±1000: the points term settles to winner 7, loser 0 (1.7.2a: 7 agenda points win;
+ * 1.7.2b flatline; 1.7.2c Corp decked), so ±pointValue(7), and the rest is `rootBoard`, the board before the Runner's
+ * reply (the reply root's leaf less its points term). evaluate is not zero-centred (a quiet mid-game board reads ~100),
+ * so a bare ±pointValue(7) would put a sampled Corp win below its ordinary sibling samples; the board the game ended
+ * from is not read, the game is over, but the root's board is the baseline every sample of that line starts from.
+ * Same winner, same line: same price. Read by runnerReply only.
  */
-export function sampledEndWorth(state: GameState): number {
-  if (!state.winner) return 0;
-  return (state.winner === 'corp' ? pointValue(7) : -pointValue(7)) - (pointValue(state.corp.score) - pointValue(state.runner.score));
+export function sampledEndWorth(winner: SideCode, rootBoard: number): number {
+  return (winner === 'corp' ? pointValue(7) : -pointValue(7)) + rootBoard;
 }
 
 /** Worth of the first card over the hand-size limit (Jeff: you pick the worst card to discard). */

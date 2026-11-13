@@ -3,29 +3,39 @@ import { describe, expect, it } from 'vitest';
 import { GameAction, GameState, cardDef, createInitialGameState, executeAction } from '../src/core';
 import { deckGameSetup } from '../src/data/decks';
 import { createAgent } from '../src/ai';
-import { flatlineWorth, pointValue, sampledEndWorth } from '../src/ai/valueModel';
+import { pointValue, pointsTerm, sampledEndWorth } from '../src/ai/valueModel';
+import { runnerReply } from '../src/ai/runnerReply';
+import { tuning } from '../src/ai/synergy';
 import { plannerStats } from '../src/ai/turnPlanner';
 
 /**
  * Audit Step 1 (spec-step1-terminal-price.md, bars/terminal-price.md): a game end inside a SAMPLED Runner reply is one deal of
- * hidden cards, priced on the point clock (winner 7, loser 0; 1.7.2a-c), not evaluate's ±1000.
+ * hidden cards, priced on the point clock (winner 7, loser 0; 1.7.2a-c) from the reply root's board, not evaluate's ±1000.
  */
-const withScores = (corp: number, runner: number, winner: 'corp' | 'runner' | null) => ({ corp: { score: corp }, runner: { score: runner }, winner }) as unknown as GameState;
-
-describe('sampledEndWorth: the points term settled to winner 7, loser 0', () => {
-  it('a flatline (Corp wins under 7) is flatlineWorth', () => {
-    const s = withScores(3, 4, 'corp');
-    expect(sampledEndWorth(s)).toBeCloseTo(flatlineWorth(s));
+describe('sampledEndWorth: winner 7, loser 0 on the points term, from the reply root\'s board', () => {
+  it('is ±pointValue(7) on top of the root board, whatever the board the game ended on', () => {
+    for (const board of [-40, 0, 102]) {
+      expect(sampledEndWorth('corp', board)).toBeCloseTo(board + pointValue(7));
+      expect(sampledEndWorth('runner', board)).toBeCloseTo(board - pointValue(7));
+    }
   });
 
-  it('a Runner points win and the Corp decked both settle to -pointValue(7) on the points term', () => {
-    for (const s of [withScores(2, 7, 'runner'), withScores(5, 3, 'runner')]) expect(sampledEndWorth(s) + pointValue(s.corp.score) - pointValue(s.runner.score)).toBeCloseTo(-pointValue(7));
-  });
-
-  it('a Corp points win settles to +pointValue(7); no game end adds nothing', () => {
-    const s = withScores(7, 6, 'corp');
-    expect(sampledEndWorth(s) + pointValue(7) - pointValue(6)).toBeCloseTo(pointValue(7));
-    expect(sampledEndWorth(withScores(3, 3, null))).toBe(0);
+  it('runnerReply prices a sampled end from the root, not the leaf\'s ±1000', () => {
+    const root = { ...report(51, 33), winner: null };
+    const leaf = (s: GameState) => (s.winner ? 1000 : 60 + pointsTerm(s) + s.runner.credits);
+    const ended = (winner: 'corp' | 'runner', credit: number) => ({ ...root, winner, runner: { ...root.runner, credits: credit } }) as GameState;
+    // A game already over at the root ends every sample on the spot: two different end boards, one price
+    const rootBoard = (s: GameState) => leaf({ ...s, winner: null }) - pointsTerm(s);
+    const was = tuning.plan.terminalClock;
+    tuning.plan.terminalClock = true;
+    try {
+      for (const credit of [0, 9]) {
+        expect(runnerReply(ended('runner', credit), true, leaf)).toBeCloseTo(rootBoard(ended('runner', credit)) - pointValue(7));
+        expect(runnerReply(ended('corp', credit), true, leaf)).toBeCloseTo(rootBoard(ended('corp', credit)) + pointValue(7));
+      }
+    } finally {
+      tuning.plan.terminalClock = was;
+    }
   });
 });
 
