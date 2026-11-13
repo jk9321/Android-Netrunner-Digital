@@ -354,7 +354,7 @@ export const SYSTEM_GATEWAY: Record<string, CardAI> = {
   // Funhouse
   '30054': { synergy: { gives: { ice: 1, tags: 1, denial: 0.5 } } },
   // Ping
-  '30055': { synergy: { gives: { ice: 1, tags: 1 } } },
+  '30055': { synergy: { gives: { ice: 1, tags: 1 } }, rezEffect: true },
   // Predictive Planogram
   '30056': { synergy: { gives: { econ: 1, draw: 1 }, wants: { tags: 1 }, when: ['ifTagged'] } },
   // Public Trail

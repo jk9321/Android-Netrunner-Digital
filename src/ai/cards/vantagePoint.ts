@@ -292,7 +292,7 @@ export const VANTAGE_POINT: Record<string, CardAI> = {
     corp: (state, _code, { cost, tag }) => ({ keep: Math.max(0.3, perTurn(state, tag - PACE.runs * 0.5, 'corp', 0, 3) - cost) }),
   },
   // Grubber
-  '36050': { synergy: { gives: { ice: 1, denial: 1 } } },
+  '36050': { synergy: { gives: { ice: 1, denial: 1 } }, rezEffect: true },
   // Lethe
   '36051': { synergy: { gives: { ice: 1, tags: 1, discard: 0.5 } } },
   // Paywall

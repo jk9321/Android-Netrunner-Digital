@@ -642,26 +642,27 @@ export const DeckPicker: React.FC<DeckPickerProps> = ({
   };
 
   return (
-    <div className="min-h-screen text-slate-100 font-mono flex flex-col items-center px-4 py-8">
-      <div className="flex flex-col items-center mb-3">
-        <div className="flex flex-wrap items-center justify-center gap-x-4 gap-y-2">
-          <h1 className="font-cyber font-black tracking-wider text-2xl sm:text-4xl select-none" data-testid="app-title">
-            <span className="text-cyan-400">STACK</span>
-            <span className="text-amber-400 mx-1.5 font-mono font-normal">//</span>
-            <span className="text-pink-500">HEAP</span>
-          </h1>
-          <BugReportButton screen="deck picker" />
-          {BulkImportModal && (
-            <button
-              onClick={() => setBulkImporting(true)}
-              data-testid="bulk-import"
-              title="Beta only: fetch many NetrunnerDB decks at once"
-              className="px-2.5 py-1 rounded-[2px] border border-fuchsia-600/80 border-b-2 border-b-fuchsia-500 bg-fuchsia-950/40 text-fuchsia-300 hover:border-fuchsia-400 text-xs font-bold active:translate-y-[1px] active:border-b-[1px]"
-            >
-              Bulk import (beta)
-            </button>
-          )}
-        </div>
+    <div className="min-h-screen relative text-slate-100 font-mono flex flex-col items-center px-4 py-6">
+      <div className="w-full flex justify-start items-center gap-2 mb-3 sm:mb-0 sm:w-auto sm:absolute sm:top-4 sm:left-4">
+        <BugReportButton screen="deck picker" />
+        {BulkImportModal && (
+          <button
+            onClick={() => setBulkImporting(true)}
+            data-testid="bulk-import"
+            title="Beta only: fetch many NetrunnerDB decks at once"
+            className="px-2.5 py-1 rounded-[2px] border border-fuchsia-600/80 border-b-2 border-b-fuchsia-500 bg-fuchsia-950/40 text-fuchsia-300 hover:border-fuchsia-400 text-xs font-bold active:translate-y-[1px] active:border-b-[1px]"
+          >
+            Bulk import (beta)
+          </button>
+        )}
+      </div>
+
+      <div className="flex flex-col items-center mb-5">
+        <h1 className="font-cyber font-black tracking-wider text-3xl sm:text-5xl select-none" data-testid="app-title">
+          <span className="text-cyan-400">STACK</span>
+          <span className="text-amber-400 mx-1.5 font-mono font-normal">//</span>
+          <span className="text-pink-500">HEAP</span>
+        </h1>
         <p className="text-xs font-mono text-slate-400 tracking-wide mt-1">
           <span className="text-slate-500">//</span> an unofficial netrunner client
         </p>
@@ -678,63 +679,54 @@ export const DeckPicker: React.FC<DeckPickerProps> = ({
           />
         </Suspense>
       )}
-      <p className="text-xs text-slate-400 mb-6 text-center">
-        Choose how you want to play, then the decks. The starter decks are the best place to begin. Build your own with New deck (where you can also import from NetrunnerDB), or copy any deck to tweak it.
-      </p>
       {storageFailed && (
         <p className="text-xs text-amber-400 mb-4">This browser would not save your decks, so they will be lost when the page closes.</p>
       )}
-      <div className="w-full max-w-5xl mb-6 flex flex-col items-center gap-4" data-testid="game-settings">
+      <div className="w-full max-w-5xl mb-6 flex flex-col items-center gap-3" data-testid="game-settings">
         {/* 1. How do you want to play? */}
-        <div className="flex flex-col items-center gap-2">
-          <span className="text-[12px] uppercase tracking-wider text-slate-500 font-bold">How do you want to play?</span>
-          <div className="flex flex-wrap justify-center gap-2" role="radiogroup" aria-label="How do you want to play?">
-            {MODES.map(m => (
+        <div className="flex flex-wrap justify-center gap-2" role="radiogroup" aria-label="How do you want to play?">
+          {MODES.map(m => (
+            <button
+              key={m.id}
+              role="radio"
+              aria-checked={mode === m.id}
+              onClick={() => chooseMode(m.id)}
+              title={m.hint}
+              data-testid={`mode-${m.id}`}
+              className={choiceClass(mode === m.id, 'bg-indigo-600 border-indigo-400 text-white')}
+            >
+              {m.id === 'online' && <Globe className="w-3.5 h-3.5 inline mr-1 -mt-0.5" />}
+              {m.label}
+            </button>
+          ))}
+        </div>
+
+        {/* 2. Contextual settings for that mode */}
+        {mode === 'computer' && (
+          <div className="flex flex-wrap items-center justify-center gap-2" role="radiogroup" aria-label="Your side">
+            {OPPONENTS.map(o => (
               <button
-                key={m.id}
+                key={o.id}
                 role="radio"
-                aria-checked={mode === m.id}
-                onClick={() => chooseMode(m.id)}
-                title={m.hint}
-                data-testid={`mode-${m.id}`}
-                className={choiceClass(mode === m.id, 'bg-indigo-600 border-indigo-400 text-white')}
+                aria-checked={opponent === o.id}
+                onClick={() => chooseOpponent(o.id)}
+                title={o.hint}
+                data-testid={`opponent-${o.id}`}
+                className={choiceClass(opponent === o.id, o.on, o.off)}
               >
-                {m.id === 'online' && <Globe className="w-3.5 h-3.5 inline mr-1 -mt-0.5" />}
-                {m.label}
+                {o.label}
               </button>
             ))}
           </div>
-          <span className="text-[12px] text-slate-500 text-center">{MODES.find(m => m.id === mode)!.hint}</span>
-        </div>
+        )}
 
-        {/* 2. The settings for that choice */}
-        <div className="flex flex-wrap items-start justify-center gap-x-8 gap-y-4">
-          {mode === 'computer' && (
-            <>
-              <div className="flex flex-col items-center gap-2">
-                <span className="text-[12px] uppercase tracking-wider text-slate-500 font-bold">Your side</span>
-                <div className="flex flex-wrap justify-center gap-2" role="radiogroup" aria-label="Your side">
-                  {OPPONENTS.map(o => (
-                    <button
-                      key={o.id}
-                      role="radio"
-                      aria-checked={opponent === o.id}
-                      onClick={() => chooseOpponent(o.id)}
-                      title={o.hint}
-                      data-testid={`opponent-${o.id}`}
-                      className={choiceClass(opponent === o.id, o.on, o.off)}
-                    >
-                      {o.label}
-                    </button>
-                  ))}
-                </div>
-                <span className="text-[12px] text-slate-500">{OPPONENTS.find(o => o.id === opponent)!.hint}</span>
-              </div>
-            </>
-          )}
-          {mode === 'online' && (
-            <div className="flex flex-col items-center gap-2">
-              <span className="text-[12px] uppercase tracking-wider text-slate-500 font-bold">Online</span>
+        {mode === 'hotseat' && (
+          <span className="text-xs text-slate-400 text-center">{MODES.find(m => m.id === 'hotseat')!.hint}</span>
+        )}
+
+        {mode === 'online' && (
+          <div className="flex flex-col items-center gap-2.5">
+            <div className="flex flex-wrap items-center justify-center gap-2">
               <div className="flex flex-wrap justify-center gap-2" role="radiogroup" aria-label="Host or join">
                 <button role="radio" aria-checked={role === 'host'} onClick={() => chooseRole('host')} data-testid="online-host" className={choiceClass(role === 'host', 'bg-indigo-600 border-indigo-400 text-white')}>
                   Host a game
@@ -743,13 +735,45 @@ export const DeckPicker: React.FC<DeckPickerProps> = ({
                   Join with a code
                 </button>
               </div>
+              {role === 'join' && (
+                <form
+                  className="flex items-stretch gap-2"
+                  onSubmit={e => {
+                    e.preventDefault();
+                    void findGame();
+                  }}
+                >
+                  <input
+                    id="join-code"
+                    aria-label="Game code"
+                    value={codeText}
+                    onChange={e => {
+                      setCodeText(e.target.value);
+                      setLobby(null);
+                    }}
+                    placeholder="K7QM-2X"
+                    maxLength={12}
+                    autoComplete="off"
+                    spellCheck={false}
+                    data-testid="join-code"
+                    className="w-32 bg-[#05080e] border border-slate-700 rounded-[2px] px-3 py-1.5 text-sm font-bold tracking-[0.2em] uppercase text-amber-200 focus:outline-none focus:border-amber-400"
+                  />
+                  <button
+                    type="submit"
+                    disabled={busy === 'find' || codeText.trim().length === 0}
+                    data-testid="find-game"
+                    className="disabled:opacity-40 px-3 py-1.5 rounded-[2px] border border-slate-700/80 border-b-2 border-b-slate-600 bg-gradient-to-b from-slate-900 to-slate-950 hover:bg-slate-800 text-xs font-bold flex items-center gap-1"
+                  >
+                    {busy === 'find' ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Search className="w-3.5 h-3.5" />} Find game
+                  </button>
+                </form>
+              )}
             </div>
-          )}
-          {mode === 'online' && role === 'host' && (
-            <>
-              <div className="flex flex-col items-center gap-2">
-                <span className="text-[12px] uppercase tracking-wider text-slate-500 font-bold">Your side</span>
-                <div className="flex flex-wrap justify-center gap-2" role="radiogroup" aria-label="Your side">
+
+            {role === 'host' && (
+              <div className="flex flex-wrap items-center justify-center gap-x-5 gap-y-2">
+                <div className="flex flex-wrap items-center justify-center gap-1.5" role="radiogroup" aria-label="Your side">
+                  <span className="text-xs uppercase tracking-wider text-slate-500 font-bold mr-1">Side:</span>
                   {(['corp', 'runner'] as const).map(side => (
                     <button
                       key={side}
@@ -763,10 +787,8 @@ export const DeckPicker: React.FC<DeckPickerProps> = ({
                     </button>
                   ))}
                 </div>
-              </div>
-              <div className="flex flex-col items-center gap-2">
-                <span className="text-[12px] uppercase tracking-wider text-slate-500 font-bold">Format</span>
-                <div className="flex flex-wrap justify-center gap-2" role="radiogroup" aria-label="Format">
+                <div className="flex flex-wrap items-center justify-center gap-1.5" role="radiogroup" aria-label="Format">
+                  <span className="text-xs uppercase tracking-wider text-slate-500 font-bold mr-1">Format:</span>
                   {ONLINE_FORMATS.map(f => (
                     <button
                       key={f}
@@ -784,48 +806,10 @@ export const DeckPicker: React.FC<DeckPickerProps> = ({
                     </button>
                   ))}
                 </div>
-                <span className="text-[12px] text-slate-500 text-center max-w-xs">{FORMAT_HINTS[hostFormat]}</span>
               </div>
-            </>
-          )}
-          {mode === 'online' && role === 'join' && (
-            <form
-              className="flex flex-col items-center gap-2"
-              onSubmit={e => {
-                e.preventDefault();
-                void findGame();
-              }}
-            >
-              <label htmlFor="join-code" className="text-[12px] uppercase tracking-wider text-slate-500 font-bold">
-                Game code
-              </label>
-              <div className="flex items-stretch gap-2">
-                <input
-                  id="join-code"
-                  value={codeText}
-                  onChange={e => {
-                    setCodeText(e.target.value);
-                    setLobby(null);
-                  }}
-                  placeholder="K7QM-2X"
-                  maxLength={12}
-                  autoComplete="off"
-                  spellCheck={false}
-                  data-testid="join-code"
-                  className="w-36 bg-[#05080e] border border-slate-700 rounded-[2px] px-3 py-1.5 text-base font-bold tracking-[0.2em] uppercase text-amber-200 focus:outline-none focus:border-amber-400"
-                />
-                <button
-                  type="submit"
-                  disabled={busy === 'find' || codeText.trim().length === 0}
-                  data-testid="find-game"
-                  className="disabled:opacity-40 px-3 py-1.5 rounded-[2px] border border-slate-700/80 border-b-2 border-b-slate-600 bg-gradient-to-b from-slate-900 to-slate-950 hover:bg-slate-800 text-xs font-bold flex items-center gap-1"
-                >
-                  {busy === 'find' ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Search className="w-3.5 h-3.5" />} Find game
-                </button>
-              </div>
-            </form>
-          )}
-        </div>
+            )}
+          </div>
+        )}
 
         {mode === 'online' && role === 'join' && lobby && (
           <div className="flex items-center gap-3 p-3 rounded-[2px] border border-slate-700 bg-[#080d14]" data-testid="lobby-info">
@@ -864,7 +848,7 @@ export const DeckPicker: React.FC<DeckPickerProps> = ({
         )}
 
         {/* The go button for the mode */}
-        <div className="flex flex-col items-center gap-2">
+        <div className="flex flex-col items-center gap-2 mt-1">
           {mode !== 'online' && selectedProblems.length > 0 && (
             <p className="text-xs text-amber-400 text-center max-w-xs">A selected deck is not legal yet. Fix it in the deckbuilder to play it.</p>
           )}
@@ -932,12 +916,22 @@ export const DeckPicker: React.FC<DeckPickerProps> = ({
         </div>
       </div>
       {/* 3. Only the decks that choice needs */}
-      <div className="w-full max-w-5xl flex flex-col md:flex-row gap-6" data-testid="deck-columns">
-        {deckColumns.map(c => (
-          <React.Fragment key={c.side}>{column(c.side, selectedFor(c.side), selectFor(c.side), c.opts)}</React.Fragment>
-        ))}
-      </div>
-      <p className="mt-8 max-w-3xl text-center text-[11px] text-slate-500">
+      {deckColumns.length > 0 ? (
+        <div className="w-full max-w-5xl flex flex-col md:flex-row gap-6" data-testid="deck-columns">
+          {deckColumns.map(c => (
+            <React.Fragment key={c.side}>{column(c.side, selectedFor(c.side), selectFor(c.side), c.opts)}</React.Fragment>
+          ))}
+        </div>
+      ) : (
+        <div className="w-full max-w-lg rounded-[2px] border border-dashed border-slate-800 bg-[#080d14] p-6 text-center space-y-1.5" data-testid="deck-columns">
+          <p className="text-xs font-bold text-slate-200">Enter a game code above and click Find game</p>
+          <p className="text-xs text-slate-400">Once found, you&apos;ll see the host&apos;s identity and format, and your legal decks for the other side will appear here.</p>
+        </div>
+      )}
+      <p className="mt-8 max-w-3xl text-center text-xs text-slate-400">
+        New to the game? Start with the Starter decks. Use <strong className="text-slate-200">New deck</strong> to build or import from NetrunnerDB, or copy any deck to tweak it.
+      </p>
+      <p className="mt-3 max-w-3xl text-center text-[11px] text-slate-500">
         Game symbols by Null Signal Games,{' '}
         <a
           href="https://creativecommons.org/licenses/by-nd/4.0/"
