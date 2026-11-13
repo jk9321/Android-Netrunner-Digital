@@ -1,4 +1,4 @@
-import { CardInstance, GameAction, GameState, Prompt, SideCode, activePrompt, cardDef, executeAction, findCardAnywhere, getCardDefinition, getLegalActions, isLegalAction, knownInHand } from '../core';
+import { CardInstance, GameAction, GameState, Prompt, SideCode, activePrompt, cardDef, executeAction, findCardAnywhere, getLegalActions, isLegalAction, knownInHand } from '../core';
 import { runnerInstallBlocker, runnerInstallCost } from '../core/engine/actions/install';
 import { evaluate, keepValue, rigCoverage, runnerRigValue } from './evaluate';
 import { bakerWantsFuel, principiaFuel } from './cardPlans';
@@ -213,20 +213,13 @@ export function answerPrompt(state: GameState, side: SideCode, memory?: RunnerMe
     const pick = ice[0] ?? root[0];
     return { ...base, choice: { kind: 'effect_cards', cardInstanceIds: pick ? [pick.instanceId] : [] } };
   }
-  // plan.chainEnd: an install effect's agenda goes where a click install's would, the scoring remote (countedScore), when
-  // its root is free (3.3.1: one agenda or asset per root; 8.5.6a: installing there would trash it)
-  if (plan().chainEnd && side === 'corp' && prompt.kind === 'effect_choice' && prompt.source.data?.install) {
+  // An install effect's agenda goes where a click install's would, the scoring remote (countedScore), when its root is
+  // free (3.3.1: one agenda or asset per root; 8.5.6a: installing there would trash it). Spec jeff-games-48-50 Part B,
+  // folded 2026-11-13 (plan.chainEnd); it replaced a rule for nine Liberation installers (the best-iced empty remote)
+  if (side === 'corp' && prompt.kind === 'effect_choice' && prompt.source.data?.install) {
     const card = findCardAnywhere(state, String(prompt.source.data.cardId));
     const scoring = card && cardDef(card).type_code === 'agenda' ? scoringRemote(state) : null;
     if (scoring && scoring.root.length === 0 && prompt.options.some(o => o.id === scoring.id)) return { ...base, choice: { kind: 'effect_choice', optionId: scoring.id } };
-  }
-  // Liberation install effects placing an agenda: into the best-iced empty remote, not a bare new one
-  if (!plan().chainEnd && side === 'corp' && prompt.kind === 'effect_choice' && prompt.source.data?.install && LIB_INSTALLERS.includes(prompt.source.cardCode)) {
-    const card = findCardAnywhere(state, String(prompt.source.data.cardId));
-    if (card && cardDef(card).type_code === 'agenda') {
-      const remote = safeAgendaRemote(state, prompt.options.map(o => o.id));
-      if (remote) return { ...base, choice: { kind: 'effect_choice', optionId: remote } };
-    }
   }
   // Epiphany Analytica: of the top 3 of R&D, ice or an asset or upgrade; an agenda only with an iced empty remote to put it in
   if (side === 'corp' && prompt.kind === 'effect_cards' && prompt.source.cardCode === '34048' && prompt.source.step === 'pick') {
@@ -474,11 +467,11 @@ export function genericAnswer(state: GameState, side: SideCode, memory?: RunnerM
 }
 
 /**
- * plan.chainEnd: an install effect putting an asset or upgrade on a new remote goes where assetPartner moves a click
+ * An install effect putting an asset or upgrade on a new remote goes where assetPartner moves a click
  * install, onto a waiting iced remote (countedScore partnerRemote). Otherwise the answer unchanged.
  */
 function partnerAnswer(state: GameState, prompt: Prompt, best: GameAction): GameAction {
-  if (!plan().chainEnd || prompt.side !== 'corp' || prompt.kind !== 'effect_choice' || !prompt.source.data?.install) return best;
+  if (prompt.side !== 'corp' || prompt.kind !== 'effect_choice' || !prompt.source.data?.install) return best;
   if (best.type !== 'RESOLVE_PROMPT' || best.choice.kind !== 'effect_choice' || best.choice.optionId !== 'new') return best;
   const card = findCardAnywhere(state, String(prompt.source.data.cardId));
   if (!card || !['asset', 'upgrade'].includes(cardDef(card).type_code)) return best;
@@ -514,9 +507,6 @@ function bypassSkips(state: GameState, side: SideCode, prompt: Prompt, memory?: 
  * more often (0: 45%, 1: 35%, 2: 20%), spread by the game, turn and side so
  * a human can't read it, and never more than the side can pay.
  */
-/** Liberation cards whose effects install a card from HQ or R&D (their install-where prompts). */
-const LIB_INSTALLERS = ['34037', '34039', '34048', '34062', '34098', '34102', '34115', '34122', '34130'];
-
 /** The remote among these options with the most ice and nothing in its root, for an agenda (undefined: none has ice). */
 function safeAgendaRemote(state: GameState, options: string[]): string | undefined {
   return options
@@ -607,11 +597,10 @@ export function taoSwap(state: GameState, memory?: RunnerMemory): string[] {
  */
 function followChain(prompt: Prompt, after: GameState, side: SideCode, memory?: RunnerMemory, synergy = false): GameState {
   if (!('source' in prompt)) return after;
-  // Identities only, unless plan.chainEnd: following every card's chain made AI games about 4x slower. plan.chainEnd
-  // follows every card's (Humanoid Resources, Top-Down Solutions: "install X where?" with X still in HQ)
-  if (getCardDefinition(prompt.source.cardCode).type_code !== 'identity' && !plan().chainEnd) return after;
+  // Every card's chain, not only identities' (spec jeff-games-48-50 Part B, folded 2026-11-13, plan.chainEnd: Humanoid
+  // Resources, Top-Down Solutions answered "install X where?" with X still in HQ; 97 to 197 ms a prompt answer)
   let state = after;
-  for (let depth = 0; depth < (plan().chainEnd ? 8 : 3); depth++) {
+  for (let depth = 0; depth < 8; depth++) {
     const next = activePrompt(state);
     if (!next || next.side !== side || !('source' in next) || next.source.instanceId !== prompt.source.instanceId) break;
     const resolved = simulate(state, answerPrompt(state, side, memory, synergy));

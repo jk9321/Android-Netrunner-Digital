@@ -94,7 +94,7 @@ function play(next: () => GameState | null, start: GameState, label: Record<stri
       }
     }
   }
-  console.log(JSON.stringify({ ...label, winner: s.winner ?? null, turns: s.turnNumber, events: events.map(({ stolenIds: _, ...e }) => e) }));
+  console.log(JSON.stringify({ ...label, winner: s.winner ?? null, turns: s.turnNumber, events: events.map(e => ({ ...e, stolenIds: undefined })) }));
 }
 
 if (process.env.FIX) {

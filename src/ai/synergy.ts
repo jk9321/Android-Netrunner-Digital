@@ -161,11 +161,6 @@ export const tuning = {
      */
     modelRez: true,
     /**
-     * TEMPORARY (spec jeff-games-48-50 Part B, folded or deleted at hand-off): a prompt answer that opens the same
-     * card's next step is scored at the chain's end for every card, not only identities (prompts.ts followChain).
-     */
-    chainEnd: false,
-    /**
      * Both sides' pricing (structural review items 1-2, 2026-11-06): unrezzed ice counts as rezzable from one pool of
      * the Corp's credits, not each against the same credits (iceValues rezBudget). A measuring switch, not a knob.
      */
@@ -549,7 +544,7 @@ export const sideOff: Record<SideCode, string[]> = {
  * planWith naming one throws, so a batch written before the fold can't silently test nothing.
  */
 export const FOLDED: readonly string[] = [
-  'bypassHold', 'assetReserve',
+  'chainEnd', 'bypassHold', 'assetReserve',
   'tagThreat', 'breakerFocus', 'saveUp', 'icePlacement', 'agendaStakes', 'lethalHq', 'readWriteFull',
   'archivesChosen', 'centralIce', 'iceDepth', 'oneRemote', 'identities', 'runnerIdentities', 'exposure',
   'assetRezTiming', 'turnStartRez', 'stealCosts', 'rezPaid', 'tagNoClear', 'knownHq', 'hqNoSafer', 'readAssetTrash',

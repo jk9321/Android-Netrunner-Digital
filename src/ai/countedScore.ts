@@ -582,7 +582,7 @@ export function assetCover(state: GameState, pick: GameAction): TwoTurnLine | nu
 /** plan.assetPartner diagnostics (any caller, search included): asset or upgrade installs moved onto a waiting iced remote. */
 export const assetPartnerStats = { moved: 0 };
 
-/** assetPartner's target, also an install effect's (prompts.ts, plan.chainEnd): the remote with the most ice and no agenda or asset in its root, not the scoring remote while it is reserved for an agenda (reservedForAgenda). */
+/** assetPartner's target, also an install effect's (prompts.ts partnerAnswer): the remote with the most ice and no agenda or asset in its root, not the scoring remote while it is reserved for an agenda (reservedForAgenda). */
 export function partnerRemote(state: GameState): ServerLike | undefined {
   const reserved = reservedForAgenda(state);
   return remotes(state)
