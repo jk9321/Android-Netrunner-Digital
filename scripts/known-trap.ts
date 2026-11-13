@@ -3,7 +3,8 @@
  * (card.runnerKnows, 10.2.2b; public to the Corp, 7.1.2). Per game: advances on such a trap, ice installed there, ice
  * rezzed there; clicks and credits. Self-play deals (SEEDS) or report-format replays (FIX=a.json,b.json).
  */
-import { readFileSync } from 'node:fs';
+import { readFileSync, writeFileSync } from 'node:fs';
+let dumped = false;
 import { GameAction, GameState, cardDef, createInitialGameState, executeAction, rezCostOf } from '../src/core';
 import { deckGameSetup } from '../src/data/decks';
 import { ALL_DECKS } from './nsg-sample-decks';
@@ -21,6 +22,7 @@ const knownTrapServer = (s: GameState, id: string | undefined) => {
 function look(s: GameState, a: A, t: T, tag: string) {
   if (a.type === 'ADVANCE_CARD') {
     const v = Object.values(s.corp.servers).find(x => x.root.some(c => c.instanceId === a.cardInstanceId));
+    if (v && knownTrapServer(s, v.id) && process.env.DUMP && !dumped) { dumped = true; writeFileSync(process.env.DUMP, JSON.stringify(s)); }
     if (v && knownTrapServer(s, v.id)) { t.advances++; t.clicks++; t.credits++; t.examples.push(`${tag} T${s.turnNumber} advance ${v.id} ${v.root.map(c => cardDef(c).title).join("+")}`); }
   } else if (a.type === 'INSTALL_CARD' && a.targetServerId && knownTrapServer(s, a.targetServerId)) {
     const c = s.corp.hq.find(x => x.instanceId === a.cardInstanceId);
