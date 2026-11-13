@@ -26,5 +26,6 @@ function subscribe(listener: () => void) {
 
 /** True while this card is part of the hovered host link. */
 export function useHostLinkLit(instanceId: string): boolean {
-  return useSyncExternalStore(subscribe, () => lit.has(instanceId));
+  const read = () => lit.has(instanceId);
+  return useSyncExternalStore(subscribe, read, read);
 }
