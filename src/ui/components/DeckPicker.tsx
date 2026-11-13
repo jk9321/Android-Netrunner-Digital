@@ -642,8 +642,9 @@ export const DeckPicker: React.FC<DeckPickerProps> = ({
   };
 
   return (
-    <div className="min-h-screen text-slate-100 font-mono flex flex-col items-center px-4 py-6">
-      <div className="w-full max-w-5xl flex justify-end items-center gap-2 mb-1">
+    <div className="min-h-screen relative text-slate-100 font-mono flex flex-col items-center px-4 py-6">
+      <div className="w-full flex justify-start items-center gap-2 mb-3 sm:mb-0 sm:w-auto sm:absolute sm:top-4 sm:left-4">
+        <BugReportButton screen="deck picker" />
         {BulkImportModal && (
           <button
             onClick={() => setBulkImporting(true)}
@@ -654,10 +655,9 @@ export const DeckPicker: React.FC<DeckPickerProps> = ({
             Bulk import (beta)
           </button>
         )}
-        <BugReportButton screen="deck picker" />
       </div>
 
-      <div className="flex flex-col items-center mb-5 -mt-1">
+      <div className="flex flex-col items-center mb-5">
         <h1 className="font-cyber font-black tracking-wider text-2xl sm:text-4xl select-none" data-testid="app-title">
           <span className="text-cyan-400">STACK</span>
           <span className="text-amber-400 mx-1.5 font-mono font-normal">//</span>
