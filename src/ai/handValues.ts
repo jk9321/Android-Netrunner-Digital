@@ -175,14 +175,19 @@ function drawWorth(state: GameState, side: SideCode): number {
   return value;
 }
 
-/** Counts for scripts: averages served from the root prices, and deck cards priced at a root. */
-export const deckAvgStats = { served: 0, priced: 0 };
+/**
+ * Counts for scripts: averages served from the root prices, and deck cards priced at a root. With `audit` on
+ * (tests/rootDeckAverage.test.ts), every price served from the decision's cache is priced again and compared.
+ */
+export const deckAvgStats = { served: 0, priced: 0, audit: false, checked: 0, mismatches: 0 };
 /**
  * Planner speed tier 2 (bars/planner-fast-deckavg.md): in the Corp's decisions, the deck's average card prices each
  * deck card's played worth once, on the decision's own board (its root, noted by decisionContext), and averages
  * them over the deck the asking board holds (a card the line drew is out of it), held as soon as that board's
  * credits allow. Repricing every deck card on every board was 59% of the Corp's decision time
- * (planner-fast-step1.md). Undefined outside a Corp decision (the per-board price).
+ * (planner-fast-step1.md). Undefined (the per-board price) where atDeckRoot says no.
+ * Cache: anchor.deckValues, per decision (a new anchor each time decisionContext notes another board), keyed by the
+ * pricing context and side, then the card. Audited by tests/rootDeckAverage.test.ts (every hit priced again).
  */
 function rootDeckAverage(state: GameState, side: SideCode, deck: CardInstance[]): number | undefined {
   if (!atDeckRoot(state, side)) return undefined;
@@ -201,16 +206,16 @@ function rootDeckAverage(state: GameState, side: SideCode, deck: CardInstance[])
   let sum = 0;
   for (const c of deck) {
     let played = values.get(c.instanceId);
+    if (played !== undefined && deckAvgStats.audit) {
+      deckAvgStats.checked++;
+      if (priceAtRoot(root, c) !== played) deckAvgStats.mismatches++;
+    }
     if (played === undefined) {
       // A card whose own pricing asked for the average again: the per-board average for this ask
       if (pricingCards.has(c.instanceId)) return undefined;
       pricingCards.add(c.instanceId);
       try {
-        // As the per-board average does: inside it, a card's worth that needs the average card gets the flat rate.
-        // Priced apart from the lookups that asked (pricingApart), so the decision keeps one price per card whatever
-        // card was being priced when the average was first asked for (a card pricing its own effects otherwise
-        // met itself: a value loop, and its flat value kept all decision)
-        played = pricingApart(() => withPricing({ averaging: true }, () => playedWorth(root, c)));
+        played = priceAtRoot(root, c);
       } finally {
         pricingCards.delete(c.instanceId);
       }
@@ -221,6 +226,16 @@ function rootDeckAverage(state: GameState, side: SideCode, deck: CardInstance[])
     sum += Math.max(HAND_FLOOR, soon * played);
   }
   return sum / deck.length;
+}
+
+/**
+ * A deck card's played worth on the decision's root. As the per-board average does: inside it, a card's worth that
+ * needs the average card gets the flat rate. Priced apart from the lookups that asked (pricingApart), so the decision
+ * keeps one price per card whatever card was being priced when the average was first asked for (a card pricing its
+ * own effects otherwise met itself: a value loop, and its flat value kept all decision).
+ */
+function priceAtRoot(root: GameState, card: CardInstance): number {
+  return pricingApart(() => withPricing({ averaging: true }, () => playedWorth(root, card)));
 }
 
 /** The deck's average card for valueModel's cardRate (plan.flatRates.cards); the flat rate while it is being worked out. */
