@@ -166,11 +166,6 @@ export const tuning = {
      */
     chainEnd: false,
     /**
-     * TEMPORARY (spec jeff-games-48-50 Part A, folded or deleted at hand-off): holdCost leaves out the ice the
-     * Runner's installed bypasses pass (runs.ts runBypasses), and countedRez passes on ice the declared run bypasses.
-     */
-    bypassHold: false,
-    /**
      * Both sides' pricing (structural review items 1-2, 2026-11-06): unrezzed ice counts as rezzable from one pool of
      * the Corp's credits, not each against the same credits (iceValues rezBudget). A measuring switch, not a knob.
      */
@@ -554,7 +549,7 @@ export const sideOff: Record<SideCode, string[]> = {
  * planWith naming one throws, so a batch written before the fold can't silently test nothing.
  */
 export const FOLDED: readonly string[] = [
-  'assetReserve',
+  'bypassHold', 'assetReserve',
   'tagThreat', 'breakerFocus', 'saveUp', 'icePlacement', 'agendaStakes', 'lethalHq', 'readWriteFull',
   'archivesChosen', 'centralIce', 'iceDepth', 'oneRemote', 'identities', 'runnerIdentities', 'exposure',
   'assetRezTiming', 'turnStartRez', 'stealCosts', 'rezPaid', 'tagNoClear', 'knownHq', 'hqNoSafer', 'readAssetTrash',

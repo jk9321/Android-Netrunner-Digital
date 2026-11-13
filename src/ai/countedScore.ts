@@ -136,12 +136,12 @@ export function holdCost(state: GameState, ice: CardInstance[], corpCredits: num
   // The Runner's turn: its clicks back (a bioroid broken by clicks, runs.ts plainCreditNeed), one kept for the run
   const view: GameState = { ...state, runner: { ...state.runner, clicks: Math.max(0, state.runner.maxClicks - 1) } };
   const n = Math.min(ice.length, 10);
-  const serverId = plan().bypassHold ? Object.values(state.corp.servers).find(v => v.ice.some(c => c.instanceId === ice[0]?.instanceId))?.id : undefined;
+  const serverId = Object.values(state.corp.servers).find(v => v.ice.some(c => c.instanceId === ice[0]?.instanceId))?.id;
   let best: number | null = null;
   for (let mask = 0; mask < 1 << n; mask++) {
     let rez = 0;
     let need = 0;
-    // plan.bypassHold: the ice the Runner's installed bypasses pass with this set rezzed (runs.ts runBypasses: rig
+    // The ice the Runner's installed bypasses pass (spec jeff-games-48-50 Part A, folded 2026-11-13: g3 +0.3 ± 0.2, run 43382962736) with this set rezzed (runs.ts runBypasses: rig
     // cards, their counters and the threat level, all public; 6.5.8a: a bypassed ice's subroutines never resolve), and
     // what those bypasses cost it in credits' worth
     const bypassed = serverId ? runBypasses(rezzedSet(view, serverId, ice, mask, n), serverId) : undefined;

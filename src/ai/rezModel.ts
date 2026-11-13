@@ -1,6 +1,5 @@
 import { CardInstance, GameState, activePrompt, cardDef } from '../core';
 import { evaluate } from './evaluate';
-import { plan } from './pricing';
 import { answerPrompt, simulate } from './prompts';
 import { BLOCK, bypassesAhead, iceCost, iceCreditNeed } from './runs';
 import { rezCost } from '../core/engine/cardEffects';
@@ -54,12 +53,13 @@ export function modelRezParts(state: GameState, ice: CardInstance, synergy: bool
 }
 
 /**
- * plan.bypassHold: the approached ice, rezzed in this state, is one the declared run bypasses (S-Dobrado's event, Alarm
- * Clock, the rig's bypass cards and their counters: all public, runs.ts bypassesAhead; 6.5.8a).
+ * The approached ice, rezzed in this state, is one the declared run bypasses (S-Dobrado's event, Alarm
+ * Clock, the rig's bypass cards and their counters: all public, runs.ts bypassesAhead; 6.5.8a). Part A of spec
+ * jeff-games-48-50, folded 2026-11-13 (plan.bypassHold).
  */
 function runBypassed(state: GameState, ice: CardInstance): boolean {
   const run = state.activeRun;
-  if (!plan().bypassHold || !run || run.icePosition === null) return false;
+  if (!run || run.icePosition === null) return false;
   return bypassesAhead(state, state.corp.servers[run.server].ice.slice(0, run.icePosition + 1), true).has(ice.instanceId);
 }
 
@@ -166,7 +166,7 @@ export function countedRez(state: GameState, ice: CardInstance): 'rez' | 'pass' 
   if (run.server === 'archives' && !archivesWantsIce(state)) return 'pass';
   const up = { ...ice, isRezzed: true };
   const view: GameState = { ...state, corp: { ...state.corp, servers: { ...state.corp.servers, [server.id]: { ...server, ice: server.ice.map(c => (c.instanceId === ice.instanceId ? up : c)) } } } };
-  // plan.bypassHold: the declared run bypasses this ice once rezzed (runBypassed), so its subroutines never resolve
+  // The declared run bypasses this ice once rezzed (runBypassed), so its subroutines never resolve
   // (6.5.8a-b) and the rez buys nothing on this run; it can still be rezzed on a later run's approach (6.9.2b). Ice with
   // its own rez effect (Ping's tag) goes to modelRez, which prices the rez with the ice passed
   if (runBypassed(view, up)) return /when you rez this/i.test(cardDef(ice).stripped_text ?? '') ? null : 'pass';

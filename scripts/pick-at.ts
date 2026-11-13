@@ -1,7 +1,7 @@
 /**
  * The Corp AI's pick before move N of a report-format game (fresh agent), with holdCost for each iced remote against
  * what the Corp has (measurement, spec jeff-games-48-50 Part A). 
- *   FIX=report.json AT=60,76 [PLAN_OFF=+bypassHold] npx vite-node scripts/pick-at.ts
+ *   FIX=report.json AT=60,76 [PLAN_OFF=...] npx vite-node scripts/pick-at.ts
  */
 import { readFileSync } from 'node:fs';
 import { GameAction, GameState, cardDef, createInitialGameState, executeAction, findCardAnywhere } from '../src/core';

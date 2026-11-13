@@ -18,10 +18,25 @@ import { valueLoops } from '../src/ai/valueModel';
 import { asSide } from '../src/ai/pricing';
 import { holdCost, iceRedirectStats, isCorpMain, scoreInTwo } from '../src/ai/countedScore';
 import { agendasUnseen } from '../src/ai/rezModel';
+import { plannerStats } from '../src/ai/turnPlanner';
 
 const type = (c: { cardCode: string }) => cardDef(c as never).type_code;
 const pts = (c: { cardCode: string }) => cardDef(c as never).agenda_points ?? 0;
-type Event = { turn: number; layer: string; centre: 'hq' | 'rd'; remote: string; hqPts: number; rdDensity: number; stolenHQ2: number; stolenRD2: number; scoredRemote2: number; scoredRemoteEver: number; runnerTurnsSeen: number; corpTurnsSeen: number; stolenIds: Set<string> };
+type Event = { extra?: Record<string, unknown>; turn: number; layer: string; centre: 'hq' | 'rd'; remote: string; hqPts: number; rdDensity: number; stolenHQ2: number; stolenRD2: number; scoredRemote2: number; scoredRemoteEver: number; runnerTurnsSeen: number; corpTurnsSeen: number; stolenIds: Set<string> };
+
+// Planner picks: the top-level planner's candidate lines at this decision (turnPlanner plannerStats.onCandidates)
+let lastCands: { values: number[]; actions: GameAction[] } | null = null;
+plannerStats.onCandidates = (side, values, actions) => { if (side === 'corp') lastCands = { values, actions }; };
+function extraOf(before: GameState, iceId: string, remote: string, centre: 'hq' | 'rd'): Record<string, unknown> {
+  const hqIce = before.corp.hq.filter(x => type(x) === 'ice').length;
+  if (!lastCands) return { cands: false, hqIce };
+  const { values, actions } = lastCands;
+  const at = (pred: (a: GameAction & Record<string, unknown>) => boolean) => actions.map((a, i) => ({ a: a as GameAction & Record<string, unknown>, v: values[i] })).filter(x => x.a.type === 'INSTALL_CARD' && pred(x.a));
+  const iceCard = (a: Record<string, unknown>) => { const c = before.corp.hq.find(x => x.instanceId === a.cardInstanceId); return !!c && type(c) === 'ice'; };
+  const central = at(a => iceCard(a) && a.targetServerId === centre);
+  const chosen = at(a => a.cardInstanceId === iceId && (a.targetServerId === remote || !!a.asNewRemote));
+  return { cands: true, hqIce, centralCand: central.length > 0, centralBest: central.length ? Math.max(...central.map(x => x.v)) : null, chosen: chosen.length ? Math.max(...chosen.map(x => x.v)) : null, top: Math.max(...values) };
+}
 
 function play(next: () => GameState | null, start: GameState, label: Record<string, unknown>, layerOf: (s: GameState, a: GameAction | null) => string) {
   const events: Event[] = [];
@@ -50,7 +65,7 @@ function play(next: () => GameState | null, start: GameState, label: Record<stri
         const layer = layerOf(before, null);
         for (const centre of [hqShort ? 'hq' : null, rdShort ? 'rd' : null] as const) {
           if (!centre) continue;
-          events.push({ turn: before.turnNumber, layer, centre, remote: v.id, hqPts, rdDensity: before.corp.rd.length ? unseen / before.corp.rd.length : 0, stolenHQ2: 0, stolenRD2: 0, scoredRemote2: 0, scoredRemoteEver: 0, runnerTurnsSeen: 0, corpTurnsSeen: 0, stolenIds: new Set() });
+          events.push({ extra: extraOf(before, added.instanceId, v.id, centre), turn: before.turnNumber, layer, centre, remote: v.id, hqPts, rdDensity: before.corp.rd.length ? unseen / before.corp.rd.length : 0, stolenHQ2: 0, stolenRD2: 0, scoredRemote2: 0, scoredRemoteEver: 0, runnerTurnsSeen: 0, corpTurnsSeen: 0, stolenIds: new Set() });
         }
       }
     }
@@ -110,6 +125,7 @@ if (process.env.FIX) {
     try {
       play(() => {
         const b = game.state;
+        lastCands = null;
         fired = iceRedirectStats.fired;
         line = b.activePlayer === 'corp' && isCorpMain(b) && !activePrompt(b) ? asSide('corp', () => scoreInTwo(b)) : null;
         const before = b;
