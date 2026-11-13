@@ -606,17 +606,6 @@ export function assetPartner(state: GameState, pick: GameAction): GameAction | n
   return move ?? null;
 }
 
-/** Central ice diagnostics: the top-level Corp's redirects, by caller and central (corpAI and search count them). */
-export const centralIceStats = { planner: 0, ranking: 0, search: 0, hq: 0, rd: 0 };
-/** The central the last centralIce call chose, for the counters (diagnostics: it changes no price). */
-export const centralIceWhy: { central?: 'hq' | 'rd' } = {};
-
-export function countCentralIce(caller: 'planner' | 'ranking' | 'search', taken: boolean) {
-  if (!taken || !centralIceWhy.central) return;
-  centralIceStats[caller]++;
-  centralIceStats[centralIceWhy.central]++;
-}
-
 /**
  * Central ice before remote ice (spec-central-ice.md variant (6), bars/central-ice-bare.md; Jeff 2026-11-13: "fix the
  * icing remotes while HQ and R&D were thin"; his #51 had R&D bare for turns 1-5 on 13-17 credits). When the Corp's own
@@ -629,7 +618,6 @@ export function countCentralIce(caller: 'planner' | 'ranking' | 'search', taken:
  * click): no veto, no extra install. Null: no change.
  */
 export function centralIce(state: GameState, pick: GameAction): GameAction | null {
-  delete centralIceWhy.central;
   if (pick.type !== 'INSTALL_CARD' || !isCorpMain(state)) return null;
   const a = pick as GameAction & { cardInstanceId?: string; targetServerId?: string; asNewRemote?: boolean };
   const card = state.corp.hq.find(c => c.instanceId === a.cardInstanceId);
@@ -640,9 +628,7 @@ export function centralIce(state: GameState, pick: GameAction): GameAction | nul
   if (!bare.length) return null;
   const stake = centralStake(state, card.instanceId);
   const to = bare.sort((x, y) => stake[y] - stake[x])[0];
-  const move = legalShape(state, { type: 'INSTALL_CARD', cardInstanceId: card.instanceId, targetServerId: to });
-  if (move) centralIceWhy.central = to;
-  return move ?? null;
+  return legalShape(state, { type: 'INSTALL_CARD', cardInstanceId: card.instanceId, targetServerId: to }) ?? null;
 }
 
 /**
