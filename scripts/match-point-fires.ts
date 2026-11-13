@@ -91,7 +91,10 @@ function watch(corp: Agent, c: Count, pending: { gap?: string; match?: boolean; 
       c.e1Servers[s.corp.servers[run.server].isRemote ? 'remote' : run.server] = (c.e1Servers[s.corp.servers[run.server].isRemote ? 'remote' : run.server] ?? 0) + 1;
       const b = band(winOdds(s));
       c.e1Bands[b] = (c.e1Bands[b] ?? 0) + 1;
-      if (rezzes(on) && !rezzes(off)) c.e1Changed++;
+      if (rezzes(on) && !rezzes(off)) {
+        c.e1Changed++;
+        console.error(`fire T${s.turnNumber} ${cardDef(ice).title} on ${run.server} pos ${run.icePosition}: Corp ${s.corp.credits} cr, rez ${cardDef(ice).cost}; Runner ${s.runner.score} pts ${s.runner.credits} cr, odds ${winOdds(s).toFixed(2)}`);
+      }
       if (!rezzes(played)) pending.match = true;
     } else if ((run.server === 'hq' || run.server === 'rd') && !rezzes(played) && asSide('corp', () => rezStops(s, ice))) {
       c.gapWindows++;

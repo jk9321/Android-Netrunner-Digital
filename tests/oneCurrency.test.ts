@@ -254,12 +254,17 @@ describe('no override layer needed', () => {
     try {
       // The one-step ranking puts it first (its net 2 credits now and its replay from Archives, PETTY_CASH_REPLAY, on
       // the card there). The planned turn may still open a remote first: its greedy rollout after Petty Cash ices HQ and
-      // never tries the remote (structural review item 4, the planner). Either way no click goes to a credit (the bug)
+      // never tries the remote (structural review item 4, the planner). Either way no click goes to a credit while Petty
+      // Cash is in HQ (the bug). With plan.rdOwnOdds (spec-match-point-rez.md E2) the turn's last click, after Petty Cash,
+      // goes to a credit instead of the remote install: the turn's end, not the bug
       const start: GameState = JSON.parse(readFileSync(new URL('./fixtures/petty-cash-first.json', import.meta.url), 'utf8'));
       const [top] = new HeuristicCorpAI({ planner: false }).rankMainActions(start);
       expect(top.action.type === 'PLAY_OPERATION_OR_EVENT' && cardDef(findCardAnywhere(start, top.action.cardInstanceId)!).title).toBe('Petty Cash');
       const s = playFixture('petty-cash-first.json', 12);
-      expect(s.log.some(l => l.message === 'Corp spent [click] to gain 1 credit.')).toBe(false);
+      const log = s.log.map(l => l.message);
+      const petty = log.findIndex(m => m.includes('to play Petty Cash'));
+      expect(petty).toBeGreaterThanOrEqual(0);
+      expect(log.slice(0, petty)).not.toContain('Corp spent [click] to gain 1 credit.');
     } finally {
       tuning.plan.pettyCashFirst = true;
       tuning.plan.plannerSearch = true;
