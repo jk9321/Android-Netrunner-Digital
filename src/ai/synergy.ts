@@ -512,8 +512,6 @@ export const tuning = {
     handByCard: { corp: false, runner: false } as Record<SideCode, boolean>,
     /** Money step M1c (incomeLine.ts moneyPick): an installed econ ability in place of a draw or a click for a credit. Temporary: folded or deleted before the hand-off. */
     moneyAbility: false,
-    /** Money step M1c, second arm: also installed abilities spending more than one click (Humanoid Resources), through their rez. Temporary like moneyAbility. */
-    moneyAbilityMulti: false,
   },
 };
 
