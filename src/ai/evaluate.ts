@@ -17,7 +17,7 @@ import { LOCKDOWN, PACE, STEAL, agendaOdds, coreSlotWorth, flatlineOdds, lifeGri
 import { archivedWorth } from './cards';
 import { isTrap, remoteAgendaOdds, trashedCardCost } from './runs';
 import { centralAccess, runChance, threatOn } from './threatModel';
-import { plan, pricing, pricingKey, withPricing } from './pricing';
+import { effectivePlan, plan, pricing, pricingKey, withPricing } from './pricing';
 import { corpDrawPool, oracleSteal } from './oracle';
 import { getIn, reachOn, reachStanding } from './reach';
 
@@ -576,11 +576,70 @@ function tagLossPerTurn(state: GameState, viewer: SideCode, skip = 0): number {
   return withPricing({ pricingTagLoss: true }, () => tagLoss({ ...state }, viewer, skip));
 }
 
+/**
+ * What each installed resource is worth to the Runner's rig (runnerRigValue with it, less without it): the trash the
+ * tag clock prices. The planner asks for it on every board while the rig rarely changes within a turn's playouts
+ * (planner-fast-after-v3.md: runnerRigValue ~22% of Corp time). Cached by tagRigKey: the same numbers runnerRigValue
+ * gives, served again for a board that reads the same (tests/tagRigCache.test.ts audits every hit).
+ */
+function rigLosses(state: GameState): number[] {
+  const work = () => {
+    const rig = runnerRigValue(state);
+    return state.runner.rig.resources.map(r => rig - runnerRigValue({ ...state, runner: { ...state.runner, rig: { ...state.runner.rig, resources: state.runner.rig.resources.filter(c => c !== r) } } }));
+  };
+  tagRigStats.calls++;
+  const key = tagRigKey(state);
+  const hit = tagRigCache.get(key);
+  if (hit) {
+    tagRigStats.hits++;
+    if (tagRigAudit.on) {
+      const fresh = work();
+      tagRigAudit.checked++;
+      if (fresh.length !== hit.length || fresh.some((v, i) => v !== hit[i])) {
+        tagRigAudit.mismatches++;
+        if (tagRigAudit.examples.length < 5) tagRigAudit.examples.push({ turn: state.turnNumber, active: state.activePlayer, cached: hit.join(','), fresh: fresh.join(',') });
+      }
+    }
+    return hit;
+  }
+  const value = work();
+  if (tagRigCache.size > 40000) tagRigCache.clear();
+  tagRigCache.set(key, value);
+  return value;
+}
+const tagRigCache = new Map<string, number[]>();
+/** The tag cache's counts (scripts read them). */
+export const tagRigStats = { calls: 0, hits: 0 };
+/**
+ * The tag cache's on-hit audit (tests/tagRigCache.test.ts): with `on`, every hit is priced again and compared with the
+ * value served. A key that leaves out something runnerRigValue reads shows as a mismatch.
+ */
+export const tagRigAudit = { on: false, checked: 0, mismatches: 0, examples: [] as { turn: number; active: string; cached: string; fresh: string }[] };
+/** Empties the tag cache (tests and scripts that play several games in one process). */
+export function clearTagRigCache(): void {
+  tagRigCache.clear();
+}
+
+/**
+ * The board as runnerRigValue reads it: the whole Runner side, the Corp's installed cards (ice, rez state, counters,
+ * hosted cards), Archives, scores, R&D and HQ by card code, the turn and the side to act, the plan in force and the
+ * pricing context. Left out: the Corp's clicks and credits, and the order of R&D and HQ.
+ */
+function tagRigKey(state: GameState): string {
+  const { corp } = state;
+  const cards = (cs: CardInstance[]): string => cs.map(c => `${c.instanceId}${c.isRezzed ? 'r' : ''}${c.faceUp ? 'u' : ''}:${c.advancementCounters ?? 0}:${JSON.stringify(c.tokens ?? {})}[${cards(c.hostedCards ?? [])}]`).join(',');
+  const servers = Object.values(corp.servers).map(v => `${v.id}:${cards(v.ice)}/${cards(v.root)}`).join(';');
+  return [
+    pricingKey(), JSON.stringify(effectivePlan()), state.id, state.turnNumber, state.activePlayer, JSON.stringify(state.runner), servers,
+    cards(corp.archives.faceUp), corp.archives.faceDown.length, corp.score, cards(corp.scoreArea), corp.identity.cardCode,
+    corp.rd.map(c => c.cardCode).sort().join(','), corp.hq.map(c => c.cardCode).sort().join(','),
+  ].join('|');
+}
+
 function tagLoss(state: GameState, viewer: SideCode, skip: number): number {
   const corp = state.corp;
   // The best resource the Corp would trash, net of what trashing costs it
-  const rig = runnerRigValue(state);
-  const resources = state.runner.rig.resources.map(r => rig - runnerRigValue({ ...state, runner: { ...state.runner, rig: { ...state.runner.rig, resources: state.runner.rig.resources.filter(c => c !== r) } } }));
+  const resources = rigLosses(state);
   // plan.hqTrashCost: a resource that also costs cards from HQ to trash is worth that much less to trash
   const extra = (r: CardInstance) => (plan().hqTrashCost ? hqTrashCardsLoss(state, r) : 0);
   const nets = resources.map((v, i) => v - extra(state.runner.rig.resources[i])).sort((a, b) => b - a);
