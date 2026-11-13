@@ -11,7 +11,7 @@ import { digValue, evaluate, handValue, hqTrashCardsLoss } from './evaluate';
 import { resourceTrashHqCost } from '../core/engine/actions/basic';
 import { clickRate, pointGain, printedGain } from './valueModel';
 import { PACE, STEAL, accessWorth, agendaOdds } from './effectValues';
-import { answerPrompt, simulate } from './prompts';
+import { answerPrompt, keep, simulate } from './prompts';
 import { asSide, logNudge, nudge, opponentLean, tuning } from './synergy';
 import { decisionContext } from './handValues';
 import { PlanMemory, planTurn, plannerOn, searchPiece } from './turnPlanner';
@@ -30,7 +30,7 @@ import { counterWorth } from './counterValues';
 import { plan, pricing, withPricing } from './pricing';
 import { dividendsOf, setupOperation } from './cards';
 // Last: its imports (winNow, runs, pricing) are loaded by then, so the AI modules' load order is unchanged (oracle.ts)
-import { HeldLine, assetPartner, centralIce, countCentralIce, heldLaterStep, iceRedirect, iceRedirectStats, scoreInTwoPick } from './countedScore';
+import { HeldLine, assetPartner, centralIce, countCentralIce, countDiscardRescue, discardRescue, heldLaterStep, iceRedirect, iceRedirectStats, scoreInTwoPick } from './countedScore';
 import { moneyPick } from './incomeLine';
 
 
@@ -223,6 +223,13 @@ export class HeuristicCorpAI implements Agent {
         if (this.planner && !this.searching) iceRedirectStats.fired++;
         picked = redirect;
       } else picked = assetPartner(state, picked) ?? picked; // plan.assetPartner (countedScore.ts)
+      // Discard rescue (countedScore.ts discardRescue): a credit or draw click while a discard is certain installs an ice
+      // on a central that does not hold; not on a click moneyPick's operation holds
+      if (picked === chosen && !money) {
+        const rescue = discardRescue(state, picked, c => keep(state, c, true));
+        if (this.planner && !this.searching) countDiscardRescue(!!rescue);
+        picked = rescue ?? picked;
+      }
     }
     // The reverse bluff: at most once a game
     const bluff = chosen;

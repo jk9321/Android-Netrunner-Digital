@@ -489,6 +489,16 @@ export const tuning = {
      * budgets 4931 -> 4136 and about 9% off a decision on the human-games positions. threatKeyPricing also leaves the outer
      * pricing context out: OFF, it moved 4 of 221 deals (run 42537621348), so some outer flag reaches the budget.
      */
+    /**
+     * Ice discard arm A (spec ice-discard, bars/ice-discard.md): a credit or draw click while a discard is certain installs
+     * an ice from HQ on a central that does not hold instead (countedScore.ts discardRescue). Temporary: folded at hand-off.
+     */
+    discardRescue: true,
+    /**
+     * Ice discard arm B: the scoring remote stays reserved for an agenda in HQ while it is the only remote with ice,
+     * though no counted line holds it (countedScore.ts reservedForAgenda). Temporary: folded at hand-off.
+     */
+    onlyRemoteHold: true,
     threatKey: true,
     threatKeyPricing: false,
     /**

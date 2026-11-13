@@ -26,7 +26,7 @@ export function simulate(state: GameState, action: GameAction): GameState | null
 
 const hand = (state: GameState, side: SideCode) => (side === 'corp' ? state.corp.hq : state.runner.grip);
 /** How much a side wants to keep a card, plus (deck-aware AI) how well it fits the deck's plan. */
-const keep = (state: GameState, card: CardInstance, synergy: boolean) => keepValue(state, card) + (synergy ? keepBonus(state, card) : 0);
+export const keep = (state: GameState, card: CardInstance, synergy: boolean) => keepValue(state, card) + (synergy ? keepBonus(state, card) : 0);
 /** The card was on top of R&D or the stack before (so it was drawn, not fetched by name). */
 const fromDeck = (state: GameState, side: SideCode, card: CardInstance) =>
   (side === 'corp' ? state.corp.rd : state.runner.stack).some(c => c.instanceId === card.instanceId);
