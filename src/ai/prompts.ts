@@ -14,6 +14,7 @@ import { iceStop, iceWorth } from './iceValues';
 import { rezCost } from '../core/engine/cardEffects';
 import { isPsiStep } from '../core/scripts/effects';
 import { plan } from './pricing';
+import { partnerRemote, scoringRemote } from './countedScore';
 
 /** Applies an action, or returns null if the engine rejects it. */
 export function simulate(state: GameState, action: GameAction): GameState | null {
@@ -212,8 +213,15 @@ export function answerPrompt(state: GameState, side: SideCode, memory?: RunnerMe
     const pick = ice[0] ?? root[0];
     return { ...base, choice: { kind: 'effect_cards', cardInstanceIds: pick ? [pick.instanceId] : [] } };
   }
+  // plan.chainEnd: an install effect's agenda goes where a click install's would, the scoring remote (countedScore), when
+  // its root is free (3.3.1: one agenda or asset per root; 8.5.6a: installing there would trash it)
+  if (plan().chainEnd && side === 'corp' && prompt.kind === 'effect_choice' && prompt.source.data?.install) {
+    const card = findCardAnywhere(state, String(prompt.source.data.cardId));
+    const scoring = card && cardDef(card).type_code === 'agenda' ? scoringRemote(state) : null;
+    if (scoring && scoring.root.length === 0 && prompt.options.some(o => o.id === scoring.id)) return { ...base, choice: { kind: 'effect_choice', optionId: scoring.id } };
+  }
   // Liberation install effects placing an agenda: into the best-iced empty remote, not a bare new one
-  if (side === 'corp' && prompt.kind === 'effect_choice' && prompt.source.data?.install && LIB_INSTALLERS.includes(prompt.source.cardCode)) {
+  if (!plan().chainEnd && side === 'corp' && prompt.kind === 'effect_choice' && prompt.source.data?.install && LIB_INSTALLERS.includes(prompt.source.cardCode)) {
     const card = findCardAnywhere(state, String(prompt.source.data.cardId));
     if (card && cardDef(card).type_code === 'agenda') {
       const remote = safeAgendaRemote(state, prompt.options.map(o => o.id));
@@ -441,7 +449,12 @@ export function answerPrompt(state: GameState, side: SideCode, memory?: RunnerMe
     return greedyCards(state, side, prompt, base, memory, synergy);
   }
 
-  // Everything else: try each answer and keep the best outcome.
+  return genericAnswer(state, side, memory, synergy);
+}
+
+/** Everything else: try each answer and keep the best outcome. Exported for measuring a card's own answer against it. */
+export function genericAnswer(state: GameState, side: SideCode, memory?: RunnerMemory, synergy = false): GameAction {
+  const prompt = activePrompt(state)!;
   const options = answers(state, side, synergy);
   let best: GameAction = options[0];
   let bestScore = -Infinity;
@@ -457,7 +470,20 @@ export function answerPrompt(state: GameState, side: SideCode, memory?: RunnerMe
       best = action;
     }
   }
-  return best;
+  return partnerAnswer(state, prompt, best);
+}
+
+/**
+ * plan.chainEnd: an install effect putting an asset or upgrade on a new remote goes where assetPartner moves a click
+ * install, onto a waiting iced remote (countedScore partnerRemote). Otherwise the answer unchanged.
+ */
+function partnerAnswer(state: GameState, prompt: Prompt, best: GameAction): GameAction {
+  if (!plan().chainEnd || prompt.side !== 'corp' || prompt.kind !== 'effect_choice' || !prompt.source.data?.install) return best;
+  if (best.type !== 'RESOLVE_PROMPT' || best.choice.kind !== 'effect_choice' || best.choice.optionId !== 'new') return best;
+  const card = findCardAnywhere(state, String(prompt.source.data.cardId));
+  if (!card || !['asset', 'upgrade'].includes(cardDef(card).type_code)) return best;
+  const waiting = partnerRemote(state);
+  return waiting && prompt.options.some(o => o.id === waiting.id) ? { ...best, choice: { ...best.choice, optionId: waiting.id } } : best;
 }
 
 /**
@@ -580,10 +606,12 @@ export function taoSwap(state: GameState, memory?: RunnerMemory): string[] {
  * good ability doesn't look like a loss on its own (plan.promptChains).
  */
 function followChain(prompt: Prompt, after: GameState, side: SideCode, memory?: RunnerMemory, synergy = false): GameState {
-  // Identities only: following every card's chain made AI games about 4x slower
-  if (!('source' in prompt) || getCardDefinition(prompt.source.cardCode).type_code !== 'identity') return after;
+  if (!('source' in prompt)) return after;
+  // Identities only, unless plan.chainEnd: following every card's chain made AI games about 4x slower. plan.chainEnd
+  // follows every card's (Humanoid Resources, Top-Down Solutions: "install X where?" with X still in HQ)
+  if (getCardDefinition(prompt.source.cardCode).type_code !== 'identity' && !plan().chainEnd) return after;
   let state = after;
-  for (let depth = 0; depth < 3; depth++) {
+  for (let depth = 0; depth < (plan().chainEnd ? 8 : 3); depth++) {
     const next = activePrompt(state);
     if (!next || next.side !== side || !('source' in next) || next.source.instanceId !== prompt.source.instanceId) break;
     const resolved = simulate(state, answerPrompt(state, side, memory, synergy));

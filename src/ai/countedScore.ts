@@ -1,6 +1,6 @@
 import { CardInstance, GameAction, GameState, cardDef, executeAction, getLegalActions, isLegalAction, rezCostOf } from '../core';
 import { scoreNowLine } from './winNow';
-import { iceCreditNeed } from './runs';
+import { iceCreditNeed, runBypasses } from './runs';
 import { plan } from './pricing';
 import { withIceInstalled } from './iceValues';
 import { clickMoneyOf, dividendsOf, scoreCreditsOf, turnIncomeOf } from './cards';
@@ -136,10 +136,16 @@ export function holdCost(state: GameState, ice: CardInstance[], corpCredits: num
   // The Runner's turn: its clicks back (a bioroid broken by clicks, runs.ts plainCreditNeed), one kept for the run
   const view: GameState = { ...state, runner: { ...state.runner, clicks: Math.max(0, state.runner.maxClicks - 1) } };
   const n = Math.min(ice.length, 10);
+  const serverId = plan().bypassHold ? Object.values(state.corp.servers).find(v => v.ice.some(c => c.instanceId === ice[0]?.instanceId))?.id : undefined;
   let best: number | null = null;
   for (let mask = 0; mask < 1 << n; mask++) {
     let rez = 0;
     let need = 0;
+    // plan.bypassHold: the ice the Runner's installed bypasses pass with this set rezzed (runs.ts runBypasses: rig
+    // cards, their counters and the threat level, all public; 6.5.8a: a bypassed ice's subroutines never resolve), and
+    // what those bypasses cost it in credits' worth
+    const bypassed = serverId ? runBypasses(rezzedSet(view, serverId, ice, mask, n), serverId) : undefined;
+    if (bypassed) need += bypassed.price;
     for (let i = 0; i < n; i++) {
       const c = ice[i];
       const on = !!(mask & (1 << i));
@@ -149,12 +155,20 @@ export function holdCost(state: GameState, ice: CardInstance[], corpCredits: num
       }
       if (!c.isRezzed && !on) continue;
       if (!c.isRezzed) rez += rezCostOf(view, c);
+      if (bypassed?.ids.has(c.instanceId)) continue;
       const up = c.isRezzed ? c : { ...c, isRezzed: true };
       need += iceCreditNeed(withIce(view, up), up);
     }
     if (rez <= corpCredits && need > budget && (best === null || rez < best)) best = rez;
   }
   return best;
+}
+
+/** The board with the ice of this rez set rezzed on its server (holdCost's mask over the first n ice). */
+function rezzedSet(state: GameState, serverId: string, ice: CardInstance[], mask: number, n: number): GameState {
+  const on = new Set(ice.slice(0, n).filter((c, i) => !c.isRezzed && mask & (1 << i)).map(c => c.instanceId));
+  const server = state.corp.servers[serverId];
+  return { ...state, corp: { ...state.corp, servers: { ...state.corp.servers, [serverId]: { ...server, ice: server.ice.map(c => (on.has(c.instanceId) ? { ...c, isRezzed: true } : c)) } } } };
 }
 
 /** A copy-free view with this one ice standing in for its unrezzed self (iceCreditNeed reads the board for strength). */
@@ -537,15 +551,20 @@ export const assetPartnerStats = { moved: 0 };
  * while an agenda waits in HQ. A pure redirect: no click or credit more (installing in a remote costs nothing for a
  * root card, 8.5.11a counts ice only). Econ assets take the same move in assetCover, ahead of a cover pair. Null: no change.
  */
+/** assetPartner's target, also an install effect's (prompts.ts, plan.chainEnd): the remote with the most ice and no agenda or asset in its root, not the scoring remote while an agenda waits in HQ. */
+export function partnerRemote(state: GameState): ServerLike | undefined {
+  const scoring = scoringRemote(state);
+  const agenda = state.corp.hq.some(isAgenda);
+  return remotes(state)
+    .filter(v => v.ice.length > 0 && !v.root.some(c => isAgenda(c) || typeOf(c) === 'asset') && !(agenda && v.id === scoring?.id))
+    .sort((x, y) => y.ice.length - x.ice.length)[0];
+}
+
 export function assetPartner(state: GameState, pick: GameAction): GameAction | null {
   if (!isCorpMain(state) || pick.type !== 'INSTALL_CARD' || !(pick as { asNewRemote?: boolean }).asNewRemote) return null;
   const card = state.corp.hq.find(c => c.instanceId === pick.cardInstanceId);
   if (!card || (typeOf(card) !== 'asset' && typeOf(card) !== 'upgrade')) return null;
-  const scoring = scoringRemote(state);
-  const agenda = state.corp.hq.some(isAgenda);
-  const waiting = remotes(state)
-    .filter(v => v.ice.length > 0 && !v.root.some(c => isAgenda(c) || typeOf(c) === 'asset') && !(agenda && v.id === scoring?.id))
-    .sort((x, y) => y.ice.length - x.ice.length)[0];
+  const waiting = partnerRemote(state);
   const move = waiting ? legalShape(state, { type: 'INSTALL_CARD', cardInstanceId: card.instanceId, targetServerId: waiting.id }) : undefined;
   if (move) assetPartnerStats.moved++;
   return move ?? null;

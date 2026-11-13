@@ -161,6 +161,16 @@ export const tuning = {
      */
     modelRez: true,
     /**
+     * TEMPORARY (spec jeff-games-48-50 Part B, folded or deleted at hand-off): a prompt answer that opens the same
+     * card's next step is scored at the chain's end for every card, not only identities (prompts.ts followChain).
+     */
+    chainEnd: false,
+    /**
+     * TEMPORARY (spec jeff-games-48-50 Part A, folded or deleted at hand-off): holdCost leaves out the ice the
+     * Runner's installed bypasses pass (runs.ts runBypasses), and countedRez passes on ice the declared run bypasses.
+     */
+    bypassHold: false,
+    /**
      * Both sides' pricing (structural review items 1-2, 2026-11-06): unrezzed ice counts as rezzable from one pool of
      * the Corp's credits, not each against the same credits (iceValues rezBudget). A measuring switch, not a knob.
      */
