@@ -22,7 +22,7 @@ import { createAgent } from '../src/ai';
 import { GameRunner } from '../src/ai/playout';
 import { valueLoops } from '../src/ai/valueModel';
 import { applyPlanOff, tuning } from '../src/ai/synergy';
-import { assetCoverStats, iceRedirectStats, isCorpMain, scoringRemote, assetPartnerStats } from '../src/ai/countedScore';
+import { CHECK, assetCoverStats, holdCost, iceRedirectStats, isCorpMain, runnerBudget, scoringRemote, assetPartnerStats } from '../src/ai/countedScore';
 import { profileOf } from '../src/ai/cardProfiles';
 import { asSide } from '../src/ai/pricing';
 
@@ -59,17 +59,48 @@ for (const [i, seed] of seeds.entries()) {
   let installs = 0;
   let covered = 0;
   let bare = 0;
-  let strayed = 0; // non-econ assets and upgrades put on a new bare remote while an iced remote with an open root waited
+  let strayed = 0;
+  let unusedTurns = 0;
+  const unusedWhy: Record<string, number> = {};
+  const lastClick = { n: 0, earlier: 0 };
+  let corpTurn = -1;
+  let turnActs: string[] = []; // non-econ assets and upgrades put on a new bare remote while an iced remote with an open root waited
   const iceThisTurn = new Map<string, number>(); // server id -> turn of the Corp's last ice install there
   const steals: Record<string, number> = {};
-  const assets = new Map<string, { iced: boolean; trashed: boolean; credits: number }>();
+  const assets = new Map<string, { iced: boolean; trashed: boolean; credits: number; runCredits?: number; runClicks?: number; iceAtTrash?: number }>();
+  let runStart: { credits: number; clicks: number } | null = null;
   try {
     for (let k = 0; k < 8000; k++) {
       const s = game.state;
       if (s.activePlayer === 'corp' && isCorpMain(s) && s.pendingPrompts.length === 0 && s.corp.hq.some(c => cardDef(c).type_code === 'ice') && scoringWith(s, true) !== scoringWith(s, false)) noAssetDiff++;
+      if (s.activePlayer === 'corp' && isCorpMain(s) && s.turnNumber !== corpTurn) {
+        corpTurn = s.turnNumber;
+        turnActs = [];
+        const open = Object.values(s.corp.servers).some(v => v.isRemote && v.ice.length > 0 && !v.root.some(c => ['agenda', 'asset'].includes(cardDef(c).type_code)));
+        if (open && s.corp.hq.some(c => cardDef(c).type_code === 'agenda')) {
+          unusedTurns++;
+          // Why the iced open remote with the most ice does not hold by the count (holdCost): with the Corp's credits at
+          // the turn's end, with any credits, with a Runner on no credits, or not even then (the ice)
+          const v = Object.values(s.corp.servers).filter(x => x.isRemote && x.ice.length > 0 && !x.root.some(c => ['agenda', 'asset'].includes(cardDef(c).type_code))).sort((a, b) => b.ice.length - a.ice.length)[0];
+          const why = asSide('corp', () => {
+            if (holdCost(s, v.ice, s.corp.credits + Math.max(0, s.corp.clicks - 1)) !== null) return 'holds';
+            if (holdCost(s, v.ice, Infinity) !== null) return 'corpCredits';
+            const keep = CHECK.runnerExtra;
+            CHECK.runnerExtra = -runnerBudget(s);
+            try {
+              return holdCost(s, v.ice, Infinity) !== null ? 'runnerBudget' : 'ice';
+            } finally {
+              CHECK.runnerExtra = keep;
+            }
+          });
+          unusedWhy[why] = (unusedWhy[why] ?? 0) + 1;
+        }
+      }
       if (!game.step()) break;
       const n = game.state;
       const a = game.last!;
+      // The Runner's credits and clicks as each run begins: a trash's cost is what the run took (break, trash, the click)
+      if (!s.activeRun && n.activeRun) runStart = { credits: s.runner.credits, clicks: s.runner.clicks };
       if (n.runner.scoreArea.length > s.runner.scoreArea.length) {
         const where = s.activeRun?.server ?? 'none';
         const scoring = asSide('corp', () => scoringRemote(s)?.id);
@@ -81,8 +112,16 @@ for (const [i, seed] of seeds.entries()) {
         if (!e) continue;
         const after = Object.values(n.corp.servers).flatMap(x => x.root).find(x => x.instanceId === c.instanceId);
         if (after) e.credits += Math.max(0, (c.tokens.credit ?? 0) - (after.tokens.credit ?? 0));
-        else if (s.activePlayer === 'runner') e.trashed = true;
+        else if (s.activePlayer === 'runner') {
+          e.trashed = true;
+          e.iceAtTrash = v.ice.length;
+          if (runStart) {
+            e.runCredits = runStart.credits - n.runner.credits;
+            e.runClicks = runStart.clicks - n.runner.clicks;
+          }
+        }
       }
+      if (a.player === 'corp' && s.activePlayer === 'corp') turnActs.push(a.type);
       if (a.player !== 'corp' || a.type !== 'INSTALL_CARD') continue;
       const card = s.corp.hq.find(c => c.instanceId === a.cardInstanceId);
       if (!card) continue;
@@ -97,11 +136,15 @@ for (const [i, seed] of seeds.entries()) {
         assets.set(card.instanceId, { iced: v.ice.length > 0, trashed: false, credits: 0 });
         if (iceThisTurn.get(v.id) === s.turnNumber) covered++;
         if (!v.ice.length) bare++;
+        if (!v.ice.length && s.corp.clicks === 1 && s.corp.hq.some(c => cardDef(c).type_code === 'ice')) {
+          lastClick.n++;
+          if (turnActs.slice(0, -1).some(t => t === 'DRAW_CARD' || t === 'GAIN_CREDIT')) lastClick.earlier++;
+        }
       }
     }
   } catch (err) {
     console.error(`deal ${seed}: ${err}`);
     continue;
   }
-  console.log(JSON.stringify({ seed, deck: corpDeck.name, winner: game.state.winner ?? null, turns: game.state.turnNumber, noAssetDiff, redirects: iceRedirectStats.fired, installs, covered, bare, strayed, steals, assets: [...assets.values()], cover: { ...assetCoverStats }, partner: { ...assetPartnerStats } }));
+  console.log(JSON.stringify({ seed, deck: corpDeck.name, winner: game.state.winner ?? null, turns: game.state.turnNumber, noAssetDiff, redirects: iceRedirectStats.fired, installs, covered, bare, strayed, unusedTurns, unusedWhy, lastClick, steals, assets: [...assets.values()], cover: { ...assetCoverStats }, partner: { ...assetPartnerStats } }));
 }
