@@ -376,6 +376,7 @@ export const SYSTEM_GATEWAY: Record<string, CardAI> = {
   // Clearinghouse
   '30061': {
     synergy: { gives: { damage: 1 }, wants: { advance: 1 } },
+    advancePayload: true,
     value: { keep: 2 }, // Meat damage once advanced
     // About 2 advances (a click and a credit each) for 2 meat damage, if it survives a turn
     corp: state => {

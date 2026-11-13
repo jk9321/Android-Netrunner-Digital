@@ -45,3 +45,16 @@ describe('Part D: a trap the Runner has accessed', () => {
     expect(price(unknown)).toBeGreaterThan(0);
   });
 });
+
+describe('advancePayload flag', () => {
+  // A trap whose counters work when the Corp's turn begins (not on access) keeps its counters' worth once known
+  it('is set on exactly the advanceable traps that do not fire on access', async () => {
+    const { ALL_CARDS } = await import('../src/core/cards');
+    const { advancePayloadOf } = await import('../src/ai/cards');
+    const { isTrap } = await import('../src/ai/runs');
+    const traps = ALL_CARDS.filter(c => c.type_code === 'asset' && isTrap(c.code));
+    const byText = traps.filter(c => /you can advance this asset/i.test(c.stripped_text ?? '') && !/when the runner accesses this/i.test(c.stripped_text ?? '')).map(c => c.code).sort();
+    expect(traps.filter(c => advancePayloadOf(c.code)).map(c => c.code).sort()).toEqual(byText);
+    expect(byText.length).toBeGreaterThan(0);
+  });
+});

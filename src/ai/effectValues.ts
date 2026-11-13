@@ -2,7 +2,7 @@ import { CardInstance, GameState, cardDef, getCardDefinition } from '../core';
 import { turnsLeft } from './cardProfiles';
 import { PAYOUT_RISK } from './payoutRisk';
 import { COUNTER_WORTH } from './counterValues';
-import { CARDS, corpFormula, runnerFormula } from './cards';
+import { CARDS, advancePayloadOf, corpFormula, runnerFormula } from './cards';
 import { actingSide } from './synergy';
 import { CLICK, RATES, cardRate, flatlineWorth, memo, pointGain, pointValue, sideCards } from './valueModel';
 import { tagsWorth } from './evaluate';
@@ -549,10 +549,10 @@ export function placedCounterWorth(state: GameState, card: CardInstance, iced: b
   }
   // Traps: an advanced card reads as an agenda and draws a run (about a third of the time, a click and 2 credits wasted)
   // A known trap (knownTrap: 7.1.2, 10.2.2b) draws no run: no bluff, and nothing from being accessed again (Urtica's
-  // damage). Clearinghouse's damage comes when the Corp's turn begins, not from a run, so it keeps that.
+  // damage). A trap whose counters are its turn-start effect (advancePayload: Clearinghouse) keeps that effect.
   const known = knownTrap(card);
   const bluff = /ambush|hostile/i.test(def.keywords ?? '') && !known ? 0.3 * (CLICK + 2) : 0;
-  if (known && card.cardCode !== '30061') return 0;
+  if (known && !advancePayloadOf(card.cardCode)) return 0;
   if (card.cardCode === '30045') return bluff + 0.5 * (damageWorth(state, 3 + card.advancementCounters) - damageWorth(state, 2 + card.advancementCounters)); // Urtica: 1 more net damage
   if (card.cardCode === '35061') return 0.6 * 5; // Idiosyncresis
   // Clearinghouse: plan.oneCurrency prices the counter's step in damage, which stops at the flatline (a counter past one
