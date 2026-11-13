@@ -12,7 +12,7 @@ Android: Netrunner digital game (React + TypeScript + Vite, Cloudflare Worker ho
 - `beta` holds ALL new AI work and all new card sets. Jeff bug-tests it on the beta Cloudflare preview. Beta merges to `main` only when Jeff says so.
 - Larger work Jeff will test first goes on a named feature branch (Cloudflare builds a preview per branch).
 - Never push throwaway `claude/*` branches.
-- Threads cannot delete remote branches (GitHub returns 403). When a branch you pushed is merged or abandoned, tell Jeff its name so he can delete it.
+- Merged branches are deleted automatically by the nightly `.github/workflows/cleanup-branches.yml` (09:17 UTC; keeps main, beta, ai-batch-results, branches with an open PR or unmerged commits). Do NOT ask Jeff to delete a merged branch. Mention a branch only if it is abandoned or parked with unmerged work and needs his decision.
 - Threads with clones from before 2026-10-23 must reset to current history, never push old history.
 
 ## Rules correctness

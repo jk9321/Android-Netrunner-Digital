@@ -111,8 +111,9 @@ to find it quickly. A checked item with nothing found goes in the report's "Chec
 - **Copy-paste**: near-identical blocks across card scripts or AI files that should share a helper (look in
   the largest files first). Exported functions with the same name in two files.
 - **Dead code**: exports nobody imports, scripts in `scripts/` nobody runs, test helpers unused.
-- **Branches**: remote branches merged or abandoned (`git branch -r --merged origin/beta`) to list for Jeff to
-  delete (threads can't delete them).
+- **Branches**: merged branches are deleted by the nightly cleanup action, so don't list them for Jeff. Only
+  report abandoned or parked branches with unmerged commits (`git branch -r --no-merged origin/beta`) that need
+  his decision.
 
 ## H. Security and hosting (`worker/**`, `wrangler.jsonc`)
 
