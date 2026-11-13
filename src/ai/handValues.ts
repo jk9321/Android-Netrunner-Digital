@@ -160,9 +160,10 @@ function drawWorth(state: GameState, side: SideCode): number {
 export const deckAvgStats = { served: 0, priced: 0 };
 /**
  * Planner speed tier 2 (bars/planner-fast-deckavg.md): in the Corp's decisions, the deck's average card prices each
- * deck card once, on the decision's own board (its root, noted by decisionContext), and averages those prices over
- * the deck the asking board holds, so a card the line drew is out of it. Repricing every deck card on every board
- * was 59% of the Corp's decision time (planner-fast-step1.md). Undefined outside a Corp decision (the per-board price).
+ * deck card's played worth once, on the decision's own board (its root, noted by decisionContext), and averages
+ * them over the deck the asking board holds (a card the line drew is out of it), held as soon as that board's
+ * credits allow. Repricing every deck card on every board was 59% of the Corp's decision time
+ * (planner-fast-step1.md). Undefined outside a Corp decision (the per-board price).
  */
 function rootDeckAverage(state: GameState, side: SideCode, deck: CardInstance[]): number | undefined {
   const anchor = pricing().anchor;
@@ -174,16 +175,21 @@ function rootDeckAverage(state: GameState, side: SideCode, deck: CardInstance[])
   if (!values) all.set(key, (values = new Map()));
   const root = anchor.root;
   deckAvgStats.served++;
+  // The asking board's credits decide which cards could be played soon (heldWorth's SOON), as in the per-board
+  // average (plan.drawWorthCredits): a line that spends its money down sees its draws worth less. Only the
+  // card's played worth is kept from the root.
+  const credits = side === 'corp' ? state.corp.credits : state.runner.credits;
   let sum = 0;
   for (const c of deck) {
-    let v = values.get(c.instanceId);
-    if (v === undefined) {
+    let played = values.get(c.instanceId);
+    if (played === undefined) {
       // As the per-board average does: inside it, a card's worth that needs the average card gets the flat rate
-      v = withPricing({ averaging: true }, () => heldWorth(root, c, side));
-      values.set(c.instanceId, v);
+      played = withPricing({ averaging: true }, () => playedWorth(root, c));
+      values.set(c.instanceId, played);
       deckAvgStats.priced++;
     }
-    sum += v;
+    const soon = (cardDef(c).cost ?? 0) <= credits ? SOON.now : SOON.later;
+    sum += Math.max(HAND_FLOOR, soon * played);
   }
   return sum / deck.length;
 }
