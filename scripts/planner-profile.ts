@@ -27,7 +27,7 @@ interface Agg { ms: number; self: Record<string, number>; incl: Record<string, n
 interface Out {
   games: number;
   wallMs: number;
-  decisions: { seed: number; turn: number; ms: number }[];
+  decisions: { seed: number; turn: number; ms: number; draw?: boolean }[];
   runnerMs: number;
   rezMs: number;
   buckets: Partial<Record<Bucket, Agg>>;
@@ -69,7 +69,12 @@ async function profileDeals(deals: number[]): Promise<Out> {
         onDone?.((to - from) / 1000, a);
         return v;
       };
-    corp.chooseAction = wrap(corp.chooseAction.bind(corp), 'corp', (ms, [s]) => out.decisions.push({ seed, turn: (s as GameState).turnNumber, ms }));
+    const choose = wrap(corp.chooseAction.bind(corp), 'corp', (ms, [s]) => out.decisions.push({ seed, turn: (s as GameState).turnNumber, ms }));
+    corp.chooseAction = (s: GameState) => {
+      const a = choose(s);
+      if (a.type === 'DRAW_CARD') out.decisions[out.decisions.length - 1].draw = true;
+      return a;
+    };
     if (corp.chooseRez) corp.chooseRez = wrap(corp.chooseRez.bind(corp), 'rez');
     runner.chooseAction = wrap(runner.chooseAction.bind(runner), 'runner');
     if (runner.chooseOffTurn) runner.chooseOffTurn = wrap(runner.chooseOffTurn.bind(runner), 'runner');
@@ -84,7 +89,8 @@ async function profileDeals(deals: number[]): Promise<Out> {
     if (profile) attribute(profile, windows, out);
     if (profile && process.env.RAW) writeFileSync(`${process.env.RAW}-${seed}.cpuprofile`, JSON.stringify(profile));
     const corpMs = windows.filter(w => w.kind === 'corp').reduce((a, w) => a + w.ms, 0);
-    console.error(`deal ${seed} ${c.name} v ${r.name}: ${(wall / 1000).toFixed(0)} s, corp ${(corpMs / 1000).toFixed(0)} s, record ${out.records[seed]}`);
+    const mine = out.decisions.filter(d => d.seed === seed);
+    console.error(`deal ${seed} ${c.name} v ${r.name}: ${(wall / 1000).toFixed(0)} s, corp ${(corpMs / 1000).toFixed(0)} s, decisions ${mine.length}, draws ${mine.filter(d => d.draw).length}, winner ${record.winner ?? '-'}, turns ${record.turns ?? '-'}, record ${out.records[seed]}`);
   }
   return out;
 }

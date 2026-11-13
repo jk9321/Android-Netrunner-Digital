@@ -31,9 +31,10 @@ export interface Pricing {
   known: Record<SideCode, Set<string> | null>;
   /**
    * plan.iceStopAnchor: the Runner's credits when the decision started (iceValues.ts stopCredits). stops: plan.ownIceKnown's
-   * rez-budget stops, noted once per decision (iceValues.ts rezBudget).
+   * rez-budget stops, noted once per decision (iceValues.ts rezBudget). root, side: the decision's own board and side;
+   * deckValues: the deck cards priced on that board, by pricing context and side (handValues.ts rootDeckAverage).
    */
-  anchor: { id: string; credits: number; stops?: Map<string, number> } | null;
+  anchor: { id: string; credits: number; stops?: Map<string, number>; root?: import('../core').GameState; side?: SideCode; deckValues?: Map<string, Map<string, number>> } | null;
   /**
    * The planner leaves being priced (plan.plannerHand): each prices its side's hand card by card, whatever
    * plan.handByCard says (leafHandByCard). A list, not one side: a leaf can open a decision that has its own
@@ -42,6 +43,11 @@ export interface Pricing {
   leaves: { side: SideCode; plan: Plan }[];
   /** The deck's average card is being worked out (handValues.ts drawWorth): no card plans, no rig pricing inside. */
   averaging: boolean;
+  /**
+   * A deck card's played worth is being priced on the decision's root (handValues.ts priceAtRoot): what it asks for
+   * is priced per board, not from the root's prices.
+   */
+  pricingRootDeck: boolean;
   /** The tag clock is pricing the rig: tags at the flat rate inside (evaluate.ts tagLossPerTurn). */
   pricingTagLoss: boolean;
   /** Ice is being priced against the rig: run odds are the flat guesses inside (effectValues.ts). */
@@ -82,6 +88,7 @@ const context: Pricing = {
   anchor: null,
   leaves: [],
   averaging: false,
+  pricingRootDeck: false,
   pricingTagLoss: false,
   pricingIce: false,
   projecting: false,
@@ -134,7 +141,7 @@ export function holdPricing(patch: Partial<Pricing>): () => void {
 }
 
 /** Notes, in the context, what the deciding AI knows as its decision starts: the hands it has seen and the Runner's credits. Not while frozen. */
-export function noteDecision(known: Partial<Record<SideCode, Set<string>>>, anchor: { id: string; credits: number }) {
+export function noteDecision(known: Partial<Record<SideCode, Set<string>>>, anchor: NonNullable<Pricing['anchor']>) {
   context.anchor = anchor;
   for (const side in known) context.known[side as SideCode] = known[side as SideCode]!;
   version++;
@@ -203,6 +210,7 @@ export function pricingKey(): string {
     leafHandByCard('corp') ? 'lc' : '',
     leafHandByCard('runner') ? 'lr' : '',
     c.averaging ? 'a' : '',
+    c.pricingRootDeck ? 'd' : '',
     c.pricingTagLoss ? 't' : '',
     c.pricingIce ? 'i' : '',
     c.projecting ? 'p' : '',
