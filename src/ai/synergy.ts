@@ -510,8 +510,6 @@ export const tuning = {
      * full hand on 55% of turns. Off on both sides, kept for re-testing.
      */
     handByCard: { corp: false, runner: false } as Record<SideCode, boolean>,
-    /** Money step M1c (incomeLine.ts moneyPick): an installed econ ability in place of a draw or a click for a credit. Temporary: folded or deleted before the hand-off. */
-    moneyAbility: false,
   },
 };
 

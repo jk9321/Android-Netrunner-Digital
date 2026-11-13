@@ -460,18 +460,6 @@ function scoringShort(state: GameState): ServerLike | null {
 }
 
 /**
- * What the Corp's own cards cost it to use (M1c, moneyPick): the rez cost (rezCostOf, as holdCost and assetCover read
- * it; 8.1.2) of its installed unrezzed ice and assets and of the ice, assets and upgrades in HQ, plus the play cost of
- * the operations in HQ (8.6). Agendas install for nothing. Credits short of it have a use; at or above it a draw stands.
- */
-export function corpCreditNeed(state: GameState): number {
-  let need = 0;
-  for (const v of Object.values(state.corp.servers)) for (const c of [...v.ice, ...v.root]) if (!c.isRezzed && (typeOf(c) === 'ice' || typeOf(c) === 'asset')) need += rezCostOf(state, c);
-  for (const c of state.corp.hq) need += typeOf(c) === 'operation' ? (cardDef(c).cost ?? 0) : isAgenda(c) ? 0 : rezCostOf(state, c);
-  return need;
-}
-
-/**
  * Ice redirect (step 4 G3', Jeff 2026-11-12 "ice spread thin"; +2.1 ± 0.7 over 2,873 paired games, runs 43158129121 + 43164127215): when the Corp's
  * own pick installs ice onto a remote or a new remote, and the scoring remote does not hold by the count (holdCost
  * against runnerBudget with what the Corp ends the turn on: credits and the clicks after this one, less afterLineFloor
