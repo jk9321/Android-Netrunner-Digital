@@ -13,6 +13,8 @@ import { GameAction, GameState, cardDef, createInitialGameState, executeAction }
 import { deckGameSetup } from '../src/data/decks';
 import { createAgent } from '../src/ai';
 import { agendasUnseen, countedRez, matchPoint, rdAgendaOdds, reachablePoints } from '../src/ai/rezModel';
+import { asSide } from '../src/ai/pricing';
+import { decisionContext } from '../src/ai/handValues';
 
 /** Jeff's game #51 replayed to before move `n` (#222: approaching the outer N-Pot, #219: Paywall). */
 function at(n: number): GameState {
@@ -70,5 +72,50 @@ describe('rez at match point (game #51)', () => {
     const flipped = structuredClone(s);
     flipped.corp.rd.reverse();
     expect(rdAgendaOdds(flipped)).toEqual(rdAgendaOdds(s));
+  });
+});
+
+/**
+ * #48 #118's board (holes-48-118.json, turn 9): the Runner on 5 points runs R&D, unrezzed Sleipnir (rez 4, strength 4)
+ * inside, the outer ice unrezzed, Corp 4 credits. reachablePoints is 3, so every window is at match point.
+ */
+const inCorp = <T>(s: GameState, f: () => T): T => asSide('corp', () => (decisionContext(s, 'corp'), f()));
+function rdBoard(): GameState {
+  const s: GameState = JSON.parse(readFileSync(new URL('./fixtures/holes-48-118.json', import.meta.url), 'utf8'));
+  // A plain run (not the recorded S-Dobrado one), so the bypass in each case is the one the test sets up
+  s.activeRun = { ...s.activeRun!, eventCode: null };
+  return s;
+}
+
+describe('match point: the stop count (review R1, R2)', () => {
+  // R1 (6.5.8a: a bypassed ice's subroutines never resolve). Malandragem with a power counter bypasses one ice of
+  // strength 3 or less (runs.ts runBypasses); the outer ice is Palisade (rez 3, strength 2, ETR), Sleipnir's 4 is out of
+  // its reach. Rezzing Palisade leaves 1 credit, short of Sleipnir; passing keeps the 4 for Sleipnir's window (6.9.2b).
+  it('no match-point rez of ice the run bypasses; the inner ice the Corp keeps the credits for is rezzed', () => {
+    const s = rdBoard();
+    s.runner.rig.programs.push({ instanceId: 'inst-900', cardCode: '34081', isRezzed: true, advancementCounters: 0, tokens: { power: 1 }, hostedCardIds: [], installedTurn: '8-runner' } as never);
+    s.corp.servers.rd.ice[1] = { ...s.corp.servers.rd.ice[1], cardCode: '30072' };
+    const [sleipnir, palisade] = s.corp.servers.rd.ice;
+    expect(inCorp(s, () => reachablePoints(s))).toBeGreaterThanOrEqual(7 - s.runner.score);
+    // Before R1 the bypassed Palisade's ETR was counted and this read true (rez)
+    expect(inCorp(s, () => matchPoint(s, palisade))).toBe(false);
+    expect(inCorp(s, () => countedRez(s, palisade))).not.toBe('rez');
+    const inner = structuredClone(s);
+    inner.activeRun!.icePosition = 0;
+    expect(inCorp(inner, () => matchPoint(inner, sleipnir))).toBe(true);
+    expect(inCorp(inner, () => countedRez(inner, sleipnir))).toBe('rez');
+  });
+
+  // R2: Sleipnir outermost (rez 4), Palisade inside (rez 3): Palisade alone stops for less, so the outer window gives
+  // no opinion and the 4 credits are kept for Palisade's own window
+  it('no match-point opinion outside when a cheaper inner rez stops the run alone', () => {
+    const s = rdBoard();
+    const [sleipnir, doomscroll] = s.corp.servers.rd.ice;
+    s.corp.servers.rd.ice = [{ ...doomscroll, cardCode: '30072' }, sleipnir];
+    const outer = s.corp.servers.rd.ice[1];
+    expect(inCorp(s, () => matchPoint(s, outer))).toBe(false);
+    const inner = structuredClone(s);
+    inner.activeRun!.icePosition = 0;
+    expect(inCorp(inner, () => matchPoint(inner, inner.corp.servers.rd.ice[0]))).toBe(true);
   });
 });

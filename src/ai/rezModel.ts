@@ -214,24 +214,41 @@ export function matchPoint(state: GameState, ice: CardInstance): boolean {
 /**
  * Rezzing this approached ice stops the run by the count: with it rezzed, the rezzed ice further in, and some set of the
  * unrezzed ice further in that the Corp can still afford after this rez, the Runner's credits now can't pay through.
+ * Ice the run's bypasses skip on that board (bypassesAhead, the approached ice included; 6.5.8a) never resolves, so it
+ * is left out of the sum. With further, a set without this ice that the Corp can afford and that stops for less makes
+ * this window no opinion: that inner rez happens at its own window (6.9.2b).
  */
 export function rezStops(state: GameState, ice: CardInstance, further = true): boolean {
+  const withIt = stopCost(state, ice, further);
+  if (withIt === Infinity) return false;
+  return !further || stopCost(state, null, true) >= withIt;
+}
+
+/**
+ * The cheapest rez spend that stops the run by the count, with the approached ice rezzed (ice given) or left unrezzed
+ * (null), and the cheapest affordable set of the unrezzed ice further in (only with further). Infinity: none stops.
+ */
+function stopCost(state: GameState, ice: CardInstance | null, further: boolean): number {
   const run = state.activeRun;
   const server = run ? state.corp.servers[run.server] : undefined;
-  if (!run || !server || run.icePosition === null) return false;
-  const left = state.corp.credits - rezCost(state, ice);
-  if (left < 0) return false;
-  const inner = server.ice.slice(0, run.icePosition);
-  const open = further ? inner.filter(c => !c.isRezzed).slice(0, 10) : [];
+  if (!run || !server || run.icePosition === null) return Infinity;
+  const pos = run.icePosition;
+  const base = ice ? rezCost(state, ice) : 0;
+  if (base > state.corp.credits) return Infinity;
+  const open = further ? server.ice.slice(0, pos).filter(c => !c.isRezzed).slice(0, 10) : [];
+  let best = Infinity;
   for (let mask = 0; mask < 1 << open.length; mask++) {
     const extra = open.filter((_, i) => mask & (1 << i));
-    if (extra.reduce((n, c) => n + rezCost(state, c), 0) > left) continue;
-    const up = new Set([ice.instanceId, ...extra.map(c => c.instanceId)]);
+    const cost = base + extra.reduce((n, c) => n + rezCost(state, c), 0);
+    if (cost > state.corp.credits || cost >= best) continue;
+    const up = new Set([...(ice ? [ice.instanceId] : []), ...extra.map(c => c.instanceId)]);
     const board = withServerIce(state, server.id, server.ice.map(c => (up.has(c.instanceId) ? { ...c, isRezzed: true } : c)));
-    const met = board.corp.servers[server.id].ice.slice(0, run.icePosition + 1).filter(c => c.isRezzed);
-    if (met.reduce((n, c) => n + iceCreditNeed(board, c), 0) > state.runner.credits) return true;
+    const reach = board.corp.servers[server.id].ice.slice(0, pos + 1);
+    const skipped = bypassesAhead(board, reach, true);
+    const met = reach.filter(c => c.isRezzed && !skipped.has(c.instanceId));
+    if (met.reduce((n, c) => n + iceCreditNeed(board, c), 0) > state.runner.credits) best = cost;
   }
-  return false;
+  return best;
 }
 
 /**
@@ -273,7 +290,7 @@ const withServerIce = (state: GameState, id: string, ice: CardInstance[]): GameS
 export function rdAgendaOdds(state: GameState): { odds: number; points: number } {
   const left = rdAgendas(state);
   const n = state.corp.rd.length;
-  const points = left.length ? left.reduce((a, c) => a + (cardDef(c).agenda_points ?? 0), 0) / left.length : 2;
+  const points = left.length ? left.reduce((a, c) => a + (cardDef(c).agenda_points ?? 0), 0) / left.length : 0;
   return { odds: n > 0 ? Math.min(1, left.length / n) : 0, points };
 }
 
