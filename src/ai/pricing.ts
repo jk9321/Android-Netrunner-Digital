@@ -43,6 +43,11 @@ export interface Pricing {
   leaves: { side: SideCode; plan: Plan }[];
   /** The deck's average card is being worked out (handValues.ts drawWorth): no card plans, no rig pricing inside. */
   averaging: boolean;
+  /**
+   * A deck card's played worth is being priced on the decision's root (handValues.ts priceAtRoot): what it asks for
+   * is priced per board, not from the root's prices.
+   */
+  pricingRootDeck: boolean;
   /** The tag clock is pricing the rig: tags at the flat rate inside (evaluate.ts tagLossPerTurn). */
   pricingTagLoss: boolean;
   /** Ice is being priced against the rig: run odds are the flat guesses inside (effectValues.ts). */
@@ -83,6 +88,7 @@ const context: Pricing = {
   anchor: null,
   leaves: [],
   averaging: false,
+  pricingRootDeck: false,
   pricingTagLoss: false,
   pricingIce: false,
   projecting: false,
@@ -204,6 +210,7 @@ export function pricingKey(): string {
     leafHandByCard('corp') ? 'lc' : '',
     leafHandByCard('runner') ? 'lr' : '',
     c.averaging ? 'a' : '',
+    c.pricingRootDeck ? 'd' : '',
     c.pricingTagLoss ? 't' : '',
     c.pricingIce ? 'i' : '',
     c.projecting ? 'p' : '',

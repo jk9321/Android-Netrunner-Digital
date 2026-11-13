@@ -139,10 +139,10 @@ const deckAverage = new Map<string, number>();
  */
 function atDeckRoot(state: GameState, side: SideCode): boolean {
   const anchor = pricing().anchor;
-  return side === 'corp' && !pricingRoot && pricing().frozen && !!anchor?.root && anchor.side === 'corp' && anchor.root.id === state.id && pricing().side !== null;
+  return side === 'corp' && !pricing().pricingRootDeck && pricing().frozen && !!anchor?.root && anchor.side === 'corp' && anchor.root.id === state.id && pricing().side !== null;
 }
 const rootSerials = new WeakMap<GameState, number>();
-let nextRootSerial = 0;
+const roots = { next: 0 };
 /**
  * For caches that outlive a decision (threatModel's): which decision root's deck prices a value on this board used,
  * '' when none. Every root is its own: two roots with the same fingerprint can still price a deck card differently
@@ -152,10 +152,9 @@ export function deckRootKey(state: GameState): string {
   if (!atDeckRoot(state, 'corp')) return '';
   const root = pricing().anchor!.root!;
   let n = rootSerials.get(root);
-  if (n === undefined) rootSerials.set(root, (n = nextRootSerial++));
+  if (n === undefined) rootSerials.set(root, (n = roots.next++));
   return `r${n}`;
 }
-let pricingRoot = 0;
 
 /** Average held worth of the cards left in a side's deck (what a draw is expected to bring). */
 function drawWorth(state: GameState, side: SideCode): number {
@@ -237,12 +236,7 @@ function rootDeckAverage(state: GameState, side: SideCode, deck: CardInstance[])
  * own effects otherwise met itself: a value loop, and its flat value kept all decision).
  */
 function priceAtRoot(root: GameState, card: CardInstance): number {
-  pricingRoot++;
-  try {
-    return pricingApart(() => withPricing({ averaging: true }, () => playedWorth(root, card)));
-  } finally {
-    pricingRoot--;
-  }
+  return pricingApart(() => withPricing({ averaging: true, pricingRootDeck: true }, () => playedWorth(root, card)));
 }
 
 /** The deck's average card for valueModel's cardRate (plan.flatRates.cards); the flat rate while it is being worked out. */
