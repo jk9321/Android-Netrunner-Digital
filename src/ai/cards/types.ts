@@ -77,6 +77,9 @@ export interface CardAI {
    * (Telework Contract); 'add': plus every credit hosted on it (Pennyshaver). perVirus: credits per hosted virus counter,
    * with turnStart counters added as the Runner's turn begins (Fermenter). once: once per turn, or the card is trashed. */
   clickMoney?: { clicks: number; credits: number; hosted?: 'cap' | 'add'; perVirus?: { credits: number; turnStart: number }; once?: true };
+  /** Ice with an effect of its own when it is rezzed (its text: "When you rez this ice", Ping's tag): the counted rez
+   * leaves a run-bypassed one to modelRez, which prices the rez with the ice passed (rezModel.ts countedRez). */
+  rezEffect?: true;
   /** Clicks one use gives beyond the click it costs (Nanomanagement: gain 2, 1 to play it), read by winNow.ts's count of what this turn can still score. */
   clicksGiven?: number;
 }

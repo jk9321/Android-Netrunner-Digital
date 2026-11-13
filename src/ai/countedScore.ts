@@ -6,6 +6,9 @@ import { withIceInstalled } from './iceValues';
 import { clickMoneyOf, dividendsOf, scoreCreditsOf, turnIncomeOf } from './cards';
 import { counters } from '../core/engine/cardEffects';
 import { profileOf } from './cardProfiles';
+import { agendasUnseen } from './rezModel';
+import { agendaOdds } from './effectValues';
+import { pointGain } from './valueModel';
 
 /**
  * Counted scores (Corp redesign stage 0, /mnt/project-files/netrunner-ai/redesign/spec-stage0.md M2; moved here from
@@ -601,5 +604,50 @@ export function assetPartner(state: GameState, pick: GameAction): GameAction | n
     .sort((x, y) => y.ice.length - x.ice.length)[0];
   const move = waiting ? legalShape(state, { type: 'INSTALL_CARD', cardInstanceId: card.instanceId, targetServerId: waiting.id }) : undefined;
   if (move) assetPartnerStats.moved++;
+  return move ?? null;
+}
+
+/** Central ice diagnostics: the top-level Corp's redirects, by caller and central (corpAI and search count them). */
+export const centralIceStats = { planner: 0, ranking: 0, search: 0, hq: 0, rd: 0 };
+/** The central the last centralIce call chose, for the counters. */
+export let centralIceWhy: { central?: 'hq' | 'rd' } = {};
+
+export function countCentralIce(caller: 'planner' | 'ranking' | 'search', taken: boolean) {
+  if (!taken || !centralIceWhy.central) return;
+  centralIceStats[caller]++;
+  centralIceStats[centralIceWhy.central]++;
+}
+
+/**
+ * Central ice before remote ice (spec-central-ice.md variant (6), bars/central-ice-bare.md; Jeff 2026-11-13: "fix the
+ * icing remotes while HQ and R&D were thin"; his #51 had R&D bare for turns 1-5 on 13-17 credits). When the Corp's own
+ * pick installs ice from HQ onto a remote or a new remote (the callers skip a held counted line's own steps), and HQ or
+ * R&D has no ice at all, the ice goes to that central instead, when the Corp can still pay the ice's rez after the
+ * install (none to pay on a central with no ice, 8.5.11a). Both bare: the one with more points at stake for one access
+ * (HQ: its agendas' pointGain over the cards left in HQ, the Corp's own hand, 10.2.2a; R&D: the deck list's agendas not
+ * yet seen, rezModel agendasUnseen, over R&D's cards, times the deck list's average agenda's pointGain, never R&D's
+ * order). At most once per central, as the central then has ice. A pure redirect (5.2.6: the same install action, one
+ * click): no veto, no extra install. Null: no change.
+ */
+export function centralIce(state: GameState, pick: GameAction): GameAction | null {
+  centralIceWhy = {};
+  if (!plan().shortCentral || pick.type !== 'INSTALL_CARD' || !isCorpMain(state)) return null;
+  const a = pick as GameAction & { cardInstanceId?: string; targetServerId?: string; asNewRemote?: boolean };
+  const card = state.corp.hq.find(c => c.instanceId === a.cardInstanceId);
+  if (!card || typeOf(card) !== 'ice') return null;
+  if (!a.asNewRemote && !state.corp.servers[a.targetServerId ?? '']?.isRemote) return null;
+  if (state.corp.credits < rezCostOf(state, card)) return null;
+  const bare = (['hq', 'rd'] as const).filter(id => state.corp.servers[id].ice.length === 0);
+  if (!bare.length) return null;
+  const score = state.runner.score;
+  const hand = state.corp.hq.filter(c => c.instanceId !== card.instanceId);
+  const unseen = agendasUnseen(state);
+  const stake = {
+    hq: hand.length ? hand.filter(isAgenda).reduce((n, c) => n + pointGain(score, cardDef(c).agenda_points ?? 0), 0) / hand.length : 0,
+    rd: state.corp.rd.length ? (Math.min(unseen, state.corp.rd.length) / state.corp.rd.length) * pointGain(score, agendaOdds(state).points) : 0,
+  };
+  const to = bare.sort((x, y) => stake[y] - stake[x])[0];
+  const move = legalShape(state, { type: 'INSTALL_CARD', cardInstanceId: card.instanceId, targetServerId: to });
+  if (move) centralIceWhy = { central: to };
   return move ?? null;
 }

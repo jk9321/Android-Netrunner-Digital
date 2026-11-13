@@ -65,5 +65,7 @@ export const clickMoneyOf = (code: string): CardAI['clickMoney'] => CARDS[code]?
 /** Dividends N (CardAI dividends), 0 for a card without it. */
 export const dividendsOf = (code: string): number => CARDS[code]?.dividends ?? 0;
 /** An operation with no bonus of its own in the Corp's operation ranking (CardAI setup; counted scoring plays its finish). */
+export const rezEffectOf = (code: string): boolean => !!CARDS[code]?.rezEffect;
+
 export const setupOperation = (code: string): boolean => !!CARDS[code]?.setup;
 export const runnerFormula = (state: GameState, code: string, card?: CardInstance): number | undefined => CARDS[code]?.runner?.(state, code, card);
