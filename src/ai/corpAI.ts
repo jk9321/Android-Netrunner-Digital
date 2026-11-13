@@ -722,6 +722,9 @@ export class HeuristicCorpAI implements Agent {
       // toward a flatline (one more than the grip, at most 6) instead of stopping at 3
       const cap = card.cardCode === CLEARINGHOUSE ? Math.min(6, Math.max(3, state.runner.grip.length + 1)) : 3;
       if (!(corp.credits >= 4 && card.advancementCounters < cap)) return -Infinity;
+      // A trap the Runner has accessed (knownTrap: 7.1.2, 10.2.2b) no longer reads as an agenda: its counters buy nothing
+      // from a run that won't come (Clearinghouse's counters are its turn-start damage, kept)
+      if (knownTrap(card) && card.cardCode !== CLEARINGHOUSE) return -Infinity;
       return this.synergy && tuning.bluff && isTrap(card.cardCode) ? 1.2 + this.trapBluff(state, card) : 1.2;
     }
     // Pharos: +5 strength at 3 counters; Syailendra: places counters when encountered at 3

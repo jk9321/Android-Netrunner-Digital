@@ -21,7 +21,7 @@ const knownTrapServer = (s: GameState, id: string | undefined) => {
 function look(s: GameState, a: A, t: T, tag: string) {
   if (a.type === 'ADVANCE_CARD') {
     const v = Object.values(s.corp.servers).find(x => x.root.some(c => c.instanceId === a.cardInstanceId));
-    if (v && knownTrapServer(s, v.id)) { t.advances++; t.clicks++; t.credits++; t.examples.push(`${tag} T${s.turnNumber} advance ${v.id}`); }
+    if (v && knownTrapServer(s, v.id)) { t.advances++; t.clicks++; t.credits++; t.examples.push(`${tag} T${s.turnNumber} advance ${v.id} ${v.root.map(c => cardDef(c).title).join("+")}`); }
   } else if (a.type === 'INSTALL_CARD' && a.targetServerId && knownTrapServer(s, a.targetServerId)) {
     const c = s.corp.hq.find(x => x.instanceId === a.cardInstanceId);
     if (c && cardDef(c).type_code === 'ice') { const v = s.corp.servers[a.targetServerId]; t.ice++; t.clicks++; t.credits += v.ice.length; t.examples.push(`${tag} T${s.turnNumber} ice ${cardDef(c).title} ${v.id}`); }
