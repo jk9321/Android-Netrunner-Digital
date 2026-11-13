@@ -6,7 +6,9 @@ import { rezCost } from '../core/engine/cardEffects';
 import { iceStop } from './iceValues';
 import { runLoss } from './corpAI';
 import { deckCount } from './effectValues';
+import { sideCards } from './valueModel';
 import { archivesPayoffOf } from './cards';
+import { plan } from './pricing';
 
 /**
  * plan.modelRez (structural review item 2, Jeff approved 2026-11-06): what rezzing the approached ice in a run is
@@ -150,6 +152,8 @@ export function countedRez(state: GameState, ice: CardInstance): 'rez' | 'pass' 
   if (!run || run.icePosition === null) return null;
   const server = state.corp.servers[run.server];
   if (!server) return null;
+  // Match point (spec-match-point-rez.md E1): a rez that stops a game-winning run is made, ahead of every other rule
+  if (plan().matchPointRez && matchPoint(state, ice)) return 'rez';
   // R5: Archives ice with no agenda there and no Runner Archives card is not rezzed
   if (run.server === 'archives' && !archivesWantsIce(state)) return 'pass';
   const up = { ...ice, isRezzed: true };
@@ -173,11 +177,94 @@ export function countedRez(state: GameState, ice: CardInstance): 'rez' | 'pass' 
   return null;
 }
 
+/** The Runner wins with 7 or more agenda points in its score area (rules 1.7.2a). */
+const WIN = 7;
+
+/**
+ * Match point (spec-match-point-rez.md E1): the Runner needs p more agenda points to win (rules 1.7.2a), the run's
+ * server can give it p this run (reachablePoints), and rezzing this ice stops the run by the count: with it rezzed,
+ * the rezzed ice further in, and some set of the unrezzed ice further in that the Corp can still afford after this rez
+ * (it gets each of their windows: 6.4.3, 6.9.2b), the Runner's credits now can't pay through (iceCreditNeed, as
+ * countedRez's stop test). Then the rez is made: the other side of it is a chance the game ends now. A rez that only
+ * tolls is no opinion here.
+ */
+export function matchPoint(state: GameState, ice: CardInstance): boolean {
+  const run = state.activeRun;
+  const server = run ? state.corp.servers[run.server] : undefined;
+  if (!run || !server || run.icePosition === null) return false;
+  const need = WIN - state.runner.score;
+  return need > 0 && reachablePoints(state) >= need && rezStops(state, ice);
+}
+
+/**
+ * Rezzing this approached ice stops the run by the count: with it rezzed, the rezzed ice further in, and some set of the
+ * unrezzed ice further in that the Corp can still afford after this rez, the Runner's credits now can't pay through.
+ */
+export function rezStops(state: GameState, ice: CardInstance): boolean {
+  const run = state.activeRun;
+  const server = run ? state.corp.servers[run.server] : undefined;
+  if (!run || !server || run.icePosition === null) return false;
+  const left = state.corp.credits - rezCost(state, ice);
+  if (left < 0) return false;
+  const inner = server.ice.slice(0, run.icePosition);
+  const open = inner.filter(c => !c.isRezzed).slice(0, 10);
+  for (let mask = 0; mask < 1 << open.length; mask++) {
+    const extra = open.filter((_, i) => mask & (1 << i));
+    if (extra.reduce((n, c) => n + rezCost(state, c), 0) > left) continue;
+    const up = new Set([ice.instanceId, ...extra.map(c => c.instanceId)]);
+    const board = withServerIce(state, server.id, server.ice.map(c => (up.has(c.instanceId) ? { ...c, isRezzed: true } : c)));
+    const met = board.corp.servers[server.id].ice.slice(0, run.icePosition + 1).filter(c => c.isRezzed);
+    if (met.reduce((n, c) => n + iceCreditNeed(board, c), 0) > state.runner.credits) return true;
+  }
+  return false;
+}
+
+/**
+ * The most agenda points the Runner can take on this run by what the Corp knows: the root's agendas; on HQ the best
+ * agendas in it, one an access; on R&D the best agendas its deck list still has there (agendasUnseen's pool, never the
+ * order: 10.2.2a), one an access; on Archives every agenda in it (every card there is a candidate, facedown ones turned faceup: 7.3.2, 7.3.3).
+ */
+export function reachablePoints(state: GameState): number {
+  const run = state.activeRun;
+  const server = run ? state.corp.servers[run.server] : undefined;
+  if (!run || !server) return 0;
+  const pts = (c: CardInstance) => cardDef(c).agenda_points ?? 0;
+  const isAgenda = (c: CardInstance) => cardDef(c).type_code === 'agenda';
+  const best = (cards: CardInstance[], n: number) => cards.map(pts).sort((a, b) => b - a).slice(0, n).reduce((a, b) => a + b, 0);
+  const accesses = 1 + run.extraAccesses;
+  let points = server.root.filter(isAgenda).reduce((n, c) => n + pts(c), 0);
+  if (server.id === 'hq') points += best(state.corp.hq.filter(isAgenda), accesses);
+  else if (server.id === 'rd') points += best(rdAgendas(state), Math.min(accesses, state.corp.rd.length));
+  else if (server.id === 'archives') points += [...state.corp.archives.faceUp, ...state.corp.archives.faceDown].filter(isAgenda).reduce((n, c) => n + pts(c), 0);
+  return points;
+}
+
+/** The agendas the Corp's deck list still has in R&D: the list's agendas less the ones it knows are elsewhere (as agendasUnseen). */
+function rdAgendas(state: GameState): CardInstance[] {
+  const isAgenda = (c: CardInstance) => cardDef(c).type_code === 'agenda';
+  const known = new Set(knownElsewhere(state).filter(isAgenda).map(c => c.instanceId));
+  return sideCards(state, 'corp').filter(c => isAgenda(c) && !known.has(c.instanceId));
+}
+
+const knownElsewhere = (state: GameState): CardInstance[] => [...state.corp.hq, ...Object.values(state.corp.servers).flatMap(v => v.root), ...state.corp.scoreArea, ...state.runner.scoreArea, ...state.corp.archives.faceUp, ...state.corp.archives.faceDown];
+
+const withServerIce = (state: GameState, id: string, ice: CardInstance[]): GameState => ({ ...state, corp: { ...state.corp, servers: { ...state.corp.servers, [id]: { ...state.corp.servers[id], ice } } } });
+
+/**
+ * The chance a card of R&D is an agenda, and those agendas' mean points, by the Corp's own list (spec E2): the agendas
+ * it still has in R&D (rdAgendas, R4's pool) over R&D's size. Never R&D's order (10.2.2a). The Runner can't see HQ, so its
+ * view stays the deck-wide pool (effectValues.ts agendaOdds).
+ */
+export function rdAgendaOdds(state: GameState): { odds: number; points: number } {
+  const left = rdAgendas(state);
+  const n = state.corp.rd.length;
+  const points = left.length ? left.reduce((a, c) => a + (cardDef(c).agenda_points ?? 0), 0) / left.length : 2;
+  return { odds: n > 0 ? Math.min(1, left.length / n) : 0, points };
+}
+
 /** Agendas the Corp's deck list still has in R&D: the list's agendas less the ones it knows are elsewhere (HQ, installed, either score area, Archives). */
 export function agendasUnseen(state: GameState): number {
-  const isAgenda = (c: CardInstance) => cardDef(c).type_code === 'agenda';
-  const known = [...state.corp.hq, ...Object.values(state.corp.servers).flatMap(v => v.root), ...state.corp.scoreArea, ...state.runner.scoreArea, ...state.corp.archives.faceUp, ...state.corp.archives.faceDown];
-  return deckCount(state, 'corp', isAgenda) - known.filter(isAgenda).length;
+  return rdAgendas(state).length;
 }
 
 /** Archives is worth ice (Jeff, 2026-11-11): an agenda is in it, or the Runner's deck list has a card that pays off an Archives run (CardAI archivesPayoff). */
