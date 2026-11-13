@@ -224,8 +224,9 @@ export class HeuristicCorpAI implements Agent {
         picked = redirect;
       } else picked = assetPartner(state, picked) ?? picked; // plan.assetPartner (countedScore.ts)
     }
-    // The reverse bluff: at most once a game
-    const bluff = chosen;
+    // The reverse bluff: at most once a game, used up only by the install actually played (a pick the counted layer
+    // rewrote put no agenda in a new remote)
+    const bluff = picked;
     if (bluff.type === 'INSTALL_CARD' && bluff.asNewRemote && state.corp.hq.some(c => c.instanceId === bluff.cardInstanceId && type(c) === 'agenda')) {
       const def = cardDef(state.corp.hq.find(c => c.instanceId === bluff.cardInstanceId)!);
       if ((def.advancement_cost ?? 0) > state.corp.clicks - 1) this.reverseBluffed = true;
