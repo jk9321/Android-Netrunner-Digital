@@ -27,14 +27,21 @@ test('auto fit shrinks cards to avoid scrolling and can be switched off', async 
   await expect.poll(overflowing).toBe(true); // too cramped without auto fit
   const unfit = await cardWidth();
 
+  // The shrink glides: sizes between the start and the end are seen on the way. Sampled inside
+  // the page every animation frame from before the click (sampling from here through Playwright
+  // calls was too slow and missed the glide on busy CI runners).
+  await page.evaluate(() => {
+    const w = window as unknown as { __widths: number[]; __sampling: boolean };
+    w.__widths = [];
+    w.__sampling = true;
+    const tick = () => {
+      const el = document.querySelector('[data-testid=auto-fit-area] .card-fit');
+      if (el) w.__widths.push(el.getBoundingClientRect().width);
+      if (w.__sampling) requestAnimationFrame(tick);
+    };
+    requestAnimationFrame(tick);
+  });
   await auto.click();
-  // The shrink glides: sizes between the start and the end are seen on the way
-  const seen = new Set<number>();
-  for (let i = 0; i < 20; i++) {
-    seen.add(Math.round(await cardWidth()));
-    await page.waitForTimeout(30);
-  }
-  expect(seen.size).toBeGreaterThan(2);
   await expect.poll(cardWidth).toBeLessThan(unfit);
   // Scrolling is gone, unless the deal built a board too big even at the floor (half the
   // normal width), when auto fit stops there and lets it scroll (CI 2026-11-08 hit such a deal)
@@ -43,6 +50,16 @@ test('auto fit shrinks cards to avoid scrolling and can be switched off', async 
     .poll(async () => !(await overflowing()) || Math.abs((await cardWidth()) - floor) <= 1)
     .toBe(true);
   expect(await cardWidth()).toBeGreaterThanOrEqual(floor - 1); // never below the floor
+
+  // Stop sampling only once the shrink has settled, so the whole glide was recorded
+  const seen = await page.evaluate(() => {
+    const w = window as unknown as { __widths: number[]; __sampling: boolean };
+    w.__sampling = false;
+    return new Set(w.__widths.map(x => Math.round(x * 10))).size;
+  });
+  // A deal that is only slightly cramped shrinks by a pixel or two, too little to show a glide
+  const shrink = unfit - (await cardWidth());
+  if (shrink > 8) expect(seen).toBeGreaterThan(2);
 
   expect(errors).toEqual([]);
 });

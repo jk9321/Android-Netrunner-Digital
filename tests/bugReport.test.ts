@@ -195,4 +195,19 @@ describe('bug report endpoint (worker)', () => {
     response = await handleBugReport(post({ description: 'a live site report' }, {}, LIVE), env);
     expect(response.status).toBe(200);
   });
+
+  it('files a playtest game with its own label and title, only from the beta site', async () => {
+    const game = (await buildReport({ description: '', screen: 'game', playtest: true, game: { config, state } })).game!;
+    const { posted } = fakeGithub();
+    const response = await handleBugReport(post({ description: '', screen: 'game', playtest: true, game }), env);
+    expect(response.status).toBe(200);
+    expect(posted[0].url).toContain('/issues');
+    expect(posted[0].body.labels).toEqual(['playtest-game']);
+    expect(String(posted[0].body.title)).toMatch(/^\[Playtest game\]/);
+    expect(posted[1].url).toContain('/issues/77/comments');
+    // Live site refuses; no game refuses
+    fakeGithub();
+    expect((await handleBugReport(post({ description: '', playtest: true, game }, {}, LIVE), env)).status).toBe(403);
+    expect(parseReport({ description: '', playtest: true })).toMatch(/needs a game/);
+  });
 });
