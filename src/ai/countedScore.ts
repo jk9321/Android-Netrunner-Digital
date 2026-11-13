@@ -476,6 +476,30 @@ export function iceRedirect(state: GameState, pick: GameAction): GameAction | nu
   return legalShape(state, { type: 'INSTALL_CARD', cardInstanceId: card.instanceId, targetServerId: scoring.id }) ?? null;
 }
 
+/**
+ * The scoring remote while it is kept free of assets for an agenda (asset cover reservation arm, play test round 3 G1
+ * T7-T10: remote-2 sat empty five turns with 3-4 agendas in HQ and no line on it, and the assets went bare): an agenda
+ * waits in HQ and a counted line could use the remote, that is holdCost finds a rez set for its ice, or its ice with
+ * one ice from HQ in front (scoreInTwo's install+ice form, 8.5.11a: 1 credit per ice already protecting it), within the
+ * line's horizon: what the Corp ends this turn on, its known income and next turn's clicks as credits (5.2.6a), less
+ * afterLineFloor. Otherwise an asset may take its root (3.3.1); an agenda can still replace it later by trashing it
+ * (8.5.6a). Null: not reserved. With plan.assetReserve off (the base): whenever an agenda waits in HQ.
+ */
+function reservedForAgenda(state: GameState): ServerLike | null {
+  const agendas = state.corp.hq.filter(isAgenda);
+  const scoring = agendas.length ? scoringRemote(state) : null;
+  if (!scoring || !plan().assetReserve) return scoring;
+  const floor = Math.min(...agendas.map(x => afterLineFloor(state, x.instanceId)));
+  const next = state.corp.maxClicks + (state.corp.bonusClicksNextTurn ?? 0);
+  const horizon = state.corp.credits + Math.max(0, state.corp.clicks - 1) + knownIncome(state) + next - floor;
+  if (holdCost(state, scoring.ice, horizon) !== null) return scoring;
+  for (const ice of uniqueByCode(state.corp.hq.filter(c => typeOf(c) === 'ice'))) {
+    const view = withIceInstalled(state, ice, scoring);
+    if (holdCost(view, view.corp.servers[scoring.id].ice, horizon - scoring.ice.length) !== null) return scoring;
+  }
+  return null;
+}
+
 /** Asset cover diagnostics (any caller, search included): econ installs asked about, and why no line: an agenda in HQ while the scoring remote is short, the pick's place already iced, under 2 clicks, no ice in HQ, not the asset's rez next turn (rezMoney); lines begun. */
 export const assetCoverStats = { asked: 0, scoringShort: 0, iced: 0, clicks: 0, noIce: 0, rezMoney: 0, begun: 0 };
 
@@ -511,10 +535,10 @@ export function assetCover(state: GameState, pick: GameAction): TwoTurnLine | nu
   const line = (server: string, form: TwoTurnLine['form'], ice?: { id: string; rez: number }): TwoTurnLine => ({ kind: 'asset', agenda: cardDef(asset).title, agendaId: asset.instanceId, server, form, ...(ice ? { iceId: ice.id } : {}), advanceNow: 0, advanceNext: 0, rez: ice?.rez ?? 0 });
   // assetPartner's econ case: an iced remote waiting with an open root (3.3.1) takes the asset, one click; not the
   // scoring remote while an agenda waits in HQ
-  const agenda = state.corp.hq.some(isAgenda);
-  const waiting = remotes(state).find(v => v.ice.length > 0 && !v.root.some(c => isAgenda(c) || typeOf(c) === 'asset') && !(agenda && v.id === scoring?.id));
+  const reserved = reservedForAgenda(state);
+  const waiting = remotes(state).find(v => v.ice.length > 0 && !v.root.some(c => isAgenda(c) || typeOf(c) === 'asset') && v.id !== reserved?.id);
   if (waiting && state.corp.credits + (state.corp.clicks - 1) + income >= rezCost) return (assetPartnerStats.moved++, line(waiting.id, 'install'));
-  if (agenda && scoringShort(state)) return (assetCoverStats.scoringShort++, null);
+  if (reserved && scoringShort(state)) return (assetCoverStats.scoringShort++, null);
   if (state.corp.clicks < 2) return (assetCoverStats.clicks++, null);
   const end = state.corp.credits + (state.corp.clicks - 2);
   const all = uniqueByCode(state.corp.hq.filter(c => typeOf(c) === 'ice')).map(c => ({ c, rez: rezCostOf(state, c) }));
@@ -541,10 +565,9 @@ export function assetPartner(state: GameState, pick: GameAction): GameAction | n
   if (!isCorpMain(state) || pick.type !== 'INSTALL_CARD' || !(pick as { asNewRemote?: boolean }).asNewRemote) return null;
   const card = state.corp.hq.find(c => c.instanceId === pick.cardInstanceId);
   if (!card || (typeOf(card) !== 'asset' && typeOf(card) !== 'upgrade')) return null;
-  const scoring = scoringRemote(state);
-  const agenda = state.corp.hq.some(isAgenda);
+  const reserved = reservedForAgenda(state);
   const waiting = remotes(state)
-    .filter(v => v.ice.length > 0 && !v.root.some(c => isAgenda(c) || typeOf(c) === 'asset') && !(agenda && v.id === scoring?.id))
+    .filter(v => v.ice.length > 0 && !v.root.some(c => isAgenda(c) || typeOf(c) === 'asset') && v.id !== reserved?.id)
     .sort((x, y) => y.ice.length - x.ice.length)[0];
   const move = waiting ? legalShape(state, { type: 'INSTALL_CARD', cardInstanceId: card.instanceId, targetServerId: waiting.id }) : undefined;
   if (move) assetPartnerStats.moved++;

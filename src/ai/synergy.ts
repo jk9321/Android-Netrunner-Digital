@@ -510,6 +510,8 @@ export const tuning = {
      * full hand on 55% of turns. Off on both sides, kept for re-testing.
      */
     handByCard: { corp: false, runner: false } as Record<SideCode, boolean>,
+    /** Asset cover reservation arm (countedScore.ts reservedForAgenda). Temporary: folded or deleted before the hand-off. */
+    assetReserve: false,
   },
 };
 

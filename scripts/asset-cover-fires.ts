@@ -59,7 +59,11 @@ for (const [i, seed] of seeds.entries()) {
   let installs = 0;
   let covered = 0;
   let bare = 0;
-  let strayed = 0; // non-econ assets and upgrades put on a new bare remote while an iced remote with an open root waited
+  let strayed = 0;
+  let unusedTurns = 0;
+  const lastClick = { n: 0, earlier: 0 };
+  let corpTurn = -1;
+  let turnActs: string[] = []; // non-econ assets and upgrades put on a new bare remote while an iced remote with an open root waited
   const iceThisTurn = new Map<string, number>(); // server id -> turn of the Corp's last ice install there
   const steals: Record<string, number> = {};
   const assets = new Map<string, { iced: boolean; trashed: boolean; credits: number }>();
@@ -67,6 +71,12 @@ for (const [i, seed] of seeds.entries()) {
     for (let k = 0; k < 8000; k++) {
       const s = game.state;
       if (s.activePlayer === 'corp' && isCorpMain(s) && s.pendingPrompts.length === 0 && s.corp.hq.some(c => cardDef(c).type_code === 'ice') && scoringWith(s, true) !== scoringWith(s, false)) noAssetDiff++;
+      if (s.activePlayer === 'corp' && isCorpMain(s) && s.turnNumber !== corpTurn) {
+        corpTurn = s.turnNumber;
+        turnActs = [];
+        const open = Object.values(s.corp.servers).some(v => v.isRemote && v.ice.length > 0 && !v.root.some(c => ['agenda', 'asset'].includes(cardDef(c).type_code)));
+        if (open && s.corp.hq.some(c => cardDef(c).type_code === 'agenda')) unusedTurns++;
+      }
       if (!game.step()) break;
       const n = game.state;
       const a = game.last!;
@@ -83,6 +93,7 @@ for (const [i, seed] of seeds.entries()) {
         if (after) e.credits += Math.max(0, (c.tokens.credit ?? 0) - (after.tokens.credit ?? 0));
         else if (s.activePlayer === 'runner') e.trashed = true;
       }
+      if (a.player === 'corp' && s.activePlayer === 'corp') turnActs.push(a.type);
       if (a.player !== 'corp' || a.type !== 'INSTALL_CARD') continue;
       const card = s.corp.hq.find(c => c.instanceId === a.cardInstanceId);
       if (!card) continue;
@@ -97,11 +108,15 @@ for (const [i, seed] of seeds.entries()) {
         assets.set(card.instanceId, { iced: v.ice.length > 0, trashed: false, credits: 0 });
         if (iceThisTurn.get(v.id) === s.turnNumber) covered++;
         if (!v.ice.length) bare++;
+        if (!v.ice.length && s.corp.clicks === 1 && s.corp.hq.some(c => cardDef(c).type_code === 'ice')) {
+          lastClick.n++;
+          if (turnActs.slice(0, -1).some(t => t === 'DRAW_CARD' || t === 'GAIN_CREDIT')) lastClick.earlier++;
+        }
       }
     }
   } catch (err) {
     console.error(`deal ${seed}: ${err}`);
     continue;
   }
-  console.log(JSON.stringify({ seed, deck: corpDeck.name, winner: game.state.winner ?? null, turns: game.state.turnNumber, noAssetDiff, redirects: iceRedirectStats.fired, installs, covered, bare, strayed, steals, assets: [...assets.values()], cover: { ...assetCoverStats }, partner: { ...assetPartnerStats } }));
+  console.log(JSON.stringify({ seed, deck: corpDeck.name, winner: game.state.winner ?? null, turns: game.state.turnNumber, noAssetDiff, redirects: iceRedirectStats.fired, installs, covered, bare, strayed, unusedTurns, lastClick, steals, assets: [...assets.values()], cover: { ...assetCoverStats }, partner: { ...assetPartnerStats } }));
 }
