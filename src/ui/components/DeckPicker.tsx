@@ -704,7 +704,6 @@ export const DeckPicker: React.FC<DeckPickerProps> = ({
         {/* 2. Contextual settings for that mode */}
         {mode === 'computer' && (
           <div className="flex flex-wrap items-center justify-center gap-2" role="radiogroup" aria-label="Your side">
-            <span className="text-xs uppercase tracking-wider text-slate-500 font-bold mr-1">Your side:</span>
             {OPPONENTS.map(o => (
               <button
                 key={o.id}
