@@ -419,7 +419,7 @@ export const ALARM_CLOCK = '34078';
  * come, and rig bypasses not used yet. The current ice, if rezzed and not yet
  * encountered, counts as the next encounter (it is approached first, 6.9.2c).
  */
-function bypassesAhead(state: GameState, inner: CardInstance[], encountering: boolean): Set<string> {
+export function bypassesAhead(state: GameState, inner: CardInstance[], encountering: boolean): Set<string> {
   const run = state.activeRun;
   if (!plan().bypass || !run || run.icePosition === null) return new Set();
   const current = state.corp.servers[run.server]?.ice[run.icePosition];

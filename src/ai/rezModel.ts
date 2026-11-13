@@ -1,7 +1,7 @@
 import { CardInstance, GameState, activePrompt, cardDef } from '../core';
 import { evaluate } from './evaluate';
 import { answerPrompt, simulate } from './prompts';
-import { BLOCK, iceCost, iceCreditNeed } from './runs';
+import { BLOCK, bypassesAhead, iceCost, iceCreditNeed } from './runs';
 import { rezCost } from '../core/engine/cardEffects';
 import { iceStop } from './iceValues';
 import { runLoss } from './corpAI';
@@ -47,9 +47,21 @@ export function modelRezParts(state: GameState, ice: CardInstance, synergy: bool
   const rezzed = after.corp.servers[run.server]?.ice.find(c => c.instanceId === ice.instanceId);
   if (!rezzed?.isRezzed) return undefined;
   const pass = restOfRun(state, run.icePosition - 1, synergy);
+  if (runBypassed(after, rezzed)) return { pass, rez: restOfRun(after, run.icePosition - 1, synergy), stops: false };
   const need = iceCreditNeed(after, rezzed);
   const stops = need === BLOCK || need > after.runner.credits;
   return { pass, rez: stops ? evaluate(ended(after), 'corp') : throughIce(after, rezzed, run.icePosition, synergy), stops };
+}
+
+/**
+ * The approached ice, rezzed in this state, is one the declared run bypasses (S-Dobrado's event, Alarm
+ * Clock, the rig's bypass cards and their counters: all public, runs.ts bypassesAhead; 6.5.8a). Part A of spec
+ * jeff-games-48-50, folded 2026-11-13 (plan.bypassHold).
+ */
+function runBypassed(state: GameState, ice: CardInstance): boolean {
+  const run = state.activeRun;
+  if (!run || run.icePosition === null) return false;
+  return bypassesAhead(state, state.corp.servers[run.server].ice.slice(0, run.icePosition + 1), true).has(ice.instanceId);
 }
 
 /**
@@ -157,6 +169,10 @@ export function countedRez(state: GameState, ice: CardInstance): 'rez' | 'pass' 
   if (run.server === 'archives' && !archivesWantsIce(state)) return 'pass';
   const up = { ...ice, isRezzed: true };
   const view: GameState = { ...state, corp: { ...state.corp, servers: { ...state.corp.servers, [server.id]: { ...server, ice: server.ice.map(c => (c.instanceId === ice.instanceId ? up : c)) } } } };
+  // The declared run bypasses this ice once rezzed (runBypassed), so its subroutines never resolve
+  // (6.5.8a-b) and the rez buys nothing on this run; it can still be rezzed on a later run's approach (6.9.2b). Ice with
+  // its own rez effect (Ping's tag) goes to modelRez, which prices the rez with the ice passed
+  if (runBypassed(view, up)) return /when you rez this/i.test(cardDef(ice).stripped_text ?? '') ? null : 'pass';
   const need = iceCreditNeed(view, up);
   if (need === 0) return null;
   const ahead = server.ice.slice(0, run.icePosition).filter(c => c.isRezzed).reduce((n, c) => n + iceCreditNeed(view, c), 0);
