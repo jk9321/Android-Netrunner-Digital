@@ -180,6 +180,16 @@ export interface TwoTurnLine {
   rez: number;
 }
 
+/** The clicks the Corp has on its next turn (5.2.6; bonus clicks given for it). */
+const nextClicks = (state: GameState) => state.corp.maxClicks + (state.corp.bonusClicksNextTurn ?? 0);
+
+/**
+ * A two-turn line's money on its next turn: what the Corp ends this turn on, less the rez spend that holds the server
+ * through the Runner's turn, plus its known income and the next turn's clicks the line does not spend (r) as credits
+ * (5.2.6a). scoreInTwo, lineHolds and reservedForAgenda read it, so their horizons cannot drift.
+ */
+const nextTurnCredits = (state: GameState, end: number, rez: number, r: number) => end - rez + knownIncome(state) + (nextClicks(state) - r);
+
 /**
  * Can the Corp score an agenda by the end of its next turn, by counting only (spec M2 "feasible in two turns")? This
  * turn: (install it and) advance it a times, the rest of the clicks for credits (5.2.6a); next turn advance the rest
@@ -191,7 +201,7 @@ export interface TwoTurnLine {
 export function scoreInTwo(state: GameState): TwoTurnLine | null {
   if (!isCorpMain(state)) return null;
   const C = state.corp.clicks;
-  const N = state.corp.maxClicks + (state.corp.bonusClicksNextTurn ?? 0);
+  const N = nextClicks(state);
   const K = state.corp.credits;
   const income = knownIncome(state);
   const hqIce = state.corp.hq.filter(c => typeOf(c) === 'ice');
@@ -224,7 +234,7 @@ export function scoreInTwo(state: GameState): TwoTurnLine | null {
       if (end < 0) continue;
       const rez = holdCost(t.view, t.ice, end);
       if (rez === null) continue;
-      const nextCredits = end - rez + income + (N - r);
+      const nextCredits = nextTurnCredits(state, end, rez, r);
       if (nextCredits < r) continue;
       // The money once it scores (the agenda's own score credits and the turn after's income with it) keeps the board held
       if (nextCredits - r + scoreCreditsOf(t.agenda.cardCode) + income < afterLineFloor(t.view, t.agenda.instanceId)) {
@@ -251,14 +261,14 @@ export function lineHolds(state: GameState, agendaId: string): boolean {
   if (!server) return false;
   const card = server.card;
   const r = (cardDef(card).advancement_cost ?? 0) - card.advancementCounters;
-  const N = state.corp.maxClicks + (state.corp.bonusClicksNextTurn ?? 0);
+  const N = nextClicks(state);
   if (r <= 0) return true;
   if (r > N) return false;
   const end = state.corp.credits + (state.activePlayer === 'corp' ? state.corp.clicks : 0);
   const rez = holdCost(state, state.corp.servers[server.server].ice, end);
   if (rez === null) return false;
   const income = knownIncome(state);
-  const next = end - rez + income + (N - r);
+  const next = nextTurnCredits(state, end, rez, r);
   if (next < r) return false;
   return next - r + scoreCreditsOf(card.cardCode) + income >= afterLineFloor(state, agendaId);
 }
@@ -490,8 +500,8 @@ function reservedForAgenda(state: GameState): ServerLike | null {
   const scoring = agendas.length ? scoringRemote(state) : null;
   if (!scoring || !plan().assetReserve) return scoring;
   const floor = Math.min(...agendas.map(x => afterLineFloor(state, x.instanceId)));
-  const next = state.corp.maxClicks + (state.corp.bonusClicksNextTurn ?? 0);
-  const horizon = state.corp.credits + Math.max(0, state.corp.clicks - 1) + knownIncome(state) + next - floor;
+  // The line's money on its next turn with no rez spent and no click on the agenda yet (the most a line could have)
+  const horizon = nextTurnCredits(state, state.corp.credits + Math.max(0, state.corp.clicks - 1), 0, 0) - floor;
   if (holdCost(state, scoring.ice, horizon) !== null) return scoring;
   for (const ice of uniqueByCode(state.corp.hq.filter(c => typeOf(c) === 'ice'))) {
     const view = withIceInstalled(state, ice, scoring);
