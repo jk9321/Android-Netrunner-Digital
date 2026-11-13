@@ -1,0 +1,3835 @@
+{
+  "config": {
+    "seed": 3307849934,
+    "corpDeck": {
+      "id": "nrdb-big-hands",
+      "name": "Big hands",
+      "side": "corp",
+      "identity": "Epiphany Analytica: Nations Undivided",
+      "source": "netrunnerdb",
+      "format": "standard",
+      "credit": "By Ellda on NetrunnerDB: Big hands (netrunnerdb.com/en/decklist/91769)",
+      "cards": {
+        "Tomorrowʼs Headline": 1,
+        "Spin Doctor": 3,
+        "Ping": 3,
+        "Superconducting Hub": 3,
+        "Hedge Fund": 3,
+        "Jaguarundi": 2,
+        "Oracle Thinktank": 3,
+        "Balanced Coverage": 3,
+        "Federal Fundraising": 3,
+        "Oppo Research": 3,
+        "Your Digital Life": 3,
+        "Kingmaking": 3,
+        "Janaína “JK” Dumont Kindelán": 2,
+        "Capacitor": 2,
+        "Piranhas": 3,
+        "Seraph": 3,
+        "Descent": 2,
+        "Next Big Thing": 2,
+        "Public Access Plaza": 2
+      }
+    },
+    "runnerDeck": {
+      "id": "nrdb-bag-mags",
+      "name": "Bag Mags",
+      "side": "runner",
+      "identity": "Magdalene Keino-Chemutai: Cryptarchitect",
+      "source": "netrunnerdb",
+      "credit": "By SkoolKnight4 on NetrunnerDB: Bag Mags (2026 Worlds Startup 1st Place) 🥇 (netrunnerdb.com/en/decklist/99029)",
+      "format": "startup",
+      "cards": {
+        "Fermenter": 3,
+        "Leech": 2,
+        "Creative Commission": 3,
+        "VRcation": 3,
+        "DZMZ Optimizer": 3,
+        "Pantograph": 1,
+        "Conduit": 1,
+        "Echelon": 2,
+        "Unity": 2,
+        "Telework Contract": 3,
+        "Sure Gamble": 3,
+        "Scrounge": 1,
+        "Rising Tide": 2,
+        "Lie Low": 2,
+        "Illumination": 2,
+        "Ritual": 3,
+        "Chromatophores": 2,
+        "Devadatta Drone": 1,
+        "Principia": 3,
+        "“Knickknack” O’Brian": 2,
+        "Stowaway": 1
+      }
+    },
+    "ai": "corp",
+    "difficulty": "normal"
+  },
+  "state": {
+    "id": "game-3307849934",
+    "rng": {
+      "seed": 3307849934,
+      "state": 2845108955
+    },
+    "nextInstanceId": 97,
+    "pendingPrompts": [],
+    "nextPromptId": 42,
+    "runsThisTurn": [
+      {
+        "server": "hq",
+        "successful": true
+      }
+    ],
+    "runnerLastTurnRuns": [
+      {
+        "server": "hq",
+        "successful": true
+      }
+    ],
+    "turnFlags": {
+      "runner_trashed_own_installed": 1,
+      "actions_finished": 2,
+      "action:ability:inst-52:0": 1,
+      "action:INITIATE_RUN": 1,
+      "hq_breaches": 1,
+      "agendas_scored_or_stolen": 1,
+      "agendas_stolen": 1
+    },
+    "removedFromGame": [],
+    "turnStep": null,
+    "turnNumber": 10,
+    "activePlayer": "runner",
+    "phase": "run",
+    "corp": {
+      "credits": 9,
+      "clicks": 0,
+      "maxClicks": 3,
+      "badPublicity": 0,
+      "handSizeLimit": 5,
+      "scoreArea": [
+        {
+          "instanceId": "inst-19",
+          "cardCode": "34049",
+          "isRezzed": true,
+          "advancementCounters": 0,
+          "tokens": {},
+          "hostedCardIds": [],
+          "installedTurn": "3-corp",
+          "scoredTurn": "4-corp"
+        }
+      ],
+      "score": 1,
+      "identity": {
+        "instanceId": "inst-1",
+        "cardCode": "34048",
+        "isRezzed": true,
+        "advancementCounters": 0,
+        "tokens": {
+          "power": 4
+        },
+        "hostedCardIds": []
+      },
+      "hq": [
+        {
+          "instanceId": "inst-33",
+          "cardCode": "34113",
+          "isRezzed": false,
+          "advancementCounters": 0,
+          "tokens": {},
+          "hostedCardIds": []
+        },
+        {
+          "instanceId": "inst-12",
+          "cardCode": "30070",
+          "isRezzed": false,
+          "advancementCounters": 0,
+          "tokens": {},
+          "hostedCardIds": []
+        },
+        {
+          "instanceId": "inst-10",
+          "cardCode": "30070",
+          "isRezzed": false,
+          "advancementCounters": 0,
+          "tokens": {},
+          "hostedCardIds": []
+        },
+        {
+          "instanceId": "inst-11",
+          "cardCode": "30070",
+          "isRezzed": false,
+          "advancementCounters": 0,
+          "tokens": {},
+          "hostedCardIds": []
+        }
+      ],
+      "rd": [
+        {
+          "instanceId": "inst-3",
+          "cardCode": "30052",
+          "isRezzed": false,
+          "advancementCounters": 0,
+          "tokens": {},
+          "hostedCardIds": []
+        },
+        {
+          "instanceId": "inst-48",
+          "cardCode": "35060",
+          "isRezzed": false,
+          "advancementCounters": 0,
+          "tokens": {},
+          "hostedCardIds": []
+        },
+        {
+          "instanceId": "inst-18",
+          "cardCode": "34049",
+          "isRezzed": false,
+          "advancementCounters": 0,
+          "tokens": {},
+          "hostedCardIds": []
+        },
+        {
+          "instanceId": "inst-8",
+          "cardCode": "30055",
+          "isRezzed": false,
+          "advancementCounters": 0,
+          "tokens": {},
+          "hostedCardIds": []
+        },
+        {
+          "instanceId": "inst-31",
+          "cardCode": "34056",
+          "isRezzed": false,
+          "advancementCounters": 0,
+          "tokens": {},
+          "hostedCardIds": []
+        },
+        {
+          "instanceId": "inst-47",
+          "cardCode": "34125",
+          "isRezzed": false,
+          "advancementCounters": 0,
+          "tokens": {},
+          "hostedCardIds": []
+        },
+        {
+          "instanceId": "inst-32",
+          "cardCode": "34056",
+          "isRezzed": false,
+          "advancementCounters": 0,
+          "tokens": {},
+          "hostedCardIds": []
+        },
+        {
+          "instanceId": "inst-42",
+          "cardCode": "34117",
+          "isRezzed": false,
+          "advancementCounters": 0,
+          "tokens": {},
+          "hostedCardIds": []
+        },
+        {
+          "instanceId": "inst-9",
+          "cardCode": "30055",
+          "isRezzed": false,
+          "advancementCounters": 0,
+          "tokens": {},
+          "hostedCardIds": []
+        },
+        {
+          "instanceId": "inst-37",
+          "cardCode": "34115",
+          "isRezzed": false,
+          "advancementCounters": 0,
+          "tokens": {},
+          "hostedCardIds": []
+        },
+        {
+          "instanceId": "inst-13",
+          "cardCode": "30075",
+          "isRezzed": false,
+          "advancementCounters": 0,
+          "tokens": {},
+          "hostedCardIds": []
+        },
+        {
+          "instanceId": "inst-7",
+          "cardCode": "30055",
+          "isRezzed": false,
+          "advancementCounters": 0,
+          "tokens": {},
+          "hostedCardIds": []
+        },
+        {
+          "instanceId": "inst-20",
+          "cardCode": "34049",
+          "isRezzed": false,
+          "advancementCounters": 0,
+          "tokens": {},
+          "hostedCardIds": []
+        },
+        {
+          "instanceId": "inst-25",
+          "cardCode": "34052",
+          "isRezzed": false,
+          "advancementCounters": 0,
+          "tokens": {},
+          "hostedCardIds": []
+        },
+        {
+          "instanceId": "inst-43",
+          "cardCode": "34118",
+          "isRezzed": false,
+          "advancementCounters": 0,
+          "tokens": {},
+          "hostedCardIds": []
+        },
+        {
+          "instanceId": "inst-39",
+          "cardCode": "34116",
+          "isRezzed": false,
+          "advancementCounters": 0,
+          "tokens": {},
+          "hostedCardIds": []
+        },
+        {
+          "instanceId": "inst-22",
+          "cardCode": "34050",
+          "isRezzed": false,
+          "advancementCounters": 0,
+          "tokens": {},
+          "hostedCardIds": []
+        },
+        {
+          "instanceId": "inst-44",
+          "cardCode": "34118",
+          "isRezzed": false,
+          "advancementCounters": 0,
+          "tokens": {},
+          "hostedCardIds": []
+        },
+        {
+          "instanceId": "inst-29",
+          "cardCode": "34055",
+          "isRezzed": false,
+          "advancementCounters": 0,
+          "tokens": {},
+          "hostedCardIds": []
+        },
+        {
+          "instanceId": "inst-45",
+          "cardCode": "34118",
+          "isRezzed": false,
+          "advancementCounters": 0,
+          "tokens": {},
+          "hostedCardIds": []
+        },
+        {
+          "instanceId": "inst-41",
+          "cardCode": "34117",
+          "isRezzed": false,
+          "advancementCounters": 0,
+          "tokens": {},
+          "hostedCardIds": []
+        },
+        {
+          "instanceId": "inst-14",
+          "cardCode": "30075",
+          "isRezzed": false,
+          "advancementCounters": 0,
+          "tokens": {},
+          "hostedCardIds": []
+        }
+      ],
+      "archives": {
+        "faceUp": [
+          {
+            "instanceId": "inst-36",
+            "cardCode": "34115",
+            "isRezzed": false,
+            "advancementCounters": 0,
+            "tokens": {},
+            "hostedCardIds": [],
+            "installedTurn": "2-corp",
+            "faceUp": false
+          },
+          {
+            "instanceId": "inst-15",
+            "cardCode": "30075",
+            "isRezzed": true,
+            "advancementCounters": 0,
+            "tokens": {},
+            "hostedCardIds": []
+          },
+          {
+            "instanceId": "inst-24",
+            "cardCode": "34052",
+            "isRezzed": false,
+            "advancementCounters": 0,
+            "tokens": {},
+            "hostedCardIds": [],
+            "faceUp": false,
+            "installedTurn": "6-corp"
+          },
+          {
+            "instanceId": "inst-30",
+            "cardCode": "34056",
+            "isRezzed": true,
+            "advancementCounters": 0,
+            "tokens": {},
+            "hostedCardIds": []
+          },
+          {
+            "instanceId": "inst-6",
+            "cardCode": "30053",
+            "isRezzed": false,
+            "advancementCounters": 0,
+            "tokens": {},
+            "hostedCardIds": [],
+            "installedTurn": "2-corp"
+          },
+          {
+            "instanceId": "inst-5",
+            "cardCode": "30053",
+            "isRezzed": false,
+            "advancementCounters": 0,
+            "tokens": {},
+            "hostedCardIds": [],
+            "installedTurn": "7-corp"
+          },
+          {
+            "instanceId": "inst-27",
+            "cardCode": "34055",
+            "isRezzed": false,
+            "advancementCounters": 0,
+            "tokens": {},
+            "hostedCardIds": []
+          },
+          {
+            "instanceId": "inst-16",
+            "cardCode": "34035",
+            "isRezzed": false,
+            "advancementCounters": 0,
+            "tokens": {},
+            "hostedCardIds": []
+          },
+          {
+            "instanceId": "inst-17",
+            "cardCode": "34035",
+            "isRezzed": false,
+            "advancementCounters": 0,
+            "tokens": {},
+            "hostedCardIds": []
+          }
+        ],
+        "faceDown": [
+          {
+            "instanceId": "inst-28",
+            "cardCode": "34055",
+            "isRezzed": false,
+            "advancementCounters": 0,
+            "tokens": {},
+            "hostedCardIds": []
+          }
+        ]
+      },
+      "servers": {
+        "hq": {
+          "id": "hq",
+          "name": "HQ",
+          "isRemote": false,
+          "ice": [
+            {
+              "instanceId": "inst-38",
+              "cardCode": "34116",
+              "isRezzed": true,
+              "advancementCounters": 0,
+              "tokens": {},
+              "hostedCardIds": [],
+              "installedTurn": "1-corp",
+              "runnerKnows": true
+            }
+          ],
+          "root": []
+        },
+        "rd": {
+          "id": "rd",
+          "name": "R&D",
+          "isRemote": false,
+          "ice": [],
+          "root": []
+        },
+        "archives": {
+          "id": "archives",
+          "name": "Archives",
+          "isRemote": false,
+          "ice": [],
+          "root": []
+        },
+        "remote-1": {
+          "id": "remote-1",
+          "name": "Remote Server 1",
+          "isRemote": true,
+          "ice": [
+            {
+              "instanceId": "inst-46",
+              "cardCode": "34125",
+              "isRezzed": false,
+              "advancementCounters": 0,
+              "tokens": {},
+              "hostedCardIds": [],
+              "installedTurn": "10-corp"
+            }
+          ],
+          "root": [
+            {
+              "instanceId": "inst-23",
+              "cardCode": "34050",
+              "isRezzed": true,
+              "advancementCounters": 0,
+              "tokens": {},
+              "hostedCardIds": [],
+              "installedTurn": "1-corp",
+              "runnerKnows": true
+            }
+          ]
+        },
+        "remote-5": {
+          "id": "remote-5",
+          "name": "Remote Server 5",
+          "isRemote": true,
+          "ice": [
+            {
+              "instanceId": "inst-40",
+              "cardCode": "34117",
+              "isRezzed": false,
+              "advancementCounters": 0,
+              "tokens": {},
+              "hostedCardIds": [],
+              "installedTurn": "3-corp"
+            }
+          ],
+          "root": [
+            {
+              "instanceId": "inst-21",
+              "cardCode": "34050",
+              "isRezzed": true,
+              "advancementCounters": 0,
+              "tokens": {},
+              "hostedCardIds": [],
+              "installedTurn": "5-corp",
+              "runnerKnows": true
+            }
+          ]
+        },
+        "remote-8": {
+          "id": "remote-8",
+          "name": "Remote Server 8",
+          "isRemote": true,
+          "ice": [],
+          "root": [
+            {
+              "instanceId": "inst-4",
+              "cardCode": "30053",
+              "isRezzed": true,
+              "advancementCounters": 0,
+              "tokens": {},
+              "hostedCardIds": [],
+              "installedTurn": "7-corp",
+              "runnerKnows": true
+            }
+          ]
+        },
+        "remote-9": {
+          "id": "remote-9",
+          "name": "Remote Server 9",
+          "isRemote": true,
+          "ice": [],
+          "root": [
+            {
+              "instanceId": "inst-26",
+              "cardCode": "34052",
+              "isRezzed": true,
+              "advancementCounters": 0,
+              "tokens": {},
+              "hostedCardIds": [],
+              "installedTurn": "8-corp",
+              "runnerKnows": true
+            }
+          ]
+        },
+        "remote-10": {
+          "id": "remote-10",
+          "name": "Remote Server 10",
+          "isRemote": true,
+          "ice": [],
+          "root": [
+            {
+              "instanceId": "inst-51",
+              "cardCode": "35062",
+              "isRezzed": true,
+              "advancementCounters": 0,
+              "tokens": {},
+              "hostedCardIds": [],
+              "installedTurn": "9-corp",
+              "runnerKnows": true
+            }
+          ]
+        },
+        "remote-11": {
+          "id": "remote-11",
+          "name": "Remote Server 11",
+          "isRemote": true,
+          "ice": [],
+          "root": [
+            {
+              "instanceId": "inst-50",
+              "cardCode": "35062",
+              "isRezzed": true,
+              "advancementCounters": 0,
+              "tokens": {},
+              "hostedCardIds": [],
+              "installedTurn": "9-corp",
+              "runnerKnows": true
+            }
+          ]
+        }
+      },
+      "remoteCounter": 11,
+      "bonusClicksNextTurn": 0,
+      "rdKnownToRunner": [],
+      "knownToRunner": []
+    },
+    "runner": {
+      "credits": 6,
+      "clicks": 2,
+      "maxClicks": 4,
+      "tags": 0,
+      "coreDamage": 0,
+      "memoryUnitsTotal": 4,
+      "memoryUnitsUsed": 3,
+      "handSizeLimit": 5,
+      "scoreArea": [
+        {
+          "instanceId": "inst-34",
+          "cardCode": "34113",
+          "isRezzed": true,
+          "advancementCounters": 0,
+          "tokens": {},
+          "hostedCardIds": []
+        },
+        {
+          "instanceId": "inst-49",
+          "cardCode": "35060",
+          "isRezzed": true,
+          "advancementCounters": 0,
+          "tokens": {
+            "agenda": 1
+          },
+          "hostedCardIds": []
+        },
+        {
+          "instanceId": "inst-35",
+          "cardCode": "34113",
+          "isRezzed": true,
+          "advancementCounters": 0,
+          "tokens": {},
+          "hostedCardIds": []
+        }
+      ],
+      "score": 7,
+      "identity": {
+        "instanceId": "inst-2",
+        "cardCode": "35024",
+        "isRezzed": true,
+        "advancementCounters": 0,
+        "tokens": {},
+        "hostedCardIds": []
+      },
+      "grip": [
+        {
+          "instanceId": "inst-84",
+          "cardCode": "35025",
+          "isRezzed": false,
+          "advancementCounters": 0,
+          "tokens": {},
+          "hostedCardIds": []
+        },
+        {
+          "instanceId": "inst-96",
+          "cardCode": "36024",
+          "isRezzed": false,
+          "advancementCounters": 0,
+          "tokens": {},
+          "hostedCardIds": []
+        },
+        {
+          "instanceId": "inst-70",
+          "cardCode": "30026",
+          "isRezzed": false,
+          "advancementCounters": 0,
+          "tokens": {},
+          "hostedCardIds": []
+        },
+        {
+          "instanceId": "inst-88",
+          "cardCode": "35030",
+          "isRezzed": false,
+          "advancementCounters": 0,
+          "tokens": {},
+          "hostedCardIds": []
+        },
+        {
+          "instanceId": "inst-85",
+          "cardCode": "35026",
+          "isRezzed": false,
+          "advancementCounters": 0,
+          "tokens": {},
+          "hostedCardIds": []
+        }
+      ],
+      "stack": [
+        {
+          "instanceId": "inst-72",
+          "cardCode": "30027",
+          "isRezzed": false,
+          "advancementCounters": 0,
+          "tokens": {},
+          "hostedCardIds": []
+        },
+        {
+          "instanceId": "inst-78",
+          "cardCode": "35004",
+          "isRezzed": false,
+          "advancementCounters": 0,
+          "tokens": {},
+          "hostedCardIds": []
+        },
+        {
+          "instanceId": "inst-66",
+          "cardCode": "30023",
+          "isRezzed": false,
+          "advancementCounters": 0,
+          "tokens": {},
+          "hostedCardIds": []
+        },
+        {
+          "instanceId": "inst-92",
+          "cardCode": "35032",
+          "isRezzed": false,
+          "advancementCounters": 0,
+          "tokens": {},
+          "hostedCardIds": []
+        },
+        {
+          "instanceId": "inst-61",
+          "cardCode": "30021",
+          "isRezzed": false,
+          "advancementCounters": 0,
+          "tokens": {},
+          "hostedCardIds": []
+        },
+        {
+          "instanceId": "inst-69",
+          "cardCode": "30025",
+          "isRezzed": false,
+          "advancementCounters": 0,
+          "tokens": {},
+          "hostedCardIds": []
+        },
+        {
+          "instanceId": "inst-95",
+          "cardCode": "35033",
+          "isRezzed": false,
+          "advancementCounters": 0,
+          "tokens": {},
+          "hostedCardIds": []
+        },
+        {
+          "instanceId": "inst-81",
+          "cardCode": "35015",
+          "isRezzed": false,
+          "advancementCounters": 0,
+          "tokens": {},
+          "hostedCardIds": []
+        },
+        {
+          "instanceId": "inst-54",
+          "cardCode": "30007",
+          "isRezzed": false,
+          "advancementCounters": 0,
+          "tokens": {},
+          "hostedCardIds": []
+        },
+        {
+          "instanceId": "inst-82",
+          "cardCode": "35015",
+          "isRezzed": false,
+          "advancementCounters": 0,
+          "tokens": {},
+          "hostedCardIds": []
+        },
+        {
+          "instanceId": "inst-59",
+          "cardCode": "30020",
+          "isRezzed": false,
+          "advancementCounters": 0,
+          "tokens": {},
+          "hostedCardIds": []
+        },
+        {
+          "instanceId": "inst-65",
+          "cardCode": "30022",
+          "isRezzed": false,
+          "advancementCounters": 0,
+          "tokens": {},
+          "hostedCardIds": []
+        },
+        {
+          "instanceId": "inst-67",
+          "cardCode": "30024",
+          "isRezzed": false,
+          "advancementCounters": 0,
+          "tokens": {},
+          "hostedCardIds": []
+        },
+        {
+          "instanceId": "inst-56",
+          "cardCode": "30008",
+          "isRezzed": false,
+          "advancementCounters": 0,
+          "tokens": {},
+          "hostedCardIds": []
+        },
+        {
+          "instanceId": "inst-60",
+          "cardCode": "30021",
+          "isRezzed": false,
+          "advancementCounters": 0,
+          "tokens": {},
+          "hostedCardIds": []
+        },
+        {
+          "instanceId": "inst-77",
+          "cardCode": "30030",
+          "isRezzed": false,
+          "advancementCounters": 0,
+          "tokens": {},
+          "hostedCardIds": []
+        },
+        {
+          "instanceId": "inst-55",
+          "cardCode": "30008",
+          "isRezzed": false,
+          "advancementCounters": 0,
+          "tokens": {},
+          "hostedCardIds": []
+        },
+        {
+          "instanceId": "inst-75",
+          "cardCode": "30030",
+          "isRezzed": false,
+          "advancementCounters": 0,
+          "tokens": {},
+          "hostedCardIds": []
+        },
+        {
+          "instanceId": "inst-73",
+          "cardCode": "30027",
+          "isRezzed": false,
+          "advancementCounters": 0,
+          "tokens": {},
+          "hostedCardIds": []
+        },
+        {
+          "instanceId": "inst-63",
+          "cardCode": "30022",
+          "isRezzed": false,
+          "advancementCounters": 0,
+          "tokens": {},
+          "hostedCardIds": []
+        },
+        {
+          "instanceId": "inst-94",
+          "cardCode": "35033",
+          "isRezzed": false,
+          "advancementCounters": 0,
+          "tokens": {},
+          "hostedCardIds": []
+        },
+        {
+          "instanceId": "inst-64",
+          "cardCode": "30022",
+          "isRezzed": false,
+          "advancementCounters": 0,
+          "tokens": {},
+          "hostedCardIds": []
+        },
+        {
+          "instanceId": "inst-62",
+          "cardCode": "30021",
+          "isRezzed": false,
+          "advancementCounters": 0,
+          "tokens": {},
+          "hostedCardIds": []
+        },
+        {
+          "instanceId": "inst-80",
+          "cardCode": "35009",
+          "isRezzed": false,
+          "advancementCounters": 0,
+          "tokens": {},
+          "hostedCardIds": []
+        },
+        {
+          "instanceId": "inst-74",
+          "cardCode": "30027",
+          "isRezzed": false,
+          "advancementCounters": 0,
+          "tokens": {},
+          "hostedCardIds": []
+        },
+        {
+          "instanceId": "inst-87",
+          "cardCode": "35026",
+          "isRezzed": false,
+          "advancementCounters": 0,
+          "tokens": {},
+          "hostedCardIds": []
+        },
+        {
+          "instanceId": "inst-83",
+          "cardCode": "35025",
+          "isRezzed": false,
+          "advancementCounters": 0,
+          "tokens": {},
+          "hostedCardIds": []
+        },
+        {
+          "instanceId": "inst-93",
+          "cardCode": "35032",
+          "isRezzed": false,
+          "advancementCounters": 0,
+          "tokens": {},
+          "hostedCardIds": []
+        },
+        {
+          "instanceId": "inst-58",
+          "cardCode": "30020",
+          "isRezzed": false,
+          "advancementCounters": 0,
+          "tokens": {},
+          "hostedCardIds": []
+        },
+        {
+          "instanceId": "inst-89",
+          "cardCode": "35030",
+          "isRezzed": false,
+          "advancementCounters": 0,
+          "tokens": {},
+          "hostedCardIds": []
+        }
+      ],
+      "heap": [
+        {
+          "instanceId": "inst-86",
+          "cardCode": "35026",
+          "isRezzed": true,
+          "advancementCounters": 0,
+          "tokens": {},
+          "hostedCardIds": []
+        },
+        {
+          "instanceId": "inst-76",
+          "cardCode": "30030",
+          "isRezzed": true,
+          "advancementCounters": 0,
+          "tokens": {},
+          "hostedCardIds": []
+        },
+        {
+          "instanceId": "inst-90",
+          "cardCode": "35031",
+          "isRezzed": true,
+          "advancementCounters": 0,
+          "tokens": {},
+          "hostedCardIds": [],
+          "installedTurn": "1-runner",
+          "hostedCards": []
+        },
+        {
+          "instanceId": "inst-53",
+          "cardCode": "30007",
+          "isRezzed": true,
+          "advancementCounters": 0,
+          "tokens": {},
+          "hostedCardIds": [],
+          "installedTurn": "2-runner",
+          "hostedCards": []
+        },
+        {
+          "instanceId": "inst-91",
+          "cardCode": "35032",
+          "isRezzed": true,
+          "advancementCounters": 0,
+          "tokens": {},
+          "hostedCardIds": [],
+          "installedTurn": "4-runner",
+          "hostedCards": []
+        },
+        {
+          "instanceId": "inst-57",
+          "cardCode": "30020",
+          "isRezzed": true,
+          "advancementCounters": 0,
+          "tokens": {},
+          "hostedCardIds": []
+        },
+        {
+          "instanceId": "inst-52",
+          "cardCode": "30007",
+          "isRezzed": true,
+          "advancementCounters": 0,
+          "tokens": {},
+          "hostedCardIds": [],
+          "installedTurn": "8-runner",
+          "hostedCards": []
+        }
+      ],
+      "rig": {
+        "programs": [
+          {
+            "instanceId": "inst-79",
+            "cardCode": "35009",
+            "isRezzed": true,
+            "advancementCounters": 0,
+            "tokens": {},
+            "hostedCardIds": [],
+            "installedTurn": "1-runner"
+          },
+          {
+            "instanceId": "inst-71",
+            "cardCode": "30026",
+            "isRezzed": true,
+            "advancementCounters": 0,
+            "tokens": {},
+            "hostedCardIds": [],
+            "installedTurn": "4-runner"
+          },
+          {
+            "instanceId": "inst-68",
+            "cardCode": "30025",
+            "isRezzed": true,
+            "advancementCounters": 0,
+            "tokens": {},
+            "hostedCardIds": [],
+            "installedTurn": "5-runner"
+          }
+        ],
+        "hardware": [],
+        "resources": []
+      },
+      "bonusClicksNextTurn": 0
+    },
+    "activeRun": null,
+    "winner": "runner",
+    "winReason": "Runner scored 7 agenda points!",
+    "stops": {
+      "corp": "ai",
+      "runner": "auto"
+    },
+    "priority": null,
+    "bareAssets": {
+      "exposed": 30,
+      "trashed": 2
+    },
+    "runnerLastTurnStoleOrTrashed": true,
+    "log": [
+      {
+        "id": "log-0",
+        "turnNumber": 1,
+        "player": "system",
+        "message": "Game started. Both players may mulligan, then the Corp takes the first turn."
+      },
+      {
+        "id": "log-1",
+        "turnNumber": 1,
+        "player": "corp",
+        "message": "Corp kept their opening hand."
+      },
+      {
+        "id": "log-2",
+        "turnNumber": 1,
+        "player": "runner",
+        "message": "Runner kept their opening hand."
+      },
+      {
+        "id": "log-3",
+        "turnNumber": 1,
+        "player": "corp",
+        "message": "Corp gained 3 clicks and drew 1 card (Mandatory Draw)."
+      },
+      {
+        "id": "log-4",
+        "turnNumber": 1,
+        "player": "corp",
+        "message": "Corp installed Ice protecting HQ (cost: 0 [credit]).",
+        "event": "install"
+      },
+      {
+        "id": "log-5",
+        "turnNumber": 1,
+        "player": "corp",
+        "message": "Corp installed a card into Remote Server 1.",
+        "event": "install"
+      },
+      {
+        "id": "log-6",
+        "turnNumber": 1,
+        "player": "corp",
+        "message": "Corp installed a card into Remote Server 2.",
+        "event": "install"
+      },
+      {
+        "id": "log-7",
+        "turnNumber": 1,
+        "player": "corp",
+        "message": "Corp ended turn. Runner turn begins (4 clicks)."
+      },
+      {
+        "id": "log-8",
+        "turnNumber": 1,
+        "player": "runner",
+        "message": "Runner paid 1 [credit] to install Rising Tide.",
+        "event": "install"
+      },
+      {
+        "id": "log-9",
+        "turnNumber": 1,
+        "player": "runner",
+        "message": "Runner paid 1 [credit] to install Devadatta Drone.",
+        "event": "install"
+      },
+      {
+        "id": "log-10",
+        "turnNumber": 1,
+        "player": "runner",
+        "message": "Runner initiated a run on R&D!"
+      },
+      {
+        "id": "log-11",
+        "turnNumber": 1,
+        "player": "runner",
+        "message": "Run successful on R&D! Accessing cards."
+      },
+      {
+        "id": "log-12",
+        "turnNumber": 1,
+        "player": "runner",
+        "message": "Runner will access 1 additional card (Devadatta Drone)."
+      },
+      {
+        "id": "log-13",
+        "turnNumber": 1,
+        "player": "runner",
+        "message": "Runner accessed Federal Fundraising.",
+        "cardCode": "34052",
+        "event": "access",
+        "secret": {
+          "from": "corp",
+          "publicMessage": "Runner accessed a card in R&D."
+        }
+      },
+      {
+        "id": "log-14",
+        "turnNumber": 1,
+        "player": "runner",
+        "message": "Runner accessed Oppo Research.",
+        "cardCode": "34055",
+        "event": "access",
+        "secret": {
+          "from": "corp",
+          "publicMessage": "Runner accessed a card in R&D."
+        }
+      },
+      {
+        "id": "log-15",
+        "turnNumber": 1,
+        "player": "runner",
+        "message": "Runner initiated a run on Remote Server 2!"
+      },
+      {
+        "id": "log-16",
+        "turnNumber": 1,
+        "player": "runner",
+        "message": "Run successful on Remote Server 2! Accessing cards."
+      },
+      {
+        "id": "log-17",
+        "turnNumber": 1,
+        "player": "runner",
+        "message": "Runner accessed Janaína “JK” Dumont Kindelán.",
+        "cardCode": "34115",
+        "event": "access"
+      },
+      {
+        "id": "log-18",
+        "turnNumber": 2,
+        "player": "system",
+        "message": "--- Turn 2 ---"
+      },
+      {
+        "id": "log-19",
+        "turnNumber": 2,
+        "player": "corp",
+        "message": "Corp spent 1 [credit] to rez Balanced Coverage.",
+        "event": "rez"
+      },
+      {
+        "id": "log-20",
+        "turnNumber": 2,
+        "player": "corp",
+        "message": "Corp spent 1 [credit] to rez Janaína “JK” Dumont Kindelán.",
+        "event": "rez"
+      },
+      {
+        "id": "log-21",
+        "turnNumber": 2,
+        "player": "corp",
+        "message": "Janaína \"JK\" Dumont Kindelán: 3 [credit] placed on it."
+      },
+      {
+        "id": "log-22",
+        "turnNumber": 2,
+        "player": "corp",
+        "message": "Corp named ice and looked at the top card of R&D (Balanced Coverage)."
+      },
+      {
+        "id": "log-23",
+        "turnNumber": 2,
+        "player": "corp",
+        "message": "Corp gained 3 clicks and drew 1 card (Mandatory Draw)."
+      },
+      {
+        "id": "log-24",
+        "turnNumber": 2,
+        "player": "corp",
+        "message": "Corp used Janaína “JK” Dumont Kindelán: Add this asset to HQ: take all credits from it. You may install 1 card from HQ.",
+        "cardCode": "34115"
+      },
+      {
+        "id": "log-25",
+        "turnNumber": 2,
+        "player": "corp",
+        "message": "Corp added Janaína \"JK\" Dumont Kindelán to HQ and took 3 [credit]."
+      },
+      {
+        "id": "log-26",
+        "turnNumber": 2,
+        "player": "corp",
+        "message": "Corp installed a card into Remote Server 3.",
+        "event": "install"
+      },
+      {
+        "id": "log-27",
+        "turnNumber": 2,
+        "player": "corp",
+        "message": "Remote Server 2 no longer exists."
+      },
+      {
+        "id": "log-28",
+        "turnNumber": 2,
+        "player": "corp",
+        "message": "Corp installed a card into Remote Server 4.",
+        "event": "install"
+      },
+      {
+        "id": "log-29",
+        "turnNumber": 2,
+        "player": "corp",
+        "message": "Corp spent 0 [credit] to rez Spin Doctor.",
+        "event": "rez"
+      },
+      {
+        "id": "log-30",
+        "turnNumber": 2,
+        "player": "corp",
+        "message": "Corp drew 2 card(s) (Spin Doctor)."
+      },
+      {
+        "id": "log-31",
+        "turnNumber": 2,
+        "player": "corp",
+        "message": "Corp spent [click] to draw 1 card."
+      },
+      {
+        "id": "log-32",
+        "turnNumber": 2,
+        "player": "corp",
+        "message": "Corp discarded 1 card(s) to Archives."
+      },
+      {
+        "id": "log-33",
+        "turnNumber": 2,
+        "player": "corp",
+        "message": "Corp ended turn. Runner turn begins (4 clicks)."
+      },
+      {
+        "id": "log-34",
+        "turnNumber": 2,
+        "player": "runner",
+        "message": "Runner spent [click] to draw 1 card(s)."
+      },
+      {
+        "id": "log-35",
+        "turnNumber": 2,
+        "player": "runner",
+        "message": "Runner paid 1 [credit] to install Fermenter.",
+        "event": "install"
+      },
+      {
+        "id": "log-36",
+        "turnNumber": 2,
+        "player": "runner",
+        "message": "Fermenter gained a virus counter (now 1)."
+      },
+      {
+        "id": "log-37",
+        "turnNumber": 2,
+        "player": "runner",
+        "message": "Runner initiated a run on R&D!"
+      },
+      {
+        "id": "log-38",
+        "turnNumber": 2,
+        "player": "runner",
+        "message": "Run successful on R&D! Accessing cards."
+      },
+      {
+        "id": "log-39",
+        "turnNumber": 2,
+        "player": "runner",
+        "message": "Runner will access 1 additional card (Devadatta Drone)."
+      },
+      {
+        "id": "log-40",
+        "turnNumber": 2,
+        "player": "runner",
+        "message": "Runner accessed Oracle Thinktank.",
+        "cardCode": "34049",
+        "event": "access",
+        "secret": {
+          "from": "corp",
+          "publicMessage": "Runner accessed a card in R&D."
+        }
+      },
+      {
+        "id": "log-41",
+        "turnNumber": 2,
+        "player": "runner",
+        "message": "Runner accessed and stole Oracle Thinktank for 1 agenda point(s)! Total: 1"
+      },
+      {
+        "id": "log-42",
+        "turnNumber": 2,
+        "player": "corp",
+        "message": "Epiphany Analytica gained 1 power counter."
+      },
+      {
+        "id": "log-43",
+        "turnNumber": 2,
+        "player": "corp",
+        "message": "The Runner took 1 tag(s) (now 1)."
+      },
+      {
+        "id": "log-44",
+        "turnNumber": 2,
+        "player": "runner",
+        "message": "Runner accessed Jaguarundi.",
+        "cardCode": "34035",
+        "event": "access",
+        "secret": {
+          "from": "corp",
+          "publicMessage": "Runner accessed a card in R&D."
+        }
+      },
+      {
+        "id": "log-45",
+        "turnNumber": 2,
+        "player": "runner",
+        "message": "Runner spent [click] to gain 1 credit."
+      },
+      {
+        "id": "log-46",
+        "turnNumber": 3,
+        "player": "system",
+        "message": "--- Turn 3 ---"
+      },
+      {
+        "id": "log-47",
+        "turnNumber": 3,
+        "player": "corp",
+        "message": "Corp spent 1 [credit] to rez Janaína “JK” Dumont Kindelán.",
+        "event": "rez"
+      },
+      {
+        "id": "log-48",
+        "turnNumber": 3,
+        "player": "corp",
+        "message": "Janaína \"JK\" Dumont Kindelán: 3 [credit] placed on it."
+      },
+      {
+        "id": "log-49",
+        "turnNumber": 3,
+        "player": "corp",
+        "message": "Corp named ice and looked at the top card of R&D (Balanced Coverage)."
+      },
+      {
+        "id": "log-50",
+        "turnNumber": 3,
+        "player": "corp",
+        "message": "Corp revealed Jaguarundi from the top of R&D and gained 2 [credit] (Balanced Coverage).",
+        "cardCode": "34035"
+      },
+      {
+        "id": "log-51",
+        "turnNumber": 3,
+        "player": "corp",
+        "message": "Corp gained 3 clicks and drew 1 card (Mandatory Draw)."
+      },
+      {
+        "id": "log-52",
+        "turnNumber": 3,
+        "player": "corp",
+        "message": "Corp used Epiphany Analytica: Nations Undivided: Look at the top 3 cards of R&D. You may install 1 of them.",
+        "cardCode": "34048"
+      },
+      {
+        "id": "log-53",
+        "turnNumber": 3,
+        "player": "corp",
+        "message": "Corp looked at the top 3 cards of R&D (Epiphany Analytica)."
+      },
+      {
+        "id": "log-54",
+        "turnNumber": 3,
+        "player": "corp",
+        "message": "Corp installed Ice protecting Remote Server 5 (cost: 0 [credit]).",
+        "event": "install"
+      },
+      {
+        "id": "log-55",
+        "turnNumber": 3,
+        "player": "corp",
+        "message": "Corp installed a card into Remote Server 5.",
+        "event": "install"
+      },
+      {
+        "id": "log-56",
+        "turnNumber": 3,
+        "player": "corp",
+        "message": "Corp spent [click] to gain 1 credit."
+      },
+      {
+        "id": "log-57",
+        "turnNumber": 3,
+        "player": "corp",
+        "message": "Corp ended turn. Runner turn begins (4 clicks)."
+      },
+      {
+        "id": "log-58",
+        "turnNumber": 3,
+        "player": "runner",
+        "message": "Fermenter gained a virus counter (now 2)."
+      },
+      {
+        "id": "log-59",
+        "turnNumber": 3,
+        "player": "runner",
+        "message": "Runner spent [click] and 0 [credit] to play Ritual.",
+        "cardCode": "35026"
+      },
+      {
+        "id": "log-60",
+        "turnNumber": 3,
+        "player": "runner",
+        "message": "Runner drew 3 card(s) (Ritual)."
+      },
+      {
+        "id": "log-61",
+        "turnNumber": 3,
+        "player": "runner",
+        "message": "Runner spent [click] to gain 1 credit."
+      },
+      {
+        "id": "log-62",
+        "turnNumber": 3,
+        "player": "runner",
+        "message": "Runner spent [click] to gain 1 credit."
+      },
+      {
+        "id": "log-63",
+        "turnNumber": 3,
+        "player": "runner",
+        "message": "Runner spent [click] and 5 [credit] to play Sure Gamble.",
+        "cardCode": "30030"
+      },
+      {
+        "id": "log-64",
+        "turnNumber": 3,
+        "player": "runner",
+        "message": "Runner gained 9 [credit]."
+      },
+      {
+        "id": "log-65",
+        "turnNumber": 4,
+        "player": "system",
+        "message": "--- Turn 4 ---"
+      },
+      {
+        "id": "log-66",
+        "turnNumber": 4,
+        "player": "corp",
+        "message": "Janaína \"JK\" Dumont Kindelán: 3 [credit] placed on it."
+      },
+      {
+        "id": "log-67",
+        "turnNumber": 4,
+        "player": "corp",
+        "message": "Corp named ice and looked at the top card of R&D (Balanced Coverage)."
+      },
+      {
+        "id": "log-68",
+        "turnNumber": 4,
+        "player": "corp",
+        "message": "Corp gained 3 clicks and drew 1 card (Mandatory Draw)."
+      },
+      {
+        "id": "log-69",
+        "turnNumber": 4,
+        "player": "corp",
+        "message": "Corp spent [click] and 1 [credit] to advance a card in Remote Server 5 (now 1 counters)."
+      },
+      {
+        "id": "log-70",
+        "turnNumber": 4,
+        "player": "corp",
+        "message": "Corp spent [click] and 1 [credit] to advance a card in Remote Server 5 (now 2 counters)."
+      },
+      {
+        "id": "log-71",
+        "turnNumber": 4,
+        "player": "corp",
+        "message": "Corp spent [click] and 1 [credit] to advance a card in Remote Server 5 (now 3 counters)."
+      },
+      {
+        "id": "log-72",
+        "turnNumber": 4,
+        "player": "corp",
+        "message": "Corp scored Oracle Thinktank for 1 agenda point(s)! Total: 1"
+      },
+      {
+        "id": "log-73",
+        "turnNumber": 4,
+        "player": "corp",
+        "message": "Corp discarded 1 card(s) to Archives."
+      },
+      {
+        "id": "log-74",
+        "turnNumber": 4,
+        "player": "corp",
+        "message": "Corp ended turn. Runner turn begins (4 clicks)."
+      },
+      {
+        "id": "log-75",
+        "turnNumber": 4,
+        "player": "runner",
+        "message": "Fermenter gained a virus counter (now 3)."
+      },
+      {
+        "id": "log-76",
+        "turnNumber": 4,
+        "player": "runner",
+        "message": "Runner paid 3 [credit] to install Unity.",
+        "event": "install"
+      },
+      {
+        "id": "log-77",
+        "turnNumber": 4,
+        "player": "runner",
+        "message": "Runner spent [click] to gain 1 credit."
+      },
+      {
+        "id": "log-78",
+        "turnNumber": 4,
+        "player": "runner",
+        "message": "Runner trashed Devadatta Drone to make room."
+      },
+      {
+        "id": "log-79",
+        "turnNumber": 4,
+        "player": "runner",
+        "message": "Runner paid 2 [credit] to install Principia.",
+        "event": "install"
+      },
+      {
+        "id": "log-80",
+        "turnNumber": 4,
+        "player": "runner",
+        "message": "Runner initiated a run on Remote Server 4!"
+      },
+      {
+        "id": "log-81",
+        "turnNumber": 4,
+        "player": "runner",
+        "message": "Run successful on Remote Server 4! Accessing cards."
+      },
+      {
+        "id": "log-82",
+        "turnNumber": 4,
+        "player": "runner",
+        "message": "Runner accessed Janaína “JK” Dumont Kindelán.",
+        "cardCode": "34115",
+        "event": "access"
+      },
+      {
+        "id": "log-83",
+        "turnNumber": 4,
+        "player": "runner",
+        "message": "Runner paid 1 [credit] to trash Janaína “JK” Dumont Kindelán."
+      },
+      {
+        "id": "log-84",
+        "turnNumber": 4,
+        "player": "corp",
+        "message": "Epiphany Analytica gained 1 power counter."
+      },
+      {
+        "id": "log-85",
+        "turnNumber": 4,
+        "player": "corp",
+        "message": "Remote Server 4 no longer exists."
+      },
+      {
+        "id": "log-86",
+        "turnNumber": 5,
+        "player": "system",
+        "message": "--- Turn 5 ---"
+      },
+      {
+        "id": "log-87",
+        "turnNumber": 5,
+        "player": "corp",
+        "message": "Corp named ice and looked at the top card of R&D (Balanced Coverage)."
+      },
+      {
+        "id": "log-88",
+        "turnNumber": 5,
+        "player": "corp",
+        "message": "Corp gained 3 clicks and drew 1 card (Mandatory Draw)."
+      },
+      {
+        "id": "log-89",
+        "turnNumber": 5,
+        "player": "corp",
+        "message": "Corp spent [click] and 5 [credit] to play Hedge Fund.",
+        "cardCode": "30075"
+      },
+      {
+        "id": "log-90",
+        "turnNumber": 5,
+        "player": "corp",
+        "message": "Corp gained 9 [credit]."
+      },
+      {
+        "id": "log-91",
+        "turnNumber": 5,
+        "player": "corp",
+        "message": "Corp used Oracle Thinktank: Remove 1 tag: shuffle this agenda into R&D.",
+        "cardCode": "34049"
+      },
+      {
+        "id": "log-92",
+        "turnNumber": 5,
+        "player": "corp",
+        "message": "Corp removed 1 tag and shuffled Oracle Thinktank into R&D."
+      },
+      {
+        "id": "log-93",
+        "turnNumber": 5,
+        "player": "corp",
+        "message": "Corp installed a card into Remote Server 5.",
+        "event": "install"
+      },
+      {
+        "id": "log-94",
+        "turnNumber": 5,
+        "player": "corp",
+        "message": "Corp ended turn. Runner turn begins (4 clicks)."
+      },
+      {
+        "id": "log-95",
+        "turnNumber": 5,
+        "player": "runner",
+        "message": "Fermenter gained a virus counter (now 4)."
+      },
+      {
+        "id": "log-96",
+        "turnNumber": 5,
+        "player": "runner",
+        "message": "Runner spent [click] to draw 1 card(s)."
+      },
+      {
+        "id": "log-97",
+        "turnNumber": 5,
+        "player": "runner",
+        "message": "Runner used Fermenter: Gain 2 credits for each hosted virus counter.",
+        "cardCode": "30007"
+      },
+      {
+        "id": "log-98",
+        "turnNumber": 5,
+        "player": "runner",
+        "message": "Runner gained 8 [credit] (Fermenter)."
+      },
+      {
+        "id": "log-99",
+        "turnNumber": 5,
+        "player": "runner",
+        "message": "Runner spent [click] to draw 1 card(s)."
+      },
+      {
+        "id": "log-100",
+        "turnNumber": 5,
+        "player": "runner",
+        "message": "Runner trashed Principia to make room."
+      },
+      {
+        "id": "log-101",
+        "turnNumber": 5,
+        "player": "runner",
+        "message": "Runner paid 3 [credit] to install Echelon.",
+        "event": "install"
+      },
+      {
+        "id": "log-102",
+        "turnNumber": 6,
+        "player": "system",
+        "message": "--- Turn 6 ---"
+      },
+      {
+        "id": "log-103",
+        "turnNumber": 6,
+        "player": "corp",
+        "message": "Corp spent 1 [credit] to rez Balanced Coverage.",
+        "event": "rez"
+      },
+      {
+        "id": "log-104",
+        "turnNumber": 6,
+        "player": "corp",
+        "message": "Corp named ice and looked at the top card of R&D (Balanced Coverage)."
+      },
+      {
+        "id": "log-105",
+        "turnNumber": 6,
+        "player": "corp",
+        "message": "Corp named ice and looked at the top card of R&D (Balanced Coverage)."
+      },
+      {
+        "id": "log-106",
+        "turnNumber": 6,
+        "player": "corp",
+        "message": "Corp gained 3 clicks and drew 1 card (Mandatory Draw)."
+      },
+      {
+        "id": "log-107",
+        "turnNumber": 6,
+        "player": "corp",
+        "message": "Corp installed a card into Remote Server 6.",
+        "event": "install"
+      },
+      {
+        "id": "log-108",
+        "turnNumber": 6,
+        "player": "corp",
+        "message": "Corp spent [click] to draw 1 card."
+      },
+      {
+        "id": "log-109",
+        "turnNumber": 6,
+        "player": "corp",
+        "message": "Corp spent [click] to gain 1 credit."
+      },
+      {
+        "id": "log-110",
+        "turnNumber": 6,
+        "player": "corp",
+        "message": "Corp ended turn. Runner turn begins (4 clicks)."
+      },
+      {
+        "id": "log-111",
+        "turnNumber": 6,
+        "player": "runner",
+        "message": "Runner initiated a run on R&D!"
+      },
+      {
+        "id": "log-112",
+        "turnNumber": 6,
+        "player": "runner",
+        "message": "Run successful on R&D! Accessing cards."
+      },
+      {
+        "id": "log-113",
+        "turnNumber": 6,
+        "player": "runner",
+        "message": "Runner accessed Your Digital Life.",
+        "cardCode": "34056",
+        "event": "access",
+        "secret": {
+          "from": "corp",
+          "publicMessage": "Runner accessed a card in R&D."
+        }
+      },
+      {
+        "id": "log-114",
+        "turnNumber": 6,
+        "player": "runner",
+        "message": "Runner initiated a run on Remote Server 6!"
+      },
+      {
+        "id": "log-115",
+        "turnNumber": 6,
+        "player": "runner",
+        "message": "Run successful on Remote Server 6! Accessing cards."
+      },
+      {
+        "id": "log-116",
+        "turnNumber": 6,
+        "player": "runner",
+        "message": "Runner accessed Federal Fundraising.",
+        "cardCode": "34052",
+        "event": "access"
+      },
+      {
+        "id": "log-117",
+        "turnNumber": 6,
+        "player": "runner",
+        "message": "Runner paid 2 [credit] to trash Federal Fundraising."
+      },
+      {
+        "id": "log-118",
+        "turnNumber": 6,
+        "player": "corp",
+        "message": "Epiphany Analytica gained 1 power counter."
+      },
+      {
+        "id": "log-119",
+        "turnNumber": 6,
+        "player": "corp",
+        "message": "Remote Server 6 no longer exists."
+      },
+      {
+        "id": "log-120",
+        "turnNumber": 6,
+        "player": "runner",
+        "message": "Runner spent [click] to draw 1 card(s)."
+      },
+      {
+        "id": "log-121",
+        "turnNumber": 6,
+        "player": "runner",
+        "message": "Runner spent [click] to gain 1 credit."
+      },
+      {
+        "id": "log-122",
+        "turnNumber": 7,
+        "player": "system",
+        "message": "--- Turn 7 ---"
+      },
+      {
+        "id": "log-123",
+        "turnNumber": 7,
+        "player": "corp",
+        "message": "Corp named ice and looked at the top card of R&D (Balanced Coverage)."
+      },
+      {
+        "id": "log-124",
+        "turnNumber": 7,
+        "player": "corp",
+        "message": "Corp named ice and looked at the top card of R&D (Balanced Coverage)."
+      },
+      {
+        "id": "log-125",
+        "turnNumber": 7,
+        "player": "corp",
+        "message": "Corp gained 3 clicks and drew 1 card (Mandatory Draw)."
+      },
+      {
+        "id": "log-126",
+        "turnNumber": 7,
+        "player": "corp",
+        "message": "Corp spent [click] and 2 [credit] to play Your Digital Life.",
+        "cardCode": "34056"
+      },
+      {
+        "id": "log-127",
+        "turnNumber": 7,
+        "player": "corp",
+        "message": "Corp gained 5 [credit] (Your Digital Life)."
+      },
+      {
+        "id": "log-128",
+        "turnNumber": 7,
+        "player": "corp",
+        "message": "Corp installed a card into Remote Server 7.",
+        "event": "install"
+      },
+      {
+        "id": "log-129",
+        "turnNumber": 7,
+        "player": "corp",
+        "message": "Corp spent 0 [credit] to rez Spin Doctor.",
+        "event": "rez"
+      },
+      {
+        "id": "log-130",
+        "turnNumber": 7,
+        "player": "corp",
+        "message": "Spin Doctor was trashed (unique)."
+      },
+      {
+        "id": "log-131",
+        "turnNumber": 7,
+        "player": "corp",
+        "message": "Corp drew 2 card(s) (Spin Doctor)."
+      },
+      {
+        "id": "log-132",
+        "turnNumber": 7,
+        "player": "corp",
+        "message": "Remote Server 3 no longer exists."
+      },
+      {
+        "id": "log-133",
+        "turnNumber": 7,
+        "player": "corp",
+        "message": "Corp installed a card into Remote Server 8.",
+        "event": "install"
+      },
+      {
+        "id": "log-134",
+        "turnNumber": 7,
+        "player": "corp",
+        "message": "Corp spent 0 [credit] to rez Spin Doctor.",
+        "event": "rez"
+      },
+      {
+        "id": "log-135",
+        "turnNumber": 7,
+        "player": "corp",
+        "message": "Spin Doctor was trashed (unique)."
+      },
+      {
+        "id": "log-136",
+        "turnNumber": 7,
+        "player": "corp",
+        "message": "Corp drew 2 card(s) (Spin Doctor)."
+      },
+      {
+        "id": "log-137",
+        "turnNumber": 7,
+        "player": "corp",
+        "message": "Remote Server 7 no longer exists."
+      },
+      {
+        "id": "log-138",
+        "turnNumber": 7,
+        "player": "corp",
+        "message": "Corp discarded 2 card(s) to Archives."
+      },
+      {
+        "id": "log-139",
+        "turnNumber": 7,
+        "player": "corp",
+        "message": "Corp ended turn. Runner turn begins (4 clicks)."
+      },
+      {
+        "id": "log-140",
+        "turnNumber": 7,
+        "player": "runner",
+        "message": "Runner initiated a run on Archives!"
+      },
+      {
+        "id": "log-141",
+        "turnNumber": 7,
+        "player": "runner",
+        "message": "Run successful on Archives! Accessing cards."
+      },
+      {
+        "id": "log-142",
+        "turnNumber": 7,
+        "player": "runner",
+        "message": "Runner accessed Janaína “JK” Dumont Kindelán.",
+        "cardCode": "34115",
+        "event": "access"
+      },
+      {
+        "id": "log-143",
+        "turnNumber": 7,
+        "player": "runner",
+        "message": "Runner accessed Hedge Fund.",
+        "cardCode": "30075",
+        "event": "access"
+      },
+      {
+        "id": "log-144",
+        "turnNumber": 7,
+        "player": "runner",
+        "message": "Runner accessed Federal Fundraising.",
+        "cardCode": "34052",
+        "event": "access"
+      },
+      {
+        "id": "log-145",
+        "turnNumber": 7,
+        "player": "runner",
+        "message": "Runner accessed Your Digital Life.",
+        "cardCode": "34056",
+        "event": "access"
+      },
+      {
+        "id": "log-146",
+        "turnNumber": 7,
+        "player": "runner",
+        "message": "Runner accessed Spin Doctor.",
+        "cardCode": "30053",
+        "event": "access"
+      },
+      {
+        "id": "log-147",
+        "turnNumber": 7,
+        "player": "runner",
+        "message": "Runner accessed Spin Doctor.",
+        "cardCode": "30053",
+        "event": "access"
+      },
+      {
+        "id": "log-148",
+        "turnNumber": 7,
+        "player": "runner",
+        "message": "Runner accessed Oppo Research.",
+        "cardCode": "34055",
+        "event": "access"
+      },
+      {
+        "id": "log-149",
+        "turnNumber": 7,
+        "player": "runner",
+        "message": "Runner accessed Jaguarundi.",
+        "cardCode": "34035",
+        "event": "access"
+      },
+      {
+        "id": "log-150",
+        "turnNumber": 7,
+        "player": "runner",
+        "message": "Runner accessed Oracle Thinktank.",
+        "cardCode": "34049",
+        "event": "access"
+      },
+      {
+        "id": "log-151",
+        "turnNumber": 7,
+        "player": "runner",
+        "message": "Runner accessed and stole Oracle Thinktank for 1 agenda point(s)! Total: 1"
+      },
+      {
+        "id": "log-152",
+        "turnNumber": 7,
+        "player": "corp",
+        "message": "Epiphany Analytica gained 1 power counter."
+      },
+      {
+        "id": "log-153",
+        "turnNumber": 7,
+        "player": "corp",
+        "message": "The Runner took 1 tag(s) (now 1)."
+      },
+      {
+        "id": "log-154",
+        "turnNumber": 7,
+        "player": "runner",
+        "message": "Runner accessed Jaguarundi.",
+        "cardCode": "34035",
+        "event": "access"
+      },
+      {
+        "id": "log-155",
+        "turnNumber": 7,
+        "player": "runner",
+        "message": "Runner spent [click] to draw 1 card(s)."
+      },
+      {
+        "id": "log-156",
+        "turnNumber": 7,
+        "player": "runner",
+        "message": "Runner initiated a run on HQ!"
+      },
+      {
+        "id": "log-157",
+        "turnNumber": 7,
+        "player": "corp",
+        "message": "Corp spent 4 [credit] to rez Capacitor.",
+        "event": "rez"
+      },
+      {
+        "id": "log-158",
+        "turnNumber": 7,
+        "player": "system",
+        "message": "Runner encounters Capacitor (strength 5)."
+      },
+      {
+        "id": "log-159",
+        "turnNumber": 7,
+        "player": "runner",
+        "message": "Runner paid 1 [credit]: Rising Tide +1 strength (now 3)."
+      },
+      {
+        "id": "log-160",
+        "turnNumber": 7,
+        "player": "runner",
+        "message": "Runner paid 1 [credit]: Rising Tide +1 strength (now 4)."
+      },
+      {
+        "id": "log-161",
+        "turnNumber": 7,
+        "player": "runner",
+        "message": "Runner paid 1 [credit]: Rising Tide +1 strength (now 5)."
+      },
+      {
+        "id": "log-162",
+        "turnNumber": 7,
+        "player": "runner",
+        "message": "Runner paid 1 [credit]: Rising Tide +1 strength (now 6)."
+      },
+      {
+        "id": "log-163",
+        "turnNumber": 7,
+        "player": "runner",
+        "message": "Runner paid 1 [credit] to break 1 subroutine(s) on Capacitor with Rising Tide."
+      },
+      {
+        "id": "log-164",
+        "turnNumber": 7,
+        "player": "runner",
+        "message": "Runner paid 1 [credit] to break 1 subroutine(s) on Capacitor with Rising Tide."
+      },
+      {
+        "id": "log-165",
+        "turnNumber": 7,
+        "player": "runner",
+        "message": "Run successful on HQ! Accessing cards."
+      },
+      {
+        "id": "log-166",
+        "turnNumber": 7,
+        "player": "runner",
+        "message": "Runner accessed Oracle Thinktank.",
+        "cardCode": "34049",
+        "event": "access"
+      },
+      {
+        "id": "log-167",
+        "turnNumber": 7,
+        "player": "runner",
+        "message": "Runner accessed and stole Oracle Thinktank for 1 agenda point(s)! Total: 2"
+      },
+      {
+        "id": "log-168",
+        "turnNumber": 7,
+        "player": "corp",
+        "message": "The Runner took 1 tag(s) (now 2)."
+      },
+      {
+        "id": "log-169",
+        "turnNumber": 7,
+        "player": "runner",
+        "message": "Runner spent [click] and 1 [credit] to play Creative Commission.",
+        "cardCode": "30020"
+      },
+      {
+        "id": "log-170",
+        "turnNumber": 7,
+        "player": "runner",
+        "message": "Runner gained 5 [credit]."
+      },
+      {
+        "id": "log-171",
+        "turnNumber": 8,
+        "player": "system",
+        "message": "--- Turn 8 ---"
+      },
+      {
+        "id": "log-172",
+        "turnNumber": 8,
+        "player": "corp",
+        "message": "Corp named ice and looked at the top card of R&D (Balanced Coverage)."
+      },
+      {
+        "id": "log-173",
+        "turnNumber": 8,
+        "player": "corp",
+        "message": "Corp named ice and looked at the top card of R&D (Balanced Coverage)."
+      },
+      {
+        "id": "log-174",
+        "turnNumber": 8,
+        "player": "corp",
+        "message": "Corp gained 3 clicks and drew 1 card (Mandatory Draw)."
+      },
+      {
+        "id": "log-175",
+        "turnNumber": 8,
+        "player": "corp",
+        "message": "Corp used Oracle Thinktank: Remove 1 tag: shuffle this agenda into R&D.",
+        "cardCode": "34049"
+      },
+      {
+        "id": "log-176",
+        "turnNumber": 8,
+        "player": "corp",
+        "message": "Corp removed 1 tag and shuffled Oracle Thinktank into R&D."
+      },
+      {
+        "id": "log-177",
+        "turnNumber": 8,
+        "player": "corp",
+        "message": "Corp used Oracle Thinktank: Remove 1 tag: shuffle this agenda into R&D.",
+        "cardCode": "34049"
+      },
+      {
+        "id": "log-178",
+        "turnNumber": 8,
+        "player": "corp",
+        "message": "Corp removed 1 tag and shuffled Oracle Thinktank into R&D."
+      },
+      {
+        "id": "log-179",
+        "turnNumber": 8,
+        "player": "corp",
+        "message": "Corp used Epiphany Analytica: Nations Undivided: Look at the top 3 cards of R&D. You may install 1 of them.",
+        "cardCode": "34048"
+      },
+      {
+        "id": "log-180",
+        "turnNumber": 8,
+        "player": "corp",
+        "message": "Corp looked at the top 3 cards of R&D (Epiphany Analytica)."
+      },
+      {
+        "id": "log-181",
+        "turnNumber": 8,
+        "player": "corp",
+        "message": "Corp installed a card into Remote Server 9.",
+        "event": "install"
+      },
+      {
+        "id": "log-182",
+        "turnNumber": 8,
+        "player": "corp",
+        "message": "Corp ended turn. Runner turn begins (4 clicks)."
+      },
+      {
+        "id": "log-183",
+        "turnNumber": 8,
+        "player": "runner",
+        "message": "Runner spent [click] to draw 1 card(s)."
+      },
+      {
+        "id": "log-184",
+        "turnNumber": 8,
+        "player": "runner",
+        "message": "Runner paid 1 [credit] to install Fermenter.",
+        "event": "install"
+      },
+      {
+        "id": "log-185",
+        "turnNumber": 8,
+        "player": "runner",
+        "message": "Fermenter gained a virus counter (now 1)."
+      },
+      {
+        "id": "log-186",
+        "turnNumber": 8,
+        "player": "runner",
+        "message": "Runner initiated a run on HQ!"
+      },
+      {
+        "id": "log-187",
+        "turnNumber": 8,
+        "player": "system",
+        "message": "Runner encounters Capacitor (strength 3)."
+      },
+      {
+        "id": "log-188",
+        "turnNumber": 8,
+        "player": "runner",
+        "message": "Runner paid 1 [credit]: Rising Tide +1 strength (now 3)."
+      },
+      {
+        "id": "log-189",
+        "turnNumber": 8,
+        "player": "runner",
+        "message": "Runner paid 1 [credit]: Rising Tide +1 strength (now 4)."
+      },
+      {
+        "id": "log-190",
+        "turnNumber": 8,
+        "player": "runner",
+        "message": "Runner paid 1 [credit] to break 1 subroutine(s) on Capacitor with Rising Tide."
+      },
+      {
+        "id": "log-191",
+        "turnNumber": 8,
+        "player": "runner",
+        "message": "Runner paid 1 [credit] to break 1 subroutine(s) on Capacitor with Rising Tide."
+      },
+      {
+        "id": "log-192",
+        "turnNumber": 8,
+        "player": "runner",
+        "message": "Run successful on HQ! Accessing cards."
+      },
+      {
+        "id": "log-193",
+        "turnNumber": 8,
+        "player": "runner",
+        "message": "Runner accessed Kingmaking.",
+        "cardCode": "34113",
+        "event": "access"
+      },
+      {
+        "id": "log-194",
+        "turnNumber": 8,
+        "player": "runner",
+        "message": "Runner accessed and stole Kingmaking for 2 agenda point(s)! Total: 2"
+      },
+      {
+        "id": "log-195",
+        "turnNumber": 8,
+        "player": "corp",
+        "message": "Epiphany Analytica gained 1 power counter."
+      },
+      {
+        "id": "log-196",
+        "turnNumber": 8,
+        "player": "runner",
+        "message": "Runner spent [click] to gain 1 credit."
+      },
+      {
+        "id": "log-197",
+        "turnNumber": 9,
+        "player": "system",
+        "message": "--- Turn 9 ---"
+      },
+      {
+        "id": "log-198",
+        "turnNumber": 9,
+        "player": "corp",
+        "message": "Corp spent 0 [credit] to rez Federal Fundraising.",
+        "event": "rez"
+      },
+      {
+        "id": "log-199",
+        "turnNumber": 9,
+        "player": "corp",
+        "message": "Corp named ice and looked at the top card of R&D (Balanced Coverage)."
+      },
+      {
+        "id": "log-200",
+        "turnNumber": 9,
+        "player": "corp",
+        "message": "Corp named ice and looked at the top card of R&D (Balanced Coverage)."
+      },
+      {
+        "id": "log-201",
+        "turnNumber": 9,
+        "player": "corp",
+        "message": "Corp looked at the top 3 cards of R&D (Federal Fundraising)."
+      },
+      {
+        "id": "log-202",
+        "turnNumber": 9,
+        "player": "corp",
+        "message": "Corp arranged the top 3 cards of R&D."
+      },
+      {
+        "id": "log-203",
+        "turnNumber": 9,
+        "player": "corp",
+        "message": "Corp drew 1 card(s) (Federal Fundraising)."
+      },
+      {
+        "id": "log-204",
+        "turnNumber": 9,
+        "player": "corp",
+        "message": "Corp gained 3 clicks and drew 1 card (Mandatory Draw)."
+      },
+      {
+        "id": "log-205",
+        "turnNumber": 9,
+        "player": "corp",
+        "message": "Corp installed a card into Remote Server 10.",
+        "event": "install"
+      },
+      {
+        "id": "log-206",
+        "turnNumber": 9,
+        "player": "corp",
+        "message": "Corp installed a card into Remote Server 11.",
+        "event": "install"
+      },
+      {
+        "id": "log-207",
+        "turnNumber": 9,
+        "player": "corp",
+        "message": "Corp spent [click] to draw 1 card."
+      },
+      {
+        "id": "log-208",
+        "turnNumber": 9,
+        "player": "corp",
+        "message": "Corp ended turn. Runner turn begins (4 clicks)."
+      },
+      {
+        "id": "log-209",
+        "turnNumber": 9,
+        "player": "runner",
+        "message": "Fermenter gained a virus counter (now 2)."
+      },
+      {
+        "id": "log-210",
+        "turnNumber": 9,
+        "player": "runner",
+        "message": "Runner spent [click] to draw 1 card(s)."
+      },
+      {
+        "id": "log-211",
+        "turnNumber": 9,
+        "player": "runner",
+        "message": "Runner spent [click] to gain 1 credit."
+      },
+      {
+        "id": "log-212",
+        "turnNumber": 9,
+        "player": "runner",
+        "message": "Runner initiated a run on HQ!"
+      },
+      {
+        "id": "log-213",
+        "turnNumber": 9,
+        "player": "system",
+        "message": "Runner encounters Capacitor (strength 3)."
+      },
+      {
+        "id": "log-214",
+        "turnNumber": 9,
+        "player": "runner",
+        "message": "Runner paid 1 [credit]: Rising Tide +1 strength (now 3)."
+      },
+      {
+        "id": "log-215",
+        "turnNumber": 9,
+        "player": "runner",
+        "message": "Runner paid 1 [credit] to break 1 subroutine(s) on Capacitor with Rising Tide."
+      },
+      {
+        "id": "log-216",
+        "turnNumber": 9,
+        "player": "corp",
+        "message": "Capacitor subroutine fires: Gain 1 [credit] for each tag the Runner has."
+      },
+      {
+        "id": "log-217",
+        "turnNumber": 9,
+        "player": "runner",
+        "message": "Run successful on HQ! Accessing cards."
+      },
+      {
+        "id": "log-218",
+        "turnNumber": 9,
+        "player": "runner",
+        "message": "Runner accessed Next Big Thing.",
+        "cardCode": "35060",
+        "event": "access"
+      },
+      {
+        "id": "log-219",
+        "turnNumber": 9,
+        "player": "runner",
+        "message": "Runner accessed and stole Next Big Thing for 3 agenda point(s)! Total: 5"
+      },
+      {
+        "id": "log-220",
+        "turnNumber": 9,
+        "player": "corp",
+        "message": "Epiphany Analytica gained 1 power counter."
+      },
+      {
+        "id": "log-221",
+        "turnNumber": 9,
+        "player": "runner",
+        "message": "Runner spent [click] to gain 1 credit."
+      },
+      {
+        "id": "log-222",
+        "turnNumber": 10,
+        "player": "system",
+        "message": "--- Turn 10 ---"
+      },
+      {
+        "id": "log-223",
+        "turnNumber": 10,
+        "player": "corp",
+        "message": "Corp spent 1 [credit] to rez Public Access Plaza.",
+        "event": "rez"
+      },
+      {
+        "id": "log-224",
+        "turnNumber": 10,
+        "player": "corp",
+        "message": "Corp spent 1 [credit] to rez Public Access Plaza.",
+        "event": "rez"
+      },
+      {
+        "id": "log-225",
+        "turnNumber": 10,
+        "player": "corp",
+        "message": "Corp gained 1 [credit] (Public Access Plaza)."
+      },
+      {
+        "id": "log-226",
+        "turnNumber": 10,
+        "player": "corp",
+        "message": "Corp gained 1 [credit] (Public Access Plaza)."
+      },
+      {
+        "id": "log-227",
+        "turnNumber": 10,
+        "player": "corp",
+        "message": "Corp named ice and looked at the top card of R&D (Balanced Coverage)."
+      },
+      {
+        "id": "log-228",
+        "turnNumber": 10,
+        "player": "corp",
+        "message": "Corp named ice and looked at the top card of R&D (Balanced Coverage)."
+      },
+      {
+        "id": "log-229",
+        "turnNumber": 10,
+        "player": "corp",
+        "message": "Corp looked at the top 3 cards of R&D (Federal Fundraising)."
+      },
+      {
+        "id": "log-230",
+        "turnNumber": 10,
+        "player": "corp",
+        "message": "Corp arranged the top 3 cards of R&D."
+      },
+      {
+        "id": "log-231",
+        "turnNumber": 10,
+        "player": "corp",
+        "message": "Corp drew 1 card(s) (Federal Fundraising)."
+      },
+      {
+        "id": "log-232",
+        "turnNumber": 10,
+        "player": "corp",
+        "message": "Corp gained 3 clicks and drew 1 card (Mandatory Draw)."
+      },
+      {
+        "id": "log-233",
+        "turnNumber": 10,
+        "player": "corp",
+        "message": "Corp installed Ice protecting Remote Server 1 (cost: 0 [credit]).",
+        "event": "install"
+      },
+      {
+        "id": "log-234",
+        "turnNumber": 10,
+        "player": "corp",
+        "message": "Corp spent [click] to draw 1 card."
+      },
+      {
+        "id": "log-235",
+        "turnNumber": 10,
+        "player": "corp",
+        "message": "Corp spent [click] to gain 1 credit."
+      },
+      {
+        "id": "log-236",
+        "turnNumber": 10,
+        "player": "corp",
+        "message": "Corp discarded 1 card(s) to Archives."
+      },
+      {
+        "id": "log-237",
+        "turnNumber": 10,
+        "player": "corp",
+        "message": "Corp ended turn. Runner turn begins (4 clicks)."
+      },
+      {
+        "id": "log-238",
+        "turnNumber": 10,
+        "player": "runner",
+        "message": "Fermenter gained a virus counter (now 3)."
+      },
+      {
+        "id": "log-239",
+        "turnNumber": 10,
+        "player": "runner",
+        "message": "Runner used Fermenter: Gain 2 credits for each hosted virus counter.",
+        "cardCode": "30007"
+      },
+      {
+        "id": "log-240",
+        "turnNumber": 10,
+        "player": "runner",
+        "message": "Runner gained 6 [credit] (Fermenter)."
+      },
+      {
+        "id": "log-241",
+        "turnNumber": 10,
+        "player": "runner",
+        "message": "Runner initiated a run on HQ!"
+      },
+      {
+        "id": "log-242",
+        "turnNumber": 10,
+        "player": "system",
+        "message": "Runner encounters Capacitor (strength 3)."
+      },
+      {
+        "id": "log-243",
+        "turnNumber": 10,
+        "player": "runner",
+        "message": "Runner paid 1 [credit]: Rising Tide +1 strength (now 3)."
+      },
+      {
+        "id": "log-244",
+        "turnNumber": 10,
+        "player": "runner",
+        "message": "Runner paid 1 [credit] to break 1 subroutine(s) on Capacitor with Rising Tide."
+      },
+      {
+        "id": "log-245",
+        "turnNumber": 10,
+        "player": "corp",
+        "message": "Capacitor subroutine fires: Gain 1 [credit] for each tag the Runner has."
+      },
+      {
+        "id": "log-246",
+        "turnNumber": 10,
+        "player": "runner",
+        "message": "Run successful on HQ! Accessing cards."
+      },
+      {
+        "id": "log-247",
+        "turnNumber": 10,
+        "player": "runner",
+        "message": "Runner accessed Kingmaking.",
+        "cardCode": "34113",
+        "event": "access"
+      },
+      {
+        "id": "log-248",
+        "turnNumber": 10,
+        "player": "runner",
+        "message": "Runner accessed and stole Kingmaking for 2 agenda point(s)! Total: 7"
+      },
+      {
+        "id": "log-249",
+        "turnNumber": 10,
+        "player": "system",
+        "message": "Victory: Runner reached 7 agenda points!"
+      }
+    ]
+  },
+  "moves": [
+    {
+      "type": "RESOLVE_PROMPT",
+      "player": "corp",
+      "promptId": "prompt-1",
+      "choice": {
+        "kind": "mulligan",
+        "mulligan": false
+      }
+    },
+    {
+      "type": "RESOLVE_PROMPT",
+      "player": "runner",
+      "promptId": "prompt-2",
+      "choice": {
+        "kind": "mulligan",
+        "mulligan": false
+      }
+    },
+    {
+      "type": "INSTALL_CARD",
+      "player": "corp",
+      "cardInstanceId": "inst-38",
+      "targetServerId": "hq"
+    },
+    {
+      "type": "INSTALL_CARD",
+      "player": "corp",
+      "cardInstanceId": "inst-23",
+      "asNewRemote": true
+    },
+    {
+      "type": "INSTALL_CARD",
+      "player": "corp",
+      "cardInstanceId": "inst-36",
+      "asNewRemote": true
+    },
+    {
+      "type": "END_TURN",
+      "player": "corp"
+    },
+    {
+      "type": "INSTALL_CARD",
+      "player": "runner",
+      "cardInstanceId": "inst-79"
+    },
+    {
+      "type": "INSTALL_CARD",
+      "player": "runner",
+      "cardInstanceId": "inst-90"
+    },
+    {
+      "type": "INITIATE_RUN",
+      "player": "runner",
+      "targetServerId": "rd"
+    },
+    {
+      "type": "CONTINUE_RUN",
+      "player": "runner"
+    },
+    {
+      "type": "CONTINUE_RUN",
+      "player": "runner"
+    },
+    {
+      "type": "RESOLVE_PROMPT",
+      "player": "runner",
+      "promptId": "prompt-3",
+      "choice": {
+        "kind": "effect_choice",
+        "optionId": "use"
+      }
+    },
+    {
+      "type": "RESOLVE_PROMPT",
+      "player": "runner",
+      "promptId": "prompt-4",
+      "choice": {
+        "kind": "access_trash",
+        "trash": false
+      }
+    },
+    {
+      "type": "INITIATE_RUN",
+      "player": "runner",
+      "targetServerId": "remote-2"
+    },
+    {
+      "type": "CONTINUE_RUN",
+      "player": "runner"
+    },
+    {
+      "type": "CONTINUE_RUN",
+      "player": "runner"
+    },
+    {
+      "type": "PASS",
+      "player": "corp"
+    },
+    {
+      "type": "RESOLVE_PROMPT",
+      "player": "runner",
+      "promptId": "prompt-5",
+      "choice": {
+        "kind": "access_trash",
+        "trash": false
+      }
+    },
+    {
+      "type": "END_TURN",
+      "player": "runner"
+    },
+    {
+      "type": "REZ_CARD",
+      "player": "corp",
+      "cardInstanceId": "inst-23"
+    },
+    {
+      "type": "REZ_CARD",
+      "player": "corp",
+      "cardInstanceId": "inst-36"
+    },
+    {
+      "type": "START_TURN",
+      "player": "corp"
+    },
+    {
+      "type": "RESOLVE_PROMPT",
+      "player": "corp",
+      "promptId": "prompt-6",
+      "choice": {
+        "kind": "effect_choice",
+        "optionId": "ice"
+      }
+    },
+    {
+      "type": "USE_ABILITY",
+      "player": "corp",
+      "cardInstanceId": "inst-36",
+      "abilityIndex": 0
+    },
+    {
+      "type": "RESOLVE_PROMPT",
+      "player": "corp",
+      "promptId": "prompt-7",
+      "choice": {
+        "kind": "effect_cards",
+        "cardInstanceIds": [
+          "inst-6"
+        ]
+      }
+    },
+    {
+      "type": "RESOLVE_PROMPT",
+      "player": "corp",
+      "promptId": "prompt-8",
+      "choice": {
+        "kind": "effect_choice",
+        "optionId": "new"
+      }
+    },
+    {
+      "type": "INSTALL_CARD",
+      "player": "corp",
+      "cardInstanceId": "inst-36",
+      "asNewRemote": true
+    },
+    {
+      "type": "REZ_CARD",
+      "player": "corp",
+      "cardInstanceId": "inst-6"
+    },
+    {
+      "type": "DRAW_CARD",
+      "player": "corp"
+    },
+    {
+      "type": "END_TURN",
+      "player": "corp"
+    },
+    {
+      "type": "RESOLVE_PROMPT",
+      "player": "corp",
+      "promptId": "prompt-9",
+      "choice": {
+        "kind": "discard",
+        "cardInstanceIds": [
+          "inst-27"
+        ]
+      }
+    },
+    {
+      "type": "DRAW_CARD",
+      "player": "runner"
+    },
+    {
+      "type": "INSTALL_CARD",
+      "player": "runner",
+      "cardInstanceId": "inst-53"
+    },
+    {
+      "type": "INITIATE_RUN",
+      "player": "runner",
+      "targetServerId": "rd"
+    },
+    {
+      "type": "CONTINUE_RUN",
+      "player": "runner"
+    },
+    {
+      "type": "CONTINUE_RUN",
+      "player": "runner"
+    },
+    {
+      "type": "PASS",
+      "player": "corp"
+    },
+    {
+      "type": "RESOLVE_PROMPT",
+      "player": "runner",
+      "promptId": "prompt-10",
+      "choice": {
+        "kind": "effect_choice",
+        "optionId": "use"
+      }
+    },
+    {
+      "type": "GAIN_CREDIT",
+      "player": "runner"
+    },
+    {
+      "type": "END_TURN",
+      "player": "runner"
+    },
+    {
+      "type": "REZ_CARD",
+      "player": "corp",
+      "cardInstanceId": "inst-36"
+    },
+    {
+      "type": "START_TURN",
+      "player": "corp"
+    },
+    {
+      "type": "RESOLVE_PROMPT",
+      "player": "corp",
+      "promptId": "prompt-11",
+      "choice": {
+        "kind": "effect_choice",
+        "optionId": "ice"
+      }
+    },
+    {
+      "type": "RESOLVE_PROMPT",
+      "player": "corp",
+      "promptId": "prompt-12",
+      "choice": {
+        "kind": "effect_choice",
+        "optionId": "yes"
+      }
+    },
+    {
+      "type": "USE_ABILITY",
+      "player": "corp",
+      "cardInstanceId": "inst-1",
+      "abilityIndex": 0
+    },
+    {
+      "type": "RESOLVE_PROMPT",
+      "player": "corp",
+      "promptId": "prompt-13",
+      "choice": {
+        "kind": "effect_cards",
+        "cardInstanceIds": [
+          "inst-40"
+        ]
+      }
+    },
+    {
+      "type": "RESOLVE_PROMPT",
+      "player": "corp",
+      "promptId": "prompt-14",
+      "choice": {
+        "kind": "effect_choice",
+        "optionId": "new"
+      }
+    },
+    {
+      "type": "INSTALL_CARD",
+      "player": "corp",
+      "cardInstanceId": "inst-19",
+      "targetServerId": "remote-5"
+    },
+    {
+      "type": "GAIN_CREDIT",
+      "player": "corp"
+    },
+    {
+      "type": "END_TURN",
+      "player": "corp"
+    },
+    {
+      "type": "PLAY_OPERATION_OR_EVENT",
+      "player": "runner",
+      "cardInstanceId": "inst-86"
+    },
+    {
+      "type": "GAIN_CREDIT",
+      "player": "runner"
+    },
+    {
+      "type": "GAIN_CREDIT",
+      "player": "runner"
+    },
+    {
+      "type": "PLAY_OPERATION_OR_EVENT",
+      "player": "runner",
+      "cardInstanceId": "inst-76"
+    },
+    {
+      "type": "END_TURN",
+      "player": "runner"
+    },
+    {
+      "type": "START_TURN",
+      "player": "corp"
+    },
+    {
+      "type": "RESOLVE_PROMPT",
+      "player": "corp",
+      "promptId": "prompt-15",
+      "choice": {
+        "kind": "effect_choice",
+        "optionId": "ice"
+      }
+    },
+    {
+      "type": "ADVANCE_CARD",
+      "player": "corp",
+      "cardInstanceId": "inst-19",
+      "serverId": "remote-5"
+    },
+    {
+      "type": "ADVANCE_CARD",
+      "player": "corp",
+      "cardInstanceId": "inst-19",
+      "serverId": "remote-5"
+    },
+    {
+      "type": "ADVANCE_CARD",
+      "player": "corp",
+      "cardInstanceId": "inst-19",
+      "serverId": "remote-5"
+    },
+    {
+      "type": "SCORE_AGENDA",
+      "player": "corp",
+      "cardInstanceId": "inst-19"
+    },
+    {
+      "type": "END_TURN",
+      "player": "corp"
+    },
+    {
+      "type": "RESOLVE_PROMPT",
+      "player": "corp",
+      "promptId": "prompt-16",
+      "choice": {
+        "kind": "discard",
+        "cardInstanceIds": [
+          "inst-16"
+        ]
+      }
+    },
+    {
+      "type": "INSTALL_CARD",
+      "player": "runner",
+      "cardInstanceId": "inst-71"
+    },
+    {
+      "type": "GAIN_CREDIT",
+      "player": "runner"
+    },
+    {
+      "type": "INSTALL_CARD",
+      "player": "runner",
+      "cardInstanceId": "inst-91",
+      "trashFirst": [
+        "inst-90"
+      ]
+    },
+    {
+      "type": "INITIATE_RUN",
+      "player": "runner",
+      "targetServerId": "remote-4"
+    },
+    {
+      "type": "CONTINUE_RUN",
+      "player": "runner"
+    },
+    {
+      "type": "CONTINUE_RUN",
+      "player": "runner"
+    },
+    {
+      "type": "PASS",
+      "player": "corp"
+    },
+    {
+      "type": "RESOLVE_PROMPT",
+      "player": "runner",
+      "promptId": "prompt-17",
+      "choice": {
+        "kind": "access_trash",
+        "trash": true
+      }
+    },
+    {
+      "type": "END_TURN",
+      "player": "runner"
+    },
+    {
+      "type": "START_TURN",
+      "player": "corp"
+    },
+    {
+      "type": "RESOLVE_PROMPT",
+      "player": "corp",
+      "promptId": "prompt-18",
+      "choice": {
+        "kind": "effect_choice",
+        "optionId": "ice"
+      }
+    },
+    {
+      "type": "PLAY_OPERATION_OR_EVENT",
+      "player": "corp",
+      "cardInstanceId": "inst-15"
+    },
+    {
+      "type": "USE_ABILITY",
+      "player": "corp",
+      "cardInstanceId": "inst-20",
+      "abilityIndex": 0
+    },
+    {
+      "type": "INSTALL_CARD",
+      "player": "corp",
+      "cardInstanceId": "inst-21",
+      "targetServerId": "remote-5"
+    },
+    {
+      "type": "END_TURN",
+      "player": "corp"
+    },
+    {
+      "type": "DRAW_CARD",
+      "player": "runner"
+    },
+    {
+      "type": "USE_ABILITY",
+      "player": "runner",
+      "cardInstanceId": "inst-53",
+      "abilityIndex": 0
+    },
+    {
+      "type": "DRAW_CARD",
+      "player": "runner"
+    },
+    {
+      "type": "INSTALL_CARD",
+      "player": "runner",
+      "cardInstanceId": "inst-68",
+      "trashFirst": [
+        "inst-91"
+      ]
+    },
+    {
+      "type": "END_TURN",
+      "player": "runner"
+    },
+    {
+      "type": "REZ_CARD",
+      "player": "corp",
+      "cardInstanceId": "inst-21"
+    },
+    {
+      "type": "START_TURN",
+      "player": "corp"
+    },
+    {
+      "type": "RESOLVE_PROMPT",
+      "player": "corp",
+      "promptId": "prompt-19",
+      "choice": {
+        "kind": "effect_choice",
+        "optionId": "ice"
+      }
+    },
+    {
+      "type": "RESOLVE_PROMPT",
+      "player": "corp",
+      "promptId": "prompt-20",
+      "choice": {
+        "kind": "effect_choice",
+        "optionId": "ice"
+      }
+    },
+    {
+      "type": "INSTALL_CARD",
+      "player": "corp",
+      "cardInstanceId": "inst-24",
+      "asNewRemote": true
+    },
+    {
+      "type": "DRAW_CARD",
+      "player": "corp"
+    },
+    {
+      "type": "GAIN_CREDIT",
+      "player": "corp"
+    },
+    {
+      "type": "END_TURN",
+      "player": "corp"
+    },
+    {
+      "type": "INITIATE_RUN",
+      "player": "runner",
+      "targetServerId": "rd"
+    },
+    {
+      "type": "CONTINUE_RUN",
+      "player": "runner"
+    },
+    {
+      "type": "CONTINUE_RUN",
+      "player": "runner"
+    },
+    {
+      "type": "PASS",
+      "player": "corp"
+    },
+    {
+      "type": "INITIATE_RUN",
+      "player": "runner",
+      "targetServerId": "remote-6"
+    },
+    {
+      "type": "CONTINUE_RUN",
+      "player": "runner"
+    },
+    {
+      "type": "CONTINUE_RUN",
+      "player": "runner"
+    },
+    {
+      "type": "PASS",
+      "player": "corp"
+    },
+    {
+      "type": "RESOLVE_PROMPT",
+      "player": "runner",
+      "promptId": "prompt-21",
+      "choice": {
+        "kind": "access_trash",
+        "trash": true
+      }
+    },
+    {
+      "type": "DRAW_CARD",
+      "player": "runner"
+    },
+    {
+      "type": "GAIN_CREDIT",
+      "player": "runner"
+    },
+    {
+      "type": "END_TURN",
+      "player": "runner"
+    },
+    {
+      "type": "START_TURN",
+      "player": "corp"
+    },
+    {
+      "type": "RESOLVE_PROMPT",
+      "player": "corp",
+      "promptId": "prompt-22",
+      "choice": {
+        "kind": "effect_choice",
+        "optionId": "ice"
+      }
+    },
+    {
+      "type": "RESOLVE_PROMPT",
+      "player": "corp",
+      "promptId": "prompt-23",
+      "choice": {
+        "kind": "effect_choice",
+        "optionId": "ice"
+      }
+    },
+    {
+      "type": "PLAY_OPERATION_OR_EVENT",
+      "player": "corp",
+      "cardInstanceId": "inst-30"
+    },
+    {
+      "type": "INSTALL_CARD",
+      "player": "corp",
+      "cardInstanceId": "inst-5",
+      "asNewRemote": true
+    },
+    {
+      "type": "REZ_CARD",
+      "player": "corp",
+      "cardInstanceId": "inst-5"
+    },
+    {
+      "type": "INSTALL_CARD",
+      "player": "corp",
+      "cardInstanceId": "inst-4",
+      "asNewRemote": true
+    },
+    {
+      "type": "REZ_CARD",
+      "player": "corp",
+      "cardInstanceId": "inst-4"
+    },
+    {
+      "type": "END_TURN",
+      "player": "corp"
+    },
+    {
+      "type": "RESOLVE_PROMPT",
+      "player": "corp",
+      "promptId": "prompt-24",
+      "choice": {
+        "kind": "discard",
+        "cardInstanceIds": [
+          "inst-17",
+          "inst-18"
+        ]
+      }
+    },
+    {
+      "type": "INITIATE_RUN",
+      "player": "runner",
+      "targetServerId": "archives"
+    },
+    {
+      "type": "CONTINUE_RUN",
+      "player": "runner"
+    },
+    {
+      "type": "CONTINUE_RUN",
+      "player": "runner"
+    },
+    {
+      "type": "PASS",
+      "player": "corp"
+    },
+    {
+      "type": "DRAW_CARD",
+      "player": "runner"
+    },
+    {
+      "type": "INITIATE_RUN",
+      "player": "runner",
+      "targetServerId": "hq"
+    },
+    {
+      "type": "CONTINUE_RUN",
+      "player": "runner"
+    },
+    {
+      "type": "REZ_CARD",
+      "player": "corp",
+      "cardInstanceId": "inst-38"
+    },
+    {
+      "type": "PASS",
+      "player": "corp"
+    },
+    {
+      "type": "CONTINUE_RUN",
+      "player": "runner"
+    },
+    {
+      "type": "BOOST_BREAKER",
+      "player": "runner",
+      "breakerInstanceId": "inst-79"
+    },
+    {
+      "type": "BOOST_BREAKER",
+      "player": "runner",
+      "breakerInstanceId": "inst-79"
+    },
+    {
+      "type": "BOOST_BREAKER",
+      "player": "runner",
+      "breakerInstanceId": "inst-79"
+    },
+    {
+      "type": "BOOST_BREAKER",
+      "player": "runner",
+      "breakerInstanceId": "inst-79"
+    },
+    {
+      "type": "BREAK_SUBROUTINE",
+      "player": "runner",
+      "breakerInstanceId": "inst-79",
+      "subroutineIndices": [
+        1
+      ]
+    },
+    {
+      "type": "BREAK_SUBROUTINE",
+      "player": "runner",
+      "breakerInstanceId": "inst-79",
+      "subroutineIndices": [
+        0
+      ]
+    },
+    {
+      "type": "CONTINUE_RUN",
+      "player": "runner"
+    },
+    {
+      "type": "CONTINUE_RUN",
+      "player": "runner"
+    },
+    {
+      "type": "CONTINUE_RUN",
+      "player": "runner"
+    },
+    {
+      "type": "PASS",
+      "player": "corp"
+    },
+    {
+      "type": "PLAY_OPERATION_OR_EVENT",
+      "player": "runner",
+      "cardInstanceId": "inst-57"
+    },
+    {
+      "type": "END_TURN",
+      "player": "runner"
+    },
+    {
+      "type": "START_TURN",
+      "player": "corp"
+    },
+    {
+      "type": "RESOLVE_PROMPT",
+      "player": "corp",
+      "promptId": "prompt-25",
+      "choice": {
+        "kind": "effect_choice",
+        "optionId": "ice"
+      }
+    },
+    {
+      "type": "RESOLVE_PROMPT",
+      "player": "corp",
+      "promptId": "prompt-26",
+      "choice": {
+        "kind": "effect_choice",
+        "optionId": "ice"
+      }
+    },
+    {
+      "type": "USE_ABILITY",
+      "player": "corp",
+      "cardInstanceId": "inst-18",
+      "abilityIndex": 0
+    },
+    {
+      "type": "USE_ABILITY",
+      "player": "corp",
+      "cardInstanceId": "inst-20",
+      "abilityIndex": 0
+    },
+    {
+      "type": "USE_ABILITY",
+      "player": "corp",
+      "cardInstanceId": "inst-1",
+      "abilityIndex": 0
+    },
+    {
+      "type": "RESOLVE_PROMPT",
+      "player": "corp",
+      "promptId": "prompt-27",
+      "choice": {
+        "kind": "effect_cards",
+        "cardInstanceIds": [
+          "inst-26"
+        ]
+      }
+    },
+    {
+      "type": "RESOLVE_PROMPT",
+      "player": "corp",
+      "promptId": "prompt-28",
+      "choice": {
+        "kind": "effect_choice",
+        "optionId": "new"
+      }
+    },
+    {
+      "type": "END_TURN",
+      "player": "corp"
+    },
+    {
+      "type": "DRAW_CARD",
+      "player": "runner"
+    },
+    {
+      "type": "INSTALL_CARD",
+      "player": "runner",
+      "cardInstanceId": "inst-52"
+    },
+    {
+      "type": "INITIATE_RUN",
+      "player": "runner",
+      "targetServerId": "hq"
+    },
+    {
+      "type": "CONTINUE_RUN",
+      "player": "runner"
+    },
+    {
+      "type": "BOOST_BREAKER",
+      "player": "runner",
+      "breakerInstanceId": "inst-79"
+    },
+    {
+      "type": "BOOST_BREAKER",
+      "player": "runner",
+      "breakerInstanceId": "inst-79"
+    },
+    {
+      "type": "BREAK_SUBROUTINE",
+      "player": "runner",
+      "breakerInstanceId": "inst-79",
+      "subroutineIndices": [
+        1
+      ]
+    },
+    {
+      "type": "BREAK_SUBROUTINE",
+      "player": "runner",
+      "breakerInstanceId": "inst-79",
+      "subroutineIndices": [
+        0
+      ]
+    },
+    {
+      "type": "CONTINUE_RUN",
+      "player": "runner"
+    },
+    {
+      "type": "CONTINUE_RUN",
+      "player": "runner"
+    },
+    {
+      "type": "CONTINUE_RUN",
+      "player": "runner"
+    },
+    {
+      "type": "PASS",
+      "player": "corp"
+    },
+    {
+      "type": "GAIN_CREDIT",
+      "player": "runner"
+    },
+    {
+      "type": "END_TURN",
+      "player": "runner"
+    },
+    {
+      "type": "REZ_CARD",
+      "player": "corp",
+      "cardInstanceId": "inst-26"
+    },
+    {
+      "type": "START_TURN",
+      "player": "corp"
+    },
+    {
+      "type": "RESOLVE_PROMPT",
+      "player": "corp",
+      "promptId": "prompt-29",
+      "choice": {
+        "kind": "effect_choice",
+        "optionId": "ice"
+      }
+    },
+    {
+      "type": "RESOLVE_PROMPT",
+      "player": "corp",
+      "promptId": "prompt-30",
+      "choice": {
+        "kind": "effect_choice",
+        "optionId": "ice"
+      }
+    },
+    {
+      "type": "RESOLVE_PROMPT",
+      "player": "corp",
+      "promptId": "prompt-31",
+      "choice": {
+        "kind": "effect_choice",
+        "optionId": "yes"
+      }
+    },
+    {
+      "type": "RESOLVE_PROMPT",
+      "player": "corp",
+      "promptId": "prompt-32",
+      "choice": {
+        "kind": "effect_cards",
+        "cardInstanceIds": [
+          "inst-12"
+        ]
+      }
+    },
+    {
+      "type": "RESOLVE_PROMPT",
+      "player": "corp",
+      "promptId": "prompt-33",
+      "choice": {
+        "kind": "effect_cards",
+        "cardInstanceIds": [
+          "inst-10"
+        ]
+      }
+    },
+    {
+      "type": "RESOLVE_PROMPT",
+      "player": "corp",
+      "promptId": "prompt-34",
+      "choice": {
+        "kind": "effect_choice",
+        "optionId": "yes"
+      }
+    },
+    {
+      "type": "INSTALL_CARD",
+      "player": "corp",
+      "cardInstanceId": "inst-51",
+      "asNewRemote": true
+    },
+    {
+      "type": "INSTALL_CARD",
+      "player": "corp",
+      "cardInstanceId": "inst-50",
+      "asNewRemote": true
+    },
+    {
+      "type": "DRAW_CARD",
+      "player": "corp"
+    },
+    {
+      "type": "END_TURN",
+      "player": "corp"
+    },
+    {
+      "type": "DRAW_CARD",
+      "player": "runner"
+    },
+    {
+      "type": "GAIN_CREDIT",
+      "player": "runner"
+    },
+    {
+      "type": "INITIATE_RUN",
+      "player": "runner",
+      "targetServerId": "hq"
+    },
+    {
+      "type": "CONTINUE_RUN",
+      "player": "runner"
+    },
+    {
+      "type": "BOOST_BREAKER",
+      "player": "runner",
+      "breakerInstanceId": "inst-79"
+    },
+    {
+      "type": "BREAK_SUBROUTINE",
+      "player": "runner",
+      "breakerInstanceId": "inst-79",
+      "subroutineIndices": [
+        1
+      ]
+    },
+    {
+      "type": "CONTINUE_RUN",
+      "player": "runner"
+    },
+    {
+      "type": "CONTINUE_RUN",
+      "player": "runner"
+    },
+    {
+      "type": "CONTINUE_RUN",
+      "player": "runner"
+    },
+    {
+      "type": "PASS",
+      "player": "corp"
+    },
+    {
+      "type": "GAIN_CREDIT",
+      "player": "runner"
+    },
+    {
+      "type": "END_TURN",
+      "player": "runner"
+    },
+    {
+      "type": "REZ_CARD",
+      "player": "corp",
+      "cardInstanceId": "inst-51"
+    },
+    {
+      "type": "REZ_CARD",
+      "player": "corp",
+      "cardInstanceId": "inst-50"
+    },
+    {
+      "type": "START_TURN",
+      "player": "corp"
+    },
+    {
+      "type": "RESOLVE_PROMPT",
+      "player": "corp",
+      "promptId": "prompt-35",
+      "choice": {
+        "kind": "effect_choice",
+        "optionId": "ice"
+      }
+    },
+    {
+      "type": "RESOLVE_PROMPT",
+      "player": "corp",
+      "promptId": "prompt-36",
+      "choice": {
+        "kind": "effect_choice",
+        "optionId": "ice"
+      }
+    },
+    {
+      "type": "RESOLVE_PROMPT",
+      "player": "corp",
+      "promptId": "prompt-37",
+      "choice": {
+        "kind": "effect_choice",
+        "optionId": "yes"
+      }
+    },
+    {
+      "type": "RESOLVE_PROMPT",
+      "player": "corp",
+      "promptId": "prompt-38",
+      "choice": {
+        "kind": "effect_cards",
+        "cardInstanceIds": [
+          "inst-11"
+        ]
+      }
+    },
+    {
+      "type": "RESOLVE_PROMPT",
+      "player": "corp",
+      "promptId": "prompt-39",
+      "choice": {
+        "kind": "effect_cards",
+        "cardInstanceIds": [
+          "inst-46"
+        ]
+      }
+    },
+    {
+      "type": "RESOLVE_PROMPT",
+      "player": "corp",
+      "promptId": "prompt-40",
+      "choice": {
+        "kind": "effect_choice",
+        "optionId": "yes"
+      }
+    },
+    {
+      "type": "INSTALL_CARD",
+      "player": "corp",
+      "cardInstanceId": "inst-46",
+      "targetServerId": "remote-1"
+    },
+    {
+      "type": "DRAW_CARD",
+      "player": "corp"
+    },
+    {
+      "type": "GAIN_CREDIT",
+      "player": "corp"
+    },
+    {
+      "type": "END_TURN",
+      "player": "corp"
+    },
+    {
+      "type": "RESOLVE_PROMPT",
+      "player": "corp",
+      "promptId": "prompt-41",
+      "choice": {
+        "kind": "discard",
+        "cardInstanceIds": [
+          "inst-28"
+        ]
+      }
+    },
+    {
+      "type": "USE_ABILITY",
+      "player": "runner",
+      "cardInstanceId": "inst-52",
+      "abilityIndex": 0
+    },
+    {
+      "type": "INITIATE_RUN",
+      "player": "runner",
+      "targetServerId": "hq"
+    },
+    {
+      "type": "CONTINUE_RUN",
+      "player": "runner"
+    },
+    {
+      "type": "BOOST_BREAKER",
+      "player": "runner",
+      "breakerInstanceId": "inst-79"
+    },
+    {
+      "type": "BREAK_SUBROUTINE",
+      "player": "runner",
+      "breakerInstanceId": "inst-79",
+      "subroutineIndices": [
+        1
+      ]
+    },
+    {
+      "type": "CONTINUE_RUN",
+      "player": "runner"
+    },
+    {
+      "type": "CONTINUE_RUN",
+      "player": "runner"
+    },
+    {
+      "type": "CONTINUE_RUN",
+      "player": "runner"
+    },
+    {
+      "type": "PASS",
+      "player": "corp"
+    }
+  ],
+  "startStops": {
+    "corp": "ai",
+    "runner": "auto"
+  }
+}
