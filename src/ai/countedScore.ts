@@ -449,31 +449,26 @@ export function scoringRemote(state: GameState): ServerLike | null {
   return iced[0] ?? null;
 }
 
-/** What the Corp ends this turn on (credits and the clicks after this one) and the floor it keeps for its agendas (afterLineFloor). */
-function endAndFloor(state: GameState): { end: number; floor: number } {
-  const agendas = state.corp.hq.filter(isAgenda);
-  const floor = agendas.length ? Math.min(...agendas.map(x => afterLineFloor(state, x.instanceId))) : afterLineFloor(state, '');
-  return { end: state.corp.credits + Math.max(0, state.corp.clicks - 1), floor };
-}
-
 /** The scoring remote when it does not hold by the count (holdCost against runnerBudget with what the Corp ends the turn on, less afterLineFloor for its agendas); null when it holds or there is none. iceRedirect and assetCover read it. */
 function scoringShort(state: GameState): ServerLike | null {
   const scoring = scoringRemote(state);
   if (!scoring) return null;
-  const { end, floor } = endAndFloor(state);
+  const agendas = state.corp.hq.filter(isAgenda);
+  const floor = agendas.length ? Math.min(...agendas.map(x => afterLineFloor(state, x.instanceId))) : afterLineFloor(state, '');
+  const end = state.corp.credits + Math.max(0, state.corp.clicks - 1);
   return holdCost(state, scoring.ice, end - floor) !== null ? null : scoring;
 }
 
 /**
- * The Corp is short of money by scoringShort's own count, in a way credits can mend: it ends the turn under the floor
- * it keeps for its agendas (afterLineFloor), or the scoring remote does not hold now but would with more credits
- * (holdCost with no limit finds a set). moneyPick reads it (M1c): an econ ability takes a draw's click only then.
+ * What the Corp's own cards cost it to use (M1c, moneyPick): the rez cost (rezCostOf, as holdCost and assetCover read
+ * it; 8.1.2) of its installed unrezzed ice and assets and of the ice, assets and upgrades in HQ, plus the play cost of
+ * the operations in HQ (8.6). Agendas install for nothing. Credits short of it have a use; at or above it a draw stands.
  */
-export function moneyShort(state: GameState): boolean {
-  const { end, floor } = endAndFloor(state);
-  if (end < floor) return true;
-  const scoring = scoringShort(state);
-  return !!scoring && holdCost(state, scoring.ice, Infinity) !== null;
+export function corpCreditNeed(state: GameState): number {
+  let need = 0;
+  for (const v of Object.values(state.corp.servers)) for (const c of [...v.ice, ...v.root]) if (!c.isRezzed && (typeOf(c) === 'ice' || typeOf(c) === 'asset')) need += rezCostOf(state, c);
+  for (const c of state.corp.hq) need += typeOf(c) === 'operation' ? (cardDef(c).cost ?? 0) : isAgenda(c) ? 0 : rezCostOf(state, c);
+  return need;
 }
 
 /**

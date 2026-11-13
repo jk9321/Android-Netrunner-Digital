@@ -1,7 +1,7 @@
 import { GameAction, GameState, activePrompt, cardDef, executeAction, findCardAnywhere, getLegalActions } from '../core';
 import { answerPrompt } from './prompts';
 import { cardSynergy } from './synergyTags';
-import { knownIncome, moneyShort } from './countedScore';
+import { corpCreditNeed, knownIncome } from './countedScore';
 import { scoreNowPlan } from './winNow';
 import { tuning } from './synergy';
 
@@ -16,10 +16,13 @@ import { tuning } from './synergy';
  * run 43175972281).
  */
 
-/** Picks by kind (any caller, the planner's search included); opsSlack: operations picked over a draw with credits to spare (moneyShort false) and no agenda in HQ, counted only. */
+/** Picks by kind (any caller, the planner's search included); opsSlack: operations picked over a draw with credits to spare (not short) and no agenda in HQ, counted only. */
 export const moneyStats = { ops: 0, abilities: 0, opsSlack: 0 };
 
 const worth = (s: GameState) => s.corp.credits + knownIncome(s);
+
+/** Credits (with the next turn's known income) short of what the Corp's own cards cost to use (corpCreditNeed). */
+const short = (s: GameState) => worth(s) < corpCreditNeed(s);
 
 /** The state after the action with its prompts answered as the Corp would answer them, or null when it does not settle on this Corp turn. */
 function played(s: GameState, a: GameAction): GameState | null {
@@ -89,9 +92,10 @@ export function moneyPick(state: GameState, own?: GameAction | null): GameAction
   if (own && agendaStep(state, own)) return null;
   // M1c: an installed econ ability competes only for a click the Corp's own pick spends on a draw or a credit (rule
   // 5.2.6), and must net more than that pick does; an install, an advance, a score or a held line's step keeps its click
-  // A draw's click only while credits are short by the count (moneyShort): with credits to spare the card is the Corp's
-  // need (deals 1281 T14 and 2521 T11 in the first batch: the ability took draws that would have found an agenda)
-  const abilities = tuning.plan.moneyAbility && (own?.type === 'GAIN_CREDIT' || (own?.type === 'DRAW_CARD' && moneyShort(state)));
+  // A draw's click only while the Corp cannot pay for what it already holds (credits and the next turn's known income
+  // against corpCreditNeed): with credits to spare the card is its need (deals 1281 T14 and 2521 T11 in the first batch:
+  // the ability took draws that would have found an agenda)
+  const abilities = tuning.plan.moneyAbility && (own?.type === 'GAIN_CREDIT' || (own?.type === 'DRAW_CARD' && short(state)));
   const beat = abilities && own ? Math.max(0, worth(played(state, own) ?? state) - worth(state)) : 0;
   const ops = options(state, getLegalActions(state, 'corp'), abilities, beat);
   if (!ops.length) return null;
@@ -108,7 +112,7 @@ export function moneyPick(state: GameState, own?: GameAction | null): GameAction
   if (ranked[0].o.action.type === 'USE_ABILITY') moneyStats.abilities++;
   else {
     moneyStats.ops++;
-    if (own?.type === 'DRAW_CARD' && !state.corp.hq.some(c => cardDef(c).type_code === 'agenda') && !moneyShort(state)) moneyStats.opsSlack++;
+    if (own?.type === 'DRAW_CARD' && !state.corp.hq.some(c => cardDef(c).type_code === 'agenda') && !short(state)) moneyStats.opsSlack++;
   }
   return ranked[0].o.action;
 }

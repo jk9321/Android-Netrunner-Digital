@@ -18,7 +18,7 @@ const position = (): { s: GameState; reg: string } => {
   s.corp.rd.push(...s.corp.hq.splice(0));
   s.corp.clicks = 3;
   s.corp.credits = 0;
-  // Short of money by the count (moneyShort): an unrezzed Palisade on R&D the Corp cannot yet rez (3)
+  // Short of what its own cards cost to use (corpCreditNeed): an unrezzed Palisade on R&D, rez 3
   installIceForTest(s, '30072', 'rd', false);
   const reg = installCorpForTest(s, REGOLITH, 'remote-1');
   s = rezForTest(s, reg);
@@ -65,11 +65,12 @@ describe('money step M1c: an installed econ ability in place of a draw or a cred
 });
 
 /**
- * M1c input (moneyShort, countedScore.ts): the ability takes a draw's click only while the Corp is short of money by
- * scoringShort's count. The first M1c batch (run 43348252028, -1.4 ± 1.1) flipped deals where it took draws with
- * credits to spare; the states before the first changed decision (scripts/m1c-diverge.ts, the 56-deal map):
- * deal 1281 turn 14, 10 credits, HQ empty, 2 clicks: the draws found Urtica Cipher and Spin Doctor, then Offworld
- * Office (scored turn 17); deal 2521 turn 11, 17 credits, no agenda in HQ: the draw found Offworld Office.
+ * M1c input (corpCreditNeed, countedScore.ts): the ability takes a draw's click only while the Corp's credits and known
+ * income fall short of what its own cards cost to use (installed unrezzed ice and assets, the cards in HQ). The first
+ * M1c batch (run 43348252028, -1.4 ± 1.1) flipped deals where it took draws with credits to spare; the states before
+ * the first changed decision (scripts/m1c-diverge.ts, the 56-deal map): deal 1281 turn 14, 10 credits, HQ empty, 2
+ * clicks: the draws found Urtica Cipher and Spin Doctor, then Offworld Office (scored turn 17); deal 2521 turn 11, 17
+ * credits, no agenda in HQ: the draw found Offworld Office.
  */
 describe('money step M1c: with credits to spare the draw stands', () => {
   const read = (name: string): GameState => JSON.parse(readFileSync(new URL(`./fixtures/${name}`, import.meta.url), 'utf8'));
