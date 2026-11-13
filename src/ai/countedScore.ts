@@ -6,8 +6,7 @@ import { withIceInstalled } from './iceValues';
 import { clickMoneyOf, dividendsOf, scoreCreditsOf, turnIncomeOf } from './cards';
 import { counters } from '../core/engine/cardEffects';
 import { profileOf } from './cardProfiles';
-import { agendasUnseen } from './rezModel';
-import { agendaOdds } from './effectValues';
+import { rdAgendaOdds } from './rezModel';
 import { pointGain } from './valueModel';
 
 /**
@@ -625,8 +624,8 @@ export function countCentralIce(caller: 'planner' | 'ranking' | 'search', taken:
  * R&D has no ice at all, the ice goes to that central instead, when the Corp can still pay the ice's rez after the
  * install (none to pay on a central with no ice, 8.5.11a). Both bare: the one with more points at stake for one access
  * (HQ: its agendas' pointGain over the cards left in HQ, the Corp's own hand, 10.2.2a; R&D: the deck list's agendas not
- * yet seen, rezModel agendasUnseen, over R&D's cards, times the deck list's average agenda's pointGain, never R&D's
- * order). At most once per central, as the central then has ice. A pure redirect (5.2.6: the same install action, one
+ * yet seen over R&D's cards, times their average pointGain (rezModel rdAgendaOdds, the Corp's one R&D pool), never
+ * R&D's order). At most once per central, as the central then has ice. A pure redirect (5.2.6: the same install action, one
  * click): no veto, no extra install. Null: no change.
  */
 export function centralIce(state: GameState, pick: GameAction): GameAction | null {
@@ -639,15 +638,24 @@ export function centralIce(state: GameState, pick: GameAction): GameAction | nul
   if (state.corp.credits < rezCostOf(state, card)) return null;
   const bare = (['hq', 'rd'] as const).filter(id => state.corp.servers[id].ice.length === 0);
   if (!bare.length) return null;
-  const score = state.runner.score;
-  const hand = state.corp.hq.filter(c => c.instanceId !== card.instanceId);
-  const unseen = agendasUnseen(state);
-  const stake = {
-    hq: hand.length ? hand.filter(isAgenda).reduce((n, c) => n + pointGain(score, cardDef(c).agenda_points ?? 0), 0) / hand.length : 0,
-    rd: state.corp.rd.length ? (Math.min(unseen, state.corp.rd.length) / state.corp.rd.length) * pointGain(score, agendaOdds(state).points) : 0,
-  };
+  const stake = centralStake(state, card.instanceId);
   const to = bare.sort((x, y) => stake[y] - stake[x])[0];
   const move = legalShape(state, { type: 'INSTALL_CARD', cardInstanceId: card.instanceId, targetServerId: to });
   if (move) centralIceWhy.central = to;
   return move ?? null;
+}
+
+/**
+ * The points at stake for one access to each central (centralIce's order): HQ, its agendas' pointGain over the cards left
+ * in HQ once `leaving` goes (the Corp's own hand, 10.2.2a); R&D, the deck list's agendas not yet seen over R&D's cards,
+ * times their average pointGain (rezModel rdAgendaOdds: the Corp's one R&D pool), never R&D's order.
+ */
+export function centralStake(state: GameState, leaving: string): { hq: number; rd: number } {
+  const score = state.runner.score;
+  const hand = state.corp.hq.filter(c => c.instanceId !== leaving);
+  const rd = rdAgendaOdds(state);
+  return {
+    hq: hand.length ? hand.filter(isAgenda).reduce((n, c) => n + pointGain(score, cardDef(c).agenda_points ?? 0), 0) / hand.length : 0,
+    rd: rd.odds * pointGain(score, rd.points),
+  };
 }
