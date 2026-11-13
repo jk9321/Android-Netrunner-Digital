@@ -400,23 +400,27 @@ export function scoreInTwoPick(state: GameState, pick: GameAction, held: HeldLin
     if (!line) return { action: pick, held: null };
     const card = installedAgendas(state).find(a => a.card.instanceId === line.agendaId)?.card;
     h = { game: state.id, turn: state.turnNumber, line, server: line.server === 'new remote' ? null : line.server, counters: card?.advancementCounters ?? 0 };
-    scoreInTwoStats.begun++;
-    scoreInTwoStats.lines.push({ turn: state.turnNumber, agendaId: line.agendaId, form: line.form });
+    if (!line.kind) {
+      scoreInTwoStats.begun++;
+      scoreInTwoStats.lines.push({ turn: state.turnNumber, agendaId: line.agendaId, form: line.form });
+    }
   }
+  // scoreInTwoStats counts agenda lines only: an asset line's agendaId names an asset (assetCoverStats counts those)
+  const agendaLine = !h.line.kind;
   const step = startTurnStep(state, h);
   if (step === 'drop') {
-    scoreInTwoStats.dropped++;
+    if (agendaLine) scoreInTwoStats.dropped++;
     return { action: pick, held: null };
   }
   if (step) {
-    if (!sameAction(pick, step as unknown as Record<string, unknown>)) scoreInTwoStats.steps++;
+    if (agendaLine && !sameAction(pick, step as unknown as Record<string, unknown>)) scoreInTwoStats.steps++;
     return { action: step, held: h };
   }
   // The spare clicks: the Corp's pick while the line still holds after it (an illegal pick is the engine's to refuse)
   if (lineHolds(spareAfter(state, pick), h.line.agendaId)) return { action: pick, held: h };
   const credit = legalShape(state, { type: 'GAIN_CREDIT' });
   if (!credit) return { action: pick, held: h };
-  scoreInTwoStats.vetoed++;
+  if (agendaLine) scoreInTwoStats.vetoed++;
   return { action: credit, held: h };
 }
 
@@ -434,8 +438,8 @@ export const iceRedirectStats = { fired: 0 };
 /**
  * The scoring remote (ice redirect): the remote with the most ice; on a tie the one holding an agenda or an advanced
  * card, then the lowest id. None while no remote has ice. Not a
- * remote whose root holds an asset, where no agenda can be installed (rule 3.3.1: one agenda or asset per remote root);
- * it can be the scoring remote again once the asset leaves.
+ * remote whose root holds an asset, where no agenda can be installed without trashing the asset (rule 3.3.1: one agenda
+ * or asset per remote root); it can be the scoring remote again once the asset leaves.
  */
 export function scoringRemote(state: GameState): ServerLike | null {
   const key = (v: ServerLike) => [v.ice.length, v.root.some(c => isAgenda(c) || (c.advancementCounters ?? 0) > 0) ? 1 : 0] as const;
@@ -443,6 +447,16 @@ export function scoringRemote(state: GameState): ServerLike | null {
   const iced = remotes(state).filter(v => v.ice.length > 0 && !v.root.some(c => typeOf(c) === 'asset'));
   iced.sort((a, b) => key(b)[0] - key(a)[0] || key(b)[1] - key(a)[1] || num(a) - num(b));
   return iced[0] ?? null;
+}
+
+/** The scoring remote when it does not hold by the count (holdCost against runnerBudget with what the Corp ends the turn on, less afterLineFloor for its agendas); null when it holds or there is none. iceRedirect and assetCover read it. */
+function scoringShort(state: GameState): ServerLike | null {
+  const scoring = scoringRemote(state);
+  if (!scoring) return null;
+  const agendas = state.corp.hq.filter(isAgenda);
+  const floor = agendas.length ? Math.min(...agendas.map(x => afterLineFloor(state, x.instanceId))) : afterLineFloor(state, '');
+  const end = state.corp.credits + Math.max(0, state.corp.clicks - 1);
+  return holdCost(state, scoring.ice, end - floor) !== null ? null : scoring;
 }
 
 /**
@@ -455,15 +469,6 @@ export function scoringRemote(state: GameState): ServerLike | null {
  * first ice on a server with a card in its root (-1.4 ± 0.8 against this, run 43167848111). Central ice and the choice to install ice at all are the
  * pick's: a pure redirect, no veto, no extra install. Null: no change.
  */
-function scoringShort(state: GameState): ServerLike | null {
-  const scoring = scoringRemote(state);
-  if (!scoring) return null;
-  const agendas = state.corp.hq.filter(isAgenda);
-  const floor = agendas.length ? Math.min(...agendas.map(x => afterLineFloor(state, x.instanceId))) : afterLineFloor(state, '');
-  const end = state.corp.credits + Math.max(0, state.corp.clicks - 1);
-  return holdCost(state, scoring.ice, end - floor) !== null ? null : scoring;
-}
-
 export function iceRedirect(state: GameState, pick: GameAction): GameAction | null {
   if (pick.type !== 'INSTALL_CARD' || !isCorpMain(state)) return null;
   const a = pick as GameAction & { cardInstanceId?: string; targetServerId?: string; asNewRemote?: boolean };
