@@ -60,7 +60,7 @@ for (const [k, seed] of seeds.entries()) {
     const rec = playLogged(createInitialGameState(deckGameSetup(seed, corpDeck, runnerDeck)), { corp, runner: createAgent('runner', 'normal') }, { corp: corpDeck.name, runner: runnerDeck.name });
     const stolen: Record<string, number> = {};
     for (const s of rec.steals) stolen[s.from] = (stolen[s.from] ?? 0) + s.points;
-    console.log(JSON.stringify({ seed, deck: corpDeck.name, winner: rec.winner, reason: rec.reason, turns: rec.turns, score: [rec.corpScore, rec.runnerScore], stolen, lastSteal: rec.steals.at(-1) ? { from: rec.steals.at(-1)!.from, ice: rec.steals.at(-1)!.ice, rezzed: rec.steals.at(-1)!.rezzedIce } : null, ms: Math.round(performance.now() - t0), decisions }));
+    console.log(JSON.stringify({ seed, deck: corpDeck.name, winner: rec.winner, reason: rec.reason, turns: rec.turns, score: [rec.corpScore, rec.runnerScore], stolen, alarms: rec.alarms?.reduce((m: Record<string, number>, a) => ((m[a.kind] = (m[a.kind] ?? 0) + 1), m), {}), lastSteal: rec.steals.at(-1) ? { from: rec.steals.at(-1)!.from, ice: rec.steals.at(-1)!.ice, rezzed: rec.steals.at(-1)!.rezzedIce } : null, ms: Math.round(performance.now() - t0), decisions }));
   } catch (err) {
     console.error(`deal ${seed}: ${err}`);
   }
