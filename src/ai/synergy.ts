@@ -544,7 +544,7 @@ export const sideOff: Record<SideCode, string[]> = {
  * planWith naming one throws, so a batch written before the fold can't silently test nothing.
  */
 export const FOLDED: readonly string[] = [
-  'assetReserve',
+  'bypassHold', 'assetReserve',
   'tagThreat', 'breakerFocus', 'saveUp', 'icePlacement', 'agendaStakes', 'lethalHq', 'readWriteFull',
   'archivesChosen', 'centralIce', 'iceDepth', 'oneRemote', 'identities', 'runnerIdentities', 'exposure',
   'assetRezTiming', 'turnStartRez', 'stealCosts', 'rezPaid', 'tagNoClear', 'knownHq', 'hqNoSafer', 'readAssetTrash',
