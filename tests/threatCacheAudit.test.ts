@@ -4,7 +4,7 @@
  * compared with the value served; a key missing something budgetTurn reads (R&D's contents, Archives, counters on
  * installed cards) shows as a mismatch. Before the fix, deal 1421 served 179 wrong values in 5,397 hits, and deal 1001
  * 74 in 835 (counters); the audit reads 0 on 10 deals with the key as it is. With the counters (or R&D's contents) left
- * out of the key, this test fails with 4 mismatches by turn 14 of deal 1001. About 15 s.
+ * out of the key, this test fails with 4 mismatches by turn 14 of deal 1001. About 45 s.
  *
  * Float sums taken in another order (an R&D re-dealt in a playout) differ in the last bits and are counted apart
  * ('near'); a server's success is compared only where the Runner runs it (nothing else reads it).
@@ -39,6 +39,10 @@ function audit(seed: number, actions: number) {
 describe('threat cache: every hit is the value its board budgets to (on-hit audit)', () => {
   for (const [seed, actions] of [
     [1001, 400],
+    // Planner speed tier 2 (rootDeckAverage): a budget served across decisions whose roots priced the Corp's deck
+    // differently (147 mismatches with deckRootKey left out of the key), and one priced while a deck card was being
+    // priced on the root (1 mismatch until those asks were priced per board)
+    [1421, 400],
   ] as const) {
     it(`deal ${seed}, first ${actions} actions`, () => {
       const r = audit(seed, actions);

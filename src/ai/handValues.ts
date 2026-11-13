@@ -6,7 +6,7 @@ import { breakerTypeWorth, iceWorth } from './iceValues';
 import { agendaWorth, isOneUse, runnerRigValue } from './evaluate';
 import { counterWorth } from './counterValues';
 import { handPlanWorth } from './cardPlans';
-import { CLICK, RATES, cardRate, fingerprint, handFilter, payoutSlide, printedGain, reachCard, setDeckCard } from './valueModel';
+import { CLICK, RATES, cardRate, fingerprint, handFilter, payoutSlide, pricingApart, positionSerial, printedGain, reachCard, setDeckCard } from './valueModel';
 import { leafHandByCard, noteDecision, plan, pricing, pricingKey, withPricing } from './pricing';
 import { corpDrawPool, corpKnowsRd } from './oracle';
 
@@ -98,10 +98,15 @@ function loadedWorth(state: GameState, card: CardInstance): number {
 
 /** Worth of one card waiting in hand. */
 export function heldWorth(state: GameState, card: CardInstance, side: SideCode, freeInstall = false): number {
+  // Installed later without spending a click (a program hosted on Madani): the click playedWorth charges is saved
+  return heldFromPlayed(state, card, side, playedWorth(state, card) + (freeInstall ? CLICK : 0));
+}
+
+/** A card's worth held in hand, from its worth played: soon if `state`'s credits pay for it, never under the floor. */
+function heldFromPlayed(state: GameState, card: CardInstance, side: SideCode, played: number): number {
   const credits = side === 'corp' ? state.corp.credits : state.runner.credits;
   const soon = (cardDef(card).cost ?? 0) <= credits ? SOON.now : SOON.later;
-  // Installed later without spending a click (a program hosted on Madani): the click playedWorth charges is saved
-  return Math.max(HAND_FLOOR, soon * (playedWorth(state, card) + (freeInstall ? CLICK : 0)));
+  return Math.max(HAND_FLOOR, soon * played);
 }
 
 /**
@@ -112,7 +117,10 @@ export function heldWorth(state: GameState, card: CardInstance, side: SideCode, 
 export function decisionContext(state: GameState, side: SideCode) {
   if (pricing().frozen) return;
   const hand = side === 'corp' ? state.corp.hq : state.runner.grip;
-  noteDecision({ [side]: new Set(hand.map(c => c.instanceId)) }, { id: state.id, credits: state.runner.credits });
+  // The deck's card prices at this decision's root (rootDeckAverage), kept while the decision notes the same board again
+  const was = pricing().anchor;
+  const deckValues = was?.root === state && was.side === side ? was.deckValues : undefined;
+  noteDecision({ [side]: new Set(hand.map(c => c.instanceId)) }, { id: state.id, credits: state.runner.credits, root: state, side, deckValues });
 }
 
 /** Cards in `side`'s hand the deciding AI hasn't seen (drawn in a look-ahead): it can't know what they are. */
@@ -126,6 +134,28 @@ export function unseenInHand(state: GameState, side: SideCode): CardInstance[] {
 
 const deckAverage = new Map<string, number>();
 
+/**
+ * Whether drawWorth on this board takes the decision root's prices (rootDeckAverage): the Corp's own deck, in the
+ * playouts of a Corp decision's planner (frozen). Not the Runner's stack (its cards' worth turns on the rig, which the
+ * views of a Corp decision change: plan.reach's cases install a breaker), nor a decision's own boards (a prompt's
+ * answers are simulated and compared outside a playout: tests/clearinghouseRez.test.ts). Nor while a deck card is
+ * being priced on the root (priceAtRoot): what that asks for is priced per board, and keyed so (deckRootKey ''), so a
+ * value cached there doesn't depend on which cards the decision had priced so far.
+ */
+function atDeckRoot(state: GameState, side: SideCode): boolean {
+  const anchor = pricing().anchor;
+  return side === 'corp' && !pricing().pricingRootDeck && pricing().frozen && !!anchor?.root && anchor.side === 'corp' && anchor.root.id === state.id && pricing().side !== null;
+}
+/**
+ * For caches that outlive a decision (threatModel's): which decision root's deck prices a value on this board used,
+ * '' when none. Every root is its own: two roots with the same fingerprint can still price a deck card differently
+ * (tests/threatCacheAudit.test.ts, deal 1421, served one such budget across decisions with the fingerprint here).
+ */
+export function deckRootKey(state: GameState): string {
+  if (!atDeckRoot(state, 'corp')) return '';
+  return `r${positionSerial(pricing().anchor!.root!)}`;
+}
+
 /** Average held worth of the cards left in a side's deck (what a draw is expected to bring). */
 function drawWorth(state: GameState, side: SideCode): number {
   // plan.oracle.rd: the Corp's next draw is R&D's top card itself
@@ -134,6 +164,8 @@ function drawWorth(state: GameState, side: SideCode): number {
   // plan.drawWorthCredits (code audit, 2026-11-06): and the side's credits, which decide what each card would cost to play
   // (heldWorth's SOON): without them the average from the turn's first credit count was used all turn, and in look-aheads
   // that spend or gain money (found as a test that passed alone and failed after another, tests/brokeCorp.test.ts)
+  const rootAvg = rootDeckAverage(state, side, deck);
+  if (rootAvg !== undefined) return rootAvg;
   const credits = `${side === 'corp' ? state.corp.credits : state.runner.credits}:`;
   // and the whole position (valueModel fingerprint: scores, rezzed ice, rigs...): the in-run rez model's look-aheads
   // (2026-11-06) price boards a turn would otherwise never see (a steal, a rez, a toll paid), and with the cache cleared
@@ -149,6 +181,60 @@ function drawWorth(state: GameState, side: SideCode): number {
   if (deckAverage.size > 500) deckAverage.clear();
   deckAverage.set(key, value);
   return value;
+}
+
+/**
+ * Counts for scripts: averages served from the root prices, and deck cards priced at a root. With `audit` on
+ * (tests/rootDeckAverage.test.ts), every price served from the decision's cache is priced again and compared.
+ */
+export const deckAvgStats = { served: 0, priced: 0, audit: false, checked: 0, mismatches: 0 };
+/**
+ * Planner speed tier 2 (bars/planner-fast-deckavg.md): in the Corp's decisions, the deck's average card prices each
+ * deck card's played worth once, on the decision's own board (its root, noted by decisionContext), and averages
+ * them over the deck the asking board holds (a card the line drew is out of it), held as soon as that board's
+ * credits allow. Repricing every deck card on every board was 59% of the Corp's decision time
+ * (planner-fast-step1.md). Undefined (the per-board price) where atDeckRoot says no.
+ * Cache: anchor.deckValues, per decision (a new anchor each time decisionContext notes another board), keyed by the
+ * pricing context and side, then the card. Audited by tests/rootDeckAverage.test.ts (every hit priced again).
+ */
+function rootDeckAverage(state: GameState, side: SideCode, deck: CardInstance[]): number | undefined {
+  if (!atDeckRoot(state, side)) return undefined;
+  const anchor = pricing().anchor!;
+  if (!deck.length) return RATES.drawnCard;
+  const all = (anchor.deckValues ??= new Map());
+  const key = `${pricingKey()}:${side}`;
+  let values = all.get(key);
+  if (!values) all.set(key, (values = new Map()));
+  const root = anchor.root!;
+  deckAvgStats.served++;
+  // The asking board's credits decide which cards could be played soon (heldFromPlayed), as in the per-board
+  // average (plan.drawWorthCredits): a line that spends its money down sees its draws worth less. Only the
+  // card's played worth is kept from the root.
+  let sum = 0;
+  for (const c of deck) {
+    let played = values.get(c.instanceId);
+    if (played !== undefined && deckAvgStats.audit) {
+      deckAvgStats.checked++;
+      if (priceAtRoot(root, c) !== played) deckAvgStats.mismatches++;
+    }
+    if (played === undefined) {
+      played = priceAtRoot(root, c);
+      values.set(c.instanceId, played);
+      deckAvgStats.priced++;
+    }
+    sum += heldFromPlayed(state, c, side, played);
+  }
+  return sum / deck.length;
+}
+
+/**
+ * A deck card's played worth on the decision's root. As the per-board average does: inside it, a card's worth that
+ * needs the average card gets the flat rate. Priced apart from the lookups that asked (pricingApart), so the decision
+ * keeps one price per card whatever card was being priced when the average was first asked for (a card pricing its
+ * own effects otherwise met itself: a value loop, and its flat value kept all decision).
+ */
+function priceAtRoot(root: GameState, card: CardInstance): number {
+  return pricingApart(() => withPricing({ averaging: true, pricingRootDeck: true }, () => playedWorth(root, card)));
 }
 
 /** The deck's average card for valueModel's cardRate (plan.flatRates.cards); the flat rate while it is being worked out. */

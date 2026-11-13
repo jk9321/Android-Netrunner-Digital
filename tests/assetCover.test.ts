@@ -1,7 +1,7 @@
 import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
 import { GameAction, GameState, executeAction } from '../src/core';
-import { assetCover, assetPartner, scoreInTwoPick, scoringRemote } from '../src/ai/countedScore';
+import { assetCover, assetPartner, resetScoreInTwoStats, scoreInTwoPick, scoreInTwoStats, scoringRemote } from '../src/ai/countedScore';
 import { asSide } from '../src/ai/pricing';
 import { decisionContext } from '../src/ai/handValues';
 
@@ -45,6 +45,14 @@ describe('assetCover: an econ asset behind the cheapest ice in HQ', () => {
     expect(inCorp(m, () => scoreInTwoPick({ ...m, corp: { ...m.corp, clicks: 1 } }, pick, second.held)).held).toBeNull();
   });
 
+  it('an asset line stays out of scoreInTwoStats (its agendaId names an asset)', () => {
+    const s = position();
+    resetScoreInTwoStats();
+    inCorp(s, () => scoreInTwoPick(s, newRemote, null));
+    expect(scoreInTwoStats.begun).toBe(0);
+    expect(scoreInTwoStats.lines).toEqual([]);
+  });
+
   it("Jeff's game report-39 turn 6: Tatu-Bola goes in front of the Regolith he trashed", () => {
     const s = read('asset-cover-r39-t6.json');
     const pick = { type: 'INSTALL_CARD', player: 'corp', cardInstanceId: 'inst-18', asNewRemote: true } as GameAction;
@@ -59,12 +67,13 @@ describe('assetCover: an econ asset behind the cheapest ice in HQ', () => {
     }
   });
 
-  it('an agenda in HQ and a scoring remote that does not hold: the ice goes there (iceRedirect), no line', () => {
+  it('an agenda in HQ and a scoring remote no counted line could use: not reserved, the asset goes behind its ice (reservedForAgenda)', () => {
     // remote-1 with an unrezzed Brân 1.0 alone (broken with clicks): the scoring remote, short by the count
     const bran = (x: GameState) => x.corp.servers['remote-1'].ice.push({ ...structuredClone(x.corp.servers.rd.ice[1]), instanceId: 'inst-bran', isRezzed: false });
     const s = position(x => (bran(x), x.corp.hq.push({ ...structuredClone(x.corp.hq[0]), instanceId: 'inst-agenda', cardCode: '30068' })));
     expect(inCorp(s, () => scoringRemote(s)?.id)).toBe('remote-1');
-    expect(inCorp(s, () => assetCover(s, newRemote))).toBeNull();
+    // No rez set holds remote-1 within the line's horizon (folded plan.assetReserve; before it: reserved, no line)
+    expect(inCorp(s, () => assetCover(s, newRemote))).toMatchObject({ kind: 'asset', server: 'remote-1', form: 'install' });
     // With no agenda in HQ the scoring remote has nothing to protect this turn: the asset goes behind its Brân (assetPartner's econ case)
     const t = position(bran);
     expect(inCorp(t, () => assetCover(t, newRemote))).toMatchObject({ kind: 'asset', server: 'remote-1', form: 'install' });
@@ -92,10 +101,18 @@ describe('assetPartner: an asset or upgrade headed for a new bare remote goes to
     expect(inCorp(s, () => assetPartner(s, clearinghouse))).toMatchObject({ type: 'INSTALL_CARD', cardInstanceId: 'inst-22', targetServerId: 'remote-1' });
   });
 
-  it('not the scoring remote while an agenda waits in HQ', () => {
+  it('not the scoring remote while an agenda waits in HQ and a counted line could use it (reservedForAgenda)', () => {
     const s: GameState = structuredClone(g2());
     s.corp.hq.push({ ...structuredClone(s.corp.hq[0]), instanceId: 'inst-agenda', cardCode: '30068' });
     expect(inCorp(s, () => scoringRemote(s)?.id)).toBe('remote-1');
+    // No rez set holds remote-1 within the line's horizon: not reserved, the asset may take it (3.3.1)
+    expect(inCorp(s, () => assetPartner(s, clearinghouse))).toMatchObject({ targetServerId: 'remote-1' });
+    // Against a Runner with no money and no breakers a rez set holds: it stays reserved for the agenda
+    s.corp.credits = 100;
+    s.runner.credits = 0;
+    s.runner.rig.programs = [];
+    s.runner.rig.resources = [];
+    s.runner.rig.hardware = [];
     expect(inCorp(s, () => assetPartner(s, clearinghouse))).toBeNull();
   });
 

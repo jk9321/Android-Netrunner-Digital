@@ -380,15 +380,33 @@ const pricing: string[] = [];
 export const valueLoops = new Map<string, number>();
 const loopsFail = (): boolean => typeof process !== 'undefined' && !!process.env?.VITEST && !process.env?.VALUE_LOOPS_OK;
 
+/**
+ * Runs `work` as a lookup of its own, outside the lookups in progress (planner speed tier 2: a deck card priced once
+ * for the whole decision is priced the same whoever asked first). Loops inside `work` are still guarded.
+ */
+export function pricingApart<T>(work: () => T): T {
+  const outer = pricing.splice(0);
+  try {
+    return work();
+  } finally {
+    pricing.splice(0, pricing.length, ...outer);
+  }
+}
+
 const stateIds = new WeakMap<GameState, number>();
 let nextStateId = 0;
+
+/** A number for this position object, the same each time it is asked (guardLoop's lookups, handValues deckRootKey). */
+export function positionSerial(state: GameState): number {
+  let id = stateIds.get(state);
+  if (id === undefined) stateIds.set(state, (id = nextStateId++));
+  return id;
+}
 
 /** `key` names the lookup; the same lookup on another position (a rig with a card taken out) is not a loop. */
 export function guardLoop<T>(state: GameState | undefined, key: string, flat: () => T, work: () => T): T {
   if (!state) return work();
-  let id = stateIds.get(state);
-  if (id === undefined) stateIds.set(state, (id = nextStateId++));
-  key = `${key} @${id}`;
+  key = `${key} @${positionSerial(state)}`;
   const at = pricing.indexOf(key);
   if (at >= 0) {
     const chain = [...pricing.slice(at), key].join(' > ');
