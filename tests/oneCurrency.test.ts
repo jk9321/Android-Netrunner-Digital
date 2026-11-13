@@ -251,6 +251,11 @@ describe('no override layer needed', () => {
     // plan.hiddenDraws (S6) pinned off too: on one guess of R&D the Bumi-in-a-new-remote line (Spin Doctor then draws two
     // guessed cards) outreads Petty Cash and the turn ends on a click for a credit (pettyCashFirst.test.ts; S6 hand-off gap)
     tuning.plan.hiddenDraws = false;
+    // The R&D odds by the Corp's own list (rezModel rdAgendaOdds, spec-match-point-rez.md E2, folded 2026-11-13): in the
+    // planner's Runner-reply playouts (runnerReply -> chooseRez -> runStopper -> leoGain -> runLoss) R&D's odds go 0.17 ->
+    // 0.20, the simulated Corp uses LEO on a second R&D run, and after Petty Cash the turn's last click can go to a credit
+    // instead of a remote install. As with ownIceKnown above, that is after Petty Cash's window (not the bug), so the check
+    // is the bug's own: Petty Cash is played, and no click goes to a credit while it is still in HQ (bars/match-point-rez.md)
     try {
       // The one-step ranking puts it first (its net 2 credits now and its replay from Archives, PETTY_CASH_REPLAY, on
       // the card there). The planned turn may still open a remote first: its greedy rollout after Petty Cash ices HQ and
@@ -259,7 +264,10 @@ describe('no override layer needed', () => {
       const [top] = new HeuristicCorpAI({ planner: false }).rankMainActions(start);
       expect(top.action.type === 'PLAY_OPERATION_OR_EVENT' && cardDef(findCardAnywhere(start, top.action.cardInstanceId)!).title).toBe('Petty Cash');
       const s = playFixture('petty-cash-first.json', 12);
-      expect(s.log.some(l => l.message === 'Corp spent [click] to gain 1 credit.')).toBe(false);
+      const log = s.log.map(l => l.message);
+      const petty = log.findIndex(m => m.includes('to play Petty Cash'));
+      expect(petty).toBeGreaterThanOrEqual(0);
+      expect(log.slice(0, petty)).not.toContain('Corp spent [click] to gain 1 credit.');
     } finally {
       tuning.plan.pettyCashFirst = true;
       tuning.plan.plannerSearch = true;

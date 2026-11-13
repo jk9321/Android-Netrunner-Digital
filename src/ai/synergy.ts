@@ -570,6 +570,10 @@ export const FOLDED: readonly string[] = [
   // Asset cover (2026-11-12, bars/asset-cover-x.md, run 43331672692: -0.3 ± 1.6 vs 43264551835): the scoring remote is never an
   // asset root (3.3.1), an econ asset goes behind the cheapest ice in HQ, any asset or upgrade goes to a waiting iced remote
   'scoringNoAsset', 'assetCover', 'assetPartner',
+  // Match point rez (2026-11-13, spec-match-point-rez.md, bars/match-point-rez.md, g10 +0.1 ± 0.3 run 43468233993 vs
+  // 43468203978): a rez that stops a game-winning run is made (rezModel matchPoint), and the Corp's R&D odds are its own
+  // list's (rezModel rdAgendaOdds, R4's pool)
+  'matchPointRez', 'rdOwnOdds',
 ];
 
 /** Throws on a name that isn't a plan switch (a typo, or a switch folded into the code). */

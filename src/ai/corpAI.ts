@@ -17,7 +17,7 @@ import { decisionContext } from './handValues';
 import { PlanMemory, planTurn, plannerOn, searchPiece } from './turnPlanner';
 import { runnerReply } from './runnerReply';
 import { threatLoss } from './threatModel';
-import { archivesWantsIce, countedRez, modelRezGain } from './rezModel';
+import { archivesWantsIce, countedRez, modelRezGain, rdAgendaOdds } from './rezModel';
 import { keepsScore, scoreNowPlan, winNowAction } from './winNow';
 import { freeRezCover, freeRezTargets } from './freeRez';
 import { PETTY_CASH_REPLAY, iceAdvanceWorth, knownTrap, placedCounterWorth, rezEffectWorth, rezzedWorth, runTimed, topDownWorth } from './effectValues';
@@ -1353,7 +1353,9 @@ export function runLoss(state: GameState): number {
     const agendas = state.corp.hq.filter(c => type(c) === 'agenda');
     loss += (Math.min(accesses, state.corp.hq.length) / state.corp.hq.length) * agendas.reduce((n, c) => n + steal(c), 0);
   } else if (server.id === 'rd') {
-    const { odds, points } = agendaOdds(state);
+    // R&D's odds by the Corp's own list (rezModel rdAgendaOdds, R4's pool; spec-match-point-rez.md E2), not the deck-wide
+    // pool the Runner prices from (agendaOdds: it can't see HQ)
+    const { odds, points } = rdAgendaOdds(state);
     loss += Math.min(accesses, state.corp.rd.length) * odds * pointGain(state.runner.score, points);
   } else if (server.id === 'archives') {
     loss += state.corp.archives.faceDown.filter(c => type(c) === 'agenda').reduce((n, c) => n + steal(c), 0);
