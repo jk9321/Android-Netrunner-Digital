@@ -6,7 +6,7 @@ import { breakerTypeWorth, iceWorth } from './iceValues';
 import { agendaWorth, isOneUse, runnerRigValue } from './evaluate';
 import { counterWorth } from './counterValues';
 import { handPlanWorth } from './cardPlans';
-import { CLICK, RATES, cardRate, fingerprint, handFilter, payoutSlide, pricingApart, printedGain, reachCard, setDeckCard } from './valueModel';
+import { CLICK, RATES, cardRate, fingerprint, handFilter, payoutSlide, pricingApart, positionSerial, printedGain, reachCard, setDeckCard } from './valueModel';
 import { leafHandByCard, noteDecision, plan, pricing, pricingKey, withPricing } from './pricing';
 import { corpDrawPool, corpKnowsRd } from './oracle';
 
@@ -98,10 +98,15 @@ function loadedWorth(state: GameState, card: CardInstance): number {
 
 /** Worth of one card waiting in hand. */
 export function heldWorth(state: GameState, card: CardInstance, side: SideCode, freeInstall = false): number {
+  // Installed later without spending a click (a program hosted on Madani): the click playedWorth charges is saved
+  return heldFromPlayed(state, card, side, playedWorth(state, card) + (freeInstall ? CLICK : 0));
+}
+
+/** A card's worth held in hand, from its worth played: soon if `state`'s credits pay for it, never under the floor. */
+function heldFromPlayed(state: GameState, card: CardInstance, side: SideCode, played: number): number {
   const credits = side === 'corp' ? state.corp.credits : state.runner.credits;
   const soon = (cardDef(card).cost ?? 0) <= credits ? SOON.now : SOON.later;
-  // Installed later without spending a click (a program hosted on Madani): the click playedWorth charges is saved
-  return Math.max(HAND_FLOOR, soon * (playedWorth(state, card) + (freeInstall ? CLICK : 0)));
+  return Math.max(HAND_FLOOR, soon * played);
 }
 
 /**
@@ -141,8 +146,6 @@ function atDeckRoot(state: GameState, side: SideCode): boolean {
   const anchor = pricing().anchor;
   return side === 'corp' && !pricing().pricingRootDeck && pricing().frozen && !!anchor?.root && anchor.side === 'corp' && anchor.root.id === state.id && pricing().side !== null;
 }
-const rootSerials = new WeakMap<GameState, number>();
-const roots = { next: 0 };
 /**
  * For caches that outlive a decision (threatModel's): which decision root's deck prices a value on this board used,
  * '' when none. Every root is its own: two roots with the same fingerprint can still price a deck card differently
@@ -150,10 +153,7 @@ const roots = { next: 0 };
  */
 export function deckRootKey(state: GameState): string {
   if (!atDeckRoot(state, 'corp')) return '';
-  const root = pricing().anchor!.root!;
-  let n = rootSerials.get(root);
-  if (n === undefined) rootSerials.set(root, (n = roots.next++));
-  return `r${n}`;
+  return `r${positionSerial(pricing().anchor!.root!)}`;
 }
 
 /** Average held worth of the cards left in a side's deck (what a draw is expected to bring). */
@@ -207,10 +207,9 @@ function rootDeckAverage(state: GameState, side: SideCode, deck: CardInstance[])
   if (!values) all.set(key, (values = new Map()));
   const root = anchor.root!;
   deckAvgStats.served++;
-  // The asking board's credits decide which cards could be played soon (heldWorth's SOON), as in the per-board
+  // The asking board's credits decide which cards could be played soon (heldFromPlayed), as in the per-board
   // average (plan.drawWorthCredits): a line that spends its money down sees its draws worth less. Only the
   // card's played worth is kept from the root.
-  const credits = side === 'corp' ? state.corp.credits : state.runner.credits;
   let sum = 0;
   for (const c of deck) {
     let played = values.get(c.instanceId);
@@ -223,8 +222,7 @@ function rootDeckAverage(state: GameState, side: SideCode, deck: CardInstance[])
       values.set(c.instanceId, played);
       deckAvgStats.priced++;
     }
-    const soon = (cardDef(c).cost ?? 0) <= credits ? SOON.now : SOON.later;
-    sum += Math.max(HAND_FLOOR, soon * played);
+    sum += heldFromPlayed(state, c, side, played);
   }
   return sum / deck.length;
 }
