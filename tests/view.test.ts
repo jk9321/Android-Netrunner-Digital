@@ -1,7 +1,9 @@
+import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
-import { GameState, GameView, SideCode, StopLevel, ViewIds, actingSide, addLog, createCardInstance, executeAction, getLegalActions, newViewIds, toEngineAction, fromEngineAction, viewFor, IllegalActionError } from '../src/core';
+import { GameState, GameView, SideCode, StopLevel, ViewIds, actingSide, addLog, createCardInstance, createInitialGameState, executeAction, getLegalActions, newViewIds, toEngineAction, fromEngineAction, viewFor, IllegalActionError } from '../src/core';
 import { GAME_STATE_FIELDS } from '../src/core/view';
-import { answer, cont, installCorpForTest, keepGoing, newGame, newGameAtSetup, run, setIdentity, startRunnerTurn } from './helpers';
+import { deckGameSetup } from '../src/data/decks';
+import { answer, cont, installCorpForTest, keepGoing, newGame, newGameAtSetup, run, setIdentity, startRunnerTurn, step } from './helpers';
 import { LeakChecker } from '../scripts/leak-check';
 
 // Per-player views (multiplayer phase 1): one scenario per row of the visibility table in
@@ -12,6 +14,8 @@ const OFFWORLD = '30067'; // agenda
 const ADRIAN = '34046'; // Adrian Seis: Psi Game on access
 const MELIES = '36036';
 const NICO = '30037'; // Nico Campaign: an asset with a trash cost
+const MANEGARM = '30042'; // Manegarm Skunkworks: an upgrade
+const REGOLITH = '30071'; // Regolith Mining License: an asset, rezzed in the tests
 
 /** Both sides' views of a state, with fresh id maps unless given. */
 function views(s: GameState, ids?: Record<SideCode, ViewIds>) {
@@ -314,5 +318,84 @@ describe('Per-player views', () => {
     addLog(t, 'corp', 'Corp is holding Offworld Office.');
     checker.check(t, 1);
     expect(checker.failures.map(f => `${f.viewer} ${f.check}`)).toEqual(['runner hidden-title']);
+  });
+  // Chunk 2g. 10.2.2a: "HIDDEN INFORMATION is any information ... unavailable to one or more players. This includes
+  // facedown cards in play"; 10.2.2b: "A player cannot learn hidden information without the aid of a game effect, rule,
+  // or another player"; 8.5.3a: "The Runner should not be able to tell what type of card is installed in the root of a
+  // remote server". 7.3.4: the Runner chooses which candidate to access next, so the choice comes before the access.
+  describe('a prompt shows the face only of cards the viewer may see (chunk 2g)', () => {
+    /** Runs on remote-1 and stops at the Runner's access_order prompt. */
+    const toAccessOrder = (s: GameState): GameState => {
+      startRunnerTurn(s);
+      s = executeAction(s, { type: 'INITIATE_RUN', player: 'runner', targetServerId: 'remote-1' });
+      for (let i = 0; i < 20 && s.pendingPrompts[0]?.kind !== 'access_order'; i++) s = step(s);
+      expect(s.pendingPrompts[0]?.kind).toBe('access_order');
+      return s;
+    };
+
+    it('access_order: unrezzed root cards are facedown in the Runner\'s prompt, a rezzed one is shown; the Corp\'s view is unchanged', () => {
+      let s = newGame();
+      s.corp.hq.splice(0);
+      const a = installCorpForTest(s, NICO, 'remote-1');
+      const b = installCorpForTest(s, MANEGARM, 'remote-1');
+      const up = installCorpForTest(s, REGOLITH, 'remote-1', true);
+      s = toAccessOrder(s);
+      const { runner, corp, ids } = views(s);
+      const p = runner.pendingPrompts[0];
+      expect(p.kind).toBe('access_order');
+      const byId = new Map(p.cards.map(c => [ids.runner.real[c.instanceId], c]));
+      expect(byId.get(a)?.cardCode).toBeUndefined();
+      expect(byId.get(b)?.cardCode).toBeUndefined();
+      expect(byId.get(up)?.cardCode).toBe(REGOLITH);
+      // The facedown cards keep their table ids, so the screen can still point at them and the options stay answerable
+      expect(byId.get(a)?.instanceId).toBe(ids.runner.view[a]);
+      expect(p.options?.map(o => o.id)).toContain(`root:${ids.runner.view[a]}`);
+      const text = json(runner);
+      for (const code of [NICO, MANEGARM]) expect(text).not.toContain(`"${code}"`);
+      expect(text).not.toContain('Nico Campaign');
+      expect(text).not.toContain('Manegarm Skunkworks');
+      // The Corp is not asked; its view shows its own cards as before
+      expect(corp.pendingPrompts).toEqual([]);
+      expect(corp.corp.servers['remote-1'].root.map(c => c.cardCode)).toEqual([NICO, MANEGARM, REGOLITH]);
+      // The leak checker now catches this class (its prompt exemption is narrowed)
+      const checker = new LeakChecker(9001);
+      checker.check(s, 0);
+      expect(checker.failures).toEqual([]);
+    });
+
+    it('effect_cards: a facedown installed candidate is facedown to the Runner (Hermes, Chain Reaction, Tāo Salonga)', () => {
+      const s = newGame();
+      const down = installCorpForTest(s, NICO, 'remote-1');
+      const up = installCorpForTest(s, NICO, 'remote-2', true);
+      s.pendingPrompts.push({ id: 'prompt-x', kind: 'effect_cards', side: 'runner', message: 'Choose', candidateIds: [down, up], min: 1, max: 1, source: { cardCode: HEDGE_FUND, instanceId: '', step: 'x' } });
+      const { runner, ids } = views(s);
+      const cards = runner.pendingPrompts[0].cards;
+      expect(cards.find(c => ids.runner.real[c.instanceId] === down)?.cardCode).toBeUndefined();
+      expect(cards.find(c => ids.runner.real[c.instanceId] === up)?.cardCode).toBe(NICO);
+      expect(runner.pendingPrompts[0].candidateIds).toEqual([ids.runner.view[down], ids.runner.view[up]]);
+    });
+
+    it('replay pin: round 3 play test game 2, the access_order prompt before move #100 names no facedown card', () => {
+      const r = JSON.parse(readFileSync(new URL('./fixtures/access-order-r3g2-100.json', import.meta.url), 'utf8'));
+      let s: GameState = { ...createInitialGameState(deckGameSetup(r.config.seed, r.config.corpDeck, r.config.runnerDeck)), stops: r.startStops };
+      for (const m of r.moves) s = executeAction(s, m);
+      expect(s.pendingPrompts[0]?.kind).toBe('access_order');
+      const root = s.corp.servers['remote-1'].root;
+      const facedown = root.filter(c => !c.isRezzed && !c.faceUp && !c.runnerKnows);
+      expect(facedown.length).toBeGreaterThan(0);
+      const { runner, ids } = views(s);
+      for (const c of runner.pendingPrompts[0].cards) {
+        const real = root.find(x => x.instanceId === ids.runner.real[c.instanceId]);
+        expect(real).toBeDefined();
+        if (facedown.includes(real!)) expect(c.cardCode).toBeUndefined();
+        else expect(c.cardCode).toBe(real!.cardCode);
+      }
+      // The facedown card is a second Project Ingatan; the stolen copy in the Runner's score area may show its code
+      const prompt = JSON.stringify(runner.pendingPrompts);
+      for (const c of facedown) expect(prompt).not.toContain(`"${c.cardCode}"`);
+      const checker = new LeakChecker(9001);
+      checker.check(s, 0);
+      expect(checker.failures).toEqual([]);
+    });
   });
 });

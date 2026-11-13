@@ -584,23 +584,36 @@ export function viewFor(state: GameState, side: SideCode, ids: ViewIds, gameId: 
   const runnerScore = open(r.scoreArea);
   const removed = open(state.removedFromGame);
 
-  // The viewer's own prompts may name cards from hidden zones (the top of R&D, the accessed card)
+  // The viewer's own prompts may name cards from hidden zones (the top of R&D, the accessed card). One rule for the face:
+  // - the card the prompt is about (the accessed card, access_trash) shows its face: the Runner is accessing it (7.1.2);
+  // - a card already shown with its face in this view keeps it (own cards, rezzed, faceup, known: 4.6.3);
+  // - an installed card the viewer sees only facedown stays facedown, so the prompt can still point at it on the table:
+  //   a facedown card is hidden information until accessed (10.2.2a-b), and the Runner must not learn what sits in a
+  //   root before choosing what to access (7.3.4, 8.5.3a). This covers access_order options, effect_choice options and
+  //   effect_cards candidates (Hermes, Chain Reaction, Tāo Salonga name facedown Corp cards);
+  // - a card from a hidden zone (not on the table) that a card effect shows (effect_cards candidates, the card being
+  //   installed) shows its face, as before; one that only an option id names is facedown (its id keeps the option answerable).
   const promptCards = new Map<string, CardView[]>();
   for (const p of state.pendingPrompts) {
     if (p.side !== side) continue;
-    const named = new Set<string>();
-    if (p.kind === 'access_trash') named.add(p.cardInstanceId);
-    if (p.kind === 'effect_cards') p.candidateIds.forEach(id => named.add(id));
+    /** Real id -> whether the prompt shows a hidden-zone card's face (effect_cards, install source). */
+    const named = new Map<string, boolean>();
+    const name = (id: string, shows: boolean) => named.set(id, (named.get(id) ?? false) || shows);
+    const about = p.kind === 'access_trash' ? p.cardInstanceId : undefined;
+    if (about) name(about, true);
+    if (p.kind === 'effect_cards') p.candidateIds.forEach(id => name(id, true));
     if (p.kind === 'effect_choice' || p.kind === 'effect_cards') {
-      if (p.source.data?.install && typeof p.source.data.cardId === 'string') named.add(p.source.data.cardId);
+      if (p.source.data?.install && typeof p.source.data.cardId === 'string') name(p.source.data.cardId, true);
     }
     if (p.kind === 'access_order' || p.kind === 'effect_choice') {
-      for (const o of p.options) for (const m of o.id.match(INST) ?? []) named.add(m);
+      for (const o of p.options) for (const m of o.id.match(INST) ?? []) name(m, false);
     }
     const cards: CardView[] = [];
-    for (const id of named) {
+    for (const [id, shows] of named) {
       const found = all.get(id);
-      if (found) cards.push(card(found, true));
+      if (!found) continue;
+      const onTable = out.view[id] !== undefined;
+      cards.push(card(found, id === about || faced.has(id) || (shows && !onTable)));
     }
     promptCards.set(p.id, cards);
   }
