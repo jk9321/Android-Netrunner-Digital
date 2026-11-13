@@ -67,7 +67,8 @@ for (const [i, seed] of seeds.entries()) {
   let turnActs: string[] = []; // non-econ assets and upgrades put on a new bare remote while an iced remote with an open root waited
   const iceThisTurn = new Map<string, number>(); // server id -> turn of the Corp's last ice install there
   const steals: Record<string, number> = {};
-  const assets = new Map<string, { iced: boolean; trashed: boolean; credits: number }>();
+  const assets = new Map<string, { iced: boolean; trashed: boolean; credits: number; runCredits?: number; runClicks?: number; iceAtTrash?: number }>();
+  let runStart: { credits: number; clicks: number } | null = null;
   try {
     for (let k = 0; k < 8000; k++) {
       const s = game.state;
@@ -98,6 +99,8 @@ for (const [i, seed] of seeds.entries()) {
       if (!game.step()) break;
       const n = game.state;
       const a = game.last!;
+      // The Runner's credits and clicks as each run begins: a trash's cost is what the run took (break, trash, the click)
+      if (!s.activeRun && n.activeRun) runStart = { credits: s.runner.credits, clicks: s.runner.clicks };
       if (n.runner.scoreArea.length > s.runner.scoreArea.length) {
         const where = s.activeRun?.server ?? 'none';
         const scoring = asSide('corp', () => scoringRemote(s)?.id);
@@ -109,7 +112,14 @@ for (const [i, seed] of seeds.entries()) {
         if (!e) continue;
         const after = Object.values(n.corp.servers).flatMap(x => x.root).find(x => x.instanceId === c.instanceId);
         if (after) e.credits += Math.max(0, (c.tokens.credit ?? 0) - (after.tokens.credit ?? 0));
-        else if (s.activePlayer === 'runner') e.trashed = true;
+        else if (s.activePlayer === 'runner') {
+          e.trashed = true;
+          e.iceAtTrash = v.ice.length;
+          if (runStart) {
+            e.runCredits = runStart.credits - n.runner.credits;
+            e.runClicks = runStart.clicks - n.runner.clicks;
+          }
+        }
       }
       if (a.player === 'corp' && s.activePlayer === 'corp') turnActs.push(a.type);
       if (a.player !== 'corp' || a.type !== 'INSTALL_CARD') continue;

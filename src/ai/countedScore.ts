@@ -498,12 +498,13 @@ export function iceRedirect(state: GameState, pick: GameAction): GameAction | nu
  * one ice from HQ in front (scoreInTwo's install+ice form, 8.5.11a: 1 credit per ice already protecting it), within the
  * line's horizon: what the Corp ends this turn on, its known income and next turn's clicks as credits (5.2.6a), less
  * afterLineFloor. Otherwise an asset may take its root (3.3.1); an agenda can still replace it later by trashing it
- * (8.5.6a). Null: not reserved. With plan.assetReserve off (the base): whenever an agenda waits in HQ.
+ * (8.5.6a). Null: not reserved. Folded 2026-11-13 (plan.assetReserve, g3 +0.5 ± 1.6, run 43354222438; before it the
+ * remote was reserved whenever an agenda waited in HQ).
  */
 function reservedForAgenda(state: GameState): ServerLike | null {
   const agendas = state.corp.hq.filter(isAgenda);
   const scoring = agendas.length ? scoringRemote(state) : null;
-  if (!scoring || !plan().assetReserve) return scoring;
+  if (!scoring) return scoring;
   const floor = Math.min(...agendas.map(x => afterLineFloor(state, x.instanceId)));
   // The line's money on its next turn with no rez spent and no click on the agenda yet (the most a line could have)
   const horizon = nextTurnCredits(state, state.corp.credits + Math.max(0, state.corp.clicks - 1), 0, 0) - floor;

@@ -1,9 +1,9 @@
 /**
  * Decked games, reservation arm (AI Coordinator 2026-11-13): replays batch deals (seed and deck names, as
- * scripts/corp-losses.ts plays them) with plan.assetReserve as PLAN_OFF gives and reports, per deal: winner, win
+ * scripts/corp-losses.ts plays them) as PLAN_OFF gives (written for the plan.assetReserve arm, now folded) and reports, per deal: winner, win
  * reason (4.2.7b: decked), Corp turns, and agendaAssetTurns: agendas in HQ at each Corp turn start while the remote with
  * the most ice holds an asset in its root (3.3.1). Measurement only.
- *   CANDS=cands.json [PLAN_OFF=+assetReserve] [SHARD=0/4] npx vite-node scripts/decked-check.ts > out.jsonl
+ *   CANDS=cands.json [PLAN_OFF=...] [SHARD=0/4] npx vite-node scripts/decked-check.ts > out.jsonl
  */
 import { readFileSync } from 'node:fs';
 import { GameState, cardDef, createInitialGameState } from '../src/core';

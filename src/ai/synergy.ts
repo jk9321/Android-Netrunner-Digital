@@ -510,8 +510,6 @@ export const tuning = {
      * full hand on 55% of turns. Off on both sides, kept for re-testing.
      */
     handByCard: { corp: false, runner: false } as Record<SideCode, boolean>,
-    /** Asset cover reservation arm (countedScore.ts reservedForAgenda). Temporary: folded or deleted before the hand-off. */
-    assetReserve: false,
   },
 };
 
@@ -546,6 +544,7 @@ export const sideOff: Record<SideCode, string[]> = {
  * planWith naming one throws, so a batch written before the fold can't silently test nothing.
  */
 export const FOLDED: readonly string[] = [
+  'assetReserve',
   'tagThreat', 'breakerFocus', 'saveUp', 'icePlacement', 'agendaStakes', 'lethalHq', 'readWriteFull',
   'archivesChosen', 'centralIce', 'iceDepth', 'oneRemote', 'identities', 'runnerIdentities', 'exposure',
   'assetRezTiming', 'turnStartRez', 'stealCosts', 'rezPaid', 'tagNoClear', 'knownHq', 'hqNoSafer', 'readAssetTrash',
