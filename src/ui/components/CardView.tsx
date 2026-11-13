@@ -56,6 +56,8 @@ export interface CardViewProps {
    * remember it (rules 1.12.5, 10.2.2b). Faded and marked Seen so it never passes for a rezzed card.
    */
   seen?: boolean;
+  /** Share of the card's width (its short side) that a neighbour lies over at the bottom (overlapped ice): the bottom badges sit above it. */
+  coveredBottom?: number;
 }
 
 const CardFace: React.FC<CardViewProps & { showTooltip: boolean; setShowTooltip: (show: boolean) => void }> = ({
@@ -74,6 +76,7 @@ const CardFace: React.FC<CardViewProps & { showTooltip: boolean; setShowTooltip:
   tag,
   actions,
   seen = false,
+  coveredBottom = 0,
   showTooltip,
   setShowTooltip,
 }) => {
@@ -163,7 +166,7 @@ const CardFace: React.FC<CardViewProps & { showTooltip: boolean; setShowTooltip:
           </div>
         )}
 
-        <CardOverlays card={card} sideways={sideways} tag={tag} actions={actions} hidden />
+        <CardOverlays card={card} sideways={sideways} tag={tag} actions={actions} hidden coveredBottom={coveredBottom} />
 
         {showTooltip && !plainBack && (
           <CardPopout
@@ -245,6 +248,7 @@ const CardFace: React.FC<CardViewProps & { showTooltip: boolean; setShowTooltip:
         types={typeIcons === false ? [] : typeIcons === true ? (def.type_code === 'ice' ? iceSubtypes(card) : breakerTypes(card)) : typeIcons}
         typeSide={def.type_code === 'ice' ? 'ice' : 'breaker'}
         onInspect={onInspect}
+        coveredBottom={coveredBottom}
       />
 
       {/* Hover Card Detail Popout (Rendered via Portal to Document Body) */}
@@ -281,7 +285,8 @@ const CardOverlays: React.FC<{
   types?: IceSubtype[];
   typeSide?: 'ice' | 'breaker';
   onInspect?: (card: CardInstance) => void;
-}> = ({ card, sideways, tag, actions, status, hidden = false, types = [], typeSide = 'ice', onInspect }) => {
+  coveredBottom?: number;
+}> = ({ card, sideways, tag, actions, status, hidden = false, types = [], typeSide = 'ice', onInspect, coveredBottom = 0 }) => {
   const gameState = useLiveGameState();
   const mods = gameState && !hidden && status !== 'seen' ? liveCardModifiers(gameState, card) : undefined;
   const t = card.tokens;
@@ -294,7 +299,12 @@ const CardOverlays: React.FC<{
         sideways ? 'left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 -rotate-90' : 'inset-0'
       }`}
       // Sideways, the layer is the card's box turned: as wide as the card is tall (140%)
-      style={{ fontSize: 'min(12cqw, 12px)', ...(sideways ? { width: '140cqw', height: '100cqw' } : {}) }}
+      style={{
+        fontSize: 'min(12cqw, 12px)',
+        ...(sideways ? { width: '140cqw', height: '100cqw' } : {}),
+        // A neighbour lies over the card's bottom edge: keep the bottom row (type icons, strength, inspect, counters) clear of it
+        ...(coveredBottom > 0 ? { paddingBottom: `calc(${coveredBottom * 100}cqw + 0.2em)` } : {}),
+      }}
     >
       {top && (
         <div className="flex items-start gap-[0.2em] min-w-0">

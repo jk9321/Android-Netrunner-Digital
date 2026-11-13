@@ -5,6 +5,7 @@ import { derez, trashInstalledCard } from '../src/core/engine/cardEffects';
 import { installCorpCardFrom } from '../src/core/engine/actions/install';
 import { ServerColumn } from '../src/ui/components/ServerColumn';
 import { installCorpForTest, newGame, rezForTest, run, step } from './helpers';
+import { renderAs } from './seatHelpers';
 
 // The Runner may remember a Corp card they have seen (rules 10.2.2b): turned
 // facedown it is the same object (1.12.5), back in HQ or R&D it is a new one (1.12.3).
@@ -96,5 +97,24 @@ describe('Seen cards on the board', () => {
     const html = renderToStaticMarkup(<ServerColumn server={s.corp.servers['remote-1']} activePlayer="corp" perspective="runner" />);
     expect(html).not.toContain('seen-tag');
     expect(html).not.toContain('Regolith Mining License');
+  });
+});
+
+describe('Overlapped ice keeps its bottom badges clear of the next ice', () => {
+  const ICE_CODE = '30011';
+  const html = (count: number) => {
+    const s = newGame();
+    for (let i = 0; i < count; i++) installCorpForTest(s, ICE_CODE, 'remote-1');
+    const server = s.corp.servers['remote-1'];
+    server.ice = server.root.splice(0);
+    return renderAs(s, 'corp', () => <ServerColumn server={server} activePlayer="corp" perspective="corp" />);
+  };
+  const padded = (h: string) => (h.match(/padding-bottom:calc\(/g) ?? []).length;
+
+  it('every ice but the last is padded in a stack of five', () => {
+    expect(padded(html(5))).toBe(4);
+  });
+  it('a two-ice stack does not overlap, so nothing is padded', () => {
+    expect(padded(html(2))).toBe(0);
   });
 });

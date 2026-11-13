@@ -1,7 +1,14 @@
-import { useEffect, useState } from 'react';
+import { type ReactNode, useEffect, useState } from 'react';
 import { hoverPromptServer, hoverPromptTarget } from '../promptHighlight';
 import { Plus, Trash2 } from 'lucide-react';
 import { CardInstance, cardDef } from '../../core';
+
+function iceSlotLabel(index: number, total: number): string | null {
+  if (total <= 1) return null;
+  if (index === 0) return 'Outer';
+  if (index === total - 1) return 'Inner';
+  return `#${index + 1}`;
+}
 
 /**
  * Picks the player's own installed cards to trash as part of an install
@@ -12,6 +19,8 @@ export function TrashFirstPicker({
   heading,
   cards,
   serverId,
+  iceSlots,
+  statusText,
   confirmLabel,
   canConfirm,
   onConfirm,
@@ -20,6 +29,8 @@ export function TrashFirstPicker({
   heading: string;
   cards: CardInstance[];
   serverId?: string;
+  iceSlots?: boolean;
+  statusText?: (trash: string[]) => ReactNode;
   confirmLabel: (trash: string[]) => string;
   canConfirm: (trash: string[]) => boolean;
   onConfirm: (trash: string[]) => void;
@@ -35,16 +46,19 @@ export function TrashFirstPicker({
     };
   }, [serverId]);
   const toggle = (id: string) => setTrash(t => (t.includes(id) ? t.filter(x => x !== id) : [...t, id]));
+  const status = statusText?.(trash);
   return (
     <div className="flex items-center gap-1.5 flex-wrap" data-testid="trash-first">
       <span className="text-xs text-amber-300 font-bold">{heading}</span>
-      {cards.map(card => {
+      {cards.map((card, index) => {
         const picked = trash.includes(card.instanceId);
+        const def = cardDef(card);
+        const slot = iceSlots ? iceSlotLabel(index, cards.length) : null;
         return (
           <button
             key={card.instanceId}
             onClick={() => toggle(card.instanceId)}
-            onMouseEnter={() => hoverPromptTarget({ id: card.instanceId, label: null })}
+            onMouseEnter={() => hoverPromptTarget({ id: card.instanceId, label: slot ?? null })}
             onMouseLeave={() => hoverPromptTarget(null)}
             data-testid={`trash-first-${card.instanceId}`}
             className={`px-2.5 py-1 text-xs font-bold rounded-[2px] border border-b-2 transition-all flex items-center gap-1.5 active:translate-y-[1px] active:border-b-[1px] ${
@@ -54,11 +68,16 @@ export function TrashFirstPicker({
             }`}
           >
             {picked && <Trash2 className="w-3 h-3" />}
-            {cardDef(card).title}
-            {cardDef(card).side_code === 'corp' && !card.isRezzed && !card.faceUp && ' (unrezzed)'}
+            {slot && <span className="text-slate-400 font-mono">{slot}:</span>}
+            <span>{def.title}</span>
+            {def.type_code === 'program' && (
+              <span className="text-slate-400 font-mono">({def.memory_cost ?? 0} MU)</span>
+            )}
+            {def.side_code === 'corp' && !card.isRezzed && !card.faceUp && ' (unrezzed)'}
           </button>
         );
       })}
+      {status && <span className="text-xs font-mono text-slate-300 mx-1">{status}</span>}
       <button
         onClick={() => onConfirm(trash)}
         disabled={!canConfirm(trash)}
@@ -77,7 +96,38 @@ export function TrashFirstPicker({
   );
 }
 
-/** The small button that opens a TrashFirstPicker. */
+/** The attached trash icon segment on a split install pill. */
+export function TrashSplitSegment({
+  title,
+  onClick,
+  onMouseEnter,
+  onMouseLeave,
+  testId,
+  className = '',
+}: {
+  title: string;
+  onClick: () => void;
+  onMouseEnter?: () => void;
+  onMouseLeave?: () => void;
+  testId?: string;
+  className?: string;
+}) {
+  return (
+    <button
+      onClick={onClick}
+      onMouseEnter={onMouseEnter}
+      onMouseLeave={onMouseLeave}
+      data-testid={testId}
+      title={title}
+      aria-label={title}
+      className={`px-2 py-1.5 bg-gradient-to-b from-slate-900 to-slate-950 hover:bg-slate-800 border border-l-0 border-b-2 text-amber-300 text-xs font-bold rounded-r-[2px] transition-all flex items-center justify-center shadow active:translate-y-[1px] active:border-b-[1px] ${className}`}
+    >
+      <Trash2 className="w-3.5 h-3.5" />
+    </button>
+  );
+}
+
+/** Standalone trash-first button (used when an install isn't possible without trashing first). */
 export function TrashFirstButton({
   label,
   title,

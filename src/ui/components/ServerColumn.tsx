@@ -264,6 +264,8 @@ export const ServerColumn: React.FC<ServerColumnProps> = ({
                   seen={!canCorpPeek && !!iceCard.runnerKnows && !iceCard.isRezzed && !iceCard.faceUp}
                   size="fit"
                   sideways
+                  // The next ice in the stack lies over this one's bottom edge
+                  coveredBottom={i + 1 < server.ice.length ? iceOverlap(server.ice.length) : 0}
                   onInspect={onInspectCard}
                   // Unrezzed ice keeps its type secret from the Runner
                   typeIcons={iceCard.isRezzed || iceCard.faceUp || canCorpPeek || iceCard.runnerKnows ? iceTypes(iceCard) : []}
