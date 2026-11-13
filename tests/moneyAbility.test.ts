@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { GameAction, GameState } from '../src/core';
+import { GameAction, GameState, getCardDefinition } from '../src/core';
 import { moneyPick, moneyStats } from '../src/ai/incomeLine';
 import { tuning } from '../src/ai/synergy';
 import { installCorpForTest, newGame, rezForTest } from './helpers';
@@ -23,15 +23,16 @@ const position = (): { s: GameState; reg: string } => {
 };
 const draw = { type: 'DRAW_CARD', player: 'corp' } as GameAction;
 const credit = { type: 'GAIN_CREDIT', player: 'corp' } as GameAction;
-const withSwitch = <T>(on: boolean, f: () => T): T => {
+const withSwitches = <T>(on: Partial<typeof tuning.plan>, f: () => T): T => {
   const keep = tuning.plan;
-  tuning.plan = { ...keep, moneyAbility: on };
+  tuning.plan = { ...keep, ...on };
   try {
     return f();
   } finally {
     tuning.plan = keep;
   }
 };
+const withSwitch = <T>(on: boolean, f: () => T): T => withSwitches({ moneyAbility: on }, f);
 
 describe('money step M1c: an installed econ ability in place of a draw or a credit', () => {
   it('the Regolith rezzed with 15 on it holds 15 credits', () => {
@@ -57,5 +58,46 @@ describe('money step M1c: an installed econ ability in place of a draw or a cred
   it('switch off: the draw stands', () => {
     const { s } = position();
     expect(withSwitch(false, () => inDecision(s, 'corp', () => moneyPick(s, draw)))).toBeNull();
+  });
+});
+
+/**
+ * M1c second arm (plan.moneyAbilityMulti): Humanoid Resources (35039, src/data/elevation-cards.json: "[click][click]
+ * [click], [trash]: Gain 4[credit] and draw 3 cards. Install up to 2 cards from HQ (one at a time). You may play 1
+ * operation from HQ."). Click asset trace: the AI rezzed 2-5% of its copies, Jeff all 3 of his. Its line installs from
+ * HQ what a click would (rule 8.5), so it takes the clicks of an own pick that installs a card of the same type, and
+ * an unrezzed copy is rezzed first (8.1.2, in the paid ability window, 5.6.2a). Deal seed 1's opening HQ, 3 clicks, 10
+ * credits, the Corp's own pick Karunā (ice).
+ */
+describe('money step M1c, second arm: Humanoid Resources', () => {
+  const HUMANOID = '35039';
+  const position = (rezzed: boolean) => {
+    const s = structuredClone(newGame(1));
+    s.corp.clicks = 3;
+    s.corp.credits = 10;
+    const id = installCorpForTest(s, HUMANOID, 'remote-1', rezzed);
+    const ice = s.corp.hq.find(c => c.cardCode === karuna(s))!;
+    const own = { type: 'INSTALL_CARD', player: 'corp', cardInstanceId: ice.instanceId, targetServerId: 'hq' } as GameAction;
+    return { s, id, own };
+  };
+  const karuna = (s: GameState) => s.corp.hq.find(c => getCardDefinition(c.cardCode).title === 'Karunā')!.cardCode;
+  const both = <T>(f: () => T): T => withSwitches({ moneyAbility: true, moneyAbilityMulti: true }, f);
+
+  it('rezzes it (1) to use it, in place of the ice install its line also makes', () => {
+    const { s, id, own } = position(false);
+    expect(both(() => inDecision(s, 'corp', () => moneyPick(s, own)))).toMatchObject({ type: 'REZ_CARD', cardInstanceId: id });
+  });
+
+  it('uses it once rezzed', () => {
+    const { s, id, own } = position(true);
+    expect(both(() => inDecision(s, 'corp', () => moneyPick(s, own)))).toMatchObject({ type: 'USE_ABILITY', cardInstanceId: id });
+  });
+
+  it('only with the second arm on, and never with fewer clicks than it costs', () => {
+    const { s, own } = position(true);
+    expect(withSwitches({ moneyAbility: true, moneyAbilityMulti: false }, () => inDecision(s, 'corp', () => moneyPick(s, own)))).toBeNull();
+    const t = structuredClone(s);
+    t.corp.clicks = 2;
+    expect(both(() => inDecision(t, 'corp', () => moneyPick(t, own)))).toBeNull();
   });
 });

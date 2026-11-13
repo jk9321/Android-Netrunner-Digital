@@ -14,7 +14,7 @@
  * PLAN_OFF as given (M1c's fire count: PLAN_OFF=+moneyAbility against none, on the same deals); abilities: moneyStats.abilities,
  * the ability picks moneyPick made in the game (any caller, the planner's search included).
  *
- *   [JEFF=1] [EXTRA=3] [SEEDS=1721,1921] [SHARD=0/4] [SKIP=done.jsonl] [PLAN_OFF=+moneyAbility] npx vite-node scripts/click-asset-trace.ts > click.jsonl
+ *   [JEFF=1] [EXTRA=3] [CORP_CARD="Humanoid Resources"] [SEEDS=1721,1921] [SHARD=0/4] [SKIP=done.jsonl] [PLAN_OFF=+moneyAbility] npx vite-node scripts/click-asset-trace.ts > click.jsonl
  */
 import { readFileSync, readdirSync } from 'node:fs';
 import { join } from 'node:path';
@@ -122,6 +122,8 @@ if (process.env.JEFF || process.env.EXTRA) {
     const report = JSON.parse(readFileSync(join(DIR, file), 'utf8'));
     if (!report.moves?.length) continue;
     const { seed, corpDeck, runnerDeck } = report.config;
+    // CORP_CARD=<title>: only Jeff's games whose Corp deck holds that card (a one-card arm's fire count)
+    if (process.env.CORP_CARD && !JSON.stringify(corpDeck).includes(`"${process.env.CORP_CARD}"`)) continue;
     if (process.env.JEFF && mine() && !done.has(`${file}|jeff|${seed}`)) {
       let s: GameState = createInitialGameState(deckGameSetup(seed, corpDeck, runnerDeck));
       if (report.startStops) s = { ...s, stops: report.startStops };

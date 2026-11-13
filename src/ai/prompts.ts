@@ -204,8 +204,9 @@ export function answerPrompt(state: GameState, side: SideCode, memory?: RunnerMe
     const target = card && prompt.kind === 'effect_choice' ? freeInstallTarget(state, card, prompt.options.map(o => o.id)) : undefined;
     if (target) return { ...base, choice: { kind: 'effect_choice', optionId: target.server } };
   }
-  // Warm Reception, Janaína: a free install from HQ; ice the Corp can afford first, then an asset or upgrade, never an agenda
-  if (side === 'corp' && prompt.kind === 'effect_cards' && ['34098', '34115'].includes(prompt.source.cardCode) && prompt.source.step === 'pick') {
+  // Warm Reception, Janaína, Humanoid Resources (its two installs, 35039): a free install from HQ; ice the Corp can
+  // afford first, then an asset or upgrade, never an agenda
+  if (side === 'corp' && prompt.kind === 'effect_cards' && ((['34098', '34115'].includes(prompt.source.cardCode) && prompt.source.step === 'pick') || (prompt.source.cardCode === '35039' && prompt.source.step === 'install_pick'))) {
     const cards = prompt.candidateIds.map(id => findCardAnywhere(state, id)).filter((c): c is CardInstance => !!c);
     const ice = cards.filter(c => cardDef(c).type_code === 'ice' && (cardDef(c).cost ?? 0) <= state.corp.credits).sort((a, b) => (cardDef(b).cost ?? 0) - (cardDef(a).cost ?? 0));
     const root = cards.filter(c => ['asset', 'upgrade'].includes(cardDef(c).type_code) && (cardDef(c).cost ?? 0) <= state.corp.credits);
