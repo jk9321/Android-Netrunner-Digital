@@ -133,20 +133,29 @@ const deckAverage = new Map<string, number>();
  * Whether drawWorth on this board takes the decision root's prices (rootDeckAverage): the Corp's own deck, in the
  * playouts of a Corp decision's planner (frozen). Not the Runner's stack (its cards' worth turns on the rig, which the
  * views of a Corp decision change: plan.reach's cases install a breaker), nor a decision's own boards (a prompt's
- * answers are simulated and compared outside a playout: tests/clearinghouseRez.test.ts).
+ * answers are simulated and compared outside a playout: tests/clearinghouseRez.test.ts). Nor while a deck card is
+ * being priced on the root (priceAtRoot): what that asks for is priced per board, and keyed so (deckRootKey ''), so a
+ * value cached there doesn't depend on which cards the decision had priced so far.
  */
 function atDeckRoot(state: GameState, side: SideCode): boolean {
   const anchor = pricing().anchor;
-  return side === 'corp' && pricing().frozen && !!anchor?.root && anchor.side === 'corp' && anchor.root.id === state.id && pricing().side !== null;
+  return side === 'corp' && !pricingRoot && pricing().frozen && !!anchor?.root && anchor.side === 'corp' && anchor.root.id === state.id && pricing().side !== null;
 }
+const rootSerials = new WeakMap<GameState, number>();
+let nextRootSerial = 0;
 /**
- * For caches that outlive a decision (threatModel's): the board of the decision root whose deck prices a value on
- * this board used, '' when none. Two decisions on boards with the same id can price their decks on different roots.
+ * For caches that outlive a decision (threatModel's): which decision root's deck prices a value on this board used,
+ * '' when none. Every root is its own: two roots with the same fingerprint can still price a deck card differently
+ * (tests/threatCacheAudit.test.ts, deal 1421, served one such budget across decisions with the fingerprint here).
  */
 export function deckRootKey(state: GameState): string {
-  return atDeckRoot(state, 'corp') ? `r${fingerprint(pricing().anchor!.root!)}` : '';
+  if (!atDeckRoot(state, 'corp')) return '';
+  const root = pricing().anchor!.root!;
+  let n = rootSerials.get(root);
+  if (n === undefined) rootSerials.set(root, (n = nextRootSerial++));
+  return `r${n}`;
 }
-const pricingCards = new Set<string>();
+let pricingRoot = 0;
 
 /** Average held worth of the cards left in a side's deck (what a draw is expected to bring). */
 function drawWorth(state: GameState, side: SideCode): number {
@@ -211,14 +220,7 @@ function rootDeckAverage(state: GameState, side: SideCode, deck: CardInstance[])
       if (priceAtRoot(root, c) !== played) deckAvgStats.mismatches++;
     }
     if (played === undefined) {
-      // A card whose own pricing asked for the average again: the per-board average for this ask
-      if (pricingCards.has(c.instanceId)) return undefined;
-      pricingCards.add(c.instanceId);
-      try {
-        played = priceAtRoot(root, c);
-      } finally {
-        pricingCards.delete(c.instanceId);
-      }
+      played = priceAtRoot(root, c);
       values.set(c.instanceId, played);
       deckAvgStats.priced++;
     }
@@ -235,7 +237,12 @@ function rootDeckAverage(state: GameState, side: SideCode, deck: CardInstance[])
  * own effects otherwise met itself: a value loop, and its flat value kept all decision).
  */
 function priceAtRoot(root: GameState, card: CardInstance): number {
-  return pricingApart(() => withPricing({ averaging: true }, () => playedWorth(root, card)));
+  pricingRoot++;
+  try {
+    return pricingApart(() => withPricing({ averaging: true }, () => playedWorth(root, card)));
+  } finally {
+    pricingRoot--;
+  }
 }
 
 /** The deck's average card for valueModel's cardRate (plan.flatRates.cards); the flat rate while it is being worked out. */
