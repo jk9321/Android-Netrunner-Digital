@@ -445,6 +445,7 @@ const FlippingCard: React.FC<CardViewProps> = props => {
   // - First mount (install): Option 1 Caddy Settle (y: -8 -> 0 over 160ms with cubic-bezier(0.16, 1, 0.3, 1))
   // - Face flip (rez / reveal): Option D Ultra-Fast Blade Snap (rotateY: -90 -> 0 over 140ms snappy spring)
   const isFlip = flipCount.current > 0;
+  const isRezFlash = isFlip && props.card.isRezzed;
 
   return (
     <motion.div
@@ -460,12 +461,23 @@ const FlippingCard: React.FC<CardViewProps> = props => {
               ? { y: -8, opacity: 0.75 }
               : false
       }
-      animate={{ rotateY: 0, y: 0, opacity: 1 }}
+      animate={{
+        rotateY: 0,
+        y: 0,
+        opacity: 1,
+        ...(isRezFlash && !prefersReduced
+          ? { boxShadow: ['0 0 0 0 rgba(34,211,238,0)', '0 0 18px 4px rgba(34,211,238,0.55)', '0 0 0 0 rgba(34,211,238,0)'] }
+          : {}),
+      }}
       transition={
         prefersReduced
           ? { duration: 0 }
           : isFlip
-            ? { duration: 0.14, ease: [0.2, 1.25, 0.4, 1] }
+            ? {
+                duration: 0.14,
+                ease: [0.2, 1.25, 0.4, 1],
+                ...(isRezFlash ? { boxShadow: { duration: 0.5, times: [0, 0.2, 1], ease: 'easeOut' } } : {}),
+              }
             : isInstalledOnTable
               ? { duration: 0.16, ease: [0.16, 1, 0.3, 1] }
               : { duration: 0 }

@@ -1,6 +1,8 @@
+import { motion } from 'framer-motion';
 import { CardInstance, HIDDEN_CORP, getCardDefinition } from '../../core';
 import { CardView } from './CardView';
 import { AccessedCard } from '../savedGame';
+import { shouldReduceMotion } from '../animations';
 
 /** The cards the Runner accessed in the latest run, so accesses with nothing to decide are still seen. */
 export function AccessedPanel({
@@ -13,6 +15,7 @@ export function AccessedPanel({
   onInspect: (card: CardInstance) => void;
   onClose: () => void;
 }) {
+  const prefersReduced = shouldReduceMotion();
   // Rules 7.1.5a: only cards with a trash cost can be trashed on access. Explains a
   // card the viewer can see that got no trash offer (agendas are stolen instead).
   const untrashable = cards.some(({ code }) => {
@@ -21,7 +24,10 @@ export function AccessedPanel({
     return def.type_code !== 'agenda' && def.trash_cost == null;
   });
   return (
-    <div
+    <motion.div
+      initial={prefersReduced ? false : { opacity: 0, scale: 0.95, y: 6 }}
+      animate={{ opacity: 1, scale: 1, y: 0 }}
+      transition={prefersReduced ? { duration: 0 } : { duration: 0.14, ease: [0.16, 1, 0.3, 1] }}
       className="fixed left-4 bottom-6 z-40 w-72 max-w-[calc(100vw-2rem)] bg-[#090d15]/95 border border-pink-700/80 rounded-[2px] p-3 shadow-2xl font-mono"
       data-testid="accessed-panel"
     >
@@ -45,7 +51,7 @@ export function AccessedPanel({
           />
         ))}
       </div>
-      {untrashable && <p className="text-[11px] text-slate-500 mt-1.5">Cards without a trash cost (most ice and operations) can't be trashed.</p>}
-    </div>
+      {untrashable && <p className="text-[11px] text-slate-500 mt-1.5">Cards without a trash cost (most ice and operations) can&apos;t be trashed.</p>}
+    </motion.div>
   );
 }

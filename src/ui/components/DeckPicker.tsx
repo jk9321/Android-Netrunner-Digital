@@ -1,5 +1,6 @@
 import React, { Suspense, lazy, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { FormatId, SideCode, getCardDefinition, getFormat, influenceCost, validateDeck } from '../../core';
+import { shouldReduceMotion } from '../animations';
 import { DECKS, DeckList, deckCodes, pickRandomDeck, randomDeckPool } from '../../data/decks';
 import { ALL_CARDS, getCardImageUrl } from '../../data/cards';
 import { loadCustomDecks, newCustomDeckId, saveCustomDecks } from '../../data/customDecks';
@@ -530,7 +531,7 @@ export const DeckPicker: React.FC<DeckPickerProps> = ({
                   aria-disabled={blocked || undefined}
                   title={blocked ? `Not legal in ${getFormat(opts.online!.format).name} online:\n${notOnline.join('\n')}` : undefined}
                   data-testid={`deck-${s.deck.id}`}
-                  className={`flex items-center gap-3 p-2.5 rounded-[2px] border text-left transition-all ${blocked ? 'cursor-not-allowed ' : ''}${
+                  className={`relative overflow-hidden flex items-center gap-3 p-2.5 rounded-[2px] border text-left transition-all ${blocked ? 'cursor-not-allowed ' : ''}${
                     isSelected
                       ? accent === 'cyan'
                         ? 'border-cyan-400 border-l-4 bg-gradient-to-r from-cyan-950/80 to-[#080d14] shadow-lg'
@@ -538,12 +539,20 @@ export const DeckPicker: React.FC<DeckPickerProps> = ({
                       : 'border-slate-800/80 bg-[#080d14] hover:border-slate-600'
                   }${isHidden || blocked ? ' opacity-50' : ''}`}
                 >
+                  {isSelected && (
+                    <img
+                      src={getCardImageUrl(s.identityCode)}
+                      alt=""
+                      aria-hidden="true"
+                      className="pointer-events-none select-none absolute right-0 top-0 h-full w-40 object-cover object-top opacity-20 [mask-image:linear-gradient(to_left,black,transparent)]"
+                    />
+                  )}
                   <img
                     src={getCardImageUrl(s.identityCode)}
                     alt={s.deck.identity}
-                    className="w-14 h-20 object-cover rounded-[2px] border border-slate-700 shrink-0"
+                    className="relative z-10 w-14 h-20 object-cover rounded-[2px] border border-slate-700 shrink-0"
                   />
-                  <div className="min-w-0 flex-1">
+                  <div className="relative z-10 min-w-0 flex-1">
                     <div className="flex items-start gap-1">
                       <div className="min-w-0 flex-1">
                         <div className="text-sm font-bold text-slate-100 truncate">{s.deck.name}</div>
@@ -702,6 +711,10 @@ export const DeckPicker: React.FC<DeckPickerProps> = ({
         </div>
 
         {/* 2. Contextual settings for that mode */}
+        <div
+          key={mode === 'online' ? `online-${role}` : mode}
+          className={`flex flex-col items-center gap-2.5 ${shouldReduceMotion() ? '' : 'animate-mode-slide'}`}
+        >
         {mode === 'computer' && (
           <div className="flex flex-wrap items-center justify-center gap-2" role="radiogroup" aria-label="Your side">
             {OPPONENTS.map(o => (
@@ -810,6 +823,7 @@ export const DeckPicker: React.FC<DeckPickerProps> = ({
             )}
           </div>
         )}
+        </div>
 
         {mode === 'online' && role === 'join' && lobby && (
           <div className="flex items-center gap-3 p-3 rounded-[2px] border border-slate-700 bg-[#080d14]" data-testid="lobby-info">
