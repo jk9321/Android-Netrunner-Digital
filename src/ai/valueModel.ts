@@ -380,6 +380,19 @@ const pricing: string[] = [];
 export const valueLoops = new Map<string, number>();
 const loopsFail = (): boolean => typeof process !== 'undefined' && !!process.env?.VITEST && !process.env?.VALUE_LOOPS_OK;
 
+/**
+ * Runs `work` as a lookup of its own, outside the lookups in progress (planner speed tier 2: a deck card priced once
+ * for the whole decision is priced the same whoever asked first). Loops inside `work` are still guarded.
+ */
+export function pricingApart<T>(work: () => T): T {
+  const outer = pricing.splice(0);
+  try {
+    return work();
+  } finally {
+    pricing.splice(0, pricing.length, ...outer);
+  }
+}
+
 const stateIds = new WeakMap<GameState, number>();
 let nextStateId = 0;
 

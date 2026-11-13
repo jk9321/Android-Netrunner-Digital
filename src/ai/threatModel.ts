@@ -1,7 +1,7 @@
 import { CardInstance, GameState, cardDef, createRng, knownInHand, shuffleInPlace } from '../core';
 import { corpCardValue } from './evaluate';
 import { runSuccess, runSuccessBypassing } from './effectValues';
-import { unseenInHand } from './handValues';
+import { deckRootKey, unseenInHand } from './handValues';
 import { ALARM_CLOCK, BLOCK, RunOptions, RunnerMemory, iceCost, runBypasses, runClick, runCreditSpend, runScore, serverValue } from './runs';
 import { asSide, sideOff, tuning } from './synergy';
 import { fingerprint, memo, pointGain, sideCreditValue } from './valueModel';
@@ -174,6 +174,8 @@ function threatKey(state: GameState): string {
     planKey(),
     // the pricing context as the budget runs in it (budgetPricing: outside deck averaging)
     coarse && plan().threatKeyPricing ? '' : budgetPricing(pricingKey),
+    // the decision root whose prices the Corp's deck takes on this board (planner speed tier 2, rootDeckAverage)
+    deckRootKey(state),
   ].join('|');
 }
 /**

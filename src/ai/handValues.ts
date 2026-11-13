@@ -6,7 +6,7 @@ import { breakerTypeWorth, iceWorth } from './iceValues';
 import { agendaWorth, isOneUse, runnerRigValue } from './evaluate';
 import { counterWorth } from './counterValues';
 import { handPlanWorth } from './cardPlans';
-import { CLICK, RATES, cardRate, fingerprint, handFilter, payoutSlide, printedGain, reachCard, setDeckCard } from './valueModel';
+import { CLICK, RATES, cardRate, fingerprint, handFilter, payoutSlide, pricingApart, printedGain, reachCard, setDeckCard } from './valueModel';
 import { leafHandByCard, noteDecision, plan, pricing, pricingKey, withPricing } from './pricing';
 import { corpDrawPool, corpKnowsRd } from './oracle';
 
@@ -129,6 +129,25 @@ export function unseenInHand(state: GameState, side: SideCode): CardInstance[] {
 
 const deckAverage = new Map<string, number>();
 
+/**
+ * Whether drawWorth on this board takes the decision root's prices (rootDeckAverage): the Corp's own deck, in the
+ * playouts of a Corp decision's planner (frozen). Not the Runner's stack (its cards' worth turns on the rig, which the
+ * views of a Corp decision change: plan.reach's cases install a breaker), nor a decision's own boards (a prompt's
+ * answers are simulated and compared outside a playout: tests/clearinghouseRez.test.ts).
+ */
+function atDeckRoot(state: GameState, side: SideCode): boolean {
+  const anchor = pricing().anchor;
+  return side === 'corp' && pricing().frozen && !!anchor?.root && anchor.side === 'corp' && anchor.root.id === state.id && pricing().side !== null;
+}
+/**
+ * For caches that outlive a decision (threatModel's): the board of the decision root whose deck prices a value on
+ * this board used, '' when none. Two decisions on boards with the same id can price their decks on different roots.
+ */
+export function deckRootKey(state: GameState): string {
+  return atDeckRoot(state, 'corp') ? `r${fingerprint(pricing().anchor!.root!)}` : '';
+}
+const pricingCards = new Set<string>();
+
 /** Average held worth of the cards left in a side's deck (what a draw is expected to bring). */
 function drawWorth(state: GameState, side: SideCode): number {
   // plan.oracle.rd: the Corp's next draw is R&D's top card itself
@@ -166,14 +185,14 @@ export const deckAvgStats = { served: 0, priced: 0 };
  * (planner-fast-step1.md). Undefined outside a Corp decision (the per-board price).
  */
 function rootDeckAverage(state: GameState, side: SideCode, deck: CardInstance[]): number | undefined {
-  const anchor = pricing().anchor;
-  if (!anchor?.root || anchor.side !== 'corp' || anchor.root.id !== state.id || pricing().side === null) return undefined;
+  if (!atDeckRoot(state, side)) return undefined;
+  const anchor = pricing().anchor!;
   if (!deck.length) return RATES.drawnCard;
   const all = (anchor.deckValues ??= new Map());
   const key = `${pricingKey()}:${side}`;
   let values = all.get(key);
   if (!values) all.set(key, (values = new Map()));
-  const root = anchor.root;
+  const root = anchor.root!;
   deckAvgStats.served++;
   // The asking board's credits decide which cards could be played soon (heldWorth's SOON), as in the per-board
   // average (plan.drawWorthCredits): a line that spends its money down sees its draws worth less. Only the
@@ -183,8 +202,18 @@ function rootDeckAverage(state: GameState, side: SideCode, deck: CardInstance[])
   for (const c of deck) {
     let played = values.get(c.instanceId);
     if (played === undefined) {
-      // As the per-board average does: inside it, a card's worth that needs the average card gets the flat rate
-      played = withPricing({ averaging: true }, () => playedWorth(root, c));
+      // A card whose own pricing asked for the average again: the per-board average for this ask
+      if (pricingCards.has(c.instanceId)) return undefined;
+      pricingCards.add(c.instanceId);
+      try {
+        // As the per-board average does: inside it, a card's worth that needs the average card gets the flat rate.
+        // Priced apart from the lookups that asked (pricingApart), so the decision keeps one price per card whatever
+        // card was being priced when the average was first asked for (a card pricing its own effects otherwise
+        // met itself: a value loop, and its flat value kept all decision)
+        played = pricingApart(() => withPricing({ averaging: true }, () => playedWorth(root, c)));
+      } finally {
+        pricingCards.delete(c.instanceId);
+      }
       values.set(c.instanceId, played);
       deckAvgStats.priced++;
     }
