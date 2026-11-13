@@ -201,7 +201,7 @@ export class SearchAI implements Agent {
       // Ice redirect (countedScore.ts iceRedirect): the search's own remote ice install goes to the scoring remote until it
       // holds, nothing while a two-turn line is held (as Normal's, corpAI decide)
       const held = this.heldLine && this.heldLine.game === state.id;
-      const central = two.action === action && !held ? centralIce(state, action) : null; // plan.shortCentral, as corpAI decide
+      const central = two.action === action && !held ? centralIce(state, action) : null; // central ice first, as corpAI decide
       if (two.action === action && !held) countCentralIce('search', !!central);
       const redirect = two.action === action && !held ? (central ?? iceRedirect(state, action) ?? assetPartner(state, action)) : null;
       if (redirect) this.base.notePlayed(redirect);

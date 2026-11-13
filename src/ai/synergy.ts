@@ -161,11 +161,6 @@ export const tuning = {
      */
     modelRez: true,
     /**
-     * Corp (spec-central-ice.md, bars/central-ice-bare.md; temporary, folded or deleted at hand-off): the Corp's own
-     * remote ice pick goes to a central with no ice first (countedScore.ts centralIce).
-     */
-    shortCentral: true,
-    /**
      * Both sides' pricing (structural review items 1-2, 2026-11-06): unrezzed ice counts as rezzable from one pool of
      * the Corp's credits, not each against the same credits (iceValues rezBudget). A measuring switch, not a knob.
      */
@@ -549,6 +544,7 @@ export const sideOff: Record<SideCode, string[]> = {
  * planWith naming one throws, so a batch written before the fold can't silently test nothing.
  */
 export const FOLDED: readonly string[] = [
+  'shortCentral',
   'bypassHold', 'assetReserve',
   'tagThreat', 'breakerFocus', 'saveUp', 'icePlacement', 'agendaStakes', 'lethalHq', 'readWriteFull',
   'archivesChosen', 'centralIce', 'iceDepth', 'oneRemote', 'identities', 'runnerIdentities', 'exposure',

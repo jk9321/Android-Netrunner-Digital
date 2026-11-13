@@ -1,15 +1,13 @@
 /**
  * Central ice (countedScore.ts centralIce, spec-central-ice.md): fire count and what follows, one JSON line per deal.
- * Plays the deal as PLAN_OFF gives. With plan.shortCentral on, the fires are the top-level Corp's redirects
- * (centralIceStats, by caller and central); with it off, every ice install the Corp makes onto a remote in its main
- * phase is probed with centralIce (switch on for the probe) as "would fire". For each fire (made or would-be): Runner
+ * Plays the deal as PLAN_OFF gives. The fires are the top-level Corp's redirects (centralIceStats, by caller and central). For each fire (made or would-be): Runner
  * points stolen from that central within the next 2 Runner turns, and Corp points scored from any remote within the
  * next 2 Corp turns (turns counted by the active player changing).
  * Per fire also: Runner runs on that central within 2 Runner turns, and the fate of the agendas in HQ at the fire after
  * 2 Corp turns (still in HQ, installed, scored, stolen).
  * Per game also (bars/central-ice-bare.md (a), (c)): the Corp turn of its first remote install and of its first agenda
  * scored; and after a fire on the Corp's first turn, the Corp's other actions that turn and where its next ice went.
- *   SEEDS=1001,1041 [PLAN_OFF=shortCentral] npx vite-node scripts/central-fires.ts > out.jsonl
+ *   SEEDS=1001,1041 [PLAN_OFF=...] npx vite-node scripts/central-fires.ts > out.jsonl
  */
 import { GameAction, GameState, cardDef, createInitialGameState } from '../src/core';
 import { deckGameSetup } from '../src/data/decks';
@@ -17,13 +15,10 @@ import { ALL_DECKS } from './nsg-sample-decks';
 import { createAgent } from '../src/ai';
 import { GameRunner } from '../src/ai/playout';
 import { valueLoops } from '../src/ai/valueModel';
-import { applyPlanOff, tuning } from '../src/ai/synergy';
-import { asSide } from '../src/ai/pricing';
-import { decisionContext } from '../src/ai/handValues';
-import { centralIce, centralIceStats, centralIceWhy, iceRedirectStats, isCorpMain } from '../src/ai/countedScore';
+import { applyPlanOff } from '../src/ai/synergy';
+import { centralIceStats, iceRedirectStats, isCorpMain } from '../src/ai/countedScore';
 
 applyPlanOff(process.env.PLAN_OFF ?? '');
-const on = !!tuning.plan.shortCentral;
 const corpDecks = ALL_DECKS.filter(d => d.side === 'corp');
 const runnerDecks = ALL_DECKS.filter(d => d.side === 'runner');
 const seeds = (process.env.SEEDS ?? '').split(',').filter(Boolean).map(Number);
@@ -55,7 +50,6 @@ for (const [k, seed] of seeds.entries()) {
   const remoteCards = (x: GameState) => Object.values(x.corp.servers).filter(v => v.isRemote).reduce((n, v) => n + v.ice.length + v.root.length, 0);
   const fires: { at?: number; corpTurn?: number; turn: number; central: string; corpTurns: number; runnerTurns: number; stolen: number; scored: number; runs: number; agendas: string[]; fate?: Record<string, number> }[] = [];
   const hqAgendaIds = (x: GameState) => x.corp.hq.filter(c => cardDef(c).type_code === 'agenda').map(c => c.instanceId);
-  const probe = { hq: 0, rd: 0 };
   let half = 0;
   const t0 = performance.now();
   try {
@@ -88,32 +82,12 @@ for (const [k, seed] of seeds.entries()) {
         const fromRemote = [...roots].some(([id, sv]) => !after.has(id) && sv.startsWith('remote'));
         if (fromRemote) for (const f of live) if (f.corpTurns <= 2) f.scored += t.corp.score - cs;
       }
-      if (on) {
-        if (centralIceStats.hq + centralIceStats.rd > fired) fires.push({ at: acts.length, corpTurn, turn: half, central: centralIceStats.hq > firedHq ? 'hq' : 'rd', corpTurns: 0, runnerTurns: 0, stolen: 0, scored: 0, runs: 0, agendas: hqAgendaIds(s) });
-      } else {
-        // The action just taken, from the log of installs: an ice that left HQ onto a remote in the Corp's main phase
-        const moved = s.corp.hq.find(c => cardDef(c).type_code === 'ice' && !t.corp.hq.some(x => x.instanceId === c.instanceId) && Object.values(t.corp.servers).some(v => v.isRemote && v.ice.some(x => x.instanceId === c.instanceId)));
-        if (moved && isCorpMain(s)) {
-          const target = Object.values(t.corp.servers).find(v => v.ice.some(x => x.instanceId === moved.instanceId))!;
-          const pick = (s.corp.servers[target.id] ? { type: 'INSTALL_CARD', player: 'corp', cardInstanceId: moved.instanceId, targetServerId: target.id } : { type: 'INSTALL_CARD', player: 'corp', cardInstanceId: moved.instanceId, asNewRemote: true }) as GameAction;
-          const keep = tuning.plan;
-          tuning.plan = { ...keep, shortCentral: true };
-          try {
-            const r = asSide('corp', () => (decisionContext(s, 'corp'), centralIce(s, pick)));
-            if (r && centralIceWhy.central) {
-              probe[centralIceWhy.central]++;
-              fires.push({ at: acts.length, corpTurn, turn: half, central: centralIceWhy.central, corpTurns: 0, runnerTurns: 0, stolen: 0, scored: 0, runs: 0, agendas: hqAgendaIds(s) });
-            }
-          } finally {
-            tuning.plan = keep;
-          }
-        }
-      }
+      if (centralIceStats.hq + centralIceStats.rd > fired) fires.push({ at: acts.length, corpTurn, turn: half, central: centralIceStats.hq > firedHq ? 'hq' : 'rd', corpTurns: 0, runnerTurns: 0, stolen: 0, scored: 0, runs: 0, agendas: hqAgendaIds(s) });
     }
   } catch (err) {
     console.error(`deal ${seed}: ${err}`);
     continue;
   }
   const sum = (f: (x: (typeof fires)[number]) => number) => fires.reduce((n, x) => n + f(x), 0);
-  console.log(JSON.stringify({ seed, deck: corpDeck.name, on, firstRemote, firstScore, winner: game.state.winner ?? null, turns: game.state.turnNumber, score: [game.state.corp.score, game.state.runner.score], ms: Math.round(performance.now() - t0), stats: on ? { ...centralIceStats } : probe, iceRedirect: iceRedirectStats.fired, fires: fires.length, stolen: sum(x => x.stolen), scored: sum(x => x.scored), runs: sum(x => x.runs), fate: fires.reduce((m, f) => { for (const [k, v] of Object.entries(f.fate ?? {})) m[k] = (m[k] ?? 0) + v; return m; }, {} as Record<string, number>), detail: fires.map(f => ({ corpTurn: f.corpTurn, rest: f.corpTurn === 1 ? acts.slice(f.at!).filter(x => x.corpTurn === 1).map(x => x.what) : undefined, nextIce: f.corpTurn === 1 ? acts.slice(f.at!).find(x => x.what.startsWith('INSTALL_CARD') && x.what.includes('(ice)'))?.what : undefined, turn: f.turn, central: f.central, runs: f.runs, stolen: f.stolen, scored: f.scored, fate: f.fate })) }));
+  console.log(JSON.stringify({ seed, deck: corpDeck.name, firstRemote, firstScore, winner: game.state.winner ?? null, turns: game.state.turnNumber, score: [game.state.corp.score, game.state.runner.score], ms: Math.round(performance.now() - t0), stats: { ...centralIceStats }, iceRedirect: iceRedirectStats.fired, fires: fires.length, stolen: sum(x => x.stolen), scored: sum(x => x.scored), runs: sum(x => x.runs), fate: fires.reduce((m, f) => { for (const [k, v] of Object.entries(f.fate ?? {})) m[k] = (m[k] ?? 0) + v; return m; }, {} as Record<string, number>), detail: fires.map(f => ({ corpTurn: f.corpTurn, rest: f.corpTurn === 1 ? acts.slice(f.at!).filter(x => x.corpTurn === 1).map(x => x.what) : undefined, nextIce: f.corpTurn === 1 ? acts.slice(f.at!).find(x => x.what.startsWith('INSTALL_CARD') && x.what.includes('(ice)'))?.what : undefined, turn: f.turn, central: f.central, runs: f.runs, stolen: f.stolen, scored: f.scored, fate: f.fate })) }));
 }

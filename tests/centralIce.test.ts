@@ -3,12 +3,11 @@ import { describe, expect, it } from 'vitest';
 import { GameAction, GameState, createInitialGameState, executeAction } from '../src/core';
 import { deckGameSetup } from '../src/data/decks';
 import { centralIce, centralIceWhy } from '../src/ai/countedScore';
-import { tuning } from '../src/ai/synergy';
 import { asSide } from '../src/ai/pricing';
 import { decisionContext } from '../src/ai/handValues';
 
 /**
- * plan.shortCentral (spec-central-ice.md variant (6), bars/central-ice-bare.md): the Corp's own remote ice pick goes to
+ * Central ice (spec-central-ice.md variant (6), bars/central-ice-bare.md): the Corp's own remote ice pick goes to
  * a central with no ice first. States are Jeff's games replayed to the move; the pick is the move the AI Corp made there.
  */
 const report = (n: number) => JSON.parse(readFileSync(new URL(`./fixtures/human-games/report-${n}.json`, import.meta.url), 'utf8'));
@@ -19,23 +18,14 @@ const at = (n: number, move: number): { s: GameState; pick: GameAction } => {
   for (const m of (r.moves as GameAction[]).slice(0, move)) s = executeAction(s, m);
   return { s, pick: r.moves[move] };
 };
-const ask = (s: GameState, pick: GameAction, on = true) => {
-  const keep = tuning.plan;
-  tuning.plan = { ...keep, shortCentral: on };
-  try {
-    return asSide('corp', () => (decisionContext(s, 'corp'), centralIce(s, pick)));
-  } finally {
-    tuning.plan = keep;
-  }
-};
+const ask = (s: GameState, pick: GameAction) => asSide('corp', () => (decisionContext(s, 'corp'), centralIce(s, pick)));
 
-describe('plan.shortCentral: remote ice to a central with no ice', () => {
+describe('central ice: remote ice to a central with no ice', () => {
   // #51 #23 and #33 (Jeff: R&D bare turns 1-5 on 13-17 credits, "just put a light ice in the way so it's not a free run")
   it('#51 #23: Funhouse goes to R&D', () => {
     const { s, pick } = at(51, 23);
     expect(ask(s, pick)).toMatchObject({ type: 'INSTALL_CARD', targetServerId: 'rd' });
     expect(centralIceWhy.central).toBe('rd');
-    expect(ask(s, pick, false)).toBeNull();
   });
 
   it('#51 #33: Tithe goes to R&D', () => {

@@ -214,7 +214,7 @@ export class HeuristicCorpAI implements Agent {
     // the line's own ice played the same 663 games, run 43158341651)
     const held = this.heldLine && this.heldLine.game === state.id ? this.heldLine : null;
     if (!score && picked === chosen && this.synergy && !held) {
-      // plan.shortCentral (countedScore.ts centralIce): a central with no ice takes the ice first
+      // Central ice (countedScore.ts centralIce): a central with no ice takes the ice first
       const central = centralIce(state, picked);
       if (this.planner && !this.searching) countCentralIce(planned && chosen === planned ? 'planner' : 'ranking', !!central);
       const redirect = central ?? iceRedirect(state, picked);
