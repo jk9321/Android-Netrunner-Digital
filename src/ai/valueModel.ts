@@ -204,6 +204,17 @@ export function flatlineWorth(state: GameState): number {
   return pointValue(7) - pointValue(state.corp.score) + pointValue(state.runner.score);
 }
 
+/**
+ * A game end met inside a SAMPLED Runner reply (audit Step 1, spec-step1-terminal-price.md), settled on the point clock for
+ * the Corp: the points term goes to winner 7, loser 0 (1.7.2a: 7 agenda points win; 1.7.2b flatline; 1.7.2c Corp
+ * decked), so a sampled end is pointValue(7) either way instead of evaluate's ±1000. Added to evaluate on the state with
+ * no winner: for a flatline it is flatlineWorth, for the Corp decked its mirror. Read by runnerReply only.
+ */
+export function sampledEndWorth(state: GameState): number {
+  if (!state.winner) return 0;
+  return (state.winner === 'corp' ? pointValue(7) : -pointValue(7)) - (pointValue(state.corp.score) - pointValue(state.runner.score));
+}
+
 /** Worth of the first card over the hand-size limit (Jeff: you pick the worst card to discard). */
 export const handFilter = (): number => 0.3;
 

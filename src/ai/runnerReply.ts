@@ -2,7 +2,7 @@ import { GameState, cardDef, createRng, knownInRd, shuffleInPlace } from '../cor
 import { HeuristicCorpAI } from './corpAI';
 import { GameRunner } from './playout';
 import { HeuristicRunnerAI } from './runnerAI';
-import { pointValue } from './valueModel';
+import { pointValue, sampledEndWorth } from './valueModel';
 import { threatStats, turnSeed } from './threatModel';
 import { currentDecisionSeed, searchPiece } from './turnPlanner';
 import { plan } from './pricing';
@@ -96,7 +96,7 @@ export function guessHidden(state: GameState, k: number): GameState {
 }
 
 /** Diagnostics (scripts): reply turns that began with an agenda in a remote with no ice, and how many ran it. */
-export const replyStats: { nakedAgendaTurns: number; nakedAgendaRuns: number; onSamples?: (values: number[]) => void } = { nakedAgendaTurns: 0, nakedAgendaRuns: 0 };
+export const replyStats: { nakedAgendaTurns: number; nakedAgendaRuns: number; onSamples?: (values: number[]) => void; onTerminal?: (end: { winner: string; board: number; settled: number; old: number }) => void } = { nakedAgendaTurns: 0, nakedAgendaRuns: 0 };
 const nakedAgendaRemotes = (s: GameState) =>
   Object.values(s.corp.servers)
     .filter(v => v.isRemote && v.ice.length === 0 && v.root.some(c => cardDef(c).type_code === 'agenda'))
@@ -151,7 +151,13 @@ export function runnerReply(end: GameState, synergy: boolean, leaf: (state: Game
       // (Jeff's bug report, 2026-10-31; plan.openStealUnrun) only agendas in remotes the Runner didn't run: one it ran and
       // was stopped from (The Red Room, LEO) survived the run it was counted stolen for
       const unrun = plan().openStealUnrun ? naked.filter(id => !ran.has(id)).flatMap(id => gr.state.corp.servers[id]?.root.map(c => c.instanceId) ?? []) : nakedAgendas;
-      const value = leaf(gr.state) - (plan().openSteal ? openAgendaLoss(gr.state, nakedAgendas.filter(id => unrun.includes(id))) : 0);
+      // Audit Step 1 (plan.terminalClock): a game end in this sample is one deal of hidden cards, a chance, not a certainty:
+      // priced on the point clock (valueModel sampledEndWorth, 1.7.2) instead of the leaf's ±1000
+      const last = gr.state;
+      const open = last.winner && (plan().terminalClock || replyStats.onTerminal) ? leaf({ ...last, winner: null, winReason: null }) : 0;
+      if (last.winner) replyStats.onTerminal?.({ winner: last.winner, board: open - (pointValue(last.corp.score) - pointValue(last.runner.score)), settled: sampledEndWorth(last), old: leaf(last) });
+      const scored = last.winner && plan().terminalClock ? open + sampledEndWorth(last) : leaf(last);
+      const value = scored - (plan().openSteal ? openAgendaLoss(gr.state, nakedAgendas.filter(id => unrun.includes(id))) : 0);
       values.push(value);
       total += value;
     }

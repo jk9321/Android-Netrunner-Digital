@@ -489,6 +489,8 @@ export const tuning = {
      * budgets 4931 -> 4136 and about 9% off a decision on the human-games positions. threatKeyPricing also leaves the outer
      * pricing context out: OFF, it moved 4 of 221 deals (run 42537621348), so some outer flag reaches the budget.
      */
+    /** Audit Step 1: a game end inside a sampled Runner reply priced on the point clock (runnerReply, valueModel sampledEndWorth). Temporary: folded at hand-off. */
+    terminalClock: true,
     threatKey: true,
     threatKeyPricing: false,
     /**
