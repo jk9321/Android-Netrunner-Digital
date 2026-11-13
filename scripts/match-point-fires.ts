@@ -24,7 +24,7 @@ import { GameRunner } from '../src/ai/playout';
 import { sideCards, valueLoops } from '../src/ai/valueModel';
 import { applyPlanOff, tuning } from '../src/ai/synergy';
 import { asSide } from '../src/ai/pricing';
-import { matchPoint, rezStops } from '../src/ai/rezModel';
+import { agendasUnseen, matchPoint, rezStops } from '../src/ai/rezModel';
 
 applyPlanOff(process.env.PLAN_OFF ?? '');
 
@@ -67,11 +67,12 @@ interface Count {
   gapStolen: number;
   lostAtMatch: number;
   afterRez: { credits: number; gameWent: boolean }[];
+  r4Skip: { turn: number; ice: string; r4: string; stops: boolean; rezzed: boolean; corpCredits: number; runnerCredits: number; runnerScore: number; unseen: number; rd: number; stole?: number }[];
 }
-const fresh = (): Count => ({ e1: 0, e1Changed: 0, e1Bands: {}, e1Servers: {}, e2: {}, gapWindows: 0, gapStolen: 0, lostAtMatch: 0, afterRez: [] });
+const fresh = (): Count => ({ e1: 0, e1Changed: 0, e1Bands: {}, e1Servers: {}, e2: {}, gapWindows: 0, gapStolen: 0, lostAtMatch: 0, afterRez: [], r4Skip: [] });
 
 /** Wraps the Corp's chooseRez: the decision as played, with each switch flipped beside it. */
-function watch(corp: Agent, c: Count, pending: { gap?: string; match?: boolean; rezTurn?: number }) {
+function watch(corp: Agent, c: Count, pending: { gap?: string; match?: boolean; rezTurn?: number; r4?: number }) {
   const choose = corp.chooseRez!.bind(corp);
   corp.chooseRez = (s: GameState, cards: CardInstance[]) => {
     const played = choose(s, cards);
@@ -84,6 +85,15 @@ function watch(corp: Agent, c: Count, pending: { gap?: string; match?: boolean; 
     if (!ice || ice.isRezzed || !isLegalAction(s, { type: 'REZ_CARD', player: 'corp', cardInstanceId: ice.instanceId })) return played;
     const rezzes = (a: GameAction | null) => a?.type === 'REZ_CARD' && (a as { cardInstanceId: string }).cardInstanceId === ice.instanceId;
     const mp = asSide('corp', () => matchPoint(s, ice));
+    // R4's skip (count only): an R&D window with an agenda in HQ, where R4 would have answered without that condition
+    const hqAgendas = s.corp.hq.filter(isAgenda).length;
+    if (run.server === 'rd' && hqAgendas > 0 && !mp) {
+      const unseen = agendasUnseen(s);
+      const stops = asSide('corp', () => rezStops(s, ice));
+      const r4 = unseen > 0 ? 'rez' : 'none';
+      c.r4Skip.push({ turn: s.turnNumber, ice: cardDef(ice).title, r4, stops, rezzed: rezzes(played), corpCredits: s.corp.credits, runnerCredits: s.runner.credits, runnerScore: s.runner.score, unseen, rd: s.corp.rd.length });
+      pending.r4 = c.r4Skip.length - 1;
+    }
     if (mp) {
       const on = tuning.plan.matchPointRez ? played : flip('matchPointRez', () => choose(s, cards));
       const off = tuning.plan.matchPointRez ? flip('matchPointRez', () => choose(s, cards)) : played;
@@ -105,13 +115,17 @@ function watch(corp: Agent, c: Count, pending: { gap?: string; match?: boolean; 
 }
 
 /** Bookkeeping after each step: steals and wins during a run the Corp let through, credits after a match-point rez. */
-function after(s: GameState, n: GameState, a: GameAction | null, c: Count, pending: { gap?: string; match?: boolean; rezTurn?: number; rezCredits?: number }) {
+function after(s: GameState, n: GameState, a: GameAction | null, c: Count, pending: { gap?: string; match?: boolean; rezTurn?: number; rezCredits?: number; r4?: number }) {
   const stole = n.runner.scoreArea.length > s.runner.scoreArea.length;
   if (pending.gap && stole) {
     c.gapStolen++;
     pending.gap = undefined;
   }
   if (pending.match && n.winner === 'runner') c.lostAtMatch++;
+  if (pending.r4 !== undefined && stole) {
+    const e = c.r4Skip[pending.r4];
+    e.stole = (e.stole ?? 0) + n.runner.scoreArea.filter(x => !s.runner.scoreArea.some(y => y.instanceId === x.instanceId)).reduce((k, x) => k + (cardDef(x).agenda_points ?? 0), 0);
+  }
   if (a?.type === 'REZ_CARD' && s.activeRun && asSide('corp', () => {
     const ice = s.corp.servers[s.activeRun!.server]?.ice.find(x => x.instanceId === (a as { cardInstanceId: string }).cardInstanceId);
     return !!ice && matchPoint(s, ice);
@@ -120,6 +134,7 @@ function after(s: GameState, n: GameState, a: GameAction | null, c: Count, pendi
     pending.rezCredits = n.corp.credits;
   }
   if (!n.activeRun) {
+    pending.r4 = undefined;
     pending.gap = undefined;
     pending.match = false;
   }
@@ -137,7 +152,7 @@ if (reports.length) {
     if (report.startStops) s = { ...s, stops: report.startStops };
     valueLoops.clear();
     const c = fresh();
-    const pending: { gap?: string; match?: boolean } = {};
+    const pending: { gap?: string; match?: boolean; r4?: number } = {};
     const corp = createAgent('corp', 'normal');
     watch(corp, c, pending);
     const fires: string[] = [];
@@ -170,7 +185,7 @@ if (reports.length) {
     const corpDeck = corpDecks[Math.floor(p / runnerDecks.length)];
     valueLoops.clear();
     const c = fresh();
-    const pending: { gap?: string; match?: boolean } = {};
+    const pending: { gap?: string; match?: boolean; r4?: number } = {};
     const corp = createAgent('corp', 'normal');
     watch(corp, c, pending);
     const game = new GameRunner(createInitialGameState(deckGameSetup(seed, corpDeck, runnerDecks[p % runnerDecks.length])), { corp, runner: createAgent('runner', 'normal') });
