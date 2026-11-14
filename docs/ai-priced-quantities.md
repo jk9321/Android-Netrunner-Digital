@@ -7,7 +7,7 @@ Rule (CLAUDE.md, "One owner per quantity"): each quantity below has one owning f
 |---|---|---|---|---|
 | Rez money the Corp must keep | one rez-money function (to be named in Step 4) | about 7: `reservePenalty`, `rezReserve`, `moneyTargetPenalty` (corpAI), `boardNeed`, `rezBudget`, `afterLineFloor`, `scoringShort`, `reservedForAgenda`, centralIce's rez gate | AI-REZMONEY | Step 4 |
 | Does this server keep the Runner out (hold count) | `holdCost` (countedScore) | 8 ways; bioroid clicks counted twice; encounter costs (Funhouse) read as need 0 | AI-HOLD-COUNT | Step 4 |
-| Agenda odds (what an access is worth) | two pools: the Corp's own knowledge, the Runner's view | 6 pools | AI-AGENDA-ODDS | Step 0 (one line), Step 4 |
+| Agenda odds (what an access is worth) | two pools: the Corp's own knowledge, the Runner's view | 6 pools (centralIce's R&D stake no longer mixes two of them: Step 0, b12c26b) | AI-AGENDA-ODDS | Step 4 |
 | Price of a game end | point clock helper beside `flatlineWorth` (valueModel) | 3 (±1000 in evaluate, runLoss, flatline) | AI-TERMINAL-PRICE | Step 1 |
 | Where a card is installed (placement) | one placement function in candidate generation | 4 post-pick rewriters (`centralIce`, `iceRedirect`, `assetCover`, `assetPartner`), order copied in corpAI and search | AI-PICK-PIPELINE | Step 4 |
 | A card held in HQ | by-card hand price (handValues) | 2 (flat 2.0/1.6 in the ranking, by card in the planner leaf) | AI-HAND-TWO-CURRENCIES | Step 5 |
