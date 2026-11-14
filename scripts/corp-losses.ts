@@ -9,7 +9,8 @@
  * the same way.
  */
 import { createHash } from 'node:crypto';
-import { installDiagnostics } from '../src/ai/diagnostics';
+// Kept where threatStats was imported (audit Step 3 group B): the AI modules' load order is unchanged (oracle.ts)
+import '../src/ai/threatModel';
 import { createInitialGameState } from '../src/core';
 import { deckGameSetup } from '../src/data/decks';
 import { ALL_DECKS as SHIPPED_DECKS } from './nsg-sample-decks';
@@ -21,6 +22,7 @@ import { applyPlanOff, tuning } from '../src/ai/synergy';
 import { batchTokens, placeOracleIce } from './oracle-ice';
 import { withOracleMoney } from './oracle-money';
 import { measuring, startMeasure, stage0bMeasure } from './score-ceiling-measure';
+import { installDiagnostics } from '../src/ai/diagnostics';
 // THREAT_STATS=1: a diagnostics sink for the threat cache's counts (installed only then: none in a plain batch)
 const threatDiag = process.env.THREAT_STATS ? installDiagnostics() : null;
 
