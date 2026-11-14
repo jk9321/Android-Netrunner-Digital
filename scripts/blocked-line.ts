@@ -13,7 +13,9 @@ import { createAgent } from '../src/ai';
 import { GameRunner } from '../src/ai/playout';
 import { valueLoops } from '../src/ai/valueModel';
 import { applyPlanOff } from '../src/ai/synergy';
-import { afterLineFloor, holdCost, isCorpMain, knownIncome } from '../src/ai/countedScore';
+import { holdCost } from '../src/ai/corp/hold';
+import { isCorpMain, knownIncome } from '../src/ai/corp/lines';
+import { lineFloor as afterLineFloor } from '../src/ai/corp/rezMoney';
 
 applyPlanOff(process.env.PLAN_OFF ?? '');
 const cands: { seed: number; corp: string; runner: string }[] = JSON.parse(readFileSync(process.env.CANDS!, 'utf8'));

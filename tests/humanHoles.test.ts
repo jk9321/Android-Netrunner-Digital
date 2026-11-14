@@ -1,7 +1,7 @@
 import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
 import { GameState } from '../src/core';
-import { holdCost } from '../src/ai/countedScore';
+import { holdCost } from '../src/ai/corp/hold';
 import { countedRez } from '../src/ai/rezModel';
 import { asSide } from '../src/ai/pricing';
 import { decisionContext } from '../src/ai/handValues';

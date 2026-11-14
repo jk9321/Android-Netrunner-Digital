@@ -16,7 +16,8 @@ import { asSide, logNudge, nudge, opponentLean, tuning } from './synergy';
 import { decisionContext } from './handValues';
 import { PlanMemory, planTurn, plannerOn } from './turnPlanner';
 import { runnerReply } from './runnerReply';
-import { archivesWantsIce, countedRez, modelRezGain, rdAgendaOdds } from './rezModel';
+import { archivesWantsIce, countedRez, modelRezGain } from './rezModel';
+import { runLoss } from './corp/pools';
 import { keepsScore, scoreNowPlan, winNowAction } from './winNow';
 import { freeRezCover, freeRezTargets } from './freeRez';
 import { PETTY_CASH_REPLAY, iceAdvanceWorth, knownTrap, placedCounterWorth, rezEffectWorth, rezzedWorth, runTimed, topDownWorth } from './effectValues';
@@ -29,7 +30,8 @@ import { counterWorth } from './counterValues';
 import { plan, pricing, withPricing } from './pricing';
 import { dividendsOf, setupOperation } from './cards';
 // Last: its imports (winNow, runs, pricing) are loaded by then, so the AI modules' load order is unchanged (oracle.ts)
-import { HeldLine, assetPartner, centralIce, heldLaterStep, iceRedirect, scoreInTwoPick } from './countedScore';
+import { assetPartner, centralIce, iceRedirect, scoreInTwoPick } from './countedScore';
+import { HeldLine, heldLaterStep } from './corp/lines';
 import { tally } from './diagnostics';
 import { moneyPick } from './incomeLine';
 
@@ -1192,30 +1194,7 @@ export function agendaStakes(state: GameState, agenda: CardInstance): number {
 
 /** Installed agendas with enough counters to score. */
 /** How much the Corp cares about keeping the Runner out of this server (for rez decisions). */
-/**
- * What the Runner's run takes if it gets in, on the value model's scale: the agendas it would
- * steal (the Corp knows its own cards), each worth the points it brings the Runner closer to 7.
- */
-export function runLoss(state: GameState): number {
-  const run = state.activeRun;
-  const server = run ? state.corp.servers[run.server] : undefined;
-  if (!run || !server) return 0;
-  const steal = (c: CardInstance) => pointGain(state.runner.score, cardDef(c).agenda_points ?? 0);
-  const accesses = 1 + run.extraAccesses;
-  let loss = server.root.filter(c => type(c) === 'agenda').reduce((n, c) => n + steal(c), 0);
-  if (server.id === 'hq' && state.corp.hq.length > 0) {
-    const agendas = state.corp.hq.filter(c => type(c) === 'agenda');
-    loss += (Math.min(accesses, state.corp.hq.length) / state.corp.hq.length) * agendas.reduce((n, c) => n + steal(c), 0);
-  } else if (server.id === 'rd') {
-    // R&D's odds by the Corp's own list (rezModel rdAgendaOdds, R4's pool; spec-match-point-rez.md E2), not the deck-wide
-    // pool the Runner prices from (agendaOdds: it can't see HQ)
-    const { odds, points } = rdAgendaOdds(state);
-    loss += Math.min(accesses, state.corp.rd.length) * odds * pointGain(state.runner.score, points);
-  } else if (server.id === 'archives') {
-    loss += state.corp.archives.faceDown.filter(c => type(c) === 'agenda').reduce((n, c) => n + steal(c), 0);
-  }
-  return loss;
-}
+// runLoss moved to corp/pools.ts (Step 4 Stage A)
 
 const MYOSHU_COST = 10;
 

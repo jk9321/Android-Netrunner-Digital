@@ -15,7 +15,7 @@ import { valueLoops } from '../src/ai/valueModel';
 import { scoreNowPlan } from '../src/ai/winNow';
 import { asSide } from '../src/ai/pricing';
 import { decisionContext } from '../src/ai/handValues';
-import { HeldLine, heldLaterStep } from '../src/ai/countedScore';
+import { HeldLine, heldLaterStep } from '../src/ai/corp/lines';
 
 const corpDecks = ALL_DECKS.filter(d => d.side === 'corp');
 const runnerDecks = ALL_DECKS.filter(d => d.side === 'runner');

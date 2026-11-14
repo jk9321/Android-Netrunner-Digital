@@ -11,7 +11,8 @@
 import { readFileSync, readdirSync } from 'node:fs';
 import { join } from 'node:path';
 import { CardInstance, GameAction, GameState, cardDef, findCardAnywhere } from '../src/core';
-import { isCorpMain, scoreThisTurn } from '../src/ai/countedScore';
+import { scoreThisTurn } from '../src/ai/countedScore';
+import { isCorpMain } from '../src/ai/corp/lines';
 import { replayGame, serverOf } from './plan-measure-lib';
 
 const args = process.argv.slice(2).filter(a => a !== '--');

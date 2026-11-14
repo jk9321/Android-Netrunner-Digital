@@ -10,7 +10,9 @@
 import { readFileSync } from 'node:fs';
 import { CardInstance, GameAction, GameState, cardDef, createInitialGameState, executeAction } from '../src/core';
 import { deckGameSetup } from '../src/data/decks';
-import { assetCover, assetPartner, holdCost, isCorpMain, knownIncome, runnerBudget, scoreInTwo, scoringRemote } from '../src/ai/countedScore';
+import { assetCover, assetPartner } from '../src/ai/countedScore';
+import { holdCost, runnerBudget } from '../src/ai/corp/hold';
+import { isCorpMain, knownIncome, scoreInTwo, scoringRemote } from '../src/ai/corp/lines';
 import { installDiagnostics } from '../src/ai/diagnostics';
 const diag = installDiagnostics();
 import { profileOf } from '../src/ai/cardProfiles';

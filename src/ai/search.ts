@@ -12,7 +12,8 @@ import { decisionContext } from './handValues';
 import { knownRdSlots } from './runnerReply';
 import { corpKnowsRd, corpSeenGrip } from './oracle';
 // Loaded by corpAI already (its last import), so the AI modules' load order is unchanged
-import { HeldLine, assetPartner, centralIce, heldLaterStep, iceRedirect, scoreInTwoPick } from './countedScore';
+import { assetPartner, centralIce, iceRedirect, scoreInTwoPick } from './countedScore';
+import { HeldLine, heldLaterStep } from './corp/lines';
 import { moneyPick } from './incomeLine';
 
 /**
