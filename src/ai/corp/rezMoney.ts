@@ -1,6 +1,7 @@
 import { CardInstance, GameState, cardDef } from '../../core';
 import { tally } from '../diagnostics';
 import { runnerBudget, serverHold } from './hold';
+import { setRezKeep } from '../valueModel';
 
 /**
  * Owner: rez money, the credits the Corp keeps to rez the ice that holds what it stakes through the Runner's next turn
@@ -28,6 +29,8 @@ import { runnerBudget, serverHold } from './hold';
 export interface RezMoney {
   keep: number;
   byServer: Record<string, number>;
+  /** The ice of each byServer rez (serverHold's rez ids), servers in stakedServers order. */
+  rezIds: Record<string, string[]>;
   unholdable: string[];
 }
 
@@ -43,22 +46,25 @@ export function stakedServers(state: GameState, without: string[] = []): string[
 
 /** Rez money (see the file comment). */
 export function rezMoney(state: GameState, opts: { without?: string[] } = {}): RezMoney {
-  const { byServer, unholdable } = holdingRez(state, opts.without);
+  const { byServer, rezIds, unholdable } = holdingRez(state, opts.without);
   // What getting in costs the Runner with nothing more rezzed (the rezzed ice only)
   const entry = Object.fromEntries(Object.keys(byServer).map(id => [id, serverHold(state, id, { when: 'runnerTurn', corpCredits: 0 }).need]));
-  return { keep: keepFor(state, byServer, entry), byServer, unholdable };
+  return { keep: keepFor(state, byServer, entry), byServer, rezIds, unholdable };
 }
 
 /** byServer and unholdable: the cheapest holding rez of each staked server, the Corp's money unbounded. */
-function holdingRez(state: GameState, without: string[] = []): { byServer: Record<string, number>; unholdable: string[] } {
+function holdingRez(state: GameState, without: string[] = []): { byServer: Record<string, number>; rezIds: Record<string, string[]>; unholdable: string[] } {
   const byServer: Record<string, number> = {};
+  const rezIds: Record<string, string[]> = {};
   const unholdable: string[] = [];
   for (const id of stakedServers(state, without)) {
     const h = serverHold(state, id, { when: 'runnerTurn', corpCredits: Infinity });
-    if (h.holds) byServer[id] = h.rezCost;
-    else unholdable.push(id);
+    if (h.holds) {
+      byServer[id] = h.rezCost;
+      rezIds[id] = h.rez ?? [];
+    } else unholdable.push(id);
   }
-  return { byServer, unholdable };
+  return { byServer, rezIds, unholdable };
 }
 
 /** The largest byServer total over the servers one affordable sequence of runs reaches (at most the Runner's clicks). */
@@ -89,3 +95,7 @@ export function lineFloor(state: GameState, agendaId: string): number {
   for (let i = 0; i < money.unholdable.length; i++) tally('scoreInTwo', 'unholdable');
   return Object.values(money.byServer).reduce((a, b) => a + b, 0);
 }
+
+// Stage B5 (plan.b5RezOwner): the valuation layer's Corp credit need reads keep (valueModel boardNeed; importing the
+// owner there is an import cycle, so the owner registers it as it loads)
+setRezKeep(state => rezMoney(state).keep);

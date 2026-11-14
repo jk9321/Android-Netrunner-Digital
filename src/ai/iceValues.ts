@@ -8,8 +8,9 @@ import { corpKeepValue } from './cardValues';
 import { centralAccess } from './threatModel';
 import { turnsLeft } from './cardProfiles';
 import { freeRezTargets } from './freeRez';
-import { plan, pricing } from './pricing';
+import { actingSide, plan, pricing } from './pricing';
 import { mainRemote } from './corp/placement';
+import { rezMoney } from './corp/rezMoney';
 
 /**
  * Value model step 5 (docs/ai-value-model-plan.md): ice priced in credits,
@@ -210,6 +211,14 @@ function countRezBudget(state: GameState, stops: Map<string, number> | null = nu
     if (stops && noted === undefined) stops.set(w.id, w.stop);
   }
   waiting.sort((a, b) => b.stop / Math.max(1, b.cost) - a.stop / Math.max(1, a.cost));
+  // Stage B5 (temporary plan.b5RezOwner): as the Corp prices it, the ice of the owner's holding rezzes (rez money's
+  // rezIds, staked servers in order) draws on the pool first; the rest follows, best stop first. An unholdable server's
+  // ice gets no priority. The Runner's view keeps the stop order (the owner reads HQ)
+  if (plan().b5RezOwner && actingSide() === 'corp') {
+    const first = Object.values(rezMoney(state).rezIds).flat();
+    const rank = (w: { id: string }) => (first.includes(w.id) ? first.indexOf(w.id) : first.length);
+    waiting.sort((a, b) => rank(a) - rank(b));
+  }
   for (const ice of waiting) {
     if (ice.cost <= now) {
       now -= ice.cost;

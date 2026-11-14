@@ -178,6 +178,11 @@ export const tuning = {
      */
     keepScoringShort: true,
     keepAgendaHorizon: true,
+    /**
+     * TEMPORARY (Step 4 Stage B5, its own batch arm, deleted in B6): the valuation layer's rez money reads the owner
+     * (corp/rezMoney.ts): valueModel boardNeed for the Corp's view, and iceValues rezBudget's order. Off: as before.
+     */
+    b5RezOwner: true,
     /*
      * Value model step 2 (docs/ai-value-model-plan.md, Jeff 2026-10-27): the
      * new exchange rates in valueModel.ts. Self-play, 2,210 games each: all

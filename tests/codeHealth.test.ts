@@ -65,6 +65,7 @@ const MODULE_LETS: Record<string, string> = {
   'threatModel:planSig': "a cache of the plan's JSON for the threat key, rebuilt when the plan changes",
   'valueModel:deckCard': 'the deck-average hook handValues registers once (an import cycle otherwise)',
   'valueModel:nextStateId': "guardLoop's id counter for positions",
+  'valueModel:rezKeep': 'the rez money hook corp/rezMoney.ts registers once (Stage B5; an import cycle otherwise)',
 };
 
 describe('AI code health (audit guards)', () => {
