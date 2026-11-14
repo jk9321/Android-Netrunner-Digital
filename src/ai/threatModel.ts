@@ -1,6 +1,4 @@
 import { CardInstance, GameState, cardDef, createRng, knownInHand, shuffleInPlace } from '../core';
-// No binding left (audit Step 3: accessLoss went with plan.threatLeaf); kept so the AI modules' load order is unchanged (oracle.ts)
-import './evaluate';
 import { runSuccess, runSuccessBypassing } from './effectValues';
 import { deckRootKey, unseenInHand } from './handValues';
 import { ALARM_CLOCK, RunOptions, RunnerMemory, runBypasses, runClick, runCreditSpend, runScore, serverValue } from './runs';
