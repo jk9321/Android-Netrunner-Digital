@@ -150,8 +150,11 @@ export function wantsStop(state: GameState, side: SideCode, pw: PriorityWindow):
  * A person's auto stops: the windows where players usually act, and only
  * when they have something they can actually do there now (a card they can
  * afford to rez, an agenda to score, a paid ability). Offline the person
- * deciding is the only one at the table who could learn from it; an online
- * game must not let the wait reveal hidden cards (rules 4.6.3).
+ * deciding is the only one at the table who could learn from it. Online the
+ * opponent can notice the wait (a stop at an approach means the Corp can
+ * afford to rez something there): an accepted tell, the same in online and
+ * offline games. On 'full' the game stops every time and tells nothing; the
+ * player chooses (Jeff 2026-11-09, kept for main 2026-11-14; rules 4.6.3).
  */
 function autoStop(state: GameState, side: SideCode, pw: PriorityWindow): boolean {
   const { step } = pw;

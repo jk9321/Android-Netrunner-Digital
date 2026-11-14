@@ -94,7 +94,7 @@ The alarm on workerd (chunk 2e, MP-ALARM-UNTESTED): checked by hand, not in `npm
 
 ## Bug reports
 
-The room's attachment never reaches the browser: the site Worker asks the game Worker (`/internal/games/:code/report`), builds the report and files it through `worker/bugReport.ts` as usual. It is the whole game (real state, moves, seed, both decks, full log), also mid-game. Issues go to a public repository, so a report filed mid-game shows the opponent's hidden cards to anyone reading the issue; Jeff accepted that for bug fixing (2026-11-09, "if it's a problem we can change it later"). The fix, if needed: attach the reporter's view until the game ends (`RoomCore.reportFor`).
+The room's attachment never reaches the browser: the site Worker asks the game Worker (`/internal/games/:code/report`), builds the report and files it through `worker/bugReport.ts` as usual. It is the whole game (real state, moves, seed, both decks, full log), also mid-game. Issues go to a public repository, so a report filed mid-game shows the opponent's hidden cards to anyone reading the issue; Jeff accepted that for bug fixing (2026-11-09, "if it's a problem we can change it later"). He kept it for main too (2026-11-14, after the full audit raised it: "I don't think anyone will cheat via bug report"). The fix, if needed: attach the reporter's view until the game ends (`RoomCore.reportFor`).
 
 ## Checks
 
