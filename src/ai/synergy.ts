@@ -165,26 +165,6 @@ export const tuning = {
      * the Corp's credits, not each against the same credits (iceValues rezBudget). A measuring switch, not a knob.
      */
     rezBudget: true,
-    /**
-     * TEMPORARY (Step 4 Stage B, deleted in B6): the hold owner's afford fix (corp/hold.ts holdThisRun): a rez the engine
-     * allows for more than the Corp's credit pool (Biawak's forfeit, recurring credits, a discount) is paid another way.
-     * Off: the owner as it was, for the g1 "expect identical" batch.
-     */
-    paidAnotherWay: true,
-    /**
-     * TEMPORARY (Step 4 Stage B3, deleted in B6): the reserves outside the ranking read rez money's keep (corp/rezMoney.ts
-     * rezMoney, the line's agenda left out) instead of the byServer sum (lineFloor). keepScoringShort: scoringShort's
-     * floor; keepAgendaHorizon: the floor under reservedForAgenda's horizon. Off: lineFloor, as before. keepCentralGate:
-     * centralIce's rez gate is the ice's rez cost on top of keep (off: the rez cost alone).
-     */
-    keepScoringShort: true,
-    keepAgendaHorizon: true,
-    keepCentralGate: true,
-    /**
-     * TEMPORARY (Step 4 Stage B5, its own batch arm, deleted in B6): the valuation layer's rez money reads the owner
-     * (corp/rezMoney.ts): valueModel boardNeed for the Corp's view, and iceValues rezBudget's order. Off: as before.
-     */
-    b5RezOwner: true,
     /*
      * Value model step 2 (docs/ai-value-model-plan.md, Jeff 2026-10-27): the
      * new exchange rates in valueModel.ts. Self-play, 2,210 games each: all

@@ -123,6 +123,6 @@ export function lineFloor(state: GameState, agendaId: string): number {
   return Object.values(money.byServer).reduce((a, b) => a + b, 0);
 }
 
-// Stage B5 (plan.b5RezOwner): the valuation layer's Corp credit need reads keep (valueModel boardNeed; importing the
+// Stage B5: the valuation layer's Corp credit need reads keep (valueModel boardNeed; importing the
 // owner there is an import cycle, so the owner registers it as it loads)
 setRezKeep(state => rezMoney(state).keep);

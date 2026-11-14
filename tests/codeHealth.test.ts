@@ -114,4 +114,31 @@ describe('AI code health (audit guards)', () => {
     expect(off.filter(name => !(name in OFF_SWITCHES)), 'an off switch: delete its path, or give the reason here').toEqual([]);
     expect(Object.keys(OFF_SWITCHES).filter(name => !off.includes(name))).toEqual([]);
   });
+
+  // Step 4 Stage B guards (brief-stage-b.md, spec-step4-corp-core.md P10)
+  const aiFiles = () => (readdirSync(new URL('../src/ai/', import.meta.url), { recursive: true }) as string[]).filter(f => f.endsWith('.ts'));
+  const aiText = (f: string) => readFileSync(new URL(`../src/ai/${f}`, import.meta.url), 'utf8');
+  const lines = (f: string) => aiText(f).split('\n').length - 1;
+
+  it('returns an install destination for an ordinary Corp install only in corp/placement.ts', () => {
+    // An install action built with a server: the placement owner, the counted lines' steps (in it too), and the ranking's
+    // own ice-trash variants (corpAI.ts iceTrashInstalls, ranking debt deleted by Stage C)
+    const ALLOWED: Record<string, string> = { 'corpAI.ts': 'iceTrashInstalls: the ranking (Stage C)', 'runnerAI.ts': 'Runner installs have no server' };
+    const found = aiFiles().filter(f => f.replace(/\\/g, '/') !== 'corp/placement.ts' && /type: 'INSTALL_CARD'[^}]*(targetServerId|asNewRemote)/.test(aiText(f)));
+    expect(found.filter(f => !(f in ALLOWED))).toEqual([]);
+  });
+
+  it("keeps the hold owner's readers to this list (corp/hold.ts serverHold)", () => {
+    const readers = aiFiles().filter(f => f.replace(/\\/g, '/') !== 'corp/hold.ts' && /\bserverHold\b/.test(aiText(f))).map(f => f.replace(/\\/g, '/')).sort();
+    expect(readers).toEqual(['corp/lines.ts', 'corp/placement.ts', 'corp/rez.ts', 'corp/rezMoney.ts']);
+  });
+
+  // src/ai's total may only go down. Stage B ends at 13,928: beta at 545f146 is 13,851 (the Runner draws branch added 52
+  // to the Stage A tree's 13,799) and Stage B adds 77 (corp/core.ts's pipeline and the B5 time fix; AI Coordinator
+  // 2026-11-14 21:05Z). Stage C repays this when the ranking is deleted; target after C is below 13,799
+  it('keeps src/ai/corp under 1,900 lines and src/ai at or under the Stage B total (13,928)', () => {
+    const corp = aiFiles().filter(f => f.replace(/\\/g, '/').startsWith('corp/')).reduce((n, f) => n + lines(f), 0);
+    expect(corp).toBeLessThan(1900);
+    expect(aiFiles().reduce((n, f) => n + lines(f), 0)).toBeLessThanOrEqual(13928);
+  });
 });

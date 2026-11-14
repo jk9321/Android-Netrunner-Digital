@@ -3,6 +3,8 @@
  * boardNeed asked rez money's keep, how many distinct state objects it asked on, and the time spent inside it.
  *
  *   [PLAN_OFF=b5RezOwner] AT=49:82,53:76 npx vite-node scripts/stage-b/b5-cost.ts
+ *
+ * plan.b5RezOwner was deleted in Stage B6: run this at adc731d or earlier (the switch names throw after it).
  */
 import { readFileSync } from 'node:fs';
 import { GameAction, GameState, createInitialGameState, executeAction } from '../../src/core';

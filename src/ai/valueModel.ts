@@ -306,9 +306,9 @@ export const setRezKeep = (fn: (state: GameState) => number) => (rezKeep = fn);
 export function boardNeed(state: GameState, side: SideCode): number {
   const servers = Object.values(state.corp.servers);
   if (side === 'corp') {
-    // Stage B5 (temporary plan.b5RezOwner): as the Corp prices it, the rez money its staked servers' holding rezzes need
+    // Stage B5: as the Corp prices it, the rez money its staked servers' holding rezzes need
     // (corp/rezMoney.ts keep), not every unrezzed ice; the Runner's view keeps the board count (the owner reads HQ)
-    if (plan().b5RezOwner && actingSide() === 'corp' && rezKeep) return rezKeep(state);
+    if (actingSide() === 'corp' && rezKeep) return rezKeep(state);
     let need = 0;
     for (const server of servers) {
       const counts = !server.isRemote || server.root.some(c => cardDef(c).type_code === 'agenda');

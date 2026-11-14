@@ -5,6 +5,8 @@
  * One JSON line per changed ice, then a summary line.
  *
  *   [DEALS=1001] [HUMAN=report-49] npx vite-node scripts/stage-b/b5-shares.ts > b5-shares.jsonl
+ *
+ * plan.b5RezOwner was deleted in Stage B6: run this at adc731d or earlier (the switch names throw after it).
  */
 import { GameState, cardDef } from '../../src/core';
 import { asSide, plan, withPricing } from '../../src/ai/pricing';

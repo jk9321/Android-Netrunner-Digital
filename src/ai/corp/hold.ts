@@ -3,7 +3,6 @@ import { rezCost } from '../../core/engine/cardEffects';
 import { bypassesAhead, iceCreditNeed, runBypasses } from '../runs';
 import { clickMoneyOf, turnIncomeOf } from '../cards';
 import { counters } from '../../core/engine/cardEffects';
-import { plan } from '../pricing';
 
 /**
  * Owner: does a server hold (Step 4 Stage A, spec-step4-corp-core.md 1.4; registry row "what holds a server").
@@ -192,7 +191,7 @@ function holdThisRun(state: GameState, server: string, opts: HoldOptions): Hold 
   // for less than its printed cost from the credit pool (Biawak forfeits an agenda for 10 of its 14 credits;
   // recurring credits; a rez discount). The engine's legality says so: then it is affordable, and it leaves
   // the Corp at most its pool less that cost for the ice further in.
-  const paidAnotherWay = plan().paidAnotherWay && base > credits && must.length > 0 && !!run && must.every(c => c.instanceId === sv.ice[run.icePosition ?? -1]?.instanceId && isLegalAction(state, { type: 'REZ_CARD', player: 'corp', cardInstanceId: c.instanceId }));
+  const paidAnotherWay = base > credits && must.length > 0 && !!run && must.every(c => c.instanceId === sv.ice[run.icePosition ?? -1]?.instanceId && isLegalAction(state, { type: 'REZ_CARD', player: 'corp', cardInstanceId: c.instanceId }));
   if (base > credits && !paidAnotherWay) return none;
   const spare = paidAnotherWay ? 0 : credits - base;
   const open = (opts.further ?? true) ? sv.ice.slice(0, pos).filter(c => !c.isRezzed).slice(0, 10) : [];
