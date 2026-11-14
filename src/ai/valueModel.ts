@@ -179,6 +179,19 @@ export function memo<T>(state: GameState, key: string, work: () => T): T {
 }
 
 
+const mapGames = new WeakMap<Map<string, unknown>, string>();
+/**
+ * Keeps a module-level cache to one game (audit Step 2, AI-CACHE-HIDDEN-STATE): empties `map` when `state` belongs to
+ * another game than the entries in it. For caches whose keys are known to be incomplete (handValues clickWorth and
+ * drawWorth, effectValues damageThreat): which other board's value a hit serves then depends on the game's own calls
+ * only, not on the games played earlier in the same process (a batch shard), so a deal plays the same alone or in a shard.
+ */
+export function scopeToGame(map: Map<string, unknown>, state: GameState): void {
+  if (mapGames.get(map) === state.id) return;
+  map.clear();
+  mapGames.set(map, state.id);
+}
+
 /** The deck's average card (handValues.ts registers it; valueModel can't import it without a cycle). */
 let deckCard: ((state: GameState, side: SideCode) => number) | null = null;
 export const setDeckCard = (fn: (state: GameState, side: SideCode) => number) => (deckCard = fn);
@@ -251,6 +264,8 @@ export function sideCards(state: GameState, side: SideCode): CardInstance[] {
 /** The average of `values`, or `fallback` for none. */
 export const mean = (values: number[], fallback: number): number => (values.length > 0 ? values.reduce((a, b) => a + b, 0) / values.length : fallback);
 const buildTargets = new Map<string, number>();
+/** Empties buildTarget's map (test-only: scripts/cache-bisect.ts). */
+export const clearBuildTargets = (): void => buildTargets.clear();
 
 /**
  * Credits a side should build toward from turn 1 (Jeff), from decklist

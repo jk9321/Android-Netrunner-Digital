@@ -4,7 +4,7 @@ import { PAYOUT_RISK } from './payoutRisk';
 import { COUNTER_WORTH } from './counterValues';
 import { CARDS, advancePayloadOf, corpFormula, runnerFormula } from './cards';
 import { actingSide } from './synergy';
-import { CLICK, RATES, cardRate, flatlineWorth, memo, pointGain, pointValue, sideCards } from './valueModel';
+import { CLICK, RATES, cardRate, flatlineWorth, memo, pointGain, pointValue, scopeToGame, sideCards } from './valueModel';
 import { tagsWorth } from './evaluate';
 import { BLOCK, iceCost, iceCreditNeed, isTrap, plannedSubroutines, subroutineCost } from './runs';
 import { remoteRunChance, threatOn } from './threatModel';
@@ -364,6 +364,10 @@ function cardDamage(code: string): number {
 }
 
 const threats = new Map<string, { burst: number; share: number }>();
+/** damageThreat's on-hit audit (test-only): with `on`, every value served from the map is worked out again and compared. */
+export const threatsAudit = { on: false, checked: 0, mismatches: 0, errors: [] as number[], burstErrors: 0 };
+/** Empties damageThreat's map (test-only: scripts/cache-bisect.ts). */
+export const clearDamageThreats = (): void => threats.clear();
 
 /**
  * The Corp's damage threat (the damage clock, Jeff 2026-10-28): the biggest
@@ -380,8 +384,12 @@ export function damageThreat(state: GameState, corpTurn = false): { burst: numbe
   const own = corpTurn && plan().corpTurnDamageOwn;
   const tagged = state.runner.tags > 0;
   const key = `${state.id}:${state.corp.archives.faceUp.length}:${state.corp.scoreArea.length}:${state.runner.scoreArea.length}:${skipIce}:${own}:${own && tagged}`;
+  // Audit Step 2 (AI-CACHE-HIDDEN-STATE): keyed by how many cards are out of the pool, not which (nor a look-ahead's added
+  // or doubled card), so some hits are another board's value (about a third: threatsAudit); an exact (per-position)
+  // version cost decision time, so the map is kept to one game and never depends on the games played before it
+  scopeToGame(threats, state);
   const cached = threats.get(key);
-  if (cached) return cached;
+  if (cached && !threatsAudit.on) return cached;
   const gone = new Set([...state.corp.archives.faceUp, ...state.corp.scoreArea, ...state.runner.scoreArea].map(c => c.instanceId));
   const live = sideCards(state, 'corp').filter(c => !gone.has(c.instanceId));
   const hits = live
@@ -389,6 +397,16 @@ export function damageThreat(state: GameState, corpTurn = false): { burst: numbe
     .map(c => (own ? ownTurnDamage(state, c.cardCode) : cardDamage(c.cardCode)))
     .filter(n => n > 0);
   const threat = { burst: hits.length ? Math.max(...hits) : 0, share: live.length ? hits.length / live.length : 0 };
+  if (cached) {
+    // The audit (test-only, tests/handCacheAudit.test.ts): a value served from the map, worked out again on the asking board
+    threatsAudit.checked++;
+    if (cached.burst !== threat.burst || cached.share !== threat.share) {
+      threatsAudit.mismatches++;
+      threatsAudit.errors.push(Math.abs(cached.share - threat.share));
+      if (cached.burst !== threat.burst) threatsAudit.burstErrors++;
+    }
+    return cached;
+  }
   if (threats.size > 200) threats.clear();
   threats.set(key, threat);
   return threat;
