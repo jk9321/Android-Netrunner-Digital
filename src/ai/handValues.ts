@@ -305,9 +305,10 @@ export const handByCard = (side: SideCode): boolean => leafHandByCard(side) || !
 export function clickWorth(state: GameState, side: SideCode): number {
   const player = side === 'corp' ? state.corp : state.runner;
   const clicks = Math.max(1, player.clicks);
-  const key = `${pricingKey()}:${side}:${state.id}:${state.turnNumber}:${player.clicks}:${player.credits}:${(side === 'corp' ? state.corp.hq : state.runner.grip).map(c => c.instanceId).join(',')}`;
-  // Audit Step 2: the key leaves out the board (each hand card's played worth and the deck's average read it), so some
-  // hits are another board's value (about 17%: clickAudit); kept to one game, as drawWorth's map (above)
+  // The board is in the key (valueModel fingerprint): each hand card's played worth and the deck's average read it. Before,
+  // the key left it out and about 17% of hits were another board's value (Audit Step 2 clickAudit; tests/threatCacheAudit
+  // deal 1421: a stale click worth reached a cached Runner budget). Kept to one game, as drawWorth's map (above)
+  const key = `${pricingKey()}:${side}:${state.id}:${state.turnNumber}:${player.clicks}:${player.credits}:${(side === 'corp' ? state.corp.hq : state.runner.grip).map(c => c.instanceId).join(',')}:${fingerprint(state)}`;
   scopeToGame(clickCache, state);
   const cached = clickCache.get(key);
   if (cached !== undefined && !clickAudit.on) return cached;
