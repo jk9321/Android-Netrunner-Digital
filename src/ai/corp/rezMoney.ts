@@ -1,7 +1,7 @@
 import { CardInstance, GameState, cardDef } from '../../core';
 import { tally } from '../diagnostics';
 import { runnerBudget, serverHold } from './hold';
-import { setRezKeep } from '../valueModel';
+import { memo, setRezKeep } from '../valueModel';
 
 /**
  * Owner: rez money, the credits the Corp keeps to rez the ice that holds what it stakes through the Runner's next turn
@@ -46,7 +46,19 @@ export function stakedServers(state: GameState, without: string[] = []): string[
 
 /** Rez money (see the file comment). */
 export function rezMoney(state: GameState, opts: { without?: string[] } = {}): RezMoney {
-  const { byServer, rezIds, unholdable } = holdingRez(state, opts.without);
+  // Worked out once per position (valueModel memo: on the state object, the pricing context in its key): boardNeed and
+  // rezBudget ask it of the same boards many times over in one decision (Stage B5 decision time)
+  if (!opts.without?.length) return memo(state, 'rezMoney', () => countRezMoney(state, holding(state)));
+  return countRezMoney(state, holdingRez(state, opts.without));
+}
+
+/** The ice of each staked server's holding rez (rezMoney's rezIds, without keep's count): rezBudget's order reads it. */
+export const holdingRezIds = (state: GameState): Record<string, string[]> => holding(state).rezIds;
+
+/** holdingRez with nothing left out, once per position (as rezMoney). */
+const holding = (state: GameState) => memo(state, 'holdingRez', () => holdingRez(state));
+
+function countRezMoney(state: GameState, { byServer, rezIds, unholdable }: ReturnType<typeof holdingRez>): RezMoney {
   // What getting in costs the Runner with nothing more rezzed (the rezzed ice only)
   const entry = Object.fromEntries(Object.keys(byServer).map(id => [id, serverHold(state, id, { when: 'runnerTurn', corpCredits: 0 }).need]));
   return { keep: keepFor(state, byServer, entry), byServer, rezIds, unholdable };

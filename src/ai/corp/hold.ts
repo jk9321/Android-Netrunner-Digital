@@ -126,6 +126,9 @@ function holdRunnerTurn(state: GameState, server: string, corpCredits: number): 
   let bestMask = 0;
   let bestNeed = 0;
   let mostNeed = -Infinity;
+  // Each ice's rez cost and need are the same in every set (the board with only that ice rezzed): worked out once
+  const rezOf: number[] = [];
+  const needOf: number[] = [];
   for (let mask = 0; mask < 1 << n; mask++) {
     let rez = 0;
     let need = 0;
@@ -142,10 +145,9 @@ function holdRunnerTurn(state: GameState, server: string, corpCredits: number): 
         break;
       }
       if (!c.isRezzed && !on) continue;
-      if (!c.isRezzed) rez += rezCostOf(view, c);
+      if (!c.isRezzed) rez += (rezOf[i] ??= rezCostOf(view, c));
       if (bypassed?.ids.has(c.instanceId)) continue;
-      const up = c.isRezzed ? c : { ...c, isRezzed: true };
-      need += iceCreditNeed(withIce(view, up), up);
+      need += (needOf[i] ??= iceNeed(view, c));
     }
     if (rez > corpCredits) continue;
     if (need > mostNeed) mostNeed = need;
@@ -218,6 +220,12 @@ function holdThisRun(state: GameState, server: string, opts: HoldOptions): Hold 
   if (bestSet) return { holds: true, rez: bestSet, rezCost: best, need: bestNeed, budget, margin: bestNeed - budget, entries: 0 };
   const need = mostNeed === -Infinity ? 0 : mostNeed;
   return { ...none, need, margin: need - budget };
+}
+
+/** iceCreditNeed of this ice rezzed, on the board with only it changed. */
+function iceNeed(view: GameState, c: CardInstance): number {
+  const up = c.isRezzed ? c : { ...c, isRezzed: true };
+  return iceCreditNeed(withIce(view, up), up);
 }
 
 /** The board with the ice of this rez set rezzed on its server (the mask over the first n ice). */

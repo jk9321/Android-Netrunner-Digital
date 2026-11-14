@@ -10,7 +10,7 @@ import { turnsLeft } from './cardProfiles';
 import { freeRezTargets } from './freeRez';
 import { actingSide, plan, pricing } from './pricing';
 import { mainRemote } from './corp/placement';
-import { rezMoney } from './corp/rezMoney';
+import { holdingRezIds } from './corp/rezMoney';
 
 /**
  * Value model step 5 (docs/ai-value-model-plan.md): ice priced in credits,
@@ -215,7 +215,7 @@ function countRezBudget(state: GameState, stops: Map<string, number> | null = nu
   // rezIds, staked servers in order) draws on the pool first; the rest follows, best stop first. An unholdable server's
   // ice gets no priority. The Runner's view keeps the stop order (the owner reads HQ)
   if (plan().b5RezOwner && actingSide() === 'corp') {
-    const first = Object.values(rezMoney(state).rezIds).flat();
+    const first = Object.values(holdingRezIds(state)).flat();
     const rank = (w: { id: string }) => (first.includes(w.id) ? first.indexOf(w.id) : first.length);
     waiting.sort((a, b) => rank(a) - rank(b));
   }
