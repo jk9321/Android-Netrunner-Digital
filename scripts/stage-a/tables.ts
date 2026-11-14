@@ -8,7 +8,7 @@
  *
  * Old counts come from scripts/stage-a/reference.ts (frozen copies from beta 92f5c96); the owners from src/ai/corp/.
  */
-import { CardInstance, GameAction, GameState, cardDef, executeAction, isLegalAction } from '../../src/core';
+import { CardInstance, GameAction, GameState, cardDef, executeAction, isLegalAction, rezCostOf } from '../../src/core';
 import { ScoredAction } from '../../src/ai/agent';
 import { asSide, plan } from '../../src/ai/pricing';
 import { decisionContext } from '../../src/ai/handValues';
@@ -16,6 +16,7 @@ import { moneyPick } from '../../src/ai/incomeLine';
 import { scoreNowPlan } from '../../src/ai/winNow';
 import { moneyOpGain, moneyTarget, rezReserve, unrezzedIceCost } from '../../src/ai/corpAI';
 import { econValue } from '../../src/ai/cardValues';
+import { boardNeed } from '../../src/ai/valueModel';
 import { assetPartner, centralIce, iceRedirect } from '../../src/ai/countedScore';
 import { runnerBudget, serverHold } from '../../src/ai/corp/hold';
 import { lineFloor, rezMoney } from '../../src/ai/corp/rezMoney';
@@ -118,6 +119,9 @@ function rezTable(d: Decision) {
     const floor = agendas.length ? Math.min(...agendas.map(x => ref.afterLineFloor(s, x.instanceId))) : ref.afterLineFloor(s, '');
     dist("scoringShort's floor", floor, money.keep, at);
     if (agendas.length) dist("reservedForAgenda's floor (its horizon less this)", floor, money.keep, at);
+    // centralIce's rez gate: the Corp redirects an ice to a bare central only with that ice's rez cost in hand
+    for (const ice of s.corp.hq.filter(c => typeOf(c) === 'ice')) dist("centralIce's rez gate (the ice's own rez cost)", rezCostOf(s, ice), money.keep, at);
+    dist('boardNeed (valuation layer, the credit slide)', boardNeed(s, 'corp'), money.keep, at);
   });
   if (out.rez.examples.length < 400) out.rez.examples.push(`${at}\tcredits ${s.corp.credits}\tkeep ${money.keep}\tbyServer ${JSON.stringify(money.byServer)}\tunholdable ${money.unholdable.join(',') || '-'}\trunner budget ${runnerBudget(s)}`);
 }
@@ -219,7 +223,7 @@ function intent(s: GameState, a: GameAction): number | null {
       return isAgenda(card) ? 3 : 6;
     case 'USE_ABILITY':
       return 5;
-    case 'PURGE_VIRUS_COUNTERS':
+    case 'PURGE_VIRUS':
       return 7;
     case 'DRAW_CARD':
     case 'GAIN_CREDIT':

@@ -16,8 +16,9 @@ import { mainRemote } from '../corpAI';
  *   0. a counted score this turn (scoreNowPlan): the pick stands while it keeps the score (keepsScore), else the score's
  *      line takes the click;
  *   1. a counted line (corpAI.ts decide, scoreInTwoPick): an asset line (assetCover: the cheapest ice from HQ in front
- *      of the asset, or the asset into an iced remote that waits) places the asset; a held agenda line, or a line step
- *      that takes the click, leaves the pick to the line (no rewrite: today's rewriters are skipped while a line holds);
+ *      of the asset, or the asset into an iced remote that waits) places the asset; a score line's step that installs
+ *      this card places it where the line goes; a held agenda line, or a line step with another card, leaves the click
+ *      to the line (no rewrite: today's rewriters are skipped while a line holds);
  *   2. central ice (centralIce): ice for a remote goes to a central with no ice first;
  *   3. ice redirect (iceRedirect): remote ice goes to the scoring remote while it does not hold;
  *   4. asset partner (assetPartner): an asset or upgrade for a new remote goes to an iced remote with an open root,
@@ -29,7 +30,7 @@ import { mainRemote } from '../corpAI';
  * rewriters it reads see the Corp's own HQ and the public board only (10.2.2a).
  */
 
-export type PlacementReason = 'pick' | 'assetCover' | 'centralIce' | 'iceRedirect' | 'assetPartner' | 'assetLine:econIced' | 'assetLine:trapOffScoring';
+export type PlacementReason = 'pick' | 'scoreLine' | 'assetCover' | 'centralIce' | 'iceRedirect' | 'assetPartner' | 'assetLine:econIced' | 'assetLine:trapOffScoring';
 
 export interface Placement {
   /** A server id, or 'new' for a new remote. */
@@ -74,6 +75,8 @@ export function place(state: GameState, card: CardInstance, ctx: PlaceContext): 
   const two = scoreInTwoPick(state, from, held);
   const line = two.held && two.held.game === state.id ? two.held : null;
   if (two.action !== from) {
+    // A two-turn score line whose step installs this card (its ice in front of the agenda, or the agenda itself)
+    if (isInstall(two.action) && two.action.cardInstanceId === card.instanceId && !line?.line.kind) return [at(two.action, 'scoreLine')];
     // An asset line begun on this pick: its first step installs the ice in front, or the asset where an iced remote waits
     if (line?.line.kind === 'asset' && line.line.agendaId === card.instanceId && !held) {
       const server = line.line.server === 'new remote' ? 'new' : line.line.server;
