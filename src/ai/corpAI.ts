@@ -871,7 +871,7 @@ export class HeuristicCorpAI implements Agent {
         // plan.lethalHq: HQ holds an agenda whose steal wins the Runner the game, and the Runner can get in
         const lethalHq = server?.id === 'hq' && this.synergy && lethalHqAgenda(state, corp.credits - installCost);
         const paceOk = lethalHq && corp.credits - installCost >= (cardDef(card).cost ?? 0);
-        if (this.synergy && !paceOk && !free && !pacingPriced() && unrezzedIceCost(state) + (cardDef(card).cost ?? 0) - covered > corp.credits - installCost + ICE_PACING_INCOME && hq.length <= corp.handSizeLimit) return -Infinity;
+        if (this.synergy && !paceOk && !free && unrezzedIceCost(state) + (cardDef(card).cost ?? 0) - covered > corp.credits - installCost + ICE_PACING_INCOME && hq.length <= corp.handSizeLimit) return -Infinity;
         let need: number;
         // Deck-aware AI: one well-iced scoring remote rather than ice spread thin
         const main = this.synergy ? mainRemote(state) : null;
@@ -1075,13 +1075,6 @@ const CAST_WHILE_ABLE = 0.5;
 /** Credits the Corp counts on making before the Runner tests its newest ice (ice pacing: 2 and 0 played the same). */
 const ICE_PACING_INCOME = 0;
 /** Credits to rez every unrezzed ice the Corp has installed. */
-/**
- * plan.icePacingPriced (bug report #43, Jeff 2026-11-09: "that ICE just shouldn't count as protection unless it CAN rez
- * it"): with plan.ownIceKnown pricing the Corp's unrezzed ice by its rez budget, the ice-pacing guard's -Infinity is
- * left to that pricing: ice the Corp can't pay for counts as no protection, and ice it never needs to rez costs nothing.
- */
-const pacingPriced = (): boolean => plan().icePacingPriced && plan().ownIceKnown;
-
 export function unrezzedIceCost(state: GameState): number {
   return Object.values(state.corp.servers)
     .flatMap(server => server.ice)

@@ -1,12 +1,8 @@
-import { afterEach, describe, expect, it } from 'vitest';
+import { describe, expect, it } from 'vitest';
 import { GameAction, GameState, cardDef, createInitialGameState, findCardAnywhere } from '../src/core';
 import { deckGameSetup } from '../src/data/decks';
 import { ALL_DECKS } from '../scripts/nsg-sample-decks';
 import { GameRunner, createAgent } from '../src/ai';
-import { tuning } from '../src/ai/synergy';
-import { REPLY } from '../src/ai/runnerReply';
-import { Diagnostics, withDiagnostics } from '../src/ai/diagnostics';
-import fixture from './fixtures/search-hold-no-window.json';
 
 /**
  * The positions plan.searchLines (spec-search S2) was pinned on, after step 2 deleted it (spec-step2-delete-redundant.md:
@@ -14,7 +10,6 @@ import fixture from './fixtures/search-hold-no-window.json';
  * answers: hold the agenda in HQ and build its remote, or install it. Deal 1491 T1 keeps the move through the count.
  * Deal 1031 T9 (Brân 1.0 on a new remote for an agenda in HQ) is lost: the count sees no two-turn score there (the new
  * ice can't be rezzed with the 4 credits a score would leave), so it is listed in the step 2 report as a candidate input.
- * Plus plan.searchSamples (S3, parked OFF), which re-samples close candidate lines.
  */
 const SEED = 1491;
 
@@ -37,50 +32,10 @@ const describeAction = (s: GameState, a: GameAction) => {
   return `${a.type}${card ? ' ' + cardDef(card).type_code : ''}${where}`;
 };
 
-const saved = { samples: tuning.plan.searchSamples, now: tuning.plan.scoreNow, two: tuning.plan.scoreInTwo };
-afterEach(() => {
-  tuning.plan.searchSamples = saved.samples;
-  tuning.plan.scoreNow = saved.now;
-  tuning.plan.scoreInTwo = saved.two;
-});
-
-/** The planner's own pick: counted scoring sits above it and is off here. */
-const plannerPick = (s: GameState) => {
-  tuning.plan.scoreNow = false;
-  tuning.plan.scoreInTwo = false;
-  return createAgent('corp').chooseAction(structuredClone(s));
-};
-
-describe('the held-line positions after plan.searchLines (step 2), and plan.searchSamples', () => {
-  it('searchSamples is parked off', () => expect(saved.samples).toBe(false));
-
+describe('the held-line positions after plan.searchLines (step 2)', () => {
   it('deal 1491 turn 1: the Corp ices a new remote for the agenda in HQ (counted scoring begins its two-turn line)', () => {
     const s = turnOne();
     expect(s.corp.hq.some(c => cardDef(c).type_code === 'agenda')).toBe(true);
     expect(describeAction(s, createAgent('corp').chooseAction(structuredClone(s)))).toBe('INSTALL_CARD ice @new remote');
   }, 60000);
-
-  it('searchSamples at deal 1491 T1: on a close call both lines get the extra samples and the pick is the better mean', () => {
-    const calls: Parameters<NonNullable<Diagnostics['onClose']>>[] = [];
-    tuning.plan.searchSamples = true;
-    const s = turnOne();
-    const chosen = withDiagnostics(d => {
-      d.onClose = (top, picked) => calls.push([top, picked]);
-      return plannerPick(s);
-    });
-    for (const [top, picked] of calls) {
-      expect(top.length).toBe(2);
-      for (const t of top) expect(t.samples).toBe(2 + REPLY.extra);
-      expect(picked).toBe(top.reduce((a, b) => (b.value > a.value ? b : a)).action);
-    }
-    if (calls.length) expect(chosen).toEqual(calls[calls.length - 1][1]);
-  }, 60000);
-
-  it('searchSamples on top does not flip the pick at deal 1491 T2', () => {
-    const s = fixture.state as unknown as GameState;
-    tuning.plan.searchSamples = false;
-    const plain = JSON.stringify(plannerPick(s));
-    tuning.plan.searchSamples = true;
-    expect(JSON.stringify(plannerPick(s))).toBe(plain);
-  }, 120000);
 });

@@ -373,19 +373,6 @@ export const tuning = {
      */
     runRecord: true,
     /**
-     * Bug report #43 (Jeff's Runner test game 11, 2026-11-09; Corp only): with plan.ownIceKnown on, the ice-pacing guard
-     * (corpAI installScore: -Infinity for ice the Corp can't afford to rez on top of every unrezzed ice already out) is
-     * dropped and the pricing decides (Jeff: "that ICE just shouldn't count as protection unless it CAN rez it"; it
-     * needn't rez every ice on every run). Off: the guard counted ice the Corp never rezzes (two Attini on remotes
-     * holding nothing) and blocked every new install: at T7, 20 credits, the Runner on 5 and HQ bare, Cloud Eater and
-     * Mycoweb in hand ranked -Infinity and the Corp clicked to draw three times.
-     * PARKED OFF (2026-11-09, batches 42715002281 vs 42720370875): it costs about 7 points of Corp win rate through
-     * over-icing (installs ice it then rezzes in runs: went-broke +22 per 100 games, stayed-broke +14). The leaf doesn't
-     * price what an install commits the Corp to rezzing, so with the guard gone it ices past its money. Stays off until ice
-     * pacing is priced by the leaf (credits left after the rezzes the install commits to); #43 T7 stays open meanwhile.
-     */
-    icePacingPriced: false,
-    /**
      * Bug report #44 (Jeff's Runner test game 12, 2026-11-09): the damage clock left after the Runner's turn (effectValues
      * damageThreat on the Corp's turn) counts only damage the Corp can deal on its own turn: not damage on access (Urtica
      * Cipher) and not damage "if the Runner is tagged" while it has no tag (Orbital Superiority). Off: both made a 4-damage
@@ -393,22 +380,6 @@ export const tuning = {
      * remote (its reply Runner ran into it and lost cards) over icing an HQ holding three agendas: Send a Message stolen.
      */
     corpTurnDamageOwn: true,
-    /**
-     * Phase 3 S3 (spec-search.md; Corp only; searchLines, the held line it was built on top of, was deleted in step 2 at
-     * -0.3 ± 1.0 off, run 42875007030): the 2-sample reply decides most close picks (S1: a
-     * plain re-sample of the same line beats the pick by more than 3 on 28% of agenda decisions). On a decision with an
-     * agenda in HQ or installed, the two best candidate lines closer than SEARCH.margin get REPLY.extra more reply samples each and the better of those two means stands
-     * (turnPlanner.ts contenders, topOnly): a third line read on two samples only must not re-enter on the two's
-     * regression to the mean, which is the same noise again (it flipped deal 1491 T1). replyContenders, the same on every
-     * decision with a gap of 4 and the rest re-admitted, read -0.6 ± 2.2.
-     * PARKED OFF (2026-11-09): -4.2 ± 1.8 vs searchLines ON (run 42697176557 vs 42681282303, games=3), stayed broke
-     * +2.9, remote steals 558 -> 625, 0 hold flips: it only re-sorts close candidates. More reply samples playing worse
-     * outside noise is a finding about the reply values, not only about S3: the leaf under the reply carried about 33
-     * points of flatline credit for damage the Corp can't deal on its own turn (plan.corpTurnDamageOwn, fixes thread),
-     * and extra samples settle close calls on such a term. Unverified reading: rare losing samples pull four-sample
-     * means. Re-measure once after corpTurnDamageOwn lands on beta, against #45 (tests/searchOpen45.test.ts).
-     */
-    searchSamples: false,
     /**
      * Phase 3 S6 (spec-search.md; Corp only): the planner plays its candidate turns from a guess of R&D, not R&D itself.
      * Without it a playout that draws (a click to draw, Hedge Fund's riders, Petty Cash) drew the real top cards, and the
@@ -487,7 +458,7 @@ export const tuning = {
  */
 export const sideOff: Record<SideCode, string[]> = {
   corp: [],
-  runner: ['scoreNow', 'scoreInTwo', 'tagTrashNow', 'ownTrashRisk', 'hqTrashCost', 'oneCurrency', 'threatModel', 'iceProtects', 'replyContenders', 'plannerAgenda', 'clearinghouseRez', 'ownIceKnown', 'runRecord', 'icePacingPriced', 'searchSamples', 'hiddenDraws', 'oracle', 'threatKey', 'threatKeyPricing'],
+  runner: ['scoreNow', 'scoreInTwo', 'tagTrashNow', 'ownTrashRisk', 'hqTrashCost', 'oneCurrency', 'threatModel', 'iceProtects', 'replyContenders', 'plannerAgenda', 'clearinghouseRez', 'ownIceKnown', 'runRecord', 'hiddenDraws', 'oracle', 'threatKey', 'threatKeyPricing'],
 };
 
 /**
@@ -542,6 +513,9 @@ export const DELETED: readonly string[] = [
   'plannerPatchesOff',
   // C3, the Runner capability model (Phase 2 K1-K3, 2026-11-09; reach.ts deleted, ownIce keeps knownIce's live path)
   'reach', 'reachStrength', 'reachTime',
+  // C4: Phase 3 S3's close-call re-samples (2026-11-09, -4.2 ± 1.8), and #43's ice-pacing guard dropped (2026-11-09,
+  // about -7 through over-icing; #43 T7 pinned known-failing in tests/icePacingPriced.test.ts)
+  'searchSamples', 'icePacingPriced',
 ];
 
 /** Throws on a name that isn't a plan switch (a typo, a switch folded into the code, or one deleted). */

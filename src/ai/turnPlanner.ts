@@ -34,15 +34,6 @@ export const PLANNER = {
   withBuild: 6,
 };
 
-/** plan.searchSamples (spec-search S3, parked OFF). */
-export const SEARCH = {
-  /**
-   * Two lines closer than this are a close call: a re-sample of the same line moves it by more than 3 on 28% of
-   * decisions (s1-report.md).
-   */
-  margin: 3,
-};
-
 /**
  * How a playout continues after its first action. 'rule': the rule-based ranking's best each step. 'hold'
  * (spec-search S1, measurement only): the same, but no agenda is installed from HQ this turn. 'finish' (spec-search S1): an agenda
@@ -440,29 +431,15 @@ export function planTurn(state: GameState, side: SideCode, ranked: ScoredAction[
     let best: { action: GameAction; value: number; line: Line } | null = null;
     const values: number[] = [];
     const scored: { action: GameAction; value: number; line: Line; ends: Ends }[] = [];
-    // plan.searchSamples (S3): every line the pick may come from
-    const pool: { action: GameAction; value: number; line: Line; ends: Ends }[] = [];
     for (const c of candidates) {
       const line: Line = [];
       const ends: Ends = {};
       const value = playout(root, side, c.action, ai, synergy, line, ends);
       values.push(value);
       scored.push({ action: c.action, value, line, ends });
-      pool.push({ action: c.action, value, line, ends });
       if (!best || value > best.value) best = { action: c.action, value, line };
     }
     if (side === 'corp' && plan().replyContenders && ai.reply && sampledReply()) best = contenders(scored, side, synergy) ?? best;
-    // plan.searchSamples (spec-search S3): on an agenda decision, the two best candidate lines closer than SEARCH.margin get REPLY.extra more reply samples each, and the better
-    // mean stands. S1: a re-sample of the same line beats the pick by more than 3 on 28% of decisions.
-    if (side === 'corp' && plan().searchSamples && ai.reply && sampledReply() && agendaKind(state) !== 'neither') {
-      const close = contenders(pool, side, synergy, SEARCH.margin, true);
-      if (close) {
-        const before = pool.reduce((a, b) => (b.value > a.value ? b : a));
-        tally('planner', 'closeCalls');
-        if (close.action !== before.action || close.line !== before.line) tally('planner', 'closeFlips');
-        best = close;
-      }
-    }
     note(d => {
       d.onCandidates?.(side, values, candidates.map(c => c.action));
       if (side === 'corp' && d.onDraws) d.onDraws(state, scored.filter(x => drewFromRd(root, x.ends.state)).length, scored.length, best?.action ?? null);
@@ -487,9 +464,9 @@ export function planTurn(state: GameState, side: SideCode, ranked: ScoredAction[
  * both: samples REPLY.samples .. REPLY.samples + REPLY.extra - 1) and the better mean over all of them is the pick, when the two are closer than
  * REPLY.contendGap (a wider gap is left to the first samples).
  */
-function contenders<T extends { action: GameAction; value: number; line: Line; ends: Ends }>(scored: T[], side: SideCode, synergy: boolean, gap = REPLY.contendGap, topOnly = false): T | null {
+function contenders<T extends { action: GameAction; value: number; line: Line; ends: Ends }>(scored: T[], side: SideCode, synergy: boolean): T | null {
   const live = scored.filter(r => Number.isFinite(r.value) && r.ends.state && !r.ends.state.winner).sort((a, b) => b.value - a.value);
-  if (live.length < 2 || live[0].value - live[1].value >= gap) return null;
+  if (live.length < 2 || live[0].value - live[1].value >= REPLY.contendGap) return null;
   const leaf = (s: GameState) => leafValue(s, side, synergy);
   const top = live.slice(0, 2).map(r => {
     const bonus = r.ends.bonus ?? 0;
@@ -498,16 +475,14 @@ function contenders<T extends { action: GameAction; value: number; line: Line; e
     return { ...r, firstValue: r.value, samples: first + REPLY.extra, value: (first * (r.value - bonus) + REPLY.extra * extra) / (first + REPLY.extra) + bonus };
   });
   // A candidate outside the two (a won game, or one the extra samples can't change) keeps its value
-  // plan.searchSamples (topOnly): the pick is the better of the two re-sampled lines; a third line read on two samples
-  // only was already below both, and letting it back in on their regression to the mean is the noise S3 removes
-  const rest = topOnly ? [] : scored.filter(r => !top.some(t => t.action === r.action && t.line === r.line));
+  const rest = scored.filter(r => !top.some(t => t.action === r.action && t.line === r.line));
   const pick = [...top, ...rest].reduce((a, b) => (b.value > a.value ? b : a));
   note(d => d.onClose?.(top.map(t => ({ action: t.action, first: t.firstValue, value: t.value, samples: t.samples })), pick.action));
   return pick;
 }
 
 /** The Corp's agenda situation at a decision (spec-search S1 kinds). */
-export function agendaKind(state: GameState): SearchRow['kind'] {
+function agendaKind(state: GameState): SearchRow['kind'] {
   const installed = Object.values(state.corp.servers).some(s => s.root.some(c => cardDef(c).type_code === 'agenda'));
   if (installed) return 'installed';
   return state.corp.hq.some(c => cardDef(c).type_code === 'agenda') ? 'hq' : 'neither';

@@ -32,8 +32,8 @@ export interface Diagnostics {
   threat: { calls: number; keyed: number; budgeted: number; keyMs: number; budgetMs: number; replyBudgeted: number; replyBudgetMs: number };
   /** oracle.ts: oracle turns played out, hits, time. */
   oracle: { turns: number; hits: number; ms: number };
-  /** turnPlanner.ts: decisions, added candidates and their wins; plan.searchSamples close calls and flips. */
-  planner: { decisions: number; withAdded: number; added: number; addedWins: number; closeCalls: number; closeFlips: number };
+  /** turnPlanner.ts: decisions, added candidates and their wins. */
+  planner: { decisions: number; withAdded: number; added: number; addedWins: number };
   /** Time the threat's lookups and budgets (performance.now on each). */
   timing: boolean;
   /** A Runner reply is being sampled (runnerReply.ts): budgets inside count as reply budgets. Set with inReply. */
@@ -70,7 +70,7 @@ export const newDiagnostics = (): Diagnostics => ({
   reply: { nakedAgendaTurns: 0, nakedAgendaRuns: 0 },
   threat: { calls: 0, keyed: 0, budgeted: 0, keyMs: 0, budgetMs: 0, replyBudgeted: 0, replyBudgetMs: 0 },
   oracle: { turns: 0, hits: 0, ms: 0 },
-  planner: { decisions: 0, withAdded: 0, added: 0, addedWins: 0, closeCalls: 0, closeFlips: 0 },
+  planner: { decisions: 0, withAdded: 0, added: 0, addedWins: 0 },
   timing: false,
   replying: false,
 });
