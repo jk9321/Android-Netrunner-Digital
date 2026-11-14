@@ -8,8 +8,6 @@
  * four shards and prints the breakdown. ai-match.sh logs its new-Corp games
  * the same way.
  */
-// ORDER PROBE (ai-trojans-load, reverted in the next commit): runs.ts first, so runnerAI.ts loads inside runs.ts's cycle (the order that broke TROJANS)
-import '../src/ai/runs';
 import { createHash } from 'node:crypto';
 import { createInitialGameState } from '../src/core';
 import { deckGameSetup } from '../src/data/decks';
