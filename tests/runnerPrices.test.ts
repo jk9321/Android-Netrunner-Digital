@@ -96,6 +96,19 @@ describe('R1 credits apart from value (RUNNER-BUDGET-UNITS)', () => {
     // 3 clicks: after the run's click only 2 are left for 3 subroutines, and no breaker: no way past
     expect(priceAt(3).credits + priceAt(3).value).toBe(BLOCK);
   });
+  // Jeff's Teia game (report-28, turn 8; fixture vrcation-sure-gamble.json): 5 credits, 3 clicks, 4 cards. Remote-2 holds an
+  // unseen card with 3 advancements, The Holo Man and Adrian Seis, behind a rezzed Empiricist (draw; 1 net damage and a tag;
+  // 2 net damage; no end the run). Taking every subroutine costs no credits and leaves 1 card (rule 10.4.4: 3 damage
+  // against 4 cards is survived). Counted as credits, the 23 of damage was over the 5-credit budget and the run was barred.
+  it('runs a 3-advanced remote behind ice that cannot end the run', () => {
+    const s: GameState = JSON.parse(readFileSync(new URL('./fixtures/vrcation-sure-gamble.json', import.meta.url), 'utf8'));
+    asSide('runner', () => {
+      const price = icePrice(s, s.corp.servers['remote-2'].ice[0]);
+      expect(price.credits).toBe(0);
+      expect(price.value).toBeCloseTo(subroutineCost(s, 'Draw 1 card.') + subroutineCost(s, 'Do 1 net damage. Give the Runner 1 tag.') + subroutineCost(s, 'Do 2 net damage.'));
+      expect(runScore(s, 'remote-2', { wary: true })).toBeGreaterThan(0);
+    });
+  });
 });
 
 describe('R3 bare economy assets (RUNNER-ASSET-TRASH)', () => {
