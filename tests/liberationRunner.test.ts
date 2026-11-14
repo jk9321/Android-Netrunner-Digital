@@ -177,6 +177,27 @@ describe('The Automata Initiative: Anarch', () => {
     expect(s.activeRun).not.toBeNull();
   });
 
+  // Banner: "Subroutines on the barrier you are encountering cannot end the run". Shred: "The first time the Corp
+  // would end that run, prevent the run from ending unless the Corp ... trashes X cards". Rules 1.2.2: the "cannot"
+  // takes precedence, so the subroutine never would end the run; Shred neither asks nor is used up.
+  it('Banner beats Shred: a barrier subroutine that cannot end the run gives the Corp no Shred prompt (rules 1.2.2)', () => {
+    let s = newGame();
+    installIceForTest(s, SG.palisade, 'hq');
+    const banner = installProgramForTest(s, L.banner);
+    startRunnerTurn(s);
+    const shred = giveCard(s, 'runner', '35005');
+    s.runner.credits = 10;
+    s = play(s, 'runner', shred);
+    s = choose(s, 'hq');
+    expect(s.activeRun?.shredArmed).toBe(true);
+    s = cont(s);
+    s = useAbility(s, 'runner', banner);
+    s = cont(s);
+    expect(s.pendingPrompts.some(p => p.side === 'corp')).toBe(false);
+    expect(s.activeRun).not.toBeNull();
+    expect(s.activeRun?.shredArmed).toBe(true);
+  });
+
   it('Monkeywrench gives its host -2 strength and other ice on that server -1', () => {
     const s = newGame();
     const outer = installIceForTest(s, SG.palisade, 'hq');

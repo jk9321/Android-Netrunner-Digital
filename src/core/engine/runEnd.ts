@@ -55,6 +55,12 @@ const SHRED = '35005';
 export function endTheRun(state: GameState): void {
   const run = state.activeRun;
   if (!run) return;
+  // Banner: subroutines on this ice cannot end the run this encounter. The "cannot" wins (rules 1.2.2), so the run
+  // never would end and Shred (which acts "the first time the Corp would end that run") neither asks nor is used up
+  if (run.encounter?.cannotEndRun && run.encounter.resolvingIndex !== null) {
+    addLog(state, 'runner', 'The subroutine cannot end the run this encounter.');
+    return;
+  }
   if (run.shredArmed) {
     run.shredArmed = false;
     const x = state.corp.servers[run.server]?.root.length ?? 0;
@@ -73,11 +79,6 @@ export function endTheRun(state: GameState): void {
     } else {
       addLog(state, 'runner', 'Shred: the Corp cannot trash enough cards from HQ, so the run continues.');
     }
-    return;
-  }
-  if (run.encounter?.cannotEndRun && run.encounter.resolvingIndex !== null) {
-    // Banner: subroutines on this ice cannot end the run this encounter
-    addLog(state, 'runner', 'The subroutine cannot end the run this encounter.');
     return;
   }
   addLog(state, 'corp', 'The run was ended.');
