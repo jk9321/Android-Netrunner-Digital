@@ -1,4 +1,4 @@
-import { CardInstance, GameState, cardDef, getCardDefinition, getCardScript, knownInHand, knownInRd } from '../core';
+import { CardInstance, GameState, activePrompt, cardDef, getCardDefinition, getCardScript, knownInHand, knownInRd } from '../core';
 import {
   boostCostOf,
   breakerScript,
@@ -602,10 +602,10 @@ const iceBump = (base: number, server: { ice: CardInstance[] }) => Math.min(0.9,
  * by the odds for an unseen card. Remembered non-agendas are worth nothing
  * here, so a second run on the same top cards is not worth making.
  */
-function rdWorth(state: GameState, accesses: number, odds: number, central: number): number {
+function rdWorth(state: GameState, accesses: number, odds: number, central: number, from = 0): number {
   const known = knownInRd(state);
   let value = 0;
-  for (let i = 0; i < Math.min(accesses, state.corp.rd.length); i++) {
+  for (let i = from; i < Math.min(from + accesses, state.corp.rd.length); i++) {
     let seen = 0;
     for (const e of known) {
       if (i < e.lo || i > e.hi) continue;
@@ -672,19 +672,49 @@ export function hqAgendaOdds(state: GameState, odds: number): number {
 /** A steal's worth less its additional costs (0 when they can't be paid). */
 const taxedSteal = (worth: number, tax: number | null) => (tax === null ? 0 : Math.max(0, worth - tax));
 
-function serverWorth(state: GameState, serverId: string, extraAccesses: number, memory: RunnerMemory | undefined, wary: boolean, repeat: number): number {
+/**
+ * What is still to come in a breach under way (rules 7.3.4: candidates are chosen one at a time until none is left),
+ * as counts and the cards the Runner has seen, never which unseen card comes next: the root cards not chosen yet, how
+ * many more cards the zone gives (7.3.5: the random access limit is set when the breach begins; 7.3.5c: a chosen
+ * candidate counts toward it) and, for R&D, how far down the next one is (7.4.1c, 7.4.7: top down).
+ */
+interface BreachRest {
+  root: Set<string>;
+  zoneLeft: number;
+  chosen: Set<string>;
+}
+
+function breachRest(state: GameState): BreachRest | undefined {
+  const run = state.activeRun;
+  if (!run?.breached || !run.breach) return undefined;
+  // The card a prompt is about is being accessed now: not still to come
+  const prompt = activePrompt(state);
+  const current = prompt && 'cardInstanceId' in prompt ? prompt.cardInstanceId : undefined;
+  return {
+    root: new Set(run.breach.root.filter(id => id !== current)),
+    zoneLeft: run.breach.zoneLeft,
+    chosen: new Set([...run.breach.chosen, ...(current ? [current] : [])]),
+  };
+}
+
+function serverWorth(state: GameState, serverId: string, extraAccesses: number, memory: RunnerMemory | undefined, wary: boolean, repeat: number, rest?: BreachRest): number {
   const server = state.corp.servers[serverId];
   const { odds, points } = agendaOdds(state);
   const unseenTax = stealTax(state, serverId);
   const central = taxedSteal(stealWorth(state, points, DENY.central), unseenTax);
   let value = 0;
   if (serverId === 'rd') {
-    value = rdWorth(state, 1 + extraAccesses, odds, central);
+    // In a breach: the cards left to the random access limit, from below the ones already chosen (a count only)
+    value = rest ? rdWorth(state, rest.zoneLeft, odds, central, state.corp.rd.filter(c => rest.chosen.has(c.instanceId)).length) : rdWorth(state, 1 + extraAccesses, odds, central);
   }
-  else if (serverId === 'hq') value = state.corp.hq.length === 0 ? 0 : Math.min(1 + extraAccesses, state.corp.hq.length) * hqAgendaOdds(state, odds) * central * 0.5 ** repeat;
+  else if (serverId === 'hq') {
+    const unchosen = rest ? state.corp.hq.filter(c => !rest.chosen.has(c.instanceId)).length : state.corp.hq.length;
+    const accesses = rest ? rest.zoneLeft : 1 + extraAccesses;
+    value = unchosen === 0 ? 0 : Math.min(accesses, unchosen) * hqAgendaOdds(state, odds) * central * 0.5 ** repeat;
+  }
   else if (serverId === 'archives') {
     if (repeat > 0) return 0;
-    const faceUp = state.corp.archives.faceUp.filter(c => cardDef(c).type_code === 'agenda');
+    const faceUp = state.corp.archives.faceUp.filter(c => cardDef(c).type_code === 'agenda' && !rest?.chosen.has(c.instanceId));
     // plan.archivesChosen (Jeff, bug report #5): facedown cards are ones the Corp chose to put there (discards,
     // Hansei Review); a Corp rarely chooses an agenda, with or without ice there
     const chosen = state.corp.servers.archives.ice.length === 0 ? ARCHIVES_CHOSEN_ODDS : ARCHIVES_CHOSEN_ODDS_ICED;
@@ -693,6 +723,7 @@ function serverWorth(state: GameState, serverId: string, extraAccesses: number, 
   if (repeat > 0 && server.isRemote) return 0;
   const trap = wary ? trapOdds(state, memory) : 1 / 3;
   for (const card of server.root) {
+    if (rest && !rest.root.has(card.instanceId)) continue;
     if (card.faceUp && cardDef(card).type_code === 'agenda') {
       // A faceup agenda: a sure steal, public to both sides. Under BANGUN it costs 2 meat damage and a tag;
       // installed faceup by its own text (Sacrifice Zone Expansion, rules 3.2.3a) it costs nothing extra
@@ -732,7 +763,7 @@ function serverWorth(state: GameState, serverId: string, extraAccesses: number, 
 }
 
 /** What accessing this server is worth to the Runner right now. */
-export function serverValue(state: GameState, serverId: string, extraAccesses = 0, memory?: RunnerMemory, wary = false): number {
+export function serverValue(state: GameState, serverId: string, extraAccesses = 0, memory?: RunnerMemory, wary = false, rest?: BreachRest): number {
   const server = state.corp.servers[serverId];
   if (!server) return 0;
   // The run in progress is already listed (as not yet successful): only earlier runs count
@@ -741,7 +772,7 @@ export function serverValue(state: GameState, serverId: string, extraAccesses = 
   if (priorRuns.some(r => !r.successful)) return 0; // it stopped us once already this turn
   const repeat = priorRuns.length;
   // Priced in credits on the point clock (plan.runModel, 2026-10-28; the older flat table was deleted 2026-11-06)
-  return serverWorth(state, serverId, extraAccesses, memory, wary, repeat);
+  return serverWorth(state, serverId, extraAccesses, memory, wary, repeat, rest);
 }
 
 /** A remote worth running that the Runner's hand is too small to risk (draw first). */
@@ -1034,7 +1065,9 @@ export function runRestWorth(state: GameState, memory?: RunnerMemory, wary?: boo
     credits += price.credits;
     lost += price.value;
   }
-  return Math.max(0, serverValue(state, run.server, run.extraAccesses, memory, wary) - spendCost(state, credits) - lost);
+  // Once the breach has begun, only what is still to come (the cards already accessed, and the one a prompt is about, are
+  // priced by their own answers: counted here too they were a double count, the 0.8 in scoreOutcome partly hiding it)
+  return Math.max(0, serverValue(state, run.server, run.extraAccesses, memory, wary, breachRest(state)) - spendCost(state, credits) - lost);
 }
 
 const CHAIN_REACTION = '36001';

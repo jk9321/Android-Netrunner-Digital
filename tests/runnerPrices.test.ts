@@ -149,6 +149,31 @@ describe('R4 breach-time extra accesses (RUNNER-BREACH-EXTRA-ACCESS; rules 7.3.5
   });
 });
 
+describe('the rest of the run once the breach has begun (rules 7.3.4, 7.3.5)', () => {
+  const anoetic = () => JSON.parse(readFileSync(new URL('./fixtures/report-26-anoetic.json', import.meta.url), 'utf8')) as GameState;
+  it("Jeff's game #26 (move 65): Anoetic Void for 1 credit is trashed", () => {
+    const s = anoetic();
+    const prompt = activePrompt(s)!;
+    expect(prompt.kind).toBe('access_trash');
+    const pick = createAgent('runner').chooseAction(structuredClone(s));
+    expect(pick).toMatchObject({ type: 'RESOLVE_PROMPT', choice: { kind: 'access_trash', trash: true } });
+  });
+  it('the card a trash prompt is about is not in the rest of the run, trashed or not', () => {
+    const s = anoetic();
+    const prompt = activePrompt(s)!;
+    const answer = (trash: boolean) => executeAction(structuredClone(s), { type: 'RESOLVE_PROMPT', player: 'runner', promptId: prompt.id, choice: { kind: 'access_trash', trash } } as GameAction);
+    const left = answer(false);
+    // Left in the root, the accessed card is no longer a candidate: the rest of the run does not price trashing it again
+    expect(asSide('runner', () => runRestWorth(left))).toBeCloseTo(asSide('runner', () => runRestWorth(answer(true))), 6);
+  });
+  it('the Drone prompt (report-54 move 145) comes before the breach: no card is left out there', () => {
+    const s = JSON.parse(readFileSync(new URL('./fixtures/report-54-drone.json', import.meta.url), 'utf8')) as GameState;
+    // Breach abilities resolve before the breach begins (6.9.5b, 7.3.5b): the pin above ("use") reads the whole server
+    expect(s.activeRun!.breached).toBe(false);
+    expect(s.activeRun!.breach).toBeUndefined();
+  });
+});
+
 describe('break plans keep counters out of credits (AI-RUNNER-NONCREDIT-BREAK-COST)', () => {
   it('BreakPlan.credits is real credits; counters and discards are value', () => {
     const s = newGame();
