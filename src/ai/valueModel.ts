@@ -204,9 +204,13 @@ export function flatlineWorth(state: GameState): number {
   return pointValue(7) - pointValue(state.corp.score) + pointValue(state.runner.score);
 }
 
-/** evaluate's points term for the Corp (sideStrength: the Corp's points less the Runner's). */
+/**
+ * evaluate's points term for the Corp viewer: the Corp's points (scaled by KNOBS.corpPoints, as sideStrength's
+ * `pointValue(corp.score, viewer === 'corp' ? KNOBS.corpPoints : 1)`, evaluate.ts:680) less the Runner's
+ * (`pointValue(runner.score)`, evaluate.ts:692).
+ */
 export function pointsTerm(state: GameState): number {
-  return pointValue(state.corp.score) - pointValue(state.runner.score);
+  return pointValue(state.corp.score, KNOBS.corpPoints) - pointValue(state.runner.score);
 }
 
 /**
@@ -219,7 +223,8 @@ export function pointsTerm(state: GameState): number {
  * Same winner, same line: same price. Read by runnerReply only.
  */
 export function sampledEndWorth(winner: SideCode, rootBoard: number): number {
-  return (winner === 'corp' ? pointValue(7) : -pointValue(7)) + rootBoard;
+  // A Corp win settles the Corp's points term (scaled by KNOBS.corpPoints, as pointsTerm), a Runner win the Runner's
+  return (winner === 'corp' ? pointValue(7, KNOBS.corpPoints) : -pointValue(7)) + rootBoard;
 }
 
 /** Worth of the first card over the hand-size limit (Jeff: you pick the worst card to discard). */
