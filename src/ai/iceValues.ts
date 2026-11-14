@@ -252,6 +252,8 @@ export const flatIceWorth = (ice: CardInstance): number =>
 
 const ICE_TYPES = ['barrier', 'code gate', 'sentry'] as const;
 const deckShares = new Map<string, Record<string, number>>();
+/** Empties deckIceShare's map (test-only: scripts/cache-bisect.ts). */
+export const clearDeckShares = (): void => deckShares.clear();
 
 /**
  * Share of each ice type in the Corp's decklist (public, so the Normal AI

@@ -6,7 +6,7 @@ import { breakerTypeWorth, iceWorth } from './iceValues';
 import { agendaWorth, isOneUse, runnerRigValue } from './evaluate';
 import { counterWorth } from './counterValues';
 import { handPlanWorth } from './cardPlans';
-import { CLICK, RATES, cardRate, fingerprint, handFilter, payoutSlide, pricingApart, positionSerial, printedGain, reachCard, setDeckCard } from './valueModel';
+import { CLICK, RATES, cardRate, fingerprint, handFilter, payoutSlide, pricingApart, positionSerial, printedGain, reachCard, scopeToGame, setDeckCard } from './valueModel';
 import { leafHandByCard, noteDecision, plan, pricing, pricingKey, withPricing } from './pricing';
 import { corpDrawPool, corpKnowsRd } from './oracle';
 
@@ -133,6 +133,18 @@ export function unseenInHand(state: GameState, side: SideCode): CardInstance[] {
 }
 
 const deckAverage = new Map<string, number>();
+/**
+ * On-hit audits of handValues' maps (test-only: tests/handCacheAudit.test.ts, scripts/cache-bisect.ts): with `on`, every
+ * value served from the map is worked out again on the asking board and compared; a mismatch is a hit the key let
+ * through for another board.
+ */
+export const drawAudit = { on: false, checked: 0, mismatches: 0, errors: [] as number[] };
+export const clickAudit = { on: false, checked: 0, mismatches: 0, errors: [] as number[] };
+/** Empties handValues' maps (test-only: scripts/cache-bisect.ts). */
+export function clearHandCaches(): void {
+  deckAverage.clear();
+  clickCache.clear();
+}
 
 /**
  * Whether drawWorth on this board takes the decision root's prices (rootDeckAverage): the Corp's own deck, in the
@@ -173,11 +185,27 @@ function drawWorth(state: GameState, side: SideCode): number {
   // differently from the one in memory (tests/savedGame.test.ts)
   const board = `${fingerprint(state)}:`;
   const key = `${pricingKey()}:${side}:${state.id}:${state.turnNumber}:${credits}${board}${deck.map(c => c.instanceId).join(',')}`;
+  // Audit Step 2 (AI-CACHE-HIDDEN-STATE): the key leaves out what R&D, Archives, the grip and the heap hold, the counters
+  // and hosts of installed cards and the run under way (fingerprint has the zones by size only), so some hits are another
+  // board's value (about 6%: drawAudit, tests/handCacheAudit.test.ts). An exact key cost the Corp about +50% decision time
+  // (more misses, each repricing the Runner's whole stack), so the map is kept to one game: which wrong value is served
+  // then depends on this game's own calls only, never on the games played before in the process (batch shards: 218 of 221).
+  // Known debt, closed by pricing the Runner's stack once per decision (Step 4/5 list).
+  scopeToGame(deckAverage, state);
   const cached = deckAverage.get(key);
-  if (cached !== undefined) return cached;
+  if (cached !== undefined && !drawAudit.on) return cached;
   // While the average is worked out, a card's worth that needs the average card (cardRate) gets the flat rate:
   // the deck's average card can't depend on itself (a value loop otherwise, valueModel.ts guardLoop)
   const value = withPricing({ averaging: true }, () => (deck.length ? deck.reduce((n, c) => n + heldWorth(state, c, side), 0) / deck.length : RATES.drawnCard));
+  if (cached !== undefined) {
+    // The audit (test-only): a value served from the map, worked out again on the asking board
+    drawAudit.checked++;
+    if (value !== cached) {
+      drawAudit.mismatches++;
+      drawAudit.errors.push(Math.abs(value - cached));
+    }
+    return cached;
+  }
   if (deckAverage.size > 500) deckAverage.clear();
   deckAverage.set(key, value);
   return value;
@@ -278,8 +306,11 @@ export function clickWorth(state: GameState, side: SideCode): number {
   const player = side === 'corp' ? state.corp : state.runner;
   const clicks = Math.max(1, player.clicks);
   const key = `${pricingKey()}:${side}:${state.id}:${state.turnNumber}:${player.clicks}:${player.credits}:${(side === 'corp' ? state.corp.hq : state.runner.grip).map(c => c.instanceId).join(',')}`;
+  // Audit Step 2: the key leaves out the board (each hand card's played worth and the deck's average read it), so some
+  // hits are another board's value (about 17%: clickAudit); kept to one game, as drawWorth's map (above)
+  scopeToGame(clickCache, state);
   const cached = clickCache.get(key);
-  if (cached !== undefined) return cached;
+  if (cached !== undefined && !clickAudit.on) return cached;
   const hand = side === 'corp' ? state.corp.hq : state.runner.grip;
   const credits = player.credits;
   const plays = hand
@@ -292,6 +323,14 @@ export function clickWorth(state: GameState, side: SideCode): number {
   let total = 0;
   for (let i = 0; i < clicks; i++) total += Math.max(repeatable, plays[i] ?? 0);
   const value = Math.max(1, Math.min(3, total / clicks));
+  if (cached !== undefined) {
+    clickAudit.checked++;
+    if (value !== cached) {
+      clickAudit.mismatches++;
+      clickAudit.errors.push(Math.abs(value - cached));
+    }
+    return cached;
+  }
   if (clickCache.size > 2000) clickCache.clear();
   clickCache.set(key, value);
   return value;
