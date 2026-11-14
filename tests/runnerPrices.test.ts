@@ -9,7 +9,8 @@ import { createAgent } from '../src/ai';
 import { BLOCK, bestBreakPlan, breachAccesses, icePrice, runRestWorth, runScore, serverValue, subroutineCost } from '../src/ai/runs';
 import { damageWorth } from '../src/ai/effectValues';
 import { CLICK, cardRate } from '../src/ai/valueModel';
-import { scoreOutcome } from '../src/ai/prompts';
+import { scoreOutcome, simulate } from '../src/ai/prompts';
+import { runnerDecisionView } from '../src/ai/turnPlanner';
 import { asSide } from '../src/ai/synergy';
 import { installIceForTest, installProgramForTest, newGame, startRunnerTurn } from './helpers';
 
@@ -215,5 +216,26 @@ describe('break plans keep counters out of credits (AI-RUNNER-NONCREDIT-BREAK-CO
     const plan = bestBreakPlan(s, s.corp.servers.hq.ice[0], 1)!;
     expect(plan.value).toBe(0);
     expect(plan.credits).toBeGreaterThan(0);
+  });
+});
+
+describe("prompts answered from the Runner's own view (rule 10.2.2a)", () => {
+  // Jeff's game #22 (report-22, move 216): "Amanuensis: remove 1 power counter to draw 2 cards?"
+  const amanuensis = () => JSON.parse(readFileSync(new URL('./fixtures/report-22-amanuensis.json', import.meta.url), 'utf8')) as GameState;
+  it('an answer that draws scores the same with the stack reversed', () => {
+    const s = amanuensis();
+    const prompt = activePrompt(s)!;
+    expect(prompt.message).toMatch(/^Amanuensis/);
+    const draw = { type: 'RESOLVE_PROMPT', player: 'runner', promptId: prompt.id, choice: { kind: 'effect_choice', optionId: 'yes' } } as GameAction;
+    const reversed = { ...s, runner: { ...s.runner, stack: [...s.runner.stack].reverse() } };
+    asSide('runner', () => {
+      const score = (x: GameState) => scoreOutcome(x, simulate(x, draw), 'runner');
+      // On the real state the score reads the real next cards (the hole); the Runner's view deals the stack itself
+      expect(score(s)).not.toBeCloseTo(score(reversed), 6);
+      expect(score(runnerDecisionView(s))).toBeCloseTo(score(runnerDecisionView(reversed)), 9);
+    });
+    // The AI's answer is the same whichever way the stack lies
+    const pick = (x: GameState) => createAgent('runner').chooseAction(structuredClone(x));
+    expect(pick(reversed)).toEqual(pick(s));
   });
 });

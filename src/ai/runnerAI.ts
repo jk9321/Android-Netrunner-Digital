@@ -73,7 +73,7 @@ export class HeuristicRunnerAI implements Agent {
   private decide(state: GameState): GameAction {
     decisionContext(state, 'runner');
     this.remember(state);
-    if (activePrompt(state)) return answerPrompt(state, 'runner', this.memory, this.synergy);
+    if (activePrompt(state)) return this.promptAnswer(state);
     const legal = getLegalActions(state, 'runner');
     if (state.activeRun) return this.runAction(state, legal) ?? legal[0];
     return this.mainAction(state, legal);
@@ -263,6 +263,22 @@ export class HeuristicRunnerAI implements Agent {
    */
   private ownView(state: GameState): GameState {
     return this.planner ? runnerDecisionView(state) : state;
+  }
+
+  /**
+   * A prompt answered from the Runner's own view (rule 10.2.2a; ai-runner-fixes, AI Coordinator 2026-11-14): an answer
+   * that draws (LilyPAD, Read-Write Share) is scored on the guessed stack, not the real next cards. A prompt that shows
+   * stack cards (a search, the top card revealed) is answered on the real state, since the Runner sees those cards; so is
+   * any answer the guess makes that is not legal on the real state.
+   */
+  private promptAnswer(state: GameState): GameAction {
+    const real = () => answerPrompt(state, 'runner', this.memory, this.synergy);
+    const view = this.ownView(state);
+    if (view === state) return real();
+    const shown = JSON.stringify(activePrompt(state));
+    if (state.runner.stack.some(c => shown.includes(`"${c.instanceId}"`))) return real();
+    const answer = answerPrompt(view, 'runner', this.memory, this.synergy);
+    return isLegalAction(state, answer) ? answer : real();
   }
 
   private scoreMain(state: GameState, action: GameAction, before: number, view: GameState = state): number {
