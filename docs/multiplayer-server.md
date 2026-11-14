@@ -105,16 +105,11 @@ The room's attachment never reaches the browser: the site Worker asks the game W
 
 ## Cloudflare setup (once)
 
-See the hand-off for the steps sent to Jeff. In short: two new Workers from the same repository, each with its own deploy command (`-c wrangler.games.jsonc` / `-c wrangler.games.staging.jsonc`), production branch `main` / `beta`, no builds for other branches. The site's bindings go in only after the Workers exist, because the site's deploy needs them.
-
-**Production branches, in order** (both Workers were first set to build from `mp-server`, 2026-11-10):
-
-1. After `mp-server` merges to `beta`: set both `netrunner-games-staging` and `netrunner-games` to build from `beta`. Not `main` yet: `main` has no `wrangler.games.jsonc` until beta merges to main, so every push to main would fail the build.
-2. As part of the beta -> main merge: set `netrunner-games` to build from `main`. Staging stays on `beta`.
+Since 2026-11-14 GitHub Actions deploys both game Workers (`.github/workflows/deploy.yml`, after CI passes); Cloudflare's own Workers Builds are off for them and for the site. A push to `beta` deploys `netrunner-games-staging` (`-c wrangler.games.staging.jsonc`) and, while `main` has no `wrangler.games.jsonc`, `netrunner-games` too. Once beta merges to main, `main` deploys `netrunner-games` and beta stops doing so by itself: nothing to switch in the dashboard. The game Workers deploy before the site, because the site's deploy needs them.
 
 Cloudflare shows the game Workers a note asking to update the name in `wrangler.jsonc`: it reads the root file and ignores `-c`. Ignore it, and never merge an automatic PR that renames `wrangler.jsonc` (that is the site's Worker).
 
-`BUILD_ID`: the deploy command passes the commit (`--var BUILD_ID:$WORKERS_CI_COMMIT_SHA`); without it the build id is `dev`. The browser compares `protocol`, not the build (branch previews talk to staging built from beta), to ask for a refresh.
+`BUILD_ID`: the deploy step passes the commit (`--var BUILD_ID:<sha>`); without it the build id is `dev`. The browser compares `protocol`, not the build (branch previews talk to staging built from beta), to ask for a refresh.
 
 ## The browser side (chunk 2c)
 
