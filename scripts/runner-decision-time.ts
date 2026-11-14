@@ -17,7 +17,7 @@ const [dealsArg, fromArg] = process.argv.slice(2).filter(a => a !== '--');
 const deals = Number(dealsArg ?? 8);
 const from = Number(fromArg ?? 0);
 if (process.env.REAL_STACK) sideOff.runner.push('hiddenDraws');
-const t = { ms: 0, decisions: 0, planned: 0, turns: 0 };
+const t = { ms: 0, decisions: 0, planned: 0, turns: 0, max: 0, gameMs: 0 };
 // Runner planner decisions (a line kept from the last plan is not one)
 installDiagnostics().onCandidates = side => {
   if (side === 'runner') t.planned++;
@@ -27,7 +27,9 @@ function timed(agent: Agent): Agent {
   agent.chooseAction = (s: GameState) => {
     const start = performance.now();
     const a = choose(s);
-    t.ms += performance.now() - start;
+    const d = performance.now() - start;
+    t.ms += d;
+    t.max = Math.max(t.max, d);
     t.decisions++;
     return a;
   };
@@ -40,8 +42,10 @@ for (let k = from; k < from + deals; k++) {
   const pairing = (seed - 1001) / 10;
   const c = corp[Math.floor(pairing / runner.length) % corp.length];
   const r = runner[pairing % runner.length];
+  const g0 = performance.now();
   const gr = new GameRunner(createInitialGameState(deckGameSetup(seed, c, r)), { corp: createAgent('corp'), runner: timed(createAgent('runner')) });
   for (let i = 0; i < 6000 && !gr.state.winner && gr.state.turnNumber <= 80; i++) if (!gr.step()) break;
   t.turns += gr.state.turnNumber;
+  t.gameMs += performance.now() - g0;
 }
-console.log(JSON.stringify({ realStack: !!process.env.REAL_STACK, deals, decisions: t.decisions, planned: t.planned, turns: t.turns, msPerDecision: +(t.ms / Math.max(1, t.decisions)).toFixed(2) }));
+console.log(JSON.stringify({ realStack: !!process.env.REAL_STACK, deals, decisions: t.decisions, planned: t.planned, turns: t.turns, msPerDecision: +(t.ms / Math.max(1, t.decisions)).toFixed(2), runnerMs: Math.round(t.ms), maxMs: Math.round(t.max), gameMs: Math.round(t.gameMs) }));
