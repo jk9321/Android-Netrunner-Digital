@@ -107,7 +107,7 @@ export const plannerOn = (side: SideCode): boolean => !!plan().turnPlanner?.[sid
 export const currentDecisionSeed = (): number | null => pricing().decisionSeed;
 
 /** A piece of the widened search (structural review item 4), on only with plan.plannerSearch. */
-export const searchPiece = (piece: 'plannerSeed' | 'plannerBuild' | 'plannerDiscard' | 'plannerPatchesOff'): boolean => !!plan().plannerSearch && plan()[piece] !== false;
+export const searchPiece = (piece: 'plannerSeed' | 'plannerBuild' | 'plannerDiscard'): boolean => !!plan().plannerSearch && plan()[piece] !== false;
 
 const clicksOf = (state: GameState, side: SideCode) => (side === 'corp' ? state.corp.clicks : state.runner.clicks);
 
@@ -135,8 +135,6 @@ const sharedPlan: Record<SideCode, PlanMemory> = { corp: { line: [] }, runner: {
  */
 function dominated(state: GameState, action: GameAction, ranked: ScoredAction[], side: SideCode): boolean {
   if (action.type !== 'GAIN_CREDIT') return false;
-  // plan.plannerSearch plannerPatchesOff (item 4): the search decides between the click and the money card
-  if (searchPiece('plannerPatchesOff')) return false;
   // plan.oneCurrency: the Corp's ranking and the planner's leaf price the click the same way, so no override (item 1)
   if (side === 'corp' && plan().oneCurrency) return false;
   return ranked.some(r => {

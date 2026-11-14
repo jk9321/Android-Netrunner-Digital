@@ -132,7 +132,7 @@ describe('plannerBuild in self-play positions (the ice-then-install build, item 
   // and Urtica Cipher in HQ) where Palisade into a new remote ranked 8th, outside the planner's top 4. With plannerBuild
   // the Corp builds the remote and installs Send a Message behind it; without it, it ices remote-1 and advances there.
   const turn = (file: string) => {
-    tuning.plan = { ...tuning.plan, plannerSearch: true, plannerSeed: false, plannerDiscard: false, plannerPatchesOff: false };
+    tuning.plan = { ...tuning.plan, plannerSearch: true, plannerSeed: false, plannerDiscard: false };
     let s: GameState = JSON.parse(readFileSync(new URL(`./fixtures/${file}`, import.meta.url), 'utf8'));
     const corp = new HeuristicCorpAI();
     for (let i = 0; i < 12 && s.activePlayer === 'corp' && s.corp.clicks > 0 && !s.winner; i++) s = executeAction(s, corp.chooseAction(s));
@@ -154,16 +154,4 @@ describe('plannerBuild in self-play positions (the ice-then-install build, item 
       expect(agendasBehindIce(after) === agendasBehindIce(before) + 1 || (nearlyScored(after) && !nearlyScored(before))).toBe(true);
     }, 60_000);
   }
-});
-
-describe('plannerPatchesOff reaches only the planning Corp (review 1 of item 4)', () => {
-  it('a planner-off Corp (the reply, Hard, probes) keeps the Petty Cash patch; the planner and its rollout drop it', () => {
-    tuning.plan = { ...tuning.plan, plannerSearch: true, plannerPatchesOff: true };
-    const patches = (ai: HeuristicCorpAI) => (ai as unknown as { patches: boolean }).patches;
-    expect(patches(new HeuristicCorpAI({ planner: false }))).toBe(true);
-    expect(patches(new HeuristicCorpAI({ planner: false, searching: true }))).toBe(false);
-    expect(patches(new HeuristicCorpAI())).toBe(false);
-    tuning.plan = { ...tuning.plan, plannerPatchesOff: false };
-    expect(patches(new HeuristicCorpAI())).toBe(true);
-  });
 });

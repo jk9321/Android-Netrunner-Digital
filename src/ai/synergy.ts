@@ -278,18 +278,17 @@ export const tuning = {
      * plannerDiscard: a playout that ends the turn over its maximum hand size plays the discard step through the engine
      * with the AI's own discard answer before the leaf (rules 5.6.3a Corp, 5.7.2a Runner). It matters for the Runner's
      * planner (and a threat leaf): the Corp's played-out reply already starts with the Corp ending its turn and discarding.
-     * plannerPatchesOff: the ordering patches (pettyCashFirst, tagFirst, dominated) off for the planning side.
      *
      * Batches (2026-11-07, paired vs beta 706ec36, 36.7%, 2,210 games; docs/ai-batch-log.md): seed +1.9 ± 1.3, build
      * +1.6 ± 1.0 (stuck in HQ -3.5 ± 1.0), discard -0.3 ± 0.8, the three together +0.6 ± 1.3 (stuck in HQ -2.0). With
-     * patches off as well (1ddd282) +0.3 ± 1.3, broke -4.2, stuck in HQ -2.1, but "tag not used" +2.3 ± 1.1: dropping
-     * tagFirst costs the trash-the-tagged-resource play it was written for, so the patches stay on for now (item 6).
+     * patches off as well (plannerPatchesOff, 1ddd282; deleted in audit Step 3) +0.3 ± 1.3, broke -4.2, stuck in HQ
+     * -2.1, but "tag not used" +2.3 ± 1.1: dropping tagFirst costs the trash-the-tagged-resource play it was written for,
+     * so the patches stay on (item 6).
      */
     plannerSearch: true,
     plannerSeed: true,
     plannerBuild: true,
     plannerDiscard: true,
-    plannerPatchesOff: false,
     /**
      * Tuning pass 1, part A (parked code audit items 7-9 and the decking/ice-grip experiments, rebased onto beta 5a17a31).
      * oneRezMoney: Corp rez money counted once in plays scored by the board (corpAI playScore: only the agenda-money rule
@@ -554,6 +553,8 @@ export const FOLDED: readonly string[] = [
 export const DELETED: readonly string[] = [
   // C1, the threat-leaf family (item 3 rounds 2-3, 2026-11-07)
   'threatLeaf', 'threatSpend', 'calibratedRun', 'measuredPass',
+  // C2, the planner search's ordering patches off (item 4, 2026-11-07)
+  'plannerPatchesOff',
 ];
 
 /** Throws on a name that isn't a plan switch (a typo, a switch folded into the code, or one deleted). */
