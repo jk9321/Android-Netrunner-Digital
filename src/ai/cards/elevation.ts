@@ -93,8 +93,16 @@ function proprionegationAgenda(state: GameState): number {
   return PACE.remoteShare * (pointValue(state.runner.score + typical) - pointValue(state.runner.score)) * 0.5;
 }
 
-/** Devadatta Drone: one more card on an R&D breach. */
-const devadattaPower = (state: GameState): number => PAYOUT_RISK.clickWait * accessWorth(state);
+/**
+ * Devadatta Drone: one more card on an R&D breach. A counter pays only on a later R&D breach, so it is worth the access
+ * at the pace the Runner breaches R&D (PACE: runs a turn, the share on R&D, the share that succeed) over the turns left,
+ * at most one access (Runner audit RUNNER-BREACH-EXTRA-ACCESS, Jeff's game #54: priced as an access next turn, a counter
+ * was worth more than the access it buys at the breach, so the Drone was never used).
+ */
+const devadattaPower = (state: GameState): number => {
+  const access = accessWorth(state);
+  return Math.min(access, perTurn(state, PACE.runs * PACE.rdShare * PACE.success * access, 'runner'));
+};
 
 /** Cacophony: 2 counters sabotage 3, the Corp picking its worst cards. */
 const cacophonyPower = (state: GameState): number => (3 * 0.5 * cardRate(state, 'corp')) / 2;
