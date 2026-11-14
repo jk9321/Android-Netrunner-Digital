@@ -1243,6 +1243,11 @@ const cupellation: CardScript = {
   },
   onPromptAnswer: ({ state, card }, _source, answer) => {
     if (!said(answer) || !state.activeRun || !isInstalled(state, card)) return;
+    // Two copies both ask on the same breach; the second may no longer be affordable: no cost paid, no effect (rules 1.16.1)
+    if (availableCredits(state, 'runner') < 1) {
+      addLog(state, 'runner', 'Cupellation: the Runner cannot pay 1 [credit] now.');
+      return;
+    }
     spendCredits(state, 'runner', 1);
     trashInstalledRunnerCard(state, card);
     state.activeRun.extraAccesses += 2;

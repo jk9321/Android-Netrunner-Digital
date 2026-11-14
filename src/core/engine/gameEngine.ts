@@ -14,9 +14,9 @@ import { bumpTurnFlag, fireSettled, syncDerivedStats, TurnFlag, whenSettled } fr
 import { findCardAnywhere, forgetHiddenCards, updateHandKnowledge } from './helpers';
 import { updateRdKnowledge } from './rdKnowledge';
 import { getCardScript } from '../scripts';
-import { removeEmptyRemotes } from './checkpoint';
 import { canRezIn, canScoreIn, currentStep, declareIntent, isActionStep, isRunStep, normalizePriority, onWindowClose, passPriority, priorityHolder, usedOption } from './priority';
 import { sideName } from './prompts';
+import { removeEmptyRemotes, trashOverMemoryLimit } from './checkpoint';
 
 export { addLog } from './log';
 
@@ -120,6 +120,7 @@ export function executeAction(prevState: GameState, action: GameAction): GameSta
   normalizePriority(state);
   if (state.winner) endGame(state);
   removeEmptyRemotes(state);
+  trashOverMemoryLimit(state);
   forgetHiddenCards(state);
   updateRdKnowledge(prevState, state);
   updateHandKnowledge(prevState, state);

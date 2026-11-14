@@ -192,7 +192,8 @@ export function checkInvariants(state: GameState, prev: GameState | null, ids: S
     const realRun = run && !run.accessOnly;
     check(!!realRun === (state.phase === 'run') || (!!run && run.accessOnly), 'run-phase-matches', '6.1.1', () => `phase ${state.phase} with ${run ? `a run on ${run.server}` : 'no run'}`);
     if (run) {
-      check(state.activePlayer === 'runner', 'run-on-runner-turn', '5.2.7, 6.1.1', () => `a run on ${run.server} during the Corp's turn`);
+      // Not for a breach outside a run: Detente's "Any player can use this ability" lets the Corp give the Runner an HQ access on the Corp's turn
+      check(state.activePlayer === 'runner' || run.accessOnly, 'run-on-runner-turn', '5.2.7, 6.1.1', () => `a run on ${run.server} during the Corp's turn`);
       check(!!state.corp.servers[run.server] || run.isSuccessful, 'run-server-exists', '6.1.2, 4.6.8e', () => `the run's server ${run.server} no longer exists`);
       const server = state.corp.servers[run.server];
       if (server && run.icePosition !== null && settled) {

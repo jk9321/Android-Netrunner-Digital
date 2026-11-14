@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { FUZZ_CORPS, FUZZ_RUNNERS, checkInvariants, cardsByZone, fuzzEngineGame, pairing, summaryLine } from '../scripts/engine-fuzz-check';
+import { FUZZ_CORPS, FUZZ_DECKS, FUZZ_RUNNERS, checkInvariants, cardsByZone, fuzzEngineGame, pairing, summaryLine } from '../scripts/engine-fuzz-check';
 import { executeAction } from '../src/core';
 import { newGame } from './helpers';
 
@@ -36,6 +36,25 @@ describe('Engine fuzzer (tier 1, fixed seeds)', () => {
     const c = fuzzEngineGame(77, corp, runner, { maxSteps: 150, actions: a.actions });
     expect(c.steps).toBe(a.steps);
   });
+});
+
+// Seeds the deep run (Actions run 43567426403, beta 92f5c96) failed on, one per kind: memory over the limit (3.9.3c),
+// a sabotage with no legal answer (10.12.3b), Tucana offering a new remote under A Teia (1.2.2), Detente's access on the
+// Corp's turn (a legal state the check flagged), two Cupellations paid with 1 credit (1.16.1)
+const DEEP_SEEDS: [number, string, string][] = [
+  [1000072681, 'hb-precision-design', 'nrdb-rising-tide'],
+  [1000074432, 'nrdb-wage-working', 'core-bowel-movements'],
+  [1000024823, 'lib-a-teia-startup', 'vp-sourdough-starter'],
+  [1000003900, 'vp-zwift-deth', 'core-dashing-mad'],
+  [1000022624, 'lib-built-to-launch', 'lib-trick-shot-zahya'],
+];
+
+describe('Engine fuzzer, seeds the deep run failed on', () => {
+  it.each(DEEP_SEEDS)('seed %i, %s vs %s', (seed, corp, runner) => {
+    const deck = (id: string) => FUZZ_DECKS.find(d => d.id === id)!;
+    const res = fuzzEngineGame(seed, deck(corp), deck(runner), { maxSteps: 500 });
+    expect(res.failures.length ? summaryLine(res) : '').toBe('');
+  }, 30_000);
 });
 
 // The checks must be able to fail: break a copy of a real state and each one fires.

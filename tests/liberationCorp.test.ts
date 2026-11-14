@@ -653,6 +653,23 @@ describe('The Automata Initiative: Weyland and neutral', () => {
     expect(card(s, pal.instanceId).isRezzed).toBe(true);
   });
 
+  // A Teia: "Limit 2 remote servers." Rules 1.2.2: the "cannot" holds even when Tucana ignores install costs, so with
+  // two remotes Tucana offers no new remote (an offer the engine then refused: no legal answer, deep fuzz seed 1000024823)
+  it('Tucana under A Teia with 2 remote servers does not offer a new remote', () => {
+    let s = newGame();
+    setIdentity(s, 'corp', L.aTeia);
+    const pal = createCardInstance(s, SG.palisade);
+    s.corp.rd.push(pal);
+    installCorpForTest(s, L.tucana, 'remote-score', true);
+    installCorpForTest(s, SG.nico, 'remote-2');
+    s.corp.credits = 0;
+    s = scoreForTest(s, SG.offworld);
+    s = pick(s, [pal.instanceId]);
+    const p = prompt(s);
+    expect(p.kind === 'effect_choice' && p.options.map(o => o.id)).not.toContain('new');
+    expect(p.kind === 'effect_choice' && p.options.length).toBeGreaterThan(0);
+  });
+
   it('B-1001 removes a tag to end a run on another server', () => {
     let s = newGame();
     const b = installCorpForTest(s, L.b1001, 'remote-1', true);
