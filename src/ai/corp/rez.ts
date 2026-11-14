@@ -55,9 +55,9 @@ export function countedRez(state: GameState, ice: CardInstance): 'rez' | 'pass' 
   if (runBypassed(view, up)) return rezEffectOf(cardDef(ice).code) ? null : 'pass';
   const need = iceCreditNeed(view, up);
   if (need === 0) return null;
-  const ahead = server.ice.slice(0, run.icePosition).filter(c => c.isRezzed).reduce((n, c) => n + iceCreditNeed(view, c), 0);
-  // The ice ahead stops the Runner already: this rez adds nothing the run needs
-  if (ahead === BLOCK || ahead > state.runner.credits) return null;
+  // The rezzed ice further in stops the Runner already (the hold owner, nothing more rezzed): this rez adds nothing the
+  // run needs. Stage B2 replaced countedRez's own sum over iceCreditNeed (stage-b/b2-rez-log.md section 3)
+  if (serverHold(state, run.server, { when: 'thisRun', mustRez: [], further: false }).holds) return null;
   // The one stop count (rezStops), here with no further rezzes: this ice and the rezzed ice further in
   const stops = rezStops(state, ice, false);
   const isAgenda = (c: CardInstance) => cardDef(c).type_code === 'agenda';
