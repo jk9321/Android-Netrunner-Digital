@@ -14,7 +14,7 @@ import { bumpTurnFlag, syncDerivedStats, TurnFlag } from './cardEffects';
 import { findCardAnywhere, forgetHiddenCards, updateHandKnowledge } from './helpers';
 import { updateRdKnowledge } from './rdKnowledge';
 import { getCardScript } from '../scripts';
-import { removeEmptyRemotes } from './checkpoint';
+import { removeEmptyRemotes, trashOverMemoryLimit } from './checkpoint';
 
 export { addLog } from './log';
 
@@ -77,6 +77,7 @@ export function executeAction(prevState: GameState, action: GameAction): GameSta
   handler(state, action);
   if (state.winner) endGame(state);
   removeEmptyRemotes(state);
+  trashOverMemoryLimit(state);
   forgetHiddenCards(state);
   updateRdKnowledge(prevState, state);
   updateHandKnowledge(prevState, state);

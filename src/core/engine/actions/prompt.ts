@@ -14,6 +14,7 @@ import { chooseBreachCandidate, continueAccess, finishAccess, resolveStealCost, 
 import { availableCredits, spendCredits } from '../cardEffects';
 import { resumeEncounter, resumeOnEncounter } from '../ice';
 import { fireTrigger } from '../triggers';
+import { answerMemoryLimit, MEMORY_LIMIT_STEP } from '../checkpoint';
 
 export function resolvePrompt(state: GameState, action: ResolvePromptAction): void {
   answerPrompt(state, action);
@@ -147,6 +148,8 @@ function runScriptAnswer(
   source: EffectSource,
   answer: Extract<PromptChoice, { kind: 'effect_choice' | 'effect_cards' }>
 ): void {
+  // Trashing programs over the memory limit (rules 3.9.3c, 10.3.1e) is the game's, not a card's
+  if (source.step === MEMORY_LIMIT_STEP && answer.kind === 'effect_choice') return answerMemoryLimit(state, answer.optionId);
   const card = findCardAnywhere(state, source.instanceId);
   const script = getCardScript(source.cardCode);
   if (!card || !script?.onPromptAnswer) illegal('The effect waiting on this prompt is gone');

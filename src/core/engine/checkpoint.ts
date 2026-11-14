@@ -1,4 +1,10 @@
+import { CardInstance } from '../types/card';
 import { GameState } from '../types/state';
+import { cardDef } from '../cards';
+import { memoryLimit } from './cardEffects';
+import { trashInstalledRunnerCard } from './damage';
+import { illegal } from './helpers';
+import { pushPrompt } from './prompts';
 import { addLog } from './log';
 import { endRun } from './runEnd';
 
@@ -29,4 +35,62 @@ export function removeEmptyRemotes(state: GameState): void {
     addLog(state, 'corp', `${server.name} no longer exists.`);
     delete state.corp.servers[server.id];
   }
+}
+
+/** Step of the prompt below; prompt.ts resolves it (no card script owns it). */
+export const MEMORY_LIMIT_STEP = 'memory-limit';
+
+/**
+ * Over the memory limit for a reason other than an install (a console or MU hardware trashed, Botulus...), the Runner
+ * trashes programs at the next checkpoint until the rest fit (rules 3.9.3c, 10.3.1e). Only an "appropriate set" is
+ * trashed: one that fits and from which no program could be left out. With several such sets the Runner chooses one;
+ * with one it is trashed. Like the server check, this waits while a decision is pending.
+ */
+export function trashOverMemoryLimit(state: GameState): void {
+  if (state.pendingPrompts.length > 0) return;
+  const over = state.runner.memoryUnitsUsed - memoryLimit(state);
+  if (over <= 0) return;
+  const programs = state.runner.rig.programs.filter(c => (cardDef(c).memory_cost ?? 0) > 0);
+  const sets = appropriateSets(programs, over);
+  if (sets.length === 0) return;
+  if (sets.length === 1) {
+    trashForMemory(state, sets[0]);
+    return;
+  }
+  const first = sets[0][0];
+  pushPrompt(state, {
+    kind: 'effect_choice',
+    side: 'runner',
+    message: `Over your memory limit by ${over} MU: choose programs to trash (rules 3.9.3c).`,
+    options: sets.map(set => ({ id: set.map(c => c.instanceId).join(','), label: `Trash ${set.map(c => cardDef(c).title).join(', ')}` })),
+    source: { cardCode: first.cardCode, instanceId: first.instanceId, step: MEMORY_LIMIT_STEP },
+  });
+}
+
+/** The minimal sets of programs whose memory cost covers `over`. */
+function appropriateSets(programs: CardInstance[], over: number): CardInstance[][] {
+  const mu = (c: CardInstance) => cardDef(c).memory_cost ?? 0;
+  const list = programs.slice(0, 12);
+  const sets: CardInstance[][] = [];
+  for (let mask = 1; mask < 1 << list.length; mask++) {
+    const set = list.filter((_, i) => mask & (1 << i));
+    const total = set.reduce((n, c) => n + mu(c), 0);
+    if (total >= over && set.every(c => total - mu(c) < over)) sets.push(set);
+  }
+  return sets;
+}
+
+/** Trashes the chosen programs (the answer to the prompt above). */
+export function trashForMemory(state: GameState, set: CardInstance[]): void {
+  for (const card of set) trashInstalledRunnerCard(state, card);
+  addLog(state, 'runner', `Over the memory limit: the Runner trashed ${set.map(c => cardDef(c).title).join(', ')}.`);
+}
+
+/** Resolves the Runner's choice of set; any option still offered must still be an appropriate set. */
+export function answerMemoryLimit(state: GameState, optionId: string): void {
+  const over = state.runner.memoryUnitsUsed - memoryLimit(state);
+  const sets = appropriateSets(state.runner.rig.programs.filter(c => (cardDef(c).memory_cost ?? 0) > 0), over);
+  const set = sets.find(s => s.map(c => c.instanceId).join(',') === optionId);
+  if (!set) illegal('Choose one of the sets of programs offered');
+  trashForMemory(state, set);
 }
