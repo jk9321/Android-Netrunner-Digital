@@ -10,14 +10,19 @@ import { plannerStats } from '../src/ai/turnPlanner';
 
 /**
  * Audit Step 1 (spec-step1-terminal-price.md, bars/terminal-price.md): a game end inside a SAMPLED Runner reply is one deal of
- * hidden cards, priced on the point clock (winner 7, loser 0; 1.7.2a-c) from the reply root's board, not evaluate's ±1000.
+ * hidden cards, priced on the point clock (winner 7, the loser forfeits the rest of its game; 1.7.2a-c) from the reply root's board, not evaluate's ±1000.
  */
-describe('sampledEndWorth: winner 7, loser 0 on the points term, from the reply root\'s board', () => {
-  it('is ±pointValue(7) on top of the root board, whatever the board the game ended on', () => {
+describe('sampledEndWorth: the winner\'s 7, the loser forfeits the rest of its game, from the reply root\'s board', () => {
+  const withScores = (corp: number, runner: number) => ({ corp: { score: corp }, runner: { score: runner } }) as unknown as GameState;
+  it('a Runner win costs pointValue(7) plus what the Corp could still have scored, on top of the root board', () => {
     for (const board of [-40, 0, 102]) {
-      expect(sampledEndWorth('corp', board)).toBeCloseTo(board + pointValue(7));
-      expect(sampledEndWorth('runner', board)).toBeCloseTo(board - pointValue(7));
+      expect(sampledEndWorth('runner', board, withScores(2, 4))).toBeCloseTo(board - pointValue(7) - (pointValue(7) - pointValue(2)));
+      expect(sampledEndWorth('corp', board, withScores(5, 6))).toBeCloseTo(board + pointValue(7) + (pointValue(7) - pointValue(6)));
     }
+  });
+
+  it('a near loss is not cheap: the Runner one point from 7 or four points from it, the same price', () => {
+    expect(sampledEndWorth('runner', 50, withScores(3, 6))).toBeCloseTo(sampledEndWorth('runner', 50, withScores(3, 3)));
   });
 
   it('runnerReply prices a sampled end from the root, not the leaf\'s ±1000', () => {
@@ -30,8 +35,8 @@ describe('sampledEndWorth: winner 7, loser 0 on the points term, from the reply 
     tuning.plan.terminalClock = true;
     try {
       for (const credit of [0, 9]) {
-        expect(runnerReply(ended('runner', credit), true, leaf)).toBeCloseTo(rootBoard(ended('runner', credit)) - pointValue(7));
-        expect(runnerReply(ended('corp', credit), true, leaf)).toBeCloseTo(rootBoard(ended('corp', credit)) + pointValue(7));
+        expect(runnerReply(ended('runner', credit), true, leaf)).toBeCloseTo(rootBoard(ended('runner', credit)) - pointValue(7) - (pointValue(7) - pointValue(root.corp.score)));
+        expect(runnerReply(ended('corp', credit), true, leaf)).toBeCloseTo(rootBoard(ended('corp', credit)) + pointValue(7) + (pointValue(7) - pointValue(root.runner.score)));
       }
     } finally {
       tuning.plan.terminalClock = was;

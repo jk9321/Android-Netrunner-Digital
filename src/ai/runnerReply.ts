@@ -159,7 +159,7 @@ export function runnerReply(end: GameState, synergy: boolean, leaf: (state: Game
       if (settle || replyStats.onSample) rootBoard ??= leaf({ ...end, winner: null, winReason: null }) - pointsTerm(end);
       if (replyStats.onSample) replyStats.onSample({ winner: last.winner, root: rootBoard!, board: leaf({ ...last, winner: null, winReason: null }) - pointsTerm(last), old: leaf(last) });
       const value = settle
-        ? sampledEndWorth(last.winner!, rootBoard!)
+        ? sampledEndWorth(last.winner!, rootBoard!, end)
         : leaf(last) - (plan().openSteal ? openAgendaLoss(gr.state, nakedAgendas.filter(id => unrun.includes(id))) : 0);
       values.push(value);
       total += value;
