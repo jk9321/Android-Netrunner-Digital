@@ -41,8 +41,8 @@ function play(seed: number, actions: number): string[] {
 }
 
 describe('hand-value maps: kept to one game', () => {
-  // clickWorth's key (game, turn, clicks, credits, hand) leaves out the board, so a second board of the same turn is
-  // served the first one's value, unless the map was emptied at its size cap in between. Before the scoping, how full
+  // clickWorth's key (game, turn, clicks, credits, hand) used to leave out the board, so a second board of the same turn
+  // was served the first one's value, unless the map was emptied at its size cap in between. Before the scoping, how full
   // the map was from earlier games decided that: here 2,000 boards of another game fill it to its cap first.
   it("another game's entries don't change which value a hit serves", () => {
     const corpDecks = ALL_DECKS.filter(d => d.side === 'corp');
@@ -73,6 +73,29 @@ describe('hand-value maps: kept to one game', () => {
   }, 120_000);
 });
 
+describe("clickWorth's key holds the board", () => {
+  // Two boards with the same game, turn, clicks, credits and hand (the old key) but another ice installed: each is priced
+  // on its own board, whichever was asked first (tests/threatCacheAudit deal 1421 served such a stale click worth)
+  it('a second board with the same old key is priced on its own board', () => {
+    const corpDecks = ALL_DECKS.filter(d => d.side === 'corp');
+    const runnerDecks = ALL_DECKS.filter(d => d.side === 'runner');
+    const p = Math.floor((2181 - 1001) / 10);
+    const game = new GameRunner(createInitialGameState(deckGameSetup(2181, corpDecks[Math.floor(p / runnerDecks.length)], runnerDecks[p % runnerDecks.length])), { corp: createAgent('corp', 'normal'), runner: createAgent('runner', 'normal') });
+    game.step();
+    game.step();
+    const b1 = game.state;
+    const b2 = structuredClone(b1);
+    const at = b2.corp.rd.findIndex(c => cardDef(c).type_code === 'ice');
+    b2.corp.servers.hq.ice.push(...b2.corp.rd.splice(at, 1));
+    clearHandCaches();
+    const alone = clickWorth(b2, 'corp');
+    clearHandCaches();
+    const first = clickWorth(b1, 'corp');
+    expect(first).not.toBe(alone);
+    expect(clickWorth(b2, 'corp')).toBe(alone);
+  }, 120_000);
+});
+
 /** Wrong hits per map on the first `actions` actions of a deal (on-hit audits on). */
 function audit(seed: number, actions: number) {
   for (const a of Object.values(audits)) Object.assign(a, { on: true, checked: 0, mismatches: 0, errors: [] });
@@ -82,12 +105,13 @@ function audit(seed: number, actions: number) {
 }
 
 describe('hand-value maps: known wrong hits may only go down (on-hit audit)', () => {
-  // Pins measured on the branch after Step 1 (2026-11-14): 2181's first 25 actions check about 3.3k, 15.8k and 52k
-  // hits (about 6 s; this file runs in the fast checks). drawWorth has no wrong hit this early, so its pin is 0: any
+  // Pins measured on the branch after Step 1 (2026-11-14): 2181's first 25 actions checked about 3.3k, 15.8k and 52k
+  // hits (about 6 s; this file runs in the fast checks), with 1855 and 176 wrong for click and threat. With the board in
+  // clickWorth's key (ai-runner-draws): 1.6k, 11.2k and 43.6k checked, 0 and 124 wrong. drawWorth has no wrong hit this early, so its pin is 0: any
   // new wrong hit fails. The whole-deal rates are in step2-cache-findings.md; measure longer stretches with
   // scripts/cache-audit.ts. A fix that makes a key more complete lowers these: update the pin.
   const PINS: Record<number, { actions: number; click: number; draw: number; threat: number }> = {
-    2181: { actions: 25, click: 1855, draw: 0, threat: 176 },
+    2181: { actions: 25, click: 0, draw: 0, threat: 124 },
   };
   for (const [seed, pin] of Object.entries(PINS)) {
     it(`deal ${seed}, first ${pin.actions} actions`, () => {
