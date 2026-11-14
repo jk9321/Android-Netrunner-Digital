@@ -42,7 +42,7 @@ describe('ice the Runner can take is no agenda protection (plan.tankProtection)'
 describe('the Runner gets ready before taking the ice (Jeff 2026-10-31)', () => {
   it('a small grip draws up past Doomscroll’s damage instead of being walled', () => {
     const { s, doom } = board();
-    s.runner.grip.splice(1); // 1 card now: 1 net damage would flatline it
+    s.runner.grip.splice(0); // no card now: 1 net damage would flatline it (rule 10.4.4: more damage than the grip)
     expect(iceCost(s, ice(s, doom))).toBeGreaterThan(8);
     expect(protectionCost(s, ice(s, doom))).toBe(0); // it draws first, then takes it
   });
@@ -53,9 +53,9 @@ describe('the Runner gets ready before taking the ice (Jeff 2026-10-31)', () => 
     expect(protectionCost(s, ice(s, doom))).toBe(0);
   });
 
-  it('with no clicks’ worth of cards to draw, Doomscroll still walls a 1-card grip', () => {
+  it('with no clicks’ worth of cards to draw, Doomscroll still walls an empty grip', () => {
     const { s, doom } = board();
-    s.runner.grip.splice(1);
+    s.runner.grip.splice(0);
     s.runner.stack.splice(0);
     expect(protectionCost(s, ice(s, doom))).toBeGreaterThan(3);
   });
