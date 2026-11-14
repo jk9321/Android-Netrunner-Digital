@@ -38,9 +38,14 @@ const WAIT = PAYOUT_RISK.wait;
 // PAYOUT_RISK lives in its own file with no imports, so the card files can read it while this one loads
 export { PAYOUT_RISK } from './payoutRisk';
 
-/** Worth kept per turn a payout of this card waits. */
-export function payoutWait(state: GameState, profile: CardProfile, owner: 'corp' | 'runner', iced = false): number {
+/**
+ * Worth kept per turn a payout of this card waits. `left`: the card as the other side would leave it (the Runner pricing
+ * its own trash-or-leave choice, RUNNER-ASSET-TRASH): the wait only, without the chance that side trashes it, which is
+ * the choice being priced.
+ */
+export function payoutWait(state: GameState, profile: CardProfile, owner: 'corp' | 'runner', iced = false, left = false): number {
   const time = profile.every === 'click' ? PAYOUT_RISK.clickWait : 1;
+  if (left) return time;
   const risk = owner === 'corp'
     ? (iced ? PAYOUT_RISK.moneyIced : bareAssetRisk(state))
     : (state.runner.tags > 0 ? PAYOUT_RISK.runnerTagged : PAYOUT_RISK.runnerUntagged);

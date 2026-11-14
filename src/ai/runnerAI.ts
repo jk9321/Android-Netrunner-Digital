@@ -10,7 +10,7 @@ import type { HeuristicOptions } from './corpAI';
 import { asSide, logNudge, nudge, tuning } from './synergy';
 import { decisionContext } from './handValues';
 import { PlanMemory, planTurn, plannerOn, runnerDecisionView } from './turnPlanner';
-import { BOTULUS, RunnerMemory, chainReactionBonus, TRANQUILIZER, MANEGARM, bestBreakPlan, botulusBreaks, runCreditSpend, hostedTrojans, creditsAhead, iceCreditsAhead, iceCost, iceCreditNeed, needsBiggerHand, runScore, runShortfall, serverValue, spendCost, subroutineCost } from './runs';
+import { BOTULUS, RunnerMemory, chainReactionBonus, planCost, TRANQUILIZER, MANEGARM, bestBreakPlan, botulusBreaks, runCreditSpend, hostedTrojans, creditsAhead, iceCreditsAhead, iceCost, iceCreditNeed, needsBiggerHand, runScore, runShortfall, serverValue, spendCost, subroutineCost } from './runs';
 import { RATES } from './valueModel';
 import { plan } from './pricing';
 
@@ -173,7 +173,7 @@ export class HeuristicRunnerAI implements Agent {
     };
 
     const breakPlan = bestBreakPlan(state, ice, mustBreak.length);
-    if (breakPlan && breakPlan.credits <= tank + 0.5) {
+    if (breakPlan && planCost(breakPlan) <= tank + 0.5) {
       const action = tryBreaking(mustBreak);
       if (action) return action;
     }

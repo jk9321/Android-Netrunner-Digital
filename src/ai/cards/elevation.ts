@@ -296,6 +296,8 @@ export const ELEVATION: Record<string, CardAI> = {
     runner: () => 0,
     counters: { power: () => 1.2 }, // 1 more card accessed on an R&D breach
     counterFormulas: { power: devadattaPower },
+    // "Whenever you breach R&D, you may remove 1 hosted power counter to access 1 additional card" (Jeff's game #54)
+    breachAccess: { server: 'rd', counter: 'power' },
   },
   // Principia
   '35032': { synergy: { gives: { breakers: 1 }, wants: { breakers: 1 } } },
