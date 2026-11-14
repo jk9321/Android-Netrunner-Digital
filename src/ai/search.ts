@@ -1,5 +1,4 @@
 import { CardInstance, GameAction, GameState, SideCode, activePrompt, getCardDefinition, getLegalActions, isLegalAction, knownInHand } from '../core';
-import { keepsScore, scoreNowPlan, winNowAction } from './winNow';
 import { isAdvanceable } from '../core/engine/helpers';
 import { Agent } from './agent';
 import { HeuristicCorpAI } from './corpAI';
@@ -11,10 +10,8 @@ import { asSide, logNudge } from './synergy';
 import { decisionContext } from './handValues';
 import { knownRdSlots } from './runnerReply';
 import { corpKnowsRd, corpSeenGrip } from './oracle';
-// Loaded by corpAI already (its last import), so the AI modules' load order is unchanged
-import { assetPartner, centralIce, iceRedirect, scoreInTwoPick } from './countedScore';
-import { HeldLine, heldLaterStep } from './corp/lines';
-import { moneyPick } from './incomeLine';
+import { ScoredAction } from './agent';
+import { CorpMemory, corpDecide } from './corp/core';
 
 /**
  * Hard AI: Monte Carlo look-ahead on top of the rule-based AI.
@@ -190,65 +187,53 @@ export class SearchAI implements Agent {
   }
 
   chooseAction(state: GameState): GameAction {
-    return asSide(this.side, () => {
-      this.scoring = false;
-      const action = this.decide(state);
-      // A score this turn (plan.scoreNow) comes before a two-turn line
-      if (this.side !== 'corp' || !(this.options.synergy ?? true) || this.scoring) return action;
-      // plan.scoreInTwo (counted scoring C2): a held two-turn score line's step, or the pick vetoed while it would spend the line's rez money
-      const two = scoreInTwoPick(state, action, this.heldLine);
-      this.heldLine = two.held;
-      if (two.action !== action) this.base.notePlayed(two.action);
-      // Ice redirect (countedScore.ts iceRedirect): the search's own remote ice install goes to the scoring remote until it
-      // holds, nothing while a two-turn line is held (as Normal's, corpAI decide)
-      const held = this.heldLine && this.heldLine.game === state.id;
-      const central = two.action === action && !held ? centralIce(state, action) : null; // central ice first, as corpAI decide
-      const redirect = two.action === action && !held ? (central ?? iceRedirect(state, action) ?? assetPartner(state, action)) : null;
-      if (redirect) this.base.notePlayed(redirect);
-      return redirect ?? two.action;
+    return asSide(this.side, () => (this.base instanceof HeuristicCorpAI ? this.decideCorp(state, this.base) : this.decide(state)));
+  }
+
+  /** What the Corp pipeline carries between decisions (corp/core.ts): the held two-turn score line. */
+  private corpMemory: CorpMemory = { heldLine: null };
+
+  /**
+   * The Corp: the one pipeline (corp/core.ts corpDecide, Stage B1), the rule-based AI's ranking at Q7 and the search
+   * over it as the look-ahead. Before Stage B1 this file kept its own copy of the pipeline's order.
+   */
+  private decideCorp(state: GameState, base: HeuristicCorpAI): GameAction {
+    const synergy = this.options.synergy ?? true;
+    return corpDecide(state, {
+      synergy,
+      counted: synergy,
+      memory: this.corpMemory,
+      rank: (s, legal) => base.rankMainActions(s, legal),
+      lookahead: (s, ranked) => this.corpLookahead(s, ranked),
+      note: action => base.notePlayed(action),
+      bluffed: () => base.noteBluff(),
+      debug: this.options.debug,
     });
   }
 
-  /** plan.scoreInTwo: the two-turn score line this Corp holds, keyed by game id (countedScore.ts). */
-  private heldLine: HeldLine | null = null;
-  /** This decision found a score this turn (plan.scoreNow), or decide is finding the pick it is weighed against. */
-  private scoring = false;
+  /** Q7's look-ahead: the search over the rule-based AI's few best candidates; the steps of a run follow the ranking. */
+  private corpLookahead(state: GameState, all: ScoredAction[]): GameAction | null {
+    if (state.activeRun) return null;
+    const ranked = all.filter(c => c.score > -Infinity);
+    if (ranked.length === 0) return null;
+    if (ranked[0].action.type === 'SCORE_AGENDA') return ranked[0].action;
+    // Only one sensible move, or the favourite is far ahead: no need to think it over
+    if (ranked.length === 1 || ranked[0].score - ranked[1].score >= CLEAR_LEAD) return ranked[0].action;
+    const best = this.search(state, ranked.slice(0, this.options.candidates).map(c => ({ ...c, first: c.action })), this.options.timeMs).action;
+    decisionContext(state, this.side); // the look-ahead noted its own hands
+    return best;
+  }
 
+  /** The Runner (the Corp's pipeline is decideCorp). */
   private decide(state: GameState): GameAction {
     decisionContext(state, this.side);
-    // plan.winNow (bug report #33): a line that wins the game this turn first, prompts on the way included (winNow.ts)
-    if (this.side === 'corp' && (this.options.synergy ?? true)) {
-      const win = winNowAction(state);
-      if (win) {
-        this.base.notePlayed(win);
-        return win;
-      }
-      // plan.scoreNow (counted scoring C1): a line that scores an agenda this turn, the same search; the look-ahead's own
-      // pick stands while it keeps the score (keepsScore), the line's action is played otherwise
-      const score = this.scoring ? null : scoreNowPlan(state);
-      if (score) {
-        this.scoring = true;
-        const own = activePrompt(state) ? score.first : this.decide(state);
-        if (keepsScore(state, own, score)) return own;
-        this.base.notePlayed(score.first);
-        return score.first;
-      }
-    }
     // Prompts and the steps of a run follow the rule-based AI's judgement
     if (activePrompt(state) || state.activeRun || state.turnStep?.kind === 'corp_turn_start') return this.base.chooseAction(state);
     if (this.base instanceof HeuristicRunnerAI) this.base.observe(state);
     // A rule, not a judgement: a full Read-Write Share is shuffled back (plan.readWriteFull)
-    if (this.side === 'runner') {
-      const full = readWriteFullShuffle(state, getLegalActions(state, 'runner'));
-      if (full) return full;
-    }
+    const full = readWriteFullShuffle(state, getLegalActions(state, 'runner'));
+    if (full) return full;
     const ranked = this.base.rankMainActions(state).filter(c => c.score > -Infinity);
-    // Money step M1 (incomeLine.ts): the counted money pick, as Normal's (corpAI decide), the rule ranking's favourite as the Corp's own pick
-    const money = this.side === 'corp' && (this.options.synergy ?? true) && !heldLaterStep(state, this.heldLine) ? moneyPick(state, ranked[0]?.action) : null;
-    if (money) {
-      this.base.notePlayed(money);
-      return money;
-    }
     if (ranked.length === 0) return this.base.chooseAction(state);
     if (ranked[0].action.type === 'SCORE_AGENDA') return ranked[0].action;
     // Only one sensible move, or the favourite is far ahead: no need to think it over

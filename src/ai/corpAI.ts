@@ -12,13 +12,12 @@ import { resourceTrashHqCost } from '../core/engine/actions/basic';
 import { clickRate, pointGain, printedGain } from './valueModel';
 import { PACE, STEAL, accessWorth, agendaOdds } from './effectValues';
 import { answerPrompt, simulate } from './prompts';
-import { asSide, logNudge, nudge, opponentLean, tuning } from './synergy';
+import { asSide, nudge, opponentLean, tuning } from './synergy';
 import { decisionContext } from './handValues';
 import { PlanMemory, planTurn, plannerOn } from './turnPlanner';
 import { runnerReply } from './runnerReply';
 import { archivesWantsIce, countedRez, modelRezGain } from './rezModel';
 import { runLoss } from './corp/pools';
-import { keepsScore, scoreNowPlan, winNowAction } from './winNow';
 import { freeRezCover, freeRezTargets } from './freeRez';
 import { PETTY_CASH_REPLAY, iceAdvanceWorth, knownTrap, placedCounterWorth, rezEffectWorth, rezzedWorth, runTimed, topDownWorth } from './effectValues';
 import { CARD_PROFILES, ECON_SCALE, PAYOUT_RISK, bareAssetRisk, unrezzedWorth } from './cardProfiles';
@@ -29,11 +28,7 @@ import { econValue, upgradeValue } from './cardValues';
 import { counterWorth } from './counterValues';
 import { plan, pricing, withPricing } from './pricing';
 import { dividendsOf, setupOperation } from './cards';
-// Last: its imports (winNow, runs, pricing) are loaded by then, so the AI modules' load order is unchanged (oracle.ts)
-import { assetPartner, centralIce, iceRedirect, scoreInTwoPick } from './countedScore';
-import { HeldLine, heldLaterStep } from './corp/lines';
-import { tally } from './diagnostics';
-import { moneyPick } from './incomeLine';
+import { CorpMemory, corpDecide, isPettyCash } from './corp/core';
 import { corpSeenGrip } from './oracle';
 
 
@@ -95,8 +90,8 @@ export class HeuristicCorpAI implements Agent {
   private planner: boolean;
   private searching: boolean;
   private planMemory: PlanMemory = { line: [] };
-  /** plan.scoreInTwo (counted scoring C2): the two-turn score line this Corp holds, keyed by game id (countedScore.ts). */
-  private heldLine: HeldLine | null = null;
+  /** What the pipeline carries between decisions (corp/core.ts): the held two-turn score line. */
+  private memory: CorpMemory = { heldLine: null };
 
   constructor(options: HeuristicOptions = {}) {
     this.synergy = options.synergy ?? true;
@@ -133,74 +128,24 @@ export class HeuristicCorpAI implements Agent {
     return [...this.runs.turns.entries()].sort((a, b) => b[0] - a[0]).map(([, servers]) => servers);
   }
 
+  /** The pipeline (corp/core.ts corpDecide), this Corp's ranking at Q7 and the turn planner over it. */
   private decide(state: GameState): GameAction {
-    decisionContext(state, 'corp');
-    // plan.winNow (bug report #33): a line that wins the game this turn is played before any judgement (winNow.ts)
-    if (this.synergy && this.planner) {
-      const win = winNowAction(state);
-      if (win) {
-        this.notePlayed(win);
-        return win;
-      }
-    }
-    // plan.scoreNow (counted scoring C1): a line that scores an agenda this turn, the same search (winNow.ts); the
-    // Corp's own pick stands while it keeps the score (keepsScore), the line's action is played otherwise
-    const score = this.synergy && this.planner ? scoreNowPlan(state) : null;
-    if (score && activePrompt(state)) {
-      this.notePlayed(score.first);
-      return score.first;
-    }
-    if (activePrompt(state)) return answerPrompt(state, 'corp', undefined, this.synergy);
-    const legal = getLegalActions(state, 'corp');
-    const ranked = this.rankMainActions(state, legal);
-    // Planner speed P1: the count has decided this click, so the planner's search is not run. A scoreNow line: the Corp's
-    // pick is then the rule ranking's, kept while it keeps the score (keepsScore), the line's action otherwise. A held
-    // two-turn line on a later turn: its step (advance or score, heldLaterStep) does not depend on the pick, and
-    // scoreInTwoPick below plays it.
-    const later = this.synergy && this.planner && !!heldLaterStep(state, this.heldLine);
-    const decided = !!score || later;
-    const planned = this.planner && plannerOn('corp') && state.turnStep?.kind !== 'corp_turn_start' && !decided ? this.plan(state, ranked) : null;
-    // Money step M1 (incomeLine.ts): an econ operation that nets credits is the counted pick for its click, ahead of the
-    // Corp's own; a score this turn, a held two-turn line's step, or the Corp's own pick moving an agenda keeps the click
-    const money = !decided && this.synergy && this.planner && state.turnStep?.kind !== 'corp_turn_start' ? moneyPick(state, planned ?? ranked[0]?.action) : null;
-    let chosen = money ?? planned ?? (ranked[0]?.score > -Infinity ? ranked[0].action : legal.find(a => a.type === 'END_TURN') ?? legal[0]);
-    // plan.pettyCashFirst: a click for a credit while Petty Cash can still be played is a click for 2 thrown away (the
-    // planner valued Petty Cash held in HQ as the money it will make, though it is playable only as the turn's first action)
-    if (chosen.type === 'GAIN_CREDIT' && this.synergy && plan().pettyCashFirst) chosen = ranked.find(r => isPettyCash(state, r.action) && r.score > -Infinity)?.action ?? chosen;
-    // plan.tagFirst: the planner's leaf counts a tag kept as a trash still to come, but the Runner clears it on its turn
-    if (this.synergy && plan().tagFirst && ranked[0]?.action.type === 'TRASH_RESOURCE' && ranked[0].tagFirst) chosen = ranked[0].action;
-    let picked = chosen;
-    if (score && !keepsScore(state, picked, score)) picked = score.first;
-    // plan.scoreInTwo (counted scoring C2): a held two-turn score line's step, or the pick vetoed while it would spend the line's rez money
-    if (!score && this.synergy && this.planner) {
-      const two = scoreInTwoPick(state, picked, this.heldLine);
-      this.heldLine = two.held;
-      picked = two.action;
-    }
-    // Ice redirect (step 4 G3', countedScore.ts iceRedirect): the Corp's own remote ice install goes to the scoring remote
-    // until it holds; nothing while a counted two-turn line is held (its ice goes where the line puts it; skipping only
-    // the line's own ice played the same 663 games, run 43158341651)
-    const held = this.heldLine && this.heldLine.game === state.id ? this.heldLine : null;
-    if (!score && picked === chosen && this.synergy && !held) {
-      // Central ice (countedScore.ts centralIce): a central with no ice takes the ice first
-      const central = centralIce(state, picked);
-      const redirect = central ?? iceRedirect(state, picked);
-      if (central) picked = central;
-      else if (redirect) {
-        if (this.planner && !this.searching) tally('iceRedirect', 'fired');
-        picked = redirect;
-      } else picked = assetPartner(state, picked) ?? picked; // plan.assetPartner (countedScore.ts)
-    }
-    // The reverse bluff: at most once a game, used up only by the install actually played (a pick the counted layer
-    // rewrote put no agenda in a new remote)
-    const bluff = picked;
-    if (bluff.type === 'INSTALL_CARD' && bluff.asNewRemote && state.corp.hq.some(c => c.instanceId === bluff.cardInstanceId && type(c) === 'agenda')) {
-      const def = cardDef(state.corp.hq.find(c => c.instanceId === bluff.cardInstanceId)!);
-      if ((def.advancement_cost ?? 0) > state.corp.clicks - 1) this.reverseBluffed = true;
-    }
-    this.notePlayed(picked);
-    if (this.debug) logNudge(state, 'corp', picked);
-    return picked;
+    return corpDecide(state, {
+      synergy: this.synergy,
+      counted: this.synergy && this.planner,
+      memory: this.memory,
+      rank: (s, legal) => this.rankMainActions(s, legal),
+      lookahead: this.planner ? (s, ranked) => (plannerOn('corp') ? this.plan(s, ranked) : null) : undefined,
+      note: action => this.notePlayed(action),
+      bluffed: () => this.noteBluff(),
+      countRedirects: this.planner && !this.searching,
+      debug: this.debug,
+    });
+  }
+
+  /** The reverse bluff was played (the Hard search's pipeline, corp/core.ts, plays this Corp's ranking). */
+  noteBluff() {
+    this.reverseBluffed = true;
   }
 
   /** Counts actions in a row that spent no click (loop guard). */
@@ -1420,8 +1365,6 @@ function pettyCashFirst(state: GameState, ranked: ScoredAction[]): ScoredAction[
   const petty = { ...ranked[at], score: ranked[0].score + 0.01 };
   return [petty, ...ranked.slice(0, at), ...ranked.slice(at + 1)];
 }
-const PETTY_CASH = '35081';
-const isPettyCash = (state: GameState, a: GameAction): boolean => a.type === 'PLAY_OPERATION_OR_EVENT' && state.corp.hq.find(c => c.instanceId === a.cardInstanceId)?.cardCode === PETTY_CASH;
 
 /**
  * plan.tagFirst (Jeff, 2026-11-05: the Corp leaves tags unused): a tag usually lasts only until the Runner's next turn,
