@@ -33,11 +33,8 @@ describe('a held money operation is counted once (plan.heldMoney)', () => {
     // plan.hiddenDraws (S6) off: on one guess of R&D the turn ends on a click for a credit (pettyCashFirst.test.ts)
     tuning.plan.hiddenDraws = false;
     try {
-      // plan.oneCurrency counts it once by construction (HQ by count, the slide's credits); its planned turn may open a
-      // remote first (pettyCashFirst.test.ts), but never clicks for a credit while holding it
       const s = play();
-      if (tuning.plan.oneCurrency) expect(s.log.some(l => l.message === 'Corp spent [click] to gain 1 credit.')).toBe(false);
-      else expect(inHq(s)).not.toContain('Petty Cash');
+      expect(inHq(s)).not.toContain('Petty Cash');
     } finally {
       tuning.plan.pettyCashFirst = true;
       tuning.plan.threatModel = threat;

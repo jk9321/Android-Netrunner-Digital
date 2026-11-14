@@ -3,7 +3,6 @@ import { describe, expect, it } from 'vitest';
 import { GameState, executeAction } from '../src/core';
 import { createAgent } from '../src/ai';
 import { lethalHqAgenda } from '../src/ai/corpAI';
-import { tuning } from '../src/ai/synergy';
 
 
 /**
@@ -45,22 +44,4 @@ describe('an agenda in HQ that would win the Runner the game (plan.lethalHq, bug
       expect(s.corp.servers.hq.ice.filter(c => c.isRezzed).map(c => c.cardCode).sort()).toEqual(['30046', '30074']) // Diviner, Whitespace;
     }
   }, 170_000); // 170 s: twice the slowest of the last five beta CI runs (85 s, run 43508803367; audit Step 0d)
-
-  it('the one-currency Corp gets HQ its layer too', () => {
-    // (plan.lethalHq folded in item 6: the gate is always on; this pinned that oneCurrency didn't need it)
-    const one = tuning.plan.oneCurrency;
-    const threat = tuning.plan.threatModel;
-    tuning.plan.oneCurrency = true;
-    tuning.plan.threatModel = false; // item 1 as built, on the old threat (oneCurrency.test.ts)
-    // plan.ownIceKnown (2026-11-09) pinned off in this non-default pairing, as in oneCurrency.test.ts: with it the
-    // one-currency Corp prices HQ's unrezzable ice as passed and spends the turn otherwise (not the bug pinned here)
-    tuning.plan.ownIceKnown = false;
-    try {
-      expect(hqIce(playTurn(turn13()))).toBe(3);
-    } finally {
-      tuning.plan.oneCurrency = one;
-      tuning.plan.threatModel = threat;
-      tuning.plan.ownIceKnown = true;
-    }
-  }, 15_000); // 15 s: twice the slowest of the last five beta CI runs (7.3 s, run 43508803367; audit Step 0d)
 });

@@ -1,6 +1,6 @@
 import { CardInstance, GameState, ServerState, SideCode, cardDef, getCardDefinition } from '../core';
 import { maxHandSize, rezCost } from '../core/engine/cardEffects';
-import { AUDREY, iceCost, isTrap, plannedSubroutines } from './runs';
+import { iceCost, isTrap } from './runs';
 import { KNOBS, RATES, guardLoop, memo, pointGain, pointValue } from './valueModel';
 import { PACE } from './effectValues';
 import { archivedAgendaLoss } from './evaluate';
@@ -58,7 +58,7 @@ function iceWorthOf(state: GameState, ice: CardInstance, viewer: SideCode): numb
   // (What the ice protects doesn't depend on the grip: priced on the state as given, so its memo holds)
   const original = state;
   if (plan().iceGripCap && state.runner.grip.length > limit) state = { ...state, runner: { ...state.runner, grip: state.runner.grip.slice(0, limit) } };
-  if (ice.isRezzed) return RATES.ice + Math.min(iceStop(state), lastingIceCost(state, ice)) * protects(original, ice, viewer);
+  if (ice.isRezzed) return RATES.ice + Math.min(iceStop(state), iceCost(state, ice)) * protects(original, ice, viewer);
   // The Runner doesn't know what it is: iceCost's guess for unrezzed ice
   if (viewer === 'runner') return RATES.ice + iceCost(state, ice);
   // The Corp knows: what it would cost the Runner once rezzed, held back a little for the rez still to pay, by the
@@ -68,7 +68,7 @@ function iceWorthOf(state: GameState, ice: CardInstance, viewer: SideCode): numb
     : state.corp.credits >= rezCost(state, ice) || freeRezTargets(state).has(ice.instanceId) ? REZ_NOW_SHARE : 0;
   // (No share, nothing to scale: ice in HQ under plan.rezBudget skips protects' look over every server. The break cost
   // is still worked out: skipping it changed play with every switch off, so something it calls keeps state; audit item)
-  const stop = Math.min(iceStop(state), lastingIceCost(state, { ...ice, isRezzed: true }));
+  const stop = Math.min(iceStop(state), iceCost(state, { ...ice, isRezzed: true }));
   return RATES.ice + (share > 0 ? share * stop * protects(original, ice, viewer) : 0);
 }
 
@@ -94,7 +94,7 @@ function protects(state: GameState, ice: CardInstance, viewer: SideCode): number
   // remote yet: then this ice would found one, the place the next agenda goes (as serverStake prices one)
   return memo(state, `iceProtects:hand:${ice.cardCode}`, () => {
     const existing = Object.values(state.corp.servers).map(s => protectsIn(state, s, ice));
-    const found = mainRemote(state) ? 0 : Math.min(1, plannedStake(state) / Math.max(1e-9, Math.min(iceStop(state), lastingIceCost(state, { ...ice, isRezzed: true }))));
+    const found = mainRemote(state) ? 0 : Math.min(1, plannedStake(state) / Math.max(1e-9, Math.min(iceStop(state), iceCost(state, { ...ice, isRezzed: true }))));
     return Math.max(ICE_UNGUARDED, found, ...existing);
   });
 }
@@ -103,7 +103,7 @@ function protects(state: GameState, ice: CardInstance, viewer: SideCode): number
 function protectsIn(state: GameState, server: ServerState, extra?: CardInstance): number {
   return memo(state, `iceProtects:${server.id}:${extra?.cardCode ?? ''}`, () => {
     const ice = extra ? [...server.ice, extra] : server.ice;
-    const breaks = ice.reduce((n, c) => n + Math.min(iceStop(state), lastingIceCost(state, { ...c, isRezzed: true })), 0);
+    const breaks = ice.reduce((n, c) => n + Math.min(iceStop(state), iceCost(state, { ...c, isRezzed: true })), 0);
     if (breaks <= 0) return 1;
     return Math.max(ICE_UNGUARDED, Math.min(1, serverStake(state, server) / breaks));
   });
@@ -145,29 +145,6 @@ function plannedStake(state: GameState): number {
   return ICE_PLANNED * (pointValue(state.corp.score + points, KNOBS.corpPoints) - pointValue(state.corp.score, KNOBS.corpPoints) + pointGain(state.runner.score, points));
 }
 
-/** Credits it takes Audrey v2 to earn back one virus counter: a card trashed while accessing it (a trash cost and the run's click). */
-export const AUDREY_REFILL = 3;
-
-/**
- * plan.oneCurrency: what it costs the Runner to get past rezzed ice for as long as the ice stays, not this instant. A
- * breaker that runs on counters it has spent (Audrey v2 short of virus counters) is not gone: it earns one back whenever
- * the Runner trashes a card it is accessing. Priced as gone, a purge of Audrey's 2 counters made every piece of ice it
- * broke a full stop for the rest of the game and read +51, above installing an agenda. So the cost is the lower of now
- * and with the counters this ice takes (one per 2 subroutines) earned back at AUDREY_REFILL each.
- */
-export function lastingIceCost(state: GameState, ice: CardInstance): number {
-  const now = iceCost(state, ice);
-  if (!plan().oneCurrency || !ice.isRezzed) return now;
-  const audreys = state.runner.rig.programs.filter(p => p.cardCode === AUDREY);
-  if (audreys.length === 0) return now;
-  const have = Math.max(...audreys.map(p => p.tokens?.virus ?? 0));
-  const uses = Math.max(1, Math.ceil(plannedSubroutines(state, ice).length / 2));
-  if (have >= uses) return now;
-  const programs = state.runner.rig.programs.map(p => (p.cardCode === AUDREY ? { ...p, tokens: { ...p.tokens, virus: uses } } : p));
-  const full = iceCost({ ...state, runner: { ...state.runner, rig: { ...state.runner.rig, programs } } }, ice);
-  return Math.min(now, full + (uses - have) * AUDREY_REFILL);
-}
-
 /** Share of an unrezzed ice's rezzed worth the Corp counts while it can pay for the rez now (the rest is the rez still to pay). */
 export const REZ_NOW_SHARE = 0.6;
 /** The share for ice the pool can't cover now but next turn's income would: one Runner turn unprotected, not the whole game. */
@@ -193,7 +170,7 @@ export function rezBudget(state: GameState, decisionStops = false): Map<string, 
 
 /**
  * Stops noted once per decision (the anchor pricing notes as a decision starts), for plan.ownIceKnown's rez budget
- * (effectValues ownIce): it asks on every position the planner looks at, and the stop (lastingIceCost against the rig)
+ * (effectValues ownIce): it asks on every position the planner looks at, and the stop (iceCost against the rig)
  * only orders the ice that compete for the money, which a turn's plays barely move. Null outside a decision.
  */
 function decisionStopCache(): Map<string, number> | null {
@@ -221,7 +198,7 @@ function countRezBudget(state: GameState, stops: Map<string, number> | null = nu
   let next = CORP_TURN_INCOME;
   // The order only matters when ice competes for the money: when the ice the credits cover now fits all at once and no
   // ice waits on next turn's income, the shares are the same in any order (the rest is out of reach either way), and
-  // the stops (lastingIceCost, the costly part) aren't needed
+  // the stops (iceCost, the costly part) aren't needed
   const cheap = waiting.filter(w => w.cost <= now);
   if (cheap.reduce((sum, w) => sum + w.cost, 0) <= now && !waiting.some(w => w.cost > now && w.cost <= now + next)) {
     for (const w of cheap) shares.set(w.id, REZ_NOW_SHARE);
@@ -229,7 +206,7 @@ function countRezBudget(state: GameState, stops: Map<string, number> | null = nu
   }
   for (const w of waiting) {
     const noted = stops?.get(w.id);
-    w.stop = noted ?? Math.min(iceStop(state), lastingIceCost(state, { ...w.ice, isRezzed: true }));
+    w.stop = noted ?? Math.min(iceStop(state), iceCost(state, { ...w.ice, isRezzed: true }));
     if (stops && noted === undefined) stops.set(w.id, w.stop);
   }
   waiting.sort((a, b) => b.stop / Math.max(1, b.cost) - a.stop / Math.max(1, a.cost));

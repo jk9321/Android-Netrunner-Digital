@@ -53,10 +53,6 @@ export interface Pricing {
   pricingTagLoss: boolean;
   /** Ice is being priced against the rig: run odds are the flat guesses inside (effectValues.ts). */
   pricingIce: boolean;
-  /** plan.oneCurrency: a projection (finish or score effect) is running: no finish projection inside. */
-  projecting: boolean;
-  /** plan.oneCurrency: an agenda's on-score effect is being measured: no effect measure inside. */
-  pricingEffect: boolean;
   /** A card's plan is being priced (cardPlans.ts handPlanWorth): no plan inside a plan. */
   planning: boolean;
   /** Depth of threat-model work (threatModel.ts): the threat is off inside its own computation. */
@@ -64,8 +60,7 @@ export interface Pricing {
   /** The planner's per-decision seed for its playouts (turnPlanner.ts, plan.plannerSeed), or null. */
   decisionSeed: number | null;
   /**
-   * Assets whose rez-to-use look-ahead is running (corpAI.ts rezToUse): no nested rez-to-use inside (plan.oneCurrency:
-   * per card, so a second Humanoid Resources is still priced inside the first's).
+   * Assets whose rez-to-use look-ahead is running (corpAI.ts rezToUse): no nested rez-to-use inside.
    */
   rezzingToUse: Set<string>;
   /** Breakers being priced by the rig they join (handValues.ts playedWorth): no breaker prices itself again. */
@@ -95,8 +90,6 @@ const context: Pricing = {
   pricingRootDeck: false,
   pricingTagLoss: false,
   pricingIce: false,
-  projecting: false,
-  pricingEffect: false,
   planning: false,
   computingThreat: 0,
   decisionSeed: null,
@@ -217,8 +210,6 @@ export function pricingKey(): string {
     c.pricingRootDeck ? 'd' : '',
     c.pricingTagLoss ? 't' : '',
     c.pricingIce ? 'i' : '',
-    c.projecting ? 'p' : '',
-    c.pricingEffect ? 'e' : '',
     c.planning ? 'c' : '',
     c.computingThreat ? 'h' : '',
     c.oracleRunning ? 'o' : '',

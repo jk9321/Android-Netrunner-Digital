@@ -14,7 +14,7 @@
  *   from, rankMainActions), the best agenda move's one-step score, and whether the planner overrode the one-step top.
  *
  * O3 card values: every card the Corp installs or plays on its own turn, with two "assigned worths": the one-step rule
- *   score of the action (rankMainActions; with plan.oneCurrency off, as shipped, these are installScore/advanceScore
+ *   score of the action (rankMainActions: installScore/advanceScore
  *   points, the filter that picks the planner's candidates) and the evaluate delta of the move (the board worth the
  *   planner's leaf sees, in the AI's credit-equivalent units). Against them, what it returned over its life: credits
  *   paid out less the rez cost (assets/upgrades), fired or not; runs stopped, subroutines fired and credits taxed

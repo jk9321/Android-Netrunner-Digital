@@ -32,7 +32,7 @@ import { KNOBS } from '../src/ai/valueModel';
 import { applyPlanOff } from '../src/ai/synergy';
 import { installDiagnostics } from '../src/ai/diagnostics';
 
-// PLAN_OFF=a,b as in the batch scripts (PLAN_OFF=oneCurrency: the old Corp ranking)
+// PLAN_OFF=a,b as in the batch scripts
 applyPlanOff(process.env.PLAN_OFF ?? '');
 
 const args = process.argv.slice(2).filter(a => a !== '--');

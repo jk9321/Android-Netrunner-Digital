@@ -7,7 +7,7 @@
  *           the Corp may score agendas."  5.6.1d: "The Corp's turn formally begins. Conditions related to the turn
  *           beginning are met."
  * So it has to be rezzed in 5.6.1b to fire at 5.6.1d. The AI treated every Hostile asset as an access trap and never
- * rezzed it on its own turn; both rez gates (corpAI oneCurrencyScore REZ_CARD and rezValue) now read one helper,
+ * rezzed it on its own turn; the rez gate (corpAI rezValue) reads one helper,
  * springsOnAccess (plan.clearinghouseRez).
  */
 import { describe, expect, it } from 'vitest';

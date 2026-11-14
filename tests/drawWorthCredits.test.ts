@@ -18,8 +18,6 @@ const at = (credits: number, id: string): GameState => {
 };
 
 describe('a draw is priced on the credits the side has now (plan.drawWorthCredits)', () => {
-  // At 5 credits (Hedge Fund playable): plan.oneCurrency prices Anthill Excavation Contract a little lower, so at 3 the
-  // best play no longer clears a draw's floor of 1 and both counts read 1
   it('the same turn at 5 credits is priced as a fresh look at 5 credits', () => {
     const fresh = clickWorth(at(5, 'fresh-5'), 'corp');
     expect(fresh).not.toBeCloseTo(clickWorth(at(0, 'fresh-0'), 'corp'));

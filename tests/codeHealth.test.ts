@@ -33,9 +33,6 @@ const OFF_SWITCHES: Record<string, string> = {
   runCreditsSlide: 'breaks castWhileAble; retest once Runner income has one slide helper (cleanup item 4)',
   'handByCard.corp': 'used by the planner leaf; off in the rule ranking, kept for re-testing',
   'handByCard.runner': 'used by the planner leaf; off in the rule ranking, kept for re-testing',
-  // Turning it on needs plan.pettyCashFirst kept on: with oneCurrency on and pettyCashFirst off, the plannerSearch
-  // Corp clicks for a credit over Petty Cash (item 4 hand-off, 2026-11-07)
-  oneCurrency: 'missed its paired batch (stop rule, 2026-11-07); kept switchable for the next round',
   rdTurnsLeft: 'missed its paired batch (2026-11-07: decked 186 vs 173); the honest clock, kept for when urgency is priced by points',
   // Tuning pass 1 (2026-11-08, review-1 R4): measured reasons, paired vs base run 42403086049
   replyContenders: 'install-worth probe P2: extra reply samples for the top two; -0.6 ± 2.2 (run 42498949422) for +19% time',

@@ -537,18 +537,8 @@ export function placedCounterWorth(state: GameState, card: CardInstance, iced: b
   if (known && !advancePayloadOf(card.cardCode)) return 0;
   if (card.cardCode === '30045') return bluff + 0.5 * (damageWorth(state, 3 + card.advancementCounters) - damageWorth(state, 2 + card.advancementCounters)); // Urtica: 1 more net damage
   if (card.cardCode === '35061') return 0.6 * 5; // Idiosyncresis
-  // Clearinghouse: plan.oneCurrency prices the counter's step in damage, which stops at the flatline (a counter past one
-  // more than the grip adds nothing: plan.clearinghouseLethal's cap, in the model)
-  // more than the grip adds nothing: plan.clearinghouseLethal's cap, in the model). It fires when the Corp's turn begins,
-  // after a Runner turn that can draw back to its hand size against the threat, and the Runner draws the cards back on
-  // its next turn: the cards it costs, not a step on the damage clock (that prices a smaller grip facing more damage
-  // before it redraws, which put a counter here at about 8, above a click and a credit toward an agenda)
-  if (card.cardCode === '30061') {
-    if (!plan().oneCurrency) return bluff + 0.6 * damageWorth(state, 1);
-    const life = Math.max(state.runner.grip.length, state.runner.handSizeLimit ?? 5);
-    const hit = (n: number) => (n > life ? flatlineWorth(state) : n * cardRate(state, 'runner'));
-    return bluff + 0.6 * (hit(card.advancementCounters + 1) - hit(card.advancementCounters));
-  }
+  // Clearinghouse: the counter's step in damage
+  if (card.cardCode === '30061') return bluff + 0.6 * damageWorth(state, 1);
   return 0.3;
 }
 

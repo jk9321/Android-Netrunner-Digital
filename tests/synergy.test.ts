@@ -1,6 +1,6 @@
 import { FLATLINE } from '../src/ai/effectValues';
 import { describe, expect, it } from 'vitest';
-import { ALL_CARDS, CardInstance, GameAction, GameState, createCardInstance, actingSide, createInitialGameState, executeAction, findCardAnywhere, getCardDefinition } from '../src/core';
+import { ALL_CARDS, CardInstance, GameAction, GameState, createCardInstance, actingSide, createInitialGameState, executeAction, getCardDefinition } from '../src/core';
 import { digValue, handValue, keepValue } from '../src/ai/evaluate';
 import { deckGameSetup } from '../src/data/decks';
 import { ALL_DECKS as DECKS } from '../scripts/nsg-sample-decks';
@@ -145,25 +145,8 @@ describe('dividends', () => {
     for (const id of ['rd', 'hq']) s.corp.servers[id].ice.push(createCardInstance(s, '30072'));
     // The one-step rule (the turn planner instead weighs the counters by what they do: Embedded Reporting's by the operations in R&D)
     const ai = new HeuristicCorpAI({ planner: false });
-    if (tuning.plan.oneCurrency) {
-      // plan.oneCurrency: the order of a turn's clicks is the delta's to choose (an install may come first); what counts
-      // is that the agenda is advanced past its cost before it is scored (SCORE_AGENDA ranks the extra counter's worth).
-      // With ice in HQ, two ice installs (about 6 each) beat the extra counter (2 agenda counters, about 2.8 net), which
-      // the old rule never weighed; with nothing else for the click, the counter beats a credit and goes on first
-      let t = structuredClone(s);
-      t.corp.hq = [];
-      let scoredAt = -1;
-      for (let i = 0; i < 10 && t.activePlayer === 'corp'; i++) {
-        const action = ai.chooseAction(t);
-        if (action.type === 'SCORE_AGENDA' && action.cardInstanceId === agenda.instanceId) scoredAt = findCardAnywhere(t, agenda.instanceId)!.advancementCounters;
-        t = executeAction(t, action);
-        if (action.type === 'END_TURN' || scoredAt >= 0) break;
-      }
-      expect(scoredAt).toBeGreaterThan(3);
-    } else {
-      const first = ai.chooseAction(s);
-      expect(first).toMatchObject({ type: 'ADVANCE_CARD', cardInstanceId: agenda.instanceId });
-    }
+    const first = ai.chooseAction(s);
+    expect(first).toMatchObject({ type: 'ADVANCE_CARD', cardInstanceId: agenda.instanceId });
     // Without the deck-aware AI it scores straight away
     expect(new HeuristicCorpAI({ synergy: false, planner: false }).chooseAction(s)).toMatchObject({ type: 'SCORE_AGENDA' });
   });
@@ -337,26 +320,6 @@ describe('planning (setup scoring)', () => {
     s.corp.servers.hq.ice = [palisade];
     const scatter = createCardInstance(s, '35042');
     s.corp.hq = [scatter];
-    if (tuning.plan.oneCurrency) {
-      // plan.oneCurrency: evaluate prices ice at the strength the engine gives it where it sits, so plan.icePosition (an
-      // installScore term) has nothing to add: alone on R&D beats a second layer on HQ, and a layer outside a lone Scatter
-      // Field (which takes its +4 away) is worth less than the same layer outside a Palisade
-      expect(score(s, scatter, 'rd', true)).toBeGreaterThan(score(s, scatter, 'hq', true) + 2);
-      const u = board();
-      const plain = createCardInstance(u, '30072');
-      plain.isRezzed = true;
-      u.corp.servers.rd.ice = [plain];
-      const other = createCardInstance(u, '30072');
-      u.corp.hq = [other];
-      const t = board();
-      const lone = createCardInstance(t, '35042');
-      lone.isRezzed = true;
-      t.corp.servers.rd.ice = [lone];
-      const layer = createCardInstance(t, '30072');
-      t.corp.hq = [layer];
-      expect(score(t, layer, 'rd', true)).toBeLessThan(score(u, other, 'rd', true));
-      return;
-    }
     expect(score(s, scatter, 'rd', true) - score(s, scatter, 'rd', false)).toBeGreaterThan(0);
     expect(score(s, scatter, 'hq', true)).toBeCloseTo(score(s, scatter, 'hq', false));
     // A new layer outside a lone Scatter Field takes its +4 away, and that counts against it
@@ -394,25 +357,6 @@ describe('planning (setup scoring)', () => {
     s.corp.clicks = 1;
     s.corp.credits = 6;
     const advance = (ai: HeuristicCorpAI) => ai.rankMainActions(s).find(r => r.action.type === 'ADVANCE_CARD')?.score ?? -Infinity;
-    if (tuning.plan.oneCurrency) {
-      // plan.oneCurrency: not a -Infinity gate but a delta: with 1 click the advance is not the move (ice on the remote is)
-      const top = (ai: HeuristicCorpAI) => ai.rankMainActions(s)[0].action.type;
-      expect(top(new HeuristicCorpAI({ planner: false }))).not.toBe('ADVANCE_CARD');
-      // With 3 clicks the turn may commit (2 counters or more: scoreable next turn) or build (ice on the remote and R&D, as
-      // the delta prices it with the Runner on 2 credits), but never stops in between
-      s.corp.clicks = 3;
-      s.runner.credits = 2;
-      let t = s;
-      const ai = new HeuristicCorpAI();
-      for (let i = 0; i < 8 && t.activePlayer === 'corp'; i++) {
-        const action = ai.chooseAction(t);
-        t = executeAction(t, action);
-        if (action.type === 'END_TURN') break;
-      }
-      const counters = findCardAnywhere(t, agenda.instanceId)!.advancementCounters;
-      expect(counters === 0 || counters >= 2).toBe(true);
-      return;
-    }
     // One advance now still leaves 4 to go next turn: wait
     expect(advance(new HeuristicCorpAI())).toBe(-Infinity);
     expect(advance(new HeuristicCorpAI({ synergy: false }))).toBeGreaterThan(0);
@@ -431,8 +375,7 @@ describe('planning (setup scoring)', () => {
     s.corp.credits = 8;
     const score = (server: string) =>
       new HeuristicCorpAI().rankMainActions(s).find(r => r.action.type === 'INSTALL_CARD' && r.action.targetServerId === server)!.score;
-    // plan.oneCurrency: centralExposure prices it (R&D's agendas against HQ's Hedge Fund) without the old 1-point tier margin
-    expect(score('rd')).toBeGreaterThan(score('hq') + (tuning.plan.oneCurrency ? 0.3 : 1));
+    expect(score('rd')).toBeGreaterThan(score('hq') + 1);
   });
 
   it('keeps money to rez ice on R&D as well as an agenda remote', () => {
@@ -445,14 +388,7 @@ describe('planning (setup scoring)', () => {
     s.corp.credits = 2; // Palisade on R&D costs 3 to rez
     const ranked = (ai: HeuristicCorpAI) => ai.rankMainActions(s);
     const credit = (ai: HeuristicCorpAI) => ranked(ai).find(r => r.action.type === 'GAIN_CREDIT')!.score;
-    // Short of the reserve, a credit is worth a little more to the round 3 Corp (plan.oneCurrency: than the same credit
-    // once the Palisade's rez is covered, the rez pool's step; the rule-based Corp has another currency to compare with)
-    if (tuning.plan.oneCurrency) {
-      const short = credit(new HeuristicCorpAI({ planner: false }));
-      s.corp.credits = 4;
-      expect(short).toBeGreaterThan(credit(new HeuristicCorpAI({ planner: false })) + 0.5);
-      return;
-    }
+    // Short of the reserve, a credit is worth a little more to the round 3 Corp
     expect(credit(new HeuristicCorpAI())).toBeGreaterThan(credit(new HeuristicCorpAI({ synergy: false })));
   });
 
@@ -469,9 +405,8 @@ describe('planning (setup scoring)', () => {
     const unbroken = score();
     s.runner.rig.programs = [createCardInstance(s, '30006')]; // Cleaver breaks barriers
     const broken = score();
-    // plan.oneCurrency: runSuccess prices the layer the rig breaks through; otherwise iceDepth (an installScore term,
-    // folded in item 6) does
-    expect(broken - unbroken).toBeGreaterThan(tuning.plan.oneCurrency ? 1 : 0.5);
+    // iceDepth (an installScore term, folded in item 6) prices the layer the rig breaks through
+    expect(broken - unbroken).toBeGreaterThan(0.5);
   });
 });
 
@@ -664,10 +599,8 @@ describe('rez money (Jeff, from play)', () => {
     const rez = ranked.find(r => r.action.type === 'REZ_CARD' && r.action.cardInstanceId === grid.instanceId)?.score ?? -Infinity;
     const credit = ranked.find(r => r.action.type === 'GAIN_CREDIT')!.score;
     expect(rez).toBeLessThan(credit);
-    // With money to spare beyond the reserve, it may (plan.oneCurrency: the reserve is the rez pool of every unrezzed
-    // ice out, 8 here, plan.rezBudget, not the old reserve rule's 2 to 3, so spare means the grid's 2 on top: 10 or more.
-    // The grid's own 2 hosted credits, which can pay for the ice on its server, are not in the pool yet)
-    s.corp.credits = tuning.plan.oneCurrency ? 12 : 6;
+    // With money to spare beyond the reserve, it may
+    s.corp.credits = 6;
     expect(new HeuristicCorpAI().rankMainActions(s).find(r => r.action.type === 'REZ_CARD' && r.action.cardInstanceId === grid.instanceId)!.score).toBeGreaterThan(0);
   });
 });

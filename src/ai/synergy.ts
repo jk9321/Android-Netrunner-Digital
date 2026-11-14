@@ -177,17 +177,6 @@ export const tuning = {
      * play in hand as planned. Points clock and hand filter: noise, kept.
      */
     /**
-     * Structural review item 1 (Jeff approved 2026-11-06; spec "Item 1 spec" of the AI code review doc): the Corp ranks
-     * every main-phase action in one currency, the change in evaluate(state, 'corp') after the action and its own prompts
-     * (corpAI.ts oneCurrencyScore), instead of installScore/advanceScore points, tiers and reserve penalties; evaluate
-     * adds what the hand-made points were covering: central exposure (agendas lost from HQ and R&D runs) and trap
-     * advancement counters. Corp only: off in sideOff.runner, so the Runner AI is unchanged. Off: beta as it was.
-     * OFF BY DEFAULT (2026-11-07, the stop rule Jeff approved): paired against the old ranking on the same deals the Corp
-     * won 22.2% vs 36.7% at 40e7d52 (this code), 13.0% after a tempo round (reverted). Kept switchable for the next try;
-     * docs in /mnt/project-files/netrunner-ai/one-currency/handoff.md.
-     */
-    oneCurrency: false,
-    /**
      * Structural review item 3 (Jeff approved 2026-11-06; spec "Item 3 spec" of the AI code review doc): the Corp's
      * belief about where the Runner runs next turn is the Runner AI's own run scorer budgeted over its turn, on the board
      * as the Runner sees it (threatModel.ts), instead of PACE's shares, STEAL.run and the open-remote patches; the
@@ -458,7 +447,7 @@ export const tuning = {
  */
 export const sideOff: Record<SideCode, string[]> = {
   corp: [],
-  runner: ['scoreNow', 'scoreInTwo', 'tagTrashNow', 'ownTrashRisk', 'hqTrashCost', 'oneCurrency', 'threatModel', 'iceProtects', 'replyContenders', 'plannerAgenda', 'clearinghouseRez', 'ownIceKnown', 'runRecord', 'hiddenDraws', 'oracle', 'threatKey', 'threatKeyPricing'],
+  runner: ['scoreNow', 'scoreInTwo', 'tagTrashNow', 'ownTrashRisk', 'hqTrashCost', 'threatModel', 'iceProtects', 'replyContenders', 'plannerAgenda', 'clearinghouseRez', 'ownIceKnown', 'runRecord', 'hiddenDraws', 'oracle', 'threatKey', 'threatKeyPricing'],
 };
 
 /**
@@ -516,13 +505,15 @@ export const DELETED: readonly string[] = [
   // C4: Phase 3 S3's close-call re-samples (2026-11-09, -4.2 ± 1.8), and #43's ice-pacing guard dropped (2026-11-09,
   // about -7 through over-icing; #43 T7 pinned known-failing in tests/icePacingPriced.test.ts)
   'searchSamples', 'icePacingPriced',
+  // C5: structural review item 1's one-currency Corp ranking (off since its stop rule, 2026-11-07: 22.2% vs 36.7%)
+  'oneCurrency',
 ];
 
 /** Throws on a name that isn't a plan switch (a typo, a switch folded into the code, or one deleted). */
 function checkSwitch(name: string) {
   if (name in tuning.plan) return;
   if (FOLDED.includes(name)) throw new Error(`plan.${name} was folded into the code (review item 6): it is always on`);
-  if (DELETED.includes(name)) throw new Error(`plan.${name} was deleted (audit Step 3): its off path never shipped, so it is always off`);
+  if (DELETED.includes(name)) throw new Error(`plan.${name} was deleted (audit Step 3): only the path it shipped with is left`);
   throw new Error(`no plan switch named ${name}`);
 }
 

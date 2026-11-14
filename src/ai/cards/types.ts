@@ -45,7 +45,7 @@ export interface CardAI {
   counters?: Partial<Record<CounterType, CounterWorth>>;
   /** One counter on it worked out from what it turns into, while plan.counterFormulas is on. */
   counterFormulas?: Partial<Record<CounterType, CounterWorth>>;
-  /** Corp card faceup in Archives that plays again from there: its worth waiting there (plan.oneCurrency, evaluate.ts corpBoardValue). */
+  /** Corp card faceup in Archives that plays again from there: its worth waiting there (read by archivedWorth; its evaluate reader went with plan.oneCurrency in audit Step 3). */
   archived?: (state: GameState) => number;
   /** Corp operation that buys clicks or advancements to finish an agenda this turn: plan.finishSetup ranks it, and corpAI
    * operationBonus adds no bonus of its own (tuning pass 1, the old plan.oneSetupRule). */

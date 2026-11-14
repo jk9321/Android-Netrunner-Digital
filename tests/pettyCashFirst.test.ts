@@ -31,10 +31,7 @@ describe('Petty Cash is played first, while it can be (plan.pettyCashFirst)', ()
     // for a credit. One deal's luck, not the leak; listed in the S6 hand-off as a known gap for the redesign.
     tuning.plan.hiddenDraws = false;
     const s = play();
-    // plan.oneCurrency: the override is off and the one-step ranking puts Petty Cash first (oneCurrency.test.ts); the
-    // planned turn may open a remote instead, its sampled Runner reply deciding between lines its greedy rollout builds
-    // (structural review item 4). The bug Jeff saw, clicks for credits while holding it, stays closed either way
-    if (!tuning.plan.oneCurrency) expect(inHq(s)).not.toContain('Petty Cash');
+    expect(inHq(s)).not.toContain('Petty Cash');
     expect(s.log.some(l => l.message === 'Corp spent [click] to gain 1 credit.')).toBe(false);
   });
 });

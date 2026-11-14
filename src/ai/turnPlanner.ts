@@ -124,10 +124,8 @@ const sharedPlan: Record<SideCode, PlanMemory> = { corp: { line: [] }, runner: {
  * the same click for fewer credits. The planner tries each first action and plays the rest out with the
  * rule-based ranking, so it could pick the basic click just to steer the rest of the turn (Jeff, 2026-10-30).
  */
-function dominated(state: GameState, action: GameAction, ranked: ScoredAction[], side: SideCode): boolean {
+function dominated(state: GameState, action: GameAction, ranked: ScoredAction[]): boolean {
   if (action.type !== 'GAIN_CREDIT') return false;
-  // plan.oneCurrency: the Corp's ranking and the planner's leaf price the click the same way, so no override (item 1)
-  if (side === 'corp' && plan().oneCurrency) return false;
   return ranked.some(r => {
     if (r.score === -Infinity || r.action.type !== 'USE_ABILITY' || r.action.abilityIndex !== 0) return false;
     const card = findCardAnywhere(state, r.action.cardInstanceId);
@@ -160,7 +158,7 @@ function finishStep(state: GameState, ranked: ScoredAction[]): ScoredAction | un
  * Plays `side`'s turn on from `state` after `first`, and returns how good the end of the turn is. `mode` (LineMode):
  * how the continuation picks its actions ('hold': it installs no agenda from HQ this turn).
  */
-function playout(start: GameState, side: SideCode, first: GameAction, ai: PlannerAI, synergy: boolean, line: Line = [], ends?: Ends, mode: LineMode = 'rule'): number {
+function playout(start: GameState, side: SideCode, first: GameAction, ai: PlannerAI, line: Line = [], ends?: Ends, mode: LineMode = 'rule'): number {
   const hold = mode === 'hold';
   let bonus = 0;
   let ran = false;
@@ -234,7 +232,7 @@ function playout(start: GameState, side: SideCode, first: GameAction, ai: Planne
     if (outOfClicks && !(side === 'corp')) break;
     const now = state;
     const ranked = ai.rank(now);
-    const ruled = ranked.find(r => r.score > -Infinity && r.action.type !== 'END_TURN' && (!outOfClicks || r.action.type === 'SCORE_AGENDA') && !(ran && r.action.type === 'INITIATE_RUN') && !dominated(now, r.action, ranked, side) && !(hold && agendaInstall(now, r.action)));
+    const ruled = ranked.find(r => r.score > -Infinity && r.action.type !== 'END_TURN' && (!outOfClicks || r.action.type === 'SCORE_AGENDA') && !(ran && r.action.type === 'INITIATE_RUN') && !dominated(now, r.action, ranked) && !(hold && agendaInstall(now, r.action)));
     const finish = mode === 'finish' && side === 'corp' ? finishStep(now, ranked) : undefined;
     const best = finish && (!outOfClicks || finish.action.type === 'SCORE_AGENDA') ? finish : ruled;
     if (!best) break;
@@ -245,7 +243,7 @@ function playout(start: GameState, side: SideCode, first: GameAction, ai: Planne
     state = next;
   }
   if (searchPiece('plannerDiscard') && !state.winner) state = discardStep(state, side, ai);
-  const leaf = (s: GameState) => leafValue(s, side, synergy);
+  const leaf = (s: GameState) => leafValue(s, side);
   if (ends) {
     ends.state = state;
     ends.bonus = bonus;
@@ -368,11 +366,7 @@ export function buildCandidates(state: GameState, ranked: ScoredAction[], chosen
 }
 
 /** The end of the turn: hand by what each card will do later (plan.plannerHand), clicks as the model prices them. */
-function leafValue(state: GameState, side: SideCode, synergy: boolean): number {
-  // plan.oneCurrency: the Corp's line ends on the same evaluate its actions are ranked by (HQ by count, its seen agendas
-  // at heldAgendasWorth): a hand priced card by card here made the leaf a second currency (Petty Cash first ranked +2.8
-  // and lost the line to an install, its card worth in HQ counted against playing it)
-  if ((side === 'corp' && synergy && plan().oneCurrency)) return evaluate(state, side);
+function leafValue(state: GameState, side: SideCode): number {
   return withPricing({ leaves: [...pricing().leaves, { side, plan: plan() }] }, () => evaluate(state, side));
 }
 
@@ -400,7 +394,7 @@ export function planTurn(state: GameState, side: SideCode, ranked: ScoredAction[
     return next.action;
   }
   memory.line = [];
-  const open = ranked.filter(r => r.score > -Infinity && r.action.type !== 'END_TURN' && r.action.type !== 'START_TURN' && !dominated(state, r.action, ranked, side));
+  const open = ranked.filter(r => r.score > -Infinity && r.action.type !== 'END_TURN' && r.action.type !== 'START_TURN' && !dominated(state, r.action, ranked));
   // plan.oracle.think: a wider search, the best agenda install and the best advance always among the candidates
   const candidates = open.slice(0, plannerCandidates(side, PLANNER.candidates));
   if (thinkAlwaysTries(side)) {
@@ -434,7 +428,7 @@ export function planTurn(state: GameState, side: SideCode, ranked: ScoredAction[
     for (const c of candidates) {
       const line: Line = [];
       const ends: Ends = {};
-      const value = playout(root, side, c.action, ai, synergy, line, ends);
+      const value = playout(root, side, c.action, ai, line, ends);
       values.push(value);
       scored.push({ action: c.action, value, line, ends });
       if (!best || value > best.value) best = { action: c.action, value, line };
@@ -467,7 +461,7 @@ export function planTurn(state: GameState, side: SideCode, ranked: ScoredAction[
 function contenders<T extends { action: GameAction; value: number; line: Line; ends: Ends }>(scored: T[], side: SideCode, synergy: boolean): T | null {
   const live = scored.filter(r => Number.isFinite(r.value) && r.ends.state && !r.ends.state.winner).sort((a, b) => b.value - a.value);
   if (live.length < 2 || live[0].value - live[1].value >= REPLY.contendGap) return null;
-  const leaf = (s: GameState) => leafValue(s, side, synergy);
+  const leaf = (s: GameState) => leafValue(s, side);
   const top = live.slice(0, 2).map(r => {
     const bonus = r.ends.bonus ?? 0;
     const first = replySamples(REPLY.samples); // (plan.oracle.think plays more first samples)
@@ -522,14 +516,14 @@ function auditSearch(
     // An alternative line that "beats" the pick no more often than this re-sample does is the max of noise, not a better line.
     let resample: number | null = null;
     if (ai.reply && sampledReply() && Number.isFinite(ruleValue) && ruleEnds.state && !ruleEnds.state.winner) {
-      const leaf = (s: GameState) => leafValue(s, side, synergy);
+      const leaf = (s: GameState) => leafValue(s, side);
       resample = num(runnerReply(ruleEnds.state, synergy, leaf, { from: replySamples(REPLY.samples), count: REPLY.samples }) + (ruleEnds.bonus ?? 0));
     }
     const ruleKey = lineKey(c.action, ruleLine);
     const lines: SearchLine[] = [{ mode: 'rule', value: num(ruleValue), distinct: false }];
     for (const mode of ['hold', 'finish'] as const) {
       const l: Line = [];
-      const v = playout(state, side, c.action, ai, synergy, l, {}, mode);
+      const v = playout(state, side, c.action, ai, l, {}, mode);
       lines.push({ mode, value: num(v), distinct: lineKey(c.action, l) !== ruleKey });
     }
     return { type: c.action.type, agenda, lines, resample };
