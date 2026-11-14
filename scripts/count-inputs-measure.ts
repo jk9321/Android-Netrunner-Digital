@@ -10,7 +10,8 @@ import { deckGameSetup } from '../src/data/decks';
 import { ALL_DECKS } from './nsg-sample-decks';
 import { createAgent } from '../src/ai';
 import { GameRunner } from '../src/ai/playout';
-import { afterLineFloor, knownIncome, resetScoreInTwoStats, scoreInTwoStats } from '../src/ai/countedScore';
+import { afterLineFloor, knownIncome } from '../src/ai/countedScore';
+import { installDiagnostics } from '../src/ai/diagnostics';
 import { valueLoops } from '../src/ai/valueModel';
 import { applyPlanOff } from '../src/ai/synergy';
 
@@ -24,7 +25,7 @@ for (const seed of deals) {
   const c = corpDecks[Math.floor(p / runnerDecks.length)];
   const r = runnerDecks[p % runnerDecks.length];
   valueLoops.clear();
-  resetScoreInTwoStats();
+  const diag = installDiagnostics();
   const corp = createAgent('corp', 'normal');
   // Timed in place (the agent is a class instance: its other methods, chooseRez among them, stay)
   const choose = corp.chooseAction.bind(corp);
@@ -43,14 +44,14 @@ for (const seed of deals) {
       lastTurn = s.turnNumber;
       starts.set(s.turnNumber, s.corp.credits);
     }
-    const finished = scoreInTwoStats.finished;
+    const finished = diag.scoreInTwo.finished;
     if (!runner.step()) break;
     const after = runner.state;
     if (after.corp.scoreArea.length > s.corp.scoreArea.length && !after.winner) {
       const under = after.corp.credits + knownIncome(after) < afterLineFloor(after, '');
       out.scores++;
       if (under) out.underFloor++;
-      if (scoreInTwoStats.finished > finished) {
+      if (diag.scoreInTwo.finished > finished) {
         out.lineScores++;
         if (under) out.lineUnder++;
       }
@@ -58,11 +59,11 @@ for (const seed of deals) {
   }
   out.games++;
   if (runner.state.winner === 'corp') out.corpWins++;
-  out.begun += scoreInTwoStats.begun;
-  out.floorRefused += scoreInTwoStats.floorRefused;
-  out.unholdable += scoreInTwoStats.unholdable;
+  out.begun += diag.scoreInTwo.begun;
+  out.floorRefused += diag.scoreInTwo.floorRefused;
+  out.unholdable += diag.scoreInTwo.unholdable;
   // A turn number is a round (turn.ts): the line's turn T, then T+1 and T+2 start the Corp's next two turns
-  for (const l of scoreInTwoStats.lines) {
+  for (const l of diag.scoreInTwoLines) {
     const a = starts.get(l.turn + 1);
     const b = starts.get(l.turn + 2);
     if (a !== undefined) out.after1.push(a);

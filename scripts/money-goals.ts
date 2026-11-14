@@ -19,8 +19,8 @@ import { HeuristicCorpAI, createAgent } from '../src/ai';
 import { GameRunner } from '../src/ai/playout';
 import { valueLoops } from '../src/ai/valueModel';
 import { cardSynergy } from '../src/ai/synergyTags';
-import { moneyStats } from '../src/ai/incomeLine';
-import { iceRedirectStats, scoreInTwoStats } from '../src/ai/countedScore';
+import { installDiagnostics } from '../src/ai/diagnostics';
+const diag = installDiagnostics();
 
 const DIR = 'tests/fixtures/human-games';
 const TURNS = 10;
@@ -117,9 +117,9 @@ for (const [index, file] of files.entries()) {
     for (let i = 0; i < 6000 && game.state.turnNumber <= TURNS + 1; i++) {
       const before = game.state;
       const main = before.activePlayer === 'corp' && !before.activeRun && before.pendingPrompts.length === 0 && before.corp.clicks > 0 && before.turnNumber <= TURNS;
-      const m0 = moneyStats.ops;
-      const r0 = iceRedirectStats.fired;
-      const s0 = scoreInTwoStats.steps + scoreInTwoStats.vetoed;
+      const m0 = diag.money.ops;
+      const r0 = diag.iceRedirect.fired;
+      const s0 = diag.scoreInTwo.steps + diag.scoreInTwo.vetoed;
       const lineBefore = main ? [...memory()] : [];
       if (!game.step()) break;
       ai.observe(before, game.last!, game.state);
@@ -132,9 +132,9 @@ for (const [index, file] of files.entries()) {
       const a = game.last;
       const planned = lineBefore[0]?.action;
       const agendaMove = (a.type === 'ADVANCE_CARD' || a.type === 'SCORE_AGENDA') && planned && JSON.stringify(planned) !== JSON.stringify(a);
-      if (moneyStats.ops > m0) broke.money++;
-      else if (iceRedirectStats.fired > r0) broke.redirect++;
-      else if (scoreInTwoStats.steps + scoreInTwoStats.vetoed > s0 || agendaMove) broke.score++;
+      if (diag.money.ops > m0) broke.money++;
+      else if (diag.iceRedirect.fired > r0) broke.redirect++;
+      else if (diag.scoreInTwo.steps + diag.scoreInTwo.vetoed > s0 || agendaMove) broke.score++;
     }
     out(file, 'ai', seed + k, ai, broke);
   }

@@ -9,7 +9,7 @@ import { tagsWorth } from './evaluate';
 import { BLOCK, iceCost, iceCreditNeed, isTrap, plannedSubroutines, subroutineCost } from './runs';
 import { remoteRunChance, threatOn } from './threatModel';
 import { plan, pricing, withPricing } from './pricing';
-import { knownIce } from './reach';
+import { REZ_NOW_SHARE, rezBudget } from './iceValues';
 
 /**
  * The every-card audit's last 31 cards (Jeff, 2026-10-28): assets, upgrades
@@ -32,26 +32,32 @@ import { knownIce } from './reach';
  * the rest from the behaviour logs. Re-measure after every Corp or Runner AI change.
  */
 export const PACE = {
-  /** Runs a turn, and the share of them on HQ, R&D, Archives and a remote (by plan.measuredRunShares: RUN_SHARES below). */
-  runs: 1.2,
-  hqShare: 0.27,
-  rdShare: 0.2,
-  archivesShare: 0.15,
-  remoteShare: 0.39,
+  /**
+   * Runs a turn (1.01) and the share of them on HQ, R&D, Archives and a remote. Runs: beta 34391e2 with scripts/pace.ts,
+   * 2,210 games, 31,878 Runner turns (docs/batch-logs/2026-11-06-pace-report-beta-34391e2.txt). Shares: where the AI's
+   * runs really go, 23,039 runs in 1,280 self-play games over every deck (scripts/run-odds.ts,
+   * docs/batch-logs/2026-11-05-run-odds-report-v2-run-log.txt).
+   */
+  runs: 1.01,
+  hqShare: 0.18,
+  rdShare: 0.21,
+  archivesShare: 0.05,
+  remoteShare: 0.56,
   /** Share of runs on R&D while Conduit is installed (844 runs measured, 2026-10-28). */
   conduitRdShare: 0.19,
-  /** Share of runs that succeed. */
-  success: 0.8,
+  /** Share of runs that succeed (beta 34391e2, as runs). */
+  success: 0.77,
   /**
-   * Runner turns that breach Archives while it holds facedown cards (plan.measuredNov6; 10.4% of 1,471 such turns in
-   * 221 games at beta 34391e2, scripts/pace.ts): twice the average Archives run rate, as the Runner goes where cards are.
+   * Runner turns that breach Archives while it holds facedown cards (10.4% of 1,471 such turns in 221 games at beta
+   * 34391e2, scripts/pace.ts): twice the average Archives run rate, as the Runner goes where cards are. An agenda
+   * discarded to Archives is priced on this, not the average Archives run (evaluate.ts archivedAgendaLoss).
    */
   facedownBreach: 0.1,
   /** Turns the Runner steals or trashes a Corp card, and trashes something it pays for. */
   stealOrTrash: 0.35,
   paidTrashes: 0.3,
-  /** Agendas scored or stolen a turn, both sides together. */
-  agendaEvents: 0.34,
+  /** Agendas scored or stolen a Runner turn, both sides together (beta 34391e2, as runs). */
+  agendaEvents: 0.31,
   /** Ice rezzed a turn. */
   rezzes: 0.39,
   /** Turns the Runner installs a program, and has ice in hand (Corp). */
@@ -60,41 +66,6 @@ export const PACE = {
   /** Times the Runner clicks to draw on a turn it draws at all. */
   drawTurns: 0.7,
 };
-
-/**
- * plan.measuredRunShares (Jeff, 2026-11-05, thread "Find why AI card valuation misses cards"): where the AI's runs
- * really go, 23,039 runs in 1,280 self-play games over every deck (scripts/run-odds.ts, logged
- * docs/batch-logs/2026-11-05-run-odds-report-v2-run-log.txt): HQ 18%, R&D 21%, Archives 5%, remotes 57%, against
- * the 27/20/15/39 above. Runs a turn (1.21) and success (82%, by server within 5 points of the pass odds) matched.
- * Cards that pay on HQ or Archives runs were priced on half again the runs they get; remote cards on two thirds.
- */
-const RUN_SHARES = { hqShare: 0.18, rdShare: 0.21, archivesShare: 0.05, remoteShare: 0.56 };
-for (const key of Object.keys(RUN_SHARES) as (keyof typeof RUN_SHARES)[]) {
-  let set: number | undefined; // a test's own pace (tests/runBudget.test.ts)
-  Object.defineProperty(PACE, key, {
-    get: () => set ?? RUN_SHARES[key],
-    set: (v: number) => (set = v),
-    enumerable: true,
-  });
-}
-
-/**
- * plan.measuredNov6 (code audit cleanup item 6, 2026-11-06): the pace re-measured on beta 34391e2 with scripts/pace.ts,
- * 2,210 games, 31,878 Runner turns (docs/batch-logs/2026-11-06-pace-report-beta-34391e2.txt): 1.01 runs a turn (was
- * 1.2), 77% of them successful (0.8), 0.31 agendas scored or stolen a Runner turn (0.34). Ice rezzed a turn (0.40) and
- * an advanced remote agenda run that turn (41.6%, AGENDA_RUN 0.4) still match. The run shares stay on run-odds'
- * measure (plan.measuredRunShares). An agenda discarded to Archives is priced on PACE.facedownBreach, not the average
- * Archives run (evaluate.ts archivedAgendaLoss).
- */
-const PACE_NOV6 = { runs: 1.01, success: 0.77, agendaEvents: 0.31 };
-for (const key of Object.keys(PACE_NOV6) as (keyof typeof PACE_NOV6)[]) {
-  let set: number | undefined;
-  Object.defineProperty(PACE, key, {
-    get: () => set ?? PACE_NOV6[key],
-    set: (v: number) => (set = v),
-    enumerable: true,
-  });
-}
 
 /**
  * Virus counters sit until the Runner cashes them and a purge wipes them
@@ -173,12 +144,6 @@ function canTank(state: GameState, ice: CardInstance, credits: number): boolean 
 
 /** Unrezzed ice: the Corp rezzes it when it can afford to, about half the time. */
 const UNREZZED_PASS = { rich: 0.55, broke: 0.9 };
-/**
- * plan.measuredPass: the pass rates measured on unrezzed ice (scripts/threat-calibration.ts, item 3 round 2): the first
- * unrezzed layer a run meets, then each one after it (the Corp's money rezzes about one ice a run). A Corp with 3+
- * credits is rich, as above.
- */
-export const MEASURED_PASS = { rich: { first: 0.6, more: 0.83 }, broke: { first: 0.87, more: 0.93 } };
 
 /** Ice is being priced against the rig (pricing context): run odds are the flat guesses inside. */
 export const pricingIce = (): boolean => pricing().pricingIce;
@@ -207,16 +172,20 @@ export function runSuccessBypassing(state: GameState, serverId: string, bypassed
 
 /**
  * plan.ownIceKnown (bug reports #39 and #41, Jeff's Runner test games 7 and 9, 2026-11-09; Corp only): the Corp prices its
- * OWN unrezzed ice as it knows it, not by the Runner-side pass rates (MEASURED_PASS / UNREZZED_PASS: what a Runner meets
+ * OWN unrezzed ice as it knows it, not by the Runner-side pass rates (UNREZZED_PASS: what a Runner meets
  * when it can't see the ice). Ice its rez budget covers now (iceValues rezBudget: one pool, best stop first) is priced as
  * the real ice against the rig, since the Corp can rez it as it is approached (rules 3.4.3a, 6.9.2b); ice the budget
- * doesn't cover stays unrezzed and is passed (6.9.2c). The single copy is reach.ts knownIce (plan.reachStrength,
- * K2), which only runs inside plan.reach: both OFF since Phase 2 K, which is why it never priced these positions. With
- * plan.reach on, reach owns the pricing and this stays out of its way.
+ * doesn't cover stays unrezzed and is passed (6.9.2c). (Moved here from reach.ts knownIce, its one live reader, when
+ * plan.reach and its K2/K3 pieces were deleted in audit Step 3.)
  */
 function ownIce(state: GameState, server: GameState['corp']['servers'][string]): CardInstance[] {
-  if (!plan().ownIceKnown || plan().reach || !server.ice.some(ice => !ice.isRezzed)) return server.ice;
-  return knownIce(state, server.id, 1, true);
+  if (!plan().ownIceKnown || !server.ice.some(ice => !ice.isRezzed)) return server.ice;
+  const budget = rezBudget(state, true);
+  return server.ice.flatMap(ice => {
+    if (ice.isRezzed) return [ice];
+    const share = budget.get(ice.instanceId);
+    return share !== undefined && share >= REZ_NOW_SHARE ? [{ ...ice, isRezzed: true }] : [];
+  });
 }
 
 /** iceCost behind the re-entry guard. */
@@ -234,14 +203,9 @@ export function passOddsOf(state: GameState, serverId: string): number {
 function passOdds(state: GameState, ices: CardInstance[], income = 0): number {
   let credits = state.runner.credits + income;
   let pass = 1;
-  let unrezzed = 0;
   for (const ice of [...ices].reverse()) {
     if (!ice.isRezzed) {
-      const rich = state.corp.credits >= 3;
-      if (plan().measuredPass) {
-        const rate = rich ? MEASURED_PASS.rich : MEASURED_PASS.broke;
-        pass *= unrezzed++ ? rate.more : rate.first;
-      } else pass *= rich ? UNREZZED_PASS.rich : UNREZZED_PASS.broke;
+      pass *= state.corp.credits >= 3 ? UNREZZED_PASS.rich : UNREZZED_PASS.broke;
       continue;
     }
     const cost = iceCost(state, ice);
@@ -573,18 +537,8 @@ export function placedCounterWorth(state: GameState, card: CardInstance, iced: b
   if (known && !advancePayloadOf(card.cardCode)) return 0;
   if (card.cardCode === '30045') return bluff + 0.5 * (damageWorth(state, 3 + card.advancementCounters) - damageWorth(state, 2 + card.advancementCounters)); // Urtica: 1 more net damage
   if (card.cardCode === '35061') return 0.6 * 5; // Idiosyncresis
-  // Clearinghouse: plan.oneCurrency prices the counter's step in damage, which stops at the flatline (a counter past one
-  // more than the grip adds nothing: plan.clearinghouseLethal's cap, in the model)
-  // more than the grip adds nothing: plan.clearinghouseLethal's cap, in the model). It fires when the Corp's turn begins,
-  // after a Runner turn that can draw back to its hand size against the threat, and the Runner draws the cards back on
-  // its next turn: the cards it costs, not a step on the damage clock (that prices a smaller grip facing more damage
-  // before it redraws, which put a counter here at about 8, above a click and a credit toward an agenda)
-  if (card.cardCode === '30061') {
-    if (!plan().oneCurrency) return bluff + 0.6 * damageWorth(state, 1);
-    const life = Math.max(state.runner.grip.length, state.runner.handSizeLimit ?? 5);
-    const hit = (n: number) => (n > life ? flatlineWorth(state) : n * cardRate(state, 'runner'));
-    return bluff + 0.6 * (hit(card.advancementCounters + 1) - hit(card.advancementCounters));
-  }
+  // Clearinghouse: the counter's step in damage
+  if (card.cardCode === '30061') return bluff + 0.6 * damageWorth(state, 1);
   return 0.3;
 }
 

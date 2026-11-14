@@ -4,10 +4,10 @@ import { GameState, cardDef, executeAction } from '../src/core';
 import { HeuristicCorpAI } from '../src/ai/corpAI';
 import { GameRunner } from '../src/ai/playout';
 import { HeuristicRunnerAI } from '../src/ai/runnerAI';
-import { MEASURED_PASS, passOddsOf, stealOdds } from '../src/ai/effectValues';
+import { stealOdds } from '../src/ai/effectValues';
 import { asSide, tuning } from '../src/ai/synergy';
 import { plan } from '../src/ai/pricing';
-import { CALIBRATED_RUN, remoteRunChance, runChance, threat, threatLoss } from '../src/ai/threatModel';
+import { remoteRunChance, threat } from '../src/ai/threatModel';
 import { installIceForTest, installProgramForTest, newGame } from './helpers';
 import { threatStanding } from '../src/ai/evaluate';
 import { inDecision } from './helpers/pricing';
@@ -146,66 +146,5 @@ describe('where the Runner runs', () => {
   it('the switch is the Corp’s: the Runner AI keeps its own plan (sideOff.runner)', () => {
     expect(tuning.plan.threatModel).toBe(true);
     expect(asSide('runner', () => plan().threatModel)).toBe(false);
-  });
-
-  it('round 2: plan.measuredPass prices unrezzed ice at the measured rates (the first layer, then each after it)', () => {
-    const s = board();
-    const measured = tuning.plan.measuredPass;
-    try {
-      tuning.plan.measuredPass = true;
-      expect(inDecision(s, 'corp', () => passOddsOf(s, 'remote-1'))).toBeCloseTo(MEASURED_PASS.rich.first);
-      installIceForTest(s, PALISADE, 'remote-1', false);
-      expect(inDecision(s, 'corp', () => passOddsOf(s, 'remote-1'))).toBeCloseTo(MEASURED_PASS.rich.first * MEASURED_PASS.rich.more);
-      s.corp.credits = 1;
-      expect(inDecision(s, 'corp', () => passOddsOf(s, 'remote-1'))).toBeCloseTo(MEASURED_PASS.broke.first * MEASURED_PASS.broke.more);
-      // The Runner's side keeps its own guess
-      expect(asSide('runner', () => plan().measuredPass)).toBe(false);
-    } finally {
-      tuning.plan.measuredPass = measured;
-    }
-  });
-
-  /** Runs `body` with plan switches set, then puts them back. */
-  const withPlan = <T>(on: Partial<typeof tuning.plan>, body: () => T): T => {
-    const before = { ...tuning.plan };
-    Object.assign(tuning.plan, on);
-    try {
-      return body();
-    } finally {
-      Object.assign(tuning.plan, before);
-    }
-  };
-
-  it('round 3: plan.threatSpend credits the Corp with what the Runner spends getting in (an iced remote taxes it)', () => {
-    // Cleaver through a rezzed Palisade into a remote holding an agenda: the Runner pays to get in
-    const s = newGame();
-    s.activePlayer = 'corp';
-    s.runner.rig.programs = [];
-    installProgramForTest(s, '30006');
-    s.runner.credits = 8;
-    s.runner.clicks = 0;
-    const agenda = s.corp.rd.splice(s.corp.rd.indexOf(ofType(s.corp.rd, 'agenda')), 1)[0];
-    s.corp.servers['remote-1'] = { id: 'remote-1', name: 'Remote Server 1', isRemote: true, ice: [], root: [{ ...agenda, isRezzed: false, faceUp: false }] };
-    installIceForTest(s, PALISADE, 'remote-1');
-    const t = corpThreat(s);
-    expect(t.order).toContain('remote-1');
-    const spent = s.runner.credits + (4 - t.runs) - t.endCredits; // its credit clicks in, the tolls out
-    expect(spent).toBeGreaterThan(0);
-    const off = withPlan({ threatSpend: false }, () => inDecision(s, 'corp', () => threatLoss(structuredClone(s))));
-    const on = withPlan({ threatSpend: true }, () => inDecision(s, 'corp', () => threatLoss(structuredClone(s))));
-    expect(on).toBeLessThan(off);
-  });
-
-  it('round 3: plan.calibratedRun reads the budget at the measured hit rates', () => {
-    const s = newGame();
-    s.activePlayer = 'corp';
-    const agenda = s.corp.rd.splice(s.corp.rd.indexOf(ofType(s.corp.rd, 'agenda')), 1)[0];
-    s.corp.servers['remote-1'] = { id: 'remote-1', name: 'Remote Server 1', isRemote: true, ice: [], root: [{ ...agenda, isRezzed: false, faceUp: false }] };
-    withPlan({ calibratedRun: true }, () => {
-      expect(inDecision(s, 'corp', () => runChance(structuredClone(s), 'remote-1'))).toBe(CALIBRATED_RUN.remote.picked);
-      const order = corpThreat(structuredClone(s)).order;
-      for (const id of ['hq', 'rd'] as const) expect(inDecision(s, 'corp', () => runChance(structuredClone(s), id))).toBe(order.includes(id) ? CALIBRATED_RUN[id].picked : CALIBRATED_RUN[id].not);
-    });
-    expect(inDecision(s, 'corp', () => runChance(structuredClone(s), 'remote-1'))).toBe(1);
   });
 });

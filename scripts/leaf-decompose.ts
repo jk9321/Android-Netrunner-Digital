@@ -4,10 +4,10 @@
  *
  * For each position the AI's pick and Jeff's move are each played to the end of the turn the way turnPlanner.ts playout
  * plays a candidate (the rest of the turn by the planner-off Corp AI, prompts answered by it, the discard step), and the
- * leaf is split into its parts. The leaf in the shipped config (threatLeaf off, runnerReply on: corpAI.ts plan) is
+ * leaf is split into its parts. The leaf in the shipped config (runnerReply on: corpAI.ts plan) is
  * evaluate(corp) after the Runner's next turn, played out from REPLY.samples guesses of the hidden cards (runnerReply.ts),
  * averaged; the parts here are averaged the same way, with the Runner's points stolen in the reply. The planner's own
- * candidate values (plannerStats.onCandidates) are printed beside it so the replication can be checked.
+ * candidate values (the diagnostics' onCandidates) are printed beside it so the replication can be checked.
  *
  * Usage: npx vite-node scripts/leaf-decompose.ts -- [--n=10] [--per=2] [--at=file:turn:clicks] [--alt=TYPE[:title[:server]]] [--json=out.json]
  *
@@ -23,13 +23,15 @@ import { HeuristicCorpAI, createAgent } from '../src/ai';
 import { corpBoardValue, corpCardValue, evaluate, handAndClicks, sideStrength } from '../src/ai/evaluate';
 import { iceWorth } from '../src/ai/iceValues';
 import { sideCreditValue, pointValue, KNOBS } from '../src/ai/valueModel';
-import { threatStats, turnSeed } from '../src/ai/threatModel';
+import { turnSeed } from '../src/ai/threatModel';
+import { inReply } from '../src/ai/diagnostics';
 import { GameRunner } from '../src/ai/playout';
 import { HeuristicRunnerAI } from '../src/ai/runnerAI';
 import { REPLY, guessHidden } from '../src/ai/runnerReply';
 import { asSide, plan, pricing, withPricing } from '../src/ai/pricing';
 import { decisionContext } from '../src/ai/handValues';
-import { discardStep, plannerStats, searchPiece } from '../src/ai/turnPlanner';
+import { discardStep, searchPiece } from '../src/ai/turnPlanner';
+import { withDiagnostics } from '../src/ai/diagnostics';
 import { applyPlanOff } from '../src/ai/synergy';
 
 applyPlanOff(process.env.PLAN_OFF ?? '');
@@ -97,8 +99,7 @@ function replyParts(end: GameState): { parts: Parts; stolen: number; ran: string
   const sum: Parts = {};
   let stolen = 0;
   const ran = new Set<string>();
-  const outer = threatStats.inReply;
-  threatStats.inReply = true;
+  const undoReply = inReply();
   try {
     for (let k = 0; k < REPLY.samples; k++) {
       const gr = new GameRunner(guessHidden(end, k), { corp: new HeuristicCorpAI({ synergy: true, planner: false }), runner: new HeuristicRunnerAI({ synergy: true, planner: false }) });
@@ -116,7 +117,7 @@ function replyParts(end: GameState): { parts: Parts; stolen: number; ran: string
       for (const [key, v] of Object.entries(parts(gr.state))) sum[key] = (sum[key] ?? 0) + v / REPLY.samples;
     }
   } finally {
-    threatStats.inReply = outer;
+    undoReply();
   }
   return { parts: sum, stolen, ran: [...ran].join(',') };
 }
@@ -167,10 +168,11 @@ const out: unknown[] = [];
 for (const p of chosen) {
   const s = p.s;
   let planner: number[] = [];
-  plannerStats.onCandidates = (side, values) => { if (side === 'corp') planner = values; };
   const agent = createAgent('corp', 'normal');
-  const pick = agent.chooseAction(s);
-  plannerStats.onCandidates = undefined;
+  const pick = withDiagnostics(d => {
+    d.onCandidates = (side, values) => { if (side === 'corp') planner = values; };
+    return agent.chooseAction(s);
+  });
   const seed = (turnSeed(s) ^ Math.imul(s.corp.clicks + 1, 0x85ebca6b)) >>> 0;
   const run = (a: GameAction) => asSide('corp', () => { decisionContext(s, 'corp'); return withPricing({ frozen: true, decisionSeed: seed }, () => { const r = playout(s, a); return { ...r, before: parts(r.end), ...replyParts(r.end) }; }); });
   const A = run(pick);

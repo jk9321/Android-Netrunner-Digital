@@ -12,7 +12,7 @@ import { readFileSync } from 'node:fs';
 import { afterEach, describe, expect, it } from 'vitest';
 import { GameState } from '../src/core';
 import { createAgent } from '../src/ai';
-import { plannerStats } from '../src/ai/turnPlanner';
+import { withDiagnostics } from '../src/ai/diagnostics';
 import { tuning } from '../src/ai/synergy';
 
 const saved = { ...tuning.plan };
@@ -23,9 +23,10 @@ const t17 = (): GameState => JSON.parse(readFileSync(new URL('./fixtures/planner
 
 describe('P1: the count has decided, the planner is not run', () => {
   it('a scoreNow line: advance Luminal (1.17.3a, 5.2.6f), with no planner search', () => {
-    const before = plannerStats.decisions;
-    const pick = createAgent('corp', 'normal').chooseAction(t17());
-    expect(pick).toMatchObject({ type: 'ADVANCE_CARD', cardInstanceId: 'inst-3' });
-    expect(plannerStats.decisions).toBe(before);
+    withDiagnostics(d => {
+      const pick = createAgent('corp', 'normal').chooseAction(t17());
+      expect(pick).toMatchObject({ type: 'ADVANCE_CARD', cardInstanceId: 'inst-3' });
+      expect(d.planner.decisions).toBe(0);
+    });
   }, 30000);
 });

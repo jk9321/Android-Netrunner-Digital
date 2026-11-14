@@ -52,9 +52,7 @@ describe('a Corp with no credits (Jeff’s bug report, plan.agendaCredits)', () 
 
   it('installs no more bare agendas (Normal and Hard)', () => {
     expect(bareAgendas(turn17())).toBe(2);
-    // plan.oneCurrency: at most the two already out. The one-currency Corp may take one off the board: Anthill
-    // Excavation Contract (an asset) installed over a bare agenda trashes it facedown (rules 8.5.6a, 4.4.6b: the Runner
-    // never saw it), where Spin Doctor shuffles it back into R&D, and a bare agenda is the Runner's points next turn
+    // At most the two already out (an asset installed over a bare agenda trashes it facedown, rules 8.5.6a, 4.4.6b)
     expect(bareAgendas(playTurn(turn17()))).toBeLessThanOrEqual(2);
     expect(bareAgendas(playTurn(turn17(), createAgent('corp', 'hard', { samples: 6, seed: 1 })))).toBeLessThanOrEqual(2);
   // 410 s: twice the slowest of the last five beta CI runs (205 s, run 43507030194; 144-205 s in runs 43504371759 to
@@ -159,10 +157,6 @@ describe('Humanoid Resources is rezzed to be used (Jeff 2026-10-31: "it rezzes i
 
   it('a rez in the action phase is followed by using it (the rule-based ranking)', () => {
     let s = idle();
-    // plan.oneCurrency (2026-11-06): with 3 credits the one-currency Corp installs Anthill Excavation Contract first (2.1
-    // against 1.6 for the rez), a fair trade at 3 credits; this test is about the use following the rez, so HQ holds no
-    // other asset to install
-    if (tuning.plan.oneCurrency) s.corp.hq = s.corp.hq.filter(c => cardDef(c).type_code !== 'asset');
     const hr = hrOf(s);
     const corp = new HeuristicCorpAI({ planner: false });
     let rezzed = false;

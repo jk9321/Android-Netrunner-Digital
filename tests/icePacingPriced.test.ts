@@ -6,10 +6,9 @@
  * install ranked -Infinity and the Corp clicked to draw three times. The ice-pacing guard (corpAI installScore: no ice
  * the Corp can't afford to rez on top of the unrezzed ice already out) counted every unrezzed ice on the board: two
  * Attini (6 each) on remotes holding nothing or assets and the Mycoweb on R&D (8), 20 credits it never meant to spend,
- * so the board's own unrezzed ice locked out the ice HQ needed. plan.icePacingPriced drops the guard while
- * plan.ownIceKnown prices the ice (Jeff: "that ICE just shouldn't count as protection unless it CAN rez it").
- *
- * plan.icePacingPriced is PARKED OFF (about -7 points through over-icing, synergy.ts): these tests pin what it does when on.
+ * so the board's own unrezzed ice locked out the ice HQ needed (Jeff: "that ICE just shouldn't count as protection
+ * unless it CAN rez it"). plan.icePacingPriced dropped the guard while plan.ownIceKnown prices the ice; it cost about 7
+ * points through over-icing, stayed parked off and was deleted in audit Step 3. Turn 7 stays pinned as known-failing.
  *
  * Turn 6 (plan.ownIceKnown, effectValues.ts): Fujii Asset Retrieval on 2 counters behind an unrezzed Attini, the Corp on
  * 20 credits; the Runner approached and the Corp passed (rules 6.9.2b-c: unrezzed ice is passed) and lost 3 points.
@@ -18,7 +17,7 @@ import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
 import { GameAction, GameState, actingSide, cardDef, createInitialGameState, executeAction, findCardAnywhere } from '../src/core';
 import { deckGameSetup } from '../src/data/decks';
-import { HeuristicCorpAI, createAgent } from '../src/ai';
+import { HeuristicCorpAI } from '../src/ai';
 import { rezCandidates } from '../src/ai/playout';
 import { tuning } from '../src/ai/synergy';
 
@@ -42,7 +41,7 @@ const turn7 = () => replay((s, m) => s.turnNumber === 7 && s.activePlayer === 'c
 /** The Runner approaching the Attini on Remote Server 1 at turn 6, the Corp to answer. */
 const attini = () => replay(s => s.turnNumber === 6 && s.activePlayer === 'runner' && s.priority?.holder === 'corp' && s.priority.step === 'approach_ice' && !s.pendingPrompts.length);
 
-const withSwitch = <T>(key: 'icePacingPriced' | 'ownIceKnown', on: boolean, work: () => T): T => {
+const withSwitch = <T>(key: 'ownIceKnown', on: boolean, work: () => T): T => {
   const was = tuning.plan[key];
   tuning.plan[key] = on;
   try {
@@ -66,35 +65,13 @@ describe('game 11 (bug report #43): the Corp with money ices HQ and rezzes its i
     expect(s.corp.hq.filter(c => cardDef(c).type_code === 'ice').length).toBeGreaterThanOrEqual(2);
   });
 
-  it('turn 7: the Corp ices its centrals with plan.icePacingPriced, HQ among them; every ice install was -Infinity without it', { timeout: 120_000 }, () => {
-    const on = withSwitch('icePacingPriced', true, () => {
-      const s = turn7();
-      const top = new HeuristicCorpAI({ planner: false }).rankMainActions(s)[0];
-      // The whole planned turn (Normal): Cloud Eater on HQ, Empiricist on R&D, then Regolith's credits
-      let t = s;
-      const ai = createAgent('corp', 'normal');
-      for (let i = 0; i < 10 && t.activePlayer === 'corp'; i++) {
-        const action = ai.chooseAction(t);
-        t = executeAction(t, action);
-        if (action.type === 'END_TURN') break;
-      }
-      return { top, hqIce: t.corp.servers.hq.ice.length, rdIce: t.corp.servers.rd.ice.length, ranked: iceInstalls(s, 'hq') };
-    });
-    expect(on.top.action.type === 'INSTALL_CARD' && cardDef(findCardAnywhere(turn7(), on.top.action.cardInstanceId)!).type_code).toBe('ice');
-    expect(on.ranked.some(r => Number.isFinite(r.score))).toBe(true);
-    expect(on.hqIce).toBeGreaterThanOrEqual(1);
-    const off = withSwitch('icePacingPriced', false, () => iceInstalls(turn7(), 'hq'));
-    expect(off.length).toBeGreaterThan(0);
-    expect(off.every(r => r.score === -Infinity)).toBe(true);
-  });
-
-  it('turn 7: ice the Corp can\'t pay for is priced lower, not blocked (Cloud Eater, rez 10, on 5 credits vs 20)', { timeout: 60_000 }, () => {
-    const cloud = (credits: number) => {
-      const s = turn7();
-      const st = { ...s, corp: { ...s.corp, credits } };
-      return iceInstalls(st, 'hq').find(r => r.action.type === 'INSTALL_CARD' && cardDef(findCardAnywhere(st, r.action.cardInstanceId)!).title === 'Cloud Eater')!.score;
-    };
-    expect(withSwitch('icePacingPriced', true, () => cloud(5) < cloud(20))).toBe(true);
+  // Known-failing pin (CLAUDE.md: Jeff's games stay pinned): the ice-pacing guard still blocks every HQ ice install here.
+  // plan.icePacingPriced, which dropped the guard while ownIceKnown prices the ice, was parked off (about -7 points
+  // through over-icing) and deleted in audit Step 3; the hole waits for ice pacing priced by the leaf.
+  it.fails('turn 7: some ice install on HQ is playable (#43 open: every one ranks -Infinity)', { timeout: 60_000 }, () => {
+    const ranked = iceInstalls(turn7(), 'hq');
+    expect(ranked.length).toBeGreaterThan(0);
+    expect(ranked.some(r => Number.isFinite(r.score))).toBe(true);
   });
 
   it('turn 6: the Attini in front of Fujii Asset Retrieval (2 counters) is rezzed with plan.ownIceKnown; passed without it', { timeout: 60_000 }, () => {

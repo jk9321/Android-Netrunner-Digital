@@ -12,7 +12,7 @@ import { deckGameSetup } from '../src/data/decks';
 import { ALL_DECKS } from './nsg-sample-decks';
 import { createAgent } from '../src/ai';
 import { applyPlanOff, tuning } from '../src/ai/synergy';
-import { plannerStats } from '../src/ai/turnPlanner';
+import { installDiagnostics } from '../src/ai/diagnostics';
 
 const [gamesArg, seedArg] = process.argv.slice(2).filter(a => a !== '--');
 const games = Number(gamesArg ?? 4);
@@ -21,7 +21,7 @@ tuning.plan.hiddenDraws = false;
 const n = { decisions: 0, withDraw: 0, drawLines: 0, lines: 0, flips: 0, compared: 0, noDrawFlips: 0, noDrawCompared: 0 };
 let inner = false;
 const same = (a: GameAction | null, b: GameAction | null) => JSON.stringify(a) === JSON.stringify(b);
-plannerStats.onDraws = (state, drawLines, lines, pick) => {
+installDiagnostics().onDraws = (state, drawLines, lines, pick) => {
   if (inner) return;
   n.decisions++;
   n.lines += lines;

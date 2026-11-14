@@ -5,7 +5,7 @@ import { tuning } from '../src/ai/synergy';
 import { plan } from '../src/ai/pricing';
 import { playedWorth } from '../src/ai/handValues';
 import { iceWorth } from '../src/ai/iceValues';
-import { CLICK, pointGain, pointValue } from '../src/ai/valueModel';
+import { CLICK, pointValue } from '../src/ai/valueModel';
 import { createCardInstance } from '../src/core';
 import { installIceForTest, newGame } from './helpers';
 import { STEAL, runSuccess, stealOdds } from '../src/ai/effectValues';
@@ -37,9 +37,8 @@ describe('agendas on the board (Jeff, 2026-10-28; plan.agendaBoard)', () => {
     const iced = agendaWorth(s, 3, 3, 2, 'remote-1');
     const bare = agendaWorth(s, 3, 3, 2, 'remote-2');
     expect(iced).toBeGreaterThan(bare);
-    // an open remote: as good as stolen (plan.openSteal); plan.oneCurrency charges the steal at the Runner's points on
-    // the clock (review of item 1: a steal is the Runner's points won, not only the Corp's lost)
-    expect(bare).toBeCloseTo(tuning.plan.oneCurrency ? -pointGain(s.runner.score, 2) : 0);
+    // an open remote: as good as stolen (plan.openSteal)
+    expect(bare).toBeCloseTo(0);
   });
 
   it('each advancement brings it closer: the click (at what it could build) and credit it took come back', () => {

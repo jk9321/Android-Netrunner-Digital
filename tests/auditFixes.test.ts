@@ -4,7 +4,6 @@ import { serverValue, tagCost } from '../src/ai/runs';
 import { corpEffect, rezzedWorth } from '../src/ai/effectValues';
 import { HeuristicCorpAI, outOfReach } from '../src/ai/corpAI';
 import { answerPrompt } from '../src/ai/prompts';
-import { tuning } from '../src/ai/synergy';
 import { guessHidden } from '../src/ai/runnerReply';
 import { determinize } from '../src/ai/search';
 import { cont, installCorpForTest, newGame, run, startRunnerTurn } from './helpers';
@@ -109,10 +108,7 @@ describe('Clearinghouse is advanced toward a flatline (plan.clearinghouseLethal;
     expect(advanceScore(3, 5)).toBeGreaterThan(-Infinity);
   });
   it('not past one more than the grip', () => {
-    // plan.oneCurrency ranks by the evaluate delta, so "not taken" is a delta below a click for a credit, not -Infinity:
-    // a counter past what can flatline is worth only the card it costs a Runner that draws back before it fires
-    if (tuning.plan.oneCurrency) expect(advanceScore(4, 3)).toBeLessThan(advanceScore(4, 3, 'GAIN_CREDIT'));
-    else expect(advanceScore(4, 3)).toBe(-Infinity);
+    expect(advanceScore(4, 3)).toBe(-Infinity);
   });
 });
 

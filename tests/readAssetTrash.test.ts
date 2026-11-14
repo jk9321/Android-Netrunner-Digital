@@ -2,7 +2,6 @@ import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
 import { GameState, cardDef, createCardInstance, findCardAnywhere } from '../src/core';
 import { HeuristicCorpAI } from '../src/ai/corpAI';
-import { tuning } from '../src/ai/synergy';
 import { PAYOUT_RISK, bareAssetRisk } from '../src/ai/cardProfiles';
 import { inDecision } from './helpers/pricing';
 
@@ -43,15 +42,6 @@ describe('the Corp reads how this Runner treats unprotected assets (plan.readAss
   });
 
   it('Otto Campaign in a new remote beats a click for a credit, until the Runner has trashed 6 of 7 bare assets', () => {
-    if (tuning.plan.oneCurrency) {
-      // plan.oneCurrency: a bare money asset is priced on its payout at the bare risk (here the self-play 'moneyBare'
-      // already puts a bare Otto below a credit; the iced remote-9 is the place for it); the record moves that risk
-      const score = (s: GameState, where: string) =>
-        inDecision(s, 'corp', () => new HeuristicCorpAI({ synergy: true, planner: false }).rankMainActions(s)).find(r => r.action.type === 'INSTALL_CARD' && title(s, r.action.cardInstanceId) === 'Otto Campaign' && (where === 'new' ? r.action.asNewRemote : r.action.targetServerId === where))!.score;
-      expect(score(position(), 'new')).toBeGreaterThan(score(position({ exposed: 7, trashed: 6 }), 'new') + 1);
-      expect(before(ranked(position()), 'install Otto Campaign remote-9', 'GAIN_CREDIT')).toBe(true);
-      return;
-    }
     expect(before(ranked(position()), 'install Otto Campaign new', 'GAIN_CREDIT')).toBe(true);
     expect(before(ranked(position({ exposed: 7, trashed: 6 })), 'install Otto Campaign new', 'GAIN_CREDIT')).toBe(false);
   });
@@ -61,13 +51,6 @@ describe('the Corp reads how this Runner treats unprotected assets (plan.readAss
     // A better-iced empty remote is the scoring remote; Remote 9 (Ablative Barrier) is the side one
     const main = s.corp.servers['remote-9'];
     s.corp.servers['remote-12'] = { ...main, id: 'remote-12', ice: [createCardInstance(s, '34034'), createCardInstance(s, '34034')], root: [] };
-    if (tuning.plan.oneCurrency) {
-      // plan.oneCurrency: the record prices the bare risk only, so behind ice Otto keeps its worth and the side remote
-      // ranks well above a new one (whether above a credit is a few tenths either way here)
-      const list = ranked(s);
-      expect(before(list, 'install Otto Campaign remote-9', 'install Otto Campaign new')).toBe(true);
-      return;
-    }
     expect(before(ranked(s), 'install Otto Campaign remote-9', 'GAIN_CREDIT')).toBe(true);
   });
 });

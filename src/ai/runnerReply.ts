@@ -3,7 +3,8 @@ import { HeuristicCorpAI } from './corpAI';
 import { GameRunner } from './playout';
 import { HeuristicRunnerAI } from './runnerAI';
 import { pointValue, pointsTerm, sampledEndWorth } from './valueModel';
-import { threatStats, turnSeed } from './threatModel';
+import { turnSeed } from './threatModel';
+import { inReply, note, tally } from './diagnostics';
 import { currentDecisionSeed, searchPiece } from './turnPlanner';
 import { plan } from './pricing';
 import { corpKnowsRd, corpSeenGrip, replySamples, setOraclePlayout } from './oracle';
@@ -42,13 +43,9 @@ export const REPLY = {
 /** Which samples a reply plays: guessHidden deals `from` .. `from + count - 1`. */
 export interface ReplyRange { from: number; count: number }
 
-/**
- * Whether the Corp planner's reply is this sampled Runner turn (corpAI.ts plan: plan.runnerReply, unless the threat
- * leaf stands in for it: plan.threatModel with threatLeaf). plan.replyContenders plays extra samples only then; the
- * threat leaf is deterministic, more of it would recompute the same number.
- */
+/** Whether the Corp planner's reply is this sampled Runner turn (corpAI.ts plan: plan.runnerReply). plan.replyContenders plays extra samples only then. */
 export function sampledReply(): boolean {
-  return !!plan().runnerReply && !(plan().threatModel && plan().threatLeaf !== false);
+  return !!plan().runnerReply;
 }
 
 /**
@@ -95,8 +92,7 @@ export function guessHidden(state: GameState, k: number): GameState {
   return { ...state, rng: createRng(rng.state), runner: { ...state.runner, grip, stack }, corp: { ...state.corp, rd } };
 }
 
-/** Diagnostics (scripts): reply turns that began with an agenda in a remote with no ice, and how many ran it. */
-export const replyStats: { nakedAgendaTurns: number; nakedAgendaRuns: number; onSamples?: (values: number[]) => void } = { nakedAgendaTurns: 0, nakedAgendaRuns: 0 };
+/** Remotes with an agenda and no ice (the open-steal loss; the diagnostics count the reply turns that began with one, and how many ran it). */
 const nakedAgendaRemotes = (s: GameState) =>
   Object.values(s.corp.servers)
     .filter(v => v.isRemote && v.ice.length === 0 && v.root.some(c => cardDef(c).type_code === 'agenda'))
@@ -124,8 +120,7 @@ export function runnerReply(end: GameState, synergy: boolean, leaf: (state: Game
   let total = 0;
   const values: number[] = [];
   let rootBoard: number | undefined; // the reply root's board, read once, only when a sample ends the game
-  const outer = threatStats.inReply;
-  threatStats.inReply = true;
+  const undoReply = inReply();
   try {
     for (let k = range.from; k < range.from + range.count; k++) {
       const gr = new GameRunner(guessHidden(end, k), {
@@ -147,8 +142,8 @@ export function runnerReply(end: GameState, synergy: boolean, leaf: (state: Game
       } catch {
         // A reply that breaks the engine is scored where it stopped
       }
-      replyStats.nakedAgendaTurns += naked.length;
-      replyStats.nakedAgendaRuns += naked.filter(id => ran.has(id)).length;
+      tally('reply', 'nakedAgendaTurns', naked.length);
+      tally('reply', 'nakedAgendaRuns', naked.filter(id => ran.has(id)).length);
       // (Jeff's bug report, 2026-10-31; plan.openStealUnrun) only agendas in remotes the Runner didn't run: one it ran and
       // was stopped from (The Red Room, LEO) survived the run it was counted stolen for
       const unrun = plan().openStealUnrun ? naked.filter(id => !ran.has(id)).flatMap(id => gr.state.corp.servers[id]?.root.map(c => c.instanceId) ?? []) : nakedAgendas;
@@ -164,8 +159,8 @@ export function runnerReply(end: GameState, synergy: boolean, leaf: (state: Game
       total += value;
     }
   } finally {
-    threatStats.inReply = outer;
+    undoReply();
   }
-  replyStats.onSamples?.(values);
+  note(d => d.onReplySamples?.(values));
   return total / range.count;
 }

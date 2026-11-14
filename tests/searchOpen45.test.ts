@@ -7,8 +7,8 @@ import { GameState, cardDef } from '../src/core';
  * advancement 5) sat in remote-1 behind Pharos and Flyswatter and was not scored. Corp T8 and T9 both start with 3
  * counters, 1 credit and 3 clicks: a click for a credit and two advances score it. The AI iced R&D at T8; at T9 it iced
  * Archives, advanced once and took a credit, and the Runner stole it for the win. The fixes thread traced it to the 2-sample reply: both samples
- * ran the other remote. Phase 3 S3 (plan.searchSamples, parked OFF) must be tested against these positions when it is
- * re-measured after plan.corpTurnDamageOwn lands on beta. Pinned only: no pick assertion yet.
+ * ran the other remote. Phase 3 S3 (plan.searchSamples, the close-call re-samples) was deleted in audit Step 3 without
+ * that re-measure; a later fix to the reply's sampling is tested against these positions. Pinned only: no pick assertion yet.
  */
 const load = (t: number): GameState => JSON.parse(readFileSync(new URL(`./fixtures/search-open-45-t${t}.json`, import.meta.url), 'utf8'));
 

@@ -17,7 +17,8 @@ import { evaluate } from '../src/ai/evaluate';
 import { asSide, plan, pricing, withPricing } from '../src/ai/pricing';
 import { decisionContext } from '../src/ai/handValues';
 import { discardStep, searchPiece } from '../src/ai/turnPlanner';
-import { threatStats, turnSeed } from '../src/ai/threatModel';
+import { turnSeed } from '../src/ai/threatModel';
+import { inReply } from '../src/ai/diagnostics';
 import { GameRunner } from '../src/ai/playout';
 import { HeuristicRunnerAI } from '../src/ai/runnerAI';
 import { REPLY, guessHidden } from '../src/ai/runnerReply';
@@ -55,8 +56,7 @@ function reply(end: GameState, agendaId: string): { value: number; stolen: numbe
   if (end.winner) return { value: end.winner === 'corp' ? 1000 : -1000, stolen: 0, scored };
   let total = 0;
   let stolen = 0;
-  const outer = threatStats.inReply;
-  threatStats.inReply = true;
+  const undoReply = inReply();
   try {
     for (let k = 0; k < REPLY.samples; k++) {
       const gr = new GameRunner(guessHidden(end, k), { corp: new HeuristicCorpAI({ synergy: true, planner: false }), runner: new HeuristicRunnerAI({ synergy: true, planner: false }) });
@@ -72,7 +72,7 @@ function reply(end: GameState, agendaId: string): { value: number; stolen: numbe
       total += leafEval(gr.state);
     }
   } finally {
-    threatStats.inReply = outer;
+    undoReply();
   }
   return { value: total / REPLY.samples, stolen, scored };
 }

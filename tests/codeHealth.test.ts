@@ -33,33 +33,20 @@ const OFF_SWITCHES: Record<string, string> = {
   runCreditsSlide: 'breaks castWhileAble; retest once Runner income has one slide helper (cleanup item 4)',
   'handByCard.corp': 'used by the planner leaf; off in the rule ranking, kept for re-testing',
   'handByCard.runner': 'used by the planner leaf; off in the rule ranking, kept for re-testing',
-  // Turning it on needs plan.pettyCashFirst kept on: with oneCurrency on and pettyCashFirst off, the plannerSearch
-  // Corp clicks for a credit over Petty Cash (item 4 hand-off, 2026-11-07)
-  oneCurrency: 'missed its paired batch (stop rule, 2026-11-07); kept switchable for the next round',
   rdTurnsLeft: 'missed its paired batch (2026-11-07: decked 186 vs 173); the honest clock, kept for when urgency is priced by points',
   // Tuning pass 1 (2026-11-08, review-1 R4): measured reasons, paired vs base run 42403086049
   replyContenders: 'install-worth probe P2: extra reply samples for the top two; -0.6 ± 2.2 (run 42498949422) for +19% time',
   oneAgendaGuess: 'Runner-view consistency (runs.ts remoteAgendaOdds in corpBoardValue); -0.6 ± 0.7 alone (run 42403914400); carried broke +1.3 ± 1.0 alone and the set\'s +4.0 ± 2.0 (run 42463624862); +7% time; on when a human hole needs it',
   hqHeld: 'tuning pass 1: carried the decking bundle\'s broke +5.7 ± 2.4 (run 42403919890, with unseenOdds); not re-tried apart',
   unseenOdds: 'tuning pass 1: carried the decking bundle\'s broke +5.7 ± 2.4 (run 42403919890, with hqHeld); not re-tried apart',
-  threatLeaf: 'item 3: the threat as the planner leaf charge; lost to the played-out reply (-8.2 ± 1.3 alone, 2026-11-07), the leaf goes to item 4',
-  plannerPatchesOff: 'item 4: dropping the ordering patches under the planner search cost "tag not used" +2.3 ± 1.1 (2026-11-07); patches go with item 6',
-  measuredPass: 'item 3 round 2: the measured unrezzed pass rate; neutral in its paired batch (+0.0 ± 0.6, 2026-11-07), kept off with the threat it was measured for',
-  threatSpend: 'item 3 round 3: the Runner spend at the threat leaf; read only with threatLeaf (off)',
   // Tuning pass round 2 (spec-round2.md): oracles measure headroom; they can never ship on
   'oracle.grip': 'measurement oracle, never a default',
   'oracle.safestRemote': 'measurement oracle, never a default',
   'oracle.rd': 'measurement oracle, never a default',
   'oracle.think': 'measurement oracle (decision-quality ceiling), never a default',
   'oracle.gripThreat': 'measurement oracle (Phase 2 K0: grip in the threat and search deals only), never a default',
-  reach: 'Phase 2 K1: +0.3 +/- 0.7 at 10 games (run 42549985741) but stayed broke +1.5 +/- 0.7, over the 2 SE line',
-  reachStrength: 'Phase 2 K2: -0.9 +/- 1.4 at 3 games (run 42538399856), opening unchanged',
   threatKeyPricing: 'Phase 2 K4b: threat key without the pricing context; moved 4 of 221 deals (run 42537621348)',
-  reachTime: 'Phase 2 K3: +0.6 +/- 0.8 at 10 games (run 42543840540), stayed broke +2.8 +/- 0.9',
   'oracle.gripReply': 'measurement oracle (Phase 2 K0: grip in the Runner reply only), never a default',
-  calibratedRun: 'item 3 round 3: the threat read at measured hit rates; did not help (-9.9 vs -10.6), kept as measurement',
-  icePacingPriced: 'bug report #43: about -7 points through over-icing (batch 3 42715002281 vs batch 4 42720370875: went-broke +22, stayed-broke +14); off until the leaf prices the rezzes an ice install commits to',
-  searchSamples: 'Phase 3 S3 (spec-search.md): PARKED OFF, -4.2 ± 1.8 vs searchLines ON (run 42697176557; searchLines deleted in step 2); re-measure after corpTurnDamageOwn lands on beta, against #45',
 };
 
 /**
@@ -88,6 +75,20 @@ describe('AI code health (audit guards)', () => {
     );
     expect(found.filter(key => !(key in MODULE_LETS)), 'a flag that changes what a position is worth goes in pricing.ts (withPricing)').toEqual([]);
     expect(Object.keys(MODULE_LETS).filter(key => !found.includes(key))).toEqual([]);
+  });
+
+  it('reads the diagnostics sink only through its write helpers (audit Step 3 group B: no decision reads it)', () => {
+    const dir = new URL('../src/ai/', import.meta.url);
+    const files = (readdirSync(dir, { recursive: true }) as string[]).filter(f => f.endsWith('.ts'));
+    const text = (file: string) => readFileSync(new URL(file, dir), 'utf8');
+    // The context field is touched in diagnostics.ts only, once in each helper (tally, clockOn, note, inReply)
+    expect(files.filter(f => f !== 'diagnostics.ts' && /\.diagnostics\b/.test(text(f))), 'write through tally / note / clockOn').toEqual([]);
+    expect([...text('diagnostics.ts').matchAll(/pricing\(\)\.diagnostics/g)].length).toBe(4);
+    // The setup functions that hand out the sink are for scripts and tests, never imported by the AI itself
+    const setup = files.filter(f => /import \{[^}]*\b(installDiagnostics|withDiagnostics|newDiagnostics)\b[^}]*\} from '\.\/diagnostics'/.test(text(f)));
+    expect(setup).toEqual([]);
+    const exported = [...text('diagnostics.ts').matchAll(/^export (?:const|function|interface|type) (\w+)/gm)].map(m => m[1]).sort();
+    expect(exported).toEqual(['Diagnostics', 'clockOn', 'inReply', 'installDiagnostics', 'newDiagnostics', 'note', 'tally', 'withDiagnostics']);
   });
 
   it('names no new card codes in the shared value files', () => {

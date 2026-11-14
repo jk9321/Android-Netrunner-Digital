@@ -30,10 +30,9 @@ import { centralExposure, evaluate, setAgendaClick, sideStrength } from '../src/
 import { stealOdds } from '../src/ai/effectValues';
 import { KNOBS } from '../src/ai/valueModel';
 import { applyPlanOff } from '../src/ai/synergy';
-import { plannerStats } from '../src/ai/turnPlanner';
-import { replyStats } from '../src/ai/runnerReply';
+import { installDiagnostics } from '../src/ai/diagnostics';
 
-// PLAN_OFF=a,b as in the batch scripts (PLAN_OFF=oneCurrency: the old Corp ranking)
+// PLAN_OFF=a,b as in the batch scripts
 applyPlanOff(process.env.PLAN_OFF ?? '');
 
 const args = process.argv.slice(2).filter(a => a !== '--');
@@ -45,11 +44,12 @@ const quiet = args.includes('--quiet');
 const gaps: number[] = [];
 const spreads: number[] = [];
 if (args.includes('--noise')) {
-  plannerStats.onCandidates = (side, values) => {
+  const diag = installDiagnostics();
+  diag.onCandidates = (side, values) => {
     const v = values.filter(Number.isFinite).sort((a, b) => b - a);
     if (side === 'corp' && v.length >= 2) gaps.push(v[0] - v[1]);
   };
-  replyStats.onSamples = values => {
+  diag.onReplySamples = values => {
     if (values.length >= 2) spreads.push(Math.abs(values[0] - values[1]));
   };
 }

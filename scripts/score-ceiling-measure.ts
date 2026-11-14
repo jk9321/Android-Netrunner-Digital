@@ -6,13 +6,12 @@
  * agents see or decide changes.
  *
  * Each game gets `stage0b`: stage 0's turn labels (labelTurn) counted over the Corp's turns, the Corp turn of its first
- * score, the two layers' own counts (winNow.ts scoreNowStats, countedScore.ts scoreInTwoStats) and what became of each
+ * score, the two layers' own counts (the diagnostics' scoreNow and scoreInTwo, installed per game) and what became of each
  * two-turn line begun.
  */
 import { GameAction } from '../src/core';
 import { GameRunner } from '../src/ai/playout';
-import { resetScoreInTwoStats, scoreInTwoStats } from '../src/ai/countedScore';
-import { scoreNowStats } from '../src/ai/winNow';
+import { Diagnostics, installDiagnostics, newDiagnostics } from '../src/ai/diagnostics';
 import { labelTurn, replayGame } from './plan-measure-lib';
 import type { DeckList } from '../src/data/decks';
 
@@ -29,15 +28,12 @@ if (measuring) {
   };
 }
 
-let nowFound = 0;
-let nowChoices = 0;
+let diag: Diagnostics = newDiagnostics();
 /** Before each game: the agents whose moves to keep, the layers' counts cleared. */
 export function startMeasure(pair: object) {
   agents = pair;
   moves = [];
-  resetScoreInTwoStats();
-  nowFound = scoreNowStats.found;
-  nowChoices = scoreNowStats.choices;
+  diag = installDiagnostics();
 }
 
 export interface Stage0bGame {
@@ -61,10 +57,11 @@ export interface Stage0bGame {
 /** After each game: replays the recorded moves into Corp turns and counts the measures. */
 export function stage0bMeasure(seed: number, corpDeck: DeckList, runnerDeck: DeckList): Stage0bGame | { error: string } {
   try {
-    const found = scoreNowStats.found - nowFound;
-    const choices = scoreNowStats.choices - nowChoices;
-    const two = { begun: scoreInTwoStats.begun, steps: scoreInTwoStats.steps, vetoed: scoreInTwoStats.vetoed, dropped: scoreInTwoStats.dropped, finished: scoreInTwoStats.finished };
-    const begunLines = [...scoreInTwoStats.lines];
+    const found = diag.scoreNow.found;
+    const choices = diag.scoreNow.choices;
+    const { begun, steps, vetoed, dropped, finished } = diag.scoreInTwo;
+    const two = { begun, steps, vetoed, dropped, finished };
+    const begunLines = [...diag.scoreInTwoLines];
     const game = replayGame({ config: { seed, corpDeck, runnerDeck, ai: 'both' }, moves });
     const labels: Record<string, number> = {};
     for (const t of game.turns) {

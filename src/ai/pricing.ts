@@ -1,4 +1,5 @@
 import type { SideCode } from '../core';
+import type { Diagnostics } from './diagnostics';
 import { planWith, sideOff, tuning } from './synergy';
 
 /**
@@ -52,10 +53,6 @@ export interface Pricing {
   pricingTagLoss: boolean;
   /** Ice is being priced against the rig: run odds are the flat guesses inside (effectValues.ts). */
   pricingIce: boolean;
-  /** plan.oneCurrency: a projection (finish or score effect) is running: no finish projection inside. */
-  projecting: boolean;
-  /** plan.oneCurrency: an agenda's on-score effect is being measured: no effect measure inside. */
-  pricingEffect: boolean;
   /** A card's plan is being priced (cardPlans.ts handPlanWorth): no plan inside a plan. */
   planning: boolean;
   /** Depth of threat-model work (threatModel.ts): the threat is off inside its own computation. */
@@ -63,21 +60,23 @@ export interface Pricing {
   /** The planner's per-decision seed for its playouts (turnPlanner.ts, plan.plannerSeed), or null. */
   decisionSeed: number | null;
   /**
-   * Assets whose rez-to-use look-ahead is running (corpAI.ts rezToUse): no nested rez-to-use inside (plan.oneCurrency:
-   * per card, so a second Humanoid Resources is still priced inside the first's).
+   * Assets whose rez-to-use look-ahead is running (corpAI.ts rezToUse): no nested rez-to-use inside.
    */
   rezzingToUse: Set<string>;
   /** Breakers being priced by the rig they join (handValues.ts playedWorth): no breaker prices itself again. */
   pricingBreakers: Set<string>;
   /** plan.oracle.safestRemote (oracle.ts): the Runner's next turn is being played out for the oracle: no oracle inside. */
   oracleRunning: boolean;
-  /** plan.reach (reach.ts): a capability case is being worked out: nothing inside asks reach again. */
-  reaching: boolean;
   /**
    * plan.runRecord (threatModel.ts recordRun): the servers the Runner ran on each of its last turns, most recent first, as
    * the deciding Corp saw them (public: rules 6.1.2a, 6.9.1a, the Runner announces the server it runs). Null: none noted.
    */
   runRecord: string[][] | null;
+  /**
+   * The diagnostics sink a measurement script or test installed (diagnostics.ts), or null in play. Written only through
+   * diagnostics.ts; no decision reads it, and it is not part of pricingKey.
+   */
+  diagnostics: Diagnostics | null;
 }
 
 const context: Pricing = {
@@ -91,16 +90,14 @@ const context: Pricing = {
   pricingRootDeck: false,
   pricingTagLoss: false,
   pricingIce: false,
-  projecting: false,
-  pricingEffect: false,
   planning: false,
   computingThreat: 0,
   decisionSeed: null,
   rezzingToUse: new Set(),
   pricingBreakers: new Set(),
   oracleRunning: false,
-  reaching: false,
   runRecord: null,
+  diagnostics: null,
 };
 
 /** The current context (read only: change it with withPricing). */
@@ -213,11 +210,9 @@ export function pricingKey(): string {
     c.pricingRootDeck ? 'd' : '',
     c.pricingTagLoss ? 't' : '',
     c.pricingIce ? 'i' : '',
-    c.projecting ? 'p' : '',
-    c.pricingEffect ? 'e' : '',
     c.planning ? 'c' : '',
     c.computingThreat ? 'h' : '',
-    (c.oracleRunning ? 'o' : '') + (c.reaching ? 'r' : ''),
+    c.oracleRunning ? 'o' : '',
     c.runRecord ? c.runRecord.map(turn => turn.join('+')).join('/') : '',
   ].join(':');
   keyVersion = version;

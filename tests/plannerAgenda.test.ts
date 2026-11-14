@@ -3,7 +3,7 @@ import { afterEach, describe, expect, it } from 'vitest';
 import { GameAction, GameState, cardDef, createInitialGameState, executeAction, findCardAnywhere } from '../src/core';
 import { deckGameSetup } from '../src/data/decks';
 import { createAgent } from '../src/ai';
-import { plannerStats } from '../src/ai/turnPlanner';
+import { withDiagnostics } from '../src/ai/diagnostics';
 import { tuning } from '../src/ai/synergy';
 
 /**
@@ -33,7 +33,7 @@ const describeAction = (s: GameState, a: GameAction) => {
 
 const defaultOn = tuning.plan.plannerAgenda;
 const hiddenDraws = tuning.plan.hiddenDraws;
-afterEach(() => { tuning.plan.plannerAgenda = defaultOn; tuning.plan.hiddenDraws = hiddenDraws; plannerStats.onCandidates = undefined; });
+afterEach(() => { tuning.plan.plannerAgenda = defaultOn; tuning.plan.hiddenDraws = hiddenDraws; });
 
 describe('plan.plannerAgenda', () => {
   it('is on by default', () => expect(defaultOn).toBe(true));
@@ -47,8 +47,10 @@ describe('plan.plannerAgenda', () => {
     const candidates = (on: boolean) => {
       tuning.plan.plannerAgenda = on;
       let seen: string[] = [];
-      plannerStats.onCandidates = (side, _values, actions) => { if (side === 'corp') seen = actions.map(a => describeAction(s, a)); };
-      const pick = describeAction(s, createAgent('corp', 'normal').chooseAction(s));
+      const pick = withDiagnostics(d => {
+        d.onCandidates = (side, _values, actions) => { if (side === 'corp') seen = actions.map(a => describeAction(s, a)); };
+        return describeAction(s, createAgent('corp', 'normal').chooseAction(s));
+      });
       return { seen, pick };
     };
     const off = candidates(false);

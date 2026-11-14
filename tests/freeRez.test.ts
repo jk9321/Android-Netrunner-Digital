@@ -79,7 +79,7 @@ describe('Corp AI cheats out expensive ice with a free rez (plan.freeRez)', () =
     giveCard(s, 'corp', PHAROS);
     const installsPharos = () =>
       new HeuristicCorpAI().rankMainActions(s).some(r => r.action.type === 'INSTALL_CARD' && cardDef(s.corp.hq.find(c => c.instanceId === (r.action as { cardInstanceId: string }).cardInstanceId)!).title === 'Pharos' && r.score > -Infinity);
-    // (the rule-tier ranking; plan.oneCurrency, off by default, gates no install at -Infinity)
+    // (the rule-tier ranking)
     expect(installsPharos()).toBe(true);
   });
 

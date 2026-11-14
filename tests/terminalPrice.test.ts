@@ -5,7 +5,7 @@ import { deckGameSetup } from '../src/data/decks';
 import { createAgent } from '../src/ai';
 import { pointValue, pointsTerm, sampledEndWorth } from '../src/ai/valueModel';
 import { runnerReply } from '../src/ai/runnerReply';
-import { plannerStats } from '../src/ai/turnPlanner';
+import { withDiagnostics } from '../src/ai/diagnostics';
 
 /**
  * Audit Step 1 (spec-step1-terminal-price.md, bars/terminal-price.md): a game end inside a SAMPLED Runner reply is one deal of
@@ -32,23 +32,21 @@ describe('sampledEndWorth: winner 7, loser 0 on the points term, from the reply 
   });
 });
 
-/** The planner's candidate values at a decision (plannerStats.onCandidates), by the action's card title or type. */
+/** The planner's candidate values at a decision (the diagnostics' onCandidates), by the action's card title or type. */
 function candidates(s: GameState): { name: string; value: number }[] {
   const out: { name: string; value: number }[] = [];
   const all = [...s.corp.hq, ...Object.values(s.corp.servers).flatMap(v => [...v.ice, ...v.root])];
-  plannerStats.onCandidates = (side, values, acts) => {
-    if (side !== 'corp' || out.length) return;
-    acts.forEach((a, i) => {
-      const x = a as GameAction & { cardInstanceId?: string; targetServerId?: string; asNewRemote?: boolean };
-      const c = all.find(y => y.instanceId === x.cardInstanceId);
-      out.push({ name: `${x.type}${c ? ' ' + cardDef(c).title : ''}${x.targetServerId ? ' ' + x.targetServerId : x.asNewRemote ? ' new' : ''}`, value: values[i] });
-    });
-  };
-  try {
+  withDiagnostics(d => {
+    d.onCandidates = (side, values, acts) => {
+      if (side !== 'corp' || out.length) return;
+      acts.forEach((a, i) => {
+        const x = a as GameAction & { cardInstanceId?: string; targetServerId?: string; asNewRemote?: boolean };
+        const c = all.find(y => y.instanceId === x.cardInstanceId);
+        out.push({ name: `${x.type}${c ? ' ' + cardDef(c).title : ''}${x.targetServerId ? ' ' + x.targetServerId : x.asNewRemote ? ' new' : ''}`, value: values[i] });
+      });
+    };
     createAgent('corp', 'normal').chooseAction(structuredClone(s));
-  } finally {
-    plannerStats.onCandidates = undefined;
-  }
+  });
   return out;
 }
 const report = (n: number, move: number): GameState => {

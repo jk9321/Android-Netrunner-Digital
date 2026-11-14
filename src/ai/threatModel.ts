@@ -1,11 +1,13 @@
 import { CardInstance, GameState, cardDef, createRng, knownInHand, shuffleInPlace } from '../core';
-import { corpCardValue } from './evaluate';
+// No binding left (audit Step 3: accessLoss went with plan.threatLeaf); kept so the AI modules' load order is unchanged (oracle.ts)
+import './evaluate';
 import { runSuccess, runSuccessBypassing } from './effectValues';
 import { deckRootKey, unseenInHand } from './handValues';
-import { ALARM_CLOCK, BLOCK, RunOptions, RunnerMemory, iceCost, runBypasses, runClick, runCreditSpend, runScore, serverValue } from './runs';
+import { ALARM_CLOCK, RunOptions, RunnerMemory, runBypasses, runClick, runCreditSpend, runScore, serverValue } from './runs';
 import { asSide, sideOff, tuning } from './synergy';
 import { fingerprint, memo, pointGain, sideCreditValue } from './valueModel';
 import { effectivePlan, plan, pricing, pricingKey, withPricing } from './pricing';
+import { clockOn, note, tally } from './diagnostics';
 import { corpSeenGrip } from './oracle';
 
 /**
@@ -102,37 +104,6 @@ export function runnerView(state: GameState): GameState {
   if (state.activePlayer === 'runner' && state.runner.clicks > 0) return { ...state, runner, activeRun: null, pendingPrompts: [] };
   runner.clicks = Math.max(0, state.runner.maxClicks + (state.runner.bonusClicksNextTurn ?? 0));
   return { ...state, runner, activePlayer: 'runner', phase: 'runner_turn', runsThisTurn: [], turnFlags: {}, activeRun: null, pendingPrompts: [] };
-}
-
-/**
- * What a successful run on `serverId` costs the Corp on the next Runner turn, in the Runner's points on the clock (the
- * evaluate scale), for the pieces evaluate does not already price: HQ and R&D accesses (one each, rule 7.4.1b-c)
- * unless plan.oneCurrency's centralExposure prices them, and the remote cards the Runner can afford to trash (rule
- * 7.1.5: the trash cost paid on access). Remote agendas are agendaWorth's (its steal chance reads this threat) and
- * Archives agendas archivedAgendaLoss's.
- */
-export function accessLoss(state: GameState, serverId: string): number {
-  const corp = state.corp;
-  const server = corp.servers[serverId];
-  if (!server) return 0;
-  if (serverId === 'hq' || serverId === 'rd') {
-    if (plan().oneCurrency) return 0;
-    const { hqNow, density } = centralAccess(state);
-    return serverId === 'hq' ? hqNow : density;
-  }
-  if (!server.isRemote) return 0;
-  // The credits left once the rezzed ice is paid for
-  const toll = server.ice.reduce((n, ice) => n + (ice.isRezzed ? Math.min(iceCost(state, ice), BLOCK) : 0), 0);
-  let credits = state.runner.credits - toll;
-  let loss = 0;
-  for (const card of server.root) {
-    if (cardDef(card).type_code === 'agenda') continue;
-    const trash = cardDef(card).trash_cost;
-    if (trash == null || trash > credits) continue;
-    credits -= trash;
-    loss += Math.max(0, corpCardValue(card, state, 'corp'));
-  }
-  return loss;
 }
 
 /**
@@ -245,12 +216,13 @@ const remember = <T>(cache: Map<string, T>, key: string, work: () => T): T => {
 
 /** The Runner's next turn as the Corp foresees it. */
 export function threat(state: GameState): Threat {
-  threatStats.calls++;
+  tally('threat', 'calls');
   return memo(state, 'threat', () => {
-    threatStats.keyed++;
-    const t0 = threatStats.timing ? performance.now() : 0;
+    tally('threat', 'keyed');
+    const timed = clockOn();
+    const t0 = timed ? performance.now() : 0;
     const key = threatKey(state);
-    if (threatStats.timing) threatStats.keyMs += performance.now() - t0;
+    if (timed) tally('threat', 'keyMs', performance.now() - t0);
     // The audit (test-only): a cached board recomputed must give the same threat
     if (threatAudit.on && threatCache.has(key)) {
       const fresh = budgetIn(state);
@@ -270,20 +242,21 @@ export function threat(state: GameState): Threat {
       }
     }
     return withRecord(remember(threatCache, key, () => {
-      threatStats.budgeted++;
-      if (threatStats.timing) countRepeats(key, state);
-      const t1 = threatStats.timing ? performance.now() : 0;
+      tally('threat', 'budgeted');
+      if (timed) note(d => d.onThreatBudget?.(key, state));
+      const t1 = timed ? performance.now() : 0;
       try {
         const value = budgetIn(state);
         return value;
       } finally {
-        if (threatStats.timing) {
+        if (timed) {
           const ms = performance.now() - t1;
-          threatStats.budgetMs += ms;
-          if (threatStats.inReply) {
-            threatStats.replyBudgeted++;
-            threatStats.replyBudgetMs += ms;
-          }
+          tally('threat', 'budgetMs', ms);
+          note(d => {
+            if (!d.replying) return;
+            d.threat.replyBudgeted++;
+            d.threat.replyBudgetMs += ms;
+          });
         }
       }
     }));
@@ -328,37 +301,6 @@ function withRecord(t: Threat): Threat {
   return changed ? { ...t, servers } : t;
 }
 
-/**
- * Diagnostics (scripts/threat-profile.ts): threat() calls, how many missed the state memo (keyed) and the board cache
- * (budgeted), their time, and the budgets made inside the Corp planner's played-out Runner reply.
- */
-export const threatStats = { calls: 0, keyed: 0, budgeted: 0, keyMs: 0, budgetMs: 0, timing: false, inReply: false, replyBudgeted: 0, replyBudgetMs: 0, fullRepeats: 0, coarseRepeats: 0, bothRepeats: 0, dropRepeats: [] as number[] };
-
-/**
- * K4(a) diagnostics (scripts/threat-profile.ts): budgets of a key already budgeted once (lost to the cache's clear), and
- * budgets whose key with the grip read as its size only (the threat reads the dealt grip by its size, K0) was.
- */
-const seenFull = new Set<string>();
-const seenCoarse = new Set<string>();
-function countRepeats(key: string, state: GameState): void {
-  if (seenFull.has(key)) threatStats.fullRepeats++;
-  seenFull.add(key);
-  const coarse = key.replace(state.runner.grip.map(c => c.instanceId).join(','), `#${state.runner.grip.length}`);
-  const both = coarse.split('|').slice(0, -1).join('|');
-  if (seenBoth.has(both)) threatStats.bothRepeats++;
-  seenBoth.add(both);
-  if (seenCoarse.has(coarse)) threatStats.coarseRepeats++;
-  seenCoarse.add(coarse);
-  // Upper bound: the key's parts one at a time left out (which part tells budgets apart)
-  const parts = key.split('|');
-  parts.forEach((_, i) => {
-    const k = i + ':' + parts.filter((__, j) => j !== i).join('|');
-    if (seenDrop.has(k)) threatStats.dropRepeats[i] = (threatStats.dropRepeats[i] ?? 0) + 1;
-    seenDrop.add(k);
-  });
-}
-const seenDrop = new Set<string>();
-const seenBoth = new Set<string>();
 
 /**
  * The Runner's next turn does not depend on
@@ -472,29 +414,8 @@ function corpLoss(state: GameState, serverId: string): number {
   return runSuccess(state, serverId) * (agendas + central + archives);
 }
 
-/**
- * plan.calibratedRun (item 3 round 3, Fable review 2026-11-07): the budget's 0/1 read as the measured hit rate. Self-play,
- * 884 games, 12,416 Runner turns (runs 42337257360 threat on, 42337259763 off; scripts/threat-calibration.ts): when the
- * budget runs a server the Runner AI ran it this often, and when it doesn't, this often (it installs a breaker or plays
- * money from the grip the Corp can't see, then runs). Jeff's 13 Corp games for comparison: HQ 0.68 / 0.09, R&D 0.78 /
- * 0.17, a remote 0.94 / 0.09. A crisp 0 made an agenda held in HQ free whenever the budget ran elsewhere (HQ reads 0 on
- * 77% of turns, run on 8% of those).
- */
-export const CALIBRATED_RUN = {
-  hq: { picked: 0.62, not: 0.08 },
-  rd: { picked: 0.56, not: 0.085 },
-  archives: { picked: 0.33, not: 0.05 },
-  remote: { picked: 0.92, not: 0.12 },
-};
-/** The budget's 0/1 for `serverId`, as the measured rate while plan.calibratedRun is on. */
-export function calibrated(serverId: string, crisp: number): number {
-  if (!plan().calibratedRun) return crisp;
-  const rate = CALIBRATED_RUN[serverId === 'hq' || serverId === 'rd' || serverId === 'archives' ? serverId : 'remote'];
-  return crisp >= 0.5 ? rate.picked : rate.not;
-}
-
 /** Chance the Runner runs `serverId` on its next turn. */
-export const runChance = (state: GameState, serverId: string): number => calibrated(serverId, threat(state).servers[serverId]?.run ?? 0);
+export const runChance = (state: GameState, serverId: string): number => threat(state).servers[serverId]?.run ?? 0;
 
 /**
  * Chance the Runner runs a remote that holds an installed card it can't see (stealOdds for an agenda there): the remote
@@ -506,14 +427,14 @@ export const runChance = (state: GameState, serverId: string): number => calibra
 export function remoteRunChance(state: GameState, serverId: string): number {
   const server = state.corp.servers[serverId];
   if (!server?.isRemote || server.root.some(c => !c.isRezzed && !c.faceUp)) return runChance(state, serverId);
-  return calibrated(serverId, Math.max(probeRun(state, serverId, server), recordRun(serverId)));
+  return Math.max(probeRun(state, serverId, server), recordRun(serverId));
 }
 
 /**
  * `state` with remoteRunChance's stand-in agenda in remote `serverId` when it holds no facedown card (state itself
  * otherwise, or when the Corp has no agenda to copy).
  */
-export function probedState(state: GameState, serverId: string): GameState {
+function probedState(state: GameState, serverId: string): GameState {
   const server = state.corp.servers[serverId];
   if (!server?.isRemote || server.root.some(c => !c.isRezzed && !c.faceUp)) return state;
   const like = [...state.corp.hq, ...state.corp.rd, ...state.corp.scoreArea].find(c => cardDef(c).type_code === 'agenda');
@@ -521,20 +442,6 @@ export function probedState(state: GameState, serverId: string): GameState {
   const probe: CardInstance = { ...like, instanceId: 'threat-probe', isRezzed: false, faceUp: false, advancementCounters: 0, runnerKnows: false, tokens: {} };
   const servers = { ...state.corp.servers, [serverId]: { ...server, root: [...server.root, probe] } };
   return { ...state, corp: { ...state.corp, servers } };
-}
-
-/**
- * plan.reach (reach.ts): whether the Runner AI would run `serverId` on its next turn from `view` (a board reach has
- * given breakers it may find): the server's score at the turn's start against its always-there click, as the probe
- * reads it. 1 or 0.
- */
-export function wouldRun(view: GameState, serverId: string, options: RunOptions = {}): number {
-  return withPricing({ computingThreat: pricing().computingThreat + 1 }, () =>
-    asSide('runner', () => {
-      const v = runnerView(view);
-      return runScore(v, serverId, { ...options, memory: runnerMemory(view), wary: !!tuning.wary }) > fallbackClick(v).score ? 1 : 0;
-    })
-  );
 }
 
 /** The probe's 0/1 (remoteRunChance). */
@@ -558,28 +465,3 @@ function probeRun(state: GameState, serverId: string, server: GameState['corp'][
   }));
 }
 
-/**
- * The planner leaf's charge for the Runner's next turn (in place of runnerReply): each server it runs, by the run's
- * success, times what the Corp loses there that evaluate doesn't price (accessLoss).
- *
- * plan.threatSpend (item 3 round 3, Fable review 2026-11-07): less what the Runner's turn costs it. runnerReply's leaf
- * was evaluate after the Runner's played-out turn, the Runner poorer by every run it paid into and richer by its credit
- * clicks; the threat charged the accesses and dropped the spend the budget had worked out (runCreditSpend), so an iced
- * remote earned the Corp no tax and holding the agenda looked free. The Runner's credits are moved to the budget's end
- * on its credit slide (the evaluate scale, as the Corp sees the Runner's money: sideStrength), not the whole board
- * re-evaluated: a re-read of the threat on the poorer Runner would count the remote it just paid into as safe.
- */
-export function threatLoss(state: GameState): number {
-  if (state.winner) return 0;
-  const t = threat(state);
-  let loss = 0;
-  for (const [id, s] of Object.entries(t.servers)) {
-    const run = calibrated(id, s.run);
-    if (run > 0) loss += run * s.success * accessLoss(state, id);
-  }
-  if (plan().threatSpend && t.endCredits !== state.runner.credits) {
-    const end = { ...state, runner: { ...state.runner, credits: t.endCredits } };
-    loss += sideCreditValue(end, 'runner', 'corp') - sideCreditValue(state, 'runner', 'corp');
-  }
-  return loss;
-}

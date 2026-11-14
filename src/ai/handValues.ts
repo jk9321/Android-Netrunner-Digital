@@ -149,7 +149,7 @@ export function clearHandCaches(): void {
 /**
  * Whether drawWorth on this board takes the decision root's prices (rootDeckAverage): the Corp's own deck, in the
  * playouts of a Corp decision's planner (frozen). Not the Runner's stack (its cards' worth turns on the rig, which the
- * views of a Corp decision change: plan.reach's cases install a breaker), nor a decision's own boards (a prompt's
+ * views of a Corp decision change), nor a decision's own boards (a prompt's
  * answers are simulated and compared outside a playout: tests/clearinghouseRez.test.ts). Nor while a deck card is
  * being priced on the root (priceAtRoot): what that asks for is priced per board, and keyed so (deckRootKey ''), so a
  * value cached there doesn't depend on which cards the decision had priced so far.

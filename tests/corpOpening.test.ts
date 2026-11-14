@@ -3,10 +3,7 @@ import { GameAction, createCardInstance, getCardDefinition } from '../src/core';
 import { answerPrompt } from '../src/ai/prompts';
 import { HeuristicCorpAI } from '../src/ai';
 import { installForTest, installIceForTest, newGame, newGameAtSetup } from './helpers';
-import { legacyRanking } from './legacyRanking';
 
-// plan.oneCurrency: these pin the old Corp ranking (tests/legacyRanking.ts)
-legacyRanking(["puts ice the Runner can't get through on R&D rather than an empty remote"]);
 
 const PALISADE = '30072'; // barrier, rez 3
 const BALLISTA = '30062'; // sentry, rez 5

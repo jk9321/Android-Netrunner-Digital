@@ -11,18 +11,44 @@ import { deckGameSetup } from "../src/data/decks";
 import { createAgent } from "../src/ai";
 import { applyPlanOff } from "../src/ai/synergy";
 import { batchTokens } from "./oracle-ice";
-import { threatStats } from "../src/ai/threatModel";
-import { replyStats } from "../src/ai/runnerReply";
-import { oracleStats } from "../src/ai/oracle";
+import { installDiagnostics } from "../src/ai/diagnostics";
 
 // Batch-only tokens (ORACLE_ICE, money) are board setups for corp-losses.ts, not plan switches: dropped here
 applyPlanOff(batchTokens(process.env.PLAN_OFF ?? "").plan);
 const [nArg, levelArg] = process.argv.slice(2).filter((a) => a !== "--");
 const perFile = Number(nArg ?? 6);
 const level = (levelArg ?? "normal") as "normal" | "hard";
-threatStats.timing = true;
+const diag = installDiagnostics();
+diag.timing = true;
 let replies = 0;
-replyStats.onSamples = () => replies++;
+diag.onReplySamples = () => replies++;
+
+/**
+ * K4(a) (moved from threatModel.ts, audit Step 3 group B): budgets of a key already budgeted once (lost to the cache's
+ * clear), and budgets whose key with the grip read as its size only (the threat reads the dealt grip by its size, K0) was.
+ */
+const repeats = { full: 0, coarse: 0, both: 0, drop: [] as number[] };
+const seenFull = new Set<string>();
+const seenCoarse = new Set<string>();
+const seenDrop = new Set<string>();
+const seenBoth = new Set<string>();
+diag.onThreatBudget = (key, state) => {
+  if (seenFull.has(key)) repeats.full++;
+  seenFull.add(key);
+  const coarse = key.replace(state.runner.grip.map((c) => c.instanceId).join(","), `#${state.runner.grip.length}`);
+  const both = coarse.split("|").slice(0, -1).join("|");
+  if (seenBoth.has(both)) repeats.both++;
+  seenBoth.add(both);
+  if (seenCoarse.has(coarse)) repeats.coarse++;
+  seenCoarse.add(coarse);
+  // Upper bound: the key's parts one at a time left out (which part tells budgets apart)
+  const parts = key.split("|");
+  parts.forEach((_, i) => {
+    const k = i + ":" + parts.filter((__, j) => j !== i).join("|");
+    if (seenDrop.has(k)) repeats.drop[i] = (repeats.drop[i] ?? 0) + 1;
+    seenDrop.add(k);
+  });
+};
 
 /** Corp decision positions: each human game replayed to its middle Corp turns. */
 function positions(): GameState[] {
@@ -87,21 +113,21 @@ console.log(
     p50: Math.round(times[Math.floor(times.length / 2)]),
     max: Math.round(times[times.length - 1]),
     replies,
-    threatCalls: threatStats.calls,
-    threatKeyed: threatStats.keyed,
-    threatBudgeted: threatStats.budgeted,
-    threatKeyMs: Math.round(threatStats.keyMs),
-    threatBudgetMs: Math.round(threatStats.budgetMs),
-    replyBudgeted: threatStats.replyBudgeted,
-    replyBudgetMs: Math.round(threatStats.replyBudgetMs),
-    threatFullRepeats: threatStats.fullRepeats,
-    threatCoarseRepeats: threatStats.coarseRepeats,
-    threatDropRepeats: threatStats.dropRepeats,
-    threatBothRepeats: threatStats.bothRepeats,
-    oracleTurns: oracleStats.turns,
-    oracleHits: oracleStats.hits,
-    oracleMs: Math.round(oracleStats.ms),
-    threatShare: +((threatStats.keyMs + threatStats.budgetMs) / total).toFixed(
+    threatCalls: diag.threat.calls,
+    threatKeyed: diag.threat.keyed,
+    threatBudgeted: diag.threat.budgeted,
+    threatKeyMs: Math.round(diag.threat.keyMs),
+    threatBudgetMs: Math.round(diag.threat.budgetMs),
+    replyBudgeted: diag.threat.replyBudgeted,
+    replyBudgetMs: Math.round(diag.threat.replyBudgetMs),
+    threatFullRepeats: repeats.full,
+    threatCoarseRepeats: repeats.coarse,
+    threatDropRepeats: repeats.drop,
+    threatBothRepeats: repeats.both,
+    oracleTurns: diag.oracle.turns,
+    oracleHits: diag.oracle.hits,
+    oracleMs: Math.round(diag.oracle.ms),
+    threatShare: +((diag.threat.keyMs + diag.threat.budgetMs) / total).toFixed(
       2,
     ),
   }),

@@ -3,13 +3,7 @@ import { describe, expect, it } from 'vitest';
 import { GameState, cardDef, executeAction, findCardAnywhere } from '../src/core';
 import { HeuristicCorpAI } from '../src/ai/corpAI';
 import { createAgent } from '../src/ai';
-import { legacyRanking } from './legacyRanking';
 import { inDecision } from './helpers/pricing';
-
-// plan.oneCurrency: OPEN (2026-11-06): the one-currency Corp purges Audrey v2 here (13.9 vs 3.9 for the install, was 51
-// before lastingIceCost). Arguably a fair answer to a Runner walking into HQ on Audrey every turn, but not what the report
-// asks for: pinned to the old ranking until the review thread rules on it
-legacyRanking(["installs Offworld Office behind remote ice and advances it, on Hard"]);
 
 /**
  * Bug report #15 (Jeff, beta 777fe61, You May Fire When Ready vs Kessleroid Isn't Real): the Hard Corp held Offworld
@@ -35,7 +29,7 @@ describe('an agenda leaves HQ when HQ is no safer (plan.hqNoSafer)', () => {
     expect(top(position())).toBe('install Offworld Office in a remote');
     // Fixed samples, not the time budget, so a busy test run plays the same search. The search finds it on 8 of 10
     // seeds, so most of 3 is the check (about 7 s: its own time limit, as a full test run passed 5 s)
-    // The either-answer form (more HQ ice also counts) belongs to plan.icePacingPriced, parked OFF: at the default switches
+    // The either-answer form (more HQ ice also counts) belonged to plan.icePacingPriced (deleted, audit Step 3): at the default switches
     // Hard moves Offworld Office out and advances it, so the strict check stands (coordinator review-1, S1)
     let advanced = 0;
     for (const seed of [1, 2, 3]) {

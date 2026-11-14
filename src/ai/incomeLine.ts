@@ -3,6 +3,7 @@ import { answerPrompt } from './prompts';
 import { cardSynergy } from './synergyTags';
 import { knownIncome } from './countedScore';
 import { scoreNowPlan } from './winNow';
+import { tally } from './diagnostics';
 
 /**
  * Money step 5a, M1 (spec-money-generation.md; M0: econ operations sat playable in HQ 5.34 op-turns a game). The
@@ -14,8 +15,6 @@ import { scoreNowPlan } from './winNow';
  * the Corp's own pick (-1.8 ± 2.1, run 43175743297), and only in place of a click for a credit or a draw (+0.9 ± 1.5,
  * run 43175972281).
  */
-
-export const moneyStats = { ops: 0 };
 
 const worth = (s: GameState) => s.corp.credits + knownIncome(s);
 
@@ -87,6 +86,6 @@ export function moneyPick(state: GameState, own?: GameAction | null): GameAction
     return now.some(id => !was.has(id)) || !!scoreNowPlan(o.after);
   };
   const ranked = ops.map(o => ({ o, first: enables(o) })).sort((a, b) => Number(b.first) - Number(a.first) || b.o.net - a.o.net);
-  moneyStats.ops++;
+  tally('money', 'ops');
   return ranked[0].o.action;
 }
