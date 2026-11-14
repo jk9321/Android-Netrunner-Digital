@@ -10,7 +10,7 @@
  *    earlier deals answered a Corp prompt on turn 9 differently (batch identity 218 of 221; scripts/cache-bisect.ts).
  *    Here a short deal runs before a fixed stretch of another and that stretch's actions must not change.
  * 2. Debt pin: with each map's on-hit audit on (every hit worked out again on the asking board), the wrong hits on fixed
- *    deals stay at or under today's count. They may only go down: lower the pins when a fix lands.
+ *    deals stay at or under today's count (a short stretch, so the fast checks stay fast). They may only go down: lower the pins when a fix lands.
  */
 import { afterEach, describe, expect, it } from 'vitest';
 import { GameAction, cardDef, createInitialGameState } from '../src/core';
@@ -82,9 +82,12 @@ function audit(seed: number, actions: number) {
 }
 
 describe('hand-value maps: known wrong hits may only go down (on-hit audit)', () => {
-  // Pins measured on the branch (2026-11-14): 2181's first 150 actions check about 23k, 194k and 438k hits. A fix that makes a key more complete lowers them: update the pin.
+  // Pins measured on the branch after Step 1 (2026-11-14): 2181's first 25 actions check about 3.3k, 15.8k and 52k
+  // hits (about 6 s; this file runs in the fast checks). drawWorth has no wrong hit this early, so its pin is 0: any
+  // new wrong hit fails. The whole-deal rates are in step2-cache-findings.md; measure longer stretches with
+  // scripts/cache-audit.ts. A fix that makes a key more complete lowers these: update the pin.
   const PINS: Record<number, { actions: number; click: number; draw: number; threat: number }> = {
-    2181: { actions: 150, click: 5170, draw: 28345, threat: 213322 },
+    2181: { actions: 25, click: 1855, draw: 0, threat: 176 },
   };
   for (const [seed, pin] of Object.entries(PINS)) {
     it(`deal ${seed}, first ${pin.actions} actions`, () => {
@@ -95,6 +98,6 @@ describe('hand-value maps: known wrong hits may only go down (on-hit audit)', ()
       expect(r.click.wrong, JSON.stringify(r)).toBeLessThanOrEqual(pin.click);
       expect(r.draw.wrong, JSON.stringify(r)).toBeLessThanOrEqual(pin.draw);
       expect(r.threat.wrong, JSON.stringify(r)).toBeLessThanOrEqual(pin.threat);
-    }, 300_000);
+    }, 60_000);
   }
 });
