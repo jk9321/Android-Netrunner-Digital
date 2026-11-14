@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { breakerReach } from '../src/ai/corpAI';
 import { createCardInstance } from '../src/core';
+import { revealInHand } from '../src/core/engine/helpers';
 import { newGame } from './helpers';
 
 /**
@@ -13,13 +14,16 @@ describe('ice the Runner can\'t break yet (plan.breakerReach)', () => {
     s.runner.rig.programs = [];
     s.runner.grip = grip.map(code => createCardInstance(s, code));
     s.runner.stack = stack.map(code => createCardInstance(s, code));
+    // The Corp has seen the grip (rules 10.2.2a-b: hidden unless a game effect shows it; ai-honest-reads)
+    s.runner.knownToCorp = [];
+    revealInHand(s, 'runner', s.runner.grip);
     const ice = createCardInstance(s, '30072'); // Palisade, a barrier
     ice.isRezzed = true;
     return { s, ice };
   };
   const filler = (n: number) => Array.from({ length: n }, () => '30034'); // Creative Commission
 
-  it('costs the fracter in the grip: install, a click, and the break', () => {
+  it('costs the fracter the Corp saw in the grip: install, a click, and the break', () => {
     const { s, ice } = position(['30006'], filler(20)); // Cleaver
     const reach = breakerReach(s, ice);
     expect(reach).toBeGreaterThan(3);
