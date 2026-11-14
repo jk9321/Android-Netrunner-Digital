@@ -217,6 +217,29 @@ export function flatlineWorth(state: GameState): number {
   return pointValue(7) - pointValue(state.corp.score) + pointValue(state.runner.score);
 }
 
+/**
+ * evaluate's points term for the Corp viewer: the Corp's points (scaled by KNOBS.corpPoints, as sideStrength's
+ * `pointValue(corp.score, viewer === 'corp' ? KNOBS.corpPoints : 1)`, evaluate.ts:680) less the Runner's
+ * (`pointValue(runner.score)`, evaluate.ts:692).
+ */
+export function pointsTerm(state: GameState): number {
+  return pointValue(state.corp.score, KNOBS.corpPoints) - pointValue(state.runner.score);
+}
+
+/**
+ * A game end met inside a SAMPLED Runner reply (audit Step 1, spec-step1-terminal-price.md), priced for the Corp on the
+ * point clock instead of evaluate's ±1000: the points term settles to winner 7, loser 0 (1.7.2a: 7 agenda points win;
+ * 1.7.2b flatline; 1.7.2c Corp decked), so ±pointValue(7), and the rest is `rootBoard`, the board before the Runner's
+ * reply (the reply root's leaf less its points term). evaluate is not zero-centred (a quiet mid-game board reads ~100),
+ * so a bare ±pointValue(7) would put a sampled Corp win below its ordinary sibling samples; the board the game ended
+ * from is not read, the game is over, but the root's board is the baseline every sample of that line starts from.
+ * Same winner, same line: same price. Read by runnerReply only.
+ */
+export function sampledEndWorth(winner: SideCode, rootBoard: number): number {
+  // A Corp win settles the Corp's points term (scaled by KNOBS.corpPoints, as pointsTerm), a Runner win the Runner's
+  return (winner === 'corp' ? pointValue(7, KNOBS.corpPoints) : -pointValue(7)) + rootBoard;
+}
+
 /** Worth of the first card over the hand-size limit (Jeff: you pick the worst card to discard). */
 export const handFilter = (): number => 0.3;
 
