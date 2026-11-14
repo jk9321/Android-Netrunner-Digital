@@ -24,6 +24,8 @@ export interface Agent {
 export interface ScoredAction {
   action: GameAction;
   score: number;
+  /** Moved first by a "now or never" rule (corpAI tagFirst): the planner keeps it. */
+  tagFirst?: boolean;
 }
 
 /** Actions in a row that spend no click, before an AI stops taking them (guards against loops). */

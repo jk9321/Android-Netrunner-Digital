@@ -291,6 +291,29 @@
  * one screen; the zoom panel shows a large copy on hover. The header's Large
  * button (data-card-size on <html>, src/ui/cardSize.ts) scales them up.
  */
+/* Typed, so an auto fit area's card size can animate (useAutoFit.ts) */
+@property --card-w {
+  syntax: '<length>';
+  inherits: true;
+  initial-value: 90px;
+}
+@property --card-h {
+  syntax: '<length>';
+  inherits: true;
+  initial-value: 126px;
+}
+.auto-fit-area {
+  transition: --card-w 0.25s ease-out, --card-h 0.25s ease-out;
+}
+:root[data-animations='off'] .auto-fit-area {
+  transition: none;
+}
+/* Cards follow the area's animated size directly: a width transition of their own would lag it and skew the fit measurement */
+.auto-fit-area .card-fit,
+.auto-fit-area .card-fit-sm,
+.auto-fit-area .card-sideways {
+  transition-property: color, background-color, border-color, box-shadow, opacity, transform, filter !important;
+}
 :root {
   --card-w: clamp(50px, 9vh, 170px);
   --card-h: calc(var(--card-w) * 1.4);
@@ -323,7 +346,7 @@
 }
 /* Hands fan out: each card overlaps the one before it */
 .hand-fan > * + * {
-  margin-left: calc(var(--card-w) * -0.42);
+  margin-left: calc(var(--card-w) * var(--hand-overlap, 0.42) * -1);
 }
 /* The zoom panel's card: as big as the side bar allows, never taller than 40% of the screen */
 .zoom-card {
@@ -360,3 +383,25 @@
   background:
     linear-gradient(160deg, rgb(8 47 73 / 0.55), rgb(2 6 23 / 0.6));
 }
+
+@keyframes mode-slide-in {
+  from {
+    opacity: 0;
+    transform: translateY(-4px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.animate-mode-slide {
+  animation: mode-slide-in 160ms ease-out both;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .animate-mode-slide {
+    animation: none;
+  }
+}
+

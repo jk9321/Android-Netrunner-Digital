@@ -13,4 +13,5 @@ console.log(`runs a turn: ${(runs / turns).toFixed(2)}; success: ${pct(ok / runs
 for (const [k, v] of Object.entries(servers)) console.log(`  ${k}: ${pct(v.runs / runs)} of runs, success ${pct(v.successful / Math.max(1, v.runs))}`);
 console.log(`advanced agenda in a remote: run that turn ${pct(sum('agendaRemoteRun') / Math.max(1, sum('agendaRemoteTurns')))} (${sum('agendaRemoteTurns')} turns)`);
 console.log(`R&D share of runs with Conduit: ${pct(sum('conduitRdRuns') / Math.max(1, sum('conduitRuns')))} (${sum('conduitRuns')} runs)`);
+console.log(`facedown cards in Archives: breached that turn ${pct(sum('facedownBreach') / Math.max(1, sum('facedownTurns')))} (${sum('facedownTurns')} turns)`);
 console.log(`agendas scored or stolen a Runner turn: ${(sum('agendaEvents') / turns).toFixed(2)}; ice rezzed a turn: ${(sum('rezzes') / turns).toFixed(2)}`);

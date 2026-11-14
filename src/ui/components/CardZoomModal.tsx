@@ -93,7 +93,7 @@ export const CardZoomModal: React.FC<CardZoomModalProps> = ({
               {def.title}
             </h2>
             <p className="text-xs sm:text-sm text-slate-400 italic mb-3 sm:mb-4">
-              {typeLine(def)} · <span className={`not-italic ${FACTION_COLOR[def.faction_code]}`}>{FACTION_LABEL[def.faction_code]}</span>
+              {typeLine(def, card)} · <span className={`not-italic ${FACTION_COLOR[def.faction_code]}`}>{FACTION_LABEL[def.faction_code]}</span>
             </p>
 
             {/* Stats row */}

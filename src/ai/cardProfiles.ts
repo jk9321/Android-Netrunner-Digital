@@ -1,6 +1,8 @@
 import { GameState, getCardDefinition } from '../core';
-import { tuning } from './synergy';
-import { RATES, cardRate } from './valueModel';
+import { RATES, cardRate, payoutClick } from './valueModel';
+import { CARD_PROFILES } from './cards';
+import { PAYOUT_RISK } from './payoutRisk';
+import { plan } from './pricing';
 
 /**
  * Value model step 4 (docs/ai-value-model-plan.md): money cards described
@@ -8,7 +10,8 @@ import { RATES, cardRate } from './valueModel';
  * the turns left in the game instead of a hand-set number. Each payout is
  * worth 15% less per turn it waits, and payouts past the end of the game
  * are worth nothing (the step 3 lesson: stacked payouts lose worth).
- * tests/cardProfiles.test.ts works each one through.
+ * tests/cardProfiles.test.ts works each one through. Each card's profile is
+ * its `profile` in its set's file in src/ai/cards/.
  */
 export interface CardProfile {
   /** Credits loaded onto it when rezzed or installed. */
@@ -26,58 +29,60 @@ export interface CardProfile {
   clicksAtEnd?: number;
 }
 
-export const CARD_PROFILES: Record<string, CardProfile> = {
-  // Corp assets
-  '30037': { load: 9, pay: 3, every: 'turn', perTurn: 1, drawAtEnd: 1 }, // Nico Campaign
-  '35040': { load: 6, pay: 2, every: 'turn', perTurn: 1, clicksAtEnd: 2 }, // Otto Campaign
-  '35072': { load: 8, pay: 4, every: 'turn', perTurn: 1, drawEach: 1 }, // Anthill Excavation Contract
-  '30071': { load: 15, pay: 3, every: 'click', perTurn: 2 }, // Regolith Mining License
-  // Runner resources
-  '30027': { load: 9, pay: 3, every: 'click', perTurn: 1 }, // Telework Contract: once per turn
-  '35022': { load: 6, pay: 1, every: 'turn', perTurn: 1 }, // Open Market
-};
+/** By card code: built from the per-set card files (src/ai/cards/). */
+export { CARD_PROFILES } from './cards';
 
 /** How much a payout is worth per turn it waits (step 4, before plan.payoutRisk). */
-const WAIT = 0.85;
+const WAIT = PAYOUT_RISK.wait;
 
-/**
- * plan.payoutRisk (Jeff, 2026-10-28): money that arrives on its own when the
- * turn begins can't be hoarded, so it keeps its full worth less the real
- * risk of losing the card. Money taken with a click keeps a small wait, so
- * the AI cashes it rather than banking it (the step 3 Smartware lesson);
- * the click it costs is counted against each payout as well.
- */
-export const PAYOUT_RISK = {
-  /** Taken with a click: worth this much per turn it waits. */
-  clickWait: 0.93,
-  /** A Corp card trashed by the Runner, per turn: in a remote with ice, and without (other per-turn effects). */
-  corpIced: 0.03,
-  corpBare: 0.06,
-  /**
-   * A money asset (CARD_PROFILES) trashed by the Runner, per Runner turn: in a remote with ice, and
-   * without. Measured (scripts/lossLog.ts assetRisk, 2,210 self-play games at 5f827e6): 7.8% of 1,660
-   * turns behind ice, 26.8% of 6,507 bare (the guesses were corpIced and corpBare).
-   */
-  moneyIced: 0.078,
-  moneyBare: 0.268,
-  /** A Runner resource: trashed by the Corp only while the Runner is tagged. */
-  runnerTagged: 0.25,
-  runnerUntagged: 0.02,
-};
+// PAYOUT_RISK lives in its own file with no imports, so the card files can read it while this one loads
+export { PAYOUT_RISK } from './payoutRisk';
 
 /** Worth kept per turn a payout of this card waits. */
 export function payoutWait(state: GameState, profile: CardProfile, owner: 'corp' | 'runner', iced = false): number {
-  if (!tuning.plan.payoutRisk) return WAIT;
   const time = profile.every === 'click' ? PAYOUT_RISK.clickWait : 1;
   const risk = owner === 'corp'
-    ? (tuning.plan.measuredAssetRisk ? (iced ? PAYOUT_RISK.moneyIced : PAYOUT_RISK.moneyBare) : iced ? PAYOUT_RISK.corpIced : PAYOUT_RISK.corpBare)
+    ? (iced ? PAYOUT_RISK.moneyIced : bareAssetRisk(state))
     : (state.runner.tags > 0 ? PAYOUT_RISK.runnerTagged : PAYOUT_RISK.runnerUntagged);
   return time * (1 - risk);
 }
 
-/** Turns each side has left, guessed from the score (Jeff: mostly points). */
+/** Weight of the measured bare-asset risk against this game's own record, in Runner turns (plan.readAssetTrash). */
+const BARE_PRIOR_TURNS = 3;
+
+/**
+ * Per Runner turn risk of a money asset with no ice being trashed. plan.readAssetTrash (bug report #16, Jeff: Zahya
+ * trashed every unprotected asset and the Corp kept installing them): the self-play average, moved toward what this
+ * Runner has done this game (state.bareAssets).
+ */
+export function bareAssetRisk(state: GameState): number {
+  const seen = state.bareAssets;
+  if (!seen) return PAYOUT_RISK.moneyBare;
+  return (BARE_PRIOR_TURNS * PAYOUT_RISK.moneyBare + seen.trashed) / (BARE_PRIOR_TURNS + seen.exposed);
+}
+
+/**
+ * plan.measuredTurnsLeft (Jeff, 2026-11-05, thread "Find why AI card valuation misses cards"): the turns each side
+ * really had left in self-play by the higher score, 1,280 games over every deck (scripts/turns-left.ts, logged
+ * docs/batch-logs/2026-11-05-turns-left-report.txt): 13.6 at 0 points, 11.6, 9.9, 8.6, 6.9, 4.9, 4.3 at 6. The guess
+ * below (8 less the higher score) was short by 5 turns at the start, so every card that pays over time was priced
+ * on too few turns.
+ */
+const MEASURED_TURNS_LEFT = [14, 12, 10, 9, 7, 5, 4];
+
+/**
+ * plan.rdTurnsLeft (2026-11-07, thread "Find why self-play games end decked"): R&D runs out too. The Corp draws 1 card
+ * each turn (rule 5.6.1e) and clicked for about 0.3 more a turn in self-play (deck-outs batch 42154583702: 4.3 click
+ * draws in 14.9 Corp turns), and loses when it must draw from an empty R&D (rule 4.2.7b). Card draws aren't counted.
+ */
+export const CORP_DRAWS_PER_TURN = 1.3;
+
+/** Turns each side has left, guessed from the score (Jeff: mostly points), and with plan.rdTurnsLeft no more than R&D lasts. */
 export function turnsLeft(state: GameState): number {
-  return Math.max(2, 8 - Math.max(state.corp.score, state.runner.score));
+  const top = Math.max(state.corp.score, state.runner.score);
+  const byPoints = plan().measuredTurnsLeft ? MEASURED_TURNS_LEFT[Math.min(top, MEASURED_TURNS_LEFT.length - 1)] ?? 2 : Math.max(2, 8 - top);
+  if (!plan().rdTurnsLeft) return byPoints;
+  return Math.min(byPoints, Math.max(1, Math.ceil(state.corp.rd.length / CORP_DRAWS_PER_TURN)));
 }
 
 /**
@@ -93,15 +98,15 @@ export function payoutWorth(profile: CardProfile, turns: number, hosted = profil
     turn = Math.floor(i / profile.perTurn) + 1;
     if (turn > turns) return value;
     const pay = Math.min(profile.pay, hosted - i * profile.pay);
-    const click = profile.every === 'click' ? RATES.click : 0;
+    const click = profile.every === 'click' ? payoutClick() : 0;
     value += wait ** turn * (pay - click + (profile.drawEach ?? 0) * card);
   }
-  if (turn + 1 <= turns) value += wait ** (turn + 1) * ((profile.drawAtEnd ?? 0) * card + (profile.clicksAtEnd ?? 0) * RATES.click);
+  if (turn + 1 <= turns) value += wait ** (turn + 1) * ((profile.drawAtEnd ?? 0) * card + (profile.clicksAtEnd ?? 0) * payoutClick());
   return value;
 }
 
 /** The card's profile, while plan.cardProfiles is on. */
-export const profileOf = (code: string): CardProfile | undefined => (tuning.plan.cardProfiles ? CARD_PROFILES[code] : undefined);
+export const profileOf = (code: string): CardProfile | undefined => CARD_PROFILES[code];
 
 /** Worth of a profiled card still to be rezzed (Corp): its payouts less its rez cost. */
 export function unrezzedWorth(state: GameState, code: string, iced = false): number | undefined {

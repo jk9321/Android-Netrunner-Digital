@@ -1,0 +1,11 @@
+Batch: item 6: pace with facedown-Archives measure, local, beta 34391e2 + script change (221) | 4 shards x 1 game per pairing
+221 games, 3334 Runner turns
+runs a turn: 1.00; success: 77.2%
+  hq: 22.0% of runs, success 68.1%
+  rd: 23.9% of runs, success 76.8%
+  archives: 6.1% of runs, success 99.5%
+  remote: 48.0% of runs, success 78.7%
+advanced agenda in a remote: run that turn 39.8% (635 turns)
+R&D share of runs with Conduit: 50.0% (6 runs)
+facedown cards in Archives: breached that turn 10.7% (1474 turns)
+agendas scored or stolen a Runner turn: 0.30; ice rezzed a turn: 0.39

@@ -12,11 +12,15 @@
 import { spawn } from 'node:child_process';
 
 const SLOW_TESTS = [
-  'tests/ai.test.ts',
+  'tests/ai.test.ts', // main
+  'tests/aiGames.part*.test.ts', // beta: the AI games, split in four
   'tests/brokeCorp.test.ts',
   'tests/lethalHq.test.ts',
   'tests/savedGame.test.ts',
   'tests/hqNoSafer.test.ts', // beta
+  'tests/roomFuzz.test.ts', // ~15 s: the game server's room fuzzer (multiplayer chunk 2b)
+  'tests/hiddenDraws.test.ts', // beta, about 8 s
+  'tests/onlineClient.test.ts', // about 6 s: whole online games through the browser's table (multiplayer chunk 2c)
 ];
 
 const bin = (name) => `node_modules/.bin/${name}`;

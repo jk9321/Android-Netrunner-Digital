@@ -32,6 +32,7 @@ export function requireActionPhase(state: GameState, side: SideCode): void {
   if (state.activePlayer !== side) illegal(`It is not the ${side === 'corp' ? 'Corp' : 'Runner'}'s turn`);
   if (state.activeRun) illegal('Not allowed during a run');
   if (state.turnStep?.kind === 'corp_turn_start') illegal('Start your turn (mandatory draw) first');
+  if (state.turnStep) illegal('Not during the action phase');
 }
 
 export function createRemoteServer(state: GameState): ServerState {
@@ -150,6 +151,15 @@ export function trashInstalledCorpCard(state: GameState, server: ServerState, ca
     state.corp.archives.faceUp.push(card);
   } else {
     state.corp.archives.faceDown.push(card);
+  }
+}
+
+/** Runner cards just trashed from the grip or the stack: "when this is trashed from your grip or stack" (Strike Fund). */
+export function noteTrashedFromHand(state: GameState, cards: CardInstance[]): void {
+  for (const card of cards) {
+    if (state.winner) return;
+    if (!state.runner.heap.includes(card)) continue;
+    getCardScript(card.cardCode)?.onTrashedFromHand?.({ state, card, side: 'runner' });
   }
 }
 

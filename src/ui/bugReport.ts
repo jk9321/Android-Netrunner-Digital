@@ -1,4 +1,4 @@
-import type { GameState } from '../core';
+import type { GameAction, GameState } from '../core';
 import type { DeckList } from '../data/decks';
 import { GameConfig, SavedTable, loadSavedGame } from './savedGame';
 
@@ -27,6 +27,8 @@ export interface ReportPayload {
   screen: ReportScreen;
   version: string;
   website: string;
+  /** Beta only: a playtest game for the AI fixtures, not a bug (worker/bugReport.ts labels it and the playtest-game workflow files it). */
+  playtest?: boolean;
   game?: {
     seed: number;
     format: string;
@@ -39,6 +41,29 @@ export interface ReportPayload {
     snapshot?: string;
   };
   crash?: { message: string; stack?: string };
+}
+
+/** The moves of the game being played (a finished game's autosave is dropped, so the report can't read them there). */
+let liveMoves: { seed: number; moves: GameAction[]; startStops?: GameState['stops'] } | null = null;
+
+/** The game controller records each move here as it is applied (and the stops the game started with, which no move sets). */
+export function noteMoves(seed: number, moves: GameAction[], startStops?: GameState['stops']) {
+  liveMoves = { seed, moves, startStops };
+}
+
+/**
+ * The real state of the game being played, for the report (the screen draws only the viewer's view of it,
+ * so the report can't take its state from the screen). Kept by the game controller after every change.
+ */
+let liveState: { seed: number; state: GameState } | null = null;
+
+export function noteState(seed: number, state: GameState) {
+  liveState = { seed, state };
+}
+
+/** The real state of the game with this seed, if it is the one being played. */
+export function liveStateFor(seed: number): GameState | undefined {
+  return liveState?.seed === seed ? liveState.state : undefined;
 }
 
 /** The table state autosaved for this game (rez windows passed, accesses shown), if there is one. */
@@ -99,7 +124,8 @@ export async function gameReport(game: GameForReport): Promise<NonNullable<Repor
     corpDeck: deckText(config.corpDeck),
     runnerDeck: deckText(config.runnerDeck),
     log: logText(state),
-    snapshot: await compress(JSON.stringify({ config, state, table })),
+    // moves: with the seed and decks they replay the game move by move (scripts/replay-report.ts)
+    snapshot: await compress(JSON.stringify({ config, state, table, ...(liveMoves?.seed === config.seed ? { moves: liveMoves.moves, startStops: liveMoves.startStops } : { moves: table?.moves, startStops: table?.startStops }) })),
   };
 }
 
@@ -107,6 +133,7 @@ export async function buildReport(input: {
   description: string;
   screen: ReportScreen;
   website?: string;
+  playtest?: boolean;
   game?: GameForReport | null;
   crash?: { message: string; stack?: string };
 }): Promise<ReportPayload> {
@@ -116,6 +143,7 @@ export async function buildReport(input: {
     version: appVersion(),
     website: input.website ?? '',
   };
+  if (input.playtest) payload.playtest = true;
   if (input.game) payload.game = await gameReport(input.game);
   if (input.crash) payload.crash = input.crash;
   return payload;
@@ -141,4 +169,28 @@ export async function sendReport(payload: ReportPayload): Promise<string | null>
   }
   if (response.ok && body.ok) return null;
   return body.error ?? 'The report could not be sent. Please try again later.';
+}
+
+/**
+ * An online game's report (multiplayer phase 2, chunk 2c): the browser has
+ * only its own view, so it sends the description and the room attaches the
+ * game (server/forward.ts): the whole game, both players' hidden cards
+ * included (Jeff, 2026-11-09). Resolves to true when it went through.
+ */
+export async function sendOnlineReport(
+  room: { code: string; token: string },
+  input: { description: string; website?: string },
+  f: (input: string, init?: RequestInit) => Promise<Response> = (i, init) => fetch(i, init),
+): Promise<boolean> {
+  const body = { description: input.description.trim().slice(0, MAX_DESCRIPTION), screen: 'game' as ReportScreen, version: appVersion(), website: input.website ?? '' };
+  try {
+    const res = await f(`/api/games/${room.code}/report?token=${encodeURIComponent(room.token)}`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body),
+    });
+    return res.ok;
+  } catch {
+    return false;
+  }
 }

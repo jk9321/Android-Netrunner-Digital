@@ -5,8 +5,9 @@ import { getCardScript } from '../scripts';
 import { BreakerScript, IceScript, IceSubtype, Subroutine } from '../scripts/types';
 import { addLog } from './log';
 import { endRun } from './runEnd';
-import { activeCards, fireTrigger } from './triggers';
+import { eachActiveCard, fireTrigger } from './triggers';
 import { findCardAnywhere } from './helpers';
+import { bumpRunFlag, RunFlag } from './cardEffects';
 
 export function iceScript(ice: CardInstance): IceScript | undefined {
   return getCardScript(ice.cardCode)?.ice;
@@ -19,9 +20,11 @@ export function breakerScript(card: CardInstance): BreakerScript | undefined {
 /** The ice's subtypes, including ones granted by programs hosted on it (Chromatophores) when `state` is given. */
 export function iceSubtypes(ice: CardInstance, state?: GameState): IceSubtype[] {
   const keywords = (cardDef(ice).keywords ?? '').toLowerCase();
-  const granted = state
+  const granted: string[] = state
     ? state.runner.rig.programs.filter(p => p.hostedOnId === ice.instanceId).flatMap(p => getCardScript(p.cardCode)?.grantsIceSubtypes ?? [])
     : [];
+  // Subtypes chosen as it was rezzed, while it stays rezzed (Lycian Multi-Munition)
+  if (ice.isRezzed && ice.chosenSubtypes) granted.push(...ice.chosenSubtypes);
   return (['barrier', 'code gate', 'sentry'] as const).filter(t => keywords.includes(t) || granted.includes(t));
 }
 
@@ -63,8 +66,12 @@ export function installedIcebreakers(state: GameState): CardInstance[] {
 export function iceStrength(state: GameState, ice: CardInstance): number {
   const run = state.activeRun;
   const encounterMod = run?.encounter?.iceId === ice.instanceId ? run.encounter.iceStrengthModifier : 0;
-  const fromCards = activeCards(state).reduce((n, c) => n + (getCardScript(c.cardCode)?.modifiers?.iceStrength?.(state, c, ice) ?? 0), 0);
-  return (cardDef(ice).strength ?? 0) + (iceScript(ice)?.strengthModifier?.(state, ice) ?? 0) + encounterMod + fromCards + (run?.iceStrengthBonus ?? 0);
+  let fromCards = 0;
+  eachActiveCard(state, undefined, c => {
+    fromCards += getCardScript(c.cardCode)?.modifiers?.iceStrength?.(state, c, ice) ?? 0;
+  });
+  const forRun = run?.iceRunStrength?.[ice.instanceId] ?? 0;
+  return (cardDef(ice).strength ?? 0) + (iceScript(ice)?.strengthModifier?.(state, ice) ?? 0) + encounterMod + fromCards + (run?.iceStrengthBonus ?? 0) + forRun;
 }
 
 /**
@@ -74,10 +81,33 @@ export function iceStrength(state: GameState, ice: CardInstance): number {
  */
 export function iceSubroutines(state: GameState, ice: CardInstance): Subroutine[] {
   const printed = iceScript(ice)?.subroutines ?? [];
+  const grantedSub = (g: { cardCode: string; index: number }) => getCardScript(g.cardCode)?.grantedSubroutines?.[g.index] ?? [];
+  // Gained for the rest of the run, after its other subroutines (Starlit Knight, Thunderbolt Armaments)
+  const after = (state.activeRun?.iceGains?.[ice.instanceId] ?? []).flatMap(grantedSub);
   const encounter = state.activeRun?.encounter;
-  if (encounter?.iceId !== ice.instanceId || !encounter.grantedSubs?.length) return printed;
-  const granted = encounter.grantedSubs.flatMap(g => getCardScript(g.cardCode)?.grantedSubroutines?.[g.index] ?? []);
-  return [...granted, ...printed];
+  if (encounter?.iceId !== ice.instanceId || !encounter.grantedSubs?.length) return after.length ? [...printed, ...after] : printed;
+  const granted = encounter.grantedSubs.flatMap(grantedSub);
+  return [...granted, ...printed, ...after];
+}
+
+/** How many subroutines at the start of the list the ice gained for this encounter (before its printed ones). */
+export function grantedBefore(state: GameState, ice: CardInstance): number {
+  const encounter = state.activeRun?.encounter;
+  return encounter?.iceId === ice.instanceId ? encounter.grantedSubs?.length ?? 0 : 0;
+}
+
+/**
+ * The ice gains `count` copies of a subroutine for the rest of the run, after
+ * its other subroutines (Starlit Knight, Thunderbolt Armaments; rules 9.8.3e).
+ * They start unbroken if it is being encountered.
+ */
+export function grantRunSubroutines(state: GameState, ice: CardInstance, cardCode: string, index: number, count = 1): void {
+  const run = state.activeRun;
+  if (!run || count <= 0) return;
+  run.iceGains ??= {};
+  const list = (run.iceGains[ice.instanceId] ??= []);
+  for (let i = 0; i < count; i++) list.push({ cardCode, index });
+  if (run.encounter?.iceId === ice.instanceId) for (let i = 0; i < count; i++) run.encounter.broken.push(false);
 }
 
 /**
@@ -101,7 +131,12 @@ export function markSubroutinesBroken(state: GameState, indices: number[], break
   const encounter = state.activeRun?.encounter;
   const ice = encounteredIce(state);
   if (!encounter || !ice) return;
-  for (const i of indices) encounter.broken[i] = true;
+  encounter.brokenBy ??= {};
+  for (const i of indices) {
+    encounter.broken[i] = true;
+    encounter.brokenBy[i] = breaker?.instanceId ?? 'other';
+  }
+  bumpRunFlag(state, RunFlag.subsBroken, indices.length);
   fireTrigger(state, { type: 'subroutines_broken', ice, breaker, count: indices.length });
   if (!encounter.fullyBroken && state.activeRun?.encounter === encounter && encounter.broken.every(Boolean)) {
     encounter.fullyBroken = true;
@@ -111,7 +146,11 @@ export function markSubroutinesBroken(state: GameState, indices: number[], break
 
 /** Current breaker strength, including boosts for the encounter in progress. */
 export function breakerStrength(state: GameState, breaker: CardInstance): number {
-  const base = (cardDef(breaker).strength ?? 0) + (breakerScript(breaker)?.strengthModifier?.(state, breaker) ?? 0);
+  let fromCards = 0;
+  eachActiveCard(state, undefined, c => {
+    fromCards += getCardScript(c.cardCode)?.modifiers?.breakerStrength?.(state, c, breaker) ?? 0;
+  });
+  const base = (cardDef(breaker).strength ?? 0) + (breakerScript(breaker)?.strengthModifier?.(state, breaker) ?? 0) + fromCards;
   // Hosted hardware (GAMEDRAGON™ Pro) can change strength too
   const hosted = state.runner.rig.hardware
     .filter(h => h.hostedOnId === breaker.instanceId)
@@ -144,8 +183,10 @@ export function encounteredIce(state: GameState): CardInstance | undefined {
 /** Starts an encounter with the approached (rezzed) ice and fires "when encountered" effects. */
 export function beginEncounter(state: GameState, ice: CardInstance): void {
   const run = state.activeRun!;
-  const subs = iceScript(ice)?.subroutines ?? [];
+  run.encounter = null;
+  const subs = iceSubroutines(state, ice);
   run.phase = 'encounter_ice';
+  bumpRunFlag(state, RunFlag.encounters);
   run.encounter = {
     iceId: ice.instanceId,
     broken: subs.map(() => false),
@@ -175,6 +216,8 @@ export function bypassIce(state: GameState): void {
   if (!ice) return;
   addLog(state, 'runner', `Runner bypassed ${cardDef(ice).title}.`);
   iceScript(ice)?.onBypassed?.({ state, card: ice, side: 'corp' });
+  if (!state.activeRun || state.winner) return;
+  fireTrigger(state, { type: 'ice_bypassed', ice });
   if (!state.activeRun || state.winner) return;
   passIce(state);
 }
@@ -233,7 +276,7 @@ export function passIce(state: GameState): void {
   if (encounter) endEncounter(state, ice);
   if (state.activeRun !== run || state.winner) return;
   // "When the Runner passes this ice" (Vertigo), then cards that care (Sipa)
-  if (ice.isRezzed) iceScript(ice)?.onPass?.({ state, card: ice, side: 'corp' });
+  if (ice.isRezzed) iceScript(ice)?.onPass?.({ state, card: ice, side: 'corp' }, encounter);
   if (state.activeRun !== run || state.winner) return;
   const outermost = server.ice[server.ice.length - 1]?.instanceId === ice.instanceId;
   fireTrigger(state, { type: 'ice_passed', ice, server: run.server, fullyBroken: !!encounter?.fullyBroken, outermost });

@@ -14,9 +14,12 @@ export const FACTION_COLOR: Record<FactionCode, string> = {
 };
 
 /** The printed type line, e.g. "Ice: Barrier", or just "Upgrade" for a card with no subtypes. */
-export function typeLine(def: CardDefinition): string {
+export function typeLine(def: CardDefinition, card?: CardInstance): string {
   const type = def.type_code === 'ice' ? 'Ice' : def.type_code[0].toUpperCase() + def.type_code.slice(1);
-  return def.keywords ? `${type}: ${def.keywords}` : type;
+  // Subtypes chosen on rez (Lycian Multi-Munition) show while rezzed; iceSubtypes drops them on derez
+  const chosen = card?.isRezzed && card.chosenSubtypes?.length ? card.chosenSubtypes.map(t => t[0].toUpperCase() + t.slice(1)).join(' - ') : '';
+  const keywords = [def.keywords, chosen].filter(Boolean).join(' - ');
+  return keywords ? `${type}: ${keywords}` : type;
 }
 
 /**

@@ -2,24 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { cardDef, createCardInstance, executeAction, findCardAnywhere, GameState, getLegalActions, iceStrength, isLegalAction } from '../src/core';
 import { availableCredits, rezCost } from '../src/core/engine/cardEffects';
 import { markSubroutinesBroken } from '../src/core/engine/ice';
-import {
-  answer,
-  cont,
-  giveCard,
-  installCorpForTest,
-  installIceForTest,
-  installProgramForTest,
-  keepGoing,
-  newGame,
-  passTurn,
-  play,
-  rezForTest,
-  run,
-  scoreForTest,
-  setIdentity,
-  startRunnerTurn,
-  useAbility,
-} from './helpers';
+import { answer, cont, giveCard, installCorpForTest, installIceForTest, installProgramForTest, keepGoing, newGame, passTurn, play, rezForTest, run, scoreForTest, setIdentity, startRunnerTurn, useAbility, toCorp } from './helpers';
 
 const V = {
   meliesCity: '36026', synchro: '36027', ansel2: '36028', reverb: '36029', sleipnir: '36030', vertigo: '36031',
@@ -518,7 +501,7 @@ describe('Vantage Point ice', () => {
     let s = newGame();
     const eh = installIceForTest(s, V.eventHorizon, 'remote-1');
     const outer = installIceForTest(s, SG.palisade, 'remote-1', false);
-    s = run(s, 'remote-1');
+    s = toCorp(run(s, 'remote-1')); // the Corp's window at the unrezzed outer ice
     expect(isLegalAction(s, { type: 'USE_ABILITY', player: 'corp', cardInstanceId: eh, abilityIndex: 0 })).toBe(true);
     s = executeAction(s, { type: 'USE_ABILITY', player: 'corp', cardInstanceId: eh, abilityIndex: 0 });
     expect(s.activeRun).toBeNull();

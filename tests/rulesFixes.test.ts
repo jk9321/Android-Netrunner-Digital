@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import { cardDef, executeAction, IllegalActionError, GameState, isLegalAction } from '../src/core';
-import { keepGoing, newGame, putInHand, startRunnerTurn, installForTest, installIceForTest, installProgramForTest } from './helpers';
+import { keepGoing, newGame, putInHand, startRunnerTurn, installForTest, installIceForTest, installProgramForTest, step, toCorp, corpPasses } from './helpers';
 
 const PALISADE = '30072';
 const CLEAVER = '30006';
@@ -181,7 +181,9 @@ describe('Rezzing', () => {
     startRunnerTurn(state);
     state = executeAction(state, { type: 'INITIATE_RUN', player: 'runner', targetServerId: 'hq' });
     expect(state.activeRun?.phase).toBe('approach_ice');
-    state = executeAction(state, { type: 'REZ_CARD', player: 'corp', cardInstanceId: ice });
+    // The Runner passes first, then the Corp may rez the approached ice (rules 6.9.2b, 9.2.7a)
+    state = toCorp(state);
+    state = corpPasses(executeAction(state, { type: 'REZ_CARD', player: 'corp', cardInstanceId: ice }));
     expect(state.corp.servers.hq.ice[0].isRezzed).toBe(true);
 
     state = executeAction(state, { type: 'CONTINUE_RUN', player: 'runner' });
@@ -230,7 +232,7 @@ describe('Accessing', () => {
   const runOn = (state: GameState, serverId: string) => {
     startRunnerTurn(state);
     let s = executeAction(state, { type: 'INITIATE_RUN', player: 'runner', targetServerId: serverId });
-    while (s.activeRun) s = keepGoing(executeAction(s, { type: 'CONTINUE_RUN', player: 'runner' }));
+    while (s.activeRun) s = keepGoing(step(s));
     return s;
   };
 

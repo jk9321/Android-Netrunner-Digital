@@ -9,8 +9,8 @@
  * credit slide against a need, clicks set by the best play, points and
  * damage clocks), each behind its own tuning.plan switch.
  */
-import { CardInstance, GameState, SideCode, cardDef } from '../core';
-import { planSide, tuning } from './synergy';
+import { CardInstance, GameState, SideCode, cardDef, rezCostOf } from '../core';
+import { plan, pricingKey } from './pricing';
 
 export const RATES = {
   /** A click left this turn. */
@@ -26,7 +26,7 @@ export const RATES = {
   drawnCardOff: 0.8,
   /** An agenda point in a score area. */
   point: 8,
-  /** A tag, to the Corp and against the Runner (plus tagThreat with the deck-aware AI). */
+  /** A tag, to the Corp and against the Runner (the flat rate; tagsWorth prices tags on the tag clock). */
   tagForCorp: 1.5,
   tagAgainstRunner: 3,
   /** Each point of core damage taken. */
@@ -40,9 +40,8 @@ export const RATES = {
   /** An installed icebreaker, and the multiplier on other rig cards' CARD_VALUES worth. */
   icebreaker: 2,
   rigCardScale: 2,
-  /** An advancement counter on an installed agenda, and an agenda ready to score. */
+  /** An advancement counter on a card (Hearts and Minds moves them). */
   advancement: 1.5,
-  scoreableAgenda: 6,
   /** Counters, by what they do on the card (Jeff: never by counter type alone). */
   counters: {
     /** A hosted credit (Regolith, Azimat...). */
@@ -78,43 +77,83 @@ export function creditValue(credits: number): number {
  * step-1 number above is used.
  */
 
-/** Worth of a click (Jeff: never under a credit, 1.25 by default). */
+/**
+ * The click prices (code audit cleanup item 5, 2026-11-06), one place for all of them:
+ * - CLICK 1.25: a click by default (Jeff: never under a credit). clickRate() is this (RATES.click, 1, was step 1)
+ *   with plan.clickRate off for that side.
+ * - clickWorth (handValues): a side's own click priced by the best plays in its hand, 1 to 3 (plan.clickByPlay).
+ *   clickPrice(state, side, viewer) picks between them.
+ * - AGENDA_CLICK 2 (evaluate): a click spent advancing, priced as what it could have built instead (plan.agendaClicks).
+ * - payoutClick(): the click a payout card takes (Fermenter, Smartware, profiles paid "every click"). It was the
+ *   step-1 1 while everything else moved to 1.25, so click-taken money looked cheaper than clicking for a credit;
+ *   plan.oneClickPrice makes it CLICK.
+ */
 export const CLICK = 1.25;
-export const clickRate = (viewer: SideCode): number => (tuning.plan.clickRate?.[viewer] ? CLICK : RATES.click);
+export const clickRate = (): number => CLICK;
+export const payoutClick = (): number => CLICK;
 
 /**
  * Worth of `credits` against a need (Jeff): each extra credit is worth 1.8
  * when broke, sliding to 1 at the need, then fading toward 0.3. The sum of
  * those marginal values.
  */
-export function creditSlide(credits: number, need: number): number {
+export function creditSlide(credits: number, need: number, broke = 0): number {
   const c = Math.max(credits, 0);
   const n = Math.max(need, 1);
-  const below = (x: number) => x + 0.8 * (x - (x * x) / (2 * n));
+  // plan.brokeSlope: `broke` more for the first credit, sliding to nothing at BROKE_CREDITS
+  const low = (x: number) => broke * (Math.min(x, BROKE_CREDITS) - Math.min(x, BROKE_CREDITS) ** 2 / (2 * BROKE_CREDITS));
+  const below = (x: number) => x + 0.8 * (x - (x * x) / (2 * n)) + low(x);
   if (c <= n) return below(c) + Math.min(credits, 0);
   const over = c - n;
   return below(n) + 0.3 * over + 3.5 * (1 - Math.exp(-over / 5));
 }
 
+/** plan.brokeSlope: below this many credits the Corp is broke (it can't rez a typical ice in the Runner's turn). */
+export const BROKE_CREDITS = 4;
+
 /** Worth of each agenda point by the score it takes a side to (index = score reached; 7 is the win). */
 const POINT_STEPS = [0, 8, 8, 9, 10, 12, 15, 15];
+
+/**
+ * Settings scripts/human-agreement.ts sweeps to fit the Corp to a human's choices (Jeff, 2026-11-05: his Corp games as
+ * the teacher instead of fixing one hole at a time). Play leaves them at 1: each scales a rate it names.
+ */
+export const KNOBS = {
+  /** The Corp's points (POINT_STEPS), as the Corp counts them. */
+  corpPoints: 1,
+};
 /** Worth of a score of `score` points: the sum of its steps. */
-export function pointValue(score: number): number {
-  if (!tuning.plan.pointClock) return RATES.point * score;
+export function pointValue(score: number, scale = 1): number {
+  if (!plan().pointClock) return RATES.point * score * scale;
   let value = 0;
   for (let s = 1; s <= score; s++) value += POINT_STEPS[Math.min(s, 7)];
-  return value;
+  return value * scale;
 }
 
-/** What a position holds that the value helpers read: two calls with the same fingerprint on the same state agree. */
-function fingerprint(state: GameState): string {
+/**
+ * What a position holds that the value helpers read: two calls with the same fingerprint on the same state agree.
+ * Built by concatenation (planner speed 2026-11-12: memo builds it on every call); the same string the array join gave.
+ */
+export function fingerprint(state: GameState): string {
   const { corp, runner } = state;
-  const ids = (cards: CardInstance[]) => cards.map(c => c.instanceId + (c.isRezzed ? 'r' : '') + (c.hostedCards?.length ?? '')).join(',');
-  const servers = Object.values(corp.servers).map(s => s.id + ':' + ids(s.ice) + '/' + ids(s.root)).join(';');
-  return [
-    state.turnNumber, state.activePlayer, corp.credits, corp.clicks, corp.score, corp.hq.length, corp.rd.length, corp.archives.faceUp.length, corp.archives.faceDown.length,
-    runner.credits, runner.clicks, runner.score, runner.tags, runner.grip.length, runner.stack.length, ids(runner.rig.programs), ids(runner.rig.hardware), ids(runner.rig.resources), servers,
-  ].join('|');
+  let servers = '';
+  let first = true;
+  for (const s of Object.values(corp.servers)) {
+    servers += (first ? '' : ';') + s.id + ':' + printIds(s.ice) + '/' + printIds(s.root);
+    first = false;
+  }
+  return state.turnNumber + '|' + state.activePlayer + '|' + corp.credits + '|' + corp.clicks + '|' + corp.score + '|' + corp.hq.length + '|' + corp.rd.length + '|' + corp.archives.faceUp.length + '|' + corp.archives.faceDown.length + '|' +
+    runner.credits + '|' + runner.clicks + '|' + runner.score + '|' + runner.tags + '|' + runner.grip.length + '|' + runner.stack.length + '|' + printIds(runner.rig.programs) + '|' + printIds(runner.rig.hardware) + '|' + printIds(runner.rig.resources) + '|' + servers;
+}
+
+/** fingerprint's list of cards: instance id, 'r' if rezzed, the count of hosted cards (when the card has a list). */
+function printIds(cards: CardInstance[]): string {
+  let out = '';
+  for (let i = 0; i < cards.length; i++) {
+    const c = cards[i];
+    out += (i ? ',' : '') + c.instanceId + (c.isRezzed ? 'r' : '') + (c.hostedCards?.length ?? '');
+  }
+  return out;
 }
 
 const memos = new WeakMap<GameState, { print: string; values: Map<string, unknown> }>();
@@ -132,15 +171,26 @@ export function memo<T>(state: GameState, key: string, work: () => T): T {
     entry = { print, values: new Map() };
     memos.set(state, entry);
   }
-  key = planSide() + key; // values depend on the deciding side's plan (synergy.ts sideOff)
+  key = pricingKey() + ':' + key; // values depend on the pricing context: the deciding side, its plan, the guards up (pricing.ts)
   if (entry.values.has(key)) return entry.values.get(key) as T;
   const value = work();
   entry.values.set(key, value);
   return value;
 }
 
-/** True while a plan.flatRates piece is on. */
-export const flatRate = (key: string): boolean => !!tuning.plan.flatRates?.[key];
+
+const mapGames = new WeakMap<Map<string, unknown>, string>();
+/**
+ * Keeps a module-level cache to one game (audit Step 2, AI-CACHE-HIDDEN-STATE): empties `map` when `state` belongs to
+ * another game than the entries in it. For caches whose keys are known to be incomplete (handValues clickWorth and
+ * drawWorth, effectValues damageThreat): which other board's value a hit serves then depends on the game's own calls
+ * only, not on the games played earlier in the same process (a batch shard), so a deal plays the same alone or in a shard.
+ */
+export function scopeToGame(map: Map<string, unknown>, state: GameState): void {
+  if (mapGames.get(map) === state.id) return;
+  map.clear();
+  mapGames.set(map, state.id);
+}
 
 /** The deck's average card (handValues.ts registers it; valueModel can't import it without a cycle). */
 let deckCard: ((state: GameState, side: SideCode) => number) | null = null;
@@ -152,12 +202,11 @@ export const setDeckCard = (fn: (state: GameState, side: SideCode) => number) =>
  * hand), else the flat rate.
  */
 export function cardRate(state: GameState | undefined, side: SideCode): number {
-  return state && deckCard && flatRate('cards') ? deckCard(state, side) : RATES.drawnCard;
+  return state && deckCard ? deckCard(state, side) : RATES.drawnCard;
 }
 
 /** Worth of `points` more for a side on `score` (averaged decklist points can be fractional). */
 export function pointGain(score: number, points: number): number {
-  if (!flatRate('points')) return RATES.point * points;
   const whole = Math.floor(points);
   const base = pointValue(score + whole) - pointValue(score);
   return base + (points - whole) * (pointValue(score + whole + 1) - pointValue(score + whole));
@@ -165,12 +214,34 @@ export function pointGain(score: number, points: number): number {
 
 /** Worth of a flatline (plan.flatRates.flatline: the whole game, the Corp's points still to come and the Runner's lost). */
 export function flatlineWorth(state: GameState): number {
-  if (!flatRate('flatline')) return 4 * RATES.point;
   return pointValue(7) - pointValue(state.corp.score) + pointValue(state.runner.score);
 }
 
+/**
+ * evaluate's points term for the Corp viewer: the Corp's points (scaled by KNOBS.corpPoints, as sideStrength's
+ * `pointValue(corp.score, viewer === 'corp' ? KNOBS.corpPoints : 1)`, evaluate.ts:680) less the Runner's
+ * (`pointValue(runner.score)`, evaluate.ts:692).
+ */
+export function pointsTerm(state: GameState): number {
+  return pointValue(state.corp.score, KNOBS.corpPoints) - pointValue(state.runner.score);
+}
+
+/**
+ * A game end met inside a SAMPLED Runner reply (audit Step 1, spec-step1-terminal-price.md), priced for the Corp on the
+ * point clock instead of evaluate's ±1000: the points term settles to winner 7, loser 0 (1.7.2a: 7 agenda points win;
+ * 1.7.2b flatline; 1.7.2c Corp decked), so ±pointValue(7), and the rest is `rootBoard`, the board before the Runner's
+ * reply (the reply root's leaf less its points term). evaluate is not zero-centred (a quiet mid-game board reads ~100),
+ * so a bare ±pointValue(7) would put a sampled Corp win below its ordinary sibling samples; the board the game ended
+ * from is not read, the game is over, but the root's board is the baseline every sample of that line starts from.
+ * Same winner, same line: same price. Read by runnerReply only.
+ */
+export function sampledEndWorth(winner: SideCode, rootBoard: number): number {
+  // A Corp win settles the Corp's points term (scaled by KNOBS.corpPoints, as pointsTerm), a Runner win the Runner's
+  return (winner === 'corp' ? pointValue(7, KNOBS.corpPoints) : -pointValue(7)) + rootBoard;
+}
+
 /** Worth of the first card over the hand-size limit (Jeff: you pick the worst card to discard). */
-export const handFilter = (): number => (tuning.plan.handFilter ? 0.3 : 0);
+export const handFilter = (): number => 0.3;
 
 /** Every card a side owns, wherever it is (for decklist averages). */
 export function sideCards(state: GameState, side: SideCode): CardInstance[] {
@@ -190,8 +261,11 @@ export function sideCards(state: GameState, side: SideCode): CardInstance[] {
   return all.filter(c => cardDef(c).side_code === side);
 }
 
-const mean = (values: number[], fallback: number) => (values.length > 0 ? values.reduce((a, b) => a + b, 0) / values.length : fallback);
+/** The average of `values`, or `fallback` for none. */
+export const mean = (values: number[], fallback: number): number => (values.length > 0 ? values.reduce((a, b) => a + b, 0) / values.length : fallback);
 const buildTargets = new Map<string, number>();
+/** Empties buildTarget's map (test-only: scripts/cache-bisect.ts). */
+export const clearBuildTargets = (): void => buildTargets.clear();
 
 /**
  * Credits a side should build toward from turn 1 (Jeff), from decklist
@@ -231,7 +305,8 @@ export function boardNeed(state: GameState, side: SideCode): number {
     let need = 0;
     for (const server of servers) {
       const counts = !server.isRemote || server.root.some(c => cardDef(c).type_code === 'agenda');
-      if (counts) for (const ice of server.ice) if (!ice.isRezzed) need += cardDef(ice).cost ?? 0;
+      // plan.oneRezMoney: what rezzing it costs now (Tread Lightly, Fransofia Ward), as the rule ranking's reserve counts it
+      if (counts) for (const ice of server.ice) if (!ice.isRezzed) need += plan().oneRezMoney ? rezCostOf(state, ice) : cardDef(ice).cost ?? 0;
     }
     return need;
   }
@@ -239,7 +314,9 @@ export function boardNeed(state: GameState, side: SideCode): number {
 }
 
 /** The need credits slide against: the build target or the board's need, whichever is more. */
-export const creditNeed = (state: GameState, side: SideCode): number => Math.max(buildTarget(state, side), boardNeed(state, side));
+export const creditNeed = (state: GameState, side: SideCode): number => {
+  return Math.max(buildTarget(state, side), boardNeed(state, side));
+};
 
 /** Share of a money operation's net gain that holding its cost already earns (plan.moneyReach): it still takes a click, and a turn. */
 export const MONEY_REACH = 0.5;
@@ -252,25 +329,79 @@ export const MONEY_REACH = 0.5;
  * doesn't see HQ.
  */
 export function moneyReach(state: GameState): number {
+  const card = reachCard(state);
+  // plan.heldMoney: less the credit the click that plays it could have taken instead, so holding it is never worth
+  // as much as playing it (a held Petty Cash, +2 for a click, was worth the same as a click for a credit)
+  return card ? MONEY_REACH * Math.max(0, moneyGain(card) - 1) : 0;
+}
+
+/** The credits a card's text gains outright ("Gain N credits" at the start of a sentence), or undefined. */
+export function printedGain(text: string | undefined): number | undefined {
+  const gain = /(?:^|\. )Gain (\d+) credits/.exec(text ?? '');
+  return gain ? Number(gain[1]) : undefined;
+}
+
+/** Net credits a money operation gains when played ("Gain N credits" less its cost), else 0. */
+export function moneyGain(card: CardInstance): number {
+  const def = cardDef(card);
+  if (def.type_code !== 'operation' && def.type_code !== 'event') return 0;
+  const gain = printedGain(def.stripped_text);
+  return gain !== undefined ? gain - (def.cost ?? 0) : 0;
+}
+
+/** The money operation in HQ that moneyReach counts: the best net gain the Corp can pay for. */
+export function reachCard(state: GameState): CardInstance | undefined {
   const credits = state.corp.credits;
-  let best = 0;
+  let best: CardInstance | undefined;
   for (const card of state.corp.hq) {
     const def = cardDef(card);
     if (def.type_code !== 'operation' || (def.cost ?? 0) > credits) continue;
-    const gain = /(?:^|\. )Gain (\d+) credits/.exec(def.stripped_text ?? '');
-    if (gain) best = Math.max(best, Number(gain[1]) - (def.cost ?? 0));
+    if (moneyGain(card) > (best ? moneyGain(best) : 0)) best = card;
   }
-  return MONEY_REACH * best;
+  return best;
 }
+
+/** plan.brokeSlope: the Corp's first credit worth this much more (1.8 + 1 = 2.8), sliding to nothing at BROKE_CREDITS. */
+export const BROKE_SLOPE = 1;
 
 /** Worth of a side's credits on this board, as `viewer` (the deciding side) prices them. */
 export function sideCreditValue(state: GameState, side: SideCode, viewer: SideCode): number {
   const credits = side === 'corp' ? state.corp.credits : state.runner.credits;
   // The money it unlocks in HQ sits on the slide with the credits: worth most to a broke Corp
-  const reach = side === 'corp' && viewer === 'corp' && tuning.plan.moneyReach ? moneyReach(state) : 0;
-  if (!tuning.plan.creditSlide?.[viewer]) return creditValue(credits) + reach;
+  const reach = side === 'corp' && viewer === 'corp' ? moneyReach(state) : 0;
   const need = creditNeed(state, side);
-  return reach ? creditSlide(credits + reach, need) + Math.min(credits, 0) : creditSlide(credits, need);
+  // plan.brokeSlope (Jeff, 2026-11-05: rez ice when needed, then build back up): the Corp's own first 4 credits are
+  // worth up to 2.8 each, not 1.8 (a steeper slope all the way to the need made a click for a credit beat installing
+  // Otto Campaign at 6 credits). Broke, it made no more money than when rich (2.3 credits a turn): a credit click scored
+  // 1.8 - 1.25 and lost to advancing or installing almost anything, and it went into the Runner's turn unable to rez
+  const broke = side === 'corp' && viewer === 'corp' ? BROKE_SLOPE : 0;
+  return reach ? creditSlide(credits + reach, need, broke) + Math.min(credits, 0) : creditSlide(credits, need, broke);
+}
+
+/**
+ * plan.payoutSlide (Jeff, 2026-11-04: Telework Contract and Fermenter held while clicking for credits): credits a card
+ * will still pay out sit on the same slide as the credits in hand. Spent credits were priced on the slide (up to 1.8
+ * each when broke) but payouts at a flat 1, so a broke side never found an econ card worth installing. The worth of
+ * each credit to come, as a multiple of a flat credit. Runner cards only: on the Corp's Regolith it made taking
+ * the credits barely better than leaving them, so the Corp drew instead of taking.
+ */
+/** plan.liquidity: credits on a card are worth this much more than at half the need while the side is short. */
+export const LIQUIDITY_LIFT = 1.1;
+
+export function payoutSlide(state: GameState, side: SideCode, amount: number): number {
+  if (amount <= 0) return 1;
+  const credits = side === 'corp' ? state.corp.credits : state.runner.credits;
+  const need = creditNeed(state, side);
+  // plan.liquidity (Jeff, 2026-11-06, his Teia game: the Runner sat on 0-5 credits for 13 turns and never played Sure
+  // Gamble): credits still on a card can't be spent this turn. Priced from the pool in hand, every credit gained made
+  // Telework Contract's credits look less needed: Sure Gamble at 5 credits gained 6.1 in cash, lost 3.5 on the contract
+  // and scored below drawing a card. They sit on the slide from half the need instead, whatever less is in hand, so cash
+  // keeps the broke end of the slide to itself; a bank past the need still slides off.
+  // A tenth on top while short (fading out from half the need to the need): credits on a card get spent while the
+  // Runner is still short, so a broke Runner keeps installing Telework Contract and Fermenter (payoutSlide.test.ts)
+  const pool = Math.max(credits, need / 2);
+  const lift = 1 + (LIQUIDITY_LIFT - 1) * Math.min(1, Math.max(0, 2 - (2 * credits) / Math.max(need, 1)));
+  return ((creditSlide(pool + amount, need) - creditSlide(pool, need)) / amount) * lift;
 }
 
 /*
@@ -287,15 +418,33 @@ const pricing: string[] = [];
 export const valueLoops = new Map<string, number>();
 const loopsFail = (): boolean => typeof process !== 'undefined' && !!process.env?.VITEST && !process.env?.VALUE_LOOPS_OK;
 
+/**
+ * Runs `work` as a lookup of its own, outside the lookups in progress (planner speed tier 2: a deck card priced once
+ * for the whole decision is priced the same whoever asked first). Loops inside `work` are still guarded.
+ */
+export function pricingApart<T>(work: () => T): T {
+  const outer = pricing.splice(0);
+  try {
+    return work();
+  } finally {
+    pricing.splice(0, pricing.length, ...outer);
+  }
+}
+
 const stateIds = new WeakMap<GameState, number>();
 let nextStateId = 0;
+
+/** A number for this position object, the same each time it is asked (guardLoop's lookups, handValues deckRootKey). */
+export function positionSerial(state: GameState): number {
+  let id = stateIds.get(state);
+  if (id === undefined) stateIds.set(state, (id = nextStateId++));
+  return id;
+}
 
 /** `key` names the lookup; the same lookup on another position (a rig with a card taken out) is not a loop. */
 export function guardLoop<T>(state: GameState | undefined, key: string, flat: () => T, work: () => T): T {
   if (!state) return work();
-  let id = stateIds.get(state);
-  if (id === undefined) stateIds.set(state, (id = nextStateId++));
-  key = `${key} @${id}`;
+  key = `${key} @${positionSerial(state)}`;
   const at = pricing.indexOf(key);
   if (at >= 0) {
     const chain = [...pricing.slice(at), key].join(' > ');

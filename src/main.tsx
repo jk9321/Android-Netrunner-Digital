@@ -6,18 +6,21 @@ import App from './App';
 import { KeywordTooltip } from './ui/components/Keyword';
 import { DialogHost } from './ui/components/Dialog';
 import { ErrorBoundary } from './ui/components/ErrorBoundary';
-import { applyCardSize, savedCardSize } from './ui/cardSize';
+import { applyAutoFit, applyCardSize, savedAutoFit, savedCardSize } from './ui/cardSize';
 import { animationsEnabled, applyAnimations } from './ui/animations';
 import { installChunkReload } from './ui/chunkReload';
 import { diagnoseLoad, installReloadWatch } from './ui/reloadReason';
 import { ReloadNotice } from './ui/components/ReloadNotice';
 import { hasSavedCustomDecks, requestPersistentStorage } from './data/customDecks';
+import { installWheelScroll } from './ui/wheelScroll';
 import './index.css';
 
 // Ask the browser not to clear saved decks when the device is low on space
 if (!movingAway && hasSavedCustomDecks()) requestPersistentStorage();
 
+installWheelScroll();
 applyCardSize(savedCardSize());
+applyAutoFit(savedAutoFit());
 applyAnimations(animationsEnabled());
 installChunkReload();
 const reloadMessage = diagnoseLoad();

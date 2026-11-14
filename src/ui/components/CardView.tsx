@@ -1,6 +1,7 @@
-import React, { useRef, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { CardInstance } from '../../core/types/card';
 import { cardDef, getCardImageUrl, getCardBackUrl } from '../../data/cards';
+import { isHidden } from '../../core/cards';
 import { Lock, Eye, ArrowRight } from 'lucide-react';
 import { CardPopout } from './CardPopout';
 import { motion } from 'framer-motion';
@@ -8,6 +9,7 @@ import { AdvancementIcon, AgendaIcon, Credits, PowerIcon, VirusIcon } from './Cr
 import { Keyword } from './Keyword';
 import { StatTumbler } from './StatTumbler';
 import { useZoom } from './ZoomPanel';
+import { hoverHoldRemaining } from '../hoverHold';
 import { createPortal } from 'react-dom';
 import { usePromptHighlight } from '../promptHighlight';
 import { IceTypeIcons, breakerTypes } from './IceTypeIcons';
@@ -54,6 +56,8 @@ export interface CardViewProps {
    * remember it (rules 1.12.5, 10.2.2b). Faded and marked Seen so it never passes for a rezzed card.
    */
   seen?: boolean;
+  /** Share of the card's width (its short side) that a neighbour lies over at the bottom (overlapped ice): the bottom badges sit above it. */
+  coveredBottom?: number;
 }
 
 const CardFace: React.FC<CardViewProps & { showTooltip: boolean; setShowTooltip: (show: boolean) => void }> = ({
@@ -72,6 +76,7 @@ const CardFace: React.FC<CardViewProps & { showTooltip: boolean; setShowTooltip:
   tag,
   actions,
   seen = false,
+  coveredBottom = 0,
   showTooltip,
   setShowTooltip,
 }) => {
@@ -104,13 +109,30 @@ const CardFace: React.FC<CardViewProps & { showTooltip: boolean; setShowTooltip:
   const handleTouchStart = () => {
     lastTouchTime.current = Date.now();
   };
-  const handleMouseEnter = () => {
+  const showHover = () => {
     zoom?.show({ card, hidden, seen: seen && !hidden });
     // Suppress sticky hover popouts from synthesized mouseenter events on touch screens
     if (Date.now() - lastTouchTime.current < 1000 || isTouchViewport()) return;
     setShowTooltip(true);
   };
-  const handleMouseLeave = () => setShowTooltip(false);
+  const holdTimer = useRef<number | undefined>(undefined);
+  useEffect(() => () => window.clearTimeout(holdTimer.current), []);
+  const handleMouseEnter = () => {
+    window.clearTimeout(holdTimer.current);
+    // A spreading hand slides cards under the pointer: wait for it to settle, then preview the card still under it
+    const held = hoverHoldRemaining();
+    if (held > 0) {
+      holdTimer.current = window.setTimeout(() => {
+        if (cardRef.current?.matches(':hover')) showHover();
+      }, held + 20);
+      return;
+    }
+    showHover();
+  };
+  const handleMouseLeave = () => {
+    window.clearTimeout(holdTimer.current);
+    setShowTooltip(false);
+  };
 
   // When face-down and viewer cannot peek (e.g. Runner looking at Corp ICE/Root)
   if (isFaceDown && !canPeek) {
@@ -144,7 +166,7 @@ const CardFace: React.FC<CardViewProps & { showTooltip: boolean; setShowTooltip:
           </div>
         )}
 
-        <CardOverlays card={card} sideways={sideways} tag={tag} actions={actions} hidden />
+        <CardOverlays card={card} sideways={sideways} tag={tag} actions={actions} hidden coveredBottom={coveredBottom} />
 
         {showTooltip && !plainBack && (
           <CardPopout
@@ -226,6 +248,7 @@ const CardFace: React.FC<CardViewProps & { showTooltip: boolean; setShowTooltip:
         types={typeIcons === false ? [] : typeIcons === true ? (def.type_code === 'ice' ? iceSubtypes(card) : breakerTypes(card)) : typeIcons}
         typeSide={def.type_code === 'ice' ? 'ice' : 'breaker'}
         onInspect={onInspect}
+        coveredBottom={coveredBottom}
       />
 
       {/* Hover Card Detail Popout (Rendered via Portal to Document Body) */}
@@ -262,7 +285,8 @@ const CardOverlays: React.FC<{
   types?: IceSubtype[];
   typeSide?: 'ice' | 'breaker';
   onInspect?: (card: CardInstance) => void;
-}> = ({ card, sideways, tag, actions, status, hidden = false, types = [], typeSide = 'ice', onInspect }) => {
+  coveredBottom?: number;
+}> = ({ card, sideways, tag, actions, status, hidden = false, types = [], typeSide = 'ice', onInspect, coveredBottom = 0 }) => {
   const gameState = useLiveGameState();
   const mods = gameState && !hidden && status !== 'seen' ? liveCardModifiers(gameState, card) : undefined;
   const t = card.tokens;
@@ -275,7 +299,12 @@ const CardOverlays: React.FC<{
         sideways ? 'left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 -rotate-90' : 'inset-0'
       }`}
       // Sideways, the layer is the card's box turned: as wide as the card is tall (140%)
-      style={{ fontSize: 'min(12cqw, 12px)', ...(sideways ? { width: '140cqw', height: '100cqw' } : {}) }}
+      style={{
+        fontSize: 'min(12cqw, 12px)',
+        ...(sideways ? { width: '140cqw', height: '100cqw' } : {}),
+        // A neighbour lies over the card's bottom edge: keep the bottom row (type icons, strength, inspect, counters) clear of it
+        ...(coveredBottom > 0 ? { paddingBottom: `calc(${coveredBottom * 100}cqw + 0.2em)` } : {}),
+      }}
     >
       {top && (
         <div className="flex items-start gap-[0.2em] min-w-0">
@@ -388,7 +417,11 @@ const CardOverlays: React.FC<{
  * A card that flips when it turns over: dealt face down or face up, rezzed,
  * or revealed. The key changes with what the viewer sees, which replays the flip.
  */
-export const CardView: React.FC<CardViewProps> = props => {
+export const CardView: React.FC<CardViewProps> = props =>
+  // A placeholder (a card this screen may not see, core/view/reconstruct.ts) only ever shows its back
+  isHidden(props.card) ? <FlippingCard {...props} isFaceDown canPeek={false} /> : <FlippingCard {...props} />;
+
+const FlippingCard: React.FC<CardViewProps> = props => {
   const showsBack = Boolean(props.isFaceDown) && props.canPeek === false;
   const face = showsBack ? 'back' : props.card.isRezzed ? 'rezzed' : props.seen ? 'seen' : 'face';
   // Only table cards (inside the zoom provider) answer to the prompt's hover; the prompt's own copies don't
@@ -412,6 +445,7 @@ export const CardView: React.FC<CardViewProps> = props => {
   // - First mount (install): Option 1 Caddy Settle (y: -8 -> 0 over 160ms with cubic-bezier(0.16, 1, 0.3, 1))
   // - Face flip (rez / reveal): Option D Ultra-Fast Blade Snap (rotateY: -90 -> 0 over 140ms snappy spring)
   const isFlip = flipCount.current > 0;
+  const isRezFlash = isFlip && props.card.isRezzed;
 
   return (
     <motion.div
@@ -427,12 +461,23 @@ export const CardView: React.FC<CardViewProps> = props => {
               ? { y: -8, opacity: 0.75 }
               : false
       }
-      animate={{ rotateY: 0, y: 0, opacity: 1 }}
+      animate={{
+        rotateY: 0,
+        y: 0,
+        opacity: 1,
+        ...(isRezFlash && !prefersReduced
+          ? { boxShadow: ['0 0 0 0 rgba(34,211,238,0)', '0 0 18px 4px rgba(34,211,238,0.55)', '0 0 0 0 rgba(34,211,238,0)'] }
+          : {}),
+      }}
       transition={
         prefersReduced
           ? { duration: 0 }
           : isFlip
-            ? { duration: 0.14, ease: [0.2, 1.25, 0.4, 1] }
+            ? {
+                duration: 0.14,
+                ease: [0.2, 1.25, 0.4, 1],
+                ...(isRezFlash ? { boxShadow: { duration: 0.5, times: [0, 0.2, 1], ease: 'easeOut' } } : {}),
+              }
             : isInstalledOnTable
               ? { duration: 0.16, ease: [0.16, 1, 0.3, 1] }
               : { duration: 0 }

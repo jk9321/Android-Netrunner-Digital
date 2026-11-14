@@ -8,18 +8,24 @@ import { digValue, evaluate, rigCoverage } from './evaluate';
 import { answerPrompt, runEventOptions, simulate } from './prompts';
 import type { HeuristicOptions } from './corpAI';
 import { asSide, logNudge, nudge, tuning } from './synergy';
-import { noteKnownHand } from './handValues';
+import { decisionContext } from './handValues';
 import { PlanMemory, planTurn, plannerOn } from './turnPlanner';
-import { BOTULUS, RunnerMemory, chainReactionBonus, TRANQUILIZER, MANEGARM, bestBreakPlan, botulusBreaks, hostedTrojans, creditsAhead, iceCreditsAhead, iceCost, iceCreditNeed, needsBiggerHand, runScore, runShortfall, serverValue, spendCost, subroutineCost } from './runs';
+import { BOTULUS, RunnerMemory, chainReactionBonus, TRANQUILIZER, MANEGARM, bestBreakPlan, botulusBreaks, runCreditSpend, hostedTrojans, creditsAhead, iceCreditsAhead, iceCost, iceCreditNeed, needsBiggerHand, runScore, runShortfall, serverValue, spendCost, subroutineCost } from './runs';
 import { RATES } from './valueModel';
+import { plan } from './pricing';
 
-const TROJANS = [BOTULUS, TRANQUILIZER];
+// Read when called, not built at load: under the batch entry's import order (scripts/corp-losses.ts imports threatModel
+// first) this module loads inside runs.ts's import cycle, before runs.ts has set BOTULUS and TRANQUILIZER, and a list
+// built here held [undefined, undefined] (ai-trojans-load; tests/trojansLoad.test.ts)
+const isTrojan = (code: string) => code === BOTULUS || code === TRANQUILIZER;
 
 /**
  * Rule-based Runner: builds economy, installs icebreakers for the ice
  * subtypes it can't break yet, and runs the server with the best expected
  * value for its cost. It only looks at public information when planning runs.
  */
+const WINDOW_OF_OPPORTUNITY = '34077';
+
 export class HeuristicRunnerAI implements Agent {
   readonly side = 'runner' as const;
   private freeActions = new FreeActionGuard(['END_TURN', 'INITIATE_RUN']);
@@ -48,10 +54,10 @@ export class HeuristicRunnerAI implements Agent {
    */
   chooseOffTurn(state: GameState): GameAction | null {
     return asSide('runner', () => {
-      noteKnownHand(state, 'runner');
+      decisionContext(state, 'runner');
       this.remember(state);
       this.freeActions.start(state, state.runner.clicks);
-      const before = evaluate(state, 'runner', this.synergy);
+      const before = evaluate(state, 'runner');
       const best = getLegalActions(state, 'runner')
         .filter(a => a.type === 'USE_ABILITY')
         .map(action => ({ action, score: this.scoreMain(state, action, before) }))
@@ -64,7 +70,7 @@ export class HeuristicRunnerAI implements Agent {
   }
 
   private decide(state: GameState): GameAction {
-    noteKnownHand(state, 'runner');
+    decisionContext(state, 'runner');
     this.remember(state);
     if (activePrompt(state)) return answerPrompt(state, 'runner', this.memory, this.synergy);
     const legal = getLegalActions(state, 'runner');
@@ -96,13 +102,7 @@ export class HeuristicRunnerAI implements Agent {
     if (run.phase === 'movement' && run.icePosition !== null && server) {
       // Jack out (only possible after passing ice) if the rezzed ice further in is more than we can pay for.
       const credits = availableCredits(state, 'runner');
-      if (tuning.plan.runBudget) {
-        if (creditsAhead(state) > credits && find('JACK_OUT')) return find('JACK_OUT');
-      } else {
-        const remaining = server.ice.slice(0, run.icePosition).filter(c => c.isRezzed);
-        const cost = remaining.reduce((sum, ice) => sum + iceCost(state, ice), 0);
-        if (cost > credits + 0.5 && find('JACK_OUT')) return find('JACK_OUT');
-      }
+      if (creditsAhead(state) > credits && find('JACK_OUT')) return find('JACK_OUT');
     }
     return find('CONTINUE_RUN') ?? legal[0];
   }
@@ -113,7 +113,10 @@ export class HeuristicRunnerAI implements Agent {
     const encounter = state.activeRun?.encounter;
     if (!ice || !encounter || encounter.resolvingIndex !== null) return undefined;
     const subs = iceSubroutines(state, ice);
-    const unbroken = subs.map((s, i) => ({ i, cost: subroutineCost(state, s.label) })).filter(s => !encounter.broken[s.i]);
+    // Banner: once used, this encounter's subroutines can't end the run
+    const unbroken = subs
+      .map((s, i) => ({ i, cost: encounter.cannotEndRun && /^end the run\.?$/i.test(s.label.trim()) ? 0 : subroutineCost(state, s.label) }))
+      .filter(s => !encounter.broken[s.i]);
     const mustBreak = unbroken.filter(s => s.cost >= 1);
     if (mustBreak.length === 0) return undefined;
 
@@ -125,7 +128,7 @@ export class HeuristicRunnerAI implements Agent {
     }
 
     // Bioroids: spare clicks break the worst subroutines first, run-ending or not (each one costs the Runner at least a credit)
-    if (tuning.plan.bioroidClicks && isBioroid(ice)) {
+    if (isBioroid(ice)) {
       const sorted = [...mustBreak].sort((a, b) => b.cost - a.cost);
       const worst = sorted[0];
       // Ansel 2.0: its clicks break up to 2 at once, so take the worst two together
@@ -140,23 +143,25 @@ export class HeuristicRunnerAI implements Agent {
     }
 
     // Runner (run budget): keep what the rezzed ice further in needs
-    const ahead = tuning.plan.runBudget ? creditsAhead(state) : 0;
+    const ahead = creditsAhead(state);
     const credits = availableCredits(state, 'runner') - ahead;
     const tank = mustBreak.reduce((sum, s) => sum + s.cost, 0);
-    if (tuning.plan.runBudget && mustBreak.some(s => s.cost === Infinity)) {
+    if (mustBreak.some(s => s.cost === Infinity)) {
       // Can't get through the whole way: paying here is wasted unless what fires before the run ends is worse
       const first = mustBreak.find(s => s.cost === Infinity)!;
       const before = mustBreak.filter(s => s.i < first.i).reduce((sum, s) => sum + s.cost, 0);
       if (credits < iceCreditNeed(state, ice, encounter.broken) && before < 2) return undefined;
     }
     const tryBreaking = (targets: typeof mustBreak): GameAction | undefined => {
-      const plan = bestBreakPlan(state, ice, targets.length);
-      if (!plan || plan.credits > credits) return undefined;
-      const breakerId = plan.breaker.instanceId;
-      if (plan.boostsNeeded > 0) {
-        if (plan.boostByAbility) return legal.find(a => a.type === 'USE_ABILITY' && a.cardInstanceId === breakerId);
+      const breakPlan = bestBreakPlan(state, ice, targets.length);
+      if (!breakPlan || breakPlan.credits > credits) return undefined;
+      const breakerId = breakPlan.breaker.instanceId;
+      if (breakPlan.boostsNeeded > 0) {
+        if (breakPlan.boostByAbility) return legal.find(a => a.type === 'USE_ABILITY' && a.cardInstanceId === breakerId);
         return legal.find(a => a.type === 'BOOST_BREAKER' && a.breakerInstanceId === breakerId);
       }
+      // Lobisomem on barriers, Banner: the card's own ability
+      if (breakPlan.breakByAbility) return legal.find(a => a.type === 'USE_ABILITY' && a.cardInstanceId === breakerId);
       const wanted = new Set(targets.map(t => t.i));
       const breaks = legal.filter(
         (a): a is Extract<GameAction, { type: 'BREAK_SUBROUTINE' }> => a.type === 'BREAK_SUBROUTINE' && a.breakerInstanceId === breakerId
@@ -166,8 +171,8 @@ export class HeuristicRunnerAI implements Agent {
       return pool.sort((a, b) => b.subroutineIndices.length - a.subroutineIndices.length)[0];
     };
 
-    const plan = bestBreakPlan(state, ice, mustBreak.length);
-    if (plan && plan.credits <= tank + 0.5) {
+    const breakPlan = bestBreakPlan(state, ice, mustBreak.length);
+    if (breakPlan && breakPlan.credits <= tank + 0.5) {
       const action = tryBreaking(mustBreak);
       if (action) return action;
     }
@@ -186,7 +191,7 @@ export class HeuristicRunnerAI implements Agent {
   }
 
   private mainAction(state: GameState, legal: GameAction[]): GameAction {
-    const full = tuning.plan.readWriteFull ? readWriteFullShuffle(state, legal) : undefined;
+    const full = readWriteFullShuffle(state, legal);
     if (full) {
       this.notePlayed(full);
       return full;
@@ -208,26 +213,26 @@ export class HeuristicRunnerAI implements Agent {
   private plan(state: GameState, ranked: ScoredAction[]): GameAction | null {
     const rollout = new HeuristicRunnerAI({ synergy: this.synergy, planner: false });
     rollout.memory = new Map(this.memory);
-    const options = { memory: this.memory, wary: this.synergy && tuning.wary, urgent: this.synergy && tuning.plan.urgency };
+    const options = { memory: this.memory, wary: this.synergy && tuning.wary };
     return planTurn(
       state,
       'runner',
       ranked,
-      { rank: s => rollout.rankMainActions(s), answer: s => rollout.chooseAction(s), runWorth: (s, id) => runScore(s, id, options), memory: this.planMemory },
+      { rank: s => rollout.rankMainActions(s), answer: s => rollout.chooseAction(s), runWorth: (s, id, code) => runScore(s, id, code ? { ...runEventOptions(code, s), ...options } : options), runCredits: (s, id, code) => runCreditSpend(s, id, code ? runEventOptions(code, s) : {}), memory: this.planMemory },
       this.synergy,
     );
   }
 
   /** Main-phase actions, best first, with this AI's score for each (the search AI starts from these). */
   rankMainActions(state: GameState, legal = getLegalActions(state, 'runner')): ScoredAction[] {
-    noteKnownHand(state, 'runner');
+    decisionContext(state, 'runner');
     this.freeActions.start(state, state.runner.clicks);
-    const before = evaluate(state, 'runner', this.synergy);
+    const before = evaluate(state, 'runner');
     // Nowhere worth running and breakers missing: dig for them
     this.digForBreakers =
       rigCoverage(state.runner.rig.programs).covered.size < 3 &&
-      !legal.some(a => a.type === 'INITIATE_RUN' && runScore(state, a.targetServerId, { memory: this.memory, wary: this.synergy && tuning.wary, urgent: this.synergy && tuning.plan.urgency }) > 0);
-    this.savingFor = this.synergy && tuning.plan.saveUp ? saveUpTarget(state, this.memory) : null;
+      !legal.some(a => a.type === 'INITIATE_RUN' && runScore(state, a.targetServerId, { memory: this.memory, wary: this.synergy && tuning.wary }) > 0);
+    this.savingFor = this.synergy ? saveUpTarget(state, this.memory) : null;
     return [...legal, ...makeRoomInstalls(state)]
       .map(action => {
         let score = this.scoreMain(state, action, before);
@@ -254,7 +259,7 @@ export class HeuristicRunnerAI implements Agent {
         return -0.5;
       case 'INITIATE_RUN':
         // Chain Reaction: a run on a central it still needs is worth a share of the play, if it succeeds
-        return runScore(state, action.targetServerId, { memory: this.memory, wary: this.synergy && tuning.wary, urgent: this.synergy && tuning.plan.urgency, successBonus: chainReactionBonus(state, action.targetServerId) });
+        return runScore(state, action.targetServerId, { memory: this.memory, wary: this.synergy && tuning.wary, successBonus: chainReactionBonus(state, action.targetServerId) });
       case 'REMOVE_TAG':
         return state.runner.rig.resources.length > 0 ? 1.2 : 0.3;
     }
@@ -268,28 +273,52 @@ export class HeuristicRunnerAI implements Agent {
     const cardCode = 'cardInstanceId' in action ? state.runner.grip.concat(state.runner.rig.resources, state.runner.rig.programs).find(c => c.instanceId === action.cardInstanceId)?.cardCode : undefined;
     const paid = state.runner.credits - after.runner.credits;
     if (prompt?.kind === 'effect_choice' && prompt.side === 'runner' && prompt.options.every(o => after.corp.servers[o.id])) {
-      const options = { ...runEventOptions(prompt.source.cardCode, state), memory: this.memory, wary: this.synergy && tuning.wary, urgent: this.synergy && tuning.plan.urgency };
+      const options = { ...runEventOptions(prompt.source.cardCode, state), memory: this.memory, wary: this.synergy && tuning.wary };
       const best = Math.max(...prompt.options.map(o => runScore(state, o.id, options)));
-      return best - spendCost(state, paid) + (prompt.source.cardCode === '30028' ? (tuning.plan.runModel ? RATES.drawnCard : tuning.plan.drawValue?.runner ? 1.3 : 0.5) : 0); // Jailbreak draws a card
+      return best - spendCost(state, paid) + (prompt.source.cardCode === '30028' ? RATES.drawnCard : 0); // Jailbreak draws a card
+    }
+    // Window of Opportunity (plan.bypass): its install first (worth what the board gains, with no click), then its run
+    if (cardCode === WINDOW_OF_OPPORTUNITY && plan().bypass && prompt?.side === 'runner' && !state.activeRun) {
+      let ready = after;
+      for (let i = 0; i < 3; i++) {
+        const next = activePrompt(ready);
+        if (!next || next.side !== 'runner' || (next.kind === 'effect_choice' && next.options.every(o => ready.corp.servers[o.id]))) break;
+        const resolved = simulate(ready, answerPrompt(ready, 'runner', this.memory, this.synergy));
+        if (!resolved) break;
+        ready = resolved;
+      }
+      const ask = activePrompt(ready);
+      if (ask?.kind === 'effect_choice' && ask.options.every(o => ready.corp.servers[o.id])) {
+        const options = { ...runEventOptions(WINDOW_OF_OPPORTUNITY, ready), memory: this.memory, wary: this.synergy && tuning.wary };
+        const best = Math.max(...ask.options.map(o => runScore({ ...ready, runner: { ...ready.runner, clicks: state.runner.clicks } }, o.id, options)));
+        const install = evaluate(ready, 'runner') - evaluate(after, 'runner');
+        return best + install - spendCost(state, paid);
+      }
     }
     if (!state.activeRun && after.activeRun) {
-      return runScore(state, after.activeRun.server, { ...runEventOptions(cardCode ?? '', state), memory: this.memory, wary: this.synergy && tuning.wary, urgent: this.synergy && tuning.plan.urgency }) - spendCost(state, paid) + 0.3;
+      return runScore(state, after.activeRun.server, { ...runEventOptions(cardCode ?? '', state), memory: this.memory, wary: this.synergy && tuning.wary }) - spendCost(state, paid) + 0.3;
     }
 
     // Follow our own prompts (Lie Low, Scrounge, Madani) a few steps
     let resolved = after;
-    for (let i = 0; i < 3 && activePrompt(resolved)?.side === 'runner'; i++) {
-      const next = simulate(resolved, answerPrompt(resolved, 'runner', this.memory, this.synergy));
+    // plan.answerCorpChoice: also the Corp's answer to the card's choice (Wildcat Strike: the Corp picks 6 credits or 4 cards)
+    for (let i = 0; i < 3; i++) {
+      const side = activePrompt(resolved)?.side;
+      if (side !== 'runner' && !(side === 'corp' && this.synergy)) break;
+      const next = simulate(resolved, answerPrompt(resolved, side, this.memory, this.synergy));
       if (!next) break;
       resolved = next;
     }
-    let score = evaluate(resolved, 'runner', this.synergy) - before;
-    if (action.type === 'DRAW_CARD' && needsBiggerHand(state, this.memory)) score += 1.5;
-    if (action.type === 'DRAW_CARD' && this.digForBreakers && state.runner.stack.length > 5) score += 1.2;
-    if (action.type === 'DRAW_CARD' && this.synergy && tuning.plan.dig?.runner && state.runner.grip.length < state.runner.handSizeLimit) score += digValue(state, 'runner');
-    if (action.type === 'INSTALL_CARD' && action.hostInstanceId && cardCode && TROJANS.includes(cardCode)) {
+    let score = evaluate(resolved, 'runner') - before;
+    // plan.drawCap (code audit, 2026-11-05): a card drawn past the hand size is discarded at the end of the turn
+    // (rules 5.7.4), so these bonuses stop at the limit; a bigger hand for a trap run still counts while a click is left to run
+    const room = state.runner.grip.length < state.runner.handSizeLimit;
+    if (action.type === 'DRAW_CARD' && needsBiggerHand(state, this.memory) && (room || state.runner.clicks >= 2)) score += 1.5;
+    if (action.type === 'DRAW_CARD' && this.digForBreakers && state.runner.stack.length > 5 && room) score += 1.2;
+    if (action.type === 'DRAW_CARD' && this.synergy && state.runner.grip.length < state.runner.handSizeLimit) score += digValue(state, 'runner');
+    if (action.type === 'INSTALL_CARD' && action.hostInstanceId && cardCode && isTrojan(cardCode)) {
       const host = Object.values(state.corp.servers).flatMap(s => s.ice).find(c => c.instanceId === action.hostInstanceId);
-      score += host?.isRezzed ? (tuning.plan.trojans ? trojanHostValue(state, cardCode, host) : 1.5) : -3;
+      score += host?.isRezzed ? trojanHostValue(state, cardCode, host) : -3;
     }
     // Saving up for a run: money now beats spending it elsewhere
     if (this.savingFor) {
@@ -351,7 +380,7 @@ function saveUpTarget(state: GameState, memory: RunnerMemory): string | null {
   for (const id of Object.keys(state.corp.servers)) {
     const short = runShortfall(state, id);
     if (short === null || short <= 0 || short > 7) continue;
-    const value = serverValue(state, id, 0, memory, tuning.wary, tuning.plan.urgency);
+    const value = serverValue(state, id, 0, memory, tuning.wary);
     if (value >= bestValue) {
       best = id;
       bestValue = value;

@@ -31,6 +31,9 @@ export const DAILY_LIMIT_PER_REPORTER = 5;
 const MAX_BODY = 60_000;
 export const TITLE_PREFIX = '[Bug report]';
 const LABEL = 'bug report';
+/** Beta-only playtest games: the playtest-game workflow saves them as human-games fixtures. */
+export const PLAYTEST_TITLE_PREFIX = '[Playtest game]';
+export const PLAYTEST_LABEL = 'playtest-game';
 
 export interface GameReport {
   seed: number;
@@ -51,6 +54,7 @@ export interface BugReport {
   version: string;
   /** A form field hidden from people; anything in it means a bot filled the form. */
   website?: string;
+  playtest?: boolean;
   game?: GameReport;
   crash?: { message: string; stack?: string };
 }
@@ -64,14 +68,19 @@ const str = (v: unknown, max: number): string | null => (typeof v === 'string' ?
 export function parseReport(raw: unknown): BugReport | string {
   if (!raw || typeof raw !== 'object') return 'The report could not be read.';
   const r = raw as Record<string, unknown>;
-  const description = typeof r.description === 'string' ? r.description.trim() : '';
-  if (description.length < MIN_DESCRIPTION) return `Please describe the problem in at least ${MIN_DESCRIPTION} characters.`;
+  const playtest = r.playtest === true;
+  let description = typeof r.description === 'string' ? r.description.trim() : '';
+  // A playtest game needs no note
+  if (playtest && !description) description = 'Playtest game';
+  if (playtest && !(r.game && typeof r.game === 'object')) return 'A playtest game needs a game.';
+  if (!playtest && description.length < MIN_DESCRIPTION) return `Please describe the problem in at least ${MIN_DESCRIPTION} characters.`;
   if (description.length > MAX_DESCRIPTION) return `Please keep the description under ${MAX_DESCRIPTION} characters.`;
   const report: BugReport = {
     description,
     screen: str(r.screen, 40) ?? 'unknown',
     version: str(r.version, 80) ?? 'unknown',
     website: str(r.website, 200) ?? undefined,
+    ...(playtest ? { playtest } : {}),
   };
   if (r.game && typeof r.game === 'object') {
     const g = r.game as Record<string, unknown>;
@@ -107,9 +116,9 @@ function inline(text: string): string {
   return text.replace(/[\r\n]+/g, ' ').replace(/@/g, '@\u200b').replace(/[<>]/g, '').trim();
 }
 
-export function issueTitle(description: string): string {
+export function issueTitle(description: string, playtest = false): string {
   const first = inline(description.split('\n')[0]);
-  return `${TITLE_PREFIX} ${first.length > 70 ? `${first.slice(0, 67)}…` : first}`;
+  return `${playtest ? PLAYTEST_TITLE_PREFIX : TITLE_PREFIX} ${first.length > 70 ? `${first.slice(0, 67)}…` : first}`;
 }
 
 /** The issue body. The game log is cut from the front when the whole body would be too long for GitHub. */
@@ -118,6 +127,7 @@ export function issueBody(report: BugReport, meta: { reporter: string; site: str
     '### Description',
     fence(report.description, 'text'),
     '',
+    ...(report.playtest ? ['**Playtest game** (beta): saved to `tests/fixtures/human-games` by the playtest-game workflow.'] : []),
     `**Screen:** ${inline(report.screen)}`,
     `**Version:** ${inline(report.version)} (${inline(meta.site)})`,
     `**Browser:** ${inline(meta.userAgent).slice(0, 300) || 'unknown'}`,
@@ -187,7 +197,8 @@ interface IssueSummary {
 /** Reports made in the last 24 hours, all and from this reporter. */
 export function countRecent(issues: IssueSummary[], reporter: string, now: number): { total: number; mine: number } {
   const since = now - 24 * 60 * 60 * 1000;
-  const recent = issues.filter(i => !i.pull_request && i.title.startsWith(TITLE_PREFIX) && Date.parse(i.created_at) >= since);
+  // Beta preview reports have no limits of their own and don't use up the live site's
+  const recent = issues.filter(i => !i.pull_request && i.title.startsWith(TITLE_PREFIX) && Date.parse(i.created_at) >= since && !(i.body ?? '').includes('(beta preview)'));
   return { total: recent.length, mine: recent.filter(i => (i.body ?? '').includes(`\`${reporter}\``)).length };
 }
 
@@ -239,33 +250,41 @@ async function handle(request: Request, env: BugReportEnv): Promise<Result> {
   if (typeof report === 'string') return fail(400, report);
   // A bot filled the hidden field: pretend it worked so it doesn't try again
   if (report.website) return { status: 200, body: { ok: true } };
+  const host = new URL(request.url).host;
+  // Playtest games are a beta tool: the live site never files them
+  if (report.playtest && siteName(host) !== 'beta preview') return fail(403, 'Playtest games can only be submitted from the beta site.');
+  if (report.playtest && !snapshotComment(report.game?.snapshot)) return fail(413, 'This game is too large to submit.');
   if (!env.GITHUB_TOKEN || !env.BUG_REPORT_REPO) return fail(503, 'Bug reports are not switched on yet. Please try again later.');
 
   const ip = request.headers.get('CF-Connecting-IP') ?? 'unknown';
   const reporter = await reporterId(ip, env.GITHUB_TOKEN);
+  // Beta preview reports skip the daily caps (Jeff, 2026-11-05) but keep the burst limit: online invite links bring other people there
+  const beta = siteName(new URL(request.url).host) === 'beta preview';
   if (env.BUG_RATE_LIMITER) {
     const { success } = await env.BUG_RATE_LIMITER.limit({ key: reporter });
     if (!success) return fail(429, 'Too many reports at once. Please wait a minute and try again.');
   }
 
-  const recent = await github(env, '/issues?state=all&sort=created&direction=desc&per_page=100');
-  if (!recent.ok) {
-    console.error('Bug report: listing issues failed', recent.status, await recent.text());
-    return fail(502, 'The report could not be sent. Please try again later.');
+  if (!beta) {
+    const recent = await github(env, '/issues?state=all&sort=created&direction=desc&per_page=100');
+    if (!recent.ok) {
+      console.error('Bug report: listing issues failed', recent.status, await recent.text());
+      return fail(502, 'The report could not be sent. Please try again later.');
+    }
+    const counts = countRecent((await recent.json()) as IssueSummary[], reporter, Date.now());
+    if (counts.mine >= DAILY_LIMIT_PER_REPORTER) return fail(429, 'You have sent the most reports allowed for today. Thank you! Please try again tomorrow.');
+    if (counts.total >= DAILY_LIMIT_TOTAL) return fail(429, 'We have received a lot of reports today. Please try again tomorrow.');
   }
-  const counts = countRecent((await recent.json()) as IssueSummary[], reporter, Date.now());
-  if (counts.mine >= DAILY_LIMIT_PER_REPORTER) return fail(429, 'You have sent the most reports allowed for today. Thank you! Please try again tomorrow.');
-  if (counts.total >= DAILY_LIMIT_TOTAL) return fail(429, 'We have received a lot of reports today. Please try again tomorrow.');
 
   const issue = {
-    title: issueTitle(report.description),
+    title: issueTitle(report.description, report.playtest),
     body: issueBody(report, {
       reporter,
       site: siteName(new URL(request.url).host),
       userAgent: request.headers.get('User-Agent') ?? '',
     }),
   };
-  let created = await github(env, '/issues', { method: 'POST', body: JSON.stringify({ ...issue, labels: [LABEL] }) });
+  let created = await github(env, '/issues', { method: 'POST', body: JSON.stringify({ ...issue, labels: [report.playtest ? PLAYTEST_LABEL : LABEL] }) });
   // The label can be refused (no permission to create it); the report matters more
   if (created.status === 422 || created.status === 403) {
     created = await github(env, '/issues', { method: 'POST', body: JSON.stringify(issue) });

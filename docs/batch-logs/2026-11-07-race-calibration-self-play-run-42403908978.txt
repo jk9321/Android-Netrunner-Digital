@@ -1,0 +1,30 @@
+Batch: race calibration self-play (piece 0) | ref 27c48e00497077fd1e2f8ae667b62b9450d21d2a | games 0-1 | PLAN_OFF= | decks  | race-calibration corp | added run  | paired with run 
+221 games, 3131 Runner turns
+
+Runner points per turn: the clock's runnerRate at the turn's start vs taken (next turn; next 3 turns, per turn)
+state           turns  predicted  observed  obs/pred | 3-turn pred  obs  obs/pred
+all              3131      0.409     0.401      0.98 |       0.391  0.399  1.02
+runner 0-2       1998      0.448     0.398      0.89 |       0.443  0.404  0.91
+runner 3-4        614      0.367     0.438      1.19 |       0.333  0.430  1.29
+runner 5-6        519      0.306     0.366      1.20 |       0.225  0.334  1.49
+corp 0-2         2270      0.449     0.402      0.90 |       0.432  0.395  0.92
+corp 3-4          497      0.311     0.384      1.23 |       0.279  0.366  1.31
+corp 5-6          364      0.293     0.418      1.42 |       0.253  0.480  1.90
+
+By predicted rate (calibration curve)
+<0.1             1504      0.001     0.126    109.88 |       0.001  0.254  228.44
+0.1-0.3           452      0.218     0.361      1.65 |       0.220  0.354  1.61
+0.3-0.6           404      0.434     0.554      1.28 |       0.434  0.531  1.22
+0.6-1             291      0.789     0.622      0.79 |       0.788  0.522  0.66
+1+                480      1.614     1.035      0.64 |       1.571  0.731  0.47
+
+Predicted points by server kind: hq 0.109 (27%), rd 0.108 (26%), remotes 0.189 (46%), archives 0.002 (1%)
+
+Corp points per Corp turn by its score (the measured corpRate): next turn, next 3 turns per turn
+corp 0:  1525 turns  next 0.240  3-turn 0.264
+corp 1:   103 turns  next 0.233  3-turn 0.258
+corp 2:   563 turns  next 0.384  3-turn 0.372
+corp 3:   177 turns  next 0.328  3-turn 0.355
+corp 4:   289 turns  next 0.370  3-turn 0.390
+corp 5:   210 turns  next 0.319  3-turn 0.335
+corp 6:   130 turns  next 0.369  3-turn 0.411

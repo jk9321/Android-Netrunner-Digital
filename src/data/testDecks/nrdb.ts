@@ -2,7 +2,8 @@ import type { DeckList } from '../decks';
 
 /**
  * Test decks for AI diagnostics (deck picker in beta builds only): Startup decklists
- * with Vantage Point cards published on NetrunnerDB, each crediting its author and
+ * with Vantage Point cards (ids vp-) or from the Liberation era (ids lib-) published on
+ * NetrunnerDB, each crediting its author and
  * linking the list. Only official NSG decks ship in the game, so these live here.
  *   NRDB=1 npx vite-node scripts/behaviour.ts -- 2 normal
  */
@@ -108,5 +109,107 @@ export const NRDB_TEST_DECKS: DeckList[] = [
     credit: "By LLBlumire on NetrunnerDB: [Startup] They Are Huge With It (netrunnerdb.com/en/decklist/94190)",
     format: 'startup',
     cards: { "Chain Reaction": 3, "Scrounge": 3, "Sure Gamble": 3, "Bling": 3, "DZMZ Optimizer": 3, "The Tungsten Tailor": 3, "Cookbook": 3, "Verbal Plasticity": 3, "Botulus": 3, "Buzzsaw": 3, "Echelon": 3, "Fermenter": 3, "Gourmand": 3, "Leech": 3, "Read-Write Share": 3, "Rising Tide": 3 },
+  },
+  // Liberation-era Startup decks (May to September 2025, when Startup was System Gateway, Elevation
+  // and Liberation), fully playable here: tournament results and decks built around Liberation cards.
+  // Liberation has since rotated out of Startup, so they carry no format (casual).
+  {
+    id: 'lib-steal-a-stoke',
+    name: "Steal a Stoke, Fan the Embers 2-0 (1st @ Startup Winter SD)",
+    side: 'corp',
+    identity: "Epiphany Analytica: Nations Undivided",
+    source: 'netrunnerdb',
+    credit: "By TheYoungJacobi on NetrunnerDB: Steal a Stoke, Fan the Embers 2-0 (1st @ Startup Winter SD) (netrunnerdb.com/en/decklist/90870)",
+    cards: { "Tomorrowʼs Headline": 1, "Spin Doctor": 3, "Funhouse": 3, "Predictive Planogram": 2, "Balanced Coverage": 3, "Behold!": 3, "Federal Fundraising": 3, "Oppo Research": 3, "B-1001": 2, "Warm Reception": 2, "Working Prototype": 2, "Stoke the Embers": 3, "The Holo Man": 3, "Hammer": 1, "The Powers That Be": 1, "Humanoid Resources": 2, "Embedded Reporting": 3, "Next Big Thing": 2, "Public Access Plaza": 2, "Doomscroll": 3, "IP Enforcement": 2 },
+  },
+  {
+    id: 'lib-a-teia-startup',
+    name: "A Teia Startup",
+    side: 'corp',
+    identity: "A Teia: IP Recovery",
+    source: 'netrunnerdb',
+    credit: "By Ellda on NetrunnerDB: A Teia Startup (netrunnerdb.com/en/decklist/91767)",
+    cards: { "Brân 1.0": 1, "Longevity Serum": 1, "Hansei Review": 1, "Anoetic Void": 2, "Offworld Office": 3, "Send a Message": 2, "Regolith Mining License": 2, "Hedge Fund": 3, "Ablative Barrier": 2, "M.I.C.": 1, "Attini": 2, "Phoneutria": 2, "Tatu-Bola": 3, "Mindscaping": 3, "Adrian Seis": 2, "Tucana": 2, "B-1001": 2, "Charlotte Caçador": 2, "Cohort Guidance Program": 3, "Cloud Eater": 2, "Bumi 1.0": 1, "Proprionegation": 3, "Mycoweb": 2, "Mitra Aman": 2 },
+  },
+  {
+    id: 'lib-built-to-launch',
+    name: "Built to Launch, 4th UK Nats/Megacity (Startup)",
+    side: 'corp',
+    identity: "Weyland Consortium: Built to Last",
+    source: 'netrunnerdb',
+    credit: "By Mirror_Mirror on NetrunnerDB: Built to Launch, 4th UK Nats/Megacity (Startup) (netrunnerdb.com/en/decklist/90601)",
+    cards: { "Seamless Launch": 3, "Spin Doctor": 3, "Clearinghouse": 3, "Regolith Mining License": 2, "Hedge Fund": 3, "Slash and Burn Agriculture": 3, "Tree Line": 3, "Tucana": 3, "Charlotte Caçador": 3, "Eminent Domain": 3, "The Basalt Spire": 3, "Descent": 2, "Hammer": 2, "Logjam": 3, "Biawak": 2, "Syailendra": 2, "Flyswatter": 1 },
+  },
+  {
+    id: 'lib-response-rush-nuvem',
+    name: "[Start Up] Response Rush Nuvem",
+    side: 'corp',
+    identity: "Nuvem SA: Law of the Land",
+    source: 'netrunnerdb',
+    credit: "By InFistLee on NetrunnerDB: [Start Up] Response Rush Nuvem (netrunnerdb.com/en/decklist/90431)",
+    cards: { "Seamless Launch": 3, "Spin Doctor": 3, "Above the Law": 1, "Malapert Data Vault": 1, "Send a Message": 1, "Hedge Fund": 3, "Slash and Burn Agriculture": 1, "Tree Line": 3, "Armed Asset Protection": 1, "Pivot": 1, "The Basalt Spire": 3, "Descent": 2, "Hammer": 3, "Logjam": 3, "Nanomanagement": 1, "N-Pot": 1, "Off the Books": 3, "Anthill Excavation Contract": 3, "Plutus": 2, "Kessleroid": 2, "Syailendra": 2, "Key Performance Indicators": 3, "Measured Response": 3, "Flyswatter": 2, "Petty Cash": 3 },
+  },
+  {
+    id: 'lib-click-thief',
+    name: "Bioroid - Startup - Click Thief",
+    side: 'corp',
+    identity: "Poétrï Luxury Brands: All the Rage",
+    source: 'netrunnerdb',
+    credit: "By InFlare on NetrunnerDB: Bioroid - Startup - Click Thief (netrunnerdb.com/en/decklist/91908)",
+    cards: { "Luminal Transubstantiation": 1, "Nico Campaign": 3, "Brân 1.0": 3, "Seamless Launch": 3, "Sprint": 2, "Manegarm Skunkworks": 2, "Offworld Office": 3, "Whitespace": 2, "Hedge Fund": 3, "Salvo Testing": 3, "Wage Workers": 2, "M.I.C.": 3, "Vovô Ozetti": 1, "Tatu-Bola": 2, "Sorocaban Blade": 2, "Active Policing": 2, "Corporate Hospitality": 2, "The Holo Man": 2, "Aggressive Trendsetting": 3, "Otto Campaign": 2, "Bumi 1.0": 3 },
+  },
+  {
+    id: 'lib-untaian-bluff',
+    name: "PT Untaian agendas/bluff/ambushes 4th at MC Łódź [Startup",
+    side: 'corp',
+    identity: "PT Untaian: Life's Building Blocks",
+    source: 'netrunnerdb',
+    credit: "By Orris on NetrunnerDB: PT Untaian agendas/bluff/ambushes 4th at MC Łódź [Startup (netrunnerdb.com/en/decklist/89111)",
+    cards: { "Longevity Serum": 1, "Urtica Cipher": 3, "Hansei Review": 2, "Anoetic Void": 2, "Spin Doctor": 3, "Clearinghouse": 3, "Send a Message": 1, "Regolith Mining License": 2, "Hedge Fund": 3, "Fujii Asset Retrieval": 3, "Attini": 2, "Tatu-Bola": 3, "Tree Line": 1, "Charlotte Caçador": 3, "Boto": 2, "Cloud Eater": 1, "Business As Usual": 2, "Sericulture Expansion": 3, "Byte!": 3, "Phật Gioan Baotixita": 2, "Semak-samun": 2, "Peer Review": 2 },
+  },
+  {
+    id: 'lib-seb',
+    name: "[STARTUP] Seb",
+    side: 'runner',
+    identity: "Sebastião Souza Pessoa: Activist Organizer",
+    source: 'netrunnerdb',
+    credit: "By ramus on NetrunnerDB: [STARTUP] Seb (netrunnerdb.com/en/decklist/89470)",
+    cards: { "Botulus": 3, "Fermenter": 2, "Cookbook": 1, "Sure Gamble": 2, "Strike Fund": 3, "Solidarity Badge": 3, "Audrey v2": 2, "Eru Ayase-Pessoa": 1, "Hannah \"Wheels\" Pilintra": 1, "Lago Paranoá Shelter": 2, "Bahia Bands": 3, "Eye for an Eye": 1, "Privileged Access": 3, "Amanuensis": 3, "Arruaceiras Crew": 3, "Friend of a Friend": 3, "Manuel Lattes de Moura": 1, "Valentina Ferreira Carvalho": 1, "Scrounge": 2, "Gourmand": 3, "Transfer of Wealth": 3 },
+  },
+  {
+    id: 'lib-a-job-well-done',
+    name: "A job well done (Startup CTK 2nd)",
+    side: 'runner',
+    identity: "Mercury: Chrome Libertador",
+    source: 'netrunnerdb',
+    credit: "By xyceres on NetrunnerDB: A job well done (Startup CTK 2nd) (netrunnerdb.com/en/decklist/89539)",
+    cards: { "Fermenter": 2, "Docklands Pass": 1, "VRcation": 2, "Sure Gamble": 3, "Mayfly": 3, "Strike Fund": 2, "Eru Ayase-Pessoa": 1, "S-Dobrado": 3, "Hermes": 2, "Laser Pointer": 1, "Saci": 3, "Window of Opportunity": 3, "Alarm Clock": 1, "Cupellation": 2, "Malandragem": 2, "Physarum Entangler": 3, "“Pretty” Mary da Silva": 2, "Clean Getaway": 3, "Lie Low": 3, "Maintenance Access": 3 },
+  },
+  {
+    id: 'lib-bright-eyes',
+    name: "Bright Eyes, Burning Like Fire [8th, 2-1 @ EMEA SU]",
+    side: 'runner',
+    identity: "Arissana Rocha Nahu: Street Artist",
+    source: 'netrunnerdb',
+    credit: "By LLBlumire on NetrunnerDB: Bright Eyes, Burning Like Fire [8th, 2-1 @ EMEA SU] (netrunnerdb.com/en/decklist/91063)",
+    cards: { "Fermenter": 3, "Creative Commission": 3, "DZMZ Optimizer": 2, "Echelon": 1, "Unity": 1, "Sure Gamble": 3, "Verbal Plasticity": 1, "Hannah \"Wheels\" Pilintra": 1, "LilyPAD": 2, "Slap Vandal": 1, "Alarm Clock": 1, "Physarum Entangler": 1, "Burner": 2, "Trick Shot": 3, "Cataloguer": 2, "Coalescence": 3, "Muse": 3, "Illumination": 2, "Ritual": 3, "Azimat": 1, "Chromatophores": 1, "Principia": 3, "“Knickknack” O’Brian": 3 },
+  },
+  {
+    id: 'lib-trick-shot-zahya',
+    name: "[Startup] Trick Shot Zahya (1st @ Americas Conts Startup)",
+    side: 'runner',
+    identity: "Zahya Sadeghi: Versatile Smuggler",
+    source: 'netrunnerdb',
+    credit: "By MotionBlur on NetrunnerDB: [Startup] Trick Shot Zahya (1st @ Americas Conts Startup) (netrunnerdb.com/en/decklist/91431)",
+    cards: { "Mutual Favor": 2, "Tread Lightly": 2, "Docklands Pass": 1, "Carmen": 1, "Unity": 1, "Jailbreak": 3, "Sure Gamble": 3, "Verbal Plasticity": 1, "Hannah \"Wheels\" Pilintra": 1, "Hermes": 2, "Curupira": 1, "Bahia Bands": 2, "Alarm Clock": 1, "Cupellation": 2, "Trick Shot": 3, "Clean Getaway": 3, "Lie Low": 2, "Transfer of Wealth": 3, "Open Market": 3, "Side Hustle": 3 },
+  },
+  {
+    id: 'lib-tao-s-angels',
+    name: "[Startup] Tao's Angels (Undefeated @ Megacity + Conts)",
+    side: 'runner',
+    identity: "Tāo Salonga: Telepresence Magician",
+    source: 'netrunnerdb',
+    credit: "By New Creation on NetrunnerDB: [Startup] Tao's Angels (Undefeated @ Megacity + Conts) (netrunnerdb.com/en/decklist/91500)",
+    cards: { "Botulus": 1, "Creative Commission": 3, "DZMZ Optimizer": 2, "Echelon": 2, "Unity": 2, "Sure Gamble": 3, "Eru Ayase-Pessoa": 1, "Hermes": 2, "Beatriz Friere Gonzalez": 1, "Cupellation": 1, "Trick Shot": 3, "Coalescence": 3, "Muse": 3, "Pressure Spike": 2, "“Pretty” Mary da Silva": 2, "Scrounge": 1, "Ritual": 3, "Devadatta Drone": 3, "“Knickknack” O’Brian": 3 },
   },
 ];

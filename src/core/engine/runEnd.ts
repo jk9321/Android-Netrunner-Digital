@@ -6,6 +6,7 @@ import { trashInstalledRunnerCard } from './damage';
 import { fireTrigger } from './triggers';
 import { findCardAnywhere } from './helpers';
 import { pushPrompt } from './prompts';
+import { closeRunWindows } from './priority';
 
 /** Ends the active run (successful or not) and cleans up run-scoped effects. */
 export function endRun(state: GameState): void {
@@ -19,6 +20,7 @@ export function endRun(state: GameState): void {
     }
   }
   state.activeRun = null;
+  closeRunWindows(state);
   state.phase = state.activePlayer === 'corp' ? 'corp_turn' : 'runner_turn';
   if (run.accessOnly) return; // Detente: accessing outside a run
   // The encounter in progress ends with the run (Knowledge Seeker)
@@ -53,6 +55,12 @@ const SHRED = '35005';
 export function endTheRun(state: GameState): void {
   const run = state.activeRun;
   if (!run) return;
+  // Banner: subroutines on this ice cannot end the run this encounter. The "cannot" wins (rules 1.2.2), so the run
+  // never would end and Shred (which acts "the first time the Corp would end that run") neither asks nor is used up
+  if (run.encounter?.cannotEndRun && run.encounter.resolvingIndex !== null) {
+    addLog(state, 'runner', 'The subroutine cannot end the run this encounter.');
+    return;
+  }
   if (run.shredArmed) {
     run.shredArmed = false;
     const x = state.corp.servers[run.server]?.root.length ?? 0;

@@ -5,6 +5,7 @@ import { heldWorth } from '../src/ai/handValues';
 import { ALL_CARDS, cardDef, createCardInstance, GameState } from '../src/core';
 import { giveCard, newGame, runnerInstall, startRunnerTurn } from './helpers';
 
+
 const AGENDA = ALL_CARDS.find(d => d.type_code === 'agenda' && d.agenda_points === 2 && d.pack_code === 'sg')!.code;
 
 const inHand = (s: GameState, side: 'corp' | 'runner', code: string) => {
@@ -45,9 +46,9 @@ describe('card plans (Jeff, 2026-10-30; plan.cardPlans)', () => {
     s.corp.servers['remote-1'] = { id: 'remote-1', name: 'Remote Server 1', isRemote: true, ice: [], root: [agenda] };
     const spendCost = (st: GameState) => {
       st.corp.credits = 10;
-      const saved = evaluate(st, 'corp', true);
+      const saved = evaluate(st, 'corp');
       st.corp.credits = 7;
-      return saved - evaluate(st, 'corp', true);
+      return saved - evaluate(st, 'corp');
     };
     const without = spendCost(s);
     inHand(s, 'corp', '36061');
@@ -99,19 +100,6 @@ describe('card plans (Jeff, 2026-10-30; plan.cardPlans)', () => {
     expect(boardPlansWorth(s, 'runner')).toBe(0);
     [s] = runnerInstall(s, '35033'); // Knickknack
     expect(boardPlansWorth(s, 'runner')).toBeGreaterThan(2);
-  });
-
-  it('switched off, nothing changes', async () => {
-    const { tuning } = await import('../src/ai/synergy');
-    const s = newGame();
-    const myoshu = inHand(s, 'corp', '36061');
-    tuning.plan.cardPlans = false;
-    try {
-      expect(handPlanWorth(s, myoshu)).toBeUndefined();
-      expect(boardPlansWorth(s, 'runner')).toBe(0);
-    } finally {
-      tuning.plan.cardPlans = true;
-    }
   });
 
   it('a plan priced from card values does not price itself again (Chain Reaction with Corp cards out)', () => {

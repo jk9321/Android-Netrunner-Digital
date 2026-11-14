@@ -1,7 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { GameState } from '../src/core';
 import { answerPrompt } from '../src/ai/prompts';
-import { tuning } from '../src/ai/synergy';
 import { cont, installCorpForTest, newGame, rezForTest, run, startRunnerTurn } from './helpers';
 
 /**
@@ -39,15 +38,5 @@ describe('a spent Spin Doctor (plan.spentSpinDoctor, bug report #5)', () => {
 
   it('is trashed once Archives holds cards it could shuffle back', () => {
     expect(trashes(accessSpinDoctor(6), true)).toBe(true);
-  });
-
-  it('the old way (plan off) trashed it on an empty Archives', () => {
-    const was = { ...tuning.plan };
-    tuning.plan.spentSpinDoctor = false;
-    try {
-      expect(trashes(accessSpinDoctor(0), true)).toBe(true);
-    } finally {
-      Object.assign(tuning.plan, was);
-    }
   });
 });

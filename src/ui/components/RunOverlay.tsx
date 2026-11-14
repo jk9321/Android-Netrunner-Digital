@@ -3,7 +3,8 @@ import { GameState } from '../../core/types/state';
 import { CardInstance } from '../../core/types/card';
 import { CardView } from './CardView';
 import { cardDef } from '../../data/cards';
-import { GameAction, findCardAnywhere, getCardScript, iceStrength, iceSubtypes, isLegalAction, rezCostOf } from '../../core';
+import { GameAction, findCardAnywhere, getCardScript, iceStrength, iceSubtypes, rezCostOf } from '../../core';
+import { useSeat } from '../seat';
 import { EncounterPanel } from './EncounterPanel';
 import { ArrowRight, LogOut, CheckCircle2, ShieldAlert, Sparkles } from 'lucide-react';
 import { Credits } from './CreditIcon';
@@ -26,8 +27,10 @@ interface RunOverlayProps {
   onRez?: (card: CardInstance) => void;
   /** Corp abilities offered in the rez window (LEO Construction, Proprionegation). */
   rezAbilities?: Extract<GameAction, { type: 'USE_ABILITY' }>[];
-  /** Pass and play: the Corp is done rezzing and hands the screen back. */
+  /** The Corp passes priority in this paid ability window (rules 9.2.7a). */
   onDoneRezzing?: () => void;
+  /** The Corp passes this window and every later one in the run. */
+  onPassRun?: () => void;
   /** Show Continue, Jack Out and the break buttons (the viewer is the Runner and it is their move). */
   runnerControls: boolean;
   /** May the viewer see unrezzed Corp cards? */
@@ -45,11 +48,13 @@ export const RunOverlay: React.FC<RunOverlayProps> = ({
   onRez,
   rezAbilities = [],
   onDoneRezzing,
+  onPassRun,
   runnerControls,
   canPeekCorp,
   onInspectCard,
   onAction,
 }) => {
+  const seat = useSeat();
   const { activeRun } = state;
   if (!activeRun) return null;
 
@@ -57,9 +62,14 @@ export const RunOverlay: React.FC<RunOverlayProps> = ({
   const pools = runCreditPools(state);
   const currentIce =
     activeRun.icePosition !== null && server ? server.ice[activeRun.icePosition] : null;
-  const canJackOut = isLegalAction(state, { type: 'JACK_OUT', player: 'runner' });
+  const canJackOut = seat.can({ type: 'JACK_OUT', player: 'runner' });
+  const step = state.priority?.step;
   const continueLabel =
-    activeRun.phase === 'encounter_ice'
+    step === 'run_initiation'
+      ? 'Approach'
+      : step === 'move_inward'
+        ? 'Move Inward'
+        : activeRun.phase === 'encounter_ice'
       ? activeRun.encounter?.broken.some(b => !b)
         ? 'Let Subroutines Fire'
         : 'Pass Ice'
@@ -179,7 +189,11 @@ export const RunOverlay: React.FC<RunOverlayProps> = ({
             <div className="flex items-center gap-3 text-xs sm:text-sm font-mono text-emerald-400 bg-emerald-950/40 border border-emerald-800 p-3 sm:p-4 rounded-[2px] flex-1">
               <CheckCircle2 className="w-5 h-5 sm:w-6 sm:h-6 text-emerald-400 shrink-0" />
               <span>
-                {activeRun.phase === 'movement'
+                {activeRun.phase === 'initiation'
+                  ? server && server.ice.length > 0
+                    ? 'The run has begun. Next the Runner approaches the outermost ice.'
+                    : 'The run has begun. No ice protects this server.'
+                  : activeRun.phase === 'movement'
                   ? 'No ice left between you and the server. Jack out now, or go on to the server.'
                   : 'Breached Ice defense! Approaching server root to access files.'}
               </span>
@@ -236,7 +250,17 @@ export const RunOverlay: React.FC<RunOverlayProps> = ({
                 data-testid="done-rezzing"
                 className="px-4 sm:px-5 py-2 bg-slate-800 hover:bg-slate-700 text-slate-200 font-mono text-xs font-bold rounded-[2px] border border-slate-600 border-b-2 border-b-slate-500 active:translate-y-[1px] active:border-b-[1px] flex items-center justify-center gap-1.5 transition-all"
               >
-                {rezCards.length > 0 ? "Don't rez" : rezAbilities.length > 0 ? 'Let them in' : 'Done'} <ArrowRight className="w-4 h-4" />
+                {rezCards.length > 0 ? "Don't rez" : 'Pass'} <ArrowRight className="w-4 h-4" />
+              </button>
+            )}
+            {onPassRun && (
+              <button
+                onClick={onPassRun}
+                data-testid="pass-run"
+                title="Pass every remaining paid ability window in this run: you will not be asked to rez or use abilities again until it ends"
+                className="px-4 sm:px-5 py-2 bg-slate-900 hover:bg-slate-800 text-slate-400 font-mono text-xs font-semibold rounded-[2px] border border-slate-700 flex items-center justify-center gap-1.5 transition-all"
+              >
+                Pass rest of run
               </button>
             )}
             {runnerControls && (
@@ -258,7 +282,9 @@ export const RunOverlay: React.FC<RunOverlayProps> = ({
             </>
             )}
             {!runnerControls && !onDoneRezzing && (
-              <span className="text-xs text-slate-400 font-mono max-w-[10rem]">Waiting on the Runner…</span>
+              <span className="text-xs text-slate-400 font-mono max-w-[10rem]">
+                Waiting on the {state.priority?.holder === 'corp' ? 'Corp' : 'Runner'}…
+              </span>
             )}
           </div>
         </div>

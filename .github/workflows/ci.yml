@@ -21,7 +21,23 @@ jobs:
       - run: npm ci
       - run: npm run typecheck
       - run: npm run lint
-      - run: npm test
+      # The slowest files run in the slow-tests job beside this one (CPU-bound: one 4-core
+      # runner took ~9.5 min for the whole suite on beta, 2026-11-13)
+      - run: npx vitest run $(printf -- '--exclude %s ' $SLOW_TESTS)
+        env:
+          SLOW_TESTS: tests/aiGames.part1.test.ts tests/aiGames.part2.test.ts tests/brokeCorp.test.ts
+
+  slow-tests:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      # Keep this list the same as SLOW_TESTS in the checks job
+      - run: npx vitest run --passWithNoTests tests/aiGames.part1.test.ts tests/aiGames.part2.test.ts tests/brokeCorp.test.ts
 
   browser:
     runs-on: ubuntu-latest

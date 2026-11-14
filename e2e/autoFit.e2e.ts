@@ -1,0 +1,87 @@
+import { expect, test } from '@playwright/test';
+
+// Auto fit shrinks board cards (down to a floor) so a cramped board needs no scrolling, and the toggle turns it off
+test('auto fit shrinks cards to avoid scrolling and can be switched off', async ({ page }) => {
+  const errors: string[] = [];
+  page.on('pageerror', err => errors.push(err.message));
+  await page.route(/^https?:\/\/(?!localhost)/, route => route.abort());
+  await page.setViewportSize({ width: 1366, height: 768 });
+
+  await page.goto('/');
+  await page.getByTestId('mode-computer').click();
+  await page.getByTestId('opponent-ai-corp').click();
+  await page.getByTestId('start-game').click();
+  await page.getByRole('button', { name: 'Keep hand' }).click({ timeout: 30_000 });
+  await expect(page.getByTestId('runner-credits')).toBeVisible({ timeout: 60_000 });
+  // Wait for the Runner's own turn: while the Corp is still playing its turn every install
+  // re-fits the board and starts a new glide, and mid-glide the area can overflow for a moment
+  // (a local stress run failed 2 of 60 that way, with each check landing in a fresh glide)
+  await expect(page.getByRole('button', { name: '+1 Credit' })).toBeEnabled({ timeout: 60_000 });
+
+  const size = page.getByTestId('card-size');
+  await size.getByRole('button', { name: 'Large' }).click();
+  const cardWidth = () => page.locator('[data-testid=auto-fit-area] .card-fit').first().evaluate(el => el.getBoundingClientRect().width);
+  const overflowing = () =>
+    page.locator('[data-testid=auto-fit-area]').evaluateAll(els => els.some(el => el.scrollWidth > el.clientWidth + 1 || el.scrollHeight > el.clientHeight + 1));
+
+  const auto = page.getByTestId('auto-fit');
+  await expect(auto).toHaveAttribute('aria-pressed', 'true');
+  await auto.click();
+  await expect(auto).toHaveAttribute('aria-pressed', 'false');
+  // Turning auto fit off glides the cards back to full size: read the size once the glide ends,
+  // not at its start (a local stress run read the fitted size there and failed 1 of 60)
+  const gliding = () =>
+    page.locator('[data-testid=auto-fit-area]').evaluateAll(els => els.some(el => el.getAnimations().length > 0));
+  // (the glide starts a frame after the click, so both are checked together)
+  await expect.poll(async () => (await overflowing()) && !(await gliding())).toBe(true); // too cramped without auto fit
+  const unfit = await cardWidth();
+
+  // The shrink glides: sizes between the start and the end are seen on the way. Sampled inside
+  // the page every animation frame from before the click (sampling from here through Playwright
+  // calls was too slow and missed the glide on busy CI runners).
+  await page.evaluate(() => {
+    const w = window as unknown as { __widths: number[]; __sampling: boolean };
+    w.__widths = [];
+    w.__sampling = true;
+    const tick = () => {
+      const el = document.querySelector('[data-testid=auto-fit-area] .card-fit');
+      if (el) w.__widths.push(el.getBoundingClientRect().width);
+      if (w.__sampling) requestAnimationFrame(tick);
+    };
+    requestAnimationFrame(tick);
+  });
+  await auto.click();
+  await expect.poll(cardWidth).toBeLessThan(unfit);
+  // Scrolling is gone, unless the deal built a board too big even at the floor (half the
+  // normal width), when auto fit stops there and lets it scroll (CI 2026-11-08 hit such a deal)
+  const floor = unfit * 0.5;
+  // Checked in one page call once the glides have finished, so no reading lands mid-glide.
+  // Each area on its own: it fits, or it stopped at the floor because even that did not fit.
+  await expect
+    .poll(() =>
+      page.locator('[data-testid=auto-fit-area]').evaluateAll(
+        (els, floorPx) =>
+          els.every(el => {
+            if (el.getAnimations().length > 0) return false;
+            if (el.scrollWidth <= el.clientWidth + 1 && el.scrollHeight <= el.clientHeight + 1) return true;
+            const card = el.querySelector('.card-fit');
+            return !!card && Math.abs(card.getBoundingClientRect().width - floorPx) <= 1;
+          }),
+        floor,
+      ),
+    )
+    .toBe(true);
+  expect(await cardWidth()).toBeGreaterThanOrEqual(floor - 1); // never below the floor
+
+  // Stop sampling only once the shrink has settled, so the whole glide was recorded
+  const seen = await page.evaluate(() => {
+    const w = window as unknown as { __widths: number[]; __sampling: boolean };
+    w.__sampling = false;
+    return new Set(w.__widths.map(x => Math.round(x * 10))).size;
+  });
+  // A deal that is only slightly cramped shrinks by a pixel or two, too little to show a glide
+  const shrink = unfit - (await cardWidth());
+  if (shrink > 8) expect(seen).toBeGreaterThan(2);
+
+  expect(errors).toEqual([]);
+});

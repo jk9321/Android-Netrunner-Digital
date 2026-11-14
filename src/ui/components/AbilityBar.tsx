@@ -1,5 +1,6 @@
 import React, { useEffect } from 'react';
-import { CardInstance, GameAction, GameState, SideCode, cardDef, findCardAnywhere, getCardScript, getLegalActions } from '../../core';
+import { CardInstance, GameAction, GameState, SideCode, cardDef, findCardAnywhere, getCardScript } from '../../core';
+import { legalFor, useSeat } from '../seat';
 import { Sparkles } from 'lucide-react';
 import { ClickIcon, Credits, renderSymbols } from './CreditIcon';
 import { cardPositionLabel } from '../cardLabels';
@@ -19,13 +20,13 @@ function countersLabel(card: CardInstance): string | null {
 }
 
 /**
- * Buttons for every card ability the side can use right now (from getLegalActions).
+ * Buttons for every card ability the side can use right now (from the seat's legal actions).
  * Hovering one lights up the card it comes from, and copies of the same card
  * are numbered in board order (with their counters), so two Fermenters
  * can't be mixed up.
  */
 export const AbilityBar: React.FC<AbilityBarProps> = ({ state, side, onAction }) => {
-  const actions = getLegalActions(state, side).filter(a => a.type === 'USE_ABILITY');
+  const actions = legalFor(useSeat(), side).filter(a => a.type === 'USE_ABILITY');
   // The button goes away once the ability is used; don't leave its card lit
   useEffect(() => () => hoverPromptTarget(null), []);
   if (actions.length === 0) return null;

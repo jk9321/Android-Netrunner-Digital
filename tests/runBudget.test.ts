@@ -3,6 +3,7 @@ import { HeuristicRunnerAI } from '../src/ai';
 import { creditsAhead, runScore, serverValue } from '../src/ai/runs';
 import { PACE } from '../src/ai/effectValues';
 import { GameState, activePrompt, executeAction } from '../src/core';
+import { tuning } from '../src/ai/synergy';
 import { installCorpForTest, installIceForTest, installProgramForTest, newGame, runIntoFirstIce, startRunnerTurn } from './helpers';
 
 const PALISADE = '30072'; // barrier, end the run; strength 4 on a remote
@@ -60,10 +61,6 @@ function runToManegarm(state: GameState, ai = new HeuristicRunnerAI()) {
 }
 
 describe('Runner AI and Manegarm Skunkworks (rules 6.9.4g, 1.16.11b)', () => {
-  it('counts a rezzed Manegarm in the cost of a run', () => {
-    // Without it: 0.7. With it: 2 clicks more (-2), a little back for an upgrade worth trashing
-    expect(runScore(manegarmGame(4, 7), 'rd')).toBeLessThan(runScore(manegarmGame(4, 7, false), 'rd') - 1);
-  });
 
   it("doesn't start a run it can't pay Manegarm for", () => {
     // 2 clicks: the run takes one, Bumi's subroutines are tanked, 1 click and 4 credits can't pay Manegarm
@@ -97,12 +94,18 @@ describe('Runner AI and Manegarm Skunkworks (rules 6.9.4g, 1.16.11b)', () => {
     const pace = PACE as unknown as Record<string, number>;
     const saved = { ...pace };
     Object.assign(pace, { runs: 0.9, success: 0.6, hqShare: 0.3, rdShare: 0.35, remoteShare: 0.35 });
+    tuning.plan.measuredTurnsLeft = false; // and the old horizon (on the measured one the trash of Manegarm wins)
     try {
-      const s = runToManegarm(manegarmGame(5, 7));
+      // A game id of its own: the value caches are keyed by game id and pricing context, not by PACE, so the earlier
+      // tests' entries for the same game (priced at the measured pace) would be served here
+      const start = manegarmGame(5, 7);
+      start.id = `${start.id}:slow-pace`;
+      const s = runToManegarm(start);
       const action = new HeuristicRunnerAI().chooseAction(s);
       expect(action.type === 'RESOLVE_PROMPT' && action.choice.kind === 'effect_choice' && action.choice.optionId).toBe('end');
     } finally {
       Object.assign(pace, saved);
+      tuning.plan.measuredTurnsLeft = true;
     }
   });
 

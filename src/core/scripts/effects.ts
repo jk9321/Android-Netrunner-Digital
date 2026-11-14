@@ -2,11 +2,11 @@ import { CardInstance, SideCode } from '../types/card';
 import { EffectSource } from '../types/prompts';
 import { GameState } from '../types/state';
 import { cardDef } from '../cards';
-import { shuffleRD } from '../engine/rdKnowledge';
+import { noteRdPrivate, runnerSeesRd, shuffleRD } from '../engine/rdKnowledge';
 import { pushPrompt } from '../engine/prompts';
 import { addLog } from '../engine/log';
 import { findCardAnywhere, isAdvanceable, removeCard } from '../engine/helpers';
-import { corpTrashFromHQ, corpTrashFromRD, installedIce } from '../engine/cardEffects';
+import { availableCredits, corpTrashFromHQ, corpTrashFromRD, installedIce, spendCredits } from '../engine/cardEffects';
 import {
   chosenToTrashFirst,
   corpInstallBlocker,
@@ -20,7 +20,7 @@ import {
   trashableFirst,
 } from '../engine/actions/install';
 import { getCardScript } from './index';
-import { EffectAnswer, EffectContext } from './types';
+import { EffectAnswer, EffectContext, NOTHING_QUALIFIES_STEP } from './types';
 
 /** Helpers shared by card scripts. */
 
@@ -46,6 +46,35 @@ export function askChoice(
   data?: EffectSource['data']
 ): void {
   pushPrompt(ctx.state, { kind: 'effect_choice', side, message, options, source: source(ctx, step, data) });
+}
+
+/**
+ * A "you may" follow-up that is offered only when a card hidden from the opponent qualifies (the top of R&D has the
+ * named type, an installed card is advanceable). Asking only then would let the opponent read the hidden card from
+ * who the game waits on (rules 4.2.2, 4.6.3). Jeff's policy (2026-11-08, as for paid windows and the R&D access
+ * step): the side the tell would hurt, the asked side, chooses with its stops. At 'full' the question is always
+ * asked, with only `declineLabel` when nothing qualifies; at every other level nothing changes.
+ * `then`: when the card goes on after the decline (Sudden Commandment, Window of Opportunity), the one answer comes
+ * back to the card at that step (an effect_choice 'no'), so it takes the same path as declining the real question.
+ * Without it the answer resolves nothing. Returns whether a prompt was pushed.
+ */
+export function askEvenIfNone(
+  ctx: EffectContext,
+  side: SideCode,
+  qualifies: boolean,
+  ask: () => void,
+  noneMessage: string,
+  declineLabel = 'OK',
+  then?: { step: string; data?: EffectSource['data'] }
+): boolean {
+  if (qualifies) {
+    ask();
+    return true;
+  }
+  // stopLevel() from engine/priority.ts, read directly: importing priority.ts here closes an import cycle
+  if ((ctx.state.stops?.[side] ?? 'ai') !== 'full') return false;
+  askChoice(ctx, side, noneMessage, [{ id: 'no', label: declineLabel }], then?.step ?? NOTHING_QUALIFIES_STEP, then?.data);
+  return true;
 }
 
 export function askCards(
@@ -144,16 +173,30 @@ export function runnerZoneOf(state: GameState, instanceId: string): CardInstance
   return [grip, heap, stack, ...hosted].find(z => z.some(c => c.instanceId === instanceId));
 }
 
-/** Runner cards in `cards` that could be installed now (with a discount). Trojans need some ice. */
-export function installableRunnerCards(state: GameState, cards: CardInstance[], discount = 0): CardInstance[] {
+/**
+ * Runner cards in `cards` that could be installed now (with a discount). Trojans need some ice.
+ * `hostId`: a non-trojan card is installed on that card (Muse), so it can't be trashed to make room.
+ */
+export function installableRunnerCards(state: GameState, cards: CardInstance[], discount = 0, hostId?: string): CardInstance[] {
   const ice = installedIce(state);
   // A program may fit once installed programs are trashed to make room (rules 8.5.6c)
   const freeable = freedMemory(state.runner.rig.programs);
+  const freeableKeepingHost = freedMemory(state.runner.rig.programs.filter(c => c.instanceId !== hostId));
   return cards.filter(c => {
     if (!['program', 'hardware', 'resource'].includes(cardDef(c).type_code)) return false;
     if (getCardScript(c.cardCode)?.installsOnIce) return ice.some(i => !runnerInstallBlocker(state, c, i.instanceId, discount, freeable));
-    return !runnerInstallBlocker(state, c, undefined, discount, freeable);
+    return !runnerInstallBlocker(state, c, undefined, discount, freeableKeepingHost);
   });
+}
+
+/**
+ * The installed cards the Runner may trash to install `card` for an effect (rules 8.5.6c). An effect
+ * that installs the card on one of their programs (Muse, data.hostId) can't trash that host, unless
+ * the card is a trojan going on ice instead (NSG ruling on Muse).
+ */
+export function effectTrashableFirst(state: GameState, card: CardInstance, data: EffectSource['data'] = {}): CardInstance[] {
+  const keep = getCardScript(card.cardCode)?.installsOnIce ? undefined : data?.hostId;
+  return trashableFirst(state, card, null).filter(c => c.instanceId !== keep);
 }
 
 /** askCards() for a Runner card to install: the answer may name programs to trash first (rules 8.5.6c). */
@@ -284,4 +327,95 @@ export function takeFromRD(state: GameState, instanceId: string): CardInstance |
   shuffleRD(state);
   addLog(state, 'corp', `Corp revealed ${cardDef(card).title} and shuffled R&D.`);
   return card;
+}
+
+// --- Arranging R&D -------------------------------------------------------------------
+
+/**
+ * Arranges cards on top of R&D in the order a player picks: one prompt per
+ * position, top first (rules 8.3.3). The cards must already be the top
+ * `ids.length` cards of R&D. The script's onPromptAnswer calls arrangeNext() for `step`.
+ * The Corp arranges in secret; when the Runner arranges (Cataloguer) they know where each card is.
+ */
+export function arrangeTop(ctx: EffectContext, cardIds: string[], step: string, placed: string[] = [], side: SideCode = 'corp'): void {
+  const { state } = ctx;
+  const left = cardIds.filter(id => !placed.includes(id));
+  if (left.length <= 1) {
+    const order = [...placed, ...left];
+    const cards = order.flatMap(id => state.corp.rd.find(c => c.instanceId === id) ?? []);
+    for (const card of cards) removeCard(state.corp.rd, card);
+    state.corp.rd.unshift(...cards);
+    if (side === 'corp') {
+      // Arranged in secret: the Runner only knows the cards are among these (rules 8.3.3)
+      noteRdPrivate(state, cards.length);
+    } else {
+      for (const card of cards) runnerSeesRd(state, card);
+    }
+    if (cards.length > 1) addLog(state, side, `${side === 'corp' ? 'Corp' : 'Runner'} arranged the top ${cards.length} cards of R&D.`);
+    return;
+  }
+  const title = cardDef(ctx.card).title;
+  askCards(ctx, side, `${title}: choose the card to put ${placed.length === 0 ? 'on top of R&D' : `in position ${placed.length + 1}`}.`, left, 1, 1, step, {
+    ids: cardIds,
+    placed,
+    side,
+  });
+}
+export const arrangeNext = (ctx: EffectContext, data: Record<string, unknown> | undefined, picked: string, step: string) =>
+  arrangeTop(ctx, (data?.ids as string[]) ?? [], step, [...((data?.placed as string[]) ?? []), picked], (data?.side as SideCode | undefined) ?? 'corp');
+
+// --- Psi games ---------------------------------------------------------------------
+
+/** Steps of the two bidding prompts of a Psi Game; the card's own step follows the colon. */
+const PSI_CORP = 'psi-corp:';
+const PSI_RUNNER = 'psi-runner:';
+
+const bidOptions = (state: GameState, side: SideCode) =>
+  [0, 1, 2].filter(n => n === 0 || availableCredits(state, side) >= n).map(n => ({ id: String(n), label: `Bid ${n} [credit]` }));
+
+/**
+ * Plays a Psi Game (rules 10.14.6): both players secretly bid 0, 1 or 2
+ * credits (no more than they can spend, 10.14.3), then reveal and spend their
+ * bids. The Corp bids first, unseen by the Runner; the Runner then bids. The
+ * script's onPromptAnswer passes both answers to answerPsiGame(), which calls
+ * back with whether the bids matched.
+ */
+export function playPsiGame(ctx: EffectContext, step: string, data: EffectSource['data'] = {}): void {
+  askChoice(ctx, 'corp', `${cardDef(ctx.card).title}: Psi Game. Secretly bid 0, 1 or 2 [credit].`, bidOptions(ctx.state, 'corp'), PSI_CORP + step, data);
+}
+
+/** Is this prompt one of a Psi Game's bids? */
+export const isPsiStep = (step: string) => step.startsWith(PSI_CORP) || step.startsWith(PSI_RUNNER);
+
+/**
+ * Handles a Psi Game bid. After the Runner's bid, both bids are revealed and
+ * spent, and `done` runs with the outcome and the card's own step. Returns
+ * false if the answer wasn't a Psi Game bid.
+ */
+export function answerPsiGame(
+  ctx: EffectContext,
+  source: EffectSource,
+  answer: EffectAnswer,
+  done: (match: boolean, step: string, data: EffectSource['data']) => void
+): boolean {
+  if (answer.kind !== 'effect_choice' || !isPsiStep(source.step)) return false;
+  const { state } = ctx;
+  if (source.step.startsWith(PSI_CORP)) {
+    const step = source.step.slice(PSI_CORP.length);
+    askChoice(ctx, 'runner', `${cardDef(ctx.card).title}: Psi Game. The Corp has bid in secret. Secretly bid 0, 1 or 2 [credit].`, bidOptions(state, 'runner'), PSI_RUNNER + step, {
+      ...(source.data ?? {}),
+      corpBid: Number(answer.optionId),
+    });
+    return true;
+  }
+  const step = source.step.slice(PSI_RUNNER.length);
+  const { corpBid, ...data } = source.data ?? {};
+  const corp = Math.min(Number(corpBid ?? 0), availableCredits(state, 'corp'));
+  const runner = Math.min(Number(answer.optionId), availableCredits(state, 'runner'));
+  spendCredits(state, 'corp', corp);
+  spendCredits(state, 'runner', runner);
+  const match = corp === runner;
+  addLog(state, 'corp', `Psi Game (${cardDef(ctx.card).title}): the Corp bid ${corp} [credit], the Runner bid ${runner} [credit]. The bids ${match ? 'match' : 'differ'}.`);
+  done(match, step, data);
+  return true;
 }

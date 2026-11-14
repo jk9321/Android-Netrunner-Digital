@@ -30,6 +30,12 @@ export function createZoomStore() {
       current = target;
       listeners.forEach(l => l());
     },
+    /** Forgets the card shown (a new viewer sits down: it was the last one's card). */
+    clear() {
+      if (!current) return;
+      current = null;
+      listeners.forEach(l => l());
+    },
     subscribe(listener: () => void) {
       listeners.add(listener);
       return () => listeners.delete(listener);
@@ -93,7 +99,7 @@ export const ZoomPanel: React.FC<{ store: ZoomStore; state: GameState; onInspect
       </div>
       <div className="w-full flex items-center justify-between gap-2 text-[12px] font-mono min-w-0">
         <span className="truncate text-slate-300" title={seen ? `Unrezzed, last seen as ${def.title}` : undefined}>
-          {hidden ? 'Face-down card' : seen ? `Unrezzed, last seen as ${def.title}` : `${def.title} · ${typeLine(def)}`}
+          {hidden ? 'Face-down card' : seen ? `Unrezzed, last seen as ${def.title}` : `${def.title} · ${typeLine(def, card)}`}
         </span>
         {!hidden && (
           <button

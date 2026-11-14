@@ -1,4 +1,5 @@
-import { CardInstance, GameAction, GameState, SideCode, activePrompt, getLegalActions, isLegalAction } from '../core';
+import { CardInstance, GameAction, SideCode, WindowStep, actingSide, activePrompt } from '../core';
+import type { Seat } from './seatLegality';
 
 /** Whose eyes are on the screen: one side, or both (open table, for testing). */
 export type Viewer = SideCode | 'both';
@@ -10,73 +11,68 @@ export const canSeeCorpSecrets = (viewer: Viewer) => viewer !== 'runner';
 export const canSeeRunnerSecrets = (viewer: Viewer) => viewer !== 'corp';
 export const canActAs = (viewer: Viewer, side: SideCode) => viewer === 'both' || viewer === side;
 
-/**
- * The Corp's chance to rez during a run: the approached ice, or the unrezzed
- * cards in the attacked server's root before the Runner approaches the server.
- * The engine lets the Corp rez whenever it is legal; this names the moments
- * the UI stops to ask, so pass and play can hand the screen over.
- *
- * Whether a window opens depends only on what the Runner can see (an
- * unrezzed card in that position), never on whether the Corp can rez it:
- * otherwise a missing handoff or AI pause would tell the Runner the card is
- * an agenda, or more than the Corp can afford (rules 4.6.3).
- */
+/** What the Corp may do in the run window it holds priority in: rez the approached ice or the attacked server's root, or use abilities. */
 export interface RezWindow {
-  /** Identifies this window so a "no rez" answer is remembered. */
-  key: string;
   cards: CardInstance[];
   /** Corp abilities usable now (LEO Construction, Proprionegation), offered with the rez buttons. */
   abilities: Extract<GameAction, { type: 'USE_ABILITY' }>[];
 }
 
-export function corpRezWindow(state: GameState, runSerial: number): RezWindow | null {
+/**
+ * The Corp's priority in a paid ability window during a run (rules
+ * 6.9.2b, 6.9.4e and, with full control, the others): the cards it can rez
+ * there and its usable abilities. Null when the Corp doesn't hold priority.
+ * Whether the Corp gets this window depends only on what the Runner can see
+ * (an unrezzed card in that position), never on whether it can pay (rules 4.6.3).
+ */
+export function corpRezWindow(seat: Seat): RezWindow | null {
+  const { state } = seat;
   const run = state.activeRun;
-  if (!run || state.winner || activePrompt(state)) return null;
+  const w = state.priority;
+  if (!run || !w || w.holder !== 'corp' || state.winner || activePrompt(state)) return null;
   const server = state.corp.servers[run.server];
   if (!server) return null;
-  const rezzable = (c: CardInstance) =>
-    !c.isRezzed && isLegalAction(state, { type: 'REZ_CARD', player: 'corp', cardInstanceId: c.instanceId });
-
-  let unrezzed: CardInstance[] = [];
-  if (run.phase === 'approach_ice' && run.icePosition !== null) {
-    const ice = server.ice[run.icePosition];
-    if (ice && !ice.isRezzed) unrezzed = [ice];
-  } else if (run.phase === 'approach_server' && !run.serverApproached) {
-    unrezzed = server.root.filter(c => !c.isRezzed);
-  }
-  const cards = unrezzed.filter(rezzable);
-  // Abilities alone open a window only before the Runner approaches the server, so
-  // pass and play doesn't hand the screen over at every piece of ice
-  const abilities =
-    unrezzed.length > 0 || (run.phase === 'approach_server' && !run.serverApproached)
-      ? getLegalActions(state, 'corp').filter((a): a is RezWindow['abilities'][number] => a.type === 'USE_ABILITY')
-      : [];
-  if (unrezzed.length === 0 && abilities.length === 0) return null;
-  // The server is part of the key: Proprionegation moves the Runner to another server mid-run
-  return { key: `${state.turnNumber}|${runSerial}|${run.server}|${run.phase}|${run.icePosition}`, cards, abilities };
+  const at =
+    w.step === 'approach_ice' && run.icePosition !== null
+      ? [server.ice[run.icePosition]].filter(Boolean)
+      : w.step === 'approach_server' || w.step === 'move_inward' || w.step === 'run_initiation'
+        ? server.root
+        : [];
+  const cards = at.filter(c => !c.isRezzed && seat.can({ type: 'REZ_CARD', player: 'corp', cardInstanceId: c.instanceId }));
+  const abilities = seat.legal.filter((a): a is RezWindow['abilities'][number] => a.type === 'USE_ABILITY' && a.player === 'corp');
+  return { cards, abilities };
 }
 
-/**
- * The computer Runner's chance to use paid abilities on the Corp's turn
- * (Madani's install): the last paid ability window of the Corp's action
- * phase, once the Corp has spent its clicks (rules 5.6.2a-b, 9.2.7a). It
- * opens only when the Runner has an ability it could use. Returns the
- * window's key, or null.
- */
-export function runnerOffTurnWindow(state: GameState): string | null {
-  if (state.winner || state.activePlayer !== 'corp' || state.activeRun || state.turnStep || activePrompt(state)) return null;
-  if (state.corp.clicks > 0) return null;
-  if (!getLegalActions(state, 'runner').some(a => a.type === 'USE_ABILITY')) return null;
-  return `off|${state.turnNumber}`;
+/** What each paid ability window is, for the bar that offers Pass (rules 5.6, 5.7, 6.9). */
+export function windowLabel(step: WindowStep, holder: SideCode, active: SideCode): string {
+  const theirs = holder !== active;
+  switch (step) {
+    case 'corp_draw':
+      return 'Before the Corp\'s turn begins';
+    case 'corp_action':
+      return theirs ? 'Before the Corp\'s next action' : 'Corp action phase';
+    case 'runner_action':
+      return theirs ? 'Before the Runner\'s next action' : 'Runner action phase';
+    case 'corp_discard':
+      return 'After the Corp discards, before its turn ends';
+    case 'runner_turn_start':
+      return 'Before the Runner\'s turn begins';
+    case 'runner_discard':
+      return 'After the Runner discards, before its turn ends';
+    case 'run_initiation':
+      return 'The run has begun';
+    case 'approach_ice':
+      return 'The Runner approaches ice';
+    case 'encounter':
+      return 'The Runner encounters ice';
+    case 'movement':
+      return 'The Runner passed ice';
+    case 'move_inward':
+      return 'The Runner moves inward';
+    case 'approach_server':
+      return 'Before the Runner approaches the server';
+  }
 }
 
 /** The side the game is waiting on, or null when the game is over. */
-export function actingSide(state: GameState, rezWindowOpen: boolean, offTurnOpen = false): SideCode | null {
-  if (state.winner) return null;
-  const prompt = activePrompt(state);
-  if (prompt) return prompt.side;
-  if (rezWindowOpen) return 'corp';
-  if (offTurnOpen) return 'runner';
-  if (state.activeRun) return 'runner';
-  return state.activePlayer;
-}
+export { actingSide };

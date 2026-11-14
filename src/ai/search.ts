@@ -1,4 +1,5 @@
 import { CardInstance, GameAction, GameState, SideCode, activePrompt, getCardDefinition, getLegalActions, isLegalAction, knownInHand } from '../core';
+import { keepsScore, scoreNowPlan, winNowAction } from './winNow';
 import { isAdvanceable } from '../core/engine/helpers';
 import { Agent } from './agent';
 import { HeuristicCorpAI } from './corpAI';
@@ -6,8 +7,13 @@ import { HeuristicRunnerAI, readWriteFullShuffle } from './runnerAI';
 import { evaluate } from './evaluate';
 import { GameRunner } from './playout';
 import { RunnerMemory } from './runs';
-import { asSide, logNudge, tuning } from './synergy';
-import { noteKnownHand } from './handValues';
+import { asSide, logNudge } from './synergy';
+import { decisionContext } from './handValues';
+import { knownRdSlots } from './runnerReply';
+import { corpKnowsRd, corpSeenGrip } from './oracle';
+// Loaded by corpAI already (its last import), so the AI modules' load order is unchanged
+import { HeldLine, assetPartner, centralIce, heldLaterStep, iceRedirect, scoreInTwoPick } from './countedScore';
+import { moneyPick } from './incomeLine';
 
 /**
  * Hard AI: Monte Carlo look-ahead on top of the rule-based AI.
@@ -90,20 +96,27 @@ export function determinize(state: GameState, side: SideCode, random: Random, me
   if (side === 'corp') {
     // The Corp doesn't know the Grip or the order of either deck
     // plan.keepKnownHand: grip cards the Corp has seen stay as they are
-    const known = new Set(tuning.plan.keepKnownHand ? knownInHand(state, 'runner').map(k => k.id) : []);
+    const known = corpSeenGrip(state, 'threat'); // plan.oracle.grip: the whole grip
     const hidden = [...s.runner.grip.filter(c => !known.has(c.instanceId)), ...s.runner.stack];
     assign(hidden, shuffle(hidden.map(c => c.cardCode), random));
-    assign(s.corp.rd, shuffle(s.corp.rd.map(c => c.cardCode), random));
+    // plan.oracle.rd: the Corp knows its R&D order
+    if (corpKnowsRd()) return s;
+    // plan.keepKnownRd: R&D cards the Runner knows exactly, the Corp saw stay put too
+    const fixedRd = knownRdSlots(state);
+    const rdSlots = s.corp.rd.filter((_, i) => !fixedRd.has(i));
+    assign(rdSlots, shuffle(rdSlots.map(c => c.cardCode), random));
     return s;
   }
 
   // The Runner doesn't know HQ, R&D, face-down Archives or unrezzed cards it hasn't accessed
   const installed = Object.values(s.corp.servers);
   const iceSlots = installed.flatMap(sv => sv.ice).filter(c => !c.isRezzed);
-  const rootSlots = installed.flatMap(sv => sv.root).filter(c => !c.isRezzed && !memory?.has(c.instanceId));
+  // plan.keepKnownRd: faceup installed cards (BANGUN, Sacrifice Zone Expansion) are public, and so are the cards it has accessed
+  const rootSlots = installed.flatMap(sv => sv.root).filter(c => !c.isRezzed && !memory?.has(c.instanceId) && !(c.faceUp || c.runnerKnows));
   // plan.keepKnownHand: HQ cards the Runner has seen (accessed and left, revealed) stay as they are
-  const knownHq = new Set(tuning.plan.keepKnownHand ? knownInHand(state, 'corp').map(k => k.id) : []);
-  const loose = [...s.corp.hq.filter(c => !knownHq.has(c.instanceId)), ...s.corp.rd, ...s.corp.archives.faceDown];
+  const knownHq = new Set(knownInHand(state, 'corp').map(k => k.id));
+  const fixedRd = knownRdSlots(state);
+  const loose = [...s.corp.hq.filter(c => !knownHq.has(c.instanceId)), ...s.corp.rd.filter((_, i) => !fixedRd.has(i)), ...s.corp.archives.faceDown];
   const pool = shuffle([...iceSlots, ...rootSlots, ...loose].map(c => c.cardCode), random);
 
   const take = (fits: (code: string) => boolean): string | undefined => {
@@ -154,7 +167,7 @@ function playout(state: GameState, side: SideCode, first: GameAction | 'pass-rez
     }
     if (runner.state.log.length > 40) runner.state = { ...runner.state, log: runner.state.log.slice(-5) };
   }
-  return evaluate(runner.state, side, synergy);
+  return evaluate(runner.state, side);
 }
 
 export class SearchAI implements Agent {
@@ -176,20 +189,65 @@ export class SearchAI implements Agent {
   }
 
   chooseAction(state: GameState): GameAction {
-    return asSide(this.side, () => this.decide(state));
+    return asSide(this.side, () => {
+      this.scoring = false;
+      const action = this.decide(state);
+      // A score this turn (plan.scoreNow) comes before a two-turn line
+      if (this.side !== 'corp' || !(this.options.synergy ?? true) || this.scoring) return action;
+      // plan.scoreInTwo (counted scoring C2): a held two-turn score line's step, or the pick vetoed while it would spend the line's rez money
+      const two = scoreInTwoPick(state, action, this.heldLine);
+      this.heldLine = two.held;
+      if (two.action !== action) this.base.notePlayed(two.action);
+      // Ice redirect (countedScore.ts iceRedirect): the search's own remote ice install goes to the scoring remote until it
+      // holds, nothing while a two-turn line is held (as Normal's, corpAI decide)
+      const held = this.heldLine && this.heldLine.game === state.id;
+      const central = two.action === action && !held ? centralIce(state, action) : null; // central ice first, as corpAI decide
+      const redirect = two.action === action && !held ? (central ?? iceRedirect(state, action) ?? assetPartner(state, action)) : null;
+      if (redirect) this.base.notePlayed(redirect);
+      return redirect ?? two.action;
+    });
   }
 
+  /** plan.scoreInTwo: the two-turn score line this Corp holds, keyed by game id (countedScore.ts). */
+  private heldLine: HeldLine | null = null;
+  /** This decision found a score this turn (plan.scoreNow), or decide is finding the pick it is weighed against. */
+  private scoring = false;
+
   private decide(state: GameState): GameAction {
-    noteKnownHand(state, this.side);
+    decisionContext(state, this.side);
+    // plan.winNow (bug report #33): a line that wins the game this turn first, prompts on the way included (winNow.ts)
+    if (this.side === 'corp' && (this.options.synergy ?? true)) {
+      const win = winNowAction(state);
+      if (win) {
+        this.base.notePlayed(win);
+        return win;
+      }
+      // plan.scoreNow (counted scoring C1): a line that scores an agenda this turn, the same search; the look-ahead's own
+      // pick stands while it keeps the score (keepsScore), the line's action is played otherwise
+      const score = this.scoring ? null : scoreNowPlan(state);
+      if (score) {
+        this.scoring = true;
+        const own = activePrompt(state) ? score.first : this.decide(state);
+        if (keepsScore(state, own, score)) return own;
+        this.base.notePlayed(score.first);
+        return score.first;
+      }
+    }
     // Prompts and the steps of a run follow the rule-based AI's judgement
     if (activePrompt(state) || state.activeRun || state.turnStep?.kind === 'corp_turn_start') return this.base.chooseAction(state);
     if (this.base instanceof HeuristicRunnerAI) this.base.observe(state);
     // A rule, not a judgement: a full Read-Write Share is shuffled back (plan.readWriteFull)
-    if (this.side === 'runner' && tuning.plan.readWriteFull) {
+    if (this.side === 'runner') {
       const full = readWriteFullShuffle(state, getLegalActions(state, 'runner'));
       if (full) return full;
     }
     const ranked = this.base.rankMainActions(state).filter(c => c.score > -Infinity);
+    // Money step M1 (incomeLine.ts): the counted money pick, as Normal's (corpAI decide), the rule ranking's favourite as the Corp's own pick
+    const money = this.side === 'corp' && (this.options.synergy ?? true) && !heldLaterStep(state, this.heldLine) ? moneyPick(state, ranked[0]?.action) : null;
+    if (money) {
+      this.base.notePlayed(money);
+      return money;
+    }
     if (ranked.length === 0) return this.base.chooseAction(state);
     if (ranked[0].action.type === 'SCORE_AGENDA') return ranked[0].action;
     // Only one sensible move, or the favourite is far ahead: no need to think it over
@@ -198,7 +256,7 @@ export class SearchAI implements Agent {
       return ranked[0].action;
     }
     const best = this.search(state, ranked.slice(0, this.options.candidates).map(c => ({ ...c, first: c.action })), this.options.timeMs).action;
-    noteKnownHand(state, this.side); // the look-ahead noted its own hands
+    decisionContext(state, this.side); // the look-ahead noted its own hands
     this.base.notePlayed(best); // keeps the rule-based AI's loop guard in step
     if (this.options.debug) logNudge(state, this.side, best);
     return best;

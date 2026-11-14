@@ -1,66 +1,65 @@
 import { describe, expect, it } from 'vitest';
 import { executeAction } from '../src/core';
 import { actingSide, corpRezWindow } from '../src/ui/viewer';
+import { seatOf } from './seatHelpers';
 import { soundFor } from '../src/ui/sound';
 import { zoneContents } from '../src/ui/components/ZoneViewer';
-import { installCorpForTest, installIceForTest, keepGoing, newGame, newGameAtSetup, run } from './helpers';
+import { installCorpForTest, installIceForTest, keepGoing, newGame, newGameAtSetup, run, step, toCorp } from './helpers';
 
 const PALISADE = '30072';
-const MANEGARM = '30045';
+const URTICA = '30045'; // Urtica Cipher: asset, rez 0
 
 describe('who acts (pass and play)', () => {
-  it('follows prompts, then the active player', () => {
+  it('follows prompts, then the player with priority', () => {
     const atSetup = newGameAtSetup();
-    expect(actingSide(atSetup, false)).toBe(atSetup.pendingPrompts[0].side);
+    expect(actingSide(atSetup)).toBe(atSetup.pendingPrompts[0].side);
     const state = newGame();
-    expect(actingSide(state, false)).toBe('corp');
+    expect(actingSide(state)).toBe('corp');
     state.winner = 'corp';
-    expect(actingSide(state, false)).toBeNull();
+    expect(actingSide(state)).toBeNull();
   });
 
-  it('opens a Corp rez window on approached unrezzed ice, and the Runner acts once it is passed', () => {
+  it('gives the Corp a rez window on approached unrezzed ice once the Runner passes (rules 6.9.2b)', () => {
     let state = newGame();
     installIceForTest(state, PALISADE, 'hq', false);
     state = run(state, 'hq');
-    const window = corpRezWindow(state, 1);
-    expect(window?.cards.map(c => c.cardCode)).toEqual([PALISADE]);
-    expect(actingSide(state, true)).toBe('corp');
-    expect(actingSide(state, false)).toBe('runner');
-    // A different run gets a different key, so a "no rez" answer is not reused
-    expect(corpRezWindow(state, 2)?.key).not.toBe(window?.key);
+    // The Runner, as active player, has priority first (rules 9.2.7a)
+    expect(state.activeRun?.phase).toBe('approach_ice');
+    expect(actingSide(state)).toBe('runner');
+    expect(corpRezWindow(seatOf(state, 'corp'))).toBeNull();
+    state = toCorp(state);
+    expect(actingSide(state)).toBe('corp');
+    expect(corpRezWindow(seatOf(state, 'corp'))?.cards.map(c => c.cardCode)).toEqual([PALISADE]);
+    // The Corp passes without rezzing: the window closes and the unrezzed ice is passed (rules 6.9.2c)
+    state = executeAction(state, { type: 'PASS', player: 'corp' });
+    expect(state.activeRun?.phase).toBe('movement');
+    expect(actingSide(state)).toBe('runner');
   });
 
-  it('has no rez window for rezzed ice', () => {
+  it('skips the Corp at rezzed ice unless it asked for full control', () => {
     const state = newGame();
     installIceForTest(state, PALISADE, 'hq', true);
-    expect(corpRezWindow(run(state, 'hq'), 1)).toBeNull();
+    const passed = toCorp(run(state, 'hq'));
+    expect(corpRezWindow(seatOf(passed, 'corp'))).toBeNull();
+    expect(passed.activeRun?.phase).toBe('encounter_ice');
   });
 
-  it('still opens the window when the Corp cannot pay, so its absence tells the Runner nothing', () => {
+  it('still stops when the Corp cannot pay, so a stop tells the Runner nothing (rules 4.6.3)', () => {
     const state = newGame();
     installIceForTest(state, PALISADE, 'hq', false);
     state.corp.credits = 0;
-    const window = corpRezWindow(run(state, 'hq'), 1);
+    const window = corpRezWindow(seatOf(toCorp(run(state, 'hq')), 'corp'));
     expect(window).not.toBeNull();
     expect(window?.cards).toEqual([]);
   });
 
-  it('opens a window before the Runner approaches a server holding only an agenda', () => {
-    const state = newGame();
-    installCorpForTest(state, '30067', 'remote-1'); // Offworld Office: can't be rezzed
-    const window = corpRezWindow(run(state, 'remote-1'), 1);
-    expect(window).not.toBeNull();
-    expect(window?.cards).toEqual([]);
-  });
-
-  it('offers unrezzed root cards when the Runner approaches the server', () => {
+  it('offers unrezzed root cards before the Runner approaches the server (rules 6.9.4e)', () => {
     let state = newGame();
-    installCorpForTest(state, MANEGARM, 'hq');
+    installCorpForTest(state, URTICA, 'hq');
     state = run(state, 'hq');
-    while (state.activeRun && state.activeRun.phase !== 'approach_server') {
-      state = executeAction(state, { type: 'CONTINUE_RUN', player: 'runner' });
-    }
-    expect(corpRezWindow(state, 1)?.cards.map(c => c.cardCode)).toEqual([MANEGARM]);
+    while (state.activeRun && !corpRezWindow(seatOf(state, 'corp'))) state = toCorp(state);
+    expect(state.priority?.step).toBe('approach_server');
+    expect(corpRezWindow(seatOf(state, 'corp'))?.cards.map(c => c.cardCode)).toEqual([URTICA]);
   });
 });
 
@@ -76,7 +75,8 @@ describe('sound effects', () => {
     const running = run(withIce, 'hq');
     expect(soundFor(withIce, running)).toBe('run');
     const ice = running.corp.servers.hq.ice[0];
-    expect(soundFor(running, executeAction(running, { type: 'REZ_CARD', player: 'corp', cardInstanceId: ice.instanceId }))).toBe('rez');
+    const corpWindow = toCorp(running);
+    expect(soundFor(corpWindow, executeAction(corpWindow, { type: 'REZ_CARD', player: 'corp', cardInstanceId: ice.instanceId }))).toBe('rez');
 
     const won = structuredClone(state);
     won.winner = 'corp';
@@ -93,10 +93,10 @@ describe('sound effects', () => {
 
   it('marks accessed cards in the log so the UI can list them', () => {
     let state = newGame();
-    installCorpForTest(state, MANEGARM, 'hq');
+    installCorpForTest(state, URTICA, 'hq');
     state = run(state, 'hq');
     while (state.activeRun && state.activeRun.phase !== 'access') {
-      state = keepGoing(executeAction(state, { type: 'CONTINUE_RUN', player: 'runner' }));
+      state = keepGoing(step(state));
     }
     expect(state.log.filter(e => e.event === 'access').length).toBeGreaterThan(0);
   });
@@ -105,7 +105,6 @@ describe('sound effects', () => {
 describe('browsing decks after the game', () => {
   it('lists R&D and the Stack top card first, face down', () => {
     const state = newGame();
-    // During play R&D shows only what the Runner remembers (rules 1.7.1)
     // During play R&D shows only what the Runner remembers (rules 1.7.1)
     expect(zoneContents('rd', state).groups.map(g => g.label)).toEqual(['Seen by the Runner']);
     // Corp viewer cannot see what the Runner saw in R&D during play

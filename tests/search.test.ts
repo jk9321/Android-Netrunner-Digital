@@ -62,6 +62,8 @@ describe('search AI', () => {
       s[side].clicks = side === 'corp' ? 3 : 4;
       s.pendingPrompts = [];
       s.activeRun = null;
+      s.turnStep = null; // midGame() can stop at the start of a Corp turn, in its paid ability window
+      s.priority = undefined;
       const ai = new SearchAI(side, { samples: 1, candidates: 3, seed: 1 });
       expect(isLegalAction(s, ai.chooseAction(s))).toBe(true);
     }

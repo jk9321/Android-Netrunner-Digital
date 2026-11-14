@@ -8,8 +8,8 @@ test('play against the computer and resume after a reload', async ({ page }) => 
   await page.route(/^https?:\/\/(?!localhost)/, route => route.abort());
 
   await page.goto('/');
+  await page.getByTestId('mode-computer').click();
   await page.getByTestId('opponent-ai-corp').click();
-  await page.getByTestId('difficulty-normal').click();
   await page.getByTestId('start-game').click();
 
   // The computer keeps or mulligans its hand, then the Runner decides
@@ -28,14 +28,52 @@ test('play against the computer and resume after a reload', async ({ page }) => 
   const cardWidth = () => page.locator('.card-fit').first().evaluate(el => el.getBoundingClientRect().width);
   const normalWidth = await cardWidth();
   await page.getByTestId('card-size').getByRole('button', { name: 'Large' }).click();
-  expect(await cardWidth()).toBeGreaterThan(normalWidth);
+  // Auto fit glides to the new size, so wait for the transition to land
+  await expect.poll(cardWidth).toBeGreaterThan(normalWidth);
 
   // A reload picks up the same game, mid-turn
   await page.reload();
   await expect(page.getByTestId('runner-credits')).toContainText(String(before + 4));
   await expect(page.getByTestId('card-size').getByRole('button', { name: 'Large' })).toHaveAttribute('aria-pressed', 'true');
   await page.getByRole('button', { name: 'End Runner Turn' }).click();
-  await expect(page.getByTestId('ai-status')).toBeVisible();
+  // The stops toggle switches between auto-skip and full control of paid ability windows
+  const toggle = page.getByTestId('stops-toggle');
+  await expect(toggle).toHaveAttribute('aria-label', 'Stops: auto');
+  await toggle.click();
+  await expect(toggle).toHaveAttribute('aria-label', 'Stops: full');
+  await toggle.click();
+  await expect(toggle).toHaveAttribute('aria-label', 'Stops: none');
 
   expect(errors).toEqual([]);
 });
+
+// The start screen asks how to play first, then shows only what that choice needs (chunk 2c)
+test('the start screen shows the settings and decks each way of playing needs', async ({ page }) => {
+  await page.route(/^https?:\/\/(?!localhost)/, route => route.abort());
+  await page.goto('/');
+  const columns = page.getByTestId('deck-columns');
+  await page.getByTestId('mode-computer').click();
+  await page.getByTestId('opponent-ai-corp').click();
+  await expect(columns.locator('h2')).toHaveText(["COMPUTER'S CORP DECK", 'YOUR RUNNER DECK']);
+  await expect(page.getByTestId('difficulty-normal')).toHaveCount(0);
+  await expect(page.getByTestId('difficulty-hard')).toHaveCount(0);
+  await page.getByTestId('mode-hotseat').click();
+  await expect(columns.locator('h2')).toHaveText(['CORP DECK', 'RUNNER DECK']);
+  await expect(page.getByTestId('difficulty-normal')).toHaveCount(0);
+  await page.getByTestId('mode-online').click();
+  await page.getByTestId('online-host').click();
+  await page.getByTestId('host-side-runner').click();
+  await expect(columns.locator('h2')).toHaveText(['YOUR RUNNER DECK']);
+  await expect(page.getByTestId('create-game')).toBeVisible();
+  await page.getByTestId('online-join').click();
+  await expect(columns.locator('h2')).toHaveCount(0);
+  await expect(page.getByTestId('join-code')).toBeVisible();
+  // An invite link opens Join with the code filled in (the preview server has no game server: the lookup fails)
+  await page.goto('/play/K7QM-2X');
+  await expect(page.getByTestId('join-code')).toHaveValue('K7QM-2X');
+  await expect(page.getByTestId('online-error')).toBeVisible();
+  // Leaving Join puts the address back to /
+  await page.getByTestId('mode-computer').click();
+  await expect(page).toHaveURL(/\/$/);
+});
+

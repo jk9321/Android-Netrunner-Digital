@@ -1,7 +1,8 @@
 import { describe, expect, it } from 'vitest';
 import { HeuristicCorpAI, HeuristicRunnerAI } from '../src/ai';
-import { noteKnownHand, ownHandValue } from '../src/ai/handValues';
+import { decisionContext, ownHandValue } from '../src/ai/handValues';
 import { PLANNER, planTurn } from '../src/ai/turnPlanner';
+import { withDiagnostics } from '../src/ai/diagnostics';
 import { isLegalAction } from '../src/core';
 import { simulate } from '../src/ai/prompts';
 import { installCorpForTest, newGame, startRunnerTurn } from './helpers';
@@ -18,20 +19,27 @@ describe('the whole-turn planner (Jeff, 2026-10-28; plan.turnPlanner)', () => {
     expect(isLegalAction(runner, r)).toBe(true);
   });
 
-  it('only chooses among the top candidates, and passes with one or none', () => {
+  it('only chooses among the candidates it played out (the top few plus the added build and agenda lines), and passes with one or none', () => {
     const s = newGame();
     const ai = new HeuristicCorpAI({ planner: false });
     const ranked = ai.rankMainActions(s);
-    const choice = planTurn(s, 'corp', ranked, { rank: x => ai.rankMainActions(x), answer: x => ai.chooseAction(x) }, true);
+    let played: string[] = [];
+    const choice = withDiagnostics(d => {
+      d.onCandidates = (_side, _values, actions) => { played = actions.map(a => JSON.stringify(a)); };
+      return planTurn(s, 'corp', ranked, { rank: x => ai.rankMainActions(x), answer: x => ai.chooseAction(x) }, true);
+    });
     const top = ranked.filter(r => r.score > -Infinity && r.action.type !== 'END_TURN').slice(0, PLANNER.candidates).map(r => JSON.stringify(r.action));
-    expect(top).toContain(JSON.stringify(choice));
+    // The top few are always played; plannerBuild and plannerAgenda add at most PLANNER.withBuild + 2 in all
+    for (const t of top) expect(played).toContain(t);
+    expect(played.length).toBeLessThanOrEqual(PLANNER.withBuild + 2);
+    expect(played).toContain(JSON.stringify(choice));
     expect(planTurn(s, 'corp', ranked.slice(0, 1), { rank: x => ai.rankMainActions(x), answer: x => ai.chooseAction(x) }, true)).toBeNull();
   });
 
   it('never learns a card it would draw in a playout', () => {
     const s = newGame();
     startRunnerTurn(s);
-    noteKnownHand(s, 'runner');
+    decisionContext(s, 'runner');
     const before = ownHandValue(s, 'runner');
     new HeuristicRunnerAI().chooseAction(s);
     // The hand it knows is the same after planning: cards drawn in playouts were never noted as seen

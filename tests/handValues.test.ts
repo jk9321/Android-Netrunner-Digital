@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { HAND_FLOOR, SOON, clickPrice, clickWorth, heldWorth, noteKnownHand, ownHandValue, playedWorth } from '../src/ai/handValues';
+import { HAND_FLOOR, SOON, clickPrice, clickWorth, heldWorth, decisionContext, ownHandValue, playedWorth } from '../src/ai/handValues';
 import { createCardInstance } from '../src/core/engine/gameState';
 import { CLICK } from '../src/ai/valueModel';
 import { tuning } from '../src/ai/synergy';
@@ -13,9 +13,10 @@ describe('cards in hand by what they do (Jeff, 2026-10-28; plan.handByCard)', ()
     const played = playedWorth(s, verbal);
     expect(played).toBeGreaterThan(0);
     expect(heldWorth(s, verbal, 'runner')).toBeCloseTo(SOON.now * played);
-    // Can't afford it yet: worth less while it waits
+    // Can't afford it yet: worth less while it waits (its played worth too is priced at 0 credits: the cards it draws
+    // are worth less to a Runner who can't pay for them, plan.drawWorthCredits)
     s.runner.credits = 0;
-    expect(heldWorth(s, verbal, 'runner')).toBeCloseTo(Math.max(HAND_FLOOR, SOON.later * played));
+    expect(heldWorth(s, verbal, 'runner')).toBeCloseTo(Math.max(HAND_FLOOR, SOON.later * playedWorth(s, verbal)));
   });
 
   it('a card not worth playing is still worth the floor (a card to discard to damage or the limit)', () => {
@@ -27,7 +28,7 @@ describe('cards in hand by what they do (Jeff, 2026-10-28; plan.handByCard)', ()
 
   it('a card drawn in a look-ahead is worth the deck average, not what it is', () => {
     const s = newGame();
-    noteKnownHand(s, 'runner');
+    decisionContext(s, 'runner');
     const known = ownHandValue(s, 'runner');
     const drawn = s.runner.stack.shift()!;
     s.runner.grip.push(drawn);
@@ -43,14 +44,14 @@ describe('cards in hand by what they do (Jeff, 2026-10-28; plan.handByCard)', ()
 
   it('only the best cards up to the hand limit count; one over is a small filter', () => {
     const s = newGame();
-    noteKnownHand(s, 'corp');
+    decisionContext(s, 'corp');
     s.corp.hq = s.corp.hq.slice(0, s.corp.handSizeLimit);
-    noteKnownHand(s, 'corp');
+    decisionContext(s, 'corp');
     const full = ownHandValue(s, 'corp');
     // Two more copies of the weakest card: only the first adds the filter
     const worst = [...s.corp.hq].sort((a, b) => heldWorth(s, a, 'corp') - heldWorth(s, b, 'corp'))[0];
     s.corp.hq.push({ ...worst, instanceId: 'w1' }, { ...worst, instanceId: 'w2' });
-    noteKnownHand(s, 'corp');
+    decisionContext(s, 'corp');
     expect(ownHandValue(s, 'corp') - full).toBeCloseTo(0.3);
   });
 });

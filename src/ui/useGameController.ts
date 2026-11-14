@@ -1,29 +1,57 @@
-import { useEffect, useRef, useState } from 'react';
-import { GameAction, GameState, SideCode, createInitialGameState, executeAction, getLegalActions, isLegalAction, uncommittedChoice } from '../core';
+import { useEffect, useRef, useState, useSyncExternalStore } from 'react';
+import { GameAction, GameState, SideCode, StopLevel } from '../core';
+import { PersonStops, saveStops, savedStops } from './stops';
 import { AIClient } from '../ai/client';
 import { deckGameSetup } from '../data/decks';
 import { AccessedCard, GameConfig, SavedGame, clearSavedGame, saveGame } from './savedGame';
-import { ShownFate } from './components/CardFates';
-import { cardFates } from './cardFates';
+import { noteMoves, noteState } from './bugReport';
+import { autoContinueRun, autoStartTurn, nextAccessed, nextSelection, useCardFates } from './controllerShared';
 import { showAlert, showConfirm } from './components/Dialog';
-import { ViewMode, Viewer, actingSide, canActAs, canSeeCorpSecrets, corpRezWindow, runnerOffTurnWindow } from './viewer';
+import { ViewMode, Viewer, canActAs, corpRezWindow } from './viewer';
 import { playForAction } from './sound';
 import { VIEW_MODE_KEY, savedViewMode } from './gameStart';
-import { installedCardsGained, installedCardsLost, isInstallAction, replacementMessage } from './installReplacements';
+import { LocalTable, TableMove, newTableState } from './table';
+import type { OnlineInfo } from './useOnlineController';
 
 const AI_DELAY_MS = 650;
-/** How long a stolen, scored or trashed card stays in the middle of the table. */
-const FATE_SHOW_MS = 1300;
+
+/** The game's stops: the computer's side where it always stops, the person's side(s) as they chose. */
+function withStops(state: GameState, aiSide: SideCode | null | undefined, level: PersonStops): GameState {
+  const want = (side: SideCode): StopLevel => (side === aiSide ? 'ai' : level);
+  if (state.stops?.corp === want('corp') && state.stops?.runner === want('runner')) return state;
+  return { ...state, stops: { corp: want('corp'), runner: want('runner') } };
+}
+
+type Accessed = Record<Viewer, AccessedCard[]>;
+const VIEWERS: Viewer[] = ['corp', 'runner', 'both'];
+const noAccesses = (): Accessed => ({ corp: [], runner: [], both: [] });
 
 /**
- * One game's state and the rules of the table around it: who is looking and
- * who may act, Corp rez windows, the computer's moves, saving after every
- * move, and the brief showings of stolen, scored and trashed cards.
+ * One game and the rules of the table around it: who is looking and who may
+ * act, Corp rez windows, the computer's moves, saving after every move, and
+ * the brief showings of stolen, scored and trashed cards. The game itself
+ * lives in a LocalTable (table.ts); the screen gets the viewer's seat, whose
+ * state holds only what that viewer may see.
  */
 export function useGameController(config: GameConfig, saved: SavedGame | null) {
-  const [gameState, setGameState] = useState(
-    () => saved?.state ?? createInitialGameState(deckGameSetup(config.seed, config.corpDeck, config.runnerDeck))
+  // Where the person's game stops for paid ability windows; the computer stops where it always has
+  const [stops, setStopsState] = useState<PersonStops>(savedStops);
+  const aiSide = config.ai;
+  const [table] = useState(
+    () =>
+      new LocalTable(
+        withStops(saved?.state ?? newTableState(deckGameSetup(config.seed, config.corpDeck, config.runnerDeck)), aiSide, stops),
+        aiSide,
+        {
+          confirm: (message, options) => showConfirm(message, options),
+          alert: (message, options) => void showAlert(message, options),
+        },
+        { moves: saved?.table.moves, ids: saved?.table.ids },
+      ),
   );
+  // Re-render on every change at the table
+  const [subscribe] = useState(() => (fn: () => void) => table.subscribe(fn));
+  const version = useSyncExternalStore(subscribe, () => table.version);
   const [selectedCardId, setSelectedCardId] = useState<string | null>(null);
 
   // Who is looking. Pass and play shows one side at a time and hands over
@@ -34,63 +62,52 @@ export function useGameController(config: GameConfig, saved: SavedGame | null) {
     config.ai === 'corp' ? 'runner' : config.ai === 'runner' ? 'corp' : savedViewMode(),
   );
   const [hotseatSide, setHotseatSide] = useState<SideCode>(saved?.table.hotseatSide ?? 'corp');
-  // Runs started so far, and the Corp rez windows already passed, so each window asks once
-  const [runSerial, setRunSerial] = useState(saved?.table.runSerial ?? 0);
-  const [passedRezWindows, setPassedRezWindows] = useState<string[]>(saved?.table.passedRezWindows ?? []);
-  // Cards the Runner accessed in the latest run, shown until dismissed or the next run
-  const [accessed, setAccessed] = useState<AccessedCard[]>(() =>
-    (saved?.table.accessed ?? []).map(a => (typeof a === 'string' ? { code: a } : a)),
-  );
+  // Cards the Runner accessed in the latest run, as each viewer saw them, shown until dismissed or the next run
+  const [accessed, setAccessed] = useState<Accessed>(() => saved?.table.accessed ?? noAccesses());
   // Cards just stolen, scored or trashed, shown briefly in the middle of the table
-  const [fates, setFates] = useState<ShownFate[]>([]);
-  const prevStateRef = useRef(gameState);
-  // The state as of the latest move, for actions applied after an await (a
-  // confirm dialog) when the computer may have moved in the meantime
-  const latestStateRef = useRef(gameState);
-  latestStateRef.current = gameState;
-  // Timers that end each card-fate showing, cleared if the game is left
-  const fateTimersRef = useRef(new Set<number>());
+  const { fates, showFates, clearFates } = useCardFates();
+  const startStops = useRef(saved ? saved.table.startStops : table.state.stops).current;
+  noteMoves(config.seed, table.moves, startStops);
   // Bumped to ask the computer again after it failed to move
   const [aiRetry, setAiRetry] = useState(0);
-  // The person's ability or event whose first step is their own choice (Red Team's server):
-  // shown with the choice open, but not applied until they choose, so Cancel can drop it (uncommitted.ts)
-  const [held, setHeld] = useState<{ base: GameState; next: GameState } | null>(null);
-  const heldRef = useRef(held);
-  heldRef.current = held;
 
   // Against the computer: the AI plays one side and the person sees their own
   // side (or everything, with Open table).
-  const aiSide = config.ai;
   const humanSide: SideCode | null = aiSide === 'corp' ? 'runner' : aiSide === 'runner' ? 'corp' : null;
   const aiRef = useRef<AIClient | null>(null);
 
-  // The Corp gets rez windows during runs in pass and play, and whenever the computer plays a side
-  const rezWindowsOn = viewMode === 'hotseat' || aiSide !== null;
-  const rezWindow = corpRezWindow(gameState, runSerial);
-  const rezWindowOpen = rezWindowsOn && rezWindow !== null && !passedRezWindows.includes(rezWindow.key);
-  // The computer Runner's paid abilities at the end of the Corp's action phase (Madani)
-  const offTurnKey = aiSide === 'runner' ? runnerOffTurnWindow(gameState) : null;
-  const offTurnOpen = offTurnKey !== null && !passedRezWindows.includes(offTurnKey);
-  const acting = actingSide(gameState, rezWindowOpen, offTurnOpen);
-  // Once the game is over nothing is secret any more, so everyone sees the open table
+  const acting = table.acting;
+  const winner = table.winner;
+  const handoffTo = !aiSide && viewMode === 'hotseat' && acting && acting !== hotseatSide ? acting : null;
+  // Once the game is over nothing is secret any more, so everyone sees the open table. In pass and play
+  // the table under the hand-off cover already holds only the next side's view.
   const viewer: Viewer =
-    gameState.winner || viewMode === 'open'
+    winner || viewMode === 'open'
       ? 'both'
       : humanSide
         ? humanSide
         : viewMode === 'hotseat'
-          ? hotseatSide
+          ? (handoffTo ?? hotseatSide)
           : viewMode;
-  const handoffTo = !aiSide && viewMode === 'hotseat' && acting && acting !== hotseatSide ? acting : null;
+  const seat = table.seatFor(viewer);
+  const gameState = seat.state;
+  const viewerRef = useRef(viewer);
+  viewerRef.current = viewer;
+
+  // The Corp's priority in a paid ability window during a run: what it can rez there
+  const rezWindow = corpRezWindow(seat);
+  const rezWindowOpen = rezWindow !== null;
   // Nobody acts once the game is over (rule 1.7.1: the game ends when a player wins)
-  const corpCanAct = !gameState.winner && canActAs(viewer, 'corp') && aiSide !== 'corp' && !offTurnOpen;
-  const runnerCanAct = !gameState.winner && canActAs(viewer, 'runner') && aiSide !== 'runner' && !rezWindowOpen;
+  const corpCanAct = !winner && canActAs(viewer, 'corp') && aiSide !== 'corp';
+  const runnerCanAct = !winner && canActAs(viewer, 'runner') && aiSide !== 'runner';
   const aiThinking = aiSide !== null && acting === aiSide;
   // The side hearing the game's sounds, for the win or lose sound at the end:
   // the person against the computer, the side in view in two-player games
   // (in pass and play, whoever has the device), nobody in particular on an open table
   const listener: SideCode | null =
     humanSide ?? (viewMode === 'hotseat' ? hotseatSide : viewMode === 'corp' || viewMode === 'runner' ? viewMode : null);
+  const listenerRef = useRef(listener);
+  listenerRef.current = listener;
 
   useEffect(() => {
     if (aiSide) return; // the AI game's view choice doesn't replace the two-player default
@@ -101,113 +118,82 @@ export function useGameController(config: GameConfig, saved: SavedGame | null) {
     }
   }, [viewMode, aiSide]);
 
+  // A selection is in the viewer's ids, and a card fate was worked out from the last viewer's view:
+  // neither belongs on the next viewer's screen
+  useEffect(() => {
+    setSelectedCardId(null);
+    clearFates();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [viewer]);
+
+  // The bug report sends the real state (the screen has only the viewer's view of it); noted after every
+  // change at the table, not while rendering
+  useEffect(() => {
+    noteState(config.seed, table.state);
+  }, [config.seed, table, version]);
+
   // Save after every move so a reload (the browser discarding a background
   // tab, or the dev server reconnecting) resumes this game; a finished game is dropped
   useEffect(() => {
-    if (gameState.winner) clearSavedGame();
-    else saveGame({ config, state: gameState, table: { runSerial, passedRezWindows, hotseatSide, accessed } });
-  }, [config, gameState, runSerial, passedRezWindows, hotseatSide, accessed]);
-
-  // Watch every state change (the person's moves and the computer's) for steals, scores and trashes
-  useEffect(() => {
-    const prev = prevStateRef.current;
-    prevStateRef.current = gameState;
-    if (prev === gameState) return;
-    const found = cardFates(prev, gameState);
-    if (found.length === 0) return;
-    const stamp = Date.now();
-    const shown = found.map((f, i) => ({
-      ...f,
-      key: `${f.card.instanceId}-${stamp}-${i}`,
-      canSee: !f.corpSecret || canSeeCorpSecrets(viewer),
-    }));
-    setFates(cur => [...cur, ...shown]);
-    // Not cleared on the next change: each showing ends on its own timer
-    const timer = window.setTimeout(() => {
-      fateTimersRef.current.delete(timer);
-      const keys = new Set(shown.map(f => f.key));
-      setFates(cur => cur.filter(f => !keys.has(f.key)));
-    }, FATE_SHOW_MS);
-    fateTimersRef.current.add(timer);
-  }, [gameState]); // eslint-disable-line react-hooks/exhaustive-deps
-
-  useEffect(() => {
-    const timers = fateTimersRef.current;
-    return () => timers.forEach(t => window.clearTimeout(t));
-  }, []);
-
-  const handleAction = async (action: GameAction) => {
-    // Answering a held choice applies the action and the answer as one move, from the state before both
-    // (Conceding drops a held choice instead)
-    const hold = action.type === 'CONCEDE' ? null : heldRef.current;
-    const base = hold?.base ?? latestStateRef.current;
-    const current = hold?.next ?? base;
-    // The game is over (rule 1.7.1): a move still on its way (the computer's, a click) is dropped quietly
-    if (current.winner) return;
-    try {
-      const uncommitted = !hold && action.player !== aiSide ? uncommittedChoice(current, action) : null;
-      if (uncommitted) {
-        heldRef.current = { base: current, next: uncommitted.next };
-        setHeld(heldRef.current);
-        return;
-      }
-      const nextState = executeAction(current, action);
-      // The person installing over their own cards confirms first, with Cancel as the safe default
-      if (action.player !== aiSide && isInstallAction(current, action)) {
-        const lost = installedCardsLost(current, nextState, action.player);
-        if (lost.length > 0) {
-          const ok = await showConfirm(replacementMessage(installedCardsGained(current, nextState, action.player), lost), {
-            title: lost.length === 1 ? 'Replace installed card?' : 'Trash installed cards?',
-            confirmLabel: 'Trash and install',
-            danger: true,
-          });
-          // Nothing happens if cancelled, or if the game moved on while asking
-          if (!ok || latestStateRef.current !== base || heldRef.current !== hold) return;
-        }
-      }
-      latestStateRef.current = nextState;
-      heldRef.current = null;
-      setHeld(null);
-      if (!base.activeRun && nextState.activeRun) setRunSerial(n => n + 1);
-      playForAction(base, nextState, listener);
-      const newlyAccessed = nextState.log
-        .slice(base.log.length)
-        .filter(e => e.event === 'access' && e.cardCode)
-        .map(e => ({ code: e.cardCode!, ...(e.secret && { secretFrom: e.secret.from }) }));
-      const runStarted = !base.activeRun && nextState.activeRun;
-      if (runStarted || newlyAccessed.length > 0) setAccessed(prev => [...(runStarted ? [] : prev), ...newlyAccessed]);
-      setGameState(nextState);
-      // Keep the selected card across actions that leave it in hand (gaining credits, drawing),
-      // so the player can afford it and then play it; drop it once it leaves hand or the turn passes.
-      setSelectedCardId(id => {
-        if (!id || nextState.turnNumber !== base.turnNumber || nextState.activePlayer !== base.activePlayer) return null;
-        return [...nextState.corp.hq, ...nextState.runner.grip].some(c => c.instanceId === id) ? id : null;
+    if (table.state.winner) clearSavedGame();
+    else
+      saveGame({
+        config,
+        state: table.state,
+        table: { runSerial: 0, passedRezWindows: [], hotseatSide, accessed, moves: table.moves, startStops, ids: table.ids },
       });
-    } catch (err) {
-      void showAlert(err instanceof Error ? err.message : 'Illegal action', { title: 'Action blocked' });
-    }
-  };
+  }, [config, version, hotseatSide, accessed, startStops, table]);
+
+  // Every committed move: sounds, accesses, the brief showings of steals, scores and trashes, and the selection.
+  // Each comes from the viewer's own before-and-after (their reconstructions), so nothing hidden from them shows.
+  useEffect(
+    () =>
+      table.onMove((move: TableMove) => {
+        noteMoves(config.seed, table.moves, startStops);
+        const who = viewerRef.current;
+        const hearing = listenerRef.current;
+        playForAction(move.prev[hearing ?? 'both'], move.next[hearing ?? 'both'], hearing);
+        setAccessed(cur => {
+          const res = { ...cur };
+          for (const v of VIEWERS) res[v] = nextAccessed(cur[v], move.prev[v], move.next[v]) ?? cur[v];
+          return res;
+        });
+        showFates(move.prev[who], move.next[who]);
+        setSelectedCardId(id => nextSelection(id, move.prev[who], move.next[who]));
+      }),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [table],
+  );
 
   // Before the Corp's turn begins the person stops only if they can rez, score or use something
   useEffect(() => {
-    if (aiSide === 'corp' || gameState.winner || gameState.pendingPrompts.length > 0 || gameState.turnStep?.kind !== 'corp_turn_start') return;
-    if (getLegalActions(gameState, 'corp').every(a => a.type === 'START_TURN')) handleAction({ type: 'START_TURN', player: 'corp' });
+    if (aiSide === 'corp' || table.winner) return;
+    const corp = table.seatFor('corp');
+    const start = autoStartTurn(corp);
+    if (start) void corp.act(start);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [gameState]);
+  }, [version]);
 
-  // During a run the person's Runner stops only where they have a choice: approaching ice or
-  // the server once the Corp's rez window has closed is skipped when Continue is the only move.
-  // (Not on an open table, where the Corp rezzes from the run panel without a window.)
+  // During a run the person's Runner stops only where they have a choice (with auto-skip): approaching
+  // ice or the server, or the run's other windows, is skipped when Continue is the only move.
   useEffect(() => {
-    const run = gameState.activeRun;
-    if (!run || !rezWindowsOn || !runnerCanAct || rezWindowOpen || gameState.winner || gameState.pendingPrompts.length > 0) return;
-    if (run.phase !== 'approach_ice' && run.phase !== 'approach_server') return;
-    const legal = getLegalActions(gameState, 'runner');
-    if (legal.length === 1 && legal[0].type === 'CONTINUE_RUN') handleAction(legal[0]);
+    if (stops === 'full' || !runnerCanAct || handoffTo || table.winner || table.acting !== 'runner') return;
+    const runner = table.seatFor('runner');
+    const go = autoContinueRun(runner);
+    if (go) void runner.act(go);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [gameState, rezWindowOpen]);
+  }, [version]);
 
-  const passRezWindow = (key: string) => setPassedRezWindows(keys => [...keys, key]);
+  // Pass priority in the window the person holds (the run panel's Don't rez, the window bar's Pass)
+  const passWindow = (side: SideCode, restOfRun = false) => seat.act({ type: 'PASS', player: side, ...(restOfRun && { restOfRun }) });
+
+  // The person's choice of stops applies to their side(s) at once, and to later games
+  const setStops = (level: PersonStops) => {
+    setStopsState(level);
+    saveStops(level);
+    const sides: SideCode[] = aiSide ? [aiSide === 'corp' ? 'runner' : 'corp'] : ['corp', 'runner'];
+    for (const side of sides) void table.apply({ type: 'SET_STOPS', player: side, level });
+  };
 
   // The computer thinks in a background worker, then moves after a short pause so its moves can be followed
   useEffect(() => {
@@ -222,12 +208,12 @@ export function useGameController(config: GameConfig, saved: SavedGame | null) {
 
   useEffect(() => {
     const ai = aiRef.current;
-    if (!ai || !aiSide || gameState.winner || acting !== aiSide) return;
+    if (!ai || !aiSide) return;
+    const ask = table.askComputer(ai);
+    if (!ask) return;
     let cancelled = false;
     let timer: number | undefined;
     const started = Date.now();
-    const window_ = aiSide === 'corp' && rezWindowOpen ? rezWindow : null;
-    const offTurn = offTurnOpen ? offTurnKey : null;
     // A computer that can't move would leave the game on "AI THINKING" for
     // good, so let the person ask it again or end the game
     const failed = async (problem: string) => {
@@ -238,20 +224,16 @@ export function useGameController(config: GameConfig, saved: SavedGame | null) {
       );
       if (cancelled) return;
       if (retry) setAiRetry(n => n + 1);
-      else handleAction({ type: 'CONCEDE', player: aiSide });
+      else void table.apply({ type: 'CONCEDE', player: aiSide });
     };
-    const request = window_ ? ai.chooseRez(gameState, window_.cards) : offTurn ? ai.chooseOffTurn(gameState) : ai.chooseAction(gameState);
-    request
+    ask.request
       .then(action => {
         if (cancelled) return;
         timer = window.setTimeout(() => {
-          // The game moved on (or ended) since the computer was asked
-          if (cancelled || latestStateRef.current !== gameState) return;
-          if (action && !isLegalAction(gameState, action)) void failed(`it chose an illegal ${action.type} move`);
-          else if (action) handleAction(action);
-          else if (window_) passRezWindow(window_.key);
-          else if (offTurn) passRezWindow(offTurn);
-          else void failed('it found no move');
+          if (cancelled) return;
+          const res = ask.apply(action);
+          if (res === 'illegal') void failed(`it chose an illegal ${action?.type} move`);
+          else if (res === 'none') void failed('it found no move');
         }, Math.max(0, AI_DELAY_MS - (Date.now() - started)));
       })
       .catch(err => {
@@ -262,38 +244,39 @@ export function useGameController(config: GameConfig, saved: SavedGame | null) {
       window.clearTimeout(timer);
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [gameState, acting, rezWindowOpen, offTurnOpen, aiRetry]);
-
-  // Dropping a held choice: the action was never applied, so the game is as it was
-  const cancelChoice = () => {
-    heldRef.current = null;
-    setHeld(null);
-  };
+  }, [version, aiRetry]);
 
   return {
-    // What the table shows: with a held choice, the action applied and its choice open
-    gameState: held?.next ?? gameState,
-    handleAction,
-    cancelChoice: held ? cancelChoice : undefined,
+    // What the table shows this viewer: their seat's state (with a held choice, the action applied and its choice open)
+    seat,
+    gameState,
+    handleAction: (action: GameAction) => seat.act(action),
+    cancelChoice: seat.cancel,
     selectedCardId,
     setSelectedCardId,
     viewMode,
     setViewMode,
     hotseatSide,
     setHotseatSide,
-    accessed,
-    clearAccessed: () => setAccessed([]),
+    accessed: accessed[viewer],
+    clearAccessed: () => setAccessed(cur => ({ ...cur, [viewer]: [] })),
     fates,
     aiSide,
     humanSide,
-    rezWindowsOn,
     rezWindow,
     rezWindowOpen,
-    passRezWindow,
+    passWindow,
+    stops,
+    setStops,
     viewer,
     handoffTo,
     corpCanAct,
     runnerCanAct,
     aiThinking,
+    /** Online games only (useOnlineController). */
+    online: null as OnlineInfo | null,
   };
 }
+
+/** What the game screen gets from either controller (useGameController here, useOnlineController online). */
+export type GameController = ReturnType<typeof useGameController>;

@@ -1,6 +1,8 @@
-import { describe, expect, it } from 'vitest';
-import { agendaWorth, archivedAgendaLoss, evaluate, keepValue } from '../src/ai/evaluate';
+import { describe, expect, it, onTestFinished as onExit } from 'vitest';
+import { AGENDA_CLICK, agendaWorth, archivedAgendaLoss, evaluate, keepValue } from '../src/ai/evaluate';
 import { cardDef } from '../src/core';
+import { tuning } from '../src/ai/synergy';
+import { plan } from '../src/ai/pricing';
 import { playedWorth } from '../src/ai/handValues';
 import { iceWorth } from '../src/ai/iceValues';
 import { CLICK, pointValue } from '../src/ai/valueModel';
@@ -9,6 +11,7 @@ import { installIceForTest, newGame } from './helpers';
 import { STEAL, runSuccess, stealOdds } from '../src/ai/effectValues';
 
 const PALISADE = '30072';
+const threatDefault = tuning.plan.threatModel;
 
 /** A remote with two rezzed Palisades the rig can't break, and a bare one. */
 function remotes() {
@@ -34,13 +37,14 @@ describe('agendas on the board (Jeff, 2026-10-28; plan.agendaBoard)', () => {
     const iced = agendaWorth(s, 3, 3, 2, 'remote-1');
     const bare = agendaWorth(s, 3, 3, 2, 'remote-2');
     expect(iced).toBeGreaterThan(bare);
-    expect(bare).toBeCloseTo(0); // an open remote: as good as stolen (plan.openSteal)
+    // an open remote: as good as stolen (plan.openSteal)
+    expect(bare).toBeCloseTo(0);
   });
 
-  it('each advancement brings it closer: the click and credit it took come back', () => {
+  it('each advancement brings it closer: the click (at what it could build) and credit it took come back', () => {
     const s = remotes();
     s.activePlayer = 'corp';
-    expect(agendaWorth(s, 1, 3, 2, 'remote-1') - agendaWorth(s, 0, 3, 2, 'remote-1')).toBeCloseTo(CLICK + 1);
+    expect(agendaWorth(s, 1, 3, 2, 'remote-1') - agendaWorth(s, 0, 3, 2, 'remote-1')).toBeCloseTo(AGENDA_CLICK + 1);
   });
 
   it('in HQ, an agenda is worth installing in the safest remote, as the board will value it', () => {
@@ -64,9 +68,9 @@ describe('agendas on the board (Jeff, 2026-10-28; plan.agendaBoard)', () => {
     expect(archivedAgendaLoss(s, 2)).toBeGreaterThan(0);
     expect(archivedAgendaLoss(s, 2)).toBeLessThanOrEqual(pointValue(2));
     // On the board too: the Corp sees its facedown agenda in Archives as a likely steal
-    const before = evaluate(s, 'corp', true);
+    const before = evaluate(s, 'corp');
     s.corp.archives.faceDown.push(s.corp.hq.shift()!);
-    expect(evaluate(s, 'corp', true)).toBeLessThan(before);
+    expect(evaluate(s, 'corp')).toBeLessThan(before);
   });
 
   it('sooner is better: an agenda the Corp can finish this turn beats one that waits a Runner turn (plan.agendaTempo)', () => {
@@ -90,6 +94,10 @@ describe('steal odds as measured (Jeff, 2026-10-28; plan.stealOdds)', () => {
   });
 
   it('ice is judged against the credits the Runner can raise on its turn, not what it holds now', () => {
+    // STEAL.run's arithmetic (plan.threatModel off): the threat model asks the Runner's scorer instead, and a Runner with
+    // no breaker never runs a rezzed Palisade (tests/threatModel.test.ts)
+    tuning.plan.threatModel = false;
+    onExit(() => { tuning.plan.threatModel = threatDefault; });
     const s = newGame();
     installIceForTest(s, PALISADE, 'remote-1');
     s.corp.servers['remote-1'].ice[0].isRezzed = true;
@@ -105,13 +113,13 @@ describe('plan switches for one side (Jeff, 2026-10-29; synergy.ts sideOff)', ()
   it('a side decides with its own plan, nested inside the other side, and the base plan comes back', async () => {
     const { asSide, sideOff, tuning } = await import('../src/ai/synergy');
     const saved = sideOff.corp;
-    sideOff.corp = ['flatRates'];
+    sideOff.corp = ['agendaTiming'];
     try {
       const base = tuning.plan;
       asSide('corp', () => {
-        expect(tuning.plan.flatRates).toBe(false);
-        asSide('runner', () => expect(tuning.plan.flatRates).toBe(base.flatRates));
-        expect(tuning.plan.flatRates).toBe(false);
+        expect(plan().agendaTiming).toBe(false);
+        asSide('runner', () => expect(plan().agendaTiming).toBe(base.agendaTiming));
+        expect(plan().agendaTiming).toBe(false);
       });
       expect(tuning.plan).toBe(base);
     } finally {
@@ -127,6 +135,10 @@ describe('ice that cannot end the run (Jeff, 2026-10-30; plan.tankIce)', () => {
   };
 
   it('Doomscroll stops little against a broke Runner with a full grip', () => {
+    // passOdds' tank arithmetic under STEAL.run (plan.threatModel off); with it on, whether a broke Runner runs at all is
+    // the Runner's scorer's call (tests/threatModel.test.ts)
+    tuning.plan.threatModel = false;
+    onExit(() => { tuning.plan.threatModel = threatDefault; });
     const s = newGame();
     remote(s);
     s.runner.credits = 0;

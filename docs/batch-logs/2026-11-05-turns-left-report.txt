@@ -1,0 +1,247 @@
+Batch: turns left report (beta 39503c8) | ref 39503c8d729c2dbdf7ff4d663b3a5f51ef760552 | games 0-1 | PLAN_OFF= | decks  | turns-left corp | added run 
+1280 finished games
+
+By side and higher score: samples, turns really left (mean, sd), turnsLeft forecast (mean)
+  corp max 0                 5716   13.74 ± 5.6     8.00
+  corp max 1                  590   11.63 ± 4.8     7.00
+  corp max 2                 3888   10.02 ± 5.2     6.00
+  corp max 3                 1857    8.73 ± 4.9     5.00
+  corp max 4                 2718    6.90 ± 4.8     4.00
+  corp max 5                 2439    4.92 ± 3.8     3.00
+  corp max 6                 2276    4.32 ± 3.7     2.00
+  runner max 0               5314   13.43 ± 5.5     8.00
+  runner max 1                597   11.56 ± 4.8     7.00
+  runner max 2               3859    9.85 ± 5.1     6.00
+  runner max 3               1865    8.57 ± 4.8     5.00
+  runner max 4               2721    6.83 ± 4.7     4.00
+  runner max 5               2389    4.79 ± 3.7     3.00
+  runner max 6               2185    4.23 ± 3.6     2.00
+
+By side and total score: samples, turns really left (mean, sd), turnsLeft forecast (mean)
+  corp total 0               5716   13.74 ± 5.6     8.00
+  corp total 1                527   11.71 ± 4.9     7.00
+  corp total 2               2846   10.47 ± 5.4     6.02
+  corp total 3               1217    9.05 ± 4.9     5.15
+  corp total 4               2134    8.63 ± 5.2     4.94
+  corp total 5               1432    6.53 ± 4.5     3.83
+  corp total 6               1878    6.29 ± 4.5     3.29
+  corp total 7               1016    5.44 ± 3.8     3.23
+  corp total 8               1075    4.35 ± 3.2     2.74
+  corp total 9                754    4.26 ± 3.2     2.64
+  corp total 10               489    3.18 ± 2.5     2.40
+  corp total 11               313    2.85 ± 2.2     2.00
+  corp total 12                87    1.99 ± 1.2     2.00
+  runner total 0             5314   13.43 ± 5.5     8.00
+  runner total 1              534   11.66 ± 4.9     7.00
+  runner total 2             2795   10.30 ± 5.3     6.02
+  runner total 3             1169    8.84 ± 4.6     5.15
+  runner total 4             2116    8.55 ± 5.1     4.97
+  runner total 5             1437    6.50 ± 4.4     3.89
+  runner total 6             1870    6.19 ± 4.4     3.35
+  runner total 7             1010    5.40 ± 3.7     3.24
+  runner total 8             1080    4.32 ± 3.2     2.74
+  runner total 9              729    4.19 ± 3.2     2.63
+  runner total 10             486    3.19 ± 2.5     2.42
+  runner total 11             309    2.92 ± 2.2     2.00
+  runner total 12              81    1.93 ± 1.1     2.00
+
+By side and own turn: samples, turns really left (mean, sd), turnsLeft forecast (mean)
+  corp turn  1               1280   15.22 ± 6.0     8.00
+  corp turn  2               1278   14.24 ± 6.0     7.56
+  corp turn  3               1269   13.34 ± 5.9     7.15
+  corp turn  4               1257   12.46 ± 5.8     6.82
+  corp turn  5               1224   11.76 ± 5.6     6.50
+  corp turn  6               1205   10.93 ± 5.4     6.16
+  corp turn  7               1179   10.15 ± 5.3     5.80
+  corp turn  8               1144    9.43 ± 5.1     5.45
+  corp turn  9               1109    8.70 ± 5.0     5.15
+  corp turn 10               1054    8.10 ± 4.8     4.83
+  corp turn 11                992    7.55 ± 4.6     4.60
+  corp turn 12                937    6.93 ± 4.4     4.35
+  corp turn 13                858    6.48 ± 4.2     4.14
+  corp turn 14                786    5.98 ± 4.1     3.97
+  corp turn 15                700    5.59 ± 3.9     3.77
+  corp turn 16                598    5.37 ± 3.7     3.66
+  corp turn 17                526    4.97 ± 3.5     3.46
+  corp turn 18                445    4.69 ± 3.3     3.36
+  corp turn 19                380    4.32 ± 3.2     3.23
+  corp turn 20               1263    3.71 ± 2.8     2.97
+  runner turn  1             1280   14.79 ± 5.9     7.99
+  runner turn  2             1276   13.83 ± 5.8     7.52
+  runner turn  3             1269   12.90 ± 5.8     7.10
+  runner turn  4             1255   12.04 ± 5.7     6.73
+  runner turn  5             1221   11.34 ± 5.4     6.38
+  runner turn  6             1204   10.49 ± 5.3     6.03
+  runner turn  7             1176    9.72 ± 5.2     5.63
+  runner turn  8             1139    9.00 ± 5.0     5.32
+  runner turn  9             1100    8.28 ± 4.9     5.00
+  runner turn 10             1038    7.72 ± 4.7     4.71
+  runner turn 11              978    7.13 ± 4.5     4.44
+  runner turn 12              902    6.65 ± 4.3     4.26
+  runner turn 13              824    6.18 ± 4.1     4.06
+  runner turn 14              738    5.78 ± 3.9     3.90
+  runner turn 15              658    5.36 ± 3.8     3.71
+  runner turn 16              562    5.11 ± 3.6     3.58
+  runner turn 17              478    4.83 ± 3.4     3.41
+  runner turn 18              412    4.45 ± 3.3     3.33
+  runner turn 19              330    4.30 ± 3.1     3.26
+  runner turn 20             1090    3.60 ± 2.7     2.98
+
+By side, higher score and own turn (<=12): samples, turns really left (mean, sd), turnsLeft forecast (mean)
+  corp max 0 t 1             1280   15.22 ± 6.0     8.00
+  corp max 0 t 2             1034   14.73 ± 5.7     8.00
+  corp max 0 t 3              830   14.22 ± 5.5     8.00
+  corp max 0 t 4              695   13.56 ± 5.3     8.00
+  corp max 0 t 5              549   12.99 ± 5.1     8.00
+  corp max 0 t 6              404   12.71 ± 4.9     8.00
+  corp max 0 t 7              288   11.95 ± 4.8     8.00
+  corp max 0 t 8              199   11.65 ± 4.7     8.00
+  corp max 0 t 9              146   11.31 ± 4.7     8.00
+  corp max 0 t10               88   11.08 ± 4.7     8.00
+  corp max 0 t11               61   10.56 ± 5.0     8.00
+  corp max 0 t12               46   10.13 ± 4.5     8.00
+  corp max 1 t 2               28   15.04 ± 5.4     7.00
+  corp max 1 t 3               48   14.10 ± 5.8     7.00
+  corp max 1 t 4               59   13.68 ± 4.4     7.00
+  corp max 1 t 5               69   12.88 ± 4.7     7.00
+  corp max 1 t 6               78   12.64 ± 4.3     7.00
+  corp max 1 t 7               55   12.11 ± 4.4     7.00
+  corp max 1 t 8               47   11.62 ± 3.7     7.00
+  corp max 1 t 9               45   11.11 ± 3.4     7.00
+  corp max 1 t10               45   10.16 ± 3.5     7.00
+  corp max 1 t11               32    9.72 ± 3.3     7.00
+  corp max 1 t12               26    8.88 ± 3.1     7.00
+  corp max 2 t 2              143   12.43 ± 6.7     6.00
+  corp max 2 t 3              251   12.26 ± 6.1     6.00
+  corp max 2 t 4              293   11.74 ± 5.9     6.00
+  corp max 2 t 5              336   11.34 ± 5.6     6.00
+  corp max 2 t 6              389   10.58 ± 5.3     6.00
+  corp max 2 t 7              417   10.60 ± 5.1     6.00
+  corp max 2 t 8              385   10.24 ± 5.0     6.00
+  corp max 2 t 9              338    9.54 ± 4.7     6.00
+  corp max 2 t10              296    9.45 ± 4.5     6.00
+  corp max 2 t11              253    9.04 ± 4.2     6.00
+  corp max 2 t12              199    8.61 ± 4.2     6.00
+  corp max 3 t 2               50   11.46 ± 6.2     5.00
+  corp max 3 t 3               68   10.72 ± 5.7     5.00
+  corp max 3 t 4               80   10.71 ± 6.2     5.00
+  corp max 3 t 5              104   11.45 ± 5.4     5.00
+  corp max 3 t 6              129   10.43 ± 5.6     5.00
+  corp max 3 t 7              159    9.60 ± 5.0     5.00
+  corp max 3 t 8              178    9.11 ± 5.0     5.00
+  corp max 3 t 9              171    8.61 ± 4.7     5.00
+  corp max 3 t10              160    8.28 ± 4.2     5.00
+  corp max 3 t11              151    8.03 ± 4.2     5.00
+  corp max 3 t12              130    8.12 ± 4.3     5.00
+  corp max 4 t 2               13    9.92 ± 8.7     4.00
+  corp max 4 t 3               43   10.33 ± 7.5     4.00
+  corp max 4 t 4               66   10.24 ± 6.7     4.00
+  corp max 4 t 5               84    9.76 ± 6.2     4.00
+  corp max 4 t 6               91    8.84 ± 5.5     4.00
+  corp max 4 t 7              122    8.06 ± 5.3     4.00
+  corp max 4 t 8              164    7.58 ± 4.8     4.00
+  corp max 4 t 9              194    7.77 ± 4.9     4.00
+  corp max 4 t10              203    7.43 ± 4.8     4.00
+  corp max 4 t11              211    7.17 ± 4.5     4.00
+  corp max 4 t12              219    6.78 ± 4.4     4.00
+  corp max 5 t 2                9    7.44 ± 5.2     3.00
+  corp max 5 t 3               25    6.56 ± 4.9     3.00
+  corp max 5 t 4               46    7.11 ± 5.3     3.00
+  corp max 5 t 5               50    7.02 ± 5.0     3.00
+  corp max 5 t 6               72    6.63 ± 5.1     3.00
+  corp max 5 t 7               87    6.08 ± 4.6     3.00
+  corp max 5 t 8              113    6.27 ± 4.4     3.00
+  corp max 5 t 9              134    5.63 ± 4.2     3.00
+  corp max 5 t10              157    5.48 ± 4.3     3.00
+  corp max 5 t11              162    5.39 ± 3.9     3.00
+  corp max 5 t12              174    4.96 ± 3.6     3.00
+  corp max 6 t 2                1   10.00 ± 0.0     2.00
+  corp max 6 t 3                4    8.00 ± 5.9     2.00
+  corp max 6 t 4               18    7.00 ± 5.4     2.00
+  corp max 6 t 5               32    6.53 ± 4.7     2.00
+  corp max 6 t 6               42    7.43 ± 5.4     2.00
+  corp max 6 t 7               51    7.96 ± 5.8     2.00
+  corp max 6 t 8               58    7.10 ± 5.3     2.00
+  corp max 6 t 9               81    6.64 ± 5.2     2.00
+  corp max 6 t10              105    5.87 ± 4.5     2.00
+  corp max 6 t11              122    5.28 ± 4.1     2.00
+  corp max 6 t12              143    4.75 ± 3.8     2.00
+  runner max 0 t 1           1272   14.79 ± 5.9     8.00
+  runner max 0 t 2           1003   14.34 ± 5.6     8.00
+  runner max 0 t 3            792   13.72 ± 5.3     8.00
+  runner max 0 t 4            635   13.17 ± 5.3     8.00
+  runner max 0 t 5            474   12.75 ± 5.1     8.00
+  runner max 0 t 6            353   12.21 ± 5.0     8.00
+  runner max 0 t 7            240   11.75 ± 4.9     8.00
+  runner max 0 t 8            175   11.32 ± 4.7     8.00
+  runner max 0 t 9            117   11.36 ± 4.5     8.00
+  runner max 0 t10             77   10.71 ± 4.8     8.00
+  runner max 0 t11             52   10.29 ± 4.9     8.00
+  runner max 0 t12             41    9.80 ± 4.7     8.00
+  runner max 1 t 1              8   15.38 ± 8.1     7.00
+  runner max 1 t 2             34   14.38 ± 5.3     7.00
+  runner max 1 t 3             62   13.60 ± 5.5     7.00
+  runner max 1 t 4             65   13.32 ± 4.4     7.00
+  runner max 1 t 5             80   12.69 ± 4.5     7.00
+  runner max 1 t 6             69   12.38 ± 4.0     7.00
+  runner max 1 t 7             51   11.84 ± 3.9     7.00
+  runner max 1 t 8             46   11.46 ± 3.5     7.00
+  runner max 1 t 9             43   10.65 ± 3.5     7.00
+  runner max 1 t10             36    9.94 ± 3.6     7.00
+  runner max 1 t11             30    9.33 ± 3.4     7.00
+  runner max 1 t12             25    8.40 ± 3.1     7.00
+  runner max 2 t 2            168   12.05 ± 6.4     6.00
+  runner max 2 t 3            275   12.12 ± 6.1     6.00
+  runner max 2 t 4            341   11.33 ± 5.7     6.00
+  runner max 2 t 5            386   10.76 ± 5.2     6.00
+  runner max 2 t 6            413   10.44 ± 5.1     6.00
+  runner max 2 t 7            408   10.33 ± 5.0     6.00
+  runner max 2 t 8            363    9.83 ± 4.9     6.00
+  runner max 2 t 9            324    9.13 ± 4.6     6.00
+  runner max 2 t10            276    9.12 ± 4.3     6.00
+  runner max 2 t11            219    8.72 ± 4.2     6.00
+  runner max 2 t12            175    8.42 ± 4.1     6.00
+  runner max 3 t 2             50   11.16 ± 5.9     5.00
+  runner max 3 t 3             68   10.50 ± 5.5     5.00
+  runner max 3 t 4             86   10.57 ± 5.8     5.00
+  runner max 3 t 5            115   11.04 ± 5.2     5.00
+  runner max 3 t 6            152    9.78 ± 5.3     5.00
+  runner max 3 t 7            185    9.08 ± 4.8     5.00
+  runner max 3 t 8            184    8.79 ± 4.8     5.00
+  runner max 3 t 9            176    8.34 ± 4.5     5.00
+  runner max 3 t10            157    8.15 ± 4.2     5.00
+  runner max 3 t11            142    8.04 ± 4.3     5.00
+  runner max 3 t12            125    7.87 ± 4.2     5.00
+  runner max 4 t 2             11   11.18 ± 8.2     4.00
+  runner max 4 t 3             43    9.98 ± 7.3     4.00
+  runner max 4 t 4             68   10.12 ± 6.4     4.00
+  runner max 4 t 5             85    9.79 ± 6.0     4.00
+  runner max 4 t 6            105    8.62 ± 5.5     4.00
+  runner max 4 t 7            149    7.93 ± 4.8     4.00
+  runner max 4 t 8            185    7.51 ± 4.7     4.00
+  runner max 4 t 9            206    7.63 ± 4.9     4.00
+  runner max 4 t10            216    7.19 ± 4.7     4.00
+  runner max 4 t11            227    6.89 ± 4.4     4.00
+  runner max 4 t12            208    6.72 ± 4.2     4.00
+  runner max 5 t 2              9    7.33 ± 5.1     3.00
+  runner max 5 t 3             25    6.44 ± 4.7     3.00
+  runner max 5 t 4             43    6.93 ± 5.2     3.00
+  runner max 5 t 5             50    6.70 ± 4.8     3.00
+  runner max 5 t 6             75    6.47 ± 4.9     3.00
+  runner max 5 t 7             92    5.89 ± 4.5     3.00
+  runner max 5 t 8            126    5.91 ± 4.3     3.00
+  runner max 5 t 9            147    5.37 ± 4.0     3.00
+  runner max 5 t10            160    5.30 ± 4.1     3.00
+  runner max 5 t11            173    5.16 ± 3.7     3.00
+  runner max 5 t12            174    4.80 ± 3.5     3.00
+  runner max 6 t 2              1   10.00 ± 0.0     2.00
+  runner max 6 t 3              4    7.75 ± 5.5     2.00
+  runner max 6 t 4             17    7.12 ± 5.0     2.00
+  runner max 6 t 5             31    6.48 ± 4.4     2.00
+  runner max 6 t 6             37    7.54 ± 5.3     2.00
+  runner max 6 t 7             51    7.49 ± 5.6     2.00
+  runner max 6 t 8             60    7.00 ± 5.0     2.00
+  runner max 6 t 9             87    6.16 ± 4.9     2.00
+  runner max 6 t10            116    5.42 ± 4.2     2.00
+  runner max 6 t11            135    4.81 ± 3.9     2.00
+  runner max 6 t12            154    4.49 ± 3.6     2.00

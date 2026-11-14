@@ -1,7 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { GameState } from '../src/core';
 import { createAgent } from '../src/ai';
-import { tuning } from '../src/ai/synergy';
 import { installProgramForTest, newGame, startRunnerTurn } from './helpers';
 
 /**
@@ -36,16 +35,5 @@ describe('a full Read-Write Share is shuffled back (plan.readWriteFull, bug repo
   it('not before it is full', () => {
     const { s, id } = withShare(3);
     expect(uses(s, id)).toBe(false);
-  });
-
-  it('the old way (plan off) kept it', () => {
-    const was = { ...tuning.plan };
-    tuning.plan.readWriteFull = false;
-    try {
-      const { s, id } = withShare(4);
-      expect(uses(s, id)).toBe(false);
-    } finally {
-      Object.assign(tuning.plan, was);
-    }
   });
 });

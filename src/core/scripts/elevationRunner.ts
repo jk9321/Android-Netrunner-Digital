@@ -8,7 +8,7 @@ import { endRun } from '../engine/runEnd';
 import { getCardScript } from './index';
 import { installedIce } from '../engine/cardEffects';
 import { runnerInstallBlocker } from '../engine/actions/install';
-import { accessOutsideRun, runnerTrashInstalledCorpCard, startRun, trashAccessedCard } from '../engine/actions/run';
+import { accessOutsideRun, runnerTrashInstalledCorpCard, runBlocked, startRun, trashAccessedCard } from '../engine/actions/run';
 import { dealDamage, giveTags, installedRunnerCards, trashInstalledRunnerCard } from '../engine/damage';
 import {
   addCounters,
@@ -34,6 +34,7 @@ import {
   installRunnerHostChoice,
   installableRunnerCards,
   askRunnerInstall,
+  askEvenIfNone,
   sabotage,
   resolveSabotage,
 } from './effects';
@@ -54,7 +55,7 @@ function inBreakWindow(state: GameState): boolean {
 
 /** Asks which server a "Run any server" event runs. */
 function askAnyServer(ctx: EffectContext, title: string): void {
-  const options = Object.values(ctx.state.corp.servers).map(s => ({ id: s.id, label: s.name }));
+  const options = Object.values(ctx.state.corp.servers).filter(s => !runBlocked(ctx.state, s.id)).map(s => ({ id: s.id, label: s.name }));
   askChoice(ctx, 'runner', `${title}: run which server?`, options, 'run');
 }
 
@@ -113,8 +114,14 @@ const baz: CardScript = {
     rezzed: (ctx, e) => {
       if (cardDef(e.card).type_code !== 'ice') return;
       const targets = bazTargets(ctx.state);
-      if (targets.length === 0) return;
-      askCards(ctx, 'runner', 'Barry "Baz" Wong: you may install 1 resource or piece of hardware from your grip.', targets.map(c => c.instanceId), 0, 1, 'install');
+      // Asked even with nothing to install when the Runner's stops are on ALL (4.3.2, see askEvenIfNone)
+      askEvenIfNone(
+        ctx,
+        'runner',
+        targets.length > 0,
+        () => askCards(ctx, 'runner', 'Barry "Baz" Wong: you may install 1 resource or piece of hardware from your grip.', targets.map(c => c.instanceId), 0, 1, 'install'),
+        'Barry "Baz" Wong: no resource or hardware in your grip you can install.',
+      );
     },
   },
   onPromptAnswer: (ctx, _source, answer) => {

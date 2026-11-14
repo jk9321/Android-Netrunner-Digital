@@ -1,10 +1,11 @@
 import { describe, expect, it } from 'vitest';
-import { GameState } from '../src/core';
+import { CardInstance, GameState, cardDef } from '../src/core';
 import { iceCost } from '../src/ai/runs';
 import { stealOdds } from '../src/ai/effectValues';
 import { outOfReach } from '../src/ai/corpAI';
 import { installIceForTest, installProgramForTest, newGame, runnerInstall } from './helpers';
 
+const isIcebreaker = (c: CardInstance) => /icebreaker/i.test(cardDef(c).keywords ?? '');
 const PALISADE = '30072'; // barrier
 const UNITY = '30026'; // decoder: breaks code gates only
 const CHROMATOPHORES = '35030'; // host ice gains barrier, code gate and sentry
@@ -16,6 +17,9 @@ function board(): { s: GameState; ice: string } {
   s.corp.servers.hq.ice.find(i => i.instanceId === ice)!.isRezzed = true;
   installProgramForTest(s, UNITY);
   s.runner.credits = 10;
+  // Unity is its only breaker: plan.breakerReach prices a breaker it could still find (Marjanah in the starting grip)
+  s.runner.grip = s.runner.grip.filter(c => !isIcebreaker(c));
+  s.runner.stack = s.runner.stack.filter(c => !isIcebreaker(c));
   return { s, ice };
 }
 const hqIce = (s: GameState, id: string) => s.corp.servers.hq.ice.find(i => i.instanceId === id)!;
@@ -33,7 +37,7 @@ describe('Corp AI protection counts subtypes gained from Chromatophores (rules 2
 
   it('the Corp no longer treats the server as out of the Runner’s reach', () => {
     const { s, ice } = board();
-    s.runner.credits = 5; // unbreakable ice counts as 8 credits to get through
+    s.runner.credits = 5;
     expect(outOfReach(s, s.corp.servers.hq, s.corp.credits)).toBe(true);
     const [after] = runnerInstall(s, CHROMATOPHORES, ice);
     expect(outOfReach(after, after.corp.servers.hq, after.corp.credits)).toBe(false);

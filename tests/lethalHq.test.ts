@@ -3,7 +3,7 @@ import { describe, expect, it } from 'vitest';
 import { GameState, executeAction } from '../src/core';
 import { createAgent } from '../src/ai';
 import { lethalHqAgenda } from '../src/ai/corpAI';
-import { sideOff, tuning } from '../src/ai/synergy';
+
 
 /**
  * Jeff's bug report (issue #4, 2026-11-02; Jinteki: Restoring Humanity vs René Arcemont, Hard Corp):
@@ -39,21 +39,9 @@ describe('an agenda in HQ that would win the Runner the game (plan.lethalHq, bug
   it('gets HQ another layer of ice, and no HQ ice is trashed (Normal and Hard)', () => {
     for (const agent of [createAgent('corp', 'normal'), createAgent('corp', 'hard', { samples: 6, seed: 1 })]) {
       const s = playTurn(turn13(), agent);
-      expect(hqIce(s)).toBe(3);
+      // plan.plannerSearch (item 4): Normal may lay a fourth layer (plannerBuild tries the ice on a central the threat runs); at least one more is the point
+      expect(hqIce(s)).toBeGreaterThanOrEqual(3);
       expect(s.corp.servers.hq.ice.filter(c => c.isRezzed).map(c => c.cardCode).sort()).toEqual(['30046', '30074']) // Diviner, Whitespace;
     }
-  }, 120_000);
-
-  it('the old way (plan off) is what the report saw', () => {
-    const was = { ...tuning.plan };
-    const corpOff = sideOff.corp;
-    tuning.plan.lethalHq = false;
-    sideOff.corp = ['effectValues']; // as the report's game ran: before effect values came back on for the Corp (2026-11-03)
-    try {
-      expect(hqIce(playTurn(turn13(), createAgent('corp', 'hard', { samples: 6, seed: 1 })))).toBe(2);
-    } finally {
-      Object.assign(tuning.plan, was);
-      sideOff.corp = corpOff;
-    }
-  }, 120_000);
+  }, 170_000); // 170 s: twice the slowest of the last five beta CI runs (85 s, run 43508803367; audit Step 0d)
 });

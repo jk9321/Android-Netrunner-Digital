@@ -1,19 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import { cardDef, executeAction, getLegalActions, IllegalActionError, GameState, GameAction, isLegalAction } from '../src/core';
 import { breakerStrength, iceStrength } from '../src/core/engine/ice';
-import {
-  answer,
-  cont,
-  keepGoing,
-  step,
-  giveCard,
-  installForTest,
-  installIceForTest,
-  installProgramForTest,
-  newGame,
-  runIntoFirstIce,
-  startRunnerTurn,
-} from './helpers';
+import { answer, cont, keepGoing, step, giveCard, installForTest, installIceForTest, installProgramForTest, newGame, runIntoFirstIce, startRunnerTurn, toCorp } from './helpers';
 
 const ICE = {
   ansel: '30038', bran: '30039', diviner: '30046', karuna: '30047', funhouse: '30054', ping: '30055',
@@ -340,7 +328,7 @@ describe('Subroutine effects', () => {
     let s = newGame();
     const ping = installIceForTest(s, ICE.ping, 'hq', false);
     startRunnerTurn(s);
-    s = executeAction(s, { type: 'INITIATE_RUN', player: 'runner', targetServerId: 'hq' });
+    s = toCorp(executeAction(s, { type: 'INITIATE_RUN', player: 'runner', targetServerId: 'hq' }));
     s = executeAction(s, { type: 'REZ_CARD', player: 'corp', cardInstanceId: ping });
     expect(s.runner.tags).toBe(1);
   });

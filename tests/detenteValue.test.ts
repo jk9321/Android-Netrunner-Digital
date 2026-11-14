@@ -20,7 +20,7 @@ describe('Corp cards hosted on Detente', () => {
     host.hostedCards = [pharos];
     // Pricing the hosted ice used to price its tag subroutine, which priced tags by the rig, which priced the ice again
     expect(Number.isFinite(tagsWorth(s, 'corp'))).toBe(true);
-    expect(Number.isFinite(evaluate(s, 'corp', true))).toBe(true);
+    expect(Number.isFinite(evaluate(s, 'corp'))).toBe(true);
     expect(() => new HeuristicRunnerAI().chooseAction(s)).not.toThrow();
   });
 });

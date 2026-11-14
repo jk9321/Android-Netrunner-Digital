@@ -1,10 +1,15 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
-import { CardInstance, GameAction, SideCode, cardDef, findCardAnywhere, iceSubtypes, isLegalAction, knownInHand, knownInRd } from './core';
+import { useEffect, useMemo, useRef, useState, useSyncExternalStore } from 'react';
+import { CardInstance, GameAction, SideCode, actingSide, cardDef, findCardAnywhere, iceSubtypes, knownInHand, knownInRd } from './core';
+import { SeatContext } from './ui/seat';
 import { breakerTypes } from './ui/components/IceTypeIcons';
 import { DEFAULT_CORP_DECK, DEFAULT_RUNNER_DECK } from './data/decks';
 import { GameConfig, SavedGame, clearSavedGame } from './ui/savedGame';
 import { randomSeed, startingGame } from './ui/gameStart';
-import { useGameController } from './ui/useGameController';
+import { GameController, useGameController } from './ui/useGameController';
+import { useOnlineController } from './ui/useOnlineController';
+import { OnlineSession, OnlineTable, browserSocket, clearSession, leavingForgetsSeat, loadSession, saveSession } from './net/client';
+import { codeFromPath, roomPresence } from './net/lobby';
+import { ConnectingScreen, OnlineNotice, WaitingRoom } from './ui/components/OnlineScreens';
 import { DeckPicker } from './ui/components/DeckPicker';
 import { CardView } from './ui/components/CardView';
 import { ServerColumn } from './ui/components/ServerColumn';
@@ -13,6 +18,7 @@ import { RunOverlay } from './ui/components/RunOverlay';
 import { LogFeed } from './ui/components/LogFeed';
 import { PromptPanel } from './ui/components/PromptPanel';
 import { CardZoomModal } from './ui/components/CardZoomModal';
+import { WindowBar } from './ui/components/WindowBar';
 import { AbilityBar } from './ui/components/AbilityBar';
 import { ZoneId, ZoneViewer, zoneContents } from './ui/components/ZoneViewer';
 import { Pile } from './ui/components/Pile';
@@ -24,12 +30,13 @@ import { TurnBanner } from './ui/components/TurnBanner';
 import { GameOverModal } from './ui/components/GameOverModal';
 import { GameHeader } from './ui/components/GameHeader';
 import { SideStrip } from './ui/components/SideStrip';
+import { AutoFitArea } from './ui/components/AutoFitArea';
 import { CorpActions, RunnerActions } from './ui/components/ActionBars';
 import { AccessedPanel } from './ui/components/AccessedPanel';
 import { canActAs, canSeeCorpSecrets, canSeeRunnerSecrets } from './ui/viewer';
 import { Keyword } from './ui/components/Keyword';
 import { KnownInHandButton } from './ui/components/KnownInHandButton';
-import { showConfirm } from './ui/components/Dialog';
+import { showAlert, showConfirm } from './ui/components/Dialog';
 import { SectorRimTrace } from './ui/components/SectorRimTrace';
 import { MotionConfig } from 'framer-motion';
 import { useAnimationsEnabled } from './ui/animations';
@@ -39,49 +46,101 @@ import { stopMusic, updateMusic } from './ui/music';
 /** Reversed: Archives sorts first; remotes (-1) keep their order after HQ. */
 const CENTRAL_ORDER = ['hq', 'rd', 'archives'];
 
+/** What the app shows: the start screen (maybe joining from an invite link), a local game, or an online one. */
+type Screen = { kind: 'start'; joinCode: string | null } | { kind: 'local'; config: GameConfig } | { kind: 'online'; session: OnlineSession };
+
+/**
+ * Where the app opens: an invite link (/play/K7QM-2X) on Join with the code
+ * filled in, unless this browser is already seated at that game; the online
+ * game this browser is seated at (a reload or a closed tab resumes it); else
+ * a local game in progress or a ?seed= link, else the start screen.
+ */
+function startingScreen(local: ReturnType<typeof startingGame>): Screen {
+  const linkCode = codeFromPath(window.location.pathname);
+  const session = loadSession();
+  if (linkCode && session?.code !== linkCode) return { kind: 'start', joinCode: linkCode };
+  if (session) return { kind: 'online', session };
+  return local.config ? { kind: 'local', config: local.config } : { kind: 'start', joinCode: null };
+}
+
+/** Puts the address back to / (leaving an invite link or a replay link). */
+function homeAddress() {
+  if (window.location.pathname !== '/' || window.location.search) window.history.replaceState(null, '', '/');
+}
+
 export default function App() {
   const [start] = useState(startingGame);
-  const [config, setConfig] = useState<GameConfig | null>(start.config);
+  const [screen, setScreen] = useState<Screen>(() => startingScreen(start));
   const [lastDecks, setLastDecks] = useState({ corp: DEFAULT_CORP_DECK, runner: DEFAULT_RUNNER_DECK });
   const animationsOn = useAnimationsEnabled();
+  // An online game on screen lives at /, never at its invite link (which would offer to join it again)
+  useEffect(() => {
+    if (screen.kind === 'online') homeAddress();
+  }, [screen.kind]);
 
-  if (!config) {
+  const toStart = () => {
+    homeAddress();
+    setScreen({ kind: 'start', joinCode: null });
+  };
+
+  if (screen.kind === 'start') {
     return (
       <MotionConfig reducedMotion={animationsOn ? 'user' : 'always'}>
         <DeckPicker
           initialCorpDeckId={lastDecks.corp}
           initialRunnerDeckId={lastDecks.runner}
+          joinCode={screen.joinCode}
+          onLeaveLink={homeAddress}
           onStart={(corpDeck, runnerDeck, ai, difficulty) => {
             setLastDecks({ corp: corpDeck.id, runner: runnerDeck.id });
-            setConfig({ seed: randomSeed(), corpDeck, runnerDeck, ai, difficulty });
+            setScreen({ kind: 'local', config: { seed: randomSeed(), corpDeck, runnerDeck, ai, difficulty } });
+          }}
+          onOnline={session => {
+            saveSession(session);
+            homeAddress();
+            setScreen({ kind: 'online', session });
           }}
         />
       </MotionConfig>
     );
   }
+  if (screen.kind === 'online') {
+    return (
+      <MotionConfig reducedMotion={animationsOn ? 'user' : 'always'}>
+        <OnlineGame
+          key={screen.session.code}
+          session={screen.session}
+          onLeave={forget => {
+            if (forget) clearSession();
+            toStart();
+          }}
+        />
+      </MotionConfig>
+    );
+  }
+  const config = screen.config;
   return (
     <MotionConfig reducedMotion={animationsOn ? 'user' : 'always'}>
-      <Game
+      <LocalGame
         key={config.seed}
         config={config}
         saved={start.saved?.config.seed === config.seed ? start.saved : null}
         onNewGame={() => {
           clearSavedGame();
           // Drop ?seed=... so a reload doesn't restart the old deal
-          if (window.location.search) window.history.replaceState(null, '', window.location.pathname);
-          setConfig(null);
+          toStart();
         }}
         onRematch={() => {
           clearSavedGame();
-          if (window.location.search) window.history.replaceState(null, '', window.location.pathname);
-          setConfig({ ...config, seed: randomSeed() });
+          homeAddress();
+          setScreen({ kind: 'local', config: { ...config, seed: randomSeed() } });
         }}
       />
     </MotionConfig>
   );
 }
 
-function Game({
+function LocalGame({
   config,
   saved,
   onNewGame,
@@ -92,7 +151,65 @@ function Game({
   onNewGame: () => void;
   onRematch: () => void;
 }) {
+  const ctl = useGameController(config, saved);
+  return <GameScreen ctl={ctl} config={config} onNewGame={onNewGame} onRematch={onRematch} />;
+}
+
+/**
+ * An online game: the table connects to the room; until the first state
+ * arrives the host sees the invite (the game starts by itself when the second
+ * player joins). A seat taken by another tab, a room that is gone or a new
+ * version of the game replace the table with a notice.
+ */
+function OnlineGame({ session, onLeave }: { session: OnlineSession; onLeave: (forgetSeat: boolean) => void }) {
+  const [table] = useState(
+    () =>
+      new OnlineTable(session, {
+        connect: browserSocket,
+        alert: message => void showAlert(message, { title: 'Action blocked' }),
+        roomPresence: code => roomPresence(code),
+      }),
+  );
+  useEffect(() => {
+    table.start();
+    return () => table.dispose();
+  }, [table]);
+  const [subscribe] = useState(() => (fn: () => void) => table.subscribe(fn));
+  useSyncExternalStore(subscribe, () => table.version);
+
+  const status = table.status;
+  if (status === 'replaced' || status === 'gone' || status === 'unseated' || status === 'refresh') {
+    return <OnlineNotice status={status} onTakeOver={() => table.takeOver()} onLeave={() => onLeave(leavingForgetsSeat(status))} />;
+  }
+  if (!table.started) {
+    // Only a host whose game has not started gets the invite; a joiner or a reload mid-game just connects
+    if (!session.inviting) return <ConnectingScreen onLeave={() => onLeave(false)} />;
+    return <WaitingRoom code={session.code} connected={status === 'open'} onCancel={() => onLeave(true)} />;
+  }
+  return <OnlineTableScreen table={table} onLeave={() => onLeave(true)} />;
+}
+
+function OnlineTableScreen({ table, onLeave }: { table: OnlineTable; onLeave: () => void }) {
+  const ctl = useOnlineController(table);
+  return <GameScreen ctl={ctl} config={null} onNewGame={onLeave} />;
+}
+
+/** The game screen, the same for local and online games: everything it shows comes from the controller. */
+function GameScreen({
+  ctl,
+  config,
+  onNewGame,
+  onRematch,
+}: {
+  ctl: GameController;
+  /** The local game's settings; null online. */
+  config: GameConfig | null;
+  onNewGame: () => void;
+  /** Local games only. */
+  onRematch?: () => void;
+}) {
   const {
+    seat,
     gameState,
     handleAction,
     selectedCardId,
@@ -106,23 +223,31 @@ function Game({
     fates,
     aiSide,
     humanSide,
-    rezWindowsOn,
     rezWindow,
     rezWindowOpen,
-    passRezWindow,
+    passWindow,
+    stops,
+    setStops,
     viewer,
     handoffTo,
     corpCanAct,
     runnerCanAct,
     aiThinking,
     cancelChoice,
-  } = useGameController(config, saved);
+    online,
+  } = ctl;
 
   const [gameOverHidden, setGameOverHidden] = useState(false);
   const [zoomStore] = useState(createZoomStore);
   const [inspectedCard, setInspectedCard] = useState<CardInstance | null>(null);
   const [zone, setZone] = useState<ZoneId | null>(null);
   const zoneView = zone ? zoneContents(zone, gameState, viewer) : null;
+  // A new viewer at the screen (pass and play hands over): nothing the last one was looking at stays up
+  useEffect(() => {
+    zoomStore.clear();
+    setInspectedCard(null);
+    setZone(null);
+  }, [viewer, zoomStore]);
 
   // Adaptive background music driven by the active side and match tension
   useEffect(() => {
@@ -139,8 +264,16 @@ function Game({
 
   // Back to the deck picker; a game still in progress is lost, so ask first
   const leaveGame = async () => {
+    if (online && !ended) {
+      const ok = await showConfirm(
+        "Leave this online game? You won't be able to come back to it, and your opponent is left waiting. To end the game, concede instead.",
+        { title: 'Leave game', confirmLabel: 'Leave', danger: true },
+      );
+      if (ok) onNewGame();
+      return;
+    }
     if (
-      !gameState.winner &&
+      !ended &&
       !(await showConfirm('Leave this game and go back to deck selection? The game in progress will be lost.', {
         title: 'Leave game',
         confirmLabel: 'Leave',
@@ -179,7 +312,10 @@ function Game({
     setViewMode(mode);
   };
 
-  const { corp, runner, activePlayer, activeRun, winner, winReason } = gameState;
+  const { corp, runner, activePlayer, activeRun, winner } = gameState;
+  // Online the room can also end a game with no winner (a server update), and says why
+  const ended = !!winner || !!online?.over;
+  const winReason = online?.over?.reason ?? gameState.winReason;
 
   const corpTabRef = useRef<HTMLDivElement>(null);
   const corpChassisRef = useRef<HTMLElement>(null);
@@ -219,10 +355,6 @@ function Game({
   };
 
   const rezAction = (card: CardInstance): GameAction => ({ type: 'REZ_CARD', player: 'corp', cardInstanceId: card.instanceId });
-  const approachedIce =
-    activeRun && activeRun.phase === 'approach_ice' && activeRun.icePosition !== null
-      ? corp.servers[activeRun.server]?.ice[activeRun.icePosition]
-      : undefined;
 
   // The servers and the rig only change with the game state or who is looking, so selecting a
   // card, opening a zone or resizing cards reuses them instead of redrawing the whole table.
@@ -253,13 +385,13 @@ function Game({
           onScoreCard={(cId) =>
             handleAction({ type: 'SCORE_AGENDA', player: 'corp', cardInstanceId: cId })
           }
-          canRez={(card) => corpCanAct && isLegalAction(gameState, rezAction(card))}
+          canRez={(card) => corpCanAct && seat.can(rezAction(card))}
           canAdvance={(card) =>
             corpCanAct &&
-            isLegalAction(gameState, { type: 'ADVANCE_CARD', player: 'corp', cardInstanceId: card.instanceId, serverId: server.id })
+            seat.can({ type: 'ADVANCE_CARD', player: 'corp', cardInstanceId: card.instanceId, serverId: server.id })
           }
           canScore={(card) =>
-            corpCanAct && isLegalAction(gameState, { type: 'SCORE_AGENDA', player: 'corp', cardInstanceId: card.instanceId })
+            corpCanAct && seat.can({ type: 'SCORE_AGENDA', player: 'corp', cardInstanceId: card.instanceId })
           }
           onInspectCard={(card) => setInspectedCard(card)}
           hostedOnIce={(ice) => onIce.filter(c => c.hostedOnId === ice.instanceId)}
@@ -300,7 +432,7 @@ function Game({
         />
       )),
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [gameState, viewer, corpCanAct, runnerCanAct],
+    [gameState, seat, viewer, corpCanAct, runnerCanAct],
   );
   const rigView = useMemo(
     () => (
@@ -347,13 +479,17 @@ function Game({
 
   return (
     <GameStateContext.Provider value={gameState}>
+    <SeatContext.Provider value={seat}>
     <div
       className="min-h-screen lg:h-screen lg:overflow-hidden text-slate-100 flex flex-col font-mono selection:bg-cyber-neonYellow selection:text-black"
     >
       <GameHeader
         state={gameState}
         config={config}
+        online={online}
         aiThinking={aiThinking}
+        stops={stops}
+        onStops={setStops}
         humanSide={humanSide}
         viewMode={viewMode}
         onViewMode={changeViewMode}
@@ -368,11 +504,11 @@ function Game({
       <ZoomContext.Provider value={zoomStore}>
       <main className="flex-1 min-w-0 min-h-0 flex flex-col gap-2">
         {/* Victory Banner */}
-        {winner && (
+        {ended && (
           <div className="shrink-0 p-3 bg-gradient-to-r from-amber-950/80 to-pink-950/80 border-2 border-amber-500 rounded-[4px] flex flex-wrap items-center justify-between gap-2 shadow-2xl">
             <div>
               <h2 className="text-lg sm:text-xl font-cyber font-black text-amber-400">
-                GAME OVER // {winner.toUpperCase()} VICTORIOUS
+                GAME OVER // {winner ? `${winner.toUpperCase()} VICTORIOUS` : "NO WINNER"}
               </h2>
               <p className="text-xs text-slate-300 mt-1">{winReason}</p>
             </div>
@@ -387,7 +523,7 @@ function Game({
                 onClick={onNewGame}
                 className="px-5 py-2 bg-gradient-to-b from-amber-400 to-amber-500 hover:from-amber-300 hover:to-amber-400 text-black font-bold rounded-[2px] border-b-2 border-amber-700 text-xs shadow-lg active:translate-y-[1px] active:border-b-[1px] transition-all"
               >
-                Play Again
+                {online ? "Back to start" : "Play Again"}
               </button>
             </div>
           </div>
@@ -412,9 +548,9 @@ function Game({
 
           <div className="flex-1 min-h-0 flex flex-col lg:flex-row gap-2 min-w-0">
           {/* Servers Grid */}
-          <div className="flex items-start gap-2 flex-1 min-w-0 min-h-0 overflow-auto pt-2 pb-1">
+          <AutoFitArea className="flex items-start gap-2 flex-1 min-w-0 min-h-0 overflow-auto pt-2 pb-1">
             {serversView}
-          </div>
+          </AutoFitArea>
           {/* Corp HQ Hand: beside the servers on wide screens */}
           <div className="min-w-0 lg:max-w-[45%] shrink-0 flex flex-col items-end overflow-x-auto overflow-y-hidden">
             <div className="flex items-center gap-2 text-[12px] text-cyan-400 font-bold uppercase tracking-wider">
@@ -453,9 +589,9 @@ function Game({
           >
           <div className="flex-1 min-h-0 flex flex-col lg:flex-row gap-2 min-w-0">
           {/* Runner Rig (Installed Programs, Hardware, Resources) */}
-          <div className="flex-1 min-w-0 min-h-0 overflow-auto">
+          <AutoFitArea className="flex-1 min-w-0 min-h-0 overflow-auto">
             {rigView}
-          </div>
+          </AutoFitArea>
           {/* Runner Grip Hand: beside the rig on wide screens */}
           <div className="min-w-0 lg:max-w-[45%] shrink-0 flex flex-col items-end overflow-x-auto overflow-y-hidden">
             <div className="flex items-center gap-2 text-[12px] text-pink-400 font-bold uppercase tracking-wider">
@@ -490,10 +626,12 @@ function Game({
         </div>
         <div className="sticky bottom-0 z-20 lg:static bg-[#06090d]/95 lg:bg-transparent backdrop-blur-md lg:backdrop-blur-none py-1 lg:py-0 shrink-0 lg:max-h-[40vh] overflow-y-auto flex flex-col gap-2 empty:hidden">
           {activePlayer === 'corp' && corpCanAct && <CorpActions state={gameState} selectedCard={selectedCard} onAction={handleAction} onInspect={setInspectedCard} />}
+          {corpCanAct && <WindowBar state={gameState} side="corp" onAction={handleAction} />}
           {corpCanAct && <AbilityBar state={gameState} side="corp" onAction={handleAction} />}
           {activePlayer === 'runner' && runnerCanAct && (
             <RunnerActions state={gameState} selectedCard={selectedCard} onAction={handleAction} onInspect={setInspectedCard} />
           )}
+          {runnerCanAct && <WindowBar state={gameState} side="runner" onAction={handleAction} />}
           {runnerCanAct && <AbilityBar state={gameState} side="runner" onAction={handleAction} />}
         </div>
         <LogFeed logs={gameState.log} viewer={viewer} className="h-56 lg:h-auto lg:flex-1 lg:min-h-[6rem]" />
@@ -501,24 +639,17 @@ function Game({
       </div>
 
       {/* Active Run Overlay; the run and any open decision end with the game (rule 1.7.1) */}
-      {!winner && (
+      {!ended && (
         <RunOverlay
           state={gameState}
           onContinueRun={() => handleAction({ type: 'CONTINUE_RUN', player: 'runner' })}
           onJackOut={() => handleAction({ type: 'JACK_OUT', player: 'runner' })}
-          rezCards={
-            rezWindowsOn
-              ? rezWindowOpen
-                ? rezWindow!.cards
-                : []
-              : approachedIce && isLegalAction(gameState, rezAction(approachedIce))
-                ? [approachedIce]
-                : []
-          }
+          rezCards={rezWindowOpen ? rezWindow!.cards : []}
           onRez={corpCanAct ? (card) => handleAction(rezAction(card)) : undefined}
           rezAbilities={rezWindowOpen ? rezWindow!.abilities : []}
-          onDoneRezzing={rezWindowOpen && corpCanAct ? () => passRezWindow(rezWindow!.key) : undefined}
-          runnerControls={runnerCanAct}
+          onDoneRezzing={rezWindowOpen && corpCanAct ? () => passWindow('corp') : undefined}
+          onPassRun={rezWindowOpen && corpCanAct ? () => passWindow('corp', true) : undefined}
+          runnerControls={runnerCanAct && gameState.priority?.holder !== 'corp'}
           canPeekCorp={canSeeCorpSecrets(viewer)}
           onInspectCard={setInspectedCard}
           onAction={handleAction}
@@ -526,7 +657,7 @@ function Game({
       )}
 
       {/* Pending player decision (mulligan, discard, trash on access) */}
-      {!winner && (
+      {!ended && (
         <PromptPanel
           state={gameState}
           onAnswer={(choice) => {
@@ -535,19 +666,23 @@ function Game({
           }}
           onInspectCard={setInspectedCard}
           onCancel={cancelChoice}
+          waitingFor={seat.waitingOn && seat.waitingOn !== actingSide(gameState) ? seat.waitingOn : null}
           canAnswer={
             !gameState.pendingPrompts[0] ||
-            (canActAs(viewer, gameState.pendingPrompts[0].side) && gameState.pendingPrompts[0].side !== aiSide)
+            (canActAs(viewer, gameState.pendingPrompts[0].side) &&
+              gameState.pendingPrompts[0].side !== aiSide &&
+              // The viewer's own prompt may wait behind the other side's, which this screen doesn't see
+              seat.waitingOn === gameState.pendingPrompts[0].side)
           }
         />
       )}
 
-      {!winner && <TurnBanner activePlayer={activePlayer} humanSide={humanSide} />}
+      {!ended && <TurnBanner activePlayer={activePlayer} humanSide={humanSide} />}
 
       {!handoffTo && <CardFates fates={fates} />}
 
       {accessed.length > 0 && !handoffTo && (
-        <AccessedPanel cards={accessed} viewer={viewer} onInspect={setInspectedCard} onClose={clearAccessed} />
+        <AccessedPanel cards={accessed} onInspect={setInspectedCard} onClose={clearAccessed} />
       )}
 
       {zoneView && (
@@ -582,15 +717,16 @@ function Game({
         />
       )}
 
-      {winner && (
+      {ended && (
         <GameOverModal
-          winner={winner}
+          winner={winner ?? null}
           reason={winReason}
           corpScore={corp.score}
           runnerScore={runner.score}
           humanSide={humanSide}
           onRematch={onRematch}
           onDeckSelect={onNewGame}
+          deckSelectLabel={online ? 'Back to the start screen' : undefined}
           minimized={gameOverHidden}
           onMinimizedChange={setGameOverHidden}
         />
@@ -602,6 +738,7 @@ function Game({
         onClose={() => setInspectedCard(null)}
       />
     </div>
+    </SeatContext.Provider>
     </GameStateContext.Provider>
   );
 }

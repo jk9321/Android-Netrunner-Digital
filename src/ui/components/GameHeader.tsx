@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
-import { Flag, LogOut, Menu, Settings, X, ZoomIn } from 'lucide-react';
+import { FastForward, Flag, Hand, LogOut, Menu, Settings, SkipForward, Wifi, WifiOff, X, ZoomIn } from 'lucide-react';
 import { AgendaDiamondIcon } from './CreditIcon';
 import { StatTumbler } from './StatTumbler';
 import { GameState, SideCode } from '../../core';
@@ -9,15 +9,24 @@ import { ViewMode } from '../viewer';
 import { setSoundEnabled, soundEnabled } from '../sound';
 import { musicEnabled, setMusicEnabled, musicVolume, setMusicVolume } from '../music';
 import { animationsEnabled, setAnimationsEnabled } from '../animations';
-import { CardSize, savedCardSize, setCardSize } from '../cardSize';
+import { CardSize, isAutoFitOn, savedCardSize, setAutoFit, setCardSize } from '../cardSize';
 import { PhaseTracker } from './PhaseTracker';
 import { BugReportButton } from './BugReportButton';
-import { savedTableFor } from '../bugReport';
+import { savedTableFor, liveStateFor } from '../bugReport';
+import { PersonStops, STOP_LABELS, nextStops } from '../stops';
+import type { OnlineInfo } from '../useOnlineController';
+import { displayRoomCode } from '../../net/protocol';
 
 interface GameHeaderProps {
   state: GameState;
-  config: GameConfig;
+  /** The local game's settings; null online. */
+  config: GameConfig | null;
+  /** An online game: the room code and connection replace the seed, and there is no view to choose. */
+  online?: OnlineInfo | null;
   aiThinking: boolean;
+  /** Where this person's game stops for paid ability windows (rules 9.2.7). */
+  stops: PersonStops;
+  onStops: (level: PersonStops) => void;
   humanSide: SideCode | null;
   viewMode: ViewMode;
   onViewMode: (mode: ViewMode) => void;
@@ -26,11 +35,14 @@ interface GameHeaderProps {
   onLeave: () => void;
 }
 
-/** The bar across the top: title, bug report, phase, AI status, scores, card size, view, settings, forfeit and leave. */
+/** The bar across the top: title, bug report, phase, stops toggle, scores, card size, view, settings, forfeit and leave. */
 export function GameHeader({
   state,
   config,
+  online = null,
   aiThinking,
+  stops,
+  onStops,
   humanSide,
   viewMode,
   onViewMode,
@@ -47,7 +59,13 @@ export function GameHeader({
   const settingsBtnRef = useRef<HTMLButtonElement>(null);
   const settingsMenuRef = useRef<HTMLDivElement>(null);
   const [cardSize, setCardSizeState] = useState(savedCardSize);
-  const aiSide = config.ai;
+  const [autoFit, setAutoFitState] = useState(isAutoFitOn);
+  const toggleAutoFit = () => {
+    setAutoFit(!autoFit);
+    setAutoFitState(!autoFit);
+  };
+  const aiSide = config?.ai ?? null;
+  const ended = !!state.winner || !!online?.over;
   const { corp, runner } = state;
 
   useEffect(() => {
@@ -94,29 +112,51 @@ export function GameHeader({
           <BugReportButton
             screen="game"
             textFrom="xl"
-            game={() => ({ config, state, table: savedTableFor(config.seed) })}
+            game={config ? () => ({ config, state: liveStateFor(config.seed) ?? state, table: savedTableFor(config.seed) }) : undefined}
+            online={online ? { code: online.code, token: online.token } : undefined}
           />
         </div>
         <div className="flex items-center gap-1.5 min-w-0">
-          <div className="hidden md:block">
+          <button
+            type="button"
+            data-testid="stops-toggle"
+            onClick={() => onStops(nextStops(stops))}
+            className={`shrink-0 text-[10px] sm:text-[11px] px-1.5 sm:px-2 py-0.5 rounded-[2px] border font-bold whitespace-nowrap ${
+              aiThinking
+                ? 'border-amber-500 text-amber-300 animate-pulse'
+                : stops === 'full'
+                  ? 'border-cyan-500 text-cyan-300 hover:bg-cyan-950/40'
+                  : stops === 'none'
+                  ? 'border-amber-700 text-amber-400 hover:bg-amber-950/40'
+                  : 'border-slate-700 text-slate-400 hover:text-slate-200 hover:border-slate-500'
+            }`}
+            title={STOP_LABELS[stops].title}
+            aria-label={`Stops: ${stops}`}
+          >
+            {aiThinking ? (
+              <span data-testid="ai-status">AI THINKING…</span>
+            ) : (
+              <span className="inline-flex items-center gap-1">
+                {stops === 'full' ? <Hand className="w-3 h-3" /> : stops === 'none' ? <SkipForward className="w-3 h-3" /> : <FastForward className="w-3 h-3" />}
+                <span className="hidden min-[1800px]:inline">STOPS:</span>
+                {STOP_LABELS[stops].short}
+              </span>
+            )}
+          </button>
+          <div className="hidden md:block min-w-0 overflow-hidden">
             <PhaseTracker state={state} />
           </div>
+          {online ? (
+            <OnlineMarks online={online} />
+          ) : (
+            config && (
           <span
-            className="text-[11px] text-slate-500 font-mono whitespace-nowrap hidden 2xl:inline"
-            title={`Open the app with ?seed=${state.rng.seed}&corp=${config.corpDeck.id}&runner=${config.runnerDeck.id}${aiSide ? `&ai=${aiSide}&difficulty=${config.difficulty}` : ''} to replay this deal`}
-          >
-            SEED {state.rng.seed}
-          </span>
-          {aiSide && (
-            <span
-              data-testid="ai-status"
-              className={`text-[10px] sm:text-[11px] px-1.5 sm:px-2 py-0.5 rounded-[2px] border font-bold whitespace-nowrap truncate ${
-                aiThinking ? 'border-amber-500 text-amber-300 animate-pulse' : 'border-slate-700 text-slate-500'
-              }`}
-              title={`The computer plays the ${aiSide === 'corp' ? 'Corp' : 'Runner'}`}
-            >
-              {aiThinking ? 'AI THINKING…' : `AI: ${aiSide.toUpperCase()}${config.difficulty === 'hard' ? ' (HARD)' : ''}`}
-            </span>
+                className="text-[11px] text-slate-500 font-mono whitespace-nowrap truncate min-w-0 shrink-[100] hidden 2xl:inline"
+                title={`Open the app with ?seed=${config.seed}&corp=${config.corpDeck.id}&runner=${config.runnerDeck.id}${aiSide ? `&ai=${aiSide}&difficulty=${config.difficulty}` : ''} to replay this deal`}
+              >
+                SEED {config.seed}
+              </span>
+            )
           )}
         </div>
       </div>
@@ -182,9 +222,20 @@ export function GameHeader({
               {label}
             </button>
           ))}
+          <button
+            onClick={toggleAutoFit}
+            aria-pressed={autoFit}
+            data-testid="auto-fit"
+            title={autoFit ? 'Auto fit is on: cards shrink (down to a limit) so the board needs no scrolling' : 'Auto fit is off: cards stay at the chosen size'}
+            className={`ml-0.5 px-2 py-0.5 rounded-[1px] text-xs transition-colors ${
+              autoFit ? 'bg-emerald-700 text-white font-bold' : 'text-slate-400 hover:text-white'
+            }`}
+          >
+            Auto fit
+          </button>
         </div>
 
-        {state.winner ? (
+        {online ? null : state.winner ? (
           // The game is over, so both sides' cards are shown and there is no view to choose
           <span
             data-testid="view-mode"
@@ -320,7 +371,7 @@ export function GameHeader({
             </div>,
             document.body,
           )}
-        {!state.winner && (
+        {!ended && (
           <button
             onClick={onConcede}
             className="p-1.5 bg-gradient-to-b from-pink-950/90 to-pink-950/40 hover:from-pink-900/90 hover:to-pink-900/40 text-pink-300 hover:text-white rounded-[2px] border border-pink-700/80 border-b-2 border-b-pink-500 shadow shadow-pink-950 active:translate-y-[1px] active:border-b-[1px] transition-all"
@@ -373,7 +424,11 @@ export function GameHeader({
                 <div className="space-y-2 bg-[#05080e] border border-slate-800/90 rounded-[2px] p-3">
                   <div className="text-[11px] font-cyber font-bold text-slate-400 tracking-wider">GAME STATUS</div>
                   <PhaseTracker state={state} />
-                  <div className="text-[11px] text-slate-500 pt-1">SEED {state.rng.seed}</div>
+                  {online ? (
+                    <div className="pt-1"><OnlineMarks online={online} compact={false} /></div>
+                  ) : (
+                    config && <div className="text-[11px] text-slate-500 pt-1">SEED {config.seed}</div>
+                  )}
                 </div>
 
                 {/* Display & View Controls */}
@@ -399,10 +454,19 @@ export function GameHeader({
                           {label}
                         </button>
                       ))}
+                      <button
+                        onClick={toggleAutoFit}
+                        aria-pressed={autoFit}
+                        className={`ml-0.5 px-2.5 py-1 rounded-[1px] text-xs transition-colors ${
+                          autoFit ? 'bg-emerald-700 text-white font-bold' : 'text-slate-400 hover:text-white'
+                        }`}
+                      >
+                        Auto fit
+                      </button>
                     </div>
                   </div>
 
-                  <div className="flex items-center justify-between gap-2">
+                  {!online && <div className="flex items-center justify-between gap-2">
                     <span className="text-slate-300">Table view</span>
                     {state.winner ? (
                       <span className="border border-amber-500/60 rounded-[2px] px-2.5 py-1 text-xs text-amber-300">
@@ -431,7 +495,7 @@ export function GameHeader({
                         <option value="runner">Runner view</option>
                       </select>
                     )}
-                  </div>
+                  </div>}
                 </div>
 
                 {/* Audio & Animation Settings */}
@@ -505,11 +569,12 @@ export function GameHeader({
                   <span className="text-[11px] text-slate-400">Found an issue?</span>
                   <BugReportButton
                     screen="game"
-                    game={() => ({ config, state, table: savedTableFor(config.seed) })}
+                    game={config ? () => ({ config, state: liveStateFor(config.seed) ?? state, table: savedTableFor(config.seed) }) : undefined}
+            online={online ? { code: online.code, token: online.token } : undefined}
                   />
                 </div>
                 <div className="grid grid-cols-2 gap-2 pt-1">
-                  {!state.winner && (
+                  {!ended && (
                     <button
                       onClick={() => {
                         setMobileMenuOpen(false);
@@ -526,7 +591,7 @@ export function GameHeader({
                       onLeave();
                     }}
                     className={`px-3 py-2 bg-gradient-to-b from-cyan-950/90 to-cyan-950/40 hover:from-cyan-900/90 hover:to-cyan-900/40 text-cyan-300 hover:text-white rounded-[2px] border border-cyan-700/80 border-b-2 border-b-cyan-500 font-bold flex items-center justify-center gap-1.5 ${
-                      state.winner ? 'col-span-2' : ''
+                      ended ? 'col-span-2' : ''
                     }`}
                   >
                     <LogOut className="w-3.5 h-3.5" /> Leave Game
@@ -545,3 +610,44 @@ const SIZES: { size: CardSize; label: string; active: string }[] = [
   { size: 'normal', label: 'Normal', active: 'bg-slate-700' },
   { size: 'large', label: 'Large', active: 'bg-cyan-600' },
 ];
+
+/**
+ * Until a disconnect timer exists (phase 3, audit MP-ABANDON): the player may
+ * leave, and the room is deleted 7 days after its last move
+ * (server/room.ts IDLE_LIFETIME_MS).
+ */
+const AWAY_NOTE = 'You can leave: a game is deleted after 7 days without a move.';
+
+/**
+ * Online, in place of the seed: the room code, the connection, and what the
+ * game is waiting on (the opponent away, or the opponent's move).
+ */
+function OnlineMarks({ online, compact = true }: { online: OnlineInfo; compact?: boolean }) {
+  const connected = online.status === 'open';
+  return (
+    <span className={`flex items-center gap-1.5 min-w-0 text-[11px] font-mono ${compact ? 'whitespace-nowrap' : 'flex-wrap'}`} data-testid="online-marks">
+      <span
+        className={`inline-flex items-center gap-1 ${connected ? 'text-emerald-400' : 'text-amber-400 animate-pulse'}`}
+        title={connected ? 'Connected to the game' : 'Reconnecting to the game…'}
+        data-testid="online-connection"
+      >
+        {connected ? <Wifi className="w-3 h-3" /> : <WifiOff className="w-3 h-3" />}
+        <span className={compact ? 'hidden 2xl:inline' : ''}>{connected ? 'Online' : 'Reconnecting…'}</span>
+      </span>
+      <span className={`text-slate-400 ${compact ? 'hidden md:inline' : ''}`} title="The game's code" data-testid="online-code">
+        GAME {displayRoomCode(online.code)}
+      </span>
+      {!online.over && !online.opponentConnected && (
+        <span className={`text-amber-300 ${compact ? 'truncate' : ''}`} data-testid="opponent-away" title={`Opponent disconnected, waiting for them to come back. ${AWAY_NOTE}`}>
+          Opponent disconnected<span className={compact ? 'hidden xl:inline' : ''}>, waiting for them to come back</span>
+          {!compact && <span className="block text-slate-400 whitespace-normal">{AWAY_NOTE}</span>}
+        </span>
+      )}
+      {!online.over && online.opponentConnected && online.waitingForOpponent && (
+        <span className={`text-slate-400 truncate animate-pulse ${compact ? 'hidden sm:inline' : ''}`} data-testid="waiting-opponent">
+          Waiting for opponent
+        </span>
+      )}
+    </span>
+  );
+}

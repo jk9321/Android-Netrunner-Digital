@@ -6,12 +6,14 @@ import { DeckSpec, validateDeck } from '../core/deckValidation';
 import { FormatId } from '../core/formats';
 import { NSG_SAMPLE_DECKS } from './testDecks/nsgSamples';
 import { NRDB_TEST_DECKS } from './testDecks/nrdb';
+import { IDENTITY_TEST_DECKS } from './testDecks/identityDecks';
 
 /**
  * Premade decks that ship with the game: only the two official System Gateway
  * starter decks (Null Signal Games product page). Other people's lists (NSG's
  * sample decklists, NetrunnerDB decks) are in src/data/testDecks and listed only in
- * beta builds (__ALL_DECKS__, set in vite.config.ts); main builds list the starters alone.
+ * beta builds (__ALL_DECKS__, set in vite.config.ts): one deck per identity, BETA_DEFAULT_DECK_IDS.
+ * Main builds list the starters alone.
  */
 
 export interface DeckList {
@@ -60,8 +62,63 @@ export const STARTER_DECKS: DeckList[] = [
   },
 ];
 
-/** The decks the picker lists: the starters, plus every test deck in beta builds. */
-export const DECKS: DeckList[] = __ALL_DECKS__ ? [...STARTER_DECKS, ...NSG_SAMPLE_DECKS, ...NRDB_TEST_DECKS] : STARTER_DECKS;
+/**
+ * Beta's deck picker: one deck for each identity in the game, to test the AI and rules against
+ * every identity. Human-built NetrunnerDB lists (tournament results, then the most-liked lists
+ * fully playable with our sets); The Syndicate and The Catalyst only have their official starters.
+ * Grouped Corp then Runner, by faction. Other test decks stay importable with Bulk import.
+ */
+export const BETA_DEFAULT_DECK_IDS: string[] = [
+  // Corp
+  'syndicate-starter',
+  'nrdb-you-may-fire-when-ready', // Haas-Bioroid: Precision Design
+  'vp-totes-undefeated-leo', // LEO Construction
+  'nrdb-wage-working', // Poétrï Luxury Brands
+  'nrdb-oof', // Thunderbolt Armaments
+  'nrdb-advanced-yomi', // Jinteki: Restoring Humanity
+  'nrdb-glacier-y-au-co', // AU Co.
+  'lib-untaian-bluff', // PT Untaian
+  'vp-reflections-on-the-past', // Méliès U
+  'nrdb-lizard-enforcement', // A Teia
+  'nrdb-il-y-aura-du-sang', // NBN: Reality Plus
+  'nrdb-warpdrive-nebula', // Nebula Talent Management
+  'nrdb-big-brain-thinking', // Synapse Global
+  'vp-tempo-ed', // Editorial Division
+  'nrdb-big-hands', // Epiphany Analytica (Steal a Stoke's IP Enforcement loop was too hard for the AI)
+  'vp-de-profundis', // Weyland Consortium: Built to Last
+  'nrdb-disintegration', // BANGUN
+  'vp-zwift-deth', // The Zwicky Group
+  'nrdb-startup-regards', // Nuvem SA
+  // Runner
+  'catalyst-starter',
+  'nrdb-cooking-conduit', // René "Loup" Arcemont
+  'vp-rats-and-cigarettes', // Ryō "Phoenix" Ōno
+  'vp-they-are-huge-with-it', // Topan
+  'nrdb-kessleroid-isnt-real', // Sebastião Souza Pessoa
+  'lib-trick-shot-zahya', // Zahya Sadeghi
+  'nrdb-baz-tax-evasion', // Barry "Baz" Wong
+  'nrdb-clean-getaway-zipline', // MuslihaT
+  'vp-vic', // Virtual Intelligence, P.I.
+  'nrdb-bypass-orris-bypass', // Mercury
+  'nrdb-rising-tide', // Tāo Salonga
+  'nrdb-read-write-dewi', // Dewi Subrotoputri
+  'nrdb-bag-mags', // Magdalene Keino-Chemutai
+  'vp-sourdough-starter', // Hiram "0mission" Svensson
+  'nrdb-tadpole-of-wealth', // Arissana Rocha Nahu
+];
+
+/** The decks of BETA_DEFAULT_DECK_IDS. A function, so main builds (which never call it) drop the test decks. */
+export function betaDefaultDecks(): DeckList[] {
+  const pool = [...STARTER_DECKS, ...NSG_SAMPLE_DECKS, ...NRDB_TEST_DECKS, ...IDENTITY_TEST_DECKS];
+  return BETA_DEFAULT_DECK_IDS.map(id => {
+    const deck = pool.find(d => d.id === id);
+    if (!deck) throw new Error(`Unknown beta default deck ${id}`);
+    return deck;
+  });
+}
+
+/** The decks the picker lists: the starters, or one deck per identity in beta builds. */
+export const DECKS: DeckList[] = __ALL_DECKS__ ? betaDefaultDecks() : STARTER_DECKS;
 
 const codeByTitle = new Map(ALL_CARDS.map(c => [c.title, c.code]));
 

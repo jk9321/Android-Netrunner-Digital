@@ -12,7 +12,7 @@ import {
   parseReport,
   reporterId,
 } from '../worker/bugReport';
-import { buildReport, deckText, replayQuery } from '../src/ui/bugReport';
+import { buildReport, deckText, noteMoves, replayQuery } from '../src/ui/bugReport';
 import { createInitialGameState } from '../src/core';
 import { DECKS, deckGameSetup } from '../src/data/decks';
 import type { GameConfig } from '../src/ui/savedGame';
@@ -23,12 +23,13 @@ const config: GameConfig = { seed: 4242, corpDeck, runnerDeck, ai: 'corp', diffi
 const state = createInitialGameState(deckGameSetup(config.seed, corpDeck, runnerDeck));
 
 const SITE = 'https://beta-android-netrunner-digital.example.workers.dev';
+const LIVE = 'https://android-netrunner-digital.example.workers.dev';
 const env = { GITHUB_TOKEN: 'secret-token', BUG_REPORT_REPO: 'owner/repo' };
 
-function post(body: unknown, headers: Record<string, string> = {}) {
-  return new Request(`${SITE}/api/bug-report`, {
+function post(body: unknown, headers: Record<string, string> = {}, site = SITE) {
+  return new Request(`${site}/api/bug-report`, {
     method: 'POST',
-    headers: { Origin: SITE, 'Content-Type': 'application/json', 'CF-Connecting-IP': '203.0.113.9', 'User-Agent': 'TestBrowser/1.0', ...headers },
+    headers: { Origin: site, 'Content-Type': 'application/json', 'CF-Connecting-IP': '203.0.113.9', 'User-Agent': 'TestBrowser/1.0', ...headers },
     body: JSON.stringify(body),
   });
 }
@@ -69,6 +70,13 @@ describe('bug report payload (client)', () => {
     const decoded = JSON.parse(gunzipSync(Buffer.from(game.snapshot!, 'base64')).toString('utf8'));
     expect(decoded.state.rng).toEqual(state.rng);
     expect(decoded.config.seed).toBe(4242);
+  });
+
+  it("carries the game's moves, so the game replays move by move", async () => {
+    const moves = [{ type: 'GAIN_CREDIT', player: 'corp' }] as const;
+    noteMoves(4242, [...moves]);
+    const game = (await buildReport({ description: 'Replay this game please', screen: 'game', game: { config, state } })).game!;
+    expect(JSON.parse(gunzipSync(Buffer.from(game.snapshot!, 'base64')).toString('utf8')).moves).toEqual(moves);
   });
 });
 
@@ -152,12 +160,12 @@ describe('bug report endpoint (worker)', () => {
       Array.from({ length: n }, () => ({ title: `${TITLE_PREFIX} x`, body: `Reporter: \`${who}\``, created_at: new Date().toISOString() }));
 
     let gh = fakeGithub(recent(DAILY_LIMIT_PER_REPORTER, me));
-    let response = await handleBugReport(post({ description: 'one more report please' }), env);
+    let response = await handleBugReport(post({ description: 'one more report please' }, {}, LIVE), env);
     expect(response.status).toBe(429);
     expect(gh.posted).toHaveLength(0);
 
     gh = fakeGithub(recent(DAILY_LIMIT_TOTAL, 'someone'));
-    response = await handleBugReport(post({ description: 'one more report please' }), env);
+    response = await handleBugReport(post({ description: 'one more report please' }, {}, LIVE), env);
     expect(response.status).toBe(429);
     expect(gh.posted).toHaveLength(0);
   });
@@ -165,8 +173,41 @@ describe('bug report endpoint (worker)', () => {
   it('uses the burst limiter when it is bound', async () => {
     const gh = fakeGithub();
     const limiter = { limit: vi.fn(async () => ({ success: false })) };
-    const response = await handleBugReport(post({ description: 'too fast reporting' }), { ...env, BUG_RATE_LIMITER: limiter });
+    const response = await handleBugReport(post({ description: 'too fast reporting' }, {}, LIVE), { ...env, BUG_RATE_LIMITER: limiter });
     expect(response.status).toBe(429);
     expect(gh.posted).toHaveLength(0);
+  });
+
+  it('skips the daily caps on the beta preview (Jeff, 2026-11-05) but keeps the burst limit, and beta reports leave the live caps alone', async () => {
+    const me = await reporterId('203.0.113.9', env.GITHUB_TOKEN);
+    const full = Array.from({ length: DAILY_LIMIT_TOTAL }, () => ({ title: `${TITLE_PREFIX} x`, body: `Reporter: \`${me}\`\n**Version:** v (beta preview)`, created_at: new Date().toISOString() }));
+    const limiter = { limit: vi.fn(async () => ({ success: false })) };
+    const gh = fakeGithub(full);
+    let response = await handleBugReport(post({ description: 'beta report too fast' }), { ...env, BUG_RATE_LIMITER: limiter });
+    expect(response.status).toBe(429);
+    expect(gh.posted).toHaveLength(0);
+
+    fakeGithub(full);
+    response = await handleBugReport(post({ description: 'beta report number 31' }), env);
+    expect(response.status).toBe(200);
+
+    fakeGithub(full);
+    response = await handleBugReport(post({ description: 'a live site report' }, {}, LIVE), env);
+    expect(response.status).toBe(200);
+  });
+
+  it('files a playtest game with its own label and title, only from the beta site', async () => {
+    const game = (await buildReport({ description: '', screen: 'game', playtest: true, game: { config, state } })).game!;
+    const { posted } = fakeGithub();
+    const response = await handleBugReport(post({ description: '', screen: 'game', playtest: true, game }), env);
+    expect(response.status).toBe(200);
+    expect(posted[0].url).toContain('/issues');
+    expect(posted[0].body.labels).toEqual(['playtest-game']);
+    expect(String(posted[0].body.title)).toMatch(/^\[Playtest game\]/);
+    expect(posted[1].url).toContain('/issues/77/comments');
+    // Live site refuses; no game refuses
+    fakeGithub();
+    expect((await handleBugReport(post({ description: '', playtest: true, game }, {}, LIVE), env)).status).toBe(403);
+    expect(parseReport({ description: '', playtest: true })).toMatch(/needs a game/);
   });
 });

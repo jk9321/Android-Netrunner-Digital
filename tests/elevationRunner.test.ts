@@ -1,24 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { cardDef, createCardInstance, executeAction, findCardAnywhere, GameState, iceStrength, isLegalAction, breakerStrength } from '../src/core';
 import { availableCredits } from '../src/core/engine/cardEffects';
-import {
-  answer,
-  cont,
-  giveCard,
-  installCorpForTest,
-  keepGoing,
-  installIceForTest,
-  installProgramForTest,
-  newGame,
-  passTurn,
-  play,
-  rezForTest,
-  run,
-  runnerInstall,
-  setIdentity,
-  startRunnerTurn,
-  useAbility,
-} from './helpers';
+import { answer, cont, giveCard, installCorpForTest, keepGoing, installIceForTest, installProgramForTest, newGame, passTurn, play, rezForTest, run, runnerInstall, setIdentity, startRunnerTurn, useAbility, toCorp } from './helpers';
 
 const E = {
   ryo: '35001', topan: '35002', charm: '35003', scrounge: '35004', shred: '35005', bling: '35006', gourmand: '35007',
@@ -462,6 +445,9 @@ describe('Elevation Runner hardware', () => {
     expect(isLegalAction(s, { type: 'USE_ABILITY', player: 'runner', cardInstanceId: madani, abilityIndex: 1 })).toBe(false);
     s = passTurn(s);
     expect(s.activePlayer).toBe('corp');
+    // The Corp ends its action phase: the Runner's priority before it ends (rules 5.6.2a)
+    s.corp.clicks = 0;
+    s = executeAction(s, { type: 'END_TURN', player: 'corp' });
     expect(isLegalAction(s, { type: 'USE_ABILITY', player: 'runner', cardInstanceId: madani, abilityIndex: 1 })).toBe(true);
     s = useAbility(s, 'runner', madani, 1);
     s = pick(s, [cleavers[1]]);
@@ -635,7 +621,7 @@ describe('Elevation Runner resources', () => {
   it('Fransofia Ward raises ice rez costs and can be trashed to bypass when the Corp is rich', () => {
     let [s, fw] = runnerInstall(newGame(), E.fransofia);
     const ice = installIceForTest(s, SG.palisade, 'hq', false);
-    s = run(s, 'hq');
+    s = toCorp(run(s, 'hq'));
     s.corp.credits = 16;
     s = executeAction(s, { type: 'REZ_CARD', player: 'corp', cardInstanceId: ice });
     expect(s.corp.credits).toBe(16 - 4); // 3 + 1

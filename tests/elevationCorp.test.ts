@@ -1,24 +1,8 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, onTestFinished } from 'vitest';
 import { cardDef, createCardInstance, executeAction, findCardAnywhere, GameState, iceStrength, isLegalAction, knownInHand } from '../src/core';
 import { counters } from '../src/core/engine/cardEffects';
 import { answerPrompt } from '../src/ai/prompts';
-import {
-  answer,
-  cont,
-  giveCard,
-  installCorpForTest,
-  installIceForTest,
-  installProgramForTest,
-  newGame,
-  passTurn,
-  play,
-  rezForTest,
-  run,
-  scoreForTest,
-  setIdentity,
-  startRunnerTurn,
-  useAbility,
-} from './helpers';
+import { answer, cont, giveCard, installCorpForTest, installIceForTest, installProgramForTest, newGame, passTurn, play, rezForTest, run, scoreForTest, setIdentity, startRunnerTurn, useAbility, toCorp } from './helpers';
 
 const C = {
   leo: '35035', poetri: '35036', trendsetting: '35037', ingatan: '35038', humanoid: '35039', otto: '35040', bumi: '35041',
@@ -78,6 +62,8 @@ describe('Elevation Corp identities', () => {
     setIdentity(s, 'corp', C.leo);
     const bumi = installIceForTest(s, C.bumi, 'hq');
     s = run(s, 'hq');
+    s.stops = { corp: 'full' }; // the Corp stops for its priority at the approached (rezzed) ice
+    s = toCorp(s);
     expect(isLegalAction(s, { type: 'USE_ABILITY', player: 'corp', cardInstanceId: s.corp.identity.instanceId, abilityIndex: 0 })).toBe(true);
     s = useAbility(s, 'corp', s.corp.identity.instanceId);
     s = pick(s, [bumi]);
@@ -201,7 +187,7 @@ describe('Elevation agendas', () => {
     s = scoreForTest(s, C.greenmail);
     expect(s.corp.credits).toBe(credits + 2);
     const biawak = installIceForTest(s, C.biawak, 'hq', false);
-    s = run(s, 'hq');
+    s = toCorp(run(s, 'hq'));
     s.corp.credits = 4;
     s = executeAction(s, { type: 'REZ_CARD', player: 'corp', cardInstanceId: biawak });
     s = choose(s, optionIds(s).find(id => id !== 'pay')!);
@@ -822,6 +808,7 @@ describe('Corp AI: LEO Construction weighs the bioroid against the run (Jeff, pl
     s = run(s, server);
     s.activeRun!.phase = 'approach_server';
     s.activeRun!.icePosition = null;
+    s.priority = { step: 'approach_server', holder: 'corp', received: true }; // the Runner passed: the Corp's window
     return s;
   };
 
@@ -832,7 +819,14 @@ describe('Corp AI: LEO Construction weighs the bioroid against the run (Jeff, pl
     installIceForTest(s, C.bumi, 'remote-1');
     installCorpForTest(s, C.greenmail, 'remote-1');
     const at = atServer(s, 'remote-1');
-    // With clicks left the Runner just runs the remote again once it is bare: not worth a bioroid
+    // With clicks left the Runner just runs the remote again once it is bare: not worth a bioroid. On the old threat
+    // (plan.threatModel off): the threat model reads the Runner AI's own scorer, which never runs again a server that
+    // ended its run this turn (runs.ts serverValue), so to it the bioroid buys the agenda a turn. A person would run
+    // again; flagged in the item 3 hand-off
+    const { tuning } = await import('../src/ai/synergy');
+    const threat = tuning.plan.threatModel;
+    tuning.plan.threatModel = false;
+    onTestFinished(() => { tuning.plan.threatModel = threat; });
     expect(createAgent('corp', 'normal').chooseRez!(at, [])).toBeNull();
     at.runner.clicks = 0; // the Runner's last click
     expect(createAgent('corp', 'normal').chooseRez!(at, [])?.type).toBe('USE_ABILITY');

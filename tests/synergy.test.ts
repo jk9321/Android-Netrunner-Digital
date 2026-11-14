@@ -1,19 +1,18 @@
 import { FLATLINE } from '../src/ai/effectValues';
 import { describe, expect, it } from 'vitest';
-import { ALL_CARDS, CardInstance, GameAction, GameState, createCardInstance, createInitialGameState, executeAction, getCardDefinition } from '../src/core';
-import { digValue, handValue, keepValue, tagThreat } from '../src/ai/evaluate';
+import { ALL_CARDS, CardInstance, GameAction, GameState, createCardInstance, actingSide, createInitialGameState, executeAction, getCardDefinition } from '../src/core';
+import { digValue, handValue, keepValue } from '../src/ai/evaluate';
 import { deckGameSetup } from '../src/data/decks';
 import { ALL_DECKS as DECKS } from '../scripts/nsg-sample-decks';
-import { HeuristicCorpAI, HeuristicRunnerAI, playAIGame } from '../src/ai';
+import { HeuristicCorpAI, HeuristicRunnerAI, createAgent, playAIGame } from '../src/ai';
 import { MAX_NUDGE, deckProfile, nudge, opponentProfile, tuning } from '../src/ai/synergy';
 import { CONDITIONS, CONDITION_PATTERNS, SYNERGY, THEMES, inferSynergy } from '../src/ai/synergyTags';
 import { newGame } from './helpers';
 import { RunnerMemory, isTrap, serverValue, trapOdds } from '../src/ai/runs';
 import { answerPrompt, taoSwap, untaianPick } from '../src/ai/prompts';
 
-
 describe('synergy tags', () => {
-  it('cover every card (tag the cards of a new set in synergyTags.ts)', () => {
+  it("cover every card (a `synergy` on each card in its set's file in src/ai/cards/)", () => {
     const untagged = ALL_CARDS.filter(c => !(c.code in SYNERGY)).map(c => `${c.code} ${c.title}`);
     expect(untagged).toEqual([]);
   });
@@ -100,7 +99,7 @@ describe('synergy nudges', () => {
         expect(bonus).toBeLessThanOrEqual(MAX_NUDGE);
       }
     }
-  });
+  }, 120_000);
 
   it('favour trashing money assets against an econ-reliant Corp', () => {
     const state = newGame();
@@ -123,7 +122,10 @@ describe('synergy nudges', () => {
     const on = new HeuristicCorpAI().rankMainActions(state);
     const off = new HeuristicCorpAI({ synergy: false }).rankMainActions(state);
     expect(on.length).toBe(off.length);
-    const finite = (r: typeof on) => r.filter(x => Number.isFinite(x.score)).length;
+    // R6 (step 3, corpAI installScore): with synergy on, ice is never installed on Archives without an agenda there or a
+    // Runner Archives card, so those installs rank -Infinity only on that side
+    const archivesIce = (x: (typeof on)[number]) => x.action.type === 'INSTALL_CARD' && (x.action as { targetServerId?: string }).targetServerId === 'archives';
+    const finite = (r: typeof on) => r.filter(x => Number.isFinite(x.score) && !archivesIce(x)).length;
     expect(finite(on)).toBe(finite(off));
   });
 });
@@ -222,12 +224,6 @@ describe('planning (setup scoring)', () => {
   const remote = (s: GameState, id: string, root: CardInstance[], ice: CardInstance[] = []) =>
     (s.corp.servers[id] = { id, name: id, isRemote: true, ice, root });
 
-  it('values tags more while the Corp holds cards that punish them, seen only by the Corp', () => {
-    const s = structuredClone(newGame());
-    s.corp.hq.push(createCardInstance(s, '30065')); // Retribution
-    expect(tagThreat(s, 'corp')).toBeGreaterThan(tagThreat(s, 'runner'));
-  });
-
   it('wants the breaker for the ice the Corp has shown', () => {
     const s = structuredClone(newGame());
     for (let i = 0; i < 3; i++) {
@@ -239,19 +235,7 @@ describe('planning (setup scoring)', () => {
     const killer = createCardInstance(s, '30015'); // Carmen
     const decoder = createCardInstance(s, '30005'); // Buzzsaw
     // Value model step 5b: the odds of meeting each type (shown ice, then the decklist)
-    expect(keepValue(s, killer, false)).toBeGreaterThan(keepValue(s, decoder, false));
-    const shelved = tuning.plan.breakerFocus; // switched off for now; the logic is kept for re-testing
-    tuning.plan.breakerFocus = true;
-    tuning.plan.breakerCredits.runner = false;
-    tuning.plan.keepByModel = false; // the old flat keep values
-    try {
-      expect(keepValue(s, killer, true)).toBeGreaterThan(keepValue(s, decoder, true));
-      expect(keepValue(s, killer, false)).toBe(keepValue(s, decoder, false));
-    } finally {
-      tuning.plan.breakerFocus = shelved;
-      tuning.plan.breakerCredits.runner = true;
-      tuning.plan.keepByModel = true;
-    }
+    expect(keepValue(s, killer)).toBeGreaterThan(keepValue(s, decoder));
   });
 
   it('runs an agenda the Corp could finish next turn with more urgency', () => {
@@ -263,10 +247,10 @@ describe('planning (setup scoring)', () => {
     // plan.runModel: an advanced card is likelier an agenda the Corp is about to score, and denying it matters more as the Corp nears 7
     const fresh = structuredClone(s);
     fresh.corp.servers['remote-9'].root[0].advancementCounters = 0;
-    expect(serverValue(s, 'remote-9', 0, new Map(), false, true)).toBeGreaterThan(serverValue(fresh, 'remote-9', 0, new Map(), false, true));
+    expect(serverValue(s, 'remote-9', 0, new Map(), false)).toBeGreaterThan(serverValue(fresh, 'remote-9', 0, new Map(), false));
     const late = structuredClone(s);
     late.corp.score = 5;
-    expect(serverValue(late, 'remote-9', 0, new Map(), false, true)).toBeGreaterThan(serverValue(s, 'remote-9', 0, new Map(), false, true));
+    expect(serverValue(late, 'remote-9', 0, new Map(), false)).toBeGreaterThan(serverValue(s, 'remote-9', 0, new Map(), false));
   });
 
   it('plays Seamless Launch when it lets an agenda score this turn', () => {
@@ -281,8 +265,13 @@ describe('planning (setup scoring)', () => {
     s.corp.hq.push(launch);
     s.corp.clicks = 1;
     s.corp.credits = 5;
-    const rank = (ai: HeuristicCorpAI) => ai.rankMainActions(s).find(r => 'cardInstanceId' in r.action && r.action.cardInstanceId === launch.instanceId)!.score;
-    expect(rank(new HeuristicCorpAI())).toBeGreaterThanOrEqual(41);
+    // The old score tier (plan.scoreSetup's 41) went in step 2 (+0.5 ± 0.5 at games=3): counted scoring (plan.scoreNow)
+    // finds the line. 1 click: Seamless Launch places the 2 counters Offworld Office still needs (rule 1.17.3a)
+    let t: GameState = s;
+    const corp = createAgent('corp', 'normal', {});
+    const runner = createAgent('runner', 'normal', {});
+    for (let i = 0; i < 12 && t.activePlayer === 'corp' && !t.winner; i++) t = executeAction(t, (actingSide(t) === 'corp' ? corp : runner).chooseAction(t));
+    expect(t.corp.scoreArea.map(c => c.instanceId)).toContain(agenda.instanceId);
   });
 
   it('ices against the Runner: a type they cannot break, on a server they attacked', () => {
@@ -309,13 +298,19 @@ describe('planning (setup scoring)', () => {
       s.corp.credits = 10;
       return s;
     };
+    // plan.icePosition alone: with plan.iceProtects a server's ice shares what the server holds (the stake over the summed
+    // break costs), so the strength icePosition gives a layer moves the other layers' worth too (HQ's second layer:
+    // 0.13 against 0.60); that is iceProtects' doing, pinned in tests/iceProtects.test.ts
     const score = (s: GameState, card: CardInstance, server: string, on: boolean) => {
       const was = tuning.plan.icePosition;
+      const protects = tuning.plan.iceProtects;
       tuning.plan.icePosition = on;
+      tuning.plan.iceProtects = false;
       try {
         return new HeuristicCorpAI().rankMainActions(s).find(r => r.action.type === 'INSTALL_CARD' && r.action.cardInstanceId === card.instanceId && r.action.targetServerId === server)!.score;
       } finally {
         tuning.plan.icePosition = was;
+        tuning.plan.iceProtects = protects;
       }
     };
     // Alone on R&D it counts its +4 strength; as HQ's second layer it doesn't get it
@@ -367,6 +362,9 @@ describe('planning (setup scoring)', () => {
     expect(advance(new HeuristicCorpAI({ synergy: false }))).toBeGreaterThan(0);
     // With 3 clicks it can get to 2 counters and score next turn: then it commits
     s.corp.clicks = 3;
+    // plan.breakerReach (2026-11-06): with Marjanah in the grip the Runner gets past Palisade for about 6 credits, not a
+    // flat 8, so on 5 credits the agenda would be exposed; on 2 it isn't
+    s.runner.credits = 2;
     expect(advance(new HeuristicCorpAI())).toBeGreaterThan(5);
   });
 
@@ -407,10 +405,8 @@ describe('planning (setup scoring)', () => {
     const unbroken = score();
     s.runner.rig.programs = [createCardInstance(s, '30006')]; // Cleaver breaks barriers
     const broken = score();
-    tuning.plan.iceDepth = false;
-    const plain = score();
-    tuning.plan.iceDepth = true;
-    expect(broken - unbroken).toBeGreaterThan(plain - unbroken + 0.5);
+    // iceDepth (an installScore term, folded in item 6) prices the layer the rig breaks through
+    expect(broken - unbroken).toBeGreaterThan(0.5);
   });
 });
 
@@ -475,10 +471,7 @@ describe('draws and money', () => {
     expect(handValue(4, 5, 'corp') - handValue(3, 5, 'corp')).toBeCloseTo(1.6);
     expect(handValue(6, 5, 'corp') - handValue(5, 5, 'corp')).toBeCloseTo(0.3);
     expect(handValue(7, 5, 'corp') - handValue(6, 5, 'corp')).toBe(0);
-    tuning.plan.drawValue.corp = false;
-    expect(handValue(4, 5, 'corp') - handValue(3, 5, 'corp')).toBeCloseTo(0.8);
     expect(handValue(4, 5, 'runner') - handValue(3, 5, 'runner')).toBeCloseTo(1.6);
-    tuning.plan.drawValue.corp = true;
   });
 
   it('the Runner draws below the limit with money in the bank, and stops at the limit', () => {
@@ -520,12 +513,16 @@ describe('draws and money', () => {
     const s = structuredClone(newGame());
     s.corp.hq = [createCardInstance(s, '30075'), ...s.corp.hq.slice(0, 2)];
     s.corp.credits = 3;
-    const credit = () => new HeuristicCorpAI().rankMainActions(s).find(r => r.action.type === 'GAIN_CREDIT')!.score;
-    const on = credit();
-    tuning.plan.saveForOps = false;
-    const off = credit();
-    tuning.plan.saveForOps = true;
-    expect(on).toBeGreaterThan(off + 0.5);
+    // The planned turn clicks for the two credits and plays Hedge Fund (5 to play, +9) with its last click, ahead of a
+    // draw for ice (digValue); plan.saveForOps (folded in item 6) was the old ranking's nudge toward it
+    let t = s;
+    const ai = new HeuristicCorpAI();
+    for (let i = 0; i < 8 && t.activePlayer === 'corp'; i++) {
+      const action = ai.chooseAction(t);
+      t = executeAction(t, action);
+      if (action.type === 'END_TURN') break;
+    }
+    expect(t.corp.archives.faceUp.map(c => c.cardCode)).toContain('30075');
   });
 });
 
@@ -551,16 +548,11 @@ describe('digging for answers', () => {
     s.corp.rd = s.corp.rd.filter(c => !s.corp.hq.includes(c));
     s.corp.credits = 8;
     const draw = () => new HeuristicCorpAI({ synergy: true }).rankMainActions(s).find(r => r.action.type === 'DRAW_CARD')?.score ?? -Infinity;
-    const on = draw();
-    tuning.plan.digPastLimit = false;
-    const off = draw();
-    tuning.plan.digPastLimit = true;
-    expect(on).toBeGreaterThan(off + 0.5);
+    const five = draw();
     // Six cards: no more digging (a second discard)
     s.corp.hq.push(duds[5]);
-    expect(draw()).toBeLessThanOrEqual(off);
+    expect(five).toBeGreaterThan(draw() + 0.5);
   });
-
   it('ice the Corp cannot afford to rez soon is no answer: it still digs', () => {
     const s = structuredClone(newGame());
     s.corp.hq = s.corp.hq.filter(c => getCardDefinition(c.cardCode).type_code !== 'ice').slice(0, 2);

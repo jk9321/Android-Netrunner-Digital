@@ -7,7 +7,7 @@ import { NotImplementedError } from '../errors';
 import { addLog } from '../log';
 import { illegal, removeCard, requireActionPhase, requireClicks } from '../helpers';
 import { runnerHandZone } from './install';
-import { bumpTurnFlag, TurnFlag } from '../cardEffects';
+import { bumpTurnFlag, TurnFlag, whenSettled } from '../cardEffects';
 import { activeCards, fireTrigger } from '../triggers';
 import { effectResolved, effectResolving } from '../uncommitted';
 
@@ -90,6 +90,7 @@ export function playCardFrom(state: GameState, side: SideCode, card: CardInstanc
   if (side === 'corp') {
     bumpTurnFlag(state, TurnFlag.operationsPlayed);
     if (/\bdouble\b/i.test(def.keywords ?? '')) bumpTurnFlag(state, TurnFlag.doublesPlayed);
+    if (/\bmandate\b/i.test(def.keywords ?? '')) bumpTurnFlag(state, TurnFlag.mandatesPlayed);
     fireTrigger(state, { type: 'operation_played', card });
   } else {
     fireTrigger(state, { type: 'event_played', card });
@@ -97,6 +98,9 @@ export function playCardFrom(state: GameState, side: SideCode, card: CardInstanc
   effectResolving(state);
   script.onPlay!({ state, card, side, playedFromHand: options.fromHand });
   effectResolved(state);
+  // Nuvem SA: "whenever you finish resolving an operation", once its decisions are made
+  if (side === 'corp') whenSettled(state, { type: 'operation_finished', cardId: card.instanceId });
+  if (script.terminal) endActionPhase(state, side, def.title);
   if (options.removeAfter) {
     const pile = side === 'corp' ? state.corp.archives.faceUp : state.runner.heap;
     if (removeCard(pile, card)) {
@@ -104,4 +108,15 @@ export function playCardFrom(state: GameState, side: SideCode, card: CardInstanc
       addLog(state, side, `${def.title} was removed from the game.`);
     }
   }
+}
+
+/**
+ * A terminal card ends its player's action phase once it resolves (rules
+ * 5.4.3): with no clicks left they can take no more actions, and the turn
+ * goes on to the discard phase when they end it. Outside the action phase it does nothing (5.4.4).
+ */
+export function endActionPhase(state: GameState, side: SideCode, sourceTitle: string): void {
+  if (state.activePlayer !== side || state.turnStep) return;
+  if (state[side].clicks > 0) addLog(state, side, `${side === 'corp' ? 'Corp' : 'Runner'}'s action phase ends (${sourceTitle}).`);
+  state[side].clicks = 0;
 }

@@ -13,6 +13,12 @@ import { CARD_PROFILES } from '../src/ai/cardProfiles';
 import { cardSynergy } from '../src/ai/synergyTags';
 import { counters } from '../src/core/engine/cardEffects';
 import { Agent, GameRunner } from '../src/ai';
+import { writeFileSync } from 'node:fs';
+import { Alarm, AlarmTracker, moneyKind } from './alarms';
+import { SpendRecord, SpendTracker } from './spend-audit';
+import { OpeningRecord, OpeningTracker } from './opening-audit';
+import { installDiagnostics } from '../src/ai/diagnostics';
+import { SearchTuple, searchTuple } from './search-audit';
 
 export interface Steal {
   turn: number;
@@ -80,6 +86,9 @@ export interface RezLog {
 }
 
 export interface GameRecord {
+  /** ORACLE_ICE batches (scripts/oracle-ice.ts): the setup, and whether this deal's R&D held no ice (played without it). */
+  oracleIce?: string;
+  oracleIceSkipped?: boolean;
   corpDeck: string;
   runnerDeck: string;
   winner: string;
@@ -103,7 +112,7 @@ export interface GameRecord {
   agendaInstalls: AgendaInstall[];
   /** At the start of the Runner's turns 1 and 2: which centrals had ice, and what ice the Corp still held */
   early: { turn: number; rdIce: number; hqIce: number; remoteIce: number; iceInHand: number; cheapIceInHand: number; hqAgendas: number; credits: number }[];
-  money: { spent: Record<string, number>; gained: Record<string, number>; corpTurns: number; creditsAtTurnEnd: number; clicks: number; creditClicks: number };
+  money: { spent: Record<string, number>; gained: Record<string, number>; corpTurns: number; creditsAtTurnEnd: number; clicks: number; creditClicks: number; creditsAtTurnStart?: number[]; scoreAtTurnStart?: number[] };
   /** Assets and upgrades rezzed, by card title: during a run or on the Corp's turn, and the credits paid */
   rootRezzes: Record<string, { run: number; turn: number; credits: number }>;
   /** Unrezzed ice the Runner approached that the Corp couldn't afford to rez, and how many of those it could have had it not rezzed assets/upgrades since its last turn began */
@@ -116,6 +125,16 @@ export interface GameRecord {
   assetRisk: { icedTurns: number; icedTrashed: number; bareTurns: number; bareTrashed: number };
   /** Each side's identity: its prompts by step (offered, taken), abilities used, log lines naming it, turns played */
   identity: Record<'corp' | 'runner', IdentityUse>;
+  /** Symptom alarms (alarms.ts): patterns a human opponent would punish */
+  alarms: Alarm[];
+  /** Phase 2 S: every Corp credit spent, tagged with what it bought (spend-audit.ts) */
+  spend?: SpendRecord;
+  /** Phase 2 O: openings, agenda windows and card values (opening-audit.ts) */
+  opening?: OpeningRecord;
+  /** Spec-search S1: every Corp planner decision's continuations (SEARCH_AUDIT=1, the batch token +audit.search) */
+  search?: SearchTuple[];
+  /** The deal's seed (corp-losses.ts adds it) */
+  seed?: number;
 }
 
 export interface IdentityUse {
@@ -131,23 +150,6 @@ export interface IdentityUse {
 
 /** Prompt option ids that turn an optional ability down. */
 const DECLINES = ['no', 'leave', 'skip', 'decline', 'none', 'pass', 'done', 'keep'];
-
-/** What a step that changed the Corp's credits did, read from the state change. */
-function moneyKind(before: GameState, after: GameState): string {
-  const ice = (st: GameState) => Object.values(st.corp.servers).flatMap(sv => sv.ice);
-  const root = (st: GameState) => Object.values(st.corp.servers).flatMap(sv => sv.root);
-  const rezzed = (list: { isRezzed: boolean }[]) => list.filter(c => c.isRezzed).length;
-  const counters = (st: GameState) => [...root(st), ...ice(st)].reduce((n, c) => n + c.advancementCounters, 0);
-  if (rezzed(ice(after)) > rezzed(ice(before))) return before.activeRun ? 'rez ice in a run' : 'rez ice';
-  if (rezzed(root(after)) > rezzed(root(before))) return 'rez asset/upgrade';
-  if (ice(after).length > ice(before).length) return 'install ice';
-  if (counters(after) > counters(before)) return 'advance';
-  if (before.activePlayer === 'runner' || before.activeRun) return "runner's turn";
-  if (after.corp.clicks === before.corp.clicks - 1 && after.corp.hq.length === before.corp.hq.length && after.corp.credits === before.corp.credits + 1) return 'click for credit';
-  if (after.corp.archives.faceUp.length > before.corp.archives.faceUp.length || after.corp.hq.length < before.corp.hq.length) return 'operation/install';
-  if (after.corp.clicks === before.corp.clicks) return 'turn start/assets';
-  return 'other';
-}
 
 /**
  * Runs the Runner paid into (boosting or breaking) and then lost: jacked out
@@ -260,14 +262,31 @@ function reasonOf(state: GameState): string {
 /** Money assets still out when the game ends. */
 let closeAssets: () => GameRecord['assets'] = () => ({});
 
-export function playLogged(start: GameState, agents: { corp: Agent; runner: Agent }, decks: { corp: string; runner: string }): GameRecord {
+export function playLogged(
+  start: GameState,
+  agents: { corp: Agent; runner: Agent },
+  decks: { corp: string; runner: string },
+  // A batch-only board change at the start of each Corp turn (scripts/oracle-money.ts): returns a new state
+  onCorpTurn?: (state: GameState) => GameState
+): GameRecord {
   const runner = new GameRunner(start, agents);
+  let toldTurn = -1;
+  const alarms = new AlarmTracker();
+  // OPENING=0 leaves the opening audit out (its one-step rankings cost time)
+  const openingTracker = process.env.OPENING === '0' ? null : new OpeningTracker();
+  const spendTracker = new SpendTracker(openingTracker?.listener);
+  // SEARCH_AUDIT=1 (spec-search S1): the Corp planner's decisions with every candidate's continuations
+  const search: SearchTuple[] | undefined = process.env.SEARCH_AUDIT === '1' ? [] : undefined;
+  if (search) installDiagnostics().onSearch = row => search.push(searchTuple(row));
+  // DUMP_TURN=n DUMP_SIDE=corp|runner DUMP_FILE=x.json: write the position at the start of that turn and stop (an alarm's position, for a test)
+  const dumpTurn = Number(process.env.DUMP_TURN ?? 0);
+  const dumpSide = process.env.DUMP_SIDE ?? 'corp';
   const steals: Steal[] = [];
   let idleAgendaTurns = 0;
   const board = { remotes: 0, icedRemotes: 0, remoteIce: 0, maxRemoteIce: 0, hqIce: 0, rdIce: 0 };
   let corpTurns = 0;
   let lastTurn = -1;
-  const money: GameRecord['money'] = { spent: {}, gained: {}, corpTurns: 0, creditsAtTurnEnd: 0, clicks: 0, creditClicks: 0 };
+  const money: GameRecord['money'] = { spent: {}, gained: {}, corpTurns: 0, creditsAtTurnEnd: 0, clicks: 0, creditClicks: 0, creditsAtTurnStart: [], scoreAtTurnStart: [] };
   const runs: RunWaste = { total: 0, paidAndFailed: 0, credits: 0, jackOutKnown: 0, jackOutFresh: 0, stoppedKnown: 0, stoppedFresh: 0 };
   let rezzedAtStart = new Set<string>();
   let paid = 0;
@@ -320,6 +339,10 @@ export function playLogged(start: GameState, agents: { corp: Agent; runner: Agen
   let tracedTurn = -1;
   let t0 = Date.now();
   for (let steps = 0; steps < 4000 && runner.state.turnNumber <= 80; steps++) {
+    if (onCorpTurn && runner.state.activePlayer === 'corp' && runner.state.turnNumber !== toldTurn) {
+      toldTurn = runner.state.turnNumber;
+      runner.state = onCorpTurn(runner.state);
+    }
     const before = runner.state;
     if (traced && before.turnNumber !== tracedTurn) {
       console.error(`  turn ${before.turnNumber} ${before.activePlayer} step ${steps} +${((Date.now() - t0) / 1000).toFixed(1)} s`);
@@ -352,6 +375,10 @@ export function playLogged(start: GameState, agents: { corp: Agent; runner: Agen
     }
     if (before.turnNumber !== lastTurn && before.activePlayer === 'corp') {
       corpTurnStart = before;
+      // Phase 2 E0: the Corp's credits as each of its turns begins (the bank the Runner's turn left it)
+      money.creditsAtTurnStart!.push(before.corp.credits);
+      // Counted scoring C3: the Corp's score as each turn begins (a score's turn, for the broke-after-scoring count)
+      money.scoreAtTurnStart!.push(before.corp.score);
       rootSpent = 0;
       lastTurn = before.turnNumber;
       const remoteAgenda = Object.entries(before.corp.servers).some(([id, s]) => id.startsWith('remote') && s.root.some(isAgenda));
@@ -365,8 +392,16 @@ export function playLogged(start: GameState, agents: { corp: Agent; runner: Agen
       board.hqIce += before.corp.servers.hq.ice.length;
       board.rdIce += before.corp.servers.rd.ice.length;
     }
+    if (dumpTurn && before.turnNumber === dumpTurn && before.activePlayer === dumpSide && !before.activeRun && before.pendingPrompts.length === 0) {
+      writeFileSync(process.env.DUMP_FILE ?? 'dump.json', JSON.stringify(before));
+      console.error(`dumped turn ${dumpTurn} ${dumpSide} to ${process.env.DUMP_FILE ?? 'dump.json'}`);
+      process.exit(0);
+    }
     if (!runner.step()) break;
     const after = runner.state;
+    alarms.step(before, after, runner.last ?? undefined);
+    spendTracker.step(before, after, runner.last ?? undefined);
+    openingTracker?.step(before, after, runner.last ?? undefined);
     for (const side of sides) {
       const use = identity[side];
       const id = before[side].identity;
@@ -554,6 +589,7 @@ export function playLogged(start: GameState, agents: { corp: Agent; runner: Agen
     });
   }
   const s = runner.state;
+  alarms.done(runner.state);
   return {
     corpDeck: decks.corp,
     runnerDeck: decks.runner,
@@ -578,5 +614,9 @@ export function playLogged(start: GameState, agents: { corp: Agent; runner: Agen
     agendaInstalls,
     early,
     money,
+    alarms: alarms.alarms,
+    spend: spendTracker.done(s),
+    opening: openingTracker?.done(s),
+    ...(search ? { search } : {}),
   };
 }

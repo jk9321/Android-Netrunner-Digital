@@ -4,6 +4,7 @@ import { answerPrompt } from '../src/ai/prompts';
 import { HeuristicCorpAI } from '../src/ai';
 import { installForTest, installIceForTest, newGame, newGameAtSetup } from './helpers';
 
+
 const PALISADE = '30072'; // barrier, rez 3
 const BALLISTA = '30062'; // sentry, rez 5
 const FILLER = '30027'; // any non-ice card

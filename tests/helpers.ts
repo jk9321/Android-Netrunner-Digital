@@ -1,4 +1,4 @@
-import { createInitialGameState, createCardInstance, cardDef, executeAction, getLegalActions, GameState, CardTypeCode, SideCode } from '../src/core';
+import { actingSide, createInitialGameState, createCardInstance, cardDef, currentStep, executeAction, getLegalActions, priorityHolder, GameAction, GameState, CardTypeCode, SideCode } from '../src/core';
 import { GameSetup } from '../src/core/engine/gameState';
 import { sampleGameSetup } from './sampleDecks';
 
@@ -106,8 +106,39 @@ export function runIntoFirstIce(state: GameState, serverId: string): GameState {
   return cont(s);
 }
 
-/** One CONTINUE_RUN, stopping in the Movement Phase (where the Runner may jack out). */
-export const step = (state: GameState) => executeAction(state, { type: 'CONTINUE_RUN', player: 'runner' });
+/**
+ * The Runner passes priority (Continue): the Corp now has its chance in this
+ * window if its game stops here (the approached ice is unrezzed, the server's
+ * root has unrezzed cards). Use it to have the Corp rez during a run.
+ */
+export const toCorp = (state: GameState) => executeAction(state, { type: 'CONTINUE_RUN', player: 'runner' });
+
+/** The Corp passes priority in the window it holds during a run, if it holds one. */
+export const corpPasses = (state: GameState): GameState =>
+  state.activeRun && state.pendingPrompts.length === 0 && state.priority?.holder === 'corp' ? executeAction(state, { type: 'PASS', player: 'corp' }) : state;
+
+/**
+ * One CONTINUE_RUN, with the Corp passing the window it holds (before, if it
+ * just rezzed something, and after), stopping in the Movement Phase (where the Runner may jack out).
+ */
+export const step = (state: GameState) => corpPasses(toCorp(corpPasses(state)));
+
+/**
+ * Gives `side` priority for one action and takes it back (test setup only),
+ * for card tests that use an ability or rez outside the window the rules give for it.
+ */
+export function withPriority(state: GameState, side: SideCode, action: GameAction): GameState {
+  if (state.pendingPrompts.length > 0 || priorityHolder(state) === side) return executeAction(state, action);
+  const saved = state.priority ?? null;
+  state.priority = { step: currentStep(state) ?? (state.activePlayer === 'corp' ? 'corp_action' : 'runner_action'), holder: side, received: false, acted: true };
+  try {
+    const next = executeAction(state, action);
+    if (next.priority?.holder === side) next.priority = saved;
+    return next;
+  } finally {
+    state.priority = saved;
+  }
+}
 
 /**
  * Keeps going through the Movement Phase, where the Runner declines to jack
@@ -149,7 +180,7 @@ export function installCorpForTest(state: GameState, code: string, serverId: str
 /** Rezzes a Corp card with the rez action, giving the Corp the credits for it. */
 export function rezForTest(state: GameState, instanceId: string): GameState {
   state.corp.credits += 20;
-  const next = executeAction(state, { type: 'REZ_CARD', player: 'corp', cardInstanceId: instanceId });
+  const next = withPriority(state, 'corp', { type: 'REZ_CARD', player: 'corp', cardInstanceId: instanceId });
   next.corp.credits -= 20;
   return next;
 }
@@ -175,7 +206,7 @@ export function setIdentity(state: GameState, side: 'corp' | 'runner', code: str
 
 /** Uses an ability by index on a card (test shorthand). */
 export function useAbility(state: GameState, side: 'corp' | 'runner', cardInstanceId: string, abilityIndex = 0): GameState {
-  return keepGoing(executeAction(state, { type: 'USE_ABILITY', player: side, cardInstanceId, abilityIndex }));
+  return keepGoing(withPriority(state, side, { type: 'USE_ABILITY', player: side, cardInstanceId, abilityIndex }));
 }
 
 /** Starts a run with the basic action on the Runner's turn. */
@@ -211,13 +242,7 @@ export function playout(seed: number, maxSteps: number, setup: GameSetup = sampl
     return rand / 2147483648;
   };
   for (let step = 0; step < maxSteps && !state.winner; step++) {
-    const sides: SideCode[] = state.pendingPrompts.length > 0 ? [state.pendingPrompts[0].side] : [state.activePlayer];
-    let actions = sides.flatMap(side => getLegalActions(state, side));
-    // During a run the Corp may also rez; give it a turn sometimes.
-    if (state.activeRun && state.pendingPrompts.length === 0 && next() < 0.3) {
-      const corp = getLegalActions(state, 'corp');
-      if (corp.length > 0) actions = corp;
-    }
+    const actions = getLegalActions(state, actingSide(state)!);
     if (actions.length === 0) throw new Error(`Seed ${seed}: no legal actions at step ${step}`);
     const action = actions[Math.floor(next() * actions.length)];
     state = executeAction(state, action);

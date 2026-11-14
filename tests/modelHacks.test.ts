@@ -3,8 +3,10 @@ import { PETTY_CASH_REPLAY, iceAdvanceWorth, placedCounterWorth, rezEffectWorth,
 import { CLICK, RATES } from '../src/ai/valueModel';
 import { createCardInstance } from '../src/core/engine/gameState';
 import { newGame } from './helpers';
-import { HeuristicCorpAI } from '../src/ai';
-import { GameState, cardDef } from '../src/core';
+import { HeuristicCorpAI, createAgent } from '../src/ai';
+import { GameState, actingSide, cardDef, executeAction } from '../src/core';
+
+const actingSideIsRunner = (s: GameState) => actingSide(s) === 'runner';
 
 describe('value hacks replaced by the model (Jeff, 2026-10-28; plan.modelHacks)', () => {
   it('Ping: its rez tag is worth a tag', () => {
@@ -65,11 +67,18 @@ describe('the last two hacks on the model (Jeff, 2026-10-28; plan.modelHacks.fin
   const score = (s: GameState, id: string) => new HeuristicCorpAI({ planner: false }).rankMainActions(s).find(r => r.action.type === 'PLAY_OPERATION_OR_EVENT' && r.action.cardInstanceId === id)?.score ?? -Infinity;
   const credit = (s: GameState) => new HeuristicCorpAI({ planner: false }).rankMainActions(s).find(r => r.action.type === 'GAIN_CREDIT')!.score;
 
-  it('Nanomanagement: worth the agenda it lets the Corp score this turn, in points on the clock', () => {
-    const { s, nano } = nanoGame(true);
-    expect(score(s, nano.instanceId)).toBeGreaterThan(credit(s) + 5);
-    expect(score(s, nano.instanceId)).toBeLessThan(40); // a value, not a priority tier
-  });
+  it('Nanomanagement: the Corp plays it for the agenda it lets the turn score (counted scoring, plan.scoreNow)', () => {
+    // The rank that stood for this (plan.finishSetup, the folded oneSetupRule) went in step 2: counted scoring counts the
+    // 2 clicks (the card entry's clicksGiven) and plays the finish. 4 to go with 3 clicks: Nanomanagement's clicks make 4.
+    const game = nanoGame(true);
+    const nano = game.nano;
+    let s = game.s;
+    const agenda = s.corp.servers['remote-9'].root[0].instanceId;
+    const corp = createAgent('corp', 'normal', {});
+    for (let i = 0; i < 20 && s.activePlayer === 'corp' && !s.winner && !actingSideIsRunner(s); i++) s = executeAction(s, corp.chooseAction(s));
+    expect(s.corp.scoreArea.map(c => c.instanceId)).toContain(agenda);
+    expect(s.corp.hq.map(c => c.instanceId)).not.toContain(nano.instanceId);
+  }, 30_000); // plays the turn through the exact score search: slow on CI
 
   it('Nanomanagement with nothing to finish: just 2 clicks for 4 credits and a click', () => {
     const { s, nano } = nanoGame(true);

@@ -1,4 +1,4 @@
-import { GameState, SideCode } from '../core';
+import { GameAction, GameState, SideCode, ViewIds } from '../core';
 import type { Difficulty } from '../ai';
 import type { DeckList } from '../data/decks';
 
@@ -18,7 +18,7 @@ const STORAGE_KEY = 'netrunner.savedGame.v1';
  * older save can't be loaded into. Saves with another version are dropped
  * rather than resumed into a game the new code can't draw.
  */
-export const SAVE_VERSION = 1;
+export const SAVE_VERSION = 2;
 
 export interface GameConfig {
   seed: number;
@@ -29,10 +29,9 @@ export interface GameConfig {
   difficulty: Difficulty;
 }
 
-/** A card the Runner accessed in the latest run; `secretFrom` (R&D accesses) is the side that may not see it. */
+/** A card the Runner accessed in the latest run, as one viewer saw it; no code: the viewer may not see it (an R&D access seen by the Corp, rules 7.1.2). */
 export interface AccessedCard {
-  code: string;
-  secretFrom?: SideCode;
+  code?: string;
 }
 
 /** Table state outside the engine that a resumed game should keep. */
@@ -40,8 +39,14 @@ export interface SavedTable {
   runSerial: number;
   passedRezWindows: string[];
   hotseatSide: SideCode;
-  /** Plain card codes in games saved before R&D accesses were kept secret. */
-  accessed: (AccessedCard | string)[];
+  /** The latest run's accesses as each viewer saw them (their own view's log). */
+  accessed: Record<SideCode | 'both', AccessedCard[]>;
+  /** Each side's viewer ids (core/view.ts), so a resumed game keeps the ids its views were built with. */
+  ids: Record<SideCode, ViewIds>;
+  /** Every move of the game so far, both sides', in order (missing in games saved before 2026-11-05). */
+  moves?: GameAction[];
+  /** The stops the game started with (moves replay from them). */
+  startStops?: GameState['stops'];
 }
 
 export interface SavedGame {
@@ -65,7 +70,9 @@ function isSavedGame(value: unknown): value is SavedGame {
     !!s.state.runner &&
     !!s.state.rng &&
     !!s.table &&
-    Array.isArray(s.table.passedRezWindows)
+    Array.isArray(s.table.passedRezWindows) &&
+    !!s.table.ids &&
+    !!s.table.accessed
   );
 }
 
@@ -75,7 +82,8 @@ export function loadSavedGame(): SavedGame | null {
     if (!raw) return null;
     const parsed: unknown = JSON.parse(raw);
     if (!isSavedGame(parsed) || parsed.state.winner) return null;
-    return parsed;
+    // Hard is switched off: a game saved on Hard resumes as Normal
+    return parsed.config.difficulty === 'normal' ? parsed : { ...parsed, config: { ...parsed.config, difficulty: 'normal' } };
   } catch {
     return null;
   }

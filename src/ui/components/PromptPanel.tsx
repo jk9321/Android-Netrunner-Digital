@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react';
-import { CardInstance, GameState, PromptChoice, activePrompt, availableCredits, cardDef, findCardAnywhere, isLegalAction, locateCorpCard, trashableFirst } from '../../core';
-import { TrashFirstButton, TrashFirstPicker } from './TrashFirstPicker';
+import { CardInstance, GameState, PromptChoice, SideCode, activePrompt, availableCredits, cardDef, findCardAnywhere, locateCorpCard, trashableFirst, effectTrashableFirst } from '../../core';
+import { useSeat } from '../seat';
+import { TrashFirstPicker, TrashSplitSegment } from './TrashFirstPicker';
 import { CardView } from './CardView';
 import { Check, RefreshCw, Trash2, X } from 'lucide-react';
 import { CardNameText } from './CardNameText';
@@ -26,6 +27,11 @@ interface PromptPanelProps {
    * action is applied (Red Team's server): backs out as if it was never used.
    */
   onCancel?: () => void;
+  /**
+   * The side the game waits on for a decision this screen can't see (the
+   * opponent's prompt is not in the viewer's view): shows the waiting note.
+   */
+  waitingFor?: SideCode | null;
 }
 
 /**
@@ -33,8 +39,9 @@ interface PromptPanelProps {
  * It floats over the board without dimming it: drag it by its header or
  * minimize it to a bar to look at the board while deciding.
  */
-export const PromptPanel: React.FC<PromptPanelProps> = ({ state, onAnswer, onInspectCard, canAnswer = true, onCancel }) => {
+export const PromptPanel: React.FC<PromptPanelProps> = ({ state, onAnswer, onInspectCard, canAnswer = true, onCancel, waitingFor = null }) => {
   const prompt = activePrompt(state);
+  const seat = useSeat();
   const [selected, setSelected] = useState<string[]>([]);
   // An effect installing a card: the option (server) whose cards to trash first (rules 8.5.6)
   const [trashingFor, setTrashingFor] = useState<{ promptId: string; optionId: string } | null>(null);
@@ -44,11 +51,12 @@ export const PromptPanel: React.FC<PromptPanelProps> = ({ state, onAnswer, onIns
     hoverPromptTarget(null);
     selectPromptTargets([]);
   }, [prompt?.id]);
-  if (!prompt) return null;
-  if (!canAnswer) {
+  if (!prompt && !waitingFor) return null;
+  if (!prompt || !canAnswer) {
+    const side = waitingFor ?? prompt?.side;
     return (
       <div className="fixed top-20 left-1/2 -translate-x-1/2 z-40 bg-[#090d15]/95 border border-slate-700 rounded-[2px] px-4 py-2 text-xs font-mono text-slate-300 shadow-xl">
-        Waiting on the {prompt.side === 'corp' ? 'Corp' : 'Runner'} to decide…
+        Waiting on the {side === 'corp' ? 'Corp' : 'Runner'} to decide…
       </div>
     );
   }
@@ -65,7 +73,7 @@ export const PromptPanel: React.FC<PromptPanelProps> = ({ state, onAnswer, onIns
   const trashableFor = (optionId: string): CardInstance[] => {
     const card = installCardFor(optionId);
     if (!card) return [];
-    return isCorp ? (optionId === 'new' ? [] : trashableFirst(state, card, optionId)) : trashableFirst(state, card, null);
+    return isCorp ? (optionId === 'new' ? [] : trashableFirst(state, card, optionId)) : effectTrashableFirst(state, card, 'source' in prompt ? prompt.source.data : undefined);
   };
   const trashingChoice = (optionId: string, trash: string[]): PromptChoice =>
     prompt.kind === 'effect_cards' ? { kind: 'effect_cards', cardInstanceIds: [optionId], trashFirst: trash } : { kind: 'effect_choice', optionId, trashFirst: trash };
@@ -73,11 +81,6 @@ export const PromptPanel: React.FC<PromptPanelProps> = ({ state, onAnswer, onIns
     ? []
     : (prompt.kind === 'effect_choice' ? prompt.options.map(o => o.id) : selected.length === 1 ? selected : []).filter(id => trashableFor(id).length > 0);
   const trashing = installs && trashingFor?.promptId === prompt.id ? trashingFor.optionId : null;
-  const trashLabel = (optionId: string) => {
-    const card = installCardFor(optionId)!;
-    if (!isCorp) return 'Trash programs first';
-    return `${state.corp.servers[optionId]?.name ?? optionId}: trash ${cardDef(card).type_code === 'ice' ? 'ice' : 'cards'} first`;
-  };
   const hand = isCorp ? state.corp.hq : state.runner.grip;
   const accent = isCorp ? 'border-cyan-500 shadow-cyan-950/60' : 'border-pink-500 shadow-pink-950/60';
   // Selection stops at the most cards the prompt takes; with a limit of one, a new pick replaces the old
@@ -186,15 +189,36 @@ export const PromptPanel: React.FC<PromptPanelProps> = ({ state, onAnswer, onIns
         {trashing && (() => {
           const card = installCardFor(trashing)!;
           const where = isCorp ? ` in ${state.corp.servers[trashing]?.name ?? ''}` : '';
+          const isCorpIce = isCorp && cardDef(card).type_code === 'ice';
+          const rawCards = trashableFor(trashing);
+          const cards = isCorpIce ? [...rawCards].reverse() : rawCards;
+          const neededMu = !isCorp ? (cardDef(card).memory_cost ?? 0) : 0;
+          const freeMu = !isCorp ? Math.max(0, state.runner.memoryUnitsTotal - state.runner.memoryUnitsUsed) : 0;
           return (
             <TrashFirstPicker
               key={trashing}
+              serverId={isCorp ? trashing : undefined}
+              iceSlots={isCorpIce}
               heading={`Install ${cardDef(card).title}${where}, trashing first:`}
-              cards={trashableFor(trashing)}
+              cards={cards}
+              statusText={
+                neededMu > 0
+                  ? trash => {
+                      const freed = trash.reduce((sum, id) => {
+                        const p = findCardAnywhere(state, id);
+                        return sum + (p ? (cardDef(p).memory_cost ?? 0) : 0);
+                      }, 0);
+                      const total = freeMu + freed;
+                      return total >= neededMu
+                        ? <span className="text-emerald-400">✓ {total}/{neededMu} MU available</span>
+                        : `Need ${neededMu - total} more MU`;
+                    }
+                  : undefined
+              }
               confirmLabel={trash => `Install${trash.length > 0 ? `, trash ${trash.length}` : ''}`}
               canConfirm={trash =>
                 trash.length > 0 &&
-                isLegalAction(state, { type: 'RESOLVE_PROMPT', player: prompt.side, promptId: prompt.id, choice: trashingChoice(trashing, trash) })
+                seat.can({ type: 'RESOLVE_PROMPT', player: prompt.side, promptId: prompt.id, choice: trashingChoice(trashing, trash) })
               }
               onConfirm={trash => {
                 setTrashingFor(null);
@@ -205,20 +229,6 @@ export const PromptPanel: React.FC<PromptPanelProps> = ({ state, onAnswer, onIns
           );
         })()}
 
-        {!trashing && trashOptions.length > 0 && (
-          <div className="flex gap-2 justify-end flex-wrap mb-2">
-            {trashOptions.map(id => (
-              <TrashFirstButton
-                key={id}
-                label={trashLabel(id)}
-                title={isCorp ? "Trash cards already there as part of this install; trashed ice doesn't count toward the install cost" : 'Trash installed programs first, to free memory for this one'}
-                onClick={() => setTrashingFor({ promptId: prompt.id, optionId: id })}
-                testId={`prompt-trash-first-${id}`}
-              />
-            ))}
-          </div>
-        )}
-
         {prompt.kind === 'effect_choice' && !trashing && (
           <div className="flex gap-2 justify-end flex-wrap">
             {prompt.options.map(option => {
@@ -226,13 +236,29 @@ export const PromptPanel: React.FC<PromptPanelProps> = ({ state, onAnswer, onIns
               const card = findCardAnywhere(state, option.id);
               const server = state.corp.servers[option.id];
               const position = card ? cardPositionLabel(state, card) : null;
-              return (
+              const hasTrashable = trashOptions.includes(option.id);
+              const canNormal = seat.can({ type: 'RESOLVE_PROMPT', player: prompt.side, promptId: prompt.id, choice: { kind: 'effect_choice', optionId: option.id } });
+              const canWithTrash =
+                hasTrashable &&
+                seat.can({
+                  type: 'RESOLVE_PROMPT',
+                  player: prompt.side,
+                  promptId: prompt.id,
+                  choice: trashingChoice(option.id, trashableFor(option.id).map(c => c.instanceId)),
+                });
+              const autoTrash = !canNormal && canWithTrash;
+              const canTrashSplit = canNormal && hasTrashable;
+              const btn = (
                 <button
                   key={option.id}
-                  className={`${button} bg-slate-800 hover:bg-slate-700 border-slate-600 text-slate-100`}
+                  className={`${button} bg-slate-800 hover:bg-slate-700 border-slate-600 text-slate-100 ${canTrashSplit ? 'rounded-r-none' : ''}`}
                   onClick={() => {
                     hoverPromptTarget(null);
                     hoverPromptServer(null);
+                    if (autoTrash) {
+                      setTrashingFor({ promptId: prompt.id, optionId: option.id });
+                      return;
+                    }
                     answer({ kind: 'effect_choice', optionId: option.id });
                   }}
                   onMouseEnter={() => {
@@ -245,7 +271,30 @@ export const PromptPanel: React.FC<PromptPanelProps> = ({ state, onAnswer, onIns
                   }}
                 >
                   <CardNameText text={option.label} focusable={false} />
+                  {autoTrash && <span className="text-slate-300 font-normal">{isCorp ? '— trash first…' : '— free MU…'}</span>}
                 </button>
+              );
+              if (!canTrashSplit) return btn;
+              return (
+                <div key={option.id} className="inline-flex items-stretch">
+                  {btn}
+                  <TrashSplitSegment
+                    title={isCorp ? "Trash cards already there as part of this install; trashed ice doesn't count toward the install cost" : 'Trash installed programs first, to free memory for this one'}
+                    onClick={() => {
+                      hoverPromptTarget(null);
+                      hoverPromptServer(null);
+                      setTrashingFor({ promptId: prompt.id, optionId: option.id });
+                    }}
+                    onMouseEnter={() => {
+                      if (server) hoverPromptServer(server.id);
+                    }}
+                    onMouseLeave={() => {
+                      if (server) hoverPromptServer(null);
+                    }}
+                    testId={`prompt-trash-first-${option.id}`}
+                    className="border-slate-600"
+                  />
+                </div>
               );
             })}
           </div>
@@ -292,13 +341,50 @@ export const PromptPanel: React.FC<PromptPanelProps> = ({ state, onAnswer, onIns
                 Selected {selected.length} ({prompt.min === prompt.max ? prompt.min : `${prompt.min}-${prompt.max}`})
                 {isFull && <span className="text-amber-300"> · limit reached, deselect a card to change</span>}
               </span>
-              <button
-                className={`${button} bg-emerald-700 hover:bg-emerald-600 border-emerald-500 text-white`}
-                disabled={selected.length < prompt.min || selected.length > prompt.max}
-                onClick={() => answer({ kind: 'effect_cards', cardInstanceIds: selected })}
-              >
-                <Check className="w-3.5 h-3.5" /> Confirm
-              </button>
+              {(() => {
+                const inRange = selected.length >= prompt.min && selected.length <= prompt.max;
+                const canNormal =
+                  inRange &&
+                  seat.can({ type: 'RESOLVE_PROMPT', player: prompt.side, promptId: prompt.id, choice: { kind: 'effect_cards', cardInstanceIds: selected } });
+                const hasTrashable = selected.length === 1 && trashOptions.includes(selected[0]);
+                const canWithTrash =
+                  hasTrashable &&
+                  seat.can({
+                    type: 'RESOLVE_PROMPT',
+                    player: prompt.side,
+                    promptId: prompt.id,
+                    choice: trashingChoice(selected[0], trashableFor(selected[0]).map(c => c.instanceId)),
+                  });
+                const autoTrash = !canNormal && canWithTrash;
+                const canTrashSplit = canNormal && hasTrashable;
+                const confirmBtn = (
+                  <button
+                    className={`${button} bg-emerald-700 hover:bg-emerald-600 border-emerald-500 text-white ${canTrashSplit ? 'rounded-r-none' : ''}`}
+                    disabled={!inRange && !autoTrash}
+                    onClick={() => {
+                      if (autoTrash) {
+                        setTrashingFor({ promptId: prompt.id, optionId: selected[0] });
+                        return;
+                      }
+                      answer({ kind: 'effect_cards', cardInstanceIds: selected });
+                    }}
+                  >
+                    <Check className="w-3.5 h-3.5" /> Confirm{autoTrash ? (isCorp ? ' — trash first…' : ' — free MU…') : ''}
+                  </button>
+                );
+                if (!canTrashSplit) return confirmBtn;
+                return (
+                  <div className="inline-flex items-stretch">
+                    {confirmBtn}
+                    <TrashSplitSegment
+                      title="Trash installed programs first, to free memory for this one"
+                      onClick={() => setTrashingFor({ promptId: prompt.id, optionId: selected[0] })}
+                      testId={`prompt-trash-first-${selected[0]}`}
+                      className="border-emerald-500"
+                    />
+                  </div>
+                );
+              })()}
             </div>
           </>
         )}
@@ -323,12 +409,29 @@ export const PromptPanel: React.FC<PromptPanelProps> = ({ state, onAnswer, onIns
           const card = locateCorpCard(state, prompt.cardInstanceId)?.card;
           // Count every credit the Runner could pay the trash cost with, and only offer it when affordable
           const canPay = card ? availableCredits(state, 'runner', { kind: 'trash', card }) : state.runner.credits;
-          const canTrash = isLegalAction(state, {
+          const canTrash = seat.can({
             type: 'RESOLVE_PROMPT',
             player: 'runner',
             promptId: prompt.id,
             choice: { kind: 'access_trash', trash: true },
           });
+          // Nothing to decide (with stops on ALL every R&D access stops here, rules 4.2.2, 7.1.2): the card and Continue
+          const justLooking = prompt.trashCost === null && (prompt.alternatives ?? []).length === 0;
+          if (justLooking) {
+            return (
+              <>
+                <div className="flex items-center gap-4 mb-4">
+                  {card && <CardView card={card} size="md" typeIcons onInspect={onInspectCard} />}
+                  {card && <div className="text-xs font-bold text-slate-100">{cardDef(card).title}</div>}
+                </div>
+                <div className="flex gap-2 justify-end">
+                  <button className={`${button} bg-slate-800 hover:bg-slate-700 border-slate-600 text-slate-200`} onClick={() => answer({ kind: 'access_trash', trash: false })}>
+                    Continue
+                  </button>
+                </div>
+              </>
+            );
+          }
           return (
             <>
               <div className="flex items-center gap-4 mb-4">

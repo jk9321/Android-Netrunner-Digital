@@ -1,13 +1,14 @@
 import { useEffect, useState } from 'react';
 import { ArrowRight, Eye, Layers, Plus, Trash2, Zap } from 'lucide-react';
-import { CardInstance, GameAction, GameState, SideCode, cardDef, findCardAnywhere, getCardScript, getLegalActions, installedIce, isLegalAction, trashableFirst, virusCountersInPlay } from '../../core';
+import { CardInstance, GameAction, GameState, SideCode, cardDef, findCardAnywhere, getCardScript, installedIce, trashableFirst, virusCountersInPlay } from '../../core';
+import { legalFor, useSeat } from '../seat';
 import { playableHostZones, runnerInstallCost } from '../../core/engine/actions/install';
 import { playCost } from '../../core/engine/actions/play';
 import { showConfirm } from './Dialog';
-import { TrashFirstButton, TrashFirstPicker } from './TrashFirstPicker';
+import { TrashFirstPicker, TrashSplitSegment } from './TrashFirstPicker';
 import { ClickIcon, CreditIcon, Credits, TagIcon, VirusIcon } from './CreditIcon';
 import { CorpInstallOptions } from './CorpInstallOptions';
-import { hostedCardActions, illegalReason } from '../legal';
+import { hostedCardActions } from '../legal';
 import { cardPositionLabel } from '../cardLabels';
 import { hoverPromptTarget } from '../promptHighlight';
 
@@ -47,6 +48,7 @@ function LiveCostParens({ printed, live, darkOnAmber = false }: { printed: numbe
 
 /** "Play <card>" for a selected operation or event of this side. */
 function PlayButton({ side, state, selectedCard, onAction }: ActionBarProps & { side: SideCode }) {
+  const seat = useSeat();
   if (!selectedCard || !isPlayable(selectedCard) || cardDef(selectedCard).side_code !== side) return null;
   const action: GameAction = { type: 'PLAY_OPERATION_OR_EVENT', player: side, cardInstanceId: selectedCard.instanceId };
   const implemented = Boolean(getCardScript(selectedCard.cardCode)?.onPlay);
@@ -55,7 +57,7 @@ function PlayButton({ side, state, selectedCard, onAction }: ActionBarProps & { 
   return (
     <button
       onClick={() => onAction(action)}
-      disabled={!isLegalAction(state, action)}
+      disabled={!seat.can(action)}
       title={implemented ? undefined : 'This card\'s effect is not implemented yet'}
       className="px-4 py-1.5 bg-gradient-to-b from-amber-400 to-amber-600 hover:from-amber-300 hover:to-amber-500 text-black text-xs font-bold rounded-[2px] border border-amber-300 border-b-2 border-b-amber-700 transition-all flex items-center gap-1.5 shadow-lg disabled:opacity-40 disabled:animate-none animate-pulse active:translate-y-[1px] active:border-b-[1px]"
     >
@@ -112,6 +114,7 @@ function InstallOnIceButton({ state, host, onClick }: { state: GameState; host: 
 
 /** The Corp's click actions, plays and installs for the selected card, and End Turn. */
 export function CorpActions(props: ActionBarProps) {
+  const seat = useSeat();
   const { state, selectedCard, onAction, onInspect } = props;
   const { corp } = state;
   const startingTurn = state.turnStep?.kind === 'corp_turn_start';
@@ -124,14 +127,14 @@ export function CorpActions(props: ActionBarProps) {
         <div className="grid grid-cols-3 gap-1.5 w-full">
           <button
             onClick={() => onAction({ type: 'GAIN_CREDIT', player: 'corp' })}
-            disabled={!isLegalAction(state, { type: 'GAIN_CREDIT', player: 'corp' })}
+            disabled={!seat.can({ type: 'GAIN_CREDIT', player: 'corp' })}
             className="px-1.5 py-1.5 bg-gradient-to-b from-cyan-950/90 to-cyan-950/40 hover:from-cyan-900/90 hover:to-cyan-900/40 border border-cyan-700/80 border-b-2 border-b-cyan-500 text-cyan-200 text-xs font-bold rounded-[2px] transition-all flex items-center justify-center gap-1.5 disabled:opacity-40 shadow active:translate-y-[1px] active:border-b-[1px]"
           >
             <CreditIcon className="w-3.5 h-3.5 text-amber-400" /> +1 Credit
           </button>
           <button
             onClick={() => onAction({ type: 'DRAW_CARD', player: 'corp' })}
-            disabled={!isLegalAction(state, { type: 'DRAW_CARD', player: 'corp' })}
+            disabled={!seat.can({ type: 'DRAW_CARD', player: 'corp' })}
             className="px-1.5 py-1.5 bg-gradient-to-b from-cyan-950/90 to-cyan-950/40 hover:from-cyan-900/90 hover:to-cyan-900/40 border border-cyan-700/80 border-b-2 border-b-cyan-500 text-cyan-200 text-xs font-bold rounded-[2px] transition-all flex items-center justify-center gap-1.5 disabled:opacity-40 shadow active:translate-y-[1px] active:border-b-[1px]"
           >
             <Layers className="w-3.5 h-3.5 text-cyan-400" /> Draw Card
@@ -150,7 +153,7 @@ export function CorpActions(props: ActionBarProps) {
                 return;
               onAction({ type: 'PURGE_VIRUS', player: 'corp' });
             }}
-            disabled={!isLegalAction(state, { type: 'PURGE_VIRUS', player: 'corp' })}
+            disabled={!seat.can({ type: 'PURGE_VIRUS', player: 'corp' })}
             className="px-1 py-1.5 bg-gradient-to-b from-cyan-950/90 to-cyan-950/40 hover:from-cyan-900/90 hover:to-cyan-900/40 border border-cyan-700/80 border-b-2 border-b-cyan-500 text-cyan-200 text-xs font-bold rounded-[2px] transition-all flex items-center justify-center gap-1 disabled:opacity-40 shadow whitespace-nowrap active:translate-y-[1px] active:border-b-[1px]"
             title="Spend 3 clicks to remove every virus counter"
           >
@@ -158,7 +161,7 @@ export function CorpActions(props: ActionBarProps) {
             <span>Purge (3<ClickIcon className="w-3 h-3 text-red-400 inline-block align-middle mx-0.5" />)</span>
           </button>
         </div>
-        {getLegalActions(state, 'corp').map(a => {
+        {legalFor(seat, 'corp').map(a => {
           if (a.type !== 'TRASH_RESOURCE') return null;
           const res = findCardAnywhere(state, a.cardInstanceId);
           return (
@@ -187,7 +190,7 @@ export function CorpActions(props: ActionBarProps) {
       {/* End Turn Button - Prominently Anchored (before the turn begins it takes the mandatory draw instead) */}
       <button
         onClick={() => onAction(turnAction)}
-        disabled={!isLegalAction(state, turnAction)}
+        disabled={!seat.can(turnAction)}
         title={startingTurn ? 'Rez assets or upgrades first if you want them working this turn, then take the mandatory draw' : undefined}
         data-testid="end-turn"
         className={`px-3 py-1.5 bg-gradient-to-b from-cyan-600 to-cyan-800 hover:from-cyan-500 hover:to-cyan-700 text-white font-mono text-xs font-bold rounded-[2px] border border-cyan-400 border-b-2 border-b-cyan-300 transition-all shadow-lg shadow-cyan-950 flex items-center gap-1.5 self-end disabled:opacity-40 active:translate-y-[1px] active:border-b-[1px] ${
@@ -202,6 +205,7 @@ export function CorpActions(props: ActionBarProps) {
 
 /** The Runner's click actions, plays and installs for the selected card (or cards hosted on hardware), and End Turn. */
 export function RunnerActions(props: ActionBarProps) {
+  const seat = useSeat();
   const { state, selectedCard, onAction, onInspect } = props;
   const { runner } = state;
   const installable = selectedCard && !isPlayable(selectedCard) ? selectedCard : undefined;
@@ -213,7 +217,7 @@ export function RunnerActions(props: ActionBarProps) {
     installable && cardDef(installable).side_code === 'runner'
       ? onIce && iceHosts.length === 0
         ? `${cardDef(installable).title} must be installed on a piece of ice and there is none installed`
-        : illegalReason(state, { type: 'INSTALL_CARD', player: 'runner', cardInstanceId: installable.instanceId, hostInstanceId: iceHosts[0]?.instanceId })
+        : seat.reason({ type: 'INSTALL_CARD', player: 'runner', cardInstanceId: installable.instanceId, hostInstanceId: iceHosts[0]?.instanceId })
       : null;
   // Programs: trash installed programs first (rules 8.5.6c), which the memory limit may require
   const [makingRoom, setMakingRoom] = useState<string | null>(null);
@@ -225,11 +229,11 @@ export function RunnerActions(props: ActionBarProps) {
     const trojan = getCardScript(card.cardCode)?.installsOnIce;
     const all = trashableFirst(state, card, null).map(c => c.instanceId);
     const ice = trojan ? installedIce(state)[0]?.instanceId : undefined;
-    return all.length > 0 && (!trojan || !!ice) && isLegalAction(state, installTrashing(card, all, ice));
+    return all.length > 0 && (!trojan || !!ice) && seat.can(installTrashing(card, all, ice));
   };
   const canMakeRoom = !!installable && canMakeRoomFor(installable);
   // Cards hosted on hardware (Bling, Madani) that can be played or installed as if in the grip
-  const hostedActions = hostedCardActions(state);
+  const hostedActions = hostedCardActions(state, legalFor(seat, 'runner'));
   // Hosted programs that fit only after trashing installed programs (rules 8.5.6c): Gourmand on Bling with full MU
   const hostedNeedingRoom = playableHostZones(state)
     .flat()
@@ -242,8 +246,8 @@ export function RunnerActions(props: ActionBarProps) {
   const hostChoices: GameAction[] = !pickingHost
     ? []
     : pendingTrash
-      ? installedIce(state).map(h => installTrashing(findCardAnywhere(state, pickingHost)!, pendingTrash, h.instanceId)).filter(a => isLegalAction(state, a))
-      : getLegalActions(state, 'runner').filter(a => a.type === 'INSTALL_CARD' && a.cardInstanceId === pickingHost && a.hostInstanceId);
+      ? installedIce(state).map(h => installTrashing(findCardAnywhere(state, pickingHost)!, pendingTrash, h.instanceId)).filter(a => seat.can(a))
+      : legalFor(seat, 'runner').filter(a => a.type === 'INSTALL_CARD' && a.cardInstanceId === pickingHost && a.hostInstanceId);
   const pickingCard = pickingHost ? findCardAnywhere(state, pickingHost) : undefined;
   if (pickingCard && hostChoices.length > 0) {
     return (
@@ -284,14 +288,30 @@ export function RunnerActions(props: ActionBarProps) {
   }
   if (roomCard) {
     const firstIce = roomOnIce ? installedIce(state)[0]?.instanceId : undefined;
+    const neededMu = cardDef(roomCard).memory_cost ?? 0;
+    const freeMu = Math.max(0, state.runner.memoryUnitsTotal - state.runner.memoryUnitsUsed);
     return (
       <div className="flex flex-col gap-2 p-2 bg-gradient-to-b from-[#180a10] to-[#0d0407] border border-pink-900/60 rounded-[2px] shadow-inner">
         <TrashFirstPicker
           key={roomCard.instanceId}
           heading={`Install ${roomCard.instanceId === installable?.instanceId ? '' : 'hosted '}${cardDef(roomCard).title}, trashing first:`}
           cards={trashableFirst(state, roomCard, null)}
+          statusText={
+            neededMu > 0
+              ? trash => {
+                  const freed = trash.reduce((sum, id) => {
+                    const p = findCardAnywhere(state, id);
+                    return sum + (p ? (cardDef(p).memory_cost ?? 0) : 0);
+                  }, 0);
+                  const total = freeMu + freed;
+                  return total >= neededMu
+                    ? <span className="text-emerald-400">✓ {total}/{neededMu} MU available</span>
+                    : `Need ${neededMu - total} more MU`;
+                }
+              : undefined
+          }
           confirmLabel={trash => `${roomOnIce ? 'Choose ice' : 'Install'}${trash.length > 0 ? `, trash ${trash.length}` : ''}`}
-          canConfirm={trash => isLegalAction(state, installTrashing(roomCard, trash, firstIce))}
+          canConfirm={trash => seat.can(installTrashing(roomCard, trash, firstIce))}
           onConfirm={trash => {
             setMakingRoom(null);
             if (roomOnIce) {
@@ -306,6 +326,13 @@ export function RunnerActions(props: ActionBarProps) {
       </div>
     );
   }
+  const canNormalInstall = installable
+    ? onIce
+      ? legalFor(seat, 'runner').some(a => a.type === 'INSTALL_CARD' && a.cardInstanceId === installable.instanceId)
+      : installBlocked === null
+    : false;
+  const autoFreeMu = !!installable && !canNormalInstall && canMakeRoom;
+  const splitTrash = !!installable && canNormalInstall && canMakeRoom;
   return (
     <div className="flex flex-col gap-2 p-2 bg-gradient-to-b from-[#180a10] to-[#0d0407] border border-pink-900/60 rounded-[2px] shadow-inner">
       <div className="flex items-center gap-1.5 flex-wrap">
@@ -330,49 +357,57 @@ export function RunnerActions(props: ActionBarProps) {
         {runner.tags > 0 && (
           <button
             onClick={() => onAction({ type: 'REMOVE_TAG', player: 'runner' })}
-            disabled={!isLegalAction(state, { type: 'REMOVE_TAG', player: 'runner' })}
+            disabled={!seat.can({ type: 'REMOVE_TAG', player: 'runner' })}
             className="px-2 py-1.5 bg-gradient-to-b from-pink-950/90 to-pink-950/40 hover:from-pink-900/90 hover:to-pink-900/40 border border-pink-700/80 border-b-2 border-b-pink-500 text-pink-200 text-xs font-bold rounded-[2px] transition-all flex items-center justify-center gap-1.5 disabled:opacity-40 shadow w-full active:translate-y-[1px] active:border-b-[1px]"
           >
             <TagIcon className="w-[18px] h-[18px] text-red-400 shrink-0" /> Remove Tag (1<ClickIcon className="w-3 h-3 text-red-400 inline-block align-middle mx-0.5" /> + <Credits amount={2} />)
           </button>
         )}
         <PlayButton {...props} side="runner" />
-        {installable && onIce && (
-          <button
-            onClick={() => setPickingHost(installable.instanceId)}
-            disabled={!getLegalActions(state, 'runner').some(a => a.type === 'INSTALL_CARD' && a.cardInstanceId === installable.instanceId)}
-            title={installBlocked ?? 'Choose the ice to install it on'}
-            className="px-2 py-1.5 bg-gradient-to-b from-pink-600 to-pink-800 hover:from-pink-500 hover:to-pink-700 text-white text-xs font-bold rounded-[2px] border border-pink-400 border-b-2 border-b-pink-300 transition-all flex items-center gap-1.5 shadow-lg animate-pulse disabled:opacity-40 disabled:animate-none active:translate-y-[1px] active:border-b-[1px]"
-          >
-            <Plus className="w-3.5 h-3.5" /> <span>Install {cardDef(installable).title}</span>
-            <LiveCostParens printed={cardDef(installable).cost ?? 0} live={runnerInstallCost(state, installable)} />
-          </button>
-        )}
-        {installable && !onIce && (
-          <button
-            onClick={() => onAction({ type: 'INSTALL_CARD', player: 'runner', cardInstanceId: installable.instanceId })}
-            disabled={installBlocked !== null}
-            title={installBlocked ?? undefined}
-            className="px-2 py-1.5 bg-gradient-to-b from-pink-600 to-pink-800 hover:from-pink-500 hover:to-pink-700 text-white text-xs font-bold rounded-[2px] border border-pink-400 border-b-2 border-b-pink-300 transition-all flex items-center gap-1.5 shadow-lg animate-pulse disabled:opacity-40 disabled:animate-none active:translate-y-[1px] active:border-b-[1px]"
-          >
-            <Plus className="w-3.5 h-3.5" /> <span>Install Card</span>
-            <LiveCostParens printed={cardDef(installable).cost ?? 0} live={runnerInstallCost(state, installable)} />
-          </button>
-        )}
+        {installable && (() => {
+          const mainBtn = (
+            <button
+              onClick={() => {
+                if (autoFreeMu) {
+                  setMakingRoom(installable.instanceId);
+                  return;
+                }
+                if (onIce) {
+                  setPickingHost(installable.instanceId);
+                  return;
+                }
+                onAction({ type: 'INSTALL_CARD', player: 'runner', cardInstanceId: installable.instanceId });
+              }}
+              disabled={!canNormalInstall && !autoFreeMu}
+              title={autoFreeMu ? 'Not enough memory — click to choose installed programs to trash first' : (installBlocked ?? (onIce ? 'Choose the ice to install it on' : undefined))}
+              className={`px-2 py-1.5 bg-gradient-to-b from-pink-600 to-pink-800 hover:from-pink-500 hover:to-pink-700 text-white text-xs font-bold border border-pink-400 border-b-2 border-b-pink-300 transition-all flex items-center gap-1.5 shadow-lg animate-pulse disabled:opacity-40 disabled:animate-none active:translate-y-[1px] active:border-b-[1px] ${
+                splitTrash ? 'rounded-l-[2px]' : 'rounded-[2px]'
+              }`}
+            >
+              <Plus className="w-3.5 h-3.5" />
+              <span>{onIce ? `Install ${cardDef(installable).title}` : 'Install Card'}</span>
+              <LiveCostParens printed={cardDef(installable).cost ?? 0} live={runnerInstallCost(state, installable)} />
+              {autoFreeMu && <span className="text-pink-200 font-normal">— free MU…</span>}
+            </button>
+          );
+          if (!splitTrash) return mainBtn;
+          return (
+            <div className="inline-flex items-stretch">
+              {mainBtn}
+              <TrashSplitSegment
+                title="Trash installed programs first"
+                onClick={() => setMakingRoom(installable.instanceId)}
+                testId="install-trash-programs"
+                className="border-pink-400 border-b-pink-300"
+              />
+            </div>
+          );
+        })()}
         <InspectSelectedButton side="runner" selectedCard={selectedCard} onInspect={onInspect} />
-        {installable && installBlocked !== null && (
+        {installable && installBlocked !== null && !autoFreeMu && (
           <span className="w-full text-xs text-amber-300 font-mono" data-testid="install-blocked-reason">
             Can't install: {installBlocked}
-            {canMakeRoom ? '. You can trash installed programs first to free memory.' : ''}
           </span>
-        )}
-        {installable && canMakeRoom && (
-          <TrashFirstButton
-            label="Trash programs first"
-            title="Trash installed programs first, to free memory for this one"
-            onClick={() => setMakingRoom(installable.instanceId)}
-            testId="install-trash-programs"
-          />
         )}
         {hostedActions.map(a => {
           if (a.type !== 'INSTALL_CARD' && a.type !== 'PLAY_OPERATION_OR_EVENT') return null;
@@ -381,12 +416,15 @@ export function RunnerActions(props: ActionBarProps) {
           if (onIceHosted && hostedActions.find(b => b.type === 'INSTALL_CARD' && b.cardInstanceId === a.cardInstanceId) !== a) return null;
           const hosted = findCardAnywhere(state, a.cardInstanceId);
           if (!hosted) return null;
-          return (
+          const hostedSplit = a.type === 'INSTALL_CARD' && canMakeRoomFor(hosted);
+          const btn = (
             <button
               key={`${a.type}-${a.cardInstanceId}`}
               onClick={() => (onIceHosted ? setPickingHost(a.cardInstanceId) : onAction(a))}
               data-testid={`hosted-${a.cardInstanceId}`}
-              className="px-2 py-1.5 bg-gradient-to-b from-pink-900/90 to-pink-900/40 hover:from-pink-800/90 hover:to-pink-800/40 border border-pink-600/80 border-b-2 border-b-pink-400 text-white text-xs font-bold rounded-[2px] transition-all flex items-center gap-1.5 shadow active:translate-y-[1px] active:border-b-[1px]"
+              className={`px-2 py-1.5 bg-gradient-to-b from-pink-900/90 to-pink-900/40 hover:from-pink-800/90 hover:to-pink-800/40 border border-pink-600/80 border-b-2 border-b-pink-400 text-white text-xs font-bold transition-all flex items-center gap-1.5 shadow active:translate-y-[1px] active:border-b-[1px] ${
+                hostedSplit ? 'rounded-l-[2px]' : 'rounded-[2px]'
+              }`}
               title={onIceHosted ? 'This card is hosted faceup on your hardware; choose the ice to install it on' : 'This card is hosted faceup on your hardware'}
             >
               {a.type === 'INSTALL_CARD' ? <Plus className="w-3.5 h-3.5" /> : <Zap className="w-3.5 h-3.5" />}
@@ -397,22 +435,39 @@ export function RunnerActions(props: ActionBarProps) {
               />
             </button>
           );
+          if (!hostedSplit) return btn;
+          return (
+            <div key={`${a.type}-${a.cardInstanceId}`} className="inline-flex items-stretch">
+              {btn}
+              <TrashSplitSegment
+                title="Trash installed programs first"
+                onClick={() => setMakingRoom(hosted.instanceId)}
+                testId={`hosted-room-${hosted.instanceId}`}
+                className="border-pink-600/80 border-b-pink-400"
+              />
+            </div>
+          );
         })}
         {hostedNeedingRoom.map(c => (
-          <TrashFirstButton
+          <button
             key={`room-${c.instanceId}`}
-            label={`Install hosted ${cardDef(c).title}, trashing programs first`}
-            title="Not enough memory: trash installed programs first to free memory for this hosted card"
             onClick={() => setMakingRoom(c.instanceId)}
-            testId={`hosted-room-${c.instanceId}`}
-          />
+            data-testid={`hosted-room-${c.instanceId}`}
+            title="Not enough memory: click to trash installed programs first"
+            className="px-2 py-1.5 bg-gradient-to-b from-pink-900/90 to-pink-900/40 hover:from-pink-800/90 hover:to-pink-800/40 border border-pink-600/80 border-b-2 border-b-pink-400 text-white text-xs font-bold rounded-[2px] transition-all flex items-center gap-1.5 shadow active:translate-y-[1px] active:border-b-[1px]"
+          >
+            <Plus className="w-3.5 h-3.5" />
+            <span>Install hosted {cardDef(c).title}</span>
+            <LiveCostParens printed={cardDef(c).cost ?? 0} live={runnerInstallCost(state, c)} />
+            <span className="text-pink-200 font-normal">— free MU…</span>
+          </button>
         ))}
       </div>
 
       {/* End Turn Button - Prominently Anchored */}
       <button
         onClick={() => onAction({ type: 'END_TURN', player: 'runner' })}
-        disabled={!isLegalAction(state, { type: 'END_TURN', player: 'runner' })}
+        disabled={!seat.can({ type: 'END_TURN', player: 'runner' })}
         data-testid="end-turn"
         className={`px-3 py-1.5 bg-gradient-to-b from-pink-600 to-pink-800 hover:from-pink-500 hover:to-pink-700 text-white font-mono text-xs font-bold rounded-[2px] border border-pink-400 border-b-2 border-b-pink-300 transition-all shadow-lg shadow-pink-950 flex items-center gap-1.5 self-end disabled:opacity-40 active:translate-y-[1px] active:border-b-[1px] ${
           runner.clicks === 0 ? 'end-turn-pulse end-turn-runner' : ''

@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { iceStop, iceWorth } from '../src/ai/iceValues';
 import { iceCost } from '../src/ai/runs';
 import { installIceForTest, installProgramForTest, newGame } from './helpers';
+import { tuning } from '../src/ai/synergy';
 
 const PALISADE = '30072'; // barrier, end the run
 const CLEAVER = '30006'; // fracter
@@ -21,8 +22,12 @@ describe('ice is worth what it costs the Runner to get past (value model step 5)
     const s = newGame();
     installIceForTest(s, PALISADE, 'remote-9', false);
     const ice = s.corp.servers['remote-9'].ice[0];
+    // Rez budget: with no credits it counts at the next-turn share while a turn's income covers the rez, else nothing
     s.corp.credits = 0;
-    expect(iceWorth(s, ice, 'corp')).toBe(1);
+    expect(iceWorth(s, ice, 'corp')).toBeCloseTo(1 + 0.3 * iceStop(s));
+    s.corp.servers['remote-9'].ice[0] = { ...ice, cardCode: '30063' }; // Pharos (7), a costlier ice: out of a turn's reach
+    expect(iceWorth(s, s.corp.servers['remote-9'].ice[0], 'corp')).toBe(1);
+    s.corp.servers['remote-9'].ice[0] = ice;
     s.corp.credits = 10;
     expect(iceWorth(s, ice, 'corp')).toBeCloseTo(1 + 0.6 * iceStop(s));
     expect(iceWorth(s, ice, 'runner')).toBeCloseTo(1 + iceCost(s, ice));
@@ -38,6 +43,14 @@ describe('breakers are worth the stops they save (value model step 5b)', () => {
     const total = ['barrier', 'code gate', 'sentry'].reduce((n, t) => n + breakerTypeWorth(s, t), 0);
     expect(total).toBeCloseTo(24);
     s.corp.score = 6;
-    expect(['barrier', 'code gate', 'sentry'].reduce((n, t) => n + breakerTypeWorth(s, t), 0)).toBeCloseTo(12);
+    // Under 4 turns left (iceValues.ts clock): with the measured turns left (plan.measuredTurnsLeft) 4 remain at 6 points
+    const late = () => ['barrier', 'code gate', 'sentry'].reduce((n, t) => n + breakerTypeWorth(s, t), 0);
+    expect(late()).toBeCloseTo(24);
+    tuning.plan.measuredTurnsLeft = false;
+    try {
+      expect(late()).toBeCloseTo(12);
+    } finally {
+      tuning.plan.measuredTurnsLeft = true;
+    }
   });
 });

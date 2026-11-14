@@ -5,7 +5,7 @@
  * ./old), so both run on this tree's engine.
  *
  *   H2H=corp|runner|old SHARD=i/n npx vite-node scripts/head-to-head.ts -- [games per pairing] [normal|hard]
- *   node scripts/corp-losses-sum.mjs out/*.json
+ *   node scripts/corp-losses-sum.mjs out/*.json [--base other/*.json]
  *
  * H2H=corp: new Corp vs old Runner. runner: old Corp vs new Runner. old: old vs old.
  * Same seeds as corp-losses.ts, so new vs new is the ordinary self-play batch.
@@ -17,6 +17,8 @@ import { ALL_DECKS as DECKS } from './nsg-sample-decks';
 import { createAgent } from '../src/ai';
 import { GameRecord, playLogged } from './lossLog';
 import { applyPlanOff } from '../src/ai/synergy';
+import { installDiagnostics } from '../src/ai/diagnostics';
+const diag = installDiagnostics();
 
 const [gamesArg, levelArg] = process.argv.slice(2).filter(a => a !== '--');
 const games = Number(gamesArg ?? 1);
@@ -44,13 +46,12 @@ for (const c of DECKS.filter(d => d.side === 'corp')) {
       const agent = (side: 'corp' | 'runner') =>
         (side === newSide ? createAgent : old.createAgent)(side, level, level === 'hard' ? { samples: 6, candidates: 3, seed } : {});
       try {
-        records.push(playLogged(createInitialGameState(deckGameSetup(seed, c, r)), { corp: agent('corp'), runner: agent('runner') }, { corp: c.name, runner: r.name }));
+        records.push({ ...playLogged(createInitialGameState(deckGameSetup(seed, c, r)), { corp: agent('corp'), runner: agent('runner') }, { corp: c.name, runner: r.name }), seed });
       } catch (err) {
         console.error(`deal ${seed} ${c.name} vs ${r.name}: ${err}`);
       }
     }
   }
 }
-const { replyStats } = await import('../src/ai/runnerReply');
-console.error(`reply naked agenda remotes: ${replyStats.nakedAgendaRuns}/${replyStats.nakedAgendaTurns} run`);
+console.error(`reply naked agenda remotes: ${diag.reply.nakedAgendaRuns}/${diag.reply.nakedAgendaTurns} run`);
 console.log(JSON.stringify(records));

@@ -1,5 +1,7 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
+import { motion } from 'framer-motion';
 import { Maximize2, Minus, GripHorizontal } from 'lucide-react';
+import { shouldReduceMotion } from '../animations';
 
 interface Position {
   left: number;
@@ -149,34 +151,42 @@ export const FloatingPanel: React.FC<FloatingPanelProps> = ({
     );
   }
 
+  const prefersReduced = shouldReduceMotion();
   return (
     <div
       ref={ref}
       style={style}
-      className={`fixed ${zIndexClass} ${placement} ${widthClass} max-w-[calc(100vw-1rem)] max-h-[calc(100dvh-1rem)] flex flex-col bg-[#090d15]/95 backdrop-blur-xl border rounded-[2px] shadow-2xl font-mono ${accentClass}`}
+      className={`fixed ${zIndexClass} ${placement} ${widthClass} max-w-[calc(100vw-1rem)] max-h-[calc(100dvh-1rem)] flex flex-col`}
       data-testid={testId}
       role={role}
       aria-labelledby={ariaLabelledBy}
     >
-      <div
-        className="flex items-center gap-2 px-3 sm:px-4 pt-2.5 sm:pt-3 pb-2 cursor-move select-none touch-none shrink-0"
-        title="Drag to move"
-        data-testid={testId ? `${testId}-handle` : undefined}
-        {...dragHandlers}
+      <motion.div
+        initial={prefersReduced ? false : { opacity: 0, scale: 0.95 }}
+        animate={{ opacity: 1, scale: 1 }}
+        transition={prefersReduced ? { duration: 0 } : { duration: 0.14, ease: [0.16, 1, 0.3, 1] }}
+        className={`flex flex-col flex-1 min-h-0 bg-[#090d15]/95 backdrop-blur-xl border rounded-[2px] shadow-2xl font-mono ${accentClass}`}
       >
-        <GripHorizontal className="w-4 h-4 text-slate-600 shrink-0" />
-        <div className="flex-1 min-w-0">{title}</div>
-        <button
-          onClick={() => setMinimized(true)}
-          className="p-1 rounded-[2px] text-slate-400 hover:text-white hover:bg-slate-800 border border-transparent hover:border-slate-700 shrink-0"
-          aria-label="Minimize panel"
-          title="Minimize to see the board"
-          data-testid={testId ? `${testId}-minimize` : undefined}
+        <div
+          className="flex items-center gap-2 px-3 sm:px-4 pt-2.5 sm:pt-3 pb-2 cursor-move select-none touch-none shrink-0"
+          title="Drag to move"
+          data-testid={testId ? `${testId}-handle` : undefined}
+          {...dragHandlers}
         >
-          <Minus className="w-4 h-4" />
-        </button>
-      </div>
-      <div className="px-3.5 pb-3.5 sm:px-5 sm:pb-5 overflow-y-auto min-h-0">{children}</div>
+          <GripHorizontal className="w-4 h-4 text-slate-600 shrink-0" />
+          <div className="flex-1 min-w-0">{title}</div>
+          <button
+            onClick={() => setMinimized(true)}
+            className="p-1 rounded-[2px] text-slate-400 hover:text-white hover:bg-slate-800 border border-transparent hover:border-slate-700 shrink-0"
+            aria-label="Minimize panel"
+            title="Minimize to see the board"
+            data-testid={testId ? `${testId}-minimize` : undefined}
+          >
+            <Minus className="w-4 h-4" />
+          </button>
+        </div>
+        <div className="px-3.5 pb-3.5 sm:px-5 sm:pb-5 overflow-y-auto min-h-0">{children}</div>
+      </motion.div>
     </div>
   );
 };
