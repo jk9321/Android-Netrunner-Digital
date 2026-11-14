@@ -15,7 +15,7 @@ import { newGame } from './helpers';
 // (heldWorth's SOON). v1 froze the whole held worth at the root and the Corp stayed broke more (+6.9 ± 2.7, run
 // 43326772375). A decision's own boards (a prompt's answers simulated, the rule ranking) and the Runner's stack price
 // per board: the board with Clearinghouse trashed priced at the board that kept it left the meat damage unfired
-// (tests/clearinghouseRez.test.ts), and plan.reach's cases install a breaker the root's rig lacks (tests/reach.test.ts).
+// (tests/clearinghouseRez.test.ts).
 const playout = <T,>(work: () => T): T => withPricing({ frozen: true }, work);
 const withCredits = (s: GameState, credits: number): GameState => ({ ...s, corp: { ...s.corp, credits } });
 

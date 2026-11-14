@@ -212,7 +212,7 @@ export const tuning = {
      * decision with it off (threat-profile.ts), 870-900 ms with only the other six off. The set's loss is the other six's:
      * all seven off -8.0 ± 2.3 (run 42526354323), the six without it -10.1 ± 2.3 (run 42531131425), vs base 42525924644.
      * Off alone: -2.6 ± 1.8 (run 42534791260, 663 games), went broke +5.7 ± 2.8, 0.53x time. PARKED ON (AI Coordinator
-     * 2026-11-08): a probable real loss; re-measure after K1 (reach) changes what the threat feeds.
+     * 2026-11-08): a probable real loss; re-measure if the threat's inputs change (K1, plan.reach, was deleted in audit Step 3).
      */
     threatValues: true,
     /**
@@ -362,8 +362,7 @@ export const tuning = {
      * as it knows it (effectValues.ts ownIce: the real ice when its rez budget covers it, passed when not; rules 3.4.3a,
      * 6.9.2b-c) in runSuccess and stealOdds. Off: the Runner-side pass rates, so an agenda behind a Pharos the Corp could
      * not pay for (game 9 T16) or a rezzed Boto the rig breaks plus an unaffordable Tatu-Bola (game 7) read as defended.
-     * It uses reach.ts knownIce, plan.reachStrength's copy, which never ran because it lives inside plan.reach (OFF):
-     * fold this one and reachStrength together.
+     * (The pricing was reach.ts knownIce, plan.reachStrength's copy; it moved into ownIce when plan.reach was deleted.)
      */
     ownIceKnown: true,
     /**
@@ -436,20 +435,6 @@ export const tuning = {
     /** Jeff, 2026-11-06 (his Teia game, ai-ice-grip): ice on the board is priced against a grip no bigger than the hand size, not the cards the Runner holds only until its turn ends (iceValues iceWorthOf). */
     iceGripCap: true,
     /**
-     * Round 2 Phase 2 K (spec-phase2.md K, design-k1.md): the Runner capability model (reach.ts). reach: an agenda's steal
-     * odds over the breakers and run events the Runner may hold or draw from its unseen pool (hypergeometric), each case
-     * priced with that card installed or played, in place of the threat on the rig as it is. reachStrength (K2): the Corp's
-     * own unrezzed ice priced as the real ice when its rez budget covers it (rule 3.4.3a), and HQ/R&D exposure from reach's
-     * get-in odds. reachTime (K3): each turn an agenda waits at its own horizon (income and draws by then).
-     * All OFF, measured vs the Phase 2 base (beta 51214e4): reach +0.3 ± 0.7 at 10 games (run 42549985741) with stayed broke
-     * +1.5 ± 0.7, over the 2 SE line; reach + reachStrength -0.9 ± 1.4 at 3 games (42538399856), opening unchanged
-     * (scripts/reach-opening.ts); reach + reachTime +0.6 ± 0.8 at 10 games (42543840540), stayed broke +2.8 ± 0.9. The model
-     * prices odds the planner already plays out; it is kept as the ground for replacing threatValues' sampled turn.
-     */
-    reach: false,
-    reachStrength: false,
-    reachTime: false,
-    /**
      * K4b (AI Coordinator 2026-11-08, Jeff: make threatValues cheaper): the threat's cache key reads the grip as the
      * threat deals it (its cards, not the real grip's ids). ON: plays identically (games=1, 221/221, run 42541440924), threat
      * budgets 4931 -> 4136 and about 9% off a decision on the human-games positions. threatKeyPricing also leaves the outer
@@ -502,7 +487,7 @@ export const tuning = {
  */
 export const sideOff: Record<SideCode, string[]> = {
   corp: [],
-  runner: ['scoreNow', 'scoreInTwo', 'tagTrashNow', 'ownTrashRisk', 'hqTrashCost', 'oneCurrency', 'threatModel', 'iceProtects', 'replyContenders', 'plannerAgenda', 'clearinghouseRez', 'ownIceKnown', 'runRecord', 'icePacingPriced', 'searchSamples', 'hiddenDraws', 'oracle', 'reach', 'reachStrength', 'reachTime', 'threatKey', 'threatKeyPricing'],
+  runner: ['scoreNow', 'scoreInTwo', 'tagTrashNow', 'ownTrashRisk', 'hqTrashCost', 'oneCurrency', 'threatModel', 'iceProtects', 'replyContenders', 'plannerAgenda', 'clearinghouseRez', 'ownIceKnown', 'runRecord', 'icePacingPriced', 'searchSamples', 'hiddenDraws', 'oracle', 'threatKey', 'threatKeyPricing'],
 };
 
 /**
@@ -555,6 +540,8 @@ export const DELETED: readonly string[] = [
   'threatLeaf', 'threatSpend', 'calibratedRun', 'measuredPass',
   // C2, the planner search's ordering patches off (item 4, 2026-11-07)
   'plannerPatchesOff',
+  // C3, the Runner capability model (Phase 2 K1-K3, 2026-11-09; reach.ts deleted, ownIce keeps knownIce's live path)
+  'reach', 'reachStrength', 'reachTime',
 ];
 
 /** Throws on a name that isn't a plan switch (a typo, a switch folded into the code, or one deleted). */

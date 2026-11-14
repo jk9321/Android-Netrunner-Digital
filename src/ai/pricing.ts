@@ -72,8 +72,6 @@ export interface Pricing {
   pricingBreakers: Set<string>;
   /** plan.oracle.safestRemote (oracle.ts): the Runner's next turn is being played out for the oracle: no oracle inside. */
   oracleRunning: boolean;
-  /** plan.reach (reach.ts): a capability case is being worked out: nothing inside asks reach again. */
-  reaching: boolean;
   /**
    * plan.runRecord (threatModel.ts recordRun): the servers the Runner ran on each of its last turns, most recent first, as
    * the deciding Corp saw them (public: rules 6.1.2a, 6.9.1a, the Runner announces the server it runs). Null: none noted.
@@ -105,7 +103,6 @@ const context: Pricing = {
   rezzingToUse: new Set(),
   pricingBreakers: new Set(),
   oracleRunning: false,
-  reaching: false,
   runRecord: null,
   diagnostics: null,
 };
@@ -224,7 +221,7 @@ export function pricingKey(): string {
     c.pricingEffect ? 'e' : '',
     c.planning ? 'c' : '',
     c.computingThreat ? 'h' : '',
-    (c.oracleRunning ? 'o' : '') + (c.reaching ? 'r' : ''),
+    c.oracleRunning ? 'o' : '',
     c.runRecord ? c.runRecord.map(turn => turn.join('+')).join('/') : '',
   ].join(':');
   keyVersion = version;

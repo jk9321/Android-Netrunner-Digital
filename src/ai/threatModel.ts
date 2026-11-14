@@ -434,7 +434,7 @@ export function remoteRunChance(state: GameState, serverId: string): number {
  * `state` with remoteRunChance's stand-in agenda in remote `serverId` when it holds no facedown card (state itself
  * otherwise, or when the Corp has no agenda to copy).
  */
-export function probedState(state: GameState, serverId: string): GameState {
+function probedState(state: GameState, serverId: string): GameState {
   const server = state.corp.servers[serverId];
   if (!server?.isRemote || server.root.some(c => !c.isRezzed && !c.faceUp)) return state;
   const like = [...state.corp.hq, ...state.corp.rd, ...state.corp.scoreArea].find(c => cardDef(c).type_code === 'agenda');
@@ -442,20 +442,6 @@ export function probedState(state: GameState, serverId: string): GameState {
   const probe: CardInstance = { ...like, instanceId: 'threat-probe', isRezzed: false, faceUp: false, advancementCounters: 0, runnerKnows: false, tokens: {} };
   const servers = { ...state.corp.servers, [serverId]: { ...server, root: [...server.root, probe] } };
   return { ...state, corp: { ...state.corp, servers } };
-}
-
-/**
- * plan.reach (reach.ts): whether the Runner AI would run `serverId` on its next turn from `view` (a board reach has
- * given breakers it may find): the server's score at the turn's start against its always-there click, as the probe
- * reads it. 1 or 0.
- */
-export function wouldRun(view: GameState, serverId: string, options: RunOptions = {}): number {
-  return withPricing({ computingThreat: pricing().computingThreat + 1 }, () =>
-    asSide('runner', () => {
-      const v = runnerView(view);
-      return runScore(v, serverId, { ...options, memory: runnerMemory(view), wary: !!tuning.wary }) > fallbackClick(v).score ? 1 : 0;
-    })
-  );
 }
 
 /** The probe's 0/1 (remoteRunChance). */

@@ -1080,7 +1080,7 @@ const ICE_PACING_INCOME = 0;
  * it"): with plan.ownIceKnown pricing the Corp's unrezzed ice by its rez budget, the ice-pacing guard's -Infinity is
  * left to that pricing: ice the Corp can't pay for counts as no protection, and ice it never needs to rez costs nothing.
  */
-const pacingPriced = (): boolean => plan().icePacingPriced && plan().ownIceKnown && !plan().reach;
+const pacingPriced = (): boolean => plan().icePacingPriced && plan().ownIceKnown;
 
 export function unrezzedIceCost(state: GameState): number {
   return Object.values(state.corp.servers)

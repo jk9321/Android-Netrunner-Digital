@@ -9,7 +9,7 @@ import { tagsWorth } from './evaluate';
 import { BLOCK, iceCost, iceCreditNeed, isTrap, plannedSubroutines, subroutineCost } from './runs';
 import { remoteRunChance, threatOn } from './threatModel';
 import { plan, pricing, withPricing } from './pricing';
-import { knownIce } from './reach';
+import { REZ_NOW_SHARE, rezBudget } from './iceValues';
 
 /**
  * The every-card audit's last 31 cards (Jeff, 2026-10-28): assets, upgrades
@@ -175,13 +175,17 @@ export function runSuccessBypassing(state: GameState, serverId: string, bypassed
  * OWN unrezzed ice as it knows it, not by the Runner-side pass rates (UNREZZED_PASS: what a Runner meets
  * when it can't see the ice). Ice its rez budget covers now (iceValues rezBudget: one pool, best stop first) is priced as
  * the real ice against the rig, since the Corp can rez it as it is approached (rules 3.4.3a, 6.9.2b); ice the budget
- * doesn't cover stays unrezzed and is passed (6.9.2c). The single copy is reach.ts knownIce (plan.reachStrength,
- * K2), which only runs inside plan.reach: both OFF since Phase 2 K, which is why it never priced these positions. With
- * plan.reach on, reach owns the pricing and this stays out of its way.
+ * doesn't cover stays unrezzed and is passed (6.9.2c). (Moved here from reach.ts knownIce, its one live reader, when
+ * plan.reach and its K2/K3 pieces were deleted in audit Step 3.)
  */
 function ownIce(state: GameState, server: GameState['corp']['servers'][string]): CardInstance[] {
-  if (!plan().ownIceKnown || plan().reach || !server.ice.some(ice => !ice.isRezzed)) return server.ice;
-  return knownIce(state, server.id, 1, true);
+  if (!plan().ownIceKnown || !server.ice.some(ice => !ice.isRezzed)) return server.ice;
+  const budget = rezBudget(state, true);
+  return server.ice.flatMap(ice => {
+    if (ice.isRezzed) return [ice];
+    const share = budget.get(ice.instanceId);
+    return share !== undefined && share >= REZ_NOW_SHARE ? [{ ...ice, isRezzed: true }] : [];
+  });
 }
 
 /** iceCost behind the re-entry guard. */

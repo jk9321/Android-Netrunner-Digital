@@ -7,7 +7,7 @@
  *   6.9.2b-c: the Corp can rez the approached ice; if it is not rezzed the run proceeds past it (Movement Phase).
  * The Corp knows its own ice and credits, so ice it can't pay for is passed and ice it can is the real ice against the
  * rig. The leaf priced both by the Runner-side unrezzed pass rates (stealOdds 0.30 here). plan.ownIceKnown prices them
- * as the Corp knows them (reach.ts knownIce, the copy plan.reachStrength had inside the OFF plan.reach).
+ * as the Corp knows them (effectValues ownIce; the pricing was reach.ts knownIce until plan.reach was deleted).
  * What this pins is the pricing: at both positions the planner still installs the agenda (its continuation installs
  * whenever one can go in: search shape, handed to the search thread).
  */

@@ -1,5 +1,5 @@
 /**
- * Phase 2 K (plan.reach, src/ai/reach.ts RUNNER_TURN_DRAWS): how many cards the Runner AI takes from its stack per
+ * Phase 2 K (measured for plan.reach's RUNNER_TURN_DRAWS, 1.6; both deleted in audit Step 3): how many cards the Runner AI takes from its stack per
  * turn in self-play (draw clicks, rule 5.2.7c, plus card draws and tutors: every card that leaves the stack), counted
  * from one Runner turn start to the next. Plays the batch's deals (Normal AI, shipped decks) with every switch as on beta.
  *

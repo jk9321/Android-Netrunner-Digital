@@ -19,7 +19,6 @@ import { isTrap, remoteAgendaOdds, trashedCardCost } from './runs';
 import { centralAccess, runChance, threatOn } from './threatModel';
 import { plan, pricing, pricingKey, withPricing } from './pricing';
 import { corpDrawPool, oracleSteal } from './oracle';
-import { getIn, reachOn, reachStanding } from './reach';
 
 const MADANI = '35028';
 
@@ -299,7 +298,7 @@ export function agendaWorth(
   const openNew = threatOn() && !serverId && success === 1 ? 1 : undefined;
   const steal = stealChance ?? openNew ?? (
     success === undefined && serverId
-      ? oracleSteal(state, serverId) ?? (reachOn() ? getIn(state, serverId) : stealOdds(state, serverId)) // plan.oracle.safestRemote: told the Runner's next turn; plan.reach: over the breakers it may find
+      ? oracleSteal(state, serverId) ?? stealOdds(state, serverId) // plan.oracle.safestRemote: told the Runner's next turn
       : STEAL.run * (success ?? (serverId ? runSuccess(state, serverId) : PACE.success)));
   // Agenda tempo (Jeff, 2026-10-28): the Runner turns until the Corp has the clicks to finish it (installing from hand is one more),
   // each a run that may get in and a turn closer to the end of the game (about 1 in turnsLeft)
@@ -345,8 +344,6 @@ function agendaRunnerTurns(state: GameState, need: number, inHand: boolean, budg
  * can't afford today is still at risk on the turns after. The rig is as it is: the Corp can't see the breakers coming.
  */
 export function threatStanding(state: GameState, serverId: string, turns: number, first: number): number {
-  // plan.reachTime (K3): each waiting turn at its own horizon, the breakers the Runner may have found by then included
-  if (plan().reachTime && reachOn()) return reachStanding(state, serverId, turns);
   let standing = 1;
   for (let t = 1; t <= turns; t++) {
     if (t === 1) {
@@ -489,10 +486,8 @@ export function centralExposure(state: GameState, viewer: SideCode): number {
     }
     // plan.threatModel: the runs the Runner's own scorer makes on this board (threatModel.ts), not the shares
     const threat = threatOn();
-    // plan.reachStrength (K2): the Runner's chance to get in over the breakers it may find, its ice as the Corp knows it
-    const reached = threat && plan().reachStrength && reachOn();
-    const hqRate = reached ? getIn(state, 'hq') : (threat ? runChance(state, 'hq') : PACE.runs * PACE.hqShare) * runSuccess(state, 'hq');
-    const rdRate = !corp.rd.length ? 0 : reached ? getIn(state, 'rd') : (threat ? runChance(state, 'rd') : PACE.runs * PACE.rdShare) * runSuccess(state, 'rd');
+    const hqRate = (threat ? runChance(state, 'hq') : PACE.runs * PACE.hqShare) * runSuccess(state, 'hq');
+    const rdRate = !corp.rd.length ? 0 : (threat ? runChance(state, 'rd') : PACE.runs * PACE.rdShare) * runSuccess(state, 'rd');
     // This Runner's next turn (bug report #15: it walked into HQ every turn while the Corp held its agendas there): the
     // measured rate half-weighted with the breaches it made there last turn (open information), as plan.readAssetTrash reads trashes
     const lastTurn = (server: string) => state.runnerLastTurnRuns.filter(r => r.server === server && r.successful).length;
