@@ -14,7 +14,10 @@ import { BOTULUS, RunnerMemory, chainReactionBonus, TRANQUILIZER, MANEGARM, best
 import { RATES } from './valueModel';
 import { plan } from './pricing';
 
-const TROJANS = [BOTULUS, TRANQUILIZER];
+// Read when called, not built at load: under the batch entry's import order (scripts/corp-losses.ts imports threatModel
+// first) this module loads inside runs.ts's import cycle, before runs.ts has set BOTULUS and TRANQUILIZER, and a list
+// built here held [undefined, undefined] (ai-trojans-load; tests/trojansLoad.test.ts)
+const isTrojan = (code: string) => code === BOTULUS || code === TRANQUILIZER;
 
 /**
  * Rule-based Runner: builds economy, installs icebreakers for the ice
@@ -313,7 +316,7 @@ export class HeuristicRunnerAI implements Agent {
     if (action.type === 'DRAW_CARD' && needsBiggerHand(state, this.memory) && (room || state.runner.clicks >= 2)) score += 1.5;
     if (action.type === 'DRAW_CARD' && this.digForBreakers && state.runner.stack.length > 5 && room) score += 1.2;
     if (action.type === 'DRAW_CARD' && this.synergy && state.runner.grip.length < state.runner.handSizeLimit) score += digValue(state, 'runner');
-    if (action.type === 'INSTALL_CARD' && action.hostInstanceId && cardCode && TROJANS.includes(cardCode)) {
+    if (action.type === 'INSTALL_CARD' && action.hostInstanceId && cardCode && isTrojan(cardCode)) {
       const host = Object.values(state.corp.servers).flatMap(s => s.ice).find(c => c.instanceId === action.hostInstanceId);
       score += host?.isRezzed ? trojanHostValue(state, cardCode, host) : -3;
     }
