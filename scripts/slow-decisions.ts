@@ -2,7 +2,7 @@
  * Planner speed P0 (spec-planner-speed.md): every Corp main-phase decision's time (chooseAction) over a set of deals,
  * Normal v Normal. Mean, p95, max, and the count over 5 s and 10 s per 100 games; for each decision over 5 s, whether
  * scoreNow had a line on that click (winNow.ts scoreNowPlan), whether a held two-turn line (the Corp pipeline's memory.heldLine,
- * countedScore.ts scoreInTwoPick) was being continued, or neither, and the number of remotes.
+ * corp/placement.ts scoreInTwoPick) was being continued, or neither, and the number of remotes.
  *
  *   DEALS=1001,1071 npx vite-node scripts/slow-decisions.ts
  */
