@@ -1015,8 +1015,10 @@ function installAndRezOptions(state: GameState, ice: CardInstance, discount: num
   const total = (serverId: string | null) => (ignoreAll ? 0 : Math.max(0, corpInstallCost(state, ice, serverId, false) + rezCost(state, ice) - discount));
   const options: { id: string; label: string }[] = [];
   const kinds = type(ice) === 'ice' ? Object.values(state.corp.servers) : Object.values(state.corp.servers).filter(s => s.isRemote || type(ice) === 'upgrade');
-  if (total(null) <= credits) options.push({ id: 'new', label: `New remote server (${total(null)}c)` });
-  for (const s of kinds) if (total(s.id) <= credits && corpInstallOptions(state, ice, { ignoreCosts: true }).some(o => o.id === s.id)) options.push({ id: s.id, label: `${s.name} (${total(s.id)}c)` });
+  // Where it may go at all: restrictions such as A Teia's 2 remote servers still apply when costs are ignored (rules 1.2.2)
+  const allowed = new Set(corpInstallOptions(state, ice, { ignoreCosts: true }).map(o => o.id));
+  if (allowed.has('new') && total(null) <= credits) options.push({ id: 'new', label: `New remote server (${total(null)}c)` });
+  for (const s of kinds) if (total(s.id) <= credits && allowed.has(s.id)) options.push({ id: s.id, label: `${s.name} (${total(s.id)}c)` });
   return options;
 }
 /** Installs the chosen card ignoring costs, pays the combined cost less the discount, and rezzes it. */
