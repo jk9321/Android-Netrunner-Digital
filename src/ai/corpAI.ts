@@ -34,6 +34,7 @@ import { assetPartner, centralIce, iceRedirect, scoreInTwoPick } from './counted
 import { HeldLine, heldLaterStep } from './corp/lines';
 import { tally } from './diagnostics';
 import { moneyPick } from './incomeLine';
+import { corpSeenGrip } from './oracle';
 
 
 const type = (card: CardInstance) => cardDef(card).type_code;
@@ -1042,6 +1043,14 @@ export function protectionCost(state: GameState, ice: CardInstance): number {
 function tankPreps(state: GameState): { state: GameState; cost: number; credits: number }[] {
   const runner = state.runner;
   const preps = [{ state, cost: 0, credits: 0 }];
+  // Hidden information (rules 10.2.2a): the Corp knows the grip's and the stack's sizes (10.2.3a) and the deck list, not
+  // which unseen cards are in the grip or the stack's order. A drawn-up grip is the seen grip cards plus that many cards
+  // of the unseen pool in a fixed order (instance id, the deck list's order), never the real top of the stack. Every
+  // reader of the prep's grip (tankCost's subroutine prices, iceCreditNeed) uses its size only.
+  const known = corpSeenGrip(state, 'reply');
+  const seen = runner.grip.filter(c => known.has(c.instanceId));
+  const pool = unseenPool(state, known);
+  const unseenGrip = runner.grip.length - seen.length;
   // Clearing comes first: it also stops "if the Runner is tagged" subroutines
   for (const tags of runner.tags > 0 ? [runner.tags, 0] : [runner.tags]) {
     const cleared = runner.tags - tags;
@@ -1049,13 +1058,22 @@ function tankPreps(state: GameState): { state: GameState; cost: number; credits:
       if (cleared === 0 && draws === 0) continue;
       const clicks = cleared + draws;
       preps.push({
-        state: { ...state, runner: { ...runner, tags, grip: [...runner.grip, ...runner.stack.slice(0, draws)] } },
+        state: draws === 0
+          ? { ...state, runner: { ...runner, tags } }
+          : { ...state, runner: { ...runner, tags, grip: [...seen, ...pool.slice(0, unseenGrip + draws)], stack: pool.slice(unseenGrip + draws) } },
         cost: clicks * clickRate() + 2 * cleared,
         credits: 2 * cleared,
       });
     }
   }
   return preps;
+}
+
+/** The Runner's grip cards the Corp hasn't seen and its stack, as one pool in instance-id order (rules 10.2.2a: which of them are in the grip, and the stack's order, are hidden). */
+function unseenPool(state: GameState, known: Set<string>): CardInstance[] {
+  return [...state.runner.grip.filter(c => !known.has(c.instanceId)), ...state.runner.stack].sort((a, b) =>
+    a.instanceId < b.instanceId ? -1 : a.instanceId > b.instanceId ? 1 : 0
+  );
 }
 
 /**
@@ -1100,27 +1118,34 @@ function entryCost(state: GameState, server: ServerState, credits: number): numb
 /**
  * plan.breakerReach (code audit, 2026-11-06; Jeff: the flat 8 was a band-aid): what the Runner pays to get past ice
  * its rig can't, by the cheapest icebreaker in its deck that could: break it, install it, a click to install and the
- * clicks to draw it (none from the grip; from the stack the expected draws to the first copy, (n + 1) / (k + 1)).
+ * clicks to draw it (none for a copy the Corp has seen in the grip; otherwise the expected draws to the first copy).
  * Infinity when nothing in its grip or stack can: a wall. It reads the Runner's deck, not its order (the Corp knows
  * the faction's breakers); memory limits aren't checked.
+ * Hidden information (rules 10.2.2a): the unseen grip cards and the stack are one pool to the Corp (10.2.3a: only their
+ * sizes are open). With N cards in that pool, k of them copies of the breaker and g of them in the grip, the first
+ * copy sits on average at (N + 1) / (k + 1), so the draws are max(0, (N + 1) / (k + 1) - g).
  */
 export function breakerReach(state: GameState, ice: CardInstance): number {
   const runner = state.runner;
-  const found = new Map<string, { card: CardInstance; grip: boolean; copies: number }>();
-  for (const [cards, grip] of [[runner.grip, true], [runner.stack, false]] as const) {
-    for (const card of cards) {
-      if (!isIcebreaker(card)) continue;
-      const seen = found.get(card.cardCode);
-      if (!seen) found.set(card.cardCode, { card, grip, copies: grip ? 0 : 1 });
-      else if (!grip && !seen.grip) seen.copies++;
-    }
+  const known = corpSeenGrip(state, 'reply');
+  const pool = unseenPool(state, known);
+  const g = runner.grip.length - runner.grip.filter(c => known.has(c.instanceId)).length;
+  const found = new Map<string, { card: CardInstance; seen: boolean; copies: number }>();
+  for (const card of runner.grip.filter(c => known.has(c.instanceId))) {
+    if (isIcebreaker(card) && !found.has(card.cardCode)) found.set(card.cardCode, { card, seen: true, copies: 0 });
+  }
+  for (const card of pool) {
+    if (!isIcebreaker(card)) continue;
+    const had = found.get(card.cardCode);
+    if (!had) found.set(card.cardCode, { card, seen: false, copies: 1 });
+    else if (!had.seen) had.copies++;
   }
   let best = Infinity;
-  for (const { card, grip, copies } of found.values()) {
+  for (const { card, seen, copies } of found.values()) {
     const trial: GameState = { ...state, runner: { ...runner, rig: { ...runner.rig, programs: [...runner.rig.programs, card] } } };
     const pass = iceCost(trial, ice);
     if (pass === Infinity) continue;
-    const draws = grip ? 0 : (runner.stack.length + 1) / (copies + 1);
+    const draws = seen ? 0 : Math.max(0, (pool.length + 1) / (copies + 1) - g);
     best = Math.min(best, pass + (cardDef(card).cost ?? 0) + (1 + draws) * clickRate());
   }
   return best;

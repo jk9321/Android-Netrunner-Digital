@@ -31,7 +31,7 @@ export const STOP_LABELS: Record<PersonStops, { short: string; title: string }> 
   auto: {
     short: 'AUTO',
     title:
-      'Auto: your game stops only where you could act (rez windows during runs, before the Runner\'s turn, the end of the Corp\'s turn when you have an ability to use). Click to stop at every window.',
+      'Auto: your game stops only where you could act (rez windows during runs, before the Runner\'s turn, the end of the Corp\'s turn when you have an ability to use). Online, a pause can tell your opponent you have something you can use there; All stops every time and gives nothing away. Click to stop at every window.',
   },
   full: {
     short: 'ALL',

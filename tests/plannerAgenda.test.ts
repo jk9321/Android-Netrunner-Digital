@@ -38,7 +38,7 @@ afterEach(() => { tuning.plan.plannerAgenda = defaultOn; tuning.plan.hiddenDraws
 describe('plan.plannerAgenda', () => {
   it('is on by default', () => expect(defaultOn).toBe(true));
 
-  it('report-17 turn 2: the agenda install is among the candidates only with the switch, and wins its playout', () => {
+  it('report-17 turn 2: with the switch the agenda install is among the candidates and wins its playout', () => {
     // plan.hiddenDraws (S6) OFF here: with the playouts on one guess of R&D the pick is ice on R&D (deal-dependent);
     // this pins the candidate mechanism on the old path. Listed in the S6 hand-off as a known gap.
     tuning.plan.hiddenDraws = false;
@@ -57,7 +57,9 @@ describe('plan.plannerAgenda', () => {
     const on = candidates(true);
     // What the switch changes: the planner's candidate list (not what the rest of the AI picks without it)
     expect(off.seen.length).toBeGreaterThan(0);
-    expect(off.seen).not.toContain(target);
+    // ai-honest-reads (rules 10.2.2a): breakerReach no longer counts the Runner's unseen grip breakers as in hand, so
+    // remote-1's ice holds longer and the rule ranking now lists the install without the switch too (beta fe68f61:
+    // it did not). The switch's own claim stays: with it the install is a candidate and wins its playout.
     expect(on.seen).toContain(target);
     expect(on.pick).toBe(target);
   });
