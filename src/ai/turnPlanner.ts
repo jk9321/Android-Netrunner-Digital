@@ -384,6 +384,20 @@ function drewFromDeck(side: SideCode, start: GameState, end: GameState | undefin
 /** plan.hiddenDraws: the guessHidden (Corp) or guessRunnerView (Runner) deal the planner's own playouts start from (the replies use deals 0 ..). */
 const HIDDEN_DRAW_SAMPLE = 4096;
 
+/** The seed a decision of `side` at `state` deals its guesses from (plannerSeed: the game, turn and clicks left). */
+function decisionSeedFor(state: GameState, side: SideCode): number | null {
+  return searchPiece('plannerSeed') ? (turnSeed(state) ^ Math.imul(clicksOf(state, side) + 1, 0x85ebca6b)) >>> 0 : pricing().decisionSeed;
+}
+
+/**
+ * The Runner's own view of `state` for this decision (plan.hiddenDraws; rule 10.2.2a): the same deal its planner's
+ * playouts start from, so the rule ranking that picks the planner's candidates scores a draw on the same guessed stack.
+ */
+export function runnerDecisionView(state: GameState): GameState {
+  if (!plan().hiddenDraws) return state;
+  return withPricing({ decisionSeed: decisionSeedFor(state, 'runner') }, () => guessRunnerView(state, HIDDEN_DRAW_SAMPLE));
+}
+
 export function planTurn(state: GameState, side: SideCode, ranked: ScoredAction[], ai: PlannerAI, synergy: boolean): GameAction | null {
   // Still on the last plan: its next step, if the rule-based AI still rates it
   const key = positionKey(state, side);
@@ -415,7 +429,7 @@ export function planTurn(state: GameState, side: SideCode, ranked: ScoredAction[
     tally('planner', 'added', added.length);
   }
   // The hands stay as seen when the decision started (frozen); plan.plannerSeed: one seed for every playout of this decision
-  const decisionSeed = searchPiece('plannerSeed') ? (turnSeed(state) ^ Math.imul(clicksOf(state, side) + 1, 0x85ebca6b)) >>> 0 : pricing().decisionSeed;
+  const decisionSeed = decisionSeedFor(state, side);
   const started = performance.now();
   const replyBefore = searchClock.replyMs;
   return withPricing({ frozen: true, decisionSeed }, () => {

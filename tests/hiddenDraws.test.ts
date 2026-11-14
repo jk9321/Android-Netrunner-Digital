@@ -1,7 +1,7 @@
 import { afterEach, describe, expect, it } from 'vitest';
 import { GameState } from '../src/core';
-import { createAgent } from '../src/ai';
-import { sideOff, tuning } from '../src/ai/synergy';
+import { HeuristicRunnerAI, createAgent } from '../src/ai';
+import { asSide, sideOff, tuning } from '../src/ai/synergy';
 import { guessRunnerView, knownRdSlots } from '../src/ai/runnerReply';
 import robust from './fixtures/search-hold-window-robust.json';
 import t10 from './fixtures/hidden-draws-1001-t10.json';
@@ -81,6 +81,14 @@ describe('plan.hiddenDraws for the Runner', () => {
       expect(runnerPick(reversed(s))).toBe(runnerPick(s));
     }, 60000);
   }
+  it('the rule ranking scores a draw on the guessed stack too: DRAW_CARD scores the same with the stack reversed (10.2.2a)', () => {
+    const s = runnerT4 as unknown as GameState;
+    const drawScore = (t: GameState) => asSide('runner', () => new HeuristicRunnerAI({}).rankMainActions(structuredClone(t)).find(r => r.action.type === 'DRAW_CARD')!.score);
+    sideOff.runner = [...shipped, 'hiddenDraws'];
+    expect(drawScore(reversed(s))).not.toBe(drawScore(s));
+    sideOff.runner = [...shipped];
+    expect(drawScore(reversed(s))).toBe(drawScore(s));
+  });
   it("the Runner's view keeps its grip and its stack's cards, and only reorders the stack", () => {
     const s = runnerT4 as unknown as GameState;
     const ids = (cards: { instanceId: string }[]) => cards.map(c => c.instanceId);
