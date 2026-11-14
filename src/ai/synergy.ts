@@ -574,6 +574,10 @@ export const FOLDED: readonly string[] = [
   // 43468203978): a rez that stops a game-winning run is made (rezModel matchPoint), and the Corp's R&D odds are its own
   // list's (rezModel rdAgendaOdds, R4's pool)
   'matchPointRez', 'rdOwnOdds',
+  // Audit Step 1 (2026-11-14, spec-step1-terminal-price.md, bars/terminal-price.md, g10 -0.1 ± 0.4 run 43540429113 vs
+  // 43540407576): a game end inside a sampled Runner reply is priced on the point clock from the reply root's board
+  // (valueModel sampledEndWorth), not evaluate's ±1000
+  'terminalClock',
 ];
 
 /** Throws on a name that isn't a plan switch (a typo, or a switch folded into the code). */

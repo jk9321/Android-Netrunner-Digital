@@ -2,7 +2,7 @@ import { GameState, cardDef, createRng, knownInRd, shuffleInPlace } from '../cor
 import { HeuristicCorpAI } from './corpAI';
 import { GameRunner } from './playout';
 import { HeuristicRunnerAI } from './runnerAI';
-import { pointValue } from './valueModel';
+import { pointValue, pointsTerm, sampledEndWorth } from './valueModel';
 import { threatStats, turnSeed } from './threatModel';
 import { currentDecisionSeed, searchPiece } from './turnPlanner';
 import { plan } from './pricing';
@@ -123,6 +123,7 @@ function openAgendaLoss(state: GameState, ids: string[]): number {
 export function runnerReply(end: GameState, synergy: boolean, leaf: (state: GameState) => number, range: ReplyRange = { from: 0, count: replySamples(REPLY.samples) /* plan.oracle.think: more samples */ }): number {
   let total = 0;
   const values: number[] = [];
+  let rootBoard: number | undefined; // the reply root's board, read once, only when a sample ends the game
   const outer = threatStats.inReply;
   threatStats.inReply = true;
   try {
@@ -151,7 +152,14 @@ export function runnerReply(end: GameState, synergy: boolean, leaf: (state: Game
       // (Jeff's bug report, 2026-10-31; plan.openStealUnrun) only agendas in remotes the Runner didn't run: one it ran and
       // was stopped from (The Red Room, LEO) survived the run it was counted stolen for
       const unrun = plan().openStealUnrun ? naked.filter(id => !ran.has(id)).flatMap(id => gr.state.corp.servers[id]?.root.map(c => c.instanceId) ?? []) : nakedAgendas;
-      const value = leaf(gr.state) - (plan().openSteal ? openAgendaLoss(gr.state, nakedAgendas.filter(id => unrun.includes(id))) : 0);
+      // Audit Step 1: a game end in this sample is one deal of hidden cards, a chance, not a certainty:
+      // priced on the point clock from the reply root's board (valueModel sampledEndWorth, 1.7.2) instead of the leaf's ±1000
+      const last = gr.state;
+      const settle = !!last.winner;
+      if (settle) rootBoard ??= leaf({ ...end, winner: null, winReason: null }) - pointsTerm(end);
+      const value = settle
+        ? sampledEndWorth(last.winner!, rootBoard!)
+        : leaf(last) - (plan().openSteal ? openAgendaLoss(gr.state, nakedAgendas.filter(id => unrun.includes(id))) : 0);
       values.push(value);
       total += value;
     }
