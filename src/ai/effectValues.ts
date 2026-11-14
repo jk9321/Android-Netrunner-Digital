@@ -273,11 +273,17 @@ export function anySuccess(state: GameState): number {
 export const lock = (): number => LOCKDOWN;
 
 /** Chance a Corp card the Runner hasn't seen is an agenda, and the points of a typical agenda (decklist). */
-export function agendaOdds(state: GameState): { odds: number; points: number } {
+export function agendaOdds(state: GameState): { odds: number; points: number; onSteal: number[] } {
   return memo(state, 'agendaOdds', () => countAgendaOdds(state));
 }
 
-function countAgendaOdds(state: GameState): { odds: number; points: number } {
+/** Net or meat damage an agenda does to the Runner when stolen ("When this agenda is scored or stolen, do 2 net damage": Fujii Asset Retrieval). */
+export function stealDamage(code: string): number {
+  const m = (getCardDefinition(code).stripped_text ?? '').match(/when this agenda is (?:scored or )?stolen, do (\d+) (?:net|meat) damage/i);
+  return m ? Number(m[1]) : 0;
+}
+
+function countAgendaOdds(state: GameState): { odds: number; points: number; onSteal: number[] } {
   const corp = sideCards(state, 'corp');
   const agendas = corp.filter(c => cardDef(c).type_code === 'agenda');
   // plan.unseenOdds (Gemini's decking analysis, 2026-11-06): installed ice (faceup or not, its position shows it is ice)
@@ -288,7 +294,10 @@ function countAgendaOdds(state: GameState): { odds: number; points: number } {
   const unseen = corp.length - state.corp.scoreArea.length - state.runner.scoreArea.length - state.corp.archives.faceUp.length - seen;
   const left = agendas.length - state.corp.scoreArea.length - state.runner.scoreArea.filter(c => cardDef(c).side_code === 'corp').length;
   const points = agendas.length ? agendas.reduce((n, c) => n + (cardDef(c).agenda_points ?? 0), 0) / agendas.length : 2;
-  return { odds: unseen > 0 ? Math.max(0, left) / unseen : 0, points };
+  // The steal damage of each agenda not yet scored or stolen (decklist, so no hidden card is read): an unseen agenda is any of them
+  const done = new Set([...state.corp.scoreArea, ...state.runner.scoreArea].map(c => c.instanceId));
+  const onSteal = agendas.filter(c => !done.has(c.instanceId)).map(c => stealDamage(c.cardCode));
+  return { odds: unseen > 0 ? Math.max(0, left) / unseen : 0, points, onSteal };
 }
 
 /** Worth to the Runner of one more random access to an unseen Corp card. */
@@ -303,25 +312,25 @@ export function accessWorth(state: GameState): number {
  * leaves it the clicks after the run to draw cards back; every other reader (the Corp's board, a known trap, the clock at
  * a leaf, a run priced before it starts) leaves it off and is priced as before.
  */
-export function damageWorth(state: GameState, n: number, drawBack = false): number {
+export function damageWorth(state: GameState, n: number, drawBack = false, grip = state.runner.grip.length): number {
   // plan.spareLastClick: with no click left the Runner can't run again this turn, so cards over its hand size are
   // discarded before they can soak up any damage (it drew to 6 with its last click and discarded, for +6)
+  // `grip`: the cards the Runner will hold when the damage lands (a steal at the end of a run, after the ice's damage)
   const spent = state.activePlayer === 'runner' && !state.activeRun && state.runner.clicks === 0;
-  const held = spent ? Math.min(state.runner.handSizeLimit ?? 5, state.runner.grip.length) : state.runner.grip.length;
+  const held = spent ? Math.min(state.runner.handSizeLimit ?? 5, grip) : grip;
   if (n > held) return flatlineWorth(state);
   const card = cardRate(state, 'runner');
   // The damage clock: the cards, and the step closer to a flatline the smaller grip leaves
   // Cards over the hand limit are discarded before the Corp's turn: they are no life against its damage
-  const grip = held;
   const life = (g: number) => flatlineOdds(state, lifeGrip(state, g, false));
-  const now = life(grip);
+  const now = life(held);
   // Draw-back (Runner audit RUNNER-DAMAGE-NO-DRAWBACK): damage taken in the Runner's own run leaves it the clicks after the
   // run to draw cards back before the Corp's turn (rule 5.2.7c: a click draws a card). Drawing k of the n back costs k
   // clicks (CLICK each) and gives the k cards back; the clock is read at the grip it then holds. It draws back as many as
   // is cheapest, so a full grip does not make damage free (the clicks are paid)
   const back = drawBack && state.activePlayer === 'runner' && state.activeRun ? state.runner.clicks : 0;
   let best = Infinity;
-  for (let k = 0; k <= Math.min(n, back); k++) best = Math.min(best, (n - k) * card + k * CLICK + flatlineWorth(state) * (life(grip - n + k) - now));
+  for (let k = 0; k <= Math.min(n, back); k++) best = Math.min(best, (n - k) * card + k * CLICK + flatlineWorth(state) * (life(held - n + k) - now));
   return best;
 }
 

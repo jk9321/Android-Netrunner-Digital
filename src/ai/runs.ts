@@ -15,7 +15,7 @@ import { availableCredits, counters, rezCost, stealthCredits, threatLevel, turnF
 import { stealCost } from '../core/engine/actions/run';
 import { spikeKey } from '../core/scripts/liberationRunner';
 import { corpCardValue, hiddenCardOdds, tagsWorth } from './evaluate';
-import { agendaOdds, coreDamageWorth, counterWorthOf, damageWorth, flatlineOdds, runnerEffect } from './effectValues';
+import { agendaOdds, coreDamageWorth, counterWorthOf, damageWorth, flatlineOdds, runnerEffect, stealDamage } from './effectValues';
 import { clickPrice } from './handValues';
 import { clickRate, creditNeed, creditSlide, flatlineWorth, payoutSlide, pointValue } from './valueModel';
 import { plan } from './pricing';
@@ -353,6 +353,8 @@ export function bestBreakPlan(state: GameState, ice: CardInstance, subCount: num
 export interface IcePrice {
   credits: number;
   value: number;
+  /** Cards the Runner loses to the damage it lets resolve on the way past (for what a steal's damage meets after it); 0 when broken. */
+  damage?: number;
 }
 const BLOCKED: IcePrice = { credits: BLOCK, value: BLOCK };
 const total = (p: IcePrice): number => p.credits + p.value;
@@ -385,15 +387,24 @@ export function physarumCost(state: GameState, ice: CardInstance): number | unde
   return credits <= runBudget(state) ? credits : undefined;
 }
 
+/** Cards a subroutine's damage takes from the grip when it resolves (net, meat or core; Vicsek's X is the Runner's tags). */
+function subroutineDamage(state: GameState, label: string): number {
+  if (/do x net damage/i.test(label)) return state.runner.tags;
+  if (/core damage/i.test(label)) return 1;
+  const m = label.match(/(\d+) (?:net|meat) damage/i);
+  return m && !/unless/i.test(label) ? Number(m[1]) : 0;
+}
+
 function plainIcePrice(state: GameState, ice: CardInstance): IcePrice {
   // Botulus breaks the worst subroutines for free; the rest are tanked or broken
-  const costs = (plannedSubroutines(state, ice)).map(s => subroutineCost(state, s.label)).sort((a, b) => b - a);
-  const subs = costs.slice(botulusBreaks(state, ice));
+  const priced = plannedSubroutines(state, ice).map(s => ({ cost: subroutineCost(state, s.label), label: s.label })).sort((a, b) => b.cost - a.cost);
+  const kept = priced.slice(botulusBreaks(state, ice));
+  const subs = kept.map(p => p.cost);
   const funhouse = ice.cardCode === '30054' ? tagCost(state) : 0; // Funhouse: take a tag or the run ends
   if (subs.length === 0) return { credits: 0, value: funhouse };
   // Letting them resolve costs no credits: what they do is value lost
   const tankValue = subs.reduce((sum, cost) => sum + cost, 0) + funhouse;
-  const tank: IcePrice = tankValue === BLOCK ? BLOCKED : { credits: 0, value: tankValue };
+  const tank: IcePrice = tankValue === BLOCK ? BLOCKED : { credits: 0, value: tankValue, damage: kept.reduce((n, p) => n + subroutineDamage(state, p.label), 0) };
   const plan = bestBreakPlan(state, ice, subs.length);
   const broken: IcePrice = plan ? { credits: plan.credits, value: plan.value + funhouse } : BLOCKED;
   return cheaper(cheaper(tank, broken), selfBreakPrice(state, ice, subs.length));
@@ -609,7 +620,7 @@ const iceBump = (base: number, server: { ice: CardInstance[] }) => Math.min(0.9,
  * by the odds for an unseen card. Remembered non-agendas are worth nothing
  * here, so a second run on the same top cards is not worth making.
  */
-function rdWorth(state: GameState, accesses: number, odds: number, central: number, from = 0): number {
+function rdWorth(state: GameState, accesses: number, odds: number, central: number, from = 0, grip = state.runner.grip.length): number {
   const known = knownInRd(state);
   let value = 0;
   for (let i = from; i < Math.min(from + accesses, state.corp.rd.length); i++) {
@@ -619,7 +630,7 @@ function rdWorth(state: GameState, accesses: number, odds: number, central: numb
       const share = 1 / (e.hi - e.lo + 1);
       seen += share;
       const def = getCardDefinition(e.code);
-      if (def.type_code === 'agenda') value += share * stealWorth(state, def.agenda_points ?? 1, DENY.central);
+      if (def.type_code === 'agenda') value += share * (stealWorth(state, def.agenda_points ?? 1, DENY.central) - knownStealHit(state, e.code, grip));
     }
     value += Math.max(0, 1 - seen) * odds * central;
   }
@@ -704,15 +715,34 @@ function breachRest(state: GameState): BreachRest | undefined {
   };
 }
 
-function serverWorth(state: GameState, serverId: string, extraAccesses: number, memory: RunnerMemory | undefined, wary: boolean, repeat: number, rest?: BreachRest): number {
+/**
+ * What an agenda's own damage on being stolen costs the Runner (Fujii Asset Retrieval: "When this agenda is scored or
+ * stolen, do 2 net damage"), at the grip it holds then: an accessed agenda must be stolen (rule 1.17.3d), and damage more
+ * than the grip flatlines (10.4.4). An unseen agenda is any one still to find (agendaOdds `onSteal`, from the decklist).
+ * Priced by damageWorth, with no draw-back: no click comes between the ice and the access.
+ */
+function stealHit(state: GameState, grip: number): number {
+  const { onSteal } = agendaOdds(state);
+  if (onSteal.length === 0) return 0;
+  return onSteal.reduce((n, d) => n + (d > 0 ? damageWorth(state, d, false, grip) : 0), 0) / onSteal.length;
+}
+function knownStealHit(state: GameState, code: string, grip: number): number {
+  const d = stealDamage(code);
+  return d > 0 ? damageWorth(state, d, false, grip) : 0;
+}
+/** A steal less its own damage: none when it can't be stolen (an additional cost it can't pay, `tax` null). */
+const stealNet = (worth: number, tax: number | null, hit: number) => (tax === null ? 0 : taxedSteal(worth, tax) - hit);
+
+function serverWorth(state: GameState, serverId: string, extraAccesses: number, memory: RunnerMemory | undefined, wary: boolean, repeat: number, rest?: BreachRest, grip = state.runner.grip.length): number {
   const server = state.corp.servers[serverId];
   const { odds, points } = agendaOdds(state);
   const unseenTax = stealTax(state, serverId);
-  const central = taxedSteal(stealWorth(state, points, DENY.central), unseenTax);
+  const hit = stealHit(state, grip);
+  const central = stealNet(stealWorth(state, points, DENY.central), unseenTax, hit);
   let value = 0;
   if (serverId === 'rd') {
     // In a breach: the cards left to the random access limit, from below the ones already chosen (a count only)
-    value = rest ? rdWorth(state, rest.zoneLeft, odds, central, state.corp.rd.filter(c => rest.chosen.has(c.instanceId)).length) : rdWorth(state, 1 + extraAccesses, odds, central);
+    value = rest ? rdWorth(state, rest.zoneLeft, odds, central, state.corp.rd.filter(c => rest.chosen.has(c.instanceId)).length, grip) : rdWorth(state, 1 + extraAccesses, odds, central, 0, grip);
   }
   else if (serverId === 'hq') {
     const unchosen = rest ? state.corp.hq.filter(c => !rest.chosen.has(c.instanceId)).length : state.corp.hq.length;
@@ -725,7 +755,7 @@ function serverWorth(state: GameState, serverId: string, extraAccesses: number, 
     // plan.archivesChosen (Jeff, bug report #5): facedown cards are ones the Corp chose to put there (discards,
     // Hansei Review); a Corp rarely chooses an agenda, with or without ice there
     const chosen = state.corp.servers.archives.ice.length === 0 ? ARCHIVES_CHOSEN_ODDS : ARCHIVES_CHOSEN_ODDS_ICED;
-    value = faceUp.reduce((n, c) => n + taxedSteal(stealWorth(state, cardDef(c).agenda_points ?? 1, 0), stealTax(state, serverId, c)), 0) + Math.min(3, state.corp.archives.faceDown.length) * odds * chosen * taxedSteal(stealWorth(state, points, 0), unseenTax);
+    value = faceUp.reduce((n, c) => n + stealNet(stealWorth(state, cardDef(c).agenda_points ?? 1, 0), stealTax(state, serverId, c), knownStealHit(state, c.cardCode, grip)), 0) + Math.min(3, state.corp.archives.faceDown.length) * odds * chosen * stealNet(stealWorth(state, points, 0), unseenTax, hit);
   }
   if (repeat > 0 && server.isRemote) return 0;
   const trap = wary ? trapOdds(state, memory) : 1 / 3;
@@ -738,7 +768,7 @@ function serverWorth(state: GameState, serverId: string, extraAccesses: number, 
       if (bangun && state.runner.grip.length < 2) return 0;
       const tax = stealTax(state, serverId, card);
       if (tax === null) continue;
-      value += stealWorth(state, cardDef(card).agenda_points ?? 1, DENY.remote) - tax - (bangun ? damageWorth(state, 2) + tagCost(state) : 0);
+      value += stealWorth(state, cardDef(card).agenda_points ?? 1, DENY.remote) - tax - knownStealHit(state, card.cardCode, grip) - (bangun ? damageWorth(state, 2) + tagCost(state) : 0);
       continue;
     }
     if (!card.isRezzed && memory?.has(card.instanceId)) {
@@ -746,7 +776,7 @@ function serverWorth(state: GameState, serverId: string, extraAccesses: number, 
       if (accessTrap(card.cardCode)) return 0;
       // An agenda left behind (its additional cost to steal unpaid, Méliès City Luxury Line): back for it when it can pay
       if (cardDef(card).type_code === 'agenda') {
-        value += taxedSteal(stealWorth(state, cardDef(card).agenda_points ?? 1, DENY.remote), stealTax(state, serverId, card));
+        value += stealNet(stealWorth(state, cardDef(card).agenda_points ?? 1, DENY.remote), stealTax(state, serverId, card), knownStealHit(state, card.cardCode, grip));
         continue;
       }
       const trash = cardDef(card).trash_cost;
@@ -757,7 +787,7 @@ function serverWorth(state: GameState, serverId: string, extraAccesses: number, 
       const trapShare = Math.min(1 - agenda, trap);
       // plan.oneAgendaGuess: the points of the agendas still unseen, as the board counts them (not the whole decklist's)
       const hiddenPoints = plan().oneAgendaGuess ? hiddenCardOdds(state).agendaPoints : points;
-      value += agenda * taxedSteal(stealWorth(state, hiddenPoints, card.advancementCounters > 0 ? DENY.remote : DENY.central), unseenTax) - trapShare * damageWorth(state, 2 + card.advancementCounters) + (1 - agenda - trapShare) * 1;
+      value += agenda * stealNet(stealWorth(state, hiddenPoints, card.advancementCounters > 0 ? DENY.remote : DENY.central), unseenTax, hit) - trapShare * damageWorth(state, 2 + card.advancementCounters, false, grip) + (1 - agenda - trapShare) * 1;
     } else {
       const trash = cardDef(card).trash_cost;
       // Trashing it denies the Corp what it would still pay if left (RUNNER-ASSET-TRASH: the worth as left, corpCardValue's
@@ -770,7 +800,7 @@ function serverWorth(state: GameState, serverId: string, extraAccesses: number, 
 }
 
 /** What accessing this server is worth to the Runner right now. */
-export function serverValue(state: GameState, serverId: string, extraAccesses = 0, memory?: RunnerMemory, wary = false, rest?: BreachRest): number {
+export function serverValue(state: GameState, serverId: string, extraAccesses = 0, memory?: RunnerMemory, wary = false, rest?: BreachRest, grip?: number): number {
   const server = state.corp.servers[serverId];
   if (!server) return 0;
   // The run in progress is already listed (as not yet successful): only earlier runs count
@@ -779,7 +809,7 @@ export function serverValue(state: GameState, serverId: string, extraAccesses = 
   if (priorRuns.some(r => !r.successful)) return 0; // it stopped us once already this turn
   const repeat = priorRuns.length;
   // Priced in credits on the point clock (plan.runModel, 2026-10-28; the older flat table was deleted 2026-11-06)
-  return serverWorth(state, serverId, extraAccesses, memory, wary, repeat, rest);
+  return serverWorth(state, serverId, extraAccesses, memory, wary, repeat, rest, grip);
 }
 
 /** A remote worth running that the Runner's hand is too small to risk (draw first). */
@@ -987,13 +1017,21 @@ export function runScore(state: GameState, serverId: string, options: RunOptions
   const breachId = options.breachAs ?? serverId;
   // Extra accesses the rig can add at the breach (Devadatta Drone on R&D; RUNNER-BREACH-EXTRA-ACCESS), each charged the counter it spends
   const rigAccess = options.noBreach ? { accesses: 0, cost: 0 } : breachAccesses(state, breachId);
-  const breached = options.noBreach ? 0 : serverValue(state, breachId, (options.extraAccesses ?? 0) + rigAccess.accesses, options.memory, options.wary) - rigAccess.cost;
+  // Bypassed ice costs nothing to pass (rules 6.5.8a); Window of Opportunity's derezzed ice is
+  // passed unencountered unless the Corp rezzes it again (6.9.2b-c), which costs it the rez
+  const bypassed = runBypasses(state, serverId, options);
+  const derez = options.derezOne && plan().bypass ? windowDerez(state, serverId) : undefined;
+  if (derez && !derez.rerez) bypassed.ids.add(derez.ice.instanceId);
+  // The grip at the access: less the damage of the rezzed ice it lets resolve (a steal's own damage meets that grip)
+  const iceDamage = server.ice.filter(ice => ice.isRezzed && !bypassed.ids.has(ice.instanceId)).reduce((n, ice) => n + (icePrice(state, ice).damage ?? 0), 0);
+  const grip = Math.max(0, state.runner.grip.length - iceDamage);
+  const breached = options.noBreach ? 0 : serverValue(state, breachId, (options.extraAccesses ?? 0) + rigAccess.accesses, options.memory, options.wary, undefined, grip) - rigAccess.cost;
   const gained = options.successCredits ?? 0;
   const credits = gained > 0 && plan().runCreditsSlide ? gained * payoutSlide(state, 'runner', gained) : gained;
   let value = breached + ((options.successBonus ?? 0) + credits);
   if (options.baker && serverId === 'archives' && runStealthCredits(state) >= 1) {
     // Baker: after Archives' ice, a stealth credit turns the run on HQ or R&D, whose ice it skipped
-    const redirect = Math.max(...['hq', 'rd'].map(id => serverValue(state, id, 0, options.memory, options.wary)));
+    const redirect = Math.max(...['hq', 'rd'].map(id => serverValue(state, id, 0, options.memory, options.wary, undefined, grip)));
     value = Math.max(value, redirect - spendCost(state, 1));
   }
   // One net damage from flatlining. plan.emptyGripRuns (2026-11-06, thread "Find why self-play games end decked"): with an
@@ -1011,11 +1049,6 @@ export function runScore(state: GameState, serverId: string, options: RunOptions
   let paidOutside = 0;
   let waste = 0;
   const canRez = state.corp.credits >= (options.rezTax ? 4 : 1);
-  // Bypassed ice costs nothing to pass (rules 6.5.8a); Window of Opportunity's derezzed ice is
-  // passed unencountered unless the Corp rezzes it again (6.9.2b-c), which costs it the rez
-  const bypassed = runBypasses(state, serverId, options);
-  const derez = options.derezOne && plan().bypass ? windowDerez(state, serverId) : undefined;
-  if (derez && !derez.rerez) bypassed.ids.add(derez.ice.instanceId);
   if (derez?.rerez) value += 0.5 * rezCost(state, derez.ice); // the Corp pays it about half the time
   for (const ice of [...server.ice].reverse()) {
     if (bypassed.ids.has(ice.instanceId)) continue;
@@ -1066,15 +1099,17 @@ export function runRestWorth(state: GameState, memory?: RunnerMemory, wary?: boo
   const ahead = server.ice.filter((_, i) => pos === null || i < pos || (i === pos && run.phase === 'approach_ice'));
   let credits = 0;
   let lost = 0;
+  let damage = 0;
   for (const ice of ahead) {
     const price = icePrice(state, ice);
     if (total(price) === BLOCK) return 0;
     credits += price.credits;
     lost += price.value;
+    if (ice.isRezzed) damage += price.damage ?? 0;
   }
   // Once the breach has begun, only what is still to come (the cards already accessed, and the one a prompt is about, are
   // priced by their own answers: counted here too they were a double count, the 0.8 in scoreOutcome partly hiding it)
-  return Math.max(0, serverValue(state, run.server, run.extraAccesses, memory, wary, breachRest(state)) - spendCost(state, credits) - lost);
+  return Math.max(0, serverValue(state, run.server, run.extraAccesses, memory, wary, breachRest(state), Math.max(0, state.runner.grip.length - damage)) - spendCost(state, credits) - lost);
 }
 
 const CHAIN_REACTION = '36001';

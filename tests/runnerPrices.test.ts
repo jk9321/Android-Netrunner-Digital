@@ -101,14 +101,29 @@ describe('R1 credits apart from value (RUNNER-BUDGET-UNITS)', () => {
   // unseen card with 3 advancements, The Holo Man and Adrian Seis, behind a rezzed Empiricist (draw; 1 net damage and a tag;
   // 2 net damage; no end the run). Taking every subroutine costs no credits and leaves 1 card (rule 10.4.4: 3 damage
   // against 4 cards is survived). Counted as credits, the 23 of damage was over the 5-credit budget and the run was barred.
-  it('runs a 3-advanced remote behind ice that cannot end the run', () => {
-    const s: GameState = JSON.parse(readFileSync(new URL('./fixtures/vrcation-sure-gamble.json', import.meta.url), 'utf8'));
+  // But the deck holds 2 Fujii Asset Retrieval ("When this agenda is scored or stolen, do 2 net damage"): an accessed agenda
+  // must be stolen (1.17.3d), and 2 net damage on the 1 card left flatlines (10.4.4), so the run is not worth making
+  const teia = (): GameState => JSON.parse(readFileSync(new URL('./fixtures/vrcation-sure-gamble.json', import.meta.url), 'utf8'));
+  it('a 3-advanced remote behind ice that cannot end the run: no credits to pass, but a Fujii steal at 1 card flatlines', () => {
+    const s = teia();
     asSide('runner', () => {
       const price = icePrice(s, s.corp.servers['remote-2'].ice[0]);
       expect(price.credits).toBe(0);
       expect(price.value).toBeCloseTo(subroutineCost(s, 'Draw 1 card.') + subroutineCost(s, 'Do 1 net damage. Give the Runner 1 tag.') + subroutineCost(s, 'Do 2 net damage.'));
-      expect(runScore(s, 'remote-2', { wary: true })).toBeGreaterThan(0);
+      expect(price.damage).toBe(3);
+      expect(runScore(s, 'remote-2', { wary: true })).toBeLessThan(0);
     });
+  });
+  it('the same run is worth making with a grip that survives the steal, or with no Fujii left in the deck', () => {
+    const bigger = teia();
+    for (let i = 0; i < 2; i++) bigger.runner.grip.push(bigger.runner.stack.shift()!);
+    expect(asSide('runner', () => runScore(bigger, 'remote-2', { wary: true }))).toBeGreaterThan(0);
+    const noFujii = teia();
+    const strip = (zone: CardInstance[]) => zone.filter(c => c.cardCode !== '34040');
+    noFujii.corp.hq = strip(noFujii.corp.hq);
+    noFujii.corp.rd = strip(noFujii.corp.rd);
+    noFujii.corp.archives.faceDown = strip(noFujii.corp.archives.faceDown);
+    expect(asSide('runner', () => runScore(noFujii, 'remote-2', { wary: true }))).toBeGreaterThan(0);
   });
 });
 
