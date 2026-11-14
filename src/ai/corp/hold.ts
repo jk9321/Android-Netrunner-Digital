@@ -1,8 +1,9 @@
-import { CardInstance, GameState, rezCostOf } from '../../core';
+import { CardInstance, GameState, isLegalAction, rezCostOf } from '../../core';
 import { rezCost } from '../../core/engine/cardEffects';
 import { bypassesAhead, iceCreditNeed, runBypasses } from '../runs';
 import { clickMoneyOf, turnIncomeOf } from '../cards';
 import { counters } from '../../core/engine/cardEffects';
+import { plan } from '../pricing';
 
 /**
  * Owner: does a server hold (Step 4 Stage A, spec-step4-corp-core.md 1.4; registry row "what holds a server").
@@ -185,7 +186,13 @@ function holdThisRun(state: GameState, server: string, opts: HoldOptions): Hold 
   const credits = opts.corpCredits ?? state.corp.credits;
   const must = sv.ice.filter(c => opts.mustRez?.includes(c.instanceId));
   const base = must.reduce((n, c) => n + rezCost(state, c), 0);
-  if (base > credits) return none;
+  // Stage B2 owner fix (stage-b/logs, the rez-window kind "rez paid another way"): the approached ice may be rezzable
+  // for less than its printed cost from the credit pool (Biawak forfeits an agenda for 10 of its 14 credits;
+  // recurring credits; a rez discount). The engine's legality says so: then it is affordable, and it leaves
+  // the Corp at most its pool less that cost for the ice further in.
+  const paidAnotherWay = plan().paidAnotherWay && base > credits && must.length > 0 && !!run && must.every(c => c.instanceId === sv.ice[run.icePosition ?? -1]?.instanceId && isLegalAction(state, { type: 'REZ_CARD', player: 'corp', cardInstanceId: c.instanceId }));
+  if (base > credits && !paidAnotherWay) return none;
+  const spare = paidAnotherWay ? 0 : credits - base;
   const open = (opts.further ?? true) ? sv.ice.slice(0, pos).filter(c => !c.isRezzed).slice(0, 10) : [];
   let best = Infinity;
   let bestSet: string[] | null = null;
@@ -194,7 +201,7 @@ function holdThisRun(state: GameState, server: string, opts: HoldOptions): Hold 
   for (let mask = 0; mask < 1 << open.length; mask++) {
     const extra = open.filter((_, i) => mask & (1 << i));
     const cost = base + extra.reduce((n, c) => n + rezCost(state, c), 0);
-    if (cost > credits || cost >= best) continue;
+    if (cost - base > spare || cost >= best) continue;
     const up = new Set([...must.map(c => c.instanceId), ...extra.map(c => c.instanceId)]);
     const board = withServerIce(state, sv.id, sv.ice.map(c => (up.has(c.instanceId) ? { ...c, isRezzed: true } : c)));
     const reach = board.corp.servers[sv.id].ice.slice(0, pos + 1);
@@ -211,18 +218,6 @@ function holdThisRun(state: GameState, server: string, opts: HoldOptions): Hold 
   if (bestSet) return { holds: true, rez: bestSet, rezCost: best, need: bestNeed, budget, margin: bestNeed - budget, entries: 0 };
   const need = mostNeed === -Infinity ? 0 : mostNeed;
   return { ...none, need, margin: need - budget };
-}
-
-/**
- * Reader for an ice list (the counted lines' view boards and the measurement scripts): the cheapest rez spend that
- * keeps the Runner out next turn, or null. The ice must be one server's ice on `state` (the server is found by its
- * first ice; an empty list holds nothing).
- */
-export function holdCost(state: GameState, ice: CardInstance[], corpCredits: number): number | null {
-  const server = Object.values(state.corp.servers).find(v => v.ice.some(c => c.instanceId === ice[0]?.instanceId));
-  if (!server) return null;
-  const h = serverHold(state, server.id, { when: 'runnerTurn', corpCredits });
-  return h.holds ? h.rezCost : null;
 }
 
 /** The board with the ice of this rez set rezzed on its server (the mask over the first n ice). */

@@ -49,7 +49,7 @@ const KNOWN_GAPS: Record<string, string> = {
   '34104': 'Brasília Government Grid: its effect on runs',
 };
 
-const files = readdirSync('src/ai').filter(f => f.endsWith('.ts'));
+const files = [...readdirSync('src/ai').filter(f => f.endsWith('.ts')), ...readdirSync('src/ai/corp').filter(f => f.endsWith('.ts')).map(f => `corp/${f}`)];
 const read = (list: string[]) => list.map(f => readFileSync(`src/ai/${f}`, 'utf8')).join('\n');
 /** The decision logic each side's cards can be named in: a Runner card only the Corp AI names (Conduit) is not played by the Runner AI. */
 const logic = { runner: read(files.filter(f => f !== 'corpAI.ts')), corp: read(files.filter(f => f !== 'runnerAI.ts')) };

@@ -1,8 +1,8 @@
 import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
-import { GameState } from '../src/core';
-import { holdCost } from '../src/ai/corp/hold';
-import { countedRez } from '../src/ai/rezModel';
+import { CardInstance, GameState } from '../src/core';
+import { serverHold } from '../src/ai/corp/hold';
+import { countedRez } from '../src/ai/corp/rez';
 import { asSide } from '../src/ai/pricing';
 import { decisionContext } from '../src/ai/handValues';
 
@@ -12,6 +12,13 @@ import { decisionContext } from '../src/ai/handValues';
  */
 const read = (name: string): GameState => JSON.parse(readFileSync(new URL(`./fixtures/${name}`, import.meta.url), 'utf8'));
 const inCorp = <T>(s: GameState, f: () => T): T => asSide('corp', () => (decisionContext(s, 'corp'), f()));
+/** The cheapest rez spend that holds the server of this ice next Runner turn, or null (serverHold 'runnerTurn'; holdCost before Stage B2). */
+const holdCost = (s: GameState, ice: CardInstance[], corpCredits: number): number | null => {
+  const server = Object.values(s.corp.servers).find(v => v.ice.some(c => c.instanceId === ice[0]?.instanceId));
+  if (!server) return null;
+  const h = serverHold(s, server.id, { when: 'runnerTurn', corpCredits });
+  return h.holds ? h.rezCost : null;
+};
 
 describe('Part A: an installed bypass card is Runner capability (folded plan.bypassHold)', () => {
   // #48 #76, turn 7, Corp 1 credit: remote-1 has a lone rezzed Ping; Malandragem is installed with power counters

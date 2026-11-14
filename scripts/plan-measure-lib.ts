@@ -17,6 +17,7 @@ import { CardInstance, GameAction, GameState, actingSide, cardDef, createInitial
 import { deckGameSetup } from '../src/data/decks';
 import { scoreThisTurn } from '../src/ai/countedScore';
 import { isCorpMain } from '../src/ai/corp/lines';
+import { serverHold } from '../src/ai/corp/hold';
 import type { GameConfig } from '../src/ui/savedGame';
 
 // ---------------------------------------------------------------------------------------------------------------- turns
@@ -333,7 +334,18 @@ export function cheaperDraw(c: Commitment, t: CorpTurn, next: CorpTurn): boolean
 
 // Moved to src/ai/countedScore.ts for stage 0b (spec-stage0b.md): the AI's instruments use the same check
 export { scoreThisTurn } from '../src/ai/countedScore';
-export { CHECK, holdCost, runnerBudget } from '../src/ai/corp/hold';
+export { CHECK, runnerBudget } from '../src/ai/corp/hold';
+
+/**
+ * For the measurement scripts: the cheapest rez spend that holds the server whose ice this is next Runner turn
+ * (serverHold 'runnerTurn', corp/hold.ts), or null. holdCost's old signature; Stage B2 took the adapter out of src.
+ */
+export function holdCost(state: GameState, ice: CardInstance[], corpCredits: number): number | null {
+  const server = Object.values(state.corp.servers).find(v => v.ice.some(c => c.instanceId === ice[0]?.instanceId));
+  if (!server) return null;
+  const h = serverHold(state, server.id, { when: 'runnerTurn', corpCredits });
+  return h.holds ? h.rezCost : null;
+}
 export { knownIncome, scoreInTwo } from '../src/ai/corp/lines';
 export type { ThisTurn } from '../src/ai/countedScore';
 export type { TwoTurnLine } from '../src/ai/corp/lines';

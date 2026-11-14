@@ -18,7 +18,7 @@ import { asSide } from '../src/ai/pricing';
 import { decisionContext } from '../src/ai/handValues';
 import { rezCandidates } from '../src/ai/playout';
 import { bestBreakPlan } from '../src/ai/runs';
-import { countedRez } from '../src/ai/rezModel';
+import { countedRez } from '../src/ai/corp/rez';
 import { FUZZ_CORPS, FUZZ_RUNNERS, fuzzEngineGame, pairing } from '../scripts/engine-fuzz-check';
 
 const report = JSON.parse(readFileSync(new URL('./fixtures/human-games/report-47.json', import.meta.url), 'utf8'));

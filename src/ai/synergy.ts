@@ -165,6 +165,12 @@ export const tuning = {
      * the Corp's credits, not each against the same credits (iceValues rezBudget). A measuring switch, not a knob.
      */
     rezBudget: true,
+    /**
+     * TEMPORARY (Step 4 Stage B, deleted in B6): the hold owner's afford fix (corp/hold.ts holdThisRun): a rez the engine
+     * allows for more than the Corp's credit pool (Biawak's forfeit, recurring credits, a discount) is paid another way.
+     * Off: the owner as it was, for the g1 "expect identical" batch.
+     */
+    paidAnotherWay: true,
     /*
      * Value model step 2 (docs/ai-value-model-plan.md, Jeff 2026-10-27): the
      * new exchange rates in valueModel.ts. Self-play, 2,210 games each: all
