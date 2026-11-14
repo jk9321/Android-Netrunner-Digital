@@ -9,7 +9,7 @@ import { answerPrompt, runEventOptions, simulate } from './prompts';
 import type { HeuristicOptions } from './corpAI';
 import { asSide, logNudge, nudge, tuning } from './synergy';
 import { decisionContext } from './handValues';
-import { PlanMemory, planTurn, plannerOn } from './turnPlanner';
+import { PlanMemory, planTurn, plannerOn, runnerDecisionView } from './turnPlanner';
 import { BOTULUS, RunnerMemory, chainReactionBonus, TRANQUILIZER, MANEGARM, bestBreakPlan, botulusBreaks, runCreditSpend, hostedTrojans, creditsAhead, iceCreditsAhead, iceCost, iceCreditNeed, needsBiggerHand, runScore, runShortfall, serverValue, spendCost, subroutineCost } from './runs';
 import { RATES } from './valueModel';
 import { plan } from './pricing';
@@ -58,9 +58,10 @@ export class HeuristicRunnerAI implements Agent {
       this.remember(state);
       this.freeActions.start(state, state.runner.clicks);
       const before = evaluate(state, 'runner');
+      const view = this.ownView(state);
       const best = getLegalActions(state, 'runner')
         .filter(a => a.type === 'USE_ABILITY')
-        .map(action => ({ action, score: this.scoreMain(state, action, before) }))
+        .map(action => ({ action, score: this.scoreMain(state, action, before, view) }))
         .sort((a, b) => b.score - a.score)[0];
       if (!best || best.score === -Infinity) return null;
       this.notePlayed(best.action);
@@ -233,9 +234,10 @@ export class HeuristicRunnerAI implements Agent {
       rigCoverage(state.runner.rig.programs).covered.size < 3 &&
       !legal.some(a => a.type === 'INITIATE_RUN' && runScore(state, a.targetServerId, { memory: this.memory, wary: this.synergy && tuning.wary }) > 0);
     this.savingFor = this.synergy ? saveUpTarget(state, this.memory) : null;
+    const view = this.ownView(state);
     return [...legal, ...makeRoomInstalls(state)]
       .map(action => {
-        let score = this.scoreMain(state, action, before);
+        let score = this.scoreMain(state, action, before, view);
         // Deck-aware nudge: small, and only for moves the AI would consider anyway
         if (this.synergy && Number.isFinite(score) && action.type !== 'END_TURN') score += nudge(state, 'runner', action).bonus;
         return { action, score };
@@ -253,7 +255,17 @@ export class HeuristicRunnerAI implements Agent {
     this.remember(state);
   }
 
-  private scoreMain(state: GameState, action: GameAction, before: number): number {
+  /**
+   * The position the ranking simulates its actions from (plan.hiddenDraws; Jeff 2026-11-14, "AI runner should not see its
+   * own draws"; rule 10.2.2a): for the AI playing the game, its own view of the decision (turnPlanner.ts
+   * runnerDecisionView: the stack as its planner deals it), so a draw is scored on a guessed card, not the real top of the
+   * stack. A planner's rollout (planner off) already plays on that deal, and the Corp's model of the Runner on the Corp's.
+   */
+  private ownView(state: GameState): GameState {
+    return this.planner ? runnerDecisionView(state) : state;
+  }
+
+  private scoreMain(state: GameState, action: GameAction, before: number, view: GameState = state): number {
     switch (action.type) {
       case 'END_TURN':
         return -0.5;
@@ -263,7 +275,7 @@ export class HeuristicRunnerAI implements Agent {
       case 'REMOVE_TAG':
         return state.runner.rig.resources.length > 0 ? 1.2 : 0.3;
     }
-    const after = simulate(state, action);
+    const after = simulate(view, action);
     if (!after) return -Infinity;
     const spendsClick = after.runner.clicks < state.runner.clicks;
     if (!spendsClick && this.freeActions.exhausted) return -Infinity;

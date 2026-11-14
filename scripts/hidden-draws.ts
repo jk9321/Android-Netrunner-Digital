@@ -22,7 +22,7 @@ const n = { decisions: 0, withDraw: 0, drawLines: 0, lines: 0, flips: 0, compare
 let inner = false;
 const same = (a: GameAction | null, b: GameAction | null) => JSON.stringify(a) === JSON.stringify(b);
 installDiagnostics().onDraws = (state, drawLines, lines, pick) => {
-  if (inner) return;
+  if (inner || state.activePlayer !== 'corp') return; // the Corp's decisions (scripts/runner-hidden-draws.ts: the Runner's)
   n.decisions++;
   n.lines += lines;
   n.drawLines += drawLines;

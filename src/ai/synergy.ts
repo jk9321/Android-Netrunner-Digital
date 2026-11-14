@@ -467,7 +467,7 @@ export const tuning = {
  */
 export const sideOff: Record<SideCode, string[]> = {
   corp: [],
-  runner: ['scoreNow', 'scoreInTwo', 'tagTrashNow', 'ownTrashRisk', 'hqTrashCost', 'threatModel', 'iceProtects', 'replyContenders', 'plannerAgenda', 'clearinghouseRez', 'ownIceKnown', 'runRecord', 'hiddenDraws', 'oracle', 'threatKey', 'threatKeyPricing'],
+  runner: ['scoreNow', 'scoreInTwo', 'tagTrashNow', 'ownTrashRisk', 'hqTrashCost', 'threatModel', 'iceProtects', 'replyContenders', 'plannerAgenda', 'clearinghouseRez', 'ownIceKnown', 'runRecord', 'oracle', 'threatKey', 'threatKeyPricing'],
 };
 
 /**

@@ -68,8 +68,16 @@ function shuffleRdKeeping<T extends { instanceId: string }>(rng: Parameters<type
 
 const byId = <T extends { instanceId: string }>(cards: T[]): T[] => [...cards].sort((a, b) => (a.instanceId < b.instanceId ? -1 : a.instanceId > b.instanceId ? 1 : 0));
 
+/** The deal's shuffler for sample `k` and the order the cards are dealt from (shared by both sides' guesses). */
+function dealFor(state: GameState, k: number) {
+  const common = searchPiece('plannerSeed');
+  const rng = createRng(((common ? currentDecisionSeed() ?? turnSeed(state) : state.rng?.state ?? 1) ^ Math.imul(k + 1, 0x9e3779b1)) >>> 0);
+  const order = common ? byId : <T,>(cards: T[]) => cards;
+  return { rng, order, common };
+}
+
 /**
- * `state` with the cards the Corp can't see dealt at random (sample `k`).
+ * `state` with the cards the Corp can't see dealt at random (sample `k`): the Corp's view.
  *
  * plan.plannerSearch plannerSeed (structural review item 4): the seed is the decision's (turnPlanner.ts
  * currentDecisionSeed: the game, turn and clicks left; outside a decision the threat's turnSeed), not the end state's rng, and the cards are dealt from a fixed order (by instance id). The
@@ -78,9 +86,7 @@ const byId = <T extends { instanceId: string }>(cards: T[]): T[] => [...cards].s
  * new is read: the same cards are hidden, only which guess is drawn changes.
  */
 export function guessHidden(state: GameState, k: number): GameState {
-  const common = searchPiece('plannerSeed');
-  const rng = createRng(((common ? currentDecisionSeed() ?? turnSeed(state) : state.rng?.state ?? 1) ^ Math.imul(k + 1, 0x9e3779b1)) >>> 0);
-  const order = common ? byId : <T,>(cards: T[]) => cards;
+  const { rng, order, common } = dealFor(state, k);
   // plan.keepKnownHand (Gemini audit, 2026-11-01): grip cards the Corp has seen (MuslihaT, Mutual Favor) stay where they are
   const known = corpSeenGrip(state, 'reply'); // plan.oracle.grip: the whole grip
   const seen = state.runner.grip.filter(c => known.has(c.instanceId));
@@ -90,6 +96,23 @@ export function guessHidden(state: GameState, k: number): GameState {
   // plan.oracle.rd: the Corp knows its R&D order, so its guess keeps it
   const rd = corpKnowsRd() ? [...state.corp.rd] : shuffleRdKeeping(rng, [...state.corp.rd], knownRdSlots(state), common);
   return { ...state, rng: createRng(rng.state), runner: { ...state.runner, grip, stack }, corp: { ...state.corp, rd } };
+}
+
+/**
+ * `state` as the Runner can know it (sample `k`): the Runner's view, for the Runner planner's playouts (plan.hiddenDraws,
+ * Jeff 2026-11-14: "AI runner should not see its own draws"). The Runner knows its grip; the order of its stack is
+ * hidden information (rules 10.2.2a), so the stack is shuffled, and the shuffler is reseeded so a later shuffle can't be
+ * foreseen either. The engine records no stack position the Runner knows (a card put on top of the stack,
+ * damage.ts uninstallRunnerCard 'stackTop', is not remembered), so no position is kept.
+ *
+ * The Corp's hidden cards need no re-deal here: the Runner planner's playouts never access a server (a run is priced at
+ * its start by runs.ts runScore, from the unseen pools and the Runner's R&D memory, knownInRd), and the Runner planner
+ * plays no Corp reply.
+ */
+export function guessRunnerView(state: GameState, k: number): GameState {
+  const { rng, order } = dealFor(state, k);
+  const stack = shuffleInPlace(rng, order([...state.runner.stack]));
+  return { ...state, rng: createRng(rng.state), runner: { ...state.runner, stack } };
 }
 
 /** Remotes with an agenda and no ice (the open-steal loss; the diagnostics count the reply turns that began with one, and how many ran it). */

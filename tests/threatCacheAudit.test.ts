@@ -48,6 +48,8 @@ describe('threat cache: every hit is the value its board budgets to (on-hit audi
       const r = audit(seed, actions);
       expect(r.checked).toBeGreaterThan(50);
       expect(r.mismatches, JSON.stringify(r.examples)).toBe(0);
-    }, 300_000);
+    // Deal 1421 ran 202 actions (to turn 12) before the honest Runner; now 344 (turn 21): about 3.5x the time, not slower
+    // decisions (Runner 2.0 s -> 5.2 s, Corp 22 s -> 81 s over the stretch)
+    }, 900_000);
   }
 });
