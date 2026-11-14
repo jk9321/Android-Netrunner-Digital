@@ -257,8 +257,9 @@ export function advanceableInstalled(state: GameState): CardInstance[] {
 export function sabotage(ctx: EffectContext, x: number, step: string): void {
   const { state } = ctx;
   const hq = state.corp.hq;
-  const min = Math.max(0, x - state.corp.rd.length);
   const max = Math.min(x, hq.length);
+  // Too few cards in R&D: enough from HQ that R&D covers the rest (rules 10.12.3a); fewer than X in both, all of them (10.12.3b)
+  const min = Math.min(max, Math.max(0, x - state.corp.rd.length));
   addLog(state, 'runner', `Sabotage ${x}: the Corp trashes ${x} card(s) from HQ and/or the top of R&D.`);
   if (max === 0) {
     resolveSabotage(state, x, []);
