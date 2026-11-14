@@ -43,7 +43,10 @@ export function scoreOutcome(before: GameState, after: GameState, side: SideCode
   const drawn = (c: CardInstance) => !hand(before, side).some(b => b.instanceId === c.instanceId) && fromDeck(before, side, c);
   score += 0.5 * (sumKeep(after, hand(after, side).filter(c => !drawn(c)), synergy) - sumKeep(before, hand(before, side), synergy));
   if (side === 'runner' && before.activeRun) {
-    score += 0.8 * runRestWorth(after, memory, synergy && tuning.wary);
+    // While ice is still ahead the rest of the run may not happen (0.8); once the breach has begun (the Success Phase,
+    // rules 6.9.5b: the Runner breaches the server, 7.3.1) no ice is left and its accesses are counted in full
+    const breaching = before.activeRun.phase === 'access';
+    score += (breaching ? 1 : 0.8) * runRestWorth(after, memory, synergy && tuning.wary);
   }
   return score;
 }
