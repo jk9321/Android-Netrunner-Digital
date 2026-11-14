@@ -513,8 +513,8 @@ export function bioroidBreakClicks(ice: CardInstance, subCount: number): number 
 }
 
 /**
- * Breaking the ice with its own ability: credits (N-Pot), or a click per subroutine (bioroids), priced at the Runner's
- * click (runClick, the click's one owner). A cost that can't be paid in full can't be used (rule 1.16.1): on the Runner's
+ * Breaking the ice with its own ability: credits (N-Pot), or a click per subroutine (bioroids) at 1.5 a click as on
+ * the base (not runClick: the click's worth reads the grip's draws, which read this price, a value loop; registry debt). A cost that can't be paid in full can't be used (rule 1.16.1): on the Runner's
  * own turn the bioroid's clicks must be clicks it still has (after the run's own click, before a run), so with the last
  * click gone there is no click-break (Gemini audit AI-RUNNER-BIOROID-LAST-CLICK). On the Corp's turn the Runner's
  * next turn is priced, so its clicks are not counted.
@@ -525,7 +525,7 @@ function selfBreakPrice(state: GameState, ice: CardInstance, subCount: number): 
   if (!isBioroid(ice)) return BLOCKED;
   const clicks = bioroidBreakClicks(ice, subCount);
   if (state.activePlayer === 'runner' && clicks > (state.activeRun ? state.runner.clicks : state.runner.clicks - 1)) return BLOCKED;
-  return { credits: 0, value: clicks * runClick(state) };
+  return { credits: 0, value: clicks * 1.5 };
 }
 
 /** Cards the Runner has already accessed (instance id -> card code), so it doesn't keep checking them. */
