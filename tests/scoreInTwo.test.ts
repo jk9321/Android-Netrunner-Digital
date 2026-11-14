@@ -20,7 +20,7 @@ import { afterEach, describe, expect, it } from 'vitest';
 import { GameAction, GameState, actingSide, executeAction, getLegalActions } from '../src/core';
 import { createAgent } from '../src/ai';
 import { tuning } from '../src/ai/synergy';
-import { scoreInTwoPick } from '../src/ai/countedScore';
+import { scoreInTwoPick } from '../src/ai/corp/placement';
 import { knownIncome, scoreInTwo } from '../src/ai/corp/lines';
 import { giveCard, installCorpForTest, installIceForTest, installProgramForTest, newGame } from './helpers';
 import { inDecision } from './helpers/pricing';

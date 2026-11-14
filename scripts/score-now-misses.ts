@@ -11,7 +11,7 @@
 import { readFileSync, readdirSync } from 'node:fs';
 import { join } from 'node:path';
 import { CardInstance, GameAction, GameState, cardDef, findCardAnywhere } from '../src/core';
-import { scoreThisTurn } from '../src/ai/countedScore';
+import { scoreThisTurn } from './plan-measure-lib';
 import { isCorpMain } from '../src/ai/corp/lines';
 import { replayGame, serverOf } from './plan-measure-lib';
 

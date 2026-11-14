@@ -3,7 +3,7 @@ import { describe, expect, it } from 'vitest';
 import { GameAction, GameState, cardDef, getLegalActions } from '../src/core';
 import { asSide } from '../src/ai/pricing';
 import { decisionContext } from '../src/ai/handValues';
-import { iceRedirect } from '../src/ai/countedScore';
+import { iceRedirect } from '../src/ai/corp/placement';
 import { runnerBudget, serverHold } from '../src/ai/corp/hold';
 import { lineFloor, rezMoney, stakedServers } from '../src/ai/corp/rezMoney';
 import { corpPools, rdAgendaOdds, reachablePoints, runLoss, stake } from '../src/ai/corp/pools';

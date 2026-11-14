@@ -10,7 +10,7 @@
 import { readFileSync } from 'node:fs';
 import { CardInstance, GameAction, GameState, cardDef, createInitialGameState, executeAction } from '../src/core';
 import { deckGameSetup } from '../src/data/decks';
-import { assetCover, assetPartner } from '../src/ai/countedScore';
+import { assetCover, assetPartner } from '../src/ai/corp/placement';
 import { runnerBudget } from '../src/ai/corp/hold';
 import { holdCost } from './plan-measure-lib';
 import { isCorpMain, knownIncome, scoreInTwo, scoringRemote } from '../src/ai/corp/lines';

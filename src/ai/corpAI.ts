@@ -30,6 +30,7 @@ import { counterWorth } from './counterValues';
 import { plan, pricing, withPricing } from './pricing';
 import { dividendsOf, setupOperation } from './cards';
 import { CorpMemory, corpDecide, isPettyCash } from './corp/core';
+import { mainRemote } from './corp/placement';
 import { corpSeenGrip } from './oracle';
 
 
@@ -72,8 +73,6 @@ export interface HeuristicOptions {
   debug?: boolean;
   /** The whole-turn planner while plan.turnPlanner is on (default on; the Hard AI's search turns it off). */
   planner?: boolean;
-  /** This AI plays the planner's playouts (the rollout planTurn ranks and answers with): it counts as the planning side. */
-  searching?: boolean;
 }
 
 /**
@@ -88,7 +87,6 @@ export class HeuristicCorpAI implements Agent {
   readonly synergy: boolean;
   private debug: boolean;
   private planner: boolean;
-  private searching: boolean;
   private planMemory: PlanMemory = { line: [] };
   /** What the pipeline carries between decisions (corp/core.ts): the held two-turn score line. */
   private memory: CorpMemory = { heldLine: null };
@@ -97,7 +95,6 @@ export class HeuristicCorpAI implements Agent {
     this.synergy = options.synergy ?? true;
     this.debug = options.debug ?? false;
     this.planner = options.planner ?? true;
-    this.searching = options.searching ?? false;
   }
 
   /** Round 3: keep rez money for R&D and HQ as well as agenda remotes. */
@@ -138,7 +135,6 @@ export class HeuristicCorpAI implements Agent {
       lookahead: this.planner ? (s, ranked) => (plannerOn('corp') ? this.plan(s, ranked) : null) : undefined,
       note: action => this.notePlayed(action),
       bluffed: () => this.noteBluff(),
-      countRedirects: this.planner && !this.searching,
       debug: this.debug,
     });
   }
@@ -155,7 +151,7 @@ export class HeuristicCorpAI implements Agent {
 
   /** The whole-turn planner's pick (plan.turnPlanner), its playouts by a fresh copy of this AI. */
   private plan(state: GameState, ranked: ScoredAction[]): GameAction | null {
-    const rollout = new HeuristicCorpAI({ synergy: this.synergy, planner: false, searching: true });
+    const rollout = new HeuristicCorpAI({ synergy: this.synergy, planner: false });
     const reply = plan().runnerReply ? (s: GameState, leaf: (s: GameState) => number) => runnerReply(s, this.synergy, leaf) : undefined;
     return planTurn(state, 'corp', ranked, { rank: s => rollout.rankMainActions(s), answer: s => rollout.chooseAction(s), reply, memory: this.planMemory }, this.synergy);
   }
@@ -815,18 +811,6 @@ export function unrezzedIceCost(state: GameState): number {
     .reduce((n, ice) => n + (ice.isRezzed ? 0 : rezCost(state, ice)), 0);
 }
 
-/**
- * The scoring remote: the remote with the most ice that isn't holding a
- * money asset or trap (null with no iced remote).
- */
-export function mainRemote(state: GameState): ServerState | null {
-  let best: ServerState | null = null;
-  for (const server of Object.values(state.corp.servers)) {
-    if (!server.isRemote || server.ice.length === 0 || server.root.some(c => type(c) === 'asset')) continue;
-    if (!best || server.ice.length > best.ice.length) best = server;
-  }
-  return best;
-}
 
 /** The Runner's virus counters, weighted by what they do. */
 /**

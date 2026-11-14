@@ -15,7 +15,7 @@
  */
 import { CardInstance, GameAction, GameState, actingSide, cardDef, createInitialGameState, executeAction, findCardAnywhere, installedIcebreakers } from '../src/core';
 import { deckGameSetup } from '../src/data/decks';
-import { scoreThisTurn } from '../src/ai/countedScore';
+import { scoreNowLine } from '../src/ai/winNow';
 import { isCorpMain } from '../src/ai/corp/lines';
 import { serverHold } from '../src/ai/corp/hold';
 import type { GameConfig } from '../src/ui/savedGame';
@@ -332,8 +332,38 @@ export function cheaperDraw(c: Commitment, t: CorpTurn, next: CorpTurn): boolean
 
 // ---------------------------------------------------------------------------------------------------------------- M2
 
-// Moved to src/ai/countedScore.ts for stage 0b (spec-stage0b.md): the AI's instruments use the same check
-export { scoreThisTurn } from '../src/ai/countedScore';
+// Back from src/ai/countedScore.ts (dissolved in Step 4 Stage B4): only the measurement scripts read it
+export interface ThisTurn {
+  feasible: boolean;
+  /** The line found (plan.winNow's search): its actions, and whether it used a card ability or an operation. */
+  line: GameAction[];
+  usedCard: boolean;
+  agenda?: string;
+  agendaId?: string;
+}
+
+/**
+ * Can the Corp score an agenda this turn with the clicks and credits it has (rules 1.17.3a-c: scored once its
+ * advancement counters reach the requirement, not an action, no click; 5.2.6f / 1.18.1: [click], 1[credit]: advance 1
+ * installed card)? plan.scoreNow's search (winNow.ts scoreNowLine), played out on the real state until the score: it
+ * plays only the Corp's own turn and cuts every line that changes R&D. For the stage 0 measurement scripts.
+ */
+export function scoreThisTurn(state: GameState): ThisTurn {
+  if (!isCorpMain(state) || state.corp.clicks <= 0) return { feasible: false, line: [], usedCard: false };
+  let s = state;
+  const line: GameAction[] = [];
+  let scored: CardInstance | undefined;
+  for (let i = 0; i < 20 && !s.winner && !scored; i++) {
+    const a = scoreNowLine(s);
+    if (!a) break;
+    line.push(a);
+    s = executeAction(s, a);
+    scored = s.corp.scoreArea.find(c => isAgenda(c) && !state.corp.scoreArea.some(x => x.instanceId === c.instanceId));
+  }
+  if (!scored) return { feasible: false, line: [], usedCard: false };
+  return { feasible: true, line, usedCard: line.some(a => a.type === 'USE_ABILITY' || a.type === 'PLAY_OPERATION_OR_EVENT'), agenda: cardDef(scored).title, agendaId: scored.instanceId };
+}
+
 export { CHECK, runnerBudget } from '../src/ai/corp/hold';
 
 /**
@@ -347,7 +377,6 @@ export function holdCost(state: GameState, ice: CardInstance[], corpCredits: num
   return h.holds ? h.rezCost : null;
 }
 export { knownIncome, scoreInTwo } from '../src/ai/corp/lines';
-export type { ThisTurn } from '../src/ai/countedScore';
 export type { TwoTurnLine } from '../src/ai/corp/lines';
 
 /** Agendas the counting cannot cost: a requirement missing, or text that changes a requirement or places counters. */

@@ -12,16 +12,12 @@ import { holdPricing, pricing, withPricing } from './pricing';
  * tests/codeHealth.test.ts checks that no other file reads the sink. Scripts and tests read what they installed.
  */
 export interface Diagnostics {
-  /** countedScore.ts scoreInTwoPick and afterLineFloor: two-turn agenda lines begun, stepped, vetoed, dropped, finished. */
+  /** corp/placement.ts scoreInTwoPick and corp/rezMoney.ts lineFloor: two-turn agenda lines begun, stepped, vetoed, dropped, finished. */
   scoreInTwo: { begun: number; steps: number; vetoed: number; dropped: number; finished: number; floorRefused: number; unholdable: number };
   /** The two-turn agenda lines begun, in order. */
   scoreInTwoLines: { turn: number; agendaId: string; form: TwoTurnLine['form'] }[];
-  /** corpAI.ts decide: the ice redirect played at the top level. */
-  iceRedirect: { fired: number };
-  /** countedScore.ts assetCover: asked, and why it gave no line. */
+  /** corp/placement.ts assetCover: asked, and why it gave no line. */
   assetCover: { asked: number; scoringShort: number; iced: number; clicks: number; noIce: number; rezMoney: number; begun: number };
-  /** countedScore.ts assetPartner. */
-  assetPartner: { moved: number };
   /** incomeLine.ts: money operations priced. */
   money: { ops: number };
   /** winNow.ts scoreNow searches. */
@@ -62,9 +58,7 @@ type CounterGroups = { [K in keyof Diagnostics as Diagnostics[K] extends Record<
 export const newDiagnostics = (): Diagnostics => ({
   scoreInTwo: { begun: 0, steps: 0, vetoed: 0, dropped: 0, finished: 0, floorRefused: 0, unholdable: 0 },
   scoreInTwoLines: [],
-  iceRedirect: { fired: 0 },
   assetCover: { asked: 0, scoringShort: 0, iced: 0, clicks: 0, noIce: 0, rezMoney: 0, begun: 0 },
-  assetPartner: { moved: 0 },
   money: { ops: 0 },
   scoreNow: { searches: 0, found: 0, choices: 0, nodes: 0 },
   reply: { nakedAgendaTurns: 0, nakedAgendaRuns: 0 },

@@ -2,7 +2,7 @@ import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
 import { GameAction, GameState, getLegalActions } from '../src/core';
 import { HeuristicCorpAI, createAgent } from '../src/ai';
-import { iceRedirect } from '../src/ai/countedScore';
+import { iceRedirect } from '../src/ai/corp/placement';
 import { scoringRemote } from '../src/ai/corp/lines';
 import { asSide } from '../src/ai/pricing';
 import { decisionContext } from '../src/ai/handValues';

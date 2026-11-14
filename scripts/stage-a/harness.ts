@@ -74,7 +74,11 @@ export function dealState(seed: number): GameState {
   return createInitialGameState(deckGameSetup(seed, corpDecks[Math.floor(p / runnerDecks.length)], runnerDecks[p % runnerDecks.length]));
 }
 
-const heldOf = (agent: Agent) => ({ heldLine: structuredClone((agent as unknown as { heldLine?: unknown }).heldLine ?? null) });
+// The Corp's held line: in its memory since Stage B1 (corp/core.ts CorpMemory), a field before
+const heldOf = (agent: Agent) => {
+  const a = agent as unknown as { heldLine?: unknown; memory?: { heldLine?: unknown } };
+  return { heldLine: structuredClone(a.memory?.heldLine ?? a.heldLine ?? null) };
+};
 
 /** A Corp agent that clears the caches, reports each decision and passes it on. */
 function watchedCorp(src: string, inner: Agent, hooks: Hooks, counter: { i: number }): Agent {

@@ -18,7 +18,7 @@ import { moneyOpGain, moneyTarget, rezReserve, unrezzedIceCost } from '../../src
 import { econValue } from '../../src/ai/cardValues';
 import { boardNeed } from '../../src/ai/valueModel';
 import { modelRezParts } from '../../src/ai/rezModel';
-import { assetPartner, centralIce, iceRedirect } from '../../src/ai/countedScore';
+import { assetPartner, centralIce, iceRedirect } from '../../src/ai/corp/placement';
 import { runnerBudget, serverHold } from '../../src/ai/corp/hold';
 import { lineFloor, rezMoney } from '../../src/ai/corp/rezMoney';
 import { centralStake, reachablePoints, runLoss, stake } from '../../src/ai/corp/pools';

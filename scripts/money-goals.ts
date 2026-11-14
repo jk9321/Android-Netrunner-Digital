@@ -118,7 +118,6 @@ for (const [index, file] of files.entries()) {
       const before = game.state;
       const main = before.activePlayer === 'corp' && !before.activeRun && before.pendingPrompts.length === 0 && before.corp.clicks > 0 && before.turnNumber <= TURNS;
       const m0 = diag.money.ops;
-      const r0 = diag.iceRedirect.fired;
       const s0 = diag.scoreInTwo.steps + diag.scoreInTwo.vetoed;
       const lineBefore = main ? [...memory()] : [];
       if (!game.step()) break;
@@ -133,7 +132,6 @@ for (const [index, file] of files.entries()) {
       const planned = lineBefore[0]?.action;
       const agendaMove = (a.type === 'ADVANCE_CARD' || a.type === 'SCORE_AGENDA') && planned && JSON.stringify(planned) !== JSON.stringify(a);
       if (diag.money.ops > m0) broke.money++;
-      else if (diag.iceRedirect.fired > r0) broke.redirect++;
       else if (diag.scoreInTwo.steps + diag.scoreInTwo.vetoed > s0 || agendaMove) broke.score++;
     }
     out(file, 'ai', seed + k, ai, broke);

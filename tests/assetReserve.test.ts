@@ -1,7 +1,7 @@
 import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
 import { GameAction, GameState } from '../src/core';
-import { assetCover, assetPartner } from '../src/ai/countedScore';
+import { assetCover, assetPartner } from '../src/ai/corp/placement';
 import { asSide } from '../src/ai/pricing';
 import { decisionContext } from '../src/ai/handValues';
 

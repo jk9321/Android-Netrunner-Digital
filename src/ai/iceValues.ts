@@ -9,7 +9,7 @@ import { centralAccess } from './threatModel';
 import { turnsLeft } from './cardProfiles';
 import { freeRezTargets } from './freeRez';
 import { plan, pricing } from './pricing';
-import { mainRemote } from './corpAI';
+import { mainRemote } from './corp/placement';
 
 /**
  * Value model step 5 (docs/ai-value-model-plan.md): ice priced in credits,

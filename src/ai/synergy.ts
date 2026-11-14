@@ -171,6 +171,13 @@ export const tuning = {
      * Off: the owner as it was, for the g1 "expect identical" batch.
      */
     paidAnotherWay: true,
+    /**
+     * TEMPORARY (Step 4 Stage B3, deleted in B6): the reserves outside the ranking read rez money's keep (corp/rezMoney.ts
+     * rezMoney, the line's agenda left out) instead of the byServer sum (lineFloor). keepScoringShort: scoringShort's
+     * floor; keepAgendaHorizon: the floor under reservedForAgenda's horizon. Off: lineFloor, as before.
+     */
+    keepScoringShort: true,
+    keepAgendaHorizon: true,
     /*
      * Value model step 2 (docs/ai-value-model-plan.md, Jeff 2026-10-27): the
      * new exchange rates in valueModel.ts. Self-play, 2,210 games each: all

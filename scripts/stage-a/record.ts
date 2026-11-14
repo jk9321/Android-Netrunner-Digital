@@ -11,6 +11,10 @@
  * relative order must match, so a difference cannot come from a load-order change).
  */
 import { forEachRecorded } from './harness';
+import { applyPlanOff } from '../../src/ai/synergy';
+
+// Stage B fire counts: PLAN_OFF as the batch scripts take it (a temporary step switch off on one side of the compare)
+applyPlanOff(process.env.PLAN_OFF ?? '');
 
 forEachRecorded({
   decision: d => {

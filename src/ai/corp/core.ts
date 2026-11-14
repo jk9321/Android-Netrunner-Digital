@@ -5,10 +5,9 @@ import { answerPrompt } from '../prompts';
 import { logNudge } from '../synergy';
 import { decisionContext } from '../handValues';
 import { plan } from '../pricing';
-import { assetPartner, centralIce, iceRedirect, scoreInTwoPick } from '../countedScore';
 import { HeldLine, heldLaterStep } from './lines';
-import { tally } from '../diagnostics';
 import { moneyPick } from '../incomeLine';
+import { placePick, scoreInTwoPick } from './placement';
 
 /**
  * Step 4 Stage B1 (spec-step4-corp-core.md 1.2, 1.3): the Corp's decision pipeline, Q0 to Q7, one function for the
@@ -19,7 +18,7 @@ import { moneyPick } from '../incomeLine';
  *   Q1 win now (winNow.ts) · Q3 score now (scoreNowPlan; a pick that keeps the score stands, keepsScore) · Q0 a prompt
  *   (prompts.ts) · Q7 the ranking (the caller's rankMainActions) with the look-ahead over it, skipped once a counted
  *   question has the click · Q6 money (incomeLine.ts moneyPick) · Q4/Q5 the held line's step or a two-turn line begun
- *   (scoreInTwoPick) · the placement rewriters (countedScore.ts; Stage B4 moves them into corp/placement.ts).
+ *   (scoreInTwoPick) · placement (placePick); both in corp/placement.ts since Stage B4.
  *
  * Q2 (the turn-start window, rule 5.6.1b) is the ranking's own today (rezzes ranked at corp_turn_start): Stage B2.
  */
@@ -43,8 +42,6 @@ export interface CorpContext {
   note(action: GameAction): void;
   /** The reverse bluff was played: an agenda into a new remote it cannot be scored from this turn. */
   bluffed(): void;
-  /** Count the ice redirects in the diagnostics (the deciding Normal Corp only). */
-  countRedirects?: boolean;
   debug?: boolean;
 }
 
@@ -100,20 +97,11 @@ export function corpDecide(state: GameState, ctx: CorpContext): GameAction {
     ctx.memory.heldLine = two.held;
     picked = two.action;
   }
-  // Ice redirect (step 4 G3', countedScore.ts iceRedirect): the Corp's own remote ice install goes to the scoring remote
-  // until it holds; nothing while a counted two-turn line is held (its ice goes where the line puts it; skipping only
-  // the line's own ice played the same 663 games, run 43158341651)
+  // Placement (corp/placement.ts placePick: central ice, the ice redirect, the asset partner): the pick's install goes
+  // where place puts it; nothing while a counted line is held (its ice goes where the line puts it; skipping only the
+  // line's own ice played the same 663 games, run 43158341651), or took the click
   const held = ctx.memory.heldLine && ctx.memory.heldLine.game === state.id ? ctx.memory.heldLine : null;
-  if (!score && picked === chosen && ctx.synergy && !held) {
-    // Central ice (countedScore.ts centralIce): a central with no ice takes the ice first
-    const central = centralIce(state, picked);
-    const redirect = central ?? iceRedirect(state, picked);
-    if (central) picked = central;
-    else if (redirect) {
-      if (ctx.countRedirects) tally('iceRedirect', 'fired');
-      picked = redirect;
-    } else picked = assetPartner(state, picked) ?? picked; // plan.assetPartner (countedScore.ts)
-  }
+  if (!score && picked === chosen && ctx.synergy && !held) picked = placePick(state, picked);
   // The reverse bluff: at most once a game, used up only by the install actually played (a pick the counted layer
   // rewrote put no agenda in a new remote)
   const bluff = picked;
