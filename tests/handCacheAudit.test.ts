@@ -101,7 +101,10 @@ function audit(seed: number, actions: number) {
   for (const a of Object.values(audits)) Object.assign(a, { on: true, checked: 0, mismatches: 0, errors: [] });
   play(seed, actions);
   for (const a of Object.values(audits)) a.on = false;
-  return Object.fromEntries(Object.entries(audits).map(([k, a]) => [k, { checked: a.checked, wrong: a.mismatches }]));
+  // A click worth summed in another order (the Runner's planner view deals its stack in another order, ai-runner-draws)
+  // differs in the last bits only: not a wrong hit
+  const wrong = (k: string, a: { mismatches: number; errors: number[] }) => (k === 'click' ? a.errors.filter(e => e > 1e-9).length : a.mismatches);
+  return Object.fromEntries(Object.entries(audits).map(([k, a]) => [k, { checked: a.checked, wrong: wrong(k, a) }]));
 }
 
 describe('hand-value maps: known wrong hits may only go down (on-hit audit)', () => {
