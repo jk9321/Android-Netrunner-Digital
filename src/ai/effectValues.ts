@@ -297,8 +297,13 @@ export function accessWorth(state: GameState): number {
   return odds * pointGain(state.runner.score, points);
 }
 
-/** Worth of n net or meat damage to the Runner: the cards lost, or the game if it flatlines. */
-export function damageWorth(state: GameState, n: number): number {
+/**
+ * Worth of n net or meat damage to the Runner: the cards lost, or the game if it flatlines. `drawBack`: damage the Runner
+ * chooses to take in its own run under way that it is pricing (runs.ts subroutineCost, the in-run reader only), which
+ * leaves it the clicks after the run to draw cards back; every other reader (the Corp's board, a known trap, the clock at
+ * a leaf, a run priced before it starts) leaves it off and is priced as before.
+ */
+export function damageWorth(state: GameState, n: number, drawBack = false): number {
   // plan.spareLastClick: with no click left the Runner can't run again this turn, so cards over its hand size are
   // discarded before they can soak up any damage (it drew to 6 with its last click and discarded, for +6)
   const spent = state.activePlayer === 'runner' && !state.activeRun && state.runner.clicks === 0;
@@ -308,17 +313,16 @@ export function damageWorth(state: GameState, n: number): number {
   // The damage clock: the cards, and the step closer to a flatline the smaller grip leaves
   // Cards over the hand limit are discarded before the Corp's turn: they are no life against its damage
   const grip = held;
-  // Draw-back (Runner audit RUNNER-DAMAGE-NO-DRAWBACK): damage taken on the Runner's own turn leaves it the clicks after
-  // the run to draw cards back (rule 5.2.7c: a click draws a card) before the Corp's turn, so the clock is read at the
-  // grip it can hold then. A click left is life against both grips alike, so spending one costs no life here.
-  const back = drawBackClicks(state);
-  return n * card + flatlineWorth(state) * (flatlineOdds(state, lifeGrip(state, grip - n + back, false)) - flatlineOdds(state, lifeGrip(state, grip + back, false)));
-}
-
-/** Clicks the Runner still has to draw with after damage taken now: its own turn, after the run's click (none on the Corp's turn). */
-function drawBackClicks(state: GameState): number {
-  if (state.activePlayer !== 'runner') return 0;
-  return Math.max(0, state.activeRun ? state.runner.clicks : state.runner.clicks - 1);
+  const life = (g: number) => flatlineOdds(state, lifeGrip(state, g, false));
+  const now = life(grip);
+  // Draw-back (Runner audit RUNNER-DAMAGE-NO-DRAWBACK): damage taken in the Runner's own run leaves it the clicks after the
+  // run to draw cards back before the Corp's turn (rule 5.2.7c: a click draws a card). Drawing k of the n back costs k
+  // clicks (CLICK each) and gives the k cards back; the clock is read at the grip it then holds. It draws back as many as
+  // is cheapest, so a full grip does not make damage free (the clicks are paid)
+  const back = drawBack && state.activePlayer === 'runner' && state.activeRun ? state.runner.clicks : 0;
+  let best = Infinity;
+  for (let k = 0; k <= Math.min(n, back); k++) best = Math.min(best, (n - k) * card + k * CLICK + flatlineWorth(state) * (life(grip - n + k) - now));
+  return best;
 }
 
 /**

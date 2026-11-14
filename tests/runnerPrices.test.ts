@@ -8,6 +8,7 @@ import { CardInstance, GameAction, GameState, activePrompt, createCardInstance, 
 import { createAgent } from '../src/ai';
 import { BLOCK, bestBreakPlan, breachAccesses, icePrice, runRestWorth, runScore, serverValue, subroutineCost } from '../src/ai/runs';
 import { damageWorth } from '../src/ai/effectValues';
+import { CLICK, cardRate } from '../src/ai/valueModel';
 import { scoreOutcome } from '../src/ai/prompts';
 import { asSide } from '../src/ai/synergy';
 import { installIceForTest, installProgramForTest, newGame, startRunnerTurn } from './helpers';
@@ -29,15 +30,33 @@ describe('R2 damage (rules 10.4.4, 5.2.7c)', () => {
     expect(subroutineCost(s, 'Do 3 net damage.')).toBe(BLOCK);
     expect(subroutineCost(s, 'End the run unless the Runner suffers 2 net damage.')).toBeLessThan(BLOCK);
   });
-  it('in-run damage on the Runner\'s turn is read with the clicks left to draw back: a card, not a step toward a flatline', () => {
+  const inRun = (grip: number, clicks: number) => {
     const s = newGame();
     startRunnerTurn(s);
-    s.runner.grip = s.runner.grip.slice(0, 5);
-    const withClicks = damageWorth(s, 1);
-    // No clicks left after the run: no draw-back, the flatline step counts again
-    const spent = structuredClone(s);
-    spent.runner.clicks = 1;
-    expect(withClicks).toBeLessThan(damageWorth(spent, 1));
+    s.runner.grip = s.runner.grip.slice(0, grip);
+    const run = executeAction(s, { type: 'INITIATE_RUN', player: 'runner', targetServerId: 'hq' } as GameAction);
+    return { ...run, runner: { ...run.runner, clicks } };
+  };
+  it("damage taken in the Runner's own run is read with the clicks left to draw back (5.2.7c): a card, not a step toward a flatline", () => {
+    const s = inRun(1, 3);
+    // 1 card left: without draw-back the damage empties the grip; with it, a click draws the card back
+    expect(damageWorth(s, 1, true)).toBeLessThan(damageWorth(s, 1));
+    expect(damageWorth(s, 1, true)).toBeCloseTo(CLICK, 6);
+    // No click left after the run: no draw-back, the flatline step counts again
+    expect(damageWorth(inRun(1, 0), 1, true)).toBe(damageWorth(inRun(1, 0), 1));
+  });
+  it('a full grip does not make damage free: the clicks that draw back are paid (CLICK each), or the card is lost', () => {
+    const s = inRun(5, 3);
+    expect(damageWorth(s, 2, true)).toBeGreaterThanOrEqual(Math.min(2 * CLICK, 2 * cardRate(s, 'runner')) - 1e-9);
+    expect(damageWorth(s, 2, true)).toBeLessThanOrEqual(damageWorth(s, 2));
+  });
+  it("only the Runner's own pricing of its run reads the draw-back: the Corp's view of the same subroutine does not", () => {
+    const s = inRun(1, 3);
+    const runner = asSide('runner', () => subroutineCost(s, 'Do 1 net damage.'));
+    const corp = asSide('corp', () => subroutineCost(s, 'Do 1 net damage.'));
+    expect(runner).toBeCloseTo(CLICK, 6);
+    expect(corp).toBe(damageWorth(s, 1));
+    expect(corp).toBeGreaterThan(runner);
   });
   it('a 6-card HQ behind a rezzed Tithe is worth running at ordinary credits (the audit probe: -Infinity at 0-5 credits)', () => {
     for (const credits of [0, 3, 5]) {

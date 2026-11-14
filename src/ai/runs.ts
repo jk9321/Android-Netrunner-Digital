@@ -19,6 +19,7 @@ import { agendaOdds, coreDamageWorth, counterWorthOf, damageWorth, flatlineOdds,
 import { clickPrice } from './handValues';
 import { clickRate, creditNeed, creditSlide, flatlineWorth, payoutSlide, pointValue } from './valueModel';
 import { plan } from './pricing';
+import { actingSide } from './synergy';
 import { CARDS, breachAccessOf } from './cards';
 import { counterWorth } from './counterValues';
 import type { Subroutine } from '../core/scripts/types';
@@ -64,6 +65,12 @@ export function subroutineCost(state: GameState, label: string): number {
   return knownSubroutineCost(state, label) ?? 2;
 }
 
+/**
+ * Damage the Runner takes in its own run under way, priced by the Runner (RUNNER-DAMAGE-NO-DRAWBACK): damageWorth's
+ * draw-back input. The Corp's view of the same subroutine, and a run priced before it starts, leave it off.
+ */
+const ownRun = (state: GameState): boolean => !!state.activeRun && actingSide() === 'runner';
+
 /** A rule's answer that passes to the next rule (the trash-a-type rule with no card of that type). */
 const NEXT = Symbol('next');
 type SubRule = [RegExp, (state: GameState, m: RegExpMatchArray) => number | undefined | typeof NEXT];
@@ -102,7 +109,7 @@ const SUB_RULES: SubRule[] = [
     // Vicsek: X is the Runner's tags
     const x = state.runner.tags;
     if (x === 0) return 0;
-    return x > state.runner.grip.length ? BLOCK : damageWorth(state, x) + tagCost(state) * x;
+    return x > state.runner.grip.length ? BLOCK : damageWorth(state, x, ownRun(state)) + tagCost(state) * x;
   }],
   [/loses? \[click\]/i, () => clickRate()],
   [/gets \+1 strength for the remainder of this run/i, () => 1.5], // ezaM: every ice after it costs more to break
@@ -124,7 +131,7 @@ const SUB_RULES: SubRule[] = [
   [/end the run/i, () => BLOCK],
   [/(\d+) (net|meat) damage/i, (state, damage) => {
     const n = Number(damage[1]);
-    return n > state.runner.grip.length ? BLOCK : damageWorth(state, n);
+    return n > state.runner.grip.length ? BLOCK : damageWorth(state, n, ownRun(state));
   }],
   [/gain 1 \[credit\] for each tag/i, state => 0.3 * state.runner.tags], // Capacitor: Corp credits
   [/tag/i, state => tagCost(state)],
