@@ -29,9 +29,6 @@ export const WIN_NOW = {
   depth: 14,
 };
 
-/** Diagnostics: searches made, searches that found a win, positions expanded. */
-export const winNowStats = { searches: 0, wins: 0, nodes: 0 };
-
 const typeOf = (state: GameState, id: string | undefined) => {
   const card = id ? findCardAnywhere(state, id) : undefined;
   return card ? cardDef(card).type_code : undefined;
@@ -190,7 +187,6 @@ export function winNowAction(state: GameState): GameAction | null {
   if (prompt && prompt.side !== 'corp') return null;
   if (state.turnStep?.kind === 'corp_turn_start') return null;
   if (!canStillWin(state)) return null;
-  winNowStats.searches++;
   const rd = state.corp.rd.map(c => c.instanceId).join();
   const seen = new Set<string>();
   let nodes = 0;
@@ -226,13 +222,10 @@ export function winNowAction(state: GameState): GameAction | null {
     }
     if (next.corp.rd.map(c => c.instanceId).join() !== rd) continue;
     if (search(next, 1)) {
-      winNowStats.wins++;
-      winNowStats.nodes += nodes;
       return action;
     }
     if (nodes >= WIN_NOW.nodes) break;
   }
-  winNowStats.nodes += nodes;
   return null;
 }
 
