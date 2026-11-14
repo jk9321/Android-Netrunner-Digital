@@ -16,7 +16,7 @@ import { ALL_DECKS } from './nsg-sample-decks';
 import { Agent, GameRunner, HeuristicCorpAI, HeuristicRunnerAI } from '../src/ai';
 import { applyPlanOff, asSide, tuning } from '../src/ai/synergy';
 import { batchTokens } from './oracle-ice';
-import { oracleStats } from '../src/ai/oracle';
+import { installDiagnostics } from '../src/ai/diagnostics';
 import { runnerView } from '../src/ai/threatModel';
 import { stealOdds } from '../src/ai/effectValues';
 import { pricing } from '../src/ai/pricing';
@@ -26,9 +26,15 @@ import { cardSynergy } from '../src/ai/synergyTags';
 // Batch-only tokens (ORACLE_ICE, money) are board setups for corp-losses.ts, not plan switches: dropped here
 applyPlanOff(batchTokens(process.env.PLAN_OFF ?? '').plan);
 const maxDeals = Number(process.argv.slice(2).filter(a => a !== '--')[0] ?? 20);
-oracleStats.reach = true;
-// The honest number for the same server (stealOdds itself never asks the oracle)
-oracleStats.honest = (s, id) => stealOdds(s, id);
+const diag = installDiagnostics();
+// The Corp decisions (by their noted HQ set) where the oracle answered, and where its answer moved the honest steal odds
+// (stealOdds for the same server, which never asks the oracle itself) by half or more
+const toldAt = new WeakSet<object>();
+const flippedAt = new WeakSet<object>();
+diag.onOracleTold = (decision, s, id, told) => {
+  toldAt.add(decision);
+  if (Math.abs(stealOdds(s, id) - told) >= 0.5) flippedAt.add(decision);
+};
 
 const isBreaker = (code: string) => /icebreaker/i.test(getCardDefinition(code).keywords ?? '');
 const breakers = (cards: { cardCode: string }[]) => cards.map(c => c.cardCode).filter(isBreaker).sort();
@@ -127,8 +133,8 @@ for (const c of corps) {
     played++;
   }
 }
-const told = seenSets.filter(s => oracleStats.told.has(s)).length;
-const flipped = seenSets.filter(s => oracleStats.flipped.has(s)).length;
+const told = seenSets.filter(s => toldAt.has(s)).length;
+const flipped = seenSets.filter(s => flippedAt.has(s)).length;
 console.log(JSON.stringify({
   plan: process.env.PLAN_OFF ?? '',
   deals: played,
@@ -144,6 +150,6 @@ console.log(JSON.stringify({
     never: firstHqIce.filter(t => t === null).length,
     meanTurn: +(firstHqIce.filter((t): t is number => t !== null).reduce((a, b) => a + b, 0) / Math.max(1, firstHqIce.filter(t => t !== null).length)).toFixed(2),
   },
-  oracleTurns: oracleStats.turns,
+  oracleTurns: diag.oracle.turns,
   secs: Math.round((Date.now() - t0) / 1000),
 }));

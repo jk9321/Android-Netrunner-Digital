@@ -13,7 +13,8 @@ import { deckGameSetup } from '../src/data/decks';
 import { ALL_DECKS } from './nsg-sample-decks';
 import { createAgent } from '../src/ai';
 import { applyPlanOff } from '../src/ai/synergy';
-import { plannerStats } from '../src/ai/turnPlanner';
+import { installDiagnostics } from '../src/ai/diagnostics';
+const diag = installDiagnostics();
 
 const [gamesArg, levelArg, dump] = process.argv.slice(2).filter(a => a !== '--');
 const games = Number(gamesArg ?? 4);
@@ -21,7 +22,7 @@ const level = (levelArg ?? 'normal') as 'normal' | 'hard';
 applyPlanOff(process.env.PLAN_OFF ?? '');
 let dumped = 0;
 if (dump)
-  plannerStats.onAddedWin = (state, action) => {
+  diag.onAddedWin = (state, action) => {
     if (dumped++ < 40) writeFileSync(`${dump}/added-${dumped}.json`, JSON.stringify({ action, state }));
   };
 const corpDecks = ALL_DECKS.filter(d => d.side === 'corp');
@@ -47,5 +48,5 @@ for (let g = 0; g < games; g++) {
   const s = gr.state;
   if (s.winner === 'corp') corpWins++;
 }
-const stats = { decisions: plannerStats.decisions, withAdded: plannerStats.withAdded, added: plannerStats.added, addedWins: plannerStats.addedWins };
+const stats = { decisions: diag.planner.decisions, withAdded: diag.planner.withAdded, added: diag.planner.added, addedWins: diag.planner.addedWins };
 console.log(JSON.stringify({ games, corpWins, ...stats, corpMs: +(time.corp.ms / time.corp.n).toFixed(1), corpMax: time.corp.max, runnerMs: +(time.runner.ms / time.runner.n).toFixed(1), runnerMax: time.runner.max }));

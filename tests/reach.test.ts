@@ -2,7 +2,8 @@ import { afterEach, describe, expect, it } from 'vitest';
 import { GameState, cardDef, createCardInstance } from '../src/core';
 import { tuning } from '../src/ai/synergy';
 import { atLeastOne, cases, getIn, reachOn, reachStanding } from '../src/ai/reach';
-import { threat, threatStats } from '../src/ai/threatModel';
+import { threat } from '../src/ai/threatModel';
+import { withDiagnostics } from '../src/ai/diagnostics';
 import { newGame } from './helpers';
 import { inDecision } from './helpers/pricing';
 
@@ -163,17 +164,20 @@ describe('plan.threatKey (K4b)', () => {
     tuning.plan.threatKey = true;
     const [a, b] = pair();
     inDecision(a, 'corp', () => threat(a));
-    const before = threatStats.budgeted;
-    const tb = inDecision(b, 'corp', () => threat(b));
-    expect(threatStats.budgeted).toBe(before);
+    const tb = withDiagnostics(d => {
+      const t = inDecision(b, 'corp', () => threat(b));
+      expect(d.threat.budgeted).toBe(0);
+      return t;
+    });
     expect(tb).toEqual(inDecision(a, 'corp', () => threat(a)));
   });
   it('off: each is budgeted', () => {
     tuning.plan.threatKey = false;
     const [a, b] = pair();
     inDecision(a, 'corp', () => threat(a));
-    const before = threatStats.budgeted;
-    inDecision(b, 'corp', () => threat(b));
-    expect(threatStats.budgeted).toBe(before + 1);
+    withDiagnostics(d => {
+      inDecision(b, 'corp', () => threat(b));
+      expect(d.threat.budgeted).toBe(1);
+    });
   });
 });

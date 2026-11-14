@@ -1,12 +1,13 @@
-import { afterEach, describe, expect, it } from 'vitest';
+import { describe, expect, it } from 'vitest';
 import { GameState, createInitialGameState } from '../src/core';
 import { deckGameSetup } from '../src/data/decks';
 import { ALL_DECKS } from '../scripts/nsg-sample-decks';
 import { GameRunner, createAgent } from '../src/ai';
-import { SearchRow, plannerStats } from '../src/ai/turnPlanner';
+import { SearchRow } from '../src/ai/turnPlanner';
+import { withDiagnostics } from '../src/ai/diagnostics';
 
 /**
- * Spec-search S1 (measurement only): plannerStats.onSearch plays every candidate of a Corp planner decision on the
+ * Spec-search S1 (measurement only): the diagnostics sink's onSearch plays every candidate of a Corp planner decision on the
  * rule, hold and finish-first lines after the pick, and must not change the pick. Position: batch deal 1491's Corp turn 1
  * (tests/searchSamples.test.ts), an agenda in HQ and no remote yet (rule 8.5.6: an agenda goes into a remote root).
  */
@@ -25,17 +26,15 @@ function position(): GameState {
   throw new Error('Corp turn 1 not reached');
 }
 
-afterEach(() => {
-  plannerStats.onSearch = undefined;
-});
-
 describe('spec-search S1 continuation audit', () => {
   it('logs every candidate on three lines and leaves the pick unchanged', () => {
     const s = position();
     const plain = createAgent('corp').chooseAction(structuredClone(s));
     const rows: SearchRow[] = [];
-    plannerStats.onSearch = r => rows.push(r);
-    const audited = createAgent('corp').chooseAction(structuredClone(s));
+    const audited = withDiagnostics(d => {
+      d.onSearch = r => rows.push(r);
+      return createAgent('corp').chooseAction(structuredClone(s));
+    });
     expect(audited).toEqual(plain);
     expect(rows.length).toBe(1);
     const row = rows[0];

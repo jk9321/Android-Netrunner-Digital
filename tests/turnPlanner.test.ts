@@ -1,7 +1,8 @@
 import { describe, expect, it } from 'vitest';
 import { HeuristicCorpAI, HeuristicRunnerAI } from '../src/ai';
 import { decisionContext, ownHandValue } from '../src/ai/handValues';
-import { PLANNER, planTurn, plannerStats } from '../src/ai/turnPlanner';
+import { PLANNER, planTurn } from '../src/ai/turnPlanner';
+import { withDiagnostics } from '../src/ai/diagnostics';
 import { isLegalAction } from '../src/core';
 import { simulate } from '../src/ai/prompts';
 import { installCorpForTest, newGame, startRunnerTurn } from './helpers';
@@ -23,13 +24,10 @@ describe('the whole-turn planner (Jeff, 2026-10-28; plan.turnPlanner)', () => {
     const ai = new HeuristicCorpAI({ planner: false });
     const ranked = ai.rankMainActions(s);
     let played: string[] = [];
-    plannerStats.onCandidates = (_side, _values, actions) => { played = actions.map(a => JSON.stringify(a)); };
-    let choice;
-    try {
-      choice = planTurn(s, 'corp', ranked, { rank: x => ai.rankMainActions(x), answer: x => ai.chooseAction(x) }, true);
-    } finally {
-      plannerStats.onCandidates = undefined;
-    }
+    const choice = withDiagnostics(d => {
+      d.onCandidates = (_side, _values, actions) => { played = actions.map(a => JSON.stringify(a)); };
+      return planTurn(s, 'corp', ranked, { rank: x => ai.rankMainActions(x), answer: x => ai.chooseAction(x) }, true);
+    });
     const top = ranked.filter(r => r.score > -Infinity && r.action.type !== 'END_TURN').slice(0, PLANNER.candidates).map(r => JSON.stringify(r.action));
     // The top few are always played; plannerBuild and plannerAgenda add at most PLANNER.withBuild + 2 in all
     for (const t of top) expect(played).toContain(t);

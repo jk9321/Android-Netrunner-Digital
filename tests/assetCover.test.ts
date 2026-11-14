@@ -1,7 +1,8 @@
 import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
 import { GameAction, GameState, executeAction } from '../src/core';
-import { assetCover, assetPartner, resetScoreInTwoStats, scoreInTwoPick, scoreInTwoStats, scoringRemote } from '../src/ai/countedScore';
+import { assetCover, assetPartner, scoreInTwoPick, scoringRemote } from '../src/ai/countedScore';
+import { withDiagnostics } from '../src/ai/diagnostics';
 import { asSide } from '../src/ai/pricing';
 import { decisionContext } from '../src/ai/handValues';
 
@@ -45,12 +46,13 @@ describe('assetCover: an econ asset behind the cheapest ice in HQ', () => {
     expect(inCorp(m, () => scoreInTwoPick({ ...m, corp: { ...m.corp, clicks: 1 } }, pick, second.held)).held).toBeNull();
   });
 
-  it('an asset line stays out of scoreInTwoStats (its agendaId names an asset)', () => {
+  it("an asset line stays out of the scoreInTwo diagnostics (its agendaId names an asset)", () => {
     const s = position();
-    resetScoreInTwoStats();
-    inCorp(s, () => scoreInTwoPick(s, newRemote, null));
-    expect(scoreInTwoStats.begun).toBe(0);
-    expect(scoreInTwoStats.lines).toEqual([]);
+    withDiagnostics(d => {
+      inCorp(s, () => scoreInTwoPick(s, newRemote, null));
+      expect(d.scoreInTwo.begun).toBe(0);
+      expect(d.scoreInTwoLines).toEqual([]);
+    });
   });
 
   it("Jeff's game report-39 turn 6: Tatu-Bola goes in front of the Regolith he trashed", () => {

@@ -30,7 +30,8 @@ import { counterWorth } from './counterValues';
 import { plan, pricing, withPricing } from './pricing';
 import { dividendsOf, setupOperation } from './cards';
 // Last: its imports (winNow, runs, pricing) are loaded by then, so the AI modules' load order is unchanged (oracle.ts)
-import { HeldLine, assetPartner, centralIce, heldLaterStep, iceRedirect, iceRedirectStats, scoreInTwoPick } from './countedScore';
+import { HeldLine, assetPartner, centralIce, heldLaterStep, iceRedirect, scoreInTwoPick } from './countedScore';
+import { tally } from './diagnostics';
 import { moneyPick } from './incomeLine';
 
 
@@ -219,7 +220,7 @@ export class HeuristicCorpAI implements Agent {
       const redirect = central ?? iceRedirect(state, picked);
       if (central) picked = central;
       else if (redirect) {
-        if (this.planner && !this.searching) iceRedirectStats.fired++;
+        if (this.planner && !this.searching) tally('iceRedirect', 'fired');
         picked = redirect;
       } else picked = assetPartner(state, picked) ?? picked; // plan.assetPartner (countedScore.ts)
     }

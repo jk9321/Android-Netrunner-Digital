@@ -1,5 +1,6 @@
 import { GameState, cardDef, knownInHand } from '../core';
 import { actingSide, plan, pricing, withPricing } from './pricing';
+import { note, tally } from './diagnostics';
 import { fingerprint } from './valueModel';
 
 /**
@@ -42,12 +43,6 @@ interface RunnerTurn {
 
 /** Positions already played out for plan.oracle.safestRemote (a planner meets the same end state from several lines). */
 const playedOut = new Map<string, RunnerTurn | null>();
-/**
- * Diagnostics (scripts/threat-profile.ts, scripts/oracle-reach.ts): Runner turns played out for the oracle, cache hits,
- * their time; with `reach` set, the Corp decisions (by their noted HQ set) where the oracle answered, and where its
- * answer moved the honest steal odds by half or more.
- */
-export const oracleStats = { turns: 0, hits: 0, ms: 0, reach: false, told: new WeakSet<object>(), flipped: new WeakSet<object>(), honest: undefined as ((s: GameState, id: string) => number) | undefined };
 const ORACLE_STEPS = 400;
 
 /**
@@ -81,7 +76,7 @@ function runnerNextTurn(state: GameState): RunnerTurn | null {
   const key = positionKey(state);
   if (!hooks.playout) return null;
   if (playedOut.has(key)) {
-    oracleStats.hits++;
+    tally('oracle', 'hits');
     return playedOut.get(key) ?? null;
   }
   const t0 = performance.now();
@@ -107,8 +102,8 @@ function runnerNextTurn(state: GameState): RunnerTurn | null {
   });
   // A position the engine refused is cached too, so it isn't played again on every evaluation; only real turns count
   if (result) {
-    oracleStats.turns++;
-    oracleStats.ms += performance.now() - t0;
+    tally('oracle', 'turns');
+    tally('oracle', 'ms', performance.now() - t0);
   }
   if (playedOut.size > 2000) playedOut.clear();
   playedOut.set(key, result);
@@ -139,11 +134,7 @@ export function oracleSteal(state: GameState, serverId: string): number | undefi
   const turn = runnerNextTurn(state);
   if (!turn) return undefined;
   const told = agendas.some(a => turn.stolen.has(a.instanceId)) ? 1 : 0;
-  if (oracleStats.reach) {
-    oracleStats.told.add(fresh);
-    const honest = oracleStats.honest?.(state, serverId);
-    if (honest !== undefined && Math.abs(honest - told) >= 0.5) oracleStats.flipped.add(fresh);
-  }
+  note(d => d.onOracleTold?.(fresh, state, serverId, told));
   return told;
 }
 

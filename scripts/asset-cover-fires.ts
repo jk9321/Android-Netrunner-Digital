@@ -4,14 +4,14 @@
  * 221-deal table's deals (SEEDS, mapped as in scripts/corp-card-usage.ts), with PLAN_OFF as given. Per game:
  *   - noAssetDiff: Corp main-phase decisions with ice in HQ where scoringRemote differs with plan.scoringNoAsset on
  *     and off (the input the arm changes; iceRedirect reads it);
- *   - redirects: iceRedirectStats.fired (top-level redirects);
+ *   - redirects: the diagnostics' iceRedirect.fired (top-level redirects);
  *   - econ asset installs into a remote, and how many went behind ice installed on that server earlier the same turn
  *     ("covered"), and how many onto a remote with no ice ("bare"). Run once with the arm on and once off on the same
  *     deals: the difference is the arm's fires.
  * strayed: non-econ assets and upgrades installed on a new remote while a remote with ice and no agenda or asset in its
  * root existed (play test round 2). steals: agenda points the Runner stole, by server (the scoring remote as scoringRemote names it at the steal, other
  * remotes, hq, rd, archives); assets: per econ asset copy, iced at install, trashed by the Runner, credits taken off it
- * (rule 1.10). cover: assetCoverStats, partner: assetPartnerStats (countedScore.ts; any caller, the planner's search included). One JSON line per game.
+ * (rule 1.10). cover: the diagnostics' assetCover, partner: assetPartner (countedScore.ts; any caller, the planner's search included). One JSON line per game.
  *
  *   SEEDS=1001,1011 [PLAN_OFF=+scoringNoAsset,+assetCover] [SHARD=0/2] npx vite-node scripts/asset-cover-fires.ts > fires.jsonl
  */
@@ -22,7 +22,8 @@ import { createAgent } from '../src/ai';
 import { GameRunner } from '../src/ai/playout';
 import { valueLoops } from '../src/ai/valueModel';
 import { applyPlanOff, tuning } from '../src/ai/synergy';
-import { CHECK, assetCoverStats, holdCost, iceRedirectStats, isCorpMain, runnerBudget, scoringRemote, assetPartnerStats } from '../src/ai/countedScore';
+import { CHECK, holdCost, isCorpMain, runnerBudget, scoringRemote } from '../src/ai/countedScore';
+import { installDiagnostics } from '../src/ai/diagnostics';
 import { profileOf } from '../src/ai/cardProfiles';
 import { asSide } from '../src/ai/pricing';
 
@@ -51,9 +52,7 @@ for (const [i, seed] of seeds.entries()) {
   const p = Math.floor((seed - 1001) / 10);
   const corpDeck = corpDecks[Math.floor(p / runnerDecks.length)];
   valueLoops.clear();
-  iceRedirectStats.fired = 0;
-  for (const k of Object.keys(assetCoverStats) as (keyof typeof assetCoverStats)[]) assetCoverStats[k] = 0;
-  assetPartnerStats.moved = 0;
+  const diag = installDiagnostics();
   const game = new GameRunner(createInitialGameState(deckGameSetup(seed, corpDeck, runnerDecks[p % runnerDecks.length])), { corp: createAgent('corp', 'normal'), runner: createAgent('runner', 'normal') });
   let noAssetDiff = 0;
   let installs = 0;
@@ -146,5 +145,5 @@ for (const [i, seed] of seeds.entries()) {
     console.error(`deal ${seed}: ${err}`);
     continue;
   }
-  console.log(JSON.stringify({ seed, deck: corpDeck.name, winner: game.state.winner ?? null, turns: game.state.turnNumber, noAssetDiff, redirects: iceRedirectStats.fired, installs, covered, bare, strayed, unusedTurns, unusedWhy, lastClick, steals, assets: [...assets.values()], cover: { ...assetCoverStats }, partner: { ...assetPartnerStats } }));
+  console.log(JSON.stringify({ seed, deck: corpDeck.name, winner: game.state.winner ?? null, turns: game.state.turnNumber, noAssetDiff, redirects: diag.iceRedirect.fired, installs, covered, bare, strayed, unusedTurns, unusedWhy, lastClick, steals, assets: [...assets.values()], cover: { ...diag.assetCover }, partner: { ...diag.assetPartner } }));
 }

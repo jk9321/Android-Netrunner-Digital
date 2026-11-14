@@ -90,6 +90,20 @@ describe('AI code health (audit guards)', () => {
     expect(Object.keys(MODULE_LETS).filter(key => !found.includes(key))).toEqual([]);
   });
 
+  it('reads the diagnostics sink only through its write helpers (audit Step 3 group B: no decision reads it)', () => {
+    const dir = new URL('../src/ai/', import.meta.url);
+    const files = (readdirSync(dir, { recursive: true }) as string[]).filter(f => f.endsWith('.ts'));
+    const text = (file: string) => readFileSync(new URL(file, dir), 'utf8');
+    // The context field is touched in diagnostics.ts only, once in each helper (tally, clockOn, note, inReply)
+    expect(files.filter(f => f !== 'diagnostics.ts' && /\.diagnostics\b/.test(text(f))), 'write through tally / note / clockOn').toEqual([]);
+    expect([...text('diagnostics.ts').matchAll(/pricing\(\)\.diagnostics/g)].length).toBe(4);
+    // The setup functions that hand out the sink are for scripts and tests, never imported by the AI itself
+    const setup = files.filter(f => /import \{[^}]*\b(installDiagnostics|withDiagnostics|newDiagnostics)\b[^}]*\} from '\.\/diagnostics'/.test(text(f)));
+    expect(setup).toEqual([]);
+    const exported = [...text('diagnostics.ts').matchAll(/^export (?:const|function|interface|type) (\w+)/gm)].map(m => m[1]).sort();
+    expect(exported).toEqual(['Diagnostics', 'clockOn', 'inReply', 'installDiagnostics', 'newDiagnostics', 'note', 'tally', 'withDiagnostics']);
+  });
+
   it('names no new card codes in the shared value files', () => {
     const found = VALUE_FILES.flatMap(file =>
       [...readFileSync(new URL(`../src/ai/${file}.ts`, import.meta.url), 'utf8').matchAll(/'(3\d{4})'/g)].map(m => `${file}:${m[1]}`),

@@ -1,4 +1,5 @@
 import type { SideCode } from '../core';
+import type { Diagnostics } from './diagnostics';
 import { planWith, sideOff, tuning } from './synergy';
 
 /**
@@ -78,6 +79,11 @@ export interface Pricing {
    * the deciding Corp saw them (public: rules 6.1.2a, 6.9.1a, the Runner announces the server it runs). Null: none noted.
    */
   runRecord: string[][] | null;
+  /**
+   * The diagnostics sink a measurement script or test installed (diagnostics.ts), or null in play. Written only through
+   * diagnostics.ts; no decision reads it, and it is not part of pricingKey.
+   */
+  diagnostics: Diagnostics | null;
 }
 
 const context: Pricing = {
@@ -101,6 +107,7 @@ const context: Pricing = {
   oracleRunning: false,
   reaching: false,
   runRecord: null,
+  diagnostics: null,
 };
 
 /** The current context (read only: change it with withPricing). */

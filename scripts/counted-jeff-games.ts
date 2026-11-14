@@ -13,7 +13,9 @@ import { deckGameSetup } from '../src/data/decks';
 import { tuning } from '../src/ai/synergy';
 import { asSide } from '../src/ai/pricing';
 import { decisionContext } from '../src/ai/handValues';
-import { keepsScore, scoreNowPlan, scoreNowStats } from '../src/ai/winNow';
+import { keepsScore, scoreNowPlan } from '../src/ai/winNow';
+import { installDiagnostics } from '../src/ai/diagnostics';
+const diag = installDiagnostics();
 import { HeldLine, isCorpMain, scoreInTwoPick } from '../src/ai/countedScore';
 
 const args = process.argv.slice(2).filter(a => a !== '--').map(Number);
@@ -60,4 +62,4 @@ for (const n of reports) {
   console.log(`report ${n} (${report.config.difficulty}, winner ${s.winner ?? 'none'}): ${lines.length} changed decision(s)`);
   for (const l of lines) console.log(l);
 }
-console.log(`\n${changed} changed decisions; scoreNow searches ${scoreNowStats.searches}, found ${scoreNowStats.found}, more than one agenda scorable ${scoreNowStats.choices}`);
+console.log(`\n${changed} changed decisions; scoreNow searches ${diag.scoreNow.searches}, found ${diag.scoreNow.found}, more than one agenda scorable ${diag.scoreNow.choices}`);

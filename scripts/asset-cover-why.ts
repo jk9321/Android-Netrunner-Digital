@@ -1,7 +1,7 @@
 /**
  * Why asset cover did not fire (AI Coordinator 2026-11-13, play test round 3): replays report-format fixtures and, at
  * every Corp install of an asset or upgrade from HQ, asks assetCover and assetPartner with the move as the pick and
- * prints the reason each returns null (assetCoverStats / assetPartnerStats deltas, plus the inputs). With TURNS=a-b,
+ * prints the reason each returns null (the diagnostics' assetCover / assetPartner deltas, plus the inputs). With TURNS=a-b,
  * also every Corp main-phase decision in those turns: scoreInTwo's line, the scoring remote, whether it holds, and the
  * iced remotes with an open root. Measurement only.
  *
@@ -10,7 +10,9 @@
 import { readFileSync } from 'node:fs';
 import { CardInstance, GameAction, GameState, cardDef, createInitialGameState, executeAction } from '../src/core';
 import { deckGameSetup } from '../src/data/decks';
-import { assetCover, assetCoverStats, assetPartner, holdCost, isCorpMain, knownIncome, runnerBudget, scoreInTwo, scoringRemote } from '../src/ai/countedScore';
+import { assetCover, assetPartner, holdCost, isCorpMain, knownIncome, runnerBudget, scoreInTwo, scoringRemote } from '../src/ai/countedScore';
+import { installDiagnostics } from '../src/ai/diagnostics';
+const diag = installDiagnostics();
 import { profileOf } from '../src/ai/cardProfiles';
 import { asSide } from '../src/ai/pricing';
 import { decisionContext } from '../src/ai/handValues';
@@ -32,9 +34,9 @@ for (const [i, move] of (report.moves as GameAction[]).entries()) {
   const inTurns = corpMain && s.turnNumber >= t0 && s.turnNumber <= t1;
   if (root || inTurns) {
     inCorp(s, () => {
-      const before = { ...assetCoverStats };
+      const before = { ...diag.assetCover };
       const cover = root ? assetCover(s, move) : null;
-      const why = root ? Object.keys(assetCoverStats).filter(k => k !== 'asked' && assetCoverStats[k as keyof typeof assetCoverStats] !== before[k as keyof typeof before]) : [];
+      const why = root ? Object.keys(diag.assetCover).filter(k => k !== 'asked' && diag.assetCover[k as keyof typeof before] !== before[k as keyof typeof before]) : [];
       const p = card ? profileOf(card.cardCode) : undefined;
       const partner = root ? assetPartner(s, move) : null;
       const scoring = scoringRemote(s);

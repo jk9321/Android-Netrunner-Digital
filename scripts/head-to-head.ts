@@ -17,6 +17,8 @@ import { ALL_DECKS as DECKS } from './nsg-sample-decks';
 import { createAgent } from '../src/ai';
 import { GameRecord, playLogged } from './lossLog';
 import { applyPlanOff } from '../src/ai/synergy';
+import { installDiagnostics } from '../src/ai/diagnostics';
+const diag = installDiagnostics();
 
 const [gamesArg, levelArg] = process.argv.slice(2).filter(a => a !== '--');
 const games = Number(gamesArg ?? 1);
@@ -51,6 +53,5 @@ for (const c of DECKS.filter(d => d.side === 'corp')) {
     }
   }
 }
-const { replyStats } = await import('../src/ai/runnerReply');
-console.error(`reply naked agenda remotes: ${replyStats.nakedAgendaRuns}/${replyStats.nakedAgendaTurns} run`);
+console.error(`reply naked agenda remotes: ${diag.reply.nakedAgendaRuns}/${diag.reply.nakedAgendaTurns} run`);
 console.log(JSON.stringify(records));

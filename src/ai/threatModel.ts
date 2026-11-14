@@ -6,6 +6,7 @@ import { ALARM_CLOCK, BLOCK, RunOptions, RunnerMemory, iceCost, runBypasses, run
 import { asSide, sideOff, tuning } from './synergy';
 import { fingerprint, memo, pointGain, sideCreditValue } from './valueModel';
 import { effectivePlan, plan, pricing, pricingKey, withPricing } from './pricing';
+import { clockOn, note, tally } from './diagnostics';
 import { corpSeenGrip } from './oracle';
 
 /**
@@ -245,12 +246,13 @@ const remember = <T>(cache: Map<string, T>, key: string, work: () => T): T => {
 
 /** The Runner's next turn as the Corp foresees it. */
 export function threat(state: GameState): Threat {
-  threatStats.calls++;
+  tally('threat', 'calls');
   return memo(state, 'threat', () => {
-    threatStats.keyed++;
-    const t0 = threatStats.timing ? performance.now() : 0;
+    tally('threat', 'keyed');
+    const timed = clockOn();
+    const t0 = timed ? performance.now() : 0;
     const key = threatKey(state);
-    if (threatStats.timing) threatStats.keyMs += performance.now() - t0;
+    if (timed) tally('threat', 'keyMs', performance.now() - t0);
     // The audit (test-only): a cached board recomputed must give the same threat
     if (threatAudit.on && threatCache.has(key)) {
       const fresh = budgetIn(state);
@@ -270,20 +272,21 @@ export function threat(state: GameState): Threat {
       }
     }
     return withRecord(remember(threatCache, key, () => {
-      threatStats.budgeted++;
-      if (threatStats.timing) countRepeats(key, state);
-      const t1 = threatStats.timing ? performance.now() : 0;
+      tally('threat', 'budgeted');
+      if (timed) note(d => d.onThreatBudget?.(key, state));
+      const t1 = timed ? performance.now() : 0;
       try {
         const value = budgetIn(state);
         return value;
       } finally {
-        if (threatStats.timing) {
+        if (timed) {
           const ms = performance.now() - t1;
-          threatStats.budgetMs += ms;
-          if (threatStats.inReply) {
-            threatStats.replyBudgeted++;
-            threatStats.replyBudgetMs += ms;
-          }
+          tally('threat', 'budgetMs', ms);
+          note(d => {
+            if (!d.replying) return;
+            d.threat.replyBudgeted++;
+            d.threat.replyBudgetMs += ms;
+          });
         }
       }
     }));
@@ -328,37 +331,6 @@ function withRecord(t: Threat): Threat {
   return changed ? { ...t, servers } : t;
 }
 
-/**
- * Diagnostics (scripts/threat-profile.ts): threat() calls, how many missed the state memo (keyed) and the board cache
- * (budgeted), their time, and the budgets made inside the Corp planner's played-out Runner reply.
- */
-export const threatStats = { calls: 0, keyed: 0, budgeted: 0, keyMs: 0, budgetMs: 0, timing: false, inReply: false, replyBudgeted: 0, replyBudgetMs: 0, fullRepeats: 0, coarseRepeats: 0, bothRepeats: 0, dropRepeats: [] as number[] };
-
-/**
- * K4(a) diagnostics (scripts/threat-profile.ts): budgets of a key already budgeted once (lost to the cache's clear), and
- * budgets whose key with the grip read as its size only (the threat reads the dealt grip by its size, K0) was.
- */
-const seenFull = new Set<string>();
-const seenCoarse = new Set<string>();
-function countRepeats(key: string, state: GameState): void {
-  if (seenFull.has(key)) threatStats.fullRepeats++;
-  seenFull.add(key);
-  const coarse = key.replace(state.runner.grip.map(c => c.instanceId).join(','), `#${state.runner.grip.length}`);
-  const both = coarse.split('|').slice(0, -1).join('|');
-  if (seenBoth.has(both)) threatStats.bothRepeats++;
-  seenBoth.add(both);
-  if (seenCoarse.has(coarse)) threatStats.coarseRepeats++;
-  seenCoarse.add(coarse);
-  // Upper bound: the key's parts one at a time left out (which part tells budgets apart)
-  const parts = key.split('|');
-  parts.forEach((_, i) => {
-    const k = i + ':' + parts.filter((__, j) => j !== i).join('|');
-    if (seenDrop.has(k)) threatStats.dropRepeats[i] = (threatStats.dropRepeats[i] ?? 0) + 1;
-    seenDrop.add(k);
-  });
-}
-const seenDrop = new Set<string>();
-const seenBoth = new Set<string>();
 
 /**
  * The Runner's next turn does not depend on

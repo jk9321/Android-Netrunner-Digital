@@ -1,5 +1,6 @@
 import { CardInstance, GameAction, GameState, activePrompt, cardDef, executeAction, findCardAnywhere, getLegalActions, isLegalAction } from '../core';
 import { plan } from './pricing';
+import { tally } from './diagnostics';
 import { clicksGivenOf, dividendsOf } from './cards';
 
 /**
@@ -229,9 +230,6 @@ export function winNowAction(state: GameState): GameAction | null {
   return null;
 }
 
-/** Diagnostics for plan.scoreNow: searches, those that found a score, those where more than one agenda could be scored. */
-export const scoreNowStats = { searches: 0, found: 0, choices: 0, nodes: 0 };
-
 /**
  * plan.scoreNow (Corp redesign, spec-counted-scoring.md C1; measured as stage 0b's I1 score-this-turn half, +2.9 ± 1.7):
  * the first action of the best line that scores an agenda this turn, or null. The same exact search as winNowAction
@@ -298,7 +296,7 @@ function bestScoreLine(state: GameState, count: boolean): ScoreLine | null {
   if (prompt && prompt.side !== 'corp') return null;
   if (state.turnStep?.kind === 'corp_turn_start') return null;
   if (!canStillWin(state, 1)) return null;
-  if (count) scoreNowStats.searches++;
+  if (count) tally('scoreNow', 'searches');
   const points = (a: GameAction) => {
     const id = (a as { cardInstanceId?: string }).cardInstanceId;
     const card = id ? findCardAnywhere(state, id) : undefined;
@@ -315,8 +313,8 @@ function bestScoreLine(state: GameState, count: boolean): ScoreLine | null {
   const scoreable = getLegalActions(state, 'corp').filter(a => a.type === 'SCORE_AGENDA' && !dividends.has((a as { cardInstanceId: string }).cardInstanceId));
   if (scoreable.length) {
     if (count) {
-      scoreNowStats.found++;
-      if (scoreable.length > 1) scoreNowStats.choices++;
+      tally('scoreNow', 'found');
+      if (scoreable.length > 1) tally('scoreNow', 'choices');
     }
     return { first: scoreable.reduce((a, b) => (points(b) > points(a) ? b : a)), points: scoreable.reduce((n, a) => n + points(a), 0) };
   }
@@ -373,11 +371,11 @@ function bestScoreLine(state: GameState, count: boolean): ScoreLine | null {
     if (!next.winner) search(next, 1, action, now);
     if (nodes >= WIN_NOW.nodes) break;
   }
-  if (count) scoreNowStats.nodes += nodes;
+  if (count) tally('scoreNow', 'nodes', nodes);
   if (!best.first) return null;
   if (count) {
-    scoreNowStats.found++;
-    if (best.agendas.size > 1) scoreNowStats.choices++;
+    tally('scoreNow', 'found');
+    if (best.agendas.size > 1) tally('scoreNow', 'choices');
   }
   return { first: best.first, points: best.points };
 }

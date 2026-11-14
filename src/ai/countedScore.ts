@@ -2,6 +2,7 @@ import { CardInstance, GameAction, GameState, cardDef, executeAction, getLegalAc
 import { scoreNowLine } from './winNow';
 import { iceCreditNeed, runBypasses } from './runs';
 import { plan } from './pricing';
+import { note, tally } from './diagnostics';
 import { withIceInstalled } from './iceValues';
 import { clickMoneyOf, dividendsOf, scoreCreditsOf, turnIncomeOf } from './cards';
 import { counters } from '../core/engine/cardEffects';
@@ -254,7 +255,7 @@ export function scoreInTwo(state: GameState): TwoTurnLine | null {
       if (nextCredits < r) continue;
       // The money once it scores (the agenda's own score credits and the turn after's income with it) keeps the board held
       if (nextCredits - r + scoreCreditsOf(t.agenda.cardCode) + income < afterLineFloor(t.view, t.agenda.instanceId)) {
-        scoreInTwoStats.floorRefused++;
+        tally('scoreInTwo', 'floorRefused');
         continue;
       }
       const line: TwoTurnLine = { agenda: cardDef(t.agenda).title, agendaId: t.agenda.instanceId, server: t.server, form: t.form, ...(t.iceId ? { iceId: t.iceId } : {}), advanceNow: a, advanceNext: r, rez };
@@ -294,7 +295,7 @@ export function lineHolds(state: GameState, agendaId: string): boolean {
  * the agenda's own scoreCredits and the next turn's income count against it), for the Runner's
  * turn after it: the cheapest rez spend that keeps the Runner out (holdCost) of R&D, of HQ while an agenda stays there,
  * and of each other remote holding an unscored agenda, summed. Rezzed ice that holds costs 0; a server no set holds
- * costs 0 too (money can't fix it, and it must not veto every line), counted in scoreInTwoStats.unholdable. Measured
+ * costs 0 too (money can't fix it, and it must not veto every line), counted in the diagnostics' scoreInTwo.unholdable. Measured
  * alone -1.1 ± 0.7 (games=3, run 42918968349); with F2 at 10 games +0.2 ± 0.4 (run 42940051464 vs 42940033908).
  */
 export function afterLineFloor(state: GameState, agendaId: string): number {
@@ -304,7 +305,7 @@ export function afterLineFloor(state: GameState, agendaId: string): number {
   let floor = 0;
   for (const set of ice) {
     const cost = holdCost(state, set, Infinity);
-    if (cost === null) scoreInTwoStats.unholdable++;
+    if (cost === null) tally('scoreInTwo', 'unholdable');
     else floor += cost;
   }
   return floor;
@@ -328,13 +329,6 @@ export interface HeldLine {
   server: string | null;
   /** Counters on the agenda when the line began (0 for an agenda from HQ). */
   counters: number;
-}
-
-/** Diagnostics for plan.scoreInTwo (scripts read them): lines begun, steps played over the Corp's pick, picks vetoed, lines dropped, scored, and each line begun. */
-export const scoreInTwoStats = { begun: 0, steps: 0, vetoed: 0, dropped: 0, finished: 0, floorRefused: 0, unholdable: 0, lines: [] as { turn: number; agendaId: string; form: TwoTurnLine['form'] }[] };
-/** Clears scoreInTwoStats (scripts/score-ceiling-measure.ts, before each game). */
-export function resetScoreInTwoStats() {
-  Object.assign(scoreInTwoStats, { begun: 0, steps: 0, vetoed: 0, dropped: 0, finished: 0, floorRefused: 0, unholdable: 0, lines: [] });
 }
 
 const legalShape = (state: GameState, want: Record<string, unknown>) => getLegalActions(state, 'corp').find(a => sameAction(a, want));
@@ -400,25 +394,25 @@ export function scoreInTwoPick(state: GameState, pick: GameAction, held: HeldLin
   if (h && h.turn < state.turnNumber && h.line.kind !== 'asset') {
     const step = finishTurnStep(state, h);
     if (step === 'done') {
-      scoreInTwoStats.finished++;
+      tally('scoreInTwo', 'finished');
       return { action: pick, held: null };
     }
     if (step === 'drop') {
-      scoreInTwoStats.dropped++;
+      tally('scoreInTwo', 'dropped');
       h = null;
     } else {
       if (step.type === 'SCORE_AGENDA') {
-        scoreInTwoStats.finished++;
+        tally('scoreInTwo', 'finished');
         return { action: step, held: null };
       }
-      if (!sameAction(pick, step as unknown as Record<string, unknown>)) scoreInTwoStats.steps++;
+      if (!sameAction(pick, step as unknown as Record<string, unknown>)) tally('scoreInTwo', 'steps');
       return { action: step, held: h };
     }
   }
   // An asset line (plan.assetCover) is done once the asset is installed
   if (h && h.line.kind === 'asset' && (h.turn < state.turnNumber || !state.corp.hq.some(c => c.instanceId === h!.line.agendaId))) h = null;
   if (h && h.turn === state.turnNumber && !state.corp.hq.some(c => c.instanceId === h!.line.agendaId) && !lineHolds(state, h.line.agendaId)) {
-    scoreInTwoStats.dropped++;
+    tally('scoreInTwo', 'dropped');
     h = null;
   }
   if (!h) {
@@ -427,26 +421,26 @@ export function scoreInTwoPick(state: GameState, pick: GameAction, held: HeldLin
     const card = installedAgendas(state).find(a => a.card.instanceId === line.agendaId)?.card;
     h = { game: state.id, turn: state.turnNumber, line, server: line.server === 'new remote' ? null : line.server, counters: card?.advancementCounters ?? 0 };
     if (!line.kind) {
-      scoreInTwoStats.begun++;
-      scoreInTwoStats.lines.push({ turn: state.turnNumber, agendaId: line.agendaId, form: line.form });
+      tally('scoreInTwo', 'begun');
+      note(d => d.scoreInTwoLines.push({ turn: state.turnNumber, agendaId: line.agendaId, form: line.form }));
     }
   }
-  // scoreInTwoStats counts agenda lines only: an asset line's agendaId names an asset (assetCoverStats counts those)
+  // scoreInTwo diagnostics count agenda lines only: an asset line's agendaId names an asset (assetCover counts those)
   const agendaLine = !h.line.kind;
   const step = startTurnStep(state, h);
   if (step === 'drop') {
-    if (agendaLine) scoreInTwoStats.dropped++;
+    if (agendaLine) tally('scoreInTwo', 'dropped');
     return { action: pick, held: null };
   }
   if (step) {
-    if (agendaLine && !sameAction(pick, step as unknown as Record<string, unknown>)) scoreInTwoStats.steps++;
+    if (agendaLine && !sameAction(pick, step as unknown as Record<string, unknown>)) tally('scoreInTwo', 'steps');
     return { action: step, held: h };
   }
   // The spare clicks: the Corp's pick while the line still holds after it (an illegal pick is the engine's to refuse)
   if (lineHolds(spareAfter(state, pick), h.line.agendaId)) return { action: pick, held: h };
   const credit = legalShape(state, { type: 'GAIN_CREDIT' });
   if (!credit) return { action: pick, held: h };
-  if (agendaLine) scoreInTwoStats.vetoed++;
+  if (agendaLine) tally('scoreInTwo', 'vetoed');
   return { action: credit, held: h };
 }
 
@@ -457,9 +451,6 @@ function spareAfter(state: GameState, pick: GameAction): GameState {
 }
 
 type ServerLike = GameState['corp']['servers'][string];
-
-/** Ice redirect diagnostics: redirects made by the top-level Corp (corpAI counts them). */
-export const iceRedirectStats = { fired: 0 };
 
 /**
  * The scoring remote (ice redirect): the remote with the most ice; on a tie the one holding an agenda or an advanced
@@ -532,9 +523,6 @@ function reservedForAgenda(state: GameState): ServerLike | null {
   return null;
 }
 
-/** Asset cover diagnostics (any caller, search included): econ installs asked about, and why no line: an agenda in HQ while the scoring remote is short, the pick's place already iced, under 2 clicks, no ice in HQ, not the asset's rez next turn (rezMoney); lines begun. */
-export const assetCoverStats = { asked: 0, scoringShort: 0, iced: 0, clicks: 0, noIce: 0, rezMoney: 0, begun: 0 };
-
 /**
  * plan.assetCover (asset cover step 2, redesign/spec-asset-cover.md, form A): the Corp's own pick installs an econ asset
  * (its card entry's profile pays credits, when the turn begins or for a click, and loads more than its rez cost) on a
@@ -559,30 +547,27 @@ export function assetCover(state: GameState, pick: GameAction): TwoTurnLine | nu
   const p = asset && typeOf(asset) === 'asset' ? profileOf(asset.cardCode) : undefined;
   const rezCost = asset ? (cardDef(asset).cost ?? 0) : 0;
   if (!asset || !p || p.pay <= 0 || p.load <= rezCost) return null;
-  assetCoverStats.asked++;
+  tally('assetCover', 'asked');
   const target = a.asNewRemote ? null : a.targetServerId ? state.corp.servers[a.targetServerId] : null;
   const scoring = scoringRemote(state);
-  if (target && (!target.isRemote || target.ice.length > 0 || target.id === scoring?.id)) return (assetCoverStats.iced++, null);
+  if (target && (!target.isRemote || target.ice.length > 0 || target.id === scoring?.id)) return (tally('assetCover', 'iced'), null);
   const income = knownIncome(state);
   const line = (server: string, form: TwoTurnLine['form'], ice?: { id: string; rez: number }): TwoTurnLine => ({ kind: 'asset', agenda: cardDef(asset).title, agendaId: asset.instanceId, server, form, ...(ice ? { iceId: ice.id } : {}), advanceNow: 0, advanceNext: 0, rez: ice?.rez ?? 0 });
   // assetPartner's econ case: an iced remote waiting with an open root (3.3.1) takes the asset, one click; not the
   // scoring remote while an agenda waits in HQ
   const reserved = reservedForAgenda(state);
   const waiting = remotes(state).find(v => v.ice.length > 0 && !v.root.some(c => isAgenda(c) || typeOf(c) === 'asset') && v.id !== reserved?.id);
-  if (waiting && state.corp.credits + (state.corp.clicks - 1) + income >= rezCost) return (assetPartnerStats.moved++, line(waiting.id, 'install'));
-  if (reserved && scoringShort(state)) return (assetCoverStats.scoringShort++, null);
-  if (state.corp.clicks < 2) return (assetCoverStats.clicks++, null);
+  if (waiting && state.corp.credits + (state.corp.clicks - 1) + income >= rezCost) return (tally('assetPartner', 'moved'), line(waiting.id, 'install'));
+  if (reserved && scoringShort(state)) return (tally('assetCover', 'scoringShort'), null);
+  if (state.corp.clicks < 2) return (tally('assetCover', 'clicks'), null);
   const end = state.corp.credits + (state.corp.clicks - 2);
   const all = uniqueByCode(state.corp.hq.filter(c => typeOf(c) === 'ice')).map(c => ({ c, rez: rezCostOf(state, c) }));
-  if (!all.length) return (assetCoverStats.noIce++, null);
-  if (end + income < rezCost) return (assetCoverStats.rezMoney++, null);
+  if (!all.length) return (tally('assetCover', 'noIce'), null);
+  if (end + income < rezCost) return (tally('assetCover', 'rezMoney'), null);
   const ice = all.sort((x, y) => x.rez - y.rez)[0];
-  assetCoverStats.begun++;
+  tally('assetCover', 'begun');
   return line(target ? target.id : 'new remote', 'install+ice', { id: ice.c.instanceId, rez: ice.rez });
 }
-
-/** plan.assetPartner diagnostics (any caller, search included): asset or upgrade installs moved onto a waiting iced remote. */
-export const assetPartnerStats = { moved: 0 };
 
 /**
  * plan.assetPartner (asset cover alternative; Claude's play test round 2, 2026-11-12: six times in two games the Corp had
@@ -602,7 +587,7 @@ export function assetPartner(state: GameState, pick: GameAction): GameAction | n
     .filter(v => v.ice.length > 0 && !v.root.some(c => isAgenda(c) || typeOf(c) === 'asset') && v.id !== reserved?.id)
     .sort((x, y) => y.ice.length - x.ice.length)[0];
   const move = waiting ? legalShape(state, { type: 'INSTALL_CARD', cardInstanceId: card.instanceId, targetServerId: waiting.id }) : undefined;
-  if (move) assetPartnerStats.moved++;
+  if (move) tally('assetPartner', 'moved');
   return move ?? null;
 }
 

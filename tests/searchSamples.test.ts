@@ -5,7 +5,7 @@ import { ALL_DECKS } from '../scripts/nsg-sample-decks';
 import { GameRunner, createAgent } from '../src/ai';
 import { tuning } from '../src/ai/synergy';
 import { REPLY } from '../src/ai/runnerReply';
-import { plannerStats } from '../src/ai/turnPlanner';
+import { Diagnostics, withDiagnostics } from '../src/ai/diagnostics';
 import fixture from './fixtures/search-hold-no-window.json';
 
 /**
@@ -61,21 +61,19 @@ describe('the held-line positions after plan.searchLines (step 2), and plan.sear
   }, 60000);
 
   it('searchSamples at deal 1491 T1: on a close call both lines get the extra samples and the pick is the better mean', () => {
-    const calls: Parameters<NonNullable<typeof plannerStats.onClose>>[] = [];
-    plannerStats.onClose = (top, chosen) => calls.push([top, chosen]);
-    try {
-      tuning.plan.searchSamples = true;
-      const s = turnOne();
-      const chosen = plannerPick(s);
-      for (const [top, picked] of calls) {
-        expect(top.length).toBe(2);
-        for (const t of top) expect(t.samples).toBe(2 + REPLY.extra);
-        expect(picked).toBe(top.reduce((a, b) => (b.value > a.value ? b : a)).action);
-      }
-      if (calls.length) expect(chosen).toEqual(calls[calls.length - 1][1]);
-    } finally {
-      plannerStats.onClose = undefined;
+    const calls: Parameters<NonNullable<Diagnostics['onClose']>>[] = [];
+    tuning.plan.searchSamples = true;
+    const s = turnOne();
+    const chosen = withDiagnostics(d => {
+      d.onClose = (top, picked) => calls.push([top, picked]);
+      return plannerPick(s);
+    });
+    for (const [top, picked] of calls) {
+      expect(top.length).toBe(2);
+      for (const t of top) expect(t.samples).toBe(2 + REPLY.extra);
+      expect(picked).toBe(top.reduce((a, b) => (b.value > a.value ? b : a)).action);
     }
+    if (calls.length) expect(chosen).toEqual(calls[calls.length - 1][1]);
   }, 60000);
 
   it('searchSamples on top does not flip the pick at deal 1491 T2', () => {

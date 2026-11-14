@@ -17,7 +17,7 @@ import { writeFileSync } from 'node:fs';
 import { Alarm, AlarmTracker, moneyKind } from './alarms';
 import { SpendRecord, SpendTracker } from './spend-audit';
 import { OpeningRecord, OpeningTracker } from './opening-audit';
-import { plannerStats } from '../src/ai/turnPlanner';
+import { installDiagnostics } from '../src/ai/diagnostics';
 import { SearchTuple, searchTuple } from './search-audit';
 
 export interface Steal {
@@ -277,7 +277,7 @@ export function playLogged(
   const spendTracker = new SpendTracker(openingTracker?.listener);
   // SEARCH_AUDIT=1 (spec-search S1): the Corp planner's decisions with every candidate's continuations
   const search: SearchTuple[] | undefined = process.env.SEARCH_AUDIT === '1' ? [] : undefined;
-  plannerStats.onSearch = search ? row => search.push(searchTuple(row)) : undefined;
+  if (search) installDiagnostics().onSearch = row => search.push(searchTuple(row));
   // DUMP_TURN=n DUMP_SIDE=corp|runner DUMP_FILE=x.json: write the position at the start of that turn and stop (an alarm's position, for a test)
   const dumpTurn = Number(process.env.DUMP_TURN ?? 0);
   const dumpSide = process.env.DUMP_SIDE ?? 'corp';

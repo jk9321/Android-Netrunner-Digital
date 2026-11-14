@@ -5,6 +5,7 @@ import { evaluate } from './evaluate';
 import { runClick } from './runs';
 import { threat, turnSeed } from './threatModel';
 import { plan, pricing, withPricing } from './pricing';
+import { note, tally } from './diagnostics';
 import { REPLY, guessHidden, runnerReply, sampledReply } from './runnerReply';
 import { plannerCandidates, replySamples, thinkAlwaysTries } from './oracle';
 
@@ -41,25 +42,6 @@ export const SEARCH = {
    */
   margin: 3,
 };
-
-/** Diagnostics (scripts): plannerBuild's added candidates, how often one was played out and how often it won. */
-export const plannerStats: {
-  decisions: number;
-  withAdded: number;
-  added: number;
-  addedWins: number;
-  /** plan.searchSamples: decisions given the extra samples, and how often they changed the pick */
-  closeCalls?: number;
-  closeFlips?: number;
-  /** plan.searchSamples: the two lines re-sampled, their first value and the mean over all their samples */
-  onClose?: (top: { action: GameAction; first: number; value: number; samples: number }[], pick: GameAction) => void;
-  onAddedWin?: (state: GameState, action: GameAction) => void;
-  onCandidates?: (side: SideCode, values: number[], actions: GameAction[]) => void;
-  /** Spec-search S1 (measurement only): every Corp decision's continuations, read by scripts/search-audit.ts. */
-  onSearch?: (row: SearchRow) => void;
-  /** plan.hiddenDraws (S6, measurement): a Corp decision, how many of its candidate lines drew from R&D, and the pick */
-  onDraws?: (state: GameState, drawLines: number, lines: number, pick: GameAction | null) => void;
-} = { decisions: 0, withAdded: 0, added: 0, addedWins: 0 };
 
 /**
  * How a playout continues after its first action. 'rule': the rule-based ranking's best each step. 'hold'
@@ -444,14 +426,13 @@ export function planTurn(state: GameState, side: SideCode, ranked: ScoredAction[
   candidates.push(...added);
   if (side === 'corp' && plan().plannerAgenda) candidates.push(...agendaCandidates(state, ranked, candidates).slice(0, Math.max(0, PLANNER.withBuild + 2 - candidates.length)));
   if (candidates.length <= 1 || clicksOf(state, side) <= 0) return null;
-  plannerStats.decisions++;
+  tally('planner', 'decisions');
   if (added.length) {
-    plannerStats.withAdded++;
-    plannerStats.added += added.length;
+    tally('planner', 'withAdded');
+    tally('planner', 'added', added.length);
   }
   // The hands stay as seen when the decision started (frozen); plan.plannerSeed: one seed for every playout of this decision
   const decisionSeed = searchPiece('plannerSeed') ? (turnSeed(state) ^ Math.imul(clicksOf(state, side) + 1, 0x85ebca6b)) >>> 0 : pricing().decisionSeed;
-  const audit = side === 'corp' ? plannerStats.onSearch : undefined;
   const started = performance.now();
   const replyBefore = searchClock.replyMs;
   return withPricing({ frozen: true, decisionSeed }, () => {
@@ -479,18 +460,22 @@ export function planTurn(state: GameState, side: SideCode, ranked: ScoredAction[
       const close = contenders(pool, side, synergy, SEARCH.margin, true);
       if (close) {
         const before = pool.reduce((a, b) => (b.value > a.value ? b : a));
-        plannerStats.closeCalls = (plannerStats.closeCalls ?? 0) + 1;
-        if (close.action !== before.action || close.line !== before.line) plannerStats.closeFlips = (plannerStats.closeFlips ?? 0) + 1;
+        tally('planner', 'closeCalls');
+        if (close.action !== before.action || close.line !== before.line) tally('planner', 'closeFlips');
         best = close;
       }
     }
-    plannerStats.onCandidates?.(side, values, candidates.map(c => c.action));
-    if (side === 'corp' && plannerStats.onDraws) plannerStats.onDraws(state, scored.filter(x => drewFromRd(root, x.ends.state)).length, scored.length, best?.action ?? null);
-    if (audit) auditSearch(audit, state, side, candidates, scored, best, ai, synergy, performance.now() - started, searchClock.replyMs - replyBefore);
+    note(d => {
+      d.onCandidates?.(side, values, candidates.map(c => c.action));
+      if (side === 'corp' && d.onDraws) d.onDraws(state, scored.filter(x => drewFromRd(root, x.ends.state)).length, scored.length, best?.action ?? null);
+    });
+    note(d => {
+      if (side === 'corp' && d.onSearch) auditSearch(d.onSearch, state, side, candidates, scored, best, ai, synergy, performance.now() - started, searchClock.replyMs - replyBefore);
+    });
     if (!best || best.value === -Infinity) return null;
     if (added.some(a => a.action === best!.action)) {
-      plannerStats.addedWins++;
-      plannerStats.onAddedWin?.(state, best.action);
+      tally('planner', 'addedWins');
+      note(d => d.onAddedWin?.(state, best!.action));
     }
     memory.line = best.line;
     return best.action;
@@ -519,7 +504,7 @@ function contenders<T extends { action: GameAction; value: number; line: Line; e
   // only was already below both, and letting it back in on their regression to the mean is the noise S3 removes
   const rest = topOnly ? [] : scored.filter(r => !top.some(t => t.action === r.action && t.line === r.line));
   const pick = [...top, ...rest].reduce((a, b) => (b.value > a.value ? b : a));
-  plannerStats.onClose?.(top.map(t => ({ action: t.action, first: t.firstValue, value: t.value, samples: t.samples })), pick.action);
+  note(d => d.onClose?.(top.map(t => ({ action: t.action, first: t.firstValue, value: t.value, samples: t.samples })), pick.action));
   return pick;
 }
 
@@ -533,7 +518,7 @@ export function agendaKind(state: GameState): SearchRow['kind'] {
 const lineKey = (first: GameAction, line: Line) => JSON.stringify([first, ...line.map(l => l.action)]);
 
 /**
- * Spec-search S1 (measurement only, plannerStats.onSearch): every candidate of a Corp decision also played on the hold
+ * Spec-search S1 (measurement only, the diagnostics' onSearch): every candidate of a Corp decision also played on the hold
  * and the finish-first lines, after the pick is made, so play is unchanged (the pick, its line and the plan memory come
  * from the shipped search). The rule line is the one already played.
  */
