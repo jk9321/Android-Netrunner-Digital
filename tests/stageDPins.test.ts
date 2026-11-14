@@ -29,11 +29,13 @@ const T = 120_000;
 
 describe('Stage D pins (known-failing until their fix lands)', () => {
   // D4, the open case: HQ behind one ice the rig beats; the ice went to a remote. Expected: on HQ
-  for (const [n, m, title, remote] of [
-    [49, 82, 'Lycian Multi-Munition', 'remote-4'],
-    [49, 111, 'Ansel 1.0', 'remote-6'],
+  // #49 #82 is a guard since beta 545f146 (the Runner AI plays from a guessed stack; clickWorth's key holds the board): the
+  // Corp now advances Send a Message in remote-6 instead. D4 still owes the HQ ice and turns this into the HQ assertion
+  for (const [n, m, title, remote, open] of [
+    [49, 82, 'Lycian Multi-Munition', 'remote-4', false],
+    [49, 111, 'Ansel 1.0', 'remote-6', true],
   ] as const) {
-    it.fails(`D4 #${n} #${m}: ${title} is not installed on ${remote} (expected: HQ)`, { timeout: T }, () => {
+    (open ? it.fails : it)(`D4 #${n} #${m}: ${title} is not installed on ${remote} (expected: HQ)${open ? '' : ' (guard since beta 545f146)'}`, { timeout: T }, () => {
       const { s, recorded } = at(n, m);
       const id = (recorded as Install).cardInstanceId!;
       expect(cardDef(findCardAnywhere(s, id)!).title).toBe(title);
