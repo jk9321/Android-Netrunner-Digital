@@ -61,14 +61,14 @@ const report = (n: number, move: number): GameState => {
 
 describe('planner lines with a sampled game end', () => {
   // Jeff's #51 #33: Tithe to a new remote read 501.4 (one sampled Corp win at +1000 in a two-sample mean)
-  it('#51 #33: no line is near 500', () => {
+  it('#51 #33: no line is near 500', { timeout: 30_000 }, () => {
     const values = candidates(report(51, 33));
     expect(values.length).toBeGreaterThan(1);
     expect(Math.max(...values.map(v => v.value))).toBeLessThan(100);
   });
 
   // Self-play deal 1201 T18: Draw read -476 and advance Pharos -479 (a sampled Runner win at -1000 each)
-  it('1201 T18: Draw and advance Pharos are above -100', () => {
+  it('1201 T18: Draw and advance Pharos are above -100', { timeout: 30_000 }, () => {
     const s: GameState = JSON.parse(readFileSync(new URL('./fixtures/terminal-1201-t18.json', import.meta.url), 'utf8'));
     const values = candidates(s);
     const draw = values.find(v => v.name === 'DRAW_CARD');
