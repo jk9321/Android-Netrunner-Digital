@@ -395,7 +395,9 @@ export function centralIce(state: GameState, pick: GameAction): GameAction | nul
   const card = state.corp.hq.find(c => c.instanceId === a.cardInstanceId);
   if (!card || typeOf(card) !== 'ice') return null;
   if (!a.asNewRemote && !state.corp.servers[a.targetServerId ?? '']?.isRemote) return null;
-  if (state.corp.credits < rezCostOf(state, card)) return null;
+  // Stage B3 (temporary plan.keepCentralGate): the Corp can pay the ice's rez and still keep rez money's keep (the money
+  // its staked servers' holding rezzes need), not only the rez
+  if (state.corp.credits - rezCostOf(state, card) < (plan().keepCentralGate ? rezMoney(state).keep : 0)) return null;
   const bare = (['hq', 'rd'] as const).filter(id => state.corp.servers[id].ice.length === 0);
   if (!bare.length) return null;
   const stake = centralStake(state, card.instanceId);

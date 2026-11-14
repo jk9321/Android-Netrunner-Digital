@@ -174,10 +174,12 @@ export const tuning = {
     /**
      * TEMPORARY (Step 4 Stage B3, deleted in B6): the reserves outside the ranking read rez money's keep (corp/rezMoney.ts
      * rezMoney, the line's agenda left out) instead of the byServer sum (lineFloor). keepScoringShort: scoringShort's
-     * floor; keepAgendaHorizon: the floor under reservedForAgenda's horizon. Off: lineFloor, as before.
+     * floor; keepAgendaHorizon: the floor under reservedForAgenda's horizon. Off: lineFloor, as before. keepCentralGate:
+     * centralIce's rez gate is the ice's rez cost on top of keep (off: the rez cost alone).
      */
     keepScoringShort: true,
     keepAgendaHorizon: true,
+    keepCentralGate: true,
     /**
      * TEMPORARY (Step 4 Stage B5, its own batch arm, deleted in B6): the valuation layer's rez money reads the owner
      * (corp/rezMoney.ts): valueModel boardNeed for the Corp's view, and iceValues rezBudget's order. Off: as before.
