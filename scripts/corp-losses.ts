@@ -9,8 +9,6 @@
  * the same way.
  */
 import { createHash } from 'node:crypto';
-// Kept where threatStats was imported (audit Step 3 group B): the AI modules' load order is unchanged (oracle.ts)
-import '../src/ai/threatModel';
 import { createInitialGameState } from '../src/core';
 import { deckGameSetup } from '../src/data/decks';
 import { ALL_DECKS as SHIPPED_DECKS } from './nsg-sample-decks';

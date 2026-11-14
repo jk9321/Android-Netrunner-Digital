@@ -1,9 +1,6 @@
 import { CardInstance, GameState, SideCode, cardDef } from '../core';
-// Bare imports kept for module load order (audit Step 3: play depends on it; see scripts/load-order.mjs)
-import './prompts';
 import { breakerScript, iceSubtypes, isIcebreaker } from '../core/engine/ice';
 import { counters, turnFlag } from '../core/engine/cardEffects';
-import './payoutRisk';
 import { abilityUsedKey } from '../core/engine/actions/ability';
 import { cardSynergy } from './synergyTags';
 import { corpKeepValue, runnerCardValue } from './cardValues';
@@ -15,7 +12,6 @@ import { resourceTrashHqCost } from '../core/engine/actions/basic';
 import { HAND_FLOOR, clickPrice, handByCard, heldWorth, ownHandValue, playedWorth, unseenInHand } from './handValues';
 import { CLICK, KNOBS, RATES, cardRate, creditValue, flatlineWorth, guardLoop, handFilter, mean, memo, payoutSlide, pointGain, pointValue, reachCard, sideCreditValue } from './valueModel';
 import { LOCKDOWN, PACE, STEAL, agendaOdds, coreSlotWorth, flatlineOdds, lifeGrip, runSuccess, stealOdds } from './effectValues';
-import './cards';
 import { remoteAgendaOdds, trashedCardCost } from './runs';
 import { centralAccess, runChance, threatOn } from './threatModel';
 import { plan, pricing, withPricing } from './pricing';
