@@ -782,6 +782,24 @@ describe('Rebellion Without Rehearsal: Criminal', () => {
     expect(inHeap(s, cu)).toBe(true);
   });
 
+  // Rules 1.16.1: "If a player cannot pay the full cost ... they cannot use the effect associated with that cost."
+  // Two Cupellations ask on the same HQ breach; with 1 credit only the first can be paid (deep fuzz seed 1000022624)
+  it('Two Cupellations on one breach with 1 credit: only the first is paid, never below 0 credits', () => {
+    let s = newGame();
+    emptyHQ(s);
+    const cu1 = installProgramForTest(s, L.cupellation);
+    const cu2 = installProgramForTest(s, L.cupellation);
+    for (const id of [cu1, cu2]) card(s, id).hostedCards = [createCardInstance(s, SG.nico)];
+    giveCard(s, 'corp', SG.hedgeFund);
+    startRunnerTurn(s);
+    s.runner.credits = 1;
+    s = cont(run(s, 'hq'));
+    s = choose(s, 'yes');
+    s = choose(s, 'yes');
+    expect(s.runner.credits).toBe(0);
+    expect([inHeap(s, cu1), inHeap(s, cu2)].filter(Boolean)).toHaveLength(1);
+  });
+
   it('Malandragem spends a counter to bypass ice of strength 3 or less', () => {
     let s = newGame();
     installIceForTest(s, SG.palisade, 'archives');
