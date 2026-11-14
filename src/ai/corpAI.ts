@@ -30,7 +30,7 @@ import { counterWorth } from './counterValues';
 import { plan, pricing, withPricing } from './pricing';
 import { dividendsOf, setupOperation } from './cards';
 // Last: its imports (winNow, runs, pricing) are loaded by then, so the AI modules' load order is unchanged (oracle.ts)
-import { HeldLine, assetPartner, centralIce, countCentralIce, heldLaterStep, iceRedirect, iceRedirectStats, scoreInTwoPick } from './countedScore';
+import { HeldLine, assetPartner, centralIce, heldLaterStep, iceRedirect, iceRedirectStats, scoreInTwoPick } from './countedScore';
 import { moneyPick } from './incomeLine';
 
 
@@ -216,7 +216,6 @@ export class HeuristicCorpAI implements Agent {
     if (!score && picked === chosen && this.synergy && !held) {
       // Central ice (countedScore.ts centralIce): a central with no ice takes the ice first
       const central = centralIce(state, picked);
-      if (this.planner && !this.searching) countCentralIce(planned && chosen === planned ? 'planner' : 'ranking', !!central);
       const redirect = central ?? iceRedirect(state, picked);
       if (central) picked = central;
       else if (redirect) {
@@ -224,8 +223,9 @@ export class HeuristicCorpAI implements Agent {
         picked = redirect;
       } else picked = assetPartner(state, picked) ?? picked; // plan.assetPartner (countedScore.ts)
     }
-    // The reverse bluff: at most once a game
-    const bluff = chosen;
+    // The reverse bluff: at most once a game, used up only by the install actually played (a pick the counted layer
+    // rewrote put no agenda in a new remote)
+    const bluff = picked;
     if (bluff.type === 'INSTALL_CARD' && bluff.asNewRemote && state.corp.hq.some(c => c.instanceId === bluff.cardInstanceId && type(c) === 'agenda')) {
       const def = cardDef(state.corp.hq.find(c => c.instanceId === bluff.cardInstanceId)!);
       if ((def.advancement_cost ?? 0) > state.corp.clicks - 1) this.reverseBluffed = true;

@@ -2,7 +2,9 @@ import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
 import { GameAction, GameState, createInitialGameState, executeAction } from '../src/core';
 import { deckGameSetup } from '../src/data/decks';
-import { centralIce, centralIceWhy } from '../src/ai/countedScore';
+import { centralIce, centralStake } from '../src/ai/countedScore';
+import { rdAgendaOdds } from '../src/ai/rezModel';
+import { pointGain } from '../src/ai/valueModel';
 import { asSide } from '../src/ai/pricing';
 import { decisionContext } from '../src/ai/handValues';
 
@@ -25,7 +27,6 @@ describe('central ice: remote ice to a central with no ice', () => {
   it('#51 #23: Funhouse goes to R&D', () => {
     const { s, pick } = at(51, 23);
     expect(ask(s, pick)).toMatchObject({ type: 'INSTALL_CARD', targetServerId: 'rd' });
-    expect(centralIceWhy.central).toBe('rd');
   });
 
   it('#51 #33: Tithe goes to R&D', () => {
@@ -48,7 +49,6 @@ describe('central ice: remote ice to a central with no ice', () => {
   it('#52 #2: Doomscroll goes to HQ', () => {
     const { s, pick } = at(52, 2);
     expect(ask(s, pick)).toMatchObject({ type: 'INSTALL_CARD', targetServerId: 'hq' });
-    expect(centralIceWhy.central).toBe('hq');
   });
 
   // Both centrals already have ice: the pick stands
@@ -66,5 +66,20 @@ describe('central ice: remote ice to a central with no ice', () => {
     t.corp.rd.reverse();
     t.runner.grip = t.runner.grip.map(c => ({ ...c, cardCode: '30030' }));
     expect(ask(t, pick)).toEqual(ask(s, pick));
+  });
+});
+
+// Audit Step 0b (spec-step0-small-fixes.md; review-central-ice S2): R&D's stake reads the Corp's one R&D pool (rezModel
+// rdAgendaOdds: odds and those agendas' mean points), not the count from one pool and the points from the deck-wide one
+describe("central ice: R&D's stake by the Corp's own list", () => {
+  it("#51 #23: R&D's stake is rdAgendaOdds' odds times the pointGain of its points, whatever R&D's order (10.2.2a)", () => {
+    const { s, pick } = at(51, 23);
+    const leaving = (pick as { cardInstanceId: string }).cardInstanceId;
+    const rd = rdAgendaOdds(s);
+    expect(rd.odds).toBeGreaterThan(0);
+    expect(centralStake(s, leaving).rd).toBeCloseTo(rd.odds * pointGain(s.runner.score, rd.points), 9);
+    const flipped = structuredClone(s);
+    flipped.corp.rd.reverse();
+    expect(centralStake(flipped, leaving)).toEqual(centralStake(s, leaving));
   });
 });
