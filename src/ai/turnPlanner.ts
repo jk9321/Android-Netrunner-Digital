@@ -6,7 +6,7 @@ import { runClick } from './runs';
 import { threat, turnSeed } from './threatModel';
 import { plan, pricing, withPricing } from './pricing';
 import { note, tally } from './diagnostics';
-import { REPLY, guessHidden, runnerReply, sampledReply } from './runnerReply';
+import { REPLY, guessHidden, guessRunnerView, runnerReply, sampledReply } from './runnerReply';
 import { plannerCandidates, replySamples, thinkAlwaysTries } from './oracle';
 
 /**
@@ -374,14 +374,14 @@ function leafValue(state: GameState, side: SideCode): number {
  * The planner's pick among the rule-based AI's best candidates (`ranked`,
  * best first): the one whose turn ends best. Falls back to the favourite.
  */
-/** Whether a playout from `start` ended with a card in HQ that was in R&D at the start (S6 measurement). */
-function drewFromRd(start: GameState, end: GameState | undefined): boolean {
+/** Whether a playout from `start` ended with a card in `side`'s hand that was in its deck (R&D, the stack) at the start (S6 measurement). */
+function drewFromDeck(side: SideCode, start: GameState, end: GameState | undefined): boolean {
   if (!end) return false;
-  const rd = new Set(start.corp.rd.map(c => c.instanceId));
-  return end.corp.hq.some(c => rd.has(c.instanceId));
+  const deck = new Set((side === 'corp' ? start.corp.rd : start.runner.stack).map(c => c.instanceId));
+  return (side === 'corp' ? end.corp.hq : end.runner.grip).some(c => deck.has(c.instanceId));
 }
 
-/** plan.hiddenDraws: the guessHidden deal the planner's own playouts start from (the replies use deals 0 ..). */
+/** plan.hiddenDraws: the guessHidden (Corp) or guessRunnerView (Runner) deal the planner's own playouts start from (the replies use deals 0 ..). */
 const HIDDEN_DRAW_SAMPLE = 4096;
 
 export function planTurn(state: GameState, side: SideCode, ranked: ScoredAction[], ai: PlannerAI, synergy: boolean): GameAction | null {
@@ -419,9 +419,11 @@ export function planTurn(state: GameState, side: SideCode, ranked: ScoredAction[
   const started = performance.now();
   const replyBefore = searchClock.replyMs;
   return withPricing({ frozen: true, decisionSeed }, () => {
-    // plan.hiddenDraws (spec-search S6): the Corp's candidates are played from its guess of R&D (and of the Runner's
-    // grip), dealt once for the decision, so a line that draws draws a guess, not the real top of R&D (rule 10.2.2a)
-    const root = side === 'corp' && plan().hiddenDraws ? guessHidden(state, HIDDEN_DRAW_SAMPLE) : state;
+    // plan.hiddenDraws (spec-search S6; the Runner's side Jeff 2026-11-14): each side's candidates are played from its own
+    // guess of what it can't see, dealt once for the decision, so a line that draws draws a guess, not the real top of
+    // R&D or the stack (rule 10.2.2a)
+    const guess = side === 'corp' ? guessHidden : guessRunnerView;
+    const root = plan().hiddenDraws ? guess(state, HIDDEN_DRAW_SAMPLE) : state;
     let best: { action: GameAction; value: number; line: Line } | null = null;
     const values: number[] = [];
     const scored: { action: GameAction; value: number; line: Line; ends: Ends }[] = [];
@@ -436,7 +438,7 @@ export function planTurn(state: GameState, side: SideCode, ranked: ScoredAction[
     if (side === 'corp' && plan().replyContenders && ai.reply && sampledReply()) best = contenders(scored, side, synergy) ?? best;
     note(d => {
       d.onCandidates?.(side, values, candidates.map(c => c.action));
-      if (side === 'corp' && d.onDraws) d.onDraws(state, scored.filter(x => drewFromRd(root, x.ends.state)).length, scored.length, best?.action ?? null);
+      if (d.onDraws) d.onDraws(state, scored.filter(x => drewFromDeck(side, root, x.ends.state)).length, scored.length, best?.action ?? null);
     });
     note(d => {
       if (side === 'corp' && d.onSearch) auditSearch(d.onSearch, state, side, candidates, scored, best, ai, synergy, performance.now() - started, searchClock.replyMs - replyBefore);
