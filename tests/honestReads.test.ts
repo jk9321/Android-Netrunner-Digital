@@ -3,6 +3,8 @@ import { CardInstance, GameState, createCardInstance } from '../src/core';
 import { revealInHand } from '../src/core/engine/helpers';
 import { breakerReach, protectionCost } from '../src/ai/corpAI';
 import { moneyPick } from '../src/ai/incomeLine';
+import { muWorth } from '../src/ai/effectValues';
+import { asSide } from '../src/ai/pricing';
 import { giveCard, installCorpForTest, installIceForTest, installProgramForTest, newGame } from './helpers';
 import { inDecision } from './helpers/pricing';
 
@@ -115,5 +117,28 @@ describe('moneyPick does not count on the cards an econ operation draws (rules 1
     expect(a).not.toBeNull();
     const title = (s: GameState, act: typeof a) => s.corp.hq.find(c => c.instanceId === (act as { cardInstanceId: string }).cardInstanceId)?.cardCode;
     expect(title(lucky, a)).toBe(title(plain, b));
+  });
+});
+
+describe('muWorth counts only the grip programs the Corp was shown when the Corp decides (rules 10.2.2a)', () => {
+  // Five Cleavers (1 MU each) against the base 4 MU: the grip needs more memory than the rig has
+  const grip = (programs: boolean, seen = false) => {
+    const s = structuredClone(newGame());
+    s.runner.knownToCorp = [];
+    s.runner.memoryUnitsUsed = 0;
+    s.runner.grip = runnerCards(s, Array.from({ length: 5 }, () => (programs ? CLEAVER : FILLER)));
+    if (seen) revealInHand(s, 'runner', s.runner.grip);
+    return s;
+  };
+
+  it('the Corp prices it the same whatever unseen cards are in the grip', () => {
+    expect(asSide('corp', () => muWorth(grip(true)))).toBe(asSide('corp', () => muWorth(grip(false))));
+  });
+
+  it('programs the Corp was shown still count, and the Runner still reads its own grip', () => {
+    const shown = asSide('corp', () => muWorth(grip(true, true)));
+    expect(shown).toBeGreaterThan(asSide('corp', () => muWorth(grip(false))));
+    expect(asSide('runner', () => muWorth(grip(true)))).toBe(shown);
+    expect(asSide('runner', () => muWorth(grip(true)))).toBeGreaterThan(asSide('runner', () => muWorth(grip(false))));
   });
 });
