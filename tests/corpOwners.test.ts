@@ -1,10 +1,6 @@
 import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
-import { GameAction, GameState, cardDef, createInitialGameState, getLegalActions } from '../src/core';
-import { deckGameSetup } from '../src/data/decks';
-import { ALL_DECKS } from '../scripts/nsg-sample-decks';
-import { createAgent } from '../src/ai';
-import { GameRunner } from '../src/ai/playout';
+import { GameAction, GameState, cardDef, getLegalActions } from '../src/core';
 import { asSide } from '../src/ai/pricing';
 import { decisionContext } from '../src/ai/handValues';
 import { iceRedirect } from '../src/ai/countedScore';
@@ -12,6 +8,7 @@ import { runnerBudget, serverHold } from '../src/ai/corp/hold';
 import { lineFloor, rezMoney, stakedServers } from '../src/ai/corp/rezMoney';
 import { corpPools, rdAgendaOdds, reachablePoints, runLoss, stake } from '../src/ai/corp/pools';
 import { place } from '../src/ai/corp/placement';
+import { HeldLine } from '../src/ai/corp/lines';
 import * as ref from '../scripts/stage-a/reference';
 
 /**
@@ -25,20 +22,8 @@ import * as ref from '../scripts/stage-a/reference';
  */
 const read = (name: string): GameState => JSON.parse(readFileSync(new URL(`./fixtures/${name}`, import.meta.url), 'utf8'));
 const inCorp = <T>(s: GameState, f: () => T): T => asSide('corp', () => (decisionContext(s, 'corp'), f()));
-const corpDecks = ALL_DECKS.filter(d => d.side === 'corp');
-const runnerDecks = ALL_DECKS.filter(d => d.side === 'runner');
-const deal = (seed: number) => {
-  const p = Math.floor((seed - 1001) / 10);
-  return new GameRunner(createInitialGameState(deckGameSetup(seed, corpDecks[Math.floor(p / runnerDecks.length)], runnerDecks[p % runnerDecks.length])), { corp: createAgent('corp', 'normal'), runner: createAgent('runner', 'normal') });
-};
-/** The first `n` states of a deal where `want` holds (a played game, Normal v Normal). */
-function statesWhere(seed: number, want: (s: GameState) => boolean, n: number, steps = 900): GameState[] {
-  const game = deal(seed);
-  const out: GameState[] = [];
-  for (let i = 0; i < steps && out.length < n && game.step(); i++) if (want(game.state)) out.push(game.state);
-  return out;
-}
-const approachingIce = (s: GameState) => !!s.activeRun && s.activeRun.icePosition !== null && s.priority?.step === 'approach_ice' && s.priority.holder === 'corp' && !!s.corp.servers[s.activeRun.server]?.ice[s.activeRun.icePosition];
+/** Recorded from deal 1001, Normal v Normal (scripts/stage-a/fixtures.ts): approach-ice windows the Corp holds, and run states. */
+const deal1001 = read('stage-a-deal-1001.json') as unknown as { approach: GameState[]; runs: GameState[] };
 /** The same board with R&D's order reversed and the grip's cards replaced: what the Corp cannot see (10.2.2a). */
 const blind = (s: GameState): GameState => {
   const t = structuredClone(s);
@@ -74,7 +59,7 @@ describe('serverHold: what holds a server (corp/hold.ts)', () => {
   });
 
   it("'thisRun' is stopCost's count at every approached ice of a played deal (6.4.3, 6.9.2b, 6.5.8a)", () => {
-    const states = statesWhere(1001, approachingIce, 6, 2000);
+    const states = deal1001.approach;
     expect(states.length).toBeGreaterThan(0);
     for (const t of states) {
       const run = t.activeRun!;
@@ -85,7 +70,7 @@ describe('serverHold: what holds a server (corp/hold.ts)', () => {
         expect(h.budget).toBe(t.runner.credits);
       }
     }
-  }, 120_000);
+  });
 
   it('reads no R&D order and no grip (10.2.2a)', () => {
     const t = blind(s);
@@ -134,7 +119,7 @@ describe('rezMoney: money kept for rezzing (corp/rezMoney.ts)', () => {
 
 describe('corpPools and stake: the Corp pool (corp/pools.ts)', () => {
   it('stake is runLoss and reachablePoints on every run of a played deal', () => {
-    const states = statesWhere(1001, t => !!t.activeRun, 10, 2000);
+    const states = deal1001.runs;
     expect(states.length).toBeGreaterThan(0);
     for (const t of states) {
       const st = inCorp(t, () => stake(t, t.activeRun!.server));
@@ -143,7 +128,7 @@ describe('corpPools and stake: the Corp pool (corp/pools.ts)', () => {
       expect(inCorp(t, () => runLoss(t))).toBe(inCorp(t, () => ref.runLoss(t)));
       expect(inCorp(t, () => reachablePoints(t))).toBe(inCorp(t, () => ref.reachablePoints(t)));
     }
-  }, 120_000);
+  });
 
   it("HQ by the Corp's own hand, R&D by its list less what it has seen, and neither by what it can't see (10.2.2a)", () => {
     const s = read('ice-redirect-1001-t10.json');
@@ -190,6 +175,22 @@ describe('place: where a card goes, today rules in today order (corp/placement.t
     const card = s.corp.hq.find(c => cardDef(c).title === 'Clearinghouse')!;
     const from = installs(s, card.instanceId).find(a => a.asNewRemote)!;
     expect(inCorp(s, () => place(s, card, { from, held: null }))[0]).toMatchObject({ server: 'remote-1' });
+  });
+
+  it("a held asset line's next step installs this card: the asset goes where its iced remote waits (deal 1921 #18; 3.3.1)", () => {
+    // Recorded (scripts/stage-a/fixtures.ts): the Corp holds an asset line for Otto Campaign whose ice went into a new
+    // remote (remote-4) last click; the ranking proposes Otto into a new remote, and scoreInTwoPick plays the line's step
+    // instead, Otto into remote-4's empty root (one asset or agenda per remote root: 3.3.1). place once returned none here.
+    const r = read('stage-a-held-asset-1921-18.json') as unknown as { state: GameState; held: HeldLine; played: GameAction };
+    const s = r.state;
+    const card = s.corp.hq.find(c => c.instanceId === 'inst-24')!;
+    expect(cardDef(card).title).toBe('Otto Campaign');
+    expect(r.held.line.kind).toBe('asset');
+    const from = installs(s, card.instanceId).find(a => a.asNewRemote)!;
+    expect(from).toBeDefined();
+    const p = inCorp(s, () => place(s, card, { from, held: r.held }));
+    expect(p[0]).toMatchObject({ server: 'remote-4', reason: 'assetCover' });
+    expect(r.played).toMatchObject({ type: 'INSTALL_CARD', cardInstanceId: 'inst-24', targetServerId: 'remote-4' });
   });
 
   it('is empty for an action that is not an install of the card from HQ', () => {
