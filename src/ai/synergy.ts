@@ -489,8 +489,6 @@ export const tuning = {
      * budgets 4931 -> 4136 and about 9% off a decision on the human-games positions. threatKeyPricing also leaves the outer
      * pricing context out: OFF, it moved 4 of 221 deals (run 42537621348), so some outer flag reaches the budget.
      */
-    /** Audit Step 1: a game end inside a sampled Runner reply priced on the point clock (runnerReply, valueModel sampledEndWorth). Temporary: folded at hand-off. */
-    terminalClock: true,
     threatKey: true,
     threatKeyPricing: false,
     /**
@@ -576,6 +574,10 @@ export const FOLDED: readonly string[] = [
   // 43468203978): a rez that stops a game-winning run is made (rezModel matchPoint), and the Corp's R&D odds are its own
   // list's (rezModel rdAgendaOdds, R4's pool)
   'matchPointRez', 'rdOwnOdds',
+  // Audit Step 1 (2026-11-14, spec-step1-terminal-price.md, bars/terminal-price.md, g10 -0.1 ± 0.4 run 43540429113 vs
+  // 43540407576): a game end inside a sampled Runner reply is priced on the point clock from the reply root's board
+  // (valueModel sampledEndWorth), not evaluate's ±1000
+  'terminalClock',
 ];
 
 /** Throws on a name that isn't a plan switch (a typo, or a switch folded into the code). */

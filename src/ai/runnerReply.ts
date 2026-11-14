@@ -96,7 +96,7 @@ export function guessHidden(state: GameState, k: number): GameState {
 }
 
 /** Diagnostics (scripts): reply turns that began with an agenda in a remote with no ice, and how many ran it. */
-export const replyStats: { nakedAgendaTurns: number; nakedAgendaRuns: number; onSamples?: (values: number[]) => void; onSample?: (end: { winner: string | null; root: number; board: number; old: number }) => void } = { nakedAgendaTurns: 0, nakedAgendaRuns: 0 };
+export const replyStats: { nakedAgendaTurns: number; nakedAgendaRuns: number; onSamples?: (values: number[]) => void } = { nakedAgendaTurns: 0, nakedAgendaRuns: 0 };
 const nakedAgendaRemotes = (s: GameState) =>
   Object.values(s.corp.servers)
     .filter(v => v.isRemote && v.ice.length === 0 && v.root.some(c => cardDef(c).type_code === 'agenda'))
@@ -152,12 +152,11 @@ export function runnerReply(end: GameState, synergy: boolean, leaf: (state: Game
       // (Jeff's bug report, 2026-10-31; plan.openStealUnrun) only agendas in remotes the Runner didn't run: one it ran and
       // was stopped from (The Red Room, LEO) survived the run it was counted stolen for
       const unrun = plan().openStealUnrun ? naked.filter(id => !ran.has(id)).flatMap(id => gr.state.corp.servers[id]?.root.map(c => c.instanceId) ?? []) : nakedAgendas;
-      // Audit Step 1 (plan.terminalClock): a game end in this sample is one deal of hidden cards, a chance, not a certainty:
+      // Audit Step 1: a game end in this sample is one deal of hidden cards, a chance, not a certainty:
       // priced on the point clock from the reply root's board (valueModel sampledEndWorth, 1.7.2) instead of the leaf's ±1000
       const last = gr.state;
-      const settle = !!last.winner && plan().terminalClock;
-      if (settle || replyStats.onSample) rootBoard ??= leaf({ ...end, winner: null, winReason: null }) - pointsTerm(end);
-      if (replyStats.onSample) replyStats.onSample({ winner: last.winner, root: rootBoard!, board: leaf({ ...last, winner: null, winReason: null }) - pointsTerm(last), old: leaf(last) });
+      const settle = !!last.winner;
+      if (settle) rootBoard ??= leaf({ ...end, winner: null, winReason: null }) - pointsTerm(end);
       const value = settle
         ? sampledEndWorth(last.winner!, rootBoard!)
         : leaf(last) - (plan().openSteal ? openAgendaLoss(gr.state, nakedAgendas.filter(id => unrun.includes(id))) : 0);

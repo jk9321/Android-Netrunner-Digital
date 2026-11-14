@@ -5,7 +5,6 @@ import { deckGameSetup } from '../src/data/decks';
 import { createAgent } from '../src/ai';
 import { pointValue, pointsTerm, sampledEndWorth } from '../src/ai/valueModel';
 import { runnerReply } from '../src/ai/runnerReply';
-import { tuning } from '../src/ai/synergy';
 import { plannerStats } from '../src/ai/turnPlanner';
 
 /**
@@ -26,15 +25,9 @@ describe('sampledEndWorth: winner 7, loser 0 on the points term, from the reply 
     const ended = (winner: 'corp' | 'runner', credit: number) => ({ ...root, winner, runner: { ...root.runner, credits: credit } }) as GameState;
     // A game already over at the root ends every sample on the spot: two different end boards, one price
     const rootBoard = (s: GameState) => leaf({ ...s, winner: null }) - pointsTerm(s);
-    const was = tuning.plan.terminalClock;
-    tuning.plan.terminalClock = true;
-    try {
-      for (const credit of [0, 9]) {
-        expect(runnerReply(ended('runner', credit), true, leaf)).toBeCloseTo(rootBoard(ended('runner', credit)) - pointValue(7));
-        expect(runnerReply(ended('corp', credit), true, leaf)).toBeCloseTo(rootBoard(ended('corp', credit)) + pointValue(7));
-      }
-    } finally {
-      tuning.plan.terminalClock = was;
+    for (const credit of [0, 9]) {
+      expect(runnerReply(ended('runner', credit), true, leaf)).toBeCloseTo(rootBoard(ended('runner', credit)) - pointValue(7));
+      expect(runnerReply(ended('corp', credit), true, leaf)).toBeCloseTo(rootBoard(ended('corp', credit)) + pointValue(7));
     }
   });
 });
