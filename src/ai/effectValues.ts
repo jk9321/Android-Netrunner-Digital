@@ -144,12 +144,6 @@ function canTank(state: GameState, ice: CardInstance, credits: number): boolean 
 
 /** Unrezzed ice: the Corp rezzes it when it can afford to, about half the time. */
 const UNREZZED_PASS = { rich: 0.55, broke: 0.9 };
-/**
- * plan.measuredPass: the pass rates measured on unrezzed ice (scripts/threat-calibration.ts, item 3 round 2): the first
- * unrezzed layer a run meets, then each one after it (the Corp's money rezzes about one ice a run). A Corp with 3+
- * credits is rich, as above.
- */
-export const MEASURED_PASS = { rich: { first: 0.6, more: 0.83 }, broke: { first: 0.87, more: 0.93 } };
 
 /** Ice is being priced against the rig (pricing context): run odds are the flat guesses inside. */
 export const pricingIce = (): boolean => pricing().pricingIce;
@@ -178,7 +172,7 @@ export function runSuccessBypassing(state: GameState, serverId: string, bypassed
 
 /**
  * plan.ownIceKnown (bug reports #39 and #41, Jeff's Runner test games 7 and 9, 2026-11-09; Corp only): the Corp prices its
- * OWN unrezzed ice as it knows it, not by the Runner-side pass rates (MEASURED_PASS / UNREZZED_PASS: what a Runner meets
+ * OWN unrezzed ice as it knows it, not by the Runner-side pass rates (UNREZZED_PASS: what a Runner meets
  * when it can't see the ice). Ice its rez budget covers now (iceValues rezBudget: one pool, best stop first) is priced as
  * the real ice against the rig, since the Corp can rez it as it is approached (rules 3.4.3a, 6.9.2b); ice the budget
  * doesn't cover stays unrezzed and is passed (6.9.2c). The single copy is reach.ts knownIce (plan.reachStrength,
@@ -205,14 +199,9 @@ export function passOddsOf(state: GameState, serverId: string): number {
 function passOdds(state: GameState, ices: CardInstance[], income = 0): number {
   let credits = state.runner.credits + income;
   let pass = 1;
-  let unrezzed = 0;
   for (const ice of [...ices].reverse()) {
     if (!ice.isRezzed) {
-      const rich = state.corp.credits >= 3;
-      if (plan().measuredPass) {
-        const rate = rich ? MEASURED_PASS.rich : MEASURED_PASS.broke;
-        pass *= unrezzed++ ? rate.more : rate.first;
-      } else pass *= rich ? UNREZZED_PASS.rich : UNREZZED_PASS.broke;
+      pass *= state.corp.credits >= 3 ? UNREZZED_PASS.rich : UNREZZED_PASS.broke;
       continue;
     }
     const cost = iceCost(state, ice);

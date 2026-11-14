@@ -16,7 +16,6 @@ import { asSide, logNudge, nudge, opponentLean, tuning } from './synergy';
 import { decisionContext } from './handValues';
 import { PlanMemory, planTurn, plannerOn, searchPiece } from './turnPlanner';
 import { runnerReply } from './runnerReply';
-import { threatLoss } from './threatModel';
 import { archivesWantsIce, countedRez, modelRezGain, rdAgendaOdds } from './rezModel';
 import { keepsScore, scoreNowPlan, winNowAction } from './winNow';
 import { freeRezCover, freeRezTargets } from './freeRez';
@@ -244,10 +243,7 @@ export class HeuristicCorpAI implements Agent {
   /** The whole-turn planner's pick (plan.turnPlanner), its playouts by a fresh copy of this AI. */
   private plan(state: GameState, ranked: ScoredAction[]): GameAction | null {
     const rollout = new HeuristicCorpAI({ synergy: this.synergy, planner: false, searching: true });
-    // plan.threatModel (structural review item 3): the Runner's next turn charged from the threat, not played out twice
-    const reply = plan().threatModel && plan().threatLeaf !== false
-      ? (s: GameState, leaf: (s: GameState) => number) => leaf(s) - threatLoss(s)
-      : plan().runnerReply ? (s: GameState, leaf: (s: GameState) => number) => runnerReply(s, this.synergy, leaf) : undefined;
+    const reply = plan().runnerReply ? (s: GameState, leaf: (s: GameState) => number) => runnerReply(s, this.synergy, leaf) : undefined;
     return planTurn(state, 'corp', ranked, { rank: s => rollout.rankMainActions(s), answer: s => rollout.chooseAction(s), reply, memory: this.planMemory }, this.synergy);
   }
 

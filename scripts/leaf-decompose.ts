@@ -4,7 +4,7 @@
  *
  * For each position the AI's pick and Jeff's move are each played to the end of the turn the way turnPlanner.ts playout
  * plays a candidate (the rest of the turn by the planner-off Corp AI, prompts answered by it, the discard step), and the
- * leaf is split into its parts. The leaf in the shipped config (threatLeaf off, runnerReply on: corpAI.ts plan) is
+ * leaf is split into its parts. The leaf in the shipped config (runnerReply on: corpAI.ts plan) is
  * evaluate(corp) after the Runner's next turn, played out from REPLY.samples guesses of the hidden cards (runnerReply.ts),
  * averaged; the parts here are averaged the same way, with the Runner's points stolen in the reply. The planner's own
  * candidate values (the diagnostics' onCandidates) are printed beside it so the replication can be checked.

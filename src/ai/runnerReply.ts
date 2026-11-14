@@ -43,13 +43,9 @@ export const REPLY = {
 /** Which samples a reply plays: guessHidden deals `from` .. `from + count - 1`. */
 export interface ReplyRange { from: number; count: number }
 
-/**
- * Whether the Corp planner's reply is this sampled Runner turn (corpAI.ts plan: plan.runnerReply, unless the threat
- * leaf stands in for it: plan.threatModel with threatLeaf). plan.replyContenders plays extra samples only then; the
- * threat leaf is deterministic, more of it would recompute the same number.
- */
+/** Whether the Corp planner's reply is this sampled Runner turn (corpAI.ts plan: plan.runnerReply). plan.replyContenders plays extra samples only then. */
 export function sampledReply(): boolean {
-  return !!plan().runnerReply && !(plan().threatModel && plan().threatLeaf !== false);
+  return !!plan().runnerReply;
 }
 
 /**

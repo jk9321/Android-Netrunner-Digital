@@ -191,56 +191,23 @@ export const tuning = {
      * Structural review item 3 (Jeff approved 2026-11-06; spec "Item 3 spec" of the AI code review doc): the Corp's
      * belief about where the Runner runs next turn is the Runner AI's own run scorer budgeted over its turn, on the board
      * as the Runner sees it (threatModel.ts), instead of PACE's shares, STEAL.run and the open-remote patches; the
-     * planner's leaf charges that turn (threatLoss) in place of the two-sample Runner reply (plan.runnerReply). Corp
-     * only: off in sideOff.runner.
+     * planner's leaf kept the two-sample Runner reply (plan.runnerReply; the threat as the leaf's charge, threatLeaf, was
+     * deleted in audit Step 3 with threatSpend and calibratedRun). Corp only: off in sideOff.runner.
      * OFF BY DEFAULT (2026-11-07, the gate): paired on the same 2,210 deals the Corp won 26.6% vs 37.6% off (-11.0 ± 1.2),
      * stuck-in-HQ +9.2/100, broke -13.1/100 (runs 42329361323 vs 42329359103). The threat reads well on Jeff's games
      * (scripts/threat-calibration.ts) but is one turn, crisp: an agenda behind ice the Runner can't pay through this
      * turn reads safe for every turn it waits. Hand-off: /mnt/project-files/netrunner-ai/threat-model/handoff.md.
      * Round 2 (ai-threat-model-2): later waiting turns on a Runner a turn's income richer (evaluate threatStanding),
-     * plus plan.measuredPass: -10.6 ± 1.2 and -10.9 ± 1.3 paired, stuck-in-HQ +9.8 / +10.3 (runs 42338471891,
+     * plus measuredPass (deleted in audit Step 3): -10.6 ± 1.2 and -10.9 ± 1.3 paired, stuck-in-HQ +9.8 / +10.3 (runs 42338471891,
      * 42338476397). Still off. Hand-off: /mnt/project-files/netrunner-ai/threat-model/handoff-round2.md.
      * ON BY DEFAULT, VALUES ONLY (round 3, Fable review 2026-11-07): the decomposition put the whole loss at the leaf.
-     * The threat in the values with runnerReply kept at the leaf (threatLeaf off) is -1.0 ± 0.9 paired, no alarm worse
+     * The threat in the values with runnerReply kept at the leaf (no threat leaf) is -1.0 ± 0.9 paired, no alarm worse
      * (run 42347842219); at the leaf only -8.2 ± 1.3 (42347844568). Hand-off: handoff-round3.md, same folder.
      */
     threatModel: true,
     /**
-     * Item 3 round 2 (Fable review, 2026-11-07): the Corp's guess of a run getting past unrezzed ice (passOdds) is the
-     * measured rate, not 0.55 a layer. Self-play (884 games, runs 42337257360 / 42337259763) and Jeff's 13 Corp games
-     * (scripts/threat-calibration.ts): the first unrezzed layer passes about 0.6 against a Corp that can rez (0.52 on
-     * Jeff's), but each further layer passes about 0.83, since the Corp's money rezzes about one ice a run; against a
-     * broke Corp 0.87, then 0.93. Corp only (sideOff.runner). Shared by the old steal path and the threat.
-     * Paired with the threat off: +0.0 ± 0.6 (run 42338474356), no alarm moved: it changes nothing on its own.
-     */
-    measuredPass: false,
-    /**
-     * Item 3 round 3 (Fable review, 2026-11-07): the planner leaf credits the Corp with the Runner's spend on its
-     * budgeted turn (threatModel.ts threatLoss), as runnerReply's played-out leaf did. Corp only; read with threatModel.
-     * Off with the threat leaf it belongs to (-9.7 ± 1.2 with it, run 42343555205).
-     */
-    threatSpend: false,
-    /**
-     * Item 3 round 3: the threat's 0/1 per server read as the measured hit rate when the budget runs it and when it
-     * doesn't (threatModel.ts CALIBRATED_RUN), everywhere the threat is read. Corp only; read with threatModel.
-     * Off: with the threat leaf, -9.9 ± 1.3 against -10.6 without it, stuck-in-HQ unchanged (run 42343557404). The
-     * table stays as measurement.
-     */
-    calibratedRun: false,
-    /**
-     * Item 3 round 3, a decomposition: with threatModel on, the threat's two halves can be switched off one at a time.
-     * threatLeaf: the planner leaf's charge (threatLoss; off, the two-sample runnerReply). threatValues: the readers in
-     * the values (stealOdds, agendaWorth, centralExposure; off, STEAL.run and PACE).
-     * threatLeaf OFF BY DEFAULT (round 3, paired -8.2 ± 1.3 on its own, run 42347844568; with threatSpend and
-     * calibratedRun still about -10): a charge on the end-of-turn board drops four things the played-out reply sees:
-     * the Corp's own rezzes in the Runner's runs (and their cost), the board at the Corp's next turn (clicks, draw,
-     * turn-start payouts), steals made (the agenda gone, not priced as at risk), and the Runner's grip turn (installs
-     * and events that turn a run it couldn't make into one it can). The leaf is item 4's (a cheaper, deterministic
-     * playout), not a formula.
-     */
-    threatLeaf: false,
-    /**
-     * threatValues (Phase 2 pruning): it carries every read of the threat in the Corp's values (off, the Corp makes
+     * threatValues (item 3 round 3, a decomposition): every read of the threat in the Corp's values (stealOdds,
+     * agendaWorth, centralExposure; off, STEAL.run and PACE). Phase 2 pruning: it carries every read of the threat in the Corp's values (off, the Corp makes
      * ~11 threat calls a profile instead of ~37k) and is the whole time saving of pruning group (a): 909 -> 480 ms per
      * decision with it off (threat-profile.ts), 870-900 ms with only the other six off. The set's loss is the other six's:
      * all seven off -8.0 ± 2.3 (run 42526354323), the six without it -10.1 ± 2.3 (run 42531131425), vs base 42525924644.
@@ -536,7 +503,7 @@ export const tuning = {
  */
 export const sideOff: Record<SideCode, string[]> = {
   corp: [],
-  runner: ['scoreNow', 'scoreInTwo', 'tagTrashNow', 'ownTrashRisk', 'hqTrashCost', 'oneCurrency', 'threatModel', 'measuredPass', 'threatSpend', 'calibratedRun', 'iceProtects', 'replyContenders', 'plannerAgenda', 'clearinghouseRez', 'ownIceKnown', 'runRecord', 'icePacingPriced', 'searchSamples', 'hiddenDraws', 'oracle', 'reach', 'reachStrength', 'reachTime', 'threatKey', 'threatKeyPricing'],
+  runner: ['scoreNow', 'scoreInTwo', 'tagTrashNow', 'ownTrashRisk', 'hqTrashCost', 'oneCurrency', 'threatModel', 'iceProtects', 'replyContenders', 'plannerAgenda', 'clearinghouseRez', 'ownIceKnown', 'runRecord', 'icePacingPriced', 'searchSamples', 'hiddenDraws', 'oracle', 'reach', 'reachStrength', 'reachTime', 'threatKey', 'threatKeyPricing'],
 };
 
 /**
@@ -580,10 +547,21 @@ export const FOLDED: readonly string[] = [
   'terminalClock',
 ];
 
-/** Throws on a name that isn't a plan switch (a typo, or a switch folded into the code). */
+/**
+ * Off switches deleted with every path only they reached (audit Step 3, spec-step3-deletions.md group C): each lost its
+ * batch and never shipped on. A PLAN_OFF or planWith naming one throws, as a folded name does.
+ */
+export const DELETED: readonly string[] = [
+  // C1, the threat-leaf family (item 3 rounds 2-3, 2026-11-07)
+  'threatLeaf', 'threatSpend', 'calibratedRun', 'measuredPass',
+];
+
+/** Throws on a name that isn't a plan switch (a typo, a switch folded into the code, or one deleted). */
 function checkSwitch(name: string) {
   if (name in tuning.plan) return;
-  throw new Error(FOLDED.includes(name) ? `plan.${name} was folded into the code (review item 6): it is always on` : `no plan switch named ${name}`);
+  if (FOLDED.includes(name)) throw new Error(`plan.${name} was folded into the code (review item 6): it is always on`);
+  if (DELETED.includes(name)) throw new Error(`plan.${name} was deleted (audit Step 3): its off path never shipped, so it is always off`);
+  throw new Error(`no plan switch named ${name}`);
 }
 
 /** The plan with `keys` switched off (a key written +name turns it on). */
