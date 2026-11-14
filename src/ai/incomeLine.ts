@@ -83,7 +83,10 @@ export function moneyPick(state: GameState, own?: GameAction | null): GameAction
     // ahead (plan.hiddenDraws)
     const held = new Set(state.corp.hq.map(c => c.instanceId));
     const now = options(o.after, getLegalActions(o.after, 'corp')).map(x => (x.action as { cardInstanceId: string }).cardInstanceId).filter(id => held.has(id));
-    return now.some(id => !was.has(id)) || !!scoreNowPlan(o.after);
+    // Hidden information (rules 10.2.2a): the cards the play drew are the real top of R&D, so the score check runs
+    // without them in HQ (the Corp could not have counted on them before the play)
+    const blind = { ...o.after, corp: { ...o.after.corp, hq: o.after.corp.hq.filter(c => held.has(c.instanceId)) } };
+    return now.some(id => !was.has(id)) || !!scoreNowPlan(blind);
   };
   const ranked = ops.map(o => ({ o, first: enables(o) })).sort((a, b) => Number(b.first) - Number(a.first) || b.o.net - a.o.net);
   tally('money', 'ops');
