@@ -229,7 +229,7 @@ describe("prompts answered from the Runner's own view (rule 10.2.2a)", () => {
     const draw = { type: 'RESOLVE_PROMPT', player: 'runner', promptId: prompt.id, choice: { kind: 'effect_choice', optionId: 'yes' } } as GameAction;
     const reversed = { ...s, runner: { ...s.runner, stack: [...s.runner.stack].reverse() } };
     asSide('runner', () => {
-      const score = (x: GameState) => scoreOutcome(x, simulate(x, draw), 'runner');
+      const score = (x: GameState) => scoreOutcome(x, simulate(x, draw)!, 'runner');
       // On the real state the score reads the real next cards (the hole); the Runner's view deals the stack itself
       expect(score(s)).not.toBeCloseTo(score(reversed), 6);
       expect(score(runnerDecisionView(s))).toBeCloseTo(score(runnerDecisionView(reversed)), 9);
