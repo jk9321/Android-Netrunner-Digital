@@ -32,26 +32,32 @@ import { knownIce } from './reach';
  * the rest from the behaviour logs. Re-measure after every Corp or Runner AI change.
  */
 export const PACE = {
-  /** Runs a turn, and the share of them on HQ, R&D, Archives and a remote (by plan.measuredRunShares: RUN_SHARES below). */
-  runs: 1.2,
-  hqShare: 0.27,
-  rdShare: 0.2,
-  archivesShare: 0.15,
-  remoteShare: 0.39,
+  /**
+   * Runs a turn (1.01) and the share of them on HQ, R&D, Archives and a remote. Runs: beta 34391e2 with scripts/pace.ts,
+   * 2,210 games, 31,878 Runner turns (docs/batch-logs/2026-11-06-pace-report-beta-34391e2.txt). Shares: where the AI's
+   * runs really go, 23,039 runs in 1,280 self-play games over every deck (scripts/run-odds.ts,
+   * docs/batch-logs/2026-11-05-run-odds-report-v2-run-log.txt).
+   */
+  runs: 1.01,
+  hqShare: 0.18,
+  rdShare: 0.21,
+  archivesShare: 0.05,
+  remoteShare: 0.56,
   /** Share of runs on R&D while Conduit is installed (844 runs measured, 2026-10-28). */
   conduitRdShare: 0.19,
-  /** Share of runs that succeed. */
-  success: 0.8,
+  /** Share of runs that succeed (beta 34391e2, as runs). */
+  success: 0.77,
   /**
-   * Runner turns that breach Archives while it holds facedown cards (plan.measuredNov6; 10.4% of 1,471 such turns in
-   * 221 games at beta 34391e2, scripts/pace.ts): twice the average Archives run rate, as the Runner goes where cards are.
+   * Runner turns that breach Archives while it holds facedown cards (10.4% of 1,471 such turns in 221 games at beta
+   * 34391e2, scripts/pace.ts): twice the average Archives run rate, as the Runner goes where cards are. An agenda
+   * discarded to Archives is priced on this, not the average Archives run (evaluate.ts archivedAgendaLoss).
    */
   facedownBreach: 0.1,
   /** Turns the Runner steals or trashes a Corp card, and trashes something it pays for. */
   stealOrTrash: 0.35,
   paidTrashes: 0.3,
-  /** Agendas scored or stolen a turn, both sides together. */
-  agendaEvents: 0.34,
+  /** Agendas scored or stolen a Runner turn, both sides together (beta 34391e2, as runs). */
+  agendaEvents: 0.31,
   /** Ice rezzed a turn. */
   rezzes: 0.39,
   /** Turns the Runner installs a program, and has ice in hand (Corp). */
@@ -60,41 +66,6 @@ export const PACE = {
   /** Times the Runner clicks to draw on a turn it draws at all. */
   drawTurns: 0.7,
 };
-
-/**
- * plan.measuredRunShares (Jeff, 2026-11-05, thread "Find why AI card valuation misses cards"): where the AI's runs
- * really go, 23,039 runs in 1,280 self-play games over every deck (scripts/run-odds.ts, logged
- * docs/batch-logs/2026-11-05-run-odds-report-v2-run-log.txt): HQ 18%, R&D 21%, Archives 5%, remotes 57%, against
- * the 27/20/15/39 above. Runs a turn (1.21) and success (82%, by server within 5 points of the pass odds) matched.
- * Cards that pay on HQ or Archives runs were priced on half again the runs they get; remote cards on two thirds.
- */
-const RUN_SHARES = { hqShare: 0.18, rdShare: 0.21, archivesShare: 0.05, remoteShare: 0.56 };
-for (const key of Object.keys(RUN_SHARES) as (keyof typeof RUN_SHARES)[]) {
-  let set: number | undefined; // a test's own pace (tests/runBudget.test.ts)
-  Object.defineProperty(PACE, key, {
-    get: () => set ?? RUN_SHARES[key],
-    set: (v: number) => (set = v),
-    enumerable: true,
-  });
-}
-
-/**
- * plan.measuredNov6 (code audit cleanup item 6, 2026-11-06): the pace re-measured on beta 34391e2 with scripts/pace.ts,
- * 2,210 games, 31,878 Runner turns (docs/batch-logs/2026-11-06-pace-report-beta-34391e2.txt): 1.01 runs a turn (was
- * 1.2), 77% of them successful (0.8), 0.31 agendas scored or stolen a Runner turn (0.34). Ice rezzed a turn (0.40) and
- * an advanced remote agenda run that turn (41.6%, AGENDA_RUN 0.4) still match. The run shares stay on run-odds'
- * measure (plan.measuredRunShares). An agenda discarded to Archives is priced on PACE.facedownBreach, not the average
- * Archives run (evaluate.ts archivedAgendaLoss).
- */
-const PACE_NOV6 = { runs: 1.01, success: 0.77, agendaEvents: 0.31 };
-for (const key of Object.keys(PACE_NOV6) as (keyof typeof PACE_NOV6)[]) {
-  let set: number | undefined;
-  Object.defineProperty(PACE, key, {
-    get: () => set ?? PACE_NOV6[key],
-    set: (v: number) => (set = v),
-    enumerable: true,
-  });
-}
 
 /**
  * Virus counters sit until the Runner cashes them and a purge wipes them
