@@ -10,7 +10,7 @@ Android: Netrunner digital game (React + TypeScript + Vite, Cloudflare Worker ho
 ## Branches
 - Small fixes and finished work go straight to `main` (no PR per fix), then merge `main` into `beta`.
 - `beta` holds ALL new AI work and all new card sets. Jeff bug-tests it on the beta Cloudflare preview. Beta merges to `main` only when Jeff says so.
-- Larger work Jeff will test first goes on a named feature branch (Cloudflare builds a preview per branch).
+- Larger work Jeff will test first goes on a named feature branch; its preview is deployed by hand (Actions -> Deploy -> Run workflow with the branch name; URL `<branch>-android-netrunner-digital.jk9321.workers.dev`).
 - Never push throwaway `claude/*` branches.
 - Merged branches are deleted automatically by the nightly `.github/workflows/cleanup-branches.yml` (09:17 UTC; keeps main, beta, ai-batch-results, branches with an open PR or unmerged commits). Do NOT ask Jeff to delete a merged branch. Mention a branch only if it is abandoned or parked with unmerged work and needs his decision.
 - Threads with clones from before 2026-10-23 must reset to current history, never push old history.
@@ -75,6 +75,6 @@ Android: Netrunner digital game (React + TypeScript + Vite, Cloudflare Worker ho
 - Run one after every 2-3 AI merges to beta, before beta merges to main, and before a new set's balance step.
 
 ## Hosting
-- Cloudflare Worker serves static assets and auto-deploys on every push to `main` (live: stackheap.run / android-netrunner-digital.jk9321.workers.dev). `beta` has its own preview (beta-android-netrunner-digital.jk9321.workers.dev) with separate localStorage, so decks don't carry over.
+- Cloudflare Worker serves static assets. GitHub Actions deploys it (`.github/workflows/deploy.yml`, wrangler, secrets CLOUDFLARE_API_TOKEN / CLOUDFLARE_ACCOUNT_ID) after CI passes on a push to `main` (live: stackheap.run / android-netrunner-digital.jk9321.workers.dev) or `beta` (beta preview + game Workers). Cloudflare's own Workers Builds are off (they billed build minutes for every branch); no other branch deploys by itself. `beta` has its own preview (beta-android-netrunner-digital.jk9321.workers.dev) with separate localStorage, so decks don't carry over.
 - Card art loads from card-images.netrunnerdb.com; card backs are our own.
 - Update `PROJECT_STATUS.md` when finishing notable work.
