@@ -48,12 +48,27 @@ export function stakedServers(state: GameState, without: string[] = []): string[
 export function rezMoney(state: GameState, opts: { without?: string[] } = {}): RezMoney {
   // Worked out once per position (valueModel memo: on the state object, the pricing context in its key): boardNeed and
   // rezBudget ask it of the same boards many times over in one decision (Stage B5 decision time)
-  if (!opts.without?.length) return memo(state, 'rezMoney', () => countRezMoney(state, holding(state)));
+  if (!opts.without?.length) {
+    const money = memo(state, 'rezMoney', () => countRezMoney(state, holding(state)));
+    if (rezMoneyAudit.on) audit(money, countRezMoney(state, holdingRez(state)));
+    return money;
+  }
   return countRezMoney(state, holdingRez(state, opts.without));
 }
 
+/** On-hit audit of the per-position memo (as handValues clickAudit): every call worked out again and compared. */
+export const rezMoneyAudit = { on: false, checked: 0, mismatches: 0 };
+function audit<T>(memoised: T, fresh: T) {
+  rezMoneyAudit.checked++;
+  if (JSON.stringify(memoised) !== JSON.stringify(fresh)) rezMoneyAudit.mismatches++;
+}
+
 /** The ice of each staked server's holding rez (rezMoney's rezIds, without keep's count): rezBudget's order reads it. */
-export const holdingRezIds = (state: GameState): Record<string, string[]> => holding(state).rezIds;
+export function holdingRezIds(state: GameState): Record<string, string[]> {
+  const ids = holding(state).rezIds;
+  if (rezMoneyAudit.on) audit(ids, holdingRez(state).rezIds);
+  return ids;
+}
 
 /** holdingRez with nothing left out, once per position (as rezMoney). */
 const holding = (state: GameState) => memo(state, 'holdingRez', () => holdingRez(state));
