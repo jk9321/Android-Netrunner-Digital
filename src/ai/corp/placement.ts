@@ -75,8 +75,9 @@ export function place(state: GameState, card: CardInstance, ctx: PlaceContext): 
   const two = scoreInTwoPick(state, from, held);
   const line = two.held && two.held.game === state.id ? two.held : null;
   if (two.action !== from) {
-    // A two-turn score line whose step installs this card (its ice in front of the agenda, or the agenda itself)
-    if (isInstall(two.action) && two.action.cardInstanceId === card.instanceId && !line?.line.kind) return [at(two.action, 'scoreLine')];
+    // A counted line whose step installs this card: a two-turn score line (its ice in front of the agenda, or the
+    // agenda itself), or a held asset line's next step (the asset where its iced remote waits)
+    if (isInstall(two.action) && two.action.cardInstanceId === card.instanceId) return [at(two.action, line?.line.kind === 'asset' ? 'assetCover' : 'scoreLine')];
     // An asset line begun on this pick: its first step installs the ice in front, or the asset where an iced remote waits
     if (line?.line.kind === 'asset' && line.line.agendaId === card.instanceId && !held) {
       const server = line.line.server === 'new remote' ? 'new' : line.line.server;

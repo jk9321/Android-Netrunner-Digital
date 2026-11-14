@@ -7,7 +7,7 @@ const args = process.argv.slice(2);
 const outAt = args.indexOf('--out');
 const dir = outAt >= 0 ? args[outAt + 1] : '.';
 const files = args.filter((a, i) => !a.startsWith('--') && i !== outAt + 1);
-const parts = files.map(f => JSON.parse(readFileSync(f, 'utf8').trim().split('\n').pop()));
+const parts = files.map(f => JSON.parse(readFileSync(f, 'utf8').trim().split('\n')[0]));
 mkdirSync(dir, { recursive: true });
 
 const sum = (get) => parts.reduce((n, p) => n + get(p), 0);
@@ -28,6 +28,8 @@ const header = (n, title) => `# Stage A table ${n}: ${title}\n\nRecorded states:
   const sc = sum(p => p.hold.stopChecks), sa = sum(p => p.hold.stopAgree);
   const cs = sum(p => p.hold.cross.states), ca = sum(p => p.hold.cross.agree);
   const kinds = merge(p => p.hold.cross.kinds);
+  const mc = sum(p => p.hold.model?.checks ?? 0), ma = sum(p => p.hold.model?.agree ?? 0), mu = sum(p => p.hold.model?.undef ?? 0);
+  const mk = merge(p => p.hold.model?.kinds ?? {});
   write('1-hold-identity.md', `${header(1, 'hold identity')}
 ## serverHold against holdCost ('runnerTurn')
 
@@ -48,6 +50,21 @@ Every approach-ice rez window, three ways each (the approached ice rezzed with t
 | ${sc} | ${sa} (${pct(sa, sc)}) | ${sc - sa} |
 
 ${list(cat(p => p.hold.stopDisagree))}
+
+## modelRezParts' stop test against serverHold (the approached ice alone)
+
+At every approach-ice rez window: rezModel's priced rez (modelRezParts, the stop test at rezModel.ts:52: the Runner cannot pay through this ice with its credits now, after the rez and its prompts are played out) against serverHold('thisRun', the approached ice only, nothing further in). Read for Stage B's corp/rez.ts (P8). ${mu} windows where modelRezParts could not play the rez out (it returns undefined) are left out.
+
+| Checks | Same verdict | Differ |
+|---|---|---|
+| ${mc} | ${ma} (${pct(ma, mc)}) | ${mc - ma} |
+
+| Kind | Count |
+|---|---|
+${Object.entries(mk).sort((a, b) => b[1] - a[1]).map(([k, n]) => `| ${k} | ${n} |`).join('\n') || '| none | 0 |'}
+
+Examples:
+${list(cat(p => p.hold.model?.examples ?? []), 30)}
 
 ## holdCost against stopCost on the same server (the two old counts, each other)
 

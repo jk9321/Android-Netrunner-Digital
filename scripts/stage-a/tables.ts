@@ -17,6 +17,7 @@ import { scoreNowPlan } from '../../src/ai/winNow';
 import { moneyOpGain, moneyTarget, rezReserve, unrezzedIceCost } from '../../src/ai/corpAI';
 import { econValue } from '../../src/ai/cardValues';
 import { boardNeed } from '../../src/ai/valueModel';
+import { modelRezParts } from '../../src/ai/rezModel';
 import { assetPartner, centralIce, iceRedirect } from '../../src/ai/countedScore';
 import { runnerBudget, serverHold } from '../../src/ai/corp/hold';
 import { lineFloor, rezMoney } from '../../src/ai/corp/rezMoney';
@@ -32,7 +33,7 @@ const same = (a: number | null, b: number | null) => (a === null && b === null) 
 const where = (d: Decision) => `${d.src} #${d.i} T${d.turn}`;
 
 const out = {
-  hold: { checks: 0, agree: 0, disagree: [] as string[], stopChecks: 0, stopAgree: 0, stopDisagree: [] as string[], cross: { states: 0, agree: 0, kinds: {} as Record<string, number>, examples: [] as string[] } },
+  hold: { checks: 0, agree: 0, disagree: [] as string[], stopChecks: 0, stopAgree: 0, stopDisagree: [] as string[], model: { checks: 0, agree: 0, undef: 0, kinds: {} as Record<string, number>, examples: [] as string[] }, cross: { states: 0, agree: 0, kinds: {} as Record<string, number>, examples: [] as string[] } },
   rez: { checks: 0, agree: 0, disagree: [] as string[], sumAgree: 0, states: 0, keepBelow: [] as { at: string; keep: number; sum: number; budget: number; staked: number }[], dist: {} as Record<string, { n: number; abs: number; signed: number; worst: number; worstAt: string }>, examples: [] as string[] },
   below: { games: {} as Record<string, { moves: number; below: number; crossing: number }> },
   pools: { runChecks: 0, lossAgree: 0, pointsAgree: 0, stakeLoss: 0, stakePoints: 0, disagree: [] as string[], centralChecks: 0, centralAgree: 0, centralStakeAgree: 0, archivesFaceUp: 0, examples: [] as string[] },
@@ -74,6 +75,21 @@ function holdTable(d: Decision) {
     out.hold.stopChecks++;
     if ((h.holds ? h.rezCost : Infinity) === old) out.hold.stopAgree++;
     else if (out.hold.stopDisagree.length < 50) out.hold.stopDisagree.push(`${where(d)} ${run.server} ice ${withIce} further ${further}: stopCost ${old}, serverHold ${h.rezCost}`);
+  }
+  // modelRezParts' own stop test (the priced rez, rezModel.ts:52) against the owner for the approached ice alone
+  const parts = asSide('corp', () => (decisionContext(s, 'corp'), modelRezParts(s, ice, true)));
+  clearCaches();
+  if (!parts) out.hold.model.undef++;
+  else {
+    const alone = serverHold(s, run.server, { when: 'thisRun', mustRez: [ice.instanceId], further: false }).holds;
+    out.hold.model.checks++;
+    if (alone === parts.stops) out.hold.model.agree++;
+    else {
+      const def = cardDef(ice);
+      const kind = `${parts.stops ? 'modelRezParts stops, serverHold not' : 'serverHold holds, modelRezParts not'}${def.keywords?.toLowerCase().includes('bioroid') ? '; bioroid' : ''}`;
+      out.hold.model.kinds[kind] = (out.hold.model.kinds[kind] ?? 0) + 1;
+      if (out.hold.model.examples.length < 30) out.hold.model.examples.push(`${where(d)} ${run.server} ${def.title}: runner credits ${s.runner.credits}; ${kind}`);
+    }
   }
   // The two old counts against each other on the same server: does the Corp keep the Runner out?
   const server = s.corp.servers[run.server];
