@@ -24,7 +24,8 @@ import { deckGameSetup } from '../src/data/decks';
 import { ALL_DECKS } from './nsg-sample-decks';
 import { createAgent } from '../src/ai';
 import { GameRunner, rezCandidates } from '../src/ai/playout';
-import { HeldLine, runnerBudget } from '../src/ai/countedScore';
+import { runnerBudget } from '../src/ai/corp/hold';
+import { HeldLine } from '../src/ai/corp/lines';
 import { iceCreditNeed } from '../src/ai/runs';
 import { valueLoops } from '../src/ai/valueModel';
 

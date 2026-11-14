@@ -15,7 +15,8 @@
  */
 import { CardInstance, GameAction, GameState, actingSide, cardDef, createInitialGameState, executeAction, findCardAnywhere, installedIcebreakers } from '../src/core';
 import { deckGameSetup } from '../src/data/decks';
-import { isCorpMain, scoreThisTurn } from '../src/ai/countedScore';
+import { scoreThisTurn } from '../src/ai/countedScore';
+import { isCorpMain } from '../src/ai/corp/lines';
 import type { GameConfig } from '../src/ui/savedGame';
 
 // ---------------------------------------------------------------------------------------------------------------- turns
@@ -331,8 +332,11 @@ export function cheaperDraw(c: Commitment, t: CorpTurn, next: CorpTurn): boolean
 // ---------------------------------------------------------------------------------------------------------------- M2
 
 // Moved to src/ai/countedScore.ts for stage 0b (spec-stage0b.md): the AI's instruments use the same check
-export { CHECK, holdCost, knownIncome, runnerBudget, scoreInTwo, scoreThisTurn } from '../src/ai/countedScore';
-export type { ThisTurn, TwoTurnLine } from '../src/ai/countedScore';
+export { scoreThisTurn } from '../src/ai/countedScore';
+export { CHECK, holdCost, runnerBudget } from '../src/ai/corp/hold';
+export { knownIncome, scoreInTwo } from '../src/ai/corp/lines';
+export type { ThisTurn } from '../src/ai/countedScore';
+export type { TwoTurnLine } from '../src/ai/corp/lines';
 
 /** Agendas the counting cannot cost: a requirement missing, or text that changes a requirement or places counters. */
 export const uncostable = (c: CardInstance) => isAgenda(c) && (cardDef(c).advancement_cost == null || /advancement requirement/i.test(text(c)));

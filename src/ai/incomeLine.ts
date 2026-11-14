@@ -1,7 +1,7 @@
 import { GameAction, GameState, activePrompt, cardDef, executeAction, findCardAnywhere, getLegalActions } from '../core';
 import { answerPrompt } from './prompts';
 import { cardSynergy } from './synergyTags';
-import { knownIncome } from './countedScore';
+import { knownIncome } from './corp/lines';
 import { scoreNowPlan } from './winNow';
 import { tally } from './diagnostics';
 
@@ -9,7 +9,7 @@ import { tally } from './diagnostics';
  * Money step 5a, M1 (spec-money-generation.md; M0: econ operations sat playable in HQ 5.34 op-turns a game). The
  * counted pick for an econ operation that nets credits (rule 5.2.6: playing an operation is a Corp action, a click).
  * Nets: the Corp's credits after the play, its prompts answered as the Corp answers them, plus the known turn-start
- * income (countedScore knownIncome), against the same before (1.10); an operation that also costs a card from HQ is left to
+ * income (corp/lines knownIncome), against the same before (1.10); an operation that also costs a card from HQ is left to
  * the Corp's own pick. Measured and not kept: econ abilities the same way
  * (never fired: the Corp never clicks for a credit while one is legal, run 43168471217), the operation ordered around
  * the Corp's own pick (-1.8 ± 2.1, run 43175743297), and only in place of a click for a credit or a draw (+0.9 ± 1.5,

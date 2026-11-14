@@ -21,7 +21,9 @@
 import { afterEach, describe, expect, it } from 'vitest';
 import { CardInstance, GameState, cardDef, createCardInstance } from '../src/core';
 import { tuning } from '../src/ai/synergy';
-import { afterLineFloor, runnerBudget, runnerMoney, scoreInTwo } from '../src/ai/countedScore';
+import { runnerBudget, runnerMoney } from '../src/ai/corp/hold';
+import { scoreInTwo } from '../src/ai/corp/lines';
+import { lineFloor as afterLineFloor } from '../src/ai/corp/rezMoney';
 import { giveCard, installCorpForTest, installIceForTest, installProgramForTest, newGame } from './helpers';
 import { inDecision } from './helpers/pricing';
 

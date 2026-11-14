@@ -25,7 +25,8 @@ import { GameRunner } from '../src/ai/playout';
 import { sideCards, valueLoops } from '../src/ai/valueModel';
 import { applyPlanOff } from '../src/ai/synergy';
 import { asSide } from '../src/ai/pricing';
-import { agendasUnseen, matchPoint, rezStops } from '../src/ai/rezModel';
+import { matchPoint, rezStops } from '../src/ai/rezModel';
+import { agendasUnseen } from '../src/ai/corp/pools';
 
 applyPlanOff(process.env.PLAN_OFF ?? '');
 

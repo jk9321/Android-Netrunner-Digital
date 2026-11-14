@@ -1,5 +1,5 @@
 import type { GameAction, GameState, SideCode } from '../core';
-import type { TwoTurnLine } from './countedScore';
+import type { TwoTurnLine } from './corp/lines';
 import type { SearchRow } from './turnPlanner';
 import { holdPricing, pricing, withPricing } from './pricing';
 

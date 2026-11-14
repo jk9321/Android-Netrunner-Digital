@@ -1,7 +1,7 @@
 import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
 import { GameState } from '../src/core';
-import { scoringRemote } from '../src/ai/countedScore';
+import { scoringRemote } from '../src/ai/corp/lines';
 
 /**
  * The scoring remote (asset cover step 1, folded): rule 3.3.1, "There can be only one agenda or asset installed in the root of
