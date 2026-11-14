@@ -592,6 +592,23 @@ describe('Elevation Runner resources', () => {
     expect(s.activePlayer).toBe('corp');
   });
 
+  // Rules 10.12.3b: "If there are fewer than N cards in HQ and R&D combined, the Corp trashes all cards from HQ and
+  // all cards from R&D." The prompt asked for more HQ cards than HQ held, a soft lock (deep fuzz seed 1000074432)
+  it('Cacophony: sabotage 3 with 1 card in HQ and 1 in R&D trashes both', () => {
+    let [s, caco] = runnerInstall(newGame(), E.cacophony);
+    card(s, caco).tokens.power = 2;
+    s.runner.clicks = 0;
+    s.corp.archives.faceDown.push(...s.corp.hq.splice(1), ...s.corp.rd.splice(1));
+    s = executeAction(s, { type: 'END_TURN', player: 'runner' });
+    s = choose(s, 'sabotage');
+    const p = prompt(s);
+    expect(p).toMatchObject({ kind: 'effect_cards', side: 'corp', min: 1, max: 1 });
+    s = pick(s, [s.corp.hq[0].instanceId]);
+    // Both trashed; the Corp's turn then begins (R&D empty, so the mandatory draw finds nothing)
+    expect(s.corp.archives.faceDown.length).toBeGreaterThan(0);
+    expect(s.corp.rd).toHaveLength(0);
+  });
+
   it('Rent Rioters: 3 clicks and trash for 9 credits', () => {
     let [s, rr] = runnerInstall(newGame(), E.rentRioters);
     s.runner.clicks = 3;
