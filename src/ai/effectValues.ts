@@ -308,7 +308,17 @@ export function damageWorth(state: GameState, n: number): number {
   // The damage clock: the cards, and the step closer to a flatline the smaller grip leaves
   // Cards over the hand limit are discarded before the Corp's turn: they are no life against its damage
   const grip = held;
-  return n * card + flatlineWorth(state) * (flatlineOdds(state, lifeGrip(state, grip - n, false)) - flatlineOdds(state, lifeGrip(state, grip, false)));
+  // Draw-back (Runner audit RUNNER-DAMAGE-NO-DRAWBACK): damage taken on the Runner's own turn leaves it the clicks after
+  // the run to draw cards back (rule 5.2.7c: a click draws a card) before the Corp's turn, so the clock is read at the
+  // grip it can hold then. A click left is life against both grips alike, so spending one costs no life here.
+  const back = drawBackClicks(state);
+  return n * card + flatlineWorth(state) * (flatlineOdds(state, lifeGrip(state, grip - n + back, false)) - flatlineOdds(state, lifeGrip(state, grip + back, false)));
+}
+
+/** Clicks the Runner still has to draw with after damage taken now: its own turn, after the run's click (none on the Corp's turn). */
+function drawBackClicks(state: GameState): number {
+  if (state.activePlayer !== 'runner') return 0;
+  return Math.max(0, state.activeRun ? state.runner.clicks : state.runner.clicks - 1);
 }
 
 /**

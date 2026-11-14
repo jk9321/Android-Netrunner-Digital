@@ -84,11 +84,12 @@ const SUB_RULES: SubRule[] = [
       .map(sub => subroutineCost(state, sub.label));
     return costs.length > 0 ? Math.max(...costs) : 0;
   }],
-  // Elevation conditions
-  [/end the run unless the runner suffers (\d+) net damage/i, (state, unless) => (Number(unless[1]) >= state.runner.grip.length ? BLOCK : 2 * Number(unless[1]))],
+  // Elevation conditions. Damage that only equals the grip is survived: the Runner is flatlined by more damage than the
+  // cards in its grip (rule 10.4.4), so each lethal test below is `>`, as in damageWorth
+  [/end the run unless the runner suffers (\d+) net damage/i, (state, unless) => (Number(unless[1]) > state.runner.grip.length ? BLOCK : 2 * Number(unless[1]))],
   [/threat level is (\d+) or greater, end the run/i, (state, threat) => (Math.max(state.corp.score, state.runner.score) >= Number(threat[1]) ? BLOCK : 0)],
   [/end the run if the runner is tagged/i, state => (state.runner.tags > 0 ? BLOCK : 1)],
-  [/if the runner has at least 2 tags/i, state => (state.runner.tags >= 2 ? (2 >= state.runner.grip.length ? BLOCK : 4) : 0)],
+  [/if the runner has at least 2 tags/i, state => (state.runner.tags >= 2 ? (2 > state.runner.grip.length ? BLOCK : 4) : 0)],
   // Vantage Point: "... unless the Runner pays N credits": the cheaper of paying and letting the rest resolve
   [/^(.*?)\s*unless the runner pays (\d+) (?:\[credit\]|credits?)\.?$/i, (state, pays) => {
     const n = Number(pays[2]);
@@ -100,7 +101,7 @@ const SUB_RULES: SubRule[] = [
     // Vicsek: X is the Runner's tags
     const x = state.runner.tags;
     if (x === 0) return 0;
-    return x >= state.runner.grip.length ? BLOCK : damageWorth(state, x) + tagCost(state) * x;
+    return x > state.runner.grip.length ? BLOCK : damageWorth(state, x) + tagCost(state) * x;
   }],
   [/loses? \[click\]/i, () => clickRate()],
   [/gets \+1 strength for the remainder of this run/i, () => 1.5], // ezaM: every ice after it costs more to break
@@ -122,7 +123,7 @@ const SUB_RULES: SubRule[] = [
   [/end the run/i, () => BLOCK],
   [/(\d+) (net|meat) damage/i, (state, damage) => {
     const n = Number(damage[1]);
-    return n >= state.runner.grip.length ? BLOCK : damageWorth(state, n);
+    return n > state.runner.grip.length ? BLOCK : damageWorth(state, n);
   }],
   [/gain 1 \[credit\] for each tag/i, state => 0.3 * state.runner.tags], // Capacitor: Corp credits
   [/tag/i, state => tagCost(state)],
