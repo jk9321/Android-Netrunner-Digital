@@ -18,7 +18,8 @@ import {
 } from '../../../engine/cardEffects';
 import { approachServer, encounteredIce, iceSubtypes } from '../../../engine/ice';
 import { CardScript, EffectContext } from '../../types';
-import { askCards, askChoice, gainCredits, iceLabel } from '../../effects';
+import { gainCredits, iceLabel } from '../../effects';
+import { cards, cardsQuestion, choice, choiceQuestion, prompts } from '../../steps';
 import { ids, isInstalled, isSelf, onceKey } from './helpers';
 
 /** True while the Runner is encountering ice and can still break (before subroutines fire). */
@@ -78,6 +79,21 @@ export const lampades: CardScript = {
 // Baker: Once per turn -> click: Run Archives. When you would approach Archives (after passing
 // all ice), you may pay 1 credit to instead change the attacked server to HQ or R&D and
 // approach that server. Spend credits only from stealth cards to pay this cost.
+const bakerFlow = prompts({
+  redirect: choice(({ state }, a) => {
+    const run = state.activeRun;
+    if (!run) return;
+    if (a.optionId !== 'no' && stealthCredits(state) >= 1) {
+      spendCredits(state, 'runner', 1, { kind: 'stealth' });
+      run.server = a.optionId;
+      const last = state.runsThisTurn[state.runsThisTurn.length - 1];
+      if (last) last.server = a.optionId;
+      addLog(state, 'runner', `The attacked server changed to ${state.corp.servers[a.optionId].name} (Baker).`);
+    }
+    approachServer(state);
+  }),
+});
+
 export const baker: CardScript = {
   abilities: [
     {
@@ -90,25 +106,14 @@ export const baker: CardScript = {
   onWouldApproachServer: ctx => {
     const { state } = ctx;
     if (state.activeRun?.server !== 'archives' || stealthCredits(state) < 1) return false;
-    askChoice(ctx, 'runner', 'Baker: pay 1 stealth credit to approach HQ or R&D instead of Archives?', [
+    bakerFlow.choice(ctx, 'redirect', choiceQuestion('runner', 'Baker: pay 1 stealth credit to approach HQ or R&D instead of Archives?', [
       { id: 'hq', label: 'Pay 1: approach HQ' },
       { id: 'rd', label: 'Pay 1: approach R&D' },
       { id: 'no', label: 'Approach Archives' },
-    ], 'redirect');
+    ]));
     return true;
   },
-  onPromptAnswer: ({ state }, _source, answer) => {
-    const run = state.activeRun;
-    if (answer.kind !== 'effect_choice' || !run) return;
-    if (answer.optionId !== 'no' && stealthCredits(state) >= 1) {
-      spendCredits(state, 'runner', 1, { kind: 'stealth' });
-      run.server = answer.optionId;
-      const last = state.runsThisTurn[state.runsThisTurn.length - 1];
-      if (last) last.server = answer.optionId;
-      addLog(state, 'runner', `The attacked server changed to ${state.corp.servers[answer.optionId].name} (Baker).`);
-    }
-    approachServer(state);
-  },
+  ...bakerFlow.script,
 };
 
 // Read-Write Share: Limit 4 hosted cards. When you install this program and when your turn
@@ -117,8 +122,19 @@ export const baker: CardScript = {
 const askReadWrite = (ctx: EffectContext) => {
   const hosted = ctx.card.hostedCards ?? [];
   if (hosted.length >= 4 || ctx.state.runner.grip.length === 0) return;
-  askCards(ctx, 'runner', 'Read-Write Share: you may host 1 card from your grip facedown to draw 1 card.', ids(ctx.state.runner.grip), 0, 1, 'host');
+  readWriteFlow.cards(ctx, 'host', cardsQuestion('runner', 'Read-Write Share: you may host 1 card from your grip facedown to draw 1 card.', ids(ctx.state.runner.grip), 0, 1));
 };
+
+const readWriteFlow = prompts({
+  host: cards(({ state, card }, a) => {
+    if (a.ids.length === 0 || !isInstalled(state, card)) return;
+    const hosted = state.runner.grip.find(c => c.instanceId === a.ids[0]);
+    if (!hosted) return;
+    removeCard(state.runner.grip, hosted);
+    card.hostedCards = [...(card.hostedCards ?? []), hosted];
+    drawForEffect(state, 'runner', 1, 'Read-Write Share');
+  }),
+});
 
 export const readWriteShare: CardScript = {
   hostedFaceDown: true,
@@ -139,18 +155,18 @@ export const readWriteShare: CardScript = {
       },
     },
   ],
-  onPromptAnswer: ({ state, card }, _source, answer) => {
-    if (answer.kind !== 'effect_cards' || answer.cardInstanceIds.length === 0 || !isInstalled(state, card)) return;
-    const hosted = state.runner.grip.find(c => c.instanceId === answer.cardInstanceIds[0]);
-    if (!hosted) return;
-    removeCard(state.runner.grip, hosted);
-    card.hostedCards = [...(card.hostedCards ?? []), hosted];
-    drawForEffect(state, 'runner', 1, 'Read-Write Share');
-  },
+  ...readWriteFlow.script,
 };
 
 // Sipa: The first time each turn you pass the outermost piece of ice protecting a server
 // after fully breaking it, you may swap it with another installed piece of ice.
+const sipaFlow = prompts({
+  swap: choice<{ iceId: string }>(({ state }, a, data) => {
+    if (a.optionId === 'no') return;
+    swapIce(state, String(data.iceId), a.optionId);
+  }),
+});
+
 export const sipa: CardScript = {
   triggers: {
     ice_passed: (ctx, e) => {
@@ -158,16 +174,13 @@ export const sipa: CardScript = {
       if (!e.fullyBroken || !e.outermost || !useOncePerTurn(state, onceKey(ctx.card))) return;
       const others = installedIce(state).filter(c => c.instanceId !== e.ice.instanceId);
       if (others.length === 0) return;
-      askChoice(ctx, 'runner', `Sipa: you may swap ${cardDef(e.ice).title} with another installed piece of ice.`, [
+      sipaFlow.choice(ctx, 'swap', choiceQuestion('runner', `Sipa: you may swap ${cardDef(e.ice).title} with another installed piece of ice.`, [
         ...others.map(c => ({ id: c.instanceId, label: iceLabel(state, c) })),
         { id: 'no', label: 'No swap' },
-      ], 'swap', { iceId: e.ice.instanceId });
+      ]), { iceId: e.ice.instanceId });
     },
   },
-  onPromptAnswer: ({ state }, source, answer) => {
-    if (answer.kind !== 'effect_choice' || answer.optionId === 'no') return;
-    swapIce(state, String(source.data?.iceId), answer.optionId);
-  },
+  ...sipaFlow.script,
 };
 
 // Stowaway (Trojan): Install only on a piece of ice. Whenever you make a successful run on

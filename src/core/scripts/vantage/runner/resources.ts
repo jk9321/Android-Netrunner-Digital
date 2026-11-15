@@ -7,7 +7,8 @@ import { dealNetDamage, trashInstalledRunnerCard } from '../../../engine/damage'
 import { drawForEffect, removeTags, turnFlag, TurnFlag, useOncePerTurn } from '../../../engine/cardEffects';
 import { grantSubroutine } from '../../../engine/ice';
 import { CardScript } from '../../types';
-import { askChoice, gainCredits } from '../../effects';
+import { gainCredits } from '../../effects';
+import { choice, choiceQuestion, prompts } from '../../steps';
 import { isInstalled, keywords, onceKey } from './helpers';
 
 // Hackerspace (Location): You can install unique companion resources and unique connection
@@ -60,6 +61,13 @@ export const stickAndPoke: CardScript = {
 
 // Underdome Irregulars (Connection): When your action phase ends, if a piece of ice was
 // rezzed this turn, draw 2 cards or remove 1 tag. If no ice was rezzed this turn, trash this resource.
+const underdomeFlow = prompts({
+  choose: choice(({ state }, a) => {
+    if (a.optionId === 'draw') drawForEffect(state, 'runner', 2, 'Underdome Irregulars');
+    else if (removeTags(state, 1) > 0) addLog(state, 'runner', 'Runner removed 1 tag (Underdome Irregulars).');
+  }),
+});
+
 export const underdome: CardScript = {
   triggers: {
     action_phase_ends: (ctx, e) => {
@@ -74,17 +82,13 @@ export const underdome: CardScript = {
         drawForEffect(state, 'runner', 2, 'Underdome Irregulars');
         return;
       }
-      askChoice(ctx, 'runner', 'Underdome Irregulars: draw 2 cards or remove 1 tag?', [
+      underdomeFlow.choice(ctx, 'choose', choiceQuestion('runner', 'Underdome Irregulars: draw 2 cards or remove 1 tag?', [
         { id: 'draw', label: 'Draw 2 cards' },
         { id: 'tag', label: 'Remove 1 tag' },
-      ], 'choose');
+      ]));
     },
   },
-  onPromptAnswer: ({ state }, _source, answer) => {
-    if (answer.kind !== 'effect_choice') return;
-    if (answer.optionId === 'draw') drawForEffect(state, 'runner', 2, 'Underdome Irregulars');
-    else if (removeTags(state, 1) > 0) addLog(state, 'runner', 'Runner removed 1 tag (Underdome Irregulars).');
-  },
+  ...underdomeFlow.script,
 };
 
 // Word on the Street: As an additional cost to score an agenda the Corp installed this turn,
