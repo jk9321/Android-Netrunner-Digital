@@ -2,7 +2,7 @@ import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
 import { GameAction, GameState, createInitialGameState, executeAction } from '../src/core';
 import { deckGameSetup } from '../src/data/decks';
-import { centralIce } from '../src/ai/countedScore';
+import { centralIce } from '../src/ai/corp/placement';
 import { centralStake, rdAgendaOdds } from '../src/ai/corp/pools';
 import { pointGain } from '../src/ai/valueModel';
 import { asSide } from '../src/ai/pricing';

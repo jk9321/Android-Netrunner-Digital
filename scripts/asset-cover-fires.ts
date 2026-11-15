@@ -4,7 +4,6 @@
  * 221-deal table's deals (SEEDS, mapped as in scripts/corp-card-usage.ts), with PLAN_OFF as given. Per game:
  *   - noAssetDiff: Corp main-phase decisions with ice in HQ where scoringRemote differs with plan.scoringNoAsset on
  *     and off (the input the arm changes; iceRedirect reads it);
- *   - redirects: the diagnostics' iceRedirect.fired (top-level redirects);
  *   - econ asset installs into a remote, and how many went behind ice installed on that server earlier the same turn
  *     ("covered"), and how many onto a remote with no ice ("bare"). Run once with the arm on and once off on the same
  *     deals: the difference is the arm's fires.
@@ -22,7 +21,8 @@ import { createAgent } from '../src/ai';
 import { GameRunner } from '../src/ai/playout';
 import { valueLoops } from '../src/ai/valueModel';
 import { applyPlanOff, tuning } from '../src/ai/synergy';
-import { CHECK, holdCost, runnerBudget } from '../src/ai/corp/hold';
+import { CHECK, runnerBudget } from '../src/ai/corp/hold';
+import { holdCost } from './plan-measure-lib';
 import { isCorpMain, scoringRemote } from '../src/ai/corp/lines';
 import { installDiagnostics } from '../src/ai/diagnostics';
 import { profileOf } from '../src/ai/cardProfiles';
@@ -146,5 +146,5 @@ for (const [i, seed] of seeds.entries()) {
     console.error(`deal ${seed}: ${err}`);
     continue;
   }
-  console.log(JSON.stringify({ seed, deck: corpDeck.name, winner: game.state.winner ?? null, turns: game.state.turnNumber, noAssetDiff, redirects: diag.iceRedirect.fired, installs, covered, bare, strayed, unusedTurns, unusedWhy, lastClick, steals, assets: [...assets.values()], cover: { ...diag.assetCover }, partner: { ...diag.assetPartner } }));
+  console.log(JSON.stringify({ seed, deck: corpDeck.name, winner: game.state.winner ?? null, turns: game.state.turnNumber, noAssetDiff, installs, covered, bare, strayed, unusedTurns, unusedWhy, lastClick, steals, assets: [...assets.values()], cover: { ...diag.assetCover } }));
 }

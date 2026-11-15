@@ -16,7 +16,7 @@ import { decisionContext } from '../src/ai/handValues';
 import { keepsScore, scoreNowPlan } from '../src/ai/winNow';
 import { installDiagnostics } from '../src/ai/diagnostics';
 const diag = installDiagnostics();
-import { scoreInTwoPick } from '../src/ai/countedScore';
+import { scoreInTwoPick } from '../src/ai/corp/placement';
 import { HeldLine, isCorpMain } from '../src/ai/corp/lines';
 
 const args = process.argv.slice(2).filter(a => a !== '--').map(Number);

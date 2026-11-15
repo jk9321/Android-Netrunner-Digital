@@ -3,6 +3,7 @@ import { cardDef, createCardInstance, executeAction, findCardAnywhere, GameState
 import { counters } from '../src/core/engine/cardEffects';
 import { answerPrompt } from '../src/ai/prompts';
 import { answer, cont, giveCard, installCorpForTest, installIceForTest, installProgramForTest, newGame, passTurn, play, rezForTest, run, scoreForTest, setIdentity, startRunnerTurn, useAbility, toCorp } from './helpers';
+import '../src/ai'; // the AI entry: corpAI.ts fills the Corp ports (src/ai/corpPorts.ts) as it loads
 
 const C = {
   leo: '35035', poetri: '35036', trendsetting: '35037', ingatan: '35038', humanoid: '35039', otto: '35040', bumi: '35041',

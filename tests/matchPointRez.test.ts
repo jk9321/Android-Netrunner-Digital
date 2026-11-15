@@ -12,7 +12,7 @@ import { describe, expect, it } from 'vitest';
 import { GameAction, GameState, cardDef, createInitialGameState, executeAction } from '../src/core';
 import { deckGameSetup } from '../src/data/decks';
 import { createAgent } from '../src/ai';
-import { countedRez, matchPoint, matchPointRez } from '../src/ai/rezModel';
+import { countedRez, matchPoint, matchPointRez } from '../src/ai/corp/rez';
 import { agendasUnseen, rdAgendaOdds, reachablePoints } from '../src/ai/corp/pools';
 import { asSide } from '../src/ai/pricing';
 import { decisionContext } from '../src/ai/handValues';

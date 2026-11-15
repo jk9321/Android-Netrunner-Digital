@@ -17,7 +17,7 @@ import { createAgent } from '../src/ai';
 import { GameRunner } from '../src/ai/playout';
 import { valueLoops } from '../src/ai/valueModel';
 import { applyPlanOff } from '../src/ai/synergy';
-import { centralIce } from '../src/ai/countedScore';
+import { centralIce } from '../src/ai/corp/placement';
 import { isCorpMain } from '../src/ai/corp/lines';
 import { installDiagnostics } from '../src/ai/diagnostics';
 import { asSide } from '../src/ai/pricing';
@@ -35,7 +35,7 @@ for (const [k, seed] of seeds.entries()) {
   const corpDeck = corpDecks[Math.floor(p / runnerDecks.length)];
   valueLoops.clear();
   const centralIceStats = { hq: 0, rd: 0 };
-  const diag = installDiagnostics();
+  installDiagnostics();
   const corpAgent = createAgent('corp', 'normal');
   // (c): the Corp's main-phase actions, by Corp turn (its click actions and what they install where)
   const acts: { corpTurn: number; what: string }[] = [];
@@ -99,5 +99,5 @@ for (const [k, seed] of seeds.entries()) {
     continue;
   }
   const sum = (f: (x: (typeof fires)[number]) => number) => fires.reduce((n, x) => n + f(x), 0);
-  console.log(JSON.stringify({ seed, deck: corpDeck.name, firstRemote, firstScore, winner: game.state.winner ?? null, turns: game.state.turnNumber, score: [game.state.corp.score, game.state.runner.score], ms: Math.round(performance.now() - t0), stats: { ...centralIceStats }, iceRedirect: diag.iceRedirect.fired, fires: fires.length, stolen: sum(x => x.stolen), scored: sum(x => x.scored), runs: sum(x => x.runs), fate: fires.reduce((m, f) => { for (const [k, v] of Object.entries(f.fate ?? {})) m[k] = (m[k] ?? 0) + v; return m; }, {} as Record<string, number>), detail: fires.map(f => ({ corpTurn: f.corpTurn, rest: f.corpTurn === 1 ? acts.slice(f.at!).filter(x => x.corpTurn === 1).map(x => x.what) : undefined, nextIce: f.corpTurn === 1 ? acts.slice(f.at!).find(x => x.what.startsWith('INSTALL_CARD') && x.what.includes('(ice)'))?.what : undefined, turn: f.turn, central: f.central, runs: f.runs, stolen: f.stolen, scored: f.scored, fate: f.fate })) }));
+  console.log(JSON.stringify({ seed, deck: corpDeck.name, firstRemote, firstScore, winner: game.state.winner ?? null, turns: game.state.turnNumber, score: [game.state.corp.score, game.state.runner.score], ms: Math.round(performance.now() - t0), stats: { ...centralIceStats }, fires: fires.length, stolen: sum(x => x.stolen), scored: sum(x => x.scored), runs: sum(x => x.runs), fate: fires.reduce((m, f) => { for (const [k, v] of Object.entries(f.fate ?? {})) m[k] = (m[k] ?? 0) + v; return m; }, {} as Record<string, number>), detail: fires.map(f => ({ corpTurn: f.corpTurn, rest: f.corpTurn === 1 ? acts.slice(f.at!).filter(x => x.corpTurn === 1).map(x => x.what) : undefined, nextIce: f.corpTurn === 1 ? acts.slice(f.at!).find(x => x.what.startsWith('INSTALL_CARD') && x.what.includes('(ice)'))?.what : undefined, turn: f.turn, central: f.central, runs: f.runs, stolen: f.stolen, scored: f.scored, fate: f.fate })) }));
 }

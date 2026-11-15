@@ -18,6 +18,7 @@ import { deckGameSetup } from '../src/data/decks';
 import { runSuccess, stealOdds } from '../src/ai/effectValues';
 import { tuning } from '../src/ai/synergy';
 import { inDecision } from './helpers/pricing';
+import '../src/ai'; // the AI entry: corpAI.ts fills the Corp ports (src/ai/corpPorts.ts) as it loads
 
 /** Jeff's game (bug report `n`) replayed to the Corp's first main-phase decision of turn `turn`. */
 function corpTurn(n: number, turn: number): GameState {

@@ -1,7 +1,8 @@
-import { CardInstance, GameAction, GameState, ServerState, activePrompt, cardDef, findCardAnywhere, getCardDefinition, getCardScript, getLegalActions, isLegalAction } from '../core';
+import { CardInstance, GameAction, GameState, ServerState, activePrompt, cardDef, getCardDefinition, getCardScript, getLegalActions, isLegalAction } from '../core';
 import { MYOSHU } from './cardPlans';
-import { iceScript, iceStrength, iceSubroutines, iceSubtypes, isIcebreaker } from '../core/engine/ice';
-import { iceStop, iceWorth, withIceInstalled } from './iceValues';
+import { iceStrength, iceSubroutines, iceSubtypes, isIcebreaker } from '../core/engine/ice';
+import { iceStop, iceWorth } from './iceValues';
+import { mainRemote, withIceInstalled } from './board';
 import { rigCoverage } from './evaluate';
 import { counters, rezCost } from '../core/engine/cardEffects';
 import { turnKey } from '../core/engine/helpers';
@@ -12,33 +13,28 @@ import { resourceTrashHqCost } from '../core/engine/actions/basic';
 import { clickRate, pointGain, printedGain } from './valueModel';
 import { PACE, STEAL, accessWorth, agendaOdds } from './effectValues';
 import { answerPrompt, simulate } from './prompts';
-import { asSide, logNudge, nudge, opponentLean, tuning } from './synergy';
+import { asSide, nudge, opponentLean, tuning } from './synergy';
 import { decisionContext } from './handValues';
 import { PlanMemory, planTurn, plannerOn } from './turnPlanner';
 import { runnerReply } from './runnerReply';
-import { archivesWantsIce, countedRez, modelRezGain } from './rezModel';
-import { runLoss } from './corp/pools';
-import { keepsScore, scoreNowPlan, winNowAction } from './winNow';
+import { agendaStakes, archivesWantsIce, decideRez, hasEndTheRun, onRezOnly, perfectRecallTarget } from './corp/rez';
+import { holdingRezIds, rezMoney } from './corp/rezMoney';
+import { registerCorpPorts } from './corpPorts';
 import { freeRezCover, freeRezTargets } from './freeRez';
-import { PETTY_CASH_REPLAY, iceAdvanceWorth, knownTrap, placedCounterWorth, rezEffectWorth, rezzedWorth, runTimed, topDownWorth } from './effectValues';
+import { PETTY_CASH_REPLAY, iceAdvanceWorth, knownTrap, placedCounterWorth, rezzedWorth, runTimed, topDownWorth } from './effectValues';
 import { CARD_PROFILES, ECON_SCALE, PAYOUT_RISK, bareAssetRisk, unrezzedWorth } from './cardProfiles';
 
-import { BLOCK, accessTrap, iceCost, iceCreditNeed, isTrap, subroutineCost, tagCost, weakestIce } from './runs';
+import { BLOCK, accessTrap, iceCost, iceCreditNeed, isTrap, subroutineCost, weakestIce } from './runs';
 import { cardSynergy } from './synergyTags';
 import { econValue, upgradeValue } from './cardValues';
 import { counterWorth } from './counterValues';
 import { plan, pricing, withPricing } from './pricing';
 import { dividendsOf, setupOperation } from './cards';
-// Last: its imports (winNow, runs, pricing) are loaded by then, so the AI modules' load order is unchanged (oracle.ts)
-import { assetPartner, centralIce, iceRedirect, scoreInTwoPick } from './countedScore';
-import { HeldLine, heldLaterStep } from './corp/lines';
-import { tally } from './diagnostics';
-import { moneyPick } from './incomeLine';
+import { CorpMemory, corpDecide, isPettyCash } from './corp/core';
 import { corpSeenGrip } from './oracle';
 
 
 const type = (card: CardInstance) => cardDef(card).type_code;
-const hasEndTheRun = (ice: CardInstance) => (iceScript(ice)?.subroutines ?? []).some(s => /end the run/i.test(s.label));
 const isAgendaOrAsset = (card: CardInstance) => ['agenda', 'asset'].includes(type(card));
 
 const CLEARINGHOUSE = '30061';
@@ -77,8 +73,6 @@ export interface HeuristicOptions {
   debug?: boolean;
   /** The whole-turn planner while plan.turnPlanner is on (default on; the Hard AI's search turns it off). */
   planner?: boolean;
-  /** This AI plays the planner's playouts (the rollout planTurn ranks and answers with): it counts as the planning side. */
-  searching?: boolean;
 }
 
 /**
@@ -93,16 +87,14 @@ export class HeuristicCorpAI implements Agent {
   readonly synergy: boolean;
   private debug: boolean;
   private planner: boolean;
-  private searching: boolean;
   private planMemory: PlanMemory = { line: [] };
-  /** plan.scoreInTwo (counted scoring C2): the two-turn score line this Corp holds, keyed by game id (countedScore.ts). */
-  private heldLine: HeldLine | null = null;
+  /** What the pipeline carries between decisions (corp/core.ts): the held two-turn score line. */
+  private memory: CorpMemory = { heldLine: null };
 
   constructor(options: HeuristicOptions = {}) {
     this.synergy = options.synergy ?? true;
     this.debug = options.debug ?? false;
     this.planner = options.planner ?? true;
-    this.searching = options.searching ?? false;
   }
 
   /** Round 3: keep rez money for R&D and HQ as well as agenda remotes. */
@@ -133,74 +125,23 @@ export class HeuristicCorpAI implements Agent {
     return [...this.runs.turns.entries()].sort((a, b) => b[0] - a[0]).map(([, servers]) => servers);
   }
 
+  /** The pipeline (corp/core.ts corpDecide), this Corp's ranking at Q7 and the turn planner over it. */
   private decide(state: GameState): GameAction {
-    decisionContext(state, 'corp');
-    // plan.winNow (bug report #33): a line that wins the game this turn is played before any judgement (winNow.ts)
-    if (this.synergy && this.planner) {
-      const win = winNowAction(state);
-      if (win) {
-        this.notePlayed(win);
-        return win;
-      }
-    }
-    // plan.scoreNow (counted scoring C1): a line that scores an agenda this turn, the same search (winNow.ts); the
-    // Corp's own pick stands while it keeps the score (keepsScore), the line's action is played otherwise
-    const score = this.synergy && this.planner ? scoreNowPlan(state) : null;
-    if (score && activePrompt(state)) {
-      this.notePlayed(score.first);
-      return score.first;
-    }
-    if (activePrompt(state)) return answerPrompt(state, 'corp', undefined, this.synergy);
-    const legal = getLegalActions(state, 'corp');
-    const ranked = this.rankMainActions(state, legal);
-    // Planner speed P1: the count has decided this click, so the planner's search is not run. A scoreNow line: the Corp's
-    // pick is then the rule ranking's, kept while it keeps the score (keepsScore), the line's action otherwise. A held
-    // two-turn line on a later turn: its step (advance or score, heldLaterStep) does not depend on the pick, and
-    // scoreInTwoPick below plays it.
-    const later = this.synergy && this.planner && !!heldLaterStep(state, this.heldLine);
-    const decided = !!score || later;
-    const planned = this.planner && plannerOn('corp') && state.turnStep?.kind !== 'corp_turn_start' && !decided ? this.plan(state, ranked) : null;
-    // Money step M1 (incomeLine.ts): an econ operation that nets credits is the counted pick for its click, ahead of the
-    // Corp's own; a score this turn, a held two-turn line's step, or the Corp's own pick moving an agenda keeps the click
-    const money = !decided && this.synergy && this.planner && state.turnStep?.kind !== 'corp_turn_start' ? moneyPick(state, planned ?? ranked[0]?.action) : null;
-    let chosen = money ?? planned ?? (ranked[0]?.score > -Infinity ? ranked[0].action : legal.find(a => a.type === 'END_TURN') ?? legal[0]);
-    // plan.pettyCashFirst: a click for a credit while Petty Cash can still be played is a click for 2 thrown away (the
-    // planner valued Petty Cash held in HQ as the money it will make, though it is playable only as the turn's first action)
-    if (chosen.type === 'GAIN_CREDIT' && this.synergy && plan().pettyCashFirst) chosen = ranked.find(r => isPettyCash(state, r.action) && r.score > -Infinity)?.action ?? chosen;
-    // plan.tagFirst: the planner's leaf counts a tag kept as a trash still to come, but the Runner clears it on its turn
-    if (this.synergy && plan().tagFirst && ranked[0]?.action.type === 'TRASH_RESOURCE' && ranked[0].tagFirst) chosen = ranked[0].action;
-    let picked = chosen;
-    if (score && !keepsScore(state, picked, score)) picked = score.first;
-    // plan.scoreInTwo (counted scoring C2): a held two-turn score line's step, or the pick vetoed while it would spend the line's rez money
-    if (!score && this.synergy && this.planner) {
-      const two = scoreInTwoPick(state, picked, this.heldLine);
-      this.heldLine = two.held;
-      picked = two.action;
-    }
-    // Ice redirect (step 4 G3', countedScore.ts iceRedirect): the Corp's own remote ice install goes to the scoring remote
-    // until it holds; nothing while a counted two-turn line is held (its ice goes where the line puts it; skipping only
-    // the line's own ice played the same 663 games, run 43158341651)
-    const held = this.heldLine && this.heldLine.game === state.id ? this.heldLine : null;
-    if (!score && picked === chosen && this.synergy && !held) {
-      // Central ice (countedScore.ts centralIce): a central with no ice takes the ice first
-      const central = centralIce(state, picked);
-      const redirect = central ?? iceRedirect(state, picked);
-      if (central) picked = central;
-      else if (redirect) {
-        if (this.planner && !this.searching) tally('iceRedirect', 'fired');
-        picked = redirect;
-      } else picked = assetPartner(state, picked) ?? picked; // plan.assetPartner (countedScore.ts)
-    }
-    // The reverse bluff: at most once a game, used up only by the install actually played (a pick the counted layer
-    // rewrote put no agenda in a new remote)
-    const bluff = picked;
-    if (bluff.type === 'INSTALL_CARD' && bluff.asNewRemote && state.corp.hq.some(c => c.instanceId === bluff.cardInstanceId && type(c) === 'agenda')) {
-      const def = cardDef(state.corp.hq.find(c => c.instanceId === bluff.cardInstanceId)!);
-      if ((def.advancement_cost ?? 0) > state.corp.clicks - 1) this.reverseBluffed = true;
-    }
-    this.notePlayed(picked);
-    if (this.debug) logNudge(state, 'corp', picked);
-    return picked;
+    return corpDecide(state, {
+      synergy: this.synergy,
+      counted: this.synergy && this.planner,
+      memory: this.memory,
+      rank: (s, legal) => this.rankMainActions(s, legal),
+      lookahead: this.planner ? (s, ranked) => (plannerOn('corp') ? this.plan(s, ranked) : null) : undefined,
+      note: action => this.notePlayed(action),
+      bluffed: () => this.noteBluff(),
+      debug: this.debug,
+    });
+  }
+
+  /** The reverse bluff was played (the Hard search's pipeline, corp/core.ts, plays this Corp's ranking). */
+  noteBluff() {
+    this.reverseBluffed = true;
   }
 
   /** Counts actions in a row that spent no click (loop guard). */
@@ -210,7 +151,7 @@ export class HeuristicCorpAI implements Agent {
 
   /** The whole-turn planner's pick (plan.turnPlanner), its playouts by a fresh copy of this AI. */
   private plan(state: GameState, ranked: ScoredAction[]): GameAction | null {
-    const rollout = new HeuristicCorpAI({ synergy: this.synergy, planner: false, searching: true });
+    const rollout = new HeuristicCorpAI({ synergy: this.synergy, planner: false });
     const reply = plan().runnerReply ? (s: GameState, leaf: (s: GameState) => number) => runnerReply(s, this.synergy, leaf) : undefined;
     return planTurn(state, 'corp', ranked, { rank: s => rollout.rankMainActions(s), answer: s => rollout.chooseAction(s), reply, memory: this.planMemory }, this.synergy);
   }
@@ -245,110 +186,7 @@ export class HeuristicCorpAI implements Agent {
   }
 
   chooseRez(state: GameState, cards: CardInstance[]): GameAction | null {
-    return asSide('corp', () => this.decideRez(state, cards));
-  }
-
-  private decideRez(state: GameState, cards: CardInstance[]): GameAction | null {
-    const run = state.activeRun;
-    if (!run) return null;
-    const server = state.corp.servers[run.server];
-    const importance = serverImportance(state, server, this.synergy);
-    let best: { card: CardInstance; score: number } | null = null;
-    for (const card of cards) {
-      const def = cardDef(card);
-      const cost = rezCost(state, card);
-      if (!isLegalAction(state, { type: 'REZ_CARD', player: 'corp', cardInstanceId: card.instanceId })) continue;
-      // Counted rez (step 3): rez, pass, or no opinion (the value model decides)
-      if (def.type_code === 'ice' && this.synergy && run.phase === 'approach_ice') {
-        const call = countedRez(state, card);
-        if (call === 'rez') return { type: 'REZ_CARD', player: 'corp', cardInstanceId: card.instanceId };
-        if (call === 'pass') continue;
-      }
-      let score: number;
-      if (def.type_code === 'ice' && this.synergy && plan().modelRez) {
-        // plan.modelRez: the rez priced by the value model (rezModel.ts), in credits; rezzed when it gains anything.
-        // Lifted onto the old scale's threshold (2) so an upgrade in the same window still compares on its own terms
-        const gain = modelRezGain(state, card, this.synergy);
-        if (!(gain > 0)) continue;
-        score = 2 + gain;
-      } else if (def.type_code === 'ice') {
-        // Ping tags the Runner when rezzed during a run; ice that ends the run protects best
-        const onRez = ECON_SCALE * rezEffectWorth(card, tagCost(state));
-        score = importance + (hasEndTheRun(card) ? 1 : 0) + onRez;
-        if (state.corp.credits - cost < 2 && importance < 4) score -= 2;
-        // plan.rezToll (Jeff, 2026-11-05: the Corp's money goes on ice rezzed in runs): ice the Runner can pay its way
-        // through doesn't stop the run, it only takes a toll. Outside a server holding an agenda, paying more to rez it
-        // than twice the toll (this run's and about one more) loses money: 27% of the Corp's in-run rez money went there
-        if (this.synergy && importance < 7) {
-          const rezzed = { ...card, isRezzed: true };
-          const need = iceCreditNeed(state, rezzed);
-          if (need > 0 && need < BLOCK && need <= state.runner.credits && 2 * iceCost(state, rezzed) < cost) continue;
-        }
-      } else if (def.type_code === 'upgrade') {
-        // Upgrades: by what they do here (model), up to the 2 an upgrade gives up against ice;
-        // one that does nothing in a run waits for the Corp's turn, keeping the money for ice
-        const [remote, central] = upgradeValue(card.cardCode, state);
-        score = !runTimed(card) ? -1 : importance - 2 + Math.min(2, Math.max(0, server.isRemote ? remote : central));
-      } else if (onRezOnly(card)) {
-        score = 3; // Spin Doctor (Jeff): the Runner came anyway, so the same 2 cards cost it a run
-      } else {
-        score = -1; // assets are rezzed on the Corp's own turn
-      }
-      if (score >= 2 && (!best || score > best.score)) best = { card, score };
-    }
-    if (best) return { type: 'REZ_CARD', player: 'corp', cardInstanceId: best.card.instanceId };
-    return run.phase === 'approach_server' ? this.runStopper(state, importance) : null;
-  }
-
-  /** LEO Construction or Proprionegation, when the Runner is about to get into something that matters. */
-  private runStopper(state: GameState, importance: number): GameAction | null {
-    // (Jeff) LEO: worth it when the run would take more than the bioroid it trashes (plan.leoValue)
-    const leo = getLegalActions(state, 'corp').find(a => a.type === 'USE_ABILITY' && findCardAnywhere(state, a.cardInstanceId)?.cardCode === '35035');
-    if (leo) return this.leoGain(state, leo) > 0 ? leo : null;
-    if (importance < 6) return null;
-    const archivesAgenda = state.corp.archives.faceDown.some(c => type(c) === 'agenda');
-    for (const action of getLegalActions(state, 'corp')) {
-      if (action.type !== 'USE_ABILITY') continue;
-      const code = findCardAnywhere(state, action.cardInstanceId)?.cardCode;
-      if (code === '35035') return action; // LEO: trash a bioroid, end the run
-      if (code === '35048' && !archivesAgenda && state.activeRun?.server !== 'archives') return action; // Proprionegation
-      if (code === '36045') return action; // The Red Room: a power counter, end the run
-      if (code === '36035' && perfectRecallTarget(state)) return action; // Perfect Recall: protect the agenda the Runner is after
-    }
-    // Event Horizon: trash it to end the run, only for a run that would take an agenda
-    if (importance >= 7) {
-      const horizon = getLegalActions(state, 'corp').find(a => a.type === 'USE_ABILITY' && findCardAnywhere(state, a.cardInstanceId)?.cardCode === '36058');
-      if (horizon) return horizon;
-    }
-    return null;
-  }
-
-  /**
-   * LEO against letting the Runner in: the board after trashing the bioroid the AI would pick and
-   * ending the run, against the board after the run takes what it would (agendas in the root
-   * stolen; HQ and R&D by the odds, runLoss).
-   */
-  private leoGain(state: GameState, action: GameAction): number {
-    let after = simulate(state, action);
-    for (let i = 0; after && i < 3 && activePrompt(after)?.side === 'corp'; i++) after = simulate(after, answerPrompt(after, 'corp', undefined, this.synergy));
-    if (!after) return -Infinity;
-    // Out of clicks, the Runner can't come back this turn: the Corp moves next (protects or scores the agenda)
-    const next = (st: GameState): GameState => (st.runner.clicks > 0 ? st : { ...st, activePlayer: 'corp' });
-    const server = state.corp.servers[state.activeRun!.server];
-    const agendas = server.root.filter(c => type(c) === 'agenda');
-    let letIn: number;
-    if (agendas.length > 0) {
-      const stolen = structuredClone(state);
-      const root = stolen.corp.servers[server.id].root;
-      for (const a of agendas) {
-        const i = root.findIndex(c => c.instanceId === a.instanceId);
-        stolen.runner.scoreArea.push(...root.splice(i, 1));
-        stolen.runner.score += cardDef(a).agenda_points ?? 0;
-      }
-      stolen.activeRun = null;
-      letIn = evaluate(next(stolen), 'corp');
-    } else letIn = evaluate(state, 'corp') - runLoss(state);
-    return evaluate(next(after), 'corp') - letIn;
+    return asSide('corp', () => decideRez(state, cards, this.synergy));
   }
 
   private score(state: GameState, action: GameAction, before: number): number {
@@ -973,18 +811,6 @@ export function unrezzedIceCost(state: GameState): number {
     .reduce((n, ice) => n + (ice.isRezzed ? 0 : rezCost(state, ice)), 0);
 }
 
-/**
- * The scoring remote: the remote with the most ice that isn't holding a
- * money asset or trap (null with no iced remote).
- */
-export function mainRemote(state: GameState): ServerState | null {
-  let best: ServerState | null = null;
-  for (const server of Object.values(state.corp.servers)) {
-    if (!server.isRemote || server.ice.length === 0 || server.root.some(c => type(c) === 'asset')) continue;
-    if (!best || server.ice.length > best.ice.length) best = server;
-  }
-  return best;
-}
 
 /** The Runner's virus counters, weighted by what they do. */
 /**
@@ -1151,11 +977,6 @@ export function breakerReach(state: GameState, ice: CardInstance): number {
   return best;
 }
 
-/** An asset whose whole worth is what it does when rezzed (Spin Doctor), not a money asset that pays out. */
-function onRezOnly(card: CardInstance): boolean {
-  return type(card) === 'asset' && !CARD_PROFILES[card.cardCode] && /^When you rez this asset, draw/i.test(cardDef(card).stripped_text ?? '');
-}
-
 /**
  * The Runner can't pay its way into the server on its next turn: the ice
  * (rezzed, or that `credits` can still rez) costs more to get through than
@@ -1212,13 +1033,7 @@ export function lethalHqAgenda(state: GameState, credits = state.corp.credits): 
   return lethal && !outOfReach(state, state.corp.servers.hq, credits);
 }
 
-export function agendaStakes(state: GameState, agenda: CardInstance): number {
-  const points = cardDef(agenda).agenda_points ?? 1;
-  return points + (state.runner.score + points >= 7 ? 3 : 0) + 0.25 * Math.min(agenda.advancementCounters, 4);
-}
-
 /** Installed agendas with enough counters to score. */
-/** How much the Corp cares about keeping the Runner out of this server (for rez decisions). */
 // runLoss moved to corp/pools.ts (Step 4 Stage A)
 
 const MYOSHU_COST = 10;
@@ -1237,35 +1052,6 @@ export function myoshuSaving(state: GameState, held = false): boolean {
   const older = Object.values(corp.servers).some(s => s.isRemote && s.root.some(c => type(c) === 'agenda' && c.installedTurn !== now));
   if (!older) return false;
   return held ? corp.credits >= MYOSHU_COST : corp.credits < MYOSHU_COST && corp.credits + corp.clicks + 6 >= MYOSHU_COST;
-}
-
-/**
- * Perfect Recall: the card in HQ to reveal so the Runner can't steal it on
- * this run: on an HQ run the agenda worth most there; on a run where the
- * root holds an agenda, a copy of it in HQ. Undefined: nothing worth it.
- */
-export function perfectRecallTarget(state: GameState): string | undefined {
-  const run = state.activeRun;
-  if (!run || (run.protectedTitles?.length ?? 0) > 0) return undefined;
-  const agendas = state.corp.hq.filter(c => type(c) === 'agenda');
-  if (run.server === 'hq') return [...agendas].sort((a, b) => (cardDef(b).agenda_points ?? 0) - (cardDef(a).agenda_points ?? 0))[0]?.instanceId;
-  const target = state.corp.servers[run.server]?.root.find(c => type(c) === 'agenda');
-  return target ? agendas.find(c => cardDef(c).title === cardDef(target).title)?.instanceId : undefined;
-}
-
-function serverImportance(state: GameState, server: ServerState | undefined, aware = false): number {
-  if (!server) return 0;
-  const agenda = server.root.find(c => type(c) === 'agenda');
-  if (agenda) return aware ? 7 + 1.5 * agendaStakes(state, agenda) : 10;
-  if (server.id === 'hq') {
-    const inHq = state.corp.hq.filter(c => type(c) === 'agenda');
-    return 3 + (aware ? inHq.reduce((n, a) => n + agendaStakes(state, a), 0) : inHq.length * 2);
-  }
-  if (server.id === 'rd') return 4;
-  if (server.id === 'archives') return state.corp.archives.faceDown.some(c => type(c) === 'agenda') ? 6 : 0.5;
-  if (server.root.some(c => c.advancementCounters > 0)) return 1; // a trap: let them in
-  if (server.root.some(c => c.isRezzed && econValue(c.cardCode, state))) return 3;
-  return server.root.length > 0 ? 2 : 0.5;
 }
 
 /** Ice on this server that is rezzed or that `credits` could rez (cheapest first). */
@@ -1420,8 +1206,6 @@ function pettyCashFirst(state: GameState, ranked: ScoredAction[]): ScoredAction[
   const petty = { ...ranked[at], score: ranked[0].score + 0.01 };
   return [petty, ...ranked.slice(0, at), ...ranked.slice(at + 1)];
 }
-const PETTY_CASH = '35081';
-const isPettyCash = (state: GameState, a: GameAction): boolean => a.type === 'PLAY_OPERATION_OR_EVENT' && state.corp.hq.find(c => c.instanceId === a.cardInstanceId)?.cardCode === PETTY_CASH;
 
 /**
  * plan.tagFirst (Jeff, 2026-11-05: the Corp leaves tags unused): a tag usually lasts only until the Runner's next turn,
@@ -1436,3 +1220,6 @@ function tagFirst(state: GameState, ranked: ScoredAction[]): ScoredAction[] {
   const trash = { ...ranked[at], score: ranked[0].score + 0.01, tagFirst: true };
   return [trash, ...ranked.slice(0, at), ...ranked.slice(at + 1)];
 }
+
+// The Corp owners the valuation layer and prompts.ts read (Stage B review R8): one registration, as the Corp agent loads
+registerCorpPorts({ keep: state => rezMoney(state).keep, holdingRezIds, freeInstallTarget, perfectRecallTarget });

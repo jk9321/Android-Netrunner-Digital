@@ -1,0 +1,8 @@
+Batch: Stage B review fixes R1-R8 (corp ports) g1 vs merged landing 43646809311, expect identical | ref 078a2530f770f1237e0721ac30ec5c35db018839 | games 0-1 | PLAN_OFF= | decks  | corp-losses corp | added run  | paired with run 43646809311
+PAIRED vs base batch (same deals): 221 games counted (this batch 221, base 663)
+  Corp win: 51.6% this vs 51.6% base
+  Paired Corp win diff: +0.0 pts ± 0.0 SE over 221 games, identical; unpaired SE would be ± 4.8
+  deals that changed winner: 0 to Corp, 0 to Runner, 221 the same
+  alarms per 100 games (this / base, paired diff ± SE):
+    Corp stayed broke: 72.9 / 72.9, +0.0 ± 0.0
+    Corp went broke: 106.3 / 106.3, +0.0 ± 0.0
