@@ -105,9 +105,16 @@ export interface ChoiceQuestion {
   options: { id: string; label: string }[];
 }
 
+/** The question a step asks: cards for a cards step, options for a choice step. */
+type QuestionOf<S> = S extends CardsStep<StepData> ? CardsQuestion : S extends ChoiceStep<StepData> ? ChoiceQuestion : never;
+
 export interface Flow<T extends Steps> {
   /** The steps, for the card's script: `...flow.script`. */
   script: Required<Pick<CardScript, 'onPromptAnswer' | 'promptSteps'>>;
+  /** Asks a question (built by a shared helper, or inline) under a cards or choice step. */
+  ask<K extends StepsOfKind<T, 'cards' | 'choice'>>(ctx: EffectContext, step: K, q: QuestionOf<T[K]>, ...data: DataArg<DataOf<T[K]>>): void;
+  /** ask(), when there is a question: a helper returns null when there is nothing to ask. Returns whether it asked. */
+  askIf<K extends StepsOfKind<T, 'cards' | 'choice'>>(ctx: EffectContext, step: K, q: QuestionOf<T[K]> | null, ...data: DataArg<DataOf<T[K]>>): boolean;
   /** Asks for cards under a cards step. */
   cards<K extends StepsOfKind<T, 'cards'>>(ctx: EffectContext, step: K, q: CardsQuestion, ...data: DataArg<DataOf<T[K]>>): void;
   /** Asks for one option under a choice step. */
@@ -190,8 +197,18 @@ export function prompts<T extends Steps>(steps: T): Flow<T> {
     throw new Error(`${ctx.card.cardCode}: psi step '${source.step}' answered outside a Psi Game`);
   }
 
+  const ask = (ctx: EffectContext, step: string, q: CardsQuestion | ChoiceQuestion, data: StepData | undefined) => {
+    if (steps[step]?.kind !== ('candidateIds' in q ? 'cards' : 'choice')) throw new Error(`${ctx.card.cardCode}: step '${step}' asked as the wrong kind`);
+    if ('candidateIds' in q) askCards(ctx, q.side, q.message, q.candidateIds, q.min, q.max, step, data);
+    else askChoice(ctx, q.side, q.message, q.options, step, data);
+  };
   const flow: Flow<T> = {
     script: { onPromptAnswer, promptSteps: names },
+    ask: (ctx, step, q, ...data) => ask(ctx, step, q, data[0]),
+    askIf: (ctx, step, q, ...data) => {
+      if (q) ask(ctx, step, q, data[0]);
+      return !!q;
+    },
     cards: (ctx, step, q, ...data) => askCards(ctx, q.side, q.message, q.candidateIds, q.min, q.max, step, data[0]),
     choice: (ctx, step, q, ...data) => askChoice(ctx, q.side, q.message, q.options, step, data[0]),
     runnerInstall: (ctx, step, q, ...data) => askRunnerInstall(ctx, q.message, q.candidateIds, q.min, q.max, step, data[0]),
