@@ -92,4 +92,13 @@ describe('the Corp candidate order (Stage C)', () => {
     expect(candidates(s).find(c => key(c.action) === key(a))?.line).toBe(2);
     expect(core(() => new HeuristicCorpAI({ synergy: true }).chooseAction(read('ice-redirect-1411-t6.json')), off)).toMatchObject({ cardInstanceId: 'inst-41', asNewRemote: true });
   }, 240_000);
+
+  // Bug report #4 (lethalHq; c0-rulings 15:50Z and 16:00Z (1)): Send a Message in HQ wins the Runner the game, so the ice
+  // redirect to the scoring remote waits (rule 1.7.2a, the stake owner's points on the point clock); the order's first
+  // move is ice on HQ (line 2). The look-ahead's own pick is pinned known-failing in stageDPins.test.ts
+  it('puts ice on HQ first while HQ holds the agenda that would win the Runner the game (bug report #4)', () => {
+    const first = candidates(read('bug-report-4-turn13.json'))[0].action as GameAction & { targetServerId?: string };
+    expect(first.type).toBe('INSTALL_CARD');
+    expect(first.targetServerId).toBe('hq');
+  });
 });

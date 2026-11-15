@@ -2,11 +2,12 @@ import { CardInstance, GameAction, GameState, ServerState, activePrompt, cardDef
 import { iceScript } from '../../core/engine/ice';
 import { BLOCK, accessTrap, iceCost, iceCreditNeed, isTrap, tagCost } from '../runs';
 import { rezCost } from '../../core/engine/cardEffects';
-import { deckCount, rezEffectWorth, runTimed } from '../effectValues';
+import { deckCount, rezEffectWorth, rezzedWorth, runTimed } from '../effectValues';
 import { archivesPayoffOf, rezEffectOf } from '../cards';
 import { modelRezGain, runBypassed } from '../rezModel';
-import { agendasUnseen, reachablePoints, runLoss } from './pools';
+import { agendasUnseen, reachablePoints, runLoss, stake } from './pools';
 import { serverHold } from './hold';
+import { rule } from './leaveOut';
 import { digValue, evaluate } from '../evaluate';
 import { answerPrompt, simulate } from '../prompts';
 import { plan, pricing } from '../pricing';
@@ -121,10 +122,12 @@ export function rezStops(state: GameState, ice: CardInstance, further = true): b
   return !further || serverHold(state, run.server, { when: 'thisRun', mustRez: [], further: true }).rezCost >= withIt;
 }
 
-/** Archives is worth ice (Jeff, 2026-11-11): an agenda is in it, or the Runner's deck list has a card that pays off an Archives run (CardAI archivesPayoff). */
+/**
+ * Archives is worth ice (Jeff, 2026-11-11): it has a stake (an agenda in it, by the stake owner; c0-rulings 16:00Z (4)),
+ * or the Runner's deck list has a card that pays off an Archives run (CardAI archivesPayoff).
+ */
 export function archivesWantsIce(state: GameState): boolean {
-  const archives = [...state.corp.archives.faceUp, ...state.corp.archives.faceDown];
-  return archives.some(c => cardDef(c).type_code === 'agenda') || deckCount(state, 'runner', c => archivesPayoffOf(c.cardCode)) > 0;
+  return stake(state, 'archives').points > 0 || deckCount(state, 'runner', c => archivesPayoffOf(c.cardCode)) > 0;
 }
 
 /**
@@ -342,7 +345,9 @@ export function rezAllowed(state: GameState, card: CardInstance, keep: number, n
     const server = Object.values(state.corp.servers).find(s => s.root.some(c => c.instanceId === card.instanceId));
     if (server?.isRemote && !server.root.some(c => type(c) === 'agenda') && state.corp.credits - rezCost(state, card) < keep) return false;
   }
-  return true;
+  // Worth once rezzed, less the rez cost, above zero (the ranking's rezValue test, carried here: c0-rulings 16:00Z (3));
+  // Clearinghouse with no counters has nothing to fire
+  return !rule('rezWorth', !(rezzedWorth(state, card, rezCost(state, card)) > 0));
 }
 
 /** Rezzing a click-only asset (plan.rezToUse): only when its ability is then the Corp's next move. */

@@ -6,25 +6,16 @@ import { ScoredAction } from '../agent';
 import { answerPrompt, simulate } from '../prompts';
 import { serverHold } from './hold';
 import { rezMoney } from './rezMoney';
+import { corpPools } from './pools';
 import { HeldLine } from './lines';
-import { FreeInstall, Placement, iceCount, place, placedInstall, placementAction } from './placement';
-import { rezAllowed } from './rez';
+import { FreeInstall, Placement, iceCount, icePaidAt, place, placedInstall, placementAction } from './placement';
+import { archivesWantsIce, rezAllowed } from './rez';
 import { advancesAsIce, iceAdvanceValue, isPettyCash, overAdvance, tagFirst, tagsBeforeScore, trapAdvanceCap } from './cardRules';
 import { placedCounterWorth } from '../effectValues';
 export { isPettyCash } from './cardRules';
 
-/**
- * TEMPORARY (Stage C7 leave-one-out, spec section 5; deleted with plan.corpCore before the hand-off): `off` names the
- * carried-over rules left out, `fired` records each rule that applied (a rule that never applied cannot change a
- * decision). `rule(name, applies)` is true when the rule applies and is not left out. Nothing outside the measurement
- * sets `off`.
- */
-export const leaveOut = { off: new Set<string>(), fired: new Set<string>() };
-export const rule = (name: string, applies: boolean): boolean => {
-  if (!applies) return false;
-  leaveOut.fired.add(name);
-  return !leaveOut.off.has(name);
-};
+export { leaveOut, rule } from './leaveOut';
+import { rule } from './leaveOut';
 
 /**
  * Step 4 Stage C (spec-step4-corp-core.md 1.3, revision 13; stage-c/order.md as approved, c0-rulings.md): the Corp's
@@ -97,8 +88,7 @@ function resolved(state: GameState, action: GameAction): GameState | null {
 /** Ice the Corp can install and still rez within keep (rule 8.5.11a: 1 credit per ice already protecting the server). */
 function icePaid(state: GameState, card: CardInstance, a: Install, keep: number, free?: FreeInstall): boolean {
   const server = a.asNewRemote || !a.targetServerId || free ? null : state.corp.servers[a.targetServerId];
-  const install = server ? server.ice.length : 0;
-  return state.corp.credits - install - (cardDef(card).cost ?? 0) >= keep;
+  return icePaidAt(state, card, server ? server.ice.length : 0, keep);
 }
 
 /** The server a just-installed card sits in after `after`. */
@@ -212,8 +202,12 @@ export function corpCandidates(state: GameState, legal: GameAction[], opts: Cand
         if (state.activeRun) break;
         const card = Object.values(corp.servers).flatMap(v => v.root).find(c => c.instanceId === a.cardInstanceId);
         // Ice waits for a run (6.9.2b); a root card only in its window and while it is worth rezzing at all
-        if (!card || !rezAllowed(state, card, keep, after => corpCandidates(after, getLegalActions(after, 'corp'), opts)[0]?.action)) break;
-        play(a, 4, false);
+        if (!card) break;
+        const allowed = rezAllowed(state, card, keep, after => corpCandidates(after, getLegalActions(after, 'corp'), opts)[0]?.action);
+        // In the window before the turn begins a no joins the group behind (c0-rulings 15:50Z (3)); elsewhere it is not offered
+        if (!allowed && state.turnStep?.kind !== 'corp_turn_start') break;
+        if (allowed) play(a, 4, false);
+        else add({ action: a, line: 4, behind: true, keys: [0, idNum(a.cardInstanceId)], card: a.cardInstanceId });
         break;
       }
       case 'ADVANCE_CARD': {
@@ -367,11 +361,27 @@ function iceMove(state: GameState, a: Install, card: CardInstance, keep: number,
   const count = iceCount(state, a, card, after);
   if (!count) return;
   const { loss, was, now } = count;
+  // R6 (countedRez; c0-rulings 15:50Z and 16:00Z (4)): ice on Archives only while Archives is worth ice (the rez owner)
+  const bare = rule('archivesR6', a.targetServerId === 'archives' && !archivesWantsIce(state));
   if (count.staked) {
     // The fall in what the Runner can take: stake times entries (a server that comes to hold falls by its entries + 1)
     const fall = loss * (was.entries - now.entries + (now.holds && !was.holds ? 1 : 0));
-    add({ action: a, line: 2, behind: !paid, keys: [-fall, cost, -now.margin, id], card: card.instanceId });
-  } else add({ action: a, line: 6, behind: !paid, keys: [-loss, -(now.margin - was.margin), cost, id], card: card.instanceId });
+    add({ action: a, line: 2, behind: !paid || bare, keys: [-fall, cost, -now.margin, id], card: card.instanceId });
+  } else add({ action: a, line: 6, behind: !paid || bare, keys: [-loss, -(now.margin - was.margin), cost, id], card: card.instanceId });
+}
+
+/**
+ * plan.hqNoSafer (bug report #15, moved from the ranking; c0-rulings 15:50Z (2)): an agenda is no safer waiting in HQ
+ * when HQ is a target (two or more agendas in it by the pools owner, plan.hqHeld; or the Runner got into HQ last turn)
+ * and its server costs the Runner more than HQ does to get in (the hold owner's need, after the move; strictly, 16:00Z (2)). Line 3 then
+ * takes it although the server does not hold.
+ */
+function hqNoSafer(state: GameState, after: GameState, server: string): boolean {
+  if (server === 'hq') return false;
+  const held = plan().hqHeld && corpPools(state).hq >= 2;
+  if (!held && !state.runnerLastTurnRuns.some(r => r.server === 'hq' && r.successful)) return false;
+  const at = (id: string) => serverHold(after, id, { when: 'runnerTurn', corpCredits: after.corp.credits }).need;
+  return at(server) > at('hq');
 }
 
 /** Lines 3 and 9: an agenda install or advance, by whether its server holds after the move (margin as an order key, never a veto). */
@@ -383,7 +393,7 @@ function agendaMove(state: GameState, a: GameAction, card: CardInstance, keep: n
   const placed = findInstalled(after, card.instanceId) ?? card;
   const turns = turnsToScore(after, placed, 0);
   const below = after.corp.credits < keep && after.corp.credits < state.corp.credits;
-  add({ action: a, line: hold?.holds ? 3 : 9, behind: below, keys: [turns, -(hold?.margin ?? 0), -(cardDef(card).agenda_points ?? 0), shown, idNum(card.instanceId)], card: card.instanceId });
+  add({ action: a, line: hold?.holds || (!!server && rule('hqNoSafer', hqNoSafer(state, after, server))) ? 3 : 9, behind: below, keys: [turns, -(hold?.margin ?? 0), -(cardDef(card).agenda_points ?? 0), shown, idNum(card.instanceId)], card: card.instanceId });
 }
 
 /**

@@ -10,6 +10,9 @@ import { profileOf } from '../cardProfiles';
 import { serverHold } from './hold';
 import { lineKeep, rezMoney } from './rezMoney';
 import { centralStake, stake } from './pools';
+import { pointValue } from '../valueModel';
+import { freeRezTargets } from '../freeRez';
+import { rule } from './leaveOut';
 
 /**
  * Owner: where a card goes (Step 4 Stage A, spec-step4-corp-core.md 1.8; registry row "placement").
@@ -157,6 +160,17 @@ export function iceCount(state: GameState, a: Install, card: CardInstance, after
 }
 
 /**
+ * Whether the Corp can install `card` (ice) behind `install` ice already there (1 credit each, rule 8.5.11a) and still rez
+ * it within keep: the one paid test (the order's lines and the fallback below). Ice a free rez coming this turn pays
+ * for (freeRezTargets, the costliest unrezzed ice per pending free rez; Send a Message, rules 1.16.5c) costs 0 to rez
+ * (c0-rulings 16:00Z (8)).
+ */
+export function icePaidAt(state: GameState, card: CardInstance, install: number, keep: number): boolean {
+  const rez = rule('freeRezPaid', freeRezTargets(state, card).has(card.instanceId)) ? 0 : rezCostOf(state, card);
+  return state.corp.credits - install - rez >= keep;
+}
+
+/**
  * Spec 1.8 ice rule 3 (Stage C1, replacing installScore's per-server numbers): ice that changes no count where it was
  * proposed goes to the bare or thinnest of HQ and R&D (ties: the larger central stake, as centralIce), when the Corp can
  * pay its install there (1 credit per ice already in front, rule 8.5.11a) and its rez within keep; else to the scoring
@@ -177,7 +191,7 @@ function iceFallback(state: GameState, card: CardInstance, from: Install, free?:
   }
   const keep = rezMoney(state).keep;
   const centralStakes = centralStake(state, card.instanceId);
-  const paid = (id: string) => state.corp.credits - (free ? 0 : state.corp.servers[id].ice.length) - rezCostOf(state, card) >= keep;
+  const paid = (id: string) => icePaidAt(state, card, free ? 0 : state.corp.servers[id].ice.length, keep);
   const thinnest = (ids: readonly ('hq' | 'rd')[]) =>
     [...ids].sort((x, y) => state.corp.servers[x].ice.length - state.corp.servers[y].ice.length || centralStakes[y] - centralStakes[x])[0];
   const near = thinnest((['hq', 'rd'] as const).filter(paid)) ?? scoringRemote(state)?.id;
@@ -363,6 +377,9 @@ export function iceRedirect(state: GameState, pick: GameAction, free?: FreeInsta
   if (!a.asNewRemote && !target?.isRemote) return null;
   const scoring = scoringShort(state);
   if (!scoring || scoring.id === target?.id) return null;
+  // Not while a central's loss is the game (plan.lethalHq, bug report #4; c0-rulings 15:50Z (1)): one run there can take
+  // the points that win the Runner the game (rule 1.7.2a; the stake owner's points on the point clock)
+  if (rule('lethalHq', ['hq', 'rd'].some(id => pointValue(state.runner.score + stake(state, id, { leaving: card.instanceId }).points) >= pointValue(7)))) return null;
   return shaped(state, { type: 'INSTALL_CARD', cardInstanceId: card.instanceId, targetServerId: scoring.id }, free) ?? null;
 }
 

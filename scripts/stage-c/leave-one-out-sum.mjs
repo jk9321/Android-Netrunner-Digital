@@ -14,6 +14,9 @@ for (const r of rows) {
     if (t.examples.length < 5) t.examples.push(`${r.src} T${r.T} c${r.clicks} $${r.credits}: ${r.base} -> ${move}`);
   }
 }
+const oldFires = {};
+for (const r of rows) for (const k of r.old ?? []) oldFires[k] = (oldFires[k] ?? 0) + 1;
+console.log(`old rules' own fire tests on the same decisions: ${JSON.stringify(oldFires)}`);
 console.log(`${rows.length} decisions (${rows.filter(r => r.src.startsWith('human:')).length} human)`);
 console.log('| rule | decisions it applied | decisions it changed | of them human |');
 console.log('|---|---|---|---|');

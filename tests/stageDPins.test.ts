@@ -109,4 +109,58 @@ describe('Stage D pins (known-failing until their fix lands)', () => {
     expect(cardDef(findCardAnywhere(s, a.cardInstanceId ?? '')!).type_code).toBe('ice');
     expect(a.targetServerId).toBe('remote-1');
   });
+
+  // Bug report #4 under the new core (c0-rulings 16:00Z (1)): the order's first move is ice on HQ (corpCandidates.test.ts),
+  // but the look-ahead plays Palisade into a new remote (the build slot) and then two Clearinghouse advances; HQ ends at
+  // two ice (scripts/stage-c/turn-trace.ts STATE=tests/fixtures/bug-report-4-turn13.json). Cause: the playouts' leaf
+  // prices the game-ending steal as ordinary points (valuation, Stage D5), not the order. A regression on #4 until then
+  it.fails('Stage C, bug report #4: with the look-ahead HQ gets its third ice', { timeout: 240_000 }, () => {
+    let s: GameState = JSON.parse(readFileSync(new URL('./fixtures/bug-report-4-turn13.json', import.meta.url), 'utf8'));
+    withPricing({ plan: { ...plan(), corpCore: true, rolloutLines: true } }, () => {
+      const corp = createAgent('corp', 'normal');
+      for (let i = 0; i < 20 && s.activePlayer === 'corp' && !s.winner; i++) {
+        const a = corp.chooseAction(s);
+        s = executeAction(s, a);
+        if (a.type === 'END_TURN') break;
+      }
+    });
+    expect(s.corp.servers.hq.ice.length).toBeGreaterThanOrEqual(3);
+  });
+
+  // Humanoid Resources under the new core (brokeCorp.test.ts; c0-rulings 15:50Z (5)): rezToUse asks for its ability to be
+  // the order's first candidate after the rez; there it is behind, the model's play value of the ability (-2.06) below
+  // the three credits its clicks would take. Valuation, not fixed in Stage C. Board: brokeCorp.test.ts idle()
+  const hrBoard = (): GameState => JSON.parse(readFileSync(new URL('./fixtures/humanoid-resources-idle.json', import.meta.url), 'utf8'));
+  const hr = (s: GameState) => Object.values(s.corp.servers).flatMap(v => v.root).find(c => c.cardCode === '35039')!;
+  it.fails('Stage C, Humanoid Resources: rezzed in the action phase with the 3 clicks to use it', { timeout: T }, () => {
+    const s = hrBoard();
+    const a = withPricing({ plan: { ...plan(), corpCore: true, rolloutLines: true } }, () => new HeuristicCorpAI({ planner: false }).chooseAction(s));
+    expect(a).toMatchObject({ type: 'REZ_CARD', cardInstanceId: hr(s).instanceId });
+  });
+  it.fails('Stage C, Humanoid Resources: a rez in the action phase is followed by using it', { timeout: T }, () => {
+    let s = hrBoard();
+    const id = hr(s).instanceId;
+    let rezzed = false;
+    let used = false;
+    withPricing({ plan: { ...plan(), corpCore: true, rolloutLines: true } }, () => {
+      const corp = new HeuristicCorpAI({ planner: false });
+      for (let i = 0; i < 20 && s.activePlayer === 'corp' && !s.winner; i++) {
+        const a = corp.chooseAction(s);
+        if (rezzed && a.type === 'USE_ABILITY' && a.cardInstanceId === id) used = true;
+        if (a.type === 'REZ_CARD' && a.cardInstanceId === id) rezzed = true;
+        s = executeAction(s, a);
+        if (a.type === 'END_TURN') break;
+      }
+    });
+    expect(rezzed && used).toBe(true);
+  });
+
+  // D4 #53 #76 under the new core (c0-rulings 15:50Z (6)): the guard above holds for the ranking; the order installs the
+  // asset in remote-5 again, the original D4 mistake (the reservation, owed by Stage D)
+  it.fails('Stage C, D4 #53 #76: no asset is installed in remote-5 under the new core', { timeout: T }, () => {
+    const { s } = at(53, 76);
+    const a = withPricing({ plan: { ...plan(), corpCore: true, rolloutLines: true } }, () => decide(s)) as Install;
+    const card = a.cardInstanceId ? s.corp.hq.find(c => c.instanceId === a.cardInstanceId) : undefined;
+    expect(a.type === 'INSTALL_CARD' && a.targetServerId === 'remote-5' && !!card && cardDef(card).type_code === 'asset').toBe(false);
+  });
 });
