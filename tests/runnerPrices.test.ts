@@ -17,6 +17,9 @@ import { installIceForTest, installProgramForTest, newGame, startRunnerTurn } fr
 const TITHE = '30073';
 const REGOLITH = '30071';
 const DEVADATTA = '35031';
+const EMPIRICIST = '35052';
+const DOOMSCROLL = '35063';
+const total = (p: { credits: number; value: number }) => p.credits + p.value;
 
 function bareRemote(state: GameState, card: CardInstance): void {
   state.corp.servers['remote-1'] = { id: 'remote-1', name: 'Server 1', isRemote: true, ice: [], root: [card] };
@@ -252,5 +255,46 @@ describe("prompts answered from the Runner's own view (rule 10.2.2a)", () => {
     // The AI's answer is the same whichever way the stack lies
     const pick = (x: GameState) => createAgent('runner').chooseAction(structuredClone(x));
     expect(pick(reversed)).toEqual(pick(s));
+  });
+});
+
+describe('damage over a whole ice and a whole run (rules 9.8.7b, 10.4.4)', () => {
+  // Batch g3 43661965986: 8 of 16 new in-run flatlines were Empiricist's 1 net then 2 net on a 2-card grip, 5 Doomscroll's
+  // tag, 1 net, then 2 net at 2 tags. Each subroutine's own lethal test passed; together they were more than the grip
+  const empiricist = (grip: number) => {
+    const s = newGame();
+    startRunnerTurn(s);
+    s.runner.rig.programs = [];
+    s.runner.grip = s.runner.grip.slice(0, grip);
+    const ice = createCardInstance(s, EMPIRICIST);
+    ice.isRezzed = true;
+    s.corp.servers.hq.ice = [ice];
+    return { s, ice };
+  };
+  it("Empiricist's 1 + 2 net damage is no way past on 2 cards, and survived on 3", () => {
+    const two = empiricist(2);
+    expect(asSide('runner', () => total(icePrice(two.s, two.ice)))).toBe(BLOCK);
+    expect(asSide('runner', () => runScore(two.s, 'hq'))).toBe(-Infinity);
+    const three = empiricist(3);
+    const price = asSide('runner', () => icePrice(three.s, three.ice));
+    expect(price.damage).toBe(3);
+    expect(price.credits + price.value).toBeLessThan(BLOCK);
+  });
+  it("Doomscroll's last 2 net damage counts once its own tag makes 2 tags", () => {
+    const doomscroll = (tags: number) => {
+      const s = newGame();
+      startRunnerTurn(s);
+      s.runner.rig.programs = [];
+      s.runner.tags = tags;
+      s.runner.grip = s.runner.grip.slice(0, 2);
+      const ice = createCardInstance(s, DOOMSCROLL);
+      ice.isRezzed = true;
+      s.corp.servers.hq.ice = [ice];
+      return asSide('runner', () => icePrice(s, ice));
+    };
+    // 1 tag, then its tag: 2 tags, so 1 + 2 net damage on 2 cards
+    expect(total(doomscroll(1))).toBe(BLOCK);
+    // No tag before: 1 tag after its own, so only the 1 net damage
+    expect(doomscroll(0).damage).toBe(1);
   });
 });

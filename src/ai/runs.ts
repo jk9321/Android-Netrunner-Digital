@@ -387,24 +387,40 @@ export function physarumCost(state: GameState, ice: CardInstance): number | unde
   return credits <= runBudget(state) ? credits : undefined;
 }
 
-/** Cards a subroutine's damage takes from the grip when it resolves (net, meat or core; Vicsek's X is the Runner's tags). */
-function subroutineDamage(state: GameState, label: string): number {
-  if (/do x net damage/i.test(label)) return state.runner.tags;
+/**
+ * Cards a subroutine's damage takes from the grip when it resolves (net, meat or core; Vicsek's X is the Runner's tags),
+ * with `tags` the Runner's tags by then (Doomscroll: "Do 2 net damage if the Runner has at least 2 tags", after its own tag).
+ */
+function subroutineDamage(label: string, tags: number): number {
+  if (/do x net damage/i.test(label)) return tags;
   if (/core damage/i.test(label)) return 1;
+  const needs = label.match(/if the runner has at least (\d+) tags/i);
+  if (needs && tags < Number(needs[1])) return 0;
   const m = label.match(/(\d+) (?:net|meat) damage/i);
   return m && !/unless/i.test(label) ? Number(m[1]) : 0;
 }
+const subroutineTags = (label: string): number => Number(label.match(/give the runner (\d+) tags?/i)?.[1] ?? 0);
 
 function plainIcePrice(state: GameState, ice: CardInstance): IcePrice {
   // Botulus breaks the worst subroutines for free; the rest are tanked or broken
-  const priced = plannedSubroutines(state, ice).map(s => ({ cost: subroutineCost(state, s.label), label: s.label })).sort((a, b) => b.cost - a.cost);
+  const priced = plannedSubroutines(state, ice).map((s, i) => ({ cost: subroutineCost(state, s.label), label: s.label, i })).sort((a, b) => b.cost - a.cost);
   const kept = priced.slice(botulusBreaks(state, ice));
   const subs = kept.map(p => p.cost);
   const funhouse = ice.cardCode === '30054' ? tagCost(state) : 0; // Funhouse: take a tag or the run ends
   if (subs.length === 0) return { credits: 0, value: funhouse };
+  // The damage the tank lets through, subroutine by subroutine in printed order (rule 9.8.7b: they resolve 1 at a time in order),
+  // with the tags given on the way. Each subroutine's own price tests its damage against the grip as it stands, so
+  // Empiricist's 1 net then 2 net on 2 cards passed both tests; together they are more damage than the grip, a flatline
+  // (10.4.4), and the tank is no way past
+  let tags = state.runner.tags;
+  let damage = 0;
+  for (const p of [...kept].sort((a, b) => a.i - b.i)) {
+    damage += subroutineDamage(p.label, tags);
+    tags += subroutineTags(p.label);
+  }
   // Letting them resolve costs no credits: what they do is value lost
   const tankValue = subs.reduce((sum, cost) => sum + cost, 0) + funhouse;
-  const tank: IcePrice = tankValue === BLOCK ? BLOCKED : { credits: 0, value: tankValue, damage: kept.reduce((n, p) => n + subroutineDamage(state, p.label), 0) };
+  const tank: IcePrice = tankValue === BLOCK || damage > state.runner.grip.length ? BLOCKED : { credits: 0, value: tankValue, damage };
   const plan = bestBreakPlan(state, ice, subs.length);
   const broken: IcePrice = plan ? { credits: plan.credits, value: plan.value + funhouse } : BLOCKED;
   return cheaper(cheaper(tank, broken), selfBreakPrice(state, ice, subs.length));
@@ -1024,7 +1040,9 @@ export function runScore(state: GameState, serverId: string, options: RunOptions
   if (derez && !derez.rerez) bypassed.ids.add(derez.ice.instanceId);
   // The grip at the access: less the damage of the rezzed ice it lets resolve (a steal's own damage meets that grip)
   const iceDamage = server.ice.filter(ice => ice.isRezzed && !bypassed.ids.has(ice.instanceId)).reduce((n, ice) => n + (icePrice(state, ice).damage ?? 0), 0);
-  const grip = Math.max(0, state.runner.grip.length - iceDamage);
+  // More damage over the whole way in than the grip holds is a flatline before the access (10.4.4), however each ice reads alone
+  if (iceDamage > state.runner.grip.length) return -Infinity;
+  const grip = state.runner.grip.length - iceDamage;
   const breached = options.noBreach ? 0 : serverValue(state, breachId, (options.extraAccesses ?? 0) + rigAccess.accesses, options.memory, options.wary, undefined, grip) - rigAccess.cost;
   const gained = options.successCredits ?? 0;
   const credits = gained > 0 && plan().runCreditsSlide ? gained * payoutSlide(state, 'runner', gained) : gained;
@@ -1109,7 +1127,8 @@ export function runRestWorth(state: GameState, memory?: RunnerMemory, wary?: boo
   }
   // Once the breach has begun, only what is still to come (the cards already accessed, and the one a prompt is about, are
   // priced by their own answers: counted here too they were a double count, the 0.8 in scoreOutcome partly hiding it)
-  return Math.max(0, serverValue(state, run.server, run.extraAccesses, memory, wary, breachRest(state), Math.max(0, state.runner.grip.length - damage)) - spendCost(state, credits) - lost);
+  if (damage > state.runner.grip.length) return 0; // a flatline on the way in (10.4.4)
+  return Math.max(0, serverValue(state, run.server, run.extraAccesses, memory, wary, breachRest(state), state.runner.grip.length - damage) - spendCost(state, credits) - lost);
 }
 
 const CHAIN_REACTION = '36001';
