@@ -106,7 +106,7 @@ export interface ChoiceQuestion {
 }
 
 /** The question a step asks: cards for a cards step, options for a choice step. */
-type QuestionOf<S> = S extends CardsStep<StepData> ? CardsQuestion : S extends ChoiceStep<StepData> ? ChoiceQuestion : never;
+type QuestionOf<S> = S extends { kind: 'cards' } ? CardsQuestion : S extends { kind: 'choice' } ? ChoiceQuestion : never;
 
 export interface Flow<T extends Steps> {
   /** The steps, for the card's script: `...flow.script`. */

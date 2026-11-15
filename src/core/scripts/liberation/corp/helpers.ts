@@ -10,6 +10,7 @@ import { iceSubtypes } from '../../../engine/ice';
 import { counters, gainFromCard, rezCost, useOncePerTurn } from '../../../engine/cardEffects';
 import { EffectAnswer, EffectContext } from '../../types';
 import { advanceableInstalled, askCards, askChoice, corpInstallOptions, corpZoneOf } from '../../effects';
+import { CardsQuestion, ChoiceQuestion } from '../../steps';
 
 export const isSelf = (ctx: EffectContext, card: CardInstance) => card.instanceId === ctx.card.instanceId;
 
@@ -117,6 +118,20 @@ export function trashTopOfRD(state: GameState, source: string): CardInstance | u
   addLog(state, 'corp', `Corp trashed the top card of R&D (${source}).`);
   corpTrashedFromRD(state);
   return top;
+}
+
+/** Where to install a card, among the given server options (ids from corpInstallOptions); null if there are none. Ask it with data { cardId, install: true }. */
+export function installAmongQuestion(state: GameState, cardId: string, options: { id: string; label: string }[]): ChoiceQuestion | null {
+  if (options.length === 0) return null;
+  const card = [...state.corp.hq, ...state.corp.rd, ...archivesCards(state)].find(c => c.instanceId === cardId);
+  return { side: 'corp', message: `Install ${card ? title(card) : 'the card'} where?`, options };
+}
+
+/** Which installed card gets `n` advancement counters (only cards that can be advanced, if `advanceable`); null if none. Ask it with data { n }. */
+export function placeAdvancementQuestion(ctx: EffectContext, n: number, advanceable = true, among?: CardInstance[]): CardsQuestion | null {
+  const cards = among ?? (advanceable ? advanceableInstalled(ctx.state) : installedCorpCards(ctx.state));
+  if (cards.length === 0) return null;
+  return { side: 'corp', message: `${title(ctx.card)}: place ${n} advancement counter${n > 1 ? 's' : ''} on 1 installed card.`, candidateIds: ids(cards), min: 1, max: 1 };
 }
 
 /** Asks which installed card gets `n` advancement counters (only cards that can be advanced, if `advanceable`). */
