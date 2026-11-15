@@ -7,7 +7,7 @@
  *   npx vite-node scripts/flatline-causes.ts -- deals.json out.jsonl [shard i/n]
  */
 import { readFileSync, writeFileSync } from 'node:fs';
-import { GameState, createInitialGameState } from '../src/core';
+import { GameState, cardDef, createInitialGameState, findCardAnywhere } from '../src/core';
 import { deckGameSetup } from '../src/data/decks';
 import { ALL_DECKS } from './nsg-sample-decks';
 import { createAgent } from '../src/ai';
@@ -27,18 +27,26 @@ deals.forEach((d, i) => {
   let cause = '';
   let corpTurnGrip = -1;
   let lastRunGrip = -1;
+  let runStartGrip = -1;
+  let detail = '';
   for (let k = 0; k < 6000 && !gr.state.winner && gr.state.turnNumber <= 80; k++) {
     const before: GameState = gr.state;
     if (!gr.step()) break;
     const after = gr.state;
+    if (!before.activeRun && after.activeRun) runStartGrip = after.runner.grip.length;
     if (before.activeRun && !after.activeRun && after.activePlayer === 'runner') lastRunGrip = after.runner.grip.length;
     if (before.activePlayer === 'runner' && after.activePlayer === 'corp') corpTurnGrip = after.runner.grip.length;
     if (after.winner === 'corp' && /flatline/i.test(after.winReason ?? '')) {
       const run = before.activeRun;
       cause = before.activePlayer === 'corp' && !run ? 'corpTurn' : run?.encounter ? 'ice' : run && (run.phase === 'access' || run.breached) ? 'access' : 'other';
+      // DETAIL=1: what did it (the ice or the card, the grip at the run's start and just before, the last log lines)
+      if (process.env.DETAIL) {
+        const ice = run?.encounter ? findCardAnywhere(before, run.encounter.iceId) : undefined;
+        detail = `${run?.server ?? '-'} ice ${ice ? cardDef(ice).title : '-'} gripAtRun ${runStartGrip} gripBefore ${before.runner.grip.length} clicks ${before.runner.clicks} credits ${before.runner.credits} | ${after.log.slice(-6).map(l => l.message).join(' / ')}`;
+      }
     }
   }
-  rows.push(JSON.stringify({ seed: d.seed, corp: d.corp, runner: d.runner, winner: gr.state.winner ?? null, reason: gr.state.winReason, cause, corpTurnGrip, lastRunGrip, turn: gr.state.turnNumber }));
+  rows.push(JSON.stringify({ seed: d.seed, corp: d.corp, runner: d.runner, winner: gr.state.winner ?? null, reason: gr.state.winReason, cause, corpTurnGrip, lastRunGrip, ...(detail ? { detail } : {}), turn: gr.state.turnNumber }));
   console.error(`${d.seed} ${gr.state.winner} ${cause}`);
 });
 writeFileSync(out, rows.join('\n') + '\n');
