@@ -9,7 +9,7 @@ import { rezMoney } from './rezMoney';
 import { HeldLine } from './lines';
 import { FreeInstall, Placement, iceCount, icePaidAt, place, placedInstall, placementAction } from './placement';
 import { archivesWantsIce, rezAllowed } from './rez';
-import { advancesAsIce, iceAdvanceValue, isPettyCash, overAdvance, tagFirst, tagsBeforeScore, trapAdvanceCap } from './cardRules';
+import { advancesAsIce, iceAdvanceValue, isPettyCash, overAdvance, trapAdvanceCap } from './cardRules';
 import { placedCounterWorth } from '../effectValues';
 export { isPettyCash } from './cardRules';
 
@@ -189,7 +189,7 @@ export function corpCandidates(state: GameState, legal: GameAction[], opts: Cand
         break;
       }
       case 'PLAY_OPERATION_OR_EVENT':
-        play(a, rule('isPettyCash', isPettyCash(state, a)) ? 1 : rule('tagsBeforeScore', tagsBeforeScore(state, state.corp.hq.find(c => c.instanceId === a.cardInstanceId)?.cardCode ?? '')) ? 3 : 4);
+        play(a, rule('isPettyCash', isPettyCash(state, a)) ? 1 : 4);
         break;
       case 'USE_ABILITY':
         play(a, 4);
@@ -225,9 +225,9 @@ export function corpCandidates(state: GameState, legal: GameAction[], opts: Cand
       }
       case 'SCORE_AGENDA': {
         const card = findInstalled(state, a.cardInstanceId);
-        // Scored first in line 3, unless an advance first turns into Dividends counters, or a tag first sets up its score
-        // effect (cardRules.ts: overAdvance, tagFirst, moved from the ranking)
-        const wait = card && (rule('overAdvance', overAdvance(state, card.instanceId, keep)) || rule('tagFirst', tagFirst(state, card.instanceId)));
+        // Scored first in line 3, unless an advance first turns into Dividends counters (cardRules.ts overAdvance, moved from
+        // the ranking). The tag-first wait (tagFirst, tagsBeforeScore) never reached a recorded decision: deleted in C7
+        const wait = card && rule('overAdvance', overAdvance(state, card.instanceId, keep));
         add({ action: a, line: 3, behind: false, keys: [wait ? 1 : -2, idNum(a.cardInstanceId)], card: a.cardInstanceId });
         break;
       }

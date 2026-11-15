@@ -1,5 +1,4 @@
-import { CardInstance, GameState, cardDef, getCardDefinition, isLegalAction } from '../../core';
-import { cardSynergy } from '../synergyTags';
+import { CardInstance, GameState, cardDef } from '../../core';
 import { dividendsOf } from '../cards';
 import { tuning } from '../synergy';
 import { iceStop } from '../iceValues';
@@ -21,31 +20,6 @@ const SYAILENDRA = '30063';
 /** Petty Cash from HQ: playable only as the turn's first action. */
 export const isPettyCash = (state: GameState, a: { type: string; cardInstanceId?: string }): boolean =>
   a.type === 'PLAY_OPERATION_OR_EVENT' && state.corp.hq.find(c => c.instanceId === a.cardInstanceId)?.cardCode === PETTY_CASH;
-
-/** An agenda that is better scored with the Runner tagged, while an operation in HQ could tag them this turn. */
-export function tagFirst(state: GameState, agendaId: string): boolean {
-  const agenda = Object.values(state.corp.servers).flatMap(s => s.root).find(c => c.instanceId === agendaId);
-  if (!agenda || state.runner.tags > 0 || state.corp.clicks < 1) return false;
-  const when = cardSynergy(cardDef(agenda)).when ?? [];
-  if (!when.includes('ifTagged') || !when.includes('onScore')) return false;
-  return state.corp.hq.some(c => tagsBeforeScore(state, c.cardCode, agenda));
-}
-
-/** Is this operation a tag we could play now to set up such an agenda? */
-export function tagsBeforeScore(state: GameState, code: string, agenda?: CardInstance): boolean {
-  const def = getCardDefinition(code);
-  if (def.type_code !== 'operation' || !(cardSynergy(def).gives?.tags ?? 0) || state.runner.tags > 0) return false;
-  const card = state.corp.hq.find(c => c.cardCode === code);
-  if (!card || !isLegalAction(state, { type: 'PLAY_OPERATION_OR_EVENT', player: 'corp', cardInstanceId: card.instanceId })) return false;
-  if (agenda) return true;
-  // Only worth it with such an agenda ready to score
-  return Object.values(state.corp.servers)
-    .flatMap(s => s.root)
-    .some(a => {
-      const when = cardSynergy(cardDef(a)).when ?? [];
-      return type(a) === 'agenda' && a.advancementCounters >= (cardDef(a).advancement_cost ?? 99) && when.includes('ifTagged') && when.includes('onScore');
-    });
-}
 
 /**
  * A scoreable Dividends agenda the Corp can still advance this turn: each extra counter becomes agenda counters when it

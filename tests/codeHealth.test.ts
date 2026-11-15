@@ -214,7 +214,7 @@ describe('AI code health (audit guards)', () => {
   it('keeps the card rules of corp/cardRules.ts to this list (shrink only)', () => {
     const names = [...aiText('corp/cardRules.ts').matchAll(/^export (?:function|const) (\w+)/gm)].map(m => m[1]).sort();
     // Stage C7: bangunBait, myoshuSaving and untaianAdvance had only the ranking as their reader and went with it
-    expect(names).toEqual(['advancesAsIce', 'iceAdvanceValue', 'isPettyCash', 'overAdvance', 'tagFirst', 'tagsBeforeScore', 'trapAdvanceCap']);
+    expect(names).toEqual(['advancesAsIce', 'iceAdvanceValue', 'isPettyCash', 'overAdvance', 'trapAdvanceCap']);
   });
 
   it("keeps the hold owner's readers to this list (corp/hold.ts serverHold)", () => {

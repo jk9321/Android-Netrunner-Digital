@@ -138,8 +138,6 @@ export const tuning = {
      * noise and plays more like a person).
      */
     /* Rez money (2026-10-26, 2,210 self-play games): both on 46.7%, neither 47.2% (noise). Halving upgrade worth in empty remotes instead cost about 2 points. */
-    /** Corp: Petty Cash goes first when it is among the actions the Corp has clicks for (corpAI pettyCashFirst). */
-    pettyCashFirst: true,
     /** Corp: with the Runner tagged, a resource trash among the actions it has clicks for goes first (corpAI tagFirst). */
     tagFirst: true,
     /**
@@ -491,6 +489,9 @@ export const DELETED: readonly string[] = [
   // Step 4 Stage C7: off switches read only by the deleted ranking (icePosition: Scatter Field's install score; hqHeld:
   // the ranking's hqNoSafer)
   'icePosition', 'hqHeld',
+  // Step 4 Stage C7 leave-one-out: on, but the rule it switched applied in no recorded decision and no pin needs it
+  // (c7-leave-one-out.md); the path without it is left
+  'pettyCashFirst',
 ];
 
 /** Throws on a name that isn't a plan switch (a typo, a switch folded into the code, or one deleted). */

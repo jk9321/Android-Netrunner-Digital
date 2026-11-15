@@ -2,14 +2,13 @@ import { GameAction, GameState, activePrompt, getLegalActions } from '../../core
 import { ScoredAction } from '../agent';
 import { keepsScore, scoreNowPlan, winNowAction } from '../winNow';
 import { answerPrompt } from '../prompts';
-import { logNudge } from '../synergy';
 import { decisionContext } from '../handValues';
 import { plan } from '../pricing';
 import { tally } from '../diagnostics';
 import { HeldLine, heldLaterStep } from './lines';
 import { moneyPick } from '../incomeLine';
 import { lineStep, scoreInTwoPick } from './placement';
-import { isPettyCash, rule } from './candidates';
+import { rule } from './candidates';
 
 /**
  * Step 4 Stage B1 (spec-step4-corp-core.md 1.2, 1.3): the Corp's decision pipeline, Q0 to Q7, one function for the
@@ -87,12 +86,6 @@ export function corpDecide(state: GameState, ctx: CorpContext): GameAction {
   // the Corp's own; a score this turn, a held two-turn line's step, or the Corp's own pick moving an agenda keeps the click
   const money = !decided && ctx.counted && !turnStart ? moneyPick(state, planned ?? ranked[0]?.action) : null;
   let chosen = lineFirst ?? money ?? planned ?? (ranked[0]?.score > -Infinity ? ranked[0].action : legal.find(a => a.type === 'END_TURN') ?? legal[0]);
-  // plan.pettyCashFirst: a click for a credit while Petty Cash can still be played is a click for 2 thrown away (the
-  // planner valued Petty Cash held in HQ as the money it will make, though it is playable only as the turn's first action)
-  if (!lineFirst && chosen.type === 'GAIN_CREDIT' && ctx.synergy && plan().pettyCashFirst) {
-    const petty = ranked.find(r => isPettyCash(state, r.action) && r.score > -Infinity)?.action;
-    if (petty && rule('pettyCashFirst', true)) chosen = petty;
-  }
   // plan.tagFirst: the planner's leaf counts a tag kept as a trash still to come, but the Runner clears it on its turn
   if (!lineFirst && ctx.synergy && plan().tagFirst && ranked[0]?.action.type === 'TRASH_RESOURCE' && ranked[0].tagFirst && rule('tagFirstPick', true)) chosen = ranked[0].action;
   let picked = chosen;
@@ -109,6 +102,5 @@ export function corpDecide(state: GameState, ctx: CorpContext): GameAction {
     picked = two.action;
   }
   ctx.note(picked);
-  if (ctx.debug) logNudge(state, 'corp', picked);
   return picked;
 }
