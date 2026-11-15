@@ -12,7 +12,6 @@ import { lineKeep, rezMoney } from './rezMoney';
 import { centralStake, stake } from './pools';
 import { pointValue } from '../valueModel';
 import { freeRezTargets } from '../freeRez';
-import { rule } from './leaveOut';
 
 /**
  * Owner: where a card goes (Step 4 Stage A, spec-step4-corp-core.md 1.8; registry row "placement").
@@ -165,7 +164,7 @@ export function iceCount(state: GameState, a: Install, card: CardInstance, after
  * (c0-rulings 16:00Z (8)).
  */
 export function icePaidAt(state: GameState, card: CardInstance, install: number, keep: number): boolean {
-  const rez = rule('freeRezPaid', freeRezTargets(state, card).has(card.instanceId)) ? 0 : rezCostOf(state, card);
+  const rez = freeRezTargets(state, card).has(card.instanceId) ? 0 : rezCostOf(state, card);
   return state.corp.credits - install - rez >= keep;
 }
 
@@ -368,7 +367,7 @@ export function iceRedirect(state: GameState, pick: GameAction, free?: FreeInsta
   if (!scoring || scoring.id === target?.id) return null;
   // Not while a central's loss is the game (plan.lethalHq, bug report #4; c0-rulings 15:50Z (1)): one run there can take
   // the points that win the Runner the game (rule 1.7.2a; the stake owner's points on the point clock)
-  if (rule('lethalHq', ['hq', 'rd'].some(id => pointValue(state.runner.score + stake(state, id, { leaving: card.instanceId }).points) >= pointValue(7)))) return null;
+  if (['hq', 'rd'].some(id => pointValue(state.runner.score + stake(state, id, { leaving: card.instanceId }).points) >= pointValue(7))) return null;
   return shaped(state, { type: 'INSTALL_CARD', cardInstanceId: card.instanceId, targetServerId: scoring.id }, free) ?? null;
 }
 

@@ -16,13 +16,11 @@
  */
 import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
-import { CardInstance, GameState, cardDef, createCardInstance, getLegalActions } from '../src/core';
+import { CardInstance, GameState, cardDef, createCardInstance, executeAction } from '../src/core';
 import { HeuristicCorpAI } from '../src/ai/corpAI';
 import { createAgent } from '../src/ai';
 import { archivesWantsIce, countedRez } from '../src/ai/corp/rez';
-import { corpCandidates } from '../src/ai/corp/candidates';
 import { inDecision } from './helpers/pricing';
-import { giveCard, newGame } from './helpers';
 
 function position(): { state: GameState; cards: string[] } {
   return JSON.parse(readFileSync(new URL('./fixtures/rez-toll.json', import.meta.url), 'utf8'));
@@ -106,23 +104,26 @@ describe('counted rez on approached ice (6.4.3, 6.9.2b-c)', () => {
 });
 
 describe('R6: no ice installed on Archives without an agenda there or a Runner Archives card', () => {
-  // Rewritten in Step 4 Stage C7 against the order (the ranking's -Infinity is gone): an Archives ice install sorts behind
-  // while Archives wants no ice (corp/candidates.ts lines 2 and 6, archivesWantsIce; c0-rulings 16:00Z (4))
-  it('the install on Archives sorts behind; with Maintenance Access in the Runner\'s list R6 does not hold it back', () => {
-    const base = structuredClone(newGame(1));
-    base.corp.rd.push(...base.corp.hq.splice(0));
-    const ice = giveCard(base, 'corp', '30072'); // Palisade
-    base.runner.stack = base.runner.stack.filter(c => !['35016', '36015', '34007', '34068', '35003', '34072', '36007', '36001', '34070', '34079'].includes(c.cardCode));
-    const ma = structuredClone(base);
-    ma.runner.stack.push(createCardInstance(ma, '35016'));
-    const archivesInstalls = (s: GameState) =>
-      inDecision(s, 'corp', () => corpCandidates(s, getLegalActions(s, 'corp'), { held: null, freeExhausted: false })).filter(
-        c => c.action.type === 'INSTALL_CARD' && c.action.cardInstanceId === ice && (c.action as { targetServerId?: string }).targetServerId === 'archives',
-      );
-    expect(archivesInstalls(base).every(c => c.behind)).toBe(true);
-    // With Maintenance Access R6 does not apply (archivesWantsIce), so nothing holds the install behind; here the C1 fallback
-    // of place moves this Palisade to a central anyway (ice that changes no count on Archives), so it is not proposed there
+  // Rewritten in Step 4 Stage C7 (leave-one-out, AI Coordinator 18:26Z), on tests/fixtures/planner-speed-t17.json (turn
+  // 17, the Corp with 3 clicks and 1 credit; nothing in Archives and no Runner card that runs it). Tithe on Archives
+  // there is a click and a credit spent on a server with nothing to protect and no way in that the Runner can use:
+  // Archives' cards are accessed faceup and none is an agenda (7.1). With R6 left out (Stage C7 leave-one-out) it was the
+  // no-look-ahead Corp's first move. With Maintenance Access in the Runner's list (a run on Archives that turns into a
+  // run on HQ, card text), Archives is worth ice and the install is offered
+  const t17 = (): GameState => JSON.parse(readFileSync(new URL('./fixtures/planner-speed-t17.json', import.meta.url), 'utf8'));
+  const onArchives = (a: { type: string; targetServerId?: string }) => a.type === 'INSTALL_CARD' && a.targetServerId === 'archives';
+  it('the Corp with no look-ahead installs no ice on a bare Archives; with Maintenance Access in the Runner\'s list it is offered', () => {
+    let s = t17();
+    const ai = new HeuristicCorpAI({ synergy: true, planner: false });
+    for (let i = 0; i < 6 && s.activePlayer === 'corp'; i++) {
+      const a = ai.chooseAction(s);
+      expect(onArchives(a)).toBe(false);
+      s = executeAction(s, a);
+      if (a.type === 'END_TURN') break;
+    }
+    const ma = t17();
+    ma.runner.stack.push(createCardInstance(ma, '35016')); // Maintenance Access
     expect(inDecision(ma, 'corp', () => archivesWantsIce(ma))).toBe(true);
-    expect(archivesInstalls(ma).every(c => !c.behind)).toBe(true);
+    expect(new HeuristicCorpAI({ synergy: true, planner: false }).rankMainActions(ma).some(r => onArchives(r.action))).toBe(true);
   }, 30000);
 });

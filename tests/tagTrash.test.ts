@@ -75,3 +75,26 @@ describe('the Corp trashes a tagged Sebastião’s connections (plan.tagTrashNow
     }
   });
 });
+
+/**
+ * Pin for plan.hqTrashCost on Jeff's game #22 (Step 4 Stage C7 leave-one-out, AI Coordinator 18:26Z). Position
+ * (tests/fixtures/report-22-t10-trash.json): turn 10, the Corp with 3 clicks and 9 credits, HQ two Brân 1.0, Sleipnir
+ * and Caveat Emptor; Sebastião tagged twice with Arruaceiras Crew installed (take a tag: the encountered ice gets -2
+ * strength; trash it, 2 credits: trash that ice at strength 0 or less, so Flyswatter on remote-1 at once).
+ * Why the trash is the better play: the basic trash needs the Runner tagged (rule 5.2.6g), which the Runner can clear
+ * on its turn, while Caveat Emptor is just as good next turn; and Sebastião's extra cost is one card from HQ, here a
+ * spare Brân 1.0 (6 to rez, with a second copy in HQ and one already on remote-3), worth far less than a card in hand.
+ * With hqTrashCost left out (Stage C7 leave-one-out) the Corp played Caveat Emptor and leaves the crew in place.
+ */
+describe('the Corp pays Sebastião’s HQ cost with its least useful card (plan.hqTrashCost, report-22)', () => {
+  it('turn 10: trashes Arruaceiras Crew, paying a spare Brân 1.0', () => {
+    const s: GameState = JSON.parse(readFileSync(new URL('./fixtures/report-22-t10-trash.json', import.meta.url), 'utf8'));
+    const corp = createAgent('corp', 'normal');
+    const a = corp.chooseAction(s);
+    expect(a.type === 'TRASH_RESOURCE' ? title(s, a.cardInstanceId) : a.type).toBe('Arruaceiras Crew');
+    let after = executeAction(s, a);
+    for (let i = 0; i < 3 && after.pendingPrompts.length; i++) after = executeAction(after, corp.chooseAction(after));
+    expect(after.runner.rig.resources.map(c => cardDef(c).title)).not.toContain('Arruaceiras Crew');
+    expect(after.corp.hq.map(c => cardDef(c).title).sort()).toEqual(['Brân 1.0', 'Caveat Emptor', 'Sleipnir']);
+  }, 120000);
+});

@@ -13,8 +13,6 @@ import { advancesAsIce, iceAdvanceValue, isPettyCash, overAdvance, trapAdvanceCa
 import { placedCounterWorth } from '../effectValues';
 export { isPettyCash } from './cardRules';
 
-export { leaveOut, rule } from './leaveOut';
-import { rule } from './leaveOut';
 
 /**
  * Step 4 Stage C (spec-step4-corp-core.md 1.3, revision 13; stage-c/order.md as approved, c0-rulings.md): the Corp's
@@ -184,12 +182,12 @@ export function corpCandidates(state: GameState, legal: GameAction[], opts: Cand
         const resource = state.runner.rig.resources.find(c => c.instanceId === a.cardInstanceId);
         const k = resource ? resourceTrashHqCost(state, resource) : 0;
         const size = corp.hq.length;
-        const extra = resource && k > 0 && plan().hqTrashCost && rule('hqTrashCost', true) ? handValue(size, corp.handSizeLimit, 'corp') - handValue(size - k, corp.handSizeLimit, 'corp') - hqTrashCardsLoss(state, resource) : 0;
+        const extra = resource && k > 0 && plan().hqTrashCost ? handValue(size, corp.handSizeLimit, 'corp') - handValue(size - k, corp.handSizeLimit, 'corp') - hqTrashCardsLoss(state, resource) : 0;
         play(a, 1, true, extra);
         break;
       }
       case 'PLAY_OPERATION_OR_EVENT':
-        play(a, rule('isPettyCash', isPettyCash(state, a)) ? 1 : 4);
+        play(a, isPettyCash(state, a) ? 1 : 4);
         break;
       case 'USE_ABILITY':
         play(a, 4);
@@ -218,8 +216,8 @@ export function corpCandidates(state: GameState, legal: GameAction[], opts: Cand
           // click and credit, plus what the counter is worth by its owner, which the board does not price
           // (placedCounterWorth; Pharos and Syailendra: iceAdvanceValue); a trap stops at its cap (cardRules)
           const server = Object.values(corp.servers).find(v => v.root.some(c => c.instanceId === card.instanceId));
-          if (typeOf(card) === 'asset' && server && !rule('trapAdvanceCap', card.advancementCounters >= trapAdvanceCap(state, card)) && rule('assetAdvance', true)) play(a, 4, true, placedCounterWorth(state, card, server.ice.length > 0));
-          else if (rule('advancesAsIce', typeOf(card) === 'ice' && advancesAsIce(card))) play(a, 4, true, iceAdvanceValue(state, card));
+          if (typeOf(card) === 'asset' && server && card.advancementCounters < trapAdvanceCap(state, card)) play(a, 4, true, placedCounterWorth(state, card, server.ice.length > 0));
+          else if (typeOf(card) === 'ice' && advancesAsIce(card)) play(a, 4, true, iceAdvanceValue(state, card));
         }
         break;
       }
@@ -227,7 +225,7 @@ export function corpCandidates(state: GameState, legal: GameAction[], opts: Cand
         const card = findInstalled(state, a.cardInstanceId);
         // Scored first in line 3, unless an advance first turns into Dividends counters (cardRules.ts overAdvance, moved from
         // the ranking). The tag-first wait (tagFirst, tagsBeforeScore) never reached a recorded decision: deleted in C7
-        const wait = card && rule('overAdvance', overAdvance(state, card.instanceId, keep));
+        const wait = card && overAdvance(state, card.instanceId, keep);
         add({ action: a, line: 3, behind: false, keys: [wait ? 1 : -2, idNum(a.cardInstanceId)], card: a.cardInstanceId });
         break;
       }
@@ -326,9 +324,7 @@ export function plannerIntake(open: ScoredAction[], k: number): { picked: Scored
 
 /** The full order: the nine lines, then the group behind line 7 in the same order, then each line's keys. */
 export function sortCandidates(list: Candidate[]): Candidate[] {
-  // A line left out (C7): its candidates join the group behind the nine lines
-  const behind = (c: Candidate) => c.behind || (c.line <= 9 && !rule(`line${c.line}`, true));
-  const rank = (c: Candidate) => (c.line === 10 ? 99 : behind(c) ? 100 + c.line : c.line <= 7 ? c.line : 50 + c.line);
+  const rank = (c: Candidate) => (c.line === 10 ? 99 : c.behind ? 100 + c.line : c.line <= 7 ? c.line : 50 + c.line);
   return [...list].sort((a, b) => {
     const d = rank(a) - rank(b);
     if (d) return d;
@@ -361,7 +357,7 @@ function iceMove(state: GameState, a: Install, card: CardInstance, keep: number,
   if (!count) return;
   const { loss, was, now } = count;
   // R6 (countedRez; c0-rulings 15:50Z and 16:00Z (4)): ice on Archives only while Archives is worth ice (the rez owner)
-  const bare = rule('archivesR6', a.targetServerId === 'archives' && !archivesWantsIce(state));
+  const bare = a.targetServerId === 'archives' && !archivesWantsIce(state);
   if (count.staked) {
     // The fall in what the Runner can take: stake times entries (a server that comes to hold falls by its entries + 1)
     const fall = loss * (was.entries - now.entries + (now.holds && !was.holds ? 1 : 0));

@@ -233,7 +233,9 @@ describe('AI code health (audit guards)', () => {
   // subroutineDamage, the damageThreat key): pending the AI Coordinator's yes in its review
   // ai-prompt-time adds 14 (prompts.ts: the Archives-shuffle family answer and its test, agendaFirst shared with Peer Review;
   // Jeff and the AI Coordinator 2026-11-15 15:20Z): approved by the AI Coordinator 2026-11-15 16:21Z (stop-1615 ruling).
-  // corp/ grows by the candidates and the moved rules: brief-stage-c.md sets its guard at 2,150
+  // Stage C hand-off (AI Coordinator 18:26Z): corp/ is set to the measured figure after the C7 deletions, 2,217, above the
+  // brief's 2,150 and listed as a deviation with its breakdown by file; src/ai to the measured 13,824 (the Corp side
+  // below 13,799 once the Runner branches' 157 and ai-prompt-time's 14 are set aside). Both down only
   // Stage C (brief-stage-c.md): corpAI.ts is the agent shell. Its size is the measured figure, down only, and it holds no
   // rule and no number: no number other than 0 and 1 outside comments, and no `score` field or scoring function
   it('keeps corpAI.ts a shell with no scoring function and no number', () => {
@@ -246,9 +248,9 @@ describe('AI code health (audit guards)', () => {
     expect(code).not.toMatch(/\bscore\s*:|\bscore\w*\s*\(/i);
   });
 
-  it('keeps src/ai/corp at or under 2,150 lines and src/ai at or under the Stage B total plus the Runner fixes (14,344)', () => {
+  it('keeps src/ai/corp at or under 2,217 lines and src/ai at or under 13,824 (Stage C hand-off)', () => {
     const corp = aiFiles().filter(f => f.replace(/\\/g, '/').startsWith('corp/')).reduce((n, f) => n + lines(f), 0);
-    expect(corp).toBeLessThanOrEqual(2150);
-    expect(aiFiles().reduce((n, f) => n + lines(f), 0)).toBeLessThanOrEqual(14344);
+    expect(corp).toBeLessThanOrEqual(2217);
+    expect(aiFiles().reduce((n, f) => n + lines(f), 0)).toBeLessThanOrEqual(13824);
   });
 });

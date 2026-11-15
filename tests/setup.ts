@@ -9,12 +9,3 @@ import { afterEach } from 'vitest';
  */
 const realSetImmediate = globalThis.setImmediate;
 afterEach(() => new Promise<void>(resolve => realSetImmediate(() => resolve())));
-
-/**
- * TEMPORARY (Step 4 Stage C7, deleted with corp/leaveOut.ts before the hand-off): LOO_OFF leaves carried-over rules out
- * (corp/candidates.ts leaveOut). Unset, nothing is imported here.
- */
-if (process.env.LOO_OFF) {
-  const { leaveOut } = await import('../src/ai/corp/candidates');
-  for (const r of process.env.LOO_OFF.split(',').filter(Boolean)) leaveOut.off.add(r);
-}
