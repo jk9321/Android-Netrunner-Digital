@@ -6,7 +6,7 @@ import { CARDS, advancePayloadOf, corpFormula, runnerFormula } from './cards';
 import { actingSide } from './synergy';
 import { CLICK, RATES, cardRate, flatlineWorth, memo, pointGain, pointValue, scopeToGame, sideCards } from './valueModel';
 import { tagsWorth } from './evaluate';
-import { BLOCK, iceCost, iceCreditNeed, isTrap, plannedSubroutines, subroutineCost } from './runs';
+import { BLOCK, iceCost, iceCreditNeed, isTrap, plannedSubroutines, subroutineCost, tankDamage } from './runs';
 import { remoteRunChance, threatOn } from './threatModel';
 import { plan, pricing, withPricing } from './pricing';
 import { REZ_NOW_SHARE, rezBudget } from './iceValues';
@@ -143,7 +143,10 @@ const TANKED_PASS = 0.85;
  */
 function canTank(state: GameState, ice: CardInstance, credits: number): boolean {
   if (iceCreditNeed(state, ice) > credits) return false;
-  const tank = plannedSubroutines(state, ice).map(s => subroutineCost(state, s.label)).filter(c => c < BLOCK).reduce((n, c) => n + c, 0);
+  const priced = plannedSubroutines(state, ice).map((s, i) => ({ label: s.label, i, cost: subroutineCost(state, s.label) })).filter(s => s.cost < BLOCK);
+  // The tanked subroutines' damage together, in order (tankDamage, the owner; RM-TANK-NOT-SINGLE): more than the grip is no way past
+  if (tankDamage(state, priced).lethal !== undefined) return false;
+  const tank = priced.reduce((n, s) => n + s.cost, 0);
   return tank < 0.5 * pointGain(state.runner.score, agendaOdds(state).points);
 }
 
@@ -283,6 +286,22 @@ export function stealDamage(code: string): number {
   return m ? Number(m[1]) : 0;
 }
 
+/**
+ * Net or meat damage a trap does when the Runner accesses it with `advancements` counters on it, read from its text
+ * (Byte!: 3 net if the Corp pays 4; Urtica Cipher: 2 net plus 1 per advancement counter; Esca: 1 net if the Runner is
+ * tagged). 0 for traps that don't damage on access (Clearinghouse fires on the Corp's turn, Behold! gives tags).
+ */
+export function accessDamage(state: GameState, code: string, advancements: number): number {
+  const text = getCardDefinition(code).stripped_text ?? '';
+  if (!/when the runner accesses this/i.test(text)) return 0;
+  const m = text.match(/do (\d+) (?:net|meat) damage/i);
+  if (!m) return 0;
+  const pay = text.match(/you may pay (\d+) credits?/i);
+  if (pay && state.corp.credits < Number(pay[1])) return 0;
+  if (/if they are tagged, do/i.test(text) && state.runner.tags === 0) return 0;
+  return Number(m[1]) + (/plus 1 net damage for each hosted advancement counter/i.test(text) ? advancements : 0);
+}
+
 function countAgendaOdds(state: GameState): { odds: number; points: number; onSteal: number[] } {
   const corp = sideCards(state, 'corp');
   const agendas = corp.filter(c => cardDef(c).type_code === 'agenda');
@@ -308,9 +327,9 @@ export function accessWorth(state: GameState): number {
 
 /**
  * Worth of n net or meat damage to the Runner: the cards lost, or the game if it flatlines. `drawBack`: damage the Runner
- * chooses to take in its own run under way that it is pricing (runs.ts subroutineCost, the in-run reader only), which
- * leaves it the clicks after the run to draw cards back; every other reader (the Corp's board, a known trap, the clock at
- * a leaf, a run priced before it starts) leaves it off and is priced as before.
+ * chooses to take in its own run (runs.ts subroutineCost, read by the Runner on its own turn, during the run or choosing
+ * it), which leaves it the clicks after the run to draw cards back (drawBackClicks); every other reader (the Corp's
+ * board, a known trap, the clock at a leaf) leaves it off.
  */
 export function damageWorth(state: GameState, n: number, drawBack = false, grip = state.runner.grip.length): number {
   // plan.spareLastClick: with no click left the Runner can't run again this turn, so cards over its hand size are
@@ -328,7 +347,7 @@ export function damageWorth(state: GameState, n: number, drawBack = false, grip 
   // run to draw cards back before the Corp's turn (rule 5.2.7c: a click draws a card). Drawing k of the n back costs k
   // clicks (CLICK each) and gives the k cards back; the clock is read at the grip it then holds. It draws back as many as
   // is cheapest, so a full grip does not make damage free (the clicks are paid)
-  const back = drawBack && state.activePlayer === 'runner' && state.activeRun ? state.runner.clicks : 0;
+  const back = drawBack ? drawBackClicks(state, true) : 0;
   let best = Infinity;
   for (let k = 0; k <= Math.min(n, back); k++) best = Math.min(best, (n - k) * card + k * CLICK + flatlineWorth(state) * (life(held - n + k) - now));
   return best;
@@ -338,13 +357,23 @@ export function damageWorth(state: GameState, n: number, drawBack = false, grip 
  * The grip that will stand against the Corp's damage on its turn: at most the hand size limit (the rest is discarded
  * first). plan.drawBackLife (Jeff, 2026-11-04: the Runner hoarded Sure Gamble): on the Runner's own turn, outside a run,
  * each click left can draw a card back, so a card played now isn't a card less against the next Corp turn yet.
- * Not for damage taken in a run (damageWorth): counting clicks there made every click spent cost life (a click for a
- * credit at 2 cards scored -5.8 against a damage deck).
+ * Not for damage taken in a run: that is damageWorth's draw-back, which pays for the clicks (drawBackClicks is the one
+ * count of them); free draws there made every click spent cost life (a click for a credit at 2 cards scored -5.8).
  */
 export function lifeGrip(state: GameState, grip = state.runner.grip.length, drawBack = true): number {
   const limit = state.runner.handSizeLimit ?? 5;
-  const back = drawBack && state.activePlayer === 'runner' && !state.activeRun ? state.runner.clicks : 0;
+  const back = drawBack && !state.activeRun ? drawBackClicks(state) : 0;
   return Math.min(limit, grip + back);
+}
+
+/**
+ * The clicks the Runner has left on its own turn to draw cards back before the Corp's turn (rule 5.2.7c: a click draws
+ * a card), the one count both draw-backs read (RM-DRAWBACK-TWO): lifeGrip's free draws outside a run, and damageWorth's
+ * paid ones (CLICK each) for damage taken in a run. `runClick`: a run not yet started still takes its own click.
+ */
+export function drawBackClicks(state: GameState, runClick = false): number {
+  if (state.activePlayer !== 'runner') return 0;
+  return Math.max(0, state.runner.clicks - (runClick && !state.activeRun ? 1 : 0));
 }
 
 /** Damage a Corp card can deal in one go, from its text ("plus 1 ... for each" counts 2 more). */
@@ -375,7 +404,11 @@ export function damageThreat(state: GameState, corpTurn = false): { burst: numbe
   // plan.corpTurnDamageOwn: on the Corp's turn only damage the Corp deals itself (see ownTurnHit)
   const own = corpTurn && plan().corpTurnDamageOwn;
   const tagged = state.runner.tags > 0;
-  const key = `${state.id}:${state.corp.archives.faceUp.length}:${state.corp.scoreArea.length}:${state.runner.scoreArea.length}:${skipIce}:${own}:${own && tagged}`;
+  // How many Corp cards there are (a look-ahead that adds or doubles one changes the pool; ai-runner-unknowns, whose new
+  // damage readers hit this map more: 124 wrong of 43.6k on deal 2181 became 1,130 of 69.7k without it)
+  const corp = state.corp;
+  const count = corp.hq.length + corp.rd.length + corp.archives.faceDown.length + Object.values(corp.servers).reduce((n, v) => n + v.root.length + v.ice.length, 0);
+  const key = `${state.id}:${state.corp.archives.faceUp.length}:${state.corp.scoreArea.length}:${state.runner.scoreArea.length}:${skipIce}:${own}:${own && tagged}:${count}`;
   // Audit Step 2 (AI-CACHE-HIDDEN-STATE): keyed by how many cards are out of the pool, not which (nor a look-ahead's added
   // or doubled card), so some hits are another board's value (about a third: threatsAudit); an exact (per-position)
   // version cost decision time, so the map is kept to one game and never depends on the games played before it

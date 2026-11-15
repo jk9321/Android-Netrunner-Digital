@@ -66,7 +66,12 @@ describe('the threat reads nothing the Runner cannot see (rule 10.2.2a hidden in
     const inHq = swapped.corp.hq.find(c => c.instanceId === agenda.instanceId)!;
     [root.cardCode, inHq.cardCode] = [inHq.cardCode, root.cardCode];
     expect(cardDef(swapped.corp.servers['remote-1'].root[0]).type_code).toBe('agenda');
-    expect(runnerSide(swapped)).toEqual(before);
+    // The Runner's scores are the same. Its runs are the same set; their order may not be: runs within TIE of the best
+    // are ordered by the Corp's own loss (threatModel budgetTurn's corpLoss: the Corp, not the Runner, counts its worst
+    // case, from its own cards). Here remote-1 came within TIE once the unrezzed Palisade carried its damage risk
+    const after = runnerSide(swapped);
+    expect(after.scores).toEqual(before.scores);
+    expect([...after.order].sort()).toEqual([...before.order].sort());
   });
 
   it('a card in the grip swapped with one in the stack changes nothing (the grip is dealt from the unseen cards)', () => {

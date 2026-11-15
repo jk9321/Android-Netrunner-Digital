@@ -4,10 +4,10 @@
  */
 import { describe, expect, it } from 'vitest';
 import { readFileSync } from 'node:fs';
-import { CardInstance, GameAction, GameState, activePrompt, createCardInstance, executeAction } from '../src/core';
+import { CardInstance, GameAction, GameState, activePrompt, cardDef, createCardInstance, executeAction } from '../src/core';
 import { HeuristicRunnerAI, createAgent } from '../src/ai';
-import { BLOCK, bestBreakPlan, breachAccesses, icePrice, runRestWorth, runScore, serverValue, subroutineCost } from '../src/ai/runs';
-import { damageWorth } from '../src/ai/effectValues';
+import { BLOCK, bestBreakPlan, breachAccesses, icePrice, isTrap, runRestWorth, runScore, serverValue, subroutineCost, tankDamage, trapDamageMax, trapHit, unrezzedDamageRisk } from '../src/ai/runs';
+import { accessDamage, damageWorth } from '../src/ai/effectValues';
 import { CLICK, cardRate } from '../src/ai/valueModel';
 import { scoreOutcome, simulate } from '../src/ai/prompts';
 import { runnerDecisionView } from '../src/ai/turnPlanner';
@@ -19,6 +19,7 @@ const REGOLITH = '30071';
 const DEVADATTA = '35031';
 const EMPIRICIST = '35052';
 const DOOMSCROLL = '35063';
+const PALISADE_CODE = '30072';
 const CARMEN = '30015'; // killer, strength 2: 2 credits for +3, 1 credit breaks 1 sentry subroutine
 const total = (p: { credits: number; value: number }) => p.credits + p.value;
 
@@ -73,6 +74,20 @@ describe('R2 damage (rules 10.4.4, 5.2.7c)', () => {
       expect(runScore(s, 'hq')).toBeGreaterThan(-Infinity);
     }
   });
+  it('the run choice reads the draw-back too: the 6-card HQ behind Tithe is worth running (RM-DRAWBACK-RUN-START, rule 5.2.7c)', () => {
+    // Audit 2026-11-15 probe: before, Tithe's 1 net priced 7.2 when choosing the run (runScore -5.6 at 5 credits, -5.3 at
+    // 20) against 1.25 once in it; the choice now reads the 3 clicks left after the run's own click
+    for (const credits of [5, 20]) {
+      const s = newGame();
+      startRunnerTurn(s);
+      installIceForTest(s, TITHE, 'hq');
+      while (s.corp.hq.length < 6 && s.corp.rd.length) s.corp.hq.push(s.corp.rd.shift()!);
+      s.runner.credits = credits;
+      const out = asSide('runner', () => ({ sub: subroutineCost(s, 'Do 1 net damage.'), score: runScore(s, 'hq') }));
+      expect(out.sub).toBeCloseTo(CLICK, 6);
+      expect(out.score).toBeGreaterThan(0);
+    }
+  });
 });
 
 describe('R1 credits apart from value (RUNNER-BUDGET-UNITS)', () => {
@@ -108,14 +123,24 @@ describe('R1 credits apart from value (RUNNER-BUDGET-UNITS)', () => {
   // But the deck holds 2 Fujii Asset Retrieval ("When this agenda is scored or stolen, do 2 net damage"): an accessed agenda
   // must be stolen (1.17.3d), and 2 net damage on the 1 card left flatlines (10.4.4), so the run is not worth making
   const teia = (): GameState => JSON.parse(readFileSync(new URL('./fixtures/vrcation-sure-gamble.json', import.meta.url), 'utf8'));
-  it('a 3-advanced remote behind ice that cannot end the run: no credits to pass, but a Fujii steal at 1 card flatlines', () => {
+  it('a 3-advanced remote behind ice that cannot end the run: no credits to pass, and a Fujii steal at 1 card is charged its flatline share', () => {
     const s = teia();
     asSide('runner', () => {
       const price = icePrice(s, s.corp.servers['remote-2'].ice[0]);
       expect(price.credits).toBe(0);
       expect(price.value).toBeCloseTo(subroutineCost(s, 'Draw 1 card.') + subroutineCost(s, 'Do 1 net damage. Give the Runner 1 tag.') + subroutineCost(s, 'Do 2 net damage.'));
       expect(price.damage).toBe(3);
-      expect(runScore(s, 'remote-2', { wary: true })).toBeLessThan(0);
+      // The steal at the 1 card left is charged its flatline share: 2 of the 8 agendas still to find are Fujii. Since the
+      // run choice reads the draw-back (RM-DRAWBACK-RUN-START: 2 clicks left after the run's own), the ice's 3 damage costs
+      // its cards less the clicks, and the run is no longer below zero as dealt; it stays well below the run with no
+      // Fujii in the deck, by the flatline share
+      const noFujii = structuredClone(s);
+      const strip = (zone: CardInstance[]) => zone.filter(c => c.cardCode !== '34040');
+      noFujii.corp.hq = strip(noFujii.corp.hq);
+      noFujii.corp.rd = strip(noFujii.corp.rd);
+      noFujii.corp.archives.faceDown = strip(noFujii.corp.archives.faceDown);
+      expect(serverValue(s, 'remote-2', 0, undefined, true, undefined, 1)).toBeLessThan(serverValue(s, 'remote-2', 0, undefined, true, undefined, 4) - 10);
+      expect(runScore(s, 'remote-2', { wary: true })).toBeLessThan(runScore(noFujii, 'remote-2', { wary: true }) - 10);
     });
   });
   it('the same run is worth making with a grip that survives the steal, or with no Fujii left in the deck', () => {
@@ -315,5 +340,113 @@ describe('damage over a whole ice and a whole run (rules 9.8.7b, 10.4.4)', () =>
     expect(new HeuristicRunnerAI().chooseAction(s).type).toBe('BOOST_BREAKER');
     // On 4 cards the 3 net damage is survived: letting them fire is cheaper than breaking
     expect(new HeuristicRunnerAI().chooseAction(encounter(4)).type).toBe('CONTINUE_RUN');
+  });
+});
+
+describe('an unknown installed card priced as the traps still unseen (rules 10.4.4)', () => {
+  // g3 43672765368: 10 of 17 new access flatlines were Byte! (a tag and 3 net damage) on a 2-card grip, priced as the flat
+  // 2 + advancements guess: 2 is not more than 2, so the remote read as safe
+  const BYTE = '35050';
+  const URTICA = '30045';
+  const withOnly = (code: string, corpCredits: number, grip: number) => {
+    const s = newGame();
+    startRunnerTurn(s);
+    s.runner.grip = s.runner.grip.slice(0, grip);
+    s.corp.credits = corpCredits;
+    // the Corp's unseen cards: one trap of this kind, the rest not traps
+    const pool = [...s.corp.hq, ...s.corp.rd];
+    for (const c of pool) if (isTrap(c.cardCode)) c.cardCode = '30055'; // not a trap
+    s.corp.rd[0] = createCardInstance(s, code);
+    return s;
+  };
+  it('Byte! with the Corp able to pay 4 is 3 net damage, a flatline on 2 cards', () => {
+    const s = withOnly(BYTE, 5, 2);
+    expect(accessDamage(s, BYTE, 0)).toBe(3);
+    expect(trapDamageMax(s, 0)).toBe(3);
+    expect(asSide('runner', () => trapHit(s, 0, 2))).toBe(asSide('runner', () => damageWorth(s, 3, false, 2)));
+    expect(asSide('runner', () => trapHit(s, 0, 2))).toBeGreaterThan(asSide('runner', () => damageWorth(s, 2, false, 2)));
+  });
+  it('Byte! the Corp cannot pay for does nothing', () => {
+    const s = withOnly(BYTE, 3, 2);
+    expect(accessDamage(s, BYTE, 0)).toBe(0);
+    expect(asSide('runner', () => trapHit(s, 0, 2))).toBe(0);
+  });
+  it('an advanced card can only be a trap that can be advanced: Urtica Cipher, 2 plus its counters', () => {
+    const s = withOnly(BYTE, 5, 3);
+    s.corp.rd[1] = createCardInstance(s, URTICA);
+    expect(trapDamageMax(s, 2)).toBe(4);
+    expect(trapDamageMax(s, 0)).toBe(3);
+  });
+});
+
+describe('an unrezzed ice priced as the ice still unseen (rules 6.9.2c, 9.8.7b, 10.4.4)', () => {
+  // g3 43672765368: 17 of 22 ice flatlines above base were ice unrezzed when the run was priced (Karunā's 2 net on 1 card,
+  // Empiricist and Doomscroll on 2); its price had no damage in it
+  const KARUNA = '30047';
+  const position = (grip: number, corpCredits: number) => {
+    const s = newGame();
+    startRunnerTurn(s);
+    s.runner.rig.programs = [];
+    s.runner.grip = s.runner.grip.slice(0, grip);
+    s.corp.credits = corpCredits;
+    s.corp.rd[0] = createCardInstance(s, KARUNA);
+    installIceForTest(s, PALISADE_CODE, 'remote-9', false);
+    return { s, ice: s.corp.servers['remote-9'].ice[0] };
+  };
+  it('is a damage risk the Runner holding 1 card prices, and less so on 5 cards', () => {
+    const one = position(1, 10);
+    const five = position(5, 10);
+    const r1 = asSide('runner', () => unrezzedDamageRisk(one.s, one.ice));
+    const r5 = asSide('runner', () => unrezzedDamageRisk(five.s, five.ice));
+    expect(r1).toBeGreaterThan(0);
+    expect(r5).toBeLessThan(r1);
+  });
+  it('is none when the Corp cannot pay to rez any of it', () => {
+    const broke = position(1, 0);
+    expect(asSide('runner', () => unrezzedDamageRisk(broke.s, broke.ice))).toBe(0);
+  });
+});
+
+describe('the tank damage text and its one owner (RM-SUBDAMAGE-TEXT, RM-TANK-NOT-SINGLE; rules 10.4.2b, 10.4.4)', () => {
+  const dmg = (label: string, tags = 0, grip = 5) => {
+    const s = newGame();
+    s.runner.tags = tags;
+    s.runner.grip = s.runner.grip.slice(0, grip);
+    return tankDamage(s, [{ label, i: 0 }]).damage;
+  };
+  it('core damage trashes a card a point, and a tagged-only one does nothing untagged', () => {
+    expect(dmg('Do 2 core damage.')).toBe(2);
+    expect(dmg('Do 1 core damage.')).toBe(1);
+    expect(dmg('If the Runner is tagged, do 1 core damage.', 0)).toBe(0);
+    expect(dmg('If the Runner is tagged, do 1 core damage.', 1)).toBe(1);
+  });
+  it('"end the run unless the Runner suffers N net damage": the tank takes the N', () => {
+    expect(dmg('End the run unless the Runner suffers 2 net damage.')).toBe(2);
+  });
+});
+
+describe('tanks over a whole run: break one, tank the other (rules 9.8.7b, 10.4.4)', () => {
+  // Review note on ai-runner-fixes: runScore barred a run whose tanks together were more than the grip, though breaking
+  // one of them left the rest survivable. Two rezzed Empiricists on a 4-card grip: tanking both is 6 damage
+  it('breaks the one that costs least and tanks the other, instead of barring the run', () => {
+    const s = newGame();
+    startRunnerTurn(s);
+    s.runner.rig.programs = [];
+    installProgramForTest(s, CARMEN);
+    s.runner.grip = s.runner.grip.slice(0, 4);
+    s.runner.credits = 10;
+    installIceForTest(s, EMPIRICIST, 'remote-9');
+    installIceForTest(s, EMPIRICIST, 'remote-9');
+    // an unseen card with 3 advancements behind them, worth the run
+    const agenda = s.corp.rd.find(c => cardDef(c).type_code === 'agenda')!;
+    s.corp.rd.splice(s.corp.rd.indexOf(agenda), 1);
+    s.corp.servers['remote-9'].root.push({ ...agenda, advancementCounters: 3 });
+    const one = asSide('runner', () => icePrice(s, s.corp.servers['remote-9'].ice[0]));
+    expect(one.damage).toBe(3);
+    expect(one.noDamage).toBeDefined();
+    expect(asSide('runner', () => runScore(s, 'remote-9'))).toBeGreaterThan(-Infinity);
+    // With nothing to break with, 6 damage on 4 cards is no way in
+    s.runner.rig.programs = [];
+    expect(asSide('runner', () => runScore(s, 'remote-9'))).toBe(-Infinity);
   });
 });

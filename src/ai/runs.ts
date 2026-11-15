@@ -15,9 +15,9 @@ import { availableCredits, counters, rezCost, stealthCredits, threatLevel, turnF
 import { stealCost } from '../core/engine/actions/run';
 import { spikeKey } from '../core/scripts/liberationRunner';
 import { corpCardValue, hiddenCardOdds, tagsWorth } from './evaluate';
-import { agendaOdds, coreDamageWorth, counterWorthOf, damageWorth, flatlineOdds, runnerEffect, stealDamage } from './effectValues';
+import { accessDamage, agendaOdds, coreDamageWorth, counterWorthOf, damageWorth, flatlineOdds, runnerEffect, stealDamage } from './effectValues';
 import { clickPrice } from './handValues';
-import { clickRate, creditNeed, creditSlide, flatlineWorth, payoutSlide, pointValue } from './valueModel';
+import { clickRate, creditNeed, creditSlide, flatlineWorth, memo, payoutSlide, pointValue } from './valueModel';
 import { plan } from './pricing';
 import { actingSide } from './synergy';
 import { CARDS, breachAccessOf } from './cards';
@@ -66,10 +66,11 @@ export function subroutineCost(state: GameState, label: string): number {
 }
 
 /**
- * Damage the Runner takes in its own run under way, priced by the Runner (RUNNER-DAMAGE-NO-DRAWBACK): damageWorth's
- * draw-back input. The Corp's view of the same subroutine, and a run priced before it starts, leave it off.
+ * Damage the Runner takes in its own run, priced by the Runner on its own turn (RUNNER-DAMAGE-NO-DRAWBACK,
+ * RM-DRAWBACK-RUN-START): damageWorth's draw-back input, whether the run is under way or being chosen (the clicks it
+ * will have left after the run's own click; drawBackClicks). The Corp's view of the same subroutine leaves it off.
  */
-const ownRun = (state: GameState): boolean => !!state.activeRun && actingSide() === 'runner';
+const ownRun = (state: GameState): boolean => state.activePlayer === 'runner' && actingSide() === 'runner';
 
 /** A rule's answer that passes to the next rule (the trash-a-type rule with no card of that type). */
 const NEXT = Symbol('next');
@@ -94,10 +95,11 @@ const SUB_RULES: SubRule[] = [
   }],
   // Elevation conditions. Damage that only equals the grip is survived: the Runner is flatlined by more damage than the
   // cards in its grip (rule 10.4.4), so each lethal test below is `>`, as in damageWorth
-  [/end the run unless the runner suffers (\d+) net damage/i, (state, unless) => (Number(unless[1]) > state.runner.grip.length ? BLOCK : 2 * Number(unless[1]))],
+  // The Runner chooses the damage when it can survive it (else the run ends): priced as that damage (RM-SUBDAMAGE-TEXT; was a flat 2 a point)
+  [/end the run unless the runner suffers (\d+) net damage/i, (state, unless) => (Number(unless[1]) > state.runner.grip.length ? BLOCK : damageWorth(state, Number(unless[1]), ownRun(state)))],
   [/threat level is (\d+) or greater, end the run/i, (state, threat) => (Math.max(state.corp.score, state.runner.score) >= Number(threat[1]) ? BLOCK : 0)],
   [/end the run if the runner is tagged/i, state => (state.runner.tags > 0 ? BLOCK : 1)],
-  [/if the runner has at least 2 tags/i, state => (state.runner.tags >= 2 ? (2 > state.runner.grip.length ? BLOCK : 4) : 0)],
+  [/if the runner has at least 2 tags/i, state => (state.runner.tags >= 2 ? (2 > state.runner.grip.length ? BLOCK : damageWorth(state, 2, ownRun(state))) : 0)],
   // Vantage Point: "... unless the Runner pays N credits": the cheaper of paying and letting the rest resolve
   [/^(.*?)\s*unless the runner pays (\d+) (?:\[credit\]|credits?)\.?$/i, (state, pays) => {
     const n = Number(pays[2]);
@@ -118,7 +120,13 @@ const SUB_RULES: SubRule[] = [
   [/remove 1 card in the heap from the game/i, () => 0.3],
   [/place 1 virus counter on this ice/i, () => 0], // Knowledge Seeker: counts down to its own derez
   [/look at the top \d+ cards? of r&d|arrange|to the (?:top or )?bottom of r&d|shuffle 1 card from hq or archives into r&d/i, () => 0.4], // Corp card selection
-  [/core damage/i, state => coreDamageWorth(state) + damageWorth(state, 1)],
+  // Each point of core damage trashes a card and takes a hand size (rule 10.4.2b): "do 2 core damage" is 2 of each
+  [/(?:(\d+) )?core damage/i, (state, core) => {
+    // "If the Runner is tagged" is priced as if tagged: an earlier subroutine may tag it first (Jaguarundi), which a
+    // price per subroutine can't see; tankDamage, which walks them in order, can
+    const n = Number(core[1] ?? 1);
+    return n > state.runner.grip.length ? BLOCK : n * coreDamageWorth(state) + damageWorth(state, n);
+  }],
   [/unless they pay 3 credits/i, state => creditCost(state, 3)],
   [/loses? (\d+) (?:\[credit\]|credits?)/i, (state, loses) => creditCost(state, Math.min(Number(loses[1]), state.runner.credits))],
   [/or end the run/i, state => (state.runner.rig.programs.length > 0 ? 5 : BLOCK)],
@@ -355,17 +363,51 @@ export interface IcePrice {
   value: number;
   /** Cards the Runner loses to the damage it lets resolve on the way past (for what a steal's damage meets after it); 0 when broken. */
   damage?: number;
+  /** When the tank is the cheaper way past: the cheapest way that lets no damage through (break it), for a run whose tanks together are more damage than the grip. */
+  noDamage?: IcePrice;
 }
 const BLOCKED: IcePrice = { credits: BLOCK, value: BLOCK };
 const total = (p: IcePrice): number => p.credits + p.value;
 const cheaper = (a: IcePrice, b: IcePrice): IcePrice => (total(b) < total(a) ? b : a);
 
 export function icePrice(state: GameState, ice: CardInstance): IcePrice {
-  // Unrezzed: a guess at the credits it will take (rezzed on approach, 6.9.2c)
+  // Unrezzed: a guess at the credits it will take (rezzed on approach, 6.9.2c); its damage risk is the run's (unrezzedDamageRisk)
   if (!ice.isRezzed) return { credits: state.corp.credits >= 3 ? 1.5 : 0.5, value: 0 };
   const plain = plainIcePrice(state, ice);
   const physarum = physarumCost(state, ice);
   return physarum !== undefined ? cheaper(plain, { credits: physarum, value: 0 }) : plain;
+}
+
+/**
+ * The damage an unrezzed ice may do: each ice still unseen in the Corp's decklist (HQ, R&D, facedown Archives and
+ * installed ice the Runner hasn't seen; no hand or order read), as if it were this one rezzed on approach (6.9.2c) by a
+ * Corp that can pay its rez cost, does the damage its subroutines let through in order (tankDamage) when the Runner
+ * can't pay to break them; priced by damageWorth at the grip, averaged over the pool. Rules 9.8.7b, 10.4.4. Replaces
+ * the 0 the flat guess gave (RUNNER-UNREZZED-FLAT: Karunā's 2 net on 1 card, Empiricist and Doomscroll on 2). Read by
+ * the Runner's run prices (runScore, runRestWorth), not by icePrice, which the Corp's own ice valuations also read.
+ * Priced once per state: the first unrezzed ice asked about stands for the position (strength bonuses by server aside).
+ */
+export function unrezzedDamageRisk(state: GameState, ice: CardInstance): number {
+  const damages = memo(state, 'unrezzedIceDamage', () => {
+    const corp = state.corp;
+    const hidden = Object.values(corp.servers).flatMap(server => server.ice.filter(c => !c.isRezzed && !c.runnerKnows));
+    const pool = [...corp.hq, ...corp.rd, ...corp.archives.faceDown, ...hidden].filter(c => getCardDefinition(c.cardCode).type_code === 'ice');
+    const byCode = new Map<string, number>();
+    return pool.map(c => {
+      const known = byCode.get(c.cardCode);
+      if (known !== undefined) return known;
+      // its own id: the subroutine and strength caches are keyed by instance, and this card is not the installed one
+      const as: CardInstance = { ...ice, instanceId: `${ice.instanceId}~${c.cardCode}`, cardCode: c.cardCode, isRezzed: true };
+      const subs = plannedSubroutines(state, as).map((sub, i) => ({ label: sub.label, i }));
+      const plan = bestBreakPlan(state, as, subs.length);
+      const rezzable = (getCardDefinition(c.cardCode).cost ?? 0) <= corp.credits;
+      const damage = !rezzable || (plan && plan.credits <= state.runner.credits) ? 0 : tankDamage(state, subs).damage;
+      byCode.set(c.cardCode, damage);
+      return damage;
+    });
+  });
+  if (damages.length === 0) return 0;
+  return damages.reduce((n, d) => n + (d > 0 ? damageWorth(state, d, false) : 0), 0) / damages.length;
 }
 
 /** Estimated cost to get past one piece of ice, as the Runner sees it: icePrice's credits and value together. */
@@ -393,9 +435,15 @@ export function physarumCost(state: GameState, ice: CardInstance): number | unde
  */
 function subroutineDamage(label: string, tags: number): number {
   if (/do x net damage/i.test(label)) return tags;
-  if (/core damage/i.test(label)) return 1;
+  // Core damage trashes a card a point, as net and meat do (rule 10.4.2b)
+  if (/if the runner is tagged/i.test(label) && tags === 0) return 0;
+  const core = label.match(/(?:(\d+) )?core damage/i);
+  if (core) return Number(core[1] ?? 1);
   const needs = label.match(/if the runner has at least (\d+) tags/i);
   if (needs && tags < Number(needs[1])) return 0;
+  // "End the run unless the Runner suffers N net damage": a tank takes the damage (the run going on is why it tanks)
+  const unless = label.match(/unless the runner suffers (\d+) (?:net|meat) damage/i);
+  if (unless) return Number(unless[1]);
   const m = label.match(/(\d+) (?:net|meat) damage/i);
   return m && !/unless/i.test(label) ? Number(m[1]) : 0;
 }
@@ -435,7 +483,9 @@ function plainIcePrice(state: GameState, ice: CardInstance): IcePrice {
   const tank: IcePrice = tankValue === BLOCK || lethal !== undefined ? BLOCKED : { credits: 0, value: tankValue, damage };
   const plan = bestBreakPlan(state, ice, subs.length);
   const broken: IcePrice = plan ? { credits: plan.credits, value: plan.value + funhouse } : BLOCKED;
-  return cheaper(cheaper(tank, broken), selfBreakPrice(state, ice, subs.length));
+  const noDamage = cheaper(broken, selfBreakPrice(state, ice, subs.length));
+  const best = cheaper(tank, noDamage);
+  return best === tank && damage > 0 && total(noDamage) < BLOCK ? { ...tank, noDamage } : best;
 }
 
 /**
@@ -598,16 +648,47 @@ export const accessTrap = (code: string): boolean => isTrap(code) && /when the r
  * again; once every trap is accounted for the odds are 0.
  */
 export function trapOdds(state: GameState, memory?: RunnerMemory): number {
+  const { traps, agendas } = unseenTraps(state, memory);
+  return traps.length + agendas > 0 ? traps.length / (traps.length + agendas) : 0;
+}
+
+/** The traps (codes) and agendas (count) still unaccounted for, as trapOdds counts them: the decklist less what is public or seen. */
+function unseenTraps(state: GameState, memory?: RunnerMemory): { traps: string[]; agendas: number } {
   const corp = state.corp;
   const installed = Object.values(corp.servers).flatMap(server => server.root.filter(c => !c.isRezzed && !c.faceUp));
-  let traps = 0;
-  let agendas = 0;
-  for (const card of [...corp.hq, ...corp.rd, ...corp.archives.faceDown, ...installed]) {
-    if (memory?.has(card.instanceId)) continue;
-    if (isTrap(card.cardCode)) traps++;
-    else if (cardDef(card).type_code === 'agenda') agendas++;
+  const hidden = [...corp.hq, ...corp.rd, ...corp.archives.faceDown, ...installed];
+  // The cards it has seen come out by the code it saw, not by whichever code their instance holds now: a planner deal
+  // re-deals the hidden cards among their instances (the threat's on-hit audit read the re-dealt code)
+  const codes = hidden.map(c => c.cardCode);
+  for (const card of hidden) {
+    const seen = memory?.get(card.instanceId);
+    if (seen === undefined) continue;
+    const at = codes.indexOf(seen);
+    if (at >= 0) codes.splice(at, 1);
   }
-  return traps + agendas > 0 ? traps / (traps + agendas) : 0;
+  const traps = codes.filter(isTrap);
+  const agendas = codes.filter(c => getCardDefinition(c).type_code === 'agenda').length;
+  return { traps, agendas };
+}
+
+/**
+ * What accessing an unknown installed card costs the Runner if it is a trap: the access damage (accessDamage, card
+ * text) of each trap still unseen in the decklist, priced by damageWorth at the grip at the access, averaged. With
+ * advancement counters on it, only the traps that can be advanced fit. Rules 10.4.4 (more damage than the grip
+ * flatlines). Replaces the flat 2 + advancements guess (Byte! does 3, ai-runner-fixes round 2).
+ */
+export function trapHit(state: GameState, advancements: number, grip: number, memory?: RunnerMemory): number {
+  const pool = fittingTraps(state, advancements, memory);
+  if (pool.length === 0) return 0;
+  return pool.reduce((n, c) => n + damageWorth(state, accessDamage(state, c, advancements), false, grip), 0) / pool.length;
+}
+
+const fittingTraps = (state: GameState, advancements: number, memory?: RunnerMemory): string[] =>
+  unseenTraps(state, memory).traps.filter(c => advancements === 0 || /you can advance this/i.test(getCardDefinition(c).stripped_text ?? ''));
+
+/** The most an unknown installed card with `advancements` counters could do on access, from the same unseen traps. */
+export function trapDamageMax(state: GameState, advancements: number, memory?: RunnerMemory): number {
+  return fittingTraps(state, advancements, memory).reduce((n, c) => Math.max(n, accessDamage(state, c, advancements)), 0);
 }
 
 /**
@@ -796,7 +877,7 @@ function serverWorth(state: GameState, serverId: string, extraAccesses: number, 
       if (bangun && state.runner.grip.length < 2) return 0;
       const tax = stealTax(state, serverId, card);
       if (tax === null) continue;
-      value += stealWorth(state, cardDef(card).agenda_points ?? 1, DENY.remote) - tax - knownStealHit(state, card.cardCode, grip) - (bangun ? damageWorth(state, 2) + tagCost(state) : 0);
+      value += stealWorth(state, cardDef(card).agenda_points ?? 1, DENY.remote) - tax - knownStealHit(state, card.cardCode, grip) - (bangun ? damageWorth(state, 2, false, grip) + tagCost(state) : 0);
       continue;
     }
     if (!card.isRezzed && memory?.has(card.instanceId)) {
@@ -815,7 +896,7 @@ function serverWorth(state: GameState, serverId: string, extraAccesses: number, 
       const trapShare = Math.min(1 - agenda, trap);
       // plan.oneAgendaGuess: the points of the agendas still unseen, as the board counts them (not the whole decklist's)
       const hiddenPoints = plan().oneAgendaGuess ? hiddenCardOdds(state).agendaPoints : points;
-      value += agenda * stealNet(stealWorth(state, hiddenPoints, card.advancementCounters > 0 ? DENY.remote : DENY.central), unseenTax, hit) - trapShare * damageWorth(state, 2 + card.advancementCounters, false, grip) + (1 - agenda - trapShare) * 1;
+      value += agenda * stealNet(stealWorth(state, hiddenPoints, card.advancementCounters > 0 ? DENY.remote : DENY.central), unseenTax, hit) - trapShare * trapHit(state, card.advancementCounters, grip, memory) + (1 - agenda - trapShare) * 1;
     } else {
       const trash = cardDef(card).trash_cost;
       // Trashing it denies the Corp what it would still pay if left (RUNNER-ASSET-TRASH: the worth as left, corpCardValue's
@@ -844,7 +925,7 @@ export function serverValue(state: GameState, serverId: string, extraAccesses = 
 export function needsBiggerHand(state: GameState, memory?: RunnerMemory): boolean {
   return Object.values(state.corp.servers).some(server =>
     server.root.some(
-      c => !c.isRezzed && !memory?.has(c.instanceId) && c.advancementCounters > 0 && state.runner.grip.length <= 2 + c.advancementCounters
+      c => !c.isRezzed && !memory?.has(c.instanceId) && c.advancementCounters > 0 && trapDamageMax(state, c.advancementCounters, memory) > state.runner.grip.length
     )
   );
 }
@@ -1039,6 +1120,28 @@ export function breachAccesses(state: GameState, serverId: string): { accesses: 
  * How good a run on this server is now, net of the click and expected costs.
  * -Infinity when the Runner can't get in.
  */
+/**
+ * Each ice's way past on one run, with the tanks together survived (rules 9.8.7b, 10.4.4): icePrice, and while the
+ * rezzed ice's tank damage adds up to more than the grip, the tank whose break costs least more per card saved is
+ * broken instead (its `noDamage` price). Null when no choice leaves the damage within the grip.
+ */
+function runPrices(state: GameState, ices: CardInstance[]): Map<string, IcePrice> | null {
+  const prices = new Map(ices.map(ice => [ice.instanceId, icePrice(state, ice)] as const));
+  const damageOf = () => ices.reduce((n, ice) => n + (ice.isRezzed ? prices.get(ice.instanceId)!.damage ?? 0 : 0), 0);
+  for (let damage = damageOf(); damage > state.runner.grip.length; damage = damageOf()) {
+    const options = ices
+      .filter(ice => ice.isRezzed && prices.get(ice.instanceId)!.noDamage)
+      .map(ice => {
+        const p = prices.get(ice.instanceId)!;
+        return { ice, alt: p.noDamage!, extra: (total(p.noDamage!) - total(p)) / (p.damage ?? 1) };
+      })
+      .sort((a, b) => a.extra - b.extra);
+    if (options.length === 0) return null;
+    prices.set(options[0].ice.instanceId, options[0].alt);
+  }
+  return prices;
+}
+
 export function runScore(state: GameState, serverId: string, options: RunOptions = {}): number {
   const server = state.corp.servers[serverId];
   if (!server) return -Infinity;
@@ -1050,10 +1153,13 @@ export function runScore(state: GameState, serverId: string, options: RunOptions
   const bypassed = runBypasses(state, serverId, options);
   const derez = options.derezOne && plan().bypass ? windowDerez(state, serverId) : undefined;
   if (derez && !derez.rerez) bypassed.ids.add(derez.ice.instanceId);
-  // The grip at the access: less the damage of the rezzed ice it lets resolve (a steal's own damage meets that grip)
-  const iceDamage = server.ice.filter(ice => ice.isRezzed && !bypassed.ids.has(ice.instanceId)).reduce((n, ice) => n + (icePrice(state, ice).damage ?? 0), 0);
-  // More damage over the whole way in than the grip holds is a flatline before the access (10.4.4), however each ice reads alone
-  if (iceDamage > state.runner.grip.length) return -Infinity;
+  // The way past each ice, and the grip at the access: less the damage of the rezzed ice it lets resolve (a steal's own
+  // damage meets that grip). More damage over the whole way in than the grip holds is a flatline before the access
+  // (10.4.4), however each ice reads alone: the Runner breaks instead of tanking where that costs least, until the rest
+  // is survived, and only with no such choice is the run barred (review note on ai-runner-fixes)
+  const prices = runPrices(state, server.ice.filter(ice => !bypassed.ids.has(ice.instanceId)));
+  if (!prices) return -Infinity;
+  const iceDamage = [...prices.values()].reduce((n, p) => n + (p.damage ?? 0), 0);
   const grip = state.runner.grip.length - iceDamage;
   const breached = options.noBreach ? 0 : serverValue(state, breachId, (options.extraAccesses ?? 0) + rigAccess.accesses, options.memory, options.wary, undefined, grip) - rigAccess.cost;
   const gained = options.successCredits ?? 0;
@@ -1093,7 +1199,7 @@ export function runScore(state: GameState, serverId: string, options: RunOptions
   let lost = 0;
   for (const ice of server.ice) {
     if (bypassed.ids.has(ice.instanceId)) continue;
-    let price = icePrice(state, ice);
+    let price = prices.get(ice.instanceId) ?? icePrice(state, ice);
     if (total(price) === BLOCK && shredLeft) {
       // The Corp either lets the run go on or trashes HQ cards: worth it either way
       shredLeft = false;
@@ -1103,7 +1209,7 @@ export function runScore(state: GameState, serverId: string, options: RunOptions
     const share = !ice.isRezzed && options.rezTax ? 0.3 : 1;
     if (ice.isRezzed) known += price.credits;
     expected += share * price.credits;
-    lost += share * price.value;
+    lost += share * (price.value + (ice.isRezzed ? 0 : unrezzedDamageRisk(state, ice)));
   }
   if (known > budget) return -Infinity;
   // Known costs of approaching the server, after the ice (Manegarm Skunkworks)
@@ -1130,11 +1236,13 @@ export function runRestWorth(state: GameState, memory?: RunnerMemory, wary?: boo
   let credits = 0;
   let lost = 0;
   let damage = 0;
+  const prices = runPrices(state, ahead);
+  if (!prices) return 0; // a flatline on the way in whatever is broken (10.4.4)
   for (const ice of ahead) {
-    const price = icePrice(state, ice);
+    const price = prices.get(ice.instanceId)!;
     if (total(price) === BLOCK) return 0;
     credits += price.credits;
-    lost += price.value;
+    lost += price.value + (ice.isRezzed ? 0 : unrezzedDamageRisk(state, ice));
     if (ice.isRezzed) damage += price.damage ?? 0;
   }
   // Once the breach has begun, only what is still to come (the cards already accessed, and the one a prompt is about, are
@@ -1160,7 +1268,7 @@ export function chainReactionBonus(state: GameState, serverId: string): number {
   const installed = Object.values(state.corp.servers).flatMap(s => [...s.ice, ...s.root]);
   const worth = installed
     // Rezzed ice: the Corp pays its rez cost, a click and an install again to replace it
-    .map(c => (!c.isRezzed ? 1.5 : cardDef(c).type_code === 'ice' ? (cardDef(c).cost ?? 0) + 2 : corpCardValue(c, state, 'runner')))
+    .map(c => (!c.isRezzed ? 1.5 : cardDef(c).type_code === 'ice' ? (cardDef(c).cost ?? 0) + 2 : corpCardValue(c, state, 'runner', true)))
     .sort((a, b) => b - a);
   const mine = [...state.runner.rig.programs, ...state.runner.rig.hardware, ...state.runner.rig.resources].map(c => cardDef(c).cost ?? 0);
   const value = (worth[0] ?? 0) + (worth[1] ?? 0) - (mine.length ? Math.min(...mine) + 0.5 : 0) - 1;

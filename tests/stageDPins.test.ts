@@ -31,11 +31,13 @@ describe('Stage D pins (known-failing until their fix lands)', () => {
   // D4, the open case: HQ behind one ice the rig beats; the ice went to a remote. Expected: on HQ
   // #49 #82 is a guard since beta 545f146 (the Runner AI plays from a guessed stack; clickWorth's key holds the board): the
   // Corp now advances Send a Message in remote-6 instead. D4 still owes the HQ ice and turns this into the HQ assertion
-  for (const [n, m, title, remote, open] of [
-    [49, 82, 'Lycian Multi-Munition', 'remote-4', false],
-    [49, 111, 'Ansel 1.0', 'remote-6', true],
+  // #49 #111 is a guard since ai-runner-unknowns (the Runner's prices that the Corp's model reads): the Corp now installs
+  // Send a Message in remote-6 instead. Not a D4 fix: D4 still owes the HQ ice
+  for (const [n, m, title, remote, since] of [
+    [49, 82, 'Lycian Multi-Munition', 'remote-4', 'beta 545f146'],
+    [49, 111, 'Ansel 1.0', 'remote-6', 'ai-runner-unknowns'],
   ] as const) {
-    (open ? it.fails : it)(`D4 #${n} #${m}: ${title} is not installed on ${remote} (expected: HQ)${open ? '' : ' (guard since beta 545f146)'}`, { timeout: T }, () => {
+    it(`D4 #${n} #${m}: ${title} is not installed on ${remote} (expected: HQ) (guard since ${since})`, { timeout: T }, () => {
       const { s, recorded } = at(n, m);
       const id = (recorded as Install).cardInstanceId!;
       expect(cardDef(findCardAnywhere(s, id)!).title).toBe(title);
@@ -56,7 +58,8 @@ describe('Stage D pins (known-failing until their fix lands)', () => {
 
   // D4, the reservation: the only iced remote (Piranhas) is kept for an agenda while two wait in HQ. Recorded card
   // Balanced Coverage; today the Corp makes the same mistake with Federal Fundraising
-  it.fails('D4 #53 #76: no asset is installed in remote-5, the only iced remote (recorded Balanced Coverage, today Federal Fundraising)', { timeout: T }, () => {
+  // A guard since ai-runner-unknowns: the Corp now clicks for a credit here (not a D4 fix; D4 still owes the reservation)
+  it('D4 #53 #76: no asset is installed in remote-5, the only iced remote (recorded Balanced Coverage; guard since ai-runner-unknowns)', { timeout: T }, () => {
     const { s } = at(53, 76);
     const a = decide(s) as Install;
     const card = a.cardInstanceId ? s.corp.hq.find(c => c.instanceId === a.cardInstanceId) : undefined;

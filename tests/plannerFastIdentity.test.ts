@@ -100,11 +100,12 @@ function oldKnownSubroutineCost(state: GameState, label: string): number | undef
   }
   // Elevation conditions
   const unless = label.match(/end the run unless the runner suffers (\d+) net damage/i);
-  if (unless) return Number(unless[1]) > runner.grip.length ? BLOCK : 2 * Number(unless[1]);
+  // ai-runner-unknowns (RM-SUBDAMAGE-TEXT): the damage priced as damage, not a flat 2 a point
+  if (unless) return Number(unless[1]) > runner.grip.length ? BLOCK : damageWorth(state, Number(unless[1]));
   const threat = label.match(/threat level is (\d+) or greater, end the run/i);
   if (threat) return Math.max(state.corp.score, runner.score) >= Number(threat[1]) ? BLOCK : 0;
   if (/end the run if the runner is tagged/i.test(label)) return runner.tags > 0 ? BLOCK : 1;
-  if (/if the runner has at least 2 tags/i.test(label)) return runner.tags >= 2 ? (2 > runner.grip.length ? BLOCK : 4) : 0;
+  if (/if the runner has at least 2 tags/i.test(label)) return runner.tags >= 2 ? (2 > runner.grip.length ? BLOCK : damageWorth(state, 2)) : 0;
   // Vantage Point: "... unless the Runner pays N credits": the cheaper of paying and letting the rest resolve
   const pays = label.match(/^(.*?)\s*unless the runner pays (\d+) (?:\[credit\]|credits?)\.?$/i);
   if (pays) {
@@ -127,7 +128,9 @@ function oldKnownSubroutineCost(state: GameState, label: string): number | undef
   if (/remove 1 card in the heap from the game/i.test(label)) return 0.3;
   if (/place 1 virus counter on this ice/i.test(label)) return 0; // Knowledge Seeker: counts down to its own derez
   if (/look at the top \d+ cards? of r&d|arrange|to the (?:top or )?bottom of r&d|shuffle 1 card from hq or archives into r&d/i.test(label)) return 0.4; // Corp card selection
-  if (/core damage/i.test(label)) return coreDamageWorth(state) + damageWorth(state, 1);
+  // ai-runner-unknowns: N core damage is N cards and N hand sizes (rule 10.4.2b)
+  const core = label.match(/(?:(\d+) )?core damage/i);
+  if (core) { const n = Number(core[1] ?? 1); return n > runner.grip.length ? BLOCK : n * coreDamageWorth(state) + damageWorth(state, n); }
   if (/unless they pay 3 credits/i.test(label)) return creditCost(state, 3);
   const loses = label.match(/loses? (\d+) (?:\[credit\]|credits?)/i);
   if (loses) return creditCost(state, Math.min(Number(loses[1]), runner.credits));
