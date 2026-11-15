@@ -295,8 +295,8 @@ export function advanceableInstalled(state: GameState): CardInstance[] {
 
 /**
  * "Sabotage X": the Corp trashes X cards of their choice from HQ and/or the
- * top of R&D. The Corp picks the HQ cards; the rest come from the top of
- * R&D. The script's onPromptAnswer calls resolveSabotage() for `step`.
+ * top of R&D. The Corp picks the HQ cards (sabotageQuestion); the rest come from
+ * the top of R&D. The card's step answering that question calls resolveSabotage().
  */
 /** Sabotage X's data: X, for resolveSabotage. */
 export type SabotageData = { x: number };

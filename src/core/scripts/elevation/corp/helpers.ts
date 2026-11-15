@@ -1,10 +1,8 @@
 import { CardInstance } from '../../../types/card';
 import { GameState } from '../../../types/state';
 import { cardDef } from '../../../cards';
-import { addLog } from '../../../engine/log';
-import { findInstalledCorpCard, revealInHand } from '../../../engine/helpers';
+import { findInstalledCorpCard } from '../../../engine/helpers';
 import { playBlocker, playCardFrom } from '../../../engine/actions/play';
-import { gainFromCard } from '../../../engine/cardEffects';
 import { EffectContext } from '../../types';
 import { cards, choice, prompts } from '../../steps';
 import { corpInstallOptions, installCorpChoice } from '../../effects';
@@ -100,25 +98,3 @@ export const safePlayBlockerFrom = (state: GameState, card: CardInstance) => {
   }
 };
 
-// Peer Review (Transaction): Reveal all but 1 card in HQ. Gain 7 credits. You may install
-// 1 card from HQ in the root of a remote server.
-const peerReviewTargets = (state: GameState) =>
-  installable(state, state.corp.hq.filter(c => type(c) !== 'ice'), { remoteRootOnly: true });
-
-export const peerReviewFlow = prompts({
-  hide: cards((ctx, a) => peerReviewResolve(ctx, a.ids[0])),
-  pick: cards((ctx, a) => {
-    if (a.ids.length > 0) peerReviewFlow.corpInstall(ctx, a.ids[0], 'server', { remoteRootOnly: true });
-  }),
-  server: choice<{ cardId: string; install: true }>((ctx, a, _d, source) => void installCorpChoice(ctx.state, source, a.raw)),
-});
-
-export function peerReviewResolve(ctx: EffectContext, hiddenId: string | undefined): void {
-  const { state, card } = ctx;
-  const shown = state.corp.hq.filter(c => c.instanceId !== hiddenId);
-  if (shown.length > 0) addLog(state, 'corp', `Corp revealed ${shown.map(c => cardDef(c).title).join(', ')} (Peer Review).`);
-  revealInHand(state, 'corp', shown);
-  gainFromCard(state, 'corp', 7, card);
-  const targets = peerReviewTargets(state);
-  if (targets.length > 0) peerReviewFlow.cards(ctx, 'pick', { side: 'corp', message: 'Peer Review: you may install 1 card from HQ in the root of a remote server.', candidateIds: ids(targets), min: 0, max: 1 });
-}
