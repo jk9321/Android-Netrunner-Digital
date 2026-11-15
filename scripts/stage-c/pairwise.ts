@@ -32,7 +32,7 @@ import { asSide, plan } from '../../src/ai/pricing';
 import { decisionContext } from '../../src/ai/handValues';
 import { moneyPick } from '../../src/ai/incomeLine';
 import { scoreNowPlan } from '../../src/ai/winNow';
-import { moneyOpGain } from '../../src/ai/corpAI';
+import { moneyOpGain } from '../../src/ai/valueAudit';
 import { econValue } from '../../src/ai/cardValues';
 import { serverHold } from '../../src/ai/corp/hold';
 import { stake } from '../../src/ai/corp/pools';
