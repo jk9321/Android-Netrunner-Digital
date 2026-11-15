@@ -109,9 +109,10 @@ describe('shuffling Archives cards into R&D', () => {
    * Pin (AI Coordinator 2026-11-15 16:36Z): the family answer can leave Spin Doctor unused on the Corp's turn with an
    * agenda in Archives (human report-23 T9), which is acceptable only because the Corp still uses it in the paid ability
    * window of the Movement Phase (rules 6.9.4e) when the Runner runs Archives, shuffling the agenda back before the breach
-   * (6.9.5b). With no agenda in Archives it passes.
+   * (6.9.5b). With no agenda in Archives it passes. The same window is the last one before the Runner accesses (and can
+   * trash) Spin Doctor in its own server: the Success Phase (6.9.5) and the access (7.1) open no paid ability window.
    */
-  const archivesRun = (agenda: boolean) => {
+  const runOn = (server: 'archives' | 'remote-1', agenda: boolean) => {
     let s = newGame(3);
     corpTurn(s);
     const spin = installCorpForTest(s, C.spinDoctor, 'remote-1');
@@ -122,18 +123,21 @@ describe('shuffling Archives cards into R&D', () => {
     archive(s, C.palisade);
     s.corp.credits = 8;
     s.corp.clicks = 0;
+    s.runner.credits = 10;
     s.activePlayer = 'runner';
     s.phase = 'runner_turn';
     s.runner.clicks = 4;
-    s = executeAction(s, { type: 'INITIATE_RUN', player: 'runner', targetServerId: 'archives' });
+    s = executeAction(s, { type: 'INITIATE_RUN', player: 'runner', targetServerId: server });
     const corp = createAgent('corp', 'normal');
-    for (let i = 0; i < 40 && s.activeRun; i++) {
-      const side = actingSide(s);
+    for (let i = 0; i < 40 && (s.activeRun || s.pendingPrompts.length > 0); i++) {
+      const side = actingSide(s)!;
       const legal = getLegalActions(s, side);
-      s = executeAction(s, side === 'corp' ? corp.chooseAction(s) : (legal.find(a => /PASS|CONTINUE/.test(a.type)) ?? legal[0]));
+      const trash = activePrompt(s)?.kind === 'access_trash' ? legal.find(a => (a as { choice?: { trash?: boolean } }).choice?.trash === true) : undefined;
+      s = executeAction(s, side === 'corp' ? corp.chooseAction(s) : (trash ?? legal.find(a => /PASS|CONTINUE/.test(a.type)) ?? legal[0]));
     }
     return { s, spin, sam };
   };
+  const archivesRun = (agenda: boolean) => runOn('archives', agenda);
 
   it('Spin Doctor: when the Runner runs Archives with an agenda there, the Corp uses it in the approach window and shuffles the agenda', () => {
     const { s, spin, sam } = archivesRun(true);
@@ -145,5 +149,11 @@ describe('shuffling Archives cards into R&D', () => {
   it('Spin Doctor: with no agenda in Archives the Corp passes in that window', () => {
     const { s, spin } = archivesRun(false);
     expect(s.removedFromGame.map(c => c.instanceId)).not.toContain(spin);
+  }, 60_000);
+
+  it('Spin Doctor: when the Runner runs its own server (able to trash it) with an agenda in Archives, the Corp uses it first', () => {
+    const { s, spin, sam } = runOn('remote-1', true);
+    expect(s.removedFromGame.map(c => c.instanceId)).toContain(spin);
+    expect(s.corp.rd.map(c => c.instanceId)).toContain(sam);
   }, 60_000);
 });
