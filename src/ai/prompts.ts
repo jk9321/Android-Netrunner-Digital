@@ -439,8 +439,7 @@ export function answerPrompt(state: GameState, side: SideCode, memory?: RunnerMe
     return { ...base, choice: { kind: 'effect_cards', cardInstanceIds: taoSwap(state, memory) } };
   }
 
-  // "Any number of cards" (two or more beyond the minimum: Spin Doctor's "up to 2" of a full Archives took every subset,
-  // 67-79 full evaluations, AI Coordinator 2026-11-15 14:50Z): build the answer one card at a time
+  // Two or more cards beyond the minimum (Spin Doctor's up to 2 tried every subset): build the answer one card at a time
   if (prompt.kind === 'effect_cards' && prompt.max - prompt.min >= 2 && prompt.candidateIds.length > 4) {
     return greedyCards(state, side, prompt, base, memory, synergy);
   }
