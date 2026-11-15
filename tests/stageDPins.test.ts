@@ -2,7 +2,8 @@ import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
 import { GameAction, GameState, cardDef, createInitialGameState, executeAction, findCardAnywhere } from '../src/core';
 import { deckGameSetup } from '../src/data/decks';
-import { createAgent } from '../src/ai';
+import { HeuristicCorpAI, createAgent } from '../src/ai';
+import { plan, withPricing } from '../src/ai/pricing';
 
 /**
  * Step 4 Stage D pins (spec-step4-corp-core.md section 5; AI Coordinator 2026-11-14 17:56Z), committed in Stage B as
@@ -93,4 +94,19 @@ describe('Stage D pins (known-failing until their fix lands)', () => {
       expect(a.choice?.cardInstanceIds?.length ?? 0).toBeGreaterThan(0);
     });
   }
+
+  // Stage C (AI Coordinator 2026-11-15 12:50Z): deal 1001 T10 (tests/iceRedirect.test.ts). Expected: ice on remote-1, the
+  // scoring remote that does not hold. Today, under the new order with the look-ahead, the Regolith Mining License click:
+  // no counted question takes the click; line 2 offers both Palisades on remote-1 (each improves its entries), the planner's
+  // K is Palisade, Palisade, Regolith, Whitespace, and the playouts value the Regolith click -13.65 against -18.83 for the
+  // ice (scripts/stage-c/fixture-candidates.ts). Cause: the leaf gives no worth to an empty scoring remote that now holds
+  // (valuation, not the order; line 2 is not exempted from the look-ahead to cover it). The no-look-ahead Corp plays the
+  // line-2 ice (tests/corpCandidates.test.ts)
+  it.fails('Stage C, deal 1001 T10: the Corp with the look-ahead installs ice on remote-1 (today: the Regolith click)', { timeout: 480_000 }, () => {
+    const s: GameState = JSON.parse(readFileSync(new URL('./fixtures/ice-redirect-1001-t10.json', import.meta.url), 'utf8'));
+    const a = withPricing({ plan: { ...plan(), corpCore: true, rolloutLines: true } }, () => new HeuristicCorpAI({ synergy: true }).chooseAction(s)) as Install;
+    expect(a.type).toBe('INSTALL_CARD');
+    expect(cardDef(findCardAnywhere(s, a.cardInstanceId ?? '')!).type_code).toBe('ice');
+    expect(a.targetServerId).toBe('remote-1');
+  });
 });
