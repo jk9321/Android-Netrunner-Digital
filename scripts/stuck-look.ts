@@ -15,7 +15,7 @@ import { AlarmTracker } from './alarms';
 import { runnerBudget } from '../src/ai/corp/hold';
 import { holdCost } from './plan-measure-lib';
 import { isCorpMain, knownIncome, scoreInTwo } from '../src/ai/corp/lines';
-import { withIceInstalled } from '../src/ai/iceValues';
+import { withIceInstalled } from '../src/ai/board';
 import { iceCreditNeed } from '../src/ai/runs';
 import { valueLoops } from '../src/ai/valueModel';
 import { applyPlanOff } from '../src/ai/synergy';

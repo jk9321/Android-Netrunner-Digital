@@ -6,6 +6,7 @@ import { scoringRemote } from '../src/ai/corp/lines';
 import { withDiagnostics } from '../src/ai/diagnostics';
 import { asSide } from '../src/ai/pricing';
 import { decisionContext } from '../src/ai/handValues';
+import '../src/ai'; // the AI entry: corpAI.ts fills the Corp ports (src/ai/corpPorts.ts) as it loads
 
 /**
  * assetCover (asset cover step 2, folded, redesign/spec-asset-cover.md, form A: Jeff's rule with a counted affordability

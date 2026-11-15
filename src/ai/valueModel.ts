@@ -11,6 +11,7 @@
  */
 import { CardInstance, GameState, SideCode, cardDef, rezCostOf } from '../core';
 import { actingSide, plan, pricingKey } from './pricing';
+import { corpPorts } from './corpPorts';
 
 export const RATES = {
   /** A click left this turn. */
@@ -293,9 +294,6 @@ export function buildTarget(state: GameState, side: SideCode): number {
   return target;
 }
 
-/** Rez money's keep (corp/rezMoney.ts, which sets it as it loads: importing the owner here is an import cycle). */
-let rezKeep: ((state: GameState) => number) | null = null;
-export const setRezKeep = (fn: (state: GameState) => number) => (rezKeep = fn);
 
 /**
  * Credits a side needs on this board: the Corp, to rez its unrezzed ice on
@@ -306,9 +304,8 @@ export const setRezKeep = (fn: (state: GameState) => number) => (rezKeep = fn);
 export function boardNeed(state: GameState, side: SideCode): number {
   const servers = Object.values(state.corp.servers);
   if (side === 'corp') {
-    // Stage B5: as the Corp prices it, the rez money its staked servers' holding rezzes need
-    // (corp/rezMoney.ts keep), not every unrezzed ice; the Runner's view keeps the board count (the owner reads HQ)
-    if (actingSide() === 'corp' && rezKeep) return rezKeep(state);
+    // B5: the Corp prices rez money's keep (corp/rezMoney.ts, through corpPorts: unset throws, R1); below, the Runner's view only
+    if (actingSide() === 'corp') return corpPorts.keep(state);
     let need = 0;
     for (const server of servers) {
       const counts = !server.isRemote || server.root.some(c => cardDef(c).type_code === 'agenda');

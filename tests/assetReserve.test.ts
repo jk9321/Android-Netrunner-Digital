@@ -4,6 +4,7 @@ import { GameAction, GameState } from '../src/core';
 import { assetCover, assetPartner } from '../src/ai/corp/placement';
 import { asSide } from '../src/ai/pricing';
 import { decisionContext } from '../src/ai/handValues';
+import '../src/ai'; // the AI entry: corpAI.ts fills the Corp ports (src/ai/corpPorts.ts) as it loads
 
 /**
  * Asset cover reservation (folded plan.assetReserve, countedScore.ts reservedForAgenda; bars/asset-cover-reserve.md): the

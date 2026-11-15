@@ -65,10 +65,24 @@ const MODULE_LETS: Record<string, string> = {
   'threatModel:planSig': "a cache of the plan's JSON for the threat key, rebuilt when the plan changes",
   'valueModel:deckCard': 'the deck-average hook handValues registers once (an import cycle otherwise)',
   'valueModel:nextStateId': "guardLoop's id counter for positions",
-  'valueModel:rezKeep': 'the rez money hook corp/rezMoney.ts registers once (Stage B5; an import cycle otherwise)',
 };
 
+/**
+ * Exported mutable module objects that are on-hit audits (a script switches one on and reads its counts; off in play):
+ * the module-let guard above sees `let` only (audit SB-AUDIT-FLAG). May only shrink.
+ */
+const AUDIT_FLAGS = ['corp/rezMoney:rezMoneyAudit', 'effectValues:threatsAudit', 'handValues:clickAudit', 'handValues:drawAudit', 'threatModel:threatAudit'];
+
 describe('AI code health (audit guards)', () => {
+  it('keeps the on-hit audit objects to this list, each off by default', () => {
+    const dir = new URL('../src/ai/', import.meta.url);
+    const found = (readdirSync(dir, { recursive: true }) as string[]).filter(f => f.endsWith('.ts')).flatMap(file =>
+      [...readFileSync(new URL(file, dir), 'utf8').matchAll(/^export const (\w+Audit) = \{ on: (\w+)/gm)].map(m => ({ key: `${file.replace(/\\/g, '/').replace(/\.ts$/, '')}:${m[1]}`, on: m[2] })),
+    );
+    expect(found.map(x => x.key).sort()).toEqual([...AUDIT_FLAGS].sort());
+    expect(found.filter(x => x.on !== 'false')).toEqual([]);
+  });
+
   it('keeps pricing state in the pricing context: no new module-level let in src/ai', () => {
     const dir = new URL('../src/ai/', import.meta.url);
     const found = (readdirSync(dir, { recursive: true }) as string[]).filter(f => f.endsWith('.ts')).flatMap(file =>
@@ -124,8 +138,75 @@ describe('AI code health (audit guards)', () => {
     // An install action built with a server: the placement owner, the counted lines' steps (in it too), and the ranking's
     // own ice-trash variants (corpAI.ts iceTrashInstalls, ranking debt deleted by Stage C)
     const ALLOWED: Record<string, string> = { 'corpAI.ts': 'iceTrashInstalls: the ranking (Stage C)', 'runnerAI.ts': 'Runner installs have no server' };
-    const found = aiFiles().filter(f => f.replace(/\\/g, '/') !== 'corp/placement.ts' && /type: 'INSTALL_CARD'[^}]*(targetServerId|asNewRemote)/.test(aiText(f)));
+    // A destination written any way: a property (`targetServerId: x`), a shorthand (`{ ...pick, targetServerId }`) or an
+    // assignment (`a.targetServerId = x`); a type's optional field (`targetServerId?:`) is not a write (audit SB-PLACEMENT-GUARD-WEAK)
+    const writes = /\b(targetServerId|asNewRemote)\s*:(?!\s*(string|boolean)\b)|[{,]\s*(targetServerId|asNewRemote)\s*[,}]|\.(targetServerId|asNewRemote)\s*=(?!=)/;
+    const found = aiFiles().filter(f => f.replace(/\\/g, '/') !== 'corp/placement.ts' && writes.test(aiText(f)));
     expect(found.filter(f => !(f in ALLOWED))).toEqual([]);
+  });
+
+  // Stage B review R8: the value-import graph of src/ai (type-only imports left out: they vanish at run time)
+  const importGraph = () => {
+    const files = aiFiles().map(f => f.replace(/\\/g, '/'));
+    const graph: Record<string, string[]> = {};
+    for (const f of files) {
+      const dir = f.includes('/') ? f.slice(0, f.lastIndexOf('/') + 1) : '';
+      graph[f] = [...aiText(f).matchAll(/^(?:import|export)\s+(?!type\b)[^'"]*?from\s+'(\.[^']+)'/gm)]
+        .map(m => new URL(m[1], `file:///${dir}`).pathname.slice(1))
+        .flatMap(p => [`${p}.ts`, `${p}/index.ts`].filter(c => c in Object.fromEntries(files.map(x => [x, 1]))).slice(0, 1));
+    }
+    return graph;
+  };
+  /** The strongly connected components with more than one module (Tarjan). */
+  const cycles = (graph: Record<string, string[]>): string[][] => {
+    let n = 0;
+    const index: Record<string, number> = {}, low: Record<string, number> = {}, stack: string[] = [], on = new Set<string>(), out: string[][] = [];
+    const visit = (v: string) => {
+      index[v] = low[v] = n++;
+      stack.push(v);
+      on.add(v);
+      for (const w of graph[v]) {
+        if (!(w in index)) {
+          visit(w);
+          low[v] = Math.min(low[v], low[w]);
+        } else if (on.has(w)) low[v] = Math.min(low[v], index[w]);
+      }
+      if (low[v] !== index[v]) return;
+      const c: string[] = [];
+      for (let w = ''; w !== v; ) {
+        w = stack.pop()!;
+        on.delete(w);
+        c.push(w);
+      }
+      if (c.length > 1) out.push(c);
+    };
+    for (const v of Object.keys(graph)) if (!(v in index)) visit(v);
+    return out;
+  };
+
+  it('keeps corp/ out of every import cycle, and the largest cycle in src/ai at or under 16 modules (29 before R8)', () => {
+    const found = cycles(importGraph());
+    expect(found.filter(c => c.some(f => f.startsWith('corp/'))), 'corp/ reads the valuation layer; the layer reads corp/ only through corpPorts.ts').toEqual([]);
+    expect(Math.max(...found.map(c => c.length))).toBeLessThanOrEqual(16);
+  });
+
+  it('imports corp/ from outside it only in these files', () => {
+    const ALLOWED: Record<string, string> = {
+      'corpAI.ts': 'the Corp agent, and the one corpPorts registration',
+      'search.ts': 'the Hard Corp agent (corpDecide)',
+      'index.ts': 'the AI entry',
+      'incomeLine.ts': "the counted lines' knownIncome (corp/lines.ts), which incomeLine prices a line with",
+      'rezModel.ts': 'the Corp agenda pool (corp/pools.ts) inside the priced rez',
+    };
+    const graph = importGraph();
+    const found = Object.keys(graph).filter(f => !f.startsWith('corp/') && graph[f].some(d => d.startsWith('corp/')));
+    expect(found.filter(f => !(f in ALLOWED)), 'read a Corp owner through corpPorts.ts').toEqual([]);
+  });
+
+  it('keeps the Corp ports to exactly these four (corpPorts.ts; freeInstallTarget goes with Stage D3)', async () => {
+    const { corpPorts } = await import('../src/ai/corpPorts');
+    expect(Object.keys(corpPorts).sort()).toEqual(['freeInstallTarget', 'holdingRezIds', 'keep', 'perfectRecallTarget']);
+    expect(aiFiles().filter(f => /\bregisterCorpPorts\(/.test(aiText(f)) && !f.endsWith('corpPorts.ts'))).toEqual(['corpAI.ts']);
   });
 
   it("keeps the hold owner's readers to this list (corp/hold.ts serverHold)", () => {
@@ -133,12 +214,13 @@ describe('AI code health (audit guards)', () => {
     expect(readers).toEqual(['corp/lines.ts', 'corp/placement.ts', 'corp/rez.ts', 'corp/rezMoney.ts']);
   });
 
-  // src/ai's total may only go down. Stage B ends at 13,928: beta at 545f146 is 13,851 (the Runner draws branch added 52
-  // to the Stage A tree's 13,799) and Stage B adds 77 (corp/core.ts's pipeline and the B5 time fix; AI Coordinator
-  // 2026-11-14 21:05Z). Stage C repays this when the ranking is deleted; target after C is below 13,799
-  it('keeps src/ai/corp under 1,900 lines and src/ai at or under the Stage B total (13,928)', () => {
+  // src/ai's total may only go down. Stage B ends at 13,938: beta at 545f146 is 13,851 (the Runner draws branch added 52
+  // to the Stage A tree's 13,799), Stage B adds 77 (corp/core.ts's pipeline and the B5 time fix; AI Coordinator
+  // 2026-11-14 21:05Z) and review R8 adds 10 (board.ts and corpPorts.ts, the seam that takes corp/ out of the cycle).
+  // Stage C repays this when the ranking is deleted; target after C is below 13,799
+  it('keeps src/ai/corp under 1,900 lines and src/ai at or under the Stage B total (13,938)', () => {
     const corp = aiFiles().filter(f => f.replace(/\\/g, '/').startsWith('corp/')).reduce((n, f) => n + lines(f), 0);
     expect(corp).toBeLessThan(1900);
-    expect(aiFiles().reduce((n, f) => n + lines(f), 0)).toBeLessThanOrEqual(13928);
+    expect(aiFiles().reduce((n, f) => n + lines(f), 0)).toBeLessThanOrEqual(13938);
   });
 });

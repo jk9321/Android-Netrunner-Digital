@@ -9,8 +9,8 @@ import { centralAccess } from './threatModel';
 import { turnsLeft } from './cardProfiles';
 import { freeRezTargets } from './freeRez';
 import { actingSide, plan, pricing } from './pricing';
-import { mainRemote } from './corp/placement';
-import { holdingRezIds } from './corp/rezMoney';
+import { mainRemote } from './board';
+import { corpPorts } from './corpPorts';
 
 /**
  * Value model step 5 (docs/ai-value-model-plan.md): ice priced in credits,
@@ -215,7 +215,7 @@ function countRezBudget(state: GameState, stops: Map<string, number> | null = nu
   // rezIds, staked servers in order) draws on the pool first; the rest follows, best stop first. An unholdable server's
   // ice gets no priority. The Runner's view keeps the stop order (the owner reads HQ)
   if (actingSide() === 'corp') {
-    const first = Object.values(holdingRezIds(state)).flat();
+    const first = Object.values(corpPorts.holdingRezIds(state)).flat();
     const rank = (w: { id: string }) => (first.includes(w.id) ? first.indexOf(w.id) : first.length);
     waiting.sort((a, b) => rank(a) - rank(b));
   }
@@ -317,14 +317,3 @@ export function iceTypeOdds(state: GameState): Record<string, number> {
 /** An AI breaker covers every type, but costs more to use: this share of each type it alone covers. */
 export const AI_BREAKER_SHARE = 0.6;
 
-/**
- * The board with `ice` installed outermost on `server` (a new remote when
- * null), for ice whose strength depends on where it sits (Scatter Field:
- * +4 only while it is the only ice protecting its server, rules 4.6.9).
- * Shallow: only the corp's servers are copied.
- */
-export function withIceInstalled(state: GameState, ice: CardInstance, server: ServerState | null): GameState {
-  const target: ServerState = server ?? { id: 'remote-placed', name: 'New remote', isRemote: true, ice: [], root: [] };
-  const servers = { ...state.corp.servers, [target.id]: { ...target, ice: [...target.ice, ice] } };
-  return { ...state, corp: { ...state.corp, servers } };
-}

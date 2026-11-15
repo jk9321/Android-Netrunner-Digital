@@ -5,7 +5,7 @@ import { econValue } from '../cardValues';
 import { isTrap } from '../runs';
 import { plan } from '../pricing';
 import { note, tally } from '../diagnostics';
-import { withIceInstalled } from '../iceValues';
+import { mainRemote, withIceInstalled } from '../board';
 import { profileOf } from '../cardProfiles';
 import { serverHold } from './hold';
 import { rezMoney } from './rezMoney';
@@ -44,18 +44,6 @@ const serverOf = (s: GameState, id: string): string | undefined =>
   Object.values(s.corp.servers).find(v => v.root.some(c => c.instanceId === id) || v.ice.some(c => c.instanceId === id))?.id;
 type ServerLike = GameState['corp']['servers'][string];
 
-/**
- * The scoring remote: the remote with the most ice that isn't holding a
- * money asset or trap (null with no iced remote).
- */
-export function mainRemote(state: GameState): ServerLike | null {
-  let best: ServerLike | null = null;
-  for (const server of Object.values(state.corp.servers)) {
-    if (!server.isRemote || server.ice.length === 0 || server.root.some(c => typeOf(c) === 'asset')) continue;
-    if (!best || server.ice.length > best.ice.length) best = server;
-  }
-  return best;
-}
 
 export type PlacementReason = 'pick' | 'scoreLine' | 'assetCover' | 'centralIce' | 'iceRedirect' | 'assetPartner' | 'assetLine:econIced' | 'assetLine:trapOffScoring';
 

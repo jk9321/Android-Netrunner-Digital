@@ -5,6 +5,7 @@ import { tuning } from '../src/ai/synergy';
 import { cardDef, createCardInstance, GameState } from '../src/core';
 import { newGame } from './helpers';
 import { inDecision } from './helpers/pricing';
+import '../src/ai'; // the AI entry: corpAI.ts fills the Corp ports (src/ai/corpPorts.ts) as it loads
 
 /**
  * plan.iceProtects (install-worth side check, probe P1, 2026-11-08): the Corp prices its installed ice by what it

@@ -1,7 +1,8 @@
 import { CardInstance, GameAction, GameState, ServerState, activePrompt, cardDef, getCardDefinition, getCardScript, getLegalActions, isLegalAction } from '../core';
 import { MYOSHU } from './cardPlans';
 import { iceStrength, iceSubroutines, iceSubtypes, isIcebreaker } from '../core/engine/ice';
-import { iceStop, iceWorth, withIceInstalled } from './iceValues';
+import { iceStop, iceWorth } from './iceValues';
+import { mainRemote, withIceInstalled } from './board';
 import { rigCoverage } from './evaluate';
 import { counters, rezCost } from '../core/engine/cardEffects';
 import { turnKey } from '../core/engine/helpers';
@@ -16,9 +17,9 @@ import { asSide, nudge, opponentLean, tuning } from './synergy';
 import { decisionContext } from './handValues';
 import { PlanMemory, planTurn, plannerOn } from './turnPlanner';
 import { runnerReply } from './runnerReply';
-import { agendaStakes, archivesWantsIce, decideRez, hasEndTheRun, onRezOnly } from './corp/rez';
-// perfectRecallTarget moved to corp/rez.ts (Stage B2); prompts.ts reads it from here (prompts are not changed in Stage B)
-export { perfectRecallTarget } from './corp/rez';
+import { agendaStakes, archivesWantsIce, decideRez, hasEndTheRun, onRezOnly, perfectRecallTarget } from './corp/rez';
+import { holdingRezIds, rezMoney } from './corp/rezMoney';
+import { registerCorpPorts } from './corpPorts';
 import { freeRezCover, freeRezTargets } from './freeRez';
 import { PETTY_CASH_REPLAY, iceAdvanceWorth, knownTrap, placedCounterWorth, rezzedWorth, runTimed, topDownWorth } from './effectValues';
 import { CARD_PROFILES, ECON_SCALE, PAYOUT_RISK, bareAssetRisk, unrezzedWorth } from './cardProfiles';
@@ -30,7 +31,6 @@ import { counterWorth } from './counterValues';
 import { plan, pricing, withPricing } from './pricing';
 import { dividendsOf, setupOperation } from './cards';
 import { CorpMemory, corpDecide, isPettyCash } from './corp/core';
-import { mainRemote } from './corp/placement';
 import { corpSeenGrip } from './oracle';
 
 
@@ -1220,3 +1220,6 @@ function tagFirst(state: GameState, ranked: ScoredAction[]): ScoredAction[] {
   const trash = { ...ranked[at], score: ranked[0].score + 0.01, tagFirst: true };
   return [trash, ...ranked.slice(0, at), ...ranked.slice(at + 1)];
 }
+
+// The Corp owners the valuation layer and prompts.ts read (Stage B review R8): one registration, as the Corp agent loads
+registerCorpPorts({ keep: state => rezMoney(state).keep, holdingRezIds, freeInstallTarget, perfectRecallTarget });
