@@ -1236,7 +1236,7 @@ export function chainReactionBonus(state: GameState, serverId: string): number {
   const installed = Object.values(state.corp.servers).flatMap(s => [...s.ice, ...s.root]);
   const worth = installed
     // Rezzed ice: the Corp pays its rez cost, a click and an install again to replace it
-    .map(c => (!c.isRezzed ? 1.5 : cardDef(c).type_code === 'ice' ? (cardDef(c).cost ?? 0) + 2 : corpCardValue(c, state, 'runner')))
+    .map(c => (!c.isRezzed ? 1.5 : cardDef(c).type_code === 'ice' ? (cardDef(c).cost ?? 0) + 2 : corpCardValue(c, state, 'runner', true)))
     .sort((a, b) => b - a);
   const mine = [...state.runner.rig.programs, ...state.runner.rig.hardware, ...state.runner.rig.resources].map(c => cardDef(c).cost ?? 0);
   const value = (worth[0] ?? 0) + (worth[1] ?? 0) - (mine.length ? Math.min(...mine) + 0.5 : 0) - 1;
