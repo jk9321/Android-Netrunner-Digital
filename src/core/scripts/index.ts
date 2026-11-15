@@ -9,8 +9,8 @@ import { elevationRunnerScripts } from './elevationRunner';
 import { elevationCorpScripts } from './elevationCorp';
 import { vantageRunnerScripts } from './vantageRunner';
 import { vantageCorpScripts } from './vantageCorp';
-import { liberationCorpScripts } from './liberationCorp';
-import { liberationRunnerScripts } from './liberationRunner';
+import { liberationCorpScriptGroups } from './liberation/corp';
+import { liberationRunnerScriptGroups } from './liberation/runner';
 
 export type { CardScript, EffectContext, EffectAnswer } from './types';
 
@@ -26,8 +26,8 @@ export const SCRIPT_GROUPS: Record<string, Record<string, CardScript>> = {
   elevationCorpScripts,
   vantageRunnerScripts,
   vantageCorpScripts,
-  liberationCorpScripts,
-  liberationRunnerScripts,
+  ...liberationCorpScriptGroups,
+  ...liberationRunnerScriptGroups,
 };
 
 /**
