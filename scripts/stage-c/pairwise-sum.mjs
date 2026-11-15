@@ -13,7 +13,8 @@ const NAMES = {
   7: '7 purge',
   8: '8 draw or credit',
   9: '9 ice that changes no count',
-  10: '10 agenda install or advance, the server does not hold',
+  10: '10 agenda install or advance, the server does not hold, bare or ice unpaid',
+  11: '11 agenda install or advance, the server does not hold, ice rezzed or paid (line 7a)',
 };
 const LINES = Object.keys(NAMES).map(Number);
 
@@ -113,7 +114,7 @@ out.push('');
 out.push(tableOf(sum.counts, 'All recorded states, a line available when any of its moves was legal (Stage A convention)'));
 out.push('');
 for (const src of ['deal', 'human']) if (sum.bySrc[src]) out.push(tableOf(sum.bySrc[src].counts, src === 'deal' ? 'The 56 local deals only' : 'Human games only'), '');
-for (const [label, lines] of [['the eight lines of the spec (9 and 10 left out)', [1, 2, 3, 4, 5, 6, 7, 8]], ['all ten', LINES]]) {
+for (const [label, lines] of [['the eight lines of the spec (9 and 10 left out)', [1, 2, 3, 4, 5, 6, 7, 8]], ['all ten (11 left out: an 11-line search is too slow)', LINES.filter(l => l !== 11)]]) {
   for (const [conv, counts] of [['by line condition (primary)', sum.cond], ['playable', sum.finite], ['above 0', sum.positive], ['legal', sum.counts]]) {
     const b = bestOrders(counts, lines);
     out.push(`### Order that agrees with the most decided pairs, ${label}, availability ${conv}`);

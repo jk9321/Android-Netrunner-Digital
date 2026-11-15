@@ -12,7 +12,7 @@ const read = (c, a, b) => {
   const x = c[`${a}>${b}`] ?? 0, y = c[`${b}>${a}`] ?? 0, n = x + y, sh = n ? x / n : 0;
   return { n, sh, w: n >= 20 && sh >= 0.55 ? a : n >= 20 && sh <= 0.45 ? b : null };
 };
-const L = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10];
+const L = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11];
 const rows = ['| Pair | legal | playable | above 0 | own condition (primary) | Robust |', '|---|---|---|---|---|---|'];
 const robust = {};
 for (const a of L) for (const b of L) if (a < b) {

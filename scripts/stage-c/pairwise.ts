@@ -42,6 +42,7 @@ import { isPettyCash } from '../../src/ai/corp/core';
 import { evaluate } from '../../src/ai/evaluate';
 import { simulate } from '../../src/ai/prompts';
 import { rezMoney } from '../../src/ai/corp/rezMoney';
+import { icedAndPaid } from '../../src/ai/corp/candidates';
 import { Decision, clearCaches, forEachRecorded } from '../stage-a/harness';
 
 const typeOf = (c: CardInstance | undefined) => (c ? cardDef(c).type_code : undefined);
@@ -134,6 +135,20 @@ function agendaHolds(s: GameState, a: GameAction): boolean {
   return !!server && serverHold(after, server, { when: 'runnerTurn', corpCredits: after.corp.credits }).holds;
 }
 
+/** Pass 5 (c0-rulings 04:15Z): an agenda move into a remote that does not hold, with ice rezzed or paid within keep (line 7a). */
+function agendaIcedPaid(s: GameState, a: GameAction): boolean {
+  let after: GameState;
+  try {
+    after = executeAction(s, a);
+  } catch {
+    return false;
+  }
+  const id = (a as { cardInstanceId: string }).cardInstanceId;
+  const server = Object.values(after.corp.servers).find(v => v.root.some(c => c.instanceId === id))?.id;
+  return icedAndPaid(after, server);
+}
+const agendaLine = (s: GameState, a: GameAction) => (agendaHolds(s, a) ? 3 : agendaIcedPaid(s, a) ? 11 : 10);
+
 const rootCardInHq = (s: GameState, but: string) => s.corp.hq.some(c => c.instanceId !== but && ['agenda', 'asset'].includes(typeOf(c) ?? ''));
 
 /**
@@ -178,12 +193,12 @@ function intent(s: GameState, a: GameAction): number | null {
         if ((i.asNewRemote || !i.targetServerId) && rootCardInHq(s, card!.instanceId)) return 4;
         return 9;
       }
-      if (typeOf(card) === 'agenda') return agendaHolds(s, i) ? 3 : 10;
+      if (typeOf(card) === 'agenda') return agendaLine(s, i);
       if (typeOf(card) === 'asset' && econValue(card!.cardCode, s) !== undefined) return 5;
       return 6;
     }
     case 'ADVANCE_CARD':
-      return typeOf(card) === 'agenda' ? (agendaHolds(s, a) ? 3 : 10) : 6;
+      return typeOf(card) === 'agenda' ? agendaLine(s, a) : 6;
     case 'USE_ABILITY':
       return 5;
     case 'PURGE_VIRUS':

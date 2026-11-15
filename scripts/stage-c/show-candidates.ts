@@ -9,6 +9,7 @@ import { decisionContext } from '../../src/ai/handValues';
 import { corpCandidates } from '../../src/ai/corp/candidates';
 import { isCorpMain } from '../../src/ai/corp/lines';
 import { playDeal } from '../stage-a/harness';
+import { HeuristicCorpAI } from '../../src/ai/corpAI';
 import { applyPlanOff } from '../../src/ai/synergy';
 
 const [lo, hi] = (process.env.TURNS ?? '1-99').split('-').map(Number);
@@ -20,6 +21,7 @@ const name = (s: GameState, a: GameAction) => {
 };
 applyPlanOff(process.env.PLAN_OFF ?? '');
 playDeal(Number(process.env.DEAL ?? 1001), {
+  ...(process.env.CORP === 'rollout' ? { corp: () => new HeuristicCorpAI({ synergy: true, planner: false }) } : {}),
   decision: d => {
     const s = d.state;
     if (d.kind !== 'action' || !isCorpMain(s) || s.turnNumber < lo || s.turnNumber > hi) return;
