@@ -65,6 +65,7 @@ Android: Netrunner digital game (React + TypeScript + Vite, Cloudflare Worker ho
 1. Pull card data and image links from NetrunnerDB.
 2. Add new keywords to the hover tooltips.
 3. Implement every card with its own unit test (plus liveValue/revealInHand); check errata.
+   Start from `npx vite-node scripts/new-set.ts` (stubs, test todos, unknown keywords). Card scripts live in `src/core/scripts/<set>/{corp,runner}/<type>.ts`; a card with prompts declares its steps with `prompts()` (`src/core/scripts/steps.ts`) and asks only through that flow (`tests/steps.test.ts` fails on a hand-written `onPromptAnswer` or a raw step string).
 3b. In a separate thread, blind rules tests with the `blind-rules-tests` skill (`.claude/skills/blind-rules-tests/SKILL.md`): 20-30 tricky cards tested from card text and the rules only, without reading the card code; real bugs go to the rules-bugs thread.
 4. AI data: one entry per card in `src/ai/cards/<set>.ts`; re-tag older cards that interact. Ice that gains subroutines when encountered (Starlit Knight) needs a `gainsOnEncounter` entry, or the Runner AI prices the run against the printed subroutines only.
 5. Startup/Standard legality and ban lists.
