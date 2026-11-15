@@ -4,7 +4,7 @@
  */
 import { describe, expect, it } from 'vitest';
 import { readFileSync } from 'node:fs';
-import { CardInstance, GameAction, GameState, activePrompt, createCardInstance, executeAction } from '../src/core';
+import { CardInstance, GameAction, GameState, activePrompt, cardDef, createCardInstance, executeAction } from '../src/core';
 import { HeuristicRunnerAI, createAgent } from '../src/ai';
 import { BLOCK, bestBreakPlan, breachAccesses, icePrice, isTrap, runRestWorth, runScore, serverValue, subroutineCost, tankDamage, trapDamageMax, trapHit, unrezzedDamageRisk } from '../src/ai/runs';
 import { accessDamage, damageWorth } from '../src/ai/effectValues';
@@ -422,5 +422,31 @@ describe('the tank damage text and its one owner (RM-SUBDAMAGE-TEXT, RM-TANK-NOT
   });
   it('"end the run unless the Runner suffers N net damage": the tank takes the N', () => {
     expect(dmg('End the run unless the Runner suffers 2 net damage.')).toBe(2);
+  });
+});
+
+describe('tanks over a whole run: break one, tank the other (rules 9.8.7b, 10.4.4)', () => {
+  // Review note on ai-runner-fixes: runScore barred a run whose tanks together were more than the grip, though breaking
+  // one of them left the rest survivable. Two rezzed Empiricists on a 4-card grip: tanking both is 6 damage
+  it('breaks the one that costs least and tanks the other, instead of barring the run', () => {
+    const s = newGame();
+    startRunnerTurn(s);
+    s.runner.rig.programs = [];
+    installProgramForTest(s, CARMEN);
+    s.runner.grip = s.runner.grip.slice(0, 4);
+    s.runner.credits = 10;
+    installIceForTest(s, EMPIRICIST, 'remote-9');
+    installIceForTest(s, EMPIRICIST, 'remote-9');
+    // an unseen card with 3 advancements behind them, worth the run
+    const agenda = s.corp.rd.find(c => cardDef(c).type_code === 'agenda')!;
+    s.corp.rd.splice(s.corp.rd.indexOf(agenda), 1);
+    s.corp.servers['remote-9'].root.push({ ...agenda, advancementCounters: 3 });
+    const one = asSide('runner', () => icePrice(s, s.corp.servers['remote-9'].ice[0]));
+    expect(one.damage).toBe(3);
+    expect(one.noDamage).toBeDefined();
+    expect(asSide('runner', () => runScore(s, 'remote-9'))).toBeGreaterThan(-Infinity);
+    // With nothing to break with, 6 damage on 4 cards is no way in
+    s.runner.rig.programs = [];
+    expect(asSide('runner', () => runScore(s, 'remote-9'))).toBe(-Infinity);
   });
 });

@@ -362,6 +362,8 @@ export interface IcePrice {
   value: number;
   /** Cards the Runner loses to the damage it lets resolve on the way past (for what a steal's damage meets after it); 0 when broken. */
   damage?: number;
+  /** When the tank is the cheaper way past: the cheapest way that lets no damage through (break it), for a run whose tanks together are more damage than the grip. */
+  noDamage?: IcePrice;
 }
 const BLOCKED: IcePrice = { credits: BLOCK, value: BLOCK };
 const total = (p: IcePrice): number => p.credits + p.value;
@@ -480,7 +482,9 @@ function plainIcePrice(state: GameState, ice: CardInstance): IcePrice {
   const tank: IcePrice = tankValue === BLOCK || lethal !== undefined ? BLOCKED : { credits: 0, value: tankValue, damage };
   const plan = bestBreakPlan(state, ice, subs.length);
   const broken: IcePrice = plan ? { credits: plan.credits, value: plan.value + funhouse } : BLOCKED;
-  return cheaper(cheaper(tank, broken), selfBreakPrice(state, ice, subs.length));
+  const noDamage = cheaper(broken, selfBreakPrice(state, ice, subs.length));
+  const best = cheaper(tank, noDamage);
+  return best === tank && damage > 0 && total(noDamage) < BLOCK ? { ...tank, noDamage } : best;
 }
 
 /**
@@ -1115,6 +1119,28 @@ export function breachAccesses(state: GameState, serverId: string): { accesses: 
  * How good a run on this server is now, net of the click and expected costs.
  * -Infinity when the Runner can't get in.
  */
+/**
+ * Each ice's way past on one run, with the tanks together survived (rules 9.8.7b, 10.4.4): icePrice, and while the
+ * rezzed ice's tank damage adds up to more than the grip, the tank whose break costs least more per card saved is
+ * broken instead (its `noDamage` price). Null when no choice leaves the damage within the grip.
+ */
+function runPrices(state: GameState, ices: CardInstance[]): Map<string, IcePrice> | null {
+  const prices = new Map(ices.map(ice => [ice.instanceId, icePrice(state, ice)] as const));
+  const damageOf = () => ices.reduce((n, ice) => n + (ice.isRezzed ? prices.get(ice.instanceId)!.damage ?? 0 : 0), 0);
+  for (let damage = damageOf(); damage > state.runner.grip.length; damage = damageOf()) {
+    const options = ices
+      .filter(ice => ice.isRezzed && prices.get(ice.instanceId)!.noDamage)
+      .map(ice => {
+        const p = prices.get(ice.instanceId)!;
+        return { ice, alt: p.noDamage!, extra: (total(p.noDamage!) - total(p)) / (p.damage ?? 1) };
+      })
+      .sort((a, b) => a.extra - b.extra);
+    if (options.length === 0) return null;
+    prices.set(options[0].ice.instanceId, options[0].alt);
+  }
+  return prices;
+}
+
 export function runScore(state: GameState, serverId: string, options: RunOptions = {}): number {
   const server = state.corp.servers[serverId];
   if (!server) return -Infinity;
@@ -1126,10 +1152,13 @@ export function runScore(state: GameState, serverId: string, options: RunOptions
   const bypassed = runBypasses(state, serverId, options);
   const derez = options.derezOne && plan().bypass ? windowDerez(state, serverId) : undefined;
   if (derez && !derez.rerez) bypassed.ids.add(derez.ice.instanceId);
-  // The grip at the access: less the damage of the rezzed ice it lets resolve (a steal's own damage meets that grip)
-  const iceDamage = server.ice.filter(ice => ice.isRezzed && !bypassed.ids.has(ice.instanceId)).reduce((n, ice) => n + (icePrice(state, ice).damage ?? 0), 0);
-  // More damage over the whole way in than the grip holds is a flatline before the access (10.4.4), however each ice reads alone
-  if (iceDamage > state.runner.grip.length) return -Infinity;
+  // The way past each ice, and the grip at the access: less the damage of the rezzed ice it lets resolve (a steal's own
+  // damage meets that grip). More damage over the whole way in than the grip holds is a flatline before the access
+  // (10.4.4), however each ice reads alone: the Runner breaks instead of tanking where that costs least, until the rest
+  // is survived, and only with no such choice is the run barred (review note on ai-runner-fixes)
+  const prices = runPrices(state, server.ice.filter(ice => !bypassed.ids.has(ice.instanceId)));
+  if (!prices) return -Infinity;
+  const iceDamage = [...prices.values()].reduce((n, p) => n + (p.damage ?? 0), 0);
   const grip = state.runner.grip.length - iceDamage;
   const breached = options.noBreach ? 0 : serverValue(state, breachId, (options.extraAccesses ?? 0) + rigAccess.accesses, options.memory, options.wary, undefined, grip) - rigAccess.cost;
   const gained = options.successCredits ?? 0;
@@ -1169,7 +1198,7 @@ export function runScore(state: GameState, serverId: string, options: RunOptions
   let lost = 0;
   for (const ice of server.ice) {
     if (bypassed.ids.has(ice.instanceId)) continue;
-    let price = icePrice(state, ice);
+    let price = prices.get(ice.instanceId) ?? icePrice(state, ice);
     if (total(price) === BLOCK && shredLeft) {
       // The Corp either lets the run go on or trashes HQ cards: worth it either way
       shredLeft = false;
@@ -1206,8 +1235,10 @@ export function runRestWorth(state: GameState, memory?: RunnerMemory, wary?: boo
   let credits = 0;
   let lost = 0;
   let damage = 0;
+  const prices = runPrices(state, ahead);
+  if (!prices) return 0; // a flatline on the way in whatever is broken (10.4.4)
   for (const ice of ahead) {
-    const price = icePrice(state, ice);
+    const price = prices.get(ice.instanceId)!;
     if (total(price) === BLOCK) return 0;
     credits += price.credits;
     lost += price.value + (ice.isRezzed ? 0 : unrezzedDamageRisk(state, ice));
