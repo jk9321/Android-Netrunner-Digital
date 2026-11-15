@@ -8,6 +8,9 @@
  * and a rezzed card is faceup and open information (rules 4.6.3).
  */
 import { CardInstance, GameState, cardDef } from '../src/core';
+import { THINK } from '../src/ai/oracle';
+import { PLANNER } from '../src/ai/turnPlanner';
+import { REPLY } from '../src/ai/runnerReply';
 
 export type OracleIce = 'hq' | 'archives' | 'remote';
 
@@ -23,7 +26,19 @@ export function batchTokens(planOff: string): { ice?: OracleIce; money: boolean;
   const money = keys.includes('+oracle.money');
   // +audit.search (spec-search S1): log every Corp planner decision's continuations (lossLog.ts SEARCH_AUDIT); no play change
   if (keys.includes('+audit.search')) process.env.SEARCH_AUDIT = '1';
-  return { ice, money, plan: keys.filter(k => !/^\+oracle\.ice\./.test(k) && k !== '+oracle.money' && k !== '+audit.search').join(',') };
+  // Step S-2 (branch ai-search-first, measurement only): s2:width=N plays the Corp planner N times as wide (N x 4
+  // candidates, N x 2 reply samples, through plan.oracle.think's THINK); s2:depth=2 plays two Runner turns in each reply
+  const s2 = keys.filter(k => k.startsWith('s2:'));
+  for (const k of s2) {
+    const m = k.match(/^s2:(width|depth)=(\d+)$/);
+    if (!m) throw new Error(`bad Step S-2 token ${k}: s2:width=N or s2:depth=N`);
+    if (m[1] === 'width') {
+      THINK.candidates = PLANNER.candidates * Number(m[2]);
+      THINK.samples = REPLY.samples * Number(m[2]);
+      keys.push('+oracle.think');
+    } else REPLY.turns = Number(m[2]);
+  }
+  return { ice, money, plan: keys.filter(k => !/^\+oracle\.ice\./.test(k) && k !== '+oracle.money' && k !== '+audit.search' && !k.startsWith('s2:')).join(',') };
 }
 
 /** Places the cheat ice on `target`. False when the Corp's R&D holds no ice (the deal is played without the cheat). */

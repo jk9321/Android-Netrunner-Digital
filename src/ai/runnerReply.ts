@@ -38,6 +38,12 @@ export const REPLY = {
    * first samples, which keeps the time per decision nearer the base.
    */
   contendGap: 4,
+  /**
+   * Step S-2 (measurement only, branch ai-search-first; never merged to beta): Runner turns a reply plays before the leaf.
+   * 1 is the shipped reply; 2 plays the rule-based Corp's next turn and a second Runner turn after it (twice the depth).
+   * Set by a batch's PLAN_OFF token s2:depth=2 (scripts/oracle-ice.ts batchTokens).
+   */
+  turns: 1,
 };
 
 /** Which samples a reply plays: guessHidden deals `from` .. `from + count - 1`. */
@@ -155,12 +161,16 @@ export function runnerReply(end: GameState, synergy: boolean, leaf: (state: Game
       const nakedAgendas = naked.flatMap(id => gr.state.corp.servers[id].root.filter(c => cardDef(c).type_code === 'agenda').map(c => c.instanceId));
       const ran = new Set<string>();
       try {
-        for (let i = 0; i < REPLY.maxSteps && !gr.state.winner; i++) {
+        let turnsDone = 0; // (Step S-2: REPLY.turns)
+        for (let i = 0; i < REPLY.maxSteps * REPLY.turns && !gr.state.winner; i++) {
           if (!gr.step()) break;
           const s = gr.state;
           if (s.activeRun) ran.add(s.activeRun.server);
           if (s.activePlayer === 'runner') runnerTurn = true;
-          else if (runnerTurn && !s.activeRun) break;
+          else if (runnerTurn && !s.activeRun) {
+            if (++turnsDone >= REPLY.turns) break;
+            runnerTurn = false;
+          }
         }
       } catch {
         // A reply that breaks the engine is scored where it stopped
