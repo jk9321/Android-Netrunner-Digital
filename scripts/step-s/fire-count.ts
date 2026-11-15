@@ -71,7 +71,7 @@ function measure(src: string, i: number, s: GameState, kind: Kind, cards?: CardI
     ms[f] = r.ms;
     if (r.move !== base.move) changed[f] = r.move;
   }
-  console.log(JSON.stringify({ src, i, kind, T: s.turnNumber, base: base.move, baseMs: base.ms, read: base.read.filter(f => families.includes(f)), changed, ms, control }));
+  console.log(JSON.stringify({ src, i, kind, T: s.turnNumber, base: base.move, baseMs: base.ms, read: base.read, changed, ms, control }));
 }
 
 /** A watching agent: records the deciding side's states, and plays the deal on with a plain Normal agent. */
