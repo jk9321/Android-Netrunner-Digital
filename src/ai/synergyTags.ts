@@ -103,6 +103,12 @@ const WANTS_PATTERNS: [RegExp, Theme][] = [
   [/play(ed)? an operation|transaction operation/i, 'operations'],
 ];
 
+/** Step S ablation B1 (measurement only, branch ai-search-first): set by pricing.ts, which this file can't import. */
+const synergyAblation = { read: (): boolean => false };
+export function setSynergyAblation(read: () => boolean): void {
+  synergyAblation.read = read;
+}
+
 /** A best guess from the card's text, for cards not in SYNERGY yet. */
 export function inferSynergy(def: CardDefinition): CardSynergy {
   const text = def.stripped_text ?? '';
@@ -119,5 +125,6 @@ export function inferSynergy(def: CardDefinition): CardSynergy {
 
 /** The tags for a card: hand-written if there are any, otherwise guessed from its text. */
 export function cardSynergy(def: CardDefinition): CardSynergy {
+  if (synergyAblation.read()) return inferSynergy(def); // Step S ablation B1 (measurement only): every card's tags from its text
   return SYNERGY[def.code] ?? inferSynergy(def);
 }

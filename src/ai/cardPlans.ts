@@ -5,7 +5,7 @@ import { corpCardValue, tagsWorth } from './evaluate';
 import { damageWorth } from './effectValues';
 import { runStealthCredits, trashedCardCost } from './runs';
 import { CLICK, cardRate, pointGain } from './valueModel';
-import { pricing, withPricing } from './pricing';
+import { ablated, pricing, withPricing } from './pricing';
 
 /**
  * Card plans (Jeff, 2026-10-30; plan.cardPlans): cards that pay off only
@@ -140,7 +140,7 @@ export function principiaFuel(state: GameState, card: CardInstance): number {
 export function handPlanWorth(state: GameState, card: CardInstance): number | undefined {
   const hand = CARD_PLANS[card.cardCode]?.hand;
   // A payoff priced from card values can come back here (the deck's average card counts this one): the average then
-  if (!hand || pricing().planning) return undefined;
+  if (!hand || pricing().planning || ablated('cardPlans')) return undefined; // (Step S ablation B8: the average card)
   return withPricing({ planning: true }, () => {
     const ready = Math.max(0, Math.min(1, hand.ready(state, card)));
     // No floor here: a card whose setup is far off is worth little (heldWorth keeps the hand floor)
@@ -150,6 +150,7 @@ export function handPlanWorth(state: GameState, card: CardInstance): number | un
 
 /** What the installed board plans of `side` add to its board. */
 export function boardPlansWorth(state: GameState, side: SideCode): number {
+  if (ablated('cardPlans')) return 0; // Step S ablation B8 (measurement only)
   const cards = side === 'runner' ? [...state.runner.rig.programs, ...state.runner.rig.hardware, ...state.runner.rig.resources, state.runner.identity] : [...installedCorp(state), state.corp.identity];
   let worth = 0;
   for (const card of cards) {

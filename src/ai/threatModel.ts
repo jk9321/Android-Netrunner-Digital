@@ -4,7 +4,7 @@ import { deckRootKey, unseenInHand } from './handValues';
 import { ALARM_CLOCK, RunOptions, RunnerMemory, runBypasses, runClick, runCreditSpend, runScore, serverValue } from './runs';
 import { asSide, sideOff, tuning } from './synergy';
 import { fingerprint, memo, pointGain, sideCreditValue } from './valueModel';
-import { effectivePlan, plan, pricing, pricingKey, withPricing } from './pricing';
+import { ablated, effectivePlan, plan, pricing, pricingKey, withPricing } from './pricing';
 import { clockOn, note, tally } from './diagnostics';
 import { corpSeenGrip } from './oracle';
 
@@ -65,7 +65,8 @@ const TIE = 1;
 /** True while the threat is being worked out: the Runner's scorer must not ask for the threat again. */
 
 /** The threat is read only by the Corp, with the switch on, and never from inside its own computation. */
-export const threatOn = (): boolean => !!plan().threatModel && plan().threatValues !== false && pricing().computingThreat === 0;
+// (Step S ablation A6, measurement only: as plan.threatValues off, for decisions rooted at the ablated side)
+export const threatOn = (): boolean => !!plan().threatModel && plan().threatValues !== false && pricing().computingThreat === 0 && !ablated('threatValues');
 
 /** What the Runner remembers of the Corp's installed cards: the ones it accessed and that stayed installed (rule 7.1.2: the Corp saw the access). */
 export function runnerMemory(state: GameState): RunnerMemory {

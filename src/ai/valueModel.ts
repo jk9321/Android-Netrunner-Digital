@@ -10,7 +10,7 @@
  * damage clocks), each behind its own tuning.plan switch.
  */
 import { CardInstance, GameState, SideCode, cardDef, rezCostOf } from '../core';
-import { actingSide, plan, pricingKey } from './pricing';
+import { ablated, actingSide, plan, pricingKey } from './pricing';
 import { corpPorts } from './corpPorts';
 
 export const RATES = {
@@ -373,6 +373,8 @@ export function sideCreditValue(state: GameState, side: SideCode, viewer: SideCo
   const credits = side === 'corp' ? state.corp.credits : state.runner.credits;
   // The money it unlocks in HQ sits on the slide with the credits: worth most to a broke Corp
   const reach = side === 'corp' && viewer === 'corp' ? moneyReach(state) : 0;
+  // Step S ablation A1 (measurement only): credits at face value, the money in reach with them
+  if (ablated('creditSlide')) return credits + reach;
   const need = creditNeed(state, side);
   // plan.brokeSlope (Jeff, 2026-11-05: rez ice when needed, then build back up): the Corp's own first 4 credits are
   // worth up to 2.8 each, not 1.8 (a steeper slope all the way to the need made a click for a credit beat installing
@@ -393,7 +395,7 @@ export function sideCreditValue(state: GameState, side: SideCode, viewer: SideCo
 export const LIQUIDITY_LIFT = 1.1;
 
 export function payoutSlide(state: GameState, side: SideCode, amount: number): number {
-  if (amount <= 0) return 1;
+  if (amount <= 0 || ablated('creditSlide')) return 1; // Step S ablation A1: face value
   const credits = side === 'corp' ? state.corp.credits : state.runner.credits;
   const need = creditNeed(state, side);
   // plan.liquidity (Jeff, 2026-11-06, his Teia game: the Runner sat on 0-5 credits for 13 turns and never played Sure

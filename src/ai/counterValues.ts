@@ -2,6 +2,7 @@ import { CardInstance, GameState, cardDef } from '../core';
 import { findCardAnywhere } from '../core';
 import { counters } from '../core/engine/cardEffects';
 import { RATES } from './valueModel';
+import { ablated } from './pricing';
 import { PAYOUT_RISK } from './payoutRisk';
 import type { CounterType } from './cards';
 import { COUNTER_FORMULAS, COUNTER_WORTH } from './cards';
@@ -70,7 +71,8 @@ function defaultWorth(card: CardInstance, type: CounterType): number {
 
 /** Worth of one counter of `type` on `card` (either side prices it the same since plan.counterEffects was folded). */
 export function counterWorth(state: GameState, card: CardInstance, type: CounterType): number {
-  const entry = COUNTER_FORMULAS[card.cardCode]?.[type] ?? COUNTER_WORTH[card.cardCode]?.[type];
+  // Step S ablation B6 (measurement only): the step-1 rates for every card
+  const entry = ablated('counterWorths') ? undefined : COUNTER_FORMULAS[card.cardCode]?.[type] ?? COUNTER_WORTH[card.cardCode]?.[type];
   return entry ? entry(state, card) : defaultWorth(card, type);
 }
 

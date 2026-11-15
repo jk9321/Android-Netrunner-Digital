@@ -3,7 +3,7 @@ import { ECON_SCALE, unrezzedWorth } from './cardProfiles';
 import { corpEffect, effectsOn, runnerEffect } from './effectValues';
 import { RATES, guardLoop } from './valueModel';
 import { CARD_VALUES } from './cards';
-import { plan } from './pricing';
+import { ablated, plan } from './pricing';
 
 /**
  * The AI's per-card numbers, by card code (each card's `value` in its set's
@@ -29,12 +29,15 @@ export interface CardValue {
 /** By card code: built from the per-set card files (src/ai/cards/). */
 export { CARD_VALUES } from './cards';
 
+/** Step S ablation B2 (measurement only): a card's hand-set numbers, none while flat values are ablated (the defaults). */
+const handSet = (code: string): CardValue | undefined => (ablated('flatValues') ? undefined : CARD_VALUES[code]);
+
 /** Extra worth of the cards a card draws, now that a card in hand is worth about a credit. */
-const drawBonus = (code: string): number => RATES.cardDrawn * (CARD_VALUES[code]?.draws ?? 0);
+const drawBonus = (code: string): number => RATES.cardDrawn * (handSet(code)?.draws ?? 0);
 
 /** Worth of an installed Corp asset or upgrade (1 if not listed). With a game state, a card profile (step 4) prices it instead. */
 export const corpKeepValue = (code: string, state?: GameState, rezzed = false): number =>
-  (state ? unrezzedWorth(state, code) ?? effect(state, code, rezzed)?.keep : undefined) ?? (CARD_VALUES[code]?.keep ?? RATES.defaultKeep) + drawBonus(code);
+  (state ? unrezzedWorth(state, code) ?? effect(state, code, rezzed)?.keep : undefined) ?? (handSet(code)?.keep ?? RATES.defaultKeep) + drawBonus(code);
 /** A card's worth from what it does (effectValues.ts), while plan.effectValues is on. */
 const effect = (state: GameState, code: string, rezzed = false) => (effectsOn() ? corpEffect(state, code, rezzed) : undefined);
 /** Worth of an econ asset in its own remote (undefined: not an econ asset). */
@@ -43,17 +46,17 @@ export const econValue = (code: string, state?: GameState): number | undefined =
   if (profiled !== undefined) return ECON_SCALE * profiled;
   const fx = state ? effect(state, code) : undefined;
   if (fx) return fx.econ === undefined ? undefined : ECON_SCALE * fx.econ;
-  const econ = CARD_VALUES[code]?.econ;
+  const econ = handSet(code)?.econ;
   return econ === undefined ? undefined : econ + drawBonus(code);
 };
 /** An upgrade's worth in a scoring remote and on HQ or R&D. */
 export const upgradeValue = (code: string, state?: GameState): [number, number] => {
   const fx = state ? effect(state, code)?.upgrade : undefined;
-  return fx ? [ECON_SCALE * fx[0], ECON_SCALE * fx[1]] : CARD_VALUES[code]?.upgrade ?? RATES.defaultUpgrade;
+  return fx ? [ECON_SCALE * fx[0], ECON_SCALE * fx[1]] : handSet(code)?.upgrade ?? RATES.defaultUpgrade;
 };
 /** Worth of an installed Runner card beyond icebreaker coverage (2 if not listed). */
 export const runnerCardValue = (code: string, state?: GameState, card?: CardInstance): number => {
-  const flat = () => (CARD_VALUES[code]?.rig ?? RATES.defaultRig) + drawBonus(code);
+  const flat = () => (handSet(code)?.rig ?? RATES.defaultRig) + drawBonus(code);
   // Effect formulas give credits; rig worth is on the board at RATES.rigCardScale per point
   // plan.rigEffects: the Runner's cards by what they do even where effectValues is off (the Corp's side; Gemini audit 2.1c)
   const fx = state && (effectsOn() || plan().rigEffects) ? guardLoop(state, `runner card ${code} ${card?.instanceId ?? ''}`, () => undefined, () => runnerEffect(state, code, card)) : undefined;

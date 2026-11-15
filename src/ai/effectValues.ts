@@ -8,7 +8,7 @@ import { CLICK, RATES, cardRate, flatlineWorth, memo, pointGain, pointValue, sco
 import { tagsWorth } from './evaluate';
 import { BLOCK, iceCost, iceCreditNeed, isTrap, plannedSubroutines, subroutineCost, tankDamage } from './runs';
 import { remoteRunChance, threatOn } from './threatModel';
-import { plan, pricing, withPricing } from './pricing';
+import { ablated, plan, pricing, withPricing } from './pricing';
 import { REZ_NOW_SHARE, rezBudget } from './iceValues';
 
 /**
@@ -500,6 +500,7 @@ export interface CorpEffect {
 
 /** Corp assets and upgrades, in credits: each card's formula is its `corp` entry in src/ai/cards/. */
 export function corpEffect(state: GameState, code: string, rezzed = false): CorpEffect | undefined {
+  if (ablated('corpFormulas')) return undefined; // Step S ablation B3 (measurement only): the flat value instead
   // A rezzed card's rez cost is paid already (plan.rezPaid; Gemini audit, 2026-11-01: rezzedWorth took it off twice)
   const cost = rezzed ? 0 : getCardDefinition(code).cost ?? 0;
   const agenda = pointGain(state.corp.score, agendaOdds(state).points);
@@ -510,6 +511,7 @@ export function corpEffect(state: GameState, code: string, rezzed = false): Corp
 
 /** Runner rig cards that aren't icebreakers, in credits, installed: each card's `runner` entry in src/ai/cards/. */
 export function runnerEffect(state: GameState, code: string, card?: CardInstance): number | undefined {
+  if (ablated('runnerFormulas')) return undefined; // Step S ablation B4 (measurement only): the flat value instead
   return runnerFormula(state, code, card);
 }
 
@@ -525,6 +527,7 @@ export const deckCount = (state: GameState, side: 'corp' | 'runner', test: (c: C
 
 /** Worth of one counter of a type on a card, priced against the board (counterValues.ts), for a card not installed yet. */
 export function counterWorthOf(state: GameState, code: string, type: 'credit' | 'virus' | 'power'): number {
+  if (ablated('counterWorths')) return 1; // Step S ablation B6 (measurement only): the fallback below
   return COUNTER_WORTH[code]?.[type]?.(state, { cardCode: code, instanceId: 'probe', tokens: {} } as unknown as CardInstance) ?? 1;
 }
 
@@ -541,7 +544,7 @@ export const effectsOn = (): boolean => true;
 
 /** Worth of a Corp root card once rezzed, less its rez cost (rez decisions on the Corp's own turn). */
 export function rezzedWorth(state: GameState, card: CardInstance, rezCost: number): number {
-  const own = CARDS[card.cardCode]?.rezzed;
+  const own = ablated('corpFormulas') ? undefined : CARDS[card.cardCode]?.rezzed; // Step S B3
   if (own) return own(state, card, rezCost);
   const fx = corpEffect(state, card.cardCode, true);
   return fx ? fx.keep - rezCost : -1;

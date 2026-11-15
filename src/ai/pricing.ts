@@ -1,6 +1,7 @@
 import type { SideCode } from '../core';
 import type { Diagnostics } from './diagnostics';
 import { planWith, sideOff, tuning } from './synergy';
+import { setSynergyAblation } from './synergyTags';
 
 /**
  * The pricing context (structural review item 6, Fable 2026-11-07): what a
@@ -77,6 +78,12 @@ export interface Pricing {
    * diagnostics.ts; no decision reads it, and it is not part of pricingKey.
    */
   diagnostics: Diagnostics | null;
+  /**
+   * Step S (measurement only, branch ai-search-first): the side whose decision this is at the root (the outermost
+   * asSide). An ablated family is off in everything that decision evaluates, its look-ahead and the Runner reply inside
+   * it included. Null outside a decision. Part of pricingKey only while some family is ablated.
+   */
+  root: SideCode | null;
 }
 
 const context: Pricing = {
@@ -98,6 +105,7 @@ const context: Pricing = {
   oracleRunning: false,
   runRecord: null,
   diagnostics: null,
+  root: null,
 };
 
 /** The current context (read only: change it with withPricing). */
@@ -108,6 +116,9 @@ export const plan = (): Plan => context.plan ?? tuning.plan;
 
 /** Bumped on every context change, so pricingKey is only rebuilt when something changed. */
 let version = 0;
+/** Step S ablations by root side (see ABLATE_FAMILIES at the end of this file). */
+const ablation: Record<SideCode, Set<AblateFamily>> = { corp: new Set(), runner: new Set() };
+const ablating = { any: false };
 
 /** Runs `fn` with the fields in `patch` set, and puts them back as they were afterwards (thrown or not). */
 export function withPricing<T>(patch: Partial<Pricing>, fn: () => T): T {
@@ -156,7 +167,7 @@ export function asSide<T>(side: SideCode, fn: () => T): T {
   const base = basePlan ?? plan();
   basePlan = base;
   try {
-    return withPricing({ side, plan: sideOff[side].length ? planWith(base, sideOff[side]) : base }, fn);
+    return withPricing({ side, plan: sideOff[side].length ? planWith(base, sideOff[side]) : base, root: context.root ?? side }, fn);
   } finally {
     if (outer) basePlan = null;
   }
@@ -214,7 +225,67 @@ export function pricingKey(): string {
     c.computingThreat ? 'h' : '',
     c.oracleRunning ? 'o' : '',
     c.runRecord ? c.runRecord.map(turn => turn.join('+')).join('/') : '',
+    ...(ablating.any ? [`ab-${c.root ?? ''}`] : []),
   ].join(':');
   keyVersion = version;
   return key;
 }
+
+/**
+ * Step S-1 ablation switches (brief-step-s.md; families in /mnt/project-files/netrunner-ai/audit-fixes/step-s/families.md).
+ * MEASUREMENT ONLY, on branch ai-search-first: never merged to beta. Each family, when ablated for a side, takes the
+ * plainest neutral value the code already has, in every evaluation of a decision rooted at that side. Off by default:
+ * with no family ablated every read below returns false and play is unchanged. Set by the batch scripts' ABLATE
+ * environment variable (`corp:handByCard,runner:runRiders`; a bare name means corp).
+ */
+export const ABLATE_FAMILIES = [
+  'creditSlide', // A1
+  'handByCard', // A2
+  'clickByPlay', // A3
+  'iceWorth', // A4
+  'agendaStanding', // A5
+  'threatValues', // A6
+  'tagClock', // A7
+  'damageClock', // A8
+  'iceTypeOdds', // A9
+  'digValue', // A10
+  'archivesLoss', // A11
+  'synergyTags', // B1
+  'flatValues', // B2
+  'corpFormulas', // B3 (with the Corp payout profiles, B5)
+  'runnerFormulas', // B4 (with the Runner payout profiles, B5)
+  'counterWorths', // B6
+  'runRiders', // B7
+  'cardPlans', // B8
+  'promptAnswers', // B9
+  'cardRules', // corp/cardRules.ts (AI Coordinator 2026-11-15 21:59Z: one cheap arm)
+] as const;
+export type AblateFamily = (typeof ABLATE_FAMILIES)[number];
+
+
+/** Whether `family` is ablated in the decision being made (by its root side). False outside a decision. */
+export function ablated(family: AblateFamily): boolean {
+  if (!ablating.any) return false;
+  const root = context.root;
+  return root !== null && ablation[root].has(family);
+}
+
+/** Sets the ablated families from a list (`corp:x,runner:y`, bare = corp); an unknown name throws. Empty clears. */
+export function applyAblate(list: string): void {
+  ablation.corp.clear();
+  ablation.runner.clear();
+  for (const key of list.split(',').map(k => k.trim()).filter(Boolean)) {
+    const m = key.match(/^(?:(corp|runner):)?(.*)$/)!;
+    const side = (m[1] ?? 'corp') as SideCode;
+    const name = m[2] as AblateFamily;
+    if (!ABLATE_FAMILIES.includes(name)) throw new Error(`no ablation family named ${name} (step S: ${ABLATE_FAMILIES.join(', ')})`);
+    ablation[side].add(name);
+  }
+  ablating.any = ablation.corp.size + ablation.runner.size > 0;
+  version++;
+}
+
+/** The ablated families, for logs. */
+export const ablationList = (): string => (['corp', 'runner'] as SideCode[]).flatMap(s => [...ablation[s]].map(f => `${s}:${f}`)).join(',');
+
+setSynergyAblation(() => ablated('synergyTags'));

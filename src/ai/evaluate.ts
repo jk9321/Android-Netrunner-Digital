@@ -14,7 +14,7 @@ import { CLICK, KNOBS, RATES, cardRate, creditValue, flatlineWorth, guardLoop, h
 import { LOCKDOWN, PACE, STEAL, agendaOdds, coreSlotWorth, flatlineOdds, lifeGrip, runSuccess, stealOdds } from './effectValues';
 import { remoteAgendaOdds, trashedCardCost } from './runs';
 import { centralAccess, runChance, threatOn } from './threatModel';
-import { plan, pricing, withPricing } from './pricing';
+import { ablated, plan, pricing, withPricing } from './pricing';
 import { corpDrawPool, oracleSteal } from './oracle';
 
 const MADANI = '35028';
@@ -56,6 +56,7 @@ const isEcon = (card: CardInstance) => (cardSynergy(cardDef(card)).gives?.econ ?
  * Each side only looks at its own deck's contents, never its order.
  */
 export function digValue(state: GameState, side: SideCode): number {
+  if (ablated('digValue')) return 0; // Step S ablation A10 (measurement only)
   const odds = (deck: CardInstance[], answers: (c: CardInstance) => boolean) => (deck.length > 0 ? deck.filter(answers).length / deck.length : 0);
   let value = 0;
   if (side === 'corp') {
@@ -265,6 +266,9 @@ export function agendaWorth(
 ): number {
   const gain = pointValue(state.corp.score + points, KNOBS.corpPoints) - pointValue(state.corp.score, KNOBS.corpPoints);
   const need = Math.max(0, cost - counters);
+  // Step S ablation A5 (measurement only): one flat steal chance for each Runner turn it waits on the Corp's own clicks
+  // and credits, no threat, no budget split between agendas, no late-game discount, its advances at the flat click
+  if (ablated('agendaStanding')) return gain * (1 - STEAL.run * PACE.success) ** agendaRunnerTurns(state, need, inHand, state.corp) - need * (CLICK + 1);
   // plan.threatModel: an agenda going into a new remote with no ice (no server yet, success 1: handValues) sits in an
   // open remote the Runner can see, which it runs by construction (threatModel.ts)
   const openNew = threatOn() && !serverId && success === 1 ? 1 : undefined;
@@ -329,6 +333,7 @@ export function threatStanding(state: GameState, serverId: string, turns: number
  * that holds facedown cards) on one of the turns left.
  */
 export function archivedAgendaLoss(state: GameState, points: number): number {
+  if (ablated('archivesLoss')) return 0; // Step S ablation A11 (measurement only)
   const gain = pointValue(state.runner.score + points) - pointValue(state.runner.score);
   // plan.measuredNov6: the breach rate measured on turns that start with facedown cards in Archives
   // plan.threatModel leaves this on the measured breach rate: the Runner's scorer prices a facedown Archives card as one the
@@ -462,7 +467,8 @@ export function tagsWorth(state: GameState, viewer: SideCode, count?: number): n
   const tags = count ?? state.runner.tags;
   if (tags <= 0) return 0;
   // Inside the tag clock's own pricing of the rig, a tag is the flat rate (a resource's worth can depend on tags)
-  if (pricing().pricingTagLoss) return tags * RATES.tagAgainstRunner;
+  // (Step S ablation A7, measurement only: the flat rate everywhere)
+  if (pricing().pricingTagLoss || ablated('tagClock')) return tags * RATES.tagAgainstRunner;
   return guardLoop(state, `tags ${viewer}`, () => tags * RATES.tagAgainstRunner, () => tagClock(state, viewer, tags, actual));
 }
 
@@ -591,9 +597,10 @@ export function sideStrength(state: GameState, side: SideCode, viewer: SideCode 
     handAndClicks(state, 'runner', viewer) +
     pointValue(runner.score) -
     tagsWorth(state, viewer) -
-    coreSlotWorth(state) * runner.coreDamage -
+    // (Step S ablation A8, measurement only: no damage clock and no core-damage price, the flat first cards only)
+    (ablated('damageClock') ? 0 : coreSlotWorth(state) * runner.coreDamage) -
     // The damage clock: a small grip against the Corp's damage is a step toward a flatline
-    (flatlineWorth(state) * flatlineOdds(state, lifeGrip(state), true) + lifeCards(runner.grip.length)) +
+    ((ablated('damageClock') ? 0 : flatlineWorth(state) * flatlineOdds(state, lifeGrip(state), true)) + lifeCards(runner.grip.length)) +
     runnerRigValue(state)
   );
 }

@@ -521,7 +521,11 @@ export function planWith(plan: typeof tuning.plan, keys: string[]): typeof tunin
  * (corp:+name) changes only that side's sideOff list.
  */
 export function applyPlanOff(list: string) {
-  for (const key of list.split(',').filter(Boolean)) {
+  // Step S (measurement only, branch ai-search-first): `ablate:<family>` or `ablate:runner:<family>` ablates a valuation
+  // family for decisions rooted at that side (pricing.ts ABLATE_FAMILIES); ai-batch.yml's plan_off input carries it
+  const ablate = list.split(',').filter(k => k.startsWith('ablate:')).map(k => k.slice('ablate:'.length));
+  if (ablate.length) applyAblate(ablate.join(','));
+  for (const key of list.split(',').filter(k => k && !k.startsWith('ablate:'))) {
     const m = key.match(/^(corp|runner):(.*)$/);
     if (!m) {
       tuning.plan = planWith(tuning.plan, [key]);
@@ -535,7 +539,8 @@ export function applyPlanOff(list: string) {
 }
 
 // The deciding side and its plan live in the pricing context (pricing.ts, structural review item 6)
-export { actingSide, asSide, planSide } from './pricing';
+export { ablated, actingSide, asSide, planSide } from './pricing';
+import { applyAblate } from './pricing';
 
 const IDENTITY = 3;
 const LIVE = 1.5; // in hand or installed

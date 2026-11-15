@@ -8,7 +8,7 @@ import { corpKeepValue } from './cardValues';
 import { centralAccess } from './threatModel';
 import { turnsLeft } from './cardProfiles';
 import { freeRezTargets } from './freeRez';
-import { actingSide, plan, pricing } from './pricing';
+import { ablated, actingSide, plan, pricing } from './pricing';
 import { mainRemote } from './board';
 import { corpPorts } from './corpPorts';
 
@@ -48,6 +48,7 @@ function stopCredits(state: GameState): number {
 
 /** Worth of one installed piece of ice, as `viewer` can judge it. */
 export function iceWorth(state: GameState, ice: CardInstance, viewer: SideCode): number {
+  if (ablated('iceWorth')) return flatIceWorth(ice); // Step S ablation A4 (measurement only): the loop fallback
   return guardLoop(state, `ice ${cardDef(ice).title} ${ice.instanceId}`, () => flatIceWorth(ice), () => iceWorthOf(state, ice, viewer));
 }
 
@@ -300,6 +301,7 @@ const DECK_PRIOR = 3;
  * worth 3 pieces of ice. Sums to 1.
  */
 export function iceTypeOdds(state: GameState): Record<string, number> {
+  if (ablated('iceTypeOdds')) return Object.fromEntries(ICE_TYPES.map(t => [t, 1 / ICE_TYPES.length])); // Step S A9: even
   const deck = deckIceShare(state);
   const shown = [
     ...Object.values(state.corp.servers).flatMap(s => s.ice).filter(c => c.isRezzed),

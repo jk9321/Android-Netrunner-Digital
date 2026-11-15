@@ -13,7 +13,7 @@ import { corpPorts } from './corpPorts';
 import { iceStop, iceWorth } from './iceValues';
 import { rezCost } from '../core/engine/cardEffects';
 import { isPsiStep } from '../core/scripts/effects';
-import { plan } from './pricing';
+import { ablated, plan } from './pricing';
 
 /** Applies an action, or returns null if the engine rejects it. */
 export function simulate(state: GameState, action: GameAction): GameState | null {
@@ -135,6 +135,7 @@ export function badPublicityWorth(state: GameState): number {
  * card's worth and its run live in one place; tests/useAudit.test.ts checks every run card has one).
  */
 export function runEventOptions(cardCode: string, state?: GameState): RunOptions {
+  if (ablated('runRiders')) return {}; // Step S ablation B7 (measurement only): the silent default
   return CARDS[cardCode]?.run?.(state) ?? {};
 }
 
@@ -142,6 +143,9 @@ export function runEventOptions(cardCode: string, state?: GameState): RunOptions
 export function answerPrompt(state: GameState, side: SideCode, memory?: RunnerMemory, synergy = false): GameAction {
   const prompt = activePrompt(state)!;
   const base = { type: 'RESOLVE_PROMPT' as const, player: side, promptId: prompt.id };
+  // Step S ablation B9 (measurement only): the card-specific answers below give way to the generic ones (placement prompts
+  // and the Archives-shuffle family answer stay)
+  const perCard = !ablated('promptAnswers');
 
   if (prompt.kind === 'mulligan') {
     return { ...base, choice: { kind: 'mulligan', mulligan: mulligan(state, prompt, synergy) } };
@@ -152,7 +156,7 @@ export function answerPrompt(state: GameState, side: SideCode, memory?: RunnerMe
   }
   // Liberation "may" effects the AI always takes: Salvo Testing's core damage, Strike Fund's 2 credits,
   // "Pretty" Mary's extra R&D card, and every Meeting of Minds card revealed for a credit
-  if (prompt.kind === 'effect_choice' && ((prompt.source.cardCode === '34031' && prompt.source.step === 'damage') || (prompt.source.cardCode === '34001' && prompt.source.step === 'trashed') || (prompt.source.cardCode === '34093' && prompt.source.step === 'extra'))) {
+  if (perCard && prompt.kind === 'effect_choice' && ((prompt.source.cardCode === '34031' && prompt.source.step === 'damage') || (prompt.source.cardCode === '34001' && prompt.source.step === 'trashed') || (prompt.source.cardCode === '34093' && prompt.source.step === 'extra'))) {
     return { ...base, choice: { kind: 'effect_choice', optionId: 'yes' } };
   }
   // AirbladeX: prevent all the net damage it can, but keep the last counter (and the card) when 1 damage would only cost a card from a full grip.
@@ -162,12 +166,12 @@ export function answerPrompt(state: GameState, side: SideCode, memory?: RunnerMe
     const save = Number(prompt.source.data?.amount) === 1 && counters === 1 && state.runner.grip.length >= 5;
     return { ...base, choice: { kind: 'effect_choice', optionId: String(save ? 0 : most) } };
   }
-  if (prompt.kind === 'effect_cards' && prompt.source.cardCode === '34076' && prompt.source.step === 'reveal') {
+  if (perCard && prompt.kind === 'effect_cards' && prompt.source.cardCode === '34076' && prompt.source.step === 'reveal') {
     return { ...base, choice: { kind: 'effect_cards', cardInstanceIds: prompt.candidateIds } };
   }
   // Lycian Multi-Munition: the subtypes the Runner has no breaker for; all three when it covers them all
   // (more subroutines), or when an AI breaker breaks anything anyway
-  if (side === 'corp' && prompt.kind === 'effect_choice' && prompt.source.cardCode === '34100' && prompt.source.step === 'subtypes') {
+  if (perCard && side === 'corp' && prompt.kind === 'effect_choice' && prompt.source.cardCode === '34100' && prompt.source.step === 'subtypes') {
     const { covered, anyBreakers } = rigCoverage(state.runner.rig.programs);
     const open = anyBreakers > 0 ? [] : ['barrier', 'code gate', 'sentry'].filter(t => !covered.has(t));
     const id = open.length === 0 ? 'all' : open.join('+');
@@ -175,7 +179,7 @@ export function answerPrompt(state: GameState, side: SideCode, memory?: RunnerMe
   }
   // Balanced Coverage: name the commonest non-agenda type left in R&D (the Corp knows its deck, not the order);
   // reveal it for the 2 credits (an agenda would never be named, so revealing tells the Runner little)
-  if (side === 'corp' && prompt.kind === 'effect_choice' && prompt.source.cardCode === '34050') {
+  if (perCard && side === 'corp' && prompt.kind === 'effect_choice' && prompt.source.cardCode === '34050') {
     if (prompt.source.step === 'reveal') return { ...base, choice: { kind: 'effect_choice', optionId: 'yes' } };
     if (prompt.source.step === 'type') {
       const counts = new Map<string, number>();
@@ -188,7 +192,7 @@ export function answerPrompt(state: GameState, side: SideCode, memory?: RunnerMe
     }
   }
   // Cohort Guidance Program: with 2 or more cards in HQ, swap the least useful for 2 credits and a draw
-  if (side === 'corp' && prompt.kind === 'effect_choice' && prompt.source.cardCode === '34108' && prompt.source.step === 'mode') {
+  if (perCard && side === 'corp' && prompt.kind === 'effect_choice' && prompt.source.cardCode === '34108' && prompt.source.step === 'mode') {
     const trash = state.corp.hq.length >= 2 && prompt.options.some(o => o.id === 'trash');
     return { ...base, choice: { kind: 'effect_choice', optionId: trash ? 'trash' : 'no' } };
   }
@@ -210,7 +214,7 @@ export function answerPrompt(state: GameState, side: SideCode, memory?: RunnerMe
     if (target) return { ...base, choice: { kind: 'effect_choice', optionId: target.server } };
   }
   // Warm Reception, Janaína: a free install from HQ; ice the Corp can afford first, then an asset or upgrade, never an agenda
-  if (side === 'corp' && prompt.kind === 'effect_cards' && ['34098', '34115'].includes(prompt.source.cardCode) && prompt.source.step === 'pick') {
+  if (perCard && side === 'corp' && prompt.kind === 'effect_cards' && ['34098', '34115'].includes(prompt.source.cardCode) && prompt.source.step === 'pick') {
     const cards = prompt.candidateIds.map(id => findCardAnywhere(state, id)).filter((c): c is CardInstance => !!c);
     const ice = cards.filter(c => cardDef(c).type_code === 'ice' && (cardDef(c).cost ?? 0) <= state.corp.credits).sort((a, b) => (cardDef(b).cost ?? 0) - (cardDef(a).cost ?? 0));
     const root = cards.filter(c => ['asset', 'upgrade'].includes(cardDef(c).type_code) && (cardDef(c).cost ?? 0) <= state.corp.credits);
@@ -226,7 +230,7 @@ export function answerPrompt(state: GameState, side: SideCode, memory?: RunnerMe
     }
   }
   // Epiphany Analytica: of the top 3 of R&D, ice or an asset or upgrade; an agenda only with an iced empty remote to put it in
-  if (side === 'corp' && prompt.kind === 'effect_cards' && prompt.source.cardCode === '34048' && prompt.source.step === 'pick') {
+  if (perCard && side === 'corp' && prompt.kind === 'effect_cards' && prompt.source.cardCode === '34048' && prompt.source.step === 'pick') {
     const cards = prompt.candidateIds.map(id => findCardAnywhere(state, id)).filter((c): c is CardInstance => !!c);
     const agenda = safeAgendaRemote(state, Object.keys(state.corp.servers)) ? cards.find(c => cardDef(c).type_code === 'agenda') : undefined;
     const ice = cards.find(c => cardDef(c).type_code === 'ice' && (cardDef(c).cost ?? 0) <= state.corp.credits);
@@ -236,7 +240,7 @@ export function answerPrompt(state: GameState, side: SideCode, memory?: RunnerMe
   }
   // Lightning Laboratory: its one counter rezzes ice free for a turn; spend it on a run that threatens
   // something (HQ, R&D, a remote with cards in it) and on ice that costs at least 3 to rez
-  if (side === 'corp' && prompt.kind === 'effect_cards' && prompt.source.cardCode === '34097' && prompt.source.step === 'rez') {
+  if (perCard && side === 'corp' && prompt.kind === 'effect_cards' && prompt.source.cardCode === '34097' && prompt.source.step === 'rez') {
     const server = state.activeRun ? state.corp.servers[state.activeRun.server] : undefined;
     const threatened = !!server && (server.id === 'hq' || server.id === 'rd' || (server.isRemote && server.root.length > 0));
     const ice = prompt.candidateIds
@@ -248,7 +252,7 @@ export function answerPrompt(state: GameState, side: SideCode, memory?: RunnerMe
     return { ...base, choice: { kind: 'effect_cards', cardInstanceIds: threatened && worth >= 3 ? ice.map(c => c.instanceId) : [] } };
   }
   // Lobisomem: break every barrier subroutine the plan chose it for (the largest X offered)
-  if (side === 'runner' && prompt.kind === 'effect_choice' && prompt.source.cardCode === '34090' && prompt.source.step === 'x') {
+  if (perCard && side === 'runner' && prompt.kind === 'effect_choice' && prompt.source.cardCode === '34090' && prompt.source.step === 'x') {
     return { ...base, choice: { kind: 'effect_choice', optionId: prompt.options[0].id } };
   }
   // Breach order: the cards in the root first, then the central zone, without peeking at what comes up
@@ -268,20 +272,20 @@ export function answerPrompt(state: GameState, side: SideCode, memory?: RunnerMe
   }
 
   // Alarm Clock (plan.bypass): its HQ run when the turn begins, priced with the 2-click bypass of the first ice
-  if (side === 'runner' && plan().bypass && prompt.kind === 'effect_choice' && prompt.source.cardCode === '34078' && prompt.source.step === 'run') {
+  if (perCard && side === 'runner' && plan().bypass && prompt.kind === 'effect_choice' && prompt.source.cardCode === '34078' && prompt.source.step === 'run') {
     // The run itself costs no click: runScore charges one, so it comes back
     const go = runScore(state, 'hq', { alarmClock: true, memory, wary: synergy && tuning.wary }) + runClick(state) > 0;
     return { ...base, choice: { kind: 'effect_choice', optionId: go ? 'yes' : 'no' } };
   }
 
   // Window of Opportunity (plan.bypass): derez the ice that costs the Runner most to get past (runs windowDerez)
-  if (side === 'runner' && plan().bypass && prompt.kind === 'effect_cards' && prompt.source.cardCode === '34077' && prompt.source.step === 'derez' && state.activeRun) {
+  if (perCard && side === 'runner' && plan().bypass && prompt.kind === 'effect_cards' && prompt.source.cardCode === '34077' && prompt.source.step === 'derez' && state.activeRun) {
     const pick = windowDerez(state, state.activeRun.server)?.ice.instanceId;
     if (pick && prompt.candidateIds.includes(pick)) return { ...base, choice: { kind: 'effect_cards', cardInstanceIds: [pick] } };
   }
 
   // Manegarm Skunkworks: pay the cheaper way in if the access is worth it, on the scale runScore planned the run with
-  if (side === 'runner' && prompt.kind === 'effect_choice' && prompt.source.cardCode === MANEGARM && state.activeRun) {
+  if (perCard && side === 'runner' && prompt.kind === 'effect_choice' && prompt.source.cardCode === MANEGARM && state.activeRun) {
     const value = serverValue(state, state.activeRun.server, 0, memory, synergy && tuning.wary);
     const cost: Record<string, number> = { clicks: 2 * runClick(state), pay: spendCost(state, 5) };
     const ways = prompt.options.filter(o => o.id in cost && cost[o.id] < value).sort((a, b) => cost[a.id] - cost[b.id]);
@@ -289,7 +293,7 @@ export function answerPrompt(state: GameState, side: SideCode, memory?: RunnerMe
   }
 
   // Baker: turn the run on Archives to whichever of HQ and R&D is worth more, if either beats Archives by the credit
-  if (side === 'runner' && prompt.kind === 'effect_choice' && prompt.source.cardCode === '36015' && prompt.source.step === 'redirect') {
+  if (perCard && side === 'runner' && prompt.kind === 'effect_choice' && prompt.source.cardCode === '36015' && prompt.source.step === 'redirect') {
     const value = (id: string) => serverValue(state, id, 0, memory, synergy && tuning.wary) - (id === 'archives' ? 0 : spendCost(state, 1));
     const best = ['hq', 'rd'].sort((a, b) => value(b) - value(a))[0];
     return { ...base, choice: { kind: 'effect_choice', optionId: value(best) > value('archives') ? best : 'no' } };
@@ -298,7 +302,7 @@ export function answerPrompt(state: GameState, side: SideCode, memory?: RunnerMe
   // The Holo Man (Jeff's Corp game 1, bug report #17: the AI moved it off the remote holding Offworld Office, so it
   // never advanced it): it goes where its 3 counters do most, the server with the agenda they bring closest to scored
   // (one they finish counts its points), and stays put when no server has one (the board score had no sense of it)
-  if (side === 'corp' && prompt.kind === 'effect_choice' && prompt.source.cardCode === '34120' && prompt.source.step === 'move') {
+  if (perCard && side === 'corp' && prompt.kind === 'effect_choice' && prompt.source.cardCode === '34120' && prompt.source.step === 'move') {
     const holo = findCardAnywhere(state, prompt.source.instanceId);
     const here = holo ? Object.values(state.corp.servers).find(v => v.root.some(c => c.instanceId === holo.instanceId))?.id : undefined;
     const pull = (serverId: string) =>
@@ -318,24 +322,24 @@ export function answerPrompt(state: GameState, side: SideCode, memory?: RunnerMe
   }
 
   // Méliès U: the secret side is the central the Runner is likeliest to run first (its share of runs), varied by turn so it can't be read
-  if (side === 'corp' && prompt.kind === 'effect_choice' && prompt.source.cardCode === '36036' && prompt.source.step === 'set') {
+  if (perCard && side === 'corp' && prompt.kind === 'effect_choice' && prompt.source.cardCode === '36036' && prompt.source.step === 'set') {
     return { ...base, choice: { kind: 'effect_choice', optionId: meliesSide(state) } };
   }
 
   // Caveat Emptor: the board score doesn't see next turn's clicks, so weigh them here: the 4 extra
   // credits are worth a 2-click swing to the Runner only when the Corp is nearly broke
-  if (side === 'corp' && prompt.kind === 'effect_choice' && prompt.source.cardCode === '36032' && prompt.source.step === 'mode') {
+  if (perCard && side === 'corp' && prompt.kind === 'effect_choice' && prompt.source.cardCode === '36032' && prompt.source.step === 'mode') {
     return { ...base, choice: { kind: 'effect_choice', optionId: state.corp.credits < 4 ? 'ten' : 'six' } };
   }
 
   // Rotary: the board score doesn't see the extra access the tag buys, so weigh it here: take the
   // tag when one more random access is worth more than what the tag costs (cheap for Vic)
-  if (side === 'runner' && prompt.kind === 'effect_choice' && prompt.source.cardCode === '36014' && prompt.source.step === 'breach') {
+  if (perCard && side === 'runner' && prompt.kind === 'effect_choice' && prompt.source.cardCode === '36014' && prompt.source.step === 'breach') {
     return { ...base, choice: { kind: 'effect_choice', optionId: accessWorth(state) > tagCost(state) ? 'tag' : 'no' } };
   }
 
   // Sourdough Starter (Jeff, 2026-10-30, plan.sourdough)
-  if (side === 'runner' && prompt.kind === 'effect_cards') {
+  if (perCard && side === 'runner' && prompt.kind === 'effect_cards') {
     const code = prompt.source.cardCode;
     const cards = prompt.candidateIds.map(id => findCardAnywhere(state, id)).filter((c): c is CardInstance => !!c);
     const weakest = (list: CardInstance[]) => [...list].sort((a, b) => keepValue(state, a) - keepValue(state, b))[0];
@@ -382,7 +386,7 @@ export function answerPrompt(state: GameState, side: SideCode, memory?: RunnerMe
   }
 
   // Perfect Recall: reveal the agenda the Runner is after
-  if (side === 'corp' && prompt.kind === 'effect_cards' && prompt.source.cardCode === '36035' && prompt.source.step === 'reveal') {
+  if (perCard && side === 'corp' && prompt.kind === 'effect_cards' && prompt.source.cardCode === '36035' && prompt.source.step === 'reveal') {
     const pick = corpPorts.perfectRecallTarget(state) ?? prompt.candidateIds[0];
     return { ...base, choice: { kind: 'effect_cards', cardInstanceIds: [pick] } };
   }
@@ -390,7 +394,7 @@ export function answerPrompt(state: GameState, side: SideCode, memory?: RunnerMe
   // Peer Review: keep the best agenda hidden (the Runner already knows the other cards it might
   // hide); with no unknown agenda, the card the Corp most wants to keep. The board score can't
   // see hidden information, so trying each answer would not tell them apart.
-  if (side === 'corp' && prompt.kind === 'effect_cards' && prompt.source.cardCode === PEER_REVIEW && prompt.source.step === 'hide') {
+  if (perCard && side === 'corp' && prompt.kind === 'effect_cards' && prompt.source.cardCode === PEER_REVIEW && prompt.source.step === 'hide') {
     const known = new Set(knownInHand(state, 'corp').map(e => e.id));
     const cards = prompt.candidateIds.map(id => state.corp.hq.find(c => c.instanceId === id)!).filter(Boolean);
     const unknown = cards.filter(c => !known.has(c.instanceId));
@@ -400,7 +404,7 @@ export function answerPrompt(state: GameState, side: SideCode, memory?: RunnerMe
   }
 
   // Botulus: break the worst subroutine
-  if (side === 'runner' && prompt.kind === 'effect_choice' && prompt.source.cardCode === BOTULUS) {
+  if (perCard && side === 'runner' && prompt.kind === 'effect_choice' && prompt.source.cardCode === BOTULUS) {
     const ice = encounteredIce(state);
     const subs = ice ? (iceSubroutines(state, ice)) : [];
     const worst = [...prompt.options].sort((a, b) => subroutineCost(state, subs[Number(b.id)]?.label ?? '') - subroutineCost(state, subs[Number(a.id)]?.label ?? ''))[0];
@@ -409,7 +413,7 @@ export function answerPrompt(state: GameState, side: SideCode, memory?: RunnerMe
 
   // IP Enforcement: simulating stops before the agenda leaves the score area, so the try-each
   // search only sees the tags it costs. Take back the most points, then the quickest to re-score.
-  if (side === 'corp' && prompt.kind === 'effect_choice' && prompt.source.cardCode === '35066' && prompt.source.step === 'agenda') {
+  if (perCard && side === 'corp' && prompt.kind === 'effect_choice' && prompt.source.cardCode === '35066' && prompt.source.step === 'agenda') {
     const worth = (id: string) => {
       const def = cardDef(state.runner.scoreArea.find(a => a.instanceId === id)!);
       return (def.agenda_points ?? 0) * 10 - (def.advancement_cost ?? 0);
@@ -420,23 +424,23 @@ export function answerPrompt(state: GameState, side: SideCode, memory?: RunnerMe
 
   // AU Co.: the power counters do nothing else, so 2 cards now beat 2 cards later. (Scored as an outcome
   // the cards drawn count for nothing: plan.blindDraws hides cards from R&D.)
-  if (side === 'corp' && prompt.kind === 'effect_choice' && prompt.source.cardCode === '35046' && prompt.source.step === 'use') {
+  if (perCard && side === 'corp' && prompt.kind === 'effect_choice' && prompt.source.cardCode === '35046' && prompt.source.step === 'use') {
     return { ...base, choice: { kind: 'effect_choice', optionId: 'use' } };
   }
 
   // Zahya Sadeghi (Jeff): a 1-credit gain waits while 2 clicks are left for another HQ or R&D run
-  if (side === 'runner' && prompt.kind === 'effect_choice' && prompt.source.cardCode === '30010' && prompt.source.step === 'gain') {
+  if (perCard && side === 'runner' && prompt.kind === 'effect_choice' && prompt.source.cardCode === '30010' && prompt.source.step === 'gain') {
     const wait = Number(prompt.source.data?.credits ?? 0) < 2 && state.runner.clicks >= 2;
     return { ...base, choice: { kind: 'effect_choice', optionId: wait ? 'no' : 'gain' } };
   }
 
   // Deck-aware AI: PT Untaian's paid advancement goes where it does the most
-  if (synergy && side === 'corp' && prompt.kind === 'effect_cards' && prompt.source.cardCode === '35047') {
+  if (perCard && synergy && side === 'corp' && prompt.kind === 'effect_cards' && prompt.source.cardCode === '35047') {
     return { ...base, choice: { kind: 'effect_cards', cardInstanceIds: untaianPick(state, prompt.candidateIds) } };
   }
 
   // Deck-aware AI: Tāo Salonga moves the hardest ice off the servers worth attacking
-  if (synergy && side === 'runner' && prompt.kind === 'effect_cards' && prompt.source.cardCode === '30019') {
+  if (perCard && synergy && side === 'runner' && prompt.kind === 'effect_cards' && prompt.source.cardCode === '30019') {
     return { ...base, choice: { kind: 'effect_cards', cardInstanceIds: taoSwap(state, memory) } };
   }
 

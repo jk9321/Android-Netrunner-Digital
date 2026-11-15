@@ -7,7 +7,7 @@ import { agendaWorth, isOneUse, runnerRigValue } from './evaluate';
 import { counterWorth } from './counterValues';
 import { handPlanWorth } from './cardPlans';
 import { CLICK, RATES, cardRate, fingerprint, handFilter, payoutSlide, pricingApart, positionSerial, printedGain, reachCard, scopeToGame, setDeckCard } from './valueModel';
-import { leafHandByCard, noteDecision, plan, pricing, pricingKey, withPricing } from './pricing';
+import { ablated, leafHandByCard, noteDecision, plan, pricing, pricingKey, withPricing } from './pricing';
 import { corpDrawPool, corpKnowsRd } from './oracle';
 
 /**
@@ -58,7 +58,7 @@ export function playedWorth(state: GameState, card: CardInstance): number {
       return corpKeepValue(card.cardCode, state) - CLICK;
   }
   // Runner rig cards
-  const profile = CARD_PROFILES[card.cardCode];
+  const profile = ablated('runnerFormulas') ? undefined : CARD_PROFILES[card.cardCode]; // Step S B4/B5
   if (profile) return payoutWorth(profile, turns, profile.load, payoutWait(state, profile, 'runner'), cardRate(state, 'runner')) * payoutSlide(state, 'runner', profile.load) - cost - CLICK;
   // (Not while the deck's average card is worked out: pricing the rig there prices the rig cards that asked for the average)
   if (isIcebreaker(card) && !pricing().pricingBreakers.has(card.instanceId) && !pricing().averaging) {
@@ -291,7 +291,8 @@ export function ownHandValue(state: GameState, side: SideCode): number {
   return value;
 }
 
-export const handByCard = (side: SideCode): boolean => leafHandByCard(side) || !!plan().handByCard?.[side];
+// Step S ablation A2 (measurement only): the flat hand everywhere, the planner leaf included
+export const handByCard = (side: SideCode): boolean => !ablated('handByCard') && (leafHandByCard(side) || !!plan().handByCard?.[side]);
 
 /**
  * A click priced by the best plays in hand (Jeff, 2026-10-28; plan.clickByPlay):
@@ -340,6 +341,7 @@ const clickCache = new Map<string, number>();
 
 /** Price of a click left to `side`, as `viewer` sees it: best play in hand for its own, the 1.25 default for the other side's. */
 export function clickPrice(state: GameState, side: SideCode, viewer: SideCode): number {
-  return side === viewer && plan().clickByPlay?.[viewer] ? clickWorth(state, side) : CLICK;
+  // Step S ablation A3 (measurement only): the flat click
+  return side === viewer && plan().clickByPlay?.[viewer] && !ablated('clickByPlay') ? clickWorth(state, side) : CLICK;
 }
 
