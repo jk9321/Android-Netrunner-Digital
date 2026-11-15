@@ -15,7 +15,7 @@ import { availableCredits, counters, rezCost, stealthCredits, threatLevel, turnF
 import { stealCost } from '../core/engine/actions/run';
 import { spikeKey } from '../core/scripts/liberationRunner';
 import { corpCardValue, hiddenCardOdds, tagsWorth } from './evaluate';
-import { agendaOdds, coreDamageWorth, counterWorthOf, damageWorth, flatlineOdds, runnerEffect, stealDamage } from './effectValues';
+import { accessDamage, agendaOdds, coreDamageWorth, counterWorthOf, damageWorth, flatlineOdds, runnerEffect, stealDamage } from './effectValues';
 import { clickPrice } from './handValues';
 import { clickRate, creditNeed, creditSlide, flatlineWorth, payoutSlide, pointValue } from './valueModel';
 import { plan } from './pricing';
@@ -598,16 +598,42 @@ export const accessTrap = (code: string): boolean => isTrap(code) && /when the r
  * again; once every trap is accounted for the odds are 0.
  */
 export function trapOdds(state: GameState, memory?: RunnerMemory): number {
+  const { traps, agendas } = unseenTraps(state, memory);
+  return traps.length + agendas > 0 ? traps.length / (traps.length + agendas) : 0;
+}
+
+/** The traps (codes) and agendas (count) still unaccounted for, as trapOdds counts them: the decklist less what is public or seen. */
+function unseenTraps(state: GameState, memory?: RunnerMemory): { traps: string[]; agendas: number } {
   const corp = state.corp;
   const installed = Object.values(corp.servers).flatMap(server => server.root.filter(c => !c.isRezzed && !c.faceUp));
-  let traps = 0;
+  const traps: string[] = [];
   let agendas = 0;
   for (const card of [...corp.hq, ...corp.rd, ...corp.archives.faceDown, ...installed]) {
     if (memory?.has(card.instanceId)) continue;
-    if (isTrap(card.cardCode)) traps++;
+    if (isTrap(card.cardCode)) traps.push(card.cardCode);
     else if (cardDef(card).type_code === 'agenda') agendas++;
   }
-  return traps + agendas > 0 ? traps / (traps + agendas) : 0;
+  return { traps, agendas };
+}
+
+/**
+ * What accessing an unknown installed card costs the Runner if it is a trap: the access damage (accessDamage, card
+ * text) of each trap still unseen in the decklist, priced by damageWorth at the grip at the access, averaged. With
+ * advancement counters on it, only the traps that can be advanced fit. Rules 10.4.4 (more damage than the grip
+ * flatlines). Replaces the flat 2 + advancements guess (Byte! does 3, ai-runner-fixes round 2).
+ */
+export function trapHit(state: GameState, advancements: number, grip: number, memory?: RunnerMemory): number {
+  const pool = fittingTraps(state, advancements, memory);
+  if (pool.length === 0) return 0;
+  return pool.reduce((n, c) => n + damageWorth(state, accessDamage(state, c, advancements), false, grip), 0) / pool.length;
+}
+
+const fittingTraps = (state: GameState, advancements: number, memory?: RunnerMemory): string[] =>
+  unseenTraps(state, memory).traps.filter(c => advancements === 0 || /you can advance this/i.test(getCardDefinition(c).stripped_text ?? ''));
+
+/** The most an unknown installed card with `advancements` counters could do on access, from the same unseen traps. */
+export function trapDamageMax(state: GameState, advancements: number, memory?: RunnerMemory): number {
+  return fittingTraps(state, advancements, memory).reduce((n, c) => Math.max(n, accessDamage(state, c, advancements)), 0);
 }
 
 /**
@@ -796,7 +822,7 @@ function serverWorth(state: GameState, serverId: string, extraAccesses: number, 
       if (bangun && state.runner.grip.length < 2) return 0;
       const tax = stealTax(state, serverId, card);
       if (tax === null) continue;
-      value += stealWorth(state, cardDef(card).agenda_points ?? 1, DENY.remote) - tax - knownStealHit(state, card.cardCode, grip) - (bangun ? damageWorth(state, 2) + tagCost(state) : 0);
+      value += stealWorth(state, cardDef(card).agenda_points ?? 1, DENY.remote) - tax - knownStealHit(state, card.cardCode, grip) - (bangun ? damageWorth(state, 2, false, grip) + tagCost(state) : 0);
       continue;
     }
     if (!card.isRezzed && memory?.has(card.instanceId)) {
@@ -815,7 +841,7 @@ function serverWorth(state: GameState, serverId: string, extraAccesses: number, 
       const trapShare = Math.min(1 - agenda, trap);
       // plan.oneAgendaGuess: the points of the agendas still unseen, as the board counts them (not the whole decklist's)
       const hiddenPoints = plan().oneAgendaGuess ? hiddenCardOdds(state).agendaPoints : points;
-      value += agenda * stealNet(stealWorth(state, hiddenPoints, card.advancementCounters > 0 ? DENY.remote : DENY.central), unseenTax, hit) - trapShare * damageWorth(state, 2 + card.advancementCounters, false, grip) + (1 - agenda - trapShare) * 1;
+      value += agenda * stealNet(stealWorth(state, hiddenPoints, card.advancementCounters > 0 ? DENY.remote : DENY.central), unseenTax, hit) - trapShare * trapHit(state, card.advancementCounters, grip, memory) + (1 - agenda - trapShare) * 1;
     } else {
       const trash = cardDef(card).trash_cost;
       // Trashing it denies the Corp what it would still pay if left (RUNNER-ASSET-TRASH: the worth as left, corpCardValue's
@@ -844,7 +870,7 @@ export function serverValue(state: GameState, serverId: string, extraAccesses = 
 export function needsBiggerHand(state: GameState, memory?: RunnerMemory): boolean {
   return Object.values(state.corp.servers).some(server =>
     server.root.some(
-      c => !c.isRezzed && !memory?.has(c.instanceId) && c.advancementCounters > 0 && state.runner.grip.length <= 2 + c.advancementCounters
+      c => !c.isRezzed && !memory?.has(c.instanceId) && c.advancementCounters > 0 && trapDamageMax(state, c.advancementCounters, memory) > state.runner.grip.length
     )
   );
 }

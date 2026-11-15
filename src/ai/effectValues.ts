@@ -283,6 +283,22 @@ export function stealDamage(code: string): number {
   return m ? Number(m[1]) : 0;
 }
 
+/**
+ * Net or meat damage a trap does when the Runner accesses it with `advancements` counters on it, read from its text
+ * (Byte!: 3 net if the Corp pays 4; Urtica Cipher: 2 net plus 1 per advancement counter; Esca: 1 net if the Runner is
+ * tagged). 0 for traps that don't damage on access (Clearinghouse fires on the Corp's turn, Behold! gives tags).
+ */
+export function accessDamage(state: GameState, code: string, advancements: number): number {
+  const text = getCardDefinition(code).stripped_text ?? '';
+  if (!/when the runner accesses this/i.test(text)) return 0;
+  const m = text.match(/do (\d+) (?:net|meat) damage/i);
+  if (!m) return 0;
+  const pay = text.match(/you may pay (\d+) credits?/i);
+  if (pay && state.corp.credits < Number(pay[1])) return 0;
+  if (/if they are tagged, do/i.test(text) && state.runner.tags === 0) return 0;
+  return Number(m[1]) + (/plus 1 net damage for each hosted advancement counter/i.test(text) ? advancements : 0);
+}
+
 function countAgendaOdds(state: GameState): { odds: number; points: number; onSteal: number[] } {
   const corp = sideCards(state, 'corp');
   const agendas = corp.filter(c => cardDef(c).type_code === 'agenda');

@@ -6,8 +6,8 @@ import { describe, expect, it } from 'vitest';
 import { readFileSync } from 'node:fs';
 import { CardInstance, GameAction, GameState, activePrompt, createCardInstance, executeAction } from '../src/core';
 import { HeuristicRunnerAI, createAgent } from '../src/ai';
-import { BLOCK, bestBreakPlan, breachAccesses, icePrice, runRestWorth, runScore, serverValue, subroutineCost } from '../src/ai/runs';
-import { damageWorth } from '../src/ai/effectValues';
+import { BLOCK, bestBreakPlan, breachAccesses, icePrice, isTrap, runRestWorth, runScore, serverValue, subroutineCost, trapDamageMax, trapHit } from '../src/ai/runs';
+import { accessDamage, damageWorth } from '../src/ai/effectValues';
 import { CLICK, cardRate } from '../src/ai/valueModel';
 import { scoreOutcome, simulate } from '../src/ai/prompts';
 import { runnerDecisionView } from '../src/ai/turnPlanner';
@@ -315,5 +315,41 @@ describe('damage over a whole ice and a whole run (rules 9.8.7b, 10.4.4)', () =>
     expect(new HeuristicRunnerAI().chooseAction(s).type).toBe('BOOST_BREAKER');
     // On 4 cards the 3 net damage is survived: letting them fire is cheaper than breaking
     expect(new HeuristicRunnerAI().chooseAction(encounter(4)).type).toBe('CONTINUE_RUN');
+  });
+});
+
+describe('an unknown installed card priced as the traps still unseen (rules 10.4.4)', () => {
+  // g3 43672765368: 10 of 17 new access flatlines were Byte! (a tag and 3 net damage) on a 2-card grip, priced as the flat
+  // 2 + advancements guess: 2 is not more than 2, so the remote read as safe
+  const BYTE = '35050';
+  const URTICA = '30045';
+  const withOnly = (code: string, corpCredits: number, grip: number) => {
+    const s = newGame();
+    startRunnerTurn(s);
+    s.runner.grip = s.runner.grip.slice(0, grip);
+    s.corp.credits = corpCredits;
+    // the Corp's unseen cards: one trap of this kind, the rest not traps
+    const pool = [...s.corp.hq, ...s.corp.rd];
+    for (const c of pool) if (isTrap(c.cardCode)) c.cardCode = '30055'; // not a trap
+    s.corp.rd[0] = createCardInstance(s, code);
+    return s;
+  };
+  it('Byte! with the Corp able to pay 4 is 3 net damage, a flatline on 2 cards', () => {
+    const s = withOnly(BYTE, 5, 2);
+    expect(accessDamage(s, BYTE, 0)).toBe(3);
+    expect(trapDamageMax(s, 0)).toBe(3);
+    expect(asSide('runner', () => trapHit(s, 0, 2))).toBe(asSide('runner', () => damageWorth(s, 3, false, 2)));
+    expect(asSide('runner', () => trapHit(s, 0, 2))).toBeGreaterThan(asSide('runner', () => damageWorth(s, 2, false, 2)));
+  });
+  it('Byte! the Corp cannot pay for does nothing', () => {
+    const s = withOnly(BYTE, 3, 2);
+    expect(accessDamage(s, BYTE, 0)).toBe(0);
+    expect(asSide('runner', () => trapHit(s, 0, 2))).toBe(0);
+  });
+  it('an advanced card can only be a trap that can be advanced: Urtica Cipher, 2 plus its counters', () => {
+    const s = withOnly(BYTE, 5, 3);
+    s.corp.rd[1] = createCardInstance(s, URTICA);
+    expect(trapDamageMax(s, 2)).toBe(4);
+    expect(trapDamageMax(s, 0)).toBe(3);
   });
 });
