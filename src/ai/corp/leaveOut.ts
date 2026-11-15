@@ -4,7 +4,7 @@
  * decision). `rule(name, applies)` is true when the rule applies and is not left out. Nothing outside the measurement
  * sets `off`.
  */
-export const leaveOut = { off: new Set<string>(), fired: new Set<string>() };
+export const leaveOut = { off: new Set<string>(['pettyCashFirst', 'tagsBeforeScore', 'tagFirst']), fired: new Set<string>() };
 export const rule = (name: string, applies: boolean): boolean => {
   if (!applies) return false;
   leaveOut.fired.add(name);
