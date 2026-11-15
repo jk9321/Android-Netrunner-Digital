@@ -52,7 +52,9 @@ describe('cards in hand by what they do (Jeff, 2026-10-28; plan.handByCard)', ()
     const worst = [...s.corp.hq].sort((a, b) => heldWorth(s, a, 'corp') - heldWorth(s, b, 'corp'))[0];
     s.corp.hq.push({ ...worst, instanceId: 'w1' }, { ...worst, instanceId: 'w2' });
     decisionContext(s, 'corp');
-    expect(ownHandValue(s, 'corp') - full).toBeCloseTo(0.3);
+    // The 0.3 filter, and the two added copies' small change to the Corp's damage pool (damageThreat's key counts the
+    // Corp's cards since ai-runner-unknowns; before, the copies were served the 5-card hand's cached threat)
+    expect(ownHandValue(s, 'corp') - full).toBeCloseTo(0.3, 1);
   });
 });
 
