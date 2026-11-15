@@ -223,9 +223,11 @@ describe('AI code health (audit guards)', () => {
   // 2026-11-15 01:29Z). Stage C's target after its deletions is unchanged (below 13,799) and this guard goes back down then.
   // ai-runner-unknowns adds 141 (trapHit/accessDamage, unrezzedDamageRisk, runPrices, drawBackClicks, the rules text in
   // subroutineDamage, the damageThreat key): pending the AI Coordinator's yes in its review
-  it('keeps src/ai/corp under 1,900 lines and src/ai at or under the Stage B total plus the Runner fixes (14,330)', () => {
+  // ai-prompt-time adds 14 (prompts.ts: the Archives-shuffle family answer and its test, agendaFirst shared with Peer Review;
+  // Jeff and the AI Coordinator 2026-11-15 15:20Z): approved by the AI Coordinator 2026-11-15 16:21Z (stop-1615 ruling)
+  it('keeps src/ai/corp under 1,900 lines and src/ai at or under the Stage B total plus the Runner fixes (14,344)', () => {
     const corp = aiFiles().filter(f => f.replace(/\\/g, '/').startsWith('corp/')).reduce((n, f) => n + lines(f), 0);
     expect(corp).toBeLessThan(1900);
-    expect(aiFiles().reduce((n, f) => n + lines(f), 0)).toBeLessThanOrEqual(14330);
+    expect(aiFiles().reduce((n, f) => n + lines(f), 0)).toBeLessThanOrEqual(14344);
   });
 });
