@@ -7,8 +7,8 @@ import { installedRunnerCards, trashInstalledRunnerCard } from '../../../engine/
 import { addCounters, counters, drawForEffect, removeCounters, removeFromGame, removeTags, threatLevel } from '../../../engine/cardEffects';
 import { bypassIce, encounteredIce } from '../../../engine/ice';
 import { cards, choice, ChoiceQuestion, prompts, RunnerHostData } from '../../steps';
-import { EffectAnswer, EffectContext } from '../../types';
-import { askChoice, installableRunnerCards, installRunnerHostChoice } from '../../effects';
+import { EffectContext } from '../../types';
+import { installableRunnerCards, installRunnerHostChoice } from '../../effects';
 
 export const isSelf = (ctx: EffectContext, card: CardInstance) => card.instanceId === ctx.card.instanceId;
 
@@ -31,10 +31,6 @@ export const yesNo = (yes: string, no = 'No') => [
   { id: 'no', label: no },
 ];
 
-export const said = (answer: EffectAnswer, id = 'yes') => answer.kind === 'effect_choice' && answer.optionId === id;
-
-export const picked = (answer: EffectAnswer) => (answer.kind === 'effect_cards' ? answer.cardInstanceIds : []);
-
 export const isInstalled = (state: GameState, card: CardInstance) => installedRunnerCards(state).some(c => c.instanceId === card.instanceId);
 
 export const runnerTurn = (state: GameState) => state.activePlayer === 'runner';
@@ -45,19 +41,12 @@ export const remoteServers = (state: GameState) => Object.values(state.corp.serv
 
 export const allServers = (state: GameState) => Object.keys(state.corp.servers);
 
-/** Asks which of these servers a run event or ability runs; `optional` ("you may run") adds a "Don't run" answer, 'no'. */
-/** "Run which server?" among `ids` the Runner can run now (Front Company), or null if none. */
+/** "Run which server?" among `ids` the Runner can run now (Front Company), or null if none; `optional` ("you may run") adds a "Don't run" answer, 'no'. */
 export function runQuestion(ctx: EffectContext, label: string, ids: string[], optional = false): ChoiceQuestion | null {
   const serverIds = ids.filter(id => !runBlocked(ctx.state, id)); // Front Company
   if (serverIds.length === 0) return null;
   const options = serverIds.map(id => ({ id, label: ctx.state.corp.servers[id].name }));
   return { side: 'runner', message: `${label}: run which server?`, options: optional ? [...options, { id: 'no', label: "Don't run" }] : options };
-}
-
-export function askServer(ctx: EffectContext, label: string, ids: string[], step = 'run', optional = false): boolean {
-  const q = runQuestion(ctx, label, ids, optional);
-  if (q) askChoice(ctx, q.side, q.message, q.options, step);
-  return !!q;
 }
 
 /** Puts `n` power counters on a card ("load" cards are trashed when empty by their own scripts). */

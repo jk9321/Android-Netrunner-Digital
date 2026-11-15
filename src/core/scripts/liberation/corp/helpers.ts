@@ -8,7 +8,7 @@ import { corpInstallCost, installCorpCardFrom } from '../../../engine/actions/in
 import { trashInstalledRunnerCard } from '../../../engine/damage';
 import { iceSubtypes } from '../../../engine/ice';
 import { gainFromCard, rezCost, useOncePerTurn } from '../../../engine/cardEffects';
-import { EffectAnswer, EffectContext } from '../../types';
+import { EffectContext } from '../../types';
 import { advanceableInstalled, corpInstallOptions, corpZoneOf } from '../../effects';
 import { CardsQuestion, ChoiceQuestion } from '../../steps';
 
@@ -36,10 +36,6 @@ export const yesNo = (yes: string, no = 'No') => [
   { id: 'yes', label: yes },
   { id: 'no', label: no },
 ];
-
-export const said = (answer: EffectAnswer, id = 'yes') => answer.kind === 'effect_choice' && answer.optionId === id;
-
-export const picked = (answer: EffectAnswer) => (answer.kind === 'effect_cards' ? answer.cardInstanceIds : []);
 
 /** A run is in progress against this card's server. */
 export const runOnServerOf = (state: GameState, card: CardInstance) => {

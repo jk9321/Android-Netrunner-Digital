@@ -31,18 +31,10 @@ import {
   markSubroutinesBroken,
 } from '../../../engine/ice';
 import { CardScript, EffectContext } from '../../types';
-import {
-  askCards,
-  askChoice,
-  askRunnerInstall,
-  effectTrashableFirst,
-  gainCredits,
-  installableRunnerCards,
-  installRunnerChoice,
-  installRunnerHostChoice,
-} from '../../effects';
+import { effectTrashableFirst, gainCredits, installableRunnerCards, installRunnerHostChoice } from '../../effects';
+import { cards, cardsQuestion, choice, choiceQuestion, prompts, RunnerHostData } from '../../steps';
 import { returnInstalledToHQ } from '../corp/helpers';
-import { bypassIfStill, hasKeyword, ids, isInstalled, isSelf, onceKey, picked, place, runnerTurn, said, spendLoad, spikeKey, title, type, yesNo } from './helpers';
+import { bypassIfStill, hasKeyword, ids, isInstalled, isSelf, onceKey, place, runnerTurn, spendLoad, spikeKey, title, type, yesNo } from './helpers';
 
 /** True while the Runner is encountering ice and can still break (before subroutines fire). */
 function inBreakWindow(state: GameState): boolean {
@@ -59,12 +51,17 @@ const hostsTrojan = (state: GameState, ice: CardInstance) => state.runner.rig.pr
 // Audrey v2 (AI - Virus): Whenever you trash a card you are accessing, place 1 virus counter on
 // this program. Interface -> Hosted virus counter: Break up to 2 subroutines. Trash 1 card from
 // your grip: +3 strength.
+const audreyFlow = prompts({
+  // The engine's "trash a card from your grip: +3 strength" prompt (BOOST_DISCARD_STEP), answered here
+  [BOOST_DISCARD_STEP]: cards(({ state, card }, a) => {
+    if (a.ids.length > 0) answerBoostDiscard(state, card, a.ids[0]);
+  }),
+});
+
 export const audrey: CardScript = {
   breaker: { breaks: 'any', breakMax: 2, breakCost: () => 0, breakCounter: 'virus', boostCost: 0, boostAmount: () => 3, boostDiscard: true },
   triggers: { trashed_on_access: ctx => place(ctx.card, 'virus', 1) },
-  onPromptAnswer: ({ state, card }, source, answer) => {
-    if (source.step === BOOST_DISCARD_STEP && picked(answer).length > 0) answerBoostDiscard(state, card, picked(answer)[0]);
-  },
+  ...audreyFlow.script,
 };
 
 // Banner (Fracter - Weapon): Interface -> 2 credits: Subroutines on the barrier you are
@@ -114,38 +111,46 @@ const brokeAllWith = (state: GameState, breaker: CardInstance) => {
   return !!encounter && Object.values(encounter.brokenBy ?? {}).every(id => id === breaker.instanceId) && encounter.broken.every(Boolean);
 };
 
+const curupiraFlow = prompts({
+  bypass: choice<{ iceId: string }>(({ state, card }, a, data) => {
+    if (a.optionId !== 'yes' || counters(card, 'power') < 3) return;
+    removeCounters(card, 'power', 3);
+    bypassIfStill(state, data.iceId);
+  }),
+});
+
 export const curupira: CardScript = {
   breaker: { breaks: 'barrier', breakMax: 1, breakCost: () => 1, boostCost: 1, boostAmount: () => 1 },
   triggers: {
     encounter_ice: (ctx, e) => {
       if (!iceSubtypes(e.ice, ctx.state).includes('barrier') || counters(ctx.card, 'power') < 3) return;
-      askChoice(ctx, 'runner', `Curupira: spend 3 power counters to bypass ${title(e.ice)}?`, yesNo('Bypass'), 'bypass', { iceId: e.ice.instanceId });
+      curupiraFlow.ask(ctx, 'bypass', choiceQuestion('runner', `Curupira: spend 3 power counters to bypass ${title(e.ice)}?`, yesNo('Bypass')), { iceId: e.ice.instanceId });
     },
     ice_fully_broken: ctx => {
       if (brokeAllWith(ctx.state, ctx.card)) place(ctx.card, 'power', 1);
     },
   },
-  onPromptAnswer: ({ state, card }, source, answer) => {
-    if (!said(answer) || counters(card, 'power') < 3) return;
-    removeCounters(card, 'power', 3);
-    bypassIfStill(state, source.data?.iceId);
-  },
+  ...curupiraFlow.script,
 };
 
 // Laser Pointer (Weapon): Whenever you encounter a piece of AP, destroyer, or observer ice, you may
 // trash this program to bypass that ice.
+const laserFlow = prompts({
+  bypass: choice<{ iceId: string }>(({ state, card }, a, data) => {
+    if (a.optionId !== 'yes' || !isInstalled(state, card)) return;
+    trashInstalledRunnerCard(state, card);
+    bypassIfStill(state, data.iceId);
+  }),
+});
+
 export const laserPointer: CardScript = {
   triggers: {
     encounter_ice: (ctx, e) => {
       if (!['ap', 'destroyer', 'observer'].some(k => hasKeyword(e.ice, k))) return;
-      askChoice(ctx, 'runner', `Laser Pointer: trash it to bypass ${title(e.ice)}?`, yesNo('Trash and bypass'), 'bypass', { iceId: e.ice.instanceId });
+      laserFlow.ask(ctx, 'bypass', choiceQuestion('runner', `Laser Pointer: trash it to bypass ${title(e.ice)}?`, yesNo('Trash and bypass')), { iceId: e.ice.instanceId });
     },
   },
-  onPromptAnswer: ({ state, card }, source, answer) => {
-    if (!said(answer) || !isInstalled(state, card)) return;
-    trashInstalledRunnerCard(state, card);
-    bypassIfStill(state, source.data?.iceId);
-  },
+  ...laserFlow.script,
 };
 
 // Saci (Trojan): Install only on a piece of ice. Whenever host ice is rezzed or derezzed, gain 3 credits.
@@ -204,15 +209,9 @@ export const livingMural: CardScript = {
 // [click]. If this is not the first time you gained [click] during a run this turn, add this program to your grip.
 const PICHACAO_CLICKS = 'pichacao:clicks-in-runs';
 
-export const pichacao: CardScript = {
-  installsOnIce: true,
-  triggers: {
-    ice_passed: (ctx, e) => {
-      if (ctx.card.hostedOnId === e.ice.instanceId) askChoice(ctx, 'runner', 'Pichação: gain [click]?', yesNo('Gain [click]'), 'click');
-    },
-  },
-  onPromptAnswer: ({ state, card }, _source, answer) => {
-    if (!said(answer)) return;
+const pichacaoFlow = prompts({
+  click: choice(({ state, card }, a) => {
+    if (a.optionId !== 'yes') return;
     state.runner.clicks += 1;
     const times = (state.turnFlags[PICHACAO_CLICKS] = (state.turnFlags[PICHACAO_CLICKS] ?? 0) + 1);
     addLog(state, 'runner', 'Runner gained [click] (Pichação).');
@@ -220,7 +219,17 @@ export const pichacao: CardScript = {
       uninstallRunnerCard(state, card, 'grip');
       addLog(state, 'runner', 'Pichação was added to the grip.');
     }
+  }),
+});
+
+export const pichacao: CardScript = {
+  installsOnIce: true,
+  triggers: {
+    ice_passed: (ctx, e) => {
+      if (ctx.card.hostedOnId === e.ice.instanceId) pichacaoFlow.ask(ctx, 'click', choiceQuestion('runner', 'Pichação: gain [click]?', yesNo('Gain [click]')));
+    },
   },
+  ...pichacaoFlow.script,
 };
 
 // Slap Vandal (AI - Trojan): Install only on a piece of ice. Interface -> 1 credit: Break 1
@@ -249,6 +258,17 @@ export const slapVandal: CardScript = {
 // Umbrella (Decoder - Weapon): This program can only interface with ice hosting a trojan program.
 // Interface -> 2 credits: Break up to 3 code gate subroutines. If at least 1 subroutine was broken
 // this way, each player may draw 1 card.
+const umbrellaFlow = prompts({
+  'draw-runner': choice((ctx, a) => {
+    const { state } = ctx;
+    if (a.optionId === 'yes') drawForEffect(state, 'runner', 1, 'Umbrella');
+    if (state.corp.rd.length > 0) umbrellaFlow.ask(ctx, 'draw-corp', choiceQuestion('corp', 'Umbrella: draw 1 card?', yesNo('Draw 1 card')));
+  }),
+  'draw-corp': choice(({ state }, a) => {
+    if (a.optionId === 'yes') drawForEffect(state, 'corp', 1, 'Umbrella');
+  }),
+});
+
 export const umbrella: CardScript = {
   breaker: {
     breaks: 'code gate',
@@ -260,16 +280,10 @@ export const umbrella: CardScript = {
     onBreakUsed: (state, breaker) => {
       // Each player may draw: the Runner is asked, then the Corp (not offered with R&D empty, where drawing would lose the game)
       const ctx = { state, card: breaker, side: 'runner' as const };
-      askChoice(ctx, 'runner', 'Umbrella: draw 1 card?', yesNo('Draw 1 card'), 'draw-runner');
+      umbrellaFlow.ask(ctx, 'draw-runner', choiceQuestion('runner', 'Umbrella: draw 1 card?', yesNo('Draw 1 card')));
     },
   },
-  onPromptAnswer: (ctx, source, answer) => {
-    const { state } = ctx;
-    if (source.step === 'draw-runner') {
-      if (said(answer)) drawForEffect(state, 'runner', 1, 'Umbrella');
-      if (state.corp.rd.length > 0) askChoice(ctx, 'corp', 'Umbrella: draw 1 card?', yesNo('Draw 1 card'), 'draw-corp');
-    } else if (source.step === 'draw-corp' && said(answer)) drawForEffect(state, 'corp', 1, 'Umbrella');
-  },
+  ...umbrellaFlow.script,
 };
 
 // Boi-tatá (Killer): If you trashed any of your installed cards this turn, paid abilities on this
@@ -284,13 +298,25 @@ export const boiTata: CardScript = {
 // Heliamphora (Virus): [interrupt] -> Whenever you would access a card in Archives, you may host it
 // faceup on this program instead. Use this ability only once each time you breach Archives. When the
 // Corp purges virus counters, they trash 2 cards from HQ at random. Trash this program.
+const heliamphoraFlow = prompts({
+  host: cards(({ state, card }, a) => {
+    const target = state.corp.archives.faceUp.find(c => c.instanceId === a.ids[0]);
+    if (!target) return;
+    removeCard(state.corp.archives.faceUp, target);
+    card.hostedCards = [...(card.hostedCards ?? []), target];
+    const breach = state.activeRun?.breach;
+    if (breach) breach.chosen.push(target.instanceId);
+    addLog(state, 'runner', `Runner hosted ${title(target)} on Heliamphora instead of accessing it.`);
+  }),
+});
+
 export const heliamphora: CardScript = {
   triggers: {
     breach_begins: (ctx, e) => {
       const { state } = ctx;
       if (e.server !== 'archives' || state.activeRun?.accessOnly) return;
       const cards = state.corp.archives.faceUp;
-      if (cards.length > 0) askCards(ctx, 'runner', 'Heliamphora: you may host 1 card from Archives on it instead of accessing it.', ids(cards), 0, 1, 'host');
+      if (cards.length > 0) heliamphoraFlow.ask(ctx, 'host', cardsQuestion('runner', 'Heliamphora: you may host 1 card from Archives on it instead of accessing it.', ids(cards), 0, 1));
     },
     virus_purged: ({ state, card }) => {
       const ids: string[] = [];
@@ -301,20 +327,27 @@ export const heliamphora: CardScript = {
       if (isInstalled(state, card)) trashInstalledRunnerCard(state, card);
     },
   },
-  onPromptAnswer: ({ state, card }, _source, answer) => {
-    const target = state.corp.archives.faceUp.find(c => c.instanceId === picked(answer)[0]);
-    if (!target) return;
-    removeCard(state.corp.archives.faceUp, target);
-    card.hostedCards = [...(card.hostedCards ?? []), target];
-    const breach = state.activeRun?.breach;
-    if (breach) breach.chosen.push(target.instanceId);
-    addLog(state, 'runner', `Runner hosted ${title(target)} on Heliamphora instead of accessing it.`);
-  },
+  ...heliamphoraFlow.script,
 };
 
 // Cupellation: Limit 1 hosted card. Access -> 1 credit: Host the non-agenda card you are accessing
 // faceup on this program. Whenever you breach HQ, if this program has a hosted Corp card, you may pay
 // 1 credit and trash this program to access 2 additional cards.
+const cupellationFlow = prompts({
+  breach: choice(({ state, card }, a) => {
+    if (a.optionId !== 'yes' || !state.activeRun || !isInstalled(state, card)) return;
+    // Two copies both ask on the same breach; the second may no longer be affordable: no cost paid, no effect (rules 1.16.1)
+    if (availableCredits(state, 'runner') < 1) {
+      addLog(state, 'runner', 'Cupellation: the Runner cannot pay 1 [credit] now.');
+      return;
+    }
+    spendCredits(state, 'runner', 1);
+    trashInstalledRunnerCard(state, card);
+    state.activeRun.extraAccesses += 2;
+    addLog(state, 'runner', 'Runner trashed Cupellation to access 2 additional cards.');
+  }),
+});
+
 export const cupellation: CardScript = {
   accessAbility: {
     label: 'pay 1 [credit] to host this card on Cupellation',
@@ -338,27 +371,27 @@ export const cupellation: CardScript = {
     breach_server: (ctx, e) => {
       const { state, card } = ctx;
       if (e.server !== 'hq' || !(card.hostedCards ?? []).some(c => cardDef(c).side_code === 'corp') || availableCredits(state, 'runner') < 1) return;
-      askChoice(ctx, 'runner', 'Cupellation: pay 1 [credit] and trash it to access 2 additional cards?', yesNo('Pay and trash'), 'breach');
+      cupellationFlow.ask(ctx, 'breach', choiceQuestion('runner', 'Cupellation: pay 1 [credit] and trash it to access 2 additional cards?', yesNo('Pay and trash')));
     },
   },
-  onPromptAnswer: ({ state, card }, _source, answer) => {
-    if (!said(answer) || !state.activeRun || !isInstalled(state, card)) return;
-    // Two copies both ask on the same breach; the second may no longer be affordable: no cost paid, no effect (rules 1.16.1)
-    if (availableCredits(state, 'runner') < 1) {
-      addLog(state, 'runner', 'Cupellation: the Runner cannot pay 1 [credit] now.');
-      return;
-    }
-    spendCredits(state, 'runner', 1);
-    trashInstalledRunnerCard(state, card);
-    state.activeRun.extraAccesses += 2;
-    addLog(state, 'runner', 'Runner trashed Cupellation to access 2 additional cards.');
-  },
+  ...cupellationFlow.script,
 };
 
 // Malandragem: When you install this program, load 2 power counters onto it. When it is empty,
 // remove it from the game. Once per turn -> When you encounter a piece of ice, if its strength is 3
 // or less, you may remove 1 hosted power counter to bypass it. Threat 4 -> Whenever you encounter a
 // piece of ice, you may remove this program from the game to bypass it.
+const malandragemFlow = prompts({
+  bypass: choice<{ iceId: string }>(({ state, card }, a, data) => {
+    if (a.optionId === 'no' || !isInstalled(state, card)) return;
+    if (a.optionId === 'counter') {
+      if (!useOncePerTurn(state, onceKey(card))) return;
+      spendLoad(state, card, 1, 'remove');
+    } else removeFromGame(state, card);
+    bypassIfStill(state, data.iceId);
+  }),
+});
+
 export const malandragem: CardScript = {
   triggers: {
     installed: (ctx, e) => isSelf(ctx, e.card) && place(ctx.card, 'power', 2),
@@ -368,22 +401,26 @@ export const malandragem: CardScript = {
         ...(turnFlag(state, onceKey(ctx.card)) === 0 && iceStrength(state, e.ice) <= 3 && counters(ctx.card, 'power') > 0 ? [{ id: 'counter', label: 'Remove 1 power counter and bypass' }] : []),
         ...(threatLevel(state) >= 4 ? [{ id: 'remove', label: 'Remove Malandragem from the game and bypass' }] : []),
       ];
-      if (options.length > 0) askChoice(ctx, 'runner', `Malandragem: bypass ${title(e.ice)}?`, [...options, { id: 'no', label: 'No' }], 'bypass', { iceId: e.ice.instanceId });
+      if (options.length > 0) {
+        malandragemFlow.ask(ctx, 'bypass', choiceQuestion('runner', `Malandragem: bypass ${title(e.ice)}?`, [...options, { id: 'no', label: 'No' }]), { iceId: e.ice.instanceId });
+      }
     },
   },
-  onPromptAnswer: ({ state, card }, source, answer) => {
-    if (answer.kind !== 'effect_choice' || answer.optionId === 'no' || !isInstalled(state, card)) return;
-    if (answer.optionId === 'counter') {
-      if (!useOncePerTurn(state, onceKey(card))) return;
-      spendLoad(state, card, 1, 'remove');
-    } else removeFromGame(state, card);
-    bypassIfStill(state, source.data?.iceId);
-  },
+  ...malandragemFlow.script,
 };
 
 // Physarum Entangler (Virus - Trojan): Install only on a piece of ice. Whenever you encounter host
 // ice, if it is not a barrier, you may pay 1 credit for each subroutine it has. If you do, bypass
 // that ice. When the Corp purges virus counters, trash this program.
+const physarumFlow = prompts({
+  bypass: choice<{ iceId: string; cost: number }>(({ state }, a, data) => {
+    const cost = Number(data.cost ?? 0);
+    if (a.optionId !== 'yes' || availableCredits(state, 'runner') < cost) return;
+    spendCredits(state, 'runner', cost);
+    bypassIfStill(state, data.iceId);
+  }),
+});
+
 export const physarum: CardScript = {
   installsOnIce: true,
   triggers: {
@@ -392,18 +429,16 @@ export const physarum: CardScript = {
       if (card.hostedOnId !== e.ice.instanceId || iceSubtypes(e.ice, state).includes('barrier')) return;
       const cost = iceSubroutines(state, e.ice).length;
       if (availableCredits(state, 'runner') < cost) return;
-      askChoice(ctx, 'runner', `Physarum Entangler: pay ${cost} [credit] to bypass ${title(e.ice)}?`, yesNo(`Pay ${cost} [credit] and bypass`), 'bypass', { iceId: e.ice.instanceId, cost });
+      physarumFlow.ask(ctx, 'bypass', choiceQuestion('runner', `Physarum Entangler: pay ${cost} [credit] to bypass ${title(e.ice)}?`, yesNo(`Pay ${cost} [credit] and bypass`)), {
+        iceId: e.ice.instanceId,
+        cost,
+      });
     },
     virus_purged: ({ state, card }) => {
       if (isInstalled(state, card)) trashInstalledRunnerCard(state, card);
     },
   },
-  onPromptAnswer: ({ state }, source, answer) => {
-    const cost = Number(source.data?.cost ?? 0);
-    if (!said(answer) || availableCredits(state, 'runner') < cost) return;
-    spendCredits(state, 'runner', cost);
-    bypassIfStill(state, source.data?.iceId);
-  },
+  ...physarumFlow.script,
 };
 
 // Coalescence: When you install this program, place 2 power counters on it. Hosted power counter:
@@ -427,6 +462,16 @@ export const coalescence: CardScript = {
 // gate, place 1 power counter on it. Interface -> 1 credit: Break 1 code gate subroutine. Interface ->
 // X credits, hosted power counter: Break X barrier subroutines. 1 credit: +2 strength.
 const unbrokenIndices = (state: GameState) => (state.activeRun?.encounter?.broken ?? []).flatMap((b, i) => (b ? [] : [i]));
+
+const lobisomemFlow = prompts({
+  x: choice(({ state, card }, a) => {
+    const indices = unbrokenIndices(state).slice(0, Number(a.optionId));
+    if (indices.length === 0 || availableCredits(state, 'runner') < indices.length) return;
+    spendCredits(state, 'runner', indices.length);
+    addLog(state, 'runner', `Runner paid ${indices.length} [credit] to break ${indices.length} subroutine(s) with Lobisomem.`);
+    markSubroutinesBroken(state, indices, card);
+  }),
+});
 
 export const lobisomem: CardScript = {
   breaker: { breaks: 'code gate', breakMax: 1, breakCost: () => 1, boostCost: 1, boostAmount: () => 2 },
@@ -452,18 +497,11 @@ export const lobisomem: CardScript = {
         const { state } = ctx;
         const max = Math.min(unbrokenIndices(state).length, availableCredits(state, 'runner'));
         const options = Array.from({ length: max }, (_, i) => ({ id: String(max - i), label: `Pay ${max - i} [credit]: break ${max - i}` }));
-        askChoice(ctx, 'runner', 'Lobisomem: break how many barrier subroutines?', options, 'x');
+        lobisomemFlow.ask(ctx, 'x', choiceQuestion('runner', 'Lobisomem: break how many barrier subroutines?', options));
       },
     },
   ],
-  onPromptAnswer: ({ state, card }, source, answer) => {
-    if (source.step !== 'x' || answer.kind !== 'effect_choice') return;
-    const indices = unbrokenIndices(state).slice(0, Number(answer.optionId));
-    if (indices.length === 0 || availableCredits(state, 'runner') < indices.length) return;
-    spendCredits(state, 'runner', indices.length);
-    addLog(state, 'runner', `Runner paid ${indices.length} [credit] to break ${indices.length} subroutine(s) with Lobisomem.`);
-    markSubroutinesBroken(state, indices, card);
-  },
+  ...lobisomemFlow.script,
 };
 
 // Muse (Daemon): When you install this program, search your stack, heap, or grip for 1 non-daemon
@@ -474,38 +512,43 @@ export const lobisomem: CardScript = {
 const museTargets = (state: GameState) =>
   [...state.runner.stack, ...state.runner.heap, ...state.runner.grip].filter(c => type(c) === 'program' && !hasKeyword(c, 'daemon'));
 
+const museFlow = prompts({
+  install: cards<{ hostId: string }>((ctx, a, data) => {
+    const { state } = ctx;
+    const id = a.ids[0];
+    if (id) {
+      const card = findCardAnywhere(state, id);
+      const trashIds = a.trashFirst;
+      if (card && trashIds.some(t => !effectTrashableFirst(state, card, data).some(c => c.instanceId === t))) {
+        illegal(`Can't trash those programs to install ${title(card)} on Muse`);
+      }
+      // Searched for without a reveal: the Corp learns the card only once it is installed (rules 4.2.2, 4.3.2)
+      if (card) addLog(state, 'runner', `Runner found ${title(card)} (Muse).`, card.cardCode, undefined, { from: 'corp', publicMessage: 'Runner searched for a program (Muse).' });
+      const installed = museFlow.installRunner(ctx, id, 'host', 0, trashIds);
+      const muse = ctx.card;
+      if (installed && card && state.runner.rig.programs.includes(muse) && state.runner.rig.programs.includes(card)) {
+        card.hostedOnId = muse.instanceId;
+        muse.hostedCardIds.push(card.instanceId);
+      }
+    }
+    shuffleInPlace(state.rng, state.runner.stack);
+  }),
+  host: choice<RunnerHostData>((ctx, a, _d, source) => void installRunnerHostChoice(ctx.state, source, a.raw)),
+});
+
 export const muse: CardScript = {
   triggers: {
     installed: (ctx, e) => {
       if (!isSelf(ctx, e.card)) return;
       const hostId = ctx.card.instanceId;
       const options = installableRunnerCards(ctx.state, museTargets(ctx.state), 0, hostId);
-      if (options.length > 0) askRunnerInstall(ctx, 'Muse: search your stack, heap or grip for 1 non-daemon program to install.', ids(options), 0, 1, 'install', { hostId });
+      if (options.length > 0) {
+        museFlow.runnerInstall(ctx, 'install', { message: 'Muse: search your stack, heap or grip for 1 non-daemon program to install.', candidateIds: ids(options), min: 0, max: 1 }, { hostId });
+      }
       else shuffleInPlace(ctx.state.rng, ctx.state.runner.stack);
     },
   },
-  onPromptAnswer: (ctx, source, answer) => {
-    const { state } = ctx;
-    if (source.step === 'install') {
-      const id = picked(answer)[0];
-      if (id) {
-        const card = findCardAnywhere(state, id);
-        const trashIds = answer.kind === 'effect_cards' ? (answer.trashFirst ?? []) : [];
-        if (card && trashIds.some(t => !effectTrashableFirst(state, card, source.data).some(c => c.instanceId === t))) {
-          illegal(`Can't trash those programs to install ${title(card)} on Muse`);
-        }
-        // Searched for without a reveal: the Corp learns the card only once it is installed (rules 4.2.2, 4.3.2)
-        if (card) addLog(state, 'runner', `Runner found ${title(card)} (Muse).`, card.cardCode, undefined, { from: 'corp', publicMessage: 'Runner searched for a program (Muse).' });
-        const installed = installRunnerChoice(ctx, id, 'host', 0, {}, trashIds);
-        const muse = ctx.card;
-        if (installed && card && state.runner.rig.programs.includes(muse) && state.runner.rig.programs.includes(card)) {
-          card.hostedOnId = muse.instanceId;
-          muse.hostedCardIds.push(card.instanceId);
-        }
-      }
-      shuffleInPlace(state.rng, state.runner.stack);
-    } else if (source.step === 'host') installRunnerHostChoice(state, source, answer);
-  },
+  ...museFlow.script,
 };
 
 export const pressureSpike: CardScript = {
