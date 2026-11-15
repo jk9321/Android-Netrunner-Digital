@@ -1,6 +1,7 @@
 import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
-import { GameState, activePrompt, cardDef, createCardInstance, findCardAnywhere } from '../src/core';
+import { GameState, actingSide, activePrompt, cardDef, createCardInstance, executeAction, findCardAnywhere, getLegalActions } from '../src/core';
+import { createAgent } from '../src/ai';
 import { answerPrompt, shufflesArchivesIntoRD } from '../src/ai/prompts';
 import { giveCard, installCorpForTest, newGame, rezForTest, scoreForTest, useAbility, answer } from './helpers';
 
@@ -103,4 +104,46 @@ describe('shuffling Archives cards into R&D', () => {
     expect(p.kind === 'effect_cards' && p.candidateIds.length).toBe(2);
     expect(p.kind === 'effect_cards' && shufflesArchivesIntoRD(t, p)).toBe(false);
   });
+
+  /**
+   * Pin (AI Coordinator 2026-11-15 16:36Z): the family answer can leave Spin Doctor unused on the Corp's turn with an
+   * agenda in Archives (human report-23 T9), which is acceptable only because the Corp still uses it in the paid ability
+   * window of the Movement Phase (rules 6.9.4e) when the Runner runs Archives, shuffling the agenda back before the breach
+   * (6.9.5b). With no agenda in Archives it passes.
+   */
+  const archivesRun = (agenda: boolean) => {
+    let s = newGame(3);
+    corpTurn(s);
+    const spin = installCorpForTest(s, C.spinDoctor, 'remote-1');
+    s = rezForTest(s, spin);
+    const sam = agenda ? archive(s, C.sendAMessage, true) : undefined;
+    archive(s, C.hedgeFund);
+    archive(s, C.hedgeFund);
+    archive(s, C.palisade);
+    s.corp.credits = 8;
+    s.corp.clicks = 0;
+    s.activePlayer = 'runner';
+    s.phase = 'runner_turn';
+    s.runner.clicks = 4;
+    s = executeAction(s, { type: 'INITIATE_RUN', player: 'runner', targetServerId: 'archives' });
+    const corp = createAgent('corp', 'normal');
+    for (let i = 0; i < 40 && s.activeRun; i++) {
+      const side = actingSide(s);
+      const legal = getLegalActions(s, side);
+      s = executeAction(s, side === 'corp' ? corp.chooseAction(s) : (legal.find(a => /PASS|CONTINUE/.test(a.type)) ?? legal[0]));
+    }
+    return { s, spin, sam };
+  };
+
+  it('Spin Doctor: when the Runner runs Archives with an agenda there, the Corp uses it in the approach window and shuffles the agenda', () => {
+    const { s, spin, sam } = archivesRun(true);
+    expect(s.removedFromGame.map(c => c.instanceId)).toContain(spin);
+    expect(s.corp.rd.map(c => c.instanceId)).toContain(sam);
+    expect(s.runner.scoreArea).toHaveLength(0);
+  }, 60_000);
+
+  it('Spin Doctor: with no agenda in Archives the Corp passes in that window', () => {
+    const { s, spin } = archivesRun(false);
+    expect(s.removedFromGame.map(c => c.instanceId)).not.toContain(spin);
+  }, 60_000);
 });
