@@ -26,7 +26,7 @@
  *   SHARD=0/4 npx vite-node scripts/stage-c/pairwise.ts > pairs-0.json
  *   node scripts/stage-c/pairwise-sum.mjs pairs-*.json > 7-pairwise-c.md
  */
-import { CardInstance, GameAction, GameState, cardDef, executeAction } from '../../src/core';
+import { CardInstance, GameAction, GameState, cardDef, executeAction, rezCostOf } from '../../src/core';
 import { ScoredAction } from '../../src/ai/agent';
 import { asSide, plan } from '../../src/ai/pricing';
 import { decisionContext } from '../../src/ai/handValues';
@@ -42,7 +42,6 @@ import { isPettyCash } from '../../src/ai/corp/core';
 import { evaluate } from '../../src/ai/evaluate';
 import { simulate } from '../../src/ai/prompts';
 import { rezMoney } from '../../src/ai/corp/rezMoney';
-import { icedAndPaid } from '../../src/ai/corp/candidates';
 import { Decision, clearCaches, forEachRecorded } from '../stage-a/harness';
 
 const typeOf = (c: CardInstance | undefined) => (c ? cardDef(c).type_code : undefined);
@@ -133,6 +132,14 @@ function agendaHolds(s: GameState, a: GameAction): boolean {
   const id = (a as { cardInstanceId: string }).cardInstanceId;
   const server = Object.values(after.corp.servers).find(v => v.root.some(c => c.instanceId === id))?.id;
   return !!server && serverHold(after, server, { when: 'runnerTurn', corpCredits: after.corp.credits }).holds;
+}
+
+/** Line 7a as it was tried (c0-rulings 04:15Z, withdrawn 05:30Z): ice rezzed, or its rez cost paid within keep, after the move. */
+function icedAndPaid(after: GameState, server: string | undefined): boolean {
+  const v = server ? after.corp.servers[server] : undefined;
+  if (!v?.isRemote || !v.ice.length) return false;
+  const keep = rezMoney(after).keep;
+  return v.ice.some(i => i.isRezzed || after.corp.credits - rezCostOf(after, i) >= keep);
 }
 
 /** Pass 5 (c0-rulings 04:15Z): an agenda move into a remote that does not hold, with ice rezzed or paid within keep (line 7a). */

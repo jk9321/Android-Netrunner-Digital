@@ -13,7 +13,7 @@ import { holdPricing, pricing, withPricing } from './pricing';
  */
 export interface Diagnostics {
   /** corp/placement.ts scoreInTwoPick and corp/rezMoney.ts lineFloor: two-turn agenda lines begun, stepped, vetoed, dropped, finished. */
-  scoreInTwo: { begun: number; steps: number; vetoed: number; dropped: number; finished: number; floorRefused: number; unholdable: number };
+  scoreInTwo: { begun: number; steps: number; vetoed: number; dropped: number; finished: number; floorRefused: number; unholdable: number; rolloutDecisions: number; rolloutTaken: number };
   /** The two-turn agenda lines begun, in order. */
   scoreInTwoLines: { turn: number; agendaId: string; form: TwoTurnLine['form'] }[];
   /** corp/placement.ts assetCover: asked, and why it gave no line. */
@@ -56,7 +56,7 @@ export interface Diagnostics {
 type CounterGroups = { [K in keyof Diagnostics as Diagnostics[K] extends Record<string, number> ? K : never]: Diagnostics[K] };
 
 export const newDiagnostics = (): Diagnostics => ({
-  scoreInTwo: { begun: 0, steps: 0, vetoed: 0, dropped: 0, finished: 0, floorRefused: 0, unholdable: 0 },
+  scoreInTwo: { begun: 0, steps: 0, vetoed: 0, dropped: 0, finished: 0, floorRefused: 0, unholdable: 0, rolloutDecisions: 0, rolloutTaken: 0 },
   scoreInTwoLines: [],
   assetCover: { asked: 0, scoringShort: 0, iced: 0, clicks: 0, noIce: 0, rezMoney: 0, begun: 0 },
   money: { ops: 0 },

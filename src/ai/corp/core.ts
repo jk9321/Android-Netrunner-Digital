@@ -5,6 +5,7 @@ import { answerPrompt } from '../prompts';
 import { logNudge } from '../synergy';
 import { decisionContext } from '../handValues';
 import { plan } from '../pricing';
+import { tally } from '../diagnostics';
 import { HeldLine, heldLaterStep } from './lines';
 import { moneyPick } from '../incomeLine';
 import { lineStep, placePick, scoreInTwoPick } from './placement';
@@ -74,11 +75,14 @@ export function corpDecide(state: GameState, ctx: CorpContext): GameAction {
   // is then the rule ranking's, kept while it keeps the score (keepsScore), the line's action otherwise. A held two-turn
   // line on a later turn (Q4): its step (advance or score, heldLaterStep) does not depend on the pick, and scoreInTwoPick
   // below plays it.
-  const later = ctx.counted && !!heldLaterStep(state, ctx.memory.heldLine);
+  // plan.rolloutLines (Stage C measurement, c0-rulings 04:25Z (a)): the planner's rollouts and the reply's Corp ask Q4
+  // and Q5 too (begin a two-turn line, play a held line's steps), and nothing else they do not ask today
+  const core = plan().corpCore;
+  const lines = ctx.counted || (core && !!plan().rolloutLines);
+  const later = lines && !!heldLaterStep(state, ctx.memory.heldLine);
   // plan.corpCore (Stage C, spec 1.3 authority 2): the step a two-turn line plays now is the line's, asked before the
   // look-ahead and never weighed by it; scoreInTwoPick below plays it and keeps the line
-  const core = plan().corpCore;
-  const lineFirst = core && ctx.counted && !score && !later ? lineStep(state, ctx.memory.heldLine ? structuredClone(ctx.memory.heldLine) : null) : null;
+  const lineFirst = core && lines && !score && !later ? lineStep(state, ctx.memory.heldLine ? structuredClone(ctx.memory.heldLine) : null) : null;
   const decided = !!score || later || !!lineFirst;
   const turnStart = state.turnStep?.kind === 'corp_turn_start';
   const planned = ctx.lookahead && !turnStart && !decided ? ctx.lookahead(state, ranked) : null;
@@ -95,9 +99,13 @@ export function corpDecide(state: GameState, ctx: CorpContext): GameAction {
   if (score && !keepsScore(state, picked, score)) picked = score.first;
   // Q4, Q5. plan.scoreInTwo (counted scoring C2): a held two-turn score line's step, or the pick vetoed while it would
   // spend the line's rez money
-  if (!score && ctx.counted) {
+  if (!score && lines) {
     const two = scoreInTwoPick(state, picked, ctx.memory.heldLine);
     ctx.memory.heldLine = two.held;
+    if (!ctx.counted) {
+      tally('scoreInTwo', 'rolloutDecisions');
+      if (lineFirst || two.action !== chosen) tally('scoreInTwo', 'rolloutTaken');
+    }
     picked = two.action;
   }
   // Placement (corp/placement.ts placePick: central ice, the ice redirect, the asset partner): the pick's install goes

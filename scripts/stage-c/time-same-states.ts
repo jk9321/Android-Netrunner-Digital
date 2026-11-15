@@ -18,7 +18,7 @@ const times = { old: [] as number[], new: [] as number[] };
 let k = 0;
 const decide = (core: 'old' | 'new', s: GameState) => {
   const base = mode === 'nolook' ? planWith(plan(), ['turnPlanner.corp']) : plan();
-  const p = { ...base, corpCore: core === 'new' };
+  const p = { ...base, corpCore: core === 'new', rolloutLines: core === 'new' && process.env.LINES !== '0' };
   return withPricing({ plan: p }, () => {
     const agent = mode === 'rollout' ? new HeuristicCorpAI({ synergy: true, planner: false }) : createAgent('corp', 'normal');
     clearCaches();

@@ -7,6 +7,8 @@
  */
 import { GameAction, GameState, cardDef, findCardAnywhere } from '../../src/core';
 import { applyPlanOff } from '../../src/ai/synergy';
+import { withPricing } from '../../src/ai/pricing';
+import { newDiagnostics } from '../../src/ai/diagnostics';
 import { isCorpMain } from '../../src/ai/corp/lines';
 import { serverHold } from '../../src/ai/corp/hold';
 import { deals, playDeal } from '../stage-a/harness';
@@ -32,7 +34,8 @@ const games: { deal: number; winner: string | null; turns: number; t: Tally }[] 
 for (const deal of list) {
   const t: Tally = {};
   let lastCorp: GameState | null = null;
-  const end = playDeal(deal, {
+  const diag = newDiagnostics();
+  const end = withPricing({ diagnostics: diag }, () => playDeal(deal, {
     // CORP=rollout: the planner's rollout Corp (no look-ahead, no counted questions: CorpContext.counted false)
     ...(process.env.CORP === 'rollout' ? { corp: () => new HeuristicCorpAI({ synergy: true, planner: false }) } : {}),
     decision: d => {
@@ -60,7 +63,9 @@ for (const deal of list) {
         if (kind === 'ice' && target && !target.isRemote) inc(t, 'iceCentral');
       }
     },
-  });
+  }));
+  inc(t, 'q5RolloutDecisions', diag.scoreInTwo.rolloutDecisions);
+  inc(t, 'q5RolloutTaken', diag.scoreInTwo.rolloutTaken);
   const agendasInHq = end.corp.hq.filter(c => cardDef(c).type_code === 'agenda').length;
   // c0-rulings 03:58Z: agendas left in HQ by the board at the Corp's last main-phase decision
   if (lastCorp && agendasInHq) inc(t, `agendasLeft:${heldSplit(lastCorp)}`, agendasInHq);

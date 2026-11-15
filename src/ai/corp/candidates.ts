@@ -1,4 +1,4 @@
-import { CardInstance, GameAction, GameState, activePrompt, cardDef, getLegalActions, rezCostOf } from '../../core';
+import { CardInstance, GameAction, GameState, activePrompt, cardDef, getLegalActions } from '../../core';
 import { evaluate } from '../evaluate';
 import { ScoredAction } from '../agent';
 import { answerPrompt, simulate } from '../prompts';
@@ -13,7 +13,7 @@ import { rezAllowed } from './rez';
 /**
  * Step 4 Stage C (spec-step4-corp-core.md 1.3, revision 13; stage-c/order.md as approved, c0-rulings.md): the Corp's
  * ordinary move (Q7). Every main-phase action the Corp can take, each complete and at the server `place` gives it, in
- * an order of ten intent lines fixed from evidence (nine approved, 7a added from the no-look-ahead stop), with a counted tie-break inside each line. No hand-set rank: inside
+ * an order of nine intent lines fixed from evidence, with a counted tie-break inside each line. No hand-set rank: inside
  * a line a candidate is ordered by an owner's output (serverHold, stake, rezMoney) or by the valuation model's own play
  * value (evaluate after the move, less before); the last key is always the instance id, so the order is total and
  * deterministic (no rng is read).
@@ -25,12 +25,11 @@ import { rezAllowed } from './rez';
  *   4 every other play, by the model's play value
  *   5 a purge (rule 5.2.6h)
  *   6 ice that changes no count, paid for
- *   7a an agenda into a remote that does not hold but has ice that is rezzed or paid for within keep (addendum 04:15Z)
  *   7 draw (while the Corp holds fewer cards it can use than clicks to use them) or credit (rule 5.2.6a)
  *   8 a build pair: ice into a new remote with an agenda or asset in HQ to go behind it, paid for
  *   9 an agenda into a server that does not hold
  *
- * Behind all ten, in the same order among themselves: a move that leaves fewer credits than rezMoney's keep (1.5), ice
+ * Behind all nine, in the same order among themselves: a move that leaves fewer credits than rezMoney's keep (1.5), ice
  * the Corp could not also rez (its install cost, rule 8.5.11a, and its rez cost leave less than keep), and a play whose
  * whole value is on the board (an operation, ability, trash or purge) that the model values at or below the credits its
  * clicks would take instead (addendum 03:58Z, P3 b). These are order keys, not filters: the look-ahead
@@ -260,7 +259,7 @@ export type IntakeSlot = 'agenda' | 'build';
  * The planner's Corp intake (spec 1.3, brief C3): the first `k` of the full order, at most the first two placements of
  * one card and at most two candidates of one line (the next candidate in the order takes each freed slot); then the two
  * candidates always in K, when they exist and are not in already, in its last places: the best agenda candidate (line 3,
- * else 7a, else 9) and the best build pair (line 8). `open` is the order as the planner filtered it (no turn end, nothing
+ * else 9) and the best build pair (line 8). `open` is the order as the planner filtered it (no turn end, nothing
  * dominated). Each returned entry says which slot brought it in, if one did.
  */
 export function plannerIntake(open: ScoredAction[], k: number): { picked: ScoredAction[]; slots: Map<ScoredAction, IntakeSlot> } {
@@ -277,7 +276,7 @@ export function plannerIntake(open: ScoredAction[], k: number): { picked: Scored
     if (c.card) perCard.set(c.card, (perCard.get(c.card) ?? 0) + 1);
   }
   const slots = new Map<ScoredAction, IntakeSlot>();
-  const agenda = list.find(c => c.line === 3) ?? list.find(c => c.line === LINE_7A) ?? list.find(c => c.line === 9);
+  const agenda = list.find(c => c.line === 3) ?? list.find(c => c.line === 9);
   const build = list.find(c => c.line === 8);
   for (const [slot, c] of [['agenda', agenda], ['build', build]] as const) {
     if (!c || picked.includes(c)) continue;
@@ -331,19 +330,6 @@ function iceMove(state: GameState, a: Install, card: CardInstance, keep: number,
   } else add({ action: a, line: 6, behind: !paid, keys: [-loss, -(now.margin - was.margin), cost, id], card: card.instanceId });
 }
 
-/**
- * Line 7a (c0-rulings addendum 04:15Z, from the no-look-ahead stop): an agenda in a remote that does not hold by the
- * count but has ice that is rezzed, or that the Corp can pay to rez (rule 6.9.2: the ice's rez cost) and still keep
- * rez money's `keep`, both read on the board after the move. Sorts directly above draw-or-credit; line 9 keeps the rest.
- */
-export const LINE_7A = 6.5;
-export function icedAndPaid(after: GameState, server: string | undefined): boolean {
-  const v = server ? after.corp.servers[server] : undefined;
-  if (!v?.isRemote || !v.ice.length) return false;
-  const keep = rezMoney(after).keep;
-  return v.ice.some(i => i.isRezzed || after.corp.credits - rezCostOf(after, i) >= keep);
-}
-
 /** Lines 3 and 9: an agenda install or advance, by whether its server holds after the move (margin as an order key, never a veto). */
 function agendaMove(state: GameState, a: GameAction, card: CardInstance, keep: number, add: (c: Candidate) => void) {
   const after = simulate(state, a);
@@ -353,7 +339,7 @@ function agendaMove(state: GameState, a: GameAction, card: CardInstance, keep: n
   const placed = findInstalled(after, card.instanceId) ?? card;
   const turns = turnsToScore(after, placed, 0);
   const below = after.corp.credits < keep && after.corp.credits < state.corp.credits;
-  add({ action: a, line: hold?.holds ? 3 : icedAndPaid(after, server) ? LINE_7A : 9, behind: below, keys: [turns, -(hold?.margin ?? 0), -(cardDef(card).agenda_points ?? 0), idNum(card.instanceId)], card: card.instanceId });
+  add({ action: a, line: hold?.holds ? 3 : 9, behind: below, keys: [turns, -(hold?.margin ?? 0), -(cardDef(card).agenda_points ?? 0), idNum(card.instanceId)], card: card.instanceId });
 }
 
 /**
