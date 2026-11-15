@@ -12,17 +12,14 @@ import { lineKeep, rezMoney } from './rezMoney';
 import { centralStake, stake } from './pools';
 import { pointValue } from '../valueModel';
 import { freeRezTargets } from '../freeRez';
-import { rule } from './leaveOut';
 
 /**
  * Owner: where a card goes (Step 4 Stage A, spec-step4-corp-core.md 1.8; registry row "placement").
  *
  * Stage B4 moved the rule bodies here (countedScore.ts is gone): the counted two-turn line (scoreInTwoPick, Q5 in
- * corp/core.ts), the asset line (assetCover) and the placement rules, which corp/core.ts applies to the pick
- * (placePick) where the four rewriters ran. The look-ahead still proposes installs at the ranking's server (AI
- * Coordinator 2026-11-14 17:40Z; Stage C ranks them at their placement); Stage D3 routes the install prompts here.
- * `place(state, card, ctx)[0]` is where the Corp's install of `card` ends up once the ranking (or the planner) has
- * proposed `ctx.from`, by today's rules in today's order:
+ * corp/core.ts), the asset line (assetCover) and the placement rules. Since Stage C every install candidate of the order
+ * (corp/candidates.ts) is already at place's server, so nothing rewrites a pick afterwards; Stage D3 routes the install
+ * prompts here. `place(state, card, ctx)[0]` is where the Corp's install of `card` goes when `ctx.from` is proposed:
  *   0. a counted score this turn (scoreNowPlan): the pick stands while it keeps the score (keepsScore), else the score's
  *      line takes the click;
  *   1. a counted line (scoreInTwoPick): an asset line (assetCover: the cheapest ice from HQ in front
@@ -33,8 +30,9 @@ import { rule } from './leaveOut';
  *   3. ice redirect (iceRedirect): remote ice goes to the scoring remote while it does not hold;
  *   4. asset partner (assetPartner): an asset or upgrade for a new remote goes to an iced remote with an open root,
  *      never the scoring remote reserved for an agenda (reservedForAgenda, inside assetCover and assetPartner);
- *   5. otherwise the pick stands, labelled by the installScore asset line that chose it where one did (an econ asset
- *      in an empty iced remote that is not the scoring remote; a trap kept off the scoring remote), else 'pick'.
+ *   5. ice no rule placed and that changes no count where it stands: the fallback (spec 1.8 ice rule 3, Stage C1);
+ *   6. otherwise the proposal stands, labelled by the old installScore asset line that matches it where one does (an
+ *      econ asset in an empty iced remote that is not the scoring remote; a trap kept off the scoring remote), else 'pick'.
  * Rules: one agenda or asset in a remote's root (3.3.1), any number of upgrades (3.6.2); a root card may replace one
  * already there by trashing it (8.5.6a); ice costs 1 credit per ice already protecting the server (8.5.11a). The rules
  * see the Corp's own HQ and the public board only (10.2.2a).
@@ -61,7 +59,7 @@ export interface Placement {
 }
 
 export interface PlaceContext {
-  /** The install of `card` the ranking or the planner proposed (today's pick before the rewriters). */
+  /** The install of `card` proposed (a legal install the order or a prompt offers). */
   from: GameAction;
   /** The two-turn line the Corp holds as the decision begins (corpAI heldLine). */
   held: HeldLine | null;
@@ -134,7 +132,7 @@ function placeRules(state: GameState, card: CardInstance, from: Install, free?: 
   const partner = assetPartner(state, from, free);
   if (partner && isInstall(partner)) return { action: partner, reason: 'assetPartner' };
   // 5. Ice no rule placed and that changes no count where it stands: spec 1.8 ice rule 3 (C1), the fallback
-  if (typeOf(card) === 'ice' && plan().corpCore) {
+  if (typeOf(card) === 'ice') {
     const fallback = iceFallback(state, card, from, free);
     if (fallback) return { action: fallback.action, reason: fallback.unpaid ? 'fallback:unpaid' : 'fallback' };
   }
@@ -166,7 +164,7 @@ export function iceCount(state: GameState, a: Install, card: CardInstance, after
  * (c0-rulings 16:00Z (8)).
  */
 export function icePaidAt(state: GameState, card: CardInstance, install: number, keep: number): boolean {
-  const rez = rule('freeRezPaid', freeRezTargets(state, card).has(card.instanceId)) ? 0 : rezCostOf(state, card);
+  const rez = freeRezTargets(state, card).has(card.instanceId) ? 0 : rezCostOf(state, card);
   return state.corp.credits - install - rez >= keep;
 }
 
@@ -199,16 +197,6 @@ function iceFallback(state: GameState, card: CardInstance, from: Install, free?:
   if (!to || to === from.targetServerId) return null;
   const action = shaped(state, { type: 'INSTALL_CARD', cardInstanceId: card.instanceId, targetServerId: to }, free) as Install | undefined;
   return action ? { action, unpaid: !near } : null;
-}
-
-/**
- * The Corp's pick at its placement (rules 2 to 4 of place): corp/core.ts plays it when no counted line holds or took the
- * click, where the four rewriters ran before Stage B4. The look-ahead still sees the ranking's server (Stage C ranks
- * an install at its placement).
- */
-export function placePick(state: GameState, pick: GameAction): GameAction {
-  const card = isInstall(pick) ? state.corp.hq.find(c => c.instanceId === pick.cardInstanceId) : undefined;
-  return card && isInstall(pick) ? placeRules(state, card, pick).action : pick;
 }
 
 /** Which of installScore's two asset lines chose this destination (corpAI.ts installScore, 'asset' case), else 'pick'. */
@@ -379,7 +367,7 @@ export function iceRedirect(state: GameState, pick: GameAction, free?: FreeInsta
   if (!scoring || scoring.id === target?.id) return null;
   // Not while a central's loss is the game (plan.lethalHq, bug report #4; c0-rulings 15:50Z (1)): one run there can take
   // the points that win the Runner the game (rule 1.7.2a; the stake owner's points on the point clock)
-  if (rule('lethalHq', ['hq', 'rd'].some(id => pointValue(state.runner.score + stake(state, id, { leaving: card.instanceId }).points) >= pointValue(7)))) return null;
+  if (['hq', 'rd'].some(id => pointValue(state.runner.score + stake(state, id, { leaving: card.instanceId }).points) >= pointValue(7))) return null;
   return shaped(state, { type: 'INSTALL_CARD', cardInstanceId: card.instanceId, targetServerId: scoring.id }, free) ?? null;
 }
 

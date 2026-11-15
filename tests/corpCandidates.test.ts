@@ -16,7 +16,7 @@ import { PLANNER } from '../src/ai/turnPlanner';
  */
 const read = (name: string): GameState => JSON.parse(readFileSync(new URL(`./fixtures/${name}`, import.meta.url), 'utf8'));
 const FIXTURES = ['ice-redirect-1001-t10.json', 'ice-redirect-1411-t6.json', 'money-1001-t1.json', 'asset-cover-r39-t6.json', 'planner-build-2.json', 'hidden-draws-1001-t10.json'];
-const core = <T>(f: () => T, extra: Record<string, unknown> = {}): T => withPricing({ plan: { ...plan(), corpCore: true, rolloutLines: true, ...extra } }, f);
+const core = <T>(f: () => T, extra: Record<string, unknown> = {}): T => withPricing({ plan: { ...plan(), ...extra } }, f);
 const candidates = (s: GameState): Candidate[] =>
   core(() => asSide('corp', () => (decisionContext(s, 'corp'), corpCandidates(s, getLegalActions(s, 'corp'), { held: null, freeExhausted: false }))));
 const key = (a: GameAction) => JSON.stringify(Object.fromEntries(Object.entries(a).sort()));

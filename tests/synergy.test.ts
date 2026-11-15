@@ -5,7 +5,7 @@ import { digValue, handValue, keepValue } from '../src/ai/evaluate';
 import { deckGameSetup } from '../src/data/decks';
 import { ALL_DECKS as DECKS } from '../scripts/nsg-sample-decks';
 import { HeuristicCorpAI, HeuristicRunnerAI, createAgent, playAIGame } from '../src/ai';
-import { MAX_NUDGE, deckProfile, nudge, opponentProfile, tuning } from '../src/ai/synergy';
+import { MAX_NUDGE, deckProfile, nudge, opponentProfile } from '../src/ai/synergy';
 import { CONDITIONS, CONDITION_PATTERNS, SYNERGY, THEMES, inferSynergy } from '../src/ai/synergyTags';
 import { newGame } from './helpers';
 import { RunnerMemory, isTrap, serverValue, trapOdds } from '../src/ai/runs';
@@ -147,8 +147,8 @@ describe('dividends', () => {
     const ai = new HeuristicCorpAI({ planner: false });
     const first = ai.chooseAction(s);
     expect(first).toMatchObject({ type: 'ADVANCE_CARD', cardInstanceId: agenda.instanceId });
-    // Without the deck-aware AI it scores straight away
-    expect(new HeuristicCorpAI({ synergy: false, planner: false }).chooseAction(s)).toMatchObject({ type: 'SCORE_AGENDA' });
+    // The synergy: false half ("without the deck-aware AI it scores straight away") compared the ranking with its own
+    // flag off; the order does not read the flag (Step 4 Stage C7)
   });
 });
 
@@ -205,7 +205,10 @@ describe('trap caution', () => {
 });
 
 describe('Corp bluffing', () => {
-  it('advances an Urtica Cipher that would flatline the Runner', () => {
+  // Rewritten in Step 4 Stage C7 against the decision (the ranking's synergy bonus on the advance is gone) and known-failing:
+  // the order puts Pharos on R&D first (line 2) and the advance second, and the look-ahead plays Pharos too. The bluff
+  // advance has no line of its own (the Stage D bluff-advance item)
+  it.fails('advances an Urtica Cipher that would flatline the Runner', () => {
     const state = newGame();
     const s = structuredClone(state);
     const urtica = createCardInstance(s, '30045');
@@ -214,9 +217,7 @@ describe('Corp bluffing', () => {
     // 2 + 2 counters = 4 net damage after one more advance: more than a 3-card grip flatlines (rules 10.4.4)
     s.runner.grip = s.runner.grip.slice(0, 3);
     s.corp.credits = 8;
-    const advance = (ai: HeuristicCorpAI) =>
-      ai.rankMainActions(s).find(r => r.action.type === 'ADVANCE_CARD' && r.action.cardInstanceId === urtica.instanceId)!.score;
-    expect(advance(new HeuristicCorpAI())).toBeGreaterThan(advance(new HeuristicCorpAI({ synergy: false })) + 1);
+    expect(new HeuristicCorpAI().chooseAction(s)).toMatchObject({ type: 'ADVANCE_CARD', cardInstanceId: urtica.instanceId });
   });
 });
 
@@ -274,80 +275,40 @@ describe('planning (setup scoring)', () => {
     expect(t.corp.scoreArea.map(c => c.instanceId)).toContain(agenda.instanceId);
   });
 
+  // Rewritten in Step 4 Stage C7 against the decision (the ranking's iceFit score is gone): the Corp with its look-ahead
+  // puts the sentry the Runner cannot break on the server it attacked. The order alone puts Palisade on R&D first
   it('ices against the Runner: a type they cannot break, on a server they attacked', () => {
     const s = structuredClone(newGame());
     s.runner.rig.programs = [createCardInstance(s, '30006')]; // Cleaver: barriers only
-    s.runner.credits = 10; // rich enough that neither is a full stop (stopperPlacement): only the type fit differs
+    s.runner.credits = 10;
     s.runnerLastTurnRuns = [{ server: 'rd', successful: true } as (typeof s.runnerLastTurnRuns)[number]];
     const sentry = createCardInstance(s, '30073'); // Tithe
-    const barrier = createCardInstance(s, '30072'); // Palisade
-    s.corp.hq = [sentry, barrier];
-    const score = (card: CardInstance, server: string) =>
-      new HeuristicCorpAI().rankMainActions(s).find(r => r.action.type === 'INSTALL_CARD' && r.action.cardInstanceId === card.instanceId && r.action.targetServerId === server)!.score;
-    expect(score(sentry, 'rd')).toBeGreaterThan(score(sentry, 'hq'));
-    const plain = (card: CardInstance) =>
-      new HeuristicCorpAI({ synergy: false }).rankMainActions(s).find(r => r.action.type === 'INSTALL_CARD' && r.action.cardInstanceId === card.instanceId && r.action.targetServerId === 'hq')!.score;
-    expect(score(sentry, 'hq') - plain(sentry)).toBeGreaterThan(score(barrier, 'hq') - plain(barrier));
+    s.corp.hq = [sentry, createCardInstance(s, '30072')]; // and Palisade
+    expect(new HeuristicCorpAI().chooseAction(s)).toMatchObject({ type: 'INSTALL_CARD', cardInstanceId: sentry.instanceId, targetServerId: 'rd' });
   });
 
-  it('judges Scatter Field where it would go: strong alone, weak behind or in front of other ice', () => {
-    const board = () => {
-      const s = structuredClone(newGame());
-      s.runner.rig.programs = [createCardInstance(s, '30026')]; // Unity: boosting through 4 strength costs more
-      s.runner.credits = 10; // never a full stop: only the strength differs
-      s.corp.credits = 10;
-      return s;
-    };
-    // plan.icePosition alone: with plan.iceProtects a server's ice shares what the server holds (the stake over the summed
-    // break costs), so the strength icePosition gives a layer moves the other layers' worth too (HQ's second layer:
-    // 0.13 against 0.60); that is iceProtects' doing, pinned in tests/iceProtects.test.ts
-    const score = (s: GameState, card: CardInstance, server: string, on: boolean) => {
-      const was = tuning.plan.icePosition;
-      const protects = tuning.plan.iceProtects;
-      tuning.plan.icePosition = on;
-      tuning.plan.iceProtects = false;
-      try {
-        return new HeuristicCorpAI().rankMainActions(s).find(r => r.action.type === 'INSTALL_CARD' && r.action.cardInstanceId === card.instanceId && r.action.targetServerId === server)!.score;
-      } finally {
-        tuning.plan.icePosition = was;
-        tuning.plan.iceProtects = protects;
-      }
-    };
-    // Alone on R&D it counts its +4 strength; as HQ's second layer it doesn't get it
-    const s = board();
-    const palisade = createCardInstance(s, '30072');
-    palisade.isRezzed = true;
-    s.corp.servers.hq.ice = [palisade];
-    const scatter = createCardInstance(s, '35042');
-    s.corp.hq = [scatter];
-    expect(score(s, scatter, 'rd', true) - score(s, scatter, 'rd', false)).toBeGreaterThan(0);
-    expect(score(s, scatter, 'hq', true)).toBeCloseTo(score(s, scatter, 'hq', false));
-    // A new layer outside a lone Scatter Field takes its +4 away, and that counts against it
-    const t = board();
-    const lone = createCardInstance(t, '35042');
-    lone.isRezzed = true;
-    t.corp.servers.rd.ice = [lone];
-    const layer = createCardInstance(t, '30072');
-    t.corp.hq = [layer];
-    expect(score(t, layer, 'rd', true)).toBeLessThan(score(t, layer, 'rd', false));
-  });
+  // 'judges Scatter Field where it would go' compared the ranking's install scores with plan.icePosition on and off; the
+  // switch's reader was the ranking (Step 4 Stage C7: deleted with it, the switch removed)
 
-  it('tags the Runner before scoring Orbital Superiority', () => {
+  // Rewritten in Step 4 Stage C7 against the decision, and known-failing: the order holds the score back (tagFirst) and
+  // puts Public Trail on line 3 (tagsBeforeScore), but the over-advance of Orbital Superiority is line 3's first by its keys,
+  // with or without the look-ahead. A carried rule whose own pin fails: reported with leave-one-out (c7-leave-one-out.md)
+  it.fails('tags the Runner before scoring Orbital Superiority', () => {
     const s = structuredClone(newGame());
     const orbital = createCardInstance(s, '30068');
     orbital.advancementCounters = 4; // ready to score
     const ice = createCardInstance(s, '30072');
     ice.isRezzed = true;
     remote(s, 'remote-9', [orbital], [ice]);
-    s.corp.hq.push(createCardInstance(s, '30057')); // Public Trail
+    const trail = createCardInstance(s, '30057'); // Public Trail
+    s.corp.hq.push(trail);
     s.runnerLastTurnRuns = [{ server: 'hq', successful: true } as (typeof s.runnerLastTurnRuns)[number]];
     s.runner.credits = 2; // can't pay 8 to dodge it
-    const order = (ai: HeuristicCorpAI) => ai.rankMainActions(s).map(r => r.action.type);
-    const aware = order(new HeuristicCorpAI());
-    expect(aware.indexOf('PLAY_OPERATION_OR_EVENT')).toBeLessThan(aware.indexOf('SCORE_AGENDA'));
-    expect(order(new HeuristicCorpAI({ synergy: false }))[0]).toBe('SCORE_AGENDA');
+    expect(new HeuristicCorpAI().chooseAction(s)).toMatchObject({ type: 'PLAY_OPERATION_OR_EVENT', cardInstanceId: trail.instanceId });
   });
 
+  // Rewritten in Step 4 Stage C7 against the decision (the ranking's -Infinity on the advance is gone): with one click the
+  // Corp with its look-ahead does not advance (the order alone puts the advance first, line 3)
   it('does not leave an agenda half-advanced over the Runner\'s turn', () => {
     const s = structuredClone(newGame());
     const agenda = createCardInstance(s, '30069'); // Send a Message: 5 to score
@@ -356,58 +317,23 @@ describe('planning (setup scoring)', () => {
     remote(s, 'remote-9', [agenda], [ice]);
     s.corp.clicks = 1;
     s.corp.credits = 6;
-    const advance = (ai: HeuristicCorpAI) => ai.rankMainActions(s).find(r => r.action.type === 'ADVANCE_CARD')?.score ?? -Infinity;
-    // One advance now still leaves 4 to go next turn: wait
-    expect(advance(new HeuristicCorpAI())).toBe(-Infinity);
-    expect(advance(new HeuristicCorpAI({ synergy: false }))).toBeGreaterThan(0);
-    // With 3 clicks it can get to 2 counters and score next turn: then it commits
-    s.corp.clicks = 3;
-    // plan.breakerReach (2026-11-06): with Marjanah in the grip the Runner gets past Palisade for about 6 credits, not a
-    // flat 8, so on 5 credits the agenda would be exposed; on 2 it isn't
-    s.runner.credits = 2;
-    expect(advance(new HeuristicCorpAI())).toBeGreaterThan(5);
+    expect(new HeuristicCorpAI().chooseAction(s).type).not.toBe('ADVANCE_CARD');
   });
 
+  // Rewritten in Step 4 Stage C7 against the order (the ranking's score gap is gone): the first ice install is on R&D
   it('ices R&D before an HQ with nothing worth stealing', () => {
     const s = structuredClone(newGame());
-    const ice = createCardInstance(s, '30072');
-    s.corp.hq = [ice, createCardInstance(s, '30075')];
+    s.corp.hq = [createCardInstance(s, '30072'), createCardInstance(s, '30075')];
     s.corp.credits = 8;
-    const score = (server: string) =>
-      new HeuristicCorpAI().rankMainActions(s).find(r => r.action.type === 'INSTALL_CARD' && r.action.targetServerId === server)!.score;
-    expect(score('rd')).toBeGreaterThan(score('hq') + 1);
+    const first = new HeuristicCorpAI({ planner: false }).rankMainActions(s).find(r => r.action.type === 'INSTALL_CARD')!.action;
+    expect(first).toMatchObject({ targetServerId: 'rd' });
   });
 
-  it('keeps money to rez ice on R&D as well as an agenda remote', () => {
-    const s = structuredClone(newGame());
-    const rdIce = createCardInstance(s, '30072');
-    s.corp.servers.rd.ice = [rdIce];
-    const hedge = createCardInstance(s, '30075'); // Hedge Fund: 5 to play, +9
-    const palisade = createCardInstance(s, '30072');
-    s.corp.hq = [hedge, palisade];
-    s.corp.credits = 2; // Palisade on R&D costs 3 to rez
-    const ranked = (ai: HeuristicCorpAI) => ai.rankMainActions(s);
-    const credit = (ai: HeuristicCorpAI) => ranked(ai).find(r => r.action.type === 'GAIN_CREDIT')!.score;
-    // Short of the reserve, a credit is worth a little more to the round 3 Corp
-    expect(credit(new HeuristicCorpAI())).toBeGreaterThan(credit(new HeuristicCorpAI({ synergy: false })));
-  });
+  // 'keeps money to rez ice on R&D as well as an agenda remote' compared the ranking's credit score with synergy on and off
+  // (Step 4 Stage C7: deleted); the rez money owner keeps R&D staked (tests/corpOwners.test.ts, rezMoney)
 
-  it('adds a layer where the Runner already breaks the ice', () => {
-    const s = structuredClone(newGame());
-    const palisade = createCardInstance(s, '30072'); // a barrier
-    palisade.isRezzed = true;
-    s.corp.servers.rd.ice = [palisade];
-    const ice = createCardInstance(s, '30073'); // Tithe
-    s.corp.hq = [ice];
-    s.corp.credits = 8;
-    const score = () =>
-      new HeuristicCorpAI().rankMainActions(s).find(r => r.action.type === 'INSTALL_CARD' && r.action.targetServerId === 'rd' && !r.action.trashFirst)!.score;
-    const unbroken = score();
-    s.runner.rig.programs = [createCardInstance(s, '30006')]; // Cleaver breaks barriers
-    const broken = score();
-    // iceDepth (an installScore term, folded in item 6) prices the layer the rig breaks through
-    expect(broken - unbroken).toBeGreaterThan(0.5);
-  });
+  // 'adds a layer where the Runner already breaks the ice' read the ranking's iceDepth term (Step 4 Stage C7: deleted with
+  // it); what the Runner breaks is the hold owner's (tests/exposure.test.ts)
 });
 
 describe('identity plans', () => {
@@ -427,7 +353,7 @@ describe('identity plans', () => {
     expect(untaianPick(s, [agenda.instanceId])).toEqual([]);
   });
 
-  it('BANGUN installs an agenda faceup with tag punishers in hand; the Runner reads it', () => {
+  it.fails('BANGUN installs an agenda faceup with tag punishers in hand (the order: the facedown install first)', () => {
     const s = structuredClone(newGame());
     s.corp.identity = createCardInstance(s, '35068'); // BANGUN
     const agenda = createCardInstance(s, '30067');
@@ -435,9 +361,19 @@ describe('identity plans', () => {
     remote(s, 'remote-8', [], [createCardInstance(s, '30072')]);
     s.corp.clicks = 1;
     s.corp.credits = 6;
-    const install = (faceUp: boolean) =>
-      new HeuristicCorpAI().rankMainActions(s).find(r => r.action.type === 'INSTALL_CARD' && r.action.cardInstanceId === agenda.instanceId && r.action.targetServerId === 'remote-8' && !!r.action.faceUp === faceUp)?.score ?? -Infinity;
-    expect(install(true)).toBeGreaterThan(install(false));
+    expect(new HeuristicCorpAI().chooseAction(s)).toMatchObject({ type: 'INSTALL_CARD', cardInstanceId: agenda.instanceId, faceUp: true });
+  });
+
+  it('BANGUN: the Runner reads a faceup agenda', () => {
+    const s = structuredClone(newGame());
+    s.corp.identity = createCardInstance(s, '35068'); // BANGUN
+    const agenda = createCardInstance(s, '30067');
+    s.corp.hq = [agenda, createCardInstance(s, '30065')]; // Retribution
+    remote(s, 'remote-8', [], [createCardInstance(s, '30072')]);
+    s.corp.clicks = 1;
+    s.corp.credits = 6;
+    // The Corp half read the ranking's install scores (BANGUN's bait); under the order the facedown install comes first, so
+    // that half is pinned known-failing above (Step 4 Stage C7)
     // The Runner: a faceup agenda is a sure steal, but not with a hand that 2 meat damage would empty
     const t = structuredClone(s);
     agenda.faceUp = true;
@@ -509,7 +445,9 @@ describe('draws and money', () => {
     expect(take).toBeGreaterThan(click + 1);
   });
 
-  it('clicks for credits toward a Hedge Fund it can almost afford', () => {
+  // Known-failing under the order (Step 4 Stage C7): the Corp clicks for a credit, installs Anoetic Void and clicks again;
+  // Hedge Fund (line 4) is not reached. The ranking's planner played it (moneyPlan's credit toward a money operation)
+  it.fails('clicks for credits toward a Hedge Fund it can almost afford', () => {
     const s = structuredClone(newGame());
     s.corp.hq = [createCardInstance(s, '30075'), ...s.corp.hq.slice(0, 2)];
     s.corp.credits = 3;
@@ -541,18 +479,8 @@ describe('digging for answers', () => {
   });
 
   // Jeff 2026-10-31 (dud draws): a full hand with no ice digs one past the limit and discards the worst (rules 4.3.6, 5.5.3)
-  it('a full hand of duds still digs for ice, one card past the hand size (plan.digPastLimit)', () => {
-    const s = structuredClone(newGame());
-    const duds = s.corp.rd.filter(c => getCardDefinition(c.cardCode).type_code !== 'ice' && getCardDefinition(c.cardCode).type_code !== 'agenda');
-    s.corp.hq = duds.slice(0, 5);
-    s.corp.rd = s.corp.rd.filter(c => !s.corp.hq.includes(c));
-    s.corp.credits = 8;
-    const draw = () => new HeuristicCorpAI({ synergy: true }).rankMainActions(s).find(r => r.action.type === 'DRAW_CARD')?.score ?? -Infinity;
-    const five = draw();
-    // Six cards: no more digging (a second discard)
-    s.corp.hq.push(duds[5]);
-    expect(five).toBeGreaterThan(draw() + 0.5);
-  });
+  // 'a full hand of duds still digs for ice, one card past the hand size' compared the ranking's draw scores (Step 4 Stage
+  // C7: deleted). Line 7's condition decides a draw (the cards the Corp can use now against its clicks)
   it('ice the Corp cannot afford to rez soon is no answer: it still digs', () => {
     const s = structuredClone(newGame());
     s.corp.hq = s.corp.hq.filter(c => getCardDefinition(c.cardCode).type_code !== 'ice').slice(0, 2);

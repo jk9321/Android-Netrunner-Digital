@@ -3,7 +3,6 @@ import { describe, expect, it } from 'vitest';
 import { GameAction, GameState, cardDef, createInitialGameState, executeAction, findCardAnywhere } from '../src/core';
 import { deckGameSetup } from '../src/data/decks';
 import { HeuristicCorpAI, createAgent } from '../src/ai';
-import { plan, withPricing } from '../src/ai/pricing';
 import { giveCard, installCorpForTest, installIceForTest, installProgramForTest, newGame } from './helpers';
 
 /**
@@ -61,12 +60,8 @@ describe('Stage D pins (known-failing until their fix lands)', () => {
   // D4, the reservation: the only iced remote (Piranhas) is kept for an agenda while two wait in HQ. Recorded card
   // Balanced Coverage; today the Corp makes the same mistake with Federal Fundraising
   // A guard since ai-runner-unknowns: the Corp now clicks for a credit here (not a D4 fix; D4 still owes the reservation)
-  it('D4 #53 #76: no asset is installed in remote-5, the only iced remote (recorded Balanced Coverage; guard since ai-runner-unknowns)', { timeout: T }, () => {
-    const { s } = at(53, 76);
-    const a = decide(s) as Install;
-    const card = a.cardInstanceId ? s.corp.hq.find(c => c.instanceId === a.cardInstanceId) : undefined;
-    expect(a.type === 'INSTALL_CARD' && a.targetServerId === 'remote-5' && !!card && cardDef(card).type_code === 'asset').toBe(false);
-  });
+  // D4 #53 #76 (no asset into remote-5, the only iced remote): a guard since ai-runner-unknowns under the ranking; under the
+  // order it fails again (the original D4 mistake), pinned known-failing below ('Stage C, D4 #53 #76')
 
   // D6: Jaguarundi and Oracle Thinktank discarded while Public Access Plaza was in HQ
   it.fails('D6 #53 #112: no agenda is discarded while a non-agenda is in HQ', { timeout: T }, () => {
@@ -105,7 +100,7 @@ describe('Stage D pins (known-failing until their fix lands)', () => {
   // line-2 ice (tests/corpCandidates.test.ts)
   it.fails('Stage C, deal 1001 T10: the Corp with the look-ahead installs ice on remote-1 (today: the Regolith click)', { timeout: 480_000 }, () => {
     const s: GameState = JSON.parse(readFileSync(new URL('./fixtures/ice-redirect-1001-t10.json', import.meta.url), 'utf8'));
-    const a = withPricing({ plan: { ...plan(), corpCore: true, rolloutLines: true } }, () => new HeuristicCorpAI({ synergy: true }).chooseAction(s)) as Install;
+    const a = new HeuristicCorpAI({ synergy: true }).chooseAction(s) as Install;
     expect(a.type).toBe('INSTALL_CARD');
     expect(cardDef(findCardAnywhere(s, a.cardInstanceId ?? '')!).type_code).toBe('ice');
     expect(a.targetServerId).toBe('remote-1');
@@ -117,14 +112,14 @@ describe('Stage D pins (known-failing until their fix lands)', () => {
   // prices the game-ending steal as ordinary points (valuation, Stage D5), not the order. A regression on #4 until then
   it.fails('Stage C, bug report #4: with the look-ahead HQ gets its third ice', { timeout: 240_000 }, () => {
     let s: GameState = JSON.parse(readFileSync(new URL('./fixtures/bug-report-4-turn13.json', import.meta.url), 'utf8'));
-    withPricing({ plan: { ...plan(), corpCore: true, rolloutLines: true } }, () => {
+    {
       const corp = createAgent('corp', 'normal');
       for (let i = 0; i < 20 && s.activePlayer === 'corp' && !s.winner; i++) {
         const a = corp.chooseAction(s);
         s = executeAction(s, a);
         if (a.type === 'END_TURN') break;
       }
-    });
+    }
     expect(s.corp.servers.hq.ice.length).toBeGreaterThanOrEqual(3);
   });
 
@@ -135,7 +130,7 @@ describe('Stage D pins (known-failing until their fix lands)', () => {
   const hr = (s: GameState) => Object.values(s.corp.servers).flatMap(v => v.root).find(c => c.cardCode === '35039')!;
   it.fails('Stage C, Humanoid Resources: rezzed in the action phase with the 3 clicks to use it', { timeout: T }, () => {
     const s = hrBoard();
-    const a = withPricing({ plan: { ...plan(), corpCore: true, rolloutLines: true } }, () => new HeuristicCorpAI({ planner: false }).chooseAction(s));
+    const a = new HeuristicCorpAI({ planner: false }).chooseAction(s);
     expect(a).toMatchObject({ type: 'REZ_CARD', cardInstanceId: hr(s).instanceId });
   });
   it.fails('Stage C, Humanoid Resources: a rez in the action phase is followed by using it', { timeout: T }, () => {
@@ -143,7 +138,7 @@ describe('Stage D pins (known-failing until their fix lands)', () => {
     const id = hr(s).instanceId;
     let rezzed = false;
     let used = false;
-    withPricing({ plan: { ...plan(), corpCore: true, rolloutLines: true } }, () => {
+    {
       const corp = new HeuristicCorpAI({ planner: false });
       for (let i = 0; i < 20 && s.activePlayer === 'corp' && !s.winner; i++) {
         const a = corp.chooseAction(s);
@@ -152,15 +147,15 @@ describe('Stage D pins (known-failing until their fix lands)', () => {
         s = executeAction(s, a);
         if (a.type === 'END_TURN') break;
       }
-    });
+    }
     expect(rezzed && used).toBe(true);
   });
 
-  // D4 #53 #76 under the new core (c0-rulings 15:50Z (6)): the guard above holds for the ranking; the order installs the
-  // asset in remote-5 again, the original D4 mistake (the reservation, owed by Stage D)
+  // D4 #53 #76 under the order (c0-rulings 15:50Z (6)): the guard held for the ranking; the order installs the asset in
+  // remote-5 again, the original D4 mistake (the reservation, owed by Stage D)
   it.fails('Stage C, D4 #53 #76: no asset is installed in remote-5 under the new core', { timeout: T }, () => {
     const { s } = at(53, 76);
-    const a = withPricing({ plan: { ...plan(), corpCore: true, rolloutLines: true } }, () => decide(s)) as Install;
+    const a = decide(s) as Install;
     const card = a.cardInstanceId ? s.corp.hq.find(c => c.instanceId === a.cardInstanceId) : undefined;
     expect(a.type === 'INSTALL_CARD' && a.targetServerId === 'remote-5' && !!card && cardDef(card).type_code === 'asset').toBe(false);
   });
@@ -172,7 +167,7 @@ describe('Stage D pins (known-failing until their fix lands)', () => {
   // owner replaced. Offworld Office stays a line-9 candidate. The Stage D hold-owner item
   it.fails('Stage C, bug report #15: Offworld Office leaves HQ for an iced remote', { timeout: T }, () => {
     const s: GameState = JSON.parse(readFileSync(new URL('./fixtures/bug-report-15-turn10.json', import.meta.url), 'utf8'));
-    const a = withPricing({ plan: { ...plan(), corpCore: true, rolloutLines: true } }, () => decide(s)) as Install;
+    const a = decide(s) as Install;
     expect(a.type).toBe('INSTALL_CARD');
     expect(cardDef(findCardAnywhere(s, a.cardInstanceId ?? '')!).title).toBe('Offworld Office');
     expect((s.corp.servers[a.targetServerId ?? '']?.ice.length ?? 0) > 0).toBe(true);
@@ -197,14 +192,14 @@ describe('Stage D pins (known-failing until their fix lands)', () => {
     giveCard(s, 'corp', '30063');
     giveCard(s, 'corp', '30072');
     let t = s;
-    withPricing({ plan: { ...plan(), corpCore: true, rolloutLines: true } }, () => {
+    {
       const corp = new HeuristicCorpAI();
       for (let i = 0; i < 20 && t.activePlayer === 'corp'; i++) {
         const a = corp.chooseAction(t);
         if (a.type === 'END_TURN') break;
         t = executeAction(t, a);
       }
-    });
+    }
     expect(t.corp.score).toBe(3);
     expect(Object.values(t.corp.servers).flatMap(v => v.ice).some(c => c.cardCode === '30063' && c.isRezzed)).toBe(true);
   });

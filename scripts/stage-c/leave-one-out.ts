@@ -1,4 +1,6 @@
 /**
+ * Runs only on a tree from before the Stage C7 deletions (20d4af2 for the decisions, bbd37f3 for the pins): it reads
+ * corp/leaveOut.ts, removed with the hooks once the results were in (c7-leave-one-out.md).
  * Step 4 Stage C7: leave-one-out on recorded decisions (spec section 5). At each recorded Corp main-phase decision
  * (local deals and human games, split by SHARD), a fresh Normal Corp of the new core (corpCore, rolloutLines) decides
  * with nothing left out, recording which carried-over rules applied anywhere in the decision (look-ahead included:

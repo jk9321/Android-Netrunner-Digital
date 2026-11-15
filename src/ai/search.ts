@@ -207,7 +207,6 @@ export class SearchAI implements Agent {
       rank: (s, legal) => base.rankMainActions(s, legal),
       lookahead: (s, ranked) => this.corpLookahead(s, ranked),
       note: action => base.notePlayed(action),
-      bluffed: () => base.noteBluff(),
       debug: this.options.debug,
     });
   }

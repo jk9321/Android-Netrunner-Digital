@@ -33,7 +33,7 @@ describe('value model rates', () => {
 
 describe('money operations are read from their text (value model step 6)', () => {
   it('finds the five money operations and their gains, and skips gains offered as one option', async () => {
-    const { moneyOpGain } = await import('../src/ai/corpAI');
+    const { moneyOpGain } = await import('../src/ai/valueAudit');
     expect(moneyOpGain('30075')).toBe(9); // Hedge Fund
     expect(moneyOpGain('30064')).toBe(15); // Government Subsidy
     expect(moneyOpGain('30048')).toBe(10); // Hansei Review

@@ -1,4 +1,6 @@
 /**
+ * Runs only on a tree from before the Stage C7 deletions (20d4af2 for the decisions, bbd37f3 for the pins): it reads
+ * corp/leaveOut.ts, removed with the hooks once the results were in (c7-leave-one-out.md).
  * Step 4 Stage C7: the pins under leave-one-out (spec section 5). Every test file that reads src/ai is run under the new
  * core (TEST_PLAN=+corpCore,+rolloutLines) with nothing left out, and again with each carried-over rule left out in turn
  * (LOO_OFF, tests/setup.ts). SHARD k of n takes configuration k % 24 (0 = nothing left out, then the arms of

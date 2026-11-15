@@ -11,7 +11,7 @@ import { tuning } from '../src/ai/synergy';
  * plan.heldMoney leaves the card moneyReach counts out of HQ's worth.
  *
  * Position: the Petty Cash fixture (deal 906, the Corp's turn 4: 3 credits, HQ Seamless Launch, Petty Cash,
- * Nanomanagement, Bumi 1.0, Spin Doctor), with plan.pettyCashFirst (the special case for Petty Cash) off: the
+ * Nanomanagement, Bumi 1.0, Spin Doctor), without a special case for Petty Cash (plan.pettyCashFirst, deleted in Stage C7): the
  * general fix alone plays Petty Cash rather than clicking for a credit.
  */
 function play(): GameState {
@@ -25,7 +25,6 @@ const inHq = (s: GameState) => s.corp.hq.map(c => cardDef(c).title);
 
 describe('a held money operation is counted once (plan.heldMoney)', () => {
   it('plays Petty Cash without the Petty Cash special case', () => {
-    tuning.plan.pettyCashFirst = false;
     // On the old threat (plan.threatModel off): with the threat model's leaf the Corp's turn here is a near tie (Petty
     // Cash's line 0.03 behind a credit click, the leaf's run charge deciding), flagged in the item 3 hand-off
     const threat = tuning.plan.threatModel;
@@ -36,7 +35,6 @@ describe('a held money operation is counted once (plan.heldMoney)', () => {
       const s = play();
       expect(inHq(s)).not.toContain('Petty Cash');
     } finally {
-      tuning.plan.pettyCashFirst = true;
       tuning.plan.threatModel = threat;
       tuning.plan.hiddenDraws = true;
     }

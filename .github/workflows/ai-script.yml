@@ -5,7 +5,8 @@ name: AI script
 # Actions > AI script > Run workflow, or the API. Each of 16 runners starts 4 processes; every process
 # gets SHARD=<k>/64 (as scripts/corp-losses.ts reads it) and ARGS, and writes its stdout to
 # out/<job>-<i>.txt and anything it likes under out/files/<k>/ (OUT_DIR). The "collect" job gathers every
-# shard's output into one artifact named "out". The script decides what a shard means (which deals,
+# shard's output into one artifact named "out" and commits it to the ai-batch-results branch as
+# scripts/<run id>.tar.gz. The script decides what a shard means (which deals,
 # which recorded states, which rule to leave out) and how the pieces are summed afterwards.
 # This counts against the same 20-job limit as AI batches: one at a time beside a batch.
 on:
@@ -86,7 +87,7 @@ jobs:
     if: always()
     runs-on: ubuntu-latest
     permissions:
-      contents: read
+      contents: write
       actions: read
     steps:
       - uses: actions/download-artifact@v4
@@ -99,3 +100,23 @@ jobs:
         with:
           name: out
           path: out/
+      # Cloud threads cannot download artifacts, so the output also goes on the ai-batch-results
+      # branch as scripts/<run id>.tar.gz (read it with git fetch origin ai-batch-results).
+      - name: Keep the output on the ai-batch-results branch
+        env:
+          LABEL: ${{ inputs.label }}
+        run: |
+          tar -czf /tmp/out.tar.gz out
+          size=$(stat -c %s /tmp/out.tar.gz)
+          echo "out.tar.gz is $size bytes"
+          if [ "$size" -gt 50000000 ]; then echo "over 50 MB: not committed, use the artifact"; exit 0; fi
+          git init -q repo && cd repo
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git remote add origin "https://x-access-token:${{ github.token }}@github.com/${{ github.repository }}.git"
+          if git fetch -q --depth=1 origin ai-batch-results; then git checkout -q -B ai-batch-results FETCH_HEAD; else git checkout -q --orphan ai-batch-results; fi
+          mkdir -p scripts
+          cp /tmp/out.tar.gz "scripts/${{ github.run_id }}.tar.gz"
+          git add scripts
+          git commit -qm "AI script ${{ github.run_id }}: $LABEL"
+          for i in 1 2 3; do git push -q origin ai-batch-results && break; git pull -q --rebase origin ai-batch-results; done

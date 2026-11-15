@@ -1,5 +1,6 @@
 import { GameState } from '../core/types/state';
 import { SideCode } from '../core/types/card';
+import { readStorage, writeStorage } from './storage';
 
 const ENABLED_STORAGE_KEY = 'netrunner.music';
 const VOLUME_STORAGE_KEY = 'netrunner.music.volume';
@@ -10,48 +11,28 @@ let enabledCache = true;
 let volumeCache = 0.6;
 
 export function musicEnabled(): boolean {
-  try {
-    const val = typeof window !== 'undefined' ? window.localStorage.getItem(ENABLED_STORAGE_KEY) : null;
-    if (val !== null) return val !== 'off';
-    // Never chosen: players who muted sound before music existed stay muted
-    if (typeof window !== 'undefined' && window.localStorage.getItem(SOUND_STORAGE_KEY) === 'off') return false;
-    return enabledCache;
-  } catch {
-    return enabledCache;
-  }
+  const val = readStorage(ENABLED_STORAGE_KEY);
+  if (val !== null) return val !== 'off';
+  // Never chosen: players who muted sound before music existed stay muted
+  if (readStorage(SOUND_STORAGE_KEY) === 'off') return false;
+  return enabledCache;
 }
 
 export function setMusicEnabled(on: boolean): void {
   enabledCache = on;
-  try {
-    if (typeof window !== 'undefined') {
-      window.localStorage.setItem(ENABLED_STORAGE_KEY, on ? 'on' : 'off');
-    }
-  } catch {
-    // Not saved
-  }
+  writeStorage(ENABLED_STORAGE_KEY, on ? 'on' : 'off');
   applyMuteState();
 }
 
 export function musicVolume(): number {
-  try {
-    const v = typeof window !== 'undefined' ? window.localStorage.getItem(VOLUME_STORAGE_KEY) : null;
-    return v !== null ? Math.max(0, Math.min(1, parseFloat(v))) : volumeCache;
-  } catch {
-    return volumeCache;
-  }
+  const v = readStorage(VOLUME_STORAGE_KEY);
+  return v !== null ? Math.max(0, Math.min(1, parseFloat(v))) : volumeCache;
 }
 
 export function setMusicVolume(vol: number): void {
   const clamped = Math.max(0, Math.min(1, vol));
   volumeCache = clamped;
-  try {
-    if (typeof window !== 'undefined') {
-      window.localStorage.setItem(VOLUME_STORAGE_KEY, clamped.toString());
-    }
-  } catch {
-    // Not saved
-  }
+  writeStorage(VOLUME_STORAGE_KEY, clamped.toString());
   applyVolume();
 }
 

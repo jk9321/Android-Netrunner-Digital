@@ -1,5 +1,6 @@
 import { GameState, LogEvent } from '../core/types/state';
 import { SideCode } from '../core/types/card';
+import { readStorage, writeStorage } from './storage';
 
 /**
  * Short synthesized sound effects (Web Audio, no audio files). Each action
@@ -47,19 +48,11 @@ const RULES: [Sound, (prev: GameState, next: GameState) => boolean][] = [
 const STORAGE_KEY = 'netrunner.sound';
 
 export function soundEnabled(): boolean {
-  try {
-    return window.localStorage.getItem(STORAGE_KEY) !== 'off';
-  } catch {
-    return true;
-  }
+  return readStorage(STORAGE_KEY) !== 'off';
 }
 
 export function setSoundEnabled(on: boolean): void {
-  try {
-    window.localStorage.setItem(STORAGE_KEY, on ? 'on' : 'off');
-  } catch {
-    // Not saved; the toggle still works for this page
-  }
+  writeStorage(STORAGE_KEY, on ? 'on' : 'off');
 }
 
 let ctx: AudioContext | null = null;

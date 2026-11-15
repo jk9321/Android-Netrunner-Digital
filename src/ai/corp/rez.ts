@@ -7,7 +7,6 @@ import { archivesPayoffOf, rezEffectOf } from '../cards';
 import { modelRezGain, runBypassed } from '../rezModel';
 import { agendasUnseen, reachablePoints, runLoss, stake } from './pools';
 import { serverHold } from './hold';
-import { rule } from './leaveOut';
 import { digValue, evaluate } from '../evaluate';
 import { answerPrompt, simulate } from '../prompts';
 import { plan, pricing } from '../pricing';
@@ -347,7 +346,7 @@ export function rezAllowed(state: GameState, card: CardInstance, keep: number, n
   }
   // Worth once rezzed, less the rez cost, above zero (the ranking's rezValue test, carried here: c0-rulings 16:00Z (3));
   // Clearinghouse with no counters has nothing to fire
-  return !rule('rezWorth', !(rezzedWorth(state, card, rezCost(state, card)) > 0));
+  return rezzedWorth(state, card, rezCost(state, card)) > 0;
 }
 
 /** Rezzing a click-only asset (plan.rezToUse): only when its ability is then the Corp's next move. */

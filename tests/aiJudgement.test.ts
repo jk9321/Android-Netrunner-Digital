@@ -1,10 +1,11 @@
 import { damageWorth } from '../src/ai/effectValues';
 import { RATES } from '../src/ai/valueModel';
 import { describe, expect, it } from 'vitest';
-import { GameAction, cardDef, createCardInstance, executeAction, getCardDefinition, getLegalActions, isLegalAction } from '../src/core';
+import { cardDef, createCardInstance, executeAction, getCardDefinition, getLegalActions } from '../src/core';
 import { makeRoomAnswers } from '../src/ai/prompts';
 import { runScore, serverValue, subroutineCost } from '../src/ai/runs';
-import { HeuristicCorpAI, fundedDepth, moneyTarget, unrezzedIceCost, rezReserve, withDeadIceTrashed } from '../src/ai/corpAI';
+import { rezMoney } from '../src/ai/corp/rezMoney';
+import { inDecision } from './helpers/pricing';
 import { makeRoomInstalls } from '../src/ai/runnerAI';
 import { evaluate } from '../src/ai/evaluate';
 import { installForTest, installIceForTest, installProgramForTest, newGame, startRunnerTurn } from './helpers';
@@ -52,39 +53,11 @@ describe('AI judgement in fixed positions', () => {
     installForTest(state, 'agenda', 'remote1');
     installIceForTest(state, PALISADE, 'remote1', false);
     const rez = getCardDefinition(PALISADE).cost ?? 0;
-    expect(rezReserve(state)).toBe(rez);
+    // Rewritten in Step 4 Stage C7 against the rez money owner (corp/rezMoney.ts), which replaced the ranking's rezReserve
+    const keep = () => inDecision(state, 'corp', () => rezMoney(state).keep);
+    expect(keep()).toBe(rez);
     state.corp.servers.remote1.ice[0].isRezzed = true;
-    expect(rezReserve(state)).toBe(0);
-  });
-
-  it('counts unrezzed ice as protection only while the Corp can pay to rez it', () => {
-    const state = newGame();
-    installForTest(state, 'agenda', 'remote1');
-    installIceForTest(state, PALISADE, 'remote1', false);
-    installIceForTest(state, PALISADE, 'remote1', false);
-    const rez = getCardDefinition(PALISADE).cost ?? 0;
-    const server = state.corp.servers.remote1;
-    expect(fundedDepth(state, server, 2 * rez)).toBe(2);
-    expect(fundedDepth(state, server, rez)).toBe(1);
-    expect(fundedDepth(state, server, rez - 1)).toBe(0); // broke: no protection at all
-  });
-
-  it('aims to hold enough to rez the unrezzed ice on the centrals', () => {
-    const state = newGame();
-    installIceForTest(state, PALISADE, 'rd', false);
-    installIceForTest(state, PALISADE, 'hq', false);
-    installIceForTest(state, PALISADE, 'archives', false); // Archives doesn't count
-    const rez = getCardDefinition(PALISADE).cost ?? 0;
-    expect(moneyTarget(state)).toBe(2 * rez);
-    state.corp.servers.rd.ice[0].isRezzed = true;
-    expect(moneyTarget(state)).toBe(rez);
-  });
-
-  it('counts what rezzing all its unrezzed ice would cost (ice pacing)', () => {
-    const state = newGame();
-    installIceForTest(state, PALISADE, 'rd', false);
-    installIceForTest(state, PALISADE, 'hq', true);
-    expect(unrezzedIceCost(state)).toBe(getCardDefinition(PALISADE).cost ?? 0);
+    expect(keep()).toBe(0);
   });
 
   it("judges the Corp's facedown cards by the odds, not by what they really are", () => {
@@ -101,22 +74,6 @@ describe('AI judgement in fixed positions', () => {
     expect(evaluate(swapped, 'runner')).toBeCloseTo(evaluate(state, 'runner'));
     // The Corp knows its own cards
     expect(evaluate(swapped, 'corp')).not.toBeCloseTo(evaluate(state, 'corp'));
-  });
-
-  it('Corp trashes ice the Runner breaks for a credit when installing much tougher ice behind it (rules 8.5.6b)', () => {
-    const s = newGame();
-    installProgramForTest(s, '30006'); // Cleaver
-    const weak = installIceForTest(s, '30072', 'hq'); // Palisade: 1 credit with Cleaver
-    const unrezzed = installIceForTest(s, '30072', 'hq', false);
-    const tough = createCardInstance(s, '30054'); // Funhouse: no decoder to break it
-    s.corp.hq.push(tough);
-    const install: GameAction = { type: 'INSTALL_CARD', player: 'corp', cardInstanceId: tough.instanceId, targetServerId: 'hq' };
-    const chosen = withDeadIceTrashed(s, install);
-    expect(chosen).toMatchObject({ trashFirst: [weak] });
-    expect(isLegalAction(s, chosen)).toBe(true);
-    // Only 1 ice on the server: nothing to save, leave it
-    s.corp.servers.hq.ice = s.corp.servers.hq.ice.filter(c => c.instanceId !== unrezzed);
-    expect(withDeadIceTrashed(s, install)).toBe(install);
   });
 
   it('Runner AI considers trashing a program when memory is full (rules 8.5.6c)', () => {
@@ -147,24 +104,5 @@ describe('AI judgement in fixed positions', () => {
     // The plain answer installs nothing; the AI also weighs the answer that trashes Cleaver first
     const plain = getLegalActions(s, 'runner').find(a => a.type === 'RESOLVE_PROMPT')!;
     expect(makeRoomAnswers(s, plain)).toMatchObject([{ choice: { cardInstanceIds: [mayfly.instanceId], trashFirst: [old] } }]);
-  });
-
-  it('Corp trashes weak ice to install where money is tight, not when it has plenty (rules 8.5.6b)', () => {
-    const s = newGame();
-    const weak = () => {
-      const ice = createCardInstance(s, '30072'); // Palisade: Cleaver gets through for 1
-      ice.isRezzed = true;
-      return ice;
-    };
-    s.corp.servers.rd.ice = [weak(), weak()];
-    s.corp.hq = [createCardInstance(s, '30073')]; // Tithe
-    s.runner.rig.programs = [createCardInstance(s, '30006')];
-    const best = (credits: number) => {
-      s.corp.credits = credits;
-      return new HeuristicCorpAI().rankMainActions(s).find(r => r.action.type === 'INSTALL_CARD' && r.action.targetServerId === 'rd')!.action;
-    };
-    expect(best(8)).not.toHaveProperty('trashFirst');
-    // 2 credits: R&D's install cost would leave nothing to rez Tithe; trashing a Palisade makes it work
-    expect(best(2)).toMatchObject({ trashFirst: [s.corp.servers.rd.ice[0].instanceId] });
   });
 });

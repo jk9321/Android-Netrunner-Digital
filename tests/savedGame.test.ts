@@ -39,7 +39,9 @@ describe('saved game', () => {
   it('resumes a game mid-play exactly where it was', () => {
     fakeStorage();
     const start = createInitialGameState(deckGameSetup(config.seed, corpDeck, runnerDeck));
-    const mid = playAIGame(start, 80).state;
+    // 60 steps (80 before Step 4 Stage C7): under the order the game from this seed ends by step 80 (the Runner wins on
+    // turn 5), so the save is taken earlier, still mid-game
+    const mid = playAIGame(start, 60).state;
     expect(mid.winner).toBeFalsy();
     expect(saveGame({ config, state: mid, table })).toBe(true);
 

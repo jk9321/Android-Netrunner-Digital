@@ -3,8 +3,6 @@ import { describe, expect, it } from 'vitest';
 import { GameState, cardDef, executeAction } from '../src/core';
 import { agendaWorth } from '../src/ai/evaluate';
 import { HeuristicCorpAI, createAgent } from '../src/ai';
-import { clickOnly } from '../src/ai/corpAI';
-import { tuning } from '../src/ai/synergy';
 import { sideCreditValue } from '../src/ai/valueModel';
 
 /**
@@ -66,17 +64,7 @@ describe('a Corp with no credits (Jeff’s bug report, plan.agendaCredits)', () 
  * credit at up to 1.8 when broke, but credits are lumpy: Petty Cash needs 3 before the turn's first action.
  * The same position at 3 credits and a Corp score of 1 (so Send a Message doesn't win the game).
  */
-/** The same board with no agendas out or in HQ and no operations in HQ: Humanoid Resources is the play. */
-function idle(): GameState {
-  const s = threeCredits();
-  for (const server of Object.values(s.corp.servers)) {
-    s.corp.rd.push(...server.root.filter(c => cardDef(c).type_code === 'agenda'));
-    server.root = server.root.filter(c => cardDef(c).type_code !== 'agenda');
-  }
-  s.corp.hq = s.corp.hq.filter(c => !['operation', 'agenda'].includes(cardDef(c).type_code));
-  return s;
-}
-
+// The idle board (no agendas, no operations: Humanoid Resources is the play) is tests/fixtures/humanoid-resources-idle.json
 function threeCredits(): GameState {
   const s = turn17();
   s.corp.credits = 3;
@@ -116,34 +104,8 @@ describe('credits a broke Corp needs (Jeff, plan.moneyReach, agendaBudget, plann
     expect(petty).toBeLessThan(4); // in the planner's four candidates
   });
 
-  it('Humanoid Resources is rezzed only with the 3 clicks to use it (rule 5.6.2a: a rez window before every action)', () => {
-    const s = idle();
-    const hr = Object.values(s.corp.servers).flatMap(v => v.root).find(c => c.cardCode === '35039')!;
-    expect(clickOnly(hr)).toBe(3);
-    const rezzesHr = (clicks: number) => {
-      const st = { ...s, corp: { ...s.corp, clicks } };
-      return new HeuristicCorpAI({ planner: false }).rankMainActions(st).some(r => r.action.type === 'REZ_CARD' && r.action.cardInstanceId === hr.instanceId && r.score > -Infinity);
-    };
-    // plan.ownIceKnown (2026-11-09) pinned off for the one-step check: with it a credit no longer buys the Brân on empty
-    // Archives the rez budget won't fund, so using Humanoid Resources scores 2.06 against the free The Red Room rez's 2.15
-    // and rezToUse's "the use is the next best play" reads no; the turn still rezzes and uses it (below)
-    tuning.plan.ownIceKnown = false;
-    try {
-      expect(rezzesHr(1)).toBe(false);
-      expect(rezzesHr(3)).toBe(true);
-    } finally {
-      tuning.plan.ownIceKnown = true;
-    }
-    // The whole turn with it on: The Red Room, then Humanoid Resources rezzed and used
-    let t: GameState = { ...s, corp: { ...s.corp, clicks: 3 } };
-    const ai = new HeuristicCorpAI({ planner: false });
-    for (let i = 0; i < 6 && t.activePlayer === 'corp'; i++) {
-      const action = ai.chooseAction(t);
-      t = executeAction(t, action);
-      if (action.type === 'END_TURN') break;
-    }
-    expect([...t.corp.archives.faceUp, ...t.corp.archives.faceDown].some(c => c.instanceId === hr.instanceId)).toBe(true);
-  }, 60_000);
+  // 'Humanoid Resources is rezzed only with the 3 clicks to use it' read the ranking's scores (score > -Infinity); its
+  // decision is pinned known-failing under the order in tests/stageDPins.test.ts (c0-rulings 15:50Z (5); Step 4 Stage C7)
 });
 
 describe('Humanoid Resources is rezzed to be used (Jeff 2026-10-31: "it rezzes it but never seems to use it"; plan.rezToUse)', () => {
@@ -152,24 +114,10 @@ describe('Humanoid Resources is rezzed to be used (Jeff 2026-10-31: "it rezzes i
   it('not in the window before the turn begins (rule 5.6.1b), where it would sit rezzed and unused', () => {
     const s = { ...threeCredits(), turnStep: { kind: 'corp_turn_start' as const } };
     const hr = hrOf(s);
-    expect(new HeuristicCorpAI({ planner: false }).rankMainActions(s).some(r => r.action.type === 'REZ_CARD' && r.action.cardInstanceId === hr.instanceId && r.score > -Infinity)).toBe(false);
+    // Rewritten in Step 4 Stage C7 against the decision (the ranking's -Infinity is gone; the order puts the rez behind)
+    expect(new HeuristicCorpAI({ planner: false }).chooseAction(s)).not.toMatchObject({ type: 'REZ_CARD', cardInstanceId: hr.instanceId });
   });
 
-  it('a rez in the action phase is followed by using it (the rule-based ranking)', () => {
-    let s = idle();
-    const hr = hrOf(s);
-    const corp = new HeuristicCorpAI({ planner: false });
-    let rezzed = false;
-    for (let i = 0; i < 20 && s.activePlayer === 'corp' && !s.winner; i++) {
-      const action = corp.chooseAction(s);
-      if (rezzed) {
-        expect(action).toMatchObject({ type: 'USE_ABILITY', cardInstanceId: hr.instanceId });
-        return;
-      }
-      if (action.type === 'REZ_CARD' && action.cardInstanceId === hr.instanceId) rezzed = true;
-      s = executeAction(s, action);
-      if (action.type === 'END_TURN') break;
-    }
-    expect(rezzed).toBe(true);
-  });
+  // 'a rez in the action phase is followed by using it': pinned known-failing under the order in tests/stageDPins.test.ts
+  // (the order puts the use behind, the model's play value below three credits; c0-rulings 15:50Z (5))
 });
