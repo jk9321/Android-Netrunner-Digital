@@ -1,8 +1,8 @@
 /**
  * Step 4 Stage C7: the pins under leave-one-out (spec section 5). Every test file that reads src/ai is run under the new
  * core (TEST_PLAN=+corpCore,+rolloutLines) with nothing left out, and again with each carried-over rule left out in turn
- * (LOO_OFF, tests/setup.ts). SHARD k of n takes configuration k % 20 (0 = nothing left out, then the arms of
- * leave-one-out.ts) and the file group floor(k / 20) of floor(n / 20) (shards past that idle). One JSON line per configuration and group: the
+ * (LOO_OFF, tests/setup.ts). SHARD k of n takes configuration k % 24 (0 = nothing left out, then the arms of
+ * leave-one-out.ts) and the file group floor(k / 24) of floor(n / 24) (shards past that idle). One JSON line per configuration and group: the
  * failed tests. Sum with leave-one-out-pins-sum.mjs.
  *   SHARD=0/60 npx vite-node scripts/stage-c/leave-one-out-pins.ts
  */
@@ -14,6 +14,8 @@ import { tmpdir } from 'node:os';
 const ARMS = [
   ...Array.from({ length: 9 }, (_, k) => `line${k + 1}`),
   'isPettyCash', 'tagsBeforeScore', 'overAdvance', 'tagFirst', 'trapAdvanceCap', 'assetAdvance', 'advancesAsIce', 'hqTrashCost', 'pettyCashFirst', 'tagFirstPick',
+  // The re-expressed rules of c0-rulings 15:50Z and 16:00Z (hqNoSafer's clause went at 16:10Z)
+  'lethalHq', 'rezWorth', 'archivesR6', 'freeRezPaid',
 ];
 const CONFIGS = ['', ...ARMS];
 const [shard, shards] = (process.env.SHARD ?? '0/1').split('/').map(Number);
