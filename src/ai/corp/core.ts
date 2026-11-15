@@ -71,7 +71,7 @@ export function corpDecide(state: GameState, ctx: CorpContext): GameAction {
   const legal = getLegalActions(state, 'corp');
   const ranked = ctx.rank(state, legal);
   // Planner speed P1: the count has decided this click, so the look-ahead is not run. A scoreNow line: the Corp's pick
-  // is then the rule ranking's, kept while it keeps the score (keepsScore), the line's action otherwise. A held two-turn
+  // is then the order's first, kept while it keeps the score (keepsScore), the line's action otherwise. A held two-turn
   // line on a later turn (Q4): its step (advance or score, heldLaterStep) does not depend on the pick, and scoreInTwoPick
   // below plays it.
   // The planner's rollouts and the reply's Corp ask Q4 and Q5 too (begin a two-turn line, play a held line's steps;

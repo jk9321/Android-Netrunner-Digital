@@ -15,8 +15,8 @@ describe('deleted plan switches', () => {
 
   it('throw when named, on or off', () => {
     for (const name of DELETED) {
-      expect(() => planWith(tuning.plan, [name])).toThrow(/deleted \(audit Step 3\)/);
-      expect(() => planWith(tuning.plan, [`+${name}`])).toThrow(/deleted \(audit Step 3\)/);
+      expect(() => planWith(tuning.plan, [name])).toThrow(/deleted \(audit Step 3/);
+      expect(() => planWith(tuning.plan, [`+${name}`])).toThrow(/deleted \(audit Step 3/);
     }
   });
 });

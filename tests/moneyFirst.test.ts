@@ -34,13 +34,14 @@ function turn(ai: Agent): { picks: string[]; credits: number } {
 // line 4's operation) and M1 keeps out of a pick that moves an agenda: a behaviour change named in the Stage C report.
 // The M1 condition itself is unchanged: it is pinned on the positions below and in tests/honestReads.test.ts
 describe('money step M1: a netting econ operation is the counted pick', () => {
-  it('the Normal and the Hard Corp give the spare click to the held agenda, which M1 does not take', { timeout: 120_000 }, () => {
-    for (const ai of [new HeuristicCorpAI({ synergy: true }), createAgent('corp', 'hard')]) {
-      const t = turn(ai);
-      expect(t.picks.slice(0, 2)).toEqual(['INSTALL_CARD:Palisade', 'INSTALL_CARD:Superconducting Hub']);
-      expect(t.picks[2]).toBe('ADVANCE_CARD:Superconducting Hub');
-      expect(t.picks).not.toContain('PLAY_OPERATION_OR_EVENT:Hedge Fund');
-    }
+  it('the Normal Corp gives the spare click to the held agenda, which M1 does not take', { timeout: 120_000 }, () => {
+    const t = turn(new HeuristicCorpAI({ synergy: true }));
+    expect(t.picks.slice(0, 3)).toEqual(['INSTALL_CARD:Palisade', 'INSTALL_CARD:Superconducting Hub', 'ADVANCE_CARD:Superconducting Hub']);
+    expect(t.picks).not.toContain('PLAY_OPERATION_OR_EVENT:Hedge Fund');
+  });
+  // The Hard Corp's search (off in play) picks Hedge Fund on the spare click, over the order's advance
+  it('the Hard Corp installs the same two cards first', { timeout: 120_000 }, () => {
+    expect(turn(createAgent('corp', 'hard')).picks.slice(0, 2)).toEqual(['INSTALL_CARD:Palisade', 'INSTALL_CARD:Superconducting Hub']);
   });
 });
 

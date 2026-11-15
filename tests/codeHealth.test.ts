@@ -232,6 +232,18 @@ describe('AI code health (audit guards)', () => {
   // ai-runner-unknowns adds 141 (trapHit/accessDamage, unrezzedDamageRisk, runPrices, drawBackClicks, the rules text in
   // subroutineDamage, the damageThreat key): pending the AI Coordinator's yes in its review. corp/ grows by the
   // candidates and the moved rules: brief-stage-c.md sets its guard at 2,150
+  // Stage C (brief-stage-c.md): corpAI.ts is the agent shell. Its size is the measured figure, down only, and it holds no
+  // rule and no number: no number other than 0 and 1 outside comments, and no `score` field or scoring function
+  it('keeps corpAI.ts a shell with no scoring function and no number', () => {
+    const code = aiText('corpAI.ts')
+      .split('\n')
+      .filter(l => !/^\s*(\/\/|\/\*\*|\*)/.test(l))
+      .join('\n');
+    expect(lines('corpAI.ts')).toBeLessThanOrEqual(109);
+    expect(code.match(/(?<![\w.])\d+(\.\d+)?(?![\w.])/g)?.filter(n => n !== '0' && n !== '1') ?? []).toEqual([]);
+    expect(code).not.toMatch(/\bscore\s*:|\bscore\w*\s*\(/i);
+  });
+
   it('keeps src/ai/corp at or under 2,150 lines and src/ai at or under the Stage B total plus the Runner fixes (14,330)', () => {
     const corp = aiFiles().filter(f => f.replace(/\\/g, '/').startsWith('corp/')).reduce((n, f) => n + lines(f), 0);
     expect(corp).toBeLessThanOrEqual(2150);
