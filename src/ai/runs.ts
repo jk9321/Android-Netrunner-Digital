@@ -387,7 +387,8 @@ export function unrezzedDamageRisk(state: GameState, ice: CardInstance): number 
     return pool.map(c => {
       const known = byCode.get(c.cardCode);
       if (known !== undefined) return known;
-      const as: CardInstance = { ...ice, cardCode: c.cardCode, isRezzed: true };
+      // its own id: the subroutine and strength caches are keyed by instance, and this card is not the installed one
+      const as: CardInstance = { ...ice, instanceId: `${ice.instanceId}~${c.cardCode}`, cardCode: c.cardCode, isRezzed: true };
       const subs = plannedSubroutines(state, as).map((sub, i) => ({ label: sub.label, i }));
       const plan = bestBreakPlan(state, as, subs.length);
       const rezzable = (getCardDefinition(c.cardCode).cost ?? 0) <= corp.credits;
@@ -638,13 +639,18 @@ export function trapOdds(state: GameState, memory?: RunnerMemory): number {
 function unseenTraps(state: GameState, memory?: RunnerMemory): { traps: string[]; agendas: number } {
   const corp = state.corp;
   const installed = Object.values(corp.servers).flatMap(server => server.root.filter(c => !c.isRezzed && !c.faceUp));
-  const traps: string[] = [];
-  let agendas = 0;
-  for (const card of [...corp.hq, ...corp.rd, ...corp.archives.faceDown, ...installed]) {
-    if (memory?.has(card.instanceId)) continue;
-    if (isTrap(card.cardCode)) traps.push(card.cardCode);
-    else if (cardDef(card).type_code === 'agenda') agendas++;
+  const hidden = [...corp.hq, ...corp.rd, ...corp.archives.faceDown, ...installed];
+  // The cards it has seen come out by the code it saw, not by whichever code their instance holds now: a planner deal
+  // re-deals the hidden cards among their instances (the threat's on-hit audit read the re-dealt code)
+  const codes = hidden.map(c => c.cardCode);
+  for (const card of hidden) {
+    const seen = memory?.get(card.instanceId);
+    if (seen === undefined) continue;
+    const at = codes.indexOf(seen);
+    if (at >= 0) codes.splice(at, 1);
   }
+  const traps = codes.filter(isTrap);
+  const agendas = codes.filter(c => getCardDefinition(c).type_code === 'agenda').length;
   return { traps, agendas };
 }
 
