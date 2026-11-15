@@ -70,6 +70,8 @@ for (const deal of list) {
   // c0-rulings 03:58Z: agendas left in HQ by the board at the Corp's last main-phase decision
   if (lastCorp && agendasInHq) inc(t, `agendasLeft:${heldSplit(lastCorp)}`, agendasInHq);
   inc(t, 'agendasInHqAtEnd', agendasInHq);
+  inc(t, 'agendasStolen', end.runner.scoreArea.filter(c => cardDef(c).type_code === 'agenda').length);
+  if (!t['install:agenda']) inc(t, 'gamesNoAgendaInstalled');
   inc(t, 'corpPoints', end.corp.score);
   inc(t, 'runnerPoints', end.runner.score);
   const winner = (end as GameState & { winner?: string | null }).winner ?? null;
