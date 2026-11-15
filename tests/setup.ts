@@ -9,3 +9,7 @@ import { afterEach } from 'vitest';
  */
 const realSetImmediate = globalThis.setImmediate;
 afterEach(() => new Promise<void>(resolve => realSetImmediate(() => resolve())));
+
+// Step S (branch ai-search-first, measurement only): TEST_ABLATE=corp:x,runner:y runs the tests with those valuation
+// families ablated (scripts/step-s/pins.ts). Imported only when set, so the module load order is unchanged otherwise.
+if (process.env.TEST_ABLATE) (await import('../src/ai/pricing')).applyAblate(process.env.TEST_ABLATE);

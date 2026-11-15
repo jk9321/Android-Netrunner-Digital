@@ -265,10 +265,16 @@ export type AblateFamily = (typeof ABLATE_FAMILIES)[number];
 
 /** Whether `family` is ablated in the decision being made (by its root side). False outside a decision. */
 export function ablated(family: AblateFamily): boolean {
-  if (!ablating.any) return false;
+  if (!ablating.any) {
+    if (ablationProbe.seen && context.root) ablationProbe.seen.add(`${context.root}:${family}`);
+    return false;
+  }
   const root = context.root;
   return root !== null && ablation[root].has(family);
 }
+
+/** Fire-count probe (scripts/step-s/fire-count.ts): with nothing ablated, notes `side:family` for every family read. */
+export const ablationProbe = { seen: null as Set<string> | null };
 
 /** Sets the ablated families from a list (`corp:x,runner:y`, bare = corp); an unknown name throws. Empty clears. */
 export function applyAblate(list: string): void {
