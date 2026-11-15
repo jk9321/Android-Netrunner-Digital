@@ -700,3 +700,18 @@ describe('Elevation Runner resources', () => {
     expect(cardDef(card(s, cleaver)).title).toBe('Cleaver');
   });
 });
+
+// Phase 3 audit TEST-TRACE-COVERAGE (typed prompts): declared steps that no same-seed game and no other test reached.
+describe('Elevation Runner: steps no other test reaches', () => {
+  it('Detente with more than 2 hosted cards asks which 2 go back to HQ', () => {
+    let [s, detente] = runnerInstall(newGame(), E.detente);
+    const hosted = [SG.hedgeFund, SG.hedgeFund, SG.hedgeFund].map(code => createCardInstance(s, code));
+    card(s, detente).hostedCards = hosted;
+    s.runner.clicks = 1;
+    s = useAbility(s, 'runner', detente);
+    expect(s.pendingPrompts[0]).toMatchObject({ kind: 'effect_cards', min: 2, max: 2, source: { cardCode: E.detente, step: 'return' } });
+    s = pick(s, [hosted[0].instanceId, hosted[2].instanceId]);
+    expect(card(s, detente).hostedCards?.map(c => c.instanceId)).toEqual([hosted[1].instanceId]);
+    expect(s.corp.hq.map(c => c.instanceId)).toEqual(expect.arrayContaining([hosted[0].instanceId, hosted[2].instanceId]));
+  });
+});

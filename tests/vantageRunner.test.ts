@@ -538,3 +538,39 @@ describe('Bad publicity', () => {
     expect(availableCredits(s, 'runner')).toBe(1);
   });
 });
+
+// Phase 3 audit TEST-TRACE-COVERAGE (typed prompts): declared steps that no same-seed game and no other test reached.
+describe('Vantage Point Runner: steps no other test reaches', () => {
+  it('Beta Build installs a trojan on the ice the Runner picks, trashing the chosen program first (rules 1.13.6c, 8.5.6c), then runs', () => {
+    let s = newGame();
+    const ice = installIceForTest(s, SG.palisade, 'hq');
+    const old = [installProgramForTest(s, '30032'), installProgramForTest(s, '30032')]; // 2 Mayfly, 4 of 4 MU
+    const saci = createCardInstance(s, '34017'); // Saci: trojan, not a virus
+    s.runner.stack.push(saci);
+    [s] = playRunner(s, V.betaBuild);
+    s = keepGoing(answer(s, { kind: 'effect_cards', cardInstanceIds: [saci.instanceId], trashFirst: [old[0]] }));
+    expect(source(s)).toMatchObject({ cardCode: V.betaBuild, step: 'host' });
+    s = choose(s, ice);
+    expect(card(s, saci.instanceId).hostedOnId).toBe(ice);
+    expect(s.runner.heap.map(c => c.instanceId)).toContain(old[0]);
+    expect(source(s)).toMatchObject({ cardCode: V.betaBuild, step: 'run' });
+  });
+
+  it('Underdome Irregulars lets a tagged Runner remove a tag instead of drawing', () => {
+    let s = newGame();
+    rig(s, V.underdome, 'resources');
+    startRunnerTurn(s);
+    s.runner.tags = 1;
+    const ice = installIceForTest(s, SG.palisade, 'hq', false);
+    s = run(s, 'hq');
+    s = rezForTest(s, ice);
+    s = cont(cont(s));
+    const grip = s.runner.grip.length;
+    s.runner.clicks = 0;
+    s = executeAction(s, { type: 'END_TURN', player: 'runner' });
+    expect(source(s)).toMatchObject({ cardCode: V.underdome, step: 'choose' });
+    s = choose(s, 'tag');
+    expect(s.runner.tags).toBe(0);
+    expect(s.runner.grip.length).toBe(grip);
+  });
+});

@@ -1180,3 +1180,35 @@ function markAndCheck(s: GameState): GameState {
   expect(isLegalAction(s, tooMany)).toBe(false);
   return s;
 }
+
+// Phase 3 audit TEST-TRACE-COVERAGE (typed prompts): declared steps that no same-seed game and no other test reached.
+describe('Liberation Corp: steps no other test reaches', () => {
+  it('Pivot at threat 3 installs the agenda it fetched in the server the Corp picks', () => {
+    let s = newGame();
+    emptyHQ(s);
+    const off = createCardInstance(s, SG.offworld);
+    s.corp.rd.push(off);
+    threat(s, 3);
+    const [s1] = playCorp(s, L.pivot, 3);
+    s = pick(s1, [off.instanceId]);
+    s = pick(s, [off.instanceId]);
+    expect(source(s)).toMatchObject({ cardCode: L.pivot, step: 'server', data: { cardId: off.instanceId, install: true } });
+    s = choose(s, 'new');
+    expect(Object.values(s.corp.servers).some(sv => sv.isRemote && sv.root.some(c => c.instanceId === off.instanceId))).toBe(true);
+  });
+
+  it('Lightning Laboratory makes the Corp pick which 2 ice to derez when that server has more than 2 rezzed', () => {
+    let s = newGame();
+    s = scoreForTest(s, L.lightning);
+    const a = installIceForTest(s, SG.palisade, 'hq', false);
+    const b = installIceForTest(s, SG.whitespace, 'hq', false);
+    const c = installIceForTest(s, SG.tithe, 'hq');
+    s = run(s, 'hq');
+    s = pick(s, [a, b]);
+    s.activeRun = null;
+    s = passTurn(s);
+    expect(source(s)).toMatchObject({ cardCode: L.lightning, step: 'derez' });
+    s = pick(s, [a, c]);
+    expect([a, b, c].map(id => card(s, id).isRezzed)).toEqual([false, true, false]);
+  });
+});

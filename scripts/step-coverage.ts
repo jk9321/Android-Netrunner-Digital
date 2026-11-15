@@ -16,8 +16,17 @@ const lines = (file: string | undefined) => (file && existsSync(file) ? readFile
 const traced = new Set(lines(traceFile).flatMap(l => /^prompt (\d{5} \S+):/.exec(l)?.[1] ?? []).map(k => k.replace(/ psi-(corp|runner):/, ' ')));
 const tested = new Set(lines(testsFile).map(l => l.trim()).filter(Boolean));
 
+/**
+ * Steps a card declares but can never ask, with the reason. Keep this short: a dead step is better deleted.
+ * These come from a flow shared by several cards, which declares every step of the flow on each of them.
+ */
+const NEVER_ASKED: Record<string, string> = {
+  '35044 operation': "installFromHQ's play-an-operation step; only Humanoid Resources asks it (Top-Down Solutions passes then = '')",
+};
+
 const declared = scriptedCardCodes().flatMap(code => (getCardScript(code)?.promptSteps ?? []).map(step => `${code} ${step}`));
-const neither = declared.filter(k => !traced.has(k) && !tested.has(k));
+const neither = declared.filter(k => !traced.has(k) && !tested.has(k) && !NEVER_ASKED[k]);
 const onlyTests = declared.filter(k => !traced.has(k) && tested.has(k));
 console.log(`${declared.length} declared steps: ${declared.filter(k => traced.has(k)).length} reached by the games, ${onlyTests.length} more by unit tests only, ${neither.length} by neither`);
+for (const [k, why] of Object.entries(NEVER_ASKED)) console.log(`never asked: ${k}: ${why}`);
 for (const k of neither) console.log(`neither: ${k} (${getCardDefinition(k.slice(0, 5)).title})`);

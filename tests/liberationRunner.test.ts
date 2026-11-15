@@ -527,6 +527,9 @@ describe('The Automata Initiative: Shaper and neutral', () => {
     s = choose(s, 'yes');
     expect(s.runner.grip.length).toBe(grip + 1);
     expect(source(s)).toMatchObject({ step: 'draw-corp' });
+    const hq = s.corp.hq.length;
+    s = choose(s, 'yes');
+    expect(s.corp.hq.length).toBe(hq + 1);
   });
 
   it('Beatriz Friere Gonzalez runs HQ for 2 clicks and breaches R&D with 1 more access', () => {
@@ -1124,3 +1127,112 @@ describe('Rebellion Without Rehearsal: Shaper and neutral', () => {
 });
 
 void SG;
+
+// Phase 3 audit TEST-TRACE-COVERAGE (typed prompts): declared steps that no same-seed game and no other test reached.
+// The trojan ones also carry the Runner's trash-first choice through the host question (rules 8.5.6c).
+describe('Liberation Runner: steps no other test reaches', () => {
+  const BOTULUS = '30004'; // trojan, 1 MU: "Install only on a piece of ice." (rules 1.13.6c)
+  const MAYFLY = '30032'; // 2 MU
+  /** HQ ice, and a full memory (2 Mayfly, 4 of 4 MU), so a 1 MU trojan needs a program trashed first. */
+  function fullRig(s: GameState) {
+    const ice = installIceForTest(s, SG.palisade, 'hq');
+    const old = [installProgramForTest(s, MAYFLY), installProgramForTest(s, MAYFLY)];
+    return { ice, old };
+  }
+  /** Picks the trojan, trashing old[0] first (8.5.6c), then answers the host question with the HQ ice. */
+  function installTrojan(s: GameState, trojan: string, ice: string, trash: string, hostStep = 'host'): GameState {
+    s = keepGoing(answer(s, { kind: 'effect_cards', cardInstanceIds: [trojan], trashFirst: [trash] }));
+    expect(source(s)).toMatchObject({ step: hostStep });
+    return choose(s, ice);
+  }
+  function expectHosted(s: GameState, trojan: string, ice: string, old: string[]) {
+    expect(card(s, trojan).hostedOnId).toBe(ice);
+    expect(s.runner.rig.programs.map(c => c.instanceId)).toContain(trojan);
+    expect(inHeap(s, old[0])).toBe(true);
+    expect(s.runner.rig.programs.map(c => c.instanceId)).toContain(old[1]);
+  }
+
+  it('The Price installs a trojan from the trashed cards on the ice the Runner picks, trashing the chosen program first', () => {
+    let s = newGame();
+    const { ice, old } = fullRig(s);
+    const bot = createCardInstance(s, BOTULUS);
+    s.runner.stack.unshift(bot);
+    [s] = playRunner(s, L.price);
+    s = installTrojan(s, bot.instanceId, ice, old[0]);
+    expectHosted(s, bot.instanceId, ice, old);
+  });
+
+  it('Bahia Bands installs a trojan from the grip on the picked ice, then asks for its second effect', () => {
+    let s = newGame();
+    const { ice, old } = fullRig(s);
+    [s] = playRunner(s, L.bahia);
+    const bot = giveCard(s, 'runner', BOTULUS);
+    s = choose(s, 'archives');
+    s = cont(s);
+    s = choose(s, 'install');
+    s = installTrojan(s, bot, ice, old[0]);
+    expectHosted(s, bot, ice, old);
+    expect(source(s)).toMatchObject({ step: 'mode', data: { done: 'install' } });
+  });
+
+  it('Privileged Access at threat 3 installs a trojan from the heap on the picked ice', () => {
+    let s = newGame();
+    threat(s, 3);
+    const { ice, old } = fullRig(s);
+    const bot = createCardInstance(s, BOTULUS);
+    s.runner.heap.push(bot);
+    [s] = playRunner(s, L.privileged);
+    s = cont(s);
+    if (source(s)?.step === 'resource') s = pick(s, []);
+    expect(source(s)).toMatchObject({ step: 'program' });
+    s = installTrojan(s, bot.instanceId, ice, old[0], 'host-program');
+    expectHosted(s, bot.instanceId, ice, old);
+  });
+
+  it("The Wizard's Chest installs a trojan on the picked ice", () => {
+    let s = newGame();
+    const wc = rig(s, L.chest, 'hardware');
+    const { ice, old } = fullRig(s);
+    startRunnerTurn(s);
+    s.runsThisTurn = ['hq', 'rd', 'archives'].map(server => ({ server, successful: true }));
+    const bot = createCardInstance(s, BOTULUS);
+    const cleaver = createCardInstance(s, SG.cleaver);
+    s.runner.stack.unshift(bot, cleaver);
+    s = useAbility(s, 'runner', wc);
+    s = choose(s, 'program');
+    s = installTrojan(s, bot.instanceId, ice, old[0]);
+    expectHosted(s, bot.instanceId, ice, old);
+  });
+
+  it('S-Dobrado at threat 4 lets the Runner spend a click to bypass the second ice too', () => {
+    let s = newGame();
+    threat(s, 4);
+    installIceForTest(s, SG.palisade, 'hq');
+    installIceForTest(s, SG.whitespace, 'hq');
+    [s] = playRunner(s, L.sDobrado, 2);
+    s = choose(s, 'hq');
+    for (let i = 0; i < 10 && source(s)?.step !== 'bypass'; i++) s = cont(s);
+    expect(source(s)).toMatchObject({ cardCode: L.sDobrado, step: 'bypass' });
+    const clicks = s.runner.clicks;
+    s = choose(s, 'yes');
+    expect(s.runner.clicks).toBe(clicks - 1);
+    expect(s.activeRun?.icePassed).toBe(2);
+    expect(s.activeRun?.encounter).toBeFalsy();
+  });
+
+  it('Jeitinho at threat 3 installs itself from the heap for a click when the Runner bypasses ice', () => {
+    let s = newGame();
+    threat(s, 3);
+    installIceForTest(s, SG.palisade, 'hq');
+    const j = createCardInstance(s, L.jeitinho);
+    s.runner.heap.push(j);
+    [s] = playRunner(s, L.sDobrado, 2);
+    s = choose(s, 'hq');
+    for (let i = 0; i < 10 && source(s)?.cardCode !== L.jeitinho; i++) s = cont(s);
+    expect(source(s)).toMatchObject({ cardCode: L.jeitinho, step: 'install' });
+    const clicks = s.runner.clicks;
+    s = choose(s, 'yes');
+    expect(s.runner.rig.hardware.map(c => c.instanceId)).toContain(j.instanceId);
+    expect(s.runner.clicks).toBe(clicks - 1);
+  });
+});
