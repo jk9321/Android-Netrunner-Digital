@@ -2,7 +2,7 @@ import { describe, expect, it, onTestFinished } from 'vitest';
 import { cardDef, createCardInstance, executeAction, findCardAnywhere, GameState, iceStrength, isLegalAction, knownInHand } from '../src/core';
 import { counters } from '../src/core/engine/cardEffects';
 import { answerPrompt } from '../src/ai/prompts';
-import { answer, cont, giveCard, installCorpForTest, installIceForTest, installProgramForTest, newGame, passTurn, play, rezForTest, run, scoreForTest, setIdentity, startRunnerTurn, useAbility, toCorp } from './helpers';
+import { answer, cont, keepGoing, giveCard, installCorpForTest, installIceForTest, installProgramForTest, newGame, passTurn, play, rezForTest, run, scoreForTest, setIdentity, startRunnerTurn, useAbility, toCorp } from './helpers';
 import '../src/ai'; // the AI entry: corpAI.ts fills the Corp ports (src/ai/corpPorts.ts) as it loads
 
 const C = {
@@ -256,6 +256,28 @@ describe('Elevation agendas', () => {
     s = pick(s, [ice.instanceId]);
     s = choose(s, 'rd');
     expect(s.corp.servers.rd.ice.map(c => c.instanceId)).toContain(ice.instanceId);
+  });
+
+  // Off the Books: "You may install that card, ignoring all costs. If you do not, add it to HQ." Its "add to HQ" option
+  // shared the id 'hq' with the HQ server, so ice picked for HQ went to hand instead; and the install could not trash
+  // first (rules 8.5.6b: "When installing ice protecting a server, the Corp may first trash any number of other ice")
+  it('Off the Books can install ice on HQ, trashing ice there first (rules 8.5.6b)', () => {
+    let s = newGame();
+    const id = installCorpForTest(s, C.offBooks, 'remote-score');
+    card(s, id).advancementCounters = 4;
+    corpTurn(s);
+    s = executeAction(s, { type: 'SCORE_AGENDA', player: 'corp', cardInstanceId: id });
+    const old = installIceForTest(s, SG.palisade, 'hq');
+    const ice = createCardInstance(s, C.biawak);
+    s.corp.rd.push(ice);
+    s = passTurn(s);
+    s = choose(s, 'use');
+    s = pick(s, [ice.instanceId]);
+    const p = s.pendingPrompts[0];
+    expect(p.kind === 'effect_choice' && p.options.filter(o => o.id === 'hq')).toHaveLength(1);
+    s = keepGoing(answer(s, { kind: 'effect_choice', optionId: 'hq', trashFirst: [old] }));
+    expect(s.corp.servers.hq.ice.map(c => c.instanceId)).toEqual([ice.instanceId]);
+    expect(s.corp.hq.some(c => c.instanceId === ice.instanceId)).toBe(false);
   });
 
   it('Proprionegation moves the Runner to Archives', () => {

@@ -96,9 +96,11 @@ function bypassIfStill(state: GameState, iceId: unknown): void {
 const ranAllCentrals = (state: GameState) => centralServers.every(id => state.runsThisTurn.some(r => r.server === id && r.successful));
 
 /** Installs a card from the heap (or elsewhere) for an effect, asking for a host if it's a trojan. */
-function installFrom(ctx: EffectContext, cardId: string, discount: number, step = 'host'): boolean {
-  return installRunnerChoice(ctx, cardId, step, discount);
+function installFrom(ctx: EffectContext, cardId: string, discount: number, step = 'host', trashIds: string[] = []): boolean {
+  return installRunnerChoice(ctx, cardId, step, discount, {}, trashIds);
 }
+/** The programs the Runner chose to trash before an effect install (rules 8.5.6c: "may first trash any number of programs"). */
+const trashFirstOf = (answer: EffectAnswer): string[] => answer.trashFirst ?? [];
 
 // --- The Automata Initiative: Anarch -------------------------------------------------------
 
@@ -772,7 +774,7 @@ const sebastiao: CardScript = {
   },
   modifiers: { resourceTrashHqCost: (_state, _self, resource) => (hasKeyword(resource, 'connection') ? 1 : 0) },
   onPromptAnswer: (ctx, _source, answer) => {
-    if (picked(answer).length > 0) installRunnerChoice(ctx, picked(answer)[0], 'host', 2);
+    if (picked(answer).length > 0) installRunnerChoice(ctx, picked(answer)[0], 'host', 2, {}, trashFirstOf(answer));
   },
 };
 
@@ -824,10 +826,10 @@ const privilegedAccess: CardScript = {
   onPromptAnswer: (ctx, source, answer) => {
     const id = picked(answer)[0];
     if (source.step === 'resource') {
-      if (id && !installFrom(ctx, id, 2, 'host-resource')) return;
+      if (id && !installFrom(ctx, id, 2, 'host-resource', trashFirstOf(answer))) return;
       privilegedProgram(ctx);
     } else if (source.step === 'program') {
-      if (id) installFrom(ctx, id, 0, 'host-program');
+      if (id) installFrom(ctx, id, 0, 'host-program', trashFirstOf(answer));
     } else if (source.step === 'host-resource') {
       installRunnerHostChoice(ctx.state, source, answer);
       privilegedProgram(ctx);
@@ -904,7 +906,7 @@ const wizardsChest: CardScript = {
       else shuffleInPlace(state.rng, state.runner.stack);
     } else if (source.step === 'install') {
       const id = picked(answer)[0];
-      if (id) installFrom(ctx, id, 99, 'host');
+      if (id) installFrom(ctx, id, 99, 'host', trashFirstOf(answer));
       shuffleInPlace(state.rng, state.runner.stack);
     } else if (source.step === 'host') {
       installRunnerHostChoice(state, source, answer);
@@ -1207,7 +1209,7 @@ const jeitinho: CardScript = {
       }
     } else if (source.step === 'install' && said(answer) && state.runner.clicks > 0 && state.runner.heap.includes(card)) {
       state.runner.clicks -= 1;
-      installFrom(ctx, card.instanceId, 0);
+      installFrom(ctx, card.instanceId, 0, 'host', trashFirstOf(answer));
     }
   },
 };

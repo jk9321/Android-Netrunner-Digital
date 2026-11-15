@@ -420,6 +420,7 @@ const embeddedReporting = dividendAgenda(
 // Off the Books: Dividends 1. When your discard phase ends, you may remove 1 hosted agenda
 // counter to search R&D for 1 card and reveal it. (Shuffle R&D.) You may install that
 // card, ignoring all costs. If you do not, add it to HQ.
+const OFF_THE_BOOKS_TO_HAND = 'to-hand';
 const offTheBooks = dividendAgenda(
   1,
   'search R&D for 1 card',
@@ -438,11 +439,13 @@ const offTheBooks = dividendAgenda(
           revealInHand(state, 'corp', [card]);
           return;
         }
+        // 'to-hand', not 'hq': the HQ server is an install option of its own (ice or an upgrade on HQ). install: true lets
+        // the answer name cards to trash first (rules 8.5.6a-b)
         askChoice(ctx, 'corp', `Off the Books: install ${cardDef(card).title} ignoring all costs, or add it to HQ?`, [
           ...options,
-          { id: 'hq', label: 'Add it to HQ' },
-        ], 'install', { cardId: card.instanceId });
-      } else if (source.step === 'install' && answer.kind === 'effect_choice' && answer.optionId !== 'hq') {
+          { id: OFF_THE_BOOKS_TO_HAND, label: 'Add it to HQ' },
+        ], 'install', { cardId: card.instanceId, install: true });
+      } else if (source.step === 'install' && answer.kind === 'effect_choice' && answer.optionId !== OFF_THE_BOOKS_TO_HAND) {
         installCorpChoice(state, source, answer, { ignoreCosts: true, revealed: true });
       } else if (source.step === 'install' && answer.kind === 'effect_choice') {
         const card = state.corp.hq.find(c => c.instanceId === source.data?.cardId);
