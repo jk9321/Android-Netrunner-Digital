@@ -29,11 +29,16 @@ deals.forEach((d, i) => {
   let lastRunGrip = -1;
   let runStartGrip = -1;
   let detail = '';
+  let rezAtRun = new Set<string>();
   for (let k = 0; k < 6000 && !gr.state.winner && gr.state.turnNumber <= 80; k++) {
     const before: GameState = gr.state;
     if (!gr.step()) break;
     const after = gr.state;
-    if (!before.activeRun && after.activeRun) runStartGrip = after.runner.grip.length;
+    if (!before.activeRun && after.activeRun) {
+      runStartGrip = after.runner.grip.length;
+      // which ice was rezzed when the Runner chose the run (the price only knows rezzed ice's subroutines)
+      rezAtRun = new Set(Object.values(after.corp.servers ?? {}).flatMap((sv: { ice?: { instanceId: string; isRezzed: boolean }[] }) => (sv.ice ?? []).filter(c => c.isRezzed).map(c => c.instanceId)));
+    }
     if (before.activeRun && !after.activeRun && after.activePlayer === 'runner') lastRunGrip = after.runner.grip.length;
     if (before.activePlayer === 'runner' && after.activePlayer === 'corp') corpTurnGrip = after.runner.grip.length;
     if (after.winner === 'corp' && /flatline/i.test(after.winReason ?? '')) {
@@ -42,7 +47,7 @@ deals.forEach((d, i) => {
       // DETAIL=1: what did it (the ice or the card, the grip at the run's start and just before, the last log lines)
       if (process.env.DETAIL) {
         const ice = run?.encounter ? findCardAnywhere(before, run.encounter.iceId) : undefined;
-        detail = `${run?.server ?? '-'} ice ${ice ? cardDef(ice).title : '-'} gripAtRun ${runStartGrip} gripBefore ${before.runner.grip.length} clicks ${before.runner.clicks} credits ${before.runner.credits} | ${after.log.slice(-6).map(l => l.message).join(' / ')}`;
+        detail = `${run?.server ?? '-'} ice ${ice ? cardDef(ice).title : '-'} ${ice ? (rezAtRun.has(ice.instanceId) ? 'rezAtRun' : 'unrezAtRun') : ''} gripAtRun ${runStartGrip} gripBefore ${before.runner.grip.length} clicks ${before.runner.clicks} credits ${before.runner.credits} | ${after.log.slice(-6).map(l => l.message).join(' / ')}`;
       }
     }
   }

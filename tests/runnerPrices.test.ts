@@ -5,20 +5,21 @@
 import { describe, expect, it } from 'vitest';
 import { readFileSync } from 'node:fs';
 import { CardInstance, GameAction, GameState, activePrompt, createCardInstance, executeAction } from '../src/core';
-import { createAgent } from '../src/ai';
+import { HeuristicRunnerAI, createAgent } from '../src/ai';
 import { BLOCK, bestBreakPlan, breachAccesses, icePrice, runRestWorth, runScore, serverValue, subroutineCost } from '../src/ai/runs';
 import { damageWorth } from '../src/ai/effectValues';
 import { CLICK, cardRate } from '../src/ai/valueModel';
 import { scoreOutcome, simulate } from '../src/ai/prompts';
 import { runnerDecisionView } from '../src/ai/turnPlanner';
 import { asSide } from '../src/ai/synergy';
-import { installIceForTest, installProgramForTest, newGame, startRunnerTurn } from './helpers';
+import { installIceForTest, installProgramForTest, newGame, runIntoFirstIce, startRunnerTurn } from './helpers';
 
 const TITHE = '30073';
 const REGOLITH = '30071';
 const DEVADATTA = '35031';
 const EMPIRICIST = '35052';
 const DOOMSCROLL = '35063';
+const CARMEN = '30015'; // killer, strength 2: 2 credits for +3, 1 credit breaks 1 sentry subroutine
 const total = (p: { credits: number; value: number }) => p.credits + p.value;
 
 function bareRemote(state: GameState, card: CardInstance): void {
@@ -296,5 +297,23 @@ describe('damage over a whole ice and a whole run (rules 9.8.7b, 10.4.4)', () =>
     expect(total(doomscroll(1))).toBe(BLOCK);
     // No tag before: 1 tag after its own, so only the 1 net damage
     expect(doomscroll(0).damage).toBe(1);
+  });
+  it('in the encounter, breaks the subroutine whose damage together with the ones before it would flatline', () => {
+    // g3 43667046417 seed 2203: Empiricist rezzed on HQ, 2 cards, 6 credits and a killer; the run's price saw the tank
+    // barred and the break at 6, but the encounter tested each subroutine alone and let all three fire
+    const encounter = (grip: number) => {
+      const state = newGame();
+      installIceForTest(state, EMPIRICIST, 'remote-9');
+      installProgramForTest(state, CARMEN);
+      const s = runIntoFirstIce(state, 'remote-9');
+      s.runner.grip = s.runner.grip.slice(0, grip);
+      s.runner.credits = 3; // a boost (2) and the 2 net damage subroutine (1); not all three (5)
+      return s;
+    };
+    const s = encounter(2);
+    expect(s.activeRun?.phase).toBe('encounter_ice');
+    expect(new HeuristicRunnerAI().chooseAction(s).type).toBe('BOOST_BREAKER');
+    // On 4 cards the 3 net damage is survived: letting them fire is cheaper than breaking
+    expect(new HeuristicRunnerAI().chooseAction(encounter(4)).type).toBe('CONTINUE_RUN');
   });
 });

@@ -401,6 +401,23 @@ function subroutineDamage(label: string, tags: number): number {
 }
 const subroutineTags = (label: string): number => Number(label.match(/give the runner (\d+) tags?/i)?.[1] ?? 0);
 
+/**
+ * The damage letting these subroutines resolve does, one at a time in printed order (rule 9.8.7b) with the tags given on
+ * the way, and the first one (by index `i`) at which the total is more than the grip: a flatline (10.4.4). The owner
+ * of "can the tank get through": the run's price (plainIcePrice) and the encounter's break choice (runnerAI) both read it.
+ */
+export function tankDamage(state: GameState, subs: readonly { label: string; i: number }[]): { damage: number; lethal?: number } {
+  let tags = state.runner.tags;
+  let damage = 0;
+  let lethal: number | undefined;
+  for (const p of [...subs].sort((a, b) => a.i - b.i)) {
+    damage += subroutineDamage(p.label, tags);
+    tags += subroutineTags(p.label);
+    if (lethal === undefined && damage > state.runner.grip.length) lethal = p.i;
+  }
+  return { damage, lethal };
+}
+
 function plainIcePrice(state: GameState, ice: CardInstance): IcePrice {
   // Botulus breaks the worst subroutines for free; the rest are tanked or broken
   const priced = plannedSubroutines(state, ice).map((s, i) => ({ cost: subroutineCost(state, s.label), label: s.label, i })).sort((a, b) => b.cost - a.cost);
@@ -412,15 +429,10 @@ function plainIcePrice(state: GameState, ice: CardInstance): IcePrice {
   // with the tags given on the way. Each subroutine's own price tests its damage against the grip as it stands, so
   // Empiricist's 1 net then 2 net on 2 cards passed both tests; together they are more damage than the grip, a flatline
   // (10.4.4), and the tank is no way past
-  let tags = state.runner.tags;
-  let damage = 0;
-  for (const p of [...kept].sort((a, b) => a.i - b.i)) {
-    damage += subroutineDamage(p.label, tags);
-    tags += subroutineTags(p.label);
-  }
+  const { damage, lethal } = tankDamage(state, kept);
   // Letting them resolve costs no credits: what they do is value lost
   const tankValue = subs.reduce((sum, cost) => sum + cost, 0) + funhouse;
-  const tank: IcePrice = tankValue === BLOCK || damage > state.runner.grip.length ? BLOCKED : { credits: 0, value: tankValue, damage };
+  const tank: IcePrice = tankValue === BLOCK || lethal !== undefined ? BLOCKED : { credits: 0, value: tankValue, damage };
   const plan = bestBreakPlan(state, ice, subs.length);
   const broken: IcePrice = plan ? { credits: plan.credits, value: plan.value + funhouse } : BLOCKED;
   return cheaper(cheaper(tank, broken), selfBreakPrice(state, ice, subs.length));

@@ -10,7 +10,7 @@ import type { HeuristicOptions } from './corpAI';
 import { asSide, logNudge, nudge, tuning } from './synergy';
 import { decisionContext } from './handValues';
 import { PlanMemory, planTurn, plannerOn, runnerDecisionView } from './turnPlanner';
-import { BOTULUS, RunnerMemory, chainReactionBonus, planCost, TRANQUILIZER, MANEGARM, bestBreakPlan, botulusBreaks, runCreditSpend, hostedTrojans, creditsAhead, iceCreditsAhead, iceCost, iceCreditNeed, needsBiggerHand, runScore, runShortfall, serverValue, spendCost, subroutineCost } from './runs';
+import { BOTULUS, RunnerMemory, chainReactionBonus, planCost, TRANQUILIZER, MANEGARM, bestBreakPlan, botulusBreaks, runCreditSpend, hostedTrojans, creditsAhead, iceCreditsAhead, iceCost, iceCreditNeed, needsBiggerHand, runScore, runShortfall, serverValue, spendCost, subroutineCost, tankDamage } from './runs';
 import { RATES } from './valueModel';
 import { plan } from './pricing';
 
@@ -116,8 +116,12 @@ export class HeuristicRunnerAI implements Agent {
     const subs = iceSubroutines(state, ice);
     // Banner: once used, this encounter's subroutines can't end the run
     const unbroken = subs
-      .map((s, i) => ({ i, cost: encounter.cannotEndRun && /^end the run\.?$/i.test(s.label.trim()) ? 0 : subroutineCost(state, s.label) }))
+      .map((s, i) => ({ i, label: s.label, cost: encounter.cannotEndRun && /^end the run\.?$/i.test(s.label.trim()) ? 0 : subroutineCost(state, s.label) }))
       .filter(s => !encounter.broken[s.i]);
+    // Each subroutine's own price reads the grip as it stands; together they may be more damage than the grip (rules
+    // 9.8.7b, 10.4.4: Empiricist's 1 net then 2 net on 2 cards). The one that would flatline must be broken, as one that ends the run
+    const lethal = tankDamage(state, unbroken).lethal;
+    for (const s of unbroken) if (s.i === lethal) s.cost = Infinity;
     const mustBreak = unbroken.filter(s => s.cost >= 1);
     if (mustBreak.length === 0) return undefined;
 
