@@ -85,10 +85,12 @@ write down what you checked even if it was clean.
   (Corp 50 ± 5%); a regression within noise on a fix that closes a human-usable hole is acceptable (Jeff,
   2026-10-31).
 
-**Tuning ladder (AI branches that change play).** CLAUDE.md, AI work: the spec or hand-off must say which lever
-the change uses (count input, the list, planner setting, per-card rule, valuation number, in that order) and why each
-earlier lever could not do it. A new lever (value term, weight, threshold, switch or override outside the five) without
-a written reason, the AI Coordinator's approval and Jeff's yes is a Must fix.
+**Tuning ladder (AI branches that change play).** CLAUDE.md, AI work: trace top down, fix bottom up. The spec or
+hand-off must hold the trace (which layer produced the wrong move) and the fix must sit in that layer, as the
+narrowest change that removes the cause for the class of position. Must fix: a fix in a broader lever than the trace
+found (a new counted question or a bent count overriding a lower mistake); a per-card rule or one-position exception
+for a general mistake; a new counted question, line, clause, per-card rule or lever without the written reason and
+the approvals CLAUDE.md names.
 
 ## 4. Fact-check before you send (from the code-audit skill)
 
