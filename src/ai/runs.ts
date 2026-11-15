@@ -17,7 +17,7 @@ import { spikeKey } from '../core/scripts/liberationRunner';
 import { corpCardValue, hiddenCardOdds, tagsWorth } from './evaluate';
 import { accessDamage, agendaOdds, coreDamageWorth, counterWorthOf, damageWorth, flatlineOdds, runnerEffect, stealDamage } from './effectValues';
 import { clickPrice } from './handValues';
-import { clickRate, creditNeed, creditSlide, flatlineWorth, payoutSlide, pointValue } from './valueModel';
+import { clickRate, creditNeed, creditSlide, flatlineWorth, memo, payoutSlide, pointValue } from './valueModel';
 import { plan } from './pricing';
 import { actingSide } from './synergy';
 import { CARDS, breachAccessOf } from './cards';
@@ -361,11 +361,42 @@ const total = (p: IcePrice): number => p.credits + p.value;
 const cheaper = (a: IcePrice, b: IcePrice): IcePrice => (total(b) < total(a) ? b : a);
 
 export function icePrice(state: GameState, ice: CardInstance): IcePrice {
-  // Unrezzed: a guess at the credits it will take (rezzed on approach, 6.9.2c)
+  // Unrezzed: a guess at the credits it will take (rezzed on approach, 6.9.2c); its damage risk is the run's (unrezzedDamageRisk)
   if (!ice.isRezzed) return { credits: state.corp.credits >= 3 ? 1.5 : 0.5, value: 0 };
   const plain = plainIcePrice(state, ice);
   const physarum = physarumCost(state, ice);
   return physarum !== undefined ? cheaper(plain, { credits: physarum, value: 0 }) : plain;
+}
+
+/**
+ * The damage an unrezzed ice may do: each ice still unseen in the Corp's decklist (HQ, R&D, facedown Archives and
+ * installed ice the Runner hasn't seen; no hand or order read), as if it were this one rezzed on approach (6.9.2c) by a
+ * Corp that can pay its rez cost, does the damage its subroutines let through in order (tankDamage) when the Runner
+ * can't pay to break them; priced by damageWorth at the grip, averaged over the pool. Rules 9.8.7b, 10.4.4. Replaces
+ * the 0 the flat guess gave (RUNNER-UNREZZED-FLAT: Karunā's 2 net on 1 card, Empiricist and Doomscroll on 2). Read by
+ * the Runner's run prices (runScore, runRestWorth), not by icePrice, which the Corp's own ice valuations also read.
+ * Priced once per state: the first unrezzed ice asked about stands for the position (strength bonuses by server aside).
+ */
+export function unrezzedDamageRisk(state: GameState, ice: CardInstance): number {
+  const damages = memo(state, 'unrezzedIceDamage', () => {
+    const corp = state.corp;
+    const hidden = Object.values(corp.servers).flatMap(server => server.ice.filter(c => !c.isRezzed && !c.runnerKnows));
+    const pool = [...corp.hq, ...corp.rd, ...corp.archives.faceDown, ...hidden].filter(c => getCardDefinition(c.cardCode).type_code === 'ice');
+    const byCode = new Map<string, number>();
+    return pool.map(c => {
+      const known = byCode.get(c.cardCode);
+      if (known !== undefined) return known;
+      const as: CardInstance = { ...ice, cardCode: c.cardCode, isRezzed: true };
+      const subs = plannedSubroutines(state, as).map((sub, i) => ({ label: sub.label, i }));
+      const plan = bestBreakPlan(state, as, subs.length);
+      const rezzable = (getCardDefinition(c.cardCode).cost ?? 0) <= corp.credits;
+      const damage = !rezzable || (plan && plan.credits <= state.runner.credits) ? 0 : tankDamage(state, subs).damage;
+      byCode.set(c.cardCode, damage);
+      return damage;
+    });
+  });
+  if (damages.length === 0) return 0;
+  return damages.reduce((n, d) => n + (d > 0 ? damageWorth(state, d, false) : 0), 0) / damages.length;
 }
 
 /** Estimated cost to get past one piece of ice, as the Runner sees it: icePrice's credits and value together. */
@@ -1129,7 +1160,7 @@ export function runScore(state: GameState, serverId: string, options: RunOptions
     const share = !ice.isRezzed && options.rezTax ? 0.3 : 1;
     if (ice.isRezzed) known += price.credits;
     expected += share * price.credits;
-    lost += share * price.value;
+    lost += share * (price.value + (ice.isRezzed ? 0 : unrezzedDamageRisk(state, ice)));
   }
   if (known > budget) return -Infinity;
   // Known costs of approaching the server, after the ice (Manegarm Skunkworks)
@@ -1160,7 +1191,7 @@ export function runRestWorth(state: GameState, memory?: RunnerMemory, wary?: boo
     const price = icePrice(state, ice);
     if (total(price) === BLOCK) return 0;
     credits += price.credits;
-    lost += price.value;
+    lost += price.value + (ice.isRezzed ? 0 : unrezzedDamageRisk(state, ice));
     if (ice.isRezzed) damage += price.damage ?? 0;
   }
   // Once the breach has begun, only what is still to come (the cards already accessed, and the one a prompt is about, are

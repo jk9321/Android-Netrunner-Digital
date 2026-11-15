@@ -6,7 +6,7 @@ import { describe, expect, it } from 'vitest';
 import { readFileSync } from 'node:fs';
 import { CardInstance, GameAction, GameState, activePrompt, createCardInstance, executeAction } from '../src/core';
 import { HeuristicRunnerAI, createAgent } from '../src/ai';
-import { BLOCK, bestBreakPlan, breachAccesses, icePrice, isTrap, runRestWorth, runScore, serverValue, subroutineCost, trapDamageMax, trapHit } from '../src/ai/runs';
+import { BLOCK, bestBreakPlan, breachAccesses, icePrice, isTrap, runRestWorth, runScore, serverValue, subroutineCost, trapDamageMax, trapHit, unrezzedDamageRisk } from '../src/ai/runs';
 import { accessDamage, damageWorth } from '../src/ai/effectValues';
 import { CLICK, cardRate } from '../src/ai/valueModel';
 import { scoreOutcome, simulate } from '../src/ai/prompts';
@@ -19,6 +19,7 @@ const REGOLITH = '30071';
 const DEVADATTA = '35031';
 const EMPIRICIST = '35052';
 const DOOMSCROLL = '35063';
+const PALISADE_CODE = '30072';
 const CARMEN = '30015'; // killer, strength 2: 2 credits for +3, 1 credit breaks 1 sentry subroutine
 const total = (p: { credits: number; value: number }) => p.credits + p.value;
 
@@ -351,5 +352,33 @@ describe('an unknown installed card priced as the traps still unseen (rules 10.4
     s.corp.rd[1] = createCardInstance(s, URTICA);
     expect(trapDamageMax(s, 2)).toBe(4);
     expect(trapDamageMax(s, 0)).toBe(3);
+  });
+});
+
+describe('an unrezzed ice priced as the ice still unseen (rules 6.9.2c, 9.8.7b, 10.4.4)', () => {
+  // g3 43672765368: 17 of 22 ice flatlines above base were ice unrezzed when the run was priced (Karunā's 2 net on 1 card,
+  // Empiricist and Doomscroll on 2); its price had no damage in it
+  const KARUNA = '30047';
+  const position = (grip: number, corpCredits: number) => {
+    const s = newGame();
+    startRunnerTurn(s);
+    s.runner.rig.programs = [];
+    s.runner.grip = s.runner.grip.slice(0, grip);
+    s.corp.credits = corpCredits;
+    s.corp.rd[0] = createCardInstance(s, KARUNA);
+    installIceForTest(s, PALISADE_CODE, 'remote-9', false);
+    return { s, ice: s.corp.servers['remote-9'].ice[0] };
+  };
+  it('is a damage risk the Runner holding 1 card prices, and less so on 5 cards', () => {
+    const one = position(1, 10);
+    const five = position(5, 10);
+    const r1 = asSide('runner', () => unrezzedDamageRisk(one.s, one.ice));
+    const r5 = asSide('runner', () => unrezzedDamageRisk(five.s, five.ice));
+    expect(r1).toBeGreaterThan(0);
+    expect(r5).toBeLessThan(r1);
+  });
+  it('is none when the Corp cannot pay to rez any of it', () => {
+    const broke = position(1, 0);
+    expect(asSide('runner', () => unrezzedDamageRisk(broke.s, broke.ice))).toBe(0);
   });
 });
