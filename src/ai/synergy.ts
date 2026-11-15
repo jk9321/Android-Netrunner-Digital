@@ -351,9 +351,9 @@ export const tuning = {
      * the nine-line order of stage-c/order.md, in place of the hand-set ranking. Off: the ranking, to compare recorded
      * decisions side by side and locate a bug. Deleted with the ranking before Stage C merges.
      */
-    corpCore: false,
+    corpCore: true,
     /** TEMPORARY (Stage C measurement, c0-rulings 04:25Z (a)): rollouts and the reply's Corp ask Q4/Q5 under corpCore. */
-    rolloutLines: false,
+    rolloutLines: true,
     /**
      * Bug reports #39, #41 (Jeff's Runner test games 7 and 9, 2026-11-09; Corp only): the Corp's own unrezzed ice is priced
      * as it knows it (effectValues.ts ownIce: the real ice when its rez budget covers it, passed when not; rules 3.4.3a,
