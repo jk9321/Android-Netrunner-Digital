@@ -1,4 +1,5 @@
 import { StopLevel } from '../core';
+import { readStorage, writeStorage } from './storage';
 
 /**
  * Where a person's game stops for paid ability windows (the top bar's
@@ -11,20 +12,12 @@ const STORAGE_KEY = 'netrunner.stops';
 export type PersonStops = Exclude<StopLevel, 'ai'>;
 
 export function savedStops(): PersonStops {
-  try {
-    const saved = window.localStorage.getItem(STORAGE_KEY);
-    return saved === 'full' || saved === 'none' ? saved : 'auto';
-  } catch {
-    return 'auto';
-  }
+  const saved = readStorage(STORAGE_KEY);
+  return saved === 'full' || saved === 'none' ? saved : 'auto';
 }
 
 export function saveStops(level: PersonStops): void {
-  try {
-    window.localStorage.setItem(STORAGE_KEY, level);
-  } catch {
-    // Not saved; the choice still applies to this game
-  }
+  writeStorage(STORAGE_KEY, level);
 }
 
 export const STOP_LABELS: Record<PersonStops, { short: string; title: string }> = {

@@ -6,28 +6,19 @@
  * last for the session.
  */
 
+import { readStorageJson, writeStorageJson } from '../ui/storage';
+
 const FAVORITES_KEY = 'netrunner.favoriteDecks.v1';
 const HIDDEN_KEY = 'netrunner.hiddenDecks.v1';
 
 function loadIds(key: string): string[] {
-  try {
-    const raw = window.localStorage.getItem(key);
-    if (!raw) return [];
-    const parsed: unknown = JSON.parse(raw);
-    return Array.isArray(parsed) ? parsed.filter((id): id is string => typeof id === 'string') : [];
-  } catch {
-    return [];
-  }
+  const parsed = readStorageJson<unknown>(key);
+  return Array.isArray(parsed) ? parsed.filter((id): id is string => typeof id === 'string') : [];
 }
 
 /** Returns false when the browser would not store the list. */
 function saveIds(key: string, ids: string[]): boolean {
-  try {
-    window.localStorage.setItem(key, JSON.stringify(ids));
-    return true;
-  } catch {
-    return false;
-  }
+  return writeStorageJson(key, ids);
 }
 
 export const loadFavoriteDecks = () => loadIds(FAVORITES_KEY);

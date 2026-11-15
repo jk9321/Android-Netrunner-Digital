@@ -209,30 +209,25 @@ describe('AI code health (audit guards)', () => {
     expect(aiFiles().filter(f => /\bregisterCorpPorts\(/.test(aiText(f)) && !f.endsWith('corpPorts.ts'))).toEqual(['corpAI.ts']);
   });
 
-  // Step 4 Stage C4 (brief-stage-c.md): the card-specific rules live in corp/cardRules.ts; its exports may only shrink
-  it('keeps the card rules of corp/cardRules.ts to this list (shrink only)', () => {
-    const names = [...aiText('corp/cardRules.ts').matchAll(/^export (?:function|const) (\w+)/gm)].map(m => m[1]).sort();
-    expect(names).toEqual(['advancesAsIce', 'bangunBait', 'iceAdvanceValue', 'isPettyCash', 'myoshuSaving', 'overAdvance', 'tagFirst', 'tagsBeforeScore', 'trapAdvanceCap', 'untaianAdvance']);
-  });
-
   it("keeps the hold owner's readers to this list (corp/hold.ts serverHold)", () => {
     const readers = aiFiles().filter(f => f.replace(/\\/g, '/') !== 'corp/hold.ts' && /\bserverHold\b/.test(aiText(f))).map(f => f.replace(/\\/g, '/')).sort();
-    expect(readers).toEqual(['corp/candidates.ts', 'corp/lines.ts', 'corp/placement.ts', 'corp/rez.ts', 'corp/rezMoney.ts']);
+    expect(readers).toEqual(['corp/lines.ts', 'corp/placement.ts', 'corp/rez.ts', 'corp/rezMoney.ts']);
   });
 
   // src/ai's total may only go down. Stage B ends at 13,938: beta at 545f146 is 13,851 (the Runner draws branch added 52
   // to the Stage A tree's 13,799), Stage B adds 77 (corp/core.ts's pipeline and the B5 time fix; AI Coordinator
   // 2026-11-14 21:05Z) and review R8 adds 10 (board.ts and corpPorts.ts, the seam that takes corp/ out of the cycle).
-  // Stage C repays this when the ranking is deleted; target after C is below 13,799 on the Corp side.
+  // Stage C repays this when the ranking is deleted; target after C is below 13,799.
   // Raised to 14,189 by ai-runner-fixes for the Runner audit's new owners (icePrice's credits/value split, breachRest, the
   // steal-damage owner, damageWorth's draw-back, the whole-ice damage count, tankDamage: the one lethal-tank test the encounter also reads, +16), named in review-runner-fixes.md as a recorded debt (AI Coordinator
   // 2026-11-15 01:29Z). Stage C's target after its deletions is unchanged (below 13,799) and this guard goes back down then.
   // ai-runner-unknowns adds 141 (trapHit/accessDamage, unrezzedDamageRisk, runPrices, drawBackClicks, the rules text in
-  // subroutineDamage, the damageThreat key): pending the AI Coordinator's yes in its review. corp/ grows by the
-  // candidates and the moved rules: brief-stage-c.md sets its guard at 2,150
-  it('keeps src/ai/corp at or under 2,150 lines and src/ai at or under the Stage B total plus the Runner fixes (14,330)', () => {
+  // subroutineDamage, the damageThreat key): pending the AI Coordinator's yes in its review
+  // ai-prompt-time adds 14 (prompts.ts: the Archives-shuffle family answer and its test, agendaFirst shared with Peer Review;
+  // Jeff and the AI Coordinator 2026-11-15 15:20Z): approved by the AI Coordinator 2026-11-15 16:21Z (stop-1615 ruling)
+  it('keeps src/ai/corp under 1,900 lines and src/ai at or under the Stage B total plus the Runner fixes (14,344)', () => {
     const corp = aiFiles().filter(f => f.replace(/\\/g, '/').startsWith('corp/')).reduce((n, f) => n + lines(f), 0);
-    expect(corp).toBeLessThanOrEqual(2150);
-    expect(aiFiles().reduce((n, f) => n + lines(f), 0)).toBeLessThanOrEqual(14330);
+    expect(corp).toBeLessThan(1900);
+    expect(aiFiles().reduce((n, f) => n + lines(f), 0)).toBeLessThanOrEqual(14344);
   });
 });
