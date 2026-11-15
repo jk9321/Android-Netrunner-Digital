@@ -1,0 +1,101 @@
+name: AI script
+
+# Runs one measurement script from scripts/ split across runners (Jeff 2026-11-15: side-by-side and
+# leave-one-out runs are slow in a container and the Actions queue is often empty). Started by hand:
+# Actions > AI script > Run workflow, or the API. Each of 16 runners starts 4 processes; every process
+# gets SHARD=<k>/64 (as scripts/corp-losses.ts reads it) and ARGS, and writes its stdout to
+# out/<job>-<i>.txt and anything it likes under out/files/<k>/ (OUT_DIR). The "collect" job gathers every
+# shard's output into one artifact named "out". The script decides what a shard means (which deals,
+# which recorded states, which rule to leave out) and how the pieces are summed afterwards.
+# This counts against the same 20-job limit as AI batches: one at a time beside a batch.
+on:
+  workflow_dispatch:
+    inputs:
+      ref:
+        description: Branch or full commit SHA to run
+        required: true
+        default: beta
+      script:
+        description: Script path under scripts/ without .ts (letters, digits, - _ and / only), e.g. stage-c/planner-view
+        required: true
+      args:
+        description: Arguments passed to the script after -- (also in the ARGS environment variable)
+        required: false
+        default: ''
+      plan_off:
+        description: PLAN_OFF switches, comma-separated (empty for none)
+        required: false
+        default: ''
+      label:
+        description: What this run measures (for the log)
+        required: false
+        default: ''
+
+permissions:
+  contents: read
+
+jobs:
+  shard:
+    runs-on: ubuntu-latest
+    timeout-minutes: 120
+    strategy:
+      fail-fast: false
+      matrix:
+        job: [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15]
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.ref }}
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - name: Run
+        env:
+          SCRIPT: ${{ inputs.script }}
+          ARGS: ${{ inputs.args }}
+          PLAN_OFF: ${{ inputs.plan_off }}
+          JOB: ${{ matrix.job }}
+        run: |
+          case "$SCRIPT" in
+            *..*|/*|*[!A-Za-z0-9_/-]*) echo "bad script name: $SCRIPT"; exit 1 ;;
+          esac
+          test -f "scripts/$SCRIPT.ts" || { echo "no scripts/$SCRIPT.ts on this ref"; exit 1; }
+          mkdir -p out
+          fail=0
+          pids=""
+          for i in 0 1 2 3; do
+            k=$(( JOB * 4 + i ))
+            mkdir -p "out/files/$k"
+            # ARGS is split on spaces on purpose (plain words only)
+            SHARD="$k/64" OUT_DIR="out/files/$k" npx vite-node "scripts/$SCRIPT.ts" -- $ARGS > "out/$JOB-$i.txt" 2> "out/$JOB-$i.err" &
+            pids="$pids $!"
+          done
+          for p in $pids; do wait "$p" || fail=1; done
+          tail -n 5 out/*.err || true
+          exit $fail
+      - if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: shard-${{ matrix.job }}
+          path: out/
+
+  collect:
+    needs: shard
+    if: always()
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      actions: read
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          path: out
+          pattern: shard-*
+          merge-multiple: true
+      - run: ls out | head -100; du -sh out
+      - uses: actions/upload-artifact@v4
+        with:
+          name: out
+          path: out/
