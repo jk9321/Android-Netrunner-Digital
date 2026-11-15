@@ -109,16 +109,20 @@ describe('every card uses prompts()', () => {
     const RAW_ASKS = new Set(['askCards', 'askChoice', 'askRunnerInstall', 'askCorpInstall', 'arrangeTop', 'arrangeNext', 'askEvenIfNone', 'installRunnerChoice', 'playPsiGame', 'source', 'pushPrompt']);
     const found = cardScriptFiles().flatMap(file => {
       const text = readFileSync(file, 'utf8');
-      const named = [...text.matchAll(/import\s+(?:type\s+)?\{([^}]*)\}\s*from\s*'([^']+)'/g)].flatMap(([, names, from]) =>
-        names
-          .split(',')
-          .map(n => n.trim().replace(/^type\s+/, '').split(/\s+as\s+/)[0])
-          .filter(n => RAW_ASKS.has(n))
-          .map(n => `${file}: imports ${n} from '${from}'`),
+      // import or re-export, single or double quotes, with or without a default import beside the names
+      const clauses = [...text.matchAll(/\b(?:import|export)\s+(?:type\s+)?(?:\w+\s*,\s*)?(\{[^}]*\}|\*(?:\s+as\s+\w+)?)\s*from\s*['"]([^'"]+)['"]/g)];
+      const named = clauses.flatMap(([, what, from]) =>
+        what.startsWith('*')
+          ? [`${file}: imports * from '${from}'`]
+          : what
+              .slice(1, -1)
+              .split(',')
+              .map(n => n.trim().replace(/^type\s+/, '').split(/\s+as\s+/)[0])
+              .filter(n => RAW_ASKS.has(n))
+              .map(n => `${file}: imports ${n} from '${from}'`),
       );
-      const star = [...text.matchAll(/import\s+\*\s+as\s+\w+\s+from\s+'([^']+)'/g)].map(([, from]) => `${file}: imports * from '${from}'`);
       const handWritten = text.split('\n').flatMap((line, i) => (/\bonPromptAnswer\b/.test(line) ? [`${file}:${i + 1}: ${line.trim()}`] : []));
-      return [...named, ...star, ...handWritten];
+      return [...named, ...handWritten];
     });
     expect(found, 'ask through the card\'s flow (flow.cards / choice / ask / runnerInstall / corpInstall / arrangeTop / evenIfNone / psiGame)').toEqual([]);
   });

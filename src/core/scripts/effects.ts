@@ -310,6 +310,12 @@ export function unlessPaysQuestion(ctx: EffectContext, amount: number, what: str
   };
 }
 
+/** Answers an unlessPaysQuestion(): pays, or runs the consequence. */
+export function answerUnlessPays(state: GameState, amount: number, optionId: string, otherwise: () => void): void {
+  if (optionId === 'pay' && availableCredits(state, 'runner') >= amount) spendCredits(state, 'runner', amount);
+  else otherwise();
+}
+
 // --- Sabotage ---------------------------------------------------------------------
 
 /** Sabotage X's data: X, for resolveSabotage. */

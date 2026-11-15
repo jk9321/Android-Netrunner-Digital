@@ -7,7 +7,6 @@ import { dealNetDamage, giveTags, installedRunnerCards, trashInstalledRunnerCard
 import { endRun, endTheRun } from '../../../engine/runEnd';
 import {
   addCounters,
-  availableCredits,
   corpTrashFromHQ,
   counters,
   drawForEffect,
@@ -15,23 +14,16 @@ import {
   installedIce,
   loseCredits,
   purgeVirusCounters,
-  spendCredits,
   swapIce,
   takeBadPublicity,
   trashInstalledCard,
 } from '../../../engine/cardEffects';
 import { CardScript, EffectContext, Subroutine } from '../../types';
-import { corpInstallOptions, installCorpChoice, unlessPaysQuestion } from '../../effects';
+import { corpInstallOptions, answerUnlessPays, installCorpChoice, unlessPaysQuestion } from '../../effects';
 import { ArrangeData, cards, cardsQuestion, choice, choiceQuestion, CardsQuestion, InstallData, prompts } from '../../steps';
 import { archivesCards, ids, isCentral, isSelf, keywords, runOnServerOf, serverOf, takeFromCorpZone, title, type } from './helpers';
 
 const endTheRunSub: Subroutine = { label: 'End the run.', resolve: ({ state }) => endTheRun(state) };
-
-/** Answers an unlessPaysQuestion(): pays, or runs the consequence. */
-function answerUnlessPays(state: GameState, amount: number, optionId: string, otherwise: () => void): void {
-  if (optionId === 'pay' && availableCredits(state, 'runner') >= amount) spendCredits(state, 'runner', amount);
-  else otherwise();
-}
 
 // --- Identities -------------------------------------------------------------
 

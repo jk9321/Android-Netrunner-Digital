@@ -8,7 +8,6 @@ import { dealCoreDamage, dealNetDamage, giveTags, installedRunnerCards, trashIns
 import { endTheRun } from '../../../engine/runEnd';
 import { grantedBefore, grantRunSubroutines } from '../../../engine/ice';
 import {
-  availableCredits,
   corpTrashFromHQ,
   derez,
   drawForEffect,
@@ -24,7 +23,7 @@ import {
 } from '../../../engine/cardEffects';
 import { cards, cardsQuestion, choice, choiceQuestion, InstallData, prompts } from '../../steps';
 import { CardScript, EffectContext, Subroutine } from '../../types';
-import { corpInstallOptions, installCorpChoice, unlessPaysQuestion } from '../../effects';
+import { answerUnlessPays, corpInstallOptions, installCorpChoice, unlessPaysQuestion } from '../../effects';
 import {
   archivesCards,
   faceUpTypes,
@@ -215,10 +214,7 @@ const attiniSub: Subroutine = {
 };
 
 const attiniFlow = prompts({
-  pay: choice(({ state }, a) => {
-    if (a.optionId === 'pay' && availableCredits(state, 'runner') >= 2) spendCredits(state, 'runner', 2);
-    else dealNetDamage(state, 1);
-  }),
+  pay: choice(({ state }, a) => answerUnlessPays(state, 2, a.optionId, () => dealNetDamage(state, 1))),
 });
 
 export const attini: CardScript = {
