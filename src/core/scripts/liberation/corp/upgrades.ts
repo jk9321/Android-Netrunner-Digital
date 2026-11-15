@@ -6,17 +6,37 @@ import { removeCard } from '../../../engine/helpers';
 import { dealMeatDamage } from '../../../engine/damage';
 import { availableCredits, corpTrashFromHQ, derez, installedIce, moveUpgrade, spendCredits, threatLevel, turnFlag, TurnFlag, upgradeAllowedIn, useOncePerTurn } from '../../../engine/cardEffects';
 import { CardScript, EffectContext } from '../../types';
-import { answerPsiGame, askCards, askChoice, playPsiGame, takeFromRD } from '../../effects';
-import { askInstallAmong, askPlaceAdvancement, ids, installAndRez, installAndRezOptions, onceKey, picked, placeAdvancement, runOnServerOf, said, serverOf, title, type, yesNo } from './helpers';
+import { takeFromRD } from '../../effects';
+import { cards, cardsQuestion, choice, ChoiceQuestion, choiceQuestion, InstallData, prompts, psi } from '../../steps';
+import {
+  ids,
+  installAmongQuestion,
+  installAndRez,
+  installAndRezOptions,
+  onceKey,
+  placeAdvancement,
+  placeAdvancementQuestion,
+  runOnServerOf,
+  serverOf,
+  title,
+  type,
+  yesNo,
+} from './helpers';
 
-/** "When your turn ends, you may move this upgrade to the root of another server." */
-function askMoveUpgrade(ctx: EffectContext, step = 'move'): void {
+/** "When your turn ends, you may move this upgrade to the root of another server.": the question, or null if it can't move. */
+function moveQuestion(ctx: EffectContext): ChoiceQuestion | null {
   const from = serverOf(ctx.state, ctx.card);
-  if (!from) return;
+  if (!from) return null;
   const targets = Object.values(ctx.state.corp.servers).filter(s => s.id !== from.id && upgradeAllowedIn(ctx.state, ctx.card, s.id));
-  if (targets.length === 0) return;
-  askChoice(ctx, 'corp', `${title(ctx.card)}: move it to the root of another server?`, [...targets.map(s => ({ id: s.id, label: s.name })), { id: 'no', label: 'Stay' }], step);
+  if (targets.length === 0) return null;
+  return choiceQuestion('corp', `${title(ctx.card)}: move it to the root of another server?`, [...targets.map(s => ({ id: s.id, label: s.name })), { id: 'no', label: 'Stay' }]);
 }
+
+/** The step that answers moveQuestion: moves the upgrade unless the Corp chose to stay. */
+const moveStep = (after?: (ctx: EffectContext) => void) =>
+  choice((ctx, a) => {
+    if (a.optionId !== 'no' && moveUpgrade(ctx.state, ctx.card, a.optionId)) after?.(ctx);
+  });
 
 const corpTurnEnds = (e: { side: string }) => e.side === 'corp';
 
@@ -25,6 +45,8 @@ const corpTurnEnds = (e: { side: string }) => e.side === 'corp';
 // Vovô Ozetti (Sysop): The rez cost of each piece of ice protecting this server is lowered by 2.
 // Threat 4 -> The rez cost of each card in the root of this server is lowered by 2. When your
 // turn ends, you may move this upgrade to the root of another server.
+const vovoFlow = prompts({ move: moveStep() });
+
 export const vovo: CardScript = {
   modifiers: {
     rezCost: (state, self, rezzing) => {
@@ -35,41 +57,37 @@ export const vovo: CardScript = {
       return 0;
     },
   },
-  triggers: { discard_phase_ends: (ctx, e) => corpTurnEnds(e) && askMoveUpgrade(ctx) },
-  onPromptAnswer: ({ state, card }, _source, answer) => {
-    if (answer.kind === 'effect_choice' && answer.optionId !== 'no') moveUpgrade(state, card, answer.optionId);
-  },
+  triggers: { discard_phase_ends: (ctx, e) => corpTurnEnds(e) && vovoFlow.askIf(ctx, 'move', moveQuestion(ctx)) },
+  ...vovoFlow.script,
 };
 
 // Adrian Seis (Psi - Clone - Sysop): Whenever the Runner makes a successful run on this server,
 // play a Psi Game. If the bids differ, the Runner cannot access cards other than this upgrade
 // for the remainder of that run. If the bids match, the Runner cannot access this upgrade for the
 // remainder of that run. When your turn ends, you may move this upgrade to the root of another server.
+const adrianFlow = prompts({
+  psi: psi(({ state, card }, match) => {
+    const run = state.activeRun;
+    if (!run) return;
+    if (match) {
+      run.noAccessIds = [...(run.noAccessIds ?? []), card.instanceId];
+      addLog(state, 'corp', 'Adrian Seis: the Runner cannot access it this run.');
+    } else {
+      run.accessOnlyIds = [card.instanceId];
+      addLog(state, 'corp', 'Adrian Seis: the Runner cannot access cards other than Adrian Seis this run.');
+    }
+  }),
+  move: moveStep(),
+});
+
 export const adrianSeis: CardScript = {
   triggers: {
     successful_run: (ctx, e) => {
-      if (serverOf(ctx.state, ctx.card)?.id === e.server) playPsiGame(ctx, 'psi');
+      if (serverOf(ctx.state, ctx.card)?.id === e.server) adrianFlow.psiGame(ctx, 'psi');
     },
-    discard_phase_ends: (ctx, e) => corpTurnEnds(e) && askMoveUpgrade(ctx),
+    discard_phase_ends: (ctx, e) => corpTurnEnds(e) && adrianFlow.askIf(ctx, 'move', moveQuestion(ctx)),
   },
-  onPromptAnswer: (ctx, source, answer) => {
-    const { state, card } = ctx;
-    if (
-      answerPsiGame(ctx, source, answer, match => {
-        const run = state.activeRun;
-        if (!run) return;
-        if (match) {
-          run.noAccessIds = [...(run.noAccessIds ?? []), card.instanceId];
-          addLog(state, 'corp', 'Adrian Seis: the Runner cannot access it this run.');
-        } else {
-          run.accessOnlyIds = [card.instanceId];
-          addLog(state, 'corp', 'Adrian Seis: the Runner cannot access cards other than Adrian Seis this run.');
-        }
-      })
-    )
-      return;
-    if (source.step === 'move' && answer.kind === 'effect_choice' && answer.optionId !== 'no') moveUpgrade(state, card, answer.optionId);
-  },
+  ...adrianFlow.script,
 };
 
 // Daniela Jorge Inácio (Sysop): As an additional cost to trash this upgrade, the Runner must add 2
@@ -90,6 +108,14 @@ export const daniela: CardScript = {
 // Angelique Garza Correa (Ambush - Enforcer - Expendable): Threat 3 -> [click], 1 credit, reveal
 // and trash this upgrade from HQ: Do 1 meat damage. When the Runner accesses this upgrade while it
 // is rezzed, you may pay 2 credits to do 2 meat damage.
+const angeliqueFlow = prompts({
+  damage: choice(({ state }, a) => {
+    if (a.optionId !== 'yes' || availableCredits(state, 'corp') < 2) return;
+    spendCredits(state, 'corp', 2);
+    dealMeatDamage(state, 2);
+  }),
+});
+
 export const angelique: CardScript = {
   abilities: [
     {
@@ -107,21 +133,36 @@ export const angelique: CardScript = {
   ],
   onAccessed: (ctx, where) => {
     if (where !== 'installed' || !ctx.card.isRezzed || availableCredits(ctx.state, 'corp') < 2) return;
-    askChoice(ctx, 'corp', 'Angelique Garza Correa: pay 2 [credit] to do 2 meat damage?', yesNo('Pay 2 [credit]'), 'damage');
+    angeliqueFlow.ask(ctx, 'damage', choiceQuestion('corp', 'Angelique Garza Correa: pay 2 [credit] to do 2 meat damage?', yesNo('Pay 2 [credit]')));
   },
-  onPromptAnswer: ({ state }, _source, answer) => {
-    if (!said(answer) || availableCredits(state, 'corp') < 2) return;
-    spendCredits(state, 'corp', 2);
-    dealMeatDamage(state, 2);
-  },
+  ...angeliqueFlow.script,
 };
 
 const tucanaServer = (state: GameState, self: CardInstance) =>
   serverOf(state, self)?.id ?? state.activeRun?.persistentServers[self.instanceId];
 
+const tucanaFlow = prompts({
+  search: cards((ctx, a) => {
+    const { state } = ctx;
+    const ice = a.ids.length ? takeFromRD(state, a.ids[0]) : undefined;
+    if (!ice) return shuffleRD(state);
+    state.corp.rd.unshift(ice); // set aside where takeFromRD left it: back on top while the server is chosen
+    const options = installAndRezOptions(state, ice, 3);
+    if (!tucanaFlow.askIf(ctx, 'server', installAmongQuestion(state, ice.instanceId, options), { cardId: ice.instanceId, install: true })) {
+      removeCard(state.corp.rd, ice);
+      state.corp.rd.push(ice);
+      shuffleRD(state);
+    }
+  }),
+  server: choice<InstallData>(({ state }, a, data) => {
+    installAndRez(state, data.cardId, a.optionId, 3);
+    shuffleRD(state);
+  }),
+});
+
 const tucanaSearch = (ctx: EffectContext) => {
   const ice = ctx.state.corp.rd.filter(c => type(c) === 'ice');
-  askCards(ctx, 'corp', 'Tucana: you may search R&D for 1 piece of ice to install and rez, paying 3 [credit] less in total.', ids(ice), 0, 1, 'search');
+  tucanaFlow.ask(ctx, 'search', cardsQuestion('corp', 'Tucana: you may search R&D for 1 piece of ice to install and rez, paying 3 [credit] less in total.', ids(ice), 0, 1));
 };
 
 export const tucana: CardScript = {
@@ -131,48 +172,39 @@ export const tucana: CardScript = {
     agenda_scored: (ctx, e) => e.serverId === tucanaServer(ctx.state, ctx.card) && tucanaSearch(ctx),
     agenda_stolen: (ctx, e) => !!e.serverId && e.serverId === tucanaServer(ctx.state, ctx.card) && tucanaSearch(ctx),
   },
-  onPromptAnswer: (ctx, source, answer) => {
-    const { state } = ctx;
-    if (source.step === 'search') {
-      const ice = picked(answer).length ? takeFromRD(state, picked(answer)[0]) : undefined;
-      if (!ice) return shuffleRD(state);
-      state.corp.rd.unshift(ice); // set aside where takeFromRD left it: back on top while the server is chosen
-      const options = installAndRezOptions(state, ice, 3);
-      if (!askInstallAmong(ctx, ice.instanceId, 'server', options)) {
-        removeCard(state.corp.rd, ice);
-        state.corp.rd.push(ice);
-        shuffleRD(state);
-      }
-    } else if (source.step === 'server' && answer.kind === 'effect_choice') {
-      installAndRez(state, source.data?.cardId as string, answer.optionId, 3);
-      shuffleRD(state);
-    }
-  },
+  ...tucanaFlow.script,
 };
 
 // Brasília Government Grid (Region): Once per turn -> When you rez a piece of ice during a run
 // against this server, you may derez another installed piece of ice. If you do, the rezzed ice
 // gets +3 strength for the remainder of that run.
+const brasiliaFlow = prompts({
+  derez: cards<{ iceId: string }>(({ state, card }, a, data) => {
+    const other = installedIce(state).find(c => c.instanceId === a.ids[0]);
+    const run = state.activeRun;
+    if (!other || !run) return;
+    useOncePerTurn(state, onceKey(card));
+    derez(state, other);
+    run.iceRunStrength ??= {};
+    run.iceRunStrength[data.iceId] = (run.iceRunStrength[data.iceId] ?? 0) + 3;
+    addLog(state, 'corp', 'The rezzed ice gets +3 strength for this run (Brasília Government Grid).');
+  }),
+});
+
 export const brasilia: CardScript = {
   triggers: {
     rezzed: (ctx, e) => {
       const { state } = ctx;
       if (type(e.card) !== 'ice' || !runOnServerOf(state, ctx.card) || turnFlag(state, onceKey(ctx.card)) > 0) return;
       const others = installedIce(state).filter(c => c.isRezzed && c.instanceId !== e.card.instanceId);
-      if (others.length > 0) askCards(ctx, 'corp', `Brasília Government Grid: you may derez another piece of ice to give ${title(e.card)} +3 strength this run.`, ids(others), 0, 1, 'derez', { iceId: e.card.instanceId });
+      if (others.length > 0) {
+        brasiliaFlow.ask(ctx, 'derez', cardsQuestion('corp', `Brasília Government Grid: you may derez another piece of ice to give ${title(e.card)} +3 strength this run.`, ids(others), 0, 1), {
+          iceId: e.card.instanceId,
+        });
+      }
     },
   },
-  onPromptAnswer: ({ state, card }, source, answer) => {
-    const other = installedIce(state).find(c => c.instanceId === picked(answer)[0]);
-    const run = state.activeRun;
-    if (!other || !run) return;
-    useOncePerTurn(state, onceKey(card));
-    derez(state, other);
-    const iceId = source.data?.iceId as string;
-    run.iceRunStrength ??= {};
-    run.iceRunStrength[iceId] = (run.iceRunStrength[iceId] ?? 0) + 3;
-    addLog(state, 'corp', 'The rezzed ice gets +3 strength for this run (Brasília Government Grid).');
-  },
+  ...brasiliaFlow.script,
 };
 
 // The Holo Man (Academic - Executive - Sysop): When your turn begins, you may move this upgrade to
@@ -181,8 +213,13 @@ export const brasilia: CardScript = {
 // turn, instead place 3 advancement counters on that card.
 const holoManCount = (state: GameState) => (turnFlag(state, TurnFlag.installedFromHQ) > 0 ? 2 : 3);
 
+const holoManFlow = prompts({
+  move: moveStep(),
+  place: cards<{ n: number }>(({ state }, a, data) => placeAdvancement(state, a.ids[0], Number(data.n ?? 2), 'The Holo Man')),
+});
+
 export const holoMan: CardScript = {
-  triggers: { turn_begins: (ctx, e) => e.side === 'corp' && askMoveUpgrade(ctx) },
+  triggers: { turn_begins: (ctx, e) => e.side === 'corp' && holoManFlow.askIf(ctx, 'move', moveQuestion(ctx)) },
   liveValue: state => `${holoManCount(state)} advancement counters`,
   abilities: [
     {
@@ -195,14 +232,12 @@ export const holoMan: CardScript = {
         const server = serverOf(ctx.state, ctx.card);
         if (!server) return;
         const n = holoManCount(ctx.state);
-        askPlaceAdvancement(ctx, n, 'place', false, [...server.root, ...server.ice].filter(c => c.instanceId !== ctx.card.instanceId));
+        const among = [...server.root, ...server.ice].filter(c => c.instanceId !== ctx.card.instanceId);
+        holoManFlow.askIf(ctx, 'place', placeAdvancementQuestion(ctx, n, false, among), { n });
       },
     },
   ],
-  onPromptAnswer: ({ state, card }, source, answer) => {
-    if (source.step === 'move' && answer.kind === 'effect_choice' && answer.optionId !== 'no') moveUpgrade(state, card, answer.optionId);
-    else if (source.step === 'place') placeAdvancement(state, picked(answer)[0], Number(source.data?.n ?? 2), 'The Holo Man');
-  },
+  ...holoManFlow.script,
 };
 
 // Isaac Liberdade (Bioroid - Sysop): Each advanced piece of ice protecting this server gets +2
@@ -211,20 +246,22 @@ export const holoMan: CardScript = {
 // you may move this upgrade to the root of another server.
 const isaacPlace = (ctx: EffectContext) => {
   const ice = serverOf(ctx.state, ctx.card)?.ice.filter(c => c.advancementCounters === 0) ?? [];
-  if (ice.length > 0) askCards(ctx, 'corp', 'Isaac Liberdade: you may place 1 advancement counter on a piece of ice protecting this server that has none.', ids(ice), 0, 1, 'place');
+  if (ice.length > 0) {
+    isaacFlow.ask(ctx, 'place', cardsQuestion('corp', 'Isaac Liberdade: you may place 1 advancement counter on a piece of ice protecting this server that has none.', ids(ice), 0, 1));
+  }
 };
+
+const isaacFlow = prompts({
+  move: moveStep(isaacPlace),
+  place: cards(({ state }, a) => placeAdvancement(state, a.ids[0], 1, 'Isaac Liberdade')),
+});
 
 export const isaac: CardScript = {
   modifiers: {
     iceStrength: (state, self, ice) => (ice.advancementCounters > 0 && serverOf(state, self)?.ice.includes(ice) ? 2 : 0),
   },
-  triggers: { discard_phase_ends: (ctx, e) => corpTurnEnds(e) && askMoveUpgrade(ctx) },
-  onPromptAnswer: (ctx, source, answer) => {
-    const { state, card } = ctx;
-    if (source.step === 'move' && answer.kind === 'effect_choice' && answer.optionId !== 'no') {
-      if (moveUpgrade(state, card, answer.optionId)) isaacPlace(ctx);
-    } else if (source.step === 'place') placeAdvancement(state, picked(answer)[0], 1, 'Isaac Liberdade');
-  },
+  triggers: { discard_phase_ends: (ctx, e) => corpTurnEnds(e) && isaacFlow.askIf(ctx, 'move', moveQuestion(ctx)) },
+  ...isaacFlow.script,
 };
 
 export const liberationCorpUpgradesScripts: Record<string, CardScript> = {
