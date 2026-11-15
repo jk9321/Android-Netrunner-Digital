@@ -15,7 +15,7 @@ import {
   TurnFlag,
 } from '../../../engine/cardEffects';
 import { CardScript } from '../../types';
-import { askChoice } from '../../effects';
+import { choice, choiceQuestion, prompts } from '../../steps';
 import { isSelf, keywords, type } from './helpers';
 
 // Synchrocyclotron (Facility): The first double operation you play each turn costs click less to play.
@@ -80,14 +80,25 @@ export const nihiloAgent: CardScript = {
 // Interrupt -> When this asset would be uninstalled, take all hosted bad publicity.
 const HOSTED_BP = 'badPublicity';
 
+const luanaFlow = prompts({
+  host: choice(({ state, card }, a) => {
+    if (a.optionId !== 'host' || state.corp.badPublicity === 0) return;
+    state.corp.badPublicity -= 1;
+    card.tokens[HOSTED_BP] = (card.tokens[HOSTED_BP] ?? 0) + 1;
+    gainFromCard(state, 'corp', 3, card);
+    drawForEffect(state, 'corp', 1, 'Luana Campos');
+    addLog(state, 'corp', 'Corp hosted 1 bad publicity on Luana Campos and gained 3 [credit].');
+  }),
+});
+
 export const luana: CardScript = {
   triggers: {
     turn_begins: (ctx, e) => {
       if (e.side !== 'corp' || ctx.state.corp.badPublicity === 0) return;
-      askChoice(ctx, 'corp', 'Luana Campos: host 1 bad publicity on it to gain 3 credits and draw 1 card?', [
+      luanaFlow.choice(ctx, 'host', choiceQuestion('corp', 'Luana Campos: host 1 bad publicity on it to gain 3 credits and draw 1 card?', [
         { id: 'host', label: 'Host 1 bad publicity: gain 3, draw 1' },
         { id: 'no', label: 'No' },
-      ], 'host');
+      ]));
     },
   },
   onUninstall: ({ state, card }) => {
@@ -95,14 +106,7 @@ export const luana: CardScript = {
     card.tokens[HOSTED_BP] = 0;
     takeBadPublicity(state, hosted);
   },
-  onPromptAnswer: ({ state, card }, _source, answer) => {
-    if (answer.kind !== 'effect_choice' || answer.optionId !== 'host' || state.corp.badPublicity === 0) return;
-    state.corp.badPublicity -= 1;
-    card.tokens[HOSTED_BP] = (card.tokens[HOSTED_BP] ?? 0) + 1;
-    gainFromCard(state, 'corp', 3, card);
-    drawForEffect(state, 'corp', 1, 'Luana Campos');
-    addLog(state, 'corp', 'Corp hosted 1 bad publicity on Luana Campos and gained 3 [credit].');
-  },
+  ...luanaFlow.script,
 };
 
 // --- Ice --------------------------------------------------------------------

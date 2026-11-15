@@ -5,13 +5,25 @@ import { dealMeatDamage } from '../../../engine/damage';
 import { endTheRun } from '../../../engine/runEnd';
 import { addCounters, turnFlag, TurnFlag, useOncePerTurn } from '../../../engine/cardEffects';
 import { CardScript, EffectContext } from '../../types';
-import { advanceableInstalled, askCards, askChoice } from '../../effects';
+import { advanceableInstalled } from '../../effects';
+import { cards, cardsQuestion, choice, choiceQuestion, prompts } from '../../steps';
 import { ids, isSelf, onceKey, runOnServerOf, serverOf, title } from './helpers';
 
 // Perfect Recall: When you rez this upgrade and whenever an agenda is scored or stolen from
 // this server or its root, place 1 power counter on this upgrade. Hosted power counter: Reveal
 // 1 card in HQ. The Runner cannot steal or trash copies of that card for the remainder of this
 // run. Use this ability only during a run.
+const recallFlow = prompts({
+  reveal: cards(({ state }, a) => {
+    const card = state.corp.hq.find(c => c.instanceId === a.ids[0]);
+    const run = state.activeRun;
+    if (!card || !run) return;
+    revealInHand(state, 'corp', [card]);
+    run.protectedTitles = [...(run.protectedTitles ?? []), title(card)];
+    addLog(state, 'corp', `Corp revealed ${title(card)}: the Runner cannot steal or trash copies of it this run (Perfect Recall).`);
+  }),
+});
+
 export const perfectRecall: CardScript = {
   triggers: {
     rezzed: (ctx, e) => isSelf(ctx, e.card) && addCounters(ctx.card, 'power', 1),
@@ -26,18 +38,10 @@ export const perfectRecall: CardScript = {
         if (!state.activeRun || state.activeRun.accessOnly) return 'Only during a run';
         return state.corp.hq.length > 0 ? null : 'HQ is empty';
       },
-      resolve: ctx => askCards(ctx, 'corp', 'Perfect Recall: reveal 1 card in HQ.', ids(ctx.state.corp.hq), 1, 1, 'reveal'),
+      resolve: ctx => recallFlow.cards(ctx, 'reveal', cardsQuestion('corp', 'Perfect Recall: reveal 1 card in HQ.', ids(ctx.state.corp.hq), 1, 1)),
     },
   ],
-  onPromptAnswer: ({ state }, _source, answer) => {
-    if (answer.kind !== 'effect_cards') return;
-    const card = state.corp.hq.find(c => c.instanceId === answer.cardInstanceIds[0]);
-    const run = state.activeRun;
-    if (!card || !run) return;
-    revealInHand(state, 'corp', [card]);
-    run.protectedTitles = [...(run.protectedTitles ?? []), title(card)];
-    addLog(state, 'corp', `Corp revealed ${title(card)}: the Runner cannot steal or trash copies of it this run (Perfect Recall).`);
-  },
+  ...recallFlow.script,
 };
 
 // The Red Room (Facility): Central server only. The first time each turn an agenda is scored
@@ -68,6 +72,15 @@ export const redRoom: CardScript = {
 const hypeTargets = (state: GameState, serverId: string) =>
   (state.corp.servers[serverId]?.root ?? []).filter(c => advanceableInstalled(state).includes(c));
 
+const hypeFlow = prompts({
+  advance: cards<{ server: string }>(({ state }, a, data) => {
+    const card = hypeTargets(state, String(data.server)).find(c => c.instanceId === a.ids[0]);
+    if (!card) return;
+    card.advancementCounters += 1;
+    addLog(state, 'corp', 'Corp placed 1 advancement counter (Hype Machine).');
+  }),
+});
+
 export const hypeMachine: CardScript = {
   ownRezCostModifier: state => (turnFlag(state, TurnFlag.agendasScoredOrStolen) > 0 ? -6 : 0),
   abilities: [
@@ -80,17 +93,11 @@ export const hypeMachine: CardScript = {
       },
       resolve: ctx => {
         const server = serverOf(ctx.state, ctx.card)!;
-        askCards(ctx, 'corp', 'Hype Machine: place 1 advancement counter on which card?', ids(hypeTargets(ctx.state, server.id)), 1, 1, 'advance', { server: server.id });
+        hypeFlow.cards(ctx, 'advance', cardsQuestion('corp', 'Hype Machine: place 1 advancement counter on which card?', ids(hypeTargets(ctx.state, server.id)), 1, 1), { server: server.id });
       },
     },
   ],
-  onPromptAnswer: ({ state }, source, answer) => {
-    if (answer.kind !== 'effect_cards') return;
-    const card = hypeTargets(state, String(source.data?.server)).find(c => c.instanceId === answer.cardInstanceIds[0]);
-    if (!card) return;
-    card.advancementCounters += 1;
-    addLog(state, 'corp', 'Corp placed 1 advancement counter (Hype Machine).');
-  },
+  ...hypeFlow.script,
 };
 
 // Flagship (Ritzy): HQ or R&D only. Runs against this server cannot be declared successful.
@@ -105,21 +112,25 @@ export const flagship: CardScript = {
 
 // Shackleton Grid (Region): Once per turn -> When the Runner spends credits from outside their
 // credit pool during a run against this server, you may do 4 meat damage. Limit 1 region per server.
+const shackletonFlow = prompts({
+  meat: choice(({ state, card }, a) => {
+    if (a.optionId !== 'yes' || !useOncePerTurn(state, onceKey(card))) return;
+    dealMeatDamage(state, 4);
+  }),
+});
+
 export const shackleton: CardScript = {
   triggers: {
     credits_spent_outside_pool: ctx => {
       const { state, card } = ctx;
       if (!runOnServerOf(state, card) || turnFlag(state, onceKey(card)) > 0) return;
-      askChoice(ctx, 'corp', 'Shackleton Grid: the Runner spent credits from outside their pool. Do 4 meat damage?', [
+      shackletonFlow.choice(ctx, 'meat', choiceQuestion('corp', 'Shackleton Grid: the Runner spent credits from outside their pool. Do 4 meat damage?', [
         { id: 'yes', label: 'Do 4 meat damage' },
         { id: 'no', label: 'Not now' },
-      ], 'meat');
+      ]));
     },
   },
-  onPromptAnswer: ({ state, card }, _source, answer) => {
-    if (answer.kind !== 'effect_choice' || answer.optionId !== 'yes' || !useOncePerTurn(state, onceKey(card))) return;
-    dealMeatDamage(state, 4);
-  },
+  ...shackletonFlow.script,
 };
 
 export const vantageCorpUpgradesScripts: Record<string, CardScript> = {
