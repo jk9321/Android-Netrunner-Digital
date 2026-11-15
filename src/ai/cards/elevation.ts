@@ -93,8 +93,17 @@ function proprionegationAgenda(state: GameState): number {
   return PACE.remoteShare * (pointValue(state.runner.score + typical) - pointValue(state.runner.score)) * 0.5;
 }
 
-/** Devadatta Drone: one more card on an R&D breach. */
-const devadattaPower = (state: GameState): number => PAYOUT_RISK.clickWait * accessWorth(state);
+/**
+ * Devadatta Drone: one more card on an R&D breach. A counter pays only on the NEXT R&D breach, so it is worth the access
+ * on the turn that breach comes: each turn the Runner breaches R&D with p = PACE runs x R&D share x success, the first
+ * breach comes on turn t with p(1-p)^(t-1), paid at perTurn's turn discount (the Runner's payout risk), over the turns
+ * left. At most one access by construction (Runner audit RUNNER-BREACH-EXTRA-ACCESS, Jeff's game #54: priced as an access
+ * next turn, a counter was worth more than the access it buys at the breach, so the Drone was never used).
+ */
+const devadattaPower = (state: GameState): number => {
+  const p = PACE.runs * PACE.rdShare * PACE.success;
+  return perTurn(state, p * accessWorth(state), 'runner', 0, Infinity, 1, 1 - p);
+};
 
 /** Cacophony: 2 counters sabotage 3, the Corp picking its worst cards. */
 const cacophonyPower = (state: GameState): number => (3 * 0.5 * cardRate(state, 'corp')) / 2;
@@ -296,6 +305,8 @@ export const ELEVATION: Record<string, CardAI> = {
     runner: () => 0,
     counters: { power: () => 1.2 }, // 1 more card accessed on an R&D breach
     counterFormulas: { power: devadattaPower },
+    // "Whenever you breach R&D, you may remove 1 hosted power counter to access 1 additional card" (Jeff's game #54)
+    breachAccess: { server: 'rd', counter: 'power' },
   },
   // Principia
   '35032': { synergy: { gives: { breakers: 1 }, wants: { breakers: 1 } } },

@@ -1,4 +1,4 @@
-import { PACE, accessWorth, damageWorth } from '../src/ai/effectValues';
+import { PACE, accessWorth, damageWorth, perTurn } from '../src/ai/effectValues';
 import { PAYOUT_RISK } from '../src/ai/cardProfiles';
 import { CLICK, cardRate } from '../src/ai/valueModel';
 
@@ -159,8 +159,11 @@ describe('the last hand-set counter rates from what each counter turns into (Jef
     expect(strong).toBeGreaterThan(on('35008', 'virus'));
   });
 
-  it('Devadatta Drone: one more R&D access', () => {
-    expect(on('35031', 'power')).toBeCloseTo(PAYOUT_RISK.clickWait * accessWorth(newGame()));
+  it('Devadatta Drone: one more R&D access, on the next R&D breach (ai-runner-fixes: the first breach at the R&D pace)', () => {
+    const s = newGame();
+    const p = PACE.runs * PACE.rdShare * PACE.success;
+    expect(on('35031', 'power')).toBeCloseTo(perTurn(s, p * accessWorth(s), 'runner', 0, Infinity, 1, 1 - p));
+    expect(on('35031', 'power')).toBeLessThan(accessWorth(s)); // a counter is never worth more than the access it buys now
   });
 
   it('Cacophony: half of sabotage 3, the Corp picking its worst cards', () => {

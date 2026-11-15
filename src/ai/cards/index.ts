@@ -64,6 +64,8 @@ export const scoreCreditsOf = (code: string): number => CARDS[code]?.scoreCredit
 export const clickMoneyOf = (code: string): CardAI['clickMoney'] => CARDS[code]?.clickMoney;
 /** Dividends N (CardAI dividends), 0 for a card without it. */
 export const dividendsOf = (code: string): number => CARDS[code]?.dividends ?? 0;
+/** A rig card's extra access on a breach of one server (CardAI.breachAccess). */
+export const breachAccessOf = (code: string): CardAI['breachAccess'] => CARDS[code]?.breachAccess;
 /** A trap whose advancement counters are its effect (CardAI advancePayload; effectValues knownTrap readers). */
 export const advancePayloadOf = (code: string): boolean => !!CARDS[code]?.advancePayload;
 /** Ice with an effect of its own when it is rezzed (CardAI rezEffect; rezModel countedRez). */

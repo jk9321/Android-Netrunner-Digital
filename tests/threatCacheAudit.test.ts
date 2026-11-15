@@ -42,14 +42,14 @@ describe('threat cache: every hit is the value its board budgets to (on-hit audi
     // Planner speed tier 2 (rootDeckAverage): a budget served across decisions whose roots priced the Corp's deck
     // differently (147 mismatches with deckRootKey left out of the key), and one priced while a deck card was being
     // priced on the root (1 mismatch until those asks were priced per board)
-    [1421, 400],
+    // and a click worth cached across boards (clickWorth's key without the board: 2 mismatches by turn 14, action 216)
+    [1421, 220],
   ] as const) {
     it(`deal ${seed}, first ${actions} actions`, () => {
       const r = audit(seed, actions);
       expect(r.checked).toBeGreaterThan(50);
       expect(r.mismatches, JSON.stringify(r.examples)).toBe(0);
-    // Deal 1421 ran 202 actions (to turn 12) before the honest Runner; now 344 (turn 21): about 3.5x the time, not slower
-    // decisions (Runner 2.0 s -> 5.2 s, Corp 22 s -> 81 s over the stretch)
-    }, 900_000);
+    // Deal 1421 on ai-runner-fixes: the Runner wins at about action 230 (turn 14); the first 220 actions take about 60 s
+    }, 300_000);
   }
 });
