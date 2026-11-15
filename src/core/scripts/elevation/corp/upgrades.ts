@@ -4,12 +4,27 @@ import { findInstalledCorpCard, removeCard } from '../../../engine/helpers';
 import { trashInstalledRunnerCard } from '../../../engine/damage';
 import { trashInstalledCard } from '../../../engine/cardEffects';
 import { CardScript } from '../../types';
-import { askCards, askEvenIfNone, askChoice, askCorpInstall, gainCredits, installCorpChoice } from '../../effects';
+import { gainCredits, installCorpChoice } from '../../effects';
+import { cards, cardsQuestion, choice, choiceQuestion, InstallData, prompts } from '../../steps';
 import { archivesCards, ids, installable, serverOf, type } from './helpers';
 
 // Mercia B4LL4RD: When your action phase ends, you may install 1 piece of ice from HQ,
 // paying 1 credit less. If you do, move this upgrade to the root of the server that piece of ice is protecting.
 const merciaTargets = (state: GameState) => installable(state, state.corp.hq.filter(c => type(c) === 'ice'), { discount: 1 });
+
+const merciaFlow = prompts({
+  pick: cards((ctx, a) => {
+    if (a.ids.length > 0) merciaFlow.corpInstall(ctx, a.ids[0], 'server', { discount: 1 });
+  }),
+  server: choice<InstallData>(({ state, card }, a, _d, source) => {
+    const serverId = installCorpChoice(state, source, a.raw, { discount: 1 });
+    const from = serverOf(state, card);
+    if (!serverId || !from || from.id === serverId) return;
+    removeCard(from.root, card);
+    state.corp.servers[serverId].root.push(card);
+    addLog(state, 'corp', `Mercia B4LL4RD moved to ${state.corp.servers[serverId].name}.`);
+  }),
+});
 
 export const mercia: CardScript = {
   triggers: {
@@ -17,57 +32,61 @@ export const mercia: CardScript = {
       if (e.side !== 'corp') return;
       const ice = merciaTargets(ctx.state);
       // Asked even with no ice in HQ when the Corp's stops are on ALL (4.3.2, see askEvenIfNone)
-      askEvenIfNone(ctx, 'corp', ice.length > 0, () => askCards(ctx, 'corp', 'Mercia B4LL4RD: you may install 1 ice from HQ, paying 1 credit less.', ids(ice), 0, 1, 'pick'), 'Mercia B4LL4RD: no ice in HQ you can install.');
+      merciaFlow.evenIfNone(
+        ctx,
+        'corp',
+        ice.length > 0,
+        () => merciaFlow.ask(ctx, 'pick', cardsQuestion('corp', 'Mercia B4LL4RD: you may install 1 ice from HQ, paying 1 credit less.', ids(ice), 0, 1)),
+        'Mercia B4LL4RD: no ice in HQ you can install.',
+      );
     },
   },
-  onPromptAnswer: (ctx, source, answer) => {
-    const { state, card } = ctx;
-    if (source.step === 'pick' && answer.kind === 'effect_cards' && answer.cardInstanceIds.length > 0) {
-      askCorpInstall(ctx, answer.cardInstanceIds[0], 'server', { discount: 1 });
-    } else if (source.step === 'server') {
-      const serverId = installCorpChoice(state, source, answer, { discount: 1 });
-      const from = serverOf(state, card);
-      if (!serverId || !from || from.id === serverId) return;
-      removeCard(from.root, card);
-      state.corp.servers[serverId].root.push(card);
-      addLog(state, 'corp', `Mercia B4LL4RD moved to ${state.corp.servers[serverId].name}.`);
-    }
-  },
+  ...merciaFlow.script,
 };
 
 // Mitra Aman: Whenever the Runner approaches a piece of ice protecting this server, you may
 // trash this upgrade. If you do, gain 3 credits and you may swap the ice being approached
 // with a piece of ice from Archives or HQ.
+type MitraData = { iceId: string };
+
+const mitraFlow = prompts({
+  trash: choice<MitraData>((ctx, a, { iceId }) => {
+    const { state, card } = ctx;
+    if (a.optionId !== 'trash' || !serverOf(state, card)) return;
+    trashInstalledCard(state, card);
+    gainCredits(state, 'corp', 3);
+    addLog(state, 'corp', 'Corp trashed Mitra Aman and gained 3 [credit].');
+    const swaps = [...state.corp.hq, ...archivesCards(state)].filter(c => type(c) === 'ice');
+    // Asked even with no ice in HQ or Archives when the Corp's stops are on ALL (4.3.2, 4.4.6c, see askEvenIfNone)
+    mitraFlow.evenIfNone(
+      ctx,
+      'corp',
+      swaps.length > 0,
+      () => mitraFlow.ask(ctx, 'swap', cardsQuestion('corp', 'Mitra Aman: you may swap the approached ice with ice from HQ or Archives.', ids(swaps), 0, 1), { iceId }),
+      'Mitra Aman: no ice in HQ or Archives to swap in.',
+    );
+  }),
+  swap: cards<MitraData>(({ state }, a, { iceId }) => {
+    if (a.ids.length > 0) swapWithInstalled(state, iceId, a.ids[0]);
+  }),
+});
+
 export const mitraAman: CardScript = {
   triggers: {
     approach_ice: (ctx, e) => {
       if (serverOf(ctx.state, ctx.card)?.id !== e.server) return;
-      askChoice(ctx, 'corp', 'Mitra Aman: trash it to gain 3 credits (and you may swap the approached ice)?', [
-        { id: 'trash', label: 'Trash Mitra Aman' },
-        { id: 'no', label: 'No' },
-      ], 'trash', { iceId: e.ice.instanceId });
+      mitraFlow.ask(
+        ctx,
+        'trash',
+        choiceQuestion('corp', 'Mitra Aman: trash it to gain 3 credits (and you may swap the approached ice)?', [
+          { id: 'trash', label: 'Trash Mitra Aman' },
+          { id: 'no', label: 'No' },
+        ]),
+        { iceId: e.ice.instanceId },
+      );
     },
   },
-  onPromptAnswer: (ctx, source, answer) => {
-    const { state, card } = ctx;
-    if (source.step === 'trash' && answer.kind === 'effect_choice' && answer.optionId === 'trash') {
-      if (!serverOf(state, card)) return;
-      trashInstalledCard(state, card);
-      gainCredits(state, 'corp', 3);
-      addLog(state, 'corp', 'Corp trashed Mitra Aman and gained 3 [credit].');
-      const swaps = [...state.corp.hq, ...archivesCards(state)].filter(c => type(c) === 'ice');
-      // Asked even with no ice in HQ or Archives when the Corp's stops are on ALL (4.3.2, 4.4.6c, see askEvenIfNone)
-      askEvenIfNone(
-        ctx,
-        'corp',
-        swaps.length > 0,
-        () => askCards(ctx, 'corp', 'Mitra Aman: you may swap the approached ice with ice from HQ or Archives.', ids(swaps), 0, 1, 'swap', { iceId: source.data!.iceId as string }),
-        'Mitra Aman: no ice in HQ or Archives to swap in.',
-      );
-    } else if (source.step === 'swap' && answer.kind === 'effect_cards' && answer.cardInstanceIds.length > 0) {
-      swapWithInstalled(state, source.data!.iceId as string, answer.cardInstanceIds[0]);
-    }
-  },
+  ...mitraFlow.script,
 };
 
 /** Swaps an installed ice with a piece of ice in HQ or Archives (Mitra Aman). */

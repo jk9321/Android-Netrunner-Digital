@@ -22,7 +22,8 @@ import {
   useOncePerTurn,
 } from '../../../engine/cardEffects';
 import { CardScript, EffectContext } from '../../types';
-import { askCards, askChoice, gainCredits } from '../../effects';
+import { gainCredits } from '../../effects';
+import { cards, cardsQuestion, choice, choiceQuestion, prompts } from '../../steps';
 import { archivesCards, askInstallFromHQ, ids, installFromHQ, isSelf, keywords, onceKey, safePlayBlockerFrom, serverOf, type } from './helpers';
 
 export const humanoidResources: CardScript = {
@@ -58,21 +59,29 @@ export const ottoCampaign: CardScript = {
 // Byte!: While the Runner is accessing this asset in R&D, they must reveal it. When the
 // Runner accesses this asset anywhere except in Archives, you may pay 4 credits. If you
 // do, give the Runner 1 tag and do 3 net damage.
+const byteFlow = prompts({
+  pay: choice(({ state }, a) => {
+    if (a.optionId !== 'pay' || state.corp.credits < 4) return;
+    state.corp.credits -= 4;
+    giveTags(state, 1);
+    dealNetDamage(state, 3);
+  }),
+});
+
 export const byte: CardScript = {
   revealedOnRdAccess: true,
   onAccessed: (ctx, where) => {
     if (where === 'archives' || ctx.state.corp.credits < 4) return;
-    askChoice(ctx, 'corp', 'Byte!: pay 4 credits to give the Runner 1 tag and do 3 net damage?', [
-      { id: 'pay', label: 'Pay 4: 1 tag and 3 net damage' },
-      { id: 'no', label: 'No' },
-    ], 'pay');
+    byteFlow.ask(
+      ctx,
+      'pay',
+      choiceQuestion('corp', 'Byte!: pay 4 credits to give the Runner 1 tag and do 3 net damage?', [
+        { id: 'pay', label: 'Pay 4: 1 tag and 3 net damage' },
+        { id: 'no', label: 'No' },
+      ]),
+    );
   },
-  onPromptAnswer: ({ state }, _source, answer) => {
-    if (answer.kind !== 'effect_choice' || answer.optionId !== 'pay' || state.corp.credits < 4) return;
-    state.corp.credits -= 4;
-    giveTags(state, 1);
-    dealNetDamage(state, 3);
-  },
+  ...byteFlow.script,
 };
 
 // Phật Gioan Baotixita: When your discard phase ends, place 1 power counter on this asset.
@@ -84,8 +93,16 @@ const phatTrigger = (ctx: EffectContext) => {
   if (!useOncePerTurn(ctx.state, onceKey(ctx.card))) return;
   const max = phatMaxRemoved(ctx.card);
   const options = Array.from({ length: max + 1 }, (_, n) => ({ id: String(n), label: `Remove ${n} power counter(s): ${n + 1} net damage` }));
-  askChoice(ctx, 'corp', 'Phật Gioan Baotixita: remove power counters for extra net damage.', options, 'damage');
+  phatFlow.ask(ctx, 'damage', choiceQuestion('corp', 'Phật Gioan Baotixita: remove power counters for extra net damage.', options));
 };
+
+const phatFlow = prompts({
+  damage: choice(({ state, card }, a) => {
+    const n = Math.min(Number(a.optionId), counters(card, 'power'));
+    removeCounters(card, 'power', n);
+    dealNetDamage(state, 1 + n);
+  }),
+});
 
 export const phat: CardScript = {
   liveValue: (_state, card) => `Next score or steal: up to ${1 + phatMaxRemoved(card)} net damage`,
@@ -94,36 +111,39 @@ export const phat: CardScript = {
     agenda_scored: phatTrigger,
     agenda_stolen: phatTrigger,
   },
-  onPromptAnswer: ({ state, card }, _source, answer) => {
-    if (answer.kind !== 'effect_choice') return;
-    const n = Math.min(Number(answer.optionId), counters(card, 'power'));
-    removeCounters(card, 'power', n);
-    dealNetDamage(state, 1 + n);
-  },
+  ...phatFlow.script,
 };
 
 // Idiosyncresis: You can advance this asset. When your turn begins, you may trash this
 // asset. If you do, for each hosted advancement counter, gain 3 credits and the Runner loses 2.
+const idiosyncresisFlow = prompts({
+  trash: choice(({ state, card }, a) => {
+    if (a.optionId !== 'trash' || !serverOf(state, card)) return;
+    const n = card.advancementCounters;
+    trashInstalledCard(state, card);
+    gainCredits(state, 'corp', 3 * n);
+    state.runner.credits = Math.max(0, state.runner.credits - 2 * n);
+    addLog(state, 'corp', `Corp trashed Idiosyncresis: gained ${3 * n} [credit], the Runner lost ${2 * n} [credit].`);
+  }),
+});
+
 export const idiosyncresis: CardScript = {
   liveValue: (_state, card) => `Trash now: gain ${3 * card.advancementCounters}[credit], Runner loses ${2 * card.advancementCounters}[credit]`,
   triggers: {
     turn_begins: (ctx, e) => {
       const n = ctx.card.advancementCounters;
       if (e.side !== 'corp' || n === 0) return;
-      askChoice(ctx, 'corp', `Idiosyncresis: trash it to gain ${3 * n} credits and make the Runner lose ${2 * n}?`, [
-        { id: 'trash', label: `Trash it: gain ${3 * n}, Runner loses ${2 * n}` },
-        { id: 'no', label: 'Keep it' },
-      ], 'trash');
+      idiosyncresisFlow.ask(
+        ctx,
+        'trash',
+        choiceQuestion('corp', `Idiosyncresis: trash it to gain ${3 * n} credits and make the Runner lose ${2 * n}?`, [
+          { id: 'trash', label: `Trash it: gain ${3 * n}, Runner loses ${2 * n}` },
+          { id: 'no', label: 'Keep it' },
+        ]),
+      );
     },
   },
-  onPromptAnswer: ({ state, card }, _source, answer) => {
-    if (answer.kind !== 'effect_choice' || answer.optionId !== 'trash' || !serverOf(state, card)) return;
-    const n = card.advancementCounters;
-    trashInstalledCard(state, card);
-    gainCredits(state, 'corp', 3 * n);
-    state.runner.credits = Math.max(0, state.runner.credits - 2 * n);
-    addLog(state, 'corp', `Corp trashed Idiosyncresis: gained ${3 * n} [credit], the Runner lost ${2 * n} [credit].`);
-  },
+  ...idiosyncresisFlow.script,
 };
 
 // Public Access Plaza: When your turn begins, gain 1 credit. Threat 2 -> When the Runner
@@ -161,6 +181,35 @@ export const anthill: CardScript = {
 const plutusOperations = (state: GameState) =>
   archivesCards(state).filter(c => type(c) === 'operation' && /transaction/i.test(keywords(c)) && !safePlayBlockerFrom(state, c));
 
+type RezCost = { cost: number };
+
+const plutusFlow = prompts({
+  rez_cost: choice<RezCost>((ctx, a, { cost }) => {
+    const { state, card } = ctx;
+    if (a.optionId === 'hq') {
+      plutusFlow.ask(ctx, 'rez_trash', cardsQuestion('corp', 'Plutus: reveal and trash 3 cards from HQ.', ids(state.corp.hq), 3, 3), { cost });
+      return;
+    }
+    const agenda = forfeitable(state).find(c => c.instanceId === a.optionId);
+    if (!agenda) return;
+    forfeitAgenda(state, agenda);
+    spendCredits(state, 'corp', cost, { kind: 'rez', card });
+    completeRez(state, card);
+  }),
+  rez_trash: cards<RezCost>(({ state, card }, a, { cost }) => {
+    const trashed = corpTrashFromHQ(state, a.ids, true);
+    addLog(state, 'corp', `Corp revealed and trashed ${trashed.map(c => cardDef(c).title).join(', ')} (Plutus).`);
+    spendCredits(state, 'corp', cost, { kind: 'rez', card });
+    completeRez(state, card);
+  }),
+  play: cards(({ state }, a) => {
+    const op = archivesCards(state).find(c => c.instanceId === a.ids[0]);
+    if (!op) return;
+    const zone = state.corp.archives.faceUp.includes(op) ? state.corp.archives.faceUp : state.corp.archives.faceDown;
+    playCardFrom(state, 'corp', op, zone, { fromHand: false, removeAfter: true });
+  }),
+});
+
 export const plutus: CardScript = {
   rezBlocker: (state, card, cost) => {
     if (availableCredits(state, 'corp', { kind: 'rez', card }) < cost) return 'Not enough credits to rez';
@@ -168,43 +217,24 @@ export const plutus: CardScript = {
   },
   payRez: (ctx, cost) => {
     const { state } = ctx;
-    askChoice(ctx, 'corp', 'Plutus: forfeit 1 agenda or trash 3 cards from HQ to rez it.', [
-      ...forfeitable(state).map(a => ({ id: a.instanceId, label: `Forfeit ${cardDef(a).title}` })),
-      ...(state.corp.hq.length >= 3 ? [{ id: 'hq', label: 'Reveal and trash 3 cards from HQ' }] : []),
-    ], 'rez_cost', { cost });
+    plutusFlow.ask(
+      ctx,
+      'rez_cost',
+      choiceQuestion('corp', 'Plutus: forfeit 1 agenda or trash 3 cards from HQ to rez it.', [
+        ...forfeitable(state).map(a => ({ id: a.instanceId, label: `Forfeit ${cardDef(a).title}` })),
+        ...(state.corp.hq.length >= 3 ? [{ id: 'hq', label: 'Reveal and trash 3 cards from HQ' }] : []),
+      ]),
+      { cost },
+    );
   },
   triggers: {
     turn_begins: (ctx, e) => {
       const ops = plutusOperations(ctx.state);
       if (e.side !== 'corp' || ops.length === 0) return;
-      askCards(ctx, 'corp', 'Plutus: you may play 1 transaction operation from Archives (then remove it from the game).', ids(ops), 0, 1, 'play');
+      plutusFlow.ask(ctx, 'play', cardsQuestion('corp', 'Plutus: you may play 1 transaction operation from Archives (then remove it from the game).', ids(ops), 0, 1));
     },
   },
-  onPromptAnswer: (ctx, source, answer) => {
-    const { state, card } = ctx;
-    const cost = Number(source.data?.cost ?? 0);
-    if (source.step === 'rez_cost' && answer.kind === 'effect_choice') {
-      if (answer.optionId === 'hq') {
-        askCards(ctx, 'corp', 'Plutus: reveal and trash 3 cards from HQ.', ids(state.corp.hq), 3, 3, 'rez_trash', { cost });
-        return;
-      }
-      const agenda = forfeitable(state).find(a => a.instanceId === answer.optionId);
-      if (!agenda) return;
-      forfeitAgenda(state, agenda);
-      spendCredits(state, 'corp', cost, { kind: 'rez', card });
-      completeRez(state, card);
-    } else if (source.step === 'rez_trash' && answer.kind === 'effect_cards') {
-      const trashed = corpTrashFromHQ(state, answer.cardInstanceIds, true);
-      addLog(state, 'corp', `Corp revealed and trashed ${trashed.map(c => cardDef(c).title).join(', ')} (Plutus).`);
-      spendCredits(state, 'corp', cost, { kind: 'rez', card });
-      completeRez(state, card);
-    } else if (source.step === 'play' && answer.kind === 'effect_cards' && answer.cardInstanceIds.length > 0) {
-      const op = archivesCards(state).find(c => c.instanceId === answer.cardInstanceIds[0]);
-      if (!op) return;
-      const zone = state.corp.archives.faceUp.includes(op) ? state.corp.archives.faceUp : state.corp.archives.faceDown;
-      playCardFrom(state, 'corp', op, zone, { fromHand: false, removeAfter: true });
-    }
-  },
+  ...plutusFlow.script,
 };
 
 // --- Ice ----------------------------------------------------------------------
