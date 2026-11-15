@@ -28,6 +28,7 @@ const CODES_IN_VALUE_FILES: Record<string, string> = {
 /** Plan switches that are off, each with why it stays in the code. */
 const OFF_SWITCHES: Record<string, string> = {
   rigEffects: 'experiment, off until a batch says so',
+  corpCore: 'Step 4 Stage C (temporary): the new order, off while it is built; on for C3, deleted with the ranking in C7',
   icePosition: "Jeff's ice-at-its-position model (Scatter Field); lost its batch, kept with its test for re-testing",
   'clickByPlay.corp': 'Corp side lost its batch; kept for re-testing',
   runCreditsSlide: 'breaks castWhileAble; retest once Runner income has one slide helper (cleanup item 4)',
@@ -211,16 +212,17 @@ describe('AI code health (audit guards)', () => {
 
   it("keeps the hold owner's readers to this list (corp/hold.ts serverHold)", () => {
     const readers = aiFiles().filter(f => f.replace(/\\/g, '/') !== 'corp/hold.ts' && /\bserverHold\b/.test(aiText(f))).map(f => f.replace(/\\/g, '/')).sort();
-    expect(readers).toEqual(['corp/lines.ts', 'corp/placement.ts', 'corp/rez.ts', 'corp/rezMoney.ts']);
+    expect(readers).toEqual(['corp/candidates.ts', 'corp/lines.ts', 'corp/placement.ts', 'corp/rez.ts', 'corp/rezMoney.ts']);
   });
 
   // src/ai's total may only go down. Stage B ends at 13,938: beta at 545f146 is 13,851 (the Runner draws branch added 52
   // to the Stage A tree's 13,799), Stage B adds 77 (corp/core.ts's pipeline and the B5 time fix; AI Coordinator
   // 2026-11-14 21:05Z) and review R8 adds 10 (board.ts and corpPorts.ts, the seam that takes corp/ out of the cycle).
-  // Stage C repays this when the ranking is deleted; target after C is below 13,799
-  it('keeps src/ai/corp under 1,900 lines and src/ai at or under the Stage B total (13,938)', () => {
+  // Stage C repays this when the ranking is deleted; target after C is below 13,799. corp/ grows by the candidates and
+  // the moved rules: brief-stage-c.md sets its guard at 2,150 (measured at the checkpoint)
+  it('keeps src/ai/corp at or under 2,150 lines and src/ai at or under the Stage B total (13,938)', () => {
     const corp = aiFiles().filter(f => f.replace(/\\/g, '/').startsWith('corp/')).reduce((n, f) => n + lines(f), 0);
-    expect(corp).toBeLessThan(1900);
+    expect(corp).toBeLessThanOrEqual(2150);
     expect(aiFiles().reduce((n, f) => n + lines(f), 0)).toBeLessThanOrEqual(13938);
   });
 });

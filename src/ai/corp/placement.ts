@@ -9,7 +9,7 @@ import { mainRemote, withIceInstalled } from '../board';
 import { profileOf } from '../cardProfiles';
 import { serverHold } from './hold';
 import { rezMoney } from './rezMoney';
-import { centralStake } from './pools';
+import { centralStake, stake } from './pools';
 
 /**
  * Owner: where a card goes (Step 4 Stage A, spec-step4-corp-core.md 1.8; registry row "placement").
@@ -45,7 +45,7 @@ const serverOf = (s: GameState, id: string): string | undefined =>
 type ServerLike = GameState['corp']['servers'][string];
 
 
-export type PlacementReason = 'pick' | 'scoreLine' | 'assetCover' | 'centralIce' | 'iceRedirect' | 'assetPartner' | 'assetLine:econIced' | 'assetLine:trapOffScoring';
+export type PlacementReason = 'pick' | 'fallback' | 'scoreLine' | 'assetCover' | 'centralIce' | 'iceRedirect' | 'assetPartner' | 'assetLine:econIced' | 'assetLine:trapOffScoring';
 
 export interface Placement {
   /** A server id, or 'new' for a new remote. */
@@ -111,8 +111,58 @@ function placeRules(state: GameState, card: CardInstance, from: Install): { acti
   if (redirect && isInstall(redirect)) return { action: redirect, reason: 'iceRedirect' };
   const partner = assetPartner(state, from);
   if (partner && isInstall(partner)) return { action: partner, reason: 'assetPartner' };
-  // 5. The pick, with the installScore asset line that put it there
+  // 5. Ice no rule placed and that changes no count where it stands: spec 1.8 ice rule 3 (C1), the fallback
+  if (typeOf(card) === 'ice' && plan().corpCore) {
+    const fallback = iceFallback(state, card, from);
+    if (fallback) return { action: fallback, reason: 'fallback' };
+  }
+  // 6. The pick, with the installScore asset line that put it there
   return { action: from, reason: assetLine(state, card, from) };
+}
+
+/**
+ * What an ice install does to the hold count of its server (the hold owner, runner's next turn): whether the count
+ * improves (the server comes to hold, or the Runner has fewer entries), the stake there, and whether the server is the
+ * scoring remote that does not hold (c0-rulings addendum 03:40Z: at stake by purpose). Null for a new remote.
+ * Read by the candidates' lines 2 and 6 and by the fallback below: one computation.
+ */
+export function iceCount(state: GameState, a: Install, card: CardInstance, after: GameState) {
+  if (a.asNewRemote || !a.targetServerId) return null;
+  const server = a.targetServerId;
+  const loss = stake(state, server, { leaving: card.instanceId }).loss;
+  const scoring = !(loss > 0) && scoringShort(state)?.id === server;
+  const was = serverHold(state, server, { when: 'runnerTurn' });
+  const now = serverHold(after, server, { when: 'runnerTurn', corpCredits: after.corp.credits });
+  const improves = (now.holds && !was.holds) || (!now.holds && now.entries < was.entries);
+  return { server, loss, scoring, was, now, improves, staked: improves && (loss > 0 || scoring) };
+}
+
+/**
+ * Spec 1.8 ice rule 3 (Stage C1, replacing installScore's per-server numbers): ice that changes no count where it was
+ * proposed goes to the bare or thinnest of HQ and R&D (ties: the larger central stake, as centralIce), when the Corp can
+ * pay its install there (1 credit per ice already in front, rule 8.5.11a) and its rez within keep; else to the scoring
+ * remote. Ice that changes a count on a staked server stays (line 2), and ice into a new remote stays while HQ holds an
+ * agenda or asset to go behind it this turn (rule 4: a build pair, two clicks). Null: the proposal stands.
+ */
+function iceFallback(state: GameState, card: CardInstance, from: Install): Install | null {
+  if (!isCorpMain(state)) return null;
+  if (from.asNewRemote || !from.targetServerId) {
+    const root = state.corp.hq.some(c => c.instanceId !== card.instanceId && (typeOf(c) === 'agenda' || typeOf(c) === 'asset'));
+    if (root && state.corp.clicks >= 2) return null;
+  } else {
+    const after = executeAction(state, from);
+    const count = after ? iceCount(state, from, card, after) : null;
+    if (count?.staked) return null;
+  }
+  const keep = rezMoney(state).keep;
+  const centralStakes = centralStake(state, card.instanceId);
+  const paid = (id: string) => state.corp.credits - state.corp.servers[id].ice.length - rezCostOf(state, card) >= keep;
+  const central = (['hq', 'rd'] as const)
+    .filter(paid)
+    .sort((x, y) => state.corp.servers[x].ice.length - state.corp.servers[y].ice.length || centralStakes[y] - centralStakes[x])[0];
+  const to = central ?? scoringRemote(state)?.id;
+  if (!to || to === from.targetServerId) return null;
+  return (legalShape(state, { type: 'INSTALL_CARD', cardInstanceId: card.instanceId, targetServerId: to }) as Install | undefined) ?? null;
 }
 
 /**
@@ -135,6 +185,16 @@ function assetLine(state: GameState, card: CardInstance, from: Install): Placeme
   if (econ && server.ice.length > 0 && server.root.length === 0 && server.id !== main?.id) return 'assetLine:econIced';
   if (!econ && isTrap(card.cardCode) && server.id !== main?.id) return 'assetLine:trapOffScoring';
   return 'pick';
+}
+
+/**
+ * The legal install `from` moved to a placement's server (and its trash-first list), the form the candidates
+ * (corp/candidates.ts) offer: the one place an install action is given a destination outside the rules above.
+ */
+export function placedInstall<A extends GameAction & { type: 'INSTALL_CARD' }>(from: A, p: Placement): A {
+  const at = p.server === 'new' ? { asNewRemote: true } : { targetServerId: p.server };
+  const rest = Object.fromEntries(Object.entries(from).filter(([k]) => k !== 'targetServerId' && k !== 'asNewRemote' && k !== 'trashFirst'));
+  return { ...rest, ...at, ...(p.trash ? { trashFirst: p.trash } : {}) } as A;
 }
 
 /** The install action a placement stands for (its first step when it pairs an ice in front), for comparing with a played move. */
@@ -172,39 +232,57 @@ function startTurnStep(state: GameState, held: HeldLine): GameAction | null | 'd
  * capability against the Runner's credits as they stand plus its clicks' credits (holdCost; 3.4.3a, 6.9.2b-c).
  */
 export function scoreInTwoPick(state: GameState, pick: GameAction, held: HeldLine | null): { action: GameAction; held: HeldLine | null } {
+  const r = twoTurn(state, pick, held);
+  return { action: r.action ?? pick, held: r.held };
+}
+
+/**
+ * Q5 before the look-ahead (Stage C, spec 1.3 authority point 2): the step a held or newly found two-turn score line
+ * plays now, or null when the line (if any) has only spare clicks left or no line exists. Asset lines are begun from
+ * the Corp's pick (assetCover reads it) and are not found here. Called on a copy of the held line: corp/core.ts then
+ * plays the step through scoreInTwoPick, which keeps the line.
+ */
+export function lineStep(state: GameState, held: HeldLine | null): GameAction | null {
+  return twoTurn(state, null, held).action;
+}
+
+/** scoreInTwoPick's body; with no pick (lineStep), no asset line is begun and the spare clicks return null. */
+function twoTurn(state: GameState, pick: GameAction | null, held: HeldLine | null): { action: GameAction | null; held: HeldLine | null } {
+  const quiet = !pick;
+  const say = (a: 'scoreInTwo', b: 'dropped' | 'begun' | 'steps' | 'vetoed' | 'finished') => void (quiet || tally(a, b));
   if (!plan().scoreInTwo || !isCorpMain(state) || state.corp.clicks <= 0) return { action: pick, held: held && held.game === state.id ? held : null };
   let h = held && held.game === state.id && held.turn <= state.turnNumber ? held : null;
   if (h && h.turn < state.turnNumber && h.line.kind !== 'asset') {
     const step = finishTurnStep(state, h);
     if (step === 'done') {
-      tally('scoreInTwo', 'finished');
+      say('scoreInTwo', 'finished');
       return { action: pick, held: null };
     }
     if (step === 'drop') {
-      tally('scoreInTwo', 'dropped');
+      say('scoreInTwo', 'dropped');
       h = null;
     } else {
       if (step.type === 'SCORE_AGENDA') {
-        tally('scoreInTwo', 'finished');
+        say('scoreInTwo', 'finished');
         return { action: step, held: null };
       }
-      if (!sameAction(pick, step as unknown as Record<string, unknown>)) tally('scoreInTwo', 'steps');
+      if (pick && !sameAction(pick, step as unknown as Record<string, unknown>)) say('scoreInTwo', 'steps');
       return { action: step, held: h };
     }
   }
   // An asset line (plan.assetCover) is done once the asset is installed
   if (h && h.line.kind === 'asset' && (h.turn < state.turnNumber || !state.corp.hq.some(c => c.instanceId === h!.line.agendaId))) h = null;
   if (h && h.turn === state.turnNumber && !state.corp.hq.some(c => c.instanceId === h!.line.agendaId) && !lineHolds(state, h.line.agendaId)) {
-    tally('scoreInTwo', 'dropped');
+    say('scoreInTwo', 'dropped');
     h = null;
   }
   if (!h) {
-    const line = scoreInTwo(state) ?? assetCover(state, pick);
+    const line = scoreInTwo(state) ?? (pick ? assetCover(state, pick) : null);
     if (!line) return { action: pick, held: null };
     const card = installedAgendas(state).find(a => a.card.instanceId === line.agendaId)?.card;
     h = { game: state.id, turn: state.turnNumber, line, server: line.server === 'new remote' ? null : line.server, counters: card?.advancementCounters ?? 0 };
-    if (!line.kind) {
-      tally('scoreInTwo', 'begun');
+    if (!line.kind && !quiet) {
+      say('scoreInTwo', 'begun');
       note(d => d.scoreInTwoLines.push({ turn: state.turnNumber, agendaId: line.agendaId, form: line.form }));
     }
   }
@@ -212,18 +290,19 @@ export function scoreInTwoPick(state: GameState, pick: GameAction, held: HeldLin
   const agendaLine = !h.line.kind;
   const step = startTurnStep(state, h);
   if (step === 'drop') {
-    if (agendaLine) tally('scoreInTwo', 'dropped');
+    if (agendaLine) say('scoreInTwo', 'dropped');
     return { action: pick, held: null };
   }
   if (step) {
-    if (agendaLine && !sameAction(pick, step as unknown as Record<string, unknown>)) tally('scoreInTwo', 'steps');
+    if (agendaLine && pick && !sameAction(pick, step as unknown as Record<string, unknown>)) say('scoreInTwo', 'steps');
     return { action: step, held: h };
   }
+  if (!pick) return { action: null, held: h };
   // The spare clicks: the Corp's pick while the line still holds after it (an illegal pick is the engine's to refuse)
   if (lineHolds(spareAfter(state, pick), h.line.agendaId)) return { action: pick, held: h };
   const credit = legalShape(state, { type: 'GAIN_CREDIT' });
   if (!credit) return { action: pick, held: h };
-  if (agendaLine) tally('scoreInTwo', 'vetoed');
+  if (agendaLine) say('scoreInTwo', 'vetoed');
   return { action: credit, held: h };
 }
 
@@ -243,7 +322,7 @@ function keepFloor(state: GameState, agendas: CardInstance[]): number {
 }
 
 /** The scoring remote when it does not hold by the count (holdCost against runnerBudget with what the Corp ends the turn on, less keepFloor for its agendas); null when it holds or there is none. iceRedirect and assetCover read it. */
-function scoringShort(state: GameState): ServerLike | null {
+export function scoringShort(state: GameState): ServerLike | null {
   const scoring = scoringRemote(state);
   if (!scoring) return null;
   const agendas = state.corp.hq.filter(isAgenda);

@@ -30,7 +30,8 @@ import { econValue, upgradeValue } from './cardValues';
 import { counterWorth } from './counterValues';
 import { plan, pricing, withPricing } from './pricing';
 import { dividendsOf, setupOperation } from './cards';
-import { CorpMemory, corpDecide, isPettyCash } from './corp/core';
+import { CorpMemory, corpDecide } from './corp/core';
+import { asRanked, corpCandidates, isPettyCash, plannerIntake } from './corp/candidates';
 import { corpSeenGrip } from './oracle';
 
 
@@ -153,13 +154,15 @@ export class HeuristicCorpAI implements Agent {
   private plan(state: GameState, ranked: ScoredAction[]): GameAction | null {
     const rollout = new HeuristicCorpAI({ synergy: this.synergy, planner: false });
     const reply = plan().runnerReply ? (s: GameState, leaf: (s: GameState) => number) => runnerReply(s, this.synergy, leaf) : undefined;
-    return planTurn(state, 'corp', ranked, { rank: s => rollout.rankMainActions(s), answer: s => rollout.chooseAction(s), reply, memory: this.planMemory }, this.synergy);
+    return planTurn(state, 'corp', ranked, { rank: s => rollout.rankMainActions(s), answer: s => rollout.chooseAction(s), reply, memory: this.planMemory, ...(plan().corpCore ? { intake: plannerIntake } : {}) }, this.synergy);
   }
 
   /** Main-phase actions, best first, with this AI's score for each (the search AI starts from these). */
   rankMainActions(state: GameState, legal = getLegalActions(state, 'corp')): ScoredAction[] {
     decisionContext(state, 'corp');
     this.freeActions.start(state, state.corp.clicks);
+    // plan.corpCore (Stage C): the nine-line order (corp/candidates.ts); the position in it is the only number
+    if (plan().corpCore) return asRanked(state, corpCandidates(state, legal, { held: this.memory.heldLine, freeExhausted: this.freeActions.exhausted }));
     const before = evaluate(state, 'corp');
     const iceTrash = this.synergy;
     const ranked = [...legal, ...(iceTrash ? iceTrashInstalls(state) : [])]

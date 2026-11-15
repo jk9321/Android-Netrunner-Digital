@@ -37,7 +37,7 @@ import { econValue } from '../../src/ai/cardValues';
 import { serverHold } from '../../src/ai/corp/hold';
 import { stake } from '../../src/ai/corp/pools';
 import { HeldLine, heldLaterStep, isCorpMain } from '../../src/ai/corp/lines';
-import { scoreInTwoPick } from '../../src/ai/corp/placement';
+import { scoreInTwoPick, scoringShort } from '../../src/ai/corp/placement';
 import { isPettyCash } from '../../src/ai/corp/core';
 import { evaluate } from '../../src/ai/evaluate';
 import { simulate } from '../../src/ai/prompts';
@@ -62,7 +62,7 @@ const out = {
   failed: {} as Record<string, number>,
   /** per source kind ('deal' | 'human'), the same counts */
   bySrc: {} as Record<string, { reached: number; played: Record<string, number>; counts: Record<string, number> }>,
-  iceKinds: { two: 0, four: 0, nine: 0, nineExisting: 0, nineNew: 0 },
+  iceKinds: { two: 0, twoScoring: 0, four: 0, nine: 0, nineExisting: 0, nineNew: 0 },
   examples: {} as Record<string, string[]>,
   errors: 0,
 };
@@ -101,7 +101,11 @@ type Install = GameAction & { type: 'INSTALL_CARD'; cardInstanceId: string; targ
 function changesCount(s: GameState, a: Install, card: CardInstance): boolean {
   if (a.asNewRemote || !a.targetServerId) return false;
   const server = a.targetServerId;
-  if (!(stake(s, server, { leaving: card.instanceId }).loss > 0)) return false;
+  // Line 2's stake (c0-rulings.md addendum 03:40Z): a stake loss, or the scoring remote while it does not hold (the ice
+  // redirect's own question, corp/placement.ts scoringShort)
+  const staked = stake(s, server, { leaving: card.instanceId }).loss > 0;
+  const scoring = !staked && scoringShort(s)?.id === server;
+  if (!staked && !scoring) return false;
   let after: GameState;
   try {
     after = executeAction(s, a);
@@ -110,8 +114,12 @@ function changesCount(s: GameState, a: Install, card: CardInstance): boolean {
   }
   const before = serverHold(s, server, { when: 'runnerTurn' });
   const now = serverHold(after, server, { when: 'runnerTurn', corpCredits: after.corp.credits });
-  return (now.holds && !before.holds) || (!now.holds && now.entries < before.entries);
+  const improves = (now.holds && !before.holds) || (!now.holds && now.entries < before.entries);
+  if (improves && scoring) scoringCase.add(JSON.stringify(a));
+  return improves;
 }
+/** Ice installs that are line 2 only by the scoring-remote clause (the addendum's count), per decision. */
+const scoringCase = new Set<string>();
 
 /** After an agenda install or advance, does its server hold over the Runner's next turn (the credits left to rez)? */
 function agendaHolds(s: GameState, a: GameAction): boolean {
@@ -220,6 +228,7 @@ function table(d: Decision) {
   }
   // The move made: the pick after placement (an install of the same card at another server)
   const made = d.action.type === 'INSTALL_CARD' && chosen.type === 'INSTALL_CARD' && d.action.cardInstanceId === chosen.cardInstanceId ? d.action : chosen;
+  scoringCase.clear();
   const lineOf = (a: GameAction) => asSide('corp', () => (decisionContext(s, 'corp'), intent(s, a)));
   const playedLine = lineOf(made);
   if (playedLine === null) return;
@@ -250,6 +259,7 @@ function table(d: Decision) {
     const c = made as Install;
     const k = playedLine === 2 ? 'two' : playedLine === 4 ? 'four' : 'nine';
     out.iceKinds[k]++;
+    if (playedLine === 2 && scoringCase.has(JSON.stringify(c))) out.iceKinds.twoScoring++;
     if (playedLine === 9) out.iceKinds[c.asNewRemote ? 'nineNew' : 'nineExisting']++;
     const card = s.corp.hq.find(x => x.instanceId === c.cardInstanceId);
     example(`played${playedLine}`, `${where(d)} ${card ? cardDef(card).title : '?'} to ${c.asNewRemote ? 'new remote' : c.targetServerId}; credits ${s.corp.credits}, clicks ${s.corp.clicks}`);

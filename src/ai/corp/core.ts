@@ -7,7 +7,8 @@ import { decisionContext } from '../handValues';
 import { plan } from '../pricing';
 import { HeldLine, heldLaterStep } from './lines';
 import { moneyPick } from '../incomeLine';
-import { placePick, scoreInTwoPick } from './placement';
+import { lineStep, placePick, scoreInTwoPick } from './placement';
+import { isPettyCash } from './candidates';
 
 /**
  * Step 4 Stage B1 (spec-step4-corp-core.md 1.2, 1.3): the Corp's decision pipeline, Q0 to Q7, one function for the
@@ -45,9 +46,7 @@ export interface CorpContext {
   debug?: boolean;
 }
 
-const PETTY_CASH = '35081';
-/** Petty Cash from HQ: playable only as the turn's first action (plan.pettyCashFirst). */
-export const isPettyCash = (state: GameState, a: GameAction): boolean => a.type === 'PLAY_OPERATION_OR_EVENT' && state.corp.hq.find(c => c.instanceId === a.cardInstanceId)?.cardCode === PETTY_CASH;
+export { isPettyCash } from './candidates';
 
 /** The Corp's action at `state` (see the file comment). */
 export function corpDecide(state: GameState, ctx: CorpContext): GameAction {
@@ -76,18 +75,22 @@ export function corpDecide(state: GameState, ctx: CorpContext): GameAction {
   // line on a later turn (Q4): its step (advance or score, heldLaterStep) does not depend on the pick, and scoreInTwoPick
   // below plays it.
   const later = ctx.counted && !!heldLaterStep(state, ctx.memory.heldLine);
-  const decided = !!score || later;
+  // plan.corpCore (Stage C, spec 1.3 authority 2): the step a two-turn line plays now is the line's, asked before the
+  // look-ahead and never weighed by it; scoreInTwoPick below plays it and keeps the line
+  const core = plan().corpCore;
+  const lineFirst = core && ctx.counted && !score && !later ? lineStep(state, ctx.memory.heldLine ? structuredClone(ctx.memory.heldLine) : null) : null;
+  const decided = !!score || later || !!lineFirst;
   const turnStart = state.turnStep?.kind === 'corp_turn_start';
   const planned = ctx.lookahead && !turnStart && !decided ? ctx.lookahead(state, ranked) : null;
   // Q6. Money step M1 (incomeLine.ts): an econ operation that nets credits is the counted pick for its click, ahead of
   // the Corp's own; a score this turn, a held two-turn line's step, or the Corp's own pick moving an agenda keeps the click
   const money = !decided && ctx.counted && !turnStart ? moneyPick(state, planned ?? ranked[0]?.action) : null;
-  let chosen = money ?? planned ?? (ranked[0]?.score > -Infinity ? ranked[0].action : legal.find(a => a.type === 'END_TURN') ?? legal[0]);
+  let chosen = lineFirst ?? money ?? planned ?? (ranked[0]?.score > -Infinity ? ranked[0].action : legal.find(a => a.type === 'END_TURN') ?? legal[0]);
   // plan.pettyCashFirst: a click for a credit while Petty Cash can still be played is a click for 2 thrown away (the
   // planner valued Petty Cash held in HQ as the money it will make, though it is playable only as the turn's first action)
-  if (chosen.type === 'GAIN_CREDIT' && ctx.synergy && plan().pettyCashFirst) chosen = ranked.find(r => isPettyCash(state, r.action) && r.score > -Infinity)?.action ?? chosen;
+  if (!lineFirst && chosen.type === 'GAIN_CREDIT' && ctx.synergy && plan().pettyCashFirst) chosen = ranked.find(r => isPettyCash(state, r.action) && r.score > -Infinity)?.action ?? chosen;
   // plan.tagFirst: the planner's leaf counts a tag kept as a trash still to come, but the Runner clears it on its turn
-  if (ctx.synergy && plan().tagFirst && ranked[0]?.action.type === 'TRASH_RESOURCE' && ranked[0].tagFirst) chosen = ranked[0].action;
+  if (!lineFirst && ctx.synergy && plan().tagFirst && ranked[0]?.action.type === 'TRASH_RESOURCE' && ranked[0].tagFirst) chosen = ranked[0].action;
   let picked = chosen;
   if (score && !keepsScore(state, picked, score)) picked = score.first;
   // Q4, Q5. plan.scoreInTwo (counted scoring C2): a held two-turn score line's step, or the pick vetoed while it would
@@ -101,7 +104,8 @@ export function corpDecide(state: GameState, ctx: CorpContext): GameAction {
   // where place puts it; nothing while a counted line is held (its ice goes where the line puts it; skipping only the
   // line's own ice played the same 663 games, run 43158341651), or took the click
   const held = ctx.memory.heldLine && ctx.memory.heldLine.game === state.id ? ctx.memory.heldLine : null;
-  if (!score && picked === chosen && ctx.synergy && !held) picked = placePick(state, picked);
+  // plan.corpCore: placement is inside the candidates (each install already at place's server), so nothing rewrites the pick
+  if (!core && !score && picked === chosen && ctx.synergy && !held) picked = placePick(state, picked);
   // The reverse bluff: at most once a game, used up only by the install actually played (a pick the counted layer
   // rewrote put no agenda in a new remote)
   const bluff = picked;

@@ -80,6 +80,12 @@ export interface PlannerAI {
   reply?(state: GameState, leaf: (state: GameState) => number): number;
   /** The rest of this AI's last plan (one per agent, so a new game or a reloaded one starts without it). */
   memory?: PlanMemory;
+  /**
+   * plan.corpCore (Step 4 Stage C3): the Corp's candidates the planner plays out, from the order (corp/candidates.ts
+   * plannerIntake, passed in by corpAI.ts so that this file reads no Corp owner). Without it: the ranking's first few
+   * with the planner's own builders.
+   */
+  intake?(open: ScoredAction[], k: number): { picked: ScoredAction[]; slots: Map<ScoredAction, 'agenda' | 'build'> };
 }
 
 /** The rest of the last plan: followed while the game goes as the plan expected. */
@@ -409,9 +415,12 @@ export function planTurn(state: GameState, side: SideCode, ranked: ScoredAction[
   }
   memory.line = [];
   const open = ranked.filter(r => r.score > -Infinity && r.action.type !== 'END_TURN' && r.action.type !== 'START_TURN' && !dominated(state, r.action, ranked));
+  // plan.corpCore (Step 4 Stage C3, spec 1.3): the Corp's first K of the new order under the two caps, with the two
+  // candidates always in K (best agenda, best build pair) in its last places; no builders and no think additions
+  const intake = side === 'corp' && ai.intake ? ai.intake(open, plannerCandidates(side, PLANNER.candidates)) : null;
   // plan.oracle.think: a wider search, the best agenda install and the best advance always among the candidates
-  const candidates = open.slice(0, plannerCandidates(side, PLANNER.candidates));
-  if (thinkAlwaysTries(side)) {
+  const candidates = intake ? intake.picked : open.slice(0, plannerCandidates(side, PLANNER.candidates));
+  if (!intake && thinkAlwaysTries(side)) {
     const agendaInstall = open.find(r => r.action.type === 'INSTALL_CARD' && state.corp.hq.some(c => c.instanceId === (r.action as { cardInstanceId: string }).cardInstanceId && cardDef(c).type_code === 'agenda'));
     const advance = open.find(r => r.action.type === 'ADVANCE_CARD');
     for (const r of [agendaInstall, advance]) if (r && !candidates.includes(r)) candidates.push(r);
@@ -419,15 +428,16 @@ export function planTurn(state: GameState, side: SideCode, ranked: ScoredAction[
   // Build lines get the room the shipped planner gives them (withBuild over its candidates): a wider search (plan.oracle.think)
   // never drops one
   const buildRoom = thinkAlwaysTries(side) ? PLANNER.withBuild - PLANNER.candidates : PLANNER.withBuild - candidates.length;
-  const added = side === 'corp' && searchPiece('plannerBuild') ? buildCandidates(state, ranked, candidates).slice(0, Math.max(0, buildRoom)) : [];
+  const added = !intake && side === 'corp' && searchPiece('plannerBuild') ? buildCandidates(state, ranked, candidates).slice(0, Math.max(0, buildRoom)) : [];
   candidates.push(...added);
-  if (side === 'corp' && plan().plannerAgenda) candidates.push(...agendaCandidates(state, ranked, candidates).slice(0, Math.max(0, PLANNER.withBuild + 2 - candidates.length)));
+  if (!intake && side === 'corp' && plan().plannerAgenda) candidates.push(...agendaCandidates(state, ranked, candidates).slice(0, Math.max(0, PLANNER.withBuild + 2 - candidates.length)));
   if (candidates.length <= 1 || clicksOf(state, side) <= 0) return null;
   tally('planner', 'decisions');
   if (added.length) {
     tally('planner', 'withAdded');
     tally('planner', 'added', added.length);
   }
+  for (const slot of intake?.slots.values() ?? []) tally('planner', slot === 'agenda' ? 'agendaSlot' : 'buildSlot');
   // The hands stay as seen when the decision started (frozen); plan.plannerSeed: one seed for every playout of this decision
   const decisionSeed = decisionSeedFor(state, side);
   const started = performance.now();
@@ -458,6 +468,8 @@ export function planTurn(state: GameState, side: SideCode, ranked: ScoredAction[
       if (side === 'corp' && d.onSearch) auditSearch(d.onSearch, state, side, candidates, scored, best, ai, synergy, performance.now() - started, searchClock.replyMs - replyBefore);
     });
     if (!best || best.value === -Infinity) return null;
+    const slot = intake ? [...intake.slots].find(([c]) => c.action === best!.action)?.[1] : undefined;
+    if (slot) tally('planner', slot === 'agenda' ? 'agendaSlotWins' : 'buildSlotWins');
     if (added.some(a => a.action === best!.action)) {
       tally('planner', 'addedWins');
       note(d => d.onAddedWin?.(state, best!.action));

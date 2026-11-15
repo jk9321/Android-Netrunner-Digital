@@ -347,6 +347,12 @@ export const tuning = {
      */
     scoreInTwo: true,
     /**
+     * TEMPORARY (Step 4 Stage C, spec-step4-corp-core.md 1.10): the Corp's ordinary move (Q7) from corp/candidates.ts,
+     * the nine-line order of stage-c/order.md, in place of the hand-set ranking. Off: the ranking, to compare recorded
+     * decisions side by side and locate a bug. Deleted with the ranking before Stage C merges.
+     */
+    corpCore: false,
+    /**
      * Bug reports #39, #41 (Jeff's Runner test games 7 and 9, 2026-11-09; Corp only): the Corp's own unrezzed ice is priced
      * as it knows it (effectValues.ts ownIce: the real ice when its rez budget covers it, passed when not; rules 3.4.3a,
      * 6.9.2b-c) in runSuccess and stealOdds. Off: the Runner-side pass rates, so an agenda behind a Pharos the Corp could
