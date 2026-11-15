@@ -27,6 +27,8 @@ export function simulate(state: GameState, action: GameAction): GameState | null
 const hand = (state: GameState, side: SideCode) => (side === 'corp' ? state.corp.hq : state.runner.grip);
 /** How much a side wants to keep a card, plus (deck-aware AI) how well it fits the deck's plan. */
 const keep = (state: GameState, card: CardInstance, synergy: boolean) => keepValue(state, card) + (synergy ? keepBonus(state, card) : 0);
+/** Agendas first (most points first), then keep: Peer Review's hidden card and the Archives shuffles. */
+const agendaFirst = (state: GameState, c: CardInstance, synergy: boolean) => (cardDef(c).type_code === 'agenda' ? 100 + (cardDef(c).agenda_points ?? 0) : keep(state, c, synergy));
 /** The card was on top of R&D or the stack before (so it was drawn, not fetched by name). */
 const fromDeck = (state: GameState, side: SideCode, card: CardInstance) =>
   (side === 'corp' ? state.corp.rd : state.runner.stack).some(c => c.instanceId === card.instanceId);
@@ -393,8 +395,7 @@ export function answerPrompt(state: GameState, side: SideCode, memory?: RunnerMe
     const cards = prompt.candidateIds.map(id => state.corp.hq.find(c => c.instanceId === id)!).filter(Boolean);
     const unknown = cards.filter(c => !known.has(c.instanceId));
     const pool = unknown.length > 0 ? unknown : cards;
-    const worth = (c: CardInstance) => (cardDef(c).type_code === 'agenda' ? 100 + (cardDef(c).agenda_points ?? 0) : keep(state, c, synergy));
-    const pick = [...pool].sort((a, b) => worth(b) - worth(a))[0]?.instanceId ?? prompt.candidateIds[0];
+    const pick = [...pool].sort((a, b) => agendaFirst(state, b, synergy) - agendaFirst(state, a, synergy))[0]?.instanceId ?? prompt.candidateIds[0];
     return { ...base, choice: { kind: 'effect_cards', cardInstanceIds: [pick] } };
   }
 
@@ -439,8 +440,15 @@ export function answerPrompt(state: GameState, side: SideCode, memory?: RunnerMe
     return { ...base, choice: { kind: 'effect_cards', cardInstanceIds: taoSwap(state, memory) } };
   }
 
-  // "Any number of cards": build the answer one card at a time
-  if (prompt.kind === 'effect_cards' && prompt.max - prompt.min > 2 && prompt.candidateIds.length > 4) {
+  // Shuffling the Corp's own Archives cards into R&D (Jeff, AI Coordinator 2026-11-15): the board score cannot tell which card
+  // comes back, so none is scored; the ability is paid for, so up to max, agendas first (most points), then by keep
+  if (side === 'corp' && prompt.kind === 'effect_cards' && shufflesArchivesIntoRD(state, prompt)) {
+    const cards = prompt.candidateIds.map(id => findCardAnywhere(state, id)!).sort((a, b) => agendaFirst(state, b, synergy) - agendaFirst(state, a, synergy));
+    return { ...base, choice: { kind: 'effect_cards', cardInstanceIds: cards.slice(0, prompt.max).map(c => c.instanceId) } };
+  }
+
+  // Two or more cards beyond the minimum (Spin Doctor's up to 2 tried every subset): build the answer one card at a time
+  if (prompt.kind === 'effect_cards' && prompt.max - prompt.min >= 2 && prompt.candidateIds.length > 4) {
     return greedyCards(state, side, prompt, base, memory, synergy);
   }
 
@@ -594,6 +602,12 @@ function followChain(prompt: Prompt, after: GameState, side: SideCode, memory?: 
     state = resolved;
   }
   return state;
+}
+
+/** A Corp "shuffle" (into R&D on every Corp card; Touch-ups' picks Runner cards) of Archives cards only; Descent with an HQ agenda is not one. */
+export function shufflesArchivesIntoRD(state: GameState, prompt: Extract<Prompt, { kind: 'effect_cards' }>): boolean {
+  const archived = new Set([...state.corp.archives.faceUp, ...state.corp.archives.faceDown].map(c => c.instanceId));
+  return prompt.side === 'corp' && prompt.source.step === 'shuffle' && prompt.candidateIds.length > 0 && prompt.candidateIds.every(id => archived.has(id));
 }
 
 /** Adds the card that helps most until no card helps (and at least `min` are chosen). */
