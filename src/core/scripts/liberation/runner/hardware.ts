@@ -20,33 +20,28 @@ import {
   useOncePerTurn,
 } from '../../../engine/cardEffects';
 import { iceScript } from '../../../engine/ice';
-import { choice, prompts } from '../../steps';
+import { ArrangeData, cards, cardsQuestion, choice, choiceQuestion, prompts, RunnerHostData } from '../../steps';
 import { CardScript, EffectContext } from '../../types';
-import {
-  arrangeNext,
-  arrangeTop,
-  askCards,
-  askChoice,
-  askRunnerInstall,
-  installableRunnerCards,
-  installRunnerChoice,
-  installRunnerHostChoice,
-} from '../../effects';
+import { installableRunnerCards, installRunnerHostChoice } from '../../effects';
 import { returnInstalledToHQ } from '../corp/helpers';
-import { bypassIfStill, centralServers, ids, isInstalled, isSelf, onceKey, picked, place, runSource, said, spendLoad, title, type, yesNo } from './helpers';
+import { bypassIfStill, centralServers, ids, isInstalled, isSelf, onceKey, place, runSource, spendLoad, title, type, yesNo } from './helpers';
 
 /** Successful runs on HQ, R&D and Archives this turn (The Wizard's Chest, Jeitinho). */
 const ranAllCentrals = (state: GameState) => centralServers.every(id => state.runsThisTurn.some(r => r.server === id && r.successful));
-
-/** Installs a card from the heap (or elsewhere) for an effect, asking for a host if it's a trojan. */
-function installFrom(ctx: EffectContext, cardId: string, discount: number, step = 'host'): boolean {
-  return installRunnerChoice(ctx, cardId, step, discount);
-}
 
 // --- The Automata Initiative: Anarch -------------------------------------------------------
 
 // Solidarity Badge: The first time each turn you trash a Corp card, place 1 power counter on this
 // hardware. When your turn begins, you may remove 1 hosted power counter to draw 1 card or remove 1 tag.
+const badgeFlow = prompts({
+  use: choice(({ state, card }, a) => {
+    if (a.optionId === 'no' || counters(card, 'power') === 0) return;
+    removeCounters(card, 'power', 1);
+    if (a.optionId === 'draw') drawForEffect(state, 'runner', 1, 'Solidarity Badge');
+    else removeTags(state, 1);
+  }),
+});
+
 export const solidarityBadge: CardScript = {
   triggers: {
     runner_trashed_corp_card: ctx => {
@@ -54,33 +49,37 @@ export const solidarityBadge: CardScript = {
     },
     turn_begins: (ctx, e) => {
       if (e.side !== 'runner' || counters(ctx.card, 'power') === 0) return;
-      askChoice(ctx, 'runner', 'Solidarity Badge: remove 1 power counter to draw 1 card or remove 1 tag?', [
-        { id: 'draw', label: 'Draw 1 card' },
-        ...(ctx.state.runner.tags > 0 ? [{ id: 'tag', label: 'Remove 1 tag' }] : []),
-        { id: 'no', label: 'No' },
-      ], 'use');
+      badgeFlow.ask(
+        ctx,
+        'use',
+        choiceQuestion('runner', 'Solidarity Badge: remove 1 power counter to draw 1 card or remove 1 tag?', [
+          { id: 'draw', label: 'Draw 1 card' },
+          ...(ctx.state.runner.tags > 0 ? [{ id: 'tag', label: 'Remove 1 tag' }] : []),
+          { id: 'no', label: 'No' },
+        ]),
+      );
     },
   },
-  onPromptAnswer: ({ state, card }, _source, answer) => {
-    if (answer.kind !== 'effect_choice' || answer.optionId === 'no' || counters(card, 'power') === 0) return;
-    removeCounters(card, 'power', 1);
-    if (answer.optionId === 'draw') drawForEffect(state, 'runner', 1, 'Solidarity Badge');
-    else removeTags(state, 1);
-  },
+  ...badgeFlow.script,
 };
 
 // Capybara: Whenever you bypass a piece of ice, you may remove this hardware from the game to derez that ice.
-export const capybara: CardScript = {
-  triggers: {
-    ice_bypassed: (ctx, e) => askChoice(ctx, 'runner', `Capybara: remove it from the game to derez ${title(e.ice)}?`, yesNo('Remove Capybara and derez'), 'derez', { iceId: e.ice.instanceId }),
-  },
-  onPromptAnswer: ({ state, card }, source, answer) => {
-    const ice = installedIce(state).find(c => c.instanceId === source.data?.iceId);
-    if (!said(answer) || !ice || !isInstalled(state, card)) return;
+const capybaraFlow = prompts({
+  derez: choice<{ iceId: string }>(({ state, card }, a, data) => {
+    const ice = installedIce(state).find(c => c.instanceId === data.iceId);
+    if (a.optionId !== 'yes' || !ice || !isInstalled(state, card)) return;
     removeFromGame(state, card);
     derez(state, ice);
     addLog(state, 'runner', `Runner removed Capybara from the game to derez ${title(ice)}.`);
+  }),
+});
+
+export const capybara: CardScript = {
+  triggers: {
+    ice_bypassed: (ctx, e) =>
+      capybaraFlow.ask(ctx, 'derez', choiceQuestion('runner', `Capybara: remove it from the game to derez ${title(e.ice)}?`, yesNo('Remove Capybara and derez')), { iceId: e.ice.instanceId }),
   },
+  ...capybaraFlow.script,
 };
 
 // Hermes (Console): +1 MU. Whenever an agenda is scored or stolen, add 1 unrezzed card to HQ.
@@ -88,18 +87,22 @@ const hermesTargets = (state: GameState) => Object.values(state.corp.servers).fl
 
 const hermesAsk = (ctx: EffectContext) => {
   const targets = hermesTargets(ctx.state);
-  if (targets.length > 0) askCards(ctx, 'runner', 'Hermes: add 1 unrezzed installed card to HQ.', ids(targets), 1, 1, 'bounce');
+  if (targets.length > 0) hermesFlow.ask(ctx, 'bounce', cardsQuestion('runner', 'Hermes: add 1 unrezzed installed card to HQ.', ids(targets), 1, 1));
 };
+
+const hermesFlow = prompts({
+  bounce: cards(({ state }, a) => {
+    const target = hermesTargets(state).find(c => c.instanceId === a.ids[0]);
+    if (target && returnInstalledToHQ(state, target)) addLog(state, 'runner', 'Runner added an unrezzed card to HQ (Hermes).');
+  }),
+});
 
 export const hermes: CardScript = {
   modifiers: { memory: 1 },
   triggers: { agenda_scored: hermesAsk, agenda_stolen: hermesAsk },
   // Resolving after another "scored" ability (Send a Message rezzing a card), only still-unrezzed cards
   liveCandidates: state => ids(hermesTargets(state)),
-  onPromptAnswer: ({ state }, _source, answer) => {
-    const target = hermesTargets(state).find(c => c.instanceId === picked(answer)[0]);
-    if (target && returnInstalledToHQ(state, target)) addLog(state, 'runner', 'Runner added an unrezzed card to HQ (Hermes).');
-  },
+  ...hermesFlow.script,
 };
 
 // AirbladeX (JSRF Ed.) (Vehicle): When you install this hardware, load 3 power counters onto it.
@@ -129,12 +132,9 @@ export const airblade: CardScript = {
     installed: (ctx, e) => isSelf(ctx, e.card) && place(ctx.card, 'power', 3),
     encounter_ice: (ctx, e) => {
       if (!iceScript(e.ice)?.onEncounter || counters(ctx.card, 'power') === 0) return;
-      airbladeFlow.choice(
-        ctx,
-        'prevent',
-        { side: 'runner', message: `AirbladeX: spend 1 power counter to prevent ${title(e.ice)}'s "when encountered" ability?`, options: yesNo('Prevent it') },
-        { iceId: e.ice.instanceId },
-      );
+      airbladeFlow.ask(ctx, 'prevent', choiceQuestion('runner', `AirbladeX: spend 1 power counter to prevent ${title(e.ice)}'s "when encountered" ability?`, yesNo('Prevent it')), {
+        iceId: e.ice.instanceId,
+      });
     },
   },
   canPreventDamage: (state, self, kind, amount) =>
@@ -143,21 +143,33 @@ export const airblade: CardScript = {
 };
 
 // LilyPAD (Console): +2 MU. The first time each turn you install a program, you may draw 1 card.
+const lilypadFlow = prompts({
+  draw: choice(({ state }, a) => {
+    if (a.optionId === 'yes') drawForEffect(state, 'runner', 1, 'LilyPAD');
+  }),
+});
+
 export const lilypad: CardScript = {
   modifiers: { memory: 2 },
   triggers: {
     installed: (ctx, e) => {
       if (type(e.card) !== 'program' || cardDef(e.card).side_code !== 'runner') return;
-      if (useOncePerTurn(ctx.state, onceKey(ctx.card))) askChoice(ctx, 'runner', 'LilyPAD: draw 1 card?', yesNo('Draw 1 card'), 'draw');
+      if (useOncePerTurn(ctx.state, onceKey(ctx.card))) lilypadFlow.ask(ctx, 'draw', choiceQuestion('runner', 'LilyPAD: draw 1 card?', yesNo('Draw 1 card')));
     },
   },
-  onPromptAnswer: ({ state }, _source, answer) => {
-    if (said(answer)) drawForEffect(state, 'runner', 1, 'LilyPAD');
-  },
+  ...lilypadFlow.script,
 };
 
 // Amanuensis (Console): +1 MU. When your turn ends, place 1 power counter on this hardware if you
 // are tagged. Whenever you remove 1 or more tags, you may remove 1 hosted power counter to draw 2 cards.
+const amanuensisFlow = prompts({
+  draw: choice(({ state, card }, a) => {
+    if (a.optionId !== 'yes' || counters(card, 'power') === 0) return;
+    removeCounters(card, 'power', 1);
+    drawForEffect(state, 'runner', 2, 'Amanuensis');
+  }),
+});
+
 export const amanuensis: CardScript = {
   modifiers: { memory: 1 },
   triggers: {
@@ -165,20 +177,49 @@ export const amanuensis: CardScript = {
       if (e.side === 'runner' && ctx.state.runner.tags > 0) place(ctx.card, 'power', 1);
     },
     tags_removed: ctx => {
-      if (counters(ctx.card, 'power') > 0) askChoice(ctx, 'runner', 'Amanuensis: remove 1 power counter to draw 2 cards?', yesNo('Draw 2 cards'), 'draw');
+      if (counters(ctx.card, 'power') > 0) amanuensisFlow.ask(ctx, 'draw', choiceQuestion('runner', 'Amanuensis: remove 1 power counter to draw 2 cards?', yesNo('Draw 2 cards')));
     },
   },
-  onPromptAnswer: ({ state, card }, _source, answer) => {
-    if (!said(answer) || counters(card, 'power') === 0) return;
-    removeCounters(card, 'power', 1);
-    drawForEffect(state, 'runner', 2, 'Amanuensis');
-  },
+  ...amanuensisFlow.script,
 };
 
 // The Wizard's Chest: Use this hardware only if you made a successful run on HQ, R&D, and Archives
 // this turn. [trash]: Choose hardware, program, or resource. Set aside cards from the top of your
 // stack faceup until you set aside 2 cards of the chosen type. You may install 1 of those 2 cards,
 // ignoring all costs. Shuffle the rest of the set-aside cards into your stack.
+const chestFlow = prompts({
+  type: choice((ctx, a) => {
+    const { state } = ctx;
+    const setAside: CardInstance[] = [];
+    let found = 0;
+    while (found < 2 && state.runner.stack.length > 0) {
+      const card = state.runner.stack.shift()!;
+      setAside.push(card);
+      if (type(card) === a.optionId) found++;
+    }
+    addLog(state, 'runner', `Runner set aside ${setAside.map(title).join(', ') || 'nothing'} (The Wizard's Chest).`);
+    // Set-aside cards wait in the grip-free "removed" limbo: kept on the stack's bottom until the choice is made
+    const chosen = setAside.filter(c => type(c) === a.optionId);
+    const rest = setAside.filter(c => !chosen.includes(c));
+    state.runner.stack.push(...rest);
+    shuffleInPlace(state.rng, state.runner.stack);
+    state.runner.stack.push(...chosen);
+    const options = installableRunnerCards(state, chosen, 99);
+    if (options.length > 0) {
+      chestFlow.runnerInstall(ctx, 'install', { message: "The Wizard's Chest: you may install 1 of them, ignoring all costs.", candidateIds: ids(options), min: 0, max: 1 }, { chosen: ids(chosen).join(',') });
+    } else shuffleInPlace(state.rng, state.runner.stack);
+  }),
+  install: cards<{ chosen: string }>((ctx, a) => {
+    // The answer's cards to trash first are not passed on (as before the typed steps)
+    if (a.ids[0]) chestFlow.installRunner(ctx, a.ids[0], 'host', 99);
+    shuffleInPlace(ctx.state.rng, ctx.state.runner.stack);
+  }),
+  host: choice<RunnerHostData>((ctx, a, _d, source) => {
+    installRunnerHostChoice(ctx.state, source, a.raw);
+    shuffleInPlace(ctx.state.rng, ctx.state.runner.stack);
+  }),
+});
+
 export const wizardsChest: CardScript = {
   abilities: [
     {
@@ -186,65 +227,45 @@ export const wizardsChest: CardScript = {
       trashSelf: true,
       canUse: ({ state }) => (ranAllCentrals(state) ? null : 'You need successful runs on HQ, R&D and Archives this turn'),
       resolve: ctx =>
-        askChoice(ctx, 'runner', "The Wizard's Chest: choose a card type.", [
-          { id: 'hardware', label: 'Hardware' },
-          { id: 'program', label: 'Program' },
-          { id: 'resource', label: 'Resource' },
-        ], 'type'),
+        chestFlow.ask(
+          ctx,
+          'type',
+          choiceQuestion('runner', "The Wizard's Chest: choose a card type.", [
+            { id: 'hardware', label: 'Hardware' },
+            { id: 'program', label: 'Program' },
+            { id: 'resource', label: 'Resource' },
+          ]),
+        ),
     },
   ],
-  onPromptAnswer: (ctx, source, answer) => {
-    const { state } = ctx;
-    if (source.step === 'type' && answer.kind === 'effect_choice') {
-      const setAside: CardInstance[] = [];
-      let found = 0;
-      while (found < 2 && state.runner.stack.length > 0) {
-        const card = state.runner.stack.shift()!;
-        setAside.push(card);
-        if (type(card) === answer.optionId) found++;
-      }
-      addLog(state, 'runner', `Runner set aside ${setAside.map(title).join(', ') || 'nothing'} (The Wizard's Chest).`);
-      // Set-aside cards wait in the grip-free "removed" limbo: kept on the stack's bottom until the choice is made
-      const chosen = setAside.filter(c => type(c) === answer.optionId);
-      const rest = setAside.filter(c => !chosen.includes(c));
-      state.runner.stack.push(...rest);
-      shuffleInPlace(state.rng, state.runner.stack);
-      state.runner.stack.push(...chosen);
-      const options = installableRunnerCards(state, chosen, 99);
-      if (options.length > 0) askRunnerInstall(ctx, "The Wizard's Chest: you may install 1 of them, ignoring all costs.", ids(options), 0, 1, 'install', { chosen: ids(chosen).join(',') });
-      else shuffleInPlace(state.rng, state.runner.stack);
-    } else if (source.step === 'install') {
-      const id = picked(answer)[0];
-      if (id) installFrom(ctx, id, 99, 'host');
-      shuffleInPlace(state.rng, state.runner.stack);
-    } else if (source.step === 'host') {
-      installRunnerHostChoice(state, source, answer);
-      shuffleInPlace(state.rng, state.runner.stack);
-    }
-  },
+  ...chestFlow.script,
 };
 
 // Alarm Clock: When your turn begins, you may run HQ. The first time you encounter a piece of ice
 // during that run, you may spend [click][click] to bypass it.
+const alarmFlow = prompts({
+  run: choice((ctx, a) => {
+    if (a.optionId === 'yes') startRun(ctx.state, 'hq', { source: runSource(ctx) });
+  }),
+  bypass: choice<{ iceId: string }>(({ state }, a, data) => {
+    if (a.optionId !== 'yes' || state.runner.clicks < 2) return;
+    state.runner.clicks -= 2;
+    bypassIfStill(state, data.iceId);
+  }),
+});
+
 export const alarmClock: CardScript = {
   triggers: {
     turn_begins: (ctx, e) => {
-      if (e.side === 'runner') askChoice(ctx, 'runner', 'Alarm Clock: run HQ?', yesNo('Run HQ'), 'run');
+      if (e.side === 'runner') alarmFlow.ask(ctx, 'run', choiceQuestion('runner', 'Alarm Clock: run HQ?', yesNo('Run HQ')));
     },
     encounter_ice: (ctx, e) => {
       const run = ctx.state.activeRun;
       if (!run?.runEffects.some(r => r.instanceId === ctx.card.instanceId) || runFlag(ctx.state, RunFlag.encounters) !== 1 || ctx.state.runner.clicks < 2) return;
-      askChoice(ctx, 'runner', `Alarm Clock: spend [click][click] to bypass ${title(e.ice)}?`, yesNo('Spend [click][click] and bypass'), 'bypass', { iceId: e.ice.instanceId });
+      alarmFlow.ask(ctx, 'bypass', choiceQuestion('runner', `Alarm Clock: spend [click][click] to bypass ${title(e.ice)}?`, yesNo('Spend [click][click] and bypass')), { iceId: e.ice.instanceId });
     },
   },
-  onPromptAnswer: (ctx, source, answer) => {
-    const { state } = ctx;
-    if (source.step === 'run' && said(answer)) startRun(state, 'hq', { source: runSource(ctx) });
-    else if (source.step === 'bypass' && said(answer) && state.runner.clicks >= 2) {
-      state.runner.clicks -= 2;
-      bypassIfStill(state, source.data?.iceId);
-    }
-  },
+  ...alarmFlow.script,
 };
 
 // Jeitinho (Weapon): When your turn ends, if you made a successful run on HQ, R&D, and Archives this
@@ -253,49 +274,68 @@ export const alarmClock: CardScript = {
 // Whenever you bypass a piece of ice, you may spend [click] to install this hardware from your heap.
 const JEITINHO = '34079';
 
+const jeitinhoFlow = prompts({
+  score: choice(({ state, card }, a) => {
+    if (a.optionId !== 'yes' || !isInstalled(state, card)) return;
+    removeCard(state.runner.rig.hardware, card);
+    card.tokens = {};
+    card.asAgendaPoints = 0;
+    state.runner.scoreArea.push(card);
+    addLog(state, 'runner', 'Runner added Jeitinho to their score area as an assassination agenda.');
+    if (state.runner.scoreArea.filter(c => c.cardCode === JEITINHO).length >= 3) {
+      state.winner = 'runner';
+      state.winReason = 'Jeitinho: 3 assassination agendas';
+      addLog(state, 'runner', 'The Runner has 3 assassination agendas and wins the game (Jeitinho).');
+    }
+  }),
+  install: choice((ctx, a) => {
+    const { state, card } = ctx;
+    if (a.optionId !== 'yes' || state.runner.clicks === 0 || !state.runner.heap.includes(card)) return;
+    state.runner.clicks -= 1;
+    jeitinhoFlow.installRunner(ctx, card.instanceId, 'host', 0);
+  }),
+  host: choice<RunnerHostData>((ctx, a, _d, source) => void installRunnerHostChoice(ctx.state, source, a.raw)),
+});
+
 export const jeitinho: CardScript = {
   triggers: {
     discard_phase_ends: (ctx, e) => {
-      if (e.side === 'runner' && ranAllCentrals(ctx.state)) askChoice(ctx, 'runner', 'Jeitinho: add it to your score area as an assassination agenda?', yesNo('Add to score area'), 'score');
+      if (e.side === 'runner' && ranAllCentrals(ctx.state)) jeitinhoFlow.ask(ctx, 'score', choiceQuestion('runner', 'Jeitinho: add it to your score area as an assassination agenda?', yesNo('Add to score area')));
     },
   },
   heapTriggers: {
     ice_bypassed: ctx => {
       const { state } = ctx;
       if (threatLevel(state) < 3 || state.runner.clicks === 0 || installableRunnerCards(state, [ctx.card]).length === 0) return;
-      askChoice(ctx, 'runner', 'Jeitinho: spend [click] to install it from your heap?', yesNo('Spend [click] and install'), 'install');
+      jeitinhoFlow.ask(ctx, 'install', choiceQuestion('runner', 'Jeitinho: spend [click] to install it from your heap?', yesNo('Spend [click] and install')));
     },
   },
-  onPromptAnswer: (ctx, source, answer) => {
-    const { state, card } = ctx;
-    if (source.step === 'score' && said(answer) && isInstalled(state, card)) {
-      removeCard(state.runner.rig.hardware, card);
-      card.tokens = {};
-      card.asAgendaPoints = 0;
-      state.runner.scoreArea.push(card);
-      addLog(state, 'runner', 'Runner added Jeitinho to their score area as an assassination agenda.');
-      if (state.runner.scoreArea.filter(c => c.cardCode === JEITINHO).length >= 3) {
-        state.winner = 'runner';
-        state.winReason = 'Jeitinho: 3 assassination agendas';
-        addLog(state, 'runner', 'The Runner has 3 assassination agendas and wins the game (Jeitinho).');
-      }
-    } else if (source.step === 'install' && said(answer) && state.runner.clicks > 0 && state.runner.heap.includes(card)) {
-      state.runner.clicks -= 1;
-      installFrom(ctx, card.instanceId, 0);
-    }
-  },
+  ...jeitinhoFlow.script,
 };
 
 // Cataloguer: When you install this hardware, load 2 power counters onto it. When it is empty, trash
 // it. Whenever you make a successful run on R&D, instead of breaching R&D, you may remove 1 hosted
 // power counter to look at the top 4 cards of R&D and arrange them in any order. [click], hosted
 // power counter: Breach R&D. Use this ability only if you made a successful run on R&D this turn.
+const cataloguerFlow = prompts({
+  instead: choice((ctx, a) => {
+    const { state, card } = ctx;
+    if (a.optionId !== 'yes' || !state.activeRun) return;
+    state.activeRun.breachInstead = 'none';
+    const top = ids(state.corp.rd.slice(0, 4));
+    spendLoad(state, card);
+    addLog(state, 'runner', 'Runner looked at the top 4 cards of R&D (Cataloguer).');
+    cataloguerFlow.arrangeTop(ctx, 'arrange', top, 'runner');
+  }),
+  arrange: cards<ArrangeData>((ctx, a, data) => cataloguerFlow.arrangeNext(ctx, 'arrange', data, a.ids[0])),
+});
+
 export const cataloguer: CardScript = {
   triggers: {
     installed: (ctx, e) => isSelf(ctx, e.card) && place(ctx.card, 'power', 2),
     successful_run: (ctx, e) => {
       if (e.server !== 'rd' || counters(ctx.card, 'power') === 0 || ctx.state.activeRun?.breachInstead) return;
-      askChoice(ctx, 'runner', 'Cataloguer: remove 1 power counter to arrange the top 4 cards of R&D instead of breaching it?', yesNo('Arrange instead'), 'instead');
+      cataloguerFlow.ask(ctx, 'instead', choiceQuestion('runner', 'Cataloguer: remove 1 power counter to arrange the top 4 cards of R&D instead of breaching it?', yesNo('Arrange instead')));
     },
   },
   abilities: [
@@ -312,18 +352,7 @@ export const cataloguer: CardScript = {
       },
     },
   ],
-  onPromptAnswer: (ctx, source, answer) => {
-    const { state, card } = ctx;
-    if (source.step === 'instead' && said(answer) && state.activeRun) {
-      state.activeRun.breachInstead = 'none';
-      const top = ids(state.corp.rd.slice(0, 4));
-      spendLoad(state, card);
-      addLog(state, 'runner', 'Runner looked at the top 4 cards of R&D (Cataloguer).');
-      arrangeTop({ ...ctx, card }, top, 'arrange', [], 'runner');
-    } else if (source.step === 'arrange' && answer.kind === 'effect_cards') {
-      arrangeNext(ctx, source.data, answer.cardInstanceIds[0], 'arrange');
-    }
-  },
+  ...cataloguerFlow.script,
 };
 
 export const liberationRunnerHardwareScripts: Record<string, CardScript> = {
