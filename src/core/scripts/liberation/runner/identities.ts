@@ -72,9 +72,8 @@ export const arissana: CardScript = {
 const connectionsInGrip = (state: GameState) => installableRunnerCards(state, state.runner.grip.filter(c => type(c) === 'resource' && hasKeyword(c, 'connection')), 2);
 
 const sebastiaoFlow = prompts({
-  // The answer's cards to trash first are not passed on (as before the typed steps)
   install: cards((ctx, a) => {
-    if (a.ids.length > 0) sebastiaoFlow.installRunner(ctx, a.ids[0], 'host', 2, []);
+    if (a.ids.length > 0) sebastiaoFlow.installRunner(ctx, a.ids[0], 'host', 2, a.trashFirst);
   }),
   host: choice<RunnerHostData>((ctx, a, _d, source) => void installRunnerHostChoice(ctx.state, source, a.raw)),
 });

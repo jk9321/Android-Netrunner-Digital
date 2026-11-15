@@ -166,6 +166,7 @@ export const embeddedReporting = dividendAgenda(2, 'search R&D for 1 operation a
 // Off the Books: Dividends 1. When your discard phase ends, you may remove 1 hosted agenda
 // counter to search R&D for 1 card and reveal it. (Shuffle R&D.) You may install that
 // card, ignoring all costs. If you do not, add it to HQ.
+const OFF_THE_BOOKS_TO_HAND = 'to-hand';
 const offTheBooksFlow = prompts({
   dividend: dividendStep(ctx => offTheBooksFlow.ask(ctx, 'search', cardsQuestion('corp', 'Off the Books: search R&D for 1 card.', ids(ctx.state.corp.rd), 1, 1))),
   search: cards((ctx, a) => {
@@ -179,16 +180,20 @@ const offTheBooksFlow = prompts({
       revealInHand(state, 'corp', [card]);
       return;
     }
+    // 'to-hand', not 'hq': the HQ server is an install option of its own (ice or an upgrade on HQ). install: true lets
+    // the answer name cards to trash first (rules 8.5.6a-b)
     offTheBooksFlow.ask(
       ctx,
       'install',
-      choiceQuestion('corp', `Off the Books: install ${cardDef(card).title} ignoring all costs, or add it to HQ?`, [...options, { id: 'hq', label: 'Add it to HQ' }]),
-      { cardId: card.instanceId },
+      choiceQuestion('corp', `Off the Books: install ${cardDef(card).title} ignoring all costs, or add it to HQ?`, [
+        ...options,
+        { id: OFF_THE_BOOKS_TO_HAND, label: 'Add it to HQ' },
+      ]),
+      { cardId: card.instanceId, install: true },
     );
   }),
-  // Not the reserved install data (no `install: true`): the question also offers adding the card to HQ
-  install: choice<{ cardId: string }>(({ state }, a, data, source) => {
-    if (a.optionId !== 'hq') return void installCorpChoice(state, source, a.raw, { ignoreCosts: true, revealed: true });
+  install: choice<InstallData>(({ state }, a, data, source) => {
+    if (a.optionId !== OFF_THE_BOOKS_TO_HAND) return void installCorpChoice(state, source, a.raw, { ignoreCosts: true, revealed: true });
     const card = state.corp.hq.find(c => c.instanceId === data.cardId);
     if (card) revealInHand(state, 'corp', [card]);
   }),

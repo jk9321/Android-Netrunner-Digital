@@ -643,6 +643,39 @@ describe('Rebellion Without Rehearsal: Anarch', () => {
     expect(s.runner.rig.hardware.map(c => c.instanceId)).toContain(b.instanceId);
   });
 
+  // Rules 8.5.6c: "When installing a program, the Runner may first trash any number of programs already installed.
+  // They must do so if installing the new program would exceed their memory limit." The chosen ones were dropped.
+  it("The Wizard's Chest installs a program over a full memory, trashing the program the Runner chose first", () => {
+    let s = newGame();
+    const wc = rig(s, L.chest, 'hardware');
+    const old = [installProgramForTest(s, '30032'), installProgramForTest(s, '30032')]; // 2 Mayfly, 4 of 4 MU
+    startRunnerTurn(s);
+    s.runsThisTurn = ['hq', 'rd', 'archives'].map(server => ({ server, successful: true }));
+    const a = createCardInstance(s, SG.cleaver);
+    const b = createCardInstance(s, SG.buzzsaw);
+    s.runner.stack.unshift(a, b);
+    s = useAbility(s, 'runner', wc);
+    s = choose(s, 'program');
+    s = keepGoing(answer(s, { kind: 'effect_cards', cardInstanceIds: [a.instanceId], trashFirst: [old[1]] }));
+    expect(s.runner.rig.programs.map(c => c.instanceId)).toEqual([old[0], a.instanceId]);
+    expect(inHeap(s, old[1])).toBe(true);
+  });
+
+  it('Privileged Access at threat 3 installs a program from the heap, trashing the program the Runner chose first (rules 8.5.6c)', () => {
+    let s = newGame();
+    threat(s, 3);
+    const old = [installProgramForTest(s, '30032'), installProgramForTest(s, '30032')];
+    const cleaver = createCardInstance(s, SG.cleaver);
+    s.runner.heap.push(cleaver);
+    [s] = playRunner(s, L.privileged);
+    s = cont(s);
+    if (source(s)?.step === 'resource') s = pick(s, []);
+    expect(source(s)).toMatchObject({ step: 'program' });
+    s = keepGoing(answer(s, { kind: 'effect_cards', cardInstanceIds: [cleaver.instanceId], trashFirst: [old[0]] }));
+    expect(s.runner.rig.programs.map(c => c.instanceId)).toEqual([old[1], cleaver.instanceId]);
+    expect(inHeap(s, old[0])).toBe(true);
+  });
+
   it('Boi-tatá costs 1 less after the Runner trashed one of their installed cards this turn', () => {
     let s = newGame();
     installIceForTest(s, SG.tithe, 'hq');
