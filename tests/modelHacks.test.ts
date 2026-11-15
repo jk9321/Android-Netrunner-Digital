@@ -85,16 +85,7 @@ describe('the last two hacks on the model (Jeff, 2026-10-28; plan.modelHacks.fin
     s.corp.servers['remote-9'].root = [];
     expect(score(s, nano.instanceId)).toBeLessThan(credit(s));
   });
-
-  it('Conduit: ice on R&D is worth more the more counters it has', () => {
-    const s = structuredClone(newGame());
-    const palisade = createCardInstance(s, '30072');
-    s.corp.hq = [palisade];
-    const conduit = createCardInstance(s, '30024');
-    s.runner.rig.programs = [conduit];
-    const rdIce = () => new HeuristicCorpAI({ planner: false }).rankMainActions(s).find(r => r.action.type === 'INSTALL_CARD' && r.action.cardInstanceId === palisade.instanceId && r.action.targetServerId === 'rd')!.score;
-    const none = rdIce();
-    conduit.tokens = { ...conduit.tokens, virus: 3 };
-    expect(rdIce()).toBeGreaterThan(none);
-  });
+  // 'Conduit: ice on R&D is worth more the more counters it has' read the ranking's install score (Step 4 Stage C7: deleted
+  // with it). The order's ice lines read the stake and hold owners, which do not read Conduit's counters (the counter's
+  // worth stays in the valuation, effectValues conduitCounterWorth); listed for Stage D
 });

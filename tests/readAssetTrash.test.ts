@@ -41,12 +41,16 @@ describe('the Corp reads how this Runner treats unprotected assets (plan.readAss
     expect(bareAssetRisk(position({ exposed: 8, trashed: 0 }))).toBeLessThan(0.1);
   });
 
-  it('Otto Campaign in a new remote beats a click for a credit, until the Runner has trashed 6 of 7 bare assets', () => {
+  // Known-failing under the order (Step 4 Stage C7): the asset candidates (corp/candidates.ts line 5) do not read the
+  // Runner's trash record (bareAssetRisk, read only by the deleted ranking), so Otto Campaign goes to a new remote whatever
+  // the record, and the iced side remote is not preferred. A regression on bug report #16, named in the Stage C report;
+  // its fix is a Stage D item (the list's asset line, or the asset's worth in the valuation)
+  it.fails('Otto Campaign in a new remote beats a click for a credit, until the Runner has trashed 6 of 7 bare assets', () => {
     expect(before(ranked(position()), 'install Otto Campaign new', 'GAIN_CREDIT')).toBe(true);
     expect(before(ranked(position({ exposed: 7, trashed: 6 })), 'install Otto Campaign new', 'GAIN_CREDIT')).toBe(false);
   });
 
-  it('then an empty iced side remote takes it', () => {
+  it.fails('then an empty iced side remote takes it', () => {
     const s = position({ exposed: 7, trashed: 6 });
     // A better-iced empty remote is the scoring remote; Remote 9 (Ablative Barrier) is the side one
     const main = s.corp.servers['remote-9'];

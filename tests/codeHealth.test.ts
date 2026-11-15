@@ -28,7 +28,6 @@ const CODES_IN_VALUE_FILES: Record<string, string> = {
 /** Plan switches that are off, each with why it stays in the code. */
 const OFF_SWITCHES: Record<string, string> = {
   rigEffects: 'experiment, off until a batch says so',
-  icePosition: "Jeff's ice-at-its-position model (Scatter Field); lost its batch, kept with its test for re-testing",
   'clickByPlay.corp': 'Corp side lost its batch; kept for re-testing',
   runCreditsSlide: 'breaks castWhileAble; retest once Runner income has one slide helper (cleanup item 4)',
   'handByCard.corp': 'used by the planner leaf; off in the rule ranking, kept for re-testing',
@@ -37,8 +36,7 @@ const OFF_SWITCHES: Record<string, string> = {
   // Tuning pass 1 (2026-11-08, review-1 R4): measured reasons, paired vs base run 42403086049
   replyContenders: 'install-worth probe P2: extra reply samples for the top two; -0.6 ± 2.2 (run 42498949422) for +19% time',
   oneAgendaGuess: 'Runner-view consistency (runs.ts remoteAgendaOdds in corpBoardValue); -0.6 ± 0.7 alone (run 42403914400); carried broke +1.3 ± 1.0 alone and the set\'s +4.0 ± 2.0 (run 42463624862); +7% time; on when a human hole needs it',
-  hqHeld: 'tuning pass 1: carried the decking bundle\'s broke +5.7 ± 2.4 (run 42403919890, with unseenOdds); not re-tried apart',
-  unseenOdds: 'tuning pass 1: carried the decking bundle\'s broke +5.7 ± 2.4 (run 42403919890, with hqHeld); not re-tried apart',
+  unseenOdds: 'tuning pass 1: carried the decking bundle\'s broke +5.7 ± 2.4 (run 42403919890, with hqHeld, deleted in Step 4 Stage C7); not re-tried apart',
   // Tuning pass round 2 (spec-round2.md): oracles measure headroom; they can never ship on
   'oracle.grip': 'measurement oracle, never a default',
   'oracle.safestRemote': 'measurement oracle, never a default',
@@ -135,9 +133,12 @@ describe('AI code health (audit guards)', () => {
   const lines = (f: string) => aiText(f).split('\n').length - 1;
 
   it('returns an install destination for an ordinary Corp install only in corp/placement.ts', () => {
-    // An install action built with a server: the placement owner, the counted lines' steps (in it too), and the ranking's
-    // own ice-trash variants (corpAI.ts iceTrashInstalls, ranking debt deleted by Stage C)
-    const ALLOWED: Record<string, string> = { 'corpAI.ts': 'iceTrashInstalls: the ranking (Stage C)', 'runnerAI.ts': 'Runner installs have no server' };
+    // An install action built with a server: the placement owner, the counted lines' steps (in it too). The ranking's own
+    // ice-trash variants (corpAI.ts iceTrashInstalls) went with it in Stage C7
+    const ALLOWED: Record<string, string> = {
+      'runnerAI.ts': 'Runner installs have no server',
+      'corp/candidates.ts': "freeInstallOrder (Stage C1b): an install prompt's options written as installs, one per option; place chooses among them",
+    };
     // A destination written any way: a property (`targetServerId: x`), a shorthand (`{ ...pick, targetServerId }`) or an
     // assignment (`a.targetServerId = x`); a type's optional field (`targetServerId?:`) is not a write (audit SB-PLACEMENT-GUARD-WEAK)
     const writes = /\b(targetServerId|asNewRemote)\s*:(?!\s*(string|boolean)\b)|[{,]\s*(targetServerId|asNewRemote)\s*[,}]|\.(targetServerId|asNewRemote)\s*=(?!=)/;
@@ -212,7 +213,8 @@ describe('AI code health (audit guards)', () => {
   // Step 4 Stage C4 (brief-stage-c.md): the card-specific rules live in corp/cardRules.ts; its exports may only shrink
   it('keeps the card rules of corp/cardRules.ts to this list (shrink only)', () => {
     const names = [...aiText('corp/cardRules.ts').matchAll(/^export (?:function|const) (\w+)/gm)].map(m => m[1]).sort();
-    expect(names).toEqual(['advancesAsIce', 'bangunBait', 'iceAdvanceValue', 'isPettyCash', 'myoshuSaving', 'overAdvance', 'tagFirst', 'tagsBeforeScore', 'trapAdvanceCap', 'untaianAdvance']);
+    // Stage C7: bangunBait, myoshuSaving and untaianAdvance had only the ranking as their reader and went with it
+    expect(names).toEqual(['advancesAsIce', 'iceAdvanceValue', 'isPettyCash', 'overAdvance', 'tagFirst', 'tagsBeforeScore', 'trapAdvanceCap']);
   });
 
   it("keeps the hold owner's readers to this list (corp/hold.ts serverHold)", () => {

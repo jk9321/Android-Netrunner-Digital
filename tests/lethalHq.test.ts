@@ -2,7 +2,6 @@ import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
 import { GameState, executeAction } from '../src/core';
 import { createAgent } from '../src/ai';
-import { lethalHqAgenda } from '../src/ai/corpAI';
 
 
 /**
@@ -29,14 +28,14 @@ function playTurn(s: GameState, corp = createAgent('corp', 'normal')): GameState
 const hqIce = (s: GameState) => s.corp.servers.hq.ice.length;
 
 describe('an agenda in HQ that would win the Runner the game (plan.lethalHq, bug report #4)', () => {
-  it('is spotted while HQ is within the Runner’s reach', () => {
-    const s = turn13();
-    expect(lethalHqAgenda(s)).toBe(true);
-    const safe = { ...s, runner: { ...s.runner, score: 3 } };
-    expect(lethalHqAgenda(safe)).toBe(false);
-  });
+  // 'is spotted while HQ is within the Runner's reach' tested the ranking's lethalHqAgenda (deleted, Step 4 Stage C7). Its
+  // re-expression on the stake owner is the ice redirect's clause (corp/placement.ts, c0-rulings 15:50Z (1)): the order puts
+  // ice on HQ first (tests/corpCandidates.test.ts, bug report #4)
 
-  it('gets HQ another layer of ice, and no HQ ice is trashed (Normal and Hard)', () => {
+  // Known-failing under the order (c0-rulings 16:00Z (1)): the look-ahead plays Palisade into a new remote and two
+  // Clearinghouse advances, HQ ends at two ice (the playouts' leaf prices the game-ending steal as ordinary points:
+  // valuation, Stage D5). Also pinned in tests/stageDPins.test.ts
+  it.fails('gets HQ another layer of ice, and no HQ ice is trashed (Normal and Hard)', () => {
     for (const agent of [createAgent('corp', 'normal'), createAgent('corp', 'hard', { samples: 6, seed: 1 })]) {
       const s = playTurn(turn13(), agent);
       // plan.plannerSearch (item 4): Normal may lay a fourth layer (plannerBuild tries the ice on a central the threat runs); at least one more is the point

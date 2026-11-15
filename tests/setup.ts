@@ -11,13 +11,10 @@ const realSetImmediate = globalThis.setImmediate;
 afterEach(() => new Promise<void>(resolve => realSetImmediate(() => resolve())));
 
 /**
- * TEMPORARY (Step 4 Stage C3 and C7, deleted with plan.corpCore): TEST_PLAN changes the plan's defaults for a whole run
- * (`+corpCore,+rolloutLines`: every test under the new core), LOO_OFF leaves carried-over rules out
+ * TEMPORARY (Step 4 Stage C7, deleted with corp/leaveOut.ts before the hand-off): LOO_OFF leaves carried-over rules out
  * (corp/candidates.ts leaveOut). Unset, nothing is imported here.
  */
-if (process.env.TEST_PLAN || process.env.LOO_OFF) {
-  const { applyPlanOff } = await import('../src/ai/synergy');
+if (process.env.LOO_OFF) {
   const { leaveOut } = await import('../src/ai/corp/candidates');
-  applyPlanOff(process.env.TEST_PLAN ?? '');
-  for (const r of (process.env.LOO_OFF ?? '').split(',').filter(Boolean)) leaveOut.off.add(r);
+  for (const r of process.env.LOO_OFF.split(',').filter(Boolean)) leaveOut.off.add(r);
 }

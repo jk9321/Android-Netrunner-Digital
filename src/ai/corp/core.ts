@@ -1,4 +1,4 @@
-import { GameAction, GameState, activePrompt, cardDef, getLegalActions } from '../../core';
+import { GameAction, GameState, activePrompt, getLegalActions } from '../../core';
 import { ScoredAction } from '../agent';
 import { keepsScore, scoreNowPlan, winNowAction } from '../winNow';
 import { answerPrompt } from '../prompts';
@@ -8,7 +8,7 @@ import { plan } from '../pricing';
 import { tally } from '../diagnostics';
 import { HeldLine, heldLaterStep } from './lines';
 import { moneyPick } from '../incomeLine';
-import { lineStep, placePick, scoreInTwoPick } from './placement';
+import { lineStep, scoreInTwoPick } from './placement';
 import { isPettyCash, rule } from './candidates';
 
 /**
@@ -18,11 +18,12 @@ import { isPettyCash, rule } from './candidates';
  * kept its own copy of the order by hand.
  *
  *   Q1 win now (winNow.ts) · Q3 score now (scoreNowPlan; a pick that keeps the score stands, keepsScore) · Q0 a prompt
- *   (prompts.ts) · Q7 the ranking (the caller's rankMainActions) with the look-ahead over it, skipped once a counted
- *   question has the click · Q6 money (incomeLine.ts moneyPick) · Q4/Q5 the held line's step or a two-turn line begun
- *   (scoreInTwoPick) · placement (placePick); both in corp/placement.ts since Stage B4.
+ *   (prompts.ts) · Q7 the order (corp/candidates.ts, the caller's rank) with the look-ahead over it, skipped once a
+ *   counted question has the click · Q6 money (incomeLine.ts moneyPick) · Q4/Q5 the held line's step or a two-turn line
+ *   begun (scoreInTwoPick, corp/placement.ts). Placement is inside the candidates: each install is already at place's
+ *   server, so nothing rewrites the pick.
  *
- * Q2 (the turn-start window, rule 5.6.1b) is the ranking's own today (rezzes ranked at corp_turn_start): Stage B2.
+ * Q2 (the turn-start window, rule 5.6.1b) is the order's (the rez candidates at corp_turn_start, line 4).
  */
 
 export interface CorpMemory {
@@ -36,14 +37,12 @@ export interface CorpContext {
   /** The counted questions (Q1, Q3 to Q6): the deciding Corp, Normal or Hard; off in the planner's rollouts. */
   counted: boolean;
   memory: CorpMemory;
-  /** Q7's ranking: main-phase actions, best first. */
+  /** Q7's order: main-phase actions, first first (corp/candidates.ts asRanked). */
   rank(state: GameState, legal: GameAction[]): ScoredAction[];
-  /** Q7's look-ahead over the ranking (the turn planner or the Hard search); null: the ranking's first. */
+  /** Q7's look-ahead over the order (the turn planner or the Hard search); null: the order's first. */
   lookahead?(state: GameState, ranked: ScoredAction[]): GameAction | null;
   /** The action played (the caller's loop guard). */
   note(action: GameAction): void;
-  /** The reverse bluff was played: an agenda into a new remote it cannot be scored from this turn. */
-  bluffed(): void;
   debug?: boolean;
 }
 
@@ -75,14 +74,12 @@ export function corpDecide(state: GameState, ctx: CorpContext): GameAction {
   // is then the rule ranking's, kept while it keeps the score (keepsScore), the line's action otherwise. A held two-turn
   // line on a later turn (Q4): its step (advance or score, heldLaterStep) does not depend on the pick, and scoreInTwoPick
   // below plays it.
-  // plan.rolloutLines (Stage C measurement, c0-rulings 04:25Z (a)): the planner's rollouts and the reply's Corp ask Q4
-  // and Q5 too (begin a two-turn line, play a held line's steps), and nothing else they do not ask today
-  const core = plan().corpCore;
-  const lines = ctx.counted || (core && !!plan().rolloutLines);
-  const later = lines && !!heldLaterStep(state, ctx.memory.heldLine);
-  // plan.corpCore (Stage C, spec 1.3 authority 2): the step a two-turn line plays now is the line's, asked before the
-  // look-ahead and never weighed by it; scoreInTwoPick below plays it and keeps the line
-  const lineFirst = core && lines && !score && !later ? lineStep(state, ctx.memory.heldLine ? structuredClone(ctx.memory.heldLine) : null) : null;
+  // The planner's rollouts and the reply's Corp ask Q4 and Q5 too (begin a two-turn line, play a held line's steps;
+  // c0-rulings 04:25Z (a)), and nothing else they do not ask
+  const later = !!heldLaterStep(state, ctx.memory.heldLine);
+  // Spec 1.3 authority 2: the step a two-turn line plays now is the line's, asked before the look-ahead and never weighed
+  // by it; scoreInTwoPick below plays it and keeps the line
+  const lineFirst = !score && !later ? lineStep(state, ctx.memory.heldLine ? structuredClone(ctx.memory.heldLine) : null) : null;
   const decided = !!score || later || !!lineFirst;
   const turnStart = state.turnStep?.kind === 'corp_turn_start';
   const planned = ctx.lookahead && !turnStart && !decided ? ctx.lookahead(state, ranked) : null;
@@ -102,7 +99,7 @@ export function corpDecide(state: GameState, ctx: CorpContext): GameAction {
   if (score && !keepsScore(state, picked, score)) picked = score.first;
   // Q4, Q5. plan.scoreInTwo (counted scoring C2): a held two-turn score line's step, or the pick vetoed while it would
   // spend the line's rez money
-  if (!score && lines) {
+  if (!score) {
     const two = scoreInTwoPick(state, picked, ctx.memory.heldLine);
     ctx.memory.heldLine = two.held;
     if (!ctx.counted) {
@@ -110,19 +107,6 @@ export function corpDecide(state: GameState, ctx: CorpContext): GameAction {
       if (lineFirst || two.action !== chosen) tally('scoreInTwo', 'rolloutTaken');
     }
     picked = two.action;
-  }
-  // Placement (corp/placement.ts placePick: central ice, the ice redirect, the asset partner): the pick's install goes
-  // where place puts it; nothing while a counted line is held (its ice goes where the line puts it; skipping only the
-  // line's own ice played the same 663 games, run 43158341651), or took the click
-  const held = ctx.memory.heldLine && ctx.memory.heldLine.game === state.id ? ctx.memory.heldLine : null;
-  // plan.corpCore: placement is inside the candidates (each install already at place's server), so nothing rewrites the pick
-  if (!core && !score && picked === chosen && ctx.synergy && !held) picked = placePick(state, picked);
-  // The reverse bluff: at most once a game, used up only by the install actually played (a pick the counted layer
-  // rewrote put no agenda in a new remote)
-  const bluff = picked;
-  if (bluff.type === 'INSTALL_CARD' && bluff.asNewRemote) {
-    const card = state.corp.hq.find(c => c.instanceId === bluff.cardInstanceId && cardDef(c).type_code === 'agenda');
-    if (card && (cardDef(card).advancement_cost ?? 0) > state.corp.clicks - 1) ctx.bluffed();
   }
   ctx.note(picked);
   if (ctx.debug) logNudge(state, 'corp', picked);

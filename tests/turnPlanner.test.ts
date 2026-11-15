@@ -19,7 +19,7 @@ describe('the whole-turn planner (Jeff, 2026-10-28; plan.turnPlanner)', () => {
     expect(isLegalAction(runner, r)).toBe(true);
   });
 
-  it('only chooses among the candidates it played out (the top few plus the added build and agenda lines), and passes with one or none', () => {
+  it('only chooses among the candidates it played out (the top few; the order adds its agenda and build slots only through the Corp agent\'s intake), and passes with one or none', () => {
     const s = newGame();
     const ai = new HeuristicCorpAI({ planner: false });
     const ranked = ai.rankMainActions(s);
@@ -29,9 +29,10 @@ describe('the whole-turn planner (Jeff, 2026-10-28; plan.turnPlanner)', () => {
       return planTurn(s, 'corp', ranked, { rank: x => ai.rankMainActions(x), answer: x => ai.chooseAction(x) }, true);
     });
     const top = ranked.filter(r => r.score > -Infinity && r.action.type !== 'END_TURN').slice(0, PLANNER.candidates).map(r => JSON.stringify(r.action));
-    // The top few are always played; plannerBuild and plannerAgenda add at most PLANNER.withBuild + 2 in all
+    // The top few are always played; without an intake (passed by the Corp agent, corp/candidates.ts plannerIntake) nothing
+    // is added: the planner's own builders went with the ranking (Step 4 Stage C7)
     for (const t of top) expect(played).toContain(t);
-    expect(played.length).toBeLessThanOrEqual(PLANNER.withBuild + 2);
+    expect(played.length).toBeLessThanOrEqual(PLANNER.candidates);
     expect(played).toContain(JSON.stringify(choice));
     expect(planTurn(s, 'corp', ranked.slice(0, 1), { rank: x => ai.rankMainActions(x), answer: x => ai.chooseAction(x) }, true)).toBeNull();
   });

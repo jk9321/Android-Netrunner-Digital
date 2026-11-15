@@ -158,7 +158,7 @@ export function corpCandidates(state: GameState, legal: GameAction[], opts: Cand
   for (const a of legal) {
     if (!isInstall(a)) continue;
     // BANGUN's faceup agenda installs (C4): an agenda candidate like the facedown one at the same server, ordered just
-    // after it (the bait's hand-set worth, bangunBait, stays the ranking's: the look-ahead prices the tag and damage)
+    // after it (the bait's hand-set worth, bangunBait, went with the ranking in C7: the look-ahead prices the tag and damage)
     if (a.faceUp) {
       const card = corp.hq.find(c => c.instanceId === a.cardInstanceId);
       if (card && typeOf(card) === 'agenda') faceUp.push({ a, card });

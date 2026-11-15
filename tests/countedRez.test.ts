@@ -16,10 +16,11 @@
  */
 import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
-import { CardInstance, GameState, cardDef, createCardInstance } from '../src/core';
+import { CardInstance, GameState, cardDef, createCardInstance, getLegalActions } from '../src/core';
 import { HeuristicCorpAI } from '../src/ai/corpAI';
 import { createAgent } from '../src/ai';
 import { archivesWantsIce, countedRez } from '../src/ai/corp/rez';
+import { corpCandidates } from '../src/ai/corp/candidates';
 import { inDecision } from './helpers/pricing';
 import { giveCard, newGame } from './helpers';
 
@@ -105,18 +106,23 @@ describe('counted rez on approached ice (6.4.3, 6.9.2b-c)', () => {
 });
 
 describe('R6: no ice installed on Archives without an agenda there or a Runner Archives card', () => {
-  it('the install on Archives is never ranked; with Maintenance Access in the Runner\'s list it is', () => {
+  // Rewritten in Step 4 Stage C7 against the order (the ranking's -Infinity is gone): an Archives ice install sorts behind
+  // while Archives wants no ice (corp/candidates.ts lines 2 and 6, archivesWantsIce; c0-rulings 16:00Z (4))
+  it('the install on Archives sorts behind; with Maintenance Access in the Runner\'s list R6 does not hold it back', () => {
     const base = structuredClone(newGame(1));
     base.corp.rd.push(...base.corp.hq.splice(0));
     const ice = giveCard(base, 'corp', '30072'); // Palisade
     base.runner.stack = base.runner.stack.filter(c => !['35016', '36015', '34007', '34068', '35003', '34072', '36007', '36001', '34070', '34079'].includes(c.cardCode));
     const ma = structuredClone(base);
     ma.runner.stack.push(createCardInstance(ma, '35016'));
-    const archivesInstall = (s: GameState) =>
-      new HeuristicCorpAI({ synergy: true })
-        .rankMainActions(s)
-        .find(r => r.action.type === 'INSTALL_CARD' && r.action.cardInstanceId === ice && (r.action as { targetServerId?: string }).targetServerId === 'archives');
-    expect(archivesInstall(base)?.score ?? -Infinity).toBe(-Infinity);
-    expect(archivesInstall(ma)?.score ?? -Infinity).toBeGreaterThan(-Infinity);
+    const archivesInstalls = (s: GameState) =>
+      inDecision(s, 'corp', () => corpCandidates(s, getLegalActions(s, 'corp'), { held: null, freeExhausted: false })).filter(
+        c => c.action.type === 'INSTALL_CARD' && c.action.cardInstanceId === ice && (c.action as { targetServerId?: string }).targetServerId === 'archives',
+      );
+    expect(archivesInstalls(base).every(c => c.behind)).toBe(true);
+    // With Maintenance Access R6 does not apply (archivesWantsIce), so nothing holds the install behind; here the C1 fallback
+    // of place moves this Palisade to a central anyway (ice that changes no count on Archives), so it is not proposed there
+    expect(inDecision(ma, 'corp', () => archivesWantsIce(ma))).toBe(true);
+    expect(archivesInstalls(ma).every(c => !c.behind)).toBe(true);
   }, 30000);
 });

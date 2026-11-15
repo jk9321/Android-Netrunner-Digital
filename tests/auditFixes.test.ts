@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { createCardInstance } from '../src/core';
 import { serverValue, tagCost } from '../src/ai/runs';
 import { corpEffect, rezzedWorth } from '../src/ai/effectValues';
-import { HeuristicCorpAI, outOfReach } from '../src/ai/corpAI';
+import { HeuristicCorpAI } from '../src/ai/corpAI';
 import { answerPrompt } from '../src/ai/prompts';
 import { guessHidden } from '../src/ai/runnerReply';
 import { determinize } from '../src/ai/search';
@@ -53,18 +53,9 @@ describe('additional costs to steal in the Runner AI', () => {
   });
 });
 
-describe('additional costs to steal in the Corp AI', () => {
-  it('counts Magistrate Revontulet\'s 3 credits in what keeps a remote out of reach', () => {
-    const s = newGame();
-    const server = { id: 'remote-1', name: 'remote-1', isRemote: true, ice: [], root: [createCardInstance(s, HOSTILE)] };
-    s.corp.servers['remote-1'] = server;
-    s.runner.credits = 0;
-    const without = outOfReach(s, server, 0);
-    installCorpForTest(s, MAGISTRATE, 'remote-2', true);
-    expect(without).toBe(false);
-    expect(outOfReach(s, server, 0)).toBe(true);
-  });
-});
+// 'additional costs to steal in the Corp AI' (Magistrate Revontulet's 3 credits in outOfReach) went with the ranking's
+// hold count (Step 4 Stage C7): the hold owner (corp/hold.ts) prices the ice only, not a steal's additional cost; listed
+// for the Stage D hold-owner inputs (step4-inputs.md)
 
 describe('a rezzed Corp card\'s rez cost is paid once (plan.rezPaid; Gemini audit, 2026-11-01)', () => {
   it('rezzing Magistrate Revontulet is worth its effect less one rez cost, not two', () => {

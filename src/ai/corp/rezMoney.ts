@@ -2,7 +2,6 @@ import { CardInstance, GameState, cardDef } from '../../core';
 import { tally } from '../diagnostics';
 import { runnerBudget, serverHold } from './hold';
 import { memo } from '../valueModel';
-import { plan } from '../pricing';
 
 /**
  * Owner: rez money, the credits the Corp keeps to rez the ice that holds what it stakes through the Runner's next turn
@@ -122,9 +121,8 @@ export function lineFloor(state: GameState, agendaId: string): number {
   const money = holdingRez(state, [agendaId]);
   for (let i = 0; i < money.unholdable.length; i++) tally('scoreInTwo', 'unholdable');
   const sum = Object.values(money.byServer).reduce((a, b) => a + b, 0);
-  // plan.corpCore (Stage C6, SB-TWO-FLOORS): one floor, the line reads keep as the placement rules do; floorLog counts
-  // the states where keep and the byServer sum differ
-  if (!plan().corpCore) return sum;
+  // Stage C6 (SB-TWO-FLOORS): one floor, the line reads keep as the placement rules do; floorLog counts the states where
+  // keep and the byServer sum differ
   const keep = countRezMoney(state, money).keep;
   if (floorLog.on) {
     floorLog.checked++;

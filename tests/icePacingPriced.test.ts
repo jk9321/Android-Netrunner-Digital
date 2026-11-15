@@ -65,10 +65,10 @@ describe('game 11 (bug report #43): the Corp with money ices HQ and rezzes its i
     expect(s.corp.hq.filter(c => cardDef(c).type_code === 'ice').length).toBeGreaterThanOrEqual(2);
   });
 
-  // Known-failing pin (CLAUDE.md: Jeff's games stay pinned): the ice-pacing guard still blocks every HQ ice install here.
-  // plan.icePacingPriced, which dropped the guard while ownIceKnown prices the ice, was parked off (about -7 points
-  // through over-icing) and deleted in audit Step 3; the hole waits for ice pacing priced by the leaf.
-  it.fails('turn 7: some ice install on HQ is playable (#43 open: every one ranks -Infinity)', { timeout: 60_000 }, () => {
+  // Was a known-failing pin (the ranking's ice-pacing guard blocked every HQ ice install here; plan.icePacingPriced, which
+  // dropped it, was deleted in audit Step 3). The order has no such guard: it passes once the ranking is deleted (Step 4
+  // Stage C7, c3-tests-both.md section C)
+  it('turn 7: some ice install on HQ is playable (#43: under the ranking every one ranked -Infinity)', { timeout: 60_000 }, () => {
     const ranked = iceInstalls(turn7(), 'hq');
     expect(ranked.length).toBeGreaterThan(0);
     expect(ranked.some(r => Number.isFinite(r.score))).toBe(true);

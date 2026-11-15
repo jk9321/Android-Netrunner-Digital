@@ -21,7 +21,7 @@ function turn(ai: Agent): { picks: string[]; credits: number } {
   for (let i = 0; i < 12 && s.activePlayer === 'corp' && s.turnNumber === s0.turnNumber; i++) {
     const a: GameAction = ai.chooseAction(s);
     const id = (a as { cardInstanceId?: string }).cardInstanceId;
-    const c = id ? s.corp.hq.find(x => x.instanceId === id) : undefined;
+    const c = id ? s.corp.hq.find(x => x.instanceId === id) ?? Object.values(s.corp.servers).flatMap(v => v.root).find(x => x.instanceId === id) : undefined;
     picks.push(c ? `${a.type}:${cardDef(c).title}` : a.type);
     s = executeAction(s, a);
   }
@@ -29,14 +29,17 @@ function turn(ai: Agent): { picks: string[]; credits: number } {
 }
 
 // Before M1 both Corps clicked for a credit on the spare click and ended on 6 (checked with the temporary switch off
-// before the fold, 7db8eb5)
+// before the fold, 7db8eb5); with M1 and the ranking they played Hedge Fund and ended on 9. Under the order (Step 4 Stage
+// C7, c3-tests-both.md A) the spare click advances Superconducting Hub (line 3, an agenda behind a server that holds, above
+// line 4's operation) and M1 keeps out of a pick that moves an agenda: a behaviour change named in the Stage C report.
+// The M1 condition itself is unchanged: it is pinned on the positions below and in tests/honestReads.test.ts
 describe('money step M1: a netting econ operation is the counted pick', () => {
-  it('the Normal and the Hard Corp play Hedge Fund on the spare click', { timeout: 120_000 }, () => {
+  it('the Normal and the Hard Corp give the spare click to the held agenda, which M1 does not take', { timeout: 120_000 }, () => {
     for (const ai of [new HeuristicCorpAI({ synergy: true }), createAgent('corp', 'hard')]) {
       const t = turn(ai);
       expect(t.picks.slice(0, 2)).toEqual(['INSTALL_CARD:Palisade', 'INSTALL_CARD:Superconducting Hub']);
-      expect(t.picks).toContain('PLAY_OPERATION_OR_EVENT:Hedge Fund');
-      expect(t.credits).toBe(9);
+      expect(t.picks[2]).toBe('ADVANCE_CARD:Superconducting Hub');
+      expect(t.picks).not.toContain('PLAY_OPERATION_OR_EVENT:Hedge Fund');
     }
   });
 });

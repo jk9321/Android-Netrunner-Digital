@@ -124,24 +124,12 @@ export const tuning = {
      * 3,797. Bare R&D on the Runner's first turn 74% -> 37%. Kept (Jeff's
      * rule: within noise, plays like a person).
      */
-    /**
-     * Corp (Jeff): ice is judged at the strength it has where it would go, and a layer that weakens the ice inside it
-     * costs that (Scatter Field). Off: self-play at 5f827e6 42.5% on, 45.6% off; with spinDoctorWait 44.3% on, 47.9% off.
-     */
-    icePosition: false,
-    /* Money target (2026-10-26, self-play, 2,210 games): off 42.7%, 0.3 46.8%, 0.6 46.8%. Kept the milder weight. */
-    /** Corp (Jeff): aim for a surplus that rezzes the unrezzed ice on the centrals and scoring remote (credits-worth per credit short; 0 = off). */
-    moneyTarget: 0.3,
     /*
      * Run budget (2026-10-26, self-play, 2,210 games): runs the Runner paid
      * into and lost fell from 1,536 to 1,265, jack-outs before known ice from
      * 282 to 9. Runner +36 games (Corp 44.2% -> 42.8%). Rez allowance alone:
      * within noise (kept, plays more like a person).
      */
-    /** Corp (round 3): no half-advanced agendas: advance only when it can be scored next turn behind ice it can rez. */
-    // Phase 2 pruning (2026-11-08): no pinned test, but kept ON: measured -10.1 ± 2.3 as a set of six off for the Corp (run 42531131425 vs base 42525924644)
-    // Step 2 (spec-step2-delete-redundant.md, 2026-11-10): still load-bearing beside counted scoring: off alone -13.6 ± 3.9 at games=1 (run 42848499337 vs 42834389263)
-    agendaTiming: true,
     /*
      * Draw and money round (2026-10-26, self-play): all on Corp 45.4% (2,210
      * games). Off on 1,105: saveForOps 39.8%, blindDraws 42.0%, pettyCash,
@@ -248,8 +236,6 @@ export const tuning = {
     rdTurnsLeft: false,
     /** Jeff, 2026-10-31 (same report): the Runner reply counts as stolen only open-remote agendas the sampled Runner never ran; one it ran and was stopped from survived (runnerReply.ts). */
     openStealUnrun: true,
-    /** Jeff, 2026-10-31 (Doomscroll again): the Corp's agenda safety checks (iceDepth, fundedDepth, entryCost) count ice the Runner can take as only the credits it needs (corpAI.ts protectionCost). */
-    tankProtection: true,
     /** Jeff, 2026-10-31: the ice worth cap is this Runner's credits plus two turns of income, at least 8 (iceValues.ts iceStop); wins over iceStopHigh. Batch 663: 47.1% vs 49.2% base (noise, in band); kept on as Jeff's model. icePacing off (install ice it can't rez) was 45.4%, remote steals 487 -> 566: icePacing stays. */
     iceStopRunner: true,
     /** Jeff, 2026-11-05: iceStopRunner's cap reads the Runner's credits at the start of the decision, so gaining or spending credits doesn't move ice worth (iceValues.ts stopCredits, noted by handValues.ts decisionContext). */
@@ -262,8 +248,8 @@ export const tuning = {
      * plannerSeed: the Corp's Runner reply deals the hidden cards from one seed per decision (game, turn, clicks left:
      * turnPlanner.ts currentDecisionSeed), so every candidate of a decision is played out on the same deals and differs
      * only by its line; the next decision gets fresh deals. (Round 1 seeded by turn: stuck in HQ +3.5, a scope error.)
-     * plannerBuild: the Corp's candidates add the ice install a two-step build starts (ice, then the agenda or asset
-     * behind it; ice on a central the threat runs), which the rule ranking puts outside its top few. Cap PLANNER.withBuild.
+     * plannerBuild (the Corp's planner builder; read only with the ranking, deleted with it in Step 4 Stage C7: the order's
+     * build slot took its place).
      * plannerDiscard: a playout that ends the turn over its maximum hand size plays the discard step through the engine
      * with the AI's own discard answer before the leaf (rules 5.6.3a Corp, 5.7.2a Runner). It matters for the Runner's
      * planner (and a threat leaf): the Corp's played-out reply already starts with the Corp ending its turn and discarding.
@@ -276,7 +262,6 @@ export const tuning = {
      */
     plannerSearch: true,
     plannerSeed: true,
-    plannerBuild: true,
     plannerDiscard: true,
     /**
      * Tuning pass 1, part A (parked code audit items 7-9 and the decking/ice-grip experiments, rebased onto beta 5a17a31).
@@ -299,13 +284,6 @@ export const tuning = {
      * not what loses the Corp games. Code kept for the oracle thread's think-harder bundle (4 reply samples).
      */
     replyContenders: false,
-    /**
-     * Probe P3: the planner's Corp candidates always include the best agenda install into an empty iced remote and the
-     * best advance (turnPlanner.ts agendaCandidates). ON with iceProtects (2026-11-08, above).
-     * Step 2 (spec-step2-delete-redundant.md, 2026-11-10): search supply, kept, out of scope (it adds candidates, it weighs
-     * nothing): off -1.1 ± 1.1 at games=3, agenda stuck in HQ +2.3 ± 1.0 (run 42869504419 vs 42834394529).
-     */
-    plannerAgenda: true,
     /**
      * Phase 2 O4c (opening-audit/report.md): Clearinghouse is rezzed before the Corp's turn begins, so its trash can fire
      * (corpAI.ts springsOnAccess; rules 8.5.2, 5.6.1b-d). Off: every Hostile asset was treated as an access trap and never
@@ -347,14 +325,6 @@ export const tuning = {
      */
     scoreInTwo: true,
     /**
-     * TEMPORARY (Step 4 Stage C, spec-step4-corp-core.md 1.10): the Corp's ordinary move (Q7) from corp/candidates.ts,
-     * the nine-line order of stage-c/order.md, in place of the hand-set ranking. Off: the ranking, to compare recorded
-     * decisions side by side and locate a bug. Deleted with the ranking before Stage C merges.
-     */
-    corpCore: true,
-    /** TEMPORARY (Stage C measurement, c0-rulings 04:25Z (a)): rollouts and the reply's Corp ask Q4/Q5 under corpCore. */
-    rolloutLines: true,
-    /**
      * Bug reports #39, #41 (Jeff's Runner test games 7 and 9, 2026-11-09; Corp only): the Corp's own unrezzed ice is priced
      * as it knows it (effectValues.ts ownIce: the real ice when its rez budget covers it, passed when not; rules 3.4.3a,
      * 6.9.2b-c) in runSuccess and stealOdds. Off: the Runner-side pass rates, so an agenda behind a Pharos the Corp could
@@ -393,12 +363,10 @@ export const tuning = {
     /** Code audit cleanup item 9: the Runner's board score and run choice guess a facedown card the same way (runs.ts remoteAgendaOdds, evaluate corpBoardValue). */
     oneAgendaGuess: false,
     /**
-     * Thread "Find why self-play games end decked" (2026-11-06, branch ai-decking-fixes): tankNoEtr prices only ice with no
-     * run enders by its tank cost (corpAI.ts protectionCost); hqHeld lets hqNoSafer apply while HQ holds 2+ agendas;
-     * unseenOdds leaves installed ice and rezzed root cards out of the agenda odds (effectValues.ts countAgendaOdds).
+     * Thread "Find why self-play games end decked" (2026-11-06, branch ai-decking-fixes): unseenOdds leaves installed ice
+     * and rezzed root cards out of the agenda odds (effectValues.ts countAgendaOdds). Its partners tankNoEtr and hqHeld
+     * were read only by the ranking (deleted in Step 4 Stage C7).
      */
-    tankNoEtr: true,
-    hqHeld: false,
     unseenOdds: false,
     /** Jeff, 2026-11-06 (his Teia game, ai-ice-grip): ice on the board is priced against a grip no bigger than the hand size, not the cards the Runner holds only until its turn ends (iceValues iceWorthOf). */
     iceGripCap: true,
@@ -455,7 +423,7 @@ export const tuning = {
  */
 export const sideOff: Record<SideCode, string[]> = {
   corp: [],
-  runner: ['scoreNow', 'scoreInTwo', 'tagTrashNow', 'ownTrashRisk', 'hqTrashCost', 'threatModel', 'iceProtects', 'replyContenders', 'plannerAgenda', 'clearinghouseRez', 'ownIceKnown', 'runRecord', 'oracle', 'threatKey', 'threatKeyPricing'],
+  runner: ['scoreNow', 'scoreInTwo', 'tagTrashNow', 'ownTrashRisk', 'hqTrashCost', 'threatModel', 'iceProtects', 'replyContenders', 'clearinghouseRez', 'ownIceKnown', 'runRecord', 'oracle', 'threatKey', 'threatKeyPricing'],
 };
 
 /**
@@ -497,6 +465,11 @@ export const FOLDED: readonly string[] = [
   // 43540407576): a game end inside a sampled Runner reply is priced on the point clock from the reply root's board
   // (valueModel sampledEndWorth), not evaluate's ±1000
   'terminalClock',
+  // Step 4 Stage C7 (spec-step4-corp-core.md 2.1): read only by the hand-set move ranking (corpAI.ts), deleted with it.
+  // corpCore and rolloutLines: the order and the rollouts' lines are the only Corp; agendaTiming, tankProtection,
+  // tankNoEtr, moneyTarget (a weight): the ranking's own terms; plannerBuild, plannerAgenda: the planner's builders over
+  // the ranking, replaced by the order's agenda and build slots (corp/candidates.ts plannerIntake)
+  'corpCore', 'rolloutLines', 'agendaTiming', 'tankProtection', 'tankNoEtr', 'moneyTarget', 'plannerBuild', 'plannerAgenda',
 ];
 
 /**
@@ -515,13 +488,16 @@ export const DELETED: readonly string[] = [
   'searchSamples', 'icePacingPriced',
   // C5: structural review item 1's one-currency Corp ranking (off since its stop rule, 2026-11-07: 22.2% vs 36.7%)
   'oneCurrency',
+  // Step 4 Stage C7: off switches read only by the deleted ranking (icePosition: Scatter Field's install score; hqHeld:
+  // the ranking's hqNoSafer)
+  'icePosition', 'hqHeld',
 ];
 
 /** Throws on a name that isn't a plan switch (a typo, a switch folded into the code, or one deleted). */
 function checkSwitch(name: string) {
   if (name in tuning.plan) return;
   if (FOLDED.includes(name)) throw new Error(`plan.${name} was folded into the code (review item 6): it is always on`);
-  if (DELETED.includes(name)) throw new Error(`plan.${name} was deleted (audit Step 3): only the path it shipped with is left`);
+  if (DELETED.includes(name)) throw new Error(`plan.${name} was deleted (audit Step 3, Step 4 Stage C7): only the path it shipped with is left`);
   throw new Error(`no plan switch named ${name}`);
 }
 

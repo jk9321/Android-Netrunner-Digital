@@ -1,6 +1,4 @@
 import { CardInstance, GameState, cardDef, getCardDefinition, isLegalAction } from '../../core';
-import { turnKey } from '../../core/engine/helpers';
-import { MYOSHU } from '../cardPlans';
 import { cardSynergy } from '../synergyTags';
 import { dividendsOf } from '../cards';
 import { tuning } from '../synergy';
@@ -16,35 +14,13 @@ import { iceAdvanceWorth } from '../effectValues';
 
 const type = (c: CardInstance) => cardDef(c).type_code;
 const PETTY_CASH = '35081';
-const PT_UNTAIAN = '35047';
 const CLEARINGHOUSE = '30061';
 const PHAROS = '35076';
 const SYAILENDRA = '30063';
-const MYOSHU_COST = 10;
 
 /** Petty Cash from HQ: playable only as the turn's first action. */
 export const isPettyCash = (state: GameState, a: { type: string; cardInstanceId?: string }): boolean =>
   a.type === 'PLAY_OPERATION_OR_EVENT' && state.corp.hq.find(c => c.instanceId === a.cardInstanceId)?.cardCode === PETTY_CASH;
-
-/** PT Untaian's paid advancement at the end of this turn (1), if HQ will be small enough; `leaving` cards are about to leave HQ. */
-export function untaianAdvance(state: GameState, leaving: number): number {
-  const corp = state.corp;
-  return corp.identity.cardCode === PT_UNTAIAN && corp.hq.length - leaving <= 3 && corp.credits >= 2 ? 1 : 0;
-}
-
-/**
- * BANGUN: a faceup agenda tells the Runner what it is, but accessing it
- * does 2 meat damage and gives a tag. Worth it when that would flatline
- * the Runner (a guard on the agenda), or when the Corp holds cards that
- * punish tags; otherwise a small cost, as before.
- */
-export function bangunBait(state: GameState): number {
-  if (state.runner.grip.length < 2) return 1.5;
-  const corp = state.corp;
-  const cards = [...corp.hq, ...corp.scoreArea, ...Object.values(corp.servers).flatMap(s => s.root)];
-  const punishers = cards.filter(c => (cardSynergy(cardDef(c)).when ?? []).includes('ifTagged')).length;
-  return punishers > 0 ? 0.4 + 0.4 * Math.min(punishers, 2) : -0.5;
-}
 
 /** An agenda that is better scored with the Runner tagged, while an operation in HQ could tag them this turn. */
 export function tagFirst(state: GameState, agendaId: string): boolean {
@@ -97,20 +73,4 @@ export const advancesAsIce = (card: CardInstance): boolean => card.cardCode === 
 export function iceAdvanceValue(state: GameState, card: CardInstance): number {
   const at = (n: number) => Math.min(iceStop(state), iceCost(state, { ...card, isRezzed: true, advancementCounters: n }));
   return iceAdvanceWorth(state, card, at);
-}
-
-/**
- * Myōshu (play only after scoring an agenda installed on an earlier turn;
- * 10 credits for 2 points): worth saving for while it is in HQ and an
- * agenda installed before this turn sits in a remote. `held`: the 10 are
- * already in the pool (keep them); otherwise they are within about two
- * turns of clicks (save toward them).
- */
-export function myoshuSaving(state: GameState, held = false): boolean {
-  const corp = state.corp;
-  if (!corp.hq.some(c => c.cardCode === MYOSHU)) return false;
-  const now = turnKey(state);
-  const older = Object.values(corp.servers).some(s => s.isRemote && s.root.some(c => type(c) === 'agenda' && c.installedTurn !== now));
-  if (!older) return false;
-  return held ? corp.credits >= MYOSHU_COST : corp.credits < MYOSHU_COST && corp.credits + corp.clicks + 6 >= MYOSHU_COST;
 }

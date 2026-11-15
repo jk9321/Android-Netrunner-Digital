@@ -134,7 +134,7 @@ function placeRules(state: GameState, card: CardInstance, from: Install, free?: 
   const partner = assetPartner(state, from, free);
   if (partner && isInstall(partner)) return { action: partner, reason: 'assetPartner' };
   // 5. Ice no rule placed and that changes no count where it stands: spec 1.8 ice rule 3 (C1), the fallback
-  if (typeOf(card) === 'ice' && plan().corpCore) {
+  if (typeOf(card) === 'ice') {
     const fallback = iceFallback(state, card, from, free);
     if (fallback) return { action: fallback.action, reason: fallback.unpaid ? 'fallback:unpaid' : 'fallback' };
   }

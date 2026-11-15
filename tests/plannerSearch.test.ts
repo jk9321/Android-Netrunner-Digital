@@ -1,10 +1,11 @@
 import { readFileSync } from 'node:fs';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
-import { GameState, cardDef, createRng, executeAction } from '../src/core';
+import { GameAction, GameState, cardDef, createRng, executeAction } from '../src/core';
 import { HeuristicCorpAI } from '../src/ai/corpAI';
 import { guessHidden } from '../src/ai/runnerReply';
 import { tuning } from '../src/ai/synergy';
-import { buildCandidates, discardStep, planTurn } from '../src/ai/turnPlanner';
+import { PLANNER, discardStep, planTurn } from '../src/ai/turnPlanner';
+import { plannerIntake } from '../src/ai/corp/candidates';
 import { newGame, putInHand } from './helpers';
 import { inDecision } from './helpers/pricing';
 
@@ -68,32 +69,33 @@ describe('plannerSeed: every candidate of a turn is played out on the same deal'
   });
 });
 
-describe('plannerBuild: the ice install a remote build starts is tried', () => {
-  it('adds an ice install into a new remote while HQ holds an agenda, and reads nothing of the grip', () => {
+// The planner's own builder (plannerBuild, buildCandidates) went with the ranking (Step 4 Stage C7): the order's build
+// slot (corp/candidates.ts plannerIntake, line 8) brings the ice a two-step build starts into the planner's candidates
+describe("the order's build slot: the ice install a remote build starts is tried", () => {
+  const intake = (s: GameState) =>
+    inDecision(s, 'corp', () => {
+      const open = new HeuristicCorpAI({ planner: false }).rankMainActions(s).filter(r => r.score > -Infinity && r.action.type !== 'END_TURN' && r.action.type !== 'START_TURN');
+      return plannerIntake(open, PLANNER.candidates).picked;
+    });
+  const remoteIce = (s: GameState, picked: { action: GameAction }[]) =>
+    picked.filter(r => r.action.type === 'INSTALL_CARD' && r.action.asNewRemote && cardDef(s.corp.hq.find(c => c.instanceId === (r.action as { cardInstanceId: string }).cardInstanceId)!).type_code === 'ice').map(r => JSON.stringify(r.action));
+
+  it('holds an ice install into a new remote while HQ holds an agenda, and reads nothing of the grip', () => {
     const s = newGame();
     putInHand(s, 'corp', 'agenda');
     putInHand(s, 'corp', 'ice');
     s.corp.credits = 10;
-    const ranked = inDecision(s, 'corp', () => new HeuristicCorpAI({ planner: false }).rankMainActions(s));
-    const added = buildCandidates(s, ranked, []);
-    const remote = added.find(r => r.action.type === 'INSTALL_CARD' && r.action.asNewRemote);
-    expect(remote).toBeDefined();
-    const card = s.corp.hq.find(c => remote!.action.type === 'INSTALL_CARD' && c.instanceId === remote!.action.cardInstanceId)!;
-    expect(cardDef(card).type_code).toBe('ice');
-    // already a candidate: not added again
-    expect(buildCandidates(s, ranked, [remote!]).some(r => JSON.stringify(r.action) === JSON.stringify(remote!.action))).toBe(false);
+    expect(remoteIce(s, intake(s)).length).toBeGreaterThan(0);
     // the Runner's grip swapped for other cards: the same candidates
     const t = { ...s, runner: { ...s.runner, grip: s.runner.stack.slice(0, s.runner.grip.length), stack: [...s.runner.grip, ...s.runner.stack.slice(s.runner.grip.length)] } };
-    const remoteOf = (x: GameState) => buildCandidates(x, ranked, []).filter(r => r.action.type === 'INSTALL_CARD' && r.action.asNewRemote).map(r => JSON.stringify(r.action));
-    expect(remoteOf(t)).toEqual(remoteOf(s));
+    expect(remoteIce(t, intake(t))).toEqual(remoteIce(s, intake(s)));
   });
 
-  it('adds no remote ice with no agenda or asset in HQ', () => {
+  it('holds no remote ice with no agenda or asset in HQ', () => {
     const s = newGame();
     s.corp.hq = s.corp.hq.filter(c => !['agenda', 'asset'].includes(cardDef(c).type_code ?? ''));
     putInHand(s, 'corp', 'ice');
-    const ranked = inDecision(s, 'corp', () => new HeuristicCorpAI({ planner: false }).rankMainActions(s));
-    expect(buildCandidates(s, ranked, []).some(r => r.action.type === 'INSTALL_CARD' && r.action.asNewRemote)).toBe(false);
+    expect(remoteIce(s, intake(s))).toEqual([]);
   });
 });
 
