@@ -1,7 +1,6 @@
 import { useEffect, useMemo, useRef, useState, useSyncExternalStore } from 'react';
-import { CardInstance, GameAction, SideCode, actingSide, cardDef, findCardAnywhere, iceSubtypes, knownInHand, knownInRd } from './core';
+import { CardInstance, SideCode } from './core';
 import { SeatContext } from './ui/seat';
-import { breakerTypes } from './ui/components/IceTypeIcons';
 import { DEFAULT_CORP_DECK, DEFAULT_RUNNER_DECK } from './data/decks';
 import { GameConfig, SavedGame, clearSavedGame } from './ui/savedGame';
 import { randomSeed, startingGame } from './ui/gameStart';
@@ -11,40 +10,21 @@ import { OnlineSession, OnlineTable, browserSocket, clearSession, leavingForgets
 import { codeFromPath, roomPresence } from './net/lobby';
 import { ConnectingScreen, OnlineNotice, WaitingRoom } from './ui/components/OnlineScreens';
 import { DeckPicker } from './ui/components/DeckPicker';
-import { CardView } from './ui/components/CardView';
-import { ServerColumn } from './ui/components/ServerColumn';
-import { RigView } from './ui/components/RigView';
-import { RunOverlay } from './ui/components/RunOverlay';
 import { LogFeed } from './ui/components/LogFeed';
-import { PromptPanel } from './ui/components/PromptPanel';
-import { CardZoomModal } from './ui/components/CardZoomModal';
 import { WindowBar } from './ui/components/WindowBar';
 import { AbilityBar } from './ui/components/AbilityBar';
-import { ZoneId, ZoneViewer, zoneContents } from './ui/components/ZoneViewer';
-import { Pile } from './ui/components/Pile';
-import { HandRow } from './ui/components/HandRow';
+import { ZoneId, zoneContents } from './ui/components/ZoneViewer';
 import { ZoomContext, ZoomPanel, createZoomStore } from './ui/components/ZoomPanel';
-import { CardFates } from './ui/components/CardFates';
-import { HandoffScreen } from './ui/components/HandoffScreen';
-import { TurnBanner } from './ui/components/TurnBanner';
-import { GameOverModal } from './ui/components/GameOverModal';
 import { GameHeader } from './ui/components/GameHeader';
-import { SideStrip } from './ui/components/SideStrip';
-import { AutoFitArea } from './ui/components/AutoFitArea';
 import { CorpActions, RunnerActions } from './ui/components/ActionBars';
-import { AccessedPanel } from './ui/components/AccessedPanel';
-import { canActAs, canSeeCorpSecrets, canSeeRunnerSecrets } from './ui/viewer';
-import { Keyword } from './ui/components/Keyword';
-import { KnownInHandButton } from './ui/components/KnownInHandButton';
+import { CorpBoard } from './ui/components/CorpBoard';
+import { RunnerBoard } from './ui/components/RunnerBoard';
+import { GameOverlays } from './ui/components/GameOverlays';
 import { showAlert, showConfirm } from './ui/components/Dialog';
-import { SectorRimTrace } from './ui/components/SectorRimTrace';
 import { MotionConfig } from 'framer-motion';
 import { useAnimationsEnabled } from './ui/animations';
 import { GameStateContext } from './ui/liveValues';
 import { stopMusic, updateMusic } from './ui/music';
-
-/** Reversed: Archives sorts first; remotes (-1) keep their order after HQ. */
-const CENTRAL_ORDER = ['hq', 'rd', 'archives'];
 
 /** What the app shows: the start screen (maybe joining from an invite link), a local game, or an online one. */
 type Screen = { kind: 'start'; joinCode: string | null } | { kind: 'local'; config: GameConfig } | { kind: 'online'; session: OnlineSession };
@@ -217,23 +197,13 @@ function GameScreen({
     viewMode,
     setViewMode,
     hotseatSide,
-    setHotseatSide,
-    accessed,
-    clearAccessed,
-    fates,
-    aiSide,
     humanSide,
-    rezWindow,
-    rezWindowOpen,
-    passWindow,
     stops,
     setStops,
     viewer,
-    handoffTo,
     corpCanAct,
     runnerCanAct,
     aiThinking,
-    cancelChoice,
     online,
   } = ctl;
 
@@ -312,15 +282,10 @@ function GameScreen({
     setViewMode(mode);
   };
 
-  const { corp, runner, activePlayer, activeRun, winner } = gameState;
+  const { corp, runner, activePlayer, winner } = gameState;
   // Online the room can also end a game with no winner (a server update), and says why
   const ended = !!winner || !!online?.over;
   const winReason = online?.over?.reason ?? gameState.winReason;
-
-  const corpTabRef = useRef<HTMLDivElement>(null);
-  const corpChassisRef = useRef<HTMLElement>(null);
-  const runnerTabRef = useRef<HTMLDivElement>(null);
-  const runnerChassisRef = useRef<HTMLElement>(null);
 
   const [shiftSide, setShiftSide] = useState<SideCode | null>(null);
   const prevActivePlayer = useRef(activePlayer);
@@ -334,142 +299,8 @@ function GameScreen({
     }
   }, [activePlayer, winner]);
 
-
   const selectedCard = [...corp.hq, ...runner.grip].find(c => c.instanceId === selectedCardId);
 
-  // Runner cards installed on Corp ice (trojans), and where each one sits, for the host tags
-  const onIce = [...runner.rig.programs, ...runner.rig.hardware, ...runner.rig.resources].filter(c => c.hostedOnId);
-  const iceHostLabel = (card: CardInstance): string | undefined => {
-    if (!card.hostedOnId) return undefined;
-    const server = Object.values(corp.servers).find(s => s.ice.some(i => i.instanceId === card.hostedOnId));
-    const index = server ? server.ice.findIndex(i => i.instanceId === card.hostedOnId) : -1;
-    if (!server || index < 0) {
-      // Hosted on one of the Runner's own cards (Gamdragon Pro on an icebreaker)
-      const host = findCardAnywhere(gameState, card.hostedOnId);
-      return host ? cardDef(host).title : undefined;
-    }
-    const ice = server.ice[index];
-    const name = ice.isRezzed || canSeeCorpSecrets(viewer) ? cardDef(ice).title : 'unrezzed ice';
-    // Several unrezzed ice in one server look alike, so say which one (ice 1 is innermost)
-    return `${server.name} ice ${index + 1} · ${name}`;
-  };
-
-  const rezAction = (card: CardInstance): GameAction => ({ type: 'REZ_CARD', player: 'corp', cardInstanceId: card.instanceId });
-
-  // The servers and the rig only change with the game state or who is looking, so selecting a
-  // card, opening a zone or resizing cards reuses them instead of redrawing the whole table.
-  // (Their buttons call handleAction, which always works on the latest state.)
-  const serversView = useMemo(
-    () =>
-      // Central servers left to right: Archives, R&D, HQ, then remotes
-      Object.values(corp.servers)
-        .sort((a, b) => CENTRAL_ORDER.indexOf(b.id) - CENTRAL_ORDER.indexOf(a.id))
-        .map(server => (
-        <ServerColumn
-          key={server.id}
-          server={server}
-          activePlayer={activePlayer}
-          perspective={viewer}
-          run={activeRun?.server === server.id ? activeRun : null}
-          onInitiateRun={
-            runnerCanAct
-              ? (sId) => handleAction({ type: 'INITIATE_RUN', player: 'runner', targetServerId: sId })
-              : undefined
-          }
-          onRezCard={(cId) =>
-            handleAction({ type: 'REZ_CARD', player: 'corp', cardInstanceId: cId })
-          }
-          onAdvanceCard={(cId, sId) =>
-            handleAction({ type: 'ADVANCE_CARD', player: 'corp', cardInstanceId: cId, serverId: sId })
-          }
-          onScoreCard={(cId) =>
-            handleAction({ type: 'SCORE_AGENDA', player: 'corp', cardInstanceId: cId })
-          }
-          canRez={(card) => corpCanAct && seat.can(rezAction(card))}
-          canAdvance={(card) =>
-            corpCanAct &&
-            seat.can({ type: 'ADVANCE_CARD', player: 'corp', cardInstanceId: card.instanceId, serverId: server.id })
-          }
-          canScore={(card) =>
-            corpCanAct && seat.can({ type: 'SCORE_AGENDA', player: 'corp', cardInstanceId: card.instanceId })
-          }
-          onInspectCard={(card) => setInspectedCard(card)}
-          hostedOnIce={(ice) => onIce.filter(c => c.hostedOnId === ice.instanceId)}
-          iceTypes={(ice) => iceSubtypes(ice, gameState)}
-          anchor={
-            server.id === 'hq' ? (
-              <CardView card={corp.identity} size="fit" notInstalled onInspect={setInspectedCard} />
-            ) : server.id === 'rd' ? (
-              <Pile
-                label="R&D"
-                count={corp.rd.length}
-                side="corp"
-                size="fit"
-                hideLabel
-                // Nobody may look through the decks during play; once the game is over anyone can (rules 1.7.1).
-                // During play it opens the cards the Runner has seen in R&D.
-                onClick={
-                  gameState.winner || (canSeeRunnerSecrets(viewer) && knownInRd(gameState).length > 0)
-                    ? () => setZone('rd')
-                    : undefined
-                }
-                seenCount={canSeeRunnerSecrets(viewer) ? knownInRd(gameState).length : undefined}
-                testId="pile-rd"
-              />
-            ) : server.id === 'archives' ? (
-              <Pile
-                label="Archives"
-                count={corp.archives.faceUp.length + corp.archives.faceDown.length}
-                side="corp"
-                topCard={corp.archives.faceUp[corp.archives.faceUp.length - 1]}
-                size="fit"
-                hideLabel
-                onClick={() => setZone('archives')}
-                testId="pile-archives"
-              />
-            ) : undefined
-          }
-        />
-      )),
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-    [gameState, seat, viewer, corpCanAct, runnerCanAct],
-  );
-  const rigView = useMemo(
-    () => (
-      <RigView
-        rig={runner.rig}
-        onInspectCard={setInspectedCard}
-        hostLabel={iceHostLabel}
-        breaks={breakerTypes}
-        canSeeSecrets={canSeeRunnerSecrets(viewer)}
-        aside={
-          <>
-            <CardView card={runner.identity} size="fit" notInstalled onInspect={setInspectedCard} />
-            <div />
-            <Pile
-              label="Stack"
-              count={runner.stack.length}
-              side="runner"
-              size="fit"
-              onClick={gameState.winner ? () => setZone('stack') : undefined}
-              testId="pile-stack"
-            />
-            <Pile
-              label="Heap"
-              count={runner.heap.length}
-              side="runner"
-              topCard={runner.heap[runner.heap.length - 1]}
-              size="fit"
-              onClick={() => setZone('heap')}
-              testId="pile-heap"
-            />
-          </>
-        }
-      />
-    ),
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-    [gameState, viewer],
-  );
   // New only when a move changes the piles, so the hands below can skip redrawing
   const discardedIds = useMemo(
     () => new Set([...runner.heap, ...corp.archives.faceUp, ...corp.archives.faceDown].map(c => c.instanceId)),
@@ -479,266 +310,120 @@ function GameScreen({
 
   return (
     <GameStateContext.Provider value={gameState}>
-    <SeatContext.Provider value={seat}>
-    <div
-      className="min-h-screen lg:h-screen lg:overflow-hidden text-slate-100 flex flex-col font-mono selection:bg-cyber-neonYellow selection:text-black"
-    >
-      <GameHeader
-        state={gameState}
-        config={config}
-        online={online}
-        aiThinking={aiThinking}
-        stops={stops}
-        onStops={setStops}
-        humanSide={humanSide}
-        viewMode={viewMode}
-        onViewMode={changeViewMode}
-        concedingSide={concedingSide}
-        onConcede={concede}
-        onLeave={leaveGame}
-      />
+      <SeatContext.Provider value={seat}>
+        <div
+          className="min-h-screen lg:h-screen lg:overflow-hidden text-slate-100 flex flex-col font-mono selection:bg-cyber-neonYellow selection:text-black"
+        >
+          <GameHeader
+            state={gameState}
+            config={config}
+            online={online}
+            aiThinking={aiThinking}
+            stops={stops}
+            onStops={setStops}
+            humanSide={humanSide}
+            viewMode={viewMode}
+            onViewMode={changeViewMode}
+            concedingSide={concedingSide}
+            onConcede={concede}
+            onLeave={leaveGame}
+          />
 
-      {/* Main Tabletop */}
-      <div className="flex-1 min-h-0 w-full flex flex-col lg:flex-row gap-2 p-2">
-      {/* Cards on the table send their hover to the zoom panel in the side bar */}
-      <ZoomContext.Provider value={zoomStore}>
-      <main className="flex-1 min-w-0 min-h-0 flex flex-col gap-2">
-        {/* Victory Banner */}
-        {ended && (
-          <div className="shrink-0 p-3 bg-gradient-to-r from-amber-950/80 to-pink-950/80 border-2 border-amber-500 rounded-[4px] flex flex-wrap items-center justify-between gap-2 shadow-2xl">
-            <div>
-              <h2 className="text-lg sm:text-xl font-cyber font-black text-amber-400">
-                GAME OVER // {winner ? `${winner.toUpperCase()} VICTORIOUS` : "NO WINNER"}
-              </h2>
-              <p className="text-xs text-slate-300 mt-1">{winReason}</p>
-            </div>
-            <div className="flex gap-2">
-              <button
-                onClick={() => setGameOverHidden(false)}
-                className="px-4 py-2 bg-slate-800 hover:bg-slate-700 text-slate-100 font-bold rounded-[2px] border border-slate-700 border-b-2 border-b-slate-600 text-xs shadow-lg active:translate-y-[1px] active:border-b-[1px] transition-all"
-              >
-                Show result
-              </button>
-              <button
-                onClick={onNewGame}
-                className="px-5 py-2 bg-gradient-to-b from-amber-400 to-amber-500 hover:from-amber-300 hover:to-amber-400 text-black font-bold rounded-[2px] border-b-2 border-amber-700 text-xs shadow-lg active:translate-y-[1px] active:border-b-[1px] transition-all"
-              >
-                {online ? "Back to start" : "Play Again"}
-              </button>
-            </div>
-          </div>
-        )}
+          {/* Main Tabletop */}
+          <div className="flex-1 min-h-0 w-full flex flex-col lg:flex-row gap-2 p-2">
+            {/* Cards on the table send their hover to the zoom panel in the side bar */}
+            <ZoomContext.Provider value={zoomStore}>
+              <main className="flex-1 min-w-0 min-h-0 flex flex-col gap-2">
+                {/* Victory Banner */}
+                {ended && (
+                  <div className="shrink-0 p-3 bg-gradient-to-r from-amber-950/80 to-pink-950/80 border-2 border-amber-500 rounded-[4px] flex flex-wrap items-center justify-between gap-2 shadow-2xl">
+                    <div>
+                      <h2 className="text-lg sm:text-xl font-cyber font-black text-amber-400">
+                        GAME OVER // {winner ? `${winner.toUpperCase()} VICTORIOUS` : 'NO WINNER'}
+                      </h2>
+                      <p className="text-xs text-slate-300 mt-1">{winReason}</p>
+                    </div>
+                    <div className="flex gap-2">
+                      <button
+                        onClick={() => setGameOverHidden(false)}
+                        className="px-4 py-2 bg-slate-800 hover:bg-slate-700 text-slate-100 font-bold rounded-[2px] border border-slate-700 border-b-2 border-b-slate-600 text-xs shadow-lg active:translate-y-[1px] active:border-b-[1px] transition-all"
+                      >
+                        Show result
+                      </button>
+                      <button
+                        onClick={onNewGame}
+                        className="px-5 py-2 bg-gradient-to-b from-amber-400 to-amber-500 hover:from-amber-300 hover:to-amber-400 text-black font-bold rounded-[2px] border-b-2 border-amber-700 text-xs shadow-lg active:translate-y-[1px] active:border-b-[1px] transition-all"
+                      >
+                        {online ? 'Back to start' : 'Play Again'}
+                      </button>
+                    </div>
+                  </div>
+                )}
 
-        {/* CORP SECTOR (TOP HALF) */}
-        <div className="flex-1 min-h-0 flex flex-col min-w-0 relative">
-          <SectorRimTrace side="corp" isActive={shiftSide === 'corp'} tabRef={corpTabRef} chassisRef={corpChassisRef} />
-          <div
-            ref={corpTabRef}
-            className="inline-flex items-center gap-1.5 px-2.5 py-0.5 text-[10px] font-bold tracking-widest uppercase rounded-t-[2px] bg-cyan-950/80 border border-cyan-800/80 border-b-0 text-cyan-400 self-start -mb-[1px] z-10 font-mono"
-          >
-            <span>// SECTOR 01: CORP SERVERS</span>
-            {activePlayer === 'corp' && !winner && <span className="text-[9px] text-cyan-300 font-semibold">[SERVERS_ONLINE]</span>}
-          </div>
-          <section
-            ref={corpChassisRef}
-            id="corp-board"
-            className={`${activePlayer === 'corp' && !winner ? 'turn-active ' : ''}flex-1 min-h-0 flex flex-col gap-1.5 bg-gradient-to-b from-[#0d141e] to-[#080c13] border border-cyan-900/60 rounded-[2px] rounded-tl-none hud-frame hud-corp p-2 shadow-2xl relative w-full min-w-0`}
-          >
-          <SideStrip side="corp" state={gameState} onInspect={setInspectedCard} onOpenZone={setZone} />
+                <CorpBoard
+                  gameState={gameState}
+                  seat={seat}
+                  viewer={viewer}
+                  corpCanAct={corpCanAct}
+                  runnerCanAct={runnerCanAct}
+                  selectedCardId={selectedCardId}
+                  onSelectCard={setSelectedCardId}
+                  onInspectCard={setInspectedCard}
+                  onOpenZone={setZone}
+                  onAction={handleAction}
+                  discardedIds={discardedIds}
+                  isShiftActive={shiftSide === 'corp'}
+                />
 
-          <div className="flex-1 min-h-0 flex flex-col lg:flex-row gap-2 min-w-0">
-          {/* Servers Grid */}
-          <AutoFitArea className="flex items-start gap-2 flex-1 min-w-0 min-h-0 overflow-auto pt-2 pb-1">
-            {serversView}
-          </AutoFitArea>
-          {/* Corp HQ Hand: beside the servers on wide screens */}
-          <div className="min-w-0 lg:max-w-[45%] shrink-0 flex flex-col items-end overflow-x-auto overflow-y-hidden">
-            <div className="flex items-center gap-2 text-[12px] text-cyan-400 font-bold uppercase tracking-wider">
-              <span><Keyword id="hq">HQ</Keyword> Hand (<Keyword id="hand-size">{corp.hq.length} / {corp.handSizeLimit}</Keyword>)</span>
-              {!canSeeCorpSecrets(viewer) && <KnownInHandButton count={knownInHand(gameState, 'corp').length} onOpen={() => setZone('known-hq')} />}
-            </div>
-            <HandRow
-              cards={corp.hq}
-              side="corp"
-              canSee={canSeeCorpSecrets(viewer)}
-              isSelectable={activePlayer === 'corp' && corpCanAct}
-              selectedCardId={selectedCardId}
-              onSelect={setSelectedCardId}
-              onInspect={setInspectedCard}
-              discardedIds={discardedIds}
-            />
+                <RunnerBoard
+                  gameState={gameState}
+                  viewer={viewer}
+                  runnerCanAct={runnerCanAct}
+                  selectedCardId={selectedCardId}
+                  onSelectCard={setSelectedCardId}
+                  onInspectCard={setInspectedCard}
+                  onOpenZone={setZone}
+                  discardedIds={discardedIds}
+                  isShiftActive={shiftSide === 'runner'}
+                />
+              </main>
+            </ZoomContext.Provider>
+
+            {/* Side bar: the hovered card, the acting side's actions (sticky at bottom on mobile), then the log */}
+            <aside className="contents lg:flex lg:w-80 2xl:w-96 shrink-0 flex-col gap-2 min-h-0">
+              <div className="hidden lg:block shrink-0">
+                <ZoomPanel store={zoomStore} state={gameState} onInspect={setInspectedCard} />
+              </div>
+              <div className="sticky bottom-0 z-20 lg:static bg-[#06090d]/95 lg:bg-transparent backdrop-blur-md lg:backdrop-blur-none py-1 lg:py-0 shrink-0 lg:max-h-[40vh] overflow-y-auto flex flex-col gap-2 empty:hidden">
+                {activePlayer === 'corp' && corpCanAct && <CorpActions state={gameState} selectedCard={selectedCard} onAction={handleAction} onInspect={setInspectedCard} />}
+                {corpCanAct && <WindowBar state={gameState} side="corp" onAction={handleAction} />}
+                {corpCanAct && <AbilityBar state={gameState} side="corp" onAction={handleAction} />}
+                {activePlayer === 'runner' && runnerCanAct && (
+                  <RunnerActions state={gameState} selectedCard={selectedCard} onAction={handleAction} onInspect={setInspectedCard} />
+                )}
+                {runnerCanAct && <WindowBar state={gameState} side="runner" onAction={handleAction} />}
+                {runnerCanAct && <AbilityBar state={gameState} side="runner" onAction={handleAction} />}
+              </div>
+              <LogFeed logs={gameState.log} viewer={viewer} className="h-56 lg:h-auto lg:flex-1 lg:min-h-[6rem]" />
+            </aside>
           </div>
-          </div>
-        </section>
+
+          <GameOverlays
+            ctl={ctl}
+            ended={ended}
+            winReason={winReason}
+            inspectedCard={inspectedCard}
+            onInspectCard={setInspectedCard}
+            zone={zone}
+            zoneView={zoneView}
+            onCloseZone={() => setZone(null)}
+            gameOverHidden={gameOverHidden}
+            onGameOverHiddenChange={setGameOverHidden}
+            onNewGame={onNewGame}
+            onRematch={onRematch}
+          />
         </div>
-
-        {/* RUNNER SECTOR (BOTTOM): the rig is two rows, so it takes what it needs and the Corp gets the rest */}
-        <div className="flex-none lg:max-h-[55%] min-h-0 flex flex-col min-w-0 relative">
-          <SectorRimTrace side="runner" isActive={shiftSide === 'runner'} tabRef={runnerTabRef} chassisRef={runnerChassisRef} />
-          <div
-            ref={runnerTabRef}
-            className="inline-flex items-center gap-1.5 px-2.5 py-0.5 text-[10px] font-bold tracking-widest uppercase rounded-t-[2px] bg-pink-950/80 border border-pink-800/80 border-b-0 text-pink-400 self-start -mb-[1px] z-10 font-mono"
-          >
-            <span>// SECTOR 02: RUNNER RIG</span>
-            {activePlayer === 'runner' && !winner && <span className="text-[9px] text-pink-300 font-semibold">[RIG_LINKED]</span>}
-          </div>
-          <section
-            ref={runnerChassisRef}
-            id="runner-board"
-            className={`${activePlayer === 'runner' && !winner ? 'turn-active ' : ''}flex-1 min-h-0 flex flex-col gap-1.5 bg-gradient-to-b from-[#0d141e] to-[#080c13] border border-pink-900/60 rounded-[2px] rounded-tl-none hud-frame hud-runner p-2 shadow-2xl relative w-full min-w-0`}
-          >
-          <div className="flex-1 min-h-0 flex flex-col lg:flex-row gap-2 min-w-0">
-          {/* Runner Rig (Installed Programs, Hardware, Resources) */}
-          <AutoFitArea className="flex-1 min-w-0 min-h-0 overflow-auto">
-            {rigView}
-          </AutoFitArea>
-          {/* Runner Grip Hand: beside the rig on wide screens */}
-          <div className="min-w-0 lg:max-w-[45%] shrink-0 flex flex-col items-end overflow-x-auto overflow-y-hidden">
-            <div className="flex items-center gap-2 text-[12px] text-pink-400 font-bold uppercase tracking-wider">
-              <span><Keyword id="grip">Grip</Keyword> Hand (<Keyword id="hand-size">{runner.grip.length} / {runner.handSizeLimit}</Keyword>)</span>
-              {!canSeeRunnerSecrets(viewer) && <KnownInHandButton count={knownInHand(gameState, 'runner').length} onOpen={() => setZone('known-grip')} />}
-            </div>
-            <HandRow
-              cards={runner.grip}
-              side="runner"
-              canSee={canSeeRunnerSecrets(viewer)}
-              isSelectable={activePlayer === 'runner' && runnerCanAct}
-              selectedCardId={selectedCardId}
-              onSelect={setSelectedCardId}
-              onInspect={setInspectedCard}
-              discardedIds={discardedIds}
-            />
-          </div>
-          </div>
-
-          <SideStrip side="runner" state={gameState} onInspect={setInspectedCard} onOpenZone={setZone} />
-
-        </section>
-        </div>
-
-      </main>
-      </ZoomContext.Provider>
-
-      {/* Side bar: the hovered card, the acting side's actions (sticky at bottom on mobile), then the log */}
-      <aside className="contents lg:flex lg:w-80 2xl:w-96 shrink-0 flex-col gap-2 min-h-0">
-        <div className="hidden lg:block shrink-0">
-          <ZoomPanel store={zoomStore} state={gameState} onInspect={setInspectedCard} />
-        </div>
-        <div className="sticky bottom-0 z-20 lg:static bg-[#06090d]/95 lg:bg-transparent backdrop-blur-md lg:backdrop-blur-none py-1 lg:py-0 shrink-0 lg:max-h-[40vh] overflow-y-auto flex flex-col gap-2 empty:hidden">
-          {activePlayer === 'corp' && corpCanAct && <CorpActions state={gameState} selectedCard={selectedCard} onAction={handleAction} onInspect={setInspectedCard} />}
-          {corpCanAct && <WindowBar state={gameState} side="corp" onAction={handleAction} />}
-          {corpCanAct && <AbilityBar state={gameState} side="corp" onAction={handleAction} />}
-          {activePlayer === 'runner' && runnerCanAct && (
-            <RunnerActions state={gameState} selectedCard={selectedCard} onAction={handleAction} onInspect={setInspectedCard} />
-          )}
-          {runnerCanAct && <WindowBar state={gameState} side="runner" onAction={handleAction} />}
-          {runnerCanAct && <AbilityBar state={gameState} side="runner" onAction={handleAction} />}
-        </div>
-        <LogFeed logs={gameState.log} viewer={viewer} className="h-56 lg:h-auto lg:flex-1 lg:min-h-[6rem]" />
-      </aside>
-      </div>
-
-      {/* Active Run Overlay; the run and any open decision end with the game (rule 1.7.1) */}
-      {!ended && (
-        <RunOverlay
-          state={gameState}
-          onContinueRun={() => handleAction({ type: 'CONTINUE_RUN', player: 'runner' })}
-          onJackOut={() => handleAction({ type: 'JACK_OUT', player: 'runner' })}
-          rezCards={rezWindowOpen ? rezWindow!.cards : []}
-          onRez={corpCanAct ? (card) => handleAction(rezAction(card)) : undefined}
-          rezAbilities={rezWindowOpen ? rezWindow!.abilities : []}
-          onDoneRezzing={rezWindowOpen && corpCanAct ? () => passWindow('corp') : undefined}
-          onPassRun={rezWindowOpen && corpCanAct ? () => passWindow('corp', true) : undefined}
-          runnerControls={runnerCanAct && gameState.priority?.holder !== 'corp'}
-          canPeekCorp={canSeeCorpSecrets(viewer)}
-          onInspectCard={setInspectedCard}
-          onAction={handleAction}
-        />
-      )}
-
-      {/* Pending player decision (mulligan, discard, trash on access) */}
-      {!ended && (
-        <PromptPanel
-          state={gameState}
-          onAnswer={(choice) => {
-            const prompt = gameState.pendingPrompts[0];
-            if (prompt) handleAction({ type: 'RESOLVE_PROMPT', player: prompt.side, promptId: prompt.id, choice });
-          }}
-          onInspectCard={setInspectedCard}
-          onCancel={cancelChoice}
-          waitingFor={seat.waitingOn && seat.waitingOn !== actingSide(gameState) ? seat.waitingOn : null}
-          canAnswer={
-            !gameState.pendingPrompts[0] ||
-            (canActAs(viewer, gameState.pendingPrompts[0].side) &&
-              gameState.pendingPrompts[0].side !== aiSide &&
-              // The viewer's own prompt may wait behind the other side's, which this screen doesn't see
-              seat.waitingOn === gameState.pendingPrompts[0].side)
-          }
-        />
-      )}
-
-      {!ended && <TurnBanner activePlayer={activePlayer} humanSide={humanSide} />}
-
-      {!handoffTo && <CardFates fates={fates} />}
-
-      {accessed.length > 0 && !handoffTo && (
-        <AccessedPanel cards={accessed} onInspect={setInspectedCard} onClose={clearAccessed} />
-      )}
-
-      {zoneView && (
-        <ZoneViewer
-          title={zoneView.title}
-          groups={zoneView.groups}
-          canPeek={zone === 'stack' ? canSeeRunnerSecrets(viewer) : canSeeCorpSecrets(viewer)}
-          onClose={() => setZone(null)}
-          onInspect={setInspectedCard}
-        />
-      )}
-
-      {handoffTo && (
-        <HandoffScreen
-          to={handoffTo}
-          reason={
-            gameState.pendingPrompts[0]
-              ? 'decision'
-              : rezWindowOpen
-                ? 'rez'
-                : 'turn'
-          }
-          onReady={() => {
-            setHotseatSide(handoffTo);
-            // Show the incoming player their own board and hand
-            // (window.scrollTo, not scrollIntoView, which would also scroll the overflow-hidden <main>)
-            requestAnimationFrame(() => {
-              const board = document.getElementById(`${handoffTo}-board`);
-              if (board) window.scrollTo({ top: board.getBoundingClientRect().top + window.scrollY - 80, behavior: 'smooth' });
-            });
-          }}
-        />
-      )}
-
-      {ended && (
-        <GameOverModal
-          winner={winner ?? null}
-          reason={winReason}
-          corpScore={corp.score}
-          runnerScore={runner.score}
-          humanSide={humanSide}
-          onRematch={onRematch}
-          onDeckSelect={onNewGame}
-          deckSelectLabel={online ? 'Back to the start screen' : undefined}
-          minimized={gameOverHidden}
-          onMinimizedChange={setGameOverHidden}
-        />
-      )}
-
-      {/* Full Card Zoom Modal */}
-      <CardZoomModal
-        card={inspectedCard}
-        onClose={() => setInspectedCard(null)}
-      />
-    </div>
-    </SeatContext.Provider>
+      </SeatContext.Provider>
     </GameStateContext.Provider>
   );
 }

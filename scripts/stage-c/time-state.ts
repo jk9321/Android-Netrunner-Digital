@@ -2,7 +2,7 @@
  * Stage C time check: one saved Corp decision state (slow-deal.ts SAVE=), decided by the old core and by the new one
  * (planner on), with the time each takes and the move; CORE=old or CORE=new runs only that core (for a profile:
  * node --cpu-prof node_modules/vite-node/vite-node.mjs ...).
- *   STATE=/tmp/slow/slow-2041-t17-c3-90.json npx vite-node scripts/stage-c/time-state.ts
+ *   STATE=scripts/stage-c/states-2041/slow-2041-t17-c3-102.json npx vite-node scripts/stage-c/time-state.ts
  */
 import { readFileSync } from 'node:fs';
 import '../../src/ai';

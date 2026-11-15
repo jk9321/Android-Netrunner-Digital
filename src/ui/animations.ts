@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { readStorage, writeStorage } from './storage';
 
 /**
  * UI animation preference toggled in the header settings menu. Disabling
@@ -11,11 +12,7 @@ const STORAGE_KEY = 'netrunner.animations';
 const listeners = new Set<() => void>();
 
 export function animationsEnabled(): boolean {
-  try {
-    return window.localStorage.getItem(STORAGE_KEY) !== 'off';
-  } catch {
-    return true;
-  }
+  return readStorage(STORAGE_KEY) !== 'off';
 }
 
 export function applyAnimations(enabled: boolean): void {
@@ -26,11 +23,7 @@ export function applyAnimations(enabled: boolean): void {
 
 export function setAnimationsEnabled(on: boolean): void {
   applyAnimations(on);
-  try {
-    window.localStorage.setItem(STORAGE_KEY, on ? 'on' : 'off');
-  } catch {
-    // Not saved; the toggle still works for this page
-  }
+  writeStorage(STORAGE_KEY, on ? 'on' : 'off');
   listeners.forEach(fn => fn());
 }
 

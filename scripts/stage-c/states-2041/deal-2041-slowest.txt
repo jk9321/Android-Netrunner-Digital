@@ -1,0 +1,16 @@
+deal 2041 turns 18 decisions 121 total 1137 s, corp identity Jinteki: Restoring Humanity
+ 375648 ms  T17 c3 $18 main -> INSTALL_CARD Mitra Aman
+ 230771 ms  T17 c1 $18 main -> PLAY_OPERATION_OR_EVENT Hansei Review
+ 149127 ms  T16 c1 $24 main -> PLAY_OPERATION_OR_EVENT Hedge Fund
+ 134889 ms  T16 c3 $22 main -> PLAY_OPERATION_OR_EVENT Petty Cash
+  85537 ms  T16 c2 $24 main -> INSTALL_CARD Spin Doctor
+  24051 ms  T18 c3 $18 main -> PLAY_OPERATION_OR_EVENT Peer Review
+  22482 ms  T17 c0 $23 main -> END_TURN
+  15979 ms  T16 c0 $28 main -> END_TURN
+  12372 ms  T17 c2 $18 main -> DRAW_CARD
+  11497 ms  T15 c3 $23 main -> DRAW_CARD
+   9969 ms  T15 c2 $23 main -> INSTALL_CARD Flyswatter
+   9041 ms  T17 c3 $18 other -> START_TURN
+   5319 ms  T13 c3 $12 main -> USE_ABILITY Petty Cash
+   4776 ms  T11 c3 $8 main -> PLAY_OPERATION_OR_EVENT Petty Cash
+   4488 ms  T11 c2 $10 main -> DRAW_CARD
