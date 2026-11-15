@@ -3,28 +3,21 @@ import { cardDef } from '../../../cards';
 import { nextInt } from '../../../rng';
 import { addLog } from '../../../engine/log';
 import { findCardAnywhere, findInstalledCorpCard, removeCard } from '../../../engine/helpers';
-import { endRun } from '../../../engine/runEnd';
+import { endRun, SHRED_STEP, ShredData } from '../../../engine/runEnd';
 import { getCardScript } from '../../index';
 import { runnerTrashInstalledCorpCard, runBlocked, startRun } from '../../../engine/actions/run';
 import { giveTags } from '../../../engine/damage';
 import { corpTrashFromHQ, drawForEffect, removeTags } from '../../../engine/cardEffects';
 import { CardScript, EffectContext } from '../../types';
-import {
-  askCards,
-  askChoice,
-  gainCredits,
-  installRunnerChoice,
-  installRunnerHostChoice,
-  installableRunnerCards,
-  askRunnerInstall,
-} from '../../effects';
+import { gainCredits, installRunnerHostChoice, installableRunnerCards } from '../../effects';
+import { cards, cardsQuestion, choice, ChoiceQuestion, choiceQuestion, prompts, RunnerHostData } from '../../steps';
 
 const runSource = (ctx: EffectContext) => ({ cardCode: ctx.card.cardCode, instanceId: ctx.card.instanceId });
 
-/** Asks which server a "Run any server" event runs. */
-function askAnyServer(ctx: EffectContext, title: string): void {
+/** "Run any server": which server (asked even when every server is blocked, as before the typed steps). */
+function anyServerQuestion(ctx: EffectContext, title: string): ChoiceQuestion {
   const options = Object.values(ctx.state.corp.servers).filter(s => !runBlocked(ctx.state, s.id)).map(s => ({ id: s.id, label: s.name }));
-  askChoice(ctx, 'runner', `${title}: run which server?`, options, 'run');
+  return choiceQuestion('runner', `${title}: run which server?`, options);
 }
 
 // --- Identities -------------------------------------------------------------
@@ -35,6 +28,14 @@ const charmTargets = (state: GameState, titles: Set<string>) =>
   Object.values(state.corp.servers)
     .flatMap(s => [...s.ice, ...s.root])
     .filter(c => c.isRezzed && titles.has(cardDef(c).title) && !getCardScript(c.cardCode)?.runnerCannotTrash);
+
+const charmFlow = prompts({
+  trash: cards(({ state }, a) => {
+    if (a.ids.length === 0) return;
+    const found = findInstalledCorpCard(state, a.ids[0]);
+    if (found) runnerTrashInstalledCorpCard(state, found.card);
+  }),
+});
 
 export const charmOffensive: CardScript = {
   onPlay: ctx => startRun(ctx.state, 'archives', { source: runSource(ctx), eventCode: ctx.card.cardCode }),
@@ -47,13 +48,9 @@ export const charmOffensive: CardScript = {
     );
     const targets = charmTargets(ctx.state, titles);
     if (targets.length === 0) return;
-    askCards(ctx, 'runner', 'Charm Offensive: you may trash 1 rezzed copy of a card you accessed in Archives.', targets.map(c => c.instanceId), 0, 1, 'trash');
+    charmFlow.ask(ctx, 'trash', cardsQuestion('runner', 'Charm Offensive: you may trash 1 rezzed copy of a card you accessed in Archives.', targets.map(c => c.instanceId), 0, 1));
   },
-  onPromptAnswer: ({ state }, _source, answer) => {
-    if (answer.kind !== 'effect_cards' || answer.cardInstanceIds.length === 0) return;
-    const found = findInstalledCorpCard(state, answer.cardInstanceIds[0]);
-    if (found) runnerTrashInstalledCorpCard(state, found.card);
-  },
+  ...charmFlow.script,
 };
 
 // Scrounge (Double): As an additional cost to play this event, spend click.
@@ -63,47 +60,46 @@ const heapPrograms = (state: GameState) => state.runner.heap.filter(c => cardDef
 const askScroungeStack = (ctx: EffectContext) => {
   const programs = heapPrograms(ctx.state);
   if (programs.length === 0) return;
-  askCards(ctx, 'runner', 'Scrounge: you may add 1 program from your heap to the bottom of your stack.', programs.map(c => c.instanceId), 0, 1, 'stack');
+  scroungeFlow.ask(ctx, 'stack', cardsQuestion('runner', 'Scrounge: you may add 1 program from your heap to the bottom of your stack.', programs.map(c => c.instanceId), 0, 1));
 };
+
+const scroungeFlow = prompts({
+  install: cards((ctx, a) => {
+    if (scroungeFlow.installRunner(ctx, a.ids[0], 'host', 0, a.trashFirst)) askScroungeStack(ctx);
+  }),
+  host: choice<RunnerHostData>((ctx, a, _d, source) => {
+    installRunnerHostChoice(ctx.state, source, a.raw);
+    askScroungeStack(ctx);
+  }),
+  stack: cards(({ state }, a) => {
+    if (a.ids.length === 0) return;
+    const card = state.runner.heap.find(c => c.instanceId === a.ids[0])!;
+    removeCard(state.runner.heap, card);
+    state.runner.stack.push(card);
+    addLog(state, 'runner', `Runner added ${cardDef(card).title} to the bottom of their stack (Scrounge).`);
+  }),
+});
 
 export const scrounge: CardScript = {
   extraClicks: 1,
   onPlay: ctx => {
     const targets = installableRunnerCards(ctx.state, heapPrograms(ctx.state));
     if (targets.length === 0) return askScroungeStack(ctx);
-    askRunnerInstall(ctx, 'Scrounge: install 1 program from your heap.', targets.map(c => c.instanceId), 1, 1, 'install');
+    scroungeFlow.runnerInstall(ctx, 'install', { message: 'Scrounge: install 1 program from your heap.', candidateIds: targets.map(c => c.instanceId), min: 1, max: 1 });
   },
-  onPromptAnswer: (ctx, source, answer) => {
-    const { state } = ctx;
-    if (source.step === 'install' && answer.kind === 'effect_cards') {
-      if (installRunnerChoice(ctx, answer.cardInstanceIds[0], 'host', 0, {}, answer.trashFirst)) askScroungeStack(ctx);
-    } else if (source.step === 'host') {
-      installRunnerHostChoice(state, source, answer);
-      askScroungeStack(ctx);
-    } else if (source.step === 'stack' && answer.kind === 'effect_cards' && answer.cardInstanceIds.length > 0) {
-      const card = state.runner.heap.find(c => c.instanceId === answer.cardInstanceIds[0])!;
-      removeCard(state.runner.heap, card);
-      state.runner.stack.push(card);
-      addLog(state, 'runner', `Runner added ${cardDef(card).title} to the bottom of their stack (Scrounge).`);
-    }
-  },
+  ...scroungeFlow.script,
 };
 
 // Shred: Run any server. The first time the Corp would end that run, prevent the
 // run from ending unless the Corp reveals and trashes X cards from HQ at random.
 // X is equal to the number of cards in the root of the attacked server.
 // (The engine asks the Corp in endTheRun(); the answer comes back here.)
-export const shred: CardScript = {
-  onPlay: ctx => askAnyServer(ctx, 'Shred'),
-  onPromptAnswer: (ctx, source, answer) => {
-    const { state } = ctx;
-    if (answer.kind !== 'effect_choice') return;
-    if (source.step === 'run') {
-      startRun(state, answer.optionId, { source: runSource(ctx), eventCode: ctx.card.cardCode, shred: true });
-      return;
-    }
-    if (source.step !== 'shred' || answer.optionId !== 'trash') return;
-    const x = Number(source.data?.x ?? 0);
+const shredFlow = prompts({
+  run: choice((ctx, a) => startRun(ctx.state, a.optionId, { source: runSource(ctx), eventCode: ctx.card.cardCode, shred: true })),
+  // The engine asks the Corp this as the run would end (endTheRun)
+  [SHRED_STEP]: choice<ShredData>(({ state }, a, data) => {
+    if (a.optionId !== 'trash') return;
+    const x = Number(data.x ?? 0);
     const pool = [...state.corp.hq];
     const ids: string[] = [];
     for (let i = 0; i < x && pool.length > 0; i++) ids.push(pool.splice(nextInt(state.rng, pool.length), 1)[0].instanceId);
@@ -112,15 +108,22 @@ export const shred: CardScript = {
     if (!state.activeRun) return;
     addLog(state, 'corp', 'The run was ended.');
     endRun(state);
-  },
+  }),
+});
+
+export const shred: CardScript = {
+  onPlay: ctx => shredFlow.ask(ctx, 'run', anyServerQuestion(ctx, 'Shred')),
+  ...shredFlow.script,
 };
 
 // Clean Getaway: Run any server. If successful, gain 6 credits.
+const cleanGetawayFlow = prompts({
+  run: choice((ctx, a) => startRun(ctx.state, a.optionId, { source: runSource(ctx), eventCode: ctx.card.cardCode })),
+});
+
 export const cleanGetaway: CardScript = {
-  onPlay: ctx => askAnyServer(ctx, 'Clean Getaway'),
-  onPromptAnswer: (ctx, _source, answer) => {
-    if (answer.kind === 'effect_choice') startRun(ctx.state, answer.optionId, { source: runSource(ctx), eventCode: ctx.card.cardCode });
-  },
+  onPlay: ctx => cleanGetawayFlow.ask(ctx, 'run', anyServerQuestion(ctx, 'Clean Getaway')),
+  ...cleanGetawayFlow.script,
   onRunSuccessful: ({ state }) => {
     gainCredits(state, 'runner', 6);
     addLog(state, 'runner', 'Runner gained 6 [credit] (Clean Getaway).');
@@ -129,18 +132,25 @@ export const cleanGetaway: CardScript = {
 
 // Lie Low (Double): As an additional cost to play this event, spend click.
 // Resolve 1 of the following: Draw 4 cards. Remove up to 2 tags.
+const lieLowFlow = prompts({
+  choose: choice(({ state }, a) => {
+    if (a.optionId === 'draw') drawForEffect(state, 'runner', 4, 'Lie Low');
+    else addLog(state, 'runner', `Runner removed ${removeTags(state, 2)} tag(s) (Lie Low).`);
+  }),
+});
+
 export const lieLow: CardScript = {
   extraClicks: 1,
   onPlay: ctx =>
-    askChoice(ctx, 'runner', 'Lie Low: choose one.', [
-      { id: 'draw', label: 'Draw 4 cards' },
-      { id: 'tags', label: 'Remove up to 2 tags' },
-    ], 'choose'),
-  onPromptAnswer: ({ state }, _source, answer) => {
-    if (answer.kind !== 'effect_choice') return;
-    if (answer.optionId === 'draw') drawForEffect(state, 'runner', 4, 'Lie Low');
-    else addLog(state, 'runner', `Runner removed ${removeTags(state, 2)} tag(s) (Lie Low).`);
-  },
+    lieLowFlow.ask(
+      ctx,
+      'choose',
+      choiceQuestion('runner', 'Lie Low: choose one.', [
+        { id: 'draw', label: 'Draw 4 cards' },
+        { id: 'tags', label: 'Remove up to 2 tags' },
+      ]),
+    ),
+  ...lieLowFlow.script,
 };
 
 // Maintenance Access (Run, Double): As an additional cost to play this event,
@@ -172,22 +182,32 @@ export const transferOfWealth: CardScript = {
 const askIllumination = (ctx: EffectContext, left: number) => {
   const targets = installableRunnerCards(ctx.state, ctx.state.runner.grip, 1);
   if (left <= 0 || targets.length === 0) return;
-  askRunnerInstall(ctx, `Illumination: you may install a card from your grip, paying 1 credit less (${left} left).`, targets.map(c => c.instanceId), 0, 1, 'install', { left });
+  illuminationFlow.runnerInstall(
+    ctx,
+    'install',
+    { message: `Illumination: you may install a card from your grip, paying 1 credit less (${left} left).`, candidateIds: targets.map(c => c.instanceId), min: 0, max: 1 },
+    { left },
+  );
 };
+
+type IlluminationData = { left: number };
+
+const illuminationFlow = prompts({
+  install: cards<IlluminationData>((ctx, a, data) => {
+    const left = Number(data.left ?? 0);
+    if (a.ids.length === 0) return;
+    if (illuminationFlow.installRunner(ctx, a.ids[0], 'host', 1, a.trashFirst, { left })) askIllumination(ctx, left - 1);
+  }),
+  host: choice<IlluminationData & RunnerHostData>((ctx, a, data, source) => {
+    installRunnerHostChoice(ctx.state, source, a.raw);
+    askIllumination(ctx, Number(data.left ?? 0) - 1);
+  }),
+});
 
 export const illumination: CardScript = {
   onPlay: ctx => startRun(ctx.state, 'rd', { source: runSource(ctx), eventCode: ctx.card.cardCode }),
   onRunSuccessful: ctx => askIllumination(ctx, 3),
-  onPromptAnswer: (ctx, source, answer) => {
-    const left = Number(source.data?.left ?? 0);
-    if (source.step === 'install' && answer.kind === 'effect_cards') {
-      if (answer.cardInstanceIds.length === 0) return;
-      if (installRunnerChoice(ctx, answer.cardInstanceIds[0], 'host', 1, { left }, answer.trashFirst)) askIllumination(ctx, left - 1);
-    } else if (source.step === 'host') {
-      installRunnerHostChoice(ctx.state, source, answer);
-      askIllumination(ctx, left - 1);
-    }
-  },
+  ...illuminationFlow.script,
 };
 
 // Ritual: Draw 1 card for each click you have remaining.
