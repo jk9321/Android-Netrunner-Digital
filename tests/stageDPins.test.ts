@@ -4,6 +4,7 @@ import { GameAction, GameState, cardDef, createInitialGameState, executeAction, 
 import { deckGameSetup } from '../src/data/decks';
 import { HeuristicCorpAI, createAgent } from '../src/ai';
 import { plan, withPricing } from '../src/ai/pricing';
+import { giveCard, installCorpForTest, installIceForTest, installProgramForTest, newGame } from './helpers';
 
 /**
  * Step 4 Stage D pins (spec-step4-corp-core.md section 5; AI Coordinator 2026-11-14 17:56Z), committed in Stage B as
@@ -162,5 +163,49 @@ describe('Stage D pins (known-failing until their fix lands)', () => {
     const a = withPricing({ plan: { ...plan(), corpCore: true, rolloutLines: true } }, () => decide(s)) as Install;
     const card = a.cardInstanceId ? s.corp.hq.find(c => c.instanceId === a.cardInstanceId) : undefined;
     expect(a.type === 'INSTALL_CARD' && a.targetServerId === 'remote-5' && !!card && cardDef(card).type_code === 'asset').toBe(false);
+  });
+
+  // Bug report #15 under the new core (c0-rulings 16:10Z (2)): the hqNoSafer clause is gone from line 3. On the turn-10
+  // position the Runner gets into every server for 0 credits (the hold owner's need is 0 on HQ, both remotes and a new
+  // remote: scripts/stage-c/hold-probe.ts STATE=tests/fixtures/bug-report-15-turn10.json), so the hold owner cannot say
+  // that HQ is no safer than Jaguarundi's remote; the old rule told them apart only through entryCost, which the hold
+  // owner replaced. Offworld Office stays a line-9 candidate. The Stage D hold-owner item
+  it.fails('Stage C, bug report #15: Offworld Office leaves HQ for an iced remote', { timeout: T }, () => {
+    const s: GameState = JSON.parse(readFileSync(new URL('./fixtures/bug-report-15-turn10.json', import.meta.url), 'utf8'));
+    const a = withPricing({ plan: { ...plan(), corpCore: true, rolloutLines: true } }, () => decide(s)) as Install;
+    expect(a.type).toBe('INSTALL_CARD');
+    expect(cardDef(findCardAnywhere(s, a.cardInstanceId ?? '')!).title).toBe('Offworld Office');
+    expect((s.corp.servers[a.targetServerId ?? '']?.ice.length ?? 0) > 0).toBe(true);
+  });
+
+  // freeRez.test.ts 'installs Pharos first and rezzes it for free' under the new core (c0-rulings 16:10Z (8)): with the
+  // paid test reading the free rez to come (placement icePaidAt, freeRezTargets) Pharos is paid, but place puts it in a
+  // new remote with nothing behind it and the free rez goes to Palisade on the scoring remote. Owed: the trace of which
+  // rule of place does it (c3-tests-both.md)
+  it.fails('Stage C, Send a Message one advance out: Pharos is installed first and rezzed for free', { timeout: T }, () => {
+    const s = newGame(3);
+    s.corp.hq = [];
+    installIceForTest(s, '30072', 'rd', true);
+    installIceForTest(s, '30072', 'hq', true);
+    installProgramForTest(s, '30026');
+    s.runner.credits = 6;
+    s.turnNumber = 7;
+    s.corp.credits = 4;
+    installIceForTest(s, '30074', 'remote1', true);
+    installCorpForTest(s, '30069', 'remote1');
+    s.corp.servers.remote1.root[0].advancementCounters = 4;
+    giveCard(s, 'corp', '30063');
+    giveCard(s, 'corp', '30072');
+    let t = s;
+    withPricing({ plan: { ...plan(), corpCore: true, rolloutLines: true } }, () => {
+      const corp = new HeuristicCorpAI();
+      for (let i = 0; i < 20 && t.activePlayer === 'corp'; i++) {
+        const a = corp.chooseAction(t);
+        if (a.type === 'END_TURN') break;
+        t = executeAction(t, a);
+      }
+    });
+    expect(t.corp.score).toBe(3);
+    expect(Object.values(t.corp.servers).flatMap(v => v.ice).some(c => c.cardCode === '30063' && c.isRezzed)).toBe(true);
   });
 });

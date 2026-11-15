@@ -6,7 +6,6 @@ import { ScoredAction } from '../agent';
 import { answerPrompt, simulate } from '../prompts';
 import { serverHold } from './hold';
 import { rezMoney } from './rezMoney';
-import { corpPools } from './pools';
 import { HeldLine } from './lines';
 import { FreeInstall, Placement, iceCount, icePaidAt, place, placedInstall, placementAction } from './placement';
 import { archivesWantsIce, rezAllowed } from './rez';
@@ -370,20 +369,6 @@ function iceMove(state: GameState, a: Install, card: CardInstance, keep: number,
   } else add({ action: a, line: 6, behind: !paid || bare, keys: [-loss, -(now.margin - was.margin), cost, id], card: card.instanceId });
 }
 
-/**
- * plan.hqNoSafer (bug report #15, moved from the ranking; c0-rulings 15:50Z (2)): an agenda is no safer waiting in HQ
- * when HQ is a target (two or more agendas in it by the pools owner, plan.hqHeld; or the Runner got into HQ last turn)
- * and its server costs the Runner more than HQ does to get in (the hold owner's need, after the move; strictly, 16:00Z (2)). Line 3 then
- * takes it although the server does not hold.
- */
-function hqNoSafer(state: GameState, after: GameState, server: string): boolean {
-  if (server === 'hq') return false;
-  const held = plan().hqHeld && corpPools(state).hq >= 2;
-  if (!held && !state.runnerLastTurnRuns.some(r => r.server === 'hq' && r.successful)) return false;
-  const at = (id: string) => serverHold(after, id, { when: 'runnerTurn', corpCredits: after.corp.credits }).need;
-  return at(server) > at('hq');
-}
-
 /** Lines 3 and 9: an agenda install or advance, by whether its server holds after the move (margin as an order key, never a veto). */
 function agendaMove(state: GameState, a: GameAction, card: CardInstance, keep: number, add: (c: Candidate) => void, afterOf: (a: GameAction) => GameState | null, shown = 0) {
   const after = afterOf(a);
@@ -393,7 +378,7 @@ function agendaMove(state: GameState, a: GameAction, card: CardInstance, keep: n
   const placed = findInstalled(after, card.instanceId) ?? card;
   const turns = turnsToScore(after, placed, 0);
   const below = after.corp.credits < keep && after.corp.credits < state.corp.credits;
-  add({ action: a, line: hold?.holds || (!!server && rule('hqNoSafer', hqNoSafer(state, after, server))) ? 3 : 9, behind: below, keys: [turns, -(hold?.margin ?? 0), -(cardDef(card).agenda_points ?? 0), shown, idNum(card.instanceId)], card: card.instanceId });
+  add({ action: a, line: hold?.holds ? 3 : 9, behind: below, keys: [turns, -(hold?.margin ?? 0), -(cardDef(card).agenda_points ?? 0), shown, idNum(card.instanceId)], card: card.instanceId });
 }
 
 /**
