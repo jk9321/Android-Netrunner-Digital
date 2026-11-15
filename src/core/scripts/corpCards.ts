@@ -19,7 +19,8 @@ import {
   TurnFlag,
 } from '../engine/cardEffects';
 import { CardScript, EffectContext } from './types';
-import { askCards, askChoice, askEvenIfNone, gainCredits } from './effects';
+import { gainCredits } from './effects';
+import { cards, cardsQuestion, choice, choiceQuestion, prompts } from './steps';
 
 /** Corp identities, agendas, assets and upgrades from System Gateway. */
 
@@ -56,25 +57,29 @@ const serverOf = (state: GameState, card: CardInstance) => findInstalledCorpCard
 
 // Haas-Bioroid: Precision Design: You get +1 maximum hand size. Whenever you
 // score an agenda, you may add 1 card from Archives to HQ.
-const precisionDesign: CardScript = {
-  modifiers: { handSize: 1 },
-  triggers: {
-    agenda_scored: ctx => {
-      const cards = archivesCards(ctx.state);
-      if (cards.length === 0) return;
-      askCards(ctx, 'corp', 'Precision Design: you may add 1 card from Archives to HQ.', cards.map(c => c.instanceId), 0, 1, 'archives');
-    },
-  },
-  onPromptAnswer: ({ state }, _source, answer) => {
-    if (answer.kind !== 'effect_cards' || answer.cardInstanceIds.length === 0) return;
-    const card = archivesCards(state).find(c => c.instanceId === answer.cardInstanceIds[0])!;
+const precisionFlow = prompts({
+  archives: cards(({ state }, a) => {
+    if (a.ids.length === 0) return;
+    const card = archivesCards(state).find(c => c.instanceId === a.ids[0])!;
     const wasFaceUp = removeCard(state.corp.archives.faceUp, card);
     if (!wasFaceUp) removeCard(state.corp.archives.faceDown, card);
     card.isRezzed = false;
     state.corp.hq.push(card);
     if (wasFaceUp) revealInHand(state, 'corp', [card]);
     addLog(state, 'corp', 'Corp added 1 card from Archives to HQ (Precision Design).');
+  }),
+});
+
+const precisionDesign: CardScript = {
+  modifiers: { handSize: 1 },
+  triggers: {
+    agenda_scored: ctx => {
+      const cards = archivesCards(ctx.state);
+      if (cards.length === 0) return;
+      precisionFlow.cards(ctx, 'archives', cardsQuestion('corp', 'Precision Design: you may add 1 card from Archives to HQ.', cards.map(c => c.instanceId), 0, 1));
+    },
   },
+  ...precisionFlow.script,
 };
 
 // Jinteki: Restoring Humanity: When your discard phase ends, if there is a
@@ -90,25 +95,28 @@ const restoringHumanity: CardScript = {
 };
 
 // NBN: Reality Plus: The first time each turn the Runner takes a tag, gain 2 credits or draw 2 cards.
-const realityPlus: CardScript = {
-  triggers: {
-    tags_taken: ctx => {
-      if (turnFlag(ctx.state, TurnFlag.tagEvents) !== 1) return;
-      askChoice(ctx, 'corp', 'Reality Plus: gain 2 credits or draw 2 cards?', [
-        { id: 'credits', label: 'Gain 2 credits' },
-        { id: 'draw', label: 'Draw 2 cards' },
-      ], 'choice');
-    },
-  },
-  onPromptAnswer: ({ state }, _source, answer) => {
-    if (answer.kind !== 'effect_choice') return;
-    if (answer.optionId === 'credits') {
+const realityFlow = prompts({
+  choice: choice(({ state }, a) => {
+    if (a.optionId === 'credits') {
       gainCredits(state, 'corp', 2);
       addLog(state, 'corp', 'Corp gained 2 [credit] (Reality Plus).');
     } else {
       drawForEffect(state, 'corp', 2, 'Reality Plus');
     }
+  }),
+});
+
+const realityPlus: CardScript = {
+  triggers: {
+    tags_taken: ctx => {
+      if (turnFlag(ctx.state, TurnFlag.tagEvents) !== 1) return;
+      realityFlow.choice(ctx, 'choice', choiceQuestion('corp', 'Reality Plus: gain 2 credits or draw 2 cards?', [
+        { id: 'credits', label: 'Gain 2 credits' },
+        { id: 'draw', label: 'Draw 2 cards' },
+      ]));
+    },
   },
+  ...realityFlow.script,
 };
 
 // Weyland Consortium: Built to Last: Whenever you advance a card, gain 2
@@ -143,27 +151,29 @@ const luminalTransubstantiation: CardScript = {
 const askLongevityShuffle = (ctx: EffectContext) => {
   const cards = archivesCards(ctx.state);
   if (cards.length === 0) return;
-  askCards(ctx, 'corp', 'Longevity Serum: shuffle up to 3 cards from Archives into R&D.', cards.map(c => c.instanceId), 0, Math.min(3, cards.length), 'shuffle');
+  longevityFlow.cards(ctx, 'shuffle', cardsQuestion('corp', 'Longevity Serum: shuffle up to 3 cards from Archives into R&D.', cards.map(c => c.instanceId), 0, Math.min(3, cards.length)));
 };
+const longevityFlow = prompts({
+  trash: cards((ctx, a) => {
+    trashFromHQ(ctx.state, a.ids);
+    addLog(ctx.state, 'corp', `Corp trashed ${a.ids.length} card(s) from HQ.`);
+    askLongevityShuffle(ctx);
+  }),
+  shuffle: cards(({ state }, a) => {
+    if (a.ids.length > 0) shuffleArchivesIntoRD(state, a.ids);
+  }),
+});
+
 const longevitySerum: CardScript = {
   triggers: {
     agenda_scored: (ctx, e) => {
       if (!isSelf(ctx, e.card)) return;
       const hq = ctx.state.corp.hq;
       if (hq.length === 0) return askLongevityShuffle(ctx);
-      askCards(ctx, 'corp', 'Longevity Serum: trash any number of cards from HQ.', hq.map(c => c.instanceId), 0, hq.length, 'trash');
+      longevityFlow.cards(ctx, 'trash', cardsQuestion('corp', 'Longevity Serum: trash any number of cards from HQ.', hq.map(c => c.instanceId), 0, hq.length));
     },
   },
-  onPromptAnswer: (ctx, source, answer) => {
-    if (answer.kind !== 'effect_cards') return;
-    if (source.step === 'trash') {
-      trashFromHQ(ctx.state, answer.cardInstanceIds);
-      addLog(ctx.state, 'corp', `Corp trashed ${answer.cardInstanceIds.length} card(s) from HQ.`);
-      askLongevityShuffle(ctx);
-    } else if (answer.cardInstanceIds.length > 0) {
-      shuffleArchivesIntoRD(ctx.state, answer.cardInstanceIds);
-    }
-  },
+  ...longevityFlow.script,
 };
 
 // Tomorrow's Headline: When this agenda is scored or stolen, give the Runner 1 tag.
@@ -171,20 +181,24 @@ const headline = (ctx: EffectContext, e: { card: CardInstance }) => isSelf(ctx, 
 const tomorrowsHeadline: CardScript = { triggers: { agenda_scored: headline, agenda_stolen: headline } };
 
 // Above the Law: When you score this agenda, you may trash 1 installed resource.
+const aboveTheLawFlow = prompts({
+  trash: cards(({ state }, a) => {
+    if (a.ids.length === 0) return;
+    const card = state.runner.rig.resources.find(c => c.instanceId === a.ids[0])!;
+    trashInstalledCard(state, card);
+    addLog(state, 'corp', `Corp trashed ${cardDef(card).title} (Above the Law).`);
+  }),
+});
+
 const aboveTheLaw: CardScript = {
   triggers: {
     agenda_scored: (ctx, e) => {
       const resources = ctx.state.runner.rig.resources;
       if (!isSelf(ctx, e.card) || resources.length === 0) return;
-      askCards(ctx, 'corp', 'Above the Law: you may trash 1 installed resource.', resources.map(c => c.instanceId), 0, 1, 'trash');
+      aboveTheLawFlow.cards(ctx, 'trash', cardsQuestion('corp', 'Above the Law: you may trash 1 installed resource.', resources.map(c => c.instanceId), 0, 1));
     },
   },
-  onPromptAnswer: ({ state }, _source, answer) => {
-    if (answer.kind !== 'effect_cards' || answer.cardInstanceIds.length === 0) return;
-    const card = state.runner.rig.resources.find(c => c.instanceId === answer.cardInstanceIds[0])!;
-    trashInstalledCard(state, card);
-    addLog(state, 'corp', `Corp trashed ${cardDef(card).title} (Above the Law).`);
-  },
+  ...aboveTheLawFlow.script,
 };
 
 // Offworld Office: When you score this agenda, gain 7 credits.
@@ -203,18 +217,22 @@ const offworldOffice: CardScript = {
 const sendAMessageTrigger = (ctx: EffectContext, e: { card: CardInstance }) => {
   const unrezzed = installedIce(ctx.state).filter(c => !c.isRezzed);
   if (!isSelf(ctx, e.card) || unrezzed.length === 0) return;
-  askCards(ctx, 'corp', 'Send a Message: you may rez 1 installed piece of ice, ignoring all costs.', unrezzed.map(c => c.instanceId), 0, 1, 'rez');
+  sendAMessageFlow.cards(ctx, 'rez', cardsQuestion('corp', 'Send a Message: you may rez 1 installed piece of ice, ignoring all costs.', unrezzed.map(c => c.instanceId), 0, 1));
 };
-const sendAMessage: CardScript = {
-  triggers: { agenda_scored: sendAMessageTrigger, agenda_stolen: sendAMessageTrigger },
-  onPromptAnswer: ({ state }, _source, answer) => {
-    if (answer.kind !== 'effect_cards' || answer.cardInstanceIds.length === 0) return;
+const sendAMessageFlow = prompts({
+  rez: cards(({ state }, a) => {
+    if (a.ids.length === 0) return;
     // The chosen ice may have left play (or been rezzed) before the answer: then nothing happens
-    const ice = installedIce(state).find(c => c.instanceId === answer.cardInstanceIds[0]);
+    const ice = installedIce(state).find(c => c.instanceId === a.ids[0]);
     if (!ice || ice.isRezzed) return;
     addLog(state, 'corp', `Corp rezzed ${cardDef(ice).title}, ignoring all costs (Send a Message).`, undefined, 'rez');
     rezForFree(state, ice);
-  },
+  }),
+});
+
+const sendAMessage: CardScript = {
+  triggers: { agenda_scored: sendAMessageTrigger, agenda_stolen: sendAMessageTrigger },
+  ...sendAMessageFlow.script,
 };
 
 // Orbital Superiority: When you score this agenda, if the Runner is tagged, do
@@ -230,20 +248,24 @@ const orbitalSuperiority: CardScript = {
 };
 
 // Superconducting Hub: When you score this agenda, you may draw 2 cards. You get +2 maximum hand size.
+const hubFlow = prompts({
+  draw: choice(({ state }, a) => {
+    if (a.optionId === 'draw') drawForEffect(state, 'corp', 2, 'Superconducting Hub');
+  }),
+});
+
 const superconductingHub: CardScript = {
   modifiers: { handSize: 2 },
   triggers: {
     agenda_scored: (ctx, e) => {
       if (!isSelf(ctx, e.card)) return;
-      askChoice(ctx, 'corp', 'Superconducting Hub: draw 2 cards?', [
+      hubFlow.choice(ctx, 'draw', choiceQuestion('corp', 'Superconducting Hub: draw 2 cards?', [
         { id: 'draw', label: 'Draw 2 cards' },
         { id: 'no', label: 'Do not draw' },
-      ], 'draw');
+      ]));
     },
   },
-  onPromptAnswer: ({ state }, _source, answer) => {
-    if (answer.kind === 'effect_choice' && answer.optionId === 'draw') drawForEffect(state, 'corp', 2, 'Superconducting Hub');
-  },
+  ...hubFlow.script,
 };
 
 // --- Assets -----------------------------------------------------------------
@@ -261,6 +283,12 @@ const nicoCampaign: CardScript = {
 
 // Spin Doctor: When you rez this asset, draw 2 cards. Remove this asset from
 // the game: Shuffle up to 2 cards from Archives into R&D.
+const spinDoctorFlow = prompts({
+  shuffle: cards(({ state }, a) => {
+    if (a.ids.length > 0) shuffleArchivesIntoRD(state, a.ids);
+  }),
+});
+
 const spinDoctor: CardScript = {
   triggers: { rezzed: (ctx, e) => isSelf(ctx, e.card) && drawForEffect(ctx.state, 'corp', 2, 'Spin Doctor') },
   abilities: [
@@ -270,13 +298,11 @@ const spinDoctor: CardScript = {
       resolve: ctx => {
         const cards = archivesCards(ctx.state);
         if (cards.length === 0) return;
-        askCards(ctx, 'corp', 'Spin Doctor: shuffle up to 2 cards from Archives into R&D.', cards.map(c => c.instanceId), 0, Math.min(2, cards.length), 'shuffle');
+        spinDoctorFlow.cards(ctx, 'shuffle', cardsQuestion('corp', 'Spin Doctor: shuffle up to 2 cards from Archives into R&D.', cards.map(c => c.instanceId), 0, Math.min(2, cards.length)));
       },
     },
   ],
-  onPromptAnswer: ({ state }, _source, answer) => {
-    if (answer.kind === 'effect_cards' && answer.cardInstanceIds.length > 0) shuffleArchivesIntoRD(state, answer.cardInstanceIds);
-  },
+  ...spinDoctorFlow.script,
 };
 
 // Regolith Mining License: When you rez this asset, load 15 credits onto it.
@@ -301,31 +327,49 @@ const urticaCipher: CardScript = {
 
 // Clearinghouse: You can advance this asset. When your turn begins, you may
 // trash this asset to do 1 meat damage for each hosted advancement counter.
+const clearinghouseFlow = prompts({
+  trash: choice(({ state, card }, a) => {
+    if (a.optionId !== 'yes') return;
+    if (!serverOf(state, card)) return; // no longer installed
+    const damage = card.advancementCounters;
+    trashInstalledCard(state, card);
+    dealMeatDamage(state, damage);
+  }),
+});
+
 const clearinghouse: CardScript = {
   liveValue: (_state, card) => `Trash now: ${card.advancementCounters} meat damage`,
   triggers: {
     turn_begins: (ctx, e) => {
       if (e.side !== 'corp' || ctx.card.advancementCounters === 0) return;
       const n = ctx.card.advancementCounters;
-      askChoice(ctx, 'corp', `Clearinghouse: trash it to do ${n} meat damage?`, [
+      clearinghouseFlow.choice(ctx, 'trash', choiceQuestion('corp', `Clearinghouse: trash it to do ${n} meat damage?`, [
         { id: 'yes', label: `Trash it: ${n} meat damage` },
         { id: 'no', label: 'Keep it' },
-      ], 'trash');
+      ]));
     },
   },
-  onPromptAnswer: ({ state, card }, _source, answer) => {
-    if (answer.kind !== 'effect_choice' || answer.optionId !== 'yes') return;
-    if (!serverOf(state, card)) return; // no longer installed
-    const damage = card.advancementCounters;
-    trashInstalledCard(state, card);
-    dealMeatDamage(state, damage);
-  },
+  ...clearinghouseFlow.script,
 };
 
 // --- Upgrades ---------------------------------------------------------------
 
 // Manegarm Skunkworks: Whenever the Runner approaches this server, end the run
 // unless they either spend 2 clicks or pay 5 credits.
+const manegarmFlow = prompts({
+  approach: choice(({ state }, a) => {
+    if (a.optionId === 'clicks') {
+      state.runner.clicks -= 2;
+      addLog(state, 'runner', 'Runner spent 2 [click] (Manegarm Skunkworks).');
+    } else if (a.optionId === 'pay') {
+      spendCredits(state, 'runner', 5);
+      addLog(state, 'runner', 'Runner paid 5 [credit] (Manegarm Skunkworks).');
+    } else {
+      endTheRun(state);
+    }
+  }),
+});
+
 const manegarmSkunkworks: CardScript = {
   triggers: {
     approach_server: (ctx, e) => {
@@ -335,47 +379,38 @@ const manegarmSkunkworks: CardScript = {
         ...(availableCredits(ctx.state, 'runner') >= 5 ? [{ id: 'pay', label: 'Pay 5 credits' }] : []),
         { id: 'end', label: 'End the run' },
       ];
-      askChoice(ctx, 'runner', 'Manegarm Skunkworks: spend 2 clicks or pay 5 credits, or the run ends.', options, 'approach');
+      manegarmFlow.choice(ctx, 'approach', choiceQuestion('runner', 'Manegarm Skunkworks: spend 2 clicks or pay 5 credits, or the run ends.', options));
     },
   },
-  onPromptAnswer: ({ state }, _source, answer) => {
-    if (answer.kind !== 'effect_choice') return;
-    if (answer.optionId === 'clicks') {
-      state.runner.clicks -= 2;
-      addLog(state, 'runner', 'Runner spent 2 [click] (Manegarm Skunkworks).');
-    } else if (answer.optionId === 'pay') {
-      spendCredits(state, 'runner', 5);
-      addLog(state, 'runner', 'Runner paid 5 [credit] (Manegarm Skunkworks).');
-    } else {
-      endTheRun(state);
-    }
-  },
+  ...manegarmFlow.script,
 };
 
 // Anoetic Void: Whenever the Runner approaches this server, you may pay 2
 // credits and trash 2 cards from HQ. If you do, end the run.
+const anoeticFlow = prompts({
+  approach: choice((ctx, a) => {
+    if (a.optionId === 'yes') anoeticFlow.cards(ctx, 'trash', cardsQuestion('corp', 'Anoetic Void: choose 2 cards from HQ to trash.', ctx.state.corp.hq.map(c => c.instanceId), 2, 2));
+  }),
+  trash: cards(({ state }, a) => {
+    state.corp.credits -= 2;
+    trashFromHQ(state, a.ids);
+    addLog(state, 'corp', 'Corp paid 2 [credit] and trashed 2 cards from HQ (Anoetic Void).');
+    endTheRun(state);
+  }),
+});
+
 const anoeticVoid: CardScript = {
   triggers: {
     approach_server: (ctx, e) => {
       if (serverOf(ctx.state, ctx.card) !== e.server) return;
       if (ctx.state.corp.credits < 2 || ctx.state.corp.hq.length < 2) return;
-      askChoice(ctx, 'corp', 'Anoetic Void: pay 2 credits and trash 2 cards from HQ to end the run?', [
+      anoeticFlow.choice(ctx, 'approach', choiceQuestion('corp', 'Anoetic Void: pay 2 credits and trash 2 cards from HQ to end the run?', [
         { id: 'yes', label: 'Pay and end the run' },
         { id: 'no', label: 'Do nothing' },
-      ], 'approach');
+      ]));
     },
   },
-  onPromptAnswer: (ctx, source, answer) => {
-    const { state } = ctx;
-    if (source.step === 'approach' && answer.kind === 'effect_choice' && answer.optionId === 'yes') {
-      askCards(ctx, 'corp', 'Anoetic Void: choose 2 cards from HQ to trash.', state.corp.hq.map(c => c.instanceId), 2, 2, 'trash');
-    } else if (source.step === 'trash' && answer.kind === 'effect_cards') {
-      state.corp.credits -= 2;
-      trashFromHQ(state, answer.cardInstanceIds);
-      addLog(state, 'corp', 'Corp paid 2 [credit] and trashed 2 cards from HQ (Anoetic Void).');
-      endTheRun(state);
-    }
-  },
+  ...anoeticFlow.script,
 };
 
 // AMAZE Amusements: Persistent -> Whenever a run on this server ends, if the
@@ -395,30 +430,34 @@ const amazeAmusements: CardScript = {
 // Malapert Data Vault: Whenever you score an agenda from the root of this
 // server, you may search R&D for 1 non-agenda card and reveal it. (Shuffle R&D
 // after searching it.) Add that card to HQ.
+const malapertFlow = prompts({
+  search: cards(({ state }, a) => {
+    if (a.ids.length === 0) return;
+    const card = state.corp.rd.find(c => c.instanceId === a.ids[0])!;
+    removeCard(state.corp.rd, card);
+    state.corp.hq.push(card);
+    revealInHand(state, 'corp', [card]);
+    shuffleRD(state);
+    addLog(state, 'corp', `Corp revealed ${cardDef(card).title}, added it to HQ and shuffled R&D (Malapert Data Vault).`);
+  }),
+});
+
 const malapertDataVault: CardScript = {
   triggers: {
     agenda_scored: (ctx, e) => {
       if (serverOf(ctx.state, ctx.card) !== e.serverId) return;
       const options = ctx.state.corp.rd.filter(c => cardDef(c).type_code !== 'agenda');
       // Asked even when R&D holds only agendas when the Corp's stops are on ALL (4.2.2, see askEvenIfNone)
-      askEvenIfNone(
+      malapertFlow.evenIfNone(
         ctx,
         'corp',
         options.length > 0,
-        () => askCards(ctx, 'corp', 'Malapert Data Vault: you may search R&D for 1 non-agenda card.', options.map(c => c.instanceId), 0, 1, 'search'),
+        () => malapertFlow.cards(ctx, 'search', cardsQuestion('corp', 'Malapert Data Vault: you may search R&D for 1 non-agenda card.', options.map(c => c.instanceId), 0, 1)),
         'Malapert Data Vault: no non-agenda card in R&D.',
       );
     },
   },
-  onPromptAnswer: ({ state }, _source, answer) => {
-    if (answer.kind !== 'effect_cards' || answer.cardInstanceIds.length === 0) return;
-    const card = state.corp.rd.find(c => c.instanceId === answer.cardInstanceIds[0])!;
-    removeCard(state.corp.rd, card);
-    state.corp.hq.push(card);
-    revealInHand(state, 'corp', [card]);
-    shuffleRD(state);
-    addLog(state, 'corp', `Corp revealed ${cardDef(card).title}, added it to HQ and shuffled R&D (Malapert Data Vault).`);
-  },
+  ...malapertFlow.script,
 };
 
 export const corpCardScripts: Record<string, CardScript> = {

@@ -18,7 +18,8 @@ import {
 } from '../engine/cardEffects';
 import { encounteredIce, iceSubroutines, markSubroutinesBroken } from '../engine/ice';
 import { CardScript, EffectContext } from './types';
-import { askCards, askChoice, askRunnerInstall, gainCredits, installRunnerChoice, installRunnerHostChoice, installableRunnerCards } from './effects';
+import { gainCredits, installRunnerHostChoice, installableRunnerCards } from './effects';
+import { cards, cardsQuestion, choice, choiceQuestion, prompts, RunnerHostData } from './steps';
 
 /** Runner identities, hardware, resources and non-icebreaker programs from System Gateway. */
 
@@ -61,38 +62,46 @@ const rene: CardScript = {
 // Zahya Sadeghi: Once per turn -> When a run on HQ or R&D ends, you may gain
 // 1 credit for each time you accessed a card during that run. Optional (rules 9.6.9),
 // and only counts as used once taken (9.1.6b), so it can wait for a later run.
+const zahyaFlow = prompts({
+  gain: choice<{ credits: number }>(({ state, card }, a, data) => {
+    if (a.optionId !== 'gain' || !useOncePerTurn(state, `once:${card.instanceId}`)) return;
+    const credits = Number(data.credits ?? 0);
+    gainCredits(state, 'runner', credits);
+    addLog(state, 'runner', `Runner gained ${credits} [credit] (Zahya Sadeghi).`);
+  }),
+});
+
 const zahya: CardScript = {
   triggers: {
     run_ends: (ctx, e) => {
       const { state, card } = ctx;
       if (!['hq', 'rd'].includes(e.server) || e.accessedCount === 0 || turnFlag(state, `once:${card.instanceId}`) > 0) return;
-      askChoice(ctx, 'runner', `Zahya Sadeghi: gain ${e.accessedCount} [credit] now? (Once per turn.)`, [
+      zahyaFlow.choice(ctx, 'gain', choiceQuestion('runner', `Zahya Sadeghi: gain ${e.accessedCount} [credit] now? (Once per turn.)`, [
         { id: 'gain', label: `Gain ${e.accessedCount} [credit]` },
         { id: 'no', label: 'Save it for a later run' },
-      ], 'gain', { credits: e.accessedCount });
+      ]), { credits: e.accessedCount });
     },
   },
-  onPromptAnswer: ({ state, card }, source, answer) => {
-    if (answer.kind !== 'effect_choice' || answer.optionId !== 'gain' || !useOncePerTurn(state, `once:${card.instanceId}`)) return;
-    const credits = Number(source.data?.credits ?? 0);
-    gainCredits(state, 'runner', credits);
-    addLog(state, 'runner', `Runner gained ${credits} [credit] (Zahya Sadeghi).`);
-  },
+  ...zahyaFlow.script,
 };
 
 // Tāo Salonga: Whenever an agenda is scored or stolen, you may swap 2 installed pieces of ice.
 const askSwap = (ctx: EffectContext) => {
   const ice = installedIce(ctx.state);
   if (ice.length < 2) return;
-  askCards(ctx, 'runner', 'Tāo Salonga: choose 2 installed ice to swap, or none.', ice.map(c => c.instanceId), 0, 2, 'swap');
+  taoFlow.cards(ctx, 'swap', cardsQuestion('runner', 'Tāo Salonga: choose 2 installed ice to swap, or none.', ice.map(c => c.instanceId), 0, 2));
 };
+const taoFlow = prompts({
+  swap: cards(({ state }, a) => {
+    if (a.ids.length === 0) return;
+    if (a.ids.length !== 2) illegal('Choose 2 pieces of ice, or none');
+    swapIce(state, a.ids[0], a.ids[1]);
+  }),
+});
+
 const tao: CardScript = {
   triggers: { agenda_scored: askSwap, agenda_stolen: askSwap },
-  onPromptAnswer: ({ state }, _source, answer) => {
-    if (answer.kind !== 'effect_cards' || answer.cardInstanceIds.length === 0) return;
-    if (answer.cardInstanceIds.length !== 2) illegal('Choose 2 pieces of ice, or none');
-    swapIce(state, answer.cardInstanceIds[0], answer.cardInstanceIds[1]);
-  },
+  ...taoFlow.script,
 };
 
 function swapIce(state: GameState, a: string, b: string): void {
@@ -113,21 +122,9 @@ function swapIce(state: GameState, a: string, b: string): void {
 
 // Carnivore: +1 MU. Access, once per turn -> Trash 2 cards from your grip:
 // Trash the card you are accessing. Limit 1 console per player.
-const carnivore: CardScript = {
-  modifiers: { memory: 1 },
-  accessAbility: {
-    label: 'trash 2 cards from your grip to trash this card',
-    canUse: ({ state, card }) => state.runner.grip.length >= 2 && turnFlag(state, `once:${card.instanceId}`) === 0,
-    use: (ctx, accessed) => {
-      useOncePerTurn(ctx.state, `once:${ctx.card.instanceId}`);
-      askCards(ctx, 'runner', 'Carnivore: choose 2 cards from your grip to trash.', ctx.state.runner.grip.map(c => c.instanceId), 2, 2, 'carnivore', {
-        accessedId: accessed.instanceId,
-      });
-    },
-  },
-  onPromptAnswer: ({ state }, source, answer) => {
-    if (answer.kind !== 'effect_cards') return;
-    for (const id of answer.cardInstanceIds) {
+const carnivoreFlow = prompts({
+  carnivore: cards<{ accessedId: string }>(({ state }, a, data) => {
+    for (const id of a.ids) {
       const card = state.runner.grip.find(c => c.instanceId === id)!;
       removeCard(state.runner.grip, card);
       state.runner.heap.push(card);
@@ -135,12 +132,27 @@ const carnivore: CardScript = {
     const accessed = Object.values(state.corp.servers)
       .flatMap(s => [...s.root, ...s.ice])
       .concat(state.corp.hq, state.corp.rd)
-      .find(c => c.instanceId === source.data?.accessedId);
+      .find(c => c.instanceId === data.accessedId);
     if (accessed) {
       addLog(state, 'runner', `Runner trashed 2 cards from their grip to trash ${cardDef(accessed).title} (Carnivore).`);
       trashAccessedCard(state, accessed);
     }
+  }),
+});
+
+const carnivore: CardScript = {
+  modifiers: { memory: 1 },
+  accessAbility: {
+    label: 'trash 2 cards from your grip to trash this card',
+    canUse: ({ state, card }) => state.runner.grip.length >= 2 && turnFlag(state, `once:${card.instanceId}`) === 0,
+    use: (ctx, accessed) => {
+      useOncePerTurn(ctx.state, `once:${ctx.card.instanceId}`);
+      carnivoreFlow.cards(ctx, 'carnivore', cardsQuestion('runner', 'Carnivore: choose 2 cards from your grip to trash.', ctx.state.runner.grip.map(c => c.instanceId), 2, 2), {
+        accessedId: accessed.instanceId,
+      });
+    },
   },
+  ...carnivoreFlow.script,
 };
 
 // Docklands Pass: The first time each turn you breach HQ, access 1 additional card.
@@ -184,21 +196,22 @@ const pantographTrigger = (ctx: EffectContext) => {
   addLog(state, 'runner', 'Runner gained 1 [credit] (Pantograph).');
   const installable = installableRunnerCards(state, state.runner.grip);
   if (installable.length === 0) return;
-  askRunnerInstall(ctx, 'Pantograph: you may install 1 card from your grip.', installable.map(c => c.instanceId), 0, 1, 'install');
+  pantographFlow.runnerInstall(ctx, 'install', { message: 'Pantograph: you may install 1 card from your grip.', candidateIds: installable.map(c => c.instanceId), min: 0, max: 1 });
 };
+const pantographFlow = prompts({
+  install: cards((ctx, a) => {
+    if (a.ids.length === 0) return;
+    // The card may have left the grip, or stopped being installable, since the prompt was asked
+    if (!ctx.state.runner.grip.some(c => c.instanceId === a.ids[0])) return;
+    pantographFlow.installRunner(ctx, a.ids[0], 'host', 0, a.trashFirst);
+  }),
+  host: choice<RunnerHostData>((ctx, a, _d, source) => void installRunnerHostChoice(ctx.state, source, a.raw)),
+});
+
 const pantograph: CardScript = {
   modifiers: { memory: 1 },
   triggers: { agenda_scored: pantographTrigger, agenda_stolen: pantographTrigger },
-  onPromptAnswer: (ctx, source, answer) => {
-    if (source.step === 'host') {
-      installRunnerHostChoice(ctx.state, source, answer);
-      return;
-    }
-    if (answer.kind !== 'effect_cards' || answer.cardInstanceIds.length === 0) return;
-    // The card may have left the grip, or stopped being installable, since the prompt was asked
-    if (!ctx.state.runner.grip.some(c => c.instanceId === answer.cardInstanceIds[0])) return;
-    installRunnerChoice(ctx, answer.cardInstanceIds[0], 'host', 0, {}, answer.trashFirst);
-  },
+  ...pantographFlow.script,
 };
 
 // T400 Memory Diamond: +1 MU. You get +1 maximum hand size.
@@ -207,6 +220,10 @@ const t400: CardScript = { modifiers: { memory: 1, handSize: 1 } };
 // Botulus: Install only on a piece of ice. When you install this program and
 // when your turn begins, place 1 virus counter on this program.
 // Hosted virus counter: Break 1 subroutine on host ice.
+const botulusFlow = prompts({
+  break: choice(({ state }, a) => breakWithBotulus(state, Number(a.optionId))),
+});
+
 const botulus: CardScript = {
   installsOnIce: true,
   triggers: virusGrowth(),
@@ -229,13 +246,11 @@ const botulus: CardScript = {
           breakWithBotulus(ctx.state, Number(options[0].id));
           return;
         }
-        askChoice(ctx, 'runner', 'Botulus: break which subroutine?', options, 'break');
+        botulusFlow.choice(ctx, 'break', choiceQuestion('runner', 'Botulus: break which subroutine?', options));
       },
     },
   ],
-  onPromptAnswer: ({ state }, _source, answer) => {
-    if (answer.kind === 'effect_choice') breakWithBotulus(state, Number(answer.optionId));
-  },
+  ...botulusFlow.script,
 };
 
 function breakWithBotulus(state: GameState, index: number): void {
@@ -335,6 +350,9 @@ const cookbook: CardScript = {
 // empty, trash it. click: Run a central server you have not run this turn. If
 // successful, take 3 credits from this resource.
 const unrunCentrals = (state: GameState) => CENTRALS.filter(s => !state.runsThisTurn.some(r => r.server === s));
+const redTeamFlow = prompts({
+  run: choice(({ state, card }, a) => void startRun(state, a.optionId, { source: { cardCode: card.cardCode, instanceId: card.instanceId } })),
+});
 const redTeam: CardScript = {
   trashWhenEmpty: true,
   triggers: { installed: (ctx, e) => isSelf(ctx, e.card) && loadCredits(ctx.state, ctx.card, 12) },
@@ -345,14 +363,11 @@ const redTeam: CardScript = {
       canUse: ({ state }) => (unrunCentrals(state).length > 0 ? null : 'You have run every central server this turn'),
       resolve: ctx => {
         const options = unrunCentrals(ctx.state).map(id => ({ id, label: ctx.state.corp.servers[id].name }));
-        askChoice(ctx, 'runner', 'Red Team: run which central server?', options, 'run');
+        redTeamFlow.choice(ctx, 'run', choiceQuestion('runner', 'Red Team: run which central server?', options));
       },
     },
   ],
-  onPromptAnswer: ({ state, card }, _source, answer) => {
-    if (answer.kind !== 'effect_choice') return;
-    startRun(state, answer.optionId, { source: { cardCode: card.cardCode, instanceId: card.instanceId } });
-  },
+  ...redTeamFlow.script,
   onRunSuccessful: ({ state, card }) => {
     if (state.runner.rig.resources.includes(card)) takeHostedCredits(state, card, 3);
   },

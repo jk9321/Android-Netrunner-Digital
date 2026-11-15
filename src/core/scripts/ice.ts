@@ -6,7 +6,8 @@ import { endRun, endTheRun } from '../engine/runEnd';
 import { availableCredits, spendCredits } from '../engine/cardEffects';
 import { runnerSawBeforeInstall } from '../engine/helpers';
 import { CardScript, Subroutine } from './types';
-import { askCards, askChoice, askCorpInstall, installCorpChoice } from './effects';
+import { installCorpChoice } from './effects';
+import { cards, cardsQuestion, choice, choiceQuestion, InstallData, prompts } from './steps';
 
 /** Ice from System Gateway. */
 
@@ -118,6 +119,15 @@ const diviner: CardScript = {
 
 // Karunā (Sentry - AP): Subroutine: Do 2 net damage. The Runner may jack out.
 // Subroutine: Do 2 net damage.
+const karunaFlow = prompts({
+  jack_out: choice(({ state }, a) => {
+    if (a.optionId === 'jack') {
+      addLog(state, 'runner', 'Runner jacked out.');
+      endRun(state);
+    }
+  }),
+});
+
 const karuna: CardScript = {
   ice: {
     subroutines: [
@@ -126,32 +136,36 @@ const karuna: CardScript = {
         resolve: ctx => {
           dealNetDamage(ctx.state, 2);
           if (ctx.state.winner) return;
-          askChoice(ctx, 'runner', 'Karunā: jack out?', [
+          karunaFlow.choice(ctx, 'jack_out', choiceQuestion('runner', 'Karunā: jack out?', [
             { id: 'jack', label: 'Jack out' },
             { id: 'stay', label: 'Continue the run' },
-          ], 'jack_out');
+          ]));
         },
       },
       netDamageSub(2),
     ],
   },
-  onPromptAnswer: ({ state }, _source, answer) => {
-    if (answer.kind === 'effect_choice' && answer.optionId === 'jack') {
-      addLog(state, 'runner', 'Runner jacked out.');
-      endRun(state);
-    }
-  },
+  ...karunaFlow.script,
 };
 
 // Funhouse (Code Gate): When the Runner encounters this ice, end the run unless the Runner
 // takes 1 tag. Subroutine: Give the Runner 1 tag unless they pay 4 credits.
+/** Funhouse's answers: the tag, the payment, or (only on encounter) the end of the run. */
+const funhouseAnswer = (onEncounter: boolean) =>
+  choice(({ state }, a) => {
+    if (a.optionId === 'tag') giveTags(state, 1);
+    else if (a.optionId === 'pay') spendCredits(state, 'runner', 4);
+    else if (a.optionId === 'end' && onEncounter) endTheRun(state);
+  });
+const funhouseFlow = prompts({ encounter: funhouseAnswer(true), sub: funhouseAnswer(false) });
+
 const funhouse: CardScript = {
   ice: {
     onEncounter: ctx =>
-      askChoice(ctx, 'runner', 'Funhouse: take 1 tag, or the run ends.', [
+      funhouseFlow.choice(ctx, 'encounter', choiceQuestion('runner', 'Funhouse: take 1 tag, or the run ends.', [
         { id: 'tag', label: 'Take 1 tag' },
         { id: 'end', label: 'End the run' },
-      ], 'encounter'),
+      ])),
     subroutines: [
       {
         label: 'Give the Runner 1 tag unless they pay 4 credits.',
@@ -160,23 +174,32 @@ const funhouse: CardScript = {
             giveTags(ctx.state, 1);
             return;
           }
-          askChoice(ctx, 'runner', 'Funhouse: pay 4 credits or take 1 tag?', [
+          funhouseFlow.choice(ctx, 'sub', choiceQuestion('runner', 'Funhouse: pay 4 credits or take 1 tag?', [
             { id: 'pay', label: 'Pay 4 credits' },
             { id: 'tag', label: 'Take 1 tag' },
-          ], 'sub');
+          ]));
         },
       },
     ],
   },
-  onPromptAnswer: ({ state }, source, answer) => {
-    if (answer.kind !== 'effect_choice') return;
-    if (answer.optionId === 'tag') giveTags(state, 1);
-    else if (answer.optionId === 'pay') spendCredits(state, 'runner', 4);
-    else if (answer.optionId === 'end' && source.step === 'encounter') endTheRun(state);
-  },
+  ...funhouseFlow.script,
 };
 
 // Ballista (Sentry - Destroyer): Subroutine: Trash 1 installed program or end the run.
+const ballistaFlow = prompts({
+  choose: choice(({ state }, a) => {
+    if (a.optionId === 'end') {
+      endTheRun(state);
+      return;
+    }
+    const program = state.runner.rig.programs.find(p => p.instanceId === a.optionId);
+    if (program) {
+      trashInstalledRunnerCard(state, program);
+      addLog(state, 'corp', `Ballista trashed ${cardDef(program).title}.`);
+    }
+  }),
+});
+
 const ballista: CardScript = {
   ice: {
     subroutines: [
@@ -188,32 +211,35 @@ const ballista: CardScript = {
             endTheRun(ctx.state);
             return;
           }
-          askChoice(ctx, 'corp', 'Ballista: trash a program or end the run?', [
+          ballistaFlow.choice(ctx, 'choose', choiceQuestion('corp', 'Ballista: trash a program or end the run?', [
             ...programs.map(p => ({ id: p.instanceId, label: `Trash ${cardDef(p).title}` })),
             { id: 'end', label: 'End the run' },
-          ], 'choose');
+          ]));
         },
       },
     ],
   },
-  onPromptAnswer: ({ state }, _source, answer) => {
-    if (answer.kind !== 'effect_choice') return;
-    if (answer.optionId === 'end') {
-      endTheRun(state);
-      return;
-    }
-    const program = state.runner.rig.programs.find(p => p.instanceId === answer.optionId);
-    if (program) {
-      trashInstalledRunnerCard(state, program);
-      addLog(state, 'corp', `Ballista trashed ${cardDef(program).title}.`);
-    }
-  },
+  ...ballistaFlow.script,
 };
 
 // Ansel 1.0 (Sentry - Bioroid - Destroyer): [Lose click]: Break 1 subroutine on this ice.
 // Subroutine: Trash 1 installed Runner card.
 // Subroutine: You may install 1 card from HQ or Archives.
 // Subroutine: The Runner cannot steal or trash Corp cards for the remainder of this run.
+const anselFlow = prompts({
+  trash: cards(({ state }, a) => {
+    const card = installedRunnerCards(state).find(c => c.instanceId === a.ids[0]);
+    if (card) {
+      trashInstalledRunnerCard(state, card);
+      addLog(state, 'corp', `Ansel 1.0 trashed ${cardDef(card).title}.`);
+    }
+  }),
+  pick_install: cards((ctx, a) => {
+    if (a.ids.length === 1) anselFlow.corpInstall(ctx, a.ids[0], 'server');
+  }),
+  server: choice<InstallData>((ctx, a, _d, source) => void installCorpChoice(ctx.state, source, a.raw)),
+});
+
 const ansel: CardScript = {
   ice: {
     subroutines: [
@@ -221,7 +247,7 @@ const ansel: CardScript = {
         label: 'Trash 1 installed Runner card.',
         resolve: ctx => {
           const targets = installedRunnerCards(ctx.state).map(c => c.instanceId);
-          if (targets.length > 0) askCards(ctx, 'corp', 'Ansel 1.0: trash 1 installed Runner card.', targets, 1, 1, 'trash');
+          if (targets.length > 0) anselFlow.cards(ctx, 'trash', cardsQuestion('corp', 'Ansel 1.0: trash 1 installed Runner card.', targets, 1, 1));
         },
       },
       {
@@ -229,7 +255,7 @@ const ansel: CardScript = {
         resolve: ctx => {
           const options = installableFromHqOrArchives(ctx.state, false);
           if (options.length > 0) {
-            askCards(ctx, 'corp', 'Ansel 1.0: you may install 1 card from HQ or Archives.', options, 0, 1, 'pick_install');
+            anselFlow.cards(ctx, 'pick_install', cardsQuestion('corp', 'Ansel 1.0: you may install 1 card from HQ or Archives.', options, 0, 1));
           }
         },
       },
@@ -241,47 +267,19 @@ const ansel: CardScript = {
       },
     ],
   },
-  onPromptAnswer: (ctx, source, answer) => {
-    const { state } = ctx;
-    if (source.step === 'trash' && answer.kind === 'effect_cards') {
-      const card = installedRunnerCards(state).find(c => c.instanceId === answer.cardInstanceIds[0]);
-      if (card) {
-        trashInstalledRunnerCard(state, card);
-        addLog(state, 'corp', `Ansel 1.0 trashed ${cardDef(card).title}.`);
-      }
-    } else if (source.step === 'pick_install' && answer.kind === 'effect_cards') {
-      if (answer.cardInstanceIds.length === 1) askCorpInstall(ctx, answer.cardInstanceIds[0], 'server');
-    } else if (source.step === 'server') {
-      installCorpChoice(state, source, answer);
-    }
-  },
+  ...anselFlow.script,
 };
 
 // Brân 1.0 (Barrier - Bioroid): [Lose click]: Break 1 subroutine on this ice.
 // Subroutine: You may install 1 piece of ice from HQ or Archives directly inward from this ice,
 // ignoring all costs. Subroutine: End the run. Subroutine: End the run.
-const bran: CardScript = {
-  ice: {
-    subroutines: [
-      {
-        label: 'You may install 1 piece of ice from HQ or Archives directly inward from this ice, ignoring all costs.',
-        resolve: ctx => {
-          const options = installableFromHqOrArchives(ctx.state, true);
-          if (options.length > 0) {
-            askCards(ctx, 'corp', 'Brân 1.0: you may install 1 ice inward from this ice, ignoring all costs.', options, 0, 1, 'install');
-          }
-        },
-      },
-      endTheRunSub,
-      endTheRunSub,
-    ],
-  },
-  onPromptAnswer: ({ state, card: bran }, _source, answer) => {
-    if (answer.kind !== 'effect_cards' || answer.cardInstanceIds.length === 0) return;
+const branFlow = prompts({
+  install: cards(({ state, card: bran }, a) => {
+    if (a.ids.length === 0) return;
     const run = state.activeRun;
     const server = Object.values(state.corp.servers).find(s => s.ice.some(c => c.instanceId === bran.instanceId));
     if (!server) return;
-    const id = answer.cardInstanceIds[0];
+    const id = a.ids[0];
     const zone = zoneOf(state, id);
     const ice = zone.find(c => c.instanceId === id)!;
     if (runnerSawBeforeInstall(state, ice, zone)) ice.runnerKnows = true;
@@ -295,7 +293,26 @@ const bran: CardScript = {
       run.icePosition += 1; // the Runner is still at Brân, now one position further out
     }
     addLog(state, 'corp', `Corp installed a piece of ice inward from Brân 1.0 in ${server.name}.`, undefined, 'install');
+  }),
+});
+
+const bran: CardScript = {
+  ice: {
+    subroutines: [
+      {
+        label: 'You may install 1 piece of ice from HQ or Archives directly inward from this ice, ignoring all costs.',
+        resolve: ctx => {
+          const options = installableFromHqOrArchives(ctx.state, true);
+          if (options.length > 0) {
+            branFlow.cards(ctx, 'install', cardsQuestion('corp', 'Brân 1.0: you may install 1 ice inward from this ice, ignoring all costs.', options, 0, 1));
+          }
+        },
+      },
+      endTheRunSub,
+      endTheRunSub,
+    ],
   },
+  ...branFlow.script,
 };
 
 export const iceScripts: Record<string, CardScript> = {
