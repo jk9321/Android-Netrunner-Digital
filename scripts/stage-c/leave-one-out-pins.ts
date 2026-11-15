@@ -2,7 +2,7 @@
  * Step 4 Stage C7: the pins under leave-one-out (spec section 5). Every test file that reads src/ai is run under the new
  * core (TEST_PLAN=+corpCore,+rolloutLines) with nothing left out, and again with each carried-over rule left out in turn
  * (LOO_OFF, tests/setup.ts). SHARD k of n takes configuration k % 20 (0 = nothing left out, then the arms of
- * leave-one-out.ts) and the file group floor(k / 20) of ceil(n / 20). One JSON line per configuration and group: the
+ * leave-one-out.ts) and the file group floor(k / 20) of floor(n / 20) (shards past that idle). One JSON line per configuration and group: the
  * failed tests. Sum with leave-one-out-pins-sum.mjs.
  *   SHARD=0/60 npx vite-node scripts/stage-c/leave-one-out-pins.ts
  */
@@ -17,7 +17,7 @@ const ARMS = [
 ];
 const CONFIGS = ['', ...ARMS];
 const [shard, shards] = (process.env.SHARD ?? '0/1').split('/').map(Number);
-const groups = Math.max(1, Math.ceil(shards / CONFIGS.length));
+const groups = Math.max(1, Math.floor(shards / CONFIGS.length));
 const config = CONFIGS[shard % CONFIGS.length];
 const group = Math.floor(shard / CONFIGS.length);
 const files = readdirSync('tests')
