@@ -8,7 +8,8 @@ import { createAgent } from '../src/ai';
  * and more than four candidates is answered one card at a time (greedyCards), as "any number" prompts already were.
  * Spin Doctor's "shuffle up to 2 cards from Archives into R&D" with 12 cards in Archives (deal 2041 turn 17, played on
  * ai-corp-core-c) took every subset before: 79 answers, each scored with a full evaluate, 5-9 s a resolution, and the
- * Corp's look-ahead resolved it at many playout steps (a 271 s decision on beta's Corp).
+ * Corp's look-ahead resolved it at many playout steps (a 271 s decision on beta's Corp). Spin Doctor itself is now answered
+ * by the Archives-shuffle family (tests/archivesShuffle.test.ts); this keeps the prompt's answer legal on either route.
  */
 const fixture = (): GameState => JSON.parse(readFileSync(new URL('./fixtures/spin-doctor-archives-2041.json', import.meta.url), 'utf8'));
 
