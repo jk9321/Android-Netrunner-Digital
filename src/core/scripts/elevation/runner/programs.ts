@@ -6,7 +6,7 @@ import { trashInstalledRunnerCard } from '../../../engine/damage';
 import { addCounters, counters, drawForEffect, removeCounters } from '../../../engine/cardEffects';
 import { addBreakerStrength, isIcebreaker } from '../../../engine/ice';
 import { CardScript } from '../../types';
-import { askChoice } from '../../effects';
+import { choice, choiceQuestion, prompts } from '../../steps';
 import { isSelf, keywords } from './helpers';
 
 /** True while the Runner is encountering ice and can still break (before subroutines fire). */
@@ -90,23 +90,27 @@ export const chromatophores: CardScript = {
 
 // Devadatta Drone: When you install this program, place 2 power counters on it.
 // Whenever you breach R&D, you may remove 1 hosted power counter to access 1 additional card.
+const devadattaFlow = prompts({
+  breach: choice(({ state, card }, a) => {
+    if (a.optionId !== 'use' || !state.activeRun) return;
+    removeCounters(card, 'power', 1);
+    state.activeRun.extraAccesses += 1;
+    addLog(state, 'runner', 'Runner will access 1 additional card (Devadatta Drone).');
+  }),
+});
+
 export const devadatta: CardScript = {
   triggers: {
     installed: (ctx, e) => isSelf(ctx, e.card) && addCounters(ctx.card, 'power', 2),
     breach_server: (ctx, e) => {
       if (e.server !== 'rd' || counters(ctx.card, 'power') === 0) return;
-      askChoice(ctx, 'runner', 'Devadatta Drone: remove 1 power counter to access 1 additional card?', [
+      devadattaFlow.choice(ctx, 'breach', choiceQuestion('runner', 'Devadatta Drone: remove 1 power counter to access 1 additional card?', [
         { id: 'use', label: 'Access 1 additional card' },
         { id: 'no', label: 'No' },
-      ], 'breach');
+      ]));
     },
   },
-  onPromptAnswer: ({ state, card }, _source, answer) => {
-    if (answer.kind !== 'effect_choice' || answer.optionId !== 'use' || !state.activeRun) return;
-    removeCounters(card, 'power', 1);
-    state.activeRun.extraAccesses += 1;
-    addLog(state, 'runner', 'Runner will access 1 additional card (Devadatta Drone).');
-  },
+  ...devadattaFlow.script,
 };
 
 // --- Resources ------------------------------------------------------------------------

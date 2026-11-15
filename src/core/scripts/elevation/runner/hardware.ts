@@ -9,22 +9,32 @@ import { trashInstalledRunnerCard } from '../../../engine/damage';
 import { derez, useOncePerTurn } from '../../../engine/cardEffects';
 import { isIcebreaker } from '../../../engine/ice';
 import { CardScript, EffectContext } from '../../types';
-import { askCards, askChoice, installRunnerChoice, installRunnerHostChoice, installableRunnerCards, askRunnerInstall } from '../../effects';
+import { installRunnerHostChoice, installableRunnerCards } from '../../effects';
+import { cards, cardsQuestion, choice, choiceQuestion, prompts, RunnerHostData } from '../../steps';
 import { isSelf, keywords, onceKey } from './helpers';
 
 // Bling: +1 MU. Whenever you install a card without spending credits, you may host
 // the top card of your stack faceup on this hardware. You can play or install hosted
 // cards as if they were in your grip. When your discard phase ends, trash all hosted cards.
+const blingFlow = prompts({
+  host: choice(({ state, card }, a) => {
+    if (a.optionId !== 'host' || state.runner.stack.length === 0) return;
+    const top = state.runner.stack.shift()!;
+    card.hostedCards = [...(card.hostedCards ?? []), top];
+    addLog(state, 'runner', `Runner hosted ${cardDef(top).title} on Bling.`);
+  }),
+});
+
 export const bling: CardScript = {
   modifiers: { memory: 1 },
   hostedPlayable: true,
   triggers: {
     installed: (ctx, e) => {
       if (cardDef(e.card).side_code !== 'runner' || e.paid !== 0 || ctx.state.runner.stack.length === 0) return;
-      askChoice(ctx, 'runner', 'Bling: host the top card of your stack on Bling?', [
+      blingFlow.choice(ctx, 'host', choiceQuestion('runner', 'Bling: host the top card of your stack on Bling?', [
         { id: 'host', label: 'Host the top card' },
         { id: 'no', label: 'No' },
-      ], 'host');
+      ]));
     },
     discard_phase_ends: ({ state, card }, e) => {
       if (e.side !== 'runner' || !card.hostedCards?.length) return;
@@ -33,12 +43,7 @@ export const bling: CardScript = {
       card.hostedCards = [];
     },
   },
-  onPromptAnswer: ({ state, card }, _source, answer) => {
-    if (answer.kind !== 'effect_choice' || answer.optionId !== 'host' || state.runner.stack.length === 0) return;
-    const top = state.runner.stack.shift()!;
-    card.hostedCards = [...(card.hostedCards ?? []), top];
-    addLog(state, 'runner', `Runner hosted ${cardDef(top).title} on Bling.`);
-  },
+  ...blingFlow.script,
 };
 
 // Detente: +1 MU. The first time each turn you make a successful run on HQ, you may
@@ -56,23 +61,42 @@ const detenteReturn = (state: GameState, card: CardInstance, ids: string[]) => {
   addLog(state, 'runner', `${ids.length} card(s) hosted on Detente were added to HQ.`);
 };
 
-const askDetenteAccess = (ctx: EffectContext) => {
-  if (ctx.state.corp.hq.length === 0 || ctx.state.activeRun) return;
-  askChoice(ctx, 'runner', 'Detente: access 1 card in HQ at random?', [
-    { id: 'access', label: 'Access 1 random card in HQ' },
-    { id: 'no', label: 'No' },
-  ], 'access');
-};
+const detenteAccessQuestion = (ctx: EffectContext) =>
+  ctx.state.corp.hq.length === 0 || ctx.state.activeRun
+    ? null
+    : choiceQuestion('runner', 'Detente: access 1 card in HQ at random?', [
+        { id: 'access', label: 'Access 1 random card in HQ' },
+        { id: 'no', label: 'No' },
+      ]);
+
+const detenteFlow = prompts({
+  host: choice(({ state, card }, a) => {
+    if (a.optionId !== 'host' || state.corp.hq.length === 0) return;
+    const target = state.corp.hq[nextInt(state.rng, state.corp.hq.length)];
+    removeCard(state.corp.hq, target);
+    target.isRezzed = true;
+    card.hostedCards = [...(card.hostedCards ?? []), target];
+    addLog(state, 'runner', `Runner hosted ${cardDef(target).title} from HQ on Detente.`);
+  }),
+  return: cards((ctx, a) => {
+    detenteReturn(ctx.state, ctx.card, a.ids);
+    detenteFlow.askIf(ctx, 'access', detenteAccessQuestion(ctx));
+  }),
+  access: choice(({ state }, a) => {
+    const hq = state.corp.hq;
+    if (a.optionId === 'access' && hq.length > 0) accessOutsideRun(state, [hq[nextInt(state.rng, hq.length)].instanceId]);
+  }),
+});
 
 export const detente: CardScript = {
   modifiers: { memory: 1 },
   triggers: {
     successful_run: (ctx, e) => {
       if (e.server !== 'hq' || ctx.state.corp.hq.length === 0 || !useOncePerTurn(ctx.state, onceKey(ctx.card))) return;
-      askChoice(ctx, 'runner', 'Detente: host 1 card from HQ at random?', [
+      detenteFlow.choice(ctx, 'host', choiceQuestion('runner', 'Detente: host 1 card from HQ at random?', [
         { id: 'host', label: 'Host a random card from HQ' },
         { id: 'no', label: 'No' },
-      ], 'host');
+      ]));
     },
   },
   abilities: [
@@ -84,68 +108,70 @@ export const detente: CardScript = {
       resolve: ctx => {
         const hosted = ctx.card.hostedCards ?? [];
         if (hosted.length > 2) {
-          askCards(ctx, ctx.side, 'Detente: choose 2 hosted cards to add to HQ.', hosted.map(c => c.instanceId), 2, 2, 'return');
+          detenteFlow.cards(ctx, 'return', cardsQuestion(ctx.side, 'Detente: choose 2 hosted cards to add to HQ.', hosted.map(c => c.instanceId), 2, 2));
           return;
         }
         detenteReturn(ctx.state, ctx.card, hosted.map(c => c.instanceId));
-        askDetenteAccess(ctx);
+        detenteFlow.askIf(ctx, 'access', detenteAccessQuestion(ctx));
       },
     },
   ],
-  onPromptAnswer: (ctx, source, answer) => {
-    const { state, card } = ctx;
-    if (source.step === 'host' && answer.kind === 'effect_choice' && answer.optionId === 'host') {
-      if (state.corp.hq.length === 0) return;
-      const target = state.corp.hq[nextInt(state.rng, state.corp.hq.length)];
-      removeCard(state.corp.hq, target);
-      target.isRezzed = true;
-      card.hostedCards = [...(card.hostedCards ?? []), target];
-      addLog(state, 'runner', `Runner hosted ${cardDef(target).title} from HQ on Detente.`);
-    } else if (source.step === 'return' && answer.kind === 'effect_cards') {
-      detenteReturn(state, card, answer.cardInstanceIds);
-      askDetenteAccess(ctx);
-    } else if (source.step === 'access' && answer.kind === 'effect_choice' && answer.optionId === 'access') {
-      const hq = state.corp.hq;
-      if (hq.length > 0) accessOutsideRun(state, [hq[nextInt(state.rng, hq.length)].instanceId]);
-    }
-  },
+  ...detenteFlow.script,
 };
 
 // Maglectric Rapid (748 Mod): Whenever you make a successful run on HQ, you may
 // trash this hardware to derez 1 installed Corp card.
 const rezzedCorpCards = (state: GameState) => Object.values(state.corp.servers).flatMap(s => [...s.ice, ...s.root]).filter(c => c.isRezzed);
 
+const maglectricFlow = prompts({
+  derez: cards(({ state, card }, a) => {
+    if (a.ids.length === 0) return;
+    const target = findInstalledCorpCard(state, a.ids[0])?.card;
+    if (!target || !state.runner.rig.hardware.includes(card)) return;
+    trashInstalledRunnerCard(state, card);
+    addLog(state, 'runner', 'Runner trashed Maglectric Rapid (748 Mod) to derez a Corp card.');
+    derez(state, target);
+  }),
+});
+
 export const maglectric: CardScript = {
   triggers: {
     successful_run: (ctx, e) => {
       const targets = rezzedCorpCards(ctx.state);
       if (e.server !== 'hq' || targets.length === 0) return;
-      askCards(ctx, 'runner', 'Maglectric Rapid: you may trash it to derez 1 installed Corp card.', targets.map(c => c.instanceId), 0, 1, 'derez');
+      maglectricFlow.cards(ctx, 'derez', cardsQuestion('runner', 'Maglectric Rapid: you may trash it to derez 1 installed Corp card.', targets.map(c => c.instanceId), 0, 1));
     },
   },
-  onPromptAnswer: ({ state, card }, _source, answer) => {
-    if (answer.kind !== 'effect_cards' || answer.cardInstanceIds.length === 0) return;
-    const target = findInstalledCorpCard(state, answer.cardInstanceIds[0])?.card;
-    if (!target || !state.runner.rig.hardware.includes(card)) return;
-    trashInstalledRunnerCard(state, card);
-    addLog(state, 'runner', 'Runner trashed Maglectric Rapid (748 Mod) to derez a Corp card.');
-    derez(state, target);
-  },
+  ...maglectricFlow.script,
 };
 
 // GAMEDRAGON™ Pro: When you install this hardware and when your turn begins, you may
 // host this hardware on an installed non-AI icebreaker. Host icebreaker gets +1
 // strength. Abilities that increase its strength last for the remainder of the run.
-const askGamedragonHost = (ctx: EffectContext) => {
+const gamedragonHostQuestion = (ctx: EffectContext) => {
   const breakers = ctx.state.runner.rig.programs.filter(
     p => isIcebreaker(p) && !/\bAI\b/.test(keywords(p)) && p.instanceId !== ctx.card.hostedOnId
   );
-  if (breakers.length === 0) return;
-  askChoice(ctx, 'runner', 'GAMEDRAGON™ Pro: host it on an icebreaker?', [
+  if (breakers.length === 0) return null;
+  return choiceQuestion('runner', 'GAMEDRAGON™ Pro: host it on an icebreaker?', [
     ...breakers.map(b => ({ id: b.instanceId, label: `Host on ${cardDef(b).title}` })),
     { id: 'no', label: 'Leave it where it is' },
-  ], 'host');
+  ]);
 };
+
+const gamedragonFlow = prompts({
+  host: choice(({ state, card }, a) => {
+    if (a.optionId === 'no') return;
+    const breaker = state.runner.rig.programs.find(p => p.instanceId === a.optionId);
+    if (!breaker || !state.runner.rig.hardware.includes(card)) return;
+    const old = card.hostedOnId ? findCardAnywhere(state, card.hostedOnId) : undefined;
+    if (old) old.hostedCardIds = old.hostedCardIds.filter(id => id !== card.instanceId);
+    card.hostedOnId = breaker.instanceId;
+    breaker.hostedCardIds.push(card.instanceId);
+    addLog(state, 'runner', `Runner hosted GAMEDRAGON™ Pro on ${cardDef(breaker).title}.`);
+  }),
+});
+const askGamedragonHost = (ctx: EffectContext) => gamedragonFlow.askIf(ctx, 'host', gamedragonHostQuestion(ctx));
 
 export const gamedragon: CardScript = {
   modifiers: { hostStrength: 1, boostsLastForRun: true },
@@ -153,21 +179,26 @@ export const gamedragon: CardScript = {
     installed: (ctx, e) => isSelf(ctx, e.card) && askGamedragonHost(ctx),
     turn_begins: (ctx, e) => e.side === 'runner' && askGamedragonHost(ctx),
   },
-  onPromptAnswer: ({ state, card }, _source, answer) => {
-    if (answer.kind !== 'effect_choice' || answer.optionId === 'no') return;
-    const breaker = state.runner.rig.programs.find(p => p.instanceId === answer.optionId);
-    if (!breaker || !state.runner.rig.hardware.includes(card)) return;
-    const old = card.hostedOnId ? findCardAnywhere(state, card.hostedOnId) : undefined;
-    if (old) old.hostedCardIds = old.hostedCardIds.filter(id => id !== card.instanceId);
-    card.hostedOnId = breaker.instanceId;
-    breaker.hostedCardIds.push(card.instanceId);
-    addLog(state, 'runner', `Runner hosted GAMEDRAGON™ Pro on ${cardDef(breaker).title}.`);
-  },
+  ...gamedragonFlow.script,
 };
 
 // Madani: click: Host any number of programs from your grip faceup on this hardware.
 // Once per turn -> 0 credits: Install 1 hosted program (paying its install cost).
 const madaniTargets = (state: GameState, card: CardInstance) => installableRunnerCards(state, card.hostedCards ?? []);
+
+const madaniFlow = prompts({
+  host_programs: cards(({ state, card }, a) => {
+    for (const id of a.ids) {
+      const program = state.runner.grip.find(c => c.instanceId === id);
+      if (!program) continue;
+      removeCard(state.runner.grip, program);
+      card.hostedCards = [...(card.hostedCards ?? []), program];
+    }
+    addLog(state, 'runner', `Runner hosted ${a.ids.length} program(s) on Madani.`);
+  }),
+  install: cards((ctx, a) => void madaniFlow.installRunner(ctx, a.ids[0], 'host', 0, a.trashFirst)),
+  host: choice<RunnerHostData>((ctx, a, _d, source) => void installRunnerHostChoice(ctx.state, source, a.raw)),
+});
 
 export const madani: CardScript = {
   abilities: [
@@ -177,7 +208,7 @@ export const madani: CardScript = {
       canUse: ({ state }) => (state.runner.grip.some(c => cardDef(c).type_code === 'program') ? null : 'No programs in your grip'),
       resolve: ctx => {
         const programs = ctx.state.runner.grip.filter(c => cardDef(c).type_code === 'program');
-        askCards(ctx, 'runner', 'Madani: host any number of programs from your grip.', programs.map(c => c.instanceId), 0, programs.length, 'host_programs');
+        madaniFlow.cards(ctx, 'host_programs', cardsQuestion('runner', 'Madani: host any number of programs from your grip.', programs.map(c => c.instanceId), 0, programs.length));
       },
     },
     {
@@ -185,25 +216,10 @@ export const madani: CardScript = {
       oncePerTurn: true,
       canUse: ({ state, card }) => (madaniTargets(state, card).length > 0 ? null : 'No hosted program can be installed'),
       resolve: ctx =>
-        askRunnerInstall(ctx, 'Madani: install 1 hosted program.', madaniTargets(ctx.state, ctx.card).map(c => c.instanceId), 1, 1, 'install'),
+        madaniFlow.runnerInstall(ctx, 'install', { message: 'Madani: install 1 hosted program.', candidateIds: madaniTargets(ctx.state, ctx.card).map(c => c.instanceId), min: 1, max: 1 }),
     },
   ],
-  onPromptAnswer: (ctx, source, answer) => {
-    const { state, card } = ctx;
-    if (source.step === 'host_programs' && answer.kind === 'effect_cards') {
-      for (const id of answer.cardInstanceIds) {
-        const program = state.runner.grip.find(c => c.instanceId === id);
-        if (!program) continue;
-        removeCard(state.runner.grip, program);
-        card.hostedCards = [...(card.hostedCards ?? []), program];
-      }
-      addLog(state, 'runner', `Runner hosted ${answer.cardInstanceIds.length} program(s) on Madani.`);
-    } else if (source.step === 'install' && answer.kind === 'effect_cards') {
-      installRunnerChoice(ctx, answer.cardInstanceIds[0], 'host', 0, {}, answer.trashFirst);
-    } else if (source.step === 'host') {
-      installRunnerHostChoice(state, source, answer);
-    }
-  },
+  ...madaniFlow.script,
 };
 
 // --- Programs ------------------------------------------------------------------------
