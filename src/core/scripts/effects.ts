@@ -20,7 +20,7 @@ import {
   trashableFirst,
 } from '../engine/actions/install';
 import { getCardScript } from './index';
-import type { CardsQuestion } from './steps';
+import type { CardsQuestion, ChoiceQuestion } from './steps';
 import { EffectAnswer, EffectContext, NOTHING_QUALIFIES_STEP } from './types';
 
 /** Helpers shared by card scripts. */
@@ -242,7 +242,7 @@ export function installRunnerTrashing(
 export function installRunnerChoice(
   ctx: EffectContext,
   cardId: string,
-  hostStep: string,
+  hostStep: string | null,
   discount = 0,
   data: EffectSource['data'] = {},
   trashIds: string[] = []
@@ -252,6 +252,7 @@ export function installRunnerChoice(
   const zone = runnerZoneOf(state, cardId);
   if (!card || !zone) return false;
   if (getCardScript(card.cardCode)?.installsOnIce) {
+    if (hostStep === null) throw new Error(`${cardDef(card).title} installs on ice, but the effect installing it declared no host step`);
     const freed = freedMemory(chosenToTrashFirst(state, card, null, trashIds));
     const hosts = installedIce(state).filter(i => !runnerInstallBlocker(state, card, i.instanceId, discount, freed));
     if (hosts.length === 0) return false;
@@ -291,18 +292,32 @@ export function advanceableInstalled(state: GameState): CardInstance[] {
     .filter(isAdvanceable);
 }
 
-// --- Sabotage ---------------------------------------------------------------------
+// --- Ice that asks the Runner to pay ---------------------------------------------
 
 /**
- * "Sabotage X": the Corp trashes X cards of their choice from HQ and/or the
- * top of R&D. The Corp picks the HQ cards (sabotageQuestion); the rest come from
- * the top of R&D. The card's step answering that question calls resolveSabotage().
+ * A subroutine "X unless the Runner pays N credits": the Runner's question, asked under the ice's own step, or
+ * null when they can't (or, with canPay false, may not) pay; then X happens now.
  */
+export function unlessPaysQuestion(ctx: EffectContext, amount: number, what: string, canPay = true): ChoiceQuestion | null {
+  if (!canPay || availableCredits(ctx.state, 'runner') < amount) return null;
+  return {
+    side: 'runner',
+    message: `${cardDef(ctx.card).title}: pay ${amount} [credit], or ${what}?`,
+    options: [
+      { id: 'pay', label: `Pay ${amount} [credit]` },
+      { id: 'no', label: what[0].toUpperCase() + what.slice(1) },
+    ],
+  };
+}
+
+// --- Sabotage ---------------------------------------------------------------------
+
 /** Sabotage X's data: X, for resolveSabotage. */
 export type SabotageData = { x: number };
 
 /**
- * Sabotage X: the Corp's question (cards from HQ; the rest come from the top of R&D), to ask under a cards
+ * "Sabotage X": the Corp trashes X cards of their choice from HQ and/or the top of R&D. The Corp's question
+ * (cards from HQ; the rest come from the top of R&D), to ask under a cards
  * step whose data is SabotageData. With HQ empty there is nothing to choose: it resolves now and returns null.
  */
 export function sabotageQuestion(state: GameState, x: number): CardsQuestion | null {

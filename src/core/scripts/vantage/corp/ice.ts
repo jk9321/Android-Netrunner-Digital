@@ -21,23 +21,11 @@ import {
   trashInstalledCard,
 } from '../../../engine/cardEffects';
 import { CardScript, EffectContext, Subroutine } from '../../types';
-import { corpInstallOptions, installCorpChoice } from '../../effects';
-import { ArrangeData, cards, cardsQuestion, choice, choiceQuestion, ChoiceQuestion, CardsQuestion, InstallData, prompts } from '../../steps';
+import { corpInstallOptions, installCorpChoice, unlessPaysQuestion } from '../../effects';
+import { ArrangeData, cards, cardsQuestion, choice, choiceQuestion, CardsQuestion, InstallData, prompts } from '../../steps';
 import { archivesCards, ids, isCentral, isSelf, keywords, runOnServerOf, serverOf, takeFromCorpZone, title, type } from './helpers';
 
 const endTheRunSub: Subroutine = { label: 'End the run.', resolve: ({ state }) => endTheRun(state) };
-
-/**
- * A subroutine "X unless the Runner pays N credits": the Runner's question, asked under the ice's own step, or
- * null when they can't pay (then X happens now).
- */
-function unlessPaysQuestion(ctx: EffectContext, amount: number, what: string): ChoiceQuestion | null {
-  if (availableCredits(ctx.state, 'runner') < amount) return null;
-  return choiceQuestion('runner', `${title(ctx.card)}: pay ${amount} [credit], or ${what}?`, [
-    { id: 'pay', label: `Pay ${amount} [credit]` },
-    { id: 'no', label: what[0].toUpperCase() + what.slice(1) },
-  ]);
-}
 
 /** Answers an unlessPaysQuestion(): pays, or runs the consequence. */
 function answerUnlessPays(state: GameState, amount: number, optionId: string, otherwise: () => void): void {

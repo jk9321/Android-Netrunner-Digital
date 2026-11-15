@@ -102,14 +102,24 @@ describe('every card uses prompts()', () => {
   });
 
   // Audit 2026-11-15 TEST-STEPS-RAW-ASK: the compiler checks only questions asked through a Flow, so a card file that
-  // calls a step-string helper itself could ask an undeclared step and fail only at run time.
-  it('asks only through its flow: no card file calls a helper that takes a step string', () => {
-    const raw = /(?<![.\w])(askCards|askChoice|askRunnerInstall|askCorpInstall|arrangeTop|arrangeNext|askEvenIfNone|installRunnerChoice|playPsiGame)\(|\bonPromptAnswer\b/;
-    const found = cardScriptFiles().flatMap(file =>
-      readFileSync(file, 'utf8')
-        .split('\n')
-        .flatMap((line, i) => (raw.test(line) ? [`${file}:${i + 1}: ${line.trim()}`] : [])),
-    );
+  // calls a step-string helper itself could ask an undeclared step and fail only at run time. Phase 3 audit
+  // TEST-STEPS-GUARD-GAPS: checked by what a card file imports, so an alias (import { askChoice as ask }) or a
+  // namespace import (E.askChoice) is caught too, as are source() and pushPrompt(), which build a prompt by hand.
+  it('asks only through its flow: no card file imports a helper that takes a step string', () => {
+    const RAW_ASKS = new Set(['askCards', 'askChoice', 'askRunnerInstall', 'askCorpInstall', 'arrangeTop', 'arrangeNext', 'askEvenIfNone', 'installRunnerChoice', 'playPsiGame', 'source', 'pushPrompt']);
+    const found = cardScriptFiles().flatMap(file => {
+      const text = readFileSync(file, 'utf8');
+      const named = [...text.matchAll(/import\s+(?:type\s+)?\{([^}]*)\}\s*from\s*'([^']+)'/g)].flatMap(([, names, from]) =>
+        names
+          .split(',')
+          .map(n => n.trim().replace(/^type\s+/, '').split(/\s+as\s+/)[0])
+          .filter(n => RAW_ASKS.has(n))
+          .map(n => `${file}: imports ${n} from '${from}'`),
+      );
+      const star = [...text.matchAll(/import\s+\*\s+as\s+\w+\s+from\s+'([^']+)'/g)].map(([, from]) => `${file}: imports * from '${from}'`);
+      const handWritten = text.split('\n').flatMap((line, i) => (/\bonPromptAnswer\b/.test(line) ? [`${file}:${i + 1}: ${line.trim()}`] : []));
+      return [...named, ...star, ...handWritten];
+    });
     expect(found, 'ask through the card\'s flow (flow.cards / choice / ask / runnerInstall / corpInstall / arrangeTop / evenIfNone / psiGame)').toEqual([]);
   });
 });

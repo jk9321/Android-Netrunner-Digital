@@ -160,6 +160,11 @@ export interface Flow<T extends Steps> {
     trashIds: string[],
     ...data: DataArg<Omit<DataOf<T[K]>, keyof RunnerHostData>>
   ): boolean;
+  /**
+   * installRunner for a card that is never a program that installs on ice (a resource, a piece of
+   * hardware), so no host step is declared. Throws if the card would ask for a host.
+   */
+  installRunnerNoHost(ctx: EffectContext, cardId: string, discount: number, trashIds: string[]): boolean;
   /** Arranges the top of R&D (arrangeTop): asks for each card in turn under `step`, whose data is ArrangeData. */
   arrangeTop<K extends StepsOfKind<T, 'cards'>>(ctx: EffectContext, step: ArrangeData extends DataOf<T[K]> ? K : never, cardIds: string[], side?: SideCode): void;
   /** The next arrangeTop question, after `picked` was chosen. */
@@ -232,6 +237,7 @@ export function prompts<T extends Steps>(steps: T): Flow<T> {
     corpInstall: (ctx, cardId, step, opts = {}, ...data) => askCorpInstall(ctx, cardId, step, opts, data[0] as StepData | undefined),
     installRunner: (ctx, cardId, hostStep, discount, trashIds, ...data) =>
       installRunnerChoice(ctx, cardId, hostStep, discount, data[0] as StepData | undefined, trashIds),
+    installRunnerNoHost: (ctx, cardId, discount, trashIds) => installRunnerChoice(ctx, cardId, null, discount, undefined, trashIds),
     arrangeTop: (ctx, step, cardIds, side = 'corp') => arrangeTop(ctx, cardIds, step, [], side),
     arrangeNext: (ctx, step, data, picked) => arrangeNext(ctx, data, picked, step),
     psiGame: (ctx, step, ...data) => playPsiGame(ctx, step, data[0]),

@@ -22,9 +22,9 @@ import {
   turnFlag,
   useOncePerTurn,
 } from '../../../engine/cardEffects';
-import { cards, cardsQuestion, choice, ChoiceQuestion, choiceQuestion, InstallData, prompts } from '../../steps';
+import { cards, cardsQuestion, choice, choiceQuestion, InstallData, prompts } from '../../steps';
 import { CardScript, EffectContext, Subroutine } from '../../types';
-import { corpInstallOptions, installCorpChoice } from '../../effects';
+import { corpInstallOptions, installCorpChoice, unlessPaysQuestion } from '../../effects';
 import {
   archivesCards,
   faceUpTypes,
@@ -74,15 +74,6 @@ const gainSub = (n: number, label = `Gain ${n} [credit].`): Subroutine => ({
     addLog(state, 'corp', `Corp gained ${n} [credit] (${title(card)}).`);
   },
 });
-
-/** "X unless the Runner pays N credits": the question, or null when they can't (or may not) pay. */
-function unlessPaysQuestion(ctx: EffectContext, amount: number, what: string, canPay = true): ChoiceQuestion | null {
-  if (!canPay || availableCredits(ctx.state, 'runner') < amount) return null;
-  return choiceQuestion('runner', `${title(ctx.card)}: pay ${amount} [credit], or ${what}?`, [
-    { id: 'pay', label: `Pay ${amount} [credit]` },
-    { id: 'no', label: what[0].toUpperCase() + what.slice(1) },
-  ]);
-}
 
 /**
  * "As an additional cost to rez this ice, take 1 bad publicity or remove 1

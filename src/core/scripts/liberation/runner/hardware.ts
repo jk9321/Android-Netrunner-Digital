@@ -291,9 +291,8 @@ const jeitinhoFlow = prompts({
     const { state, card } = ctx;
     if (a.optionId !== 'yes' || state.runner.clicks === 0 || !state.runner.heap.includes(card)) return;
     state.runner.clicks -= 1;
-    jeitinhoFlow.installRunner(ctx, card.instanceId, 'host', 0, a.trashFirst);
+    jeitinhoFlow.installRunnerNoHost(ctx, card.instanceId, 0, a.trashFirst);
   }),
-  host: choice<RunnerHostData>((ctx, a, _d, source) => void installRunnerHostChoice(ctx.state, source, a.raw)),
 });
 
 export const jeitinho: CardScript = {

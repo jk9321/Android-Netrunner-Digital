@@ -73,9 +73,8 @@ const connectionsInGrip = (state: GameState) => installableRunnerCards(state, st
 
 const sebastiaoFlow = prompts({
   install: cards((ctx, a) => {
-    if (a.ids.length > 0) sebastiaoFlow.installRunner(ctx, a.ids[0], 'host', 2, a.trashFirst);
+    if (a.ids.length > 0) sebastiaoFlow.installRunnerNoHost(ctx, a.ids[0], 2, a.trashFirst);
   }),
-  host: choice<RunnerHostData>((ctx, a, _d, source) => void installRunnerHostChoice(ctx.state, source, a.raw)),
 });
 
 export const sebastiao: CardScript = {

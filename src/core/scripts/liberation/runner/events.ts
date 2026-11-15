@@ -245,15 +245,11 @@ const heapOf = (state: GameState, kind: string, discount: number) => installable
 
 const privilegedFlow = prompts({
   resource: cards((ctx, a) => {
-    if (a.ids[0] && !privilegedFlow.installRunner(ctx, a.ids[0], 'host-resource', 2, a.trashFirst)) return;
+    if (a.ids[0] && !privilegedFlow.installRunnerNoHost(ctx, a.ids[0], 2, a.trashFirst)) return;
     privilegedProgram(ctx);
   }),
   program: cards((ctx, a) => {
     if (a.ids[0]) privilegedFlow.installRunner(ctx, a.ids[0], 'host-program', 0, a.trashFirst);
-  }),
-  'host-resource': choice<RunnerHostData>((ctx, a, _d, source) => {
-    installRunnerHostChoice(ctx.state, source, a.raw);
-    privilegedProgram(ctx);
   }),
   'host-program': choice<RunnerHostData>((ctx, a, _d, source) => void installRunnerHostChoice(ctx.state, source, a.raw)),
 });
