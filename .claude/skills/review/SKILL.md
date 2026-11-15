@@ -87,9 +87,10 @@ write down what you checked even if it was clean.
 
 **Tuning ladder (AI branches that change play).** CLAUDE.md, AI work: trace top down, fix bottom up. The spec or
 hand-off must hold the trace (which layer produced the wrong move) and the fix must sit in that layer, as the
-narrowest change that removes the cause for the class of position. Must fix: a fix in a broader lever than the trace
-found (a new counted question or a bent count overriding a lower mistake); a per-card rule or one-position exception
-for a general mistake; a new counted question, line, clause, per-card rule or lever without the written reason and
+narrowest change that removes the cause for the class of position. Must fix: a fix on a broader layer than the trace
+found (a new counted question or a bent count overriding a lower mistake) or a narrower one (a per-card rule or
+one-position exception for a general mistake) without a written reason and the approval of both the AI Coordinator
+and Jeff; a new counted question, line, clause, per-card rule or lever without the written reason and
 the approvals CLAUDE.md names.
 
 ## 4. Fact-check before you send (from the code-audit skill)
