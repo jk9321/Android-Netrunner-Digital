@@ -4,6 +4,7 @@ import { newCustomDeckId } from '../data/customDecks';
 import { DeckList, deckCodes } from '../data/decks';
 import type { Difficulty } from '../ai';
 import { ONLINE_FORMATS } from '../net/protocol';
+import { readStorage, writeStorage } from './storage';
 
 /** How the person wants to play: the first choice on the start screen. */
 export type PlayMode = 'computer' | 'hotseat' | 'online';
@@ -48,44 +49,27 @@ export const OPPONENTS: { id: Exclude<Opponent, 'people'>; label: string; hint: 
 ];
 
 export function savedOpponent(): Opponent {
-  try {
-    const v = window.localStorage.getItem(OPPONENT_KEY);
-    if (v === 'people' || v === 'ai-corp' || v === 'ai-runner') return v;
-  } catch {
-    // Storage blocked: use the default
-  }
+  const v = readStorage(OPPONENT_KEY);
+  if (v === 'people' || v === 'ai-corp' || v === 'ai-runner') return v;
   return 'people';
 }
 
 /** The mode last used; before modes existed, the old opponent setting (two players: pass and play). */
 export function savedMode(): PlayMode {
-  try {
-    const v = window.localStorage.getItem(MODE_KEY);
-    if (v === 'computer' || v === 'hotseat' || v === 'online') return v;
-    const old = window.localStorage.getItem(OPPONENT_KEY);
-    if (old === 'people') return 'hotseat';
-  } catch {
-    // Storage blocked: use the default
-  }
+  const v = readStorage(MODE_KEY);
+  if (v === 'computer' || v === 'hotseat' || v === 'online') return v;
+  if (readStorage(OPPONENT_KEY) === 'people') return 'hotseat';
   return 'computer';
 }
 
 export function savedHostFormat(): FormatId {
-  try {
-    const f = window.localStorage.getItem(HOST_FORMAT_KEY);
-    if (f && (ONLINE_FORMATS as string[]).includes(f)) return f as FormatId;
-  } catch {
-    // Storage blocked: the default
-  }
+  const f = readStorage(HOST_FORMAT_KEY);
+  if (f && (ONLINE_FORMATS as string[]).includes(f)) return f as FormatId;
   return 'casual';
 }
 
 export function remember(key: string, value: string) {
-  try {
-    window.localStorage.setItem(key, value);
-  } catch {
-    // Not saved; the choice still applies now
-  }
+  writeStorage(key, value);
 }
 
 export const other = (side: SideCode): SideCode => (side === 'corp' ? 'runner' : 'corp');

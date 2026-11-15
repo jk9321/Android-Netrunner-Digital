@@ -1,6 +1,7 @@
 import { GameAction, GameState, SideCode, ViewIds } from '../core';
 import type { Difficulty } from '../ai';
 import type { DeckList } from '../data/decks';
+import { readStorageJson, removeStorage, writeStorageJson } from './storage';
 
 /**
  * The game in progress, saved in this browser's localStorage after every
@@ -77,32 +78,17 @@ function isSavedGame(value: unknown): value is SavedGame {
 }
 
 export function loadSavedGame(): SavedGame | null {
-  try {
-    const raw = window.localStorage.getItem(STORAGE_KEY);
-    if (!raw) return null;
-    const parsed: unknown = JSON.parse(raw);
-    if (!isSavedGame(parsed) || parsed.state.winner) return null;
-    // Hard is switched off: a game saved on Hard resumes as Normal
-    return parsed.config.difficulty === 'normal' ? parsed : { ...parsed, config: { ...parsed.config, difficulty: 'normal' } };
-  } catch {
-    return null;
-  }
+  const parsed = readStorageJson<unknown>(STORAGE_KEY);
+  if (!isSavedGame(parsed) || parsed.state.winner) return null;
+  // Hard is switched off: a game saved on Hard resumes as Normal
+  return parsed.config.difficulty === 'normal' ? parsed : { ...parsed, config: { ...parsed.config, difficulty: 'normal' } };
 }
 
 /** Returns false when the browser would not store the game. */
 export function saveGame(game: Omit<SavedGame, 'version'>): boolean {
-  try {
-    window.localStorage.setItem(STORAGE_KEY, JSON.stringify({ version: SAVE_VERSION, ...game }));
-    return true;
-  } catch {
-    return false;
-  }
+  return writeStorageJson(STORAGE_KEY, { version: SAVE_VERSION, ...game });
 }
 
 export function clearSavedGame(): void {
-  try {
-    window.localStorage.removeItem(STORAGE_KEY);
-  } catch {
-    // Nothing saved, or storage blocked
-  }
+  removeStorage(STORAGE_KEY);
 }

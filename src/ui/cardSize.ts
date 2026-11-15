@@ -1,3 +1,5 @@
+import { readStorage, writeStorage } from './storage';
+
 /**
  * Board card size picked in the header. Large sets data-card-size on <html>,
  * which index.css reads to raise --card-w (and with it --card-h) for every
@@ -9,11 +11,7 @@ export type CardSize = 'normal' | 'large';
 const STORAGE_KEY = 'netrunner.cardSize';
 
 export function savedCardSize(): CardSize {
-  try {
-    return window.localStorage.getItem(STORAGE_KEY) === 'large' ? 'large' : 'normal';
-  } catch {
-    return 'normal';
-  }
+  return readStorage(STORAGE_KEY) === 'large' ? 'large' : 'normal';
 }
 
 export function applyCardSize(size: CardSize): void {
@@ -22,11 +20,7 @@ export function applyCardSize(size: CardSize): void {
 
 export function setCardSize(size: CardSize): void {
   applyCardSize(size);
-  try {
-    window.localStorage.setItem(STORAGE_KEY, size);
-  } catch {
-    // Not saved; the size still applies for this page
-  }
+  writeStorage(STORAGE_KEY, size);
 }
 
 /**
@@ -38,11 +32,7 @@ const AUTO_FIT_KEY = 'netrunner.autoFit';
 export const AUTO_FIT_EVENT = 'netrunner:autofit';
 
 export function savedAutoFit(): boolean {
-  try {
-    return window.localStorage.getItem(AUTO_FIT_KEY) !== 'off';
-  } catch {
-    return true;
-  }
+  return readStorage(AUTO_FIT_KEY) !== 'off';
 }
 
 export function isAutoFitOn(): boolean {
@@ -56,9 +46,5 @@ export function applyAutoFit(on: boolean): void {
 
 export function setAutoFit(on: boolean): void {
   applyAutoFit(on);
-  try {
-    window.localStorage.setItem(AUTO_FIT_KEY, on ? 'on' : 'off');
-  } catch {
-    // Not saved; the setting still applies for this page
-  }
+  writeStorage(AUTO_FIT_KEY, on ? 'on' : 'off');
 }
