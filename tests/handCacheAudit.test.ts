@@ -114,7 +114,8 @@ describe('hand-value maps: known wrong hits may only go down (on-hit audit)', ()
   // new wrong hit fails. The whole-deal rates are in step2-cache-findings.md; measure longer stretches with
   // scripts/cache-audit.ts. A fix that makes a key more complete lowers these: update the pin.
   const PINS: Record<number, { actions: number; click: number; draw: number; threat: number }> = {
-    2181: { actions: 25, click: 0, draw: 0, threat: 124 },
+    // threat 124 -> 0: damageThreat's key holds how many Corp cards there are (ai-runner-unknowns)
+    2181: { actions: 25, click: 0, draw: 0, threat: 0 },
   };
   for (const [seed, pin] of Object.entries(PINS)) {
     it(`deal ${seed}, first ${pin.actions} actions`, () => {

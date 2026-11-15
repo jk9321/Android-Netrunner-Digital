@@ -404,7 +404,11 @@ export function damageThreat(state: GameState, corpTurn = false): { burst: numbe
   // plan.corpTurnDamageOwn: on the Corp's turn only damage the Corp deals itself (see ownTurnHit)
   const own = corpTurn && plan().corpTurnDamageOwn;
   const tagged = state.runner.tags > 0;
-  const key = `${state.id}:${state.corp.archives.faceUp.length}:${state.corp.scoreArea.length}:${state.runner.scoreArea.length}:${skipIce}:${own}:${own && tagged}`;
+  // How many Corp cards there are (a look-ahead that adds or doubles one changes the pool; ai-runner-unknowns, whose new
+  // damage readers hit this map more: 124 wrong of 43.6k on deal 2181 became 1,130 of 69.7k without it)
+  const corp = state.corp;
+  const count = corp.hq.length + corp.rd.length + corp.archives.faceDown.length + Object.values(corp.servers).reduce((n, v) => n + v.root.length + v.ice.length, 0);
+  const key = `${state.id}:${state.corp.archives.faceUp.length}:${state.corp.scoreArea.length}:${state.runner.scoreArea.length}:${skipIce}:${own}:${own && tagged}:${count}`;
   // Audit Step 2 (AI-CACHE-HIDDEN-STATE): keyed by how many cards are out of the pool, not which (nor a look-ahead's added
   // or doubled card), so some hits are another board's value (about a third: threatsAudit); an exact (per-position)
   // version cost decision time, so the map is kept to one game and never depends on the games played before it
