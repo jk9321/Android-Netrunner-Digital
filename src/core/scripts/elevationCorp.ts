@@ -38,6 +38,7 @@ import {
   useOncePerTurn,
 } from '../engine/cardEffects';
 import { CardScript, EffectContext, Subroutine } from './types';
+import { cards, choice, prompts } from './steps';
 import { getCardScript } from './index';
 import {
   advanceableInstalled,
@@ -500,6 +501,26 @@ const greenmail: CardScript = {
 
 // Humanoid Resources: click click click, trash: Gain 4 credits and draw 3 cards. Install
 // up to 2 cards from HQ (one at a time). You may play 1 operation from HQ.
+/** Install up to `left` cards from HQ, one at a time; `then` 'operation': afterwards, you may play 1 operation from HQ. */
+type InstallFromHQ = { left: number; then: string };
+const installFromHQ = prompts({
+  install_pick: cards<InstallFromHQ>((ctx, a, { left, then }) => {
+    // No card: declined, or the one answer of a question asked though nothing qualified (askEvenIfNone)
+    if (a.ids.length === 0) {
+      if (then === 'operation') askPlayOperation(ctx);
+      return;
+    }
+    if (!installFromHQ.corpInstall(ctx, a.ids[0], 'install_server', {}, { left, then })) askInstallFromHQ(ctx, left - 1, then);
+  }),
+  install_server: choice<InstallFromHQ & { cardId: string; install: true }>((ctx, a, { left, then }, source) => {
+    installCorpChoice(ctx.state, source, a.raw);
+    askInstallFromHQ(ctx, left - 1, then);
+  }),
+  operation: cards((ctx, a) => {
+    const card = ctx.state.corp.hq.find(c => c.instanceId === a.ids[0]);
+    if (card) playCardFrom(ctx.state, 'corp', card, ctx.state.corp.hq, { fromHand: true });
+  }),
+});
 function askInstallFromHQ(ctx: EffectContext, left: number, then: string): void {
   const cards = installable(ctx.state, ctx.state.corp.hq);
   // Asked even when nothing in HQ can be installed when the Corp's stops are on ALL (4.3.2, see askEvenIfNone); the
@@ -507,11 +528,11 @@ function askInstallFromHQ(ctx: EffectContext, left: number, then: string): void 
   const title = cardDef(ctx.card).title;
   if (
     left > 0 &&
-    askEvenIfNone(
+    installFromHQ.evenIfNone(
       ctx,
       'corp',
       cards.length > 0,
-      () => askCards(ctx, 'corp', `${title}: you may install a card from HQ (${left} left).`, ids(cards), 0, 1, 'install_pick', { left, then }),
+      () => installFromHQ.cards(ctx, 'install_pick', { side: 'corp', message: `${title}: you may install a card from HQ (${left} left).`, candidateIds: ids(cards), min: 0, max: 1 }, { left, then }),
       `${title}: no card in HQ you can install.`,
       'OK',
       { step: 'install_pick', data: { left, then } },
@@ -523,7 +544,13 @@ function askInstallFromHQ(ctx: EffectContext, left: number, then: string): void 
 function askPlayOperation(ctx: EffectContext): void {
   const ops = ctx.state.corp.hq.filter(c => type(c) === 'operation' && !safePlayBlocker(ctx.state, c));
   const title = cardDef(ctx.card).title;
-  askEvenIfNone(ctx, 'corp', ops.length > 0, () => askCards(ctx, 'corp', `${title}: you may play 1 operation from HQ.`, ids(ops), 0, 1, 'operation'), `${title}: no operation in HQ you can play.`);
+  installFromHQ.evenIfNone(
+    ctx,
+    'corp',
+    ops.length > 0,
+    () => installFromHQ.cards(ctx, 'operation', { side: 'corp', message: `${title}: you may play 1 operation from HQ.`, candidateIds: ids(ops), min: 0, max: 1 }),
+    `${title}: no operation in HQ you can play.`,
+  );
 }
 const safePlayBlocker = (state: GameState, card: CardInstance) => {
   try {
@@ -532,31 +559,6 @@ const safePlayBlocker = (state: GameState, card: CardInstance) => {
     return 'Not playable';
   }
 };
-/** onPromptAnswer for askInstallFromHQ() flows. Returns true if it handled the step. */
-function installFromHQAnswer(ctx: EffectContext, source: Parameters<NonNullable<CardScript['onPromptAnswer']>>[1], answer: Parameters<NonNullable<CardScript['onPromptAnswer']>>[2]): boolean {
-  const left = Number(source.data?.left ?? 0);
-  const then = String(source.data?.then ?? '');
-  if (source.step === 'install_pick') {
-    // effect_choice: the one answer of askEvenIfNone, a decline
-    if (answer.kind !== 'effect_cards' || answer.cardInstanceIds.length === 0) {
-      if (then === 'operation') askPlayOperation(ctx);
-      return true;
-    }
-    if (!askCorpInstall(ctx, answer.cardInstanceIds[0], 'install_server', {}, { left, then })) askInstallFromHQ(ctx, left - 1, then);
-    return true;
-  }
-  if (source.step === 'install_server') {
-    installCorpChoice(ctx.state, source, answer);
-    askInstallFromHQ(ctx, left - 1, then);
-    return true;
-  }
-  if (source.step === 'operation' && answer.kind === 'effect_cards') {
-    const card = ctx.state.corp.hq.find(c => c.instanceId === answer.cardInstanceIds[0]);
-    if (card) playCardFrom(ctx.state, 'corp', card, ctx.state.corp.hq, { fromHand: true });
-    return true;
-  }
-  return false;
-}
 const humanoidResources: CardScript = {
   abilities: [
     {
@@ -570,7 +572,7 @@ const humanoidResources: CardScript = {
       },
     },
   ],
-  onPromptAnswer: (ctx, source, answer) => void installFromHQAnswer(ctx, source, answer),
+  ...installFromHQ.script,
 };
 
 // Otto Campaign: When you rez this asset, load 6 credits onto it. When it is empty,
@@ -1123,29 +1125,28 @@ const topDownSolutions: CardScript = {
     drawForEffect(ctx.state, 'corp', 2, 'Top-Down Solutions');
     if (!ctx.state.winner) askInstallFromHQ(ctx, 2, '');
   },
-  onPromptAnswer: (ctx, source, answer) => void installFromHQAnswer(ctx, source, answer),
+  ...installFromHQ.script,
 };
 
 // Peer Review (Transaction): Reveal all but 1 card in HQ. Gain 7 credits. You may install
 // 1 card from HQ in the root of a remote server.
 const peerReviewTargets = (state: GameState) =>
   installable(state, state.corp.hq.filter(c => type(c) !== 'ice'), { remoteRootOnly: true });
+const peerReviewFlow = prompts({
+  hide: cards((ctx, a) => peerReviewResolve(ctx, a.ids[0])),
+  pick: cards((ctx, a) => {
+    if (a.ids.length > 0) peerReviewFlow.corpInstall(ctx, a.ids[0], 'server', { remoteRootOnly: true });
+  }),
+  server: choice<{ cardId: string; install: true }>((ctx, a, _d, source) => void installCorpChoice(ctx.state, source, a.raw)),
+});
 const peerReview: CardScript = {
   onPlay: ctx => {
     const hq = ctx.state.corp.hq;
     // The Corp chooses which card stays hidden (rules 1.14.5: the controller makes the choices)
-    if (hq.length >= 2) askCards(ctx, 'corp', 'Peer Review: choose 1 card in HQ to keep hidden. The rest are revealed.', ids(hq), 1, 1, 'hide');
+    if (hq.length >= 2) peerReviewFlow.cards(ctx, 'hide', { side: 'corp', message: 'Peer Review: choose 1 card in HQ to keep hidden. The rest are revealed.', candidateIds: ids(hq), min: 1, max: 1 });
     else peerReviewResolve(ctx, hq[0]?.instanceId);
   },
-  onPromptAnswer: (ctx, source, answer) => {
-    if (source.step === 'hide' && answer.kind === 'effect_cards') {
-      peerReviewResolve(ctx, answer.cardInstanceIds[0]);
-    } else if (source.step === 'pick' && answer.kind === 'effect_cards' && answer.cardInstanceIds.length > 0) {
-      askCorpInstall(ctx, answer.cardInstanceIds[0], 'server', { remoteRootOnly: true });
-    } else if (source.step === 'server') {
-      installCorpChoice(ctx.state, source, answer);
-    }
-  },
+  ...peerReviewFlow.script,
 };
 function peerReviewResolve(ctx: EffectContext, hiddenId: string | undefined): void {
   const { state, card } = ctx;
@@ -1154,7 +1155,7 @@ function peerReviewResolve(ctx: EffectContext, hiddenId: string | undefined): vo
   revealInHand(state, 'corp', shown);
   gainFromCard(state, 'corp', 7, card);
   const targets = peerReviewTargets(state);
-  if (targets.length > 0) askCards(ctx, 'corp', 'Peer Review: you may install 1 card from HQ in the root of a remote server.', ids(targets), 0, 1, 'pick');
+  if (targets.length > 0) peerReviewFlow.cards(ctx, 'pick', { side: 'corp', message: 'Peer Review: you may install 1 card from HQ in the root of a remote server.', candidateIds: ids(targets), min: 0, max: 1 });
 }
 
 // Bigger Picture (Gray Ops): Play only if the Runner is tagged. Resolve 1 of the following:

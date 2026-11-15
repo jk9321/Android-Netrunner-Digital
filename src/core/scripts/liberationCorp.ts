@@ -37,6 +37,7 @@ import {
   upgradeAllowedIn,
   useOncePerTurn,
 } from '../engine/cardEffects';
+import { cards, choice, prompts, psi } from './steps';
 import { CardScript, EffectAnswer, EffectContext, Subroutine } from './types';
 import {
   advanceableInstalled,
@@ -296,6 +297,17 @@ const wageWorkers: CardScript = {
 // Ablative Barrier: Threat 3 -> When you rez this ice during a run against this server, you may
 // install 1 non-agenda card from HQ or Archives in the root of or protecting another server.
 // Subroutine: End the run.
+const ablativeFlow = prompts({
+  pick: cards((ctx, a) => {
+    const { state } = ctx;
+    const id = a.ids[0];
+    const card = id && [...state.corp.hq, ...archivesCards(state)].find(c => c.instanceId === id);
+    if (!card) return;
+    const here = serverOf(state, ctx.card)?.id;
+    askInstallAmong(ctx, id, 'server', corpInstallOptions(state, card).filter(o => o.id !== here));
+  }),
+  server: choice<{ cardId: string; install: true }>((ctx, a, _d, source) => void installCorpChoice(ctx.state, source, a.raw)),
+});
 const ablativeBarrier: CardScript = {
   ice: {
     subroutines: [endTheRunSub],
@@ -304,27 +316,23 @@ const ablativeBarrier: CardScript = {
       if (threatLevel(state) < 3) return;
       const cards = installable(state, [...state.corp.hq, ...archivesCards(state)].filter(c => type(c) !== 'agenda'));
       // Asked even with nothing to install when the Corp's stops are on ALL (4.3.2, 4.4.6c, see askEvenIfNone)
-      askEvenIfNone(
+      ablativeFlow.evenIfNone(
         ctx,
         'corp',
         cards.length > 0,
-        () => askCards(ctx, 'corp', 'Ablative Barrier: you may install 1 non-agenda card from HQ or Archives in or protecting another server.', ids(cards), 0, 1, 'pick'),
+        () =>
+          ablativeFlow.cards(ctx, 'pick', {
+            side: 'corp',
+            message: 'Ablative Barrier: you may install 1 non-agenda card from HQ or Archives in or protecting another server.',
+            candidateIds: ids(cards),
+            min: 0,
+            max: 1,
+          }),
         'Ablative Barrier: no non-agenda card in HQ or Archives you can install.',
       );
     },
   },
-  onPromptAnswer: (ctx, source, answer) => {
-    const { state } = ctx;
-    if (source.step === 'pick') {
-      const id = picked(answer)[0];
-      const card = id && [...state.corp.hq, ...archivesCards(state)].find(c => c.instanceId === id);
-      if (!card) return;
-      const here = serverOf(state, ctx.card)?.id;
-      askInstallAmong(ctx, id, 'server', corpInstallOptions(state, card).filter(o => o.id !== here));
-    } else if (source.step === 'server') {
-      installCorpChoice(state, source, answer);
-    }
-  },
+  ...ablativeFlow.script,
 };
 
 // Jaguarundi (Sentry - AP): Threat 4 -> When the Runner encounters this ice, give them 1 tag
@@ -685,36 +693,47 @@ const oracleThinktank: CardScript = {
 // Balanced Coverage: When your turn begins, you may choose a card type to look at the top card of
 // R&D. If that card has the chosen type, you may reveal it and gain 2 credits.
 const CORP_TYPES = ['agenda', 'asset', 'upgrade', 'operation', 'ice'];
+const balancedFlow = prompts({
+  type: choice((ctx, a) => {
+    const { state } = ctx;
+    const top = state.corp.rd[0];
+    if (!top || a.optionId === 'no') return;
+    addLog(state, 'corp', `Corp named ${a.optionId} and looked at the top card of R&D (Balanced Coverage).`);
+    // Asked even on a miss when the Corp's stops are on ALL, so the wait doesn't tell the Runner the type matched (4.2.2)
+    balancedFlow.evenIfNone(
+      ctx,
+      'corp',
+      type(top) === a.optionId,
+      () =>
+        balancedFlow.choice(ctx, 'reveal', {
+          side: 'corp',
+          message: `Balanced Coverage: the top card is ${title(top)}. Reveal it to gain 2 [credit]?`,
+          options: yesNo('Reveal and gain 2 [credit]'),
+        }),
+      `Balanced Coverage: the top card is ${title(top)}, not the type you named.`,
+    );
+  }),
+  reveal: choice((ctx, a) => {
+    const { state } = ctx;
+    const top = state.corp.rd[0];
+    if (!top || a.optionId !== 'yes') return;
+    runnerSeesRd(state, top);
+    gainFromCard(state, 'corp', 2, ctx.card);
+    addLog(state, 'corp', `Corp revealed ${title(top)} from the top of R&D and gained 2 [credit] (Balanced Coverage).`, top.cardCode);
+  }),
+});
 const balancedCoverage: CardScript = {
   triggers: {
     turn_begins: (ctx, e) => {
       if (e.side !== 'corp' || ctx.state.corp.rd.length === 0) return;
-      askChoice(ctx, 'corp', 'Balanced Coverage: choose a card type to look at the top card of R&D?', [
-        ...CORP_TYPES.map(t => ({ id: t, label: t[0].toUpperCase() + t.slice(1) })),
-        { id: 'no', label: 'Do not look' },
-      ], 'type');
+      balancedFlow.choice(ctx, 'type', {
+        side: 'corp',
+        message: 'Balanced Coverage: choose a card type to look at the top card of R&D?',
+        options: [...CORP_TYPES.map(t => ({ id: t, label: t[0].toUpperCase() + t.slice(1) })), { id: 'no', label: 'Do not look' }],
+      });
     },
   },
-  onPromptAnswer: (ctx, source, answer) => {
-    const { state } = ctx;
-    const top = state.corp.rd[0];
-    if (!top || answer.kind !== 'effect_choice') return;
-    if (source.step === 'type' && answer.optionId !== 'no') {
-      addLog(state, 'corp', `Corp named ${answer.optionId} and looked at the top card of R&D (Balanced Coverage).`);
-      // Asked even on a miss when the Corp's stops are on ALL, so the wait doesn't tell the Runner the type matched (4.2.2)
-      askEvenIfNone(
-        ctx,
-        'corp',
-        type(top) === answer.optionId,
-        () => askChoice(ctx, 'corp', `Balanced Coverage: the top card is ${title(top)}. Reveal it to gain 2 [credit]?`, yesNo('Reveal and gain 2 [credit]'), 'reveal'),
-        `Balanced Coverage: the top card is ${title(top)}, not the type you named.`,
-      );
-    } else if (source.step === 'reveal' && said(answer)) {
-      runnerSeesRd(state, top);
-      gainFromCard(state, 'corp', 2, ctx.card);
-      addLog(state, 'corp', `Corp revealed ${title(top)} from the top of R&D and gained 2 [credit] (Balanced Coverage).`, top.cardCode);
-    }
-  },
+  ...balancedFlow.script,
 };
 
 // Behold! (Ambush): While the Runner is accessing this asset in R&D, they must reveal it. When the
@@ -1427,18 +1446,20 @@ const brasilia: CardScript = {
 
 // See How They Run (Psi - Security): When you score this agenda, give the Runner 1 tag. Play a Psi
 // Game. If the bids differ, do 1 core damage. If the bids match, do 1 net damage.
+const seeHowTheyRunFlow = prompts({
+  psi: psi((ctx, match) => {
+    if (match) dealNetDamage(ctx.state, 1);
+    else dealCoreDamage(ctx.state, 1);
+  }),
+});
 const seeHowTheyRun: CardScript = {
   triggers: {
     agenda_scored: onScore(ctx => {
       giveTags(ctx.state, 1);
-      playPsiGame(ctx, 'psi');
+      seeHowTheyRunFlow.psiGame(ctx, 'psi');
     }),
   },
-  onPromptAnswer: (ctx, source, answer) =>
-    void answerPsiGame(ctx, source, answer, match => {
-      if (match) dealNetDamage(ctx.state, 1);
-      else dealCoreDamage(ctx.state, 1);
-    }),
+  ...seeHowTheyRunFlow.script,
 };
 
 // Sisyphus Protocol: The first time each turn the Runner passes a rezzed code gate or sentry, you

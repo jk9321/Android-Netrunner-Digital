@@ -11,6 +11,10 @@ import { interruptPrompt } from './prompts';
 
 export type DamageType = 'net' | 'meat' | 'core';
 
+/** The step and data of the question a damage-preventing card (AirbladeX) is asked as damage is dealt; its script answers it. */
+export const PREVENT_DAMAGE_STEP = 'prevent_damage';
+export type PreventDamageData = { damageType: DamageType; amount: number; byCorp: boolean; then: string };
+
 /** What happens to the cards a damage trashed, once it resolves (Diviner). */
 type DamageFollowUp = (state: GameState, trashed: CardInstance[]) => void;
 const FOLLOW_UPS: Record<string, DamageFollowUp> = {};
@@ -46,7 +50,7 @@ export function dealDamage(state: GameState, type: DamageType, amount: number, b
         side: 'runner',
         message: `${cardDef(card).title}: prevent how much of ${amount} ${type} damage?`,
         options: choices.map(n => ({ id: String(n), label: n === 0 ? 'Prevent none' : `Prevent ${n}` })),
-        source: { cardCode: card.cardCode, instanceId: card.instanceId, step: 'prevent_damage', data: { damageType: type, amount, byCorp, then: options.then ?? '' } },
+        source: { cardCode: card.cardCode, instanceId: card.instanceId, step: PREVENT_DAMAGE_STEP, data: { damageType: type, amount, byCorp, then: options.then ?? '' } satisfies PreventDamageData },
       });
       return [];
     }

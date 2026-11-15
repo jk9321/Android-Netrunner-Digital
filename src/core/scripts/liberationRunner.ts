@@ -7,7 +7,7 @@ import { findCardAnywhere, findInstalledCorpCard, illegal, noteTrashedFromHand, 
 import { runnerSeesRd } from '../engine/rdKnowledge';
 import { breachOutsideRun, runBlocked, runnerTrashInstalledCorpCard, startRun, trashAccessedCard } from '../engine/actions/run';
 import { answerBoostDiscard, BOOST_DISCARD_STEP } from '../engine/actions/breaking';
-import { dealDamage, DamageType, giveTags, installedRunnerCards, trashInstalledRunnerCard, uninstallRunnerCard } from '../engine/damage';
+import { dealDamage, giveTags, installedRunnerCards, PREVENT_DAMAGE_STEP, PreventDamageData, trashInstalledRunnerCard, uninstallRunnerCard } from '../engine/damage';
 import {
   addCounters,
   availableCredits,
@@ -30,6 +30,7 @@ import {
 } from '../engine/cardEffects';
 import { addBreakerStrength, breakerStrength, bypassIce, encounteredIce, enterMovement, iceScript, iceStrength, iceSubroutines, iceSubtypes, markSubroutinesBroken } from '../engine/ice';
 import { rezForFree } from '../engine/actions/corp';
+import { cards, choice, ChoiceQuestion, prompts, RunnerHostData } from './steps';
 import { CardScript, EffectAnswer, EffectContext } from './types';
 import { arrangeNext, arrangeTop, askCards, askChoice, askEvenIfNone, askRunnerInstall, effectTrashableFirst, gainCredits, iceLabel, installableRunnerCards, installRunnerChoice, installRunnerHostChoice } from './effects';
 import { returnInstalledToHQ } from './liberationCorp';
@@ -63,12 +64,17 @@ function inBreakWindow(state: GameState): boolean {
 }
 
 /** Asks which of these servers a run event or ability runs; `optional` ("you may run") adds a "Don't run" answer, 'no'. */
-function askServer(ctx: EffectContext, label: string, ids: string[], step = 'run', optional = false): boolean {
+/** "Run which server?" among `ids` the Runner can run now (Front Company), or null if none. */
+function runQuestion(ctx: EffectContext, label: string, ids: string[], optional = false): ChoiceQuestion | null {
   const serverIds = ids.filter(id => !runBlocked(ctx.state, id)); // Front Company
-  if (serverIds.length === 0) return false;
+  if (serverIds.length === 0) return null;
   const options = serverIds.map(id => ({ id, label: ctx.state.corp.servers[id].name }));
-  askChoice(ctx, 'runner', `${label}: run which server?`, optional ? [...options, { id: 'no', label: "Don't run" }] : options, step);
-  return true;
+  return { side: 'runner', message: `${label}: run which server?`, options: optional ? [...options, { id: 'no', label: "Don't run" }] : options };
+}
+function askServer(ctx: EffectContext, label: string, ids: string[], step = 'run', optional = false): boolean {
+  const q = runQuestion(ctx, label, ids, optional);
+  if (q) askChoice(ctx, q.side, q.message, q.options, step);
+  return !!q;
 }
 
 /** Puts `n` power counters on a card ("load" cards are trashed when empty by their own scripts). */
@@ -520,35 +526,39 @@ const joyRide: CardScript = {
 // When it is empty, trash it. [interrupt] -> Hosted power counter: Prevent 1 net damage. Use this
 // ability only during a run. [interrupt] -> Hosted power counter: Prevent a "when encountered"
 // ability on a piece of ice. (The Runner is asked how much net damage to prevent, so they can save counters.)
+const airbladeFlow = prompts({
+  [PREVENT_DAMAGE_STEP]: choice<PreventDamageData>(({ state, card }, a, d) => {
+    const n = Math.min(Number(a.optionId), d.amount, counters(card, 'power'));
+    if (n > 0) {
+      addLog(state, 'runner', `Runner prevented ${n} net damage (AirbladeX).`);
+      spendLoad(state, card, n);
+    }
+    dealDamage(state, d.damageType, d.amount - n, d.byCorp, { preventionAsked: true, then: d.then || undefined });
+  }),
+  prevent: choice<{ iceId: string }>(({ state, card }, a, d) => {
+    const encounter = state.activeRun?.encounter;
+    if (a.optionId !== 'yes' || !encounter || encounter.iceId !== d.iceId || counters(card, 'power') === 0) return;
+    encounter.onEncounterPending = false;
+    addLog(state, 'runner', 'Runner prevented the "when encountered" ability (AirbladeX).');
+    spendLoad(state, card);
+  }),
+});
 const airblade: CardScript = {
   triggers: {
     installed: (ctx, e) => isSelf(ctx, e.card) && place(ctx.card, 'power', 3),
     encounter_ice: (ctx, e) => {
       if (!iceScript(e.ice)?.onEncounter || counters(ctx.card, 'power') === 0) return;
-      askChoice(ctx, 'runner', `AirbladeX: spend 1 power counter to prevent ${title(e.ice)}'s "when encountered" ability?`, yesNo('Prevent it'), 'prevent', { iceId: e.ice.instanceId });
+      airbladeFlow.choice(
+        ctx,
+        'prevent',
+        { side: 'runner', message: `AirbladeX: spend 1 power counter to prevent ${title(e.ice)}'s "when encountered" ability?`, options: yesNo('Prevent it') },
+        { iceId: e.ice.instanceId },
+      );
     },
   },
   canPreventDamage: (state, self, kind, amount) =>
     kind === 'net' && state.activeRun && !state.activeRun.accessOnly ? Math.min(amount, counters(self, 'power')) : 0,
-  onPromptAnswer: ({ state, card }, source, answer) => {
-    if (source.step === 'prevent_damage') {
-      const d = source.data!;
-      const amount = Number(d.amount);
-      const chosen = answer.kind === 'effect_choice' ? Number(answer.optionId) : 0;
-      const n = Math.min(chosen, amount, counters(card, 'power'));
-      if (n > 0) {
-        addLog(state, 'runner', `Runner prevented ${n} net damage (AirbladeX).`);
-        spendLoad(state, card, n);
-      }
-      dealDamage(state, d.damageType as DamageType, amount - n, Boolean(d.byCorp), { preventionAsked: true, then: (d.then as string) || undefined });
-      return;
-    }
-    const encounter = state.activeRun?.encounter;
-    if (!said(answer) || !encounter || encounter.iceId !== source.data?.iceId || counters(card, 'power') === 0) return;
-    encounter.onEncounterPending = false;
-    addLog(state, 'runner', 'Runner prevented the "when encountered" ability (AirbladeX).');
-    spendLoad(state, card);
-  },
+  ...airbladeFlow.script,
 };
 
 // LilyPAD (Console): +2 MU. The first time each turn you install a program, you may draw 1 card.
@@ -709,44 +719,48 @@ const BAHIA_MODES = [
   { id: 'tag', label: 'Remove 1 tag' },
   { id: 'credits', label: 'Place 4 [credit] here to pay trash costs this run' },
 ];
+type BahiaData = { done: string };
+const bahiaFlow = prompts({
+  run: choice((ctx, a) => startRun(ctx.state, a.optionId, { source: runSource(ctx), eventCode: ctx.card.cardCode })),
+  mode: choice<BahiaData>((ctx, a, d) => {
+    const { state, card } = ctx;
+    const next = [...bahiaDone(d), a.optionId];
+    if (a.optionId === 'draw') drawForEffect(state, 'runner', 2, 'Bahia Bands');
+    else if (a.optionId === 'tag') removeTags(state, 1);
+    else if (a.optionId === 'credits') {
+      place(card, 'credit', 4);
+      if (state.activeRun) state.activeRun.trashCreditHosts = [...(state.activeRun.trashCreditHosts ?? []), card.instanceId];
+    } else if (a.optionId === 'install') {
+      const options = installableRunnerCards(state, state.runner.grip, 1);
+      if (options.length > 0) {
+        bahiaFlow.runnerInstall(ctx, 'install', { message: 'Bahia Bands: install 1 card from your grip, paying 1 [credit] less.', candidateIds: ids(options), min: 0, max: 1 }, { done: next.join(',') });
+        return;
+      }
+    }
+    bahiaAsk(ctx, next);
+  }),
+  install: cards<BahiaData>((ctx, a, d) => {
+    if (a.ids.length > 0 && !bahiaFlow.installRunner(ctx, a.ids[0], 'host', 1, a.trashFirst, { done: bahiaDone(d).join(',') })) return;
+    bahiaAsk(ctx, bahiaDone(d));
+  }),
+  host: choice<BahiaData & RunnerHostData>((ctx, a, d, source) => {
+    installRunnerHostChoice(ctx.state, source, a.raw);
+    bahiaAsk(ctx, bahiaDone(d));
+  }),
+});
+const bahiaDone = (d: Partial<BahiaData>) => String(d.done ?? '').split(',').filter(Boolean);
 const bahiaAsk = (ctx: EffectContext, done: string[]) => {
   if (done.length >= 2) return;
   const options = BAHIA_MODES.filter(m => !done.includes(m.id));
-  askChoice(ctx, 'runner', `Bahia Bands: choose ${done.length === 0 ? 'the first' : 'the second'} effect.`, options, 'mode', { done: done.join(',') });
+  bahiaFlow.choice(ctx, 'mode', { side: 'runner', message: `Bahia Bands: choose ${done.length === 0 ? 'the first' : 'the second'} effect.`, options }, { done: done.join(',') });
 };
 const bahiaBands: CardScript = {
-  onPlay: ctx => askServer(ctx, 'Bahia Bands', allServers(ctx.state)),
-  onRunSuccessful: ctx => bahiaAsk(ctx, []),
-  onPromptAnswer: (ctx, source, answer) => {
-    const { state, card } = ctx;
-    if (source.step === 'run' && answer.kind === 'effect_choice') {
-      startRun(state, answer.optionId, { source: runSource(ctx), eventCode: card.cardCode });
-      return;
-    }
-    const done = String(source.data?.done ?? '').split(',').filter(Boolean);
-    if (source.step === 'mode' && answer.kind === 'effect_choice') {
-      const next = [...done, answer.optionId];
-      if (answer.optionId === 'draw') drawForEffect(state, 'runner', 2, 'Bahia Bands');
-      else if (answer.optionId === 'tag') removeTags(state, 1);
-      else if (answer.optionId === 'credits') {
-        place(card, 'credit', 4);
-        if (state.activeRun) state.activeRun.trashCreditHosts = [...(state.activeRun.trashCreditHosts ?? []), card.instanceId];
-      } else if (answer.optionId === 'install') {
-        const options = installableRunnerCards(state, state.runner.grip, 1);
-        if (options.length > 0) {
-          askRunnerInstall(ctx, 'Bahia Bands: install 1 card from your grip, paying 1 [credit] less.', ids(options), 0, 1, 'install', { done: next.join(',') });
-          return;
-        }
-      }
-      bahiaAsk(ctx, next);
-    } else if (source.step === 'install') {
-      if (picked(answer).length > 0 && !installRunnerChoice(ctx, picked(answer)[0], 'host', 1, { done: done.join(',') }, answer.kind === 'effect_cards' ? answer.trashFirst : [])) return;
-      bahiaAsk(ctx, done);
-    } else if (source.step === 'host') {
-      installRunnerHostChoice(state, source, answer);
-      bahiaAsk(ctx, done);
-    }
+  onPlay: ctx => {
+    const q = runQuestion(ctx, 'Bahia Bands', allServers(ctx.state));
+    if (q) bahiaFlow.choice(ctx, 'run', q);
   },
+  onRunSuccessful: ctx => bahiaAsk(ctx, []),
+  ...bahiaFlow.script,
 };
 
 // --- Rebellion Without Rehearsal: Anarch ---------------------------------------------------
@@ -811,6 +825,20 @@ const eyeForAnEye: CardScript = {
 // from your heap, paying 2 credits less. Threat 3 -> When you take a tag with this event, you may
 // install 1 program from your heap.
 const heapOf = (state: GameState, kind: string, discount: number) => installableRunnerCards(state, state.runner.heap.filter(c => type(c) === kind), discount);
+const privilegedFlow = prompts({
+  resource: cards((ctx, a) => {
+    if (a.ids[0] && !privilegedFlow.installRunner(ctx, a.ids[0], 'host-resource', 2)) return;
+    privilegedProgram(ctx);
+  }),
+  program: cards((ctx, a) => {
+    if (a.ids[0]) privilegedFlow.installRunner(ctx, a.ids[0], 'host-program', 0);
+  }),
+  'host-resource': choice<RunnerHostData>((ctx, a, _d, source) => {
+    installRunnerHostChoice(ctx.state, source, a.raw);
+    privilegedProgram(ctx);
+  }),
+  'host-program': choice<RunnerHostData>((ctx, a, _d, source) => void installRunnerHostChoice(ctx.state, source, a.raw)),
+});
 const privilegedAccess: CardScript = {
   canPlay: ({ state }) => (state.runner.tags > 0 ? 'You are tagged' : null),
   onPlay: ctx => {
@@ -821,28 +849,17 @@ const privilegedAccess: CardScript = {
     giveTags(ctx.state, 1);
     privilegedResource(ctx);
   },
-  onPromptAnswer: (ctx, source, answer) => {
-    const id = picked(answer)[0];
-    if (source.step === 'resource') {
-      if (id && !installFrom(ctx, id, 2, 'host-resource')) return;
-      privilegedProgram(ctx);
-    } else if (source.step === 'program') {
-      if (id) installFrom(ctx, id, 0, 'host-program');
-    } else if (source.step === 'host-resource') {
-      installRunnerHostChoice(ctx.state, source, answer);
-      privilegedProgram(ctx);
-    } else if (source.step === 'host-program') installRunnerHostChoice(ctx.state, source, answer);
-  },
+  ...privilegedFlow.script,
 };
 function privilegedResource(ctx: EffectContext): void {
   const options = heapOf(ctx.state, 'resource', 2);
-  if (options.length > 0) askRunnerInstall(ctx, 'Privileged Access: you may install 1 resource from your heap, paying 2 [credit] less.', ids(options), 0, 1, 'resource');
+  if (options.length > 0) privilegedFlow.runnerInstall(ctx, 'resource', { message: 'Privileged Access: you may install 1 resource from your heap, paying 2 [credit] less.', candidateIds: ids(options), min: 0, max: 1 });
   else privilegedProgram(ctx);
 }
 function privilegedProgram(ctx: EffectContext): void {
   if (threatLevel(ctx.state) < 3) return;
   const options = heapOf(ctx.state, 'program', 0);
-  if (options.length > 0) askRunnerInstall(ctx, 'Privileged Access: you may install 1 program from your heap.', ids(options), 0, 1, 'program');
+  if (options.length > 0) privilegedFlow.runnerInstall(ctx, 'program', { message: 'Privileged Access: you may install 1 program from your heap.', candidateIds: ids(options), min: 0, max: 1 });
 }
 
 // Amanuensis (Console): +1 MU. When your turn ends, place 1 power counter on this hardware if you

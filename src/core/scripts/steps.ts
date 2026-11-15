@@ -1,7 +1,18 @@
 import { SideCode } from '../types/card';
 import { EffectSource } from '../types/prompts';
 import { CardScript, EffectAnswer, EffectContext } from './types';
-import { answerPsiGame, askCards, askChoice, askCorpInstall, askEvenIfNone, askRunnerInstall, CorpInstallChoice, isPsiStep, playPsiGame } from './effects';
+import {
+  answerPsiGame,
+  askCards,
+  askChoice,
+  askCorpInstall,
+  askEvenIfNone,
+  askRunnerInstall,
+  CorpInstallChoice,
+  installRunnerChoice,
+  isPsiStep,
+  playPsiGame,
+} from './effects';
 
 /**
  * Typed multi-step card prompts.
@@ -78,6 +89,9 @@ type StepsOfKind<T extends Steps, K extends AnyStep['kind']> = { [P in keyof T]:
 /** The data argument: optional when the step carries none. */
 type DataArg<D> = Record<never, never> extends D ? [data?: D] : [data: D];
 
+/** The data installRunner gives its host step (a trojan's ice), beside the step's own. */
+export type RunnerHostData = { cardId: string; discount: number; trashIds: string[] };
+
 export interface CardsQuestion {
   side: SideCode;
   message: string;
@@ -112,6 +126,19 @@ export interface Flow<T extends Steps> {
     step: K,
     opts?: CorpInstallChoice,
     ...data: DataArg<Omit<DataOf<T[K]>, 'cardId' | 'install'>>
+  ): boolean;
+  /**
+   * Installs a Runner card an effect chose (installRunnerChoice), paying `discount` less, after trashing
+   * `trashIds` (rules 8.5.6c). A program that installs on ice first asks which ice under `hostStep`, whose
+   * data gets RunnerHostData; answer it with installRunnerHostChoice. True if the card was installed now.
+   */
+  installRunner<K extends StepsOfKind<T, 'choice'>>(
+    ctx: EffectContext,
+    cardId: string,
+    hostStep: K,
+    discount?: number,
+    trashIds?: string[],
+    ...data: DataArg<Omit<DataOf<T[K]>, keyof RunnerHostData>>
   ): boolean;
   /** Plays a Psi Game under a psi step. */
   psiGame<K extends StepsOfKind<T, 'psi'>>(ctx: EffectContext, step: K, ...data: DataArg<DataOf<T[K]>>): void;
@@ -169,6 +196,8 @@ export function prompts<T extends Steps>(steps: T): Flow<T> {
     choice: (ctx, step, q, ...data) => askChoice(ctx, q.side, q.message, q.options, step, data[0]),
     runnerInstall: (ctx, step, q, ...data) => askRunnerInstall(ctx, q.message, q.candidateIds, q.min, q.max, step, data[0]),
     corpInstall: (ctx, cardId, step, opts = {}, ...data) => askCorpInstall(ctx, cardId, step, opts, data[0] as StepData | undefined),
+    installRunner: (ctx, cardId, hostStep, discount = 0, trashIds = [], ...data) =>
+      installRunnerChoice(ctx, cardId, hostStep, discount, data[0] as StepData | undefined, trashIds),
     psiGame: (ctx, step, ...data) => playPsiGame(ctx, step, data[0]),
     evenIfNone: (ctx, side, qualifies, ask, noneMessage, declineLabel, then) =>
       askEvenIfNone(ctx, side, qualifies, ask, noneMessage, declineLabel, then && { step: then.step, data: then.data }),
