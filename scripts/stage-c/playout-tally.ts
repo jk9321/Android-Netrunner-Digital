@@ -6,7 +6,7 @@
  * on both sides:
  *  - rankMainActions calls made directly by a playout, against those made inside a corpDecide (a pipeline: the
  *    agent itself, the reply's Corp), told apart by the call stack;
- *  - in a playout, the line of the first eligible entry (score above -Infinity, not END_TURN; the playout also skips
+ *  - in a playout, the line of the first eligible entry (score above -Infinity, not END_TURN, a score when out of clicks; the playout also skips
  *    dominated moves and, in 'hold' mode, agenda installs, which this does not repeat): line 8, line 9 or the behind group;
  *  - Corp chooseAction calls by caller (the game's Corp, the reply's Corp, a playout's prompt) at a main-phase state and
  *    at a prompt; a playout's own step never calls it at a main-phase state (expected 0);
@@ -31,7 +31,7 @@ const [shard, shards] = (process.env.SHARD ?? '0/1').split('/').map(Number);
 const diag = installDiagnostics();
 // Deep enough to reach corpDecide or playout from a nested reply (V8 keeps 10 frames by default)
 Error.stackTraceLimit = 200;
-const t = { playoutRank: 0, pipelineRank: 0, line: {} as Record<string, number>, line8: 0, line9: 0, behind: 0, playoutChooseMain: 0, playoutChoosePrompt: 0 };
+const t = { playoutRank: 0, playoutRankNoClicks: 0, pipelineRank: 0, line: {} as Record<string, number>, line8: 0, line9: 0, behind: 0, playoutChooseMain: 0, playoutChoosePrompt: 0 };
 
 // The nearest of the three frames decides who asked: the playout's own step (turnPlanner.ts playout), the reply
 // (runnerReply.ts, which plays the next turns with a GameRunner, so its Corp goes through corpDecide) or a pipeline
@@ -55,7 +55,10 @@ proto.rankMainActions = function (this: unknown, ...a: unknown[]) {
   const who = caller();
   if (who === 'playout') {
     t.playoutRank++;
-    const first = out.find(r => r.score > -Infinity && r.action.type !== 'END_TURN');
+    // The playout's own filter (turnPlanner.ts playout): out of clicks, only a score is played
+    const outOfClicks = (a[0] as { corp: { clicks: number } }).corp.clicks <= 0;
+    if (outOfClicks) t.playoutRankNoClicks++;
+    const first = out.find(r => r.score > -Infinity && r.action.type !== 'END_TURN' && (!outOfClicks || r.action.type === 'SCORE_AGENDA'));
     if (first) {
       const k = first.behind ? 'behind' : String(first.line);
       t.line[k] = (t.line[k] ?? 0) + 1;
