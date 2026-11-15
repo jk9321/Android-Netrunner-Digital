@@ -6,7 +6,7 @@ import { describe, expect, it } from 'vitest';
 import { readFileSync } from 'node:fs';
 import { CardInstance, GameAction, GameState, activePrompt, createCardInstance, executeAction } from '../src/core';
 import { HeuristicRunnerAI, createAgent } from '../src/ai';
-import { BLOCK, bestBreakPlan, breachAccesses, icePrice, isTrap, runRestWorth, runScore, serverValue, subroutineCost, trapDamageMax, trapHit, unrezzedDamageRisk } from '../src/ai/runs';
+import { BLOCK, bestBreakPlan, breachAccesses, icePrice, isTrap, runRestWorth, runScore, serverValue, subroutineCost, tankDamage, trapDamageMax, trapHit, unrezzedDamageRisk } from '../src/ai/runs';
 import { accessDamage, damageWorth } from '../src/ai/effectValues';
 import { CLICK, cardRate } from '../src/ai/valueModel';
 import { scoreOutcome, simulate } from '../src/ai/prompts';
@@ -404,5 +404,23 @@ describe('an unrezzed ice priced as the ice still unseen (rules 6.9.2c, 9.8.7b, 
   it('is none when the Corp cannot pay to rez any of it', () => {
     const broke = position(1, 0);
     expect(asSide('runner', () => unrezzedDamageRisk(broke.s, broke.ice))).toBe(0);
+  });
+});
+
+describe('the tank damage text and its one owner (RM-SUBDAMAGE-TEXT, RM-TANK-NOT-SINGLE; rules 10.4.2b, 10.4.4)', () => {
+  const dmg = (label: string, tags = 0, grip = 5) => {
+    const s = newGame();
+    s.runner.tags = tags;
+    s.runner.grip = s.runner.grip.slice(0, grip);
+    return tankDamage(s, [{ label, i: 0 }]).damage;
+  };
+  it('core damage trashes a card a point, and a tagged-only one does nothing untagged', () => {
+    expect(dmg('Do 2 core damage.')).toBe(2);
+    expect(dmg('Do 1 core damage.')).toBe(1);
+    expect(dmg('If the Runner is tagged, do 1 core damage.', 0)).toBe(0);
+    expect(dmg('If the Runner is tagged, do 1 core damage.', 1)).toBe(1);
+  });
+  it('"end the run unless the Runner suffers N net damage": the tank takes the N', () => {
+    expect(dmg('End the run unless the Runner suffers 2 net damage.')).toBe(2);
   });
 });

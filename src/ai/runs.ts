@@ -95,10 +95,11 @@ const SUB_RULES: SubRule[] = [
   }],
   // Elevation conditions. Damage that only equals the grip is survived: the Runner is flatlined by more damage than the
   // cards in its grip (rule 10.4.4), so each lethal test below is `>`, as in damageWorth
-  [/end the run unless the runner suffers (\d+) net damage/i, (state, unless) => (Number(unless[1]) > state.runner.grip.length ? BLOCK : 2 * Number(unless[1]))],
+  // The Runner chooses the damage when it can survive it (else the run ends): priced as that damage (RM-SUBDAMAGE-TEXT; was a flat 2 a point)
+  [/end the run unless the runner suffers (\d+) net damage/i, (state, unless) => (Number(unless[1]) > state.runner.grip.length ? BLOCK : damageWorth(state, Number(unless[1]), ownRun(state)))],
   [/threat level is (\d+) or greater, end the run/i, (state, threat) => (Math.max(state.corp.score, state.runner.score) >= Number(threat[1]) ? BLOCK : 0)],
   [/end the run if the runner is tagged/i, state => (state.runner.tags > 0 ? BLOCK : 1)],
-  [/if the runner has at least 2 tags/i, state => (state.runner.tags >= 2 ? (2 > state.runner.grip.length ? BLOCK : 4) : 0)],
+  [/if the runner has at least 2 tags/i, state => (state.runner.tags >= 2 ? (2 > state.runner.grip.length ? BLOCK : damageWorth(state, 2, ownRun(state))) : 0)],
   // Vantage Point: "... unless the Runner pays N credits": the cheaper of paying and letting the rest resolve
   [/^(.*?)\s*unless the runner pays (\d+) (?:\[credit\]|credits?)\.?$/i, (state, pays) => {
     const n = Number(pays[2]);
@@ -119,7 +120,12 @@ const SUB_RULES: SubRule[] = [
   [/remove 1 card in the heap from the game/i, () => 0.3],
   [/place 1 virus counter on this ice/i, () => 0], // Knowledge Seeker: counts down to its own derez
   [/look at the top \d+ cards? of r&d|arrange|to the (?:top or )?bottom of r&d|shuffle 1 card from hq or archives into r&d/i, () => 0.4], // Corp card selection
-  [/core damage/i, state => coreDamageWorth(state) + damageWorth(state, 1)],
+  // Each point of core damage trashes a card and takes a hand size (rule 10.4.2b): "do 2 core damage" is 2 of each
+  [/(?:(\d+) )?core damage/i, (state, core) => {
+    const n = Number(core[1] ?? 1);
+    if (/if the runner is tagged/i.test(core.input ?? '') && state.runner.tags === 0) return 0;
+    return n > state.runner.grip.length ? BLOCK : n * coreDamageWorth(state) + damageWorth(state, n);
+  }],
   [/unless they pay 3 credits/i, state => creditCost(state, 3)],
   [/loses? (\d+) (?:\[credit\]|credits?)/i, (state, loses) => creditCost(state, Math.min(Number(loses[1]), state.runner.credits))],
   [/or end the run/i, state => (state.runner.rig.programs.length > 0 ? 5 : BLOCK)],
@@ -426,9 +432,15 @@ export function physarumCost(state: GameState, ice: CardInstance): number | unde
  */
 function subroutineDamage(label: string, tags: number): number {
   if (/do x net damage/i.test(label)) return tags;
-  if (/core damage/i.test(label)) return 1;
+  // Core damage trashes a card a point, as net and meat do (rule 10.4.2b)
+  if (/if the runner is tagged/i.test(label) && tags === 0) return 0;
+  const core = label.match(/(?:(\d+) )?core damage/i);
+  if (core) return Number(core[1] ?? 1);
   const needs = label.match(/if the runner has at least (\d+) tags/i);
   if (needs && tags < Number(needs[1])) return 0;
+  // "End the run unless the Runner suffers N net damage": a tank takes the damage (the run going on is why it tanks)
+  const unless = label.match(/unless the runner suffers (\d+) (?:net|meat) damage/i);
+  if (unless) return Number(unless[1]);
   const m = label.match(/(\d+) (?:net|meat) damage/i);
   return m && !/unless/i.test(label) ? Number(m[1]) : 0;
 }

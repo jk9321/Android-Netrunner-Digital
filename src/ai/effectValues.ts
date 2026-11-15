@@ -6,7 +6,7 @@ import { CARDS, advancePayloadOf, corpFormula, runnerFormula } from './cards';
 import { actingSide } from './synergy';
 import { CLICK, RATES, cardRate, flatlineWorth, memo, pointGain, pointValue, scopeToGame, sideCards } from './valueModel';
 import { tagsWorth } from './evaluate';
-import { BLOCK, iceCost, iceCreditNeed, isTrap, plannedSubroutines, subroutineCost } from './runs';
+import { BLOCK, iceCost, iceCreditNeed, isTrap, plannedSubroutines, subroutineCost, tankDamage } from './runs';
 import { remoteRunChance, threatOn } from './threatModel';
 import { plan, pricing, withPricing } from './pricing';
 import { REZ_NOW_SHARE, rezBudget } from './iceValues';
@@ -143,7 +143,10 @@ const TANKED_PASS = 0.85;
  */
 function canTank(state: GameState, ice: CardInstance, credits: number): boolean {
   if (iceCreditNeed(state, ice) > credits) return false;
-  const tank = plannedSubroutines(state, ice).map(s => subroutineCost(state, s.label)).filter(c => c < BLOCK).reduce((n, c) => n + c, 0);
+  const priced = plannedSubroutines(state, ice).map((s, i) => ({ label: s.label, i, cost: subroutineCost(state, s.label) })).filter(s => s.cost < BLOCK);
+  // The tanked subroutines' damage together, in order (tankDamage, the owner; RM-TANK-NOT-SINGLE): more than the grip is no way past
+  if (tankDamage(state, priced).lethal !== undefined) return false;
+  const tank = priced.reduce((n, s) => n + s.cost, 0);
   return tank < 0.5 * pointGain(state.runner.score, agendaOdds(state).points);
 }
 
