@@ -21,6 +21,7 @@ const SLOW_TESTS = [
   'tests/roomFuzz.test.ts', // ~15 s: the game server's room fuzzer (multiplayer chunk 2b)
   'tests/hiddenDraws.test.ts', // beta, about 8 s
   'tests/onlineClient.test.ts', // about 6 s: whole online games through the browser's table (multiplayer chunk 2c)
+  'tests/stageDPins.test.ts', // beta: Jeff's game pins for Stage D (review-stage-b.md R3)
 ];
 
 const bin = (name) => `node_modules/.bin/${name}`;
