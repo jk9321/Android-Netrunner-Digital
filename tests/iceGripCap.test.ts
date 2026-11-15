@@ -38,9 +38,13 @@ describe('board ice priced against a grip no bigger than the hand size (plan.ice
     expect(sc.get('Sure Gamble')!).toBeGreaterThan(sc.get('GAIN_CREDIT')!);
   });
 
-  it('the old way, VRcation first', () => {
+  // Since the run choice reads the draw-back (RM-DRAWBACK-RUN-START) the run on remote-2 ranks first and every card play
+  // pays the click it takes from that run, so the old way no longer puts VRcation first: it closes most of the gap
+  it('the old way, VRcation level with Sure Gamble and far above its capped score', () => {
+    const on = scores({ ...position(), id: 'vrcation-on' });
     tuning.plan.iceGripCap = false;
-    const sc = scores({ ...position(), id: 'vrcation-off' });
-    expect(sc.get('VRcation')!).toBeGreaterThan(sc.get('Sure Gamble')!);
+    const off = scores({ ...position(), id: 'vrcation-off' });
+    expect(off.get('VRcation')!).toBeGreaterThan(on.get('VRcation')! + 5);
+    expect(off.get('VRcation')!).toBeGreaterThan(off.get('Sure Gamble')! - 0.5);
   });
 });

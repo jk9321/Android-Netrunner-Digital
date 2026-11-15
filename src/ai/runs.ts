@@ -66,10 +66,11 @@ export function subroutineCost(state: GameState, label: string): number {
 }
 
 /**
- * Damage the Runner takes in its own run under way, priced by the Runner (RUNNER-DAMAGE-NO-DRAWBACK): damageWorth's
- * draw-back input. The Corp's view of the same subroutine, and a run priced before it starts, leave it off.
+ * Damage the Runner takes in its own run, priced by the Runner on its own turn (RUNNER-DAMAGE-NO-DRAWBACK,
+ * RM-DRAWBACK-RUN-START): damageWorth's draw-back input, whether the run is under way or being chosen (the clicks it
+ * will have left after the run's own click; drawBackClicks). The Corp's view of the same subroutine leaves it off.
  */
-const ownRun = (state: GameState): boolean => !!state.activeRun && actingSide() === 'runner';
+const ownRun = (state: GameState): boolean => state.activePlayer === 'runner' && actingSide() === 'runner';
 
 /** A rule's answer that passes to the next rule (the trash-a-type rule with no card of that type). */
 const NEXT = Symbol('next');

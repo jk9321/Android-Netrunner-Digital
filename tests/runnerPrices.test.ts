@@ -74,6 +74,20 @@ describe('R2 damage (rules 10.4.4, 5.2.7c)', () => {
       expect(runScore(s, 'hq')).toBeGreaterThan(-Infinity);
     }
   });
+  it('the run choice reads the draw-back too: the 6-card HQ behind Tithe is worth running (RM-DRAWBACK-RUN-START, rule 5.2.7c)', () => {
+    // Audit 2026-11-15 probe: before, Tithe's 1 net priced 7.2 when choosing the run (runScore -5.6 at 5 credits, -5.3 at
+    // 20) against 1.25 once in it; the choice now reads the 3 clicks left after the run's own click
+    for (const credits of [5, 20]) {
+      const s = newGame();
+      startRunnerTurn(s);
+      installIceForTest(s, TITHE, 'hq');
+      while (s.corp.hq.length < 6 && s.corp.rd.length) s.corp.hq.push(s.corp.rd.shift()!);
+      s.runner.credits = credits;
+      const out = asSide('runner', () => ({ sub: subroutineCost(s, 'Do 1 net damage.'), score: runScore(s, 'hq') }));
+      expect(out.sub).toBeCloseTo(CLICK, 6);
+      expect(out.score).toBeGreaterThan(0);
+    }
+  });
 });
 
 describe('R1 credits apart from value (RUNNER-BUDGET-UNITS)', () => {
@@ -109,14 +123,24 @@ describe('R1 credits apart from value (RUNNER-BUDGET-UNITS)', () => {
   // But the deck holds 2 Fujii Asset Retrieval ("When this agenda is scored or stolen, do 2 net damage"): an accessed agenda
   // must be stolen (1.17.3d), and 2 net damage on the 1 card left flatlines (10.4.4), so the run is not worth making
   const teia = (): GameState => JSON.parse(readFileSync(new URL('./fixtures/vrcation-sure-gamble.json', import.meta.url), 'utf8'));
-  it('a 3-advanced remote behind ice that cannot end the run: no credits to pass, but a Fujii steal at 1 card flatlines', () => {
+  it('a 3-advanced remote behind ice that cannot end the run: no credits to pass, and a Fujii steal at 1 card is charged its flatline share', () => {
     const s = teia();
     asSide('runner', () => {
       const price = icePrice(s, s.corp.servers['remote-2'].ice[0]);
       expect(price.credits).toBe(0);
       expect(price.value).toBeCloseTo(subroutineCost(s, 'Draw 1 card.') + subroutineCost(s, 'Do 1 net damage. Give the Runner 1 tag.') + subroutineCost(s, 'Do 2 net damage.'));
       expect(price.damage).toBe(3);
-      expect(runScore(s, 'remote-2', { wary: true })).toBeLessThan(0);
+      // The steal at the 1 card left is charged its flatline share: 2 of the 8 agendas still to find are Fujii. Since the
+      // run choice reads the draw-back (RM-DRAWBACK-RUN-START: 2 clicks left after the run's own), the ice's 3 damage costs
+      // its cards less the clicks, and the run is no longer below zero as dealt; it stays well below the run with no
+      // Fujii in the deck, by the flatline share
+      const noFujii = structuredClone(s);
+      const strip = (zone: CardInstance[]) => zone.filter(c => c.cardCode !== '34040');
+      noFujii.corp.hq = strip(noFujii.corp.hq);
+      noFujii.corp.rd = strip(noFujii.corp.rd);
+      noFujii.corp.archives.faceDown = strip(noFujii.corp.archives.faceDown);
+      expect(serverValue(s, 'remote-2', 0, undefined, true, undefined, 1)).toBeLessThan(serverValue(s, 'remote-2', 0, undefined, true, undefined, 4) - 10);
+      expect(runScore(s, 'remote-2', { wary: true })).toBeLessThan(runScore(noFujii, 'remote-2', { wary: true }) - 10);
     });
   });
   it('the same run is worth making with a grip that survives the steal, or with no Fujii left in the deck', () => {
