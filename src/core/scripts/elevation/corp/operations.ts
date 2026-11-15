@@ -1,0 +1,281 @@
+import { GameState } from '../../../types/state';
+import { cardDef } from '../../../cards';
+import { shuffleInPlace } from '../../../rng';
+import { shuffleRD } from '../../../engine/rdKnowledge';
+import { addLog } from '../../../engine/log';
+import { drawCards, forgetInHand, removeCard, revealInHand } from '../../../engine/helpers';
+import { playCardFrom } from '../../../engine/actions/play';
+import { dealMeatDamage, giveTags } from '../../../engine/damage';
+import { agendaPoints, drawForEffect, gainFromCard, removeTags, threatLevel, turnFlag, TurnFlag } from '../../../engine/cardEffects';
+import { CardScript, EffectContext } from '../../types';
+import { advanceableInstalled, askCards, askChoice, askCorpInstall, installCorpChoice } from '../../effects';
+import { askInstallFromHQ, ids, installFromHQ, installable, peerReviewFlow, peerReviewResolve, safePlayBlockerFrom, type } from './helpers';
+
+// Nanomanagement: Gain click click.
+export const nanomanagement: CardScript = {
+  onPlay: ({ state }) => {
+    state.corp.clicks += 2;
+    addLog(state, 'corp', 'Corp gained [click][click].');
+  },
+};
+
+// Top-Down Solutions: Draw 2 cards. Install up to 2 cards from HQ (one at a time).
+export const topDownSolutions: CardScript = {
+  onPlay: ctx => {
+    drawForEffect(ctx.state, 'corp', 2, 'Top-Down Solutions');
+    if (!ctx.state.winner) askInstallFromHQ(ctx, 2, '');
+  },
+  ...installFromHQ.script,
+};
+
+export const peerReview: CardScript = {
+  onPlay: ctx => {
+    const hq = ctx.state.corp.hq;
+    // The Corp chooses which card stays hidden (rules 1.14.5: the controller makes the choices)
+    if (hq.length >= 2) peerReviewFlow.cards(ctx, 'hide', { side: 'corp', message: 'Peer Review: choose 1 card in HQ to keep hidden. The rest are revealed.', candidateIds: ids(hq), min: 1, max: 1 });
+    else peerReviewResolve(ctx, hq[0]?.instanceId);
+  },
+  ...peerReviewFlow.script,
+};
+
+// Bigger Picture (Gray Ops): Play only if the Runner is tagged. Resolve 1 of the following:
+// Give the Runner 1 tag. Remove any number of tags. The Runner loses 5 credits for each tag
+// removed this way. Gain credits equal to the number of credits the Runner lost.
+export const biggerPicture: CardScript = {
+  canPlay: ({ state }) => (state.runner.tags > 0 ? null : 'The Runner must be tagged'),
+  onPlay: ctx => {
+    const tags = ctx.state.runner.tags;
+    askChoice(ctx, 'corp', 'Bigger Picture: choose one.', [
+      { id: 'tag', label: 'Give the Runner 1 tag' },
+      ...Array.from({ length: tags }, (_, i) => ({ id: String(i + 1), label: `Remove ${i + 1} tag(s): the Runner loses ${5 * (i + 1)} credits` })),
+    ], 'choose');
+  },
+  onPromptAnswer: ({ state, card }, _source, answer) => {
+    if (answer.kind !== 'effect_choice') return;
+    if (answer.optionId === 'tag') return giveTags(state, 1);
+    const removed = removeTags(state, Number(answer.optionId));
+    const lost = Math.min(state.runner.credits, 5 * removed);
+    state.runner.credits -= lost;
+    addLog(state, 'corp', `Corp removed ${removed} tag(s); the Runner lost ${lost} [credit] (Bigger Picture).`);
+    gainFromCard(state, 'corp', lost, card);
+  },
+};
+
+// IP Enforcement (Gray Ops): As an additional cost to play this operation, remove X tags.
+// Install 1 agenda from the Runner's score area with a printed agenda point value equal to X.
+// If the Runner is still tagged, place 1 advancement counter on that agenda.
+const ipTargets = (state: GameState) =>
+  state.runner.scoreArea.filter(a => (cardDef(a).agenda_points ?? 0) > 0 && (cardDef(a).agenda_points ?? 0) <= state.runner.tags);
+
+export const ipEnforcement: CardScript = {
+  canPlay: ({ state }) => (ipTargets(state).length > 0 ? null : 'Needs an agenda in the Runner\'s score area worth no more than their tags'),
+  // The Corp chooses X when paying (rule 1.16.6c). Only an X that matches an agenda's printed
+  // points installs anything, so each option pairs an X with the agenda it takes back.
+  onPlay: ctx => {
+    const tags = ctx.state.runner.tags;
+    const options = [...ipTargets(ctx.state)]
+      .sort((a, b) => (cardDef(a).agenda_points ?? 0) - (cardDef(b).agenda_points ?? 0))
+      .map(a => {
+        const x = cardDef(a).agenda_points ?? 0;
+        const counter = tags - x > 0 ? ', the Runner stays tagged: +1 advancement counter' : '';
+        return { id: a.instanceId, label: `X = ${x}: remove ${x} of ${tags} tag(s), take back ${cardDef(a).title}${counter}` };
+      });
+    askChoice(ctx, 'corp', `IP Enforcement: choose X, the number of tags to remove (the Runner has ${tags}). You install the agenda worth X points.`, options, 'agenda');
+  },
+  onPromptAnswer: (ctx, source, answer) => {
+    const { state } = ctx;
+    if (source.step === 'agenda' && answer.kind === 'effect_choice') {
+      const agenda = state.runner.scoreArea.find(a => a.instanceId === answer.optionId);
+      if (!agenda) return;
+      const x = cardDef(agenda).agenda_points ?? 0;
+      removeTags(state, x);
+      addLog(state, 'corp', `Corp removed ${x} tag(s) (IP Enforcement).`);
+      askCorpInstall(ctx, agenda.instanceId, 'server', { remoteRootOnly: true });
+    } else if (source.step === 'server' && answer.kind === 'effect_choice') {
+      const agenda = state.runner.scoreArea.find(a => a.instanceId === source.data?.cardId);
+      if (!agenda) return;
+      state.runner.score -= agendaPoints(agenda);
+      delete agenda.asAgendaPoints;
+      agenda.isRezzed = false;
+      installCorpChoice(state, source, answer);
+      if (state.runner.tags > 0) agenda.advancementCounters += 1;
+      addLog(state, 'corp', `Corp installed ${cardDef(agenda).title} from the Runner's score area (IP Enforcement).`, undefined, 'install');
+    }
+  },
+};
+
+// Touch-ups (Double): As an additional cost to play this operation, spend click. Place 2
+// advancement counters on 1 installed card you can advance. If you do, choose a card type and
+// reveal the grip. Choose up to 2 revealed cards of that type. The Runner shuffles those cards into the stack.
+const RUNNER_TYPES = ['event', 'hardware', 'program', 'resource'] as const;
+
+export const touchUps: CardScript = {
+  extraClicks: 1,
+  onPlay: ctx => {
+    const targets = advanceableInstalled(ctx.state);
+    if (targets.length > 0) askCards(ctx, 'corp', 'Touch-ups: place 2 advancement counters on 1 installed card you can advance.', ids(targets), 1, 1, 'advance');
+  },
+  onPromptAnswer: (ctx, source, answer) => {
+    const { state } = ctx;
+    if (source.step === 'advance' && answer.kind === 'effect_cards') {
+      const target = advanceableInstalled(state).find(c => c.instanceId === answer.cardInstanceIds[0]);
+      if (!target) return;
+      target.advancementCounters += 2;
+      addLog(state, 'corp', 'Corp placed 2 advancement counters (Touch-ups).');
+      askChoice(ctx, 'corp', 'Touch-ups: choose a card type, then reveal the grip.', RUNNER_TYPES.map(t => ({ id: t, label: t[0].toUpperCase() + t.slice(1) })), 'type');
+    } else if (source.step === 'type' && answer.kind === 'effect_choice') {
+      addLog(state, 'corp', `The Runner revealed their grip: ${state.runner.grip.map(c => cardDef(c).title).join(', ') || 'empty'}.`);
+      revealInHand(state, 'runner', state.runner.grip);
+      const matching = state.runner.grip.filter(c => type(c) === answer.optionId);
+      if (matching.length === 0) return;
+      askCards(ctx, 'corp', 'Touch-ups: choose up to 2 of them to shuffle into the stack.', ids(matching), 0, Math.min(2, matching.length), 'shuffle');
+    } else if (source.step === 'shuffle' && answer.kind === 'effect_cards') {
+      for (const id of answer.cardInstanceIds) {
+        const card = state.runner.grip.find(c => c.instanceId === id);
+        if (!card) continue;
+        removeCard(state.runner.grip, card);
+        forgetInHand(state, 'runner', [card]);
+        state.runner.stack.push(card);
+      }
+      shuffleInPlace(state.rng, state.runner.stack);
+      addLog(state, 'runner', `The Runner shuffled ${answer.cardInstanceIds.length} card(s) into their stack (Touch-ups).`);
+    }
+  },
+};
+
+// Key Performance Indicators (Transaction): Resolve 2 of the following in any order:
+// Draw 1 card. Shuffle 1 card from HQ into R&D. / Install 1 piece of ice from HQ, ignoring all
+// costs. / Place 1 advancement counter on an installed card you can advance. / Gain 2 credits.
+const KPI_OPTIONS = [
+  { id: 'draw', label: 'Draw 1 card, then shuffle 1 card from HQ into R&D' },
+  { id: 'ice', label: 'Install 1 ice from HQ, ignoring all costs' },
+  { id: 'advance', label: 'Place 1 advancement counter on a card you can advance' },
+  { id: 'credits', label: 'Gain 2 credits' },
+];
+
+function askKpi(ctx: EffectContext, done: string[]): void {
+  if (done.length >= 2) return;
+  const options = KPI_OPTIONS.filter(o => !done.includes(o.id));
+  askChoice(ctx, 'corp', `Key Performance Indicators: choose ${done.length === 0 ? 'the first' : 'the second'} effect.`, options, 'choose', { done });
+}
+
+export const kpi: CardScript = {
+  onPlay: ctx => askKpi(ctx, []),
+  onPromptAnswer: (ctx, source, answer) => {
+    const { state, card } = ctx;
+    const done = (source.data?.done as string[]) ?? [];
+    if (source.step === 'choose' && answer.kind === 'effect_choice') {
+      const now = [...done, answer.optionId];
+      switch (answer.optionId) {
+        case 'draw':
+          drawCards(state, 'corp', 1);
+          addLog(state, 'corp', 'Corp drew 1 card (Key Performance Indicators).');
+          if (state.corp.hq.length > 0) return askCards(ctx, 'corp', 'KPI: shuffle 1 card from HQ into R&D.', ids(state.corp.hq), 1, 1, 'shuffle', { done: now });
+          break;
+        case 'ice': {
+          const ice = installable(state, state.corp.hq.filter(c => type(c) === 'ice'), { ignoreCosts: true });
+          if (ice.length > 0) return askCards(ctx, 'corp', 'KPI: install 1 ice from HQ, ignoring all costs.', ids(ice), 1, 1, 'ice', { done: now });
+          break;
+        }
+        case 'advance': {
+          const targets = advanceableInstalled(state);
+          if (targets.length > 0) return askCards(ctx, 'corp', 'KPI: place 1 advancement counter.', ids(targets), 1, 1, 'advance', { done: now });
+          break;
+        }
+        case 'credits':
+          gainFromCard(state, 'corp', 2, card);
+          addLog(state, 'corp', 'Corp gained 2 [credit] (Key Performance Indicators).');
+          break;
+      }
+      return askKpi(ctx, now);
+    }
+    if (source.step === 'shuffle' && answer.kind === 'effect_cards') {
+      const target = state.corp.hq.find(c => c.instanceId === answer.cardInstanceIds[0]);
+      if (target) {
+        removeCard(state.corp.hq, target);
+        state.corp.rd.push(target);
+        shuffleRD(state);
+      }
+      return askKpi(ctx, done);
+    }
+    if (source.step === 'ice' && answer.kind === 'effect_cards') {
+      if (!askCorpInstall(ctx, answer.cardInstanceIds[0], 'ice_server', { ignoreCosts: true }, { done })) askKpi(ctx, done);
+      return;
+    }
+    if (source.step === 'ice_server') {
+      installCorpChoice(state, source, answer, { ignoreCosts: true });
+      return askKpi(ctx, done);
+    }
+    if (source.step === 'advance' && answer.kind === 'effect_cards') {
+      const target = advanceableInstalled(state).find(c => c.instanceId === answer.cardInstanceIds[0]);
+      if (target) target.advancementCounters += 1;
+      return askKpi(ctx, done);
+    }
+  },
+};
+
+// Measured Response (Black Ops): Play only if the threat level is 4 or greater, and only if
+// the Runner made a successful run during their last turn. Do 4 meat damage unless the Runner pays 8 credits.
+export const measuredResponse: CardScript = {
+  canPlay: ({ state }) => {
+    if (threatLevel(state) < 4) return 'The threat level must be 4 or greater';
+    return state.runnerLastTurnRuns.some(r => r.successful) ? null : 'The Runner did not make a successful run during their last turn';
+  },
+  onPlay: ctx => {
+    if (ctx.state.runner.credits < 8) return void dealMeatDamage(ctx.state, 4);
+    askChoice(ctx, 'runner', 'Measured Response: pay 8 credits or suffer 4 meat damage?', [
+      { id: 'pay', label: 'Pay 8 credits' },
+      { id: 'damage', label: 'Take 4 meat damage' },
+    ], 'choice');
+  },
+  onPromptAnswer: ({ state }, _source, answer) => {
+    if (answer.kind !== 'effect_choice') return;
+    if (answer.optionId === 'pay') {
+      state.runner.credits -= 8;
+      addLog(state, 'runner', 'Runner paid 8 [credit] (Measured Response).');
+    } else {
+      dealMeatDamage(state, 4);
+    }
+  },
+};
+
+// Petty Cash (Transaction): Play only if you have not finished an action yet this turn.
+// Gain 5 credits. If you played this operation from anywhere except HQ, gain click.
+// click: Play this operation from Archives. After it resolves, remove it from the game.
+export const pettyCash: CardScript = {
+  canPlay: ({ state }) => (turnFlag(state, TurnFlag.actionsFinished) === 0 ? null : 'You have already finished an action this turn'),
+  onPlay: ({ state, card, playedFromHand }) => {
+    gainFromCard(state, 'corp', 5, card);
+    addLog(state, 'corp', 'Corp gained 5 [credit] (Petty Cash).');
+    if (!playedFromHand) {
+      state.corp.clicks += 1;
+      addLog(state, 'corp', 'Corp gained [click] (Petty Cash).');
+    }
+  },
+  abilities: [
+    {
+      label: 'Play Petty Cash from Archives, then remove it from the game.',
+      clicks: 1,
+      fromArchives: true,
+      canUse: ({ state, card }) => safePlayBlockerFrom(state, card),
+      resolve: ({ state, card }) => {
+        const zone = state.corp.archives.faceUp.includes(card) ? state.corp.archives.faceUp : state.corp.archives.faceDown;
+        playCardFrom(state, 'corp', card, zone, { fromHand: false, removeAfter: true });
+      },
+    },
+  ],
+};
+
+// --- Upgrades -------------------------------------------------------------------
+
+export const elevationCorpOperationsScripts: Record<string, CardScript> = {
+  '35043': nanomanagement,
+  '35044': topDownSolutions,
+  '35055': peerReview,
+  '35065': biggerPicture,
+  '35066': ipEnforcement,
+  '35067': touchUps,
+  '35077': kpi,
+  '35078': measuredResponse,
+  '35081': pettyCash,
+};
