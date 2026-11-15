@@ -24,6 +24,13 @@ const group = (label, rs) => {
 group('local deals', rows.filter(r => r.src.startsWith('deal:')));
 group('human games', rows.filter(r => r.src.startsWith('human:')));
 group('all', rows);
+group('late game (turn 14 and later)', rows.filter(r => r.T >= 14));
+const av = rows.filter(r => r.av);
+if (av.length) {
+  group('Anoetic Void installed or in HQ', av);
+  const share = k => av.reduce((n, r) => n + r[k], 0) / Math.max(1, rows.reduce((n, r) => n + r[k], 0));
+  console.log(`  share of all decision time: old ${(100 * share('msOld')).toFixed(1)}%, new ${(100 * share('msNew')).toFixed(1)}%`);
+}
 const slow = [...rows].sort((a, b) => Math.max(b.msOld, b.msNew) - Math.max(a.msOld, a.msNew)).slice(0, 8);
 console.log('slowest: ' + slow.map(r => `${r.src} T${r.T} c${r.clicks} old ${r.msOld} new ${r.msNew}`).join('; '));
 console.log("\nJeff's games #48 to #54, every decision that changes:");

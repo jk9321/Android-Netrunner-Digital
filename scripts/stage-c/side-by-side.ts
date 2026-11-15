@@ -41,6 +41,9 @@ forEachRecorded({
       o = decide('old', d.state);
     }
     const s = d.state;
-    console.log(JSON.stringify({ src: d.src, i: d.i, T: s.turnNumber, clicks: s.corp.clicks, credits: s.corp.credits, old: o.move, new: n.move, sameCard: o.card === n.card, msOld: o.ms, msNew: n.ms }));
+    // Anoetic Void (30050) where a reply can meet it: installed, or in HQ to be installed in a playout (AI Coordinator
+    // 17:18Z: its fixed-count HQ-trash prompt; the prompt itself is not counted, prompts.ts is outside Stage C)
+    const av = [...s.corp.hq, ...Object.values(s.corp.servers).flatMap(v => v.root)].some(c => c.cardCode === '30050');
+    console.log(JSON.stringify({ src: d.src, i: d.i, T: s.turnNumber, av, clicks: s.corp.clicks, credits: s.corp.credits, old: o.move, new: n.move, sameCard: o.card === n.card, msOld: o.ms, msNew: n.ms }));
   },
 });
