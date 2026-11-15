@@ -30,6 +30,11 @@ import {
   nextInt,
 } from '../src/core';
 import { deckGameSetup } from '../src/data/decks';
+import { getCardScript } from '../src/core/scripts';
+import { NOTHING_QUALIFIES_STEP } from '../src/core/scripts/types';
+import { STEAL_COST_STEP } from '../src/core/engine/actions/run';
+import { RESOURCE_TRASH_STEP } from '../src/core/engine/actions/basic';
+import { MEMORY_LIMIT_STEP } from '../src/core/engine/checkpoint';
 import type { DeckList } from '../src/data/decks';
 import { ALL_DECKS } from './nsg-sample-decks';
 import { NRDB_TEST_DECKS } from '../src/data/testDecks/nrdb';
@@ -77,6 +82,8 @@ export interface EngineFuzzResult {
   actions: GameAction[];
   /** Number of invariant checks that passed silently (for the summary). */
   checks: number;
+  /** The last state, with FuzzOptions.keepState. */
+  finalState?: GameState;
 }
 
 const SIDES: SideCode[] = ['corp', 'runner'];
@@ -223,6 +230,15 @@ export function checkInvariants(state: GameState, prev: GameState | null, ids: S
     if (ended === 'runner') check(limit >= 0, 'flatline-negative-hand-size', '1.7.2b, 5.5.4a', () => `the Runner reached its discard step with max hand size ${limit} and was not flatlined`);
   }
 
+  // --- Card prompts: a pending effect prompt's step is one its card declares with prompts() (steps.ts) ---
+  for (const p of state.pendingPrompts) {
+    if (p.kind !== 'effect_choice' && p.kind !== 'effect_cards') continue;
+    const declared = getCardScript(p.source.cardCode)?.promptSteps;
+    if (!declared || ENGINE_STEPS.has(p.source.step)) continue;
+    const step = p.source.step.replace(/^psi-(corp|runner):/, '');
+    check(declared.includes(step), 'prompt-step-declared', '-', () => `${p.source.cardCode} asked under step '${p.source.step}', not one of ${declared.join(', ')}`);
+  }
+
   // --- Turn number never goes back ---
   if (prev) check(state.turnNumber >= prev.turnNumber, 'turn-number-grows', '5.1.1', () => `turn ${prev.turnNumber} -> ${state.turnNumber}`);
 
@@ -253,6 +269,9 @@ export function checkInvariants(state: GameState, prev: GameState | null, ids: S
   }
   return { failures, checks };
 }
+
+/** Steps the engine answers itself before any card script sees them (actions/prompt.ts). */
+const ENGINE_STEPS = new Set([NOTHING_QUALIFIES_STEP, STEAL_COST_STEP, RESOURCE_TRASH_STEP, MEMORY_LIMIT_STEP]);
 
 const title = (c: CardInstance) => {
   try {
@@ -311,6 +330,8 @@ export interface FuzzOptions {
   players?: 'random' | 'ai';
   /** Stop levels to play with (a replay of an AI game passes the saved ones); default picked from the seed. */
   stops?: Record<SideCode, StopLevel>;
+  /** Return the last state too (scripts/trace-hash.ts compares it before and after a refactor). */
+  keepState?: boolean;
 }
 
 /** Plays one game with every invariant checked after every action. */
@@ -398,6 +419,7 @@ export function fuzzEngineGame(seed: number, corp: DeckList, runner: DeckList, o
     failures,
     actions,
     checks,
+    ...(opts.keepState && { finalState: state }),
   };
 }
 
