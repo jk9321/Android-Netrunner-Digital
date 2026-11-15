@@ -18,8 +18,9 @@ import {
   TurnFlag,
 } from '../../../engine/cardEffects';
 import { CardScript, EffectContext } from '../../types';
-import { askCards, askChoice, askEvenIfNone, askCorpInstall, installCorpChoice, takeFromRD } from '../../effects';
-import { archivesCards, archivesToHQ, bauAdvance, bauNext, bauVirus, faceUpTypes, hasKeyword, ids, installable, installedCorpCards, picked, placeAdvancement, said, title, type, yesNo } from './helpers';
+import { advanceableInstalled, installCorpChoice, takeFromRD } from '../../effects';
+import { cards, cardsQuestion, choice, choiceQuestion, InstallData, prompts } from '../../steps';
+import { archivesCards, archivesToHQ, faceUpTypes, hasKeyword, ids, installable, installedCorpCards, placeAdvancement, title, type, yesNo } from './helpers';
 
 /** "Play only if the Runner stole or trashed a Corp card during their last turn." */
 const stoleOrTrashedLastTurn = (state: GameState) =>
@@ -27,75 +28,89 @@ const stoleOrTrashedLastTurn = (state: GameState) =>
 
 // Greasing the Palm: Gain 5 credits. You may install 1 card from HQ. You may remove 1 tag to
 // place 1 advancement counter on that card.
+const greasingFlow = prompts({
+  pick: cards((ctx, a) => {
+    if (a.ids[0]) greasingFlow.corpInstall(ctx, a.ids[0], 'server');
+  }),
+  server: choice<InstallData>((ctx, a, data, source) => {
+    const { state } = ctx;
+    const serverId = installCorpChoice(state, source, a.raw);
+    const cardId = data.cardId;
+    if (!serverId || state.runner.tags === 0 || !findInstalledCorpCard(state, cardId)) return;
+    greasingFlow.ask(ctx, 'tag', choiceQuestion('corp', 'Greasing the Palm: remove 1 tag to place 1 advancement counter on the installed card?', yesNo('Remove 1 tag')), { cardId });
+  }),
+  tag: choice<{ cardId: string }>(({ state }, a, data) => {
+    if (a.optionId !== 'yes' || state.runner.tags === 0) return;
+    removeTags(state, 1);
+    placeAdvancement(state, data.cardId, 1, 'Greasing the Palm');
+  }),
+});
+
 export const greasingThePalm: CardScript = {
   onPlay: ctx => {
     const { state } = ctx;
     gainFromCard(state, 'corp', 5, ctx.card);
     addLog(state, 'corp', 'Corp gained 5 [credit] (Greasing the Palm).');
     const cards = installable(state, state.corp.hq);
-    if (cards.length > 0) askCards(ctx, 'corp', 'Greasing the Palm: you may install 1 card from HQ.', ids(cards), 0, 1, 'pick');
+    if (cards.length > 0) greasingFlow.ask(ctx, 'pick', cardsQuestion('corp', 'Greasing the Palm: you may install 1 card from HQ.', ids(cards), 0, 1));
   },
-  onPromptAnswer: (ctx, source, answer) => {
-    const { state } = ctx;
-    if (source.step === 'pick') {
-      const id = picked(answer)[0];
-      if (id) askCorpInstall(ctx, id, 'server');
-    } else if (source.step === 'server') {
-      const serverId = installCorpChoice(state, source, answer);
-      const cardId = source.data?.cardId as string;
-      if (!serverId || state.runner.tags === 0 || !findInstalledCorpCard(state, cardId)) return;
-      askChoice(ctx, 'corp', 'Greasing the Palm: remove 1 tag to place 1 advancement counter on the installed card?', yesNo('Remove 1 tag'), 'tag', { cardId });
-    } else if (source.step === 'tag' && said(answer) && state.runner.tags > 0) {
-      removeTags(state, 1);
-      placeAdvancement(state, source.data?.cardId as string, 1, 'Greasing the Palm');
-    }
-  },
+  ...greasingFlow.script,
 };
 
 // Mindscaping: Resolve 1 of the following: Gain 4 credits and draw 2 cards. Add 1 card from HQ
 // to the top of R&D. / Do X net damage. X is equal to the number of tags the Runner has, up to 3.
+const mindscapingFlow = prompts({
+  mode: choice((ctx, a) => {
+    const { state } = ctx;
+    if (a.optionId !== 'gain') return void dealNetDamage(state, Math.min(3, state.runner.tags));
+    gainFromCard(state, 'corp', 4, ctx.card);
+    drawForEffect(state, 'corp', 2, 'Mindscaping');
+    addLog(state, 'corp', 'Corp gained 4 [credit] (Mindscaping).');
+    if (state.corp.hq.length > 0) mindscapingFlow.ask(ctx, 'top', cardsQuestion('corp', 'Mindscaping: add 1 card from HQ to the top of R&D.', ids(state.corp.hq), 1, 1));
+  }),
+  top: cards(({ state }, a) => {
+    const card = state.corp.hq.find(c => c.instanceId === a.ids[0]);
+    if (!card) return;
+    removeCard(state.corp.hq, card);
+    state.corp.rd.unshift(card);
+    addLog(state, 'corp', 'Corp added 1 card from HQ to the top of R&D (Mindscaping).');
+  }),
+});
+
 export const mindscaping: CardScript = {
   onPlay: ctx =>
-    askChoice(ctx, 'corp', 'Mindscaping: choose one.', [
-      { id: 'gain', label: 'Gain 4 [credit], draw 2, put 1 card from HQ on top of R&D' },
-      { id: 'damage', label: `Do ${Math.min(3, ctx.state.runner.tags)} net damage` },
-    ], 'mode'),
-  onPromptAnswer: (ctx, source, answer) => {
-    const { state } = ctx;
-    if (source.step === 'mode' && said(answer, 'gain')) {
-      gainFromCard(state, 'corp', 4, ctx.card);
-      drawForEffect(state, 'corp', 2, 'Mindscaping');
-      addLog(state, 'corp', 'Corp gained 4 [credit] (Mindscaping).');
-      if (state.corp.hq.length > 0) askCards(ctx, 'corp', 'Mindscaping: add 1 card from HQ to the top of R&D.', ids(state.corp.hq), 1, 1, 'top');
-    } else if (source.step === 'mode') {
-      dealNetDamage(state, Math.min(3, state.runner.tags));
-    } else if (source.step === 'top') {
-      const card = state.corp.hq.find(c => c.instanceId === picked(answer)[0]);
-      if (!card) return;
-      removeCard(state.corp.hq, card);
-      state.corp.rd.unshift(card);
-      addLog(state, 'corp', 'Corp added 1 card from HQ to the top of R&D (Mindscaping).');
-    }
-  },
+    mindscapingFlow.ask(
+      ctx,
+      'mode',
+      choiceQuestion('corp', 'Mindscaping: choose one.', [
+        { id: 'gain', label: 'Gain 4 [credit], draw 2, put 1 card from HQ on top of R&D' },
+        { id: 'damage', label: `Do ${Math.min(3, ctx.state.runner.tags)} net damage` },
+      ]),
+    ),
+  ...mindscapingFlow.script,
 };
 
 // Oppo Research (Terminal - Gray Ops): Play only if the Runner stole or trashed a Corp card during
 // their last turn. After you resolve this operation, your action phase ends. Give the Runner 2 tags.
 // Threat 3 -> You may pay 5 credits to give the Runner 2 tags.
+const oppoFlow = prompts({
+  more: choice(({ state }, a) => {
+    if (a.optionId !== 'yes' || availableCredits(state, 'corp') < 5) return;
+    spendCredits(state, 'corp', 5);
+    giveTags(state, 2);
+  }),
+});
+
 export const oppoResearch: CardScript = {
   terminal: true,
   canPlay: ({ state }) => stoleOrTrashedLastTurn(state),
   onPlay: ctx => {
     giveTags(ctx.state, 2);
     if (threatLevel(ctx.state) >= 3 && availableCredits(ctx.state, 'corp') >= 5) {
-      askChoice(ctx, 'corp', 'Oppo Research: pay 5 [credit] to give the Runner 2 more tags?', yesNo('Pay 5 [credit]'), 'more');
+      oppoFlow.ask(ctx, 'more', choiceQuestion('corp', 'Oppo Research: pay 5 [credit] to give the Runner 2 more tags?', yesNo('Pay 5 [credit]')));
     }
   },
-  onPromptAnswer: ({ state }, _source, answer) => {
-    if (!said(answer) || availableCredits(state, 'corp') < 5) return;
-    spendCredits(state, 'corp', 5);
-    giveTags(state, 2);
-  },
+  ...oppoFlow.script,
 };
 
 // Your Digital Life (Transaction): Gain 1 credit for each card in HQ.
@@ -137,33 +152,44 @@ const playableFromHQ = (state: GameState, card: CardInstance) => {
   }
 };
 
+const pivotFlow = prompts({
+  search: cards((ctx, a) => {
+    const { state } = ctx;
+    const card = a.ids.length ? takeFromRD(state, a.ids[0]) : undefined;
+    if (!card) shuffleRD(state);
+    else {
+      state.corp.hq.push(card);
+      revealInHand(state, 'corp', [card]);
+    }
+    const options = state.corp.hq.filter(c => playableFromHQ(state, c));
+    // Asked even with nothing playable when the Corp's stops are on ALL (4.3.2, see askEvenIfNone)
+    if (threatLevel(state) >= 3)
+      pivotFlow.evenIfNone(
+        ctx,
+        'corp',
+        options.length > 0,
+        () => pivotFlow.ask(ctx, 'use', cardsQuestion('corp', 'Pivot: you may play or install 1 card from HQ.', ids(options), 0, 1)),
+        'Pivot: no card in HQ you can play or install.',
+      );
+  }),
+  use: cards((ctx, a) => {
+    const { state } = ctx;
+    const card = state.corp.hq.find(c => c.instanceId === a.ids[0]);
+    if (!card) return;
+    if (type(card) === 'operation') playCardFrom(state, 'corp', card, state.corp.hq, { fromHand: true });
+    else pivotFlow.corpInstall(ctx, card.instanceId, 'server');
+  }),
+  server: choice<InstallData>((ctx, a, _d, source) => void installCorpChoice(ctx.state, source, a.raw)),
+});
+
 export const pivot: CardScript = {
   extraClicks: 1,
   onPlay: ctx => {
     const cards = ctx.state.corp.rd.filter(c => type(c) === 'operation' || type(c) === 'agenda');
     // A search with criteria may fail to find even when a match exists (rules 8.7.2e); asked even with none, so no tell
-    askCards(ctx, 'corp', 'Pivot: you may search R&D for 1 operation or agenda.', ids(cards), 0, 1, 'search');
+    pivotFlow.ask(ctx, 'search', cardsQuestion('corp', 'Pivot: you may search R&D for 1 operation or agenda.', ids(cards), 0, 1));
   },
-  onPromptAnswer: (ctx, source, answer) => {
-    const { state } = ctx;
-    if (source.step === 'search') {
-      const card = picked(answer).length ? takeFromRD(state, picked(answer)[0]) : undefined;
-      if (!card) shuffleRD(state);
-      else {
-        state.corp.hq.push(card);
-        revealInHand(state, 'corp', [card]);
-      }
-      const options = state.corp.hq.filter(c => playableFromHQ(state, c));
-      // Asked even with nothing playable when the Corp's stops are on ALL (4.3.2, see askEvenIfNone)
-      if (threatLevel(state) >= 3)
-        askEvenIfNone(ctx, 'corp', options.length > 0, () => askCards(ctx, 'corp', 'Pivot: you may play or install 1 card from HQ.', ids(options), 0, 1, 'use'), 'Pivot: no card in HQ you can play or install.');
-    } else if (source.step === 'use') {
-      const card = state.corp.hq.find(c => c.instanceId === picked(answer)[0]);
-      if (!card) return;
-      if (type(card) === 'operation') playCardFrom(state, 'corp', card, state.corp.hq, { fromHand: true });
-      else askCorpInstall(ctx, card.instanceId, 'server');
-    } else if (source.step === 'server') installCorpChoice(state, source, answer);
-  },
+  ...pivotFlow.script,
 };
 
 // Active Policing (Terminal - Gray Ops): Play only if the Runner stole or trashed a Corp card
@@ -175,9 +201,28 @@ const fewerClicks = (state: GameState) => {
   addLog(state, 'corp', 'The Runner gets -1 allotted [click] for their next turn.');
 };
 
+const activePolicingFlow = prompts({
+  pick: cards((ctx, a) => {
+    const id = a.ids[0];
+    if (id && activePolicingFlow.corpInstall(ctx, id, 'server')) return;
+    fewerClicks(ctx.state);
+    activePolicingThreat(ctx);
+  }),
+  server: choice<InstallData>((ctx, a, _d, source) => {
+    installCorpChoice(ctx.state, source, a.raw);
+    fewerClicks(ctx.state);
+    activePolicingThreat(ctx);
+  }),
+  threat: choice(({ state }, a) => {
+    if (a.optionId !== 'yes' || availableCredits(state, 'corp') < 2) return;
+    spendCredits(state, 'corp', 2);
+    fewerClicks(state);
+  }),
+});
+
 const activePolicingThreat = (ctx: EffectContext) => {
   if (threatLevel(ctx.state) >= 3 && availableCredits(ctx.state, 'corp') >= 2) {
-    askChoice(ctx, 'corp', 'Active Policing: pay 2 [credit] for the Runner to get another -1 allotted [click]?', yesNo('Pay 2 [credit]'), 'threat');
+    activePolicingFlow.ask(ctx, 'threat', choiceQuestion('corp', 'Active Policing: pay 2 [credit] for the Runner to get another -1 allotted [click]?', yesNo('Pay 2 [credit]')));
   }
 };
 
@@ -186,32 +231,21 @@ export const activePolicing: CardScript = {
   canPlay: ({ state }) => stoleOrTrashedLastTurn(state),
   onPlay: ctx => {
     const cards = installable(ctx.state, ctx.state.corp.hq);
-    if (cards.length > 0) askCards(ctx, 'corp', 'Active Policing: you may install 1 card from HQ.', ids(cards), 0, 1, 'pick');
+    if (cards.length > 0) activePolicingFlow.ask(ctx, 'pick', cardsQuestion('corp', 'Active Policing: you may install 1 card from HQ.', ids(cards), 0, 1));
     else {
       fewerClicks(ctx.state);
       activePolicingThreat(ctx);
     }
   },
-  onPromptAnswer: (ctx, source, answer) => {
-    const { state } = ctx;
-    if (source.step === 'pick') {
-      const id = picked(answer)[0];
-      if (id && askCorpInstall(ctx, id, 'server')) return;
-      fewerClicks(state);
-      activePolicingThreat(ctx);
-    } else if (source.step === 'server') {
-      installCorpChoice(state, source, answer);
-      fewerClicks(state);
-      activePolicingThreat(ctx);
-    } else if (source.step === 'threat' && said(answer) && availableCredits(state, 'corp') >= 2) {
-      spendCredits(state, 'corp', 2);
-      fewerClicks(state);
-    }
-  },
+  ...activePolicingFlow.script,
 };
 
 // Corporate Hospitality (Double - Transaction): As an additional cost to play this operation,
 // spend [click]. Gain 6 credits and draw 2 cards. Add 1 card from Archives to HQ.
+const hospitalityFlow = prompts({
+  archives: cards(({ state }, a) => archivesToHQ(state, a.ids[0], 'Corporate Hospitality')),
+});
+
 export const corporateHospitality: CardScript = {
   extraClicks: 1,
   onPlay: ctx => {
@@ -220,9 +254,9 @@ export const corporateHospitality: CardScript = {
     addLog(state, 'corp', 'Corp gained 6 [credit] (Corporate Hospitality).');
     drawForEffect(state, 'corp', 2, 'Corporate Hospitality');
     const archives = archivesCards(state).filter(c => c.instanceId !== card.instanceId);
-    if (archives.length > 0) askCards(ctx, 'corp', 'Corporate Hospitality: add 1 card from Archives to HQ.', ids(archives), 1, 1, 'archives');
+    if (archives.length > 0) hospitalityFlow.ask(ctx, 'archives', cardsQuestion('corp', 'Corporate Hospitality: add 1 card from Archives to HQ.', ids(archives), 1, 1));
   },
-  onPromptAnswer: ({ state }, _source, answer) => archivesToHQ(state, picked(answer)[0], 'Corporate Hospitality'),
+  ...hospitalityFlow.script,
 };
 
 // Bring Them Home (Terminal - Black Ops): Play only if the Runner stole or trashed a Corp card
@@ -230,6 +264,18 @@ export const corporateHospitality: CardScript = {
 // 2 cards at random from the grip to the top of the stack. Threat 3 -> You may pay 2 credits to
 // reveal 1 card in the grip at random. The Runner shuffles it into the stack.
 const randomGripCard = (state: GameState) => state.runner.grip[nextInt(state.rng, state.runner.grip.length)];
+
+const bringThemHomeFlow = prompts({
+  threat: choice(({ state }, a) => {
+    if (a.optionId !== 'yes' || state.runner.grip.length === 0 || availableCredits(state, 'corp') < 2) return;
+    spendCredits(state, 'corp', 2);
+    const card = randomGripCard(state);
+    removeCard(state.runner.grip, card);
+    state.runner.stack.push(card);
+    shuffleInPlace(state.rng, state.runner.stack);
+    addLog(state, 'corp', `Corp revealed ${title(card)} from the grip; the Runner shuffled it into the stack (Bring Them Home).`, card.cardCode);
+  }),
+});
 
 export const bringThemHome: CardScript = {
   terminal: true,
@@ -243,27 +289,34 @@ export const bringThemHome: CardScript = {
       addLog(state, 'corp', `Corp revealed ${title(card)} from the grip and added it to the top of the stack (Bring Them Home).`, card.cardCode);
     }
     if (threatLevel(state) >= 3 && state.runner.grip.length > 0 && availableCredits(state, 'corp') >= 2) {
-      askChoice(ctx, 'corp', 'Bring Them Home: pay 2 [credit] to shuffle 1 random card from the grip into the stack?', yesNo('Pay 2 [credit]'), 'threat');
+      bringThemHomeFlow.ask(ctx, 'threat', choiceQuestion('corp', 'Bring Them Home: pay 2 [credit] to shuffle 1 random card from the grip into the stack?', yesNo('Pay 2 [credit]')));
     }
   },
-  onPromptAnswer: ({ state }, _source, answer) => {
-    if (!said(answer) || state.runner.grip.length === 0 || availableCredits(state, 'corp') < 2) return;
-    spendCredits(state, 'corp', 2);
-    const card = randomGripCard(state);
-    removeCard(state.runner.grip, card);
-    state.runner.stack.push(card);
-    shuffleInPlace(state.rng, state.runner.stack);
-    addLog(state, 'corp', `Corp revealed ${title(card)} from the grip; the Runner shuffled it into the stack (Bring Them Home).`, card.cardCode);
-  },
+  ...bringThemHomeFlow.script,
 };
 
 // Sudden Commandment (Mandate): Draw 2 cards. You may play 1 non-terminal operation from HQ.
 // Threat 3 -> If this operation is the first mandate you played this turn, you may pay 3 credits
 // to gain [click].
+const suddenFlow = prompts({
+  play: cards((ctx, a) => {
+    const { state } = ctx;
+    const op = state.corp.hq.find(c => c.instanceId === a.ids[0]);
+    if (op) playCardFrom(state, 'corp', op, state.corp.hq, { fromHand: true });
+    suddenThreat(ctx);
+  }),
+  click: choice(({ state }, a) => {
+    if (a.optionId !== 'yes' || availableCredits(state, 'corp') < 3) return;
+    spendCredits(state, 'corp', 3);
+    state.corp.clicks += 1;
+    addLog(state, 'corp', 'Corp paid 3 [credit] to gain [click] (Sudden Commandment).');
+  }),
+});
+
 const suddenThreat = (ctx: EffectContext) => {
   const { state } = ctx;
   if (threatLevel(state) >= 3 && turnFlag(state, TurnFlag.mandatesPlayed) === 1 && turnFlag(state, `sudden-first:${ctx.card.instanceId}`) > 0 && availableCredits(state, 'corp') >= 3) {
-    askChoice(ctx, 'corp', 'Sudden Commandment: pay 3 [credit] to gain [click]?', yesNo('Pay 3 [credit]'), 'click');
+    suddenFlow.ask(ctx, 'click', choiceQuestion('corp', 'Sudden Commandment: pay 3 [credit] to gain [click]?', yesNo('Pay 3 [credit]')));
   }
 };
 
@@ -275,58 +328,78 @@ export const suddenCommandment: CardScript = {
     const ops = state.corp.hq.filter(c => type(c) === 'operation' && !hasKeyword(c, 'terminal') && playableFromHQ(state, c));
     // Asked even with no operation to play when the Corp's stops are on ALL (4.3.2, see askEvenIfNone); the one answer
     // goes on to the Threat question like a decline
-    const asked = askEvenIfNone(
+    const asked = suddenFlow.evenIfNone(
       ctx,
       'corp',
       ops.length > 0,
-      () => askCards(ctx, 'corp', 'Sudden Commandment: you may play 1 non-terminal operation from HQ.', ids(ops), 0, 1, 'play'),
+      () => suddenFlow.ask(ctx, 'play', cardsQuestion('corp', 'Sudden Commandment: you may play 1 non-terminal operation from HQ.', ids(ops), 0, 1)),
       'Sudden Commandment: no non-terminal operation in HQ you can play.',
       'OK',
       { step: 'play' },
     );
     if (!asked) suddenThreat(ctx);
   },
-  onPromptAnswer: (ctx, source, answer) => {
+  ...suddenFlow.script,
+};
+
+// Business As Usual (Gray Ops): Resolve 1 of the following: Place 1 advancement counter on each of
+// up to 2 installed cards you can advance. / Remove all virus counters from 1 installed card.
+// Threat 3 -> You may also resolve the other mode.
+/** The mode still to resolve after this one ('' for none). */
+type BauNext = { next: string };
+
+const bauFlow = prompts({
+  mode: choice((ctx, a) => {
+    if (a.optionId === 'virus') bauVirus(ctx, '');
+    else bauAdvance(ctx, a.optionId === 'both' ? 'virus' : '');
+  }),
+  advance: cards<BauNext>((ctx, a, data) => {
+    for (const id of a.ids) placeAdvancement(ctx.state, id, 1, 'Business As Usual');
+    bauNext(ctx, data.next);
+  }),
+  virus: cards<BauNext>((ctx, a, data) => {
     const { state } = ctx;
-    if (source.step === 'play') {
-      const op = state.corp.hq.find(c => c.instanceId === picked(answer)[0]);
-      if (op) playCardFrom(state, 'corp', op, state.corp.hq, { fromHand: true });
-      suddenThreat(ctx);
-    } else if (source.step === 'click' && said(answer) && availableCredits(state, 'corp') >= 3) {
-      spendCredits(state, 'corp', 3);
-      state.corp.clicks += 1;
-      addLog(state, 'corp', 'Corp paid 3 [credit] to gain [click] (Sudden Commandment).');
+    const card = [...installedCorpCards(state), ...installedRunnerCards(state)].find(c => c.instanceId === a.ids[0]);
+    if (card) {
+      addLog(state, 'corp', `Corp removed ${counters(card, 'virus')} virus counter(s) from ${title(card)} (Business As Usual).`);
+      card.tokens.virus = 0;
     }
-  },
+    bauNext(ctx, data.next);
+  }),
+});
+
+const bauAdvance = (ctx: EffectContext, next: string) => {
+  const cards = advanceableInstalled(ctx.state);
+  if (cards.length > 0)
+    bauFlow.ask(ctx, 'advance', cardsQuestion('corp', 'Business As Usual: place 1 advancement counter on each of up to 2 installed cards you can advance.', ids(cards), 0, 2), { next });
+  else bauNext(ctx, next);
+};
+
+const bauVirus = (ctx: EffectContext, next: string) => {
+  const cards = [...installedCorpCards(ctx.state), ...installedRunnerCards(ctx.state)].filter(c => counters(c, 'virus') > 0);
+  if (cards.length > 0) bauFlow.ask(ctx, 'virus', cardsQuestion('corp', 'Business As Usual: remove all virus counters from 1 installed card.', ids(cards), 1, 1), { next });
+  else bauNext(ctx, next);
+};
+
+const bauNext = (ctx: EffectContext, next: string) => {
+  if (next === 'virus') bauVirus(ctx, '');
+  else if (next === 'advance') bauAdvance(ctx, '');
 };
 
 export const businessAsUsual: CardScript = {
   onPlay: ctx => {
     const both = threatLevel(ctx.state) >= 3;
-    askChoice(ctx, 'corp', 'Business As Usual: choose a mode.', [
-      { id: 'advance', label: 'Place advancement counters on up to 2 cards' },
-      { id: 'virus', label: 'Remove all virus counters from 1 card' },
-      ...(both ? [{ id: 'both', label: 'Both (threat 3)' }] : []),
-    ], 'mode');
+    bauFlow.ask(
+      ctx,
+      'mode',
+      choiceQuestion('corp', 'Business As Usual: choose a mode.', [
+        { id: 'advance', label: 'Place advancement counters on up to 2 cards' },
+        { id: 'virus', label: 'Remove all virus counters from 1 card' },
+        ...(both ? [{ id: 'both', label: 'Both (threat 3)' }] : []),
+      ]),
+    );
   },
-  onPromptAnswer: (ctx, source, answer) => {
-    const { state } = ctx;
-    const next = String(source.data?.next ?? '');
-    if (source.step === 'mode' && answer.kind === 'effect_choice') {
-      if (answer.optionId === 'virus') bauVirus(ctx, '');
-      else bauAdvance(ctx, answer.optionId === 'both' ? 'virus' : '');
-    } else if (source.step === 'advance') {
-      for (const id of picked(answer)) placeAdvancement(state, id, 1, 'Business As Usual');
-      bauNext(ctx, next);
-    } else if (source.step === 'virus') {
-      const card = [...installedCorpCards(state), ...installedRunnerCards(state)].find(c => c.instanceId === picked(answer)[0]);
-      if (card) {
-        addLog(state, 'corp', `Corp removed ${counters(card, 'virus')} virus counter(s) from ${title(card)} (Business As Usual).`);
-        card.tokens.virus = 0;
-      }
-      bauNext(ctx, next);
-    }
-  },
+  ...bauFlow.script,
 };
 
 export const liberationCorpOperationsScripts: Record<string, CardScript> = {

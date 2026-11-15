@@ -5,9 +5,9 @@ import { addLog } from '../../../engine/log';
 import { beforeCorpCardUninstalled, findInstalledCorpCard, removeCard, revealInHand } from '../../../engine/helpers';
 import { rezForFree } from '../../../engine/actions/corp';
 import { corpInstallCost, installCorpCardFrom } from '../../../engine/actions/install';
-import { installedRunnerCards, trashInstalledRunnerCard } from '../../../engine/damage';
+import { trashInstalledRunnerCard } from '../../../engine/damage';
 import { iceSubtypes } from '../../../engine/ice';
-import { counters, gainFromCard, rezCost, useOncePerTurn } from '../../../engine/cardEffects';
+import { gainFromCard, rezCost, useOncePerTurn } from '../../../engine/cardEffects';
 import { EffectAnswer, EffectContext } from '../../types';
 import { advanceableInstalled, askCards, askChoice, corpInstallOptions, corpZoneOf } from '../../effects';
 import { CardsQuestion, ChoiceQuestion } from '../../steps';
@@ -190,23 +190,3 @@ export function installAndRez(state: GameState, cardId: string, serverOption: st
 }
 
 export const lycianIs = (state: GameState, ice: CardInstance, subtype: 'barrier' | 'code gate' | 'sentry') => iceSubtypes(ice, state).includes(subtype);
-
-// Business As Usual (Gray Ops): Resolve 1 of the following: Place 1 advancement counter on each of
-// up to 2 installed cards you can advance. / Remove all virus counters from 1 installed card.
-// Threat 3 -> You may also resolve the other mode.
-export const bauAdvance = (ctx: EffectContext, next: string) => {
-  const cards = advanceableInstalled(ctx.state);
-  if (cards.length > 0) askCards(ctx, 'corp', 'Business As Usual: place 1 advancement counter on each of up to 2 installed cards you can advance.', ids(cards), 0, 2, 'advance', { next });
-  else bauNext(ctx, next);
-};
-
-export const bauVirus = (ctx: EffectContext, next: string) => {
-  const cards = [...installedCorpCards(ctx.state), ...installedRunnerCards(ctx.state)].filter(c => counters(c, 'virus') > 0);
-  if (cards.length > 0) askCards(ctx, 'corp', 'Business As Usual: remove all virus counters from 1 installed card.', ids(cards), 1, 1, 'virus', { next });
-  else bauNext(ctx, next);
-};
-
-export const bauNext = (ctx: EffectContext, next: string) => {
-  if (next === 'virus') bauVirus(ctx, '');
-  else if (next === 'advance') bauAdvance(ctx, '');
-};
