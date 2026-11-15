@@ -21,6 +21,7 @@ const SLOW_TESTS = [
   'tests/roomFuzz.test.ts', // ~15 s: the game server's room fuzzer (multiplayer chunk 2b)
   'tests/hiddenDraws.test.ts', // beta, about 8 s
   'tests/onlineClient.test.ts', // about 6 s: whole online games through the browser's table (multiplayer chunk 2c)
+  'tests/threatCacheAudit.test.ts', // deal 1421 takes minutes in a container and trips vitest's RPC timeout; it still runs in CI
 ];
 
 const bin = (name) => `node_modules/.bin/${name}`;
