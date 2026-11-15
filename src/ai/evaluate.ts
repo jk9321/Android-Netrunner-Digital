@@ -155,17 +155,21 @@ export function runnerRigValue(state: GameState): number {
 }
 
 
-/** Worth of an installed Corp root card (assets and upgrades). */
-export function corpCardValue(card: CardInstance, state?: GameState, viewer: SideCode = 'corp'): number {
-  return guardLoop(state, `corp card ${cardDef(card).title} ${card.instanceId}`, () => corpKeepValue(card.cardCode), () => corpCardWorth(card, state, viewer));
+/**
+ * Worth of an installed Corp root card (assets and upgrades). `left` (the Runner's trash-or-leave reader only, runs.ts
+ * serverWorth): what the card still pays the Corp if it is left alone, its payouts not discounted by the chance the
+ * Runner trashes it (RUNNER-ASSET-TRASH; Stage D's D9 reads the default, the expected worth).
+ */
+export function corpCardValue(card: CardInstance, state?: GameState, viewer: SideCode = 'corp', left = false): number {
+  return guardLoop(state, `corp card ${cardDef(card).title} ${card.instanceId}${left ? ' left' : ''}`, () => corpKeepValue(card.cardCode), () => corpCardWorth(card, state, viewer, left));
 }
 
-function corpCardWorth(card: CardInstance, state: GameState | undefined, viewer: SideCode): number {
+function corpCardWorth(card: CardInstance, state: GameState | undefined, viewer: SideCode, left = false): number {
   if (state && viewer === 'runner' && card.isRezzed && card.cardCode === SPIN_DOCTOR) return spentSpinDoctorWorth(state);
   const hosted = counters(card, 'credit');
   const power = state && card.isRezzed ? countersWorth(state, card, 'power') : 0;
   const profile = state ? profileOf(card.cardCode) : undefined;
-  if (state && profile) return card.isRezzed ? payoutWorth(profile, turnsLeft(state), hosted, payoutWait(state, profile, 'corp', inIcedServer(state, card)), cardRate(state, 'corp')) : corpKeepValue(card.cardCode, state);
+  if (state && profile) return card.isRezzed ? payoutWorth(profile, turnsLeft(state), hosted, payoutWait(state, profile, 'corp', inIcedServer(state, card), left), cardRate(state, 'corp')) : corpKeepValue(card.cardCode, state);
   if (card.isRezzed && hosted > 0) {
     return 1 + (state ? countersWorth(state, card, 'credit') : hosted * RATES.counters.hostedCredit) + power;
   }

@@ -21,8 +21,10 @@ describe('AI judgement in fixed positions', () => {
     state.runner.grip = state.runner.grip.slice(0, 5);
     expect(subroutineCost(state, 'Do 1 net damage.')).toBeCloseTo(damageWorth(state, 1)); // a card lost and a step on the damage clock (plan.subCosts)
     expect(damageWorth(state, 1)).toBeGreaterThanOrEqual(RATES.drawnCard);
+    // Rule 10.4.4: flatlined by MORE damage than the cards in the grip: 1 damage on 1 card is survived, 2 is not
     state.runner.grip = state.runner.grip.slice(0, 1);
-    expect(subroutineCost(state, 'Do 1 net damage.')).toBe(Infinity); // would flatline
+    expect(subroutineCost(state, 'Do 1 net damage.')).toBeLessThan(Infinity);
+    expect(subroutineCost(state, 'Do 2 net damage.')).toBe(Infinity); // would flatline
   });
 
   it("won't run into rezzed ice it can't break or afford", () => {

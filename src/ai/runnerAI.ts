@@ -10,7 +10,7 @@ import type { HeuristicOptions } from './corpAI';
 import { asSide, logNudge, nudge, tuning } from './synergy';
 import { decisionContext } from './handValues';
 import { PlanMemory, planTurn, plannerOn, runnerDecisionView } from './turnPlanner';
-import { BOTULUS, RunnerMemory, chainReactionBonus, TRANQUILIZER, MANEGARM, bestBreakPlan, botulusBreaks, runCreditSpend, hostedTrojans, creditsAhead, iceCreditsAhead, iceCost, iceCreditNeed, needsBiggerHand, runScore, runShortfall, serverValue, spendCost, subroutineCost } from './runs';
+import { BOTULUS, RunnerMemory, chainReactionBonus, planCost, TRANQUILIZER, MANEGARM, bestBreakPlan, botulusBreaks, runCreditSpend, hostedTrojans, creditsAhead, iceCreditsAhead, iceCost, iceCreditNeed, needsBiggerHand, runScore, runShortfall, serverValue, spendCost, subroutineCost, tankDamage } from './runs';
 import { RATES } from './valueModel';
 import { plan } from './pricing';
 
@@ -73,7 +73,7 @@ export class HeuristicRunnerAI implements Agent {
   private decide(state: GameState): GameAction {
     decisionContext(state, 'runner');
     this.remember(state);
-    if (activePrompt(state)) return answerPrompt(state, 'runner', this.memory, this.synergy);
+    if (activePrompt(state)) return this.promptAnswer(state);
     const legal = getLegalActions(state, 'runner');
     if (state.activeRun) return this.runAction(state, legal) ?? legal[0];
     return this.mainAction(state, legal);
@@ -116,8 +116,12 @@ export class HeuristicRunnerAI implements Agent {
     const subs = iceSubroutines(state, ice);
     // Banner: once used, this encounter's subroutines can't end the run
     const unbroken = subs
-      .map((s, i) => ({ i, cost: encounter.cannotEndRun && /^end the run\.?$/i.test(s.label.trim()) ? 0 : subroutineCost(state, s.label) }))
+      .map((s, i) => ({ i, label: s.label, cost: encounter.cannotEndRun && /^end the run\.?$/i.test(s.label.trim()) ? 0 : subroutineCost(state, s.label) }))
       .filter(s => !encounter.broken[s.i]);
+    // Each subroutine's own price reads the grip as it stands; together they may be more damage than the grip (rules
+    // 9.8.7b, 10.4.4: Empiricist's 1 net then 2 net on 2 cards). The one that would flatline must be broken, as one that ends the run
+    const lethal = tankDamage(state, unbroken).lethal;
+    for (const s of unbroken) if (s.i === lethal) s.cost = Infinity;
     const mustBreak = unbroken.filter(s => s.cost >= 1);
     if (mustBreak.length === 0) return undefined;
 
@@ -173,7 +177,7 @@ export class HeuristicRunnerAI implements Agent {
     };
 
     const breakPlan = bestBreakPlan(state, ice, mustBreak.length);
-    if (breakPlan && breakPlan.credits <= tank + 0.5) {
+    if (breakPlan && planCost(breakPlan) <= tank + 0.5) {
       const action = tryBreaking(mustBreak);
       if (action) return action;
     }
@@ -263,6 +267,22 @@ export class HeuristicRunnerAI implements Agent {
    */
   private ownView(state: GameState): GameState {
     return this.planner ? runnerDecisionView(state) : state;
+  }
+
+  /**
+   * A prompt answered from the Runner's own view (rule 10.2.2a; ai-runner-fixes, AI Coordinator 2026-11-14): an answer
+   * that draws (LilyPAD, Read-Write Share) is scored on the guessed stack, not the real next cards. A prompt that shows
+   * stack cards (a search, the top card revealed) is answered on the real state, since the Runner sees those cards; so is
+   * any answer the guess makes that is not legal on the real state.
+   */
+  private promptAnswer(state: GameState): GameAction {
+    const real = () => answerPrompt(state, 'runner', this.memory, this.synergy);
+    const view = this.ownView(state);
+    if (view === state) return real();
+    const shown = JSON.stringify(activePrompt(state));
+    if (state.runner.stack.some(c => shown.includes(`"${c.instanceId}"`))) return real();
+    const answer = answerPrompt(view, 'runner', this.memory, this.synergy);
+    return isLegalAction(state, answer) ? answer : real();
   }
 
   private scoreMain(state: GameState, action: GameAction, before: number, view: GameState = state): number {

@@ -6,7 +6,7 @@ import { PAYOUT_RISK } from '../payoutRisk';
 import { counterWorth, PAID_OUT, paidOneATurn, paidOut, trojanHostWorth } from '../counterValues';
 import { cardRate, CLICK, payoutClick, payoutSlide, RATES } from '../valueModel';
 import { tagsWorth } from '../evaluate';
-import { bestBreakPlan } from '../runs';
+import { bestBreakPlan, planCost } from '../runs';
 import { accessWorth, anySuccess, centralSuccess, conduitCounterWorth, counterWorthOf, damageWorth, lock, muWorth, PACE, perTurn, runSuccess, VIRUS_WAIT, virusWait } from '../effectValues';
 import type { RunOptions } from '../runs';
 import { CardAI } from './types';
@@ -60,7 +60,7 @@ export const SYSTEM_GATEWAY: Record<string, CardAI> = {
     // A virus counter a turn, each breaking a subroutine on its host; useful for about 3 turns
     runner: (state, _code, card) => perTurn(state, card ? counterWorth(state, card, 'virus') : 1, 'runner', 0, 3, virusWait()),
     // Each counter breaks 1 subroutine on its host, worth what breaking one costs (3 if nothing breaks it)
-    counters: { virus: (state, card) => trojanHostWorth(state, card, host => Math.min(3, bestBreakPlan(state, host, 1)?.credits ?? 3)) },
+    counters: { virus: (state, card) => trojanHostWorth(state, card, host => { const plan = bestBreakPlan(state, host, 1); return Math.min(3, plan ? planCost(plan) : 3); }) },
   },
   // Buzzsaw
   '30005': { synergy: { gives: { breakers: 1 } } },
