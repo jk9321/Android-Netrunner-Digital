@@ -20,6 +20,7 @@ import {
   trashableFirst,
 } from '../engine/actions/install';
 import { getCardScript } from './index';
+import type { CardsQuestion } from './steps';
 import { EffectAnswer, EffectContext, NOTHING_QUALIFIES_STEP } from './types';
 
 /** Helpers shared by card scripts. */
@@ -297,8 +298,14 @@ export function advanceableInstalled(state: GameState): CardInstance[] {
  * top of R&D. The Corp picks the HQ cards; the rest come from the top of
  * R&D. The script's onPromptAnswer calls resolveSabotage() for `step`.
  */
-export function sabotage(ctx: EffectContext, x: number, step: string): void {
-  const { state } = ctx;
+/** Sabotage X's data: X, for resolveSabotage. */
+export type SabotageData = { x: number };
+
+/**
+ * Sabotage X: the Corp's question (cards from HQ; the rest come from the top of R&D), to ask under a cards
+ * step whose data is SabotageData. With HQ empty there is nothing to choose: it resolves now and returns null.
+ */
+export function sabotageQuestion(state: GameState, x: number): CardsQuestion | null {
   const hq = state.corp.hq;
   const max = Math.min(x, hq.length);
   // Too few cards in R&D: enough from HQ that R&D covers the rest (rules 10.12.3a); fewer than X in both, all of them (10.12.3b)
@@ -306,9 +313,9 @@ export function sabotage(ctx: EffectContext, x: number, step: string): void {
   addLog(state, 'runner', `Sabotage ${x}: the Corp trashes ${x} card(s) from HQ and/or the top of R&D.`);
   if (max === 0) {
     resolveSabotage(state, x, []);
-    return;
+    return null;
   }
-  askCards(ctx, 'corp', `Sabotage ${x}: choose cards from HQ to trash (the rest come from the top of R&D).`, hq.map(c => c.instanceId), min, max, step, { x });
+  return { side: 'corp', message: `Sabotage ${x}: choose cards from HQ to trash (the rest come from the top of R&D).`, candidateIds: hq.map(c => c.instanceId), min, max };
 }
 
 export function resolveSabotage(state: GameState, x: number, hqIds: string[]): void {
