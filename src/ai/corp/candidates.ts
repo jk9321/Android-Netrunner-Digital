@@ -7,7 +7,7 @@ import { answerPrompt, simulate } from '../prompts';
 import { serverHold } from './hold';
 import { rezMoney } from './rezMoney';
 import { HeldLine } from './lines';
-import { Placement, iceCount, place, placedInstall, placementAction } from './placement';
+import { FreeInstall, Placement, iceCount, place, placedInstall, placementAction } from './placement';
 import { rezAllowed } from './rez';
 import { advancesAsIce, iceAdvanceValue, isPettyCash, overAdvance, tagFirst, tagsBeforeScore, trapAdvanceCap } from './cardRules';
 import { placedCounterWorth } from '../effectValues';
@@ -59,6 +59,8 @@ export interface CandidateOptions {
   held: HeldLine | null;
   /** The free-action guard has run out (loop safety): moves that spend no click are left out. */
   freeExhausted: boolean;
+  /** A free install outside the main phase (placement.ts FreeInstall): `legal` holds the installs it offers, and the board after one is its own. */
+  free?: FreeInstall;
 }
 
 const typeOf = (c: CardInstance | undefined) => (c ? cardDef(c).type_code : undefined);
@@ -80,8 +82,8 @@ function resolved(state: GameState, action: GameAction): GameState | null {
 }
 
 /** Ice the Corp can install and still rez within keep (rule 8.5.11a: 1 credit per ice already protecting the server). */
-function icePaid(state: GameState, card: CardInstance, a: Install, keep: number): boolean {
-  const server = a.asNewRemote || !a.targetServerId ? null : state.corp.servers[a.targetServerId];
+function icePaid(state: GameState, card: CardInstance, a: Install, keep: number, free?: FreeInstall): boolean {
+  const server = a.asNewRemote || !a.targetServerId || free ? null : state.corp.servers[a.targetServerId];
   const install = server ? server.ice.length : 0;
   return state.corp.credits - install - (cardDef(card).cost ?? 0) >= keep;
 }
@@ -98,11 +100,11 @@ function turnsToScore(state: GameState, agenda: CardInstance, clicksUsed: number
 }
 
 /** The destinations `place` gives a card's installs: the counted rule's alone where one applies (spec 1.3, authority 3). */
-function placedInstalls(state: GameState, card: CardInstance, installs: Install[], held: HeldLine | null): { action: Install; placement: Placement }[] {
+function placedInstalls(state: GameState, card: CardInstance, installs: Install[], held: HeldLine | null, free?: FreeInstall): { action: Install; placement: Placement }[] {
   const seen = new Map<string, { action: Install; placement: Placement }>();
   const counted: { action: Install; placement: Placement }[] = [];
   for (const from of installs) {
-    const p = place(state, card, { from, held: held ? structuredClone(held) : null });
+    const p = place(state, card, { from, held: held ? structuredClone(held) : null, ...(free ? { free } : {}) });
     if (!p.length) continue;
     const placement = p[0];
     // An asset line (assetCover) is begun from the asset's own install: Q5 (scoreInTwoPick) plays its ice first
@@ -123,8 +125,9 @@ export function corpCandidates(state: GameState, legal: GameAction[], opts: Cand
   const corp = state.corp;
   const keep = rezMoney(state).keep;
   const before = evaluate(state, 'corp');
+  const afterOf = (a: GameAction) => (opts.free && isInstall(a) ? opts.free(a) : simulate(state, a));
   const value = (a: GameAction) => {
-    const after = resolved(state, a);
+    const after = opts.free && isInstall(a) ? opts.free(a) : resolved(state, a);
     return after ? { after, v: evaluate(after, 'corp') - before, clicks: corp.clicks - after.corp.clicks } : null;
   };
   const credit = legal.find(a => a.type === 'GAIN_CREDIT');
@@ -203,7 +206,7 @@ export function corpCandidates(state: GameState, legal: GameAction[], opts: Cand
       case 'ADVANCE_CARD': {
         const card = findInstalled(state, a.cardInstanceId);
         if (!card) break;
-        if (typeOf(card) === 'agenda') agendaMove(state, a, card, keep, add);
+        if (typeOf(card) === 'agenda') agendaMove(state, a, card, keep, add, afterOf);
         else {
           // An advance on an asset or on ice (C4, registry row "an advance on an unknown asset"): the board's value of the
           // click and credit, plus what the counter is worth by its owner, which the board does not price
@@ -234,21 +237,21 @@ export function corpCandidates(state: GameState, legal: GameAction[], opts: Cand
   for (const [id, installs] of installsByCard) {
     const card = corp.hq.find(c => c.instanceId === id);
     if (!card) continue;
-    for (const { action } of placedInstalls(state, card, installs, opts.held)) {
+    for (const { action } of placedInstalls(state, card, installs, opts.held, opts.free)) {
       const t = typeOf(card);
-      if (t === 'ice') iceMove(state, action, card, keep, add);
+      if (t === 'ice') iceMove(state, action, card, keep, add, afterOf, opts.free);
       else if (t === 'agenda') {
         const target = action.targetServerId ? corp.servers[action.targetServerId] : null;
         // Not over an agenda or asset already in the root (rule 8.5.6a would trash it): placement's question, not a move
         if (target?.root.some(c => ['agenda', 'asset'].includes(typeOf(c) ?? ''))) continue;
-        agendaMove(state, action, card, keep, add);
+        agendaMove(state, action, card, keep, add, afterOf);
       } else play(action, 4, false);
     }
   }
 
   for (const { a, card } of faceUp) {
     const target = a.targetServerId ? corp.servers[a.targetServerId] : null;
-    if (!target?.root.some(c => ['agenda', 'asset'].includes(typeOf(c) ?? ''))) agendaMove(state, a, card, keep, add, 1);
+    if (!target?.root.some(c => ['agenda', 'asset'].includes(typeOf(c) ?? ''))) agendaMove(state, a, card, keep, add, afterOf, 1);
   }
   // Line 7: draw while the Corp holds fewer cards it can use than clicks to use them, else a credit
   const draw = drawFirst(state, out);
@@ -333,10 +336,10 @@ export function sortCandidates(list: Candidate[]): Candidate[] {
 const findInstalled = (state: GameState, id: string) => Object.values(state.corp.servers).flatMap(v => [...v.root, ...v.ice]).find(c => c.instanceId === id);
 
 /** Lines 2, 6, 8: an ice install at its placement (see the file comment and the tie-break contract, spec 1.3). */
-function iceMove(state: GameState, a: Install, card: CardInstance, keep: number, add: (c: Candidate) => void) {
-  const paid = icePaid(state, card, a, keep);
-  const cost = (a.asNewRemote || !a.targetServerId ? 0 : state.corp.servers[a.targetServerId]?.ice.length ?? 0) + (cardDef(card).cost ?? 0);
-  const after = simulate(state, a);
+function iceMove(state: GameState, a: Install, card: CardInstance, keep: number, add: (c: Candidate) => void, afterOf: (a: GameAction) => GameState | null, free?: FreeInstall) {
+  const paid = icePaid(state, card, a, keep, free);
+  const cost = (a.asNewRemote || !a.targetServerId || free ? 0 : state.corp.servers[a.targetServerId]?.ice.length ?? 0) + (cardDef(card).cost ?? 0);
+  const after = afterOf(a);
   if (!after) return;
   const id = idNum(card.instanceId);
   if (a.asNewRemote || !a.targetServerId) {
@@ -357,8 +360,8 @@ function iceMove(state: GameState, a: Install, card: CardInstance, keep: number,
 }
 
 /** Lines 3 and 9: an agenda install or advance, by whether its server holds after the move (margin as an order key, never a veto). */
-function agendaMove(state: GameState, a: GameAction, card: CardInstance, keep: number, add: (c: Candidate) => void, shown = 0) {
-  const after = simulate(state, a);
+function agendaMove(state: GameState, a: GameAction, card: CardInstance, keep: number, add: (c: Candidate) => void, afterOf: (a: GameAction) => GameState | null, shown = 0) {
+  const after = afterOf(a);
   if (!after) return;
   const server = serverOfCard(after, card.instanceId);
   const hold = server ? serverHold(after, server, { when: 'runnerTurn', corpCredits: after.corp.credits }) : null;
@@ -378,4 +381,54 @@ function drawFirst(state: GameState, out: Candidate[]): boolean {
   const hq = new Set(state.corp.hq.map(c => c.instanceId));
   const usable = new Set(out.filter(c => c.line <= 6 && !c.behind && c.card && hq.has(c.card)).map(c => c.card)).size;
   return state.corp.hq.length < state.corp.handSizeLimit && usable < state.corp.clicks - 1;
+}
+
+/**
+ * A free install from HQ ignoring all costs (Synapse Global; Stage C1b, c0-rulings addendum 08:10Z; registry row
+ * "placement"): the order's own moves for the HQ cards that are not agendas (an agenda would be revealed), each
+ * at place's destination with the free option, and the board after each from the engine's own prompt. The card goes
+ * to its first move in the order; the score is that move's position counted down from the list's length, read as
+ * "which first", never as a value. Nothing is installed only when the order offers no install at all. The model's play
+ * value is not read as a gate: it prices a card leaving HQ above unrezzed ice (Doomscroll on bare R&D, bug report #13).
+ */
+const freeOrders = new WeakMap<GameState, Map<string, Candidate[]>>();
+export function freeInstallTarget(state: GameState, card: CardInstance, options: string[]): { server: string; score: number } | undefined {
+  if (typeOf(card) === 'agenda') return undefined;
+  const key = options.join();
+  const cached = freeOrders.get(state)?.get(key);
+  const order = cached ?? freeInstallOrder(state, options);
+  if (!cached) (freeOrders.get(state) ?? freeOrders.set(state, new Map()).get(state)!).set(key, order);
+  const i = order.findIndex(c => c.card === card.instanceId);
+  if (i < 0) return undefined;
+  const a = order[i].action as Install;
+  return { server: a.asNewRemote || !a.targetServerId ? 'new' : a.targetServerId, score: order.length - i };
+}
+
+export function freeInstallOrder(state: GameState, options: string[]): Candidate[] {
+  const free: FreeInstall = a => freeAfter(state, a as Install);
+  const legal: GameAction[] = [];
+  for (const c of state.corp.hq) {
+    if (!['ice', 'asset', 'upgrade'].includes(typeOf(c) ?? '')) continue;
+    for (const o of options) legal.push(o === 'new' ? { type: 'INSTALL_CARD', player: 'corp', cardInstanceId: c.instanceId, asNewRemote: true } : { type: 'INSTALL_CARD', player: 'corp', cardInstanceId: c.instanceId, targetServerId: o });
+  }
+  const where = (a: Install) => (a.asNewRemote || !a.targetServerId ? 'new' : a.targetServerId);
+  return corpCandidates(state, legal, { held: null, freeExhausted: false, free }).filter(c => isInstall(c.action) && options.includes(where(c.action)));
+}
+
+/** The board after the free install of `a`, answered through the open prompt (the card pick, then its server), or null. */
+function freeAfter(state: GameState, a: Install): GameState | null {
+  const answer = (s: GameState, choice: object) => {
+    const p = activePrompt(s);
+    return p ? simulate(s, { type: 'RESOLVE_PROMPT', player: 'corp', promptId: p.id, choice } as GameAction) : null;
+  };
+  let s: GameState | null = state;
+  const pick = activePrompt(state);
+  if (pick?.kind === 'effect_cards') {
+    if (!pick.candidateIds.includes(a.cardInstanceId)) return null;
+    s = answer(state, { kind: 'effect_cards', cardInstanceIds: [a.cardInstanceId] });
+  }
+  const at = s && activePrompt(s);
+  const server = a.asNewRemote || !a.targetServerId ? 'new' : a.targetServerId;
+  if (!s || at?.kind !== 'effect_choice' || String(at.source.data?.cardId) !== a.cardInstanceId || !at.options.some(o => o.id === server)) return null;
+  return answer(s, { kind: 'effect_choice', optionId: server });
 }

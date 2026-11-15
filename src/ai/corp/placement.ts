@@ -64,7 +64,22 @@ export interface PlaceContext {
   held: HeldLine | null;
   /** A counted score this turn (scoreNowPlan): no line and no rewriter runs; the pick stands only while it keeps the score. */
   scoreNow?: ScoreLine | null;
+  /** A free install outside the Corp's main phase (see FreeInstall). */
+  free?: FreeInstall;
 }
+
+/**
+ * A free install from HQ outside the Corp's main phase, ignoring all costs (Synapse Global; Stage C1b, c0-rulings
+ * addendum 08:10Z): the board after the install of `a`, as the engine's own prompt makes it, or null. Under it the rules
+ * of place are asked without their phase test, their click tests and the install cost (8.5.11a costs are ignored); the
+ * rez stays within keep. Step 1 (the counted line, a plan of this turn's and next turn's clicks) is not asked: a free
+ * install is no step of a line. The moves are shaped without the engine's legal list, which has no install outside the
+ * main phase; the caller checks the server against the prompt's options.
+ */
+export type FreeInstall = (a: GameAction) => GameState | null;
+const shaped = (state: GameState, want: Record<string, unknown>, free?: FreeInstall): GameAction | undefined =>
+  free ? ({ player: 'corp', ...want } as GameAction) : legalShape(state, want);
+const mainOr = (state: GameState, free?: FreeInstall) => !!free || isCorpMain(state);
 
 type Install = GameAction & { type: 'INSTALL_CARD'; cardInstanceId: string; targetServerId?: string; asNewRemote?: boolean; trashFirst?: string[] };
 const isInstall = (a: GameAction): a is Install => a.type === 'INSTALL_CARD';
@@ -81,6 +96,10 @@ const at = (a: Install, reason: PlacementReason): Placement => {
 export function place(state: GameState, card: CardInstance, ctx: PlaceContext): Placement[] {
   const from = ctx.from;
   if (!isInstall(from) || from.cardInstanceId !== card.instanceId || !state.corp.hq.some(c => c.instanceId === card.instanceId)) return [];
+  if (ctx.free) {
+    const r = placeRules(state, card, from, ctx.free);
+    return [at(r.action, r.reason)];
+  }
   if (ctx.scoreNow) return keepsScore(state, from, ctx.scoreNow) ? [at(from, 'pick')] : [];
   // 1. The counted line (scoreInTwoPick changes the held line it is given: a copy)
   const held = ctx.held ? structuredClone(ctx.held) : null;
@@ -103,17 +122,17 @@ export function place(state: GameState, card: CardInstance, ctx: PlaceContext): 
 }
 
 /** Rules 2 to 5 of place, for an install no counted line takes: the install that results, and the rule that chose it. */
-function placeRules(state: GameState, card: CardInstance, from: Install): { action: Install; reason: PlacementReason } {
+function placeRules(state: GameState, card: CardInstance, from: Install, free?: FreeInstall): { action: Install; reason: PlacementReason } {
   // 2-4. Central ice, the ice redirect, the asset partner, in that order
-  const central = centralIce(state, from);
+  const central = centralIce(state, from, free);
   if (central && isInstall(central)) return { action: central, reason: 'centralIce' };
-  const redirect = iceRedirect(state, from);
+  const redirect = iceRedirect(state, from, free);
   if (redirect && isInstall(redirect)) return { action: redirect, reason: 'iceRedirect' };
-  const partner = assetPartner(state, from);
+  const partner = assetPartner(state, from, free);
   if (partner && isInstall(partner)) return { action: partner, reason: 'assetPartner' };
   // 5. Ice no rule placed and that changes no count where it stands: spec 1.8 ice rule 3 (C1), the fallback
   if (typeOf(card) === 'ice' && plan().corpCore) {
-    const fallback = iceFallback(state, card, from);
+    const fallback = iceFallback(state, card, from, free);
     if (fallback) return { action: fallback, reason: 'fallback' };
   }
   // 6. The pick, with the installScore asset line that put it there
@@ -141,28 +160,29 @@ export function iceCount(state: GameState, a: Install, card: CardInstance, after
  * Spec 1.8 ice rule 3 (Stage C1, replacing installScore's per-server numbers): ice that changes no count where it was
  * proposed goes to the bare or thinnest of HQ and R&D (ties: the larger central stake, as centralIce), when the Corp can
  * pay its install there (1 credit per ice already in front, rule 8.5.11a) and its rez within keep; else to the scoring
- * remote. Ice that changes a count on a staked server stays (line 2), and ice into a new remote stays while HQ holds an
+ * remote; with neither paid and no scoring remote, to the thinnest central still (c0-rulings 08:15Z: the paid test
+ * chooses between a central and the scoring remote; unrezzed ice deters a breakerless Runner). Equally thin: the larger
+ * central stake (centralStake), then HQ before R&D (a fixed order; servers carry no instance id). Ice that changes a count on a staked server stays (line 2), and ice into a new remote stays while HQ holds an
  * agenda or asset to go behind it this turn (rule 4: a build pair, two clicks). Null: the proposal stands.
  */
-function iceFallback(state: GameState, card: CardInstance, from: Install): Install | null {
-  if (!isCorpMain(state)) return null;
+function iceFallback(state: GameState, card: CardInstance, from: Install, free?: FreeInstall): Install | null {
+  if (!mainOr(state, free)) return null;
   if (from.asNewRemote || !from.targetServerId) {
     const root = state.corp.hq.some(c => c.instanceId !== card.instanceId && (typeOf(c) === 'agenda' || typeOf(c) === 'asset'));
-    if (root && state.corp.clicks >= 2) return null;
+    if (root && (free || state.corp.clicks >= 2)) return null;
   } else {
-    const after = executeAction(state, from);
+    const after = free ? free(from) : executeAction(state, from);
     const count = after ? iceCount(state, from, card, after) : null;
     if (count?.staked) return null;
   }
   const keep = rezMoney(state).keep;
   const centralStakes = centralStake(state, card.instanceId);
-  const paid = (id: string) => state.corp.credits - state.corp.servers[id].ice.length - rezCostOf(state, card) >= keep;
-  const central = (['hq', 'rd'] as const)
-    .filter(paid)
-    .sort((x, y) => state.corp.servers[x].ice.length - state.corp.servers[y].ice.length || centralStakes[y] - centralStakes[x])[0];
-  const to = central ?? scoringRemote(state)?.id;
+  const paid = (id: string) => state.corp.credits - (free ? 0 : state.corp.servers[id].ice.length) - rezCostOf(state, card) >= keep;
+  const thinnest = (ids: readonly ('hq' | 'rd')[]) =>
+    [...ids].sort((x, y) => state.corp.servers[x].ice.length - state.corp.servers[y].ice.length || centralStakes[y] - centralStakes[x])[0];
+  const to = thinnest((['hq', 'rd'] as const).filter(paid)) ?? scoringRemote(state)?.id ?? thinnest(['hq', 'rd']);
   if (!to || to === from.targetServerId) return null;
-  return (legalShape(state, { type: 'INSTALL_CARD', cardInstanceId: card.instanceId, targetServerId: to }) as Install | undefined) ?? null;
+  return (shaped(state, { type: 'INSTALL_CARD', cardInstanceId: card.instanceId, targetServerId: to }, free) as Install | undefined) ?? null;
 }
 
 /**
@@ -332,8 +352,8 @@ export function scoringShort(state: GameState): ServerLike | null {
  * first ice on a server with a card in its root (-1.4 ± 0.8 against this, run 43167848111). Central ice and the choice to install ice at all are the
  * pick's: a pure redirect, no veto, no extra install. Null: no change.
  */
-export function iceRedirect(state: GameState, pick: GameAction): GameAction | null {
-  if (pick.type !== 'INSTALL_CARD' || !isCorpMain(state)) return null;
+export function iceRedirect(state: GameState, pick: GameAction, free?: FreeInstall): GameAction | null {
+  if (pick.type !== 'INSTALL_CARD' || !mainOr(state, free)) return null;
   const a = pick as GameAction & { cardInstanceId?: string; targetServerId?: string; asNewRemote?: boolean };
   const card = state.corp.hq.find(c => c.instanceId === a.cardInstanceId);
   if (!card || typeOf(card) !== 'ice') return null;
@@ -341,7 +361,7 @@ export function iceRedirect(state: GameState, pick: GameAction): GameAction | nu
   if (!a.asNewRemote && !target?.isRemote) return null;
   const scoring = scoringShort(state);
   if (!scoring || scoring.id === target?.id) return null;
-  return legalShape(state, { type: 'INSTALL_CARD', cardInstanceId: card.instanceId, targetServerId: scoring.id }) ?? null;
+  return shaped(state, { type: 'INSTALL_CARD', cardInstanceId: card.instanceId, targetServerId: scoring.id }, free) ?? null;
 }
 
 /**
@@ -424,15 +444,15 @@ export function assetCover(state: GameState, pick: GameAction): TwoTurnLine | nu
  * while an agenda waits in HQ. A pure redirect: no click or credit more (installing in a remote costs nothing for a
  * root card, 8.5.11a counts ice only). Econ assets take the same move in assetCover, ahead of a cover pair. Null: no change.
  */
-export function assetPartner(state: GameState, pick: GameAction): GameAction | null {
-  if (!isCorpMain(state) || pick.type !== 'INSTALL_CARD' || !(pick as { asNewRemote?: boolean }).asNewRemote) return null;
+export function assetPartner(state: GameState, pick: GameAction, free?: FreeInstall): GameAction | null {
+  if (!mainOr(state, free) || pick.type !== 'INSTALL_CARD' || !(pick as { asNewRemote?: boolean }).asNewRemote) return null;
   const card = state.corp.hq.find(c => c.instanceId === pick.cardInstanceId);
   if (!card || (typeOf(card) !== 'asset' && typeOf(card) !== 'upgrade')) return null;
   const reserved = reservedForAgenda(state);
   const waiting = remotes(state)
     .filter(v => v.ice.length > 0 && !v.root.some(c => isAgenda(c) || typeOf(c) === 'asset') && v.id !== reserved?.id)
     .sort((x, y) => y.ice.length - x.ice.length)[0];
-  const move = waiting ? legalShape(state, { type: 'INSTALL_CARD', cardInstanceId: card.instanceId, targetServerId: waiting.id }) : undefined;
+  const move = waiting ? shaped(state, { type: 'INSTALL_CARD', cardInstanceId: card.instanceId, targetServerId: waiting.id }, free) : undefined;
   return move ?? null;
 }
 
@@ -447,8 +467,8 @@ export function assetPartner(state: GameState, pick: GameAction): GameAction | n
  * R&D's order). At most once per central, as the central then has ice. A pure redirect (5.2.6: the same install action, one
  * click): no veto, no extra install. Null: no change.
  */
-export function centralIce(state: GameState, pick: GameAction): GameAction | null {
-  if (pick.type !== 'INSTALL_CARD' || !isCorpMain(state)) return null;
+export function centralIce(state: GameState, pick: GameAction, free?: FreeInstall): GameAction | null {
+  if (pick.type !== 'INSTALL_CARD' || !mainOr(state, free)) return null;
   const a = pick as GameAction & { cardInstanceId?: string; targetServerId?: string; asNewRemote?: boolean };
   const card = state.corp.hq.find(c => c.instanceId === a.cardInstanceId);
   if (!card || typeOf(card) !== 'ice') return null;
@@ -459,5 +479,5 @@ export function centralIce(state: GameState, pick: GameAction): GameAction | nul
   if (!bare.length) return null;
   const stake = centralStake(state, card.instanceId);
   const to = bare.sort((x, y) => stake[y] - stake[x])[0];
-  return legalShape(state, { type: 'INSTALL_CARD', cardInstanceId: card.instanceId, targetServerId: to }) ?? null;
+  return shaped(state, { type: 'INSTALL_CARD', cardInstanceId: card.instanceId, targetServerId: to }, free) ?? null;
 }

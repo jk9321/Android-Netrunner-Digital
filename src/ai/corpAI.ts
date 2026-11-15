@@ -30,7 +30,7 @@ import { dividendsOf, setupOperation } from './cards';
 import { CorpMemory, corpDecide } from './corp/core';
 import { advancesAsIce, bangunBait, iceAdvanceValue, overAdvance, tagFirst as agendaWaitsForTag, tagsBeforeScore, trapAdvanceCap, untaianAdvance } from './corp/cardRules';
 export { myoshuSaving } from './corp/cardRules';
-import { asRanked, corpCandidates, isPettyCash, plannerIntake } from './corp/candidates';
+import { asRanked, corpCandidates, freeInstallTarget as freeInstallOrder, isPettyCash, plannerIntake } from './corp/candidates';
 import { corpSeenGrip } from './oracle';
 
 
@@ -1147,4 +1147,10 @@ function tagFirst(state: GameState, ranked: ScoredAction[]): ScoredAction[] {
 }
 
 // The Corp owners the valuation layer and prompts.ts read (Stage B review R8): one registration, as the Corp agent loads
-registerCorpPorts({ keep: state => rezMoney(state).keep, holdingRezIds, freeInstallTarget, perfectRecallTarget });
+registerCorpPorts({
+  keep: state => rezMoney(state).keep,
+  holdingRezIds,
+  // Stage C1b: under plan.corpCore the free install reads the order (corp/candidates.ts), not installScore
+  freeInstallTarget: (state, card, options) => (plan().corpCore ? freeInstallOrder : freeInstallTarget)(state, card, options),
+  perfectRecallTarget,
+});

@@ -2,6 +2,7 @@ import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
 import { GameState, cardDef, executeAction } from '../src/core';
 import { createAgent } from '../src/ai';
+import { plan, withPricing } from '../src/ai/pricing';
 
 
 /**
@@ -28,5 +29,13 @@ describe('Synapse Global free install (plan.freeInstallPick, bug report #13)', (
       expect(s.corp.servers.rd.ice.map(c => cardDef(c).title)).toEqual(['Doomscroll']);
       expect(s.corp.hq.map(c => cardDef(c).title)).toEqual(['Offworld Office']);
     }
+  });
+
+  it('does the same through the order (Stage C1b, plan.corpCore: the free option of place, the thinnest central)', () => {
+    withPricing({ plan: { ...plan(), corpCore: true } }, () => {
+      const s = answerAll(fixture());
+      expect(s.corp.servers.rd.ice.map(c => cardDef(c).title)).toEqual(['Doomscroll']);
+      expect(s.corp.hq.map(c => cardDef(c).title)).toEqual(['Offworld Office']);
+    });
   });
 });
