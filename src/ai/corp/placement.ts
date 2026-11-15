@@ -8,7 +8,7 @@ import { note, tally } from '../diagnostics';
 import { mainRemote, withIceInstalled } from '../board';
 import { profileOf } from '../cardProfiles';
 import { serverHold } from './hold';
-import { rezMoney } from './rezMoney';
+import { lineKeep, rezMoney } from './rezMoney';
 import { centralStake, stake } from './pools';
 
 /**
@@ -312,21 +312,12 @@ function spareAfter(state: GameState, pick: GameAction): GameState {
   return executeAction(state, pick);
 }
 
-/**
- * The credits the Corp keeps under a counted line, read from rez money's owner (corp/rezMoney.ts rezMoney
- * keep), the least over the HQ agendas a line could take, each left out of the pools (the line pays its own server's
- * rez as its own step: Stage A's disagreement log); with no agenda in HQ, keep itself.
- */
-function keepFloor(state: GameState, agendas: CardInstance[]): number {
-  return agendas.length ? Math.min(...agendas.map(x => rezMoney(state, { without: [x.instanceId] }).keep)) : rezMoney(state).keep;
-}
-
-/** The scoring remote when it does not hold by the count (holdCost against runnerBudget with what the Corp ends the turn on, less keepFloor for its agendas); null when it holds or there is none. iceRedirect and assetCover read it. */
+/** The scoring remote when it does not hold by the count (holdCost against runnerBudget with what the Corp ends the turn on, less lineKeep (rezMoney.ts) for its agendas); null when it holds or there is none. iceRedirect and assetCover read it. */
 export function scoringShort(state: GameState): ServerLike | null {
   const scoring = scoringRemote(state);
   if (!scoring) return null;
   const agendas = state.corp.hq.filter(isAgenda);
-  const floor = keepFloor(state, agendas);
+  const floor = lineKeep(state, agendas);
   const end = state.corp.credits + Math.max(0, state.corp.clicks - 1);
   return serverHold(state, scoring.id, { when: 'runnerTurn', corpCredits: end - floor }).holds ? null : scoring;
 }
@@ -334,7 +325,7 @@ export function scoringShort(state: GameState): ServerLike | null {
 /**
  * Ice redirect (step 4 G3', Jeff 2026-11-12 "ice spread thin"; +2.1 ± 0.7 over 2,873 paired games, runs 43158129121 + 43164127215): when the Corp's
  * own pick installs ice onto a remote or a new remote, and the scoring remote does not hold by the count (holdCost
- * against runnerBudget with what the Corp ends the turn on: credits and the clicks after this one, less keepFloor
+ * against runnerBudget with what the Corp ends the turn on: credits and the clicks after this one, less lineKeep
  * for its agendas), the ice goes to the scoring remote instead, outermost. Its install cost there is 1 credit for each
  * ice already protecting it (8.5.11a), against none on a new remote. Measured and not kept: redirecting only while the
  * Corp still covers the holding rez after that cost (+0.5 ± 0.6, run 43158132282: it removes most fires), and keeping the
@@ -359,7 +350,7 @@ export function iceRedirect(state: GameState, pick: GameAction): GameAction | nu
  * waits in HQ and a counted line could use the remote, that is holdCost finds a rez set for its ice, or its ice with
  * one ice from HQ in front (scoreInTwo's install+ice form, 8.5.11a: 1 credit per ice already protecting it), within the
  * line's horizon: what the Corp ends this turn on, its known income and next turn's clicks as credits (5.2.6a), less
- * keepFloor. Otherwise an asset may take its root (3.3.1); an agenda can still replace it later by trashing it
+ * lineKeep. Otherwise an asset may take its root (3.3.1); an agenda can still replace it later by trashing it
  * (8.5.6a). Null: not reserved. Folded 2026-11-13 (plan.assetReserve, g3 +0.5 ± 1.6, run 43354222438; before it the
  * remote was reserved whenever an agenda waited in HQ).
  */
@@ -367,7 +358,7 @@ function reservedForAgenda(state: GameState): ServerLike | null {
   const agendas = state.corp.hq.filter(isAgenda);
   const scoring = agendas.length ? scoringRemote(state) : null;
   if (!scoring) return scoring;
-  const floor = keepFloor(state, agendas);
+  const floor = lineKeep(state, agendas);
   // The line's money on its next turn with no rez spent and no click on the agenda yet (the most a line could have)
   const horizon = nextTurnCredits(state, state.corp.credits + Math.max(0, state.corp.clicks - 1), 0, 0) - floor;
   if (serverHold(state, scoring.id, { when: 'runnerTurn', corpCredits: horizon }).holds) return scoring;

@@ -1,5 +1,7 @@
 import { CardInstance, GameAction, GameState, activePrompt, cardDef, getLegalActions } from '../../core';
-import { evaluate } from '../evaluate';
+import { evaluate, handValue, hqTrashCardsLoss } from '../evaluate';
+import { resourceTrashHqCost } from '../../core/engine/actions/basic';
+import { plan } from '../pricing';
 import { ScoredAction } from '../agent';
 import { answerPrompt, simulate } from '../prompts';
 import { serverHold } from './hold';
@@ -170,9 +172,17 @@ export function corpCandidates(state: GameState, legal: GameAction[], opts: Cand
         break;
       case 'INSTALL_CARD':
         break;
-      case 'TRASH_RESOURCE':
-        play(a, 1);
+      case 'TRASH_RESOURCE': {
+        // plan.hqTrashCost (moved from the ranking's trashScore): the board took the HQ cards a resource's trash cost
+        // (Sebastião Souza Pessoa, Manuel Lattes de Moura) off at the flat worth of a card in hand; they are the Corp's
+        // least useful cards, priced by hqTrashCardsLoss
+        const resource = state.runner.rig.resources.find(c => c.instanceId === a.cardInstanceId);
+        const k = resource ? resourceTrashHqCost(state, resource) : 0;
+        const size = corp.hq.length;
+        const extra = resource && k > 0 && plan().hqTrashCost ? handValue(size, corp.handSizeLimit, 'corp') - handValue(size - k, corp.handSizeLimit, 'corp') - hqTrashCardsLoss(state, resource) : 0;
+        play(a, 1, true, extra);
         break;
+      }
       case 'PLAY_OPERATION_OR_EVENT':
         play(a, isPettyCash(state, a) ? 1 : tagsBeforeScore(state, state.corp.hq.find(c => c.instanceId === a.cardInstanceId)?.cardCode ?? '') ? 3 : 4);
         break;
