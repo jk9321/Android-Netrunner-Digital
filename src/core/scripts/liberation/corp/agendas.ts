@@ -25,7 +25,7 @@ import {
   turnFlag,
   useOncePerTurn,
 } from '../../../engine/cardEffects';
-import { cards, choice, prompts, psi } from '../../steps';
+import { cards, choice, InstallData, prompts, psi } from '../../steps';
 import { CardScript, EffectContext } from '../../types';
 import { advanceableInstalled, takeFromRD } from '../../effects';
 import {
@@ -370,8 +370,6 @@ export const stokeTheEmbers: CardScript = {
 // HQ: Install and rez 1 card from HQ, paying a total of 5 credits less. When you score this agenda,
 // you may search R&D for 1 card. Install and rez that card, ignoring all costs.
 const rezzable = (c: CardInstance) => type(c) !== 'operation' && type(c) !== 'agenda';
-
-type InstallData = { cardId: string; install: true };
 
 const eminentDomainFlow = prompts({
   hq: cards((ctx, a) => {

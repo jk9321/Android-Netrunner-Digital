@@ -3,6 +3,8 @@ import { EffectSource } from '../types/prompts';
 import { CardScript, EffectAnswer, EffectContext } from './types';
 import {
   answerPsiGame,
+  arrangeNext,
+  arrangeTop,
   askCards,
   askChoice,
   askCorpInstall,
@@ -89,6 +91,9 @@ type StepsOfKind<T extends Steps, K extends AnyStep['kind']> = { [P in keyof T]:
 /** The data argument: optional when the step carries none. */
 type DataArg<D> = Record<never, never> extends D ? [data?: D] : [data: D];
 
+/** The data of a step that asks where to install a card (corpInstall, or a server question built by a helper). */
+export type InstallData = { cardId: string; install: true };
+
 /** The data installRunner gives its host step (a trojan's ice), beside the step's own. */
 export type RunnerHostData = { cardId: string; discount: number; trashIds: string[] };
 
@@ -104,6 +109,14 @@ export interface ChoiceQuestion {
   message: string;
   options: { id: string; label: string }[];
 }
+
+/** A card question, positional like askCards: `flow.ask(ctx, 'pick', cardsQuestion('corp', 'Pick one.', ids, 0, 1))`. */
+export const cardsQuestion = (side: SideCode, message: string, candidateIds: string[], min: number, max: number): CardsQuestion => ({ side, message, candidateIds, min, max });
+/** A choice question, positional like askChoice. */
+export const choiceQuestion = (side: SideCode, message: string, options: { id: string; label: string }[]): ChoiceQuestion => ({ side, message, options });
+
+/** The data arrangeTop keeps between the questions that arrange the top of R&D one card at a time. */
+export type ArrangeData = { ids: string[]; placed: string[]; side: SideCode };
 
 /** The question a step asks: cards for a cards step, options for a choice step. */
 type QuestionOf<S> = S extends { kind: 'cards' } ? CardsQuestion : S extends { kind: 'choice' } ? ChoiceQuestion : never;
@@ -147,6 +160,10 @@ export interface Flow<T extends Steps> {
     trashIds?: string[],
     ...data: DataArg<Omit<DataOf<T[K]>, keyof RunnerHostData>>
   ): boolean;
+  /** Arranges the top of R&D (arrangeTop): asks for each card in turn under `step`, whose data is ArrangeData. */
+  arrangeTop<K extends StepsOfKind<T, 'cards'>>(ctx: EffectContext, step: ArrangeData extends DataOf<T[K]> ? K : never, cardIds: string[], side?: SideCode): void;
+  /** The next arrangeTop question, after `picked` was chosen. */
+  arrangeNext<K extends StepsOfKind<T, 'cards'>>(ctx: EffectContext, step: ArrangeData extends DataOf<T[K]> ? K : never, data: ArrangeData, picked: string): void;
   /** Plays a Psi Game under a psi step. */
   psiGame<K extends StepsOfKind<T, 'psi'>>(ctx: EffectContext, step: K, ...data: DataArg<DataOf<T[K]>>): void;
   /**
@@ -215,6 +232,8 @@ export function prompts<T extends Steps>(steps: T): Flow<T> {
     corpInstall: (ctx, cardId, step, opts = {}, ...data) => askCorpInstall(ctx, cardId, step, opts, data[0] as StepData | undefined),
     installRunner: (ctx, cardId, hostStep, discount = 0, trashIds = [], ...data) =>
       installRunnerChoice(ctx, cardId, hostStep, discount, data[0] as StepData | undefined, trashIds),
+    arrangeTop: (ctx, step, cardIds, side = 'corp') => arrangeTop(ctx, cardIds, step, [], side),
+    arrangeNext: (ctx, step, data, picked) => arrangeNext(ctx, data, picked, step),
     psiGame: (ctx, step, ...data) => playPsiGame(ctx, step, data[0]),
     evenIfNone: (ctx, side, qualifies, ask, noneMessage, declineLabel, then) =>
       askEvenIfNone(ctx, side, qualifies, ask, noneMessage, declineLabel, then && { step: then.step, data: then.data }),

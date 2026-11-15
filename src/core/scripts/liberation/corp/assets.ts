@@ -19,10 +19,10 @@ import {
   takeHostedCredits,
   useOncePerTurn,
 } from '../../../engine/cardEffects';
-import { choice, prompts } from '../../steps';
+import { ArrangeData, cards, cardsQuestion, choice, choiceQuestion, InstallData, prompts } from '../../steps';
 import { CardScript, EffectContext } from '../../types';
-import { advanceableInstalled, arrangeNext, arrangeTop, askCards, askChoice, askCorpInstall, installCorpChoice } from '../../effects';
-import { archivesCards, askPlaceAdvancement, ids, installable, installedCorpCards, picked, placeAdvancement, returnInstalledToHQ, said, serverOf, title, type, yesNo } from './helpers';
+import { advanceableInstalled, installCorpChoice } from '../../effects';
+import { archivesCards, ids, installable, installedCorpCards, placeAdvancement, placeAdvancementQuestion, returnInstalledToHQ, serverOf, title, type, yesNo } from './helpers';
 
 const isUnprotected = (state: GameState, card: CardInstance) => (serverOf(state, card)?.ice.length ?? 0) === 0;
 
@@ -108,6 +108,14 @@ export const balancedCoverage: CardScript = {
 
 // Behold! (Ambush): While the Runner is accessing this asset in R&D, they must reveal it. When the
 // Runner accesses this asset anywhere except in Archives, you may pay 4 credits to give them 2 tags.
+const beholdFlow = prompts({
+  tags: choice(({ state }, a) => {
+    if (a.optionId !== 'yes' || availableCredits(state, 'corp') < 4) return;
+    spendCredits(state, 'corp', 4);
+    giveTags(state, 2);
+  }),
+});
+
 export const behold: CardScript = {
   revealedOnRdAccess: true,
   onAccessed: (ctx, where) => {
@@ -116,47 +124,46 @@ export const behold: CardScript = {
       addLog(ctx.state, 'corp', 'Behold!: the Corp has less than 4 [credit], so it cannot give the Runner 2 tags.');
       return;
     }
-    askChoice(ctx, 'corp', 'Behold!: pay 4 [credit] to give the Runner 2 tags?', yesNo('Pay 4 [credit]'), 'tags');
+    beholdFlow.ask(ctx, 'tags', choiceQuestion('corp', 'Behold!: pay 4 [credit] to give the Runner 2 tags?', yesNo('Pay 4 [credit]')));
   },
-  onPromptAnswer: ({ state }, _source, answer) => {
-    if (!said(answer) || availableCredits(state, 'corp') < 4) return;
-    spendCredits(state, 'corp', 4);
-    giveTags(state, 2);
-  },
+  ...beholdFlow.script,
 };
 
 // Federal Fundraising: When your turn begins, you may look at the top 3 cards of R&D and arrange
 // them in any order. Then, if this server is not protected by ice, you may draw 1 card.
+const fundraisingFlow = prompts({
+  look: choice((ctx, a) => {
+    if (a.optionId === 'yes') {
+      addLog(ctx.state, 'corp', 'Corp looked at the top 3 cards of R&D (Federal Fundraising).');
+      fundraisingFlow.arrangeTop(ctx, 'arrange', ids(ctx.state.corp.rd.slice(0, 3)));
+    }
+    if (!arranging(ctx)) fundraisingDraw(ctx);
+  }),
+  arrange: cards<ArrangeData>((ctx, a, data) => {
+    fundraisingFlow.arrangeNext(ctx, 'arrange', data, a.ids[0]);
+    if (!arranging(ctx)) fundraisingDraw(ctx);
+  }),
+  draw: choice(({ state }, a) => {
+    if (a.optionId === 'yes') drawForEffect(state, 'corp', 1, 'Federal Fundraising');
+  }),
+});
+
 export const federalFundraising: CardScript = {
   triggers: {
     turn_begins: (ctx, e) => {
       if (e.side !== 'corp') return;
       if (ctx.state.corp.rd.length > 0) {
-        askChoice(ctx, 'corp', 'Federal Fundraising: look at the top 3 cards of R&D and arrange them?', yesNo('Look and arrange'), 'look');
+        fundraisingFlow.ask(ctx, 'look', choiceQuestion('corp', 'Federal Fundraising: look at the top 3 cards of R&D and arrange them?', yesNo('Look and arrange')));
       } else fundraisingDraw(ctx);
     },
   },
-  onPromptAnswer: (ctx, source, answer) => {
-    const { state } = ctx;
-    if (source.step === 'look') {
-      if (said(answer)) {
-        addLog(state, 'corp', 'Corp looked at the top 3 cards of R&D (Federal Fundraising).');
-        arrangeTop(ctx, ids(state.corp.rd.slice(0, 3)), 'arrange');
-      }
-      if (!arranging(ctx)) fundraisingDraw(ctx);
-    } else if (source.step === 'arrange' && answer.kind === 'effect_cards') {
-      arrangeNext(ctx, source.data, answer.cardInstanceIds[0], 'arrange');
-      if (!arranging(ctx)) fundraisingDraw(ctx);
-    } else if (source.step === 'draw' && said(answer)) {
-      drawForEffect(state, 'corp', 1, 'Federal Fundraising');
-    }
-  },
+  ...fundraisingFlow.script,
 };
 
 const arranging = (ctx: EffectContext) => ctx.state.pendingPrompts.some(p => 'source' in p && p.source.instanceId === ctx.card.instanceId && p.source.step === 'arrange');
 
 function fundraisingDraw(ctx: EffectContext): void {
-  if (isUnprotected(ctx.state, ctx.card) && ctx.state.corp.rd.length > 0) askChoice(ctx, 'corp', 'Federal Fundraising: draw 1 card?', yesNo('Draw 1 card'), 'draw');
+  if (isUnprotected(ctx.state, ctx.card) && ctx.state.corp.rd.length > 0) fundraisingFlow.ask(ctx, 'draw', choiceQuestion('corp', 'Federal Fundraising: draw 1 card?', yesNo('Draw 1 card')));
 }
 
 // Cybersand Harvester: Whenever you rez a piece of ice, place 2 credits on this asset. You can
@@ -202,44 +209,58 @@ export const b1001: CardScript = {
 
 // Warm Reception: When your turn begins, you may install 1 card from HQ. You cannot score that card
 // this turn. If this server is not protected by ice, you may derez this asset to derez another installed card.
+const warmFlow = prompts({
+  pick: cards((ctx, a) => {
+    const id = a.ids[0];
+    if (!id || !warmFlow.corpInstall(ctx, id, 'server')) warmDerez(ctx);
+  }),
+  server: choice<InstallData>((ctx, a, data, source) => {
+    const { state } = ctx;
+    const serverId = installCorpChoice(state, source, a.raw);
+    const card = serverId && findInstalledCorpCard(state, data.cardId)?.card;
+    if (card) card.cannotScoreTurn = turnKey(state);
+    warmDerez(ctx);
+  }),
+  derez: cards((ctx, a) => {
+    const { state } = ctx;
+    const target = installedCorpCards(state).find(c => c.instanceId === a.ids[0]);
+    if (!target || !ctx.card.isRezzed) return;
+    derez(state, ctx.card);
+    derez(state, target);
+  }),
+});
+
 export const warmReception: CardScript = {
   triggers: {
     turn_begins: (ctx, e) => {
       if (e.side !== 'corp') return;
       const cards = installable(ctx.state, ctx.state.corp.hq);
-      if (cards.length > 0) askCards(ctx, 'corp', 'Warm Reception: you may install 1 card from HQ (you cannot score it this turn).', ids(cards), 0, 1, 'pick');
+      if (cards.length > 0) warmFlow.ask(ctx, 'pick', cardsQuestion('corp', 'Warm Reception: you may install 1 card from HQ (you cannot score it this turn).', ids(cards), 0, 1));
       else warmDerez(ctx);
     },
   },
-  onPromptAnswer: (ctx, source, answer) => {
-    const { state } = ctx;
-    if (source.step === 'pick') {
-      const id = picked(answer)[0];
-      if (!id || !askCorpInstall(ctx, id, 'server')) warmDerez(ctx);
-    } else if (source.step === 'server') {
-      const serverId = installCorpChoice(state, source, answer);
-      const card = serverId && findInstalledCorpCard(state, source.data?.cardId as string)?.card;
-      if (card) card.cannotScoreTurn = turnKey(state);
-      warmDerez(ctx);
-    } else if (source.step === 'derez') {
-      const target = installedCorpCards(state).find(c => c.instanceId === picked(answer)[0]);
-      if (!target || !ctx.card.isRezzed) return;
-      derez(state, ctx.card);
-      derez(state, target);
-    }
-  },
+  ...warmFlow.script,
 };
 
 function warmDerez(ctx: EffectContext): void {
   const { state, card } = ctx;
   if (!card.isRezzed || !isUnprotected(state, card)) return;
   const others = installedCorpCards(state).filter(c => c.isRezzed && c.instanceId !== card.instanceId);
-  if (others.length > 0) askCards(ctx, 'corp', 'Warm Reception: you may derez it to derez another installed card.', ids(others), 0, 1, 'derez');
+  if (others.length > 0) warmFlow.ask(ctx, 'derez', cardsQuestion('corp', 'Warm Reception: you may derez it to derez another installed card.', ids(others), 0, 1));
 }
 
 // Working Prototype (Hostile): Whenever you rez a card (including this asset), place 1 power
 // counter on this asset. [click], hosted power counter: Gain 3 credits. [click], 5 hosted power
 // counters: Gain 6 credits. Add 1 installed resource to the top of the stack.
+const prototypeFlow = prompts({
+  resource: cards(({ state }, a) => {
+    const resource = state.runner.rig.resources.find(c => c.instanceId === a.ids[0]);
+    if (!resource) return;
+    uninstallRunnerCard(state, resource, 'stackTop');
+    addLog(state, 'corp', `Corp added ${title(resource)} to the top of the stack (Working Prototype).`);
+  }),
+});
+
 export const workingPrototype: CardScript = {
   triggers: {
     rezzed: (ctx, e) => {
@@ -265,26 +286,31 @@ export const workingPrototype: CardScript = {
         gainFromCard(state, 'corp', 6, card);
         addLog(state, 'corp', 'Corp gained 6 [credit] (Working Prototype).');
         const resources = state.runner.rig.resources;
-        if (resources.length > 0) askCards(ctx, 'corp', 'Working Prototype: add 1 installed resource to the top of the stack.', ids(resources), 1, 1, 'resource');
+        if (resources.length > 0) prototypeFlow.ask(ctx, 'resource', cardsQuestion('corp', 'Working Prototype: add 1 installed resource to the top of the stack.', ids(resources), 1, 1));
       },
     },
   ],
-  onPromptAnswer: ({ state }, _source, answer) => {
-    const resource = state.runner.rig.resources.find(c => c.instanceId === picked(answer)[0]);
-    if (!resource) return;
-    uninstallRunnerCard(state, resource, 'stackTop');
-    addLog(state, 'corp', `Corp added ${title(resource)} to the top of the stack (Working Prototype).`);
-  },
+  ...prototypeFlow.script,
 };
 
 // Charlotte Caçador (Clone): You can advance this asset. When your turn begins, you may remove 1
 // hosted advancement counter to gain 4 credits and draw 1 card. [trash], hosted advancement
 // counter: Gain 3 credits.
+const charlotteFlow = prompts({
+  use: choice(({ state, card }, a) => {
+    if (a.optionId !== 'yes' || card.advancementCounters === 0) return;
+    card.advancementCounters -= 1;
+    gainFromCard(state, 'corp', 4, card);
+    addLog(state, 'corp', 'Corp gained 4 [credit] (Charlotte Caçador).');
+    drawForEffect(state, 'corp', 1, 'Charlotte Caçador');
+  }),
+});
+
 export const charlotte: CardScript = {
   triggers: {
     turn_begins: (ctx, e) => {
       if (e.side !== 'corp' || ctx.card.advancementCounters === 0) return;
-      askChoice(ctx, 'corp', 'Charlotte Caçador: remove 1 advancement counter to gain 4 [credit] and draw 1 card?', yesNo('Remove 1 counter'), 'use');
+      charlotteFlow.ask(ctx, 'use', choiceQuestion('corp', 'Charlotte Caçador: remove 1 advancement counter to gain 4 [credit] and draw 1 card?', yesNo('Remove 1 counter')));
     },
   },
   abilities: [
@@ -299,18 +325,39 @@ export const charlotte: CardScript = {
       },
     },
   ],
-  onPromptAnswer: ({ state, card }, _source, answer) => {
-    if (!said(answer) || card.advancementCounters === 0) return;
-    card.advancementCounters -= 1;
-    gainFromCard(state, 'corp', 4, card);
-    addLog(state, 'corp', 'Corp gained 4 [credit] (Charlotte Caçador).');
-    drawForEffect(state, 'corp', 1, 'Charlotte Caçador');
-  },
+  ...charlotteFlow.script,
 };
 
 // Cohort Guidance Program (Clone): When your turn begins, you may resolve 1 of the following:
 // Trash 1 card from HQ. If you do, gain 2 credits and draw 1 card. / Turn 1 facedown card in
 // Archives faceup. If you do, place 1 advancement counter on an installed card.
+const cohortFlow = prompts({
+  mode: choice((ctx, a) => {
+    const { state } = ctx;
+    if (a.optionId === 'trash') cohortFlow.ask(ctx, 'hq', cardsQuestion('corp', 'Cohort Guidance Program: trash 1 card from HQ.', ids(state.corp.hq), 1, 1));
+    else if (a.optionId === 'flip') {
+      cohortFlow.ask(ctx, 'flip', cardsQuestion('corp', 'Cohort Guidance Program: turn 1 facedown card in Archives faceup.', ids(state.corp.archives.faceDown), 1, 1));
+    }
+  }),
+  hq: cards((ctx, a) => {
+    const { state } = ctx;
+    if (corpTrashFromHQ(state, a.ids).length === 0) return;
+    gainFromCard(state, 'corp', 2, ctx.card);
+    addLog(state, 'corp', 'Corp gained 2 [credit] (Cohort Guidance Program).');
+    drawForEffect(state, 'corp', 1, 'Cohort Guidance Program');
+  }),
+  flip: cards((ctx, a) => {
+    const { state } = ctx;
+    const card = state.corp.archives.faceDown.find(c => c.instanceId === a.ids[0]);
+    if (!card) return;
+    removeCard(state.corp.archives.faceDown, card);
+    state.corp.archives.faceUp.push(card);
+    addLog(state, 'corp', `Corp turned ${title(card)} faceup in Archives (Cohort Guidance Program).`);
+    cohortFlow.askIf(ctx, 'place', placeAdvancementQuestion(ctx, 1, false), { n: 1 });
+  }),
+  place: cards<{ n: number }>(({ state }, a) => placeAdvancement(state, a.ids[0], 1, 'Cohort Guidance Program')),
+});
+
 export const cohortGuidance: CardScript = {
   triggers: {
     turn_begins: (ctx, e) => {
@@ -320,34 +367,21 @@ export const cohortGuidance: CardScript = {
         ...(state.corp.hq.length > 0 ? [{ id: 'trash', label: 'Trash 1 card from HQ: gain 2 [credit] and draw 1' }] : []),
         ...(state.corp.archives.faceDown.length > 0 && installedCorpCards(state).length > 0 ? [{ id: 'flip', label: 'Turn a facedown Archives card faceup: place 1 advancement counter' }] : []),
       ];
-      if (options.length > 0) askChoice(ctx, 'corp', 'Cohort Guidance Program: choose one, or neither.', [...options, { id: 'no', label: 'Neither' }], 'mode');
+      if (options.length > 0) cohortFlow.ask(ctx, 'mode', choiceQuestion('corp', 'Cohort Guidance Program: choose one, or neither.', [...options, { id: 'no', label: 'Neither' }]));
     },
   },
-  onPromptAnswer: (ctx, source, answer) => {
-    const { state } = ctx;
-    if (source.step === 'mode' && said(answer, 'trash')) {
-      askCards(ctx, 'corp', 'Cohort Guidance Program: trash 1 card from HQ.', ids(state.corp.hq), 1, 1, 'hq');
-    } else if (source.step === 'mode' && said(answer, 'flip')) {
-      askCards(ctx, 'corp', 'Cohort Guidance Program: turn 1 facedown card in Archives faceup.', ids(state.corp.archives.faceDown), 1, 1, 'flip');
-    } else if (source.step === 'hq' && corpTrashFromHQ(state, picked(answer)).length > 0) {
-      gainFromCard(state, 'corp', 2, ctx.card);
-      addLog(state, 'corp', 'Corp gained 2 [credit] (Cohort Guidance Program).');
-      drawForEffect(state, 'corp', 1, 'Cohort Guidance Program');
-    } else if (source.step === 'flip') {
-      const card = state.corp.archives.faceDown.find(c => c.instanceId === picked(answer)[0]);
-      if (!card) return;
-      removeCard(state.corp.archives.faceDown, card);
-      state.corp.archives.faceUp.push(card);
-      addLog(state, 'corp', `Corp turned ${title(card)} faceup in Archives (Cohort Guidance Program).`);
-      askPlaceAdvancement(ctx, 1, 'place', false);
-    } else if (source.step === 'place') {
-      placeAdvancement(state, picked(answer)[0], 1, 'Cohort Guidance Program');
-    }
-  },
+  ...cohortFlow.script,
 };
 
 // Janaína "JK" Dumont Kindelán (Academic - Clone): When your turn begins, place 3 credits on this
 // asset. [click], add this asset to HQ: Take all credits from this asset. You may install 1 card from HQ.
+const janainaFlow = prompts({
+  pick: cards((ctx, a) => {
+    if (a.ids[0]) janainaFlow.corpInstall(ctx, a.ids[0], 'server');
+  }),
+  server: choice<InstallData>((ctx, a, _d, source) => void installCorpChoice(ctx.state, source, a.raw)),
+});
+
 export const janaina: CardScript = {
   triggers: {
     turn_begins: (ctx, e) => {
@@ -367,75 +401,74 @@ export const janaina: CardScript = {
         gainFromCard(state, 'corp', credits, card);
         addLog(state, 'corp', `Corp added Janaína "JK" Dumont Kindelán to HQ and took ${credits} [credit].`);
         const cards = installable(state, state.corp.hq);
-        if (cards.length > 0) askCards(ctx, 'corp', 'Janaína "JK" Dumont Kindelán: you may install 1 card from HQ.', ids(cards), 0, 1, 'pick');
+        if (cards.length > 0) janainaFlow.ask(ctx, 'pick', cardsQuestion('corp', 'Janaína "JK" Dumont Kindelán: you may install 1 card from HQ.', ids(cards), 0, 1));
       },
     },
   ],
-  onPromptAnswer: (ctx, source, answer) => {
-    if (source.step === 'pick') {
-      const id = picked(answer)[0];
-      if (id) askCorpInstall(ctx, id, 'server');
-    } else if (source.step === 'server') installCorpChoice(ctx.state, source, answer);
-  },
+  ...janainaFlow.script,
 };
 
 // Hearts and Minds (Political): When your turn begins, you may move 1 advancement counter from an
 // installed card to an installed card you can advance. If this server is not protected by ice, you
 // may also place 1 advancement counter on an installed card you can advance.
+const heartsFlow = prompts({
+  from: cards((ctx, a) => {
+    const from = a.ids[0];
+    const targets = advanceableInstalled(ctx.state).filter(c => c.instanceId !== from);
+    if (from && targets.length > 0) heartsFlow.ask(ctx, 'to', cardsQuestion('corp', 'Hearts and Minds: ...to an installed card you can advance.', ids(targets), 1, 1), { from });
+    else heartsPlace(ctx);
+  }),
+  to: cards<{ from: string }>((ctx, a, data) => {
+    const { state } = ctx;
+    const from = findInstalledCorpCard(state, data.from)?.card;
+    const to = findInstalledCorpCard(state, a.ids[0])?.card;
+    if (from && to && from.advancementCounters > 0) {
+      from.advancementCounters -= 1;
+      to.advancementCounters += 1;
+      addLog(state, 'corp', 'Corp moved 1 advancement counter (Hearts and Minds).');
+    }
+    heartsPlace(ctx);
+  }),
+  place: cards(({ state }, a) => placeAdvancement(state, a.ids[0], 1, 'Hearts and Minds')),
+});
+
 export const heartsAndMinds: CardScript = {
   triggers: {
     turn_begins: (ctx, e) => {
       if (e.side !== 'corp') return;
       const sources = installedCorpCards(ctx.state).filter(c => c.advancementCounters > 0);
       if (sources.length > 0 && advanceableInstalled(ctx.state).length > 0) {
-        askCards(ctx, 'corp', 'Hearts and Minds: you may move 1 advancement counter from an installed card...', ids(sources), 0, 1, 'from');
+        heartsFlow.ask(ctx, 'from', cardsQuestion('corp', 'Hearts and Minds: you may move 1 advancement counter from an installed card...', ids(sources), 0, 1));
       } else heartsPlace(ctx);
     },
   },
-  onPromptAnswer: (ctx, source, answer) => {
-    const { state } = ctx;
-    if (source.step === 'from') {
-      const from = picked(answer)[0];
-      const targets = advanceableInstalled(state).filter(c => c.instanceId !== from);
-      if (from && targets.length > 0) askCards(ctx, 'corp', 'Hearts and Minds: ...to an installed card you can advance.', ids(targets), 1, 1, 'to', { from });
-      else heartsPlace(ctx);
-    } else if (source.step === 'to') {
-      const from = findInstalledCorpCard(state, source.data?.from as string)?.card;
-      const to = findInstalledCorpCard(state, picked(answer)[0])?.card;
-      if (from && to && from.advancementCounters > 0) {
-        from.advancementCounters -= 1;
-        to.advancementCounters += 1;
-        addLog(state, 'corp', 'Corp moved 1 advancement counter (Hearts and Minds).');
-      }
-      heartsPlace(ctx);
-    } else if (source.step === 'place') {
-      placeAdvancement(state, picked(answer)[0], 1, 'Hearts and Minds');
-    }
-  },
+  ...heartsFlow.script,
 };
 
 function heartsPlace(ctx: EffectContext): void {
   const cards = advanceableInstalled(ctx.state);
   if (isUnprotected(ctx.state, ctx.card) && cards.length > 0) {
-    askCards(ctx, 'corp', 'Hearts and Minds: you may also place 1 advancement counter on an installed card you can advance.', ids(cards), 0, 1, 'place');
+    heartsFlow.ask(ctx, 'place', cardsQuestion('corp', 'Hearts and Minds: you may also place 1 advancement counter on an installed card you can advance.', ids(cards), 0, 1));
   }
 }
 
 // The Powers That Be (Ritzy): Whenever you score an agenda, you may install 1 card from HQ or
 // Archives, ignoring all costs.
+const powersFlow = prompts({
+  pick: cards((ctx, a) => {
+    if (a.ids[0]) powersFlow.corpInstall(ctx, a.ids[0], 'server', { ignoreCosts: true });
+  }),
+  server: choice<InstallData>((ctx, a, _d, source) => void installCorpChoice(ctx.state, source, a.raw, { ignoreCosts: true })),
+});
+
 export const powersThatBe: CardScript = {
   triggers: {
     agenda_scored: ctx => {
       const cards = installable(ctx.state, [...ctx.state.corp.hq, ...archivesCards(ctx.state)], { ignoreCosts: true });
-      if (cards.length > 0) askCards(ctx, 'corp', 'The Powers That Be: you may install 1 card from HQ or Archives, ignoring all costs.', ids(cards), 0, 1, 'pick');
+      if (cards.length > 0) powersFlow.ask(ctx, 'pick', cardsQuestion('corp', 'The Powers That Be: you may install 1 card from HQ or Archives, ignoring all costs.', ids(cards), 0, 1));
     },
   },
-  onPromptAnswer: (ctx, source, answer) => {
-    if (source.step === 'pick') {
-      const id = picked(answer)[0];
-      if (id) askCorpInstall(ctx, id, 'server', { ignoreCosts: true });
-    } else if (source.step === 'server') installCorpChoice(ctx.state, source, answer, { ignoreCosts: true });
-  },
+  ...powersFlow.script,
 };
 
 export const liberationCorpAssetsScripts: Record<string, CardScript> = {
