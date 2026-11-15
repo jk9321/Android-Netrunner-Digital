@@ -86,6 +86,13 @@ export interface RezLog {
 }
 
 export interface GameRecord {
+  /**
+   * A Runner flatline (ai-runner-fixes review R1): the step that did it, in a run's access ('access': a steal's or an
+   * accessed card's damage), in an encounter ('ice'), on the Corp's turn ('corpTurn'), or 'other'; and the grip the Runner
+   * began the Corp's turn on (a Corp-turn flatline).
+   */
+  flatCause?: string;
+  flatGrip?: number;
   /** ORACLE_ICE batches (scripts/oracle-ice.ts): the setup, and whether this deal's R&D held no ice (played without it). */
   oracleIce?: string;
   oracleIceSkipped?: boolean;
@@ -271,6 +278,8 @@ export function playLogged(
 ): GameRecord {
   const runner = new GameRunner(start, agents);
   let toldTurn = -1;
+  let flatCause: string | undefined;
+  let corpTurnGrip = -1;
   const alarms = new AlarmTracker();
   // OPENING=0 leaves the opening audit out (its one-step rankings cost time)
   const openingTracker = process.env.OPENING === '0' ? null : new OpeningTracker();
@@ -399,6 +408,11 @@ export function playLogged(
     }
     if (!runner.step()) break;
     const after = runner.state;
+    if (before.activePlayer === 'runner' && after.activePlayer === 'corp') corpTurnGrip = after.runner.grip.length;
+    if (after.winner === 'corp' && /flatline/i.test(after.winReason ?? '')) {
+      const run = before.activeRun;
+      flatCause = before.activePlayer === 'corp' && !run ? 'corpTurn' : run?.encounter ? 'ice' : run && (run.phase === 'access' || run.breached) ? 'access' : 'other';
+    }
     alarms.step(before, after, runner.last ?? undefined);
     spendTracker.step(before, after, runner.last ?? undefined);
     openingTracker?.step(before, after, runner.last ?? undefined);
@@ -595,6 +609,7 @@ export function playLogged(
     runnerDeck: decks.runner,
     winner: s.winner ?? 'draw',
     reason: reasonOf(s),
+    ...(flatCause ? { flatCause, flatGrip: corpTurnGrip } : {}),
     turns: s.turnNumber,
     corpScore: s.corp.score,
     runnerScore: s.runner.score,
