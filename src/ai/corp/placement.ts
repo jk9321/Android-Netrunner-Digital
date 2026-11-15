@@ -45,7 +45,7 @@ const serverOf = (s: GameState, id: string): string | undefined =>
 type ServerLike = GameState['corp']['servers'][string];
 
 
-export type PlacementReason = 'pick' | 'fallback' | 'scoreLine' | 'assetCover' | 'centralIce' | 'iceRedirect' | 'assetPartner' | 'assetLine:econIced' | 'assetLine:trapOffScoring';
+export type PlacementReason = 'pick' | 'fallback' | 'fallback:unpaid' | 'scoreLine' | 'assetCover' | 'centralIce' | 'iceRedirect' | 'assetPartner' | 'assetLine:econIced' | 'assetLine:trapOffScoring';
 
 export interface Placement {
   /** A server id, or 'new' for a new remote. */
@@ -133,7 +133,7 @@ function placeRules(state: GameState, card: CardInstance, from: Install, free?: 
   // 5. Ice no rule placed and that changes no count where it stands: spec 1.8 ice rule 3 (C1), the fallback
   if (typeOf(card) === 'ice' && plan().corpCore) {
     const fallback = iceFallback(state, card, from, free);
-    if (fallback) return { action: fallback, reason: 'fallback' };
+    if (fallback) return { action: fallback.action, reason: fallback.unpaid ? 'fallback:unpaid' : 'fallback' };
   }
   // 6. The pick, with the installScore asset line that put it there
   return { action: from, reason: assetLine(state, card, from) };
@@ -165,7 +165,7 @@ export function iceCount(state: GameState, a: Install, card: CardInstance, after
  * central stake (centralStake), then HQ before R&D (a fixed order; servers carry no instance id). Ice that changes a count on a staked server stays (line 2), and ice into a new remote stays while HQ holds an
  * agenda or asset to go behind it this turn (rule 4: a build pair, two clicks). Null: the proposal stands.
  */
-function iceFallback(state: GameState, card: CardInstance, from: Install, free?: FreeInstall): Install | null {
+function iceFallback(state: GameState, card: CardInstance, from: Install, free?: FreeInstall): { action: Install; unpaid: boolean } | null {
   if (!mainOr(state, free)) return null;
   if (from.asNewRemote || !from.targetServerId) {
     const root = state.corp.hq.some(c => c.instanceId !== card.instanceId && (typeOf(c) === 'agenda' || typeOf(c) === 'asset'));
@@ -180,9 +180,11 @@ function iceFallback(state: GameState, card: CardInstance, from: Install, free?:
   const paid = (id: string) => state.corp.credits - (free ? 0 : state.corp.servers[id].ice.length) - rezCostOf(state, card) >= keep;
   const thinnest = (ids: readonly ('hq' | 'rd')[]) =>
     [...ids].sort((x, y) => state.corp.servers[x].ice.length - state.corp.servers[y].ice.length || centralStakes[y] - centralStakes[x])[0];
-  const to = thinnest((['hq', 'rd'] as const).filter(paid)) ?? scoringRemote(state)?.id ?? thinnest(['hq', 'rd']);
+  const near = thinnest((['hq', 'rd'] as const).filter(paid)) ?? scoringRemote(state)?.id;
+  const to = near ?? thinnest(['hq', 'rd']);
   if (!to || to === from.targetServerId) return null;
-  return (shaped(state, { type: 'INSTALL_CARD', cardInstanceId: card.instanceId, targetServerId: to }, free) as Install | undefined) ?? null;
+  const action = shaped(state, { type: 'INSTALL_CARD', cardInstanceId: card.instanceId, targetServerId: to }, free) as Install | undefined;
+  return action ? { action, unpaid: !near } : null;
 }
 
 /**

@@ -111,7 +111,7 @@ function placedInstalls(state: GameState, card: CardInstance, installs: Install[
     const clean = placement.reason === 'assetCover' ? from : placedInstall(from, placement);
     const key = JSON.stringify(placementAction(card, { ...placement, server: placement.server }));
     const entry = { action: clean, placement };
-    if (!['pick', 'fallback', 'assetLine:econIced', 'assetLine:trapOffScoring'].includes(placement.reason)) counted.push(entry);
+    if (!['pick', 'fallback', 'fallback:unpaid', 'assetLine:econIced', 'assetLine:trapOffScoring'].includes(placement.reason)) counted.push(entry);
     if (!seen.has(key)) seen.set(key, entry);
   }
   if (counted.length) return [counted[0]];

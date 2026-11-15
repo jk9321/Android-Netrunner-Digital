@@ -33,6 +33,7 @@ const games: { deal: number; winner: string | null; turns: number; t: Tally }[] 
 
 for (const deal of list) {
   const t: Tally = {};
+  const first: { hq?: number; rd?: number } = {};
   let lastCorp: GameState | null = null;
   const diag = newDiagnostics();
   const end = withPricing({ diagnostics: diag }, () => playDeal(deal, {
@@ -43,6 +44,8 @@ for (const deal of list) {
       const a = d.action as GameAction | null;
       if (d.kind !== 'action' || !a || !isCorpMain(s)) return;
       lastCorp = s;
+      // Early ice (C1): the Corp turn on which HQ and R&D first have ice, as the Corp's decisions see the board
+      for (const id of ['hq', 'rd'] as const) if (s.corp.servers[id].ice.length && first[id] === undefined) first[id] = s.turnNumber;
       inc(t, 'decisions');
       inc(t, `ms`, d.ms);
       times.push(d.ms);
@@ -61,9 +64,15 @@ for (const deal of list) {
         if (kind === 'ice' && s.turnNumber <= 6) inc(t, 'iceByT6');
         if (kind === 'agenda') inc(t, target?.ice.length ? 'agendaIced' : 'agendaBare');
         if (kind === 'ice' && target && !target.isRemote) inc(t, 'iceCentral');
+        if (kind === 'ice' && s.turnNumber <= 6) inc(t, target && !target.isRemote ? 'iceCentralByT6' : 'iceRemoteByT6');
       }
     },
   }));
+  // Never iced: counted as the game's last turn + 1
+  for (const id of ['hq', 'rd'] as const) {
+    inc(t, `firstIce:${id}`, first[id] ?? end.turnNumber + 1);
+    if (first[id] === undefined) inc(t, `neverIced:${id}`);
+  }
   inc(t, 'q5RolloutDecisions', diag.scoreInTwo.rolloutDecisions);
   inc(t, 'q5RolloutTaken', diag.scoreInTwo.rolloutTaken);
   const agendasInHq = end.corp.hq.filter(c => cardDef(c).type_code === 'agenda').length;
