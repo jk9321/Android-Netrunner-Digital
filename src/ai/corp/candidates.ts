@@ -7,7 +7,8 @@ import { rezMoney } from './rezMoney';
 import { HeldLine } from './lines';
 import { Placement, iceCount, place, placedInstall, placementAction } from './placement';
 import { rezAllowed } from './rez';
-import { isPettyCash, overAdvance, tagFirst, tagsBeforeScore } from './cardRules';
+import { advancesAsIce, iceAdvanceValue, isPettyCash, overAdvance, tagFirst, tagsBeforeScore, trapAdvanceCap } from './cardRules';
+import { placedCounterWorth } from '../effectValues';
 export { isPettyCash } from './cardRules';
 
 /**
@@ -135,9 +136,10 @@ export function corpCandidates(state: GameState, legal: GameAction[], opts: Cand
    * abilities, trashes, a purge); an asset or upgrade install, or a rez, pays later and is ordered by its play value
    * without it (c0-rulings addendum 03:58Z, P3 b).
    */
-  const play = (a: GameAction, line: number, creditTest = true) => {
-    const r = value(a);
-    if (!r) return;
+  const play = (a: GameAction, line: number, creditTest = true, extra = 0) => {
+    const r0 = value(a);
+    if (!r0) return;
+    const r = { ...r0, v: r0.v + extra };
     if (r.clicks <= 0 && opts.freeExhausted) return;
     const below = (creditTest && r.v <= Math.max(0, r.clicks) * creditValue) || (r.after.corp.credits < keep && r.after.corp.credits < corp.credits);
     add({ action: a, line, behind: below, keys: [-r.v, idNum(cardIdOf(a))], card: cardIdOf(a) });
@@ -145,10 +147,16 @@ export function corpCandidates(state: GameState, legal: GameAction[], opts: Cand
 
   // Installs, grouped by card so each card gets place's destinations
   const installsByCard = new Map<string, Install[]>();
+  const faceUp: { a: Install; card: CardInstance }[] = [];
   for (const a of legal) {
     if (!isInstall(a)) continue;
-    // BANGUN's faceup installs and installs over a card in the root are cardRules / placement's (C4); plain installs here
-    if (a.faceUp) continue;
+    // BANGUN's faceup agenda installs (C4): an agenda candidate like the facedown one at the same server, ordered just
+    // after it (the bait's hand-set worth, bangunBait, stays the ranking's: the look-ahead prices the tag and damage)
+    if (a.faceUp) {
+      const card = corp.hq.find(c => c.instanceId === a.cardInstanceId);
+      if (card && typeOf(card) === 'agenda') faceUp.push({ a, card });
+      continue;
+    }
     (installsByCard.get(a.cardInstanceId) ?? installsByCard.set(a.cardInstanceId, []).get(a.cardInstanceId)!).push(a);
   }
 
@@ -186,7 +194,14 @@ export function corpCandidates(state: GameState, legal: GameAction[], opts: Cand
         const card = findInstalled(state, a.cardInstanceId);
         if (!card) break;
         if (typeOf(card) === 'agenda') agendaMove(state, a, card, keep, add);
-        else play(a, 4);
+        else {
+          // An advance on an asset or on ice (C4, registry row "an advance on an unknown asset"): the board's value of the
+          // click and credit, plus what the counter is worth by its owner, which the board does not price
+          // (placedCounterWorth; Pharos and Syailendra: iceAdvanceValue); a trap stops at its cap (cardRules)
+          const server = Object.values(corp.servers).find(v => v.root.some(c => c.instanceId === card.instanceId));
+          if (typeOf(card) === 'asset' && server && card.advancementCounters < trapAdvanceCap(state, card)) play(a, 4, true, placedCounterWorth(state, card, server.ice.length > 0));
+          else if (typeOf(card) === 'ice' && advancesAsIce(card)) play(a, 4, true, iceAdvanceValue(state, card));
+        }
         break;
       }
       case 'SCORE_AGENDA': {
@@ -221,6 +236,10 @@ export function corpCandidates(state: GameState, legal: GameAction[], opts: Cand
     }
   }
 
+  for (const { a, card } of faceUp) {
+    const target = a.targetServerId ? corp.servers[a.targetServerId] : null;
+    if (!target?.root.some(c => ['agenda', 'asset'].includes(typeOf(c) ?? ''))) agendaMove(state, a, card, keep, add, 1);
+  }
   // Line 7: draw while the Corp holds fewer cards it can use than clicks to use them, else a credit
   const draw = drawFirst(state, out);
   for (const a of legal) if (a.type === 'DRAW_CARD' || a.type === 'GAIN_CREDIT') add({ action: a, line: 7, behind: false, keys: [draw === (a.type === 'DRAW_CARD') ? 0 : 1], card: undefined });
@@ -328,7 +347,7 @@ function iceMove(state: GameState, a: Install, card: CardInstance, keep: number,
 }
 
 /** Lines 3 and 9: an agenda install or advance, by whether its server holds after the move (margin as an order key, never a veto). */
-function agendaMove(state: GameState, a: GameAction, card: CardInstance, keep: number, add: (c: Candidate) => void) {
+function agendaMove(state: GameState, a: GameAction, card: CardInstance, keep: number, add: (c: Candidate) => void, shown = 0) {
   const after = simulate(state, a);
   if (!after) return;
   const server = serverOfCard(after, card.instanceId);
@@ -336,7 +355,7 @@ function agendaMove(state: GameState, a: GameAction, card: CardInstance, keep: n
   const placed = findInstalled(after, card.instanceId) ?? card;
   const turns = turnsToScore(after, placed, 0);
   const below = after.corp.credits < keep && after.corp.credits < state.corp.credits;
-  add({ action: a, line: hold?.holds ? 3 : 9, behind: below, keys: [turns, -(hold?.margin ?? 0), -(cardDef(card).agenda_points ?? 0), idNum(card.instanceId)], card: card.instanceId });
+  add({ action: a, line: hold?.holds ? 3 : 9, behind: below, keys: [turns, -(hold?.margin ?? 0), -(cardDef(card).agenda_points ?? 0), shown, idNum(card.instanceId)], card: card.instanceId });
 }
 
 /**
