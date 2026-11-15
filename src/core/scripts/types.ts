@@ -31,6 +31,8 @@ export interface CardScript {
    * asks under any other step is a bug, which the engine fuzzer checks after every action.
    */
   promptSteps?: readonly string[];
+  /** A stub the set scaffold wrote (scripts/new-set.ts): tests/cardCoverage.test.ts fails while any remain. */
+  unfinished?: true;
   /**
    * The current candidates of an effect_cards prompt this script queued, worked out again when the
    * prompt comes to the front: abilities triggered together resolve one at a time, each fully

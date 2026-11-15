@@ -209,3 +209,9 @@ export function prompts<T extends Steps>(steps: T): Flow<T> {
 export function declaredSteps(script: CardScript | undefined): readonly string[] | undefined {
   return script?.promptSteps;
 }
+
+/** A card not scripted yet: the stub scripts/new-set.ts writes for each card of a new set (the code is for searching). */
+export function unfinished(code: string): CardScript {
+  void code;
+  return { unfinished: true };
+}

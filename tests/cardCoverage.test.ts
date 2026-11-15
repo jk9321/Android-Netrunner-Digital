@@ -3,7 +3,7 @@ import path from 'node:path';
 import { describe, expect, it } from 'vitest';
 import '../src/core';
 import { ALL_CARDS } from '../src/core/cards';
-import { mergeScriptGroups, scriptedCardCodes } from '../src/core/scripts';
+import { getCardScript, mergeScriptGroups, scriptedCardCodes } from '../src/core/scripts';
 
 /**
  * New-set guards: every card the game ships has a script and is named in a test, and no card is
@@ -33,6 +33,11 @@ describe('card coverage', () => {
     const scripted = new Set(scriptedCardCodes());
     const missing = ALL_CARDS.filter(c => !scripted.has(c.code) && !NEEDS_NO_SCRIPT.has(c.code)).map(c => `${c.code} ${c.title}`);
     expect(missing).toEqual([]);
+  });
+
+  it('no card is still a set scaffold stub (scripts/new-set.ts)', () => {
+    const stubs = ALL_CARDS.filter(c => getCardScript(c.code)?.unfinished).map(c => `${c.code} ${c.title}`);
+    expect(stubs).toEqual([]);
   });
 
   it('the cards listed as needing no script really have no text to script', () => {
