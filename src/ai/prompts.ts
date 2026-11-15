@@ -9,7 +9,7 @@ import { turnsLeft } from './cardProfiles';
 import { BLOCK, BOTULUS, MANEGARM, RunOptions, RunnerMemory, iceCost, runClick, runRestWorth, runScore, serverValue, spendCost, subroutineCost, tagCost, weakestIce, windowDerez } from './runs';
 import { breakerScript, encounteredIce, iceSubroutines, iceSubtypes, isIcebreaker } from '../core/engine/ice';
 import { keepBonus, tuning } from './synergy';
-import { freeInstallTarget, perfectRecallTarget } from './corpAI';
+import { corpPorts } from './corpPorts';
 import { iceStop, iceWorth } from './iceValues';
 import { rezCost } from '../core/engine/cardEffects';
 import { isPsiStep } from '../core/scripts/effects';
@@ -195,13 +195,13 @@ export function answerPrompt(state: GameState, side: SideCode, memory?: RunnerMe
       const picks = prompt.candidateIds
         .map(id => findCardAnywhere(state, id))
         .filter((c): c is CardInstance => !!c && cardDef(c).type_code !== 'agenda')
-        .map(c => ({ c, score: freeInstallTarget(state, c, servers)?.score ?? -Infinity }))
+        .map(c => ({ c, score: corpPorts.freeInstallTarget(state, c, servers)?.score ?? -Infinity }))
         .filter(p => p.score > 0)
         .sort((a, b) => b.score - a.score);
       return { ...base, choice: { kind: 'effect_cards', cardInstanceIds: picks.length > 0 ? [picks[0].c.instanceId] : [] } };
     }
     const card = prompt.kind === 'effect_choice' && prompt.source.data?.install ? findCardAnywhere(state, String(prompt.source.data.cardId)) : undefined;
-    const target = card && prompt.kind === 'effect_choice' ? freeInstallTarget(state, card, prompt.options.map(o => o.id)) : undefined;
+    const target = card && prompt.kind === 'effect_choice' ? corpPorts.freeInstallTarget(state, card, prompt.options.map(o => o.id)) : undefined;
     if (target) return { ...base, choice: { kind: 'effect_choice', optionId: target.server } };
   }
   // Warm Reception, Janaína: a free install from HQ; ice the Corp can afford first, then an asset or upgrade, never an agenda
@@ -378,7 +378,7 @@ export function answerPrompt(state: GameState, side: SideCode, memory?: RunnerMe
 
   // Perfect Recall: reveal the agenda the Runner is after
   if (side === 'corp' && prompt.kind === 'effect_cards' && prompt.source.cardCode === '36035' && prompt.source.step === 'reveal') {
-    const pick = perfectRecallTarget(state) ?? prompt.candidateIds[0];
+    const pick = corpPorts.perfectRecallTarget(state) ?? prompt.candidateIds[0];
     return { ...base, choice: { kind: 'effect_cards', cardInstanceIds: [pick] } };
   }
 

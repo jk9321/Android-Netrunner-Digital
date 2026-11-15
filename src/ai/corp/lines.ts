@@ -1,6 +1,6 @@
 import { CardInstance, GameAction, GameState, cardDef, getLegalActions } from '../../core';
 import { counters } from '../../core/engine/cardEffects';
-import { withIceInstalled } from '../iceValues';
+import { withIceInstalled } from '../board';
 import { dividendsOf, scoreCreditsOf, turnIncomeOf } from '../cards';
 import { plan } from '../pricing';
 import { tally } from '../diagnostics';

@@ -3,17 +3,17 @@ import { describe, expect, it } from 'vitest';
 import { GameAction, GameState, cardDef, getLegalActions } from '../src/core';
 import { asSide } from '../src/ai/pricing';
 import { decisionContext } from '../src/ai/handValues';
-import { iceRedirect } from '../src/ai/countedScore';
+import { iceRedirect } from '../src/ai/corp/placement';
 import { runnerBudget, serverHold } from '../src/ai/corp/hold';
 import { lineFloor, rezMoney, stakedServers } from '../src/ai/corp/rezMoney';
-import { corpPools, rdAgendaOdds, reachablePoints, runLoss, stake } from '../src/ai/corp/pools';
+import { corpPools, rdAgendaOdds, stake } from '../src/ai/corp/pools';
 import { place } from '../src/ai/corp/placement';
 import { HeldLine } from '../src/ai/corp/lines';
-import * as ref from '../scripts/stage-a/reference';
 
 /**
- * Step 4 Stage A (spec-step4-corp-core.md 1.4 to 1.8): the four owners in src/ai/corp/ against the counts they replace
- * (frozen copies from beta 92f5c96 in scripts/stage-a/reference.ts) and against the rules they read.
+ * Step 4 Stage A (spec-step4-corp-core.md 1.4 to 1.8): the four owners in src/ai/corp/ against the rules they read. The
+ * Stage A identity tests against frozen copies of the deleted counts are gone (Stage B6, review N11): they pinned the
+ * owners to the old counts, the bugs Stage D fixes included (bioroid clicks, encounter tolls).
  *  - Rez on approach: the Corp may rez the approached ice in the approach-ice window (rules 6.4.3, 6.9.2b); unrezzed ice
  *    is passed (6.9.2c); a bypassed ice's subroutines never resolve (6.5.8a).
  *  - Install cost: 1 credit for each ice already protecting the server (8.5.11a).
@@ -22,8 +22,6 @@ import * as ref from '../scripts/stage-a/reference';
  */
 const read = (name: string): GameState => JSON.parse(readFileSync(new URL(`./fixtures/${name}`, import.meta.url), 'utf8'));
 const inCorp = <T>(s: GameState, f: () => T): T => asSide('corp', () => (decisionContext(s, 'corp'), f()));
-/** Recorded from deal 1001, Normal v Normal (scripts/stage-a/fixtures.ts): approach-ice windows the Corp holds, and run states. */
-const deal1001 = read('stage-a-deal-1001.json') as unknown as { approach: GameState[]; runs: GameState[] };
 /** The same board with R&D's order reversed and the grip's cards replaced: what the Corp cannot see (10.2.2a). */
 const blind = (s: GameState): GameState => {
   const t = structuredClone(s);
@@ -34,14 +32,6 @@ const blind = (s: GameState): GameState => {
 
 describe('serverHold: what holds a server (corp/hold.ts)', () => {
   const s = read('ice-redirect-1001-t10.json');
-
-  it("'runnerTurn' is holdCost's count on every server and credit amount (6.4.3, 6.9.2b-c)", () => {
-    for (const v of Object.values(s.corp.servers))
-      for (const credits of [0, 3, s.corp.credits, Infinity]) {
-        const h = inCorp(s, () => serverHold(s, v.id, { when: 'runnerTurn', corpCredits: credits }));
-        expect(h.holds ? h.rezCost : null).toEqual(inCorp(s, () => ref.holdCost(s, v.ice, credits)));
-      }
-  });
 
   it('margin is need less budget; a server that holds gives no entries, a bare one gives an entry a click', () => {
     for (const v of Object.values(s.corp.servers)) {
@@ -58,20 +48,6 @@ describe('serverHold: what holds a server (corp/hold.ts)', () => {
     }
   });
 
-  it("'thisRun' is stopCost's count at every approached ice of a played deal (6.4.3, 6.9.2b, 6.5.8a)", () => {
-    const states = deal1001.approach;
-    expect(states.length).toBeGreaterThan(0);
-    for (const t of states) {
-      const run = t.activeRun!;
-      const ice = t.corp.servers[run.server].ice[run.icePosition!];
-      for (const [withIce, further] of [[true, true], [false, true], [true, false]] as const) {
-        const h = inCorp(t, () => serverHold(t, run.server, { when: 'thisRun', mustRez: withIce ? [ice.instanceId] : [], further }));
-        expect(h.holds ? h.rezCost : Infinity).toBe(inCorp(t, () => ref.stopCost(t, withIce ? ice : null, further)));
-        expect(h.budget).toBe(t.runner.credits);
-      }
-    }
-  });
-
   it('reads no R&D order and no grip (10.2.2a)', () => {
     const t = blind(s);
     for (const v of Object.values(s.corp.servers)) expect(inCorp(t, () => serverHold(t, v.id, { when: 'runnerTurn' }))).toEqual(inCorp(s, () => serverHold(s, v.id, { when: 'runnerTurn' })));
@@ -81,11 +57,10 @@ describe('serverHold: what holds a server (corp/hold.ts)', () => {
 describe('rezMoney: money kept for rezzing (corp/rezMoney.ts)', () => {
   const s = read('ice-redirect-1001-t10.json');
 
-  it("byServer's sum is afterLineFloor for every agenda a line could take out of the pools", () => {
+  it("lineFloor is byServer's sum for every agenda a line could take out of the pools (the counted line's floor)", () => {
     const ids = ['', ...s.corp.hq.filter(c => cardDef(c).type_code === 'agenda').map(c => c.instanceId), ...Object.values(s.corp.servers).flatMap(v => v.root.map(c => c.instanceId))];
     for (const id of ids) {
       const sum = Object.values(inCorp(s, () => rezMoney(s, { without: [id] })).byServer).reduce((a, b) => a + b, 0);
-      expect(sum).toBe(inCorp(s, () => ref.afterLineFloor(s, id)));
       expect(inCorp(s, () => lineFloor(s, id))).toBe(sum);
     }
   });
@@ -118,18 +93,6 @@ describe('rezMoney: money kept for rezzing (corp/rezMoney.ts)', () => {
 });
 
 describe('corpPools and stake: the Corp pool (corp/pools.ts)', () => {
-  it('stake is runLoss and reachablePoints on every run of a played deal', () => {
-    const states = deal1001.runs;
-    expect(states.length).toBeGreaterThan(0);
-    for (const t of states) {
-      const st = inCorp(t, () => stake(t, t.activeRun!.server));
-      expect(st.loss).toBeCloseTo(inCorp(t, () => ref.runLoss(t)), 9);
-      expect(st.points).toBe(inCorp(t, () => ref.reachablePoints(t)));
-      expect(inCorp(t, () => runLoss(t))).toBe(inCorp(t, () => ref.runLoss(t)));
-      expect(inCorp(t, () => reachablePoints(t))).toBe(inCorp(t, () => ref.reachablePoints(t)));
-    }
-  });
-
   it("HQ by the Corp's own hand, R&D by its list less what it has seen, and neither by what it can't see (10.2.2a)", () => {
     const s = read('ice-redirect-1001-t10.json');
     const pools = inCorp(s, () => corpPools(s));

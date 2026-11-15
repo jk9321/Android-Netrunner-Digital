@@ -13,7 +13,7 @@ import { createAgent } from '../src/ai';
 import { GameRunner } from '../src/ai/playout';
 import { valueLoops } from '../src/ai/valueModel';
 import { applyPlanOff } from '../src/ai/synergy';
-import { holdCost } from '../src/ai/corp/hold';
+import { holdCost } from './plan-measure-lib';
 import { isCorpMain, knownIncome } from '../src/ai/corp/lines';
 import { lineFloor as afterLineFloor } from '../src/ai/corp/rezMoney';
 

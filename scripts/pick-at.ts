@@ -9,7 +9,7 @@ import { deckGameSetup } from '../src/data/decks';
 import { createAgent } from '../src/ai';
 import { applyPlanOff } from '../src/ai/synergy';
 import { asSide } from '../src/ai/pricing';
-import { holdCost } from '../src/ai/corp/hold';
+import { holdCost } from './plan-measure-lib';
 
 applyPlanOff(process.env.PLAN_OFF ?? '');
 const report = JSON.parse(readFileSync(process.env.FIX!, 'utf8'));

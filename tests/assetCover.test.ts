@@ -1,11 +1,12 @@
 import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
 import { GameAction, GameState, executeAction } from '../src/core';
-import { assetCover, assetPartner, scoreInTwoPick } from '../src/ai/countedScore';
+import { assetCover, assetPartner, scoreInTwoPick } from '../src/ai/corp/placement';
 import { scoringRemote } from '../src/ai/corp/lines';
 import { withDiagnostics } from '../src/ai/diagnostics';
 import { asSide } from '../src/ai/pricing';
 import { decisionContext } from '../src/ai/handValues';
+import '../src/ai'; // the AI entry: corpAI.ts fills the Corp ports (src/ai/corpPorts.ts) as it loads
 
 /**
  * assetCover (asset cover step 2, folded, redesign/spec-asset-cover.md, form A: Jeff's rule with a counted affordability

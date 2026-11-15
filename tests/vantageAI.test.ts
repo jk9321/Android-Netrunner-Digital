@@ -3,7 +3,8 @@ import { activePrompt, ALL_CARDS, cardDef, createCardInstance, executeAction, Ga
 import { accessWorth } from '../src/ai/effectValues';
 import { answerPrompt, meliesSide } from '../src/ai/prompts';
 import { bestBreakPlan, chainReactionBonus, runBudget, runScore, tagCost } from '../src/ai/runs';
-import { myoshuSaving, perfectRecallTarget } from '../src/ai/corpAI';
+import { myoshuSaving } from '../src/ai/corpAI';
+import { perfectRecallTarget } from '../src/ai/corp/rez';
 import { bakerWantsFuel, boardPlansWorth } from '../src/ai/cardPlans';
 import { createAgent } from '../src/ai';
 import { giveCard, installIceForTest, installProgramForTest, newGame, play, run, runIntoFirstIce, runnerInstall, setIdentity, startRunnerTurn } from './helpers';

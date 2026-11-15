@@ -19,7 +19,7 @@ import { describe, expect, it } from 'vitest';
 import { CardInstance, GameState, cardDef, createCardInstance } from '../src/core';
 import { HeuristicCorpAI } from '../src/ai/corpAI';
 import { createAgent } from '../src/ai';
-import { archivesWantsIce, countedRez } from '../src/ai/rezModel';
+import { archivesWantsIce, countedRez } from '../src/ai/corp/rez';
 import { inDecision } from './helpers/pricing';
 import { giveCard, newGame } from './helpers';
 
