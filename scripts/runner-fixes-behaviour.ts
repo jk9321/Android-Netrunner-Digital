@@ -9,7 +9,7 @@
  *   - Drone uses: Devadatta Drone's breach prompt answered "use"
  *   - Runner flatlines by cause (review R1): the step that flatlined it was in a run's access (a steal's or a card's damage),
  *     in an encounter (ice), on the Corp's turn (with the grip it began that turn on), or other; and the Runner turns that
- *     ended on an empty grip
+ *     ended on an empty grip, and the grip each Corp turn began on (gripHist: 0..5, 6 = 6 or more)
  *
  *   npx vite-node scripts/runner-fixes-behaviour.ts -- out.jsonl [deals] [first k]
  */
@@ -38,6 +38,7 @@ for (let k = from; k < from + deals; k++) {
   const pairing = (seed - 1001) / 10;
   const c = corp[Math.floor(pairing / runner.length) % corp.length];
   const r = runner[pairing % runner.length];
+  const gripHist = [0, 0, 0, 0, 0, 0, 0];
   const n = { flatAccess: 0, flatIce: 0, flatCorpTurn: 0, flatOther: 0, corpTurnGrip: -1, emptyTurnEnds: 0, damageIceRuns: 0, assetsTrashed: 0, budgetFailed: 0, droneUses: 0, dronePrompts: 0, ms: 0, decisions: 0, maxMs: 0 };
   const moves: string[] = [];
   const agent: Agent = createAgent('runner');
@@ -87,6 +88,7 @@ for (let k = from; k < from + deals; k++) {
     if (before.activePlayer === 'runner' && after.activePlayer === 'corp') {
       corpTurnGrip = after.runner.grip.length;
       if (corpTurnGrip === 0) n.emptyTurnEnds++;
+      gripHist[Math.min(6, corpTurnGrip)]++;
     }
     if (after.winner === 'corp' && /flatline/i.test(after.winReason ?? '')) {
       const run = before.activeRun;
@@ -100,7 +102,7 @@ for (let k = from; k < from + deals; k++) {
     const g = gr.state;
     moves.push(`${g.turnNumber}:${g.corp.credits}:${g.runner.credits}:${g.corp.clicks}:${g.runner.clicks}:${g.runner.grip.length}:${g.corp.hq.length}:${g.corp.score}:${g.runner.score}`);
   }
-  rows.push(JSON.stringify({ k, seed, corp: c.id, runner: r.id, winner: gr.state.winner ?? null, turns: gr.state.turnNumber, ...n, ms: Math.round(n.ms), maxMs: Math.round(n.maxMs), moves: hash(JSON.stringify(moves)), steps: moves.length }));
+  rows.push(JSON.stringify({ k, seed, corp: c.id, runner: r.id, winner: gr.state.winner ?? null, turns: gr.state.turnNumber, ...n, ms: Math.round(n.ms), maxMs: Math.round(n.maxMs), gripHist, moves: hash(JSON.stringify(moves)), steps: moves.length }));
   console.error(`deal ${k}: ${gr.state.winner} T${gr.state.turnNumber}`);
 }
 writeFileSync(out, rows.join('\n') + '\n');
