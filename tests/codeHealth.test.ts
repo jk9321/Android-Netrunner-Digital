@@ -28,6 +28,7 @@ const CODES_IN_VALUE_FILES: Record<string, string> = {
 /** Plan switches that are off, each with why it stays in the code. */
 const OFF_SWITCHES: Record<string, string> = {
   rigEffects: 'experiment, off until a batch says so',
+  rolloutLines: 'Step 4 Stage C (temporary): measurement of rollouts asking Q5 (c0-rulings 04:25Z), ruled on before C7',
   corpCore: 'Step 4 Stage C (temporary): the new order, off while it is built; on for C3, deleted with the ranking in C7',
   icePosition: "Jeff's ice-at-its-position model (Scatter Field); lost its batch, kept with its test for re-testing",
   'clickByPlay.corp': 'Corp side lost its batch; kept for re-testing',
