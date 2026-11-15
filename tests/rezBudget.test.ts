@@ -3,6 +3,7 @@ import { describe, expect, it } from 'vitest';
 import { GameState, cardDef } from '../src/core';
 import { REZ_NEXT_SHARE, REZ_NOW_SHARE, iceWorth, rezBudget } from '../src/ai/iceValues';
 import { asSide } from '../src/ai/synergy';
+import '../src/ai'; // the AI entry: corpAI.ts fills the Corp ports (src/ai/corpPorts.ts) as it loads
 
 /**
  * The rez budget (structural review, 2026-11-06): unrezzed ice counts as rezzable from one pool of credits. Before,

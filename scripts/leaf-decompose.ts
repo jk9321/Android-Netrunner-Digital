@@ -54,7 +54,7 @@ const aiInstall = (s: GameState, a: GameAction) => a.type === 'INSTALL_CARD' && 
 
 /** The rest of the turn as turnPlanner.ts playout plays it (no runs for the Corp; dominated() not applied). */
 function playout(start: GameState, first: GameAction): { end: GameState; line: string[] } {
-  const rollout = new HeuristicCorpAI({ synergy: true, planner: false, searching: true });
+  const rollout = new HeuristicCorpAI({ synergy: true, planner: false });
   const line: string[] = [describe(start, first)];
   let s = executeAction(start, first);
   for (let i = 0; i < 12 && !s.winner; i++) {

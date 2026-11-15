@@ -33,7 +33,7 @@ const cardOf = (s: GameState, a: GameAction) => ('cardInstanceId' in a && a.card
 const leafEval = (s: GameState) => withPricing({ leaves: [...pricing().leaves, { side: 'corp', plan: plan() }] }, () => evaluate(s, 'corp'));
 
 function playout(start: GameState, first: GameAction): GameState {
-  const rollout = new HeuristicCorpAI({ synergy: true, planner: false, searching: true });
+  const rollout = new HeuristicCorpAI({ synergy: true, planner: false });
   let s = executeAction(start, first);
   for (let i = 0; i < 12 && !s.winner; i++) {
     if (s.activePlayer !== 'corp' || s.activeRun) break;

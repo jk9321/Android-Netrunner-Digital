@@ -15,7 +15,7 @@ import { createAgent } from '../src/ai';
 import { GameRunner } from '../src/ai/playout';
 import { knownIncome } from '../src/ai/corp/lines';
 import { lineFloor as afterLineFloor } from '../src/ai/corp/rezMoney';
-import { countedRez } from '../src/ai/rezModel';
+import { countedRez } from '../src/ai/corp/rez';
 import { iceCreditNeed } from '../src/ai/runs';
 import { valueLoops } from '../src/ai/valueModel';
 import { applyPlanOff } from '../src/ai/synergy';

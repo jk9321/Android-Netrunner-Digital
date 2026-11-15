@@ -1,6 +1,7 @@
 import { CardInstance, GameState, cardDef } from '../../core';
 import { tally } from '../diagnostics';
 import { runnerBudget, serverHold } from './hold';
+import { memo } from '../valueModel';
 
 /**
  * Owner: rez money, the credits the Corp keeps to rez the ice that holds what it stakes through the Runner's next turn
@@ -28,6 +29,8 @@ import { runnerBudget, serverHold } from './hold';
 export interface RezMoney {
   keep: number;
   byServer: Record<string, number>;
+  /** The ice of each byServer rez (serverHold's rez ids), servers in stakedServers order. */
+  rezIds: Record<string, string[]>;
   unholdable: string[];
 }
 
@@ -43,22 +46,52 @@ export function stakedServers(state: GameState, without: string[] = []): string[
 
 /** Rez money (see the file comment). */
 export function rezMoney(state: GameState, opts: { without?: string[] } = {}): RezMoney {
-  const { byServer, unholdable } = holdingRez(state, opts.without);
+  // Worked out once per position (valueModel memo: on the state object, the pricing context in its key): boardNeed and
+  // rezBudget ask it of the same boards many times over in one decision (Stage B5 decision time)
+  if (!opts.without?.length) {
+    const money = memo(state, 'rezMoney', () => countRezMoney(state, holding(state)));
+    if (rezMoneyAudit.on) audit(money, countRezMoney(state, holdingRez(state)));
+    return money;
+  }
+  return countRezMoney(state, holdingRez(state, opts.without));
+}
+
+/** On-hit audit of the per-position memo (as handValues clickAudit): every call worked out again and compared. */
+export const rezMoneyAudit = { on: false, checked: 0, mismatches: 0 };
+function audit<T>(memoised: T, fresh: T) {
+  rezMoneyAudit.checked++;
+  if (JSON.stringify(memoised) !== JSON.stringify(fresh)) rezMoneyAudit.mismatches++;
+}
+
+/** The ice of each staked server's holding rez (rezMoney's rezIds, without keep's count): rezBudget's order reads it. */
+export function holdingRezIds(state: GameState): Record<string, string[]> {
+  const ids = holding(state).rezIds;
+  if (rezMoneyAudit.on) audit(ids, holdingRez(state).rezIds);
+  return ids;
+}
+
+/** holdingRez with nothing left out, once per position (as rezMoney). */
+const holding = (state: GameState) => memo(state, 'holdingRez', () => holdingRez(state));
+
+function countRezMoney(state: GameState, { byServer, rezIds, unholdable }: ReturnType<typeof holdingRez>): RezMoney {
   // What getting in costs the Runner with nothing more rezzed (the rezzed ice only)
   const entry = Object.fromEntries(Object.keys(byServer).map(id => [id, serverHold(state, id, { when: 'runnerTurn', corpCredits: 0 }).need]));
-  return { keep: keepFor(state, byServer, entry), byServer, unholdable };
+  return { keep: keepFor(state, byServer, entry), byServer, rezIds, unholdable };
 }
 
 /** byServer and unholdable: the cheapest holding rez of each staked server, the Corp's money unbounded. */
-function holdingRez(state: GameState, without: string[] = []): { byServer: Record<string, number>; unholdable: string[] } {
+function holdingRez(state: GameState, without: string[] = []): { byServer: Record<string, number>; rezIds: Record<string, string[]>; unholdable: string[] } {
   const byServer: Record<string, number> = {};
+  const rezIds: Record<string, string[]> = {};
   const unholdable: string[] = [];
   for (const id of stakedServers(state, without)) {
     const h = serverHold(state, id, { when: 'runnerTurn', corpCredits: Infinity });
-    if (h.holds) byServer[id] = h.rezCost;
-    else unholdable.push(id);
+    if (h.holds) {
+      byServer[id] = h.rezCost;
+      rezIds[id] = h.rez ?? [];
+    } else unholdable.push(id);
   }
-  return { byServer, unholdable };
+  return { byServer, rezIds, unholdable };
 }
 
 /** The largest byServer total over the servers one affordable sequence of runs reaches (at most the Runner's clicks). */
@@ -89,3 +122,4 @@ export function lineFloor(state: GameState, agendaId: string): number {
   for (let i = 0; i < money.unholdable.length; i++) tally('scoreInTwo', 'unholdable');
   return Object.values(money.byServer).reduce((a, b) => a + b, 0);
 }
+

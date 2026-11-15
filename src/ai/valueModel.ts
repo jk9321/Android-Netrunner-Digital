@@ -10,7 +10,8 @@
  * damage clocks), each behind its own tuning.plan switch.
  */
 import { CardInstance, GameState, SideCode, cardDef, rezCostOf } from '../core';
-import { plan, pricingKey } from './pricing';
+import { actingSide, plan, pricingKey } from './pricing';
+import { corpPorts } from './corpPorts';
 
 export const RATES = {
   /** A click left this turn. */
@@ -293,6 +294,7 @@ export function buildTarget(state: GameState, side: SideCode): number {
   return target;
 }
 
+
 /**
  * Credits a side needs on this board: the Corp, to rez its unrezzed ice on
  * the centrals and on remotes holding agendas; the Runner, to pay the rez
@@ -302,6 +304,8 @@ export function buildTarget(state: GameState, side: SideCode): number {
 export function boardNeed(state: GameState, side: SideCode): number {
   const servers = Object.values(state.corp.servers);
   if (side === 'corp') {
+    // B5: the Corp prices rez money's keep (corp/rezMoney.ts, through corpPorts: unset throws, R1); below, the Runner's view only
+    if (actingSide() === 'corp') return corpPorts.keep(state);
     let need = 0;
     for (const server of servers) {
       const counts = !server.isRemote || server.root.some(c => cardDef(c).type_code === 'agenda');

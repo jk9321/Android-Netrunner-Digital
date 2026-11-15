@@ -4,10 +4,7 @@ import { answerPrompt, simulate } from './prompts';
 import { BLOCK, bypassesAhead, iceCost, iceCreditNeed } from './runs';
 import { rezCost } from '../core/engine/cardEffects';
 import { iceStop } from './iceValues';
-import { deckCount } from './effectValues';
-import { archivesPayoffOf, rezEffectOf } from './cards';
-import { agendasUnseen, reachablePoints, runLoss } from './corp/pools';
-import { serverHold } from './corp/hold';
+import { runLoss } from './corp/pools';
 
 /**
  * plan.modelRez (structural review item 2, Jeff approved 2026-11-06): what rezzing the approached ice in a run is
@@ -58,7 +55,7 @@ export function modelRezParts(state: GameState, ice: CardInstance, synergy: bool
  * Clock, the rig's bypass cards and their counters: all public, runs.ts bypassesAhead; 6.5.8a). Part A of spec
  * jeff-games-48-50, folded 2026-11-13 (plan.bypassHold).
  */
-function runBypassed(state: GameState, ice: CardInstance): boolean {
+export function runBypassed(state: GameState, ice: CardInstance): boolean {
   const run = state.activeRun;
   if (!run || run.icePosition === null) return false;
   return bypassesAhead(state, state.corp.servers[run.server].ice.slice(0, run.icePosition + 1), true).has(ice.instanceId);
@@ -142,119 +139,4 @@ function gotIn(state: GameState, spare: number): number {
   };
   // runLoss on the board with the root agendas already taken: what HQ, R&D or Archives would still give up
   return evaluate(ended(after), 'corp') - runLoss(after);
-}
-
-/**
- * Counted rez (roadmap step 3, spec-step3-rez.md): a rez decision on approached ice by counting, consulted before
- * modelRezGain. 'rez', 'pass', or null (no opinion: modelRezGain decides). The Corp may rez the approached ice in the
- * approach-ice window (rules 6.4.3, 6.9.2b); ice left unrezzed is passed (6.9.2c). Uses the run's real numbers:
- *  - stops: the Runner can't pay through this ice with its credits now (iceCreditNeed, 7.1 aside), counting the rezzed
- *    ice still ahead of it, while that ice alone would not stop it (the rez is what ends the run);
- *  - toll: it can, for credits; free: it passes for no credits (no opinion: the rez costs the Runner nothing).
- * R2 an agenda in the root and the rez stops the run: rez. R3 a run on HQ with an agenda in HQ (R3s stops, R3t toll):
- * rez. R4 a run on R&D with no agenda in HQ and agendas left in R&D by the Corp's own deck list minus what it has seen
- * (never the order; R4s, R4t): rez. R5 Archives ice with no agenda in Archives and no Runner card that pays off an
- * Archives run (installed or in its deck list, CardAI archivesPayoff): don't rez. Stacked with corpAI's R6 at 10 games
- * +0.4 ± 0.7 (run 42981640841 vs 42978477338), 130 fewer central points in Corp losses; went broke +3.8 ± 1.2 and stayed
- * broke +2.1 ± 0.9, never recovered flat (292 vs 293): shipped on recovery (AI Coordinator ruling, step3-report.md).
- */
-export function countedRez(state: GameState, ice: CardInstance): 'rez' | 'pass' | null {
-  const run = state.activeRun;
-  if (!run || run.icePosition === null) return null;
-  const server = state.corp.servers[run.server];
-  if (!server) return null;
-  // Match point (spec-match-point-rez.md E1): a rez that stops a game-winning run is made, and a rez that would leave
-  // the Corp short of the inner ice that stops it is not, ahead of every other rule
-  const atMatch = matchPointRez(state, ice);
-  if (atMatch) return atMatch;
-  // R5: Archives ice with no agenda there and no Runner Archives card is not rezzed
-  if (run.server === 'archives' && !archivesWantsIce(state)) return 'pass';
-  const up = { ...ice, isRezzed: true };
-  const view: GameState = { ...state, corp: { ...state.corp, servers: { ...state.corp.servers, [server.id]: { ...server, ice: server.ice.map(c => (c.instanceId === ice.instanceId ? up : c)) } } } };
-  // The declared run bypasses this ice once rezzed (runBypassed), so its subroutines never resolve
-  // (6.5.8a-b) and the rez buys nothing on this run; it can still be rezzed on a later run's approach (6.9.2b). Ice with
-  // its own rez effect (Ping's tag) goes to modelRez, which prices the rez with the ice passed
-  if (runBypassed(view, up)) return rezEffectOf(cardDef(ice).code) ? null : 'pass';
-  const need = iceCreditNeed(view, up);
-  if (need === 0) return null;
-  const ahead = server.ice.slice(0, run.icePosition).filter(c => c.isRezzed).reduce((n, c) => n + iceCreditNeed(view, c), 0);
-  // The ice ahead stops the Runner already: this rez adds nothing the run needs
-  if (ahead === BLOCK || ahead > state.runner.credits) return null;
-  // The one stop count (rezStops), here with no further rezzes: this ice and the rezzed ice further in
-  const stops = rezStops(state, ice, false);
-  const isAgenda = (c: CardInstance) => cardDef(c).type_code === 'agenda';
-  const isStopper = stops && server.root.some(isAgenda);
-  // R2: the rez stops a steal from the root on this run
-  if (isStopper) return 'rez';
-  const hqAgendas = state.corp.hq.filter(isAgenda).length;
-  // R3 (Jeff): a run on HQ with an agenda in it, stop or toll
-  if (run.server === 'hq' && hqAgendas > 0) return 'rez';
-  // R4 (Jeff): a run on R&D with no agenda in HQ and agendas left in R&D by the deck list, stop or toll
-  if (run.server === 'rd' && hqAgendas === 0 && agendasUnseen(state) > 0) return 'rez';
-  return null;
-}
-
-/** The Runner wins with 7 or more agenda points in its score area (rules 1.7.2a). */
-const WIN = 7;
-
-/**
- * Match point (spec-match-point-rez.md E1): the Runner needs p more agenda points to win (rules 1.7.2a), the run's
- * server can give it p this run (reachablePoints), and rezzing this ice stops the run by the count: with it rezzed,
- * the rezzed ice further in, and some set of the unrezzed ice further in that the Corp can still afford after this rez
- * (it gets each of their windows: 6.4.3, 6.9.2b), the Runner's credits now can't pay through (iceCreditNeed, as
- * countedRez's stop test). Then the rez is made: the other side of it is a chance the game ends now. A rez that only
- * tolls is not a match-point rez (matchPointRez says when it is a pass).
- */
-export function matchPoint(state: GameState, ice: CardInstance): boolean {
-  return matchPointRez(state, ice) === 'rez';
-}
-
-/**
- * The match-point answer at this window. 'rez': rezzing this ice stops the run, and no set without it stops for less
- * (rezStops). 'pass': rezzing it doesn't stop the run, but some affordable set of the ice further in does, and paying
- * for this rez would leave the Corp short of that set (game #51 #219: Paywall for 1 of 4 credits, N-Pot needs 4).
- * null: off match point, or neither (a toll that keeps the inner stop affordable is left to the other rules).
- */
-export function matchPointRez(state: GameState, ice: CardInstance): 'rez' | 'pass' | null {
-  const run = state.activeRun;
-  const server = run ? state.corp.servers[run.server] : undefined;
-  if (!run || !server || run.icePosition === null) return null;
-  const need = WIN - state.runner.score;
-  if (need <= 0 || reachablePoints(state) < need) return null;
-  const withIt = stopSpend(state, ice, true);
-  const without = stopSpend(state, null, true);
-  if (withIt !== Infinity) return without < withIt ? null : 'rez';
-  if (without !== Infinity && state.corp.credits - rezCost(state, ice) < without) return 'pass';
-  return null;
-}
-
-/**
- * Rezzing this approached ice stops the run by the count: with it rezzed, the rezzed ice further in, and some set of the
- * unrezzed ice further in that the Corp can still afford after this rez, the Runner's credits now can't pay through.
- * Ice the run's bypasses skip on that board (bypassesAhead, the approached ice included; 6.5.8a) never resolves, so it
- * is left out of the sum. With further, a set without this ice that the Corp can afford and that stops for less makes
- * this window no opinion: that inner rez happens at its own window (6.9.2b).
- */
-export function rezStops(state: GameState, ice: CardInstance, further = true): boolean {
-  const withIt = stopSpend(state, ice, further);
-  if (withIt === Infinity) return false;
-  return !further || stopSpend(state, null, true) >= withIt;
-}
-
-/**
- * The cheapest rez spend that stops the run by the count, with the approached ice rezzed (ice given) or left unrezzed
- * (null), and the cheapest affordable set of the unrezzed ice further in (only with further). Infinity: none stops.
- * The count is the hold owner's ('thisRun', corp/hold.ts serverHold); stopCost before Step 4 Stage A.
- */
-function stopSpend(state: GameState, ice: CardInstance | null, further: boolean): number {
-  const run = state.activeRun;
-  if (!run) return Infinity;
-  const h = serverHold(state, run.server, { when: 'thisRun', mustRez: ice ? [ice.instanceId] : [], further });
-  return h.holds ? h.rezCost : Infinity;
-}
-
-/** Archives is worth ice (Jeff, 2026-11-11): an agenda is in it, or the Runner's deck list has a card that pays off an Archives run (CardAI archivesPayoff). */
-export function archivesWantsIce(state: GameState): boolean {
-  const archives = [...state.corp.archives.faceUp, ...state.corp.archives.faceDown];
-  return archives.some(c => cardDef(c).type_code === 'agenda') || deckCount(state, 'runner', c => archivesPayoffOf(c.cardCode)) > 0;
 }

@@ -1,8 +1,8 @@
 /**
  * Planner speed P0 (spec-planner-speed.md): every Corp main-phase decision's time (chooseAction) over a set of deals,
  * Normal v Normal. Mean, p95, max, and the count over 5 s and 10 s per 100 games; for each decision over 5 s, whether
- * scoreNow had a line on that click (winNow.ts scoreNowPlan), whether a held two-turn line (corpAI heldLine,
- * countedScore.ts scoreInTwoPick) was being continued, or neither, and the number of remotes.
+ * scoreNow had a line on that click (winNow.ts scoreNowPlan), whether a held two-turn line (the Corp pipeline's memory.heldLine,
+ * corp/placement.ts scoreInTwoPick) was being continued, or neither, and the number of remotes.
  *
  *   DEALS=1001,1071 npx vite-node scripts/slow-decisions.ts
  */
@@ -31,7 +31,7 @@ for (const seed of deals) {
   const corp = createAgent('corp', 'normal');
   const choose = corp.chooseAction.bind(corp);
   corp.chooseAction = (s: GameState) => {
-    const heldLine = (corp as unknown as { heldLine: HeldLine | null }).heldLine;
+    const heldLine = (corp as unknown as { memory: { heldLine: HeldLine | null } }).memory.heldLine;
     const held = !!heldLine;
     const later = asSide('corp', () => heldLaterStep(s, heldLine));
     if (later) heldSteps[later.type === 'SCORE_AGENDA' ? 'score' : 'advance']++;
