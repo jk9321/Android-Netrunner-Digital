@@ -13,6 +13,12 @@ import { getCardScript, mergeScriptGroups, scriptedCardCodes } from '../src/core
 /** Cards that need no script: the starter identities have no abilities ("Starter game only."). */
 const NEEDS_NO_SCRIPT = new Set(['30076', '30077']);
 
+/**
+ * Tests that name cards without testing their rules: AI values and plans, deck lists, live values. A card named
+ * only there has no rules test (audit 2026-11-15 TEST-COVERAGE-MENTION), so they don't count.
+ */
+const NOT_RULES_TESTS = /^ai|AI\.test|Values\.test|^(betaDefault|custom|sample)Decks|^decks?(Import|Playability|Prefs)?\.test|^(planner|pricing|synergy|threat|rootDeckAverage)/;
+
 function testFilesText(dir: string): string {
   const out: string[] = [];
   const walk = (d: string) => {
@@ -21,7 +27,7 @@ function testFilesText(dir: string): string {
       if (fs.statSync(p).isDirectory()) {
         // Recorded games name every card they saw; they don't test any of them
         if (f !== 'fixtures') walk(p);
-      } else if (/\.tsx?$/.test(f) && f !== 'cardCoverage.test.ts') out.push(fs.readFileSync(p, 'utf8'));
+      } else if (/\.tsx?$/.test(f) && f !== 'cardCoverage.test.ts' && !NOT_RULES_TESTS.test(f)) out.push(fs.readFileSync(p, 'utf8'));
     }
   };
   walk(dir);
@@ -47,7 +53,7 @@ describe('card coverage', () => {
     }
   });
 
-  it('every card is named by its code in at least one test', () => {
+  it('every card is named by its code in at least one rules test', () => {
     const text = testFilesText(path.resolve(__dirname));
     const untested = ALL_CARDS.filter(c => !NEEDS_NO_SCRIPT.has(c.code) && !text.includes(`'${c.code}'`) && !text.includes(`"${c.code}"`));
     expect(untested.map(c => `${c.code} ${c.title}`)).toEqual([]);

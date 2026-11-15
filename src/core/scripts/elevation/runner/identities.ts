@@ -75,7 +75,7 @@ const bazTargets = (state: GameState) =>
 
 const bazFlow = prompts({
   install: cards((ctx, a) => {
-    if (a.ids.length > 0) bazFlow.installRunner(ctx, a.ids[0], 'host');
+    if (a.ids.length > 0) bazFlow.installRunner(ctx, a.ids[0], 'host', 0, []);
   }),
   // Never asked: resources and hardware don't install on ice
   host: choice<RunnerHostData>((ctx, a, _d, source) => void installRunnerHostChoice(ctx.state, source, a.raw)),

@@ -156,8 +156,8 @@ export interface Flow<T extends Steps> {
     ctx: EffectContext,
     cardId: string,
     hostStep: K,
-    discount?: number,
-    trashIds?: string[],
+    discount: number,
+    trashIds: string[],
     ...data: DataArg<Omit<DataOf<T[K]>, keyof RunnerHostData>>
   ): boolean;
   /** Arranges the top of R&D (arrangeTop): asks for each card in turn under `step`, whose data is ArrangeData. */
@@ -171,7 +171,7 @@ export interface Flow<T extends Steps> {
    * when something qualifies; otherwise, at stops ALL, the player is asked anyway with only a decline,
    * whose answer comes back to `then` (or resolves nothing). Returns whether a prompt was pushed.
    */
-  evenIfNone<K extends keyof T & string>(
+  evenIfNone<K extends StepsOfKind<T, 'cards' | 'choice'>>(
     ctx: EffectContext,
     side: SideCode,
     qualifies: boolean,
@@ -182,7 +182,7 @@ export interface Flow<T extends Steps> {
   ): boolean;
 }
 
-/** Answer a psi step gets while its first bid is pending: never used, answerPsiGame asks the Runner. */
+/** The data a step gets when its prompt carried none. */
 const noData = {} as StepData;
 
 /** Declares a card's prompt steps; see the module comment. */
@@ -230,7 +230,7 @@ export function prompts<T extends Steps>(steps: T): Flow<T> {
     choice: (ctx, step, q, ...data) => askChoice(ctx, q.side, q.message, q.options, step, data[0]),
     runnerInstall: (ctx, step, q, ...data) => askRunnerInstall(ctx, q.message, q.candidateIds, q.min, q.max, step, data[0]),
     corpInstall: (ctx, cardId, step, opts = {}, ...data) => askCorpInstall(ctx, cardId, step, opts, data[0] as StepData | undefined),
-    installRunner: (ctx, cardId, hostStep, discount = 0, trashIds = [], ...data) =>
+    installRunner: (ctx, cardId, hostStep, discount, trashIds, ...data) =>
       installRunnerChoice(ctx, cardId, hostStep, discount, data[0] as StepData | undefined, trashIds),
     arrangeTop: (ctx, step, cardIds, side = 'corp') => arrangeTop(ctx, cardIds, step, [], side),
     arrangeNext: (ctx, step, data, picked) => arrangeNext(ctx, data, picked, step),

@@ -2,13 +2,13 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { describe, expect, it } from 'vitest';
 import '../src/core';
-import { getCardScript } from '../src/core/scripts';
+import { getCardScript, scriptedCardCodes } from '../src/core/scripts';
 
 /**
  * The AI answers some card prompts by card code and step name (src/ai/prompts.ts). Renaming a step in a
  * card script would drop the AI to its default answer with no error, so every pair it names must be a
- * step that card declares with prompts() (src/core/scripts/steps.ts). Cards not yet moved to prompts()
- * declare nothing and are skipped.
+ * step that card declares with prompts() (src/core/scripts/steps.ts). Every card declares its steps now
+ * (tests/steps.test.ts), so a card that declares none fails here too.
  */
 
 const AI_PROMPTS = path.resolve(__dirname, '../src/ai/prompts.ts');
@@ -53,8 +53,19 @@ describe('AI prompt answers name real steps', () => {
   it('every step the AI answers is one its card declares', () => {
     const wrong = pairs.filter(p => {
       const declared = getCardScript(p.code)?.promptSteps;
-      return declared && !declared.includes(p.step);
+      return !declared?.includes(p.step);
     });
     expect(wrong.map(p => `src/ai/prompts.ts:${p.line} card ${p.code} step '${p.step}'`)).toEqual([]);
+  });
+
+  // Audit 2026-11-15 TEST-AISTEP-GENERIC: some steps the AI reads by name alone, for any card ('prevent_damage',
+  // 'bypass'); a step no card declares any more would drop those answers to the default with no error.
+  it('every step the AI reads by name is declared by at least one card', () => {
+    const source = fs.readFileSync(AI_PROMPTS, 'utf8');
+    const named = new Set([...source.matchAll(/source\.step [!=]== '([^']+)'/g)].map(m => m[1]));
+    expect(named).toContain('prevent_damage');
+    expect(named).toContain('bypass');
+    const declared = new Set(scriptedCardCodes().flatMap(code => getCardScript(code)?.promptSteps ?? []));
+    expect([...named].filter(step => !declared.has(step))).toEqual([]);
   });
 });

@@ -211,7 +211,7 @@ const chestFlow = prompts({
   }),
   install: cards<{ chosen: string }>((ctx, a) => {
     // The answer's cards to trash first are not passed on (as before the typed steps)
-    if (a.ids[0]) chestFlow.installRunner(ctx, a.ids[0], 'host', 99);
+    if (a.ids[0]) chestFlow.installRunner(ctx, a.ids[0], 'host', 99, []);
     shuffleInPlace(ctx.state.rng, ctx.state.runner.stack);
   }),
   host: choice<RunnerHostData>((ctx, a, _d, source) => {
@@ -292,7 +292,7 @@ const jeitinhoFlow = prompts({
     const { state, card } = ctx;
     if (a.optionId !== 'yes' || state.runner.clicks === 0 || !state.runner.heap.includes(card)) return;
     state.runner.clicks -= 1;
-    jeitinhoFlow.installRunner(ctx, card.instanceId, 'host', 0);
+    jeitinhoFlow.installRunner(ctx, card.instanceId, 'host', 0, []);
   }),
   host: choice<RunnerHostData>((ctx, a, _d, source) => void installRunnerHostChoice(ctx.state, source, a.raw)),
 });

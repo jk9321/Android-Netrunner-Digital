@@ -6,7 +6,7 @@ import { findCardAnywhere, noteTrashedFromHand, removeCard, revealInHand } from 
 import { runnerSeesRd } from '../../../engine/rdKnowledge';
 import { startRun, trashAccessedCard } from '../../../engine/actions/run';
 import { giveTags } from '../../../engine/damage';
-import { counters, derez, drawForEffect, installedIce, runFlag, RunFlag, threatLevel, turnFlag } from '../../../engine/cardEffects';
+import { counters, derez, drawForEffect, installedIce, removeTags, runFlag, RunFlag, threatLevel, turnFlag } from '../../../engine/cardEffects';
 import { bypassIce } from '../../../engine/ice';
 import { rezForFree } from '../../../engine/actions/corp';
 import { CardScript, EffectContext } from '../../types';
@@ -14,16 +14,11 @@ import { gainCredits, iceLabel, installableRunnerCards, installRunnerHostChoice 
 import { cards, cardsQuestion, choice, choiceQuestion, prompts, RunnerHostData } from '../../steps';
 import {
   allServers,
-  bahiaAsk,
-  bahiaFlow,
   bypassIfStill,
   centralServers,
   hasKeyword,
-  heapOf,
   ids,
   place,
-  privilegedFlow,
-  privilegedProgram,
   remoteServers,
   runQuestion,
   runSource,
@@ -147,6 +142,55 @@ export const joyRide: CardScript = {
   onRunSuccessful: ({ state }) => drawForEffect(state, 'runner', 5, 'Joy Ride'),
 };
 
+// Bahia Bands (Run): Run any server. If successful, resolve 2 of the following in any order: Draw 2
+// cards. / Install 1 card from your grip, paying 1 credit less. / Remove 1 tag. / Place 4 credits on
+// this event. You can spend hosted credits to pay trash costs for the remainder of this run.
+const BAHIA_MODES = [
+  { id: 'draw', label: 'Draw 2 cards' },
+  { id: 'install', label: 'Install 1 card from your grip, paying 1 [credit] less' },
+  { id: 'tag', label: 'Remove 1 tag' },
+  { id: 'credits', label: 'Place 4 [credit] here to pay trash costs this run' },
+];
+
+type BahiaData = { done: string };
+
+const bahiaFlow = prompts({
+  run: choice((ctx, a) => startRun(ctx.state, a.optionId, { source: runSource(ctx), eventCode: ctx.card.cardCode })),
+  mode: choice<BahiaData>((ctx, a, d) => {
+    const { state, card } = ctx;
+    const next = [...bahiaDone(d), a.optionId];
+    if (a.optionId === 'draw') drawForEffect(state, 'runner', 2, 'Bahia Bands');
+    else if (a.optionId === 'tag') removeTags(state, 1);
+    else if (a.optionId === 'credits') {
+      place(card, 'credit', 4);
+      if (state.activeRun) state.activeRun.trashCreditHosts = [...(state.activeRun.trashCreditHosts ?? []), card.instanceId];
+    } else if (a.optionId === 'install') {
+      const options = installableRunnerCards(state, state.runner.grip, 1);
+      if (options.length > 0) {
+        bahiaFlow.runnerInstall(ctx, 'install', { message: 'Bahia Bands: install 1 card from your grip, paying 1 [credit] less.', candidateIds: ids(options), min: 0, max: 1 }, { done: next.join(',') });
+        return;
+      }
+    }
+    bahiaAsk(ctx, next);
+  }),
+  install: cards<BahiaData>((ctx, a, d) => {
+    if (a.ids.length > 0 && !bahiaFlow.installRunner(ctx, a.ids[0], 'host', 1, a.trashFirst, { done: bahiaDone(d).join(',') })) return;
+    bahiaAsk(ctx, bahiaDone(d));
+  }),
+  host: choice<BahiaData & RunnerHostData>((ctx, a, d, source) => {
+    installRunnerHostChoice(ctx.state, source, a.raw);
+    bahiaAsk(ctx, bahiaDone(d));
+  }),
+});
+
+const bahiaDone = (d: Partial<BahiaData>) => String(d.done ?? '').split(',').filter(Boolean);
+
+const bahiaAsk = (ctx: EffectContext, done: string[]) => {
+  if (done.length >= 2) return;
+  const options = BAHIA_MODES.filter(m => !done.includes(m.id));
+  bahiaFlow.choice(ctx, 'mode', { side: 'runner', message: `Bahia Bands: choose ${done.length === 0 ? 'the first' : 'the second'} effect.`, options }, { done: done.join(',') });
+};
+
 export const bahiaBands: CardScript = {
   onPlay: ctx => {
     const q = runQuestion(ctx, 'Bahia Bands', allServers(ctx.state));
@@ -192,6 +236,33 @@ export const eyeForAnEye: CardScript = {
   },
   ...eyeFlow.script,
 };
+
+// Privileged Access (Run): Play only if you are not tagged. Run Archives. If successful, instead of
+// breaching Archives, take 1 tag. When you take a tag with this event, you may install 1 resource
+// from your heap, paying 2 credits less. Threat 3 -> When you take a tag with this event, you may
+// install 1 program from your heap.
+const heapOf = (state: GameState, kind: string, discount: number) => installableRunnerCards(state, state.runner.heap.filter(c => type(c) === kind), discount);
+
+const privilegedFlow = prompts({
+  resource: cards((ctx, a) => {
+    if (a.ids[0] && !privilegedFlow.installRunner(ctx, a.ids[0], 'host-resource', 2, [])) return;
+    privilegedProgram(ctx);
+  }),
+  program: cards((ctx, a) => {
+    if (a.ids[0]) privilegedFlow.installRunner(ctx, a.ids[0], 'host-program', 0, []);
+  }),
+  'host-resource': choice<RunnerHostData>((ctx, a, _d, source) => {
+    installRunnerHostChoice(ctx.state, source, a.raw);
+    privilegedProgram(ctx);
+  }),
+  'host-program': choice<RunnerHostData>((ctx, a, _d, source) => void installRunnerHostChoice(ctx.state, source, a.raw)),
+});
+
+function privilegedProgram(ctx: EffectContext): void {
+  if (threatLevel(ctx.state) < 3) return;
+  const options = heapOf(ctx.state, 'program', 0);
+  if (options.length > 0) privilegedFlow.runnerInstall(ctx, 'program', { message: 'Privileged Access: you may install 1 program from your heap.', candidateIds: ids(options), min: 0, max: 1 });
+}
 
 export const privilegedAccess: CardScript = {
   canPlay: ({ state }) => (state.runner.tags > 0 ? 'You are tagged' : null),
