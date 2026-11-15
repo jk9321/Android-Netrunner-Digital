@@ -211,6 +211,12 @@ describe('AI code health (audit guards)', () => {
     expect(aiFiles().filter(f => /\bregisterCorpPorts\(/.test(aiText(f)) && !f.endsWith('corpPorts.ts'))).toEqual(['corpAI.ts']);
   });
 
+  // Step 4 Stage C4 (brief-stage-c.md): the card-specific rules live in corp/cardRules.ts; its exports may only shrink
+  it('keeps the card rules of corp/cardRules.ts to this list (shrink only)', () => {
+    const names = [...aiText('corp/cardRules.ts').matchAll(/^export (?:function|const) (\w+)/gm)].map(m => m[1]).sort();
+    expect(names).toEqual(['advancesAsIce', 'bangunBait', 'iceAdvanceValue', 'isPettyCash', 'myoshuSaving', 'overAdvance', 'tagFirst', 'tagsBeforeScore', 'trapAdvanceCap', 'untaianAdvance']);
+  });
+
   it("keeps the hold owner's readers to this list (corp/hold.ts serverHold)", () => {
     const readers = aiFiles().filter(f => f.replace(/\\/g, '/') !== 'corp/hold.ts' && /\bserverHold\b/.test(aiText(f))).map(f => f.replace(/\\/g, '/')).sort();
     expect(readers).toEqual(['corp/candidates.ts', 'corp/lines.ts', 'corp/placement.ts', 'corp/rez.ts', 'corp/rezMoney.ts']);

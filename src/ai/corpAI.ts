@@ -1,11 +1,9 @@
 import { CardInstance, GameAction, GameState, ServerState, activePrompt, cardDef, getCardDefinition, getCardScript, getLegalActions, isLegalAction } from '../core';
-import { MYOSHU } from './cardPlans';
 import { iceStrength, iceSubroutines, iceSubtypes, isIcebreaker } from '../core/engine/ice';
-import { iceStop, iceWorth } from './iceValues';
+import { iceWorth } from './iceValues';
 import { mainRemote, withIceInstalled } from './board';
 import { rigCoverage } from './evaluate';
 import { counters, rezCost } from '../core/engine/cardEffects';
-import { turnKey } from '../core/engine/helpers';
 import { stealCost } from '../core/engine/actions/run';
 import { Agent, FreeActionGuard, ScoredAction } from './agent';
 import { digValue, evaluate, handValue, hqTrashCardsLoss } from './evaluate';
@@ -21,16 +19,17 @@ import { agendaStakes, archivesWantsIce, decideRez, hasEndTheRun, onRezOnly, per
 import { holdingRezIds, rezMoney } from './corp/rezMoney';
 import { registerCorpPorts } from './corpPorts';
 import { freeRezCover, freeRezTargets } from './freeRez';
-import { PETTY_CASH_REPLAY, iceAdvanceWorth, knownTrap, placedCounterWorth, rezzedWorth, runTimed, topDownWorth } from './effectValues';
+import { PETTY_CASH_REPLAY, knownTrap, placedCounterWorth, rezzedWorth, runTimed, topDownWorth } from './effectValues';
 import { CARD_PROFILES, ECON_SCALE, PAYOUT_RISK, bareAssetRisk, unrezzedWorth } from './cardProfiles';
 
 import { BLOCK, accessTrap, iceCost, iceCreditNeed, isTrap, subroutineCost, weakestIce } from './runs';
-import { cardSynergy } from './synergyTags';
 import { econValue, upgradeValue } from './cardValues';
 import { counterWorth } from './counterValues';
 import { plan, pricing, withPricing } from './pricing';
 import { dividendsOf, setupOperation } from './cards';
 import { CorpMemory, corpDecide } from './corp/core';
+import { advancesAsIce, bangunBait, iceAdvanceValue, overAdvance, tagFirst as agendaWaitsForTag, tagsBeforeScore, trapAdvanceCap, untaianAdvance } from './corp/cardRules';
+export { myoshuSaving } from './corp/cardRules';
 import { asRanked, corpCandidates, isPettyCash, plannerIntake } from './corp/candidates';
 import { corpSeenGrip } from './oracle';
 
@@ -38,7 +37,6 @@ import { corpSeenGrip } from './oracle';
 const type = (card: CardInstance) => cardDef(card).type_code;
 const isAgendaOrAsset = (card: CardInstance) => ['agenda', 'asset'].includes(type(card));
 
-const CLEARINGHOUSE = '30061';
 
 /**
  * plan.clearinghouseRez (Phase 2 O4c, spend audit: Clearinghouse advanced 39 times, never fired): a trap waits unrezzed
@@ -204,10 +202,10 @@ export class HeuristicCorpAI implements Agent {
         return -0.5;
       case 'SCORE_AGENDA':
         // Dividends: put spare clicks into the agenda first (scoring stays possible all turn)
-        if (this.synergy && this.overAdvance(state, action.cardInstanceId)) return 5;
+        if (this.synergy && overAdvance(state, action.cardInstanceId, rezReserve(state))) return 5;
         // Orbital Superiority and the like: tag the Runner first if we can this turn (the old plan.scoreSetup's tag half,
         // kept in step 2: counted scoring scores an agenda as soon as it can and does not see an "if tagged" score effect)
-        if (this.synergy && this.tagFirst(state, action.cardInstanceId)) return 5;
+        if (this.synergy && agendaWaitsForTag(state, action.cardInstanceId)) return 5;
         return 100;
       case 'PURGE_VIRUS': {
         const viruses = [...state.runner.rig.programs, ...state.runner.rig.hardware, ...state.runner.rig.resources].reduce(
@@ -232,7 +230,7 @@ export class HeuristicCorpAI implements Agent {
         // (Jeff) a faceup agenda with no ice is stolen 98% of the time: only as a flatline threat (plan.bangunNoBareBait)
         // (Jeff) early on, 2 points cost less than 2 cards and a tag: the bait stays while the Runner has 2 points or fewer (plan.bangunEarlyBait)
         if (action.faceUp && !(server?.ice.length) && state.runner.grip.length > 2 && state.runner.score > 2) return -Infinity;
-        const faceUp = action.faceUp ? (this.synergy ? -this.bangunBait(state) : 0.5) : 0;
+        const faceUp = action.faceUp ? (this.synergy ? -bangunBait(state) : 0.5) : 0;
         return this.installScore(state, card, server) - faceUp - reservePenalty(state, corp.credits - installCost, this.wideReserve);
       }
       case 'REZ_CARD': {
@@ -333,7 +331,7 @@ export class HeuristicCorpAI implements Agent {
     if (action.type === 'PLAY_OPERATION_OR_EVENT') {
       const code = corp.hq.find(c => c.instanceId === action.cardInstanceId)?.cardCode;
       // The tag that sets up a waiting Orbital Superiority
-      if (this.synergy && code && this.tagsBeforeScore(state, code) && simulate(state, action)) return 6;
+      if (this.synergy && code && tagsBeforeScore(state, code) && simulate(state, action)) return 6;
       const bonus = code ? this.operationBonus(state, code) : 0;
       if (bonus !== 0) {
         const after = simulate(state, action);
@@ -430,11 +428,11 @@ export class HeuristicCorpAI implements Agent {
     const def = cardDef(card);
     if (def.type_code === 'agenda') {
       const need = (def.advancement_cost ?? 0) - card.advancementCounters;
-      if (need <= 0) return this.synergy && this.overAdvance(state, card.instanceId) ? 6 + 1.5 * dividends(card) : -Infinity;
+      if (need <= 0) return this.synergy && overAdvance(state, card.instanceId, rezReserve(state)) ? 6 + 1.5 * dividends(card) : -Infinity;
       // (an advance this turn can finish ranked 40 + counters here; step 2 deleted it, off +0.6 ± 1.2 at games=3: counted scoring plays it)
       if (this.timing) {
         // Deck-aware AI: only if the rest of this turn leaves it scoreable next turn, behind ice we can still rez
-        const spend = Math.min(corp.clicks, corp.credits) + this.untaianAdvance(state, 0);
+        const spend = Math.min(corp.clicks, corp.credits) + (this.synergy ? untaianAdvance(state, 0) : 0);
         const ruledOut = need - spend > 3 || guards(state, server, corp.credits - spend) === 0 || (!this.exposureOk(state, server, corp.credits - spend) && !this.hqNoSafer(state, server, corp.credits - spend));
         if (ruledOut) return -Infinity;
         return 6 + card.advancementCounters; // and then finish the job: a half-advanced agenda is the Runner's best target
@@ -446,7 +444,7 @@ export class HeuristicCorpAI implements Agent {
       // Traps: advancing makes them look like agendas (Urtica Cipher, Clearinghouse)
       // plan.clearinghouseLethal (Gemini audit, 2026-11-01): Clearinghouse's meat damage is its counters, so it keeps going
       // toward a flatline (one more than the grip, at most 6) instead of stopping at 3
-      const cap = card.cardCode === CLEARINGHOUSE ? Math.min(6, Math.max(3, state.runner.grip.length + 1)) : 3;
+      const cap = trapAdvanceCap(state, card);
       if (!(corp.credits >= 4 && card.advancementCounters < cap)) return -Infinity;
       // A trap the Runner has accessed (knownTrap: 7.1.2, 10.2.2b) no longer reads as an agenda: the flat "looks like an
       // agenda" and trapBluff are gone, and the counter is worth what it does (placedCounterWorth: 0 for an access trap,
@@ -455,9 +453,8 @@ export class HeuristicCorpAI implements Agent {
       return this.synergy && tuning.bluff && isTrap(card.cardCode) ? 1.2 + this.trapBluff(state, card) : 1.2;
     }
     // Pharos: +5 strength at 3 counters; Syailendra: places counters when encountered at 3
-    if (card.cardCode === '35076' || card.cardCode === '30063') {
-      const at = (n: number) => Math.min(iceStop(state), iceCost(state, { ...card, isRezzed: true, advancementCounters: n }));
-      const worth = iceAdvanceWorth(state, card, at);
+    if (advancesAsIce(card)) {
+      const worth = iceAdvanceValue(state, card);
       return worth > 0 ? ECON_SCALE * worth : -Infinity;
     }
     return -Infinity;
@@ -504,51 +501,6 @@ export class HeuristicCorpAI implements Agent {
     return entryCost(state, server, credits) >= entryCost(state, state.corp.servers.hq, credits);
   }
 
-  /** PT Untaian's paid advancement at the end of this turn (1), if HQ will be small enough; `leaving` cards are about to leave HQ. */
-  private untaianAdvance(state: GameState, leaving: number): number {
-    const corp = state.corp;
-    return this.synergy && corp.identity.cardCode === '35047' && corp.hq.length - leaving <= 3 && corp.credits >= 2 ? 1 : 0;
-  }
-
-  /**
-   * BANGUN: a faceup agenda tells the Runner what it is, but accessing it
-   * does 2 meat damage and gives a tag. Worth it when that would flatline
-   * the Runner (a guard on the agenda), or when the Corp holds cards that
-   * punish tags; otherwise a small cost, as before.
-   */
-  private bangunBait(state: GameState): number {
-    if (state.runner.grip.length < 2) return 1.5;
-    const corp = state.corp;
-    const cards = [...corp.hq, ...corp.scoreArea, ...Object.values(corp.servers).flatMap(s => s.root)];
-    const punishers = cards.filter(c => (cardSynergy(cardDef(c)).when ?? []).includes('ifTagged')).length;
-    return punishers > 0 ? 0.4 + 0.4 * Math.min(punishers, 2) : -0.5;
-  }
-
-  /** An agenda that is better scored with the Runner tagged, while an operation in HQ could tag them this turn. */
-  private tagFirst(state: GameState, agendaId: string): boolean {
-    const agenda = Object.values(state.corp.servers).flatMap(s => s.root).find(c => c.instanceId === agendaId);
-    if (!agenda || state.runner.tags > 0 || state.corp.clicks < 1) return false;
-    const when = cardSynergy(cardDef(agenda)).when ?? [];
-    if (!when.includes('ifTagged') || !when.includes('onScore')) return false;
-    return state.corp.hq.some(c => this.tagsBeforeScore(state, c.cardCode, agenda));
-  }
-
-  /** Is this operation a tag we could play now to set up such an agenda? */
-  private tagsBeforeScore(state: GameState, code: string, agenda?: CardInstance): boolean {
-    const def = getCardDefinition(code);
-    if (def.type_code !== 'operation' || !(cardSynergy(def).gives?.tags ?? 0) || state.runner.tags > 0) return false;
-    const card = state.corp.hq.find(c => c.cardCode === code);
-    if (!card || !isLegalAction(state, { type: 'PLAY_OPERATION_OR_EVENT', player: 'corp', cardInstanceId: card.instanceId })) return false;
-    if (agenda) return true;
-    // Only worth it with such an agenda ready to score
-    return Object.values(state.corp.servers)
-      .flatMap(s => s.root)
-      .some(a => {
-        const when = cardSynergy(cardDef(a)).when ?? [];
-        return type(a) === 'agenda' && a.advancementCounters >= (cardDef(a).advancement_cost ?? 99) && when.includes('ifTagged') && when.includes('onScore');
-      });
-  }
-
   /**
    * The reverse bluff: once the Runner has seen this Corp's traps, now and
    * then put a real agenda in a remote with no ice, unadvanced, and score
@@ -569,18 +521,6 @@ export class HeuristicCorpAI implements Agent {
     let hash = state.turnNumber * 31;
     for (const ch of card.instanceId) hash = (hash * 33 + ch.charCodeAt(0)) >>> 0;
     return hash % 3 === 0;
-  }
-
-  /**
-   * A scoreable Dividends agenda the Corp can still advance this turn: each
-   * extra counter becomes agenda counters when it is scored.
-   */
-  private overAdvance(state: GameState, cardId: string): boolean {
-    const corp = state.corp;
-    const card = Object.values(corp.servers).flatMap(s => s.root).find(c => c.instanceId === cardId);
-    if (!tuning.dividends || !card || type(card) !== 'agenda' || dividends(card) === 0) return false;
-    const excess = card.advancementCounters - (cardDef(card).advancement_cost ?? 0);
-    return excess >= 0 && excess < 2 && corp.clicks >= 1 && corp.credits >= 1 + rezReserve(state);
   }
 
   private installScore(state: GameState, card: CardInstance, server: ServerState | null, free = false): number {
@@ -692,7 +632,7 @@ export class HeuristicCorpAI implements Agent {
         // (an install that scores this turn ranked 44/45 here; step 2 deleted it, off +0.0 ± 0.4 at games=3: counted scoring plays it)
         if (this.timing) {
           // Deck-aware AI: install only if this turn's advances leave it scoreable next turn, behind ice we can still rez
-          const spend = Math.min(corp.clicks - 1, corp.credits) + this.untaianAdvance(state, 1);
+          const spend = Math.min(corp.clicks - 1, corp.credits) + (this.synergy ? untaianAdvance(state, 1) : 0);
           const left = (def.advancement_cost ?? 0) - spend;
           const exposed = !this.exposureOk(state, server, corp.credits - spend) && !this.hqNoSafer(state, server, corp.credits - spend);
           if (left > 3 || guards(state, server, corp.credits - spend) === 0 || exposed) return hq.length > corp.handSizeLimit ? (server.ice.length > 0 ? 0.6 : 0.5) : -2;
@@ -1038,24 +978,6 @@ export function lethalHqAgenda(state: GameState, credits = state.corp.credits): 
 
 /** Installed agendas with enough counters to score. */
 // runLoss moved to corp/pools.ts (Step 4 Stage A)
-
-const MYOSHU_COST = 10;
-
-/**
- * Myōshu (play only after scoring an agenda installed on an earlier turn;
- * 10 credits for 2 points): worth saving for while it is in HQ and an
- * agenda installed before this turn sits in a remote. `held`: the 10 are
- * already in the pool (keep them); otherwise they are within about two
- * turns of clicks (save toward them).
- */
-export function myoshuSaving(state: GameState, held = false): boolean {
-  const corp = state.corp;
-  if (!corp.hq.some(c => c.cardCode === MYOSHU)) return false;
-  const now = turnKey(state);
-  const older = Object.values(corp.servers).some(s => s.isRemote && s.root.some(c => type(c) === 'agenda' && c.installedTurn !== now));
-  if (!older) return false;
-  return held ? corp.credits >= MYOSHU_COST : corp.credits < MYOSHU_COST && corp.credits + corp.clicks + 6 >= MYOSHU_COST;
-}
 
 /** Ice on this server that is rezzed or that `credits` could rez (cheapest first). */
 function guards(state: GameState, server: ServerState, credits: number): number {

@@ -2,13 +2,13 @@ import { CardInstance, GameAction, GameState, activePrompt, cardDef, getLegalAct
 import { evaluate } from '../evaluate';
 import { ScoredAction } from '../agent';
 import { answerPrompt, simulate } from '../prompts';
-import { cardSynergy } from '../synergyTags';
-import { dividendsOf } from '../cards';
 import { serverHold } from './hold';
 import { rezMoney } from './rezMoney';
 import { HeldLine } from './lines';
 import { Placement, iceCount, place, placedInstall, placementAction } from './placement';
 import { rezAllowed } from './rez';
+import { isPettyCash, overAdvance, tagFirst, tagsBeforeScore } from './cardRules';
+export { isPettyCash } from './cardRules';
 
 /**
  * Step 4 Stage C (spec-step4-corp-core.md 1.3, revision 13; stage-c/order.md as approved, c0-rulings.md): the Corp's
@@ -166,7 +166,7 @@ export function corpCandidates(state: GameState, legal: GameAction[], opts: Cand
         play(a, 1);
         break;
       case 'PLAY_OPERATION_OR_EVENT':
-        play(a, isPettyCash(state, a) ? 1 : tagsBeforeScoring(state, a) ? 3 : 4);
+        play(a, isPettyCash(state, a) ? 1 : tagsBeforeScore(state, state.corp.hq.find(c => c.instanceId === a.cardInstanceId)?.cardCode ?? '') ? 3 : 4);
         break;
       case 'USE_ABILITY':
         play(a, 4);
@@ -193,7 +193,7 @@ export function corpCandidates(state: GameState, legal: GameAction[], opts: Cand
         const card = findInstalled(state, a.cardInstanceId);
         // Scored first in line 3, unless an advance first turns into Dividends counters, or a tag first sets up its score
         // effect (cardRules.ts: overAdvance, tagFirst, moved from the ranking)
-        const wait = card && (overAdvance(state, card, keep) || tagWaits(state, card));
+        const wait = card && (overAdvance(state, card.instanceId, keep) || tagFirst(state, card.instanceId));
         add({ action: a, line: 3, behind: false, keys: [wait ? 1 : -2, idNum(a.cardInstanceId)], card: a.cardInstanceId });
         break;
       }
@@ -300,9 +300,6 @@ export function sortCandidates(list: Candidate[]): Candidate[] {
   });
 }
 
-const PETTY_CASH = '35081';
-/** Petty Cash from HQ: playable only as the turn's first action. */
-export const isPettyCash = (state: GameState, a: GameAction): boolean => a.type === 'PLAY_OPERATION_OR_EVENT' && state.corp.hq.find(c => c.instanceId === a.cardInstanceId)?.cardCode === PETTY_CASH;
 
 const findInstalled = (state: GameState, id: string) => Object.values(state.corp.servers).flatMap(v => [...v.root, ...v.ice]).find(c => c.instanceId === id);
 
@@ -352,33 +349,4 @@ function drawFirst(state: GameState, out: Candidate[]): boolean {
   const hq = new Set(state.corp.hq.map(c => c.instanceId));
   const usable = new Set(out.filter(c => c.line <= 6 && !c.behind && c.card && hq.has(c.card)).map(c => c.card)).size;
   return state.corp.hq.length < state.corp.handSizeLimit && usable < state.corp.clicks - 1;
-}
-
-// ------------------------------------------------------------------ card rules the ranking held (C4 moves them to cardRules.ts)
-
-/** Dividends: a scoreable agenda advanced again first while a click and a credit above keep are left (the ranking's overAdvance). */
-function overAdvance(state: GameState, card: CardInstance, keep: number): boolean {
-  if (dividendsOf(card.cardCode) === 0 || typeOf(card) !== 'agenda') return false;
-  const excess = card.advancementCounters - (cardDef(card).advancement_cost ?? 0);
-  return excess >= 0 && excess < 2 && state.corp.clicks >= 1 && state.corp.credits >= 1 + keep;
-}
-
-/** An agenda better scored with the Runner tagged, while an operation in HQ could tag them this turn (the ranking's tagFirst). */
-function tagWaits(state: GameState, agenda: CardInstance): boolean {
-  if (state.runner.tags > 0 || state.corp.clicks < 1) return false;
-  const when = cardSynergy(cardDef(agenda)).when ?? [];
-  if (!when.includes('ifTagged') || !when.includes('onScore')) return false;
-  return state.corp.hq.some(c => typeOf(c) === 'operation' && (cardSynergy(cardDef(c)).gives?.tags ?? 0) > 0);
-}
-
-/** A tag operation that sets up a scoreable "if tagged" agenda (the ranking's tagsBeforeScore): played in line 3, before the score. */
-function tagsBeforeScoring(state: GameState, a: GameAction): boolean {
-  const card = state.corp.hq.find(c => c.instanceId === cardIdOf(a));
-  if (!card || state.runner.tags > 0 || !(cardSynergy(cardDef(card)).gives?.tags ?? 0)) return false;
-  return Object.values(state.corp.servers)
-    .flatMap(v => v.root)
-    .some(x => {
-      const when = cardSynergy(cardDef(x)).when ?? [];
-      return typeOf(x) === 'agenda' && x.advancementCounters >= (cardDef(x).advancement_cost ?? 99) && when.includes('ifTagged') && when.includes('onScore');
-    });
 }
