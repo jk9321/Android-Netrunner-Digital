@@ -122,8 +122,9 @@ const SUB_RULES: SubRule[] = [
   [/look at the top \d+ cards? of r&d|arrange|to the (?:top or )?bottom of r&d|shuffle 1 card from hq or archives into r&d/i, () => 0.4], // Corp card selection
   // Each point of core damage trashes a card and takes a hand size (rule 10.4.2b): "do 2 core damage" is 2 of each
   [/(?:(\d+) )?core damage/i, (state, core) => {
+    // "If the Runner is tagged" is priced as if tagged: an earlier subroutine may tag it first (Jaguarundi), which a
+    // price per subroutine can't see; tankDamage, which walks them in order, can
     const n = Number(core[1] ?? 1);
-    if (/if the runner is tagged/i.test(core.input ?? '') && state.runner.tags === 0) return 0;
     return n > state.runner.grip.length ? BLOCK : n * coreDamageWorth(state) + damageWorth(state, n);
   }],
   [/unless they pay 3 credits/i, state => creditCost(state, 3)],
