@@ -8,6 +8,8 @@ import { GameState, cardDef } from '../../src/core';
 import { asSide, plan, withPricing } from '../../src/ai/pricing';
 import { decisionContext } from '../../src/ai/handValues';
 import { serverHold } from '../../src/ai/corp/hold';
+import { needsOldTree } from './old-tree';
+needsOldTree('scripts/stage-c/hold-probe.ts');
 
 const s: GameState = JSON.parse(readFileSync(process.env.STATE ?? '', 'utf8'));
 withPricing({ plan: { ...plan(), corpCore: true, rolloutLines: true } }, () =>

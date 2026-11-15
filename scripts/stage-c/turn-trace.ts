@@ -11,6 +11,8 @@ import { asSide, plan, withPricing } from '../../src/ai/pricing';
 import { decisionContext } from '../../src/ai/handValues';
 import { corpCandidates } from '../../src/ai/corp/candidates';
 import { isCorpMain } from '../../src/ai/corp/lines';
+import { needsOldTree } from './old-tree';
+needsOldTree('scripts/stage-c/turn-trace.ts');
 
 const name = (s: GameState, a: GameAction) => {
   const id = 'cardInstanceId' in a ? (a.cardInstanceId as string) : undefined;

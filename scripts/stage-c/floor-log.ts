@@ -10,6 +10,8 @@ import { decisionContext } from '../../src/ai/handValues';
 import { floorLog, lineFloor } from '../../src/ai/corp/rezMoney';
 import { isCorpMain } from '../../src/ai/corp/lines';
 import { forEachRecorded } from '../stage-a/harness';
+import { needsOldTree } from './old-tree';
+needsOldTree('scripts/stage-c/floor-log.ts');
 
 floorLog.on = true;
 let states = 0;

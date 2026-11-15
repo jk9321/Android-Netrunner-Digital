@@ -43,6 +43,8 @@ import { evaluate } from '../../src/ai/evaluate';
 import { simulate } from '../../src/ai/prompts';
 import { rezMoney } from '../../src/ai/corp/rezMoney';
 import { Decision, clearCaches, forEachRecorded } from '../stage-a/harness';
+import { needsOldTree } from './old-tree';
+needsOldTree('scripts/stage-c/pairwise.ts');
 
 const typeOf = (c: CardInstance | undefined) => (c ? cardDef(c).type_code : undefined);
 const where = (d: Decision) => `${d.src} #${d.i} T${d.turn}`;

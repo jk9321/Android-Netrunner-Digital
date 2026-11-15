@@ -13,6 +13,8 @@ import { decisionContext } from '../../src/ai/handValues';
 import { corpCandidates } from '../../src/ai/corp/candidates';
 import { isCorpMain } from '../../src/ai/corp/lines';
 import { clearCaches, forEachRecorded } from '../stage-a/harness';
+import { needsOldTree } from './old-tree';
+needsOldTree('scripts/stage-c/planner-view.ts');
 
 type Tally = Record<string, number>;
 const out = {

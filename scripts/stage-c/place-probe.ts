@@ -12,6 +12,8 @@ import { iceCount, place } from '../../src/ai/corp/placement';
 import { rezMoney } from '../../src/ai/corp/rezMoney';
 import { centralStake } from '../../src/ai/corp/pools';
 import { scoringRemote } from '../../src/ai/corp/lines';
+import { needsOldTree } from './old-tree';
+needsOldTree('scripts/stage-c/place-probe.ts');
 
 const s: GameState = JSON.parse(readFileSync(process.env.STATE ?? '', 'utf8'));
 withPricing({ plan: { ...plan(), corpCore: true, rolloutLines: true } }, () =>

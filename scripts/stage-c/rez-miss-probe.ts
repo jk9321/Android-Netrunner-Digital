@@ -13,6 +13,8 @@ import { isCorpMain } from '../../src/ai/corp/lines';
 import { rezMoney } from '../../src/ai/corp/rezMoney';
 import { rezTimingBlocked } from '../../src/ai/corp/rez';
 import { forEachRecorded } from '../stage-a/harness';
+import { needsOldTree } from './old-tree';
+needsOldTree('scripts/stage-c/rez-miss-probe.ts');
 
 forEachRecorded({
   decision: d => {

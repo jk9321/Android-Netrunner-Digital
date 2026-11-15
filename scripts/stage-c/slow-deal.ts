@@ -21,7 +21,7 @@ const end = playDeal(Number(process.env.DEAL ?? 2041), {
   decision: d => {
     const s = d.state;
     const p = activePrompt(s);
-    const kind = d.kind === 'rez' ? 'rez window' : p ? `prompt ${p.kind} ${p.source?.cardCode ?? ''} ${p.source?.step ?? ''}` : isCorpMain(s) ? 'main' : 'other';
+    const kind = d.kind === 'rez' ? 'rez window' : p ? `prompt ${p.kind} ${'source' in p ? `${p.source.cardCode} ${p.source.step ?? ''}` : ''}` : isCorpMain(s) ? 'main' : 'other';
     // SAVE=<dir>: the state of every decision slower than a minute, for profiling it alone
     if (process.env.SAVE && d.ms > 60_000) writeFileSync(`${process.env.SAVE}/slow-${process.env.DEAL}-t${s.turnNumber}-c${s.corp.clicks}-${d.i}.json`, JSON.stringify(s));
     rows.push({ ms: d.ms, text: `T${s.turnNumber} c${s.corp.clicks} $${s.corp.credits} ${kind} -> ${name(s, d.action as GameAction | null)}` });

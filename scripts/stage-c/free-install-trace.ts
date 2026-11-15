@@ -7,6 +7,8 @@ import { decisionContext } from '../../src/ai/handValues';
 import { serverHold } from '../../src/ai/corp/hold';
 import { freeInstallOrder } from '../../src/ai/corp/candidates';
 import { rezMoney } from '../../src/ai/corp/rezMoney';
+import { needsOldTree } from './old-tree';
+needsOldTree('scripts/stage-c/free-install-trace.ts');
 
 const s: GameState = JSON.parse(readFileSync('tests/fixtures/bug-report-13-synapse.json', 'utf8'));
 const servers = Object.values(s.corp.servers).map(v => `${v.id}[${v.ice.map(c => cardDef(c).title + (c.isRezzed ? '*' : '')).join(',')}|${v.root.map(c => cardDef(c).title).join(',')}]`);

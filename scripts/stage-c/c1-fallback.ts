@@ -13,6 +13,8 @@ import { decisionContext } from '../../src/ai/handValues';
 import { place } from '../../src/ai/corp/placement';
 import { isCorpMain } from '../../src/ai/corp/lines';
 import { forEachRecorded } from '../stage-a/harness';
+import { needsOldTree } from './old-tree';
+needsOldTree('scripts/stage-c/c1-fallback.ts');
 
 const out = { installs: {} as Record<string, number>, same: {} as Record<string, number>, differ: {} as Record<string, number>, byReason: {} as Record<string, number>, toServer: {} as Record<string, number>, examples: [] as string[], byKind: {} as Record<string, string[]> };
 const inc = (t: Record<string, number>, k: string) => (t[k] = (t[k] ?? 0) + 1);

@@ -15,6 +15,8 @@ import { lineStep } from '../../src/ai/corp/placement';
 import { scoreNowPlan, winNowAction } from '../../src/ai/winNow';
 import { PLANNER } from '../../src/ai/turnPlanner';
 import { forEachRecorded } from '../stage-a/harness';
+import { needsOldTree } from './old-tree';
+needsOldTree('scripts/stage-c/coverage.ts');
 
 type Tally = Record<string, number>;
 const out = { decisions: 0, reachQ7: 0, inSet: 0, first: 0, inK: 0, otherServer: 0, missing: 0, behind: 0, missBy: {} as Tally, otherBy: {} as Tally, examples: {} as Record<string, string[]> };

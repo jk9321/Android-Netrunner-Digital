@@ -13,6 +13,8 @@ import { isCorpMain, scoringRemote } from '../../src/ai/corp/lines';
 import { playDeal, replayHuman } from '../stage-a/harness';
 import { iceCreditNeed, runBypasses } from '../../src/ai/runs';
 import { runnerBudget } from '../../src/ai/corp/hold';
+import { needsOldTree } from './old-tree';
+needsOldTree('scripts/stage-c/c1-trace.ts');
 
 const want = { turn: Number(process.env.TURN), title: process.env.TITLE ?? '' };
 let shown = 0;
