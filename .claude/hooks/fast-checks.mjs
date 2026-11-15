@@ -22,6 +22,7 @@ const SLOW_TESTS = [
   'tests/hiddenDraws.test.ts', // beta, about 8 s
   'tests/onlineClient.test.ts', // about 6 s: whole online games through the browser's table (multiplayer chunk 2c)
   'tests/stageDPins.test.ts', // beta: Jeff's game pins for Stage D (review-stage-b.md R3)
+  'tests/threatCacheAudit.test.ts', // beta: deal 1421 plays 344 actions since ai-runner-draws (minutes in a container; still runs in CI)
 ];
 
 const bin = (name) => `node_modules/.bin/${name}`;
