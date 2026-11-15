@@ -7,8 +7,9 @@ import { giveTags, trashInstalledRunnerCard, uninstallRunnerCard } from '../../.
 import { counters, drawForEffect, loseCredits, removeTags, threatLevel, useOncePerTurn } from '../../../engine/cardEffects';
 import { encounteredIce, enterMovement, iceStrength } from '../../../engine/ice';
 import { CardScript } from '../../types';
-import { askCards, askChoice, gainCredits } from '../../effects';
-import { allServers, askServer, hasKeyword, ids, isInstalled, isSelf, onceKey, picked, place, remoteServers, runSource, runnerTurn, said, spendLoad, title, type, yesNo } from './helpers';
+import { gainCredits } from '../../effects';
+import { cards, cardsQuestion, choice, choiceQuestion, prompts } from '../../steps';
+import { allServers, hasKeyword, ids, isInstalled, isSelf, onceKey, place, remoteServers, runQuestion, runSource, runnerTurn, spendLoad, title, type, yesNo } from './helpers';
 
 // Eru Ayase-Pessoa: Once per turn -> [click], take 1 tag: Run Archives. If successful, instead of
 // breaching Archives, breach R&D. Threat 3 -> Whenever you breach R&D during a run on Archives,
@@ -33,6 +34,10 @@ export const eru: CardScript = {
 
 // Hannah "Wheels" Pilintra: Once per turn -> [click]: Gain [click]. Run a remote server. When that
 // run ends, if it was unsuccessful, take 1 tag. [click], [trash]: Gain [click][click]. Remove 1 tag.
+const hannahFlow = prompts({
+  run: choice((ctx, a) => startRun(ctx.state, a.optionId, { source: runSource(ctx) })),
+});
+
 export const hannah: CardScript = {
   abilities: [
     {
@@ -42,7 +47,7 @@ export const hannah: CardScript = {
       canUse: ({ state }) => (remoteServers(state).length > 0 ? null : 'There is no remote server to run'),
       resolve: ctx => {
         ctx.state.runner.clicks += 1;
-        askServer(ctx, 'Hannah "Wheels" Pilintra', remoteServers(ctx.state));
+        hannahFlow.askIf(ctx, 'run', runQuestion(ctx, 'Hannah "Wheels" Pilintra', remoteServers(ctx.state)));
       },
     },
     {
@@ -56,9 +61,7 @@ export const hannah: CardScript = {
       },
     },
   ],
-  onPromptAnswer: (ctx, _source, answer) => {
-    if (answer.kind === 'effect_choice') startRun(ctx.state, answer.optionId, { source: runSource(ctx) });
-  },
+  ...hannahFlow.script,
   onRunEnds: ({ state }, run) => {
     if (!run.isSuccessful) giveTags(state, 1);
   },
@@ -66,23 +69,27 @@ export const hannah: CardScript = {
 
 // Lago Paranoá Shelter: The first time each turn the Corp installs a card in the root of a server,
 // you may trash the top card of your stack to draw 1 card.
+const lagoFlow = prompts({
+  use: choice(({ state }, a) => {
+    if (a.optionId !== 'yes' || state.runner.stack.length === 0) return;
+    const top = state.runner.stack.shift()!;
+    state.runner.heap.push(top);
+    addLog(state, 'runner', `Runner trashed ${title(top)} from the top of their stack (Lago Paranoá Shelter).`);
+    noteTrashedFromHand(state, [top]);
+    drawForEffect(state, 'runner', 1, 'Lago Paranoá Shelter');
+  }),
+});
+
 export const lagoParanoa: CardScript = {
   triggers: {
     installed: (ctx, e) => {
       const { state } = ctx;
       if (cardDef(e.card).side_code !== 'corp' || findInstalledCorpCard(state, e.card.instanceId)?.location !== 'root') return;
       if (!useOncePerTurn(state, onceKey(ctx.card)) || state.runner.stack.length === 0) return;
-      askChoice(ctx, 'runner', 'Lago Paranoá Shelter: trash the top card of your stack to draw 1 card?', yesNo('Trash and draw'), 'use');
+      lagoFlow.ask(ctx, 'use', choiceQuestion('runner', 'Lago Paranoá Shelter: trash the top card of your stack to draw 1 card?', yesNo('Trash and draw')));
     },
   },
-  onPromptAnswer: ({ state }, _source, answer) => {
-    if (!said(answer) || state.runner.stack.length === 0) return;
-    const top = state.runner.stack.shift()!;
-    state.runner.heap.push(top);
-    addLog(state, 'runner', `Runner trashed ${title(top)} from the top of their stack (Lago Paranoá Shelter).`);
-    noteTrashedFromHand(state, [top]);
-    drawForEffect(state, 'runner', 1, 'Lago Paranoá Shelter');
-  },
+  ...lagoFlow.script,
 };
 
 // --- The Automata Initiative: Criminal -----------------------------------------------------
@@ -90,6 +97,10 @@ export const lagoParanoa: CardScript = {
 // Debbie "Downtown" Moreira: Threat 4 -> When you install this resource, place 2 credits on it.
 // Whenever you play a run event, place 1 credit on this resource. [click]: Run any server. You can
 // spend hosted credits during that run.
+const debbieFlow = prompts({
+  run: choice((ctx, a) => startRun(ctx.state, a.optionId, { source: runSource(ctx), creditHosts: [ctx.card.instanceId] })),
+});
+
 export const debbie: CardScript = {
   triggers: {
     installed: (ctx, e) => {
@@ -99,10 +110,8 @@ export const debbie: CardScript = {
       if (hasKeyword(e.card, 'run')) place(ctx.card, 'credit', 1);
     },
   },
-  abilities: [{ label: 'Run any server (you can spend hosted credits during it).', clicks: 1, resolve: ctx => void askServer(ctx, 'Debbie "Downtown" Moreira', allServers(ctx.state)) }],
-  onPromptAnswer: (ctx, _source, answer) => {
-    if (answer.kind === 'effect_choice') startRun(ctx.state, answer.optionId, { source: runSource(ctx), creditHosts: [ctx.card.instanceId] });
-  },
+  abilities: [{ label: 'Run any server (you can spend hosted credits during it).', clicks: 1, resolve: ctx => void debbieFlow.askIf(ctx, 'run', runQuestion(ctx, 'Debbie "Downtown" Moreira', allServers(ctx.state))) }],
+  ...debbieFlow.script,
 };
 
 // --- The Automata Initiative: Shaper -------------------------------------------------------
@@ -130,21 +139,27 @@ export const beatriz: CardScript = {
 // credits to install cards.
 const nonVirusTrojans = (state: GameState) => state.runner.rig.programs.filter(c => hasKeyword(c, 'trojan') && !hasKeyword(c, 'virus'));
 
+const urbanArtFlow = prompts({
+  grip: cards(({ state, card }, a) => {
+    const trojan = nonVirusTrojans(state).find(c => c.instanceId === a.ids[0]);
+    if (!trojan) return;
+    uninstallRunnerCard(state, trojan, 'grip');
+    place(card, 'credit', 2);
+    addLog(state, 'runner', `Runner added ${title(trojan)} to their grip and placed 2 [credit] on Urban Art Vernissage.`);
+  }),
+});
+
 export const urbanArt: CardScript = {
   paysFor: (_state, _self, purpose) => purpose.kind === 'install',
   triggers: {
     turn_begins: (ctx, e) => {
       const trojans = nonVirusTrojans(ctx.state);
-      if (e.side === 'runner' && trojans.length > 0) askCards(ctx, 'runner', 'Urban Art Vernissage: you may add 1 installed non-virus trojan to your grip to place 2 [credit] here.', ids(trojans), 0, 1, 'grip');
+      if (e.side === 'runner' && trojans.length > 0) {
+        urbanArtFlow.ask(ctx, 'grip', cardsQuestion('runner', 'Urban Art Vernissage: you may add 1 installed non-virus trojan to your grip to place 2 [credit] here.', ids(trojans), 0, 1));
+      }
     },
   },
-  onPromptAnswer: ({ state, card }, _source, answer) => {
-    const trojan = nonVirusTrojans(state).find(c => c.instanceId === picked(answer)[0]);
-    if (!trojan) return;
-    uninstallRunnerCard(state, trojan, 'grip');
-    place(card, 'credit', 2);
-    addLog(state, 'runner', `Runner added ${title(trojan)} to their grip and placed 2 [credit] on Urban Art Vernissage.`);
-  },
+  ...urbanArtFlow.script,
 };
 
 // Arruaceiras Crew (Connection - Seedy): Once per turn -> Take 1 tag: The ice you are encountering
@@ -240,21 +255,27 @@ export const manuelLattes: CardScript = {
 // Amelia Earhart (Virtual - Companion): Whenever a run on HQ or R&D ends, if you accessed 3 or more
 // cards during that run, place 1 power counter on this resource. When your turn begins, you may
 // remove 3 hosted power counters and trash this resource. If you do, the Corp loses 10 credits.
+const ameliaFlow = prompts({
+  use: choice(({ state, card }, a) => {
+    if (a.optionId !== 'yes' || counters(card, 'power') < 3 || !isInstalled(state, card)) return;
+    trashInstalledRunnerCard(state, card);
+    const lost = loseCredits(state, 'corp', 10);
+    addLog(state, 'runner', `The Corp lost ${lost} [credit] (Amelia Earhart).`);
+  }),
+});
+
 export const amelia: CardScript = {
   triggers: {
     run_ends: (ctx, e) => {
       if ((e.server === 'hq' || e.server === 'rd') && e.accessedCount >= 3) place(ctx.card, 'power', 1);
     },
     turn_begins: (ctx, e) => {
-      if (e.side === 'runner' && counters(ctx.card, 'power') >= 3) askChoice(ctx, 'runner', 'Amelia Earhart: remove 3 power counters and trash it to make the Corp lose 10 [credit]?', yesNo('Do it'), 'use');
+      if (e.side === 'runner' && counters(ctx.card, 'power') >= 3) {
+        ameliaFlow.ask(ctx, 'use', choiceQuestion('runner', 'Amelia Earhart: remove 3 power counters and trash it to make the Corp lose 10 [credit]?', yesNo('Do it')));
+      }
     },
   },
-  onPromptAnswer: ({ state, card }, _source, answer) => {
-    if (!said(answer) || counters(card, 'power') < 3 || !isInstalled(state, card)) return;
-    trashInstalledRunnerCard(state, card);
-    const lost = loseCredits(state, 'corp', 10);
-    addLog(state, 'runner', `The Corp lost ${lost} [credit] (Amelia Earhart).`);
-  },
+  ...ameliaFlow.script,
 };
 
 // Juli Moreira Lee: When you install this resource, load 4 power counters onto it. When it is empty,
@@ -279,24 +300,35 @@ export const juli: CardScript = {
 // "Pretty" Mary da Silva (Connection - Seedy): Whenever you breach R&D, if you are allowed to access 2
 // or more cards in R&D during this breach, you may access 1 additional card. Asked once the other
 // access counts are known, as the breach begins.
+const maryFlow = prompts({
+  extra: choice(({ state }, a) => {
+    const breach = state.activeRun?.breach;
+    if (a.optionId !== 'yes' || !breach || breach.zone !== 'rd') return;
+    breach.zoneLeft += 1;
+    addLog(state, 'runner', 'Runner accesses 1 additional card in R&D ("Pretty" Mary da Silva).');
+  }),
+});
+
 export const prettyMary: CardScript = {
   triggers: {
     breach_begins: (ctx, e) => {
       const breach = ctx.state.activeRun?.breach;
       if (e.server !== 'rd' || !breach || breach.zone !== 'rd' || breach.zoneLeft < 2) return;
-      askChoice(ctx, 'runner', '"Pretty" Mary da Silva: access 1 additional card in R&D?', yesNo('Access 1 more'), 'extra');
+      maryFlow.ask(ctx, 'extra', choiceQuestion('runner', '"Pretty" Mary da Silva: access 1 additional card in R&D?', yesNo('Access 1 more')));
     },
   },
-  onPromptAnswer: ({ state }, source, answer) => {
-    const breach = state.activeRun?.breach;
-    if (source.step !== 'extra' || !said(answer) || !breach || breach.zone !== 'rd') return;
-    breach.zoneLeft += 1;
-    addLog(state, 'runner', 'Runner accesses 1 additional card in R&D ("Pretty" Mary da Silva).');
-  },
+  ...maryFlow.script,
 };
 
 // Valentina Ferreira Carvalho: Whenever you remove 1 or more tags, gain 1 credit. Threat 3 -> When
 // you install this resource during your turn, you may remove 1 tag or gain 2 credits.
+const valentinaFlow = prompts({
+  install: choice(({ state }, a) => {
+    if (a.optionId === 'tag') removeTags(state, 1);
+    else if (a.optionId === 'credits') gainCredits(state, 'runner', 2);
+  }),
+});
+
 export const valentina: CardScript = {
   triggers: {
     tags_removed: ({ state }) => {
@@ -305,17 +337,18 @@ export const valentina: CardScript = {
     },
     installed: (ctx, e) => {
       if (!isSelf(ctx, e.card) || !runnerTurn(ctx.state) || threatLevel(ctx.state) < 3) return;
-      askChoice(ctx, 'runner', 'Valentina Ferreira Carvalho: remove 1 tag or gain 2 [credit]?', [
-        ...(ctx.state.runner.tags > 0 ? [{ id: 'tag', label: 'Remove 1 tag' }] : []),
-        { id: 'credits', label: 'Gain 2 [credit]' },
-        { id: 'no', label: 'Neither' },
-      ], 'install');
+      valentinaFlow.ask(
+        ctx,
+        'install',
+        choiceQuestion('runner', 'Valentina Ferreira Carvalho: remove 1 tag or gain 2 [credit]?', [
+          ...(ctx.state.runner.tags > 0 ? [{ id: 'tag', label: 'Remove 1 tag' }] : []),
+          { id: 'credits', label: 'Gain 2 [credit]' },
+          { id: 'no', label: 'Neither' },
+        ]),
+      );
     },
   },
-  onPromptAnswer: ({ state }, _source, answer) => {
-    if (said(answer, 'tag')) removeTags(state, 1);
-    else if (said(answer, 'credits')) gainCredits(state, 'runner', 2);
-  },
+  ...valentinaFlow.script,
 };
 
 export const liberationRunnerResourcesScripts: Record<string, CardScript> = {
