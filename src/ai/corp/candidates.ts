@@ -14,6 +14,19 @@ import { placedCounterWorth } from '../effectValues';
 export { isPettyCash } from './cardRules';
 
 /**
+ * TEMPORARY (Stage C7 leave-one-out, spec section 5; deleted with plan.corpCore before the hand-off): `off` names the
+ * carried-over rules left out, `fired` records each rule that applied (a rule that never applied cannot change a
+ * decision). `rule(name, applies)` is true when the rule applies and is not left out. Nothing outside the measurement
+ * sets `off`.
+ */
+export const leaveOut = { off: new Set<string>(), fired: new Set<string>() };
+export const rule = (name: string, applies: boolean): boolean => {
+  if (!applies) return false;
+  leaveOut.fired.add(name);
+  return !leaveOut.off.has(name);
+};
+
+/**
  * Step 4 Stage C (spec-step4-corp-core.md 1.3, revision 13; stage-c/order.md as approved, c0-rulings.md): the Corp's
  * ordinary move (Q7). Every main-phase action the Corp can take, each complete and at the server `place` gives it, in
  * an order of nine intent lines fixed from evidence, with a counted tie-break inside each line. No hand-set rank: inside
@@ -182,12 +195,12 @@ export function corpCandidates(state: GameState, legal: GameAction[], opts: Cand
         const resource = state.runner.rig.resources.find(c => c.instanceId === a.cardInstanceId);
         const k = resource ? resourceTrashHqCost(state, resource) : 0;
         const size = corp.hq.length;
-        const extra = resource && k > 0 && plan().hqTrashCost ? handValue(size, corp.handSizeLimit, 'corp') - handValue(size - k, corp.handSizeLimit, 'corp') - hqTrashCardsLoss(state, resource) : 0;
+        const extra = resource && k > 0 && plan().hqTrashCost && rule('hqTrashCost', true) ? handValue(size, corp.handSizeLimit, 'corp') - handValue(size - k, corp.handSizeLimit, 'corp') - hqTrashCardsLoss(state, resource) : 0;
         play(a, 1, true, extra);
         break;
       }
       case 'PLAY_OPERATION_OR_EVENT':
-        play(a, isPettyCash(state, a) ? 1 : tagsBeforeScore(state, state.corp.hq.find(c => c.instanceId === a.cardInstanceId)?.cardCode ?? '') ? 3 : 4);
+        play(a, rule('isPettyCash', isPettyCash(state, a)) ? 1 : rule('tagsBeforeScore', tagsBeforeScore(state, state.corp.hq.find(c => c.instanceId === a.cardInstanceId)?.cardCode ?? '')) ? 3 : 4);
         break;
       case 'USE_ABILITY':
         play(a, 4);
@@ -212,8 +225,8 @@ export function corpCandidates(state: GameState, legal: GameAction[], opts: Cand
           // click and credit, plus what the counter is worth by its owner, which the board does not price
           // (placedCounterWorth; Pharos and Syailendra: iceAdvanceValue); a trap stops at its cap (cardRules)
           const server = Object.values(corp.servers).find(v => v.root.some(c => c.instanceId === card.instanceId));
-          if (typeOf(card) === 'asset' && server && card.advancementCounters < trapAdvanceCap(state, card)) play(a, 4, true, placedCounterWorth(state, card, server.ice.length > 0));
-          else if (typeOf(card) === 'ice' && advancesAsIce(card)) play(a, 4, true, iceAdvanceValue(state, card));
+          if (typeOf(card) === 'asset' && server && !rule('trapAdvanceCap', card.advancementCounters >= trapAdvanceCap(state, card)) && rule('assetAdvance', true)) play(a, 4, true, placedCounterWorth(state, card, server.ice.length > 0));
+          else if (rule('advancesAsIce', typeOf(card) === 'ice' && advancesAsIce(card))) play(a, 4, true, iceAdvanceValue(state, card));
         }
         break;
       }
@@ -221,7 +234,7 @@ export function corpCandidates(state: GameState, legal: GameAction[], opts: Cand
         const card = findInstalled(state, a.cardInstanceId);
         // Scored first in line 3, unless an advance first turns into Dividends counters, or a tag first sets up its score
         // effect (cardRules.ts: overAdvance, tagFirst, moved from the ranking)
-        const wait = card && (overAdvance(state, card.instanceId, keep) || tagFirst(state, card.instanceId));
+        const wait = card && (rule('overAdvance', overAdvance(state, card.instanceId, keep)) || rule('tagFirst', tagFirst(state, card.instanceId)));
         add({ action: a, line: 3, behind: false, keys: [wait ? 1 : -2, idNum(a.cardInstanceId)], card: a.cardInstanceId });
         break;
       }
@@ -320,7 +333,9 @@ export function plannerIntake(open: ScoredAction[], k: number): { picked: Scored
 
 /** The full order: the nine lines, then the group behind line 7 in the same order, then each line's keys. */
 export function sortCandidates(list: Candidate[]): Candidate[] {
-  const rank = (c: Candidate) => (c.line === 10 ? 99 : c.behind ? 100 + c.line : c.line <= 7 ? c.line : 50 + c.line);
+  // A line left out (C7): its candidates join the group behind the nine lines
+  const behind = (c: Candidate) => c.behind || (c.line <= 9 && !rule(`line${c.line}`, true));
+  const rank = (c: Candidate) => (c.line === 10 ? 99 : behind(c) ? 100 + c.line : c.line <= 7 ? c.line : 50 + c.line);
   return [...list].sort((a, b) => {
     const d = rank(a) - rank(b);
     if (d) return d;
