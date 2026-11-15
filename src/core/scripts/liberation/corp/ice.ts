@@ -22,10 +22,29 @@ import {
   turnFlag,
   useOncePerTurn,
 } from '../../../engine/cardEffects';
-import { cards, choice, prompts } from '../../steps';
-import { CardScript, EffectAnswer, EffectContext, Subroutine } from '../../types';
-import { askCards, askChoice, askEvenIfNone, corpInstallOptions, installCorpChoice } from '../../effects';
-import { archivesCards, askInstallAmong, askPlaceAdvancement, faceUpTypes, hasKeyword, ids, installable, isSelf, keywords, lycianIs, picked, placeAdvancement, returnInstalledToHQ, runOnServerOf, said, serverOf, takeFromCorpZone, title, type, yesNo } from './helpers';
+import { cards, cardsQuestion, choice, ChoiceQuestion, choiceQuestion, InstallData, prompts } from '../../steps';
+import { CardScript, EffectContext, Subroutine } from '../../types';
+import { corpInstallOptions, installCorpChoice } from '../../effects';
+import {
+  archivesCards,
+  faceUpTypes,
+  hasKeyword,
+  ids,
+  installable,
+  installAmongQuestion,
+  isSelf,
+  keywords,
+  lycianIs,
+  placeAdvancement,
+  placeAdvancementQuestion,
+  returnInstalledToHQ,
+  runOnServerOf,
+  serverOf,
+  takeFromCorpZone,
+  title,
+  type,
+  yesNo,
+} from './helpers';
 
 const endTheRunSub: Subroutine = { label: 'End the run.', resolve: ({ state }) => endTheRun(state) };
 
@@ -56,37 +75,35 @@ const gainSub = (n: number, label = `Gain ${n} [credit].`): Subroutine => ({
   },
 });
 
-/** A subroutine "X unless the Runner pays N credits" (they choose if they can pay). */
-function unlessPays(ctx: EffectContext, amount: number, what: string, step: string, otherwise: () => void, canPay = true): void {
-  if (!canPay || availableCredits(ctx.state, 'runner') < amount) {
-    otherwise();
-    return;
-  }
-  askChoice(ctx, 'runner', `${title(ctx.card)}: pay ${amount} [credit], or ${what}?`, [
+/** "X unless the Runner pays N credits": the question, or null when they can't (or may not) pay. */
+function unlessPaysQuestion(ctx: EffectContext, amount: number, what: string, canPay = true): ChoiceQuestion | null {
+  if (!canPay || availableCredits(ctx.state, 'runner') < amount) return null;
+  return choiceQuestion('runner', `${title(ctx.card)}: pay ${amount} [credit], or ${what}?`, [
     { id: 'pay', label: `Pay ${amount} [credit]` },
     { id: 'no', label: what[0].toUpperCase() + what.slice(1) },
-  ], step);
+  ]);
 }
 
 /**
  * "As an additional cost to rez this ice, take 1 bad publicity or remove 1
- * tag" (liability ice: Valentão, Piranhas).
+ * tag" (liability ice: Valentão, Piranhas): the question, asked from payRez with data { cost }...
  */
-const liabilityRez: Pick<CardScript, 'payRez'> & { answer: (ctx: EffectContext, answer: EffectAnswer, cost: number) => void } = {
-  payRez: (ctx, cost) => {
-    const options = [{ id: 'bp', label: 'Take 1 bad publicity' }, ...(ctx.state.runner.tags > 0 ? [{ id: 'tag', label: 'Remove 1 tag' }] : [])];
-    askChoice(ctx, 'corp', `${title(ctx.card)}: take 1 bad publicity or remove 1 tag to rez it.`, options, 'rez_cost', { cost });
-  },
-  answer: (ctx, answer, cost) => {
+const liabilityQuestion = (ctx: EffectContext) =>
+  choiceQuestion('corp', `${title(ctx.card)}: take 1 bad publicity or remove 1 tag to rez it.`, [
+    { id: 'bp', label: 'Take 1 bad publicity' },
+    ...(ctx.state.runner.tags > 0 ? [{ id: 'tag', label: 'Remove 1 tag' }] : []),
+  ]);
+
+/** ...and the step that answers it: pays the additional cost, then the rez cost, and rezzes. */
+const liabilityRezStep = () =>
+  choice<{ cost: number }>((ctx, a, { cost }) => {
     const { state, card } = ctx;
-    if (answer.kind !== 'effect_choice') return;
-    if (answer.optionId === 'tag' && state.runner.tags > 0) removeTags(state, 1);
+    if (a.optionId === 'tag' && state.runner.tags > 0) removeTags(state, 1);
     else takeBadPublicity(state, 1);
     spendCredits(state, 'corp', cost, { kind: 'rez', card });
     addLog(state, 'corp', `Corp spent ${cost} [credit] to rez ${title(card)}.`, undefined, 'rez');
     completeRez(state, card);
-  },
-};
+  });
 
 // Ablative Barrier: Threat 3 -> When you rez this ice during a run against this server, you may
 // install 1 non-agenda card from HQ or Archives in the root of or protecting another server.
@@ -98,9 +115,9 @@ const ablativeFlow = prompts({
     const card = id && [...state.corp.hq, ...archivesCards(state)].find(c => c.instanceId === id);
     if (!card) return;
     const here = serverOf(state, ctx.card)?.id;
-    askInstallAmong(ctx, id, 'server', corpInstallOptions(state, card).filter(o => o.id !== here));
+    ablativeFlow.askIf(ctx, 'server', installAmongQuestion(state, id, corpInstallOptions(state, card).filter(o => o.id !== here)), { cardId: id, install: true });
   }),
-  server: choice<{ cardId: string; install: true }>((ctx, a, _d, source) => void installCorpChoice(ctx.state, source, a.raw)),
+  server: choice<InstallData>((ctx, a, _d, source) => void installCorpChoice(ctx.state, source, a.raw)),
 });
 
 export const ablativeBarrier: CardScript = {
@@ -116,13 +133,7 @@ export const ablativeBarrier: CardScript = {
         'corp',
         cards.length > 0,
         () =>
-          ablativeFlow.cards(ctx, 'pick', {
-            side: 'corp',
-            message: 'Ablative Barrier: you may install 1 non-agenda card from HQ or Archives in or protecting another server.',
-            candidateIds: ids(cards),
-            min: 0,
-            max: 1,
-          }),
+          ablativeFlow.ask(ctx, 'pick', cardsQuestion('corp', 'Ablative Barrier: you may install 1 non-agenda card from HQ or Archives in or protecting another server.', ids(cards), 0, 1)),
         'Ablative Barrier: no non-agenda card in HQ or Archives you can install.',
       );
     },
@@ -132,16 +143,29 @@ export const ablativeBarrier: CardScript = {
 
 // Jaguarundi (Sentry - AP): Threat 4 -> When the Runner encounters this ice, give them 1 tag
 // unless they spend [click]. Subroutines: Give the Runner 1 tag. If the Runner is tagged, do 1 core damage.
+const jaguarundiFlow = prompts({
+  encounter: choice(({ state }, a) => {
+    if (a.optionId === 'click' && state.runner.clicks > 0) {
+      state.runner.clicks -= 1;
+      addLog(state, 'runner', 'Runner spent [click] (Jaguarundi).');
+    } else giveTags(state, 1);
+  }),
+});
+
 export const jaguarundi: CardScript = {
   ice: {
     onEncounter: ctx => {
       const { state } = ctx;
       if (threatLevel(state) < 4) return;
       if (state.runner.clicks === 0) return giveTags(state, 1);
-      askChoice(ctx, 'runner', 'Jaguarundi: spend [click], or take 1 tag?', [
-        { id: 'click', label: 'Spend [click]' },
-        { id: 'tag', label: 'Take 1 tag' },
-      ], 'encounter');
+      jaguarundiFlow.ask(
+        ctx,
+        'encounter',
+        choiceQuestion('runner', 'Jaguarundi: spend [click], or take 1 tag?', [
+          { id: 'click', label: 'Spend [click]' },
+          { id: 'tag', label: 'Take 1 tag' },
+        ]),
+      );
     },
     subroutines: [
       tagSub(1),
@@ -153,16 +177,20 @@ export const jaguarundi: CardScript = {
       },
     ],
   },
-  onPromptAnswer: ({ state }, _source, answer) => {
-    if (said(answer, 'click') && state.runner.clicks > 0) {
-      state.runner.clicks -= 1;
-      addLog(state, 'runner', 'Runner spent [click] (Jaguarundi).');
-    } else giveTags(state, 1);
-  },
+  ...jaguarundiFlow.script,
 };
 
 // M.I.C. (Code Gate): [trash]: End the run unless the Runner spends [click]. Use this ability
 // only during a run on this server. Subroutines: The Runner loses [click] (twice). End the run.
+const micFlow = prompts({
+  trash: choice(({ state }, a) => {
+    if (a.optionId === 'click' && state.runner.clicks > 0) {
+      state.runner.clicks -= 1;
+      addLog(state, 'runner', 'Runner spent [click] (M.I.C.).');
+    } else endTheRun(state);
+  }),
+});
+
 export const mic: CardScript = {
   abilities: [
     {
@@ -171,35 +199,40 @@ export const mic: CardScript = {
       canUse: ({ state, card }) => (runOnServerOf(state, card) ? null : 'Use this only during a run on this server'),
       resolve: ctx => {
         if (ctx.state.runner.clicks === 0) return endTheRun(ctx.state);
-        askChoice(ctx, 'runner', 'M.I.C.: spend [click], or the run ends?', [
-          { id: 'click', label: 'Spend [click]' },
-          { id: 'end', label: 'End the run' },
-        ], 'trash');
+        micFlow.ask(
+          ctx,
+          'trash',
+          choiceQuestion('runner', 'M.I.C.: spend [click], or the run ends?', [
+            { id: 'click', label: 'Spend [click]' },
+            { id: 'end', label: 'End the run' },
+          ]),
+        );
       },
     },
   ],
   ice: { subroutines: [loseClickSub, loseClickSub, endTheRunSub] },
-  onPromptAnswer: ({ state }, _source, answer) => {
-    if (said(answer, 'click') && state.runner.clicks > 0) {
-      state.runner.clicks -= 1;
-      addLog(state, 'runner', 'Runner spent [click] (M.I.C.).');
-    } else endTheRun(state);
-  },
+  ...micFlow.script,
 };
 
 // Attini (Code Gate - AP): Threat 3 -> The Runner cannot spend credits while subroutines on this
 // ice are resolving. Subroutines (3): Do 1 net damage unless the Runner pays 2 credits.
 const attiniSub: Subroutine = {
   label: 'Do 1 net damage unless the Runner pays 2 [credit].',
-  resolve: ctx => unlessPays(ctx, 2, 'take 1 net damage', 'pay', () => void dealNetDamage(ctx.state, 1), threatLevel(ctx.state) < 3),
+  resolve: ctx => {
+    if (!attiniFlow.askIf(ctx, 'pay', unlessPaysQuestion(ctx, 2, 'take 1 net damage', threatLevel(ctx.state) < 3))) dealNetDamage(ctx.state, 1);
+  },
 };
+
+const attiniFlow = prompts({
+  pay: choice(({ state }, a) => {
+    if (a.optionId === 'pay' && availableCredits(state, 'runner') >= 2) spendCredits(state, 'runner', 2);
+    else dealNetDamage(state, 1);
+  }),
+});
 
 export const attini: CardScript = {
   ice: { subroutines: [attiniSub, attiniSub, attiniSub] },
-  onPromptAnswer: ({ state }, _source, answer) => {
-    if (said(answer, 'pay') && availableCredits(state, 'runner') >= 2) spendCredits(state, 'runner', 2);
-    else dealNetDamage(state, 1);
-  },
+  ...attiniFlow.script,
 };
 
 // Phoneutria (Sentry - AP - Observer): When the Runner passes this ice, if there are 4 or more
@@ -216,17 +249,9 @@ export const phoneutria: CardScript = {
 // Tatu-Bola (Barrier): When the Runner passes this ice, you may swap it with a piece of ice from
 // HQ. If you do, gain 4 credits. (The new ice is installed unrezzed; no install cost.)
 // Subroutine: End the run.
-export const tatuBola: CardScript = {
-  ice: {
-    onPass: ctx => {
-      const ice = ctx.state.corp.hq.filter(c => type(c) === 'ice');
-      // Asked even with no ice in HQ when the Corp's stops are on ALL (4.3.2, see askEvenIfNone)
-      askEvenIfNone(ctx, 'corp', ice.length > 0, () => askCards(ctx, 'corp', 'Tatu-Bola: you may swap it with a piece of ice from HQ and gain 4 [credit].', ids(ice), 0, 1, 'swap'), 'Tatu-Bola: no ice in HQ to swap in.');
-    },
-    subroutines: [endTheRunSub],
-  },
-  onPromptAnswer: ({ state, card }, _source, answer) => {
-    const incoming = state.corp.hq.find(c => c.instanceId === picked(answer)[0]);
+const tatuBolaFlow = prompts({
+  swap: cards(({ state, card }, a) => {
+    const incoming = state.corp.hq.find(c => c.instanceId === a.ids[0]);
     const found = findInstalledCorpCard(state, card.instanceId);
     if (!incoming || !found) return;
     const index = found.server.ice.indexOf(card);
@@ -239,7 +264,25 @@ export const tatuBola: CardScript = {
     found.server.ice.splice(index, 0, incoming);
     gainFromCard(state, 'corp', 4, card);
     addLog(state, 'corp', `Corp swapped Tatu-Bola with a piece of ice from HQ and gained 4 [credit].`, undefined, 'install');
+  }),
+});
+
+export const tatuBola: CardScript = {
+  ice: {
+    onPass: ctx => {
+      const ice = ctx.state.corp.hq.filter(c => type(c) === 'ice');
+      // Asked even with no ice in HQ when the Corp's stops are on ALL (4.3.2, see askEvenIfNone)
+      tatuBolaFlow.evenIfNone(
+        ctx,
+        'corp',
+        ice.length > 0,
+        () => tatuBolaFlow.ask(ctx, 'swap', cardsQuestion('corp', 'Tatu-Bola: you may swap it with a piece of ice from HQ and gain 4 [credit].', ids(ice), 0, 1)),
+        'Tatu-Bola: no ice in HQ to swap in.',
+      );
+    },
+    subroutines: [endTheRunSub],
   },
+  ...tatuBolaFlow.script,
 };
 
 // Starlit Knight (Sentry - Observer): Threat 4 -> When the Runner encounters this ice, it gains X
@@ -280,6 +323,10 @@ export const virtualServiceAgent: CardScript = {
 // Tree Line (Barrier - Expendable): [click], 1 credit, reveal and trash this ice from HQ: Place 3
 // advancement counters on 1 installed piece of ice. You can advance this ice. It gets +1 strength
 // for each hosted advancement counter. Subroutine: Gain 1 credit. End the run.
+const treeLineFlow = prompts({
+  place: cards<{ n: number }>(({ state }, a) => placeAdvancement(state, a.ids[0], 3, 'Tree Line')),
+});
+
 export const treeLine: CardScript = {
   abilities: [
     {
@@ -291,7 +338,7 @@ export const treeLine: CardScript = {
       resolve: ctx => {
         corpTrashFromHQ(ctx.state, [ctx.card.instanceId], true);
         addLog(ctx.state, 'corp', 'Corp revealed and trashed Tree Line from HQ.');
-        askPlaceAdvancement(ctx, 3, 'place', false, installedIce(ctx.state));
+        treeLineFlow.askIf(ctx, 'place', placeAdvancementQuestion(ctx, 3, false, installedIce(ctx.state)), { n: 3 });
       },
     },
   ],
@@ -307,7 +354,7 @@ export const treeLine: CardScript = {
       },
     ],
   },
-  onPromptAnswer: ({ state }, _source, answer) => placeAdvancement(state, picked(answer)[0], 3, 'Tree Line'),
+  ...treeLineFlow.script,
 };
 
 // Valentão (Code Gate - Liability): As an additional cost to rez this ice, take 1 bad publicity or
@@ -320,12 +367,12 @@ const ifRicherEtr: Subroutine = {
   },
 };
 
+const valentaoFlow = prompts({ rez_cost: liabilityRezStep() });
+
 export const valentao: CardScript = {
-  payRez: liabilityRez.payRez,
+  payRez: (ctx, cost) => valentaoFlow.ask(ctx, 'rez_cost', liabilityQuestion(ctx), { cost }),
   ice: { subroutines: [gainSub(2), loseCreditsSub(2), ifRicherEtr] },
-  onPromptAnswer: (ctx, source, answer) => {
-    if (source.step === 'rez_cost') liabilityRez.answer(ctx, answer, Number(source.data?.cost ?? 0));
-  },
+  ...valentaoFlow.script,
 };
 
 // Lycian Multi-Munition (Mythic - Destroyer): When you rez this ice, choose 1 or more subtypes
@@ -343,11 +390,25 @@ const LYCIAN_CHOICES: [string, string[]][] = [
   ['all', ['barrier', 'code gate', 'sentry']],
 ];
 
+const lycianFlow = prompts({
+  subtypes: choice(({ state, card }, a) => {
+    card.chosenSubtypes = LYCIAN_CHOICES.find(([id]) => id === a.optionId)?.[1] ?? ['barrier'];
+    addLog(state, 'corp', `Lycian Multi-Munition is now a ${card.chosenSubtypes.join(' and ')}.`);
+  }),
+  trash: cards(({ state }, a) => {
+    const program = state.runner.rig.programs.find(c => c.instanceId === a.ids[0]);
+    if (program) {
+      trashInstalledRunnerCard(state, program);
+      addLog(state, 'corp', `Lycian Multi-Munition trashed ${title(program)}.`);
+    }
+  }),
+});
+
 export const lycian: CardScript = {
   triggers: {
     rezzed: (ctx, e) => {
       if (!isSelf(ctx, e.card)) return;
-      askChoice(ctx, 'corp', 'Lycian Multi-Munition: choose the subtypes it gains while rezzed.', LYCIAN_CHOICES.map(([id, list]) => ({ id, label: list.join(', ') })), 'subtypes');
+      lycianFlow.ask(ctx, 'subtypes', choiceQuestion('corp', 'Lycian Multi-Munition: choose the subtypes it gains while rezzed.', LYCIAN_CHOICES.map(([id, list]) => ({ id, label: list.join(', ') }))));
     },
     discard_phase_ends: ({ state, card }) => derez(state, card),
   },
@@ -365,7 +426,7 @@ export const lycian: CardScript = {
         label: 'If this ice is a sentry, trash 1 installed program.',
         resolve: ctx => {
           const programs = ctx.state.runner.rig.programs;
-          if (lycianIs(ctx.state, ctx.card, 'sentry') && programs.length > 0) askCards(ctx, 'corp', 'Lycian Multi-Munition: trash 1 installed program.', ids(programs), 1, 1, 'trash');
+          if (lycianIs(ctx.state, ctx.card, 'sentry') && programs.length > 0) lycianFlow.ask(ctx, 'trash', cardsQuestion('corp', 'Lycian Multi-Munition: trash 1 installed program.', ids(programs), 1, 1));
         },
       },
       {
@@ -378,18 +439,7 @@ export const lycian: CardScript = {
       },
     ],
   },
-  onPromptAnswer: ({ state, card }, source, answer) => {
-    if (source.step === 'subtypes' && answer.kind === 'effect_choice') {
-      card.chosenSubtypes = LYCIAN_CHOICES.find(([id]) => id === answer.optionId)?.[1] ?? ['barrier'];
-      addLog(state, 'corp', `Lycian Multi-Munition is now a ${card.chosenSubtypes.join(' and ')}.`);
-    } else if (source.step === 'trash') {
-      const program = state.runner.rig.programs.find(c => c.instanceId === picked(answer)[0]);
-      if (program) {
-        trashInstalledRunnerCard(state, program);
-        addLog(state, 'corp', `Lycian Multi-Munition trashed ${title(program)}.`);
-      }
-    }
-  },
+  ...lycianFlow.script,
 };
 
 // Sorocaban Blade (Sentry - Destroyer): You cannot trash more than 1 installed Runner card with
@@ -403,20 +453,24 @@ const sorocabanSub = (kind: 'resources' | 'hardware' | 'programs', label: string
     const encounter = ctx.state.activeRun?.encounter;
     if ((encounter?.flags?.[SOROCABAN_KEY] ?? 0) > 0) return;
     const cards = ctx.state.runner.rig[kind];
-    if (cards.length > 0) askCards(ctx, 'corp', `Sorocaban Blade: trash 1 installed ${label}.`, ids(cards), 1, 1, 'trash');
+    if (cards.length > 0) sorocabanFlow.ask(ctx, 'trash', cardsQuestion('corp', `Sorocaban Blade: trash 1 installed ${label}.`, ids(cards), 1, 1));
   },
 });
 
-export const sorocabanBlade: CardScript = {
-  ice: { subroutines: [sorocabanSub('resources', 'resource'), sorocabanSub('hardware', 'piece of hardware'), sorocabanSub('programs', 'program')] },
-  onPromptAnswer: ({ state }, _source, answer) => {
-    const target = installedRunnerCards(state).find(c => c.instanceId === picked(answer)[0]);
+const sorocabanFlow = prompts({
+  trash: cards(({ state }, a) => {
+    const target = installedRunnerCards(state).find(c => c.instanceId === a.ids[0]);
     if (!target) return;
     trashInstalledRunnerCard(state, target);
     addLog(state, 'corp', `Sorocaban Blade trashed ${title(target)}.`);
     const encounter = state.activeRun?.encounter;
     if (encounter) encounter.flags = { ...(encounter.flags ?? {}), [SOROCABAN_KEY]: 1 };
-  },
+  }),
+});
+
+export const sorocabanBlade: CardScript = {
+  ice: { subroutines: [sorocabanSub('resources', 'resource'), sorocabanSub('hardware', 'piece of hardware'), sorocabanSub('programs', 'program')] },
+  ...sorocabanFlow.script,
 };
 
 // Boto (Barrier - AP): Threat 4 -> This ice gets +2 strength. Subroutines: Do 2 net damage. You may
@@ -424,15 +478,19 @@ export const sorocabanBlade: CardScript = {
 const botoEtr: Subroutine = {
   label: 'You may trash 1 card from HQ to end the run.',
   resolve: ctx => {
-    if (ctx.state.corp.hq.length > 0) askCards(ctx, 'corp', 'Boto: you may trash 1 card from HQ to end the run.', ids(ctx.state.corp.hq), 0, 1, 'etr');
+    if (ctx.state.corp.hq.length > 0) botoFlow.ask(ctx, 'etr', cardsQuestion('corp', 'Boto: you may trash 1 card from HQ to end the run.', ids(ctx.state.corp.hq), 0, 1));
   },
 };
 
+const botoFlow = prompts({
+  etr: cards(({ state }, a) => {
+    if (corpTrashFromHQ(state, a.ids).length > 0) endTheRun(state);
+  }),
+});
+
 export const boto: CardScript = {
   ice: { strengthModifier: state => (threatLevel(state) >= 4 ? 2 : 0), subroutines: [netDamageSub(2), botoEtr, botoEtr] },
-  onPromptAnswer: ({ state }, _source, answer) => {
-    if (corpTrashFromHQ(state, picked(answer)).length > 0) endTheRun(state);
-  },
+  ...botoFlow.script,
 };
 
 // Cloud Eater (Sentry - AP - Destroyer - Observer): Whenever an encounter with this ice ends, if it
@@ -440,57 +498,91 @@ export const boto: CardScript = {
 // net damage. Subroutines: Trash 1 installed Runner card. Give the Runner 2 tags. Do 3 net damage.
 const cloudEaterKey = (card: CardInstance) => `rezzed:${card.instanceId}`;
 
+const cloudEaterFlow = prompts({
+  ends: choice((ctx, a) => {
+    const { state } = ctx;
+    if (a.optionId === 'tags') giveTags(state, 2);
+    else if (a.optionId === 'net') dealNetDamage(state, 3);
+    else cloudEaterFlow.ask(ctx, 'trash', cardsQuestion('corp', 'Cloud Eater: trash 1 installed Runner card.', ids(installedRunnerCards(state)), 1, 1));
+  }),
+  trash: cards(({ state }, a) => {
+    const target = installedRunnerCards(state).find(c => c.instanceId === a.ids[0]);
+    if (target) {
+      trashInstalledRunnerCard(state, target);
+      addLog(state, 'corp', `Cloud Eater trashed ${title(target)}.`);
+    }
+  }),
+});
+
 export const cloudEater: CardScript = {
   triggers: { rezzed: (ctx, e) => isSelf(ctx, e.card) && void (ctx.state.turnFlags[cloudEaterKey(ctx.card)] = 1) },
   ice: {
     onEncounterEnds: ctx => {
       const { state } = ctx;
       if (turnFlag(state, cloudEaterKey(ctx.card)) === 0 || installedRunnerCards(state).length === 0) return;
-      askChoice(ctx, 'runner', 'Cloud Eater: take 2 tags or suffer 3 net damage, or the Corp trashes 1 of your installed cards.', [
-        { id: 'tags', label: 'Take 2 tags' },
-        { id: 'net', label: 'Suffer 3 net damage' },
-        { id: 'trash', label: 'The Corp trashes 1 installed card' },
-      ], 'ends');
+      cloudEaterFlow.ask(
+        ctx,
+        'ends',
+        choiceQuestion('runner', 'Cloud Eater: take 2 tags or suffer 3 net damage, or the Corp trashes 1 of your installed cards.', [
+          { id: 'tags', label: 'Take 2 tags' },
+          { id: 'net', label: 'Suffer 3 net damage' },
+          { id: 'trash', label: 'The Corp trashes 1 installed card' },
+        ]),
+      );
     },
     subroutines: [
       {
         label: 'Trash 1 installed Runner card.',
         resolve: ctx => {
           const cards = installedRunnerCards(ctx.state);
-          if (cards.length > 0) askCards(ctx, 'corp', 'Cloud Eater: trash 1 installed Runner card.', ids(cards), 1, 1, 'trash');
+          if (cards.length > 0) cloudEaterFlow.ask(ctx, 'trash', cardsQuestion('corp', 'Cloud Eater: trash 1 installed Runner card.', ids(cards), 1, 1));
         },
       },
       tagSub(2),
       netDamageSub(3),
     ],
   },
-  onPromptAnswer: (ctx, source, answer) => {
-    const { state } = ctx;
-    if (source.step === 'ends' && answer.kind === 'effect_choice') {
-      if (answer.optionId === 'tags') giveTags(state, 2);
-      else if (answer.optionId === 'net') dealNetDamage(state, 3);
-      else askCards(ctx, 'corp', 'Cloud Eater: trash 1 installed Runner card.', ids(installedRunnerCards(state)), 1, 1, 'trash');
-    } else if (source.step === 'trash') {
-      const target = installedRunnerCards(state).find(c => c.instanceId === picked(answer)[0]);
-      if (target) {
-        trashInstalledRunnerCard(state, target);
-        addLog(state, 'corp', `Cloud Eater trashed ${title(target)}.`);
-      }
-    }
-  },
+  ...cloudEaterFlow.script,
 };
 
 // Tributary (Code Gate): The first time each turn a run begins, you may move this ice to the
 // outermost position protecting the attacked server. Subroutines: You may draw 1 card. You may
 // install 1 piece of ice from HQ protecting another server, ignoring all costs. / Each piece of ice
 // gets +2 strength for the remainder of this run.
+const tributaryFlow = prompts({
+  move: choice(({ state, card }, a) => {
+    if (a.optionId !== 'yes') return;
+    const run = state.activeRun;
+    const from = serverOf(state, card);
+    const to = run && state.corp.servers[run.server];
+    if (!from || !to) return;
+    removeCard(from.ice, card);
+    to.ice.push(card);
+    addLog(state, 'corp', `Tributary moved to the outermost position protecting ${to.name}.`);
+  }),
+  draw: choice((ctx, a) => {
+    if (a.optionId === 'yes') drawForEffect(ctx.state, 'corp', 1, 'Tributary');
+    tributaryInstall(ctx);
+  }),
+  pick: cards((ctx, a) => {
+    const { state } = ctx;
+    const id = a.ids[0];
+    const ice = id && state.corp.hq.find(c => c.instanceId === id);
+    const here = state.activeRun?.server;
+    if (!ice) return;
+    const options = corpInstallOptions(state, ice, { ignoreCosts: true }).filter(o => o.id !== here && o.id !== 'new');
+    tributaryFlow.askIf(ctx, 'server', installAmongQuestion(state, id, options), { cardId: id, install: true });
+  }),
+  server: choice<InstallData>((ctx, a, _d, source) => void installCorpChoice(ctx.state, source, a.raw, { ignoreCosts: true })),
+});
+
 export const tributary: CardScript = {
   triggers: {
     run_begins: (ctx, e) => {
       if (!useOncePerTurn(ctx.state, `run-begins:${ctx.card.instanceId}`)) return;
       const server = ctx.state.corp.servers[e.server];
       if (!server || server.ice[server.ice.length - 1]?.instanceId === ctx.card.instanceId) return;
-      askChoice(ctx, 'corp', 'Tributary: move it to the outermost position protecting the attacked server?', yesNo('Move it'), 'move');
+      tributaryFlow.ask(ctx, 'move', choiceQuestion('corp', 'Tributary: move it to the outermost position protecting the attacked server?', yesNo('Move it')));
     },
   },
   ice: {
@@ -498,7 +590,7 @@ export const tributary: CardScript = {
       {
         label: 'You may draw 1 card. You may install 1 piece of ice from HQ protecting another server, ignoring all costs.',
         resolve: ctx => {
-          if (ctx.state.corp.rd.length > 0) askChoice(ctx, 'corp', 'Tributary: draw 1 card?', yesNo('Draw 1 card'), 'draw');
+          if (ctx.state.corp.rd.length > 0) tributaryFlow.ask(ctx, 'draw', choiceQuestion('corp', 'Tributary: draw 1 card?', yesNo('Draw 1 card')));
           else tributaryInstall(ctx);
         },
       },
@@ -510,28 +602,7 @@ export const tributary: CardScript = {
       },
     ],
   },
-  onPromptAnswer: (ctx, source, answer) => {
-    const { state, card } = ctx;
-    if (source.step === 'move' && said(answer)) {
-      const run = state.activeRun;
-      const from = serverOf(state, card);
-      const to = run && state.corp.servers[run.server];
-      if (!from || !to) return;
-      removeCard(from.ice, card);
-      to.ice.push(card);
-      addLog(state, 'corp', `Tributary moved to the outermost position protecting ${to.name}.`);
-    } else if (source.step === 'draw') {
-      if (said(answer)) drawForEffect(state, 'corp', 1, 'Tributary');
-      tributaryInstall(ctx);
-    } else if (source.step === 'pick') {
-      const id = picked(answer)[0];
-      const ice = id && state.corp.hq.find(c => c.instanceId === id);
-      const here = state.activeRun?.server;
-      if (ice) askInstallAmong(ctx, id, 'server', corpInstallOptions(state, ice, { ignoreCosts: true }).filter(o => o.id !== here && o.id !== 'new'));
-    } else if (source.step === 'server') {
-      installCorpChoice(state, source, answer, { ignoreCosts: true });
-    }
-  },
+  ...tributaryFlow.script,
 };
 
 function tributaryInstall(ctx: EffectContext): void {
@@ -539,11 +610,11 @@ function tributaryInstall(ctx: EffectContext): void {
   const ice = ctx.state.corp.hq.filter(c => type(c) === 'ice');
   if (!Object.keys(ctx.state.corp.servers).some(id => id !== here)) return;
   // Asked even with no ice in HQ when the Corp's stops are on ALL (4.3.2, see askEvenIfNone)
-  askEvenIfNone(
+  tributaryFlow.evenIfNone(
     ctx,
     'corp',
     ice.length > 0,
-    () => askCards(ctx, 'corp', 'Tributary: you may install 1 piece of ice from HQ protecting another server, ignoring all costs.', ids(ice), 0, 1, 'pick'),
+    () => tributaryFlow.ask(ctx, 'pick', cardsQuestion('corp', 'Tributary: you may install 1 piece of ice from HQ protecting another server, ignoring all costs.', ids(ice), 0, 1)),
     'Tributary: no ice in HQ to install.',
   );
 }
@@ -566,14 +637,21 @@ export const capacitor: CardScript = {
 // Piranhas (Code Gate - AP - Liability): As an additional cost to rez this ice, take 1 bad
 // publicity or remove 1 tag. Subroutines: You may draw 1 card. Do 1 net damage. End the run if
 // there are more cards in HQ than in the grip.
+const piranhasFlow = prompts({
+  rez_cost: liabilityRezStep(),
+  draw: choice((ctx, a) => {
+    if (a.optionId === 'yes') drawForEffect(ctx.state, 'corp', 1, 'Piranhas');
+  }),
+});
+
 export const piranhas: CardScript = {
-  payRez: liabilityRez.payRez,
+  payRez: (ctx, cost) => piranhasFlow.ask(ctx, 'rez_cost', liabilityQuestion(ctx), { cost }),
   ice: {
     subroutines: [
       {
         label: 'You may draw 1 card.',
         resolve: ctx => {
-          if (ctx.state.corp.rd.length > 0) askChoice(ctx, 'corp', 'Piranhas: draw 1 card?', yesNo('Draw 1 card'), 'draw');
+          if (ctx.state.corp.rd.length > 0) piranhasFlow.ask(ctx, 'draw', choiceQuestion('corp', 'Piranhas: draw 1 card?', yesNo('Draw 1 card')));
         },
       },
       netDamageSub(1),
@@ -585,36 +663,57 @@ export const piranhas: CardScript = {
       },
     ],
   },
-  onPromptAnswer: (ctx, source, answer) => {
-    if (source.step === 'rez_cost') liabilityRez.answer(ctx, answer, Number(source.data?.cost ?? 0));
-    else if (source.step === 'draw' && said(answer)) drawForEffect(ctx.state, 'corp', 1, 'Piranhas');
-  },
+  ...piranhasFlow.script,
 };
 
 // Seraph (Sentry - AP - Observer - Deep Net): When the Runner encounters this ice, they lose 3
 // credits unless they suffer 2 net damage or take 1 tag. Subroutines: The Runner loses 3 credits.
 // Do 2 net damage. Give the Runner 1 tag.
+const seraphFlow = prompts({
+  encounter: choice(({ state }, a) => {
+    if (a.optionId === 'net') dealNetDamage(state, 2);
+    else if (a.optionId === 'tag') giveTags(state, 1);
+    else addLog(state, 'corp', `The Runner lost ${loseCredits(state, 'runner', 3)} [credit] (Seraph).`);
+  }),
+});
+
 export const seraph: CardScript = {
   ice: {
     onEncounter: ctx =>
-      askChoice(ctx, 'runner', 'Seraph: lose 3 [credit], suffer 2 net damage, or take 1 tag?', [
-        { id: 'credits', label: 'Lose 3 [credit]' },
-        { id: 'net', label: 'Suffer 2 net damage' },
-        { id: 'tag', label: 'Take 1 tag' },
-      ], 'encounter'),
+      seraphFlow.ask(
+        ctx,
+        'encounter',
+        choiceQuestion('runner', 'Seraph: lose 3 [credit], suffer 2 net damage, or take 1 tag?', [
+          { id: 'credits', label: 'Lose 3 [credit]' },
+          { id: 'net', label: 'Suffer 2 net damage' },
+          { id: 'tag', label: 'Take 1 tag' },
+        ]),
+      ),
     subroutines: [loseCreditsSub(3), netDamageSub(2), tagSub(1)],
   },
-  onPromptAnswer: ({ state }, _source, answer) => {
-    if (answer.kind !== 'effect_choice') return;
-    if (answer.optionId === 'net') dealNetDamage(state, 2);
-    else if (answer.optionId === 'tag') giveTags(state, 1);
-    else addLog(state, 'corp', `The Runner lost ${loseCredits(state, 'runner', 3)} [credit] (Seraph).`);
-  },
+  ...seraphFlow.script,
 };
 
 // Descent (Code Gate - Expendable): [click], 1 credit, reveal and trash this ice from HQ: Draw 1
 // card. Reveal up to 2 agendas in HQ and/or Archives and shuffle them into R&D. When your turn
 // begins, you may add this ice to HQ. Subroutine: End the run.
+const descentFlow = prompts({
+  return: choice(({ state, card }, a) => {
+    if (a.optionId === 'yes' && returnInstalledToHQ(state, card)) addLog(state, 'corp', 'Corp added Descent to HQ.');
+  }),
+  shuffle: cards(({ state }, a) => {
+    if (a.ids.length === 0) return;
+    for (const id of a.ids) {
+      const agenda = [...state.corp.hq, ...archivesCards(state)].find(c => c.instanceId === id);
+      if (!agenda) continue;
+      takeFromCorpZone(state, agenda);
+      state.corp.rd.push(agenda);
+      addLog(state, 'corp', `Corp revealed ${title(agenda)} and shuffled it into R&D (Descent).`, agenda.cardCode);
+    }
+    shuffleRD(state);
+  }),
+});
+
 export const descent: CardScript = {
   abilities: [
     {
@@ -629,11 +728,11 @@ export const descent: CardScript = {
         drawForEffect(state, 'corp', 1, 'Descent');
         const agendas = [...state.corp.hq, ...archivesCards(state)].filter(c => type(c) === 'agenda');
         // Asked even with no agenda when the Corp's stops are on ALL (4.3.2, 4.4.6c, see askEvenIfNone)
-        askEvenIfNone(
+        descentFlow.evenIfNone(
           ctx,
           'corp',
           agendas.length > 0,
-          () => askCards(ctx, 'corp', 'Descent: reveal up to 2 agendas in HQ and/or Archives to shuffle into R&D.', ids(agendas), 0, 2, 'shuffle'),
+          () => descentFlow.ask(ctx, 'shuffle', cardsQuestion('corp', 'Descent: reveal up to 2 agendas in HQ and/or Archives to shuffle into R&D.', ids(agendas), 0, 2)),
           'Descent: no agenda in HQ or Archives.',
         );
       },
@@ -641,24 +740,11 @@ export const descent: CardScript = {
   ],
   triggers: {
     turn_begins: (ctx, e) => {
-      if (e.side === 'corp' && serverOf(ctx.state, ctx.card)) askChoice(ctx, 'corp', 'Descent: add it to HQ?', yesNo('Add Descent to HQ'), 'return');
+      if (e.side === 'corp' && serverOf(ctx.state, ctx.card)) descentFlow.ask(ctx, 'return', choiceQuestion('corp', 'Descent: add it to HQ?', yesNo('Add Descent to HQ')));
     },
   },
   ice: { subroutines: [endTheRunSub] },
-  onPromptAnswer: ({ state, card }, source, answer) => {
-    if (source.step === 'return' && said(answer)) {
-      if (returnInstalledToHQ(state, card)) addLog(state, 'corp', 'Corp added Descent to HQ.');
-    } else if (source.step === 'shuffle' && picked(answer).length > 0) {
-      for (const id of picked(answer)) {
-        const agenda = [...state.corp.hq, ...archivesCards(state)].find(c => c.instanceId === id);
-        if (!agenda) continue;
-        takeFromCorpZone(state, agenda);
-        state.corp.rd.push(agenda);
-        addLog(state, 'corp', `Corp revealed ${title(agenda)} and shuffled it into R&D (Descent).`, agenda.cardCode);
-      }
-      shuffleRD(state);
-    }
-  },
+  ...descentFlow.script,
 };
 
 // Hammer (Sentry - Destroyer - Observer): During each encounter with this ice, the Runner cannot
@@ -674,8 +760,17 @@ const hammerTrash = (kinds: ('resources' | 'hardware' | 'programs')[], label: st
   label,
   resolve: ctx => {
     const cards = kinds.flatMap(k => ctx.state.runner.rig[k]).filter(filter);
-    if (cards.length > 0) askCards(ctx, 'corp', `Hammer: ${label[0].toLowerCase()}${label.slice(1)}`, ids(cards), 1, 1, 'trash');
+    if (cards.length > 0) hammerFlow.ask(ctx, 'trash', cardsQuestion('corp', `Hammer: ${label[0].toLowerCase()}${label.slice(1)}`, ids(cards), 1, 1));
   },
+});
+
+const hammerFlow = prompts({
+  trash: cards(({ state }, a) => {
+    const target = installedRunnerCards(state).find(c => c.instanceId === a.ids[0]);
+    if (!target) return;
+    trashInstalledRunnerCard(state, target);
+    addLog(state, 'corp', `Hammer trashed ${title(target)}.`);
+  }),
 });
 
 export const hammer: CardScript = {
@@ -694,12 +789,7 @@ export const hammer: CardScript = {
       hammerTrash(['programs'], 'Trash 1 installed program that is not a decoder, fracter, or killer.', c => !/\b(decoder|fracter|killer)\b/i.test(keywords(c))),
     ],
   },
-  onPromptAnswer: ({ state }, _source, answer) => {
-    const target = installedRunnerCards(state).find(c => c.instanceId === picked(answer)[0]);
-    if (!target) return;
-    trashInstalledRunnerCard(state, target);
-    addLog(state, 'corp', `Hammer trashed ${title(target)}.`);
-  },
+  ...hammerFlow.script,
 };
 
 // Logjam (Barrier): You can advance this ice. It gets +1 strength for each hosted advancement

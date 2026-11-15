@@ -9,7 +9,7 @@ import { trashInstalledRunnerCard } from '../../../engine/damage';
 import { iceSubtypes } from '../../../engine/ice';
 import { gainFromCard, rezCost, useOncePerTurn } from '../../../engine/cardEffects';
 import { EffectAnswer, EffectContext } from '../../types';
-import { advanceableInstalled, askCards, askChoice, corpInstallOptions, corpZoneOf } from '../../effects';
+import { advanceableInstalled, corpInstallOptions, corpZoneOf } from '../../effects';
 import { CardsQuestion, ChoiceQuestion } from '../../steps';
 
 export const isSelf = (ctx: EffectContext, card: CardInstance) => card.instanceId === ctx.card.instanceId;
@@ -92,14 +92,6 @@ export function returnInstalledToHQ(state: GameState, card: CardInstance): boole
   return true;
 }
 
-/** Asks where to install a card, among the given server options (ids from corpInstallOptions). */
-export function askInstallAmong(ctx: EffectContext, cardId: string, step: string, options: { id: string; label: string }[], data: Record<string, string | number | boolean> = {}): boolean {
-  if (options.length === 0) return false;
-  const card = [...ctx.state.corp.hq, ...ctx.state.corp.rd, ...archivesCards(ctx.state)].find(c => c.instanceId === cardId);
-  askChoice(ctx, 'corp', `Install ${card ? title(card) : 'the card'} where?`, options, step, { ...data, cardId, install: true });
-  return true;
-}
-
 /** Nuvem SA: "The first time you trash a card from R&D during each of your turns, gain 2 credits." */
 export function corpTrashedFromRD(state: GameState): void {
   if (state.corp.identity.cardCode !== NUVEM || state.activePlayer !== 'corp') return;
@@ -132,14 +124,6 @@ export function placeAdvancementQuestion(ctx: EffectContext, n: number, advancea
   const cards = among ?? (advanceable ? advanceableInstalled(ctx.state) : installedCorpCards(ctx.state));
   if (cards.length === 0) return null;
   return { side: 'corp', message: `${title(ctx.card)}: place ${n} advancement counter${n > 1 ? 's' : ''} on 1 installed card.`, candidateIds: ids(cards), min: 1, max: 1 };
-}
-
-/** Asks which installed card gets `n` advancement counters (only cards that can be advanced, if `advanceable`). */
-export function askPlaceAdvancement(ctx: EffectContext, n: number, step: string, advanceable = true, among?: CardInstance[]): boolean {
-  const cards = among ?? (advanceable ? advanceableInstalled(ctx.state) : installedCorpCards(ctx.state));
-  if (cards.length === 0) return false;
-  askCards(ctx, 'corp', `${title(ctx.card)}: place ${n} advancement counter${n > 1 ? 's' : ''} on 1 installed card.`, ids(cards), 1, 1, step, { n });
-  return true;
 }
 
 export function placeAdvancement(state: GameState, id: string, n: number, source: string): void {
