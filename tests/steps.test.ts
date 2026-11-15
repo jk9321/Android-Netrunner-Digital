@@ -2,7 +2,10 @@ import { describe, expect, it } from 'vitest';
 import '../src/core';
 import { createCardInstance } from '../src/core';
 import { EffectSource } from '../src/core/types/prompts';
-import { cards, choice, prompts } from '../src/core/scripts/steps';
+import { readdirSync, readFileSync, statSync } from 'node:fs';
+import { join } from 'node:path';
+import { getCardScript, scriptedCardCodes } from '../src/core/scripts';
+import { cards, choice, declaredSteps, prompts } from '../src/core/scripts/steps';
 import { EffectContext } from '../src/core/scripts/types';
 import { newGame } from './helpers';
 
@@ -80,4 +83,33 @@ describe('prompts()', () => {
     flow.cards(ctx, 'pick', q, { cardId: 'a' });
   }
   void compileTimeChecks;
+});
+
+/** The card script files: everything under src/core/scripts but the prompt machinery and the registry. */
+const MACHINERY = new Set(['steps.ts', 'effects.ts', 'types.ts', 'index.ts']);
+function cardScriptFiles(dir = 'src/core/scripts'): string[] {
+  return readdirSync(dir).flatMap(name => {
+    const path = join(dir, name);
+    if (statSync(path).isDirectory()) return cardScriptFiles(path);
+    return name.endsWith('.ts') && !(dir === 'src/core/scripts' && MACHINERY.has(name)) ? [path] : [];
+  });
+}
+
+describe('every card uses prompts()', () => {
+  it('declares its steps: no card answers its prompts with a hand-written onPromptAnswer', () => {
+    const handWritten = scriptedCardCodes().filter(code => getCardScript(code)?.onPromptAnswer && !declaredSteps(getCardScript(code)));
+    expect(handWritten).toEqual([]);
+  });
+
+  // Audit 2026-11-15 TEST-STEPS-RAW-ASK: the compiler checks only questions asked through a Flow, so a card file that
+  // calls a step-string helper itself could ask an undeclared step and fail only at run time.
+  it('asks only through its flow: no card file calls a helper that takes a step string', () => {
+    const raw = /(?<![.\w])(askCards|askChoice|askRunnerInstall|askCorpInstall|arrangeTop|arrangeNext|askEvenIfNone|installRunnerChoice|playPsiGame)\(|\bonPromptAnswer\b/;
+    const found = cardScriptFiles().flatMap(file =>
+      readFileSync(file, 'utf8')
+        .split('\n')
+        .flatMap((line, i) => (raw.test(line) ? [`${file}:${i + 1}: ${line.trim()}`] : [])),
+    );
+    expect(found, 'ask through the card\'s flow (flow.cards / choice / ask / runnerInstall / corpInstall / arrangeTop / evenIfNone / psiGame)').toEqual([]);
+  });
 });
