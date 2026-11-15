@@ -2,18 +2,15 @@ import { SideCode } from '../core';
 import { DECKS, DEFAULT_CORP_DECK, DEFAULT_RUNNER_DECK } from '../data/decks';
 import { loadCustomDecks } from '../data/customDecks';
 import { GameConfig, SavedGame, loadSavedGame } from './savedGame';
+import { readStorage } from './storage';
 import { ViewMode } from './viewer';
 
 export const VIEW_MODE_KEY = 'netrunner.viewMode';
 
 /** The view mode last used in a two-player game. */
 export function savedViewMode(): ViewMode {
-  try {
-    const v = window.localStorage.getItem(VIEW_MODE_KEY);
-    if (v === 'open' || v === 'hotseat' || v === 'corp' || v === 'runner') return v;
-  } catch {
-    // Storage blocked: use the default
-  }
+  const v = readStorage(VIEW_MODE_KEY);
+  if (v === 'open' || v === 'hotseat' || v === 'corp' || v === 'runner') return v;
   return 'open';
 }
 
