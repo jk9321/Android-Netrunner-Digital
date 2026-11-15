@@ -7,8 +7,8 @@ import { corpCardScripts } from './corpCards';
 import { runnerCardScripts } from './runnerCards';
 import { elevationCorpScriptGroups } from './elevation/corp';
 import { elevationRunnerScriptGroups } from './elevation/runner';
-import { vantageRunnerScripts } from './vantageRunner';
-import { vantageCorpScripts } from './vantageCorp';
+import { vantageRunnerScriptGroups } from './vantage/runner';
+import { vantageCorpScriptGroups } from './vantage/corp';
 import { liberationCorpScriptGroups } from './liberation/corp';
 import { liberationRunnerScriptGroups } from './liberation/runner';
 
@@ -24,8 +24,8 @@ export const SCRIPT_GROUPS: Record<string, Record<string, CardScript>> = {
   runnerCardScripts,
   ...elevationCorpScriptGroups,
   ...elevationRunnerScriptGroups,
-  vantageRunnerScripts,
-  vantageCorpScripts,
+  ...vantageRunnerScriptGroups,
+  ...vantageCorpScriptGroups,
   ...liberationCorpScriptGroups,
   ...liberationRunnerScriptGroups,
 };
