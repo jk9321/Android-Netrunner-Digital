@@ -1,4 +1,4 @@
-import { FLATLINE } from '../src/ai/effectValues';
+import { RATES } from '../src/ai/valueModel';
 import { describe, expect, it } from 'vitest';
 import { ALL_CARDS, CardInstance, GameAction, GameState, createCardInstance, actingSide, createInitialGameState, executeAction, getCardDefinition } from '../src/core';
 import { digValue, handValue, keepValue } from '../src/ai/evaluate';
@@ -188,7 +188,7 @@ describe('trap caution', () => {
     const safe = serverValue(s, 'remote-9', 0, new Map(), true);
     s.corp.rd.push(createCardInstance(s, '30045'));
     expect(trapOdds(s, new Map())).toBeGreaterThan(0);
-    expect(serverValue(s, 'remote-9', 0, new Map(), true)).toBeLessThan(safe - trapOdds(s, new Map()) * FLATLINE * 0.9);
+    expect(serverValue(s, 'remote-9', 0, new Map(), true)).toBeLessThan(safe - trapOdds(s, new Map()) * 4 * RATES.point * 0.9 /* the old flat FLATLINE, deleted in V-B B6 */);
   });
 
   it('is warier of an undefended remote (Jeff: agenda odds rise with what the Corp has put into the server)', () => {

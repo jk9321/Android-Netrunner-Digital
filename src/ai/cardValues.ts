@@ -26,8 +26,6 @@ export interface CardValue {
   draws?: number;
 }
 
-/** By card code: built from the per-set card files (src/ai/cards/). */
-export { CARD_VALUES } from './cards';
 
 /** Extra worth of the cards a card draws, now that a card in hand is worth about a credit. */
 const drawBonus = (code: string): number => logValue('cardDrawn', 'drawBonus', undefined, RATES.cardDrawn * (CARD_VALUES[code]?.draws ?? 0), code);

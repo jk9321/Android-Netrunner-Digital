@@ -21,8 +21,6 @@ const CODES_IN_VALUE_FILES: Record<string, string> = {
   'effectValues:30045': 'Urtica Cipher: a placed-counter field in CardAI',
   'effectValues:35061': 'Idiosyncresis: a placed-counter field in CardAI',
   'effectValues:30061': 'Clearinghouse: a placed-counter field in CardAI',
-  'counterValues:30033': 'Smartware Distributor: the step-1 rate when counterEffects is off (tested)',
-  'counterValues:30007': 'Fermenter: the step-1 rate when counterEffects is off (tested)',
 };
 
 /** Plan switches that are off, each with why it stays in the code. */
@@ -228,22 +226,14 @@ describe('AI code health (audit guards)', () => {
   // that file imports the name (a same-named local is not a reader); a re-export or a test is not a reader. The exports
   // with no reader are listed here, each with why it stays, for V-B and Jeff; the list may only shrink.
   const DEAD_VALUATION_EXPORTS: Record<string, string> = {
-    'valueModel:creditValue': 'dead (re-exported by evaluate.ts, never read): V-B',
     'valueModel:clearBuildTargets': 'test and script cache reset (scripts/cache-bisect.ts)',
     'handValues:clearHandCaches': 'test and script cache reset',
     'effectValues:clearDamageThreats': 'test and script cache reset',
     'iceValues:clearDeckShares': 'test and script cache reset',
     'effectValues:passOddsOf': 'scripts only (threat calibration)',
-    'effectValues:FLATLINE': 'dead (tests only; valueModel flatlineWorth replaced it): V-B',
-    'effectValues:topDownWorth': 'dead (tests only): V-B',
-    'evaluate:shownIceShare': 'dead (no reader anywhere): V-B',
     'evaluate:AGENDA_RUN': 'scripts only (a measured rate, logged)',
     'evaluate:setAgendaClick': 'scripts only (scripts/human-agreement.ts sweeps AGENDA_CLICK)',
     'evaluate:centralExposure': 'scripts and tests only since the oneCurrency off path went (its own memo key names it): V-B',
-    // V-B B1: found when the guard began to check re-exports and loaded readers (recount VA-DEAD-GUARD-REEXPORTS)
-    'effectValues:EFFECT_CODES': 're-export read only by src/ai/valueAudit.ts, which the app never loads (tests and scripts): V-B dead list',
-    'cardValues:CARD_VALUES': 're-export read only by src/ai/valueAudit.ts, which the app never loads (tests and scripts): V-B dead list',
-    'cardProfiles:PAYOUT_RISK': 're-export with no src importer (src reads ./payoutRisk; tests and scripts/value-owners/log.ts import it here): V-B dead list',
   };
   it('has a src reader for every valuation export but the listed ones (V-A; shrink only)', () => {
     const VALUATION = ['valueModel', 'handValues', 'effectValues', 'evaluate', 'cardValues', 'cardProfiles', 'counterValues', 'iceValues'];
@@ -355,10 +345,11 @@ describe('AI code health (audit guards)', () => {
   // ai-hold-reentry + 13 (the countingHold guard: pricing.ts + 4, iceValues.ts + 1, hold.ts + 7; its second commit, the rez
   // worked out before the set is priced, hold.ts + 1; corp/ + 8) = 14,263 and corp/ 2,298;
   // V-B B3 + 4 (assetRisk, the owner's risk as one export; the formula context's risk and its doc line; corpEffect works it out); B3 paidOut + 1 (its import of the owner; inIcedServer moved, not added): + 5 = 14,268 (accepted by the AI Coordinator)
-  // ai-tag-loss-time arm 0 + 7 (evaluate.ts tagLoss: the three exact skips' comment and if-block, the rule cited) = 14,275
-  it('keeps src/ai/corp at or under 2,298 lines and src/ai at or under 14,275 (Stage C hand-off, ai-corp-honest-order, ai-value-time, ai-playout-lines, ai-honest-runner-view, ai-honest-corp-decision, ai-value-owners, ai-corp-rd-memory, ai-value-b1, ai-value-b2, ai-hold-reentry, ai-value-b3, ai-tag-loss-time)', () => {
+  // ai-tag-loss-time arm 0 + 7 (evaluate.ts tagLoss: the three exact skips' comment and if-block, the rule cited) = 14,275;
+  // V-B B6 - 38 (Jeff's dead list, part A without centralExposure: creditValue and its two rates, FLATLINE, topDownWorth, shownIceShare, three re-exports) = 14,237; B6 - 12 (dead list part B: six unread RATES fields, PAYOUT_RISK.corpIced, the drawnCardOff branch, Smartware's and Fermenter's default branches with their two rates) = 14,225
+  it('keeps src/ai/corp at or under 2,298 lines and src/ai at or under 14,225 (Stage C hand-off, ai-corp-honest-order, ai-value-time, ai-playout-lines, ai-honest-runner-view, ai-honest-corp-decision, ai-value-owners, ai-corp-rd-memory, ai-value-b1, ai-value-b2, ai-hold-reentry, ai-value-b3, ai-tag-loss-time, ai-value-b6)', () => {
     const corp = aiFiles().filter(f => f.replace(/\\/g, '/').startsWith('corp/')).reduce((n, f) => n + lines(f), 0);
     expect(corp).toBeLessThanOrEqual(2298);
-    expect(aiFiles().reduce((n, f) => n + lines(f), 0)).toBeLessThanOrEqual(14275);
+    expect(aiFiles().reduce((n, f) => n + lines(f), 0)).toBeLessThanOrEqual(14225);
   });
 });
