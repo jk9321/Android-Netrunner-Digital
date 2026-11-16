@@ -4,9 +4,9 @@ import { PAYOUT_RISK } from './payoutRisk';
 import { COUNTER_WORTH } from './counterValues';
 import { CARDS, advancePayloadOf, corpFormula, runnerFormula } from './cards';
 import { actingSide } from './synergy';
-import { CLICK, RATES, cardRate, flatlineWorth, memo, pointGain, pointValue, scopeToGame, sideCards } from './valueModel';
+import { CLICK, RATES, cardRate, flatlineWorth, logValue, memo, pointGain, pointValue, scopeToGame, sideCards } from './valueModel';
 import { tagsWorth } from './evaluate';
-import { BLOCK, iceCost, iceCreditNeed, isTrap, plannedSubroutines, subroutineCost } from './runs';
+import { BLOCK, iceCost, iceCreditNeed, isTrap, plannedSubroutines, subroutineCost, tankDamage } from './runs';
 import { remoteRunChance, threatOn } from './threatModel';
 import { plan, pricing, withPricing } from './pricing';
 import { REZ_NOW_SHARE, rezBudget } from './iceValues';
@@ -118,7 +118,7 @@ export function perTurn(state: GameState, x: number, owner: 'corp' | 'runner', m
   const turns = Math.min(maxTurns, Math.max(minTurns, turnsLeft(state)));
   let value = 0;
   for (let t = 1; t <= turns; t++) value += x * (wait * (1 - risk)) ** t * lock ** (t - 1);
-  return value;
+  return logValue('effectOverTurns', 'perTurn', state, value, x, owner, minTurns, maxTurns, wait, lock);
 }
 
 /*
@@ -143,7 +143,10 @@ const TANKED_PASS = 0.85;
  */
 function canTank(state: GameState, ice: CardInstance, credits: number): boolean {
   if (iceCreditNeed(state, ice) > credits) return false;
-  const tank = plannedSubroutines(state, ice).map(s => subroutineCost(state, s.label)).filter(c => c < BLOCK).reduce((n, c) => n + c, 0);
+  const priced = plannedSubroutines(state, ice).map((s, i) => ({ label: s.label, i, cost: subroutineCost(state, s.label) })).filter(s => s.cost < BLOCK);
+  // The tanked subroutines' damage together, in order (tankDamage, the owner; RM-TANK-NOT-SINGLE): more than the grip is no way past
+  if (tankDamage(state, priced).lethal !== undefined) return false;
+  const tank = priced.reduce((n, s) => n + s.cost, 0);
   return tank < 0.5 * pointGain(state.runner.score, agendaOdds(state).points);
 }
 
@@ -273,11 +276,33 @@ export function anySuccess(state: GameState): number {
 export const lock = (): number => LOCKDOWN;
 
 /** Chance a Corp card the Runner hasn't seen is an agenda, and the points of a typical agenda (decklist). */
-export function agendaOdds(state: GameState): { odds: number; points: number } {
+export function agendaOdds(state: GameState): { odds: number; points: number; onSteal: number[] } {
   return memo(state, 'agendaOdds', () => countAgendaOdds(state));
 }
 
-function countAgendaOdds(state: GameState): { odds: number; points: number } {
+/** Net or meat damage an agenda does to the Runner when stolen ("When this agenda is scored or stolen, do 2 net damage": Fujii Asset Retrieval). */
+export function stealDamage(code: string): number {
+  const m = (getCardDefinition(code).stripped_text ?? '').match(/when this agenda is (?:scored or )?stolen, do (\d+) (?:net|meat) damage/i);
+  return m ? Number(m[1]) : 0;
+}
+
+/**
+ * Net or meat damage a trap does when the Runner accesses it with `advancements` counters on it, read from its text
+ * (Byte!: 3 net if the Corp pays 4; Urtica Cipher: 2 net plus 1 per advancement counter; Esca: 1 net if the Runner is
+ * tagged). 0 for traps that don't damage on access (Clearinghouse fires on the Corp's turn, Behold! gives tags).
+ */
+export function accessDamage(state: GameState, code: string, advancements: number): number {
+  const text = getCardDefinition(code).stripped_text ?? '';
+  if (!/when the runner accesses this/i.test(text)) return 0;
+  const m = text.match(/do (\d+) (?:net|meat) damage/i);
+  if (!m) return 0;
+  const pay = text.match(/you may pay (\d+) credits?/i);
+  if (pay && state.corp.credits < Number(pay[1])) return 0;
+  if (/if they are tagged, do/i.test(text) && state.runner.tags === 0) return 0;
+  return Number(m[1]) + (/plus 1 net damage for each hosted advancement counter/i.test(text) ? advancements : 0);
+}
+
+function countAgendaOdds(state: GameState): { odds: number; points: number; onSteal: number[] } {
   const corp = sideCards(state, 'corp');
   const agendas = corp.filter(c => cardDef(c).type_code === 'agenda');
   // plan.unseenOdds (Gemini's decking analysis, 2026-11-06): installed ice (faceup or not, its position shows it is ice)
@@ -288,7 +313,10 @@ function countAgendaOdds(state: GameState): { odds: number; points: number } {
   const unseen = corp.length - state.corp.scoreArea.length - state.runner.scoreArea.length - state.corp.archives.faceUp.length - seen;
   const left = agendas.length - state.corp.scoreArea.length - state.runner.scoreArea.filter(c => cardDef(c).side_code === 'corp').length;
   const points = agendas.length ? agendas.reduce((n, c) => n + (cardDef(c).agenda_points ?? 0), 0) / agendas.length : 2;
-  return { odds: unseen > 0 ? Math.max(0, left) / unseen : 0, points };
+  // The steal damage of each agenda not yet scored or stolen (decklist, so no hidden card is read): an unseen agenda is any of them
+  const done = new Set([...state.corp.scoreArea, ...state.runner.scoreArea].map(c => c.instanceId));
+  const onSteal = agendas.filter(c => !done.has(c.instanceId)).map(c => stealDamage(c.cardCode));
+  return { odds: unseen > 0 ? Math.max(0, left) / unseen : 0, points, onSteal };
 }
 
 /** Worth to the Runner of one more random access to an unseen Corp card. */
@@ -297,31 +325,55 @@ export function accessWorth(state: GameState): number {
   return odds * pointGain(state.runner.score, points);
 }
 
-/** Worth of n net or meat damage to the Runner: the cards lost, or the game if it flatlines. */
-export function damageWorth(state: GameState, n: number): number {
+/**
+ * Worth of n net or meat damage to the Runner: the cards lost, or the game if it flatlines. `drawBack`: damage the Runner
+ * chooses to take in its own run (runs.ts subroutineCost, read by the Runner on its own turn, during the run or choosing
+ * it), which leaves it the clicks after the run to draw cards back (drawBackClicks); every other reader (the Corp's
+ * board, a known trap, the clock at a leaf) leaves it off. Owner of damage, both views (registry, valuation table).
+ */
+export function damageWorth(state: GameState, n: number, drawBack = false, grip = state.runner.grip.length): number {
   // plan.spareLastClick: with no click left the Runner can't run again this turn, so cards over its hand size are
   // discarded before they can soak up any damage (it drew to 6 with its last click and discarded, for +6)
+  // `grip`: the cards the Runner will hold when the damage lands (a steal at the end of a run, after the ice's damage)
   const spent = state.activePlayer === 'runner' && !state.activeRun && state.runner.clicks === 0;
-  const held = spent ? Math.min(state.runner.handSizeLimit ?? 5, state.runner.grip.length) : state.runner.grip.length;
-  if (n > held) return flatlineWorth(state);
+  const held = spent ? Math.min(state.runner.handSizeLimit ?? 5, grip) : grip;
+  if (n > held) return logValue('damage', 'damageWorth', state, flatlineWorth(state), n, drawBack, grip);
   const card = cardRate(state, 'runner');
   // The damage clock: the cards, and the step closer to a flatline the smaller grip leaves
   // Cards over the hand limit are discarded before the Corp's turn: they are no life against its damage
-  const grip = held;
-  return n * card + flatlineWorth(state) * (flatlineOdds(state, lifeGrip(state, grip - n, false)) - flatlineOdds(state, lifeGrip(state, grip, false)));
+  const life = (g: number) => flatlineOdds(state, lifeGrip(state, g, false));
+  const now = life(held);
+  // Draw-back (Runner audit RUNNER-DAMAGE-NO-DRAWBACK): damage taken in the Runner's own run leaves it the clicks after the
+  // run to draw cards back before the Corp's turn (rule 5.2.7c: a click draws a card). Drawing k of the n back costs k
+  // clicks (CLICK each) and gives the k cards back; the clock is read at the grip it then holds. It draws back as many as
+  // is cheapest, so a full grip does not make damage free (the clicks are paid)
+  const back = drawBack ? drawBackClicks(state, true) : 0;
+  let best = Infinity;
+  for (let k = 0; k <= Math.min(n, back); k++) best = Math.min(best, (n - k) * card + k * CLICK + flatlineWorth(state) * (life(held - n + k) - now));
+  return logValue('damage', 'damageWorth', state, best, n, drawBack, grip);
 }
 
 /**
  * The grip that will stand against the Corp's damage on its turn: at most the hand size limit (the rest is discarded
  * first). plan.drawBackLife (Jeff, 2026-11-04: the Runner hoarded Sure Gamble): on the Runner's own turn, outside a run,
  * each click left can draw a card back, so a card played now isn't a card less against the next Corp turn yet.
- * Not for damage taken in a run (damageWorth): counting clicks there made every click spent cost life (a click for a
- * credit at 2 cards scored -5.8 against a damage deck).
+ * Not for damage taken in a run: that is damageWorth's draw-back, which pays for the clicks (drawBackClicks is the one
+ * count of them); free draws there made every click spent cost life (a click for a credit at 2 cards scored -5.8).
  */
 export function lifeGrip(state: GameState, grip = state.runner.grip.length, drawBack = true): number {
   const limit = state.runner.handSizeLimit ?? 5;
-  const back = drawBack && state.activePlayer === 'runner' && !state.activeRun ? state.runner.clicks : 0;
+  const back = drawBack && !state.activeRun ? drawBackClicks(state) : 0;
   return Math.min(limit, grip + back);
+}
+
+/**
+ * The clicks the Runner has left on its own turn to draw cards back before the Corp's turn (rule 5.2.7c: a click draws
+ * a card), the one count both draw-backs read (RM-DRAWBACK-TWO): lifeGrip's free draws outside a run, and damageWorth's
+ * paid ones (CLICK each) for damage taken in a run. `runClick`: a run not yet started still takes its own click.
+ */
+export function drawBackClicks(state: GameState, runClick = false): number {
+  if (state.activePlayer !== 'runner') return 0;
+  return Math.max(0, state.runner.clicks - (runClick && !state.activeRun ? 1 : 0));
 }
 
 /** Damage a Corp card can deal in one go, from its text ("plus 1 ... for each" counts 2 more). */
@@ -341,7 +393,7 @@ export const clearDamageThreats = (): void => threats.clear();
 /**
  * The Corp's damage threat (the damage clock, Jeff 2026-10-28): the biggest
  * hit one of its cards can still deal, and the share of its cards that deal
- * damage, from the decklist less what is scored or trashed faceup.
+ * damage, from the decklist less what is scored or trashed faceup. Owner of the Corp's damage threat (registry V20).
  */
 export function damageThreat(state: GameState, corpTurn = false): { burst: number; share: number } {
   // plan.corpTurnDamage (Jeff, 2026-11-06, his Teia game: the Runner held Sure Gamble at 7 credits): on the Corp's turn
@@ -352,10 +404,14 @@ export function damageThreat(state: GameState, corpTurn = false): { burst: numbe
   // plan.corpTurnDamageOwn: on the Corp's turn only damage the Corp deals itself (see ownTurnHit)
   const own = corpTurn && plan().corpTurnDamageOwn;
   const tagged = state.runner.tags > 0;
-  const key = `${state.id}:${state.corp.archives.faceUp.length}:${state.corp.scoreArea.length}:${state.runner.scoreArea.length}:${skipIce}:${own}:${own && tagged}`;
+  // How many Corp cards there are (a look-ahead that adds or doubles one changes the pool; ai-runner-unknowns, whose new
+  // damage readers hit this map more: 124 wrong of 43.6k on deal 2181 became 1,130 of 69.7k without it)
+  const corp = state.corp;
+  const count = corp.hq.length + corp.rd.length + corp.archives.faceDown.length + Object.values(corp.servers).reduce((n, v) => n + v.root.length + v.ice.length, 0);
+  const key = `${state.id}:${state.corp.archives.faceUp.length}:${state.corp.scoreArea.length}:${state.runner.scoreArea.length}:${skipIce}:${own}:${own && tagged}:${count}`;
   // Audit Step 2 (AI-CACHE-HIDDEN-STATE): keyed by how many cards are out of the pool, not which (nor a look-ahead's added
   // or doubled card), so some hits are another board's value (about a third: threatsAudit); an exact (per-position)
-  // version cost decision time, so the map is kept to one game and never depends on the games played before it
+  // version cost decision time (V-B B1 ruling 1: the pool's codes x1.10 Corp; 5,093 wrong of 713k hits): kept incomplete, recorded
   scopeToGame(threats, state);
   const cached = threats.get(key);
   if (cached && !threatsAudit.on) return cached;
@@ -403,7 +459,7 @@ function ownTurnDamage(state: GameState, code: string): number {
 /** Share of damage threats the Corp gets to land. */
 export const FLATLINE_LANDS = 0.5;
 
-export function flatlineOdds(state: GameState, grip: number, corpTurn = false): number {
+export function flatlineOdds(state: GameState, grip: number, corpTurn = false): number { // Owner, with flatlineWorth, of the Runner's standing flatline exposure (registry V18)
   const { burst, share } = damageThreat(state, corpTurn);
   if (burst === 0) return 0;
   // The Corp has to draw the card and land the hit (the Runner has to access or encounter it): about half the time when it holds one
@@ -414,7 +470,7 @@ export function flatlineOdds(state: GameState, grip: number, corpTurn = false): 
 /** Share of turns a hand slot lost to core damage holds a card the Runner would have kept (a named guess). */
 export const CORE_SLOT_USE = 0.5;
 
-/** Worth of a hand slot already lost to core damage (plan.flatRates.coreDamage; the damage clock already reads the lower limit). */
+/** Worth of a hand slot already lost to core damage (plan.flatRates.coreDamage; the damage clock already reads the lower limit). Owner of registry V19. */
 export function coreSlotWorth(state: GameState): number {
   return CORE_SLOT_USE * cardRate(state, 'runner');
 }
@@ -448,8 +504,12 @@ export function corpEffect(state: GameState, code: string, rezzed = false): Corp
   const cost = rezzed ? 0 : getCardDefinition(code).cost ?? 0;
   const agenda = pointGain(state.corp.score, agendaOdds(state).points);
   const card = cardRate(state, 'corp');
-  const tag = tagsWorth(state, 'corp', 1);
-  return corpFormula(state, code, { cost, agenda, card, tag });
+  // A tag on the Runner (ai-value-time step 2): 4 of the formulas read it, so it is worked out on the first read, at the
+  // formula's entry (the readers destructure it there: same order, same pricing context) and kept for a second read
+  let tag: number | undefined;
+  const fx = corpFormula(state, code, { cost, agenda, card, get tag() { return (tag ??= tagsWorth(state, 'corp', 1)); } });
+  logValue('cardBeforeInstall', 'corpEffect', state, fx?.keep ?? NaN, code, rezzed);
+  return fx;
 }
 
 /** Runner rig cards that aren't icebreakers, in credits, installed: each card's `runner` entry in src/ai/cards/. */
@@ -469,7 +529,7 @@ export const deckCount = (state: GameState, side: 'corp' | 'runner', test: (c: C
 
 /** Worth of one counter of a type on a card, priced against the board (counterValues.ts), for a card not installed yet. */
 export function counterWorthOf(state: GameState, code: string, type: 'credit' | 'virus' | 'power'): number {
-  return COUNTER_WORTH[code]?.[type]?.(state, { cardCode: code, instanceId: 'probe', tokens: {} } as unknown as CardInstance) ?? 1;
+  return logValue('counter', 'counterWorthOf', state, COUNTER_WORTH[code]?.[type]?.(state, { cardCode: code, instanceId: 'probe', tokens: {} } as unknown as CardInstance) ?? 1, code, type);
 }
 
 /** The cards priced by the formulas (for the audit): built from src/ai/cards/. */
@@ -486,9 +546,8 @@ export const effectsOn = (): boolean => true;
 /** Worth of a Corp root card once rezzed, less its rez cost (rez decisions on the Corp's own turn). */
 export function rezzedWorth(state: GameState, card: CardInstance, rezCost: number): number {
   const own = CARDS[card.cardCode]?.rezzed;
-  if (own) return own(state, card, rezCost);
-  const fx = corpEffect(state, card.cardCode, true);
-  return fx ? fx.keep - rezCost : -1;
+  const fx = own ? undefined : corpEffect(state, card.cardCode, true);
+  return logValue('cardBeforeInstall', 'rezzedWorth', state, own ? own(state, card, rezCost) : fx ? fx.keep - rezCost : -1, card, rezCost);
 }
 
 /**
@@ -532,7 +591,7 @@ export function placedCounterWorth(state: GameState, card: CardInstance, iced: b
   if (def.type_code === 'agenda') {
     const points = def.agenda_points ?? 1;
     const share = (pointValue(state.corp.score + points) - pointValue(state.corp.score)) / Math.max(1, def.advancement_cost ?? 3);
-    return iced ? share : 0.3 * share;
+    return logValue('agenda', 'placedCounterWorth', state, iced ? share : 0.3 * share, card, iced);
   }
   // Traps: an advanced card reads as an agenda and draws a run (about a third of the time, a click and 2 credits wasted)
   // A known trap (knownTrap: 7.1.2, 10.2.2b) draws no run: no bluff, and nothing from being accessed again (Urtica's

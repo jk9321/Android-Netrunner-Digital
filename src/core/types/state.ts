@@ -39,6 +39,16 @@ export interface RdNotes {
   privateTop?: number;
   /** Cards the Runner saw in R&D, by instance id. */
   seen?: string[];
+  /** Cards the Corp looked at in R&D this action (since the last shuffle), by instance id. See rdKnownToCorp. */
+  corpSeen?: string[];
+  /** Cards the Runner arranged in secret this action (rules 8.3.3a): the Corp forgets where they are. */
+  corpForgets?: string[];
+}
+
+/** An R&D card the Corp knows the place of (index from the top). See engine/rdKnowledge.ts. */
+export interface RdCorpKnownCard {
+  id: string;
+  at: number;
 }
 
 export type CentralServerType = 'hq' | 'rd' | 'archives';
@@ -85,6 +95,11 @@ export interface CorpState {
   knownToRunner?: KnownHandCard[];
   /** Cards the Runner has seen in R&D and where they may be now. See engine/rdKnowledge.ts. */
   rdKnownToRunner?: RdKnownCard[];
+  /**
+   * The R&D cards the Corp knows the place of, top first: ones it put there or looked at since the last shuffle
+   * (rules 4.2.3, 10.2.2b). Read only by the Corp's own guess (AI), never by the rules. See engine/rdKnowledge.ts.
+   */
+  rdKnownToCorp?: RdCorpKnownCard[];
   /** Notes on R&D for the action being resolved; cleared at the end of every action. */
   rdNotes?: RdNotes;
 }

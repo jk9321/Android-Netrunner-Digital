@@ -10,7 +10,7 @@
  */
 import { readFileSync } from 'node:fs';
 import { afterEach, describe, expect, it } from 'vitest';
-import { GameState } from '../src/core';
+import { GameState, executeAction } from '../src/core';
 import { createAgent } from '../src/ai';
 import { withDiagnostics } from '../src/ai/diagnostics';
 import { tuning } from '../src/ai/synergy';
@@ -22,10 +22,19 @@ afterEach(() => {
 const t17 = (): GameState => JSON.parse(readFileSync(new URL('./fixtures/planner-speed-t17.json', import.meta.url), 'utf8'));
 
 describe('P1: the count has decided, the planner is not run', () => {
-  it('a scoreNow line: advance Luminal (1.17.3a, 5.2.6f), with no planner search', () => {
+  // Rewritten in Step 4 Stage C7: under the order the Corp first clicks twice for a credit (the counted score question
+  // lets a pick go first when it does not stop the score), then advances and scores; no planner search runs before the
+  // score. The ranking advanced Luminal at once
+  it('a scoreNow line: Luminal advanced and scored this turn (1.17.3a, 5.2.6f), with no planner search before the score', () => {
     withDiagnostics(d => {
-      const pick = createAgent('corp', 'normal').chooseAction(t17());
-      expect(pick).toMatchObject({ type: 'ADVANCE_CARD', cardInstanceId: 'inst-3' });
+      let s = t17();
+      const corp = createAgent('corp', 'normal');
+      for (let i = 0; i < 12 && s.activePlayer === 'corp' && !s.winner; i++) {
+        const a = corp.chooseAction(s);
+        s = executeAction(s, a);
+        if (a.type === 'SCORE_AGENDA') break;
+      }
+      expect(s.corp.scoreArea.some(c => c.instanceId === 'inst-3')).toBe(true);
       expect(d.planner.decisions).toBe(0);
     });
   }, 30000);

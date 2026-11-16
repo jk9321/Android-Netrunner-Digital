@@ -4,7 +4,7 @@ import { cardDef } from '../../../cards';
 import { shuffleRD } from '../../../engine/rdKnowledge';
 import { addLog } from '../../../engine/log';
 import { removeCard, revealInHand } from '../../../engine/helpers';
-import { runnerSeesRd } from '../../../engine/rdKnowledge';
+import { corpSeesRd, runnerSeesRd } from '../../../engine/rdKnowledge';
 import { moveRunnerTo } from '../../../engine/ice';
 import {
   addCounters,
@@ -157,6 +157,7 @@ const embeddedFlow = prompts({
     if (card) {
       state.corp.rd.unshift(card);
       runnerSeesRd(state, card); // revealed, then put on top
+      corpSeesRd(state, [card]); // after the search's shuffle (8.7.3): both players know it is on top
     }
   }),
 });

@@ -2,12 +2,13 @@ import { GameAction, GameState, SideCode, activePrompt, cardDef, executeAction, 
 import { profileOf } from './cardProfiles';
 import { ScoredAction } from './agent';
 import { evaluate } from './evaluate';
-import { runClick } from './runs';
-import { threat, turnSeed } from './threatModel';
+import { RunnerMemory, runClick } from './runs';
+import { turnSeed } from './threatModel';
 import { plan, pricing, withPricing } from './pricing';
 import { note, tally } from './diagnostics';
 import { REPLY, guessHidden, guessRunnerView, runnerReply, sampledReply } from './runnerReply';
-import { plannerCandidates, replySamples, thinkAlwaysTries } from './oracle';
+import { corpSeenGrip, plannerCandidates, replySamples } from './oracle';
+import { fingerprint } from './valueModel';
 
 /**
  * The whole-turn planner for Normal (Jeff, 2026-10-28; plan.turnPlanner).
@@ -30,8 +31,6 @@ export const PLANNER = {
   candidates: 4,
   /** Steps in one playout (a safety net: a turn has at most 4 clicks and a few free actions). */
   maxSteps: 12,
-  /** plan.plannerSearch plannerBuild: the candidate set with the two-step builds added, at most (Hard's time). */
-  withBuild: 6,
 };
 
 /**
@@ -80,6 +79,18 @@ export interface PlannerAI {
   reply?(state: GameState, leaf: (state: GameState) => number): number;
   /** The rest of this AI's last plan (one per agent, so a new game or a reloaded one starts without it). */
   memory?: PlanMemory;
+  /** The cards the deciding Runner has accessed (runnerDecisionView keeps them as seen; ai-honest-runner-view). */
+  known?: RunnerMemory;
+  /**
+   * The Corp's candidates the planner plays out (Step 4 Stage C3), from the order (corp/candidates.ts plannerIntake,
+   * passed in by corpAI.ts so that this file reads no Corp owner). Without it (the Runner): its ranking's first few.
+   */
+  intake?(open: ScoredAction[], k: number): { picked: ScoredAction[]; slots: Map<ScoredAction, 'agenda' | 'build'> };
+  /**
+   * The Corp (A1, brief-playout-lines.md): a fresh Corp line for one playout (corp/core.ts playoutLine, passed in by
+   * corpAI.ts): its own copy of the held two-turn line, the order read with it, and Q4/Q5 at each later main-phase step.
+   */
+  line?(): { rank(state: GameState): ScoredAction[]; first(state: GameState, action: GameAction): void; step(state: GameState, pick: GameAction | null): GameAction | null };
 }
 
 /** The rest of the last plan: followed while the game goes as the plan expected. */
@@ -98,12 +109,12 @@ export const plannerOn = (side: SideCode): boolean => !!plan().turnPlanner?.[sid
 export const currentDecisionSeed = (): number | null => pricing().decisionSeed;
 
 /** A piece of the widened search (structural review item 4), on only with plan.plannerSearch. */
-export const searchPiece = (piece: 'plannerSeed' | 'plannerBuild' | 'plannerDiscard'): boolean => !!plan().plannerSearch && plan()[piece] !== false;
+export const searchPiece = (piece: 'plannerSeed' | 'plannerDiscard'): boolean => !!plan().plannerSearch && plan()[piece] !== false;
 
 const clicksOf = (state: GameState, side: SideCode) => (side === 'corp' ? state.corp.clicks : state.runner.clicks);
 
 /** A playout's main-phase actions after the first, each with the position it was chosen in. */
-type Line = { key: string; action: GameAction }[];
+export type Line = { key: string; action: GameAction }[];
 
 /** A position as the planner tells them apart: the turn, clicks, credits and the cards in hand and play. */
 function positionKey(state: GameState, side: SideCode): string {
@@ -158,8 +169,10 @@ function finishStep(state: GameState, ranked: ScoredAction[]): ScoredAction | un
  * Plays `side`'s turn on from `state` after `first`, and returns how good the end of the turn is. `mode` (LineMode):
  * how the continuation picks its actions ('hold': it installs no agenda from HQ this turn).
  */
-function playout(start: GameState, side: SideCode, first: GameAction, ai: PlannerAI, line: Line = [], ends?: Ends, mode: LineMode = 'rule'): number {
+export function playout(start: GameState, side: SideCode, first: GameAction, ai: PlannerAI, line: Line = [], ends?: Ends, mode: LineMode = 'rule'): number {
   const hold = mode === 'hold';
+  // A1: the Corp's own held line for this playout, on the rule line only ('hold' and 'finish' are S1's measurement as it was)
+  const corpLine = side === 'corp' && mode === 'rule' ? ai.line?.() : undefined;
   let bonus = 0;
   let ran = false;
   /** The position before the last main-phase action, and the card it used: where a run event's run is priced from. */
@@ -209,6 +222,7 @@ function playout(start: GameState, side: SideCode, first: GameAction, ai: Planne
       return null;
     }
   };
+  corpLine?.first(start, first);
   let state = step(start, first);
   if (!state) return -Infinity;
   for (let i = 0; i < PLANNER.maxSteps && !state.winner; i++) {
@@ -231,14 +245,16 @@ function playout(start: GameState, side: SideCode, first: GameAction, ai: Planne
     const outOfClicks = clicksOf(state, side) <= 0;
     if (outOfClicks && !(side === 'corp')) break;
     const now = state;
-    const ranked = ai.rank(now);
+    const ranked = corpLine ? corpLine.rank(now) : ai.rank(now);
     const ruled = ranked.find(r => r.score > -Infinity && r.action.type !== 'END_TURN' && (!outOfClicks || r.action.type === 'SCORE_AGENDA') && !(ran && r.action.type === 'INITIATE_RUN') && !dominated(now, r.action, ranked) && !(hold && agendaInstall(now, r.action)));
     const finish = mode === 'finish' && side === 'corp' ? finishStep(now, ranked) : undefined;
     const best = finish && (!outOfClicks || finish.action.type === 'SCORE_AGENDA') ? finish : ruled;
-    if (!best) break;
-    if (ends && agendaInstall(now, best.action)) ends.installedAgenda = true;
-    if (!ran) line.push({ key: positionKey(state, side), action: best.action }); // after a run the position can't be foreseen
-    const next = step(state, best.action);
+    // A1: with clicks left, Q4/Q5 on the order's pick (a score first; the line's step, or the pick vetoed)
+    const played = corpLine && !outOfClicks ? corpLine.step(now, best?.action ?? null) : best?.action;
+    if (!played) break;
+    if (ends && agendaInstall(now, played)) ends.installedAgenda = true;
+    if (!ran) line.push({ key: positionKey(state, side), action: played }); // after a run the position can't be foreseen
+    const next = step(state, played);
     if (!next) break;
     state = next;
   }
@@ -286,84 +302,6 @@ export function discardStep(state: GameState, side: SideCode, ai: PlannerAI): Ga
   }
 }
 
-/**
- * plan.plannerAgenda (install-worth side check, probe P3, AI Coordinator 2026-11-08): the agenda moves the rule ranking
- * puts outside the planner's top few, added as candidates (not scored higher; the playout and the leaf decide). The
- * one-step score charges an installed agenda its whole steal and advancement cost at once (Jeff's agenda installs: median
- * -2.37, p25 -13.4), so at report-17 turn 2 Offworld Office into remote-1 was never played out though its line beat the
- * AI's pick. Added: the best-ranked agenda install into an existing empty remote with ice, and the best-ranked advance on an
- * installed agenda. Rules: installed agendas can always be advanced (1.18.1, 1.18.3; basic action 5.2.6a) and are
- * scored once their counters reach the advancement requirement (1.17.3a).
- */
-export function agendaCandidates(state: GameState, ranked: ScoredAction[], chosen: ScoredAction[]): ScoredAction[] {
-  const taken = new Set(chosen.map(r => JSON.stringify(r.action)));
-  const agenda = (r: ScoredAction) => {
-    const id = 'cardInstanceId' in r.action ? r.action.cardInstanceId : undefined;
-    const card = id ? findCardAnywhere(state, id) : undefined;
-    return !!card && cardDef(card).type_code === 'agenda';
-  };
-  const added: ScoredAction[] = [];
-  const pick = (test: (r: ScoredAction) => boolean) => {
-    const found = ranked.find(r => r.score > -Infinity && !taken.has(JSON.stringify(r.action)) && agenda(r) && test(r));
-    if (found) {
-      added.push(found);
-      taken.add(JSON.stringify(found.action));
-    }
-  };
-  pick(r => {
-    if (r.action.type !== 'INSTALL_CARD' || r.action.asNewRemote || !r.action.targetServerId) return false;
-    const server = state.corp.servers[r.action.targetServerId];
-    // Into an empty remote only: an agenda installed over an asset or agenda trashes it (rule 8.5.6a), as buildCandidates
-    return !!server?.isRemote && server.ice.length > 0 && server.root.length === 0;
-  });
-  pick(r => r.action.type === 'ADVANCE_CARD');
-  return added;
-}
-
-/**
- * plan.plannerSearch plannerBuild (structural review item 4): the Corp's two-step builds the rule ranking can't see,
- * added as candidates (not scored higher; the playout and the leaf decide): the best-ranked ice install into a new
- * remote, or a remote with nothing in it yet, while HQ holds an agenda or an asset that would go behind it; and the
- * best-ranked ice install on a central the threat expects the Runner to run. Only the Corp's own legal actions, as the
- * engine listed them (ranked); nothing of the Runner's is read but the threat, which reads the Runner's view.
- */
-export function buildCandidates(state: GameState, ranked: ScoredAction[], chosen: ScoredAction[]): ScoredAction[] {
-  const hq = state.corp.hq;
-  const iceInstall = (r: ScoredAction) => {
-    if (r.score === -Infinity || r.action.type !== 'INSTALL_CARD') return null;
-    const id = r.action.cardInstanceId;
-    const card = hq.find(c => c.instanceId === id);
-    return card && cardDef(card).type_code === 'ice' ? card : null;
-  };
-  const rootCard = (exclude: string) => hq.some(c => c.instanceId !== exclude && ['agenda', 'asset'].includes(cardDef(c).type_code ?? ''));
-  const taken = new Set(chosen.map(r => JSON.stringify(r.action)));
-  const added: ScoredAction[] = [];
-  const pick = (test: (r: ScoredAction & { action: { type: 'INSTALL_CARD' } }) => boolean) => {
-    const found = ranked.find(r => {
-      const ice = iceInstall(r);
-      return !!ice && r.action.type === 'INSTALL_CARD' && !taken.has(JSON.stringify(r.action)) && test(r as ScoredAction & { action: { type: 'INSTALL_CARD' } });
-    });
-    if (found) {
-      added.push(found);
-      taken.add(JSON.stringify(found.action));
-    }
-  };
-  pick(r => {
-    const a = r.action;
-    if (!rootCard(a.cardInstanceId)) return false;
-    if (a.asNewRemote) return true;
-    const server = a.targetServerId ? state.corp.servers[a.targetServerId] : undefined;
-    return !!server?.isRemote && server.root.length === 0;
-  });
-  let runs: Record<string, { run: number }> | null = null;
-  pick(r => {
-    const id = r.action.targetServerId;
-    if (r.action.asNewRemote || (id !== 'hq' && id !== 'rd' && id !== 'archives')) return false;
-    runs ??= threat(state).servers;
-    return (runs[id]?.run ?? 0) >= 0.5;
-  });
-  return added;
-}
 
 /** The end of the turn: hand by what each card will do later (plan.plannerHand), clicks as the model prices them. */
 function leafValue(state: GameState, side: SideCode): number {
@@ -382,20 +320,144 @@ function drewFromDeck(side: SideCode, start: GameState, end: GameState | undefin
 }
 
 /** plan.hiddenDraws: the guessHidden (Corp) or guessRunnerView (Runner) deal the planner's own playouts start from (the replies use deals 0 ..). */
-const HIDDEN_DRAW_SAMPLE = 4096;
+export const HIDDEN_DRAW_SAMPLE = 4096;
 
 /** The seed a decision of `side` at `state` deals its guesses from (plannerSeed: the game, turn and clicks left). */
-function decisionSeedFor(state: GameState, side: SideCode): number | null {
+export function decisionSeedFor(state: GameState, side: SideCode): number | null {
   return searchPiece('plannerSeed') ? (turnSeed(state) ^ Math.imul(clicksOf(state, side) + 1, 0x85ebca6b)) >>> 0 : pricing().decisionSeed;
 }
 
 /**
  * The Runner's own view of `state` for this decision (plan.hiddenDraws; rule 10.2.2a): the same deal its planner's
- * playouts start from, so the rule ranking that picks the planner's candidates scores a draw on the same guessed stack.
+ * playouts start from, so the rule ranking that picks the planner's candidates scores a draw on the same guessed stack
+ * and reads the same guess of the Corp's hidden cards (runnerReply.ts guessRunnerView; ai-honest-runner-view). Kept per
+ * real state while what it deals from is the same (red team 8, as corpDecisionView), so the ranking, the prompt
+ * answers and the planner's root are one object. `memory`: the cards the deciding Runner has accessed (they keep their
+ * identity). Honest only with plan.plannerSeed on (the default). Off (hiddenDraws): the state itself.
  */
-export function runnerDecisionView(state: GameState): GameState {
+export function runnerDecisionView(state: GameState, memory?: RunnerMemory): GameState {
   if (!plan().hiddenDraws) return state;
-  return withPricing({ decisionSeed: decisionSeedFor(state, 'runner') }, () => guessRunnerView(state, HIDDEN_DRAW_SAMPLE));
+  const seed = decisionSeedFor(state, 'runner');
+  // Kept while nothing it deals from has changed (tests edit a state in place): the seed, the plan, the board, the cards
+  const cards = (list: { instanceId: string; cardCode: string }[]) => list.map(c => `${c.instanceId}:${c.cardCode}`).join(',');
+  const installed = Object.values(state.corp.servers).map(v => `${cards(v.ice)}/${cards(v.root)}`).join(';');
+  const known = memory ? [...memory].map(([id, code]) => `${id}:${code}`).join(',') : '';
+  const sig = `${seed}|${fingerprint(state)}|${cards(state.corp.hq)}|${cards(state.corp.rd)}|${cards(state.corp.archives.faceDown)}|${installed}|${cards(state.runner.stack)}|${known}|${JSON.stringify(plan())}`;
+  const kept = runnerViews.get(state);
+  if (kept?.sig === sig) return kept.view;
+  const view = withPricing({ decisionSeed: seed }, () => guessRunnerView(state, HIDDEN_DRAW_SAMPLE, memory));
+  runnerViews.set(state, { sig, view });
+  return view;
+}
+const runnerViews = new WeakMap<GameState, { sig: string; view: GameState }>();
+
+/**
+ * The deciding Corp's own view of `state` for this decision (plan.hiddenDraws; rule 10.2.2a; Jeff: the Normal Corp does
+ * not see its own draws): the guessHidden deal with the decision's seed, so R&D's order (outside the places the Corp
+ * knows, corpKnownRdSlots: the cards it put there or looked at since the last shuffle), the Runner's unseen grip (with the stack) and the rng are a guess. The same object is the root
+ * its planner's playouts start from (planTurn), and every question of the deciding Corp's decision reads it (corpAI.ts
+ * decide and chooseRez, corp/core.ts corpDecide; ai-honest-corp-decision): kept per real state while what it deals from
+ * is the same. Honest only with plan.plannerSeed on (the default): off, the deal is seeded from the real rng and
+ * shuffles R&D from its real order. Off (hiddenDraws): the state itself.
+ *
+ * A view is marked and is its own view (red team 2026-11-16 finding 4), so a question handed the view does not deal
+ * again. The cards the active prompt names (promptNamedIds: an R&D card it shows, a Runner card it reveals) stay where
+ * they really are (finding 2): the Corp is looking at them. The breach's queue of R&D cards still to access names R&D
+ * cards by id; it is read by position (the top cards; the Corp sees how many, not which), so in the view it names the
+ * view's cards at the same places. The seed is the same within a click (finding 6): the deal changes only when the
+ * cards it deals from change.
+ */
+export function corpDecisionView(state: GameState): GameState {
+  if (!plan().hiddenDraws || corpViewSet.has(state)) return state;
+  const seed = decisionSeedFor(state, 'corp');
+  const named = promptNamedIds(state);
+  // Kept while nothing it deals from has changed (tests edit a state in place): the seed, the plan, the board, the cards
+  const ids = (cards: { instanceId: string }[]) => cards.map(c => c.instanceId).join(',');
+  // Both memories of R&D: the deal keeps the Corp's places and re-points the Runner's (red team corp-rd-memory finding 6)
+  const rdMemory = `${(state.corp.rdKnownToCorp ?? []).map(e => `${e.id}@${e.at}`).join(',')}/${JSON.stringify(state.corp.rdKnownToRunner ?? [])}`;
+  const sig = `${seed}|${fingerprint(state)}|${ids(state.corp.hq)}|${ids(state.corp.rd)}|${ids(state.runner.grip)}|${ids(state.runner.stack)}|${[...named].join(',')}|${(state.activeRun?.accessQueue ?? []).join(',')}|${rdMemory}|${JSON.stringify(plan())}`;
+  const kept = corpViews.get(state);
+  if (kept?.sig === sig) return kept.view;
+  const dealt = withPricing({ decisionSeed: seed }, () => guessHidden(state, HIDDEN_DRAW_SAMPLE));
+  const view = keepNamed(state, dealt, named);
+  corpViewSet.add(view);
+  corpViews.set(state, { sig, view });
+  return view;
+}
+const corpViews = new WeakMap<GameState, { sig: string; view: GameState }>();
+const corpViewSet = new WeakSet<GameState>();
+
+/** The instance ids of R&D, grip and stack cards the active prompt names (its candidates, options, source and data). */
+export function promptNamedIds(state: GameState): Set<string> {
+  const prompt = activePrompt(state);
+  const out = new Set<string>();
+  if (!prompt) return out;
+  const words: string[] = [];
+  if (prompt.kind === 'effect_cards') words.push(...prompt.candidateIds);
+  if (prompt.kind === 'effect_choice' || prompt.kind === 'access_order') words.push(...prompt.options.map(o => o.id.replace(/^root:/, '')));
+  if (prompt.kind === 'access_trash') words.push(prompt.cardInstanceId);
+  if (prompt.kind === 'effect_choice' || prompt.kind === 'effect_cards') {
+    words.push(prompt.source.instanceId);
+    for (const v of Object.values(prompt.source.data ?? {})) {
+      if (typeof v === 'string') words.push(v);
+      else if (Array.isArray(v)) words.push(...v);
+    }
+  }
+  const hidden = new Set([...state.corp.rd, ...state.runner.grip, ...state.runner.stack].map(c => c.instanceId));
+  for (const w of words) if (hidden.has(w)) out.add(w);
+  return out;
+}
+
+/** Whether `view` holds every card the active prompt names where `state` has it: R&D and the stack at the same place, the grip in the grip. */
+export function promptCardsInPlace(state: GameState, view: GameState): boolean {
+  if (view === state) return true;
+  const at = (cards: { instanceId: string }[], id: string) => cards.findIndex(c => c.instanceId === id);
+  for (const id of promptNamedIds(state)) {
+    const rd = at(state.corp.rd, id);
+    if (rd >= 0 && view.corp.rd[rd]?.instanceId !== id) return false;
+    const stack = at(state.runner.stack, id);
+    if (stack >= 0 && view.runner.stack[stack]?.instanceId !== id) return false;
+    if (at(state.runner.grip, id) >= 0 && at(view.runner.grip, id) < 0) return false;
+  }
+  return true;
+}
+
+/** `dealt` with the named cards put back where `state` has them (each swapped with the card the deal put there) and the breach queue read by position. */
+function keepNamed(state: GameState, dealt: GameState, named: Set<string>): GameState {
+  const queue = state.activeRun?.accessQueue ?? [];
+  const rdAt = new Map(state.corp.rd.map((c, i) => [c.instanceId, i]));
+  if (!named.size && !queue.some(id => rdAt.has(id))) return dealt;
+  const rd = [...dealt.corp.rd];
+  const grip = [...dealt.runner.grip];
+  const stack = [...dealt.runner.stack];
+  const find = (id: string): [typeof rd, number] | null => {
+    for (const zone of [rd, grip, stack]) {
+      const i = zone.findIndex(c => c.instanceId === id);
+      if (i >= 0) return [zone, i];
+    }
+    return null;
+  };
+  const seen = corpSeenGrip(state, 'reply');
+  for (const id of named) {
+    const from = find(id);
+    if (!from) continue;
+    const [zone, j] = from;
+    const r = rdAt.get(id);
+    const s = state.runner.stack.findIndex(c => c.instanceId === id);
+    const target: [typeof rd, number] | null = r !== undefined ? [rd, r] : s >= 0 ? [stack, s] : null;
+    if (target) {
+      const [tz, i] = target;
+      if (tz === zone && i === j) continue;
+      [tz[i], zone[j]] = [zone[j], tz[i]];
+      continue;
+    }
+    // Really in the grip: the grip is a set, so a card dealt to the stack trades places with an unseen, unnamed grip card
+    if (zone === grip) continue;
+    const swap = grip.findIndex(c => !named.has(c.instanceId) && !seen.has(c.instanceId));
+    if (swap >= 0) [grip[swap], zone[j]] = [zone[j], grip[swap]];
+  }
+  const run = state.activeRun && queue.some(id => rdAt.has(id)) ? { ...state.activeRun, accessQueue: queue.map(id => (rdAt.has(id) ? rd[rdAt.get(id)!].instanceId : id)) } : dealt.activeRun;
+  return { ...dealt, activeRun: run, corp: { ...dealt.corp, rd }, runner: { ...dealt.runner, grip, stack } };
 }
 
 export function planTurn(state: GameState, side: SideCode, ranked: ScoredAction[], ai: PlannerAI, synergy: boolean): GameAction | null {
@@ -409,25 +471,13 @@ export function planTurn(state: GameState, side: SideCode, ranked: ScoredAction[
   }
   memory.line = [];
   const open = ranked.filter(r => r.score > -Infinity && r.action.type !== 'END_TURN' && r.action.type !== 'START_TURN' && !dominated(state, r.action, ranked));
-  // plan.oracle.think: a wider search, the best agenda install and the best advance always among the candidates
-  const candidates = open.slice(0, plannerCandidates(side, PLANNER.candidates));
-  if (thinkAlwaysTries(side)) {
-    const agendaInstall = open.find(r => r.action.type === 'INSTALL_CARD' && state.corp.hq.some(c => c.instanceId === (r.action as { cardInstanceId: string }).cardInstanceId && cardDef(c).type_code === 'agenda'));
-    const advance = open.find(r => r.action.type === 'ADVANCE_CARD');
-    for (const r of [agendaInstall, advance]) if (r && !candidates.includes(r)) candidates.push(r);
-  }
-  // Build lines get the room the shipped planner gives them (withBuild over its candidates): a wider search (plan.oracle.think)
-  // never drops one
-  const buildRoom = thinkAlwaysTries(side) ? PLANNER.withBuild - PLANNER.candidates : PLANNER.withBuild - candidates.length;
-  const added = side === 'corp' && searchPiece('plannerBuild') ? buildCandidates(state, ranked, candidates).slice(0, Math.max(0, buildRoom)) : [];
-  candidates.push(...added);
-  if (side === 'corp' && plan().plannerAgenda) candidates.push(...agendaCandidates(state, ranked, candidates).slice(0, Math.max(0, PLANNER.withBuild + 2 - candidates.length)));
+  // The Corp (Step 4 Stage C3, spec 1.3): the first K of the order under the two caps, with the two candidates always in
+  // K (best agenda, best build pair) in its last places (corp/candidates.ts plannerIntake); the Runner: its first K
+  const intake = side === 'corp' && ai.intake ? ai.intake(open, plannerCandidates(side, PLANNER.candidates)) : null;
+  const candidates = intake ? intake.picked : open.slice(0, plannerCandidates(side, PLANNER.candidates));
   if (candidates.length <= 1 || clicksOf(state, side) <= 0) return null;
   tally('planner', 'decisions');
-  if (added.length) {
-    tally('planner', 'withAdded');
-    tally('planner', 'added', added.length);
-  }
+  for (const slot of intake?.slots.values() ?? []) tally('planner', slot === 'agenda' ? 'agendaSlot' : 'buildSlot');
   // The hands stay as seen when the decision started (frozen); plan.plannerSeed: one seed for every playout of this decision
   const decisionSeed = decisionSeedFor(state, side);
   const started = performance.now();
@@ -436,8 +486,7 @@ export function planTurn(state: GameState, side: SideCode, ranked: ScoredAction[
     // plan.hiddenDraws (spec-search S6; the Runner's side Jeff 2026-11-14): each side's candidates are played from its own
     // guess of what it can't see, dealt once for the decision, so a line that draws draws a guess, not the real top of
     // R&D or the stack (rule 10.2.2a)
-    const guess = side === 'corp' ? guessHidden : guessRunnerView;
-    const root = plan().hiddenDraws ? guess(state, HIDDEN_DRAW_SAMPLE) : state;
+    const root = side === 'corp' ? corpDecisionView(state) : runnerDecisionView(state, ai.known);
     let best: { action: GameAction; value: number; line: Line } | null = null;
     const values: number[] = [];
     const scored: { action: GameAction; value: number; line: Line; ends: Ends }[] = [];
@@ -458,10 +507,8 @@ export function planTurn(state: GameState, side: SideCode, ranked: ScoredAction[
       if (side === 'corp' && d.onSearch) auditSearch(d.onSearch, state, side, candidates, scored, best, ai, synergy, performance.now() - started, searchClock.replyMs - replyBefore);
     });
     if (!best || best.value === -Infinity) return null;
-    if (added.some(a => a.action === best!.action)) {
-      tally('planner', 'addedWins');
-      note(d => d.onAddedWin?.(state, best!.action));
-    }
+    const slot = intake ? [...intake.slots].find(([c]) => c.action === best!.action)?.[1] : undefined;
+    if (slot) tally('planner', slot === 'agenda' ? 'agendaSlotWins' : 'buildSlotWins');
     memory.line = best.line;
     return best.action;
   });

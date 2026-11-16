@@ -13,7 +13,12 @@ import { holdPricing, pricing, withPricing } from './pricing';
  */
 export interface Diagnostics {
   /** corp/placement.ts scoreInTwoPick and corp/rezMoney.ts lineFloor: two-turn agenda lines begun, stepped, vetoed, dropped, finished. */
-  scoreInTwo: { begun: number; steps: number; vetoed: number; dropped: number; finished: number; floorRefused: number; unholdable: number };
+  scoreInTwo: { begun: number; steps: number; vetoed: number; dropped: number; finished: number; floorRefused: number; unholdable: number; rolloutDecisions: number; rolloutTaken: number };
+  /**
+   * corp/core.ts playoutLine (A1): Q4/Q5 asked at the planner's playout steps (the deciding Corp's scoreInTwo counters
+   * leave these out), the steps a held line played instead of the order's pick, the agenda picks vetoed, the asset lines begun from the pick, the scores first.
+   */
+  playoutLine: { q4Asks: number; q4Takes: number; q5Asks: number; q5Steps: number; q5Vetoes: number; assetSteps: number; assetFromPick: number; scoreFirst: number };
   /** The two-turn agenda lines begun, in order. */
   scoreInTwoLines: { turn: number; agendaId: string; form: TwoTurnLine['form'] }[];
   /** corp/placement.ts assetCover: asked, and why it gave no line. */
@@ -29,7 +34,7 @@ export interface Diagnostics {
   /** oracle.ts: oracle turns played out, hits, time. */
   oracle: { turns: number; hits: number; ms: number };
   /** turnPlanner.ts: decisions, added candidates and their wins. */
-  planner: { decisions: number; withAdded: number; added: number; addedWins: number };
+  planner: { decisions: number; agendaSlot: number; agendaSlotWins: number; buildSlot: number; buildSlotWins: number };
   /** Time the threat's lookups and budgets (performance.now on each). */
   timing: boolean;
   /** A Runner reply is being sampled (runnerReply.ts): budgets inside count as reply budgets. Set with inReply. */
@@ -39,8 +44,9 @@ export interface Diagnostics {
   /** A threat budget about to be worked out, with its key (scripts/threat-profile.ts counts repeats). Only with `timing`. */
   onThreatBudget?: (key: string, state: GameState) => void;
   onClose?: (top: { action: GameAction; first: number; value: number; samples: number }[], pick: GameAction) => void;
-  onAddedWin?: (state: GameState, action: GameAction) => void;
   onCandidates?: (side: SideCode, values: number[], actions: GameAction[]) => void;
+  /** corp/core.ts playoutLine (A1, measurement): a playout step where the line played `played` instead of the order's `pick`. */
+  onPlayoutLine?: (pick: GameAction | null, played: GameAction, why: string) => void;
   /** Spec-search S1 (measurement only): every Corp decision's continuations (scripts/search-audit.ts, lossLog.ts). */
   onSearch?: (row: SearchRow) => void;
   /** plan.hiddenDraws (S6, measurement): a Corp decision, how many of its candidate lines drew from R&D, and the pick. */
@@ -50,13 +56,16 @@ export interface Diagnostics {
    * noted HQ set), with the board, the server and the odds told.
    */
   onOracleTold?: (decision: object, state: GameState, serverId: string, told: number) => void;
+  /** Valuation V-A (scripts/value-owners): an owner or a copy priced `value` at `site`, asked with `args` (valueModel.ts logValue). */
+  onValue?: (quantity: string, site: string, state: GameState | undefined, value: number, args: readonly unknown[]) => void;
 }
 
 /** The counter groups: the fields of Diagnostics that hold numbers by name. */
 type CounterGroups = { [K in keyof Diagnostics as Diagnostics[K] extends Record<string, number> ? K : never]: Diagnostics[K] };
 
 export const newDiagnostics = (): Diagnostics => ({
-  scoreInTwo: { begun: 0, steps: 0, vetoed: 0, dropped: 0, finished: 0, floorRefused: 0, unholdable: 0 },
+  scoreInTwo: { begun: 0, steps: 0, vetoed: 0, dropped: 0, finished: 0, floorRefused: 0, unholdable: 0, rolloutDecisions: 0, rolloutTaken: 0 },
+  playoutLine: { q4Asks: 0, q4Takes: 0, q5Asks: 0, q5Steps: 0, q5Vetoes: 0, assetSteps: 0, assetFromPick: 0, scoreFirst: 0 },
   scoreInTwoLines: [],
   assetCover: { asked: 0, scoringShort: 0, iced: 0, clicks: 0, noIce: 0, rezMoney: 0, begun: 0 },
   money: { ops: 0 },
@@ -64,7 +73,7 @@ export const newDiagnostics = (): Diagnostics => ({
   reply: { nakedAgendaTurns: 0, nakedAgendaRuns: 0 },
   threat: { calls: 0, keyed: 0, budgeted: 0, keyMs: 0, budgetMs: 0, replyBudgeted: 0, replyBudgetMs: 0 },
   oracle: { turns: 0, hits: 0, ms: 0 },
-  planner: { decisions: 0, withAdded: 0, added: 0, addedWins: 0 },
+  planner: { decisions: 0, agendaSlot: 0, agendaSlotWins: 0, buildSlot: 0, buildSlotWins: 0 },
   timing: false,
   replying: false,
 });
@@ -85,6 +94,11 @@ export const clockOn = (): boolean => pricing().diagnostics?.timing === true;
 export function note(fn: (d: Diagnostics) => void): void {
   const d = pricing().diagnostics;
   if (d) fn(d);
+}
+
+/** Runs `fn` with no sink installed, so what it tallies or notes is not counted (corp/core.ts playoutLine: its own counters). */
+export function unsunk<T>(fn: () => T): T {
+  return withPricing({ diagnostics: null }, fn);
 }
 
 /** Marks a Runner reply as being sampled (runnerReply.ts and the scripts that copy it); returns the undo. */

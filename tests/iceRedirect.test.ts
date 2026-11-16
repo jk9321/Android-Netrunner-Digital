@@ -1,7 +1,7 @@
 import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
 import { GameAction, GameState, getLegalActions } from '../src/core';
-import { HeuristicCorpAI, createAgent } from '../src/ai';
+import { HeuristicCorpAI } from '../src/ai';
 import { iceRedirect } from '../src/ai/corp/placement';
 import { scoringRemote } from '../src/ai/corp/lines';
 import { asSide } from '../src/ai/pricing';
@@ -35,10 +35,9 @@ describe('plan.iceRedirect: remote ice to the scoring remote', () => {
   });
 
   // Before the redirect both Corps put it on remote-4 (checked with the temporary switch off before the fold, 7e82679)
-  it('the Normal and the Hard Corp play it', () => {
-    expect(new HeuristicCorpAI({ synergy: true }).chooseAction(position())).toMatchObject({ cardInstanceId: 'inst-29', targetServerId: 'remote-1' });
-    expect(createAgent('corp', 'hard').chooseAction(position())).toMatchObject({ cardInstanceId: 'inst-29', targetServerId: 'remote-1' });
-  }, 480_000);
+  // 'the Normal and the Hard Corp play it' (deal 1001 T10): rewritten as ruled (c0-rulings 12:50Z): the order's first
+  // candidate is the line-2 Whitespace on remote-1 (tests/corpCandidates.test.ts), and with the look-ahead the Corp plays the
+  // Regolith click (known-failing, tests/stageDPins.test.ts 'Stage C, deal 1001 T10')
 
   it("keeps a two-turn line's own ice where the line puts it (deal 1411 turn 6: Whitespace on a new remote for Orbital Superiority)", () => {
     const chosen = new HeuristicCorpAI({ synergy: true }).chooseAction(read('ice-redirect-1411-t6.json'));

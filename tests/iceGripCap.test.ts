@@ -14,22 +14,37 @@ import { inDecision } from './helpers/pricing';
  * the VRcation play (scripts: replay report-28 to the Runner's PLAY_OPERATION_OR_EVENT VRcation).
  */
 const position = (): GameState => JSON.parse(readFileSync(new URL('./fixtures/vrcation-sure-gamble.json', import.meta.url), 'utf8'));
-const best = (s: GameState) => {
+// The scores of the main actions by what they play (a card's title, or the action type for the rest)
+const scores = (s: GameState) => {
   const rk = inDecision(s, 'runner', () => new HeuristicRunnerAI({ synergy: true, planner: false }).rankMainActions(s));
-  const a = rk[0].action as { cardInstanceId?: string };
-  return cardDef(s.runner.grip.find(c => c.instanceId === a.cardInstanceId)!).title;
+  const out = new Map<string, number>();
+  for (const r of rk) {
+    const a = r.action as { type: string; cardInstanceId?: string; targetServerId?: string };
+    const card = a.cardInstanceId ? s.runner.grip.find(c => c.instanceId === a.cardInstanceId) : undefined;
+    const key = card ? cardDef(card).title : a.targetServerId ? `${a.type} ${a.targetServerId}` : a.type;
+    if (!out.has(key)) out.set(key, r.score);
+  }
+  return out;
 };
 
 describe('board ice priced against a grip no bigger than the hand size (plan.iceGripCap)', () => {
   // On by default since tuning pass 1: the old-way test switches it off
   afterEach(() => { tuning.plan.iceGripCap = true; });
 
-  it('plays Sure Gamble before VRcation', () => {
-    expect(best(position())).toBe('Sure Gamble');
+  // Compared card to card, not as the top action: the run on remote-2 (below) can rank first in this position
+  it('plays Sure Gamble before VRcation, and above a click for a credit', () => {
+    const sc = scores(position());
+    expect(sc.get('Sure Gamble')!).toBeGreaterThan(sc.get('VRcation')!);
+    expect(sc.get('Sure Gamble')!).toBeGreaterThan(sc.get('GAIN_CREDIT')!);
   });
 
-  it('the old way, VRcation first', () => {
+  // Since the run choice reads the draw-back (RM-DRAWBACK-RUN-START) the run on remote-2 ranks first and every card play
+  // pays the click it takes from that run, so the old way no longer puts VRcation first: it closes most of the gap
+  it('the old way, VRcation level with Sure Gamble and far above its capped score', () => {
+    const on = scores({ ...position(), id: 'vrcation-on' });
     tuning.plan.iceGripCap = false;
-    expect(best({ ...position(), id: 'vrcation-off' })).toBe('VRcation');
+    const off = scores({ ...position(), id: 'vrcation-off' });
+    expect(off.get('VRcation')!).toBeGreaterThan(on.get('VRcation')! + 5);
+    expect(off.get('VRcation')!).toBeGreaterThan(off.get('Sure Gamble')! - 0.5);
   });
 });

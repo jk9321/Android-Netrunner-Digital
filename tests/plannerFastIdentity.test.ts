@@ -83,7 +83,7 @@ describe('planner speed 1+2: same values as the code replaced', () => {
   });
 });
 
-/** knownSubroutineCost as it was before the rule table (one regex after another on every call). */
+/** knownSubroutineCost as it was before the rule table (one regex after another on every call), with the lethal tests as rule 10.4.4 has them (more damage than the grip). */
 function oldKnownSubroutineCost(state: GameState, label: string): number | undefined {
   const runner = state.runner;
   if (/cannot steal or trash/i.test(label)) return BLOCK;
@@ -100,11 +100,12 @@ function oldKnownSubroutineCost(state: GameState, label: string): number | undef
   }
   // Elevation conditions
   const unless = label.match(/end the run unless the runner suffers (\d+) net damage/i);
-  if (unless) return Number(unless[1]) >= runner.grip.length ? BLOCK : 2 * Number(unless[1]);
+  // ai-runner-unknowns (RM-SUBDAMAGE-TEXT): the damage priced as damage, not a flat 2 a point
+  if (unless) return Number(unless[1]) > runner.grip.length ? BLOCK : damageWorth(state, Number(unless[1]));
   const threat = label.match(/threat level is (\d+) or greater, end the run/i);
   if (threat) return Math.max(state.corp.score, runner.score) >= Number(threat[1]) ? BLOCK : 0;
   if (/end the run if the runner is tagged/i.test(label)) return runner.tags > 0 ? BLOCK : 1;
-  if (/if the runner has at least 2 tags/i.test(label)) return runner.tags >= 2 ? (2 >= runner.grip.length ? BLOCK : 4) : 0;
+  if (/if the runner has at least 2 tags/i.test(label)) return runner.tags >= 2 ? (2 > runner.grip.length ? BLOCK : damageWorth(state, 2)) : 0;
   // Vantage Point: "... unless the Runner pays N credits": the cheaper of paying and letting the rest resolve
   const pays = label.match(/^(.*?)\s*unless the runner pays (\d+) (?:\[credit\]|credits?)\.?$/i);
   if (pays) {
@@ -118,7 +119,7 @@ function oldKnownSubroutineCost(state: GameState, label: string): number | undef
     // Vicsek: X is the Runner's tags
     const x = runner.tags;
     if (x === 0) return 0;
-    return x >= runner.grip.length ? BLOCK : damageWorth(state, x) + tagCost(state) * x;
+    return x > runner.grip.length ? BLOCK : damageWorth(state, x) + tagCost(state) * x;
   }
   if (/loses? \[click\]/i.test(label)) return clickRate();
   if (/gets \+1 strength for the remainder of this run/i.test(label)) return 1.5; // ezaM: every ice after it costs more to break
@@ -127,7 +128,9 @@ function oldKnownSubroutineCost(state: GameState, label: string): number | undef
   if (/remove 1 card in the heap from the game/i.test(label)) return 0.3;
   if (/place 1 virus counter on this ice/i.test(label)) return 0; // Knowledge Seeker: counts down to its own derez
   if (/look at the top \d+ cards? of r&d|arrange|to the (?:top or )?bottom of r&d|shuffle 1 card from hq or archives into r&d/i.test(label)) return 0.4; // Corp card selection
-  if (/core damage/i.test(label)) return coreDamageWorth(state) + damageWorth(state, 1);
+  // ai-runner-unknowns: N core damage is N cards and N hand sizes (rule 10.4.2b)
+  const core = label.match(/(?:(\d+) )?core damage/i);
+  if (core) { const n = Number(core[1] ?? 1); return n > runner.grip.length ? BLOCK : n * coreDamageWorth(state) + damageWorth(state, n); }
   if (/unless they pay 3 credits/i.test(label)) return creditCost(state, 3);
   const loses = label.match(/loses? (\d+) (?:\[credit\]|credits?)/i);
   if (loses) return creditCost(state, Math.min(Number(loses[1]), runner.credits));
@@ -142,7 +145,7 @@ function oldKnownSubroutineCost(state: GameState, label: string): number | undef
   const damage = label.match(/(\d+) (net|meat) damage/i);
   if (damage) {
     const n = Number(damage[1]);
-    return n >= runner.grip.length ? BLOCK : damageWorth(state, n);
+    return n > runner.grip.length ? BLOCK : damageWorth(state, n);
   }
   if (/gain 1 \[credit\] for each tag/i.test(label)) return 0.3 * runner.tags; // Capacitor: Corp credits
   if (/tag/i.test(label)) return tagCost(state);

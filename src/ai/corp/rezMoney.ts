@@ -120,6 +120,26 @@ function keepFor(state: GameState, byServer: Record<string, number>, entry: Reco
 export function lineFloor(state: GameState, agendaId: string): number {
   const money = holdingRez(state, [agendaId]);
   for (let i = 0; i < money.unholdable.length; i++) tally('scoreInTwo', 'unholdable');
-  return Object.values(money.byServer).reduce((a, b) => a + b, 0);
+  const sum = Object.values(money.byServer).reduce((a, b) => a + b, 0);
+  // Stage C6 (SB-TWO-FLOORS): one floor, the line reads keep as the placement rules do; floorLog counts the states where
+  // keep and the byServer sum differ
+  const keep = countRezMoney(state, money).keep;
+  if (floorLog.on) {
+    floorLog.checked++;
+    if (keep !== sum) floorLog.differ.push({ keep, sum });
+  }
+  return keep;
+}
+
+/** Stage C6 log: lineFloor's keep against the byServer sum it read before (scripts/stage-c/floor-log.ts). */
+export const floorLog = { on: false, checked: 0, differ: [] as { keep: number; sum: number }[] };
+
+/**
+ * The credits the Corp keeps under a counted line (keepFloor before Stage C6, moved here from corp/placement.ts): the
+ * least keep over the HQ agendas a line could take, each left out of the pools (the line pays its own server's rez as
+ * its own step); with no agenda in HQ, keep itself.
+ */
+export function lineKeep(state: GameState, agendas: CardInstance[]): number {
+  return agendas.length ? Math.min(...agendas.map(x => rezMoney(state, { without: [x.instanceId] }).keep)) : rezMoney(state).keep;
 }
 

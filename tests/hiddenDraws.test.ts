@@ -33,10 +33,10 @@ describe('plan.hiddenDraws', () => {
   it('is on by default', () => {
     expect(saved).toBe(true);
   });
-  it('deal 1001 T10: off, the real order of the unseen R&D cards changes the pick; on, it does not', () => {
+  // The off half ("off, the real order changes the pick") was the ranking's: under the order the pick does not change at
+  // this position even off (Step 4 Stage C7, c3-tests-both.md B); the honest property is what stays
+  it('deal 1001 T10: the real order of the unseen R&D cards does not change the pick', () => {
     const s = t10 as unknown as GameState;
-    tuning.plan.hiddenDraws = false;
-    expect(pick(reorderUnseen(s))).not.toBe(pick(s));
     tuning.plan.hiddenDraws = true;
     expect(pick(reorderUnseen(s))).toBe(pick(s));
   }, 120000);

@@ -1,0 +1,143 @@
+name: AI script
+
+# Runs one measurement script from scripts/ split across runners (Jeff 2026-11-15: side-by-side and
+# leave-one-out runs are slow in a container and the Actions queue is often empty). Started by hand:
+# Actions > AI script > Run workflow, or the API. Each of 16 runners starts 4 processes; every process
+# gets SHARD=<k>/64 (as scripts/corp-losses.ts reads it) and ARGS, and writes its stdout to
+# out/<job>-<i>.txt and anything it likes under out/files/<k>/ (OUT_DIR). The "collect" job gathers every
+# shard's output into one artifact named "out" and commits it to the ai-batch-results branch as
+# scripts/<run id>.tar.gz. The script decides what a shard means (which deals,
+# which recorded states, which rule to leave out) and how the pieces are summed afterwards.
+# This counts against the same 20-job limit as AI batches; the slot job below queues it (short runs go first).
+run-name: AI script ${{ inputs.script }} · ${{ inputs.label || inputs.ref }}
+on:
+  workflow_dispatch:
+    inputs:
+      ref:
+        description: Branch or full commit SHA to run
+        required: true
+        default: beta
+      script:
+        description: Script path under scripts/ without .ts (letters, digits, - _ and / only), e.g. stage-c/planner-view
+        required: true
+      args:
+        description: Arguments passed to the script after -- (also in the ARGS environment variable)
+        required: false
+        default: ''
+      plan_off:
+        description: PLAN_OFF switches, comma-separated (empty for none)
+        required: false
+        default: ''
+      label:
+        description: What this run measures (for the log)
+        required: false
+        default: ''
+
+permissions:
+  contents: read
+
+jobs:
+  # The slot gate (.github/scripts/batch-slot.cjs): waits, holding one job, until this run's 16 shards fit under the
+  # 20-job limit: beside the tail of the run before when nothing is building, with 3 jobs kept free when CI or Deploy runs.
+  slot:
+    runs-on: ubuntu-latest
+    timeout-minutes: 345
+    permissions:
+      contents: read
+      actions: read
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          sparse-checkout: .github/scripts
+          sparse-checkout-cone-mode: false
+      - uses: actions/github-script@v7
+        env:
+          SHORT: '1'
+        with:
+          script: await require('./.github/scripts/batch-slot.cjs')({ github, context, core })
+
+  shard:
+    needs: slot
+    runs-on: ubuntu-latest
+    timeout-minutes: 120
+    strategy:
+      fail-fast: false
+      matrix:
+        job: [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15]
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.ref }}
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - name: Run
+        env:
+          SCRIPT: ${{ inputs.script }}
+          ARGS: ${{ inputs.args }}
+          PLAN_OFF: ${{ inputs.plan_off }}
+          JOB: ${{ matrix.job }}
+        run: |
+          case "$SCRIPT" in
+            *..*|/*|*[!A-Za-z0-9_/-]*) echo "bad script name: $SCRIPT"; exit 1 ;;
+          esac
+          test -f "scripts/$SCRIPT.ts" || { echo "no scripts/$SCRIPT.ts on this ref"; exit 1; }
+          mkdir -p out
+          fail=0
+          pids=""
+          for i in 0 1 2 3; do
+            k=$(( JOB * 4 + i ))
+            mkdir -p "out/files/$k"
+            # ARGS is split on spaces on purpose (plain words only)
+            SHARD="$k/64" OUT_DIR="out/files/$k" npx vite-node "scripts/$SCRIPT.ts" -- $ARGS > "out/$JOB-$i.txt" 2> "out/$JOB-$i.err" &
+            pids="$pids $!"
+          done
+          for p in $pids; do wait "$p" || fail=1; done
+          tail -n 5 out/*.err || true
+          exit $fail
+      - if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: shard-${{ matrix.job }}
+          path: out/
+
+  collect:
+    needs: shard
+    if: always()
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      actions: read
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          path: out
+          pattern: shard-*
+          merge-multiple: true
+      - run: ls out | head -100; du -sh out
+      - uses: actions/upload-artifact@v4
+        with:
+          name: out
+          path: out/
+      # Cloud threads cannot download artifacts, so the output also goes on the ai-batch-results
+      # branch as scripts/<run id>.tar.gz (read it with git fetch origin ai-batch-results).
+      - name: Keep the output on the ai-batch-results branch
+        env:
+          LABEL: ${{ inputs.label }}
+        run: |
+          tar -czf /tmp/out.tar.gz out
+          size=$(stat -c %s /tmp/out.tar.gz)
+          echo "out.tar.gz is $size bytes"
+          if [ "$size" -gt 50000000 ]; then echo "over 50 MB: not committed, use the artifact"; exit 0; fi
+          git init -q repo && cd repo
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git remote add origin "https://x-access-token:${{ github.token }}@github.com/${{ github.repository }}.git"
+          if git fetch -q --depth=1 origin ai-batch-results; then git checkout -q -B ai-batch-results FETCH_HEAD; else git checkout -q --orphan ai-batch-results; fi
+          mkdir -p scripts
+          cp /tmp/out.tar.gz "scripts/${{ github.run_id }}.tar.gz"
+          git add scripts
+          git commit -qm "AI script ${{ github.run_id }}: $LABEL"
+          for i in 1 2 3; do git push -q origin ai-batch-results && break; git pull -q --rebase origin ai-batch-results; done

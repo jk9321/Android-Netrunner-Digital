@@ -1,7 +1,7 @@
 import { CardInstance } from '../../../types/card';
 import { GameState } from '../../../types/state';
 import { cardDef } from '../../../cards';
-import { runnerSeesRd } from '../../../engine/rdKnowledge';
+import { corpSeesRd, runnerSeesRd } from '../../../engine/rdKnowledge';
 import { addLog } from '../../../engine/log';
 import { findInstalledCorpCard, removeCard, turnKey } from '../../../engine/helpers';
 import { dealNetDamage, giveTags, uninstallRunnerCard } from '../../../engine/damage';
@@ -67,6 +67,7 @@ const balancedFlow = prompts({
     const { state } = ctx;
     const top = state.corp.rd[0];
     if (!top || a.optionId === 'no') return;
+    corpSeesRd(state, [top]); // the Corp looks at it (10.2.2b)
     addLog(state, 'corp', `Corp named ${a.optionId} and looked at the top card of R&D (Balanced Coverage).`);
     // Asked even on a miss when the Corp's stops are on ALL, so the wait doesn't tell the Runner the type matched (4.2.2)
     balancedFlow.evenIfNone(

@@ -93,8 +93,17 @@ function proprionegationAgenda(state: GameState): number {
   return PACE.remoteShare * (pointValue(state.runner.score + typical) - pointValue(state.runner.score)) * 0.5;
 }
 
-/** Devadatta Drone: one more card on an R&D breach. */
-const devadattaPower = (state: GameState): number => PAYOUT_RISK.clickWait * accessWorth(state);
+/**
+ * Devadatta Drone: one more card on an R&D breach. A counter pays only on the NEXT R&D breach, so it is worth the access
+ * on the turn that breach comes: each turn the Runner breaches R&D with p = PACE runs x R&D share x success, the first
+ * breach comes on turn t with p(1-p)^(t-1), paid at perTurn's turn discount (the Runner's payout risk), over the turns
+ * left. At most one access by construction (Runner audit RUNNER-BREACH-EXTRA-ACCESS, Jeff's game #54: priced as an access
+ * next turn, a counter was worth more than the access it buys at the breach, so the Drone was never used).
+ */
+const devadattaPower = (state: GameState): number => {
+  const p = PACE.runs * PACE.rdShare * PACE.success;
+  return perTurn(state, p * accessWorth(state), 'runner', 0, Infinity, 1, 1 - p);
+};
 
 /** Cacophony: 2 counters sabotage 3, the Corp picking its worst cards. */
 const cacophonyPower = (state: GameState): number => (3 * 0.5 * cardRate(state, 'corp')) / 2;
@@ -296,6 +305,8 @@ export const ELEVATION: Record<string, CardAI> = {
     runner: () => 0,
     counters: { power: () => 1.2 }, // 1 more card accessed on an R&D breach
     counterFormulas: { power: devadattaPower },
+    // "Whenever you breach R&D, you may remove 1 hosted power counter to access 1 additional card" (Jeff's game #54)
+    breachAccess: { server: 'rd', counter: 'power' },
   },
   // Principia
   '35032': { synergy: { gives: { breakers: 1 }, wants: { breakers: 1 } } },
@@ -373,8 +384,8 @@ export const ELEVATION: Record<string, CardAI> = {
     synergy: { gives: { ice: 1, install: 0.5, bioroid: 1 } },
     value: { keep: 2, upgrade: [1, 1] },
     // One ice a turn installed for no click and 1 credit less
-    corp: state => {
-      const value = perTurn(state, PACE.iceInHand * (CLICK + 1), 'corp', 3) * 0.5; // It moves with the ice, so it helps only while ice keeps coming
+    corp: (state, _code, { cost }) => {
+      const value = perTurn(state, PACE.iceInHand * (CLICK + 1), 'corp', 3) * 0.5 - cost; // It moves with the ice, so it helps only while ice keeps coming
       return { keep: value, upgrade: [value, value] };
     },
   },
@@ -416,7 +427,7 @@ export const ELEVATION: Record<string, CardAI> = {
     synergy: { gives: { damage: 1 }, when: ['onScore'] },
     value: { keep: 2 },
     // A power counter a turn (1 net damage each, priced in counterValues.ts), used up within about 3 turns
-    corp: (state, code) => ({ keep: perTurn(state, counterWorthOf(state, code, 'power'), 'corp', 0, 3) }),
+    corp: (state, code, { cost }) => ({ keep: perTurn(state, counterWorthOf(state, code, 'power'), 'corp', 0, 3) - cost }),
     counters: { power: () => 1.5 }, // 1 net damage each, when an agenda is scored or stolen
     counterFormulas: { power: gioanPower },
   },
@@ -460,7 +471,7 @@ export const ELEVATION: Record<string, CardAI> = {
     synergy: { gives: { econ: 1, denial: 1.5 }, wants: { advance: 1 } },
     value: { keep: 2.5 }, // 3 credits for the Corp and -2 for the Runner per counter
     // Each advancement is 3 credits to the Corp and 2 off the Runner, for a click and a credit
-    corp: () => ({ keep: 0.6 * 2 * (3 + 2 - (CLICK + 1)) }),
+    corp: (_state, _code, { cost }) => ({ keep: 0.6 * 2 * (3 + 2 - (CLICK + 1)) - cost }),
     // Each counter is 3 credits and 2 off the Runner when it fires
     rezzed: (_state, card, rezCost) => card.advancementCounters * 5 - rezCost,
   },
@@ -539,9 +550,9 @@ export const ELEVATION: Record<string, CardAI> = {
     synergy: { gives: { econ: 1 } },
     value: { keep: 3, upgrade: [2, 0.5] },
     // 2 credits back each turn it gets to pay for a rez here; assets here cost 2 more to trash
-    corp: (state, code) => {
+    corp: (state, code, { cost }) => {
       const refills = perTurn(state, 0.4 * 2 * counterWorthOf(state, code, 'credit'), 'corp') + 0.5;
-      return { keep: refills, upgrade: [refills, 0.8 * refills] };
+      return { keep: refills - cost, upgrade: [refills - cost, 0.8 * refills - cost] };
     },
     counters: { credit: () => 0.8 }, // Recurring, only for rezzes in its server
     counterFormulas: { credit: mahkotaCredit },

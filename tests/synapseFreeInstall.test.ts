@@ -29,4 +29,5 @@ describe('Synapse Global free install (plan.freeInstallPick, bug report #13)', (
       expect(s.corp.hq.map(c => cardDef(c).title)).toEqual(['Offworld Office']);
     }
   });
+  // 'does the same through the order (Stage C1b)' is the test above since the order is the only Corp (Step 4 Stage C7)
 });

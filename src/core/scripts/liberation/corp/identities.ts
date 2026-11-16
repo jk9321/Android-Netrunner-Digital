@@ -1,7 +1,7 @@
 import { CardInstance } from '../../../types/card';
 import { GameState } from '../../../types/state';
 import { cardDef } from '../../../cards';
-import { noteRdPrivate } from '../../../engine/rdKnowledge';
+import { corpSeesRd, noteRdPrivate } from '../../../engine/rdKnowledge';
 import { addLog } from '../../../engine/log';
 import { findInstalledCorpCard, turnKey } from '../../../engine/helpers';
 import { installedRunnerCards, trashInstalledRunnerCard } from '../../../engine/damage';
@@ -89,6 +89,7 @@ export const epiphany: CardScript = {
       resolve: ctx => {
         const top = ctx.state.corp.rd.slice(0, 3);
         noteRdPrivate(ctx.state, top.length);
+        corpSeesRd(ctx.state, top); // the Corp looks at them (10.2.2b)
         const cards = installable(ctx.state, top);
         addLog(ctx.state, 'corp', 'Corp looked at the top 3 cards of R&D (Epiphany Analytica).');
         if (cards.length > 0) epiphanyFlow.ask(ctx, 'pick', cardsQuestion('corp', 'Epiphany Analytica: you may install 1 of the top 3 cards of R&D.', ids(cards), 0, 1));
@@ -157,6 +158,7 @@ const nuvemLook = (ctx: EffectContext) => {
   const top = ctx.state.corp.rd[0];
   if (!top) return;
   noteRdPrivate(ctx.state, 1);
+  corpSeesRd(ctx.state, [top]); // the Corp looks at it (10.2.2b)
   nuvemFlow.ask(
     ctx,
     'look',

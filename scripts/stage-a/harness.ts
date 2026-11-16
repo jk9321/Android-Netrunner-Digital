@@ -57,6 +57,8 @@ export interface Hooks {
   arm?(agent: Agent, state: GameState, kind: DecisionKind): void;
   /** Called after each deal ends. */
   dealEnd?(src: string, state: GameState): void;
+  /** The Corp agent a local deal is played by (default: a Normal Corp). */
+  corp?(): Agent;
 }
 
 export const DEFAULT_DEALS = Array.from({ length: 56 }, (_, k) => 1001 + 40 * k);
@@ -125,7 +127,7 @@ export function playDeal(seed: number, hooks: Hooks): GameState {
   valueLoops.clear();
   const src = `deal:${seed}`;
   const counter = { i: 0 };
-  const game = new GameRunner(dealState(seed), { corp: watchedCorp(src, createAgent('corp', 'normal'), hooks, counter), runner: watchedRunner(createAgent('runner', 'normal')) });
+  const game = new GameRunner(dealState(seed), { corp: watchedCorp(src, hooks.corp?.() ?? createAgent('corp', 'normal'), hooks, counter), runner: watchedRunner(createAgent('runner', 'normal')) });
   for (let n = 0; n < 4000 && game.step(); n++);
   hooks.dealEnd?.(src, game.state);
   return game.state;

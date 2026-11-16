@@ -10,7 +10,7 @@ import { ALL_DECKS as DECKS } from './nsg-sample-decks';
 import { CARD_PROFILES, payoutWorth, turnsLeft } from '../src/ai/cardProfiles';
 import { CARD_VALUES } from '../src/ai/cardValues';
 import { COUNTER_WORTH } from '../src/ai/counterValues';
-import { moneyOpGain } from '../src/ai/corpAI';
+import { moneyOpGain } from '../src/ai/valueAudit';
 import { COUNTERS_PRICED_ELSEWHERE, valueSources } from '../src/ai/valueAudit';
 import { createCardInstance } from '../src/core/engine/gameState';
 

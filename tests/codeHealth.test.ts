@@ -28,7 +28,6 @@ const CODES_IN_VALUE_FILES: Record<string, string> = {
 /** Plan switches that are off, each with why it stays in the code. */
 const OFF_SWITCHES: Record<string, string> = {
   rigEffects: 'experiment, off until a batch says so',
-  icePosition: "Jeff's ice-at-its-position model (Scatter Field); lost its batch, kept with its test for re-testing",
   'clickByPlay.corp': 'Corp side lost its batch; kept for re-testing',
   runCreditsSlide: 'breaks castWhileAble; retest once Runner income has one slide helper (cleanup item 4)',
   'handByCard.corp': 'used by the planner leaf; off in the rule ranking, kept for re-testing',
@@ -37,8 +36,7 @@ const OFF_SWITCHES: Record<string, string> = {
   // Tuning pass 1 (2026-11-08, review-1 R4): measured reasons, paired vs base run 42403086049
   replyContenders: 'install-worth probe P2: extra reply samples for the top two; -0.6 ± 2.2 (run 42498949422) for +19% time',
   oneAgendaGuess: 'Runner-view consistency (runs.ts remoteAgendaOdds in corpBoardValue); -0.6 ± 0.7 alone (run 42403914400); carried broke +1.3 ± 1.0 alone and the set\'s +4.0 ± 2.0 (run 42463624862); +7% time; on when a human hole needs it',
-  hqHeld: 'tuning pass 1: carried the decking bundle\'s broke +5.7 ± 2.4 (run 42403919890, with unseenOdds); not re-tried apart',
-  unseenOdds: 'tuning pass 1: carried the decking bundle\'s broke +5.7 ± 2.4 (run 42403919890, with hqHeld); not re-tried apart',
+  unseenOdds: 'tuning pass 1: carried the decking bundle\'s broke +5.7 ± 2.4 (run 42403919890, with hqHeld, deleted in Step 4 Stage C7); not re-tried apart',
   // Tuning pass round 2 (spec-round2.md): oracles measure headroom; they can never ship on
   'oracle.grip': 'measurement oracle, never a default',
   'oracle.safestRemote': 'measurement oracle, never a default',
@@ -64,6 +62,7 @@ const MODULE_LETS: Record<string, string> = {
   'evaluate:AGENDA_CLICK': 'a measured rate a script sets (setAgendaClick), not per call',
   'threatModel:planSig': "a cache of the plan's JSON for the threat key, rebuilt when the plan changes",
   'valueModel:deckCard': 'the deck-average hook handValues registers once (an import cycle otherwise)',
+  'valueModel:agendaOdds': "the Runner's agenda-odds port evaluate.ts registers once (runs.ts remoteAgendaOdds; an import cycle otherwise, ai-honest-runner-view)",
   'valueModel:nextStateId': "guardLoop's id counter for positions",
 };
 
@@ -103,7 +102,7 @@ describe('AI code health (audit guards)', () => {
     const setup = files.filter(f => /import \{[^}]*\b(installDiagnostics|withDiagnostics|newDiagnostics)\b[^}]*\} from '\.\/diagnostics'/.test(text(f)));
     expect(setup).toEqual([]);
     const exported = [...text('diagnostics.ts').matchAll(/^export (?:const|function|interface|type) (\w+)/gm)].map(m => m[1]).sort();
-    expect(exported).toEqual(['Diagnostics', 'clockOn', 'inReply', 'installDiagnostics', 'newDiagnostics', 'note', 'tally', 'withDiagnostics']);
+    expect(exported).toEqual(['Diagnostics', 'clockOn', 'inReply', 'installDiagnostics', 'newDiagnostics', 'note', 'tally', 'unsunk', 'withDiagnostics']);
   });
 
   it('names no new card codes in the shared value files', () => {
@@ -135,9 +134,12 @@ describe('AI code health (audit guards)', () => {
   const lines = (f: string) => aiText(f).split('\n').length - 1;
 
   it('returns an install destination for an ordinary Corp install only in corp/placement.ts', () => {
-    // An install action built with a server: the placement owner, the counted lines' steps (in it too), and the ranking's
-    // own ice-trash variants (corpAI.ts iceTrashInstalls, ranking debt deleted by Stage C)
-    const ALLOWED: Record<string, string> = { 'corpAI.ts': 'iceTrashInstalls: the ranking (Stage C)', 'runnerAI.ts': 'Runner installs have no server' };
+    // An install action built with a server: the placement owner, the counted lines' steps (in it too). The ranking's own
+    // ice-trash variants (corpAI.ts iceTrashInstalls) went with it in Stage C7
+    const ALLOWED: Record<string, string> = {
+      'runnerAI.ts': 'Runner installs have no server',
+      'corp/candidates.ts': "freeInstallOrder (Stage C1b): an install prompt's options written as installs, one per option; place chooses among them",
+    };
     // A destination written any way: a property (`targetServerId: x`), a shorthand (`{ ...pick, targetServerId }`) or an
     // assignment (`a.targetServerId = x`); a type's optional field (`targetServerId?:`) is not a write (audit SB-PLACEMENT-GUARD-WEAK)
     const writes = /\b(targetServerId|asNewRemote)\s*:(?!\s*(string|boolean)\b)|[{,]\s*(targetServerId|asNewRemote)\s*[,}]|\.(targetServerId|asNewRemote)\s*=(?!=)/;
@@ -209,18 +211,150 @@ describe('AI code health (audit guards)', () => {
     expect(aiFiles().filter(f => /\bregisterCorpPorts\(/.test(aiText(f)) && !f.endsWith('corpPorts.ts'))).toEqual(['corpAI.ts']);
   });
 
+  // Step 4 Stage C4 (brief-stage-c.md): the card-specific rules live in corp/cardRules.ts; its exports may only shrink
+  it('keeps the card rules of corp/cardRules.ts to this list (shrink only)', () => {
+    const names = [...aiText('corp/cardRules.ts').matchAll(/^export (?:function|const) (\w+)/gm)].map(m => m[1]).sort();
+    // Stage C7: bangunBait, myoshuSaving and untaianAdvance had only the ranking as their reader and went with it
+    expect(names).toEqual(['advancesAsIce', 'iceAdvanceValue', 'isPettyCash', 'overAdvance', 'trapAdvanceCap']);
+  });
+
   it("keeps the hold owner's readers to this list (corp/hold.ts serverHold)", () => {
     const readers = aiFiles().filter(f => f.replace(/\\/g, '/') !== 'corp/hold.ts' && /\bserverHold\b/.test(aiText(f))).map(f => f.replace(/\\/g, '/')).sort();
-    expect(readers).toEqual(['corp/lines.ts', 'corp/placement.ts', 'corp/rez.ts', 'corp/rezMoney.ts']);
+    expect(readers).toEqual(['corp/candidates.ts', 'corp/lines.ts', 'corp/placement.ts', 'corp/rez.ts', 'corp/rezMoney.ts']);
+  });
+
+  // Valuation V-A (brief-stage-va-owners.md rev 2, ruling 8; audit VAL-DEAD): every export of the eight valuation files
+  // has a reader in src. A reader is a use in a src file outside the export's own statement; in another file only where
+  // that file imports the name (a same-named local is not a reader); a re-export or a test is not a reader. The exports
+  // with no reader are listed here, each with why it stays, for V-B and Jeff; the list may only shrink.
+  const DEAD_VALUATION_EXPORTS: Record<string, string> = {
+    'valueModel:creditValue': 'dead (re-exported by evaluate.ts, never read): V-B',
+    'valueModel:clearBuildTargets': 'test and script cache reset (scripts/cache-bisect.ts)',
+    'handValues:clearHandCaches': 'test and script cache reset',
+    'effectValues:clearDamageThreats': 'test and script cache reset',
+    'iceValues:clearDeckShares': 'test and script cache reset',
+    'effectValues:passOddsOf': 'scripts only (threat calibration)',
+    'effectValues:FLATLINE': 'dead (tests only; valueModel flatlineWorth replaced it): V-B',
+    'effectValues:topDownWorth': 'dead (tests only): V-B',
+    'evaluate:shownIceShare': 'dead (no reader anywhere): V-B',
+    'evaluate:AGENDA_RUN': 'scripts only (a measured rate, logged)',
+    'evaluate:setAgendaClick': 'scripts only (scripts/human-agreement.ts sweeps AGENDA_CLICK)',
+    'evaluate:centralExposure': 'scripts and tests only since the oneCurrency off path went (its own memo key names it): V-B',
+    // V-B B1: found when the guard began to check re-exports and loaded readers (recount VA-DEAD-GUARD-REEXPORTS)
+    'effectValues:EFFECT_CODES': 're-export read only by src/ai/valueAudit.ts, which the app never loads (tests and scripts): V-B dead list',
+    'cardValues:CARD_VALUES': 're-export read only by src/ai/valueAudit.ts, which the app never loads (tests and scripts): V-B dead list',
+    'cardProfiles:PAYOUT_RISK': 're-export with no src importer (src reads ./payoutRisk; tests and scripts/value-owners/log.ts import it here): V-B dead list',
+  };
+  it('has a src reader for every valuation export but the listed ones (V-A; shrink only)', () => {
+    const VALUATION = ['valueModel', 'handValues', 'effectValues', 'evaluate', 'cardValues', 'cardProfiles', 'counterValues', 'iceValues'];
+    const src = (readdirSync(new URL('../src/', import.meta.url), { recursive: true }) as string[]).filter(f => /\.tsx?$/.test(f)).map(f => f.replace(/\\/g, '/'));
+    const strip = (t: string) => t.replace(/\/\*[\s\S]*?\*\//g, m => m.replace(/[^\n]/g, ' ')).replace(/\/\/.*$/gm, '').replace(/'(?:[^'\\\n]|\\.)*'|"(?:[^"\\\n]|\\.)*"/g, "''");
+    const raw: Record<string, string> = Object.fromEntries(src.map(f => [f, readFileSync(new URL(`../src/${f}`, import.meta.url), 'utf8')]));
+    const code: Record<string, string[]> = Object.fromEntries(src.map(f => [f, strip(raw[f]).split('\n')]));
+    const imports = (f: string, name: string) => [...raw[f].matchAll(/^import\s+(?!type\b)\{([^}]*)\}/gm)].some(m => new RegExp(`\\b${name}\\b`).test(m[1]));
+    // V-B B1 (recount VA-DEAD-GUARD-REEXPORTS): a reader must be loaded by the app. The src modules reachable from the
+    // entry points (src/main.tsx and the server's imports of src), following relative imports and re-exports
+    const resolveFrom = (from: string, spec: string) => {
+      const base = new URL(spec, `file:///src/${from}`).pathname.replace(/^\/src\//, '');
+      return [`${base}.ts`, `${base}.tsx`, `${base}/index.ts`, base].find(f => f in raw);
+    };
+    const reachable = new Set<string>();
+    const visit = (f: string | undefined) => {
+      if (!f || reachable.has(f)) return;
+      reachable.add(f);
+      for (const m of raw[f].matchAll(/^(?:import|export)\b[^'"]*?from\s+['"](\.[^'"]+)['"]|^import\s+['"](\.[^'"]+)['"]/gm)) visit(resolveFrom(f, m[1] ?? m[2]));
+    };
+    visit('main.tsx');
+    for (const dir of ['../server/', '../worker/']) {
+      let files: string[];
+      try {
+        files = (readdirSync(new URL(dir, import.meta.url), { recursive: true }) as string[]).filter(f => /\.tsx?$/.test(f));
+      } catch {
+        continue;
+      }
+      for (const f of files) for (const m of readFileSync(new URL(`${dir}${f}`, import.meta.url), 'utf8').matchAll(/from\s+['"](?:\.\.\/)+src\/([^'"]+)['"]/g)) visit(resolveFrom('x', `./${m[1]}`));
+    }
+    const dead: string[] = [];
+    for (const v of VALUATION) {
+      const file = `ai/${v}.ts`;
+      const lines = code[file];
+      lines.forEach((line, i) => {
+        const m = /^export (?:function|const|let) (\w+)/.exec(line);
+        if (!m) return;
+        // The export's own statement: to the next line that starts a top-level statement
+        let end = i + 1;
+        while (end < lines.length && !/^[^\s})\]]/.test(lines[end])) end++;
+        const name = m[1];
+        const re = new RegExp(`\\b${name}\\b`);
+        const use = (l: string) => re.test(l) && !/^\s*(import\b|export \{|export \*)/.test(l) && !/^\s*\w+,?\s*$/.test(l);
+        const read = src.some(f => reachable.has(f) && (f === file ? lines.some((l, j) => (j < i || j >= end) && use(l)) : imports(f, name) && code[f].some(use)));
+        if (!read) dead.push(`${v}:${name}`);
+      });
+      // re-exports (`export { NAME } from './x'`): read only where a loaded src file imports NAME from this file
+      for (const m of raw[file].matchAll(/^export\s+\{([^}]*)\}\s+from/gm))
+        for (const name of m[1].split(',').map(n => n.trim().split(/\s+as\s+/).pop()!).filter(Boolean)) {
+          const fromHere = (f: string) => [...raw[f].matchAll(/^import\s+(?!type\b)\{([^}]*)\}\s+from\s+['"]([^'"]+)['"]/gm)].some(i => resolveFrom(f, i[2]) === file && new RegExp(`\\b${name}\\b`).test(i[1]));
+          if (!src.some(f => f !== file && reachable.has(f) && fromHere(f))) dead.push(`${v}:${name}`);
+        }
+    }
+    expect(dead.filter(k => !(k in DEAD_VALUATION_EXPORTS)), 'a valuation export with no reader in src: delete it, or list it here with why').toEqual([]);
+    expect(Object.keys(DEAD_VALUATION_EXPORTS).filter(k => !dead.includes(k)), 'it has a reader now: take it off the list').toEqual([]);
   });
 
   // src/ai's total may only go down. Stage B ends at 13,938: beta at 545f146 is 13,851 (the Runner draws branch added 52
   // to the Stage A tree's 13,799), Stage B adds 77 (corp/core.ts's pipeline and the B5 time fix; AI Coordinator
   // 2026-11-14 21:05Z) and review R8 adds 10 (board.ts and corpPorts.ts, the seam that takes corp/ out of the cycle).
-  // Stage C repays this when the ranking is deleted; target after C is below 13,799
-  it('keeps src/ai/corp under 1,900 lines and src/ai at or under the Stage B total (13,938)', () => {
+  // Stage C repays this when the ranking is deleted; target after C is below 13,799 on the Corp side.
+  // Raised to 14,189 by ai-runner-fixes for the Runner audit's new owners (icePrice's credits/value split, breachRest, the
+  // steal-damage owner, damageWorth's draw-back, the whole-ice damage count, tankDamage: the one lethal-tank test the encounter also reads, +16), named in review-runner-fixes.md as a recorded debt (AI Coordinator
+  // 2026-11-15 01:29Z). Stage C's target after its deletions is unchanged (below 13,799) and this guard goes back down then.
+  // ai-runner-unknowns adds 141 (trapHit/accessDamage, unrezzedDamageRisk, runPrices, drawBackClicks, the rules text in
+  // subroutineDamage, the damageThreat key): pending the AI Coordinator's yes in its review
+  // ai-prompt-time adds 14 (prompts.ts: the Archives-shuffle family answer and its test, agendaFirst shared with Peer Review;
+  // Jeff and the AI Coordinator 2026-11-15 15:20Z): approved by the AI Coordinator 2026-11-15 16:21Z (stop-1615 ruling).
+  // Stage C hand-off (AI Coordinator 18:26Z): corp/ is set to the measured figure after the C7 deletions, 2,217, above the
+  // brief's 2,150 and listed as a deviation with its breakdown by file; src/ai to the measured 13,824 (the Corp side
+  // below 13,799 once the Runner branches' 157 and ai-prompt-time's 14 are set aside). Both down only
+  // ai-corp-honest-order (brief rev 2: the guards rise only by the view function's measured lines) adds 23 to src/ai: the
+  // Corp's view in turnPlanner.ts (corpDecisionView, its comment and memo, the import: +22) and its one line in corpAI.ts
+  // rankMainActions (+1); corp/ is unchanged (the comment rewording holds its line count)
+  // ai-honest-runner-view (brief rev 2: guards rise only by the measured lines) adds 138 to src/ai: runnerReply.ts +70
+  // (the one deal of the Corp's hidden cards lifted from determinize, runnerUnknownSlots, the copy and the view; +3 of it
+  // review R1, the advanced slots dealt first), search.ts -27 (determinize calls the deal), valueModel.ts +53 (corpIceMean, boardNeed's Runner branch by odds, the odds port),
+  // evaluate.ts +14 (unseenCorpPool, the port's fill), turnPlanner.ts +17 (runnerDecisionView memoised, memory), runnerAI.ts
+  // +8 (the baseline and runs on the view, the prompt guard), handValues.ts +3 (the deck-average key with codes)
+  // ai-playout-lines (A1, brief-playout-lines.md: the guards rise only by the wiring's measured lines) adds 63 to src/ai:
+  // corp/core.ts +40 (lineAsk, the Q4/Q5 sequence taken out of corpDecide, and playoutLine, the playout's Corp, with
+  // their comments and its measurement hook), turnPlanner.ts +10 (the PlannerAI `line` hook and its three uses in
+  // playout), diagnostics.ts +13 (the playoutLine counters, the onPlayoutLine hook and unsunk); corpAI.ts is unchanged
+  // Stage C (brief-stage-c.md): corpAI.ts is the agent shell. Its size is the measured figure, down only, and it holds no
+  // rule and no number: no number other than 0 and 1 outside comments, and no `score` field or scoring function.
+  // ai-corp-honest-order: 109 to 110, the line that gives the order the deciding Corp's own view (rule 10.2.2a)
+  it('keeps corpAI.ts a shell with no scoring function and no number', () => {
+    const code = aiText('corpAI.ts')
+      .split('\n')
+      .filter(l => !/^\s*(\/\/|\/\*\*|\*)/.test(l))
+      .join('\n');
+    // ai-honest-corp-decision +8 measured: decide hands its view to corpDecide with the snapshot, chooseRez decides on the view
+    expect(lines('corpAI.ts')).toBeLessThanOrEqual(118);
+    expect(code.match(/(?<![\w.])\d+(\.\d+)?(?![\w.])/g)?.filter(n => n !== '0' && n !== '1') ?? []).toEqual([]);
+    expect(code).not.toMatch(/\bscore\s*:|\bscore\w*\s*\(/i);
+  });
+
+  // ai-value-time: src/ai +11 measured (the tag clock kept on the original board, evaluate.ts +7 and runs.ts +2; the lazy
+  // tag input, effectValues.ts +2); src/ai/corp unchanged. With ai-playout-lines' +63 (above): 13,847 + 11 + 63 = 13,921
+  // ai-honest-runner-view on top of it: +138 (above), 13,921 to 14,059
+  // ai-honest-corp-decision, measured: src/ai/corp +33 (corp/core.ts: corpDecide's view, the legality check before the
+  // commits, honestCorpCounts), corpAI.ts +8, turnPlanner.ts +85 (corpDecisionView's mark, promptNamedIds,
+  // promptCardsInPlace, keepNamed): 2,257 + 33 = 2,290 and 14,059 + 126 = 14,185
+  // ai-value-owners (valuation V-A, brief rev 2: rises only by the measured lines) adds 37: the disagreement log's one
+  // writer, valueModel.ts logValue (+23), the owner doc comments and the hooks that hand each owner's or copy's value to it
+  // unchanged (+14 over the eight valuation files and diagnostics.ts' onValue field). V-B takes the hooks back when the
+  // copies are gone; logValue stays while the log is the registry's evidence. 14,185 + 37 = 14,222; ai-corp-rd-memory + 36 (the Corp's known R&D slots and the Runner's memory on its deal, runnerReply.ts) = 14,258;
+  // V-B B1 - 1 (handValues; review M1) = 14,257; V-B B2 - 7 (econValue's price deleted, the type test isEconAsset) = 14,250
+  it('keeps src/ai/corp at or under 2,290 lines and src/ai at or under 14,250 (Stage C hand-off, ai-corp-honest-order, ai-value-time, ai-playout-lines, ai-honest-runner-view, ai-honest-corp-decision, ai-value-owners, ai-corp-rd-memory, ai-value-b1, ai-value-b2)', () => {
     const corp = aiFiles().filter(f => f.replace(/\\/g, '/').startsWith('corp/')).reduce((n, f) => n + lines(f), 0);
-    expect(corp).toBeLessThan(1900);
-    expect(aiFiles().reduce((n, f) => n + lines(f), 0)).toBeLessThanOrEqual(13938);
+    expect(corp).toBeLessThanOrEqual(2290);
+    expect(aiFiles().reduce((n, f) => n + lines(f), 0)).toBeLessThanOrEqual(14250);
   });
 });

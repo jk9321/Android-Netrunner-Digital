@@ -2,7 +2,7 @@ import { CardInstance, SideCode } from '../types/card';
 import { EffectSource } from '../types/prompts';
 import { GameState } from '../types/state';
 import { cardDef } from '../cards';
-import { noteRdPrivate, runnerSeesRd, shuffleRD } from '../engine/rdKnowledge';
+import { corpLosesRd, corpSeesRd, noteRdPrivate, runnerSeesRd, shuffleRD } from '../engine/rdKnowledge';
 import { pushPrompt } from '../engine/prompts';
 import { addLog } from '../engine/log';
 import { findCardAnywhere, isAdvanceable, removeCard } from '../engine/helpers';
@@ -376,8 +376,10 @@ export function arrangeTop(ctx: EffectContext, cardIds: string[], step: string, 
     if (side === 'corp') {
       // Arranged in secret: the Runner only knows the cards are among these (rules 8.3.3)
       noteRdPrivate(state, cards.length);
+      corpSeesRd(state, cards); // the Corp put each one where it is (8.3.3)
     } else {
       for (const card of cards) runnerSeesRd(state, card);
+      corpLosesRd(state, cards); // the Corp may not look at the set-aside cards (8.3.3a)
     }
     if (cards.length > 1) addLog(state, side, `${side === 'corp' ? 'Corp' : 'Runner'} arranged the top ${cards.length} cards of R&D.`);
     return;

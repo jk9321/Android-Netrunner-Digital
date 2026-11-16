@@ -4,7 +4,7 @@ import { cardDef } from '../../../cards';
 import { shuffleInPlace } from '../../../rng';
 import { addLog } from '../../../engine/log';
 import { checkAgendaVictory, findInstalledCorpCard, removeCard } from '../../../engine/helpers';
-import { noteRdPrivate } from '../../../engine/rdKnowledge';
+import { corpSeesRd, noteRdPrivate } from '../../../engine/rdKnowledge';
 import { completeRez, rezForFree } from '../../../engine/actions/corp';
 import { installCorpCardFrom } from '../../../engine/actions/install';
 import { installedRunnerCards, uninstallRunnerCard } from '../../../engine/damage';
@@ -127,7 +127,10 @@ const cultivateFlow = prompts({
 
 export const cultivate: CardScript = {
   canPlay: ({ state }) => (state.corp.rd.length > 0 ? null : 'R&D is empty'),
-  onPlay: ctx => cultivateFlow.cards(ctx, 'trash', cardsQuestion('corp', 'Cultivate: trash 1 of the top 5 cards of R&D.', ids(ctx.state.corp.rd.slice(0, 5)), 1, 1), { ids: ids(ctx.state.corp.rd.slice(0, 5)) }),
+  onPlay: ctx => {
+    corpSeesRd(ctx.state, ctx.state.corp.rd.slice(0, 5)); // the Corp looks at them (8.3.3b)
+    cultivateFlow.cards(ctx, 'trash', cardsQuestion('corp', 'Cultivate: trash 1 of the top 5 cards of R&D.', ids(ctx.state.corp.rd.slice(0, 5)), 1, 1), { ids: ids(ctx.state.corp.rd.slice(0, 5)) });
+  },
   ...cultivateFlow.script,
 };
 

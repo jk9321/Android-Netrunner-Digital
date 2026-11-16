@@ -1,6 +1,6 @@
 import { CardInstance } from '../../../types/card';
 import { GameState } from '../../../types/state';
-import { shuffleRD } from '../../../engine/rdKnowledge';
+import { corpSeesRd, shuffleRD } from '../../../engine/rdKnowledge';
 import { addLog } from '../../../engine/log';
 import { findInstalledCorpCard, removeCard, revealInHand } from '../../../engine/helpers';
 import { dealNetDamage, giveTags, installedRunnerCards, trashInstalledRunnerCard, uninstallRunnerCard } from '../../../engine/damage';
@@ -186,6 +186,7 @@ export const ezam: CardScript = {
         resolve: ctx => {
           const top = ctx.state.corp.rd[0];
           if (!top) return;
+          corpSeesRd(ctx.state, [top]); // the Corp looks at it (10.2.2b); it follows the card to the bottom if moved
           ezamFlow.choice(ctx, 'top', choiceQuestion('corp', `ezaM: the top card of R&D is ${title(top)}. Add it to the bottom of R&D?`, [
             { id: 'bottom', label: 'Bottom of R&D' },
             { id: 'leave', label: 'Leave it on top' },

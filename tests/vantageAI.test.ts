@@ -3,7 +3,6 @@ import { activePrompt, ALL_CARDS, cardDef, createCardInstance, executeAction, Ga
 import { accessWorth } from '../src/ai/effectValues';
 import { answerPrompt, meliesSide } from '../src/ai/prompts';
 import { bestBreakPlan, chainReactionBonus, runBudget, runScore, tagCost } from '../src/ai/runs';
-import { myoshuSaving } from '../src/ai/corpAI';
 import { perfectRecallTarget } from '../src/ai/corp/rez';
 import { bakerWantsFuel, boardPlansWorth } from '../src/ai/cardPlans';
 import { createAgent } from '../src/ai';
@@ -123,20 +122,8 @@ describe('AI with Vantage Point cards', () => {
     expect(chainReactionBonus(s, 'hq')).toBe(0); // no click left to play it after the runs
   });
 
-  it('Myōshu: saves toward 10 credits with an agenda installed on an earlier turn, and keeps them', () => {
-    const s = newGame();
-    s.corp.hq.push(createCardInstance(s, '36061'));
-    expect(myoshuSaving(s)).toBe(false); // no older agenda out
-    const agenda = createCardInstance(s, AGENDA_2);
-    agenda.installedTurn = 'earlier';
-    s.corp.servers['remote-1'] = { id: 'remote-1', name: 'Remote Server 1', isRemote: true, ice: [], root: [agenda] };
-    s.corp.credits = 6;
-    s.corp.clicks = 3;
-    expect(myoshuSaving(s)).toBe(true);
-    expect(myoshuSaving(s, true)).toBe(false);
-    s.corp.credits = 10;
-    expect(myoshuSaving(s, true)).toBe(true);
-  });
+  // 'Myōshu: saves toward 10 credits' tested the ranking's myoshuSaving (Step 4 Stage C7: deleted with its only reader);
+  // the planned turn's worth of the saved credits is tests/cardPlans.test.ts
 
   it('plans runs with the credits that pay only during runs (Methuselah, Touchstone)', () => {
     const s = newGame();

@@ -1,5 +1,5 @@
 import { GameState } from '../../../types/state';
-import { shuffleRD } from '../../../engine/rdKnowledge';
+import { corpSeesRd, shuffleRD } from '../../../engine/rdKnowledge';
 import { addLog } from '../../../engine/log';
 import { revealInHand } from '../../../engine/helpers';
 import { flipIdentity, gainFromCard, useOncePerTurn } from '../../../engine/cardEffects';
@@ -64,6 +64,7 @@ export const melies: CardScript = {
       addLog(state, 'corp', `Méliès U was flipped: the ${MELIES_SERVERS[side]} side.`);
       if (side !== e.server || state.corp.rd.length === 0) return;
       const top = state.corp.rd[0];
+      corpSeesRd(state, [top]); // the Corp looks at it (10.2.2b)
       meliesFlow.choice(ctx, 'top', choiceQuestion('corp', `Méliès U: the top card of R&D is ${title(top)}. Trash it to add 1 card from Archives to HQ?`, [
         { id: 'trash', label: `Trash ${title(top)}` },
         { id: 'no', label: 'Leave it' },

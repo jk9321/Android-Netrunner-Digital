@@ -30,7 +30,7 @@ import { cardDef } from '../src/core/cards';
 import { rezCost } from '../src/core/engine/cardEffects';
 import { HeuristicCorpAI } from '../src/ai';
 import { asSide } from '../src/ai/synergy';
-import { moneyOpGain } from '../src/ai/corpAI';
+import { moneyOpGain } from '../src/ai/valueAudit';
 import { evaluate } from '../src/ai/evaluate';
 import { SpendListener } from './spend-audit';
 

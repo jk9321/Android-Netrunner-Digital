@@ -10,7 +10,8 @@ import type { HeuristicOptions } from './corpAI';
 import { asSide, logNudge, nudge, tuning } from './synergy';
 import { decisionContext } from './handValues';
 import { PlanMemory, planTurn, plannerOn, runnerDecisionView } from './turnPlanner';
-import { BOTULUS, RunnerMemory, chainReactionBonus, TRANQUILIZER, MANEGARM, bestBreakPlan, botulusBreaks, runCreditSpend, hostedTrojans, creditsAhead, iceCreditsAhead, iceCost, iceCreditNeed, needsBiggerHand, runScore, runShortfall, serverValue, spendCost, subroutineCost } from './runs';
+import { runnerUnknownSlots } from './runnerReply';
+import { BOTULUS, RunnerMemory, chainReactionBonus, planCost, TRANQUILIZER, MANEGARM, bestBreakPlan, botulusBreaks, runCreditSpend, hostedTrojans, creditsAhead, iceCreditsAhead, iceCost, iceCreditNeed, needsBiggerHand, runScore, runShortfall, serverValue, spendCost, subroutineCost, tankDamage } from './runs';
 import { RATES } from './valueModel';
 import { plan } from './pricing';
 
@@ -57,8 +58,9 @@ export class HeuristicRunnerAI implements Agent {
       decisionContext(state, 'runner');
       this.remember(state);
       this.freeActions.start(state, state.runner.clicks);
-      const before = evaluate(state, 'runner');
+      // ai-honest-runner-view (red team 1): the baseline is scored on the same view as the actions
       const view = this.ownView(state);
+      const before = evaluate(view, 'runner');
       const best = getLegalActions(state, 'runner')
         .filter(a => a.type === 'USE_ABILITY')
         .map(action => ({ action, score: this.scoreMain(state, action, before, view) }))
@@ -73,7 +75,7 @@ export class HeuristicRunnerAI implements Agent {
   private decide(state: GameState): GameAction {
     decisionContext(state, 'runner');
     this.remember(state);
-    if (activePrompt(state)) return answerPrompt(state, 'runner', this.memory, this.synergy);
+    if (activePrompt(state)) return this.promptAnswer(state);
     const legal = getLegalActions(state, 'runner');
     if (state.activeRun) return this.runAction(state, legal) ?? legal[0];
     return this.mainAction(state, legal);
@@ -116,8 +118,12 @@ export class HeuristicRunnerAI implements Agent {
     const subs = iceSubroutines(state, ice);
     // Banner: once used, this encounter's subroutines can't end the run
     const unbroken = subs
-      .map((s, i) => ({ i, cost: encounter.cannotEndRun && /^end the run\.?$/i.test(s.label.trim()) ? 0 : subroutineCost(state, s.label) }))
+      .map((s, i) => ({ i, label: s.label, cost: encounter.cannotEndRun && /^end the run\.?$/i.test(s.label.trim()) ? 0 : subroutineCost(state, s.label) }))
       .filter(s => !encounter.broken[s.i]);
+    // Each subroutine's own price reads the grip as it stands; together they may be more damage than the grip (rules
+    // 9.8.7b, 10.4.4: Empiricist's 1 net then 2 net on 2 cards). The one that would flatline must be broken, as one that ends the run
+    const lethal = tankDamage(state, unbroken).lethal;
+    for (const s of unbroken) if (s.i === lethal) s.cost = Infinity;
     const mustBreak = unbroken.filter(s => s.cost >= 1);
     if (mustBreak.length === 0) return undefined;
 
@@ -173,7 +179,7 @@ export class HeuristicRunnerAI implements Agent {
     };
 
     const breakPlan = bestBreakPlan(state, ice, mustBreak.length);
-    if (breakPlan && breakPlan.credits <= tank + 0.5) {
+    if (breakPlan && planCost(breakPlan) <= tank + 0.5) {
       const action = tryBreaking(mustBreak);
       if (action) return action;
     }
@@ -219,7 +225,7 @@ export class HeuristicRunnerAI implements Agent {
       state,
       'runner',
       ranked,
-      { rank: s => rollout.rankMainActions(s), answer: s => rollout.chooseAction(s), runWorth: (s, id, code) => runScore(s, id, code ? { ...runEventOptions(code, s), ...options } : options), runCredits: (s, id, code) => runCreditSpend(s, id, code ? runEventOptions(code, s) : {}), memory: this.planMemory },
+      { rank: s => rollout.rankMainActions(s), answer: s => rollout.chooseAction(s), runWorth: (s, id, code) => runScore(s, id, code ? { ...runEventOptions(code, s), ...options } : options), runCredits: (s, id, code) => runCreditSpend(s, id, code ? runEventOptions(code, s) : {}), memory: this.planMemory, known: this.memory },
       this.synergy,
     );
   }
@@ -228,13 +234,16 @@ export class HeuristicRunnerAI implements Agent {
   rankMainActions(state: GameState, legal = getLegalActions(state, 'runner')): ScoredAction[] {
     decisionContext(state, 'runner');
     this.freeActions.start(state, state.runner.clicks);
-    const before = evaluate(state, 'runner');
+    // ai-honest-runner-view (red team 1; rule 10.2.2a): the baseline, the runs and the actions are all scored on the
+    // Runner's own view, so the guess of the Corp's hidden cards is not a constant offset against END_TURN, REMOVE_TAG,
+    // runScore and the free-action cut
+    const view = this.ownView(state);
+    const before = evaluate(view, 'runner');
     // Nowhere worth running and breakers missing: dig for them
     this.digForBreakers =
       rigCoverage(state.runner.rig.programs).covered.size < 3 &&
-      !legal.some(a => a.type === 'INITIATE_RUN' && runScore(state, a.targetServerId, { memory: this.memory, wary: this.synergy && tuning.wary }) > 0);
+      !legal.some(a => a.type === 'INITIATE_RUN' && runScore(view, a.targetServerId, { memory: this.memory, wary: this.synergy && tuning.wary }) > 0);
     this.savingFor = this.synergy ? saveUpTarget(state, this.memory) : null;
-    const view = this.ownView(state);
     return [...legal, ...makeRoomInstalls(state)]
       .map(action => {
         let score = this.scoreMain(state, action, before, view);
@@ -262,7 +271,26 @@ export class HeuristicRunnerAI implements Agent {
    * stack. A planner's rollout (planner off) already plays on that deal, and the Corp's model of the Runner on the Corp's.
    */
   private ownView(state: GameState): GameState {
-    return this.planner ? runnerDecisionView(state) : state;
+    return this.planner ? runnerDecisionView(state, this.memory) : state;
+  }
+
+  /**
+   * A prompt answered from the Runner's own view (rule 10.2.2a; ai-runner-fixes, AI Coordinator 2026-11-14): an answer
+   * that draws (LilyPAD, Read-Write Share) is scored on the guessed stack, not the real next cards. A prompt that shows
+   * stack cards (a search, the top card revealed) is answered on the real state, since the Runner sees those cards; so is
+   * any answer the guess makes that is not legal on the real state.
+   */
+  private promptAnswer(state: GameState): GameAction {
+    const real = () => answerPrompt(state, 'runner', this.memory, this.synergy);
+    const view = this.ownView(state);
+    if (view === state) return real();
+    const shown = JSON.stringify(activePrompt(state));
+    // ai-honest-runner-view (red team 2): also a prompt naming a Corp card whose identity the view may have changed (an
+    // access in HQ or R&D, a card revealed from HQ): the Runner is looking at it, so it is answered as it really is
+    const { ice, root, loose } = runnerUnknownSlots(state, this.memory);
+    if ([...state.runner.stack, ...ice, ...root, ...loose].some(c => shown.includes(`"${c.instanceId}"`))) return real();
+    const answer = answerPrompt(view, 'runner', this.memory, this.synergy);
+    return isLegalAction(state, answer) ? answer : real();
   }
 
   private scoreMain(state: GameState, action: GameAction, before: number, view: GameState = state): number {
@@ -271,7 +299,7 @@ export class HeuristicRunnerAI implements Agent {
         return -0.5;
       case 'INITIATE_RUN':
         // Chain Reaction: a run on a central it still needs is worth a share of the play, if it succeeds
-        return runScore(state, action.targetServerId, { memory: this.memory, wary: this.synergy && tuning.wary, successBonus: chainReactionBonus(state, action.targetServerId) });
+        return runScore(view, action.targetServerId, { memory: this.memory, wary: this.synergy && tuning.wary, successBonus: chainReactionBonus(state, action.targetServerId) });
       case 'REMOVE_TAG':
         return state.runner.rig.resources.length > 0 ? 1.2 : 0.3;
     }
@@ -286,7 +314,7 @@ export class HeuristicRunnerAI implements Agent {
     const paid = state.runner.credits - after.runner.credits;
     if (prompt?.kind === 'effect_choice' && prompt.side === 'runner' && prompt.options.every(o => after.corp.servers[o.id])) {
       const options = { ...runEventOptions(prompt.source.cardCode, state), memory: this.memory, wary: this.synergy && tuning.wary };
-      const best = Math.max(...prompt.options.map(o => runScore(state, o.id, options)));
+      const best = Math.max(...prompt.options.map(o => runScore(view, o.id, options)));
       return best - spendCost(state, paid) + (prompt.source.cardCode === '30028' ? RATES.drawnCard : 0); // Jailbreak draws a card
     }
     // Window of Opportunity (plan.bypass): its install first (worth what the board gains, with no click), then its run
@@ -308,7 +336,7 @@ export class HeuristicRunnerAI implements Agent {
       }
     }
     if (!state.activeRun && after.activeRun) {
-      return runScore(state, after.activeRun.server, { ...runEventOptions(cardCode ?? '', state), memory: this.memory, wary: this.synergy && tuning.wary }) - spendCost(state, paid) + 0.3;
+      return runScore(view, after.activeRun.server, { ...runEventOptions(cardCode ?? '', state), memory: this.memory, wary: this.synergy && tuning.wary }) - spendCost(state, paid) + 0.3;
     }
 
     // Follow our own prompts (Lie Low, Scrounge, Madani) a few steps
