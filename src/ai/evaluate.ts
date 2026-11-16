@@ -8,11 +8,10 @@ import { boardPlansWorth } from './cardPlans';
 import { AI_BREAKER_SHARE, breakerTypeWorth, iceTypeOdds, iceWorth } from './iceValues';
 import { inIcedServer, payoutWait, payoutWorth, profileOf, turnsLeft } from './cardProfiles';
 import { resourceTrashHqCost } from '../core/engine/actions/basic';
-import { HAND_FLOOR, clickPrice, handByCard, heldWorth, ownHandValue, playedWorth, unseenInHand } from './handValues';
-import { CLICK, KNOBS, RATES, cardRate, flatlineWorth, guardLoop, handFilter, logValue, mean, memo, payoutSlide, pointGain, pointValue, reachCard, setRunnerAgendaOdds, sideCreditValue } from './valueModel';
-import { LOCKDOWN, PACE, STEAL, agendaOdds, coreSlotWorth, flatlineOdds, lifeGrip, runSuccess, stealOdds } from './effectValues';
+import { HAND_FLOOR, clickPrice, handByCard, heldWorth, ownHandValue, playedWorth } from './handValues';
+import { CLICK, KNOBS, RATES, cardRate, flatlineWorth, guardLoop, handFilter, logValue, mean, memo, payoutSlide, pointValue, reachCard, setRunnerAgendaOdds, sideCreditValue } from './valueModel';
+import { PACE, STEAL, coreSlotWorth, flatlineOdds, lifeGrip, runSuccess, stealOdds } from './effectValues';
 import { remoteAgendaOdds, trapOdds, trashedCardCost } from './runs';
-import { centralAccess } from './threatModel';
 import { plan, pricing, withPricing } from './pricing';
 import { corpDrawPool, oracleSteal } from './oracle';
 import { CARDS } from './cards';
@@ -348,51 +347,6 @@ export function corpBoardValue(state: GameState, viewer: SideCode): number {
     }
   }
   return value + archivedAgendasValue(state, viewer);
-}
-
-/**
- * What the Corp expects to lose from runs on HQ and R&D (read by scripts/human-agreement.ts and tests; the off path of
- * the deleted plan.oneCurrency was the only play reader), in the Runner's
- * points on the clock. Ice is worth the same wherever it sits (iceWorth), so without this term evaluate can't tell ice
- * on a bare R&D from ice on an empty remote; installScore's central needs (centralsFirst, centralIce) hand-coded it.
- *
- * Each Runner turn: PACE.runs x the server's share of runs x runSuccess (its ice against the rig) x the agenda loss of
- * one access (rule 7.4.1b-c: a breach of HQ offers the cards in HQ, of R&D the top card; one access each by default). HQ: the agendas in it over its
- * size, each by its point gain to the Runner; R&D: the share of agendas in it. Summed over the turns left with the
- * lock-down fade (LOCKDOWN, as the Corp ices up). The next turn sees HQ as it is; later turns see HQ as the deck's
- * average draw, since HQ turns over (installed, drawn into) while the ice stays. Archives is archivedAgendaLoss.
- *
- * Hidden information: the Corp knows what is in R&D but not its order, and nothing about a card drawn in a look-ahead
- * (handValues unseenInHand): those are pooled with R&D, so a draw can't tell it whether an agenda came. The Runner's
- * view uses its own odds of an unseen card being an agenda (agendaOdds), for HQ and R&D alike.
- */
-export function centralExposure(state: GameState, viewer: SideCode): number {
-  const unseen = viewer === 'corp' ? unseenInHand(state, 'corp') : [];
-  const key = `centralExposure:${viewer}:${unseen.map(c => c.instanceId).join(',')}`;
-  return memo(state, key, () => {
-    const corp = state.corp;
-    const gain = (points: number) => pointGain(state.runner.score, points);
-    let density: number; // the agenda loss of one access to a card the viewer can't see
-    let hqNow: number; // the agenda loss of one access to HQ as it is
-    if (viewer === 'corp') {
-      // One access to HQ and to a card the Corp can't place (threatModel.ts centralAccess, shared with iceValues)
-      ({ hqNow, density } = centralAccess(state));
-    } else {
-      const { odds, points } = agendaOdds(state);
-      density = odds * gain(points);
-      hqNow = corp.hq.length ? density : 0;
-    }
-    const hqRate = PACE.runs * PACE.hqShare * runSuccess(state, 'hq');
-    const rdRate = !corp.rd.length ? 0 : PACE.runs * PACE.rdShare * runSuccess(state, 'rd');
-    // This Runner's next turn (bug report #15: it walked into HQ every turn while the Corp held its agendas there): the
-    // measured rate half-weighted with the breaches it made there last turn (open information), as plan.readAssetTrash reads trashes
-    const lastTurn = (server: string) => state.runnerLastTurnRuns.filter(r => r.server === server && r.successful).length;
-    const next = (rate: number, server: string) => (state.activePlayer === 'corp' ? (rate + lastTurn(server)) / 2 : rate);
-    let loss = 0;
-    const turns = turnsLeft(state);
-    for (let t = 1; t <= turns; t++) loss += ((t === 1 ? next(hqRate, 'hq') * hqNow : hqRate * density) + (t === 1 ? next(rdRate, 'rd') : rdRate) * density) * LOCKDOWN ** (t - 1);
-    return loss;
-  });
 }
 
 /**

@@ -115,7 +115,7 @@ export function serverStake(state: GameState, server: ServerState): number {
   const swing = (points: number) => pointValue(state.corp.score + points, KNOBS.corpPoints) - pointValue(state.corp.score, KNOBS.corpPoints) + pointGain(state.runner.score, points);
   const turns = turnsLeft(state);
   if (server.id === 'hq' || server.id === 'rd') {
-    // One access each run (7.4.1b-c), at the agenda loss centralExposure prices one access at, on the runs the Runner
+    // One access each run (7.4.1b-c), at the agenda loss centralAccess prices one access at, on the runs the Runner
     // makes there over the turns left (PACE); HQ as it is on the next run, the deck's average after
     const { hqNow, density } = centralAccess(state);
     const runs = PACE.runs * (server.id === 'hq' ? PACE.hqShare : PACE.rdShare);

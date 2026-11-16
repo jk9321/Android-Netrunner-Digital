@@ -223,7 +223,6 @@ describe('AI code health (audit guards)', () => {
     'iceValues:clearDeckShares': 'test and script cache reset',
     'evaluate:AGENDA_RUN': 'scripts only (a measured rate, logged)',
     'evaluate:setAgendaClick': 'scripts only (scripts/human-agreement.ts sweeps AGENDA_CLICK)',
-    'evaluate:centralExposure': 'scripts and tests only since the oneCurrency off path went (its own memo key names it): V-B',
   };
   it('has a src reader for every valuation export but the listed ones (V-A; shrink only)', () => {
     const VALUATION = ['valueModel', 'handValues', 'effectValues', 'evaluate', 'cardValues', 'cardProfiles', 'counterValues', 'iceValues'];

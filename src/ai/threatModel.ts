@@ -19,7 +19,7 @@ export function turnSeed(state: GameState): number {
 
 /**
  * One access to HQ as it is and to a card the Corp can't place (R&D, or a card drawn in a look-ahead), in the Runner's
- * points on the clock: the agendas over the cards (centralExposure's pool, shared: the Corp knows what R&D holds but
+ * points on the clock: the agendas over the cards (serverStake's pool: the Corp knows what R&D holds but
  * not its order, and nothing about a card it drew in a look-ahead).
  */
 export function centralAccess(state: GameState): { hqNow: number; density: number } {
