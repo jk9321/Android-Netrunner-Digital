@@ -88,11 +88,13 @@ describe('arm 0: the tag clock prices no rig when no resource could be the answe
       }
     });
 
-    it(`otherwise the rig is priced as before: the full board and one copy per resource (${viewer}'s view)`, () => {
+    it(`otherwise a resource is priced by its own term, no rig value asked on this board (ai-tag-loss-bp; ${viewer}'s view)`, () => {
+      // Since ai-tag-loss-bp the clock prices each resource by its own term plus its share of the plans (none here), not
+      // the whole rig again; the left-out cross term on this board is Carnivore's term moving with Cookbook (about 0.02)
       for (const [resources, skip] of [[['30009'], 0], [['30009', '30018'], 1], [['30009', '30018', '30027'], 0]] as const) {
         const r = measure(board([...resources], 2), viewer, skip);
-        expect(r.rig).toBe(1 + resources.length);
-        expect(r.now).toBe(r.before);
+        expect(r.rig).toBe(0);
+        expect(Math.abs(r.now - r.before)).toBeLessThan(0.05);
         expect(Number.isFinite(r.now)).toBe(true);
       }
     });

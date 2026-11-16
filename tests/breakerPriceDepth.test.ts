@@ -103,10 +103,14 @@ describe('a hosted breaker is priced at most one level deep', () => {
 
   it('the hang path: one tag price on the saved state nests 8 rig values a rig value (beta: 2,528)', () => {
     expect(HOSTED_BREAKERS).toHaveLength(4);
-    // tagsWorth -> tagClock prices the rig and the rig without each of its 3 resources (evaluate.ts, not counted);
-    // each of those 4 rig values prices the 4 hosted breakers, 2 counted rig values each
+    // Until ai-tag-loss-bp, tagsWorth -> tagClock priced the rig and the rig without each of its 3 resources (evaluate.ts,
+    // not counted), each of those 4 rig values pricing the 4 hosted breakers at 2 counted rig values each: 32. The clock
+    // now prices a resource by its own term (Madani is hardware, so no hosted breaker is priced in there): 0
     const [v, n] = counted(() => tagsWorth(hangState(4), 'corp', 1));
-    expect(n).toBe(32);
+    expect(n).toBe(0);
     expect(Number.isFinite(v)).toBe(true);
+    // the depth this file pins, on the same state: one rig value prices the 4 hosted breakers at 2 rig values each
+    const [, m] = counted(() => runnerRigValue(hangState(4)));
+    expect(m).toBe(1 + 8);
   });
 });

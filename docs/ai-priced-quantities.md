@@ -209,6 +209,7 @@ Counts at the branch head (scripts/value-owners/counts.mjs): see "Counts" at the
 - **Caches, context:** `memo` keys `tagLoss:<viewer>:<skip>` and, for `tagCost`'s copy, `tagLoss:<viewer>:<skip>:c<clicks>` on the original board. Context: `pricingTagLoss`, `plan.tagTrashNow`, `plan.hqTrashCost`, `actingSide` (through the rig's prices).
 - **Loop:** tags price the rig, the rig prices ice, ice prices tags (`valueModel.ts` value-loop note): cut by `pricingTagLoss`.
 - **Time (ai-tag-loss-time arm 0, exact):** `tagLoss` prices no rig (V15's `runnerRigValue`, and through it V4's Runner deck average) when no resource could be the answer: none on the rig, none past `skip`, or the Corp under the trash action's 2 credits (rule 5.2.6g); the loss is the same number. 46% of the clock's prices in Corp decisions are the first case. No new quantity or copy.
+- **A resource inside the clock (ai-tag-loss-bp, a stated approximation; Jeff 2026-11-16):** `tagLoss` prices each resource the Corp could trash by its own term in the rig (`addRigCard`, `runnerRigValue`'s own loop body, read from 0; V15) plus its share of the combo plans (`boardPlansWorth` less on the rig without it, asked only when `hasBoardPlan`), not by the whole rig less the rig without it. Left out: what its leaving does to the other cards' terms (V4's Runner deck average through cards that read `cardRate`, such as Read-Write Share beside Knickknack O'Brian; credit sources such as Alarm Clock, Conduit, Amanuensis; breaker coverage). Measured on beta e7b807f's boards (results.md section 7): 0.23% of clocks differ past 1e-9, either sign in general (higher on the measured boards), largest +11.3; 1 pick of 13,730 decisions, a rounding tie. The exact whole-rig difference stays with its other readers, so this is the same quantity priced a cheaper way inside the clock, not a copy to redirect: `sideStrength` (the board after a trash), Knickknack's trash prompt (`src/ai/prompts.ts`), an install's gain (`src/ai/handValues.ts`).
 
 ### V8. n damage (the Corp's view and the Runner's)
 - **Owner:** `damageWorth` (`src/ai/effectValues.ts:334`): the cards lost (`cardRate`) and the step the smaller grip takes toward a flatline (V18's clock), the game (`flatlineWorth`) if n is more than the grip (10.4.4); the draw-back for damage the Runner takes in its own run.
@@ -260,6 +261,7 @@ Counts at the branch head (scripts/value-owners/counts.mjs): see "Counts" at the
 - **Owner:** `runnerCardValue` (`src/ai/cardValues.ts:56`): the card's formula (`runnerEffect`), in rig points (credits / `RATES.rigCardScale` 2), else its flat CARD_VALUES `rig` (default `RATES.defaultRig` 2) plus `drawBonus`. Its readers multiply by `rigCardScale` again.
 - **Copies:** the flat (`runnerCardValue flat`, the no-formula and loop path). Asks counted. Comparable: the flat against the formula, both x 2. A profiled rig card (`CARD_PROFILES`, Runner) is priced by `payoutWorth` x `payoutSlide` in `runnerRigValue`, `payoutWorth` (`src/ai/evaluate.ts:122`), not by this owner: comparable, the same card both ways.
 - **Readers:** `runnerCardValue` (`src/ai/evaluate.ts:126`) (the rig), `runnerCardValue` (`src/ai/handValues.ts:88`) (in the grip).
+- **The rig card's term (ai-tag-loss-bp):** `addRigCard` (`src/ai/evaluate.ts`) is `runnerRigValue`'s loop body (the profiled payout, this owner x `rigCardScale`, counters, hosted cards), called by the loop with its running total (the rig's sum unchanged bit for bit) and by `tagLoss` from 0 (V7's clock). The value log's sample counts for this row's copies change with it (fewer rig values asked inside the clock): not drift.
 
 ### V16 to V20 (rows a red-team ruling split off: a different quantity, each single today)
 - **V16, a Corp click spent advancing:** `AGENDA_CLICK` (`src/ai/evaluate.ts:234`) 2, what the click could have built instead, read in `agendaWorth` as `const click = AGENDA_CLICK` (`src/ai/evaluate.ts:276`); `setAgendaClick` for scripts/human-agreement.ts. Hand-set.
@@ -375,7 +377,7 @@ From `node scripts/value-owners/counts.mjs` (re-run it to recount; the copy coun
 | live copies, all quantities (the live lines of "Copy lines") | 34 |
 | other copy lines, by kind (not counted) | reader 2, gone 4, recorded 1, not comparable 6, inside owner 2 |
 | valuation exports with no reader (allow-list) | 7 |
-| lines of src/ai | 13643 |
+| lines of src/ai | 13656 |
 
 Live copies per quantity: V1 0, V2 3, V3 8, V4 3, V5 2, V6 1, V7 7, V8 0, V9 1, V10 1, V11 1, V12 3, V13 0, V14 2, V15 2, V16 0, V17 0, V18 0, V19 0, V20 0, V21 0, V22 0, V23 0, V24 0, V25 0.
 <!-- valuation:end -->
