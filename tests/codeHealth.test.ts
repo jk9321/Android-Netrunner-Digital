@@ -338,12 +338,14 @@ describe('AI code health (audit guards)', () => {
   // V-B B6 - 38 (Jeff's dead list, part A without centralExposure: creditValue and its two rates, FLATLINE, topDownWorth, shownIceShare, three re-exports) = 14,237; B6 - 12 (dead list part B: six unread RATES fields, PAYOUT_RISK.corpIced, the drawnCardOff branch, Smartware's and Fermenter's default branches with their two rates) = 14,225
   // ai-threat-delete - 580 (commit 1 - 555, the Corp's threat model and every src path only it read; commit 2 - 29, the run
   // record: plan.runRecord, its pricing field and key part, corpAI noteRuns; commit 3 + 4, Jeff's open-remote rule for a new
-  // bare remote kept under plan.openSteal) = 13,645
+  // bare remote kept under plan.openSteal) = 13,645;
+  // ai-breaker-guard-key - 2 (the depth guard as a pricing field in the key: handValues.ts - 6, its Set's add, try and
+  // delete gone; pricing.ts + 4, the key segment and deckPricingKey) = 13,643
   // V-B B6 rest - 39 (centralExposure and its imports - 46; the card-coded conditions into their entries + 8 with the four
-  // CardAI fields' doc lines; Spin Doctor's spent worth into its entry - 3; counterWorthOf's default + 1; item 17 + 1) = 13,606
-  it('keeps src/ai/corp at or under 2,298 lines and src/ai at or under 13,606 (Stage C hand-off, ai-corp-honest-order, ai-value-time, ai-playout-lines, ai-honest-runner-view, ai-honest-corp-decision, ai-value-owners, ai-corp-rd-memory, ai-value-b1, ai-value-b2, ai-hold-reentry, ai-value-b3, ai-tag-loss-time, ai-value-b6, ai-threat-delete)', () => {
+  // CardAI fields' doc lines; Spin Doctor's spent worth into its entry - 3; counterWorthOf's default + 1; item 17 + 1) = 13,604
+  it('keeps src/ai/corp at or under 2,298 lines and src/ai at or under 13,604 (Stage C hand-off, ai-corp-honest-order, ai-value-time, ai-playout-lines, ai-honest-runner-view, ai-honest-corp-decision, ai-value-owners, ai-corp-rd-memory, ai-value-b1, ai-value-b2, ai-hold-reentry, ai-value-b3, ai-tag-loss-time, ai-value-b6, ai-threat-delete, ai-breaker-guard-key)', () => {
     const corp = aiFiles().filter(f => f.replace(/\\/g, '/').startsWith('corp/')).reduce((n, f) => n + lines(f), 0);
     expect(corp).toBeLessThanOrEqual(2298);
-    expect(aiFiles().reduce((n, f) => n + lines(f), 0)).toBeLessThanOrEqual(13606);
+    expect(aiFiles().reduce((n, f) => n + lines(f), 0)).toBeLessThanOrEqual(13604);
   });
 });
