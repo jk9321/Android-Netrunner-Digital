@@ -8,7 +8,7 @@ import { decideRez, perfectRecallTarget } from './corp/rez';
 import { holdingRezIds, rezMoney } from './corp/rezMoney';
 import { registerCorpPorts } from './corpPorts';
 import { plan, withPricing } from './pricing';
-import { CorpMemory, corpDecide } from './corp/core';
+import { CorpMemory, corpDecide, playoutLine } from './corp/core';
 import { asRanked, corpCandidates, freeInstallTarget, plannerIntake } from './corp/candidates';
 
 /**
@@ -80,19 +80,19 @@ export class HeuristicCorpAI implements Agent {
     this.freeActions.played(action);
   }
 
-  /** The whole-turn planner's pick (plan.turnPlanner), its playouts by a fresh copy of this AI. */
+  /** The whole-turn planner's pick (plan.turnPlanner), its playouts by a fresh copy of this AI, each on its own copy of this Corp's held line (A1, playoutLine). */
   private plan(state: GameState, ranked: ScoredAction[]): GameAction | null {
     const rollout = new HeuristicCorpAI({ synergy: this.synergy, planner: false });
     const reply = plan().runnerReply ? (s: GameState, leaf: (s: GameState) => number) => runnerReply(s, this.synergy, leaf) : undefined;
-    return planTurn(state, 'corp', ranked, { rank: s => rollout.rankMainActions(s), answer: s => rollout.chooseAction(s), reply, memory: this.planMemory, intake: plannerIntake }, this.synergy);
+    return planTurn(state, 'corp', ranked, { rank: s => rollout.rankMainActions(s), answer: s => rollout.chooseAction(s), reply, memory: this.planMemory, intake: plannerIntake, line: () => playoutLine(structuredClone(this.memory.heldLine), (s, held) => rollout.rankMainActions(s, undefined, held)) }, this.synergy);
   }
 
-  /** Main-phase actions in the order (corp/candidates.ts); the position in it is the only number (asRanked). */
-  rankMainActions(state: GameState, legal = getLegalActions(state, 'corp')): ScoredAction[] {
+  /** Main-phase actions in the order (corp/candidates.ts); the position in it is the only number (asRanked). `held`: the line place reads (a playout's own copy, playoutLine; this Corp's by default). */
+  rankMainActions(state: GameState, legal = getLegalActions(state, 'corp'), held: CorpMemory['heldLine'] = this.memory.heldLine): ScoredAction[] {
     const view = this.planner ? corpDecisionView(state) : state; // rule 10.2.2a: the deciding Corp's own deal (a rollout plays on it already); the legal list is the real state's
     decisionContext(view, 'corp');
     this.freeActions.start(state, state.corp.clicks);
-    return asRanked(view, corpCandidates(view, legal, { held: this.memory.heldLine, freeExhausted: this.freeActions.exhausted }));
+    return asRanked(view, corpCandidates(view, legal, { held, freeExhausted: this.freeActions.exhausted }));
   }
 
   chooseRez(state: GameState, cards: CardInstance[]): GameAction | null {
