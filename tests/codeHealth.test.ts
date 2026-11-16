@@ -352,7 +352,7 @@ describe('AI code health (audit guards)', () => {
   // unchanged (+14 over the eight valuation files and diagnostics.ts' onValue field). V-B takes the hooks back when the
   // copies are gone; logValue stays while the log is the registry's evidence. 14,185 + 37 = 14,222; ai-corp-rd-memory + 36 (the Corp's known R&D slots and the Runner's memory on its deal, runnerReply.ts) = 14,258;
   // V-B B1 - 1 (handValues; review M1) = 14,257; V-B B2 - 7 (econValue's price deleted, the type test isEconAsset) = 14,250;
-  // ai-hold-reentry + 13 (the countingHold guard: pricing.ts + 2, iceValues.ts + 1, hold.ts + 7; its second commit, the rez
+  // ai-hold-reentry + 13 (the countingHold guard: pricing.ts + 4, iceValues.ts + 1, hold.ts + 7; its second commit, the rez
   // worked out before the set is priced, hold.ts + 1; corp/ + 8) = 14,263 and corp/ 2,298
   it('keeps src/ai/corp at or under 2,298 lines and src/ai at or under 14,263 (Stage C hand-off, ai-corp-honest-order, ai-value-time, ai-playout-lines, ai-honest-runner-view, ai-honest-corp-decision, ai-value-owners, ai-corp-rd-memory, ai-value-b1, ai-value-b2, ai-hold-reentry)', () => {
     const corp = aiFiles().filter(f => f.replace(/\\/g, '/').startsWith('corp/')).reduce((n, f) => n + lines(f), 0);
