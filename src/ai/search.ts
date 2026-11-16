@@ -1,5 +1,4 @@
-import { CardInstance, GameAction, GameState, SideCode, activePrompt, getCardDefinition, getLegalActions, isLegalAction, knownInHand } from '../core';
-import { isAdvanceable } from '../core/engine/helpers';
+import { CardInstance, GameAction, GameState, SideCode, activePrompt, getCardDefinition, getLegalActions, isLegalAction } from '../core';
 import { Agent } from './agent';
 import { HeuristicCorpAI } from './corpAI';
 import { HeuristicRunnerAI, readWriteFullShuffle } from './runnerAI';
@@ -8,7 +7,7 @@ import { GameRunner } from './playout';
 import { RunnerMemory } from './runs';
 import { asSide, logNudge } from './synergy';
 import { decisionContext } from './handValues';
-import { knownRdSlots } from './runnerReply';
+import { dealRunnerUnknowns, knownRdSlots } from './runnerReply';
 import { corpKnowsRd, corpSeenGrip } from './oracle';
 import { ScoredAction } from './agent';
 import { CorpMemory, corpDecide } from './corp/core';
@@ -107,34 +106,8 @@ export function determinize(state: GameState, side: SideCode, random: Random, me
     return s;
   }
 
-  // The Runner doesn't know HQ, R&D, face-down Archives or unrezzed cards it hasn't accessed
-  const installed = Object.values(s.corp.servers);
-  const iceSlots = installed.flatMap(sv => sv.ice).filter(c => !c.isRezzed);
-  // plan.keepKnownRd: faceup installed cards (BANGUN, Sacrifice Zone Expansion) are public, and so are the cards it has accessed
-  const rootSlots = installed.flatMap(sv => sv.root).filter(c => !c.isRezzed && !memory?.has(c.instanceId) && !(c.faceUp || c.runnerKnows));
-  // plan.keepKnownHand: HQ cards the Runner has seen (accessed and left, revealed) stay as they are
-  const knownHq = new Set(knownInHand(state, 'corp').map(k => k.id));
-  const fixedRd = knownRdSlots(state);
-  const loose = [...s.corp.hq.filter(c => !knownHq.has(c.instanceId)), ...s.corp.rd.filter((_, i) => !fixedRd.has(i)), ...s.corp.archives.faceDown];
-  const pool = shuffle([...iceSlots, ...rootSlots, ...loose].map(c => c.cardCode), random);
-
-  const take = (fits: (code: string) => boolean): string | undefined => {
-    const i = pool.findIndex(fits);
-    return i === -1 ? undefined : pool.splice(i, 1)[0];
-  };
-  const typeOf = (code: string) => getCardDefinition(code).type_code;
-  for (const card of iceSlots) card.cardCode = take(code => typeOf(code) === 'ice') ?? take(code => code === card.cardCode)!;
-  for (const card of rootSlots) {
-    const advanced = card.advancementCounters > 0;
-    card.cardCode =
-      take(code => {
-        const type = typeOf(code);
-        if (!['agenda', 'asset', 'upgrade'].includes(type)) return false;
-        return !advanced || isAdvanceable({ cardCode: code } as CardInstance);
-      }) ?? take(code => code === card.cardCode)!;
-  }
-  // Whatever is left goes back into HQ, R&D and Archives (counts stay the same)
-  assign(loose, pool);
+  // The Runner doesn't know HQ, R&D, face-down Archives or unrezzed cards it hasn't accessed (the one deal: runnerReply.ts)
+  dealRunnerUnknowns(s, random, memory);
   return s;
 }
 

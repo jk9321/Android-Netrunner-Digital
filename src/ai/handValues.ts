@@ -184,7 +184,10 @@ function drawWorth(state: GameState, side: SideCode): number {
   // at its size cap a value from one of those could be served for the real board, so a reloaded game played on
   // differently from the one in memory (tests/savedGame.test.ts)
   const board = `${fingerprint(state)}:`;
-  const key = `${pricingKey()}:${side}:${state.id}:${state.turnNumber}:${credits}${board}${deck.map(c => c.instanceId).join(',')}`;
+  // The deck by instance and card code (ai-honest-runner-view, AI Coordinator 2026-11-16 03:30Z): the Runner's view and
+  // the Hard AI's determinize re-deal hidden Corp cards by recoding fixed instances, so by ids alone a guessed deck
+  // shared the real deck's key (drawAudit: 104 wrong hits on deal 2181). Off a view an instance's code never changes
+  const key = `${pricingKey()}:${side}:${state.id}:${state.turnNumber}:${credits}${board}${deck.map(c => c.instanceId + c.cardCode).join(',')}`;
   // Audit Step 2 (AI-CACHE-HIDDEN-STATE): the key leaves out what R&D, Archives, the grip and the heap hold, the counters
   // and hosts of installed cards and the run under way (fingerprint has the zones by size only), so some hits are another
   // board's value (about 6%: drawAudit, tests/handCacheAudit.test.ts). An exact key cost the Corp about +50% decision time

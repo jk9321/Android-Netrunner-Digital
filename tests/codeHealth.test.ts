@@ -239,6 +239,11 @@ describe('AI code health (audit guards)', () => {
   // ai-corp-honest-order (brief rev 2: the guards rise only by the view function's measured lines) adds 23 to src/ai: the
   // Corp's view in turnPlanner.ts (corpDecisionView, its comment and memo, the import: +22) and its one line in corpAI.ts
   // rankMainActions (+1); corp/ is unchanged (the comment rewording holds its line count)
+  // ai-honest-runner-view (brief rev 2: guards rise only by the measured lines) adds 135 to src/ai: runnerReply.ts +67
+  // (the one deal of the Corp's hidden cards lifted from determinize, runnerUnknownSlots, the copy and the view), search.ts
+  // -27 (determinize calls the deal), valueModel.ts +53 (corpIceMean, boardNeed's Runner branch by odds, the odds port),
+  // evaluate.ts +14 (unseenCorpPool, the port's fill), turnPlanner.ts +17 (runnerDecisionView memoised, memory), runnerAI.ts
+  // +8 (the baseline and runs on the view, the prompt guard), handValues.ts +3 (the deck-average key with codes)
   // Stage C (brief-stage-c.md): corpAI.ts is the agent shell. Its size is the measured figure, down only, and it holds no
   // rule and no number: no number other than 0 and 1 outside comments, and no `score` field or scoring function.
   // ai-corp-honest-order: 109 to 110, the line that gives the order the deciding Corp's own view (rule 10.2.2a)
@@ -252,9 +257,9 @@ describe('AI code health (audit guards)', () => {
     expect(code).not.toMatch(/\bscore\s*:|\bscore\w*\s*\(/i);
   });
 
-  it('keeps src/ai/corp at or under 2,217 lines and src/ai at or under 13,847 (Stage C hand-off, ai-corp-honest-order)', () => {
+  it('keeps src/ai/corp at or under 2,217 lines and src/ai at or under 13,982 (Stage C hand-off, ai-corp-honest-order, ai-honest-runner-view)', () => {
     const corp = aiFiles().filter(f => f.replace(/\\/g, '/').startsWith('corp/')).reduce((n, f) => n + lines(f), 0);
     expect(corp).toBeLessThanOrEqual(2217);
-    expect(aiFiles().reduce((n, f) => n + lines(f), 0)).toBeLessThanOrEqual(13847);
+    expect(aiFiles().reduce((n, f) => n + lines(f), 0)).toBeLessThanOrEqual(13982);
   });
 });
