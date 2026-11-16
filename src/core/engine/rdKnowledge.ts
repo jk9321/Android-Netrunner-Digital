@@ -22,9 +22,12 @@ const notes = (state: GameState): RdNotes => (state.corp.rdNotes ??= {});
 
 /**
  * For the engine fuzzer only (scripts/engine-fuzz-check.ts): how many times R&D has been shuffled, and the cards
- * the Corp has looked at since the last shuffle. Read by nothing in the game.
+ * the Corp has looked at since the last shuffle. Read by nothing in the game. Only real actions count: a trial run
+ * on a copy (isLegalAction, also reached from the engine's own auto-pass probe, and the check of a declared action
+ * that waits for the opponent's priority) raises `trial` and is not recorded, or a shuffle the game never made
+ * would make the check flag a memory the Corp rightly kept.
  */
-export const rdShuffleProbe = { shuffles: 0, corpSeenSince: new Set<string>() };
+export const rdShuffleProbe = { shuffles: 0, corpSeenSince: new Set<string>(), trial: 0 };
 
 /** Shuffles R&D. Neither player knows where any card in it is any more (rules 4.2.2, 8.7.3). */
 export function shuffleRD(state: GameState): void {
@@ -34,8 +37,10 @@ export function shuffleRD(state: GameState): void {
   notes(state).corpSeen = [];
   state.corp.rdKnownToRunner = [];
   state.corp.rdKnownToCorp = [];
-  rdShuffleProbe.shuffles++;
-  rdShuffleProbe.corpSeenSince.clear();
+  if (rdShuffleProbe.trial === 0) {
+    rdShuffleProbe.shuffles++;
+    rdShuffleProbe.corpSeenSince.clear();
+  }
 }
 
 /**
@@ -47,7 +52,7 @@ export function corpSeesRd(state: GameState, cards: CardInstance[]): void {
   const seen = (notes(state).corpSeen ??= []);
   for (const card of cards) {
     seen.push(card.instanceId);
-    rdShuffleProbe.corpSeenSince.add(card.instanceId);
+    if (rdShuffleProbe.trial === 0) rdShuffleProbe.corpSeenSince.add(card.instanceId);
   }
   // Also written at once: a look made while the action settles (a trigger after the action, Nuvem SA) comes after
   // updateRdKnowledge, and the decision that follows must already know it. The next update follows it from here.
