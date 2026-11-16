@@ -5,7 +5,7 @@
 // Shares are differences between arm timings: (base - arm) / (base - F), never a profile.
 import { readFileSync } from 'node:fs';
 
-const ARMS = ['base', 'F', '0', 'A', '0A', 'H', 'S', 'B', '0B'];
+const ARMS = ['base', 'F', '0', 'A', '0A', 'H', 'S', 'B', '0B', 'BP', '0BP'];
 const rows = [];
 for (const f of process.argv.slice(2))
   for (const line of readFileSync(f, 'utf8').split('\n')) {
@@ -49,7 +49,7 @@ function shares(set, title) {
 function counts(set, title) {
   if (!set.length) return;
   const arms = ARMS.filter(a => set.every(d => d.tally?.[a]));
-  const fields = ['prices', 'r0', 'rSkip', 'broke', 'priced', 'untrash', 'rig', 'rigIn', 'drawR', 'drawRIn', 'missR', 'missRIn', 'drawC', 'missC', 'rez', 'rezIn', 'hold', 'holdIn', 'msIn', 'heldServed', 'stackServed', 'stackPriced'];
+  const fields = ['prices', 'r0', 'rSkip', 'broke', 'priced', 'untrash', 'rig', 'rigIn', 'drawR', 'drawRIn', 'missR', 'missRIn', 'drawC', 'missC', 'rez', 'rezIn', 'hold', 'holdIn', 'msIn', 'heldServed', 'stackServed', 'stackPriced', 'planCopies'];
   p(`\n#### Counts per decision, mean (${title}, ${set.length} decisions)`);
   p(`| field | ${arms.join(' | ')} |`);
   p(`|---|${arms.map(() => '---').join('|')}|`);
@@ -115,7 +115,7 @@ if (game.length || saved.length || whole.length) {
       p(`| ${a} | ${fx(m / 1000)} | ${fx(xs.reduce((n, x) => n + x, 0) / xs.length / 1000)} | ${fx(Math.min(...xs) / 1000)} | ${fx(Math.max(...xs) / 1000)} | ${fx((mb - m) / 1000)} | ${a === 'base' ? '' : pct((mb - m) / (mb - mf))} | ${[...new Set(saved.filter(r => r.arm === a).map(r => r.pick))].join(' / ')} |`);
     }
     const t = a => saved.find(r => r.arm === a)?.tally;
-    const fields = ['prices', 'rig', 'rigIn', 'drawR', 'missR', 'missRIn', 'rez', 'rezIn', 'hold', 'holdIn', 'msIn', 'heldServed', 'stackServed', 'stackPriced'];
+    const fields = ['prices', 'rig', 'rigIn', 'drawR', 'missR', 'missRIn', 'rez', 'rezIn', 'hold', 'holdIn', 'msIn', 'heldServed', 'stackServed', 'stackPriced', 'planCopies'];
     p(`\n| count (one ask) | ${ARMS.join(' | ')} |`);
     p(`|---|${ARMS.map(() => '---').join('|')}|`);
     for (const f of fields) p(`| ${f} | ${ARMS.map(a => fx(t(a)?.[f] ?? NaN, 0)).join(' | ')} |`);

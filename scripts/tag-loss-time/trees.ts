@@ -17,6 +17,8 @@
  *         the Runner's deck: each stack card's played worth once per decision and rig, then held by the asking board's
  *         credits (heldFromPlayed)
  *   B     attribution only (ruling 7: another quantity): a resource's own term in runnerRigValue's loop, no copy priced
+ *   BP    B plus the resource's share of the combo plans (AI Coordinator 20:35Z): boardPlansWorth on the full rig less
+ *         on the rig without it (only the plans priced on the smaller rig), skipped when no Runner card has a board plan
  *
  * Every tree has the same probe (globalThis.__tl, a TlProbe): tag-clock prices and their kind, rig values, drawWorth
  * calls and misses, countRezBudget runs and hold counts started inside the clock, size-capped cache clears, and the
@@ -28,7 +30,7 @@ import { join, resolve } from 'node:path';
 
 export const ARMS = ['base', 'F', '0', 'A', '0A', 'H', 'S', 'B'] as const;
 /** Arms built on request only (the AI Coordinator's 19:44Z re-opening of ruling 7): 0 and B together. */
-export const EXTRA_ARMS = ['0B'] as const;
+export const EXTRA_ARMS = ['0B', 'BP', '0BP'] as const;
 export type Arm = (typeof ARMS)[number] | (typeof EXTRA_ARMS)[number];
 
 const once = (text: string, from: string, to: string, file: string): string => {
@@ -59,12 +61,12 @@ const TRASH_LINE = '  const trash = Math.max(0, nets[skip] ?? 0) - (corp.credits
  * An arm's tagLoss: the rig part worked out the arm's way; the punisher part copied from today's text (the lines after
  * `trash`). `skips`: arm 0's exact skips; `hold`: arm A's held deck average; `own`: arm B's own term.
  */
-function armTagLoss(today: string, o: { skips: boolean; hold: boolean; own: boolean }): string {
+function armTagLoss(today: string, o: { skips: boolean; hold: boolean; own: boolean; plans: boolean }): string {
   const tail = today.slice(today.indexOf(TRASH_LINE) + TRASH_LINE.length);
   const copy = o.hold
     ? `(() => { const c = { ...state, runner: { ...state.runner, rig: { ...state.runner.rig, resources: all.filter(x => x !== r) } } }; __heldRunnerDeck.set(c, state); return c; })()`
     : `{ ...state, runner: { ...state.runner, rig: { ...state.runner.rig, resources: all.filter(x => x !== r) } } }`;
-  const term = o.own ? '__rigCardTerm(state, r)' : `rig - runnerRigValue(${copy})`;
+  const term = o.own ? (o.plans ? '__rigCardTerm(state, r) + __plansShare(state, r)' : '__rigCardTerm(state, r)') : `rig - runnerRigValue(${copy})`;
   const rigLine = o.own ? '' : '    const rig = runnerRigValue(state);\n';
   return `function tagLoss(state: GameState, viewer: SideCode, skip: number): number {
   if (${G}?.baseMode) return tagLossToday(state, viewer, skip);
@@ -78,21 +80,29 @@ function armTagLoss(today: string, o: { skips: boolean; hold: boolean; own: bool
     if (live.length > skip) {
 ${rigLine}      const terms = live.map(r => ${term});
       if (${G}?.shadow) ${G}.lastTerms = live.map((r, i) => [r.cardCode, terms[i]]);
-${o.own ? `      if (${G}?.byCard && ${G}.shadowDepth > 0) live.forEach((r, i) => ${G}.cross(cardDef(r).title, __crossTerms(state, r), terms[i]));\n` : ''}      const nets = terms.map((v, i) => v - extras[all.indexOf(live[i])]).sort((a, b) => b - a);
+${o.own ? `      if (${G}?.byCard && ${G}.shadowDepth > 0) live.forEach((r, i) => ${G}.cross(cardDef(r).title, __crossTerms(state, r, ${o.plans}), terms[i]));\n` : ''}      const nets = terms.map((v, i) => v - extras[all.indexOf(live[i])]).sort((a, b) => b - a);
       trash = Math.max(0, nets[skip] ?? 0) - (CLICK + 2);
     }
   }` : `{
 ${rigLine}    const terms = all.map(r => ${term});
     if (${G}?.shadow) ${G}.lastTerms = all.map((r, i) => [r.cardCode, terms[i]]);
-${o.own ? `    if (${G}?.byCard && ${G}.shadowDepth > 0) all.forEach((r, i) => ${G}.cross(cardDef(r).title, __crossTerms(state, r), terms[i]));\n` : ''}    const nets = terms.map((v, i) => v - extra(all[i])).sort((a, b) => b - a);
+${o.own ? `    if (${G}?.byCard && ${G}.shadowDepth > 0) all.forEach((r, i) => ${G}.cross(cardDef(r).title, __crossTerms(state, r, ${o.plans}), terms[i]));\n` : ''}    const nets = terms.map((v, i) => v - extra(all[i])).sort((a, b) => b - a);
     trash = Math.max(0, nets[skip] ?? 0) - (corp.credits >= 2 ? CLICK + 2 : Infinity);
   }`}${tail}
 `;
 }
 
+/**
+ * The built arm 0 (branch commit 6946076, exact) put back to the text the arms patch (beta 8e28403's tagLoss), so the
+ * trees build on a source that has arm 0 too; base then is today's beta without arm 0, the same numbers.
+ */
+const TAGLOSS_ARM0 = "function tagLoss(state: GameState, viewer: SideCode, skip: number): number {\n  const corp = state.corp;\n  const owned = state.runner.rig.resources;\n  // The best resource the Corp would trash, net of what trashing costs it (the basic action \"[click], 2[credit]: Trash 1\n  // resource\", rule 5.2.6g). No rig is priced when no resource could be the answer (ai-tag-loss-time arm 0, exact: the\n  // loss is the same number): the Runner has none; none is left past `skip` (the one tagTrashNow takes this turn); or\n  // the Corp has under the 2 credits the action costs. The trash part is then 0, as max(trash, 0) below made it\n  let trash = 0;\n  if (owned.length > skip && corp.credits >= 2) {\n    const rig = runnerRigValue(state);\n    const resources = owned.map(r => rig - runnerRigValue({ ...state, runner: { ...state.runner, rig: { ...state.runner.rig, resources: owned.filter(c => c !== r) } } }));\n    // plan.hqTrashCost: a resource that also costs cards from HQ to trash is worth that much less to trash\n    const extra = (r: CardInstance) => (plan().hqTrashCost ? hqTrashCardsLoss(state, r) : 0);\n    const nets = resources.map((v, i) => v - extra(owned[i])).sort((a, b) => b - a);\n    // plan.tagTrashNow: a Corp that can trash now takes the best one this turn; the turns after lose the next best\n    trash = Math.max(0, nets[skip] ?? 0) - (CLICK + 2);\n  }\n";
+const TAGLOSS_BEFORE = "function tagLoss(state: GameState, viewer: SideCode, skip: number): number {\n  const corp = state.corp;\n  // The best resource the Corp would trash, net of what trashing costs it\n  const rig = runnerRigValue(state);\n  const resources = state.runner.rig.resources.map(r => rig - runnerRigValue({ ...state, runner: { ...state.runner, rig: { ...state.runner.rig, resources: state.runner.rig.resources.filter(c => c !== r) } } }));\n  // plan.hqTrashCost: a resource that also costs cards from HQ to trash is worth that much less to trash\n  const extra = (r: CardInstance) => (plan().hqTrashCost ? hqTrashCardsLoss(state, r) : 0);\n  const nets = resources.map((v, i) => v - extra(state.runner.rig.resources[i])).sort((a, b) => b - a);\n  // plan.tagTrashNow: a Corp that can trash now takes the best one this turn; the turns after lose the next best\n  const trash = Math.max(0, nets[skip] ?? 0) - (corp.credits >= 2 ? CLICK + 2 : Infinity);\n";
+
 /** The instrumentation, the same in every tree (applied before the arm's own patches, which keep its lines). */
 function instrument(dir: string) {
   edit(dir, 'ai/evaluate.ts', t => {
+    if (t.includes(TAGLOSS_ARM0)) t = once(t, TAGLOSS_ARM0, TAGLOSS_BEFORE, 'evaluate.ts');
     // the clock's per-turn loss: entered/left (depth and the outermost wall time), each computation counted
     t = once(t, 'function tagLossPerTurn(state: GameState, viewer: SideCode, skip = 0): number {', 'function tagLossPerTurnP(state: GameState, viewer: SideCode, skip = 0): number {', 'evaluate.ts');
     t += `
@@ -197,12 +207,13 @@ function runnerStackOnce(state: GameState, side: SideCode, deck: CardInstance[])
     const renamed = today.replace(TAGLOSS_HEAD, 'function tagLossToday(state: GameState, viewer: SideCode, skip: number): number {');
     // the probe's price/untrash counts stay on the arm's own path (armTagLoss counts untrash itself)
     const todayQuiet = renamed;
-    const arm2 = armTagLoss(today, { skips: arm === '0' || arm === '0A' || arm === '0B', hold: arm === 'A' || arm === '0A', own: arm === 'B' || arm === '0B' });
+    const arm2 = armTagLoss(today, { skips: arm === '0' || arm === '0A' || arm === '0B' || arm === '0BP', hold: arm === 'A' || arm === '0A', own: arm === 'B' || arm === '0B' || arm === 'BP' || arm === '0BP', plans: arm === 'BP' || arm === '0BP' });
     // the arm's tagLoss counts its price kind like today's (the line instrument() put in today's text)
     const priced = arm2.replace(`  if (${G}?.baseMode) return tagLossToday(state, viewer, skip);\n  const corp = state.corp;`, `  if (${G}?.baseMode) return tagLossToday(state, viewer, skip);\n  const corp = state.corp;\n  if (${G}) ${G}.price(state, skip);`);
     t = once(t, today, `${priced}\n${todayQuiet}`, 'evaluate.ts');
     if (arm === 'A' || arm === '0A') t = `import { heldRunnerDeck as __heldRunnerDeck } from './handValues';\n${t}`;
-    if (arm === 'B' || arm === '0B') {
+    if (arm === 'B' || arm === '0B' || arm === 'BP' || arm === '0BP') {
+      t = `import { CARD_PLANS as __CARD_PLANS } from './cardPlans';\n${t}`;
       // runnerRigValue's loop body as a function of one card (the same terms, so runnerRigValue is unchanged)
       const LOOP_HEAD = '  for (const card of cards) {\n';
       const LOOP_END = '  }\n  // Combos in play';
@@ -226,10 +237,12 @@ ${body.replace(/\n {6}continue;\n/, '\n      return value;\n')}  return value;
  * counters + hosted only), the combos (boardPlansWorth), and the rest (breaker coverage: MU, ice type odds, AI breaker
  * share). total = today's term (rig less the copy's rig) less r's own term.
  */
-function __crossTerms(state: GameState, r: CardInstance): { total: number; parts: Record<string, number> } {
+function __crossTerms(state: GameState, r: CardInstance, ownPlans = false): { total: number; parts: Record<string, number> } {
   const rig = state.runner.rig;
   const copy = { ...state, runner: { ...state.runner, rig: { ...rig, resources: rig.resources.filter(x => x !== r) } } };
-  const total = runnerRigValue(state) - runnerRigValue(copy) - __rigCardTerm(state, r);
+  const allPlans = boardPlansWorth(state, 'runner') - boardPlansWorth(copy, 'runner');
+  // arm BP counts the plans' share as the resource's own; the cross is what is left
+  const total = runnerRigValue(state) - runnerRigValue(copy) - __rigCardTerm(state, r) - (ownPlans ? allPlans : 0);
   const parts: Record<string, number> = {};
   let named = 0;
   for (const c of [...rig.programs, ...rig.hardware, ...rig.resources]) {
@@ -240,11 +253,25 @@ function __crossTerms(state: GameState, r: CardInstance): { total: number; parts
     parts[cardDef(c).title + ' (' + kind + ')'] = (parts[cardDef(c).title + ' (' + kind + ')'] ?? 0) + d;
     named += d;
   }
-  const plans = boardPlansWorth(state, 'runner') - boardPlansWorth(copy, 'runner');
+  const plans = ownPlans ? 0 : allPlans;
   if (Math.abs(plans) > 1e-9) parts['combos (boardPlansWorth)'] = plans;
   const rest = total - named - plans;
   if (Math.abs(rest) > 1e-9) parts['coverage (breakers, MU, ice odds)'] = rest;
   return { total, parts };
+}
+
+/**
+ * tag-loss-time arm BP: resource r's share of the Runner's combo plans, boardPlansWorth on the full rig less on the
+ * rig without r (only the plans priced on the smaller rig; a new state object, counted as planCopies). Exactly 0, and
+ * not asked, when no Runner card has a board plan (boardPlansWorth is then 0 on both rigs).
+ */
+function __plansShare(state: GameState, r: CardInstance): number {
+  const rig = state.runner.rig;
+  const any = [...rig.programs, ...rig.hardware, ...rig.resources, state.runner.identity].some(c => c && __CARD_PLANS[c.cardCode]?.board && __CARD_PLANS[c.cardCode].side === 'runner');
+  if (!any) return 0;
+  if (${G}) ${G}.planCopy();
+  const copy = { ...state, runner: { ...state.runner, rig: { ...rig, resources: rig.resources.filter(x => x !== r) } } };
+  return boardPlansWorth(state, 'runner') - boardPlansWorth(copy, 'runner');
 }
 `;
     }
@@ -311,8 +338,10 @@ export interface Tally {
   heldServed: number;
   stackServed: number;
   stackPriced: number;
+  /** arm BP: copies of the state made to price the combo plans without a resource. */
+  planCopies: number;
 }
-const zero = (): Tally => ({ prices: 0, r0: 0, rSkip: 0, broke: 0, priced: 0, untrash: 0, rig: 0, rigIn: 0, drawR: 0, drawRIn: 0, missR: 0, missRIn: 0, drawC: 0, missC: 0, rez: 0, rezIn: 0, hold: 0, holdIn: 0, clears: {}, msIn: 0, heldServed: 0, stackServed: 0, stackPriced: 0 });
+const zero = (): Tally => ({ prices: 0, r0: 0, rSkip: 0, broke: 0, priced: 0, untrash: 0, rig: 0, rigIn: 0, drawR: 0, drawRIn: 0, missR: 0, missRIn: 0, drawC: 0, missC: 0, rez: 0, rezIn: 0, hold: 0, holdIn: 0, clears: {}, msIn: 0, heldServed: 0, stackServed: 0, stackPriced: 0, planCopies: 0 });
 
 /** One resource's cross terms (today's copy difference less its own term), summed over a decision's clocks. */
 export interface CardCross { n: number; moved: number; sum: number; abs: number; max: number; ownSum: number; parts: Record<string, { n: number; sum: number; abs: number }> }
@@ -396,6 +425,9 @@ export class TlProbe {
     if (this.baseMode) return;
     this.t.hold++;
     if (this.depth > 0) this.t.holdIn++;
+  }
+  planCopy() {
+    if (!this.baseMode) this.t.planCopies++;
   }
   clear(name: string) {
     this.t.clears[name] = (this.t.clears[name] ?? 0) + 1;

@@ -20,7 +20,7 @@
  *   bvalues  arm B (arms=...) with the shadow and by-card decomposition: for each resource, today's copy difference less
  *           its own term, split by the other rig card whose term moved (and the term's branch), combos and coverage.
  *   btrace   the same for base and B at the decisions listed in at=src#i,... (B's changed picks), on their games only.
- *   arms=a,b,...  any mode: the arms to build (default all eight; 0B on request).
+ *   arms=a,b,...  any mode: the arms to build (default all eight; 0B, BP and 0BP on request).
  *   saved / saved-values   the saved decision alone in a container (K rotates the arms' order), or its values pass.
  *   SHARD=0/64 npx vite-node scripts/tag-loss-time/measure.ts -- deals > out-0.txt       (sum: summary.mjs)
  */
