@@ -48,5 +48,17 @@
    "  if (known && !advancePayloadOf(card.cardCode)) return 0;\n  const own = CARDS[card.cardCode]?.placedCounter;\n  return own ? own(state, card, bluff) : 0.3;\n}",
    "  if (known && !advancePayloadOf(card.cardCode)) return 0;\n  if (card.cardCode === '30045') return bluff + 0.5 * (damageWorth(state, 3 + card.advancementCounters) - damageWorth(state, 2 + card.advancementCounters)); // Urtica: 1 more net damage\n  if (card.cardCode === '35061') return 0.6 * 5; // Idiosyncresis\n  // Clearinghouse: the counter's step in damage\n  if (card.cardCode === '30061') return bluff + 0.6 * damageWorth(state, 1);\n  return 0.3;\n}"
   ]
+ ],
+ "spinDoctor": [
+  [
+   "ai/evaluate.ts",
+   "() => corpCardWorth(card, state, left))",
+   "() => corpCardWorth(card, state, viewer, left))"
+  ],
+  [
+   "ai/evaluate.ts",
+   "function corpCardWorth(card: CardInstance, state: GameState | undefined, left = false): number {\n  const spent = state && card.isRezzed ? CARDS[card.cardCode]?.spent : undefined;\n  if (spent) return spent(state!); // a rezzed card whose rez effect is done (Spin Doctor), both viewers (V-B B6)",
+   "function corpCardWorth(card: CardInstance, state: GameState | undefined, viewer: SideCode, left = false): number {\n  const spent = state && viewer === 'runner' && card.isRezzed ? CARDS[card.cardCode]?.spent : undefined;\n  if (spent) return spent(state!);"
+  ]
  ]
 }

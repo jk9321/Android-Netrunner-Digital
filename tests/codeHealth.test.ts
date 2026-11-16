@@ -14,7 +14,6 @@ import { sideOff, tuning } from '../src/ai/synergy';
  */
 const VALUE_FILES = ['valueModel', 'evaluate', 'effectValues', 'counterValues', 'handValues', 'iceValues'];
 const CODES_IN_VALUE_FILES: Record<string, string> = {
-  'evaluate:30053': 'Spin Doctor (spent): to its card entry',
 };
 
 /** Plan switches that are off, each with why it stays in the code. */

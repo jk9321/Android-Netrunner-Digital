@@ -5,7 +5,7 @@ import { turnsLeft } from '../cardProfiles';
 import { PAYOUT_RISK } from '../payoutRisk';
 import { counterWorth, PAID_OUT, paidOneATurn, paidOut, trojanHostWorth } from '../counterValues';
 import { cardRate, CLICK, payoutClick, payoutSlide, RATES } from '../valueModel';
-import { tagsWorth } from '../evaluate';
+import { archivedAgendaLoss, hiddenCardOdds, tagsWorth } from '../evaluate';
 import { bestBreakPlan, planCost } from '../runs';
 import { accessWorth, anySuccess, centralSuccess, conduitCounterWorth, counterWorthOf, damageWorth, lock, muWorth, PACE, perTurn, runSuccess, VIRUS_WAIT, virusWait } from '../effectValues';
 import type { RunOptions } from '../runs';
@@ -351,6 +351,18 @@ export const SYSTEM_GATEWAY: Record<string, CardAI> = {
     corp: (_state, _code, { cost, card }) => {
       const keep = 2 * card + 0.5 - cost;
       return { keep, econ: keep };
+    },
+    // plan.spentSpinDoctor (bug report #5, Jeff 2026-11-02): rezzed, its 2 cards are drawn (in HQ, priced there); all it
+    // can still do is shuffle up to 2 Archives cards back into R&D: a faceup card a slightly better R&D, a facedown one
+    // maybe an agenda the Runner would steal from Archives. With Archives empty it is worth next to nothing.
+    spent: state => {
+      const { agenda, agendaPoints } = hiddenCardOdds(state);
+      const archives = state.corp.archives;
+      const worth = [
+        ...archives.faceUp.map(() => 0.3 * cardRate(state, 'corp')),
+        ...archives.faceDown.map(() => agenda * archivedAgendaLoss(state, agendaPoints) + (1 - agenda) * 0.3 * cardRate(state, 'corp')),
+      ].sort((a, b) => b - a);
+      return 0.3 + (worth[0] ?? 0) + (worth[1] ?? 0);
     },
   },
   // Funhouse

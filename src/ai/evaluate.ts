@@ -144,11 +144,12 @@ export function runnerRigValue(state: GameState): number {
  */
 export function corpCardValue(card: CardInstance, state?: GameState, viewer: SideCode = 'corp', left = false): number {
   const flat = () => logValue('boardCard', 'corpCardValue flat (loop)', state, corpKeepValue(card.cardCode), card, viewer, left);
-  return logValue('boardCard', 'corpCardValue', state, guardLoop(state, `corp card ${cardDef(card).title} ${card.instanceId}${left ? ' left' : ''}`, flat, () => corpCardWorth(card, state, viewer, left)), card, viewer, left);
+  return logValue('boardCard', 'corpCardValue', state, guardLoop(state, `corp card ${cardDef(card).title} ${card.instanceId}${left ? ' left' : ''}`, flat, () => corpCardWorth(card, state, left)), card, viewer, left);
 }
 
-function corpCardWorth(card: CardInstance, state: GameState | undefined, viewer: SideCode, left = false): number {
-  if (state && viewer === 'runner' && card.isRezzed && card.cardCode === SPIN_DOCTOR) return spentSpinDoctorWorth(state);
+function corpCardWorth(card: CardInstance, state: GameState | undefined, left = false): number {
+  const spent = state && card.isRezzed ? CARDS[card.cardCode]?.spent : undefined;
+  if (spent) return spent(state!); // a rezzed card whose rez effect is done (Spin Doctor), both viewers (V-B B6)
   const hosted = counters(card, 'credit');
   const power = state && card.isRezzed ? countersWorth(state, card, 'power') : 0;
   const profile = state ? profileOf(card.cardCode) : undefined;
@@ -157,24 +158,6 @@ function corpCardWorth(card: CardInstance, state: GameState | undefined, viewer:
     return 1 + (state ? countersWorth(state, card, 'credit') : hosted * RATES.counters.hostedCredit) + power;
   }
   return corpKeepValue(card.cardCode, state, card.isRezzed) + power;
-}
-
-const SPIN_DOCTOR = '30053';
-
-/**
- * plan.spentSpinDoctor (bug report #5, Jeff 2026-11-02): a rezzed Spin Doctor has drawn its 2 cards;
- * all it can still do is shuffle up to 2 cards from Archives back into R&D. As the Runner sees it:
- * a faceup card goes back as a slightly better R&D, a facedown one may be an agenda it would
- * otherwise steal from Archives. With Archives empty, trashing it buys next to nothing.
- */
-export function spentSpinDoctorWorth(state: GameState): number {
-  const { agenda, agendaPoints } = hiddenCardOdds(state);
-  const archives = state.corp.archives;
-  const worth = [
-    ...archives.faceUp.map(() => 0.3 * cardRate(state, 'corp')),
-    ...archives.faceDown.map(() => agenda * archivedAgendaLoss(state, agendaPoints) + (1 - agenda) * 0.3 * cardRate(state, 'corp')),
-  ].sort((a, b) => b - a);
-  return 0.3 + (worth[0] ?? 0) + (worth[1] ?? 0);
 }
 
 /** A Corp card the Runner can't see: installed, unrezzed and facedown. */
