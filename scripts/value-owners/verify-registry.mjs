@@ -35,7 +35,7 @@ const section = text.slice(from, to).replace(PAIR, (whole, name, tick, written, 
   const src = lines(path);
   const n = Number(line);
   if (src && src[n - 1]?.includes(name)) return whole;
-  // the nearest line that defines NAME (function, const, let, case), else the nearest that holds it outside a comment
+  // the nearest line that holds NAME outside a comment, else the nearest that defines it, else any line holding it
   const esc = name.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
   const defines = new RegExp(`(function\\*?\\s+${esc}\\b|(const|let|var)\\s+${esc}\\b|case '${esc}'|^\\s*${esc}\\s*[:(])`);
   const nearest = test => {
@@ -43,8 +43,8 @@ const section = text.slice(from, to).replace(PAIR, (whole, name, tick, written, 
     if (src) for (let i = 0; i < src.length; i++) if (test(src[i]) && (at < 0 || Math.abs(i + 1 - n) < Math.abs(at + 1 - n))) at = i;
     return at;
   };
-  let best = /^\w+$/.test(name) ? nearest(l => defines.test(l)) : -1;
-  if (best < 0) best = nearest(l => l.includes(name) && !/^\s*(\*|\/\/)/.test(l));
+  let best = nearest(l => l.includes(name) && !/^\s*(\*|\/\/|\/\*)/.test(l));
+  if (best < 0 && /^\w+$/.test(name)) best = nearest(l => defines.test(l));
   if (best < 0) best = nearest(l => l.includes(name));
   bad.push(`${path}:${line} does not hold \`${name}\`${src ? (best >= 0 ? ` (nearest: line ${best + 1})` : ' (not in the file)') : ' (no such file)'}`);
   return fix && best >= 0 ? `\`${name}\` (${tick}${written}:${best + 1}` : whole;
