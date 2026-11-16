@@ -9,16 +9,18 @@
  * One JSON line per decision. Sum with fire-count-sum.mjs.
  *   SHARD=0/64 npx vite-node scripts/honest-order/fire-count.ts > fc-0.txt
  */
-import { GameAction, GameState } from '../../src/core';
+import { GameAction, GameState, getLegalActions } from '../../src/core';
 import { createAgent } from '../../src/ai';
+import { decisionContext } from '../../src/ai/handValues';
+import { asRanked, corpCandidates } from '../../src/ai/corp/candidates';
 import { isCorpMain } from '../../src/ai/corp/lines';
 import { corpDecisionView } from '../../src/ai/turnPlanner';
 import { clearThreatCaches } from '../../src/ai/threatModel';
 import { clearCaches, forEachRecorded } from '../stage-a/harness';
 
-type Arm = 'real' | 'view' | 'rd' | 'grip' | 'rng';
+type Arm = 'real' | 'view' | 'rd' | 'grip' | 'rng' | 'agent';
 const partial = (s: GameState, arm: Arm): GameState => {
-  if (arm === 'real') return s;
+  if (arm === 'real' || arm === 'agent') return s;
   const v = corpDecisionView(s);
   if (arm === 'view') return v;
   if (arm === 'rd') return { ...s, corp: { ...s.corp, rd: v.corp.rd } };
@@ -28,8 +30,17 @@ const partial = (s: GameState, arm: Arm): GameState => {
 const key = (a: GameAction) => JSON.stringify(Object.fromEntries(Object.entries(a).sort()));
 const decide = (s: GameState, arm: Arm) => {
   const agent = createAgent('corp', 'normal');
-  // The order's input only: the agent's ownView (corpAI.ts) gives `arm`'s state; the playouts' root is the view in every arm
-  (agent as unknown as { ownView: (st: GameState) => GameState }).ownView = st => partial(st, arm);
+  // The order's input only: corpAI.ts rankMainActions as it is, with `arm`'s state where it reads corpDecisionView (the
+  // playouts' root is the view in every arm). 'agent': the agent unpatched (a check that the 'view' arm is the agent)
+  if (arm !== 'agent') {
+    const a = agent as unknown as { freeActions: { start(s: GameState, c: number): void; exhausted: boolean }; memory: { heldLine: never }; rankMainActions: unknown };
+    a.rankMainActions = (state: GameState, legal = getLegalActions(state, 'corp')) => {
+      const view = partial(state, arm);
+      decisionContext(view, 'corp');
+      a.freeActions.start(state, state.corp.clicks);
+      return asRanked(view, corpCandidates(view, legal, { held: a.memory.heldLine, freeExhausted: a.freeActions.exhausted }));
+    };
+  }
   clearCaches();
   clearThreatCaches();
   const copy = structuredClone(s);
@@ -45,9 +56,11 @@ forEachRecorded({
     const first = k++ % 2 ? (['real', 'view'] as const) : (['view', 'real'] as const);
     const r: Record<string, { a: string; ms: number }> = {};
     for (const arm of first) r[arm] = decide(s, arm);
+    // The first decisions of each shard: the patched 'view' arm must be the agent itself
+    const agentSame = k <= 6 ? decide(s, 'agent').a === r.view.a : undefined;
     const changed = r.real.a !== r.view.a;
     const causes: string[] = [];
     if (changed) for (const arm of ['rd', 'grip', 'rng'] as const) if (decide(s, arm).a === r.view.a) causes.push(arm);
-    console.log(JSON.stringify({ src: d.src, i: d.i, T: s.turnNumber, clicks: s.corp.clicks, changed, causes, real: changed ? r.real.a : undefined, view: changed ? r.view.a : undefined, msReal: r.real.ms, msView: r.view.ms }));
+    console.log(JSON.stringify({ src: d.src, i: d.i, T: s.turnNumber, clicks: s.corp.clicks, changed, causes, agentSame, real: changed ? r.real.a : undefined, view: changed ? r.view.a : undefined, msReal: r.real.ms, msView: r.view.ms }));
   },
 });

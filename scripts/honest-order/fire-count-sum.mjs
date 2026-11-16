@@ -15,5 +15,7 @@ console.log(`decisions ${rows.length} in ${games} games; changed ${changed.lengt
 console.log(`  deals: ${part('deal:')}; human: ${part('human:')}`);
 console.log(`reproduced by R&D ${by('rd')} (only R&D ${only('rd')}), grip ${by('grip')} (only ${only('grip')}), rng ${by('rng')} (only ${only('rng')}); by none ${none.length}`);
 for (const r of none.slice(0, 20)) console.log('  NONE', r.src, '#' + r.i, 'T' + r.T, r.real, '->', r.view);
+const checks = rows.filter(r => r.agentSame !== undefined && r.agentSame !== null);
+console.log(`check: the patched view arm is the agent on ${checks.filter(r => r.agentSame).length} of ${checks.length} decisions checked`);
 const real = rows.map(r => r.msReal), view = rows.map(r => r.msView);
 console.log(`time mean real ${mean(real).toFixed(0)} ms, view ${mean(view).toFixed(0)} ms (x${(mean(view) / mean(real)).toFixed(3)}); p95 ${q(real, 0.95)} vs ${q(view, 0.95)} (x${(q(view, 0.95) / q(real, 0.95)).toFixed(3)})`);
