@@ -3,6 +3,7 @@ import { describe, expect, it } from 'vitest';
 import { CARDS, corpFormula } from '../src/ai/cards';
 import { agendaOdds, corpEffect } from '../src/ai/effectValues';
 import { tagsWorth } from '../src/ai/evaluate';
+import { PAYOUT_RISK, assetRisk } from '../src/ai/cardProfiles';
 import { cardRate, pointGain } from '../src/ai/valueModel';
 import { getCardDefinition } from '../src/data/cards';
 import { tagCost } from '../src/ai/runs';
@@ -57,7 +58,7 @@ describe('step 2: the tag input to the Corp formulas worked out on first read', 
     expect(codes.length).toBeGreaterThan(40);
     const readers = codes.filter(code => {
       let read = false;
-      const ctx = { cost: 0, agenda: 1, card: 1, get tag() { read = true; return 1; } };
+      const ctx = { cost: 0, agenda: 1, card: 1, risk: PAYOUT_RISK.corpBare, get tag() { read = true; return 1; } };
       try {
         corpFormula(board(false, 1), code, ctx);
       } catch {
@@ -78,7 +79,8 @@ describe('step 2: the tag input to the Corp formulas worked out on first read', 
             const agenda = pointGain(eager.corp.score, agendaOdds(eager).points);
             const card = cardRate(eager, 'corp');
             const tag = tagsWorth(eager, 'corp', 1);
-            expect(corpEffect(board(runnerTurn, tags), code, rezzed), code).toEqual(corpFormula(eager, code, { cost, agenda, card, tag }));
+            const risk = getCardDefinition(code).type_code === 'asset' ? assetRisk(eager, false) : PAYOUT_RISK.corpBare;
+            expect(corpEffect(board(runnerTurn, tags), code, rezzed), code).toEqual(corpFormula(eager, code, { cost, agenda, card, tag, risk }));
           }
       });
 });
