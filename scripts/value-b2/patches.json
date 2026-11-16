@@ -1,0 +1,91 @@
+{
+ "cost": [
+  [
+   "ai/cards/elevation.ts",
+   "    synergy: { gives: { ice: 1, install: 0.5, bioroid: 1 } },\n    value: { keep: 2, upgrade: [1, 1] },\n    // One ice a turn installed for no click and 1 credit less\n    corp: (state, _code, { cost }) => {\n      const value = perTurn(state, PACE.iceInHand * (CLICK + 1), 'corp', 3) * 0.5 - cost; // It moves with the ice, so it helps only while ice keeps coming\n      return { keep: value, upgrade: [value, value] };\n    },\n  },",
+   "    synergy: { gives: { ice: 1, install: 0.5, bioroid: 1 } },\n    value: { keep: 2, upgrade: [1, 1] },\n    // One ice a turn installed for no click and 1 credit less\n    corp: state => {\n      const value = perTurn(state, PACE.iceInHand * (CLICK + 1), 'corp', 3) * 0.5; // It moves with the ice, so it helps only while ice keeps coming\n      return { keep: value, upgrade: [value, value] };\n    },\n  },"
+  ],
+  [
+   "ai/cards/elevation.ts",
+   "    synergy: { gives: { damage: 1 }, when: ['onScore'] },\n    value: { keep: 2 },\n    // A power counter a turn (1 net damage each, priced in counterValues.ts), used up within about 3 turns\n    corp: (state, code, { cost }) => ({ keep: perTurn(state, counterWorthOf(state, code, 'power'), 'corp', 0, 3) - cost }),\n    counters: { power: () => 1.5 }, // 1 net damage each, when an agenda is scored or stolen\n    counterFormulas: { power: gioanPower },\n  },",
+   "    synergy: { gives: { damage: 1 }, when: ['onScore'] },\n    value: { keep: 2 },\n    // A power counter a turn (1 net damage each, priced in counterValues.ts), used up within about 3 turns\n    corp: (state, code) => ({ keep: perTurn(state, counterWorthOf(state, code, 'power'), 'corp', 0, 3) }),\n    counters: { power: () => 1.5 }, // 1 net damage each, when an agenda is scored or stolen\n    counterFormulas: { power: gioanPower },\n  },"
+  ],
+  [
+   "ai/cards/elevation.ts",
+   "    synergy: { gives: { econ: 1, denial: 1.5 }, wants: { advance: 1 } },\n    value: { keep: 2.5 }, // 3 credits for the Corp and -2 for the Runner per counter\n    // Each advancement is 3 credits to the Corp and 2 off the Runner, for a click and a credit\n    corp: (_state, _code, { cost }) => ({ keep: 0.6 * 2 * (3 + 2 - (CLICK + 1)) - cost }),\n    // Each counter is 3 credits and 2 off the Runner when it fires\n    rezzed: (_state, card, rezCost) => card.advancementCounters * 5 - rezCost,\n  },",
+   "    synergy: { gives: { econ: 1, denial: 1.5 }, wants: { advance: 1 } },\n    value: { keep: 2.5 }, // 3 credits for the Corp and -2 for the Runner per counter\n    // Each advancement is 3 credits to the Corp and 2 off the Runner, for a click and a credit\n    corp: () => ({ keep: 0.6 * 2 * (3 + 2 - (CLICK + 1)) }),\n    // Each counter is 3 credits and 2 off the Runner when it fires\n    rezzed: (_state, card, rezCost) => card.advancementCounters * 5 - rezCost,\n  },"
+  ],
+  [
+   "ai/cards/elevation.ts",
+   "    synergy: { gives: { econ: 1 } },\n    value: { keep: 3, upgrade: [2, 0.5] },\n    // 2 credits back each turn it gets to pay for a rez here; assets here cost 2 more to trash\n    corp: (state, code, { cost }) => {\n      const refills = perTurn(state, 0.4 * 2 * counterWorthOf(state, code, 'credit'), 'corp') + 0.5;\n      return { keep: refills - cost, upgrade: [refills - cost, 0.8 * refills - cost] };\n    },\n    counters: { credit: () => 0.8 }, // Recurring, only for rezzes in its server\n    counterFormulas: { credit: mahkotaCredit },",
+   "    synergy: { gives: { econ: 1 } },\n    value: { keep: 3, upgrade: [2, 0.5] },\n    // 2 credits back each turn it gets to pay for a rez here; assets here cost 2 more to trash\n    corp: (state, code) => {\n      const refills = perTurn(state, 0.4 * 2 * counterWorthOf(state, code, 'credit'), 'corp') + 0.5;\n      return { keep: refills, upgrade: [refills, 0.8 * refills] };\n    },\n    counters: { credit: () => 0.8 }, // Recurring, only for rezzes in its server\n    counterFormulas: { credit: mahkotaCredit },"
+  ],
+  [
+   "ai/cards/systemGateway.ts",
+   "    synergy: { gives: { denial: 1, ice: 0.5 } },\n    value: { keep: 4, upgrade: [2.5, 2] },\n    // Each run here costs the Runner 2 clicks or 5 credits\n    corp: (state, _code, { cost }) => {\n      const tax = Math.min(2 * CLICK, 5);\n      const remote = perTurn(state, PACE.runs * PACE.remoteShare * tax, 'corp') - cost;\n      const central = perTurn(state, PACE.runs * PACE.rdShare * tax, 'corp') - cost;\n      return { keep: remote, upgrade: [remote, central] };\n    },\n  },",
+   "    synergy: { gives: { denial: 1, ice: 0.5 } },\n    value: { keep: 4, upgrade: [2.5, 2] },\n    // Each run here costs the Runner 2 clicks or 5 credits\n    corp: state => {\n      const tax = Math.min(2 * CLICK, 5);\n      const remote = perTurn(state, PACE.runs * PACE.remoteShare * tax, 'corp');\n      const central = perTurn(state, PACE.runs * PACE.rdShare * tax, 'corp');\n      return { keep: remote, upgrade: [remote, central] };\n    },\n  },"
+  ],
+  [
+   "ai/cards/systemGateway.ts",
+   "    synergy: { gives: { tags: 1 } },\n    value: { keep: 2, upgrade: [1.5, 0] },\n    // 2 tags whenever the Runner steals from this server\n    corp: (state, _code, { cost }) => {\n      const tags = tagsWorth(state, 'corp', 2);\n      return { keep: 0.3 * tags - cost, upgrade: [0.3 * tags - cost, 0.15 * tags - cost] };\n    },\n  },\n  // Weyland: Built to Last",
+   "    synergy: { gives: { tags: 1 } },\n    value: { keep: 2, upgrade: [1.5, 0] },\n    // 2 tags whenever the Runner steals from this server\n    corp: state => {\n      const tags = tagsWorth(state, 'corp', 2);\n      return { keep: 0.3 * tags, upgrade: [0.3 * tags, 0.15 * tags] };\n    },\n  },\n  // Weyland: Built to Last"
+  ],
+  [
+   "ai/cards/systemGateway.ts",
+   "    synergy: { gives: { draw: 0.5 }, when: ['onScore'] },\n    value: { keep: 2, upgrade: [1.5, 0] },\n    // Fetch a card of choice from R&D on each score here\n    corp: (_state, _code, { card, cost }) => {\n      const tutor = 1.5 * card;\n      return { keep: 1.2 * tutor - cost, upgrade: [1.2 * tutor - cost, -cost] };\n    },\n  },\n  // Offworld Office",
+   "    synergy: { gives: { draw: 0.5 }, when: ['onScore'] },\n    value: { keep: 2, upgrade: [1.5, 0] },\n    // Fetch a card of choice from R&D on each score here\n    corp: (_state, _code, { card }) => {\n      const tutor = 1.5 * card;\n      return { keep: 1.2 * tutor, upgrade: [1.2 * tutor, 0] };\n    },\n  },\n  // Offworld Office"
+  ],
+  [
+   "ai/cards/vantagePoint.ts",
+   "    synergy: { gives: { denial: 0.5 }, when: ['onScore'] },\n    value: { keep: 2, upgrade: [2, 1] }, // Power counters that protect a card for a run\n    // A counter when rezzed and on each score here; each keeps the Runner off one card for a run\n    corp: (state, code, { cost }) => {\n      const counter = counterWorthOf(state, code, 'power');\n      const remote = counter + perTurn(state, 0.5 * PACE.agendaEvents * counter, 'corp') - cost;\n      return { keep: remote, upgrade: [remote, counter - cost] };\n    },\n    counters: { power: () => 1.5 }, // Keeps the Runner off copies of one card for a run\n  },",
+   "    synergy: { gives: { denial: 0.5 }, when: ['onScore'] },\n    value: { keep: 2, upgrade: [2, 1] }, // Power counters that protect a card for a run\n    // A counter when rezzed and on each score here; each keeps the Runner off one card for a run\n    corp: (state, code) => {\n      const counter = counterWorthOf(state, code, 'power');\n      const remote = counter + perTurn(state, 0.5 * PACE.agendaEvents * counter, 'corp');\n      return { keep: remote, upgrade: [remote, counter] };\n    },\n    counters: { power: () => 1.5 }, // Keeps the Runner off copies of one card for a run\n  },"
+  ],
+  [
+   "ai/cards/vantagePoint.ts",
+   "    synergy: { when: ['onScore'] },\n    value: { keep: 2, upgrade: [0, 2] }, // Central only, ends runs elsewhere after agendas\n    // Central only; a counter on the first agenda each turn, each ending a run elsewhere\n    corp: (state, code, { cost }) => {\n      const value = perTurn(state, PACE.agendaEvents * counterWorthOf(state, code, 'power'), 'corp');\n      return { keep: value - cost, upgrade: [-cost, value - cost] };\n    },\n    counters: { power: () => 2 }, // Ends a run on another server\n  },",
+   "    synergy: { when: ['onScore'] },\n    value: { keep: 2, upgrade: [0, 2] }, // Central only, ends runs elsewhere after agendas\n    // Central only; a counter on the first agenda each turn, each ending a run elsewhere\n    corp: (state, code) => {\n      const value = perTurn(state, PACE.agendaEvents * counterWorthOf(state, code, 'power'), 'corp');\n      return { keep: value, upgrade: [0, value] };\n    },\n    counters: { power: () => 2 }, // Ends a run on another server\n  },"
+  ],
+  [
+   "ai/cards/vantagePoint.ts",
+   "    synergy: { gives: { damage: 1.5 } },\n    value: { keep: 1.5, upgrade: [1.5, 1] }, // 4 meat damage when the Runner spends hosted credits\n    // 4 meat damage when the Runner spends credits from outside its pool here\n    corp: (state, _code, { cost }) => {\n      const hosted = state.runner.rig.hardware.concat(state.runner.rig.programs, state.runner.rig.resources).some(c => (c.tokens.credit ?? 0) > 0 || !!getCardScript(c.cardCode)?.paysDuringRuns);\n      const value = perTurn(state, PACE.runs * PACE.remoteShare * (hosted ? 0.3 : 0.05) * damageWorth(state, 4), 'corp');\n      return { keep: value - cost, upgrade: [value - cost, 0.6 * value - cost] };\n    },\n  },\n  // Let Them Dream",
+   "    synergy: { gives: { damage: 1.5 } },\n    value: { keep: 1.5, upgrade: [1.5, 1] }, // 4 meat damage when the Runner spends hosted credits\n    // 4 meat damage when the Runner spends credits from outside its pool here\n    corp: state => {\n      const hosted = state.runner.rig.hardware.concat(state.runner.rig.programs, state.runner.rig.resources).some(c => (c.tokens.credit ?? 0) > 0 || !!getCardScript(c.cardCode)?.paysDuringRuns);\n      const value = perTurn(state, PACE.runs * PACE.remoteShare * (hosted ? 0.3 : 0.05) * damageWorth(state, 4), 'corp');\n      return { keep: value, upgrade: [value, 0.6 * value] };\n    },\n  },\n  // Let Them Dream"
+  ]
+ ],
+ "econ": [
+  [
+   "ai/cardValues.ts",
+   "import { CardInstance, GameState } from '../core';\nimport { ECON_SCALE, profileOf, unrezzedWorth } from './cardProfiles';\nimport { corpEffect, effectsOn, runnerEffect } from './effectValues';\nimport { RATES, guardLoop, logValue } from './valueModel';\nimport { CARD_VALUES } from './cards';",
+   "import { CardInstance, GameState } from '../core';\nimport { ECON_SCALE, unrezzedWorth } from './cardProfiles';\nimport { corpEffect, effectsOn, runnerEffect } from './effectValues';\nimport { RATES, guardLoop, logValue } from './valueModel';\nimport { CARD_VALUES } from './cards';"
+  ],
+  [
+   "ai/cardValues.ts",
+   "  logValue('cardBeforeInstall', 'corpKeepValue', state, (state ? unrezzedWorth(state, code) ?? effect(state, code, rezzed)?.keep : undefined) ?? (CARD_VALUES[code]?.keep ?? RATES.defaultKeep) + drawBonus(code), code, rezzed);\n/** A card's worth from what it does (effectValues.ts), while plan.effectValues is on. */\nconst effect = (state: GameState, code: string, rezzed = false) => (effectsOn() ? corpEffect(state, code, rezzed) : undefined);\n/** An econ asset (a card profile or an `econ` entry): a type test, not a price (V-B B2, ruling 3; was econValue's undefined). */\nexport const isEconAsset = (code: string): boolean => !!profileOf(code) || CARD_VALUES[code]?.econ !== undefined;\n/** An upgrade's worth in a scoring remote and on HQ or R&D. */\nexport const upgradeValue = (code: string, state?: GameState): [number, number] => {\n  const fx = state ? effect(state, code)?.upgrade : undefined;",
+   "  logValue('cardBeforeInstall', 'corpKeepValue', state, (state ? unrezzedWorth(state, code) ?? effect(state, code, rezzed)?.keep : undefined) ?? (CARD_VALUES[code]?.keep ?? RATES.defaultKeep) + drawBonus(code), code, rezzed);\n/** A card's worth from what it does (effectValues.ts), while plan.effectValues is on. */\nconst effect = (state: GameState, code: string, rezzed = false) => (effectsOn() ? corpEffect(state, code, rezzed) : undefined);\n/** Worth of an econ asset in its own remote (undefined: not an econ asset). */\nexport const econValue = (code: string, state?: GameState): number | undefined => {\n  const profiled = state ? unrezzedWorth(state, code) : undefined;\n  if (profiled !== undefined) return logValue('cardBeforeInstall', 'econValue', state, ECON_SCALE * profiled, code);\n  const fx = state ? effect(state, code) : undefined;\n  if (fx) return fx.econ === undefined ? undefined : logValue('cardBeforeInstall', 'econValue', state, ECON_SCALE * fx.econ, code);\n  const econ = CARD_VALUES[code]?.econ;\n  return econ === undefined ? undefined : logValue('cardBeforeInstall', 'econValue', state, econ + drawBonus(code), code);\n};\n/** An upgrade's worth in a scoring remote and on HQ or R&D. */\nexport const upgradeValue = (code: string, state?: GameState): [number, number] => {\n  const fx = state ? effect(state, code)?.upgrade : undefined;"
+  ],
+  [
+   "ai/corp/rez.ts",
+   "import { answerPrompt, simulate } from '../prompts';\nimport { plan, pricing } from '../pricing';\nimport { CARD_PROFILES, ECON_SCALE } from '../cardProfiles';\nimport { isEconAsset, upgradeValue } from '../cardValues';\n\nconst type = (card: CardInstance) => cardDef(card).type_code;\nexport const hasEndTheRun = (ice: CardInstance) => (iceScript(ice)?.subroutines ?? []).some(s => /end the run/i.test(s.label));",
+   "import { answerPrompt, simulate } from '../prompts';\nimport { plan, pricing } from '../pricing';\nimport { CARD_PROFILES, ECON_SCALE } from '../cardProfiles';\nimport { econValue, upgradeValue } from '../cardValues';\n\nconst type = (card: CardInstance) => cardDef(card).type_code;\nexport const hasEndTheRun = (ice: CardInstance) => (iceScript(ice)?.subroutines ?? []).some(s => /end the run/i.test(s.label));"
+  ],
+  [
+   "ai/corp/rez.ts",
+   "  if (server.id === 'rd') return 4;\n  if (server.id === 'archives') return state.corp.archives.faceDown.some(c => type(c) === 'agenda') ? 6 : 0.5;\n  if (server.root.some(c => c.advancementCounters > 0)) return 1; // a trap: let them in\n  if (server.root.some(c => c.isRezzed && isEconAsset(c.cardCode))) return 3;\n  return server.root.length > 0 ? 2 : 0.5;\n}\n",
+   "  if (server.id === 'rd') return 4;\n  if (server.id === 'archives') return state.corp.archives.faceDown.some(c => type(c) === 'agenda') ? 6 : 0.5;\n  if (server.root.some(c => c.advancementCounters > 0)) return 1; // a trap: let them in\n  if (server.root.some(c => c.isRezzed && econValue(c.cardCode, state))) return 3;\n  return server.root.length > 0 ? 2 : 0.5;\n}\n"
+  ],
+  [
+   "ai/corp/rez.ts",
+   "export function rezAllowed(state: GameState, card: CardInstance, keep: number, next: (after: GameState) => GameAction | undefined): boolean {\n  if (rezTimingBlocked(state, card)) return false;\n  if (clickOnly(card)) return rezToUse(state, card, next);\n  if (isEconAsset(card.cardCode)) return true;\n  if (type(card) === 'agenda' || springsOnAccess(card.cardCode) || runTimed(card)) return false;\n  if (type(card) === 'upgrade') {\n    const server = Object.values(state.corp.servers).find(s => s.root.some(c => c.instanceId === card.instanceId));",
+   "export function rezAllowed(state: GameState, card: CardInstance, keep: number, next: (after: GameState) => GameAction | undefined): boolean {\n  if (rezTimingBlocked(state, card)) return false;\n  if (clickOnly(card)) return rezToUse(state, card, next);\n  if (econValue(card.cardCode, state) !== undefined) return true;\n  if (type(card) === 'agenda' || springsOnAccess(card.cardCode) || runTimed(card)) return false;\n  if (type(card) === 'upgrade') {\n    const server = Object.values(state.corp.servers).find(s => s.root.some(c => c.instanceId === card.instanceId));"
+  ],
+  [
+   "ai/corp/placement.ts",
+   "import { CardInstance, GameAction, GameState, cardDef, executeAction, isLegalAction, rezCostOf } from '../../core';\nimport { HeldLine, TwoTurnLine, finishTurnStep, installedAgendas, isCorpMain, knownIncome, legalShape, lineHolds, nextTurnCredits, sameAction, scoreInTwo, scoringRemote, uniqueByCode } from './lines';\nimport { ScoreLine, keepsScore } from '../winNow';\nimport { isEconAsset } from '../cardValues';\nimport { isTrap } from '../runs';\nimport { plan } from '../pricing';\nimport { note, tally } from '../diagnostics';",
+   "import { CardInstance, GameAction, GameState, cardDef, executeAction, isLegalAction, rezCostOf } from '../../core';\nimport { HeldLine, TwoTurnLine, finishTurnStep, installedAgendas, isCorpMain, knownIncome, legalShape, lineHolds, nextTurnCredits, sameAction, scoreInTwo, scoringRemote, uniqueByCode } from './lines';\nimport { ScoreLine, keepsScore } from '../winNow';\nimport { econValue } from '../cardValues';\nimport { isTrap } from '../runs';\nimport { plan } from '../pricing';\nimport { note, tally } from '../diagnostics';"
+  ],
+  [
+   "ai/corp/placement.ts",
+   "  if (typeOf(card) !== 'asset' || from.asNewRemote || !from.targetServerId) return 'pick';\n  const server = state.corp.servers[from.targetServerId];\n  if (!server?.isRemote) return 'pick';\n  const econ = isEconAsset(card.cardCode);\n  const main = mainRemote(state);\n  if (econ && server.ice.length > 0 && server.root.length === 0 && server.id !== main?.id) return 'assetLine:econIced';\n  if (!econ && isTrap(card.cardCode) && server.id !== main?.id) return 'assetLine:trapOffScoring';",
+   "  if (typeOf(card) !== 'asset' || from.asNewRemote || !from.targetServerId) return 'pick';\n  const server = state.corp.servers[from.targetServerId];\n  if (!server?.isRemote) return 'pick';\n  const econ = econValue(card.cardCode, state) !== undefined;\n  const main = mainRemote(state);\n  if (econ && server.ice.length > 0 && server.root.length === 0 && server.id !== main?.id) return 'assetLine:econIced';\n  if (!econ && isTrap(card.cardCode) && server.id !== main?.id) return 'assetLine:trapOffScoring';"
+  ]
+ ]
+}

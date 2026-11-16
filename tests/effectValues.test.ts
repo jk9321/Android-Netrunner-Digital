@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { getCardDefinition } from '../src/core';
 import { CLICK, RATES, cardRate } from '../src/ai/valueModel';
 import { EFFECT_CODES, LOCKDOWN, MU, PACE, accessWorth, corpEffect, damageWorth, runSuccess, runnerEffect } from '../src/ai/effectValues';
-import { corpKeepValue, econValue, runnerCardValue, upgradeValue } from '../src/ai/cardValues';
+import { corpKeepValue, isEconAsset, runnerCardValue, upgradeValue } from '../src/ai/cardValues';
 import { tuning } from '../src/ai/synergy';
 import { installIceForTest, newGame } from './helpers';
 
@@ -50,7 +50,7 @@ describe('the last hand-set cards, priced by what they do (Jeff, 2026-10-28)', (
   });
 
   it('Idiosyncresis: each advancement is a 5-credit swing for a click and a credit', () => {
-    expect(keep('35061')).toBeCloseTo(0.6 * 2 * (5 - CLICK - 1));
+    expect(keep('35061')).toBeCloseTo(0.6 * 2 * (5 - CLICK - 1) - 1); // less its rez cost of 1 (V-B B2, cost once)
   });
 
   it('Plutus: worth the transactions it can replay from Archives', () => {
@@ -64,7 +64,7 @@ describe('the last hand-set cards, priced by what they do (Jeff, 2026-10-28)', (
   it('Public Access Plaza: a credit a turn, less as the game runs out', () => {
     expect(keep('35062')).toBeGreaterThan(4);
     expect(keep('35062', late())).toBeLessThan(keep('35062'));
-    expect(econValue('35062', newGame())).toBeGreaterThan(2.5);
+    expect(isEconAsset('35062')).toBe(true);
   });
 
   it('Spin Doctor: 2 cards drawn', () => {
@@ -93,7 +93,7 @@ describe('the last hand-set cards, priced by what they do (Jeff, 2026-10-28)', (
   });
 
   it('Malapert Data Vault: only helps where agendas are scored', () => {
-    expect(corpEffect(newGame(), '30066')!.upgrade![1]).toBe(0);
+    expect(corpEffect(newGame(), '30066')!.upgrade![1]).toBe(-1); // on a central it only costs its rez cost (V-B B2, cost once)
   });
 
   it('Manegarm Skunkworks: 2 clicks or 5 credits for each run here', () => {

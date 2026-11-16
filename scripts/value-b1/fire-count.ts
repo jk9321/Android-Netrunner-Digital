@@ -17,24 +17,27 @@
  */
 import { cpSync, existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { join, resolve } from 'node:path';
-import { GameAction, GameState, actingSide, createInitialGameState, executeAction } from '../../src/core';
+import { GameAction, GameState, actingSide, createInitialGameState, executeAction, findCardAnywhere } from '../../src/core';
 import { createAgent } from '../../src/ai';
 import { Agent } from '../../src/ai/agent';
 import { GameRunner } from '../../src/ai/playout';
 import { deals, dealState, humanFiles } from '../stage-a/harness';
 import { deckGameSetup } from '../../src/data/decks';
 
-const CACHES = ['entry'] as const;
-type Cache = (typeof CACHES)[number];
-type Arm = 'base' | 'branch' | Cache | `no-${Cache}`;
-
-/** Text patches that put each cache's beta key back (each must match exactly once). */
-const OFF: Record<Cache, [file: string, from: string, to: string][]> = {
-  entry: [
-    ['ai/handValues.ts', "'ownHandValue drawWorth', state, side === actingSide() ? cardRate(state, side) : drawWorth(state, side), side)", "'ownHandValue drawWorth', state, drawWorth(state, side), side)"],
-    ['ai/handValues.ts', "'clickWorth drawWorth', state, side === actingSide() ? cardRate(state, side) : drawWorth(state, side), side)", "'clickWorth drawWorth', state, drawWorth(state, side), side)"],
-  ],
-};
+/** Text patches that put each change's base text back (each must match exactly once), by change. A later step passes its
+ * own as a JSON file `{ "<change>": [[file under src/, branch text, base text], ...] }` in ARGS (V-B B2 onward). */
+const patchFile = process.argv.slice(2).find(a => a.endsWith('.json')) ?? (process.env.ARGS?.trim().endsWith('.json') ? process.env.ARGS.trim() : undefined);
+const OFF: Record<string, [file: string, from: string, to: string][]> = patchFile
+  ? JSON.parse(readFileSync(patchFile, 'utf8'))
+  : {
+      entry: [
+        ['ai/handValues.ts', "'ownHandValue drawWorth', state, side === actingSide() ? cardRate(state, side) : drawWorth(state, side), side)", "'ownHandValue drawWorth', state, drawWorth(state, side), side)"],
+        ['ai/handValues.ts', "'clickWorth drawWorth', state, side === actingSide() ? cardRate(state, side) : drawWorth(state, side), side)", "'clickWorth drawWorth', state, drawWorth(state, side), side)"],
+      ],
+    };
+const CACHES = Object.keys(OFF);
+type Cache = string;
+type Arm = string;
 
 const [shard, shards] = (process.env.SHARD ?? '0/1').split('/').map(Number);
 const root = resolve('.fc-variants', String(shard));
@@ -121,7 +124,10 @@ async function main() {
       for (const c of CACHES) if (ask(`no-${c}`, side, s).a === r.base.a) needs.push(c);
     }
     const ms = Object.fromEntries(TIMED.map(a => [a, Math.round(r[a].ms * 10) / 10]));
-    console.log(JSON.stringify({ src, i, side, kind, T: s.turnNumber, changed, causes, needs, base: changed ? r.base.a : undefined, branch: changed ? r.branch.a : undefined, ms }));
+    // V-B B2's watch (non-money upgrade rezzes): the card a REZ_CARD pick rezzes, in base and branch
+    const rezzed = (pick: string) => (pick.startsWith('{') && JSON.parse(pick).type === 'REZ_CARD' ? findCardAnywhere(s, JSON.parse(pick).cardInstanceId)?.cardCode : undefined);
+    const rez = { base: rezzed(r.base.a), branch: rezzed(r.branch.a) };
+    console.log(JSON.stringify({ src, i, side, kind, T: s.turnNumber, changed, causes, needs, base: changed ? r.base.a : undefined, branch: changed ? r.branch.a : undefined, rez: rez.base || rez.branch ? rez : undefined, ms }));
   };
 
   const sources: (() => void)[] = [

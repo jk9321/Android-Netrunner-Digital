@@ -11,7 +11,7 @@ import { digValue, evaluate } from '../evaluate';
 import { answerPrompt, simulate } from '../prompts';
 import { plan, pricing } from '../pricing';
 import { CARD_PROFILES, ECON_SCALE } from '../cardProfiles';
-import { econValue, upgradeValue } from '../cardValues';
+import { isEconAsset, upgradeValue } from '../cardValues';
 
 const type = (card: CardInstance) => cardDef(card).type_code;
 export const hasEndTheRun = (ice: CardInstance) => (iceScript(ice)?.subroutines ?? []).some(s => /end the run/i.test(s.label));
@@ -274,7 +274,7 @@ function serverImportance(state: GameState, server: ServerState | undefined, awa
   if (server.id === 'rd') return 4;
   if (server.id === 'archives') return state.corp.archives.faceDown.some(c => type(c) === 'agenda') ? 6 : 0.5;
   if (server.root.some(c => c.advancementCounters > 0)) return 1; // a trap: let them in
-  if (server.root.some(c => c.isRezzed && econValue(c.cardCode, state))) return 3;
+  if (server.root.some(c => c.isRezzed && isEconAsset(c.cardCode))) return 3;
   return server.root.length > 0 ? 2 : 0.5;
 }
 
@@ -338,7 +338,7 @@ export function rezTimingBlocked(state: GameState, card: CardInstance): boolean 
 export function rezAllowed(state: GameState, card: CardInstance, keep: number, next: (after: GameState) => GameAction | undefined): boolean {
   if (rezTimingBlocked(state, card)) return false;
   if (clickOnly(card)) return rezToUse(state, card, next);
-  if (econValue(card.cardCode, state) !== undefined) return true;
+  if (isEconAsset(card.cardCode)) return true;
   if (type(card) === 'agenda' || springsOnAccess(card.cardCode) || runTimed(card)) return false;
   if (type(card) === 'upgrade') {
     const server = Object.values(state.corp.servers).find(s => s.root.some(c => c.instanceId === card.instanceId));

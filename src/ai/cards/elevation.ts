@@ -384,8 +384,8 @@ export const ELEVATION: Record<string, CardAI> = {
     synergy: { gives: { ice: 1, install: 0.5, bioroid: 1 } },
     value: { keep: 2, upgrade: [1, 1] },
     // One ice a turn installed for no click and 1 credit less
-    corp: state => {
-      const value = perTurn(state, PACE.iceInHand * (CLICK + 1), 'corp', 3) * 0.5; // It moves with the ice, so it helps only while ice keeps coming
+    corp: (state, _code, { cost }) => {
+      const value = perTurn(state, PACE.iceInHand * (CLICK + 1), 'corp', 3) * 0.5 - cost; // It moves with the ice, so it helps only while ice keeps coming
       return { keep: value, upgrade: [value, value] };
     },
   },
@@ -427,7 +427,7 @@ export const ELEVATION: Record<string, CardAI> = {
     synergy: { gives: { damage: 1 }, when: ['onScore'] },
     value: { keep: 2 },
     // A power counter a turn (1 net damage each, priced in counterValues.ts), used up within about 3 turns
-    corp: (state, code) => ({ keep: perTurn(state, counterWorthOf(state, code, 'power'), 'corp', 0, 3) }),
+    corp: (state, code, { cost }) => ({ keep: perTurn(state, counterWorthOf(state, code, 'power'), 'corp', 0, 3) - cost }),
     counters: { power: () => 1.5 }, // 1 net damage each, when an agenda is scored or stolen
     counterFormulas: { power: gioanPower },
   },
@@ -471,7 +471,7 @@ export const ELEVATION: Record<string, CardAI> = {
     synergy: { gives: { econ: 1, denial: 1.5 }, wants: { advance: 1 } },
     value: { keep: 2.5 }, // 3 credits for the Corp and -2 for the Runner per counter
     // Each advancement is 3 credits to the Corp and 2 off the Runner, for a click and a credit
-    corp: () => ({ keep: 0.6 * 2 * (3 + 2 - (CLICK + 1)) }),
+    corp: (_state, _code, { cost }) => ({ keep: 0.6 * 2 * (3 + 2 - (CLICK + 1)) - cost }),
     // Each counter is 3 credits and 2 off the Runner when it fires
     rezzed: (_state, card, rezCost) => card.advancementCounters * 5 - rezCost,
   },
@@ -550,9 +550,9 @@ export const ELEVATION: Record<string, CardAI> = {
     synergy: { gives: { econ: 1 } },
     value: { keep: 3, upgrade: [2, 0.5] },
     // 2 credits back each turn it gets to pay for a rez here; assets here cost 2 more to trash
-    corp: (state, code) => {
+    corp: (state, code, { cost }) => {
       const refills = perTurn(state, 0.4 * 2 * counterWorthOf(state, code, 'credit'), 'corp') + 0.5;
-      return { keep: refills, upgrade: [refills, 0.8 * refills] };
+      return { keep: refills - cost, upgrade: [refills - cost, 0.8 * refills - cost] };
     },
     counters: { credit: () => 0.8 }, // Recurring, only for rezzes in its server
     counterFormulas: { credit: mahkotaCredit },

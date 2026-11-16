@@ -227,10 +227,10 @@ export const VANTAGE_POINT: Record<string, CardAI> = {
     synergy: { gives: { denial: 0.5 }, when: ['onScore'] },
     value: { keep: 2, upgrade: [2, 1] }, // Power counters that protect a card for a run
     // A counter when rezzed and on each score here; each keeps the Runner off one card for a run
-    corp: (state, code) => {
+    corp: (state, code, { cost }) => {
       const counter = counterWorthOf(state, code, 'power');
-      const remote = counter + perTurn(state, 0.5 * PACE.agendaEvents * counter, 'corp');
-      return { keep: remote, upgrade: [remote, counter] };
+      const remote = counter + perTurn(state, 0.5 * PACE.agendaEvents * counter, 'corp') - cost;
+      return { keep: remote, upgrade: [remote, counter - cost] };
     },
     counters: { power: () => 1.5 }, // Keeps the Runner off copies of one card for a run
   },
@@ -267,9 +267,9 @@ export const VANTAGE_POINT: Record<string, CardAI> = {
     synergy: { when: ['onScore'] },
     value: { keep: 2, upgrade: [0, 2] }, // Central only, ends runs elsewhere after agendas
     // Central only; a counter on the first agenda each turn, each ending a run elsewhere
-    corp: (state, code) => {
+    corp: (state, code, { cost }) => {
       const value = perTurn(state, PACE.agendaEvents * counterWorthOf(state, code, 'power'), 'corp');
-      return { keep: value, upgrade: [0, value] };
+      return { keep: value - cost, upgrade: [-cost, value - cost] };
     },
     counters: { power: () => 2 }, // Ends a run on another server
   },
@@ -353,10 +353,10 @@ export const VANTAGE_POINT: Record<string, CardAI> = {
     synergy: { gives: { damage: 1.5 } },
     value: { keep: 1.5, upgrade: [1.5, 1] }, // 4 meat damage when the Runner spends hosted credits
     // 4 meat damage when the Runner spends credits from outside its pool here
-    corp: state => {
+    corp: (state, _code, { cost }) => {
       const hosted = state.runner.rig.hardware.concat(state.runner.rig.programs, state.runner.rig.resources).some(c => (c.tokens.credit ?? 0) > 0 || !!getCardScript(c.cardCode)?.paysDuringRuns);
       const value = perTurn(state, PACE.runs * PACE.remoteShare * (hosted ? 0.3 : 0.05) * damageWorth(state, 4), 'corp');
-      return { keep: value, upgrade: [value, 0.6 * value] };
+      return { keep: value - cost, upgrade: [value - cost, 0.6 * value - cost] };
     },
   },
   // Let Them Dream
