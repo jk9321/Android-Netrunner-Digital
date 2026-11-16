@@ -22,7 +22,7 @@
 import { writeFileSync } from 'node:fs';
 import { CardInstance, GameAction, GameState, activePrompt, getLegalActions } from '../../src/core';
 import { HeuristicCorpAI } from '../../src/ai';
-import { asSide, plan, withPricing } from '../../src/ai/pricing';
+import { asSide, withPricing } from '../../src/ai/pricing';
 import { clickAudit, decisionContext, drawAudit } from '../../src/ai/handValues';
 import { corpDecide, honestCorpCounts } from '../../src/ai/corp/core';
 import { decideRez } from '../../src/ai/corp/rez';
@@ -47,9 +47,8 @@ type Agentish = { memory: unknown; planMemory: { line: unknown[] }; synergy: boo
 /** The agent's decide (corpAI.ts) with `view` as the view; no view: beta's corpDecide on the real state. */
 const decideWith = (agent: HeuristicCorpAI, s: GameState, view?: GameState): GameAction => {
   const a = agent as unknown as Agentish;
-  // As chooseAction: the deciding Corp's run record (plan.runRecord) in the context
-  const record = plan().runRecord ? { runRecord: agent.noteRuns(s) } : {};
-  return asSide('corp', () => withPricing(record, () =>
+  // As chooseAction (the run record that chooseAction used to set went with ai-threat-delete, 2026-11-16)
+  return asSide('corp', () => withPricing({}, () =>
     corpDecide(
       s,
       {

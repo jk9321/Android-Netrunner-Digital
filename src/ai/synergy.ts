@@ -295,13 +295,6 @@ export const tuning = {
      */
     ownIceKnown: true,
     /**
-     * #34b (bug report #34, Jeff's Runner test game 2, 2026-11-09; Corp, Normal): the threat blends in the runs the Runner
-     * actually made on its last turns (threatModel.ts recordRun; public, rules 6.1.2a, 6.9.1a), noted turn by turn by the
-     * deciding Corp (corpAI noteRuns). Off: the threat is our Runner AI's arithmetic only, and Jeff's Alarm Clock ran HQ
-     * every turn while it read HQ as never run. Inert in self-play by construction (our Runner runs where the model says).
-     */
-    runRecord: true,
-    /**
      * Bug report #44 (Jeff's Runner test game 12, 2026-11-09): the damage clock left after the Runner's turn (effectValues
      * damageThreat on the Corp's turn) counts only damage the Corp can deal on its own turn: not damage on access (Urtica
      * Cipher) and not damage "if the Runner is tagged" while it has no tag (Orbital Superiority). Off: both made a 4-damage
@@ -377,7 +370,7 @@ export const tuning = {
  */
 export const sideOff: Record<SideCode, string[]> = {
   corp: [],
-  runner: ['scoreNow', 'scoreInTwo', 'tagTrashNow', 'ownTrashRisk', 'hqTrashCost', 'iceProtects', 'replyContenders', 'clearinghouseRez', 'ownIceKnown', 'runRecord', 'oracle'],
+  runner: ['scoreNow', 'scoreInTwo', 'tagTrashNow', 'ownTrashRisk', 'hqTrashCost', 'iceProtects', 'replyContenders', 'clearinghouseRez', 'ownIceKnown', 'oracle'],
 };
 
 /**
@@ -454,7 +447,7 @@ export const DELETED: readonly string[] = [
  * On switches deleted with the code they switched on (ai-threat-delete, 2026-11-16: Step S measured the Corp's threat
  * prediction off as no loss, g10 +0.8 ± 0.8, 0.65x time). Unlike DELETED, the path left is the one they turned off.
  */
-export const DELETED_ON: readonly string[] = ['threatModel', 'threatValues', 'alarmClockThreat', 'threatKey', 'threatKeyPricing'];
+export const DELETED_ON: readonly string[] = ['threatModel', 'threatValues', 'alarmClockThreat', 'threatKey', 'threatKeyPricing', 'runRecord'];
 
 /** Throws on a name that isn't a plan switch (a typo, a switch folded into the code, or one deleted). */
 function checkSwitch(name: string) {

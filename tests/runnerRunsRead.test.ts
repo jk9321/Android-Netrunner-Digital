@@ -8,7 +8,7 @@
  * - Bugs #15 and #34, HQ: what the Corp stakes on HQ (iceValues serverStake) reads PACE shares only, not the runs the
  *   Runner made there. This fails on beta c5f0ac0 too: #34's HQ fix (Alarm Clock's free run, the run record on HQ) and
  *   the #15 last-turn patch fed only evaluate.ts centralExposure, which no game calls.
- * - Bug #34b, remotes: the run record (plan.runRecord) blended the remotes the Runner ran on its last turns into the
+ * - Bug #34b, remotes: the run record (plan.runRecord, corpAI noteRuns; deleted) blended the remotes the Runner ran on its last turns into the
  *   threat's run chance. It passed on beta c5f0ac0 and fails since the threat was deleted: the one live thing
  *   ai-threat-delete gives up.
  */
