@@ -314,7 +314,7 @@ V-B B1 re-baseline (recount VA-COPY-COUNT-BASELINE, ruling 13): the count is the
 | V12 | the stateless CARD_VALUES keep | `corpKeepValue(card.cardCode))` (`src/ai/iceValues.ts:133`) | live | loop guard; its two no-state readers: `serverStake` (cuts the stake > keep > stake loop, on purpose) and the V11 loop flat (`corpCardValue flat (loop)`, the board card's fallback inside a loop) | B2 (list), done |
 | V14 | hosted credits with no state | `RATES.counters.hostedCredit` (`src/ai/evaluate.ts:157`) | live | no-state path: with a state the owner (`countersWorth`) is read, without one there is nothing to read it with (B6 labels file) | none |
 | V15 | the flat rig worth | `runnerCardValue flat` (`src/ai/cardValues.ts:52`) | live | loop guard and no-formula path (B6 labels file) | none |
-| V15 | a profiled rig card by its payouts | `payoutWorth` (`src/ai/evaluate.ts:119`) | live | labels file | B6 |
+| V15 | a profiled rig card by its payouts | `payoutWorth` (`src/ai/evaluate.ts:119`) | live | dropped from B6 (ruling 22:32Z): Runner-side ground (Jeff 19:51Z); routed through the owner it moved tests/tagFirst's Side Hustle trash via the tag clock (Telework Contract and Open Market have no runner formula, so they fall to their flat rig worth); patch kept | Runner rework |
 | V1 | the flat credit | `creditValue` | gone | deleted in V-B B6 (Jeff's yes, dead list) | done (B6) |
 | V1 | run credits at face value | `runCreditsSlide` (`src/ai/runs.ts:1168`) | recorded | recorded for the Runner cleanup; not ruled a copy (ruling 12) | Runner cleanup |
 | V3 | grip: digging for an answer | `digValue` (`src/ai/evaluate.ts:54`) | not comparable | V17's owner (a draw's extra) | none |
