@@ -232,7 +232,7 @@ function gameDecisions(k: number, of: number) {
 
 /** game mode, 40 <= k < 56: the saved decision in every arm, forward then reversed. */
 function savedState(k: number) {
-  const s: GameState = JSON.parse(readFileSync('scripts/tag-loss-time/t18-state.json', 'utf8'));
+  const s: GameState = JSON.parse(readFileSync(process.env.STATE ?? 'scripts/tag-loss-time/t18-state.json', 'utf8'));
   n = k;
   for (const pass of [0, 1]) {
     const order = orderFor(k);
