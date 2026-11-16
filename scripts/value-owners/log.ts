@@ -88,7 +88,6 @@ const snapshot = (): Partial<Pricing> => {
     rezzingToUse: new Set(c.rezzingToUse),
     pricingBreakers: new Set(c.pricingBreakers),
     oracleRunning: c.oracleRunning,
-    runRecord: c.runRecord,
   };
 };
 

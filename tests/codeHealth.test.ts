@@ -349,10 +349,11 @@ describe('AI code health (audit guards)', () => {
   // unchanged (+14 over the eight valuation files and diagnostics.ts' onValue field). V-B takes the hooks back when the
   // copies are gone; logValue stays while the log is the registry's evidence. 14,185 + 37 = 14,222; ai-corp-rd-memory + 36 (the Corp's known R&D slots and the Runner's memory on its deal, runnerReply.ts) = 14,258;
   // V-B B1 - 1 (handValues; review M1) = 14,257; V-B B2 - 7 (econValue's price deleted, the type test isEconAsset) = 14,250;
-  // ai-threat-delete commit 1 - 555 (the Corp's threat model and every src path only it read) = 13,695
-  it('keeps src/ai/corp at or under 2,290 lines and src/ai at or under 13,695 (Stage C hand-off, ai-corp-honest-order, ai-value-time, ai-playout-lines, ai-honest-runner-view, ai-honest-corp-decision, ai-value-owners, ai-corp-rd-memory, ai-value-b1, ai-value-b2, ai-threat-delete)', () => {
+  // ai-threat-delete commit 1 - 555 (the Corp's threat model and every src path only it read) = 13,695; commit 2 - 29
+  // (the run record: plan.runRecord, its pricing field and key part, corpAI noteRuns) = 13,666
+  it('keeps src/ai/corp at or under 2,290 lines and src/ai at or under 13,666 (Stage C hand-off, ai-corp-honest-order, ai-value-time, ai-playout-lines, ai-honest-runner-view, ai-honest-corp-decision, ai-value-owners, ai-corp-rd-memory, ai-value-b1, ai-value-b2, ai-threat-delete)', () => {
     const corp = aiFiles().filter(f => f.replace(/\\/g, '/').startsWith('corp/')).reduce((n, f) => n + lines(f), 0);
     expect(corp).toBeLessThanOrEqual(2290);
-    expect(aiFiles().reduce((n, f) => n + lines(f), 0)).toBeLessThanOrEqual(13695);
+    expect(aiFiles().reduce((n, f) => n + lines(f), 0)).toBeLessThanOrEqual(13666);
   });
 });
