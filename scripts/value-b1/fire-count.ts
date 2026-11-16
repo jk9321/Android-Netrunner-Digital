@@ -35,7 +35,14 @@ const OFF: Record<string, [file: string, from: string, to: string][]> = patchFil
         ['ai/handValues.ts', "'clickWorth drawWorth', state, side === actingSide() ? cardRate(state, side) : drawWorth(state, side), side)", "'clickWorth drawWorth', state, drawWorth(state, side), side)"],
       ],
     };
+/** V-B B5: `_probe` patches go into every tree, the branch's too (then a copy), to count work by a global hook; `_flags`
+ * names card codes, and each decision records which of them the Runner's deck or identity holds. */
+const PROBE = OFF._probe ?? [];
+const FLAGS = ((OFF._flags ?? []) as unknown as string[]).filter(Boolean);
+delete OFF._probe;
+delete OFF._flags;
 const CACHES = Object.keys(OFF);
+
 type Cache = string;
 type Arm = string;
 
@@ -46,11 +53,11 @@ function makeTrees(): Record<Arm, string> {
   rmSync(root, { recursive: true, force: true });
   mkdirSync(root, { recursive: true });
   const dirs = { branch: resolve('.') } as Record<Arm, string>;
-  const arms: [Arm, Cache[]][] = [['base', [...CACHES]], ...CACHES.map(c => [c, CACHES.filter(x => x !== c)] as [Arm, Cache[]]), ...CACHES.map(c => [`no-${c}`, [c]] as [Arm, Cache[]])];
+  const arms: [Arm, Cache[]][] = [...(PROBE.length ? [['branch', []] as [Arm, Cache[]]] : []), ['base', [...CACHES]], ...CACHES.map(c => [c, CACHES.filter(x => x !== c)] as [Arm, Cache[]]), ...CACHES.map(c => [`no-${c}`, [c]] as [Arm, Cache[]])];
   for (const [arm, off] of arms) {
     const dir = join(root, arm);
     cpSync('src', join(dir, 'src'), { recursive: true });
-    for (const [file, from, to] of off.flatMap(cache => OFF[cache])) {
+    for (const [file, from, to] of [...off.flatMap(cache => OFF[cache]), ...PROBE]) {
       const path = join(dir, 'src', file);
       const text = readFileSync(path, 'utf8');
       if (text.split(from).length !== 2) throw new Error(`patch ${arm} does not match once in ${file}: ${from.slice(0, 60)}`);
@@ -141,14 +148,20 @@ async function main() {
     tree.clear();
     const agent = tree.createAgent(side, 'normal');
     const copy = structuredClone(s);
+    // _probe: clock prices by viewer, and their milliseconds (`<viewer>ms`; a clock inside a clock counts in both)
+    const tl = { corp: 0, runner: 0, corpms: 0, runnerms: 0 } as Record<string, number>;
+    (globalThis as { __tl?: (v: string, ms?: number) => void }).__tl = (v, ms = 0) => {
+      tl[v] = (tl[v] ?? 0) + 1;
+      tl[`${v}ms`] = Math.round(((tl[`${v}ms`] ?? 0) + ms) * 10) / 10;
+    };
     const t = performance.now();
     let a: GameAction | null;
     try {
       a = agent.chooseAction(copy);
     } catch (e) {
-      return { a: `error: ${(e as Error).message}`, ms: 0 };
+      return { a: `error: ${(e as Error).message}`, ms: 0, tl };
     }
-    return { a: key(a), ms: performance.now() - t };
+    return { a: key(a), ms: performance.now() - t, tl };
   };
   const TIMED: Arm[] = ['base', 'branch', ...CACHES];
   let n = 0;
@@ -158,7 +171,7 @@ async function main() {
     const kind = s.pendingPrompts.length ? 'prompt' : s.activeRun ? 'run' : 'main';
     const k = n++ % TIMED.length;
     const order = [...TIMED.slice(k), ...TIMED.slice(0, k)];
-    const r = {} as Record<Arm, { a: string; ms: number }>;
+    const r = {} as Record<Arm, { a: string; ms: number; tl: Record<string, number> }>;
     for (const arm of order) r[arm] = ask(arm, side, s);
     const changed = r.base.a !== r.branch.a;
     const causes: string[] = [];
@@ -168,6 +181,11 @@ async function main() {
       for (const c of CACHES) if (ask(`no-${c}`, side, s).a === r.base.a) needs.push(c);
     }
     const ms = Object.fromEntries(TIMED.map(a => [a, Math.round(r[a].ms * 10) / 10]));
+    const tl = PROBE.length ? Object.fromEntries(TIMED.map(a => [a, r[a].tl])) : undefined;
+    // Each flagged card the Runner holds, by zone (id, rig, grip, stack, heap): "<code>:<zone>"
+    const r_ = s.runner;
+    const zones: [string, CardInstance[]][] = [['id', [r_.identity]], ['rig', [...r_.rig.programs, ...r_.rig.hardware, ...r_.rig.resources]], ['grip', r_.grip], ['stack', r_.stack], ['heap', r_.heap]];
+    const flags = FLAGS.length ? zones.flatMap(([z, cs]) => [...new Set(cs.map(c => c.cardCode).filter(c => FLAGS.includes(c)))].map(c => `${c}:${z}`)) : undefined;
     // Ruling 6a: per site, the root values both trees asked on the same board with the same arguments: [asked in both,
     // differ, largest |difference|, over 2x or 10 credits], and the worst example
     let sites: Record<string, [number, number, number, number, string?]> | undefined;
@@ -203,7 +221,7 @@ async function main() {
     // V-B B2's watch (non-money upgrade rezzes): the card a REZ_CARD pick rezzes, in base and branch
     const rezzed = (pick: string) => (pick.startsWith('{') && JSON.parse(pick).type === 'REZ_CARD' ? findCardAnywhere(s, JSON.parse(pick).cardInstanceId)?.cardCode : undefined);
     const rez = { base: rezzed(r.base.a), branch: rezzed(r.branch.a) };
-    console.log(JSON.stringify({ src, i, side, kind, T: s.turnNumber, changed, causes, needs, base: changed ? r.base.a : undefined, branch: changed ? r.branch.a : undefined, rez: rez.base || rez.branch ? rez : undefined, ms, sites }));
+    console.log(JSON.stringify({ src, i, side, kind, T: s.turnNumber, changed, causes, needs, base: changed ? r.base.a : undefined, branch: changed ? r.branch.a : undefined, rez: rez.base || rez.branch ? rez : undefined, ms, tl, flags, sites }));
   };
 
   const sources: (() => void)[] = [
@@ -240,7 +258,7 @@ async function main() {
   sources.forEach((run, k) => {
     if (k % shards === shard) run();
   });
-  if (existsSync(root)) rmSync(root, { recursive: true, force: true });
+  if (existsSync(root) && !process.env.FC_KEEP) rmSync(root, { recursive: true, force: true });
 }
 
 void main();
