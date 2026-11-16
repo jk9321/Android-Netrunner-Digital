@@ -3,6 +3,7 @@ import { rezCost } from '../../core/engine/cardEffects';
 import { bypassesAhead, iceCreditNeed, runBypasses } from '../runs';
 import { clickMoneyOf, turnIncomeOf } from '../cards';
 import { counters } from '../../core/engine/cardEffects';
+import { pricing, withPricing } from '../pricing';
 
 /**
  * Owner: does a server hold (Step 4 Stage A, spec-step4-corp-core.md 1.4; registry row "what holds a server").
@@ -112,8 +113,14 @@ export function serverHold(state: GameState, server: string, opts: HoldOptions):
  * The Runner's next turn (holdCost's count): with a set S of the server's ice rezzed, the Runner needs the sum of
  * iceCreditNeed (runs.ts: the credits to break the ice's run-ending subroutines with its installed breakers; BLOCK when
  * none can) over S, plus what its bypasses cost, against runnerBudget. Each set once: a rezzed ice's bit stays clear.
+ * Counted with countingHold up: the rez budget its prices reach does not ask this count again (deal 2138's hang).
  */
 function holdRunnerTurn(state: GameState, server: string, corpCredits: number): Hold {
+  if (pricing().countingHold) return countRunnerTurn(state, server, corpCredits);
+  return withPricing({ countingHold: true }, () => countRunnerTurn(state, server, corpCredits));
+}
+
+function countRunnerTurn(state: GameState, server: string, corpCredits: number): Hold {
   const ice = state.corp.servers[server]?.ice ?? [];
   const budget = runnerBudget(state);
   // The Runner's turn: its clicks back (a bioroid broken by clicks, runs.ts plainCreditNeed), one kept for the run
@@ -129,7 +136,15 @@ function holdRunnerTurn(state: GameState, server: string, corpCredits: number): 
   const rezOf: number[] = [];
   const needOf: number[] = [];
   for (let mask = 0; mask < 1 << n; mask++) {
+    // A set with a rezzed ice's bit, or one the Corp can't pay for, is never the answer and never the most asked: its
+    // bits cleared give the same board, a need at least as large and a rez it can pay, and come first. Skipped before
+    // its bypasses are priced (each set once)
     let rez = 0;
+    for (let i = 0; i < n && rez <= corpCredits; i++) {
+      if (!(mask & (1 << i))) continue;
+      rez = ice[i].isRezzed ? Infinity : rez + (rezOf[i] ??= rezCostOf(view, ice[i]));
+    }
+    if (rez > corpCredits || rez === Infinity) continue;
     let need = 0;
     // The ice the Runner's installed bypasses pass with this set rezzed (runs.ts runBypasses: rig cards, their counters
     // and the threat level, all public; 6.5.8a: a bypassed ice's subroutines never resolve), and what those bypasses
@@ -138,17 +153,10 @@ function holdRunnerTurn(state: GameState, server: string, corpCredits: number): 
     if (bypassed) need += bypassed.price;
     for (let i = 0; i < n; i++) {
       const c = ice[i];
-      const on = !!(mask & (1 << i));
-      if (c.isRezzed && on) {
-        rez = Infinity; // each set once: a rezzed ice's bit stays clear
-        break;
-      }
-      if (!c.isRezzed && !on) continue;
-      if (!c.isRezzed) rez += (rezOf[i] ??= rezCostOf(view, c));
+      if (!c.isRezzed && !(mask & (1 << i))) continue;
       if (bypassed?.ids.has(c.instanceId)) continue;
       need += (needOf[i] ??= iceNeed(view, c));
     }
-    if (rez > corpCredits) continue;
     if (need > mostNeed) mostNeed = need;
     if (need > budget && (best === null || rez < best)) {
       best = rez;
