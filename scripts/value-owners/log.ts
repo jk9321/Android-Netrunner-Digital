@@ -29,7 +29,7 @@ import { Agent } from '../../src/ai/agent';
 import { GameRunner } from '../../src/ai/playout';
 import { installDiagnostics, newDiagnostics } from '../../src/ai/diagnostics';
 import { Pricing, pricing, withPricing } from '../../src/ai/pricing';
-import { CLICK, RATES, cardRate, creditValue, flatlineWorth, pointGain, reachCard, sampledEndWorth, sideCreditValue, valueLoops } from '../../src/ai/valueModel';
+import { CLICK, RATES, cardRate, creditValue, flatlineWorth, payoutSlide, pointGain, reachCard, sampledEndWorth, sideCreditValue, valueLoops } from '../../src/ai/valueModel';
 import { clickPrice, handByCard, heldWorth, ownHandValue } from '../../src/ai/handValues';
 import { agendaWorth, corpCardValue, handValue, hqTrashCardsLoss, keepValue, tagsWorth } from '../../src/ai/evaluate';
 import { EFFECT_CODES, FLATLINE, agendaOdds, corpEffect, damageWorth, perTurn, rezzedWorth } from '../../src/ai/effectValues';
@@ -37,7 +37,7 @@ import { flatIceWorth, iceWorth } from '../../src/ai/iceValues';
 import { counterWorth, countersWorth } from '../../src/ai/counterValues';
 import { CARD_PROFILES, PAYOUT_RISK, bareAssetRisk, payoutWait, payoutWorth, turnsLeft, unrezzedWorth } from '../../src/ai/cardProfiles';
 import { corpKeepValue, econValue, runnerCardValue, upgradeValue } from '../../src/ai/cardValues';
-import { corpFormula } from '../../src/ai/cards';
+import { CARDS, corpFormula } from '../../src/ai/cards';
 import { clearCaches, dealState, deals, humanFiles } from '../stage-a/harness';
 
 const K = Number(process.argv.slice(2).find(a => /^\d+$/.test(a)) ?? process.env.ARGS?.trim() ?? 4) || 4;
@@ -93,9 +93,41 @@ const snapshot = (): Partial<Pricing> => {
   };
 };
 
+/**
+ * V-B (brief rev 2, ruling 6): every value play got, per site: a reservoir of VALUES numbers for p50 and p99, the exact
+ * min and max, and the count that is not finite. The named sentinels (hqTrashCardsLoss's Infinity when HQ is short,
+ * corpEffect's NaN for a card with no formula, evaluate's +-1000 for a certain end) are counted apart and left out.
+ */
+const VALUES = 4000;
+const dist = new Map<string, { n: number; seen: number; kept: number[]; min: number; max: number; notFinite: number; sentinel: number }>();
+const isSentinel = (site: string, v: number) =>
+  (site === 'hqTrashCardsLoss' && v === Infinity) || (site === 'corpEffect' && Number.isNaN(v)) || (site === 'evaluate' && Math.abs(v) >= 1000);
+const record = (site: string, v: number) => {
+  const d = dist.get(site) ?? { n: 0, seen: 0, kept: [], min: Infinity, max: -Infinity, notFinite: 0, sentinel: 0 };
+  dist.set(site, d);
+  d.n++;
+  if (isSentinel(site, v)) return void d.sentinel++;
+  if (!Number.isFinite(v)) return void d.notFinite++;
+  d.min = Math.min(d.min, v);
+  d.max = Math.max(d.max, v);
+  d.seen++;
+  const slot = d.kept.length < VALUES ? d.kept.length : Math.floor(random() * d.seen);
+  if (slot < VALUES) d.kept[slot] = v;
+};
+/** Values served by a loop guard, per guard key (the lookup that met itself, its instance and position left out). */
+const guards = new Map<string, number>();
+const takeLoops = () => {
+  for (const [chain, n] of valueLoops) {
+    const key = chain.split(' > ').pop()!.replace(/ @\d+$/, '').replace(/ inst-\d+/g, '').replace(/ (left)$/, ' $1');
+    guards.set(key, (guards.get(key) ?? 0) + n);
+  }
+  valueLoops.clear();
+};
+
 const diag = newDiagnostics();
 diag.onValue = (q, site, state, value, args) => {
   if (!sinkOn) return;
+  record(site, value);
   const c = pricing();
   const tag: Tag = diag.replying ? 'reply' : c.leaves.length ? 'leaf' : c.frozen ? 'playout' : c.side === null ? 'outside' : 'root';
   const count = asks.get(site) ?? { root: 0, leaf: 0, playout: 0, reply: 0, outside: 0 };
@@ -146,17 +178,18 @@ const watched = (inner: Agent): Agent => {
 };
 
 function playDeal(seed: number) {
-  valueLoops.clear();
+  takeLoops();
   where = { src: `deal:${seed}`, turn: 0 };
   const game = new GameRunner(dealState(seed), { corp: watched(createAgent('corp', 'normal')), runner: watched(createAgent('runner', 'normal')) });
   for (let n = 0; n < 4000 && game.step(); n++);
+  takeLoops();
 }
 
 /** Jeff's games: the recorded moves replayed; at each state, a fresh Normal agent of the acting side decides (its answer is not played). */
 function replayHuman(file: string) {
   const report = JSON.parse(readFileSync(file, 'utf8'));
   if (!report.moves?.length) return;
-  valueLoops.clear();
+  takeLoops();
   where = { src: `human:${file.split('/').pop()}`, turn: 0 };
   let s: GameState = createInitialGameState(deckGameSetup(report.config.seed, report.config.corpDeck, report.config.runnerDeck));
   if (report.startStops) s = { ...s, stops: report.startStops };
@@ -175,6 +208,7 @@ function replayHuman(file: string) {
       break;
     }
   }
+  takeLoops();
 }
 
 const sources: (() => void)[] = [...deals().map(seed => () => playDeal(seed)), ...humanFiles().map(f => () => replayHuman(f))];
@@ -269,9 +303,11 @@ function priceAgain(s: Sample): void {
     case 'cardRate': {
       const [sd] = a as [SideCode];
       check(s, cardRate(st, sd));
-      const note = `${sd}${s.ctx.averaging ? ', averaging' : ''}`;
-      add('cardDrawn', 'flat 1.6 (handValue) vs cardRate', s, { copy: RATES.drawnCard, owner: s.value }, note);
-      add('cardDrawn', 'drawBonus 0.5 vs cardRate', s, { copy: RATES.cardDrawn, owner: s.value }, note);
+      // V-B B1 (recount VA-LOG-AVERAGING-MASK): inside an average the owner's hook returns the flat 1.6 itself, so those
+      // asks would count as agreement; they go to a row of their own and the comparison rows read outside it only
+      const avg = s.ctx.averaging ? ' (averaging: the guard serves 1.6)' : '';
+      add('cardDrawn', `flat 1.6 (handValue) vs cardRate${avg}`, s, { copy: RATES.drawnCard, owner: s.value }, sd);
+      add('cardDrawn', `drawBonus 0.5 vs cardRate${avg}`, s, { copy: RATES.cardDrawn, owner: s.value }, sd);
       return;
     }
     case 'ownHandValue drawWorth':
@@ -376,7 +412,10 @@ function priceAgain(s: Sample): void {
     case 'rezzedWorth': {
       const [card, rezCost] = a as [CardInstance, number];
       check(s, rezzedWorth(st, card, rezCost));
-      add('cardBeforeInstall', 'rezzedWorth vs corpKeepValue(rezzed) - rezCost', s, { copy: s.value, owner: corpKeepValue(card.cardCode, st, true) - rezCost }, cardDef(card).title);
+      // V-B B1 (recount VA-LOG-REZZED-SENTINEL): -1 with no formula and no entry is "don't rez", not a price; counted apart
+      // and an entry's own `rezzed` rule (the instance's counters: Clearinghouse, elevation.ts) is a row of its own too
+      const kind = CARDS[card.cardCode]?.rezzed ? " (the entry's own rezzed rule)" : corpEffect(st, card.cardCode, true) ? '' : ' (no formula: the -1 sentinel)';
+      add('cardBeforeInstall', `rezzedWorth vs corpKeepValue(rezzed) - rezCost${kind}`, s, { copy: s.value, owner: corpKeepValue(card.cardCode, st, true) - rezCost }, cardDef(card).title);
       return;
     }
     case 'runnerCardValue': {
@@ -387,8 +426,9 @@ function priceAgain(s: Sample): void {
       for (const c of [...st.runner.rig.resources, ...st.runner.rig.hardware]) {
         const profile = CARD_PROFILES[c.cardCode];
         if (!profile || cardDef(c).side_code !== 'runner') continue;
-        const pay = payoutWorth(profile, turnsLeft(st), counters(c, 'credit'), payoutWait(st, profile, 'runner'), cardRate(st, 'runner'));
-        add('rigCard', 'profiled rig card: payoutWorth vs 2 x runnerCardValue', s, { copy: pay, owner: RATES.rigCardScale * runnerCardValue(c.cardCode, st, c) }, cardDef(c).title);
+        // V-B B1 (recount VA-LOG-RIG-SLIDE): play's term is payoutWorth x payoutSlide (evaluate.ts runnerRigValue)
+        const pay = payoutWorth(profile, turnsLeft(st), counters(c, 'credit'), payoutWait(st, profile, 'runner'), cardRate(st, 'runner')) * payoutSlide(st, 'runner', counters(c, 'credit'));
+        add('rigCard', 'profiled rig card: payoutWorth x payoutSlide vs 2 x runnerCardValue', s, { copy: pay, owner: RATES.rigCardScale * runnerCardValue(c.cardCode, st, c) }, cardDef(c).title);
       }
       return;
     }
@@ -501,6 +541,8 @@ writeFileSync(
     formulas: Object.fromEntries(formula),
     formulaBoards,
     examples: Object.fromEntries(examples),
+    dist: Object.fromEntries(dist),
+    guards: Object.fromEntries(guards),
     errors,
   }),
 );

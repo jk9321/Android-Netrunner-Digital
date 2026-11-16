@@ -6,7 +6,7 @@
 import { readdirSync, readFileSync, statSync } from 'node:fs';
 import { join } from 'node:path';
 
-const dir = process.argv[2] ?? '.';
+const dir = process.argv[2] && !process.argv[2].startsWith('--') ? process.argv[2] : '.';
 const files = [];
 const walk = d => {
   for (const f of readdirSync(d)) {
@@ -28,6 +28,8 @@ const pairs = {};
 const formulas = {};
 const errors = [];
 const examples = {};
+const dist = {};
+const guards = {};
 const JEFF = /human:report-(4[89]|5[0-4])\.json$/;
 let sources = 0;
 let playMs = 0;
@@ -40,6 +42,17 @@ for (const f of files) {
   passMs += j.passMs;
   formulaBoards += j.formulaBoards;
   errors.push(...j.errors);
+  for (const [site, d] of Object.entries(j.dist ?? {})) {
+    const a = (dist[site] ??= { n: 0, seen: 0, kept: [], min: Infinity, max: -Infinity, notFinite: 0, sentinel: 0 });
+    a.n += d.n;
+    a.seen += d.seen;
+    a.kept.push(...d.kept);
+    a.min = Math.min(a.min, d.min ?? Infinity);
+    a.max = Math.max(a.max, d.max ?? -Infinity);
+    a.notFinite += d.notFinite;
+    a.sentinel += d.sentinel;
+  }
+  for (const [key, n] of Object.entries(j.guards ?? {})) guards[key] = (guards[key] ?? 0) + n;
   for (const [site, e] of Object.entries(j.examples ?? {})) if (!examples[site] || (!JEFF.test(examples[site].src) && JEFF.test(e.src))) examples[site] = e;
   for (const [site, c] of Object.entries(j.asks)) {
     const a = (asks[site] ??= Object.fromEntries(TAGS.map(t => [t, 0])));
@@ -132,6 +145,26 @@ for (const [code, r] of Object.entries(formulas).sort((x, y) => Math.abs(mean(y[
   w(`| ${r.title} (${code}) | ${r.cost} | ${r.n} | ${f2(mean(r.gap))} (${f2(Math.min(...r.gap))}..${f2(Math.max(...r.gap))}) | ${linear ? f2(lo) : `${f2(lo)}..${f2(hi)}`} | ${linear ? 'yes' : 'no'} | ${f2(mean(r.today))} | ${f2(mean(r.bare))} | ${f2(mean(r.iced))} |`);
 }
 w('');
+w('## Values per site (V-B ruling 6a, 6c)');
+w("Every value play got at the site (not only the samples): p50 and p99 from a reservoir of up to 4,000 a shard (pooled), the exact min and max. not finite: NaN or an infinity outside the named sentinels (hqTrashCardsLoss's Infinity, corpEffect's NaN for no formula, evaluate's +-1000), which are counted apart. Compare a step's head with its base: `node scripts/value-owners/sum.mjs <head> --json head.json`, then `node scripts/value-owners/compare-sites.mjs base.json head.json`.");
+w('');
+w('| site | values | p50 | p99 | min | max | not finite | sentinels |');
+w('|---|--:|--:|--:|--:|--:|--:|--:|');
+const siteRows = {};
+for (const [site, d] of Object.entries(dist).sort()) {
+  siteRows[site] = { n: d.n, p50: pct(d.kept, 0.5), p99: pct(d.kept, 0.99), min: d.min, max: d.max, notFinite: d.notFinite, sentinel: d.sentinel };
+  const r = siteRows[site];
+  w(`| ${site} | ${d.n} | ${f2(r.p50)} | ${f2(r.p99)} | ${f2(r.min)} | ${f2(r.max)} | ${r.notFinite} | ${r.sentinel} |`);
+}
+w('');
+w('## Values served by a loop guard (V-B ruling 6b; must not rise)');
+w('Per guard key: the lookup that met itself inside its own pricing (guardLoop, valueModel.ts), instance and position left out; the guard served its flat value each time.');
+w('');
+w('| guard key | served flat |');
+w('|---|--:|');
+for (const [key, n] of Object.entries(guards).sort((x, y) => y[1] - x[1])) w(`| ${key} | ${n} |`);
+if (!Object.keys(guards).length) w('| (none) | 0 |');
+w('');
 w('## One example per site (root asks; Jeff\'s games #48 to #54 first, else a deal)');
 w('');
 w('| site | where | value | asked with |');
@@ -143,3 +176,8 @@ if (errors.length) {
   for (const e of errors.slice(0, 40)) w(`- ${e}`);
 }
 console.log(out.join('\n'));
+const jsonAt = process.argv.indexOf('--json');
+if (jsonAt > 0) {
+  const { writeFileSync } = await import('node:fs');
+  writeFileSync(process.argv[jsonAt + 1], JSON.stringify({ sites: siteRows, guards, known: Object.fromEntries(Object.entries(known).map(([k, v]) => [k, { n: v.n, equal: v.equal }])) }, null, 1));
+}
