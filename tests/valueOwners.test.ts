@@ -14,9 +14,10 @@ import { CARDS, CARD_VALUES } from '../src/ai/cards';
 import { newGame } from './helpers';
 
 /** The audit's P3 gaps, by title (report VAL-CORP-FORMULA-COST). Every other Corp formula card: 0. */
-// V-B B2: the 10 linear ones take their cost off in their entries (ruling 18: gap = cost on every board). Left: four
-// clamps (the cost is taken off inside Math.max(0.3, ...), the floor swallows part of it) and Hype Machine (free to rez
-// after an agenda by its text, so its cost is not a plain subtraction), each stated in stage-vb/labels.md for a ruling
+// V-B B2: the 10 linear ones take their cost off in their entries (ruling 18: gap = cost on every board; upgrade slots
+// too, whose one reader, corp/rez.ts upgradeValue, clamps at 0). Left, ruled no change (stage-vb/labels.md B2): Hype
+// Machine, priced for the free-rez window only (free to rez after an agenda, so its 6 is not taken off); and four
+// clamps on the tuning list, each taking its cost off once inside Math.max(0.3, ...) where the 0.3 floor swallows part
 const P3_GAPS: Record<string, number> = {
   'Hype Machine': 6,
   Synchrocyclotron: 3,
