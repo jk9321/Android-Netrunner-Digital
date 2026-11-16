@@ -59,9 +59,9 @@ export function trojanHostWorth(state: GameState, card: CardInstance, worth: (ho
 function defaultWorth(card: CardInstance, type: CounterType): number {
   switch (type) {
     case 'credit':
-      return card.cardCode === '30033' ? RATES.counters.smartwareCredit : RATES.counters.hostedCredit;
+      return RATES.counters.hostedCredit; // Smartware Distributor's own entry is read first (counterWorth)
     case 'virus':
-      return card.cardCode === '30007' ? RATES.counters.fermenterVirus : RATES.counters.virus;
+      return RATES.counters.virus; // Fermenter's own entry is read first (counterWorth)
     case 'agenda':
       return RATES.counters.scoredAgenda;
     case 'power':

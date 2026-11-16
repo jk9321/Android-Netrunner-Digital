@@ -453,7 +453,7 @@ function priceAgainNoBoard(s: Sample): void {
       check(s, sampledEndWorth(a[0] as SideCode, a[1] as number));
       return;
     case 'handValue':
-      check(s, handValue(a[0] as number, a[1] as number, a[2] as SideCode | undefined));
+      check(s, handValue(a[0] as number, a[1] as number, a[2] as SideCode));
       return;
   }
 }

@@ -21,8 +21,6 @@ const CODES_IN_VALUE_FILES: Record<string, string> = {
   'effectValues:30045': 'Urtica Cipher: a placed-counter field in CardAI',
   'effectValues:35061': 'Idiosyncresis: a placed-counter field in CardAI',
   'effectValues:30061': 'Clearinghouse: a placed-counter field in CardAI',
-  'counterValues:30033': 'Smartware Distributor: the step-1 rate when counterEffects is off (tested)',
-  'counterValues:30007': 'Fermenter: the step-1 rate when counterEffects is off (tested)',
 };
 
 /** Plan switches that are off, each with why it stays in the code. */
@@ -348,10 +346,10 @@ describe('AI code health (audit guards)', () => {
   // worked out before the set is priced, hold.ts + 1; corp/ + 8) = 14,263 and corp/ 2,298;
   // V-B B3 + 4 (assetRisk, the owner's risk as one export; the formula context's risk and its doc line; corpEffect works it out); B3 paidOut + 1 (its import of the owner; inIcedServer moved, not added): + 5 = 14,268 (accepted by the AI Coordinator)
   // ai-tag-loss-time arm 0 + 7 (evaluate.ts tagLoss: the three exact skips' comment and if-block, the rule cited) = 14,275;
-  // V-B B6 - 38 (Jeff's dead list, part A without centralExposure: creditValue and its two rates, FLATLINE, topDownWorth, shownIceShare, three re-exports) = 14,237
-  it('keeps src/ai/corp at or under 2,298 lines and src/ai at or under 14,237 (Stage C hand-off, ai-corp-honest-order, ai-value-time, ai-playout-lines, ai-honest-runner-view, ai-honest-corp-decision, ai-value-owners, ai-corp-rd-memory, ai-value-b1, ai-value-b2, ai-hold-reentry, ai-value-b3, ai-tag-loss-time, ai-value-b6)', () => {
+  // V-B B6 - 38 (Jeff's dead list, part A without centralExposure: creditValue and its two rates, FLATLINE, topDownWorth, shownIceShare, three re-exports) = 14,237; B6 - 12 (dead list part B: six unread RATES fields, PAYOUT_RISK.corpIced, the drawnCardOff branch, Smartware's and Fermenter's default branches with their two rates) = 14,225
+  it('keeps src/ai/corp at or under 2,298 lines and src/ai at or under 14,225 (Stage C hand-off, ai-corp-honest-order, ai-value-time, ai-playout-lines, ai-honest-runner-view, ai-honest-corp-decision, ai-value-owners, ai-corp-rd-memory, ai-value-b1, ai-value-b2, ai-hold-reentry, ai-value-b3, ai-tag-loss-time, ai-value-b6)', () => {
     const corp = aiFiles().filter(f => f.replace(/\\/g, '/').startsWith('corp/')).reduce((n, f) => n + lines(f), 0);
     expect(corp).toBeLessThanOrEqual(2298);
-    expect(aiFiles().reduce((n, f) => n + lines(f), 0)).toBeLessThanOrEqual(14237);
+    expect(aiFiles().reduce((n, f) => n + lines(f), 0)).toBeLessThanOrEqual(14225);
   });
 });

@@ -35,8 +35,8 @@ const MADANI = '35028';
  * first one over lets the worst card go). With plan.drawValue a card
  * up to the limit is worth what a credit is to a short side.
  */
-export function handValue(size: number, limit: number, viewer?: SideCode): number {
-  const card = viewer ? DRAWN_CARD : RATES.drawnCardOff;
+export function handValue(size: number, limit: number, viewer: SideCode): number {
+  const card = DRAWN_CARD;
   let value = 0;
   for (let i = 0; i < size; i++) value += i < RATES.handCoreCards ? RATES.handCore : i < limit ? card : i === limit ? handFilter() : 0;
   return logValue('hand', 'handValue', undefined, value, size, limit, viewer);
