@@ -1,6 +1,8 @@
 import { describe, expect, it } from 'vitest';
 import { FUZZ_CORPS, FUZZ_DECKS, FUZZ_RUNNERS, checkInvariants, cardsByZone, fuzzEngineGame, pairing, summaryLine } from '../scripts/engine-fuzz-check';
-import { executeAction } from '../src/core';
+import { createInitialGameState, executeAction, getLegalActions } from '../src/core';
+import { rdShuffleProbe } from '../src/core/engine/rdKnowledge';
+import { deckGameSetup } from '../src/data/decks';
 import { newGame } from './helpers';
 
 // Engine-invariant fuzzer, tier 1 (tiers 2 and 3 are scripts/engine-fuzz.ts on GitHub Actions: nightly, and the deep
@@ -112,5 +114,35 @@ describe('Engine fuzzer checks catch broken states', () => {
     s.activePlayer = 'runner';
     s.corp.clicks = 0;
     expect(checkInvariants(s, base, ids).failures.map(f => f.check)).toContain('hand-size-at-discard-step');
+  });
+});
+
+// Nightly run 43914434290 (2026-11-16): 37 games failed corp-rd-memory-forgets-shuffle because the probe counted
+// shuffles made only while checking legality (isLegalAction runs each candidate move on the state). The Corp kept
+// its memory rightly: R&D was never shuffled in the game (rules 4.2.2, 8.7.3 apply to a shuffle that happened).
+describe('Engine fuzzer R&D shuffle probe', () => {
+  it('a shuffle tried only in a legality check is not counted', () => {
+    const corp = FUZZ_DECKS.find(d => d.id === 'nrdb-big-hands')!;
+    const runner = FUZZ_DECKS.find(d => d.id === 'nrdb-bypass-orris-bypass')!;
+    const s = createInitialGameState(deckGameSetup(2077302628, corp, runner));
+    const shuffles = rdShuffleProbe.shuffles;
+    const legal = getLegalActions(s, 'corp'); // the Corp's mulligan, offered here, shuffles R&D
+    expect(legal.length).toBeGreaterThan(0);
+    expect(rdShuffleProbe.shuffles).toBe(shuffles);
+    expect(rdShuffleProbe.trial).toBe(0);
+  });
+
+  it('nightly seed 2077302628 (Big Hands, Corp keeps its R&D memory) passes', () => {
+    const corp = FUZZ_DECKS.find(d => d.id === 'nrdb-big-hands')!;
+    const runner = FUZZ_DECKS.find(d => d.id === 'nrdb-bypass-orris-bypass')!;
+    const res = fuzzEngineGame(2077302628, corp, runner, { maxSteps: 130 });
+    expect(res.failures).toEqual([]);
+  });
+
+  it('seed 2077300668: Oracle Thinktank declared while the Runner holds priority is checked on a copy, not counted', () => {
+    const corp = FUZZ_DECKS.find(d => d.id === 'nrdb-big-hands')!;
+    const runner = FUZZ_DECKS.find(d => d.id === 'lib-bright-eyes')!;
+    const res = fuzzEngineGame(2077300668, corp, runner, { maxSteps: 230 });
+    expect(res.failures).toEqual([]);
   });
 });
