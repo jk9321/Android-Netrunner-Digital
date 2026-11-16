@@ -266,7 +266,7 @@ describe('AI code health (audit guards)', () => {
     };
     visit('main.tsx');
     for (const dir of ['../server/', '../worker/']) {
-      let files: string[] = [];
+      let files: string[];
       try {
         files = (readdirSync(new URL(dir, import.meta.url), { recursive: true }) as string[]).filter(f => /\.tsx?$/.test(f));
       } catch {
