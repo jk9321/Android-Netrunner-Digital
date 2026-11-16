@@ -299,10 +299,10 @@ export const SYSTEM_GATEWAY: Record<string, CardAI> = {
     synergy: { gives: { denial: 1, ice: 0.5 } },
     value: { keep: 4, upgrade: [2.5, 2] },
     // Each run here costs the Runner 2 clicks or 5 credits
-    corp: state => {
+    corp: (state, _code, { cost }) => {
       const tax = Math.min(2 * CLICK, 5);
-      const remote = perTurn(state, PACE.runs * PACE.remoteShare * tax, 'corp');
-      const central = perTurn(state, PACE.runs * PACE.rdShare * tax, 'corp');
+      const remote = perTurn(state, PACE.runs * PACE.remoteShare * tax, 'corp') - cost;
+      const central = perTurn(state, PACE.runs * PACE.rdShare * tax, 'corp') - cost;
       return { keep: remote, upgrade: [remote, central] };
     },
   },
@@ -364,9 +364,9 @@ export const SYSTEM_GATEWAY: Record<string, CardAI> = {
     synergy: { gives: { tags: 1 } },
     value: { keep: 2, upgrade: [1.5, 0] },
     // 2 tags whenever the Runner steals from this server
-    corp: state => {
+    corp: (state, _code, { cost }) => {
       const tags = tagsWorth(state, 'corp', 2);
-      return { keep: 0.3 * tags, upgrade: [0.3 * tags, 0.15 * tags] };
+      return { keep: 0.3 * tags - cost, upgrade: [0.3 * tags - cost, 0.15 * tags - cost] };
     },
   },
   // Weyland: Built to Last
@@ -399,9 +399,9 @@ export const SYSTEM_GATEWAY: Record<string, CardAI> = {
     synergy: { gives: { draw: 0.5 }, when: ['onScore'] },
     value: { keep: 2, upgrade: [1.5, 0] },
     // Fetch a card of choice from R&D on each score here
-    corp: (_state, _code, { card }) => {
+    corp: (_state, _code, { card, cost }) => {
       const tutor = 1.5 * card;
-      return { keep: 1.2 * tutor, upgrade: [1.2 * tutor, 0] };
+      return { keep: 1.2 * tutor - cost, upgrade: [1.2 * tutor - cost, -cost] };
     },
   },
   // Offworld Office

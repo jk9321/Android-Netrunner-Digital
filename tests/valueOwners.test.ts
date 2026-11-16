@@ -9,22 +9,17 @@ import { getCardDefinition } from '../src/core';
 import '../src/ai/corpAI';
 import { asSide } from '../src/ai/synergy';
 import { EFFECT_CODES, corpEffect } from '../src/ai/effectValues';
-import { corpKeepValue } from '../src/ai/cardValues';
+import { corpKeepValue, isEconAsset } from '../src/ai/cardValues';
+import { CARDS, CARD_VALUES } from '../src/ai/cards';
 import { newGame } from './helpers';
 
 /** The audit's P3 gaps, by title (report VAL-CORP-FORMULA-COST). Every other Corp formula card: 0. */
+// V-B B2: the 10 linear ones take their cost off in their entries (ruling 18: gap = cost on every board; upgrade slots
+// too, whose one reader, corp/rez.ts upgradeValue, clamps at 0). Left, ruled no change (stage-vb/labels.md B2): Hype
+// Machine, priced for the free-rez window only (free to rez after an agenda, so its 6 is not taken off); and four
+// clamps on the tuning list, each taking its cost off once inside Math.max(0.3, ...) where the 0.3 floor swallows part
 const P3_GAPS: Record<string, number> = {
-  'Manegarm Skunkworks': 2,
-  'Malapert Data Vault': 1,
-  'AMAZE Amusements': 1,
   'Hype Machine': 6,
-  'Shackleton Grid': 1,
-  'Mahkota Langit Grid': 2,
-  'Mercia B4LL4RD': 2,
-  'The Red Room': 1,
-  'Phật Gioan Baotixita': 1,
-  'Perfect Recall': 1,
-  Idiosyncresis: 1,
   Synchrocyclotron: 3,
   'Nihilo Agent': 1,
   'Isaac Liberdade': 2.3,
@@ -49,7 +44,7 @@ describe('valuation V-A known answers', () => {
   });
 
   for (const score of [0, 4]) {
-    it(`reproduces the P3 cost gaps at score ${score} (15 cards, 0.00 for the other 33)`, () => {
+    it(`reproduces the P3 cost gaps at score ${score} (5 cards, 0.00 for the other 43)`, () => {
       const s = structuredClone(newGame(3));
       s.corp.score = score;
       const got: Record<string, number> = {};
@@ -63,7 +58,15 @@ describe('valuation V-A known answers', () => {
       Object.assign(want, FLOORED[score]);
       // the audit printed two decimals and rounded Isaac Liberdade and B-1001 to one in the report
       for (const t of Object.keys(got)) expect(got[t], t).toBeCloseTo(want[t], 1);
-      expect(Object.values(got).filter(g => Math.abs(g) >= 0.05).length).toBe(15 + Object.keys(FLOORED[score]).length);
+      expect(Object.values(got).filter(g => Math.abs(g) >= 0.05).length).toBe(5 + Object.keys(FLOORED[score]).length);
     });
   }
+
+  // V-B B2 (ruling 3): econValue's readers only asked whether it was defined. isEconAsset gives the same answer on every
+  // Corp card with an AI entry: these 15, the set econValue was defined for on 15 boards of deals 1001, 2181 and 1641
+  // (never 0, never varying by board), measured before econValue was deleted
+  it('isEconAsset is true for exactly the 15 cards econValue priced', () => {
+    const codes = [...new Set([...Object.keys(CARDS), ...Object.keys(CARD_VALUES)])].filter(c => getCardDefinition(c)?.side_code === 'corp');
+    expect(codes.filter(isEconAsset).sort()).toEqual(['30037', '30053', '30071', '34033', '34050', '34058', '34099', '34107', '34108', '34115', '35039', '35040', '35062', '35072', '36057']);
+  });
 });

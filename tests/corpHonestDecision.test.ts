@@ -16,6 +16,7 @@ import { clearBuildTargets } from '../src/ai/valueModel';
 // Namespace imports, so that on a tree without this branch (beta 8fbc771) only the tests that read the new exports fail
 import * as planner from '../src/ai/turnPlanner';
 import * as core from '../src/ai/corp/core';
+import { corpArrangesTop4 } from './rdArrange';
 
 /**
  * ai-honest-corp-decision (brief rev 2, "Pins"; red team 2026-11-16 rulings 1 to 9): the deciding Corp's whole decision
@@ -187,6 +188,9 @@ describe("the deciding Corp's whole decision reads no hidden card (rule 10.2.2a)
   it('keeps a grip card the Corp has seen, and an R&D card both sides know the place of, in their real places', () => {
     const s = drawPlays();
     s.corp.rdKnownToRunner = [{ id: s.corp.rd[2].instanceId, code: s.corp.rd[2].cardCode, lo: 2, hi: 2 }];
+    // ai-corp-rd-memory (ruling 1, 7.1.2): "both sides know" is now in both memories (a card revealed to both); the
+    // Runner's memory alone no longer fixes a place in the Corp's deal. Setup line added, assertions unchanged
+    s.corp.rdKnownToCorp = [{ id: s.corp.rd[2].instanceId, at: 2 }];
     revealInHand(s, 'runner', [s.runner.grip[0]]);
     const seen = honest(() => corpSeenGrip(s, 'reply'));
     expect(seen.has(s.runner.grip[0].instanceId)).toBe(true);
@@ -195,11 +199,11 @@ describe("the deciding Corp's whole decision reads no hidden card (rule 10.2.2a)
     for (const id of seen) expect(view.runner.grip.some(c => c.instanceId === id)).toBe(true);
   });
 
-  // Red team finding 1, ruled known debt (a Corp-side R&D memory in src/core, its own brief): the view forgets the R&D
-  // cards only the Corp has seen. Known-failing until that memory exists
-  it.fails('keeps the top R&D cards the Corp arranged in secret where it put them (known debt: no Corp-side R&D memory)', () => {
-    const s = drawPlays();
-    s.corp.rdNotes = { privateTop: 4 };
+  // Red team finding 1, was known debt; closed by ai-corp-rd-memory (engine/rdKnowledge.ts rdKnownToCorp): the Corp
+  // arranges the top 4 in secret through the engine (Knowledge Seeker, rules 8.3.3) and its view keeps them where it
+  // put them. Setup changed (red team corp-rd-memory finding 5: rdNotes lives for one action), assertion unchanged
+  it('keeps the top R&D cards the Corp arranged in secret where it put them', () => {
+    const [s] = corpArrangesTop4(drawPlays());
     const view = honest(() => planner.corpDecisionView(s));
     expect(view.corp.rd.slice(0, 4).map(c => c.instanceId)).toEqual(s.corp.rd.slice(0, 4).map(c => c.instanceId));
   });

@@ -1,5 +1,5 @@
 import { CardInstance, GameState } from '../core';
-import { ECON_SCALE, unrezzedWorth } from './cardProfiles';
+import { ECON_SCALE, profileOf, unrezzedWorth } from './cardProfiles';
 import { corpEffect, effectsOn, runnerEffect } from './effectValues';
 import { RATES, guardLoop, logValue } from './valueModel';
 import { CARD_VALUES } from './cards';
@@ -43,15 +43,8 @@ export const corpKeepValue = (code: string, state?: GameState, rezzed = false): 
   logValue('cardBeforeInstall', 'corpKeepValue', state, (state ? unrezzedWorth(state, code) ?? (corpPart('corpKeep') ? undefined : effect(state, code, rezzed)?.keep) : undefined) ?? (handSet(code)?.keep ?? RATES.defaultKeep) + drawBonus(code), code, rezzed);
 /** A card's worth from what it does (effectValues.ts), while plan.effectValues is on. */
 const effect = (state: GameState, code: string, rezzed = false) => (effectsOn() ? corpEffect(state, code, rezzed) : undefined);
-/** Worth of an econ asset in its own remote (undefined: not an econ asset). */
-export const econValue = (code: string, state?: GameState): number | undefined => {
-  const profiled = state ? unrezzedWorth(state, code) : undefined;
-  if (profiled !== undefined) return logValue('cardBeforeInstall', 'econValue', state, ECON_SCALE * profiled, code);
-  const fx = state && !corpPart('corpEcon') ? effect(state, code) : undefined; // Step S B3c
-  if (fx) return fx.econ === undefined ? undefined : logValue('cardBeforeInstall', 'econValue', state, ECON_SCALE * fx.econ, code);
-  const econ = handSet(code)?.econ;
-  return econ === undefined ? undefined : logValue('cardBeforeInstall', 'econValue', state, econ + drawBonus(code), code);
-};
+/** An econ asset (a card profile or an `econ` entry): a type test, not a price (V-B B2, ruling 3; was econValue's undefined). */
+export const isEconAsset = (code: string): boolean => !!profileOf(code) || CARD_VALUES[code]?.econ !== undefined;
 /** An upgrade's worth in a scoring remote and on HQ or R&D. */
 export const upgradeValue = (code: string, state?: GameState): [number, number] => {
   const fx = state && !corpPart('corpUpgrade') ? effect(state, code)?.upgrade : undefined; // Step S B3d

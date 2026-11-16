@@ -36,6 +36,7 @@ import { NRDB_TEST_DECKS } from '../src/data/testDecks/nrdb';
 import { IDENTITY_TEST_DECKS } from '../src/data/testDecks/identityDecks';
 import { createAgent } from '../src/ai';
 import { GameRunner } from '../src/ai/playout';
+import { rdShuffleProbe } from '../src/core/engine/rdKnowledge';
 
 /** Every deck we have (starters, NSG samples, NRDB lists, one per identity: the beta picker draws from these). */
 export const FUZZ_DECKS: DeckList[] = [...new Map([...ALL_DECKS, ...NRDB_TEST_DECKS, ...IDENTITY_TEST_DECKS].map(d => [d.id, d])).values()];
@@ -115,6 +116,9 @@ export function cardsByZone(state: GameState): { zone: string; card: CardInstanc
 
 const def = (c: CardInstance) => getCardDefinition(c.cardCode);
 const agendaPoints = (c: CardInstance) => c.asAgendaPoints ?? def(c).agenda_points ?? 0;
+
+/** The R&D shuffle count when each checked state was made (the Corp's memory check above). */
+const shufflesAt = new WeakMap<GameState, number>();
 
 /**
  * The invariants. `prev` is the state before the action (null at the start), `ids` the instance ids dealt at
@@ -222,6 +226,18 @@ export function checkInvariants(state: GameState, prev: GameState | null, ids: S
     check(hand.length <= Math.max(0, limit), 'hand-size-at-discard-step', '5.5.4, 5.5.4c', () => `${ended} finished its discard step with ${hand.length} cards, max hand size ${limit}`);
     if (ended === 'runner') check(limit >= 0, 'flatline-negative-hand-size', '1.7.2b, 5.5.4a', () => `the Runner reached its discard step with max hand size ${limit} and was not flatlined`);
   }
+
+  // --- The Corp's memory of R&D (engine/rdKnowledge.ts): each entry names the card at that place (4.2.3); after an
+  // action that shuffled R&D it holds only cards the Corp looked at after the shuffle (4.2.2, 8.7.3) ---
+  const corpRd = state.corp.rdKnownToCorp ?? [];
+  for (const e of corpRd) check(state.corp.rd[e.at]?.instanceId === e.id, 'corp-rd-memory-in-place', '4.2.3', () => `the Corp remembers ${e.id} at R&D ${e.at}, which holds ${state.corp.rd[e.at]?.instanceId ?? 'nothing'}`);
+  check(new Set(corpRd.map(e => e.id)).size === corpRd.length, 'corp-rd-memory-once', '4.1.1c', () => 'a card is in the Corp\'s R&D memory twice');
+  const shuffledBefore = prev ? shufflesAt.get(prev) : undefined;
+  if (shuffledBefore !== undefined && rdShuffleProbe.shuffles !== shuffledBefore) {
+    const stale = corpRd.filter(e => !rdShuffleProbe.corpSeenSince.has(e.id));
+    check(stale.length === 0, 'corp-rd-memory-forgets-shuffle', '4.2.2, 8.7.3', () => `after a shuffle the Corp still remembers ${stale.map(e => e.id).join(', ')}`);
+  }
+  shufflesAt.set(state, rdShuffleProbe.shuffles);
 
   // --- Turn number never goes back ---
   if (prev) check(state.turnNumber >= prev.turnNumber, 'turn-number-grows', '5.1.1', () => `turn ${prev.turnNumber} -> ${state.turnNumber}`);
@@ -342,6 +358,9 @@ export function fuzzEngineGame(seed: number, corp: DeckList, runner: DeckList, o
     // and the legality cache all keep old states), and the new state must survive a JSON round trip (saved games,
     // bug reports and the multiplayer server store it as JSON).
     const before = (step + 1) % PURITY_EVERY === 0 ? JSON.stringify(state) : null;
+    // The AI's look-ahead plays moves on copies with executeAction, shuffles included: the R&D shuffle probe is put
+    // back after it and the AI's real move is run once more below, so only that move counts (the engine is deterministic)
+    const probeBefore = game ? { shuffles: rdShuffleProbe.shuffles, seen: [...rdShuffleProbe.corpSeenSince] } : null;
     if (game) {
       const lastBefore = game.last;
       try {
@@ -356,6 +375,9 @@ export function fuzzEngineGame(seed: number, corp: DeckList, runner: DeckList, o
         // The engine refused the AI's move: executeAction below runs it again and reports it
       }
       action = game.last;
+      rdShuffleProbe.shuffles = probeBefore!.shuffles;
+      rdShuffleProbe.corpSeenSince = new Set(probeBefore!.seen);
+      if (next && action) executeAction(state, action); // same move, same shuffles; the copy is not kept
     } else action = opts.actions ? opts.actions[step] : pickAction(getLegalActions(state, side), rng);
     if (!action) break; // no legal action: already reported by the invariants
     step++;

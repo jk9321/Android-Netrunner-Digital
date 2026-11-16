@@ -1,5 +1,6 @@
 import { CardInstance, GameState, cardDef, createRng, getCardDefinition, knownInHand, knownInRd, nextFloat, shuffleInPlace } from '../core';
 import { isAdvanceable } from '../core/engine/helpers';
+import { knownToCorpInRd } from '../core/engine/rdKnowledge';
 import type { RunnerMemory } from './runs';
 import { HeuristicCorpAI } from './corpAI';
 import { GameRunner } from './playout';
@@ -57,14 +58,43 @@ export function sampledReply(): boolean {
 }
 
 /**
- * R&D positions whose card the Runner knows exactly (plan.keepKnownRd; Gemini's second audit, 2026-11-05): both sides
- * saw it stay there (rules 7.4.7a), so a lookahead's re-deal leaves it in place. Without this a known agenda on top of
- * R&D became a random access in the Runner reply, and the Runner AI's memory pointed at a card no longer there.
+ * R&D positions whose card the Runner knows exactly (plan.keepKnownRd; Gemini's second audit, 2026-11-05): the Runner's
+ * deal keeps them. Not the Corp's (7.1.2: corpKnownRdSlots); the Hard AI's determinize still reads this (registry debt).
  */
 export function knownRdSlots(state: GameState): Set<number> {
   const slots = new Set<number>();
   for (const e of knownInRd(state)) if (e.lo === e.hi && state.corp.rd[e.lo]?.instanceId === e.id) slots.add(e.lo);
   return slots;
+}
+
+/** R&D positions whose card the Corp knows (rdKnownToCorp; 4.2.3, 10.2.2b): kept by the Corp's deal only (red team corp-rd-memory finding 7). */
+export function corpKnownRdSlots(state: GameState): Set<number> {
+  const slots = new Set<number>();
+  for (const e of knownToCorpInRd(state)) if (state.corp.rd[e.at]?.instanceId === e.id) slots.add(e.at);
+  return slots;
+}
+
+/**
+ * The Runner's memory of R&D as the Corp can know it on its deal `rd` (red team corp-rd-memory finding 1): the Corp does
+ * not see what the Runner accesses (7.1.2) or arranges (8.3.3a) there, so an entry for a card the Corp doesn't know
+ * names the first dealt card in its range no other entry took (dropped if none): it never points at a moved card.
+ */
+function runnerRdMemoryOnDeal(state: GameState, rd: CardInstance[], fixed: Set<number>): GameState['corp']['rdKnownToRunner'] {
+  const known = state.corp.rdKnownToRunner;
+  if (!known?.length) return known;
+  const corpKnows = new Set([...fixed].map(i => rd[i].instanceId));
+  const taken = new Set([...fixed]);
+  const out: NonNullable<typeof known> = [];
+  for (const e of known) {
+    let at = e.lo;
+    while (!corpKnows.has(e.id) && at <= Math.min(e.hi, rd.length - 1) && taken.has(at)) at++;
+    if (corpKnows.has(e.id)) out.push(e);
+    else if (at <= Math.min(e.hi, rd.length - 1)) {
+      taken.add(at);
+      out.push({ ...e, id: rd[at].instanceId, code: rd[at].cardCode });
+    }
+  }
+  return out;
 }
 
 /** R&D shuffled except at `fixed` positions (`canonical`: the loose cards put in instance-id order first, plannerSeed). */
@@ -101,9 +131,12 @@ export function guessHidden(state: GameState, k: number): GameState {
   const unseen = shuffleInPlace(rng, order([...state.runner.grip.filter(c => !known.has(c.instanceId)), ...state.runner.stack]));
   const grip = [...seen, ...unseen.slice(0, state.runner.grip.length - seen.length)];
   const stack = unseen.slice(state.runner.grip.length - seen.length);
-  // plan.oracle.rd: the Corp knows its R&D order, so its guess keeps it
-  const rd = corpKnowsRd() ? [...state.corp.rd] : shuffleRdKeeping(rng, [...state.corp.rd], knownRdSlots(state), common);
-  return { ...state, rng: createRng(rng.state), runner: { ...state.runner, grip, stack }, corp: { ...state.corp, rd } };
+  // plan.oracle.rd: the Corp knows its R&D order, so its guess keeps it; otherwise the places the Corp knows stay put
+  if (corpKnowsRd()) return { ...state, rng: createRng(rng.state), runner: { ...state.runner, grip, stack }, corp: { ...state.corp, rd: [...state.corp.rd] } };
+  const fixed = corpKnownRdSlots(state);
+  const rd = shuffleRdKeeping(rng, [...state.corp.rd], fixed, common);
+  const rdKnownToRunner = runnerRdMemoryOnDeal(state, rd, fixed);
+  return { ...state, rng: createRng(rng.state), runner: { ...state.runner, grip, stack }, corp: { ...state.corp, rd, rdKnownToRunner } };
 }
 
 /**
@@ -188,7 +221,8 @@ export function guessRunnerView(state: GameState, k: number, memory?: RunnerMemo
   const stack = shuffleInPlace(rng, order([...state.runner.stack]));
   const view = withCorpCardCopies(state);
   dealRunnerUnknowns(view, () => nextFloat(rng), memory, common);
-  return { ...view, rng: createRng(rng.state), runner: { ...state.runner, stack } };
+  // The Corp's memory of R&D is not the Runner's to read (red team 2026-11-16 corp-rd-memory, finding 7; 4.2.2)
+  return { ...view, rng: createRng(rng.state), runner: { ...state.runner, stack }, corp: { ...view.corp, rdKnownToCorp: undefined } };
 }
 
 /** Remotes with an agenda and no ice (the open-steal loss; the diagnostics count the reply turns that began with one, and how many ran it). */

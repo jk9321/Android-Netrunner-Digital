@@ -53,7 +53,7 @@ const isEcon = (card: CardInstance) => (cardSynergy(cardDef(card)).gives?.econ ?
  * can't answer but the deck still can (no money, no ice for the Corp, no
  * breaker for an ice type the Runner faces), the chance the next card is an
  * answer, more while the opponent is close to winning or about to score.
- * Each side only looks at its own deck's contents, never its order.
+ * Each side only looks at its own deck's contents, never its order. Owner of digging for an answer (registry V17).
  */
 export function digValue(state: GameState, side: SideCode): number {
   if (ablated('digValue')) return 0; // Step S ablation A10 (measurement only)
@@ -250,7 +250,7 @@ function hiddenCardOddsOf(state: GameState): { agenda: number; agendaCost: numbe
 /** Chance the Runner runs a remote holding an advanced agenda on its turn (measured, scripts/pace.ts at b72eb3d: 40% of 6,689 turns). */
 export const AGENDA_RUN = 0.4;
 
-/** What a Corp click spent advancing could have built instead (plan.agendaClicks). */
+/** What a Corp click spent advancing could have built instead (plan.agendaClicks). Owner of a Corp click spent advancing (registry V16). */
 export let AGENDA_CLICK = 2;
 /** scripts/human-agreement.ts sweeps it. */
 export function setAgendaClick(value: number): void {

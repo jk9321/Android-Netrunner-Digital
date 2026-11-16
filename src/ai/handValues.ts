@@ -7,7 +7,7 @@ import { agendaWorth, isOneUse, runnerRigValue } from './evaluate';
 import { counterWorth } from './counterValues';
 import { handPlanWorth } from './cardPlans';
 import { CLICK, RATES, cardRate, fingerprint, handFilter, logValue, payoutSlide, pricingApart, positionSerial, printedGain, reachCard, scopeToGame, setDeckCard } from './valueModel';
-import { ablated, leafHandByCard, noteDecision, plan, pricing, pricingKey, withPricing } from './pricing';
+import { ablated, actingSide, leafHandByCard, noteDecision, plan, pricing, pricingKey, withPricing } from './pricing';
 import { corpDrawPool, corpKnowsRd } from './oracle';
 
 /**
@@ -190,11 +190,9 @@ function drawWorth(state: GameState, side: SideCode): number {
   // shared the real deck's key (drawAudit: 104 wrong hits on deal 2181). Off a view an instance's code never changes
   const key = `${pricingKey()}:${side}:${state.id}:${state.turnNumber}:${credits}${board}${deck.map(c => c.instanceId + c.cardCode).join(',')}`;
   // Audit Step 2 (AI-CACHE-HIDDEN-STATE): the key leaves out what R&D, Archives, the grip and the heap hold, the counters
-  // and hosts of installed cards and the run under way (fingerprint has the zones by size only), so some hits are another
-  // board's value (about 6%: drawAudit, tests/handCacheAudit.test.ts). An exact key cost the Corp about +50% decision time
-  // (more misses, each repricing the Runner's whole stack), so the map is kept to one game: which wrong value is served
-  // then depends on this game's own calls only, never on the games played before in the process (batch shards: 218 of 221).
-  // Known debt, closed by pricing the Runner's stack once per decision (Step 4/5 list).
+  // and hosts of installed cards and the run under way, so some hits are another board's value (drawAudit). The exact key
+  // (zone contents in the key) cost x1.17 Corp decision time (V-B B1, ruling 1; 24 wrong of 401k hits, 2 Corp picks in
+  // 7,410): kept incomplete, recorded. The map is kept to one game, never the games played before it (batch shards).
   scopeToGame(deckAverage, state);
   const cached = deckAverage.get(key);
   if (cached !== undefined && !drawAudit.on) return cached;
@@ -285,7 +283,7 @@ export function ownHandValue(state: GameState, side: SideCode): number {
   const reach = side === 'corp' ? reachCard(state) : undefined;
   const values = hand
     // plan.oracle.rd: a card the Corp drew in a look-ahead is one it knew was coming
-    .map(c => (seen && !seen.has(c.instanceId) && !(side === 'corp' && corpKnowsRd()) ? logValue('cardDrawn', 'ownHandValue drawWorth', state, drawWorth(state, side), side) : c === reach ? HAND_FLOOR : heldWorth(state, c, side)))
+    .map(c => (seen && !seen.has(c.instanceId) && !(side === 'corp' && corpKnowsRd()) ? logValue('cardDrawn', 'ownHandValue drawWorth', state, side === actingSide() ? cardRate(state, side) : drawWorth(state, side), side) : c === reach ? HAND_FLOOR : heldWorth(state, c, side)))
     .sort((a, b) => b - a);
   let value = 0;
   for (let i = 0; i < values.length; i++) {
@@ -313,7 +311,8 @@ export function clickWorth(state: GameState, side: SideCode): number {
   const clicks = Math.max(1, player.clicks);
   // The board is in the key (valueModel fingerprint): each hand card's played worth and the deck's average read it. Before,
   // the key left it out and about 17% of hits were another board's value (Audit Step 2 clickAudit; tests/threatCacheAudit
-  // deal 1421: a stale click worth reached a cached Runner budget). Kept to one game, as drawWorth's map (above)
+  // deal 1421: a stale click worth reached a cached Runner budget). Kept to one game, as drawWorth's map (above). Still
+  // incomplete (zone contents, counters): kept incomplete, recorded (V-B B1 M1; 19 wrong of 41.7k hits, exact key x1.05)
   const key = `${pricingKey()}:${side}:${state.id}:${state.turnNumber}:${player.clicks}:${player.credits}:${(side === 'corp' ? state.corp.hq : state.runner.grip).map(c => c.instanceId).join(',')}:${fingerprint(state)}`;
   scopeToGame(clickCache, state);
   const cached = clickCache.get(key);
@@ -326,7 +325,7 @@ export function clickWorth(state: GameState, side: SideCode): number {
     // rest (playedWorth charges the click: add it back to get what the click buys)
     .map(c => (1 - SOON.now) * (playedWorth(state, c) + CLICK))
     .sort((a, b) => b - a);
-  const repeatable = Math.max(1, logValue('cardDrawn', 'clickWorth drawWorth', state, drawWorth(state, side), side));
+  const repeatable = Math.max(1, logValue('cardDrawn', 'clickWorth drawWorth', state, side === actingSide() ? cardRate(state, side) : drawWorth(state, side), side)); // V-B B1: the decider's own deck through cardRate (ruling 8)
   let total = 0;
   for (let i = 0; i < clicks; i++) total += Math.max(repeatable, plays[i] ?? 0);
   const value = Math.max(1, Math.min(3, total / clicks));

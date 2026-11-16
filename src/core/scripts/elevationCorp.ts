@@ -5,7 +5,7 @@ import { shuffleInPlace } from '../rng';
 import { shuffleRD } from '../engine/rdKnowledge';
 import { addLog } from '../engine/log';
 import { drawCards, findInstalledCorpCard, forgetInHand, removeCard, revealInHand } from '../engine/helpers';
-import { noteRdPrivate, runnerSeesRd } from '../engine/rdKnowledge';
+import { corpSeesRd, noteRdPrivate, runnerSeesRd } from '../engine/rdKnowledge';
 import { completeRez } from '../engine/actions/corp';
 import { playBlocker, playCardFrom } from '../engine/actions/play';
 import { dealMeatDamage, dealNetDamage, dealCoreDamage, giveTags, trashInstalledRunnerCard } from '../engine/damage';
@@ -142,6 +142,7 @@ const poetri: CardScript = {
   triggers: {
     agenda_scored: ctx => {
       const top = installable(ctx.state, ctx.state.corp.rd.slice(0, 3).filter(c => type(c) !== 'agenda'));
+      corpSeesRd(ctx.state, ctx.state.corp.rd.slice(0, 3)); // the Corp looks at them (8.3.3b, 10.2.2b)
       addLog(ctx.state, 'corp', 'Corp looked at the top 3 cards of R&D (Poétrï Luxury Brands).');
       // Asked even with nothing to install when the Corp's stops are on ALL, so the wait doesn't tell the Runner what R&D holds (4.2.2)
       askEvenIfNone(ctx, 'corp', top.length > 0, () => askCards(ctx, 'corp', 'Poétrï: you may install 1 non-agenda card from the top 3 of R&D.', ids(top), 0, 1, 'pick'), 'Poétrï: no non-agenda card in the top 3 of R&D you can install.');
@@ -412,6 +413,7 @@ const embeddedReporting = dividendAgenda(
       if (card) {
         state.corp.rd.unshift(card);
         runnerSeesRd(state, card); // revealed, then put on top
+        corpSeesRd(state, [card]); // after the search's shuffle (8.7.3): both players know it is on top
       }
     },
   }
