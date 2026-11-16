@@ -102,7 +102,7 @@ describe('AI code health (audit guards)', () => {
     const setup = files.filter(f => /import \{[^}]*\b(installDiagnostics|withDiagnostics|newDiagnostics)\b[^}]*\} from '\.\/diagnostics'/.test(text(f)));
     expect(setup).toEqual([]);
     const exported = [...text('diagnostics.ts').matchAll(/^export (?:const|function|interface|type) (\w+)/gm)].map(m => m[1]).sort();
-    expect(exported).toEqual(['Diagnostics', 'clockOn', 'inReply', 'installDiagnostics', 'newDiagnostics', 'note', 'tally', 'withDiagnostics']);
+    expect(exported).toEqual(['Diagnostics', 'clockOn', 'inReply', 'installDiagnostics', 'newDiagnostics', 'note', 'tally', 'unsunk', 'withDiagnostics']);
   });
 
   it('names no new card codes in the shared value files', () => {
@@ -245,6 +245,10 @@ describe('AI code health (audit guards)', () => {
   // -27 (determinize calls the deal), valueModel.ts +53 (corpIceMean, boardNeed's Runner branch by odds, the odds port),
   // evaluate.ts +14 (unseenCorpPool, the port's fill), turnPlanner.ts +17 (runnerDecisionView memoised, memory), runnerAI.ts
   // +8 (the baseline and runs on the view, the prompt guard), handValues.ts +3 (the deck-average key with codes)
+  // ai-playout-lines (A1, brief-playout-lines.md: the guards rise only by the wiring's measured lines) adds 63 to src/ai:
+  // corp/core.ts +40 (lineAsk, the Q4/Q5 sequence taken out of corpDecide, and playoutLine, the playout's Corp, with
+  // their comments and its measurement hook), turnPlanner.ts +10 (the PlannerAI `line` hook and its three uses in
+  // playout), diagnostics.ts +13 (the playoutLine counters, the onPlayoutLine hook and unsunk); corpAI.ts is unchanged
   // Stage C (brief-stage-c.md): corpAI.ts is the agent shell. Its size is the measured figure, down only, and it holds no
   // rule and no number: no number other than 0 and 1 outside comments, and no `score` field or scoring function.
   // ai-corp-honest-order: 109 to 110, the line that gives the order the deciding Corp's own view (rule 10.2.2a)
@@ -258,12 +262,12 @@ describe('AI code health (audit guards)', () => {
     expect(code).not.toMatch(/\bscore\s*:|\bscore\w*\s*\(/i);
   });
 
-  // ai-value-time: src/ai 13,847 to 13,858 (+11 measured: the tag clock kept on the original board, evaluate.ts +7 and runs.ts +2;
-  // the lazy tag input, effectValues.ts +2); src/ai/corp unchanged
-  // ai-honest-runner-view on top of it: +135 (above), 13,858 to 13,993
-  it('keeps src/ai/corp at or under 2,217 lines and src/ai at or under 13,993 (Stage C hand-off, ai-corp-honest-order, ai-value-time, ai-honest-runner-view)', () => {
+  // ai-value-time: src/ai +11 measured (the tag clock kept on the original board, evaluate.ts +7 and runs.ts +2; the lazy
+  // tag input, effectValues.ts +2); src/ai/corp unchanged. With ai-playout-lines' +63 (above): 13,847 + 11 + 63 = 13,921
+  // ai-honest-runner-view on top of it: +135 (above), 13,921 to 14,056
+  it('keeps src/ai/corp at or under 2,257 lines and src/ai at or under 13,921 (Stage C hand-off, ai-corp-honest-order, ai-value-time, ai-playout-lines, ai-honest-runner-view)', () => {
     const corp = aiFiles().filter(f => f.replace(/\\/g, '/').startsWith('corp/')).reduce((n, f) => n + lines(f), 0);
-    expect(corp).toBeLessThanOrEqual(2217);
-    expect(aiFiles().reduce((n, f) => n + lines(f), 0)).toBeLessThanOrEqual(13993);
+    expect(corp).toBeLessThanOrEqual(2257);
+    expect(aiFiles().reduce((n, f) => n + lines(f), 0)).toBeLessThanOrEqual(14056);
   });
 });

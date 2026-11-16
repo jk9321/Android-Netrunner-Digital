@@ -86,6 +86,11 @@ export interface PlannerAI {
    * passed in by corpAI.ts so that this file reads no Corp owner). Without it (the Runner): its ranking's first few.
    */
   intake?(open: ScoredAction[], k: number): { picked: ScoredAction[]; slots: Map<ScoredAction, 'agenda' | 'build'> };
+  /**
+   * The Corp (A1, brief-playout-lines.md): a fresh Corp line for one playout (corp/core.ts playoutLine, passed in by
+   * corpAI.ts): its own copy of the held two-turn line, the order read with it, and Q4/Q5 at each later main-phase step.
+   */
+  line?(): { rank(state: GameState): ScoredAction[]; first(state: GameState, action: GameAction): void; step(state: GameState, pick: GameAction | null): GameAction | null };
 }
 
 /** The rest of the last plan: followed while the game goes as the plan expected. */
@@ -109,7 +114,7 @@ export const searchPiece = (piece: 'plannerSeed' | 'plannerDiscard'): boolean =>
 const clicksOf = (state: GameState, side: SideCode) => (side === 'corp' ? state.corp.clicks : state.runner.clicks);
 
 /** A playout's main-phase actions after the first, each with the position it was chosen in. */
-type Line = { key: string; action: GameAction }[];
+export type Line = { key: string; action: GameAction }[];
 
 /** A position as the planner tells them apart: the turn, clicks, credits and the cards in hand and play. */
 function positionKey(state: GameState, side: SideCode): string {
@@ -164,8 +169,10 @@ function finishStep(state: GameState, ranked: ScoredAction[]): ScoredAction | un
  * Plays `side`'s turn on from `state` after `first`, and returns how good the end of the turn is. `mode` (LineMode):
  * how the continuation picks its actions ('hold': it installs no agenda from HQ this turn).
  */
-function playout(start: GameState, side: SideCode, first: GameAction, ai: PlannerAI, line: Line = [], ends?: Ends, mode: LineMode = 'rule'): number {
+export function playout(start: GameState, side: SideCode, first: GameAction, ai: PlannerAI, line: Line = [], ends?: Ends, mode: LineMode = 'rule'): number {
   const hold = mode === 'hold';
+  // A1: the Corp's own held line for this playout, on the rule line only ('hold' and 'finish' are S1's measurement as it was)
+  const corpLine = side === 'corp' && mode === 'rule' ? ai.line?.() : undefined;
   let bonus = 0;
   let ran = false;
   /** The position before the last main-phase action, and the card it used: where a run event's run is priced from. */
@@ -215,6 +222,7 @@ function playout(start: GameState, side: SideCode, first: GameAction, ai: Planne
       return null;
     }
   };
+  corpLine?.first(start, first);
   let state = step(start, first);
   if (!state) return -Infinity;
   for (let i = 0; i < PLANNER.maxSteps && !state.winner; i++) {
@@ -237,14 +245,16 @@ function playout(start: GameState, side: SideCode, first: GameAction, ai: Planne
     const outOfClicks = clicksOf(state, side) <= 0;
     if (outOfClicks && !(side === 'corp')) break;
     const now = state;
-    const ranked = ai.rank(now);
+    const ranked = corpLine ? corpLine.rank(now) : ai.rank(now);
     const ruled = ranked.find(r => r.score > -Infinity && r.action.type !== 'END_TURN' && (!outOfClicks || r.action.type === 'SCORE_AGENDA') && !(ran && r.action.type === 'INITIATE_RUN') && !dominated(now, r.action, ranked) && !(hold && agendaInstall(now, r.action)));
     const finish = mode === 'finish' && side === 'corp' ? finishStep(now, ranked) : undefined;
     const best = finish && (!outOfClicks || finish.action.type === 'SCORE_AGENDA') ? finish : ruled;
-    if (!best) break;
-    if (ends && agendaInstall(now, best.action)) ends.installedAgenda = true;
-    if (!ran) line.push({ key: positionKey(state, side), action: best.action }); // after a run the position can't be foreseen
-    const next = step(state, best.action);
+    // A1: with clicks left, Q4/Q5 on the order's pick (a score first; the line's step, or the pick vetoed)
+    const played = corpLine && !outOfClicks ? corpLine.step(now, best?.action ?? null) : best?.action;
+    if (!played) break;
+    if (ends && agendaInstall(now, played)) ends.installedAgenda = true;
+    if (!ran) line.push({ key: positionKey(state, side), action: played }); // after a run the position can't be foreseen
+    const next = step(state, played);
     if (!next) break;
     state = next;
   }
