@@ -141,16 +141,19 @@ export function dealRunnerUnknowns(s: GameState, random: () => number, memory?: 
     return i === -1 ? undefined : codes.splice(i, 1)[0];
   };
   const typeOf = (code: string) => getCardDefinition(code).type_code;
-  for (const card of ice) card.cardCode = take(code => typeOf(code) === 'ice') ?? take(code => code === card.cardCode)!;
-  for (const card of root) {
-    const advanced = card.advancementCounters > 0;
-    card.cardCode =
-      take(code => {
-        const type = typeOf(code);
-        if (!['agenda', 'asset', 'upgrade'].includes(type)) return false;
-        return !advanced || isAdvanceable({ cardCode: code } as CardInstance);
-      }) ?? take(code => code === card.cardCode)!;
-  }
+  const isRoot = (code: string) => ['agenda', 'asset', 'upgrade'].includes(typeOf(code));
+  // Every slot's own code is in the pool, so each kind has at least as many codes as slots: an ice slot always finds an
+  // ice, and a root slot a root card as long as the advanced slots (the constrained ones; advanced is public) are dealt
+  // first and fall back to any root card (a card advanced by an effect need not be advanceable), not to their own code,
+  // which an earlier slot may have taken (review R1)
+  const dealt = (code: string | undefined): string => {
+    if (code === undefined) throw new Error('dealRunnerUnknowns: a slot found no code (the pool lost a slot card)');
+    return code;
+  };
+  for (const card of ice) card.cardCode = dealt(take(code => typeOf(code) === 'ice'));
+  const advanced = root.filter(c => c.advancementCounters > 0);
+  for (const card of advanced) card.cardCode = dealt(take(code => isRoot(code) && isAdvanceable({ cardCode: code } as CardInstance)) ?? take(isRoot));
+  for (const card of root.filter(c => c.advancementCounters <= 0)) card.cardCode = dealt(take(isRoot));
   loose.forEach((card, i) => (card.cardCode = codes[i]));
 }
 

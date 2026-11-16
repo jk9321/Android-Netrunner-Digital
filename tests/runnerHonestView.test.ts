@@ -9,7 +9,9 @@ import { clearHandCaches } from '../src/ai/handValues';
 import { clearThreatCaches } from '../src/ai/threatModel';
 import { clearDamageThreats } from '../src/ai/effectValues';
 import { clearDeckShares } from '../src/ai/iceValues';
-import { guessRunnerView } from '../src/ai/runnerReply';
+import { dealRunnerUnknowns, guessRunnerView } from '../src/ai/runnerReply';
+import { getCardDefinition } from '../src/core';
+import { isAdvanceable } from '../src/core/engine/helpers';
 // A namespace import, so that on a tree without the view's memory argument (beta b7c4917) only the tests that read it differ
 import * as planner from '../src/ai/turnPlanner';
 import { cont, run } from './helpers';
@@ -175,5 +177,36 @@ describe('a prompt naming a Corp card the view may have recoded is answered on t
       return key(honest(() => new HeuristicRunnerAI({ planner: true }).chooseAction(at), hiddenDraws));
     };
     expect(answer(true)).toBe(answer(false));
+  });
+});
+
+describe("the deal gives every hidden Corp card a code that fits its slot (review R1)", () => {
+  it('a remote with a facedown asset, then a facedown advanced agenda, HQ, R&D and Archives empty: 200 seeds', () => {
+    const base = t6();
+    // remote 1: Regolith (inst-14, an asset that can't be advanced) facedown, then an R&D agenda (inst-5) facedown with a counter
+    const agenda = base.corp.rd.find(c => c.instanceId === 'inst-5')!;
+    base.corp.servers['remote-1'].root.push({ ...agenda, advancementCounters: 1 });
+    base.corp.hq = [];
+    base.corp.rd = [];
+    base.corp.archives.faceDown = [];
+    const unseen = (s: GameState) => [...Object.values(s.corp.servers).flatMap(v => [...v.ice.filter(c => !c.isRezzed), ...v.root])];
+    const before = unseen(base).map(c => c.cardCode).sort();
+    for (let seed = 1; seed <= 200; seed++) {
+      const s = structuredClone(base);
+      let x = seed;
+      // a fixed-seed generator (no Math.random in tests that pin a deal)
+      const random = () => ((x = (x * 1103515245 + 12345) % 2147483648) / 2147483648);
+      dealRunnerUnknowns(s, random, undefined, true);
+      const after = unseen(s);
+      for (const c of after) expect(c.cardCode, `seed ${seed}`).toBeDefined();
+      expect(after.map(c => c.cardCode).sort()).toEqual(before);
+      for (const sv of Object.values(s.corp.servers)) {
+        for (const c of sv.ice.filter(i => !i.isRezzed)) expect(getCardDefinition(c.cardCode).type_code).toBe('ice');
+        for (const c of sv.root) {
+          expect(['agenda', 'asset', 'upgrade']).toContain(getCardDefinition(c.cardCode).type_code);
+          if (c.advancementCounters > 0) expect(isAdvanceable(c), `seed ${seed}`).toBe(true);
+        }
+      }
+    }
   });
 });
