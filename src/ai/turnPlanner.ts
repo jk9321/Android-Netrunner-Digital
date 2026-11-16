@@ -8,6 +8,7 @@ import { plan, pricing, withPricing } from './pricing';
 import { note, tally } from './diagnostics';
 import { REPLY, guessHidden, guessRunnerView, runnerReply, sampledReply } from './runnerReply';
 import { plannerCandidates, replySamples } from './oracle';
+import { fingerprint } from './valueModel';
 
 /**
  * The whole-turn planner for Normal (Jeff, 2026-10-28; plan.turnPlanner).
@@ -307,10 +308,10 @@ function drewFromDeck(side: SideCode, start: GameState, end: GameState | undefin
 }
 
 /** plan.hiddenDraws: the guessHidden (Corp) or guessRunnerView (Runner) deal the planner's own playouts start from (the replies use deals 0 ..). */
-const HIDDEN_DRAW_SAMPLE = 4096;
+export const HIDDEN_DRAW_SAMPLE = 4096;
 
 /** The seed a decision of `side` at `state` deals its guesses from (plannerSeed: the game, turn and clicks left). */
-function decisionSeedFor(state: GameState, side: SideCode): number | null {
+export function decisionSeedFor(state: GameState, side: SideCode): number | null {
   return searchPiece('plannerSeed') ? (turnSeed(state) ^ Math.imul(clicksOf(state, side) + 1, 0x85ebca6b)) >>> 0 : pricing().decisionSeed;
 }
 
@@ -322,6 +323,28 @@ export function runnerDecisionView(state: GameState): GameState {
   if (!plan().hiddenDraws) return state;
   return withPricing({ decisionSeed: decisionSeedFor(state, 'runner') }, () => guessRunnerView(state, HIDDEN_DRAW_SAMPLE));
 }
+
+/**
+ * The deciding Corp's own view of `state` for this decision (plan.hiddenDraws; rule 10.2.2a; Jeff: the Normal Corp does
+ * not see its own draws): the guessHidden deal with the decision's seed, so R&D's order (outside the slots both sides
+ * know, knownRdSlots), the Runner's unseen grip (with the stack) and the rng are a guess. The same object is the root
+ * its planner's playouts start from (planTurn), so the order and the playouts read one deal by construction: kept per
+ * real state while what it deals from is the same. Honest only with plan.plannerSeed on (the default): off, the
+ * deal is seeded from the real rng and shuffles R&D from its real order. Off (hiddenDraws): the state itself.
+ */
+export function corpDecisionView(state: GameState): GameState {
+  if (!plan().hiddenDraws) return state;
+  const seed = decisionSeedFor(state, 'corp');
+  // Kept while nothing it deals from has changed (tests edit a state in place): the seed, the plan, the board, the cards
+  const ids = (cards: { instanceId: string }[]) => cards.map(c => c.instanceId).join(',');
+  const sig = `${seed}|${fingerprint(state)}|${ids(state.corp.hq)}|${ids(state.corp.rd)}|${ids(state.runner.grip)}|${ids(state.runner.stack)}|${JSON.stringify(plan())}`;
+  const kept = corpViews.get(state);
+  if (kept?.sig === sig) return kept.view;
+  const view = withPricing({ decisionSeed: seed }, () => guessHidden(state, HIDDEN_DRAW_SAMPLE));
+  corpViews.set(state, { sig, view });
+  return view;
+}
+const corpViews = new WeakMap<GameState, { sig: string; view: GameState }>();
 
 export function planTurn(state: GameState, side: SideCode, ranked: ScoredAction[], ai: PlannerAI, synergy: boolean): GameAction | null {
   // Still on the last plan: its next step, if the rule-based AI still rates it
@@ -349,8 +372,7 @@ export function planTurn(state: GameState, side: SideCode, ranked: ScoredAction[
     // plan.hiddenDraws (spec-search S6; the Runner's side Jeff 2026-11-14): each side's candidates are played from its own
     // guess of what it can't see, dealt once for the decision, so a line that draws draws a guess, not the real top of
     // R&D or the stack (rule 10.2.2a)
-    const guess = side === 'corp' ? guessHidden : guessRunnerView;
-    const root = plan().hiddenDraws ? guess(state, HIDDEN_DRAW_SAMPLE) : state;
+    const root = side === 'corp' ? corpDecisionView(state) : plan().hiddenDraws ? guessRunnerView(state, HIDDEN_DRAW_SAMPLE) : state;
     let best: { action: GameAction; value: number; line: Line } | null = null;
     const values: number[] = [];
     const scored: { action: GameAction; value: number; line: Line; ends: Ends }[] = [];

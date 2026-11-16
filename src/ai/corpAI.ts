@@ -2,7 +2,7 @@ import { CardInstance, GameAction, GameState, getLegalActions } from '../core';
 import { Agent, FreeActionGuard, ScoredAction } from './agent';
 import { asSide } from './synergy';
 import { decisionContext } from './handValues';
-import { PlanMemory, planTurn, plannerOn } from './turnPlanner';
+import { PlanMemory, corpDecisionView, planTurn, plannerOn } from './turnPlanner';
 import { runnerReply } from './runnerReply';
 import { decideRez, perfectRecallTarget } from './corp/rez';
 import { holdingRezIds, rezMoney } from './corp/rezMoney';
@@ -89,9 +89,10 @@ export class HeuristicCorpAI implements Agent {
 
   /** Main-phase actions in the order (corp/candidates.ts); the position in it is the only number (asRanked). */
   rankMainActions(state: GameState, legal = getLegalActions(state, 'corp')): ScoredAction[] {
-    decisionContext(state, 'corp');
+    const view = this.planner ? corpDecisionView(state) : state; // rule 10.2.2a: the deciding Corp's own deal (a rollout plays on it already); the legal list is the real state's
+    decisionContext(view, 'corp');
     this.freeActions.start(state, state.corp.clicks);
-    return asRanked(state, corpCandidates(state, legal, { held: this.memory.heldLine, freeExhausted: this.freeActions.exhausted }));
+    return asRanked(view, corpCandidates(view, legal, { held: this.memory.heldLine, freeExhausted: this.freeActions.exhausted }));
   }
 
   chooseRez(state: GameState, cards: CardInstance[]): GameAction | null {

@@ -236,21 +236,25 @@ describe('AI code health (audit guards)', () => {
   // Stage C hand-off (AI Coordinator 18:26Z): corp/ is set to the measured figure after the C7 deletions, 2,217, above the
   // brief's 2,150 and listed as a deviation with its breakdown by file; src/ai to the measured 13,824 (the Corp side
   // below 13,799 once the Runner branches' 157 and ai-prompt-time's 14 are set aside). Both down only
+  // ai-corp-honest-order (brief rev 2: the guards rise only by the view function's measured lines) adds 23 to src/ai: the
+  // Corp's view in turnPlanner.ts (corpDecisionView, its comment and memo, the import: +22) and its one line in corpAI.ts
+  // rankMainActions (+1); corp/ is unchanged (the comment rewording holds its line count)
   // Stage C (brief-stage-c.md): corpAI.ts is the agent shell. Its size is the measured figure, down only, and it holds no
-  // rule and no number: no number other than 0 and 1 outside comments, and no `score` field or scoring function
+  // rule and no number: no number other than 0 and 1 outside comments, and no `score` field or scoring function.
+  // ai-corp-honest-order: 109 to 110, the line that gives the order the deciding Corp's own view (rule 10.2.2a)
   it('keeps corpAI.ts a shell with no scoring function and no number', () => {
     const code = aiText('corpAI.ts')
       .split('\n')
       .filter(l => !/^\s*(\/\/|\/\*\*|\*)/.test(l))
       .join('\n');
-    expect(lines('corpAI.ts')).toBeLessThanOrEqual(109);
+    expect(lines('corpAI.ts')).toBeLessThanOrEqual(110);
     expect(code.match(/(?<![\w.])\d+(\.\d+)?(?![\w.])/g)?.filter(n => n !== '0' && n !== '1') ?? []).toEqual([]);
     expect(code).not.toMatch(/\bscore\s*:|\bscore\w*\s*\(/i);
   });
 
-  it('keeps src/ai/corp at or under 2,217 lines and src/ai at or under 13,824 (Stage C hand-off)', () => {
+  it('keeps src/ai/corp at or under 2,217 lines and src/ai at or under 13,847 (Stage C hand-off, ai-corp-honest-order)', () => {
     const corp = aiFiles().filter(f => f.replace(/\\/g, '/').startsWith('corp/')).reduce((n, f) => n + lines(f), 0);
     expect(corp).toBeLessThanOrEqual(2217);
-    expect(aiFiles().reduce((n, f) => n + lines(f), 0)).toBeLessThanOrEqual(13824);
+    expect(aiFiles().reduce((n, f) => n + lines(f), 0)).toBeLessThanOrEqual(13847);
   });
 });

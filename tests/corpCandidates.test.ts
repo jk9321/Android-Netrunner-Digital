@@ -11,8 +11,9 @@ import { PLANNER } from '../src/ai/turnPlanner';
 /**
  * Stage C (brief "Pins", spec 1.3): the nine-line order's contracts, under plan.corpCore. One destination per card
  * under a counted placement rule; the planner's K under its two caps; a total, deterministic order that draws no
- * random number; no hidden information read (rule 10.2.2a); a two-turn line's step is not a Q7 candidate; the counted
- * pins also hold with no look-ahead (spec section 3).
+ * random number; the same order given the same HQ and board on these fixtures (the deciding Corp's view, rule 10.2.2a:
+ * corpHonestOrder.test.ts); a two-turn line's step is not a Q7 candidate; the counted pins also hold with no look-ahead
+ * (spec section 3).
  */
 const read = (name: string): GameState => JSON.parse(readFileSync(new URL(`./fixtures/${name}`, import.meta.url), 'utf8'));
 const FIXTURES = ['ice-redirect-1001-t10.json', 'ice-redirect-1411-t6.json', 'money-1001-t1.json', 'asset-cover-r39-t6.json', 'planner-build-2.json', 'hidden-draws-1001-t10.json'];
@@ -59,7 +60,9 @@ describe('the Corp candidate order (Stage C)', () => {
     }
   });
 
-  it("reads no hidden information: the same order with R&D reversed and the Runner's grip replaced (rule 10.2.2a)", () => {
+  // What this checks is narrower than "reads no hidden card": the order given the same HQ and board, on these fixtures.
+  // The list reads whatever state it is given; the deciding Corp's own view is pinned in corpHonestOrder.test.ts
+  it("gives the same order on these fixtures with R&D reversed and the Runner's grip replaced (the same HQ and board)", () => {
     for (const name of FIXTURES) {
       const s = read(name);
       const hidden = structuredClone(s);
