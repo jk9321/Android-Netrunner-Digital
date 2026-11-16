@@ -3,6 +3,7 @@ import { rezCost } from '../../core/engine/cardEffects';
 import { bypassesAhead, iceCreditNeed, runBypasses } from '../runs';
 import { clickMoneyOf, turnIncomeOf } from '../cards';
 import { counters } from '../../core/engine/cardEffects';
+import { pricing, withPricing } from '../pricing';
 
 /**
  * Owner: does a server hold (Step 4 Stage A, spec-step4-corp-core.md 1.4; registry row "what holds a server").
@@ -112,8 +113,14 @@ export function serverHold(state: GameState, server: string, opts: HoldOptions):
  * The Runner's next turn (holdCost's count): with a set S of the server's ice rezzed, the Runner needs the sum of
  * iceCreditNeed (runs.ts: the credits to break the ice's run-ending subroutines with its installed breakers; BLOCK when
  * none can) over S, plus what its bypasses cost, against runnerBudget. Each set once: a rezzed ice's bit stays clear.
+ * Counted with countingHold up: the rez budget its prices reach does not ask this count again (deal 2138's hang).
  */
 function holdRunnerTurn(state: GameState, server: string, corpCredits: number): Hold {
+  if (pricing().countingHold) return countRunnerTurn(state, server, corpCredits);
+  return withPricing({ countingHold: true }, () => countRunnerTurn(state, server, corpCredits));
+}
+
+function countRunnerTurn(state: GameState, server: string, corpCredits: number): Hold {
   const ice = state.corp.servers[server]?.ice ?? [];
   const budget = runnerBudget(state);
   // The Runner's turn: its clicks back (a bioroid broken by clicks, runs.ts plainCreditNeed), one kept for the run
