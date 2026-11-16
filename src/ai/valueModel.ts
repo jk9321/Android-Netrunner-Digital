@@ -12,6 +12,7 @@
 import { CardInstance, GameState, SideCode, cardDef, rezCostOf } from '../core';
 import { ablated, actingSide, plan, pricingKey } from './pricing';
 import { corpPorts } from './corpPorts';
+import { Diagnostics, note } from './diagnostics';
 
 export const RATES = {
   /** A click left this turn. */
@@ -90,8 +91,8 @@ export function creditValue(credits: number): number {
  *   plan.oneClickPrice makes it CLICK.
  */
 export const CLICK = 1.25;
-export const clickRate = (): number => CLICK;
-export const payoutClick = (): number => CLICK;
+export const clickRate = (): number => logValue('click', 'clickRate', undefined, CLICK);
+export const payoutClick = (): number => logValue('click', 'payoutClick', undefined, CLICK);
 
 /**
  * Worth of `credits` against a need (Jeff): each extra credit is worth 1.8
@@ -200,10 +201,10 @@ export const setDeckCard = (fn: (state: GameState, side: SideCode) => number) =>
 /**
  * Worth of one card drawn from, or lost out of, `side`'s hand: the deck's
  * average card with plan.flatRates.cards (no peeking: the deck, not the
- * hand), else the flat rate.
+ * hand), else the flat rate. Owner of a card drawn from a deck (docs/ai-priced-quantities.md, valuation table).
  */
 export function cardRate(state: GameState | undefined, side: SideCode): number {
-  return state && deckCard ? deckCard(state, side) : RATES.drawnCard;
+  return logValue('cardDrawn', 'cardRate', state, state && deckCard ? deckCard(state, side) : RATES.drawnCard, side);
 }
 
 /** Worth of `points` more for a side on `score` (averaged decklist points can be fractional). */
@@ -213,9 +214,9 @@ export function pointGain(score: number, points: number): number {
   return base + (points - whole) * (pointValue(score + whole + 1) - pointValue(score + whole));
 }
 
-/** Worth of a flatline (plan.flatRates.flatline: the whole game, the Corp's points still to come and the Runner's lost). */
+/** Worth of a flatline (plan.flatRates.flatline: the whole game, the Corp's points still to come and the Runner's lost). Owner of a game end (registry). */
 export function flatlineWorth(state: GameState): number {
-  return pointValue(7) - pointValue(state.corp.score) + pointValue(state.runner.score);
+  return logValue('gameEnd', 'flatlineWorth', state, pointValue(7) - pointValue(state.corp.score) + pointValue(state.runner.score));
 }
 
 /**
@@ -238,7 +239,7 @@ export function pointsTerm(state: GameState): number {
  */
 export function sampledEndWorth(winner: SideCode, rootBoard: number): number {
   // A Corp win settles the Corp's points term (scaled by KNOBS.corpPoints, as pointsTerm), a Runner win the Runner's
-  return (winner === 'corp' ? pointValue(7, KNOBS.corpPoints) : -pointValue(7)) + rootBoard;
+  return logValue('gameEnd', 'sampledEndWorth', undefined, (winner === 'corp' ? pointValue(7, KNOBS.corpPoints) : -pointValue(7)) + rootBoard, winner, rootBoard);
 }
 
 /** Worth of the first card over the hand-size limit (Jeff: you pick the worst card to discard). */
@@ -265,8 +266,27 @@ export function sideCards(state: GameState, side: SideCode): CardInstance[] {
 /** The average of `values`, or `fallback` for none. */
 export const mean = (values: number[], fallback: number): number => (values.length > 0 ? values.reduce((a, b) => a + b, 0) / values.length : fallback);
 const buildTargets = new Map<string, number>();
-/** Empties buildTarget's map (test-only: scripts/cache-bisect.ts). */
-export const clearBuildTargets = (): void => buildTargets.clear();
+const iceMeans = new Map<string, number>();
+/** Empties buildTarget's map and corpIceMean's (test-only: scripts/cache-bisect.ts). */
+export const clearBuildTargets = (): void => {
+  buildTargets.clear();
+  iceMeans.clear();
+};
+
+/**
+ * The Corp's typical ice cost: the mean printed cost of the ice in its decklist (3 for none). Decklists are public, so
+ * either side may read it. buildTarget's 2.5 layers and the Runner's guess of an unseen ice's rez cost (boardNeed) both
+ * read this one number (ai-honest-runner-view; red team 4).
+ */
+export function corpIceMean(state: GameState): number {
+  // The game id carries its seed, so this is worked out once per game (as buildTarget is)
+  const key = `${state.id}:${state.corp.identity.cardCode}`;
+  const cached = iceMeans.get(key);
+  if (cached !== undefined) return cached;
+  const value = mean(sideCards(state, 'corp').filter(c => cardDef(c).type_code === 'ice').map(c => cardDef(c).cost ?? 0), 3);
+  iceMeans.set(key, value);
+  return value;
+}
 
 /**
  * Credits a side should build toward from turn 1 (Jeff), from decklist
@@ -282,7 +302,7 @@ export function buildTarget(state: GameState, side: SideCode): number {
   if (cached !== undefined) return cached;
   const corpCards = sideCards(state, 'corp');
   const runnerCards = sideCards(state, 'runner');
-  const ice = mean(corpCards.filter(c => cardDef(c).type_code === 'ice').map(c => cardDef(c).cost ?? 0), 3);
+  const ice = corpIceMean(state);
   let target: number;
   if (side === 'corp') {
     target = 2.5 * ice + mean(corpCards.filter(c => cardDef(c).type_code === 'agenda').map(c => cardDef(c).advancement_cost ?? 3), 3);
@@ -306,15 +326,49 @@ export function boardNeed(state: GameState, side: SideCode): number {
   if (side === 'corp') {
     // B5: the Corp prices rez money's keep (corp/rezMoney.ts, through corpPorts: unset throws, R1); below, the Runner's view only
     if (actingSide() === 'corp') return corpPorts.keep(state);
+    // ai-honest-runner-view (rule 10.2.2a; valuation audit VAL-RUNNER-BOARDNEED): the Runner reads only what it can know.
+    // An unrezzed ice it can't see costs the decklist's typical ice (corpIceMean; public rez-cost modifiers such as
+    // Tread Lightly can't be applied to an unknown card: a known gap, docs/ai-priced-quantities.md). A remote counts by
+    // the chance it holds an agenda (the run model's owner, runs.ts remoteAgendaOdds, its trap input at the no-memory
+    // value; several hidden root cards: one minus the product of the misses), not by a look at the facedown card.
     let need = 0;
     for (const server of servers) {
-      const counts = !server.isRemote || server.root.some(c => cardDef(c).type_code === 'agenda');
-      // plan.oneRezMoney: what rezzing it costs now (Tread Lightly, Fransofia Ward), as the rule ranking's reserve counts it
-      if (counts) for (const ice of server.ice) if (!ice.isRezzed) need += plan().oneRezMoney ? rezCostOf(state, ice) : cardDef(ice).cost ?? 0;
+      const guard = server.isRemote ? remoteAgendaChance(state, server) : 1;
+      if (guard === 0) continue;
+      for (const ice of server.ice) {
+        if (ice.isRezzed) continue;
+        // plan.oneRezMoney: a known card's cost to rez now (Tread Lightly, Fransofia Ward), as the rule ranking's reserve counts it
+        const cost = ice.faceUp || ice.runnerKnows ? (plan().oneRezMoney ? rezCostOf(state, ice) : cardDef(ice).cost ?? 0) : corpIceMean(state);
+        need += guard * cost;
+      }
     }
     return need;
   }
   return Math.max(0, ...servers.map(s => s.ice.filter(i => i.isRezzed).reduce((n, i) => n + (cardDef(i).cost ?? 0), 0)));
+}
+
+type Server = GameState['corp']['servers'][string];
+/**
+ * The Runner's chance that a facedown root card is an agenda: runs.ts remoteAgendaOdds, its trap input at the no-memory
+ * value (trapOdds without the Runner AI's memory). Filled by evaluate.ts as it loads (valueModel.ts reads no run owner
+ * directly: runs.ts imports this file, and a direct import puts it in a load cycle, tests/loadOrder.test.ts). Unset throws.
+ */
+let agendaOdds: ((state: GameState, server: Server, card: CardInstance) => number) | null = null;
+export const setRunnerAgendaOdds = (fn: (state: GameState, server: Server, card: CardInstance) => number): void => void (agendaOdds = fn);
+
+/** The Runner's chance that a remote holds an agenda: 1 for a public one, else from its facedown cards' odds (boardNeed). */
+function remoteAgendaChance(state: GameState, server: Server): number {
+  if (!agendaOdds) throw new Error('valueModel setRunnerAgendaOdds is not registered: src/ai/evaluate.ts has not loaded');
+  let miss = 1;
+  for (const card of server.root) {
+    const hidden = !card.isRezzed && !card.faceUp && !card.runnerKnows;
+    if (!hidden) {
+      if (cardDef(card).type_code === 'agenda') return 1;
+      continue;
+    }
+    miss *= 1 - agendaOdds(state, server, card);
+  }
+  return 1 - miss;
 }
 
 /** The need credits slide against: the build target or the board's need, whichever is more. */
@@ -368,7 +422,7 @@ export function reachCard(state: GameState): CardInstance | undefined {
 /** plan.brokeSlope: the Corp's first credit worth this much more (1.8 + 1 = 2.8), sliding to nothing at BROKE_CREDITS. */
 export const BROKE_SLOPE = 1;
 
-/** Worth of a side's credits on this board, as `viewer` (the deciding side) prices them. */
+/** Worth of a side's credits on this board, as `viewer` (the deciding side) prices them. Owner of a credit (docs/ai-priced-quantities.md). */
 export function sideCreditValue(state: GameState, side: SideCode, viewer: SideCode): number {
   const credits = side === 'corp' ? state.corp.credits : state.runner.credits;
   // The money it unlocks in HQ sits on the slide with the credits: worth most to a broke Corp
@@ -381,7 +435,7 @@ export function sideCreditValue(state: GameState, side: SideCode, viewer: SideCo
   // Otto Campaign at 6 credits). Broke, it made no more money than when rich (2.3 credits a turn): a credit click scored
   // 1.8 - 1.25 and lost to advancing or installing almost anything, and it went into the Runner's turn unable to rez
   const broke = side === 'corp' && viewer === 'corp' ? BROKE_SLOPE : 0;
-  return reach ? creditSlide(credits + reach, need, broke) + Math.min(credits, 0) : creditSlide(credits, need, broke);
+  return logValue('credit', 'sideCreditValue', state, reach ? creditSlide(credits + reach, need, broke) + Math.min(credits, 0) : creditSlide(credits, need, broke), side, viewer);
 }
 
 /**
@@ -408,6 +462,28 @@ export function payoutSlide(state: GameState, side: SideCode, amount: number): n
   const pool = Math.max(credits, need / 2);
   const lift = 1 + (LIQUIDITY_LIFT - 1) * Math.min(1, Math.max(0, 2 - (2 * credits) / Math.max(need, 1)));
   return ((creditSlide(pool + amount, need) - creditSlide(pool, need)) / amount) * lift;
+}
+
+/**
+ * Valuation V-A's disagreement log (docs/ai-priced-quantities.md, valuation table; scripts/value-owners/log.ts): an owner
+ * or copy hands the value it priced, unchanged, to the diagnostics sink's onValue. The arguments wait in `logged` so a
+ * call allocates nothing while no sink is installed (play); the last argument passed on is the depth of the guardLoop chain open at the call (`pricing`, below).
+ */
+const logged = { quantity: '', site: '', state: undefined as GameState | undefined, value: 0, a: undefined as unknown, b: undefined as unknown, c: undefined as unknown, d: undefined as unknown, e: undefined as unknown, f: undefined as unknown, g: undefined as unknown, h: undefined as unknown };
+const sendLogged = (sink: Diagnostics) => {
+  const l = logged;
+  sink.onValue?.(l.quantity, l.site, l.state, l.value, [l.a, l.b, l.c, l.d, l.e, l.f, l.g, l.h, pricing.length]);
+};
+export function logValue(quantity: string, site: string, state: GameState | undefined, value: number, a?: unknown, b?: unknown, c?: unknown, d?: unknown, e?: unknown, f?: unknown, g?: unknown, h?: unknown): number {
+  const l = logged;
+  l.quantity = quantity;
+  l.site = site;
+  l.state = state;
+  l.value = value;
+  l.a = a; l.b = b; l.c = c; l.d = d; l.e = e; l.f = f; l.g = g; l.h = h;
+  note(sendLogged);
+  l.state = undefined;
+  return value;
 }
 
 /*

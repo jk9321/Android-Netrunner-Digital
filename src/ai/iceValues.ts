@@ -1,7 +1,7 @@
 import { CardInstance, GameState, ServerState, SideCode, cardDef, getCardDefinition } from '../core';
 import { maxHandSize, rezCost } from '../core/engine/cardEffects';
 import { iceCost, isTrap } from './runs';
-import { KNOBS, RATES, guardLoop, memo, pointGain, pointValue } from './valueModel';
+import { KNOBS, RATES, guardLoop, logValue, memo, pointGain, pointValue } from './valueModel';
 import { PACE } from './effectValues';
 import { archivedAgendaLoss } from './evaluate';
 import { corpKeepValue } from './cardValues';
@@ -46,10 +46,10 @@ function stopCredits(state: GameState): number {
   return plan().iceStopAnchor && pricing().anchor?.id === state.id ? pricing().anchor!.credits : state.runner.credits;
 }
 
-/** Worth of one installed piece of ice, as `viewer` can judge it. */
+/** Worth of one installed piece of ice, as `viewer` can judge it. Owner of installed ice (docs/ai-priced-quantities.md, valuation table). */
 export function iceWorth(state: GameState, ice: CardInstance, viewer: SideCode): number {
-  if (ablated('iceWorth')) return flatIceWorth(ice); // Step S ablation A4 (measurement only): the loop fallback
-  return guardLoop(state, `ice ${cardDef(ice).title} ${ice.instanceId}`, () => flatIceWorth(ice), () => iceWorthOf(state, ice, viewer));
+  if (ablated('iceWorth')) return logValue('ice', 'iceWorth', state, flatIceWorth(ice), ice, viewer); // Step S ablation A4 (measurement only): the loop fallback
+  return logValue('ice', 'iceWorth', state, guardLoop(state, `ice ${cardDef(ice).title} ${ice.instanceId}`, () => flatIceWorth(ice), () => iceWorthOf(state, ice, viewer)), ice, viewer);
 }
 
 function iceWorthOf(state: GameState, ice: CardInstance, viewer: SideCode): number {
@@ -235,7 +235,7 @@ function countRezBudget(state: GameState, stops: Map<string, number> | null = nu
 
 /** The step-1 rate, with plan.iceInCredits off. */
 export const flatIceWorth = (ice: CardInstance): number =>
-  ice.isRezzed ? RATES.ice + RATES.rezzedIceCostShare * (cardDef(ice).cost ?? 0) : RATES.ice;
+  logValue('ice', 'flatIceWorth', undefined, ice.isRezzed ? RATES.ice + RATES.rezzedIceCostShare * (cardDef(ice).cost ?? 0) : RATES.ice, ice);
 
 const ICE_TYPES = ['barrier', 'code gate', 'sentry'] as const;
 const deckShares = new Map<string, Record<string, number>>();

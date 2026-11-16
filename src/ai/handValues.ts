@@ -6,7 +6,7 @@ import { breakerTypeWorth, iceWorth } from './iceValues';
 import { agendaWorth, isOneUse, runnerRigValue } from './evaluate';
 import { counterWorth } from './counterValues';
 import { handPlanWorth } from './cardPlans';
-import { CLICK, RATES, cardRate, fingerprint, handFilter, payoutSlide, pricingApart, positionSerial, printedGain, reachCard, scopeToGame, setDeckCard } from './valueModel';
+import { CLICK, RATES, cardRate, fingerprint, handFilter, logValue, payoutSlide, pricingApart, positionSerial, printedGain, reachCard, scopeToGame, setDeckCard } from './valueModel';
 import { ablated, leafHandByCard, noteDecision, plan, pricing, pricingKey, withPricing } from './pricing';
 import { corpDrawPool, corpKnowsRd } from './oracle';
 
@@ -28,6 +28,7 @@ export const HAND_FLOOR = 0.5;
 
 /** Worth of a card once played, less its cost and click (credits), before the wait. */
 export function playedWorth(state: GameState, card: CardInstance): number {
+  logValue('click', 'playedWorth', state, CLICK, card); // the flat click every branch but an event's or operation's charges
   const def = cardDef(card);
   const cost = def.cost ?? 0;
   const turns = turnsLeft(state);
@@ -60,13 +61,13 @@ export function playedWorth(state: GameState, card: CardInstance): number {
   // Runner rig cards
   const profile = ablated('runnerFormulas') ? undefined : CARD_PROFILES[card.cardCode]; // Step S B4/B5
   if (profile) return payoutWorth(profile, turns, profile.load, payoutWait(state, profile, 'runner'), cardRate(state, 'runner')) * payoutSlide(state, 'runner', profile.load) - cost - CLICK;
-  // (Not while the deck's average card is worked out: pricing the rig there prices the rig cards that asked for the average)
-  if (isIcebreaker(card) && !pricing().pricingBreakers.has(card.instanceId) && !pricing().averaging) {
+  // (Not while the deck's average card is worked out, nor inside any breaker's pricing: its rig walks the hosted breakers,
+  // which nesting would price at 1 + 2k R(k-1) rig values for k hosted (minutes with four on Madani); depth 1 is 1 + 2k)
+  if (isIcebreaker(card) && pricing().pricingBreakers.size === 0 && !pricing().averaging) {
     // What it adds to the rig's coverage once installed (Mayfly's one use included), as the board will see it.
     // A breaker hosted on Bling or Madani is priced inside the rig too: while it is, the rule-based worth below
     const rig = state.runner.rig;
     const after = { ...state, runner: { ...state.runner, rig: { ...rig, programs: [...rig.programs, card] } } } as GameState;
-    // (a hosted breaker would price itself again: pricing().pricingBreakers)
     const pricingBreakers = pricing().pricingBreakers;
     pricingBreakers.add(card.instanceId);
     try {
@@ -96,7 +97,7 @@ function loadedWorth(state: GameState, card: CardInstance): number {
   return Number(load[1]) * counterWorth(state, card, type);
 }
 
-/** Worth of one card waiting in hand. */
+/** Worth of one card waiting in hand: the card-level input of a hand's owner, ownHandValue (registry, valuation table). */
 export function heldWorth(state: GameState, card: CardInstance, side: SideCode, freeInstall = false): number {
   // Installed later without spending a click (a program hosted on Madani): the click playedWorth charges is saved
   return heldFromPlayed(state, card, side, playedWorth(state, card) + (freeInstall ? CLICK : 0));
@@ -184,7 +185,10 @@ function drawWorth(state: GameState, side: SideCode): number {
   // at its size cap a value from one of those could be served for the real board, so a reloaded game played on
   // differently from the one in memory (tests/savedGame.test.ts)
   const board = `${fingerprint(state)}:`;
-  const key = `${pricingKey()}:${side}:${state.id}:${state.turnNumber}:${credits}${board}${deck.map(c => c.instanceId).join(',')}`;
+  // The deck by instance and card code (ai-honest-runner-view, AI Coordinator 2026-11-16 03:30Z): the Runner's view and
+  // the Hard AI's determinize re-deal hidden Corp cards by recoding fixed instances, so by ids alone a guessed deck
+  // shared the real deck's key (drawAudit: 104 wrong hits on deal 2181). Off a view an instance's code never changes
+  const key = `${pricingKey()}:${side}:${state.id}:${state.turnNumber}:${credits}${board}${deck.map(c => c.instanceId + c.cardCode).join(',')}`;
   // Audit Step 2 (AI-CACHE-HIDDEN-STATE): the key leaves out what R&D, Archives, the grip and the heap hold, the counters
   // and hosts of installed cards and the run under way (fingerprint has the zones by size only), so some hits are another
   // board's value (about 6%: drawAudit, tests/handCacheAudit.test.ts). An exact key cost the Corp about +50% decision time
@@ -271,7 +275,7 @@ setDeckCard((state, side) => (pricing().averaging ? RATES.drawnCard : drawWorth(
 /**
  * Worth of a side's own hand: the best `limit` cards by held worth, the
  * first over the limit as a filter (Jeff), the rest nothing. The first few
- * cards keep their extra worth as cards to have at all (life against damage).
+ * cards keep their extra worth as cards to have at all (life against damage). Owner of a hand, HQ or the grip (registry).
  */
 export function ownHandValue(state: GameState, side: SideCode): number {
   const hand = side === 'corp' ? state.corp.hq : state.runner.grip;
@@ -281,7 +285,7 @@ export function ownHandValue(state: GameState, side: SideCode): number {
   const reach = side === 'corp' ? reachCard(state) : undefined;
   const values = hand
     // plan.oracle.rd: a card the Corp drew in a look-ahead is one it knew was coming
-    .map(c => (seen && !seen.has(c.instanceId) && !(side === 'corp' && corpKnowsRd()) ? drawWorth(state, side) : c === reach ? HAND_FLOOR : heldWorth(state, c, side)))
+    .map(c => (seen && !seen.has(c.instanceId) && !(side === 'corp' && corpKnowsRd()) ? logValue('cardDrawn', 'ownHandValue drawWorth', state, drawWorth(state, side), side) : c === reach ? HAND_FLOOR : heldWorth(state, c, side)))
     .sort((a, b) => b - a);
   let value = 0;
   for (let i = 0; i < values.length; i++) {
@@ -322,7 +326,7 @@ export function clickWorth(state: GameState, side: SideCode): number {
     // rest (playedWorth charges the click: add it back to get what the click buys)
     .map(c => (1 - SOON.now) * (playedWorth(state, c) + CLICK))
     .sort((a, b) => b - a);
-  const repeatable = Math.max(1, drawWorth(state, side));
+  const repeatable = Math.max(1, logValue('cardDrawn', 'clickWorth drawWorth', state, drawWorth(state, side), side));
   let total = 0;
   for (let i = 0; i < clicks; i++) total += Math.max(repeatable, plays[i] ?? 0);
   const value = Math.max(1, Math.min(3, total / clicks));
@@ -340,9 +344,9 @@ export function clickWorth(state: GameState, side: SideCode): number {
 }
 const clickCache = new Map<string, number>();
 
-/** Price of a click left to `side`, as `viewer` sees it: best play in hand for its own, the 1.25 default for the other side's. */
+/** Price of a click left to `side`, as `viewer` sees it: best play in hand for its own, the 1.25 default for the other side's. Owner of a click (registry). */
 export function clickPrice(state: GameState, side: SideCode, viewer: SideCode): number {
   // Step S ablation A3 (measurement only): the flat click
-  return side === viewer && plan().clickByPlay?.[viewer] && !ablated('clickByPlay') ? clickWorth(state, side) : CLICK;
+  return logValue('click', 'clickPrice', state, side === viewer && plan().clickByPlay?.[viewer] && !ablated('clickByPlay') ? clickWorth(state, side) : CLICK, side, viewer);
 }
 

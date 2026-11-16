@@ -1,7 +1,7 @@
 import { CardInstance, GameState, cardDef } from '../core';
 import { findCardAnywhere } from '../core';
 import { counters } from '../core/engine/cardEffects';
-import { RATES } from './valueModel';
+import { RATES, logValue } from './valueModel';
 import { ablated } from './pricing';
 import { PAYOUT_RISK } from './payoutRisk';
 import type { CounterType } from './cards';
@@ -69,14 +69,14 @@ function defaultWorth(card: CardInstance, type: CounterType): number {
   }
 }
 
-/** Worth of one counter of `type` on `card` (either side prices it the same since plan.counterEffects was folded). */
+/** Worth of one counter of `type` on `card` (either side prices it the same since plan.counterEffects was folded). Owner of a counter (registry). */
 export function counterWorth(state: GameState, card: CardInstance, type: CounterType): number {
   // Step S ablation B6 (measurement only): the step-1 rates for every card
   const entry = ablated('counterWorths') ? undefined : COUNTER_FORMULAS[card.cardCode]?.[type] ?? COUNTER_WORTH[card.cardCode]?.[type];
-  return entry ? entry(state, card) : defaultWorth(card, type);
+  return logValue('counter', 'counterWorth', state, entry ? entry(state, card) : defaultWorth(card, type), card, type);
 }
 
-/** Worth of all the counters of `type` on `card`. */
+/** Worth of all the counters of `type` on `card`. With type credit, owner of hosted credits on a card (registry). */
 export const countersWorth = (state: GameState, card: CardInstance, type: CounterType): number => {
   const n = counters(card, type);
   return n > 0 ? n * counterWorth(state, card, type) : 0;

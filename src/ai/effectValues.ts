@@ -4,7 +4,7 @@ import { PAYOUT_RISK } from './payoutRisk';
 import { COUNTER_WORTH } from './counterValues';
 import { CARDS, CARD_VALUES, advancePayloadOf, corpFormula, runnerFormula } from './cards';
 import { actingSide } from './synergy';
-import { CLICK, RATES, cardRate, flatlineWorth, memo, pointGain, pointValue, scopeToGame, sideCards } from './valueModel';
+import { CLICK, RATES, cardRate, flatlineWorth, logValue, memo, pointGain, pointValue, scopeToGame, sideCards } from './valueModel';
 import { tagsWorth } from './evaluate';
 import { BLOCK, iceCost, iceCreditNeed, isTrap, plannedSubroutines, subroutineCost, tankDamage } from './runs';
 import { remoteRunChance, threatOn } from './threatModel';
@@ -118,7 +118,7 @@ export function perTurn(state: GameState, x: number, owner: 'corp' | 'runner', m
   const turns = Math.min(maxTurns, Math.max(minTurns, turnsLeft(state)));
   let value = 0;
   for (let t = 1; t <= turns; t++) value += x * (wait * (1 - risk)) ** t * lock ** (t - 1);
-  return value;
+  return logValue('effectOverTurns', 'perTurn', state, value, x, owner, minTurns, maxTurns, wait, lock);
 }
 
 /*
@@ -329,7 +329,7 @@ export function accessWorth(state: GameState): number {
  * Worth of n net or meat damage to the Runner: the cards lost, or the game if it flatlines. `drawBack`: damage the Runner
  * chooses to take in its own run (runs.ts subroutineCost, read by the Runner on its own turn, during the run or choosing
  * it), which leaves it the clicks after the run to draw cards back (drawBackClicks); every other reader (the Corp's
- * board, a known trap, the clock at a leaf) leaves it off.
+ * board, a known trap, the clock at a leaf) leaves it off. Owner of damage, both views (registry, valuation table).
  */
 export function damageWorth(state: GameState, n: number, drawBack = false, grip = state.runner.grip.length): number {
   // plan.spareLastClick: with no click left the Runner can't run again this turn, so cards over its hand size are
@@ -337,7 +337,7 @@ export function damageWorth(state: GameState, n: number, drawBack = false, grip 
   // `grip`: the cards the Runner will hold when the damage lands (a steal at the end of a run, after the ice's damage)
   const spent = state.activePlayer === 'runner' && !state.activeRun && state.runner.clicks === 0;
   const held = spent ? Math.min(state.runner.handSizeLimit ?? 5, grip) : grip;
-  if (n > held) return flatlineWorth(state);
+  if (n > held) return logValue('damage', 'damageWorth', state, flatlineWorth(state), n, drawBack, grip);
   const card = cardRate(state, 'runner');
   // The damage clock: the cards, and the step closer to a flatline the smaller grip leaves
   // Cards over the hand limit are discarded before the Corp's turn: they are no life against its damage
@@ -350,7 +350,7 @@ export function damageWorth(state: GameState, n: number, drawBack = false, grip 
   const back = drawBack ? drawBackClicks(state, true) : 0;
   let best = Infinity;
   for (let k = 0; k <= Math.min(n, back); k++) best = Math.min(best, (n - k) * card + k * CLICK + flatlineWorth(state) * (life(held - n + k) - now));
-  return best;
+  return logValue('damage', 'damageWorth', state, best, n, drawBack, grip);
 }
 
 /**
@@ -505,12 +505,15 @@ export function corpEffect(state: GameState, code: string, rezzed = false): Corp
   const cost = rezzed ? 0 : getCardDefinition(code).cost ?? 0;
   const agenda = pointGain(state.corp.score, agendaOdds(state).points);
   const card = cardRate(state, 'corp');
-  const tag = tagsWorth(state, 'corp', 1);
-  const fx = corpFormula(state, code, { cost, agenda, card, tag });
-  const gap = ablated('leadRezCost') && fx ? REZ_COST_GAP[code] : undefined; // Step S lead L4
-  if (gap === undefined || !fx) return fx;
-  const unpaid = gap * (cost / (getCardDefinition(code).cost || 1));
-  return { ...fx, keep: fx.keep - unpaid, ...(fx.econ !== undefined ? { econ: fx.econ - unpaid } : {}) };
+  // A tag on the Runner (ai-value-time step 2): 4 of the formulas read it, so it is worked out on the first read, at the
+  // formula's entry (the readers destructure it there: same order, same pricing context) and kept for a second read
+  let tag: number | undefined;
+  const raw = corpFormula(state, code, { cost, agenda, card, get tag() { return (tag ??= tagsWorth(state, 'corp', 1)); } });
+  const gap = ablated('leadRezCost') && raw ? REZ_COST_GAP[code] : undefined; // Step S lead L4
+  const unpaid = gap === undefined ? 0 : gap * (cost / (getCardDefinition(code).cost || 1));
+  const fx = gap === undefined || !raw ? raw : { ...raw, keep: raw.keep - unpaid, ...(raw.econ !== undefined ? { econ: raw.econ - unpaid } : {}) };
+  logValue('cardBeforeInstall', 'corpEffect', state, fx?.keep ?? NaN, code, rezzed);
+  return fx;
 }
 /** Step S lead L4: the formulas that ignore their rez cost, and how much of it (audit P3 gap; the full cost but two). */
 const REZ_COST_GAP: Record<string, number> = { 30042: 2, 30066: 1, 30058: 1, 36055: 6, 36065: 1, 35082: 2, 35045: 2, 36045: 1, 35051: 1, 36035: 1, 35061: 1, 36027: 3, 36049: 1, 34129: 2.3, 34065: 0.8 };
@@ -533,8 +536,8 @@ export const deckCount = (state: GameState, side: 'corp' | 'runner', test: (c: C
 
 /** Worth of one counter of a type on a card, priced against the board (counterValues.ts), for a card not installed yet. */
 export function counterWorthOf(state: GameState, code: string, type: 'credit' | 'virus' | 'power'): number {
-  if (ablated('counterWorths')) return 1; // Step S ablation B6 (measurement only): the fallback below
-  return COUNTER_WORTH[code]?.[type]?.(state, { cardCode: code, instanceId: 'probe', tokens: {} } as unknown as CardInstance) ?? 1;
+  // Step S ablation B6 (measurement only): the fallback 1
+  return logValue('counter', 'counterWorthOf', state, (ablated('counterWorths') ? undefined : COUNTER_WORTH[code]?.[type]?.(state, { cardCode: code, instanceId: 'probe', tokens: {} } as unknown as CardInstance)) ?? 1, code, type);
 }
 
 /** The cards priced by the formulas (for the audit): built from src/ai/cards/. */
@@ -551,11 +554,10 @@ export const effectsOn = (): boolean => true;
 /** Worth of a Corp root card once rezzed, less its rez cost (rez decisions on the Corp's own turn). */
 export function rezzedWorth(state: GameState, card: CardInstance, rezCost: number): number {
   const own = corpPart('corpRezzed') ? undefined : CARDS[card.cardCode]?.rezzed; // Step S B3e
-  if (own) return own(state, card, rezCost);
-  const fx = corpPart('corpKeep') ? undefined : corpEffect(state, card.cardCode, true); // Step S B3b
+  const fx = own || corpPart('corpKeep') ? undefined : corpEffect(state, card.cardCode, true); // Step S B3b
   // Step S B3b': the flat keep (corpKeepValue's stand-in) instead of -1
-  if (!fx && ablated('corpKeepFlat')) return (CARD_VALUES[card.cardCode]?.keep ?? RATES.defaultKeep) + RATES.cardDrawn * (CARD_VALUES[card.cardCode]?.draws ?? 0) - rezCost;
-  return fx ? fx.keep - rezCost : -1;
+  const flat = !own && !fx && ablated('corpKeepFlat') ? (CARD_VALUES[card.cardCode]?.keep ?? RATES.defaultKeep) + RATES.cardDrawn * (CARD_VALUES[card.cardCode]?.draws ?? 0) - rezCost : undefined;
+  return logValue('cardBeforeInstall', 'rezzedWorth', state, own ? own(state, card, rezCost) : fx ? fx.keep - rezCost : flat ?? -1, card, rezCost);
 }
 
 /**
@@ -599,7 +601,7 @@ export function placedCounterWorth(state: GameState, card: CardInstance, iced: b
   if (def.type_code === 'agenda') {
     const points = def.agenda_points ?? 1;
     const share = (pointValue(state.corp.score + points) - pointValue(state.corp.score)) / Math.max(1, def.advancement_cost ?? 3);
-    return iced ? share : 0.3 * share;
+    return logValue('agenda', 'placedCounterWorth', state, iced ? share : 0.3 * share, card, iced);
   }
   // Traps: an advanced card reads as an agenda and draws a run (about a third of the time, a click and 2 credits wasted)
   // A known trap (knownTrap: 7.1.2, 10.2.2b) draws no run: no bluff, and nothing from being accessed again (Urtica's

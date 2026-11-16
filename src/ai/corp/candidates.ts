@@ -20,7 +20,7 @@ export { isPettyCash } from './cardRules';
  * an order of nine intent lines fixed from evidence, with a counted tie-break inside each line. No hand-set rank: inside
  * a line a candidate is ordered by an owner's output (serverHold, stake, rezMoney) or by the valuation model's own play
  * value (evaluate after the move, less before); the last key is always the instance id, so the order is total and
- * deterministic (no rng is read).
+ * deterministic for a given state (it draws no rng of its own; a simulated play resolves on the state's rng).
  *
  *   1 a play gone if not made now (a resource trash while the Runner is tagged, rule 5.2.6; Petty Cash)
  *   2 ice that improves the hold count on a server at stake (a stake loss, or the scoring remote while it does not hold:
@@ -33,21 +33,21 @@ export { isPettyCash } from './cardRules';
  *   8 a build pair: ice into a new remote with an agenda or asset in HQ to go behind it, paid for
  *   9 an agenda into a server that does not hold
  *
- * Behind all nine, in the same order among themselves: a move that leaves fewer credits than rezMoney's keep (1.5), ice
- * the Corp could not also rez (its install cost, rule 8.5.11a, and its rez cost leave less than keep), and a play whose
- * whole value is on the board (an operation, ability, trash or purge) that the model values at or below the credits its
- * clicks would take instead (addendum 03:58Z, P3 b). These are order keys, not filters: the look-ahead
- * still sees them; with no look-ahead they are never played, since a credit is always there.
+ * Behind all nine and ending the turn, in the same order among themselves: a move that leaves fewer credits than
+ * rezMoney's keep (1.5), ice the Corp could not also rez (its install cost, rule 8.5.11a, and its rez cost leave less
+ * than keep), and a play whose whole value is on the board (an operation, ability, trash or purge) that the model values
+ * at or below the credits its clicks would take instead (addendum 03:58Z, P3 b). These are order keys, not filters: the
+ * look-ahead still sees them; with no look-ahead they are never played, since a credit is always there.
  *
- * Reads the Corp's own HQ and the public board only (10.2.2a): the owners it reads never look at R&D's order or the
- * Runner's grip.
+ * Reads only the state it is given (10.2.2a); the deciding Corp gives it its own view (turnPlanner.ts corpDecisionView:
+ * R&D's order, the Runner's unseen grip and the rng a guess), the rollouts and the reply's Corp their playout's deal.
  */
 
 export interface Candidate {
   action: GameAction;
   /** The intent line, 1 to 9. */
   line: number;
-  /** Fails a condition (below keep, ice not paid for, a play below a credit): sorts behind line 7. */
+  /** Fails a condition (below keep, ice not paid for, a play below a credit): sorts after every line and ending the turn. */
   behind: boolean;
   /** The tie-break inside the line, lowest first (owner outputs and play values only). */
   keys: number[];
@@ -322,7 +322,7 @@ export function plannerIntake(open: ScoredAction[], k: number): { picked: Scored
   return { picked, slots };
 }
 
-/** The full order: the nine lines, then the group behind line 7 in the same order, then each line's keys. */
+/** The full order: the nine lines, then ending the turn, then the behind group in the same order, then each line's keys. */
 export function sortCandidates(list: Candidate[]): Candidate[] {
   const rank = (c: Candidate) => (c.line === 10 ? 99 : c.behind ? 100 + c.line : c.line <= 7 ? c.line : 50 + c.line);
   return [...list].sort((a, b) => {
