@@ -352,10 +352,11 @@ describe('AI code health (audit guards)', () => {
   // ai-hold-reentry + 13 (the countingHold guard: pricing.ts + 4, iceValues.ts + 1, hold.ts + 7; its second commit, the rez
   // worked out before the set is priced, hold.ts + 1; corp/ + 8) = 14,263 and corp/ 2,298
   // ai-threat-delete commit 1 - 555 (the Corp's threat model and every src path only it read) = 13,708; commit 2 - 29
-  // (the run record: plan.runRecord, its pricing field and key part, corpAI noteRuns) = 13,679
-  it('keeps src/ai/corp at or under 2,298 lines and src/ai at or under 13,679 (Stage C hand-off, ai-corp-honest-order, ai-value-time, ai-playout-lines, ai-honest-runner-view, ai-honest-corp-decision, ai-value-owners, ai-corp-rd-memory, ai-value-b1, ai-value-b2, ai-hold-reentry, ai-threat-delete)', () => {
+  // (the run record: plan.runRecord, its pricing field and key part, corpAI noteRuns) = 13,679; commit 3 + 4 (Jeff's
+  // open-remote rule for a new bare remote, kept under plan.openSteal: it was gated on the threat's switch) = 13,683
+  it('keeps src/ai/corp at or under 2,298 lines and src/ai at or under 13,683 (Stage C hand-off, ai-corp-honest-order, ai-value-time, ai-playout-lines, ai-honest-runner-view, ai-honest-corp-decision, ai-value-owners, ai-corp-rd-memory, ai-value-b1, ai-value-b2, ai-hold-reentry, ai-threat-delete)', () => {
     const corp = aiFiles().filter(f => f.replace(/\\/g, '/').startsWith('corp/')).reduce((n, f) => n + lines(f), 0);
     expect(corp).toBeLessThanOrEqual(2298);
-    expect(aiFiles().reduce((n, f) => n + lines(f), 0)).toBeLessThanOrEqual(13679);
+    expect(aiFiles().reduce((n, f) => n + lines(f), 0)).toBeLessThanOrEqual(13683);
   });
 });
