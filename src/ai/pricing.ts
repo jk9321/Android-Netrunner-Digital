@@ -54,6 +54,8 @@ export interface Pricing {
   pricingTagLoss: boolean;
   /** Ice is being priced against the rig: run odds are the flat guesses inside (effectValues.ts). */
   pricingIce: boolean;
+  /** A hold count is open (corp/hold.ts holdRunnerTurn): the rez budget inside keeps its stop order (iceValues.ts). */
+  countingHold: boolean;
   /** A card's plan is being priced (cardPlans.ts handPlanWorth): no plan inside a plan. */
   planning: boolean;
   /** Depth of threat-model work (threatModel.ts): the threat is off inside its own computation. */
@@ -97,6 +99,7 @@ const context: Pricing = {
   pricingRootDeck: false,
   pricingTagLoss: false,
   pricingIce: false,
+  countingHold: false,
   planning: false,
   computingThreat: 0,
   decisionSeed: null,
@@ -221,6 +224,7 @@ export function pricingKey(): string {
     c.pricingRootDeck ? 'd' : '',
     c.pricingTagLoss ? 't' : '',
     c.pricingIce ? 'i' : '',
+    c.countingHold ? 'k' : '',
     c.planning ? 'c' : '',
     c.computingThreat ? 'h' : '',
     c.oracleRunning ? 'o' : '',
@@ -261,9 +265,9 @@ export const ABLATE_FAMILIES = [
   'corpKeepFlat', // B3b': corpKeep off, with the own-turn rez priced at the flat keep less its rez cost instead of -1 (AI Coordinator 04:01Z)
   // Valuation-audit leads (report 2026-11-16 section 7, AI Coordinator 03:01Z): measurement switches that turn a
   // proposed correction ON for the root side, not ablations
-  'leadRisk', // L1: perTurn's Corp risk at the measured bare-asset risk (bareAssetRisk) instead of PAYOUT_RISK.corpBare
+  'leadRisk', // L1 (DEAD after beta 247005f: V-B B3 made the measured asset risk the default; no read left)
   'leadHandList', // L3: the Corp's own hand priced by card outside the planner leaf too (the list's play value, rezzes)
-  'leadRezCost', // L4: the rez cost subtracted for the 15 formulas that ignore it (VAL-CORP-FORMULA-COST)
+  'leadRezCost', // L4 (DEAD after beta 247005f: V-B B2 took the cost off once; no read left)
   'leadSpinDoctor', // L5: a rezzed Spin Doctor without its spent draws for the Corp too (VAL-SPIN-DOCTOR)
   'runnerFormulas', // B4 (with the Runner payout profiles, B5)
   'counterWorths', // B6

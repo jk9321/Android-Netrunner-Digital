@@ -19,6 +19,8 @@ export interface CorpEffectContext {
   card: number;
   /** Worth of a tag on the Runner. */
   tag: number;
+  /** Risk a Runner turn of losing it, for perTurn: an asset's measured (assetRisk, bare), else 0.06 until V-C (V-B B3). */
+  risk: number;
 }
 
 /**

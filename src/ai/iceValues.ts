@@ -214,8 +214,9 @@ function countRezBudget(state: GameState, stops: Map<string, number> | null = nu
   waiting.sort((a, b) => b.stop / Math.max(1, b.cost) - a.stop / Math.max(1, a.cost));
   // Stage B5: as the Corp prices it, the ice of the owner's holding rezzes (rez money's
   // rezIds, staked servers in order) draws on the pool first; the rest follows, best stop first. An unholdable server's
-  // ice gets no priority. The Runner's view keeps the stop order (the owner reads HQ)
-  if (actingSide() === 'corp') {
+  // ice gets no priority. The Runner's view keeps the stop order (the owner reads HQ), and so does the rez budget asked
+  // while a hold count is being worked out (its rez sets' prices reach here): the hold count never runs inside itself
+  if (actingSide() === 'corp' && !pricing().countingHold) {
     const first = Object.values(corpPorts.holdingRezIds(state)).flat();
     const rank = (w: { id: string }) => (first.includes(w.id) ? first.indexOf(w.id) : first.length);
     waiting.sort((a, b) => rank(a) - rank(b));

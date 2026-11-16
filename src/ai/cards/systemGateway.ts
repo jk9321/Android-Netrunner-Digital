@@ -284,7 +284,7 @@ export const SYSTEM_GATEWAY: Record<string, CardAI> = {
     value: { keep: 5, econ: 3.5, draws: 1 },
     profile: { load: 9, pay: 3, every: 'turn', perTurn: 1, drawAtEnd: 1 }, // Nico Campaign
     counters: { credit: () => PAID_OUT }, // 3 a turn, no click
-    counterFormulas: { credit: () => paidOut() },
+    counterFormulas: { credit: (state, card) => paidOut(state, card) },
   },
   // Ansel 1.0
   '30038': { synergy: { gives: { bioroid: 1, ice: 1 } } },
