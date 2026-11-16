@@ -380,7 +380,7 @@ From `node scripts/value-owners/counts.mjs` (re-run it to recount; the copy coun
 | live copies, all quantities (the live lines of "Copy lines") | 34 |
 | other copy lines, by kind (not counted) | gone 1, dead 3, recorded 1, not comparable 6, inside owner 2, reader 1 |
 | valuation exports with no reader (allow-list) | 14 |
-| lines of src/ai | 13670 |
+| lines of src/ai | 13683 |
 
 Live copies per quantity: V1 0, V2 3, V3 8, V4 3, V5 2, V6 1, V7 7, V8 0, V9 1, V10 1, V11 1, V12 3, V13 0, V14 2, V15 2, V16 0, V17 0, V18 0, V19 0, V20 0, V21 0, V22 0, V23 0, V24 0, V25 0.
 <!-- valuation:end -->
