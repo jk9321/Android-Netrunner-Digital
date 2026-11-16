@@ -17,6 +17,10 @@
  *           40 <= k < 56: the saved decision in every arm, rotated by k, forward then reversed;
  *           56 <= k < 64: the whole game played in arm ARMS[k - 56], its time per turn (picks that differ change the
  *             game, so this is the absolute game time only).
+ *   bvalues  arm B (arms=...) with the shadow and by-card decomposition: for each resource, today's copy difference less
+ *           its own term, split by the other rig card whose term moved (and the term's branch), combos and coverage.
+ *   btrace   the same for base and B at the decisions listed in at=src#i,... (B's changed picks), on their games only.
+ *   arms=a,b,...  any mode: the arms to build (default all eight; 0B on request).
  *   saved / saved-values   the saved decision alone in a container (K rotates the arms' order), or its values pass.
  *   SHARD=0/64 npx vite-node scripts/tag-loss-time/measure.ts -- deals > out-0.txt       (sum: summary.mjs)
  */
@@ -29,13 +33,16 @@ import { GameRunner } from '../../src/ai/playout';
 import { deckGameSetup } from '../../src/data/decks';
 import { ALL_DECKS } from '../nsg-sample-decks';
 import { deals, dealState, humanFiles } from '../stage-a/harness';
-import { ARMS, Arm, Tally, Values, installProbe, makeTrees, treeRoot } from './trees';
+import { ARMS, Arm, CardCross, Tally, Values, installProbe, makeTrees, treeRoot } from './trees';
 
 const [shard, shards] = (process.env.SHARD ?? '0/1').split('/').map(Number);
 const argv = process.argv.slice(2).filter(a => a !== '--');
-const mode = process.env.MODE ?? argv[0] ?? (process.env.ARGS ?? '').split(' ')[0] ?? 'deals';
-const only = (process.env.ARMS ?? '').split(',').filter(Boolean) as Arm[];
-const arms: readonly Arm[] = only.length ? only : ARMS;
+const mode = process.env.MODE ?? argv[0] ?? 'deals';
+/** Options as words after the mode (ai-script.yml passes ARGS split on spaces): arms=base,F,0B  at=deal:2041#38,... */
+const opt = (name: string) => argv.find(a => a.startsWith(`${name}=`))?.slice(name.length + 1) ?? process.env[name.toUpperCase()];
+const only = (opt('arms') ?? '').split(',').filter(Boolean) as Arm[];
+const arms: readonly Arm[] = only.length ? only : mode === 'bvalues' ? ['B'] : mode === 'btrace' ? ['base', 'B'] : ARMS;
+const at = new Set((opt('at') ?? '').split(',').filter(Boolean));
 const root = treeRoot(`m-${mode}-${process.pid}`);
 const probe = installProbe();
 
@@ -74,7 +81,7 @@ async function load(dir: string): Promise<Tree> {
 }
 
 const key = (a: unknown) => (a && typeof a === 'object' ? JSON.stringify(Object.fromEntries(Object.entries(a).sort())) : JSON.stringify(a ?? null));
-interface Ask { a: string; ms: number; t: Tally; v: Values }
+interface Ask { a: string; ms: number; t: Tally; v: Values; cards: Record<string, CardCross> }
 
 let trees = {} as Record<Arm, Tree>;
 /** One arm decides on a copy of the state: a fresh agent, every cache cleared first. `method` is the agent call. */
@@ -93,8 +100,8 @@ function ask(arm: Arm, side: 'corp' | 'runner', s: GameState, method = 'chooseAc
     err = `error: ${(e as Error).message}`;
   }
   const ms = performance.now() - t0;
-  const { t, v } = probe.reset();
-  return { a: err || key(a), ms, t, v };
+  const { t, v, cards } = probe.reset();
+  return { a: err || key(a), ms, t, v, cards };
 }
 
 /** The arms in this decision's order: rotated by n, reversed every other decision. */
@@ -145,6 +152,22 @@ function valued(src: string, i: number, side: 'corp' | 'runner', kind: string, s
   console.log(JSON.stringify({ src, i, side, kind, T: s.turnNumber, values: out }));
 }
 
+/** bvalues / btrace: arm B (or the listed arms) with the shadow and the by-card decomposition on; btrace also asks base. */
+function byCard(src: string, i: number, side: 'corp' | 'runner', kind: string, s: GameState) {
+  if (mode === 'btrace' && !at.has(`${src}#${i}`)) return;
+  const out: Record<string, unknown> = {};
+  for (const arm of arms) {
+    const on = arm !== 'base';
+    probe.shadow = on;
+    probe.byCard = on;
+    const r = ask(arm, side, s);
+    probe.shadow = false;
+    probe.byCard = false;
+    out[arm] = on ? { a: r.a, ms: Math.round(r.ms), values: r.v, cards: r.cards } : { a: r.a, ms: Math.round(r.ms) };
+  }
+  console.log(JSON.stringify({ src, i, side, kind, T: s.turnNumber, bycard: out }));
+}
+
 function decisionOf(s: GameState): { side: 'corp' | 'runner'; kind: string } | null {
   const side = actingSide(s);
   if (!side || s.winner) return null;
@@ -190,9 +213,14 @@ function dealsAndHumans(each: (src: string, i: number, side: 'corp' | 'runner', 
       }
     }),
   ];
-  sources.forEach((run, k) => {
-    if (k % shards === shard) run();
-  });
+  const names = [...deals().map(seed => `deal:${seed}`), ...humanFiles().map(f => `human:${f.split('/').pop()}`)];
+  const wanted = at.size ? new Set([...at].map(x => x.split('#')[0])) : null;
+  sources
+    .map((run, k) => ({ run, name: names[k] }))
+    .filter(x => !wanted || wanted.has(x.name))
+    .forEach((x, k) => {
+      if (k % shards === shard) x.run();
+    });
 }
 
 const INDEX = 4; // tests/aiGames.ts: Quick and Dirty vs Bowel Movements, seed 104
@@ -278,18 +306,20 @@ async function wholeGame(arm: Arm) {
 }
 
 async function main() {
-  const want = mode === 'game' && shard >= 56 ? [ARMS[shard - 56]] : arms;
+  if (mode === 'game' && shard >= 56 && !arms[shard - 56]) return;
+  const want = mode === 'game' && shard >= 56 ? [arms[shard - 56]] : arms;
   const dirs = makeTrees(root, want);
   trees = {} as Record<Arm, Tree>;
   for (const arm of want) trees[arm] = await load(dirs[arm]);
   try {
     if (mode === 'deals') dealsAndHumans((src, i, side, kind, s) => timed(src, i, side, kind, s));
     else if (mode === 'values') dealsAndHumans(valued);
+    else if (mode === 'bvalues' || mode === 'btrace') dealsAndHumans(byCard);
     else if (mode === 'game') {
       if (shards !== 64) throw new Error('game mode expects SHARD=k/64');
       if (shard < 40) gameDecisions(shard, 40);
       else if (shard < 56) savedState(shard);
-      else await wholeGame(ARMS[shard - 56]);
+      else await wholeGame(arms[shard - 56]);
     } else if (mode === 'saved') savedState(Number(process.env.K ?? 0));
     else if (mode === 'saved-values') {
       const s: GameState = JSON.parse(readFileSync('scripts/tag-loss-time/t18-state.json', 'utf8'));

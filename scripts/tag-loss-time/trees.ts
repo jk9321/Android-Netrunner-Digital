@@ -27,7 +27,9 @@ import { cpSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
 import { join, resolve } from 'node:path';
 
 export const ARMS = ['base', 'F', '0', 'A', '0A', 'H', 'S', 'B'] as const;
-export type Arm = (typeof ARMS)[number];
+/** Arms built on request only (the AI Coordinator's 19:44Z re-opening of ruling 7): 0 and B together. */
+export const EXTRA_ARMS = ['0B'] as const;
+export type Arm = (typeof ARMS)[number] | (typeof EXTRA_ARMS)[number];
 
 const once = (text: string, from: string, to: string, file: string): string => {
   if (text.split(from).length !== 2) throw new Error(`${file}: patch does not match once: ${from.slice(0, 100)}`);
@@ -76,13 +78,13 @@ function armTagLoss(today: string, o: { skips: boolean; hold: boolean; own: bool
     if (live.length > skip) {
 ${rigLine}      const terms = live.map(r => ${term});
       if (${G}?.shadow) ${G}.lastTerms = live.map((r, i) => [r.cardCode, terms[i]]);
-      const nets = terms.map((v, i) => v - extras[all.indexOf(live[i])]).sort((a, b) => b - a);
+${o.own ? `      if (${G}?.byCard && ${G}.shadowDepth > 0) live.forEach((r, i) => ${G}.cross(cardDef(r).title, __crossTerms(state, r), terms[i]));\n` : ''}      const nets = terms.map((v, i) => v - extras[all.indexOf(live[i])]).sort((a, b) => b - a);
       trash = Math.max(0, nets[skip] ?? 0) - (CLICK + 2);
     }
   }` : `{
 ${rigLine}    const terms = all.map(r => ${term});
     if (${G}?.shadow) ${G}.lastTerms = all.map((r, i) => [r.cardCode, terms[i]]);
-    const nets = terms.map((v, i) => v - extra(all[i])).sort((a, b) => b - a);
+${o.own ? `    if (${G}?.byCard && ${G}.shadowDepth > 0) all.forEach((r, i) => ${G}.cross(cardDef(r).title, __crossTerms(state, r), terms[i]));\n` : ''}    const nets = terms.map((v, i) => v - extra(all[i])).sort((a, b) => b - a);
     trash = Math.max(0, nets[skip] ?? 0) - (corp.credits >= 2 ? CLICK + 2 : Infinity);
   }`}${tail}
 `;
@@ -195,12 +197,12 @@ function runnerStackOnce(state: GameState, side: SideCode, deck: CardInstance[])
     const renamed = today.replace(TAGLOSS_HEAD, 'function tagLossToday(state: GameState, viewer: SideCode, skip: number): number {');
     // the probe's price/untrash counts stay on the arm's own path (armTagLoss counts untrash itself)
     const todayQuiet = renamed;
-    const arm2 = armTagLoss(today, { skips: arm === '0' || arm === '0A', hold: arm === 'A' || arm === '0A', own: arm === 'B' });
+    const arm2 = armTagLoss(today, { skips: arm === '0' || arm === '0A' || arm === '0B', hold: arm === 'A' || arm === '0A', own: arm === 'B' || arm === '0B' });
     // the arm's tagLoss counts its price kind like today's (the line instrument() put in today's text)
     const priced = arm2.replace(`  if (${G}?.baseMode) return tagLossToday(state, viewer, skip);\n  const corp = state.corp;`, `  if (${G}?.baseMode) return tagLossToday(state, viewer, skip);\n  const corp = state.corp;\n  if (${G}) ${G}.price(state, skip);`);
     t = once(t, today, `${priced}\n${todayQuiet}`, 'evaluate.ts');
     if (arm === 'A' || arm === '0A') t = `import { heldRunnerDeck as __heldRunnerDeck } from './handValues';\n${t}`;
-    if (arm === 'B') {
+    if (arm === 'B' || arm === '0B') {
       // runnerRigValue's loop body as a function of one card (the same terms, so runnerRigValue is unchanged)
       const LOOP_HEAD = '  for (const card of cards) {\n';
       const LOOP_END = '  }\n  // Combos in play';
@@ -215,6 +217,34 @@ function runnerStackOnce(state: GameState, side: SideCode, deck: CardInstance[])
 function __rigCardTerm(state: GameState, card: CardInstance, from = 0): number {
   let value = from;
 ${body.replace(/\n {6}continue;\n/, '\n      return value;\n')}  return value;
+}
+
+/**
+ * The values pass's decomposition (G.byCard): what today's copy difference for resource r is made of, beside r's own
+ * term: each other rig card's term on the full board less on the copy (keyed by the card and the branch its term takes:
+ * payout = a profiled card, whose term reads the deck average; card = runnerCardValue + counters + hosted; breaker =
+ * counters + hosted only), the combos (boardPlansWorth), and the rest (breaker coverage: MU, ice type odds, AI breaker
+ * share). total = today's term (rig less the copy's rig) less r's own term.
+ */
+function __crossTerms(state: GameState, r: CardInstance): { total: number; parts: Record<string, number> } {
+  const rig = state.runner.rig;
+  const copy = { ...state, runner: { ...state.runner, rig: { ...rig, resources: rig.resources.filter(x => x !== r) } } };
+  const total = runnerRigValue(state) - runnerRigValue(copy) - __rigCardTerm(state, r);
+  const parts: Record<string, number> = {};
+  let named = 0;
+  for (const c of [...rig.programs, ...rig.hardware, ...rig.resources]) {
+    if (c === r) continue;
+    const d = __rigCardTerm(state, c) - __rigCardTerm(copy, c);
+    if (Math.abs(d) <= 1e-9) continue;
+    const kind = profileOf(c.cardCode) ? 'payout' : isIcebreaker(c) ? 'breaker' : 'card';
+    parts[cardDef(c).title + ' (' + kind + ')'] = (parts[cardDef(c).title + ' (' + kind + ')'] ?? 0) + d;
+    named += d;
+  }
+  const plans = boardPlansWorth(state, 'runner') - boardPlansWorth(copy, 'runner');
+  if (Math.abs(plans) > 1e-9) parts['combos (boardPlansWorth)'] = plans;
+  const rest = total - named - plans;
+  if (Math.abs(rest) > 1e-9) parts['coverage (breakers, MU, ice odds)'] = rest;
+  return { total, parts };
 }
 `;
     }
@@ -284,6 +314,9 @@ export interface Tally {
 }
 const zero = (): Tally => ({ prices: 0, r0: 0, rSkip: 0, broke: 0, priced: 0, untrash: 0, rig: 0, rigIn: 0, drawR: 0, drawRIn: 0, missR: 0, missRIn: 0, drawC: 0, missC: 0, rez: 0, rezIn: 0, hold: 0, holdIn: 0, clears: {}, msIn: 0, heldServed: 0, stackServed: 0, stackPriced: 0 });
 
+/** One resource's cross terms (today's copy difference less its own term), summed over a decision's clocks. */
+export interface CardCross { n: number; moved: number; sum: number; abs: number; max: number; ownSum: number; parts: Record<string, { n: number; sum: number; abs: number }> }
+
 export interface Diff { armTurn: number; todayTurn: number; armWorth: number; todayWorth: number; armTerms: unknown; todayTerms: unknown; viewer: string; tags: number; ident: string }
 /** The values pass: per-turn loss and tag worth, the arm's against today's on the same board. */
 export interface Values { n: number; turnBig: number; worthBig: number; turnDiff: number; turnSum: number; turnAbs: number; worthDiff: number; worthSum: number; worthAbs: number; nonFinite: number; largest: (Diff & { d: number }) | null }
@@ -296,10 +329,14 @@ export class TlProbe {
   private t0 = 0;
   baseMode = false;
   shadow = false;
+  /** values pass, B arms: decompose each resource's today term (cross, by card). */
+  byCard = false;
+  cards: Record<string, CardCross> = {};
   shadowDepth = 0;
   lastTerms: unknown = null;
-  reset(): { t: Tally; v: Values } {
-    const out = { t: this.t, v: this.v };
+  reset(): { t: Tally; v: Values; cards: Record<string, CardCross> } {
+    const out = { t: this.t, v: this.v, cards: this.cards };
+    this.cards = {};
     this.t = zero();
     this.v = zeroValues();
     this.depth = 0;
@@ -362,6 +399,22 @@ export class TlProbe {
   }
   clear(name: string) {
     this.t.clears[name] = (this.t.clears[name] ?? 0) + 1;
+  }
+  cross(card: string, x: { total: number; parts: Record<string, number> }, own: number) {
+    const c = (this.cards[card] ??= { n: 0, moved: 0, sum: 0, abs: 0, max: 0, ownSum: 0, parts: {} });
+    c.n++;
+    c.ownSum += own;
+    if (Math.abs(x.total) <= 1e-9) return;
+    c.moved++;
+    c.sum += x.total;
+    c.abs += Math.abs(x.total);
+    if (Math.abs(x.total) > Math.abs(c.max)) c.max = x.total;
+    for (const [k, d] of Object.entries(x.parts)) {
+      const p = (c.parts[k] ??= { n: 0, sum: 0, abs: 0 });
+      p.n++;
+      p.sum += d;
+      p.abs += Math.abs(d);
+    }
   }
   compare(d: Diff) {
     const v = this.v;

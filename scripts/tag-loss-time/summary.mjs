@@ -5,7 +5,7 @@
 // Shares are differences between arm timings: (base - arm) / (base - F), never a profile.
 import { readFileSync } from 'node:fs';
 
-const ARMS = ['base', 'F', '0', 'A', '0A', 'H', 'S', 'B'];
+const ARMS = ['base', 'F', '0', 'A', '0A', 'H', 'S', 'B', '0B'];
 const rows = [];
 for (const f of process.argv.slice(2))
   for (const line of readFileSync(f, 'utf8').split('\n')) {
@@ -16,7 +16,7 @@ for (const f of process.argv.slice(2))
       /* a line cut by a killed shard */
     }
   }
-const decisions = rows.filter(r => r.ms && typeof r.ms === 'object' && !r.saved);
+const decisions = rows.filter(r => r.ms && typeof r.ms === 'object' && !r.saved && !r.bycard);
 const saved = rows.filter(r => r.saved);
 const own = rows.filter(r => r.own);
 const whole = rows.filter(r => r.whole);
@@ -101,7 +101,7 @@ const game = decisions.filter(d => d.src.startsWith('game:'));
 if (game.length || saved.length || whole.length) {
   p('\n### Seed-104 finish-test game (Quick and Dirty vs Bowel Movements) and the saved T18 decision');
   if (saved.length) {
-    p(`\n#### Saved decision (t18-state.json), ${saved.length / ARMS.length} asks per arm (16 shards, both orders)`);
+    p(`\n#### Saved decision (t18-state.json), ${saved.filter(r => r.arm === 'base').length} asks per arm (16 shards, both orders)`);
     p('| arm | median s | mean s | min s | max s | removed (median) s | share of F | picks |');
     p('|---|---|---|---|---|---|---|---|');
     const med = xs => { const s = [...xs].sort((a, b) => a - b); return s.length % 2 ? s[(s.length - 1) / 2] : (s[s.length / 2 - 1] + s[s.length / 2]) / 2; };
