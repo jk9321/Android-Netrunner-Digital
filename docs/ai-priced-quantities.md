@@ -235,10 +235,10 @@ Counts at the branch head (scripts/value-owners/counts.mjs): see "Counts" at the
 - **Caches, context:** `guardLoop`'s key (title, instance, `left`). Context: `viewer`, `left`.
 
 ### V12. A Corp card's worth before it is installed
-- **Owner:** `corpKeepValue` (`src/ai/cardValues.ts:40`): by card code (no instance, no viewer): a profiled card's `unrezzedWorth` (V10's owner, bare), else the formula's `keep` (`corpEffect` (`src/ai/effectValues.ts:502`), handed `cost` = the rez cost unrezzed, 0 rezzed), else the flat CARD_VALUES `keep` (default `RATES.defaultKeep` 1) plus `drawBonus`. It does not subtract the rez cost itself: 33 formulas do, 15 don't (VAL-CORP-FORMULA-COST; V-B).
+- **Owner:** `corpKeepValue` (`src/ai/cardValues.ts:40`): by card code (no instance, no viewer): a profiled card's `unrezzedWorth` (V10's owner, bare), else the formula's `keep` (`corpEffect` (`src/ai/effectValues.ts:502`), handed `cost` = the rez cost unrezzed, 0 rezzed), else the flat CARD_VALUES `keep` (default `RATES.defaultKeep` 1) plus `drawBonus`. It does not subtract the rez cost itself: 43 formulas do (the 10 linear ones corrected in V-B B2), 5 don't: Hype Machine (free to rez after an agenda) and four clamps inside `Math.max(0.3, ...)` (VAL-CORP-FORMULA-COST; stage-vb/labels.md B2).
 - **Copies:**
-  - `econValue` (`src/ai/cardValues.ts:44`): `ECON_SCALE` 0.6 x the profiled worth or the formula's `econ`, or the flat `econ`. Its readers test only that it exists (VAL-DEAD), so its size changes no decision. Asks counted. Comparable with the unit stated: `econValue` (install-score scale) against `corpKeepValue(code, state)`.
-  - `upgradeValue` (`src/ai/cardValues.ts:53`): `ECON_SCALE` x the formula's `[remote, central]`, or the flat pair; read once (`upgradeValue` (`src/ai/corp/rez.ts:177`), capped at 2). Asks counted. Comparable with the unit stated: each of the pair against `corpKeepValue(code, state)`.
+  - `econValue` was deleted in V-B B2 (ruling 3): its readers (`rez.ts` server importance and `rezAllowed`, `placement.ts` `assetLine`) only tested whether it existed, so they now read the type test `isEconAsset` (`src/ai/cardValues.ts:44`), which gives the same answer on every Corp card.
+  - `upgradeValue` (`src/ai/cardValues.ts:49`): `ECON_SCALE` x the formula's `[remote, central]`, or the flat pair; read once (`upgradeValue` (`src/ai/corp/rez.ts:177`), capped at 2). Asks counted. Comparable with the unit stated: each of the pair against `corpKeepValue(code, state)`.
   - `rezzedWorth` (`src/ai/effectValues.ts:550`): the worth once rezzed less the rez cost (an entry's own `rezzed`, else the formula rezzed less `rezCost`), read by the own-turn rez test (`rezzedWorth` (`src/ai/corp/rez.ts:349`)). Asks counted. Comparable: against `corpKeepValue(code, state, true) - rezCost`.
   - `unrezzedWorth` with `iced` true is never asked: the owner's bare price is compared against it (V10's self-disagreement).
   - The flat CARD_VALUES `keep` with no state (the owner's last branch, and `serverStake`'s `corpKeepValue` (`src/ai/iceValues.ts:133`), which leaves the state out on purpose to cut a value loop). Comparable: against `corpKeepValue(code, state)`.
@@ -256,7 +256,7 @@ Counts at the branch head (scripts/value-owners/counts.mjs): see "Counts" at the
 - **Copies:** with no state, `hosted * RATES.counters.hostedCredit` (`src/ai/evaluate.ts:176`) 0.6 a credit; and a profiled card's hosted credits priced as payouts (`payoutWorth` with `hosted`, `src/ai/evaluate.ts:174`), so the same credits have two prices by whether the card has a profile. Asks counted (inside `corpCardValue`). Comparable: on a rezzed card with credits, `1 + countersWorth` against `payoutWorth(profile, ..., hosted)` against the flat.
 
 ### V15. A Runner rig card's worth installed (not an icebreaker)
-- **Owner:** `runnerCardValue` (`src/ai/cardValues.ts:60`): the card's formula (`runnerEffect`), in rig points (credits / `RATES.rigCardScale` 2), else its flat CARD_VALUES `rig` (default `RATES.defaultRig` 2) plus `drawBonus`. Its readers multiply by `rigCardScale` again.
+- **Owner:** `runnerCardValue` (`src/ai/cardValues.ts:58`): the card's formula (`runnerEffect`), in rig points (credits / `RATES.rigCardScale` 2), else its flat CARD_VALUES `rig` (default `RATES.defaultRig` 2) plus `drawBonus`. Its readers multiply by `rigCardScale` again.
 - **Copies:** the flat (`runnerCardValue flat`, the no-formula and loop path). Asks counted. Comparable: the flat against the formula, both x 2. A profiled rig card (`CARD_PROFILES`, Runner) is priced by `payoutWorth` x `payoutSlide` in `runnerRigValue`, `payoutWorth` (`src/ai/evaluate.ts:139`), not by this owner: comparable, the same card both ways.
 - **Readers:** `runnerCardValue` (`src/ai/evaluate.ts:143`) (the rig), `runnerCardValue` (`src/ai/handValues.ts:88`) (in the grip).
 
@@ -307,13 +307,13 @@ V-B B1 re-baseline (recount VA-COPY-COUNT-BASELINE, ruling 13): the count is the
 | V9 | a counter on a card not on the board | `counterWorthOf` (`src/ai/effectValues.ts:532`) | live | not the same quantity unless an honest instance is shown (ruling 17); one default for an unlisted counter (B6) | B6 |
 | V10 | x a turn at the 0.06 guess | `perTurn` (`src/ai/effectValues.ts:114`) | live | owner has a bug for Corp assets (ruled correction, ruling 5); other cards keep 0.06 until V-C | B3 |
 | V11 | the stateless board-card fallback | `corpCardValue flat (loop)` (`src/ai/evaluate.ts:165`) | live | loop guard | none |
-| V12 | the econ install score | `econValue` (`src/ai/cardValues.ts:44`) | live | not the same quantity: a type test (ruling 3) | B2 (predicate) |
-| V12 | an upgrade by kind of server | `upgradeValue` (`src/ai/cardValues.ts:53`) | live | not the same quantity (ruling 15) | none |
+| V12 | the econ install score | `isEconAsset` (`src/ai/cardValues.ts:44`) | gone | deleted in B2: the price was never read, only whether it existed; `isEconAsset` (a profile or an `econ` entry) gives the same answer on every Corp card (tests/valueOwners.test.ts) (ruling 3) | B2 (done) |
+| V12 | an upgrade by kind of server | `upgradeValue` (`src/ai/cardValues.ts:49`) | live | not the same quantity (ruling 15) | none |
 | V12 | the worth once rezzed less the cost | `rezzedWorth` (`src/ai/effectValues.ts:550`) | live | generic branch: owner is right already; the two instance rules: not the same quantity (ruling 4) | none |
 | V12 | the stateless CARD_VALUES keep | `corpKeepValue(card.cardCode))` (`src/ai/iceValues.ts:133`) | live | loop guard in serverStake (on purpose); other no-state readers listed in B2 | B2 (list) |
 | V14 | hosted credits with no state | `RATES.counters.hostedCredit` (`src/ai/evaluate.ts:176`) | live | labels file | B6 |
 | V14 | a profiled card's hosted credits as payouts | `payoutWorth` (`src/ai/evaluate.ts:174`) | live | labels file | B6 |
-| V15 | the flat rig worth | `runnerCardValue flat` (`src/ai/cardValues.ts:61`) | live | loop guard and no-formula path | B6, labels file |
+| V15 | the flat rig worth | `runnerCardValue flat` (`src/ai/cardValues.ts:54`) | live | loop guard and no-formula path | B6, labels file |
 | V15 | a profiled rig card by its payouts | `payoutWorth` (`src/ai/evaluate.ts:139`) | live | labels file | B6 |
 | V1 | the flat credit | `creditValue` (`src/ai/valueModel.ts:72`) | dead | dead list | B6 (Jeff's yes) |
 | V1 | run credits at face value | `runCreditsSlide` (`src/ai/runs.ts:1168`) | recorded | recorded for the Runner cleanup; not ruled a copy (ruling 12) | Runner cleanup |
