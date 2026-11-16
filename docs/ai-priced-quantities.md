@@ -308,10 +308,14 @@ From `node scripts/value-owners/counts.mjs` (re-run it to recount; the copy coun
 | quantities with one named owner (V1 to V20) | 20 |
 | live copies, all quantities (each row's first number; HQ + grip for V3) | 39 |
 | valuation exports with no reader (allow-list) | 12 |
-| lines of src/ai | 14096 |
+| lines of src/ai | 14222 |
 
 Live copies per quantity: V1 1, V2 3, V3 9, V4 3, V5 2, V6 1, V7 3, V8 1, V9 1, V10 1, V11 2, V12 5, V13 2, V14 2, V15 2, V16 0, V17 1, V18 0, V19 0, V20 0.
 <!-- valuation:end -->
+
+## Hidden information (rule 10.2.2a)
+- The deciding Corp's whole decision reads its own view (ai-honest-corp-decision): `turnPlanner.ts corpDecisionView` deals R&D's order (outside the slots both sides know), the Runner's unseen grip with the stack and the rng once per decision, and `corpAI.ts decide` hands it to every question of `corp/core.ts corpDecide` (Q1, Q3, Q0 prompts and the free install they reach, the order, the look-ahead, Q6 money, Q4/Q5, tagFirst) and `chooseRez` hands it to `decideRez` under that decision's own `decisionContext`. The legal list is the real state's; an answer not legal there is taken again on the real state before anything is committed (`corp/core.ts honestCorpCounts`). The cards the active prompt names stay in their real places, and the breach queue names the view's R&D cards at the same places. The Hard Corp, the planner's rollouts and the reply's Corp are unchanged (they already play on a deal, or are Hard).
+- Known debt (red team 2026-11-16 finding 1, ruled): the view forgets R&D cards only the Corp has seen (arranged in secret: `arrangeTop`, Cultivate, AU Co., liberationCorp.ts:644) and a stack top the Corp set (Working Prototype): the engine keeps no Corp-side R&D memory (`rdNotes.privateTop` is a count). Known-failing pin in tests/corpHonestDecision.test.ts; its own brief.
 
 ## How to use
 - Writing a spec: list the rows the new code reads. If it needs a quantity that is not here, add the row and the owner in the same branch.

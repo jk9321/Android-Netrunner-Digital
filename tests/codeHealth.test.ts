@@ -303,7 +303,8 @@ describe('AI code health (audit guards)', () => {
       .split('\n')
       .filter(l => !/^\s*(\/\/|\/\*\*|\*)/.test(l))
       .join('\n');
-    expect(lines('corpAI.ts')).toBeLessThanOrEqual(110);
+    // ai-honest-corp-decision +8 measured: decide hands its view to corpDecide with the snapshot, chooseRez decides on the view
+    expect(lines('corpAI.ts')).toBeLessThanOrEqual(118);
     expect(code.match(/(?<![\w.])\d+(\.\d+)?(?![\w.])/g)?.filter(n => n !== '0' && n !== '1') ?? []).toEqual([]);
     expect(code).not.toMatch(/\bscore\s*:|\bscore\w*\s*\(/i);
   });
@@ -311,13 +312,16 @@ describe('AI code health (audit guards)', () => {
   // ai-value-time: src/ai +11 measured (the tag clock kept on the original board, evaluate.ts +7 and runs.ts +2; the lazy
   // tag input, effectValues.ts +2); src/ai/corp unchanged. With ai-playout-lines' +63 (above): 13,847 + 11 + 63 = 13,921
   // ai-honest-runner-view on top of it: +138 (above), 13,921 to 14,059
+  // ai-honest-corp-decision, measured: src/ai/corp +33 (corp/core.ts: corpDecide's view, the legality check before the
+  // commits, honestCorpCounts), corpAI.ts +8, turnPlanner.ts +85 (corpDecisionView's mark, promptNamedIds,
+  // promptCardsInPlace, keepNamed): 2,257 + 33 = 2,290 and 14,059 + 126 = 14,185
   // ai-value-owners (valuation V-A, brief rev 2: rises only by the measured lines) adds 37: the disagreement log's one
   // writer, valueModel.ts logValue (+23), the owner doc comments and the hooks that hand each owner's or copy's value to it
   // unchanged (+14 over the eight valuation files and diagnostics.ts' onValue field). V-B takes the hooks back when the
-  // copies are gone; logValue stays while the log is the registry's evidence. 14,059 to 14,096
-  it('keeps src/ai/corp at or under 2,257 lines and src/ai at or under 13,921 (Stage C hand-off, ai-corp-honest-order, ai-value-time, ai-playout-lines, ai-honest-runner-view)', () => {
+  // copies are gone; logValue stays while the log is the registry's evidence. 14,185 + 37 = 14,222
+  it('keeps src/ai/corp at or under 2,290 lines and src/ai at or under 14,222 (Stage C hand-off, ai-corp-honest-order, ai-value-time, ai-playout-lines, ai-honest-runner-view, ai-honest-corp-decision, ai-value-owners)', () => {
     const corp = aiFiles().filter(f => f.replace(/\\/g, '/').startsWith('corp/')).reduce((n, f) => n + lines(f), 0);
-    expect(corp).toBeLessThanOrEqual(2257);
-    expect(aiFiles().reduce((n, f) => n + lines(f), 0)).toBeLessThanOrEqual(14096);
+    expect(corp).toBeLessThanOrEqual(2290);
+    expect(aiFiles().reduce((n, f) => n + lines(f), 0)).toBeLessThanOrEqual(14222);
   });
 });
