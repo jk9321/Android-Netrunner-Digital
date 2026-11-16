@@ -208,6 +208,7 @@ Counts at the branch head (scripts/value-owners/counts.mjs): see "Counts" at the
 - **Readers:** `tagsWorth` (`src/ai/evaluate.ts:602`), `tagsWorth` (`src/ai/evaluate.ts:613`), `tagsWorth` (`src/ai/effectValues.ts:511`) (the Corp formulas' lazy `tag` input), `tagsWorth` (`src/ai/runs.ts:208`) (`tagCost`, its difference), `tagsWorth` (`src/ai/cardPlans.ts:77`), and 1 in cards/.
 - **Caches, context:** `memo` keys `tagLoss:<viewer>:<skip>` and, for `tagCost`'s copy, `tagLoss:<viewer>:<skip>:c<clicks>` on the original board. Context: `pricingTagLoss`, `plan.tagTrashNow`, `plan.hqTrashCost`, `actingSide` (through the rig's prices).
 - **Loop:** tags price the rig, the rig prices ice, ice prices tags (`valueModel.ts` value-loop note): cut by `pricingTagLoss`.
+- **Time (ai-tag-loss-time arm 0, exact):** `tagLoss` prices no rig (V15's `runnerRigValue`, and through it V4's Runner deck average) when no resource could be the answer: none on the rig, none past `skip`, or the Corp under the trash action's 2 credits (rule 5.2.6g); the loss is the same number. 46% of the clock's prices in Corp decisions are the first case. No new quantity or copy.
 
 ### V8. n damage (the Corp's view and the Runner's)
 - **Owner:** `damageWorth` (`src/ai/effectValues.ts:334`): the cards lost (`cardRate`) and the step the smaller grip takes toward a flatline (V18's clock), the game (`flatlineWorth`) if n is more than the grip (10.4.4); the draw-back for damage the Runner takes in its own run.
@@ -381,7 +382,7 @@ From `node scripts/value-owners/counts.mjs` (re-run it to recount; the copy coun
 | live copies, all quantities (the live lines of "Copy lines") | 34 |
 | other copy lines, by kind (not counted) | reader 2, gone 1, dead 3, recorded 1, not comparable 6, inside owner 2 |
 | valuation exports with no reader (allow-list) | 15 |
-| lines of src/ai | 14268 |
+| lines of src/ai | 14275 |
 
 Live copies per quantity: V1 0, V2 3, V3 8, V4 3, V5 2, V6 1, V7 7, V8 0, V9 1, V10 1, V11 1, V12 3, V13 0, V14 2, V15 2, V16 0, V17 0, V18 0, V19 0, V20 0, V21 0, V22 0, V23 0, V24 0, V25 0.
 <!-- valuation:end -->
