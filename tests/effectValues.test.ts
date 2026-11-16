@@ -62,7 +62,9 @@ describe('the last hand-set cards, priced by what they do (Jeff, 2026-10-28)', (
   });
 
   it('Public Access Plaza: a credit a turn, less as the game runs out', () => {
-    expect(keep('35062')).toBeGreaterThan(4);
+    // V-B B3: at the measured bare risk (0.268 a Runner turn, for the 0.06 guess) a credit a turn is about 2.7, less its cost
+    expect(keep('35062')).toBeGreaterThan(1);
+    expect(keep('35062')).toBeLessThan(4);
     expect(keep('35062', late())).toBeLessThan(keep('35062'));
     expect(isEconAsset('35062')).toBe(true);
   });
@@ -76,7 +78,7 @@ describe('the last hand-set cards, priced by what they do (Jeff, 2026-10-28)', (
   });
 
   it('Phật Gioan Baotixita: counters still to come, used up within 3 turns', () => {
-    expect(keep('35051')).toBeGreaterThan(2);
+    expect(keep('35051')).toBeGreaterThan(1); // V-B B3: at the measured bare risk (was > 2 at the 0.06 guess)
     expect(keep('35051')).toBeLessThan(3 * 1.5 + 0.01);
   });
 

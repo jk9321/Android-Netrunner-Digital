@@ -369,9 +369,12 @@ function priceAgain(s: Sample): void {
       return;
     }
     case 'perTurn': {
-      const [x, owner, minTurns, maxTurns, wait, lock] = a as [number, 'corp' | 'runner', number, number, number, number];
+      const [x, owner, minTurns, maxTurns, wait, lock, risk] = a as [number, 'corp' | 'runner' | number, number, number, number, number, number];
       check(s, perTurn(st, x, owner, minTurns, maxTurns, wait, lock));
+      // V-B B3: the risk the call used: an asset formula hands its measured risk (ctx.risk), every other Corp card 0.06
+      if (typeof owner === 'number') return void add('effectOverTurns', 'perTurn risk used by an asset formula vs bareAssetRisk', s, { copy: risk, owner: bareAssetRisk(st) });
       if (owner !== 'corp') return;
+      add('effectOverTurns', 'perTurn risk used by a non-asset Corp formula (corpBare)', s, { copy: risk, owner: PAYOUT_RISK.corpBare });
       const at = (risk: number) => withRisk(risk, () => perTurn(st, x, owner, minTurns, maxTurns, wait, lock));
       add('effectOverTurns', 'perTurn at corpBare 0.06 vs at bareAssetRisk (per call)', s, { copy: s.value, owner: at(bareAssetRisk(st)) });
       add('effectOverTurns', 'perTurn at corpBare 0.06 vs at moneyIced (per call)', s, { copy: s.value, owner: at(PAYOUT_RISK.moneyIced) });

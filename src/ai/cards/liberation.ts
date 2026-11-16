@@ -221,8 +221,8 @@ export const LIBERATION: Record<string, CardAI> = {
     synergy: { gives: { econ: 0.5, bioroid: 0.5 } },
     value: { keep: 1.5, econ: 1 },
     // A click back on turns it takes one action 3 times
-    corp: (state, _code, { cost }) => {
-      const keep = Math.max(0.3, perTurn(state, 0.5 * CLICK, 'corp') - cost);
+    corp: (state, _code, { cost, risk }) => {
+      const keep = Math.max(0.3, perTurn(state, 0.5 * CLICK, risk) - cost);
       return { keep, econ: keep };
     },
   },
@@ -255,9 +255,9 @@ export const LIBERATION: Record<string, CardAI> = {
     synergy: { gives: { damage: 1 } },
     value: { keep: 1.5 },
     // No first run on a remote each turn; 2 net damage on an Archives run past no ice
-    corp: (state, _code, { cost }) => {
+    corp: (state, _code, { cost, risk }) => {
       const archivesBare = (state.corp.servers.archives?.ice.length ?? 0) === 0 ? 0.3 * damageWorth(state, 2) : 0;
-      return { keep: Math.max(0.3, perTurn(state, 0.5 + archivesBare, 'corp', 0, 4) - cost) };
+      return { keep: Math.max(0.3, perTurn(state, 0.5 + archivesBare, risk, 0, 4) - cost) };
     },
   },
   // Attini
@@ -301,8 +301,8 @@ export const LIBERATION: Record<string, CardAI> = {
     synergy: { gives: { econ: 1 } },
     value: { keep: 2, econ: 1.5 },
     // 2 credits on turns it names the top card's type (about half)
-    corp: (state, _code, { cost }) => {
-      const keep = Math.max(0.3, perTurn(state, 0.5 * 2, 'corp') - cost);
+    corp: (state, _code, { cost, risk }) => {
+      const keep = Math.max(0.3, perTurn(state, 0.5 * 2, risk) - cost);
       return { keep, econ: keep };
     },
   },
@@ -318,9 +318,9 @@ export const LIBERATION: Record<string, CardAI> = {
     synergy: { gives: { draw: 0.5 } },
     value: { keep: 1.5, draws: 0.5 },
     // The top 3 of R&D arranged each turn, and a card if unprotected
-    corp: (state, code, { card }) => {
+    corp: (state, code, { card, risk }) => {
       const bare = Object.values(state.corp.servers).some(s => s.root.some(c => c.cardCode === code) && s.ice.length === 0) ? 0.5 : 0.2;
-      return { keep: perTurn(state, 0.4 + bare * card, 'corp') };
+      return { keep: perTurn(state, 0.4 + bare * card, risk) };
     },
   },
   // Starlit Knight
@@ -350,8 +350,8 @@ export const LIBERATION: Record<string, CardAI> = {
     synergy: { gives: { econ: 1.5 }, wants: { ice: 1 } },
     value: { keep: 2, econ: 1.5 },
     // 2 install credits each time it rezzes ice
-    corp: (state, code, { cost }) => {
-      const keep = Math.max(0.3, perTurn(state, PACE.rezzes * 2 * counterWorthOf(state, code, 'credit'), 'corp') - cost);
+    corp: (state, code, { cost, risk }) => {
+      const keep = Math.max(0.3, perTurn(state, PACE.rezzes * 2 * counterWorthOf(state, code, 'credit'), risk) - cost);
       return { keep, econ: keep };
     },
     counters: { credit: () => PAID_OUT }, // Install credits, or all taken when trashed
@@ -604,15 +604,15 @@ export const LIBERATION: Record<string, CardAI> = {
     synergy: { gives: { install: 1 } },
     value: { keep: 2 },
     // A free install each turn
-    corp: (state, _code, { cost }) => ({ keep: Math.max(0.3, perTurn(state, 0.6 * CLICK, 'corp') - cost) }),
+    corp: (state, _code, { cost, risk }) => ({ keep: Math.max(0.3, perTurn(state, 0.6 * CLICK, risk) - cost) }),
   },
   // Working Prototype
   '34099': {
     synergy: { gives: { econ: 1.5 } },
     value: { keep: 2, econ: 1.5 },
     // A counter on each rez, 3 credits a counter for a click
-    corp: (state, code, { cost }) => {
-      const keep = Math.max(0.3, 1 * counterWorthOf(state, code, 'power') + perTurn(state, PACE.rezzes * counterWorthOf(state, code, 'power'), 'corp') - cost);
+    corp: (state, code, { cost, risk }) => {
+      const keep = Math.max(0.3, 1 * counterWorthOf(state, code, 'power') + perTurn(state, PACE.rezzes * counterWorthOf(state, code, 'power'), risk) - cost);
       return { keep, econ: keep };
     },
     counters: { power: () => 3 - CLICK }, // 3 credits for a click
@@ -654,8 +654,8 @@ export const LIBERATION: Record<string, CardAI> = {
     synergy: { gives: { econ: 0.5, draw: 0.5, advance: 0.5 }, wants: { discard: 0.5 } },
     value: { keep: 2, econ: 1.5, draws: 0.5 },
     // A card swapped for 2 credits and a fresh draw each turn
-    corp: (state, _code, { cost }) => {
-      const keep = Math.max(0.3, perTurn(state, 0.7 * 2, 'corp') - cost);
+    corp: (state, _code, { cost, risk }) => {
+      const keep = Math.max(0.3, perTurn(state, 0.7 * 2, risk) - cost);
       return { keep, econ: keep };
     },
   },
@@ -676,8 +676,8 @@ export const LIBERATION: Record<string, CardAI> = {
     synergy: { gives: { econ: 1.5, install: 0.5 } },
     value: { keep: 3, econ: 2.5 },
     // 3 credits a turn, taken with a click and a free install
-    corp: (state, code, { cost }) => {
-      const keep = Math.max(0.3, perTurn(state, 3 * counterWorthOf(state, code, 'credit'), 'corp', 0, 3) - cost);
+    corp: (state, code, { cost, risk }) => {
+      const keep = Math.max(0.3, perTurn(state, 3 * counterWorthOf(state, code, 'credit'), risk, 0, 3) - cost);
       return { keep, econ: keep };
     },
     counters: { credit: (_state, card) => paidOneATurn(counters(card, 'credit')) }, // Taken all at once
@@ -714,9 +714,9 @@ export const LIBERATION: Record<string, CardAI> = {
     synergy: { gives: { advance: 1 } },
     value: { keep: 1.5 },
     // Advancement counters moved each turn, one more if unprotected
-    corp: (state, code, { cost }) => {
+    corp: (state, code, { cost, risk }) => {
       const bare = Object.values(state.corp.servers).some(s => s.root.some(c => c.cardCode === code) && s.ice.length === 0) ? 0.5 : 0.1;
-      return { keep: Math.max(0.3, perTurn(state, 0.3 + bare * RATES.advancement, 'corp') - cost) };
+      return { keep: Math.max(0.3, perTurn(state, 0.3 + bare * RATES.advancement, risk) - cost) };
     },
   },
   // Descent
@@ -743,6 +743,6 @@ export const LIBERATION: Record<string, CardAI> = {
     synergy: { gives: { install: 1 }, when: ['onScore'] },
     value: { keep: 2 },
     // A free install on each agenda scored
-    corp: (state, _code, { cost }) => ({ keep: Math.max(0.3, perTurn(state, 0.17 * (CLICK + 2), 'corp') - cost) }),
+    corp: (state, _code, { cost, risk }) => ({ keep: Math.max(0.3, perTurn(state, 0.17 * (CLICK + 2), risk) - cost) }),
   },
 };

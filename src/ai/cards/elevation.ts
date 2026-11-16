@@ -427,7 +427,7 @@ export const ELEVATION: Record<string, CardAI> = {
     synergy: { gives: { damage: 1 }, when: ['onScore'] },
     value: { keep: 2 },
     // A power counter a turn (1 net damage each, priced in counterValues.ts), used up within about 3 turns
-    corp: (state, code, { cost }) => ({ keep: perTurn(state, counterWorthOf(state, code, 'power'), 'corp', 0, 3) - cost }),
+    corp: (state, code, { cost, risk }) => ({ keep: perTurn(state, counterWorthOf(state, code, 'power'), risk, 0, 3) - cost }),
     counters: { power: () => 1.5 }, // 1 net damage each, when an agenda is scored or stolen
     counterFormulas: { power: gioanPower },
   },
@@ -481,8 +481,8 @@ export const ELEVATION: Record<string, CardAI> = {
     synergy: { gives: { econ: 1 }, when: ['threat'] },
     value: { keep: 3, econ: 2.5 },
     // 1 credit each turn
-    corp: (state, _code, { cost }) => {
-      const keep = perTurn(state, 1, 'corp') - cost;
+    corp: (state, _code, { cost, risk }) => {
+      const keep = perTurn(state, 1, risk) - cost;
       return { keep, econ: keep };
     },
   },
@@ -523,8 +523,8 @@ export const ELEVATION: Record<string, CardAI> = {
     synergy: { wants: { operations: 1.5, discard: 0.5 } },
     value: { keep: 1.5 }, // Replays transactions, but costly to rez
     // A transaction replayed each turn from Archives; to rez, trash 3 cards from HQ
-    corp: (state, _code, { card }) => {
-      const keep = perTurn(state, transactionGain(state), 'corp') - 3 * card;
+    corp: (state, _code, { card, risk }) => {
+      const keep = perTurn(state, transactionGain(state), risk) - 3 * card;
       return { keep: Math.max(0.3, keep) };
     },
   },
