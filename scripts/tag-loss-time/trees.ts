@@ -110,12 +110,12 @@ function instrument(dir: string) {
 function tagLossPerTurn(state: GameState, viewer: SideCode, skip = 0): number {
   const g = ${G};
   if (!g || g.baseMode) return tagLossPerTurnP(state, viewer, skip);
-  g.enter();
+  g.enter(viewer);
   try { return tagLossPerTurnP(state, viewer, skip); } finally { g.exit(); }
 }
 `;
     // the price's kind, counted on today's tagLoss (every arm reaches it unless baseMode, see armTagLoss)
-    t = once(t, `${TAGLOSS_HEAD}\n  const corp = state.corp;`, `${TAGLOSS_HEAD}\n  const corp = state.corp;\n  if (${G} && !${G}.baseMode) ${G}.price(state, skip);`, 'evaluate.ts');
+    t = once(t, `${TAGLOSS_HEAD}\n  const corp = state.corp;`, `${TAGLOSS_HEAD}\n  const corp = state.corp;\n  if (${G} && !${G}.baseMode) ${G}.price(state, skip, viewer);`, 'evaluate.ts');
     t = once(t, EXTRA_LINE, `  const extra = (r: CardInstance) => { const v = plan().hqTrashCost ? hqTrashCardsLoss(state, r) : 0; if (v === Infinity && ${G} && !${G}.baseMode) ${G}.untrash++; return v; };`, 'evaluate.ts');
     t = once(t, RESOURCES_LINE, `${RESOURCES_LINE}\n  if (${G}?.shadow) ${G}.lastTerms = state.runner.rig.resources.map((r, i) => [r.cardCode, resources[i]]);`, 'evaluate.ts');
     t = once(t, 'export function runnerRigValue(state: GameState): number {', `export function runnerRigValue(state: GameState): number {\n  if (${G}) ${G}.rigValue();`, 'evaluate.ts');
@@ -209,7 +209,7 @@ function runnerStackOnce(state: GameState, side: SideCode, deck: CardInstance[])
     const todayQuiet = renamed;
     const arm2 = armTagLoss(today, { skips: arm === '0' || arm === '0A' || arm === '0B' || arm === '0BP', hold: arm === 'A' || arm === '0A', own: arm === 'B' || arm === '0B' || arm === 'BP' || arm === '0BP', plans: arm === 'BP' || arm === '0BP' });
     // the arm's tagLoss counts its price kind like today's (the line instrument() put in today's text)
-    const priced = arm2.replace(`  if (${G}?.baseMode) return tagLossToday(state, viewer, skip);\n  const corp = state.corp;`, `  if (${G}?.baseMode) return tagLossToday(state, viewer, skip);\n  const corp = state.corp;\n  if (${G}) ${G}.price(state, skip);`);
+    const priced = arm2.replace(`  if (${G}?.baseMode) return tagLossToday(state, viewer, skip);\n  const corp = state.corp;`, `  if (${G}?.baseMode) return tagLossToday(state, viewer, skip);\n  const corp = state.corp;\n  if (${G}) ${G}.price(state, skip, viewer);`);
     t = once(t, today, `${priced}\n${todayQuiet}`, 'evaluate.ts');
     if (arm === 'A' || arm === '0A') t = `import { heldRunnerDeck as __heldRunnerDeck } from './handValues';\n${t}`;
     if (arm === 'B' || arm === '0B' || arm === 'BP' || arm === '0BP') {
@@ -334,6 +334,11 @@ export interface Tally {
   clears: Record<string, number>;
   /** ms inside the clock (outermost tagLossPerTurn). */
   msIn: number;
+  /** by the viewer: tagLoss runs, and ms inside the outermost clock (nested clocks' time counts in the outer's viewer). */
+  pricesCorpView: number;
+  pricesRunnerView: number;
+  msInCorpView: number;
+  msInRunnerView: number;
   /** arm A: copies whose deck average was the full board's; arm S: averages served, stack cards priced. */
   heldServed: number;
   stackServed: number;
@@ -341,7 +346,7 @@ export interface Tally {
   /** arm BP: copies of the state made to price the combo plans without a resource. */
   planCopies: number;
 }
-const zero = (): Tally => ({ prices: 0, r0: 0, rSkip: 0, broke: 0, priced: 0, untrash: 0, rig: 0, rigIn: 0, drawR: 0, drawRIn: 0, missR: 0, missRIn: 0, drawC: 0, missC: 0, rez: 0, rezIn: 0, hold: 0, holdIn: 0, clears: {}, msIn: 0, heldServed: 0, stackServed: 0, stackPriced: 0, planCopies: 0 });
+const zero = (): Tally => ({ prices: 0, r0: 0, rSkip: 0, broke: 0, priced: 0, untrash: 0, rig: 0, rigIn: 0, drawR: 0, drawRIn: 0, missR: 0, missRIn: 0, drawC: 0, missC: 0, rez: 0, rezIn: 0, hold: 0, holdIn: 0, clears: {}, msIn: 0, pricesCorpView: 0, pricesRunnerView: 0, msInCorpView: 0, msInRunnerView: 0, heldServed: 0, stackServed: 0, stackPriced: 0, planCopies: 0 });
 
 /** One resource's cross terms (today's copy difference less its own term), summed over a decision's clocks. */
 export interface CardCross { n: number; moved: number; sum: number; abs: number; max: number; ownSum: number; parts: Record<string, { n: number; sum: number; abs: number }> }
@@ -373,16 +378,27 @@ export class TlProbe {
     this.shadowDepth = 0;
     return out;
   }
-  enter() {
-    if (this.depth++ === 0) this.t0 = performance.now();
+  private viewer = '';
+  enter(viewer: string) {
+    if (this.depth++ === 0) {
+      this.t0 = performance.now();
+      this.viewer = viewer;
+    }
   }
   exit() {
-    if (--this.depth === 0) this.t.msIn += performance.now() - this.t0;
+    if (--this.depth === 0) {
+      const ms = performance.now() - this.t0;
+      this.t.msIn += ms;
+      if (this.viewer === 'corp') this.t.msInCorpView += ms;
+      else this.t.msInRunnerView += ms;
+    }
   }
-  price(state: any, skip: number) {
+  price(state: any, skip: number, viewer?: string) {
     if (this.baseMode) return;
     const t = this.t;
     t.prices++;
+    if (viewer === 'corp') t.pricesCorpView++;
+    else t.pricesRunnerView++;
     const r = state.runner.rig.resources.length;
     if (r === 0) t.r0++;
     else if (r <= skip) t.rSkip++;

@@ -49,7 +49,7 @@ function shares(set, title) {
 function counts(set, title) {
   if (!set.length) return;
   const arms = ARMS.filter(a => set.every(d => d.tally?.[a]));
-  const fields = ['prices', 'r0', 'rSkip', 'broke', 'priced', 'untrash', 'rig', 'rigIn', 'drawR', 'drawRIn', 'missR', 'missRIn', 'drawC', 'missC', 'rez', 'rezIn', 'hold', 'holdIn', 'msIn', 'heldServed', 'stackServed', 'stackPriced', 'planCopies'];
+  const fields = ['prices', 'r0', 'rSkip', 'broke', 'priced', 'untrash', 'rig', 'rigIn', 'drawR', 'drawRIn', 'missR', 'missRIn', 'drawC', 'missC', 'rez', 'rezIn', 'hold', 'holdIn', 'msIn', 'pricesCorpView', 'pricesRunnerView', 'msInCorpView', 'msInRunnerView', 'heldServed', 'stackServed', 'stackPriced', 'planCopies'];
   p(`\n#### Counts per decision, mean (${title}, ${set.length} decisions)`);
   p(`| field | ${arms.join(' | ')} |`);
   p(`|---|${arms.map(() => '---').join('|')}|`);
@@ -57,6 +57,16 @@ function counts(set, title) {
   const clears = {};
   for (const d of set) for (const a of arms) for (const [k, v] of Object.entries(d.tally[a].clears ?? {})) ((clears[k] ??= {})[a] = (clears[k][a] ?? 0) + v);
   for (const [k, by] of Object.entries(clears)) p(`| clears ${k} (total) | ${arms.map(a => by[a] ?? 0).join(' | ')} |`);
+  const tot = (a, f) => set.reduce((n, d) => n + (d.tally[a][f] ?? 0), 0);
+  if (arms.every(a => set.some(d => d.tally[a].pricesCorpView !== undefined))) {
+    p(`\n#### Clock time per price, by the clock's viewer (${title}; ms inside the outermost clock over every tagLoss run of that viewer)`);
+    p(`| | ${arms.join(' | ')} |`);
+    p(`|---|${arms.map(() => '---').join('|')}|`);
+    p(`| Corp's view: prices | ${arms.map(a => tot(a, 'pricesCorpView')).join(' | ')} |`);
+    p(`| Corp's view: ms per price | ${arms.map(a => fx(tot(a, 'msInCorpView') / Math.max(1, tot(a, 'pricesCorpView')), 3)).join(' | ')} |`);
+    p(`| Runner's view: prices | ${arms.map(a => tot(a, 'pricesRunnerView')).join(' | ')} |`);
+    p(`| Runner's view: ms per price | ${arms.map(a => fx(tot(a, 'msInRunnerView') / Math.max(1, tot(a, 'pricesRunnerView')), 3)).join(' | ')} |`);
+  }
 }
 
 /** Decisions whose pick differs from base, per arm and side, per game. */
