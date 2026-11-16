@@ -2,7 +2,7 @@ import { CardInstance } from '../types/card';
 import { EncounterState, GameState } from '../types/state';
 import { cardDef } from '../cards';
 import { nextInt, shuffleInPlace } from '../rng';
-import { noteRdPrivate, runnerSeesRd, shuffleRD } from '../engine/rdKnowledge';
+import { corpSeesRd, noteRdPrivate, runnerSeesRd, shuffleRD } from '../engine/rdKnowledge';
 import { addLog } from '../engine/log';
 import { beforeCorpCardUninstalled, checkAgendaVictory, findInstalledCorpCard, removeCard, revealInHand, turnKey } from '../engine/helpers';
 import { completeRez, rezForFree } from '../engine/actions/corp';
@@ -643,6 +643,7 @@ const epiphany: CardScript = {
       resolve: ctx => {
         const top = ctx.state.corp.rd.slice(0, 3);
         noteRdPrivate(ctx.state, top.length);
+        corpSeesRd(ctx.state, top); // the Corp looks at them (10.2.2b)
         const cards = installable(ctx.state, top);
         addLog(ctx.state, 'corp', 'Corp looked at the top 3 cards of R&D (Epiphany Analytica).');
         if (cards.length > 0) askCards(ctx, 'corp', 'Epiphany Analytica: you may install 1 of the top 3 cards of R&D.', ids(cards), 0, 1, 'pick');
@@ -700,6 +701,7 @@ const balancedCoverage: CardScript = {
     const top = state.corp.rd[0];
     if (!top || answer.kind !== 'effect_choice') return;
     if (source.step === 'type' && answer.optionId !== 'no') {
+      corpSeesRd(state, [top]); // the Corp looks at it (10.2.2b)
       addLog(state, 'corp', `Corp named ${answer.optionId} and looked at the top card of R&D (Balanced Coverage).`);
       // Asked even on a miss when the Corp's stops are on ALL, so the wait doesn't tell the Runner the type matched (4.2.2)
       askEvenIfNone(
@@ -1940,6 +1942,7 @@ const nuvemLook = (ctx: EffectContext) => {
   const top = ctx.state.corp.rd[0];
   if (!top) return;
   noteRdPrivate(ctx.state, 1);
+  corpSeesRd(ctx.state, [top]); // the Corp looks at it (10.2.2b)
   askChoice(ctx, 'corp', `Nuvem SA: the top card of R&D is ${title(top)}. Trash it?`, [
     { id: 'trash', label: `Trash ${title(top)}` },
     { id: 'no', label: 'Leave it' },
