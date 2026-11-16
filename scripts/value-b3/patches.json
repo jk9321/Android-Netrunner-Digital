@@ -1,0 +1,101 @@
+{
+ "formulas": [
+  [
+   "ai/cards/elevation.ts",
+   "    corp: (state, code, { cost, risk }) => ({ keep: perTurn(state, counterWorthOf(state, code, 'power'), risk, 0, 3) - cost }),",
+   "    corp: (state, code, { cost }) => ({ keep: perTurn(state, counterWorthOf(state, code, 'power'), 'corp', 0, 3) - cost }),"
+  ],
+  [
+   "ai/cards/elevation.ts",
+   "      const keep = perTurn(state, 1, risk) - cost;",
+   "      const keep = perTurn(state, 1, 'corp') - cost;"
+  ],
+  [
+   "ai/cards/elevation.ts",
+   "      const keep = perTurn(state, transactionGain(state), risk) - 3 * card;",
+   "      const keep = perTurn(state, transactionGain(state), 'corp') - 3 * card;"
+  ],
+  [
+   "ai/cards/liberation.ts",
+   "      const keep = Math.max(0.3, perTurn(state, 0.5 * CLICK, risk) - cost);",
+   "      const keep = Math.max(0.3, perTurn(state, 0.5 * CLICK, 'corp') - cost);"
+  ],
+  [
+   "ai/cards/liberation.ts",
+   "      return { keep: Math.max(0.3, perTurn(state, 0.5 + archivesBare, risk, 0, 4) - cost) };",
+   "      return { keep: Math.max(0.3, perTurn(state, 0.5 + archivesBare, 'corp', 0, 4) - cost) };"
+  ],
+  [
+   "ai/cards/liberation.ts",
+   "      const keep = Math.max(0.3, perTurn(state, 0.5 * 2, risk) - cost);",
+   "      const keep = Math.max(0.3, perTurn(state, 0.5 * 2, 'corp') - cost);"
+  ],
+  [
+   "ai/cards/liberation.ts",
+   "      return { keep: perTurn(state, 0.4 + bare * card, risk) };",
+   "      return { keep: perTurn(state, 0.4 + bare * card, 'corp') };"
+  ],
+  [
+   "ai/cards/liberation.ts",
+   "      const keep = Math.max(0.3, perTurn(state, PACE.rezzes * 2 * counterWorthOf(state, code, 'credit'), risk) - cost);",
+   "      const keep = Math.max(0.3, perTurn(state, PACE.rezzes * 2 * counterWorthOf(state, code, 'credit'), 'corp') - cost);"
+  ],
+  [
+   "ai/cards/liberation.ts",
+   "    corp: (state, _code, { cost, risk }) => ({ keep: Math.max(0.3, perTurn(state, 0.6 * CLICK, risk) - cost) }),",
+   "    corp: (state, _code, { cost }) => ({ keep: Math.max(0.3, perTurn(state, 0.6 * CLICK, 'corp') - cost) }),"
+  ],
+  [
+   "ai/cards/liberation.ts",
+   "      const keep = Math.max(0.3, 1 * counterWorthOf(state, code, 'power') + perTurn(state, PACE.rezzes * counterWorthOf(state, code, 'power'), risk) - cost);",
+   "      const keep = Math.max(0.3, 1 * counterWorthOf(state, code, 'power') + perTurn(state, PACE.rezzes * counterWorthOf(state, code, 'power'), 'corp') - cost);"
+  ],
+  [
+   "ai/cards/liberation.ts",
+   "      const keep = Math.max(0.3, perTurn(state, 0.7 * 2, risk) - cost);",
+   "      const keep = Math.max(0.3, perTurn(state, 0.7 * 2, 'corp') - cost);"
+  ],
+  [
+   "ai/cards/liberation.ts",
+   "      const keep = Math.max(0.3, perTurn(state, 3 * counterWorthOf(state, code, 'credit'), risk, 0, 3) - cost);",
+   "      const keep = Math.max(0.3, perTurn(state, 3 * counterWorthOf(state, code, 'credit'), 'corp', 0, 3) - cost);"
+  ],
+  [
+   "ai/cards/liberation.ts",
+   "      return { keep: Math.max(0.3, perTurn(state, 0.3 + bare * RATES.advancement, risk) - cost) };",
+   "      return { keep: Math.max(0.3, perTurn(state, 0.3 + bare * RATES.advancement, 'corp') - cost) };"
+  ],
+  [
+   "ai/cards/liberation.ts",
+   "    corp: (state, _code, { cost, risk }) => ({ keep: Math.max(0.3, perTurn(state, 0.17 * (CLICK + 2), risk) - cost) }),",
+   "    corp: (state, _code, { cost }) => ({ keep: Math.max(0.3, perTurn(state, 0.17 * (CLICK + 2), 'corp') - cost) }),"
+  ],
+  [
+   "ai/cards/vantagePoint.ts",
+   "    corp: (state, _code, { cost, risk }) => ({ keep: Math.max(0.3, perTurn(state, Math.min(1, 4 * deckShare(state, 'corp', /double/i)) * CLICK, risk) - cost) }),",
+   "    corp: (state, _code, { cost }) => ({ keep: Math.max(0.3, perTurn(state, Math.min(1, 4 * deckShare(state, 'corp', /double/i)) * CLICK, 'corp') - cost) }),"
+  ],
+  [
+   "ai/cards/vantagePoint.ts",
+   "    corp: (state, _code, { cost, risk }) => ({ keep: Math.max(0.3, perTurn(state, PACE.agendaEvents * 3, risk) - cost) }),",
+   "    corp: (state, _code, { cost }) => ({ keep: Math.max(0.3, perTurn(state, PACE.agendaEvents * 3, 'corp') - cost) }),"
+  ],
+  [
+   "ai/cards/vantagePoint.ts",
+   "    corp: (state, _code, { cost, tag, risk }) => ({ keep: Math.max(0.3, perTurn(state, tag - PACE.runs * 0.5, risk, 0, 3) - cost) }),",
+   "    corp: (state, _code, { cost, tag }) => ({ keep: Math.max(0.3, perTurn(state, tag - PACE.runs * 0.5, 'corp', 0, 3) - cost) }),"
+  ],
+  [
+   "ai/cards/vantagePoint.ts",
+   "      const keep = perTurn(state, 3 + card, risk, 0, Math.max(1, hosts)) - cost;",
+   "      const keep = perTurn(state, 3 + card, 'corp', 0, Math.max(1, hosts)) - cost;"
+  ]
+ ],
+ "paidout": [
+  [
+   "ai/counterValues.ts",
+   "export const paidOut = (state: GameState, card: CardInstance): number => Math.max(0, 1 - 2 * assetRisk(state, inIcedServer(state, card)));",
+   "export const paidOut = (_state?: unknown, _card?: unknown): number => 1 - 2 * PAYOUT_RISK.corpBare;"
+  ]
+ ]
+}
