@@ -252,9 +252,11 @@ describe('AI code health (audit guards)', () => {
     expect(code).not.toMatch(/\bscore\s*:|\bscore\w*\s*\(/i);
   });
 
-  it('keeps src/ai/corp at or under 2,217 lines and src/ai at or under 13,847 (Stage C hand-off, ai-corp-honest-order)', () => {
+  // ai-value-time: src/ai 13,847 to 13,858 (+11 measured: the tag clock kept on the original board, evaluate.ts +7 and runs.ts +2;
+  // the lazy tag input, effectValues.ts +2); src/ai/corp unchanged
+  it('keeps src/ai/corp at or under 2,217 lines and src/ai at or under 13,858 (Stage C hand-off, ai-corp-honest-order, ai-value-time)', () => {
     const corp = aiFiles().filter(f => f.replace(/\\/g, '/').startsWith('corp/')).reduce((n, f) => n + lines(f), 0);
     expect(corp).toBeLessThanOrEqual(2217);
-    expect(aiFiles().reduce((n, f) => n + lines(f), 0)).toBeLessThanOrEqual(13847);
+    expect(aiFiles().reduce((n, f) => n + lines(f), 0)).toBeLessThanOrEqual(13858);
   });
 });
