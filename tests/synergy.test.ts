@@ -340,15 +340,17 @@ describe('identity plans', () => {
   const remote = (s: GameState, id: string, root: CardInstance[], ice: CardInstance[] = []) =>
     (s.corp.servers[id] = { id, name: id, isRemote: true, ice, root });
 
-  it('PT Untaian advances the agenda behind ice, and skips when nothing is worth a credit', () => {
+  // V-B B6 item 17: an agenda's counter is the owner's step (agendaWorth on its server: here the click and credit it saves,
+  // 3), no longer the iced share of its points (5); the bare Urtica's bluff and extra damage (4.3) now ranks first
+  it('PT Untaian places on the card whose counter is worth most (the owner\'s step for an agenda), and skips when nothing is worth a credit', () => {
     const s = structuredClone(newGame());
     const agenda = createCardInstance(s, '30069');
     const trap = createCardInstance(s, '30045'); // Urtica Cipher
     remote(s, 'remote-8', [agenda], [createCardInstance(s, '30072')]);
     remote(s, 'remote-9', [trap]);
     s.corp.credits = 5;
-    expect(untaianPick(s, [agenda.instanceId, trap.instanceId])).toEqual([agenda.instanceId]);
-    expect(untaianPick(s, [trap.instanceId])).toEqual([trap.instanceId]);
+    expect(untaianPick(s, [agenda.instanceId, trap.instanceId])).toEqual([trap.instanceId]);
+    expect(untaianPick(s, [agenda.instanceId])).toEqual([agenda.instanceId]);
     s.corp.credits = 1;
     expect(untaianPick(s, [agenda.instanceId])).toEqual([]);
   });

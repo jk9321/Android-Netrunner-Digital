@@ -254,7 +254,7 @@ Counts at the branch head (scripts/value-owners/counts.mjs): see "Counts" at the
 
 ### V14. Hosted credits on a Corp card
 - **Owner:** `countersWorth` (`src/ai/counterValues.ts:79`) with type credit (V9's owner per counter), read for a rezzed unprofiled card in `corpCardWorth` as `countersWorth(state, card, 'credit')` (`src/ai/evaluate.ts:157`).
-- **Copies:** with no state, `hosted * RATES.counters.hostedCredit` (`src/ai/evaluate.ts:157`) 0.6 a credit; and a profiled card's hosted credits priced as payouts (`payoutWorth` with `hosted`, `src/ai/evaluate.ts:174`), so the same credits have two prices by whether the card has a profile. Asks counted (inside `corpCardValue`). Comparable: on a rezzed card with credits, `1 + countersWorth` against `payoutWorth(profile, ..., hosted)` against the flat.
+- **Copies:** with no state, `hosted * RATES.counters.hostedCredit` (`src/ai/evaluate.ts:157`) 0.6 a credit (the no-state path). Since V-B B6 a profiled card's hosted credits read the owner too (they were priced as payouts, `payoutWorth` with `hosted`). Asks counted (inside `corpCardValue`). Comparable: on a rezzed card with credits, `1 + countersWorth` against the flat.
 
 ### V15. A Runner rig card's worth installed (not an icebreaker)
 - **Owner:** `runnerCardValue` (`src/ai/cardValues.ts:56`): the card's formula (`runnerEffect`), in rig points (credits / `RATES.rigCardScale` 2), else its flat CARD_VALUES `rig` (default `RATES.defaultRig` 2) plus `drawBonus`. Its readers multiply by `rigCardScale` again.
@@ -313,7 +313,6 @@ V-B B1 re-baseline (recount VA-COPY-COUNT-BASELINE, ruling 13): the count is the
 | V12 | the worth once rezzed less the cost | `rezzedWorth` (`src/ai/effectValues.ts:523`) | live | generic branch: owner is right already; the two instance rules: not the same quantity (ruling 4) | none |
 | V12 | the stateless CARD_VALUES keep | `corpKeepValue(card.cardCode))` (`src/ai/iceValues.ts:133`) | live | loop guard; its two no-state readers: `serverStake` (cuts the stake > keep > stake loop, on purpose) and the V11 loop flat (`corpCardValue flat (loop)`, the board card's fallback inside a loop) | B2 (list), done |
 | V14 | hosted credits with no state | `RATES.counters.hostedCredit` (`src/ai/evaluate.ts:157`) | live | no-state path: with a state the owner (`countersWorth`) is read, without one there is nothing to read it with (B6 labels file) | none |
-| V14 | a profiled card's hosted credits as payouts | `payoutWorth` (`src/ai/evaluate.ts:155`) | live | labels file | B6 |
 | V15 | the flat rig worth | `runnerCardValue flat` (`src/ai/cardValues.ts:52`) | live | loop guard and no-formula path (B6 labels file) | none |
 | V15 | a profiled rig card by its payouts | `payoutWorth` (`src/ai/evaluate.ts:119`) | live | labels file | B6 |
 | V1 | the flat credit | `creditValue` | gone | deleted in V-B B6 (Jeff's yes, dead list) | done (B6) |
@@ -370,12 +369,12 @@ From `node scripts/value-owners/counts.mjs` (re-run it to recount; the copy coun
 |---|--:|
 | hand-set literals in the valuation layer (val-lits.mjs: table + scattered) | 1101 (957 + 144) |
 | quantities with one named owner (V1 to V25) | 25 |
-| live copies, all quantities (the live lines of "Copy lines") | 33 |
+| live copies, all quantities (the live lines of "Copy lines") | 32 |
 | other copy lines, by kind (not counted) | reader 2, gone 4, recorded 1, not comparable 6, inside owner 2 |
 | valuation exports with no reader (allow-list) | 6 |
 | lines of src/ai | 13606 |
 
-Live copies per quantity: V1 0, V2 3, V3 8, V4 3, V5 2, V6 0, V7 7, V8 0, V9 1, V10 1, V11 1, V12 3, V13 0, V14 2, V15 2, V16 0, V17 0, V18 0, V19 0, V20 0, V21 0, V22 0, V23 0, V24 0, V25 0.
+Live copies per quantity: V1 0, V2 3, V3 8, V4 3, V5 2, V6 0, V7 7, V8 0, V9 1, V10 1, V11 1, V12 3, V13 0, V14 1, V15 2, V16 0, V17 0, V18 0, V19 0, V20 0, V21 0, V22 0, V23 0, V24 0, V25 0.
 <!-- valuation:end -->
 
 ## Hidden information (rule 10.2.2a)
