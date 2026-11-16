@@ -10,7 +10,7 @@
  * damage clocks), each behind its own tuning.plan switch.
  */
 import { CardInstance, GameState, SideCode, cardDef, rezCostOf } from '../core';
-import { actingSide, plan, pricingKey } from './pricing';
+import { actingSide, plan, pricing as pricingContext, pricingKey } from './pricing';
 import { corpPorts } from './corpPorts';
 
 export const RATES = {
@@ -157,20 +157,29 @@ function printIds(cards: CardInstance[]): string {
   return out;
 }
 
-const memos = new WeakMap<GameState, { print: string; values: Map<string, unknown> }>();
+const memos = new WeakMap<GameState, { print: string; values: Map<string, unknown>; checked: object | null }>();
 
 /**
  * A value worked out once per position: the AI prices the same board many
  * times over in one decision (each ice's subroutines price the rig, which
  * prices runs on each server...). Kept on the state object, and dropped if
  * the state is changed in place (tests do).
+ *
+ * ai-value-time step 3: inside a decision (a side deciding, with the decision's anchor noted: a new object every
+ * decision, handValues.ts decisionContext) no state is edited in place once it is priced (the AI edits only fresh
+ * clones before pricing them: corp/rez.ts `stolen`, search.ts `determinize`; executeAction copies), so a fingerprint
+ * checked under this anchor is not built again. Outside a decision it is rebuilt and compared on every call, as before.
  */
 export function memo<T>(state: GameState, key: string, work: () => T): T {
-  const print = fingerprint(state);
+  const ctx = pricingContext();
+  const anchor = ctx.side !== null ? ctx.anchor : null;
   let entry = memos.get(state);
-  if (!entry || entry.print !== print) {
-    entry = { print, values: new Map() };
-    memos.set(state, entry);
+  if (!entry || !anchor || entry.checked !== anchor) {
+    const print = fingerprint(state);
+    if (!entry || entry.print !== print) {
+      entry = { print, values: new Map(), checked: anchor };
+      memos.set(state, entry);
+    } else entry.checked = anchor;
   }
   key = pricingKey() + ':' + key; // values depend on the pricing context: the deciding side, its plan, the guards up (pricing.ts)
   if (entry.values.has(key)) return entry.values.get(key) as T;
