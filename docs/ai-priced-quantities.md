@@ -286,8 +286,31 @@ Owner sites: `sideCreditValue`, `clickPrice`, `handAndClicks` (the hand term, bo
 ### Dead valuation exports (the codeHealth allow-list; shrink only, for V-B and Jeff)
 Listed in `tests/codeHealth.test.ts` ("every valuation export has a reader in src"). A reader is a use in src outside the declaring statement; a re-export or a test is not a reader.
 
+- `creditValue` (valueModel.ts): dead (re-exported by evaluate.ts, never read): V-B
+- `clearBuildTargets` (valueModel.ts), `clearHandCaches` (handValues.ts), `clearDamageThreats` (effectValues.ts), `clearDeckShares` (iceValues.ts): test and script cache resets
+- `passOddsOf` (effectValues.ts): scripts only (threat calibration)
+- `FLATLINE` (effectValues.ts): dead (tests only; `flatlineWorth` replaced it): V-B
+- `topDownWorth` (effectValues.ts): dead (tests only): V-B
+- `shownIceShare` (evaluate.ts): dead (no reader anywhere): V-B
+- `AGENDA_RUN` (evaluate.ts): scripts only (a measured rate, logged)
+- `setAgendaClick` (evaluate.ts): scripts only (scripts/human-agreement.ts sweeps `AGENDA_CLICK`)
+- `centralExposure` (evaluate.ts): scripts and tests only since the oneCurrency off path went: V-B
+
+### Disagreement log at this branch (beta b38786f; `ai-honest-corp-decision` not merged)
+`/mnt/project-files/netrunner-ai/valuation-cleanup/stage-va/value-log-43824608678.md` (ai-script run 43824608678: 56 deals and 35 of Jeff's games, both sides, 64 shards, K 8 a site and tag). Known-answer check 1: 34,959 of 34,969 owner samples priced again equal what play got; the 10 that don't (damageWorth 4, clickPrice 3, corpKeepValue 2, keepValue 1; 9 on reply or playout boards, 1 at a root) are all at sites that read an incomplete-key cache (`clickCache`, `deckAverage` through `cardRate` and `heldWorth`, the `damageThreat` map). That is consistent with the cache leak the audit recorded (AI-CACHE-HIDDEN-STATE: play, mid-decision, served another board's cached sub-value; the pass prices cache-cold) rather than a misplaced hook, since the other sites match n of n. Not proven per sample. Each copy's headline is in the report's "Copies against their owners" table.
+
 ### V-A counts
-Filled from `scripts/value-owners/counts.mjs` at the hand-off SHA.
+From `node scripts/value-owners/counts.mjs` (re-run it to recount; the copy counts may only go down).
+
+| count | value |
+|---|--:|
+| hand-set literals in the valuation layer (val-lits.mjs: table + scattered) | 1131 (957 + 174) |
+| quantities with one named owner (V1 to V20) | 20 |
+| live copies, all quantities (each row's first number; HQ + grip for V3) | 39 |
+| valuation exports with no reader (allow-list) | 12 |
+| lines of src/ai | 14096 |
+
+Live copies per quantity: V1 1, V2 3, V3 9, V4 3, V5 2, V6 1, V7 3, V8 1, V9 1, V10 1, V11 2, V12 5, V13 2, V14 2, V15 2, V16 0, V17 1, V18 0, V19 0, V20 0.
 <!-- valuation:end -->
 
 ## How to use
