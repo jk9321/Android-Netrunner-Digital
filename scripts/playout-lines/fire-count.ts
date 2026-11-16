@@ -12,7 +12,7 @@
  * One JSON line per decision. Sum with fire-count-sum.mjs.
  *   SHARD=0/64 npx vite-node scripts/playout-lines/fire-count.ts > fc-0.txt
  */
-import { GameAction, GameState, activePrompt, getLegalActions } from '../../src/core';
+import { GameAction, GameState, activePrompt, cardDef, getLegalActions } from '../../src/core';
 import { HeuristicCorpAI } from '../../src/ai/corpAI';
 import { CorpContext, lineAsk } from '../../src/ai/corp/core';
 import { HeldLine, heldLaterStep, isCorpMain } from '../../src/ai/corp/lines';
@@ -146,6 +146,17 @@ forEachRecorded({
       const ranked = a.rankMainActions(structuredClone(s)) as unknown as { action: GameAction; score: number }[];
       return ranked.find(x => x.score > -Infinity)?.action ?? null;
     })();
+    // For a changed pick: each pick's line in the order (corp/candidates.ts; behind: the behind group), and its card's type
+    const where = (a: GameAction) => {
+      const agent = agentFor('on', held);
+      clearCaches();
+      const st = structuredClone(s);
+      const r = (agent.rankMainActions(st) as unknown as { action: GameAction; line: number; behind: boolean; score: number }[]).find(x => key(x.action) === key(a));
+      const id = 'cardInstanceId' in a ? (a as { cardInstanceId: string }).cardInstanceId : undefined;
+      const card = id ? [...s.corp.hq, ...Object.values(s.corp.servers).flatMap(v => [...v.ice, ...v.root])].find(c => c.instanceId === id) : undefined;
+      return { line: r ? (r.behind ? 'behind' : r.line) : 'none', card: card ? cardDef(card).type_code : undefined };
+    };
+    const lines = r.off.a !== r.on.a ? { offAt: where(r.off.action), onAt: where(r.on.action) } : {};
     let bSame = 0;
     let bAll = 0;
     for (const pick of [r.on.action, firstOfOrder]) {
@@ -167,6 +178,7 @@ forEachRecorded({
         changed: r.off.a !== r.on.a,
         off: r.off.a !== r.on.a ? r.off.a : undefined,
         on: r.off.a !== r.on.a ? r.on.a : undefined,
+        ...lines,
         msOff: r.off.ms,
         msOn: r.on.ms,
         pl: pl(r.on.d),

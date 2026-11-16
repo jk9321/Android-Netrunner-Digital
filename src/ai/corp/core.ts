@@ -132,9 +132,9 @@ export function playoutLine(held: HeldLine | null, rank: (state: GameState, held
     step(state: GameState, pick: GameAction | null): GameAction | null {
       if (pick?.type === 'SCORE_AGENDA') return (tally('playoutLine', 'scoreFirst'), pick);
       const two = unsunk(() => lineAsk(state, line, lineFirst => lineFirst ?? pick));
-      line = two.held;
       tally('playoutLine', two.later ? 'q4Asks' : 'q5Asks');
-      if (two.action && two.action !== pick) tally('playoutLine', two.later ? 'q4Takes' : two.lineFirst ? 'q5Steps' : 'q5Vetoes');
+      if (two.action && two.action !== pick) tally('playoutLine', two.later ? 'q4Takes' : (`${two.held?.line.kind === 'asset' ? 'asset' : 'q5'}${two.lineFirst ? 'Steps' : 'Vetoes'}` as const));
+      line = two.held;
       return two.action;
     },
   };
