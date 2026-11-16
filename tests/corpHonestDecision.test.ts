@@ -5,7 +5,8 @@ import { revealInHand } from '../src/core/engine/helpers';
 import { HeuristicCorpAI } from '../src/ai';
 import { rezCandidates } from '../src/ai/playout';
 import { asSide, plan, pricing, withPricing } from '../src/ai/pricing';
-import { clearHandCaches } from '../src/ai/handValues';
+import { clearHandCaches, decisionContext } from '../src/ai/handValues';
+import { decideRez } from '../src/ai/corp/rez';
 import { corpSeenGrip } from '../src/ai/oracle';
 import { knownRdSlots } from '../src/ai/runnerReply';
 import { clearThreatCaches } from '../src/ai/threatModel';
@@ -138,6 +139,8 @@ const REZ: [string, () => GameState][] = [
   ['(d) holes 48 #118', () => read('holes-48-118.json')],
   ['(d) Stage B Biawak r20', () => read('stage-b-rez-biawak-r20-42.json')],
   ['(d) Stage B Scatter r23', () => read('stage-b-rez-scatter-r23-31.json')],
+  // From the fire count (deal 1841 #87, approach_ice): the one rez in a run whose answer the real grip moved on beta
+  ['(d) deal 1841 #87', () => read('honest-corp-rez-1841-87.json')],
 ];
 const MONEY: [string, () => GameState][] = [['(e) the money step with plays that draw (deal 1001 T10)', drawPlays]];
 
@@ -201,6 +204,26 @@ describe("the deciding Corp's whole decision reads no hidden card (rule 10.2.2a)
     expect(view.corp.rd.slice(0, 4).map(c => c.instanceId)).toEqual(s.corp.rd.slice(0, 4).map(c => c.instanceId));
   });
 
+  // Deviation beyond finding 2 (AI Coordinator 06:13Z (2)): during a breach the run's queue names the R&D cards still
+  // to access by id. The Corp knows how many and that they are the next ones from the top (rules 7.3.4: R&D is accessed
+  // from the top), not which, so in the view the queue names the view's cards at the same places; a card the prompt
+  // names (the one being accessed) stays where it is. Without this, a prompt answered on the view whose simulation goes
+  // on with the breach would access the real cards
+  it("reads the breach queue by position: the view's queue names the view's R&D cards at the real queue's places", () => {
+    const s = structuredClone(planogram());
+    const run = read('rez-toll.json').activeRun!;
+    s.activeRun = { ...structuredClone(run), server: 'rd', phase: 'access' as never, accessQueue: [s.corp.rd[1].instanceId, s.corp.rd[2].instanceId] };
+    const p = s.pendingPrompts[0] as Extract<GameState['pendingPrompts'][number], { kind: 'effect_choice' }>;
+    p.source.data = { accessed: s.corp.rd[0].instanceId };
+    const real = [...s.activeRun.accessQueue];
+    const view = honest(() => planner.corpDecisionView(s));
+    expect(view.corp.rd[0].instanceId).toBe(s.corp.rd[0].instanceId);
+    expect(view.activeRun!.accessQueue).toEqual([view.corp.rd[1].instanceId, view.corp.rd[2].instanceId]);
+    expect(s.activeRun.accessQueue).toEqual(real);
+    // The deal moved at least one of them (so the queue really is the view's, not the real cards)
+    expect(view.activeRun!.accessQueue).not.toEqual(real);
+  });
+
   // Ruling 4: a view is marked and is its own view, so a question handed the view does not deal again
   it('is one object for every question of a decision, and its own view', () => {
     for (const make of [drawPlays, planogram]) {
@@ -223,6 +246,28 @@ describe("the deciding Corp's whole decision reads no hidden card (rule 10.2.2a)
     t.runner.stack.push(t.runner.grip.pop()!);
     expect(honest(() => planner.corpDecisionView(t))).not.toBe(v1);
   });
+
+  // Fix 4, AI Coordinator 06:13Z (1): the deciding Corp's rez really is decided on the view: at every rez fixture its
+  // answer is decideRez's on the view (under the view's context), and at deal 1841 #87 that differs from the answer on the
+  // real state (rez on the real state, pass on the view), so this fails on beta 8fbc771
+  it("decides each rez in a run on its view: the agent's answer is decideRez's on the view, not on the real state", () => {
+    let differs = 0;
+    for (const [name, make] of REZ) {
+      const s = make();
+      const cards = rezCandidates(s, s.priority!.step as 'approach_ice');
+      const on = (st: GameState) => {
+        reset();
+        return honest(() => {
+          decisionContext(st, 'corp');
+          return key(decideRez(st, cards, true));
+        });
+      };
+      const view = on(honest(() => planner.corpDecisionView(s)));
+      expect(answer(s), name).toBe(view);
+      if (on(s) !== view) differs++;
+    }
+    expect(differs).toBeGreaterThan(0);
+  }, 600_000);
 
   // Fix 4 (red team: decideRez never set its context): the deciding Corp's rez runs under its own decision's context
   it("decides a rez under the rez decision's own context, on its view", () => {

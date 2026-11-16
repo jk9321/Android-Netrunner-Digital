@@ -125,6 +125,9 @@ forEachRecorded({
     if (changed && !causes.length) for (const arm of ['rdgrip', 'all', 'view'] as const) if (decide(s, arm, kind, d.cards).a === r.branch.a) causes.push(arm);
     if (changed && process.env.DUMP_CHANGED) writeFileSync(`${process.env.DUMP_CHANGED}/${d.src.replace(/[:/]/g, '_')}-${d.i}.json`, JSON.stringify({ kind, cards: d.cards, state: s }));
     const q = changed ? question(s, kind, r.base.a) : undefined;
+    // The agent decides on its view (AI Coordinator 06:13Z (1)): its pick is the pick taken through decideWith/decideRez on
+    // corpDecisionView itself, checked at every rez and prompt and every 10th main-phase decision
+    const onView = kind === 'rez' || activePrompt(s) || k % 10 === 0 ? decide(s, 'view', kind, d.cards).a === r.branch.a : undefined;
     const p = activePrompt(s);
     // A prompt's kind and the hidden cards it names (held in place in the view: R&D, grip, stack)
     const ids = p ? promptNamedIds(s) : new Set<string>();
@@ -141,6 +144,7 @@ forEachRecorded({
         prompt,
         causes,
         fell: r.branch.fell,
+        onView,
         auditMismatch: { click: clickAudit.mismatches - audit0.c, draw: drawAudit.mismatches - audit0.d },
         base: changed ? r.base.a : undefined,
         branch: changed ? r.branch.a : undefined,

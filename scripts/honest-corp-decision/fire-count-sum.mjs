@@ -24,6 +24,10 @@ console.log(`  none: ${none.length}`);
 for (const r of none.slice(0, 20)) console.log('    NONE', r.src, '#' + r.i, 'T' + r.T, r.q, r.base, '->', r.branch);
 console.log('question x cause:');
 for (const [k, n] of count(changed, r => `${r.q} [${r.causes.join('+') || 'none'}]`)) console.log(`  ${k}: ${n}`);
+for (const kind of ['main', 'prompt', 'rez']) {
+  const rs = rows.filter(r => r.kind === kind && r.onView !== undefined && r.onView !== null);
+  console.log(`on the view (${kind}): the agent's pick is the pick on corpDecisionView at ${rs.filter(r => r.onView).length} of ${rs.length} checked`);
+}
 const fell = rows.flatMap(r => r.fell);
 console.log(`real-state fallbacks: ${fell.length}`);
 for (const [k, n] of count(fell, x => x)) console.log(`  ${k}: ${n}`);
