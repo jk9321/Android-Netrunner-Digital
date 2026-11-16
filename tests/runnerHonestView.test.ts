@@ -6,7 +6,6 @@ import { asSide, plan, withPricing } from '../src/ai/pricing';
 import { evaluate } from '../src/ai/evaluate';
 import { boardNeed, clearBuildTargets } from '../src/ai/valueModel';
 import { clearHandCaches } from '../src/ai/handValues';
-import { clearThreatCaches } from '../src/ai/threatModel';
 import { clearDamageThreats } from '../src/ai/effectValues';
 import { clearDeckShares } from '../src/ai/iceValues';
 import { dealRunnerUnknowns, guessRunnerView } from '../src/ai/runnerReply';
@@ -30,7 +29,6 @@ import { cont, run } from './helpers';
 const read = (name: string): GameState => JSON.parse(readFileSync(new URL(`./fixtures/${name}`, import.meta.url), 'utf8'));
 const honest = <T>(f: () => T, hiddenDraws = true): T => withPricing({ plan: { ...plan(), hiddenDraws, plannerSeed: true } }, () => asSide('runner', f));
 const reset = () => {
-  clearThreatCaches();
   clearHandCaches();
   clearDamageThreats();
   clearDeckShares();

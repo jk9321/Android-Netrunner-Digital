@@ -7,7 +7,7 @@ import { runnerReply } from './runnerReply';
 import { decideRez, perfectRecallTarget } from './corp/rez';
 import { holdingRezIds, rezMoney } from './corp/rezMoney';
 import { registerCorpPorts } from './corpPorts';
-import { plan, withPricing } from './pricing';
+import { plan } from './pricing';
 import { CorpMemory, corpDecide, countHonest, playoutLine } from './corp/core';
 import { asRanked, corpCandidates, freeInstallTarget, plannerIntake } from './corp/candidates';
 
@@ -44,22 +44,7 @@ export class HeuristicCorpAI implements Agent {
   }
 
   chooseAction(state: GameState): GameAction {
-    return asSide('corp', () => (this.planner && this.synergy && plan().runRecord ? withPricing({ runRecord: this.noteRuns(state) }, () => this.decide(state)) : this.decide(state)));
-  }
-
-  /** plan.runRecord: the servers the Runner ran, by its turn, noted as this Corp sees each of its own turns (one game at a time). */
-  private runs: { game: string; turns: Map<number, string[]> } = { game: '', turns: new Map() };
-
-  /**
-   * plan.runRecord (threatModel.ts recordRun): notes the Runner's last turn's runs (public, rules 6.1.2a, 6.9.1a) on the
-   * Corp's turn, and returns the record, most recent turn first. A new game, or a turn already past (a reload), starts
-   * it over. Only the deciding Corp keeps one; the planner's rollouts read it from the context.
-   */
-  noteRuns(state: GameState): string[][] {
-    const latest = Math.max(0, ...this.runs.turns.keys());
-    if (this.runs.game !== state.id || state.turnNumber - 1 < latest) this.runs = { game: state.id, turns: new Map() };
-    if (state.activePlayer === 'corp' && state.turnNumber > 1) this.runs.turns.set(state.turnNumber - 1, state.runnerLastTurnRuns.map(r => r.server));
-    return [...this.runs.turns.entries()].sort((a, b) => b[0] - a[0]).map(([, servers]) => servers);
+    return asSide('corp', () => this.decide(state));
   }
 
   /** The pipeline (corp/core.ts corpDecide), the order at Q7 and the turn planner over it; the deciding Corp reads its own view for the whole decision (rule 10.2.2a). */

@@ -8,7 +8,6 @@
  * four shards and prints the breakdown. ai-match.sh logs its new-Corp games
  * the same way.
  */
-import { createHash } from 'node:crypto';
 import { createInitialGameState } from '../src/core';
 import { deckGameSetup } from '../src/data/decks';
 import { ALL_DECKS as SHIPPED_DECKS } from './nsg-sample-decks';
@@ -20,9 +19,6 @@ import { applyPlanOff, tuning } from '../src/ai/synergy';
 import { batchTokens, placeOracleIce } from './oracle-ice';
 import { withOracleMoney } from './oracle-money';
 import { measuring, startMeasure, stage0bMeasure } from './score-ceiling-measure';
-import { installDiagnostics } from '../src/ai/diagnostics';
-// THREAT_STATS=1: a diagnostics sink for the threat cache's counts (installed only then: none in a plain batch)
-const threatDiag = process.env.THREAT_STATS ? installDiagnostics() : null;
 
 const [gamesArg, levelArg] = process.argv.slice(2).filter(a => a !== '--');
 const games = Number(gamesArg ?? 1);
@@ -92,12 +88,6 @@ for (const c of corpDecks) {
         const tagged0 = iceOracle ? { ...record, seed, oracleIce: iceOracle, oracleIceSkipped: iced === false } : { ...record, seed };
         const tagged = measuring ? { ...tagged0, stage0b: stage0bMeasure(seed, c, r) } : tagged0;
         records.push(valueLoops.size ? { ...tagged, loops: Object.fromEntries(valueLoops) } : tagged);
-        // THREAT_STATS=1 (planner speed: do the threat-key switches reach a batch game?): the threat cache's work per game
-        if (threatDiag) {
-          const h = createHash('sha1').update(JSON.stringify(record)).digest('hex').slice(0, 12);
-          const t = threatDiag.threat;
-          console.error(JSON.stringify({ seed, calls: t.calls, keyed: t.keyed, budgeted: t.budgeted, hits: t.keyed - t.budgeted, record: h }));
-        }
       } catch (err) {
         // A crashed game is listed in the summary, not dropped silently
         records.push({ crashed: `${err}`.slice(0, 200), seed, corpDeck: c.name, runnerDeck: r.name } as unknown as GameRecord);

@@ -3,7 +3,6 @@ import { describe, expect, it } from 'vitest';
 import { CardInstance, GameState, cardDef } from '../src/core';
 import { HeuristicCorpAI } from '../src/ai/corpAI';
 import { modelRezParts } from '../src/ai/rezModel';
-import { tuning } from '../src/ai/synergy';
 import { inDecision } from './helpers/pricing';
 
 /**
@@ -24,15 +23,6 @@ const choose = (state: GameState, ice: CardInstance) => new HeuristicCorpAI({ sy
 const base = () => {
   const { state, cards } = position();
   return { state, ice: outerPalisade(state, cards[0]) };
-};
-const withPlans = <T>(plans: Partial<typeof tuning.plan>, f: () => T): T => {
-  const saved = { ...tuning.plan };
-  Object.assign(tuning.plan, plans);
-  try {
-    return f();
-  } finally {
-    Object.assign(tuning.plan, saved);
-  }
 };
 
 /** The same Palisade moved to the only ice on remote-1, which holds Offworld Office; the run on remote-1. */
@@ -70,10 +60,9 @@ describe('in-run ice rez (plan.rezToll, plan.modelRez)', () => {
 
   it('rezzes to stop a Runner that can\'t pay its way to an agenda', () => {
     const { state, ice } = agendaRemote(3, 0);
-    // Pinned to the old steal odds (STEAL.run). Under plan.threatModel (on, 2026-11-07) the Corp keeps its last 3: the
-    // stopped Runner has Cleaver, and a turn's income later (threatStanding) it pays through the Palisade, while the
-    // broke Corp needs 8 clicks (3 Runner turns) to score Offworld Office, so the agenda reads lost either way
-    withPlans({ threatModel: false }, () => expect(choose(state, ice)?.type).toBe('REZ_CARD'));
+    // On STEAL.run's steal odds (under the Corp's threat model, deleted 2026-11-16, the Corp kept its last 3: a turn's
+    // income later the stopped Runner paid through the Palisade with Cleaver, so the agenda read lost either way)
+    expect(choose(state, ice)?.type).toBe('REZ_CARD');
   });
 
   it('does not rez ice the Runner breaks on its way to the agenda anyway: the agenda goes either way, the credits needn\'t', () => {
