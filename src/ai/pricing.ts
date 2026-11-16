@@ -53,6 +53,8 @@ export interface Pricing {
   pricingTagLoss: boolean;
   /** Ice is being priced against the rig: run odds are the flat guesses inside (effectValues.ts). */
   pricingIce: boolean;
+  /** A hold count is open (corp/hold.ts holdRunnerTurn): the rez budget inside keeps its stop order (iceValues.ts). */
+  countingHold: boolean;
   /** A card's plan is being priced (cardPlans.ts handPlanWorth): no plan inside a plan. */
   planning: boolean;
   /** Depth of threat-model work (threatModel.ts): the threat is off inside its own computation. */
@@ -90,6 +92,7 @@ const context: Pricing = {
   pricingRootDeck: false,
   pricingTagLoss: false,
   pricingIce: false,
+  countingHold: false,
   planning: false,
   computingThreat: 0,
   decisionSeed: null,
@@ -210,6 +213,7 @@ export function pricingKey(): string {
     c.pricingRootDeck ? 'd' : '',
     c.pricingTagLoss ? 't' : '',
     c.pricingIce ? 'i' : '',
+    c.countingHold ? 'k' : '',
     c.planning ? 'c' : '',
     c.computingThreat ? 'h' : '',
     c.oracleRunning ? 'o' : '',

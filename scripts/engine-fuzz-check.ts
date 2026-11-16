@@ -358,6 +358,9 @@ export function fuzzEngineGame(seed: number, corp: DeckList, runner: DeckList, o
     // and the legality cache all keep old states), and the new state must survive a JSON round trip (saved games,
     // bug reports and the multiplayer server store it as JSON).
     const before = (step + 1) % PURITY_EVERY === 0 ? JSON.stringify(state) : null;
+    // The AI's look-ahead plays moves on copies with executeAction, shuffles included: the R&D shuffle probe is put
+    // back after it and the AI's real move is run once more below, so only that move counts (the engine is deterministic)
+    const probeBefore = game ? { shuffles: rdShuffleProbe.shuffles, seen: [...rdShuffleProbe.corpSeenSince] } : null;
     if (game) {
       const lastBefore = game.last;
       try {
@@ -372,6 +375,9 @@ export function fuzzEngineGame(seed: number, corp: DeckList, runner: DeckList, o
         // The engine refused the AI's move: executeAction below runs it again and reports it
       }
       action = game.last;
+      rdShuffleProbe.shuffles = probeBefore!.shuffles;
+      rdShuffleProbe.corpSeenSince = new Set(probeBefore!.seen);
+      if (next && action) executeAction(state, action); // same move, same shuffles; the copy is not kept
     } else action = opts.actions ? opts.actions[step] : pickAction(getLegalActions(state, side), rng);
     if (!action) break; // no legal action: already reported by the invariants
     step++;
