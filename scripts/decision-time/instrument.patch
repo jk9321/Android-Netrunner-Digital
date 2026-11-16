@@ -1,0 +1,93 @@
+diff --git a/src/ai/corp/core.ts b/src/ai/corp/core.ts
+index 9bb757d..17f3e2b 100644
+--- a/src/ai/corp/core.ts
++++ b/src/ai/corp/core.ts
+@@ -113,12 +113,16 @@ function decideOn(state: GameState, view: GameState, ctx: CorpContext): { action
+   // look-ahead and never weighed by it.
+   const choose = (decided: boolean, lineFirst: GameAction | null): GameAction => {
+     const planned = ctx.lookahead && !turnStart && !decided ? ctx.lookahead(view, ranked) : null;
++    const dtq = (globalThis as any).__dt;
++    if (dtq && planned) dtq.planned = planned;
+     // Q6. Money step M1 (incomeLine.ts): an econ operation that nets credits is the counted pick for its click, ahead of
+     // the Corp's own; a score this turn, a held two-turn line's step, or the Corp's own pick moving an agenda keeps the click
+     const money = !decided && ctx.counted && !turnStart ? moneyPick(view, planned ?? ranked[0]?.action) : null;
+     let chosen = lineFirst ?? money ?? planned ?? (ranked[0]?.score > -Infinity ? ranked[0].action : legal.find(a => a.type === 'END_TURN') ?? legal[0]);
+     // plan.tagFirst: the planner's leaf counts a tag kept as a trash still to come, but the Runner clears it on its turn
+-    if (!lineFirst && ctx.synergy && plan().tagFirst && ranked[0]?.action.type === 'TRASH_RESOURCE' && ranked[0].tagFirst) chosen = ranked[0].action;
++    const tagFirstFires = !lineFirst && ctx.synergy && plan().tagFirst && ranked[0]?.action.type === 'TRASH_RESOURCE' && ranked[0].tagFirst;
++    if (tagFirstFires) chosen = ranked[0].action;
++    if (dtq && planned) dtq.choose({ planned, money, tagFirst: tagFirstFires ? ranked[0].action : null, chosen, lineFirst });
+     return chosen;
+   };
+   if (score) {
+@@ -133,6 +137,7 @@ function decideOn(state: GameState, view: GameState, ctx: CorpContext): { action
+     tally('scoreInTwo', 'rolloutDecisions');
+     if (two.lineFirst || two.action !== two.chosen) tally('scoreInTwo', 'rolloutTaken');
+   }
++  if ((globalThis as any).__dt?.planned) (globalThis as any).__dt.final(two.action);
+   return { action: two.action!, note: true, held: two.held };
+ }
+ 
+diff --git a/src/ai/corp/hold.ts b/src/ai/corp/hold.ts
+index 7811b7b..a76c18c 100644
+--- a/src/ai/corp/hold.ts
++++ b/src/ai/corp/hold.ts
+@@ -114,6 +114,13 @@ export function serverHold(state: GameState, server: string, opts: HoldOptions):
+  * none can) over S, plus what its bypasses cost, against runnerBudget. Each set once: a rezzed ice's bit stays clear.
+  */
+ function holdRunnerTurn(state: GameState, server: string, corpCredits: number): Hold {
++  const dt = (globalThis as any).__dt;
++  if (!dt) return holdRunnerTurnI(state, server, corpCredits);
++  dt.stack.push({ input: state, part: '' });
++  try { return holdRunnerTurnI(state, server, corpCredits); } finally { dt.stack.pop(); }
++}
++function holdRunnerTurnI(state: GameState, server: string, corpCredits: number): Hold {
++  const dtc = (globalThis as any).__dt?.stack.at(-1);
+   const ice = state.corp.servers[server]?.ice ?? [];
+   const budget = runnerBudget(state);
+   // The Runner's turn: its clicks back (a bioroid broken by clicks, runs.ts plainCreditNeed), one kept for the run
+@@ -134,6 +141,7 @@ function holdRunnerTurn(state: GameState, server: string, corpCredits: number):
+     // The ice the Runner's installed bypasses pass with this set rezzed (runs.ts runBypasses: rig cards, their counters
+     // and the threat level, all public; 6.5.8a: a bypassed ice's subroutines never resolve), and what those bypasses
+     // cost it in credits' worth (spec jeff-games-48-50 Part A, folded 2026-11-13: g3 +0.3 ± 0.2, run 43382962736)
++    if (dtc) dtc.part = 'byp:' + mask;
+     const bypassed = serverId ? runBypasses(rezzedSet(view, serverId, ice, mask, n), serverId) : undefined;
+     if (bypassed) need += bypassed.price;
+     for (let i = 0; i < n; i++) {
+@@ -146,6 +154,7 @@ function holdRunnerTurn(state: GameState, server: string, corpCredits: number):
+       if (!c.isRezzed && !on) continue;
+       if (!c.isRezzed) rez += (rezOf[i] ??= rezCostOf(view, c));
+       if (bypassed?.ids.has(c.instanceId)) continue;
++      if (dtc) dtc.part = 'ice:' + c.instanceId;
+       need += (needOf[i] ??= iceNeed(view, c));
+     }
+     if (rez > corpCredits) continue;
+diff --git a/src/ai/evaluate.ts b/src/ai/evaluate.ts
+index 1a2d7e7..9c6e560 100644
+--- a/src/ai/evaluate.ts
++++ b/src/ai/evaluate.ts
+@@ -125,6 +125,7 @@ export function shownIceShare(state: GameState): Record<string, number> {
+ }
+ 
+ export function runnerRigValue(state: GameState): number {
++  const dtg = (globalThis as any).__dt; if (dtg) dtg.rig++;
+   const rig = state.runner.rig;
+   const cards = [...rig.programs, ...rig.hardware, ...rig.resources];
+   const { covered, anyBreakers } = rigCoverage(rig.programs);
+@@ -487,6 +488,7 @@ export function tagsWorth(state: GameState, viewer: SideCode, count?: number, me
+  * is worked out once per original board and not once per copy; the work still runs on the copy.
+  */
+ function tagClock(state: GameState, viewer: SideCode, tags: number, actual: boolean, memoHome?: GameState): number {
++  if ((globalThis as any).__dt) (globalThis as any).__dt.clock++;
+   // plan.tagTrashNow: on the Corp's turn, with the Runner tagged and a click and 2 credits to trash, the Corp takes the
+   // best resource now (the trash action is scored by it), so the clock after this turn runs on the next best
+   const corp = state.corp;
+@@ -537,6 +539,8 @@ function vicTagsWorth(state: GameState, tags: number, perTurn: number): number {
+ 
+ /** What a tagged Runner stands to lose each Corp turn, as `viewer` sees it. */
+ function tagLossPerTurn(state: GameState, viewer: SideCode, skip = 0): number {
++  const dt = (globalThis as any).__dt;
++  if (dt) return dt.price(state, viewer, skip, () => withPricing({ pricingTagLoss: true }, () => tagLoss({ ...state }, viewer, skip)));
+   // The tag clock is pricing the rig: tags are the flat rate in there (a copy of the position, so it is not a value loop)
+   return withPricing({ pricingTagLoss: true }, () => tagLoss({ ...state }, viewer, skip));
+ }
