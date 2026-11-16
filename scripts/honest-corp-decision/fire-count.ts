@@ -29,7 +29,6 @@ import { decideRez } from '../../src/ai/corp/rez';
 import { corpDecisionView, plannerOn, promptNamedIds } from '../../src/ai/turnPlanner';
 import { winNowAction, scoreNowPlan } from '../../src/ai/winNow';
 import { moneyPick } from '../../src/ai/incomeLine';
-import { clearThreatCaches } from '../../src/ai/threatModel';
 import { clearCaches, forEachRecorded } from '../stage-a/harness';
 
 type Arm = 'base' | 'branch' | 'rd' | 'grip' | 'rng' | 'ctx' | 'rdgrip' | 'all' | 'view';
@@ -76,7 +75,6 @@ const rezWith = (s: GameState, cards: CardInstance[], view?: GameState) =>
   });
 const decide = (s: GameState, arm: Arm, kind: 'action' | 'rez', cards?: CardInstance[]) => {
   clearCaches();
-  clearThreatCaches();
   const copy = structuredClone(s);
   const agent = new HeuristicCorpAI({ synergy: true, planner: true });
   const before = { ...honestCorpCounts };

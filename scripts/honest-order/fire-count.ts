@@ -15,7 +15,6 @@ import { decisionContext } from '../../src/ai/handValues';
 import { asRanked, corpCandidates } from '../../src/ai/corp/candidates';
 import { isCorpMain } from '../../src/ai/corp/lines';
 import { corpDecisionView } from '../../src/ai/turnPlanner';
-import { clearThreatCaches } from '../../src/ai/threatModel';
 import { clearCaches, forEachRecorded } from '../stage-a/harness';
 
 type Arm = 'real' | 'view' | 'rd' | 'grip' | 'rng' | 'agent';
@@ -42,7 +41,6 @@ const decide = (s: GameState, arm: Arm) => {
     };
   }
   clearCaches();
-  clearThreatCaches();
   const copy = structuredClone(s);
   const t = performance.now();
   const a = agent.chooseAction(copy);

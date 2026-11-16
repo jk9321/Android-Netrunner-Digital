@@ -7,7 +7,6 @@ import { actingSide } from './synergy';
 import { CLICK, RATES, cardRate, flatlineWorth, logValue, memo, pointGain, pointValue, scopeToGame, sideCards } from './valueModel';
 import { tagsWorth } from './evaluate';
 import { BLOCK, iceCost, iceCreditNeed, isTrap, plannedSubroutines, subroutineCost, tankDamage } from './runs';
-import { remoteRunChance, threatOn } from './threatModel';
 import { plan, pricing, withPricing } from './pricing';
 import { REZ_NOW_SHARE, rezBudget } from './iceValues';
 
@@ -169,16 +168,6 @@ export function runSuccess(state: GameState, serverId: string): number {
 }
 
 /**
- * runSuccess with some of the server's ice bypassed (rules 6.5.8a: bypassed ice is passed, its subroutines never
- * resolve): Alarm Clock's free HQ run in the threat (plan.alarmClockThreat).
- */
-export function runSuccessBypassing(state: GameState, serverId: string, bypassed: ReadonlySet<string>): number {
-  const server = state.corp.servers[serverId];
-  if (!server || pricingIce()) return PACE.success;
-  return withPricing({ pricingIce: true }, () => passOdds(state, server.ice.filter(ice => !bypassed.has(ice.instanceId))));
-}
-
-/**
  * plan.ownIceKnown (bug reports #39 and #41, Jeff's Runner test games 7 and 9, 2026-11-09; Corp only): the Corp prices its
  * OWN unrezzed ice as it knows it, not by the Runner-side pass rates (UNREZZED_PASS: what a Runner meets
  * when it can't see the ice). Ice its rez budget covers now (iceValues rezBudget: one pool, best stop first) is priced as
@@ -199,13 +188,6 @@ function ownIce(state: GameState, server: GameState['corp']['servers'][string]):
 /** iceCost behind the re-entry guard. */
 export function priceIce(state: GameState, ice: CardInstance): number {
   return withPricing({ pricingIce: true }, () => iceCost(state, ice));
-}
-
-/** passOdds for a server's ice, behind the re-entry guard (scripts/threat-calibration.ts). */
-export function passOddsOf(state: GameState, serverId: string): number {
-  const server = state.corp.servers[serverId];
-  if (!server) return 0;
-  return withPricing({ pricingIce: true }, () => passOdds(state, server.ice));
 }
 
 function passOdds(state: GameState, ices: CardInstance[], income = 0): number {
@@ -247,14 +229,8 @@ export function stealOdds(state: GameState, serverId: string, run = STEAL.run, i
   // On the Runner's own turn: the clicks it has left, one kept for the run
   const coming = state.activePlayer === 'runner' ? Math.max(0, Math.min(income, state.runner.clicks - 1)) : income;
   return memo(state, `stealOdds:${serverId}:${run}:${coming}`, () => {
-    // Outside the ice-pricing guard: the threat prices runs with the ice priced in full
-    const chance = threatOn() ? remoteRunChance(state, serverId) : undefined;
     const ice = ownIce(state, server);
     return withPricing({ pricingIce: true }, () => {
-      // plan.threatModel (structural review item 3): the chance the Runner runs it next turn is the Runner's own run
-      // scorer budgeted over its turn (threatModel.ts), times its ice against the rig; an open remote it can see is run
-      // by construction, so openSteal falls out
-      if (chance !== undefined) return chance * passOdds(state, ice, coming);
       // Jeff: nothing stops the Runner checking an open remote, so an agenda there is as good as stolen (plan.openSteal)
       if (plan().openSteal && server.isRemote && server.ice.length === 0) return 1;
       return run * passOdds(state, ice, coming);

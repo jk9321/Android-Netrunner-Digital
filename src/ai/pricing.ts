@@ -57,8 +57,6 @@ export interface Pricing {
   countingHold: boolean;
   /** A card's plan is being priced (cardPlans.ts handPlanWorth): no plan inside a plan. */
   planning: boolean;
-  /** Depth of threat-model work (threatModel.ts): the threat is off inside its own computation. */
-  computingThreat: number;
   /** The planner's per-decision seed for its playouts (turnPlanner.ts, plan.plannerSeed), or null. */
   decisionSeed: number | null;
   /**
@@ -94,7 +92,6 @@ const context: Pricing = {
   pricingIce: false,
   countingHold: false,
   planning: false,
-  computingThreat: 0,
   decisionSeed: null,
   rezzingToUse: new Set(),
   pricingBreakers: new Set(),
@@ -177,17 +174,6 @@ export function leafHandByCard(side: SideCode): boolean {
   return c.leaves.some(l => l.side === side && (l.plan === current || l.plan === basePlan));
 }
 
-/** The plan as its switches read here, leaves included, for caches keyed by the whole plan (threatModel.ts planKey). */
-export function effectivePlan(): Plan {
-  const current = plan();
-  if (context.leaves.length === 0) return current;
-  const sides = (['corp', 'runner'] as SideCode[]).filter(leafHandByCard);
-  if (sides.length === 0) return current;
-  const handByCard = { ...current.handByCard };
-  for (const side of context.leaves.map(l => l.side)) if (sides.includes(side)) handByCard[side] = true;
-  return { ...current, handByCard };
-}
-
 /** The side whose decision is being made (asSide), or null outside one. */
 export const actingSide = (): SideCode | null => context.side;
 
@@ -215,7 +201,6 @@ export function pricingKey(): string {
     c.pricingIce ? 'i' : '',
     c.countingHold ? 'k' : '',
     c.planning ? 'c' : '',
-    c.computingThreat ? 'h' : '',
     c.oracleRunning ? 'o' : '',
     c.runRecord ? c.runRecord.map(turn => turn.join('+')).join('/') : '',
   ].join(':');

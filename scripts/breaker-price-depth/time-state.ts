@@ -7,7 +7,6 @@ import { hangState } from './time-state-lib';
 import { createAgent } from '../../src/ai';
 import { clearHandCaches } from '../../src/ai/handValues';
 import { clearDamageThreats } from '../../src/ai/effectValues';
-import { clearThreatCaches } from '../../src/ai/threatModel';
 import { clearBuildTargets } from '../../src/ai/valueModel';
 import { clearDeckShares } from '../../src/ai/iceValues';
 
@@ -16,7 +15,6 @@ const reps = Number(process.env.REPS ?? 1);
 for (let r = 0; r < reps; r++) {
   clearHandCaches();
   clearDamageThreats();
-  clearThreatCaches();
   clearBuildTargets();
   clearDeckShares();
   const t = performance.now();

@@ -84,7 +84,6 @@ const snapshot = (): Partial<Pricing> => {
     pricingTagLoss: c.pricingTagLoss,
     pricingIce: c.pricingIce,
     planning: c.planning,
-    computingThreat: c.computingThreat,
     decisionSeed: c.decisionSeed,
     rezzingToUse: new Set(c.rezzingToUse),
     pricingBreakers: new Set(c.pricingBreakers),
