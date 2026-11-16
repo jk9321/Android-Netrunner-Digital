@@ -292,7 +292,8 @@ export function ownHandValue(state: GameState, side: SideCode): number {
 }
 
 // Step S ablation A2 (measurement only): the flat hand everywhere, the planner leaf included
-export const handByCard = (side: SideCode): boolean => !ablated('handByCard') && (leafHandByCard(side) || !!plan().handByCard?.[side]);
+export const handByCard = (side: SideCode): boolean =>
+  !ablated('handByCard') && (leafHandByCard(side) || !!plan().handByCard?.[side] || (side === 'corp' && ablated('leadHandList'))); // Step S lead L3
 
 /**
  * A click priced by the best plays in hand (Jeff, 2026-10-28; plan.clickByPlay):

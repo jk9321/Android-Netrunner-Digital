@@ -258,6 +258,12 @@ export const ABLATE_FAMILIES = [
   'corpEcon', // B3c: corpEffect econ (econValue, unprofiled econ assets)
   'corpUpgrade', // B3d: corpEffect upgrade (upgradeValue)
   'corpRezzed', // B3e: per-card rezzed rules (rezzedWorth's own entry)
+  // Valuation-audit leads (report 2026-11-16 section 7, AI Coordinator 03:01Z): measurement switches that turn a
+  // proposed correction ON for the root side, not ablations
+  'leadRisk', // L1: perTurn's Corp risk at the measured bare-asset risk (bareAssetRisk) instead of PAYOUT_RISK.corpBare
+  'leadHandList', // L3: the Corp's own hand priced by card outside the planner leaf too (the list's play value, rezzes)
+  'leadRezCost', // L4: the rez cost subtracted for the 15 formulas that ignore it (VAL-CORP-FORMULA-COST)
+  'leadSpinDoctor', // L5: a rezzed Spin Doctor without its spent draws for the Corp too (VAL-SPIN-DOCTOR)
   'runnerFormulas', // B4 (with the Runner payout profiles, B5)
   'counterWorths', // B6
   'runRiders', // B7

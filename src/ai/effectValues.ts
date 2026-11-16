@@ -1,5 +1,5 @@
 import { CardInstance, GameState, cardDef, getCardDefinition, knownInHand } from '../core';
-import { turnsLeft } from './cardProfiles';
+import { bareAssetRisk, turnsLeft } from './cardProfiles';
 import { PAYOUT_RISK } from './payoutRisk';
 import { COUNTER_WORTH } from './counterValues';
 import { CARDS, advancePayloadOf, corpFormula, runnerFormula } from './cards';
@@ -114,7 +114,7 @@ export function muWorth(state: GameState): number {
 export function perTurn(state: GameState, x: number, owner: 'corp' | 'runner', minTurns = 0, maxTurns = Infinity, wait = 1, lock = 1): number {
   // plan.ownTrashRisk: the Corp's own trash action is no risk the Corp prices (it decides it)
   const tagRisk = state.runner.tags > 0 && !(plan().ownTrashRisk && actingSide() === 'corp');
-  const risk = owner === 'corp' ? PAYOUT_RISK.corpBare : tagRisk ? PAYOUT_RISK.runnerTagged : PAYOUT_RISK.runnerUntagged;
+  const risk = owner === 'corp' ? (ablated('leadRisk') ? bareAssetRisk(state) : PAYOUT_RISK.corpBare) : tagRisk ? PAYOUT_RISK.runnerTagged : PAYOUT_RISK.runnerUntagged;
   const turns = Math.min(maxTurns, Math.max(minTurns, turnsLeft(state)));
   let value = 0;
   for (let t = 1; t <= turns; t++) value += x * (wait * (1 - risk)) ** t * lock ** (t - 1);
@@ -506,8 +506,14 @@ export function corpEffect(state: GameState, code: string, rezzed = false): Corp
   const agenda = pointGain(state.corp.score, agendaOdds(state).points);
   const card = cardRate(state, 'corp');
   const tag = tagsWorth(state, 'corp', 1);
-  return corpFormula(state, code, { cost, agenda, card, tag });
+  const fx = corpFormula(state, code, { cost, agenda, card, tag });
+  const gap = ablated('leadRezCost') && fx ? REZ_COST_GAP[code] : undefined; // Step S lead L4
+  if (gap === undefined || !fx) return fx;
+  const unpaid = gap * (cost / (getCardDefinition(code).cost || 1));
+  return { ...fx, keep: fx.keep - unpaid, ...(fx.econ !== undefined ? { econ: fx.econ - unpaid } : {}) };
 }
+/** Step S lead L4: the formulas that ignore their rez cost, and how much of it (audit P3 gap; the full cost but two). */
+const REZ_COST_GAP: Record<string, number> = { 30042: 2, 30066: 1, 30058: 1, 36055: 6, 36065: 1, 35082: 2, 35045: 2, 36045: 1, 35051: 1, 36035: 1, 35061: 1, 36027: 3, 36049: 1, 34129: 2.3, 34065: 0.8 };
 
 /** Runner rig cards that aren't icebreakers, in credits, installed: each card's `runner` entry in src/ai/cards/. */
 export function runnerEffect(state: GameState, code: string, card?: CardInstance): number | undefined {

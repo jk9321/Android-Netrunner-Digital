@@ -166,7 +166,7 @@ export function corpCardValue(card: CardInstance, state?: GameState, viewer: Sid
 }
 
 function corpCardWorth(card: CardInstance, state: GameState | undefined, viewer: SideCode, left = false): number {
-  if (state && viewer === 'runner' && card.isRezzed && card.cardCode === SPIN_DOCTOR) return spentSpinDoctorWorth(state);
+  if (state && (viewer === 'runner' || ablated('leadSpinDoctor')) && card.isRezzed && card.cardCode === SPIN_DOCTOR) return spentSpinDoctorWorth(state); // Step S lead L5
   const hosted = counters(card, 'credit');
   const power = state && card.isRezzed ? countersWorth(state, card, 'power') : 0;
   const profile = state ? profileOf(card.cardCode) : undefined;
