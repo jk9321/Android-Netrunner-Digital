@@ -112,7 +112,7 @@ export const searchPiece = (piece: 'plannerSeed' | 'plannerDiscard'): boolean =>
 const clicksOf = (state: GameState, side: SideCode) => (side === 'corp' ? state.corp.clicks : state.runner.clicks);
 
 /** A playout's main-phase actions after the first, each with the position it was chosen in. */
-type Line = { key: string; action: GameAction }[];
+export type Line = { key: string; action: GameAction }[];
 
 /** A position as the planner tells them apart: the turn, clicks, credits and the cards in hand and play. */
 function positionKey(state: GameState, side: SideCode): string {
@@ -167,7 +167,7 @@ function finishStep(state: GameState, ranked: ScoredAction[]): ScoredAction | un
  * Plays `side`'s turn on from `state` after `first`, and returns how good the end of the turn is. `mode` (LineMode):
  * how the continuation picks its actions ('hold': it installs no agenda from HQ this turn).
  */
-function playout(start: GameState, side: SideCode, first: GameAction, ai: PlannerAI, line: Line = [], ends?: Ends, mode: LineMode = 'rule'): number {
+export function playout(start: GameState, side: SideCode, first: GameAction, ai: PlannerAI, line: Line = [], ends?: Ends, mode: LineMode = 'rule'): number {
   const hold = mode === 'hold';
   // A1: the Corp's own held line for this playout, on the rule line only ('hold' and 'finish' are S1's measurement as it was)
   const corpLine = side === 'corp' && mode === 'rule' ? ai.line?.() : undefined;

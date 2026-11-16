@@ -94,7 +94,7 @@ export function note(fn: (d: Diagnostics) => void): void {
 
 /** Runs `fn` with no sink installed, so what it tallies or notes is not counted (corp/core.ts playoutLine: its own counters). */
 export function unsunk<T>(fn: () => T): T {
-  return pricing().diagnostics ? withPricing({ diagnostics: null }, fn) : fn();
+  return withPricing({ diagnostics: null }, fn);
 }
 
 /** Marks a Runner reply as being sampled (runnerReply.ts and the scripts that copy it); returns the undo. */

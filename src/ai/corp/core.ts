@@ -103,67 +103,38 @@ export function corpDecide(state: GameState, ctx: CorpContext): GameAction {
   return picked;
 }
 
-/** What lineAsk played: the action (null: `choose` had none), the held line after it, Q5's step asked first, the pick it was given, and whether Q4 held a later step. */
-export interface LineAsk {
-  action: GameAction | null;
-  held: HeldLine | null;
-  lineFirst: GameAction | null;
-  chosen: GameAction | null;
-  later: boolean;
-}
-
 /**
- * Q4 and Q5, the one sequence (A1, brief-playout-lines.md fix 3): a held line's later-turn step (Q4, heldLaterStep), else
- * the step a held or newly found two-turn line plays now (Q5, lineStep on a copy); then `choose` picks the click (given
- * Q5's step and whether Q4 has one), and scoreInTwoPick plays the line's step, keeps the line, and vetoes a spare click
- * that would spend the line's rez money. `held` is changed in place (scoreInTwoPick); the line to keep is `held` in the
- * result. corpDecide and the planner's playouts (playoutLine) call it; neither repeats it.
+ * Q4 and Q5, the one sequence (A1, brief-playout-lines.md fix 3), for corpDecide and the planner's playouts (playoutLine):
+ * a held line's later-turn step (Q4), else the step a held or new two-turn line plays now (Q5, lineStep on a copy); then
+ * `choose` picks the click (null: none), and scoreInTwoPick plays the line's step, keeps the line (`held` is changed in
+ * place, the line to keep is the result's) and vetoes a spare click that would spend the line's rez money.
  */
-export function lineAsk(state: GameState, held: HeldLine | null, choose: (lineFirst: GameAction | null, later: boolean) => GameAction | null): LineAsk {
+export function lineAsk(state: GameState, held: HeldLine | null, choose: (lineFirst: GameAction | null, later: boolean) => GameAction | null) {
   const later = !!heldLaterStep(state, held);
   const lineFirst = !later ? lineStep(state, held ? structuredClone(held) : null) : null;
   const chosen = choose(lineFirst, later);
-  if (!chosen) return { action: null, held, lineFirst, chosen, later };
-  const two = scoreInTwoPick(state, chosen, held);
-  return { action: two.action, held: two.held, lineFirst, chosen, later };
-}
-
-/** One playout's Corp line (playoutLine): the order read with its held line, the first action, and each later main-phase step. */
-export interface PlayoutLine {
-  /** The order at a playout step, built with this playout's held line (corpCandidates' `held`). */
-  rank(state: GameState): ScoredAction[];
-  /** The playout's first action (the planner's candidate, never replaced): only brings the held line up to date. */
-  first(state: GameState, action: GameAction): void;
-  /** A later main-phase step with clicks left: the action to play, given the order's first open entry (null: none). */
-  step(state: GameState, pick: GameAction | null): GameAction | null;
+  const two = chosen ? scoreInTwoPick(state, chosen, held) : { action: null, held };
+  return { ...two, lineFirst, chosen, later };
 }
 
 /**
- * A1 (brief-playout-lines.md rev 2; c0-rulings 04:25Z: the planner's playouts ask Q5): the Corp of one planner playout
- * holds `held` (a copy of the deciding Corp's line, made per playout, so nothing reaches the real memory or another
- * playout) and asks Q4/Q5 at each main-phase step after the first through lineAsk, the deciding Corp's own sequence.
- * A score that is the order's first open entry is played before Q5 (Q3's precedence, which playouts do not ask, in its
- * narrowest form: red team 7). Its scoreInTwo counts go to the playoutLine group, not to the deciding Corp's scoreInTwo.
+ * A1 (c0-rulings 04:25Z): the Corp of one planner playout. It holds `held` (a copy of the deciding Corp's line, one per
+ * playout, so nothing reaches the real memory or another playout), its order reads it, the first action (the planner's
+ * candidate, never replaced) only brings it up to date, and each later main-phase step with clicks asks lineAsk on the
+ * order's first open entry, after a score (Q3's precedence, which playouts do not ask: red team 7). Its scoreInTwo
+ * counts go to the playoutLine group.
  */
-export function playoutLine(held: HeldLine | null, rank: (state: GameState, held: HeldLine | null) => ScoredAction[]): PlayoutLine {
+export function playoutLine(held: HeldLine | null, rank: (state: GameState, held: HeldLine | null) => ScoredAction[]) {
   let line = held;
   return {
-    rank: state => rank(state, line),
-    first(state, action) {
-      line = unsunk(() => scoreInTwoPick(state, action, line)).held;
-    },
-    step(state, pick) {
-      if (pick?.type === 'SCORE_AGENDA') {
-        tally('playoutLine', 'scoreFirst');
-        return pick;
-      }
+    rank: (state: GameState) => rank(state, line),
+    first: (state: GameState, action: GameAction) => void (line = unsunk(() => scoreInTwoPick(state, action, line)).held),
+    step(state: GameState, pick: GameAction | null): GameAction | null {
+      if (pick?.type === 'SCORE_AGENDA') return (tally('playoutLine', 'scoreFirst'), pick);
       const two = unsunk(() => lineAsk(state, line, lineFirst => lineFirst ?? pick));
       line = two.held;
       tally('playoutLine', two.later ? 'q4Asks' : 'q5Asks');
-      if (two.action && pick && two.action !== pick) {
-        if (two.later) tally('playoutLine', 'q4Takes');
-        else tally('playoutLine', two.lineFirst ? 'q5Steps' : 'q5Vetoes');
-      } else if (two.action && !pick) tally('playoutLine', two.later ? 'q4Takes' : 'q5Steps');
+      if (two.action && two.action !== pick) tally('playoutLine', two.later ? 'q4Takes' : two.lineFirst ? 'q5Steps' : 'q5Vetoes');
       return two.action;
     },
   };
