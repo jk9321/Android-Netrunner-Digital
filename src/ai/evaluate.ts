@@ -5,7 +5,7 @@ import { abilityUsedKey } from '../core/engine/actions/ability';
 import { cardSynergy } from './synergyTags';
 import { corpKeepValue, runnerCardValue } from './cardValues';
 import { countersWorth } from './counterValues';
-import { boardPlansWorth } from './cardPlans';
+import { boardPlansWorth, hasBoardPlan } from './cardPlans';
 import { AI_BREAKER_SHARE, breakerTypeWorth, iceTypeOdds, iceWorth } from './iceValues';
 import { inIcedServer, payoutWait, payoutWorth, profileOf, turnsLeft } from './cardProfiles';
 import { resourceTrashHqCost } from '../core/engine/actions/basic';
@@ -115,28 +115,32 @@ export function runnerRigValue(state: GameState): number {
   const aiShare = anyBreakers === 0 ? 0 : Math.max(...rig.programs.filter(p => breakerScript(p)?.breaks === 'any').map(p => (isOneUse(p) ? AI_BREAKER_SHARE / 3 : AI_BREAKER_SHARE)));
   const odds = iceTypeOdds(state);
   let value = ICE_TYPES.reduce((n, t) => n + (covered.has(t) ? 1 : aiShare) * breakerTypeWorth(state, t, odds), 0);
-  for (const card of cards) {
-    // Step 4: a card that pays out money is worth what it will still pay
-    const profile = profileOf(card.cardCode);
-    if (profile) {
-      value += payoutWorth(profile, turnsLeft(state), counters(card, 'credit'), payoutWait(state, profile, 'runner'), cardRate(state, 'runner')) * payoutSlide(state, 'runner', counters(card, 'credit'));
-      continue;
-    }
-    // A breaker is worth its coverage above (plan.flatRates.breakers: no flat extra for having one)
-    value += isIcebreaker(card) ? 0 : RATES.rigCardScale * runnerCardValue(card.cardCode, state, card);
-    // Counters by what they do on this card (step 3), or the step-1 rates
-    value += countersWorth(state, card, 'credit') + countersWorth(state, card, 'virus') + countersWorth(state, card, 'power');
-    // Bling, Madani: cards to play later, worth what they would be in the grip (plan.flatRates.hosted);
-    // Madani's install takes no click, so its programs keep the click they will save (plan.madaniClick).
-    // Corp cards hosted on Detente are not the Runner's to play: Detente's own value covers them
-    const hosted = (card.hostedCards ?? []).filter(h => cardDef(h).side_code === 'runner');
-    const freeInstall = card.cardCode === MADANI;
-    value += hosted.reduce((n, h) => n + heldWorth(state, h, 'runner', freeInstall), 0);
-  }
+  for (const card of cards) value = addRigCard(state, card, value);
   // Combos in play (Knickknack burning Principia, Baker on stealth credits): plan.cardPlans
   return value + boardPlansWorth(state, 'runner');
 }
 
+
+/**
+ * One rig card's term in runnerRigValue, added to `value` (the running total) and returned: the loop's own body, so the
+ * rig's sum keeps its order bit for bit. From 0 it is the card's own term, which the tag clock reads (tagLoss).
+ */
+function addRigCard(state: GameState, card: CardInstance, value: number): number {
+  // Step 4: a card that pays out money is worth what it will still pay
+  const profile = profileOf(card.cardCode);
+  if (profile) return value + payoutWorth(profile, turnsLeft(state), counters(card, 'credit'), payoutWait(state, profile, 'runner'), cardRate(state, 'runner')) * payoutSlide(state, 'runner', counters(card, 'credit'));
+  // A breaker is worth its coverage above (plan.flatRates.breakers: no flat extra for having one)
+  value += isIcebreaker(card) ? 0 : RATES.rigCardScale * runnerCardValue(card.cardCode, state, card);
+  // Counters by what they do on this card (step 3), or the step-1 rates
+  value += countersWorth(state, card, 'credit') + countersWorth(state, card, 'virus') + countersWorth(state, card, 'power');
+  // Bling, Madani: cards to play later, worth what they would be in the grip (plan.flatRates.hosted);
+  // Madani's install takes no click, so its programs keep the click they will save (plan.madaniClick).
+  // Corp cards hosted on Detente are not the Runner's to play: Detente's own value covers them
+  const hosted = (card.hostedCards ?? []).filter(h => cardDef(h).side_code === 'runner');
+  const freeInstall = card.cardCode === MADANI;
+  value += hosted.reduce((n, h) => n + heldWorth(state, h, 'runner', freeInstall), 0);
+  return value;
+}
 
 /**
  * Worth of an installed Corp root card (assets and upgrades). `left` (the Runner's trash-or-leave reader only, runs.ts
@@ -502,8 +506,12 @@ function tagLoss(state: GameState, viewer: SideCode, skip: number): number {
   // the Corp has under the 2 credits the action costs. The trash part is then 0, as max(trash, 0) below made it
   let trash = 0;
   if (owned.length > skip && corp.credits >= 2) {
-    const rig = runnerRigValue(state);
-    const resources = owned.map(r => rig - runnerRigValue({ ...state, runner: { ...state.runner, rig: { ...state.runner.rig, resources: owned.filter(c => c !== r) } } }));
+    // A resource is priced by its own term in the rig (addRigCard, no new board) plus its share of the combo plans (only the
+    // plans priced without it). Left out, as a stated approximation (ai-tag-loss-bp; registry V7): what its leaving does
+    // to the other cards' terms (the deck average, credit sources, breaker coverage); 0.23% of clocks, measured
+    const plans = hasBoardPlan(state, 'runner') ? boardPlansWorth(state, 'runner') : undefined;
+    const share = (r: CardInstance) => (plans === undefined ? 0 : plans - boardPlansWorth({ ...state, runner: { ...state.runner, rig: { ...state.runner.rig, resources: owned.filter(c => c !== r) } } }, 'runner'));
+    const resources = owned.map(r => addRigCard(state, r, 0) + share(r));
     // plan.hqTrashCost: a resource that also costs cards from HQ to trash is worth that much less to trash
     const extra = (r: CardInstance) => (plan().hqTrashCost ? hqTrashCardsLoss(state, r) : 0);
     const nets = resources.map((v, i) => v - extra(owned[i])).sort((a, b) => b - a);

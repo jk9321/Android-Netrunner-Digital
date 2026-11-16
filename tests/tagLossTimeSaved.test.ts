@@ -47,9 +47,10 @@ describe('the slow tag-clock decision (seed 104, Corp turn 18) in call counts', 
     Object.assign(probe, { prices: 0, rig: 0, rigIn: 0, rez: 0, hold: 0 });
     const action = createAgent('corp', 'normal').chooseAction(saved());
     expect(action).toEqual({ player: 'corp', type: 'DRAW_CARD' });
-    // Measured on the branch (the same in scripts/tag-loss-time/measure.ts saved mode): 25,222 tag-clock prices, 126,117
-    // rig values inside the clock of 133,173, 56,920 rez budgets asked and 6,242 hold counts started inside it. The caps
-    // leave about 10% for valuation changes
+    // Measured on ai-tag-loss-time (beta 8e28403's clock): 25,222 tag-clock prices, 126,117 rig values inside the clock of
+    // 133,173, 56,920 rez budgets asked and 6,242 hold counts started inside it. With ai-tag-loss-bp (a resource priced by
+    // its own term plus its share of the plans: no rig value inside the clock): 10,914 prices, 0 inside of 7,044, 4,102
+    // and 1,046 (the decision about 6 s, was about 45 s). The caps leave about 10% for valuation changes
     expect(probe.prices).toBeGreaterThan(0);
     expect(probe.prices).toBeLessThanOrEqual(PIN.prices);
     expect(probe.rigIn).toBeLessThanOrEqual(PIN.rigIn);
@@ -59,4 +60,4 @@ describe('the slow tag-clock decision (seed 104, Corp turn 18) in call counts', 
   }, 240_000);
 });
 
-const PIN = { prices: 27_750, rigIn: 138_750, rig: 146_500, rez: 62_600, hold: 6_870 };
+const PIN = { prices: 12_000, rigIn: 0, rig: 7_750, rez: 4_500, hold: 1_150 };
