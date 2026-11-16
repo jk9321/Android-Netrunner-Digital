@@ -1,7 +1,7 @@
 import { CardInstance, GameAction, GameState, cardDef, executeAction, isLegalAction, rezCostOf } from '../../core';
 import { HeldLine, TwoTurnLine, finishTurnStep, installedAgendas, isCorpMain, knownIncome, legalShape, lineHolds, nextTurnCredits, sameAction, scoreInTwo, scoringRemote, uniqueByCode } from './lines';
 import { ScoreLine, keepsScore } from '../winNow';
-import { econValue } from '../cardValues';
+import { isEconAsset } from '../cardValues';
 import { isTrap } from '../runs';
 import { plan } from '../pricing';
 import { note, tally } from '../diagnostics';
@@ -204,7 +204,7 @@ function assetLine(state: GameState, card: CardInstance, from: Install): Placeme
   if (typeOf(card) !== 'asset' || from.asNewRemote || !from.targetServerId) return 'pick';
   const server = state.corp.servers[from.targetServerId];
   if (!server?.isRemote) return 'pick';
-  const econ = econValue(card.cardCode, state) !== undefined;
+  const econ = isEconAsset(card.cardCode);
   const main = mainRemote(state);
   if (econ && server.ice.length > 0 && server.root.length === 0 && server.id !== main?.id) return 'assetLine:econIced';
   if (!econ && isTrap(card.cardCode) && server.id !== main?.id) return 'assetLine:trapOffScoring';
