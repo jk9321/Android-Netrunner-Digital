@@ -34,7 +34,6 @@ const OFF_SWITCHES: Record<string, string> = {
   'oracle.rd': 'measurement oracle, never a default',
   'oracle.think': 'measurement oracle (decision-quality ceiling), never a default',
   'oracle.gripThreat': 'measurement oracle (Phase 2 K0: grip in the threat and search deals only), never a default',
-  threatKeyPricing: 'Phase 2 K4b: threat key without the pricing context; moved 4 of 221 deals (run 42537621348)',
   'oracle.gripReply': 'measurement oracle (Phase 2 K0: grip in the Runner reply only), never a default',
 };
 
@@ -51,7 +50,6 @@ const MODULE_LETS: Record<string, string> = {
   'synergyTags:SYNERGY': 'the card tag table, filled once from src/ai/cards at load',
   'synergy:debug': 'a debug print switch',
   'evaluate:AGENDA_CLICK': 'a measured rate a script sets (setAgendaClick), not per call',
-  'threatModel:planSig': "a cache of the plan's JSON for the threat key, rebuilt when the plan changes",
   'valueModel:deckCard': 'the deck-average hook handValues registers once (an import cycle otherwise)',
   'valueModel:agendaOdds': "the Runner's agenda-odds port evaluate.ts registers once (runs.ts remoteAgendaOdds; an import cycle otherwise, ai-honest-runner-view)",
   'valueModel:nextStateId': "guardLoop's id counter for positions",
@@ -61,7 +59,7 @@ const MODULE_LETS: Record<string, string> = {
  * Exported mutable module objects that are on-hit audits (a script switches one on and reads its counts; off in play):
  * the module-let guard above sees `let` only (audit SB-AUDIT-FLAG). May only shrink.
  */
-const AUDIT_FLAGS = ['corp/rezMoney:rezMoneyAudit', 'effectValues:threatsAudit', 'handValues:clickAudit', 'handValues:drawAudit', 'threatModel:threatAudit'];
+const AUDIT_FLAGS = ['corp/rezMoney:rezMoneyAudit', 'effectValues:threatsAudit', 'handValues:clickAudit', 'handValues:drawAudit'];
 
 describe('AI code health (audit guards)', () => {
   it('keeps the on-hit audit objects to this list, each off by default', () => {
@@ -86,14 +84,14 @@ describe('AI code health (audit guards)', () => {
     const dir = new URL('../src/ai/', import.meta.url);
     const files = (readdirSync(dir, { recursive: true }) as string[]).filter(f => f.endsWith('.ts'));
     const text = (file: string) => readFileSync(new URL(file, dir), 'utf8');
-    // The context field is touched in diagnostics.ts only, once in each helper (tally, clockOn, note, inReply)
-    expect(files.filter(f => f !== 'diagnostics.ts' && /\.diagnostics\b/.test(text(f))), 'write through tally / note / clockOn').toEqual([]);
-    expect([...text('diagnostics.ts').matchAll(/pricing\(\)\.diagnostics/g)].length).toBe(4);
+    // The context field is touched in diagnostics.ts only, once in each helper (tally, note, inReply; clockOn went with the threat model, ai-threat-delete)
+    expect(files.filter(f => f !== 'diagnostics.ts' && /\.diagnostics\b/.test(text(f))), 'write through tally / note').toEqual([]);
+    expect([...text('diagnostics.ts').matchAll(/pricing\(\)\.diagnostics/g)].length).toBe(3);
     // The setup functions that hand out the sink are for scripts and tests, never imported by the AI itself
     const setup = files.filter(f => /import \{[^}]*\b(installDiagnostics|withDiagnostics|newDiagnostics)\b[^}]*\} from '\.\/diagnostics'/.test(text(f)));
     expect(setup).toEqual([]);
     const exported = [...text('diagnostics.ts').matchAll(/^export (?:const|function|interface|type) (\w+)/gm)].map(m => m[1]).sort();
-    expect(exported).toEqual(['Diagnostics', 'clockOn', 'inReply', 'installDiagnostics', 'newDiagnostics', 'note', 'tally', 'unsunk', 'withDiagnostics']);
+    expect(exported).toEqual(['Diagnostics', 'inReply', 'installDiagnostics', 'newDiagnostics', 'note', 'tally', 'unsunk', 'withDiagnostics']);
   });
 
   it('names no new card codes in the shared value files', () => {
@@ -223,7 +221,6 @@ describe('AI code health (audit guards)', () => {
     'handValues:clearHandCaches': 'test and script cache reset',
     'effectValues:clearDamageThreats': 'test and script cache reset',
     'iceValues:clearDeckShares': 'test and script cache reset',
-    'effectValues:passOddsOf': 'scripts only (threat calibration)',
     'evaluate:AGENDA_RUN': 'scripts only (a measured rate, logged)',
     'evaluate:setAgendaClick': 'scripts only (scripts/human-agreement.ts sweeps AGENDA_CLICK)',
     'evaluate:centralExposure': 'scripts and tests only since the oneCurrency off path went (its own memo key names it): V-B',
@@ -340,9 +337,12 @@ describe('AI code health (audit guards)', () => {
   // V-B B3 + 4 (assetRisk, the owner's risk as one export; the formula context's risk and its doc line; corpEffect works it out); B3 paidOut + 1 (its import of the owner; inIcedServer moved, not added): + 5 = 14,268 (accepted by the AI Coordinator)
   // ai-tag-loss-time arm 0 + 7 (evaluate.ts tagLoss: the three exact skips' comment and if-block, the rule cited) = 14,275;
   // V-B B6 - 38 (Jeff's dead list, part A without centralExposure: creditValue and its two rates, FLATLINE, topDownWorth, shownIceShare, three re-exports) = 14,237; B6 - 12 (dead list part B: six unread RATES fields, PAYOUT_RISK.corpIced, the drawnCardOff branch, Smartware's and Fermenter's default branches with their two rates) = 14,225
-  it('keeps src/ai/corp at or under 2,298 lines and src/ai at or under 14,225 (Stage C hand-off, ai-corp-honest-order, ai-value-time, ai-playout-lines, ai-honest-runner-view, ai-honest-corp-decision, ai-value-owners, ai-corp-rd-memory, ai-value-b1, ai-value-b2, ai-hold-reentry, ai-value-b3, ai-tag-loss-time, ai-value-b6)', () => {
+  // ai-threat-delete - 580 (commit 1 - 555, the Corp's threat model and every src path only it read; commit 2 - 29, the run
+  // record: plan.runRecord, its pricing field and key part, corpAI noteRuns; commit 3 + 4, Jeff's open-remote rule for a new
+  // bare remote kept under plan.openSteal) = 13,645
+  it('keeps src/ai/corp at or under 2,298 lines and src/ai at or under 13,645 (Stage C hand-off, ai-corp-honest-order, ai-value-time, ai-playout-lines, ai-honest-runner-view, ai-honest-corp-decision, ai-value-owners, ai-corp-rd-memory, ai-value-b1, ai-value-b2, ai-hold-reentry, ai-value-b3, ai-tag-loss-time, ai-value-b6, ai-threat-delete)', () => {
     const corp = aiFiles().filter(f => f.replace(/\\/g, '/').startsWith('corp/')).reduce((n, f) => n + lines(f), 0);
     expect(corp).toBeLessThanOrEqual(2298);
-    expect(aiFiles().reduce((n, f) => n + lines(f), 0)).toBeLessThanOrEqual(14225);
+    expect(aiFiles().reduce((n, f) => n + lines(f), 0)).toBeLessThanOrEqual(13645);
   });
 });

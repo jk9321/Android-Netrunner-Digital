@@ -6,7 +6,7 @@ import { breakerTypeWorth, iceWorth } from './iceValues';
 import { agendaWorth, isOneUse, runnerRigValue } from './evaluate';
 import { counterWorth } from './counterValues';
 import { handPlanWorth } from './cardPlans';
-import { CLICK, RATES, cardRate, fingerprint, handFilter, logValue, payoutSlide, pricingApart, positionSerial, printedGain, reachCard, scopeToGame, setDeckCard } from './valueModel';
+import { CLICK, RATES, cardRate, fingerprint, handFilter, logValue, payoutSlide, pricingApart, printedGain, reachCard, scopeToGame, setDeckCard } from './valueModel';
 import { actingSide, leafHandByCard, noteDecision, plan, pricing, pricingKey, withPricing } from './pricing';
 import { corpDrawPool, corpKnowsRd } from './oracle';
 
@@ -152,23 +152,13 @@ export function clearHandCaches(): void {
  * playouts of a Corp decision's planner (frozen). Not the Runner's stack (its cards' worth turns on the rig, which the
  * views of a Corp decision change), nor a decision's own boards (a prompt's
  * answers are simulated and compared outside a playout: tests/clearinghouseRez.test.ts). Nor while a deck card is
- * being priced on the root (priceAtRoot): what that asks for is priced per board, and keyed so (deckRootKey ''), so a
+ * being priced on the root (priceAtRoot): what that asks for is priced per board, so a
  * value cached there doesn't depend on which cards the decision had priced so far.
  */
 function atDeckRoot(state: GameState, side: SideCode): boolean {
   const anchor = pricing().anchor;
   return side === 'corp' && !pricing().pricingRootDeck && pricing().frozen && !!anchor?.root && anchor.side === 'corp' && anchor.root.id === state.id && pricing().side !== null;
 }
-/**
- * For caches that outlive a decision (threatModel's): which decision root's deck prices a value on this board used,
- * '' when none. Every root is its own: two roots with the same fingerprint can still price a deck card differently
- * (tests/threatCacheAudit.test.ts, deal 1421, served one such budget across decisions with the fingerprint here).
- */
-export function deckRootKey(state: GameState): string {
-  if (!atDeckRoot(state, 'corp')) return '';
-  return `r${positionSerial(pricing().anchor!.root!)}`;
-}
-
 /** Average held worth of the cards left in a side's deck (what a draw is expected to bring). */
 function drawWorth(state: GameState, side: SideCode): number {
   // plan.oracle.rd: the Corp's next draw is R&D's top card itself

@@ -5,14 +5,14 @@ import { cardSynergy } from './synergyTags';
 import { corpKeepValue, runnerCardValue } from './cardValues';
 import { countersWorth } from './counterValues';
 import { boardPlansWorth } from './cardPlans';
-import { AI_BREAKER_SHARE, RUNNER_TURN_INCOME, breakerTypeWorth, iceTypeOdds, iceWorth } from './iceValues';
+import { AI_BREAKER_SHARE, breakerTypeWorth, iceTypeOdds, iceWorth } from './iceValues';
 import { inIcedServer, payoutWait, payoutWorth, profileOf, turnsLeft } from './cardProfiles';
 import { resourceTrashHqCost } from '../core/engine/actions/basic';
 import { HAND_FLOOR, clickPrice, handByCard, heldWorth, ownHandValue, playedWorth, unseenInHand } from './handValues';
 import { CLICK, KNOBS, RATES, cardRate, flatlineWorth, guardLoop, handFilter, logValue, mean, memo, payoutSlide, pointGain, pointValue, reachCard, setRunnerAgendaOdds, sideCreditValue } from './valueModel';
 import { LOCKDOWN, PACE, STEAL, agendaOdds, coreSlotWorth, flatlineOdds, lifeGrip, runSuccess, stealOdds } from './effectValues';
 import { remoteAgendaOdds, trapOdds, trashedCardCost } from './runs';
-import { centralAccess, runChance, threatOn } from './threatModel';
+import { centralAccess } from './threatModel';
 import { plan, pricing, withPricing } from './pricing';
 import { corpDrawPool, oracleSteal } from './oracle';
 import { CARDS } from './cards';
@@ -238,9 +238,10 @@ export function agendaWorth(
 ): number {
   const gain = pointValue(state.corp.score + points, KNOBS.corpPoints) - pointValue(state.corp.score, KNOBS.corpPoints);
   const need = Math.max(0, cost - counters);
-  // plan.threatModel: an agenda going into a new remote with no ice (no server yet, success 1: handValues) sits in an
-  // open remote the Runner can see, which it runs by construction (threatModel.ts)
-  const openNew = threatOn() && !serverId && success === 1 ? 1 : undefined;
+  // Jeff's open-remote rule (2026-10-29, plan.openSteal): an agenda going into a new remote with no ice (no server yet,
+  // success 1: handValues' hand price) sits in an open remote the Runner can see, as good as stolen; the same rule for a
+  // remote that exists is in stealOdds
+  const openNew = plan().openSteal && !serverId && success === 1 ? 1 : undefined;
   const steal = stealChance ?? openNew ?? (
     success === undefined && serverId
       ? oracleSteal(state, serverId) ?? stealOdds(state, serverId) // plan.oracle.safestRemote: told the Runner's next turn
@@ -255,11 +256,7 @@ export function agendaWorth(
   // plan.agendaClicks (Jeff's Corp game 2, bug report #18): the clicks still needed are clicks a later turn can't spend
   // building; priced at the flat click rate, building now and scoring next turn always beat scoring now and building next
   const click = AGENDA_CLICK;
-  // plan.threatModel (round 2, the review of item 3): the threat is one crisp turn, the Runner's next; each later turn
-  // the agenda waits is priced on the Runner a turn's income richer (threatLater), so "it can't pay through this ice
-  // today" is not "safe for every turn it waits"
-  const threatTurns = threatOn() && stealChance === undefined && openNew === undefined && success === undefined && !!serverId;
-  const standing = threatTurns ? threatStanding(state, serverId!, runnerTurns, steal) : (1 - steal) ** runnerTurns;
+  const standing = (1 - steal) ** runnerTurns;
   return logValue('agenda', 'agendaWorth', state, gain * standing * waited(runnerTurns) - need * (click + 1), counters, cost, points, serverId, success, inHand, budget, stealChance);
 }
 
@@ -274,26 +271,6 @@ function agendaRunnerTurns(state: GameState, need: number, inHand: boolean, budg
 }
 
 /**
- * plan.threatModel: the chance an agenda in `serverId` stands through `turns` Runner turns. The first is the threat as
- * it is (`first`, stealOdds); each later one is the same threat and passOdds with the Runner its turn income richer
- * (iceValues RUNNER_TURN_INCOME: what iceStop's stopCredits adds for each turn the Runner saves), so a remote the Runner
- * can't afford today is still at risk on the turns after. The rig is as it is: the Corp can't see the breakers coming.
- */
-export function threatStanding(state: GameState, serverId: string, turns: number, first: number): number {
-  let standing = 1;
-  for (let t = 1; t <= turns; t++) {
-    if (t === 1) {
-      standing *= 1 - first;
-      continue;
-    }
-    // A later turn is a whole Runner turn (no clicks left now: runnerView reads the next one)
-    const richer = { ...state, runner: { ...state.runner, credits: state.runner.credits + (t - 1) * RUNNER_TURN_INCOME, clicks: state.activePlayer === 'runner' ? 0 : state.runner.clicks } };
-    standing *= 1 - stealOdds(richer, serverId);
-  }
-  return standing;
-}
-
-/**
  * An agenda in Archives (Jeff, 2026-10-28): a breach of Archives turns its
  * facedown cards faceup and the Runner accesses them all (rules 7.3.2,
  * 7.4), so a discarded agenda is a likely steal: its points to the Runner,
@@ -304,10 +281,10 @@ export function threatStanding(state: GameState, serverId: string, turns: number
 export function archivedAgendaLoss(state: GameState, points: number): number {
   const gain = pointValue(state.runner.score + points) - pointValue(state.runner.score);
   // plan.measuredNov6: the breach rate measured on turns that start with facedown cards in Archives
-  // plan.threatModel leaves this on the measured breach rate: the Runner's scorer prices a facedown Archives card as one the
-  // Corp rarely chose to discard (runs.ts ARCHIVES_CHOSEN_ODDS), so the threat says Archives is almost never run (0.10
-  // on Jeff's games against 0.31 breached, scripts/threat-calibration.ts): read as safety, the Corp would discard agendas
-  // into the Runner AI's blind spot, the first thing a person checks
+  // The measured breach rate, not the Runner's scorer: it prices a facedown Archives card as one the Corp rarely chose to
+  // discard (runs.ts ARCHIVES_CHOSEN_ODDS), so the threat model (deleted 2026-11-16) read Archives as almost never run (0.10
+  // on Jeff's games against 0.31 breached): read as safety, the Corp would discard agendas into the Runner AI's blind
+  // spot, the first thing a person checks
   const perTurn = PACE.facedownBreach;
   return gain * (1 - (1 - perTurn) ** turnsLeft(state));
 }
@@ -398,22 +375,19 @@ export function centralExposure(state: GameState, viewer: SideCode): number {
     let density: number; // the agenda loss of one access to a card the viewer can't see
     let hqNow: number; // the agenda loss of one access to HQ as it is
     if (viewer === 'corp') {
-      // One access to HQ and to a card the Corp can't place (threatModel.ts centralAccess: shared with the threat)
+      // One access to HQ and to a card the Corp can't place (threatModel.ts centralAccess, shared with iceValues)
       ({ hqNow, density } = centralAccess(state));
     } else {
       const { odds, points } = agendaOdds(state);
       density = odds * gain(points);
       hqNow = corp.hq.length ? density : 0;
     }
-    // plan.threatModel: the runs the Runner's own scorer makes on this board (threatModel.ts), not the shares
-    const threat = threatOn();
-    const hqRate = (threat ? runChance(state, 'hq') : PACE.runs * PACE.hqShare) * runSuccess(state, 'hq');
-    const rdRate = !corp.rd.length ? 0 : (threat ? runChance(state, 'rd') : PACE.runs * PACE.rdShare) * runSuccess(state, 'rd');
+    const hqRate = PACE.runs * PACE.hqShare * runSuccess(state, 'hq');
+    const rdRate = !corp.rd.length ? 0 : PACE.runs * PACE.rdShare * runSuccess(state, 'rd');
     // This Runner's next turn (bug report #15: it walked into HQ every turn while the Corp held its agendas there): the
     // measured rate half-weighted with the breaches it made there last turn (open information), as plan.readAssetTrash reads trashes
     const lastTurn = (server: string) => state.runnerLastTurnRuns.filter(r => r.server === server && r.successful).length;
-    // (the threat reads this board, bug #15's open HQ included, so it needs no last-turn patch)
-    const next = (rate: number, server: string) => (state.activePlayer === 'corp' && !threat ? (rate + lastTurn(server)) / 2 : rate);
+    const next = (rate: number, server: string) => (state.activePlayer === 'corp' ? (rate + lastTurn(server)) / 2 : rate);
     let loss = 0;
     const turns = turnsLeft(state);
     for (let t = 1; t <= turns; t++) loss += ((t === 1 ? next(hqRate, 'hq') * hqNow : hqRate * density) + (t === 1 ? next(rdRate, 'rd') : rdRate) * density) * LOCKDOWN ** (t - 1);

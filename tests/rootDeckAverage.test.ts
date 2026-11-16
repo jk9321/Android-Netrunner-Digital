@@ -5,7 +5,6 @@ import { ALL_DECKS } from '../scripts/nsg-sample-decks';
 import { createAgent } from '../src/ai';
 import { GameRunner } from '../src/ai/playout';
 import { cardRate, valueLoops } from '../src/ai/valueModel';
-import { clearThreatCaches } from '../src/ai/threatModel';
 import { asSide, withPricing } from '../src/ai/pricing';
 import { decisionContext, deckAvgStats } from '../src/ai/handValues';
 import { newGame } from './helpers';
@@ -72,7 +71,6 @@ describe('deck average at the decision root', () => {
     const corpDecks = ALL_DECKS.filter(d => d.side === 'corp');
     const runnerDecks = ALL_DECKS.filter(d => d.side === 'runner');
     valueLoops.clear();
-    clearThreatCaches();
     Object.assign(deckAvgStats, { audit: true, checked: 0, mismatches: 0 });
     const game = new GameRunner(createInitialGameState(deckGameSetup(1001, corpDecks[0], runnerDecks[0])), { corp: createAgent('corp', 'normal'), runner: createAgent('runner', 'normal') });
     for (let i = 0; i < 150 && game.step(); i++);

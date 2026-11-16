@@ -163,34 +163,6 @@ export const tuning = {
      * play in hand as planned. Points clock and hand filter: noise, kept.
      */
     /**
-     * Structural review item 3 (Jeff approved 2026-11-06; spec "Item 3 spec" of the AI code review doc): the Corp's
-     * belief about where the Runner runs next turn is the Runner AI's own run scorer budgeted over its turn, on the board
-     * as the Runner sees it (threatModel.ts), instead of PACE's shares, STEAL.run and the open-remote patches; the
-     * planner's leaf kept the two-sample Runner reply (plan.runnerReply; the threat as the leaf's charge, threatLeaf, was
-     * deleted in audit Step 3 with threatSpend and calibratedRun). Corp only: off in sideOff.runner.
-     * OFF BY DEFAULT (2026-11-07, the gate): paired on the same 2,210 deals the Corp won 26.6% vs 37.6% off (-11.0 ± 1.2),
-     * stuck-in-HQ +9.2/100, broke -13.1/100 (runs 42329361323 vs 42329359103). The threat reads well on Jeff's games
-     * (scripts/threat-calibration.ts) but is one turn, crisp: an agenda behind ice the Runner can't pay through this
-     * turn reads safe for every turn it waits. Hand-off: /mnt/project-files/netrunner-ai/threat-model/handoff.md.
-     * Round 2 (ai-threat-model-2): later waiting turns on a Runner a turn's income richer (evaluate threatStanding),
-     * plus measuredPass (deleted in audit Step 3): -10.6 ± 1.2 and -10.9 ± 1.3 paired, stuck-in-HQ +9.8 / +10.3 (runs 42338471891,
-     * 42338476397). Still off. Hand-off: /mnt/project-files/netrunner-ai/threat-model/handoff-round2.md.
-     * ON BY DEFAULT, VALUES ONLY (round 3, Fable review 2026-11-07): the decomposition put the whole loss at the leaf.
-     * The threat in the values with runnerReply kept at the leaf (no threat leaf) is -1.0 ± 0.9 paired, no alarm worse
-     * (run 42347842219); at the leaf only -8.2 ± 1.3 (42347844568). Hand-off: handoff-round3.md, same folder.
-     */
-    threatModel: true,
-    /**
-     * threatValues (item 3 round 3, a decomposition): every read of the threat in the Corp's values (stealOdds,
-     * agendaWorth, centralExposure; off, STEAL.run and PACE). Phase 2 pruning: it carries every read of the threat in the Corp's values (off, the Corp makes
-     * ~11 threat calls a profile instead of ~37k) and is the whole time saving of pruning group (a): 909 -> 480 ms per
-     * decision with it off (threat-profile.ts), 870-900 ms with only the other six off. The set's loss is the other six's:
-     * all seven off -8.0 ± 2.3 (run 42526354323), the six without it -10.1 ± 2.3 (run 42531131425), vs base 42525924644.
-     * Off alone: -2.6 ± 1.8 (run 42534791260, 663 games), went broke +5.7 ± 2.8, 0.53x time. PARKED ON (AI Coordinator
-     * 2026-11-08): a probable real loss; re-measure if the threat's inputs change (K1, plan.reach, was deleted in audit Step 3).
-     */
-    threatValues: true,
-    /**
      * Per deciding side (Jeff, 2026-10-28): its own clicks priced by the best plays in hand, at least a credit (handValues.ts clickWorth).
      * Batches (2,210 games each): Corp side 29.7% -> 21.6% (the Corp clicks for cards over credits and runs dry), Runner side 29.7% -> 29.7%.
      * Corp off, kept for re-testing; Runner on (neutral, Jeff's design).
@@ -289,14 +261,6 @@ export const tuning = {
      */
     clearinghouseRez: true,
     /**
-     * Bug report #34 (Jeff's Runner test game 2, 2026-11-09; Corp only): the threat model counts Alarm Clock's free HQ run
-     * at the start of the Runner's turn (threatModel.ts alarmClockRun; rules 5.7.1d, 6.5.8a). Off: the budget only spent
-     * clicks, so HQ read as never run while Alarm Clock ran it every turn. At Jeff's own game-2 positions the Runner AI's
-     * sum declines the run (2-click bypass above HQ's worth to it), so it pins the modelling; what the Runner actually ran
-     * is a separate item.
-     */
-    alarmClockThreat: true,
-    /**
      * Bug report #33 (Jeff's Runner test game 1, 2026-11-09; Corp, Normal and Hard): an exact search of the Corp's turn for
      * a line that wins the game, played before any judgement (winNow.ts; rules 1.17.2, 1.17.3). Off: the planner and
      * Hard's look-ahead play on with the rule ranking, which missed a one-turn win through Slash and Burn Agriculture.
@@ -331,13 +295,6 @@ export const tuning = {
      */
     ownIceKnown: true,
     /**
-     * #34b (bug report #34, Jeff's Runner test game 2, 2026-11-09; Corp, Normal): the threat blends in the runs the Runner
-     * actually made on its last turns (threatModel.ts recordRun; public, rules 6.1.2a, 6.9.1a), noted turn by turn by the
-     * deciding Corp (corpAI noteRuns). Off: the threat is our Runner AI's arithmetic only, and Jeff's Alarm Clock ran HQ
-     * every turn while it read HQ as never run. Inert in self-play by construction (our Runner runs where the model says).
-     */
-    runRecord: true,
-    /**
      * Bug report #44 (Jeff's Runner test game 12, 2026-11-09): the damage clock left after the Runner's turn (effectValues
      * damageThreat on the Corp's turn) counts only damage the Corp can deal on its own turn: not damage on access (Urtica
      * Cipher) and not damage "if the Runner is tagged" while it has no tag (Orbital Superiority). Off: both made a 4-damage
@@ -368,14 +325,6 @@ export const tuning = {
     unseenOdds: false,
     /** Jeff, 2026-11-06 (his Teia game, ai-ice-grip): ice on the board is priced against a grip no bigger than the hand size, not the cards the Runner holds only until its turn ends (iceValues iceWorthOf). */
     iceGripCap: true,
-    /**
-     * K4b (AI Coordinator 2026-11-08, Jeff: make threatValues cheaper): the threat's cache key reads the grip as the
-     * threat deals it (its cards, not the real grip's ids). ON: plays identically (games=1, 221/221, run 42541440924), threat
-     * budgets 4931 -> 4136 and about 9% off a decision on the human-games positions. threatKeyPricing also leaves the outer
-     * pricing context out: OFF, it moved 4 of 221 deals (run 42537621348), so some outer flag reaches the budget.
-     */
-    threatKey: true,
-    threatKeyPricing: false,
     /**
      * Tuning pass round 2, phase 1 (Fable spec 2026-11-08, spec-round2.md): measurement oracles. Each gives the Corp an
      * answer it can't honestly have, one at a time in a batch (plan_off=+oracle.<name>), to measure what that knowledge
@@ -421,7 +370,7 @@ export const tuning = {
  */
 export const sideOff: Record<SideCode, string[]> = {
   corp: [],
-  runner: ['scoreNow', 'scoreInTwo', 'tagTrashNow', 'ownTrashRisk', 'hqTrashCost', 'threatModel', 'iceProtects', 'replyContenders', 'clearinghouseRez', 'ownIceKnown', 'runRecord', 'oracle', 'threatKey', 'threatKeyPricing'],
+  runner: ['scoreNow', 'scoreInTwo', 'tagTrashNow', 'ownTrashRisk', 'hqTrashCost', 'iceProtects', 'replyContenders', 'clearinghouseRez', 'ownIceKnown', 'oracle'],
 };
 
 /**
@@ -494,10 +443,17 @@ export const DELETED: readonly string[] = [
   'pettyCashFirst',
 ];
 
+/**
+ * On switches deleted with the code they switched on (ai-threat-delete, 2026-11-16: Step S measured the Corp's threat
+ * prediction off as no loss, g10 +0.8 ± 0.8, 0.65x time). Unlike DELETED, the path left is the one they turned off.
+ */
+export const DELETED_ON: readonly string[] = ['threatModel', 'threatValues', 'alarmClockThreat', 'threatKey', 'threatKeyPricing', 'runRecord'];
+
 /** Throws on a name that isn't a plan switch (a typo, a switch folded into the code, or one deleted). */
 function checkSwitch(name: string) {
   if (name in tuning.plan) return;
   if (FOLDED.includes(name)) throw new Error(`plan.${name} was folded into the code (review item 6): it is always on`);
+  if (DELETED_ON.includes(name)) throw new Error(`plan.${name} was deleted 2026-11-16 (ai-threat-delete): its off path is what is left`);
   if (DELETED.includes(name)) throw new Error(`plan.${name} was deleted (audit Step 3, Step 4 Stage C7): only the path it shipped with is left`);
   throw new Error(`no plan switch named ${name}`);
 }

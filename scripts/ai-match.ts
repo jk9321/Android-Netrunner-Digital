@@ -38,7 +38,7 @@ tuning.dividends = process.env.DIVIDENDS !== '0';
 tuning.wary = process.env.WARY !== '0';
 tuning.bluff = process.env.BLUFF !== '0';
 tuning.purge = process.env.PURGE !== '0';
-// PLAN_OFF=tempo,threatModel switches off planning terms (see tuning.plan; applyPlanOff for name.key and corp:name).
+// PLAN_OFF=tempo,openSteal switches off planning terms (see tuning.plan; applyPlanOff for name.key and corp:name).
 // A folded name (synergy.ts FOLDED) or a typo throws, so a pre-fold PLAN_OFF string fails instead of running unchanged
 applyPlanOff(process.env.PLAN_OFF ?? '');
 
