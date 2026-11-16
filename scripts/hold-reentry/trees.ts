@@ -1,6 +1,6 @@
 /**
  * ai-hold-reentry (brief rev 2): the measurement trees and their instrumentation. Each tree is a copy of this tree's
- * src/ with text patches (as scripts/breaker-price-depth/fire-count.ts): every patch must match exactly once, so a
+ * src/ with text patches (as the breaker-price-depth fire count did, ai-breaker-price-depth): every patch must match exactly once, so a
  * tree that drifted from what the patch expects throws instead of measuring something else. Nothing here is in src/.
  *
  *   beta    the guard and the loop reorder put back as on beta (commit 1 and commit 2 undone);

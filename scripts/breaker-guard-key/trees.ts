@@ -2,7 +2,8 @@
  * ai-breaker-guard-key (brief rev 2, phase 1): the measurement trees and the crossing probe. Each tree is a copy of
  * this tree's src/ (beta 247005f) with text patches, in its own module graph (as scripts/hold-reentry/trees.ts): every
  * patch must match exactly once, so a tree that drifted from what the patch expects throws instead of measuring
- * something else. Nothing here is in src/.
+ * something else. Nothing here is in src/. Phase 1 only: the patches match beta 247005f (the guard as a Set), the
+ * tree measured at b583e9b (run 43950676373, audit-fixes/breaker-guard-key/results.md); phase 2 checks with build-check.ts.
  *
  * Timed trees (no probe, so their times compare):
  *   beta  src as it is: the deal 3061 guard is the Set pricing().pricingBreakers, outside pricingKey;
