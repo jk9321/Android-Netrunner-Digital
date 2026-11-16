@@ -99,7 +99,9 @@ describe('Stage D pins (known-failing until their fix lands)', () => {
   // ice (scripts/stage-c/fixture-candidates.ts). Cause: the leaf gives no worth to an empty scoring remote that now holds
   // (valuation, not the order; line 2 is not exempted from the look-ahead to cover it). The no-look-ahead Corp plays the
   // line-2 ice (tests/corpCandidates.test.ts)
-  it.fails('Stage C, deal 1001 T10: the Corp with the look-ahead installs ice on remote-1 (today: the Regolith click)', { timeout: 480_000 }, () => {
+  // Passes since V-B B6 item 33 (a rezzed profiled card's hosted credits read the owner, countersWorth: the Regolith
+  // click's worth no longer outranks the ice; checked by reverting that line alone, which fails it again)
+  it('Stage C, deal 1001 T10: the Corp with the look-ahead installs ice on remote-1 (was: the Regolith click)', { timeout: 480_000 }, () => {
     const s: GameState = JSON.parse(readFileSync(new URL('./fixtures/ice-redirect-1001-t10.json', import.meta.url), 'utf8'));
     const a = new HeuristicCorpAI({ synergy: true }).chooseAction(s) as Install;
     expect(a.type).toBe('INSTALL_CARD');
