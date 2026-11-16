@@ -103,7 +103,7 @@ const question = (s: GameState, kind: 'action' | 'rez', basePick: string): strin
     return 'order/look/line';
   });
 };
-if (process.env.CLICK_AUDIT) {
+if (process.env.CLICK_AUDIT || (process.env.ARGS ?? '').includes('audit')) {
   clickAudit.on = true;
   drawAudit.on = true;
 }

@@ -128,6 +128,8 @@ const PROMPTS: [string, () => GameState][] = [
   ['(a) Predictive Planogram, deal 1721 #15', () => read('honest-corp-planogram-1721.json')],
   ['(a) Predictive Planogram, deal 3001 #6', () => read('honest-corp-planogram-3001.json')],
   ['(b) Sprint: the two cards shuffled back', sprint],
+  // Found on beta 8fbc771 at a recorded prompt of deal 1401 (30051's draw-or-credits choice): its answer moved with R&D's order
+  ['(a) 30051 draw or credits, deal 1401 #75', () => read('honest-corp-prompt-1401-75.json')],
   ['(b) Spin Doctor: the Archives cards shuffled in', () => read('spin-doctor-archives-2041.json')],
 ];
 const FREE_INSTALL: [string, () => GameState][] = [['(c) Synapse Global: the free install (bug report 13)', () => read('bug-report-13-synapse.json')]];
