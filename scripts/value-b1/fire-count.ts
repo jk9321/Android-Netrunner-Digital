@@ -178,8 +178,10 @@ async function main() {
     }
     const ms = Object.fromEntries(TIMED.map(a => [a, Math.round(r[a].ms * 10) / 10]));
     const tl = PROBE.length ? Object.fromEntries(TIMED.map(a => [a, r[a].tl])) : undefined;
-    const deck = [s.runner.identity, ...s.runner.grip, ...s.runner.stack, ...s.runner.heap, ...s.runner.rig.programs, ...s.runner.rig.hardware, ...s.runner.rig.resources].map(c => c.cardCode);
-    const flags = FLAGS.length ? FLAGS.filter(c => deck.includes(c)) : undefined;
+    // Each flagged card the Runner holds, by zone (id, rig, grip, stack, heap): "<code>:<zone>"
+    const r_ = s.runner;
+    const zones: [string, CardInstance[]][] = [['id', [r_.identity]], ['rig', [...r_.rig.programs, ...r_.rig.hardware, ...r_.rig.resources]], ['grip', r_.grip], ['stack', r_.stack], ['heap', r_.heap]];
+    const flags = FLAGS.length ? zones.flatMap(([z, cs]) => [...new Set(cs.map(c => c.cardCode).filter(c => FLAGS.includes(c)))].map(c => `${c}:${z}`)) : undefined;
     // Ruling 6a: per site, the root values both trees asked on the same board with the same arguments: [asked in both,
     // differ, largest |difference|, over 2x or 10 credits], and the worst example
     let sites: Record<string, [number, number, number, number, string?]> | undefined;
