@@ -148,12 +148,8 @@ export function fingerprint(state: GameState): string {
     runner.credits + '|' + runner.clicks + '|' + runner.score + '|' + runner.tags + '|' + runner.grip.length + '|' + runner.stack.length + '|' + printIds(runner.rig.programs) + '|' + printIds(runner.rig.hardware) + '|' + printIds(runner.rig.resources) + '|' + servers;
 }
 
-/**
- * V-B B1 (ruling 1; AI-CACHE-HIDDEN-STATE): the board for handValues' map keys (clickWorth, drawWorth): fingerprint and
- * what it leaves out that a card's worth reads (each zone's cards by instance and code, installed cards' counters, tokens
- * and hosts, the run, this turn's runs and flags, bare assets), hashed (53 bits) and kept on the position by memo; then
- * the decider's knowledge and anchor credits (pricing context fields pricingKey leaves out, noted per decision).
- */
+/** V-B B1 (ruling 1): clickWorth's board, fingerprint plus what it leaves out (zone contents, counters, tokens, hosts, the run,
+ * the turn's flags), hashed and kept on the position by memo; then the decider's knowledge and anchor credits (not in pricingKey). */
 export function contentPrint(state: GameState): string {
   const c = pricingContext();
   const known = (side: SideCode) => (c.known[side] ? [...c.known[side]!].join(',') : '-');

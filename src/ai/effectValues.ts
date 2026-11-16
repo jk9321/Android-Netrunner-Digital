@@ -390,14 +390,6 @@ export const threatsAudit = { on: false, checked: 0, mismatches: 0, errors: [] a
 /** Empties damageThreat's map (test-only: scripts/cache-bisect.ts). */
 export const clearDamageThreats = (): void => threats.clear();
 
-/** damageThreat's key: the codes of the Corp cards still in its pool (sideCards less Archives faceup and the score areas), zone by zone, without building it. */
-function poolCodes(state: GameState): string {
-  const corp = state.corp;
-  const codes = (cards: CardInstance[]): string => cards.map(c => c.cardCode + (c.hostedCards?.length ? `[${codes(c.hostedCards.filter(h => cardDef(h).side_code === 'corp'))}]` : '')).join(',');
-  const rig = state.runner.rig;
-  return [corp.hq, corp.rd, corp.archives.faceDown, ...Object.values(corp.servers).flatMap(v => [v.root, v.ice]), rig.programs, rig.hardware, rig.resources].map(codes).join('/');
-}
-
 /**
  * The Corp's damage threat (the damage clock, Jeff 2026-10-28): the biggest
  * hit one of its cards can still deal, and the share of its cards that deal
@@ -412,9 +404,14 @@ export function damageThreat(state: GameState, corpTurn = false): { burst: numbe
   // plan.corpTurnDamageOwn: on the Corp's turn only damage the Corp deals itself (see ownTurnHit)
   const own = corpTurn && plan().corpTurnDamageOwn;
   const tagged = state.runner.tags > 0;
-  // V-B B1 (ruling 1): keyed by which cards are in the pool, not how many (AI-CACHE-HIDDEN-STATE: hits were another board's,
-  // threatsAudit); the value reads nothing else (the codes' damage, the tags for Orbital Superiority). Kept to one game
-  const key = `${state.id}:${skipIce}:${own}:${own && tagged}:${poolCodes(state)}`;
+  // How many Corp cards there are (a look-ahead that adds or doubles one changes the pool; ai-runner-unknowns, whose new
+  // damage readers hit this map more: 124 wrong of 43.6k on deal 2181 became 1,130 of 69.7k without it)
+  const corp = state.corp;
+  const count = corp.hq.length + corp.rd.length + corp.archives.faceDown.length + Object.values(corp.servers).reduce((n, v) => n + v.root.length + v.ice.length, 0);
+  const key = `${state.id}:${state.corp.archives.faceUp.length}:${state.corp.scoreArea.length}:${state.runner.scoreArea.length}:${skipIce}:${own}:${own && tagged}:${count}`;
+  // Audit Step 2 (AI-CACHE-HIDDEN-STATE): keyed by how many cards are out of the pool, not which (nor a look-ahead's added
+  // or doubled card), so some hits are another board's value (about a third: threatsAudit); an exact (per-position)
+  // version cost decision time (V-B B1 ruling 1: the pool's codes x1.10 Corp; 5,093 wrong of 713k hits): kept incomplete, recorded
   scopeToGame(threats, state);
   const cached = threats.get(key);
   if (cached && !threatsAudit.on) return cached;

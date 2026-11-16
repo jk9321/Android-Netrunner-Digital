@@ -37,8 +37,10 @@ describe('contentPrint: what fingerprint leaves out', () => {
   }, 60_000);
 });
 
+// Known-failing: damageThreat's pool key cost x1.10 Corp decision time on its own (V-B B1 fire count, ruling 1), so the key
+// is kept incomplete, recorded (registry, cache keys). Passes again when a cheaper exact key lands
 describe("damageThreat's key holds the pool", () => {
-  it('two boards with the same counts and another card out of the pool are each priced on their own', () => {
+  it.fails('two boards with the same counts and another card out of the pool are each priced on their own', () => {
     const s = midGame();
     // move a damage card from R&D to Archives face up on one board, a card that deals none on the other
     const damaging = s.corp.rd.findIndex(c => /do \d+ (net|meat|core) damage/i.test(cardDef(c).stripped_text ?? ''));

@@ -6,7 +6,7 @@ import { breakerTypeWorth, iceWorth } from './iceValues';
 import { agendaWorth, isOneUse, runnerRigValue } from './evaluate';
 import { counterWorth } from './counterValues';
 import { handPlanWorth } from './cardPlans';
-import { CLICK, RATES, cardRate, contentPrint, handFilter, logValue, payoutSlide, pricingApart, positionSerial, printedGain, reachCard, scopeToGame, setDeckCard } from './valueModel';
+import { CLICK, RATES, cardRate, contentPrint, fingerprint, handFilter, logValue, payoutSlide, pricingApart, positionSerial, printedGain, reachCard, scopeToGame, setDeckCard } from './valueModel';
 import { leafHandByCard, noteDecision, plan, pricing, pricingKey, withPricing } from './pricing';
 import { corpDrawPool, corpKnowsRd } from './oracle';
 
@@ -187,9 +187,12 @@ function drawWorth(state: GameState, side: SideCode): number {
   // The deck by instance and card code (ai-honest-runner-view, AI Coordinator 2026-11-16 03:30Z): the Runner's view and
   // the Hard AI's determinize re-deal hidden Corp cards by recoding fixed instances, so by ids alone a guessed deck
   // shared the real deck's key (drawAudit: 104 wrong hits on deal 2181). Off a view an instance's code never changes
-  // V-B B1: and what fingerprint left out (AI-CACHE-HIDDEN-STATE: zone contents, counters and hosts, the run; drawAudit), in
-  // valueModel contentPrint. Kept to one game, so it never depends on the games played before (batch shards: 218 of 221)
-  const key = `${pricingKey()}:${side}:${state.id}:${state.turnNumber}:${credits}${contentPrint(state)}`;
+  const board = `${fingerprint(state)}:`;
+  const key = `${pricingKey()}:${side}:${state.id}:${state.turnNumber}:${credits}${board}${deck.map(c => c.instanceId + c.cardCode).join(',')}`;
+  // Audit Step 2 (AI-CACHE-HIDDEN-STATE): the key leaves out what R&D, Archives, the grip and the heap hold, the counters
+  // and hosts of installed cards and the run under way, so some hits are another board's value (drawAudit). The exact key
+  // (valueModel contentPrint) cost x1.17 Corp decision time (V-B B1, ruling 1; 24 wrong of 401k hits, 2 Corp picks in
+  // 7,410): kept incomplete, recorded. The map is kept to one game, never the games played before it (batch shards).
   scopeToGame(deckAverage, state);
   const cached = deckAverage.get(key);
   if (cached !== undefined && !drawAudit.on) return cached;
