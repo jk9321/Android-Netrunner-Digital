@@ -3,7 +3,8 @@ import { getCardDefinition } from '../src/core';
 import { CARDS } from '../src/ai/cards';
 import { PAYOUT_RISK, assetRisk, bareAssetRisk } from '../src/ai/cardProfiles';
 import { corpEffect, perTurn } from '../src/ai/effectValues';
-import { newGame } from './helpers';
+import { paidOut } from '../src/ai/counterValues';
+import { installCorpForTest, installIceForTest, newGame } from './helpers';
 
 /**
  * V-B B3 (brief rev 2, ruling 5 and the mechanism ruling in stage-vb/labels.md): a Corp asset's formula reads the measured
@@ -41,5 +42,18 @@ describe('V-B B3: the measured risk for Corp assets', () => {
     }
     expect(moved.length).toBeGreaterThan(10);
     expect(new Set(moved)).toEqual(new Set(['asset']));
+  });
+
+  it('paidOut reads the risk where the card sits, floored at 0', () => {
+    const state = newGame();
+    const bare = installCorpForTest(state, '30037', 'remote1', true);
+    const iced = installCorpForTest(state, '30037', 'remote2', true);
+    installIceForTest(state, '30072', 'remote2');
+    const card = (id: string) => Object.values(state.corp.servers).flatMap(s => s.root).find(c => c.instanceId === id)!;
+    expect(paidOut(state, card(iced))).toBeCloseTo(1 - 2 * PAYOUT_RISK.moneyIced, 12);
+    expect(paidOut(state, card(bare))).toBeCloseTo(1 - 2 * bareAssetRisk(state), 12);
+    state.bareAssets = { exposed: 4, trashed: 4 };
+    expect(bareAssetRisk(state)).toBeGreaterThan(0.5);
+    expect(paidOut(state, card(bare))).toBe(0);
   });
 });

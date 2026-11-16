@@ -80,7 +80,8 @@ describe('the last hand-set counter rates from what each counter turns into (Jef
   };
 
   it('Nico, Otto, Anthill: a free credit each turn, unless the asset is trashed first', () => {
-    for (const code of ['30037', '35040', '35072']) expect(on(code, 'credit')).toBeCloseTo(1 - 2 * PAYOUT_RISK.corpBare);
+    // V-B B3: at the measured risk where the card sits; not placed on this board, so bare (moneyBare with no game record yet)
+    for (const code of ['30037', '35040', '35072']) expect(on(code, 'credit')).toBeCloseTo(1 - 2 * PAYOUT_RISK.moneyBare);
   });
 
   it('Mahkota Langit Grid: a credit when there are rez costs to pay in its server, less when there are none', () => {

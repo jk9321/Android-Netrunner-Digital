@@ -1,4 +1,4 @@
-import { GameState, getCardDefinition } from '../core';
+import { CardInstance, GameState, getCardDefinition } from '../core';
 import { RATES, cardRate, logValue, payoutClick } from './valueModel';
 import { CARD_PROFILES } from './cards';
 import { PAYOUT_RISK } from './payoutRisk';
@@ -52,6 +52,11 @@ export function payoutWait(state: GameState, profile: CardProfile, owner: 'corp'
 
 /** Owner of a Corp asset's risk of being trashed, per Runner turn (V10; read by every asset since V-B B3): measured. */
 export const assetRisk = (state: GameState, iced: boolean): number => (iced ? PAYOUT_RISK.moneyIced : bareAssetRisk(state));
+
+/** Whether a Corp root card sits in a server with ice in front of it. */
+export function inIcedServer(state: GameState, card: CardInstance): boolean {
+  return Object.values(state.corp.servers).some(s => s.ice.length > 0 && s.root.some(c => c.instanceId === card.instanceId));
+}
 
 /** Weight of the measured bare-asset risk against this game's own record, in Runner turns (plan.readAssetTrash). */
 const BARE_PRIOR_TURNS = 3;

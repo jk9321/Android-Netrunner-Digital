@@ -369,7 +369,7 @@ export const ELEVATION: Record<string, CardAI> = {
     value: { keep: 4, econ: 3.5 },
     profile: { load: 6, pay: 2, every: 'turn', perTurn: 1, clicksAtEnd: 2 }, // Otto Campaign
     counters: { credit: () => PAID_OUT }, // 2 a turn, no click
-    counterFormulas: { credit: () => paidOut() },
+    counterFormulas: { credit: paidOut },
   },
   // Bumi 1.0
   '35041': { synergy: { gives: { ice: 1, bioroid: 1, damage: 0.5 } }, rezEffect: true },
@@ -516,7 +516,7 @@ export const ELEVATION: Record<string, CardAI> = {
     value: { keep: 5, econ: 4 },
     profile: { load: 8, pay: 4, every: 'turn', perTurn: 1, drawEach: 1 }, // Anthill Excavation Contract
     counters: { credit: () => PAID_OUT }, // 4 a turn and a card
-    counterFormulas: { credit: () => paidOut() },
+    counterFormulas: { credit: paidOut },
   },
   // Plutus
   '35073': {
