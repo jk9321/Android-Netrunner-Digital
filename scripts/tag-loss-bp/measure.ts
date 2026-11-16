@@ -40,6 +40,8 @@ const opt = (name: string) => argv.find(a => a.startsWith(`${name}=`))?.slice(na
 const only = (opt('arms') ?? '').split(',').filter(Boolean) as Arm[];
 const arms: readonly Arm[] = only.length ? only : mode === 'bvalues' ? ['built'] : mode === 'btrace' ? ['base', 'built'] : ARMS;
 const at = new Set((opt('at') ?? '').split(',').filter(Boolean));
+// base=<git ref>: beta's tree (trees.ts makeTrees reads BASE; a full SHA is fetched when the clone lacks it)
+if (opt('base')) process.env.BASE = opt('base');
 const root = treeRoot(`m-${mode}-${process.pid}`);
 const probe = installProbe();
 
