@@ -169,7 +169,7 @@ Counts at the branch head (scripts/value-owners/counts.mjs): see "Counts" at the
   - Grip only: `digValue` (`src/ai/evaluate.ts:57`) on a draw is V17 (not comparable: a draw's extra, not a card held).
 - **Counts:** HQ 5 prices (the owner, `handValue`, `keepValue`, `hqTrashCardsLoss`, `scoreOutcome`), grip 6 (the owner, `handValue`, `keepValue`, `scoreOutcome`, `lifeCards`, `digValue`; the audit's 7 counted `hqTrashCardsLoss`, which prices HQ cards only). The rows "A card held in HQ" (Corp table) and "A card in the grip" (Runner table) above point here.
 - **Readers:** `ownHandValue` (`src/ai/evaluate.ts:563`); `heldWorth` (`src/ai/evaluate.ts:134`) (hosted cards on Bling and Madani), `heldWorth` (`src/ai/handValues.ts:201`) (the deck average). The flat: `handValue` (`src/ai/evaluate.ts:564`), `handValue` (`src/ai/corp/candidates.ts:185`).
-- **Caches, context:** none of its own; an unseen card reads V4's caches. Context: `pricing().known` (which cards the decider has seen), `leaves` (the by-card switch), `plan.oracle.rd` (`corpKnowsRd`), `averaging` (no card plans inside the deck average).
+- **Caches, context:** none of its own; an unseen card reads V4's caches. Context: `pricing().known` (which cards the decider has seen), `leaves` (the by-card switch), `plan.oracle.rd` (`corpKnowsRd`), `averaging` (no card plans inside the deck average). An icebreaker's played worth (`playedWorth`, `src/ai/handValues.ts:66`) is the rig with it less the rig without it (`runnerRigValue`), except under `averaging` or while another breaker is priced that way: then the rule-based worth (its type's `breakerTypeWorth`, V22; the deal 3061 depth guard). That guard is the context's `pricingBreaker`, set with `withPricing` and in `pricingKey` while `averaging` is off (ai-breaker-guard-key: before, a Set outside the key, so a memoised value crossed it, 4.8 million crossing reads and one different value in phase 1, audit-fixes/breaker-guard-key/results.md); the deck averages' keys leave it out (`deckPricingKey`: their values are worked out under `averaging`, where the guard is never read). The other guard Set, `rezzingToUse` (`src/ai/corp/rez.ts:355`), stays a Set outside the key: it is read only by `rezAllowed`, reached from `corpCandidates`' rez case and never under a keyed value (red team finding 7).
 - **Known debt (Jeff 2026-11-16 14:28Z):** the hand's two prices, the flat count (`handValue`) and the by-card price (`plan.handByCard`, the planner leaf's `leafHandByCard`). B4, after B6: a Myōshu pin through the deciding agent and a fire count by held card plan first; what Myōshu or Spin Doctor alone reads stays until they are tied to other values, the rest is deleted as ruled; neither price is redirected to the other. Findings and rulings: `/mnt/project-files/adversarial/2026-11-16-value-deletions/findings.md`.
 
 ### V4. A card drawn from a deck
@@ -377,7 +377,7 @@ From `node scripts/value-owners/counts.mjs` (re-run it to recount; the copy coun
 | live copies, all quantities (the live lines of "Copy lines") | 34 |
 | other copy lines, by kind (not counted) | reader 2, gone 4, recorded 1, not comparable 6, inside owner 2 |
 | valuation exports with no reader (allow-list) | 7 |
-| lines of src/ai | 13658 |
+| lines of src/ai | 13656 |
 
 Live copies per quantity: V1 0, V2 3, V3 8, V4 3, V5 2, V6 1, V7 7, V8 0, V9 1, V10 1, V11 1, V12 3, V13 0, V14 2, V15 2, V16 0, V17 0, V18 0, V19 0, V20 0, V21 0, V22 0, V23 0, V24 0, V25 0.
 <!-- valuation:end -->
