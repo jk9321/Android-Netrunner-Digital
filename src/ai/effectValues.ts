@@ -1,7 +1,7 @@
 import { CardInstance, GameState, cardDef, getCardDefinition, knownInHand } from '../core';
 import { assetRisk, turnsLeft } from './cardProfiles';
 import { PAYOUT_RISK } from './payoutRisk';
-import { COUNTER_WORTH } from './counterValues';
+import { COUNTER_WORTH, defaultWorth } from './counterValues';
 import { CARDS, advancePayloadOf, corpFormula, runnerFormula } from './cards';
 import { actingSide } from './synergy';
 import { CLICK, cardRate, flatlineWorth, logValue, memo, pointGain, pointValue, scopeToGame, sideCards } from './valueModel';
@@ -525,9 +525,10 @@ export function deckShare(state: GameState, side: 'corp' | 'runner', keywords: R
 /** Copies in a side's decklist matching a test. */
 export const deckCount = (state: GameState, side: 'corp' | 'runner', test: (c: CardInstance) => boolean): number => sideCards(state, side).filter(test).length;
 
-/** Worth of one counter of a type on a card, priced against the board (counterValues.ts), for a card not installed yet. */
+/** Worth of one counter of a type on a card, priced against the board (counterValues.ts), for a card not installed yet; an unlisted counter reads the owner's default (V-B B6). */
 export function counterWorthOf(state: GameState, code: string, type: 'credit' | 'virus' | 'power'): number {
-  return logValue('counter', 'counterWorthOf', state, COUNTER_WORTH[code]?.[type]?.(state, { cardCode: code, instanceId: 'probe', tokens: {} } as unknown as CardInstance) ?? 1, code, type);
+  const probe = { cardCode: code, instanceId: 'probe', tokens: {} } as unknown as CardInstance;
+  return logValue('counter', 'counterWorthOf', state, COUNTER_WORTH[code]?.[type]?.(state, probe) ?? defaultWorth(probe, type), code, type);
 }
 
 
