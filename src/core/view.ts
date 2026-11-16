@@ -339,6 +339,7 @@ export const CORP_STATE_FIELDS = {
   meliesServer: 'own', // 1.5.2b: secret until the identity flips
   knownToRunner: 'redacted', // shown as hq.known, codes only
   rdKnownToRunner: 'own', // the Runner's memory of R&D; names R&D accesses the Corp may not see (7.1.2)
+  rdKnownToCorp: 'dropped', // the Corp's memory of R&D (4.2.3, 10.2.2b); names R&D cards the Runner may not see (4.2.2); the Corp's own client does not need it (no AI plays online)
   rdNotes: 'dropped',
 } as const satisfies Record<keyof CorpState, Vis>;
 
