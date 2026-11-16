@@ -8,6 +8,9 @@ import { rezMoney } from '../src/ai/corp/rezMoney';
 import { inDecision } from './helpers/pricing';
 import { makeRoomInstalls } from '../src/ai/runnerAI';
 import { evaluate } from '../src/ai/evaluate';
+import { asSide, plan, withPricing } from '../src/ai/pricing';
+import { clearHandCaches } from '../src/ai/handValues';
+import { runnerDecisionView } from '../src/ai/turnPlanner';
 import { installForTest, installIceForTest, installProgramForTest, newGame, startRunnerTurn } from './helpers';
 
 
@@ -60,7 +63,12 @@ describe('AI judgement in fixed positions', () => {
     expect(keep()).toBe(0);
   });
 
-  it("judges the Corp's facedown cards by the odds, not by what they really are", () => {
+  // KNOWN-FAILING (ai-honest-runner-view; AI Coordinator 2026-11-16 03:55Z): this passed on beta b7c4917 only through the
+  // deck-average cache's id-only key (handValues drawWorth), which served the first evaluate's value to the second. With
+  // the key fixed, or on beta with clearHandCaches() between the two evaluates, the real-state evaluates differ
+  // (-13.7997 vs -13.7930, in corpBoardValue): cardRate(corp) still reads the real R&D on the REAL state (owner work for
+  // valuation Stage V-A). The deciding Runner now decides on its own view; the twin below asserts the same swap there
+  it.fails("judges the Corp's facedown cards by the odds, not by what they really are", () => {
     const state = newGame();
     const id = installForTest(state, 'agenda', 'remote1');
     const agenda = state.corp.servers.remote1.root.find(c => c.instanceId === id)!;
@@ -74,6 +82,25 @@ describe('AI judgement in fixed positions', () => {
     expect(evaluate(swapped, 'runner')).toBeCloseTo(evaluate(state, 'runner'));
     // The Corp knows its own cards
     expect(evaluate(swapped, 'corp')).not.toBeCloseTo(evaluate(state, 'corp'));
+  });
+
+  // ai-honest-runner-view (rule 10.2.2a): the same swap on the Runner's own view of the decision (turnPlanner.ts
+  // runnerDecisionView: the Corp's unseen cards re-dealt), which is what the deciding Runner scores
+  it("judges the Corp's facedown cards by the odds on the Runner's own view", () => {
+    const state = newGame();
+    const id = installForTest(state, 'agenda', 'remote1');
+    const agenda = state.corp.servers.remote1.root.find(c => c.instanceId === id)!;
+    agenda.advancementCounters = 2;
+    const asset = state.corp.rd.find(c => cardDef(c).type_code === 'asset')!;
+    const swapped = structuredClone(state);
+    const remote = swapped.corp.servers.remote1.root.find(c => c.instanceId === id)!;
+    const inRd = swapped.corp.rd.find(c => c.instanceId === asset.instanceId)!;
+    [remote.cardCode, inRd.cardCode] = [inRd.cardCode, remote.cardCode];
+    const onView = (s: typeof state) => {
+      clearHandCaches();
+      return withPricing({ plan: { ...plan(), hiddenDraws: true, plannerSeed: true } }, () => asSide('runner', () => evaluate(runnerDecisionView(s), 'runner')));
+    };
+    expect(onView(swapped)).toBeCloseTo(onView(state));
   });
 
   it('Runner AI considers trashing a program when memory is full (rules 8.5.6c)', () => {

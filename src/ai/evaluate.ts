@@ -10,9 +10,9 @@ import { AI_BREAKER_SHARE, RUNNER_TURN_INCOME, breakerTypeWorth, iceTypeOdds, ic
 import { payoutWait, payoutWorth, profileOf, turnsLeft } from './cardProfiles';
 import { resourceTrashHqCost } from '../core/engine/actions/basic';
 import { HAND_FLOOR, clickPrice, handByCard, heldWorth, ownHandValue, playedWorth, unseenInHand } from './handValues';
-import { CLICK, KNOBS, RATES, cardRate, creditValue, flatlineWorth, guardLoop, handFilter, mean, memo, payoutSlide, pointGain, pointValue, reachCard, sideCreditValue } from './valueModel';
+import { CLICK, KNOBS, RATES, cardRate, creditValue, flatlineWorth, guardLoop, handFilter, mean, memo, payoutSlide, pointGain, pointValue, reachCard, setRunnerAgendaOdds, sideCreditValue } from './valueModel';
 import { LOCKDOWN, PACE, STEAL, agendaOdds, coreSlotWorth, flatlineOdds, lifeGrip, runSuccess, stealOdds } from './effectValues';
-import { remoteAgendaOdds, trashedCardCost } from './runs';
+import { remoteAgendaOdds, trapOdds, trashedCardCost } from './runs';
 import { centralAccess, runChance, threatOn } from './threatModel';
 import { plan, pricing, withPricing } from './pricing';
 import { corpDrawPool, oracleSteal } from './oracle';
@@ -216,10 +216,22 @@ export function hiddenCardOdds(state: GameState): { agenda: number; agendaCost: 
   return memo(state, 'hiddenCardOdds', () => hiddenCardOddsOf(state));
 }
 
-function hiddenCardOddsOf(state: GameState): { agenda: number; agendaCost: number; agendaPoints: number; other: number } {
+/**
+ * The Corp's cards the Runner can't see, unfiltered: HQ, R&D, facedown Archives and facedown installed root cards (the
+ * pool hiddenCardOdds and the tag-punisher share read; ai-honest-runner-view, red team 11).
+ */
+export function unseenCorpPool(state: GameState): CardInstance[] {
   const corp = state.corp;
   const installed = Object.values(corp.servers).flatMap(server => server.root.filter(isHidden));
-  const unseen = [...corp.hq, ...corp.rd, ...corp.archives.faceDown, ...installed]
+  return [...corp.hq, ...corp.rd, ...corp.archives.faceDown, ...installed];
+}
+
+// valueModel.ts boardNeed (the Runner's estimate of the Corp's need, ai-honest-runner-view) reads the run model's agenda
+// odds for a facedown root card through this port, its trap input at the no-memory value
+setRunnerAgendaOdds((state, server, card) => remoteAgendaOdds(state, server, card, card.advancementCounters > 0 ? trapOdds(state) : 0));
+
+function hiddenCardOddsOf(state: GameState): { agenda: number; agendaCost: number; agendaPoints: number; other: number } {
+  const unseen = unseenCorpPool(state)
     .map(card => cardDef(card))
     .filter(def => def.type_code === 'agenda' || def.type_code === 'asset' || def.type_code === 'upgrade');
   const agendas = unseen.filter(def => def.type_code === 'agenda');
@@ -541,7 +553,9 @@ function tagLoss(state: GameState, viewer: SideCode, skip: number): number {
   let held: number;
   if (viewer === 'corp') held = corp.hq.some(punishes) ? 1 : 0;
   else {
-    const unseen = [...corp.hq, ...corp.rd];
+    // ai-honest-runner-view (valuation audit VAL-RUNNER-TAG-POOL): the one unseen pool, facedown Archives included, so
+    // the share doesn't tell where an unseen punisher went
+    const unseen = unseenCorpPool(state);
     const share = unseen.length ? unseen.filter(punishes).length / unseen.length : 0;
     held = 1 - (1 - share) ** corp.hq.length;
   }

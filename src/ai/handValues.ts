@@ -60,13 +60,13 @@ export function playedWorth(state: GameState, card: CardInstance): number {
   // Runner rig cards
   const profile = CARD_PROFILES[card.cardCode];
   if (profile) return payoutWorth(profile, turns, profile.load, payoutWait(state, profile, 'runner'), cardRate(state, 'runner')) * payoutSlide(state, 'runner', profile.load) - cost - CLICK;
-  // (Not while the deck's average card is worked out: pricing the rig there prices the rig cards that asked for the average)
-  if (isIcebreaker(card) && !pricing().pricingBreakers.has(card.instanceId) && !pricing().averaging) {
+  // (Not while the deck's average card is worked out, nor inside any breaker's pricing: its rig walks the hosted breakers,
+  // which nesting would price at 1 + 2k R(k-1) rig values for k hosted (minutes with four on Madani); depth 1 is 1 + 2k)
+  if (isIcebreaker(card) && pricing().pricingBreakers.size === 0 && !pricing().averaging) {
     // What it adds to the rig's coverage once installed (Mayfly's one use included), as the board will see it.
     // A breaker hosted on Bling or Madani is priced inside the rig too: while it is, the rule-based worth below
     const rig = state.runner.rig;
     const after = { ...state, runner: { ...state.runner, rig: { ...rig, programs: [...rig.programs, card] } } } as GameState;
-    // (a hosted breaker would price itself again: pricing().pricingBreakers)
     const pricingBreakers = pricing().pricingBreakers;
     pricingBreakers.add(card.instanceId);
     try {
@@ -184,7 +184,10 @@ function drawWorth(state: GameState, side: SideCode): number {
   // at its size cap a value from one of those could be served for the real board, so a reloaded game played on
   // differently from the one in memory (tests/savedGame.test.ts)
   const board = `${fingerprint(state)}:`;
-  const key = `${pricingKey()}:${side}:${state.id}:${state.turnNumber}:${credits}${board}${deck.map(c => c.instanceId).join(',')}`;
+  // The deck by instance and card code (ai-honest-runner-view, AI Coordinator 2026-11-16 03:30Z): the Runner's view and
+  // the Hard AI's determinize re-deal hidden Corp cards by recoding fixed instances, so by ids alone a guessed deck
+  // shared the real deck's key (drawAudit: 104 wrong hits on deal 2181). Off a view an instance's code never changes
+  const key = `${pricingKey()}:${side}:${state.id}:${state.turnNumber}:${credits}${board}${deck.map(c => c.instanceId + c.cardCode).join(',')}`;
   // Audit Step 2 (AI-CACHE-HIDDEN-STATE): the key leaves out what R&D, Archives, the grip and the heap hold, the counters
   // and hosts of installed cards and the run under way (fingerprint has the zones by size only), so some hits are another
   // board's value (about 6%: drawAudit, tests/handCacheAudit.test.ts). An exact key cost the Corp about +50% decision time

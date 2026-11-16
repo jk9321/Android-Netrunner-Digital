@@ -2,7 +2,7 @@ import { GameAction, GameState, SideCode, activePrompt, cardDef, executeAction, 
 import { profileOf } from './cardProfiles';
 import { ScoredAction } from './agent';
 import { evaluate } from './evaluate';
-import { runClick } from './runs';
+import { RunnerMemory, runClick } from './runs';
 import { turnSeed } from './threatModel';
 import { plan, pricing, withPricing } from './pricing';
 import { note, tally } from './diagnostics';
@@ -79,6 +79,8 @@ export interface PlannerAI {
   reply?(state: GameState, leaf: (state: GameState) => number): number;
   /** The rest of this AI's last plan (one per agent, so a new game or a reloaded one starts without it). */
   memory?: PlanMemory;
+  /** The cards the deciding Runner has accessed (runnerDecisionView keeps them as seen; ai-honest-runner-view). */
+  known?: RunnerMemory;
   /**
    * The Corp's candidates the planner plays out (Step 4 Stage C3), from the order (corp/candidates.ts plannerIntake,
    * passed in by corpAI.ts so that this file reads no Corp owner). Without it (the Runner): its ranking's first few.
@@ -327,12 +329,27 @@ export function decisionSeedFor(state: GameState, side: SideCode): number | null
 
 /**
  * The Runner's own view of `state` for this decision (plan.hiddenDraws; rule 10.2.2a): the same deal its planner's
- * playouts start from, so the rule ranking that picks the planner's candidates scores a draw on the same guessed stack.
+ * playouts start from, so the rule ranking that picks the planner's candidates scores a draw on the same guessed stack
+ * and reads the same guess of the Corp's hidden cards (runnerReply.ts guessRunnerView; ai-honest-runner-view). Kept per
+ * real state while what it deals from is the same (red team 8, as corpDecisionView), so the ranking, the prompt
+ * answers and the planner's root are one object. `memory`: the cards the deciding Runner has accessed (they keep their
+ * identity). Honest only with plan.plannerSeed on (the default). Off (hiddenDraws): the state itself.
  */
-export function runnerDecisionView(state: GameState): GameState {
+export function runnerDecisionView(state: GameState, memory?: RunnerMemory): GameState {
   if (!plan().hiddenDraws) return state;
-  return withPricing({ decisionSeed: decisionSeedFor(state, 'runner') }, () => guessRunnerView(state, HIDDEN_DRAW_SAMPLE));
+  const seed = decisionSeedFor(state, 'runner');
+  // Kept while nothing it deals from has changed (tests edit a state in place): the seed, the plan, the board, the cards
+  const cards = (list: { instanceId: string; cardCode: string }[]) => list.map(c => `${c.instanceId}:${c.cardCode}`).join(',');
+  const installed = Object.values(state.corp.servers).map(v => `${cards(v.ice)}/${cards(v.root)}`).join(';');
+  const known = memory ? [...memory].map(([id, code]) => `${id}:${code}`).join(',') : '';
+  const sig = `${seed}|${fingerprint(state)}|${cards(state.corp.hq)}|${cards(state.corp.rd)}|${cards(state.corp.archives.faceDown)}|${installed}|${cards(state.runner.stack)}|${known}|${JSON.stringify(plan())}`;
+  const kept = runnerViews.get(state);
+  if (kept?.sig === sig) return kept.view;
+  const view = withPricing({ decisionSeed: seed }, () => guessRunnerView(state, HIDDEN_DRAW_SAMPLE, memory));
+  runnerViews.set(state, { sig, view });
+  return view;
 }
+const runnerViews = new WeakMap<GameState, { sig: string; view: GameState }>();
 
 /**
  * The deciding Corp's own view of `state` for this decision (plan.hiddenDraws; rule 10.2.2a; Jeff: the Normal Corp does
@@ -467,7 +484,7 @@ export function planTurn(state: GameState, side: SideCode, ranked: ScoredAction[
     // plan.hiddenDraws (spec-search S6; the Runner's side Jeff 2026-11-14): each side's candidates are played from its own
     // guess of what it can't see, dealt once for the decision, so a line that draws draws a guess, not the real top of
     // R&D or the stack (rule 10.2.2a)
-    const root = side === 'corp' ? corpDecisionView(state) : plan().hiddenDraws ? guessRunnerView(state, HIDDEN_DRAW_SAMPLE) : state;
+    const root = side === 'corp' ? corpDecisionView(state) : runnerDecisionView(state, ai.known);
     let best: { action: GameAction; value: number; line: Line } | null = null;
     const values: number[] = [];
     const scored: { action: GameAction; value: number; line: Line; ends: Ends }[] = [];
