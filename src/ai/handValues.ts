@@ -6,7 +6,7 @@ import { breakerTypeWorth, iceWorth } from './iceValues';
 import { agendaWorth, isOneUse, runnerRigValue } from './evaluate';
 import { counterWorth } from './counterValues';
 import { handPlanWorth } from './cardPlans';
-import { CLICK, RATES, cardRate, fingerprint, handFilter, logValue, payoutSlide, pricingApart, positionSerial, printedGain, reachCard, scopeToGame, setDeckCard } from './valueModel';
+import { CLICK, RATES, cardRate, contentPrint, handFilter, logValue, payoutSlide, pricingApart, positionSerial, printedGain, reachCard, scopeToGame, setDeckCard } from './valueModel';
 import { leafHandByCard, noteDecision, plan, pricing, pricingKey, withPricing } from './pricing';
 import { corpDrawPool, corpKnowsRd } from './oracle';
 
@@ -184,17 +184,12 @@ function drawWorth(state: GameState, side: SideCode): number {
   // (2026-11-06) price boards a turn would otherwise never see (a steal, a rez, a toll paid), and with the cache cleared
   // at its size cap a value from one of those could be served for the real board, so a reloaded game played on
   // differently from the one in memory (tests/savedGame.test.ts)
-  const board = `${fingerprint(state)}:`;
   // The deck by instance and card code (ai-honest-runner-view, AI Coordinator 2026-11-16 03:30Z): the Runner's view and
   // the Hard AI's determinize re-deal hidden Corp cards by recoding fixed instances, so by ids alone a guessed deck
   // shared the real deck's key (drawAudit: 104 wrong hits on deal 2181). Off a view an instance's code never changes
-  const key = `${pricingKey()}:${side}:${state.id}:${state.turnNumber}:${credits}${board}${deck.map(c => c.instanceId + c.cardCode).join(',')}`;
-  // Audit Step 2 (AI-CACHE-HIDDEN-STATE): the key leaves out what R&D, Archives, the grip and the heap hold, the counters
-  // and hosts of installed cards and the run under way (fingerprint has the zones by size only), so some hits are another
-  // board's value (about 6%: drawAudit, tests/handCacheAudit.test.ts). An exact key cost the Corp about +50% decision time
-  // (more misses, each repricing the Runner's whole stack), so the map is kept to one game: which wrong value is served
-  // then depends on this game's own calls only, never on the games played before in the process (batch shards: 218 of 221).
-  // Known debt, closed by pricing the Runner's stack once per decision (Step 4/5 list).
+  // V-B B1: and what fingerprint left out (AI-CACHE-HIDDEN-STATE: zone contents, counters and hosts, the run; drawAudit), in
+  // valueModel contentPrint. Kept to one game, so it never depends on the games played before (batch shards: 218 of 221)
+  const key = `${pricingKey()}:${side}:${state.id}:${state.turnNumber}:${credits}${contentPrint(state)}`;
   scopeToGame(deckAverage, state);
   const cached = deckAverage.get(key);
   if (cached !== undefined && !drawAudit.on) return cached;
@@ -312,7 +307,8 @@ export function clickWorth(state: GameState, side: SideCode): number {
   // The board is in the key (valueModel fingerprint): each hand card's played worth and the deck's average read it. Before,
   // the key left it out and about 17% of hits were another board's value (Audit Step 2 clickAudit; tests/threatCacheAudit
   // deal 1421: a stale click worth reached a cached Runner budget). Kept to one game, as drawWorth's map (above)
-  const key = `${pricingKey()}:${side}:${state.id}:${state.turnNumber}:${player.clicks}:${player.credits}:${(side === 'corp' ? state.corp.hq : state.runner.grip).map(c => c.instanceId).join(',')}:${fingerprint(state)}`;
+  // V-B B1: the board as valueModel contentPrint (fingerprint and what it leaves out, the hand among them), as drawWorth's key
+  const key = `${pricingKey()}:${side}:${state.id}:${state.turnNumber}:${player.clicks}:${player.credits}:${contentPrint(state)}`;
   scopeToGame(clickCache, state);
   const cached = clickCache.get(key);
   if (cached !== undefined && !clickAudit.on) return cached;
