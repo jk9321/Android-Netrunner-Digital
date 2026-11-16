@@ -91,4 +91,12 @@ export interface CardAI {
   rezEffect?: true;
   /** Clicks one use gives beyond the click it costs (Nanomanagement: gain 2, 1 to play it), read by winNow.ts's count of what this turn can still score. */
   clicksGiven?: number;
+  /** A trap's worth of one counter placed on it by an effect, `bluff` the generic trap's run drawn (placedCounterWorth; V-B B6). */
+  placedCounter?: (state: GameState, card: CardInstance, bluff: number) => number;
+  /** Advanceable ice: one more counter's worth, `left` still needed, in place of the Runner's cost step (iceAdvanceWorth; V-B B6). */
+  advanceCounter?: (state: GameState, card: CardInstance, left: number) => number;
+  /** Programs hosted on this card install without a click (Madani): runnerRigValue prices them with the click kept (V-B B6). */
+  freeInstallHosted?: true;
+  /** An identity that clears tags: `tags` tags' worth with it, `perTurn` a Corp turn's loss; tagsWorth takes the lower (V-B B6). */
+  tagClear?: (state: GameState, tags: number, perTurn: number) => number;
 }

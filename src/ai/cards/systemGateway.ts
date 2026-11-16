@@ -318,6 +318,8 @@ export const SYSTEM_GATEWAY: Record<string, CardAI> = {
     value: { keep: 2 }, // A trap, worth keeping for trap decks
     // 2 net damage plus 1 per advancement, accessed about half the time
     corp: state => ({ keep: 0.5 * damageWorth(state, 3) }),
+    // A placed counter: 1 more net damage, accessed about half the time
+    placedCounter: (state, card, bluff) => bluff + 0.5 * (damageWorth(state, 3 + card.advancementCounters) - damageWorth(state, 2 + card.advancementCounters)),
   },
   // Diviner
   '30046': { synergy: { gives: { ice: 1, damage: 0.5 } } },
@@ -377,6 +379,8 @@ export const SYSTEM_GATEWAY: Record<string, CardAI> = {
   '30061': {
     synergy: { gives: { damage: 1 }, wants: { advance: 1 } },
     advancePayload: true,
+    // A placed counter: its step in damage
+    placedCounter: (state, _card, bluff) => bluff + 0.6 * damageWorth(state, 1),
     value: { keep: 2 }, // Meat damage once advanced
     // About 2 advances (a click and a credit each) for 2 meat damage, if it survives a turn
     corp: state => {

@@ -1,12 +1,15 @@
 import { cardDef, getCardScript } from '../../core';
-import { stealthCredits } from '../../core/engine/cardEffects';
+import { stealthCredits, turnFlag } from '../../core/engine/cardEffects';
 import { cardRate, CLICK, RATES } from '../valueModel';
-import { VIC } from '../evaluate';
+import { abilityUsedKey } from '../../core/engine/actions/ability';
 import { accessWorth, centralSuccess, counterWorthOf, damageWorth, deckCount, deckShare, lock, muWorth, PACE, perTurn, priceIce, pricingIce, runSuccess } from '../effectValues';
 import type { RunOptions } from '../runs';
 import { badPublicityWorth } from '../prompts';
 import type { GameState } from '../../core';
 import { CardAI } from './types';
+
+/** Virtual Intelligence, P.I.: "Once per turn → [click], 1[credit]: Draw 1 card and remove 1 tag." */
+const VIC = '36009';
 
 /**
  * What the AI knows about each Vantage Point card's worth, one entry per card
@@ -70,7 +73,23 @@ export const VANTAGE_POINT: Record<string, CardAI> = {
     runner: state => perTurn(state, 0.1, 'runner'),
   },
   // Vic
-  '36009': { synergy: { gives: { draw: 1 }, wants: { tags: 0.5 } } },
+  '36009': {
+    synergy: { gives: { draw: 1 }, wants: { tags: 0.5 } },
+    // Tags on Vic (Jeff, 2026-10-30; plan.vicTags): her ability clears a tag for a click and a credit less the card it
+    // draws (RATES.drawnCard: the loop guard, V-B B5). The first tag costs that while she can use it this turn (the
+    // Runner's turn, ability unused, a click and a credit left), else it sits through a Corp turn first; the second waits
+    // a turn for her (two if the first waits too) or is cleared the usual way; the rest cost as usual.
+    tagClear: (state, tags, perTurn) => {
+      const clear = CLICK + 2;
+      const vic = Math.max(0.5, CLICK + 1 - RATES.drawnCard);
+      const runner = state.runner;
+      const ability = abilityUsedKey(runner.identity.instanceId, 0);
+      const now = state.activePlayer === 'runner' && turnFlag(state, ability) === 0 && runner.clicks >= 1 && runner.credits >= 1;
+      const later = Math.min(clear, vic + perTurn);
+      const second = now ? later : Math.min(clear, vic + 2 * perTurn);
+      return (now ? vic : later) + (tags >= 2 ? second : 0) + Math.max(0, tags - 2) * clear;
+    },
+  },
   // Kompromat
   '36010': {
     synergy: { gives: { runs: 1 } },

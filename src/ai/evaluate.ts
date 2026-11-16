@@ -1,7 +1,6 @@
 import { CardInstance, GameState, SideCode, cardDef } from '../core';
 import { breakerScript, iceSubtypes, isIcebreaker } from '../core/engine/ice';
-import { counters, turnFlag } from '../core/engine/cardEffects';
-import { abilityUsedKey } from '../core/engine/actions/ability';
+import { counters } from '../core/engine/cardEffects';
 import { cardSynergy } from './synergyTags';
 import { corpKeepValue, runnerCardValue } from './cardValues';
 import { countersWorth } from './counterValues';
@@ -16,8 +15,7 @@ import { remoteAgendaOdds, trapOdds, trashedCardCost } from './runs';
 import { centralAccess, runChance, threatOn } from './threatModel';
 import { plan, pricing, withPricing } from './pricing';
 import { corpDrawPool, oracleSteal } from './oracle';
-
-const MADANI = '35028';
+import { CARDS } from './cards';
 
 
 /**
@@ -130,7 +128,7 @@ export function runnerRigValue(state: GameState): number {
     // Madani's install takes no click, so its programs keep the click they will save (plan.madaniClick).
     // Corp cards hosted on Detente are not the Runner's to play: Detente's own value covers them
     const hosted = (card.hostedCards ?? []).filter(h => cardDef(h).side_code === 'runner');
-    const freeInstall = card.cardCode === MADANI;
+    const freeInstall = !!CARDS[card.cardCode]?.freeInstallHosted;
     value += hosted.reduce((n, h) => n + heldWorth(state, h, 'runner', freeInstall), 0);
   }
   // Combos in play (Knickknack burning Principia, Baker on stealth credits): plan.cardPlans
@@ -487,30 +485,8 @@ function tagClock(state: GameState, viewer: SideCode, tags: number, actual: bool
   const worth = corpTurn
     ? Math.min(tags * clear, 0.5 * perTurn + 0.1 * (tags - 1))
     : Math.min((stuck ? perTurn : 0) + tags * clear, 1.5 * perTurn + 0.1 * (tags - 1));
-  return state.runner.identity.cardCode === VIC ? Math.min(worth, vicTagsWorth(state, tags, perTurn)) : worth;
-}
-
-/** Virtual Intelligence, P.I.: "Once per turn → [click], 1[credit]: Draw 1 card and remove 1 tag." */
-export const VIC = '36009';
-
-/**
- * Tags on Vic (Jeff, 2026-10-30; plan.vicTags): her ability clears a tag for
- * a click and a credit less the card it draws. The first tag costs that
- * while she can still use it this turn (the Runner's turn, ability unused,
- * a click and a credit left); otherwise it sits through a Corp turn first
- * (this turn's loss, as the Corp's punishers see it). The second waits a
- * turn for her (two Corp turns if the first waits too) or is cleared the
- * usual way; the rest cost as usual.
- */
-function vicTagsWorth(state: GameState, tags: number, perTurn: number): number {
-  const clear = CLICK + 2;
-  const vic = Math.max(0.5, CLICK + 1 - RATES.drawnCard);
-  const runner = state.runner;
-  const ability = abilityUsedKey(runner.identity.instanceId, 0);
-  const now = state.activePlayer === 'runner' && turnFlag(state, ability) === 0 && runner.clicks >= 1 && runner.credits >= 1;
-  const later = Math.min(clear, vic + perTurn);
-  const second = now ? later : Math.min(clear, vic + 2 * perTurn);
-  return (now ? vic : later) + (tags >= 2 ? second : 0) + Math.max(0, tags - 2) * clear;
+  const clearing = CARDS[state.runner.identity.cardCode]?.tagClear;
+  return clearing ? Math.min(worth, clearing(state, tags, perTurn)) : worth;
 }
 
 /** What a tagged Runner stands to lose each Corp turn, as `viewer` sees it (exported for tests/tagLossTime.test.ts). */

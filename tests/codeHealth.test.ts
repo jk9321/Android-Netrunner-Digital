@@ -14,13 +14,7 @@ import { sideOff, tuning } from '../src/ai/synergy';
  */
 const VALUE_FILES = ['valueModel', 'evaluate', 'effectValues', 'counterValues', 'handValues', 'iceValues'];
 const CODES_IN_VALUE_FILES: Record<string, string> = {
-  'evaluate:35028': 'Madani: to its card entry',
   'evaluate:30053': 'Spin Doctor (spent): to its card entry',
-  'evaluate:36009': 'Vic: an identity, fine for now',
-  'effectValues:35076': 'Syailendra: a placed-counter field in CardAI',
-  'effectValues:30045': 'Urtica Cipher: a placed-counter field in CardAI',
-  'effectValues:35061': 'Idiosyncresis: a placed-counter field in CardAI',
-  'effectValues:30061': 'Clearinghouse: a placed-counter field in CardAI',
 };
 
 /** Plan switches that are off, each with why it stays in the code. */

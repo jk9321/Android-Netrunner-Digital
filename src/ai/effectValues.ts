@@ -567,10 +567,8 @@ export function rezEffectWorth(card: CardInstance, tagWorth: number): number {
 export function iceAdvanceWorth(state: GameState, card: CardInstance, iceCostAt: (counters: number) => number): number {
   const left = 3 - card.advancementCounters;
   if (left <= 0) return 0;
-  if (card.cardCode === '35076') {
-    // Syailendra at 3: each encounter places a counter (a click and a credit) on a card we can advance
-    return perTurn(state, 0.3 * (CLICK + 1), 'corp') / left;
-  }
+  const own = CARDS[card.cardCode]?.advanceCounter;
+  if (own) return own(state, card, left);
   return Math.max(0, iceCostAt(3) - iceCostAt(card.advancementCounters)) / left;
 }
 
@@ -596,11 +594,8 @@ export function placedCounterWorth(state: GameState, card: CardInstance, iced: b
   const known = knownTrap(card);
   const bluff = /ambush|hostile/i.test(def.keywords ?? '') && !known ? 0.3 * (CLICK + 2) : 0;
   if (known && !advancePayloadOf(card.cardCode)) return 0;
-  if (card.cardCode === '30045') return bluff + 0.5 * (damageWorth(state, 3 + card.advancementCounters) - damageWorth(state, 2 + card.advancementCounters)); // Urtica: 1 more net damage
-  if (card.cardCode === '35061') return 0.6 * 5; // Idiosyncresis
-  // Clearinghouse: the counter's step in damage
-  if (card.cardCode === '30061') return bluff + 0.6 * damageWorth(state, 1);
-  return 0.3;
+  const own = CARDS[card.cardCode]?.placedCounter;
+  return own ? own(state, card, bluff) : 0.3;
 }
 
 /** Petty Cash comes back from Archives for its 5 credits and the click back: worth its net 2 credits again, a turn later. */
