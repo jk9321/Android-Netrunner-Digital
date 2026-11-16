@@ -1,6 +1,7 @@
 import { GameAction, GameActionType } from '../types/actions';
 import { GameState } from '../types/state';
 import { IllegalActionError } from './errors';
+import { rdShuffleProbe } from './rdKnowledge';
 import { drawCard, gainCredit, purgeVirus, removeTag, trashResource } from './actions/basic';
 import { installCard } from './actions/install';
 import { advanceCard, rezCard, scoreAgenda } from './actions/corp';
@@ -107,7 +108,8 @@ export function executeAction(prevState: GameState, action: GameAction): GameSta
       }
       break;
     case 'intent':
-      if (declareIntent(state, action, () => handler(structuredClone(state), action))) handler(state, action);
+      // validate: a trial run on a copy (not counted by the fuzzer's R&D shuffle probe)
+      if (declareIntent(state, action, () => trialRun(() => handler(structuredClone(state), action)))) handler(state, action);
       else taken = null;
       break;
     case 'option':
@@ -271,6 +273,16 @@ function isClickAction(state: GameState, action: GameAction): boolean {
  * after they are made (executeAction returns a new one), which is what
  * makes this safe.
  */
+/** Runs a move on a throwaway copy (a legality check): the engine fuzzer's R&D shuffle probe does not count it. */
+function trialRun(run: () => void): void {
+  rdShuffleProbe.trial++;
+  try {
+    run();
+  } finally {
+    rdShuffleProbe.trial--;
+  }
+}
+
 const legalityCache = new WeakMap<GameState, Map<string, boolean>>();
 
 /** True if the action can be applied to the state without error. */
@@ -285,7 +297,7 @@ export function isLegalAction(state: GameState, action: GameAction): boolean {
   if (cached !== undefined) return cached;
   let legal: boolean;
   try {
-    executeAction(state, action);
+    trialRun(() => executeAction(state, action));
     legal = true;
   } catch (err) {
     if (!(err instanceof IllegalActionError)) throw err;
