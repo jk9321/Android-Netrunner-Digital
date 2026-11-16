@@ -265,9 +265,13 @@ describe('AI code health (audit guards)', () => {
   // ai-value-time: src/ai +11 measured (the tag clock kept on the original board, evaluate.ts +7 and runs.ts +2; the lazy
   // tag input, effectValues.ts +2); src/ai/corp unchanged. With ai-playout-lines' +63 (above): 13,847 + 11 + 63 = 13,921
   // ai-honest-runner-view on top of it: +138 (above), 13,921 to 14,059
+  // ai-value-owners (valuation V-A, brief rev 2: rises only by the measured lines) adds 34: the disagreement log's one
+  // writer, valueModel.ts logValue (+20), the owner doc comments and the hooks that hand each owner's or copy's value to it
+  // unchanged (+14 over the eight valuation files and diagnostics.ts' onValue field). V-B takes the hooks back when the
+  // copies are gone; logValue stays while the log is the registry's evidence. 14,059 to 14,093
   it('keeps src/ai/corp at or under 2,257 lines and src/ai at or under 13,921 (Stage C hand-off, ai-corp-honest-order, ai-value-time, ai-playout-lines, ai-honest-runner-view)', () => {
     const corp = aiFiles().filter(f => f.replace(/\\/g, '/').startsWith('corp/')).reduce((n, f) => n + lines(f), 0);
     expect(corp).toBeLessThanOrEqual(2257);
-    expect(aiFiles().reduce((n, f) => n + lines(f), 0)).toBeLessThanOrEqual(14059);
+    expect(aiFiles().reduce((n, f) => n + lines(f), 0)).toBeLessThanOrEqual(14093);
   });
 });

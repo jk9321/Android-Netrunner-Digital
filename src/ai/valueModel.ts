@@ -12,6 +12,7 @@
 import { CardInstance, GameState, SideCode, cardDef, rezCostOf } from '../core';
 import { actingSide, plan, pricingKey } from './pricing';
 import { corpPorts } from './corpPorts';
+import { Diagnostics, note } from './diagnostics';
 
 export const RATES = {
   /** A click left this turn. */
@@ -90,8 +91,8 @@ export function creditValue(credits: number): number {
  *   plan.oneClickPrice makes it CLICK.
  */
 export const CLICK = 1.25;
-export const clickRate = (): number => CLICK;
-export const payoutClick = (): number => CLICK;
+export const clickRate = (): number => logValue('click', 'clickRate', undefined, CLICK);
+export const payoutClick = (): number => logValue('click', 'payoutClick', undefined, CLICK);
 
 /**
  * Worth of `credits` against a need (Jeff): each extra credit is worth 1.8
@@ -200,10 +201,10 @@ export const setDeckCard = (fn: (state: GameState, side: SideCode) => number) =>
 /**
  * Worth of one card drawn from, or lost out of, `side`'s hand: the deck's
  * average card with plan.flatRates.cards (no peeking: the deck, not the
- * hand), else the flat rate.
+ * hand), else the flat rate. Owner of a card drawn from a deck (docs/ai-priced-quantities.md, valuation table).
  */
 export function cardRate(state: GameState | undefined, side: SideCode): number {
-  return state && deckCard ? deckCard(state, side) : RATES.drawnCard;
+  return logValue('cardDrawn', 'cardRate', state, state && deckCard ? deckCard(state, side) : RATES.drawnCard, side);
 }
 
 /** Worth of `points` more for a side on `score` (averaged decklist points can be fractional). */
@@ -213,9 +214,9 @@ export function pointGain(score: number, points: number): number {
   return base + (points - whole) * (pointValue(score + whole + 1) - pointValue(score + whole));
 }
 
-/** Worth of a flatline (plan.flatRates.flatline: the whole game, the Corp's points still to come and the Runner's lost). */
+/** Worth of a flatline (plan.flatRates.flatline: the whole game, the Corp's points still to come and the Runner's lost). Owner of a game end (registry). */
 export function flatlineWorth(state: GameState): number {
-  return pointValue(7) - pointValue(state.corp.score) + pointValue(state.runner.score);
+  return logValue('gameEnd', 'flatlineWorth', state, pointValue(7) - pointValue(state.corp.score) + pointValue(state.runner.score));
 }
 
 /**
@@ -238,7 +239,7 @@ export function pointsTerm(state: GameState): number {
  */
 export function sampledEndWorth(winner: SideCode, rootBoard: number): number {
   // A Corp win settles the Corp's points term (scaled by KNOBS.corpPoints, as pointsTerm), a Runner win the Runner's
-  return (winner === 'corp' ? pointValue(7, KNOBS.corpPoints) : -pointValue(7)) + rootBoard;
+  return logValue('gameEnd', 'sampledEndWorth', undefined, (winner === 'corp' ? pointValue(7, KNOBS.corpPoints) : -pointValue(7)) + rootBoard, winner, rootBoard);
 }
 
 /** Worth of the first card over the hand-size limit (Jeff: you pick the worst card to discard). */
@@ -421,7 +422,7 @@ export function reachCard(state: GameState): CardInstance | undefined {
 /** plan.brokeSlope: the Corp's first credit worth this much more (1.8 + 1 = 2.8), sliding to nothing at BROKE_CREDITS. */
 export const BROKE_SLOPE = 1;
 
-/** Worth of a side's credits on this board, as `viewer` (the deciding side) prices them. */
+/** Worth of a side's credits on this board, as `viewer` (the deciding side) prices them. Owner of a credit (docs/ai-priced-quantities.md). */
 export function sideCreditValue(state: GameState, side: SideCode, viewer: SideCode): number {
   const credits = side === 'corp' ? state.corp.credits : state.runner.credits;
   // The money it unlocks in HQ sits on the slide with the credits: worth most to a broke Corp
@@ -432,7 +433,7 @@ export function sideCreditValue(state: GameState, side: SideCode, viewer: SideCo
   // Otto Campaign at 6 credits). Broke, it made no more money than when rich (2.3 credits a turn): a credit click scored
   // 1.8 - 1.25 and lost to advancing or installing almost anything, and it went into the Runner's turn unable to rez
   const broke = side === 'corp' && viewer === 'corp' ? BROKE_SLOPE : 0;
-  return reach ? creditSlide(credits + reach, need, broke) + Math.min(credits, 0) : creditSlide(credits, need, broke);
+  return logValue('credit', 'sideCreditValue', state, reach ? creditSlide(credits + reach, need, broke) + Math.min(credits, 0) : creditSlide(credits, need, broke), side, viewer);
 }
 
 /**
@@ -459,6 +460,25 @@ export function payoutSlide(state: GameState, side: SideCode, amount: number): n
   const pool = Math.max(credits, need / 2);
   const lift = 1 + (LIQUIDITY_LIFT - 1) * Math.min(1, Math.max(0, 2 - (2 * credits) / Math.max(need, 1)));
   return ((creditSlide(pool + amount, need) - creditSlide(pool, need)) / amount) * lift;
+}
+
+/**
+ * Valuation V-A's disagreement log (docs/ai-priced-quantities.md, valuation table; scripts/value-owners/log.ts): an owner
+ * or copy hands the value it priced, unchanged, to the diagnostics sink's onValue. The arguments wait in `logged` so a
+ * call allocates nothing while no sink is installed (play); `lookups` is the guardLoop chain open at the call.
+ */
+const logged = { quantity: '', site: '', state: undefined as GameState | undefined, value: 0, args: [undefined, undefined, undefined, undefined, undefined, undefined, undefined, undefined] as unknown[] };
+const sendLogged = (d: Diagnostics) => d.onValue?.(logged.quantity, logged.site, logged.state, logged.value, [...logged.args, pricing.length]);
+export function logValue(quantity: string, site: string, state: GameState | undefined, value: number, a?: unknown, b?: unknown, c?: unknown, d?: unknown, e?: unknown, f?: unknown, g?: unknown, h?: unknown): number {
+  const args = logged.args;
+  logged.quantity = quantity;
+  logged.site = site;
+  logged.state = state;
+  logged.value = value;
+  args[0] = a; args[1] = b; args[2] = c; args[3] = d; args[4] = e; args[5] = f; args[6] = g; args[7] = h;
+  note(sendLogged);
+  logged.state = undefined;
+  return value;
 }
 
 /*

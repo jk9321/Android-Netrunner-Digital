@@ -56,6 +56,8 @@ export interface Diagnostics {
    * noted HQ set), with the board, the server and the odds told.
    */
   onOracleTold?: (decision: object, state: GameState, serverId: string, told: number) => void;
+  /** Valuation V-A (scripts/value-owners): an owner or a copy priced `value` at `site`, asked with `args` (valueModel.ts logValue). */
+  onValue?: (quantity: string, site: string, state: GameState | undefined, value: number, args: readonly unknown[]) => void;
 }
 
 /** The counter groups: the fields of Diagnostics that hold numbers by name. */

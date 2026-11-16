@@ -10,7 +10,7 @@ import { AI_BREAKER_SHARE, RUNNER_TURN_INCOME, breakerTypeWorth, iceTypeOdds, ic
 import { payoutWait, payoutWorth, profileOf, turnsLeft } from './cardProfiles';
 import { resourceTrashHqCost } from '../core/engine/actions/basic';
 import { HAND_FLOOR, clickPrice, handByCard, heldWorth, ownHandValue, playedWorth, unseenInHand } from './handValues';
-import { CLICK, KNOBS, RATES, cardRate, creditValue, flatlineWorth, guardLoop, handFilter, mean, memo, payoutSlide, pointGain, pointValue, reachCard, setRunnerAgendaOdds, sideCreditValue } from './valueModel';
+import { CLICK, KNOBS, RATES, cardRate, creditValue, flatlineWorth, guardLoop, handFilter, logValue, mean, memo, payoutSlide, pointGain, pointValue, reachCard, setRunnerAgendaOdds, sideCreditValue } from './valueModel';
 import { LOCKDOWN, PACE, STEAL, agendaOdds, coreSlotWorth, flatlineOdds, lifeGrip, runSuccess, stealOdds } from './effectValues';
 import { remoteAgendaOdds, trapOdds, trashedCardCost } from './runs';
 import { centralAccess, runChance, threatOn } from './threatModel';
@@ -40,7 +40,7 @@ export function handValue(size: number, limit: number, viewer?: SideCode): numbe
   const card = viewer ? DRAWN_CARD : RATES.drawnCardOff;
   let value = 0;
   for (let i = 0; i < size; i++) value += i < RATES.handCoreCards ? RATES.handCore : i < limit ? card : i === limit ? handFilter() : 0;
-  return value;
+  return logValue('hand', 'handValue', undefined, value, size, limit, viewer);
 }
 
 /** Worth of a card in hand beyond the first three, up to the limit (plan.drawValue). */
@@ -158,10 +158,12 @@ export function runnerRigValue(state: GameState): number {
 /**
  * Worth of an installed Corp root card (assets and upgrades). `left` (the Runner's trash-or-leave reader only, runs.ts
  * serverWorth): what the card still pays the Corp if it is left alone, its payouts not discounted by the chance the
- * Runner trashes it (RUNNER-ASSET-TRASH; Stage D's D9 reads the default, the expected worth).
+ * Runner trashes it (RUNNER-ASSET-TRASH; Stage D's D9 reads the default, the expected worth). Owner of a Corp card's
+ * worth on the board (docs/ai-priced-quantities.md, valuation table).
  */
 export function corpCardValue(card: CardInstance, state?: GameState, viewer: SideCode = 'corp', left = false): number {
-  return guardLoop(state, `corp card ${cardDef(card).title} ${card.instanceId}${left ? ' left' : ''}`, () => corpKeepValue(card.cardCode), () => corpCardWorth(card, state, viewer, left));
+  const flat = () => logValue('boardCard', 'corpCardValue flat (loop)', state, corpKeepValue(card.cardCode), card, viewer, left);
+  return logValue('boardCard', 'corpCardValue', state, guardLoop(state, `corp card ${cardDef(card).title} ${card.instanceId}${left ? ' left' : ''}`, flat, () => corpCardWorth(card, state, viewer, left)), card, viewer, left);
 }
 
 function corpCardWorth(card: CardInstance, state: GameState | undefined, viewer: SideCode, left = false): number {
@@ -260,7 +262,7 @@ export function setAgendaClick(value: number): void {
  * the clicks and credits still needed to advance it. Safe only once it can
  * be scored on the Corp's own turn (a free action, rule 7.1); otherwise each
  * Runner turn it waits is a run on its server that may get through (run
- * openness: the ice there against the rig).
+ * openness: the ice there against the rig). Owner of an installed agenda (registry, valuation table).
  */
 export function agendaWorth(
   state: GameState,
@@ -299,7 +301,7 @@ export function agendaWorth(
   // today" is not "safe for every turn it waits"
   const threatTurns = threatOn() && stealChance === undefined && openNew === undefined && success === undefined && !!serverId;
   const standing = threatTurns ? threatStanding(state, serverId!, runnerTurns, steal) : (1 - steal) ** runnerTurns;
-  return gain * standing * waited(runnerTurns) - need * (click + 1);
+  return logValue('agenda', 'agendaWorth', state, gain * standing * waited(runnerTurns) - need * (click + 1), counters, cost, points, serverId, success, inHand, budget, stealChance);
 }
 
 /**
@@ -466,7 +468,7 @@ export function centralExposure(state: GameState, viewer: SideCode): number {
  * Runner can lose its best resource (the Corp's basic trash action: a click
  * and 2 credits, rule 4.4.1) or a card to a tag punisher (Retribution) the
  * Corp holds, as far as `viewer` knows. The Runner clears a tag for a click
- * and 2 credits when keeping it costs more, so tags are worth the cheaper.
+ * and 2 credits when keeping it costs more, so tags are worth the cheaper. Owner of a tag, both views (registry).
  */
 export function tagsWorth(state: GameState, viewer: SideCode, count?: number, memoHome?: GameState): number {
   // Tags the Runner has now, or a count priced as if given (an ice subroutine, an operation)
@@ -474,8 +476,9 @@ export function tagsWorth(state: GameState, viewer: SideCode, count?: number, me
   const tags = count ?? state.runner.tags;
   if (tags <= 0) return 0;
   // Inside the tag clock's own pricing of the rig, a tag is the flat rate (a resource's worth can depend on tags)
-  if (pricing().pricingTagLoss) return tags * RATES.tagAgainstRunner;
-  return guardLoop(state, `tags ${viewer}`, () => tags * RATES.tagAgainstRunner, () => tagClock(state, viewer, tags, actual, memoHome));
+  if (pricing().pricingTagLoss) return logValue('tag', 'tagsWorth flat (tag clock)', state, tags * RATES.tagAgainstRunner, viewer, count);
+  const flat = () => logValue('tag', 'tagsWorth flat (loop)', state, tags * RATES.tagAgainstRunner, viewer, count);
+  return logValue('tag', 'tagsWorth', state, guardLoop(state, `tags ${viewer}`, flat, () => tagClock(state, viewer, tags, actual, memoHome)), viewer, count, memoHome);
 }
 
 /**
@@ -574,6 +577,7 @@ export function handAndClicks(state: GameState, side: SideCode, viewer: SideCode
     side === viewer && handByCard(side)
       ? ownHandValue(state, side)
       : handValue(hand.length - reached, player.handSizeLimit, viewer);
+  logValue('hand', 'handAndClicks', state, own, side, viewer);
   return clickPrice(state, side, viewer) * player.clicks + own;
 }
 
@@ -586,11 +590,11 @@ export function hqTrashCardsLoss(state: GameState, resource: CardInstance): numb
   const k = resourceTrashHqCost(state, resource);
   if (k <= 0) return 0;
   const losses = state.corp.hq.map(c => Math.max(HAND_FLOOR, keepValue(state, c) - CLICK)).sort((a, b) => a - b);
-  return losses.length < k ? Infinity : losses.slice(0, k).reduce((n, v) => n + v, 0);
+  return logValue('hand', 'hqTrashCardsLoss', state, losses.length < k ? Infinity : losses.slice(0, k).reduce((n, v) => n + v, 0), resource);
 }
 
 /** The flat worth of the first cards in hand as life against damage, which the damage clock replaces. */
-const lifeCards = (size: number): number => Math.min(size, RATES.handCoreCards) * (RATES.handCore - RATES.drawnCard);
+const lifeCards = (size: number): number => logValue('hand', 'lifeCards', undefined, Math.min(size, RATES.handCoreCards) * (RATES.handCore - RATES.drawnCard), size);
 
 export function sideStrength(state: GameState, side: SideCode, viewer: SideCode = side): number {
   if (side === 'corp') {
@@ -614,14 +618,14 @@ export function sideStrength(state: GameState, side: SideCode, viewer: SideCode 
     tagsWorth(state, viewer) -
     coreSlotWorth(state) * runner.coreDamage -
     // The damage clock: a small grip against the Corp's damage is a step toward a flatline
-    (flatlineWorth(state) * flatlineOdds(state, lifeGrip(state), true) + lifeCards(runner.grip.length)) +
+    logValue('damage', 'board clock', state, flatlineWorth(state) * flatlineOdds(state, lifeGrip(state), true) + lifeCards(runner.grip.length)) +
     runnerRigValue(state)
   );
 }
 
 /** How good the position is for `side` (mine minus theirs; a win is decisive). */
 export function evaluate(state: GameState, side: SideCode): number {
-  if (state.winner) return state.winner === side ? 1000 : -1000;
+  if (state.winner) return logValue('gameEnd', 'evaluate', state, state.winner === side ? 1000 : -1000, side);
   const other: SideCode = side === 'corp' ? 'runner' : 'corp';
   return sideStrength(state, side, side) - sideStrength(state, other, side);
 }
@@ -634,6 +638,6 @@ export function keepValue(state: GameState, card: CardInstance): number {
   // Jeff, 2026-10-28: what the card adds once played, before its click (at least the hand floor); an agenda let go goes
   // to Archives, where the Runner likely steals it. (The old flat keep table, plan.keepByModel off, deleted 2026-11-06.)
   const loss = cardDef(card).type_code === 'agenda' ? archivedAgendaLoss(state, cardDef(card).agenda_points ?? 1) : 0;
-  return Math.max(HAND_FLOOR, playedWorth(state, card) + CLICK) + loss;
+  return logValue('hand', 'keepValue', state, Math.max(HAND_FLOOR, playedWorth(state, card) + CLICK) + loss, card);
 }
 
