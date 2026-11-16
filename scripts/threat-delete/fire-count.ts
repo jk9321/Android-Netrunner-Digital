@@ -9,10 +9,11 @@
  * every other arm's pick is compared with the reference too. Changed decisions are sorted by kind: `agenda installed`
  * (the branch installs an agenda the reference does not), `agenda held` (the reference installs an agenda the branch
  * does not), `other`. Times are per arm, the order rotated by decision. One JSON line per decision; sum with
- * fire-count-sum.mjs.
+ * fire-count-sum.mjs (PAIR=a,b compares any two arms: PAIR=<commit 2 sha>,branch for commit 3).
  *   SHARD=0/64 npx vite-node scripts/threat-delete/fire-count.ts -- <sha>[:<off>] [<sha>[:<off>] ...] > fc-0.txt
  */
 import { execSync } from 'node:child_process';
+import { createHash } from 'node:crypto';
 import { cpSync, existsSync, mkdirSync, readFileSync, rmSync } from 'node:fs';
 import { join, resolve } from 'node:path';
 import { GameAction, GameState, actingSide, cardDef, createInitialGameState, executeAction, findCardAnywhere } from '../../src/core';
@@ -129,7 +130,9 @@ async function main() {
     const differs = Object.fromEntries(ARMS.filter(a => a !== args[0]).map(a => [a, r[a].a !== ref]));
     const sort = !changed ? undefined : agendaInstall(s, r.branch.a) && !agendaInstall(s, ref) ? 'agenda installed' : agendaInstall(s, ref) && !agendaInstall(s, r.branch.a) ? 'agenda held' : 'other';
     const ms = Object.fromEntries(ARMS.map(a => [a, Math.round(r[a].ms * 10) / 10]));
-    console.log(JSON.stringify({ src, i, side, kind, T: s.turnNumber, changed, sort, differs, ref: changed ? ref : undefined, branch: changed ? r.branch.a : undefined, ms }));
+    // Every arm's pick, hashed, so the sum can compare any two arms (commit 3 against commit 2); the agenda flag sorts them
+    const picks = Object.fromEntries(ARMS.map(a => [a, createHash('sha1').update(r[a].a).digest('hex').slice(0, 10) + (agendaInstall(s, r[a].a) ? '+A' : '')]));
+    console.log(JSON.stringify({ src, i, side, kind, T: s.turnNumber, changed, sort, differs, picks, ref: changed ? ref : undefined, branch: changed ? r.branch.a : undefined, ms }));
   };
 
   const sources: (() => void)[] = [
