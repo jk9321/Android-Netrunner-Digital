@@ -24,6 +24,7 @@ const SLOW_TESTS = [
   'tests/stageDPins.test.ts', // beta: Jeff's game pins for Stage D (review-stage-b.md R3)
   'tests/threatCacheAudit.test.ts', // beta: deal 1421 plays 344 actions since ai-runner-draws (minutes in a container; still runs in CI)
   'tests/holdReentry.test.ts', // beta, about 12 s: the deal 2138 decision that used to hang (ai-hold-reentry)
+  'tests/tagLossTimeSaved.test.ts', // beta, about 45 s: the seed-104 turn-18 decision's counts inside the tag clock (ai-tag-loss-time)
 ];
 
 const bin = (name) => `node_modules/.bin/${name}`;
