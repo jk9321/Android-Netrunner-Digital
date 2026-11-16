@@ -29,6 +29,11 @@
    "ai/cards/vantagePoint.ts",
    "    runner: state => muWorth(state) - (state.runner.tags > 0 ? 0 : tagTaken(state)),",
    "    runner: state => muWorth(state) - (state.runner.tags > 0 ? 0 : RATES.tagAgainstRunner),"
+  ],
+  [
+   "ai/cards/vantagePoint.ts",
+   "import { cardRate, CLICK } from '../valueModel';",
+   "import { cardRate, CLICK, RATES } from '../valueModel';"
   ]
  ],
  "_probe": [
