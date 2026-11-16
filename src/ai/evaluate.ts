@@ -279,7 +279,11 @@ export function agendaWorth(
 ): number {
   const gain = pointValue(state.corp.score + points, KNOBS.corpPoints) - pointValue(state.corp.score, KNOBS.corpPoints);
   const need = Math.max(0, cost - counters);
-  const steal = stealChance ?? (
+  // Jeff's open-remote rule (2026-10-29, plan.openSteal): an agenda going into a new remote with no ice (no server yet,
+  // success 1: handValues' hand price) sits in an open remote the Runner can see, as good as stolen; the same rule for a
+  // remote that exists is in stealOdds
+  const openNew = plan().openSteal && !serverId && success === 1 ? 1 : undefined;
+  const steal = stealChance ?? openNew ?? (
     success === undefined && serverId
       ? oracleSteal(state, serverId) ?? stealOdds(state, serverId) // plan.oracle.safestRemote: told the Runner's next turn
       : STEAL.run * (success ?? (serverId ? runSuccess(state, serverId) : PACE.success)));

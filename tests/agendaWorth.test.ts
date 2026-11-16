@@ -91,6 +91,27 @@ describe('steal odds as measured (Jeff, 2026-10-28; plan.stealOdds)', () => {
     expect(stealOdds(s, 'remote-2')).toBe(1);
   });
 
+  // ai-threat-delete commit 3 (brief rev 2, red team finding 3): the rule has two readers, stealOdds for a remote that
+  // exists and agendaWorth for the new bare remote an agenda in hand is priced into (handValues): one price for one board
+  it('an agenda installed in an existing bare remote has steal odds 1 (plan.openSteal)', () => {
+    const s = remotes();
+    s.activePlayer = 'corp';
+    const agenda = s.corp.rd.find(c => cardDef(c).type_code === 'agenda')!;
+    s.corp.rd = s.corp.rd.filter(c => c !== agenda);
+    s.corp.servers['remote-2'].root.push(agenda);
+    expect(stealOdds(s, 'remote-2')).toBe(1);
+  });
+
+  it('an agenda in hand whose remote would be a new bare one is priced as in an existing bare remote (plan.openSteal)', () => {
+    const s = remotes();
+    s.activePlayer = 'corp';
+    // handValues' hand price: a new bare remote (no server, success 1) against the existing bare remote-2
+    const fresh = agendaWorth(s, 0, 4, 2, undefined, 1, true);
+    const existing = agendaWorth(s, 0, 4, 2, 'remote-2', undefined, true);
+    expect(fresh).toBe(existing);
+    expect(fresh).toBeLessThan(0);
+  });
+
   it('ice is judged against the credits the Runner can raise on its turn, not what it holds now', () => {
     // STEAL.run's arithmetic (the Corp's threat model, which asked the Runner's scorer instead, was deleted 2026-11-16)
     const s = newGame();

@@ -197,7 +197,8 @@ Counts at the branch head (scripts/value-owners/counts.mjs): see "Counts" at the
 - **Copies:** `placedCounterWorth` (`src/ai/effectValues.ts:594`)'s agenda share: one counter is worth `point gain / advancement cost` (0.3 of it unprotected). Asks counted. Comparable: against `agendaWorth(counters + 1) - agendaWorth(counters)` for the same agenda in its server.
 - **Not copies (a different quantity, the stake of losing an agenda, both sides' points; the Corp row "Agenda odds (what an access is worth)"):** `serverStake` (`src/ai/iceValues.ts:114`)'s swing and `plannedStake` (`src/ai/iceValues.ts:142`), `openAgendaLoss` (`src/ai/runnerReply.ts:233`). The audit's Q1 table counted them here; the count above leaves them out and they are named in that row's sense instead.
 - **Readers:** `agendaWorth` (`src/ai/evaluate.ts:406`), `agendaWorth` (`src/ai/evaluate.ts:410`), `agendaWorth` (`src/ai/handValues.ts:51`).
-- **Caches, context:** none of its own; reads `stealOdds` and `runSuccess` (`memo`). Context: `plan.oracle.safestRemote`, `KNOBS.corpPoints`.
+- **Caches, context:** none of its own; reads `stealOdds` and `runSuccess` (`memo`). Context: `plan.openSteal`, `plan.oracle.safestRemote`, `KNOBS.corpPoints`.
+- **The open-remote rule (Jeff 2026-10-29, `plan.openSteal`): one rule, two readers.** An agenda in a remote with no ice is as good as stolen (steal odds 1): `stealOdds` (`src/ai/effectValues.ts`) for a remote that exists, and `agendaWorth`'s `openNew` (`src/ai/evaluate.ts`) for the new bare remote the hand price installs into (`handValues.ts`, no server yet, success 1). Until ai-threat-delete the second was gated on `plan.threatModel`; it now reads `plan.openSteal` like the first, so one board has one price (pinned in `tests/agendaWorth.test.ts`).
 
 ### V7. A tag (the Corp's view and the Runner's)
 - **Owner:** `tagsWorth` (`src/ai/evaluate.ts:473`): the tag clock (what a tagged Runner loses each Corp turn, against what clearing costs), `viewer` choosing whose knowledge of HQ it reads; Vic's own clear inside it (`vicTagsWorth` (`src/ai/evaluate.ts:527`), card-coded).
@@ -374,14 +375,14 @@ From `node scripts/value-owners/counts.mjs` (re-run it to recount; the copy coun
 
 | count | value |
 |---|--:|
-| hand-set literals in the valuation layer (val-lits.mjs: table + scattered) | 1135 (957 + 178) |
+| hand-set literals in the valuation layer (val-lits.mjs: table + scattered) | 1118 (954 + 164) |
 | quantities with one named owner (V1 to V25) | 25 |
-| live copies, all quantities (the live lines of "Copy lines") | 35 |
-| other copy lines, by kind (not counted) | dead 3, recorded 1, not comparable 6, inside owner 2, reader 1 |
-| valuation exports with no reader (allow-list) | 15 |
-| lines of src/ai | 14285 |
+| live copies, all quantities (the live lines of "Copy lines") | 34 |
+| other copy lines, by kind (not counted) | gone 1, dead 3, recorded 1, not comparable 6, inside owner 2, reader 1 |
+| valuation exports with no reader (allow-list) | 14 |
+| lines of src/ai | 13670 |
 
-Live copies per quantity: V1 0, V2 3, V3 8, V4 3, V5 2, V6 1, V7 7, V8 0, V9 1, V10 1, V11 1, V12 4, V13 0, V14 2, V15 2, V16 0, V17 0, V18 0, V19 0, V20 0, V21 0, V22 0, V23 0, V24 0, V25 0.
+Live copies per quantity: V1 0, V2 3, V3 8, V4 3, V5 2, V6 1, V7 7, V8 0, V9 1, V10 1, V11 1, V12 3, V13 0, V14 2, V15 2, V16 0, V17 0, V18 0, V19 0, V20 0, V21 0, V22 0, V23 0, V24 0, V25 0.
 <!-- valuation:end -->
 
 ## Hidden information (rule 10.2.2a)
