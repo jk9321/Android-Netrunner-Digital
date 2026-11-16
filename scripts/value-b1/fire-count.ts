@@ -5,7 +5,8 @@
  * .fc-variants/<shard>/<arm>/), made from this tree by text patches that put a cache's old key back:
  *   base       every key as on beta (the branch point);
  *   branch     this tree;
- *   <cache>    only that cache's key completed (click: clickWorth, deck: drawWorth, damage: damageThreat);
+ *   <cache>    only that change made (click: clickWorth's key; entry: a drawn card's two side entrances through cardRate;
+ *              drawWorth's and damageThreat's keys were measured too, run 43876047121, and are kept incomplete);
  *   no-<cache> every key completed but that one (leave-one-out).
  * base, branch and the three <cache> trees decide every decision (their times are the time per cache, same decisions,
  * order rotated); where base and branch pick differently the no-<cache> trees decide too. `causes`: a cache alone
@@ -23,7 +24,7 @@ import { GameRunner } from '../../src/ai/playout';
 import { deals, dealState, humanFiles } from '../stage-a/harness';
 import { deckGameSetup } from '../../src/data/decks';
 
-const CACHES = ['click', 'deck', 'damage'] as const;
+const CACHES = ['click', 'entry'] as const;
 type Cache = (typeof CACHES)[number];
 type Arm = 'base' | 'branch' | Cache | `no-${Cache}`;
 
@@ -34,17 +35,9 @@ const OFF: Record<Cache, [file: string, from: string, to: string][]> = {
     'const key = `${pricingKey()}:${side}:${state.id}:${state.turnNumber}:${player.clicks}:${player.credits}:${contentPrint(state)}`;',
     "const key = `${pricingKey()}:${side}:${state.id}:${state.turnNumber}:${player.clicks}:${player.credits}:${(side === 'corp' ? state.corp.hq : state.runner.grip).map(c => c.instanceId).join(',')}:${fingerprint(state)}`;",
   ]],
-  deck: [[
-    'ai/handValues.ts',
-    'const key = `${pricingKey()}:${side}:${state.id}:${state.turnNumber}:${credits}${contentPrint(state)}`;',
-    "const board = `${fingerprint(state)}:`;\n  const key = `${pricingKey()}:${side}:${state.id}:${state.turnNumber}:${credits}${board}${deck.map(c => c.instanceId + c.cardCode).join(',')}`;",
-  ]],
-  damage: [
-    [
-      'ai/effectValues.ts',
-      '  const key = `${state.id}:${skipIce}:${own}:${own && tagged}:${poolCodes(state)}`;',
-      '  const corp = state.corp;\n  const count = corp.hq.length + corp.rd.length + corp.archives.faceDown.length + Object.values(corp.servers).reduce((n, v) => n + v.root.length + v.ice.length, 0);\n  const key = `${state.id}:${state.corp.archives.faceUp.length}:${state.corp.scoreArea.length}:${state.runner.scoreArea.length}:${skipIce}:${own}:${own && tagged}:${count}`;',
-    ],
+  entry: [
+    ['ai/handValues.ts', "'ownHandValue drawWorth', state, side === actingSide() ? cardRate(state, side) : drawWorth(state, side), side)", "'ownHandValue drawWorth', state, drawWorth(state, side), side)"],
+    ['ai/handValues.ts', "'clickWorth drawWorth', state, side === actingSide() ? cardRate(state, side) : drawWorth(state, side), side)", "'clickWorth drawWorth', state, drawWorth(state, side), side)"],
   ],
 };
 
@@ -59,9 +52,7 @@ function makeTrees(): Record<Arm, string> {
   for (const [arm, off] of arms) {
     const dir = join(root, arm);
     cpSync('src', join(dir, 'src'), { recursive: true });
-    // the beta keys read fingerprint, which the branch's handValues no longer imports
-    const imports: [string, string, string][] = off.includes('click') || off.includes('deck') ? [['ai/handValues.ts', 'cardRate, contentPrint, handFilter,', 'cardRate, contentPrint, fingerprint, handFilter,']] : [];
-    for (const [file, from, to] of [...imports, ...off.flatMap(cache => OFF[cache])]) {
+    for (const [file, from, to] of off.flatMap(cache => OFF[cache])) {
       const path = join(dir, 'src', file);
       const text = readFileSync(path, 'utf8');
       if (text.split(from).length !== 2) throw new Error(`patch ${arm} does not match once in ${file}: ${from.slice(0, 60)}`);

@@ -7,7 +7,7 @@ import { agendaWorth, isOneUse, runnerRigValue } from './evaluate';
 import { counterWorth } from './counterValues';
 import { handPlanWorth } from './cardPlans';
 import { CLICK, RATES, cardRate, contentPrint, fingerprint, handFilter, logValue, payoutSlide, pricingApart, positionSerial, printedGain, reachCard, scopeToGame, setDeckCard } from './valueModel';
-import { leafHandByCard, noteDecision, plan, pricing, pricingKey, withPricing } from './pricing';
+import { actingSide, leafHandByCard, noteDecision, plan, pricing, pricingKey, withPricing } from './pricing';
 import { corpDrawPool, corpKnowsRd } from './oracle';
 
 /**
@@ -283,7 +283,7 @@ export function ownHandValue(state: GameState, side: SideCode): number {
   const reach = side === 'corp' ? reachCard(state) : undefined;
   const values = hand
     // plan.oracle.rd: a card the Corp drew in a look-ahead is one it knew was coming
-    .map(c => (seen && !seen.has(c.instanceId) && !(side === 'corp' && corpKnowsRd()) ? logValue('cardDrawn', 'ownHandValue drawWorth', state, drawWorth(state, side), side) : c === reach ? HAND_FLOOR : heldWorth(state, c, side)))
+    .map(c => (seen && !seen.has(c.instanceId) && !(side === 'corp' && corpKnowsRd()) ? logValue('cardDrawn', 'ownHandValue drawWorth', state, side === actingSide() ? cardRate(state, side) : drawWorth(state, side), side) : c === reach ? HAND_FLOOR : heldWorth(state, c, side)))
     .sort((a, b) => b - a);
   let value = 0;
   for (let i = 0; i < values.length; i++) {
@@ -323,7 +323,7 @@ export function clickWorth(state: GameState, side: SideCode): number {
     // rest (playedWorth charges the click: add it back to get what the click buys)
     .map(c => (1 - SOON.now) * (playedWorth(state, c) + CLICK))
     .sort((a, b) => b - a);
-  const repeatable = Math.max(1, logValue('cardDrawn', 'clickWorth drawWorth', state, drawWorth(state, side), side));
+  const repeatable = Math.max(1, logValue('cardDrawn', 'clickWorth drawWorth', state, side === actingSide() ? cardRate(state, side) : drawWorth(state, side), side)); // V-B B1: the decider's own deck through cardRate (ruling 8)
   let total = 0;
   for (let i = 0; i < clicks; i++) total += Math.max(repeatable, plays[i] ?? 0);
   const value = Math.max(1, Math.min(3, total / clicks));

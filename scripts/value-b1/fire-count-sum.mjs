@@ -9,7 +9,7 @@ const files = [];
 const walk = p => (statSync(p).isDirectory() ? readdirSync(p).forEach(f => walk(join(p, f))) : /\.(txt|jsonl)$/.test(p) && files.push(p));
 process.argv.slice(2).forEach(walk);
 const rows = files.flatMap(f => readFileSync(f, 'utf8').split('\n').filter(l => l.startsWith('{"src"')).map(l => JSON.parse(l)));
-const CACHES = ['click', 'deck', 'damage'];
+const CACHES = Object.keys(rows[0]?.ms ?? {}).filter(k => k !== 'base' && k !== 'branch');
 const ARMS = ['base', 'branch', ...CACHES];
 const games = new Set(rows.map(r => r.src)).size;
 console.log(`${rows.length} decisions in ${games} sources (${files.length} files)`);
