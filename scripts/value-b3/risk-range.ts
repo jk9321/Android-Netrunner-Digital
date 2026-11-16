@@ -10,7 +10,8 @@ import { GameAction, GameState, actingSide, createInitialGameState, executeActio
 import { createAgent } from '../../src/ai';
 import { Agent } from '../../src/ai/agent';
 import { GameRunner } from '../../src/ai/playout';
-import { PAYOUT_RISK, bareAssetRisk } from '../../src/ai/cardProfiles';
+import { bareAssetRisk } from '../../src/ai/cardProfiles';
+import { PAYOUT_RISK } from '../../src/ai/payoutRisk';
 import { corpEffect } from '../../src/ai/effectValues';
 import { asSide } from '../../src/ai/synergy';
 import { CARDS } from '../../src/ai/cards';

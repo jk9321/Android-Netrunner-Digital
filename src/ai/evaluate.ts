@@ -10,7 +10,7 @@ import { AI_BREAKER_SHARE, RUNNER_TURN_INCOME, breakerTypeWorth, iceTypeOdds, ic
 import { inIcedServer, payoutWait, payoutWorth, profileOf, turnsLeft } from './cardProfiles';
 import { resourceTrashHqCost } from '../core/engine/actions/basic';
 import { HAND_FLOOR, clickPrice, handByCard, heldWorth, ownHandValue, playedWorth, unseenInHand } from './handValues';
-import { CLICK, KNOBS, RATES, cardRate, creditValue, flatlineWorth, guardLoop, handFilter, logValue, mean, memo, payoutSlide, pointGain, pointValue, reachCard, setRunnerAgendaOdds, sideCreditValue } from './valueModel';
+import { CLICK, KNOBS, RATES, cardRate, flatlineWorth, guardLoop, handFilter, logValue, mean, memo, payoutSlide, pointGain, pointValue, reachCard, setRunnerAgendaOdds, sideCreditValue } from './valueModel';
 import { LOCKDOWN, PACE, STEAL, agendaOdds, coreSlotWorth, flatlineOdds, lifeGrip, runSuccess, stealOdds } from './effectValues';
 import { remoteAgendaOdds, trapOdds, trashedCardCost } from './runs';
 import { centralAccess, runChance, threatOn } from './threatModel';
@@ -19,7 +19,6 @@ import { corpDrawPool, oracleSteal } from './oracle';
 
 const MADANI = '35028';
 
-export { creditValue };
 
 /**
  * Board evaluation shared by both AIs, in "credit" units: a credit is worth
@@ -107,22 +106,6 @@ const ICE_TYPES = ['barrier', 'code gate', 'sentry'] as const;
 
 /** A breaker trashed when its run ends (Mayfly): it saves one stop, not the three a lasting breaker is counted for. */
 export const isOneUse = (card: CardInstance): boolean => /when (?:the|this) run ends, trash this program/i.test(cardDef(card).stripped_text ?? '');
-
-/**
- * Share of each ice type among the ice the Corp has shown (rezzed, or
- * trashed faceup to Archives), with a prior of one of each so it starts
- * even. Sums to 1.
- */
-export function shownIceShare(state: GameState): Record<string, number> {
-  const count: Record<string, number> = { barrier: 1, 'code gate': 1, sentry: 1 };
-  const shown = [
-    ...Object.values(state.corp.servers).flatMap(s => s.ice).filter(c => c.isRezzed),
-    ...state.corp.archives.faceUp.filter(c => cardDef(c).type_code === 'ice'),
-  ];
-  for (const ice of shown) for (const t of iceSubtypes(ice, state)) count[t]++;
-  const total = ICE_TYPES.reduce((n, t) => n + count[t], 0);
-  return Object.fromEntries(ICE_TYPES.map(t => [t, count[t] / total]));
-}
 
 export function runnerRigValue(state: GameState): number {
   const rig = state.runner.rig;

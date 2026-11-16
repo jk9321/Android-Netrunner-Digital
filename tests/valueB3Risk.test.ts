@@ -1,7 +1,8 @@
 import { describe, expect, it } from 'vitest';
 import { getCardDefinition } from '../src/core';
 import { CARDS } from '../src/ai/cards';
-import { PAYOUT_RISK, assetRisk, bareAssetRisk } from '../src/ai/cardProfiles';
+import { assetRisk, bareAssetRisk } from '../src/ai/cardProfiles';
+import { PAYOUT_RISK } from '../src/ai/payoutRisk';
 import { corpEffect, perTurn } from '../src/ai/effectValues';
 import { paidOut } from '../src/ai/counterValues';
 import { installCorpForTest, installIceForTest, newGame } from './helpers';

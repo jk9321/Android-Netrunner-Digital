@@ -17,9 +17,6 @@ import { Diagnostics, note } from './diagnostics';
 export const RATES = {
   /** A click left this turn. */
   click: 1,
-  /** Extra worth of each credit while a side is short of them, up to `creditShortUntil` credits. */
-  creditShortBonus: 0.6,
-  creditShortUntil: 6,
   /** Each of the first `handCore` cards in hand. */
   handCore: 2,
   handCoreCards: 3,
@@ -67,11 +64,6 @@ export const RATES = {
   defaultUpgrade: [1, 0.5] as [number, number],
   defaultRig: 2,
 } as const;
-
-/** Credits are worth more while a side is short of them. */
-export function creditValue(credits: number): number {
-  return credits + RATES.creditShortBonus * Math.min(Math.max(credits, 0), RATES.creditShortUntil);
-}
 
 /*
  * Step 2: the agreed curves. Each is switched by its own tuning.plan flag

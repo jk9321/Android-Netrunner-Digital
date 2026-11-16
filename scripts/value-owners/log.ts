@@ -29,13 +29,15 @@ import { Agent } from '../../src/ai/agent';
 import { GameRunner } from '../../src/ai/playout';
 import { installDiagnostics, newDiagnostics } from '../../src/ai/diagnostics';
 import { Pricing, pricing, withPricing } from '../../src/ai/pricing';
-import { CLICK, RATES, cardRate, creditValue, flatlineWorth, payoutSlide, pointGain, reachCard, sampledEndWorth, sideCreditValue, valueLoops } from '../../src/ai/valueModel';
+import { CLICK, RATES, cardRate, flatlineWorth, payoutSlide, pointGain, reachCard, sampledEndWorth, sideCreditValue, valueLoops } from '../../src/ai/valueModel';
 import { clickPrice, handByCard, heldWorth, ownHandValue } from '../../src/ai/handValues';
 import { agendaWorth, corpCardValue, handValue, hqTrashCardsLoss, keepValue, tagsWorth } from '../../src/ai/evaluate';
-import { EFFECT_CODES, FLATLINE, agendaOdds, corpEffect, damageWorth, perTurn, rezzedWorth } from '../../src/ai/effectValues';
+import { agendaOdds, corpEffect, damageWorth, perTurn, rezzedWorth } from '../../src/ai/effectValues';
+import { EFFECT_CODES } from '../../src/ai/cards';
 import { flatIceWorth, iceWorth } from '../../src/ai/iceValues';
 import { counterWorth, countersWorth } from '../../src/ai/counterValues';
-import { CARD_PROFILES, PAYOUT_RISK, bareAssetRisk, payoutWait, payoutWorth, turnsLeft, unrezzedWorth } from '../../src/ai/cardProfiles';
+import { CARD_PROFILES, bareAssetRisk, payoutWait, payoutWorth, turnsLeft, unrezzedWorth } from '../../src/ai/cardProfiles';
+import { PAYOUT_RISK } from '../../src/ai/payoutRisk';
 import { corpKeepValue, runnerCardValue, upgradeValue } from '../../src/ai/cardValues';
 import { CARDS, corpFormula } from '../../src/ai/cards';
 import { clearCaches, dealState, deals, humanFiles } from '../stage-a/harness';
@@ -252,7 +254,6 @@ function priceAgain(s: Sample): void {
     case 'sideCreditValue': {
       const [sd, viewer] = a as [SideCode, SideCode];
       check(s, sideCreditValue(st, sd, viewer));
-      add('credit', 'creditValue (dead) vs sideCreditValue', s, { copy: creditValue(sd === 'corp' ? st.corp.credits : st.runner.credits), owner: s.value });
       return;
     }
     case 'clickPrice': {
@@ -435,7 +436,6 @@ function priceAgain(s: Sample): void {
     }
     case 'flatlineWorth':
       check(s, flatlineWorth(st));
-      add('gameEnd', 'FLATLINE (dead) vs flatlineWorth', s, { copy: FLATLINE, owner: s.value });
       return;
   }
 }

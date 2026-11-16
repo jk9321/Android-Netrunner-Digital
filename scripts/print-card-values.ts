@@ -8,7 +8,7 @@ import { ALL_CARDS, createInitialGameState } from '../src/core';
 import { deckGameSetup } from '../src/data/decks';
 import { ALL_DECKS as DECKS } from './nsg-sample-decks';
 import { CARD_PROFILES, payoutWorth, turnsLeft } from '../src/ai/cardProfiles';
-import { CARD_VALUES } from '../src/ai/cardValues';
+import { CARD_VALUES } from '../src/ai/cards';
 import { COUNTER_WORTH } from '../src/ai/counterValues';
 import { moneyOpGain } from '../src/ai/valueAudit';
 import { COUNTERS_PRICED_ELSEWHERE, valueSources } from '../src/ai/valueAudit';

@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
-import { CARD_PROFILES, PAYOUT_RISK, payoutWait, payoutWorth, turnsLeft, unrezzedWorth } from '../src/ai/cardProfiles';
+import { CARD_PROFILES, payoutWait, payoutWorth, turnsLeft, unrezzedWorth } from '../src/ai/cardProfiles';
+import { PAYOUT_RISK } from '../src/ai/payoutRisk';
 import { tuning } from '../src/ai/synergy';
 import { newGame } from './helpers';
 
