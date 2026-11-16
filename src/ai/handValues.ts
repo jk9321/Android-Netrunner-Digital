@@ -6,7 +6,7 @@ import { breakerTypeWorth, iceWorth } from './iceValues';
 import { agendaWorth, isOneUse, runnerRigValue } from './evaluate';
 import { counterWorth } from './counterValues';
 import { handPlanWorth } from './cardPlans';
-import { CLICK, RATES, cardRate, fingerprint, handFilter, payoutSlide, pricingApart, positionSerial, printedGain, reachCard, scopeToGame, setDeckCard } from './valueModel';
+import { CLICK, RATES, cardRate, fingerprint, handFilter, logValue, payoutSlide, pricingApart, positionSerial, printedGain, reachCard, scopeToGame, setDeckCard } from './valueModel';
 import { leafHandByCard, noteDecision, plan, pricing, pricingKey, withPricing } from './pricing';
 import { corpDrawPool, corpKnowsRd } from './oracle';
 
@@ -28,6 +28,7 @@ export const HAND_FLOOR = 0.5;
 
 /** Worth of a card once played, less its cost and click (credits), before the wait. */
 export function playedWorth(state: GameState, card: CardInstance): number {
+  logValue('click', 'playedWorth', state, CLICK, card); // the flat click every branch but an event's or operation's charges
   const def = cardDef(card);
   const cost = def.cost ?? 0;
   const turns = turnsLeft(state);
@@ -96,7 +97,7 @@ function loadedWorth(state: GameState, card: CardInstance): number {
   return Number(load[1]) * counterWorth(state, card, type);
 }
 
-/** Worth of one card waiting in hand. */
+/** Worth of one card waiting in hand: the card-level input of a hand's owner, ownHandValue (registry, valuation table). */
 export function heldWorth(state: GameState, card: CardInstance, side: SideCode, freeInstall = false): number {
   // Installed later without spending a click (a program hosted on Madani): the click playedWorth charges is saved
   return heldFromPlayed(state, card, side, playedWorth(state, card) + (freeInstall ? CLICK : 0));
@@ -274,7 +275,7 @@ setDeckCard((state, side) => (pricing().averaging ? RATES.drawnCard : drawWorth(
 /**
  * Worth of a side's own hand: the best `limit` cards by held worth, the
  * first over the limit as a filter (Jeff), the rest nothing. The first few
- * cards keep their extra worth as cards to have at all (life against damage).
+ * cards keep their extra worth as cards to have at all (life against damage). Owner of a hand, HQ or the grip (registry).
  */
 export function ownHandValue(state: GameState, side: SideCode): number {
   const hand = side === 'corp' ? state.corp.hq : state.runner.grip;
@@ -284,7 +285,7 @@ export function ownHandValue(state: GameState, side: SideCode): number {
   const reach = side === 'corp' ? reachCard(state) : undefined;
   const values = hand
     // plan.oracle.rd: a card the Corp drew in a look-ahead is one it knew was coming
-    .map(c => (seen && !seen.has(c.instanceId) && !(side === 'corp' && corpKnowsRd()) ? drawWorth(state, side) : c === reach ? HAND_FLOOR : heldWorth(state, c, side)))
+    .map(c => (seen && !seen.has(c.instanceId) && !(side === 'corp' && corpKnowsRd()) ? logValue('cardDrawn', 'ownHandValue drawWorth', state, drawWorth(state, side), side) : c === reach ? HAND_FLOOR : heldWorth(state, c, side)))
     .sort((a, b) => b - a);
   let value = 0;
   for (let i = 0; i < values.length; i++) {
@@ -323,7 +324,7 @@ export function clickWorth(state: GameState, side: SideCode): number {
     // rest (playedWorth charges the click: add it back to get what the click buys)
     .map(c => (1 - SOON.now) * (playedWorth(state, c) + CLICK))
     .sort((a, b) => b - a);
-  const repeatable = Math.max(1, drawWorth(state, side));
+  const repeatable = Math.max(1, logValue('cardDrawn', 'clickWorth drawWorth', state, drawWorth(state, side), side));
   let total = 0;
   for (let i = 0; i < clicks; i++) total += Math.max(repeatable, plays[i] ?? 0);
   const value = Math.max(1, Math.min(3, total / clicks));
@@ -341,8 +342,8 @@ export function clickWorth(state: GameState, side: SideCode): number {
 }
 const clickCache = new Map<string, number>();
 
-/** Price of a click left to `side`, as `viewer` sees it: best play in hand for its own, the 1.25 default for the other side's. */
+/** Price of a click left to `side`, as `viewer` sees it: best play in hand for its own, the 1.25 default for the other side's. Owner of a click (registry). */
 export function clickPrice(state: GameState, side: SideCode, viewer: SideCode): number {
-  return side === viewer && plan().clickByPlay?.[viewer] ? clickWorth(state, side) : CLICK;
+  return logValue('click', 'clickPrice', state, side === viewer && plan().clickByPlay?.[viewer] ? clickWorth(state, side) : CLICK, side, viewer);
 }
 

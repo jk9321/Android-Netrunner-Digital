@@ -223,6 +223,52 @@ describe('AI code health (audit guards)', () => {
     expect(readers).toEqual(['corp/candidates.ts', 'corp/lines.ts', 'corp/placement.ts', 'corp/rez.ts', 'corp/rezMoney.ts']);
   });
 
+  // Valuation V-A (brief-stage-va-owners.md rev 2, ruling 8; audit VAL-DEAD): every export of the eight valuation files
+  // has a reader in src. A reader is a use in a src file outside the export's own statement; in another file only where
+  // that file imports the name (a same-named local is not a reader); a re-export or a test is not a reader. The exports
+  // with no reader are listed here, each with why it stays, for V-B and Jeff; the list may only shrink.
+  const DEAD_VALUATION_EXPORTS: Record<string, string> = {
+    'valueModel:creditValue': 'dead (re-exported by evaluate.ts, never read): V-B',
+    'valueModel:clearBuildTargets': 'test and script cache reset (scripts/cache-bisect.ts)',
+    'handValues:clearHandCaches': 'test and script cache reset',
+    'effectValues:clearDamageThreats': 'test and script cache reset',
+    'iceValues:clearDeckShares': 'test and script cache reset',
+    'effectValues:passOddsOf': 'scripts only (threat calibration)',
+    'effectValues:FLATLINE': 'dead (tests only; valueModel flatlineWorth replaced it): V-B',
+    'effectValues:topDownWorth': 'dead (tests only): V-B',
+    'evaluate:shownIceShare': 'dead (no reader anywhere): V-B',
+    'evaluate:AGENDA_RUN': 'scripts only (a measured rate, logged)',
+    'evaluate:setAgendaClick': 'scripts only (scripts/human-agreement.ts sweeps AGENDA_CLICK)',
+    'evaluate:centralExposure': 'scripts and tests only since the oneCurrency off path went (its own memo key names it): V-B',
+  };
+  it('has a src reader for every valuation export but the listed ones (V-A; shrink only)', () => {
+    const VALUATION = ['valueModel', 'handValues', 'effectValues', 'evaluate', 'cardValues', 'cardProfiles', 'counterValues', 'iceValues'];
+    const src = (readdirSync(new URL('../src/', import.meta.url), { recursive: true }) as string[]).filter(f => /\.tsx?$/.test(f)).map(f => f.replace(/\\/g, '/'));
+    const strip = (t: string) => t.replace(/\/\*[\s\S]*?\*\//g, m => m.replace(/[^\n]/g, ' ')).replace(/\/\/.*$/gm, '').replace(/'(?:[^'\\\n]|\\.)*'|"(?:[^"\\\n]|\\.)*"/g, "''");
+    const raw: Record<string, string> = Object.fromEntries(src.map(f => [f, readFileSync(new URL(`../src/${f}`, import.meta.url), 'utf8')]));
+    const code: Record<string, string[]> = Object.fromEntries(src.map(f => [f, strip(raw[f]).split('\n')]));
+    const imports = (f: string, name: string) => [...raw[f].matchAll(/^import\s+(?!type\b)\{([^}]*)\}/gm)].some(m => new RegExp(`\\b${name}\\b`).test(m[1]));
+    const dead: string[] = [];
+    for (const v of VALUATION) {
+      const file = `ai/${v}.ts`;
+      const lines = code[file];
+      lines.forEach((line, i) => {
+        const m = /^export (?:function|const|let) (\w+)/.exec(line);
+        if (!m) return;
+        // The export's own statement: to the next line that starts a top-level statement
+        let end = i + 1;
+        while (end < lines.length && !/^[^\s})\]]/.test(lines[end])) end++;
+        const name = m[1];
+        const re = new RegExp(`\\b${name}\\b`);
+        const use = (l: string) => re.test(l) && !/^\s*(import\b|export \{|export \*)/.test(l) && !/^\s*\w+,?\s*$/.test(l);
+        const read = src.some(f => (f === file ? lines.some((l, j) => (j < i || j >= end) && use(l)) : imports(f, name) && code[f].some(use)));
+        if (!read) dead.push(`${v}:${name}`);
+      });
+    }
+    expect(dead.filter(k => !(k in DEAD_VALUATION_EXPORTS)), 'a valuation export with no reader in src: delete it, or list it here with why').toEqual([]);
+    expect(Object.keys(DEAD_VALUATION_EXPORTS).filter(k => !dead.includes(k)), 'it has a reader now: take it off the list').toEqual([]);
+  });
+
   // src/ai's total may only go down. Stage B ends at 13,938: beta at 545f146 is 13,851 (the Runner draws branch added 52
   // to the Stage A tree's 13,799), Stage B adds 77 (corp/core.ts's pipeline and the B5 time fix; AI Coordinator
   // 2026-11-14 21:05Z) and review R8 adds 10 (board.ts and corpPorts.ts, the seam that takes corp/ out of the cycle).
@@ -269,9 +315,13 @@ describe('AI code health (audit guards)', () => {
   // ai-honest-corp-decision, measured: src/ai/corp +33 (corp/core.ts: corpDecide's view, the legality check before the
   // commits, honestCorpCounts), corpAI.ts +8, turnPlanner.ts +85 (corpDecisionView's mark, promptNamedIds,
   // promptCardsInPlace, keepNamed): 2,257 + 33 = 2,290 and 14,059 + 126 = 14,185
-  it('keeps src/ai/corp at or under 2,290 lines and src/ai at or under 14,185 (Stage C hand-off, ai-corp-honest-order, ai-value-time, ai-playout-lines, ai-honest-runner-view, ai-honest-corp-decision)', () => {
+  // ai-value-owners (valuation V-A, brief rev 2: rises only by the measured lines) adds 37: the disagreement log's one
+  // writer, valueModel.ts logValue (+23), the owner doc comments and the hooks that hand each owner's or copy's value to it
+  // unchanged (+14 over the eight valuation files and diagnostics.ts' onValue field). V-B takes the hooks back when the
+  // copies are gone; logValue stays while the log is the registry's evidence. 14,185 + 37 = 14,222
+  it('keeps src/ai/corp at or under 2,290 lines and src/ai at or under 14,222 (Stage C hand-off, ai-corp-honest-order, ai-value-time, ai-playout-lines, ai-honest-runner-view, ai-honest-corp-decision, ai-value-owners)', () => {
     const corp = aiFiles().filter(f => f.replace(/\\/g, '/').startsWith('corp/')).reduce((n, f) => n + lines(f), 0);
     expect(corp).toBeLessThanOrEqual(2290);
-    expect(aiFiles().reduce((n, f) => n + lines(f), 0)).toBeLessThanOrEqual(14185);
+    expect(aiFiles().reduce((n, f) => n + lines(f), 0)).toBeLessThanOrEqual(14222);
   });
 });
