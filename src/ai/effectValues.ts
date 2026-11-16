@@ -4,8 +4,8 @@ import { PAYOUT_RISK } from './payoutRisk';
 import { COUNTER_WORTH, defaultWorth } from './counterValues';
 import { CARDS, advancePayloadOf, corpFormula, runnerFormula } from './cards';
 import { actingSide } from './synergy';
-import { CLICK, cardRate, flatlineWorth, logValue, memo, pointGain, pointValue, scopeToGame, sideCards } from './valueModel';
-import { tagsWorth } from './evaluate';
+import { CLICK, cardRate, flatlineWorth, logValue, memo, pointGain, scopeToGame, sideCards } from './valueModel';
+import { agendaWorth, tagsWorth } from './evaluate';
 import { BLOCK, iceCost, iceCreditNeed, isTrap, plannedSubroutines, subroutineCost, tankDamage } from './runs';
 import { plan, pricing, withPricing } from './pricing';
 import { REZ_NOW_SHARE, rezBudget } from './iceValues';
@@ -557,12 +557,13 @@ export function iceAdvanceWorth(state: GameState, card: CardInstance, iceCostAt:
 export const knownTrap = (card: CardInstance): boolean => !!card.runnerKnows && isTrap(card.cardCode);
 
 /** Worth of an advancement counter placed by an effect (Sericulture, Syailendra) on this card. */
-export function placedCounterWorth(state: GameState, card: CardInstance, iced: boolean): number {
+export function placedCounterWorth(state: GameState, card: CardInstance): number {
   const def = cardDef(card);
   if (def.type_code === 'agenda') {
-    const points = def.agenda_points ?? 1;
-    const share = (pointValue(state.corp.score + points) - pointValue(state.corp.score)) / Math.max(1, def.advancement_cost ?? 3);
-    return logValue('agenda', 'placedCounterWorth', state, iced ? share : 0.3 * share, card, iced);
+    // The owner's step on the board's own term (corpBoardValue's arguments): the steal by its server is in agendaWorth (V-B B6)
+    const server = Object.values(state.corp.servers).find(s => s.root.some(c => c.instanceId === card.instanceId))?.id;
+    const worth = (n: number) => agendaWorth(state, n, def.advancement_cost ?? 0, def.agenda_points ?? 1, server);
+    return logValue('agenda', 'placedCounterWorth', state, worth(card.advancementCounters + 1) - worth(card.advancementCounters), card);
   }
   // Traps: an advanced card reads as an agenda and draws a run (about a third of the time, a click and 2 credits wasted)
   // A known trap (knownTrap: 7.1.2, 10.2.2b) draws no run: no bluff, and nothing from being accessed again (Urtica's

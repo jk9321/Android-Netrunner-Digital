@@ -193,7 +193,7 @@ Counts at the branch head (scripts/value-owners/counts.mjs): see "Counts" at the
 
 ### V6. An installed agenda
 - **Owner:** `agendaWorth` (`src/ai/evaluate.ts:225`): its points on the clock if it stands through the Runner turns until it can be scored, less the clicks and credits still to put in (a click at `AGENDA_CLICK`, V16).
-- **Copies:** `placedCounterWorth` (`src/ai/effectValues.ts:565`)'s agenda share: one counter is worth `point gain / advancement cost` (0.3 of it unprotected). Asks counted. Comparable: against `agendaWorth(counters + 1) - agendaWorth(counters)` for the same agenda in its server.
+- **Copies:** none since V-B B6: `placedCounterWorth`'s agenda share (`point gain / advancement cost`, 0.3 of it unprotected) became the owner's step, `agendaWorth(counters + 1) - agendaWorth(counters)` on the agenda's server with corpBoardValue's arguments (`placedCounterWorth` (`src/ai/effectValues.ts:566`), a reader).
 - **Not copies (a different quantity, the stake of losing an agenda, both sides' points; the Corp row "Agenda odds (what an access is worth)"):** `serverStake` (`src/ai/iceValues.ts:114`)'s swing and `plannedStake` (`src/ai/iceValues.ts:142`), `openAgendaLoss` (`src/ai/runnerReply.ts:233`). The audit's Q1 table counted them here; the count above leaves them out and they are named in that row's sense instead.
 - **Readers:** `agendaWorth` (`src/ai/evaluate.ts:345`), `agendaWorth` (`src/ai/evaluate.ts:345`), `agendaWorth` (`src/ai/handValues.ts:51`).
 - **Caches, context:** none of its own; reads `stealOdds` and `runSuccess` (`memo`). Context: `plan.openSteal`, `plan.oracle.safestRemote`, `KNOBS.corpPoints`.
@@ -297,7 +297,6 @@ V-B B1 re-baseline (recount VA-COPY-COUNT-BASELINE, ruling 13): the count is the
 | V4 | Jailbreak's drawn card | `RATES.drawnCard` (`src/ai/runnerAI.ts:318`) | live | recorded for the Runner cleanup (ruling 12) | Runner cleanup |
 | V5 | the ice loop fallback | `flatIceWorth` (`src/ai/iceValues.ts:237`) | live | loop guard (brief B6) | none |
 | V5 | Ingatan's ice in Archives | `RATES.ice` (`src/ai/cards/elevation.ts:61`) | live | not the same quantity: an ice in Archives has no instance the owner can price (ruling 17's default; B6 labels file) | none |
-| V6 | the agenda share of a placed counter | `placedCounterWorth` (`src/ai/effectValues.ts:565`) | live | labels file | B6 |
 | V7 | the flat 3 a tag inside the owner (tag clock and loop) | `tagsWorth flat` (`src/ai/evaluate.ts:367`) | live | loop guard (ruling 10) | B5, label only |
 | V7 | Solidarity Badge's tag removed | `RATES.tagAgainstRunner * 0.5` (`src/ai/cards/liberation.ts:40`) | live | owner is right (ruling 10) | B5 |
 | V7 | Eru Ayase-Pessoa's flat tag | `RATES.tagAgainstRunner` (`src/ai/cards/liberation.ts:64`) | live | owner is right (ruling 10) | B5 |
@@ -369,14 +368,14 @@ From `node scripts/value-owners/counts.mjs` (re-run it to recount; the copy coun
 
 | count | value |
 |---|--:|
-| hand-set literals in the valuation layer (val-lits.mjs: table + scattered) | 1103 (957 + 146) |
+| hand-set literals in the valuation layer (val-lits.mjs: table + scattered) | 1101 (957 + 144) |
 | quantities with one named owner (V1 to V25) | 25 |
-| live copies, all quantities (the live lines of "Copy lines") | 34 |
+| live copies, all quantities (the live lines of "Copy lines") | 33 |
 | other copy lines, by kind (not counted) | reader 2, gone 4, recorded 1, not comparable 6, inside owner 2 |
 | valuation exports with no reader (allow-list) | 6 |
-| lines of src/ai | 13605 |
+| lines of src/ai | 13606 |
 
-Live copies per quantity: V1 0, V2 3, V3 8, V4 3, V5 2, V6 1, V7 7, V8 0, V9 1, V10 1, V11 1, V12 3, V13 0, V14 2, V15 2, V16 0, V17 0, V18 0, V19 0, V20 0, V21 0, V22 0, V23 0, V24 0, V25 0.
+Live copies per quantity: V1 0, V2 3, V3 8, V4 3, V5 2, V6 0, V7 7, V8 0, V9 1, V10 1, V11 1, V12 3, V13 0, V14 2, V15 2, V16 0, V17 0, V18 0, V19 0, V20 0, V21 0, V22 0, V23 0, V24 0, V25 0.
 <!-- valuation:end -->
 
 ## Hidden information (rule 10.2.2a)

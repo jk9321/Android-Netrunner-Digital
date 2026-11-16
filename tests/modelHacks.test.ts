@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { PETTY_CASH_REPLAY, iceAdvanceWorth, placedCounterWorth, rezEffectWorth, rezzedWorth } from '../src/ai/effectValues';
 import { createCardInstance } from '../src/core/engine/gameState';
+import { agendaWorth } from '../src/ai/evaluate';
 import { newGame } from './helpers';
 import { HeuristicCorpAI, createAgent } from '../src/ai';
 import { GameState, actingSide, cardDef, executeAction } from '../src/core';
@@ -34,12 +35,23 @@ describe('value hacks replaced by the model (Jeff, 2026-10-28; plan.modelHacks)'
     expect(iceAdvanceWorth(s, pharos, at)).toBe(0);
   });
 
-  it('a placed counter: on an agenda behind ice, its share of the points; on a bare trap, the bluff and the damage', () => {
+  // V-B B6 item 17: an agenda's counter is the owner's step (agendaWorth on its server, corpBoardValue's arguments), whose
+  // steal odds by server replace the old iced / 0.3 factor
+  it('a placed counter: on an agenda, the owner\'s step on its server; on a bare trap, the bluff and the damage', () => {
+    const at = (ice: string[]) => {
+      const s = newGame();
+      const agenda = createCardInstance(s, '30069');
+      s.corp.servers['remote-1'] = { id: 'remote-1', name: 'remote-1', isRemote: true, ice: ice.map(c => createCardInstance(s, c)), root: [agenda] };
+      const def = cardDef(agenda);
+      const step = agendaWorth(s, 1, def.advancement_cost ?? 0, def.agenda_points ?? 1, 'remote-1') - agendaWorth(s, 0, def.advancement_cost ?? 0, def.agenda_points ?? 1, 'remote-1');
+      expect(placedCounterWorth(s, agenda)).toBeCloseTo(step, 9);
+      return step;
+    };
+    // At 0 of 4 counters the step is the click and credit it saves (need x (click + 1)), behind ice or not
+    for (const ice of [['30072'], []]) expect(at(ice)).toBeGreaterThan(0);
     const s = newGame();
-    const agenda = createCardInstance(s, '30069');
-    expect(placedCounterWorth(s, agenda, true)).toBeGreaterThan(placedCounterWorth(s, agenda, false));
     const urtica = createCardInstance(s, '30045');
-    expect(placedCounterWorth(s, urtica, false)).toBeGreaterThan(1);
+    expect(placedCounterWorth(s, urtica)).toBeGreaterThan(1);
   });
 
   it('Petty Cash replays for its net 2 credits', () => {
