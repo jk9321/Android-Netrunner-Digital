@@ -203,7 +203,9 @@ export const runClick = (state?: GameState): number => (state ? clickPrice(state
 export function tagCost(state: GameState): number {
   // A run still to start takes its click first (plan.tagNoClear: what's left to clear the tag with)
   const s = !state.activeRun ? { ...state, runner: { ...state.runner, clicks: state.runner.clicks - 1 } } : state;
-  return tagsWorth(s, 'runner', s.runner.tags + 1) - tagsWorth(s, 'runner', s.runner.tags); // both priced as given (plan.tagTrashNow)
+  // The clock's loss is kept on the original board (keyed with the copy's clicks), so a copy per call costs no re-pricing
+  const home = s === state ? undefined : state;
+  return tagsWorth(s, 'runner', s.runner.tags + 1, home) - tagsWorth(s, 'runner', s.runner.tags, home); // both priced as given (plan.tagTrashNow)
 }
 
 /** An installed card the Corp gets to trash: about the Runner's best, a breaker at its install cost and the time to replace it. */
