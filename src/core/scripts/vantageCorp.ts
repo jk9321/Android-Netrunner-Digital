@@ -5,7 +5,7 @@ import { shuffleInPlace } from '../rng';
 import { shuffleRD } from '../engine/rdKnowledge';
 import { addLog } from '../engine/log';
 import { checkAgendaVictory, findInstalledCorpCard, removeCard, revealInHand, turnKey } from '../engine/helpers';
-import { noteRdPrivate, runnerSeesRd } from '../engine/rdKnowledge';
+import { corpSeesRd, noteRdPrivate, runnerSeesRd } from '../engine/rdKnowledge';
 import { completeRez, rezForFree } from '../engine/actions/corp';
 import { installCorpCardFrom } from '../engine/actions/install';
 import { dealMeatDamage, dealNetDamage, giveTags, installedRunnerCards, trashInstalledRunnerCard, uninstallRunnerCard } from '../engine/damage';
@@ -118,6 +118,7 @@ const melies: CardScript = {
       addLog(state, 'corp', `Méliès U was flipped: the ${MELIES_SERVERS[side]} side.`);
       if (side !== e.server || state.corp.rd.length === 0) return;
       const top = state.corp.rd[0];
+      corpSeesRd(state, [top]); // the Corp looks at it (10.2.2b)
       askChoice(ctx, 'corp', `Méliès U: the top card of R&D is ${title(top)}. Trash it to add 1 card from Archives to HQ?`, [
         { id: 'trash', label: `Trash ${title(top)}` },
         { id: 'no', label: 'Leave it' },
@@ -550,6 +551,7 @@ const ezam: CardScript = {
         resolve: ctx => {
           const top = ctx.state.corp.rd[0];
           if (!top) return;
+          corpSeesRd(ctx.state, [top]); // the Corp looks at it (10.2.2b); it follows the card to the bottom if moved
           askChoice(ctx, 'corp', `ezaM: the top card of R&D is ${title(top)}. Add it to the bottom of R&D?`, [
             { id: 'bottom', label: 'Bottom of R&D' },
             { id: 'leave', label: 'Leave it on top' },
@@ -936,7 +938,10 @@ const retirementPlan: CardScript = {
 // arrange the rest in any order.
 const cultivate: CardScript = {
   canPlay: ({ state }) => (state.corp.rd.length > 0 ? null : 'R&D is empty'),
-  onPlay: ctx => askCards(ctx, 'corp', 'Cultivate: trash 1 of the top 5 cards of R&D.', ids(ctx.state.corp.rd.slice(0, 5)), 1, 1, 'trash', { ids: ids(ctx.state.corp.rd.slice(0, 5)) }),
+  onPlay: ctx => {
+    corpSeesRd(ctx.state, ctx.state.corp.rd.slice(0, 5)); // the Corp looks at them (8.3.3b)
+    askCards(ctx, 'corp', 'Cultivate: trash 1 of the top 5 cards of R&D.', ids(ctx.state.corp.rd.slice(0, 5)), 1, 1, 'trash', { ids: ids(ctx.state.corp.rd.slice(0, 5)) });
+  },
   onPromptAnswer: (ctx, source, answer) => {
     const { state } = ctx;
     if (answer.kind !== 'effect_cards') return;

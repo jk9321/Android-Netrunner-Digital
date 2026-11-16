@@ -1,5 +1,5 @@
 import { CardInstance } from '../types/card';
-import { GameState, RdKnownCard, RdNotes } from '../types/state';
+import { GameState, RdCorpKnownCard, RdKnownCard, RdNotes } from '../types/state';
 import { shuffleInPlace } from '../rng';
 import { publicCards, revealInHand } from './helpers';
 
@@ -20,12 +20,82 @@ import { publicCards, revealInHand } from './helpers';
 
 const notes = (state: GameState): RdNotes => (state.corp.rdNotes ??= {});
 
-/** Shuffles R&D. The Runner no longer knows where any card in it is. */
+/**
+ * For the engine fuzzer only (scripts/engine-fuzz-check.ts): how many times R&D has been shuffled, and the cards
+ * the Corp has looked at since the last shuffle. Read by nothing in the game.
+ */
+export const rdShuffleProbe = { shuffles: 0, corpSeenSince: new Set<string>() };
+
+/** Shuffles R&D. Neither player knows where any card in it is any more (rules 4.2.2, 8.7.3). */
 export function shuffleRD(state: GameState): void {
   shuffleInPlace(state.rng, state.corp.rd);
   notes(state).shuffled = true;
   notes(state).seen = [];
+  notes(state).corpSeen = [];
   state.corp.rdKnownToRunner = [];
+  state.corp.rdKnownToCorp = [];
+  rdShuffleProbe.shuffles++;
+  rdShuffleProbe.corpSeenSince.clear();
+}
+
+/**
+ * The Corp looked at these R&D cards (Poétrï, Epiphany Analytica, Balanced Coverage, Méliès U, ezaM, Nuvem SA, an
+ * arrange "in any order", 8.3.3), or put them there after a search that revealed them: it knows where they are
+ * at the end of the action. A card the Runner accesses in R&D is not one of them: the Corp may not look at it (7.1.2).
+ */
+export function corpSeesRd(state: GameState, cards: CardInstance[]): void {
+  const seen = (notes(state).corpSeen ??= []);
+  for (const card of cards) {
+    seen.push(card.instanceId);
+    rdShuffleProbe.corpSeenSince.add(card.instanceId);
+  }
+  // Also written at once: a look made while the action settles (a trigger after the action, Nuvem SA) comes after
+  // updateRdKnowledge, and the decision that follows must already know it. The next update follows it from here.
+  const known = new Map(knownToCorpInRd(state).map(e => [e.id, e]));
+  for (const card of cards) {
+    const at = state.corp.rd.findIndex(c => c.instanceId === card.instanceId);
+    if (at >= 0) known.set(card.instanceId, { id: card.instanceId, at });
+  }
+  state.corp.rdKnownToCorp = [...known.values()].sort((x, y) => x.at - y.at);
+}
+
+/** The Runner arranged these R&D cards in secret (Cataloguer): the Corp may not look at them (8.3.3a), so it forgets where they are. */
+export function corpLosesRd(state: GameState, cards: CardInstance[]): void {
+  const lost = cards.map(c => c.instanceId);
+  (notes(state).corpForgets ??= []).push(...lost);
+  if (state.corp.rdKnownToCorp) state.corp.rdKnownToCorp = state.corp.rdKnownToCorp.filter(e => !lost.includes(e.id));
+}
+
+/** The R&D cards the Corp knows the place of, top first. */
+export function knownToCorpInRd(state: GameState): RdCorpKnownCard[] {
+  return state.corp.rdKnownToCorp ?? [];
+}
+
+/**
+ * Brings the Corp's memory of R&D up to date after an action. The Corp sees every card it puts into R&D (they come
+ * from HQ, Archives, its play area or a score area: 4.3.2, 4.4.6c), every card it draws or trashes from the top and
+ * every card the Runner steals or trashes there, so a card it knows keeps its place in its memory as the cards
+ * around it come and go (4.2.3), with three exceptions: a shuffle forgets everything (4.2.2, 8.7.3); the cards the
+ * Runner arranged in secret are forgotten (8.3.3a); and the cards the Runner merely accesses tell it nothing (7.1.2).
+ */
+function updateCorpRdKnowledge(prev: GameState, state: GameState, note: RdNotes | undefined): void {
+  const had = state.corp.rdKnownToCorp;
+  const seen = note?.corpSeen ?? [];
+  const before = prev.corp.rd;
+  const after = state.corp.rd;
+  // Cheap way out (this runs after every action of every playout): nothing known, nothing seen, nothing came in
+  if (!had?.length && seen.length === 0 && (note?.shuffled || !after.some((c, i) => before[i]?.instanceId !== c.instanceId))) return;
+  const ids = new Set<string>();
+  if (!note?.shuffled) {
+    for (const e of had ?? []) ids.add(e.id);
+    const was = new Set(before.map(c => c.instanceId));
+    for (const c of after) if (!was.has(c.instanceId)) ids.add(c.instanceId);
+  }
+  for (const id of seen) ids.add(id);
+  for (const id of note?.corpForgets ?? []) ids.delete(id);
+  const known: RdCorpKnownCard[] = [];
+  after.forEach((c, at) => ids.has(c.instanceId) && known.push({ id: c.instanceId, at }));
+  if (known.length > 0 || had) state.corp.rdKnownToCorp = known;
 }
 
 /** The Corp secretly acted on the top `count` cards of R&D: which ones moved where is hidden (rules 8.3.3b). */
@@ -77,6 +147,7 @@ const isExact = (e: RdKnownCard) => e.lo === e.hi && !e.left;
 export function updateRdKnowledge(prev: GameState, state: GameState): void {
   const note = state.corp.rdNotes;
   delete state.corp.rdNotes;
+  updateCorpRdKnowledge(prev, state, note);
   let known = knownInRd(state);
   const seen = note?.seen ?? [];
   if (known.length === 0 && seen.length === 0) return;
