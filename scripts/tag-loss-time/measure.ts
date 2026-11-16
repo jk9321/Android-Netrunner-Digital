@@ -17,6 +17,7 @@
  *           40 <= k < 56: the saved decision in every arm, rotated by k, forward then reversed;
  *           56 <= k < 64: the whole game played in arm ARMS[k - 56], its time per turn (picks that differ change the
  *             game, so this is the absolute game time only).
+ *   saved / saved-values   the saved decision alone in a container (K rotates the arms' order), or its values pass.
  *   SHARD=0/64 npx vite-node scripts/tag-loss-time/measure.ts -- deals > out-0.txt       (sum: summary.mjs)
  */
 import { readFileSync, rmSync } from 'node:fs';
@@ -290,6 +291,10 @@ async function main() {
       else if (shard < 56) savedState(shard);
       else await wholeGame(ARMS[shard - 56]);
     } else if (mode === 'saved') savedState(Number(process.env.K ?? 0));
+    else if (mode === 'saved-values') {
+      const s: GameState = JSON.parse(readFileSync('scripts/tag-loss-time/t18-state.json', 'utf8'));
+      valued('saved:t18', 0, 'corp', 'main', s);
+    }
     else throw new Error(`unknown mode ${mode}`);
   } finally {
     rmSync(root, { recursive: true, force: true });

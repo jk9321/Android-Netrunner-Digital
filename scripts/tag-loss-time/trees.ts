@@ -286,8 +286,8 @@ const zero = (): Tally => ({ prices: 0, r0: 0, rSkip: 0, broke: 0, priced: 0, un
 
 export interface Diff { armTurn: number; todayTurn: number; armWorth: number; todayWorth: number; armTerms: unknown; todayTerms: unknown; viewer: string; tags: number; ident: string }
 /** The values pass: per-turn loss and tag worth, the arm's against today's on the same board. */
-export interface Values { n: number; turnDiff: number; turnSum: number; turnAbs: number; worthDiff: number; worthSum: number; worthAbs: number; nonFinite: number; largest: (Diff & { d: number }) | null }
-const zeroValues = (): Values => ({ n: 0, turnDiff: 0, turnSum: 0, turnAbs: 0, worthDiff: 0, worthSum: 0, worthAbs: 0, nonFinite: 0, largest: null });
+export interface Values { n: number; turnBig: number; worthBig: number; turnDiff: number; turnSum: number; turnAbs: number; worthDiff: number; worthSum: number; worthAbs: number; nonFinite: number; largest: (Diff & { d: number }) | null }
+const zeroValues = (): Values => ({ n: 0, turnBig: 0, worthBig: 0, turnDiff: 0, turnSum: 0, turnAbs: 0, worthDiff: 0, worthSum: 0, worthAbs: 0, nonFinite: 0, largest: null });
 
 export class TlProbe {
   t: Tally = zero();
@@ -369,6 +369,9 @@ export class TlProbe {
     if (![d.armTurn, d.todayTurn, d.armWorth, d.todayWorth].every(Number.isFinite)) v.nonFinite++;
     const dt = d.armTurn - d.todayTurn;
     const dw = d.armWorth - d.todayWorth;
+    // differences past 1e-9 (a sum taken in another order differs in the last bits only)
+    if (Math.abs(dt) > 1e-9) v.turnBig++;
+    if (Math.abs(dw) > 1e-9) v.worthBig++;
     if (dt !== 0) {
       v.turnDiff++;
       v.turnSum += dt;
