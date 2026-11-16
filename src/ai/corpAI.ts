@@ -1,14 +1,14 @@
-import { CardInstance, GameAction, GameState, getLegalActions } from '../core';
+import { CardInstance, GameAction, GameState, getLegalActions, isLegalAction } from '../core';
 import { Agent, FreeActionGuard, ScoredAction } from './agent';
 import { asSide } from './synergy';
 import { decisionContext } from './handValues';
-import { PlanMemory, corpDecisionView, planTurn, plannerOn } from './turnPlanner';
+import { PlanMemory, corpDecisionView, planTurn, plannerOn, promptCardsInPlace } from './turnPlanner';
 import { runnerReply } from './runnerReply';
 import { decideRez, perfectRecallTarget } from './corp/rez';
 import { holdingRezIds, rezMoney } from './corp/rezMoney';
 import { registerCorpPorts } from './corpPorts';
 import { plan, withPricing } from './pricing';
-import { CorpMemory, corpDecide, playoutLine } from './corp/core';
+import { CorpMemory, corpDecide, countHonest, playoutLine } from './corp/core';
 import { asRanked, corpCandidates, freeInstallTarget, plannerIntake } from './corp/candidates';
 
 /**
@@ -62,17 +62,16 @@ export class HeuristicCorpAI implements Agent {
     return [...this.runs.turns.entries()].sort((a, b) => b[0] - a[0]).map(([, servers]) => servers);
   }
 
-  /** The pipeline (corp/core.ts corpDecide), the order at Q7 and the turn planner over it. */
+  /** The pipeline (corp/core.ts corpDecide), the order at Q7 and the turn planner over it; the deciding Corp reads its own view for the whole decision (rule 10.2.2a). */
   private decide(state: GameState): GameAction {
-    return corpDecide(state, {
-      synergy: this.synergy,
-      counted: this.synergy && this.planner,
-      memory: this.memory,
-      rank: (s, legal) => this.rankMainActions(s, legal),
-      lookahead: this.planner ? (s, ranked) => (plannerOn('corp') ? this.plan(s, ranked) : null) : undefined,
-      note: action => this.notePlayed(action),
-      debug: this.debug,
-    });
+    const view = this.planner ? corpDecisionView(state) : state;
+    const ctx = { synergy: this.synergy, counted: this.synergy && this.planner, memory: this.memory, debug: this.debug, note: (a: GameAction) => this.notePlayed(a) };
+    const snapshot = () => {
+      const line = [...this.planMemory.line];
+      return () => void (this.planMemory.line = line);
+    };
+    const lookahead = this.planner ? (s: GameState, ranked: ScoredAction[]) => (plannerOn('corp') ? this.plan(s, ranked) : null) : undefined;
+    return corpDecide(state, { ...ctx, rank: (s, legal) => this.rankMainActions(s, legal), lookahead, snapshot }, view, promptCardsInPlace(state, view));
   }
 
   /** Counts actions in a row that spent no click (loop guard). */
@@ -95,8 +94,17 @@ export class HeuristicCorpAI implements Agent {
     return asRanked(view, corpCandidates(view, legal, { held, freeExhausted: this.freeActions.exhausted }));
   }
 
+  /** The rez window of a run (corp/rez.ts); the deciding Corp's on its own view under its own context, taken again on the real state if not legal there (rule 10.2.2a). */
   chooseRez(state: GameState, cards: CardInstance[]): GameAction | null {
-    return asSide('corp', () => decideRez(state, cards, this.synergy));
+    return asSide('corp', () => {
+      const view = this.planner ? corpDecisionView(state) : state;
+      if (this.planner) decisionContext(view, 'corp');
+      const action = decideRez(view, cards, this.synergy);
+      if (view === state || !action || isLegalAction(state, action)) return action;
+      countHonest('illegalRez');
+      decisionContext(state, 'corp');
+      return decideRez(state, cards, this.synergy);
+    });
   }
 }
 

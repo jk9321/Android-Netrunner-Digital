@@ -7,7 +7,7 @@ import { turnSeed } from './threatModel';
 import { plan, pricing, withPricing } from './pricing';
 import { note, tally } from './diagnostics';
 import { REPLY, guessHidden, guessRunnerView, runnerReply, sampledReply } from './runnerReply';
-import { plannerCandidates, replySamples } from './oracle';
+import { corpSeenGrip, plannerCandidates, replySamples } from './oracle';
 import { fingerprint } from './valueModel';
 
 /**
@@ -338,23 +338,108 @@ export function runnerDecisionView(state: GameState): GameState {
  * The deciding Corp's own view of `state` for this decision (plan.hiddenDraws; rule 10.2.2a; Jeff: the Normal Corp does
  * not see its own draws): the guessHidden deal with the decision's seed, so R&D's order (outside the slots both sides
  * know, knownRdSlots), the Runner's unseen grip (with the stack) and the rng are a guess. The same object is the root
- * its planner's playouts start from (planTurn), so the order and the playouts read one deal by construction: kept per
- * real state while what it deals from is the same. Honest only with plan.plannerSeed on (the default): off, the
- * deal is seeded from the real rng and shuffles R&D from its real order. Off (hiddenDraws): the state itself.
+ * its planner's playouts start from (planTurn), and every question of the deciding Corp's decision reads it (corpAI.ts
+ * decide and chooseRez, corp/core.ts corpDecide; ai-honest-corp-decision): kept per real state while what it deals from
+ * is the same. Honest only with plan.plannerSeed on (the default): off, the deal is seeded from the real rng and
+ * shuffles R&D from its real order. Off (hiddenDraws): the state itself.
+ *
+ * A view is marked and is its own view (red team 2026-11-16 finding 4), so a question handed the view does not deal
+ * again. The cards the active prompt names (promptNamedIds: an R&D card it shows, a Runner card it reveals) stay where
+ * they really are (finding 2): the Corp is looking at them. The breach's queue of R&D cards still to access names R&D
+ * cards by id; it is read by position (the top cards; the Corp sees how many, not which), so in the view it names the
+ * view's cards at the same places. The seed is the same within a click (finding 6): the deal changes only when the
+ * cards it deals from change.
  */
 export function corpDecisionView(state: GameState): GameState {
-  if (!plan().hiddenDraws) return state;
+  if (!plan().hiddenDraws || corpViewSet.has(state)) return state;
   const seed = decisionSeedFor(state, 'corp');
+  const named = promptNamedIds(state);
   // Kept while nothing it deals from has changed (tests edit a state in place): the seed, the plan, the board, the cards
   const ids = (cards: { instanceId: string }[]) => cards.map(c => c.instanceId).join(',');
-  const sig = `${seed}|${fingerprint(state)}|${ids(state.corp.hq)}|${ids(state.corp.rd)}|${ids(state.runner.grip)}|${ids(state.runner.stack)}|${JSON.stringify(plan())}`;
+  const sig = `${seed}|${fingerprint(state)}|${ids(state.corp.hq)}|${ids(state.corp.rd)}|${ids(state.runner.grip)}|${ids(state.runner.stack)}|${[...named].join(',')}|${(state.activeRun?.accessQueue ?? []).join(',')}|${JSON.stringify(plan())}`;
   const kept = corpViews.get(state);
   if (kept?.sig === sig) return kept.view;
-  const view = withPricing({ decisionSeed: seed }, () => guessHidden(state, HIDDEN_DRAW_SAMPLE));
+  const dealt = withPricing({ decisionSeed: seed }, () => guessHidden(state, HIDDEN_DRAW_SAMPLE));
+  const view = keepNamed(state, dealt, named);
+  corpViewSet.add(view);
   corpViews.set(state, { sig, view });
   return view;
 }
 const corpViews = new WeakMap<GameState, { sig: string; view: GameState }>();
+const corpViewSet = new WeakSet<GameState>();
+
+/** The instance ids of R&D, grip and stack cards the active prompt names (its candidates, options, source and data). */
+export function promptNamedIds(state: GameState): Set<string> {
+  const prompt = activePrompt(state);
+  const out = new Set<string>();
+  if (!prompt) return out;
+  const words: string[] = [];
+  if (prompt.kind === 'effect_cards') words.push(...prompt.candidateIds);
+  if (prompt.kind === 'effect_choice' || prompt.kind === 'access_order') words.push(...prompt.options.map(o => o.id.replace(/^root:/, '')));
+  if (prompt.kind === 'access_trash') words.push(prompt.cardInstanceId);
+  if (prompt.kind === 'effect_choice' || prompt.kind === 'effect_cards') {
+    words.push(prompt.source.instanceId);
+    for (const v of Object.values(prompt.source.data ?? {})) {
+      if (typeof v === 'string') words.push(v);
+      else if (Array.isArray(v)) words.push(...v);
+    }
+  }
+  const hidden = new Set([...state.corp.rd, ...state.runner.grip, ...state.runner.stack].map(c => c.instanceId));
+  for (const w of words) if (hidden.has(w)) out.add(w);
+  return out;
+}
+
+/** Whether `view` holds every card the active prompt names where `state` has it: R&D and the stack at the same place, the grip in the grip. */
+export function promptCardsInPlace(state: GameState, view: GameState): boolean {
+  if (view === state) return true;
+  const at = (cards: { instanceId: string }[], id: string) => cards.findIndex(c => c.instanceId === id);
+  for (const id of promptNamedIds(state)) {
+    const rd = at(state.corp.rd, id);
+    if (rd >= 0 && view.corp.rd[rd]?.instanceId !== id) return false;
+    const stack = at(state.runner.stack, id);
+    if (stack >= 0 && view.runner.stack[stack]?.instanceId !== id) return false;
+    if (at(state.runner.grip, id) >= 0 && at(view.runner.grip, id) < 0) return false;
+  }
+  return true;
+}
+
+/** `dealt` with the named cards put back where `state` has them (each swapped with the card the deal put there) and the breach queue read by position. */
+function keepNamed(state: GameState, dealt: GameState, named: Set<string>): GameState {
+  const queue = state.activeRun?.accessQueue ?? [];
+  const rdAt = new Map(state.corp.rd.map((c, i) => [c.instanceId, i]));
+  if (!named.size && !queue.some(id => rdAt.has(id))) return dealt;
+  const rd = [...dealt.corp.rd];
+  const grip = [...dealt.runner.grip];
+  const stack = [...dealt.runner.stack];
+  const find = (id: string): [typeof rd, number] | null => {
+    for (const zone of [rd, grip, stack]) {
+      const i = zone.findIndex(c => c.instanceId === id);
+      if (i >= 0) return [zone, i];
+    }
+    return null;
+  };
+  const seen = corpSeenGrip(state, 'reply');
+  for (const id of named) {
+    const from = find(id);
+    if (!from) continue;
+    const [zone, j] = from;
+    const r = rdAt.get(id);
+    const s = state.runner.stack.findIndex(c => c.instanceId === id);
+    const target: [typeof rd, number] | null = r !== undefined ? [rd, r] : s >= 0 ? [stack, s] : null;
+    if (target) {
+      const [tz, i] = target;
+      if (tz === zone && i === j) continue;
+      [tz[i], zone[j]] = [zone[j], tz[i]];
+      continue;
+    }
+    // Really in the grip: the grip is a set, so a card dealt to the stack trades places with an unseen, unnamed grip card
+    if (zone === grip) continue;
+    const swap = grip.findIndex(c => !named.has(c.instanceId) && !seen.has(c.instanceId));
+    if (swap >= 0) [grip[swap], zone[j]] = [zone[j], grip[swap]];
+  }
+  const run = state.activeRun && queue.some(id => rdAt.has(id)) ? { ...state.activeRun, accessQueue: queue.map(id => (rdAt.has(id) ? rd[rdAt.get(id)!].instanceId : id)) } : dealt.activeRun;
+  return { ...dealt, activeRun: run, corp: { ...dealt.corp, rd }, runner: { ...dealt.runner, grip, stack } };
+}
 
 export function planTurn(state: GameState, side: SideCode, ranked: ScoredAction[], ai: PlannerAI, synergy: boolean): GameAction | null {
   // Still on the last plan: its next step, if the rule-based AI still rates it
