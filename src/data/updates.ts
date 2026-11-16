@@ -38,6 +38,9 @@ export const UPDATES: UpdateEntry[] = [
           url: 'https://nullsignal.games/players/getting-started-sample-decklists/',
         },
       },
+      {
+        text: 'Removed hard AI mode for tuning',
+      },
     ],
   },
 ];
