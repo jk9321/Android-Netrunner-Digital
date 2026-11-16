@@ -208,6 +208,7 @@ Counts at the branch head (scripts/value-owners/counts.mjs): see "Counts" at the
 - **Readers:** `tagsWorth` (`src/ai/evaluate.ts:607`), `tagsWorth` (`src/ai/evaluate.ts:618`), `tagsWorth` (`src/ai/effectValues.ts:510`) (the Corp formulas' lazy `tag` input), `tagsWorth` (`src/ai/runs.ts:208`) (`tagCost`, its difference), `tagsWorth` (`src/ai/cardPlans.ts:77`), and 1 in cards/.
 - **Caches, context:** `memo` keys `tagLoss:<viewer>:<skip>` and, for `tagCost`'s copy, `tagLoss:<viewer>:<skip>:c<clicks>` on the original board. Context: `pricingTagLoss`, `plan.tagTrashNow`, `plan.hqTrashCost`, `actingSide` (through the rig's prices).
 - **Loop:** tags price the rig, the rig prices ice, ice prices tags (`valueModel.ts` value-loop note): cut by `pricingTagLoss`.
+- **Time (ai-tag-loss-time arm 0, exact):** `tagLoss` prices no rig (V15's `runnerRigValue`, and through it V4's Runner deck average) when no resource could be the answer: none on the rig, none past `skip`, or the Corp under the trash action's 2 credits (rule 5.2.6g); the loss is the same number. 46% of the clock's prices in Corp decisions are the first case. No new quantity or copy.
 
 ### V8. n damage (the Corp's view and the Runner's)
 - **Owner:** `damageWorth` (`src/ai/effectValues.ts:334`): the cards lost (`cardRate`) and the step the smaller grip takes toward a flatline (V18's clock), the game (`flatlineWorth`) if n is more than the grip (10.4.4); the draw-back for damage the Runner takes in its own run.
