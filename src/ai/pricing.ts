@@ -12,8 +12,8 @@ import { planWith, sideOff, tuning } from './synergy';
  *
  * Two fields are not scoped: `known` and `anchor` are noted as a decision
  * starts (decisionContext) and stay until the next decision notes them
- * again, as they always did. The guard sets (rezzingToUse,
- * pricingBreakers) are added to and removed from by their owners.
+ * again, as they always did. The guard set rezzingToUse is changed by its
+ * owner (corp/rez.ts rezAllowed, its one reader, under no keyed value).
  */
 export type Plan = typeof tuning.plan;
 
@@ -63,8 +63,8 @@ export interface Pricing {
    * Assets whose rez-to-use look-ahead is running (corpAI.ts rezToUse): no nested rez-to-use inside.
    */
   rezzingToUse: Set<string>;
-  /** Breakers being priced by the rig they join (handValues.ts playedWorth): no breaker prices itself again. */
-  pricingBreakers: Set<string>;
+  /** A breaker is priced by the rig it joins (handValues.ts playedWorth): breakers inside take the rule-based worth. */
+  pricingBreaker: boolean;
   /** plan.oracle.safestRemote (oracle.ts): the Runner's next turn is being played out for the oracle: no oracle inside. */
   oracleRunning: boolean;
   /**
@@ -89,7 +89,7 @@ const context: Pricing = {
   planning: false,
   decisionSeed: null,
   rezzingToUse: new Set(),
-  pricingBreakers: new Set(),
+  pricingBreaker: false,
   oracleRunning: false,
   diagnostics: null,
 };
@@ -196,7 +196,11 @@ export function pricingKey(): string {
     c.countingHold ? 'k' : '',
     c.planning ? 'c' : '',
     c.oracleRunning ? 'o' : '',
+    c.pricingBreaker && !c.averaging ? 'b' : '', // last: deckPricingKey drops it
   ].join(':');
   keyVersion = version;
   return key;
 }
+
+/** pricingKey less the breaker guard, for the deck averages (handValues.ts): worked out under averaging, it is never read. */
+export const deckPricingKey = (): string => pricingKey().replace(/:b$/, ':');

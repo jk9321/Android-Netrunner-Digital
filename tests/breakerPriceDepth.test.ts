@@ -19,6 +19,8 @@ vi.mock('../src/ai/evaluate', async importOriginal => {
   return { ...orig, runnerRigValue: (s: GameState) => (calls.n++, orig.runnerRigValue(s)) };
 });
 const { runnerRigValue, tagsWorth } = await import('../src/ai/evaluate');
+const { runSuccess } = await import('../src/ai/effectValues');
+const { withPricing } = await import('../src/ai/pricing');
 
 const madani = (s: GameState) => s.runner.rig.hardware.find(c => c.cardCode === '35028')!;
 /** A fourth Mayfly in the grip, beside k hosted breakers. */
@@ -76,6 +78,23 @@ describe('a hosted breaker is priced at most one level deep', () => {
       expect(runnerRigValue(reversed)).toBe(first);
       clearHandCaches();
     }
+    // and whatever was asked first: the rig walks Madani (hardware) before Red Team (a resource), so the hosted breakers'
+    // rig values ask Red Team's runSuccess with the guard up before the outer rig reads it with the guard down
+    // (ai-breaker-guard-key, red team finding 3). The guard is in pricingKey, so the two are kept apart: the same rig
+    // value with the resource's chain asked first outside the guard, or first inside it
+    for (const k of [2, 4]) {
+      clearHandCaches();
+      const first = runnerRigValue(hangState(k));
+      for (const inside of [false, true]) {
+        clearHandCaches();
+        const s = hangState(k);
+        const ask = () => ['hq', 'rd'].forEach(server => runSuccess(s, server));
+        if (inside) withPricing({ pricingBreaker: true }, ask);
+        else ask();
+        expect(runnerRigValue(s)).toBe(first);
+      }
+    }
+    clearHandCaches();
     // and a breaker added to the host never lowers the rig (beta: the third lowered it, 57.42 -> 56.90)
     const values = [2, 3, 4].map(k => (clearHandCaches(), runnerRigValue(hangState(k))));
     expect(values[1]).toBeGreaterThan(values[0]);
