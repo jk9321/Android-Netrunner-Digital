@@ -5,6 +5,7 @@ import { EFFECT_CODES, LOCKDOWN, MU, PACE, accessWorth, corpEffect, damageWorth,
 import { corpKeepValue, isEconAsset, runnerCardValue, upgradeValue } from '../src/ai/cardValues';
 import { tuning } from '../src/ai/synergy';
 import { installIceForTest, newGame } from './helpers';
+import { PAYOUT_RISK, turnsLeft } from '../src/ai/cardProfiles';
 
 const late = () => {
   const s = newGame();
@@ -12,6 +13,8 @@ const late = () => {
   return s;
 };
 const keep = (code: string, s = newGame()) => corpEffect(s, code)!.keep;
+/** Sum over t = 1..turns of (1 - risk)^t: what a payout a turn is worth now when the card may be trashed each turn. */
+const survived = (risk: number, turns: number) => Array.from({ length: turns }, (_, k) => (1 - risk) ** (k + 1)).reduce((a, b) => a + b, 0);
 const rig = (code: string, s = newGame()) => runnerEffect(s, code)!;
 
 describe('the last hand-set cards, priced by what they do (Jeff, 2026-10-28)', () => {
@@ -62,9 +65,9 @@ describe('the last hand-set cards, priced by what they do (Jeff, 2026-10-28)', (
   });
 
   it('Public Access Plaza: a credit a turn, less as the game runs out', () => {
-    // V-B B3: at the measured bare risk (0.268 a Runner turn, for the 0.06 guess) a credit a turn is about 2.7, less its cost
-    expect(keep('35062')).toBeGreaterThan(1);
-    expect(keep('35062')).toBeLessThan(4);
+    // V-B B3: a credit a turn kept at the measured bare risk (moneyBare 0.268, no game record yet) for the turns left, less its cost
+    const s = newGame();
+    expect(keep('35062', s)).toBeCloseTo(survived(PAYOUT_RISK.moneyBare, turnsLeft(s)) - (getCardDefinition('35062').cost ?? 0), 9);
     expect(keep('35062', late())).toBeLessThan(keep('35062'));
     expect(isEconAsset('35062')).toBe(true);
   });
@@ -78,7 +81,8 @@ describe('the last hand-set cards, priced by what they do (Jeff, 2026-10-28)', (
   });
 
   it('Phật Gioan Baotixita: counters still to come, used up within 3 turns', () => {
-    expect(keep('35051')).toBeGreaterThan(1); // V-B B3: at the measured bare risk (was > 2 at the 0.06 guess)
+    // V-B B3: 1.5 a counter (1 net damage), one a turn for 3 turns at the measured bare risk, less its cost
+    expect(keep('35051')).toBeCloseTo(1.5 * survived(PAYOUT_RISK.moneyBare, 3) - (getCardDefinition('35051').cost ?? 0), 9);
     expect(keep('35051')).toBeLessThan(3 * 1.5 + 0.01);
   });
 
