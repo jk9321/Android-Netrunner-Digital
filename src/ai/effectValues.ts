@@ -4,7 +4,7 @@ import { PAYOUT_RISK } from './payoutRisk';
 import { COUNTER_WORTH } from './counterValues';
 import { CARDS, advancePayloadOf, corpFormula, runnerFormula } from './cards';
 import { actingSide } from './synergy';
-import { CLICK, RATES, cardRate, flatlineWorth, logValue, memo, pointGain, pointValue, scopeToGame, sideCards } from './valueModel';
+import { CLICK, cardRate, flatlineWorth, logValue, memo, pointGain, pointValue, scopeToGame, sideCards } from './valueModel';
 import { tagsWorth } from './evaluate';
 import { BLOCK, iceCost, iceCreditNeed, isTrap, plannedSubroutines, subroutineCost, tankDamage } from './runs';
 import { plan, pricing, withPricing } from './pricing';
@@ -462,9 +462,6 @@ export function coreDamageWorth(state: GameState): number {
   return coreSlotWorth(state) + flatlineWorth(state) * clock;
 }
 
-/** A flatline ends the game: priced like half of a whole game of agenda points (plan.flatRates.flatline off; valueModel flatlineWorth). */
-export const FLATLINE = 4 * RATES.point;
-
 export interface CorpEffect {
   /** Worth to the Corp once installed (and the Runner's gain from trashing it). */
   keep: number;
@@ -509,8 +506,6 @@ export function counterWorthOf(state: GameState, code: string, type: 'credit' | 
   return logValue('counter', 'counterWorthOf', state, COUNTER_WORTH[code]?.[type]?.(state, { cardCode: code, instanceId: 'probe', tokens: {} } as unknown as CardInstance) ?? 1, code, type);
 }
 
-/** The cards priced by the formulas (for the audit): built from src/ai/cards/. */
-export { EFFECT_CODES } from './cards';
 
 /** Whether the effect formulas price cards (plan.effectValues). */
 export const effectsOn = (): boolean => true;
@@ -586,7 +581,3 @@ export function placedCounterWorth(state: GameState, card: CardInstance, iced: b
 /** Petty Cash comes back from Archives for its 5 credits and the click back: worth its net 2 credits again, a turn later. */
 export const PETTY_CASH_REPLAY = 2 * PAYOUT_RISK.wait;
 
-/** Top-Down Solutions: 2 cards and up to 2 installs that cost no click, for its click. */
-export function topDownWorth(installable: number, state?: GameState): number {
-  return 2 * cardRate(state, 'corp') + Math.min(2, installable) * CLICK - CLICK;
-}

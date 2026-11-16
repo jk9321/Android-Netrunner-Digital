@@ -1,6 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { PETTY_CASH_REPLAY, iceAdvanceWorth, placedCounterWorth, rezEffectWorth, rezzedWorth, topDownWorth } from '../src/ai/effectValues';
-import { CLICK, RATES } from '../src/ai/valueModel';
+import { PETTY_CASH_REPLAY, iceAdvanceWorth, placedCounterWorth, rezEffectWorth, rezzedWorth } from '../src/ai/effectValues';
 import { createCardInstance } from '../src/core/engine/gameState';
 import { newGame } from './helpers';
 import { HeuristicCorpAI, createAgent } from '../src/ai';
@@ -43,10 +42,8 @@ describe('value hacks replaced by the model (Jeff, 2026-10-28; plan.modelHacks)'
     expect(placedCounterWorth(s, urtica, false)).toBeGreaterThan(1);
   });
 
-  it('Petty Cash replays for its net 2 credits; Top-Down Solutions is 2 cards and free installs', () => {
+  it('Petty Cash replays for its net 2 credits', () => {
     expect(PETTY_CASH_REPLAY).toBeCloseTo(1.7);
-    expect(topDownWorth(2)).toBeCloseTo(2 * RATES.drawnCard + CLICK);
-    expect(topDownWorth(0)).toBeCloseTo(2 * RATES.drawnCard - CLICK);
   });
 });
 

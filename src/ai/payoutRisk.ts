@@ -13,13 +13,12 @@ export const PAYOUT_RISK = {
   wait: 0.85,
   /** Taken with a click: worth this much per turn it waits. */
   clickWait: 0.93,
-  /** A Corp card trashed by the Runner, per turn: in a remote with ice, and without (other per-turn effects). */
-  corpIced: 0.03,
+  /** A Corp card that is not an asset trashed by the Runner, per turn (a guess, until Stage V-C measures one). */
   corpBare: 0.06,
   /**
    * A money asset (CARD_PROFILES) trashed by the Runner, per Runner turn: in a remote with ice, and
    * without. Measured (scripts/lossLog.ts assetRisk, 2,210 self-play games at 5f827e6): 7.8% of 1,660
-   * turns behind ice, 26.8% of 6,507 bare (the guesses were corpIced and corpBare).
+   * turns behind ice, 26.8% of 6,507 bare (the guesses were 0.03 and corpBare).
    */
   moneyIced: 0.078,
   moneyBare: 0.268,

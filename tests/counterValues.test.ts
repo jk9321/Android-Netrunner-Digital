@@ -1,5 +1,5 @@
 import { PACE, accessWorth, damageWorth, perTurn } from '../src/ai/effectValues';
-import { PAYOUT_RISK } from '../src/ai/cardProfiles';
+import { PAYOUT_RISK } from '../src/ai/payoutRisk';
 import { CLICK, cardRate } from '../src/ai/valueModel';
 
 const corpCard = () => cardRate(newGame(), 'corp');
