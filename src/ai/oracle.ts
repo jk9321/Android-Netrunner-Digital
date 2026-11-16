@@ -115,12 +115,12 @@ function runnerNextTurn(state: GameState): RunnerTurn | null {
  * steal an agenda in remote `serverId` on its next turn, as the Runner AI's own next turn from this position says: 1
  * if it stole an agenda there, else 0 (a server with no agenda in it is not told). Undefined (the honest estimate
  * stands) with the switch off, for the Runner, inside the oracle's own play-out or another pricing guard, or for a
- * central server. Only the next turn is told; later turns keep the Corp's own estimate (evaluate.ts threatStanding).
+ * central server. Only the next turn is told; evaluate.ts agendaWorth applies it to each turn the agenda waits.
  */
 export function oracleSteal(state: GameState, serverId: string): number | undefined {
   if (!plan().oracle?.safestRemote || actingSide() !== 'corp') return undefined;
   const c = pricing();
-  if (c.oracleRunning || c.averaging || c.pricingIce || c.pricingTagLoss || c.planning || c.computingThreat) return undefined;
+  if (c.oracleRunning || c.averaging || c.pricingIce || c.pricingTagLoss || c.planning) return undefined;
   // The end of the Corp's turn (a planner leaf, or the last click's ranking): the Runner's next turn is the one told
   if (state.activePlayer !== 'corp' || state.activeRun || state.corp.clicks > 0) return undefined;
   const server = state.corp.servers[serverId];

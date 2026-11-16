@@ -25,17 +25,14 @@ const inHq = (s: GameState) => s.corp.hq.map(c => cardDef(c).title);
 
 describe('a held money operation is counted once (plan.heldMoney)', () => {
   it('plays Petty Cash without the Petty Cash special case', () => {
-    // On the old threat (plan.threatModel off): with the threat model's leaf the Corp's turn here is a near tie (Petty
-    // Cash's line 0.03 behind a credit click, the leaf's run charge deciding), flagged in the item 3 hand-off
-    const threat = tuning.plan.threatModel;
-    tuning.plan.threatModel = false;
+    // On STEAL.run's steal odds (the Corp's threat model, deleted 2026-11-16, made this turn a near tie: Petty Cash's line
+    // 0.03 behind a credit click, flagged in the item 3 hand-off)
     // plan.hiddenDraws (S6) off: on one guess of R&D the turn ends on a click for a credit (pettyCashFirst.test.ts)
     tuning.plan.hiddenDraws = false;
     try {
       const s = play();
       expect(inHq(s)).not.toContain('Petty Cash');
     } finally {
-      tuning.plan.threatModel = threat;
       tuning.plan.hiddenDraws = true;
     }
   });

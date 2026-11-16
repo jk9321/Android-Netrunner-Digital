@@ -78,7 +78,7 @@ async function load(dir: string): Promise<Tree> {
     clear: () => {
       hv.clearHandCaches();
       ev.clearDamageThreats();
-      tm.clearThreatCaches();
+      tm.clearThreatCaches?.(); // a tree from before ai-threat-delete
       vm.clearBuildTargets();
       iv.clearDeckShares();
       vm.valueLoops?.clear();

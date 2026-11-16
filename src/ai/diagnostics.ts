@@ -8,7 +8,7 @@ import { holdPricing, pricing, withPricing } from './pricing';
  * context. Every counter and hook the AI used to keep in module objects (scoreInTwoStats, threatStats, plannerStats, ...)
  * is written into it. With no sink installed, which is default play, each site costs one undefined check.
  *
- * No decision may read the sink. Code under src/ai only writes to it, through tally, clockOn and note here.
+ * No decision may read the sink. Code under src/ai only writes to it, through tally, note and inReply here.
  * tests/codeHealth.test.ts checks that no other file reads the sink. Scripts and tests read what they installed.
  */
 export interface Diagnostics {
@@ -29,20 +29,14 @@ export interface Diagnostics {
   scoreNow: { searches: number; found: number; choices: number; nodes: number };
   /** runnerReply.ts: naked agenda remotes in the reply, and how many it ran. */
   reply: { nakedAgendaTurns: number; nakedAgendaRuns: number };
-  /** threatModel.ts threat: calls, keyed lookups, budgets (and their time, when `timing`). */
-  threat: { calls: number; keyed: number; budgeted: number; keyMs: number; budgetMs: number; replyBudgeted: number; replyBudgetMs: number };
   /** oracle.ts: oracle turns played out, hits, time. */
   oracle: { turns: number; hits: number; ms: number };
   /** turnPlanner.ts: decisions, added candidates and their wins. */
   planner: { decisions: number; agendaSlot: number; agendaSlotWins: number; buildSlot: number; buildSlotWins: number };
-  /** Time the threat's lookups and budgets (performance.now on each). */
-  timing: boolean;
-  /** A Runner reply is being sampled (runnerReply.ts): budgets inside count as reply budgets. Set with inReply. */
+  /** A Runner reply is being sampled (runnerReply.ts; scripts/value-owners/log.ts tags values inside it). Set with inReply. */
   replying: boolean;
   /** Hooks, called with what the site saw. */
   onReplySamples?: (values: number[]) => void;
-  /** A threat budget about to be worked out, with its key (scripts/threat-profile.ts counts repeats). Only with `timing`. */
-  onThreatBudget?: (key: string, state: GameState) => void;
   onClose?: (top: { action: GameAction; first: number; value: number; samples: number }[], pick: GameAction) => void;
   onCandidates?: (side: SideCode, values: number[], actions: GameAction[]) => void;
   /** corp/core.ts playoutLine (A1, measurement): a playout step where the line played `played` instead of the order's `pick`. */
@@ -71,10 +65,8 @@ export const newDiagnostics = (): Diagnostics => ({
   money: { ops: 0 },
   scoreNow: { searches: 0, found: 0, choices: 0, nodes: 0 },
   reply: { nakedAgendaTurns: 0, nakedAgendaRuns: 0 },
-  threat: { calls: 0, keyed: 0, budgeted: 0, keyMs: 0, budgetMs: 0, replyBudgeted: 0, replyBudgetMs: 0 },
   oracle: { turns: 0, hits: 0, ms: 0 },
   planner: { decisions: 0, agendaSlot: 0, agendaSlotWins: 0, buildSlot: 0, buildSlotWins: 0 },
-  timing: false,
   replying: false,
 });
 
@@ -86,9 +78,6 @@ export function tally<G extends keyof CounterGroups>(group: G, field: keyof Coun
   const counters: Record<string, number> = groups[group];
   counters[field] += by;
 }
-
-/** Whether the installed sink asks for timings (`timing`). False with no sink. */
-export const clockOn = (): boolean => pricing().diagnostics?.timing === true;
 
 /** Calls `fn` with the sink, if one is installed: hooks and lists. `fn` returns nothing, so no decision can read through it. */
 export function note(fn: (d: Diagnostics) => void): void {

@@ -9,7 +9,6 @@ import { RankedCandidate, corpCandidates } from '../src/ai/corp/candidates';
 import { isCorpMain } from '../src/ai/corp/lines';
 import { corpSeenGrip } from '../src/ai/oracle';
 import { guessHidden } from '../src/ai/runnerReply';
-import { clearThreatCaches } from '../src/ai/threatModel';
 import { clearDamageThreats } from '../src/ai/effectValues';
 import { clearDeckShares } from '../src/ai/iceValues';
 import { clearBuildTargets } from '../src/ai/valueModel';
@@ -31,7 +30,6 @@ import * as planner from '../src/ai/turnPlanner';
 const read = (name: string): GameState => JSON.parse(readFileSync(new URL(`./fixtures/${name}`, import.meta.url), 'utf8'));
 const honest = <T>(f: () => T): T => withPricing({ plan: { ...plan(), hiddenDraws: true, plannerSeed: true } }, () => asSide('corp', f));
 const reset = () => {
-  clearThreatCaches();
   clearHandCaches();
   clearDamageThreats();
   clearDeckShares();

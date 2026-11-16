@@ -1,6 +1,9 @@
-// The batch entry's import order (scripts/corp-losses.ts imports threatModel first): threatModel reaches runnerAI.ts
-// through evaluate > ... > runs.ts > ... > runnerReply while runs.ts is still evaluating. Keep this import first.
-import '../src/ai/threatModel';
+// The batch entry's import order: scripts/corp-losses.ts reaches the AI through src/ai's index (createAgent). It used to
+// import threatModel first, which reached runnerAI.ts inside runs.ts's import cycle. On beta c5f0ac0 that no longer
+// happens from any src/ai file (scripts/load-order.mjs, each file as the entry), and an eager trojan list passes this
+// test before and after ai-threat-delete; the pin stays on the behaviour, and tests/loadOrder.test.ts guards the reads
+// a module makes while it loads. Keep this import first.
+import '../src/ai';
 import { describe, expect, it } from 'vitest';
 import { GameAction, createCardInstance } from '../src/core';
 import { HeuristicRunnerAI } from '../src/ai/runnerAI';
