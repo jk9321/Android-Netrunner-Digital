@@ -353,8 +353,8 @@ const runnerViews = new WeakMap<GameState, { sig: string; view: GameState }>();
 
 /**
  * The deciding Corp's own view of `state` for this decision (plan.hiddenDraws; rule 10.2.2a; Jeff: the Normal Corp does
- * not see its own draws): the guessHidden deal with the decision's seed, so R&D's order (outside the slots both sides
- * know, knownRdSlots), the Runner's unseen grip (with the stack) and the rng are a guess. The same object is the root
+ * not see its own draws): the guessHidden deal with the decision's seed, so R&D's order (outside the places the Corp
+ * knows, corpKnownRdSlots: the cards it put there or looked at since the last shuffle), the Runner's unseen grip (with the stack) and the rng are a guess. The same object is the root
  * its planner's playouts start from (planTurn), and every question of the deciding Corp's decision reads it (corpAI.ts
  * decide and chooseRez, corp/core.ts corpDecide; ai-honest-corp-decision): kept per real state while what it deals from
  * is the same. Honest only with plan.plannerSeed on (the default): off, the deal is seeded from the real rng and
@@ -373,7 +373,9 @@ export function corpDecisionView(state: GameState): GameState {
   const named = promptNamedIds(state);
   // Kept while nothing it deals from has changed (tests edit a state in place): the seed, the plan, the board, the cards
   const ids = (cards: { instanceId: string }[]) => cards.map(c => c.instanceId).join(',');
-  const sig = `${seed}|${fingerprint(state)}|${ids(state.corp.hq)}|${ids(state.corp.rd)}|${ids(state.runner.grip)}|${ids(state.runner.stack)}|${[...named].join(',')}|${(state.activeRun?.accessQueue ?? []).join(',')}|${JSON.stringify(plan())}`;
+  // Both memories of R&D: the deal keeps the Corp's places and re-points the Runner's (red team corp-rd-memory finding 6)
+  const rdMemory = `${(state.corp.rdKnownToCorp ?? []).map(e => `${e.id}@${e.at}`).join(',')}/${JSON.stringify(state.corp.rdKnownToRunner ?? [])}`;
+  const sig = `${seed}|${fingerprint(state)}|${ids(state.corp.hq)}|${ids(state.corp.rd)}|${ids(state.runner.grip)}|${ids(state.runner.stack)}|${[...named].join(',')}|${(state.activeRun?.accessQueue ?? []).join(',')}|${rdMemory}|${JSON.stringify(plan())}`;
   const kept = corpViews.get(state);
   if (kept?.sig === sig) return kept.view;
   const dealt = withPricing({ decisionSeed: seed }, () => guessHidden(state, HIDDEN_DRAW_SAMPLE));
