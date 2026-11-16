@@ -5,6 +5,8 @@
 > Before starting work, **read this file completely** to understand the architecture, active design decisions, and current progress.
 > **Whenever you implement a feature, refactor code, or modify the roadmap, you MUST update this file** (specifically the *Current Status*, *Task Checklist*, and *Changelog* sections) so subsequent agents and developers maintain perfect context continuity.
 
+> **AI state (Corp AI rework, valuation cleanup, Stage D, tuning):** the one status source is the plan page [Corp AI rework: current plan](https://claude.ai/artifact/DXPYCFJKJaPSvep8zfmoRk), kept by the AI Coordinator at every AI merge. This file keeps one dated line per AI merge and does not restate the state; if they differ, the plan page wins (Jeff 2026-11-16).
+
 ---
 
 ## 1. Project Overview & Rules Reference
