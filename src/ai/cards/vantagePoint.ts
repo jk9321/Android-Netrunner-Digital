@@ -206,7 +206,7 @@ export const VANTAGE_POINT: Record<string, CardAI> = {
     synergy: { wants: { operations: 1.5 } },
     value: { keep: 1.5 }, // A click back on the first double each turn
     // A click back on the first double each turn, as often as the deck holds doubles
-    corp: (state, _code, { cost }) => ({ keep: Math.max(0.3, perTurn(state, Math.min(1, 4 * deckShare(state, 'corp', /double/i)) * CLICK, 'corp') - cost) }),
+    corp: (state, _code, { cost, risk }) => ({ keep: Math.max(0.3, perTurn(state, Math.min(1, 4 * deckShare(state, 'corp', /double/i)) * CLICK, risk) - cost) }),
   },
   // Ansel 2.0
   '36028': { synergy: { gives: { ice: 1, bioroid: 1.5, install: 0.5 } } },
@@ -282,14 +282,14 @@ export const VANTAGE_POINT: Record<string, CardAI> = {
     synergy: { gives: { denial: 1.5 }, when: ['onScore'] },
     value: { keep: 3 }, // 3 more to steal, and 3 off the Runner on each score
     // 3 credits more for each steal, 3 off the Runner on each score
-    corp: (state, _code, { cost }) => ({ keep: Math.max(0.3, perTurn(state, PACE.agendaEvents * 3, 'corp') - cost) }),
+    corp: (state, _code, { cost, risk }) => ({ keep: Math.max(0.3, perTurn(state, PACE.agendaEvents * 3, risk) - cost) }),
   },
   // Nihilo Agent
   '36049': {
     synergy: { gives: { tags: 1.5 } },
     value: { keep: 2 }, // A tag each turn for 3 turns
     // A tag at the end of each Corp turn for 3 turns, and a bad publicity the Runner spends meanwhile
-    corp: (state, _code, { cost, tag }) => ({ keep: Math.max(0.3, perTurn(state, tag - PACE.runs * 0.5, 'corp', 0, 3) - cost) }),
+    corp: (state, _code, { cost, tag, risk }) => ({ keep: Math.max(0.3, perTurn(state, tag - PACE.runs * 0.5, risk, 0, 3) - cost) }),
   },
   // Grubber
   '36050': { synergy: { gives: { ice: 1, denial: 1 } }, rezEffect: true },
@@ -318,9 +318,9 @@ export const VANTAGE_POINT: Record<string, CardAI> = {
     synergy: { gives: { econ: 1.5, draw: 1 } },
     value: { keep: 3, econ: 2 }, // 3 credits and a card for each bad publicity it hosts
     // Each bad publicity hosted is 3 credits and a card, taken back if it is trashed
-    corp: (state, _code, { cost, card }) => {
+    corp: (state, _code, { cost, card, risk }) => {
       const hosts = Math.max(state.corp.badPublicity ?? 0, deckShare(state, 'corp', /liability/i) > 0.1 ? 2 : 0.5);
-      const keep = perTurn(state, 3 + card, 'corp', 0, Math.max(1, hosts)) - cost;
+      const keep = perTurn(state, 3 + card, risk, 0, Math.max(1, hosts)) - cost;
       return { keep, econ: keep };
     },
   },

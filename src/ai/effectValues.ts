@@ -1,5 +1,5 @@
 import { CardInstance, GameState, cardDef, getCardDefinition, knownInHand } from '../core';
-import { turnsLeft } from './cardProfiles';
+import { assetRisk, turnsLeft } from './cardProfiles';
 import { PAYOUT_RISK } from './payoutRisk';
 import { COUNTER_WORTH } from './counterValues';
 import { CARDS, advancePayloadOf, corpFormula, runnerFormula } from './cards';
@@ -109,15 +109,15 @@ export function muWorth(state: GameState): number {
   return state.runner.memoryUnitsUsed + grip > BASE_MU ? 2 * MU : MU;
 }
 
-/** Worth of `x` each turn for the turns left, less the risk of losing the card each turn. */
-export function perTurn(state: GameState, x: number, owner: 'corp' | 'runner', minTurns = 0, maxTurns = Infinity, wait = 1, lock = 1): number {
+/** Worth of `x` each turn for the turns left, less the risk of losing the card each turn (a number: a Corp card's ctx.risk). */
+export function perTurn(state: GameState, x: number, owner: 'corp' | 'runner' | number, minTurns = 0, maxTurns = Infinity, wait = 1, lock = 1): number {
   // plan.ownTrashRisk: the Corp's own trash action is no risk the Corp prices (it decides it)
   const tagRisk = state.runner.tags > 0 && !(plan().ownTrashRisk && actingSide() === 'corp');
-  const risk = owner === 'corp' ? PAYOUT_RISK.corpBare : tagRisk ? PAYOUT_RISK.runnerTagged : PAYOUT_RISK.runnerUntagged;
+  const risk = typeof owner === 'number' ? owner : owner === 'corp' ? PAYOUT_RISK.corpBare : tagRisk ? PAYOUT_RISK.runnerTagged : PAYOUT_RISK.runnerUntagged;
   const turns = Math.min(maxTurns, Math.max(minTurns, turnsLeft(state)));
   let value = 0;
   for (let t = 1; t <= turns; t++) value += x * (wait * (1 - risk)) ** t * lock ** (t - 1);
-  return logValue('effectOverTurns', 'perTurn', state, value, x, owner, minTurns, maxTurns, wait, lock);
+  return logValue('effectOverTurns', 'perTurn', state, value, x, owner, minTurns, maxTurns, wait, lock, risk);
 }
 
 /*
@@ -478,12 +478,13 @@ export interface CorpEffect {
 export function corpEffect(state: GameState, code: string, rezzed = false): CorpEffect | undefined {
   // A rezzed card's rez cost is paid already (plan.rezPaid; Gemini audit, 2026-11-01: rezzedWorth took it off twice)
   const cost = rezzed ? 0 : getCardDefinition(code).cost ?? 0;
+  const risk = getCardDefinition(code).type_code === 'asset' ? assetRisk(state, false) : PAYOUT_RISK.corpBare;
   const agenda = pointGain(state.corp.score, agendaOdds(state).points);
   const card = cardRate(state, 'corp');
   // A tag on the Runner (ai-value-time step 2): 4 of the formulas read it, so it is worked out on the first read, at the
   // formula's entry (the readers destructure it there: same order, same pricing context) and kept for a second read
   let tag: number | undefined;
-  const fx = corpFormula(state, code, { cost, agenda, card, get tag() { return (tag ??= tagsWorth(state, 'corp', 1)); } });
+  const fx = corpFormula(state, code, { cost, agenda, card, risk, get tag() { return (tag ??= tagsWorth(state, 'corp', 1)); } });
   logValue('cardBeforeInstall', 'corpEffect', state, fx?.keep ?? NaN, code, rezzed);
   return fx;
 }

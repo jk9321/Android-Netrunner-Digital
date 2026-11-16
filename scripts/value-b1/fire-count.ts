@@ -17,7 +17,7 @@
  */
 import { cpSync, existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { join, resolve } from 'node:path';
-import { GameAction, GameState, actingSide, createInitialGameState, executeAction, findCardAnywhere } from '../../src/core';
+import { CardInstance, GameAction, GameState, actingSide, createInitialGameState, executeAction, findCardAnywhere } from '../../src/core';
 import { createAgent } from '../../src/ai';
 import { Agent } from '../../src/ai/agent';
 import { GameRunner } from '../../src/ai/playout';
@@ -64,7 +64,36 @@ function makeTrees(): Record<Arm, string> {
 interface Tree {
   createAgent: typeof createAgent;
   clear: () => void;
+  /** Runs `fn` with a value sink on: every value asked at the root (not in a leaf, playout or reply), by site and arguments. */
+  rootValues: (fn: () => void) => Map<string, number>;
 }
+
+/**
+ * V-B B3 on (ruling 6a, the AI Coordinator 17:23Z): the owners priced on the same boards. In base and branch, each value
+ * asked at the decision's root is keyed by its site, its arguments (a card by instance id) and the board it was asked on
+ * (a fingerprint of the state); a key both trees asked is compared. SITES=0 turns it off.
+ */
+const SITES = process.env.SITES !== '0';
+const prints = new WeakMap<object, string>();
+const boardPrint = (s: GameState): string => {
+  let p = prints.get(s);
+  if (p === undefined) {
+    const zone = (cs: CardInstance[]) => cs.map(c => `${c.instanceId}${c.isRezzed ? 'r' : ''}${c.advancementCounters ?? ''}${JSON.stringify(c.tokens ?? {})}`).join(',');
+    const servers = Object.values(s.corp.servers).map(v => `${v.id}:${zone(v.ice)}/${zone(v.root)}`).join(';');
+    const rig = zone([...s.runner.rig.programs, ...s.runner.rig.hardware, ...s.runner.rig.resources]);
+    p = [s.turnNumber, s.activePlayer, s.phase, s.corp.credits, s.corp.clicks, s.corp.score, s.corp.hq.length, s.corp.rd.length, s.corp.archives.faceUp.length + s.corp.archives.faceDown.length, s.runner.credits, s.runner.clicks, s.runner.score, s.runner.tags, s.runner.grip.length, s.runner.stack.length, s.runner.heap.length, servers, rig, s.activeRun ? JSON.stringify(s.activeRun).length : '', s.pendingPrompts.length].join('|');
+    prints.set(s, p);
+  }
+  return p;
+};
+const argKey = (a: unknown): string => {
+  if (a === null || a === undefined || typeof a !== 'object') return String(a);
+  if (Array.isArray(a)) return `[${a.map(argKey).join(',')}]`;
+  const o = a as { instanceId?: string; corp?: unknown };
+  if (typeof o.instanceId === 'string') return o.instanceId;
+  if (o.corp !== undefined) return 'S';
+  return 'o';
+};
 async function load(dir: string): Promise<Tree> {
   const m = (p: string) => import(/* @vite-ignore */ join(dir, 'src', p));
   const ai = await m('ai/index.ts');
@@ -73,7 +102,22 @@ async function load(dir: string): Promise<Tree> {
   const tm = await m('ai/threatModel.ts');
   const vm = await m('ai/valueModel.ts');
   const iv = await m('ai/iceValues.ts');
+  const dg = await m('ai/diagnostics.ts');
+  const pr = await m('ai/pricing.ts');
   return {
+    rootValues: (fn: () => void) => {
+      const out = new Map<string, number>();
+      dg.withDiagnostics((d: { replying: boolean; onValue?: unknown }) => {
+        d.onValue = (_q: string, site: string, state: GameState | undefined, value: number, args: readonly unknown[]) => {
+          const c = pr.pricing();
+          if (d.replying || c.leaves.length || c.frozen || c.side === null) return;
+          const k = `${site}|${state ? boardPrint(state) : '-'}|${args.map(argKey).join(',')}`;
+          if (!out.has(k)) out.set(k, value);
+        };
+        fn();
+      });
+      return out;
+    },
     createAgent: ai.createAgent,
     clear: () => {
       hv.clearHandCaches();
@@ -124,10 +168,42 @@ async function main() {
       for (const c of CACHES) if (ask(`no-${c}`, side, s).a === r.base.a) needs.push(c);
     }
     const ms = Object.fromEntries(TIMED.map(a => [a, Math.round(r[a].ms * 10) / 10]));
+    // Ruling 6a: per site, the root values both trees asked on the same board with the same arguments: [asked in both,
+    // differ, largest |difference|, over 2x or 10 credits], and the worst example
+    let sites: Record<string, [number, number, number, number, string?]> | undefined;
+    if (SITES) {
+      const got = { base: new Map<string, number>(), branch: new Map<string, number>() };
+      for (const arm of ['base', 'branch'] as const) {
+        const m = trees[arm].rootValues(() => {
+          const a = ask(arm, side, s).a;
+          if (a.startsWith('error')) throw new Error(`site pass ${arm}: ${a}`);
+        });
+        got[arm] = m;
+        if (process.env.FC_DEBUG) console.error(arm, m.size, [...m.keys()].slice(0, 2));
+      }
+      sites = {};
+      for (const [k, b] of got.base) {
+        const h = got.branch.get(k);
+        if (h === undefined) continue;
+        const site = k.slice(0, k.indexOf('|'));
+        const row = (sites[site] ??= [0, 0, 0, 0]);
+        row[0]++;
+        const same = b === h || (Number.isNaN(b) && Number.isNaN(h));
+        if (same) continue;
+        const d = Math.abs(h - b);
+        row[1]++;
+        const big = d > 10 || (Math.max(Math.abs(b), Math.abs(h)) > 0.5 && (Math.abs(h) > 2 * Math.abs(b) || Math.abs(b) > 2 * Math.abs(h)));
+        if (big) row[3]++;
+        if (!(d <= row[2])) {
+          row[2] = Math.round(d * 1000) / 1000;
+          row[4] = `${k.slice(k.lastIndexOf('|') + 1)}: ${Math.round(b * 1000) / 1000} -> ${Math.round(h * 1000) / 1000}`;
+        }
+      }
+    }
     // V-B B2's watch (non-money upgrade rezzes): the card a REZ_CARD pick rezzes, in base and branch
     const rezzed = (pick: string) => (pick.startsWith('{') && JSON.parse(pick).type === 'REZ_CARD' ? findCardAnywhere(s, JSON.parse(pick).cardInstanceId)?.cardCode : undefined);
     const rez = { base: rezzed(r.base.a), branch: rezzed(r.branch.a) };
-    console.log(JSON.stringify({ src, i, side, kind, T: s.turnNumber, changed, causes, needs, base: changed ? r.base.a : undefined, branch: changed ? r.branch.a : undefined, rez: rez.base || rez.branch ? rez : undefined, ms }));
+    console.log(JSON.stringify({ src, i, side, kind, T: s.turnNumber, changed, causes, needs, base: changed ? r.base.a : undefined, branch: changed ? r.branch.a : undefined, rez: rez.base || rez.branch ? rez : undefined, ms, sites }));
   };
 
   const sources: (() => void)[] = [

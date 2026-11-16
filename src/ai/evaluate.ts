@@ -7,7 +7,7 @@ import { corpKeepValue, runnerCardValue } from './cardValues';
 import { countersWorth } from './counterValues';
 import { boardPlansWorth } from './cardPlans';
 import { AI_BREAKER_SHARE, breakerTypeWorth, iceTypeOdds, iceWorth } from './iceValues';
-import { payoutWait, payoutWorth, profileOf, turnsLeft } from './cardProfiles';
+import { inIcedServer, payoutWait, payoutWorth, profileOf, turnsLeft } from './cardProfiles';
 import { resourceTrashHqCost } from '../core/engine/actions/basic';
 import { HAND_FLOOR, clickPrice, handByCard, heldWorth, ownHandValue, playedWorth, unseenInHand } from './handValues';
 import { CLICK, KNOBS, RATES, cardRate, creditValue, flatlineWorth, guardLoop, handFilter, logValue, mean, memo, payoutSlide, pointGain, pointValue, reachCard, setRunnerAgendaOdds, sideCreditValue } from './valueModel';
@@ -194,11 +194,6 @@ export function spentSpinDoctorWorth(state: GameState): number {
     ...archives.faceDown.map(() => agenda * archivedAgendaLoss(state, agendaPoints) + (1 - agenda) * 0.3 * cardRate(state, 'corp')),
   ].sort((a, b) => b - a);
   return 0.3 + (worth[0] ?? 0) + (worth[1] ?? 0);
-}
-
-/** Whether a Corp root card sits in a server with ice in front of it. */
-function inIcedServer(state: GameState, card: CardInstance): boolean {
-  return Object.values(state.corp.servers).some(s => s.ice.length > 0 && s.root.some(c => c.instanceId === card.instanceId));
 }
 
 /** A Corp card the Runner can't see: installed, unrezzed and facedown. */
