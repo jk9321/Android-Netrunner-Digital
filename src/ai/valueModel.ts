@@ -465,19 +465,22 @@ export function payoutSlide(state: GameState, side: SideCode, amount: number): n
 /**
  * Valuation V-A's disagreement log (docs/ai-priced-quantities.md, valuation table; scripts/value-owners/log.ts): an owner
  * or copy hands the value it priced, unchanged, to the diagnostics sink's onValue. The arguments wait in `logged` so a
- * call allocates nothing while no sink is installed (play); `lookups` is the guardLoop chain open at the call.
+ * call allocates nothing while no sink is installed (play); the last argument passed on is the depth of the guardLoop chain open at the call (`pricing`, below).
  */
-const logged = { quantity: '', site: '', state: undefined as GameState | undefined, value: 0, args: [undefined, undefined, undefined, undefined, undefined, undefined, undefined, undefined] as unknown[] };
-const sendLogged = (d: Diagnostics) => d.onValue?.(logged.quantity, logged.site, logged.state, logged.value, [...logged.args, pricing.length]);
+const logged = { quantity: '', site: '', state: undefined as GameState | undefined, value: 0, a: undefined as unknown, b: undefined as unknown, c: undefined as unknown, d: undefined as unknown, e: undefined as unknown, f: undefined as unknown, g: undefined as unknown, h: undefined as unknown };
+const sendLogged = (sink: Diagnostics) => {
+  const l = logged;
+  sink.onValue?.(l.quantity, l.site, l.state, l.value, [l.a, l.b, l.c, l.d, l.e, l.f, l.g, l.h, pricing.length]);
+};
 export function logValue(quantity: string, site: string, state: GameState | undefined, value: number, a?: unknown, b?: unknown, c?: unknown, d?: unknown, e?: unknown, f?: unknown, g?: unknown, h?: unknown): number {
-  const args = logged.args;
-  logged.quantity = quantity;
-  logged.site = site;
-  logged.state = state;
-  logged.value = value;
-  args[0] = a; args[1] = b; args[2] = c; args[3] = d; args[4] = e; args[5] = f; args[6] = g; args[7] = h;
+  const l = logged;
+  l.quantity = quantity;
+  l.site = site;
+  l.state = state;
+  l.value = value;
+  l.a = a; l.b = b; l.c = c; l.d = d; l.e = e; l.f = f; l.g = g; l.h = h;
   note(sendLogged);
-  logged.state = undefined;
+  l.state = undefined;
   return value;
 }
 
