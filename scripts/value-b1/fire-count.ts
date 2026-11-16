@@ -5,8 +5,8 @@
  * .fc-variants/<shard>/<arm>/), made from this tree by text patches that put a cache's old key back:
  *   base       every key as on beta (the branch point);
  *   branch     this tree;
- *   <cache>    only that change made (click: clickWorth's key; entry: a drawn card's two side entrances through cardRate;
- *              drawWorth's and damageThreat's keys were measured too, run 43876047121, and are kept incomplete);
+ *   <cache>    only that change made (entry: a drawn card's two side entrances through cardRate; the three cache keys
+ *              were measured in runs 43876047121 and 43890327131 and are kept incomplete, review M1);
  *   no-<cache> every key completed but that one (leave-one-out).
  * base, branch and the three <cache> trees decide every decision (their times are the time per cache, same decisions,
  * order rotated); where base and branch pick differently the no-<cache> trees decide too. `causes`: a cache alone
@@ -24,17 +24,12 @@ import { GameRunner } from '../../src/ai/playout';
 import { deals, dealState, humanFiles } from '../stage-a/harness';
 import { deckGameSetup } from '../../src/data/decks';
 
-const CACHES = ['click', 'entry'] as const;
+const CACHES = ['entry'] as const;
 type Cache = (typeof CACHES)[number];
 type Arm = 'base' | 'branch' | Cache | `no-${Cache}`;
 
 /** Text patches that put each cache's beta key back (each must match exactly once). */
 const OFF: Record<Cache, [file: string, from: string, to: string][]> = {
-  click: [[
-    'ai/handValues.ts',
-    'const key = `${pricingKey()}:${side}:${state.id}:${state.turnNumber}:${player.clicks}:${player.credits}:${contentPrint(state)}`;',
-    "const key = `${pricingKey()}:${side}:${state.id}:${state.turnNumber}:${player.clicks}:${player.credits}:${(side === 'corp' ? state.corp.hq : state.runner.grip).map(c => c.instanceId).join(',')}:${fingerprint(state)}`;",
-  ]],
   entry: [
     ['ai/handValues.ts', "'ownHandValue drawWorth', state, side === actingSide() ? cardRate(state, side) : drawWorth(state, side), side)", "'ownHandValue drawWorth', state, drawWorth(state, side), side)"],
     ['ai/handValues.ts', "'clickWorth drawWorth', state, side === actingSide() ? cardRate(state, side) : drawWorth(state, side), side)", "'clickWorth drawWorth', state, drawWorth(state, side), side)"],

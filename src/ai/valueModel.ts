@@ -10,7 +10,7 @@
  * damage clocks), each behind its own tuning.plan switch.
  */
 import { CardInstance, GameState, SideCode, cardDef, rezCostOf } from '../core';
-import { actingSide, plan, pricing as pricingContext, pricingKey } from './pricing';
+import { actingSide, plan, pricingKey } from './pricing';
 import { corpPorts } from './corpPorts';
 import { Diagnostics, note } from './diagnostics';
 
@@ -148,30 +148,6 @@ export function fingerprint(state: GameState): string {
     runner.credits + '|' + runner.clicks + '|' + runner.score + '|' + runner.tags + '|' + runner.grip.length + '|' + runner.stack.length + '|' + printIds(runner.rig.programs) + '|' + printIds(runner.rig.hardware) + '|' + printIds(runner.rig.resources) + '|' + servers;
 }
 
-/** V-B B1 (ruling 1): clickWorth's board, fingerprint plus what it leaves out (zone contents, counters, tokens, hosts, the run,
- * the turn's flags), hashed and kept on the position by memo; then the decider's knowledge and anchor credits (not in pricingKey). */
-export function contentPrint(state: GameState): string {
-  const c = pricingContext();
-  const known = (side: SideCode) => (c.known[side] ? [...c.known[side]!].join(',') : '-');
-  return `${memo(state, 'contentPrint', () => hash53(contentText(state)))}|${known('corp')}|${known('runner')}|${c.anchor?.credits ?? ''}`;
-}
-function contentText(state: GameState): string {
-  const { corp, runner } = state;
-  const zone = (cards: CardInstance[]): string => cards.map(k => k.instanceId + k.cardCode + (k.advancementCounters || k.faceUp || k.runnerKnows || k.tokens || k.hostedCards?.length ? `:${k.advancementCounters}${k.faceUp ? 'u' : ''}${k.runnerKnows ? 'k' : ''}${k.tokens ? JSON.stringify(k.tokens) : ''}[${zone(k.hostedCards ?? [])}]` : '')).join(',');
-  const zones = [corp.hq, corp.rd, corp.archives.faceUp, corp.archives.faceDown, corp.scoreArea, runner.grip, runner.stack, runner.heap, runner.scoreArea, state.removedFromGame, ...Object.values(corp.servers).flatMap(v => [v.ice, v.root]), runner.rig.programs, runner.rig.hardware, runner.rig.resources, [runner.identity, corp.identity]];
-  return [fingerprint(state), ...zones.map(zone), JSON.stringify([state.activeRun, state.runsThisTurn, state.turnFlags, state.bareAssets, runner.memoryUnitsUsed, corp.handSizeLimit, runner.handSizeLimit])].join('|');
-}
-/** A 53-bit hash (two FNV-1a passes) so a map key stays short: a board's whole text as a key is hashed again on every lookup. */
-function hash53(text: string): string {
-  let a = 0x811c9dc5;
-  let b = 0x01000193 ^ text.length;
-  for (let i = 0; i < text.length; i++) {
-    a = Math.imul(a ^ text.charCodeAt(i), 0x01000193);
-    b = Math.imul(b ^ text.charCodeAt(i), 0x5bd1e995) ^ (b >>> 15);
-  }
-  return ((a >>> 0) * 2 ** 21 + ((b >>> 0) & 0x1fffff)).toString(36);
-}
-
 /** fingerprint's list of cards: instance id, 'r' if rezzed, the count of hosted cards (when the card has a list). */
 function printIds(cards: CardInstance[]): string {
   let out = '';
@@ -259,7 +235,7 @@ export function pointsTerm(state: GameState): number {
  * reply (the reply root's leaf less its points term). evaluate is not zero-centred (a quiet mid-game board reads ~100),
  * so a bare ±pointValue(7) would put a sampled Corp win below its ordinary sibling samples; the board the game ended
  * from is not read, the game is over, but the root's board is the baseline every sample of that line starts from.
- * Same winner, same line: same price. Read by runnerReply only. Owner of a game end met in a sampled reply (registry V13).
+ * Same winner, same line: same price. Read by runnerReply only.
  */
 export function sampledEndWorth(winner: SideCode, rootBoard: number): number {
   // A Corp win settles the Corp's points term (scaled by KNOBS.corpPoints, as pointsTerm), a Runner win the Runner's

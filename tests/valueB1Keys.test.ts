@@ -1,15 +1,14 @@
 /**
- * V-B B1 (brief rev 2 step B1, ruling 1): the incomplete-key caches' keys hold what their values read.
- * - contentPrint (the board part of clickWorth's and drawWorth's keys) tells apart boards fingerprint can't: an R&D whose
- *   cards differ, a counter on an installed card, a run under way.
- * - damageThreat's key holds which cards are in the pool: two boards with the same counts but another card out of it
- *   are each priced on their own (before, the second was served the first's value).
+ * V-B B1 (brief rev 2 step B1, ruling 1; review M1): the incomplete-key caches are kept incomplete, recorded, each pinned
+ * known-failing until the exact keys are affordable (all three together, measured as one):
+ * - clickWorth's key: a board whose stack differs (fingerprint has zone sizes only) is served the other board's value.
+ * - damageThreat's key: two boards with the same counts but another card out of the pool share a value.
  */
 import { describe, expect, it } from 'vitest';
 import { cardDef } from '../src/core';
 import { createAgent } from '../src/ai';
 import { GameRunner } from '../src/ai/playout';
-import { contentPrint, fingerprint } from '../src/ai/valueModel';
+import { clearHandCaches, clickWorth } from '../src/ai/handValues';
 import { clearDamageThreats, damageThreat } from '../src/ai/effectValues';
 import { dealState } from '../scripts/stage-a/harness';
 
@@ -19,21 +18,20 @@ function midGame() {
   return game.state;
 }
 
-describe('contentPrint: what fingerprint leaves out', () => {
-  it('differs where fingerprint does not', () => {
+// Known-failing: clickWorth's key leaves out zone contents (fingerprint has zones by size). The exact key cost x1.05 on its
+// own for 19 wrong hits in 41.7k, so it is kept incomplete, recorded (V-B B1 review M1); passes when the exact keys land
+describe("clickWorth's key holds the stack", () => {
+  it.fails('a Runner board with a stack card swapped for a heap card is priced on its own', () => {
     const s = midGame();
-    const rd = structuredClone(s);
-    // an R&D card swapped for an HQ card of another code: same sizes, same fingerprint
-    const h = rd.corp.hq.findIndex(c => c.cardCode !== rd.corp.rd[0].cardCode);
-    [rd.corp.hq[h], rd.corp.rd[0]] = [rd.corp.rd[0], rd.corp.hq[h]];
-    const counter = structuredClone(s);
-    const installed = Object.values(counter.corp.servers).flatMap(v => [...v.ice, ...v.root])[0];
-    installed.advancementCounters += 1;
-    for (const b of [rd, counter]) {
-      expect(fingerprint(b)).toBe(fingerprint(s));
-      expect(contentPrint(b)).not.toBe(contentPrint(s));
-    }
-    expect(contentPrint(structuredClone(s))).toBe(contentPrint(s));
+    const b = structuredClone(s);
+    const i = b.runner.stack.findIndex(c => c.cardCode !== b.runner.heap[0]?.cardCode);
+    expect(b.runner.heap.length).toBeGreaterThan(0);
+    [b.runner.stack[i], b.runner.heap[0]] = [b.runner.heap[0], b.runner.stack[i]];
+    clearHandCaches();
+    const alone = clickWorth(b, 'runner');
+    clearHandCaches();
+    expect(clickWorth(s, 'runner')).not.toBe(alone);
+    expect(clickWorth(b, 'runner')).toBe(alone);
   }, 60_000);
 });
 
