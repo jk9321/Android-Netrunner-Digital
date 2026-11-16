@@ -258,6 +258,7 @@ export const ABLATE_FAMILIES = [
   'corpEcon', // B3c: corpEffect econ (econValue, unprofiled econ assets)
   'corpUpgrade', // B3d: corpEffect upgrade (upgradeValue)
   'corpRezzed', // B3e: per-card rezzed rules (rezzedWorth's own entry)
+  'corpKeepFlat', // B3b': corpKeep off, with the own-turn rez priced at the flat keep less its rez cost instead of -1 (AI Coordinator 04:01Z)
   // Valuation-audit leads (report 2026-11-16 section 7, AI Coordinator 03:01Z): measurement switches that turn a
   // proposed correction ON for the root side, not ablations
   'leadRisk', // L1: perTurn's Corp risk at the measured bare-asset risk (bareAssetRisk) instead of PAYOUT_RISK.corpBare
@@ -287,7 +288,8 @@ export function ablated(family: AblateFamily): boolean {
 /** A part of B3 corpFormulas (AI Coordinator 2026-11-16 02:36Z trace): off with the part or with the whole family. */
 export const corpPart = (part: 'corpProfiles' | 'corpKeep' | 'corpEcon' | 'corpUpgrade' | 'corpRezzed'): boolean => {
   const whole = ablated('corpFormulas');
-  return ablated(part) || whole;
+  const flat = part === 'corpKeep' && ablated('corpKeepFlat');
+  return ablated(part) || whole || flat;
 };
 
 /** Fire-count probe (scripts/step-s/fire-count.ts): with nothing ablated, notes `side:family` for every family read. */

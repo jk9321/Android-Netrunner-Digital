@@ -2,7 +2,7 @@ import { CardInstance, GameState, cardDef, getCardDefinition, knownInHand } from
 import { bareAssetRisk, turnsLeft } from './cardProfiles';
 import { PAYOUT_RISK } from './payoutRisk';
 import { COUNTER_WORTH } from './counterValues';
-import { CARDS, advancePayloadOf, corpFormula, runnerFormula } from './cards';
+import { CARDS, CARD_VALUES, advancePayloadOf, corpFormula, runnerFormula } from './cards';
 import { actingSide } from './synergy';
 import { CLICK, RATES, cardRate, flatlineWorth, memo, pointGain, pointValue, scopeToGame, sideCards } from './valueModel';
 import { tagsWorth } from './evaluate';
@@ -553,6 +553,8 @@ export function rezzedWorth(state: GameState, card: CardInstance, rezCost: numbe
   const own = corpPart('corpRezzed') ? undefined : CARDS[card.cardCode]?.rezzed; // Step S B3e
   if (own) return own(state, card, rezCost);
   const fx = corpPart('corpKeep') ? undefined : corpEffect(state, card.cardCode, true); // Step S B3b
+  // Step S B3b': the flat keep (corpKeepValue's stand-in) instead of -1
+  if (!fx && ablated('corpKeepFlat')) return (CARD_VALUES[card.cardCode]?.keep ?? RATES.defaultKeep) + RATES.cardDrawn * (CARD_VALUES[card.cardCode]?.draws ?? 0) - rezCost;
   return fx ? fx.keep - rezCost : -1;
 }
 
