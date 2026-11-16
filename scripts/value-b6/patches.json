@@ -34,8 +34,8 @@
   ],
   [
    "ai/evaluate.ts",
-   "    const hosted = (card.hostedCards ?? []).filter(h => cardDef(h).side_code === 'runner');\n    const freeInstall = !!CARDS[card.cardCode]?.freeInstallHosted;\n    value += hosted.reduce((n, h) => n + heldWorth(state, h, 'runner', freeInstall), 0);",
-   "    const hosted = (card.hostedCards ?? []).filter(h => cardDef(h).side_code === 'runner');\n    const freeInstall = card.cardCode === MADANI;\n    value += hosted.reduce((n, h) => n + heldWorth(state, h, 'runner', freeInstall), 0);"
+   "  const freeInstall = !!CARDS[card.cardCode]?.freeInstallHosted;",
+   "  const freeInstall = card.cardCode === MADANI;"
   ],
   [
    "ai/evaluate.ts",
