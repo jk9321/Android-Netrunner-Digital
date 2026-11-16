@@ -35,3 +35,15 @@ for (const side of ['corp', 'runner']) {
     console.log(`  time ${arm}: mean ${s.mean.toFixed(1)} ms, p95 ${s.p95.toFixed(1)}, total ${(s.sum / 1000).toFixed(0)} s, x${(s.sum / b.sum).toFixed(3)} mean, p95 x${(s.p95 / b.p95).toFixed(3)}`);
   }
 }
+
+// V-B B2's watch: upgrade rezzes picked, base vs branch, by card (a decision that rezzes in one tree and not the other
+// shows here; money upgrades are those isEconAsset lists)
+const defs = Object.fromEntries(readdirSync('src/data').filter(f => f.endsWith('.json')).flatMap(f => [].concat(JSON.parse(readFileSync(join('src/data', f), 'utf8'))).flatMap(x => x.data ?? x)).map(c => [c.code, c]));
+const ups = {};
+for (const r of rows.filter(r => r.rez)) for (const arm of ['base', 'branch']) {
+  const c = r.rez[arm];
+  if (c && defs[c]?.type_code === 'upgrade') ((ups[defs[c].title] ??= { base: 0, branch: 0 })[arm] += 1);
+}
+const tot = Object.values(ups).reduce((t, u) => ({ base: t.base + u.base, branch: t.branch + u.branch }), { base: 0, branch: 0 });
+console.log(`\nupgrade rezzes picked (all decisions): base ${tot.base} (${(tot.base / games).toFixed(2)} a game), branch ${tot.branch} (${(tot.branch / games).toFixed(2)} a game)`);
+for (const [t, u] of Object.entries(ups).sort((a, b) => b[1].base + b[1].branch - a[1].base - a[1].branch)) if (u.base !== u.branch) console.log(`  ${t}: ${u.base} -> ${u.branch}`);
