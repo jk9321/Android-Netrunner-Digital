@@ -156,7 +156,9 @@ function valued(src: string, i: number, side: 'corp' | 'runner', kind: string, s
 function byCard(src: string, i: number, side: 'corp' | 'runner', kind: string, s: GameState) {
   if (mode === 'btrace' && !at.has(`${src}#${i}`)) return;
   const out: Record<string, unknown> = {};
-  for (const arm of arms) {
+  // bvalues with at=...: base asked too at the listed decisions (the changed picks traced in the same run)
+  const list = mode === 'bvalues' && at.has(`${src}#${i}`) && !arms.includes('base') ? (['base', ...arms] as Arm[]) : arms;
+  for (const arm of list) {
     const on = arm !== 'base';
     probe.shadow = on;
     probe.byCard = on;
@@ -214,7 +216,7 @@ function dealsAndHumans(each: (src: string, i: number, side: 'corp' | 'runner', 
     }),
   ];
   const names = [...deals().map(seed => `deal:${seed}`), ...humanFiles().map(f => `human:${f.split('/').pop()}`)];
-  const wanted = at.size ? new Set([...at].map(x => x.split('#')[0])) : null;
+  const wanted = at.size && mode !== 'bvalues' ? new Set([...at].map(x => x.split('#')[0])) : null;
   sources
     .map((run, k) => ({ run, name: names[k] }))
     .filter(x => !wanted || wanted.has(x.name))
@@ -307,7 +309,7 @@ async function wholeGame(arm: Arm) {
 
 async function main() {
   if (mode === 'game' && shard >= 56 && !arms[shard - 56]) return;
-  const want = mode === 'game' && shard >= 56 ? [arms[shard - 56]] : arms;
+  const want = mode === 'game' && shard >= 56 ? [arms[shard - 56]] : mode === 'bvalues' && at.size && !arms.includes('base') ? (['base', ...arms] as Arm[]) : arms;
   const dirs = makeTrees(root, want);
   trees = {} as Record<Arm, Tree>;
   for (const arm of want) trees[arm] = await load(dirs[arm]);
