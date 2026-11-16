@@ -62,6 +62,7 @@ const MODULE_LETS: Record<string, string> = {
   'evaluate:AGENDA_CLICK': 'a measured rate a script sets (setAgendaClick), not per call',
   'threatModel:planSig': "a cache of the plan's JSON for the threat key, rebuilt when the plan changes",
   'valueModel:deckCard': 'the deck-average hook handValues registers once (an import cycle otherwise)',
+  'valueModel:agendaOdds': "the Runner's agenda-odds port evaluate.ts registers once (runs.ts remoteAgendaOdds; an import cycle otherwise, ai-honest-runner-view)",
   'valueModel:nextStateId': "guardLoop's id counter for positions",
 };
 
@@ -239,6 +240,11 @@ describe('AI code health (audit guards)', () => {
   // ai-corp-honest-order (brief rev 2: the guards rise only by the view function's measured lines) adds 23 to src/ai: the
   // Corp's view in turnPlanner.ts (corpDecisionView, its comment and memo, the import: +22) and its one line in corpAI.ts
   // rankMainActions (+1); corp/ is unchanged (the comment rewording holds its line count)
+  // ai-honest-runner-view (brief rev 2: guards rise only by the measured lines) adds 138 to src/ai: runnerReply.ts +70
+  // (the one deal of the Corp's hidden cards lifted from determinize, runnerUnknownSlots, the copy and the view; +3 of it
+  // review R1, the advanced slots dealt first), search.ts -27 (determinize calls the deal), valueModel.ts +53 (corpIceMean, boardNeed's Runner branch by odds, the odds port),
+  // evaluate.ts +14 (unseenCorpPool, the port's fill), turnPlanner.ts +17 (runnerDecisionView memoised, memory), runnerAI.ts
+  // +8 (the baseline and runs on the view, the prompt guard), handValues.ts +3 (the deck-average key with codes)
   // ai-playout-lines (A1, brief-playout-lines.md: the guards rise only by the wiring's measured lines) adds 63 to src/ai:
   // corp/core.ts +40 (lineAsk, the Q4/Q5 sequence taken out of corpDecide, and playoutLine, the playout's Corp, with
   // their comments and its measurement hook), turnPlanner.ts +10 (the PlannerAI `line` hook and its three uses in
@@ -258,9 +264,10 @@ describe('AI code health (audit guards)', () => {
 
   // ai-value-time: src/ai +11 measured (the tag clock kept on the original board, evaluate.ts +7 and runs.ts +2; the lazy
   // tag input, effectValues.ts +2); src/ai/corp unchanged. With ai-playout-lines' +63 (above): 13,847 + 11 + 63 = 13,921
-  it('keeps src/ai/corp at or under 2,257 lines and src/ai at or under 13,921 (Stage C hand-off, ai-corp-honest-order, ai-value-time, ai-playout-lines)', () => {
+  // ai-honest-runner-view on top of it: +138 (above), 13,921 to 14,059
+  it('keeps src/ai/corp at or under 2,257 lines and src/ai at or under 13,921 (Stage C hand-off, ai-corp-honest-order, ai-value-time, ai-playout-lines, ai-honest-runner-view)', () => {
     const corp = aiFiles().filter(f => f.replace(/\\/g, '/').startsWith('corp/')).reduce((n, f) => n + lines(f), 0);
     expect(corp).toBeLessThanOrEqual(2257);
-    expect(aiFiles().reduce((n, f) => n + lines(f), 0)).toBeLessThanOrEqual(13921);
+    expect(aiFiles().reduce((n, f) => n + lines(f), 0)).toBeLessThanOrEqual(14059);
   });
 });

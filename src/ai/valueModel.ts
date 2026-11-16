@@ -265,8 +265,27 @@ export function sideCards(state: GameState, side: SideCode): CardInstance[] {
 /** The average of `values`, or `fallback` for none. */
 export const mean = (values: number[], fallback: number): number => (values.length > 0 ? values.reduce((a, b) => a + b, 0) / values.length : fallback);
 const buildTargets = new Map<string, number>();
-/** Empties buildTarget's map (test-only: scripts/cache-bisect.ts). */
-export const clearBuildTargets = (): void => buildTargets.clear();
+const iceMeans = new Map<string, number>();
+/** Empties buildTarget's map and corpIceMean's (test-only: scripts/cache-bisect.ts). */
+export const clearBuildTargets = (): void => {
+  buildTargets.clear();
+  iceMeans.clear();
+};
+
+/**
+ * The Corp's typical ice cost: the mean printed cost of the ice in its decklist (3 for none). Decklists are public, so
+ * either side may read it. buildTarget's 2.5 layers and the Runner's guess of an unseen ice's rez cost (boardNeed) both
+ * read this one number (ai-honest-runner-view; red team 4).
+ */
+export function corpIceMean(state: GameState): number {
+  // The game id carries its seed, so this is worked out once per game (as buildTarget is)
+  const key = `${state.id}:${state.corp.identity.cardCode}`;
+  const cached = iceMeans.get(key);
+  if (cached !== undefined) return cached;
+  const value = mean(sideCards(state, 'corp').filter(c => cardDef(c).type_code === 'ice').map(c => cardDef(c).cost ?? 0), 3);
+  iceMeans.set(key, value);
+  return value;
+}
 
 /**
  * Credits a side should build toward from turn 1 (Jeff), from decklist
@@ -282,7 +301,7 @@ export function buildTarget(state: GameState, side: SideCode): number {
   if (cached !== undefined) return cached;
   const corpCards = sideCards(state, 'corp');
   const runnerCards = sideCards(state, 'runner');
-  const ice = mean(corpCards.filter(c => cardDef(c).type_code === 'ice').map(c => cardDef(c).cost ?? 0), 3);
+  const ice = corpIceMean(state);
   let target: number;
   if (side === 'corp') {
     target = 2.5 * ice + mean(corpCards.filter(c => cardDef(c).type_code === 'agenda').map(c => cardDef(c).advancement_cost ?? 3), 3);
@@ -306,15 +325,49 @@ export function boardNeed(state: GameState, side: SideCode): number {
   if (side === 'corp') {
     // B5: the Corp prices rez money's keep (corp/rezMoney.ts, through corpPorts: unset throws, R1); below, the Runner's view only
     if (actingSide() === 'corp') return corpPorts.keep(state);
+    // ai-honest-runner-view (rule 10.2.2a; valuation audit VAL-RUNNER-BOARDNEED): the Runner reads only what it can know.
+    // An unrezzed ice it can't see costs the decklist's typical ice (corpIceMean; public rez-cost modifiers such as
+    // Tread Lightly can't be applied to an unknown card: a known gap, docs/ai-priced-quantities.md). A remote counts by
+    // the chance it holds an agenda (the run model's owner, runs.ts remoteAgendaOdds, its trap input at the no-memory
+    // value; several hidden root cards: one minus the product of the misses), not by a look at the facedown card.
     let need = 0;
     for (const server of servers) {
-      const counts = !server.isRemote || server.root.some(c => cardDef(c).type_code === 'agenda');
-      // plan.oneRezMoney: what rezzing it costs now (Tread Lightly, Fransofia Ward), as the rule ranking's reserve counts it
-      if (counts) for (const ice of server.ice) if (!ice.isRezzed) need += plan().oneRezMoney ? rezCostOf(state, ice) : cardDef(ice).cost ?? 0;
+      const guard = server.isRemote ? remoteAgendaChance(state, server) : 1;
+      if (guard === 0) continue;
+      for (const ice of server.ice) {
+        if (ice.isRezzed) continue;
+        // plan.oneRezMoney: a known card's cost to rez now (Tread Lightly, Fransofia Ward), as the rule ranking's reserve counts it
+        const cost = ice.faceUp || ice.runnerKnows ? (plan().oneRezMoney ? rezCostOf(state, ice) : cardDef(ice).cost ?? 0) : corpIceMean(state);
+        need += guard * cost;
+      }
     }
     return need;
   }
   return Math.max(0, ...servers.map(s => s.ice.filter(i => i.isRezzed).reduce((n, i) => n + (cardDef(i).cost ?? 0), 0)));
+}
+
+type Server = GameState['corp']['servers'][string];
+/**
+ * The Runner's chance that a facedown root card is an agenda: runs.ts remoteAgendaOdds, its trap input at the no-memory
+ * value (trapOdds without the Runner AI's memory). Filled by evaluate.ts as it loads (valueModel.ts reads no run owner
+ * directly: runs.ts imports this file, and a direct import puts it in a load cycle, tests/loadOrder.test.ts). Unset throws.
+ */
+let agendaOdds: ((state: GameState, server: Server, card: CardInstance) => number) | null = null;
+export const setRunnerAgendaOdds = (fn: (state: GameState, server: Server, card: CardInstance) => number): void => void (agendaOdds = fn);
+
+/** The Runner's chance that a remote holds an agenda: 1 for a public one, else from its facedown cards' odds (boardNeed). */
+function remoteAgendaChance(state: GameState, server: Server): number {
+  if (!agendaOdds) throw new Error('valueModel setRunnerAgendaOdds is not registered: src/ai/evaluate.ts has not loaded');
+  let miss = 1;
+  for (const card of server.root) {
+    const hidden = !card.isRezzed && !card.faceUp && !card.runnerKnows;
+    if (!hidden) {
+      if (cardDef(card).type_code === 'agenda') return 1;
+      continue;
+    }
+    miss *= 1 - agendaOdds(state, server, card);
+  }
+  return 1 - miss;
 }
 
 /** The need credits slide against: the build target or the board's need, whichever is more. */
