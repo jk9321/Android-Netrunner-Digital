@@ -32,7 +32,11 @@ const fell = rows.flatMap(r => r.fell);
 console.log(`real-state fallbacks: ${fell.length}`);
 for (const [k, n] of count(fell, x => x)) console.log(`  ${k}: ${n}`);
 const audit = rows.reduce((a, r) => ({ click: a.click + (r.auditMismatch?.click ?? 0), draw: a.draw + (r.auditMismatch?.draw ?? 0) }), { click: 0, draw: 0 });
-console.log(`cache audit mismatches: click ${audit.click}, draw ${audit.draw}`);
+console.log(`cache audit mismatches (every arm): click ${audit.click}, draw ${audit.draw}`);
+for (const arm of ['hitsBase', 'hitsBranch']) {
+  const h = rows.filter(r => r[arm]).reduce((a, r) => { for (const k of Object.keys(r[arm])) a[k] = (a[k] ?? 0) + r[arm][k]; return a; }, {});
+  if (h.clickChecked !== undefined) console.log(`  ${arm === 'hitsBase' ? 'base  ' : 'branch'}: click ${h.clickWrong} wrong of ${h.clickChecked} hits (${(100 * h.clickWrong / Math.max(1, h.clickChecked)).toFixed(1)}%), draw ${h.drawWrong} of ${h.drawChecked} (${(100 * h.drawWrong / Math.max(1, h.drawChecked)).toFixed(1)}%)`);
+}
 for (const kind of ['main', 'prompt', 'rez']) {
   const rs = rows.filter(r => r.kind === kind);
   const b = rs.map(r => r.msBase), v = rs.map(r => r.msBranch);

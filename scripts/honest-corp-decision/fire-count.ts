@@ -80,6 +80,7 @@ const decide = (s: GameState, arm: Arm, kind: 'action' | 'rez', cards?: CardInst
   const copy = structuredClone(s);
   const agent = new HeuristicCorpAI({ synergy: true, planner: true });
   const before = { ...honestCorpCounts };
+  const audit = { cc: clickAudit.checked, cm: clickAudit.mismatches, dc: drawAudit.checked, dm: drawAudit.mismatches };
   const t = performance.now();
   let a: GameAction | null;
   if (arm === 'branch') a = kind === 'rez' ? agent.chooseRez(copy, cards!) : agent.chooseAction(copy);
@@ -87,7 +88,8 @@ const decide = (s: GameState, arm: Arm, kind: 'action' | 'rez', cards?: CardInst
   else a = kind === 'rez' ? rezWith(copy, cards!, partial(copy, arm)) : decideWith(agent, copy, partial(copy, arm));
   const ms = Math.round(performance.now() - t);
   const fell = Object.entries(honestCorpCounts).filter(([k, n]) => n !== (before[k] ?? 0)).map(([k]) => k);
-  return { a: key(a), ms, fell };
+  const hits = { clickChecked: clickAudit.checked - audit.cc, clickWrong: clickAudit.mismatches - audit.cm, drawChecked: drawAudit.checked - audit.dc, drawWrong: drawAudit.mismatches - audit.dm };
+  return { a: key(a), ms, fell, hits };
 };
 const question = (s: GameState, kind: 'action' | 'rez', basePick: string): string => {
   if (kind === 'rez') return `rez:${s.priority?.step ?? s.activeRun?.phase}`;
@@ -116,7 +118,7 @@ forEachRecorded({
     if (kind === 'action' && !(getLegalActions(s, 'corp').length > 0)) return;
     const audit0 = { c: clickAudit.mismatches, d: drawAudit.mismatches };
     const order = k++ % 2 ? (['base', 'branch'] as const) : (['branch', 'base'] as const);
-    const r: Record<string, { a: string; ms: number; fell: string[] }> = {};
+    const r: Record<string, ReturnType<typeof decide>> = {};
     for (const arm of order) r[arm] = decide(s, arm, kind, d.cards);
     const changed = r.base.a !== r.branch.a;
     const causes: string[] = [];
@@ -146,6 +148,9 @@ forEachRecorded({
         fell: r.branch.fell,
         onView,
         auditMismatch: { click: clickAudit.mismatches - audit0.c, draw: drawAudit.mismatches - audit0.d },
+        // Per arm (the caches are cleared before each): hits served from the map and how many were another board's value
+        hitsBase: clickAudit.on ? r.base.hits : undefined,
+        hitsBranch: clickAudit.on ? r.branch.hits : undefined,
         base: changed ? r.base.a : undefined,
         branch: changed ? r.branch.a : undefined,
         msBase: r.base.ms,
