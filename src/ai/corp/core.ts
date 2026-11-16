@@ -1,4 +1,4 @@
-import { GameAction, GameState, activePrompt, getLegalActions } from '../../core';
+import { GameAction, GameState, activePrompt, getLegalActions, isLegalAction } from '../../core';
 import { ScoredAction } from '../agent';
 import { keepsScore, scoreNowPlan, winNowAction } from '../winNow';
 import { answerPrompt } from '../prompts';
@@ -41,44 +41,81 @@ export interface CorpContext {
   lookahead?(state: GameState, ranked: ScoredAction[]): GameAction | null;
   /** The action played (the caller's loop guard). */
   note(action: GameAction): void;
+  /** Saves the look-ahead's memory before a decision on a view, returning its restore (corpDecide's fallback, red team finding 3). */
+  snapshot?(): () => void;
   debug?: boolean;
 }
 
 export { isPettyCash } from './candidates';
 
-/** The Corp's action at `state` (see the file comment). */
-export function corpDecide(state: GameState, ctx: CorpContext): GameAction {
-  decisionContext(state, 'corp');
+/**
+ * ai-honest-corp-decision: the deciding Corp's decisions taken again on the real state (an answer not legal there, a
+ * prompt the view cannot hold), by cause, for the fire count (scripts/honest-corp-decision); expected near zero.
+ */
+export const honestCorpCounts: Record<string, number> = {};
+export const countHonest = (cause: string) => void (honestCorpCounts[cause] = (honestCorpCounts[cause] ?? 0) + 1);
+
+/**
+ * The Corp's action at `state` (see the file comment). `view`: the state every question reads (ai-honest-corp-decision,
+ * rule 10.2.2a: the deciding Corp's own deal, turnPlanner.ts corpDecisionView; by default the state itself, as for the
+ * Hard Corp and the planner's rollouts). The legal list is the real state's. The answer must be legal on the real
+ * state: one that is not (the view and the state disagree about something public) is thrown away before anything is
+ * committed (red team 2026-11-16 finding 3: the loop guard, the held line, the planner's line) and the decision is
+ * taken again on the real state, and counted (countHonest). So is a prompt whose named cards the view cannot hold where
+ * they are (`inPlace` false: turnPlanner.ts promptCardsInPlace; red team finding 2).
+ */
+export function corpDecide(state: GameState, ctx: CorpContext, view: GameState = state, inPlace = true): GameAction {
+  if (view !== state && activePrompt(state) && !inPlace) {
+    countHonest(`promptReal:${promptKind(state)}`);
+    view = state;
+  }
+  const held = view !== state ? structuredClone(ctx.memory.heldLine) : null;
+  const restore = view !== state ? ctx.snapshot?.() : undefined;
+  const out = decideOn(state, view, ctx);
+  if (view !== state && !isLegalAction(state, out.action)) {
+    countHonest(activePrompt(state) ? 'illegalPrompt' : 'illegalAction');
+    ctx.memory.heldLine = held;
+    restore?.();
+    return corpDecide(state, ctx, state);
+  }
+  if (out.held !== undefined) ctx.memory.heldLine = out.held;
+  if (out.note) ctx.note(out.action);
+  return out.action;
+}
+
+/** The kind of the active prompt, for the counts: kind, card and step. */
+function promptKind(state: GameState): string {
+  const p = activePrompt(state)!;
+  return 'source' in p ? `${p.kind}:${p.source.cardCode}:${p.source.step}` : p.kind;
+}
+
+/** One decision read on `view` (the real `state` only for the legal list), its commits returned for corpDecide to make. */
+function decideOn(state: GameState, view: GameState, ctx: CorpContext): { action: GameAction; note: boolean; held?: HeldLine | null } {
+  decisionContext(view, 'corp');
   // Q1. plan.winNow (bug report #33): a line that wins the game this turn is played before any judgement (winNow.ts)
   if (ctx.counted) {
-    const win = winNowAction(state);
-    if (win) {
-      ctx.note(win);
-      return win;
-    }
+    const win = winNowAction(view);
+    if (win) return { action: win, note: true };
   }
   // Q3. plan.scoreNow (counted scoring C1): a line that scores an agenda this turn, the same search (winNow.ts); the
   // Corp's own pick stands while it keeps the score (keepsScore), the line's action is played otherwise
-  const score = ctx.counted ? scoreNowPlan(state) : null;
-  if (score && activePrompt(state)) {
-    ctx.note(score.first);
-    return score.first;
-  }
+  const score = ctx.counted ? scoreNowPlan(view) : null;
+  if (score && activePrompt(view)) return { action: score.first, note: true };
   // Q0. A prompt
-  if (activePrompt(state)) return answerPrompt(state, 'corp', undefined, ctx.synergy);
+  if (activePrompt(view)) return { action: answerPrompt(view, 'corp', undefined, ctx.synergy), note: false };
   const legal = getLegalActions(state, 'corp');
-  const ranked = ctx.rank(state, legal);
-  const turnStart = state.turnStep?.kind === 'corp_turn_start';
+  const ranked = ctx.rank(view, legal);
+  const turnStart = view.turnStep?.kind === 'corp_turn_start';
   // Planner speed P1: the count has decided this click, so the look-ahead is not run. A scoreNow line: the Corp's pick
   // is then the order's first, kept while it keeps the score (keepsScore), the line's action otherwise. A held two-turn
   // line on a later turn (Q4): its step (advance or score, heldLaterStep) does not depend on the pick, and scoreInTwoPick
   // plays it (lineAsk). Spec 1.3 authority 2: the step a two-turn line plays now (Q5) is the line's, asked before the
   // look-ahead and never weighed by it.
   const choose = (decided: boolean, lineFirst: GameAction | null): GameAction => {
-    const planned = ctx.lookahead && !turnStart && !decided ? ctx.lookahead(state, ranked) : null;
+    const planned = ctx.lookahead && !turnStart && !decided ? ctx.lookahead(view, ranked) : null;
     // Q6. Money step M1 (incomeLine.ts): an econ operation that nets credits is the counted pick for its click, ahead of
     // the Corp's own; a score this turn, a held two-turn line's step, or the Corp's own pick moving an agenda keeps the click
-    const money = !decided && ctx.counted && !turnStart ? moneyPick(state, planned ?? ranked[0]?.action) : null;
+    const money = !decided && ctx.counted && !turnStart ? moneyPick(view, planned ?? ranked[0]?.action) : null;
     let chosen = lineFirst ?? money ?? planned ?? (ranked[0]?.score > -Infinity ? ranked[0].action : legal.find(a => a.type === 'END_TURN') ?? legal[0]);
     // plan.tagFirst: the planner's leaf counts a tag kept as a trash still to come, but the Runner clears it on its turn
     if (!lineFirst && ctx.synergy && plan().tagFirst && ranked[0]?.action.type === 'TRASH_RESOURCE' && ranked[0].tagFirst) chosen = ranked[0].action;
@@ -86,21 +123,17 @@ export function corpDecide(state: GameState, ctx: CorpContext): GameAction {
   };
   if (score) {
     let picked = choose(true, null);
-    if (!keepsScore(state, picked, score)) picked = score.first;
-    ctx.note(picked);
-    return picked;
+    if (!keepsScore(view, picked, score)) picked = score.first;
+    return { action: picked, note: true };
   }
   // Q4, Q5. plan.scoreInTwo (counted scoring C2): a held two-turn score line's step, or the pick vetoed while it would
   // spend the line's rez money (lineAsk, shared with the planner's playouts: playoutLine)
-  const two = lineAsk(state, ctx.memory.heldLine, (lineFirst, later) => choose(later || !!lineFirst, lineFirst));
-  ctx.memory.heldLine = two.held;
+  const two = lineAsk(view, ctx.memory.heldLine, (lineFirst, later) => choose(later || !!lineFirst, lineFirst));
   if (!ctx.counted) {
     tally('scoreInTwo', 'rolloutDecisions');
     if (two.lineFirst || two.action !== two.chosen) tally('scoreInTwo', 'rolloutTaken');
   }
-  const picked = two.action!;
-  ctx.note(picked);
-  return picked;
+  return { action: two.action!, note: true, held: two.held };
 }
 
 /**
