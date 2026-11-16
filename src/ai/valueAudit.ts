@@ -1,10 +1,21 @@
-import { CardDefinition } from '../core';
+import { CardDefinition, getCardDefinition } from '../core';
 import { isIcebreaker } from '../core/engine/ice';
 import { CARD_PROFILES } from './cardProfiles';
 import { CARD_VALUES } from './cardValues';
 import { COUNTER_WORTH } from './counterValues';
-import { moneyOpGain } from './corpAI';
+import { printedGain } from './valueModel';
 import { EFFECT_CODES } from './effectValues';
+
+/**
+ * Credits a money operation gains, read from its text (step 6: no hand-kept list, so new sets are covered): "Gain N
+ * credits" as the card's own effect, not as one option of a choice ("* Gain 3 credits"). Moved here from corpAI.ts with
+ * the ranking (Step 4 Stage C7): this audit and the scripts are its readers.
+ */
+export function moneyOpGain(code: string): number | undefined {
+  const def = getCardDefinition(code);
+  if (def.type_code !== 'operation') return undefined;
+  return printedGain(def.stripped_text);
+}
 
 /**
  * The every-card value audit (Jeff, docs/ai-value-model-plan.md): how the

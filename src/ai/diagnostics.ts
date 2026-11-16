@@ -13,7 +13,7 @@ import { holdPricing, pricing, withPricing } from './pricing';
  */
 export interface Diagnostics {
   /** corp/placement.ts scoreInTwoPick and corp/rezMoney.ts lineFloor: two-turn agenda lines begun, stepped, vetoed, dropped, finished. */
-  scoreInTwo: { begun: number; steps: number; vetoed: number; dropped: number; finished: number; floorRefused: number; unholdable: number };
+  scoreInTwo: { begun: number; steps: number; vetoed: number; dropped: number; finished: number; floorRefused: number; unholdable: number; rolloutDecisions: number; rolloutTaken: number };
   /** The two-turn agenda lines begun, in order. */
   scoreInTwoLines: { turn: number; agendaId: string; form: TwoTurnLine['form'] }[];
   /** corp/placement.ts assetCover: asked, and why it gave no line. */
@@ -29,7 +29,7 @@ export interface Diagnostics {
   /** oracle.ts: oracle turns played out, hits, time. */
   oracle: { turns: number; hits: number; ms: number };
   /** turnPlanner.ts: decisions, added candidates and their wins. */
-  planner: { decisions: number; withAdded: number; added: number; addedWins: number };
+  planner: { decisions: number; agendaSlot: number; agendaSlotWins: number; buildSlot: number; buildSlotWins: number };
   /** Time the threat's lookups and budgets (performance.now on each). */
   timing: boolean;
   /** A Runner reply is being sampled (runnerReply.ts): budgets inside count as reply budgets. Set with inReply. */
@@ -39,7 +39,6 @@ export interface Diagnostics {
   /** A threat budget about to be worked out, with its key (scripts/threat-profile.ts counts repeats). Only with `timing`. */
   onThreatBudget?: (key: string, state: GameState) => void;
   onClose?: (top: { action: GameAction; first: number; value: number; samples: number }[], pick: GameAction) => void;
-  onAddedWin?: (state: GameState, action: GameAction) => void;
   onCandidates?: (side: SideCode, values: number[], actions: GameAction[]) => void;
   /** Spec-search S1 (measurement only): every Corp decision's continuations (scripts/search-audit.ts, lossLog.ts). */
   onSearch?: (row: SearchRow) => void;
@@ -56,7 +55,7 @@ export interface Diagnostics {
 type CounterGroups = { [K in keyof Diagnostics as Diagnostics[K] extends Record<string, number> ? K : never]: Diagnostics[K] };
 
 export const newDiagnostics = (): Diagnostics => ({
-  scoreInTwo: { begun: 0, steps: 0, vetoed: 0, dropped: 0, finished: 0, floorRefused: 0, unholdable: 0 },
+  scoreInTwo: { begun: 0, steps: 0, vetoed: 0, dropped: 0, finished: 0, floorRefused: 0, unholdable: 0, rolloutDecisions: 0, rolloutTaken: 0 },
   scoreInTwoLines: [],
   assetCover: { asked: 0, scoringShort: 0, iced: 0, clicks: 0, noIce: 0, rezMoney: 0, begun: 0 },
   money: { ops: 0 },
@@ -64,7 +63,7 @@ export const newDiagnostics = (): Diagnostics => ({
   reply: { nakedAgendaTurns: 0, nakedAgendaRuns: 0 },
   threat: { calls: 0, keyed: 0, budgeted: 0, keyMs: 0, budgetMs: 0, replyBudgeted: 0, replyBudgetMs: 0 },
   oracle: { turns: 0, hits: 0, ms: 0 },
-  planner: { decisions: 0, withAdded: 0, added: 0, addedWins: 0 },
+  planner: { decisions: 0, agendaSlot: 0, agendaSlotWins: 0, buildSlot: 0, buildSlotWins: 0 },
   timing: false,
   replying: false,
 });

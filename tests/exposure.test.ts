@@ -1,5 +1,7 @@
 import { describe, expect, it } from 'vitest';
-import { iceDepth, outOfReach } from '../src/ai/corpAI';
+import { GameState } from '../src/core';
+import { serverHold } from '../src/ai/corp/hold';
+import { inDecision } from './helpers/pricing';
 import { installIceForTest, installProgramForTest, newGame } from './helpers';
 
 const PALISADE = '30072';
@@ -16,22 +18,25 @@ function twoLayers(runnerCredits: number) {
   return { s, server: s.corp.servers['remote-1'] };
 }
 
+// Rewritten in Step 4 Stage C7 against the hold owner (corp/hold.ts serverHold), which replaced the ranking's iceDepth and
+// outOfReach: what holds a server is what the Runner can pay on its next turn, not the number of layers
+const holds = (s: GameState, corpCredits = s.corp.credits) => inDecision(s, 'corp', () => serverHold(s, 'remote-1', { when: 'runnerTurn', corpCredits }).holds);
 describe('agenda exposure by what the Runner can pay (Jeff, 2026-10-29; plan.exposureByCost)', () => {
   it('two layers are no protection against a Runner who can pay for both', () => {
-    const { s, server } = twoLayers(12);
-    expect(iceDepth(s, server)).toBe(2); // the old rule called this safe
-    expect(outOfReach(s, server, s.corp.credits)).toBe(false);
+    const { s } = twoLayers(12);
+    expect(holds(s)).toBe(false);
   });
 
+  // The owner's budget is the Runner's credits and its next turn's clicks (runnerBudget): a Runner with none on hand
   it('the same ice keeps out a Runner who can’t pay for it with a turn’s income', () => {
-    const { s, server } = twoLayers(3);
-    expect(outOfReach(s, server, s.corp.credits)).toBe(true);
+    const { s } = twoLayers(0);
+    expect(holds(s)).toBe(true);
   });
 
   it('unrezzed ice counts only while the Corp can pay to rez it', () => {
-    const { s, server } = twoLayers(3);
+    const { s, server } = twoLayers(0);
     for (const ice of server.ice) ice.isRezzed = false;
-    expect(outOfReach(s, server, 6)).toBe(true);
-    expect(outOfReach(s, server, 3)).toBe(false);
+    expect(holds(s, 6)).toBe(true);
+    expect(holds(s, 3)).toBe(false);
   });
 });

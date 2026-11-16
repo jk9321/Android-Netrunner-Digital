@@ -2,7 +2,8 @@ import { describe, expect, it } from 'vitest';
 import { CardInstance, GameState, cardDef } from '../src/core';
 import { iceCost } from '../src/ai/runs';
 import { stealOdds } from '../src/ai/effectValues';
-import { outOfReach } from '../src/ai/corpAI';
+import { serverHold } from '../src/ai/corp/hold';
+import { inDecision } from './helpers/pricing';
 import { installIceForTest, installProgramForTest, newGame, runnerInstall } from './helpers';
 
 const isIcebreaker = (c: CardInstance) => /icebreaker/i.test(cardDef(c).keywords ?? '');
@@ -35,12 +36,14 @@ describe('Corp AI protection counts subtypes gained from Chromatophores (rules 2
     expect(stealOdds(after, 'hq')).toBeGreaterThan(before * 5);
   });
 
-  it('the Corp no longer treats the server as out of the Runner’s reach', () => {
+  // Rewritten in Step 4 Stage C7 against the hold owner (corp/hold.ts serverHold), which replaced the ranking's outOfReach
+  const holds = (s: GameState) => inDecision(s, 'corp', () => serverHold(s, 'hq', { when: 'runnerTurn' }).holds);
+  it('the Corp no longer counts the server as holding', () => {
     const { s, ice } = board();
     s.runner.credits = 5;
-    expect(outOfReach(s, s.corp.servers.hq, s.corp.credits)).toBe(true);
+    expect(holds(s)).toBe(true);
     const [after] = runnerInstall(s, CHROMATOPHORES, ice);
-    expect(outOfReach(after, after.corp.servers.hq, after.corp.credits)).toBe(false);
+    expect(holds(after)).toBe(false);
   });
 
   it('also when the Chromatophores host is still unrezzed', () => {
@@ -48,8 +51,8 @@ describe('Corp AI protection counts subtypes gained from Chromatophores (rules 2
     hqIce(s, ice).isRezzed = false;
     s.runner.credits = 5;
     s.corp.credits = 10; // the Corp can afford the rez, so the ice counts (Jeff)
-    expect(outOfReach(s, s.corp.servers.hq, s.corp.credits)).toBe(true);
+    expect(holds(s)).toBe(true);
     const [after] = runnerInstall(s, CHROMATOPHORES, ice);
-    expect(outOfReach(after, after.corp.servers.hq, after.corp.credits)).toBe(false);
+    expect(holds(after)).toBe(false);
   });
 });

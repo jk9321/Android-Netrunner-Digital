@@ -3,8 +3,8 @@ import type { CardInstance, GameState } from '../core';
 /**
  * The one seam where the valuation layer and prompts.ts read Corp owners (Stage B review R8): readers of the owners, not
  * copies. corpAI.ts fills it once as it loads, so corp/ sits in no import cycle. An unset port throws; no fallback.
- * keep and holdingRezIds: corp/rezMoney.ts; perfectRecallTarget: corp/rez.ts; freeInstallTarget: the ranking's install
- * choice for the prompts (corpAI.ts; Stage D3 deletes this port).
+ * keep and holdingRezIds: corp/rezMoney.ts; perfectRecallTarget: corp/rez.ts; freeInstallTarget: the order's first
+ * install at place's destination, for the prompts (corp/candidates.ts, Stage C1b; Stage D3 moves prompts.ts onto it).
  */
 export interface CorpPorts {
   keep(state: GameState): number;

@@ -111,15 +111,16 @@ describe('steal odds as measured (Jeff, 2026-10-28; plan.stealOdds)', () => {
 
 describe('plan switches for one side (Jeff, 2026-10-29; synergy.ts sideOff)', () => {
   it('a side decides with its own plan, nested inside the other side, and the base plan comes back', async () => {
+    // (agendaTiming until Step 4 Stage C7 deleted it with the ranking; any Corp switch that is on serves)
     const { asSide, sideOff, tuning } = await import('../src/ai/synergy');
     const saved = sideOff.corp;
-    sideOff.corp = ['agendaTiming'];
+    sideOff.corp = ['hiddenDraws'];
     try {
       const base = tuning.plan;
       asSide('corp', () => {
-        expect(plan().agendaTiming).toBe(false);
-        asSide('runner', () => expect(plan().agendaTiming).toBe(base.agendaTiming));
-        expect(plan().agendaTiming).toBe(false);
+        expect(plan().hiddenDraws).toBe(false);
+        asSide('runner', () => expect(plan().hiddenDraws).toBe(base.hiddenDraws));
+        expect(plan().hiddenDraws).toBe(false);
       });
       expect(tuning.plan).toBe(base);
     } finally {

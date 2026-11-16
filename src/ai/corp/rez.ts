@@ -1,15 +1,15 @@
-import { CardInstance, GameAction, GameState, ServerState, activePrompt, cardDef, findCardAnywhere, getLegalActions, isLegalAction } from '../../core';
+import { CardInstance, GameAction, GameState, ServerState, activePrompt, cardDef, findCardAnywhere, getCardScript, getLegalActions, isLegalAction } from '../../core';
 import { iceScript } from '../../core/engine/ice';
-import { BLOCK, iceCost, iceCreditNeed, tagCost } from '../runs';
+import { BLOCK, accessTrap, iceCost, iceCreditNeed, isTrap, tagCost } from '../runs';
 import { rezCost } from '../../core/engine/cardEffects';
-import { deckCount, rezEffectWorth, runTimed } from '../effectValues';
+import { deckCount, rezEffectWorth, rezzedWorth, runTimed } from '../effectValues';
 import { archivesPayoffOf, rezEffectOf } from '../cards';
 import { modelRezGain, runBypassed } from '../rezModel';
-import { agendasUnseen, reachablePoints, runLoss } from './pools';
+import { agendasUnseen, reachablePoints, runLoss, stake } from './pools';
 import { serverHold } from './hold';
-import { evaluate } from '../evaluate';
+import { digValue, evaluate } from '../evaluate';
 import { answerPrompt, simulate } from '../prompts';
-import { plan } from '../pricing';
+import { plan, pricing } from '../pricing';
 import { CARD_PROFILES, ECON_SCALE } from '../cardProfiles';
 import { econValue, upgradeValue } from '../cardValues';
 
@@ -121,10 +121,12 @@ export function rezStops(state: GameState, ice: CardInstance, further = true): b
   return !further || serverHold(state, run.server, { when: 'thisRun', mustRez: [], further: true }).rezCost >= withIt;
 }
 
-/** Archives is worth ice (Jeff, 2026-11-11): an agenda is in it, or the Runner's deck list has a card that pays off an Archives run (CardAI archivesPayoff). */
+/**
+ * Archives is worth ice (Jeff, 2026-11-11): it has a stake (an agenda in it, by the stake owner; c0-rulings 16:00Z (4)),
+ * or the Runner's deck list has a card that pays off an Archives run (CardAI archivesPayoff).
+ */
 export function archivesWantsIce(state: GameState): boolean {
-  const archives = [...state.corp.archives.faceUp, ...state.corp.archives.faceDown];
-  return archives.some(c => cardDef(c).type_code === 'agenda') || deckCount(state, 'runner', c => archivesPayoffOf(c.cardCode)) > 0;
+  return stake(state, 'archives').points > 0 || deckCount(state, 'runner', c => archivesPayoffOf(c.cardCode)) > 0;
 }
 
 /**
@@ -274,4 +276,91 @@ function serverImportance(state: GameState, server: ServerState | undefined, awa
   if (server.root.some(c => c.advancementCounters > 0)) return 1; // a trap: let them in
   if (server.root.some(c => c.isRezzed && econValue(c.cardCode, state))) return 3;
   return server.root.length > 0 ? 2 : 0.5;
+}
+
+// ------------------------------------------------------------- Stage C5: a root card's rez on the Corp's own turn
+// Moved from corpAI.ts (rezTimingBlocked, the structural half of rezValue, idleUpgrade, rezToUse, clickOnly,
+// turnStartOnly) for corp/candidates.ts. The ranking's numbers for the rez's worth (econ + 1, ECON_SCALE times
+// rezzedWorth) are gone: the candidate's play value (evaluate after the rez, less before) orders it.
+
+/**
+ * plan.clearinghouseRez (Phase 2 O4c): only access traps skip the rez on the Corp's turn; a Hostile asset that fires on
+ * the Corp's own turn is inactive until rezzed (rule 8.5.2) and is rezzed in the window before the turn begins (5.6.1b-d).
+ */
+const springsOnAccess = (code: string): boolean => (plan().clearinghouseRez ? accessTrap(code) : isTrap(code));
+
+/** A Corp asset that pays when the Corp's turn begins, with nothing at the end of the turn before it (plan.turnStartRez). */
+export const turnStartOnly = (card: CardInstance): boolean => {
+  const triggers = getCardScript(card.cardCode)?.triggers;
+  return type(card) === 'asset' && !!triggers?.turn_begins && !triggers.discard_phase_ends;
+};
+
+/**
+ * Clicks a click-only asset's ability takes (Humanoid Resources): an asset that does nothing on its own but through
+ * a click ability, with nothing on rez, at the turn's start or while it sits rezzed. 0 for anything else.
+ */
+export function clickOnly(card: CardInstance): number {
+  const def = cardDef(card);
+  if (def.type_code !== 'asset') return 0;
+  const text = def.stripped_text ?? '';
+  const ability = /^((?:click,? ?)+)/i.exec(text);
+  if (!ability || /when you rez|when your turn begins|whenever|each turn|while/i.test(text)) return 0;
+  return (ability[1].match(/click/gi) ?? []).length;
+}
+
+/** Rez windows for a card in a server's root on the Corp's own turn: true while now is not its time (timing, not worth). */
+export function rezTimingBlocked(state: GameState, card: CardInstance): boolean {
+  const corp = state.corp;
+  const start = state.turnStep?.kind === 'corp_turn_start';
+  // A money asset that pays when the Corp's turn begins is rezzed in the window just before then (rules 5.6.1b-d):
+  // it pays at once, and the Runner gets no turn to trash it full (plan.assetRezTiming)
+  if (CARD_PROFILES[card.cardCode]?.every === 'turn' && !start) return true;
+  // The same for any asset whose payoff is "when your turn begins" (plan.turnStartRez)
+  if (turnStartOnly(card) && !start) return true;
+  // (Jeff) Spin Doctor: left unrezzed it may draw a run; rezzed in the action phase only when the cards are needed now
+  if (onRezOnly(card) && !start && corp.hq.length > 1 && digValue(state, 'corp') <= 0) return true;
+  // (Jeff's bug report, 2026-10-31; plan.rezWhenUsed) a click-only asset is rezzed in the paid ability window just
+  // before the action that uses it (rule 5.6.2a)
+  if (clickOnly(card) && corp.clicks < clickOnly(card)) return true;
+  // plan.clickMoneyRez (Jeff, 2026-11-04): money taken with a click is rezzed when a click is left to take it, or in the
+  // window just before the turn begins
+  if (CARD_PROFILES[card.cardCode]?.every === 'click' && corp.clicks < 1 && !start) return true;
+  return false;
+}
+
+/**
+ * Whether a root card may be rezzed now on the Corp's own turn (its worth is the candidate's play value): not outside
+ * its window (rezTimingBlocked); a click-only asset only when using it is then the Corp's next move (plan.rezToUse,
+ * `next` is the first candidate after the rez); never an agenda or an access trap (it waits for the access), a card
+ * timed to a run (runTimed: rezzed when the Runner comes, decideRez); an upgrade in a remote with no agenda only while
+ * the rez leaves keep (Jeff: set up in advance, never out of the ice's rez money; the ranking's rezReserve, now keep).
+ */
+export function rezAllowed(state: GameState, card: CardInstance, keep: number, next: (after: GameState) => GameAction | undefined): boolean {
+  if (rezTimingBlocked(state, card)) return false;
+  if (clickOnly(card)) return rezToUse(state, card, next);
+  if (econValue(card.cardCode, state) !== undefined) return true;
+  if (type(card) === 'agenda' || springsOnAccess(card.cardCode) || runTimed(card)) return false;
+  if (type(card) === 'upgrade') {
+    const server = Object.values(state.corp.servers).find(s => s.root.some(c => c.instanceId === card.instanceId));
+    if (server?.isRemote && !server.root.some(c => type(c) === 'agenda') && state.corp.credits - rezCost(state, card) < keep) return false;
+  }
+  // Worth once rezzed, less the rez cost, above zero (the ranking's rezValue test, carried here: c0-rulings 16:00Z (3));
+  // Clearinghouse with no counters has nothing to fire
+  return rezzedWorth(state, card, rezCost(state, card)) > 0;
+}
+
+/** Rezzing a click-only asset (plan.rezToUse): only when its ability is then the Corp's next move. */
+function rezToUse(state: GameState, card: CardInstance, next: (after: GameState) => GameAction | undefined): boolean {
+  // Assets whose rez-to-use is being judged further up (pricing context): no nested rez-to-use inside
+  const rezzingToUse = pricing().rezzingToUse;
+  if (state.turnStep?.kind === 'corp_turn_start' || rezzingToUse.size > 0) return false;
+  const after = simulate(state, { type: 'REZ_CARD', player: 'corp', cardInstanceId: card.instanceId });
+  if (!after) return false;
+  rezzingToUse.add(card.instanceId);
+  try {
+    const best = next(after);
+    return !!best && best.type === 'USE_ABILITY' && best.cardInstanceId === card.instanceId;
+  } finally {
+    rezzingToUse.delete(card.instanceId);
+  }
 }

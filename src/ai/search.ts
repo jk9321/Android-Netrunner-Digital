@@ -12,6 +12,7 @@ import { knownRdSlots } from './runnerReply';
 import { corpKnowsRd, corpSeenGrip } from './oracle';
 import { ScoredAction } from './agent';
 import { CorpMemory, corpDecide } from './corp/core';
+import { countedRez } from './corp/rez';
 
 /**
  * Hard AI: Monte Carlo look-ahead on top of the rule-based AI.
@@ -206,7 +207,6 @@ export class SearchAI implements Agent {
       rank: (s, legal) => base.rankMainActions(s, legal),
       lookahead: (s, ranked) => this.corpLookahead(s, ranked),
       note: action => base.notePlayed(action),
-      bluffed: () => base.noteBluff(),
       debug: this.options.debug,
     });
   }
@@ -217,8 +217,9 @@ export class SearchAI implements Agent {
     const ranked = all.filter(c => c.score > -Infinity);
     if (ranked.length === 0) return null;
     if (ranked[0].action.type === 'SCORE_AGENDA') return ranked[0].action;
-    // Only one sensible move, or the favourite is far ahead: no need to think it over
-    if (ranked.length === 1 || ranked[0].score - ranked[1].score >= CLEAR_LEAD) return ranked[0].action;
+    // Only one sensible move: no need to think it over. (No lead test: the order's scores are positions, Stage C
+    // c0-rulings 16:00Z (9))
+    if (ranked.length === 1) return ranked[0].action;
     const best = this.search(state, ranked.slice(0, this.options.candidates).map(c => ({ ...c, first: c.action })), this.options.timeMs).action;
     decisionContext(state, this.side); // the look-ahead noted its own hands
     return best;
@@ -259,6 +260,9 @@ export class SearchAI implements Agent {
 
   private decideRez(state: GameState, cards: CardInstance[]): GameAction | null {
     if (!(this.base instanceof HeuristicCorpAI)) return null;
+    // The counted rez (corp/rez.ts countedRez, the same owner as Normal's) is played, not searched over (16:00Z (9))
+    const counted = state.activeRun?.phase === 'approach_ice' ? cards.find(c => getCardDefinition(c.cardCode).type_code === 'ice' && countedRez(state, c) === 'rez') : undefined;
+    if (counted) return { type: 'REZ_CARD', player: 'corp', cardInstanceId: counted.instanceId };
     const suggested = this.base.chooseRez(state, cards);
     // action null: let the Runner carry on without rezzing
     const options: Candidate<GameAction | null>[] = [

@@ -34,19 +34,6 @@ function withSendAMessage(s: GameState, counters: number): string {
   return id;
 }
 
-/** Plays the Corp AI's turn to its end. */
-function corpTurn(s: GameState): GameState {
-  const ai = new HeuristicCorpAI();
-  for (let i = 0; i < 20 && s.activePlayer === 'corp'; i++) {
-    const action = ai.chooseAction(s);
-    if (action.type === 'END_TURN') break;
-    s = executeAction(s, action);
-  }
-  return s;
-}
-
-const allIce = (s: GameState) => Object.values(s.corp.servers).flatMap(server => server.ice);
-
 // Send a Message: "When this agenda is scored or stolen, you may rez 1 installed piece of ice, ignoring all costs."
 // Ignoring all costs makes the rez cost 0 (rules 1.16.5c); the Runner must steal an agenda it accesses (rules 7.1.6, 7.2.3).
 describe('Corp AI cheats out expensive ice with a free rez (plan.freeRez)', () => {
@@ -83,20 +70,8 @@ describe('Corp AI cheats out expensive ice with a free rez (plan.freeRez)', () =
     expect(installsPharos()).toBe(true);
   });
 
-  it('with Send a Message one advance from scored and 4 credits, installs Pharos first and rezzes it for free', () => {
-    const run = () => {
-      const s = board();
-      s.corp.credits = 4;
-      withSendAMessage(s, 4);
-      giveCard(s, 'corp', PHAROS);
-      giveCard(s, 'corp', PALISADE);
-      return corpTurn(s);
-    };
-    const after = run();
-    expect(after.corp.score).toBe(3);
-    expect(allIce(after).some(c => c.cardCode === PHAROS && c.isRezzed)).toBe(true);
-    // Before plan.freeRez (now folded) Pharos couldn't be installed, so the free rez went to a Palisade
-  });
+  // 'with Send a Message one advance from scored and 4 credits, installs Pharos first and rezzes it for free' is pinned
+  // known-failing in tests/stageDPins.test.ts (Stage C, ruling 16:10Z): the same board and the same assertions
 
   it('the free rez goes to the ice that saves the most, when the Corp could pay for either', () => {
     const s = board();
