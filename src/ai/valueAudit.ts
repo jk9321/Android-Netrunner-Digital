@@ -1,10 +1,10 @@
 import { CardDefinition, getCardDefinition } from '../core';
 import { isIcebreaker } from '../core/engine/ice';
 import { CARD_PROFILES } from './cardProfiles';
-import { CARD_VALUES } from './cardValues';
+import { CARD_VALUES } from './cards';
 import { COUNTER_WORTH } from './counterValues';
 import { printedGain } from './valueModel';
-import { EFFECT_CODES } from './effectValues';
+import { EFFECT_CODES } from './cards';
 
 /**
  * Credits a money operation gains, read from its text (step 6: no hand-kept list, so new sets are covered): "Gain N

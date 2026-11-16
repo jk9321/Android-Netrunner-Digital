@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { ALL_CARDS } from '../src/core';
 import { isIcebreaker } from '../src/core/engine/ice';
-import { CARD_VALUES } from '../src/ai/cardValues';
+import { CARD_VALUES } from '../src/ai/cards';
 
 describe('AI card values', () => {
   it('values every Corp asset and upgrade and every non-icebreaker Runner install', () => {

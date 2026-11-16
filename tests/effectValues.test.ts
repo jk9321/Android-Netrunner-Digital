@@ -1,11 +1,13 @@
 import { describe, expect, it } from 'vitest';
 import { getCardDefinition } from '../src/core';
 import { CLICK, RATES, cardRate } from '../src/ai/valueModel';
-import { EFFECT_CODES, LOCKDOWN, MU, PACE, accessWorth, corpEffect, damageWorth, runSuccess, runnerEffect } from '../src/ai/effectValues';
+import { LOCKDOWN, MU, PACE, accessWorth, corpEffect, damageWorth, runSuccess, runnerEffect } from '../src/ai/effectValues';
+import { EFFECT_CODES } from '../src/ai/cards';
 import { corpKeepValue, isEconAsset, runnerCardValue, upgradeValue } from '../src/ai/cardValues';
 import { tuning } from '../src/ai/synergy';
 import { installIceForTest, newGame } from './helpers';
-import { PAYOUT_RISK, turnsLeft } from '../src/ai/cardProfiles';
+import { turnsLeft } from '../src/ai/cardProfiles';
+import { PAYOUT_RISK } from '../src/ai/payoutRisk';
 
 const late = () => {
   const s = newGame();

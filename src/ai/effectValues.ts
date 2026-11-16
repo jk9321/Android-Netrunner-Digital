@@ -4,10 +4,9 @@ import { PAYOUT_RISK } from './payoutRisk';
 import { COUNTER_WORTH } from './counterValues';
 import { CARDS, advancePayloadOf, corpFormula, runnerFormula } from './cards';
 import { actingSide } from './synergy';
-import { CLICK, RATES, cardRate, flatlineWorth, logValue, memo, pointGain, pointValue, scopeToGame, sideCards } from './valueModel';
+import { CLICK, cardRate, flatlineWorth, logValue, memo, pointGain, pointValue, scopeToGame, sideCards } from './valueModel';
 import { tagsWorth } from './evaluate';
 import { BLOCK, iceCost, iceCreditNeed, isTrap, plannedSubroutines, subroutineCost, tankDamage } from './runs';
-import { remoteRunChance, threatOn } from './threatModel';
 import { plan, pricing, withPricing } from './pricing';
 import { REZ_NOW_SHARE, rezBudget } from './iceValues';
 
@@ -169,16 +168,6 @@ export function runSuccess(state: GameState, serverId: string): number {
 }
 
 /**
- * runSuccess with some of the server's ice bypassed (rules 6.5.8a: bypassed ice is passed, its subroutines never
- * resolve): Alarm Clock's free HQ run in the threat (plan.alarmClockThreat).
- */
-export function runSuccessBypassing(state: GameState, serverId: string, bypassed: ReadonlySet<string>): number {
-  const server = state.corp.servers[serverId];
-  if (!server || pricingIce()) return PACE.success;
-  return withPricing({ pricingIce: true }, () => passOdds(state, server.ice.filter(ice => !bypassed.has(ice.instanceId))));
-}
-
-/**
  * plan.ownIceKnown (bug reports #39 and #41, Jeff's Runner test games 7 and 9, 2026-11-09; Corp only): the Corp prices its
  * OWN unrezzed ice as it knows it, not by the Runner-side pass rates (UNREZZED_PASS: what a Runner meets
  * when it can't see the ice). Ice its rez budget covers now (iceValues rezBudget: one pool, best stop first) is priced as
@@ -199,13 +188,6 @@ function ownIce(state: GameState, server: GameState['corp']['servers'][string]):
 /** iceCost behind the re-entry guard. */
 export function priceIce(state: GameState, ice: CardInstance): number {
   return withPricing({ pricingIce: true }, () => iceCost(state, ice));
-}
-
-/** passOdds for a server's ice, behind the re-entry guard (scripts/threat-calibration.ts). */
-export function passOddsOf(state: GameState, serverId: string): number {
-  const server = state.corp.servers[serverId];
-  if (!server) return 0;
-  return withPricing({ pricingIce: true }, () => passOdds(state, server.ice));
 }
 
 function passOdds(state: GameState, ices: CardInstance[], income = 0): number {
@@ -247,14 +229,8 @@ export function stealOdds(state: GameState, serverId: string, run = STEAL.run, i
   // On the Runner's own turn: the clicks it has left, one kept for the run
   const coming = state.activePlayer === 'runner' ? Math.max(0, Math.min(income, state.runner.clicks - 1)) : income;
   return memo(state, `stealOdds:${serverId}:${run}:${coming}`, () => {
-    // Outside the ice-pricing guard: the threat prices runs with the ice priced in full
-    const chance = threatOn() ? remoteRunChance(state, serverId) : undefined;
     const ice = ownIce(state, server);
     return withPricing({ pricingIce: true }, () => {
-      // plan.threatModel (structural review item 3): the chance the Runner runs it next turn is the Runner's own run
-      // scorer budgeted over its turn (threatModel.ts), times its ice against the rig; an open remote it can see is run
-      // by construction, so openSteal falls out
-      if (chance !== undefined) return chance * passOdds(state, ice, coming);
       // Jeff: nothing stops the Runner checking an open remote, so an agenda there is as good as stolen (plan.openSteal)
       if (plan().openSteal && server.isRemote && server.ice.length === 0) return 1;
       return run * passOdds(state, ice, coming);
@@ -486,9 +462,6 @@ export function coreDamageWorth(state: GameState): number {
   return coreSlotWorth(state) + flatlineWorth(state) * clock;
 }
 
-/** A flatline ends the game: priced like half of a whole game of agenda points (plan.flatRates.flatline off; valueModel flatlineWorth). */
-export const FLATLINE = 4 * RATES.point;
-
 export interface CorpEffect {
   /** Worth to the Corp once installed (and the Runner's gain from trashing it). */
   keep: number;
@@ -533,8 +506,6 @@ export function counterWorthOf(state: GameState, code: string, type: 'credit' | 
   return logValue('counter', 'counterWorthOf', state, COUNTER_WORTH[code]?.[type]?.(state, { cardCode: code, instanceId: 'probe', tokens: {} } as unknown as CardInstance) ?? 1, code, type);
 }
 
-/** The cards priced by the formulas (for the audit): built from src/ai/cards/. */
-export { EFFECT_CODES } from './cards';
 
 /** Whether the effect formulas price cards (plan.effectValues). */
 export const effectsOn = (): boolean => true;
@@ -610,7 +581,3 @@ export function placedCounterWorth(state: GameState, card: CardInstance, iced: b
 /** Petty Cash comes back from Archives for its 5 credits and the click back: worth its net 2 credits again, a turn later. */
 export const PETTY_CASH_REPLAY = 2 * PAYOUT_RISK.wait;
 
-/** Top-Down Solutions: 2 cards and up to 2 installs that cost no click, for its click. */
-export function topDownWorth(installable: number, state?: GameState): number {
-  return 2 * cardRate(state, 'corp') + Math.min(2, installable) * CLICK - CLICK;
-}

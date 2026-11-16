@@ -57,8 +57,6 @@ export interface Pricing {
   countingHold: boolean;
   /** A card's plan is being priced (cardPlans.ts handPlanWorth): no plan inside a plan. */
   planning: boolean;
-  /** Depth of threat-model work (threatModel.ts): the threat is off inside its own computation. */
-  computingThreat: number;
   /** The planner's per-decision seed for its playouts (turnPlanner.ts, plan.plannerSeed), or null. */
   decisionSeed: number | null;
   /**
@@ -69,11 +67,6 @@ export interface Pricing {
   pricingBreakers: Set<string>;
   /** plan.oracle.safestRemote (oracle.ts): the Runner's next turn is being played out for the oracle: no oracle inside. */
   oracleRunning: boolean;
-  /**
-   * plan.runRecord (threatModel.ts recordRun): the servers the Runner ran on each of its last turns, most recent first, as
-   * the deciding Corp saw them (public: rules 6.1.2a, 6.9.1a, the Runner announces the server it runs). Null: none noted.
-   */
-  runRecord: string[][] | null;
   /**
    * The diagnostics sink a measurement script or test installed (diagnostics.ts), or null in play. Written only through
    * diagnostics.ts; no decision reads it, and it is not part of pricingKey.
@@ -94,12 +87,10 @@ const context: Pricing = {
   pricingIce: false,
   countingHold: false,
   planning: false,
-  computingThreat: 0,
   decisionSeed: null,
   rezzingToUse: new Set(),
   pricingBreakers: new Set(),
   oracleRunning: false,
-  runRecord: null,
   diagnostics: null,
 };
 
@@ -177,17 +168,6 @@ export function leafHandByCard(side: SideCode): boolean {
   return c.leaves.some(l => l.side === side && (l.plan === current || l.plan === basePlan));
 }
 
-/** The plan as its switches read here, leaves included, for caches keyed by the whole plan (threatModel.ts planKey). */
-export function effectivePlan(): Plan {
-  const current = plan();
-  if (context.leaves.length === 0) return current;
-  const sides = (['corp', 'runner'] as SideCode[]).filter(leafHandByCard);
-  if (sides.length === 0) return current;
-  const handByCard = { ...current.handByCard };
-  for (const side of context.leaves.map(l => l.side)) if (sides.includes(side)) handByCard[side] = true;
-  return { ...current, handByCard };
-}
-
 /** The side whose decision is being made (asSide), or null outside one. */
 export const actingSide = (): SideCode | null => context.side;
 
@@ -215,9 +195,7 @@ export function pricingKey(): string {
     c.pricingIce ? 'i' : '',
     c.countingHold ? 'k' : '',
     c.planning ? 'c' : '',
-    c.computingThreat ? 'h' : '',
     c.oracleRunning ? 'o' : '',
-    c.runRecord ? c.runRecord.map(turn => turn.join('+')).join('/') : '',
   ].join(':');
   keyVersion = version;
   return key;

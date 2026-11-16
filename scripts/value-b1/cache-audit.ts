@@ -13,14 +13,12 @@ import { GameRunner } from '../../src/ai/playout';
 import { valueLoops } from '../../src/ai/valueModel';
 import { clickAudit, drawAudit } from '../../src/ai/handValues';
 import { threatsAudit } from '../../src/ai/effectValues';
-import { threatAudit } from '../../src/ai/threatModel';
 import { clearCaches, dealState, deals } from '../stage-a/harness';
 
 const [shard, shards] = (process.env.SHARD ?? '0/1').split('/').map(Number);
 const limit = Number(process.argv.slice(2).find(a => /^\d+$/.test(a)) ?? process.env.ARGS?.trim() ?? 4000) || 4000;
 const audits = { click: clickAudit, draw: drawAudit, damageThreat: threatsAudit } as const;
 for (const a of Object.values(audits)) Object.assign(a, { on: true, checked: 0, mismatches: 0, errors: [] });
-Object.assign(threatAudit, { on: true, checked: 0, mismatches: 0, near: 0, examples: [] });
 
 const watched = (side: 'corp' | 'runner'): Agent => {
   const inner = createAgent(side, 'normal');
@@ -40,6 +38,4 @@ deals().forEach((seed, k) => {
 });
 const out: Record<string, { checked: number; mismatches: number; maxErr: number }> = {};
 for (const [name, a] of Object.entries(audits)) out[name] = { checked: a.checked, mismatches: a.mismatches, maxErr: a.errors.reduce((m, e) => Math.max(m, e), 0) };
-out.threat = { checked: threatAudit.checked, mismatches: threatAudit.mismatches, maxErr: 0 };
 console.log(JSON.stringify({ shard: `${shard}/${shards}`, deals: n, ms: Math.round(performance.now() - t0), ...out }));
-if (threatAudit.examples.length) console.error(JSON.stringify(threatAudit.examples).slice(0, 2000));
