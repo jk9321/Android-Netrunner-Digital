@@ -1,6 +1,10 @@
 // ai-value-time (brief-value-time.md): time-only changes to the valuation code give the same numbers as before.
 import { describe, expect, it } from 'vitest';
+import { CARDS, corpFormula } from '../src/ai/cards';
+import { agendaOdds, corpEffect } from '../src/ai/effectValues';
 import { tagsWorth } from '../src/ai/evaluate';
+import { cardRate, pointGain } from '../src/ai/valueModel';
+import { getCardDefinition } from '../src/data/cards';
 import { tagCost } from '../src/ai/runs';
 import { createCardInstance, GameState } from '../src/core';
 import { newGame, startRunnerTurn } from './helpers';
@@ -45,4 +49,36 @@ describe('step 1: the tag clock kept on the original board', () => {
     s.runner.credits = 1;
     expect(tagCost(s)).toBe(tagCostBefore(structuredClone(s)));
   });
+});
+
+describe('step 2: the tag input to the Corp formulas worked out on first read', () => {
+  const codes = Object.keys(CARDS).filter(code => CARDS[code].corp);
+  it('there are Corp formulas, and 4 of them read the tag input', () => {
+    expect(codes.length).toBeGreaterThan(40);
+    const readers = codes.filter(code => {
+      let read = false;
+      const ctx = { cost: 0, agenda: 1, card: 1, get tag() { read = true; return 1; } };
+      try {
+        corpFormula(board(false, 1), code, ctx);
+      } catch {
+        // a formula that throws on this board is still counted by what it read first
+      }
+      return read;
+    });
+    expect(readers.sort()).toHaveLength(4);
+  });
+
+  for (const runnerTurn of [false, true])
+    for (const tags of [0, 1])
+      it(`every formula gives the same numbers as with the tag worked out first (${runnerTurn ? "Runner's" : "Corp's"} turn, ${tags} tags)`, () => {
+        for (const code of codes)
+          for (const rezzed of [false, true]) {
+            const eager = board(runnerTurn, tags);
+            const cost = rezzed ? 0 : getCardDefinition(code).cost ?? 0;
+            const agenda = pointGain(eager.corp.score, agendaOdds(eager).points);
+            const card = cardRate(eager, 'corp');
+            const tag = tagsWorth(eager, 'corp', 1);
+            expect(corpEffect(board(runnerTurn, tags), code, rezzed), code).toEqual(corpFormula(eager, code, { cost, agenda, card, tag }));
+          }
+      });
 });
