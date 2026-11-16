@@ -30,7 +30,8 @@ for (const [name, keep] of Object.entries(sets)) for (const side of ['corp', 'ru
     const m = t.mean / b.mean, p = t.p95 / b.p95;
     const flag = arm !== 'base' && rs.length && (m > 1.05 || p > 1.15);
     if (flag) stop = true;
-    console.log(`  ${arm}: mean ${t.mean.toFixed(1)} ms (x${m.toFixed(3)}), p95 ${t.p95.toFixed(1)} (x${p.toFixed(3)}); tag clock per decision: corp view ${tl('corp').toFixed(2)}, runner view ${tl('runner').toFixed(2)}${flag ? '  <- STOP' : ''}`);
+    const per = v => (tl(v) ? tl(`${v}ms`) / tl(v) : 0);
+    console.log(`  ${arm}: mean ${t.mean.toFixed(1)} ms (x${m.toFixed(3)}), p95 ${t.p95.toFixed(1)} (x${p.toFixed(3)}); tag clock per decision: corp view ${tl('corp').toFixed(2)} (${per('corp').toFixed(2)} ms each), runner view ${tl('runner').toFixed(2)} (${per('runner').toFixed(2)} ms each)${flag ? '  <- STOP' : ''}`);
   }
 }
 // The AI Coordinator (20:13Z): changed decisions by card and zone (which of the six the Runner held where)

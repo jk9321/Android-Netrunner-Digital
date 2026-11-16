@@ -533,22 +533,29 @@ function vicTagsWorth(state: GameState, tags: number, perTurn: number): number {
   return (now ? vic : later) + (tags >= 2 ? second : 0) + Math.max(0, tags - 2) * clear;
 }
 
-/** What a tagged Runner stands to lose each Corp turn, as `viewer` sees it. */
-function tagLossPerTurn(state: GameState, viewer: SideCode, skip = 0): number {
+/** What a tagged Runner stands to lose each Corp turn, as `viewer` sees it (exported for tests/tagLossTime.test.ts). */
+export function tagLossPerTurn(state: GameState, viewer: SideCode, skip = 0): number {
   // The tag clock is pricing the rig: tags are the flat rate in there (a copy of the position, so it is not a value loop)
   return withPricing({ pricingTagLoss: true }, () => tagLoss({ ...state }, viewer, skip));
 }
 
 function tagLoss(state: GameState, viewer: SideCode, skip: number): number {
   const corp = state.corp;
-  // The best resource the Corp would trash, net of what trashing costs it
-  const rig = runnerRigValue(state);
-  const resources = state.runner.rig.resources.map(r => rig - runnerRigValue({ ...state, runner: { ...state.runner, rig: { ...state.runner.rig, resources: state.runner.rig.resources.filter(c => c !== r) } } }));
-  // plan.hqTrashCost: a resource that also costs cards from HQ to trash is worth that much less to trash
-  const extra = (r: CardInstance) => (plan().hqTrashCost ? hqTrashCardsLoss(state, r) : 0);
-  const nets = resources.map((v, i) => v - extra(state.runner.rig.resources[i])).sort((a, b) => b - a);
-  // plan.tagTrashNow: a Corp that can trash now takes the best one this turn; the turns after lose the next best
-  const trash = Math.max(0, nets[skip] ?? 0) - (corp.credits >= 2 ? CLICK + 2 : Infinity);
+  const owned = state.runner.rig.resources;
+  // The best resource the Corp would trash, net of what trashing costs it (the basic action "[click], 2[credit]: Trash 1
+  // resource", rule 5.2.6g). No rig is priced when no resource could be the answer (ai-tag-loss-time arm 0, exact: the
+  // loss is the same number): the Runner has none; none is left past `skip` (the one tagTrashNow takes this turn); or
+  // the Corp has under the 2 credits the action costs. The trash part is then 0, as max(trash, 0) below made it
+  let trash = 0;
+  if (owned.length > skip && corp.credits >= 2) {
+    const rig = runnerRigValue(state);
+    const resources = owned.map(r => rig - runnerRigValue({ ...state, runner: { ...state.runner, rig: { ...state.runner.rig, resources: owned.filter(c => c !== r) } } }));
+    // plan.hqTrashCost: a resource that also costs cards from HQ to trash is worth that much less to trash
+    const extra = (r: CardInstance) => (plan().hqTrashCost ? hqTrashCardsLoss(state, r) : 0);
+    const nets = resources.map((v, i) => v - extra(owned[i])).sort((a, b) => b - a);
+    // plan.tagTrashNow: a Corp that can trash now takes the best one this turn; the turns after lose the next best
+    trash = Math.max(0, nets[skip] ?? 0) - (CLICK + 2);
+  }
   // A tag punisher in HQ: known to the Corp, the decklist's odds to the Runner
   const punishes = (c: CardInstance) => cardSynergy(cardDef(c)).when?.includes('ifTagged') ?? false;
   let held: number;

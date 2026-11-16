@@ -13,3 +13,7 @@ playwright-report
 old
 .dev.vars
 engine-fuzz-out
+# trees the AI measurement scripts build and rebuild on each local run
+.tl-trees
+.hr-trees
+.fc-variants

@@ -148,8 +148,12 @@ async function main() {
     tree.clear();
     const agent = tree.createAgent(side, 'normal');
     const copy = structuredClone(s);
-    const tl = { corp: 0, runner: 0 } as Record<string, number>;
-    (globalThis as { __tl?: (v: string) => void }).__tl = v => void (tl[v] = (tl[v] ?? 0) + 1);
+    // _probe: clock prices by viewer, and their milliseconds (`<viewer>ms`; a clock inside a clock counts in both)
+    const tl = { corp: 0, runner: 0, corpms: 0, runnerms: 0 } as Record<string, number>;
+    (globalThis as { __tl?: (v: string, ms?: number) => void }).__tl = (v, ms = 0) => {
+      tl[v] = (tl[v] ?? 0) + 1;
+      tl[`${v}ms`] = Math.round(((tl[`${v}ms`] ?? 0) + ms) * 10) / 10;
+    };
     const t = performance.now();
     let a: GameAction | null;
     try {

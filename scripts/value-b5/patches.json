@@ -39,8 +39,8 @@
  "_probe": [
   [
    "ai/evaluate.ts",
-   "function tagLossPerTurn(state: GameState, viewer: SideCode, skip = 0): number {\n",
-   "function tagLossPerTurn(state: GameState, viewer: SideCode, skip = 0): number {\n  (globalThis as { __tl?: (v: string) => void }).__tl?.(viewer);\n"
+   "  return withPricing({ pricingTagLoss: true }, () => tagLoss({ ...state }, viewer, skip));\n}",
+   "  const probe = globalThis as { __tl?: (v: string, ms: number) => void };\n  const t0 = performance.now();\n  try {\n    return withPricing({ pricingTagLoss: true }, () => tagLoss({ ...state }, viewer, skip));\n  } finally {\n    probe.__tl?.(viewer, performance.now() - t0);\n  }\n}"
   ]
  ],
  "_flags": [
