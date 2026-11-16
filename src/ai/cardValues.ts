@@ -3,7 +3,7 @@ import { ECON_SCALE, unrezzedWorth } from './cardProfiles';
 import { corpEffect, effectsOn, runnerEffect } from './effectValues';
 import { RATES, guardLoop } from './valueModel';
 import { CARD_VALUES } from './cards';
-import { ablated, plan } from './pricing';
+import { ablated, corpPart, plan } from './pricing';
 
 /**
  * The AI's per-card numbers, by card code (each card's `value` in its set's
@@ -37,21 +37,21 @@ const drawBonus = (code: string): number => RATES.cardDrawn * (handSet(code)?.dr
 
 /** Worth of an installed Corp asset or upgrade (1 if not listed). With a game state, a card profile (step 4) prices it instead. */
 export const corpKeepValue = (code: string, state?: GameState, rezzed = false): number =>
-  (state ? unrezzedWorth(state, code) ?? effect(state, code, rezzed)?.keep : undefined) ?? (handSet(code)?.keep ?? RATES.defaultKeep) + drawBonus(code);
+  (state ? unrezzedWorth(state, code) ?? (corpPart('corpKeep') ? undefined : effect(state, code, rezzed)?.keep) : undefined) ?? (handSet(code)?.keep ?? RATES.defaultKeep) + drawBonus(code);
 /** A card's worth from what it does (effectValues.ts), while plan.effectValues is on. */
 const effect = (state: GameState, code: string, rezzed = false) => (effectsOn() ? corpEffect(state, code, rezzed) : undefined);
 /** Worth of an econ asset in its own remote (undefined: not an econ asset). */
 export const econValue = (code: string, state?: GameState): number | undefined => {
   const profiled = state ? unrezzedWorth(state, code) : undefined;
   if (profiled !== undefined) return ECON_SCALE * profiled;
-  const fx = state ? effect(state, code) : undefined;
+  const fx = state && !corpPart('corpEcon') ? effect(state, code) : undefined; // Step S B3c
   if (fx) return fx.econ === undefined ? undefined : ECON_SCALE * fx.econ;
   const econ = handSet(code)?.econ;
   return econ === undefined ? undefined : econ + drawBonus(code);
 };
 /** An upgrade's worth in a scoring remote and on HQ or R&D. */
 export const upgradeValue = (code: string, state?: GameState): [number, number] => {
-  const fx = state ? effect(state, code)?.upgrade : undefined;
+  const fx = state && !corpPart('corpUpgrade') ? effect(state, code)?.upgrade : undefined; // Step S B3d
   return fx ? [ECON_SCALE * fx[0], ECON_SCALE * fx[1]] : handSet(code)?.upgrade ?? RATES.defaultUpgrade;
 };
 /** Worth of an installed Runner card beyond icebreaker coverage (2 if not listed). */

@@ -2,7 +2,7 @@ import { GameState, getCardDefinition } from '../core';
 import { RATES, cardRate, payoutClick } from './valueModel';
 import { CARD_PROFILES } from './cards';
 import { PAYOUT_RISK } from './payoutRisk';
-import { ablated, plan } from './pricing';
+import { ablated, corpPart, plan } from './pricing';
 
 /**
  * Value model step 4 (docs/ai-value-model-plan.md): money cards described
@@ -113,7 +113,7 @@ export function payoutWorth(profile: CardProfile, turns: number, hosted = profil
 /** The card's profile, while plan.cardProfiles is on. */
 // Step S ablation B5 (measurement only): profiles go with their side's formulas (B3 Corp, B4 Runner)
 export const profileOf = (code: string): CardProfile | undefined =>
-  CARD_PROFILES[code] && ablated(getCardDefinition(code).side_code === 'corp' ? 'corpFormulas' : 'runnerFormulas') ? undefined : CARD_PROFILES[code];
+  CARD_PROFILES[code] && (getCardDefinition(code).side_code === 'corp' ? corpPart('corpProfiles') : ablated('runnerFormulas')) ? undefined : CARD_PROFILES[code];
 
 /** Worth of a profiled card still to be rezzed (Corp): its payouts less its rez cost. */
 export function unrezzedWorth(state: GameState, code: string, iced = false): number | undefined {

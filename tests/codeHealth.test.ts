@@ -251,7 +251,7 @@ describe('AI code health (audit guards)', () => {
   it('keeps src/ai/corp at or under 2,217 lines and src/ai at or under 13,824 (Stage C hand-off)', () => {
     const corp = aiFiles().filter(f => f.replace(/\\/g, '/').startsWith('corp/')).reduce((n, f) => n + lines(f), 0);
     expect(corp).toBeLessThanOrEqual(2217);
-    // Step S (branch ai-search-first, measurement only, never merged to beta): + the ablation switches (pricing.ts ABLATE_FAMILIES and their guarded reads) and S-2's REPLY.turns
-    expect(aiFiles().reduce((n, f) => n + lines(f), 0)).toBeLessThanOrEqual(13824 + 135);
+    // Step S (branch ai-search-first, measurement only, never merged to beta): + the ablation switches (pricing.ts ABLATE_FAMILIES and their guarded reads) and S-2's REPLY.turns (+15 for the five B3 parts, 2026-11-16)
+    expect(aiFiles().reduce((n, f) => n + lines(f), 0)).toBeLessThanOrEqual(13824 + 150);
   });
 });

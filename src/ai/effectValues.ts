@@ -8,7 +8,7 @@ import { CLICK, RATES, cardRate, flatlineWorth, memo, pointGain, pointValue, sco
 import { tagsWorth } from './evaluate';
 import { BLOCK, iceCost, iceCreditNeed, isTrap, plannedSubroutines, subroutineCost, tankDamage } from './runs';
 import { remoteRunChance, threatOn } from './threatModel';
-import { ablated, plan, pricing, withPricing } from './pricing';
+import { ablated, corpPart, plan, pricing, withPricing } from './pricing';
 import { REZ_NOW_SHARE, rezBudget } from './iceValues';
 
 /**
@@ -544,9 +544,9 @@ export const effectsOn = (): boolean => true;
 
 /** Worth of a Corp root card once rezzed, less its rez cost (rez decisions on the Corp's own turn). */
 export function rezzedWorth(state: GameState, card: CardInstance, rezCost: number): number {
-  const own = ablated('corpFormulas') ? undefined : CARDS[card.cardCode]?.rezzed; // Step S B3
+  const own = corpPart('corpRezzed') ? undefined : CARDS[card.cardCode]?.rezzed; // Step S B3e
   if (own) return own(state, card, rezCost);
-  const fx = corpEffect(state, card.cardCode, true);
+  const fx = corpPart('corpKeep') ? undefined : corpEffect(state, card.cardCode, true); // Step S B3b
   return fx ? fx.keep - rezCost : -1;
 }
 

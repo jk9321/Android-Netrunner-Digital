@@ -252,7 +252,12 @@ export const ABLATE_FAMILIES = [
   'archivesLoss', // A11
   'synergyTags', // B1
   'flatValues', // B2
-  'corpFormulas', // B3 (with the Corp payout profiles, B5)
+  'corpFormulas', // B3 (with the Corp payout profiles, B5); the five parts below, all at once
+  'corpProfiles', // B3a: Corp payout profiles (cardProfiles.ts profileOf, Corp cards)
+  'corpKeep', // B3b: corpEffect keep, as corpKeepValue and rezzedWorth's fallback read it
+  'corpEcon', // B3c: corpEffect econ (econValue, unprofiled econ assets)
+  'corpUpgrade', // B3d: corpEffect upgrade (upgradeValue)
+  'corpRezzed', // B3e: per-card rezzed rules (rezzedWorth's own entry)
   'runnerFormulas', // B4 (with the Runner payout profiles, B5)
   'counterWorths', // B6
   'runRiders', // B7
@@ -272,6 +277,12 @@ export function ablated(family: AblateFamily): boolean {
   const root = context.root;
   return root !== null && ablation[root].has(family);
 }
+
+/** A part of B3 corpFormulas (AI Coordinator 2026-11-16 02:36Z trace): off with the part or with the whole family. */
+export const corpPart = (part: 'corpProfiles' | 'corpKeep' | 'corpEcon' | 'corpUpgrade' | 'corpRezzed'): boolean => {
+  const whole = ablated('corpFormulas');
+  return ablated(part) || whole;
+};
 
 /** Fire-count probe (scripts/step-s/fire-count.ts): with nothing ablated, notes `side:family` for every family read. */
 export const ablationProbe = { seen: null as Set<string> | null };
