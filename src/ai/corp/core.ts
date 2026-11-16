@@ -4,7 +4,7 @@ import { keepsScore, scoreNowPlan, winNowAction } from '../winNow';
 import { answerPrompt } from '../prompts';
 import { decisionContext } from '../handValues';
 import { plan } from '../pricing';
-import { tally, unsunk } from '../diagnostics';
+import { note, tally, unsunk } from '../diagnostics';
 import { HeldLine, heldLaterStep } from './lines';
 import { moneyPick } from '../incomeLine';
 import { lineStep, scoreInTwoPick } from './placement';
@@ -133,7 +133,11 @@ export function playoutLine(held: HeldLine | null, rank: (state: GameState, held
       if (pick?.type === 'SCORE_AGENDA') return (tally('playoutLine', 'scoreFirst'), pick);
       const two = unsunk(() => lineAsk(state, line, lineFirst => lineFirst ?? pick));
       tally('playoutLine', two.later ? 'q4Asks' : 'q5Asks');
-      if (two.action && two.action !== pick) tally('playoutLine', two.later ? 'q4Takes' : (`${two.held?.line.kind === 'asset' ? 'asset' : 'q5'}${two.lineFirst ? 'Steps' : 'Vetoes'}` as const));
+      const why = two.later ? 'q4Takes' : (`${two.held?.line.kind === 'asset' ? 'asset' : 'q5'}${two.lineFirst ? 'Steps' : 'Vetoes'}` as const);
+      if (two.action && two.action !== pick) {
+        tally('playoutLine', why);
+        note(d => d.onPlayoutLine?.(pick, two.action!, why));
+      }
       line = two.held;
       return two.action;
     },

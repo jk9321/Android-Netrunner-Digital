@@ -239,10 +239,10 @@ describe('AI code health (audit guards)', () => {
   // ai-corp-honest-order (brief rev 2: the guards rise only by the view function's measured lines) adds 23 to src/ai: the
   // Corp's view in turnPlanner.ts (corpDecisionView, its comment and memo, the import: +22) and its one line in corpAI.ts
   // rankMainActions (+1); corp/ is unchanged (the comment rewording holds its line count)
-  // ai-playout-lines (A1, brief-playout-lines.md: the guards rise only by the wiring's measured lines) adds 57 to src/ai:
-  // corp/core.ts +36 (lineAsk, the Q4/Q5 sequence taken out of corpDecide, and playoutLine, the playout's Corp, with
-  // their comments), turnPlanner.ts +10 (the PlannerAI `line` hook and its three uses in playout), diagnostics.ts +11 (the
-  // playoutLine counters and unsunk); corpAI.ts is unchanged (the wiring is one argument)
+  // ai-playout-lines (A1, brief-playout-lines.md: the guards rise only by the wiring's measured lines) adds 63 to src/ai:
+  // corp/core.ts +40 (lineAsk, the Q4/Q5 sequence taken out of corpDecide, and playoutLine, the playout's Corp, with
+  // their comments and its measurement hook), turnPlanner.ts +10 (the PlannerAI `line` hook and its three uses in
+  // playout), diagnostics.ts +13 (the playoutLine counters, the onPlayoutLine hook and unsunk); corpAI.ts is unchanged
   // Stage C (brief-stage-c.md): corpAI.ts is the agent shell. Its size is the measured figure, down only, and it holds no
   // rule and no number: no number other than 0 and 1 outside comments, and no `score` field or scoring function.
   // ai-corp-honest-order: 109 to 110, the line that gives the order the deciding Corp's own view (rule 10.2.2a)
@@ -256,9 +256,9 @@ describe('AI code health (audit guards)', () => {
     expect(code).not.toMatch(/\bscore\s*:|\bscore\w*\s*\(/i);
   });
 
-  it('keeps src/ai/corp at or under 2,253 lines and src/ai at or under 13,904 (Stage C hand-off, ai-corp-honest-order, ai-playout-lines)', () => {
+  it('keeps src/ai/corp at or under 2,257 lines and src/ai at or under 13,910 (Stage C hand-off, ai-corp-honest-order, ai-playout-lines)', () => {
     const corp = aiFiles().filter(f => f.replace(/\\/g, '/').startsWith('corp/')).reduce((n, f) => n + lines(f), 0);
-    expect(corp).toBeLessThanOrEqual(2253);
-    expect(aiFiles().reduce((n, f) => n + lines(f), 0)).toBeLessThanOrEqual(13904);
+    expect(corp).toBeLessThanOrEqual(2257);
+    expect(aiFiles().reduce((n, f) => n + lines(f), 0)).toBeLessThanOrEqual(13910);
   });
 });

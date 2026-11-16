@@ -31,3 +31,28 @@ for (const r of changed) tab[why(r)] = (tab[why(r)] ?? 0) + 1;
 console.log(`what fired in the playouts of each changed decision (first of: agenda step, asset step, agenda veto, asset veto, score first): ${JSON.stringify(tab)}`);
 const at = x => (x ? `L${x.line}${x.card ? ' ' + x.card : ''}` : '?');
 for (const r of changed) console.log(`- ${r.src} #${r.i} T${r.T} clicks ${r.clicks}${r.held ? ' held' : ''} [${why(r)}] ${short(r.off)} (${at(r.offAt)}) -> ${short(r.on)} (${at(r.onAt)})`);
+
+// Brief item (AI Coordinator 04:12Z): for each kind of change, what the line put in place of the playout's move, and
+// whether the planner now values the old pick lower or the new pick higher (each candidate's playout value, both arms)
+const val = (c, a) => { if (!c) return null; const i = c.actions.indexOf(a); return i < 0 ? null : c.values[i]; };
+const groups = {};
+for (const r of changed) {
+  const g = (groups[why(r)] ??= { n: 0, takes: {}, oldDown: 0, newUp: 0, both: 0, noPlanner: 0, dOld: [], dNew: [], lines: {} });
+  g.n++;
+  for (const [k, v] of Object.entries(r.takes ?? {})) g.takes[k] = (g.takes[k] ?? 0) + v;
+  const oOff = val(r.candsOff, r.off), oOn = val(r.candsOn, r.off), nOff = val(r.candsOff, r.on), nOn = val(r.candsOn, r.on);
+  const lk = `${at(r.offAt)} -> ${at(r.onAt)}`;
+  g.lines[lk] = (g.lines[lk] ?? 0) + 1;
+  if (oOff === null || oOn === null || nOff === null || nOn === null) { g.noPlanner++; continue; }
+  const down = oOn < oOff, up = nOn > nOff;
+  if (down && up) g.both++; else if (down) g.oldDown++; else if (up) g.newUp++;
+  g.dOld.push(oOn - oOff);
+  g.dNew.push(nOn - nOff);
+}
+const med = xs => { const s = [...xs].sort((a, b) => a - b); return s.length ? s[Math.floor(s.length / 2)].toFixed(2) : '-'; };
+console.log('\nBy what fired (changed decisions):');
+for (const [k, g] of Object.entries(groups)) {
+  console.log(`  ${k}: ${g.n}; the old pick valued lower only ${g.oldDown}, the new pick higher only ${g.newUp}, both ${g.both}, a candidate missing from one arm ${g.noPlanner}; median change old pick ${med(g.dOld)}, new pick ${med(g.dNew)}`);
+  console.log(`    playout steps changed (kind: order's pick -> played): ${JSON.stringify(Object.entries(g.takes).sort((a, b) => b[1] - a[1]).slice(0, 8))}`);
+  console.log(`    lines of the order (old pick -> new pick): ${JSON.stringify(Object.entries(g.lines).sort((a, b) => b[1] - a[1]).slice(0, 10))}`);
+}

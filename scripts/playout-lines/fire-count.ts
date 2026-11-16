@@ -113,6 +113,16 @@ function agentFor(arm: Arm, held: HeldLine | null): Agentish {
 
 function decide(s: GameState, arm: Arm, held: HeldLine | null) {
   const d = newDiagnostics();
+  // The deciding planner's candidates and values (the last onCandidates call is the top-level one), and the playout steps the line changed
+  let cands: { values: number[]; actions: string[] } | null = null;
+  const takes: Record<string, number> = {};
+  d.onCandidates = (side, values, actions) => {
+    if (side === 'corp') cands = { values: values.map(v => Math.round(v * 100) / 100), actions: actions.map(a => key(a)) };
+  };
+  d.onPlayoutLine = (pick, played, why) => {
+    const k = `${why}: ${pick ? pick.type : 'none'} -> ${played.type}`;
+    takes[k] = (takes[k] ?? 0) + 1;
+  };
   const undo = holdPricing({ diagnostics: d });
   try {
     const agent = agentFor(arm, held) as unknown as { chooseAction(s: GameState): GameAction; memory: { heldLine: HeldLine | null } };
@@ -121,7 +131,7 @@ function decide(s: GameState, arm: Arm, held: HeldLine | null) {
     const copy = structuredClone(s);
     const t = performance.now();
     const a = agent.chooseAction(copy);
-    return { a: key(a), action: a, ms: Math.round(performance.now() - t), d, held: agent.memory.heldLine };
+    return { a: key(a), action: a, ms: Math.round(performance.now() - t), d, held: agent.memory.heldLine, cands: cands as { values: number[]; actions: string[] } | null, takes };
   } finally {
     undo();
   }
@@ -179,6 +189,7 @@ forEachRecorded({
         off: r.off.a !== r.on.a ? r.off.a : undefined,
         on: r.off.a !== r.on.a ? r.on.a : undefined,
         ...lines,
+        ...(r.off.a !== r.on.a ? { candsOff: r.off.cands, candsOn: r.on.cands, takes: r.on.takes } : {}),
         msOff: r.off.ms,
         msOn: r.on.ms,
         pl: pl(r.on.d),

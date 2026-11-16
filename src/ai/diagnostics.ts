@@ -45,6 +45,8 @@ export interface Diagnostics {
   onThreatBudget?: (key: string, state: GameState) => void;
   onClose?: (top: { action: GameAction; first: number; value: number; samples: number }[], pick: GameAction) => void;
   onCandidates?: (side: SideCode, values: number[], actions: GameAction[]) => void;
+  /** corp/core.ts playoutLine (A1, measurement): a playout step where the line played `played` instead of the order's `pick`. */
+  onPlayoutLine?: (pick: GameAction | null, played: GameAction, why: string) => void;
   /** Spec-search S1 (measurement only): every Corp decision's continuations (scripts/search-audit.ts, lossLog.ts). */
   onSearch?: (row: SearchRow) => void;
   /** plan.hiddenDraws (S6, measurement): a Corp decision, how many of its candidate lines drew from R&D, and the pick. */
