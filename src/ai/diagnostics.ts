@@ -16,9 +16,9 @@ export interface Diagnostics {
   scoreInTwo: { begun: number; steps: number; vetoed: number; dropped: number; finished: number; floorRefused: number; unholdable: number; rolloutDecisions: number; rolloutTaken: number };
   /**
    * corp/core.ts playoutLine (A1): Q4/Q5 asked at the planner's playout steps (the deciding Corp's scoreInTwo counters
-   * leave these out), the steps a line played instead of the order's pick and the picks vetoed (asset lines apart), the scores first.
+   * leave these out), the steps a held line played instead of the order's pick, the agenda picks vetoed, the asset lines begun from the pick, the scores first.
    */
-  playoutLine: { q4Asks: number; q4Takes: number; q5Asks: number; q5Steps: number; q5Vetoes: number; assetSteps: number; assetVetoes: number; scoreFirst: number };
+  playoutLine: { q4Asks: number; q4Takes: number; q5Asks: number; q5Steps: number; q5Vetoes: number; assetSteps: number; assetFromPick: number; scoreFirst: number };
   /** The two-turn agenda lines begun, in order. */
   scoreInTwoLines: { turn: number; agendaId: string; form: TwoTurnLine['form'] }[];
   /** corp/placement.ts assetCover: asked, and why it gave no line. */
@@ -63,7 +63,7 @@ type CounterGroups = { [K in keyof Diagnostics as Diagnostics[K] extends Record<
 
 export const newDiagnostics = (): Diagnostics => ({
   scoreInTwo: { begun: 0, steps: 0, vetoed: 0, dropped: 0, finished: 0, floorRefused: 0, unholdable: 0, rolloutDecisions: 0, rolloutTaken: 0 },
-  playoutLine: { q4Asks: 0, q4Takes: 0, q5Asks: 0, q5Steps: 0, q5Vetoes: 0, assetSteps: 0, assetVetoes: 0, scoreFirst: 0 },
+  playoutLine: { q4Asks: 0, q4Takes: 0, q5Asks: 0, q5Steps: 0, q5Vetoes: 0, assetSteps: 0, assetFromPick: 0, scoreFirst: 0 },
   scoreInTwoLines: [],
   assetCover: { asked: 0, scoringShort: 0, iced: 0, clicks: 0, noIce: 0, rezMoney: 0, begun: 0 },
   money: { ops: 0 },

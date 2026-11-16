@@ -133,7 +133,7 @@ export function playoutLine(held: HeldLine | null, rank: (state: GameState, held
       if (pick?.type === 'SCORE_AGENDA') return (tally('playoutLine', 'scoreFirst'), pick);
       const two = unsunk(() => lineAsk(state, line, lineFirst => lineFirst ?? pick));
       tally('playoutLine', two.later ? 'q4Asks' : 'q5Asks');
-      const why = two.later ? 'q4Takes' : (`${two.held?.line.kind === 'asset' ? 'asset' : 'q5'}${two.lineFirst ? 'Steps' : 'Vetoes'}` as const);
+      const why = two.later ? 'q4Takes' : two.held?.line.kind === 'asset' ? (two.lineFirst ? 'assetSteps' : 'assetFromPick') : two.lineFirst ? 'q5Steps' : 'q5Vetoes';
       if (two.action && two.action !== pick) {
         tally('playoutLine', why);
         note(d => d.onPlayoutLine?.(pick, two.action!, why));

@@ -25,7 +25,7 @@ const off = rows.map(r => r.msOff), on = rows.map(r => r.msOn);
 console.log(`time mean off ${mean(off).toFixed(0)} ms, on ${mean(on).toFixed(0)} ms (x${(mean(on) / mean(off)).toFixed(3)}); p95 ${q(off, 0.95)} vs ${q(on, 0.95)} (x${(q(on, 0.95) / q(off, 0.95)).toFixed(3)})`);
 console.log('\nChanged decisions (src, decision #, turn, clicks, held, off -> on):');
 const short = a => { try { const x = JSON.parse(a); return `${x.type}${x.cardInstanceId ? ' ' + x.cardInstanceId : ''}${x.targetServerId ? '@' + x.targetServerId : x.asNewRemote ? '@new' : ''}`; } catch { return a; } };
-const why = r => (r.pl.q5Steps ? 'agenda line step' : r.pl.assetSteps ? 'asset line step' : r.pl.q5Vetoes ? 'agenda line veto' : r.pl.assetVetoes ? 'asset line veto' : r.pl.scoreFirst ? 'score first' : 'none');
+const why = r => (r.pl.q5Steps ? 'agenda line step' : r.pl.assetSteps ? 'asset line step' : r.pl.q5Vetoes ? 'agenda line veto' : r.pl.assetFromPick ? 'asset line begun from the pick' : r.pl.scoreFirst ? 'score first' : 'none');
 const tab = {};
 for (const r of changed) tab[why(r)] = (tab[why(r)] ?? 0) + 1;
 console.log(`what fired in the playouts of each changed decision (first of: agenda step, asset step, agenda veto, asset veto, score first): ${JSON.stringify(tab)}`);
