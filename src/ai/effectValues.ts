@@ -504,8 +504,10 @@ export function corpEffect(state: GameState, code: string, rezzed = false): Corp
   const cost = rezzed ? 0 : getCardDefinition(code).cost ?? 0;
   const agenda = pointGain(state.corp.score, agendaOdds(state).points);
   const card = cardRate(state, 'corp');
-  const tag = tagsWorth(state, 'corp', 1);
-  return corpFormula(state, code, { cost, agenda, card, tag });
+  // A tag on the Runner (ai-value-time step 2): 4 of the formulas read it, so it is worked out on the first read, at the
+  // formula's entry (the readers destructure it there: same order, same pricing context) and kept for a second read
+  let tag: number | undefined;
+  return corpFormula(state, code, { cost, agenda, card, get tag() { return (tag ??= tagsWorth(state, 'corp', 1)); } });
 }
 
 /** Runner rig cards that aren't icebreakers, in credits, installed: each card's `runner` entry in src/ai/cards/. */

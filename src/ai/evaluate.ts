@@ -468,23 +468,30 @@ export function centralExposure(state: GameState, viewer: SideCode): number {
  * Corp holds, as far as `viewer` knows. The Runner clears a tag for a click
  * and 2 credits when keeping it costs more, so tags are worth the cheaper.
  */
-export function tagsWorth(state: GameState, viewer: SideCode, count?: number): number {
+export function tagsWorth(state: GameState, viewer: SideCode, count?: number, memoHome?: GameState): number {
   // Tags the Runner has now, or a count priced as if given (an ice subroutine, an operation)
   const actual = count === undefined;
   const tags = count ?? state.runner.tags;
   if (tags <= 0) return 0;
   // Inside the tag clock's own pricing of the rig, a tag is the flat rate (a resource's worth can depend on tags)
   if (pricing().pricingTagLoss) return tags * RATES.tagAgainstRunner;
-  return guardLoop(state, `tags ${viewer}`, () => tags * RATES.tagAgainstRunner, () => tagClock(state, viewer, tags, actual));
+  return guardLoop(state, `tags ${viewer}`, () => tags * RATES.tagAgainstRunner, () => tagClock(state, viewer, tags, actual, memoHome));
 }
 
-function tagClock(state: GameState, viewer: SideCode, tags: number, actual: boolean): number {
+/**
+ * `memoHome` (ai-value-time step 1): the state `state` was copied from with only the Runner's clicks changed (tagCost's
+ * one-click-fewer copy). The clock's per-turn loss is then kept on that original, keyed with the copy's clicks, so it
+ * is worked out once per original board and not once per copy; the work still runs on the copy.
+ */
+function tagClock(state: GameState, viewer: SideCode, tags: number, actual: boolean, memoHome?: GameState): number {
   // plan.tagTrashNow: on the Corp's turn, with the Runner tagged and a click and 2 credits to trash, the Corp takes the
   // best resource now (the trash action is scored by it), so the clock after this turn runs on the next best
   const corp = state.corp;
   const trashNow = plan().tagTrashNow && state.activePlayer === 'corp' && !state.activeRun && state.runner.tags > 0 && corp.clicks >= 1 && corp.credits >= 2;
   const skip = trashNow ? 1 : 0;
-  const perTurn = memo(state, `tagLoss:${viewer}:${skip}`, () => tagLossPerTurn(state, viewer, skip));
+  const perTurn = memoHome
+    ? memo(memoHome, `tagLoss:${viewer}:${skip}:c${state.runner.clicks}`, () => tagLossPerTurn(state, viewer, skip))
+    : memo(state, `tagLoss:${viewer}:${skip}`, () => tagLossPerTurn(state, viewer, skip));
   const clear = CLICK + 2;
   // plan.tagNoClear (Gemini audit, 2026-11-01): a Runner that can't clear before the Corp's next turn (the Corp's turn
   // now, or its last click or 2 credits spent) sits through that turn first
