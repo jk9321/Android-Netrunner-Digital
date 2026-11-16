@@ -36,7 +36,7 @@ import { EFFECT_CODES, FLATLINE, agendaOdds, corpEffect, damageWorth, perTurn, r
 import { flatIceWorth, iceWorth } from '../../src/ai/iceValues';
 import { counterWorth, countersWorth } from '../../src/ai/counterValues';
 import { CARD_PROFILES, PAYOUT_RISK, bareAssetRisk, payoutWait, payoutWorth, turnsLeft, unrezzedWorth } from '../../src/ai/cardProfiles';
-import { corpKeepValue, econValue, runnerCardValue, upgradeValue } from '../../src/ai/cardValues';
+import { corpKeepValue, runnerCardValue, upgradeValue } from '../../src/ai/cardValues';
 import { CARDS, corpFormula } from '../../src/ai/cards';
 import { clearCaches, dealState, deals, humanFiles } from '../stage-a/harness';
 
@@ -400,8 +400,6 @@ function priceAgain(s: Sample): void {
       check(s, corpKeepValue(code, st, rezzed));
       const title = getCardDefinition(code).title;
       add('cardBeforeInstall', 'flat CARD_VALUES keep (no state) vs corpKeepValue', s, { copy: corpKeepValue(code), owner: s.value }, title);
-      const econ = econValue(code, st);
-      if (econ !== undefined) add('cardBeforeInstall', 'econValue (install-score scale) vs corpKeepValue', s, { copy: econ, owner: s.value }, title);
       if (getCardDefinition(code).type_code === 'upgrade') {
         const [remote, central] = upgradeValue(code, st);
         add('cardBeforeInstall', 'upgradeValue remote (install-score scale) vs corpKeepValue', s, { copy: remote, owner: s.value }, title);

@@ -33,7 +33,7 @@ import { decisionContext } from '../../src/ai/handValues';
 import { moneyPick } from '../../src/ai/incomeLine';
 import { scoreNowPlan } from '../../src/ai/winNow';
 import { moneyOpGain } from '../../src/ai/valueAudit';
-import { econValue } from '../../src/ai/cardValues';
+import { isEconAsset } from '../../src/ai/cardValues';
 import { serverHold } from '../../src/ai/corp/hold';
 import { stake } from '../../src/ai/corp/pools';
 import { HeldLine, heldLaterStep, isCorpMain } from '../../src/ai/corp/lines';
@@ -203,7 +203,7 @@ function intent(s: GameState, a: GameAction): number | null {
         return 9;
       }
       if (typeOf(card) === 'agenda') return agendaLine(s, i);
-      if (typeOf(card) === 'asset' && econValue(card!.cardCode, s) !== undefined) return 5;
+      if (typeOf(card) === 'asset' && isEconAsset(card!.cardCode)) return 5;
       return 6;
     }
     case 'ADVANCE_CARD':

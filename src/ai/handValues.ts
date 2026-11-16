@@ -191,7 +191,7 @@ function drawWorth(state: GameState, side: SideCode): number {
   const key = `${pricingKey()}:${side}:${state.id}:${state.turnNumber}:${credits}${board}${deck.map(c => c.instanceId + c.cardCode).join(',')}`;
   // Audit Step 2 (AI-CACHE-HIDDEN-STATE): the key leaves out what R&D, Archives, the grip and the heap hold, the counters
   // and hosts of installed cards and the run under way, so some hits are another board's value (drawAudit). The exact key
-  // (valueModel contentPrint) cost x1.17 Corp decision time (V-B B1, ruling 1; 24 wrong of 401k hits, 2 Corp picks in
+  // (zone contents in the key) cost x1.17 Corp decision time (V-B B1, ruling 1; 24 wrong of 401k hits, 2 Corp picks in
   // 7,410): kept incomplete, recorded. The map is kept to one game, never the games played before it (batch shards).
   scopeToGame(deckAverage, state);
   const cached = deckAverage.get(key);
