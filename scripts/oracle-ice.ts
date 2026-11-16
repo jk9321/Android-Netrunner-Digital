@@ -19,7 +19,7 @@ export type OracleIce = 'hq' | 'archives' | 'remote';
  * that applyPlanOff takes: +oracle.ice.hq|archives|remote (this file) and +oracle.money (oracle-money.ts). Every script
  * that reads PLAN_OFF strips them here, so a token never reaches applyPlanOff (where it would throw).
  */
-export function batchTokens(planOff: string): { ice?: OracleIce; money: boolean; plan: string } {
+export function batchTokens(planOff: string): { ice?: OracleIce; money: boolean; skip: number[]; plan: string } {
   const keys = planOff.split(',').filter(Boolean);
   const ice = keys.find(k => /^\+oracle\.ice\./.test(k))?.replace('+oracle.ice.', '') as OracleIce | undefined;
   if (ice && !['hq', 'archives', 'remote'].includes(ice)) throw new Error(`oracle.ice.${ice}: hq, archives or remote`);
@@ -38,7 +38,11 @@ export function batchTokens(planOff: string): { ice?: OracleIce; money: boolean;
       keys.push('+oracle.think');
     } else REPLY.turns = Number(m[2]);
   }
-  return { ice, money, plan: keys.filter(k => !/^\+oracle\.ice\./.test(k) && k !== '+oracle.money' && k !== '+audit.search' && !k.startsWith('s2:')).join(',') };
+  // Step S (ai-search-first): skip:<seed> leaves that deal out of a batch (a deal that hangs at default switches, so a
+  // paired base and its arms all miss the same deal; hang-deal2138.md); read by corp-losses.ts
+  const skip = keys.filter(k => k.startsWith('skip:')).map(k => Number(k.slice(5)));
+  if (skip.some(n => !Number.isInteger(n) || n <= 0)) throw new Error('bad skip token: skip:<seed>');
+  return { ice, money, skip, plan: keys.filter(k => !/^\+oracle\.ice\./.test(k) && k !== '+oracle.money' && k !== '+audit.search' && !k.startsWith('s2:') && !k.startsWith('skip:')).join(',') };
 }
 
 /** Places the cheat ice on `target`. False when the Corp's R&D holds no ice (the deal is played without the cheat). */

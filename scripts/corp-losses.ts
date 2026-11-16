@@ -36,7 +36,7 @@ const [shard, shards] = (process.env.SHARD ?? '0/1').split('/').map(Number);
 // Round 2 oracle 3 (spec-round2.md): +oracle.ice.hq|archives|remote in PLAN_OFF is a board setup read here, not a
 // plan switch (the ai-batch workflow has no other input for it): taken out before applyPlanOff
 // +oracle.money (the money ceiling): +1 credit at the start of every Corp turn, read here too (scripts/oracle-money.ts)
-const { ice: iceOracle, money: moneyOracle, plan: planSwitches } = batchTokens(process.env.PLAN_OFF ?? '');
+const { ice: iceOracle, money: moneyOracle, skip: skipSeeds, plan: planSwitches } = batchTokens(process.env.PLAN_OFF ?? '');
 applyPlanOff(planSwitches);
 if (process.env.BLUFF === '0') tuning.bluff = false;
 const only = (process.env.CORP_DECKS ?? '').split(',').filter(Boolean);
@@ -75,6 +75,7 @@ for (const c of corpDecks) {
         continue;
       }
       if (deal++ % shards !== shard) continue;
+      if (skipSeeds.includes(seed)) continue;
       const agent = (side: 'corp' | 'runner') =>
         createAgent(side, levelOf(side), levelOf(side) === 'hard' ? { samples: 6, candidates: 3, seed } : {});
       const started = Date.now();
