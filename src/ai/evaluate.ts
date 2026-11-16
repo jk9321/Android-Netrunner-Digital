@@ -475,6 +475,9 @@ export function tagsWorth(state: GameState, viewer: SideCode, count?: number, me
   const flat = () => logValue('tag', 'tagsWorth flat (loop)', state, tags * RATES.tagAgainstRunner, viewer, count);
   return logValue('tag', 'tagsWorth', state, guardLoop(state, `tags ${viewer}`, flat, () => tagClock(state, viewer, tags, actual, memoHome)), viewer, count, memoHome);
 }
+/** One tag the Runner takes, and one it removes, as the Runner sees it: the owner's own difference (V-B B5; tagCost's). */
+export const tagTaken = (state: GameState, home?: GameState): number => tagsWorth(state, 'runner', state.runner.tags + 1, home) - tagsWorth(state, 'runner', state.runner.tags, home);
+export const tagRemoved = (state: GameState): number => tagsWorth(state, 'runner', state.runner.tags) - tagsWorth(state, 'runner', state.runner.tags - 1);
 
 /**
  * `memoHome` (ai-value-time step 1): the state `state` was copied from with only the Runner's clicks changed (tagCost's

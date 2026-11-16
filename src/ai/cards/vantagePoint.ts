@@ -1,7 +1,7 @@
 import { cardDef, getCardScript } from '../../core';
 import { stealthCredits } from '../../core/engine/cardEffects';
-import { cardRate, CLICK, RATES } from '../valueModel';
-import { VIC } from '../evaluate';
+import { cardRate, CLICK } from '../valueModel';
+import { tagTaken, VIC } from '../evaluate';
 import { accessWorth, centralSuccess, counterWorthOf, damageWorth, deckCount, deckShare, lock, muWorth, PACE, perTurn, priceIce, pricingIce, runSuccess } from '../effectValues';
 import type { RunOptions } from '../runs';
 import { badPublicityWorth } from '../prompts';
@@ -93,8 +93,8 @@ export const VANTAGE_POINT: Record<string, CardAI> = {
   '36013': {
     synergy: { wants: { tags: 0.5 } },
     value: { rig: 1 }, // +1 MU for a tag
-    // +1 MU for a tag when untagged (the flat tag rate: the tag clock prices the rig, which would come back here)
-    runner: state => muWorth(state) - (state.runner.tags > 0 ? 0 : RATES.tagAgainstRunner),
+    // +1 MU for a tag when untagged (inside the tag clock the owner serves the flat rate, so the loop is cut there)
+    runner: state => muWorth(state) - (state.runner.tags > 0 ? 0 : tagTaken(state)),
   },
   // Rotary
   '36014': {

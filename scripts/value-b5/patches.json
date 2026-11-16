@@ -1,0 +1,49 @@
+{
+ "formulas": [
+  [
+   "ai/cards/liberation.ts",
+   "    counters: { power: state => (state.runner.tags > 0 ? Math.max(cardRate(state, 'runner'), tagRemoved(state) * 0.5) : cardRate(state, 'runner')) }, // A card or a tag removed",
+   "    counters: { power: state => (state.runner.tags > 0 ? Math.max(cardRate(state, 'runner'), RATES.tagAgainstRunner * 0.5) : cardRate(state, 'runner')) }, // A card or a tag removed"
+  ],
+  [
+   "ai/cards/liberation.ts",
+   "      return perTurn(state, 0.4 * runSuccess(state, 'archives') * (accessWorth(state) + extra - 0.5 * tagTaken(state)), 'runner');",
+   "      return perTurn(state, 0.4 * runSuccess(state, 'archives') * (accessWorth(state) + extra - 0.5 * RATES.tagAgainstRunner), 'runner');"
+  ],
+  [
+   "ai/cards/liberation.ts",
+   "    runner: state => Math.max(2 * CLICK + 0.5 * tagRemoved(state) * tagged(state), perTurn(state, 0.3 * (CLICK - (1 - PACE.success) * tagTaken(state) * 0.5), 'runner')),",
+   "    runner: state => Math.max(2 * CLICK + 0.5 * RATES.tagAgainstRunner * tagged(state), perTurn(state, 0.3 * (CLICK - (1 - PACE.success) * RATES.tagAgainstRunner * 0.5), 'runner')),"
+  ],
+  [
+   "ai/cards/liberation.ts",
+   "    runner: state => perTurn(state, 0.3 * (2 - 0.3 * tagTaken(state) * (1 - tagged(state))), 'runner') + 1.5,",
+   "    runner: state => perTurn(state, 0.3 * (2 - 0.3 * RATES.tagAgainstRunner * (1 - tagged(state))), 'runner') + 1.5,"
+  ],
+  [
+   "ai/cards/liberation.ts",
+   "    runner: state => (state.runner.tags > 0 ? 5 + tagRemoved(state) : 9 - tagTaken(state) * 0.7) - CLICK,",
+   "    runner: state => (state.runner.tags > 0 ? 5 + RATES.tagAgainstRunner : 9 - RATES.tagAgainstRunner * 0.7) - CLICK,"
+  ],
+  [
+   "ai/cards/vantagePoint.ts",
+   "    runner: state => muWorth(state) - (state.runner.tags > 0 ? 0 : tagTaken(state)),",
+   "    runner: state => muWorth(state) - (state.runner.tags > 0 ? 0 : RATES.tagAgainstRunner),"
+  ]
+ ],
+ "_probe": [
+  [
+   "ai/evaluate.ts",
+   "function tagLossPerTurn(state: GameState, viewer: SideCode, skip = 0): number {\n",
+   "function tagLossPerTurn(state: GameState, viewer: SideCode, skip = 0): number {\n  (globalThis as { __tl?: (v: string) => void }).__tl?.(viewer);\n"
+  ]
+ ],
+ "_flags": [
+  "34003",
+  "34007",
+  "34008",
+  "34073",
+  "34074",
+  "36013"
+ ]
+}
