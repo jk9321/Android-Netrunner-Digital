@@ -72,8 +72,8 @@ export function corpDecide(state: GameState, ctx: CorpContext): GameAction {
   // is then the order's first, kept while it keeps the score (keepsScore), the line's action otherwise. A held two-turn
   // line on a later turn (Q4): its step (advance or score, heldLaterStep) does not depend on the pick, and scoreInTwoPick
   // below plays it.
-  // The planner's rollouts and the reply's Corp ask Q4 and Q5 too (begin a two-turn line, play a held line's steps;
-  // c0-rulings 04:25Z (a)), and nothing else they do not ask
+  // The reply's Corp asks Q4 and Q5 too (c0-rulings 04:25Z (a)); the planner's playouts were ruled to but do not yet
+  // (none begins a two-turn line: Stage C A1 tally, 0 Q5 asks; the A1 fix)
   const later = !!heldLaterStep(state, ctx.memory.heldLine);
   // Spec 1.3 authority 2: the step a two-turn line plays now is the line's, asked before the look-ahead and never weighed
   // by it; scoreInTwoPick below plays it and keeps the line
