@@ -62,6 +62,7 @@ const MODULE_LETS: Record<string, string> = {
   'evaluate:AGENDA_CLICK': 'a measured rate a script sets (setAgendaClick), not per call',
   'threatModel:planSig': "a cache of the plan's JSON for the threat key, rebuilt when the plan changes",
   'valueModel:deckCard': 'the deck-average hook handValues registers once (an import cycle otherwise)',
+  'valueModel:agendaOdds': "the Runner's agenda-odds port evaluate.ts registers once (runs.ts remoteAgendaOdds; an import cycle otherwise, ai-honest-runner-view)",
   'valueModel:nextStateId': "guardLoop's id counter for positions",
 };
 
