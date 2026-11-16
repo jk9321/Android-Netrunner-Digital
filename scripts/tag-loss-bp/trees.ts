@@ -174,10 +174,22 @@ export function makeTrees(root: string, arms: readonly Arm[] = ARMS): Record<Arm
     // beta's src/ (BASE: a git ref; a full SHA is fetched first when this clone does not have it)
     const ref = process.env.BASE ?? 'origin/beta';
     mkdirSync(base, { recursive: true });
-    try {
-      execSync(`git cat-file -e ${ref}^{commit}`, { stdio: 'ignore' });
-    } catch {
-      execSync(`git fetch -q --depth=1 origin ${ref}`, { stdio: 'inherit' });
+    // four processes on one runner fetch at once and race on git's shallow lock: retry until the commit is here
+    const have = () => {
+      try {
+        execSync(`git cat-file -e ${ref}^{commit}`, { stdio: 'ignore' });
+        return true;
+      } catch {
+        return false;
+      }
+    };
+    for (let tries = 0; !have(); tries++) {
+      try {
+        execSync(`git fetch -q --depth=1 origin ${ref}`, { stdio: 'inherit' });
+      } catch (e) {
+        if (tries >= 20) throw e;
+        Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, 1000 + 500 * tries);
+      }
     }
     execSync(`git archive ${ref} src | tar -x -C ${base}`);
   }
