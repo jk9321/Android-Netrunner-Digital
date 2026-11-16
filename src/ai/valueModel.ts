@@ -235,7 +235,7 @@ export function pointsTerm(state: GameState): number {
  * reply (the reply root's leaf less its points term). evaluate is not zero-centred (a quiet mid-game board reads ~100),
  * so a bare ±pointValue(7) would put a sampled Corp win below its ordinary sibling samples; the board the game ended
  * from is not read, the game is over, but the root's board is the baseline every sample of that line starts from.
- * Same winner, same line: same price. Read by runnerReply only.
+ * Same winner, same line: same price. Read by runnerReply only. Owner of a game end met in a sampled reply (registry V13).
  */
 export function sampledEndWorth(winner: SideCode, rootBoard: number): number {
   // A Corp win settles the Corp's points term (scaled by KNOBS.corpPoints, as pointsTerm), a Runner win the Runner's

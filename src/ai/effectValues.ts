@@ -393,7 +393,7 @@ export const clearDamageThreats = (): void => threats.clear();
 /**
  * The Corp's damage threat (the damage clock, Jeff 2026-10-28): the biggest
  * hit one of its cards can still deal, and the share of its cards that deal
- * damage, from the decklist less what is scored or trashed faceup.
+ * damage, from the decklist less what is scored or trashed faceup. Owner of the Corp's damage threat (registry V20).
  */
 export function damageThreat(state: GameState, corpTurn = false): { burst: number; share: number } {
   // plan.corpTurnDamage (Jeff, 2026-11-06, his Teia game: the Runner held Sure Gamble at 7 credits): on the Corp's turn
@@ -459,7 +459,7 @@ function ownTurnDamage(state: GameState, code: string): number {
 /** Share of damage threats the Corp gets to land. */
 export const FLATLINE_LANDS = 0.5;
 
-export function flatlineOdds(state: GameState, grip: number, corpTurn = false): number {
+export function flatlineOdds(state: GameState, grip: number, corpTurn = false): number { // Owner, with flatlineWorth, of the Runner's standing flatline exposure (registry V18)
   const { burst, share } = damageThreat(state, corpTurn);
   if (burst === 0) return 0;
   // The Corp has to draw the card and land the hit (the Runner has to access or encounter it): about half the time when it holds one
@@ -470,7 +470,7 @@ export function flatlineOdds(state: GameState, grip: number, corpTurn = false): 
 /** Share of turns a hand slot lost to core damage holds a card the Runner would have kept (a named guess). */
 export const CORE_SLOT_USE = 0.5;
 
-/** Worth of a hand slot already lost to core damage (plan.flatRates.coreDamage; the damage clock already reads the lower limit). */
+/** Worth of a hand slot already lost to core damage (plan.flatRates.coreDamage; the damage clock already reads the lower limit). Owner of registry V19. */
 export function coreSlotWorth(state: GameState): number {
   return CORE_SLOT_USE * cardRate(state, 'runner');
 }

@@ -240,6 +240,10 @@ describe('AI code health (audit guards)', () => {
     'evaluate:AGENDA_RUN': 'scripts only (a measured rate, logged)',
     'evaluate:setAgendaClick': 'scripts only (scripts/human-agreement.ts sweeps AGENDA_CLICK)',
     'evaluate:centralExposure': 'scripts and tests only since the oneCurrency off path went (its own memo key names it): V-B',
+    // V-B B1: found when the guard began to check re-exports and loaded readers (recount VA-DEAD-GUARD-REEXPORTS)
+    'effectValues:EFFECT_CODES': 're-export read only by src/ai/valueAudit.ts, which the app never loads (tests and scripts): V-B dead list',
+    'cardValues:CARD_VALUES': 're-export read only by src/ai/valueAudit.ts, which the app never loads (tests and scripts): V-B dead list',
+    'cardProfiles:PAYOUT_RISK': 're-export with no src importer (src reads ./payoutRisk; tests and scripts/value-owners/log.ts import it here): V-B dead list',
   };
   it('has a src reader for every valuation export but the listed ones (V-A; shrink only)', () => {
     const VALUATION = ['valueModel', 'handValues', 'effectValues', 'evaluate', 'cardValues', 'cardProfiles', 'counterValues', 'iceValues'];
@@ -248,6 +252,28 @@ describe('AI code health (audit guards)', () => {
     const raw: Record<string, string> = Object.fromEntries(src.map(f => [f, readFileSync(new URL(`../src/${f}`, import.meta.url), 'utf8')]));
     const code: Record<string, string[]> = Object.fromEntries(src.map(f => [f, strip(raw[f]).split('\n')]));
     const imports = (f: string, name: string) => [...raw[f].matchAll(/^import\s+(?!type\b)\{([^}]*)\}/gm)].some(m => new RegExp(`\\b${name}\\b`).test(m[1]));
+    // V-B B1 (recount VA-DEAD-GUARD-REEXPORTS): a reader must be loaded by the app. The src modules reachable from the
+    // entry points (src/main.tsx and the server's imports of src), following relative imports and re-exports
+    const resolveFrom = (from: string, spec: string) => {
+      const base = new URL(spec, `file:///src/${from}`).pathname.replace(/^\/src\//, '');
+      return [`${base}.ts`, `${base}.tsx`, `${base}/index.ts`, base].find(f => f in raw);
+    };
+    const reachable = new Set<string>();
+    const visit = (f: string | undefined) => {
+      if (!f || reachable.has(f)) return;
+      reachable.add(f);
+      for (const m of raw[f].matchAll(/^(?:import|export)\b[^'"]*?from\s+['"](\.[^'"]+)['"]|^import\s+['"](\.[^'"]+)['"]/gm)) visit(resolveFrom(f, m[1] ?? m[2]));
+    };
+    visit('main.tsx');
+    for (const dir of ['../server/', '../worker/']) {
+      let files: string[] = [];
+      try {
+        files = (readdirSync(new URL(dir, import.meta.url), { recursive: true }) as string[]).filter(f => /\.tsx?$/.test(f));
+      } catch {
+        continue;
+      }
+      for (const f of files) for (const m of readFileSync(new URL(`${dir}${f}`, import.meta.url), 'utf8').matchAll(/from\s+['"](?:\.\.\/)+src\/([^'"]+)['"]/g)) visit(resolveFrom('x', `./${m[1]}`));
+    }
     const dead: string[] = [];
     for (const v of VALUATION) {
       const file = `ai/${v}.ts`;
@@ -261,9 +287,15 @@ describe('AI code health (audit guards)', () => {
         const name = m[1];
         const re = new RegExp(`\\b${name}\\b`);
         const use = (l: string) => re.test(l) && !/^\s*(import\b|export \{|export \*)/.test(l) && !/^\s*\w+,?\s*$/.test(l);
-        const read = src.some(f => (f === file ? lines.some((l, j) => (j < i || j >= end) && use(l)) : imports(f, name) && code[f].some(use)));
+        const read = src.some(f => reachable.has(f) && (f === file ? lines.some((l, j) => (j < i || j >= end) && use(l)) : imports(f, name) && code[f].some(use)));
         if (!read) dead.push(`${v}:${name}`);
       });
+      // re-exports (`export { NAME } from './x'`): read only where a loaded src file imports NAME from this file
+      for (const m of raw[file].matchAll(/^export\s+\{([^}]*)\}\s+from/gm))
+        for (const name of m[1].split(',').map(n => n.trim().split(/\s+as\s+/).pop()!).filter(Boolean)) {
+          const fromHere = (f: string) => [...raw[f].matchAll(/^import\s+(?!type\b)\{([^}]*)\}\s+from\s+['"]([^'"]+)['"]/gm)].some(i => resolveFrom(f, i[2]) === file && new RegExp(`\\b${name}\\b`).test(i[1]));
+          if (!src.some(f => f !== file && reachable.has(f) && fromHere(f))) dead.push(`${v}:${name}`);
+        }
     }
     expect(dead.filter(k => !(k in DEAD_VALUATION_EXPORTS)), 'a valuation export with no reader in src: delete it, or list it here with why').toEqual([]);
     expect(Object.keys(DEAD_VALUATION_EXPORTS).filter(k => !dead.includes(k)), 'it has a reader now: take it off the list').toEqual([]);
