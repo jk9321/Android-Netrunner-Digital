@@ -27,6 +27,21 @@ export function splitArgs(args) {
 }
 
 const dealKey = g => `${g.seed}|${g.corpDeck}|${g.runnerDeck}`;
+
+/**
+ * A game's steals from remotes (Stage D item 1's bar, its two steals lines): [steals, points, steals from a remote
+ * holding a rezzed bioroid, their points], from a saved deals file (`rs`) or a shard's game record (`steals`; the
+ * bioroid pair is null for a record from before the field). Null when the game has neither.
+ */
+export function remoteSteals(g) {
+  if (g.rs) return g.rs;
+  if (!g.steals) return null;
+  const remote = g.steals.filter(s => s.from === 'remote');
+  const known = remote.every(s => s.bioroid !== undefined);
+  const bio = remote.filter(s => s.bioroid);
+  const pts = list => list.reduce((n, s) => n + s.points, 0);
+  return [remote.length, pts(remote), known ? bio.length : null, known ? pts(bio) : null];
+}
 const played = g => !g.crashed && g.seed != null;
 
 /** Mean and standard error of a list of per-deal differences. */
@@ -59,7 +74,22 @@ export function pairBatches(games, baseGames) {
     const per100 = side => (100 * pairs.reduce((s, p) => s + countOf(p[side], kind), 0)) / Math.max(n, 1);
     return { kind, on: per100(0), off: per100(1), diff: 100 * d.mean, se: 100 * d.se };
   });
+  // Steals from remotes per game, paired (where both sides recorded them)
+  const stealPairs = pairs.map(([a, b]) => [remoteSteals(a), remoteSteals(b)]).filter(([a, b]) => a && b);
+  const steals = [
+    ['steals from remotes', 0],
+    ['points from remotes', 1],
+    ['steals from remotes with a rezzed bioroid', 2],
+    ['points from remotes with a rezzed bioroid', 3],
+  ].flatMap(([label, k]) => {
+    const both = stealPairs.filter(([a, b]) => a[k] !== null && b[k] !== null);
+    if (!both.length) return [];
+    const d = meanSE(both.map(([a, b]) => a[k] - b[k]));
+    const mean = side => both.reduce((s, p) => s + p[side][k], 0) / both.length;
+    return [{ label, n: both.length, on: mean(0), off: mean(1), diff: d.mean, se: d.se }];
+  });
   return {
+    steals,
     n,
     games: games.filter(played).length,
     baseGames: baseGames.filter(played).length,
@@ -92,6 +122,10 @@ export function printPaired(games, baseGames) {
     console.log('  alarms per 100 games (this / base, paired diff ± SE):');
     for (const a of p.alarms) console.log(`    ${a.kind}: ${a.on.toFixed(1)} / ${a.off.toFixed(1)}, ${signed(a.diff)} ± ${a.se.toFixed(1)}`);
   }
+  if (p.steals.length) {
+    console.log('  per game (this / base, paired diff ± SE, in SE):');
+    for (const x of p.steals) console.log(`    ${x.label}: ${x.on.toFixed(3)} / ${x.off.toFixed(3)}, ${x.diff >= 0 ? '+' : ''}${x.diff.toFixed(3)} ± ${x.se.toFixed(3)} (${x.se ? (x.diff / x.se).toFixed(1) : '-'} SE) over ${x.n} games`);
+  } else console.log('  steals from remotes: not in both batches\' records (a base summed before they were saved)');
   return p;
 }
 

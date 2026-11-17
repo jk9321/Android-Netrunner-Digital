@@ -27,6 +27,8 @@ export interface Steal {
   from: string;
   ice: number;
   rezzedIce: number;
+  /** A rezzed bioroid on the server at the steal (Stage D item 1's bar: steals from bioroid remotes, its own line) */
+  bioroid?: boolean;
   /** Advancement counters on the agenda (remote steals) */
   advanced: number;
   /** The agenda could have been scored already (remote steals) */
@@ -583,6 +585,7 @@ export function playLogged(
       from: !serverId ? 'other' : serverId.startsWith('remote') ? 'remote' : serverId,
       ice: server?.ice.length ?? 0,
       rezzedIce: server?.ice.filter(i => i.isRezzed).length ?? 0,
+      bioroid: server?.ice.some(i => i.isRezzed && /\bbioroid\b/i.test(cardDef(i).keywords ?? '')) ?? false,
       advanced: agenda?.advancementCounters ?? 0,
       scoreable: !!agenda && !!def && (agenda.advancementCounters ?? 0) >= (def.advancement_cost ?? 99),
       corpCredits: before.corp.credits,
