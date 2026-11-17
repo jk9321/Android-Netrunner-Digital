@@ -54,7 +54,7 @@ The one seam through which the valuation layer and prompts.ts reach a Corp owner
 - A subroutine that trashes an installed Runner card is walked as the Corp's choice worst for the Runner since ai-hold-retry (found-list row 21: report-36 T6, Lycian Multi-Munition's sentry subroutine trashing the fracter Tatu-Bola needs). A card bounced to the grip is not modelled: it errs toward "does not hold".
 - The literal count rises by 4 (1,103 to 1,107) with ai-hold-facts: card-text numbers in `holdFacts` (Tranquilizer's derez at 3 counters, Jaguarundi's threat 4, Seraph's 3 credits and 2 net damage), facts the walk applies, not hand-set worths.
 - The failed run (ai-hold-retry), what it does not count, each toward "does not hold" (the comment at the top of the walk in src/ai/corp/hold.ts):
-  - "X or end the run" is taken as the end (ruling 6; 1.14.5, the Corp chooses), so a stronger X (Ballista's program trash, not modelled) is missed.
+  - "X or end the run" is taken as the end (ruling 6; 1.14.5, the Corp chooses), so a stronger X is missed (Ballista's program trash: the walk carries a trash of an installed card since row 21, but not as the X of this choice).
   - Tatu-Bola's swap after it is passed (the Corp 4 richer, an unknown ice met on the next run).
   - The rez set is fixed: each of its ice is rezzed on the first run that approaches it with the Corp able to pay, never held back for a second run (6.4.3).
   - Over several servers, a failed run on one server made only to drain the Corp for another is not walked: a retry is on the same target, before the next one.
