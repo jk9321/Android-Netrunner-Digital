@@ -279,6 +279,15 @@ describe('hold walk, commit 2: tags and grip move through the turn (runnerTurn)'
     expect(oracleOn(s, [])).toBe('getsIn');
   });
 
+  it('R1 mirror: no clicks for a second run (2 clicks, $10): the rez of Ping holds, for the whole turn too', () => {
+    const s = board(st => { ice(st, C.LAMP); ice(st, C.PING, false); installProgramForTest(st, C.CLEAVER); st.runner.credits = 10; st.runner.maxClicks = 2; });
+    const h = agrees(s);
+    expect(h.holds).toBe(true);
+    expect(h.rez).toEqual([s.corp.servers.remote1.ice[1].instanceId]);
+    // The oracle with a failed run followed by another (the pin's truth) agrees: one click clears the tag, none is left
+    expect(oracleGetsIn(s, 'remote1', 'runnerTurn', h.rez ?? [], undefined, undefined, true).answer).toBe('holds');
+  });
+
   it('R1 mirror: Ping already rezzed (no rez this turn, no tag): gets in', () => {
     const s = board(st => { ice(st, C.LAMP); ice(st, C.PING); installProgramForTest(st, C.CLEAVER); st.runner.credits = 10; });
     expect(agrees(s).holds).toBe(false);
@@ -446,6 +455,14 @@ describe('hold walk, commit 5: what an ice takes besides breaks', () => {
     const h = agrees(s);
     expect(h.holds).toBe(true);
     expect(h.rez).toHaveLength(1);
+  });
+
+  it('R2 mirror: one click (a single run): the rez holds, for the whole turn too', () => {
+    const s = board(st => { st.corp.identity = createCardInstance(st, '34096'); ice(st, '30046', false); st.runner.maxClicks = 1; });
+    const h = agrees(s);
+    expect(h.holds).toBe(true);
+    expect(h.rez).toHaveLength(1);
+    expect(oracleGetsIn(s, 'remote1', 'runnerTurn', h.rez ?? [], undefined, undefined, true).answer).toBe('holds');
   });
 
   it('R2 mirror: a card installed to trash: gets in', () => {
