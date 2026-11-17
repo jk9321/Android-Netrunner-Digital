@@ -4,7 +4,6 @@
  * turns), and each checked against the engine oracle (scripts/stage-d/hold-oracle.ts), which plays the Runner's turn in
  * the engine. Rules: Comprehensive Rules v26.03, cited on each row.
  */
-import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
 import { GameState, executeAction } from '../src/core';
 import { createCardInstance } from '../src/core/engine/gameState';
@@ -46,8 +45,7 @@ const inCorp = <T>(s: GameState, f: () => T): T => asSide('corp', () => (decisio
 /** The walk's answer for remote1 on the Runner's next turn, the Corp's rezzes limited to `corp` credits. */
 const walk = (s: GameState, corp = s.corp.credits) => inCorp(s, () => serverHold(s, 'remote1', { when: 'runnerTurn', corpCredits: corp }));
 /** The oracle's answer for the rez set the walk names (none when it does not hold: the cheapest set, nothing rezzed). */
-// The walk is judged against the turn's whole truth: a run that fails may be followed by another (the 10:10Z ruling)
-const oracleOn = (s: GameState, rez: string[], cap?: number) => oracleGetsIn(s, 'remote1', 'runnerTurn', rez, undefined, cap, true).answer;
+const oracleOn = (s: GameState, rez: string[], cap?: number) => oracleGetsIn(s, 'remote1', 'runnerTurn', rez, undefined, cap).answer;
 
 /** The walk holds with rez set `rez` exactly when the oracle says the Runner can't get in through it. */
 function agrees(s: GameState, corp = s.corp.credits, cap?: number) {
@@ -256,8 +254,7 @@ describe('hold walk, commit 2: tags and grip move through the turn (runnerTurn)'
     const h = agrees(s);
     expect(h.holds).toBe(true);
     expect(h.rez).toEqual([s.corp.servers.remote1.ice[0].instanceId]);
-    // The oracle with retries tries the Corp's every choice on every run
-  }, 60_000);
+  });
 
   it('R Lycian mirror: Cleaver as well, the Runner breaks whatever the Corp chooses: gets in', () => {
     const s = board(st => {
@@ -271,22 +268,15 @@ describe('hold walk, commit 2: tags and grip move through the turn (runnerTurn)'
     expect(oracleOn(s, [s.corp.servers.remote1.ice[0].instanceId])).toBe('getsIn');
   });
 
-  // The turn's whole truth (the 10:10Z ruling): the first run ends at Lamplighter (Ping's rez tagged the Runner); the
-  // Runner clears the tag (5.2.7g: a click and 2 credits) and runs again past a Ping already rezzed (no new tag)
-  it('R1 unrezzed Ping outside Lamplighter, Cleaver, $10, no killer: the tag is cleared and a second run gets in', () => {
+  // One run per target: the second run after the tag is cleared is the failed first run's follow-up (a known-failing pin
+  // in stageDPins.test.ts, the 13:05Z ruling)
+  it('R1 unrezzed Ping outside Lamplighter, Cleaver, $10, no killer: holds for a rez of Ping (its rez tags the Runner)', () => {
     const s = board(st => { ice(st, C.LAMP); ice(st, C.PING, false); installProgramForTest(st, C.CLEAVER); st.runner.credits = 10; });
-    expect(agrees(s).holds).toBe(false);
-    const ping = [s.corp.servers.remote1.ice[1].instanceId];
-    expect(oracleOn(s, ping)).toBe('getsIn');
-    // One run alone is kept out by the rez of Ping (the count's old one-run definition)
-    expect(oracleGetsIn(s, 'remote1', 'runnerTurn', ping).answer).toBe('holds');
-  });
-
-  it('R1 mirror: no clicks for a second run (2 clicks, $10): the rez of Ping holds', () => {
-    const s = board(st => { ice(st, C.LAMP); ice(st, C.PING, false); installProgramForTest(st, C.CLEAVER); st.runner.credits = 10; st.runner.maxClicks = 2; });
     const h = agrees(s);
     expect(h.holds).toBe(true);
     expect(h.rez).toEqual([s.corp.servers.remote1.ice[1].instanceId]);
+    // Ping unrezzed is passed: Lamplighter's tag is paid through
+    expect(oracleOn(s, [])).toBe('getsIn');
   });
 
   it('R1 mirror: Ping already rezzed (no rez this turn, no tag): gets in', () => {
@@ -449,27 +439,10 @@ describe('hold walk, commit 5: what an ice takes besides breaks', () => {
     expect(agrees(s).need).toBe(2);
   });
 
-  // Thunderbolt Armaments: the subroutine the ice gains when rezzed during a run lasts for that run only (9.8.3e). The
-  // first run ends; the second meets Diviner rezzed without it (the turn's whole truth, the 10:10Z ruling)
-  it('R2 Thunderbolt Armaments, unrezzed Diviner, nothing installed: the first run ends, the second gets in', () => {
+  // One run per target: the second run, past Diviner without its gained subroutine, is the failed first run's follow-up
+  // (game 49 turn 1's board is a known-failing pin in stageDPins.test.ts, the 13:05Z ruling)
+  it('R2 Thunderbolt Armaments, unrezzed Diviner, nothing installed: holds for its rez (the gained subroutine ends the run; 9.8.3e)', () => {
     const s = board(st => { st.corp.identity = createCardInstance(st, '34096'); ice(st, '30046', false); });
-    expect(agrees(s).holds).toBe(false);
-    const diviner = s.corp.servers.remote1.ice.map(c => c.instanceId);
-    expect(oracleOn(s, diviner)).toBe('getsIn');
-    expect(oracleGetsIn(s, 'remote1', 'runnerTurn', diviner).answer).toBe('holds');
-  });
-
-  it('R2, human game 49 turn 1 (Thunderbolt Armaments, Diviner on R&D, nothing installed): the walk agrees with the oracle', () => {
-    const f = JSON.parse(readFileSync(new URL('./fixtures/hold-walk/thunderbolt-49-t1-rd.json', import.meta.url), 'utf8'));
-    const s: GameState = f.state;
-    const h = inCorp(s, () => serverHold(s, f.server, { when: 'runnerTurn', corpCredits: Infinity }));
-    expect(h.holds).toBe(false);
-    const all = s.corp.servers[f.server].ice.map(c => c.instanceId);
-    expect(oracleGetsIn(s, f.server, 'runnerTurn', all, Infinity, undefined, true).answer).toBe('getsIn');
-  });
-
-  it('R2 mirror: one click (a single run): the rez holds', () => {
-    const s = board(st => { st.corp.identity = createCardInstance(st, '34096'); ice(st, '30046', false); st.runner.maxClicks = 1; });
     const h = agrees(s);
     expect(h.holds).toBe(true);
     expect(h.rez).toHaveLength(1);

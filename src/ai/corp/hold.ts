@@ -150,9 +150,7 @@ const withServerIce = (state: GameState, id: string, ice: CardInstance[]): GameS
 // counters, the ice's own click or credit ability), and the rest resolve in printed order against the state the walk
 // carries (9.8.7b). Clicks, counters, grip cards and once-a-run uses are shared along the run (1.16.1: a cost is paid in
 // full). The walk carries facts, never worths (ruling 5): it reads subroutineFacts, the card entries' holdFacts and
-// breakPlans' credits and spends, and calls no price. On the Runner's turn a run that ends is not the end of the turn:
-// the turn goes on from the state the run left and the target may be run again while clicks remain (the truth of
-// `holds` is the whole turn: Ping's tag cleared before a second run, Thunderbolt's gained subroutine gone with its run).
+// breakPlans' credits and spends, and calls no price.
 //
 // The pool is not carried: each node works out the least credits in the Runner's pool that get it through from there
 // (every effect on the pool is monotone: a payment adds, a condition sets a floor, a loss of n adds n above 0). So one
@@ -283,8 +281,6 @@ export interface WalkState {
   spike: boolean;
   /** Rig indexes trashed when the run ends (Mayfly). */
   mayfly: number[];
-  /** The Corp rezzed ice or gained credits during this run: the only changes a run makes that can help a later one (Walk.ended). */
-  moved: boolean;
 }
 
 /** A break plan as the walk spends it: breakPlans' credits and its spends, by rig index. */
@@ -476,23 +472,13 @@ export class Walk {
     private readonly targets: SearchTarget[],
     /** The memo, shared by the walks of one question over its rez sets (keys carry the flags they read). */
     private readonly memo = new Map<string, number>(),
-    /**
-     * A run that ends is followed by the rest of the turn ('runnerTurn': the truth of `holds` is the whole turn, a failed
-     * run a legal first element of the run sequence; the 10:10Z ruling on the brief's top block): the turn goes on from
-     * the state the run left, and the same target is run again while clicks remain. Off for 'thisRun' (a new run is not
-     * this run).
-     */
-    private readonly retries = true,
   ) {
     // Keys name the server and the runs still to make, not the run's index: the last run of a sequence and a single run
     // on the same server share their nodes (sequenceEntries, turnReach)
     const flags = (i: SearchIce) => `${i.inS ? 1 : 0}${i.bypassed ? 1 : 0}`;
-    // An approach reads the flags of the ice inward of it; with retries, a run that ends there is run again from the
-    // outermost ice, so it reads them all
-    this.inner = targets.map(t => t.ice.map((_, pos) => `${t.server}:${t.ice.slice(0, retries ? t.ice.length : pos + 1).map(flags).join('')}`));
+    this.inner = targets.map(t => t.ice.map((_, pos) => `${t.server}:${t.ice.slice(0, pos + 1).map(flags).join('')}`));
     this.later = targets.map((_, j) => targets.slice(j + 1).map(t => `${t.server}:${t.ice.map(flags).join('')}`).join('/'));
-    // With retries every run's clicks are read (a run that ends leaves the rest of them for the next)
-    this.clicksRead = targets.map((t, j) => retries || j < targets.length - 1 || t.ice.some(i => i.bioroid || i.encounterFacts?.unless?.clicks !== undefined));
+    this.clicksRead = targets.map((t, j) => j < targets.length - 1 || t.ice.some(i => i.bioroid || i.encounterFacts?.unless?.clicks !== undefined));
     this.counted = board.rig.flatMap((r, i) => (r.counted ? [i] : []));
     const facts = targets.flatMap(t => t.ice.flatMap(i => (i.rezGains ? [...i.subs, i.rezGains] : i.subs)));
     const effects = facts.flatMap(f => f.does);
@@ -503,10 +489,9 @@ export class Walk {
     const all = [...facts, ...lent];
     const allEffects = all.flatMap(f => f.does);
     const encounters = targets.flatMap(t => t.ice.flatMap(i => (i.encounterFacts ? [i.encounterFacts] : [])));
-    // A draw helps only when the grip can run short (10.4.4): the most the targets can take from it on one pass (damage,
-    // net damage paid instead, X counted at the most tags the walk can carry; each borrow at the most one lent subroutine
-    // takes) is more than it holds, or any at all when a run may be made again; a grip condition or a plan that spends
-    // grip cards (Audrey v2) always counts
+    // A draw helps only when the grip can run short (10.4.4): the most the targets can take from it (damage, net damage
+    // paid instead, X counted at the most tags the walk can carry; each borrow at the most one lent subroutine takes) is
+    // more than it holds; a grip condition or a plan that spends grip cards (Audrey v2) always counts
     const most = (list: number[]) => list.reduce((a, b) => Math.max(a, b), 0);
     const sum = (list: number[]) => list.reduce((a, b) => a + b, 0);
     const tagsOf = (f: SubFacts) => sum(f.does.map(e => (e.kind === 'tags' && typeof e.n === 'number' ? e.n : 0)));
@@ -515,14 +500,13 @@ export class Walk {
     const gripOf = (f: SubFacts) => sum(f.does.map(e => (e.kind === 'damage' ? (e.n === 'runnerTags' ? tagsMost : e.n) : 0))) + (f.unless?.netDamage ?? 0);
     const gripMost = sum(facts.map(gripOf)) + sum(encounters.map(e => e.unless?.netDamage ?? 0)) + borrows * most(lent.map(gripOf));
     const doubling = allEffects.some(e => e.kind === 'tags' && e.n === 'runnerTags');
-    // With retries a run may be made again, so any damage can add up past the grip
-    this.drawUseful = doubling || allEffects.some(e => e.kind === 'endRun' && e.if?.kind === 'hqMoreThanGrip') || board.rig.some(r => r.audrey) || gripMost > board.grip || (retries && gripMost > 0);
+    this.drawUseful = doubling || allEffects.some(e => e.kind === 'endRun' && e.if?.kind === 'hqMoreThanGrip') || board.rig.some(r => r.audrey) || gripMost > board.grip;
     this.tagUseful = all.some(f => f.when?.kind === 'runnerTagsAtLeast') || allEffects.some(e => (e.kind === 'endRun' && e.if?.kind === 'runnerTagsAtLeast') || ((e.kind === 'damage' || e.kind === 'tags') && e.n === 'runnerTags') || (e.kind === 'corpGainsCredits' && e.n === 'perRunnerTag'));
   }
 
-  /** The walk state in a memo key (run j: the clicks only where they are read, the stack where a run may follow). */
+  /** The walk state in a memo key (run j: the clicks only where they are read, the stack before the last run). */
   private wsKey(ws: WalkState, j: number): string {
-    return `${this.clicksRead[j] ? ws.clicks : '-'}|${ws.tags}|${ws.grip}|${this.retries || j < this.targets.length - 1 ? ws.stack : '-'}|${ws.corp}|${ws.fund}|${ws.hosted}|${ws.stealth}|${this.counters(ws)}|${ws.gone}|${ws.up}|${ws.spike ? 1 : 0}|${ws.mayfly}|${ws.drew ? 1 : 0}|${ws.chose}|${ws.moved ? 1 : 0}`;
+    return `${this.clicksRead[j] ? ws.clicks : '-'}|${ws.tags}|${ws.grip}|${j < this.targets.length - 1 ? ws.stack : '-'}|${ws.corp}|${ws.fund}|${ws.hosted}|${ws.stealth}|${this.counters(ws)}|${ws.gone}|${ws.up}|${ws.spike ? 1 : 0}|${ws.mayfly}|${ws.drew ? 1 : 0}|${ws.chose}`;
   }
 
   /** The counters the walk reads, for a memo key. */
@@ -555,7 +539,7 @@ export class Walk {
     if (hit !== undefined) return hit;
     // 6.9.1b, 10.6.3a: the bad publicity fund is filled as each run begins
     const fund = this.board.badPublicity;
-    let best = this.approach({ ...ws, clicks: ws.clicks - 1, spike: false, fund, moved: false }, j, this.targets[j].ice.length - 1);
+    let best = this.approach({ ...ws, clicks: ws.clicks - 1, spike: false, fund }, j, this.targets[j].ice.length - 1);
     if (ws.clicks > runs) {
       if (this.drawUseful && ws.stack > 0) {
         // 5.2.7c; the turn's first draw may give more (WalkBoard.firstDraw), at most the stack
@@ -575,21 +559,6 @@ export class Walk {
     return this.beforeRun({ ...ws, fund: 0, gone: [...ws.gone, ...ws.mayfly].sort((a, b) => a - b), mayfly: [] }, j + 1);
   }
 
-  /**
-   * Run j ended before its breach (a subroutine or a toll ended it, 6.1.4): with retries the turn goes on from the state
-   * it left, which the walk carries (the ice it rezzed stay rezzed, the Corp's credits, the counters, tags and grip, the
-   * click spent), and run j is made again while clicks remain; what lasts "for this run" ends with it (the fund goes back,
-   * 10.6.3b; Mayfly is trashed; Pressure Spike's use and a rez's gained subroutine, Thunderbolt's, are the run's only).
-   * Without retries an ended run fails. A flatline (10.4.4) is not an ended run: the game is over.
-   * Unless the Corp rezzed ice or gained credits (WalkState.moved), it is not made again: all else a run changes (a click,
-   * tags, damage, credits, counters or cards spent) leaves the Runner no better off than at its start, where every way
-   * on was open already, so a retry finds nothing new.
-   */
-  private ended(ws: WalkState, j: number): number {
-    if (!this.retries || !ws.moved) return FAIL;
-    return this.beforeRun({ ...ws, fund: 0, gone: [...ws.gone, ...ws.mayfly].sort((a, b) => a - b), mayfly: [] }, j);
-  }
-
   private approach(ws: WalkState, j: number, pos: number): number {
     if (pos < 0) return this.breach(ws, j);
     const at = `${pos}|${this.inner[j][pos]}|${this.later[j]}`;
@@ -602,7 +571,7 @@ export class Walk {
     if (!ice.rezzed && !ws.up.includes(ice.id)) {
       // 6.9.2c: unrezzed ice the Corp does not rez is passed; 6.4.3: ice of S is rezzed as it is approached
       const paid = ws.corp - ice.rezCost;
-      v = ice.inS && paid >= 0 ? this.rezzed({ ...ws, corp: paid, up: [...ws.up, ice.id].sort(), moved: true }, ice, next, { key: at, j }) : next(ws);
+      v = ice.inS && paid >= 0 ? this.rezzed({ ...ws, corp: paid, up: [...ws.up, ice.id].sort() }, ice, next, { key: at, j }) : next(ws);
     } else v = ice.bypassed ? next(ws) : this.encounter(ws, ice, next, { key: at, j });
     this.memo.set(key, v);
     return v;
@@ -648,7 +617,7 @@ export class Walk {
     if (this.board.bypass) {
       for (const b of ice.bypassers) if (!ws.gone.includes(b.idx) && !types.includes(b.unless)) best = Math.min(best, this.pay(ws, b.per * subs.length, next));
     }
-    return Math.min(best, this.tolls(ws, ice, w => this.breaks(w, ice, types, next, at), at));
+    return Math.min(best, this.tolls(ws, ice, w => this.breaks(w, ice, types, next, at)));
   }
 
   /** The ice's subtypes now: a Corp trash of a hosted card that gives subtypes (Chromatophores) takes them away. */
@@ -670,19 +639,19 @@ export class Walk {
    * choice (Funhouse: end the run unless it takes 1 tag; Seraph: lose 3 unless it suffers 2 net damage or takes 1 tag;
    * Jaguarundi at threat 4: a tag unless it spends a click).
    */
-  private tolls(ws: WalkState, ice: SearchIce, then: (w: WalkState) => number, at: Step): number {
+  private tolls(ws: WalkState, ice: SearchIce, then: (w: WalkState) => number): number {
     const e = ice.encounterFacts;
     if (!e || ice.broken || (e.threatAtLeast !== undefined && this.board.threat < e.threatAtLeast)) return then(ws);
     // Paywall: the Runner loses credits as the encounter begins (6.9.3a), from its pool (10.6.2: not the fund)
-    if (e.loses) return lose(this.toll(ws, e, then, at), e.loses);
-    return this.toll(ws, e, then, at);
+    if (e.loses) return lose(this.toll(ws, e, then), e.loses);
+    return this.toll(ws, e, then);
   }
 
   /** The encounter toll and the alternatives the Runner may pay instead, its choice. */
-  private toll(ws: WalkState, e: NonNullable<SearchIce['encounterFacts']>, then: (w: WalkState) => number, at: Step): number {
+  private toll(ws: WalkState, e: NonNullable<SearchIce['encounterFacts']>, then: (w: WalkState) => number): number {
     if (!e.toll) return then(ws);
     const t = e.toll;
-    let best = t.endRun ? this.ended(ws, at.j) : t.loses ? lose(then(ws), t.loses) : then({ ...ws, tags: ws.tags + (t.tags ?? 0) });
+    let best = t.endRun ? FAIL : t.loses ? lose(then(ws), t.loses) : then({ ...ws, tags: ws.tags + (t.tags ?? 0) });
     const u = e.unless ?? {};
     if (u.tags) best = Math.min(best, then({ ...ws, tags: ws.tags + u.tags }));
     if (u.netDamage !== undefined && u.netDamage <= ws.grip) best = Math.min(best, then({ ...ws, grip: ws.grip - u.netDamage }));
@@ -698,10 +667,7 @@ export class Walk {
     const open = subs.map((_, i) => i).filter(i => !ice.broken?.[i] && !inert(subs[i]));
     for (let set = 0; set < 1 << open.length; set++) {
       const unbroken = open.filter((_, k) => !(set & (1 << k)));
-      // A subroutine left unbroken that always ends the run ends it there: without retries the way fails; with them it is
-      // a way to end the run, and breaking a subroutine after it buys nothing (it never resolves)
-      const first = unbroken.find(i => alwaysEnds(subs[i]));
-      if (first !== undefined && (!this.retries || open.some((i, k) => i > first && set & (1 << k)))) continue;
+      if (unbroken.some(i => alwaysEnds(subs[i]))) continue;
       const b = open.length - unbroken.length;
       const resolve = (w: WalkState) => this.resolve(w, ice, types, unbroken, 0, next, at);
       if (b === 0) {
@@ -777,7 +743,7 @@ export class Walk {
   /** The unbroken subroutines `list` (indexes into ice.subs) resolve one at a time in printed order (9.8.7b). */
   private resolve(ws: WalkState, ice: SearchIce, types: string[], list: number[], k: number, next: (w: WalkState) => number, at: Step): number {
     if (k >= list.length) return next(ws);
-    const go = () => this.subroutine(ws, ice.id, types, ice.subs[list[k]], w => this.resolve(w, ice, types, list, k + 1, next, at), at);
+    const go = () => this.subroutine(ws, ice.id, types, ice.subs[list[k]], w => this.resolve(w, ice, types, list, k + 1, next, at));
     // A borrowing ice (Mycoweb) branches on every subroutine it may lend, each with the rest of its own to resolve: the
     // steps after the first are keyed (`at`: the approach and run; the subroutines as met, those left, the state)
     if (k === 0 || !ice.subs.some(f => f.does.some(e => e.kind === 'borrow'))) return go();
@@ -790,11 +756,11 @@ export class Walk {
   }
 
   /** One subroutine resolves (or the Runner pays its nested cost instead, 1.16.11b). */
-  private subroutine(ws: WalkState, card: string, types: string[], f: SubFacts, then: (w: WalkState) => number, at: Step): number {
+  private subroutine(ws: WalkState, card: string, types: string[], f: SubFacts, then: (w: WalkState) => number): number {
     if (f.when && !(f.when.kind === 'iceIs' ? types.includes(f.when.subtype) : f.when.kind === 'runnerTagsAtLeast' && ws.tags >= f.when.n)) return then(ws);
     // "X or end the run": the Corp chooses, and the walk takes the end (ruling 6)
-    if (f.orEndRun) return this.ended(ws, at.j);
-    let best = this.effects(ws, card, f.does, 0, then, at);
+    if (f.orEndRun) return FAIL;
+    let best = this.effects(ws, card, f.does, 0, then);
     // "unless the Runner pays N" (1.16.11b): paid as it resolves, run-only credits first (10.6.3a: the fund pays any cost
     // during the run)
     if (f.unless?.credits !== undefined) best = Math.min(best, this.pay(ws, f.unless.credits, then));
@@ -808,28 +774,19 @@ export class Walk {
     return best;
   }
 
-  private effects(ws: WalkState, card: string, does: SubEffect[], i: number, then: (w: WalkState) => number, at: Step): number {
+  private effects(ws: WalkState, card: string, does: SubEffect[], i: number, then: (w: WalkState) => number): number {
     if (i >= does.length) return then(ws);
     const e = does[i];
-    const next = (w: WalkState) => this.effects(w, card, does, i + 1, then, at);
-    const end = () => this.ended(ws, at.j);
+    const next = (w: WalkState) => this.effects(w, card, does, i + 1, then);
     switch (e.kind) {
       case 'endRun': {
         const c = e.if;
-        if (!c) return end();
-        // A condition on the pool: the run goes on with a pool over the bound, or ends with one at most it (the ended
-        // way only where the rest of the turn needs no more than that)
-        if (c.kind === 'runnerCreditsAtMost') {
-          const ended = end();
-          return Math.min(Math.max(next(ws), c.n + 1), ended <= c.n ? ended : FAIL);
-        }
-        if (c.kind === 'corpCreditsMoreThanRunner') {
-          const ended = end();
-          return Math.min(Math.max(next(ws), ws.corp), ended < ws.corp ? ended : FAIL);
-        }
-        if (c.kind === 'runnerTagsAtLeast') return ws.tags >= c.n ? end() : next(ws);
-        if (c.kind === 'threatAtLeast') return this.board.threat >= c.n ? end() : next(ws);
-        if (c.kind === 'hqMoreThanGrip') return this.board.hq > ws.grip ? end() : next(ws);
+        if (!c) return FAIL;
+        if (c.kind === 'runnerCreditsAtMost') return Math.max(next(ws), c.n + 1);
+        if (c.kind === 'corpCreditsMoreThanRunner') return Math.max(next(ws), ws.corp);
+        if (c.kind === 'runnerTagsAtLeast') return ws.tags >= c.n ? FAIL : next(ws);
+        if (c.kind === 'threatAtLeast') return this.board.threat >= c.n ? FAIL : next(ws);
+        if (c.kind === 'hqMoreThanGrip') return this.board.hq > ws.grip ? FAIL : next(ws);
         // Diviner's odd cost: a fact of the grip the walk can't read; left out (the safe side, "does not hold")
         return next(ws);
       }
@@ -838,7 +795,7 @@ export class Walk {
       case 'runnerLosesCredits':
         return lose(next(ws), e.n);
       case 'corpGainsCredits':
-        return next({ ...ws, corp: ws.corp + (e.n === 'perRunnerTag' ? ws.tags : e.n), moved: true });
+        return next({ ...ws, corp: ws.corp + (e.n === 'perRunnerTag' ? ws.tags : e.n) });
       case 'damage': {
         // 10.4.4: more damage than the cards in the grip is a flatline; each point takes a card (10.4.2)
         const n = e.n === 'runnerTags' ? ws.tags : e.n;
@@ -847,12 +804,11 @@ export class Walk {
       case 'tags':
         return next({ ...ws, tags: ws.tags + (e.n === 'runnerTags' ? ws.tags : e.n) });
       case 'cannotStealOrTrash':
-        // Nothing is stolen on this run: as far as the target goes, the run has ended
-        return end();
+        return FAIL;
       case 'corpMayTrashHqToEndRun':
-        return this.board.hq > 0 ? end() : next(ws);
+        return this.board.hq > 0 ? FAIL : next(ws);
       case 'borrow':
-        return this.borrow(ws, card, e.subtype, next, at);
+        return this.borrow(ws, card, e.subtype, next);
       default:
         // What the walk doesn't carry: trashing or bouncing a Runner card (registry debt: errs toward "does not hold"),
         // the Corp's own side, a jack out the Runner may take
@@ -861,11 +817,11 @@ export class Walk {
   }
 
   /** Mycoweb: the Corp resolves 1 subroutine of another rezzed ice of the subtype, the one worst for the Runner (ruling 6). */
-  private borrow(ws: WalkState, card: string, subtype: string, next: (w: WalkState) => number, at: Step): number {
+  private borrow(ws: WalkState, card: string, subtype: string, next: (w: WalkState) => number): number {
     let worst = -1;
     for (const l of this.lenders) {
       if (l.id === card || !(l.rezzed || ws.up.includes(l.id)) || !l.types.includes(subtype)) continue;
-      for (const f of l.facts) worst = Math.max(worst, this.subroutine(ws, l.id, l.types, f, next, at));
+      for (const f of l.facts) worst = Math.max(worst, this.subroutine(ws, l.id, l.types, f, next));
     }
     return worst < 0 ? next(ws) : worst;
   }
@@ -926,7 +882,6 @@ export function firstState(state: GameState, start: WalkStart, clicks: number, c
     up: [],
     spike: false,
     mayfly: [],
-    moved: false,
   };
 }
 
@@ -946,9 +901,8 @@ function turnInput(state: GameState, start: WalkStart, targets: WalkTarget[], co
 }
 
 /**
- * The least the Runner must bring for one turn through `targets`, in the budget's units (brief 5.5, over the whole turn:
- * a run that ends may be followed by another): over every split of its clicks, the pool the walk needs plus what the
- * clicks it doesn't earn with would have earned (runnerEarnings).
+ * The least the Runner must bring for one turn through `targets`, in the budget's units (brief 5.5): over every split of
+ * its clicks, the pool the walk needs plus what the clicks it doesn't earn with would have earned (runnerEarnings).
  */
 function turnNeed(input: TurnInput, targets: SearchTarget[], memo?: Map<string, number>): number {
   const { earn, first } = input;
@@ -1172,7 +1126,7 @@ function walkThisRun(state: GameState, server: string, opts: HoldOptions): Hold 
     const fund = run.bonusCredits + (run.badPublicityCredits ?? 0);
     const hosted = Math.max(0, availableCredits(state, 'runner') - state.runner.credits - fund);
     const ws: WalkState = { ...firstState(state, start, state.runner.clicks, corp), fund, hosted, stealth: stealthCredits(state) };
-    const need = new Walk(board, [{ server, ice }], undefined, false).fromIce(ws, pos);
+    const need = new Walk(board, [{ server, ice }]).fromIce(ws, pos);
     if (need > mostNeed) mostNeed = need;
     if (need > budget) {
       best = cost;

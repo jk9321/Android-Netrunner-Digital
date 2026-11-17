@@ -4,6 +4,10 @@ import { GameAction, GameState, cardDef, createInitialGameState, executeAction, 
 import { deckGameSetup } from '../src/data/decks';
 import { HeuristicCorpAI, createAgent } from '../src/ai';
 import { giveCard, installCorpForTest, installIceForTest, installProgramForTest, newGame } from './helpers';
+import { serverHold } from '../src/ai/corp/hold';
+import { asSide } from '../src/ai/pricing';
+import { decisionContext } from '../src/ai/handValues';
+import { oracleGetsIn } from '../scripts/stage-d/hold-oracle';
 
 /**
  * Step 4 Stage D pins (spec-step4-corp-core.md section 5; AI Coordinator 2026-11-14 17:56Z), committed in Stage B as
@@ -235,5 +239,51 @@ describe('Stage D pins (known-failing until their fix lands)', () => {
     giveCard(s, 'runner', '30032');
     const a = decide(s) as Install;
     expect(a.type === 'INSTALL_CARD' && cardDef(s.corp.hq.find(c => c.instanceId === a.cardInstanceId)!).type_code === 'agenda' && a.targetServerId === 'remote1').toBe(false);
+  });
+
+  // The failed first run (Stage D item 1's first follow-up; the AI Coordinator's ruling at 13:05Z in walk-rulings.md):
+  // the hold walk makes one run per target, so a run that ends is the end of the turn. The truth of `holds` is the whole
+  // turn: after a run ends (6.1.4) the Runner may clear a tag (5.2.7g) or meet a rezzed ice without what its rez gave
+  // for that run only (Thunderbolt Armaments, 9.8.3e) and run again. Built on ai-hold-walk (3b697ea, cut 109ae85) and
+  // taken out for its time (a few decisions 7 to 16 s); each board's truth is checked by the engine oracle, which plays
+  // the Runner's whole turn with failed runs allowed.
+  describe('the failed first run (item 1 follow-up)', () => {
+    const inCorp = <X>(s: GameState, f: () => X): X => asSide('corp', () => (decisionContext(s, 'corp'), f()));
+    const holds = (s: GameState, server: string, corp = s.corp.credits) => inCorp(s, () => serverHold(s, server, { when: 'runnerTurn', corpCredits: corp }).holds);
+    // Ping's board: Lamplighter rezzed, Ping unrezzed outside it, Cleaver, $10 and 4 clicks. Ping's rez tags the Runner and
+    // Lamplighter ends the run; the Runner clears the tag and runs again past Ping already rezzed (no new tag)
+    const ping = () => {
+      const s = newGame(3);
+      s.corp.hq = [];
+      s.runner.rig = { ...s.runner.rig, programs: [], hardware: [], resources: [] };
+      s.corp.credits = 20;
+      s.turnNumber = 7;
+      installIceForTest(s, '35080', 'remote1', true);
+      installIceForTest(s, '30055', 'remote1', false);
+      installProgramForTest(s, '30006');
+      s.runner.credits = 10;
+      return s;
+    };
+    // Human game 49 turn 1: Thunderbolt Armaments, Diviner unrezzed on R&D, nothing installed. Diviner's gained
+    // subroutine ends the first run; the second meets Diviner rezzed without it
+    const thunderbolt = () => JSON.parse(readFileSync(new URL('./fixtures/hold-walk/thunderbolt-49-t1-rd.json', import.meta.url), 'utf8')) as { server: string; state: GameState };
+
+    it("the boards' truth: one run is kept out, the whole turn gets in", { timeout: T }, () => {
+      const s = ping();
+      const pingId = [s.corp.servers.remote1.ice[1].instanceId];
+      expect(oracleGetsIn(s, 'remote1', 'runnerTurn', pingId).answer).toBe('holds');
+      expect(oracleGetsIn(s, 'remote1', 'runnerTurn', pingId, undefined, undefined, true).answer).toBe('getsIn');
+      const f = thunderbolt();
+      const all = f.state.corp.servers[f.server].ice.map(c => c.instanceId);
+      expect(oracleGetsIn(f.state, f.server, 'runnerTurn', all, Infinity).answer).toBe('holds');
+      expect(oracleGetsIn(f.state, f.server, 'runnerTurn', all, Infinity, undefined, true).answer).toBe('getsIn');
+    });
+    it.fails("Ping's board: the hold walk does not count the server as holding (the tag is cleared, a second run gets in)", { timeout: T }, () => {
+      expect(holds(ping(), 'remote1')).toBe(false);
+    });
+    it.fails('game 49 turn 1, Thunderbolt Armaments: the hold walk does not count R&D as holding (a second run gets in)', { timeout: T }, () => {
+      const f = thunderbolt();
+      expect(holds(f.state, f.server, Infinity)).toBe(false);
+    });
   });
 });
