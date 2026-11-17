@@ -348,6 +348,8 @@ export const tuning = {
     holdWalkTags: true,
     /** TEMPORARY (as holdWalk), commit 3: credits move on both sides through the run (subroutines' losses and the Corp's gains, the Corp paying each rez at its approach, the bad publicity fund and credits that pay during runs). */
     holdWalkCredits: true,
+    /** TEMPORARY (as holdWalk), commit 4: the run sequence in the hold owner (turnReach): `entries` and rezMoney's keep read one turn's runs in order, the clicks, credits and counters shared. */
+    holdWalkSequence: true,
     /**
      * Per deciding side (Jeff, 2026-10-28): its own hand valued card by card, by what each will do once played (handValues.ts).
      * Batches: each side loses with it (Corp side 32.2% -> 28.0%, Runner side 32.2% -> 35.9% Corp) and the Runner draws at a

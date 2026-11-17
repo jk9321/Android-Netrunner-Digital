@@ -825,6 +825,16 @@ function bypassBoard(state: GameState, serverId: string, ice: WalkIce[], set: Se
   return withServerIce(state, serverId, server.ice.map((c, i) => ({ ...c, isRezzed: ice[i].rezzed || set.has(c.instanceId) })));
 }
 
+/** A run of the walk's turn on `server` with `set` to rez: its ice as met, and what its bypasses cost (runBypasses; 6.5.8a). */
+function runTarget(state: GameState, base: WalkIce[], server: string, set: Set<string>): { target: WalkTarget; price: number } {
+  const all = state.corp.servers[server]?.ice ?? [];
+  // The view runBypasses read before (the Runner's clicks but the run's)
+  const view: GameState = { ...state, runner: { ...state.runner, clicks: Math.max(0, state.runner.maxClicks - 1) } };
+  const bypassed = all.length ? runBypasses(bypassBoard(view, server, base, set), server) : undefined;
+  const ice = base.map(c => ({ ...c, inS: set.has(c.card.instanceId), bypassed: !!bypassed?.ids.has(c.card.instanceId) }));
+  return { target: { server, ice }, price: bypassed?.price ?? 0 };
+}
+
 /** 'runnerTurn' by the walk: the cheapest affordable rez set that keeps the Runner out, or the one that asks the most. */
 function walkRunnerTurn(state: GameState, server: string, corpCredits: number): Hold {
   const all = state.corp.servers[server]?.ice ?? [];
@@ -832,8 +842,6 @@ function walkRunnerTurn(state: GameState, server: string, corpCredits: number): 
   const start = walkStart(state, true);
   const base = walkIce(state, start, all);
   const n = Math.min(all.length, 10);
-  // The view runBypasses read before (the Runner's clicks but the run's)
-  const view: GameState = { ...state, runner: { ...state.runner, clicks: Math.max(0, state.runner.maxClicks - 1) } };
   const corp = corpStart(state, base, corpCredits);
   const sets: { mask: number; rez: number }[] = [];
   for (let mask = 0; mask < 1 << n; mask++) {
@@ -844,16 +852,47 @@ function walkRunnerTurn(state: GameState, server: string, corpCredits: number): 
   // Cheapest first, ties in mask order (as before): the first that holds is the answer
   sets.sort((a, b) => a.rez - b.rez || a.mask - b.mask);
   let most = -Infinity;
+  let mostSet = new Set<string>();
   for (const { mask, rez } of sets) {
     const set = new Set(all.slice(0, n).filter((_, i) => mask & (1 << i)).map(c => c.instanceId));
-    const bypassed = all.length ? runBypasses(bypassBoard(view, server, base, set), server) : undefined;
-    const ice = base.map(c => ({ ...c, inS: set.has(c.card.instanceId), bypassed: !!bypassed?.ids.has(c.card.instanceId) }));
-    const need = turnNeed(state, start, [{ server, ice }], corp) + (bypassed?.price ?? 0);
+    const { target, price } = runTarget(state, base, server, set);
+    const need = turnNeed(state, start, [target], corp) + price;
     if (need > budget) return { holds: true, rez: [...set], rezCost: rez, need, budget, margin: need - budget, entries: 0 };
-    most = Math.max(most, need);
+    if (need > most) [most, mostSet] = [need, set];
   }
   const need = most === -Infinity ? 0 : most;
-  return { holds: false, rez: null, rezCost: Infinity, need, budget, margin: need - budget, entries: turnEntries(state, need, budget) };
+  const entries = plan().holdWalkSequence ? sequenceEntries(state, start, base, server, mostSet, corp) : turnEntries(state, need, budget);
+  return { holds: false, rez: null, rezCost: Infinity, need, budget, margin: need - budget, entries };
+}
+
+/** `entries` from the run sequence (brief 5.6): the most runs on the server one turn reaches, against the set that asks the most. */
+function sequenceEntries(state: GameState, start: WalkStart, base: WalkIce[], server: string, set: Set<string>, corp: number): number {
+  const budget = runnerBudget(state);
+  const { target, price } = runTarget(state, base, server, set);
+  let k = 0;
+  while (k < state.runner.maxClicks && turnNeed(state, start, Array(k + 1).fill(target), corp) + (k + 1) * price <= budget) k++;
+  return k;
+}
+
+/**
+ * The run sequence (brief 5.6): whether one Runner turn reaches the breach of each server in `servers` in that order,
+ * the Corp rezzing the ice of `rezSets[i]` on run i as it is approached and nothing else: one split of the turn's clicks,
+ * the fund filled at each run, the credits hosted on cards and the counters shared, the board carried from run to run
+ * (an ice rezzed on one run is met rezzed on the next). `need` is in runnerBudget's units, as serverHold's. Each run's
+ * bypasses are priced again (a known gap: a counter one bypass spends is not taken from the next).
+ */
+export function turnReach(state: GameState, servers: string[], rezSets: string[][], corpCredits = state.corp.credits): { reaches: boolean; need: number; budget: number } {
+  return counted(() => {
+    const budget = runnerBudget(state);
+    if (!servers.length) return { reaches: true, need: 0, budget };
+    const start = walkStart(state, true);
+    const bases = new Map<string, WalkIce[]>();
+    const baseOf = (id: string) => bases.get(id) ?? bases.set(id, walkIce(state, start, state.corp.servers[id]?.ice ?? [])).get(id)!;
+    const runs = servers.map((id, i) => runTarget(state, baseOf(id), id, new Set(rezSets[i] ?? [])));
+    const corp = corpStart(state, [...bases.values()].flat(), corpCredits);
+    const need = turnNeed(state, start, runs.map(r => r.target), corp) + runs.reduce((n, r) => n + r.price, 0);
+    return { reaches: need <= budget, need, budget };
+  });
 }
 
 /** 'thisRun' by the walk: from the approached ice at `from`, the Runner's credits and clicks as they are. */

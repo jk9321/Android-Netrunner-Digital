@@ -1,6 +1,7 @@
 import { CardInstance, GameState, cardDef } from '../../core';
 import { tally } from '../diagnostics';
-import { runnerBudget, serverHold } from './hold';
+import { runnerBudget, serverHold, turnReach } from './hold';
+import { plan } from '../pricing';
 import { memo } from '../valueModel';
 
 /**
@@ -75,7 +76,7 @@ const holding = (state: GameState) => memo(state, 'holdingRez', () => holdingRez
 
 function countRezMoney(state: GameState, { byServer, rezIds, unholdable }: ReturnType<typeof holdingRez>): RezMoney {
   // What getting in costs the Runner with nothing more rezzed (the rezzed ice only)
-  const entry = Object.fromEntries(Object.keys(byServer).map(id => [id, serverHold(state, id, { when: 'runnerTurn', corpCredits: 0 }).need]));
+  const entry = plan().holdWalkSequence ? {} : Object.fromEntries(Object.keys(byServer).map(id => [id, serverHold(state, id, { when: 'runnerTurn', corpCredits: 0 }).need]));
   return { keep: keepFor(state, byServer, entry), byServer, rezIds, unholdable };
 }
 
@@ -97,6 +98,7 @@ function holdingRez(state: GameState, without: string[] = []): { byServer: Recor
 /** The largest byServer total over the servers one affordable sequence of runs reaches (at most the Runner's clicks). */
 function keepFor(state: GameState, byServer: Record<string, number>, entry: Record<string, number>): number {
   const ids = Object.keys(byServer).filter(id => byServer[id] > 0);
+  if (plan().holdWalkSequence) return keepByReach(state, byServer, ids);
   const budget = runnerBudget(state);
   const clicks = Math.max(0, state.runner.maxClicks);
   let keep = 0;
@@ -110,6 +112,36 @@ function keepFor(state: GameState, byServer: Record<string, number>, entry: Reco
   }
   return keep;
 }
+
+/**
+ * keepFor by the run sequence (brief 5.6; hold.ts turnReach owns it): the largest byServer total over the sets of staked
+ * servers that one Runner turn reaches in some order past the ice rezzed now (the Corp rezzing nothing more), largest
+ * total first. A set is reached only if every set inside it is (one run fewer frees its click), so a set with an
+ * unreached part is skipped unwalked.
+ */
+function keepByReach(state: GameState, byServer: Record<string, number>, ids: string[]): number {
+  const sets: number[] = [];
+  for (let mask = 1; mask < 1 << ids.length; mask++) if (bits(mask) <= state.runner.maxClicks) sets.push(mask);
+  const total = (mask: number) => ids.reduce((n, id, i) => (mask & (1 << i) ? n + byServer[id] : n), 0);
+  sets.sort((a, b) => total(b) - total(a) || bits(a) - bits(b) || a - b);
+  const reached = new Map<number, boolean>();
+  const reach = (mask: number): boolean => {
+    const hit = reached.get(mask);
+    if (hit !== undefined) return hit;
+    const set = ids.filter((_, i) => mask & (1 << i));
+    let ok = set.every((_, i) => bits(mask) === 1 || reach(mask & ~(1 << ids.indexOf(set[i]))));
+    ok &&= orders(set).some(order => turnReach(state, order, order.map(() => [])).reaches);
+    reached.set(mask, ok);
+    return ok;
+  };
+  for (const mask of sets) if (reach(mask)) return total(mask);
+  return 0;
+}
+
+const bits = (mask: number): number => (mask ? (mask & 1) + bits(mask >>> 1) : 0);
+
+/** Every order of `ids`. */
+const orders = (ids: string[]): string[][] => (ids.length <= 1 ? [ids] : ids.flatMap((id, i) => orders([...ids.slice(0, i), ...ids.slice(i + 1)]).map(rest => [id, ...rest])));
 
 /**
  * The credits a counted two-turn line must leave once it has scored (count inputs F1; afterLineFloor before Stage A):

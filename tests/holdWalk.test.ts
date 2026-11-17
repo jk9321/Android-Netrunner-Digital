@@ -8,8 +8,9 @@ import { describe, expect, it } from 'vitest';
 import { GameState, executeAction } from '../src/core';
 import { createCardInstance } from '../src/core/engine/gameState';
 import { installIceForTest, installProgramForTest, newGame, startRunnerTurn, toCorp } from './helpers';
-import { oracleGetsIn } from '../scripts/stage-d/hold-oracle';
-import { serverHold } from '../src/ai/corp/hold';
+import { oracle, oracleGetsIn } from '../scripts/stage-d/hold-oracle';
+import { serverHold, turnReach } from '../src/ai/corp/hold';
+import { rezMoney } from '../src/ai/corp/rezMoney';
 import { asSide } from '../src/ai/pricing';
 import { decisionContext } from '../src/ai/handValues';
 
@@ -316,5 +317,51 @@ describe('hold walk, commit 3: credits move on both sides through the run', () =
   it('E1 mirror: no bad publicity: holds', () => {
     const s = board(st => { ice(st, C.PALISADE); ice(st, C.PALISADE); installProgramForTest(st, C.CLEAVER); st.runner.credits = 1; });
     expect(agrees(s).holds).toBe(true);
+  });
+});
+
+describe('hold walk, commit 4: the run sequence (turnReach; brief 5.6)', () => {
+  /** How many of `targets` the oracle's Runner breaches in order on its next turn, nothing more rezzed. */
+  const reached = (s: GameState, targets: string[]) => oracle(s, { when: 'runnerTurn', targets, rez: new Set() }).reached;
+
+  it('A3 one Brân 1.0, no breakers: 1 entry (a run and 2 clicks to break it of 4; 1.16.1, 5.2.7d)', () => {
+    const s = board(st => { ice(st, C.BRAN); });
+    expect(walk(s).entries).toBe(1);
+    expect(reached(s, ['remote1', 'remote1'])).toBe(1);
+  });
+
+  it('A3 mirror: Palisade on a remote (strength 4) with Cleaver, $8: 3 entries (3 a run: boost 2, break 1; the 4th click earns the 9th)', () => {
+    const s = board(st => { ice(st, C.PALISADE); installProgramForTest(st, C.CLEAVER); st.runner.credits = 8; });
+    const h = walk(s);
+    expect(h.holds).toBe(false);
+    expect(h.entries).toBe(3);
+    expect(reached(s, ['remote1', 'remote1', 'remote1', 'remote1'])).toBe(3);
+  });
+
+  it('Mayfly is trashed as its run ends: 1 entry through Palisade (its text; 6.9.6)', () => {
+    const s = board(st => { ice(st, C.PALISADE); installProgramForTest(st, C.MAYFLY); st.runner.credits = 8; });
+    expect(walk(s).entries).toBe(1);
+    expect(reached(s, ['remote1', 'remote1'])).toBe(1);
+  });
+
+  it('one turn reaches each of two Brân servers alone but not both (the clicks are shared; 1.16.1)', () => {
+    const s = board(st => { ice(st, C.BRAN); installIceForTest(st, C.BRAN, 'remote2', true); });
+    const reach = (servers: string[]) => inCorp(s, () => turnReach(s, servers, servers.map(() => []))).reaches;
+    expect([reach(['remote1']), reach(['remote2']), reach(['remote1', 'remote2'])]).toEqual([true, true, false]);
+    expect(reached(s, ['remote1', 'remote2'])).toBe(1);
+  });
+
+  it("rezMoney's keep: two agenda remotes, each a rezzed Brân 1.0 outside an unrezzed Palisade: keep is one Palisade, not two (one turn reaches one of them)", () => {
+    const s = board(st => {
+      for (const id of ['remote1', 'remote2']) {
+        installIceForTest(st, C.PALISADE, id, false);
+        installIceForTest(st, C.BRAN, id, true);
+        st.corp.servers[id].root.push(createCardInstance(st, '30067'));
+      }
+    });
+    const money = inCorp(s, () => rezMoney(s));
+    expect(money.byServer).toMatchObject({ remote1: 3, remote2: 3 });
+    expect(money.keep).toBe(3);
+    expect(reached(s, ['remote1', 'remote2'])).toBe(1);
   });
 });
