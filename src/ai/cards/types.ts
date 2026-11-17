@@ -69,6 +69,8 @@ export interface HoldFacts {
   hostBypass?: { creditsPerSubroutine: number; unlessSubtype: 'barrier' | 'code gate' | 'sentry' };
   /** Trashed when the Corp purges virus counters (Physarum Entangler). */
   trashedOnPurge?: true;
+  /** A program hosted on ice: a hosted counter of this kind breaks 1 subroutine on its host (Botulus). */
+  breaksHostSubroutine?: { counter: 'virus' };
 }
 
 /**

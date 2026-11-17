@@ -9,7 +9,7 @@ import { installIceForTest, newGame, run, toCorp } from './helpers';
 
 describe('holdFacts card entries', () => {
   it('turn start (5.7.1): Botulus and Tranquilizer counters, Tranquilizer derezzes at 3', () => {
-    expect(CARDS['30004'].holdFacts).toEqual({ runnerTurnStart: { counters: { kind: 'virus', n: 1 } } });
+    expect(CARDS['30004'].holdFacts).toEqual({ runnerTurnStart: { counters: { kind: 'virus', n: 1 } }, breaksHostSubroutine: { counter: 'virus' } });
     expect(CARDS['30017'].holdFacts).toEqual({ runnerTurnStart: { counters: { kind: 'virus', n: 1 }, derezHostAt: 3 } });
   });
   it('turn end: Lycian Multi-Munition derezzes itself; at its rez the Corp chooses 1 or more of barrier, code gate, sentry', () => {

@@ -1,7 +1,7 @@
 import { CardInstance, GameState, cardDef, getCardScript, isLegalAction, rezCostOf, availableCredits } from '../../core';
 import { rezCost, stealthCredits, threatLevel } from '../../core/engine/cardEffects';
 import { canBreakSubroutinesWith, iceScript, iceSubroutines, iceSubtypes, isBioroid } from '../../core/engine/ice';
-import { AUDREY, BOTULUS, SubEffect, SubFacts, bioroidBreakClicks, breakPlans, bypassesAhead, plannedSubroutines, runBypasses, runStealthCredits, subroutineFacts } from '../runs';
+import { SubEffect, SubFacts, bioroidBreakClicks, breakPlans, bypassesAhead, plannedSubroutines, runBypasses, runStealthCredits, subroutineFacts } from '../runs';
 import { CARDS, clickMoneyOf, turnIncomeOf } from '../cards';
 import type { HoldFacts } from '../cards/types';
 import { counters } from '../../core/engine/cardEffects';
@@ -248,8 +248,6 @@ function searchIce(w: WalkIce): SearchIce {
 
 /** What the rig's cards are to the search. */
 export interface RigFacts {
-  /** Audrey v2: its plans spend grip cards. */
-  audrey: boolean;
   /** A trojan (Bumi 1.0 may trash it). */
   trojan: boolean;
   /** Trashed by a purge (Physarum Entangler). */
@@ -394,7 +392,7 @@ export function walkIce(state: GameState, start: WalkStart, ice: CardInstance[])
       bypassed: false,
       subs,
       types: iceSubtypes(up, state),
-      botulus: hostedHere(r => r.cardCode === BOTULUS),
+      botulus: hostedHere(r => !!CARDS[r.cardCode]?.holdFacts?.breaksHostSubroutine),
       bypassers,
       selfCredits: iceScript(c)?.runnerBreakCost,
       bioroid,
@@ -462,7 +460,7 @@ export function walkBoard(state: GameState, start: WalkStart, targets: WalkTarge
     grip: state.runner.grip.length,
     rig: start.rig.map(c => {
       const keywords = cardDef(c).keywords ?? '';
-      return { audrey: c.cardCode === AUDREY, trojan: /\btrojan\b/i.test(keywords), purgeTrash: !!CARDS[c.cardCode]?.holdFacts?.trashedOnPurge, counted: c.cardCode === BOTULUS || /icebreaker/i.test(keywords) };
+      return { trojan: /\btrojan\b/i.test(keywords), purgeTrash: !!CARDS[c.cardCode]?.holdFacts?.trashedOnPurge, counted: !!CARDS[c.cardCode]?.holdFacts?.breaksHostSubroutine || /icebreaker/i.test(keywords) };
     }),
     lenders: borrows ? lenders(state, targets) : [],
     plans,
@@ -545,7 +543,7 @@ export class Walk {
     // A draw helps only when the grip can run short (10.4.4): the most the targets can take from it on one pass (damage,
     // net damage paid instead, X counted at the most tags the walk can carry; each borrow at the most one lent subroutine
     // takes) is more than it holds, or any at all when a run may be made again; a grip condition or a plan that spends
-    // grip cards (Audrey v2) always counts
+    // grip cards (Audrey v2: a plan with `grip`) always counts
     const most = (list: number[]) => list.reduce((a, b) => Math.max(a, b), 0);
     const sum = (list: number[]) => list.reduce((a, b) => a + b, 0);
     const tagsOf = (f: SubFacts) => sum(f.does.map(e => (e.kind === 'tags' && typeof e.n === 'number' ? e.n : 0)));
@@ -555,7 +553,7 @@ export class Walk {
     const gripMost = sum(facts.map(gripOf)) + sum(encounters.map(e => e.unless?.netDamage ?? 0)) + borrows * most(lent.map(gripOf));
     const doubling = allEffects.some(e => e.kind === 'tags' && e.n === 'runnerTags');
     // With retries a run may be made again, so any damage can add up past the grip
-    this.drawUseful = doubling || allEffects.some(e => e.kind === 'endRun' && e.if?.kind === 'hqMoreThanGrip') || board.rig.some(r => r.audrey) || gripMost > board.grip || (retries && gripMost > 0);
+    this.drawUseful = doubling || allEffects.some(e => e.kind === 'endRun' && e.if?.kind === 'hqMoreThanGrip') || Object.values(board.plans).some(list => list.some(p => p.grip > 0)) || gripMost > board.grip || (retries && gripMost > 0);
     this.tagUseful = all.some(f => f.when?.kind === 'runnerTagsAtLeast') || allEffects.some(e => (e.kind === 'endRun' && e.if?.kind === 'runnerTagsAtLeast') || ((e.kind === 'damage' || e.kind === 'tags') && e.n === 'runnerTags') || (e.kind === 'corpGainsCredits' && e.n === 'perRunnerTag'));
   }
 
