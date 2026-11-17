@@ -26,6 +26,11 @@ import { Hold, HoldOptions } from '../../src/ai/corp/hold';
 import { deals, humanFiles, playDeal, replayHuman } from '../stage-a/harness';
 import { oracle } from './hold-oracle';
 
+// ai-script.yml passes settings in ARGS ("SAMPLE=0.05 MAXQ=400")
+for (const kv of (process.env.ARGS ?? '').split(/\s+/).filter(x => x.includes('='))) {
+  const [k, v] = kv.split('=');
+  process.env[k] = v;
+}
 const SAMPLE = Number(process.env.SAMPLE ?? 1);
 const MAXQ = Number(process.env.MAXQ ?? 400);
 const CAP = Number(process.env.CAP ?? 40_000);
