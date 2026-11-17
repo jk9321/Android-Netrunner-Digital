@@ -2,8 +2,13 @@
 // valuation table of docs/ai-priced-quantities.md as `NAME` (`src/...ts:LINE`) must resolve: the file exists and its
 // line LINE contains NAME. Exit code 1 lists the ones that don't.
 //   node scripts/value-owners/verify-registry.mjs          check
-//   node scripts/value-owners/verify-registry.mjs --fix    move each stale LINE to the nearest line holding NAME (then re-read the diff)
+//   node scripts/value-owners/verify-registry.mjs --fix    for each stale location print the old line and every line that holds NAME (with its text);
+//                                                          rewrite a location ONLY when exactly one candidate's text equals the text the old line
+//                                                          had at the merge base with origin/beta (the line the registry meant). Anything else is
+//                                                          left stale and said so: a guess that makes the check pass on a wrong line is worse than none.
 //   node scripts/value-owners/verify-registry.mjs --all    check every such pair in the whole file, not only the valuation section
+// tests/codeHealth.test.ts runs the --all check, so a moved owner line fails the fast checks.
+import { execFileSync } from 'node:child_process';
 import { existsSync, readFileSync, writeFileSync } from 'node:fs';
 
 const FILE = 'docs/ai-priced-quantities.md';
@@ -27,7 +32,18 @@ const lines = path => {
   if (!cache.has(path)) cache.set(path, existsSync(path) ? readFileSync(path, 'utf8').split('\n') : null);
   return cache.get(path);
 };
+// the text line N of PATH had at the merge base with origin/beta (null when there is no such base or line)
+let base;
+const textAtBase = (path, n) => {
+  try {
+    base ??= execFileSync('git', ['merge-base', 'HEAD', 'origin/beta'], { encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'] }).trim();
+    return execFileSync('git', ['show', `${base}:${path}`], { encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'] }).split('\n')[n - 1] ?? null;
+  } catch {
+    return null;
+  }
+};
 let checked = 0;
+let moved = 0;
 const bad = [];
 const section = text.slice(from, to).replace(PAIR, (whole, name, tick, written, line) => {
   checked++;
@@ -35,21 +51,21 @@ const section = text.slice(from, to).replace(PAIR, (whole, name, tick, written, 
   const src = lines(path);
   const n = Number(line);
   if (src && src[n - 1]?.includes(name)) return whole;
-  // the nearest line that holds NAME outside a comment, else the nearest that defines it, else any line holding it
-  const esc = name.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-  const defines = new RegExp(`(function\\*?\\s+${esc}\\b|(const|let|var)\\s+${esc}\\b|case '${esc}'|^\\s*${esc}\\s*[:(])`);
-  const nearest = test => {
-    let at = -1;
-    if (src) for (let i = 0; i < src.length; i++) if (test(src[i]) && (at < 0 || Math.abs(i + 1 - n) < Math.abs(at + 1 - n))) at = i;
-    return at;
-  };
-  let best = nearest(l => l.includes(name) && !/^\s*(\*|\/\/|\/\*)/.test(l));
-  if (best < 0 && /^\w+$/.test(name)) best = nearest(l => defines.test(l));
-  if (best < 0) best = nearest(l => l.includes(name));
-  bad.push(`${path}:${line} does not hold \`${name}\`${src ? (best >= 0 ? ` (nearest: line ${best + 1})` : ' (not in the file)') : ' (no such file)'}`);
-  return fix && best >= 0 ? `\`${name}\` (${tick}${written}:${best + 1}` : whole;
+  const candidates = [];
+  if (src) src.forEach((l, i) => { if (l.includes(name)) candidates.push(i + 1); });
+  let target = -1;
+  let note = src ? (candidates.length ? '' : ' (not in the file)') : ' (no such file)';
+  if (fix && src && candidates.length) {
+    const was = textAtBase(path, n);
+    const same = was == null ? [] : candidates.filter(c => src[c - 1].trim() === was.trim());
+    if (same.length === 1) target = same[0];
+    note += was == null ? ' [no old text at the merge base: left stale]' : same.length === 1 ? '' : ` [${same.length} candidates match the old text: left stale]`;
+  }
+  bad.push(`${path}:${line} does not hold \`${name}\`${note}${fix && candidates.length ? '\n' + [`      old text: ${textAtBase(path, n)?.trim() ?? '(unknown)'}`, ...candidates.map(c => `      ${c}: ${src[c - 1].trim().slice(0, 120)}`)].join('\n') : ''}${target >= 0 ? `\n      -> moved to line ${target}` : ''}`);
+  if (target >= 0) moved++;
+  return target >= 0 ? `\`${name}\` (${tick}${written}:${target}` : whole;
 });
 if (fix && bad.length) writeFileSync(FILE, text.slice(0, from) + section + text.slice(to));
-console.log(`${checked} locations checked in ${all ? 'the whole registry' : 'the valuation section'}; ${bad.length} stale${fix && bad.length ? ' (fixed where the name was found)' : ''}`);
+console.log(`${checked} locations checked in ${all ? 'the whole registry' : 'the valuation section'}; ${bad.length} stale${fix && bad.length ? ` (${moved} moved, ${bad.length - moved} left stale)` : ''}`);
 for (const b of bad) console.log('  ' + b);
-process.exit(bad.length && !fix ? 1 : 0);
+process.exit(bad.length - moved > 0 ? 1 : 0);
