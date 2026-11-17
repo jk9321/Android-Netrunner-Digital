@@ -628,6 +628,63 @@ describe("keepFor's run sequence, gathered once and cached per decision", () => 
     expect(reached).toBeGreaterThan(1_000);
   }, 900_000);
 
+  // Review R6: boards where a cache keyed with less than the answer reads gives a wrong answer
+  const bare = (credits: number, clicks: number) => {
+    const s = newGame(3);
+    s.turnNumber = 7;
+    for (const id of Object.keys(s.corp.servers)) s.corp.servers[id].ice = [];
+    s.runner.rig = { ...s.runner.rig, programs: [], hardware: [], resources: [] };
+    s.runner.credits = credits;
+    s.runner.maxClicks = clicks;
+    return s;
+  };
+
+  it("keys a server's part with its bypasses' price: two boards a price apart in one decision (review R6)", () => {
+    // Malandragem with 3 power counters at threat 4: its counter's bypass (one counter's worth) while its once-a-turn use
+    // is open, else the removal at threat 4 (every counter's worth): runBypasses' price, from a turn flag the walk does not
+    // read. Whitespace (strength 0), no breaker, $3: the bypass or nothing
+    const make = (used: boolean) => {
+      const s = bare(3, 1);
+      s.corp.score = 4;
+      installIceForTest(s, '30074', 'remote1', true);
+      const m = installProgramForTest(s, '34081');
+      s.runner.rig.programs.find(c => c.instanceId === m)!.tokens = { power: 3 };
+      if (used) s.turnFlags[`once:${m}:0`] = 1;
+      return s;
+    };
+    const cheap = make(false);
+    const dear = make(true);
+    expect([fresh(cheap, ['remote1']), fresh(dear, ['remote1'])]).toEqual([true, false]);
+    inCorp(cheap, () => {
+      for (const s of [cheap, dear, cheap]) expect(reachSets(reachQuestion(s, ['remote1']))(['remote1'])).toBe(fresh(s, ['remote1']));
+    });
+  });
+
+  it("keeps one walk memo per set of a question: a lender walked in one set and not in the other (review R6)", () => {
+    // Mycoweb rezzed outside Funhouse on remote1, no decoder: its sentry borrow resolves Ballista's "trash 1 installed
+    // program or end the run" while Ballista lends. Ballista rezzed on HQ with Tranquilizer at 2 counters: HQ's walk meets
+    // it derezzed (5.7.1d), so a set that runs HQ has no lender; one that does not, has it (the lenders as the board has
+    // them). Lamplighter rezzed outside it on HQ: $3 pays its first subroutine untagged, and Funhouse tags the Runner, so
+    // {HQ, remote1} gets in only in that order, with remote1 last. R&D empty: {R&D, remote1} meets remote1 last too, with
+    // the same clicks and state, so only the memo kept per set tells the two apart
+    const s = bare(3, 2);
+    installIceForTest(s, '30054', 'remote1', true);
+    installIceForTest(s, MYCOWEB, 'remote1', true);
+    const ballista = installIceForTest(s, '30062', 'hq', true);
+    installIceForTest(s, '35080', 'hq', true);
+    const tranq = createCardInstance(s, '30017');
+    tranq.isRezzed = true;
+    tranq.hostedOnId = ballista;
+    tranq.tokens = { virus: 2 };
+    s.runner.rig.programs.push(tranq);
+    const want = [fresh(s, ['remote1']), fresh(s, ['rd', 'remote1']), fresh(s, ['remote1', 'rd']), fresh(s, ['hq', 'remote1']), fresh(s, ['remote1', 'hq'])];
+    expect(want).toEqual([false, false, false, true, false]);
+    inCorp(s, () => {
+      const sets = reachSets(reachQuestion(s, ['rd', 'hq', 'remote1']));
+      expect([sets(['remote1']), sets(['rd', 'remote1']), sets(['hq', 'remote1'])]).toEqual([false, false, true]);
+    });
+  });
+
   it("gives rez money's keep the largest set one turn reaches, every set inside it reached (brute force afresh)", () => {
     const r = rng(20261122);
     const misses: string[] = [];
