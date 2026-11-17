@@ -259,6 +259,8 @@ export interface RigFacts {
   /** Its card type and whether it is an icebreaker ("trash 1 installed program", "... non-icebreaker program"). */
   type: string;
   breaker: boolean;
+  /** The cards the turn's first basic draw gives while it is installed (Verbal Plasticity: 2), else 1. */
+  firstDraw: number;
 }
 
 /**
@@ -280,7 +282,7 @@ export interface WalkBoard {
   types: Record<string, string[]>;
   /** plan.bypass: the Runner's own bypasses (Physarum Entangler) are tried. */
   bypass: boolean;
-  /** The cards the turn's first basic draw gives (Verbal Plasticity: "The first time each turn you take the basic action to draw 1 card, instead draw 2 cards"; the engine's firstBasicDraw); 1 without one. */
+  /** The cards the turn's first basic draw gives by the identity (the engine's firstBasicDraw; a rig card's is its RigFacts.firstDraw, Verbal Plasticity: "The first time each turn you take the basic action to draw 1 card, instead draw 2 cards"); 1 without one. */
   firstDraw: number;
 }
 
@@ -469,15 +471,18 @@ export function walkBoard(state: GameState, start: WalkStart, targets: WalkTarge
     rig: start.rig.map(c => {
       const keywords = cardDef(c).keywords ?? '';
       const breaker = /icebreaker/i.test(keywords);
-      return { trojan: /\btrojan\b/i.test(keywords), purgeTrash: !!CARDS[c.cardCode]?.holdFacts?.trashedOnPurge, counted: !!CARDS[c.cardCode]?.holdFacts?.breaksHostSubroutine || breaker, type: cardDef(c).type_code, breaker };
+      return { trojan: /\btrojan\b/i.test(keywords), purgeTrash: !!CARDS[c.cardCode]?.holdFacts?.trashedOnPurge, counted: !!CARDS[c.cardCode]?.holdFacts?.breaksHostSubroutine || breaker, type: cardDef(c).type_code, breaker, firstDraw: draws(c) };
     }),
     lenders: borrows ? lenders(state, targets) : [],
     plans,
     types,
     bypass: !!plan().bypass,
-    firstDraw: [...start.rig, state.runner.identity].reduce((n, c) => Math.max(n, (c && getCardScript(c.cardCode)?.modifiers?.firstBasicDraw) || 1), 1),
+    firstDraw: draws(state.runner.identity),
   };
 }
+
+/** The cards a card makes the turn's first basic draw give (the engine's firstBasicDraw), 1 without it. */
+const draws = (c: CardInstance | undefined) => (c && getCardScript(c.cardCode)?.modifiers?.firstBasicDraw) || 1;
 
 /** breakPlans for `z` of the ice's subroutines, as the walk spends them (rig indexes). */
 function planFor(board: GameState, start: WalkStart, card: CardInstance, z: number): WalkPlan[] {
@@ -516,6 +521,9 @@ export class Walk {
   private readonly drawUseful: boolean;
   /** Removing a tag can matter (some condition or effect reads the Runner's tags). */
   private readonly tagUseful: boolean;
+  /** What a trash subroutine's grouping reads (rigReads), where the walk has one; by where it is met (lossAt). */
+  private readonly trashReads?: { kinds: TrashWhat[]; trojan: boolean; purge: boolean; draw: boolean };
+  private readonly losses = new Map<string, { reads: string[]; order: number[] }>();
 
   constructor(
     /** What it reads of the board, gathered (walkBoard): the search has no `state` in scope. */
@@ -563,6 +571,11 @@ export class Walk {
     const doubling = allEffects.some(e => e.kind === 'tags' && e.n === 'runnerTags');
     // With retries a run may be made again, so any damage can add up past the grip
     this.drawUseful = doubling || allEffects.some(e => e.kind === 'endRun' && e.if?.kind === 'hqMoreThanGrip') || Object.values(board.plans).some(list => list.some(p => p.grip > 0)) || gripMost > board.grip || (retries && gripMost > 0);
+    const kinds = [...new Set(allEffects.flatMap(e => (e.kind === 'trashInstalled' ? [e.what] : [])))];
+    if (kinds.length) {
+      const rez = targets.flatMap(t => t.ice.map(i => i.rezFacts));
+      this.trashReads = { kinds, trojan: rez.some(f => f?.corpMayTrashInstalled), purge: rez.some(f => f?.purgeVirus), draw: this.drawUseful };
+    }
     this.tagUseful = all.some(f => f.when?.kind === 'runnerTagsAtLeast') || allEffects.some(e => (e.kind === 'endRun' && e.if?.kind === 'runnerTagsAtLeast') || ((e.kind === 'damage' || e.kind === 'tags') && e.n === 'runnerTags') || (e.kind === 'corpGainsCredits' && e.n === 'perRunnerTag'));
   }
 
@@ -604,8 +617,8 @@ export class Walk {
     let best = this.approach({ ...ws, clicks: ws.clicks - 1, spike: false, fund, moved: false }, j, this.targets[j].ice.length - 1);
     if (ws.clicks > runs) {
       if (this.drawUseful && ws.stack > 0) {
-        // 5.2.7c; the turn's first draw may give more (WalkBoard.firstDraw), at most the stack
-        const n = Math.min(ws.stack, ws.drew ? 1 : this.board.firstDraw);
+        // 5.2.7c; the turn's first draw may give more (the identity's or an installed card's, not one the Corp trashed), at most the stack
+        const n = Math.min(ws.stack, ws.drew ? 1 : this.board.rig.reduce((m, r, i) => (ws.gone.includes(i) ? m : Math.max(m, r.firstDraw)), this.board.firstDraw));
         best = Math.min(best, this.beforeRun({ ...ws, clicks: ws.clicks - 1, grip: ws.grip + n, stack: ws.stack - n, drew: true }, j));
       }
       if (this.tagUseful && ws.tags > 0) best = Math.min(best, this.beforeRun({ ...ws, clicks: ws.clicks - 1, tags: ws.tags - 1 }, j) + 2);
@@ -654,8 +667,8 @@ export class Walk {
     else if (!ice.rezzed && !ws.up.includes(ice.id)) {
       // 6.9.2c: unrezzed ice the Corp does not rez is passed; 6.4.3: ice of S is rezzed as it is approached
       const paid = ws.corp - ice.rezCost;
-      v = ice.inS && paid >= 0 ? this.liability({ ...ws, corp: paid, up: [...ws.up, ice.id].sort(), moved: true }, ice, w => this.rezzed(w, ice, next, { key: at, j })) : next(ws);
-    } else v = ice.bypassed ? next(ws) : this.encounter(ws, ice, next, { key: at, j });
+      v = ice.inS && paid >= 0 ? this.liability({ ...ws, corp: paid, up: [...ws.up, ice.id].sort(), moved: true }, ice, w => this.rezzed(w, ice, next, { key: at, j, pos })) : next(ws);
+    } else v = ice.bypassed ? next(ws) : this.encounter(ws, ice, next, { key: at, j, pos });
     this.memo.set(key, v);
     return v;
   }
@@ -917,18 +930,8 @@ export class Walk {
         return next({ ...ws, trashed: [...ws.trashed, card].sort(), moved: true });
       case 'corpMayTrashHqToEndRun':
         return this.board.hq > 0 ? end() : next(ws);
-      case 'trashInstalled': {
-        // "Trash 1 installed program" (and the other kinds): the Corp's choice of the Runner's cards of that kind, the one
-        // worst for the Runner (ruling 6); none installed, nothing happens (found-list row 21: a breaker needed further in)
-        const what = e.what;
-        const fits = (r: RigFacts) =>
-          what === 'card' || (what === 'resourceOrHardware' ? r.type === 'resource' || r.type === 'hardware' : what === 'nonBreakerProgram' ? r.type === 'program' && !r.breaker : r.type === what);
-        let worst = -Infinity;
-        this.board.rig.forEach((r, i) => {
-          if (!ws.gone.includes(i) && fits(r)) worst = Math.max(worst, next({ ...ws, gone: [...ws.gone, i].sort((a, b) => a - b) }));
-        });
-        return worst === -Infinity ? next(ws) : worst;
-      }
+      case 'trashInstalled':
+        return this.corpTrash(ws, e.what, next, at);
       case 'borrow':
         return this.borrow(ws, card, e.subtype, next, at);
       default:
@@ -936,6 +939,51 @@ export class Walk {
         // the Corp's own side, a jack out the Runner may take
         return next(ws);
     }
+  }
+
+  /**
+   * "Trash 1 installed X" (found-list row 21): the Corp's choice of the Runner's installed cards of the kind that are not
+   * gone, the one worst for the Runner (ruling 6); none of the kind, nothing happens. Exact, with two savings (brief
+   * followup2-trash 2): one card is walked for each distinct loss (cards the walk reads alike, `lossKey`, leave states
+   * that differ only by which of them is gone, so their values are equal), and the choice stops at the first card whose
+   * loss keeps the Runner out. A card hosted on the trashed card, and the credits it hosted, are not carried (debt row).
+   */
+  private corpTrash(ws: WalkState, what: TrashWhat, next: (w: WalkState) => number, at: Step): number {
+    const { reads, order } = this.lossAt(at);
+    const seen = new Set<string>();
+    let worst = -Infinity;
+    for (const i of order) {
+      if (ws.gone.includes(i) || !fits(this.board.rig[i], what)) continue;
+      const k = `${reads[i]}|${this.lossKey(ws, i)}`;
+      if (seen.has(k)) continue;
+      seen.add(k);
+      worst = Math.max(worst, next({ ...ws, gone: [...ws.gone, i].sort((a, b) => a - b) }));
+      if (worst === FAIL) break;
+    }
+    return worst === -Infinity ? next(ws) : worst;
+  }
+
+  /** The walk state's fields by rig index, for a trash's grouping (with rigReads). */
+  private lossKey(ws: WalkState, i: number): string {
+    return `${ws.virus[i]}|${ws.power[i]}|${ws.mayfly.includes(i) ? 1 : 0}`;
+  }
+
+  /**
+   * What the walk reads of each rig card from a trash met at `at` on: with retries any ice of this target and the later ones
+   * (a run may be made again from its outermost ice); without, the ice inward of the encounter and the later targets'
+   * (a plan for an ice already passed is never used again). The cards read most first, for the choice's stop.
+   */
+  private lossAt(at: Step): { reads: string[]; order: number[] } {
+    const key = this.retries ? `${at.j}` : `${at.j}:${at.pos}`;
+    let hit = this.losses.get(key);
+    if (!hit) {
+      const ahead = this.targets.flatMap((t, j) => (j < at.j ? [] : j > at.j || this.retries ? t.ice : t.ice.slice(0, at.pos)));
+      const reads = rigReads(this.board, ahead, this.trashReads!);
+      const roles = reads.map(r => r.split('/').length);
+      hit = { reads, order: this.board.rig.map((_, i) => i).sort((a, b) => roles[b] - roles[a] || a - b) };
+      this.losses.set(key, hit);
+    }
+    return hit;
   }
 
   /** Mycoweb: the Corp resolves 1 subroutine of another rezzed ice of the subtype, the one worst for the Runner (ruling 6). */
@@ -949,10 +997,50 @@ export class Walk {
   }
 }
 
+type TrashWhat = Extract<SubEffect, { kind: 'trashInstalled' }>['what'];
+
+/** The rig card is of the kind a trash subroutine names. */
+const fits = (r: RigFacts, what: TrashWhat) =>
+  what === 'card' || (what === 'resourceOrHardware' ? r.type === 'resource' || r.type === 'hardware' : what === 'nonBreakerProgram' ? r.type === 'program' && !r.breaker : r.type === what);
+
+/**
+ * What the walk reads of each rig card, as a string (the trash's grouping, brief followup2-trash 2.1): two cards that read
+ * alike, and alike in the walk state (Walk.lossKey), are interchangeable, so the Corp's trash of either gives the same
+ * value. Derived in this one place from every field the walk reads by rig index, as this walk reads it:
+ *  - the card's RigFacts, every field, but those this walk cannot read: `type` and `breaker` as which of its trash kinds
+ *    the card fits (`fits` is their only reader), `trojan` without a trojan trash at rez (Bumi), `purgeTrash` without a
+ *    purge, `firstDraw` where no draw can help (Walk.drawUseful), `counted` never (it keys the memo, not a value);
+ *  - each break plan it is the breaker or the counter source of (every WalkPlan field, under its plan key, the card's own
+ *    index written '*'), of the ice the walk can still encounter after the trash (`ahead`, Walk.lossAt; rezzed or in its
+ *    rez set, and not bypassed);
+ *  - such an ice it is hosted on as Botulus (`botulus`) or as a bypasser (`bypassers`, every field), and a
+ *    granter there (`granters`: a group of its own, as the board's plans and subtypes are keyed by which are gone).
+ * A field added to RigFacts or WalkPlan is read here as it is; a field that holds a rig index (in WalkPlan, SearchIce,
+ * WalkBoard or WalkState) must be added here (or to lossKey, for the walk state), or the grouping is no longer exact.
+ */
+function rigReads(board: WalkBoard, ahead: SearchIce[], read: { kinds: TrashWhat[]; trojan: boolean; purge: boolean; draw: boolean }): string[] {
+  const reads = board.rig.map(r => [JSON.stringify({ ...r, type: read.kinds.map(k => (fits(r, k) ? 1 : 0)).join(''), breaker: 0, counted: 0, trojan: read.trojan && r.trojan, purgeTrash: read.purge && r.purgeTrash, firstDraw: read.draw ? r.firstDraw : 1 })]);
+  const met = ahead.filter(i => (i.rezzed || i.inS) && !i.bypassed);
+  const ids = new Set(met.map(i => i.id));
+  for (const [key, list] of Object.entries(board.plans)) {
+    if (!ids.has(key.slice(0, key.indexOf('|')))) continue;
+    for (const p of list) {
+      for (const i of new Set([p.breaker, ...(p.counter ? [p.counter.idx] : [])])) reads[i].push(`p:${key}:${JSON.stringify(p, (k, v) => ((k === 'breaker' || k === 'idx') && v === i ? '*' : v))}`);
+    }
+  }
+  for (const ice of met) {
+    for (const i of ice.botulus) reads[i].push(`b:${ice.id}`);
+    for (const b of ice.bypassers) reads[b.idx].push(`y:${ice.id}:${JSON.stringify({ ...b, idx: '*' })}`);
+    for (const i of ice.granters) reads[i].push(`g:${i}`);
+  }
+  return reads.map(r => r.sort().join('/'));
+}
+
 /** Where an encounter is: its approach's memo key and its run. */
 interface Step {
   key: string;
   j: number;
+  pos: number;
 }
 
 /** A borrow's lender: rezzed now, or walked (rezzed when the walk rezzes it), its subroutines but the borrowing ones. */

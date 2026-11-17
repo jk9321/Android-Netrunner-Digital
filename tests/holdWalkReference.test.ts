@@ -12,7 +12,7 @@
  * oracle tests those (tests/holdWalk.test.ts); this tests the search and its arithmetic.
  */
 import { describe, expect, it } from 'vitest';
-import { CardInstance, GameState, cardDef } from '../src/core';
+import { CardInstance, GameState, cardDef, getCardScript } from '../src/core';
 import { getCardDefinition } from '../src/core/cards';
 import { threatLevel } from '../src/core/engine/cardEffects';
 import { iceSubroutines, iceSubtypes } from '../src/core/engine/ice';
@@ -48,11 +48,17 @@ class Brute {
     if (ws.clicks > runs) {
       // 5.2.7c, 5.2.7g: a draw, or a click and 2 credits for a tag, with a click kept for each run left
       // The turn's first draw may give more (Verbal Plasticity)
-      const n = Math.min(ws.stack, ws.drew ? 1 : this.walk['board'].firstDraw);
+      const n = Math.min(ws.stack, ws.drew ? 1 : this.firstDraw(ws));
       if (ws.stack > 0 && this.beforeRun({ ...ws, clicks: ws.clicks - 1, grip: ws.grip + n, stack: ws.stack - n, drew: true }, j)) return true;
       if (ws.tags > 0 && ws.pool >= 2 && this.beforeRun({ ...ws, clicks: ws.clicks - 1, tags: ws.tags - 1, pool: ws.pool - 2 }, j)) return true;
     }
     return false;
+  }
+
+  /** The turn's first draw: the most the identity or an installed card not gone gives (Verbal Plasticity: 2), else 1. */
+  private firstDraw(ws: S): number {
+    const draws = (c: CardInstance | undefined) => (c && getCardScript(c.cardCode)?.modifiers?.firstBasicDraw) || 1;
+    return Math.max(draws(this.state.runner.identity), ...this.start.rig.map((c, i) => (ws.gone.includes(i) ? 1 : draws(c))));
   }
 
   /** A run that ends: the turn goes on from the state it left, the same target run again (the walk's `ended`). */
@@ -444,6 +450,117 @@ describe('the hold walk against a brute force of the same model (brief section 6
     expect(Math.min(reached, compared - reached)).toBeGreaterThan(compared / 10);
     expect(misses).toEqual([]);
   }, 600_000);
+});
+
+/**
+ * Found-list row 21 (brief followup2-trash, section 2): "trash 1 installed X", the Corp's choice. The walk walks one card
+ * of each distinct loss (rigReads, lossKey) and stops at the first that keeps the Runner out; the brute force above
+ * tries EVERY fitting card with no grouping (`every`). Boards with a trash subroutine of each kind the card pool has
+ * (a Runner card: Ansel 1.0, Ansel 2.0, Cloud Eater; a program: Lycian as a sentry, Sorocaban Blade, Bumi 1.0, Event
+ * Horizon; a resource or a piece of hardware: Sorocaban Blade, Hammer; a program that is not a breaker: Hammer), and rigs
+ * of several cards: breakers, some of them twice, programs no plan reads (Fermenter, Leech, Conduit), Botulus on one ice
+ * or two with counters, Chromatophores (a granter), Physarum Entangler (a bypasser), Lobisomem, Hantu and Audrey with
+ * counters, Mayfly, hardware with hosted credits (Touchstone, Methuselah) or none, resources (Verbal Plasticity's first
+ * draw). scripts/stage-d/trash-mutations.mjs drops one field from the grouping at a time: each drop must fail here.
+ */
+const TRASHERS = ['30038', '36028', '34110', '34100', '34101', '35041', '36058', '34126'];
+const UNREAD = ['30007', '30008', '30024'];
+const HARDWARE = ['36021', '36020', '30013', '35019', '34078'];
+const RESOURCES = ['30034', '30027', '35022'];
+const CHROMATOPHORES = '35030';
+const PHYSARUM = '34082';
+const COUNTED: Record<string, 'virus' | 'power'> = { '34090': 'power', '35008': 'virus', '34004': 'virus' };
+
+function trashBoard(r: () => number): { s: GameState; rez: string[] } {
+  const pick = <T>(xs: T[]) => xs[Math.floor(r() * xs.length)];
+  const s = newGame(3);
+  s.turnNumber = 7;
+  s.corp.hq = s.corp.hq.slice(0, Math.floor(r() * 4));
+  s.runner.rig = { ...s.runner.rig, programs: [], hardware: [], resources: [] };
+  s.runner.credits = Math.floor(r() * 9);
+  s.runner.tags = r() < 0.2 ? 1 : 0;
+  s.runner.grip = s.runner.grip.slice(0, Math.floor(r() * 5));
+  s.runner.maxClicks = 1 + Math.floor(r() * 4);
+  s.corp.credits = Math.floor(r() * 12);
+  s.corp.badPublicity = r() < 0.1 ? 1 : 0;
+  // 1 to 3 ice, at least one a trasher
+  const ids: string[] = [];
+  const n = 1 + Math.floor(r() * 3);
+  const at = Math.floor(r() * n);
+  for (let k = 0; k < n; k++) ids.push(installIceForTest(s, k === at || r() < 0.3 ? pick(TRASHERS) : pick(ICE), 'remote1', r() < 0.5));
+  const put = (code: string, zone: 'programs' | 'hardware' | 'resources', tokens?: Record<string, number>, host?: string) => {
+    const c = createCardInstance(s, code);
+    c.isRezzed = true;
+    if (tokens) c.tokens = tokens;
+    if (host) c.hostedOnId = host;
+    s.runner.rig[zone].push(c);
+  };
+  // 1 to 3 breakers, a breaker twice on about 4 boards in 10; counters on the breakers that spend them
+  const breakers: string[] = [];
+  for (let k = 1 + Math.floor(r() * 3); k > 0; k--) breakers.push(breakers.length && r() < 0.4 ? pick(breakers) : pick(BREAKERS));
+  for (const b of breakers) put(b, 'programs', COUNTED[b] ? { [COUNTED[b]]: Math.floor(r() * 3) } : undefined);
+  for (let k = Math.floor(r() * 3); k > 0; k--) put(pick(UNREAD), 'programs', r() < 0.5 ? { virus: Math.floor(r() * 3) } : undefined);
+  // Botulus: on one ice, sometimes a second on the same ice or another
+  if (r() < 0.3) {
+    put(BOTULUS, 'programs', { virus: Math.floor(r() * 3) }, pick(ids));
+    if (r() < 0.5) put(BOTULUS, 'programs', { virus: Math.floor(r() * 3) }, pick(ids));
+  }
+  if (r() < 0.12) put(CHROMATOPHORES, 'programs', undefined, pick(ids));
+  if (r() < 0.12) put(PHYSARUM, 'programs', undefined, pick(ids));
+  for (let k = Math.floor(r() * 3); k > 0; k--) put(pick(HARDWARE), 'hardware', r() < 0.6 ? { credit: Math.floor(r() * 4) } : undefined);
+  for (let k = Math.floor(r() * 3); k > 0; k--) put(pick(RESOURCES), 'resources');
+  if (r() < 0.2) installIceForTest(s, pick(ICE), 'hq', true);
+  const unrezzed = s.corp.servers.remote1.ice.filter(c => !c.isRezzed).map(c => c.instanceId);
+  return { s, rez: unrezzed.filter(() => r() < 0.7) };
+}
+
+describe('the hold walk against the brute force: a subroutine that trashes an installed card, the Corp choosing it (found-list row 21)', () => {
+  /** Every board one run, two runs every fourth; serverHold's `holds` of every affordable set every third. */
+  const trashCheck = (seed: number, boards: number) => {
+    const r = rng(seed);
+    const misses: string[] = [];
+    let compared = 0;
+    let reached = 0;
+    let held = 0;
+    let holdsAsked = 0;
+    let trashMet = 0;
+    for (let n = 0; n < boards; n++) {
+      const { s, rez } = trashBoard(r);
+      const runs = n % 4 === 3 ? 2 : 1;
+      const servers = Array(runs).fill('remote1');
+      const want = inCorp(s, () => bruteReach(s, servers, Array(runs).fill(rez)));
+      if (want === null) continue;
+      compared++;
+      if (want) reached++;
+      if (s.corp.servers.remote1.ice.some(c => TRASHERS.includes(c.cardCode) && (c.isRezzed || rez.includes(c.instanceId)))) trashMet++;
+      const got = inCorp(s, () => turnReach(s, servers, Array(runs).fill(rez)).reaches);
+      const show = () => {
+        const ice = s.corp.servers.remote1.ice.map(c => `${cardDef(c).title}${c.isRezzed ? '*' : rez.includes(c.instanceId) ? '+' : ''}`);
+        const rig = [...s.runner.rig.programs, ...s.runner.rig.hardware, ...s.runner.rig.resources].map(c => `${cardDef(c).title}${c.tokens ? JSON.stringify(c.tokens) : ''}`);
+        return `ice ${ice}; rig ${rig}; $${s.runner.credits} clicks ${s.runner.maxClicks} tags ${s.runner.tags} grip ${s.runner.grip.length} corp $${s.corp.credits}`;
+      };
+      if (got !== want) misses.push(`#${n} runs ${runs}: walk ${got}, brute ${want}; ${show()}`);
+      if (runs === 1 && n % 3 === 0) {
+        const holds = inCorp(s, () => bruteHolds(s, 'remote1'));
+        if (holds === null) continue;
+        holdsAsked++;
+        if (holds) held++;
+        const h = inCorp(s, () => serverHold(s, 'remote1', { when: 'runnerTurn' }));
+        if (h.holds !== holds) misses.push(`#${n} holds: walk ${h.holds}, brute ${holds}; ${show()}`);
+      }
+    }
+    return { compared, reached, misses, held, holdsAsked, trashMet };
+  };
+
+  it('agrees with turnReach and serverHold on 2,500 boards with trash subroutines and rigs of several cards (seed 20261123)', () => {
+    const { compared, reached, misses, held, holdsAsked, trashMet } = trashCheck(Number(process.env.TRASH_SEED ?? 20261123), Number(process.env.TRASH_BOARDS ?? 2500));
+    console.log(`trash boards: compared ${compared}, reached ${reached}, trash met ${trashMet}, holds asked ${holdsAsked}, held ${held}, misses ${misses.length}`);
+    expect(compared).toBeGreaterThan(Number(process.env.TRASH_BOARDS ?? 2500) * 0.8);
+    expect(trashMet).toBeGreaterThan(compared / 2);
+    expect(Math.min(reached, compared - reached)).toBeGreaterThan(compared / 10);
+    expect(Math.min(held, holdsAsked - held)).toBeGreaterThan(holdsAsked / 10);
+    expect(misses.slice(0, 20)).toEqual([]);
+  }, 900_000);
 });
 
 /**
