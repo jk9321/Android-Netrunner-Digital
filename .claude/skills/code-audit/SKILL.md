@@ -96,8 +96,8 @@ its link in README.md; the files stay the record the next audit diffs against.
 ## 6. Hand-off (the audit fixes nothing)
 
 End with a ranked fix list grouped by owner, and leave the choice to Jeff:
-- AI findings (`src/ai/**`, batch scripts, tuning) go to the AI Coordinator thread
-  (cmsg_013UNycUZbB5MfsLyJaSoKuFXFsEuAUtY2nrWo1i7JaYu1), which specs them for ai-* branch threads.
+- AI findings (`src/ai/**`, batch scripts, tuning) go to the current AI Coordinator thread
+  (ask the project coordinator which; the id changes), which specs them for ai-* branch threads.
 - Multiplayer findings (`src/core/view.ts`, per-player UI, game server) go to the multiplayer coordinator thread
   (cmsg_013UNycUZbB5MfsLyJaSoKuFQk1KQTbDgtk6sasrNiPj64).
 - Rules bugs go to the "Fix rules bugs from playtesting" thread pattern: quote the rule, fix, test.
