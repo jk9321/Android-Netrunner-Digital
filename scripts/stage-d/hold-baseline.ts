@@ -14,6 +14,12 @@
  * One JSON line per question: source, horizon, the count's answer, the oracle's, the families on the board (the rows of
  * the brief's section 2 that could explain a disagreement), work, ms. Sum with hold-baseline-sum.mjs.
  *
+ * COMPARE=1 (branch 2, brief 7: the oracle on recorded states): each question is also asked of the count as on beta
+ * (the walk's switches off, `old`). Every question where the two answer `holds` differently (a flip) is kept, and the
+ * others by SAMPLE and MAXQ. The oracle answers for the whole turn (retries on, ruling of 04:54Z): the walk's set and the
+ * old set first, then the other affordable sets until one holds; both counts are labelled against that truth (`label`
+ * the walk's, `oldLabel` beta's). Sum with hold-walk-compare-sum.mjs.
+ *
  *   SHARD=0/64 npx vite-node scripts/stage-d/hold-baseline.ts > out-0.txt
  *   DEALS=1001 HUMAN=none SAMPLE=0.05 npx vite-node scripts/stage-d/hold-baseline.ts
  */
@@ -21,6 +27,7 @@ import { createHash } from 'node:crypto';
 import { mkdirSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { CardInstance, GameState, cardDef, rezCostOf } from '../../src/core';
+import { plan, withPricing } from '../../src/ai/pricing';
 import * as holdModule from '../../src/ai/corp/hold';
 import { Hold, HoldOptions } from '../../src/ai/corp/hold';
 import { deals, humanFiles, playDeal, replayHuman } from '../stage-a/harness';
@@ -36,13 +43,16 @@ const MAXQ = Number(process.env.MAXQ ?? 400);
 const CAP = Number(process.env.CAP ?? 40_000);
 const DUMP = process.env.OUT_DIR ?? process.env.DUMP ?? '';
 const MAX_SETS = Number(process.env.MAX_SETS ?? 16);
+const COMPARE = process.env.COMPARE === '1';
+/** COMPARE: at most this many flips kept per source (default all); the ones over it are counted in `flipsOver`. */
+const FLIPQ = Number(process.env.FLIPQ ?? Infinity);
 
-interface Question { src: string; key: string; state: GameState; server: string; opts: HoldOptions; count: Hold }
+interface Question { src: string; key: string; state: GameState; server: string; opts: HoldOptions; count: Hold; old?: Hold; flip?: boolean }
 
 let src = '';
 const seen = new Set<string>();
 let kept: Question[] = [];
-const calls = { all: 0, distinct: 0, kept: 0 };
+const calls = { all: 0, distinct: 0, kept: 0, flips: 0, flipsOver: 0 };
 
 const original = holdModule.serverHold;
 function watched(state: GameState, server: string, opts: HoldOptions): Hold {
@@ -54,10 +64,18 @@ function watched(state: GameState, server: string, opts: HoldOptions): Hold {
   if (seen.has(key)) return h;
   seen.add(key);
   calls.distinct++;
-  if (parseInt(key.slice(0, 8), 16) / 0xffffffff >= SAMPLE) return h;
-  if (kept.filter(q => q.src === src).length >= MAXQ) return h;
+  // The count as on beta: the walk's temporary switches off (synergy.ts)
+  const old = COMPARE ? withPricing({ plan: { ...plan(), holdWalk: false } }, () => original(state, server, opts)) : undefined;
+  const flip = !!old && old.holds !== h.holds;
+  if (flip) calls.flips++;
+  if (flip && kept.filter(q => q.src === src && q.flip).length >= FLIPQ) {
+    calls.flipsOver++;
+    return h;
+  }
+  if (!flip && parseInt(key.slice(0, 8), 16) / 0xffffffff >= SAMPLE) return h;
+  if (!flip && kept.filter(q => q.src === src && !q.flip).length >= MAXQ) return h;
   calls.kept++;
-  kept.push({ src, key, state: structuredClone(state), server, opts: structuredClone(opts), count: structuredClone(h) });
+  kept.push({ src, key, state: structuredClone(state), server, opts: structuredClone(opts), count: structuredClone(h), old: old && structuredClone(old), flip });
   return h;
 }
 Object.defineProperty(holdModule, 'serverHold', { get: () => watched, configurable: true, enumerable: true });
@@ -201,6 +219,75 @@ function judge(q: Question) {
 }
 const sameSet = (a: string[], b: string[]) => a.length === b.length && a.every(x => b.includes(x));
 
+/** COMPARE: the whole turn's truth (retries on) and both counts labelled against it. */
+function judgeBoth(q: Question) {
+  const t = performance.now();
+  movedFlag = false;
+  let work = 0;
+  const count = q.count;
+  const old = q.old!;
+  const all = affordableSets(q);
+  const first = [count.holds && count.rez ? count.rez : null, old.holds && old.rez ? old.rez : null].filter((x): x is string[] => !!x);
+  const order = [...first.filter((x, i) => i === 0 || !sameSet(x, first[0])).map(ids => ({ ids })), ...all.filter(x => !first.some(f => sameSet(f, x.ids)))];
+  const verdict = new Map<string, Verdict>();
+  let truth: boolean | null = null;
+  let holdingSet: string[] | null = null;
+  let unknown = 0;
+  let skipped: string | undefined;
+  let tried = 0;
+  for (const set of order) {
+    if (++tried > MAX_SETS + first.length) {
+      unknown++;
+      break;
+    }
+    const r = ask(q, set.ids, true);
+    work += r.work;
+    verdict.set([...set.ids].sort().join(','), r.v);
+    if (r.v === 'skipped') {
+      skipped = r.why;
+      break;
+    }
+    if (r.v === 'unknown') unknown++;
+    if (r.v === 'holds') {
+      truth = true;
+      holdingSet = set.ids;
+      break;
+    }
+  }
+  if (truth === null && !skipped && unknown === 0) truth = false;
+  const labelOf = (c: Hold): string => {
+    if (skipped) return 'skipped';
+    if (c.holds && c.rez && verdict.get([...c.rez].sort().join(',')) === 'holds') return 'agree';
+    if (truth === null) return 'unknown';
+    if (c.holds === truth) return c.holds ? 'agree, other set' : 'agree';
+    return c.holds ? 'false holds' : 'false does not hold';
+  };
+  const s = q.state;
+  const brief = (c: Hold) => ({ holds: c.holds, rez: c.rez, need: c.need, budget: c.budget, entries: c.entries });
+  return {
+    src: q.src,
+    when: q.opts.when,
+    corpCredits: q.opts.corpCredits ?? null,
+    server: q.server,
+    turn: s.turnNumber,
+    ice: (s.corp.servers[q.server]?.ice ?? []).map(c => cardDef(c).title + (c.isRezzed ? '*' : '')),
+    rig: [...s.runner.rig.programs, ...s.runner.rig.hardware, ...s.runner.rig.resources].map(c => cardDef(c).title),
+    runner: { credits: s.runner.credits, tags: s.runner.tags, grip: s.runner.grip.length, clicks: s.runner.maxClicks },
+    corp: { credits: s.corp.credits, bp: s.corp.badPublicity },
+    flip: q.flip,
+    count: brief(count),
+    old: brief(old),
+    oracle: { holds: truth, set: holdingSet, unknown, skipped },
+    label: labelOf(count),
+    oldLabel: labelOf(old),
+    moved: movedFlag,
+    families: families(s, q.server, holdingSet ?? count.rez ?? old.rez ?? []),
+    sets: all.length,
+    work,
+    ms: Math.round(performance.now() - t),
+  };
+}
+
 const [shard, shards] = (process.env.SHARD ?? '0/1').split('/').map(Number);
 const sources: [string, () => void][] = [
   ...deals().map(seed => [`deal:${seed}`, () => void playDeal(seed, {})] as [string, () => void]),
@@ -218,10 +305,10 @@ function flush() {
   kept = [];
   for (const q of batch) {
     try {
-      const line = judge(q);
+      const line = COMPARE ? judgeBoth(q) : judge(q);
       console.log(JSON.stringify(line));
       // The boards of the disagreements, for reading (OUT_DIR: the ai-script artifact)
-      if (DUMP && line.label !== 'agree' && line.label !== 'agree, other set') {
+      if (DUMP && ((line.label !== 'agree' && line.label !== 'agree, other set') || q.flip)) {
         mkdirSync(DUMP, { recursive: true });
         writeFileSync(join(DUMP, `${q.key.slice(0, 12)}.json`), JSON.stringify({ line, server: q.server, opts: q.opts, state: q.state }));
       }
@@ -229,5 +316,5 @@ function flush() {
       console.log(JSON.stringify({ src: q.src, when: q.opts.when, label: 'error', error: (e as Error).message }));
     }
   }
-  console.error(`calls ${calls.all}, distinct ${calls.distinct}, kept ${calls.kept}`);
+  console.error(`calls ${calls.all}, distinct ${calls.distinct}, kept ${calls.kept}, flips ${calls.flips} (over FLIPQ ${calls.flipsOver})`);
 }

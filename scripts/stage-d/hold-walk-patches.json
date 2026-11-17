@@ -1,0 +1,49 @@
+{
+ "walk": [
+  [
+   "ai/synergy.ts",
+   "    holdWalk: true,",
+   "    holdWalk: false,"
+  ]
+ ],
+ "tags": [
+  [
+   "ai/synergy.ts",
+   "    holdWalkTags: true,",
+   "    holdWalkTags: false,"
+  ]
+ ],
+ "credits": [
+  [
+   "ai/synergy.ts",
+   "    holdWalkCredits: true,",
+   "    holdWalkCredits: false,"
+  ]
+ ],
+ "sequence": [
+  [
+   "ai/synergy.ts",
+   "    holdWalkSequence: true,",
+   "    holdWalkSequence: false,"
+  ]
+ ],
+ "tolls": [
+  [
+   "ai/synergy.ts",
+   "    holdWalkTolls: true,",
+   "    holdWalkTolls: false,"
+  ]
+ ],
+ "time": [
+  [
+   "ai/runs.ts",
+   "  const blocking = Math.max(0, subs.filter((s, i) => !broken[i] && subroutineBlocks(state, s.label)).length - botulusBreaks(state, ice));",
+   "  const blocking = Math.max(0, subs.filter((s, i) => !broken[i] && subroutineCost(state, s.label) === BLOCK).length - botulusBreaks(state, ice));"
+  ],
+  [
+   "ai/runs.ts",
+   "    const blocking = plannedSubroutines(state, card).filter(s => subroutineBlocks(state, s.label)).length - botulusBreaks(state, card);",
+   "    const blocking = plannedSubroutines(state, card).filter(s => subroutineCost(state, s.label) === BLOCK).length - botulusBreaks(state, card);"
+  ]
+ ]
+}
