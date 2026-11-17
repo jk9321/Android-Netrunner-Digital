@@ -1,0 +1,5 @@
+{
+ "retries": [["ai/corp/hold.ts", "    private readonly retries = true,", "    private readonly retries = false,"]],
+ "lycian": [["ai/cards/liberation.ts", "      rezChoosesSubtypes: [['barrier'], ['code gate'], ['sentry'], ['barrier', 'code gate'], ['barrier', 'sentry'], ['code gate', 'sentry'], ['barrier', 'code gate', 'sentry']],\n", ""]],
+ "draw": [["ai/corp/hold.ts", "    firstDraw: [...start.rig, state.runner.identity].reduce((n, c) => Math.max(n, (c && getCardScript(c.cardCode)?.modifiers?.firstBasicDraw) || 1), 1),", "    firstDraw: 1,"]]
+}

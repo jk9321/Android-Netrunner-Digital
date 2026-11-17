@@ -45,26 +45,34 @@ class Brute {
     if (this.approach({ ...ws, clicks: ws.clicks - 1, spike: false, fund: this.state.corp.badPublicity }, j, this.targets[j].ice.length - 1)) return true;
     if (ws.clicks > runs) {
       // 5.2.7c, 5.2.7g: a draw, or a click and 2 credits for a tag, with a click kept for each run left
-      if (ws.stack > 0 && this.beforeRun({ ...ws, clicks: ws.clicks - 1, grip: ws.grip + 1, stack: ws.stack - 1 }, j)) return true;
+      // The turn's first draw may give more (Verbal Plasticity)
+      const n = Math.min(ws.stack, ws.drew ? 1 : this.walk['board'].firstDraw);
+      if (ws.stack > 0 && this.beforeRun({ ...ws, clicks: ws.clicks - 1, grip: ws.grip + n, stack: ws.stack - n, drew: true }, j)) return true;
       if (ws.tags > 0 && ws.pool >= 2 && this.beforeRun({ ...ws, clicks: ws.clicks - 1, tags: ws.tags - 1, pool: ws.pool - 2 }, j)) return true;
     }
     return false;
+  }
+
+  /** A run that ends: the turn goes on from the state it left, the same target run again (the walk's `ended`). */
+  private ended(ws: S, j: number): boolean {
+    return this.beforeRun({ ...ws, fund: 0, gone: sorted([...ws.gone, ...ws.mayfly]), mayfly: [] }, j);
   }
 
   private approach(ws: S, j: number, pos: number): boolean {
     if (pos < 0) return j + 1 >= this.targets.length || this.beforeRun({ ...ws, fund: 0, gone: sorted([...ws.gone, ...ws.mayfly]), mayfly: [] }, j + 1);
     const ice = this.targets[j].ice[pos];
     const next: Next = w => this.approach(w, j, pos - 1);
+    const end: Next = w => this.ended(w, j);
     if (!ice.rezzed && !ws.up.includes(ice.card.instanceId)) {
-      if (ice.inS && ws.corp >= ice.rezCost) return this.rezzed({ ...ws, corp: ws.corp - ice.rezCost, up: [...ws.up, ice.card.instanceId].sort() }, ice, next);
+      if (ice.inS && ws.corp >= ice.rezCost) return this.rezzed({ ...ws, corp: ws.corp - ice.rezCost, up: [...ws.up, ice.card.instanceId].sort() }, ice, next, end);
       return next(ws);
     }
-    return ice.bypassed ? next(ws) : this.encounter(ws, ice, next);
+    return ice.bypassed ? next(ws) : this.encounter(ws, ice, next, end);
   }
 
-  private rezzed(ws: S, ice: WalkIce, next: Next): boolean {
+  private rezzed(ws: S, ice: WalkIce, next: Next, end: Next): boolean {
     // Lycian: the Corp chooses the subtypes as it rezzes; the Runner gets through only if it gets through every choice
-    if (ice.choices && !ws.chose.some(c => c.startsWith(`${ice.id}:`))) return ice.choices.every((_, k) => this.rezzed({ ...ws, chose: [...ws.chose, `${ice.id}:${k}`].sort() }, ice, next));
+    if (ice.choices && !ws.chose.some(c => c.startsWith(`${ice.id}:`))) return ice.choices.every((_, k) => this.rezzed({ ...ws, chose: [...ws.chose, `${ice.id}:${k}`].sort() }, ice, next, end));
     let w = ws;
     if (ice.rezFacts?.purgeVirus) {
       const purged = this.start.rig.flatMap((c, i) => (CARDS[c.cardCode]?.holdFacts?.trashedOnPurge ? [i] : []));
@@ -72,7 +80,7 @@ class Brute {
     }
     if (ice.rezFacts?.tags) w = { ...w, tags: w.tags + ice.rezFacts.tags };
     const met = ice.rezGains ? { ...ice, subs: [...ice.subs, ice.rezGains] } : ice;
-    const go = (x: S) => (ice.bypassed ? next(x) : this.encounter(x, met, next));
+    const go = (x: S) => (ice.bypassed ? next(x) : this.encounter(x, met, next, end));
     // The Corp's choice: the Runner gets through only if it gets through whatever the Corp trashes
     if (ice.rezFacts?.corpMayTrashInstalled === 'trojan') {
       return go(w) && this.start.rig.every((c, i) => w.gone.includes(i) || !/\btrojan\b/i.test(cardDef(c).keywords ?? '') || go({ ...w, gone: sorted([...w.gone, i]) }));
@@ -80,32 +88,32 @@ class Brute {
     return go(w);
   }
 
-  private encounter(ws: S, ice: WalkIce, next: Next): boolean {
+  private encounter(ws: S, ice: WalkIce, next: Next, end: Next): boolean {
     const types = this.walk['typesOf'](ice, ws);
     for (const b of ice.bypassers) if (!ws.gone.includes(b.idx) && !types.includes(b.unless) && this.pay(ws, b.per * ice.subs.length, next)) return true;
-    return this.tolls(ws, ice, w => this.breaks(w, ice, types, next));
+    return this.tolls(ws, ice, w => this.breaks(w, ice, types, next, end), end);
   }
 
-  private tolls(ws: S, ice: WalkIce, then: Next): boolean {
+  private tolls(ws: S, ice: WalkIce, then: Next, end: Next): boolean {
     const e = ice.encounterFacts;
     if (!e || ice.broken || (e.threatAtLeast !== undefined && threatLevel(this.state) < e.threatAtLeast)) return then(ws);
     const w0 = e.loses ? { ...ws, pool: Math.max(0, ws.pool - e.loses) } : ws;
     if (!e.toll) return then(w0);
     const t = e.toll;
     const u = e.unless ?? {};
-    if (!t.endRun && then({ ...w0, pool: Math.max(0, w0.pool - (t.loses ?? 0)), tags: w0.tags + (t.tags ?? 0) })) return true;
+    if (t.endRun ? end(w0) : then({ ...w0, pool: Math.max(0, w0.pool - (t.loses ?? 0)), tags: w0.tags + (t.tags ?? 0) })) return true;
     if (u.tags && then({ ...w0, tags: w0.tags + u.tags })) return true;
     if (u.netDamage !== undefined && u.netDamage <= w0.grip && then({ ...w0, grip: w0.grip - u.netDamage })) return true;
     return u.clicks !== undefined && u.clicks <= w0.clicks && then({ ...w0, clicks: w0.clicks - u.clicks });
   }
 
   /** Every set of subroutines to break, every way: Botulus counters, bioroid clicks or the ice's own price, a plan. */
-  private breaks(ws: S, ice: WalkIce, types: string[], next: Next): boolean {
+  private breaks(ws: S, ice: WalkIce, types: string[], next: Next, end: Next): boolean {
     const open = ice.subs.map((_, i) => i).filter(i => !ice.broken?.[i]);
     for (let set = 0; set < 1 << open.length; set++) {
       const unbroken = open.filter((_, k) => !(set & (1 << k)));
       const b = open.length - unbroken.length;
-      const resolve: Next = w => this.resolve(w, ice, types, unbroken, 0, next);
+      const resolve: Next = w => this.resolve(w, ice, types, unbroken, 0, next, end);
       const hosted = ice.anyBreaker ? ice.botulus.filter(i => !ws.gone.includes(i)) : [];
       for (const virus of counterSplits(ws.virus, hosted, b)) {
         const x = hosted.reduce((n, i) => n + ws.virus[i] - virus[i], 0);
@@ -153,33 +161,35 @@ class Brute {
     return rest <= ws.pool && then({ ...ws, fund: ws.fund - fund, hosted: ws.hosted - hosted, pool: ws.pool - rest });
   }
 
-  private resolve(ws: S, ice: WalkIce, types: string[], list: number[], k: number, next: Next): boolean {
+  private resolve(ws: S, ice: WalkIce, types: string[], list: number[], k: number, next: Next, end: Next): boolean {
     if (k >= list.length) return next(ws);
-    return this.subroutine(ws, ice.card, types, ice.subs[list[k]], w => this.resolve(w, ice, types, list, k + 1, next));
+    return this.subroutine(ws, ice.card, types, ice.subs[list[k]], w => this.resolve(w, ice, types, list, k + 1, next, end), end);
   }
 
-  private subroutine(ws: S, card: CardInstance, types: string[], f: SubFacts, then: Next): boolean {
+  private subroutine(ws: S, card: CardInstance, types: string[], f: SubFacts, then: Next, end: Next): boolean {
     if (f.when && !(f.when.kind === 'iceIs' ? types.includes(f.when.subtype) : f.when.kind === 'runnerTagsAtLeast' && ws.tags >= f.when.n)) return then(ws);
-    if (f.orEndRun) return false;
-    if (this.effects(ws, card, f.does, 0, then)) return true;
+    if (f.orEndRun) return end(ws);
+    if (this.effects(ws, card, f.does, 0, then, end)) return true;
     if (f.unless?.credits !== undefined && this.pay(ws, f.unless.credits, then)) return true;
     if (f.unless?.netDamage !== undefined && f.unless.netDamage <= ws.grip && then({ ...ws, grip: ws.grip - f.unless.netDamage })) return true;
     return !!f.unless?.trashInstalled && this.start.rig.some((_, i) => !ws.gone.includes(i) && then({ ...ws, gone: sorted([...ws.gone, i]) }));
   }
 
-  private effects(ws: S, card: CardInstance, does: SubEffect[], i: number, then: Next): boolean {
+  private effects(ws: S, card: CardInstance, does: SubEffect[], i: number, then: Next, end: Next): boolean {
     if (i >= does.length) return then(ws);
     const e = does[i];
-    const next: Next = w => this.effects(w, card, does, i + 1, then);
+    const next: Next = w => this.effects(w, card, does, i + 1, then, end);
+    // The run ends where the condition holds, and goes on where it does not
+    const ends = (cond: boolean) => (cond ? end(ws) : next(ws));
     switch (e.kind) {
       case 'endRun': {
         const c = e.if;
-        if (!c) return false;
-        if (c.kind === 'runnerCreditsAtMost') return ws.pool > c.n && next(ws);
-        if (c.kind === 'corpCreditsMoreThanRunner') return ws.corp <= ws.pool && next(ws);
-        if (c.kind === 'runnerTagsAtLeast') return ws.tags < c.n && next(ws);
-        if (c.kind === 'threatAtLeast') return threatLevel(this.state) < c.n && next(ws);
-        if (c.kind === 'hqMoreThanGrip') return this.state.corp.hq.length <= ws.grip && next(ws);
+        if (!c) return end(ws);
+        if (c.kind === 'runnerCreditsAtMost') return ends(ws.pool <= c.n);
+        if (c.kind === 'corpCreditsMoreThanRunner') return ends(ws.corp > ws.pool);
+        if (c.kind === 'runnerTagsAtLeast') return ends(ws.tags >= c.n);
+        if (c.kind === 'threatAtLeast') return ends(threatLevel(this.state) >= c.n);
+        if (c.kind === 'hqMoreThanGrip') return ends(this.state.corp.hq.length > ws.grip);
         return next(ws);
       }
       case 'runnerLosesClicks':
@@ -195,9 +205,9 @@ class Brute {
       case 'tags':
         return next({ ...ws, tags: ws.tags + (e.n === 'runnerTags' ? ws.tags : e.n) });
       case 'cannotStealOrTrash':
-        return false;
+        return end(ws);
       case 'corpMayTrashHqToEndRun':
-        return this.state.corp.hq.length === 0 && next(ws);
+        return ends(this.state.corp.hq.length > 0);
       case 'borrow': {
         // The Corp picks the subroutine: the Runner gets through only if it gets through each one
         const walked = new Map(this.targets.flatMap(t => t.ice.map(x => [x.card.instanceId, x] as const)));
@@ -213,7 +223,7 @@ class Brute {
             for (const sub of iceSubroutines(this.state, up)) {
               if (/resolve 1 subroutine on/i.test(sub.label)) continue;
               any = true;
-              if (!this.subroutine(ws, up, types, subroutineFacts(sub.label), next)) return false;
+              if (!this.subroutine(ws, up, types, subroutineFacts(sub.label), next, end)) return false;
             }
           }
         }

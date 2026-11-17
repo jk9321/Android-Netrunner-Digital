@@ -243,8 +243,8 @@ export function oracle(state: GameState, ask: OracleAsk): OracleAnswer {
 }
 
 /** One hold question: does the Runner get in through `server` with exactly `rez` rezzed? 'unknown' at the cap. */
-export function oracleGetsIn(state: GameState, server: string, when: 'runnerTurn' | 'thisRun', rez: Iterable<string>, corpCredits?: number, cap?: number): { answer: 'getsIn' | 'holds' | 'unknown' | 'skipped'; work: number; skipped?: string } {
-  const a = oracle(state, { when, targets: [server], rez: new Set(rez), corpCredits, cap });
+export function oracleGetsIn(state: GameState, server: string, when: 'runnerTurn' | 'thisRun', rez: Iterable<string>, corpCredits?: number, cap?: number, retries = false): { answer: 'getsIn' | 'holds' | 'unknown' | 'skipped'; work: number; skipped?: string } {
+  const a = oracle(state, { when, targets: [server], rez: new Set(rez), corpCredits, cap, retries });
   if (a.skipped) return { answer: 'skipped', work: 0, skipped: a.skipped };
   if (a.reached === null) return { answer: 'unknown', work: a.work };
   return { answer: a.reached >= 1 ? 'getsIn' : 'holds', work: a.work };
