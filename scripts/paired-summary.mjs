@@ -44,6 +44,20 @@ export function remoteSteals(g) {
 }
 const played = g => !g.crashed && g.seed != null;
 
+/**
+ * A game's agenda installs (hold-retry brief section 6): [installed behind a rezzed bioroid, of those advanced behind it,
+ * then installs into a 'new', 'bare', 'iced' and 'bioroid' remote], from a shard's game record (`agendaInstalls` with
+ * `kind`) or a saved deals file (`ai`). Null for a record from before the field.
+ */
+export const INSTALL_KINDS = ['new', 'bare', 'iced', 'bioroid'];
+export function agendaInstalls(g) {
+  if (g.ai) return g.ai;
+  const list = g.agendaInstalls;
+  if (!list || list.some(a => a.kind === undefined)) return null;
+  const bio = list.filter(a => a.kind === 'bioroid');
+  return [bio.length, list.filter(a => a.bioroidAdvanced).length, ...INSTALL_KINDS.map(k => list.filter(a => a.kind === k).length)];
+}
+
 /** Mean and standard error of a list of per-deal differences. */
 function meanSE(diffs) {
   const n = diffs.length;
@@ -88,8 +102,24 @@ export function pairBatches(games, baseGames) {
     const mean = side => both.reduce((s, p) => s + p[side][k], 0) / both.length;
     return [{ label, n: both.length, on: mean(0), off: mean(1), diff: d.mean, se: d.se }];
   });
+  // Agenda installs per game, paired (where both sides recorded them), and steals from bioroid remotes per agenda put
+  // behind a rezzed bioroid (sums over the batch: a ratio, not paired)
+  const installPairs = pairs.map(([a, b]) => [agendaInstalls(a), agendaInstalls(b)]).filter(([a, b]) => a && b);
+  const installs = ['agendas installed behind a rezzed bioroid', 'agendas advanced behind a rezzed bioroid', ...INSTALL_KINDS.map(k => `agenda installs into ${k === 'iced' ? 'an' : 'a'} ${k} remote`)].map((label, k) => {
+    const d = meanSE(installPairs.map(([a, b]) => a[k] - b[k]));
+    const mean = side => installPairs.reduce((s, p) => s + p[side][k], 0) / Math.max(installPairs.length, 1);
+    return { label, n: installPairs.length, on: mean(0), off: mean(1), diff: d.mean, se: d.se };
+  });
+  const perAgenda = side => {
+    const both = pairs.filter(p => remoteSteals(p[side])?.[2] != null && agendaInstalls(p[side]));
+    const agendas = both.reduce((s, p) => s + agendaInstalls(p[side])[0], 0);
+    return agendas ? both.reduce((s, p) => s + remoteSteals(p[side])[2], 0) / agendas : null;
+  };
+  const bioroidStealRate = installPairs.length ? { on: perAgenda(0), off: perAgenda(1) } : null;
   return {
     steals,
+    installs: installPairs.length ? installs : [],
+    bioroidStealRate,
     n,
     games: games.filter(played).length,
     baseGames: baseGames.filter(played).length,
@@ -126,6 +156,12 @@ export function printPaired(games, baseGames) {
     console.log('  per game (this / base, paired diff ± SE, in SE):');
     for (const x of p.steals) console.log(`    ${x.label}: ${x.on.toFixed(3)} / ${x.off.toFixed(3)}, ${x.diff >= 0 ? '+' : ''}${x.diff.toFixed(3)} ± ${x.se.toFixed(3)} (${x.se ? (x.diff / x.se).toFixed(1) : '-'} SE) over ${x.n} games`);
   } else console.log('  steals from remotes: not in both batches\' records (a base summed before they were saved)');
+  if (p.installs.length) {
+    for (const x of p.installs) console.log(`    ${x.label}: ${x.on.toFixed(3)} / ${x.off.toFixed(3)}, ${x.diff >= 0 ? '+' : ''}${x.diff.toFixed(3)} ± ${x.se.toFixed(3)} (${x.se ? (x.diff / x.se).toFixed(1) : '-'} SE) over ${x.n} games`);
+    const r = p.bioroidStealRate;
+    const f = x => (x === null ? '-' : x.toFixed(3));
+    console.log(`    steals from bioroid remotes per agenda installed behind a rezzed bioroid: ${f(r.on)} / ${f(r.off)}`);
+  } else console.log('  agenda installs by server kind: not in both batches\' records (a record from before the field)');
   return p;
 }
 

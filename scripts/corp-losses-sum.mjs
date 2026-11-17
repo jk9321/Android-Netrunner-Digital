@@ -8,14 +8,14 @@ import { writeFileSync } from 'node:fs';
 import { printLossSummary } from './loss-summary.mjs';
 import { printOpeningAudit, printValueAudit } from './opening-summary.mjs';
 import { printSearchAudit } from './search-audit-sum.mjs';
-import { printPaired, readGames, remoteSteals, splitArgs } from './paired-summary.mjs';
+import { agendaInstalls, printPaired, readGames, remoteSteals, splitArgs } from './paired-summary.mjs';
 import { printStage0b } from './stage0b-sum.mjs';
 import { printBrokeAfterScoring } from './counted-broke-sum.mjs';
 
 const { files, base } = splitArgs(process.argv.slice(2));
 const games = readGames(files);
 if (process.env.DEALS_OUT) {
-  const deals = games.map(g => ({ seed: g.seed, corpDeck: g.corpDeck, runnerDeck: g.runnerDeck, winner: g.winner, ...(g.flatCause ? { flatCause: g.flatCause, flatGrip: g.flatGrip } : {}), ...(g.crashed ? { crashed: true } : {}), ...(g.oracleIceSkipped ? { oracleIceSkipped: true } : {}), ...(g.alarms?.length ? { alarms: g.alarms.map(a => ({ kind: a.kind })) } : {}), ...(g.money?.scoreAtTurnStart ? { cr: g.money.creditsAtTurnStart, sc: g.money.scoreAtTurnStart } : {}), ...(remoteSteals(g) ? { rs: remoteSteals(g) } : {}) }));
+  const deals = games.map(g => ({ seed: g.seed, corpDeck: g.corpDeck, runnerDeck: g.runnerDeck, winner: g.winner, ...(g.flatCause ? { flatCause: g.flatCause, flatGrip: g.flatGrip } : {}), ...(g.crashed ? { crashed: true } : {}), ...(g.oracleIceSkipped ? { oracleIceSkipped: true } : {}), ...(g.alarms?.length ? { alarms: g.alarms.map(a => ({ kind: a.kind })) } : {}), ...(g.money?.scoreAtTurnStart ? { cr: g.money.creditsAtTurnStart, sc: g.money.scoreAtTurnStart } : {}), ...(remoteSteals(g) ? { rs: remoteSteals(g), ...(agendaInstalls(g) ? { ai: agendaInstalls(g) } : {}) } : {}) }));
   writeFileSync(process.env.DEALS_OUT, JSON.stringify(deals) + '\n');
 }
 if (base.length) {

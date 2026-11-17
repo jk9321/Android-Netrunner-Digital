@@ -11,8 +11,9 @@
  * cannot change a run and takes the first answer.
  * The Runner's choices are an OR node over its legal actions, limited to public capability (10.2.2): gain a credit,
  * draw, remove a tag, use an installed card's ability, run the asked server, and inside the run every break, boost,
- * pay, bioroid click and prompt answer. Never an install or an event from the grip, never another server, never
- * jacking out (it cannot help the Runner get in on that run).
+ * pay, bioroid click and prompt answer. Never an install or an event from the grip, never another server, and no
+ * jacking out unless `jackOut` (it cannot help the Runner get in on that run; with retries it can help the turn: the
+ * outer ice rezzed and paid for on a run the Runner leaves, 6.1.5, 6.9.4c, before an inner toll it cannot meet).
  *
  * The answer is the number of the asked servers (a list, run in order: one entry for a hold question, the same server
  * several times for `entries`, several servers for a run sequence) the Runner can breach in order (6.9.5: a run is
@@ -41,6 +42,11 @@ export interface OracleAsk {
    * for one run; `entries` counts runs that each get in).
    */
   retries?: boolean;
+  /**
+   * Jacking out (6.1.5, 6.9.4c: after passing an ice the Runner may end the run): measured for the hold-retry brief
+   * (section 2), behind this argument. Default off. It changes nothing without `retries` (a run left gets nothing in).
+   */
+  jackOut?: boolean;
 }
 
 export interface OracleAnswer {
@@ -209,6 +215,7 @@ export function oracle(state: GameState, ask: OracleAsk): OracleAnswer {
   const runnerNode = (s: GameState, k: number, step: (a: GameAction) => number | null): number => {
     const target = ask.targets[k];
     const legal = getLegalActions(s, 'runner').filter(a => {
+      if (a.type === 'JACK_OUT') return !!ask.jackOut;
       if (!RUNNER_ALLOWED.has(a.type)) return false;
       if (a.type === 'INITIATE_RUN') return a.targetServerId === target && (ask.retries || s.runsThisTurn.length === k);
       if (a.type === 'PASS') return !a.restOfRun;
@@ -243,8 +250,8 @@ export function oracle(state: GameState, ask: OracleAsk): OracleAnswer {
 }
 
 /** One hold question: does the Runner get in through `server` with exactly `rez` rezzed? 'unknown' at the cap. */
-export function oracleGetsIn(state: GameState, server: string, when: 'runnerTurn' | 'thisRun', rez: Iterable<string>, corpCredits?: number, cap?: number, retries = false): { answer: 'getsIn' | 'holds' | 'unknown' | 'skipped'; work: number; skipped?: string } {
-  const a = oracle(state, { when, targets: [server], rez: new Set(rez), corpCredits, cap, retries });
+export function oracleGetsIn(state: GameState, server: string, when: 'runnerTurn' | 'thisRun', rez: Iterable<string>, corpCredits?: number, cap?: number, retries = false, jackOut = false): { answer: 'getsIn' | 'holds' | 'unknown' | 'skipped'; work: number; skipped?: string } {
+  const a = oracle(state, { when, targets: [server], rez: new Set(rez), corpCredits, cap, retries, jackOut });
   if (a.skipped) return { answer: 'skipped', work: 0, skipped: a.skipped };
   if (a.reached === null) return { answer: 'unknown', work: a.work };
   return { answer: a.reached >= 1 ? 'getsIn' : 'holds', work: a.work };

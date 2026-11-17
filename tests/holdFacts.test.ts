@@ -4,10 +4,12 @@
  */
 import { describe, expect, it } from 'vitest';
 import { CARDS } from '../src/ai/cards';
+import { activePrompt, executeAction } from '../src/core';
+import { installIceForTest, newGame, run, toCorp } from './helpers';
 
 describe('holdFacts card entries', () => {
   it('turn start (5.7.1): Botulus and Tranquilizer counters, Tranquilizer derezzes at 3', () => {
-    expect(CARDS['30004'].holdFacts).toEqual({ runnerTurnStart: { counters: { kind: 'virus', n: 1 } } });
+    expect(CARDS['30004'].holdFacts).toEqual({ runnerTurnStart: { counters: { kind: 'virus', n: 1 } }, breaksHostSubroutine: { counter: 'virus' } });
     expect(CARDS['30017'].holdFacts).toEqual({ runnerTurnStart: { counters: { kind: 'virus', n: 1 }, derezHostAt: 3 } });
   });
   it('turn end: Lycian Multi-Munition derezzes itself; at its rez the Corp chooses 1 or more of barrier, code gate, sentry', () => {
@@ -16,6 +18,30 @@ describe('holdFacts card entries', () => {
     expect(sets).toHaveLength(7);
     expect(new Set(sets.map(x => [...x].sort().join('+'))).size).toBe(7);
     expect(sets.every(x => x.length > 0 && x.every(t => ['barrier', 'code gate', 'sentry'].includes(t)))).toBe(true);
+  });
+  it("Lycian's sets are the engine's choices (LYCIAN_CHOICES, as its rez prompt offers them; review R5)", () => {
+    let s = newGame(3);
+    const lycian = installIceForTest(s, '34100', 'remote1', false);
+    s.corp.credits = 20;
+    // 6.4.3: rezzed as the Runner approaches it
+    s = toCorp(run(s, 'remote1'));
+    const prompt = activePrompt(executeAction(s, { type: 'REZ_CARD', player: 'corp', cardInstanceId: lycian }));
+    expect(prompt?.kind).toBe('effect_choice');
+    const offered = prompt?.kind === 'effect_choice' ? prompt.options.map(o => o.label) : [];
+    // The prompt labels each choice by its subtypes joined with ', '
+    expect(offered).toEqual((CARDS['34100'].holdFacts?.rezChoosesSubtypes ?? []).map(x => x.join(', ')));
+  });
+  it('a liability rez (1.14.3a): Valentão and Piranhas cost 1 bad publicity or 1 tag removed, as the engine asks', () => {
+    for (const code of ['34060', '34117']) {
+      expect(CARDS[code].holdFacts).toEqual({ rezBadPublicityOrTag: true });
+      let s = newGame(3);
+      const ice = installIceForTest(s, code, 'remote1', false);
+      s.corp.credits = 20;
+      s.runner.tags = 1;
+      s = toCorp(run(s, 'remote1'));
+      const prompt = activePrompt(executeAction(s, { type: 'REZ_CARD', player: 'corp', cardInstanceId: ice }));
+      expect(prompt?.kind === 'effect_choice' ? prompt.options.map(o => o.id) : []).toEqual(['bp', 'tag']);
+    }
   });
   it('rezzed during a run: Flyswatter purges, Ping tags, Bumi 1.0 may trash a trojan, Thunderbolt Armaments adds a subroutine (9.8.3e)', () => {
     expect(CARDS['35079'].holdFacts?.rezDuringRun).toEqual({ purgeVirus: true });

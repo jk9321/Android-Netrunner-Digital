@@ -363,7 +363,8 @@ export const LIBERATION: Record<string, CardAI> = {
   // Tree Line
   '34059': { synergy: { gives: { ice: 1, advance: 1.5 } } },
   // Valentão
-  '34060': { synergy: { gives: { ice: 1, econ: 0.5, denial: 1 } } },
+  // "As an additional cost to rez this ice, take 1 bad publicity or remove 1 tag."
+  '34060': { synergy: { gives: { ice: 1, econ: 0.5, denial: 1 } }, holdFacts: { rezBadPublicityOrTag: true } },
   // Armed Asset Protection
   '34061': { synergy: { gives: { econ: 1.5 }, wants: { discard: 0.5 } } },
   // Pivot
@@ -707,7 +708,8 @@ export const LIBERATION: Record<string, CardAI> = {
   // Capacitor
   '34116': { synergy: { gives: { ice: 1, econ: 0.5 }, wants: { tags: 1 }, when: ['ifTagged'] } },
   // Piranhas
-  '34117': { synergy: { gives: { ice: 1, damage: 0.5, draw: 0.5 }, wants: { tags: 0.5 } } },
+  // "As an additional cost to rez this ice, take 1 bad publicity or remove 1 tag."
+  '34117': { synergy: { gives: { ice: 1, damage: 0.5, draw: 0.5 }, wants: { tags: 0.5 } }, holdFacts: { rezBadPublicityOrTag: true } },
   // Seraph
   '34118': {
     synergy: { gives: { ice: 1, damage: 1, tags: 1, denial: 1 } },

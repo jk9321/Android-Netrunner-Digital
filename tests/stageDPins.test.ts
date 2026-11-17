@@ -241,12 +241,11 @@ describe('Stage D pins (known-failing until their fix lands)', () => {
     expect(a.type === 'INSTALL_CARD' && cardDef(s.corp.hq.find(c => c.instanceId === a.cardInstanceId)!).type_code === 'agenda' && a.targetServerId === 'remote1').toBe(false);
   });
 
-  // The failed first run (Stage D item 1's first follow-up; the AI Coordinator's ruling at 13:05Z in walk-rulings.md):
-  // the hold walk makes one run per target, so a run that ends is the end of the turn. The truth of `holds` is the whole
-  // turn: after a run ends (6.1.4) the Runner may clear a tag (5.2.7g) or meet a rezzed ice without what its rez gave
-  // for that run only (Thunderbolt Armaments, 9.8.3e) and run again. Built on ai-hold-walk (3b697ea, cut 109ae85) and
-  // taken out for its time (a few decisions 7 to 16 s); each board's truth is checked by the engine oracle, which plays
-  // the Runner's whole turn with failed runs allowed.
+  // The failed first run (Stage D item 1's first follow-up, branch ai-hold-retry; pinned by the 13:05Z ruling in
+  // walk-rulings.md, fixed by the brief rev 2): the truth of `holds` is the whole turn: after a run ends (6.1.4) the
+  // Runner may clear a tag (5.2.7g) or meet a rezzed ice without what its rez gave for that run only (Thunderbolt
+  // Armaments; 6.8.5, 6.9.6d) and run again. Each board's truth is checked by the engine oracle, which plays the Runner's
+  // whole turn with failed runs allowed.
   describe('the failed first run (item 1 follow-up)', () => {
     const inCorp = <X>(s: GameState, f: () => X): X => asSide('corp', () => (decisionContext(s, 'corp'), f()));
     const holds = (s: GameState, server: string, corp = s.corp.credits) => inCorp(s, () => serverHold(s, server, { when: 'runnerTurn', corpCredits: corp }).holds);
@@ -265,7 +264,11 @@ describe('Stage D pins (known-failing until their fix lands)', () => {
       return s;
     };
     // Human game 49 turn 1: Thunderbolt Armaments, Diviner unrezzed on R&D, nothing installed. Diviner's gained
-    // subroutine ends the first run; the second meets Diviner rezzed without it
+    // subroutine ends the first run; the second meets Diviner rezzed without it. The line the oracle finds (red team 11):
+    // with 2 clicks it holds (the second run's net damage, from the game's seed, trashes an odd-cost card and Diviner
+    // ends the run), with 3 a third run gets in. The walk leaves Diviner's odd-cost end out (a fact of the grip it does
+    // not read), so it gets in on the second run: the pin agrees with the walk's convention (the safe side, "does not
+    // hold"), not with a hidden-card truth (2 of the grip's 5 cards have an even cost).
     const thunderbolt = () => JSON.parse(readFileSync(new URL('./fixtures/hold-walk/thunderbolt-49-t1-rd.json', import.meta.url), 'utf8')) as { server: string; state: GameState };
 
     it("the boards' truth: one run is kept out, the whole turn gets in", { timeout: T }, () => {
@@ -278,10 +281,10 @@ describe('Stage D pins (known-failing until their fix lands)', () => {
       expect(oracleGetsIn(f.state, f.server, 'runnerTurn', all, Infinity).answer).toBe('holds');
       expect(oracleGetsIn(f.state, f.server, 'runnerTurn', all, Infinity, undefined, true).answer).toBe('getsIn');
     });
-    it.fails("Ping's board: the hold walk does not count the server as holding (the tag is cleared, a second run gets in)", { timeout: T }, () => {
+    it("Ping's board: the hold walk does not count the server as holding (the tag is cleared, a second run gets in)", { timeout: T }, () => {
       expect(holds(ping(), 'remote1')).toBe(false);
     });
-    it.fails('game 49 turn 1, Thunderbolt Armaments: the hold walk does not count R&D as holding (a second run gets in)', { timeout: T }, () => {
+    it('game 49 turn 1, Thunderbolt Armaments: the hold walk does not count R&D as holding (a second run gets in)', { timeout: T }, () => {
       const f = thunderbolt();
       expect(holds(f.state, f.server, Infinity)).toBe(false);
     });

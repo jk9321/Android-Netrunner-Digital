@@ -4,10 +4,11 @@
  * turns), and each checked against the engine oracle (scripts/stage-d/hold-oracle.ts), which plays the Runner's turn in
  * the engine. Rules: Comprehensive Rules v26.03, cited on each row.
  */
+import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
-import { GameState, executeAction } from '../src/core';
+import { GameState, executeAction, rezCostOf } from '../src/core';
 import { createCardInstance } from '../src/core/engine/gameState';
-import { installIceForTest, installProgramForTest, newGame, startRunnerTurn, toCorp } from './helpers';
+import { installCorpForTest, installIceForTest, installProgramForTest, newGame, startRunnerTurn, toCorp } from './helpers';
 import { oracle, oracleGetsIn } from '../scripts/stage-d/hold-oracle';
 import { serverHold, turnReach } from '../src/ai/corp/hold';
 import { rezMoney } from '../src/ai/corp/rezMoney';
@@ -45,13 +46,17 @@ const inCorp = <T>(s: GameState, f: () => T): T => asSide('corp', () => (decisio
 /** The walk's answer for remote1 on the Runner's next turn, the Corp's rezzes limited to `corp` credits. */
 const walk = (s: GameState, corp = s.corp.credits) => inCorp(s, () => serverHold(s, 'remote1', { when: 'runnerTurn', corpCredits: corp }));
 /** The oracle's answer for the rez set the walk names (none when it does not hold: the cheapest set, nothing rezzed). */
-const oracleOn = (s: GameState, rez: string[], cap?: number) => oracleGetsIn(s, 'remote1', 'runnerTurn', rez, undefined, cap).answer;
+// The walk is judged against the turn's whole truth: a run that fails may be followed by another (the 10:10Z ruling)
+const oracleOn = (s: GameState, rez: string[], cap?: number) => oracleGetsIn(s, 'remote1', 'runnerTurn', rez, undefined, cap, true).answer;
 
 /** The walk holds with rez set `rez` exactly when the oracle says the Runner can't get in through it. */
 function agrees(s: GameState, corp = s.corp.credits, cap?: number) {
   const h = walk(s, corp);
   expect(h.margin).toBe(h.need - h.budget);
-  expect(h.holds).toBe(h.need > h.budget);
+  // `need` is a single run's (brief rev 2, 2.5): holding needs it above the budget; a run after a failed one may get in
+  // where it is above, so "does not hold" with a margin above 0 is allowed, and then at least one run gets in
+  if (h.holds) expect(h.need).toBeGreaterThan(h.budget);
+  else expect(h.entries).toBeGreaterThanOrEqual(1);
   if (h.holds) expect(oracleOn(s, h.rez ?? [], cap)).toBe('holds');
   return h;
 }
@@ -254,7 +259,8 @@ describe('hold walk, commit 2: tags and grip move through the turn (runnerTurn)'
     const h = agrees(s);
     expect(h.holds).toBe(true);
     expect(h.rez).toEqual([s.corp.servers.remote1.ice[0].instanceId]);
-  });
+    // The oracle with retries tries the Corp's every choice on every run
+  }, 60_000);
 
   it('R Lycian mirror: Cleaver as well, the Runner breaks whatever the Corp chooses: gets in', () => {
     const s = board(st => {
@@ -268,15 +274,15 @@ describe('hold walk, commit 2: tags and grip move through the turn (runnerTurn)'
     expect(oracleOn(s, [s.corp.servers.remote1.ice[0].instanceId])).toBe('getsIn');
   });
 
-  // One run per target: the second run after the tag is cleared is the failed first run's follow-up (a known-failing pin
-  // in stageDPins.test.ts, the 13:05Z ruling)
-  it('R1 unrezzed Ping outside Lamplighter, Cleaver, $10, no killer: holds for a rez of Ping (its rez tags the Runner)', () => {
+  // The turn's whole truth (the 10:10Z ruling): the first run ends at Lamplighter (Ping's rez tagged the Runner); the
+  // Runner clears the tag (5.2.7g: a click and 2 credits) and runs again past a Ping already rezzed (no new tag)
+  it('R1 unrezzed Ping outside Lamplighter, Cleaver, $10, no killer: the tag is cleared and a second run gets in', () => {
     const s = board(st => { ice(st, C.LAMP); ice(st, C.PING, false); installProgramForTest(st, C.CLEAVER); st.runner.credits = 10; });
-    const h = agrees(s);
-    expect(h.holds).toBe(true);
-    expect(h.rez).toEqual([s.corp.servers.remote1.ice[1].instanceId]);
-    // Ping unrezzed is passed: Lamplighter's tag is paid through
-    expect(oracleOn(s, [])).toBe('getsIn');
+    expect(agrees(s).holds).toBe(false);
+    const ping = [s.corp.servers.remote1.ice[1].instanceId];
+    expect(oracleOn(s, ping)).toBe('getsIn');
+    // One run alone is kept out by the rez of Ping (the count's old one-run definition)
+    expect(oracleGetsIn(s, 'remote1', 'runnerTurn', ping).answer).toBe('holds');
   });
 
   it('R1 mirror: no clicks for a second run (2 clicks, $10): the rez of Ping holds, for the whole turn too', () => {
@@ -448,13 +454,23 @@ describe('hold walk, commit 5: what an ice takes besides breaks', () => {
     expect(agrees(s).need).toBe(2);
   });
 
-  // One run per target: the second run, past Diviner without its gained subroutine, is the failed first run's follow-up
-  // (game 49 turn 1's board is a known-failing pin in stageDPins.test.ts, the 13:05Z ruling)
-  it('R2 Thunderbolt Armaments, unrezzed Diviner, nothing installed: holds for its rez (the gained subroutine ends the run; 9.8.3e)', () => {
+  // Thunderbolt Armaments: the subroutine the ice gains when rezzed during a run lasts for that run only (9.8.3e). The
+  // first run ends; the second meets Diviner rezzed without it (the turn's whole truth, the 10:10Z ruling)
+  it('R2 Thunderbolt Armaments, unrezzed Diviner, nothing installed: the first run ends, the second gets in', () => {
     const s = board(st => { st.corp.identity = createCardInstance(st, '34096'); ice(st, '30046', false); });
-    const h = agrees(s);
-    expect(h.holds).toBe(true);
-    expect(h.rez).toHaveLength(1);
+    expect(agrees(s).holds).toBe(false);
+    const diviner = s.corp.servers.remote1.ice.map(c => c.instanceId);
+    expect(oracleOn(s, diviner)).toBe('getsIn');
+    expect(oracleGetsIn(s, 'remote1', 'runnerTurn', diviner).answer).toBe('holds');
+  });
+
+  it('R2, human game 49 turn 1 (Thunderbolt Armaments, Diviner on R&D, nothing installed): the walk agrees with the oracle', () => {
+    const f = JSON.parse(readFileSync(new URL('./fixtures/hold-walk/thunderbolt-49-t1-rd.json', import.meta.url), 'utf8'));
+    const s: GameState = f.state;
+    const h = inCorp(s, () => serverHold(s, f.server, { when: 'runnerTurn', corpCredits: Infinity }));
+    expect(h.holds).toBe(false);
+    const all = s.corp.servers[f.server].ice.map(c => c.instanceId);
+    expect(oracleGetsIn(s, f.server, 'runnerTurn', all, Infinity, undefined, true).answer).toBe('getsIn');
   });
 
   it('R2 mirror: one click (a single run): the rez holds, for the whole turn too', () => {
@@ -480,6 +496,142 @@ describe('hold walk, commit 5: what an ice takes besides breaks', () => {
     const s = board(st => { ice(st, C.LAMP); });
     expect(agrees(s).holds).toBe(false);
     expect(oracleOn(s, [])).toBe('getsIn');
+  });
+});
+
+// The failed run (ai-hold-retry, brief rev 2 section 2): a run that ends may be followed by another; `need` and `margin`
+// stay a single run's (2.5), `holds` and `entries` are the turn's. Each board against the oracle's whole turn
+describe('hold walk: a run that fails, then another (brief rev 2)', () => {
+  const VICSEK = '36042';
+  const VOVO = '34038';
+  const pingBoard = (credits: number, clicks = 4) => board(st => { ice(st, C.LAMP); ice(st, C.PING, false); installProgramForTest(st, C.CLEAVER); st.runner.credits = credits; st.runner.maxClicks = clicks; });
+
+  it("Ping's board: a single run is kept out, so `need` is above the budget, yet the turn gets in: margin above 0, holds false, entries 2 (2.5)", () => {
+    const s = pingBoard(10);
+    const h = agrees(s);
+    expect(h.holds).toBe(false);
+    expect(h.margin).toBeGreaterThan(0);
+    // `entries` is the turn's too: run 1 ended at Ping (its subroutine left unbroken), the tag cleared ($2), then in
+    // twice ($1 for Cleaver on Ping, $3 for Lamplighter's first subroutine, each time): $10 and 4 clicks
+    expect(h.entries).toBe(2);
+    // 3 clicks: one entry
+    expect(serverHold(pingBoard(10, 3), 'remote1', { when: 'runnerTurn' }).entries).toBe(1);
+  });
+
+  it('an ice that trashed itself is gone on the next run: Vicsek outside Lamplighter, nothing installed, $7: in (its text: "Give the Runner 1 tag. Trash this ice."; 5.2.7g)', () => {
+    // Run 1: Vicsek tags and trashes itself, Lamplighter's second subroutine ends the run (tagged); its first is a second
+    // tag or 3 paid. Then the tags are cleared (a click and $2 each) and run 2 meets Lamplighter alone: pay 3, not
+    // tagged, in. Two tags: 4 clicks and $7; one tag: 3 clicks, the fourth earns 1, $8 - 1: $7 either way. A single run
+    // never gets in. The turn's line costs the budget exactly (the retry's own boundary)
+    const s = board(st => { ice(st, C.LAMP); ice(st, VICSEK); st.runner.credits = 7; });
+    const h = agrees(s);
+    expect(h.holds).toBe(false);
+    expect(h.need).toBe(Infinity);
+    expect(oracleOn(s, [])).toBe('getsIn');
+  });
+
+  it('Vicsek mirror: $6: holds (a credit short of the line)', () => {
+    const s = board(st => { ice(st, C.LAMP); ice(st, VICSEK); st.runner.credits = 6; });
+    const h = agrees(s);
+    expect(h.holds).toBe(true);
+    expect(oracleOn(s, [])).toBe('holds');
+  });
+
+  it("a run ended on purpose: Ping's board at $5, its subroutine left unbroken (Cleaver's break saved for run 2): in", () => {
+    // Run 1: Ping rezzed (a tag), its "End the run." left to resolve: nothing paid. A click and $2 clear the tag
+    // (5.2.7g); run 2: Ping broken by Cleaver, Lamplighter's first subroutine paid (3), the second finds no tag. Breaking
+    // Ping on run 1 too (the line without the ending left in) needs $9
+    const s = pingBoard(5);
+    const h = agrees(s);
+    expect(h.holds).toBe(false);
+    expect(oracleOn(s, [s.corp.servers.remote1.ice[1].instanceId])).toBe('getsIn');
+  });
+
+  it('the run ended on purpose, mirror: $4: holds', () => {
+    const s = pingBoard(4);
+    expect(agrees(s).holds).toBe(true);
+    expect(oracleOn(s, [s.corp.servers.remote1.ice[1].instanceId])).toBe('holds');
+  });
+
+  it('Vicsek mirror: 2 clicks (no click to clear the tag and run again), $7: holds', () => {
+    const s = board(st => { ice(st, C.LAMP); ice(st, VICSEK); st.runner.credits = 7; st.runner.maxClicks = 2; });
+    const h = agrees(s);
+    expect(h.holds).toBe(true);
+    expect(oracleOn(s, [])).toBe('holds');
+  });
+
+  it("a rez the Corp pays 0 for is a change a retry reads: Ping's board with Vovô Ozetti in the root (Ping's rez cost lowered by 2: its text)", () => {
+    const s = pingBoard(10);
+    installCorpForTest(s, VOVO, 'remote1', true);
+    expect(rezCostOf(s, s.corp.servers.remote1.ice[1])).toBe(0);
+    const h = agrees(s);
+    expect(h.holds).toBe(false);
+    expect(oracleOn(s, [s.corp.servers.remote1.ice[1].instanceId])).toBe('getsIn');
+  });
+});
+
+// A liability rez (design answer of 16:29Z, 2): Piranhas' text, "As an additional cost to rez this ice, take 1 bad
+// publicity or remove 1 tag" (the Corp's choice, 1.14.3a). Bad publicity taken during a run adds to the fund from the next
+// run on (6.9.1b, 10.6.3a, 10.6.3c). Piranhas unrezzed on remote1 (in the rez set; HQ empty, so its "End the run if there
+// are more cards in HQ than in the grip" does not fire, and its 1 net damage is taken), then Palisade on remote2 with
+// Cleaver (3 a run: boost 2, break 1); 2 clicks, both runs
+describe('hold walk: a liability rez, the Corp choosing bad publicity or a tag (Piranhas)', () => {
+  const liability = (credits: number, tags: number) => {
+    const s = board(st => {
+      installIceForTest(st, '34117', 'remote1', false);
+      installIceForTest(st, C.PALISADE, 'remote2', true);
+      installProgramForTest(st, C.CLEAVER);
+      st.runner.credits = credits;
+      st.runner.tags = tags;
+      st.runner.maxClicks = 2;
+      st.corp.hq = [];
+    });
+    const piranhas = s.corp.servers.remote1.ice[0].instanceId;
+    s.corp.credits = rezCostOf(s, s.corp.servers.remote1.ice[0]);
+    const reaches = inCorp(s, () => turnReach(s, ['remote1', 'remote2'], [[piranhas], []])).reaches;
+    const reached = oracle(s, { when: 'runnerTurn', targets: ['remote1', 'remote2'], rez: new Set([piranhas]) }).reached;
+    return { reaches, reached };
+  };
+
+  it('untagged, the Corp can only take the bad publicity: its credit pays on remote2, $2 gets in', () => {
+    expect(liability(2, 0)).toEqual({ reaches: true, reached: 2 });
+  });
+
+  it('bad publicity mirror: untagged, $1: kept out of remote2', () => {
+    expect(liability(1, 0)).toEqual({ reaches: false, reached: 1 });
+  });
+
+  it('tagged (the tag reads nothing here), the Corp removes the tag and gives no fund: $2 is kept out of remote2', () => {
+    expect(liability(2, 1)).toEqual({ reaches: false, reached: 1 });
+  });
+
+  it('tag mirror: tagged, $3: gets in without the fund', () => {
+    expect(liability(3, 1)).toEqual({ reaches: true, reached: 2 });
+  });
+});
+
+describe('hold walk: break plans kept with the board they were worked out on (review R3)', () => {
+  it('a breaker installed in place on the same board is read: Palisade, $5, holds; Cleaver added: gets in', () => {
+    const s = board(st => { ice(st, C.PALISADE); st.runner.credits = 5; });
+    expect(serverHold(s, 'remote1', { when: 'runnerTurn' }).holds).toBe(true);
+    installProgramForTest(s, C.CLEAVER);
+    expect(serverHold(s, 'remote1', { when: 'runnerTurn' }).holds).toBe(false);
+  });
+});
+
+describe("hold walk: a run's encounter is this run's (review R2)", () => {
+  // A 'runnerTurn' question asked during an encounter (a rez window in a run reads keep) is about the Runner's next turn:
+  // the subroutines broken on this encounter are not broken then (6.9.3, 6.9.4: an encounter ends with its run)
+  it('rezzed Palisade, Palisade broken on the encounter under way, $0: the next turn still holds, as with no run', () => {
+    const s = board(st => { ice(st, C.PALISADE); });
+    const id = s.corp.servers.remote1.ice[0].instanceId;
+    const before = walk(s);
+    const during = structuredClone(s);
+    during.activeRun = { ...(during.activeRun ?? {}), server: 'remote1', phase: 'encounter_ice', icePosition: 0, encounter: { iceId: id, broken: [true], boosts: {}, resolvingIndex: null, iceStrengthModifier: 0 } } as GameState['activeRun'];
+    const h = walk(during);
+    expect(before.holds).toBe(true);
+    expect(h.holds).toBe(true);
+    expect(h.need).toBe(before.need);
   });
 });
 

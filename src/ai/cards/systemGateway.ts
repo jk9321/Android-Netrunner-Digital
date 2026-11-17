@@ -61,8 +61,8 @@ export const SYSTEM_GATEWAY: Record<string, CardAI> = {
   // Botulus
   '30004': {
     synergy: { gives: { virus: 1, breakers: 0.5 } },
-    // "When your turn begins, place 1 virus counter on this program" (rule 5.7.1)
-    holdFacts: { runnerTurnStart: { counters: { kind: 'virus', n: 1 } } },
+    // "When your turn begins, place 1 virus counter on this program" (rule 5.7.1); "Hosted virus counter: Break 1 subroutine on host ice."
+    holdFacts: { runnerTurnStart: { counters: { kind: 'virus', n: 1 } }, breaksHostSubroutine: { counter: 'virus' } },
     value: { rig: 2 },
     // A virus counter a turn, each breaking a subroutine on its host; useful for about 3 turns
     runner: (state, _code, card) => perTurn(state, card ? counterWorth(state, card, 'virus') : 1, 'runner', 0, 3, virusWait()),
