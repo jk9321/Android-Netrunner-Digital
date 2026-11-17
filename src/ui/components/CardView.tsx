@@ -451,7 +451,7 @@ const FlippingCard: React.FC<CardViewProps> = props => {
     <motion.div
       key={face}
       ref={ref}
-      className={`shrink-0 rounded-[3px] ${markClass}`}
+      className={`relative shrink-0 rounded-[3px] ${markClass}`}
       initial={
         prefersReduced
           ? false
@@ -465,19 +465,12 @@ const FlippingCard: React.FC<CardViewProps> = props => {
         rotateY: 0,
         y: 0,
         opacity: 1,
-        ...(isRezFlash && !prefersReduced
-          ? { boxShadow: ['0 0 0 0 rgba(34,211,238,0)', '0 0 18px 4px rgba(34,211,238,0.55)', '0 0 0 0 rgba(34,211,238,0)'] }
-          : {}),
       }}
       transition={
         prefersReduced
           ? { duration: 0 }
           : isFlip
-            ? {
-                duration: 0.14,
-                ease: [0.2, 1.25, 0.4, 1],
-                ...(isRezFlash ? { boxShadow: { duration: 0.5, times: [0, 0.2, 1], ease: 'easeOut' } } : {}),
-              }
+            ? { duration: 0.14, ease: [0.2, 1.25, 0.4, 1] }
             : isInstalledOnTable
               ? { duration: 0.16, ease: [0.16, 1, 0.3, 1] }
               : { duration: 0 }
@@ -485,6 +478,15 @@ const FlippingCard: React.FC<CardViewProps> = props => {
       style={{ transformPerspective: 700 }}
     >
       <CardFace {...props} showTooltip={showTooltip} setShowTooltip={setShowTooltip} />
+      {isRezFlash && !prefersReduced && (
+        <motion.div
+          aria-hidden="true"
+          className="pointer-events-none absolute inset-0 rounded-[3px] shadow-[0_0_18px_4px_rgba(34,211,238,0.55)]"
+          initial={{ opacity: 0 }}
+          animate={{ opacity: [0, 1, 0] }}
+          transition={{ duration: 0.5, times: [0, 0.2, 1], ease: 'easeOut' }}
+        />
+      )}
       {onTable && mark.hovered && <PromptTargetLabel anchor={ref.current} label={mark.label} />}
     </motion.div>
   );
