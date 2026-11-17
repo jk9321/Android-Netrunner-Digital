@@ -27,6 +27,13 @@ export interface CardScript {
   /** Continues a multi-step effect after a prompt this script queued is answered. */
   onPromptAnswer?(ctx: EffectContext, source: EffectSource, answer: EffectAnswer): void;
   /**
+   * The steps onPromptAnswer handles, when it was made by prompts() (steps.ts): a prompt this card
+   * asks under any other step is a bug, which the engine fuzzer checks after every action.
+   */
+  promptSteps?: readonly string[];
+  /** A stub the set scaffold wrote (scripts/new-set.ts): tests/cardCoverage.test.ts fails while any remain. */
+  unfinished?: true;
+  /**
    * The current candidates of an effect_cards prompt this script queued, worked out again when the
    * prompt comes to the front: abilities triggered together resolve one at a time, each fully
    * before the next (rules 9.2.8d), so an earlier one can change what a later one may choose

@@ -8,6 +8,10 @@ import { findCardAnywhere } from './helpers';
 import { pushPrompt } from './prompts';
 import { closeRunWindows } from './priority';
 
+/** The step of the engine's Shred question to the Corp (asked as the run would end); Shred's script answers it. */
+export const SHRED_STEP = 'shred';
+export type ShredData = { x: number };
+
 /** Ends the active run (successful or not) and cleans up run-scoped effects. */
 export function endRun(state: GameState): void {
   const run = state.activeRun;
@@ -74,7 +78,7 @@ export function endTheRun(state: GameState): void {
           { id: 'trash', label: `Trash ${x} random card(s) from HQ and end the run` },
           { id: 'no', label: 'Let the run continue' },
         ],
-        source: { cardCode: SHRED, instanceId: shred?.instanceId ?? '', step: 'shred', data: { x } },
+        source: { cardCode: SHRED, instanceId: shred?.instanceId ?? '', step: SHRED_STEP, data: { x } satisfies ShredData },
       });
     } else {
       addLog(state, 'runner', 'Shred: the Corp cannot trash enough cards from HQ, so the run continues.');

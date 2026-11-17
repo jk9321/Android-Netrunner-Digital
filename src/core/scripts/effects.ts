@@ -20,6 +20,7 @@ import {
   trashableFirst,
 } from '../engine/actions/install';
 import { getCardScript } from './index';
+import type { CardsQuestion, ChoiceQuestion } from './steps';
 import { EffectAnswer, EffectContext, NOTHING_QUALIFIES_STEP } from './types';
 
 /** Helpers shared by card scripts. */
@@ -241,7 +242,7 @@ export function installRunnerTrashing(
 export function installRunnerChoice(
   ctx: EffectContext,
   cardId: string,
-  hostStep: string,
+  hostStep: string | null,
   discount = 0,
   data: EffectSource['data'] = {},
   trashIds: string[] = []
@@ -251,6 +252,7 @@ export function installRunnerChoice(
   const zone = runnerZoneOf(state, cardId);
   if (!card || !zone) return false;
   if (getCardScript(card.cardCode)?.installsOnIce) {
+    if (hostStep === null) throw new Error(`${cardDef(card).title} installs on ice, but the effect installing it declared no host step`);
     const freed = freedMemory(chosenToTrashFirst(state, card, null, trashIds));
     const hosts = installedIce(state).filter(i => !runnerInstallBlocker(state, card, i.instanceId, discount, freed));
     if (hosts.length === 0) return false;
@@ -290,15 +292,41 @@ export function advanceableInstalled(state: GameState): CardInstance[] {
     .filter(isAdvanceable);
 }
 
-// --- Sabotage ---------------------------------------------------------------------
+// --- Ice that asks the Runner to pay ---------------------------------------------
 
 /**
- * "Sabotage X": the Corp trashes X cards of their choice from HQ and/or the
- * top of R&D. The Corp picks the HQ cards; the rest come from the top of
- * R&D. The script's onPromptAnswer calls resolveSabotage() for `step`.
+ * A subroutine "X unless the Runner pays N credits": the Runner's question, asked under the ice's own step, or
+ * null when they can't (or, with canPay false, may not) pay; then X happens now.
  */
-export function sabotage(ctx: EffectContext, x: number, step: string): void {
-  const { state } = ctx;
+export function unlessPaysQuestion(ctx: EffectContext, amount: number, what: string, canPay = true): ChoiceQuestion | null {
+  if (!canPay || availableCredits(ctx.state, 'runner') < amount) return null;
+  return {
+    side: 'runner',
+    message: `${cardDef(ctx.card).title}: pay ${amount} [credit], or ${what}?`,
+    options: [
+      { id: 'pay', label: `Pay ${amount} [credit]` },
+      { id: 'no', label: what[0].toUpperCase() + what.slice(1) },
+    ],
+  };
+}
+
+/** Answers an unlessPaysQuestion(): pays, or runs the consequence. */
+export function answerUnlessPays(state: GameState, amount: number, optionId: string, otherwise: () => void): void {
+  if (optionId === 'pay' && availableCredits(state, 'runner') >= amount) spendCredits(state, 'runner', amount);
+  else otherwise();
+}
+
+// --- Sabotage ---------------------------------------------------------------------
+
+/** Sabotage X's data: X, for resolveSabotage. */
+export type SabotageData = { x: number };
+
+/**
+ * "Sabotage X": the Corp trashes X cards of their choice from HQ and/or the top of R&D. The Corp's question
+ * (cards from HQ; the rest come from the top of R&D), to ask under a cards
+ * step whose data is SabotageData. With HQ empty there is nothing to choose: it resolves now and returns null.
+ */
+export function sabotageQuestion(state: GameState, x: number): CardsQuestion | null {
   const hq = state.corp.hq;
   const max = Math.min(x, hq.length);
   // Too few cards in R&D: enough from HQ that R&D covers the rest (rules 10.12.3a); fewer than X in both, all of them (10.12.3b)
@@ -306,9 +334,9 @@ export function sabotage(ctx: EffectContext, x: number, step: string): void {
   addLog(state, 'runner', `Sabotage ${x}: the Corp trashes ${x} card(s) from HQ and/or the top of R&D.`);
   if (max === 0) {
     resolveSabotage(state, x, []);
-    return;
+    return null;
   }
-  askCards(ctx, 'corp', `Sabotage ${x}: choose cards from HQ to trash (the rest come from the top of R&D).`, hq.map(c => c.instanceId), min, max, step, { x });
+  return { side: 'corp', message: `Sabotage ${x}: choose cards from HQ to trash (the rest come from the top of R&D).`, candidateIds: hq.map(c => c.instanceId), min, max };
 }
 
 export function resolveSabotage(state: GameState, x: number, hqIds: string[]): void {
