@@ -419,8 +419,6 @@ function turnIce(state: GameState, start: WalkStart, server: string): WalkIce[] 
   return memo(state, `turnIce:${server}`, () => walkIce(state, start, state.corp.servers[server]?.ice ?? []));
 }
 
-/** Each ice's break plans, by the number of subroutines, worked out once per board (time condition: not once per rez set). */
-const planCache = new WeakMap<GameState, Map<string, WalkPlan[]>>();
 
 /** The board with the hosted subtype-giving cards at rig indexes `off` taken off (for the ice's subtypes and plans). */
 function without(state: GameState, start: WalkStart, off: number[]): GameState {
@@ -431,8 +429,10 @@ function without(state: GameState, start: WalkStart, off: number[]): GameState {
 
 /** The walk's board for `targets` (WalkBoard): everything the search reads, from the board. */
 export function walkBoard(state: GameState, start: WalkStart, targets: WalkTarget[]): WalkBoard {
-  let cache = planCache.get(state);
-  if (!cache) planCache.set(state, (cache = new Map()));
+  // Each ice's break plans, by the number of subroutines, worked out once per board (time condition: not once per rez
+  // set), on valueModel's memo (review R3: dropped when the board is changed in place, keyed by the pricing context);
+  // by the walk's kind too, as its start reads the rig
+  const cache = memo(state, `walkPlans:${start.runnerTurn ? 1 : 0}`, () => new Map<string, WalkPlan[]>());
   const plans: Record<string, WalkPlan[]> = {};
   const types: Record<string, string[]> = {};
   const ices = new Map(targets.flatMap(t => t.ice.map(i => [i.id, i] as const)));

@@ -570,6 +570,15 @@ describe('hold walk: a run that fails, then another (brief rev 2)', () => {
   });
 });
 
+describe('hold walk: break plans kept with the board they were worked out on (review R3)', () => {
+  it('a breaker installed in place on the same board is read: Palisade, $5, holds; Cleaver added: gets in', () => {
+    const s = board(st => { ice(st, C.PALISADE); st.runner.credits = 5; });
+    expect(serverHold(s, 'remote1', { when: 'runnerTurn' }).holds).toBe(true);
+    installProgramForTest(s, C.CLEAVER);
+    expect(serverHold(s, 'remote1', { when: 'runnerTurn' }).holds).toBe(false);
+  });
+});
+
 describe("hold walk: a run's encounter is this run's (review R2)", () => {
   // A 'runnerTurn' question asked during an encounter (a rez window in a run reads keep) is about the Runner's next turn:
   // the subroutines broken on this encounter are not broken then (6.9.3, 6.9.4: an encounter ends with its run)
