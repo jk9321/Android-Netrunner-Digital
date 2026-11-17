@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { createCardInstance, executeAction, findCardAnywhere, GameState, iceStrength, isLegalAction } from '../src/core';
+import { createCardInstance, executeAction, findCardAnywhere, GameState, getLegalActions, iceStrength, isLegalAction } from '../src/core';
 import { availableCredits } from '../src/core/engine/cardEffects';
 import { iceSubroutines } from '../src/core/engine/ice';
 import { dealDamage } from '../src/core/engine/damage';
@@ -32,7 +32,7 @@ const V = {
 };
 const SG = {
   cleaver: '30006', leech: '30008', telework: '30027', sureGamble: '30030', mayfly: '30032', palisade: '30072',
-  tithe: '30073', hedgeFund: '30075', regolith: '30071', nico: '30037', offworld: '30067', t400: '30031', smartware: '30033',
+  tithe: '30073', hedgeFund: '30075', regolith: '30071', nico: '30037', offworld: '30067', t400: '30031', smartware: '30033', aboveTheLaw: '30060',
 };
 
 const card = (s: GameState, id: string) => findCardAnywhere(s, id)!;
@@ -521,6 +521,18 @@ describe('Vantage Point Runner resources', () => {
     expect(s.runner.credits).toBe(credits + 4);
     expect(s.runner.grip.length).toBe(grip + 1);
     expect(s.corp.score).toBe(2);
+  });
+
+  it('Word on the Street trashed by the same score: Above the Law then has no resource to choose (rules 9.2.8d; nightly fuzz seed 2077400936)', () => {
+    let s = newGame();
+    const word = rig(s, V.wordOnTheStreet, 'resources');
+    s = scoreForTest(s, SG.aboveTheLaw);
+    expect(s.runner.heap.map(c => c.instanceId)).toContain(word);
+    const prompt = s.pendingPrompts[0];
+    expect(prompt?.kind === 'effect_cards' && prompt.candidateIds).toEqual([]);
+    expect(() => getLegalActions(s, 'corp')).not.toThrow();
+    expect(() => (s = pick(s, []))).not.toThrow();
+    expect(s.pendingPrompts).toHaveLength(0);
   });
 });
 
