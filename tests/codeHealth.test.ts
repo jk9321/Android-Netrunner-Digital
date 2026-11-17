@@ -374,10 +374,12 @@ describe('AI code health (audit guards)', () => {
   // Then + 128 over beta dae0bb8 (ai-winnow-reach: win-now's kill side canStillKill and its soundness comment, the
   // hidden-grip check, usableSources shared, the install into an empty iced remote and places()' re-derived bound, the
   // own-turn damage facts of Neurospike, Mindscaping and Phật Gioan Baotixita, damageThreat's key on the facts that read
-  // the board): src/ai 15,280
-  it('keeps src/ai/corp at or under 3,494 lines and src/ai at or under 15,280 (Stage C hand-off, ai-corp-honest-order, ai-value-time, ai-playout-lines, ai-honest-runner-view, ai-honest-corp-decision, ai-value-owners, ai-corp-rd-memory, ai-value-b1, ai-value-b2, ai-hold-reentry, ai-value-b3, ai-tag-loss-time, ai-value-b6, ai-threat-delete, ai-breaker-guard-key, ai-tag-loss-bp, ai-hold-facts, ai-hold-walk, ai-flood-bound, ai-hold-retry, ai-winnow-reach)', () => {
+  // the board): src/ai 15,280. Found-list row 21 + 16 (ai-hold-trash, the revert of 1045b0c: corp/hold.ts, a subroutine
+  // that trashes an installed Runner card walked as the Corp's choice, with the rig's card type and icebreaker flag):
+  // corp/ 3,510, src/ai 15,296
+  it('keeps src/ai/corp at or under 3,510 lines and src/ai at or under 15,296 (Stage C hand-off, ai-corp-honest-order, ai-value-time, ai-playout-lines, ai-honest-runner-view, ai-honest-corp-decision, ai-value-owners, ai-corp-rd-memory, ai-value-b1, ai-value-b2, ai-hold-reentry, ai-value-b3, ai-tag-loss-time, ai-value-b6, ai-threat-delete, ai-breaker-guard-key, ai-tag-loss-bp, ai-hold-facts, ai-hold-walk, ai-flood-bound, ai-hold-retry, ai-winnow-reach, ai-hold-trash)', () => {
     const corp = aiFiles().filter(f => f.replace(/\\/g, '/').startsWith('corp/')).reduce((n, f) => n + lines(f), 0);
-    expect(corp).toBeLessThanOrEqual(3494);
-    expect(aiFiles().reduce((n, f) => n + lines(f), 0)).toBeLessThanOrEqual(15280);
+    expect(corp).toBeLessThanOrEqual(3510);
+    expect(aiFiles().reduce((n, f) => n + lines(f), 0)).toBeLessThanOrEqual(15296);
   });
 });

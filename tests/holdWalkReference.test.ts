@@ -219,6 +219,19 @@ class Brute {
         return next({ ...ws, trashed: [...ws.trashed, card.instanceId].sort() });
       case 'corpMayTrashHqToEndRun':
         return ends(this.state.corp.hq.length > 0);
+      case 'trashInstalled': {
+        // The Corp trashes 1 installed Runner card of the kind: the Runner gets through only if it gets through each
+        const fits = (c: CardInstance) => {
+          const d = cardDef(c);
+          const breaker = /icebreaker/i.test(d.keywords ?? '');
+          if (e.what === 'card') return true;
+          if (e.what === 'resourceOrHardware') return d.type_code === 'resource' || d.type_code === 'hardware';
+          if (e.what === 'nonBreakerProgram') return d.type_code === 'program' && !breaker;
+          return d.type_code === e.what;
+        };
+        const choices = this.start.rig.flatMap((c, k) => (!ws.gone.includes(k) && fits(c) ? [k] : []));
+        return choices.length ? choices.every(k => next({ ...ws, gone: sorted([...ws.gone, k]) })) : next(ws);
+      }
       case 'borrow': {
         // The Corp picks the subroutine: the Runner gets through only if it gets through each one
         const walked = new Map(this.targets.flatMap(t => t.ice.map(x => [x.card.instanceId, x] as const)));

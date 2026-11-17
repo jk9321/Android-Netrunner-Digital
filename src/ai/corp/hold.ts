@@ -256,6 +256,9 @@ export interface RigFacts {
   purgeTrash: boolean;
   /** A breaker or Botulus: its counters are read (memo key). */
   counted: boolean;
+  /** Its card type and whether it is an icebreaker ("trash 1 installed program", "... non-icebreaker program"). */
+  type: string;
+  breaker: boolean;
 }
 
 /**
@@ -327,8 +330,8 @@ export interface WalkPlan {
   spike: boolean;
 }
 
-/** What the walk does not carry (trashing or bouncing a Runner card, the Corp's own side, a jack out it may take). */
-const INERT = new Set<SubEffect['kind']>(['trashInstalled', 'toGrip', 'iceStrengthThisRun', 'corpSide', 'mayJackOut', 'unknown']);
+/** What the walk does not carry (bouncing a Runner card, the Corp's own side, a jack out it may take). */
+const INERT = new Set<SubEffect['kind']>(['toGrip', 'iceStrengthThisRun', 'corpSide', 'mayJackOut', 'unknown']);
 /** A subroutine that changes nothing the walk carries: breaking it never helps, so the walk leaves it to resolve. */
 const inert = (f: SubFacts) => !f.orEndRun && f.does.every(e => INERT.has(e.kind));
 
@@ -465,7 +468,8 @@ export function walkBoard(state: GameState, start: WalkStart, targets: WalkTarge
     grip: state.runner.grip.length,
     rig: start.rig.map(c => {
       const keywords = cardDef(c).keywords ?? '';
-      return { trojan: /\btrojan\b/i.test(keywords), purgeTrash: !!CARDS[c.cardCode]?.holdFacts?.trashedOnPurge, counted: !!CARDS[c.cardCode]?.holdFacts?.breaksHostSubroutine || /icebreaker/i.test(keywords) };
+      const breaker = /icebreaker/i.test(keywords);
+      return { trojan: /\btrojan\b/i.test(keywords), purgeTrash: !!CARDS[c.cardCode]?.holdFacts?.trashedOnPurge, counted: !!CARDS[c.cardCode]?.holdFacts?.breaksHostSubroutine || breaker, type: cardDef(c).type_code, breaker };
     }),
     lenders: borrows ? lenders(state, targets) : [],
     plans,
@@ -913,10 +917,22 @@ export class Walk {
         return next({ ...ws, trashed: [...ws.trashed, card].sort(), moved: true });
       case 'corpMayTrashHqToEndRun':
         return this.board.hq > 0 ? end() : next(ws);
+      case 'trashInstalled': {
+        // "Trash 1 installed program" (and the other kinds): the Corp's choice of the Runner's cards of that kind, the one
+        // worst for the Runner (ruling 6); none installed, nothing happens (found-list row 21: a breaker needed further in)
+        const what = e.what;
+        const fits = (r: RigFacts) =>
+          what === 'card' || (what === 'resourceOrHardware' ? r.type === 'resource' || r.type === 'hardware' : what === 'nonBreakerProgram' ? r.type === 'program' && !r.breaker : r.type === what);
+        let worst = -Infinity;
+        this.board.rig.forEach((r, i) => {
+          if (!ws.gone.includes(i) && fits(r)) worst = Math.max(worst, next({ ...ws, gone: [...ws.gone, i].sort((a, b) => a - b) }));
+        });
+        return worst === -Infinity ? next(ws) : worst;
+      }
       case 'borrow':
         return this.borrow(ws, card, e.subtype, next, at);
       default:
-        // What the walk doesn't carry: trashing or bouncing a Runner card (registry debt: errs toward "does not hold"),
+        // What the walk doesn't carry: bouncing a Runner card to the grip (registry debt: errs toward "does not hold"),
         // the Corp's own side, a jack out the Runner may take
         return next(ws);
     }

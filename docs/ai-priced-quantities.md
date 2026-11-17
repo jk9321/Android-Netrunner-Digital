@@ -51,10 +51,10 @@ The one seam through which the valuation layer and prompts.ts reach a Corp owner
 
 - Two encodings of "this subroutine ends the run": the price rules' `blocks` condition (runs.ts `SUB_RULES`, the price's look-ahead included: Whitespace's `credits - 3 <= 6`) and the literal text (`subroutineFacts`: "6 or less", read by the hold walk against its own state). Closed when the Runner rework makes the price read the facts.
 - `runBypasses().price` (a worth) is added to the hold count's `need` (credits): it overstates `need` when a bypass is used. Closed by the bypass follow-up branch of item 1 (bypass costs as clicks, counters and cards).
-- A subroutine that trashes an installed Runner card (a breaker needed further in) is not modelled by the walk: it errs toward "does not hold" (found-list row 21, its own follow-up with a time design: walked as the Corp's choice it multiplies the retry's time, ai-hold-retry measurements section 7).
+- A subroutine that trashes an installed Runner card is walked as the Corp's choice worst for the Runner since ai-hold-retry (found-list row 21: report-36 T6, Lycian Multi-Munition's sentry subroutine trashing the fracter Tatu-Bola needs). A card bounced to the grip is not modelled: it errs toward "does not hold".
 - The literal count rises by 4 (1,103 to 1,107) with ai-hold-facts: card-text numbers in `holdFacts` (Tranquilizer's derez at 3 counters, Jaguarundi's threat 4, Seraph's 3 credits and 2 net damage), facts the walk applies, not hand-set worths.
 - The failed run (ai-hold-retry), what it does not count, each toward "does not hold" (the comment at the top of the walk in src/ai/corp/hold.ts):
-  - "X or end the run" is taken as the end (ruling 6; 1.14.5, the Corp chooses), so a stronger X (Ballista's program trash, not modelled) is missed.
+  - "X or end the run" is taken as the end (ruling 6; 1.14.5, the Corp chooses), so a stronger X is missed (Ballista's program trash: the walk carries a trash of an installed card since row 21, but not as the X of this choice).
   - Tatu-Bola's swap after it is passed (the Corp 4 richer, an unknown ice met on the next run).
   - The rez set is fixed: each of its ice is rezzed on the first run that approaches it with the Corp able to pay, never held back for a second run (6.4.3).
   - Over several servers, a failed run on one server made only to drain the Corp for another is not walked: a retry is on the same target, before the next one.
