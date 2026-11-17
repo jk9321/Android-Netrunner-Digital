@@ -165,7 +165,8 @@ function canStillWin(state: GameState, need?: number): boolean {
  *
  * Which cards: the usable sources the points side counts, each copy once (an operation is played once; every other
  * card in the sets with damage on the Corp's turn deals it once a turn at most: Angelique Garza Correa trashes itself,
- * Phật Gioan Baotixita's is the first score each turn; a card that could deal it more often needs its uses counted
+ * Phật Gioan Baotixita's is the first score each turn, counted without asking whether the turn can score (an upper
+ * bound; its fact reads its counters); a card that could deal it more often needs its uses counted
  * here), and the agendas the turn could still score (their cost within the budget), whose damage comes at the score
  * (Orbital Superiority, Fujii Asset Retrieval, See How They Run, Salvo Testing). tests/winNowReach.test.ts lists every
  * Corp card with own-turn damage, so a new one is checked against this. Not counted (limits): damage in the Runner's
