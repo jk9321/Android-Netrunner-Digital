@@ -51,6 +51,10 @@ for (const kv of (process.env.ARGS ?? '').split(/\s+/).filter(x => x.includes('=
 const SAMPLE = Number(process.env.SAMPLE ?? 1);
 const MAXQ = Number(process.env.MAXQ ?? 400);
 const CAP = Number(process.env.CAP ?? 40_000);
+// QCAP (COMPARE): the oracle's work for one question over all its asks (ai-hold-retry, the coordinator's 17:50Z ruling:
+// every shard under 30 minutes). A question that reaches it is 'unknown' for both counts (one board set for every arm),
+// marked `capped`, and named by the summing step
+const QCAP = Number(process.env.QCAP ?? Infinity);
 const DUMP = process.env.OUT_DIR ?? process.env.DUMP ?? '';
 const MAX_SETS = Number(process.env.MAX_SETS ?? 16);
 const COMPARE = process.env.COMPARE === '1';
@@ -180,8 +184,8 @@ function subsets<T>(xs: T[]): T[][] {
 
 type Verdict = 'getsIn' | 'holds' | 'unknown' | 'skipped';
 let movedFlag = false;
-function ask(q: Question, ids: string[], retries = false, jackOut = false): { v: Verdict; work: number; why?: string } {
-  const a = oracle(q.state, { when: q.opts.when, targets: [q.server], rez: new Set(ids), corpCredits: q.opts.corpCredits, cap: CAP, retries, jackOut });
+function ask(q: Question, ids: string[], retries = false, jackOut = false, cap = CAP): { v: Verdict; work: number; why?: string } {
+  const a = oracle(q.state, { when: q.opts.when, targets: [q.server], rez: new Set(ids), corpCredits: q.opts.corpCredits, cap, retries, jackOut });
   if (a.skipped) return { v: 'skipped', work: 0, why: a.skipped };
   if (a.moved) movedFlag = true;
   if (a.reached === null) return { v: 'unknown', work: a.work };
@@ -283,19 +287,28 @@ function judgeBoth(q: Question) {
   let unknown = 0;
   let skipped: string | undefined;
   let tried = 0;
+  let capped = false;
   for (const set of order) {
     if (++tried > MAX_SETS + first.length) {
       unknown++;
       break;
     }
-    const r = ask(q, set.ids, true);
+    if (work >= QCAP) {
+      unknown++;
+      capped = true;
+      break;
+    }
+    const r = ask(q, set.ids, true, false, Math.min(CAP, QCAP - work));
     work += r.work;
     verdict.set([...set.ids].sort().join(','), r.v);
     if (r.v === 'skipped') {
       skipped = r.why;
       break;
     }
-    if (r.v === 'unknown') unknown++;
+    if (r.v === 'unknown') {
+      unknown++;
+      if (work >= QCAP) capped = true;
+    }
     if (r.v === 'holds') {
       truth = true;
       holdingSet = set.ids;
@@ -352,7 +365,7 @@ function judgeBoth(q: Question) {
     flip: q.flip,
     count: brief(count),
     old: brief(old),
-    oracle: { holds: truth, set: holdingSet, unknown, skipped },
+    oracle: { holds: truth, set: holdingSet, unknown, skipped, ...(capped ? { capped } : {}) },
     jack,
     label: labelOf(count),
     oldLabel: labelOf(old),
