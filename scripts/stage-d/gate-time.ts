@@ -63,6 +63,17 @@ for (const layers of LAYERS) for (const clicks of [4, 5]) for (const credits of 
     }
   }) });
 }
+// Found-list row 21's built worst case for time (brief followup2-trash 4): three trash subroutines (Bumi 1.0, Lycian as a
+// sentry, Cloud Eater) outside Tatu-Bola, all unrezzed (16 rez sets), and a rig of 5 to 8 programs, two of them the same
+// (Unity, Marjanah twice, Carmen, Cleaver, then Mayfly, Corsair, Fermenter), retries on (4 and 5 clicks)
+const RIG = ['30026', '30016', '30016', '30015', '30006', '30032', '36004', '30007'];
+for (const programs of [5, 8]) for (const clicks of [4, 5]) for (const credits of [3, 8]) {
+  boards.push({ name: `row 21 worst case: Bumi, Lycian, Cloud Eater outside Tatu-Bola, ${programs} programs, ${clicks} clicks, $${credits}`, server: 'remote1', corp: 25, s: board(st => {
+    st.corp.credits = 25; ice(st, '34044', false); ice(st, '35041', false); ice(st, '34100', false); ice(st, '34110', false);
+    for (const code of RIG.slice(0, programs)) installProgramForTest(st, code);
+    st.runner.grip = st.runner.grip.slice(0, 5); st.runner.credits = credits; st.runner.maxClicks = clicks; agenda(st);
+  }) });
+}
 
 const med = (v: number[]) => [...v].sort((a, b) => a - b)[Math.floor(v.length / 2)];
 const only = process.env.ONLY;
