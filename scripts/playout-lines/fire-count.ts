@@ -27,7 +27,6 @@ import { holdPricing } from '../../src/ai/pricing';
 import { planTurn } from '../../src/ai/turnPlanner';
 import { runnerReply } from '../../src/ai/runnerReply';
 import { plannerIntake } from '../../src/ai/corp/candidates';
-import { clearThreatCaches } from '../../src/ai/threatModel';
 import { clearCaches, forEachRecorded } from '../stage-a/harness';
 
 /** beta b7c4917 corp/core.ts corpDecide, verbatim but for comments (check (a)). */
@@ -127,7 +126,6 @@ function decide(s: GameState, arm: Arm, held: HeldLine | null) {
   try {
     const agent = agentFor(arm, held) as unknown as { chooseAction(s: GameState): GameAction; memory: { heldLine: HeldLine | null } };
     clearCaches();
-    clearThreatCaches();
     const copy = structuredClone(s);
     const t = performance.now();
     const a = agent.chooseAction(copy);

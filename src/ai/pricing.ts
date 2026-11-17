@@ -12,8 +12,8 @@ import { planWith, sideOff, tuning } from './synergy';
  *
  * Two fields are not scoped: `known` and `anchor` are noted as a decision
  * starts (decisionContext) and stay until the next decision notes them
- * again, as they always did. The guard sets (rezzingToUse,
- * pricingBreakers) are added to and removed from by their owners.
+ * again, as they always did. The guard set rezzingToUse is changed by its
+ * owner (corp/rez.ts rezAllowed, its one reader, under no keyed value).
  */
 export type Plan = typeof tuning.plan;
 
@@ -53,25 +53,20 @@ export interface Pricing {
   pricingTagLoss: boolean;
   /** Ice is being priced against the rig: run odds are the flat guesses inside (effectValues.ts). */
   pricingIce: boolean;
+  /** A hold count is open (corp/hold.ts holdRunnerTurn): the rez budget inside keeps its stop order (iceValues.ts). */
+  countingHold: boolean;
   /** A card's plan is being priced (cardPlans.ts handPlanWorth): no plan inside a plan. */
   planning: boolean;
-  /** Depth of threat-model work (threatModel.ts): the threat is off inside its own computation. */
-  computingThreat: number;
   /** The planner's per-decision seed for its playouts (turnPlanner.ts, plan.plannerSeed), or null. */
   decisionSeed: number | null;
   /**
    * Assets whose rez-to-use look-ahead is running (corpAI.ts rezToUse): no nested rez-to-use inside.
    */
   rezzingToUse: Set<string>;
-  /** Breakers being priced by the rig they join (handValues.ts playedWorth): no breaker prices itself again. */
-  pricingBreakers: Set<string>;
+  /** A breaker is priced by the rig it joins (handValues.ts playedWorth): breakers inside take the rule-based worth. */
+  pricingBreaker: boolean;
   /** plan.oracle.safestRemote (oracle.ts): the Runner's next turn is being played out for the oracle: no oracle inside. */
   oracleRunning: boolean;
-  /**
-   * plan.runRecord (threatModel.ts recordRun): the servers the Runner ran on each of its last turns, most recent first, as
-   * the deciding Corp saw them (public: rules 6.1.2a, 6.9.1a, the Runner announces the server it runs). Null: none noted.
-   */
-  runRecord: string[][] | null;
   /**
    * The diagnostics sink a measurement script or test installed (diagnostics.ts), or null in play. Written only through
    * diagnostics.ts; no decision reads it, and it is not part of pricingKey.
@@ -90,13 +85,12 @@ const context: Pricing = {
   pricingRootDeck: false,
   pricingTagLoss: false,
   pricingIce: false,
+  countingHold: false,
   planning: false,
-  computingThreat: 0,
   decisionSeed: null,
   rezzingToUse: new Set(),
-  pricingBreakers: new Set(),
+  pricingBreaker: false,
   oracleRunning: false,
-  runRecord: null,
   diagnostics: null,
 };
 
@@ -174,17 +168,6 @@ export function leafHandByCard(side: SideCode): boolean {
   return c.leaves.some(l => l.side === side && (l.plan === current || l.plan === basePlan));
 }
 
-/** The plan as its switches read here, leaves included, for caches keyed by the whole plan (threatModel.ts planKey). */
-export function effectivePlan(): Plan {
-  const current = plan();
-  if (context.leaves.length === 0) return current;
-  const sides = (['corp', 'runner'] as SideCode[]).filter(leafHandByCard);
-  if (sides.length === 0) return current;
-  const handByCard = { ...current.handByCard };
-  for (const side of context.leaves.map(l => l.side)) if (sides.includes(side)) handByCard[side] = true;
-  return { ...current, handByCard };
-}
-
 /** The side whose decision is being made (asSide), or null outside one. */
 export const actingSide = (): SideCode | null => context.side;
 
@@ -210,11 +193,14 @@ export function pricingKey(): string {
     c.pricingRootDeck ? 'd' : '',
     c.pricingTagLoss ? 't' : '',
     c.pricingIce ? 'i' : '',
+    c.countingHold ? 'k' : '',
     c.planning ? 'c' : '',
-    c.computingThreat ? 'h' : '',
     c.oracleRunning ? 'o' : '',
-    c.runRecord ? c.runRecord.map(turn => turn.join('+')).join('/') : '',
+    c.pricingBreaker && !c.averaging ? 'b' : '', // last: deckPricingKey drops it
   ].join(':');
   keyVersion = version;
   return key;
 }
+
+/** pricingKey less the breaker guard, for the deck averages (handValues.ts): worked out under averaging, it is never read. */
+export const deckPricingKey = (): string => pricingKey().replace(/:b$/, ':');

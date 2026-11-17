@@ -14,15 +14,6 @@ import { sideOff, tuning } from '../src/ai/synergy';
  */
 const VALUE_FILES = ['valueModel', 'evaluate', 'effectValues', 'counterValues', 'handValues', 'iceValues'];
 const CODES_IN_VALUE_FILES: Record<string, string> = {
-  'evaluate:35028': 'Madani: to its card entry',
-  'evaluate:30053': 'Spin Doctor (spent): to its card entry',
-  'evaluate:36009': 'Vic: an identity, fine for now',
-  'effectValues:35076': 'Syailendra: a placed-counter field in CardAI',
-  'effectValues:30045': 'Urtica Cipher: a placed-counter field in CardAI',
-  'effectValues:35061': 'Idiosyncresis: a placed-counter field in CardAI',
-  'effectValues:30061': 'Clearinghouse: a placed-counter field in CardAI',
-  'counterValues:30033': 'Smartware Distributor: the step-1 rate when counterEffects is off (tested)',
-  'counterValues:30007': 'Fermenter: the step-1 rate when counterEffects is off (tested)',
 };
 
 /** Plan switches that are off, each with why it stays in the code. */
@@ -43,7 +34,6 @@ const OFF_SWITCHES: Record<string, string> = {
   'oracle.rd': 'measurement oracle, never a default',
   'oracle.think': 'measurement oracle (decision-quality ceiling), never a default',
   'oracle.gripThreat': 'measurement oracle (Phase 2 K0: grip in the threat and search deals only), never a default',
-  threatKeyPricing: 'Phase 2 K4b: threat key without the pricing context; moved 4 of 221 deals (run 42537621348)',
   'oracle.gripReply': 'measurement oracle (Phase 2 K0: grip in the Runner reply only), never a default',
 };
 
@@ -60,7 +50,6 @@ const MODULE_LETS: Record<string, string> = {
   'synergyTags:SYNERGY': 'the card tag table, filled once from src/ai/cards at load',
   'synergy:debug': 'a debug print switch',
   'evaluate:AGENDA_CLICK': 'a measured rate a script sets (setAgendaClick), not per call',
-  'threatModel:planSig': "a cache of the plan's JSON for the threat key, rebuilt when the plan changes",
   'valueModel:deckCard': 'the deck-average hook handValues registers once (an import cycle otherwise)',
   'valueModel:agendaOdds': "the Runner's agenda-odds port evaluate.ts registers once (runs.ts remoteAgendaOdds; an import cycle otherwise, ai-honest-runner-view)",
   'valueModel:nextStateId': "guardLoop's id counter for positions",
@@ -70,7 +59,7 @@ const MODULE_LETS: Record<string, string> = {
  * Exported mutable module objects that are on-hit audits (a script switches one on and reads its counts; off in play):
  * the module-let guard above sees `let` only (audit SB-AUDIT-FLAG). May only shrink.
  */
-const AUDIT_FLAGS = ['corp/rezMoney:rezMoneyAudit', 'effectValues:threatsAudit', 'handValues:clickAudit', 'handValues:drawAudit', 'threatModel:threatAudit'];
+const AUDIT_FLAGS = ['corp/rezMoney:rezMoneyAudit', 'effectValues:threatsAudit', 'handValues:clickAudit', 'handValues:drawAudit'];
 
 describe('AI code health (audit guards)', () => {
   it('keeps the on-hit audit objects to this list, each off by default', () => {
@@ -95,14 +84,14 @@ describe('AI code health (audit guards)', () => {
     const dir = new URL('../src/ai/', import.meta.url);
     const files = (readdirSync(dir, { recursive: true }) as string[]).filter(f => f.endsWith('.ts'));
     const text = (file: string) => readFileSync(new URL(file, dir), 'utf8');
-    // The context field is touched in diagnostics.ts only, once in each helper (tally, clockOn, note, inReply)
-    expect(files.filter(f => f !== 'diagnostics.ts' && /\.diagnostics\b/.test(text(f))), 'write through tally / note / clockOn').toEqual([]);
-    expect([...text('diagnostics.ts').matchAll(/pricing\(\)\.diagnostics/g)].length).toBe(4);
+    // The context field is touched in diagnostics.ts only, once in each helper (tally, note, inReply; clockOn went with the threat model, ai-threat-delete)
+    expect(files.filter(f => f !== 'diagnostics.ts' && /\.diagnostics\b/.test(text(f))), 'write through tally / note').toEqual([]);
+    expect([...text('diagnostics.ts').matchAll(/pricing\(\)\.diagnostics/g)].length).toBe(3);
     // The setup functions that hand out the sink are for scripts and tests, never imported by the AI itself
     const setup = files.filter(f => /import \{[^}]*\b(installDiagnostics|withDiagnostics|newDiagnostics)\b[^}]*\} from '\.\/diagnostics'/.test(text(f)));
     expect(setup).toEqual([]);
     const exported = [...text('diagnostics.ts').matchAll(/^export (?:const|function|interface|type) (\w+)/gm)].map(m => m[1]).sort();
-    expect(exported).toEqual(['Diagnostics', 'clockOn', 'inReply', 'installDiagnostics', 'newDiagnostics', 'note', 'tally', 'unsunk', 'withDiagnostics']);
+    expect(exported).toEqual(['Diagnostics', 'inReply', 'installDiagnostics', 'newDiagnostics', 'note', 'tally', 'unsunk', 'withDiagnostics']);
   });
 
   it('names no new card codes in the shared value files', () => {
@@ -228,22 +217,12 @@ describe('AI code health (audit guards)', () => {
   // that file imports the name (a same-named local is not a reader); a re-export or a test is not a reader. The exports
   // with no reader are listed here, each with why it stays, for V-B and Jeff; the list may only shrink.
   const DEAD_VALUATION_EXPORTS: Record<string, string> = {
-    'valueModel:creditValue': 'dead (re-exported by evaluate.ts, never read): V-B',
     'valueModel:clearBuildTargets': 'test and script cache reset (scripts/cache-bisect.ts)',
     'handValues:clearHandCaches': 'test and script cache reset',
     'effectValues:clearDamageThreats': 'test and script cache reset',
     'iceValues:clearDeckShares': 'test and script cache reset',
-    'effectValues:passOddsOf': 'scripts only (threat calibration)',
-    'effectValues:FLATLINE': 'dead (tests only; valueModel flatlineWorth replaced it): V-B',
-    'effectValues:topDownWorth': 'dead (tests only): V-B',
-    'evaluate:shownIceShare': 'dead (no reader anywhere): V-B',
     'evaluate:AGENDA_RUN': 'scripts only (a measured rate, logged)',
     'evaluate:setAgendaClick': 'scripts only (scripts/human-agreement.ts sweeps AGENDA_CLICK)',
-    'evaluate:centralExposure': 'scripts and tests only since the oneCurrency off path went (its own memo key names it): V-B',
-    // V-B B1: found when the guard began to check re-exports and loaded readers (recount VA-DEAD-GUARD-REEXPORTS)
-    'effectValues:EFFECT_CODES': 're-export read only by src/ai/valueAudit.ts, which the app never loads (tests and scripts): V-B dead list',
-    'cardValues:CARD_VALUES': 're-export read only by src/ai/valueAudit.ts, which the app never loads (tests and scripts): V-B dead list',
-    'cardProfiles:PAYOUT_RISK': 're-export with no src importer (src reads ./payoutRisk; tests and scripts/value-owners/log.ts import it here): V-B dead list',
   };
   it('has a src reader for every valuation export but the listed ones (V-A; shrink only)', () => {
     const VALUATION = ['valueModel', 'handValues', 'effectValues', 'evaluate', 'cardValues', 'cardProfiles', 'counterValues', 'iceValues'];
@@ -351,10 +330,28 @@ describe('AI code health (audit guards)', () => {
   // writer, valueModel.ts logValue (+23), the owner doc comments and the hooks that hand each owner's or copy's value to it
   // unchanged (+14 over the eight valuation files and diagnostics.ts' onValue field). V-B takes the hooks back when the
   // copies are gone; logValue stays while the log is the registry's evidence. 14,185 + 37 = 14,222; ai-corp-rd-memory + 36 (the Corp's known R&D slots and the Runner's memory on its deal, runnerReply.ts) = 14,258;
-  // V-B B1 - 1 (handValues; review M1) = 14,257; V-B B2 - 7 (econValue's price deleted, the type test isEconAsset) = 14,250
-  it('keeps src/ai/corp at or under 2,290 lines and src/ai at or under 14,250 (Stage C hand-off, ai-corp-honest-order, ai-value-time, ai-playout-lines, ai-honest-runner-view, ai-honest-corp-decision, ai-value-owners, ai-corp-rd-memory, ai-value-b1, ai-value-b2)', () => {
+  // V-B B1 - 1 (handValues; review M1) = 14,257; V-B B2 - 7 (econValue's price deleted, the type test isEconAsset) = 14,250;
+  // ai-hold-reentry + 13 (the countingHold guard: pricing.ts + 4, iceValues.ts + 1, hold.ts + 7; its second commit, the rez
+  // worked out before the set is priced, hold.ts + 1; corp/ + 8) = 14,263 and corp/ 2,298;
+  // V-B B3 + 4 (assetRisk, the owner's risk as one export; the formula context's risk and its doc line; corpEffect works it out); B3 paidOut + 1 (its import of the owner; inIcedServer moved, not added): + 5 = 14,268 (accepted by the AI Coordinator)
+  // ai-tag-loss-time arm 0 + 7 (evaluate.ts tagLoss: the three exact skips' comment and if-block, the rule cited) = 14,275;
+  // V-B B6 - 38 (Jeff's dead list, part A without centralExposure: creditValue and its two rates, FLATLINE, topDownWorth, shownIceShare, three re-exports) = 14,237; B6 - 12 (dead list part B: six unread RATES fields, PAYOUT_RISK.corpIced, the drawnCardOff branch, Smartware's and Fermenter's default branches with their two rates) = 14,225
+  // ai-threat-delete - 580 (commit 1 - 555, the Corp's threat model and every src path only it read; commit 2 - 29, the run
+  // record: plan.runRecord, its pricing field and key part, corpAI noteRuns; commit 3 + 4, Jeff's open-remote rule for a new
+  // bare remote kept under plan.openSteal) = 13,645;
+  // ai-breaker-guard-key - 2 (the depth guard as a pricing field in the key: handValues.ts - 6, its Set's add, try and
+  // delete gone; pricing.ts + 4, the key segment and deckPricingKey) = 13,643
+  // ai-tag-loss-bp + 13 (evaluate.ts + 8: addRigCard's header, doc and return, the clock's own-term-plus-plans lines and their
+  // comment; cardPlans.ts + 5: the shared card list boardPlanCards and the predicate hasBoardPlan) = 13,656
+  // V-B B6 rest - 39 (centralExposure and its imports - 46; the card-coded conditions into their entries + 8 with the four
+  // CardAI fields' doc lines; Spin Doctor's spent worth into its entry - 3; counterWorthOf's default + 1; item 17 + 1) = 13,617
+  // V-B B6 review M1 + 6 (Spin Doctor's spent worth prices Archives as the viewer knows it: the Corp's own cards by what
+  // they are, a look-ahead discard by the odds; two imports) = 13,623 (up to + 6 allowed by the AI Coordinator)
+  // M1 (a) + 2 (the Corp's option at one turn's assetRisk where the card sits, the Runner's line kept) = 13,625 (up to 13,627 allowed)
+  // M1b + 3 (the cards the Corp cannot know are the decision root's R&D, not those outside the hand it noted) = 13,628 (up to 13,629 allowed)
+  it('keeps src/ai/corp at or under 2,298 lines and src/ai at or under 13,628 (Stage C hand-off, ai-corp-honest-order, ai-value-time, ai-playout-lines, ai-honest-runner-view, ai-honest-corp-decision, ai-value-owners, ai-corp-rd-memory, ai-value-b1, ai-value-b2, ai-hold-reentry, ai-value-b3, ai-tag-loss-time, ai-value-b6, ai-threat-delete, ai-breaker-guard-key, ai-tag-loss-bp)', () => {
     const corp = aiFiles().filter(f => f.replace(/\\/g, '/').startsWith('corp/')).reduce((n, f) => n + lines(f), 0);
-    expect(corp).toBeLessThanOrEqual(2290);
-    expect(aiFiles().reduce((n, f) => n + lines(f), 0)).toBeLessThanOrEqual(14250);
+    expect(corp).toBeLessThanOrEqual(2298);
+    expect(aiFiles().reduce((n, f) => n + lines(f), 0)).toBeLessThanOrEqual(13628);
   });
 });

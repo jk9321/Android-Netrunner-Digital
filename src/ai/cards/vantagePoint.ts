@@ -1,12 +1,15 @@
 import { cardDef, getCardScript } from '../../core';
-import { stealthCredits } from '../../core/engine/cardEffects';
+import { stealthCredits, turnFlag } from '../../core/engine/cardEffects';
 import { cardRate, CLICK, RATES } from '../valueModel';
-import { VIC } from '../evaluate';
+import { abilityUsedKey } from '../../core/engine/actions/ability';
 import { accessWorth, centralSuccess, counterWorthOf, damageWorth, deckCount, deckShare, lock, muWorth, PACE, perTurn, priceIce, pricingIce, runSuccess } from '../effectValues';
 import type { RunOptions } from '../runs';
 import { badPublicityWorth } from '../prompts';
 import type { GameState } from '../../core';
 import { CardAI } from './types';
+
+/** Virtual Intelligence, P.I.: "Once per turn → [click], 1[credit]: Draw 1 card and remove 1 tag." */
+const VIC = '36009';
 
 /**
  * What the AI knows about each Vantage Point card's worth, one entry per card
@@ -70,7 +73,23 @@ export const VANTAGE_POINT: Record<string, CardAI> = {
     runner: state => perTurn(state, 0.1, 'runner'),
   },
   // Vic
-  '36009': { synergy: { gives: { draw: 1 }, wants: { tags: 0.5 } } },
+  '36009': {
+    synergy: { gives: { draw: 1 }, wants: { tags: 0.5 } },
+    // Tags on Vic (Jeff, 2026-10-30; plan.vicTags): her ability clears a tag for a click and a credit less the card it
+    // draws (RATES.drawnCard: the loop guard, V-B B5). The first tag costs that while she can use it this turn (the
+    // Runner's turn, ability unused, a click and a credit left), else it sits through a Corp turn first; the second waits
+    // a turn for her (two if the first waits too) or is cleared the usual way; the rest cost as usual.
+    tagClear: (state, tags, turnLoss) => {
+      const clear = CLICK + 2;
+      const vic = Math.max(0.5, CLICK + 1 - RATES.drawnCard);
+      const runner = state.runner;
+      const ability = abilityUsedKey(runner.identity.instanceId, 0);
+      const now = state.activePlayer === 'runner' && turnFlag(state, ability) === 0 && runner.clicks >= 1 && runner.credits >= 1;
+      const later = Math.min(clear, vic + turnLoss);
+      const second = now ? later : Math.min(clear, vic + 2 * turnLoss);
+      return (now ? vic : later) + (tags >= 2 ? second : 0) + Math.max(0, tags - 2) * clear;
+    },
+  },
   // Kompromat
   '36010': {
     synergy: { gives: { runs: 1 } },
@@ -206,7 +225,7 @@ export const VANTAGE_POINT: Record<string, CardAI> = {
     synergy: { wants: { operations: 1.5 } },
     value: { keep: 1.5 }, // A click back on the first double each turn
     // A click back on the first double each turn, as often as the deck holds doubles
-    corp: (state, _code, { cost }) => ({ keep: Math.max(0.3, perTurn(state, Math.min(1, 4 * deckShare(state, 'corp', /double/i)) * CLICK, 'corp') - cost) }),
+    corp: (state, _code, { cost, risk }) => ({ keep: Math.max(0.3, perTurn(state, Math.min(1, 4 * deckShare(state, 'corp', /double/i)) * CLICK, risk) - cost) }),
   },
   // Ansel 2.0
   '36028': { synergy: { gives: { ice: 1, bioroid: 1.5, install: 0.5 } } },
@@ -282,14 +301,14 @@ export const VANTAGE_POINT: Record<string, CardAI> = {
     synergy: { gives: { denial: 1.5 }, when: ['onScore'] },
     value: { keep: 3 }, // 3 more to steal, and 3 off the Runner on each score
     // 3 credits more for each steal, 3 off the Runner on each score
-    corp: (state, _code, { cost }) => ({ keep: Math.max(0.3, perTurn(state, PACE.agendaEvents * 3, 'corp') - cost) }),
+    corp: (state, _code, { cost, risk }) => ({ keep: Math.max(0.3, perTurn(state, PACE.agendaEvents * 3, risk) - cost) }),
   },
   // Nihilo Agent
   '36049': {
     synergy: { gives: { tags: 1.5 } },
     value: { keep: 2 }, // A tag each turn for 3 turns
     // A tag at the end of each Corp turn for 3 turns, and a bad publicity the Runner spends meanwhile
-    corp: (state, _code, { cost, tag }) => ({ keep: Math.max(0.3, perTurn(state, tag - PACE.runs * 0.5, 'corp', 0, 3) - cost) }),
+    corp: (state, _code, { cost, tag, risk }) => ({ keep: Math.max(0.3, perTurn(state, tag - PACE.runs * 0.5, risk, 0, 3) - cost) }),
   },
   // Grubber
   '36050': { synergy: { gives: { ice: 1, denial: 1 } }, rezEffect: true },
@@ -318,9 +337,9 @@ export const VANTAGE_POINT: Record<string, CardAI> = {
     synergy: { gives: { econ: 1.5, draw: 1 } },
     value: { keep: 3, econ: 2 }, // 3 credits and a card for each bad publicity it hosts
     // Each bad publicity hosted is 3 credits and a card, taken back if it is trashed
-    corp: (state, _code, { cost, card }) => {
+    corp: (state, _code, { cost, card, risk }) => {
       const hosts = Math.max(state.corp.badPublicity ?? 0, deckShare(state, 'corp', /liability/i) > 0.1 ? 2 : 0.5);
-      const keep = perTurn(state, 3 + card, 'corp', 0, Math.max(1, hosts)) - cost;
+      const keep = perTurn(state, 3 + card, risk, 0, Math.max(1, hosts)) - cost;
       return { keep, econ: keep };
     },
   },

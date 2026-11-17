@@ -5,7 +5,6 @@ import { knownInRd, knownToCorpInRd, shuffleRD, updateRdKnowledge } from '../src
 import { HeuristicCorpAI, HeuristicRunnerAI } from '../src/ai';
 import { asSide, plan, withPricing } from '../src/ai/pricing';
 import { clearHandCaches } from '../src/ai/handValues';
-import { clearThreatCaches } from '../src/ai/threatModel';
 import { clearDamageThreats } from '../src/ai/effectValues';
 import { clearDeckShares } from '../src/ai/iceValues';
 import { clearBuildTargets } from '../src/ai/valueModel';
@@ -281,7 +280,6 @@ const read = (name: string): GameState => {
 };
 const honest = <T>(f: () => T): T => withPricing({ plan: { ...plan(), hiddenDraws: true, plannerSeed: true } }, () => asSide('corp', f));
 const reset = () => {
-  clearThreatCaches();
   clearHandCaches();
   clearDamageThreats();
   clearDeckShares();

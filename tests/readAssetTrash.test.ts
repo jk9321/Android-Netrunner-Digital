@@ -2,7 +2,8 @@ import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
 import { GameState, cardDef, createCardInstance, findCardAnywhere } from '../src/core';
 import { HeuristicCorpAI } from '../src/ai/corpAI';
-import { PAYOUT_RISK, bareAssetRisk } from '../src/ai/cardProfiles';
+import { bareAssetRisk } from '../src/ai/cardProfiles';
+import { PAYOUT_RISK } from '../src/ai/payoutRisk';
 import { inDecision } from './helpers/pricing';
 
 /**

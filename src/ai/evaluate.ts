@@ -1,25 +1,21 @@
 import { CardInstance, GameState, SideCode, cardDef } from '../core';
 import { breakerScript, iceSubtypes, isIcebreaker } from '../core/engine/ice';
-import { counters, turnFlag } from '../core/engine/cardEffects';
-import { abilityUsedKey } from '../core/engine/actions/ability';
+import { counters } from '../core/engine/cardEffects';
 import { cardSynergy } from './synergyTags';
 import { corpKeepValue, runnerCardValue } from './cardValues';
 import { countersWorth } from './counterValues';
-import { boardPlansWorth } from './cardPlans';
-import { AI_BREAKER_SHARE, RUNNER_TURN_INCOME, breakerTypeWorth, iceTypeOdds, iceWorth } from './iceValues';
-import { payoutWait, payoutWorth, profileOf, turnsLeft } from './cardProfiles';
+import { boardPlansWorth, hasBoardPlan } from './cardPlans';
+import { AI_BREAKER_SHARE, breakerTypeWorth, iceTypeOdds, iceWorth } from './iceValues';
+import { inIcedServer, payoutWait, payoutWorth, profileOf, turnsLeft } from './cardProfiles';
 import { resourceTrashHqCost } from '../core/engine/actions/basic';
-import { HAND_FLOOR, clickPrice, handByCard, heldWorth, ownHandValue, playedWorth, unseenInHand } from './handValues';
-import { CLICK, KNOBS, RATES, cardRate, creditValue, flatlineWorth, guardLoop, handFilter, logValue, mean, memo, payoutSlide, pointGain, pointValue, reachCard, setRunnerAgendaOdds, sideCreditValue } from './valueModel';
-import { LOCKDOWN, PACE, STEAL, agendaOdds, coreSlotWorth, flatlineOdds, lifeGrip, runSuccess, stealOdds } from './effectValues';
+import { HAND_FLOOR, clickPrice, handByCard, heldWorth, ownHandValue, playedWorth } from './handValues';
+import { CLICK, KNOBS, RATES, cardRate, flatlineWorth, guardLoop, handFilter, logValue, mean, memo, payoutSlide, pointValue, reachCard, setRunnerAgendaOdds, sideCreditValue } from './valueModel';
+import { PACE, STEAL, coreSlotWorth, flatlineOdds, lifeGrip, runSuccess, stealOdds } from './effectValues';
 import { remoteAgendaOdds, trapOdds, trashedCardCost } from './runs';
-import { centralAccess, runChance, threatOn } from './threatModel';
 import { plan, pricing, withPricing } from './pricing';
 import { corpDrawPool, oracleSteal } from './oracle';
+import { CARDS } from './cards';
 
-const MADANI = '35028';
-
-export { creditValue };
 
 /**
  * Board evaluation shared by both AIs, in "credit" units: a credit is worth
@@ -36,8 +32,8 @@ export { creditValue };
  * first one over lets the worst card go). With plan.drawValue a card
  * up to the limit is worth what a credit is to a short side.
  */
-export function handValue(size: number, limit: number, viewer?: SideCode): number {
-  const card = viewer ? DRAWN_CARD : RATES.drawnCardOff;
+export function handValue(size: number, limit: number, viewer: SideCode): number {
+  const card = DRAWN_CARD;
   let value = 0;
   for (let i = 0; i < size; i++) value += i < RATES.handCoreCards ? RATES.handCore : i < limit ? card : i === limit ? handFilter() : 0;
   return logValue('hand', 'handValue', undefined, value, size, limit, viewer);
@@ -108,22 +104,6 @@ const ICE_TYPES = ['barrier', 'code gate', 'sentry'] as const;
 /** A breaker trashed when its run ends (Mayfly): it saves one stop, not the three a lasting breaker is counted for. */
 export const isOneUse = (card: CardInstance): boolean => /when (?:the|this) run ends, trash this program/i.test(cardDef(card).stripped_text ?? '');
 
-/**
- * Share of each ice type among the ice the Corp has shown (rezzed, or
- * trashed faceup to Archives), with a prior of one of each so it starts
- * even. Sums to 1.
- */
-export function shownIceShare(state: GameState): Record<string, number> {
-  const count: Record<string, number> = { barrier: 1, 'code gate': 1, sentry: 1 };
-  const shown = [
-    ...Object.values(state.corp.servers).flatMap(s => s.ice).filter(c => c.isRezzed),
-    ...state.corp.archives.faceUp.filter(c => cardDef(c).type_code === 'ice'),
-  ];
-  for (const ice of shown) for (const t of iceSubtypes(ice, state)) count[t]++;
-  const total = ICE_TYPES.reduce((n, t) => n + count[t], 0);
-  return Object.fromEntries(ICE_TYPES.map(t => [t, count[t] / total]));
-}
-
 export function runnerRigValue(state: GameState): number {
   const rig = state.runner.rig;
   const cards = [...rig.programs, ...rig.hardware, ...rig.resources];
@@ -132,28 +112,32 @@ export function runnerRigValue(state: GameState): number {
   const aiShare = anyBreakers === 0 ? 0 : Math.max(...rig.programs.filter(p => breakerScript(p)?.breaks === 'any').map(p => (isOneUse(p) ? AI_BREAKER_SHARE / 3 : AI_BREAKER_SHARE)));
   const odds = iceTypeOdds(state);
   let value = ICE_TYPES.reduce((n, t) => n + (covered.has(t) ? 1 : aiShare) * breakerTypeWorth(state, t, odds), 0);
-  for (const card of cards) {
-    // Step 4: a card that pays out money is worth what it will still pay
-    const profile = profileOf(card.cardCode);
-    if (profile) {
-      value += payoutWorth(profile, turnsLeft(state), counters(card, 'credit'), payoutWait(state, profile, 'runner'), cardRate(state, 'runner')) * payoutSlide(state, 'runner', counters(card, 'credit'));
-      continue;
-    }
-    // A breaker is worth its coverage above (plan.flatRates.breakers: no flat extra for having one)
-    value += isIcebreaker(card) ? 0 : RATES.rigCardScale * runnerCardValue(card.cardCode, state, card);
-    // Counters by what they do on this card (step 3), or the step-1 rates
-    value += countersWorth(state, card, 'credit') + countersWorth(state, card, 'virus') + countersWorth(state, card, 'power');
-    // Bling, Madani: cards to play later, worth what they would be in the grip (plan.flatRates.hosted);
-    // Madani's install takes no click, so its programs keep the click they will save (plan.madaniClick).
-    // Corp cards hosted on Detente are not the Runner's to play: Detente's own value covers them
-    const hosted = (card.hostedCards ?? []).filter(h => cardDef(h).side_code === 'runner');
-    const freeInstall = card.cardCode === MADANI;
-    value += hosted.reduce((n, h) => n + heldWorth(state, h, 'runner', freeInstall), 0);
-  }
+  for (const card of cards) value = addRigCard(state, card, value);
   // Combos in play (Knickknack burning Principia, Baker on stealth credits): plan.cardPlans
   return value + boardPlansWorth(state, 'runner');
 }
 
+
+/**
+ * One rig card's term in runnerRigValue, added to `value` (the running total) and returned: the loop's own body, so the
+ * rig's sum keeps its order bit for bit. From 0 it is the card's own term, which the tag clock reads (tagLoss).
+ */
+function addRigCard(state: GameState, card: CardInstance, value: number): number {
+  // Step 4: a card that pays out money is worth what it will still pay
+  const profile = profileOf(card.cardCode);
+  if (profile) return value + payoutWorth(profile, turnsLeft(state), counters(card, 'credit'), payoutWait(state, profile, 'runner'), cardRate(state, 'runner')) * payoutSlide(state, 'runner', counters(card, 'credit'));
+  // A breaker is worth its coverage above (plan.flatRates.breakers: no flat extra for having one)
+  value += isIcebreaker(card) ? 0 : RATES.rigCardScale * runnerCardValue(card.cardCode, state, card);
+  // Counters by what they do on this card (step 3), or the step-1 rates
+  value += countersWorth(state, card, 'credit') + countersWorth(state, card, 'virus') + countersWorth(state, card, 'power');
+  // Bling, Madani: cards to play later, worth what they would be in the grip (plan.flatRates.hosted);
+  // Madani's install takes no click, so its programs keep the click they will save (plan.madaniClick).
+  // Corp cards hosted on Detente are not the Runner's to play: Detente's own value covers them
+  const hosted = (card.hostedCards ?? []).filter(h => cardDef(h).side_code === 'runner');
+  const freeInstall = !!CARDS[card.cardCode]?.freeInstallHosted;
+  value += hosted.reduce((n, h) => n + heldWorth(state, h, 'runner', freeInstall), 0);
+  return value;
+}
 
 /**
  * Worth of an installed Corp root card (assets and upgrades). `left` (the Runner's trash-or-leave reader only, runs.ts
@@ -167,38 +151,16 @@ export function corpCardValue(card: CardInstance, state?: GameState, viewer: Sid
 }
 
 function corpCardWorth(card: CardInstance, state: GameState | undefined, viewer: SideCode, left = false): number {
-  if (state && viewer === 'runner' && card.isRezzed && card.cardCode === SPIN_DOCTOR) return spentSpinDoctorWorth(state);
+  const spent = state && card.isRezzed ? CARDS[card.cardCode]?.spent : undefined;
+  if (spent) return spent(state!, viewer, card); // a rezzed card whose rez effect is done (Spin Doctor), as `viewer` knows it (V-B B6)
   const hosted = counters(card, 'credit');
   const power = state && card.isRezzed ? countersWorth(state, card, 'power') : 0;
   const profile = state ? profileOf(card.cardCode) : undefined;
-  if (state && profile) return card.isRezzed ? payoutWorth(profile, turnsLeft(state), hosted, payoutWait(state, profile, 'corp', inIcedServer(state, card), left), cardRate(state, 'corp')) : corpKeepValue(card.cardCode, state);
+  if (state && profile && !(card.isRezzed && hosted > 0)) return card.isRezzed ? payoutWorth(profile, turnsLeft(state), hosted, payoutWait(state, profile, 'corp', inIcedServer(state, card), left), cardRate(state, 'corp')) : corpKeepValue(card.cardCode, state); // hosted credits: the owner's, below (V-B B6 item 33)
   if (card.isRezzed && hosted > 0) {
     return 1 + (state ? countersWorth(state, card, 'credit') : hosted * RATES.counters.hostedCredit) + power;
   }
   return corpKeepValue(card.cardCode, state, card.isRezzed) + power;
-}
-
-const SPIN_DOCTOR = '30053';
-
-/**
- * plan.spentSpinDoctor (bug report #5, Jeff 2026-11-02): a rezzed Spin Doctor has drawn its 2 cards;
- * all it can still do is shuffle up to 2 cards from Archives back into R&D. As the Runner sees it:
- * a faceup card goes back as a slightly better R&D, a facedown one may be an agenda it would
- * otherwise steal from Archives. With Archives empty, trashing it buys next to nothing.
- */
-export function spentSpinDoctorWorth(state: GameState): number {
-  const { agenda, agendaPoints } = hiddenCardOdds(state);
-  const archives = state.corp.archives;
-  const worth = [
-    ...archives.faceUp.map(() => 0.3 * cardRate(state, 'corp')),
-    ...archives.faceDown.map(() => agenda * archivedAgendaLoss(state, agendaPoints) + (1 - agenda) * 0.3 * cardRate(state, 'corp')),
-  ].sort((a, b) => b - a);
-  return 0.3 + (worth[0] ?? 0) + (worth[1] ?? 0);
-}
-
-/** Whether a Corp root card sits in a server with ice in front of it. */
-function inIcedServer(state: GameState, card: CardInstance): boolean {
-  return Object.values(state.corp.servers).some(s => s.ice.length > 0 && s.root.some(c => c.instanceId === card.instanceId));
 }
 
 /** A Corp card the Runner can't see: installed, unrezzed and facedown. */
@@ -279,9 +241,10 @@ export function agendaWorth(
 ): number {
   const gain = pointValue(state.corp.score + points, KNOBS.corpPoints) - pointValue(state.corp.score, KNOBS.corpPoints);
   const need = Math.max(0, cost - counters);
-  // plan.threatModel: an agenda going into a new remote with no ice (no server yet, success 1: handValues) sits in an
-  // open remote the Runner can see, which it runs by construction (threatModel.ts)
-  const openNew = threatOn() && !serverId && success === 1 ? 1 : undefined;
+  // Jeff's open-remote rule (2026-10-29, plan.openSteal): an agenda going into a new remote with no ice (no server yet,
+  // success 1: handValues' hand price) sits in an open remote the Runner can see, as good as stolen; the same rule for a
+  // remote that exists is in stealOdds
+  const openNew = plan().openSteal && !serverId && success === 1 ? 1 : undefined;
   const steal = stealChance ?? openNew ?? (
     success === undefined && serverId
       ? oracleSteal(state, serverId) ?? stealOdds(state, serverId) // plan.oracle.safestRemote: told the Runner's next turn
@@ -296,11 +259,7 @@ export function agendaWorth(
   // plan.agendaClicks (Jeff's Corp game 2, bug report #18): the clicks still needed are clicks a later turn can't spend
   // building; priced at the flat click rate, building now and scoring next turn always beat scoring now and building next
   const click = AGENDA_CLICK;
-  // plan.threatModel (round 2, the review of item 3): the threat is one crisp turn, the Runner's next; each later turn
-  // the agenda waits is priced on the Runner a turn's income richer (threatLater), so "it can't pay through this ice
-  // today" is not "safe for every turn it waits"
-  const threatTurns = threatOn() && stealChance === undefined && openNew === undefined && success === undefined && !!serverId;
-  const standing = threatTurns ? threatStanding(state, serverId!, runnerTurns, steal) : (1 - steal) ** runnerTurns;
+  const standing = (1 - steal) ** runnerTurns;
   return logValue('agenda', 'agendaWorth', state, gain * standing * waited(runnerTurns) - need * (click + 1), counters, cost, points, serverId, success, inHand, budget, stealChance);
 }
 
@@ -315,26 +274,6 @@ function agendaRunnerTurns(state: GameState, need: number, inHand: boolean, budg
 }
 
 /**
- * plan.threatModel: the chance an agenda in `serverId` stands through `turns` Runner turns. The first is the threat as
- * it is (`first`, stealOdds); each later one is the same threat and passOdds with the Runner its turn income richer
- * (iceValues RUNNER_TURN_INCOME: what iceStop's stopCredits adds for each turn the Runner saves), so a remote the Runner
- * can't afford today is still at risk on the turns after. The rig is as it is: the Corp can't see the breakers coming.
- */
-export function threatStanding(state: GameState, serverId: string, turns: number, first: number): number {
-  let standing = 1;
-  for (let t = 1; t <= turns; t++) {
-    if (t === 1) {
-      standing *= 1 - first;
-      continue;
-    }
-    // A later turn is a whole Runner turn (no clicks left now: runnerView reads the next one)
-    const richer = { ...state, runner: { ...state.runner, credits: state.runner.credits + (t - 1) * RUNNER_TURN_INCOME, clicks: state.activePlayer === 'runner' ? 0 : state.runner.clicks } };
-    standing *= 1 - stealOdds(richer, serverId);
-  }
-  return standing;
-}
-
-/**
  * An agenda in Archives (Jeff, 2026-10-28): a breach of Archives turns its
  * facedown cards faceup and the Runner accesses them all (rules 7.3.2,
  * 7.4), so a discarded agenda is a likely steal: its points to the Runner,
@@ -345,10 +284,10 @@ export function threatStanding(state: GameState, serverId: string, turns: number
 export function archivedAgendaLoss(state: GameState, points: number): number {
   const gain = pointValue(state.runner.score + points) - pointValue(state.runner.score);
   // plan.measuredNov6: the breach rate measured on turns that start with facedown cards in Archives
-  // plan.threatModel leaves this on the measured breach rate: the Runner's scorer prices a facedown Archives card as one the
-  // Corp rarely chose to discard (runs.ts ARCHIVES_CHOSEN_ODDS), so the threat says Archives is almost never run (0.10
-  // on Jeff's games against 0.31 breached, scripts/threat-calibration.ts): read as safety, the Corp would discard agendas
-  // into the Runner AI's blind spot, the first thing a person checks
+  // The measured breach rate, not the Runner's scorer: it prices a facedown Archives card as one the Corp rarely chose to
+  // discard (runs.ts ARCHIVES_CHOSEN_ODDS), so the threat model (deleted 2026-11-16) read Archives as almost never run (0.10
+  // on Jeff's games against 0.31 breached): read as safety, the Corp would discard agendas into the Runner AI's blind
+  // spot, the first thing a person checks
   const perTurn = PACE.facedownBreach;
   return gain * (1 - (1 - perTurn) ** turnsLeft(state));
 }
@@ -415,54 +354,6 @@ export function corpBoardValue(state: GameState, viewer: SideCode): number {
 }
 
 /**
- * What the Corp expects to lose from runs on HQ and R&D (read by scripts/human-agreement.ts and tests; the off path of
- * the deleted plan.oneCurrency was the only play reader), in the Runner's
- * points on the clock. Ice is worth the same wherever it sits (iceWorth), so without this term evaluate can't tell ice
- * on a bare R&D from ice on an empty remote; installScore's central needs (centralsFirst, centralIce) hand-coded it.
- *
- * Each Runner turn: PACE.runs x the server's share of runs x runSuccess (its ice against the rig) x the agenda loss of
- * one access (rule 7.4.1b-c: a breach of HQ offers the cards in HQ, of R&D the top card; one access each by default). HQ: the agendas in it over its
- * size, each by its point gain to the Runner; R&D: the share of agendas in it. Summed over the turns left with the
- * lock-down fade (LOCKDOWN, as the Corp ices up). The next turn sees HQ as it is; later turns see HQ as the deck's
- * average draw, since HQ turns over (installed, drawn into) while the ice stays. Archives is archivedAgendaLoss.
- *
- * Hidden information: the Corp knows what is in R&D but not its order, and nothing about a card drawn in a look-ahead
- * (handValues unseenInHand): those are pooled with R&D, so a draw can't tell it whether an agenda came. The Runner's
- * view uses its own odds of an unseen card being an agenda (agendaOdds), for HQ and R&D alike.
- */
-export function centralExposure(state: GameState, viewer: SideCode): number {
-  const unseen = viewer === 'corp' ? unseenInHand(state, 'corp') : [];
-  const key = `centralExposure:${viewer}:${unseen.map(c => c.instanceId).join(',')}`;
-  return memo(state, key, () => {
-    const corp = state.corp;
-    const gain = (points: number) => pointGain(state.runner.score, points);
-    let density: number; // the agenda loss of one access to a card the viewer can't see
-    let hqNow: number; // the agenda loss of one access to HQ as it is
-    if (viewer === 'corp') {
-      // One access to HQ and to a card the Corp can't place (threatModel.ts centralAccess: shared with the threat)
-      ({ hqNow, density } = centralAccess(state));
-    } else {
-      const { odds, points } = agendaOdds(state);
-      density = odds * gain(points);
-      hqNow = corp.hq.length ? density : 0;
-    }
-    // plan.threatModel: the runs the Runner's own scorer makes on this board (threatModel.ts), not the shares
-    const threat = threatOn();
-    const hqRate = (threat ? runChance(state, 'hq') : PACE.runs * PACE.hqShare) * runSuccess(state, 'hq');
-    const rdRate = !corp.rd.length ? 0 : (threat ? runChance(state, 'rd') : PACE.runs * PACE.rdShare) * runSuccess(state, 'rd');
-    // This Runner's next turn (bug report #15: it walked into HQ every turn while the Corp held its agendas there): the
-    // measured rate half-weighted with the breaches it made there last turn (open information), as plan.readAssetTrash reads trashes
-    const lastTurn = (server: string) => state.runnerLastTurnRuns.filter(r => r.server === server && r.successful).length;
-    // (the threat reads this board, bug #15's open HQ included, so it needs no last-turn patch)
-    const next = (rate: number, server: string) => (state.activePlayer === 'corp' && !threat ? (rate + lastTurn(server)) / 2 : rate);
-    let loss = 0;
-    const turns = turnsLeft(state);
-    for (let t = 1; t <= turns; t++) loss += ((t === 1 ? next(hqRate, 'hq') * hqNow : hqRate * density) + (t === 1 ? next(rdRate, 'rd') : rdRate) * density) * LOCKDOWN ** (t - 1);
-    return loss;
-  });
-}
-
-/**
  * The tag clock (Jeff, 2026-10-28; plan.tagClock): what tags on the Runner
  * are worth, to the Corp and against the Runner. Each Corp turn a tagged
  * Runner can lose its best resource (the Corp's basic trash action: a click
@@ -509,48 +400,37 @@ function tagClock(state: GameState, viewer: SideCode, tags: number, actual: bool
   const worth = corpTurn
     ? Math.min(tags * clear, 0.5 * perTurn + 0.1 * (tags - 1))
     : Math.min((stuck ? perTurn : 0) + tags * clear, 1.5 * perTurn + 0.1 * (tags - 1));
-  return state.runner.identity.cardCode === VIC ? Math.min(worth, vicTagsWorth(state, tags, perTurn)) : worth;
+  const clearing = CARDS[state.runner.identity.cardCode]?.tagClear;
+  return clearing ? Math.min(worth, clearing(state, tags, perTurn)) : worth;
 }
 
-/** Virtual Intelligence, P.I.: "Once per turn → [click], 1[credit]: Draw 1 card and remove 1 tag." */
-export const VIC = '36009';
-
-/**
- * Tags on Vic (Jeff, 2026-10-30; plan.vicTags): her ability clears a tag for
- * a click and a credit less the card it draws. The first tag costs that
- * while she can still use it this turn (the Runner's turn, ability unused,
- * a click and a credit left); otherwise it sits through a Corp turn first
- * (this turn's loss, as the Corp's punishers see it). The second waits a
- * turn for her (two Corp turns if the first waits too) or is cleared the
- * usual way; the rest cost as usual.
- */
-function vicTagsWorth(state: GameState, tags: number, perTurn: number): number {
-  const clear = CLICK + 2;
-  const vic = Math.max(0.5, CLICK + 1 - RATES.drawnCard);
-  const runner = state.runner;
-  const ability = abilityUsedKey(runner.identity.instanceId, 0);
-  const now = state.activePlayer === 'runner' && turnFlag(state, ability) === 0 && runner.clicks >= 1 && runner.credits >= 1;
-  const later = Math.min(clear, vic + perTurn);
-  const second = now ? later : Math.min(clear, vic + 2 * perTurn);
-  return (now ? vic : later) + (tags >= 2 ? second : 0) + Math.max(0, tags - 2) * clear;
-}
-
-/** What a tagged Runner stands to lose each Corp turn, as `viewer` sees it. */
-function tagLossPerTurn(state: GameState, viewer: SideCode, skip = 0): number {
+/** What a tagged Runner stands to lose each Corp turn, as `viewer` sees it (exported for tests/tagLossTime.test.ts). */
+export function tagLossPerTurn(state: GameState, viewer: SideCode, skip = 0): number {
   // The tag clock is pricing the rig: tags are the flat rate in there (a copy of the position, so it is not a value loop)
   return withPricing({ pricingTagLoss: true }, () => tagLoss({ ...state }, viewer, skip));
 }
 
 function tagLoss(state: GameState, viewer: SideCode, skip: number): number {
   const corp = state.corp;
-  // The best resource the Corp would trash, net of what trashing costs it
-  const rig = runnerRigValue(state);
-  const resources = state.runner.rig.resources.map(r => rig - runnerRigValue({ ...state, runner: { ...state.runner, rig: { ...state.runner.rig, resources: state.runner.rig.resources.filter(c => c !== r) } } }));
-  // plan.hqTrashCost: a resource that also costs cards from HQ to trash is worth that much less to trash
-  const extra = (r: CardInstance) => (plan().hqTrashCost ? hqTrashCardsLoss(state, r) : 0);
-  const nets = resources.map((v, i) => v - extra(state.runner.rig.resources[i])).sort((a, b) => b - a);
-  // plan.tagTrashNow: a Corp that can trash now takes the best one this turn; the turns after lose the next best
-  const trash = Math.max(0, nets[skip] ?? 0) - (corp.credits >= 2 ? CLICK + 2 : Infinity);
+  const owned = state.runner.rig.resources;
+  // The best resource the Corp would trash, net of what trashing costs it (the basic action "[click], 2[credit]: Trash 1
+  // resource", rule 5.2.6g). No rig is priced when no resource could be the answer (ai-tag-loss-time arm 0, exact: the
+  // loss is the same number): the Runner has none; none is left past `skip` (the one tagTrashNow takes this turn); or
+  // the Corp has under the 2 credits the action costs. The trash part is then 0, as max(trash, 0) below made it
+  let trash = 0;
+  if (owned.length > skip && corp.credits >= 2) {
+    // A resource is priced by its own term in the rig (addRigCard, no new board) plus its share of the combo plans (only the
+    // plans priced without it). Left out, as a stated approximation (ai-tag-loss-bp; registry V7): what its leaving does
+    // to the other cards' terms (the deck average, credit sources, breaker coverage); 0.23% of clocks, measured
+    const plans = hasBoardPlan(state, 'runner') ? boardPlansWorth(state, 'runner') : undefined;
+    const share = (r: CardInstance) => (plans === undefined ? 0 : plans - boardPlansWorth({ ...state, runner: { ...state.runner, rig: { ...state.runner.rig, resources: owned.filter(c => c !== r) } } }, 'runner'));
+    const resources = owned.map(r => addRigCard(state, r, 0) + share(r));
+    // plan.hqTrashCost: a resource that also costs cards from HQ to trash is worth that much less to trash
+    const extra = (r: CardInstance) => (plan().hqTrashCost ? hqTrashCardsLoss(state, r) : 0);
+    const nets = resources.map((v, i) => v - extra(owned[i])).sort((a, b) => b - a);
+    // plan.tagTrashNow: a Corp that can trash now takes the best one this turn; the turns after lose the next best
+    trash = Math.max(0, nets[skip] ?? 0) - (CLICK + 2);
+  }
   // A tag punisher in HQ: known to the Corp, the decklist's odds to the Runner
   const punishes = (c: CardInstance) => cardSynergy(cardDef(c)).when?.includes('ifTagged') ?? false;
   let held: number;

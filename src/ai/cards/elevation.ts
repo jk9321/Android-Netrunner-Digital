@@ -268,6 +268,7 @@ export const ELEVATION: Record<string, CardAI> = {
   '35028': {
     synergy: { gives: { install: 1 }, wants: { breakers: 0.5 } },
     value: { rig: 2.5 }, // Free program installs (hosted cards count too)
+    freeInstallHosted: true,
     // A hosted program installed each turn without a click
     runner: (state, _code, card) => {
       // Like DZMZ Optimizer: a click for each program still to install (hosted ones too, so hosting doesn't use up
@@ -369,7 +370,7 @@ export const ELEVATION: Record<string, CardAI> = {
     value: { keep: 4, econ: 3.5 },
     profile: { load: 6, pay: 2, every: 'turn', perTurn: 1, clicksAtEnd: 2 }, // Otto Campaign
     counters: { credit: () => PAID_OUT }, // 2 a turn, no click
-    counterFormulas: { credit: () => paidOut() },
+    counterFormulas: { credit: (state, card) => paidOut(state, card) },
   },
   // Bumi 1.0
   '35041': { synergy: { gives: { ice: 1, bioroid: 1, damage: 0.5 } }, rezEffect: true },
@@ -427,7 +428,7 @@ export const ELEVATION: Record<string, CardAI> = {
     synergy: { gives: { damage: 1 }, when: ['onScore'] },
     value: { keep: 2 },
     // A power counter a turn (1 net damage each, priced in counterValues.ts), used up within about 3 turns
-    corp: (state, code, { cost }) => ({ keep: perTurn(state, counterWorthOf(state, code, 'power'), 'corp', 0, 3) - cost }),
+    corp: (state, code, { cost, risk }) => ({ keep: perTurn(state, counterWorthOf(state, code, 'power'), risk, 0, 3) - cost }),
     counters: { power: () => 1.5 }, // 1 net damage each, when an agenda is scored or stolen
     counterFormulas: { power: gioanPower },
   },
@@ -470,6 +471,7 @@ export const ELEVATION: Record<string, CardAI> = {
   '35061': {
     synergy: { gives: { econ: 1, denial: 1.5 }, wants: { advance: 1 } },
     value: { keep: 2.5 }, // 3 credits for the Corp and -2 for the Runner per counter
+    placedCounter: () => 0.6 * 5, // A placed counter
     // Each advancement is 3 credits to the Corp and 2 off the Runner, for a click and a credit
     corp: (_state, _code, { cost }) => ({ keep: 0.6 * 2 * (3 + 2 - (CLICK + 1)) - cost }),
     // Each counter is 3 credits and 2 off the Runner when it fires
@@ -481,8 +483,8 @@ export const ELEVATION: Record<string, CardAI> = {
     synergy: { gives: { econ: 1 }, when: ['threat'] },
     value: { keep: 3, econ: 2.5 },
     // 1 credit each turn
-    corp: (state, _code, { cost }) => {
-      const keep = perTurn(state, 1, 'corp') - cost;
+    corp: (state, _code, { cost, risk }) => {
+      const keep = perTurn(state, 1, risk) - cost;
       return { keep, econ: keep };
     },
   },
@@ -516,15 +518,15 @@ export const ELEVATION: Record<string, CardAI> = {
     value: { keep: 5, econ: 4 },
     profile: { load: 8, pay: 4, every: 'turn', perTurn: 1, drawEach: 1 }, // Anthill Excavation Contract
     counters: { credit: () => PAID_OUT }, // 4 a turn and a card
-    counterFormulas: { credit: () => paidOut() },
+    counterFormulas: { credit: (state, card) => paidOut(state, card) },
   },
   // Plutus
   '35073': {
     synergy: { wants: { operations: 1.5, discard: 0.5 } },
     value: { keep: 1.5 }, // Replays transactions, but costly to rez
     // A transaction replayed each turn from Archives; to rez, trash 3 cards from HQ
-    corp: (state, _code, { card }) => {
-      const keep = perTurn(state, transactionGain(state), 'corp') - 3 * card;
+    corp: (state, _code, { card, risk }) => {
+      const keep = perTurn(state, transactionGain(state), risk) - 3 * card;
       return { keep: Math.max(0.3, keep) };
     },
   },
@@ -533,7 +535,11 @@ export const ELEVATION: Record<string, CardAI> = {
   // Kessleroid
   '35075': { synergy: { gives: { ice: 1 } } },
   // Syailendra
-  '35076': { synergy: { gives: { ice: 1, advance: 1, denial: 0.5, damage: 0.5 } } },
+  '35076': {
+    synergy: { gives: { ice: 1, advance: 1, denial: 0.5, damage: 0.5 } },
+    // At 3, each encounter places a counter (a click and a credit) on a card the Corp can advance
+    advanceCounter: (state, _card, left) => perTurn(state, 0.3 * (CLICK + 1), 'corp') / left,
+  },
   // Key Performance Indicators
   '35077': { synergy: { gives: { advance: 1, econ: 0.5, ice: 0.5 } } },
   // Measured Response

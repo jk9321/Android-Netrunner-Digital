@@ -8,7 +8,8 @@ import { describe, expect, it } from 'vitest';
 import { getCardDefinition } from '../src/core';
 import '../src/ai/corpAI';
 import { asSide } from '../src/ai/synergy';
-import { EFFECT_CODES, corpEffect } from '../src/ai/effectValues';
+import { corpEffect } from '../src/ai/effectValues';
+import { EFFECT_CODES } from '../src/ai/cards';
 import { corpKeepValue, isEconAsset } from '../src/ai/cardValues';
 import { CARDS, CARD_VALUES } from '../src/ai/cards';
 import { newGame } from './helpers';
@@ -32,7 +33,16 @@ const P3_GAPS: Record<string, number> = {
  * the cost the floor swallowed. A clamp, not a missing subtraction: the non-linear case of ruling 10, which the log's
  * linearity column reports per card. At score 4 the floor is not reached.
  */
-const FLOORED: Record<number, Record<string, number>> = { 0: { 'Vovô Ozetti': 0.23 }, 4: {} };
+/*
+ * V-B B3 (ruling 5): the asset formulas read the measured risk (bareAssetRisk, 0.268 at the prior, for 0.06), so four
+ * more assets that take their cost off once inside Math.max(0.3, ...) sit on the same floor unrezzed on this board:
+ * Wage Workers, Cybersand Harvester and Hearts and Minds at both scores, Magistrate Revontulet at score 4. The same
+ * clamp, not a missing subtraction; on the tuning list with the other floor cases.
+ */
+const FLOORED: Record<number, Record<string, number>> = {
+  0: { 'Vovô Ozetti': 0.23, 'Wage Workers': 0.61, 'Cybersand Harvester': 0.51, 'Hearts and Minds': 0.09 },
+  4: { 'Wage Workers': 0.79, 'Cybersand Harvester': 0.69, 'Hearts and Minds': 0.21, 'Magistrate Revontulet': 0.05 },
+};
 
 describe('valuation V-A known answers', () => {
   const corpCodes = EFFECT_CODES.filter(c => getCardDefinition(c).side_code === 'corp');

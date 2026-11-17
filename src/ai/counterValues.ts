@@ -3,6 +3,7 @@ import { findCardAnywhere } from '../core';
 import { counters } from '../core/engine/cardEffects';
 import { RATES, logValue } from './valueModel';
 import { PAYOUT_RISK } from './payoutRisk';
+import { assetRisk, inIcedServer } from './cardProfiles';
 import type { CounterType } from './cards';
 import { COUNTER_FORMULAS, COUNTER_WORTH } from './cards';
 
@@ -29,8 +30,8 @@ export { COUNTER_WORTH } from './cards';
  * switch is off. tests/counterValues.test.ts works each one through.
  */
 
-/** Free credits paid out on the Corp's turn: each turn's payout survives the Runner trashing the asset first. */
-export const paidOut = (): number => 1 - 2 * PAYOUT_RISK.corpBare;
+/** Free credits paid out on the Corp's turn, at the asset's measured risk where it sits (V-B B3), floored at 0 (a domain bound). */
+export const paidOut = (state: GameState, card: CardInstance): number => Math.max(0, 1 - 2 * assetRisk(state, inIcedServer(state, card)));
 
 /** Average of a list, or a fallback for an empty one. */
 export { mean } from './valueModel';
@@ -54,13 +55,13 @@ export function trojanHostWorth(state: GameState, card: CardInstance, worth: (ho
   return rezzed.length ? Math.max(...rezzed.map(worth)) : 0.5;
 }
 
-/** Step-1 rates, for cards without an entry. */
-function defaultWorth(card: CardInstance, type: CounterType): number {
+/** Step-1 rates, for cards without an entry: the owner's default (counterWorth, and counterWorthOf for a card not installed; V-B B6). */
+export function defaultWorth(card: CardInstance, type: CounterType): number {
   switch (type) {
     case 'credit':
-      return card.cardCode === '30033' ? RATES.counters.smartwareCredit : RATES.counters.hostedCredit;
+      return RATES.counters.hostedCredit; // Smartware Distributor's own entry is read first (counterWorth)
     case 'virus':
-      return card.cardCode === '30007' ? RATES.counters.fermenterVirus : RATES.counters.virus;
+      return RATES.counters.virus; // Fermenter's own entry is read first (counterWorth)
     case 'agenda':
       return RATES.counters.scoredAgenda;
     case 'power':

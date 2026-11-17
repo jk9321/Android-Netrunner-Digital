@@ -1,15 +1,17 @@
 import { cardDef, CardInstance, GameState } from '../../core';
 import { counters, rezCost } from '../../core/engine/cardEffects';
 import { boostCostOf, breakerScript, isIcebreaker } from '../../core/engine/ice';
-import { turnsLeft } from '../cardProfiles';
+import { assetRisk, inIcedServer, turnsLeft } from '../cardProfiles';
 import { PAYOUT_RISK } from '../payoutRisk';
 import { counterWorth, PAID_OUT, paidOneATurn, paidOut, trojanHostWorth } from '../counterValues';
 import { cardRate, CLICK, payoutClick, payoutSlide, RATES } from '../valueModel';
-import { tagsWorth } from '../evaluate';
+import { archivedAgendaLoss, hiddenCardOdds, tagsWorth } from '../evaluate';
 import { bestBreakPlan, planCost } from '../runs';
 import { accessWorth, anySuccess, centralSuccess, conduitCounterWorth, counterWorthOf, damageWorth, lock, muWorth, PACE, perTurn, runSuccess, VIRUS_WAIT, virusWait } from '../effectValues';
 import type { RunOptions } from '../runs';
 import { CardAI } from './types';
+import { pricing } from '../pricing';
+import { corpKnowsRd } from '../oracle';
 
 /**
  * What the AI knows about each System Gateway card's worth, one entry per card
@@ -41,6 +43,9 @@ function leechVirus(state: GameState): number {
   return PAYOUT_RISK.clickWait * (perStrength.length ? Math.min(2, Math.min(...perStrength)) : 0.5);
 }
 
+// The cards the deciding Corp cannot know: those in R&D at the decision's root (V-B B6 review M1b); the rest it knows.
+const rootRd = new WeakMap<GameState, Set<string>>();
+const rdIdsAt = (root: GameState) => rootRd.get(root) ?? rootRd.set(root, new Set(root.corp.rd.map(c => c.instanceId))).get(root)!;
 export const SYSTEM_GATEWAY: Record<string, CardAI> = {
   // Loup
   '30001': { synergy: { gives: { draw: 1, econ: 0.5 }, wants: { trash: 2 } } },
@@ -284,7 +289,7 @@ export const SYSTEM_GATEWAY: Record<string, CardAI> = {
     value: { keep: 5, econ: 3.5, draws: 1 },
     profile: { load: 9, pay: 3, every: 'turn', perTurn: 1, drawAtEnd: 1 }, // Nico Campaign
     counters: { credit: () => PAID_OUT }, // 3 a turn, no click
-    counterFormulas: { credit: () => paidOut() },
+    counterFormulas: { credit: (state, card) => paidOut(state, card) },
   },
   // Ansel 1.0
   '30038': { synergy: { gives: { bioroid: 1, ice: 1 } } },
@@ -318,6 +323,8 @@ export const SYSTEM_GATEWAY: Record<string, CardAI> = {
     value: { keep: 2 }, // A trap, worth keeping for trap decks
     // 2 net damage plus 1 per advancement, accessed about half the time
     corp: state => ({ keep: 0.5 * damageWorth(state, 3) }),
+    // A placed counter: 1 more net damage, accessed about half the time
+    placedCounter: (state, card, bluff) => bluff + 0.5 * (damageWorth(state, 3 + card.advancementCounters) - damageWorth(state, 2 + card.advancementCounters)),
   },
   // Diviner
   '30046': { synergy: { gives: { ice: 1, damage: 0.5 } } },
@@ -350,6 +357,24 @@ export const SYSTEM_GATEWAY: Record<string, CardAI> = {
       const keep = 2 * card + 0.5 - cost;
       return { keep, econ: keep };
     },
+    // plan.spentSpinDoctor (bug report #5, Jeff 2026-11-02): rezzed, its 2 cards are drawn (in HQ, priced there); all it
+    // can still do is shuffle up to 2 Archives cards back into R&D: a faceup card a slightly better R&D, a facedown one
+    // maybe an agenda the Runner would steal from Archives. With Archives empty it is worth next to nothing. The Corp
+    // knows its own Archives cards (an agenda by its points), except one drawn and discarded in a look-ahead: by the odds;
+    // and, as every asset since V-B B3, the option at one turn's measured risk where it sits (assetRisk)
+    spent: (state, viewer, spin) => {
+      const { agenda, agendaPoints } = hiddenCardOdds(state);
+      const { faceUp, faceDown } = state.corp.archives;
+      const root = pricing().anchor?.root, unseen = root && !corpKnowsRd() ? rdIdsAt(root) : undefined;
+      const odds = () => agenda * archivedAgendaLoss(state, agendaPoints) + (1 - agenda) * 0.3 * cardRate(state, 'corp');
+      const known = (c: CardInstance) => (cardDef(c).type_code === 'agenda' ? archivedAgendaLoss(state, cardDef(c).agenda_points ?? 1) : 0.3 * cardRate(state, 'corp'));
+      const worth = [
+        ...faceUp.map(c => (viewer === 'runner' ? 0.3 * cardRate(state, 'corp') : known(c))),
+        ...faceDown.map(c => (viewer === 'runner' || unseen?.has(c.instanceId) ? odds() : known(c))),
+      ].sort((a, b) => b - a);
+      if (viewer === 'runner') return 0.3 + (worth[0] ?? 0) + (worth[1] ?? 0);
+      return 0.3 + (1 - assetRisk(state, inIcedServer(state, spin))) * ((worth[0] ?? 0) + (worth[1] ?? 0));
+    },
   },
   // Funhouse
   '30054': { synergy: { gives: { ice: 1, tags: 1, denial: 0.5 } } },
@@ -377,6 +402,8 @@ export const SYSTEM_GATEWAY: Record<string, CardAI> = {
   '30061': {
     synergy: { gives: { damage: 1 }, wants: { advance: 1 } },
     advancePayload: true,
+    // A placed counter: its step in damage
+    placedCounter: (state, _card, bluff) => bluff + 0.6 * damageWorth(state, 1),
     value: { keep: 2 }, // Meat damage once advanced
     // About 2 advances (a click and a credit each) for 2 meat damage, if it survives a turn
     corp: state => {

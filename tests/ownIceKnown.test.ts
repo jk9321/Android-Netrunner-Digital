@@ -15,7 +15,7 @@ import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
 import { GameAction, GameState, actingSide, cardDef, createInitialGameState, executeAction, findCardAnywhere, getLegalActions } from '../src/core';
 import { deckGameSetup } from '../src/data/decks';
-import { runSuccess, stealOdds } from '../src/ai/effectValues';
+import { STEAL, runSuccess, stealOdds } from '../src/ai/effectValues';
 import { tuning } from '../src/ai/synergy';
 import { inDecision } from './helpers/pricing';
 import '../src/ai'; // the AI entry: corpAI.ts fills the Corp ports (src/ai/corpPorts.ts) as it loads
@@ -59,11 +59,14 @@ const odds = (on: boolean, s: GameState, server: string) =>
   });
 
 describe('the Corp prices its own unrezzed ice as it knows it (plan.ownIceKnown, rules 3.4.3a, 6.9.2b-c)', () => {
-  it('report #41 turn 16: Send a Message behind a Pharos it can’t rez and a Flyswatter the rig breaks is a sure steal', () => {
+  it('report #41 turn 16: Send a Message behind a Pharos it can’t rez and a Flyswatter the rig breaks is a sure way in', () => {
     const s = installed(41, 16, 'Send a Message', 'remote-2');
     expect(s.corp.credits).toBeLessThan(7); // Pharos rezzes for 7
-    expect(odds(true, s, 'remote-2').steal).toBeGreaterThan(0.95);
-    expect(odds(false, s, 'remote-2').steal).toBeLessThan(0.4);
+    // ai-threat-delete (2026-11-16): the steal odds are STEAL.run times the pass odds, the run chance no longer the threat
+    // model's (it ran this remote for sure: steal > 0.95 before). The pass odds carry the fix: the rig gets in for sure
+    expect(odds(true, s, 'remote-2').success).toBeGreaterThan(0.95);
+    expect(odds(true, s, 'remote-2').steal).toBeCloseTo(STEAL.run * odds(true, s, 'remote-2').success);
+    expect(odds(false, s, 'remote-2').steal).toBeLessThan(0.4 * STEAL.run);
   });
 
   it('report #41 turn 16: HQ’s three ice, the ones the budget covers priced as the real ice, keep the Runner out more', () => {

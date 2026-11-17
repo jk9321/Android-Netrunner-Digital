@@ -26,7 +26,7 @@ import { join } from 'node:path';
 import { GameAction, GameState, actingSide, cardDef, createInitialGameState, executeAction, findCardAnywhere } from '../src/core';
 import { deckGameSetup } from '../src/data/decks';
 import { HeuristicCorpAI, createAgent } from '../src/ai';
-import { centralExposure, evaluate, setAgendaClick, sideStrength } from '../src/ai/evaluate';
+import { evaluate, setAgendaClick, sideStrength } from '../src/ai/evaluate';
 import { stealOdds } from '../src/ai/effectValues';
 import { KNOBS } from '../src/ai/valueModel';
 import { applyPlanOff } from '../src/ai/synergy';
@@ -156,7 +156,7 @@ for (const file of readdirSync(dir).filter(f => f.endsWith('.json')).sort()) {
           for (const r of [{ action: move, score: 0 }, ...ranked.slice(0, 2)]) {
             const t = executeAction(s, r.action);
             const remotes = Object.values(t.corp.servers).filter(sv => sv.isRemote).map(sv => `${sv.id} steal ${stealOdds(t, sv.id).toFixed(2)}`).join(', ');
-            console.log(`  after ${describe(s, r.action)}: eval ${evaluate(t, 'corp').toFixed(2)} exposure ${centralExposure(t, 'corp').toFixed(2)} corp ${sideStrength(t, 'corp', 'corp').toFixed(2)} runner ${sideStrength(t, 'runner', 'corp').toFixed(2)} | ${remotes}`);
+            console.log(`  after ${describe(s, r.action)}: eval ${evaluate(t, 'corp').toFixed(2)} corp ${sideStrength(t, 'corp', 'corp').toFixed(2)} runner ${sideStrength(t, 'runner', 'corp').toFixed(2)} | ${remotes}`);
           }
         }
         console.log(`  rig: ${rig.join(', ')}\n  ice: ${hosted.join(', ')}\n  credits corp ${s.corp.credits} runner ${s.runner.credits}, grip ${s.runner.grip.length}, score ${s.corp.score}-${s.runner.score}`);

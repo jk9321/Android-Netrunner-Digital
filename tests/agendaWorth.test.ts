@@ -1,7 +1,6 @@
-import { describe, expect, it, onTestFinished as onExit } from 'vitest';
+import { describe, expect, it } from 'vitest';
 import { AGENDA_CLICK, agendaWorth, archivedAgendaLoss, evaluate, keepValue } from '../src/ai/evaluate';
 import { cardDef } from '../src/core';
-import { tuning } from '../src/ai/synergy';
 import { plan } from '../src/ai/pricing';
 import { playedWorth } from '../src/ai/handValues';
 import { iceWorth } from '../src/ai/iceValues';
@@ -11,7 +10,6 @@ import { installIceForTest, newGame } from './helpers';
 import { STEAL, runSuccess, stealOdds } from '../src/ai/effectValues';
 
 const PALISADE = '30072';
-const threatDefault = tuning.plan.threatModel;
 
 /** A remote with two rezzed Palisades the rig can't break, and a bare one. */
 function remotes() {
@@ -93,11 +91,29 @@ describe('steal odds as measured (Jeff, 2026-10-28; plan.stealOdds)', () => {
     expect(stealOdds(s, 'remote-2')).toBe(1);
   });
 
+  // ai-threat-delete commit 3 (brief rev 2, red team finding 3): the rule has two readers, stealOdds for a remote that
+  // exists and agendaWorth for the new bare remote an agenda in hand is priced into (handValues): one price for one board
+  it('an agenda installed in an existing bare remote has steal odds 1 (plan.openSteal)', () => {
+    const s = remotes();
+    s.activePlayer = 'corp';
+    const agenda = s.corp.rd.find(c => cardDef(c).type_code === 'agenda')!;
+    s.corp.rd = s.corp.rd.filter(c => c !== agenda);
+    s.corp.servers['remote-2'].root.push(agenda);
+    expect(stealOdds(s, 'remote-2')).toBe(1);
+  });
+
+  it('an agenda in hand whose remote would be a new bare one is priced as in an existing bare remote (plan.openSteal)', () => {
+    const s = remotes();
+    s.activePlayer = 'corp';
+    // handValues' hand price: a new bare remote (no server, success 1) against the existing bare remote-2
+    const fresh = agendaWorth(s, 0, 4, 2, undefined, 1, true);
+    const existing = agendaWorth(s, 0, 4, 2, 'remote-2', undefined, true);
+    expect(fresh).toBe(existing);
+    expect(fresh).toBeLessThan(0);
+  });
+
   it('ice is judged against the credits the Runner can raise on its turn, not what it holds now', () => {
-    // STEAL.run's arithmetic (plan.threatModel off): the threat model asks the Runner's scorer instead, and a Runner with
-    // no breaker never runs a rezzed Palisade (tests/threatModel.test.ts)
-    tuning.plan.threatModel = false;
-    onExit(() => { tuning.plan.threatModel = threatDefault; });
+    // STEAL.run's arithmetic (the Corp's threat model, which asked the Runner's scorer instead, was deleted 2026-11-16)
     const s = newGame();
     installIceForTest(s, PALISADE, 'remote-1');
     s.corp.servers['remote-1'].ice[0].isRezzed = true;
@@ -136,10 +152,7 @@ describe('ice that cannot end the run (Jeff, 2026-10-30; plan.tankIce)', () => {
   };
 
   it('Doomscroll stops little against a broke Runner with a full grip', () => {
-    // passOdds' tank arithmetic under STEAL.run (plan.threatModel off); with it on, whether a broke Runner runs at all is
-    // the Runner's scorer's call (tests/threatModel.test.ts)
-    tuning.plan.threatModel = false;
-    onExit(() => { tuning.plan.threatModel = threatDefault; });
+    // passOdds' tank arithmetic under STEAL.run
     const s = newGame();
     remote(s);
     s.runner.credits = 0;

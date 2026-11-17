@@ -6,8 +6,8 @@ import { breakerTypeWorth, iceWorth } from './iceValues';
 import { agendaWorth, isOneUse, runnerRigValue } from './evaluate';
 import { counterWorth } from './counterValues';
 import { handPlanWorth } from './cardPlans';
-import { CLICK, RATES, cardRate, fingerprint, handFilter, logValue, payoutSlide, pricingApart, positionSerial, printedGain, reachCard, scopeToGame, setDeckCard } from './valueModel';
-import { actingSide, leafHandByCard, noteDecision, plan, pricing, pricingKey, withPricing } from './pricing';
+import { CLICK, RATES, cardRate, fingerprint, handFilter, logValue, payoutSlide, pricingApart, printedGain, reachCard, scopeToGame, setDeckCard } from './valueModel';
+import { actingSide, deckPricingKey, leafHandByCard, noteDecision, plan, pricing, pricingKey, withPricing } from './pricing';
 import { corpDrawPool, corpKnowsRd } from './oracle';
 
 /**
@@ -63,18 +63,12 @@ export function playedWorth(state: GameState, card: CardInstance): number {
   if (profile) return payoutWorth(profile, turns, profile.load, payoutWait(state, profile, 'runner'), cardRate(state, 'runner')) * payoutSlide(state, 'runner', profile.load) - cost - CLICK;
   // (Not while the deck's average card is worked out, nor inside any breaker's pricing: its rig walks the hosted breakers,
   // which nesting would price at 1 + 2k R(k-1) rig values for k hosted (minutes with four on Madani); depth 1 is 1 + 2k)
-  if (isIcebreaker(card) && pricing().pricingBreakers.size === 0 && !pricing().averaging) {
+  if (isIcebreaker(card) && !pricing().pricingBreaker && !pricing().averaging) {
     // What it adds to the rig's coverage once installed (Mayfly's one use included), as the board will see it.
     // A breaker hosted on Bling or Madani is priced inside the rig too: while it is, the rule-based worth below
     const rig = state.runner.rig;
     const after = { ...state, runner: { ...state.runner, rig: { ...rig, programs: [...rig.programs, card] } } } as GameState;
-    const pricingBreakers = pricing().pricingBreakers;
-    pricingBreakers.add(card.instanceId);
-    try {
-      return runnerRigValue(after) - runnerRigValue(state) - cost - CLICK;
-    } finally {
-      pricingBreakers.delete(card.instanceId);
-    }
+    return withPricing({ pricingBreaker: true }, () => runnerRigValue(after) - runnerRigValue(state)) - cost - CLICK;
   }
   if (isIcebreaker(card)) {
     const breaks = breakerScript(card)?.breaks;
@@ -152,23 +146,13 @@ export function clearHandCaches(): void {
  * playouts of a Corp decision's planner (frozen). Not the Runner's stack (its cards' worth turns on the rig, which the
  * views of a Corp decision change), nor a decision's own boards (a prompt's
  * answers are simulated and compared outside a playout: tests/clearinghouseRez.test.ts). Nor while a deck card is
- * being priced on the root (priceAtRoot): what that asks for is priced per board, and keyed so (deckRootKey ''), so a
+ * being priced on the root (priceAtRoot): what that asks for is priced per board, so a
  * value cached there doesn't depend on which cards the decision had priced so far.
  */
 function atDeckRoot(state: GameState, side: SideCode): boolean {
   const anchor = pricing().anchor;
   return side === 'corp' && !pricing().pricingRootDeck && pricing().frozen && !!anchor?.root && anchor.side === 'corp' && anchor.root.id === state.id && pricing().side !== null;
 }
-/**
- * For caches that outlive a decision (threatModel's): which decision root's deck prices a value on this board used,
- * '' when none. Every root is its own: two roots with the same fingerprint can still price a deck card differently
- * (tests/threatCacheAudit.test.ts, deal 1421, served one such budget across decisions with the fingerprint here).
- */
-export function deckRootKey(state: GameState): string {
-  if (!atDeckRoot(state, 'corp')) return '';
-  return `r${positionSerial(pricing().anchor!.root!)}`;
-}
-
 /** Average held worth of the cards left in a side's deck (what a draw is expected to bring). */
 function drawWorth(state: GameState, side: SideCode): number {
   // plan.oracle.rd: the Corp's next draw is R&D's top card itself
@@ -188,7 +172,7 @@ function drawWorth(state: GameState, side: SideCode): number {
   // The deck by instance and card code (ai-honest-runner-view, AI Coordinator 2026-11-16 03:30Z): the Runner's view and
   // the Hard AI's determinize re-deal hidden Corp cards by recoding fixed instances, so by ids alone a guessed deck
   // shared the real deck's key (drawAudit: 104 wrong hits on deal 2181). Off a view an instance's code never changes
-  const key = `${pricingKey()}:${side}:${state.id}:${state.turnNumber}:${credits}${board}${deck.map(c => c.instanceId + c.cardCode).join(',')}`;
+  const key = `${deckPricingKey()}:${side}:${state.id}:${state.turnNumber}:${credits}${board}${deck.map(c => c.instanceId + c.cardCode).join(',')}`;
   // Audit Step 2 (AI-CACHE-HIDDEN-STATE): the key leaves out what R&D, Archives, the grip and the heap hold, the counters
   // and hosts of installed cards and the run under way, so some hits are another board's value (drawAudit). The exact key
   // (zone contents in the key) cost x1.17 Corp decision time (V-B B1, ruling 1; 24 wrong of 401k hits, 2 Corp picks in
@@ -232,7 +216,7 @@ function rootDeckAverage(state: GameState, side: SideCode, deck: CardInstance[])
   const anchor = pricing().anchor!;
   if (!deck.length) return RATES.drawnCard;
   const all = (anchor.deckValues ??= new Map());
-  const key = `${pricingKey()}:${side}`;
+  const key = `${deckPricingKey()}:${side}`;
   let values = all.get(key);
   if (!values) all.set(key, (values = new Map()));
   const root = anchor.root!;

@@ -64,7 +64,8 @@ describe('Stage D pins (known-failing until their fix lands)', () => {
   // order it fails again (the original D4 mistake), pinned known-failing below ('Stage C, D4 #53 #76')
 
   // D6: Jaguarundi and Oracle Thinktank discarded while Public Access Plaza was in HQ
-  it.fails('D6 #53 #112: no agenda is discarded while a non-agenda is in HQ', { timeout: T }, () => {
+  // Passes since V-B B3 (the asset formulas at the measured risk, ruling 5, which named this pin as one that may turn over)
+  it('D6 #53 #112: no agenda is discarded while a non-agenda is in HQ', { timeout: T }, () => {
     const { s } = at(53, 112);
     const a = decide(s) as GameAction & { choice?: { kind: string; cardInstanceIds?: string[] } };
     expect(a.choice?.kind).toBe('discard');
@@ -98,7 +99,9 @@ describe('Stage D pins (known-failing until their fix lands)', () => {
   // ice (scripts/stage-c/fixture-candidates.ts). Cause: the leaf gives no worth to an empty scoring remote that now holds
   // (valuation, not the order; line 2 is not exempted from the look-ahead to cover it). The no-look-ahead Corp plays the
   // line-2 ice (tests/corpCandidates.test.ts)
-  it.fails('Stage C, deal 1001 T10: the Corp with the look-ahead installs ice on remote-1 (today: the Regolith click)', { timeout: 480_000 }, () => {
+  // Passes since V-B B6 item 33 (a rezzed profiled card's hosted credits read the owner, countersWorth: the Regolith
+  // click's worth no longer outranks the ice; checked by reverting that line alone, which fails it again)
+  it('Stage C, deal 1001 T10: the Corp with the look-ahead installs ice on remote-1 (was: the Regolith click)', { timeout: 480_000 }, () => {
     const s: GameState = JSON.parse(readFileSync(new URL('./fixtures/ice-redirect-1001-t10.json', import.meta.url), 'utf8'));
     const a = new HeuristicCorpAI({ synergy: true }).chooseAction(s) as Install;
     expect(a.type).toBe('INSTALL_CARD');
@@ -153,7 +156,8 @@ describe('Stage D pins (known-failing until their fix lands)', () => {
 
   // D4 #53 #76 under the order (c0-rulings 15:50Z (6)): the guard held for the ranking; the order installs the asset in
   // remote-5 again, the original D4 mistake (the reservation, owed by Stage D)
-  it.fails('Stage C, D4 #53 #76: no asset is installed in remote-5 under the new core', { timeout: T }, () => {
+  // Passes since V-B B3 (the asset formulas at the measured risk, ruling 5, which named this pin as one that may turn over)
+  it('Stage C, D4 #53 #76: no asset is installed in remote-5 under the new core', { timeout: T }, () => {
     const { s } = at(53, 76);
     const a = decide(s) as Install;
     const card = a.cardInstanceId ? s.corp.hq.find(c => c.instanceId === a.cardInstanceId) : undefined;

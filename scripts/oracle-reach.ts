@@ -3,7 +3,8 @@
  * addendum can read its batch result against its reach.
  *   safestRemote: share of Corp main-phase decisions where the oracle answered for an agenda being installed, and
  *     where its 0/1 moved the honest steal odds by half or more.
- *   grip: share of Corp decisions where the honest guessed grip (threatModel runnerView, oracle off) and the real grip
+ *   grip: share of Corp decisions where the honest guessed grip (the Hard search's deal, search.ts determinize, oracle
+ *     off; the threat model's runnerView went with ai-threat-delete 2026-11-16) and the real grip
  *     differ by more than one icebreaker (by card code, either way), and the share where the guess holds the wrong
  *     number of each kind (fracters, decoders, killers, run events, economy).
  * Plays the first deal (as a games=1 batch) of every stride-th pairing, max deals in all, with PLAN_OFF as given.
@@ -17,7 +18,7 @@ import { Agent, GameRunner, HeuristicCorpAI, HeuristicRunnerAI } from '../src/ai
 import { applyPlanOff, asSide, tuning } from '../src/ai/synergy';
 import { batchTokens } from './oracle-ice';
 import { installDiagnostics } from '../src/ai/diagnostics';
-import { runnerView } from '../src/ai/threatModel';
+import { determinize } from '../src/ai/search';
 import { stealOdds } from '../src/ai/effectValues';
 import { pricing } from '../src/ai/pricing';
 import { decisionContext } from '../src/ai/handValues';
@@ -91,7 +92,9 @@ class Counting implements Agent {
       try {
         const guess = asSide('corp', () => {
           decisionContext(state, 'corp');
-          return runnerView(state).runner.grip;
+          let seed = state.turnNumber + 1;
+          const random = () => ((seed = (Math.imul(seed, 1664525) + 1013904223) >>> 0) / 2 ** 32);
+          return determinize(state, 'corp', random).runner.grip;
         });
         if (breakerGap(breakers(guess), breakers(state.runner.grip)) > 1) gripGaps++;
         // What the honest guess got wrong, by kind: a kind counts when the guess holds a different number of them

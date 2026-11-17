@@ -148,16 +148,21 @@ export function handPlanWorth(state: GameState, card: CardInstance): number | un
   });
 }
 
+/** The cards of `side` whose board plan is in play: the one card list and test of boardPlansWorth and hasBoardPlan. */
+function boardPlanCards(state: GameState, side: SideCode): CardInstance[] {
+  const cards = side === 'runner' ? [...state.runner.rig.programs, ...state.runner.rig.hardware, ...state.runner.rig.resources, state.runner.identity] : [...installedCorp(state), state.corp.identity];
+  return cards.filter(card => card && CARD_PLANS[card.cardCode]?.board && CARD_PLANS[card.cardCode].side === side);
+}
+
 /** What the installed board plans of `side` add to its board. */
 export function boardPlansWorth(state: GameState, side: SideCode): number {
-  const cards = side === 'runner' ? [...state.runner.rig.programs, ...state.runner.rig.hardware, ...state.runner.rig.resources, state.runner.identity] : [...installedCorp(state), state.corp.identity];
   let worth = 0;
-  for (const card of cards) {
-    const cardPlan = card && CARD_PLANS[card.cardCode];
-    if (cardPlan?.board && cardPlan.side === side) worth += cardPlan.board(state, card);
-  }
+  for (const card of boardPlanCards(state, side)) worth += CARD_PLANS[card.cardCode].board?.(state, card) ?? 0;
   return worth;
 }
+
+/** Whether any card of `side` has a board plan in play (if none has, boardPlansWorth is 0 on that board and every part of it). */
+export const hasBoardPlan = (state: GameState, side: SideCode): boolean => boardPlanCards(state, side).length > 0;
 
 /** Baker installed and no stealth credit to run it on: worth feeding Methuselah for. */
 export const bakerWantsFuel = (state: GameState): boolean => state.runner.rig.programs.some(c => c.cardCode === BAKER) && runStealthCredits(state) < 1;

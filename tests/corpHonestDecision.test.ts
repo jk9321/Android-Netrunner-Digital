@@ -9,7 +9,6 @@ import { clearHandCaches, decisionContext } from '../src/ai/handValues';
 import { decideRez } from '../src/ai/corp/rez';
 import { corpSeenGrip } from '../src/ai/oracle';
 import { knownRdSlots } from '../src/ai/runnerReply';
-import { clearThreatCaches } from '../src/ai/threatModel';
 import { clearDamageThreats } from '../src/ai/effectValues';
 import { clearDeckShares } from '../src/ai/iceValues';
 import { clearBuildTargets } from '../src/ai/valueModel';
@@ -32,7 +31,6 @@ const read = (name: string): GameState => {
 };
 const honest = <T>(f: () => T): T => withPricing({ plan: { ...plan(), hiddenDraws: true, plannerSeed: true } }, () => asSide('corp', f));
 const reset = () => {
-  clearThreatCaches();
   clearHandCaches();
   clearDamageThreats();
   clearDeckShares();

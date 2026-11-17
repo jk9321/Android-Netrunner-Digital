@@ -11,8 +11,11 @@ const RESERVE = 3;
 const POLL_MS = 120_000;
 const MAX_WAIT_MS = 5.5 * 3600_000;
 const JUST_PASSED_MS = 180_000;
-const HEAVY = ['AI batch', 'AI script'];
-const BUILD = ['CI', 'Deploy'];
+// Matched by workflow file, never by run.name: the API's run.name is the run-name title ("AI batch g1 · ...").
+// Matching on name made every started batch invisible to this gate, and only a run still queued with no jobs
+// (its name not yet expanded, so plain "AI batch") was seen, and counted as 16 held jobs (2026-11-16 lockups).
+const HEAVY = ['.github/workflows/ai-batch.yml', '.github/workflows/ai-script.yml'];
+const BUILD = ['.github/workflows/ci.yml', '.github/workflows/deploy.yml'];
 
 const isShort = run => run.name === 'AI script' || /^AI batch g1\b/.test(run.display_title ?? '');
 const sleep = ms => new Promise(done => setTimeout(done, ms));
@@ -30,17 +33,20 @@ module.exports = async ({ github, context, core }) => {
         const page = await github.paginate(github.rest.actions.listWorkflowRunsForRepo, { owner, repo, status, per_page: 100 });
         for (const run of page) if (run.id !== me) runs.set(run.id, run);
       }
-      const building = [...runs.values()].some(run => BUILD.includes(run.name));
+      const building = [...runs.values()].some(run => BUILD.includes(run.path));
       let held = 0;
       let ahead = '';
       for (const run of runs.values()) {
-        if (!HEAVY.includes(run.name)) continue;
+        if (!HEAVY.includes(run.path)) continue;
         const jobs = await github.paginate(github.rest.actions.listJobsForWorkflowRun, { owner, repo, run_id: run.id, filter: 'latest', per_page: 100 });
+        // A run GitHub has not given any jobs yet holds no runner and has no place in the line: skip it, or every
+        // waiting slot would wait on it while it waits for a runner those slots hold
+        if (jobs.length === 0) continue;
         const slot = jobs.find(job => job.name === 'slot');
         const active = jobs.filter(job => job.name !== 'slot' && job.status !== 'completed').length;
         if (!slot) {
           // a run from a branch whose workflow has no gate: it takes its jobs as GitHub hands them out
-          held += active || (run.status === 'queued' ? NEED : 0);
+          held += active;
         } else if (slot.status !== 'completed') {
           const first = isShort(run) !== mineShort ? isShort(run) : run.id < me;
           if (first) ahead = `${run.id} (${run.display_title})`;

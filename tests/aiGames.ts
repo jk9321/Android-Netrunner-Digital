@@ -35,14 +35,14 @@ export function aiGames(part: number): void {
         const start = createInitialGameState(deckGameSetup(100 + i, corpDeck, runnerDeck));
         const { state } = playAIGame(start);
         expect(state.winner, `turn ${state.turnNumber}, score ${state.corp.score}-${state.runner.score}`).toBeTruthy();
-      }, 900000); // the whole-turn planner plays out every turn (2026-11-05: Agency vs Prick Thyself took 87 s on beta alone, about 3.5 s a turn;
+      }, 420000); // the whole-turn planner plays out every turn (2026-11-05: Agency vs Prick Thyself took 87 s on beta alone, about 3.5 s a turn;
       // 2026-11-11 step 3: Discretion Advised vs Party Hard now runs a longer game with four remotes, 307 s alone, 153 s of it
       // the Corp's turn 17; the counted rez code itself took 0.05 s of it)
       // 2026-11-16, V-B B2 merge: was 420 s. Quick and Dirty vs Bowel Movements (seed 104) takes another course after the
       // cost-once correction and runs 407 to 447 s alone in a container (187 s before): the Corp's turn 18 is 119 s, single
       // decisions up to 48 s, 68% of the game under the tag clock's pricing of the rig (review-stage-vb-b2.md N1). The step's
-      // own code is not slower (x0.98 on the same boards). This is a finish test, not a time pin; the limit goes back down
-      // when the decision-time brief for the tag clock and the hold count lands
+      // own code is not slower (x0.98 on the same boards). The limit was 900 s from then until ai-threat-delete merged the
+      // same day: without the Corp's threat prediction that game takes 245 s alone (430 s before), so 420 s is back
     });
   });
 }

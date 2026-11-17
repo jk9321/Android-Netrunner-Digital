@@ -26,7 +26,6 @@ import { Agent } from '../../src/ai/agent';
 import { GameRunner } from '../../src/ai/playout';
 import { valueLoops } from '../../src/ai/valueModel';
 import { knownRdSlots } from '../../src/ai/runnerReply';
-import { clearThreatCaches } from '../../src/ai/threatModel';
 import { clearCaches, dealState, deals, forEachRecorded } from '../stage-a/harness';
 
 const key = (a: GameAction | null | undefined) => (a ? JSON.stringify(Object.fromEntries(Object.entries(a).sort())) : 'null');
@@ -44,7 +43,6 @@ function withMemory(s: GameState, arm: Arm): GameState {
 }
 const decide = (s: GameState, arm: Arm, kind: 'action' | 'rez', cards?: CardInstance[]) => {
   clearCaches();
-  clearThreatCaches();
   const copy = withMemory(s, arm);
   const agent = new HeuristicCorpAI({ synergy: true, planner: true });
   const t = performance.now();

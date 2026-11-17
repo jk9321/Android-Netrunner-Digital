@@ -1,4 +1,4 @@
-import type { CardInstance, GameState } from '../../core';
+import type { CardInstance, GameState, SideCode } from '../../core';
 import type { Subroutine } from '../../core/scripts/types';
 import type { CardProfile } from '../cardProfiles';
 import type { CardValue } from '../cardValues';
@@ -19,6 +19,8 @@ export interface CorpEffectContext {
   card: number;
   /** Worth of a tag on the Runner. */
   tag: number;
+  /** Risk a Runner turn of losing it, for perTurn: an asset's measured (assetRisk, bare), else 0.06 until V-C (V-B B3). */
+  risk: number;
 }
 
 /**
@@ -89,4 +91,14 @@ export interface CardAI {
   rezEffect?: true;
   /** Clicks one use gives beyond the click it costs (Nanomanagement: gain 2, 1 to play it), read by winNow.ts's count of what this turn can still score. */
   clicksGiven?: number;
+  /** A trap's worth of one counter placed on it by an effect, `bluff` the generic trap's run drawn (placedCounterWorth; V-B B6). */
+  placedCounter?: (state: GameState, card: CardInstance, bluff: number) => number;
+  /** A rezzed card whose rez effect is done: its worth on the board as `viewer` knows it (Spin Doctor; corpCardValue; V-B B6). */
+  spent?: (state: GameState, viewer: SideCode, card: CardInstance) => number;
+  /** Advanceable ice: one more counter's worth, `left` still needed, in place of the Runner's cost step (iceAdvanceWorth; V-B B6). */
+  advanceCounter?: (state: GameState, card: CardInstance, left: number) => number;
+  /** Programs hosted on this card install without a click (Madani): runnerRigValue prices them with the click kept (V-B B6). */
+  freeInstallHosted?: true;
+  /** An identity that clears tags: `tags` tags' worth with it, `turnLoss` a Corp turn's loss; tagsWorth takes the lower (V-B B6). */
+  tagClear?: (state: GameState, tags: number, turnLoss: number) => number;
 }

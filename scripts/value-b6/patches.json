@@ -1,0 +1,90 @@
+{
+ "counterDefault": [
+  [
+   "ai/effectValues.ts",
+   "COUNTER_WORTH[code]?.[type]?.(state, probe) ?? defaultWorth(probe, type), code, type);",
+   "COUNTER_WORTH[code]?.[type]?.(state, probe) ?? 1, code, type);"
+  ]
+ ],
+ "profiledHosted": [
+  [
+   "ai/evaluate.ts",
+   "  if (state && profile && !(card.isRezzed && hosted > 0)) return card.isRezzed ? payoutWorth(profile, turnsLeft(state), hosted, payoutWait(state, profile, 'corp', inIcedServer(state, card), left), cardRate(state, 'corp')) : corpKeepValue(card.cardCode, state); // hosted credits: the owner's, below (V-B B6 item 33)",
+   "  if (state && profile) return card.isRezzed ? payoutWorth(profile, turnsLeft(state), hosted, payoutWait(state, profile, 'corp', inIcedServer(state, card), left), cardRate(state, 'corp')) : corpKeepValue(card.cardCode, state);"
+  ]
+ ],
+ "_flags": [
+  "34081",
+  "34015",
+  "30027",
+  "35022",
+  "36009",
+  "35028"
+ ],
+ "moves": [
+  [
+   "ai/evaluate.ts",
+   "import { breakerScript, iceSubtypes, isIcebreaker } from '../core/engine/ice';\nimport { counters } from '../core/engine/cardEffects';\nimport { cardSynergy } from './synergyTags';",
+   "import { breakerScript, iceSubtypes, isIcebreaker } from '../core/engine/ice';\nimport { counters, turnFlag } from '../core/engine/cardEffects';\nimport { abilityUsedKey } from '../core/engine/actions/ability';\nimport { cardSynergy } from './synergyTags';"
+  ],
+  [
+   "ai/evaluate.ts",
+   "import { corpDrawPool, oracleSteal } from './oracle';\nimport { CARDS } from './cards';\n",
+   "import { corpDrawPool, oracleSteal } from './oracle';\n\nimport { CARDS } from './cards'; // kept for the spinDoctor arm's base text\nconst MADANI = '35028';\n"
+  ],
+  [
+   "ai/evaluate.ts",
+   "  const freeInstall = !!CARDS[card.cardCode]?.freeInstallHosted;",
+   "  const freeInstall = card.cardCode === MADANI;"
+  ],
+  [
+   "ai/evaluate.ts",
+   "    : Math.min((stuck ? perTurn : 0) + tags * clear, 1.5 * perTurn + 0.1 * (tags - 1));\n  const clearing = CARDS[state.runner.identity.cardCode]?.tagClear;\n  return clearing ? Math.min(worth, clearing(state, tags, perTurn)) : worth;\n}",
+   "    : Math.min((stuck ? perTurn : 0) + tags * clear, 1.5 * perTurn + 0.1 * (tags - 1));\n  return state.runner.identity.cardCode === VIC ? Math.min(worth, vicTagsWorth(state, tags, perTurn)) : worth;\n}\n\n/** Virtual Intelligence, P.I.: \"Once per turn \u2192 [click], 1[credit]: Draw 1 card and remove 1 tag.\" */\nexport const VIC = '36009';\n\n/**\n * Tags on Vic (Jeff, 2026-10-30; plan.vicTags): her ability clears a tag for\n * a click and a credit less the card it draws. The first tag costs that\n * while she can still use it this turn (the Runner's turn, ability unused,\n * a click and a credit left); otherwise it sits through a Corp turn first\n * (this turn's loss, as the Corp's punishers see it). The second waits a\n * turn for her (two Corp turns if the first waits too) or is cleared the\n * usual way; the rest cost as usual.\n */\nfunction vicTagsWorth(state: GameState, tags: number, perTurn: number): number {\n  const clear = CLICK + 2;\n  const vic = Math.max(0.5, CLICK + 1 - RATES.drawnCard);\n  const runner = state.runner;\n  const ability = abilityUsedKey(runner.identity.instanceId, 0);\n  const now = state.activePlayer === 'runner' && turnFlag(state, ability) === 0 && runner.clicks >= 1 && runner.credits >= 1;\n  const later = Math.min(clear, vic + perTurn);\n  const second = now ? later : Math.min(clear, vic + 2 * perTurn);\n  return (now ? vic : later) + (tags >= 2 ? second : 0) + Math.max(0, tags - 2) * clear;\n}"
+  ],
+  [
+   "ai/effectValues.ts",
+   "  if (left <= 0) return 0;\n  const own = CARDS[card.cardCode]?.advanceCounter;\n  if (own) return own(state, card, left);\n  return Math.max(0, iceCostAt(3) - iceCostAt(card.advancementCounters)) / left;",
+   "  if (left <= 0) return 0;\n  if (card.cardCode === '35076') {\n    // Syailendra at 3: each encounter places a counter (a click and a credit) on a card we can advance\n    return perTurn(state, 0.3 * (CLICK + 1), 'corp') / left;\n  }\n  return Math.max(0, iceCostAt(3) - iceCostAt(card.advancementCounters)) / left;"
+  ],
+  [
+   "ai/effectValues.ts",
+   "  if (known && !advancePayloadOf(card.cardCode)) return 0;\n  const own = CARDS[card.cardCode]?.placedCounter;\n  return own ? own(state, card, bluff) : 0.3;\n}",
+   "  if (known && !advancePayloadOf(card.cardCode)) return 0;\n  if (card.cardCode === '30045') return bluff + 0.5 * (damageWorth(state, 3 + card.advancementCounters) - damageWorth(state, 2 + card.advancementCounters)); // Urtica: 1 more net damage\n  if (card.cardCode === '35061') return 0.6 * 5; // Idiosyncresis\n  // Clearinghouse: the counter's step in damage\n  if (card.cardCode === '30061') return bluff + 0.6 * damageWorth(state, 1);\n  return 0.3;\n}"
+  ]
+ ],
+ "spinDoctor": [
+  [
+   "ai/evaluate.ts",
+   "  const spent = state && card.isRezzed ? CARDS[card.cardCode]?.spent : undefined;\n  if (spent) return spent(state!, viewer, card); // a rezzed card whose rez effect is done (Spin Doctor), as `viewer` knows it (V-B B6)",
+   "  const spent = state && viewer === 'runner' && card.isRezzed ? CARDS[card.cardCode]?.spent : undefined;\n  if (spent) return spent(state!, viewer, card);"
+  ]
+ ],
+ "agendaStep": [
+  [
+   "ai/effectValues.ts",
+   "import { actingSide } from './synergy';\nimport { CLICK, cardRate, flatlineWorth, logValue, memo, pointGain, scopeToGame, sideCards } from './valueModel';\nimport { agendaWorth, tagsWorth } from './evaluate';\nimport { BLOCK, iceCost, iceCreditNeed, isTrap, plannedSubroutines, subroutineCost, tankDamage } from './runs';",
+   "import { actingSide } from './synergy';\nimport { CLICK, cardRate, flatlineWorth, logValue, memo, pointGain, pointValue, scopeToGame, sideCards } from './valueModel';\nimport { tagsWorth } from './evaluate';\nimport { BLOCK, iceCost, iceCreditNeed, isTrap, plannedSubroutines, subroutineCost, tankDamage } from './runs';"
+  ],
+  [
+   "ai/effectValues.ts",
+   "/** Worth of an advancement counter placed by an effect (Sericulture, Syailendra) on this card. */\nexport function placedCounterWorth(state: GameState, card: CardInstance): number {\n  const def = cardDef(card);",
+   "/** Worth of an advancement counter placed by an effect (Sericulture, Syailendra) on this card. */\nexport function placedCounterWorth(state: GameState, card: CardInstance, iced: boolean): number {\n  const def = cardDef(card);"
+  ],
+  [
+   "ai/effectValues.ts",
+   "  if (def.type_code === 'agenda') {\n    // The owner's step on the board's own term (corpBoardValue's arguments): the steal by its server is in agendaWorth (V-B B6)\n    const server = Object.values(state.corp.servers).find(s => s.root.some(c => c.instanceId === card.instanceId))?.id;\n    const worth = (n: number) => agendaWorth(state, n, def.advancement_cost ?? 0, def.agenda_points ?? 1, server);\n    return logValue('agenda', 'placedCounterWorth', state, worth(card.advancementCounters + 1) - worth(card.advancementCounters), card);\n  }",
+   "  if (def.type_code === 'agenda') {\n    const points = def.agenda_points ?? 1;\n    const share = (pointValue(state.corp.score + points) - pointValue(state.corp.score)) / Math.max(1, def.advancement_cost ?? 3);\n    return logValue('agenda', 'placedCounterWorth', state, iced ? share : 0.3 * share, card, iced);\n  }"
+  ],
+  [
+   "ai/corp/candidates.ts",
+   "          const server = Object.values(corp.servers).find(v => v.root.some(c => c.instanceId === card.instanceId));\n          if (typeOf(card) === 'asset' && server && card.advancementCounters < trapAdvanceCap(state, card)) play(a, 4, true, placedCounterWorth(state, card));\n          else if (typeOf(card) === 'ice' && advancesAsIce(card)) play(a, 4, true, iceAdvanceValue(state, card));",
+   "          const server = Object.values(corp.servers).find(v => v.root.some(c => c.instanceId === card.instanceId));\n          if (typeOf(card) === 'asset' && server && card.advancementCounters < trapAdvanceCap(state, card)) play(a, 4, true, placedCounterWorth(state, card, server.ice.length > 0));\n          else if (typeOf(card) === 'ice' && advancesAsIce(card)) play(a, 4, true, iceAdvanceValue(state, card));"
+  ],
+  [
+   "ai/prompts.ts",
+   "      const value =\n        def.type_code !== 'ice' ? placedCounterWorth(state, card) : card.cardCode === '30063' || card.cardCode === '35076' ? 0.5 : 0.3;\n      if (!best || value > best.value) best = { id: card.instanceId, value };",
+   "      const value =\n        def.type_code !== 'ice' ? placedCounterWorth(state, card, server.ice.length > 0) : card.cardCode === '30063' || card.cardCode === '35076' ? 0.5 : 0.3;\n      if (!best || value > best.value) best = { id: card.instanceId, value };"
+  ]
+ ]
+}

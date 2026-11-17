@@ -553,7 +553,7 @@ export function untaianPick(state: GameState, candidateIds: string[]): string[] 
       const def = cardDef(card);
       // Model: what the counter adds on this card (Pharos and Syailendra use theirs; other ice, little)
       const value =
-        def.type_code !== 'ice' ? placedCounterWorth(state, card, server.ice.length > 0) : card.cardCode === '30063' || card.cardCode === '35076' ? 0.5 : 0.3;
+        def.type_code !== 'ice' ? placedCounterWorth(state, card) : card.cardCode === '30063' || card.cardCode === '35076' ? 0.5 : 0.3;
       if (!best || value > best.value) best = { id: card.instanceId, value };
     }
   }
