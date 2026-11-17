@@ -162,12 +162,15 @@ class Brute {
     return this.pay(w, p.credits - p.stealth, then);
   }
 
-  /** The fund first, then the credits on cards that pay during runs, then the pool. */
+  /** The fund first, then the credits on cards that pay during runs, then the pool, or the stealth credits for any of it. */
   private pay(ws: S, n: number, then: Next): boolean {
     const fund = Math.min(n, ws.fund);
     const hosted = Math.min(n - fund, ws.hosted);
     const rest = n - fund - hosted;
-    return rest <= ws.pool && then({ ...ws, fund: ws.fund - fund, hosted: ws.hosted - hosted, pool: ws.pool - rest });
+    for (let s = 0; s <= Math.min(rest, ws.stealth); s++) {
+      if (rest - s <= ws.pool && then({ ...ws, fund: ws.fund - fund, hosted: ws.hosted - hosted, stealth: ws.stealth - s, pool: ws.pool - rest + s })) return true;
+    }
+    return false;
   }
 
   private resolve(ws: S, ice: WalkIce, types: string[], list: number[], k: number, next: Next, end: Next): boolean {

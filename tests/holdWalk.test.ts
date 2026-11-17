@@ -610,6 +610,44 @@ describe('hold walk: a liability rez, the Corp choosing bad publicity or a tag (
   });
 });
 
+// Found-list row 31 (audit AI-HOLD-STEALTH-TWICE, probes/stealth-double.ts): Touchstone's credits are stealth credits that
+// pay any cost during a run, counted once (runCredits). Corsair lowers Palisade (strength 4 on a remote) by 3 for each
+// stealth credit, then breaks for 1
+describe('hold walk: stealth credits counted once (found-list row 31)', () => {
+  const corsair = (credits: number, pool: number, breaker = '36004') =>
+    board(st => {
+      ice(st, C.PALISADE);
+      installProgramForTest(st, breaker);
+      const t = createCardInstance(st, '36021');
+      t.isRezzed = true;
+      t.tokens = { credit: credits };
+      st.runner.rig.hardware.push(t);
+      st.runner.credits = pool;
+      st.runner.maxClicks = 1;
+    });
+
+  it('Palisade, Corsair, Touchstone holding 2, pool 0: holds (2 stealth credits lower it; the break needs 1 more; before, need 0)', () => {
+    const s = corsair(2, 0);
+    expect(agrees(s).holds).toBe(true);
+    expect(oracleOn(s, [])).toBe('holds');
+  });
+
+  it('mirror: pool 1: it gets in', () => {
+    const s = corsair(2, 1);
+    expect(agrees(s).holds).toBe(false);
+    expect(oracleOn(s, [])).toBe('getsIn');
+  });
+
+  it('Touchstone pays any cost during the run: Cleaver, Touchstone holding 3, pool 0: it gets in; holding 2: holds', () => {
+    const open = corsair(3, 0, C.CLEAVER);
+    expect(agrees(open).holds).toBe(false);
+    expect(oracleOn(open, [])).toBe('getsIn');
+    const shut = corsair(2, 0, C.CLEAVER);
+    expect(agrees(shut).holds).toBe(true);
+    expect(oracleOn(shut, [])).toBe('holds');
+  });
+});
+
 describe('hold walk: break plans kept with the board they were worked out on (review R3)', () => {
   it('a breaker installed in place on the same board is read: Palisade, $5, holds; Cleaver added: gets in', () => {
     const s = board(st => { ice(st, C.PALISADE); st.runner.credits = 5; });
