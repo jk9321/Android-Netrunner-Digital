@@ -229,7 +229,11 @@ export const LIBERATION: Record<string, CardAI> = {
   // Ablative Barrier
   '34034': { synergy: { gives: { ice: 1, install: 0.5 }, when: ['threat'] }, rezEffect: true },
   // Jaguarundi
-  '34035': { synergy: { gives: { ice: 1, tags: 1, damage: 1 }, wants: { tags: 0.5 }, when: ['ifTagged', 'threat'] } },
+  '34035': {
+    synergy: { gives: { ice: 1, tags: 1, damage: 1 }, wants: { tags: 0.5 }, when: ['ifTagged', 'threat'] },
+    // "Threat 4 -> When the Runner encounters this ice, give them 1 tag unless they spend [click]"
+    holdFacts: { encounter: { threatAtLeast: 4, toll: { tags: 1 }, unless: { clicks: 1 } } },
+  },
   // M.I.C.
   '34036': { synergy: { gives: { ice: 1, denial: 1 } } },
   // Greasing the Palm
@@ -593,7 +597,12 @@ export const LIBERATION: Record<string, CardAI> = {
     runner: state => perTurn(state, 0.3 * tagged(state), 'runner') + (threat(state) >= 3 ? 2 : 0),
   },
   // Thunderbolt Armaments: Peace Through Power
-  '34096': { synergy: { gives: { damage: 0.5 }, wants: { ice: 1 } } },
+  '34096': {
+    synergy: { gives: { damage: 0.5 }, wants: { ice: 1 } },
+    // "Whenever you rez a piece of AP or destroyer ice during a run, that ice gets +1 strength and gains '[subroutine] End
+    // the run unless the Runner trashes 1 of their installed cards.' after its other subroutines" (9.8.3e)
+    holdFacts: { rezDuringRun: { anyIce: { subtypes: ['ap', 'destroyer'], strength: 1, gains: 'End the run unless the Runner trashes 1 of their installed cards.' } } },
+  },
   // Lightning Laboratory (agenda)
   '34097': {
     synergy: { gives: { econ: 0.5 }, when: ['onScore'] },
@@ -618,7 +627,8 @@ export const LIBERATION: Record<string, CardAI> = {
     counters: { power: () => 3 - CLICK }, // 3 credits for a click
   },
   // Lycian Multi-Munition
-  '34100': { synergy: { gives: { ice: 1 } }, rezEffect: true },
+  // "When a turn ends, derez this ice" (its subtypes, chosen when rezzed, are a todo of the hold walk)
+  '34100': { synergy: { gives: { ice: 1 } }, rezEffect: true, holdFacts: { turnEndDerezSelf: true } },
   // Sorocaban Blade
   '34101': { synergy: { gives: { ice: 1 } } },
   // Active Policing
@@ -687,7 +697,11 @@ export const LIBERATION: Record<string, CardAI> = {
   // Piranhas
   '34117': { synergy: { gives: { ice: 1, damage: 0.5, draw: 0.5 }, wants: { tags: 0.5 } } },
   // Seraph
-  '34118': { synergy: { gives: { ice: 1, damage: 1, tags: 1, denial: 1 } } },
+  '34118': {
+    synergy: { gives: { ice: 1, damage: 1, tags: 1, denial: 1 } },
+    // "When the Runner encounters this ice, they lose 3 [credit] unless they suffer 2 net damage or take 1 tag" (the Runner's choice)
+    holdFacts: { encounter: { toll: { loses: 3 }, unless: { netDamage: 2, tags: 1 } } },
+  },
   // Sudden Commandment
   '34119': { synergy: { gives: { draw: 1, operations: 1 }, when: ['threat'] } },
   // The Holo Man

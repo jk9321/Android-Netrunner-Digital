@@ -315,7 +315,8 @@ export const VANTAGE_POINT: Record<string, CardAI> = {
   // Lethe
   '36051': { synergy: { gives: { ice: 1, tags: 1, discard: 0.5 } } },
   // Paywall
-  '36052': { synergy: { gives: { ice: 1, denial: 1 } } },
+  // "When the Runner encounters this ice, they lose 1 [credit]" (6.9.3a)
+  '36052': { synergy: { gives: { ice: 1, denial: 1 } }, holdFacts: { encounter: { loses: 1 } } },
   // Flood the Market
   '36053': { synergy: { gives: { advance: 2 } } },
   // Scapegoat
