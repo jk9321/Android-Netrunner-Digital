@@ -361,9 +361,11 @@ describe('AI code health (audit guards)', () => {
   // Then + 168 (the 14:39Z ruling on keepFor's wide-board time): corp/hold.ts + 165 (the run sequence gathered once,
   // reachQuestion and reachOrder, and its per-decision cache of sets and orders, reachSets; a server's walked ice once
   // per board), corp/rezMoney.ts + 3: corp/ 3,367, src/ai 15,000
-  it('keeps src/ai/corp at or under 3,367 lines and src/ai at or under 15,000 (Stage C hand-off, ai-corp-honest-order, ai-value-time, ai-playout-lines, ai-honest-runner-view, ai-honest-corp-decision, ai-value-owners, ai-corp-rd-memory, ai-value-b1, ai-value-b2, ai-hold-reentry, ai-value-b3, ai-tag-loss-time, ai-value-b6, ai-threat-delete, ai-breaker-guard-key, ai-tag-loss-bp, ai-hold-facts, ai-hold-walk)', () => {
+  // Then + 12 (ai-flood-bound: the placesCounters fact on the card entry, its accessor, and places() reading it, with the
+  // soundness comment): src/ai 15,012
+  it('keeps src/ai/corp at or under 3,367 lines and src/ai at or under 15,012 (Stage C hand-off, ai-corp-honest-order, ai-value-time, ai-playout-lines, ai-honest-runner-view, ai-honest-corp-decision, ai-value-owners, ai-corp-rd-memory, ai-value-b1, ai-value-b2, ai-hold-reentry, ai-value-b3, ai-tag-loss-time, ai-value-b6, ai-threat-delete, ai-breaker-guard-key, ai-tag-loss-bp, ai-hold-facts, ai-hold-walk, ai-flood-bound)', () => {
     const corp = aiFiles().filter(f => f.replace(/\\/g, '/').startsWith('corp/')).reduce((n, f) => n + lines(f), 0);
     expect(corp).toBeLessThanOrEqual(3367);
-    expect(aiFiles().reduce((n, f) => n + lines(f), 0)).toBeLessThanOrEqual(15000);
+    expect(aiFiles().reduce((n, f) => n + lines(f), 0)).toBeLessThanOrEqual(15012);
   });
 });

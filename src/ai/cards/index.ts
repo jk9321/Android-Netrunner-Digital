@@ -54,6 +54,8 @@ export const corpFormula = (state: GameState, code: string, ctx: CorpEffectConte
 export const archivedWorth = (state: GameState, code: string): number => CARDS[code]?.archived?.(state) ?? 0;
 /** Clicks one use of the card gives beyond its own click (CardAI clicksGiven), 0 when none. */
 export const clicksGivenOf = (code: string): number => CARDS[code]?.clicksGiven ?? 0;
+/** The most advancement counters one use of a card can place on this board (CardAI placesCounters), or undefined. */
+export const placesCountersOf = (code: string): CardAI['placesCounters'] => CARDS[code]?.placesCounters;
 /** What a card pays its owner when its turn begins (CardAI turnIncome), or undefined. */
 export const turnIncomeOf = (code: string): CardAI['turnIncome'] => CARDS[code]?.turnIncome;
 /** A Runner card that pays off an Archives run (CardAI archivesPayoff). */
