@@ -74,6 +74,18 @@ for (const programs of [5, 8]) for (const clicks of [4, 5]) for (const credits o
     st.runner.grip = st.runner.grip.slice(0, 5); st.runner.credits = credits; st.runner.maxClicks = clicks; agenda(st);
   }) });
 }
+// Scaling (AI Coordinator, the stop of 22:48Z, item b): 1, 2 or 3 trash-subroutine ice (Lycian; Cloud Eater; Bumi 1.0)
+// outside Tatu-Bola, all unrezzed, by 3, 5 or 8 programs of RIG (every one fits "trash 1 installed program"), 4 clicks
+// (retries on), $3
+const TRASH_ICE = [['34100'], ['34100', '34110'], ['35041', '34100', '34110']];
+for (const trash of TRASH_ICE) for (const programs of [3, 5, 8]) {
+  boards.push({ name: `scaling: ${trash.length} trash ice outside Tatu-Bola, ${programs} programs, 4 clicks, $3`, server: 'remote1', corp: 25, s: board(st => {
+    st.corp.credits = 25; ice(st, '34044', false);
+    for (const code of trash) ice(st, code, false);
+    for (const code of RIG.slice(0, programs)) installProgramForTest(st, code);
+    st.runner.grip = st.runner.grip.slice(0, 5); st.runner.credits = 3; st.runner.maxClicks = 4; agenda(st);
+  }) });
+}
 
 const med = (v: number[]) => [...v].sort((a, b) => a - b)[Math.floor(v.length / 2)];
 const only = process.env.ONLY; // REPS: repetitions per board (default 9; the first is dropped)
