@@ -48,12 +48,20 @@ test('the run panel reopens centred after being dragged', async ({ page }) => {
   // Drag it off again and finish the run; the next run's panel opens in the centre
   await dragOffBottom(page, 'run-overlay');
   const overlay = page.getByTestId('run-overlay');
-  for (let i = 0; i < 10 && (await overlay.isVisible()); i++) {
-    // The button is off screen with the panel, so click it without scrolling
-    await overlay.getByRole('button', { name: /Continue Run|Pass|Let Subroutines Fire|Keep Going/ }).dispatchEvent('click');
-    await page.waitForTimeout(800); // the computer may rez in between
-  }
-  await expect(overlay).toBeHidden({ timeout: 10_000 });
+  // Wait for the panel's state, not a fixed number of clicks: how many steps the run takes depends on the deal
+  // and on how fast the computer decides. Click whichever step button is showing until the panel closes.
+  const step = overlay.getByRole('button', { name: /Continue Run|Pass|Let Subroutines Fire|Keep Going/ });
+  await expect
+    .poll(
+      async () => {
+        if (!(await overlay.isVisible())) return 'closed';
+        // The button is off screen with the panel, so click it without scrolling
+        if (await step.count()) await step.first().dispatchEvent('click', undefined, { timeout: 2_000 }).catch(() => {});
+        return 'open';
+      },
+      { timeout: 60_000, intervals: [300] },
+    )
+    .toBe('closed');
   await page.keyboard.press('Escape'); // close an access panel if one opened
   await runArchives.click();
   await expect(overlay).toBeVisible();
