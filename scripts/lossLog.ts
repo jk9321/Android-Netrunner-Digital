@@ -78,6 +78,13 @@ export interface AgendaInstall {
   outcome: 'scored' | 'stolen' | 'other' | 'still out';
   /** Corp turns it sat installed before the outcome */
   turnsOut: number;
+  /**
+   * The server as it went in (hold-retry brief section 6): 'bioroid' (a rezzed bioroid protects it), 'iced' (ice, no
+   * rezzed bioroid), 'bare' (no ice, other cards in the root), 'new' (nothing else there). Absent in older records.
+   */
+  kind?: 'bioroid' | 'iced' | 'bare' | 'new';
+  /** An advancement counter was placed on it while a rezzed bioroid protected its server. */
+  bioroidAdvanced?: boolean;
 }
 
 /** Rezzes during runs, and how many were on servers holding nothing that matters to the Corp */
@@ -213,6 +220,10 @@ function stopperAt(state: GameState, serverId: string, credits: number): Steal['
   return 'none';
 }
 
+const rezzedBioroid = (ice: CardInstance[]) => ice.some(i => i.isRezzed && /\bbioroid\b/i.test(cardDef(i).keywords ?? ''));
+/** The advancement counters each open agenda had at the last look (an advance behind a rezzed bioroid). */
+const lastAdvanced = new WeakMap<AgendaInstall, number>();
+
 function trackAgendas(state: GameState, all: AgendaInstall[], open: Map<string, AgendaInstall>) {
   const seen = new Set<string>();
   for (const server of Object.values(state.corp.servers)) {
@@ -220,7 +231,12 @@ function trackAgendas(state: GameState, all: AgendaInstall[], open: Map<string, 
     for (const card of server.root) {
       if (!isAgenda(card)) continue;
       seen.add(card.instanceId);
-      if (open.has(card.instanceId)) continue;
+      const known = open.get(card.instanceId);
+      if (known) {
+        if (card.advancementCounters > (lastAdvanced.get(known) ?? 0) && rezzedBioroid(server.ice)) known.bioroidAdvanced = true;
+        lastAdvanced.set(known, card.advancementCounters);
+        continue;
+      }
       let credits = state.corp.credits;
       let affordable = 0;
       let entryCost = 0;
@@ -244,7 +260,10 @@ function trackAgendas(state: GameState, all: AgendaInstall[], open: Map<string, 
         finishable: need <= Math.min(state.corp.clicks, state.corp.credits),
         outcome: 'still out',
         turnsOut: 0,
+        kind: rezzedBioroid(server.ice) ? 'bioroid' : server.ice.length ? 'iced' : server.root.length > 1 ? 'bare' : 'new',
+        bioroidAdvanced: card.advancementCounters > 0 && rezzedBioroid(server.ice),
       };
+      lastAdvanced.set(record, card.advancementCounters);
       open.set(card.instanceId, record);
       all.push(record);
     }
