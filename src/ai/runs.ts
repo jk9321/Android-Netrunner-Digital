@@ -13,7 +13,7 @@ import {
 } from '../core/engine/ice';
 import { availableCredits, counters, rezCost, stealthCredits, threatLevel, turnFlag } from '../core/engine/cardEffects';
 import { stealCost } from '../core/engine/actions/run';
-import { spikeKey } from '../core/scripts/liberationRunner';
+import { spikeKey } from '../core/scripts/liberation/runner/helpers';
 import { corpCardValue, hiddenCardOdds, tagsWorth } from './evaluate';
 import { accessDamage, agendaOdds, coreDamageWorth, counterWorthOf, damageWorth, flatlineOdds, runnerEffect, stealDamage } from './effectValues';
 import { clickPrice } from './handValues';
@@ -74,7 +74,18 @@ const ownRun = (state: GameState): boolean => state.activePlayer === 'runner' &&
 
 /** A rule's answer that passes to the next rule (the trash-a-type rule with no card of that type). */
 const NEXT = Symbol('next');
-type SubRule = [RegExp, (state: GameState, m: RegExpMatchArray) => number | undefined | typeof NEXT];
+/**
+ * A pattern, its price, and the price's own condition for BLOCK (Stage D item 1, brief 4.3a): `blocks` is true exactly
+ * when the price is BLOCK on the same board (NEXT where the price passes), so "does this subroutine end the run" can be
+ * asked without working out a worth (tests/subroutineFacts.test.ts checks the two agree). Registry debt: two encodings
+ * of "this subroutine ends the run" (this condition and subroutineFacts' literal text), closed when the Runner rework
+ * makes the price read the facts.
+ */
+type SubRule = [RegExp, (state: GameState, m: RegExpMatchArray) => number | undefined | typeof NEXT, (state: GameState, m: RegExpMatchArray) => boolean | typeof NEXT];
+const never = () => false;
+const always = () => true;
+/** The prices' damage test (`n > grip`, 10.4.4): below it damageWorth is finite (a flatline is flatlineWorth, not BLOCK). */
+const lethal = (state: GameState, n: number) => n > state.runner.grip.length;
 
 /**
  * knownSubroutineCost's patterns, in order: the first that matches the label (and doesn't pass) prices it. Which
@@ -82,83 +93,101 @@ type SubRule = [RegExp, (state: GameState, m: RegExpMatchArray) => number | unde
  * regex chain was ~4% of the Corp's decision time); the prices still read the board each time.
  */
 const SUB_RULES: SubRule[] = [
-  [/cannot steal or trash/i, () => BLOCK],
+  [/cannot steal or trash/i, () => BLOCK, always],
   // Mycoweb: as bad as the worst subroutine on a rezzed ice of that type
   [/resolve 1 subroutine on (?:a|another) rezzed (barrier|code gate|sentry)/i, (state, borrowed) => {
-    const type = borrowed[1].toLowerCase();
-    const costs = Object.values(state.corp.servers)
-      .flatMap(server => server.ice)
-      .filter(ice => ice.isRezzed && iceSubtypes(ice, state).some(t => t === type))
-      .flatMap(ice => (iceSubroutines(state, ice)).filter(sub => !/resolve 1 subroutine on/i.test(sub.label)))
-      .map(sub => subroutineCost(state, sub.label));
+    const costs = borrowedSubroutines(state, borrowed[1]).map(sub => subroutineCost(state, sub.label));
     return costs.length > 0 ? Math.max(...costs) : 0;
-  }],
+  }, (state, borrowed) => borrowedSubroutines(state, borrowed[1]).some(sub => subroutineBlocks(state, sub.label))],
   // Elevation conditions. Damage that only equals the grip is survived: the Runner is flatlined by more damage than the
   // cards in its grip (rule 10.4.4), so each lethal test below is `>`, as in damageWorth
   // The Runner chooses the damage when it can survive it (else the run ends): priced as that damage (RM-SUBDAMAGE-TEXT; was a flat 2 a point)
-  [/end the run unless the runner suffers (\d+) net damage/i, (state, unless) => (Number(unless[1]) > state.runner.grip.length ? BLOCK : damageWorth(state, Number(unless[1]), ownRun(state)))],
-  [/threat level is (\d+) or greater, end the run/i, (state, threat) => (Math.max(state.corp.score, state.runner.score) >= Number(threat[1]) ? BLOCK : 0)],
-  [/end the run if the runner is tagged/i, state => (state.runner.tags > 0 ? BLOCK : 1)],
-  [/if the runner has at least 2 tags/i, state => (state.runner.tags >= 2 ? (2 > state.runner.grip.length ? BLOCK : damageWorth(state, 2, ownRun(state))) : 0)],
+  [/end the run unless the runner suffers (\d+) net damage/i, (state, unless) => (Number(unless[1]) > state.runner.grip.length ? BLOCK : damageWorth(state, Number(unless[1]), ownRun(state))), (state, unless) => lethal(state, Number(unless[1]))],
+  [/threat level is (\d+) or greater, end the run/i, (state, threat) => (Math.max(state.corp.score, state.runner.score) >= Number(threat[1]) ? BLOCK : 0), (state, threat) => Math.max(state.corp.score, state.runner.score) >= Number(threat[1])],
+  [/end the run if the runner is tagged/i, state => (state.runner.tags > 0 ? BLOCK : 1), state => state.runner.tags > 0],
+  [/if the runner has at least 2 tags/i, state => (state.runner.tags >= 2 ? (2 > state.runner.grip.length ? BLOCK : damageWorth(state, 2, ownRun(state))) : 0), state => state.runner.tags >= 2 && lethal(state, 2)],
   // Vantage Point: "... unless the Runner pays N credits": the cheaper of paying and letting the rest resolve
   [/^(.*?)\s*unless the runner pays (\d+) (?:\[credit\]|credits?)\.?$/i, (state, pays) => {
     const n = Number(pays[2]);
     const rest = /^end the run$/i.test(pays[1]) ? BLOCK : knownSubroutineCost(state, pays[1]) ?? 2;
     return state.runner.credits >= n ? Math.min(creditCost(state, n), rest) : rest;
-  }],
-  [/^(.*?)\s*unless the runner jacks out\.?$/i, (state, jacks) => knownSubroutineCost(state, jacks[1])],
+  }, (state, pays) => state.runner.credits < Number(pays[2]) && (/^end the run$/i.test(pays[1]) || subroutineBlocks(state, pays[1]))],
+  [/^(.*?)\s*unless the runner jacks out\.?$/i, (state, jacks) => knownSubroutineCost(state, jacks[1]), (state, jacks) => subroutineBlocks(state, jacks[1])],
   [/do x net damage and give the runner x tags/i, state => {
     // Vicsek: X is the Runner's tags
     const x = state.runner.tags;
     if (x === 0) return 0;
     return x > state.runner.grip.length ? BLOCK : damageWorth(state, x, ownRun(state)) + tagCost(state) * x;
-  }],
-  [/loses? \[click\]/i, () => clickRate()],
-  [/gets \+1 strength for the remainder of this run/i, () => 1.5], // ezaM: every ice after it costs more to break
-  [/each piece of ice gets \+2 strength for the remainder of this run/i, () => 2.5], // Tributary: every ice costs more to break
-  [/installed runner card to the grip/i, state => 0.5 * trashedCardCost(state) + 1], // Lethe: a reinstall, not a loss
-  [/remove 1 card in the heap from the game/i, () => 0.3],
-  [/place 1 virus counter on this ice/i, () => 0], // Knowledge Seeker: counts down to its own derez
-  [/look at the top \d+ cards? of r&d|arrange|to the (?:top or )?bottom of r&d|shuffle 1 card from hq or archives into r&d/i, () => 0.4], // Corp card selection
+  }, state => state.runner.tags > 0 && lethal(state, state.runner.tags)],
+  [/loses? \[click\]/i, () => clickRate(), never],
+  [/gets \+1 strength for the remainder of this run/i, () => 1.5, never], // ezaM: every ice after it costs more to break
+  [/each piece of ice gets \+2 strength for the remainder of this run/i, () => 2.5, never], // Tributary: every ice costs more to break
+  [/installed runner card to the grip/i, state => 0.5 * trashedCardCost(state) + 1, never], // Lethe: a reinstall, not a loss
+  [/remove 1 card in the heap from the game/i, () => 0.3, never],
+  [/place 1 virus counter on this ice/i, () => 0, never], // Knowledge Seeker: counts down to its own derez
+  [/look at the top \d+ cards? of r&d|arrange|to the (?:top or )?bottom of r&d|shuffle 1 card from hq or archives into r&d/i, () => 0.4, never], // Corp card selection
   // Each point of core damage trashes a card and takes a hand size (rule 10.4.2b): "do 2 core damage" is 2 of each
   [/(?:(\d+) )?core damage/i, (state, core) => {
     // "If the Runner is tagged" is priced as if tagged: an earlier subroutine may tag it first (Jaguarundi), which a
     // price per subroutine can't see; tankDamage, which walks them in order, can
     const n = Number(core[1] ?? 1);
     return n > state.runner.grip.length ? BLOCK : n * coreDamageWorth(state) + damageWorth(state, n);
-  }],
-  [/unless they pay 3 credits/i, state => creditCost(state, 3)],
-  [/loses? (\d+) (?:\[credit\]|credits?)/i, (state, loses) => creditCost(state, Math.min(Number(loses[1]), state.runner.credits))],
-  [/or end the run/i, state => (state.runner.rig.programs.length > 0 ? 5 : BLOCK)],
-  [/odd cost/i, state => (state.runner.grip.length <= 1 ? BLOCK : 4)], // Diviner: half the time it ends the run
-  [/6 credits or less/i, state => (state.runner.credits - 3 <= 6 ? BLOCK : 0)],
+  }, (state, core) => lethal(state, Number(core[1] ?? 1))],
+  [/unless they pay 3 credits/i, state => creditCost(state, 3), never],
+  [/loses? (\d+) (?:\[credit\]|credits?)/i, (state, loses) => creditCost(state, Math.min(Number(loses[1]), state.runner.credits)), never],
+  [/or end the run/i, state => (state.runner.rig.programs.length > 0 ? 5 : BLOCK), state => state.runner.rig.programs.length === 0],
+  [/odd cost/i, state => (state.runner.grip.length <= 1 ? BLOCK : 4), state => state.runner.grip.length <= 1], // Diviner: half the time it ends the run
+  [/6 credits or less/i, state => (state.runner.credits - 3 <= 6 ? BLOCK : 0), state => state.runner.credits - 3 <= 6],
   // Liberation conditions
-  [/end the run if you have more credits than the runner/i, state => (state.corp.credits > state.runner.credits ? BLOCK : 1)], // Valentão
-  [/end the run if there are more cards in hq than in the grip/i, state => (state.corp.hq.length > state.runner.grip.length ? BLOCK : 0)], // Piranhas
-  [/trash 1 card from hq to end the run/i, state => (state.corp.hq.length > 0 ? BLOCK : 0)], // Boto
-  [/end the run/i, () => BLOCK],
+  [/end the run if you have more credits than the runner/i, state => (state.corp.credits > state.runner.credits ? BLOCK : 1), state => state.corp.credits > state.runner.credits], // Valentão
+  [/end the run if there are more cards in hq than in the grip/i, state => (state.corp.hq.length > state.runner.grip.length ? BLOCK : 0), state => state.corp.hq.length > state.runner.grip.length], // Piranhas
+  [/trash 1 card from hq to end the run/i, state => (state.corp.hq.length > 0 ? BLOCK : 0), state => state.corp.hq.length > 0], // Boto
+  [/end the run/i, () => BLOCK, always],
   [/(\d+) (net|meat) damage/i, (state, damage) => {
     const n = Number(damage[1]);
     return n > state.runner.grip.length ? BLOCK : damageWorth(state, n, ownRun(state));
-  }],
-  [/gain 1 \[credit\] for each tag/i, state => 0.3 * state.runner.tags], // Capacitor: Corp credits
-  [/tag/i, state => tagCost(state)],
-  [/trash 1 installed runner card/i, state => trashedCardCost(state)],
-  [/gain 1 credit/i, () => 0.3],
-  [/gain 1 \[credit\]/i, () => 0.8], // Flywheel: a credit and maybe a card
-  [/^gain (\d+) \[credit\]/i, (_state, gains) => 0.4 * Number(gains[1])], // Valentão: Corp credits
+  }, (state, damage) => lethal(state, Number(damage[1]))],
+  [/gain 1 \[credit\] for each tag/i, state => 0.3 * state.runner.tags, never], // Capacitor: Corp credits
+  [/tag/i, state => tagCost(state), never],
+  [/trash 1 installed runner card/i, state => trashedCardCost(state), never],
+  [/gain 1 credit/i, () => 0.3, never],
+  [/gain 1 \[credit\]/i, () => 0.8, never], // Flywheel: a credit and maybe a card
+  [/^gain (\d+) \[credit\]/i, (_state, gains) => 0.4 * Number(gains[1]), never], // Valentão: Corp credits
   // Sorocaban Blade, Hammer, Lycian: a rig card lost, when there is one of that type (with none, the old flat 1.5 below)
-  [/trash 1 installed (resource|piece of hardware|program)/i, (state, trashType) => {
-    const rig = state.runner.rig;
-    const zone = { resource: rig.resources, 'piece of hardware': rig.hardware, program: rig.programs }[trashType[1].toLowerCase() as 'resource'];
-    return zone.length > 0 ? trashedCardCost(state) : NEXT;
-  }],
-  [/^(?:you may )?draw 1 card/i, () => 0.5], // Empiricist: helps the Corp a little
-  [/install/i, () => 1.5],
+  [/trash 1 installed (resource|piece of hardware|program)/i, (state, trashType) => (trashZone(state, trashType[1]).length > 0 ? trashedCardCost(state) : NEXT), (state, trashType) => (trashZone(state, trashType[1]).length > 0 ? false : NEXT)],
+  [/^(?:you may )?draw 1 card/i, () => 0.5, never], // Empiricist: helps the Corp a little
+  [/install/i, () => 1.5, never],
 ];
 
+/** Mycoweb's borrowed subroutines: those of the rezzed ice of that type, its own borrowing ones left out. */
+function borrowedSubroutines(state: GameState, type: string): Subroutine[] {
+  const t = type.toLowerCase();
+  return Object.values(state.corp.servers)
+    .flatMap(server => server.ice)
+    .filter(ice => ice.isRezzed && iceSubtypes(ice, state).some(x => x === t))
+    .flatMap(ice => iceSubroutines(state, ice).filter(sub => !/resolve 1 subroutine on/i.test(sub.label)));
+}
+
+/** The rig zone a "trash 1 installed <type>" subroutine takes from. */
+function trashZone(state: GameState, type: string): CardInstance[] {
+  const rig = state.runner.rig;
+  return { resource: rig.resources, 'piece of hardware': rig.hardware, program: rig.programs }[type.toLowerCase() as 'resource'];
+}
+
 /** The rules whose pattern matches each label seen, in order, with their matches. */
-const labelRules = new Map<string, [SubRule[1], RegExpMatchArray][]>();
+const labelRules = new Map<string, [SubRule[1], SubRule[2], RegExpMatchArray][]>();
+function rulesFor(label: string): [SubRule[1], SubRule[2], RegExpMatchArray][] {
+  let rules = labelRules.get(label);
+  if (!rules) {
+    rules = [];
+    for (const [re, price, blocks] of SUB_RULES) {
+      const m = label.match(re);
+      if (m) rules.push([price, blocks, m]);
+    }
+    labelRules.set(label, rules);
+  }
+  return rules;
+}
 
 /**
  * The cost of a subroutine whose wording one of the patterns above
@@ -166,20 +195,179 @@ const labelRules = new Map<string, [SubRule[1], RegExpMatchArray][]>();
  * A test checks every subroutine in the card pool is recognised.
  */
 export function knownSubroutineCost(state: GameState, label: string): number | undefined {
-  let rules = labelRules.get(label);
-  if (!rules) {
-    rules = [];
-    for (const [re, price] of SUB_RULES) {
-      const m = label.match(re);
-      if (m) rules.push([price, m]);
-    }
-    labelRules.set(label, rules);
-  }
-  for (const [price, m] of rules) {
+  for (const [price, , m] of rulesFor(label)) {
     const cost = price(state, m);
     if (cost !== NEXT) return cost;
   }
   return undefined;
+}
+
+/**
+ * Does letting this subroutine resolve end the run, as its price says (subroutineCost(...) === BLOCK), without working
+ * out the price (Stage D item 1, brief 4.5: the hold count prices a tag's worth only to learn this). Same rules, same
+ * order; a label no rule knows is priced 2, so it does not block. Not read yet: the hold count switches to it with the
+ * walk (branch 2), since skipping the unused prices changes later picks through the valuation's call history
+ * (netrunner-ai/stage-d/item1-hold-count/g1-play-identical.md: 219 of 221 deals the same, every answer equal).
+ */
+export function subroutineBlocks(state: GameState, label: string): boolean {
+  for (const [, blocks, m] of rulesFor(label)) {
+    const b = blocks(state, m);
+    if (b !== NEXT) return b;
+  }
+  return false;
+}
+
+/**
+ * The literal facts of a subroutine, from its card text (Stage D item 1, brief 4.3b): what it does, on what literal
+ * condition, what paying through it costs. The hold count's walk reads them against the state it carries (the
+ * Runner's credits, clicks, tags and grip, the Corp's credits) as the subroutine resolves (9.8.7b); no worth is here.
+ * A condition is the card's own ("6 or less"), not a price's look-ahead ("credits - 3 <= 6": the walk applies the loss
+ * of the subroutine before it itself). Parsed sentence by sentence, so a label the first-match price rules catch whole
+ * (Tree Line's "Gain 1 [credit]. End the run." under "end the run") keeps every effect.
+ * tests/subroutineFacts.test.ts checks every subroutine in the pool parses with no unknown sentence.
+ */
+export type SubCondition =
+  | { kind: 'iceIs'; subtype: 'barrier' | 'code gate' | 'sentry' }
+  | { kind: 'runnerTagsAtLeast'; n: number }
+  | { kind: 'runnerCreditsAtMost'; n: number }
+  | { kind: 'threatAtLeast'; n: number }
+  | { kind: 'corpCreditsMoreThanRunner' }
+  | { kind: 'hqMoreThanGrip' }
+  /** Diviner: the card its damage trashed has an odd printed cost (a fact of the grip the walk can't read: unknown). */
+  | { kind: 'trashedOddCost' };
+
+export type SubEffect =
+  | { kind: 'endRun'; if?: SubCondition }
+  | { kind: 'runnerLosesCredits'; n: number }
+  | { kind: 'runnerLosesClicks'; n: number }
+  /** n: a number, or 'runnerTags' (Vicsek's X). */
+  | { kind: 'tags'; n: number | 'runnerTags' }
+  | { kind: 'damage'; type: 'net' | 'meat' | 'core'; n: number | 'runnerTags' }
+  | { kind: 'corpGainsCredits'; n: number | 'perRunnerTag' }
+  | { kind: 'trashInstalled'; what: 'card' | 'program' | 'resource' | 'hardware' | 'resourceOrHardware' | 'nonBreakerProgram' }
+  | { kind: 'toGrip' }
+  | { kind: 'cannotStealOrTrash' }
+  | { kind: 'iceStrengthThisRun'; n: number }
+  | { kind: 'trashThisIce' }
+  /** The Runner may jack out (Karunā): its choice, never needed to get in. */
+  | { kind: 'mayJackOut' }
+  /** Boto: the Corp may trash a card from HQ to end the run. */
+  | { kind: 'corpMayTrashHqToEndRun' }
+  /** Mycoweb: resolves a subroutine of another rezzed ice of the subtype. */
+  | { kind: 'borrow'; subtype: 'barrier' | 'code gate' | 'sentry' }
+  /** What only the Corp's own cards feel (installs, draws, card selection, counters on the ice): nothing the walk reads. */
+  | { kind: 'corpSide'; text: string }
+  | { kind: 'unknown'; text: string };
+
+export interface SubFacts {
+  /** The subroutine does anything only while this holds ("If this ice is a barrier, ..."; "If the Runner is tagged, ..."). */
+  when?: SubCondition;
+  /** What it does, in printed order. */
+  does: SubEffect[];
+  /** A nested cost the Runner may pay instead of `does` (1.16.11b: "... unless the Runner pays 3 [credit]"). */
+  unless?: { credits?: number; netDamage?: number; jackOut?: true };
+  /** "X or end the run": the Corp chooses between `does` and ending the run (ruling 6: the walk takes the end). */
+  orEndRun?: true;
+}
+
+const ICE_TYPE = '(barrier|code gate|sentry)';
+const TRASH_WHAT: Record<string, Extract<SubEffect, { kind: 'trashInstalled' }>['what']> = {
+  'runner card': 'card',
+  program: 'program',
+  resource: 'resource',
+  'piece of hardware': 'hardware',
+  'resource or piece of hardware': 'resourceOrHardware',
+  'program that is not a decoder, fracter, or killer': 'nonBreakerProgram',
+};
+const num = (x: string) => (x === 'x' ? 'runnerTags' : Number(x));
+
+/** One clause's effects (lower case, no final period), or an unknown. */
+function clauseEffects(c: string): SubEffect[] {
+  let m: RegExpMatchArray | null;
+  if ((m = c.match(/^(.*?) and (end the run|1 \[credit\])$/))) {
+    // "gain 1 [credit] and end the run"; "the runner loses [click] and 1 [credit]"
+    if (m[2] === 'end the run') return [...clauseEffects(m[1]), { kind: 'endRun' }];
+    return [...clauseEffects(m[1]), { kind: 'runnerLosesCredits', n: 1 }];
+  }
+  if (c === 'end the run') return [{ kind: 'endRun' }];
+  if ((m = c.match(/^if the threat level is (\d+) or greater, end the run$/))) return [{ kind: 'endRun', if: { kind: 'threatAtLeast', n: Number(m[1]) } }];
+  if ((m = c.match(/^if the runner has (\d+) credits or less, end the run$/))) return [{ kind: 'endRun', if: { kind: 'runnerCreditsAtMost', n: Number(m[1]) } }];
+  if (c === 'if the trashed card has an odd cost, end the run') return [{ kind: 'endRun', if: { kind: 'trashedOddCost' } }];
+  if (c === 'end the run if the runner is tagged') return [{ kind: 'endRun', if: { kind: 'runnerTagsAtLeast', n: 1 } }];
+  if (c === 'end the run if you have more credits than the runner') return [{ kind: 'endRun', if: { kind: 'corpCreditsMoreThanRunner' } }];
+  if (c === 'end the run if there are more cards in hq than in the grip') return [{ kind: 'endRun', if: { kind: 'hqMoreThanGrip' } }];
+  if (c === 'you may trash 1 card from hq to end the run') return [{ kind: 'corpMayTrashHqToEndRun' }];
+  if ((m = c.match(/^do (\d+|x) (net|meat|core) damage$/))) return [{ kind: 'damage', type: m[2] as 'net', n: num(m[1]) }];
+  if (c === "do x net damage and give the runner x tags (x = the runner's tags)") {
+    return [{ kind: 'damage', type: 'net', n: 'runnerTags' }, { kind: 'tags', n: 'runnerTags' }];
+  }
+  if ((m = c.match(/^give the runner (\d+) tags?$/))) return [{ kind: 'tags', n: Number(m[1]) }];
+  if ((m = c.match(/^the runner loses (\d+) (?:credits?|\[credit\])$/))) return [{ kind: 'runnerLosesCredits', n: Number(m[1]) }];
+  if (c === 'the runner loses [click]') return [{ kind: 'runnerLosesClicks', n: 1 }];
+  if (c === 'gain 1 [credit] for each tag the runner has') return [{ kind: 'corpGainsCredits', n: 'perRunnerTag' }];
+  if ((m = c.match(/^gain (\d+) (?:credits?|\[credit\])$/))) return [{ kind: 'corpGainsCredits', n: Number(m[1]) }];
+  if ((m = c.match(/^trash 1 installed (.+)$/)) && TRASH_WHAT[m[1]]) return [{ kind: 'trashInstalled', what: TRASH_WHAT[m[1]] }];
+  if (c === 'trash this ice') return [{ kind: 'trashThisIce' }];
+  if (c === 'the runner may jack out') return [{ kind: 'mayJackOut' }];
+  if (c === 'the runner cannot steal or trash corp cards for the remainder of this run') return [{ kind: 'cannotStealOrTrash' }];
+  if ((m = c.match(/^each piece of ice gets \+(\d+) strength for the remainder of this run$/))) return [{ kind: 'iceStrengthThisRun', n: Number(m[1]) }];
+  if (c === 'add 1 installed runner card to the grip') return [{ kind: 'toGrip' }];
+  if ((m = c.match(new RegExp(`^resolve 1 subroutine on (?:a|another) rezzed ${ICE_TYPE}$`)))) return [{ kind: 'borrow', subtype: m[1] as 'barrier' }];
+  if (/^(?:you may )?(?:install|draw|rez|look at|shuffle|place 1|add 1 card from|add that card|remove 1 card in the heap|arrange)/.test(c)) return [{ kind: 'corpSide', text: c }];
+  return [{ kind: 'unknown', text: c }];
+}
+
+const factsCache = new Map<string, SubFacts>();
+
+/** The literal facts of a subroutine label (see SubFacts). Worked out once per label. */
+export function subroutineFacts(label: string): SubFacts {
+  const hit = factsCache.get(label);
+  if (hit) return hit;
+  const facts: SubFacts = { does: [] };
+  // Sentences; "(X = the Runner's tags)" and "1 [credit]." stay with theirs
+  const sentences = label
+    .trim()
+    .replace(/\.$/, '')
+    .split(/\.\s+(?=[A-Z])/)
+    .map(x => x.trim().replace(/\.$/, '').toLowerCase());
+  for (let c of sentences) {
+    let m: RegExpMatchArray | null;
+    if ((m = c.match(new RegExp(`^if this ice is an? ${ICE_TYPE}, (.*)$`)))) {
+      facts.when = { kind: 'iceIs', subtype: m[1] as 'barrier' };
+      c = m[2];
+    } else if ((m = c.match(/^if the runner is tagged, (.*)$/))) {
+      facts.when = { kind: 'runnerTagsAtLeast', n: 1 };
+      c = m[1];
+    }
+    if ((m = c.match(/^do (\d+) net damage if the runner has at least (\d+) tags$/))) {
+      facts.when = { kind: 'runnerTagsAtLeast', n: Number(m[2]) };
+      facts.does.push({ kind: 'damage', type: 'net', n: Number(m[1]) });
+      continue;
+    }
+    if ((m = c.match(/^end the run unless the runner suffers (\d+) net damage$/))) {
+      facts.does.push({ kind: 'endRun' });
+      facts.unless = { netDamage: Number(m[1]) };
+      continue;
+    }
+    if ((m = c.match(/^(.*?) unless (?:the runner pays|they pay) (\d+) (?:credits?|\[credit\])$/))) {
+      facts.does.push(...clauseEffects(m[1]));
+      facts.unless = { credits: Number(m[2]) };
+      continue;
+    }
+    if ((m = c.match(/^(.*?) unless the runner jacks out$/))) {
+      facts.does.push(...clauseEffects(m[1]));
+      facts.unless = { jackOut: true };
+      continue;
+    }
+    if ((m = c.match(/^(.*?) or end the run$/))) {
+      facts.does.push(...clauseEffects(m[1]));
+      facts.orEndRun = true;
+      continue;
+    }
+    facts.does.push(...clauseEffects(c));
+  }
+  factsCache.set(label, facts);
+  return facts;
 }
 
 /**
@@ -276,14 +464,43 @@ export function runStealthCredits(state: GameState): number {
 }
 
 /**
+ * What a break plan spends besides credits, as quantities (Stage D item 1, brief 4.3: the hold count's walk shares them
+ * along a server; their worth stays in BreakPlan.value): the counters of which card, grip cards, Mayfly's trash, a once
+ * per run use, stealth credits.
+ */
+export interface PlanSpends {
+  counters?: { cardId: string; kind: 'virus' | 'power'; n: number };
+  gripCards?: number;
+  /** The breaker is trashed when the run ends (Mayfly). */
+  trashesBreaker?: true;
+  /** A run flag the plan sets (Pressure Spike's +9, once per run). */
+  oncePerRun?: string;
+  /** Credits that must come from stealth cards (Corsair's strength lowering). */
+  stealthCredits?: number;
+}
+
+/**
  * The cheapest installed icebreaker that can break the given subroutines of
- * this ice, counting strength boosts already bought this encounter.
+ * this ice, counting strength boosts already bought this encounter: the first of
+ * breakPlans' list with the least planCost.
  */
 export function bestBreakPlan(state: GameState, ice: CardInstance, subCount: number): BreakPlan | null {
-  if (subCount === 0) return null;
+  let best: BreakPlan | null = null;
+  for (const { plan } of breakPlans(state, ice, subCount)) if (!best || planCost(plan) < planCost(best)) best = plan;
+  return best;
+}
+
+/**
+ * Every installed icebreaker's plan for breaking `subCount` subroutines of this ice (one per breaker, two for Pressure
+ * Spike at threat 4: its +9 and its plain boosts), in rig order, each with what it spends besides credits. The owner of
+ * "cost to get past one ice" by breaker; bestBreakPlan reads it (Stage D item 1, brief 4.3, red team F1: the walk picks
+ * among the plans, as one plan per ice can spend a counter the ice further in needs).
+ */
+export function breakPlans(state: GameState, ice: CardInstance, subCount: number): { plan: BreakPlan; spends: PlanSpends }[] {
+  if (subCount === 0) return [];
   const types = iceSubtypes(ice, state);
   const iceStr = iceStrength(state, ice);
-  let best: BreakPlan | null = null;
+  const plans: { plan: BreakPlan; spends: PlanSpends }[] = [];
   for (const breaker of installedIcebreakers(state)) {
     const script = breakerScript(breaker);
     const strength = breakerStrength(state, breaker);
@@ -291,7 +508,7 @@ export function bestBreakPlan(state: GameState, ice: CardInstance, subCount: num
     if (breaker.cardCode === BANNER) {
       const subs = plannedSubroutines(state, ice);
       if (types.includes('barrier') && strength >= iceStr && subs.length > 0 && subs.every(sub => /^end the run\.?$/i.test(sub.label.trim()))) {
-        if (!best || 2 < planCost(best)) best = { breaker, credits: 2, value: 0, boostsNeeded: 0, breakByAbility: true };
+        plans.push({ plan: { breaker, credits: 2, value: 0, boostsNeeded: 0, breakByAbility: true }, spends: {} });
       }
       continue;
     }
@@ -300,7 +517,7 @@ export function bestBreakPlan(state: GameState, ice: CardInstance, subCount: num
       const boosts = Math.max(0, Math.ceil((iceStr - strength) / Math.max(1, script.boostAmount(state, breaker))));
       const credits = boostCredits(state, breaker, boosts) + subCount;
       const value = 1; // the counter is worth about a credit
-      if (!best || credits + value < planCost(best)) best = { breaker, credits, value, boostsNeeded: boosts, breakByAbility: true };
+      plans.push({ plan: { breaker, credits, value, boostsNeeded: boosts, breakByAbility: true }, spends: { counters: { cardId: breaker.instanceId, kind: 'power', n: 1 } } });
       continue;
     }
     if (!script || (script.breaks !== 'any' && !types.includes(script.breaks))) continue;
@@ -316,7 +533,7 @@ export function bestBreakPlan(state: GameState, ice: CardInstance, subCount: num
       if (uses > counters(breaker, 'virus') || boosts > state.runner.grip.length) continue;
       // Counters and discards, no credits
       const value = uses * AUDREY_COUNTER + boosts * AUDREY_DISCARD;
-      if (!best || value < planCost(best)) best = { breaker, credits: 0, value, boostsNeeded: boosts };
+      plans.push({ plan: { breaker, credits: 0, value, boostsNeeded: boosts }, spends: { counters: { cardId: breaker.instanceId, kind: 'virus', n: uses }, gripCards: boosts } });
       continue;
     }
     if (breaker.cardCode === PRESSURE_SPIKE && strength < iceStr && Math.max(state.corp.score, state.runner.score) >= 4 && !state.activeRun?.runFlags?.[spikeKey(breaker)]) {
@@ -324,7 +541,7 @@ export function bestBreakPlan(state: GameState, ice: CardInstance, subCount: num
       const boosts = Math.ceil((iceStr - strength) / 9);
       if (boosts === 1) {
         const credits = 2 + Math.ceil(subCount / script.breakMax) * script.breakCost(state, breaker);
-        if (!best || credits < planCost(best)) best = { breaker, credits, value: 0, boostsNeeded: 1, boostByAbility: true };
+        plans.push({ plan: { breaker, credits, value: 0, boostsNeeded: 1, boostByAbility: true }, spends: { oncePerRun: spikeKey(breaker) } });
       }
     }
     if (breaker.cardCode === HANTU) {
@@ -333,7 +550,7 @@ export function bestBreakPlan(state: GameState, ice: CardInstance, subCount: num
       // Its boosts spend virus counters (a counter about 1.5 credits' worth), its breaks credits
       const credits = Math.ceil(subCount / script.breakMax) * script.breakCost(state, breaker);
       const value = boosts * 1.5;
-      if (!best || credits + value < planCost(best)) best = { breaker, credits, value, boostsNeeded: boosts, boostByAbility: true };
+      plans.push({ plan: { breaker, credits, value, boostsNeeded: boosts, boostByAbility: true }, spends: { counters: { cardId: breaker.instanceId, kind: 'virus', n: boosts } } });
       continue;
     }
     if (breaker.cardCode === CORSAIR) {
@@ -341,7 +558,7 @@ export function bestBreakPlan(state: GameState, ice: CardInstance, subCount: num
       const lowers = Math.max(0, Math.ceil((iceStr - strength) / 3));
       if (lowers > runStealthCredits(state)) continue;
       const credits = lowers + Math.ceil(subCount / script.breakMax) * script.breakCost(state, breaker);
-      if (!best || credits < planCost(best)) best = { breaker, credits, value: 0, boostsNeeded: lowers, boostByAbility: true };
+      plans.push({ plan: { breaker, credits, value: 0, boostsNeeded: lowers, boostByAbility: true }, spends: { stealthCredits: lowers } });
       continue;
     }
     const amount = script.boostAmount(state, breaker);
@@ -349,9 +566,9 @@ export function bestBreakPlan(state: GameState, ice: CardInstance, subCount: num
     const boostsNeeded = Math.max(0, Math.ceil((iceStr - strength) / Math.max(amount, 1)));
     const credits = boostCredits(state, breaker, boostsNeeded) + Math.ceil(subCount / script.breakMax) * script.breakCost(state, breaker);
     const value = breaker.cardCode === MAYFLY ? 2 : 0; // Mayfly is trashed after the run
-    if (!best || credits + value < planCost(best)) best = { breaker, credits, value, boostsNeeded };
+    plans.push({ plan: { breaker, credits, value, boostsNeeded }, spends: breaker.cardCode === MAYFLY ? { trashesBreaker: true } : {} });
   }
-  return best;
+  return plans;
 }
 
 /**
