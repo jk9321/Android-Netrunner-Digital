@@ -375,6 +375,19 @@ export function walkIce(state: GameState, start: WalkStart, ice: CardInstance[])
   });
 }
 
+/**
+ * A server's ice as met on the Runner's turn (walkIce from walkStart(state, true)), once per board and server: serverHold's
+ * question and the run sequence's ask it of the same boards (the 14:39Z ruling: gathered once).
+ */
+const turnIceCache = new WeakMap<GameState, Map<string, WalkIce[]>>();
+function turnIce(state: GameState, start: WalkStart, server: string): WalkIce[] {
+  let cache = turnIceCache.get(state);
+  if (!cache) turnIceCache.set(state, (cache = new Map()));
+  let ice = cache.get(server);
+  if (!ice) cache.set(server, (ice = walkIce(state, start, state.corp.servers[server]?.ice ?? [])));
+  return ice;
+}
+
 /** Each ice's break plans, by the number of subroutines, worked out once per board (time condition: not once per rez set). */
 const planCache = new WeakMap<GameState, Map<string, WalkPlan[]>>();
 
@@ -844,14 +857,21 @@ interface Lender {
 /** Every ice a borrow may lend from, in board order: the walked ice as met, the rest as the board has it. */
 function lenders(state: GameState, targets: WalkTarget[]): Lender[] {
   const walked = new Map(targets.flatMap(t => t.ice.map(x => [x.id, x] as const)));
-  const out: Lender[] = [];
+  return lenderViews(state, walked).flatMap(v => (walked.has(v.id) ? [v.walked!] : v.unwalked ? [v.unwalked] : []));
+}
+
+/** Each ice of the board as a lender both ways, in board order: as met when `walked` holds it, and as the board has it (rezzed ice only). */
+function lenderViews(state: GameState, walked: Map<string, WalkIce>): { id: string; walked?: Lender; unwalked?: Lender }[] {
+  const facts = (c: CardInstance) => iceSubroutines(state, c).filter(sub => !/resolve 1 subroutine on/i.test(sub.label)).map(sub => subroutineFacts(sub.label));
+  const out: { id: string; walked?: Lender; unwalked?: Lender }[] = [];
   for (const sv of Object.values(state.corp.servers)) {
     for (const c of sv.ice) {
       const w = walked.get(c.instanceId);
-      if (!w && !c.isRezzed) continue;
-      const up = w ? w.card : c;
-      const facts = iceSubroutines(state, up).filter(sub => !/resolve 1 subroutine on/i.test(sub.label)).map(sub => subroutineFacts(sub.label));
-      out.push({ id: c.instanceId, rezzed: w ? w.rezzed : true, types: w ? w.types : iceSubtypes(c, state), facts });
+      out.push({
+        id: c.instanceId,
+        walked: w ? { id: c.instanceId, rezzed: w.rezzed, types: w.types, facts: facts(w.card) } : undefined,
+        unwalked: c.isRezzed ? { id: c.instanceId, rezzed: true, types: iceSubtypes(c, state), facts: facts(c) } : undefined,
+      });
     }
   }
   return out;
@@ -905,11 +925,15 @@ function turnInput(state: GameState, start: WalkStart, targets: WalkTarget[], co
  * its clicks, the pool the walk needs plus what the clicks it doesn't earn with would have earned (runnerEarnings).
  */
 function turnNeed(input: TurnInput, targets: SearchTarget[], memo?: Map<string, number>): number {
+  return walkNeed(input, new Walk(input.board, targets, memo), targets.length);
+}
+
+/** turnNeed with its walk made (reachOrders shares a walk's memo with the walks that read the same). */
+function walkNeed(input: TurnInput, walk: Walk, runs: number): number {
   const { earn, first } = input;
   const c = Math.max(0, input.maxClicks);
-  const walk = new Walk(input.board, targets, memo);
   let need = FAIL;
-  for (let e = 0; e + targets.length <= c; e++) need = Math.min(need, walk.turn({ ...first, clicks: c - e }) + earn[c - 1] - earn[e]);
+  for (let e = 0; e + runs <= c; e++) need = Math.min(need, walk.turn({ ...first, clicks: c - e }) + earn[c - 1] - earn[e]);
   return need;
 }
 
@@ -974,7 +998,7 @@ export function questionKey(q: unknown): string {
 function turnQuestion(state: GameState, server: string, corpCredits: number): TurnQuestion {
   const all = state.corp.servers[server]?.ice ?? [];
   const start = walkStart(state, true);
-  const base = walkIce(state, start, all);
+  const base = turnIce(state, start, server);
   const n = Math.min(all.length, 10);
   const sets: TurnQuestion['sets'] = [];
   for (let mask = 0; mask < 1 << n; mask++) {
@@ -1080,13 +1104,156 @@ export function turnReach(state: GameState, servers: string[], rezSets: string[]
     if (!servers.length) return { reaches: true, need: 0, budget };
     const start = walkStart(state, true);
     const bases = new Map<string, WalkIce[]>();
-    const baseOf = (id: string) => bases.get(id) ?? bases.set(id, walkIce(state, start, state.corp.servers[id]?.ice ?? [])).get(id)!;
+    const baseOf = (id: string) => bases.get(id) ?? bases.set(id, turnIce(state, start, id)).get(id)!;
     const runs = servers.map((id, i) => runTarget(state, baseOf(id), id, new Set(rezSets[i] ?? [])));
     const corp = corpStart(state, [...bases.values()].flat(), corpCredits);
     const targets = runs.map(r => r.target);
     const need = turnNeed(turnInput(state, start, targets, corp), targets.map(searchTarget)) + runs.reduce((n, r) => n + r.price, 0);
     return { reaches: need <= budget, need, budget };
   });
+}
+
+/**
+ * The run sequence over a list of servers, gathered once (the 14:39Z ruling on keepFor's time): the walk's start, each
+ * server's ice as met with nothing more rezzed and its bypasses' price, the earnings, the first state, and the board for
+ * all of them (break plans and subtypes are keyed by ice, so a server outside an order is never read), with each ice as a
+ * lender both ways (a borrow lends from the walked ice as met and the rest as the board has it, so the lenders depend on
+ * which servers an order runs). `reachOrder` answers turnReach(state, order, no rezzes) from it and nothing else.
+ */
+export interface ReachQuestion extends TurnInput {
+  budget: number;
+  targets: Record<string, SearchTarget>;
+  prices: Record<string, number>;
+  /** Whether a server's ice borrows (walkBoard's rule: then the lenders are gathered). */
+  borrows: Record<string, boolean>;
+  views: { id: string; server: string | null; walked?: Lender; unwalked?: Lender }[];
+}
+
+/** The question for `servers` (the Corp's credits as they are; corpStart with a finite budget is that budget). */
+export function reachQuestion(state: GameState, servers: string[]): ReachQuestion {
+  return counted(() => {
+    const start = walkStart(state, true);
+    const runs = servers.map(id => runTarget(state, turnIce(state, start, id), id, new Set()));
+    const targets = runs.map(r => r.target);
+    const input = turnInput(state, start, targets, state.corp.credits);
+    const walked = new Map(targets.flatMap(t => t.ice.map(x => [x.id, x] as const)));
+    const serverOf = new Map(targets.flatMap(t => t.ice.map(x => [x.id, t.server] as const)));
+    const borrows = Object.fromEntries(targets.map(t => [t.server, t.ice.some(i => i.subs.some(f => f.does.some(e => e.kind === 'borrow')))]));
+    // The lenders are read only by a borrow (setInput, walkBoard's rule)
+    const views = Object.values(borrows).some(Boolean) ? lenderViews(state, walked) : [];
+    // Nothing is rezzed on these runs (6.4.3: only a rez set's ice is rezzed as approached), so the Corp's credits are
+    // read only by a subroutine's "more credits than the Runner", and HQ's size only by "more cards in HQ than in the
+    // grip" and "trash 1 card from HQ to end the run": where no subroutine of these servers or of a lender says so, they
+    // are left out of the question (0), so that boards differing in them alone ask the same
+    const facts = [...targets.flatMap(t => t.ice.flatMap(i => (i.rezGains ? [...i.subs, i.rezGains] : i.subs))), ...views.flatMap(v => [...(v.walked?.facts ?? []), ...(v.unwalked?.facts ?? [])])];
+    const ifs = facts.flatMap(f => f.does.map(e => (e.kind === 'endRun' ? e.if?.kind : e.kind)));
+    const corpRead = ifs.includes('corpCreditsMoreThanRunner');
+    const hqRead = ifs.includes('hqMoreThanGrip') || ifs.includes('corpMayTrashHqToEndRun');
+    return {
+      ...input,
+      first: corpRead ? input.first : { ...input.first, corp: 0 },
+      board: { ...input.board, lenders: [], hq: hqRead ? input.board.hq : 0 },
+      budget: runnerBudget(state),
+      targets: Object.fromEntries(targets.map(t => [t.server, searchTarget(t)])),
+      prices: Object.fromEntries(runs.map(r => [r.target.server, r.price])),
+      borrows,
+      views: views.map(v => ({ ...v, server: serverOf.get(v.id) ?? null })),
+    };
+  });
+}
+
+/** The board of the orders of a set of servers: the lenders a borrow reads when those servers are walked. */
+function setInput(q: ReachQuestion, set: string[]): TurnInput {
+  const on = new Set(set);
+  const lenders = set.some(id => q.borrows[id]) ? q.views.flatMap(v => (v.server !== null && on.has(v.server) ? [v.walked!] : v.unwalked ? [v.unwalked] : [])) : [];
+  return { ...q, board: { ...q.board, lenders } };
+}
+
+/** Whether one Runner turn gets through `order`'s servers in that order, the walk made (its memo given or its own). */
+const reaches = (q: ReachQuestion, order: string[], input: TurnInput, memo?: Map<string, number>): boolean =>
+  walkNeed(input, new Walk(input.board, order.map(id => q.targets[id]), memo), order.length) + order.reduce((n, id) => n + q.prices[id], 0) <= q.budget;
+
+/** turnReach(state, order, no rezzes) from the gathered question, its own memo (pure: it reads `q` alone). */
+export function reachOrder(q: ReachQuestion, order: string[]): boolean {
+  return !order.length || reaches(q, order, setInput(q, order));
+}
+
+/** Every order of `ids`. */
+export const orders = (ids: string[]): string[][] => (ids.length <= 1 ? [ids] : ids.flatMap((id, i) => orders([...ids.slice(0, i), ...ids.slice(i + 1)]).map(rest => [id, ...rest])));
+
+/**
+ * The answers per decision (as turnAnswers: on the decision's anchor, never across decisions). An order's answer reads
+ * the question's common part (the board but its break plans and lenders, the earnings, the clicks, the first state, the
+ * budget, the lenders as the board has them) and the part of each server it runs (its ice as met, the price of its
+ * bypasses, whether it borrows, its ice as walked lenders, its ice's plans and subtypes): each part is interned, and an
+ * answer is keyed by the common part and the parts it runs, so the questions a decision asks (the staked servers of
+ * each board it looks at, with or without a line's agenda) share what they have in common. A set's answer (some order
+ * reaches it) is keyed by the common part and its parts. The walks' memos are shared by the orders of one question and
+ * set (their node keys name servers, which a question fixes; the set fixes what a node reads besides its key).
+ */
+interface ReachCache {
+  ids: Map<string, number>;
+  orders: Map<string, boolean>;
+  sets: Map<string, boolean>;
+  memos: Map<string, Map<string, number>>;
+}
+const reachAnswers = new WeakMap<object, ReachCache>();
+
+/** Whether some order of a set of the question's servers is reached (reachOrder), cached per decision (above). */
+export function reachSets(q: ReachQuestion): (set: string[]) => boolean {
+  const anchor = pricing().anchor;
+  let c = anchor ? reachAnswers.get(anchor) : undefined;
+  if (!c) {
+    c = { ids: new Map(), orders: new Map(), sets: new Map(), memos: new Map() };
+    if (anchor) reachAnswers.set(anchor, c);
+  }
+  const cache = c;
+  const intern = (x: unknown) => {
+    const k = questionKey(x);
+    let id = cache.ids.get(k);
+    if (id === undefined) cache.ids.set(k, (id = cache.ids.size));
+    return id;
+  };
+  const common = intern({
+    board: { ...q.board, plans: {}, types: {}, lenders: [] },
+    earn: q.earn,
+    maxClicks: q.maxClicks,
+    first: q.first,
+    budget: q.budget,
+    unwalked: q.views.map(v => v.unwalked ?? null),
+  });
+  const part: Record<string, number> = {};
+  for (const [id, t] of Object.entries(q.targets)) {
+    const own = (k: string) => t.ice.some(i => k.startsWith(`${i.id}|`));
+    part[id] = intern({
+      target: t,
+      price: q.prices[id],
+      borrows: q.borrows[id],
+      walked: q.views.filter(v => v.server === id).map(v => v.walked),
+      plans: Object.entries(q.board.plans).filter(([k]) => own(k)),
+      types: Object.entries(q.board.types).filter(([k]) => own(k)),
+    });
+  }
+  const servers = `${common}|${Object.keys(q.targets).map(id => `${id}=${part[id]}`)}`;
+  return set => {
+    if (!set.length) return true;
+    const sk = `${common}|${set.map(id => part[id]).sort((a, b) => a - b)}`;
+    let a = cache.sets.get(sk);
+    if (a !== undefined) return a;
+    // One board and one memo for the set's orders: the lenders and the walk's options read the set, not its order
+    const input = setInput(q, set);
+    const mk = `${servers}|${[...set].sort()}`;
+    let memo = cache.memos.get(mk);
+    if (!memo) cache.memos.set(mk, (memo = new Map()));
+    a = orders(set).some(order => {
+      const k = `${common}|${order.map(id => part[id])}`;
+      let r = cache.orders.get(k);
+      if (r === undefined) cache.orders.set(k, (r = reaches(q, order, input, memo)));
+      return r;
+    });
+    cache.sets.set(sk, a);
+    return a;
+  };
 }
 
 /** 'thisRun' by the walk: from the approached ice at `from`, the Runner's credits and clicks as they are. */

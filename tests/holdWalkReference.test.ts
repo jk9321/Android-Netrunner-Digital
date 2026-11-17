@@ -16,8 +16,9 @@ import { CardInstance, GameState, cardDef } from '../src/core';
 import { threatLevel } from '../src/core/engine/cardEffects';
 import { iceSubroutines, iceSubtypes } from '../src/core/engine/ice';
 import { createCardInstance } from '../src/core/engine/gameState';
-import { installIceForTest, installProgramForTest, newGame } from './helpers';
-import { Walk, WalkIce, WalkPlan, WalkState, WalkTarget, corpStart, firstState, runTarget, holdCacheStats, questionKey, runnerEarnings, searchTarget, serverHold, turnReach, walkBoard, walkIce, walkStart } from '../src/ai/corp/hold';
+import { installCorpForTest, installIceForTest, installProgramForTest, newGame } from './helpers';
+import { Walk, WalkIce, WalkPlan, WalkState, WalkTarget, corpStart, firstState, orders, reachOrder, reachQuestion, reachSets, runTarget, holdCacheStats, questionKey, runnerEarnings, searchTarget, serverHold, turnReach, walkBoard, walkIce, walkStart } from '../src/ai/corp/hold';
+import { rezMoney } from '../src/ai/corp/rezMoney';
 import { SubEffect, SubFacts, bioroidBreakClicks, subroutineFacts } from '../src/ai/runs';
 import { CARDS } from '../src/ai/cards';
 import { asSide, withPricing } from '../src/ai/pricing';
@@ -416,4 +417,158 @@ describe("the hold walk's per-decision cache", () => {
     expect(() => questionKey({ a: new Set([1]) })).toThrow();
     expect(() => questionKey({ a: () => 1 })).toThrow();
   });
+});
+
+/**
+ * keepFor's run sequence (the 14:39Z ruling on its time): the question gathered once (reachQuestion), each order's
+ * answer from it (reachOrder), and the sets' and orders' answers cached per decision and shared by the questions of one
+ * decision (reachSets). Many boards with 4 to 9 servers in one decision, some one field apart and some asked twice, from
+ * different games (their instance ids collide): every subset in every order, cached, against turnReach afresh (no
+ * decision, nothing cached, each order gathered on its own); and rez money's keep against the same by brute force.
+ */
+describe("keepFor's run sequence, gathered once and cached per decision", () => {
+  const SERVERS = ['rd', 'hq', 'archives', 'remote1', 'remote2', 'remote3', 'remote4', 'remote5', 'remote6'];
+  // Ice that reads the Corp's credits (Valentão), HQ's size (Boto, Piranhas) or borrows (Mycoweb), beside the pool
+  const READERS = ['34060', '34109', '34117', '35053'];
+  const AGENDAS = ['30036', '30044', '30052', '30060'];
+  /** At most this many orders a board (the clicks are cut to fit): every one is walked afresh. */
+  const ORDERS = 400;
+  const count = (n: number, k: number) => Array.from({ length: k }, (_, i) => i + 1).reduce((t, j) => t + Array.from({ length: j }, (_, x) => n - x).reduce((a, b) => a * b, 1), 0);
+
+  // Laser Pointer: a bypass with a price (runBypasses), so a server's part carries one
+  const LASER_POINTER = '34016';
+  const MYCOWEB = '35053';
+  const LYCIAN = '34100';
+
+  function wideBoard(r: () => number, lend = false): { s: GameState; servers: string[] } {
+    const pick = <T>(xs: T[]) => xs[Math.floor(r() * xs.length)];
+    const s = newGame(3);
+    s.turnNumber = 7;
+    s.runner.rig = { ...s.runner.rig, programs: [], hardware: [], resources: [] };
+    s.runner.credits = Math.floor(r() * 13);
+    s.runner.tags = r() < 0.2 ? 1 : 0;
+    s.runner.grip = s.runner.grip.slice(0, 1 + Math.floor(r() * 5));
+    s.corp.credits = Math.floor(r() * 15);
+    s.corp.hq = s.corp.hq.slice(0, Math.floor(r() * 5));
+    if (r() < 0.7) s.corp.hq.push(createCardInstance(s, pick(AGENDAS)));
+    const n = 4 + Math.floor(r() * 6);
+    const servers = SERVERS.slice(0, 3).concat(SERVERS.slice(3, 3 + n - 3)).slice(0, n);
+    for (const id of servers) {
+      for (let k = Math.floor(r() * 3); k > 0; k--) installIceForTest(s, r() < 0.15 ? pick(READERS) : pick(ICE), id, r() < 0.6);
+      if (id.startsWith('remote')) installCorpForTest(s, pick(AGENDAS), id);
+    }
+    for (let k = Math.floor(r() * 3); k > 0; k--) installProgramForTest(s, pick(BREAKERS));
+    if (r() < 0.2) installProgramForTest(s, LASER_POINTER);
+    // A borrow whose lenders depend on the servers run: Mycoweb innermost on the first remote, and a rezzed Lycian (it
+    // derezzes itself when the Corp's turn ends, so walked it is met unrezzed) on another server
+    if (lend) {
+      s.corp.servers.remote1.ice.unshift({ ...createCardInstance(s, MYCOWEB), isRezzed: true });
+      installIceForTest(s, LYCIAN, pick(servers.filter(id => id !== 'remote1')), true);
+      installIceForTest(s, pick(ICE), pick(servers), true);
+    }
+    // The clicks: 1 to 5, as many as keep every order walkable
+    let clicks = 1 + Math.floor(r() * 5);
+    while (clicks > 1 && count(servers.length, Math.min(clicks, servers.length)) > ORDERS) clicks--;
+    s.runner.maxClicks = clicks;
+    return { s, servers };
+  }
+
+  /** turnReach afresh: no decision, so nothing is cached, and each order gathered on its own. */
+  const fresh = (s: GameState, order: string[]) => withPricing({ anchor: null }, () => turnReach(s, order, order.map(() => [])).reaches);
+  const subsets = (ids: string[], most: number): string[][] =>
+    Array.from({ length: (1 << ids.length) - 1 }, (_, m) => ids.filter((_, i) => (m + 1) & (1 << i))).filter(x => x.length <= most);
+
+  it('gives every subset and every order the answer walked afresh, on 120 boards and their near neighbours in one decision', () => {
+    const r = rng(20261121);
+    const boards: { s: GameState; servers: string[] }[] = [];
+    for (let n = 0; n < 120; n++) {
+      const b = wideBoard(r, n % 4 === 3);
+      boards.push(b);
+      const near = (f: (t: GameState) => void) => {
+        const t = structuredClone(b.s);
+        f(t);
+        boards.push({ s: t, servers: b.servers });
+      };
+      // One field apart: what a walk may read (the Corp's credits and HQ, the Runner's credits, tags and grip), an ice
+      // rezzed or not, and the same board again
+      near(t => (t.corp.credits += 2));
+      near(t => (t.corp.hq = t.corp.hq.slice(1)));
+      near(t => (t.runner.credits += 2));
+      near(t => (t.runner.tags += 1));
+      near(t => (t.runner.grip = t.runner.grip.slice(1)));
+      // Another breaker in a breaker's place: the same rig facts, other break plans
+      near(t => {
+        const k = t.runner.rig.programs.findIndex(c => BREAKERS.includes(c.cardCode));
+        if (k >= 0) t.runner.rig.programs[k] = { ...createCardInstance(t, BREAKERS[(BREAKERS.indexOf(t.runner.rig.programs[k].cardCode) + 1) % BREAKERS.length]), isRezzed: true };
+      });
+      near(t => {
+        const ice = t.corp.servers[b.servers[n % b.servers.length]].ice[0];
+        if (ice) ice.isRezzed = !ice.isRezzed;
+      });
+      boards.push({ s: structuredClone(b.s), servers: b.servers });
+    }
+    // A borrow's lenders as the servers run decide it: Mycoweb rezzed on remote1 (no decoder: its subroutines resolve),
+    // Ballista rezzed on HQ with Tranquilizer at 2 counters on it (3 at the Runner's turn start: HQ's walk meets it
+    // derezzed, 5.7.1d; not walked, the board has it rezzed and Mycoweb may resolve its "or end the run")
+    for (const credits of [3, 6]) {
+      const { s } = wideBoard(rng(credits), false);
+      for (const id of ['rd', 'hq', 'archives', 'remote1', 'remote2']) s.corp.servers[id] && (s.corp.servers[id].ice = []);
+      s.runner.rig.programs = [];
+      s.runner.credits = credits;
+      s.runner.maxClicks = 4;
+      s.corp.servers.remote1.ice.push({ ...createCardInstance(s, MYCOWEB), isRezzed: true });
+      const ballista = installIceForTest(s, '30062', 'hq', true);
+      const tranq = createCardInstance(s, '30017');
+      tranq.isRezzed = true;
+      tranq.hostedOnId = ballista;
+      tranq.tokens = { virus: 2 };
+      s.runner.rig.programs.push(tranq);
+      boards.unshift({ s, servers: ['rd', 'hq', 'archives', 'remote1'] });
+    }
+    const misses: string[] = [];
+    let orderCount = 0;
+    let reached = 0;
+    inCorp(boards[0].s, () => {
+      boards.forEach(({ s, servers }, i) => {
+        // The question for all the servers, and one without the last (as lineFloor asks without a line's agenda)
+        for (const ids of [servers, servers.slice(0, -1)]) {
+          const q = reachQuestion(s, ids);
+          const sets = reachSets(q);
+          for (const set of subsets(ids, s.runner.maxClicks)) {
+            const each = orders(set).map(o => fresh(s, o));
+            orderCount += each.length;
+            const want = each.some(Boolean);
+            if (want) reached++;
+            if (sets(set) !== want) misses.push(`board ${i} [${ids}] set [${set}]: cached ${!want}, afresh ${want}`);
+            if (ids === servers) orders(set).forEach((o, k) => reachOrder(q, o) !== each[k] && misses.push(`board ${i} order [${o}]: gathered ${!each[k]}, afresh ${each[k]}`));
+          }
+        }
+      });
+    });
+    expect(misses.slice(0, 10)).toEqual([]);
+    expect(orderCount).toBeGreaterThan(20_000);
+    expect(reached).toBeGreaterThan(1_000);
+  }, 900_000);
+
+  it("gives rez money's keep the largest set one turn reaches, every set inside it reached (brute force afresh)", () => {
+    const r = rng(20261122);
+    const misses: string[] = [];
+    let positive = 0;
+    for (let n = 0; n < 150; n++) {
+      const { s } = wideBoard(r);
+      const money = inCorp(s, () => rezMoney(s));
+      const ids = Object.keys(money.byServer).filter(id => money.byServer[id] > 0);
+      const reach = new Map<string, boolean>();
+      const reaches = (set: string[]): boolean => {
+        const k = set.join();
+        if (!reach.has(k)) reach.set(k, set.every((_, i) => set.length === 1 || reaches(set.filter((_, j) => j !== i))) && orders(set).some(o => fresh(s, o)));
+        return reach.get(k)!;
+      };
+      const want = Math.max(0, ...subsets(ids, s.runner.maxClicks).filter(reaches).map(set => set.reduce((t, id) => t + money.byServer[id], 0)));
+      if (want > 0) positive++;
+      if (money.keep !== want) misses.push(`board ${n}: keep ${money.keep}, brute ${want} (byServer ${JSON.stringify(money.byServer)})`);
+    }
+    expect(misses).toEqual([]);
+    expect(positive).toBeGreaterThan(30);
+  }, 900_000);
 });
