@@ -10,6 +10,8 @@ import { bestBreakPlan, planCost } from '../runs';
 import { accessWorth, anySuccess, centralSuccess, conduitCounterWorth, counterWorthOf, damageWorth, lock, muWorth, PACE, perTurn, runSuccess, VIRUS_WAIT, virusWait } from '../effectValues';
 import type { RunOptions } from '../runs';
 import { CardAI } from './types';
+import { pricing } from '../pricing';
+import { corpKnowsRd } from '../oracle';
 
 /**
  * What the AI knows about each System Gateway card's worth, one entry per card
@@ -354,13 +356,17 @@ export const SYSTEM_GATEWAY: Record<string, CardAI> = {
     },
     // plan.spentSpinDoctor (bug report #5, Jeff 2026-11-02): rezzed, its 2 cards are drawn (in HQ, priced there); all it
     // can still do is shuffle up to 2 Archives cards back into R&D: a faceup card a slightly better R&D, a facedown one
-    // maybe an agenda the Runner would steal from Archives. With Archives empty it is worth next to nothing.
-    spent: state => {
+    // maybe an agenda the Runner would steal from Archives. With Archives empty it is worth next to nothing. The Corp
+    // knows its own Archives cards (an agenda by its points), except one drawn and discarded in a look-ahead: by the odds
+    spent: (state, viewer) => {
       const { agenda, agendaPoints } = hiddenCardOdds(state);
-      const archives = state.corp.archives;
+      const { faceUp, faceDown } = state.corp.archives;
+      const seen = pricing().known.corp;
+      const odds = () => agenda * archivedAgendaLoss(state, agendaPoints) + (1 - agenda) * 0.3 * cardRate(state, 'corp');
+      const known = (c: CardInstance) => (cardDef(c).type_code === 'agenda' ? archivedAgendaLoss(state, cardDef(c).agenda_points ?? 1) : 0.3 * cardRate(state, 'corp'));
       const worth = [
-        ...archives.faceUp.map(() => 0.3 * cardRate(state, 'corp')),
-        ...archives.faceDown.map(() => agenda * archivedAgendaLoss(state, agendaPoints) + (1 - agenda) * 0.3 * cardRate(state, 'corp')),
+        ...faceUp.map(c => (viewer === 'runner' ? 0.3 * cardRate(state, 'corp') : known(c))),
+        ...faceDown.map(c => (viewer === 'runner' || (seen && !seen.has(c.instanceId) && !corpKnowsRd()) ? odds() : known(c))),
       ].sort((a, b) => b - a);
       return 0.3 + (worth[0] ?? 0) + (worth[1] ?? 0);
     },

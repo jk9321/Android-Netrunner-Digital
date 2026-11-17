@@ -79,14 +79,14 @@ export const VANTAGE_POINT: Record<string, CardAI> = {
     // draws (RATES.drawnCard: the loop guard, V-B B5). The first tag costs that while she can use it this turn (the
     // Runner's turn, ability unused, a click and a credit left), else it sits through a Corp turn first; the second waits
     // a turn for her (two if the first waits too) or is cleared the usual way; the rest cost as usual.
-    tagClear: (state, tags, perTurn) => {
+    tagClear: (state, tags, turnLoss) => {
       const clear = CLICK + 2;
       const vic = Math.max(0.5, CLICK + 1 - RATES.drawnCard);
       const runner = state.runner;
       const ability = abilityUsedKey(runner.identity.instanceId, 0);
       const now = state.activePlayer === 'runner' && turnFlag(state, ability) === 0 && runner.clicks >= 1 && runner.credits >= 1;
-      const later = Math.min(clear, vic + perTurn);
-      const second = now ? later : Math.min(clear, vic + 2 * perTurn);
+      const later = Math.min(clear, vic + turnLoss);
+      const second = now ? later : Math.min(clear, vic + 2 * turnLoss);
       return (now ? vic : later) + (tags >= 2 ? second : 0) + Math.max(0, tags - 2) * clear;
     },
   },

@@ -147,12 +147,12 @@ function addRigCard(state: GameState, card: CardInstance, value: number): number
  */
 export function corpCardValue(card: CardInstance, state?: GameState, viewer: SideCode = 'corp', left = false): number {
   const flat = () => logValue('boardCard', 'corpCardValue flat (loop)', state, corpKeepValue(card.cardCode), card, viewer, left);
-  return logValue('boardCard', 'corpCardValue', state, guardLoop(state, `corp card ${cardDef(card).title} ${card.instanceId}${left ? ' left' : ''}`, flat, () => corpCardWorth(card, state, left)), card, viewer, left);
+  return logValue('boardCard', 'corpCardValue', state, guardLoop(state, `corp card ${cardDef(card).title} ${card.instanceId}${left ? ' left' : ''}`, flat, () => corpCardWorth(card, state, viewer, left)), card, viewer, left);
 }
 
-function corpCardWorth(card: CardInstance, state: GameState | undefined, left = false): number {
+function corpCardWorth(card: CardInstance, state: GameState | undefined, viewer: SideCode, left = false): number {
   const spent = state && card.isRezzed ? CARDS[card.cardCode]?.spent : undefined;
-  if (spent) return spent(state!); // a rezzed card whose rez effect is done (Spin Doctor), both viewers (V-B B6)
+  if (spent) return spent(state!, viewer); // a rezzed card whose rez effect is done (Spin Doctor), as `viewer` knows it (V-B B6)
   const hosted = counters(card, 'credit');
   const power = state && card.isRezzed ? countersWorth(state, card, 'power') : 0;
   const profile = state ? profileOf(card.cardCode) : undefined;
