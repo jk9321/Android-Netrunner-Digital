@@ -149,6 +149,10 @@ export interface CardAI {
   rezEffect?: true;
   /** Clicks one use gives beyond the click it costs (Nanomanagement: gain 2, 1 to play it), read by winNow.ts's count of what this turn can still score. */
   clicksGiven?: number;
+  /** The most advancement counters one use can place when the card's text counts something on the board (Flood the Market:
+   * one per remote with a card in its root and ice), read by winNow.ts's count of what this turn can still score. Absent: the
+   * count is parsed from the card text. */
+  placesCounters?: (state: GameState) => number;
   /** A trap's worth of one counter placed on it by an effect, `bluff` the generic trap's run drawn (placedCounterWorth; V-B B6). */
   placedCounter?: (state: GameState, card: CardInstance, bluff: number) => number;
   /** A rezzed card whose rez effect is done: its worth on the board as `viewer` knows it (Spin Doctor; corpCardValue; V-B B6). */

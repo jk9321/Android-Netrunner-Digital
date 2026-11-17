@@ -183,8 +183,9 @@ const tomorrowsHeadline: CardScript = { triggers: { agenda_scored: headline, age
 // Above the Law: When you score this agenda, you may trash 1 installed resource.
 const aboveTheLawFlow = prompts({
   trash: cards(({ state }, a) => {
-    if (a.ids.length === 0) return;
-    const card = state.runner.rig.resources.find(c => c.instanceId === a.ids[0])!;
+    // The chosen resource may have left play before the answer (Word on the Street trashes itself on the same score)
+    const card = state.runner.rig.resources.find(c => c.instanceId === a.ids[0]);
+    if (!card) return;
     trashInstalledCard(state, card);
     addLog(state, 'corp', `Corp trashed ${cardDef(card).title} (Above the Law).`);
   }),
@@ -198,6 +199,8 @@ const aboveTheLaw: CardScript = {
       aboveTheLawFlow.cards(ctx, 'trash', cardsQuestion('corp', 'Above the Law: you may trash 1 installed resource.', resources.map(c => c.instanceId), 0, 1));
     },
   },
+  // Abilities triggered together resolve one at a time (rules 9.2.8d): only resources still installed when it resolves
+  liveCandidates: state => state.runner.rig.resources.map(c => c.instanceId),
   ...aboveTheLawFlow.script,
 };
 
