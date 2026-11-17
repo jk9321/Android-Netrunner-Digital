@@ -265,7 +265,7 @@ export interface SubFacts {
   /** What it does, in printed order. */
   does: SubEffect[];
   /** A nested cost the Runner may pay instead of `does` (1.16.11b: "... unless the Runner pays 3 [credit]"). */
-  unless?: { credits?: number; netDamage?: number; jackOut?: true };
+  unless?: { credits?: number; netDamage?: number; jackOut?: true; trashInstalled?: true };
   /** "X or end the run": the Corp chooses between `does` and ending the run (ruling 6: the walk takes the end). */
   orEndRun?: true;
 }
@@ -352,6 +352,12 @@ export function subroutineFacts(label: string): SubFacts {
     if ((m = c.match(/^(.*?) unless (?:the runner pays|they pay) (\d+) (?:credits?|\[credit\])$/))) {
       facts.does.push(...clauseEffects(m[1]));
       facts.unless = { credits: Number(m[2]) };
+      continue;
+    }
+    // Thunderbolt Armaments' granted subroutine: "End the run unless the Runner trashes 1 of their installed cards."
+    if ((m = c.match(/^(.*?) unless the runner trashes 1 of their installed cards$/))) {
+      facts.does.push(...clauseEffects(m[1]));
+      facts.unless = { trashInstalled: true };
       continue;
     }
     if ((m = c.match(/^(.*?) unless the runner jacks out$/))) {

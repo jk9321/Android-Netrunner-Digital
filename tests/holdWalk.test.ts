@@ -365,3 +365,57 @@ describe('hold walk, commit 4: the run sequence (turnReach; brief 5.6)', () => {
     expect(reached(s, ['remote1', 'remote2'])).toBe(1);
   });
 });
+
+describe('hold walk, commit 5: what an ice takes besides breaks', () => {
+  it('B1 Grubber outside Palisade, Cleaver, $4: holds (Grubber 5 to break or 6 to pay, Palisade 3: 8 against 7; 1.16.11b)', () => {
+    const s = board(st => { ice(st, C.PALISADE); ice(st, C.GRUBBER); installProgramForTest(st, C.CLEAVER); st.runner.credits = 4; });
+    expect(agrees(s).holds).toBe(true);
+  });
+
+  it('B1 mirror: $5: 8 against 8: gets in', () => {
+    const s = board(st => { ice(st, C.PALISADE); ice(st, C.GRUBBER); installProgramForTest(st, C.CLEAVER); st.runner.credits = 5; });
+    expect(agrees(s).holds).toBe(false);
+    expect(oracleOn(s, [])).toBe('getsIn');
+  });
+
+  it('B2 Paywall alone, $0: gets in (3 clicks earn 3; it loses 1 and pays 1; 5.2.7b, 6.9.3a)', () => {
+    const s = board(st => { ice(st, C.PAYWALL); });
+    const h = agrees(s);
+    expect(h).toMatchObject({ holds: false, need: 2 });
+    expect(oracleOn(s, [])).toBe('getsIn');
+  });
+
+  it('B2 mirror: 1 click, $1: the encounter takes the 1 it would pay: holds', () => {
+    const s = board(st => { ice(st, C.PAYWALL); st.runner.maxClicks = 1; st.runner.credits = 1; });
+    expect(agrees(s)).toMatchObject({ holds: true, need: 2 });
+  });
+
+  it('B3 Paywall alone, $1: need 2 (the encounter loss counted; 6.9.3a)', () => {
+    const s = board(st => { ice(st, C.PAYWALL); st.runner.credits = 1; });
+    expect(agrees(s).need).toBe(2);
+  });
+
+  it('R2 Thunderbolt Armaments, unrezzed Diviner, nothing installed: holds for its rez (the gained subroutine ends the run; 9.8.3e)', () => {
+    const s = board(st => { st.corp.identity = createCardInstance(st, '34096'); ice(st, '30046', false); });
+    const h = agrees(s);
+    expect(h.holds).toBe(true);
+    expect(h.rez).toHaveLength(1);
+  });
+
+  it('R2 mirror: a card installed to trash: gets in', () => {
+    const s = board(st => { st.corp.identity = createCardInstance(st, '34096'); ice(st, '30046', false); installProgramForTest(st, C.CLEAVER); st.runner.grip = st.runner.grip.slice(0, 5); });
+    expect(agrees(s).holds).toBe(false);
+    expect(oracleOn(s, s.corp.servers.remote1.ice.map(c => c.instanceId))).toBe('getsIn');
+  });
+
+  it('G1 mirror: two tags, $5: clearing both (2 clicks, $4) leaves 1 click to run and $1 for a 3-credit toll: holds', () => {
+    const s = board(st => { ice(st, C.LAMP); st.runner.tags = 2; st.runner.credits = 5; });
+    expect(agrees(s).holds).toBe(true);
+  });
+
+  it('G2 mirror: 4 clicks: 3 earn the 3 it pays: gets in', () => {
+    const s = board(st => { ice(st, C.LAMP); });
+    expect(agrees(s).holds).toBe(false);
+    expect(oracleOn(s, [])).toBe('getsIn');
+  });
+});

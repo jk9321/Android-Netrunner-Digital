@@ -350,6 +350,8 @@ export const tuning = {
     holdWalkCredits: true,
     /** TEMPORARY (as holdWalk), commit 4: the run sequence in the hold owner (turnReach): `entries` and rezMoney's keep read one turn's runs in order, the clicks, credits and counters shared. */
     holdWalkSequence: true,
+    /** TEMPORARY (as holdWalk), commit 5: what an ice takes besides breaks: an "unless the Runner pays" paid as a payment, Paywall's loss on encounter, Thunderbolt Armaments' gained subroutine (and the Runner's trash that answers it). */
+    holdWalkTolls: true,
     /**
      * Per deciding side (Jeff, 2026-10-28): its own hand valued card by card, by what each will do once played (handValues.ts).
      * Batches: each side loses with it (Corp side 32.2% -> 28.0%, Runner side 32.2% -> 35.9% Corp) and the Runner draws at a

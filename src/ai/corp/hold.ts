@@ -326,6 +326,8 @@ interface WalkIce {
   granters: number[];
   /** 'thisRun': the encounter with it is under way; the subroutines already broken. */
   broken?: boolean[];
+  /** The subroutine it gains after its others when the Corp rezzes it during a run (Thunderbolt Armaments, 9.8.3e; its +1 strength is not carried). */
+  rezGains?: SubFacts;
 }
 
 /** One run of the walk's turn: its server and its ice, innermost first (as the server lists them). */
@@ -406,6 +408,8 @@ function walkStart(state: GameState, runnerTurn: boolean): WalkStart {
 /** The server's ice as the walk meets it, innermost first; inS and bypassed are set per rez set. */
 function walkIce(state: GameState, start: WalkStart, ice: CardInstance[]): WalkIce[] {
   const encounter = state.activeRun?.encounter;
+  // The Corp's identity: what ice of some subtypes gains when it is rezzed during a run (Thunderbolt Armaments)
+  const anyIce = CARDS[state.corp.identity?.cardCode]?.holdFacts?.rezDuringRun?.anyIce;
   return ice.map(c => {
     const up = c.isRezzed ? c : { ...c, isRezzed: true };
     const view = withIce(state, up);
@@ -431,6 +435,7 @@ function walkIce(state: GameState, start: WalkStart, ice: CardInstance[]): WalkI
       encounterFacts: CARDS[c.cardCode]?.holdFacts?.encounter,
       granters: hostedHere(r => !!getCardScript(r.cardCode)?.grantsIceSubtypes?.length),
       broken: encounter?.iceId === c.instanceId ? [...encounter.broken] : undefined,
+      rezGains: anyIce && (cardDef(c).keywords ?? '').toLowerCase().split(/\s*-\s*/).some(k => anyIce.subtypes.includes(k)) ? subroutineFacts(anyIce.gains) : undefined,
     };
   });
 }
@@ -449,6 +454,8 @@ class Walk {
   private readonly tagUseful: boolean;
   /** Commit 3's switch: credits move on both sides through the run (losses, the Corp's gains and rezzes, run-only credits). */
   private readonly credits: boolean;
+  /** Commit 5's switch: an unless-payment paid, Paywall's encounter loss, Thunderbolt's gained subroutine. */
+  private readonly tolled: boolean;
 
   constructor(
     private readonly state: GameState,
@@ -460,6 +467,7 @@ class Walk {
     this.plans = plans;
     this.tags = plan().holdWalkTags;
     this.credits = plan().holdWalkCredits;
+    this.tolled = plan().holdWalkTolls;
     const facts = targets.flatMap(t => t.ice.flatMap(i => i.subs));
     const effects = facts.flatMap(f => f.does);
     const borrows = effects.some(e => e.kind === 'borrow');
@@ -533,7 +541,9 @@ class Walk {
       w = { ...w, virus: w.virus.map(() => 0), gone: [...new Set([...w.gone, ...purged])].sort((a, b) => a - b) };
     }
     if (this.tags && ice.rezFacts?.tags) w = { ...w, tags: w.tags + ice.rezFacts.tags };
-    const go = (x: WalkState) => (ice.bypassed ? next(x) : this.encounter(x, ice, next));
+    // Thunderbolt Armaments: the ice gains its subroutine after its others for the rest of the run (9.8.3e)
+    const met = this.tolled && ice.rezGains ? { ...ice, subs: [...ice.subs, ice.rezGains] } : ice;
+    const go = (x: WalkState) => (ice.bypassed ? next(x) : this.encounter(x, met, next));
     if (this.tags && ice.rezFacts?.corpMayTrashInstalled === 'trojan') {
       // Bumi 1.0: the Corp may trash 1 installed trojan, the choice worst for the Runner (ruling 6)
       let worst = go(w);
@@ -580,6 +590,13 @@ class Walk {
   private tolls(ws: WalkState, ice: WalkIce, then: (w: WalkState) => number): number {
     const e = ice.encounterFacts;
     if (!e || ice.broken || (e.threatAtLeast !== undefined && threatLevel(this.state) < e.threatAtLeast)) return then(ws);
+    // Paywall: the Runner loses credits as the encounter begins (6.9.3a), from its pool (10.6.2: not the fund)
+    if (this.tolled && this.credits && e.loses) return lose(this.toll(ws, e, then), e.loses);
+    return this.toll(ws, e, then);
+  }
+
+  /** The encounter toll and the alternatives the Runner may pay instead, its choice. */
+  private toll(ws: WalkState, e: NonNullable<WalkIce['encounterFacts']>, then: (w: WalkState) => number): number {
     if (!this.tags || !e.toll) return then(ws);
     const t = e.toll;
     let best = t.endRun ? FAIL : t.loses && this.credits ? lose(then(ws), t.loses) : then({ ...ws, tags: ws.tags + (t.tags ?? 0) });
@@ -704,8 +721,18 @@ class Walk {
     // "X or end the run": the Corp chooses, and the walk takes the end (ruling 6)
     if (f.orEndRun) return FAIL;
     let best = this.effects(ws, card, f.does, 0, then);
-    // "unless the Runner pays N": as on beta, paid for nothing when the Runner holds N now
-    if (f.unless?.credits !== undefined && this.state.runner.credits >= f.unless.credits) best = Math.min(best, then(ws));
+    // "unless the Runner pays N" (1.16.11b): paid as it resolves, run-only credits first (10.6.3a: the fund pays any cost
+    // during the run); off, as on beta: paid for nothing when the Runner holds N now
+    if (f.unless?.credits !== undefined) {
+      if (this.tolled) best = Math.min(best, this.pay(ws, f.unless.credits, then));
+      else if (this.state.runner.credits >= f.unless.credits) best = Math.min(best, then(ws));
+    }
+    // "unless the Runner trashes 1 of their installed cards" (Thunderbolt Armaments): the card it can best spare
+    if (this.tolled && f.unless?.trashInstalled) {
+      this.start.rig.forEach((_, i) => {
+        if (!ws.gone.includes(i)) best = Math.min(best, then({ ...ws, gone: [...ws.gone, i].sort((a, b) => a - b) }));
+      });
+    }
     if (f.unless?.netDamage !== undefined && f.unless.netDamage <= ws.grip) best = Math.min(best, then(this.tags ? { ...ws, grip: ws.grip - f.unless.netDamage } : ws));
     return best;
   }

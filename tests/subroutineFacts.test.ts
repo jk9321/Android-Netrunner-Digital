@@ -12,6 +12,7 @@ import { BLOCK, bestBreakPlan, breakPlans, planCost, plannedSubroutines, subrout
 import { asSide, plan, withPricing } from '../src/ai/pricing';
 import { decisionContext } from '../src/ai/handValues';
 import { BOARDS, board, breakerCodes, iceCodes } from '../scripts/stage-d/golden-prices';
+import { CARDS } from '../src/ai/cards';
 
 const labels = [...new Set(ALL_CARDS.flatMap(card => (getCardScript(card.code)?.ice?.subroutines ?? []).map(sub => sub.label)))];
 const inContext = <T>(s: Parameters<typeof decisionContext>[0], f: () => T): T =>
@@ -54,10 +55,37 @@ describe('subroutineBlocks: the price condition, without the price', () => {
   });
 });
 
+describe('subroutineBlocks against the facts (review R2: two encodings of "ends the run", one tie)', () => {
+  it('blocks only where the literal facts can end the run or the damage is lethal, on every board of the sweep', () => {
+    const misses: string[] = [];
+    for (const credits of [0, 2, 9, 10]) for (const tags of [0, 1, 2]) for (const grip of [0, 1, 2, 5]) for (const [corp, hq, score] of [[0, 0, 0], [12, 8, 4]]) {
+      const { s } = board([credits, tags, grip, corp, score, 3, hq], '30047', null);
+      s.corp.servers.remote1.ice.push({ ...s.corp.servers.remote1.ice[0], instanceId: 'gate', cardCode: '30074' });
+      inContext(s, () => {
+        for (const label of labels) {
+          if (!subroutineBlocks(s, label)) continue;
+          const f = subroutineFacts(label);
+          const lethal = (n: number | 'runnerTags') => (n === 'runnerTags' ? tags : n) > grip;
+          const ends = !!f.orEndRun || (f.unless?.netDamage ?? -1) > grip || f.does.some(e => e.kind === 'endRun' || e.kind === 'borrow' || e.kind === 'corpMayTrashHqToEndRun' || e.kind === 'cannotStealOrTrash' || (e.kind === 'damage' && lethal(e.n)));
+          if (!ends) misses.push(`${JSON.stringify([credits, tags, grip, corp, hq, score])} ${label}`);
+        }
+      });
+    }
+    expect(misses).toEqual([]);
+  });
+});
+
 describe('subroutineFacts: the literal text', () => {
   it('reads every subroutine in the pool with no unknown sentence', () => {
     const unknown = labels.filter(l => subroutineFacts(l).does.some(e => e.kind === 'unknown')).map(l => `${l}: ${JSON.stringify(subroutineFacts(l))}`);
     expect(unknown).toEqual([]);
+  });
+
+  it('reads every subroutine a card entry grants (holdFacts gains: Thunderbolt Armaments; review R1)', () => {
+    const gains = Object.values(CARDS).flatMap(c => (c.holdFacts?.rezDuringRun?.anyIce ? [c.holdFacts.rezDuringRun.anyIce.gains] : []));
+    expect(gains.length).toBeGreaterThan(0);
+    expect(gains.filter(l => subroutineFacts(l).does.some(e => e.kind === 'unknown'))).toEqual([]);
+    expect(subroutineFacts('End the run unless the Runner trashes 1 of their installed cards.')).toEqual({ does: [{ kind: 'endRun' }], unless: { trashInstalled: true } });
   });
 
   it('states conditions and costs as the card text does', () => {
