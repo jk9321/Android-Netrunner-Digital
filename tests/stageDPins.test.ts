@@ -124,6 +124,10 @@ describe('Stage D pins (known-failing until their fix lands)', () => {
   // but the look-ahead plays Palisade into a new remote (the build slot) and then two Clearinghouse advances; HQ ends at
   // two ice (scripts/stage-c/turn-trace.ts STATE=tests/fixtures/bug-report-4-turn13.json). Cause: the playouts' leaf
   // prices the game-ending steal as ordinary points (valuation, Stage D5), not the order. A regression on #4 until then
+  // Stage D item 4 (2026-11-18, counted, not built; netrunner-ai/stage-d/item4-game-end/design-answer.md sections 7 and 8):
+  // neither ordering a game-ending access first nor pricing a near loss moves this board. The reply's Runner never runs HQ
+  // here (found-list row 44) and plays with its planner off (row 36), and the count says the third ice does not hold HQ
+  // (need 2, budget 9), so this pin asks for a toll, not a hold. Known-failing until the Runner rework
   it.fails('Stage C, bug report #4: with the look-ahead HQ gets its third ice', { timeout: 240_000 }, () => {
     let s: GameState = JSON.parse(readFileSync(new URL('./fixtures/bug-report-4-turn13.json', import.meta.url), 'utf8'));
     {
