@@ -3940,20 +3940,20 @@
     },
     {
       "type": "RESOLVE_PROMPT",
-      "player": "runner",
+      "player": "corp",
       "promptId": "prompt-34",
       "choice": {
-        "kind": "effect_cards",
-        "cardInstanceIds": []
+        "kind": "effect_choice",
+        "optionId": "barrier+sentry"
       }
     },
     {
       "type": "RESOLVE_PROMPT",
-      "player": "corp",
+      "player": "runner",
       "promptId": "prompt-35",
       "choice": {
-        "kind": "effect_choice",
-        "optionId": "barrier+sentry"
+        "kind": "effect_cards",
+        "cardInstanceIds": []
       }
     },
     {

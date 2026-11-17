@@ -324,13 +324,32 @@ describe('The Automata Initiative: Criminal', () => {
     const ice = installIceForTest(s, SG.palisade, 'hq', false);
     const nico = installCorpForTest(s, SG.nico, 'remote-1');
     s = scoreForTest(s, '30069'); // Send a Message
-    expect(s.pendingPrompts.map(p => p.side)).toEqual(['corp', 'runner']);
+    // The Corp is the active player: Send a Message resolves before Hermes is asked (rules 9.2.8b, 9.2.8d)
+    expect(s.pendingPrompts.map(p => p.side)).toEqual(['corp']);
     s = pick(s, [ice]); // the Corp rezzes Palisade
     const hermes = s.pendingPrompts[0];
     expect(hermes.kind === 'effect_cards' && hermes.candidateIds).toEqual([nico]);
     expect(isLegalAction(s, { type: 'RESOLVE_PROMPT', player: 'runner', promptId: hermes.id, choice: { kind: 'effect_cards', cardInstanceIds: [ice] } })).toBe(false);
     s = pick(s, [nico]);
     expect(s.corp.hq.map(c => c.instanceId)).toContain(nico);
+  });
+
+  it('on the Runner\'s turn Hermes resolves before the Corp\'s Send a Message rez (rules 9.2.8b)', () => {
+    let s = newGame();
+    rig(s, L.hermes, 'hardware');
+    const ice = installIceForTest(s, SG.palisade, 'hq', false);
+    const other = installIceForTest(s, SG.palisade, 'rd', false);
+    installCorpForTest(s, '30069', 'remote-2'); // Send a Message
+    s = cont(run(s, 'remote-2'));
+    // The Runner is the active player: Hermes asks first, and Send a Message waits for its answer
+    expect(s.pendingPrompts.map(p => p.side)).toEqual(['runner']);
+    const hermes = s.pendingPrompts[0];
+    expect(hermes.kind === 'effect_cards' && hermes.candidateIds).toEqual([ice, other]);
+    s = pick(s, [ice]); // Hermes returns Palisade before the Corp could rez it
+    expect(s.corp.hq.map(c => c.instanceId)).toContain(ice);
+    const rez = s.pendingPrompts[0];
+    expect(rez?.side).toBe('corp');
+    expect(rez?.kind === 'effect_cards' && rez.candidateIds).toEqual([other]);
   });
 
   it('Curupira collects power counters by fully breaking ice and spends 3 to bypass a barrier', () => {
