@@ -15,6 +15,12 @@ const sources = new Set(qs.map(q => q.src));
 console.log(`runnerTurn questions ${qs.length} from ${sources.size} sources; truth "holds" ${held.length}, asked with jacking out ${asked.length}`);
 console.log(`truth turned to "does not hold" by jacking out: ${turned.length} (flips ${turned.filter(q => q.flip).length}); unknown at the cap ${unknown.length}`);
 console.log(`the count's holding set (right without jacking out) gets in with it: ${countTurned.length}`);
+// Jack-outs a card gives (red team 10), which the oracle takes as prompt answers in every arm: the ice whose text gives
+// one (src/data, 2026-11-17: Karunā "The Runner may jack out", Lionsmane "unless the Runner jacks out"), counted apart
+const GIVES = ['Karunā', 'Lionsmane'];
+const gives = q => q.ice.some(t => GIVES.includes(t.replace(/\*$/, '')));
+const cardQs = qs.filter(gives);
+console.log(`boards with an ice that gives a jack-out (${GIVES.join(', ')}): ${cardQs.length} questions; the walk's false "holds" there ${cardQs.filter(q => q.label === 'false holds').length}, truth "holds" ${cardQs.filter(q => q.oracle.holds === true).length}, turned by 6.9.4c ${cardQs.filter(q => q.jack?.holds === false).length}`);
 const board = q =>
   `${q.src} T${q.turn} ${q.server}: [${q.ice.join(', ')}] rig [${q.rig.join(', ')}] $${q.runner.credits} tags ${q.runner.tags} corp $${q.corp.credits}` +
   `${q.corpCredits === null ? '' : ` (asked ${q.corpCredits})`} | count ${q.count.holds ? `holds ${q.count.rez}` : 'does not'}; held by ${q.oracle.set}` +
