@@ -40,6 +40,13 @@ function subroutineSlots(count: number, max: number): number[][] {
   return out;
 }
 
+/** Ansel 2.0 loses 2 clicks to break up to 2 subroutines; other bioroids lose 1 click for 1. */
+function clickBreakLabel(cb?: { clicks: number; max: number }): string {
+  const { clicks, max } = cb ?? { clicks: 1, max: 1 };
+  if (clicks === 1 && max === 1) return 'Bioroid: spend a click';
+  return `Bioroid: spend ${clicks} clicks, break up to ${max}`;
+}
+
 /**
  * Break window for the ice being encountered: shows each subroutine and offers
  * the BREAK / BOOST / BIOROID_BREAK actions the engine reports as legal.
@@ -255,10 +262,16 @@ export const EncounterPanel: React.FC<EncounterPanelProps> = ({ state, onAction,
         </div>
       )}
 
-      {showBioroid && (
+      {showBioroid && (() => {
+        // N-Pot breaks for credits; bioroids break by losing clicks. Show the real cost.
+        const creditBreak = iceScript(ice)?.runnerBreakCost;
+        const label = (text: React.ReactNode) => creditBreak !== undefined
+          ? <>{text} (<Credits amount={creditBreak} />)</>
+          : <><Clock className="inline w-3 h-3 mr-1" />{text}</>;
+        return (
         <div className="flex flex-wrap items-center gap-1.5">
           <span className="text-[12px] font-mono text-slate-400 w-full sm:w-40">
-            {iceScript(ice)?.runnerBreakCost ? <>Pay <Credits amount={iceScript(ice)!.runnerBreakCost!} /> per subroutine</> : 'Bioroid: spend a click'}
+            {creditBreak !== undefined ? <>Pay <Credits amount={creditBreak} /> per subroutine</> : clickBreakLabel(iceScript(ice)?.clickBreak)}
           </span>
           {subs.map((_, i) => {
             const action = bioroidActions.find(a => a.type === 'BIOROID_BREAK' && !a.subroutineIndices && a.subroutineIndex === i);
@@ -269,16 +282,14 @@ export const EncounterPanel: React.FC<EncounterPanelProps> = ({ state, onAction,
                   onClick={() => onAction(action)}
                   className={`${btn} bg-amber-950 border-amber-700 text-amber-200 hover:bg-amber-900`}
                 >
-                  <Clock className="inline w-3 h-3 mr-1" />
-                  Break {i + 1}
+                  {label(<>Break {i + 1}</>)}
                 </button>
               );
             }
             const broken = encounter.broken[i];
             return (
               <button key={i} disabled className={usedBtn} title={broken ? 'Already broken' : 'Not available'}>
-                <Clock className="inline w-3 h-3 mr-1" />
-                {broken ? <span className="line-through">Broken {i + 1}</span> : <>Break {i + 1}</>}
+                {label(broken ? <span className="line-through">Broken {i + 1}</span> : <>Break {i + 1}</>)}
               </button>
             );
           })}
@@ -288,12 +299,12 @@ export const EncounterPanel: React.FC<EncounterPanelProps> = ({ state, onAction,
               onClick={() => onAction(a)}
               className={`${btn} bg-amber-950 border-amber-700 text-amber-200 hover:bg-amber-900`}
             >
-              <Clock className="inline w-3 h-3 mr-1" />
-              Break {a.subroutineIndices.map(i => i + 1).join(' + ')}
+              {label(<>Break {a.subroutineIndices.map(i => i + 1).join(' + ')}</>)}
             </button>
           ))}
         </div>
-      )}
+        );
+      })()}
     </div>
   );
 };
