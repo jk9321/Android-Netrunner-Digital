@@ -14,12 +14,13 @@ import { beginCorpTurn, finishDiscard, resumeTurn } from './turn';
 import { initiationWindow, chooseBreachCandidate, continueAccess, finishAccess, gripToBottomOfStack, resolveStealCost, STEAL_COST_STEP, succeedRun, trashAccessedCard } from './run';
 import { availableCredits, spendCredits } from '../cardEffects';
 import { resumeEncounter, resumeOnEncounter } from '../ice';
-import { fireTrigger } from '../triggers';
+import { fireTrigger, resumeTriggers } from '../triggers';
 import { finishResourceTrash, RESOURCE_TRASH_STEP } from './basic';
 import { answerMemoryLimit, MEMORY_LIMIT_STEP } from '../checkpoint';
 
 export function resolvePrompt(state: GameState, action: ResolvePromptAction): void {
   answerPrompt(state, action);
+  resumeTriggers(state);
   resumeRun(state);
   resumeTurn(state);
 }
