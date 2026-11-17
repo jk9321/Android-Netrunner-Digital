@@ -398,9 +398,11 @@ describe('AI code health (audit guards)', () => {
   // sum deleted): corp/ 3,622, src/ai 15,411
   // Then + 6 (ai-hold-trash, owner hygiene, audit AI-HOLD-OWNER-HYGIENE and AI-REZMONEY-STALE-DOC: comments only,
   // turnIce's key with its start's kind): corp/ 3,628, src/ai 15,417
-  it('keeps src/ai/corp at or under 3,628 lines and src/ai at or under 15,417 (Stage C hand-off, ai-corp-honest-order, ai-value-time, ai-playout-lines, ai-honest-runner-view, ai-honest-corp-decision, ai-value-owners, ai-corp-rd-memory, ai-value-b1, ai-value-b2, ai-hold-reentry, ai-value-b3, ai-tag-loss-time, ai-value-b6, ai-threat-delete, ai-breaker-guard-key, ai-tag-loss-bp, ai-hold-facts, ai-hold-walk, ai-flood-bound, ai-hold-retry, ai-winnow-reach, ai-hold-trash)', () => {
+  // Then + 5 (ai-hold-trash, the trash's grouping by group number, and a card that reads alike with no other skips the key:
+  // two exact time savings after the built worst case): corp/ 3,633, src/ai 15,422
+  it('keeps src/ai/corp at or under 3,633 lines and src/ai at or under 15,422 (Stage C hand-off, ai-corp-honest-order, ai-value-time, ai-playout-lines, ai-honest-runner-view, ai-honest-corp-decision, ai-value-owners, ai-corp-rd-memory, ai-value-b1, ai-value-b2, ai-hold-reentry, ai-value-b3, ai-tag-loss-time, ai-value-b6, ai-threat-delete, ai-breaker-guard-key, ai-tag-loss-bp, ai-hold-facts, ai-hold-walk, ai-flood-bound, ai-hold-retry, ai-winnow-reach, ai-hold-trash)', () => {
     const corp = aiFiles().filter(f => f.replace(/\\/g, '/').startsWith('corp/')).reduce((n, f) => n + lines(f), 0);
-    expect(corp).toBeLessThanOrEqual(3628);
-    expect(aiFiles().reduce((n, f) => n + lines(f), 0)).toBeLessThanOrEqual(15417);
+    expect(corp).toBeLessThanOrEqual(3633);
+    expect(aiFiles().reduce((n, f) => n + lines(f), 0)).toBeLessThanOrEqual(15422);
   });
 });

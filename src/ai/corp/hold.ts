@@ -529,7 +529,7 @@ export class Walk {
   private readonly tagUseful: boolean;
   /** What a trash subroutine's grouping reads (rigReads), where the walk has one; by where it is met (lossAt). */
   private readonly trashReads?: { kinds: TrashWhat[]; trojan: boolean; purge: boolean; draw: boolean };
-  private readonly losses = new Map<string, { reads: string[]; order: number[] }>();
+  private readonly losses = new Map<string, { group: number[]; shared: boolean[]; order: number[] }>();
 
   constructor(
     /** What it reads of the board, gathered (walkBoard): the search has no `state` in scope. */
@@ -964,14 +964,17 @@ export class Walk {
    * loss keeps the Runner out. A card hosted on the trashed card, and the credits it hosted, are not carried (debt row).
    */
   private corpTrash(ws: WalkState, what: TrashWhat, next: (w: WalkState) => number, at: Step): number {
-    const { reads, order } = this.lossAt(at);
+    const { group, shared, order } = this.lossAt(at);
     const seen = new Set<string>();
     let worst = -Infinity;
     for (const i of order) {
       if (ws.gone.includes(i) || !fits(this.board.rig[i], what)) continue;
-      const k = `${reads[i]}|${this.lossKey(ws, i)}`;
-      if (seen.has(k)) continue;
-      seen.add(k);
+      // A card that reads alike with no other is a choice of its own
+      if (shared[i]) {
+        const k = `${group[i]}|${this.lossKey(ws, i)}`;
+        if (seen.has(k)) continue;
+        seen.add(k);
+      }
       worst = Math.max(worst, next({ ...ws, gone: [...ws.gone, i].sort((a, b) => a - b) }));
       if (worst === FAIL) break;
     }
@@ -986,16 +989,18 @@ export class Walk {
   /**
    * What the walk reads of each rig card from a trash met at `at` on: with retries any ice of this target and the later ones
    * (a run may be made again from its outermost ice); without, the ice inward of the encounter and the later targets'
-   * (a plan for an ice already passed is never used again). The cards read most first, for the choice's stop.
+   * (a plan for an ice already passed is never used again): `group`, the first card that reads alike (`shared`: another
+   * does). The cards read most first, for the choice's stop.
    */
-  private lossAt(at: Step): { reads: string[]; order: number[] } {
+  private lossAt(at: Step): { group: number[]; shared: boolean[]; order: number[] } {
     const key = this.retries ? `${at.j}` : `${at.j}:${at.pos}`;
     let hit = this.losses.get(key);
     if (!hit) {
       const ahead = this.targets.flatMap((t, j) => (j < at.j ? [] : j > at.j || this.retries ? t.ice : t.ice.slice(0, at.pos)));
       const reads = rigReads(this.board, ahead, this.trashReads!);
       const roles = reads.map(r => r.split('/').length);
-      hit = { reads, order: this.board.rig.map((_, i) => i).sort((a, b) => roles[b] - roles[a] || a - b) };
+      const group = reads.map(r => reads.indexOf(r));
+      hit = { group, shared: group.map((g, i) => group.some((h, k) => h === g && k !== i)), order: this.board.rig.map((_, i) => i).sort((a, b) => roles[b] - roles[a] || a - b) };
       this.losses.set(key, hit);
     }
     return hit;

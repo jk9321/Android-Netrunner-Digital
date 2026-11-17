@@ -76,12 +76,12 @@ for (const programs of [5, 8]) for (const clicks of [4, 5]) for (const credits o
 }
 
 const med = (v: number[]) => [...v].sort((a, b) => a - b)[Math.floor(v.length / 2)];
-const only = process.env.ONLY;
+const only = process.env.ONLY; // REPS: repetitions per board (default 9; the first is dropped)
 for (const b of boards) {
   if (only && !b.name.includes(only)) continue;
   const holdMs: number[] = [], keepMs: number[] = [], pickMs: number[] = [];
   let holds: boolean | undefined, pick = '';
-  for (let k = 0; k < 9; k++) {
+  for (let k = 0; k < Number(process.env.REPS ?? 9); k++) {
     clearCaches();
     let st = structuredClone(b.s);
     let t = performance.now();
