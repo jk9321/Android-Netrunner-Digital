@@ -59,7 +59,7 @@ Only now read the code for the failing cards. For each failure decide against th
   "when fixed, change it.fails back to it". `it.fails` passes while the bug exists, so CI and Cloudflare
   builds stay green and the test flips to failing once someone fixes the bug.
 
-Commit only passing files (failing tests block Cloudflare deploys). Update `tests/blindRules/README.md`
+Commit only passing files (failing tests fail CI, which blocks the deploy). Update `tests/blindRules/README.md`
 (cards covered, known bugs). Run typecheck, lint and the tests before pushing; check CI after.
 
 ## 4. Report

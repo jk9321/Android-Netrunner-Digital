@@ -81,8 +81,9 @@ write down what you checked even if it was clean.
   and check the code does what the rule says. Card wording from `src/data/*-cards.json` `stripped_text`.
 - **Tests.** Each behaviour change has a test that fails without it (check one: revert the line locally and run
   the test). AI holes are pinned by a scenario test, not only a batch. New cards each have their own test.
-- **Measurements (AI).** Paired batch against the right base, sample size per CLAUDE.md, result inside the gate
-  (Corp 50 ± 5%); a regression within noise on a fix that closes a human-usable hole is acceptable (Jeff,
+- **Measurements (AI).** Paired batch against the right base, sample size per CLAUDE.md, result checked against the spec's
+  written bar (CLAUDE.md, Bar before the batch). Win rate is reported, not gated, until the tuning phase (Corp 50 ± 5%
+  then); a regression within noise on a fix that closes a human-usable hole is acceptable (Jeff,
   2026-10-31).
 
 **Tuning ladder (AI branches that change play).** CLAUDE.md, AI work: trace top down, fix bottom up. The spec or

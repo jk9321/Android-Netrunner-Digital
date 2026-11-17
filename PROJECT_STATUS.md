@@ -3,7 +3,7 @@
 > [!IMPORTANT]
 > **MANDATORY INSTRUCTION FOR ALL AI AGENTS & DEVELOPERS (Antigravity, Claude, etc.):**
 > Before starting work, **read this file completely** to understand the architecture, active design decisions, and current progress.
-> **Whenever you implement a feature, refactor code, or modify the roadmap, you MUST update this file** (specifically the *Current Status*, *Task Checklist*, and *Changelog* sections) so subsequent agents and developers maintain perfect context continuity.
+> **Whenever you implement a feature, refactor code, or modify the roadmap, you MUST update this file** (the *Changelog* row for notable work; one dated line per AI merge; small fixes need no row, see CLAUDE.md) so subsequent agents and developers maintain perfect context continuity.
 
 > **AI state (Corp AI rework, valuation cleanup, Stage D, tuning):** the one status source is the plan page [Corp AI rework: current plan](https://claude.ai/artifact/DXPYCFJKJaPSvep8zfmoRk), kept by the AI Coordinator at every AI merge. This file keeps one dated line per AI merge and does not restate the state; if they differ, the plan page wins (Jeff 2026-11-16).
 
@@ -127,7 +127,7 @@ Netrunner/
 
 ## 4. Implementation Roadmap & Status
 
-### Phase 1: Foundational Engine & Gateway Pool (CURRENT)
+### Phase 1: Foundational Engine & Gateway Pool (done; phases 1-4 complete)
 - [x] Workspace scaffolding (Vite + React 19 + TypeScript + Tailwind + Vitest).
 - [x] Download System Gateway card data to `Resources/Cards/System Gateway`.
 - [x] Core state types (`GameState`, `CorpState`, `RunnerState`, `ServerState`, `RunState`).
@@ -170,7 +170,7 @@ Netrunner/
   - Prioritize icebreaker installations and vulnerable server breaches.
 - [x] "Opponent" choice on the deck picker: two players, or the computer plays the Corp or the Runner.
 - [x] Web Worker execution so AI calculation doesn't block the UI thread (`src/ai/worker.ts`, `src/ai/client.ts`).
-- [x] Hard difficulty: Monte Carlo look-ahead over re-dealt hidden information (`src/ai/search.ts`).
+- [x] Hard difficulty: Monte Carlo look-ahead over re-dealt hidden information (`src/ai/search.ts`; off in the picker).
 - [x] Deck-aware AI layer (`src/ai/synergy.ts`, `synergyTags.ts`): per-card enabler/payoff tags, live deck and opponent profiles, capped move nudges, trap caution, Corp bluffing, Dividends. Weights per side in `tuning`, measured with `scripts/ai-match.sh`. A new set must add its cards to `SYNERGY` (tests/synergy.test.ts fails otherwise).
 - [x] AI setup planning (`tuning.plan`): `when` condition tags per card, Runner urgency on scoreable agendas, breakers weighted by shown ice, saving up for runs, Corp score setups and tag-before-Orbital, tag threat, ice placement and agenda stakes.
 - [x] Corp economy and defence (round 3, `tuning.plan`): rez money for two key servers, R&D ice first (HQ only while it holds agendas), agenda timing (no half-advanced agendas), ice depth by the Runner's break cost, one scoring remote. `scripts/ai-match.sh` logs how the new Corp loses (`scripts/lossLog.ts`); `scripts/corp-losses.sh` logs self-play.
@@ -189,12 +189,12 @@ Netrunner/
 - [x] When the game ends (even mid-run) the run box, decision prompts and action bars close, so the post-game board is clean (rule 1.7.1).
 - [x] Rules keyword glossary: hover underlined terms in card text and UI labels for a short definition (`src/ui/glossary.ts`).
 - [x] Card names in the terminal log and in decision pop-ups (prompt text and choice buttons) are underlined; hover or focus one to see that card (`CardNameText.tsx`). Only names the log already prints, so nothing hidden leaks.
-- [x] Cyberpunk theme: angular clipped corners, HUD brackets, CRT scanlines, Night City yellow/red palette, terminal-green log. All colours are CSS variables at the top of `src/index.css`; `tailwind.config.js` routes `slate`/`cyan`/`pink`/`amber` (and `cyber-*`) through them, so a recolour is one edit. Faction colours keep Tailwind defaults.
+- [x] Cyberpunk theme: angular clipped corners, HUD brackets, Night City yellow/red palette, terminal-green log. All colours are CSS variables at the top of `src/index.css`; `tailwind.config.js` routes `slate`/`cyan`/`pink`/`amber` (and `cyber-*`) through them, so a recolour is one edit. Faction colours keep Tailwind defaults.
 
 ### Phase 5: Multiplayer with a Friend
-- [ ] Lightweight WebSocket room server (e.g., Node.js + `ws` or Colyseus).
-- [ ] Private state scrubbing (Corp cannot see Runner Grip cards; Runner cannot see unrezzed Corp cards).
-- [ ] 4-character room codes for instant browser link invitations.
+- [x] Room server: a separate game Worker with Durable Objects (phase 2 live; see `docs/multiplayer-server.md`).
+- [x] Private state scrubbing (per-player views, `src/core/view.ts`) (Corp cannot see Runner Grip cards; Runner cannot see unrezzed Corp cards).
+- [x] Room codes for browser link invitations. Phase 3 waits for Jeff.
 
 ### Phase 6: Desktop Executable Packaging
 - [ ] Add Tauri config (`@tauri-apps/cli`).
@@ -204,9 +204,10 @@ Netrunner/
 
 ## 5. Branches
 
-* **`main`** is the live site (Cloudflare deploys every push). Only bugfixes for what is already on main go straight to main. After each one, merge main into `beta` so beta does not drift.
-* **`beta`** is for new cards (Vantage Point onwards) and ALL AI work, including tuning and balance. Branch work from beta and merge back into beta. Cloudflare builds beta as a preview Worker version (Version history); its preview URL is https://beta-android-netrunner-digital.jk9321.workers.dev, so test there.
+* **`main`** is the live site (GitHub Actions deploys it after CI passes; see CLAUDE.md, Hosting). Only bugfixes for what is already on main go straight to main. After each one, merge main into `beta` so beta does not drift.
+* **`beta`** is for new cards (Vantage Point onwards) and ALL AI work, including tuning and balance. Branch work from beta and merge back into beta. Actions deploys beta as a preview Worker version after CI (Cloudflare's own builds are off); its preview URL is https://beta-android-netrunner-digital.jk9321.workers.dev, so test there.
 * **beta merges into main only when Jeff says it is ready.**
+* Feature-branch previews, nightly branch cleanup and the rest of the branch rules: CLAUDE.md, Branches.
 * AI batches: run the "AI batch" workflow with `ref` set to `beta` (or a branch off beta). Compare batches only against batches from the same branch.
 
 ---

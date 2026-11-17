@@ -1,5 +1,7 @@
 # AI card value model plan
 
+> History (2026-10). The live plan is the plan page "Corp AI rework: current plan" (CLAUDE.md, Hosting). Branch names below such as `claude/project-thread-3heaal` are long gone.
+
 Approved by Jeff on 2026-10-27. This file is the working copy for anyone (Claude, Gemini or a person) continuing the work. Update the **Status** section whenever a step lands. The original discussion doc: https://claude.ai/artifact/FRSCNV6bvpe1iExG7VmNod
 
 ## Status
@@ -29,7 +31,7 @@ Approved by Jeff on 2026-10-27. This file is the working copy for anyone (Claude
 | Agendas on the board and in hand | On | 85b2d96 | batching | plan.agendaBoard: an installed agenda is worth its point gain, discounted by the odds of a steal each Runner turn until it can be scored, less the clicks and credits still to pay. Agendas and ice in hand from the same formulas. |
 | Final flat-value scan | Written 2026-10-28 | | | See **Final flat-value scan** below. |
 | Flat rates from the model | On | 8ef6f20, 43a33a6, 89a2b33 | 24.7% full system; off 21.3% (Corp +3.4 pts with it) | plan.flatRates {points, flatline, cards, coreDamage, tags, hosted, breakers}: the scan below built. Agendas in Archives priced as a likely steal (archivedAgendaLoss, rule 7.3.2). |
-| Run pace measured (Jeff) | Done | f01f346, 3d3131a | | `scripts/pace.ts` + `pace-sum.mjs` (or the Actions workflow with script = pace): PACE and AGENDA_RUN are measured averages. Re-measure after EVERY Corp or Runner AI change. |
+| Run pace measured (Jeff) | Done | f01f346, 3d3131a | | `scripts/pace.ts` + `pace-sum.mjs` (or the Actions workflow with script = pace): PACE and AGENDA_RUN are measured averages. Re-measure at V-C (after Stage D) and at each stage checkpoint (Jeff 2026-11-16). |
 | Agenda tempo | On | 8e19ade | 24.7% full; short batch off 23.2% vs 22.6% (neutral) | plan.agendaTempo: an agenda's worth counts the Runner turns it sits exposed before it can be scored. |
 | Same-position caching | Done | 62ff956 | same-seed output identical | valueModel memo(): run odds, agenda odds, tag loss worked out once per position. The slow deal went from 73 s a turn to under 1 s. |
 | Batches on GitHub Actions (Jeff) | Done | 847d4f3 (main 4c849dc, 77e9081) | | `.github/workflows/ai-batch.yml`: 64 shards, a full 2,210-game batch in about 5 minutes; results on the `ai-batch-results` branch. Pass the full commit SHA as ref. |
@@ -134,13 +136,13 @@ Each card describes what it produces; its value is computed from the rates and t
 
 ## Rules for every step
 
-- Each step is behind its own `tuning.plan` switch. A step that clearly loses in batches is switched off, never deleted. A neutral step that removes hacks stays on (Jeff).
+- Each step is behind its own `tuning.plan` switch. A step that clearly loses in batches is switched off and, once the new model makes it redundant, deleted (Jeff 2026-10-29; CLAUDE.md, Replace, don't stack). A neutral step that removes hacks stays on (Jeff).
 - Normal and Hard both use the model (Jeff). Hard stays at 1 s per decision if possible; Jeff allows more if it makes Hard better.
 - Balance target: self-play Corp 50 ± 5%. Report Corp loss reasons with every batch.
 - AI bug fixes only need a small sample, not a full batch.
 - Self-play blind spots (Jeff, 2026-10-31): self-play tunes each side against the other AI's blind spots, so a hole the Runner AI never punishes looks free in batches. Batches guard against big regressions; they don't prove a fix right. A fix that closes a hole a human player uses stays on when its batch is within noise (e.g. plan.tankProtection: Doomscroll, 46.2% vs 48.6% at 663 games).
 - Pin every hole found in play with a scenario test (e.g. `tests/tankableProtection.test.ts`, `tests/chromatophoresProtection.test.ts`), so later tuning can't quietly undo it.
-- Run pace (Jeff, 2026-10-28): PACE and AGENDA_RUN are averages measured from self-play (`scripts/pace.ts`, `scripts/pace-sum.mjs`). Re-measure them after every Corp or Runner AI change (either one changes how often and where the Runner runs) and update the constants.
+- Run pace (Jeff, 2026-10-28): PACE and AGENDA_RUN are averages measured from self-play (`scripts/pace.ts`, `scripts/pace-sum.mjs`). Re-measure them at V-C (after Stage D) and at each stage checkpoint, and update the constants.
 - Check rules questions against the comprehensive rules (`Null_Signal_Games_Netrunner_Comprehensive_Rules_v26.03.pdf`) and cite the rule.
 - Commit straight to main only for small fixes; this rework stays on a branch until Jeff approves a merge.
 
