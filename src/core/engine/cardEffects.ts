@@ -5,7 +5,7 @@ import { getCardScript } from '../scripts';
 import { CounterType, PaymentPurpose } from '../scripts/types';
 import { addLog } from './log';
 import { beforeCorpCardUninstalled, drawCards, findCardAnywhere, findInstalledCorpCard, removeCard, trashInstalledCorpCard } from './helpers';
-import { activeCards, fireTrigger } from './triggers';
+import { activeCards, fireTrigger, resumeTrigger } from './triggers';
 import { trashInstalledRunnerCard, uninstallRunnerCard } from './damage';
 
 /**
@@ -92,6 +92,10 @@ export function fireSettled(state: GameState): void {
     const event = state.whenSettled.shift()!;
     if (event.type === 'action_finished') {
       fireTrigger(state, event);
+      continue;
+    }
+    if (event.type === 'trigger_rest') {
+      resumeTrigger(state, event);
       continue;
     }
     const card = findCardAnywhere(state, event.cardId);

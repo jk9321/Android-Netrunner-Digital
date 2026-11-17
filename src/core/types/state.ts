@@ -274,7 +274,9 @@ export interface RunState {
 export type SettledEvent =
   | { type: 'operation_finished'; cardId: string }
   | { type: 'expendable_action_finished'; cardId: string }
-  | { type: 'action_finished'; side: SideCode; count: number };
+  | { type: 'action_finished'; side: SideCode; count: number }
+  /** The inactive player's reactions to an event, waiting while the active player's resolve (rules 9.2.8b, 9.2.8d). */
+  | { type: 'trigger_rest'; event: import('../scripts/types').TriggerEvent; cardIds: string[]; forced: string[]; heap: boolean };
 
 /** The end of a turn or the Corp's draw, paused while players answer prompts (see engine/actions/turn.ts). */
 export type TurnStep =

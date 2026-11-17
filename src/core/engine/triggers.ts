@@ -1,5 +1,5 @@
 import { CardInstance, SideCode } from '../types/card';
-import { GameState } from '../types/state';
+import { GameState, SettledEvent } from '../types/state';
 import { cardDef } from '../cards';
 import { getCardScript } from '../scripts';
 import { TriggerEvent, TriggerHandlers } from '../scripts/types';
@@ -43,15 +43,69 @@ export function eachActiveCard(state: GameState, side: SideCode | undefined, vis
 }
 
 /**
- * Lets every active card react to an event, Corp cards first. `extra` adds
- * cards whose ability applies although they are inactive (a stolen agenda's
- * "when stolen", a persistent card trashed during the run).
+ * Lets every active card react to an event. `extra` adds cards whose ability applies although they are inactive (a
+ * stolen agenda's "when stolen", a persistent card trashed during the run).
+ *
+ * Abilities that trigger together resolve in a reaction window that gives the active player priority first, and each
+ * ability is fully resolved before another is chosen (rules 9.2.8b, 9.2.8d). So the active player's cards react first;
+ * if one of them asks a question, the other player's abilities wait until every question is answered (Above the Law
+ * may trash Word on the Street before it pays out). The other player's then resolve, cards reacting from the heap last.
  */
 export function fireTrigger(state: GameState, event: TriggerEvent, extra: CardInstance[] = []): void {
   const seen = new Set<string>();
   // The run event whose run is in progress reacts to that run's events (S-Dobrado, Window of Opportunity)
   const runEvents = runEventCards(state);
   const cards = [...activeCards(state), ...extra, ...runEvents].filter(c => !seen.has(c.instanceId) && seen.add(c.instanceId));
+  const forced = new Set([...extra, ...runEvents].map(c => c.instanceId));
+  const active = state.activePlayer;
+  const mine = cards.filter(c => cardDef(c).side_code === active);
+  const theirs = cards.filter(c => cardDef(c).side_code !== active);
+  const asked = state.pendingPrompts.length;
+  runHandlers(state, event, mine, forced);
+  if (active === 'runner') runHeapHandlers(state, event);
+  if (state.pendingPrompts.length > asked) {
+    // The active player's abilities are still resolving: the other player's wait (rules 9.2.8d)
+    const resume: SettledEvent = { type: 'trigger_rest', event, cardIds: theirs.map(c => c.instanceId), forced: [...forced], heap: active !== 'runner' };
+    (state.whenSettled ??= []).unshift(resume);
+    return;
+  }
+  runHandlers(state, event, theirs, forced);
+  if (active !== 'runner') runHeapHandlers(state, event);
+}
+
+/** Resumes a fireTrigger the active player's questions paused (see above), with its cards looked up again. */
+export function resumeTrigger(state: GameState, rest: Extract<SettledEvent, { type: 'trigger_rest' }>): void {
+  const event = rehydrate(state, rest.event) as TriggerEvent;
+  const cards = rest.cardIds.flatMap(id => {
+    const card = findCardAnywhere(state, id);
+    return card ? [card] : [];
+  });
+  runHandlers(state, event, cards, new Set(rest.forced));
+  if (rest.heap) runHeapHandlers(state, event);
+}
+
+/**
+ * Once the active player's questions are answered, the other player's paused abilities resolve before the game goes
+ * on (rules 9.2.8d: every pending ability resolves before the window closes), not after the run or step they belong to.
+ */
+export function resumeTriggers(state: GameState): void {
+  while (!state.pendingPrompts.length && !state.winner && state.whenSettled?.[0]?.type === 'trigger_rest') {
+    resumeTrigger(state, state.whenSettled.shift() as Extract<SettledEvent, { type: 'trigger_rest' }>);
+  }
+}
+
+/** The event's cards as they are now: a paused event was saved with copies (every action works on a copy of the state). */
+function rehydrate(state: GameState, value: unknown): unknown {
+  if (Array.isArray(value)) return value.map(v => rehydrate(state, v));
+  if (value && typeof value === 'object') {
+    const id = (value as { instanceId?: unknown }).instanceId;
+    if (typeof id === 'string' && 'cardCode' in value) return findCardAnywhere(state, id) ?? value;
+    return Object.fromEntries(Object.entries(value).map(([k, v]) => [k, rehydrate(state, v)]));
+  }
+  return value;
+}
+
+function runHandlers(state: GameState, event: TriggerEvent, cards: CardInstance[], forced: Set<string>): void {
   for (const card of cards) {
     if (state.winner) return;
     const handler = (getCardScript(card.cardCode)?.triggers as TriggerHandlers | undefined)?.[event.type] as
@@ -59,10 +113,13 @@ export function fireTrigger(state: GameState, event: TriggerEvent, extra: CardIn
       | undefined;
     if (!handler) continue;
     // Skip cards that left play while earlier handlers resolved, unless explicitly included.
-    if (!extra.includes(card) && !runEvents.includes(card) && !isStillActive(state, card)) continue;
+    if (!forced.has(card.instanceId) && !isStillActive(state, card)) continue;
     handler({ state, card, side: cardDef(card).side_code }, event);
   }
-  // Cards that react from the heap (Jeitinho)
+}
+
+/** Cards that react from the heap (Jeitinho). */
+function runHeapHandlers(state: GameState, event: TriggerEvent): void {
   for (const card of [...state.runner.heap]) {
     if (state.winner) return;
     const handler = (getCardScript(card.cardCode)?.heapTriggers as TriggerHandlers | undefined)?.[event.type] as

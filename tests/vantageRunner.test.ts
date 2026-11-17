@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { createCardInstance, executeAction, findCardAnywhere, GameState, getLegalActions, iceStrength, isLegalAction } from '../src/core';
+import { createCardInstance, executeAction, findCardAnywhere, GameState, iceStrength, isLegalAction } from '../src/core';
 import { availableCredits } from '../src/core/engine/cardEffects';
 import { iceSubroutines } from '../src/core/engine/ice';
 import { dealDamage } from '../src/core/engine/damage';
@@ -523,16 +523,31 @@ describe('Vantage Point Runner resources', () => {
     expect(s.corp.score).toBe(2);
   });
 
-  it('Word on the Street trashed by the same score: Above the Law then has no resource to choose (rules 9.2.8d; nightly fuzz seed 2077400936)', () => {
+  it('Above the Law resolves before Word on the Street on the Corp\'s turn: trashing it stops the payout (rules 9.2.8b, 9.6.10)', () => {
     let s = newGame();
     const word = rig(s, V.wordOnTheStreet, 'resources');
+    const credits = s.runner.credits;
     s = scoreForTest(s, SG.aboveTheLaw);
-    expect(s.runner.heap.map(c => c.instanceId)).toContain(word);
+    // The Corp is the active player: its ability resolves first, and Word on the Street has not paid out yet
+    expect(s.runner.rig.resources.map(c => c.instanceId)).toContain(word);
     const prompt = s.pendingPrompts[0];
-    expect(prompt?.kind === 'effect_cards' && prompt.candidateIds).toEqual([]);
-    expect(() => getLegalActions(s, 'corp')).not.toThrow();
-    expect(() => (s = pick(s, []))).not.toThrow();
+    expect(prompt?.side).toBe('corp');
+    expect(prompt?.kind === 'effect_cards' && prompt.candidateIds).toEqual([word]);
+    s = pick(s, [word]);
+    // Its pending ability lost its pending status when it was trashed (rules 9.6.10)
+    expect(s.runner.heap.map(c => c.instanceId)).toContain(word);
+    expect(s.runner.credits).toBe(credits);
     expect(s.pendingPrompts).toHaveLength(0);
+  });
+
+  it('when Above the Law trashes nothing, Word on the Street then pays out (rules 9.2.8b)', () => {
+    let s = newGame();
+    const word = rig(s, V.wordOnTheStreet, 'resources');
+    const credits = s.runner.credits;
+    s = scoreForTest(s, SG.aboveTheLaw);
+    s = pick(s, []);
+    expect(s.runner.heap.map(c => c.instanceId)).toContain(word);
+    expect(s.runner.credits).toBe(credits + 4);
   });
 });
 
