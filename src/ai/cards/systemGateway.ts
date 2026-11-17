@@ -1,5 +1,5 @@
 import { cardDef, CardInstance, GameState } from '../../core';
-import { counters, rezCost } from '../../core/engine/cardEffects';
+import { counters, rezCost, TurnFlag, turnFlag } from '../../core/engine/cardEffects';
 import { boostCostOf, breakerScript, isIcebreaker } from '../../core/engine/ice';
 import { assetRisk, inIcedServer, turnsLeft } from '../cardProfiles';
 import { PAYOUT_RISK } from '../payoutRisk';
@@ -337,7 +337,12 @@ export const SYSTEM_GATEWAY: Record<string, CardAI> = {
   // Hansei Review
   '30048': { synergy: { gives: { econ: 2, discard: 1 } } },
   // Neurospike
-  '30049': { synergy: { gives: { damage: 1.5 }, wants: { advance: 0.5 }, when: ['scoredThisTurn'] } },
+  '30049': {
+    synergy: { gives: { damage: 1.5 }, wants: { advance: 0.5 }, when: ['scoredThisTurn'] },
+    // "Do X net damage, where X is equal to the sum of the printed agenda points on agendas you scored this turn." The text's
+    // X read as 0 (ai-winnow-reach): the points scored this turn so far
+    corpTurnDamage: state => turnFlag(state, TurnFlag.agendaPointsScored),
+  },
   // Anoetic Void
   '30050': {
     synergy: { gives: { discard: 1, ice: 0.5 } },

@@ -384,7 +384,7 @@ export function damageThreat(state: GameState, corpTurn = false): { burst: numbe
   // damage readers hit this map more: 124 wrong of 43.6k on deal 2181 became 1,130 of 69.7k without it)
   const corp = state.corp;
   const count = corp.hq.length + corp.rd.length + corp.archives.faceDown.length + Object.values(corp.servers).reduce((n, v) => n + v.root.length + v.ice.length, 0);
-  const key = `${state.id}:${state.corp.archives.faceUp.length}:${state.corp.scoreArea.length}:${state.runner.scoreArea.length}:${skipIce}:${own}:${own && tagged}:${count}`;
+  const key = `${state.id}:${state.corp.archives.faceUp.length}:${state.corp.scoreArea.length}:${state.runner.scoreArea.length}:${skipIce}:${own}:${own && tagged}:${own ? boardFacts(state) : ''}:${count}`;
   // Audit Step 2 (AI-CACHE-HIDDEN-STATE): keyed by how many cards are out of the pool, not which (nor a look-ahead's added
   // or doubled card), so some hits are another board's value (about a third: threatsAudit); an exact (per-position)
   // version cost decision time (V-B B1 ruling 1: the pool's codes x1.10 Corp; 5,093 wrong of 713k hits): kept incomplete, recorded
@@ -413,6 +413,19 @@ export function damageThreat(state: GameState, corpTurn = false): { burst: numbe
   return threat;
 }
 
+/** The Corp's cards whose corpTurnDamage fact reads the board (Orbital Superiority, Mindscaping, Neurospike), per game. */
+let boardFactCodes: { game: string; codes: string[] } | null = null;
+/**
+ * damageThreat's key for the facts that read the board (ai-winnow-reach): their values on this board, so a fact is never
+ * served from a board with other inputs (Mindscaping reads the tag count, Neurospike the points scored this turn; the key
+ * had only whether the Runner is tagged). Empty for a Corp with none of them, so its key is as before.
+ */
+function boardFacts(state: GameState): string {
+  if (boardFactCodes?.game !== state.id)
+    boardFactCodes = { game: state.id, codes: [...new Set(sideCards(state, 'corp').map(c => c.cardCode))].filter(code => typeof CARDS[code]?.corpTurnDamage === 'function') };
+  return boardFactCodes.codes.map(code => ownTurnDamage(state, code)).join(',');
+}
+
 /**
  * plan.corpTurnDamageOwn (bug report #44, Jeff's Runner test game 12, 2026-11-09): the damage a card can deal on the Corp's
  * own turn, from its card entry (CardAI corpTurnDamage: 0 for damage on access, rules 7.1.3 and 7.2.1, or during the
@@ -420,7 +433,7 @@ export function damageThreat(state: GameState, corpTurn = false): { burst: numbe
  * Urtica Cipher and an untagged Runner's Orbital Superiority made a 4-damage burst: a Runner left on 1 card in grip was
  * worth 33 points of flatline to the Corp.
  */
-function ownTurnDamage(state: GameState, code: string): number {
+export function ownTurnDamage(state: GameState, code: string): number {
   const own = CARDS[code]?.corpTurnDamage;
   if (own === undefined) return cardDamage(code);
   return typeof own === 'function' ? own(state) : own;
