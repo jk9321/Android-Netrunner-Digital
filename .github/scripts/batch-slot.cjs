@@ -4,6 +4,8 @@
 //   - a CI or Deploy run is queued or running: other heavy runs may hold at most 1, so 3 jobs stay free for the build.
 // Waiting runs go in order: short ones first (a 1-game identical check, a measurement script), then oldest first.
 // A waiting run holds one job, never sixteen, so a push's CI never queues behind a batch that has not started.
+// Before changing this gate, check that no run is waiting: a waiting run shows as in_progress (its `slot` job is running),
+// not queued, so "no run waiting" means no ai-batch/ai-script run with its `slot` job in progress.
 // Any API trouble lets the run through (three errors in a row), as does a wait near the 6-hour job limit.
 const CAP = 20;
 const NEED = 16;
