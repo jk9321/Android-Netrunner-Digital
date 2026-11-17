@@ -31,6 +31,18 @@ describe('holdFacts card entries', () => {
     // The prompt labels each choice by its subtypes joined with ', '
     expect(offered).toEqual((CARDS['34100'].holdFacts?.rezChoosesSubtypes ?? []).map(x => x.join(', ')));
   });
+  it('a liability rez (1.14.3a): Valentão and Piranhas cost 1 bad publicity or 1 tag removed, as the engine asks', () => {
+    for (const code of ['34060', '34117']) {
+      expect(CARDS[code].holdFacts).toEqual({ rezBadPublicityOrTag: true });
+      let s = newGame(3);
+      const ice = installIceForTest(s, code, 'remote1', false);
+      s.corp.credits = 20;
+      s.runner.tags = 1;
+      s = toCorp(run(s, 'remote1'));
+      const prompt = activePrompt(executeAction(s, { type: 'REZ_CARD', player: 'corp', cardInstanceId: ice }));
+      expect(prompt?.kind === 'effect_choice' ? prompt.options.map(o => o.id) : []).toEqual(['bp', 'tag']);
+    }
+  });
   it('rezzed during a run: Flyswatter purges, Ping tags, Bumi 1.0 may trash a trojan, Thunderbolt Armaments adds a subroutine (9.8.3e)', () => {
     expect(CARDS['35079'].holdFacts?.rezDuringRun).toEqual({ purgeVirus: true });
     expect(CARDS['30055'].holdFacts?.rezDuringRun).toEqual({ tags: 1 });

@@ -44,7 +44,7 @@ class Brute {
   beforeRun(ws: S, j: number): boolean {
     const runs = this.targets.length - j;
     if (ws.clicks < runs) return false;
-    if (this.approach({ ...ws, clicks: ws.clicks - 1, spike: false, fund: this.state.corp.badPublicity }, j, this.targets[j].ice.length - 1)) return true;
+    if (this.approach({ ...ws, clicks: ws.clicks - 1, spike: false, fund: this.state.corp.badPublicity + ws.bp }, j, this.targets[j].ice.length - 1)) return true;
     if (ws.clicks > runs) {
       // 5.2.7c, 5.2.7g: a draw, or a click and 2 credits for a tag, with a click kept for each run left
       // The turn's first draw may give more (Verbal Plasticity)
@@ -68,7 +68,12 @@ class Brute {
     // An ice that trashed itself on an earlier run is not there
     if (ws.trashed.includes(ice.card.instanceId)) return next(ws);
     if (!ice.rezzed && !ws.up.includes(ice.card.instanceId)) {
-      if (ice.inS && ws.corp >= ice.rezCost) return this.rezzed({ ...ws, corp: ws.corp - ice.rezCost, up: [...ws.up, ice.card.instanceId].sort() }, ice, next, end);
+      if (ice.inS && ws.corp >= ice.rezCost) {
+        const w: S = { ...ws, corp: ws.corp - ice.rezCost, up: [...ws.up, ice.card.instanceId].sort() };
+        // A liability rez: the Corp takes 1 bad publicity (the fund from the next run on) or removes 1 tag, its choice
+        if (!ice.liability) return this.rezzed(w, ice, next, end);
+        return this.rezzed({ ...w, bp: w.bp + 1 }, ice, next, end) && (w.tags === 0 || this.rezzed({ ...w, tags: w.tags - 1 }, ice, next, end));
+      }
       return next(ws);
     }
     return ice.bypassed ? next(ws) : this.encounter(ws, ice, next, end);
@@ -292,9 +297,10 @@ const IDENTITY_THUNDERBOLT = '34096';
 const ENDERS = ICE.filter(code => /end the run\./i.test(getCardDefinition(code).text ?? ''));
 /**
  * Ice whose rez leaves the turn something a later run reads (brief rev 2, 2.2): Ping's tag (30055), a trojan trashed
- * (35041), a purge (35079), Lycian's subtypes (34100), a self-trash (Vicsek, 36042), a rez for 0 (Vovô Ozetti, 34038).
+ * (35041), a purge (35079), Lycian's subtypes (34100), a self-trash (Vicsek, 36042), a rez for 0 (Vovô Ozetti, 34038), a
+ * liability rez (Valentão 34060, Piranhas 34117: bad publicity or a tag).
  */
-const PROBES = ['30055', '35041', '35079', '34100', '36042', '34038'];
+const PROBES = ['30055', '35041', '35079', '34100', '36042', '34038', '34060', '34117'];
 
 /**
  * A random server: 1 to 3 ice from the pool (some unrezzed), 0 to 2 breakers, maybe a Botulus, the Runner's means at

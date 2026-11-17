@@ -223,6 +223,8 @@ export interface WalkIce {
   broken?: boolean[];
   /** The subroutine it gains after its others when the Corp rezzes it during a run (Thunderbolt Armaments, 9.8.3e; its +1 strength is not carried). */
   rezGains?: SubFacts;
+  /** Its rez costs the Corp 1 bad publicity or the Runner 1 tag, the Corp's choice (holdFacts.rezBadPublicityOrTag). */
+  liability: boolean;
   /** Unrezzed at the walk's start, and the Corp chooses its subtypes when it rezzes it (holdFacts.rezChoosesSubtypes, Lycian): the sets it may choose. `types` is then without a choice. */
   choices?: string[][];
 }
@@ -292,6 +294,8 @@ export interface WalkState {
   corp: number;
   /** Credits the Runner can spend only during this run (the bad publicity fund, filled at each run's start, 10.6.3a-b; Overclock's). */
   fund: number;
+  /** Bad publicity the Corp took during the walk (a liability rez): in the fund from the next run on (10.6.3c). */
+  bp: number;
   /** Credits on cards that pay during runs (Methuselah, Touchstone): shared through the turn. */
   hosted: number;
   stealth: number;
@@ -403,6 +407,7 @@ export function walkIce(state: GameState, start: WalkStart, ice: CardInstance[])
       granters: hostedHere(r => !!getCardScript(r.cardCode)?.grantsIceSubtypes?.length),
       broken: encounter?.iceId === c.instanceId ? [...encounter.broken] : undefined,
       rezGains: anyIce && (cardDef(c).keywords ?? '').toLowerCase().split(/\s*-\s*/).some(k => anyIce.subtypes.includes(k)) ? subroutineFacts(anyIce.gains) : undefined,
+      liability: !!CARDS[c.cardCode]?.holdFacts?.rezBadPublicityOrTag,
       choices,
     };
   });
@@ -559,7 +564,7 @@ export class Walk {
 
   /** The walk state in a memo key (run j: the clicks only where they are read, the stack where a run may follow). */
   private wsKey(ws: WalkState, j: number): string {
-    return `${this.clicksRead[j] ? ws.clicks : '-'}|${ws.tags}|${ws.grip}|${this.retries || j < this.targets.length - 1 ? ws.stack : '-'}|${ws.corp}|${ws.fund}|${ws.hosted}|${ws.stealth}|${this.counters(ws)}|${ws.gone}|${ws.up}|${ws.spike ? 1 : 0}|${ws.mayfly}|${ws.drew ? 1 : 0}|${ws.chose}|${ws.trashed}${this.retries ? (ws.moved ? '|1' : '|0') : ''}`;
+    return `${this.clicksRead[j] ? ws.clicks : '-'}|${ws.tags}|${ws.grip}|${this.retries || j < this.targets.length - 1 ? ws.stack : '-'}|${ws.corp}|${ws.fund}|${ws.hosted}|${ws.stealth}|${this.counters(ws)}|${ws.gone}|${ws.up}|${ws.spike ? 1 : 0}|${ws.mayfly}|${ws.drew ? 1 : 0}|${ws.chose}|${ws.trashed}|${ws.bp}${this.retries ? (ws.moved ? '|1' : '|0') : ''}`;
   }
 
   /** The counters the walk reads, for a memo key. */
@@ -587,11 +592,11 @@ export class Walk {
   private beforeRun(ws: WalkState, j: number): number {
     const runs = this.targets.length - j;
     if (ws.clicks < runs) return FAIL;
-    const key = `b|${this.inner[j][this.targets[j].ice.length - 1] ?? this.targets[j].server}|${this.later[j]}|${ws.clicks}|${ws.tags}|${ws.grip}|${ws.stack}|${ws.corp}|${ws.hosted}|${ws.stealth}|${this.counters(ws)}|${ws.gone}|${ws.up}|${ws.drew ? 1 : 0}|${ws.chose}|${ws.trashed}`;
+    const key = `b|${this.inner[j][this.targets[j].ice.length - 1] ?? this.targets[j].server}|${this.later[j]}|${ws.clicks}|${ws.tags}|${ws.grip}|${ws.stack}|${ws.corp}|${ws.hosted}|${ws.stealth}|${this.counters(ws)}|${ws.gone}|${ws.up}|${ws.drew ? 1 : 0}|${ws.chose}|${ws.trashed}|${ws.bp}`;
     const hit = this.memo.get(key);
     if (hit !== undefined) return hit;
-    // 6.9.1b, 10.6.3a: the bad publicity fund is filled as each run begins
-    const fund = this.board.badPublicity;
+    // 6.9.1b, 10.6.3a: the bad publicity fund is filled as each run begins, with what the Corp took on earlier runs
+    const fund = this.board.badPublicity + ws.bp;
     let best = this.approach({ ...ws, clicks: ws.clicks - 1, spike: false, fund, moved: false }, j, this.targets[j].ice.length - 1);
     if (ws.clicks > runs) {
       if (this.drawUseful && ws.stack > 0) {
@@ -645,13 +650,24 @@ export class Walk {
     else if (!ice.rezzed && !ws.up.includes(ice.id)) {
       // 6.9.2c: unrezzed ice the Corp does not rez is passed; 6.4.3: ice of S is rezzed as it is approached
       const paid = ws.corp - ice.rezCost;
-      v = ice.inS && paid >= 0 ? this.rezzed({ ...ws, corp: paid, up: [...ws.up, ice.id].sort(), moved: true }, ice, next, { key: at, j }) : next(ws);
+      v = ice.inS && paid >= 0 ? this.liability({ ...ws, corp: paid, up: [...ws.up, ice.id].sort(), moved: true }, ice, w => this.rezzed(w, ice, next, { key: at, j })) : next(ws);
     } else v = ice.bypassed ? next(ws) : this.encounter(ws, ice, next, { key: at, j });
     this.memo.set(key, v);
     return v;
   }
 
   /** The ice was rezzed during this run against its server: its rez-time facts (Flyswatter: purge virus counters). */
+  /**
+   * A liability rez's additional cost (Valentão, Piranhas: "take 1 bad publicity or remove 1 tag"; 1.14.3a), the
+   * Corp's choice worse for the Runner (ruling 6): the bad publicity fills the fund from the next run on (10.6.3c), the
+   * tag is gone at once. Paid before the rez's own effects.
+   */
+  private liability(ws: WalkState, ice: SearchIce, then: (w: WalkState) => number): number {
+    if (!ice.liability) return then(ws);
+    const bp = then({ ...ws, bp: ws.bp + 1 });
+    return ws.tags > 0 ? Math.max(bp, then({ ...ws, tags: ws.tags - 1 })) : bp;
+  }
+
   private rezzed(ws: WalkState, ice: SearchIce, next: (w: WalkState) => number, at: Step): number {
     if (ice.choices && this.choiceOf(ice, ws) === '') {
       // Lycian: the Corp chooses the ice's subtypes as it rezzes it, the choice worst for the Runner (ruling 6)
@@ -979,6 +995,7 @@ export function firstState(state: GameState, start: WalkStart, clicks: number, c
     up: [],
     spike: false,
     mayfly: [],
+    bp: 0,
     trashed: [],
     moved: false,
   };

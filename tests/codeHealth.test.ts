@@ -365,10 +365,13 @@ describe('AI code health (audit guards)', () => {
   // line and the encounter read on 'thisRun' only); the failed run + 111 (comments + 75: the walk's file comment on what
   // a failed run leaves and what it does not count, the cut's list of what moves a retry, the Hold doc lines for rev 2;
   // code + 36: the gate `passes`, the memos by kind `WalkMemos`, the self-trashed ice `trashed`, the retry off by
-  // default): corp/ 3,479, src/ai 15,112
-  it('keeps src/ai/corp at or under 3,479 lines and src/ai at or under 15,112 (Stage C hand-off, ai-corp-honest-order, ai-value-time, ai-playout-lines, ai-honest-runner-view, ai-honest-corp-decision, ai-value-owners, ai-corp-rd-memory, ai-value-b1, ai-value-b2, ai-hold-reentry, ai-value-b3, ai-tag-loss-time, ai-value-b6, ai-threat-delete, ai-breaker-guard-key, ai-tag-loss-bp, ai-hold-facts, ai-hold-walk, ai-hold-retry)', () => {
+  // default): corp/ 3,479, src/ai 15,112. R3 0, R4 corp/ - 2 (Botulus a fact, Audrey's flag read from its plans), src/ai 0.
+  // The liability rez (design answer of 16:29Z, 2) + 25: corp/hold.ts + 17 (the walk's `liability` with its doc, the
+  // walk state's `bp` and the fund it fills, the Corp's choice), cards/types.ts + 6 and liberation.ts + 2 (the fact on
+  // Valentão and Piranhas): corp/ 3,494, src/ai 15,137
+  it('keeps src/ai/corp at or under 3,494 lines and src/ai at or under 15,137 (Stage C hand-off, ai-corp-honest-order, ai-value-time, ai-playout-lines, ai-honest-runner-view, ai-honest-corp-decision, ai-value-owners, ai-corp-rd-memory, ai-value-b1, ai-value-b2, ai-hold-reentry, ai-value-b3, ai-tag-loss-time, ai-value-b6, ai-threat-delete, ai-breaker-guard-key, ai-tag-loss-bp, ai-hold-facts, ai-hold-walk, ai-hold-retry)', () => {
     const corp = aiFiles().filter(f => f.replace(/\\/g, '/').startsWith('corp/')).reduce((n, f) => n + lines(f), 0);
-    expect(corp).toBeLessThanOrEqual(3479);
-    expect(aiFiles().reduce((n, f) => n + lines(f), 0)).toBeLessThanOrEqual(15112);
+    expect(corp).toBeLessThanOrEqual(3494);
+    expect(aiFiles().reduce((n, f) => n + lines(f), 0)).toBeLessThanOrEqual(15137);
   });
 });

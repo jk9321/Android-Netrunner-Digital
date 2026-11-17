@@ -570,6 +570,46 @@ describe('hold walk: a run that fails, then another (brief rev 2)', () => {
   });
 });
 
+// A liability rez (design answer of 16:29Z, 2): Piranhas' text, "As an additional cost to rez this ice, take 1 bad
+// publicity or remove 1 tag" (the Corp's choice, 1.14.3a). Bad publicity taken during a run adds to the fund from the next
+// run on (6.9.1b, 10.6.3a, 10.6.3c). Piranhas unrezzed on remote1 (in the rez set; HQ empty, so its "End the run if there
+// are more cards in HQ than in the grip" does not fire, and its 1 net damage is taken), then Palisade on remote2 with
+// Cleaver (3 a run: boost 2, break 1); 2 clicks, both runs
+describe('hold walk: a liability rez, the Corp choosing bad publicity or a tag (Piranhas)', () => {
+  const liability = (credits: number, tags: number) => {
+    const s = board(st => {
+      installIceForTest(st, '34117', 'remote1', false);
+      installIceForTest(st, C.PALISADE, 'remote2', true);
+      installProgramForTest(st, C.CLEAVER);
+      st.runner.credits = credits;
+      st.runner.tags = tags;
+      st.runner.maxClicks = 2;
+      st.corp.hq = [];
+    });
+    const piranhas = s.corp.servers.remote1.ice[0].instanceId;
+    s.corp.credits = rezCostOf(s, s.corp.servers.remote1.ice[0]);
+    const reaches = inCorp(s, () => turnReach(s, ['remote1', 'remote2'], [[piranhas], []])).reaches;
+    const reached = oracle(s, { when: 'runnerTurn', targets: ['remote1', 'remote2'], rez: new Set([piranhas]) }).reached;
+    return { reaches, reached };
+  };
+
+  it('untagged, the Corp can only take the bad publicity: its credit pays on remote2, $2 gets in', () => {
+    expect(liability(2, 0)).toEqual({ reaches: true, reached: 2 });
+  });
+
+  it('bad publicity mirror: untagged, $1: kept out of remote2', () => {
+    expect(liability(1, 0)).toEqual({ reaches: false, reached: 1 });
+  });
+
+  it('tagged (the tag reads nothing here), the Corp removes the tag and gives no fund: $2 is kept out of remote2', () => {
+    expect(liability(2, 1)).toEqual({ reaches: false, reached: 1 });
+  });
+
+  it('tag mirror: tagged, $3: gets in without the fund', () => {
+    expect(liability(3, 1)).toEqual({ reaches: true, reached: 2 });
+  });
+});
+
 describe('hold walk: break plans kept with the board they were worked out on (review R3)', () => {
   it('a breaker installed in place on the same board is read: Palisade, $5, holds; Cleaver added: gets in', () => {
     const s = board(st => { ice(st, C.PALISADE); st.runner.credits = 5; });
