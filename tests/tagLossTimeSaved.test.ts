@@ -28,7 +28,7 @@ vi.mock('../src/ai/runs', async importOriginal => {
 });
 vi.mock('../src/ai/iceValues', async importOriginal => {
   const orig = await importOriginal<typeof import('../src/ai/iceValues')>();
-  return { ...orig, rezBudget: (s: GameState, d?: boolean) => (inClock() && probe.rez++, orig.rezBudget(s, d)) };
+  return { ...orig, rezBudget: (s: GameState) => (inClock() && probe.rez++, orig.rezBudget(s)) };
 });
 vi.mock('../src/ai/corp/hold', async importOriginal => {
   const orig = await importOriginal<typeof import('../src/ai/corp/hold')>();
