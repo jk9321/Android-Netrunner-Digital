@@ -22,7 +22,7 @@
  * The engine fires every card's own text, so the oracle shares none of the count's assumptions. Its limits: what the
  * engine does not model is not seen either, and the Runner's grip is never played (by the definition of the count).
  */
-import { GameAction, GameState, actingSide, activePrompt, executeAction, getLegalActions, rezCostOf } from '../../src/core';
+import { GameAction, GameState, actingSide, activePrompt, executeAction, findCardAnywhere, getCardScript, getLegalActions, rezCostOf } from '../../src/core';
 import { createHash } from 'node:crypto';
 
 export interface OracleAsk {
@@ -55,6 +55,13 @@ export interface OracleAnswer {
 }
 
 class Capped extends Error {}
+
+/** An ability whose text installs or plays a card from the grip. */
+function fromGrip(s: GameState, a: Extract<GameAction, { type: 'USE_ABILITY' }>): boolean {
+  const card = findCardAnywhere(s, a.cardInstanceId);
+  const label = card ? getCardScript(card.cardCode)?.abilities?.[a.abilityIndex]?.label ?? '' : '';
+  return /\b(install|play)\b[^.]*\bfrom (?:your )?grip\b/i.test(label);
+}
 
 const RUNNER_ALLOWED = new Set<GameAction['type']>([
   'GAIN_CREDIT', 'DRAW_CARD', 'REMOVE_TAG', 'USE_ABILITY', 'INITIATE_RUN', 'CONTINUE_RUN', 'BREAK_SUBROUTINE', 'BOOST_BREAKER',
@@ -205,9 +212,10 @@ export function oracle(state: GameState, ask: OracleAsk): OracleAnswer {
       if (!RUNNER_ALLOWED.has(a.type)) return false;
       if (a.type === 'INITIATE_RUN') return a.targetServerId === target && (ask.retries || s.runsThisTurn.length === k);
       if (a.type === 'PASS') return !a.restOfRun;
-      // An installed card's ability, not the identity's: Topan's and Arissana's install from the grip, which the count's
-      // definition leaves out (found reading the baseline's unread disagreements, found-during-stage-d.md row 5)
-      if (a.type === 'USE_ABILITY') return a.cardInstanceId !== s.runner.identity.instanceId;
+      // No ability that installs or plays a card from the grip, on any card (Topan's and Arissana's identities): the
+      // count's capability is the rig installed at the turn's start (found reading the baseline's unread disagreements,
+      // found-during-stage-d.md row 5; narrowed to these abilities by the AI Coordinator's ruling)
+      if (a.type === 'USE_ABILITY') return !fromGrip(s, a);
       return true;
     });
     legal.sort((a, b) => (ORDER[a.type] ?? 9) - (ORDER[b.type] ?? 9));

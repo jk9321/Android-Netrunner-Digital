@@ -101,9 +101,14 @@ describe('Stage D pins (known-failing until their fix lands)', () => {
   // ice (scripts/stage-c/fixture-candidates.ts). Cause: the leaf gives no worth to an empty scoring remote that now holds
   // (valuation, not the order; line 2 is not exempted from the look-ahead to cover it). The no-look-ahead Corp plays the
   // line-2 ice (tests/corpCandidates.test.ts)
-  // Passes since V-B B6 item 33 (a rezzed profiled card's hosted credits read the owner, countersWorth: the Regolith
-  // click's worth no longer outranks the ice; checked by reverting that line alone, which fails it again)
-  it('Stage C, deal 1001 T10: the Corp with the look-ahead installs ice on remote-1 (was: the Regolith click)', { timeout: 480_000 }, () => {
+  // Passed from V-B B6 item 33 (a rezzed profiled card's hosted credits read the owner, countersWorth) only by keeping
+  // the Regolith click out of K. Known-failing again with the hold walk (Stage D item 1, AI Coordinator's ruling,
+  // walk-rulings.md): no counted question takes the click; line 2 now offers all four ice, Whitespace first (the walk
+  // prices its credit loss and its "6 or less"), and R&D's count is need 5 and 1 entry, holds false against the
+  // Runner's 14 (beta: need 1, 4 entries; the oracle: one run gets in under every rez set). K becomes Whitespace,
+  // Palisade, a credit, a draw, and the Regolith click is valued beside them: -6.19 against -12.20 for the ice. The
+  // cause is the one above, the leaf's worth (valuation), not the count (walk-measurements.md section 3)
+  it.fails('Stage C, deal 1001 T10: the Corp with the look-ahead installs ice on remote-1 (was: the Regolith click)', { timeout: 480_000 }, () => {
     const s: GameState = JSON.parse(readFileSync(new URL('./fixtures/ice-redirect-1001-t10.json', import.meta.url), 'utf8'));
     const a = new HeuristicCorpAI({ synergy: true }).chooseAction(s) as Install;
     expect(a.type).toBe('INSTALL_CARD');
