@@ -51,6 +51,8 @@ const COMPARE = process.env.COMPARE === '1';
 // The count as on beta: on a tree with the walk's temporary switches (ai-hold-walk cbab0ad or earlier) `holdWalk: false`
 // reaches it; on a later tree it is beta's own files in a copy of src/ (BETA=<full sha>)
 const [shard, shards] = (process.env.SHARD ?? '0/1').split('/').map(Number);
+// ONLY=10,20: run these shards and no others (to redo the shards of a run that failed)
+if (process.env.ONLY && !process.env.ONLY.split(',').map(Number).includes(shard)) process.exit(0);
 const betaRoot = resolve('.hb-beta', String(shard));
 let betaHold: ((s: GameState, server: string, opts: HoldOptions) => Hold) | undefined;
 if (COMPARE && !('holdWalk' in plan())) {
@@ -74,7 +76,10 @@ if (COMPARE && !('holdWalk' in plan())) {
   cpSync('src', join(betaRoot, 'src'), { recursive: true });
   for (const f of ['ai/corp/hold.ts', 'ai/corp/rezMoney.ts', 'ai/runs.ts']) writeFileSync(join(betaRoot, 'src', f), execSync(`git show ${sha}:src/${f}`, { maxBuffer: 1 << 26 }));
   const m = (p: string) => import(/* @vite-ignore */ join(betaRoot, 'src', p));
-  // One at a time: vite-node can deadlock on concurrent imports of modules that import each other
+  // One at a time: vite-node can deadlock on concurrent imports of modules that import each other. The AI's index first:
+  // it loads corpAI.ts, which registers the ports beta's count reads (corpPorts.holdingRezIds; run 44098196814 lost four
+  // shards to it)
+  await m('ai/index.ts');
   const hm = await m('ai/corp/hold.ts');
   const pr = await m('ai/pricing.ts');
   const hv = await m('ai/handValues.ts');
