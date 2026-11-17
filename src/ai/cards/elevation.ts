@@ -373,7 +373,8 @@ export const ELEVATION: Record<string, CardAI> = {
     counterFormulas: { credit: (state, card) => paidOut(state, card) },
   },
   // Bumi 1.0
-  '35041': { synergy: { gives: { ice: 1, bioroid: 1, damage: 0.5 } }, rezEffect: true },
+  // "When you rez this ice during a run against this server, you may trash 1 installed trojan program"
+  '35041': { synergy: { gives: { ice: 1, bioroid: 1, damage: 0.5 } }, rezEffect: true, holdFacts: { rezDuringRun: { corpMayTrashInstalled: 'trojan' } } },
   // Scatter Field
   '35042': { synergy: { gives: { ice: 1, install: 0.5 } } },
   // Nanomanagement
@@ -545,7 +546,8 @@ export const ELEVATION: Record<string, CardAI> = {
   // Measured Response
   '35078': { synergy: { gives: { damage: 1.5, denial: 0.5 }, when: ['successfulRun', 'threat'] } },
   // Flyswatter
-  '35079': { synergy: { gives: { ice: 1 } }, rezEffect: true },
+  // "When you rez this ice during a run against this server, purge virus counters"
+  '35079': { synergy: { gives: { ice: 1 } }, rezEffect: true, holdFacts: { rezDuringRun: { purgeVirus: true } } },
   // Lamplighter
   '35080': { synergy: { gives: { ice: 1, tags: 1 }, wants: { tags: 0.5 }, when: ['ifTagged', 'onScore'] } },
   // Petty Cash

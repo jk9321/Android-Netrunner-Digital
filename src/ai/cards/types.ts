@@ -24,6 +24,41 @@ export interface CorpEffectContext {
 }
 
 /**
+ * What a card does at the points of a Runner's turn the hold count walks (Stage D item 1, brief 4.4), as its text says:
+ * facts the walk applies to the state it carries (counters, rez flags, tags, credits), never a worth. Read only by the
+ * hold count (corp/hold.ts): the Runner's run prices (gainsOnEncounter, runs.ts plannedSubroutines) do not read them.
+ */
+export interface HoldFacts {
+  /** When the Runner's turn begins (rule 5.7.1): counters it places on itself, then a derez of its host ice once it holds this many (Tranquilizer). */
+  runnerTurnStart?: { counters: { kind: CounterType; n: number }; derezHostAt?: number };
+  /** When a turn ends: this ice derezzes itself (Lycian Multi-Munition). */
+  turnEndDerezSelf?: true;
+  /**
+   * When the Corp rezzes this ice during a run against its server (Flyswatter, Ping, Bumi 1.0), or, on an identity, any
+   * ice of these subtypes during a run (Thunderbolt Armaments): what follows. A choice the Corp makes ("you may trash 1
+   * installed trojan") is the Corp's: the walk takes the answer that keeps the Runner out (ruling 6).
+   */
+  rezDuringRun?: {
+    purgeVirus?: true;
+    tags?: number;
+    corpMayTrashInstalled?: 'trojan';
+    /** Identity: the rezzed ice of these subtypes gets this strength and gains this subroutine after its others, for the run (9.8.3e). */
+    anyIce?: { subtypes: string[]; strength: number; gains: string };
+  };
+  /**
+   * When the Runner encounters this ice (6.9.3a). `loses`: credits it loses. `toll`: what happens unless the Runner
+   * pays any ONE of `unless`, its choice (Funhouse: the run ends unless it takes 1 tag; Seraph: it loses 3 unless it
+   * suffers 2 net damage or takes 1 tag; Jaguarundi: a tag unless it spends a click), active from `threatAtLeast`.
+   */
+  encounter?: {
+    loses?: number;
+    toll?: { endRun?: true; loses?: number; tags?: number };
+    unless?: { tags?: number; netDamage?: number; clicks?: number };
+    threatAtLeast?: number;
+  };
+}
+
+/**
  * Everything the AI knows about one card's worth, in one place (2026-11-03,
  * from Gemini's CardFacts review). What a card does stays in its engine
  * script; this is only how the AI prices it. Every part is optional.
@@ -72,6 +107,8 @@ export interface CardAI {
    * Counted scoring reads it as the Corp's next-turn income (countedScore.ts knownIncome) and as the Runner's turn-start
    * money (runnerBudget). */
   turnIncome?: { credits: number; hosted?: true };
+  /** What it does at the points of the Runner's turn the hold count walks (HoldFacts; Stage D item 1). */
+  holdFacts?: HoldFacts;
   /** Runner card that pays off an Archives run, or turns one into a run on something else (Maintenance Access, Baker):
    * the Corp ices and rezzes Archives only against these, or with an agenda there (rezModel.ts archivesWantsIce). */
   archivesPayoff?: true;

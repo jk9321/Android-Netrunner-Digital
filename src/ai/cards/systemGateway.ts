@@ -61,6 +61,8 @@ export const SYSTEM_GATEWAY: Record<string, CardAI> = {
   // Botulus
   '30004': {
     synergy: { gives: { virus: 1, breakers: 0.5 } },
+    // "When your turn begins, place 1 virus counter on this program" (rule 5.7.1)
+    holdFacts: { runnerTurnStart: { counters: { kind: 'virus', n: 1 } } },
     value: { rig: 2 },
     // A virus counter a turn, each breaking a subroutine on its host; useful for about 3 turns
     runner: (state, _code, card) => perTurn(state, card ? counterWorth(state, card, 'virus') : 1, 'runner', 0, 3, virusWait()),
@@ -157,6 +159,8 @@ export const SYSTEM_GATEWAY: Record<string, CardAI> = {
   // Tranquilizer
   '30017': {
     synergy: { gives: { virus: 1 } },
+    // "When your turn begins, place 1 virus counter ... Then, if there are 3 or more hosted virus counters, derez host ice"
+    holdFacts: { runnerTurnStart: { counters: { kind: 'virus', n: 1 }, derezHostAt: 3 } },
     value: { rig: 2.5 },
     // A virus counter a turn; 3 derez its host
     runner: (state, _code, card) => perTurn(state, card ? counterWorth(state, card, 'virus') : 1, 'runner', 0, 3, virusWait()),
@@ -377,9 +381,14 @@ export const SYSTEM_GATEWAY: Record<string, CardAI> = {
     },
   },
   // Funhouse
-  '30054': { synergy: { gives: { ice: 1, tags: 1, denial: 0.5 } } },
+  '30054': {
+    synergy: { gives: { ice: 1, tags: 1, denial: 0.5 } },
+    // "When the Runner encounters this ice, end the run unless the Runner takes 1 tag" (6.9.3a)
+    holdFacts: { encounter: { toll: { endRun: true }, unless: { tags: 1 } } },
+  },
   // Ping
-  '30055': { synergy: { gives: { ice: 1, tags: 1 } }, rezEffect: true },
+  // "When you rez this ice during a run against this server, give the Runner 1 tag"
+  '30055': { synergy: { gives: { ice: 1, tags: 1 } }, rezEffect: true, holdFacts: { rezDuringRun: { tags: 1 } } },
   // Predictive Planogram
   '30056': { synergy: { gives: { econ: 1, draw: 1 }, wants: { tags: 1 }, when: ['ifTagged'] } },
   // Public Trail
