@@ -4,6 +4,8 @@
  */
 import { describe, expect, it } from 'vitest';
 import { CARDS } from '../src/ai/cards';
+import { activePrompt, executeAction } from '../src/core';
+import { installIceForTest, newGame, run, toCorp } from './helpers';
 
 describe('holdFacts card entries', () => {
   it('turn start (5.7.1): Botulus and Tranquilizer counters, Tranquilizer derezzes at 3', () => {
@@ -16,6 +18,18 @@ describe('holdFacts card entries', () => {
     expect(sets).toHaveLength(7);
     expect(new Set(sets.map(x => [...x].sort().join('+'))).size).toBe(7);
     expect(sets.every(x => x.length > 0 && x.every(t => ['barrier', 'code gate', 'sentry'].includes(t)))).toBe(true);
+  });
+  it("Lycian's sets are the engine's choices (LYCIAN_CHOICES, as its rez prompt offers them; review R5)", () => {
+    let s = newGame(3);
+    const lycian = installIceForTest(s, '34100', 'remote1', false);
+    s.corp.credits = 20;
+    // 6.4.3: rezzed as the Runner approaches it
+    s = toCorp(run(s, 'remote1'));
+    const prompt = activePrompt(executeAction(s, { type: 'REZ_CARD', player: 'corp', cardInstanceId: lycian }));
+    expect(prompt?.kind).toBe('effect_choice');
+    const offered = prompt?.kind === 'effect_choice' ? prompt.options.map(o => o.label) : [];
+    // The prompt labels each choice by its subtypes joined with ', '
+    expect(offered).toEqual((CARDS['34100'].holdFacts?.rezChoosesSubtypes ?? []).map(x => x.join(', ')));
   });
   it('rezzed during a run: Flyswatter purges, Ping tags, Bumi 1.0 may trash a trojan, Thunderbolt Armaments adds a subroutine (9.8.3e)', () => {
     expect(CARDS['35079'].holdFacts?.rezDuringRun).toEqual({ purgeVirus: true });
