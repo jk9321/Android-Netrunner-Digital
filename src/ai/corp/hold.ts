@@ -458,6 +458,11 @@ export class Walk {
   private readonly later: string[];
   /** The rig cards whose counters the walk reads (breakers, Botulus): the others' counters stay out of the memo key. */
   private readonly counted: number[];
+  /** By run: whether its approaches read the Runner's clicks (key them by clicks). The last run's breach ends the walk, so
+   * its clicks are read only by a bioroid's click breaks and a toll paid in clicks; on any other run, by the runs after. */
+  private readonly clicksRead: boolean[];
+  /** The ice a borrowed subroutine may come from, with its subroutines' facts (borrow). */
+  private readonly lenders: Lender[];
   /** Commit 2's switch: tags and grip move through the turn (draws, tag removal, tags and damage on the way, Ping, Bumi). */
   private readonly tags: boolean;
   /** A draw can matter (some damage, a grip condition or a grip-spending plan on the way). */
@@ -481,6 +486,7 @@ export class Walk {
     const flags = (i: WalkIce) => `${i.inS ? 1 : 0}${i.bypassed ? 1 : 0}`;
     this.inner = targets.map(t => t.ice.map((_, pos) => `${t.server}:${t.ice.slice(0, pos + 1).map(flags).join('')}`));
     this.later = targets.map((_, j) => targets.slice(j + 1).map(t => `${t.server}:${t.ice.map(flags).join('')}`).join('/'));
+    this.clicksRead = targets.map((t, j) => j < targets.length - 1 || t.ice.some(i => i.bioroid || i.encounterFacts?.unless?.clicks !== undefined));
     this.counted = start.rig.flatMap((c, i) => (c.cardCode === BOTULUS || /icebreaker/i.test(cardDef(c).keywords ?? '') ? [i] : []));
     let plans = planCache.get(state);
     if (!plans) planCache.set(state, (plans = new Map()));
@@ -490,17 +496,31 @@ export class Walk {
     this.tolled = plan().holdWalkTolls;
     const facts = targets.flatMap(t => t.ice.flatMap(i => (i.rezGains ? [...i.subs, i.rezGains] : i.subs)));
     const effects = facts.flatMap(f => f.does);
-    const borrows = effects.some(e => e.kind === 'borrow');
+    const borrows = effects.filter(e => e.kind === 'borrow').length;
+    // What a borrow can resolve: the subroutines of every ice it may lend from (borrow, below), worked out once
+    this.lenders = borrows ? lenders(state, targets) : [];
+    const lent = this.lenders.flatMap(l => l.facts);
+    const all = [...facts, ...lent];
+    const allEffects = all.flatMap(f => f.does);
     const encounters = targets.flatMap(t => t.ice.flatMap(i => (i.encounterFacts ? [i.encounterFacts] : [])));
     // A draw helps only when the grip can run short (10.4.4): the most the targets can take from it (damage, net damage
-    // paid instead, X counted at the most tags the walk can carry) is more than it holds; a grip condition, a borrowed
-    // subroutine or a plan that spends grip cards (Audrey v2) always counts
+    // paid instead, X counted at the most tags the walk can carry; each borrow at the most one lent subroutine takes) is
+    // more than it holds; a grip condition or a plan that spends grip cards (Audrey v2) always counts
+    const most = (list: number[]) => list.reduce((a, b) => Math.max(a, b), 0);
+    const sum = (list: number[]) => list.reduce((a, b) => a + b, 0);
+    const tagsOf = (f: SubFacts) => sum(f.does.map(e => (e.kind === 'tags' && typeof e.n === 'number' ? e.n : 0)));
     const tagGains = targets.flatMap(t => t.ice.map(i => (i.rezFacts?.tags ?? 0) + (i.encounterFacts?.toll?.tags ?? 0) + (i.encounterFacts?.unless?.tags ?? 0)));
-    const tagsMost = state.runner.tags + [...tagGains, ...effects.map(e => (e.kind === 'tags' && typeof e.n === 'number' ? e.n : 0))].reduce((a, b) => a + b, 0);
-    const doubling = effects.some(e => e.kind === 'tags' && e.n === 'runnerTags');
-    const gripMost = [...effects.map(e => (e.kind === 'damage' ? (e.n === 'runnerTags' ? tagsMost : e.n) : 0)), ...facts.map(f => f.unless?.netDamage ?? 0), ...encounters.map(e => e.unless?.netDamage ?? 0)].reduce((a, b) => a + b, 0);
-    this.drawUseful = this.tags && (borrows || doubling || effects.some(e => e.kind === 'endRun' && e.if?.kind === 'hqMoreThanGrip') || start.rig.some(c => c.cardCode === AUDREY) || gripMost > state.runner.grip.length);
-    this.tagUseful = this.tags && (borrows || facts.some(f => f.when?.kind === 'runnerTagsAtLeast') || effects.some(e => (e.kind === 'endRun' && e.if?.kind === 'runnerTagsAtLeast') || ((e.kind === 'damage' || e.kind === 'tags') && e.n === 'runnerTags') || (e.kind === 'corpGainsCredits' && e.n === 'perRunnerTag')));
+    const tagsMost = state.runner.tags + sum(tagGains) + sum(facts.map(tagsOf)) + borrows * most(lent.map(tagsOf));
+    const gripOf = (f: SubFacts) => sum(f.does.map(e => (e.kind === 'damage' ? (e.n === 'runnerTags' ? tagsMost : e.n) : 0))) + (f.unless?.netDamage ?? 0);
+    const gripMost = sum(facts.map(gripOf)) + sum(encounters.map(e => e.unless?.netDamage ?? 0)) + borrows * most(lent.map(gripOf));
+    const doubling = allEffects.some(e => e.kind === 'tags' && e.n === 'runnerTags');
+    this.drawUseful = this.tags && (doubling || allEffects.some(e => e.kind === 'endRun' && e.if?.kind === 'hqMoreThanGrip') || start.rig.some(c => c.cardCode === AUDREY) || gripMost > state.runner.grip.length);
+    this.tagUseful = this.tags && (all.some(f => f.when?.kind === 'runnerTagsAtLeast') || allEffects.some(e => (e.kind === 'endRun' && e.if?.kind === 'runnerTagsAtLeast') || ((e.kind === 'damage' || e.kind === 'tags') && e.n === 'runnerTags') || (e.kind === 'corpGainsCredits' && e.n === 'perRunnerTag')));
+  }
+
+  /** The walk state in a memo key (run j: the clicks only where they are read, the stack before the last run). */
+  private wsKey(ws: WalkState, j: number): string {
+    return `${this.clicksRead[j] ? ws.clicks : '-'}|${ws.tags}|${ws.grip}|${j < this.targets.length - 1 ? ws.stack : '-'}|${ws.corp}|${ws.fund}|${ws.hosted}|${ws.stealth}|${this.counters(ws)}|${ws.gone}|${ws.up}|${ws.spike ? 1 : 0}|${ws.mayfly}`;
   }
 
   /** The counters the walk reads, for a memo key. */
@@ -551,7 +571,8 @@ export class Walk {
 
   private approach(ws: WalkState, j: number, pos: number): number {
     if (pos < 0) return this.breach(ws, j);
-    const key = `${pos}|${this.inner[j][pos]}|${this.later[j]}|${ws.clicks}|${ws.tags}|${ws.grip}|${ws.stack}|${ws.corp}|${ws.fund}|${ws.hosted}|${ws.stealth}|${this.counters(ws)}|${ws.gone}|${ws.up}|${ws.spike ? 1 : 0}|${ws.mayfly}`;
+    const at = `${pos}|${this.inner[j][pos]}|${this.later[j]}`;
+    const key = `${at}|${this.wsKey(ws, j)}`;
     const hit = this.memo.get(key);
     if (hit !== undefined) return hit;
     const ice = this.targets[j].ice[pos];
@@ -560,14 +581,14 @@ export class Walk {
     if (!ice.rezzed && !ws.up.includes(ice.card.instanceId)) {
       // 6.9.2c: unrezzed ice the Corp does not rez is passed; 6.4.3: ice of S is rezzed as it is approached
       const paid = this.credits ? ws.corp - ice.rezCost : ws.corp;
-      v = ice.inS && paid >= 0 ? this.rezzed({ ...ws, corp: paid, up: [...ws.up, ice.card.instanceId].sort() }, ice, next) : next(ws);
-    } else v = ice.bypassed ? next(ws) : this.encounter(ws, ice, next);
+      v = ice.inS && paid >= 0 ? this.rezzed({ ...ws, corp: paid, up: [...ws.up, ice.card.instanceId].sort() }, ice, next, { key: at, j }) : next(ws);
+    } else v = ice.bypassed ? next(ws) : this.encounter(ws, ice, next, { key: at, j });
     this.memo.set(key, v);
     return v;
   }
 
   /** The ice was rezzed during this run against its server: its rez-time facts (Flyswatter: purge virus counters). */
-  private rezzed(ws: WalkState, ice: WalkIce, next: (w: WalkState) => number): number {
+  private rezzed(ws: WalkState, ice: WalkIce, next: (w: WalkState) => number, at: Step): number {
     let w = ws;
     if (ice.rezFacts?.purgeVirus) {
       // Purging removes every virus counter (10.3.5); Physarum Entangler is trashed by it (its text)
@@ -577,7 +598,7 @@ export class Walk {
     if (this.tags && ice.rezFacts?.tags) w = { ...w, tags: w.tags + ice.rezFacts.tags };
     // Thunderbolt Armaments: the ice gains its subroutine after its others for the rest of the run (9.8.3e)
     const met = this.tolled && ice.rezGains ? { ...ice, subs: [...ice.subs, ice.rezGains] } : ice;
-    const go = (x: WalkState) => (ice.bypassed ? next(x) : this.encounter(x, met, next));
+    const go = (x: WalkState) => (ice.bypassed ? next(x) : this.encounter(x, met, next, at));
     if (this.tags && ice.rezFacts?.corpMayTrashInstalled === 'trojan') {
       // Bumi 1.0: the Corp may trash 1 installed trojan, the choice worst for the Runner (ruling 6)
       let worst = go(w);
@@ -593,14 +614,14 @@ export class Walk {
    * An encounter: the Runner's own bypass first (Physarum, its trigger as the active player's), then what the ice does as
    * the encounter begins (6.9.3a), then its choice of the subroutines to break and how; the rest resolve in order.
    */
-  private encounter(ws: WalkState, ice: WalkIce, next: (w: WalkState) => number): number {
+  private encounter(ws: WalkState, ice: WalkIce, next: (w: WalkState) => number, at: Step): number {
     const subs = ice.subs;
     const types = this.typesOf(ice, ws);
     let best = FAIL;
     if (plan().bypass) {
       for (const b of ice.bypassers) if (!ws.gone.includes(b.idx) && !types.includes(b.unless)) best = Math.min(best, this.pay(ws, b.per * subs.length, next));
     }
-    return Math.min(best, this.tolls(ws, ice, w => this.breaks(w, ice, types, next)));
+    return Math.min(best, this.tolls(ws, ice, w => this.breaks(w, ice, types, next, at)));
   }
 
   /** The ice's subtypes now: a Corp trash of a hosted card that gives subtypes (Chromatophores) takes them away. */
@@ -642,7 +663,7 @@ export class Walk {
   }
 
   /** The Runner's choice of the subroutines to break and how (a plan, Botulus's counters, the ice's own ability). */
-  private breaks(ws: WalkState, ice: WalkIce, types: string[], next: (w: WalkState) => number): number {
+  private breaks(ws: WalkState, ice: WalkIce, types: string[], next: (w: WalkState) => number, at: Step): number {
     const subs = ice.subs;
     let best = FAIL;
     // An inert subroutine resolves to nothing (breaking it never helps): left out of the choice and of the resolution
@@ -651,7 +672,7 @@ export class Walk {
       const unbroken = open.filter((_, k) => !(set & (1 << k)));
       if (unbroken.some(i => alwaysEnds(subs[i]))) continue;
       const b = open.length - unbroken.length;
-      const resolve = (w: WalkState) => this.resolve(w, ice, types, unbroken, 0, next);
+      const resolve = (w: WalkState) => this.resolve(w, ice, types, unbroken, 0, next, at);
       if (b === 0) {
         best = Math.min(best, resolve(ws));
         continue;
@@ -745,9 +766,18 @@ export class Walk {
   }
 
   /** The unbroken subroutines `list` (indexes into ice.subs) resolve one at a time in printed order (9.8.7b). */
-  private resolve(ws: WalkState, ice: WalkIce, types: string[], list: number[], k: number, next: (w: WalkState) => number): number {
+  private resolve(ws: WalkState, ice: WalkIce, types: string[], list: number[], k: number, next: (w: WalkState) => number, at: Step): number {
     if (k >= list.length) return next(ws);
-    return this.subroutine(ws, ice.card, types, ice.subs[list[k]], w => this.resolve(w, ice, types, list, k + 1, next));
+    const go = () => this.subroutine(ws, ice.card, types, ice.subs[list[k]], w => this.resolve(w, ice, types, list, k + 1, next, at));
+    // A borrowing ice (Mycoweb) branches on every subroutine it may lend, each with the rest of its own to resolve: the
+    // steps after the first are keyed (`at`: the approach and run; the subroutines as met, those left, the state)
+    if (k === 0 || !ice.subs.some(f => f.does.some(e => e.kind === 'borrow'))) return go();
+    const key = `s|${at.key}|${ice.subs.length}|${list}|${k}|${this.wsKey(ws, at.j)}`;
+    const hit = this.memo.get(key);
+    if (hit !== undefined) return hit;
+    const v = go();
+    this.memo.set(key, v);
+    return v;
   }
 
   /** One subroutine resolves (or the Runner pays its nested cost instead, 1.16.11b). */
@@ -816,25 +846,43 @@ export class Walk {
 
   /** Mycoweb: the Corp resolves 1 subroutine of another rezzed ice of the subtype, the one worst for the Runner (ruling 6). */
   private borrow(ws: WalkState, card: CardInstance, subtype: string, next: (w: WalkState) => number): number {
-    const walked = new Map(this.targets.flatMap(t => t.ice.map(x => [x.card.instanceId, x] as const)));
     let worst = -1;
-    for (const sv of Object.values(this.state.corp.servers)) {
-      for (const c of sv.ice) {
-        if (c.instanceId === card.instanceId) continue;
-        const w = walked.get(c.instanceId);
-        const isUp = w ? w.rezzed || ws.up.includes(c.instanceId) : c.isRezzed;
-        if (!isUp) continue;
-        const up = w ? w.card : c;
-        const types = w ? w.types : iceSubtypes(c, this.state);
-        if (!types.includes(subtype)) continue;
-        for (const sub of iceSubroutines(this.state, up)) {
-          if (/resolve 1 subroutine on/i.test(sub.label)) continue;
-          worst = Math.max(worst, this.subroutine(ws, up, types, subroutineFacts(sub.label), next));
-        }
-      }
+    for (const l of this.lenders) {
+      if (l.card.instanceId === card.instanceId || !(l.rezzed || ws.up.includes(l.card.instanceId)) || !l.types.includes(subtype)) continue;
+      for (const f of l.facts) worst = Math.max(worst, this.subroutine(ws, l.card, l.types, f, next));
     }
     return worst < 0 ? next(ws) : worst;
   }
+}
+
+/** Where an encounter is: its approach's memo key and its run. */
+interface Step {
+  key: string;
+  j: number;
+}
+
+/** A borrow's lender: rezzed now, or walked (rezzed when the walk rezzes it), its subroutines but the borrowing ones. */
+interface Lender {
+  card: CardInstance;
+  rezzed: boolean;
+  types: string[];
+  facts: SubFacts[];
+}
+
+/** Every ice a borrow may lend from, in board order: the walked ice as met, the rest as the board has it. */
+function lenders(state: GameState, targets: WalkTarget[]): Lender[] {
+  const walked = new Map(targets.flatMap(t => t.ice.map(x => [x.card.instanceId, x] as const)));
+  const out: Lender[] = [];
+  for (const sv of Object.values(state.corp.servers)) {
+    for (const c of sv.ice) {
+      const w = walked.get(c.instanceId);
+      if (!w && !c.isRezzed) continue;
+      const up = w ? w.card : c;
+      const facts = iceSubroutines(state, up).filter(sub => !/resolve 1 subroutine on/i.test(sub.label)).map(sub => subroutineFacts(sub.label));
+      out.push({ card: up, rezzed: w ? w.rezzed : true, types: w ? w.types : iceSubtypes(c, state), facts });
+    }
+  }
+  return out;
 }
 
 /** Credits on the rig's cards that pay during runs (Methuselah, Touchstone; cardEffects runPayers). */
@@ -925,8 +973,21 @@ function walkRunnerTurn(state: GameState, server: string, corpCredits: number): 
     if (need > most) [most, mostSet] = [need, set];
   }
   const need = most === -Infinity ? 0 : most;
-  const entries = plan().holdWalkSequence ? sequenceEntries(state, start, base, server, mostSet, corp, memo) : turnEntries(state, need, budget);
-  return { holds: false, rez: null, rezCost: Infinity, need, budget, margin: need - budget, entries };
+  if (!plan().holdWalkSequence) return { holds: false, rez: null, rezCost: Infinity, need, budget, margin: need - budget, entries: turnEntries(state, need, budget) };
+  // Worked out when read: two readers of the count's many (the ice move, iceCount) read `entries`, and the further runs
+  // are most of a count's work (rez money asks every staked server of every board the planner looks at)
+  let entries: number | undefined;
+  return {
+    holds: false,
+    rez: null,
+    rezCost: Infinity,
+    need,
+    budget,
+    margin: need - budget,
+    get entries() {
+      return (entries ??= sequenceEntries(state, start, base, server, mostSet, corp, memo));
+    },
+  };
 }
 
 /** `entries` from the run sequence (brief 5.6): the most runs on the server one turn reaches, against the set that asks the most. */

@@ -271,7 +271,7 @@ const BOTULUS = '30004';
 const IDENTITY_THUNDERBOLT = '34096';
 
 /** A random server: 1 to 3 ice from the pool (some unrezzed), 0 to 2 breakers, maybe a Botulus, the Runner's means at random. */
-function randomBoard(r: () => number): { s: GameState; rez: string[] } {
+function randomBoard(r: () => number, first?: string): { s: GameState; rez: string[] } {
   const pick = <T>(xs: T[]) => xs[Math.floor(r() * xs.length)];
   const s = newGame(3);
   s.turnNumber = 7;
@@ -285,7 +285,8 @@ function randomBoard(r: () => number): { s: GameState; rez: string[] } {
   s.corp.badPublicity = r() < 0.15 ? 1 : 0;
   if (r() < 0.1) s.corp.identity = createCardInstance(s, IDENTITY_THUNDERBOLT);
   const ids: string[] = [];
-  for (let k = 1 + Math.floor(r() * 3); k > 0; k--) ids.push(installIceForTest(s, pick(ICE), 'remote1', r() < 0.6));
+  if (first) ids.push(installIceForTest(s, first, 'remote1', r() < 0.5));
+  for (let k = (first ? 0 : 1) + Math.floor(r() * 3); k > 0; k--) ids.push(installIceForTest(s, pick(ICE), 'remote1', r() < 0.6));
   for (let k = Math.floor(r() * 3); k > 0; k--) installProgramForTest(s, pick(BREAKERS));
   if (r() < 0.15) {
     const b = createCardInstance(s, BOTULUS);
@@ -294,6 +295,8 @@ function randomBoard(r: () => number): { s: GameState; rez: string[] } {
     b.tokens = { virus: Math.floor(r() * 3) };
     s.runner.rig.programs.push(b);
   }
+  // A rezzed ice elsewhere for a borrowing subroutine (Mycoweb) to lend from
+  if (first || r() < 0.25) installIceForTest(s, pick(ICE), 'hq', true);
   const unrezzed = s.corp.servers.remote1.ice.filter(c => !c.isRezzed).map(c => c.instanceId);
   return { s, rez: unrezzed.filter(() => r() < 0.6) };
 }
@@ -301,13 +304,13 @@ function randomBoard(r: () => number): { s: GameState; rez: string[] } {
 const inCorp = <T>(s: GameState, f: () => T): T => asSide('corp', () => (decisionContext(s, 'corp'), f()));
 
 describe('the hold walk against a brute force of the same model (brief section 6)', () => {
-  it('agrees with turnReach on 2,000 random servers, one run and two', () => {
-    const r = rng(20261117);
+  const check = (seed: number, boards: number, first?: string) => {
+    const r = rng(seed);
     const misses: string[] = [];
     let compared = 0;
     let reached = 0;
-    for (let n = 0; n < 2000; n++) {
-      const { s, rez } = randomBoard(r);
+    for (let n = 0; n < boards; n++) {
+      const { s, rez } = randomBoard(r, first);
       const runs = n % 4 === 3 ? 2 : 1;
       const servers = Array(runs).fill('remote1');
       const sets = Array(runs).fill(rez);
@@ -322,9 +325,23 @@ describe('the hold walk against a brute force of the same model (brief section 6
         misses.push(`#${n} runs ${runs}: walk ${got}, brute ${want}; ice ${ice}; rig ${rig}; $${s.runner.credits} clicks ${s.runner.maxClicks} tags ${s.runner.tags} grip ${s.runner.grip.length} corp $${s.corp.credits}`);
       }
     }
+    return { compared, reached, misses };
+  };
+
+  it('agrees with turnReach on 2,000 random servers, one run and two', () => {
+    const { compared, reached, misses } = check(20261117, 2000);
     expect(compared).toBeGreaterThan(1500);
     // Both answers well represented (the boards are not all open or all shut)
     expect(Math.min(reached, compared - reached)).toBeGreaterThan(compared / 5);
+    expect(misses).toEqual([]);
+  }, 600_000);
+
+  // Mycoweb innermost (its three borrows: the lenders worked out once, a borrow's draws and tags, its steps keyed), a
+  // rezzed ice on HQ to lend from
+  it('agrees with turnReach on 300 servers led by Mycoweb', () => {
+    const { compared, reached, misses } = check(20261118, 300, '35053');
+    expect(compared).toBeGreaterThan(200);
+    expect(Math.min(reached, compared - reached)).toBeGreaterThan(compared / 10);
     expect(misses).toEqual([]);
   }, 600_000);
 });
