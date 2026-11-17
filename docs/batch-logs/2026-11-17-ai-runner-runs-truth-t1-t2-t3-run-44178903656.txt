@@ -1,0 +1,9 @@
+ai-script run 44178903656: scripts/stage-d/runner-runs-truth.ts on ai-runner-runs (Stage D item 2 step 1), no ARGS.
+21 person-Runner human games, a fresh Normal Corp asked at each of its own-turn decisions (82 a game) under each arm.
+Changed decisions a game (games with any):
+  null (same numbers, fresh agent)        0.00  (0)
+  T1 the reply's Runner makes the person's real next-turn runs   10.95 (21)
+  T2 the leaf's PACE/STEAL numbers set to the truth of the turns after   7.10 (20)
+  T3 both                                  13.19 (21)
+Overlap: 60 changes in T1 and T2, 89 T2 only, 170 T1 only.
+Detail: /mnt/project-files/netrunner-ai/stage-d/item2-runner-runs/design-note.md section 2. Play is identical (no src change).
