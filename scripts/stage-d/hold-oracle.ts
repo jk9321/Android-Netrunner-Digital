@@ -205,6 +205,9 @@ export function oracle(state: GameState, ask: OracleAsk): OracleAnswer {
       if (!RUNNER_ALLOWED.has(a.type)) return false;
       if (a.type === 'INITIATE_RUN') return a.targetServerId === target && (ask.retries || s.runsThisTurn.length === k);
       if (a.type === 'PASS') return !a.restOfRun;
+      // An installed card's ability, not the identity's: Topan's and Arissana's install from the grip, which the count's
+      // definition leaves out (found reading the baseline's unread disagreements, found-during-stage-d.md row 5)
+      if (a.type === 'USE_ABILITY') return a.cardInstanceId !== s.runner.identity.instanceId;
       return true;
     });
     legal.sort((a, b) => (ORDER[a.type] ?? 9) - (ORDER[b.type] ?? 9));
