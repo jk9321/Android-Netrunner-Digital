@@ -1,7 +1,9 @@
-import { CardInstance, GameAction, GameState, activePrompt, cardDef, executeAction, findCardAnywhere, getLegalActions, isLegalAction } from '../core';
+import { CardInstance, GameAction, GameState, activePrompt, cardDef, executeAction, findCardAnywhere, getLegalActions, isLegalAction, knownInHand } from '../core';
+import { TurnFlag, turnFlag } from '../core/engine/cardEffects';
 import { plan } from './pricing';
 import { tally } from './diagnostics';
 import { clicksGivenOf, dividendsOf, placesCountersOf } from './cards';
+import { ownTurnDamage } from './effectValues';
 
 /**
  * Win now (bug report #33, Jeff's Runner test game 1, 2026-11-09; plan.winNow): an exact search of the Corp's own turn for
@@ -30,6 +32,9 @@ export const WIN_NOW = {
   depth: 14,
 };
 
+/** Test-only (tests/winNowReach.test.ts, the soundness sweep): `uncut` switches canStillWin off, so every line is searched. */
+export const winNowBound = { uncut: false };
+
 const typeOf = (state: GameState, id: string | undefined) => {
   const card = id ? findCardAnywhere(state, id) : undefined;
   return card ? cardDef(card).type_code : undefined;
@@ -47,10 +52,18 @@ const WORDS: Record<string, number> = {
 const placesOf = new Map<string, number>();
 function places(code: string, text: string, state: GameState): number {
   // A text that counts the board (Flood the Market) is a fact of the card entry, read on this board: never cached by code.
-  // It can grow inside the search (a play that installs into an empty iced remote), but the bound holds: that play costs a
-  // click the budget counts as a counter, and the Double's second click is not subtracted. Limit: a no-click effect that fills a root.
+  // It can grow inside the search: steps() installs an agenda into an empty iced remote while such a card is usable
+  // (row 26), and each such install adds one to every later use. The bound, re-derived for that (n: the fact now; k:
+  // such installs before a use; F: uses, each a Double of 2 clicks): the budget counts every click as a counter and
+  // adds n - 1 for each copy, so F uses are counted as F(n + 1); they place at most F(n + k). An install's click is
+  // charged once, by the agenda's cost when that agenda is scored (an agenda in HQ costs a click more) or by the budget
+  // where it places no counter (an install that only fills a root), so it pays for nothing else. With k = 1 the
+  // Double's second click covers the one more counter (exactly tight: install, Flood the Market, score); with k >= 2 each
+  // use can place k - 1 more than counted (two installs, then two copies: 2n + 4 against 2n + 2). So each copy adds
+  // k - 1 more, k at most the empty iced remotes and at most the agendas in HQ (the search installs only agendas).
+  // Limit: a no-click effect that fills a root.
   const fact = placesCountersOf(code);
-  if (fact) return fact(state);
+  if (fact) return fact(state) + Math.max(0, icedInstalls(state) - 1);
   let n = placesOf.get(code);
   if (n === undefined) {
     const found = [...text.matchAll(/place (\d+|an?|one|two|three|four) advancement counters?/gi)].map(m => WORDS[m[1].toLowerCase()] ?? Number(m[1]));
@@ -59,27 +72,43 @@ function places(code: string, text: string, state: GameState): number {
   }
   return n;
 }
+/** Agenda installs this turn can make into an empty iced remote (steps(), row 26): the fewer of those remotes and agendas in HQ. */
+function icedInstalls(state: GameState): number {
+  const empty = Object.values(state.corp.servers).filter(s => s.isRemote && s.root.length === 0 && s.ice.length > 0).length;
+  return Math.min(empty, state.corp.hq.filter(c => cardDef(c).type_code === 'agenda').length);
+}
+
 /**
- * Whether some set of the Corp's agendas worth `need` points (by default the points still needed to win) could still be
- * scored this turn: an upper bound, so a line that
+ * What can be used this turn: operations in HQ and cards with an ability from HQ, installed cards other than ice, and
+ * cards with an ability from Archives (Petty Cash).
+ */
+function usableSources(state: GameState): CardInstance[] {
+  const corp = state.corp;
+  const usable = (zone: 'HQ' | 'Archives') => (card: CardInstance) =>
+    (zone === 'HQ' && cardDef(card).type_code === 'operation') || new RegExp(`from ${zone}`, 'i').test(cardDef(card).stripped_text ?? '');
+  const installed = Object.values(corp.servers).flatMap(s => s.root);
+  return [...corp.hq.filter(usable('HQ')), ...installed.filter(c => cardDef(c).type_code !== 'ice'), ...[...corp.archives.faceUp, ...corp.archives.faceDown].filter(usable('Archives'))];
+}
+
+/**
+ * Whether the Corp could still win the game this turn (no `need`: 7 points, or a kill, canStillKill), or score a set of
+ * its agendas worth `need` points (score-now's question; a kill is not a score): an upper bound, so a line that
  * wins is never cut. Every click (with the clicks the Corp's cards can give) places one counter, and each card that can
  * place counters (an operation or ability in HQ, an installed non-ice card) adds what one use places beyond the click
  * it costs; an agenda in HQ takes a click to install. The cheapest set of agendas worth the points still needed must
  * fit (rule 1.17.3a: scored at its advancement requirement).
  */
-function canStillWin(state: GameState, need = 7 - state.corp.score): boolean {
+function canStillWin(state: GameState, need?: number): boolean {
+  if (winNowBound.uncut) return true;
   const corp = state.corp;
-  if (need <= 0) return true;
+  const target = need ?? 7 - corp.score;
+  if (target <= 0) return true;
   // A prompt of the Corp's own open (Seamless Launch's target): the card resolving has left HQ and what it places is
   // not on the board yet, so neither side of the count sees it. Not cut there: the bound stays an upper bound (stage 0b,
   // spec-stage0b.md; rules 1.17.2, 1.17.3a), and the line is judged again once the prompt is answered.
   if (activePrompt(state)?.side === 'corp') return true;
   const installed = Object.values(corp.servers).flatMap(s => s.root);
-  // What can be used this turn: operations in HQ and cards with an ability from HQ, installed cards other than ice, and
-  // cards with an ability from Archives (Petty Cash)
-  const usable = (zone: 'HQ' | 'Archives') => (card: CardInstance) =>
-    (zone === 'HQ' && cardDef(card).type_code === 'operation') || new RegExp(`from ${zone}`, 'i').test(cardDef(card).stripped_text ?? '');
-  const sources = [...corp.hq.filter(usable('HQ')), ...installed.filter(c => cardDef(c).type_code !== 'ice'), ...[...corp.archives.faceUp, ...corp.archives.faceDown].filter(usable('Archives'))];
+  const sources = usableSources(state);
   let budget = corp.clicks;
   const own = new Map<string, number>();
   for (const card of sources) {
@@ -95,11 +124,14 @@ function canStillWin(state: GameState, need = 7 - state.corp.score): boolean {
   const agendas = [...corp.hq, ...installed]
     .filter(c => cardDef(c).type_code === 'agenda')
     .map(c => ({
+      card: c,
       points: cardDef(c).agenda_points ?? 0,
       cost: Math.max(0, (cardDef(c).advancement_cost ?? 0) - (c.advancementCounters ?? 0)) + (hq.has(c.instanceId) ? 1 : 0) + (own.get(c.instanceId) ?? 0),
     }));
-  // Smallest total cost reaching the points needed (a handful of agendas: every subset)
+  // Smallest total cost reaching the points needed (a handful of agendas: every subset); and the most points a set
+  // that fits can score (the kill side's Neurospike)
   let best = Infinity;
+  let most = 0;
   const n = Math.min(agendas.length, 12);
   for (let mask = 1; mask < 1 << n; mask++) {
     let points = 0;
@@ -109,13 +141,56 @@ function canStillWin(state: GameState, need = 7 - state.corp.score): boolean {
         points += agendas[i].points;
         cost += agendas[i].cost;
       }
-    if (points >= need && cost < best) best = cost;
+    if (points >= target && cost < best) best = cost;
+    if (cost <= budget && points > most) most = points;
   }
-  return best <= budget;
+  if (best <= budget) return true;
+  return need === undefined && canStillKill(state, sources, agendas, budget, most);
 }
 
-/** The actions worth trying, most direct first. */
-function steps(state: GameState): GameAction[] {
+/**
+ * The kill side of the win bound (found-list row 24, Jeff's game #56, turn 12: Measured Response flatlined a Runner on 2
+ * cards while win-now answered null, since the bound counted agenda points only and cut the search before any move):
+ * whether the damage the Corp's cards could still deal this turn is more than the Runner's grip. Rules 1.7.2b and
+ * 10.4.4: the Runner is flatlined when it suffers more damage than it has cards in its grip (the grip's size is public);
+ * the hits of one turn add up, since each trashes what it can (10.4.2), so their sum is what counts. An upper bound like
+ * the points side: costs, play conditions and the Runner's choices (Measured Response's 8 credits) are the search's.
+ *
+ * A card's damage on the Corp's own turn is ownTurnDamage's (registry V20: the corpTurnDamage fact, else the text),
+ * read at its most over the turn: the facts that read the board read it with the inputs the Corp's turn can raise at
+ * their most, the Runner's tags (Orbital Superiority, Mindscaping: any number, the Corp's cards can give tags) and the
+ * points scored this turn (Neurospike: those scored so far and the most the points side lets the rest of the turn
+ * score). Every other own-turn damage fact is a number. Core damage is read as the owner reads it (See How They Run,
+ * Salvo Testing when scored): it trashes a card like the rest (10.4.2b).
+ *
+ * Which cards: the usable sources the points side counts, each copy once (an operation is played once; every other
+ * card in the sets with damage on the Corp's turn deals it once a turn at most: Angelique Garza Correa trashes itself,
+ * Phật Gioan Baotixita's is the first score each turn, counted without asking whether the turn can score (an upper
+ * bound; its fact reads its counters); a card that could deal it more often needs its uses counted
+ * here), and the agendas the turn could still score (their cost within the budget), whose damage comes at the score
+ * (Orbital Superiority, Fujii Asset Retrieval, See How They Run, Salvo Testing). tests/winNowReach.test.ts lists every
+ * Corp card with own-turn damage, so a new one is checked against this. Not counted (limits): damage in the Runner's
+ * runs (ice, access, Shackleton Grid: their facts are 0 on the Corp's turn), a scored agenda's damage on later scores
+ * (Salvo Testing in the score area), and cards taken from the grip without damage (Touch-ups shuffles up to 2 into the
+ * stack). Score-now does not read this side: it asks for a score.
+ */
+function canStillKill(state: GameState, sources: CardInstance[], agendas: { card: CardInstance; cost: number }[], budget: number, points: number): boolean {
+  const most: GameState = {
+    ...state,
+    runner: { ...state.runner, tags: Infinity },
+    turnFlags: { ...state.turnFlags, [TurnFlag.agendaPointsScored]: turnFlag(state, TurnFlag.agendaPointsScored) + points },
+  };
+  let damage = 0;
+  for (const card of sources) if (cardDef(card).type_code !== 'agenda') damage += ownTurnDamage(most, card.cardCode);
+  for (const { card, cost } of agendas) if (cost <= budget) damage += ownTurnDamage(most, card.cardCode);
+  return damage > state.runner.grip.length;
+}
+
+/** Whether a usable card's count reads remotes with a root and ice (the placesCounters fact; row 26). */
+const countsIced = (state: GameState): boolean => usableSources(state).some(c => !!placesCountersOf(c.cardCode));
+
+/** The actions worth trying, most direct first (exported for tests/winNowReach.test.ts). */
+export function steps(state: GameState): GameAction[] {
   const legal = getLegalActions(state, 'corp');
   if (activePrompt(state)) return legal;
   const keep = legal.filter(a => {
@@ -128,9 +203,17 @@ function steps(state: GameState): GameAction[] {
         return true;
       case 'ADVANCE_CARD':
         return typeOf(state, id) === 'agenda';
-      case 'INSTALL_CARD':
+      case 'INSTALL_CARD': {
         // A new remote: an agenda scored this turn needs no ice, and an existing remote's agenda or asset would be trashed
-        return typeOf(state, id) === 'agenda' && !!(a as { asNewRemote?: boolean }).asNewRemote;
+        if (typeOf(state, id) !== 'agenda') return false;
+        const install = a as { asNewRemote?: boolean; targetServerId?: string };
+        if (install.asNewRemote) return true;
+        // Found-list row 26 (Jeff's game #42, turn 16): an existing remote with an empty root and ice is not like a new
+        // one while a usable card counts remotes with a root and ice (the placesCounters fact, Flood the Market): the
+        // install raises that count. Offered only then, so elsewhere the search is as small as before
+        const server = install.targetServerId ? state.corp.servers[install.targetServerId] : undefined;
+        return !!server?.isRemote && server.root.length === 0 && server.ice.length > 0 && countsIced(state);
+      }
       default:
         return false;
     }
@@ -156,31 +239,39 @@ function steps(state: GameState): GameAction[] {
         return 6;
     }
   };
-  // One agenda install per card is enough (every new remote is alike)
+  // One agenda install per card into a new remote is enough (every new remote is alike), and one into an empty iced
+  // remote (alike for the count, and no run is made this turn)
   const seen = new Set<string>();
   return keep
     .filter(a => {
       if (a.type !== 'INSTALL_CARD') return true;
-      const id = (a as { cardInstanceId?: string }).cardInstanceId ?? '';
-      if (seen.has(id)) return false;
-      seen.add(id);
+      const k = `${(a as { cardInstanceId?: string }).cardInstanceId ?? ''}:${!!(a as { asNewRemote?: boolean }).asNewRemote}`;
+      if (seen.has(k)) return false;
+      seen.add(k);
       return true;
     })
     .sort((a, b) => rank(a) - rank(b));
 }
 
-/** A position as the search tells them apart. */
-function key(state: GameState): string {
+/**
+ * A position as the search tells them apart. `runner`: the win search also tells the Runner's grip and tags apart, so a
+ * line that dealt damage or gave a tag is not cut as seen when a line without it reached the same Corp board first
+ * (Phật Gioan Baotixita's counters removed or not, which the key does not hold; row 24).
+ */
+function key(state: GameState, runner = false): string {
   const corp = state.corp;
+  // While steps() can install into an empty iced remote (row 26), a card in an iced root is told apart from the same card
+  // in a new remote; otherwise the key is as before
+  const iced = countsIced(state);
   const roots = Object.values(corp.servers)
-    .flatMap(s => s.root.map(c => `${c.cardCode}:${c.advancementCounters ?? 0}`))
+    .flatMap(s => s.root.map(c => `${c.cardCode}:${c.advancementCounters ?? 0}${iced && s.ice.length ? ':iced' : ''}`))
     .sort()
     .join(',');
   const prompt = activePrompt(state);
   return `${corp.clicks}|${corp.credits}|${corp.score}|${corp.hq
     .map(c => c.cardCode)
     .sort()
-    .join(',')}|${roots}|${prompt ? prompt.id : ''}`;
+    .join(',')}|${roots}|${prompt ? prompt.id : ''}${runner ? `|${state.runner.grip.length}|${state.runner.tags}` : ''}`;
 }
 
 /**
@@ -194,13 +285,22 @@ export function winNowAction(state: GameState): GameAction | null {
   if (state.turnStep?.kind === 'corp_turn_start') return null;
   if (!canStillWin(state)) return null;
   const rd = state.corp.rd.map(c => c.instanceId).join();
+  // Nothing hidden on the Runner's side either (the AI Coordinator's ruling, 2026-11-17 19:02Z; found-list row 27): a
+  // kill counts only on a line that took no grip card the Corp has not seen other than by damage. Touch-ups reveals the
+  // grip and shuffles cards of a type the Corp names into the stack; the search plays it in the real engine, so it
+  // would name the type knowing the grip and count the kill on the smaller grip. Damage picks its cards at random and
+  // only their number matters (rule 10.4.2), so a card gone to the heap is no leak. A win by points does not read the
+  // grip, and score-now never does, so neither is cut: Touch-ups still places its counters on those lines.
+  const known = new Set(knownInHand(state, 'runner').map(e => e.id));
+  const hidden = state.runner.grip.filter(c => !known.has(c.instanceId)).map(c => c.instanceId);
+  const blind = (s: GameState) => hidden.every(id => s.runner.grip.some(c => c.instanceId === id) || s.runner.heap.some(c => c.instanceId === id));
   const seen = new Set<string>();
   let nodes = 0;
   const search = (s: GameState, depth: number): boolean => {
-    if (s.winner === 'corp') return true;
+    if (s.winner === 'corp') return s.corp.score >= 7 || blind(s);
     if (s.winner || s.activePlayer !== 'corp' || s.activeRun || depth >= WIN_NOW.depth || nodes >= WIN_NOW.nodes) return false;
     if (!canStillWin(s)) return false;
-    const k = key(s);
+    const k = key(s, true);
     if (seen.has(k)) return false;
     seen.add(k);
     for (const action of steps(s)) {

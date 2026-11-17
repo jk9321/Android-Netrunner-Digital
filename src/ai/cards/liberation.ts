@@ -271,7 +271,11 @@ export const LIBERATION: Record<string, CardAI> = {
   // Tatu-Bola
   '34044': { synergy: { gives: { ice: 1, econ: 0.5 } } },
   // Mindscaping
-  '34045': { synergy: { gives: { econ: 1, draw: 1, damage: 0.5 }, wants: { tags: 0.5 } } },
+  '34045': {
+    synergy: { gives: { econ: 1, draw: 1, damage: 0.5 }, wants: { tags: 0.5 } },
+    // "Do X net damage. X is equal to the number of tags the Runner has, up to 3." The text's X read as 0 (ai-winnow-reach)
+    corpTurnDamage: state => Math.min(3, state.runner.tags),
+  },
   // Adrian Seis
   '34046': {
     synergy: { gives: { denial: 1 }, when: ['successfulRun'] },
