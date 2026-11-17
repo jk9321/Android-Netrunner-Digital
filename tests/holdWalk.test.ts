@@ -483,6 +483,22 @@ describe('hold walk, commit 5: what an ice takes besides breaks', () => {
   });
 });
 
+describe("hold walk: a run's encounter is this run's (review R2)", () => {
+  // A 'runnerTurn' question asked during an encounter (a rez window in a run reads keep) is about the Runner's next turn:
+  // the subroutines broken on this encounter are not broken then (6.9.3, 6.9.4: an encounter ends with its run)
+  it('rezzed Palisade, Palisade broken on the encounter under way, $0: the next turn still holds, as with no run', () => {
+    const s = board(st => { ice(st, C.PALISADE); });
+    const id = s.corp.servers.remote1.ice[0].instanceId;
+    const before = walk(s);
+    const during = structuredClone(s);
+    during.activeRun = { ...(during.activeRun ?? {}), server: 'remote1', phase: 'encounter_ice', icePosition: 0, encounter: { iceId: id, broken: [true], boosts: {}, resolvingIndex: null, iceStrengthModifier: 0 } } as GameState['activeRun'];
+    const h = walk(during);
+    expect(before.holds).toBe(true);
+    expect(h.holds).toBe(true);
+    expect(h.need).toBe(before.need);
+  });
+});
+
 // Red team F13 (ruled 02:50Z): cards outside the batch pool the walk does not model yet. The next set's thread, or the
 // thread that brings one into a batch deck, turns its line into a row with a mirror and the oracle
 describe('hold walk: not modelled yet (cards outside the batch pool)', () => {

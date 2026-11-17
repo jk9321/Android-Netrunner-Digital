@@ -310,6 +310,8 @@ export interface WalkStart {
   virus: number[];
   power: number[];
   derezzed: Set<string>;
+  /** 'runnerTurn': the Runner's next turn (a run under way is not part of it). */
+  runnerTurn: boolean;
 }
 
 export function walkStart(state: GameState, runnerTurn: boolean): WalkStart {
@@ -330,12 +332,14 @@ export function walkStart(state: GameState, runnerTurn: boolean): WalkStart {
       if (t.derezHostAt !== undefined && c.hostedOnId && virus[i] >= t.derezHostAt) derezzed.add(c.hostedOnId);
     });
   }
-  return { rig, index, virus, power, derezzed };
+  return { rig, index, virus, power, derezzed, runnerTurn };
 }
 
 /** The server's ice as the walk meets it, innermost first; inS and bypassed are set per rez set. */
 export function walkIce(state: GameState, start: WalkStart, ice: CardInstance[]): WalkIce[] {
-  const encounter = state.activeRun?.encounter;
+  // The subroutines broken on the encounter under way are this run's (review R2): a 'runnerTurn' question is about the
+  // Runner's next turn, where every encounter is new (6.9.3)
+  const encounter = start.runnerTurn ? undefined : state.activeRun?.encounter;
   // The Corp's identity: what ice of some subtypes gains when it is rezzed during a run (Thunderbolt Armaments)
   const anyIce = CARDS[state.corp.identity?.cardCode]?.holdFacts?.rezDuringRun?.anyIce;
   return ice.map(c => {
