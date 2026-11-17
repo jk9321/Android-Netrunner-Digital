@@ -29,6 +29,8 @@ Use the **spec's** globs, not the ones the hand-off used. Compare with the hand-
 you, a file outside the allowed list the hand-off didn't explain, or a diff signal it didn't answer is a
 finding. If the branch is behind its base, ask for a merge of the base first; don't review a stale branch.
 
+Run `node scripts/value-owners/verify-registry.mjs --all` (the default checks only the valuation section). `tests/codeHealth.test.ts` runs it in the fast checks; `--fix` moves a location only when it can prove the line, so refresh the rest by hand and read the diff.
+
 Then the drift metrics, base vs branch (read-only; uses the code-audit skill's script):
 
 ```
