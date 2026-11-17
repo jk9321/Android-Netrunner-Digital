@@ -11,6 +11,10 @@
  * - Bug #34b, remotes: the run record (plan.runRecord, corpAI noteRuns; deleted) blended the remotes the Runner ran on its last turns into the
  *   threat's run chance. It passed on beta c5f0ac0 and fails since the threat was deleted: the one live thing
  *   ai-threat-delete gives up.
+ *
+ * Stage D item 2 (2026-11-17) measured this and built nothing: Jeff parked it until the Runner rework
+ * (/mnt/project-files/netrunner-ai/stage-d/item2-runner-runs/design-answer.md, counts in design-note.md). Both pins wait
+ * for the Runner rework (the reply's next turn, found-list row 36) and for the run averages in tuning (row 37).
  */
 import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
@@ -69,6 +73,7 @@ function guardedRemote(turn: number, ranThere: boolean): GameState {
 }
 
 describe('the Corp reads where the Runner has actually run (Stage D debt; rules 6.1.2a, 6.9.1a)', () => {
+  // Waits for the Runner rework (found-list row 36) and the averages in tuning (row 37): design-answer.md
   it.fails('known-failing, bugs #15 and #34 (HQ): after HQ runs on each of the Runner’s last four turns, the Corp stakes more on HQ than with no runs', () => {
     const s = report34(12);
     expect(s.runnerLastTurnRuns.some(r => r.server === 'hq')).toBe(true);
@@ -79,6 +84,7 @@ describe('the Corp reads where the Runner has actually run (Stage D debt; rules 
     expect(ran).toBeGreaterThan(never);
   });
 
+  // Waits for the Runner rework (found-list row 36) and the averages in tuning (row 37): design-answer.md
   it.fails('known-failing, bug #34b (remotes), given up by ai-threat-delete: a remote the Runner ran on each of its last three turns is priced likelier to be run than the same remote never run', () => {
     // The Corp that watched three runs on remote-1 (turns 5, 7, 9) against one that saw none, on the same board at turn 11
     const watched = remoteAgendaWorth(new HeuristicCorpAI(), [5, 7, 9].map(t => guardedRemote(t, true)), guardedRemote(11, true));
