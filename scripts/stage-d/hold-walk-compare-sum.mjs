@@ -108,6 +108,18 @@ for (const when of ['runnerTurn', 'thisRun']) {
   if (ent.length) console.log(`entries changed on ${ent.length} of ${qs.filter(l => !l.count.holds && !l.old.holds).length} questions both answer "does not hold" (fewer ${ent.filter(l => l.count.entries < l.old.entries).length}, more ${ent.filter(l => l.count.entries > l.old.entries).length})`);
   const ms = qs.filter(l => l.label !== 'skipped').map(l => l.ms).sort((a, b) => a - b);
   if (ms.length) console.log(`oracle time per question: median ${ms[ms.length >> 1]} ms, p95 ${ms[Math.floor(ms.length * 0.95)]} ms, max ${ms.at(-1)} ms`);
+  // One board set for both counts: a question whose truth is unknown is unknown for both (the oracle answers once).
+  // Those stopped by the per-question cap (QCAP) are named, by board
+  const unknown = qs.filter(l => l.oracle?.holds === null && !l.oracle?.skipped);
+  const capped = unknown.filter(l => l.oracle.capped);
+  console.log(`truth unknown (dropped from both counts' tables alike): ${unknown.length} of ${qs.length} (flips ${unknown.filter(l => l.flip).length}); stopped by the per-question cap ${capped.length} (flips ${capped.filter(l => l.flip).length})`);
+  const boards = new Map();
+  for (const l of capped) {
+    const k = `${l.src} T${l.turn} ${l.server} [${l.ice.join(', ')}] $${l.runner.credits} ${l.runner.clicks} clicks`;
+    boards.set(k, (boards.get(k) ?? 0) + 1);
+  }
+  for (const [k, n] of [...boards].sort((a, b) => b[1] - a[1]).slice(0, 40)) console.log(`  capped: ${k}${n > 1 ? ` (${n} questions)` : ''}`);
+  if (boards.size > 40) console.log(`  ... ${boards.size - 40} more boards`);
   console.log('');
 }
 const err = lines.filter(l => l.label === 'error');

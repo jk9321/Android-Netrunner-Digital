@@ -1,0 +1,52 @@
+{
+ "retry": [
+  [
+   "ai/corp/hold.ts",
+   "return turnNeed(input, targets, memos.one) + price <= budget || turnNeed(input, targets, memos.turn, true) + price <= budget;",
+   "return turnNeed(input, targets, memos.one) + price <= budget;"
+  ],
+  [
+   "ai/corp/hold.ts",
+   "if (need > q.budget && turnNeed(q, target, memos.turn, true) + q.sets[k].price > q.budget) return",
+   "if (need > q.budget) return"
+  ]
+ ],
+ "r2": [
+  [
+   "ai/corp/hold.ts",
+   "const encounter = start.runnerTurn ? undefined : state.activeRun?.encounter;",
+   "const encounter = state.activeRun?.encounter;"
+  ]
+ ],
+ "r3": [
+  [
+   "ai/corp/hold.ts",
+   "/** The server's ice as the walk meets it, innermost first;",
+   "const planCache = new WeakMap();\n/** The server's ice as the walk meets it, innermost first;"
+  ],
+  [
+   "ai/corp/hold.ts",
+   "const cache = memo(state, `walkPlans:${start.runnerTurn ? 1 : 0}`, () => new Map<string, WalkPlan[]>());",
+   "let cache = planCache.get(state);\n  if (!cache) planCache.set(state, (cache = new Map()));"
+  ]
+ ],
+ "r4": [
+  [
+   "ai/corp/hold.ts",
+   "return { trojan: /\\btrojan\\b/i.test(keywords),",
+   "return { audrey: c.cardCode === '34004', trojan: /\\btrojan\\b/i.test(keywords),"
+  ],
+  [
+   "ai/corp/hold.ts",
+   "Object.values(board.plans).some(list => list.some(p => p.grip > 0))",
+   "board.rig.some(r => r.audrey)"
+  ]
+ ],
+ "liability": [
+  [
+   "ai/corp/hold.ts",
+   "if (!ice.liability) return then(ws);",
+   "return then(ws);"
+  ]
+ ]
+}

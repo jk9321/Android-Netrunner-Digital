@@ -40,6 +40,12 @@ export interface HoldFacts {
    */
   rezChoosesSubtypes?: string[][];
   /**
+   * An additional cost to rez this ice: the Corp takes 1 bad publicity or removes 1 tag, its choice (Valentão, Piranhas;
+   * 1.14.3a). The walk takes the choice worse for the Runner (ruling 6); bad publicity taken during a run fills the fund
+   * from the next run on (6.9.1b, 10.6.3a, 10.6.3c).
+   */
+  rezBadPublicityOrTag?: true;
+  /**
    * When the Corp rezzes this ice during a run against its server (Flyswatter, Ping, Bumi 1.0), or, on an identity, any
    * ice of these subtypes during a run (Thunderbolt Armaments): what follows. A choice the Corp makes ("you may trash 1
    * installed trojan") is the Corp's: the walk takes the answer that keeps the Runner out (ruling 6).
@@ -69,6 +75,8 @@ export interface HoldFacts {
   hostBypass?: { creditsPerSubroutine: number; unlessSubtype: 'barrier' | 'code gate' | 'sentry' };
   /** Trashed when the Corp purges virus counters (Physarum Entangler). */
   trashedOnPurge?: true;
+  /** A program hosted on ice: a hosted counter of this kind breaks 1 subroutine on its host (Botulus). */
+  breaksHostSubroutine?: { counter: 'virus' };
 }
 
 /**

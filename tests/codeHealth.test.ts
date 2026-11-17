@@ -360,16 +360,24 @@ describe('AI code health (audit guards)', () => {
   // subtype choice at rez, HoldFacts doc): corp/ 2,298 + 901 = 3,199, src/ai 13,895 + 937 = 14,832
   // Then + 168 (the 14:39Z ruling on keepFor's wide-board time): corp/hold.ts + 165 (the run sequence gathered once,
   // reachQuestion and reachOrder, and its per-decision cache of sets and orders, reachSets; a server's walked ice once
-  // per board), corp/rezMoney.ts + 3: corp/ 3,367, src/ai 15,000
-  // Then + 12 (ai-flood-bound: the placesCounters fact on the card entry, its accessor, and places() reading it, with the
-  // soundness comment): src/ai 15,012
-  // Then + 122 (ai-winnow-reach: win-now's kill side canStillKill and its soundness comment, the hidden-grip cut,
-  // usableSources shared, the install into an empty iced remote and places()' re-derived bound, the Neurospike and
-  // Mindscaping facts, damageThreat's key on the facts that read the board): src/ai 15,134; + 5 (Phật Gioan
-  // Baotixita's own-turn damage fact, after the fire count, and a comment line): src/ai 15,140
-  it('keeps src/ai/corp at or under 3,367 lines and src/ai at or under 15,140 (Stage C hand-off, ai-corp-honest-order, ai-value-time, ai-playout-lines, ai-honest-runner-view, ai-honest-corp-decision, ai-value-owners, ai-corp-rd-memory, ai-value-b1, ai-value-b2, ai-hold-reentry, ai-value-b3, ai-tag-loss-time, ai-value-b6, ai-threat-delete, ai-breaker-guard-key, ai-tag-loss-bp, ai-hold-facts, ai-hold-walk, ai-flood-bound, ai-winnow-reach)', () => {
+  // per board), corp/rezMoney.ts + 3: corp/ 3,367, src/ai 15,000 (3,364 and 14,997 measured on beta 85c2955)
+  // Stage D item 1 follow-up 1 (ai-hold-retry), corp/hold.ts over 85c2955: review R2 + 4 (WalkStart.runnerTurn, its doc
+  // line and the encounter read on 'thisRun' only); the failed run + 111 (comments + 75: the walk's file comment on what
+  // a failed run leaves and what it does not count, the cut's list of what moves a retry, the Hold doc lines for rev 2;
+  // code + 36: the gate `passes`, the memos by kind `WalkMemos`, the self-trashed ice `trashed`, the retry off by
+  // default): corp/ 3,479, src/ai 15,112. R3 0, R4 corp/ - 2 (Botulus a fact, Audrey's flag read from its plans), src/ai 0.
+  // The liability rez (design answer of 16:29Z, 2) + 25: corp/hold.ts + 17 (the walk's `liability` with its doc, the
+  // walk state's `bp` and the fund it fills, the Corp's choice), cards/types.ts + 6 and liberation.ts + 2 (the fact on
+  // Valentão and Piranhas): corp/ 3,494, src/ai 15,137. Then + 15 measured from beta dae0bb8 (ai-flood-bound: the
+  // placesCounters fact on the card entry, its accessor, and places() reading it, with the soundness comment; its guard
+  // counts + 12 over a cap with 3 lines spare): src/ai 15,152
+  // Then + 128 over beta dae0bb8 (ai-winnow-reach: win-now's kill side canStillKill and its soundness comment, the
+  // hidden-grip check, usableSources shared, the install into an empty iced remote and places()' re-derived bound, the
+  // own-turn damage facts of Neurospike, Mindscaping and Phật Gioan Baotixita, damageThreat's key on the facts that read
+  // the board): src/ai 15,280
+  it('keeps src/ai/corp at or under 3,494 lines and src/ai at or under 15,280 (Stage C hand-off, ai-corp-honest-order, ai-value-time, ai-playout-lines, ai-honest-runner-view, ai-honest-corp-decision, ai-value-owners, ai-corp-rd-memory, ai-value-b1, ai-value-b2, ai-hold-reentry, ai-value-b3, ai-tag-loss-time, ai-value-b6, ai-threat-delete, ai-breaker-guard-key, ai-tag-loss-bp, ai-hold-facts, ai-hold-walk, ai-flood-bound, ai-hold-retry, ai-winnow-reach)', () => {
     const corp = aiFiles().filter(f => f.replace(/\\/g, '/').startsWith('corp/')).reduce((n, f) => n + lines(f), 0);
-    expect(corp).toBeLessThanOrEqual(3367);
-    expect(aiFiles().reduce((n, f) => n + lines(f), 0)).toBeLessThanOrEqual(15140);
+    expect(corp).toBeLessThanOrEqual(3494);
+    expect(aiFiles().reduce((n, f) => n + lines(f), 0)).toBeLessThanOrEqual(15280);
   });
 });

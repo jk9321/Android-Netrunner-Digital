@@ -13,6 +13,7 @@
  */
 import { describe, expect, it } from 'vitest';
 import { CardInstance, GameState, cardDef } from '../src/core';
+import { getCardDefinition } from '../src/core/cards';
 import { threatLevel } from '../src/core/engine/cardEffects';
 import { iceSubroutines, iceSubtypes } from '../src/core/engine/ice';
 import { createCardInstance } from '../src/core/engine/gameState';
@@ -43,29 +44,44 @@ class Brute {
   beforeRun(ws: S, j: number): boolean {
     const runs = this.targets.length - j;
     if (ws.clicks < runs) return false;
-    if (this.approach({ ...ws, clicks: ws.clicks - 1, spike: false, fund: this.state.corp.badPublicity }, j, this.targets[j].ice.length - 1)) return true;
+    if (this.approach({ ...ws, clicks: ws.clicks - 1, spike: false, fund: this.state.corp.badPublicity + ws.bp }, j, this.targets[j].ice.length - 1)) return true;
     if (ws.clicks > runs) {
       // 5.2.7c, 5.2.7g: a draw, or a click and 2 credits for a tag, with a click kept for each run left
-      if (ws.stack > 0 && this.beforeRun({ ...ws, clicks: ws.clicks - 1, grip: ws.grip + 1, stack: ws.stack - 1 }, j)) return true;
+      // The turn's first draw may give more (Verbal Plasticity)
+      const n = Math.min(ws.stack, ws.drew ? 1 : this.walk['board'].firstDraw);
+      if (ws.stack > 0 && this.beforeRun({ ...ws, clicks: ws.clicks - 1, grip: ws.grip + n, stack: ws.stack - n, drew: true }, j)) return true;
       if (ws.tags > 0 && ws.pool >= 2 && this.beforeRun({ ...ws, clicks: ws.clicks - 1, tags: ws.tags - 1, pool: ws.pool - 2 }, j)) return true;
     }
     return false;
+  }
+
+  /** A run that ends: the turn goes on from the state it left, the same target run again (the walk's `ended`). */
+  private ended(ws: S, j: number): boolean {
+    return this.beforeRun({ ...ws, fund: 0, gone: sorted([...ws.gone, ...ws.mayfly]), mayfly: [] }, j);
   }
 
   private approach(ws: S, j: number, pos: number): boolean {
     if (pos < 0) return j + 1 >= this.targets.length || this.beforeRun({ ...ws, fund: 0, gone: sorted([...ws.gone, ...ws.mayfly]), mayfly: [] }, j + 1);
     const ice = this.targets[j].ice[pos];
     const next: Next = w => this.approach(w, j, pos - 1);
+    const end: Next = w => this.ended(w, j);
+    // An ice that trashed itself on an earlier run is not there
+    if (ws.trashed.includes(ice.card.instanceId)) return next(ws);
     if (!ice.rezzed && !ws.up.includes(ice.card.instanceId)) {
-      if (ice.inS && ws.corp >= ice.rezCost) return this.rezzed({ ...ws, corp: ws.corp - ice.rezCost, up: [...ws.up, ice.card.instanceId].sort() }, ice, next);
+      if (ice.inS && ws.corp >= ice.rezCost) {
+        const w: S = { ...ws, corp: ws.corp - ice.rezCost, up: [...ws.up, ice.card.instanceId].sort() };
+        // A liability rez: the Corp takes 1 bad publicity (the fund from the next run on) or removes 1 tag, its choice
+        if (!ice.liability) return this.rezzed(w, ice, next, end);
+        return this.rezzed({ ...w, bp: w.bp + 1 }, ice, next, end) && (w.tags === 0 || this.rezzed({ ...w, tags: w.tags - 1 }, ice, next, end));
+      }
       return next(ws);
     }
-    return ice.bypassed ? next(ws) : this.encounter(ws, ice, next);
+    return ice.bypassed ? next(ws) : this.encounter(ws, ice, next, end);
   }
 
-  private rezzed(ws: S, ice: WalkIce, next: Next): boolean {
+  private rezzed(ws: S, ice: WalkIce, next: Next, end: Next): boolean {
     // Lycian: the Corp chooses the subtypes as it rezzes; the Runner gets through only if it gets through every choice
-    if (ice.choices && !ws.chose.some(c => c.startsWith(`${ice.id}:`))) return ice.choices.every((_, k) => this.rezzed({ ...ws, chose: [...ws.chose, `${ice.id}:${k}`].sort() }, ice, next));
+    if (ice.choices && !ws.chose.some(c => c.startsWith(`${ice.id}:`))) return ice.choices.every((_, k) => this.rezzed({ ...ws, chose: [...ws.chose, `${ice.id}:${k}`].sort() }, ice, next, end));
     let w = ws;
     if (ice.rezFacts?.purgeVirus) {
       const purged = this.start.rig.flatMap((c, i) => (CARDS[c.cardCode]?.holdFacts?.trashedOnPurge ? [i] : []));
@@ -73,7 +89,7 @@ class Brute {
     }
     if (ice.rezFacts?.tags) w = { ...w, tags: w.tags + ice.rezFacts.tags };
     const met = ice.rezGains ? { ...ice, subs: [...ice.subs, ice.rezGains] } : ice;
-    const go = (x: S) => (ice.bypassed ? next(x) : this.encounter(x, met, next));
+    const go = (x: S) => (ice.bypassed ? next(x) : this.encounter(x, met, next, end));
     // The Corp's choice: the Runner gets through only if it gets through whatever the Corp trashes
     if (ice.rezFacts?.corpMayTrashInstalled === 'trojan') {
       return go(w) && this.start.rig.every((c, i) => w.gone.includes(i) || !/\btrojan\b/i.test(cardDef(c).keywords ?? '') || go({ ...w, gone: sorted([...w.gone, i]) }));
@@ -81,32 +97,32 @@ class Brute {
     return go(w);
   }
 
-  private encounter(ws: S, ice: WalkIce, next: Next): boolean {
+  private encounter(ws: S, ice: WalkIce, next: Next, end: Next): boolean {
     const types = this.walk['typesOf'](ice, ws);
     for (const b of ice.bypassers) if (!ws.gone.includes(b.idx) && !types.includes(b.unless) && this.pay(ws, b.per * ice.subs.length, next)) return true;
-    return this.tolls(ws, ice, w => this.breaks(w, ice, types, next));
+    return this.tolls(ws, ice, w => this.breaks(w, ice, types, next, end), end);
   }
 
-  private tolls(ws: S, ice: WalkIce, then: Next): boolean {
+  private tolls(ws: S, ice: WalkIce, then: Next, end: Next): boolean {
     const e = ice.encounterFacts;
     if (!e || ice.broken || (e.threatAtLeast !== undefined && threatLevel(this.state) < e.threatAtLeast)) return then(ws);
     const w0 = e.loses ? { ...ws, pool: Math.max(0, ws.pool - e.loses) } : ws;
     if (!e.toll) return then(w0);
     const t = e.toll;
     const u = e.unless ?? {};
-    if (!t.endRun && then({ ...w0, pool: Math.max(0, w0.pool - (t.loses ?? 0)), tags: w0.tags + (t.tags ?? 0) })) return true;
+    if (t.endRun ? end(w0) : then({ ...w0, pool: Math.max(0, w0.pool - (t.loses ?? 0)), tags: w0.tags + (t.tags ?? 0) })) return true;
     if (u.tags && then({ ...w0, tags: w0.tags + u.tags })) return true;
     if (u.netDamage !== undefined && u.netDamage <= w0.grip && then({ ...w0, grip: w0.grip - u.netDamage })) return true;
     return u.clicks !== undefined && u.clicks <= w0.clicks && then({ ...w0, clicks: w0.clicks - u.clicks });
   }
 
   /** Every set of subroutines to break, every way: Botulus counters, bioroid clicks or the ice's own price, a plan. */
-  private breaks(ws: S, ice: WalkIce, types: string[], next: Next): boolean {
+  private breaks(ws: S, ice: WalkIce, types: string[], next: Next, end: Next): boolean {
     const open = ice.subs.map((_, i) => i).filter(i => !ice.broken?.[i]);
     for (let set = 0; set < 1 << open.length; set++) {
       const unbroken = open.filter((_, k) => !(set & (1 << k)));
       const b = open.length - unbroken.length;
-      const resolve: Next = w => this.resolve(w, ice, types, unbroken, 0, next);
+      const resolve: Next = w => this.resolve(w, ice, types, unbroken, 0, next, end);
       const hosted = ice.anyBreaker ? ice.botulus.filter(i => !ws.gone.includes(i)) : [];
       for (const virus of counterSplits(ws.virus, hosted, b)) {
         const x = hosted.reduce((n, i) => n + ws.virus[i] - virus[i], 0);
@@ -154,33 +170,35 @@ class Brute {
     return rest <= ws.pool && then({ ...ws, fund: ws.fund - fund, hosted: ws.hosted - hosted, pool: ws.pool - rest });
   }
 
-  private resolve(ws: S, ice: WalkIce, types: string[], list: number[], k: number, next: Next): boolean {
+  private resolve(ws: S, ice: WalkIce, types: string[], list: number[], k: number, next: Next, end: Next): boolean {
     if (k >= list.length) return next(ws);
-    return this.subroutine(ws, ice.card, types, ice.subs[list[k]], w => this.resolve(w, ice, types, list, k + 1, next));
+    return this.subroutine(ws, ice.card, types, ice.subs[list[k]], w => this.resolve(w, ice, types, list, k + 1, next, end), end);
   }
 
-  private subroutine(ws: S, card: CardInstance, types: string[], f: SubFacts, then: Next): boolean {
+  private subroutine(ws: S, card: CardInstance, types: string[], f: SubFacts, then: Next, end: Next): boolean {
     if (f.when && !(f.when.kind === 'iceIs' ? types.includes(f.when.subtype) : f.when.kind === 'runnerTagsAtLeast' && ws.tags >= f.when.n)) return then(ws);
-    if (f.orEndRun) return false;
-    if (this.effects(ws, card, f.does, 0, then)) return true;
+    if (f.orEndRun) return end(ws);
+    if (this.effects(ws, card, f.does, 0, then, end)) return true;
     if (f.unless?.credits !== undefined && this.pay(ws, f.unless.credits, then)) return true;
     if (f.unless?.netDamage !== undefined && f.unless.netDamage <= ws.grip && then({ ...ws, grip: ws.grip - f.unless.netDamage })) return true;
     return !!f.unless?.trashInstalled && this.start.rig.some((_, i) => !ws.gone.includes(i) && then({ ...ws, gone: sorted([...ws.gone, i]) }));
   }
 
-  private effects(ws: S, card: CardInstance, does: SubEffect[], i: number, then: Next): boolean {
+  private effects(ws: S, card: CardInstance, does: SubEffect[], i: number, then: Next, end: Next): boolean {
     if (i >= does.length) return then(ws);
     const e = does[i];
-    const next: Next = w => this.effects(w, card, does, i + 1, then);
+    const next: Next = w => this.effects(w, card, does, i + 1, then, end);
+    // The run ends where the condition holds, and goes on where it does not
+    const ends = (cond: boolean) => (cond ? end(ws) : next(ws));
     switch (e.kind) {
       case 'endRun': {
         const c = e.if;
-        if (!c) return false;
-        if (c.kind === 'runnerCreditsAtMost') return ws.pool > c.n && next(ws);
-        if (c.kind === 'corpCreditsMoreThanRunner') return ws.corp <= ws.pool && next(ws);
-        if (c.kind === 'runnerTagsAtLeast') return ws.tags < c.n && next(ws);
-        if (c.kind === 'threatAtLeast') return threatLevel(this.state) < c.n && next(ws);
-        if (c.kind === 'hqMoreThanGrip') return this.state.corp.hq.length <= ws.grip && next(ws);
+        if (!c) return end(ws);
+        if (c.kind === 'runnerCreditsAtMost') return ends(ws.pool <= c.n);
+        if (c.kind === 'corpCreditsMoreThanRunner') return ends(ws.corp > ws.pool);
+        if (c.kind === 'runnerTagsAtLeast') return ends(ws.tags >= c.n);
+        if (c.kind === 'threatAtLeast') return ends(threatLevel(this.state) >= c.n);
+        if (c.kind === 'hqMoreThanGrip') return ends(this.state.corp.hq.length > ws.grip);
         return next(ws);
       }
       case 'runnerLosesClicks':
@@ -196,16 +214,18 @@ class Brute {
       case 'tags':
         return next({ ...ws, tags: ws.tags + (e.n === 'runnerTags' ? ws.tags : e.n) });
       case 'cannotStealOrTrash':
-        return false;
+        return end(ws);
+      case 'trashThisIce':
+        return next({ ...ws, trashed: [...ws.trashed, card.instanceId].sort() });
       case 'corpMayTrashHqToEndRun':
-        return this.state.corp.hq.length === 0 && next(ws);
+        return ends(this.state.corp.hq.length > 0);
       case 'borrow': {
         // The Corp picks the subroutine: the Runner gets through only if it gets through each one
         const walked = new Map(this.targets.flatMap(t => t.ice.map(x => [x.card.instanceId, x] as const)));
         let any = false;
         for (const sv of Object.values(this.state.corp.servers)) {
           for (const c of sv.ice) {
-            if (c.instanceId === card.instanceId) continue;
+            if (c.instanceId === card.instanceId || ws.trashed.includes(c.instanceId)) continue;
             const w = walked.get(c.instanceId);
             if (!(w ? w.rezzed || ws.up.includes(c.instanceId) : c.isRezzed)) continue;
             const up = w ? w.card : c;
@@ -214,7 +234,7 @@ class Brute {
             for (const sub of iceSubroutines(this.state, up)) {
               if (/resolve 1 subroutine on/i.test(sub.label)) continue;
               any = true;
-              if (!this.subroutine(ws, up, types, subroutineFacts(sub.label), next)) return false;
+              if (!this.subroutine(ws, up, types, subroutineFacts(sub.label), next, end)) return false;
             }
           }
         }
@@ -273,8 +293,21 @@ const BREAKERS = breakerCodes();
 const BOTULUS = '30004';
 const IDENTITY_THUNDERBOLT = '34096';
 
-/** A random server: 1 to 3 ice from the pool (some unrezzed), 0 to 2 breakers, maybe a Botulus, the Runner's means at random. */
-function randomBoard(r: () => number, first?: string): { s: GameState; rez: string[] } {
+/** Ice that ends the run whatever the state on some subroutine: the inner ice of a probe line. */
+const ENDERS = ICE.filter(code => /end the run\./i.test(getCardDefinition(code).text ?? ''));
+/**
+ * Ice whose rez leaves the turn something a later run reads (brief rev 2, 2.2): Ping's tag (30055), a trojan trashed
+ * (35041), a purge (35079), Lycian's subtypes (34100), a self-trash (Vicsek, 36042), a rez for 0 (Vovô Ozetti, 34038), a
+ * liability rez (Valentão 34060, Piranhas 34117: bad publicity or a tag).
+ */
+const PROBES = ['30055', '35041', '35079', '34100', '36042', '34038', '34060', '34117'];
+
+/**
+ * A random server: 1 to 3 ice from the pool (some unrezzed), 0 to 2 breakers, maybe a Botulus, the Runner's means at
+ * random. `first` is the innermost ice. `probe` builds the probe line the failed run is about (brief rev 2, 4): an
+ * ending ice innermost, maybe one more, and outermost an unrezzed ice with a rez-time fact, always in the rez set.
+ */
+function randomBoard(r: () => number, first?: string, probe = false): { s: GameState; rez: string[] } {
   const pick = <T>(xs: T[]) => xs[Math.floor(r() * xs.length)];
   const s = newGame(3);
   s.turnNumber = 7;
@@ -283,13 +316,19 @@ function randomBoard(r: () => number, first?: string): { s: GameState; rez: stri
   s.runner.credits = Math.floor(r() * 9);
   s.runner.tags = r() < 0.3 ? Math.floor(r() * 3) : 0;
   s.runner.grip = s.runner.grip.slice(0, Math.floor(r() * 6));
-  s.runner.maxClicks = 1 + Math.floor(r() * 4);
+  s.runner.maxClicks = probe ? 2 + Math.floor(r() * 3) : 1 + Math.floor(r() * 4);
   s.corp.credits = Math.floor(r() * 12);
   s.corp.badPublicity = r() < 0.15 ? 1 : 0;
-  if (r() < 0.1) s.corp.identity = createCardInstance(s, IDENTITY_THUNDERBOLT);
+  if (r() < (probe ? 0.3 : 0.1)) s.corp.identity = createCardInstance(s, IDENTITY_THUNDERBOLT);
   const ids: string[] = [];
-  if (first) ids.push(installIceForTest(s, first, 'remote1', r() < 0.5));
-  for (let k = (first ? 0 : 1) + Math.floor(r() * 3); k > 0; k--) ids.push(installIceForTest(s, pick(ICE), 'remote1', r() < 0.6));
+  if (probe) {
+    ids.push(installIceForTest(s, pick(ENDERS), 'remote1', r() < 0.5));
+    if (r() < 0.4) ids.push(installIceForTest(s, pick(ICE), 'remote1', r() < 0.5));
+    ids.push(installIceForTest(s, pick(PROBES), 'remote1', false));
+  } else {
+    if (first) ids.push(installIceForTest(s, first, 'remote1', r() < 0.5));
+    for (let k = (first ? 0 : 1) + Math.floor(r() * 3); k > 0; k--) ids.push(installIceForTest(s, pick(ICE), 'remote1', r() < 0.6));
+  }
   for (let k = Math.floor(r() * 3); k > 0; k--) installProgramForTest(s, pick(BREAKERS));
   if (r() < 0.15) {
     const b = createCardInstance(s, BOTULUS);
@@ -301,19 +340,44 @@ function randomBoard(r: () => number, first?: string): { s: GameState; rez: stri
   // A rezzed ice elsewhere for a borrowing subroutine (Mycoweb) to lend from
   if (first || r() < 0.25) installIceForTest(s, pick(ICE), 'hq', true);
   const unrezzed = s.corp.servers.remote1.ice.filter(c => !c.isRezzed).map(c => c.instanceId);
-  return { s, rez: unrezzed.filter(() => r() < 0.6) };
+  const outer = ids[ids.length - 1];
+  return { s, rez: unrezzed.filter(id => (probe && id === outer) || r() < 0.6) };
 }
 
 const inCorp = <T>(s: GameState, f: () => T): T => asSide('corp', () => (decisionContext(s, 'corp'), f()));
 
+/**
+ * The brute force's answer for serverHold's `holds` ('runnerTurn'): some rez set the Corp can afford (each subset of the
+ * server's unrezzed ice, at the walk's rez costs) that no line of the Runner's turn gets through. Null where a set's
+ * bypass has a price (as bruteReach).
+ */
+function bruteHolds(state: GameState, server: string): boolean | null {
+  const start = walkStart(state, true);
+  const all = state.corp.servers[server].ice;
+  const base = walkIce(state, start, all);
+  const open = all.map((_, i) => i).filter(i => !base[i].rezzed);
+  let holds = false;
+  for (let mask = 0; mask < 1 << open.length; mask++) {
+    const set = open.filter((_, k) => mask & (1 << k));
+    if (set.reduce((n, i) => n + base[i].rezCost, 0) > state.corp.credits) continue;
+    const got = bruteReach(state, [server], [set.map(i => all[i].instanceId)]);
+    if (got === null) return null;
+    if (!got) holds = true;
+  }
+  return holds;
+}
+
 describe('the hold walk against a brute force of the same model (brief section 6)', () => {
-  const check = (seed: number, boards: number, first?: string) => {
+  // Every fourth board two runs; every fifth one-run board also asks serverHold's `holds` of every affordable set
+  const check = (seed: number, boards: number, first?: string, probe = false) => {
     const r = rng(seed);
     const misses: string[] = [];
     let compared = 0;
     let reached = 0;
+    let held = 0;
+    let holdsAsked = 0;
     for (let n = 0; n < boards; n++) {
-      const { s, rez } = randomBoard(r, first);
+      const { s, rez } = randomBoard(r, first, probe);
       const runs = n % 4 === 3 ? 2 : 1;
       const servers = Array(runs).fill('remote1');
       const sets = Array(runs).fill(rez);
@@ -327,23 +391,43 @@ describe('the hold walk against a brute force of the same model (brief section 6
         const rig = s.runner.rig.programs.map(c => cardDef(c).title);
         misses.push(`#${n} runs ${runs}: walk ${got}, brute ${want}; ice ${ice}; rig ${rig}; $${s.runner.credits} clicks ${s.runner.maxClicks} tags ${s.runner.tags} grip ${s.runner.grip.length} corp $${s.corp.credits}`);
       }
+      if (runs === 1 && n % 5 === 0) {
+        const holds = inCorp(s, () => bruteHolds(s, 'remote1'));
+        if (holds === null) continue;
+        holdsAsked++;
+        if (holds) held++;
+        const h = inCorp(s, () => serverHold(s, 'remote1', { when: 'runnerTurn' }));
+        if (h.holds !== holds) misses.push(`#${n} holds: walk ${h.holds}, brute ${holds}`);
+      }
     }
-    return { compared, reached, misses };
+    return { compared, reached, misses, held, holdsAsked };
   };
 
-  it('agrees with turnReach on 2,000 random servers, one run and two', () => {
-    const { compared, reached, misses } = check(20261117, 2000);
-    expect(compared).toBeGreaterThan(1500);
+  // 12,000 boards over the three seeds (brief rev 2, section 4): 8,000 random, 1,000 led by Mycoweb, 3,000 probe lines
+  it('agrees with turnReach and serverHold on 8,000 random servers, one run and two (seed 20261117)', () => {
+    const { compared, reached, misses, held, holdsAsked } = check(20261117, 8000);
+    expect(compared).toBeGreaterThan(6000);
     // Both answers well represented (the boards are not all open or all shut)
     expect(Math.min(reached, compared - reached)).toBeGreaterThan(compared / 5);
+    expect(Math.min(held, holdsAsked - held)).toBeGreaterThan(holdsAsked / 10);
+    expect(misses).toEqual([]);
+  }, 600_000);
+
+  // The failed run's probe line: an outer ice whose rez leaves the turn something (its rez-time fact, a self-trash, a rez
+  // for 0), an ending ice inside it; 2 to 4 clicks, Thunderbolt's identity on 3 in 10
+  it('agrees with turnReach and serverHold on 3,000 probe lines (seed 20261119)', () => {
+    const { compared, reached, misses, held, holdsAsked } = check(20261119, 3000, undefined, true);
+    expect(compared).toBeGreaterThan(2000);
+    expect(Math.min(reached, compared - reached)).toBeGreaterThan(compared / 10);
+    expect(Math.min(held, holdsAsked - held)).toBeGreaterThan(holdsAsked / 10);
     expect(misses).toEqual([]);
   }, 600_000);
 
   // Mycoweb innermost (its three borrows: the lenders worked out once, a borrow's draws and tags, its steps keyed), a
   // rezzed ice on HQ to lend from
-  it('agrees with turnReach on 300 servers led by Mycoweb', () => {
-    const { compared, reached, misses } = check(20261118, 300, '35053');
-    expect(compared).toBeGreaterThan(200);
+  it('agrees with turnReach and serverHold on 1,000 servers led by Mycoweb (seed 20261118)', () => {
+    const { compared, reached, misses } = check(20261118, 1000, '35053');
+    expect(compared).toBeGreaterThan(700);
     expect(Math.min(reached, compared - reached)).toBeGreaterThan(compared / 10);
     expect(misses).toEqual([]);
   }, 600_000);
@@ -549,6 +633,63 @@ describe("keepFor's run sequence, gathered once and cached per decision", () => 
     expect(orderCount).toBeGreaterThan(20_000);
     expect(reached).toBeGreaterThan(1_000);
   }, 900_000);
+
+  // Review R6: boards where a cache keyed with less than the answer reads gives a wrong answer
+  const bare = (credits: number, clicks: number) => {
+    const s = newGame(3);
+    s.turnNumber = 7;
+    for (const id of Object.keys(s.corp.servers)) s.corp.servers[id].ice = [];
+    s.runner.rig = { ...s.runner.rig, programs: [], hardware: [], resources: [] };
+    s.runner.credits = credits;
+    s.runner.maxClicks = clicks;
+    return s;
+  };
+
+  it("keys a server's part with its bypasses' price: two boards a price apart in one decision (review R6)", () => {
+    // Malandragem with 3 power counters at threat 4: its counter's bypass (one counter's worth) while its once-a-turn use
+    // is open, else the removal at threat 4 (every counter's worth): runBypasses' price, from a turn flag the walk does not
+    // read. Whitespace (strength 0), no breaker, $3: the bypass or nothing
+    const make = (used: boolean) => {
+      const s = bare(3, 1);
+      s.corp.score = 4;
+      installIceForTest(s, '30074', 'remote1', true);
+      const m = installProgramForTest(s, '34081');
+      s.runner.rig.programs.find(c => c.instanceId === m)!.tokens = { power: 3 };
+      if (used) s.turnFlags[`once:${m}:0`] = 1;
+      return s;
+    };
+    const cheap = make(false);
+    const dear = make(true);
+    expect([fresh(cheap, ['remote1']), fresh(dear, ['remote1'])]).toEqual([true, false]);
+    inCorp(cheap, () => {
+      for (const s of [cheap, dear, cheap]) expect(reachSets(reachQuestion(s, ['remote1']))(['remote1'])).toBe(fresh(s, ['remote1']));
+    });
+  });
+
+  it("keeps one walk memo per set of a question: a lender walked in one set and not in the other (review R6)", () => {
+    // Mycoweb rezzed outside Funhouse on remote1, no decoder: its sentry borrow resolves Ballista's "trash 1 installed
+    // program or end the run" while Ballista lends. Ballista rezzed on HQ with Tranquilizer at 2 counters: HQ's walk meets
+    // it derezzed (5.7.1d), so a set that runs HQ has no lender; one that does not, has it (the lenders as the board has
+    // them). Lamplighter rezzed outside it on HQ: $3 pays its first subroutine untagged, and Funhouse tags the Runner, so
+    // {HQ, remote1} gets in only in that order, with remote1 last. R&D empty: {R&D, remote1} meets remote1 last too, with
+    // the same clicks and state, so only the memo kept per set tells the two apart
+    const s = bare(3, 2);
+    installIceForTest(s, '30054', 'remote1', true);
+    installIceForTest(s, MYCOWEB, 'remote1', true);
+    const ballista = installIceForTest(s, '30062', 'hq', true);
+    installIceForTest(s, '35080', 'hq', true);
+    const tranq = createCardInstance(s, '30017');
+    tranq.isRezzed = true;
+    tranq.hostedOnId = ballista;
+    tranq.tokens = { virus: 2 };
+    s.runner.rig.programs.push(tranq);
+    const want = [fresh(s, ['remote1']), fresh(s, ['rd', 'remote1']), fresh(s, ['remote1', 'rd']), fresh(s, ['hq', 'remote1']), fresh(s, ['remote1', 'hq'])];
+    expect(want).toEqual([false, false, false, true, false]);
+    inCorp(s, () => {
+      const sets = reachSets(reachQuestion(s, ['rd', 'hq', 'remote1']));
+      expect([sets(['remote1']), sets(['rd', 'remote1']), sets(['hq', 'remote1'])]).toEqual([false, false, true]);
+    });
+  });
 
   it("gives rez money's keep the largest set one turn reaches, every set inside it reached (brute force afresh)", () => {
     const r = rng(20261122);
