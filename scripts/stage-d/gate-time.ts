@@ -104,6 +104,15 @@ if (process.env.REACH) {
     return original.call(this, ws, j, pos);
   };
 }
+// WORK=1, in a tree with trash-work.mjs's probe patch made: the walk's own work in the Corp decision (worked approaches:
+// the decision's total, and its largest walk), the measure of the work cap's note
+const work = { total: 0, most: 0 };
+if (process.env.WORK) {
+  (globalThis as { __tl?: (v: string, n?: number) => void }).__tl = (v, n = 0) => {
+    if (v === 'work') work.total++;
+    if (v === 'wmax') work.most += n;
+  };
+}
 const med = (v: number[]) => [...v].sort((a, b) => a - b)[Math.floor(v.length / 2)];
 const only = process.env.ONLY; // REPS: repetitions per board (default 9; the first is dropped)
 for (const b of boards) {
@@ -123,11 +132,19 @@ for (const b of boards) {
     keepMs.push(performance.now() - t);
     clearCaches();
     reach.length = 0;
+    if (process.env.WORK) {
+      work.total = 0;
+      work.most = 0;
+      // a fresh hook per decision, as fire-count's (the probe resets its largest walk on a new hook)
+      const hook = (globalThis as { __tl?: (v: string, n?: number) => void }).__tl!;
+      (globalThis as { __tl?: (v: string, n?: number) => void }).__tl = (v, n) => hook(v, n);
+    }
     t = performance.now();
     pick = JSON.stringify(createAgent('corp', 'normal').chooseAction(structuredClone(b.s))).slice(0, 70);
     pickMs.push(performance.now() - t);
   }
   const r = (v: number[]) => Math.round(med(v.slice(1)) * 10) / 10;
+  const worked = process.env.WORK ? { work: work.total, largestWalk: work.most } : {};
   const sets = process.env.REACH ? { mostSets: Math.max(0, ...reach.map(g => g.size)), walksOver4: reach.filter(g => g.size > 4).length } : {};
-  console.log(JSON.stringify({ tree: process.env.TREE, board: b.name, ...sets, holds, holdMs: r(holdMs), rezMoneyMs: r(keepMs), decisionMs: r(pickMs), pick }));
+  console.log(JSON.stringify({ tree: process.env.TREE, board: b.name, ...sets, ...worked, holds, holdMs: r(holdMs), rezMoneyMs: r(keepMs), decisionMs: r(pickMs), pick }));
 }
