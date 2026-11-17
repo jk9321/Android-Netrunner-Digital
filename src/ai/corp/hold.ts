@@ -283,6 +283,8 @@ export interface WalkState {
   spike: boolean;
   /** Rig indexes trashed when the run ends (Mayfly). */
   mayfly: number[];
+  /** The Corp rezzed ice or gained credits during this run: the only changes a run makes that can help a later one (Walk.ended). */
+  moved: boolean;
 }
 
 /** A break plan as the walk spends it: breakPlans' credits and its spends, by rig index. */
@@ -520,7 +522,7 @@ export class Walk {
 
   /** The walk state in a memo key (run j: the clicks only where they are read, the stack where a run may follow). */
   private wsKey(ws: WalkState, j: number): string {
-    return `${this.clicksRead[j] ? ws.clicks : '-'}|${ws.tags}|${ws.grip}|${this.retries || j < this.targets.length - 1 ? ws.stack : '-'}|${ws.corp}|${ws.fund}|${ws.hosted}|${ws.stealth}|${this.counters(ws)}|${ws.gone}|${ws.up}|${ws.spike ? 1 : 0}|${ws.mayfly}|${ws.drew ? 1 : 0}|${ws.chose}`;
+    return `${this.clicksRead[j] ? ws.clicks : '-'}|${ws.tags}|${ws.grip}|${this.retries || j < this.targets.length - 1 ? ws.stack : '-'}|${ws.corp}|${ws.fund}|${ws.hosted}|${ws.stealth}|${this.counters(ws)}|${ws.gone}|${ws.up}|${ws.spike ? 1 : 0}|${ws.mayfly}|${ws.drew ? 1 : 0}|${ws.chose}|${ws.moved ? 1 : 0}`;
   }
 
   /** The counters the walk reads, for a memo key. */
@@ -553,7 +555,7 @@ export class Walk {
     if (hit !== undefined) return hit;
     // 6.9.1b, 10.6.3a: the bad publicity fund is filled as each run begins
     const fund = this.board.badPublicity;
-    let best = this.approach({ ...ws, clicks: ws.clicks - 1, spike: false, fund }, j, this.targets[j].ice.length - 1);
+    let best = this.approach({ ...ws, clicks: ws.clicks - 1, spike: false, fund, moved: false }, j, this.targets[j].ice.length - 1);
     if (ws.clicks > runs) {
       if (this.drawUseful && ws.stack > 0) {
         // 5.2.7c; the turn's first draw may give more (WalkBoard.firstDraw), at most the stack
@@ -579,9 +581,12 @@ export class Walk {
    * click spent), and run j is made again while clicks remain; what lasts "for this run" ends with it (the fund goes back,
    * 10.6.3b; Mayfly is trashed; Pressure Spike's use and a rez's gained subroutine, Thunderbolt's, are the run's only).
    * Without retries an ended run fails. A flatline (10.4.4) is not an ended run: the game is over.
+   * Unless the Corp rezzed ice or gained credits (WalkState.moved), it is not made again: all else a run changes (a click,
+   * tags, damage, credits, counters or cards spent) leaves the Runner no better off than at its start, where every way
+   * on was open already, so a retry finds nothing new.
    */
   private ended(ws: WalkState, j: number): number {
-    if (!this.retries) return FAIL;
+    if (!this.retries || !ws.moved) return FAIL;
     return this.beforeRun({ ...ws, fund: 0, gone: [...ws.gone, ...ws.mayfly].sort((a, b) => a - b), mayfly: [] }, j);
   }
 
@@ -597,7 +602,7 @@ export class Walk {
     if (!ice.rezzed && !ws.up.includes(ice.id)) {
       // 6.9.2c: unrezzed ice the Corp does not rez is passed; 6.4.3: ice of S is rezzed as it is approached
       const paid = ws.corp - ice.rezCost;
-      v = ice.inS && paid >= 0 ? this.rezzed({ ...ws, corp: paid, up: [...ws.up, ice.id].sort() }, ice, next, { key: at, j }) : next(ws);
+      v = ice.inS && paid >= 0 ? this.rezzed({ ...ws, corp: paid, up: [...ws.up, ice.id].sort(), moved: true }, ice, next, { key: at, j }) : next(ws);
     } else v = ice.bypassed ? next(ws) : this.encounter(ws, ice, next, { key: at, j });
     this.memo.set(key, v);
     return v;
@@ -833,7 +838,7 @@ export class Walk {
       case 'runnerLosesCredits':
         return lose(next(ws), e.n);
       case 'corpGainsCredits':
-        return next({ ...ws, corp: ws.corp + (e.n === 'perRunnerTag' ? ws.tags : e.n) });
+        return next({ ...ws, corp: ws.corp + (e.n === 'perRunnerTag' ? ws.tags : e.n), moved: true });
       case 'damage': {
         // 10.4.4: more damage than the cards in the grip is a flatline; each point takes a card (10.4.2)
         const n = e.n === 'runnerTags' ? ws.tags : e.n;
@@ -921,6 +926,7 @@ export function firstState(state: GameState, start: WalkStart, clicks: number, c
     up: [],
     spike: false,
     mayfly: [],
+    moved: false,
   };
 }
 

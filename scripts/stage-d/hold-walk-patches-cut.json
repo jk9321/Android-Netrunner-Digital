@@ -1,0 +1,3 @@
+{
+  "cut": [["ai/corp/hold.ts", "if (!this.retries || !ws.moved) return FAIL;", "if (!this.retries) return FAIL;"]]
+}
