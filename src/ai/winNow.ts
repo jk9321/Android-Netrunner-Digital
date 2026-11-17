@@ -52,10 +52,18 @@ const WORDS: Record<string, number> = {
 const placesOf = new Map<string, number>();
 function places(code: string, text: string, state: GameState): number {
   // A text that counts the board (Flood the Market) is a fact of the card entry, read on this board: never cached by code.
-  // It can grow inside the search (a play that installs into an empty iced remote), but the bound holds: that play costs a
-  // click the budget counts as a counter, and the Double's second click is not subtracted. Limit: a no-click effect that fills a root.
+  // It can grow inside the search: steps() installs an agenda into an empty iced remote while such a card is usable
+  // (row 26), and each such install adds one to every later use. The bound, re-derived for that (n: the fact now; k:
+  // such installs before a use; F: uses, each a Double of 2 clicks): the budget counts every click as a counter and
+  // adds n - 1 for each copy, so F uses are counted as F(n + 1); they place at most F(n + k). An install's click is
+  // charged once, by the agenda's cost when that agenda is scored (an agenda in HQ costs a click more) or by the budget
+  // where it places no counter (an install that only fills a root), so it pays for nothing else. With k = 1 the
+  // Double's second click covers the one more counter (exactly tight: install, Flood the Market, score); with k >= 2 each
+  // use can place k - 1 more than counted (two installs, then two copies: 2n + 4 against 2n + 2). So each copy adds
+  // k - 1 more, k at most the empty iced remotes and at most the agendas in HQ (the search installs only agendas).
+  // Limit: a no-click effect that fills a root.
   const fact = placesCountersOf(code);
-  if (fact) return fact(state);
+  if (fact) return fact(state) + Math.max(0, icedInstalls(state) - 1);
   let n = placesOf.get(code);
   if (n === undefined) {
     const found = [...text.matchAll(/place (\d+|an?|one|two|three|four) advancement counters?/gi)].map(m => WORDS[m[1].toLowerCase()] ?? Number(m[1]));
@@ -64,6 +72,12 @@ function places(code: string, text: string, state: GameState): number {
   }
   return n;
 }
+/** Agenda installs this turn can make into an empty iced remote (steps(), row 26): the fewer of those remotes and agendas in HQ. */
+function icedInstalls(state: GameState): number {
+  const empty = Object.values(state.corp.servers).filter(s => s.isRemote && s.root.length === 0 && s.ice.length > 0).length;
+  return Math.min(empty, state.corp.hq.filter(c => cardDef(c).type_code === 'agenda').length);
+}
+
 /**
  * What can be used this turn: operations in HQ and cards with an ability from HQ, installed cards other than ice, and
  * cards with an ability from Archives (Petty Cash).
@@ -171,8 +185,11 @@ function canStillKill(state: GameState, sources: CardInstance[], agendas: { card
   return damage > state.runner.grip.length;
 }
 
-/** The actions worth trying, most direct first. */
-function steps(state: GameState): GameAction[] {
+/** Whether a usable card's count reads remotes with a root and ice (the placesCounters fact; row 26). */
+const countsIced = (state: GameState): boolean => usableSources(state).some(c => !!placesCountersOf(c.cardCode));
+
+/** The actions worth trying, most direct first (exported for tests/winNowReach.test.ts). */
+export function steps(state: GameState): GameAction[] {
   const legal = getLegalActions(state, 'corp');
   if (activePrompt(state)) return legal;
   const keep = legal.filter(a => {
@@ -185,9 +202,17 @@ function steps(state: GameState): GameAction[] {
         return true;
       case 'ADVANCE_CARD':
         return typeOf(state, id) === 'agenda';
-      case 'INSTALL_CARD':
+      case 'INSTALL_CARD': {
         // A new remote: an agenda scored this turn needs no ice, and an existing remote's agenda or asset would be trashed
-        return typeOf(state, id) === 'agenda' && !!(a as { asNewRemote?: boolean }).asNewRemote;
+        if (typeOf(state, id) !== 'agenda') return false;
+        const install = a as { asNewRemote?: boolean; targetServerId?: string };
+        if (install.asNewRemote) return true;
+        // Found-list row 26 (Jeff's game #42, turn 16): an existing remote with an empty root and ice is not like a new
+        // one while a usable card counts remotes with a root and ice (the placesCounters fact, Flood the Market): the
+        // install raises that count. Offered only then, so elsewhere the search is as small as before
+        const server = install.targetServerId ? state.corp.servers[install.targetServerId] : undefined;
+        return !!server?.isRemote && server.root.length === 0 && server.ice.length > 0 && countsIced(state);
+      }
       default:
         return false;
     }
@@ -213,14 +238,15 @@ function steps(state: GameState): GameAction[] {
         return 6;
     }
   };
-  // One agenda install per card is enough (every new remote is alike)
+  // One agenda install per card into a new remote is enough (every new remote is alike), and one into an empty iced
+  // remote (alike for the count, and no run is made this turn)
   const seen = new Set<string>();
   return keep
     .filter(a => {
       if (a.type !== 'INSTALL_CARD') return true;
-      const id = (a as { cardInstanceId?: string }).cardInstanceId ?? '';
-      if (seen.has(id)) return false;
-      seen.add(id);
+      const k = `${(a as { cardInstanceId?: string }).cardInstanceId ?? ''}:${!!(a as { asNewRemote?: boolean }).asNewRemote}`;
+      if (seen.has(k)) return false;
+      seen.add(k);
       return true;
     })
     .sort((a, b) => rank(a) - rank(b));
@@ -233,8 +259,11 @@ function steps(state: GameState): GameAction[] {
  */
 function key(state: GameState, runner = false): string {
   const corp = state.corp;
+  // While steps() can install into an empty iced remote (row 26), a card in an iced root is told apart from the same card
+  // in a new remote; otherwise the key is as before
+  const iced = countsIced(state);
   const roots = Object.values(corp.servers)
-    .flatMap(s => s.root.map(c => `${c.cardCode}:${c.advancementCounters ?? 0}`))
+    .flatMap(s => s.root.map(c => `${c.cardCode}:${c.advancementCounters ?? 0}${iced && s.ice.length ? ':iced' : ''}`))
     .sort()
     .join(',');
   const prompt = activePrompt(state);

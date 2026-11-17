@@ -17,8 +17,8 @@ import { ALL_CARDS, GameAction, GameState, actingSide, cardDef, createInitialGam
 import { TurnFlag } from '../src/core/engine/cardEffects';
 import { deckGameSetup } from '../src/data/decks';
 import { ownTurnDamage } from '../src/ai/effectValues';
-import { winNowAction, winNowBound } from '../src/ai/winNow';
-import { answer, giveCard, installCorpForTest, newGame, play } from './helpers';
+import { scoreNowPlan, steps, winNowAction, winNowBound } from '../src/ai/winNow';
+import { answer, giveCard, installCorpForTest, installIceForTest, newGame, play } from './helpers';
 import { inDecision } from './helpers/pricing';
 
 const MEASURED_RESPONSE = '35078';
@@ -203,4 +203,184 @@ describe('win-now does not plan a kill through the hidden grip (Touch-ups)', () 
     expect(playedCode(s, pick)).toBe(MEASURED_RESPONSE);
     expect(executeAction(structuredClone(s), pick!).winner).toBe('corp');
   });
+});
+
+/**
+ * Row 26, part B (Jeff's game #42, turn 16, 6-6, three clicks): install Embedded Reporting into remote-1 (an empty root
+ * behind 2 ice), play Flood the Market (36053: "Place 1 advancement counter on that card for each remote server that
+ * has a card in its root and is protected by ice"), score: 8-6. The search installed agendas only into a new remote, so
+ * win-now and score-now answered null. Rule 1.17.3a: an agenda is scored at its advancement requirement.
+ */
+describe('win-now installs into an empty iced remote while a card counts iced remotes (row 26)', () => {
+  const FLOOD = '36053';
+  const HYPE = '36055'; // Hype Machine, an upgrade: a card in a root that is not an agenda
+  const ICE = '30072'; // Palisade
+  const TOMORROWS_HEADLINE = '30052'; // agenda, 3 to advance, 2 points
+
+  /** win-now plays the rest of the turn (each pick re-asked on the board it leads to). */
+  function followWinNow(s: GameState): GameState {
+    for (let i = 0; i < 20 && !s.winner; i++) {
+      const pick = winNow(s);
+      if (!pick) break;
+      s = executeAction(s, pick);
+    }
+    return s;
+  }
+
+  it("Jeff's game #42, turn 16, three clicks: win-now installs into the empty iced remote, and its line wins", () => {
+    const s = corpTurn(42, 16);
+    expect(s.corp.clicks).toBe(3);
+    expect(s.corp.score).toBe(6);
+    const pick = winNow(s) as { type: string; targetServerId?: string; asNewRemote?: boolean } | null;
+    expect(pick?.type).toBe('INSTALL_CARD');
+    expect(pick?.asNewRemote).toBeFalsy();
+    const server = s.corp.servers[pick!.targetServerId!];
+    expect(server.root.length).toBe(0);
+    expect(server.ice.length).toBeGreaterThan(0);
+    const end = followWinNow(structuredClone(s));
+    expect(end.winner).toBe('corp');
+    expect(end.corp.score).toBeGreaterThanOrEqual(7);
+  });
+
+  /** An empty iced remote, an agenda in HQ, 3 clicks; Flood the Market in HQ only when `flood`. */
+  function icedBoard(flood: boolean): GameState {
+    const s = structuredClone(newGame(1));
+    s.corp.rd.push(...s.corp.hq.splice(0));
+    s.corp.clicks = 3;
+    s.corp.credits = 10;
+    installIceForTest(s, ICE, 'remote-1');
+    giveCard(s, 'corp', TOMORROWS_HEADLINE);
+    if (flood) giveCard(s, 'corp', FLOOD);
+    return s;
+  }
+  const installs = (s: GameState) =>
+    inDecision(s, 'corp', () => steps(s))
+      .filter(a => a.type === 'INSTALL_CARD')
+      .map(a => ((a as { asNewRemote?: boolean }).asNewRemote ? 'new' : (a as { targetServerId?: string }).targetServerId));
+
+  it('with no usable card holding the fact the move list is as before: one install, into a new remote', () => {
+    expect(installs(icedBoard(false))).toEqual(['new']);
+  });
+
+  it('with Flood the Market in HQ the list also offers the empty iced remote, once', () => {
+    expect(installs(icedBoard(true))).toEqual(['new', 'remote-1']);
+  });
+
+  it('two installs then two copies (6 clicks): the bound, widened by k - 1 a copy, still finds the line', () => {
+    // n = 1 (Hype Machine behind ice in remote-3), two empty iced remotes, two 3-to-advance agendas in HQ, need 4 points.
+    // Install both (n = 3), then each Flood places 3: both scored. Counted without the widening: 6 clicks + 2 x (n - 1) =
+    // 6 against 2 x (3 + 1) = 8, a cut of a real line.
+    const s = structuredClone(newGame(1));
+    s.corp.rd.push(...s.corp.hq.splice(0));
+    s.corp.clicks = 6;
+    s.corp.credits = 20;
+    s.corp.score = 3;
+    installCorpForTest(s, HYPE, 'remote-3');
+    for (const id of ['remote-1', 'remote-2', 'remote-3']) installIceForTest(s, ICE, id);
+    giveCard(s, 'corp', TOMORROWS_HEADLINE);
+    giveCard(s, 'corp', TOMORROWS_HEADLINE);
+    giveCard(s, 'corp', FLOOD);
+    giveCard(s, 'corp', FLOOD);
+    expect(uncut(s)).not.toBeNull();
+    expect(winNow(s)).not.toBeNull();
+    expect(followWinNow(structuredClone(s)).winner).toBe('corp');
+  });
+});
+
+/**
+ * The soundness of both bounds, the test that matters (brief: "wherever the uncut search finds a win or a score, the cut
+ * search finds one too"): built boards varied by clicks, credits, grip, tags, hand and remotes, some with damage cards,
+ * some with Flood the Market, most with no win. The bound only prunes, so a line it cuts that wins is a bound too low.
+ */
+describe('soundness: the cut search finds every win and score the uncut search finds', () => {
+  const AGENDAS = ['30052', '30060', '30069', '30068', '34040', '30070']; // 3/2, 3/2, 5/3, 4/2, 5/3, 3/1
+  const OPERATIONS = [MEASURED_RESPONSE, '30049', '34045', '36053', '36053', '30075', '30040', TOUCH_UPS]; // + Neurospike, Mindscaping, Flood x2, Hedge Fund, Seamless Launch
+  const ROOTS = ['36055', '35051']; // Hype Machine, Phật Gioan Baotixita
+  const ICE = '30072';
+  const RUNNER = [SURE_GAMBLE, PENNYSHAVER, '30020', '30031'];
+
+  function rng(seed: number) {
+    let a = seed >>> 0;
+    return () => {
+      a = (a + 0x6d2b79f5) >>> 0;
+      let t = a;
+      t = Math.imul(t ^ (t >>> 15), t | 1);
+      t ^= t + Math.imul(t ^ (t >>> 7), t | 61);
+      return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+    };
+  }
+
+  function board(seed: number): GameState {
+    const r = rng(seed);
+    const int = (lo: number, hi: number) => lo + Math.floor(r() * (hi - lo + 1));
+    const pick = <T>(xs: T[]) => xs[Math.floor(r() * xs.length)];
+    const s = structuredClone(newGame(1));
+    s.corp.rd.push(...s.corp.hq.splice(0));
+    s.runner.stack.push(...s.runner.grip.splice(0));
+    s.corp.clicks = int(1, 4);
+    s.corp.credits = int(0, 15);
+    s.corp.score = int(2, 6);
+    s.runner.score = int(0, 6);
+    s.runner.credits = int(0, 10);
+    s.runner.tags = r() < 0.6 ? 0 : int(1, 3);
+    s.runnerLastTurnRuns = (r() < 0.5 ? [{ server: 'hq', successful: true }] : []) as GameState['runnerLastTurnRuns'];
+    for (let i = int(0, 5); i > 0; i--) giveCard(s, 'runner', pick(RUNNER));
+    const remotes = int(0, 4);
+    for (let i = 1; i <= remotes; i++) {
+      const id = `remote-${i}`;
+      const what = r();
+      if (what < 0.4) {
+        const card = installCorpForTest(s, pick(AGENDAS), id);
+        const c = s.corp.servers[id].root.find(x => x.instanceId === card)!;
+        c.advancementCounters = int(0, Math.max(0, (cardDef(c).advancement_cost ?? 0) - 1));
+      } else if (what < 0.7) installCorpForTest(s, pick(ROOTS), id, r() < 0.5);
+      else s.corp.servers[id] = { id, name: id, isRemote: true, ice: [], root: [] } as GameState['corp']['servers'][string];
+      if (r() < 0.6) installIceForTest(s, ICE, id);
+    }
+    for (let i = int(1, 4); i > 0; i--) giveCard(s, 'corp', r() < 0.4 ? pick(AGENDAS) : pick(OPERATIONS));
+    return s;
+  }
+
+  // SWEEP_BOARDS=n widens the sweep for a one-off local run
+  const BOARDS = Number(process.env.SWEEP_BOARDS ?? 400);
+  it(`over ${BOARDS} built boards (wins and scores counted, kills among them)`, () => {
+    let wins = 0;
+    let kills = 0;
+    let scores = 0;
+    const misses: string[] = [];
+    const uncutScore = (s: GameState) => {
+      winNowBound.uncut = true;
+      try {
+        return inDecision(s, 'corp', () => scoreNowPlan(s));
+      } finally {
+        winNowBound.uncut = false;
+      }
+    };
+    for (let seed = 1; seed <= BOARDS; seed++) {
+      const s = board(seed);
+      const open = uncut(s);
+      if (open) {
+        wins++;
+        // A kill: the line ends with the Runner flatlined, not 7 points (followed with the uncut search)
+        let t = structuredClone(s);
+        for (let i = 0; i < 20 && !t.winner; i++) {
+          const a = uncut(t);
+          if (!a) break;
+          t = executeAction(t, a);
+        }
+        if (t.winner === 'corp' && t.corp.score < 7) kills++;
+        if (!winNow(s)) misses.push(`win ${seed}`);
+      }
+      const openScore = uncutScore(s);
+      if (openScore) {
+        scores++;
+        if (!inDecision(s, 'corp', () => scoreNowPlan(s))) misses.push(`score ${seed}`);
+      }
+    }
+    console.log(`soundness sweep: ${BOARDS} boards, ${wins} with a win (${kills} by a kill), ${scores} with a score`);
+    expect(misses).toEqual([]);
+    expect(wins).toBeGreaterThan(20);
+    expect(kills).toBeGreaterThan(5);
+    expect(scores).toBeGreaterThan(50);
+  }, 300_000);
 });
