@@ -20,10 +20,9 @@ import { memo } from '../valueModel';
  * ice's subroutines never resolve (6.5.8a-b). Capability from public facts, not our Runner AI's choice; no Runner grip
  * and no deck order is read (10.2.2a).
  *
- * Stage A reproduces today's two counts exactly, their differences included (the two horizons use different Runner
- * budgets and different bypass readers; bioroid clicks are still counted both as clicks that earn credits and as the
- * break; encounter tolls such as Funhouse's are still left out). Those are the Stage D fixes D1 and D2 and are not
- * built here. `margin` and `entries` are new outputs: no decision reads them in Stage A.
+ * Both horizons are answered by one walk of the Runner's turn (Stage D item 1, below: "The walk"), from the same facts;
+ * they differ in the Runner's budget, where the walk starts, and how many runs it may make. `margin` and `entries` are
+ * read by the ordinary moves (candidates.ts, placement.ts) as sort keys and by the ice move's fall.
  */
 
 export interface HoldOptions {
@@ -53,8 +52,9 @@ export interface Hold {
   /** need - budget: above 0 when it holds. */
   margin: number;
   /**
-   * How many times the Runner can pay `need` ('runnerTurn': its turn's clicks, each run after the first costing the
-   * credit that click would have earned; 'thisRun': 1 or 0). 0 when it holds.
+   * How many runs on the server one Runner turn gets in on ('runnerTurn': the run sequence of sequenceEntries against
+   * the set that asks the most, each run walked with the board the runs before it left; 'thisRun': 1 or 0). 0 when it
+   * holds.
    */
   entries: number;
 }
@@ -295,12 +295,12 @@ export interface WalkPlan {
   spike: boolean;
 }
 
-/** A subroutine whose resolution ends the run whatever the state ("End the run.", "X or end the run": ruling 6). */
 /** What the walk does not carry (trashing or bouncing a Runner card, the Corp's own side, a jack out it may take). */
 const INERT = new Set<SubEffect['kind']>(['trashInstalled', 'toGrip', 'iceStrengthThisRun', 'trashThisIce', 'corpSide', 'mayJackOut', 'unknown']);
 /** A subroutine that changes nothing the walk carries: breaking it never helps, so the walk leaves it to resolve. */
 const inert = (f: SubFacts) => !f.orEndRun && f.does.every(e => INERT.has(e.kind));
 
+/** A subroutine whose resolution ends the run whatever the state ("End the run.", "X or end the run": ruling 6). */
 const alwaysEnds = (f: SubFacts) => !f.when && !f.unless && (f.orEndRun || f.does.some(e => e.kind === 'endRun' && !e.if));
 
 /** The board the walk starts from: the rig, its counters, and the ice derezzed by then (brief 5.2). */
@@ -538,7 +538,7 @@ export class Walk {
 
   /**
    * Before run j: the Runner may draw (5.2.7c) or remove a tag (5.2.7g: a click and 2 credits) with a click it keeps
-   * clear of the runs still to make, then runs (5.2.7d). Earning comes first (runnerEarnings at the turn's start): a
+   * clear of the runs still to make, then runs (5.2.7f). Earning comes first (runnerEarnings at the turn's start): a
    * credit in the pool earlier is never worse.
    */
   private beforeRun(ws: WalkState, j: number): number {
