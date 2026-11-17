@@ -9,7 +9,7 @@ import { readFileSync } from 'node:fs';
 import { GameState } from '../../src/core';
 import { createCardInstance } from '../../src/core/engine/gameState';
 import { createAgent } from '../../src/ai';
-import { serverHold } from '../../src/ai/corp/hold';
+import { Walk, serverHold } from '../../src/ai/corp/hold';
 import { rezMoney } from '../../src/ai/corp/rezMoney';
 import { asSide } from '../../src/ai/pricing';
 import { decisionContext } from '../../src/ai/handValues';
@@ -87,6 +87,23 @@ for (const trash of TRASH_ICE) for (const programs of [3, 5, 8]) {
   }) });
 }
 
+// REACH=1: the trash-reach probe's count (trash-reach.mjs) on these boards, against real boards: the most distinct sets of
+// trashed cards one walk reaches in the Corp decision, and the walks over 4 (the timings are then not clean)
+const reach: Set<string>[] = [];
+if (process.env.REACH) {
+  const proto = Walk.prototype as unknown as { approach: (ws: { gone: number[] }, j: number, pos: number) => number };
+  const original = proto.approach;
+  const seen = new WeakMap<object, Set<string>>();
+  proto.approach = function (this: object, ws, j, pos) {
+    let g = seen.get(this);
+    if (!g) {
+      seen.set(this, (g = new Set()));
+      reach.push(g);
+    }
+    g.add(String(ws.gone));
+    return original.call(this, ws, j, pos);
+  };
+}
 const med = (v: number[]) => [...v].sort((a, b) => a - b)[Math.floor(v.length / 2)];
 const only = process.env.ONLY; // REPS: repetitions per board (default 9; the first is dropped)
 for (const b of boards) {
@@ -105,10 +122,12 @@ for (const b of boards) {
     asSide('corp', () => (decisionContext(st, 'corp'), rezMoney(st)));
     keepMs.push(performance.now() - t);
     clearCaches();
+    reach.length = 0;
     t = performance.now();
     pick = JSON.stringify(createAgent('corp', 'normal').chooseAction(structuredClone(b.s))).slice(0, 70);
     pickMs.push(performance.now() - t);
   }
   const r = (v: number[]) => Math.round(med(v.slice(1)) * 10) / 10;
-  console.log(JSON.stringify({ tree: process.env.TREE, board: b.name, holds, holdMs: r(holdMs), rezMoneyMs: r(keepMs), decisionMs: r(pickMs), pick }));
+  const sets = process.env.REACH ? { mostSets: Math.max(0, ...reach.map(g => g.size)), walksOver4: reach.filter(g => g.size > 4).length } : {};
+  console.log(JSON.stringify({ tree: process.env.TREE, board: b.name, ...sets, holds, holdMs: r(holdMs), rezMoneyMs: r(keepMs), decisionMs: r(pickMs), pick }));
 }
