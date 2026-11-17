@@ -27,7 +27,13 @@ function hasUnreadUpdates(): boolean {
 }
 
 /** "What's new" button with unread indicator and a centered changelog modal. */
-export function WhatsNewButton({ className = '' }: { className?: string }) {
+// Main only (Jeff 2026-11-17): beta's start screen has no What's new button. __BETA_TOOLS__ is false on every
+// build but beta, so this changes nothing on main and keeps the button off beta if a main merge brings it back.
+export function WhatsNewButton(props: { className?: string }) {
+  return __BETA_TOOLS__ ? null : <WhatsNewPanel {...props} />;
+}
+
+function WhatsNewPanel({ className = '' }: { className?: string }) {
   const [open, setOpen] = useState(false);
   const [unread, setUnread] = useState(hasUnreadUpdates);
 
