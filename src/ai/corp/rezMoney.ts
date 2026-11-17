@@ -1,7 +1,6 @@
 import { CardInstance, GameState, cardDef } from '../../core';
 import { tally } from '../diagnostics';
-import { runnerBudget, serverHold, turnReach } from './hold';
-import { plan } from '../pricing';
+import { serverHold, turnReach } from './hold';
 import { memo } from '../valueModel';
 
 /**
@@ -76,8 +75,7 @@ const holding = (state: GameState) => memo(state, 'holdingRez', () => holdingRez
 
 function countRezMoney(state: GameState, { byServer, rezIds, unholdable }: ReturnType<typeof holdingRez>): RezMoney {
   // What getting in costs the Runner with nothing more rezzed (the rezzed ice only)
-  const entry = plan().holdWalkSequence ? {} : Object.fromEntries(Object.keys(byServer).map(id => [id, serverHold(state, id, { when: 'runnerTurn', corpCredits: 0 }).need]));
-  return { keep: keepFor(state, byServer, entry), byServer, rezIds, unholdable };
+  return { keep: keepFor(state, byServer), byServer, rezIds, unholdable };
 }
 
 /** byServer and unholdable: the cheapest holding rez of each staked server, the Corp's money unbounded. */
@@ -95,31 +93,14 @@ function holdingRez(state: GameState, without: string[] = []): { byServer: Recor
   return { byServer, rezIds, unholdable };
 }
 
-/** The largest byServer total over the servers one affordable sequence of runs reaches (at most the Runner's clicks). */
-function keepFor(state: GameState, byServer: Record<string, number>, entry: Record<string, number>): number {
-  const ids = Object.keys(byServer).filter(id => byServer[id] > 0);
-  if (plan().holdWalkSequence) return keepByReach(state, byServer, ids);
-  const budget = runnerBudget(state);
-  const clicks = Math.max(0, state.runner.maxClicks);
-  let keep = 0;
-  for (let mask = 1; mask < 1 << ids.length; mask++) {
-    const set = ids.filter((_, i) => mask & (1 << i));
-    if (set.length > clicks) continue;
-    // Each run after the first spends a click that would have earned a credit (runnerBudget counts it as money)
-    const cost = set.reduce((n, id) => n + entry[id], 0) + (set.length - 1);
-    if (cost > budget) continue;
-    keep = Math.max(keep, set.reduce((n, id) => n + byServer[id], 0));
-  }
-  return keep;
-}
-
 /**
- * keepFor by the run sequence (brief 5.6; hold.ts turnReach owns it): the largest byServer total over the sets of staked
- * servers that one Runner turn reaches in some order past the ice rezzed now (the Corp rezzing nothing more), largest
- * total first. A set is reached only if every set inside it is (one run fewer frees its click), so a set with an
- * unreached part is skipped unwalked.
+ * The largest byServer total over the sets of staked servers that one Runner turn reaches in some order past the ice
+ * rezzed now, the Corp rezzing nothing more (the run sequence, brief 5.6; hold.ts turnReach owns it), largest total
+ * first. A set is reached only if every set inside it is (one run fewer frees its click), so a set with an unreached
+ * part is skipped unwalked.
  */
-function keepByReach(state: GameState, byServer: Record<string, number>, ids: string[]): number {
+function keepFor(state: GameState, byServer: Record<string, number>): number {
+  const ids = Object.keys(byServer).filter(id => byServer[id] > 0);
   const sets: number[] = [];
   for (let mask = 1; mask < 1 << ids.length; mask++) if (bits(mask) <= state.runner.maxClicks) sets.push(mask);
   const total = (mask: number) => ids.reduce((n, id, i) => (mask & (1 << i) ? n + byServer[id] : n), 0);

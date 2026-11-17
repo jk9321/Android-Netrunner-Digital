@@ -54,6 +54,40 @@ function families(qs, title) {
   console.log(`${title}: ${Object.entries(fam).sort((a, b) => b[1].any - a[1].any).map(([f, n]) => `${f} ${n.any} (only ${n.only})`).join(', ') || 'none'}`);
 }
 
+/**
+ * The bar's family clause (bars/stage-d-hold-walk.md: "false holds down, and no family up"): per board family, the
+ * questions each count gets wrong each way, beta beside the walk, on the flips and the sampled non-flips together and
+ * apart. A question counts in every family it shows; "only" counts the questions with that one family.
+ */
+function crossTable(qs, title) {
+  const rows = {};
+  const add = (f, part, l) => {
+    const r = (rows[f] ??= { n: 0, only: 0, flips: { bh: 0, bn: 0, wh: 0, wn: 0 }, rest: { bh: 0, bn: 0, wh: 0, wn: 0 } });
+    const c = r[part];
+    if (l.oldLabel === 'false holds') c.bh++;
+    if (l.oldLabel === 'false does not hold') c.bn++;
+    if (l.label === 'false holds') c.wh++;
+    if (l.label === 'false does not hold') c.wn++;
+  };
+  for (const l of qs) {
+    const f = l.families.length ? l.families : ['none'];
+    for (const x of f) {
+      add(x, l.flip ? 'flips' : 'rest', l);
+      rows[x].n++;
+      if (f.length === 1) rows[x].only++;
+    }
+  }
+  const sum = (r, k) => r.flips[k] + r.rest[k];
+  const cell = (b, w) => `${b} / ${w}${w > b ? ' **up**' : ''}`;
+  console.log(`#### ${title}: false answers by family, beta / walk (flips + sampled non-flips; "up" where the walk is wrong more often)`);
+  console.log('| family | questions (only) | false holds | false does not hold | flips: false holds | flips: false does not | non-flips: false holds | non-flips: false does not |');
+  console.log('|---|---|---|---|---|---|---|---|');
+  for (const [f, r] of Object.entries(rows).sort((a, b) => b[1].n - a[1].n)) {
+    console.log(`| ${f} | ${r.n} (${r.only}) | ${cell(sum(r, 'bh'), sum(r, 'wh'))} | ${cell(sum(r, 'bn'), sum(r, 'wn'))} | ${cell(r.flips.bh, r.flips.wh)} | ${cell(r.flips.bn, r.flips.wn)} | ${cell(r.rest.bh, r.rest.wh)} | ${cell(r.rest.bn, r.rest.wn)} |`);
+  }
+  console.log('');
+}
+
 console.log(`questions ${lines.length} from ${new Set(lines.map(l => l.src)).size} sources (${files.length} files)\n`);
 for (const when of ['runnerTurn', 'thisRun']) {
   const qs = lines.filter(l => l.when === when && l.old);
@@ -69,6 +103,7 @@ for (const when of ['runnerTurn', 'thisRun']) {
   families(flips.filter(l => l.label === 'false holds' || l.label === 'false does not hold'), 'flips the walk gets wrong, by family');
   console.log('');
   table(qs.filter(l => !l.flip), 'sampled non-flips');
+  crossTable(qs, when);
   const ent = qs.filter(l => !l.count.holds && !l.old.holds && l.count.entries !== l.old.entries);
   if (ent.length) console.log(`entries changed on ${ent.length} of ${qs.filter(l => !l.count.holds && !l.old.holds).length} questions both answer "does not hold" (fewer ${ent.filter(l => l.count.entries < l.old.entries).length}, more ${ent.filter(l => l.count.entries > l.old.entries).length})`);
   const ms = qs.filter(l => l.label !== 'skipped').map(l => l.ms).sort((a, b) => a - b);

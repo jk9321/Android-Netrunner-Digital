@@ -1,7 +1,7 @@
 import { CardInstance, GameState, cardDef, getCardScript, isLegalAction, rezCostOf, availableCredits } from '../../core';
 import { rezCost, stealthCredits, threatLevel } from '../../core/engine/cardEffects';
 import { canBreakSubroutinesWith, iceScript, iceSubroutines, iceSubtypes, isBioroid } from '../../core/engine/ice';
-import { AUDREY, BOTULUS, SubEffect, SubFacts, bioroidBreakClicks, breakPlans, bypassesAhead, iceCreditNeed, plannedSubroutines, runBypasses, runStealthCredits, subroutineFacts } from '../runs';
+import { AUDREY, BOTULUS, SubEffect, SubFacts, bioroidBreakClicks, breakPlans, bypassesAhead, plannedSubroutines, runBypasses, runStealthCredits, subroutineFacts } from '../runs';
 import { CARDS, clickMoneyOf, turnIncomeOf } from '../cards';
 import type { HoldFacts } from '../cards/types';
 import { counters } from '../../core/engine/cardEffects';
@@ -122,145 +122,11 @@ export function runnerEarnings(s: GameState): number[] {
 
 /** Does the server hold, and by how much (see the file comment)? */
 export function serverHold(state: GameState, server: string, opts: HoldOptions): Hold {
-  if (plan().holdWalk) return opts.when === 'thisRun' ? walkThisRun(state, server, opts) : counted(() => walkRunnerTurn(state, server, opts.corpCredits ?? state.corp.credits));
-  return opts.when === 'thisRun' ? holdThisRun(state, server, opts) : holdRunnerTurn(state, server, opts.corpCredits ?? state.corp.credits);
+  return opts.when === 'thisRun' ? walkThisRun(state, server, opts) : counted(() => walkRunnerTurn(state, server, opts.corpCredits ?? state.corp.credits));
 }
 
 /** Counted with countingHold up: the rez budget its prices reach does not ask this count again (deal 2138's hang). */
 const counted = <T>(f: () => T): T => (pricing().countingHold ? f() : withPricing({ countingHold: true }, f));
-
-/**
- * The Runner's next turn (holdCost's count): with a set S of the server's ice rezzed, the Runner needs the sum of
- * iceCreditNeed (runs.ts: the credits to break the ice's run-ending subroutines with its installed breakers; BLOCK when
- * none can) over S, plus what its bypasses cost, against runnerBudget. Each set once: a rezzed ice's bit stays clear.
- * Counted with countingHold up: the rez budget its prices reach does not ask this count again (deal 2138's hang).
- */
-function holdRunnerTurn(state: GameState, server: string, corpCredits: number): Hold {
-  if (pricing().countingHold) return countRunnerTurn(state, server, corpCredits);
-  return withPricing({ countingHold: true }, () => countRunnerTurn(state, server, corpCredits));
-}
-
-function countRunnerTurn(state: GameState, server: string, corpCredits: number): Hold {
-  const ice = state.corp.servers[server]?.ice ?? [];
-  const budget = runnerBudget(state);
-  // The Runner's turn: its clicks back (a bioroid broken by clicks, runs.ts plainCreditNeed), one kept for the run
-  const view: GameState = { ...state, runner: { ...state.runner, clicks: Math.max(0, state.runner.maxClicks - 1) } };
-  const n = Math.min(ice.length, 10);
-  // holdCost's bypass reader ran only for a server with ice (it found the server by its first ice)
-  const serverId = ice.length ? server : undefined;
-  let best: number | null = null;
-  let bestMask = 0;
-  let bestNeed = 0;
-  let mostNeed = -Infinity;
-  // Each ice's rez cost and need are the same in every set (the board with only that ice rezzed): worked out once
-  const rezOf: number[] = [];
-  const needOf: number[] = [];
-  for (let mask = 0; mask < 1 << n; mask++) {
-    // A set with a rezzed ice's bit, or one the Corp can't pay for, is never the answer and never the most asked: its
-    // bits cleared give the same board, a need at least as large and a rez it can pay, and come first. Skipped before
-    // its bypasses are priced (each set once)
-    let rez = 0;
-    for (let i = 0; i < n && rez <= corpCredits; i++) {
-      if (!(mask & (1 << i))) continue;
-      rez = ice[i].isRezzed ? Infinity : rez + (rezOf[i] ??= rezCostOf(view, ice[i]));
-    }
-    if (rez > corpCredits || rez === Infinity) continue;
-    let need = 0;
-    // The ice the Runner's installed bypasses pass with this set rezzed (runs.ts runBypasses: rig cards, their counters
-    // and the threat level, all public; 6.5.8a: a bypassed ice's subroutines never resolve), and what those bypasses
-    // cost it in credits' worth (spec jeff-games-48-50 Part A, folded 2026-11-13: g3 +0.3 ± 0.2, run 43382962736)
-    const bypassed = serverId ? runBypasses(rezzedSet(view, serverId, ice, mask, n), serverId) : undefined;
-    if (bypassed) need += bypassed.price;
-    for (let i = 0; i < n; i++) {
-      const c = ice[i];
-      if (!c.isRezzed && !(mask & (1 << i))) continue;
-      if (bypassed?.ids.has(c.instanceId)) continue;
-      need += (needOf[i] ??= iceNeed(view, c));
-    }
-    if (need > mostNeed) mostNeed = need;
-    if (need > budget && (best === null || rez < best)) {
-      best = rez;
-      bestMask = mask;
-      bestNeed = need;
-    }
-  }
-  if (best !== null) {
-    const rezIds = ice.slice(0, n).filter((c, i) => !c.isRezzed && bestMask & (1 << i)).map(c => c.instanceId);
-    return { holds: true, rez: rezIds, rezCost: best, need: bestNeed, budget, margin: bestNeed - budget, entries: 0 };
-  }
-  const need = mostNeed === -Infinity ? 0 : mostNeed;
-  return { holds: false, rez: null, rezCost: Infinity, need, budget, margin: need - budget, entries: turnEntries(state, need, budget) };
-}
-
-/** How many runs of `need` credits the Runner's turn pays for: each run takes a click, and a click used to run earns no credit. */
-function turnEntries(state: GameState, need: number, budget: number): number {
-  const clicks = Math.max(0, state.runner.maxClicks);
-  let k = 0;
-  while (k < clicks && (k + 1) * need <= budget - k) k++;
-  return k;
-}
-
-/**
- * The run under way (stopCost's count): the approached ice at `from` rezzed when mustRez names it, and the cheapest
- * affordable set of the unrezzed ice further in (only with `further`); the Runner's credits now against the need of
- * the rezzed ice it will meet, bypassed ice left out (bypassesAhead, the approached ice included; 6.5.8a).
- */
-function holdThisRun(state: GameState, server: string, opts: HoldOptions): Hold {
-  const run = state.activeRun;
-  const sv = state.corp.servers[server];
-  const budget = state.runner.credits;
-  const none: Hold = { holds: false, rez: null, rezCost: Infinity, need: 0, budget, margin: -budget, entries: 1 };
-  const pos = opts.from ?? run?.icePosition ?? null;
-  if (!run || !sv || pos === null) return none;
-  const credits = opts.corpCredits ?? state.corp.credits;
-  const must = sv.ice.filter(c => opts.mustRez?.includes(c.instanceId));
-  const base = must.reduce((n, c) => n + rezCost(state, c), 0);
-  // Stage B2 owner fix (stage-b/logs, the rez-window kind "rez paid another way"): the approached ice may be rezzable
-  // for less than its printed cost from the credit pool (Biawak forfeits an agenda for 10 of its 14 credits;
-  // recurring credits; a rez discount). The engine's legality says so: then it is affordable, and it leaves
-  // the Corp at most its pool less that cost for the ice further in.
-  const paidAnotherWay = base > credits && must.length > 0 && !!run && must.every(c => c.instanceId === sv.ice[run.icePosition ?? -1]?.instanceId && isLegalAction(state, { type: 'REZ_CARD', player: 'corp', cardInstanceId: c.instanceId }));
-  if (base > credits && !paidAnotherWay) return none;
-  const spare = paidAnotherWay ? 0 : credits - base;
-  const open = (opts.further ?? true) ? sv.ice.slice(0, pos).filter(c => !c.isRezzed).slice(0, 10) : [];
-  let best = Infinity;
-  let bestSet: string[] | null = null;
-  let bestNeed = 0;
-  let mostNeed = -Infinity;
-  for (let mask = 0; mask < 1 << open.length; mask++) {
-    const extra = open.filter((_, i) => mask & (1 << i));
-    const cost = base + extra.reduce((n, c) => n + rezCost(state, c), 0);
-    if (cost - base > spare || cost >= best) continue;
-    const up = new Set([...must.map(c => c.instanceId), ...extra.map(c => c.instanceId)]);
-    const board = withServerIce(state, sv.id, sv.ice.map(c => (up.has(c.instanceId) ? { ...c, isRezzed: true } : c)));
-    const reach = board.corp.servers[sv.id].ice.slice(0, pos + 1);
-    const skipped = bypassesAhead(board, reach, true);
-    const met = reach.filter(c => c.isRezzed && !skipped.has(c.instanceId));
-    const need = met.reduce((n, c) => n + iceCreditNeed(board, c), 0);
-    if (need > mostNeed) mostNeed = need;
-    if (need > budget) {
-      best = cost;
-      bestSet = [...up];
-      bestNeed = need;
-    }
-  }
-  if (bestSet) return { holds: true, rez: bestSet, rezCost: best, need: bestNeed, budget, margin: bestNeed - budget, entries: 0 };
-  const need = mostNeed === -Infinity ? 0 : mostNeed;
-  return { ...none, need, margin: need - budget };
-}
-
-/** iceCreditNeed of this ice rezzed, on the board with only it changed. */
-function iceNeed(view: GameState, c: CardInstance): number {
-  const up = c.isRezzed ? c : { ...c, isRezzed: true };
-  return iceCreditNeed(withIce(view, up), up);
-}
-
-/** The board with the ice of this rez set rezzed on its server (the mask over the first n ice). */
-function rezzedSet(state: GameState, serverId: string, ice: CardInstance[], mask: number, n: number): GameState {
-  const on = new Set(ice.slice(0, n).filter((c, i) => !c.isRezzed && mask & (1 << i)).map(c => c.instanceId));
-  const server = state.corp.servers[serverId];
-  return { ...state, corp: { ...state.corp, servers: { ...state.corp.servers, [serverId]: { ...server, ice: server.ice.map(c => (on.has(c.instanceId) ? { ...c, isRezzed: true } : c)) } } } };
-}
 
 /** A copy-free view with this one ice standing in for its unrezzed self (iceCreditNeed reads the board for strength). */
 function withIce(state: GameState, ice: CardInstance): GameState {
@@ -374,14 +240,14 @@ export interface WalkBoard {
   hq: number;
   tags: number;
   grip: number;
-  runnerCredits: number;
   rig: RigFacts[];
   lenders: Lender[];
   /** `${ice id}|${subroutines to break}|${granters gone}`. */
   plans: Record<string, WalkPlan[]>;
   /** `${ice id}|${granters gone}` (some gone). */
   types: Record<string, string[]>;
-  switches: { tags: boolean; credits: boolean; tolled: boolean; bypass: boolean };
+  /** plan.bypass: the Runner's own bypasses (Physarum Entangler) are tried. */
+  bypass: boolean;
 }
 
 /** The state the walk carries (brief 5.1), but the Runner's pool: the walk works out the least pool a way needs. */
@@ -529,14 +395,12 @@ export function walkBoard(state: GameState, start: WalkStart, targets: WalkTarge
     }
   }
   const borrows = [...ices.values()].some(i => i.subs.some(f => f.does.some(e => e.kind === 'borrow')));
-  const p = plan();
   return {
     badPublicity: state.corp.badPublicity,
     threat: threatLevel(state),
     hq: state.corp.hq.length,
     tags: state.runner.tags,
     grip: state.runner.grip.length,
-    runnerCredits: state.runner.credits,
     rig: start.rig.map(c => {
       const keywords = cardDef(c).keywords ?? '';
       return { audrey: c.cardCode === AUDREY, trojan: /\btrojan\b/i.test(keywords), purgeTrash: !!CARDS[c.cardCode]?.holdFacts?.trashedOnPurge, counted: c.cardCode === BOTULUS || /icebreaker/i.test(keywords) };
@@ -544,7 +408,7 @@ export function walkBoard(state: GameState, start: WalkStart, targets: WalkTarge
     lenders: borrows ? lenders(state, targets) : [],
     plans,
     types,
-    switches: { tags: p.holdWalkTags, credits: p.holdWalkCredits, tolled: p.holdWalkTolls, bypass: !!p.bypass },
+    bypass: !!plan().bypass,
   };
 }
 
@@ -581,16 +445,10 @@ export class Walk {
   private readonly clicksRead: boolean[];
   /** The ice a borrowed subroutine may come from, with its subroutines' facts (borrow). */
   private readonly lenders: Lender[];
-  /** Commit 2's switch: tags and grip move through the turn (draws, tag removal, tags and damage on the way, Ping, Bumi). */
-  private readonly tags: boolean;
   /** A draw can matter (some damage, a grip condition or a grip-spending plan on the way). */
   private readonly drawUseful: boolean;
   /** Removing a tag can matter (some condition or effect reads the Runner's tags). */
   private readonly tagUseful: boolean;
-  /** Commit 3's switch: credits move on both sides through the run (losses, the Corp's gains and rezzes, run-only credits). */
-  private readonly credits: boolean;
-  /** Commit 5's switch: an unless-payment paid, Paywall's encounter loss, Thunderbolt's gained subroutine. */
-  private readonly tolled: boolean;
 
   constructor(
     /** What it reads of the board, gathered (walkBoard): the search has no `state` in scope. */
@@ -606,9 +464,6 @@ export class Walk {
     this.later = targets.map((_, j) => targets.slice(j + 1).map(t => `${t.server}:${t.ice.map(flags).join('')}`).join('/'));
     this.clicksRead = targets.map((t, j) => j < targets.length - 1 || t.ice.some(i => i.bioroid || i.encounterFacts?.unless?.clicks !== undefined));
     this.counted = board.rig.flatMap((r, i) => (r.counted ? [i] : []));
-    this.tags = board.switches.tags;
-    this.credits = board.switches.credits;
-    this.tolled = board.switches.tolled;
     const facts = targets.flatMap(t => t.ice.flatMap(i => (i.rezGains ? [...i.subs, i.rezGains] : i.subs)));
     const effects = facts.flatMap(f => f.does);
     const borrows = effects.filter(e => e.kind === 'borrow').length;
@@ -629,8 +484,8 @@ export class Walk {
     const gripOf = (f: SubFacts) => sum(f.does.map(e => (e.kind === 'damage' ? (e.n === 'runnerTags' ? tagsMost : e.n) : 0))) + (f.unless?.netDamage ?? 0);
     const gripMost = sum(facts.map(gripOf)) + sum(encounters.map(e => e.unless?.netDamage ?? 0)) + borrows * most(lent.map(gripOf));
     const doubling = allEffects.some(e => e.kind === 'tags' && e.n === 'runnerTags');
-    this.drawUseful = this.tags && (doubling || allEffects.some(e => e.kind === 'endRun' && e.if?.kind === 'hqMoreThanGrip') || board.rig.some(r => r.audrey) || gripMost > board.grip);
-    this.tagUseful = this.tags && (all.some(f => f.when?.kind === 'runnerTagsAtLeast') || allEffects.some(e => (e.kind === 'endRun' && e.if?.kind === 'runnerTagsAtLeast') || ((e.kind === 'damage' || e.kind === 'tags') && e.n === 'runnerTags') || (e.kind === 'corpGainsCredits' && e.n === 'perRunnerTag')));
+    this.drawUseful = doubling || allEffects.some(e => e.kind === 'endRun' && e.if?.kind === 'hqMoreThanGrip') || board.rig.some(r => r.audrey) || gripMost > board.grip;
+    this.tagUseful = all.some(f => f.when?.kind === 'runnerTagsAtLeast') || allEffects.some(e => (e.kind === 'endRun' && e.if?.kind === 'runnerTagsAtLeast') || ((e.kind === 'damage' || e.kind === 'tags') && e.n === 'runnerTags') || (e.kind === 'corpGainsCredits' && e.n === 'perRunnerTag'));
   }
 
   /** The walk state in a memo key (run j: the clicks only where they are read, the stack before the last run). */
@@ -667,7 +522,7 @@ export class Walk {
     const hit = this.memo.get(key);
     if (hit !== undefined) return hit;
     // 6.9.1b, 10.6.3a: the bad publicity fund is filled as each run begins
-    const fund = this.credits ? this.board.badPublicity : 0;
+    const fund = this.board.badPublicity;
     let best = this.approach({ ...ws, clicks: ws.clicks - 1, spike: false, fund }, j, this.targets[j].ice.length - 1);
     if (ws.clicks > runs) {
       if (this.drawUseful && ws.stack > 0) best = Math.min(best, this.beforeRun({ ...ws, clicks: ws.clicks - 1, grip: ws.grip + 1, stack: ws.stack - 1 }, j));
@@ -695,7 +550,7 @@ export class Walk {
     let v: number;
     if (!ice.rezzed && !ws.up.includes(ice.id)) {
       // 6.9.2c: unrezzed ice the Corp does not rez is passed; 6.4.3: ice of S is rezzed as it is approached
-      const paid = this.credits ? ws.corp - ice.rezCost : ws.corp;
+      const paid = ws.corp - ice.rezCost;
       v = ice.inS && paid >= 0 ? this.rezzed({ ...ws, corp: paid, up: [...ws.up, ice.id].sort() }, ice, next, { key: at, j }) : next(ws);
     } else v = ice.bypassed ? next(ws) : this.encounter(ws, ice, next, { key: at, j });
     this.memo.set(key, v);
@@ -710,11 +565,11 @@ export class Walk {
       const purged = this.board.rig.flatMap((r, i) => (r.purgeTrash ? [i] : []));
       w = { ...w, virus: w.virus.map(() => 0), gone: [...new Set([...w.gone, ...purged])].sort((a, b) => a - b) };
     }
-    if (this.tags && ice.rezFacts?.tags) w = { ...w, tags: w.tags + ice.rezFacts.tags };
+    if (ice.rezFacts?.tags) w = { ...w, tags: w.tags + ice.rezFacts.tags };
     // Thunderbolt Armaments: the ice gains its subroutine after its others for the rest of the run (9.8.3e)
-    const met = this.tolled && ice.rezGains ? { ...ice, subs: [...ice.subs, ice.rezGains] } : ice;
+    const met = ice.rezGains ? { ...ice, subs: [...ice.subs, ice.rezGains] } : ice;
     const go = (x: WalkState) => (ice.bypassed ? next(x) : this.encounter(x, met, next, at));
-    if (this.tags && ice.rezFacts?.corpMayTrashInstalled === 'trojan') {
+    if (ice.rezFacts?.corpMayTrashInstalled === 'trojan') {
       // Bumi 1.0: the Corp may trash 1 installed trojan, the choice worst for the Runner (ruling 6)
       let worst = go(w);
       this.board.rig.forEach((r, i) => {
@@ -733,7 +588,7 @@ export class Walk {
     const subs = ice.subs;
     const types = this.typesOf(ice, ws);
     let best = FAIL;
-    if (this.board.switches.bypass) {
+    if (this.board.bypass) {
       for (const b of ice.bypassers) if (!ws.gone.includes(b.idx) && !types.includes(b.unless)) best = Math.min(best, this.pay(ws, b.per * subs.length, next));
     }
     return Math.min(best, this.tolls(ws, ice, w => this.breaks(w, ice, types, next, at)));
@@ -754,15 +609,15 @@ export class Walk {
     const e = ice.encounterFacts;
     if (!e || ice.broken || (e.threatAtLeast !== undefined && this.board.threat < e.threatAtLeast)) return then(ws);
     // Paywall: the Runner loses credits as the encounter begins (6.9.3a), from its pool (10.6.2: not the fund)
-    if (this.tolled && this.credits && e.loses) return lose(this.toll(ws, e, then), e.loses);
+    if (e.loses) return lose(this.toll(ws, e, then), e.loses);
     return this.toll(ws, e, then);
   }
 
   /** The encounter toll and the alternatives the Runner may pay instead, its choice. */
   private toll(ws: WalkState, e: NonNullable<SearchIce['encounterFacts']>, then: (w: WalkState) => number): number {
-    if (!this.tags || !e.toll) return then(ws);
+    if (!e.toll) return then(ws);
     const t = e.toll;
-    let best = t.endRun ? FAIL : t.loses && this.credits ? lose(then(ws), t.loses) : then({ ...ws, tags: ws.tags + (t.tags ?? 0) });
+    let best = t.endRun ? FAIL : t.loses ? lose(then(ws), t.loses) : then({ ...ws, tags: ws.tags + (t.tags ?? 0) });
     const u = e.unless ?? {};
     if (u.tags) best = Math.min(best, then({ ...ws, tags: ws.tags + u.tags }));
     if (u.netDamage !== undefined && u.netDamage <= ws.grip) best = Math.min(best, then({ ...ws, grip: ws.grip - u.netDamage }));
@@ -828,7 +683,7 @@ export class Walk {
   }
 
   private payPlan(ws: WalkState, p: WalkPlan, then: (w: WalkState) => number): number {
-    const w: WalkState = { ...ws, stealth: ws.stealth - p.stealth, spike: ws.spike || p.spike, grip: this.tags ? ws.grip - p.grip : ws.grip };
+    const w: WalkState = { ...ws, stealth: ws.stealth - p.stealth, spike: ws.spike || p.spike, grip: ws.grip - p.grip };
     if (p.counter) {
       const list = [...(p.counter.kind === 'virus' ? w.virus : w.power)];
       list[p.counter.idx] -= p.counter.n;
@@ -873,18 +728,15 @@ export class Walk {
     if (f.orEndRun) return FAIL;
     let best = this.effects(ws, card, f.does, 0, then);
     // "unless the Runner pays N" (1.16.11b): paid as it resolves, run-only credits first (10.6.3a: the fund pays any cost
-    // during the run); off, as on beta: paid for nothing when the Runner holds N now
-    if (f.unless?.credits !== undefined) {
-      if (this.tolled) best = Math.min(best, this.pay(ws, f.unless.credits, then));
-      else if (this.board.runnerCredits >= f.unless.credits) best = Math.min(best, then(ws));
-    }
+    // during the run)
+    if (f.unless?.credits !== undefined) best = Math.min(best, this.pay(ws, f.unless.credits, then));
     // "unless the Runner trashes 1 of their installed cards" (Thunderbolt Armaments): the card it can best spare
-    if (this.tolled && f.unless?.trashInstalled) {
+    if (f.unless?.trashInstalled) {
       this.board.rig.forEach((_, i) => {
         if (!ws.gone.includes(i)) best = Math.min(best, then({ ...ws, gone: [...ws.gone, i].sort((a, b) => a - b) }));
       });
     }
-    if (f.unless?.netDamage !== undefined && f.unless.netDamage <= ws.grip) best = Math.min(best, then(this.tags ? { ...ws, grip: ws.grip - f.unless.netDamage } : ws));
+    if (f.unless?.netDamage !== undefined && f.unless.netDamage <= ws.grip) best = Math.min(best, then({ ...ws, grip: ws.grip - f.unless.netDamage }));
     return best;
   }
 
@@ -907,16 +759,16 @@ export class Walk {
       case 'runnerLosesClicks':
         return next({ ...ws, clicks: Math.max(0, ws.clicks - e.n) });
       case 'runnerLosesCredits':
-        return this.credits ? lose(next(ws), e.n) : next(ws);
+        return lose(next(ws), e.n);
       case 'corpGainsCredits':
-        return next(this.credits ? { ...ws, corp: ws.corp + (e.n === 'perRunnerTag' ? ws.tags : e.n) } : ws);
+        return next({ ...ws, corp: ws.corp + (e.n === 'perRunnerTag' ? ws.tags : e.n) });
       case 'damage': {
         // 10.4.4: more damage than the cards in the grip is a flatline; each point takes a card (10.4.2)
         const n = e.n === 'runnerTags' ? ws.tags : e.n;
-        return n > ws.grip ? FAIL : next(this.tags ? { ...ws, grip: ws.grip - n } : ws);
+        return n > ws.grip ? FAIL : next({ ...ws, grip: ws.grip - n });
       }
       case 'tags':
-        return next(this.tags ? { ...ws, tags: ws.tags + (e.n === 'runnerTags' ? ws.tags : e.n) } : ws);
+        return next({ ...ws, tags: ws.tags + (e.n === 'runnerTags' ? ws.tags : e.n) });
       case 'cannotStealOrTrash':
         return FAIL;
       case 'corpMayTrashHqToEndRun':
@@ -986,7 +838,7 @@ export function firstState(state: GameState, start: WalkStart, clicks: number, c
     stack: state.runner.stack.length,
     corp,
     fund: 0,
-    hosted: plan().holdWalkCredits ? duringRuns(state) : 0,
+    hosted: duringRuns(state),
     stealth: runStealthCredits(state),
     virus: start.virus,
     power: start.power,
@@ -1055,7 +907,6 @@ export function runTarget(state: GameState, base: WalkIce[], server: string, set
 export interface TurnQuestion extends TurnInput {
   server: string;
   budget: number;
-  sequence: boolean;
   ice: SearchIce[];
   sets: { mask: number; rez: number; affordable: boolean; bypassed: number; price: number }[];
 }
@@ -1107,7 +958,6 @@ function turnQuestion(state: GameState, server: string, corpCredits: number): Tu
     ...turnInput(state, start, [{ server, ice: base }], corpStart(state, base, corpCredits)),
     server,
     budget: runnerBudget(state),
-    sequence: plan().holdWalkSequence,
     ice: base.map(searchIce),
     sets,
   };
@@ -1161,7 +1011,6 @@ function walkRunnerTurn(state: GameState, server: string, corpCredits: number): 
   const { need } = a;
   const ids = (k: number) => q.ice.slice(0, 10).filter((_, i) => q.sets[k].mask & (1 << i)).map(c => c.id);
   if (a.holds) return { holds: true, rez: ids(a.set), rezCost: q.sets[a.set].rez, need, budget, margin: need - budget, entries: 0 };
-  if (!q.sequence) return { holds: false, rez: null, rezCost: Infinity, need, budget, margin: need - budget, entries: turnEntries(state, need, budget) };
   // Worked out when read: two readers of the count's many (the ice move, iceCount) read `entries`, and the further runs
   // are most of a count's work (rez money asks every staked server of every board the planner looks at)
   const answer = a;
@@ -1238,8 +1087,8 @@ function walkThisRun(state: GameState, server: string, opts: HoldOptions): Hold 
     // The Corp pays each rez as its ice is approached (6.4.3): it starts with the approached ice's cost still in hand
     const corp = spare + base;
     // The run's own credits: the fund and Overclock's, and the cards that pay during it (availableCredits less the pool)
-    const fund = plan().holdWalkCredits ? run.bonusCredits + (run.badPublicityCredits ?? 0) : 0;
-    const hosted = plan().holdWalkCredits ? Math.max(0, availableCredits(state, 'runner') - state.runner.credits - fund) : 0;
+    const fund = run.bonusCredits + (run.badPublicityCredits ?? 0);
+    const hosted = Math.max(0, availableCredits(state, 'runner') - state.runner.credits - fund);
     const ws: WalkState = { ...firstState(state, start, state.runner.clicks, corp), fund, hosted, stealth: stealthCredits(state) };
     const need = new Walk(board, [{ server, ice }]).fromIce(ws, pos);
     if (need > mostNeed) mostNeed = need;

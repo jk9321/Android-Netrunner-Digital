@@ -44,6 +44,9 @@ const CAP = Number(process.env.CAP ?? 40_000);
 const DUMP = process.env.OUT_DIR ?? process.env.DUMP ?? '';
 const MAX_SETS = Number(process.env.MAX_SETS ?? 16);
 const COMPARE = process.env.COMPARE === '1';
+// The count as on beta was deleted with the walk's temporary switches before the hand-off: COMPARE runs on a tree that
+// still has them (ai-hold-walk cbab0ad), where `holdWalk: false` reaches beta's count
+if (COMPARE && !('holdWalk' in plan())) throw new Error('COMPARE needs a tree with plan.holdWalk (ai-hold-walk cbab0ad or earlier)');
 /** COMPARE: at most this many flips kept per source (default all); the ones over it are counted in `flipsOver`. */
 const FLIPQ = Number(process.env.FLIPQ ?? Infinity);
 
@@ -65,7 +68,7 @@ function watched(state: GameState, server: string, opts: HoldOptions): Hold {
   seen.add(key);
   calls.distinct++;
   // The count as on beta: the walk's temporary switches off (synergy.ts)
-  const old = COMPARE ? withPricing({ plan: { ...plan(), holdWalk: false } }, () => original(state, server, opts)) : undefined;
+  const old = COMPARE ? withPricing({ plan: { ...plan(), holdWalk: false } as ReturnType<typeof plan> }, () => original(state, server, opts)) : undefined;
   const flip = !!old && old.holds !== h.holds;
   if (flip) calls.flips++;
   if (flip && kept.filter(q => q.src === src && q.flip).length >= FLIPQ) {
