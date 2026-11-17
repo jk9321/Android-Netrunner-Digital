@@ -11,7 +11,7 @@ const byCode = new Map(ALL_CARDS.map(c => [c.code, c]));
 const trashKinds = (code: string): string[] => {
   const c = byCode.get(code) as { type_code?: string; text?: string } | undefined;
   if (c?.type_code !== 'ice') return [];
-  const subs = (c.text ?? '').split('\n').filter(l => l.includes('[subroutine]')).map(l => l.replace(/^.*\[subroutine\]\s*/, ''));
+  const subs = (c.text ?? '').split('\n').filter(l => l.includes('[subroutine]')).map(l => l.replace(/<[^>]+>/g, '').replace(/^.*\[subroutine\]\s*/, ''));
   return subs.flatMap(s => subroutineFacts(s).does.flatMap(e => (e.kind === 'trashInstalled' ? [e.what] : [])));
 };
 const decks = [...STARTER_DECKS, ...betaDefaultDecks().filter(d => !STARTER_DECKS.some(s => s.id === d.id))].filter(d => d.side === 'corp');
