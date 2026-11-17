@@ -1,0 +1,8 @@
+ai-script run 44180624201: scripts/stage-d/runner-runs-truth.ts on ai-runner-runs (Stage D item 2 step 1), ARGS=raise.
+21 person-Runner human games, a fresh Normal Corp asked at each of its own-turn decisions (82 a game) under each arm.
+Changed decisions a game (games with any):
+  null                                    0.00  (0)
+  T2r the truth of the turns after, raise-only   2.95 (16)
+  T2p record predictor P1 (k = 8), raise-only    1.62 (14)
+Of the 34 T2p changes: 5 move ice to HQ (2 clearly better, report-36 #85, report-43 #48), 1 likely worse (report-33 #54), the rest neutral.
+Detail: design-note.md sections 2-3; ruling design-answer.md (parked until the Runner rework, Jeff 2026-11-17).

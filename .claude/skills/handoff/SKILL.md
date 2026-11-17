@@ -35,6 +35,7 @@ node .claude/skills/handoff/evidence.mjs --base origin/beta \
   `eslint-disable`, `as unknown as`), skipped/focused tests, empty catches, `Math.random`/`Date.now`, card codes
   outside card files, `plan.*` switches, raw hidden-state reads in `src/ai`, deleted test files, and "no tests
   touched". Each flag needs either a fix or one line of reason in your hand-off.
+- Run `node scripts/value-owners/verify-registry.mjs --all` (the default checks only the valuation section). `tests/codeHealth.test.ts` runs it in the fast checks; `--fix` moves a location only when it can prove the line, so refresh the rest by hand and read the diff.
 - `/mnt/project-files` is a network mount: re-read the file about ten seconds after writing it.
 
 ## 3. The hand-off message (fixed template)
