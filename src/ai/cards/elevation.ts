@@ -268,6 +268,7 @@ export const ELEVATION: Record<string, CardAI> = {
   '35028': {
     synergy: { gives: { install: 1 }, wants: { breakers: 0.5 } },
     value: { rig: 2.5 }, // Free program installs (hosted cards count too)
+    freeInstallHosted: true,
     // A hosted program installed each turn without a click
     runner: (state, _code, card) => {
       // Like DZMZ Optimizer: a click for each program still to install (hosted ones too, so hosting doesn't use up
@@ -470,6 +471,7 @@ export const ELEVATION: Record<string, CardAI> = {
   '35061': {
     synergy: { gives: { econ: 1, denial: 1.5 }, wants: { advance: 1 } },
     value: { keep: 2.5 }, // 3 credits for the Corp and -2 for the Runner per counter
+    placedCounter: () => 0.6 * 5, // A placed counter
     // Each advancement is 3 credits to the Corp and 2 off the Runner, for a click and a credit
     corp: (_state, _code, { cost }) => ({ keep: 0.6 * 2 * (3 + 2 - (CLICK + 1)) - cost }),
     // Each counter is 3 credits and 2 off the Runner when it fires
@@ -533,7 +535,11 @@ export const ELEVATION: Record<string, CardAI> = {
   // Kessleroid
   '35075': { synergy: { gives: { ice: 1 } } },
   // Syailendra
-  '35076': { synergy: { gives: { ice: 1, advance: 1, denial: 0.5, damage: 0.5 } } },
+  '35076': {
+    synergy: { gives: { ice: 1, advance: 1, denial: 0.5, damage: 0.5 } },
+    // At 3, each encounter places a counter (a click and a credit) on a card the Corp can advance
+    advanceCounter: (state, _card, left) => perTurn(state, 0.3 * (CLICK + 1), 'corp') / left,
+  },
   // Key Performance Indicators
   '35077': { synergy: { gives: { advance: 1, econ: 0.5, ice: 0.5 } } },
   // Measured Response

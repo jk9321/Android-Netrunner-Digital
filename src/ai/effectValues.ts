@@ -1,11 +1,11 @@
 import { CardInstance, GameState, cardDef, getCardDefinition, knownInHand } from '../core';
 import { assetRisk, turnsLeft } from './cardProfiles';
 import { PAYOUT_RISK } from './payoutRisk';
-import { COUNTER_WORTH } from './counterValues';
+import { COUNTER_WORTH, defaultWorth } from './counterValues';
 import { CARDS, advancePayloadOf, corpFormula, runnerFormula } from './cards';
 import { actingSide } from './synergy';
-import { CLICK, cardRate, flatlineWorth, logValue, memo, pointGain, pointValue, scopeToGame, sideCards } from './valueModel';
-import { tagsWorth } from './evaluate';
+import { CLICK, cardRate, flatlineWorth, logValue, memo, pointGain, scopeToGame, sideCards } from './valueModel';
+import { agendaWorth, tagsWorth } from './evaluate';
 import { BLOCK, iceCost, iceCreditNeed, isTrap, plannedSubroutines, subroutineCost, tankDamage } from './runs';
 import { plan, pricing, withPricing } from './pricing';
 import { REZ_NOW_SHARE, rezBudget } from './iceValues';
@@ -501,9 +501,10 @@ export function deckShare(state: GameState, side: 'corp' | 'runner', keywords: R
 /** Copies in a side's decklist matching a test. */
 export const deckCount = (state: GameState, side: 'corp' | 'runner', test: (c: CardInstance) => boolean): number => sideCards(state, side).filter(test).length;
 
-/** Worth of one counter of a type on a card, priced against the board (counterValues.ts), for a card not installed yet. */
+/** Worth of one counter of a type on a card, priced against the board (counterValues.ts), for a card not installed yet; an unlisted counter reads the owner's default (V-B B6). */
 export function counterWorthOf(state: GameState, code: string, type: 'credit' | 'virus' | 'power'): number {
-  return logValue('counter', 'counterWorthOf', state, COUNTER_WORTH[code]?.[type]?.(state, { cardCode: code, instanceId: 'probe', tokens: {} } as unknown as CardInstance) ?? 1, code, type);
+  const probe = { cardCode: code, instanceId: 'probe', tokens: {} } as unknown as CardInstance;
+  return logValue('counter', 'counterWorthOf', state, COUNTER_WORTH[code]?.[type]?.(state, probe) ?? defaultWorth(probe, type), code, type);
 }
 
 
@@ -542,10 +543,8 @@ export function rezEffectWorth(card: CardInstance, tagWorth: number): number {
 export function iceAdvanceWorth(state: GameState, card: CardInstance, iceCostAt: (counters: number) => number): number {
   const left = 3 - card.advancementCounters;
   if (left <= 0) return 0;
-  if (card.cardCode === '35076') {
-    // Syailendra at 3: each encounter places a counter (a click and a credit) on a card we can advance
-    return perTurn(state, 0.3 * (CLICK + 1), 'corp') / left;
-  }
+  const own = CARDS[card.cardCode]?.advanceCounter;
+  if (own) return own(state, card, left);
   return Math.max(0, iceCostAt(3) - iceCostAt(card.advancementCounters)) / left;
 }
 
@@ -558,12 +557,13 @@ export function iceAdvanceWorth(state: GameState, card: CardInstance, iceCostAt:
 export const knownTrap = (card: CardInstance): boolean => !!card.runnerKnows && isTrap(card.cardCode);
 
 /** Worth of an advancement counter placed by an effect (Sericulture, Syailendra) on this card. */
-export function placedCounterWorth(state: GameState, card: CardInstance, iced: boolean): number {
+export function placedCounterWorth(state: GameState, card: CardInstance): number {
   const def = cardDef(card);
   if (def.type_code === 'agenda') {
-    const points = def.agenda_points ?? 1;
-    const share = (pointValue(state.corp.score + points) - pointValue(state.corp.score)) / Math.max(1, def.advancement_cost ?? 3);
-    return logValue('agenda', 'placedCounterWorth', state, iced ? share : 0.3 * share, card, iced);
+    // The owner's step on the board's own term (corpBoardValue's arguments): the steal by its server is in agendaWorth (V-B B6)
+    const server = Object.values(state.corp.servers).find(s => s.root.some(c => c.instanceId === card.instanceId))?.id;
+    const worth = (n: number) => agendaWorth(state, n, def.advancement_cost ?? 0, def.agenda_points ?? 1, server);
+    return logValue('agenda', 'placedCounterWorth', state, worth(card.advancementCounters + 1) - worth(card.advancementCounters), card);
   }
   // Traps: an advanced card reads as an agenda and draws a run (about a third of the time, a click and 2 credits wasted)
   // A known trap (knownTrap: 7.1.2, 10.2.2b) draws no run: no bluff, and nothing from being accessed again (Urtica's
@@ -571,11 +571,8 @@ export function placedCounterWorth(state: GameState, card: CardInstance, iced: b
   const known = knownTrap(card);
   const bluff = /ambush|hostile/i.test(def.keywords ?? '') && !known ? 0.3 * (CLICK + 2) : 0;
   if (known && !advancePayloadOf(card.cardCode)) return 0;
-  if (card.cardCode === '30045') return bluff + 0.5 * (damageWorth(state, 3 + card.advancementCounters) - damageWorth(state, 2 + card.advancementCounters)); // Urtica: 1 more net damage
-  if (card.cardCode === '35061') return 0.6 * 5; // Idiosyncresis
-  // Clearinghouse: the counter's step in damage
-  if (card.cardCode === '30061') return bluff + 0.6 * damageWorth(state, 1);
-  return 0.3;
+  const own = CARDS[card.cardCode]?.placedCounter;
+  return own ? own(state, card, bluff) : 0.3;
 }
 
 /** Petty Cash comes back from Archives for its 5 credits and the click back: worth its net 2 credits again, a turn later. */

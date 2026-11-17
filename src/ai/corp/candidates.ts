@@ -216,7 +216,7 @@ export function corpCandidates(state: GameState, legal: GameAction[], opts: Cand
           // click and credit, plus what the counter is worth by its owner, which the board does not price
           // (placedCounterWorth; Pharos and Syailendra: iceAdvanceValue); a trap stops at its cap (cardRules)
           const server = Object.values(corp.servers).find(v => v.root.some(c => c.instanceId === card.instanceId));
-          if (typeOf(card) === 'asset' && server && card.advancementCounters < trapAdvanceCap(state, card)) play(a, 4, true, placedCounterWorth(state, card, server.ice.length > 0));
+          if (typeOf(card) === 'asset' && server && card.advancementCounters < trapAdvanceCap(state, card)) play(a, 4, true, placedCounterWorth(state, card));
           else if (typeOf(card) === 'ice' && advancesAsIce(card)) play(a, 4, true, iceAdvanceValue(state, card));
         }
         break;

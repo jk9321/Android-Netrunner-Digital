@@ -14,13 +14,6 @@ import { sideOff, tuning } from '../src/ai/synergy';
  */
 const VALUE_FILES = ['valueModel', 'evaluate', 'effectValues', 'counterValues', 'handValues', 'iceValues'];
 const CODES_IN_VALUE_FILES: Record<string, string> = {
-  'evaluate:35028': 'Madani: to its card entry',
-  'evaluate:30053': 'Spin Doctor (spent): to its card entry',
-  'evaluate:36009': 'Vic: an identity, fine for now',
-  'effectValues:35076': 'Syailendra: a placed-counter field in CardAI',
-  'effectValues:30045': 'Urtica Cipher: a placed-counter field in CardAI',
-  'effectValues:35061': 'Idiosyncresis: a placed-counter field in CardAI',
-  'effectValues:30061': 'Clearinghouse: a placed-counter field in CardAI',
 };
 
 /** Plan switches that are off, each with why it stays in the code. */
@@ -230,7 +223,6 @@ describe('AI code health (audit guards)', () => {
     'iceValues:clearDeckShares': 'test and script cache reset',
     'evaluate:AGENDA_RUN': 'scripts only (a measured rate, logged)',
     'evaluate:setAgendaClick': 'scripts only (scripts/human-agreement.ts sweeps AGENDA_CLICK)',
-    'evaluate:centralExposure': 'scripts and tests only since the oneCurrency off path went (its own memo key names it): V-B',
   };
   it('has a src reader for every valuation export but the listed ones (V-A; shrink only)', () => {
     const VALUATION = ['valueModel', 'handValues', 'effectValues', 'evaluate', 'cardValues', 'cardProfiles', 'counterValues', 'iceValues'];
@@ -351,9 +343,15 @@ describe('AI code health (audit guards)', () => {
   // delete gone; pricing.ts + 4, the key segment and deckPricingKey) = 13,643
   // ai-tag-loss-bp + 13 (evaluate.ts + 8: addRigCard's header, doc and return, the clock's own-term-plus-plans lines and their
   // comment; cardPlans.ts + 5: the shared card list boardPlanCards and the predicate hasBoardPlan) = 13,656
-  it('keeps src/ai/corp at or under 2,298 lines and src/ai at or under 13,656 (Stage C hand-off, ai-corp-honest-order, ai-value-time, ai-playout-lines, ai-honest-runner-view, ai-honest-corp-decision, ai-value-owners, ai-corp-rd-memory, ai-value-b1, ai-value-b2, ai-hold-reentry, ai-value-b3, ai-tag-loss-time, ai-value-b6, ai-threat-delete, ai-breaker-guard-key, ai-tag-loss-bp)', () => {
+  // V-B B6 rest - 39 (centralExposure and its imports - 46; the card-coded conditions into their entries + 8 with the four
+  // CardAI fields' doc lines; Spin Doctor's spent worth into its entry - 3; counterWorthOf's default + 1; item 17 + 1) = 13,617
+  // V-B B6 review M1 + 6 (Spin Doctor's spent worth prices Archives as the viewer knows it: the Corp's own cards by what
+  // they are, a look-ahead discard by the odds; two imports) = 13,623 (up to + 6 allowed by the AI Coordinator)
+  // M1 (a) + 2 (the Corp's option at one turn's assetRisk where the card sits, the Runner's line kept) = 13,625 (up to 13,627 allowed)
+  // M1b + 3 (the cards the Corp cannot know are the decision root's R&D, not those outside the hand it noted) = 13,628 (up to 13,629 allowed)
+  it('keeps src/ai/corp at or under 2,298 lines and src/ai at or under 13,628 (Stage C hand-off, ai-corp-honest-order, ai-value-time, ai-playout-lines, ai-honest-runner-view, ai-honest-corp-decision, ai-value-owners, ai-corp-rd-memory, ai-value-b1, ai-value-b2, ai-hold-reentry, ai-value-b3, ai-tag-loss-time, ai-value-b6, ai-threat-delete, ai-breaker-guard-key, ai-tag-loss-bp)', () => {
     const corp = aiFiles().filter(f => f.replace(/\\/g, '/').startsWith('corp/')).reduce((n, f) => n + lines(f), 0);
     expect(corp).toBeLessThanOrEqual(2298);
-    expect(aiFiles().reduce((n, f) => n + lines(f), 0)).toBeLessThanOrEqual(13656);
+    expect(aiFiles().reduce((n, f) => n + lines(f), 0)).toBeLessThanOrEqual(13628);
   });
 });

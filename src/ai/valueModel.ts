@@ -495,7 +495,7 @@ export function pricingApart<T>(work: () => T): T {
 const stateIds = new WeakMap<GameState, number>();
 let nextStateId = 0;
 
-/** A number for this position object, the same each time it is asked (guardLoop's lookups, handValues deckRootKey). */
+/** A number for this position object, the same each time it is asked (guardLoop's lookups). */
 export function positionSerial(state: GameState): number {
   let id = stateIds.get(state);
   if (id === undefined) stateIds.set(state, (id = nextStateId++));

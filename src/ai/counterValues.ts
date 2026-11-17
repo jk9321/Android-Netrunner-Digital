@@ -55,8 +55,8 @@ export function trojanHostWorth(state: GameState, card: CardInstance, worth: (ho
   return rezzed.length ? Math.max(...rezzed.map(worth)) : 0.5;
 }
 
-/** Step-1 rates, for cards without an entry. */
-function defaultWorth(card: CardInstance, type: CounterType): number {
+/** Step-1 rates, for cards without an entry: the owner's default (counterWorth, and counterWorthOf for a card not installed; V-B B6). */
+export function defaultWorth(card: CardInstance, type: CounterType): number {
   switch (type) {
     case 'credit':
       return RATES.counters.hostedCredit; // Smartware Distributor's own entry is read first (counterWorth)
