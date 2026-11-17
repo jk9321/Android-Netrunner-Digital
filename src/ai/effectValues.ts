@@ -413,17 +413,18 @@ export function damageThreat(state: GameState, corpTurn = false): { burst: numbe
   return threat;
 }
 
-/** The Corp's cards whose corpTurnDamage fact reads the board (Orbital Superiority, Mindscaping, Neurospike), per game. */
-let boardFactCodes: { game: string; codes: string[] } | null = null;
+/** The Corp's cards whose corpTurnDamage fact reads the board (Orbital Superiority, Mindscaping, Neurospike), one game's. */
+const boardFactCodes = new Map<'codes', string[]>();
 /**
  * damageThreat's key for the facts that read the board (ai-winnow-reach): their values on this board, so a fact is never
  * served from a board with other inputs (Mindscaping reads the tag count, Neurospike the points scored this turn; the key
  * had only whether the Runner is tagged). Empty for a Corp with none of them, so its key is as before.
  */
 function boardFacts(state: GameState): string {
-  if (boardFactCodes?.game !== state.id)
-    boardFactCodes = { game: state.id, codes: [...new Set(sideCards(state, 'corp').map(c => c.cardCode))].filter(code => typeof CARDS[code]?.corpTurnDamage === 'function') };
-  return boardFactCodes.codes.map(code => ownTurnDamage(state, code)).join(',');
+  scopeToGame(boardFactCodes, state);
+  let codes = boardFactCodes.get('codes');
+  if (!codes) boardFactCodes.set('codes', (codes = [...new Set(sideCards(state, 'corp').map(c => c.cardCode))].filter(code => typeof CARDS[code]?.corpTurnDamage === 'function')));
+  return codes.map(code => ownTurnDamage(state, code)).join(',');
 }
 
 /**
