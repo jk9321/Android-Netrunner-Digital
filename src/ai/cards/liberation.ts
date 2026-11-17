@@ -630,7 +630,7 @@ export const LIBERATION: Record<string, CardAI> = {
     counters: { power: () => 3 - CLICK }, // 3 credits for a click
   },
   // Lycian Multi-Munition
-  // "When a turn ends, derez this ice" (its subtypes, chosen when rezzed, are a todo of the hold walk)
+  // Its subtypes come from the Corp's choice when it rezzes it (rules 2.16.5: abilities can add subtypes); it derezzes itself when a turn ends
   '34100': {
     synergy: { gives: { ice: 1 } },
     rezEffect: true,
