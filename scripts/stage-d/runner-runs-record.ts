@@ -59,7 +59,8 @@ interface TurnLine {
   runnerCredits: number;
   corpCredits: number;
   servers: ServerFacts[];
-  runs: { server: string; successful: boolean }[];
+  /** kind: 'chosen' (the Runner's own INITIATE_RUN) or 'offered' (started by any other action: a card's offer, a run event). */
+  runs: { server: string; successful: boolean; kind: 'chosen' | 'offered' }[];
   holdMs: number;
 }
 
@@ -117,16 +118,25 @@ function facts(state: GameState): { servers: ServerFacts[]; holdMs: number } {
 function watcher(src: string, who: Who) {
   let open: Omit<TurnLine, 'runs'> | null = null;
   let opened = -1;
+  let kinds: ('chosen' | 'offered')[] = [];
+  let seen = 0;
   const close = (runs: { server: string; successful: boolean }[]) => {
-    if (open) console.log(JSON.stringify({ ...open, runs: runs.map(r => ({ server: r.server, successful: r.successful })) }));
+    if (open) console.log(JSON.stringify({ ...open, runs: runs.map((r, i) => ({ server: r.server, successful: r.successful, kind: kinds[i] ?? 'offered' })) }));
     open = null;
   };
   return {
-    see(s: GameState) {
+    /** `move`: the action that led to `s` (its runs started by it get its kind). */
+    see(s: GameState, move?: GameAction) {
+      if (open && s.activePlayer === 'runner' && s.turnNumber === open.turn && s.runsThisTurn.length > seen) {
+        for (let i = seen; i < s.runsThisTurn.length; i++) kinds[i] = move?.type === 'INITIATE_RUN' ? 'chosen' : 'offered';
+        seen = s.runsThisTurn.length;
+      }
       // The Runner's turn has ended: its runs are the engine's record of it
       if (open && (s.activePlayer === 'corp' || s.turnNumber !== open.turn)) close(s.runnerLastTurnRuns);
       if (!open && opened !== s.turnNumber && s.activePlayer === 'runner' && !s.winner && s.runner.clicks > 0 && !s.activeRun) {
         opened = s.turnNumber;
+        kinds = [];
+        seen = s.runsThisTurn.length;
         const f = facts(s);
         open = { src, who, turn: s.turnNumber, runnerScore: s.runner.score, corpScore: s.corp.score, runnerCredits: s.runner.credits, corpCredits: s.corp.credits, ...f };
       }
@@ -152,7 +162,7 @@ function replay(file: string) {
     } catch {
       break; // a fixture recorded on an older engine: read up to here (as the harness)
     }
-    w.see(s);
+    w.see(s, move);
   }
   w.end(s);
 }
@@ -165,7 +175,7 @@ function selfPlay(seed: number) {
   for (let n = 0; n < 4000; n++) {
     clearCaches();
     if (!game.step()) break;
-    w.see(game.state);
+    w.see(game.state, game.last ?? undefined);
   }
   w.end(game.state);
 }

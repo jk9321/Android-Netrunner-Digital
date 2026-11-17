@@ -16,6 +16,13 @@
  *  - T3: both.
  * A run's kind: 'chosen' (the Runner's own INITIATE_RUN) or 'offered' (a card's run: Alarm Clock, a run event), by the
  * move that started it. One JSON line per changed decision, a summary per game.
+ *
+ * ARGS=raise (brief rev 2 3.6: history may only raise a server's odds): the arms are base, null, and
+ *  - T2r: T2 raise-only: each server's runs a turn is the larger of today's (1.01 x its share) and the truth's, the
+ *    agenda remote's run chance the larger of STEAL.run and the truth's;
+ *  - T2p: the record predictor, raise-only (runner-runs-counts2.mjs P1, k = K, default 8): each open server's runs a turn
+ *    (runs on it so far + k x today's) / (turns it was open + k), at least today's; the agenda remote's run chance the
+ *    larger of STEAL.run and 1 - exp(-that).
  *   SHARD=0/4 npx vite-node scripts/stage-d/runner-runs-truth.ts > truth-0.jsonl
  */
 import { readFileSync } from 'node:fs';
@@ -94,6 +101,55 @@ function setLeaf(t: Record<string, number> | null) {
   STEAL.run = t.steal;
 }
 
+const RAISE = (process.env.ARGS ?? '').includes('raise');
+const K = Number(process.env.K ?? 8);
+/** Today's runs a turn on each open server (PACE.runs x share; the remotes' share split evenly). */
+function today(state: GameState): Record<string, number> {
+  const remotes = Object.keys(state.corp.servers).filter(id => state.corp.servers[id].isRemote);
+  const out: Record<string, number> = { hq: BASE.runs * BASE.hqShare, rd: BASE.runs * BASE.rdShare, archives: BASE.runs * BASE.archivesShare };
+  for (const r of remotes) out[r] = (BASE.runs * BASE.remoteShare) / remotes.length;
+  return out;
+}
+/** Sets the leaf from per-server runs a turn (raise-only against today) and the agenda remote's run chance. */
+function setRaised(state: GameState, lam: Record<string, number>, remoteChance: (id: string) => number) {
+  setLeaf(null);
+  const t = today(state);
+  const l = (id: string) => Math.max(t[id] ?? 0, lam[id] ?? 0);
+  const remotes = Object.keys(state.corp.servers).filter(id => state.corp.servers[id].isRemote);
+  PACE.hqShare = l('hq') / BASE.runs;
+  PACE.rdShare = l('rd') / BASE.runs;
+  PACE.archivesShare = l('archives') / BASE.runs;
+  PACE.remoteShare = Math.max(BASE.remoteShare, remotes.reduce((n, id) => n + l(id), 0) / BASE.runs);
+  const withAgenda = remotes.filter(id => state.corp.servers[id].root.some(c => cardDef(c).type_code === 'agenda'));
+  const pick = [...(withAgenda.length ? withAgenda : remotes)].sort((a, b) => l(b) - l(a))[0];
+  STEAL.run = pick ? Math.max(BASE.steal, remoteChance(pick)) : BASE.steal;
+}
+function truthRates(later: Run[][]): { rate: Record<string, number>; turnShare: Record<string, number> } {
+  const rate: Record<string, number> = {};
+  const turnShare: Record<string, number> = {};
+  for (const t of later) {
+    for (const r of t) rate[r.server] = (rate[r.server] ?? 0) + 1 / later.length;
+    for (const sv of new Set(t.map(r => r.server))) turnShare[sv] = (turnShare[sv] ?? 0) + 1 / later.length;
+  }
+  return { rate, turnShare };
+}
+/** The record predictor (raise-only is applied by setRaised): per open server, (runs + k today) / (turns open + k). */
+function recordRates(state: GameState, record: { open: string[]; runs: Run[] }[]): Record<string, number> {
+  const t = today(state);
+  const out: Record<string, number> = {};
+  for (const id of Object.keys(t)) {
+    let n = 0;
+    let T = 0;
+    for (const turn of record) {
+      if (!turn.open.includes(id)) continue;
+      T++;
+      n += turn.runs.filter(r => r.server === id).length;
+    }
+    out[id] = (n + K * t[id]) / (T + K);
+  }
+  return out;
+}
+
 function clearAll() {
   clearCaches();
   clearBuildTargets();
@@ -141,9 +197,13 @@ function game(file: string) {
   valueLoops.clear();
   let s: GameState = createInitialGameState(deckGameSetup(report.config.seed, report.config.corpDeck, report.config.runnerDeck));
   if (report.startStops) s = { ...s, stops: report.startStops };
-  const tally = { decisions: 0, null: 0, T1: 0, T2: 0, T3: 0, ms: 0 };
+  const tally = { decisions: 0, null: 0, T1: 0, T2: 0, T3: 0, T2r: 0, T2p: 0, ms: 0 };
+  // The Runner turns seen so far, with the servers open at each (for the record predictor)
+  const record: { turn: number; open: string[]; runs: Run[] }[] = [];
   let i = 0;
   for (const move of report.moves as GameAction[]) {
+    // The servers open as each Runner turn starts (the record predictor's exposure)
+    if (s.activePlayer === 'runner' && !record.some(r => r.turn === s.turnNumber)) record.push({ turn: s.turnNumber, open: Object.keys(s.corp.servers), runs: turns.get(s.turnNumber) ?? [] });
     const side = actingSide(s);
     const corpOwn = side === 'corp' && s.activePlayer === 'corp' && !s.winner && !s.activeRun;
     if (corpOwn) {
@@ -153,6 +213,37 @@ function game(file: string) {
       const later: Run[][] = [];
       for (let k = s.turnNumber + 1; k <= lastTurn; k++) later.push(turns.get(k) ?? []);
       const after = truthAfter(s, later.length ? later : [turns.get(s.turnNumber) ?? []]);
+      if (RAISE) {
+        try {
+          setLeaf(null);
+          forced = null;
+          const base = ask(s);
+          const again = ask(s);
+          const tr = truthRates(later.length ? later : [turns.get(s.turnNumber) ?? []]);
+          setRaised(s, tr.rate, id => tr.turnShare[id] ?? 0);
+          const t2r = ask(s);
+          // The record: the Runner turns before this Corp turn (turn n's Runner turn follows the Corp's turn n)
+          const rr = recordRates(s, record.filter(r => r.turn < s.turnNumber));
+          setRaised(s, rr, id => 1 - Math.exp(-(rr[id] ?? 0)));
+          const t2p = ask(s);
+          setLeaf(null);
+          tally.decisions++;
+          const ch = { null: again !== base, T2r: t2r !== base, T2p: t2p !== base };
+          for (const k of Object.keys(ch) as (keyof typeof ch)[]) if (ch[k]) tally[k]++;
+          if (ch.null || ch.T2r || ch.T2p) console.log(JSON.stringify({ src, i, turn: s.turnNumber, next: (turns.get(s.turnNumber) ?? []).map(r => `${r.server}${r.successful ? '+' : '-'}${r.kind === 'offered' ? '(o)' : ''}`).join(' '), base, null: ch.null ? again : '=', T1: '=', T2: ch.T2r ? t2r : '=', T3: ch.T2p ? t2p : '=', arms: 'T2=T2r,T3=T2p' }));
+        } catch (e) {
+          setLeaf(null);
+          console.error(`${src} #${i}: ${(e as Error).message}`);
+        }
+        tally.ms += performance.now() - t;
+        i++;
+        try {
+          s = executeAction(s, move);
+        } catch {
+          break;
+        }
+        continue;
+      }
       try {
         setLeaf(null);
         forced = null;
