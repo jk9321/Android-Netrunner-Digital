@@ -14,7 +14,7 @@ import { lineFloor } from './rezMoney';
  * turn (heldLaterStep), the money they count on (knownIncome, nextTurnCredits) and the scoring remote.
  *
  * They read the owners: what holds a server is serverHold (corp/hold.ts), the money a line must leave once it has
- * scored is lineFloor, rezMoney's byServer sum (corp/rezMoney.ts). Same counts as before Stage A, same order of calls.
+ * scored is lineFloor (corp/rezMoney.ts), which reads rezMoney's keep since Stage C6 (the byServer sum before it).
  *
  * Viewpoint: the Corp's own cards and HQ, the public board, the Runner's installed cards, credits and clicks. Nothing
  * reads the Runner's grip or either deck's order (10.2.2a). Every function reads states and never edits one.

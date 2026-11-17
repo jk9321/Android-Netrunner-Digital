@@ -60,7 +60,7 @@ export interface Pricing {
   /** The planner's per-decision seed for its playouts (turnPlanner.ts, plan.plannerSeed), or null. */
   decisionSeed: number | null;
   /**
-   * Assets whose rez-to-use look-ahead is running (corpAI.ts rezToUse): no nested rez-to-use inside.
+   * Assets whose rez-to-use look-ahead is running (corp/rez.ts rezToUse): no nested rez-to-use inside.
    */
   rezzingToUse: Set<string>;
   /** A breaker is priced by the rig it joins (handValues.ts playedWorth): breakers inside take the rule-based worth. */
