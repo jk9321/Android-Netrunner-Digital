@@ -121,12 +121,12 @@ How it is checked:
 | V6 | An installed agenda | `agendaWorth` | 1 | 1 | 3 |
 | V7 | A tag (Corp and Runner views) | `tagsWorth` | 7 (+ `REMOVE_TAG`, not comparable) | 7 | 7 + 1 in cards |
 | V8 | n damage (Corp and Runner views) | `damageWorth` | 1 (`runScore`'s empty-grip term, Runner row) | 0 | 15 + 11 in cards |
-| V9 | A counter | `counterWorth` | 1 | 1 | 3 + 2 in cards |
+| V9 | A counter | `counterWorth` | 2 | 2 | 3 + 2 in cards |
 | V10 | An effect over turns (a card's income or effect paid turn by turn) | `payoutWorth` + `payoutWait` + `turnsLeft` | 1 (`perTurn`, 83 call sites) + the owner's own bare/iced split | 1 | 4 |
 | V11 | A Corp card's worth on the board | `corpCardValue` | 2 | 1 | 6 |
 | V12 | A Corp card's worth before it is installed | `corpKeepValue` | 4 (+ the owner's own iced split, V10) | 4 | 6 + 1 in cards |
 | V13 | A game end | `flatlineWorth`, `sampledEndWorth` (rows above) | 0 (the +-1000 is a sentinel) + 1 dead | 0 | 6 |
-| V14 | Hosted credits on a Corp card | `countersWorth` (type credit) | 2 | 2 | 1 |
+| V14 | Hosted credits on a Corp card | `countersWorth` (type credit) | 0 (one unreachable no-state line, recount 2026-11-17) | 0 | 1 |
 | V15 | A Runner rig card's worth installed | `runnerCardValue` | 2 | 2 | 2 |
 | V16 | A Corp click spent advancing (what it could have built) | `AGENDA_CLICK` | 0 | n/a | 1 |
 | V17 | Digging for an answer (a draw's extra worth) | `digValue` | 1 (`needsBiggerHand`'s 1.5) | 0 | 2 |
@@ -134,7 +134,7 @@ How it is checked:
 | V19 | A hand slot lost to core damage | `coreSlotWorth` (`coreDamageWorth` for one more) | 0 | n/a | 3 |
 | V20 | The Corp's damage threat (biggest hit, share of damage cards) | `damageThreat` | 0 (`cardDamage` and `ownTurnDamage` are its two readings, by `plan.corpTurnDamageOwn`) | n/a | 2 |
 | V21 | A point on the clock | `pointValue`, `pointGain` | 0 (`pointsTerm` reads it) | n/a | ~55 |
-| V22 | Icebreaker coverage in the rig (an ice type broken) | `breakerTypeWorth` | 0 | n/a | 1 |
+| V22 | Icebreaker coverage in the rig (an ice type broken) | `breakerTypeWorth` | 1 | 1 | 1 |
 | V23 | An agenda lost to Archives | `archivedAgendaLoss` | 0 | n/a | 5 |
 | V24 | A memory unit | `muWorth` | 0 | n/a | 14 in cards |
 | V25 | An advancement counter on ice | `iceAdvanceWorth` | 0 | n/a | 1 |
@@ -152,7 +152,7 @@ Counts at the branch head (scripts/value-owners/counts.mjs): see "Counts" at the
 - **Copies (all the flat `CLICK`):**
   - `playedWorth` (`src/ai/handValues.ts:30`) charges `CLICK` once per card it prices (every branch but an event's or operation's), and `keepValue` (`src/ai/evaluate.ts:517`) adds it back. Asks counted (the `playedWorth` hook). Comparable: `CLICK` against `clickPrice(state, card's side, deciding side)` on the same board.
   - `payoutClick` (`src/ai/valueModel.ts:76`): the click a payout takes, inside `payoutWorth`. Asks counted. Comparable only through the constant: `payoutWorth` has no board, so the log compares `CLICK` with the owner's distribution on the boards where the payout's card is priced.
-  - `clickRate` (`src/ai/valueModel.ts:75`): read by `runClick` (`src/ai/runs.ts:200`) when no state is given, and by card formulas. Asks counted. Comparable as `payoutClick`.
+  - `clickRate` (`src/ai/valueModel.ts:75`): read by `runClick` (`src/ai/runs.ts:200`) when no state is given, and by three run-model sites that do not ask the owner: a "lose a click" subroutine (`src/ai/runs.ts:116`), `trashedCardCost` (`src/ai/runs.ts:212`) and `stealTax` (`src/ai/runs.ts:776`, which has a state). No card formula reads it (recount 2026-11-17, VB-CLICKRATE-LABEL). Asks counted. Comparable as `payoutClick`.
   - 40 more raw `CLICK` reads in src/ai outside cards/ and 36 in cards/ (the tag clear `CLICK + 2`, `damageWorth`'s draw-back, `vicTagsWorth`, Syailendra's step, formulas): each a click priced at the flat rate. Counted, not listed one by one; V-B decides which are "a click" and which are the rules' cost of an action.
 - **Not a copy:** `AGENDA_CLICK` is V16 (a different quantity: what an advancing click could have built).
 - **Readers:** `clickPrice` (`src/ai/evaluate.ts:461`), `clickPrice` (`src/ai/runs.ts:200`).
@@ -169,7 +169,7 @@ Counts at the branch head (scripts/value-owners/counts.mjs): see "Counts" at the
   - Grip only: `digValue` (`src/ai/evaluate.ts:54`) on a draw is V17 (not comparable: a draw's extra, not a card held).
 - **Counts:** HQ 5 prices (the owner, `handValue`, `keepValue`, `hqTrashCardsLoss`, `scoreOutcome`), grip 6 (the owner, `handValue`, `keepValue`, `scoreOutcome`, `lifeCards`, `digValue`; the audit's 7 counted `hqTrashCardsLoss`, which prices HQ cards only). The rows "A card held in HQ" (Corp table) and "A card in the grip" (Runner table) above point here.
 - **Readers:** `ownHandValue` (`src/ai/evaluate.ts:458`); `heldWorth` (`src/ai/evaluate.ts:138`) (hosted cards on Bling and Madani), `heldWorth` (`src/ai/handValues.ts:185`) (the deck average). The flat: `handValue` (`src/ai/evaluate.ts:459`), `handValue` (`src/ai/corp/candidates.ts:185`).
-- **Caches, context:** none of its own; an unseen card reads V4's caches. Context: `pricing().known` (which cards the decider has seen), `leaves` (the by-card switch), `plan.oracle.rd` (`corpKnowsRd`), `averaging` (no card plans inside the deck average). An icebreaker's played worth (`playedWorth`, `src/ai/handValues.ts:66`) is the rig with it less the rig without it (`runnerRigValue`), except under `averaging` or while another breaker is priced that way: then the rule-based worth (its type's `breakerTypeWorth`, V22; the deal 3061 depth guard). That guard is the context's `pricingBreaker`, set with `withPricing` and in `pricingKey` while `averaging` is off (ai-breaker-guard-key: before, a Set outside the key, so a memoised value crossed it, 4.8 million crossing reads and one different value in phase 1, audit-fixes/breaker-guard-key/results.md); the deck averages' keys leave it out (`deckPricingKey`: their values are worked out under `averaging`, where the guard is never read). The other guard Set, `rezzingToUse` (`src/ai/corp/rez.ts:355`), stays a Set outside the key: it is read only by `rezAllowed`, reached from `corpCandidates`' rez case and never under a keyed value (red team finding 7).
+- **Caches, context:** none of its own; an unseen card reads V4's caches. Context: `pricing().known` (which cards the decider has seen), `leaves` (the by-card switch), `plan.oracle.rd` (`corpKnowsRd`), `averaging` (no card plans inside the deck average). An icebreaker's played worth (`playedWorth`, `src/ai/handValues.ts:66`) is the rig with it less the rig without it (`runnerRigValue`), except under `averaging` or while another breaker is priced that way: then the rule-based worth (the deal 3061 depth guard): its type's `breakerTypeWorth` (V22) only for a typed breaker whose type is not yet covered; an AI breaker reads the flat `RATES.anyBreaker + 4` and a covered type a flat 1 (`src/ai/handValues.ts:76`; V22's copy, recount 2026-11-17). That guard is the context's `pricingBreaker`, set with `withPricing` and in `pricingKey` while `averaging` is off (ai-breaker-guard-key: before, a Set outside the key, so a memoised value crossed it, 4.8 million crossing reads and one different value in phase 1, audit-fixes/breaker-guard-key/results.md); the deck averages' keys leave it out (`deckPricingKey`: their values are worked out under `averaging`, where the guard is never read). The other guard Set, `rezzingToUse` (`src/ai/corp/rez.ts:355`), stays a Set outside the key: it is read only by `rezAllowed`, reached from `corpCandidates`' rez case and never under a keyed value (red team finding 7).
 - **Known debt (Jeff 2026-11-16 14:28Z):** the hand's two prices, the flat count (`handValue`) and the by-card price (`plan.handByCard`, the planner leaf's `leafHandByCard`). B4, after B6: a Myōshu pin through the deciding agent and a fire count by held card plan first; what Myōshu or Spin Doctor alone reads stays until they are tied to other values, the rest is deleted as ruled; neither price is redirected to the other. Findings and rulings: `/mnt/project-files/adversarial/2026-11-16-value-deletions/findings.md`.
 
 ### V4. A card drawn from a deck
@@ -272,7 +272,7 @@ Counts at the branch head (scripts/value-owners/counts.mjs): see "Counts" at the
 
 ### V21 to V25 (rows the V-A recount found missing, added in V-B B1; ruling 12)
 - **V21, a point on the clock:** `pointValue` (`src/ai/valueModel.ts:109`) (the sum of the point steps while `plan.pointClock` is on, else `RATES.point` 8 a point) and `pointGain` (`src/ai/valueModel.ts:192`) (more points on a score, fractional for decklist averages). About 40 and 15 call sites; every game end (V13), agenda (V6) and Archives loss (V23) reads them. Copies: none. `pointsTerm` (`src/ai/valueModel.ts:208`) restates sideStrength's points term by construction (for the sampled game end) and reads `pointValue`: a reader of the owner, not a second price of a point (labelled, not counted).
-- **V22, icebreaker coverage in the rig:** `breakerTypeWorth` (`src/ai/iceValues.ts:278`): 3 x the ice stop x the odds of meeting the type x the clock; read in runnerRigValue, `breakerTypeWorth` (`src/ai/evaluate.ts:114`) with `AI_BREAKER_SHARE` for an AI breaker. Copies: none (V15 leaves icebreakers out; plan.flatRates.breakers took the flat extra away).
+- **V22, icebreaker coverage in the rig:** `breakerTypeWorth` (`src/ai/iceValues.ts:278`): 3 x the ice stop x the odds of meeting the type x the clock; read in runnerRigValue, `breakerTypeWorth` (`src/ai/evaluate.ts:114`) with `AI_BREAKER_SHARE` for an AI breaker. Copies: 1 (recount 2026-11-17, VB-V22-BREAKER-FLATS): the hand's guard path prices an AI breaker at `RATES.anyBreaker + 4` and a breaker of a covered type at a flat 1 (`src/ai/handValues.ts:76`), where the rig reads `AI_BREAKER_SHARE` x the uncovered types and 0; the deck average prices every Runner breaker that way. For the Runner rework. (V15 leaves icebreakers out; plan.flatRates.breakers took the flat extra away.)
 - **V23, an agenda lost to Archives:** `archivedAgendaLoss` (`src/ai/evaluate.ts:298`): the Runner's point gain by the odds of an Archives breach on one of the turns left (`PACE.facedownBreach`). Readers: keepValue's `archivedAgendaLoss` (`src/ai/evaluate.ts:520`), archivedAgendasValue's `archivedAgendaLoss` (`src/ai/evaluate.ts:298`), Spin Doctor's `spent` `archivedAgendaLoss` (`src/ai/cards/systemGateway.ts:369`) (Archives' facedown cards), serverStake's Archives branch `archivedAgendaLoss` (`src/ai/iceValues.ts:125`). Copies: none.
 - **V24, a memory unit:** `muWorth` (`src/ai/effectValues.ts:102`): `MU`, doubled while the programs installed and seen in the grip need more than the base 4. Readers: 14 Runner formulas in cards/ (some scaled, `2 * muWorth * 0.6`, `-0.3 * muWorth`: a card's own share, read through the owner). Copies: none.
 - **V25, an advancement counter on ice:** `iceAdvanceWorth` (`src/ai/effectValues.ts:543`): what the Runner pays more to get past the ice at three counters, a third a counter; Syailendra's entry (`advanceCounter` (`src/ai/cards/elevation.ts:541`), V-B B6) prices its counter placement through `perTurn` (V10's copy) and the flat `CLICK` (V2). Readers: `iceAdvanceWorth` (`src/ai/corp/cardRules.ts:49`). Copies: none.
@@ -285,7 +285,7 @@ V-B B1 re-baseline (recount VA-COPY-COUNT-BASELINE, ruling 13): the count is the
 |---|---|---|---|---|---|
 | V2 | the flat `CLICK` in played worth | `playedWorth` (`src/ai/handValues.ts:31`) | live | loop guard: clickWorth > playedWorth > click (ruling 10) | B5, label only |
 | V2 | the click a payout takes | `payoutClick` (`src/ai/valueModel.ts:76`) | live | loop guard: V10 > click > playedWorth > V10 (ruling 10) | B5, label only |
-| V2 | the stateless click rate | `clickRate` (`src/ai/valueModel.ts:75`) | live | loop guard, as payoutClick (ruling 10) | B5, label only |
+| V2 | the stateless click rate | `clickRate` (`src/ai/valueModel.ts:75`) | live | `runClick`'s no-state path is a loop guard as payoutClick (ruling 10); its three run-model readers (`src/ai/runs.ts:116`, `src/ai/runs.ts:215`, `src/ai/runs.ts:784`) are Runner-model copies, not a loop guard (recount 2026-11-17, VB-CLICKRATE-LABEL) | Runner rework |
 | V3 | HQ: the flat count | `handValue` (`src/ai/evaluate.ts:35`) | live | the other side's hidden HQ: not the same quantity (ruling 8); own HQ: the candidate owner of a hand (addendum to ruling 7) | B4 (after B6) |
 | V3 | HQ: a card kept against a discard | `keepValue` (`src/ai/evaluate.ts:517`) | live | labels file | B4 (after B6) |
 | V3 | HQ: cards a resource trash costs | `hqTrashCardsLoss` (`src/ai/evaluate.ts:469`) | live | labels file | B4 (after B6) |
@@ -298,7 +298,7 @@ V-B B1 re-baseline (recount VA-COPY-COUNT-BASELINE, ruling 13): the count is the
 | V4 | 0.5 a card a card draws | `drawBonus` (`src/ai/cardValues.ts:31`) | live | loop guard at all three sites (ruling 16) | none |
 | V4 | Jailbreak's drawn card | `RATES.drawnCard` (`src/ai/runnerAI.ts:318`) | live | recorded for the Runner cleanup (ruling 12) | Runner cleanup |
 | V5 | the ice loop fallback | `flatIceWorth` (`src/ai/iceValues.ts:237`) | live | loop guard (brief B6) | none |
-| V5 | Ingatan's ice in Archives | `RATES.ice` (`src/ai/cards/elevation.ts:61`) | live | not the same quantity: an ice in Archives has no instance the owner can price (ruling 17's default; B6 labels file) | none |
+| V5 | Ingatan's ice in Archives | `RATES.ice` (`src/ai/cards/elevation.ts:61`) | live | owner is right (recount 2026-11-17, VB-INGATAN-LABEL): the owner already prices an ice in no server (`src/ai/handValues.ts:56`, `protects`' not-installed branch), so the earlier "not the same quantity" label was wrong | V-C or tuning (a Corp card formula; not redirected in V-B) |
 | V7 | the flat 3 a tag inside the owner (tag clock and loop) | `tagsWorth flat` (`src/ai/evaluate.ts:370`) | live | loop guard (ruling 10) | B5, label only |
 | V7 | Solidarity Badge's tag removed | `RATES.tagAgainstRunner * 0.5` (`src/ai/cards/liberation.ts:40`) | live | owner is right (ruling 10) | B5 |
 | V7 | Eru Ayase-Pessoa's flat tag | `RATES.tagAgainstRunner` (`src/ai/cards/liberation.ts:64`) | live | owner is right (ruling 10) | B5 |
@@ -307,6 +307,7 @@ V-B B1 re-baseline (recount VA-COPY-COUNT-BASELINE, ruling 13): the count is the
 | V7 | Friend of a Friend's flat tag | `RATES.tagAgainstRunner` (`src/ai/cards/liberation.ts:453`) | live | owner is right (ruling 10) | B5 |
 | V7 | Borrowed Goods' flat tag | `RATES.tagAgainstRunner` (`src/ai/cards/vantagePoint.ts:116`) | live | owner is right (ruling 10) | B5 |
 | V9 | a counter on a card not on the board | `counterWorthOf` (`src/ai/effectValues.ts:507`) | live | not the same quantity unless an honest instance is shown (ruling 17); one default for an unlisted counter (B6) | B6 |
+| V9 | Cookbook's virus counters at the flat default | `RATES.counters.virus` (`src/ai/cards/systemGateway.ts:117`) | live | found by the recount of 2026-11-17 (VB-V9-COOKBOOK): every virus program in grip and stack at the owner's default, though some have their own counter entry; should sum `counterWorthOf` | Runner rework |
 | V10 | x a turn at the 0.06 guess | `perTurn` (`src/ai/effectValues.ts:113`) | live | owner has a bug for Corp assets (ruled correction, ruling 5): done in B3, the 18 asset formulas pass their context's `risk` (`assetRisk`, bare before install); the upgrades and other Corp cards keep 0.06 until V-C, so the line stays live | B3 (assets, done); V-C (the rest) |
 | V10 | hosted credits paid out (Nico Campaign, Otto Campaign, Anthill Excavation Contract) | `paidOut` (`src/ai/counterValues.ts:34`) | reader | was `1 - 2 * corpBare` (red team 5 and 12); since B3 reads `assetRisk` where the card sits, floored at 0 (a domain bound) | B3, done |
 | V11 | the stateless board-card fallback | `corpCardValue flat (loop)` (`src/ai/evaluate.ts:149`) | live | loop guard | none |
@@ -314,9 +315,10 @@ V-B B1 re-baseline (recount VA-COPY-COUNT-BASELINE, ruling 13): the count is the
 | V12 | an upgrade by kind of server | `upgradeValue` (`src/ai/cardValues.ts:47`) | live | not the same quantity (ruling 15) | none |
 | V12 | the worth once rezzed less the cost | `rezzedWorth` (`src/ai/effectValues.ts:523`) | live | generic branch: owner is right already; the two instance rules: not the same quantity (ruling 4) | none |
 | V12 | the stateless CARD_VALUES keep | `corpKeepValue(card.cardCode))` (`src/ai/iceValues.ts:133`) | live | loop guard; its two no-state readers: `serverStake` (cuts the stake > keep > stake loop, on purpose) and the V11 loop flat (`corpCardValue flat (loop)`, the board card's fallback inside a loop) | B2 (list), done |
-| V14 | hosted credits with no state | `RATES.counters.hostedCredit` (`src/ai/evaluate.ts:161`) | live | no-state path: with a state the owner (`countersWorth`) is read, without one there is nothing to read it with (B6 labels file) | none |
+| V14 | hosted credits with no state | `RATES.counters.hostedCredit` (`src/ai/evaluate.ts:161`) | dead | unreachable (recount 2026-11-17, VB-V14-NOSTATE-DEAD): every caller of `corpCardValue` passes a state; delete the branch and make `state` required at the next valuation commit | next valuation commit |
 | V15 | the flat rig worth | `runnerCardValue flat` (`src/ai/cardValues.ts:52`) | live | loop guard and no-formula path (B6 labels file) | none |
 | V15 | a profiled rig card by its payouts | `payoutWorth` (`src/ai/evaluate.ts:128`) | live | dropped from B6 (ruling 22:32Z): Runner-side ground (Jeff 19:51Z); routed through the owner it moved tests/tagFirst's Side Hustle trash via the tag clock (Telework Contract and Open Market have no runner formula, so they fall to their flat rig worth); patch kept | Runner rework |
+| V22 | an icebreaker's rule-based worth in the hand | `playedWorth`'s guard path (`src/ai/handValues.ts:76`) | live | found by the recount of 2026-11-17 (VB-V22-BREAKER-FLATS): an AI breaker at `RATES.anyBreaker + 4`, a covered type at a flat 1; only an uncovered typed breaker reads the owner | Runner rework |
 | V1 | the flat credit | `creditValue` | gone | deleted in V-B B6 (Jeff's yes, dead list) | done (B6) |
 | V1 | run credits at face value | `runCreditsSlide` (`src/ai/runs.ts:1168`) | recorded | recorded for the Runner cleanup; not ruled a copy (ruling 12) | Runner cleanup |
 | V3 | grip: digging for an answer | `digValue` (`src/ai/evaluate.ts:54`) | not comparable | V17's owner (a draw's extra) | none |
@@ -371,12 +373,12 @@ From `node scripts/value-owners/counts.mjs` (re-run it to recount; the copy coun
 |---|--:|
 | hand-set literals in the valuation layer (val-lits.mjs: table + scattered) | 1103 (959 + 144) |
 | quantities with one named owner (V1 to V25) | 25 |
-| live copies, all quantities (the live lines of "Copy lines") | 32 |
-| other copy lines, by kind (not counted) | reader 2, gone 4, recorded 1, not comparable 6, inside owner 2 |
+| live copies, all quantities (the live lines of "Copy lines") | 33 |
+| other copy lines, by kind (not counted) | reader 2, gone 4, dead 1, recorded 1, not comparable 6, inside owner 2 |
 | valuation exports with no reader (allow-list) | 6 |
 | lines of src/ai | 13628 |
 
-Live copies per quantity: V1 0, V2 3, V3 8, V4 3, V5 2, V6 0, V7 7, V8 0, V9 1, V10 1, V11 1, V12 3, V13 0, V14 1, V15 2, V16 0, V17 0, V18 0, V19 0, V20 0, V21 0, V22 0, V23 0, V24 0, V25 0.
+Live copies per quantity: V1 0, V2 3, V3 8, V4 3, V5 2, V6 0, V7 7, V8 0, V9 2, V10 1, V11 1, V12 3, V13 0, V14 0, V15 2, V16 0, V17 0, V18 0, V19 0, V20 0, V21 0, V22 1, V23 0, V24 0, V25 0.
 <!-- valuation:end -->
 
 ## Hidden information (rule 10.2.2a)
