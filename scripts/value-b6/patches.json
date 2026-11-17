@@ -56,8 +56,8 @@
  "spinDoctor": [
   [
    "ai/evaluate.ts",
-   "  const spent = state && card.isRezzed ? CARDS[card.cardCode]?.spent : undefined;\n  if (spent) return spent(state!, viewer); // a rezzed card whose rez effect is done (Spin Doctor), as `viewer` knows it (V-B B6)",
-   "  const spent = state && viewer === 'runner' && card.isRezzed ? CARDS[card.cardCode]?.spent : undefined;\n  if (spent) return spent(state!, viewer);"
+   "  const spent = state && card.isRezzed ? CARDS[card.cardCode]?.spent : undefined;\n  if (spent) return spent(state!, viewer, card); // a rezzed card whose rez effect is done (Spin Doctor), as `viewer` knows it (V-B B6)",
+   "  const spent = state && viewer === 'runner' && card.isRezzed ? CARDS[card.cardCode]?.spent : undefined;\n  if (spent) return spent(state!, viewer, card);"
   ]
  ],
  "agendaStep": [

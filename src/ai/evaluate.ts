@@ -152,7 +152,7 @@ export function corpCardValue(card: CardInstance, state?: GameState, viewer: Sid
 
 function corpCardWorth(card: CardInstance, state: GameState | undefined, viewer: SideCode, left = false): number {
   const spent = state && card.isRezzed ? CARDS[card.cardCode]?.spent : undefined;
-  if (spent) return spent(state!, viewer); // a rezzed card whose rez effect is done (Spin Doctor), as `viewer` knows it (V-B B6)
+  if (spent) return spent(state!, viewer, card); // a rezzed card whose rez effect is done (Spin Doctor), as `viewer` knows it (V-B B6)
   const hosted = counters(card, 'credit');
   const power = state && card.isRezzed ? countersWorth(state, card, 'power') : 0;
   const profile = state ? profileOf(card.cardCode) : undefined;

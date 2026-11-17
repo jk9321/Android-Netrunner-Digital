@@ -273,7 +273,7 @@ Counts at the branch head (scripts/value-owners/counts.mjs): see "Counts" at the
 ### V21 to V25 (rows the V-A recount found missing, added in V-B B1; ruling 12)
 - **V21, a point on the clock:** `pointValue` (`src/ai/valueModel.ts:109`) (the sum of the point steps while `plan.pointClock` is on, else `RATES.point` 8 a point) and `pointGain` (`src/ai/valueModel.ts:192`) (more points on a score, fractional for decklist averages). About 40 and 15 call sites; every game end (V13), agenda (V6) and Archives loss (V23) reads them. Copies: none. `pointsTerm` (`src/ai/valueModel.ts:208`) restates sideStrength's points term by construction (for the sampled game end) and reads `pointValue`: a reader of the owner, not a second price of a point (labelled, not counted).
 - **V22, icebreaker coverage in the rig:** `breakerTypeWorth` (`src/ai/iceValues.ts:278`): 3 x the ice stop x the odds of meeting the type x the clock; read in runnerRigValue, `breakerTypeWorth` (`src/ai/evaluate.ts:114`) with `AI_BREAKER_SHARE` for an AI breaker. Copies: none (V15 leaves icebreakers out; plan.flatRates.breakers took the flat extra away).
-- **V23, an agenda lost to Archives:** `archivedAgendaLoss` (`src/ai/evaluate.ts:298`): the Runner's point gain by the odds of an Archives breach on one of the turns left (`PACE.facedownBreach`). Readers: keepValue's `archivedAgendaLoss` (`src/ai/evaluate.ts:520`), archivedAgendasValue's `archivedAgendaLoss` (`src/ai/evaluate.ts:298`), Spin Doctor's `spent` `archivedAgendaLoss` (`src/ai/cards/systemGateway.ts:365`) (Archives' facedown cards), serverStake's Archives branch `archivedAgendaLoss` (`src/ai/iceValues.ts:125`). Copies: none.
+- **V23, an agenda lost to Archives:** `archivedAgendaLoss` (`src/ai/evaluate.ts:298`): the Runner's point gain by the odds of an Archives breach on one of the turns left (`PACE.facedownBreach`). Readers: keepValue's `archivedAgendaLoss` (`src/ai/evaluate.ts:520`), archivedAgendasValue's `archivedAgendaLoss` (`src/ai/evaluate.ts:298`), Spin Doctor's `spent` `archivedAgendaLoss` (`src/ai/cards/systemGateway.ts:366`) (Archives' facedown cards), serverStake's Archives branch `archivedAgendaLoss` (`src/ai/iceValues.ts:125`). Copies: none.
 - **V24, a memory unit:** `muWorth` (`src/ai/effectValues.ts:102`): `MU`, doubled while the programs installed and seen in the grip need more than the base 4. Readers: 14 Runner formulas in cards/ (some scaled, `2 * muWorth * 0.6`, `-0.3 * muWorth`: a card's own share, read through the owner). Copies: none.
 - **V25, an advancement counter on ice:** `iceAdvanceWorth` (`src/ai/effectValues.ts:543`): what the Runner pays more to get past the ice at three counters, a third a counter; Syailendra's entry (`advanceCounter` (`src/ai/cards/elevation.ts:541`), V-B B6) prices its counter placement through `perTurn` (V10's copy) and the flat `CLICK` (V2). Readers: `iceAdvanceWorth` (`src/ai/corp/cardRules.ts:49`). Copies: none.
 
@@ -369,12 +369,12 @@ From `node scripts/value-owners/counts.mjs` (re-run it to recount; the copy coun
 
 | count | value |
 |---|--:|
-| hand-set literals in the valuation layer (val-lits.mjs: table + scattered) | 1102 (958 + 144) |
+| hand-set literals in the valuation layer (val-lits.mjs: table + scattered) | 1103 (959 + 144) |
 | quantities with one named owner (V1 to V25) | 25 |
 | live copies, all quantities (the live lines of "Copy lines") | 32 |
 | other copy lines, by kind (not counted) | reader 2, gone 4, recorded 1, not comparable 6, inside owner 2 |
 | valuation exports with no reader (allow-list) | 6 |
-| lines of src/ai | 13623 |
+| lines of src/ai | 13625 |
 
 Live copies per quantity: V1 0, V2 3, V3 8, V4 3, V5 2, V6 0, V7 7, V8 0, V9 1, V10 1, V11 1, V12 3, V13 0, V14 1, V15 2, V16 0, V17 0, V18 0, V19 0, V20 0, V21 0, V22 0, V23 0, V24 0, V25 0.
 <!-- valuation:end -->

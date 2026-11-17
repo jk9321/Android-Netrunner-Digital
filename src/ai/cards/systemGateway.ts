@@ -1,7 +1,7 @@
 import { cardDef, CardInstance, GameState } from '../../core';
 import { counters, rezCost } from '../../core/engine/cardEffects';
 import { boostCostOf, breakerScript, isIcebreaker } from '../../core/engine/ice';
-import { turnsLeft } from '../cardProfiles';
+import { assetRisk, inIcedServer, turnsLeft } from '../cardProfiles';
 import { PAYOUT_RISK } from '../payoutRisk';
 import { counterWorth, PAID_OUT, paidOneATurn, paidOut, trojanHostWorth } from '../counterValues';
 import { cardRate, CLICK, payoutClick, payoutSlide, RATES } from '../valueModel';
@@ -357,8 +357,9 @@ export const SYSTEM_GATEWAY: Record<string, CardAI> = {
     // plan.spentSpinDoctor (bug report #5, Jeff 2026-11-02): rezzed, its 2 cards are drawn (in HQ, priced there); all it
     // can still do is shuffle up to 2 Archives cards back into R&D: a faceup card a slightly better R&D, a facedown one
     // maybe an agenda the Runner would steal from Archives. With Archives empty it is worth next to nothing. The Corp
-    // knows its own Archives cards (an agenda by its points), except one drawn and discarded in a look-ahead: by the odds
-    spent: (state, viewer) => {
+    // knows its own Archives cards (an agenda by its points), except one drawn and discarded in a look-ahead: by the odds;
+    // and, as every asset since V-B B3, the option at one turn's measured risk where it sits (assetRisk)
+    spent: (state, viewer, spin) => {
       const { agenda, agendaPoints } = hiddenCardOdds(state);
       const { faceUp, faceDown } = state.corp.archives;
       const seen = pricing().known.corp;
@@ -368,7 +369,8 @@ export const SYSTEM_GATEWAY: Record<string, CardAI> = {
         ...faceUp.map(c => (viewer === 'runner' ? 0.3 * cardRate(state, 'corp') : known(c))),
         ...faceDown.map(c => (viewer === 'runner' || (seen && !seen.has(c.instanceId) && !corpKnowsRd()) ? odds() : known(c))),
       ].sort((a, b) => b - a);
-      return 0.3 + (worth[0] ?? 0) + (worth[1] ?? 0);
+      if (viewer === 'runner') return 0.3 + (worth[0] ?? 0) + (worth[1] ?? 0);
+      return 0.3 + (1 - assetRisk(state, inIcedServer(state, spin))) * ((worth[0] ?? 0) + (worth[1] ?? 0));
     },
   },
   // Funhouse
