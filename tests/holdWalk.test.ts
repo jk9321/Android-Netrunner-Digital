@@ -17,7 +17,7 @@ import { decisionContext } from '../src/ai/handValues';
 const C = {
   BRAN: '30039', ANSEL: '30038', PALISADE: '30072', CLEAVER: '30006', PHAROS: '30063', FLY: '35079', AUDREY: '34004',
   BOTULUS: '30004', TRANQ: '30017', LAMP: '35080', KARUNA: '30047', GRUBBER: '36050', PAYWALL: '36052', WHITESPACE: '30074',
-  UNITY: '30026', VALENTAO: '34060', PING: '30055', FUNHOUSE: '30054', MAYFLY: '30032', HANTU: '35008',
+  UNITY: '30026', VALENTAO: '34060', PING: '30055', FUNHOUSE: '30054', MAYFLY: '30032', HANTU: '35008', VERBAL: '30034', LYCIAN: '34100', CARMEN: '30015',
 };
 
 /** A Corp turn-7 board with an empty rig and HQ, the Runner at $0 and 4 clicks, the Corp at $20. */
@@ -226,6 +226,48 @@ describe('hold walk, commit 2: tags and grip move through the turn (runnerTurn)'
     expect(agrees(s).holds).toBe(true);
   });
 
+  // Found in the oracle comparison (deal 1041 T10, walk-measurements.md section 9): Verbal Plasticity, "The first time
+  // each turn you take the basic action to draw 1 card, instead draw 2 cards" (the engine's firstBasicDraw)
+  it('G3 mirror with Verbal Plasticity: grip 4, the first draw gives 2, 4 + 4 = 8 survives 8 (10.4.4, 5.2.7c): gets in', () => {
+    const s = board(st => {
+      ice(st, C.KARUNA);
+      ice(st, C.KARUNA);
+      st.runner.grip = st.runner.grip.slice(0, 4);
+      const vp = createCardInstance(st, C.VERBAL);
+      vp.isRezzed = true;
+      st.runner.rig.resources.push(vp);
+    });
+    expect(agrees(s).holds).toBe(false);
+    expect(oracleOn(s, [])).toBe('getsIn');
+  });
+
+  // Found in the oracle comparison (human games 18, 36, 49; walk-measurements.md section 9): Lycian Multi-Munition, "When
+  // you rez this ice, choose 1 or more subtypes among barrier, code gate, and sentry"; its subroutines work only for
+  // the subtypes it has. The Corp chooses as it rezzes (ruling 6: the walk takes the choice that keeps the Runner out)
+  it('R Lycian unrezzed, Carmen and Unity (no fracter), $10: holds for its rez (the Corp makes it a barrier)', () => {
+    const s = board(st => {
+      ice(st, C.LYCIAN, false);
+      installProgramForTest(st, C.CARMEN);
+      installProgramForTest(st, C.UNITY);
+      st.runner.credits = 10;
+    });
+    const h = agrees(s);
+    expect(h.holds).toBe(true);
+    expect(h.rez).toEqual([s.corp.servers.remote1.ice[0].instanceId]);
+  });
+
+  it('R Lycian mirror: Cleaver as well, the Runner breaks whatever the Corp chooses: gets in', () => {
+    const s = board(st => {
+      ice(st, C.LYCIAN, false);
+      installProgramForTest(st, C.CARMEN);
+      installProgramForTest(st, C.UNITY);
+      installProgramForTest(st, C.CLEAVER);
+      st.runner.credits = 10;
+    });
+    expect(agrees(s).holds).toBe(false);
+    expect(oracleOn(s, [s.corp.servers.remote1.ice[0].instanceId])).toBe('getsIn');
+  });
+
   it('R1 unrezzed Ping outside Lamplighter, Cleaver, $10, no killer: holds for a rez of Ping (its rez tags the Runner)', () => {
     const s = board(st => { ice(st, C.LAMP); ice(st, C.PING, false); installProgramForTest(st, C.CLEAVER); st.runner.credits = 10; });
     const h = agrees(s);
@@ -428,7 +470,6 @@ describe('hold walk: not modelled yet (cards outside the batch pool)', () => {
   it.todo('Capacitor: +2 strength while the Runner is tagged (a tag on the way raises the break price)');
   it.todo('Phoneutria and Virtual Service Agent: a tag when the Runner passes the ice');
   it.todo('Cloud Eater');
-  it.todo("Lycian Multi-Munition's chosen subtypes (its turn-end derez is modelled)");
   it.todo("Logjam's counters placed on rez");
   it.todo('Hammer and Sorocaban Blade: a subroutine that trashes the breaker needed further in (today: not modelled, errs toward "does not hold")');
   it.todo("Thunderbolt Armaments' +1 strength on the ice it rezzes during a run (its gained subroutine is modelled)");

@@ -631,7 +631,16 @@ export const LIBERATION: Record<string, CardAI> = {
   },
   // Lycian Multi-Munition
   // "When a turn ends, derez this ice" (its subtypes, chosen when rezzed, are a todo of the hold walk)
-  '34100': { synergy: { gives: { ice: 1 } }, rezEffect: true, holdFacts: { turnEndDerezSelf: true } },
+  '34100': {
+    synergy: { gives: { ice: 1 } },
+    rezEffect: true,
+    // "When you rez this ice, choose 1 or more subtypes among barrier, code gate, and sentry. This ice gains the chosen
+    // subtypes while it remains rezzed. When a turn ends, derez this ice." (the engine's LYCIAN_CHOICES)
+    holdFacts: {
+      turnEndDerezSelf: true,
+      rezChoosesSubtypes: [['barrier'], ['code gate'], ['sentry'], ['barrier', 'code gate'], ['barrier', 'sentry'], ['code gate', 'sentry'], ['barrier', 'code gate', 'sentry']],
+    },
+  },
   // Sorocaban Blade
   '34101': { synergy: { gives: { ice: 1 } } },
   // Active Policing

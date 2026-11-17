@@ -34,6 +34,12 @@ export interface HoldFacts {
   /** When a turn ends: this ice derezzes itself (Lycian Multi-Munition). */
   turnEndDerezSelf?: true;
   /**
+   * When the Corp rezzes this ice it chooses the subtypes the ice gains while it stays rezzed, one of these sets
+   * (Lycian Multi-Munition: "choose 1 or more subtypes among barrier, code gate, and sentry"). The walk takes the
+   * choice that keeps the Runner out (ruling 6).
+   */
+  rezChoosesSubtypes?: string[][];
+  /**
    * When the Corp rezzes this ice during a run against its server (Flyswatter, Ping, Bumi 1.0), or, on an identity, any
    * ice of these subtypes during a run (Thunderbolt Armaments): what follows. A choice the Corp makes ("you may trash 1
    * installed trojan") is the Corp's: the walk takes the answer that keeps the Runner out (ruling 6).

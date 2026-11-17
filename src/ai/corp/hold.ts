@@ -196,6 +196,8 @@ export interface WalkIce {
   broken?: boolean[];
   /** The subroutine it gains after its others when the Corp rezzes it during a run (Thunderbolt Armaments, 9.8.3e; its +1 strength is not carried). */
   rezGains?: SubFacts;
+  /** Unrezzed at the walk's start, and the Corp chooses its subtypes when it rezzes it (holdFacts.rezChoosesSubtypes, Lycian): the sets it may choose. `types` is then without a choice. */
+  choices?: string[][];
 }
 
 /** One run of the walk's turn: its server and its ice, innermost first (as the server lists them). */
@@ -242,12 +244,14 @@ export interface WalkBoard {
   grip: number;
   rig: RigFacts[];
   lenders: Lender[];
-  /** `${ice id}|${subroutines to break}|${granters gone}`. */
+  /** `${ice id}|${subroutines to break}|${granters gone}|${the Corp's choice of subtypes at rez, by index, or ''}`. */
   plans: Record<string, WalkPlan[]>;
-  /** `${ice id}|${granters gone}` (some gone). */
+  /** `${ice id}|${granters gone}|${choice}` (some gone, or a choice made). */
   types: Record<string, string[]>;
   /** plan.bypass: the Runner's own bypasses (Physarum Entangler) are tried. */
   bypass: boolean;
+  /** The cards the turn's first basic draw gives (Verbal Plasticity: "The first time each turn you take the basic action to draw 1 card, instead draw 2 cards"; the engine's firstBasicDraw); 1 without one. */
+  firstDraw: number;
 }
 
 /** The state the walk carries (brief 5.1), but the Runner's pool: the walk works out the least pool a way needs. */
@@ -256,6 +260,10 @@ export interface WalkState {
   tags: number;
   grip: number;
   stack: number;
+  /** The turn's first basic draw is taken (WalkBoard.firstDraw). */
+  drew: boolean;
+  /** The Corp's subtype choices for ice rezzed during the walk (`${ice id}:${index into choices}`, sorted; Lycian). */
+  chose: string[];
   corp: number;
   /** Credits the Runner can spend only during this run (the bad publicity fund, filled at each run's start, 10.6.3a-b; Overclock's). */
   fund: number;
@@ -330,7 +338,10 @@ export function walkIce(state: GameState, start: WalkStart, ice: CardInstance[])
   // The Corp's identity: what ice of some subtypes gains when it is rezzed during a run (Thunderbolt Armaments)
   const anyIce = CARDS[state.corp.identity?.cardCode]?.holdFacts?.rezDuringRun?.anyIce;
   return ice.map(c => {
-    const up = c.isRezzed ? c : { ...c, isRezzed: true };
+    const rezzed = c.isRezzed && !start.derezzed.has(c.instanceId);
+    const choices = rezzed ? undefined : CARDS[c.cardCode]?.holdFacts?.rezChoosesSubtypes;
+    // An ice whose subtypes the Corp chooses at its rez is met without an earlier choice (the derez clears it)
+    const up = choices ? { ...c, isRezzed: true, chosenSubtypes: undefined } : c.isRezzed ? c : { ...c, isRezzed: true };
     const view = withIce(state, up);
     const hostedHere = (f: (x: CardInstance) => boolean) => start.rig.flatMap((r, i) => (r.hostedOnId === c.instanceId && f(r) ? [i] : []));
     const bypassers = hostedHere(r => !!CARDS[r.cardCode]?.holdFacts?.hostBypass).map(i => {
@@ -342,7 +353,7 @@ export function walkIce(state: GameState, start: WalkStart, ice: CardInstance[])
     return {
       card: up,
       id: c.instanceId,
-      rezzed: c.isRezzed && !start.derezzed.has(c.instanceId),
+      rezzed,
       rezCost: rezCostOf(state, c),
       inS: false,
       bypassed: false,
@@ -359,6 +370,7 @@ export function walkIce(state: GameState, start: WalkStart, ice: CardInstance[])
       granters: hostedHere(r => !!getCardScript(r.cardCode)?.grantsIceSubtypes?.length),
       broken: encounter?.iceId === c.instanceId ? [...encounter.broken] : undefined,
       rezGains: anyIce && (cardDef(c).keywords ?? '').toLowerCase().split(/\s*-\s*/).some(k => anyIce.subtypes.includes(k)) ? subroutineFacts(anyIce.gains) : undefined,
+      choices,
     };
   });
 }
@@ -385,12 +397,15 @@ export function walkBoard(state: GameState, start: WalkStart, targets: WalkTarge
     for (let mask = 0; mask < 1 << ice.granters.length; mask++) {
       const off = ice.granters.filter((_, k) => mask & (1 << k));
       const board = without(state, start, off);
-      if (off.length) types[`${ice.id}|${off}`] = iceSubtypes(ice.card, board);
-      for (let z = 1; z <= n; z++) {
-        const key = `${ice.id}|${z}|${off}`;
-        let list = cache.get(key);
-        if (!list) cache.set(key, (list = planFor(board, start, ice.card, z)));
-        plans[key] = list;
+      for (const k of ['', ...(ice.choices ?? []).map((_, i) => String(i))]) {
+        const card = k === '' ? ice.card : { ...ice.card, chosenSubtypes: ice.choices![Number(k)] };
+        if (off.length || k !== '') types[`${ice.id}|${off}|${k}`] = iceSubtypes(card, board);
+        for (let z = 1; z <= n; z++) {
+          const key = `${ice.id}|${z}|${off}|${k}`;
+          let list = cache.get(key);
+          if (!list) cache.set(key, (list = planFor(board, start, card, z)));
+          plans[key] = list;
+        }
       }
     }
   }
@@ -409,6 +424,7 @@ export function walkBoard(state: GameState, start: WalkStart, targets: WalkTarge
     plans,
     types,
     bypass: !!plan().bypass,
+    firstDraw: [...start.rig, state.runner.identity].reduce((n, c) => Math.max(n, (c && getCardScript(c.cardCode)?.modifiers?.firstBasicDraw) || 1), 1),
   };
 }
 
@@ -490,7 +506,7 @@ export class Walk {
 
   /** The walk state in a memo key (run j: the clicks only where they are read, the stack before the last run). */
   private wsKey(ws: WalkState, j: number): string {
-    return `${this.clicksRead[j] ? ws.clicks : '-'}|${ws.tags}|${ws.grip}|${j < this.targets.length - 1 ? ws.stack : '-'}|${ws.corp}|${ws.fund}|${ws.hosted}|${ws.stealth}|${this.counters(ws)}|${ws.gone}|${ws.up}|${ws.spike ? 1 : 0}|${ws.mayfly}`;
+    return `${this.clicksRead[j] ? ws.clicks : '-'}|${ws.tags}|${ws.grip}|${j < this.targets.length - 1 ? ws.stack : '-'}|${ws.corp}|${ws.fund}|${ws.hosted}|${ws.stealth}|${this.counters(ws)}|${ws.gone}|${ws.up}|${ws.spike ? 1 : 0}|${ws.mayfly}|${ws.drew ? 1 : 0}|${ws.chose}`;
   }
 
   /** The counters the walk reads, for a memo key. */
@@ -518,14 +534,18 @@ export class Walk {
   private beforeRun(ws: WalkState, j: number): number {
     const runs = this.targets.length - j;
     if (ws.clicks < runs) return FAIL;
-    const key = `b|${this.inner[j][this.targets[j].ice.length - 1] ?? this.targets[j].server}|${this.later[j]}|${ws.clicks}|${ws.tags}|${ws.grip}|${ws.stack}|${ws.corp}|${ws.hosted}|${ws.stealth}|${this.counters(ws)}|${ws.gone}|${ws.up}`;
+    const key = `b|${this.inner[j][this.targets[j].ice.length - 1] ?? this.targets[j].server}|${this.later[j]}|${ws.clicks}|${ws.tags}|${ws.grip}|${ws.stack}|${ws.corp}|${ws.hosted}|${ws.stealth}|${this.counters(ws)}|${ws.gone}|${ws.up}|${ws.drew ? 1 : 0}|${ws.chose}`;
     const hit = this.memo.get(key);
     if (hit !== undefined) return hit;
     // 6.9.1b, 10.6.3a: the bad publicity fund is filled as each run begins
     const fund = this.board.badPublicity;
     let best = this.approach({ ...ws, clicks: ws.clicks - 1, spike: false, fund }, j, this.targets[j].ice.length - 1);
     if (ws.clicks > runs) {
-      if (this.drawUseful && ws.stack > 0) best = Math.min(best, this.beforeRun({ ...ws, clicks: ws.clicks - 1, grip: ws.grip + 1, stack: ws.stack - 1 }, j));
+      if (this.drawUseful && ws.stack > 0) {
+        // 5.2.7c; the turn's first draw may give more (WalkBoard.firstDraw), at most the stack
+        const n = Math.min(ws.stack, ws.drew ? 1 : this.board.firstDraw);
+        best = Math.min(best, this.beforeRun({ ...ws, clicks: ws.clicks - 1, grip: ws.grip + n, stack: ws.stack - n, drew: true }, j));
+      }
       if (this.tagUseful && ws.tags > 0) best = Math.min(best, this.beforeRun({ ...ws, clicks: ws.clicks - 1, tags: ws.tags - 1 }, j) + 2);
     }
     this.memo.set(key, best);
@@ -559,6 +579,12 @@ export class Walk {
 
   /** The ice was rezzed during this run against its server: its rez-time facts (Flyswatter: purge virus counters). */
   private rezzed(ws: WalkState, ice: SearchIce, next: (w: WalkState) => number, at: Step): number {
+    if (ice.choices && this.choiceOf(ice, ws) === '') {
+      // Lycian: the Corp chooses the ice's subtypes as it rezzes it, the choice worst for the Runner (ruling 6)
+      let worst = -Infinity;
+      ice.choices.forEach((_, k) => (worst = Math.max(worst, this.rezzed({ ...ws, chose: [...ws.chose, `${ice.id}:${k}`].sort() }, ice, next, at))));
+      return worst;
+    }
     let w = ws;
     if (ice.rezFacts?.purgeVirus) {
       // Purging removes every virus counter (10.3.5); Physarum Entangler is trashed by it (its text)
@@ -597,7 +623,15 @@ export class Walk {
   /** The ice's subtypes now: a Corp trash of a hosted card that gives subtypes (Chromatophores) takes them away. */
   private typesOf(ice: SearchIce, ws: WalkState): string[] {
     const off = ice.granters.filter(i => ws.gone.includes(i));
-    return off.length ? this.board.types[`${ice.id}|${off}`] : ice.types;
+    const k = this.choiceOf(ice, ws);
+    return off.length || k !== '' ? this.board.types[`${ice.id}|${off}|${k}`] : ice.types;
+  }
+
+  /** The Corp's choice of the ice's subtypes at its rez during the walk (its index in `choices`), or '' (none made). */
+  private choiceOf(ice: SearchIce, ws: WalkState): string {
+    if (!ice.choices) return '';
+    const c = ws.chose.find(x => x.startsWith(`${ice.id}:`));
+    return c ? c.slice(ice.id.length + 1) : '';
   }
 
   /**
@@ -674,7 +708,7 @@ export class Walk {
   }
 
   private planList(ice: SearchIce, z: number, ws: WalkState): WalkPlan[] {
-    return this.board.plans[`${ice.id}|${z}|${ice.granters.filter(i => ws.gone.includes(i))}`] ?? [];
+    return this.board.plans[`${ice.id}|${z}|${ice.granters.filter(i => ws.gone.includes(i))}|${this.choiceOf(ice, ws)}`] ?? [];
   }
 
   private usable(ws: WalkState, p: WalkPlan): boolean {
@@ -836,6 +870,8 @@ export function firstState(state: GameState, start: WalkStart, clicks: number, c
     tags: state.runner.tags,
     grip: state.runner.grip.length,
     stack: state.runner.stack.length,
+    drew: false,
+    chose: [],
     corp,
     fund: 0,
     hosted: duringRuns(state),

@@ -63,6 +63,8 @@ class Brute {
   }
 
   private rezzed(ws: S, ice: WalkIce, next: Next): boolean {
+    // Lycian: the Corp chooses the subtypes as it rezzes; the Runner gets through only if it gets through every choice
+    if (ice.choices && !ws.chose.some(c => c.startsWith(`${ice.id}:`))) return ice.choices.every((_, k) => this.rezzed({ ...ws, chose: [...ws.chose, `${ice.id}:${k}`].sort() }, ice, next));
     let w = ws;
     if (ice.rezFacts?.purgeVirus) {
       const purged = this.start.rig.flatMap((c, i) => (CARDS[c.cardCode]?.holdFacts?.trashedOnPurge ? [i] : []));
