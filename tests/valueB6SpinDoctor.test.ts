@@ -12,6 +12,7 @@ import { archivedAgendaLoss, evaluate, hiddenCardOdds } from '../src/ai/evaluate
 import { assetRisk } from '../src/ai/cardProfiles';
 import { cardRate } from '../src/ai/valueModel';
 import { newGame } from './helpers';
+import { inDecision } from './helpers/pricing';
 
 const SPIN = '30053';
 const withSpin = (ice: string[] = []): { s: GameState; spin: CardInstance } => {
@@ -73,5 +74,63 @@ describe('V-B B6: a spent Spin Doctor prices Archives as the viewer knows it', (
     const card = 0.3 * cardRate(s, 'corp');
     const worth = [card, ...s.corp.archives.faceDown.map(() => agenda * archivedAgendaLoss(s, agendaPoints) + (1 - agenda) * card)].sort((a, b) => b - a);
     expect(Object.is(spent(s, 'runner', spin), 0.3 + worth[0] + worth[1])).toBe(true);
+  });
+});
+
+// V-B B6 review M1b: inside a noted decision, the cards the Corp cannot know are those in R&D at the decision's root;
+// everything else in Archives (already there, or discarded from a hand) it prices by what it is.
+describe('V-B B6 M1b: a spent Spin Doctor inside a decision', () => {
+  const known = (s: GameState, c: CardInstance) => (cardDef(c).type_code === 'agenda' ? archivedAgendaLoss(s, cardDef(c).agenda_points ?? 1) : 0.3 * cardRate(s, 'corp'));
+  const odds = (s: GameState) => {
+    const { agenda, agendaPoints } = hiddenCardOdds(s);
+    return agenda * archivedAgendaLoss(s, agendaPoints) + (1 - agenda) * 0.3 * cardRate(s, 'corp');
+  };
+  const top2 = (xs: number[]) => xs.sort((a, b) => b - a).slice(0, 2).reduce((a, b) => a + b, 0);
+
+  it('Archives already holding two junk cards and an agenda at the root: priced as known', () => {
+    const { s, spin } = withSpin();
+    const junk = s.corp.hq.filter(c => cardDef(c).type_code !== 'agenda').slice(0, 2);
+    s.corp.hq = s.corp.hq.filter(c => !junk.includes(c));
+    s.corp.archives.faceDown.push(...junk, createCardInstance(s, '30069'));
+    const want = 0.3 + (1 - assetRisk(s, false)) * top2(s.corp.archives.faceDown.map(c => known(s, c)));
+    expect(inDecision(s, 'corp', () => spent(s, 'corp', spin))).toBeCloseTo(want, 12);
+  });
+
+  it('a look-ahead board with a root-R&D card facedown in Archives: priced by the odds', () => {
+    const { s: root, spin } = withSpin();
+    const child = structuredClone(root);
+    const milled = child.corp.rd.shift()!;
+    child.corp.archives.faceDown.push(milled);
+    const want = 0.3 + (1 - assetRisk(child, false)) * odds(child);
+    expect(inDecision(root, 'corp', () => spent(child, 'corp', spin))).toBeCloseTo(want, 12);
+  });
+
+  it('a card discarded from the starting hand on a look-ahead board: known', () => {
+    const { s: root, spin } = withSpin();
+    const child = structuredClone(root);
+    const card = child.corp.hq.shift()!;
+    child.corp.archives.faceDown.push(card);
+    const want = 0.3 + (1 - assetRisk(child, false)) * known(child, card);
+    expect(inDecision(root, 'corp', () => spent(child, 'corp', spin))).toBeCloseTo(want, 12);
+  });
+
+  it('the discard table inside a decision: evaluate does not rise', () => {
+    const board = (root: GameState, k: number) => {
+      const s = structuredClone(root);
+      const junk = s.corp.hq.filter(c => cardDef(c).type_code !== 'agenda').slice(0, k);
+      expect(junk.length).toBe(k);
+      s.corp.hq = s.corp.hq.filter(c => !junk.includes(c));
+      s.corp.archives.faceDown.push(...junk);
+      return s;
+    };
+    const { s: start } = withSpin();
+    // each board as its own decision's root (the junk already in Archives)
+    const own = [0, 1, 2].map(k => { const b = board(start, k); return inDecision(b, 'corp', () => evaluate(b, 'corp')); });
+    // each board as a look-ahead from the board before the discards
+    const ahead = [0, 1, 2].map(k => inDecision(start, 'corp', () => evaluate(board(start, k), 'corp')));
+    for (const e of [own, ahead]) {
+      expect(e[1]).toBeLessThanOrEqual(e[0]);
+      expect(e[2]).toBeLessThanOrEqual(e[1]);
+    }
   });
 });

@@ -43,6 +43,9 @@ function leechVirus(state: GameState): number {
   return PAYOUT_RISK.clickWait * (perStrength.length ? Math.min(2, Math.min(...perStrength)) : 0.5);
 }
 
+// The cards the deciding Corp cannot know: those in R&D at the decision's root (V-B B6 review M1b); the rest it knows.
+const rootRd = new WeakMap<GameState, Set<string>>();
+const rdIdsAt = (root: GameState) => rootRd.get(root) ?? rootRd.set(root, new Set(root.corp.rd.map(c => c.instanceId))).get(root)!;
 export const SYSTEM_GATEWAY: Record<string, CardAI> = {
   // Loup
   '30001': { synergy: { gives: { draw: 1, econ: 0.5 }, wants: { trash: 2 } } },
@@ -362,12 +365,12 @@ export const SYSTEM_GATEWAY: Record<string, CardAI> = {
     spent: (state, viewer, spin) => {
       const { agenda, agendaPoints } = hiddenCardOdds(state);
       const { faceUp, faceDown } = state.corp.archives;
-      const seen = pricing().known.corp;
+      const root = pricing().anchor?.root, unseen = root && !corpKnowsRd() ? rdIdsAt(root) : undefined;
       const odds = () => agenda * archivedAgendaLoss(state, agendaPoints) + (1 - agenda) * 0.3 * cardRate(state, 'corp');
       const known = (c: CardInstance) => (cardDef(c).type_code === 'agenda' ? archivedAgendaLoss(state, cardDef(c).agenda_points ?? 1) : 0.3 * cardRate(state, 'corp'));
       const worth = [
         ...faceUp.map(c => (viewer === 'runner' ? 0.3 * cardRate(state, 'corp') : known(c))),
-        ...faceDown.map(c => (viewer === 'runner' || (seen && !seen.has(c.instanceId) && !corpKnowsRd()) ? odds() : known(c))),
+        ...faceDown.map(c => (viewer === 'runner' || unseen?.has(c.instanceId) ? odds() : known(c))),
       ].sort((a, b) => b - a);
       if (viewer === 'runner') return 0.3 + (worth[0] ?? 0) + (worth[1] ?? 0);
       return 0.3 + (1 - assetRisk(state, inIcedServer(state, spin))) * ((worth[0] ?? 0) + (worth[1] ?? 0));

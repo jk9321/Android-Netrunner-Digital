@@ -348,9 +348,10 @@ describe('AI code health (audit guards)', () => {
   // V-B B6 review M1 + 6 (Spin Doctor's spent worth prices Archives as the viewer knows it: the Corp's own cards by what
   // they are, a look-ahead discard by the odds; two imports) = 13,623 (up to + 6 allowed by the AI Coordinator)
   // M1 (a) + 2 (the Corp's option at one turn's assetRisk where the card sits, the Runner's line kept) = 13,625 (up to 13,627 allowed)
-  it('keeps src/ai/corp at or under 2,298 lines and src/ai at or under 13,625 (Stage C hand-off, ai-corp-honest-order, ai-value-time, ai-playout-lines, ai-honest-runner-view, ai-honest-corp-decision, ai-value-owners, ai-corp-rd-memory, ai-value-b1, ai-value-b2, ai-hold-reentry, ai-value-b3, ai-tag-loss-time, ai-value-b6, ai-threat-delete, ai-breaker-guard-key, ai-tag-loss-bp)', () => {
+  // M1b + 3 (the cards the Corp cannot know are the decision root's R&D, not those outside the hand it noted) = 13,628 (up to 13,629 allowed)
+  it('keeps src/ai/corp at or under 2,298 lines and src/ai at or under 13,628 (Stage C hand-off, ai-corp-honest-order, ai-value-time, ai-playout-lines, ai-honest-runner-view, ai-honest-corp-decision, ai-value-owners, ai-corp-rd-memory, ai-value-b1, ai-value-b2, ai-hold-reentry, ai-value-b3, ai-tag-loss-time, ai-value-b6, ai-threat-delete, ai-breaker-guard-key, ai-tag-loss-bp)', () => {
     const corp = aiFiles().filter(f => f.replace(/\\/g, '/').startsWith('corp/')).reduce((n, f) => n + lines(f), 0);
     expect(corp).toBeLessThanOrEqual(2298);
-    expect(aiFiles().reduce((n, f) => n + lines(f), 0)).toBeLessThanOrEqual(13625);
+    expect(aiFiles().reduce((n, f) => n + lines(f), 0)).toBeLessThanOrEqual(13628);
   });
 });
