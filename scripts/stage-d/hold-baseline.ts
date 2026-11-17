@@ -18,14 +18,18 @@
  * (the walk's switches off, `old`). Every question where the two answer `holds` differently (a flip) is kept, and the
  * others by SAMPLE and MAXQ. The oracle answers for the whole turn (retries on, ruling of 04:54Z): the walk's set and the
  * old set first, then the other affordable sets until one holds; both counts are labelled against that truth (`label`
- * the walk's, `oldLabel` beta's). Sum with hold-walk-compare-sum.mjs.
+ * the walk's, `oldLabel` beta's). Sum with hold-walk-compare-sum.mjs. On a tree without the walk's switches (the hand-off,
+ * after a92a50a deleted them) `BETA=<full sha>` names beta's commit: its hold.ts, rezMoney.ts and runs.ts go into a copy
+ * of src/ (.hb-beta/<shard>, its own module graph, as the fire count's trees) and beta's count is asked there, as the
+ * Corp on the question's board (the way the walk tests ask it).
  *
  *   SHARD=0/64 npx vite-node scripts/stage-d/hold-baseline.ts > out-0.txt
  *   DEALS=1001 HUMAN=none SAMPLE=0.05 npx vite-node scripts/stage-d/hold-baseline.ts
  */
+import { execSync } from 'node:child_process';
 import { createHash } from 'node:crypto';
-import { mkdirSync, writeFileSync } from 'node:fs';
-import { join } from 'node:path';
+import { cpSync, mkdirSync, rmSync, writeFileSync } from 'node:fs';
+import { join, resolve } from 'node:path';
 import { CardInstance, GameState, cardDef, rezCostOf } from '../../src/core';
 import { plan, withPricing } from '../../src/ai/pricing';
 import * as holdModule from '../../src/ai/corp/hold';
@@ -44,9 +48,38 @@ const CAP = Number(process.env.CAP ?? 40_000);
 const DUMP = process.env.OUT_DIR ?? process.env.DUMP ?? '';
 const MAX_SETS = Number(process.env.MAX_SETS ?? 16);
 const COMPARE = process.env.COMPARE === '1';
-// The count as on beta was deleted with the walk's temporary switches before the hand-off: COMPARE runs on a tree that
-// still has them (ai-hold-walk cbab0ad), where `holdWalk: false` reaches beta's count
-if (COMPARE && !('holdWalk' in plan())) throw new Error('COMPARE needs a tree with plan.holdWalk (ai-hold-walk cbab0ad or earlier)');
+// The count as on beta: on a tree with the walk's temporary switches (ai-hold-walk cbab0ad or earlier) `holdWalk: false`
+// reaches it; on a later tree it is beta's own files in a copy of src/ (BETA=<full sha>)
+const [shard, shards] = (process.env.SHARD ?? '0/1').split('/').map(Number);
+const betaRoot = resolve('.hb-beta', String(shard));
+let betaHold: ((s: GameState, server: string, opts: HoldOptions) => Hold) | undefined;
+if (COMPARE && !('holdWalk' in plan())) {
+  const sha = process.env.BETA;
+  if (!sha || !/^[0-9a-f]{40}$/.test(sha)) throw new Error('COMPARE on a tree without plan.holdWalk needs BETA=<full sha>');
+  // Four processes share a runner's checkout: the first fetch may race the others, so each tries until the commit is there
+  for (let k = 0; ; k++) {
+    try {
+      execSync(`git cat-file -e ${sha}^{commit}`, { stdio: 'ignore' });
+      break;
+    } catch {
+      if (k >= 10) throw new Error(`hold-baseline: could not fetch ${sha}`);
+      try {
+        execSync(`git fetch -q --depth=1 origin ${sha}`, { stdio: 'ignore' });
+      } catch {
+        Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, 500 + Math.floor(Math.random() * 1500));
+      }
+    }
+  }
+  rmSync(betaRoot, { recursive: true, force: true });
+  cpSync('src', join(betaRoot, 'src'), { recursive: true });
+  for (const f of ['ai/corp/hold.ts', 'ai/corp/rezMoney.ts', 'ai/runs.ts']) writeFileSync(join(betaRoot, 'src', f), execSync(`git show ${sha}:src/${f}`, { maxBuffer: 1 << 26 }));
+  const m = (p: string) => import(/* @vite-ignore */ join(betaRoot, 'src', p));
+  // One at a time: vite-node can deadlock on concurrent imports of modules that import each other
+  const hm = await m('ai/corp/hold.ts');
+  const pr = await m('ai/pricing.ts');
+  const hv = await m('ai/handValues.ts');
+  betaHold = (s, server, opts) => pr.asSide('corp', () => (hv.decisionContext(s, 'corp'), hm.serverHold(s, server, opts)));
+}
 /** COMPARE: at most this many flips kept per source (default all); the ones over it are counted in `flipsOver`. */
 const FLIPQ = Number(process.env.FLIPQ ?? Infinity);
 
@@ -67,8 +100,8 @@ function watched(state: GameState, server: string, opts: HoldOptions): Hold {
   if (seen.has(key)) return h;
   seen.add(key);
   calls.distinct++;
-  // The count as on beta: the walk's temporary switches off (synergy.ts)
-  const old = COMPARE ? withPricing({ plan: { ...plan(), holdWalk: false } as ReturnType<typeof plan> }, () => original(state, server, opts)) : undefined;
+  // The count as on beta: beta's own files (BETA), or the walk's temporary switches off (synergy.ts) on a tree that has them
+  const old = !COMPARE ? undefined : betaHold ? betaHold(state, server, opts) : withPricing({ plan: { ...plan(), holdWalk: false } as ReturnType<typeof plan> }, () => original(state, server, opts));
   const flip = !!old && old.holds !== h.holds;
   if (flip) calls.flips++;
   if (flip && kept.filter(q => q.src === src && q.flip).length >= FLIPQ) {
@@ -291,7 +324,6 @@ function judgeBoth(q: Question) {
   };
 }
 
-const [shard, shards] = (process.env.SHARD ?? '0/1').split('/').map(Number);
 const sources: [string, () => void][] = [
   ...deals().map(seed => [`deal:${seed}`, () => void playDeal(seed, {})] as [string, () => void]),
   ...humanFiles().map(f => [`human:${f.split('/').pop()}`, () => replayHuman(f, {})] as [string, () => void]),
@@ -302,6 +334,7 @@ sources.forEach(([name, play], k) => {
   play();
   flush();
 });
+if (betaHold) rmSync(betaRoot, { recursive: true, force: true });
 
 function flush() {
   const batch = kept;
