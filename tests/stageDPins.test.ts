@@ -209,4 +209,26 @@ describe('Stage D pins (known-failing until their fix lands)', () => {
     expect(t.corp.score).toBe(3);
     expect(Object.values(t.corp.servers).flatMap(v => v.ice).some(c => c.cardCode === '30063' && c.isRezzed)).toBe(true);
   });
+  // Red team F8 (adversarial/2026-11-17-hold-walk, ruled 02:50Z): the hold walk counts installed cards only (10.2.2a; the
+  // grip is not read), so a remote behind two rezzed Brân 1.0 holds against an empty rig: 4 clicks to break, 1 to run
+  // (1.16.1). A Runner with Mayfly in the grip and $9 installs it (a click, $1), breaks one Brân with it (+5 strength
+  // $5, both subroutines $2) and the other with 2 clicks: 4 clicks, $8. The Corp installs Longevity Serum there. Owned by
+  // the deck-list capability item (exploit pin F2's family); the bar reports steals from bioroid remotes on their own line
+  it.fails('F8: an agenda is not installed behind a lone bioroid wall the grip can beat (deck-list capability)', { timeout: T }, () => {
+    const s = newGame(5);
+    s.turnNumber = 7;
+    s.corp.hq = [];
+    giveCard(s, 'corp', '30044');
+    giveCard(s, 'corp', '30072');
+    s.corp.credits = 8;
+    installIceForTest(s, '30039', 'remote1', true);
+    installIceForTest(s, '30039', 'remote1', true);
+    installIceForTest(s, '30072', 'hq', true);
+    installIceForTest(s, '30072', 'rd', true);
+    s.runner.rig = { ...s.runner.rig, programs: [], hardware: [], resources: [] };
+    s.runner.credits = 9;
+    giveCard(s, 'runner', '30032');
+    const a = decide(s) as Install;
+    expect(a.type === 'INSTALL_CARD' && cardDef(s.corp.hq.find(c => c.instanceId === a.cardInstanceId)!).type_code === 'agenda' && a.targetServerId === 'remote1').toBe(false);
+  });
 });

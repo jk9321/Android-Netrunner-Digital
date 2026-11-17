@@ -419,3 +419,17 @@ describe('hold walk, commit 5: what an ice takes besides breaks', () => {
     expect(oracleOn(s, [])).toBe('getsIn');
   });
 });
+
+// Red team F13 (ruled 02:50Z): cards outside the batch pool the walk does not model yet. The next set's thread, or the
+// thread that brings one into a batch deck, turns its line into a row with a mirror and the oracle
+describe('hold walk: not modelled yet (cards outside the batch pool)', () => {
+  it.todo('Event Horizon: "trash: End the run", a paid ability usable during any run on its server (rezzed: holds whatever the credits)');
+  it.todo('Attini at threat 3: credits cannot be spent while its subroutines resolve (no paying through)');
+  it.todo('Capacitor: +2 strength while the Runner is tagged (a tag on the way raises the break price)');
+  it.todo('Phoneutria and Virtual Service Agent: a tag when the Runner passes the ice');
+  it.todo('Cloud Eater');
+  it.todo("Lycian Multi-Munition's chosen subtypes (its turn-end derez is modelled)");
+  it.todo("Logjam's counters placed on rez");
+  it.todo('Hammer and Sorocaban Blade: a subroutine that trashes the breaker needed further in (today: not modelled, errs toward "does not hold")');
+  it.todo("Thunderbolt Armaments' +1 strength on the ice it rezzes during a run (its gained subroutine is modelled)");
+});

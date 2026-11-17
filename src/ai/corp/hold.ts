@@ -297,7 +297,7 @@ const FAIL = Infinity;
 const lose = (after: number, n: number): number => (after > 0 ? after + n : 0);
 
 /** A piece of ice as the walk meets it. */
-interface WalkIce {
+export interface WalkIce {
   /** The ice, rezzed: the subroutines and subtypes it is met with. */
   card: CardInstance;
   /** Rezzed when the walk starts (the Runner's turn start applied). */
@@ -331,13 +331,13 @@ interface WalkIce {
 }
 
 /** One run of the walk's turn: its server and its ice, innermost first (as the server lists them). */
-interface WalkTarget {
+export interface WalkTarget {
   server: string;
   ice: WalkIce[];
 }
 
 /** The state the walk carries (brief 5.1), but the Runner's pool: the walk works out the least pool a way needs. */
-interface WalkState {
+export interface WalkState {
   clicks: number;
   tags: number;
   grip: number;
@@ -362,7 +362,7 @@ interface WalkState {
 }
 
 /** A break plan as the walk spends it: breakPlans' credits and its spends, by rig index. */
-interface WalkPlan {
+export interface WalkPlan {
   breaker: number;
   credits: number;
   stealth: number;
@@ -376,7 +376,7 @@ interface WalkPlan {
 const alwaysEnds = (f: SubFacts) => !f.when && !f.unless && (f.orEndRun || f.does.some(e => e.kind === 'endRun' && !e.if));
 
 /** The board the walk starts from: the rig, its counters, and the ice derezzed by then (brief 5.2). */
-interface WalkStart {
+export interface WalkStart {
   rig: CardInstance[];
   index: Map<string, number>;
   virus: number[];
@@ -384,7 +384,7 @@ interface WalkStart {
   derezzed: Set<string>;
 }
 
-function walkStart(state: GameState, runnerTurn: boolean): WalkStart {
+export function walkStart(state: GameState, runnerTurn: boolean): WalkStart {
   const rig = [...state.runner.rig.programs, ...state.runner.rig.hardware, ...state.runner.rig.resources];
   const index = new Map(rig.map((c, i) => [c.instanceId, i]));
   const virus = rig.map(c => counters(c, 'virus'));
@@ -406,7 +406,7 @@ function walkStart(state: GameState, runnerTurn: boolean): WalkStart {
 }
 
 /** The server's ice as the walk meets it, innermost first; inS and bypassed are set per rez set. */
-function walkIce(state: GameState, start: WalkStart, ice: CardInstance[]): WalkIce[] {
+export function walkIce(state: GameState, start: WalkStart, ice: CardInstance[]): WalkIce[] {
   const encounter = state.activeRun?.encounter;
   // The Corp's identity: what ice of some subtypes gains when it is rezzed during a run (Thunderbolt Armaments)
   const anyIce = CARDS[state.corp.identity?.cardCode]?.holdFacts?.rezDuringRun?.anyIce;
@@ -443,7 +443,8 @@ function walkIce(state: GameState, start: WalkStart, ice: CardInstance[]): WalkI
 /** Each ice's break plans, by the number of subroutines, worked out once per board (time condition: not once per rez set). */
 const planCache = new WeakMap<GameState, Map<string, WalkPlan[]>>();
 
-class Walk {
+/** The walk (exported with its parts for tests/holdWalkReference.test.ts, the brute-force reference; brief section 6). */
+export class Walk {
   private readonly memo = new Map<string, number>();
   private readonly plans: Map<string, WalkPlan[]>;
   /** Commit 2's switch: tags and grip move through the turn (draws, tag removal, tags and damage on the way, Ping, Bumi). */
@@ -809,7 +810,7 @@ function duringRuns(state: GameState): number {
 }
 
 /** The walk's first state on the Runner's turn: `clicks` for the turn, the rest from the board at its start. */
-function firstState(state: GameState, start: WalkStart, clicks: number, corp: number): WalkState {
+export function firstState(state: GameState, start: WalkStart, clicks: number, corp: number): WalkState {
   return {
     clicks,
     tags: state.runner.tags,
@@ -842,7 +843,7 @@ function turnNeed(state: GameState, start: WalkStart, targets: WalkTarget[], cor
 }
 
 /** The Corp's credits through the walk: the rez budget asked, or its credits and every rez it could make (as the oracle). */
-function corpStart(state: GameState, ice: WalkIce[], corpCredits: number): number {
+export function corpStart(state: GameState, ice: WalkIce[], corpCredits: number): number {
   return Number.isFinite(corpCredits) ? corpCredits : state.corp.credits + ice.filter(c => !c.rezzed).reduce((n, c) => n + c.rezCost, 0);
 }
 
@@ -853,7 +854,7 @@ function bypassBoard(state: GameState, serverId: string, ice: WalkIce[], set: Se
 }
 
 /** A run of the walk's turn on `server` with `set` to rez: its ice as met, and what its bypasses cost (runBypasses; 6.5.8a). */
-function runTarget(state: GameState, base: WalkIce[], server: string, set: Set<string>): { target: WalkTarget; price: number } {
+export function runTarget(state: GameState, base: WalkIce[], server: string, set: Set<string>): { target: WalkTarget; price: number } {
   const all = state.corp.servers[server]?.ice ?? [];
   // The view runBypasses read before (the Runner's clicks but the run's)
   const view: GameState = { ...state, runner: { ...state.runner, clicks: Math.max(0, state.runner.maxClicks - 1) } };
