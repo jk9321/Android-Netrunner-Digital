@@ -56,13 +56,8 @@
  "spinDoctor": [
   [
    "ai/evaluate.ts",
-   "() => corpCardWorth(card, state, left))",
-   "() => corpCardWorth(card, state, viewer, left))"
-  ],
-  [
-   "ai/evaluate.ts",
-   "function corpCardWorth(card: CardInstance, state: GameState | undefined, left = false): number {\n  const spent = state && card.isRezzed ? CARDS[card.cardCode]?.spent : undefined;\n  if (spent) return spent(state!); // a rezzed card whose rez effect is done (Spin Doctor), both viewers (V-B B6)",
-   "function corpCardWorth(card: CardInstance, state: GameState | undefined, viewer: SideCode, left = false): number {\n  const spent = state && viewer === 'runner' && card.isRezzed ? CARDS[card.cardCode]?.spent : undefined;\n  if (spent) return spent(state!);"
+   "  const spent = state && card.isRezzed ? CARDS[card.cardCode]?.spent : undefined;\n  if (spent) return spent(state!, viewer); // a rezzed card whose rez effect is done (Spin Doctor), as `viewer` knows it (V-B B6)",
+   "  const spent = state && viewer === 'runner' && card.isRezzed ? CARDS[card.cardCode]?.spent : undefined;\n  if (spent) return spent(state!, viewer);"
   ]
  ],
  "agendaStep": [
