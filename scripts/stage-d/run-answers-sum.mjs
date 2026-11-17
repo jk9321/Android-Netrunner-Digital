@@ -34,6 +34,7 @@ for (const [g, is] of Object.entries(groups)) {
   p(`by card: ${Object.entries(cards).sort((a, b) => b[1] - a[1]).map(([c, k]) => `${c} ${k}`).join(', ')}`);
   const agree = D.filter(d => d.separating && !d.disagree);
   p(`separating, given answer keeps the Runner out (agree): ${agree.length}; by card: ${Object.entries(agree.reduce((m, d) => ((m[d.card] = (m[d.card] ?? 0) + 1), m), {})).map(([c, k]) => `${c} ${k}`).join(', ')}`);
+  if (g === 'self' && S.some(s => s.probeCalls !== undefined)) p(`PROBE: the agents' own fallback calls for the Corp during a run (top level, planner reply, playouts; both agents): ${sum('probeCalls')} (${f2(sum('probeCalls') / n)} a game), options ${sum('probeOpts')} (${f2(sum('probeOpts') / n)} a game); against ${sum('prompts')} top-level Corp prompts in a run`);
   const asks = sum('holdAsks');
   p(`hold asks: ${asks} (${f2(asks / n)} a game); arm time ${sum('armMs')} ms${g === 'self' ? ` against Corp decision time ${sum('corpMs')} ms (x${(1 + sum('armMs') / Math.max(1, sum('corpMs'))).toFixed(3)} at the top level)` : ''}`);
 }

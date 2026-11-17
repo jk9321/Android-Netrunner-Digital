@@ -28,7 +28,7 @@
  *   DEALS=1601 HUMAN=none npx vite-node scripts/stage-d/run-answers.ts
  */
 import { execSync } from 'node:child_process';
-import { existsSync, mkdirSync, readFileSync, readdirSync } from 'node:fs';
+import { existsSync, mkdirSync, readFileSync, readdirSync, writeFileSync } from 'node:fs';
 import { join, resolve } from 'node:path';
 import type { GameAction, GameState, Prompt, SideCode } from '../../src/core';
 import type { Agent } from '../../src/ai/agent';
@@ -67,7 +67,26 @@ function treeRoot(): string {
   return dir;
 }
 
-const R = treeRoot();
+/**
+ * PROBE=1: a copy of the tree with one counter in the fallback of answerPrompt (every Corp call during a run, at the top
+ * and inside the planner's reply and playouts, and its options): what the family answer would be asked, for the time
+ * count (brief 3.6). The copy is the only change; play is the tree's.
+ */
+function probeRoot(root: string): string {
+  const dir = resolve('.ra-tree', `probe-${process.pid}`);
+  execSync(`rm -rf ${dir} && mkdir -p ${dir} && cp -r ${join(root, 'src')} ${dir}/src`);
+  const file = join(dir, 'src', 'ai', 'prompts.ts');
+  const text = readFileSync(file, 'utf8');
+  const from = '  const options = answers(state, side, synergy);\n';
+  if (text.split(from).length !== 2) throw new Error('run-answers: the probe does not match once');
+  const to = `${from}  if (side === 'corp' && state.activeRun) { const g = globalThis as unknown as { __raCalls?: number; __raOpts?: number }; g.__raCalls = (g.__raCalls ?? 0) + 1; g.__raOpts = (g.__raOpts ?? 0) + options.length; }\n`;
+  writeFileSync(file, text.replace(from, to));
+  return dir;
+}
+const PROBE = /PROBE=1/.test(ARGS);
+const R = PROBE ? probeRoot(treeRoot()) : treeRoot();
+const G = globalThis as unknown as { __raCalls?: number; __raOpts?: number };
+const probeNow = () => ({ calls: G.__raCalls ?? 0, opts: G.__raOpts ?? 0 });
 const m = (p: string) => import(/* @vite-ignore */ join(R, 'src', p));
 const core = await m('core/index.ts');
 const ai = await m('ai/index.ts');
@@ -336,6 +355,8 @@ function playDeal(seed: number, armed: boolean) {
   const asks0 = holdAsks;
   let armMs = 0;
   let corpMs = 0;
+  let agentCalls = 0;
+  let agentOpts = 0;
   const t0 = performance.now();
   const corp: Agent = {
     side: 'corp',
@@ -345,9 +366,12 @@ function playDeal(seed: number, armed: boolean) {
       const p = activePrompt(state) as Prompt | undefined;
       const inRun = !!p && p.side === 'corp' && !!state.activeRun;
       const t = performance.now();
+      const q0 = probeNow();
       const given = corpInner.chooseAction(state);
       const ms = performance.now() - t;
       corpMs += ms;
+      agentCalls += probeNow().calls - q0.calls;
+      agentOpts += probeNow().opts - q0.opts;
       if (!inRun) return given;
       counter.prompts++;
       const a = armTop(state);
@@ -372,7 +396,10 @@ function playDeal(seed: number, armed: boolean) {
       clearCaches();
       counter.corp++;
       const t = performance.now();
+      const q0 = probeNow();
       const r = corpInner.chooseRez?.(state, cards as never) ?? null;
+      agentCalls += probeNow().calls - q0.calls;
+      agentOpts += probeNow().opts - q0.opts;
       corpMs += performance.now() - t;
       return r;
     },
@@ -384,8 +411,11 @@ function playDeal(seed: number, armed: boolean) {
       const i = counter.runner++;
       const p = activePrompt(state) as Prompt | undefined;
       const t = performance.now();
+      const q0 = probeNow();
       const given = runnerInner.chooseAction(state);
       const ms = performance.now() - t;
+      agentCalls += probeNow().calls - q0.calls;
+      agentOpts += probeNow().opts - q0.opts;
       if (!armed && p && p.side === 'runner' && state.activeRun) {
         const rec = inspect(src, i, state, 'runner', given, ms);
         if (rec) watches.push({ rec, turn: state.turnNumber, server: state.activeRun!.server, score: state.runner.score });
@@ -405,7 +435,7 @@ function playDeal(seed: number, armed: boolean) {
   }
   for (const w of watches) console.log(JSON.stringify(w.rec));
   const s = game.state;
-  console.log(JSON.stringify({ kind: 'src', src, play: armed ? 'arm' : 'base', winner: s.winner ?? null, turns: s.turnNumber, score: [s.corp.score, s.runner.score], ...counter, holdAsks: holdAsks - asks0, armMs: Math.round(armMs), corpMs: Math.round(corpMs), ms: Math.round(performance.now() - t0) }));
+  console.log(JSON.stringify({ kind: 'src', src, play: armed ? 'arm' : 'base', winner: s.winner ?? null, turns: s.turnNumber, score: [s.corp.score, s.runner.score], ...counter, holdAsks: holdAsks - asks0, armMs: Math.round(armMs), corpMs: Math.round(corpMs), probeCalls: agentCalls, probeOpts: agentOpts, ms: Math.round(performance.now() - t0) }));
 }
 
 /** One human game's recorded moves; at each prompt during a run a fresh Normal agent of that side is asked. */
