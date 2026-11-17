@@ -318,7 +318,11 @@ export const VANTAGE_POINT: Record<string, CardAI> = {
   // "When the Runner encounters this ice, they lose 1 [credit]" (6.9.3a)
   '36052': { synergy: { gives: { ice: 1, denial: 1 } }, holdFacts: { encounter: { loses: 1 } } },
   // Flood the Market
-  '36053': { synergy: { gives: { advance: 2 } } },
+  // "Place 1 advancement counter on that card for each remote server that has a card in its root and is protected by ice."
+  '36053': {
+    synergy: { gives: { advance: 2 } },
+    placesCounters: state => Object.values(state.corp.servers).filter(s => s.isRemote && s.root.length > 0 && s.ice.length > 0).length,
+  },
   // Scapegoat
   '36054': { synergy: {} },
   // Hype Machine

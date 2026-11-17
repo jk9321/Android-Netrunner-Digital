@@ -1,7 +1,7 @@
 import { CardInstance, GameAction, GameState, activePrompt, cardDef, executeAction, findCardAnywhere, getLegalActions, isLegalAction } from '../core';
 import { plan } from './pricing';
 import { tally } from './diagnostics';
-import { clicksGivenOf, dividendsOf } from './cards';
+import { clicksGivenOf, dividendsOf, placesCountersOf } from './cards';
 
 /**
  * Win now (bug report #33, Jeff's Runner test game 1, 2026-11-09; plan.winNow): an exact search of the Corp's own turn for
@@ -45,7 +45,12 @@ const WORDS: Record<string, number> = {
 };
 /** Advancement counters a card's text can place at most in one use (1 when it names none), 0 when it places none. */
 const placesOf = new Map<string, number>();
-function places(code: string, text: string): number {
+function places(code: string, text: string, state: GameState): number {
+  // A text that counts the board (Flood the Market) is a fact of the card entry, read on this board: never cached by code.
+  // The search installs agendas only in new remotes (no ice) and never ice, so within it the count can't grow: the bound
+  // stays at or above the truth. Not reduced by the Double's second click: the bound stays an upper bound.
+  const fact = placesCountersOf(code);
+  if (fact) return fact(state);
   let n = placesOf.get(code);
   if (n === undefined) {
     const found = [...text.matchAll(/place (\d+|an?|one|two|three|four) advancement counters?/gi)].map(m => WORDS[m[1].toLowerCase()] ?? Number(m[1]));
@@ -81,7 +86,7 @@ function canStillWin(state: GameState, need = 7 - state.corp.score): boolean {
     const text = cardDef(card).stripped_text ?? '';
     // Clicks from the card entry (step 2: the text match this replaced looked for "[click]", which the stripped text
     // spells "click", so it never counted Nanomanagement; +0.2 ± 0.5 at games=3, run 42862141885)
-    const gives = clicksGivenOf(card.cardCode) + Math.max(0, places(card.cardCode, text) - 1);
+    const gives = clicksGivenOf(card.cardCode) + Math.max(0, places(card.cardCode, text, state) - 1);
     budget += gives;
     own.set(card.instanceId, gives);
   }
