@@ -298,8 +298,9 @@ const lose = (after: number, n: number): number => (after > 0 ? after + n : 0);
 
 /** A piece of ice as the walk meets it. */
 export interface WalkIce {
-  /** The ice, rezzed: the subroutines and subtypes it is met with. */
+  /** The ice, rezzed: the subroutines and subtypes it is met with (gathered; the search reads only `id`). */
   card: CardInstance;
+  id: string;
   /** Rezzed when the walk starts (the Runner's turn start applied). */
   rezzed: boolean;
   rezCost: number;
@@ -315,8 +316,9 @@ export interface WalkIce {
   bypassers: { idx: number; per: number; unless: string }[];
   /** Its own break ability for credits ("3 credits: Break 1 subroutine on this ice", N-Pot). */
   selfCredits?: number;
-  /** A bioroid: the Runner may break its subroutines with clicks (bioroidBreakClicks). */
+  /** A bioroid: the Runner may break its subroutines with clicks (bioroidBreakClicks, by the number broken). */
   bioroid: boolean;
+  breakClicks: number[];
   /** Botulus may break its subroutines (not Semak-samun's fracters-only). */
   anyBreaker: boolean;
   rezFacts?: HoldFacts['rezDuringRun'];
@@ -334,6 +336,52 @@ export interface WalkIce {
 export interface WalkTarget {
   server: string;
   ice: WalkIce[];
+}
+
+/** The ice as the search reads it: no card, so nothing of the board but what was gathered. */
+export type SearchIce = Omit<WalkIce, 'card'>;
+export interface SearchTarget {
+  server: string;
+  ice: SearchIce[];
+}
+export const searchTarget = (t: WalkTarget): SearchTarget => ({ server: t.server, ice: t.ice.map(searchIce) });
+function searchIce(w: WalkIce): SearchIce {
+  const out: Partial<WalkIce> = { ...w };
+  delete out.card;
+  return out as SearchIce;
+}
+
+/** What the rig's cards are to the search. */
+export interface RigFacts {
+  /** Audrey v2: its plans spend grip cards. */
+  audrey: boolean;
+  /** A trojan (Bumi 1.0 may trash it). */
+  trojan: boolean;
+  /** Trashed by a purge (Physarum Entangler). */
+  purgeTrash: boolean;
+  /** A breaker or Botulus: its counters are read (memo key). */
+  counted: boolean;
+}
+
+/**
+ * Everything the search reads besides its targets and its state, gathered from the board once per question (Stage D
+ * item 1, the time stop's ruling 4.3: a pure search, so the gathered question is its own cache key). Break plans and
+ * subtypes are gathered for every number of subroutines and every set of the hosted cards that give subtypes gone.
+ */
+export interface WalkBoard {
+  badPublicity: number;
+  threat: number;
+  hq: number;
+  tags: number;
+  grip: number;
+  runnerCredits: number;
+  rig: RigFacts[];
+  lenders: Lender[];
+  /** `${ice id}|${subroutines to break}|${granters gone}`. */
+  plans: Record<string, WalkPlan[]>;
+  /** `${ice id}|${granters gone}` (some gone). */
+  types: Record<string, string[]>;
+  switches: { tags: boolean; credits: boolean; tolled: boolean; bypass: boolean };
 }
 
 /** The state the walk carries (brief 5.1), but the Runner's pool: the walk works out the least pool a way needs. */
@@ -423,18 +471,22 @@ export function walkIce(state: GameState, start: WalkStart, ice: CardInstance[])
       const b = CARDS[start.rig[i].cardCode].holdFacts!.hostBypass!;
       return { idx: i, per: b.creditsPerSubroutine, unless: b.unlessSubtype };
     });
+    const subs = plannedSubroutines(view, up).map(sub => subroutineFacts(sub.label));
+    const bioroid = isBioroid(c);
     return {
       card: up,
+      id: c.instanceId,
       rezzed: c.isRezzed && !start.derezzed.has(c.instanceId),
       rezCost: rezCostOf(state, c),
       inS: false,
       bypassed: false,
-      subs: plannedSubroutines(view, up).map(sub => subroutineFacts(sub.label)),
+      subs,
       types: iceSubtypes(up, state),
       botulus: hostedHere(r => r.cardCode === BOTULUS),
       bypassers,
       selfCredits: iceScript(c)?.runnerBreakCost,
-      bioroid: isBioroid(c),
+      bioroid,
+      breakClicks: bioroid ? Array.from({ length: subs.length + 2 }, (_, y) => bioroidBreakClicks(up, y)) : [],
       anyBreaker: canBreakSubroutinesWith(c, null),
       rezFacts: CARDS[c.cardCode]?.holdFacts?.rezDuringRun,
       encounterFacts: CARDS[c.cardCode]?.holdFacts?.encounter,
@@ -448,9 +500,75 @@ export function walkIce(state: GameState, start: WalkStart, ice: CardInstance[])
 /** Each ice's break plans, by the number of subroutines, worked out once per board (time condition: not once per rez set). */
 const planCache = new WeakMap<GameState, Map<string, WalkPlan[]>>();
 
+/** The board with the hosted subtype-giving cards at rig indexes `off` taken off (for the ice's subtypes and plans). */
+function without(state: GameState, start: WalkStart, off: number[]): GameState {
+  if (!off.length) return state;
+  const ids = new Set(off.map(i => start.rig[i].instanceId));
+  return { ...state, runner: { ...state.runner, rig: { ...state.runner.rig, programs: state.runner.rig.programs.filter(c => !ids.has(c.instanceId)) } } };
+}
+
+/** The walk's board for `targets` (WalkBoard): everything the search reads, from the board. */
+export function walkBoard(state: GameState, start: WalkStart, targets: WalkTarget[]): WalkBoard {
+  let cache = planCache.get(state);
+  if (!cache) planCache.set(state, (cache = new Map()));
+  const plans: Record<string, WalkPlan[]> = {};
+  const types: Record<string, string[]> = {};
+  const ices = new Map(targets.flatMap(t => t.ice.map(i => [i.id, i] as const)));
+  for (const ice of ices.values()) {
+    const n = ice.subs.length + (ice.rezGains ? 1 : 0);
+    for (let mask = 0; mask < 1 << ice.granters.length; mask++) {
+      const off = ice.granters.filter((_, k) => mask & (1 << k));
+      const board = without(state, start, off);
+      if (off.length) types[`${ice.id}|${off}`] = iceSubtypes(ice.card, board);
+      for (let z = 1; z <= n; z++) {
+        const key = `${ice.id}|${z}|${off}`;
+        let list = cache.get(key);
+        if (!list) cache.set(key, (list = planFor(board, start, ice.card, z)));
+        plans[key] = list;
+      }
+    }
+  }
+  const borrows = [...ices.values()].some(i => i.subs.some(f => f.does.some(e => e.kind === 'borrow')));
+  const p = plan();
+  return {
+    badPublicity: state.corp.badPublicity,
+    threat: threatLevel(state),
+    hq: state.corp.hq.length,
+    tags: state.runner.tags,
+    grip: state.runner.grip.length,
+    runnerCredits: state.runner.credits,
+    rig: start.rig.map(c => {
+      const keywords = cardDef(c).keywords ?? '';
+      return { audrey: c.cardCode === AUDREY, trojan: /\btrojan\b/i.test(keywords), purgeTrash: !!CARDS[c.cardCode]?.holdFacts?.trashedOnPurge, counted: c.cardCode === BOTULUS || /icebreaker/i.test(keywords) };
+    }),
+    lenders: borrows ? lenders(state, targets) : [],
+    plans,
+    types,
+    switches: { tags: p.holdWalkTags, credits: p.holdWalkCredits, tolled: p.holdWalkTolls, bypass: !!p.bypass },
+  };
+}
+
+/** breakPlans for `z` of the ice's subroutines, as the walk spends them (rig indexes). */
+function planFor(board: GameState, start: WalkStart, card: CardInstance, z: number): WalkPlan[] {
+  return breakPlans(withIce(board, card), card, z).flatMap(({ plan: p, spends }) => {
+    const breaker = start.index.get(p.breaker.instanceId);
+    if (breaker === undefined) return [];
+    const c = spends.counters;
+    const idx = c ? start.index.get(c.cardId) : undefined;
+    return [{
+      breaker,
+      credits: p.credits,
+      stealth: spends.stealthCredits ?? 0,
+      counter: c && idx !== undefined ? { idx, kind: c.kind, n: c.n } : undefined,
+      grip: spends.gripCards ?? 0,
+      mayfly: !!spends.trashesBreaker,
+      spike: !!spends.oncePerRun,
+    }];
+  });
+}
+
 /** The walk (exported with its parts for tests/holdWalkReference.test.ts, the brute-force reference; brief section 6). */
 export class Walk {
-  private readonly plans: Map<string, WalkPlan[]>;
   /** Per target and ice position: the rez-set and bypass flags of that ice and every ice inward of it, the part of the
    * set an approach there reads (a memo shared across the rez sets of one question keys on it). */
   private readonly inner: string[][];
@@ -475,30 +593,27 @@ export class Walk {
   private readonly tolled: boolean;
 
   constructor(
-    private readonly state: GameState,
-    private readonly start: WalkStart,
-    private readonly targets: WalkTarget[],
+    /** What it reads of the board, gathered (walkBoard): the search has no `state` in scope. */
+    private readonly board: WalkBoard,
+    private readonly targets: SearchTarget[],
     /** The memo, shared by the walks of one question over its rez sets (keys carry the flags they read). */
     private readonly memo = new Map<string, number>(),
   ) {
     // Keys name the server and the runs still to make, not the run's index: the last run of a sequence and a single run
     // on the same server share their nodes (sequenceEntries, turnReach)
-    const flags = (i: WalkIce) => `${i.inS ? 1 : 0}${i.bypassed ? 1 : 0}`;
+    const flags = (i: SearchIce) => `${i.inS ? 1 : 0}${i.bypassed ? 1 : 0}`;
     this.inner = targets.map(t => t.ice.map((_, pos) => `${t.server}:${t.ice.slice(0, pos + 1).map(flags).join('')}`));
     this.later = targets.map((_, j) => targets.slice(j + 1).map(t => `${t.server}:${t.ice.map(flags).join('')}`).join('/'));
     this.clicksRead = targets.map((t, j) => j < targets.length - 1 || t.ice.some(i => i.bioroid || i.encounterFacts?.unless?.clicks !== undefined));
-    this.counted = start.rig.flatMap((c, i) => (c.cardCode === BOTULUS || /icebreaker/i.test(cardDef(c).keywords ?? '') ? [i] : []));
-    let plans = planCache.get(state);
-    if (!plans) planCache.set(state, (plans = new Map()));
-    this.plans = plans;
-    this.tags = plan().holdWalkTags;
-    this.credits = plan().holdWalkCredits;
-    this.tolled = plan().holdWalkTolls;
+    this.counted = board.rig.flatMap((r, i) => (r.counted ? [i] : []));
+    this.tags = board.switches.tags;
+    this.credits = board.switches.credits;
+    this.tolled = board.switches.tolled;
     const facts = targets.flatMap(t => t.ice.flatMap(i => (i.rezGains ? [...i.subs, i.rezGains] : i.subs)));
     const effects = facts.flatMap(f => f.does);
     const borrows = effects.filter(e => e.kind === 'borrow').length;
-    // What a borrow can resolve: the subroutines of every ice it may lend from (borrow, below), worked out once
-    this.lenders = borrows ? lenders(state, targets) : [];
+    // What a borrow can resolve: the subroutines of every ice it may lend from (borrow, below), gathered
+    this.lenders = borrows ? board.lenders : [];
     const lent = this.lenders.flatMap(l => l.facts);
     const all = [...facts, ...lent];
     const allEffects = all.flatMap(f => f.does);
@@ -510,11 +625,11 @@ export class Walk {
     const sum = (list: number[]) => list.reduce((a, b) => a + b, 0);
     const tagsOf = (f: SubFacts) => sum(f.does.map(e => (e.kind === 'tags' && typeof e.n === 'number' ? e.n : 0)));
     const tagGains = targets.flatMap(t => t.ice.map(i => (i.rezFacts?.tags ?? 0) + (i.encounterFacts?.toll?.tags ?? 0) + (i.encounterFacts?.unless?.tags ?? 0)));
-    const tagsMost = state.runner.tags + sum(tagGains) + sum(facts.map(tagsOf)) + borrows * most(lent.map(tagsOf));
+    const tagsMost = board.tags + sum(tagGains) + sum(facts.map(tagsOf)) + borrows * most(lent.map(tagsOf));
     const gripOf = (f: SubFacts) => sum(f.does.map(e => (e.kind === 'damage' ? (e.n === 'runnerTags' ? tagsMost : e.n) : 0))) + (f.unless?.netDamage ?? 0);
     const gripMost = sum(facts.map(gripOf)) + sum(encounters.map(e => e.unless?.netDamage ?? 0)) + borrows * most(lent.map(gripOf));
     const doubling = allEffects.some(e => e.kind === 'tags' && e.n === 'runnerTags');
-    this.drawUseful = this.tags && (doubling || allEffects.some(e => e.kind === 'endRun' && e.if?.kind === 'hqMoreThanGrip') || start.rig.some(c => c.cardCode === AUDREY) || gripMost > state.runner.grip.length);
+    this.drawUseful = this.tags && (doubling || allEffects.some(e => e.kind === 'endRun' && e.if?.kind === 'hqMoreThanGrip') || board.rig.some(r => r.audrey) || gripMost > board.grip);
     this.tagUseful = this.tags && (all.some(f => f.when?.kind === 'runnerTagsAtLeast') || allEffects.some(e => (e.kind === 'endRun' && e.if?.kind === 'runnerTagsAtLeast') || ((e.kind === 'damage' || e.kind === 'tags') && e.n === 'runnerTags') || (e.kind === 'corpGainsCredits' && e.n === 'perRunnerTag')));
   }
 
@@ -552,7 +667,7 @@ export class Walk {
     const hit = this.memo.get(key);
     if (hit !== undefined) return hit;
     // 6.9.1b, 10.6.3a: the bad publicity fund is filled as each run begins
-    const fund = this.credits ? this.state.corp.badPublicity : 0;
+    const fund = this.credits ? this.board.badPublicity : 0;
     let best = this.approach({ ...ws, clicks: ws.clicks - 1, spike: false, fund }, j, this.targets[j].ice.length - 1);
     if (ws.clicks > runs) {
       if (this.drawUseful && ws.stack > 0) best = Math.min(best, this.beforeRun({ ...ws, clicks: ws.clicks - 1, grip: ws.grip + 1, stack: ws.stack - 1 }, j));
@@ -578,21 +693,21 @@ export class Walk {
     const ice = this.targets[j].ice[pos];
     const next = (w: WalkState) => this.approach(w, j, pos - 1);
     let v: number;
-    if (!ice.rezzed && !ws.up.includes(ice.card.instanceId)) {
+    if (!ice.rezzed && !ws.up.includes(ice.id)) {
       // 6.9.2c: unrezzed ice the Corp does not rez is passed; 6.4.3: ice of S is rezzed as it is approached
       const paid = this.credits ? ws.corp - ice.rezCost : ws.corp;
-      v = ice.inS && paid >= 0 ? this.rezzed({ ...ws, corp: paid, up: [...ws.up, ice.card.instanceId].sort() }, ice, next, { key: at, j }) : next(ws);
+      v = ice.inS && paid >= 0 ? this.rezzed({ ...ws, corp: paid, up: [...ws.up, ice.id].sort() }, ice, next, { key: at, j }) : next(ws);
     } else v = ice.bypassed ? next(ws) : this.encounter(ws, ice, next, { key: at, j });
     this.memo.set(key, v);
     return v;
   }
 
   /** The ice was rezzed during this run against its server: its rez-time facts (Flyswatter: purge virus counters). */
-  private rezzed(ws: WalkState, ice: WalkIce, next: (w: WalkState) => number, at: Step): number {
+  private rezzed(ws: WalkState, ice: SearchIce, next: (w: WalkState) => number, at: Step): number {
     let w = ws;
     if (ice.rezFacts?.purgeVirus) {
       // Purging removes every virus counter (10.3.5); Physarum Entangler is trashed by it (its text)
-      const purged = this.start.rig.flatMap((c, i) => (CARDS[c.cardCode]?.holdFacts?.trashedOnPurge ? [i] : []));
+      const purged = this.board.rig.flatMap((r, i) => (r.purgeTrash ? [i] : []));
       w = { ...w, virus: w.virus.map(() => 0), gone: [...new Set([...w.gone, ...purged])].sort((a, b) => a - b) };
     }
     if (this.tags && ice.rezFacts?.tags) w = { ...w, tags: w.tags + ice.rezFacts.tags };
@@ -602,8 +717,8 @@ export class Walk {
     if (this.tags && ice.rezFacts?.corpMayTrashInstalled === 'trojan') {
       // Bumi 1.0: the Corp may trash 1 installed trojan, the choice worst for the Runner (ruling 6)
       let worst = go(w);
-      this.start.rig.forEach((c, i) => {
-        if (!w.gone.includes(i) && /\btrojan\b/i.test(cardDef(c).keywords ?? '')) worst = Math.max(worst, go({ ...w, gone: [...w.gone, i].sort((a, b) => a - b) }));
+      this.board.rig.forEach((r, i) => {
+        if (!w.gone.includes(i) && r.trojan) worst = Math.max(worst, go({ ...w, gone: [...w.gone, i].sort((a, b) => a - b) }));
       });
       return worst;
     }
@@ -614,27 +729,20 @@ export class Walk {
    * An encounter: the Runner's own bypass first (Physarum, its trigger as the active player's), then what the ice does as
    * the encounter begins (6.9.3a), then its choice of the subroutines to break and how; the rest resolve in order.
    */
-  private encounter(ws: WalkState, ice: WalkIce, next: (w: WalkState) => number, at: Step): number {
+  private encounter(ws: WalkState, ice: SearchIce, next: (w: WalkState) => number, at: Step): number {
     const subs = ice.subs;
     const types = this.typesOf(ice, ws);
     let best = FAIL;
-    if (plan().bypass) {
+    if (this.board.switches.bypass) {
       for (const b of ice.bypassers) if (!ws.gone.includes(b.idx) && !types.includes(b.unless)) best = Math.min(best, this.pay(ws, b.per * subs.length, next));
     }
     return Math.min(best, this.tolls(ws, ice, w => this.breaks(w, ice, types, next, at)));
   }
 
   /** The ice's subtypes now: a Corp trash of a hosted card that gives subtypes (Chromatophores) takes them away. */
-  private typesOf(ice: WalkIce, ws: WalkState): string[] {
-    if (!ice.granters.some(i => ws.gone.includes(i))) return ice.types;
-    return iceSubtypes(ice.card, this.without(ice, ws));
-  }
-
-  /** The board with the hosted subtype-giving cards the walk has trashed taken off (for the ice's subtypes and plans). */
-  private without(ice: WalkIce, ws: WalkState): GameState {
-    const off = new Set(ice.granters.filter(i => ws.gone.includes(i)).map(i => this.start.rig[i].instanceId));
-    if (!off.size) return this.state;
-    return { ...this.state, runner: { ...this.state.runner, rig: { ...this.state.runner.rig, programs: this.state.runner.rig.programs.filter(c => !off.has(c.instanceId)) } } };
+  private typesOf(ice: SearchIce, ws: WalkState): string[] {
+    const off = ice.granters.filter(i => ws.gone.includes(i));
+    return off.length ? this.board.types[`${ice.id}|${off}`] : ice.types;
   }
 
   /**
@@ -642,16 +750,16 @@ export class Walk {
    * choice (Funhouse: end the run unless it takes 1 tag; Seraph: lose 3 unless it suffers 2 net damage or takes 1 tag;
    * Jaguarundi at threat 4: a tag unless it spends a click).
    */
-  private tolls(ws: WalkState, ice: WalkIce, then: (w: WalkState) => number): number {
+  private tolls(ws: WalkState, ice: SearchIce, then: (w: WalkState) => number): number {
     const e = ice.encounterFacts;
-    if (!e || ice.broken || (e.threatAtLeast !== undefined && threatLevel(this.state) < e.threatAtLeast)) return then(ws);
+    if (!e || ice.broken || (e.threatAtLeast !== undefined && this.board.threat < e.threatAtLeast)) return then(ws);
     // Paywall: the Runner loses credits as the encounter begins (6.9.3a), from its pool (10.6.2: not the fund)
     if (this.tolled && this.credits && e.loses) return lose(this.toll(ws, e, then), e.loses);
     return this.toll(ws, e, then);
   }
 
   /** The encounter toll and the alternatives the Runner may pay instead, its choice. */
-  private toll(ws: WalkState, e: NonNullable<WalkIce['encounterFacts']>, then: (w: WalkState) => number): number {
+  private toll(ws: WalkState, e: NonNullable<SearchIce['encounterFacts']>, then: (w: WalkState) => number): number {
     if (!this.tags || !e.toll) return then(ws);
     const t = e.toll;
     let best = t.endRun ? FAIL : t.loses && this.credits ? lose(then(ws), t.loses) : then({ ...ws, tags: ws.tags + (t.tags ?? 0) });
@@ -663,7 +771,7 @@ export class Walk {
   }
 
   /** The Runner's choice of the subroutines to break and how (a plan, Botulus's counters, the ice's own ability). */
-  private breaks(ws: WalkState, ice: WalkIce, types: string[], next: (w: WalkState) => number, at: Step): number {
+  private breaks(ws: WalkState, ice: SearchIce, types: string[], next: (w: WalkState) => number, at: Step): number {
     const subs = ice.subs;
     let best = FAIL;
     // An inert subroutine resolves to nothing (breaking it never helps): left out of the choice and of the resolution
@@ -683,7 +791,7 @@ export class Walk {
         const w1 = x ? this.spendBotulus(ws, hosted, x) : ws;
         for (let y = 0; y <= b - x; y++) {
           if (y > 0 && !ice.bioroid && ice.selfCredits === undefined) break;
-          const clicks = ice.bioroid && y > 0 ? bioroidBreakClicks(ice.card, y) : 0;
+          const clicks = ice.bioroid && y > 0 ? ice.breakClicks[y] : 0;
           if (clicks > w1.clicks) break;
           const w2 = clicks ? { ...w1, clicks: w1.clicks - clicks } : w1;
           const self = (w: WalkState, then: (w: WalkState) => number) => (ice.selfCredits !== undefined && y > 0 ? this.pay(w, y * ice.selfCredits, then) : then(w));
@@ -710,30 +818,8 @@ export class Walk {
     return { ...ws, virus };
   }
 
-  private planList(ice: WalkIce, z: number, ws: WalkState): WalkPlan[] {
-    const off = ice.granters.filter(i => ws.gone.includes(i));
-    const key = `${ice.card.instanceId}|${z}|${off}`;
-    let list = this.plans.get(key);
-    if (!list) {
-      const index = this.start.index;
-      list = breakPlans(withIce(this.without(ice, ws), ice.card), ice.card, z).flatMap(({ plan: p, spends }) => {
-        const breaker = index.get(p.breaker.instanceId);
-        if (breaker === undefined) return [];
-        const c = spends.counters;
-        const idx = c ? index.get(c.cardId) : undefined;
-        return [{
-          breaker,
-          credits: p.credits,
-          stealth: spends.stealthCredits ?? 0,
-          counter: c && idx !== undefined ? { idx, kind: c.kind, n: c.n } : undefined,
-          grip: spends.gripCards ?? 0,
-          mayfly: !!spends.trashesBreaker,
-          spike: !!spends.oncePerRun,
-        }];
-      });
-      this.plans.set(key, list);
-    }
-    return list;
+  private planList(ice: SearchIce, z: number, ws: WalkState): WalkPlan[] {
+    return this.board.plans[`${ice.id}|${z}|${ice.granters.filter(i => ws.gone.includes(i))}`] ?? [];
   }
 
   private usable(ws: WalkState, p: WalkPlan): boolean {
@@ -766,9 +852,9 @@ export class Walk {
   }
 
   /** The unbroken subroutines `list` (indexes into ice.subs) resolve one at a time in printed order (9.8.7b). */
-  private resolve(ws: WalkState, ice: WalkIce, types: string[], list: number[], k: number, next: (w: WalkState) => number, at: Step): number {
+  private resolve(ws: WalkState, ice: SearchIce, types: string[], list: number[], k: number, next: (w: WalkState) => number, at: Step): number {
     if (k >= list.length) return next(ws);
-    const go = () => this.subroutine(ws, ice.card, types, ice.subs[list[k]], w => this.resolve(w, ice, types, list, k + 1, next, at));
+    const go = () => this.subroutine(ws, ice.id, types, ice.subs[list[k]], w => this.resolve(w, ice, types, list, k + 1, next, at));
     // A borrowing ice (Mycoweb) branches on every subroutine it may lend, each with the rest of its own to resolve: the
     // steps after the first are keyed (`at`: the approach and run; the subroutines as met, those left, the state)
     if (k === 0 || !ice.subs.some(f => f.does.some(e => e.kind === 'borrow'))) return go();
@@ -781,7 +867,7 @@ export class Walk {
   }
 
   /** One subroutine resolves (or the Runner pays its nested cost instead, 1.16.11b). */
-  private subroutine(ws: WalkState, card: CardInstance, types: string[], f: SubFacts, then: (w: WalkState) => number): number {
+  private subroutine(ws: WalkState, card: string, types: string[], f: SubFacts, then: (w: WalkState) => number): number {
     if (f.when && !(f.when.kind === 'iceIs' ? types.includes(f.when.subtype) : f.when.kind === 'runnerTagsAtLeast' && ws.tags >= f.when.n)) return then(ws);
     // "X or end the run": the Corp chooses, and the walk takes the end (ruling 6)
     if (f.orEndRun) return FAIL;
@@ -790,11 +876,11 @@ export class Walk {
     // during the run); off, as on beta: paid for nothing when the Runner holds N now
     if (f.unless?.credits !== undefined) {
       if (this.tolled) best = Math.min(best, this.pay(ws, f.unless.credits, then));
-      else if (this.state.runner.credits >= f.unless.credits) best = Math.min(best, then(ws));
+      else if (this.board.runnerCredits >= f.unless.credits) best = Math.min(best, then(ws));
     }
     // "unless the Runner trashes 1 of their installed cards" (Thunderbolt Armaments): the card it can best spare
     if (this.tolled && f.unless?.trashInstalled) {
-      this.start.rig.forEach((_, i) => {
+      this.board.rig.forEach((_, i) => {
         if (!ws.gone.includes(i)) best = Math.min(best, then({ ...ws, gone: [...ws.gone, i].sort((a, b) => a - b) }));
       });
     }
@@ -802,7 +888,7 @@ export class Walk {
     return best;
   }
 
-  private effects(ws: WalkState, card: CardInstance, does: SubEffect[], i: number, then: (w: WalkState) => number): number {
+  private effects(ws: WalkState, card: string, does: SubEffect[], i: number, then: (w: WalkState) => number): number {
     if (i >= does.length) return then(ws);
     const e = does[i];
     const next = (w: WalkState) => this.effects(w, card, does, i + 1, then);
@@ -813,8 +899,8 @@ export class Walk {
         if (c.kind === 'runnerCreditsAtMost') return Math.max(next(ws), c.n + 1);
         if (c.kind === 'corpCreditsMoreThanRunner') return Math.max(next(ws), ws.corp);
         if (c.kind === 'runnerTagsAtLeast') return ws.tags >= c.n ? FAIL : next(ws);
-        if (c.kind === 'threatAtLeast') return threatLevel(this.state) >= c.n ? FAIL : next(ws);
-        if (c.kind === 'hqMoreThanGrip') return this.state.corp.hq.length > ws.grip ? FAIL : next(ws);
+        if (c.kind === 'threatAtLeast') return this.board.threat >= c.n ? FAIL : next(ws);
+        if (c.kind === 'hqMoreThanGrip') return this.board.hq > ws.grip ? FAIL : next(ws);
         // Diviner's odd cost: a fact of the grip the walk can't read; left out (the safe side, "does not hold")
         return next(ws);
       }
@@ -834,7 +920,7 @@ export class Walk {
       case 'cannotStealOrTrash':
         return FAIL;
       case 'corpMayTrashHqToEndRun':
-        return this.state.corp.hq.length > 0 ? FAIL : next(ws);
+        return this.board.hq > 0 ? FAIL : next(ws);
       case 'borrow':
         return this.borrow(ws, card, e.subtype, next);
       default:
@@ -845,11 +931,11 @@ export class Walk {
   }
 
   /** Mycoweb: the Corp resolves 1 subroutine of another rezzed ice of the subtype, the one worst for the Runner (ruling 6). */
-  private borrow(ws: WalkState, card: CardInstance, subtype: string, next: (w: WalkState) => number): number {
+  private borrow(ws: WalkState, card: string, subtype: string, next: (w: WalkState) => number): number {
     let worst = -1;
     for (const l of this.lenders) {
-      if (l.card.instanceId === card.instanceId || !(l.rezzed || ws.up.includes(l.card.instanceId)) || !l.types.includes(subtype)) continue;
-      for (const f of l.facts) worst = Math.max(worst, this.subroutine(ws, l.card, l.types, f, next));
+      if (l.id === card || !(l.rezzed || ws.up.includes(l.id)) || !l.types.includes(subtype)) continue;
+      for (const f of l.facts) worst = Math.max(worst, this.subroutine(ws, l.id, l.types, f, next));
     }
     return worst < 0 ? next(ws) : worst;
   }
@@ -863,7 +949,7 @@ interface Step {
 
 /** A borrow's lender: rezzed now, or walked (rezzed when the walk rezzes it), its subroutines but the borrowing ones. */
 interface Lender {
-  card: CardInstance;
+  id: string;
   rezzed: boolean;
   types: string[];
   facts: SubFacts[];
@@ -871,7 +957,7 @@ interface Lender {
 
 /** Every ice a borrow may lend from, in board order: the walked ice as met, the rest as the board has it. */
 function lenders(state: GameState, targets: WalkTarget[]): Lender[] {
-  const walked = new Map(targets.flatMap(t => t.ice.map(x => [x.card.instanceId, x] as const)));
+  const walked = new Map(targets.flatMap(t => t.ice.map(x => [x.id, x] as const)));
   const out: Lender[] = [];
   for (const sv of Object.values(state.corp.servers)) {
     for (const c of sv.ice) {
@@ -879,7 +965,7 @@ function lenders(state: GameState, targets: WalkTarget[]): Lender[] {
       if (!w && !c.isRezzed) continue;
       const up = w ? w.card : c;
       const facts = iceSubroutines(state, up).filter(sub => !/resolve 1 subroutine on/i.test(sub.label)).map(sub => subroutineFacts(sub.label));
-      out.push({ card: up, rezzed: w ? w.rezzed : true, types: w ? w.types : iceSubtypes(c, state), facts });
+      out.push({ id: c.instanceId, rezzed: w ? w.rezzed : true, types: w ? w.types : iceSubtypes(c, state), facts });
     }
   }
   return out;
@@ -911,15 +997,29 @@ export function firstState(state: GameState, start: WalkStart, clicks: number, c
   };
 }
 
+/** What one turn's search reads besides its targets: the gathered board, the clicks and what they earn, the first state. */
+interface TurnInput {
+  board: WalkBoard;
+  /** runnerEarnings: what the Runner earns with k clicks. */
+  earn: number[];
+  maxClicks: number;
+  /** The first state, its clicks set per split. */
+  first: WalkState;
+}
+
+/** The turn's input from the board (gathering: the only part of a question that reads `state`). */
+function turnInput(state: GameState, start: WalkStart, targets: WalkTarget[], corp: number): TurnInput {
+  return { board: walkBoard(state, start, targets), earn: runnerEarnings(state), maxClicks: state.runner.maxClicks, first: firstState(state, start, Math.max(0, state.runner.maxClicks), corp) };
+}
+
 /**
  * The least the Runner must bring for one turn through `targets`, in the budget's units (brief 5.5): over every split of
  * its clicks, the pool the walk needs plus what the clicks it doesn't earn with would have earned (runnerEarnings).
  */
-function turnNeed(state: GameState, start: WalkStart, targets: WalkTarget[], corp: number, memo?: Map<string, number>): number {
-  const earn = runnerEarnings(state);
-  const c = Math.max(0, state.runner.maxClicks);
-  const walk = new Walk(state, start, targets, memo);
-  const first = firstState(state, start, c, corp);
+function turnNeed(input: TurnInput, targets: SearchTarget[], memo?: Map<string, number>): number {
+  const { earn, first } = input;
+  const c = Math.max(0, input.maxClicks);
+  const walk = new Walk(input.board, targets, memo);
   let need = FAIL;
   for (let e = 0; e + targets.length <= c; e++) need = Math.min(need, walk.turn({ ...first, clicks: c - e }) + earn[c - 1] - earn[e]);
   return need;
@@ -946,37 +1046,125 @@ export function runTarget(state: GameState, base: WalkIce[], server: string, set
   return { target: { server, ice }, price: bypassed?.price ?? 0 };
 }
 
-/** 'runnerTurn' by the walk: the cheapest affordable rez set that keeps the Runner out, or the one that asks the most. */
-function walkRunnerTurn(state: GameState, server: string, corpCredits: number): Hold {
+/**
+ * One 'runnerTurn' question, gathered (Stage D item 1, the time stop's ruling 4.3): the server's ice as met with no rez
+ * set, the board the search reads, and each rez set the Corp can afford (its mask over the ice, its rez cost, the ice its
+ * bypasses skip and their price; the empty set always, as `entries` may need it). The search reads this and nothing else,
+ * so the question is its own cache key: equal questions are equal answers, whichever board asked.
+ */
+export interface TurnQuestion extends TurnInput {
+  server: string;
+  budget: number;
+  sequence: boolean;
+  ice: SearchIce[];
+  sets: { mask: number; rez: number; affordable: boolean; bypassed: number; price: number }[];
+}
+
+/** A question's answer: the set that holds (its index in `sets`), or the one that asks the most, and its need. */
+interface TurnAnswer {
+  holds: boolean;
+  set: number;
+  need: number;
+  /** The further runs (sequenceEntries), worked out when first read; the memo is kept for it until then. */
+  entries?: number;
+  memo?: Map<string, number>;
+}
+
+/** Answers per decision (ruling 4.3: never across decisions): keyed by the decision's anchor, so they die with it. */
+const turnAnswers = new WeakMap<object, Map<string, TurnAnswer>>();
+/** Questions asked and searched (the cache's hits are asked less searched), for the time report and its test. */
+export const holdCacheStats = { asked: 0, searched: 0 };
+
+/** The question as its key: every value it holds (a non-finite number by name; a Set, Map or function is refused). */
+export function questionKey(q: unknown): string {
+  return JSON.stringify(q, (_, v) => {
+    if (typeof v === 'number' && !Number.isFinite(v)) return `#${v}`;
+    if (v instanceof Set || v instanceof Map || typeof v === 'function') throw new Error('hold question: not plain data');
+    return v;
+  });
+}
+
+function turnQuestion(state: GameState, server: string, corpCredits: number): TurnQuestion {
   const all = state.corp.servers[server]?.ice ?? [];
-  const budget = runnerBudget(state);
   const start = walkStart(state, true);
   const base = walkIce(state, start, all);
   const n = Math.min(all.length, 10);
-  const corp = corpStart(state, base, corpCredits);
-  const sets: { mask: number; rez: number }[] = [];
+  const sets: TurnQuestion['sets'] = [];
   for (let mask = 0; mask < 1 << n; mask++) {
     let rez = 0;
     for (let i = 0; i < n; i++) if (mask & (1 << i)) rez = base[i].rezzed ? Infinity : rez + base[i].rezCost;
-    if (rez <= corpCredits) sets.push({ mask, rez });
+    // A set with an ice rezzed already is the set without it (its rez cost is no rez's; with the rez budget asked
+    // as unlimited, by holdingRez, it was walked again for nothing)
+    const affordable = rez < Infinity && rez <= corpCredits;
+    if (!affordable && mask) continue;
+    const { target, price } = runTarget(state, base, server, new Set(all.slice(0, n).filter((_, i) => mask & (1 << i)).map(c => c.instanceId)));
+    const bypassed = target.ice.reduce((m, c, i) => (c.bypassed ? m | (1 << i) : m), 0);
+    sets.push({ mask, rez, affordable, bypassed, price });
   }
   // Cheapest first, ties in mask order (as before): the first that holds is the answer
   sets.sort((a, b) => a.rez - b.rez || a.mask - b.mask);
+  return {
+    ...turnInput(state, start, [{ server, ice: base }], corpStart(state, base, corpCredits)),
+    server,
+    budget: runnerBudget(state),
+    sequence: plan().holdWalkSequence,
+    ice: base.map(searchIce),
+    sets,
+  };
+}
+
+/** The run of a question's rez set: the ice as met, the set's ice rezzed as approached and its bypasses skipped. */
+function setTarget(q: TurnQuestion, k: number): SearchTarget {
+  const { mask, bypassed } = q.sets[k];
+  return { server: q.server, ice: q.ice.map((c, i) => ({ ...c, inS: !!(mask & (1 << i)), bypassed: !!(bypassed & (1 << i)) })) };
+}
+
+/** The search of a question (pure: it reads `q` alone). */
+function solveTurn(q: TurnQuestion): TurnAnswer {
+  holdCacheStats.searched++;
   const memo = new Map<string, number>();
   let most = -Infinity;
-  let mostSet = new Set<string>();
-  for (const { mask, rez } of sets) {
-    const set = new Set(all.slice(0, n).filter((_, i) => mask & (1 << i)).map(c => c.instanceId));
-    const { target, price } = runTarget(state, base, server, set);
-    const need = turnNeed(state, start, [target], corp, memo) + price;
-    if (need > budget) return { holds: true, rez: [...set], rezCost: rez, need, budget, margin: need - budget, entries: 0 };
-    if (need > most) [most, mostSet] = [need, set];
+  let mostSet = -1;
+  for (let k = 0; k < q.sets.length; k++) {
+    if (!q.sets[k].affordable) continue;
+    const need = turnNeed(q, [setTarget(q, k)], memo) + q.sets[k].price;
+    if (need > q.budget) return { holds: true, set: k, need };
+    if (need > most) [most, mostSet] = [need, k];
   }
-  const need = most === -Infinity ? 0 : most;
-  if (!plan().holdWalkSequence) return { holds: false, rez: null, rezCost: Infinity, need, budget, margin: need - budget, entries: turnEntries(state, need, budget) };
+  return { holds: false, set: mostSet < 0 ? q.sets.findIndex(x => x.mask === 0) : mostSet, need: most === -Infinity ? 0 : most, memo };
+}
+
+/** `entries` from the run sequence (brief 5.6): the most runs on the server one turn reaches, against the set that asks the most. */
+function sequenceEntries(q: TurnQuestion, a: TurnAnswer): number {
+  const target = setTarget(q, a.set);
+  const { price } = q.sets[a.set];
+  // One run gets in (the set that asks the most does not hold); each further run is walked with the nodes shared
+  let k = q.maxClicks > 0 ? 1 : 0;
+  while (k < q.maxClicks && turnNeed(q, Array(k + 1).fill(target), a.memo) + (k + 1) * price <= q.budget) k++;
+  return k;
+}
+
+/** 'runnerTurn' by the walk: the cheapest affordable rez set that keeps the Runner out, or the one that asks the most. */
+function walkRunnerTurn(state: GameState, server: string, corpCredits: number): Hold {
+  const q = turnQuestion(state, server, corpCredits);
+  holdCacheStats.asked++;
+  const anchor = pricing().anchor;
+  let cache = anchor ? turnAnswers.get(anchor) : undefined;
+  if (anchor && !cache) turnAnswers.set(anchor, (cache = new Map()));
+  const key = cache ? questionKey(q) : '';
+  let a = cache?.get(key);
+  if (!a) {
+    a = solveTurn(q);
+    cache?.set(key, a);
+  }
+  const { budget } = q;
+  const { need } = a;
+  const ids = (k: number) => q.ice.slice(0, 10).filter((_, i) => q.sets[k].mask & (1 << i)).map(c => c.id);
+  if (a.holds) return { holds: true, rez: ids(a.set), rezCost: q.sets[a.set].rez, need, budget, margin: need - budget, entries: 0 };
+  if (!q.sequence) return { holds: false, rez: null, rezCost: Infinity, need, budget, margin: need - budget, entries: turnEntries(state, need, budget) };
   // Worked out when read: two readers of the count's many (the ice move, iceCount) read `entries`, and the further runs
   // are most of a count's work (rez money asks every staked server of every board the planner looks at)
-  let entries: number | undefined;
+  const answer = a;
   return {
     holds: false,
     rez: null,
@@ -985,19 +1173,13 @@ function walkRunnerTurn(state: GameState, server: string, corpCredits: number): 
     budget,
     margin: need - budget,
     get entries() {
-      return (entries ??= sequenceEntries(state, start, base, server, mostSet, corp, memo));
+      if (answer.entries === undefined) {
+        answer.entries = sequenceEntries(q, answer);
+        answer.memo = undefined;
+      }
+      return answer.entries;
     },
   };
-}
-
-/** `entries` from the run sequence (brief 5.6): the most runs on the server one turn reaches, against the set that asks the most. */
-function sequenceEntries(state: GameState, start: WalkStart, base: WalkIce[], server: string, set: Set<string>, corp: number, memo: Map<string, number>): number {
-  const budget = runnerBudget(state);
-  const { target, price } = runTarget(state, base, server, set);
-  // One run gets in (the set that asks the most does not hold); each further run is walked with the nodes shared
-  let k = state.runner.maxClicks > 0 ? 1 : 0;
-  while (k < state.runner.maxClicks && turnNeed(state, start, Array(k + 1).fill(target), corp, memo) + (k + 1) * price <= budget) k++;
-  return k;
 }
 
 /**
@@ -1016,7 +1198,8 @@ export function turnReach(state: GameState, servers: string[], rezSets: string[]
     const baseOf = (id: string) => bases.get(id) ?? bases.set(id, walkIce(state, start, state.corp.servers[id]?.ice ?? [])).get(id)!;
     const runs = servers.map((id, i) => runTarget(state, baseOf(id), id, new Set(rezSets[i] ?? [])));
     const corp = corpStart(state, [...bases.values()].flat(), corpCredits);
-    const need = turnNeed(state, start, runs.map(r => r.target), corp) + runs.reduce((n, r) => n + r.price, 0);
+    const targets = runs.map(r => r.target);
+    const need = turnNeed(turnInput(state, start, targets, corp), targets.map(searchTarget)) + runs.reduce((n, r) => n + r.price, 0);
     return { reaches: need <= budget, need, budget };
   });
 }
@@ -1039,6 +1222,7 @@ function walkThisRun(state: GameState, server: string, opts: HoldOptions): Hold 
   const open = (opts.further ?? true) ? sv.ice.slice(0, pos).filter(c => !c.isRezzed).slice(0, 10) : [];
   const start = walkStart(state, false);
   const ice0 = walkIce(state, start, sv.ice);
+  const board = walkBoard(state, start, [{ server, ice: ice0 }]);
   let best = Infinity;
   let bestSet: string[] | null = null;
   let bestNeed = 0;
@@ -1048,16 +1232,16 @@ function walkThisRun(state: GameState, server: string, opts: HoldOptions): Hold 
     const cost = base + extra.reduce((n, c) => n + rezCost(state, c), 0);
     if (cost - base > spare || cost >= best) continue;
     const up = new Set([...must.map(c => c.instanceId), ...extra.map(c => c.instanceId)]);
-    const board = withServerIce(state, sv.id, sv.ice.map(c => (up.has(c.instanceId) ? { ...c, isRezzed: true } : c)));
-    const skipped = bypassesAhead(board, board.corp.servers[sv.id].ice.slice(0, pos + 1), true);
-    const ice = ice0.map(c => ({ ...c, inS: up.has(c.card.instanceId), bypassed: skipped.has(c.card.instanceId) }));
+    const view = withServerIce(state, sv.id, sv.ice.map(c => (up.has(c.instanceId) ? { ...c, isRezzed: true } : c)));
+    const skipped = bypassesAhead(view, view.corp.servers[sv.id].ice.slice(0, pos + 1), true);
+    const ice = ice0.map(c => ({ ...searchIce(c), inS: up.has(c.id), bypassed: skipped.has(c.id) }));
     // The Corp pays each rez as its ice is approached (6.4.3): it starts with the approached ice's cost still in hand
     const corp = spare + base;
     // The run's own credits: the fund and Overclock's, and the cards that pay during it (availableCredits less the pool)
     const fund = plan().holdWalkCredits ? run.bonusCredits + (run.badPublicityCredits ?? 0) : 0;
     const hosted = plan().holdWalkCredits ? Math.max(0, availableCredits(state, 'runner') - state.runner.credits - fund) : 0;
     const ws: WalkState = { ...firstState(state, start, state.runner.clicks, corp), fund, hosted, stealth: stealthCredits(state) };
-    const need = new Walk(state, start, [{ server, ice }]).fromIce(ws, pos);
+    const need = new Walk(board, [{ server, ice }]).fromIce(ws, pos);
     if (need > mostNeed) mostNeed = need;
     if (need > budget) {
       best = cost;

@@ -214,7 +214,11 @@ export function oracle(state: GameState, ask: OracleAsk): OracleAnswer {
       if (a.type === 'PASS') return !a.restOfRun;
       // No ability that installs or plays a card from the grip, on any card (Topan's and Arissana's identities): the
       // count's capability is the rig installed at the turn's start (found reading the baseline's unread disagreements,
-      // found-during-stage-d.md row 5; narrowed to these abilities by the AI Coordinator's ruling)
+      // found-during-stage-d.md row 5; narrowed to these abilities by the AI Coordinator's ruling). Every other ability
+      // stays in, an identity's too. The pool's 15 Runner identities, checked 2026-11-17: three have an ability, Topan
+      // and Arissana (left out here) and Virtual Intelligence, P.I. ("Draw 1 card and remove 1 tag": kept, public
+      // capability); René Arcemont, Zahya Sadeghi, Tāo Salonga, The Catalyst, Ryō Ōno, Barry Wong, MuslihaT, Dewi
+      // Subrotoputri, Magdalene Keino-Chemutai, Hiram Svensson, Mercury and Sebastião Souza Pessoa have none
       if (a.type === 'USE_ABILITY') return !fromGrip(s, a);
       return true;
     });

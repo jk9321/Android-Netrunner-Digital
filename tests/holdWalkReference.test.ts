@@ -17,10 +17,10 @@ import { threatLevel } from '../src/core/engine/cardEffects';
 import { iceSubroutines, iceSubtypes } from '../src/core/engine/ice';
 import { createCardInstance } from '../src/core/engine/gameState';
 import { installIceForTest, installProgramForTest, newGame } from './helpers';
-import { Walk, WalkIce, WalkPlan, WalkState, WalkTarget, corpStart, firstState, runTarget, runnerEarnings, turnReach, walkIce, walkStart } from '../src/ai/corp/hold';
+import { Walk, WalkIce, WalkPlan, WalkState, WalkTarget, corpStart, firstState, runTarget, holdCacheStats, questionKey, runnerEarnings, searchTarget, serverHold, turnReach, walkBoard, walkIce, walkStart } from '../src/ai/corp/hold';
 import { SubEffect, SubFacts, bioroidBreakClicks, subroutineFacts } from '../src/ai/runs';
 import { CARDS } from '../src/ai/cards';
-import { asSide } from '../src/ai/pricing';
+import { asSide, withPricing } from '../src/ai/pricing';
 import { decisionContext } from '../src/ai/handValues';
 import { breakerCodes, iceCodes } from '../scripts/stage-d/golden-prices';
 
@@ -36,7 +36,7 @@ class Brute {
     private readonly start: ReturnType<typeof walkStart>,
     private readonly targets: WalkTarget[],
   ) {
-    this.walk = new Walk(state, start, targets);
+    this.walk = new Walk(walkBoard(state, start, targets), targets.map(searchTarget));
   }
 
   beforeRun(ws: S, j: number): boolean {
@@ -344,4 +344,74 @@ describe('the hold walk against a brute force of the same model (brief section 6
     expect(Math.min(reached, compared - reached)).toBeGreaterThan(compared / 10);
     expect(misses).toEqual([]);
   }, 600_000);
+});
+
+/**
+ * The per-decision cache of the walk's 'runnerTurn' answers (Stage D item 1, ruling 4.3 on the time stop: a pure search
+ * over one gathered question, the question its own key). Many boards in one decision, from different games (their
+ * instance ids collide), some asked twice, some one field apart: each answer must be the answer searched afresh.
+ */
+describe("the hold walk's per-decision cache", () => {
+  const answer = (s: GameState, corpCredits?: number) => {
+    const h = serverHold(s, 'remote1', { when: 'runnerTurn', corpCredits });
+    return { holds: h.holds, rez: h.rez, rezCost: h.rezCost, need: h.need, budget: h.budget, margin: h.margin, entries: h.entries };
+  };
+  const fresh = (s: GameState, corpCredits?: number) => withPricing({ anchor: null }, () => answer(s, corpCredits));
+
+  it('gives the answer searched afresh, on 200 boards and their near neighbours in one decision', () => {
+    const r = rng(20261119);
+    const boards: GameState[] = [];
+    for (let n = 0; n < 200; n++) {
+      const { s } = randomBoard(r, n % 10 === 9 ? '35053' : undefined);
+      boards.push(s);
+      // One field apart: what the search may read (the Corp's credits, the HQ, the Runner's credits, tags, grip, clicks)
+      const near = (f: (t: GameState) => void) => {
+        const t = structuredClone(s);
+        f(t);
+        boards.push(t);
+      };
+      near(t => (t.corp.credits += 1));
+      near(t => (t.corp.hq = t.corp.hq.slice(1)));
+      for (const d of [1, 2, 3, 5, -s.runner.credits]) near(t => (t.runner.credits += d));
+      near(t => (t.runner.tags += 1));
+      near(t => (t.runner.grip = t.runner.grip.slice(1)));
+      near(t => (t.runner.maxClicks = Math.max(1, t.runner.maxClicks - 1)));
+      boards.push(structuredClone(s));
+    }
+    const asked = holdCacheStats.asked;
+    const searched = holdCacheStats.searched;
+    const misses: string[] = [];
+    inCorp(boards[0], () => {
+      boards.forEach((s, i) => {
+        for (const credits of [undefined, Infinity]) {
+          const got = answer(s, credits);
+          const want = fresh(s, credits);
+          if (JSON.stringify(got) !== JSON.stringify(want)) misses.push(`board ${i} ${credits}: cached ${JSON.stringify(got)}, fresh ${JSON.stringify(want)}`);
+        }
+      });
+    });
+    expect(misses).toEqual([]);
+    // Hits happen (the copy of each board at least), and the fresh answers (no decision) searched every time
+    const hits = holdCacheStats.asked - asked - (holdCacheStats.searched - searched);
+    expect(hits).toBeGreaterThan(400);
+  }, 600_000);
+
+  it('keeps answers per decision only, and keeps none outside a decision', () => {
+    const { s } = randomBoard(rng(20261120));
+    const searches = (f: () => void) => {
+      const before = holdCacheStats.searched;
+      f();
+      return holdCacheStats.searched - before;
+    };
+    expect(searches(() => inCorp(s, () => [answer(s), answer(s), answer(structuredClone(s))]))).toBe(1);
+    // A new decision on the same board searches again (the answers died with the last decision's anchor)
+    expect(searches(() => inCorp(s, () => answer(s)))).toBe(1);
+    expect(searches(() => asSide('corp', () => withPricing({ anchor: null }, () => [answer(s), answer(s)])))).toBe(2);
+  });
+
+  it('keys only plain data', () => {
+    expect(questionKey({ a: [1, Infinity, -Infinity], b: { c: 'x' } })).toBe('{"a":[1,"#Infinity","#-Infinity"],"b":{"c":"x"}}');
+    expect(() => questionKey({ a: new Set([1]) })).toThrow();
+    expect(() => questionKey({ a: () => 1 })).toThrow();
+  });
 });
