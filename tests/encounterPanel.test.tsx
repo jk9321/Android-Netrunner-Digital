@@ -86,3 +86,32 @@ describe('Encounter panel: a card with two abilities', () => {
     expect(texts).toContain('Arruaceiras Crew: Trash the encountered ice if its strength is 0 or less (2 credits, trash)');
   });
 });
+
+describe('Encounter panel: the ice’s own break ability shows its real cost', () => {
+  const buttons = (s: ReturnType<typeof newGame>) =>
+    [...renderAs(s, 'runner', seat => <EncounterPanel state={seat.state} onAction={() => {}} />).matchAll(/<button([^>]*)>(.*?)<\/button>/g)].map(m => ({
+      html: m[2],
+      text: m[2].replace(/<[^>]+>/g, ''),
+    }));
+
+  it('N-Pot’s break buttons show its credit cost, not a click', () => {
+    const NPOT = '35064'; // "Pay 3 [credit]: Break 1 subroutine on this ice"
+    let s = newGame();
+    installIceForTest(s, NPOT, 'hq');
+    s.runner.credits = 20;
+    s = runIntoFirstIce(s, 'hq');
+    const breaks = buttons(s).filter(b => /^Break \d/.test(b.text));
+    expect(breaks.map(b => b.text)).toEqual(['Break 1 (3credit)', 'Break 2 (3credit)', 'Break 3 (3credit)']);
+    expect(breaks.some(b => b.html.includes('lucide-clock'))).toBe(false);
+  });
+
+  it('a bioroid’s break buttons still show a click', () => {
+    const BRAN = '30039'; // Brân 1.0, Barrier - Bioroid
+    let s = newGame();
+    installIceForTest(s, BRAN, 'hq');
+    s = runIntoFirstIce(s, 'hq');
+    const breaks = buttons(s).filter(b => /^Break \d/.test(b.text));
+    expect(breaks.length).toBeGreaterThan(0);
+    expect(breaks.every(b => b.html.includes('lucide-clock') && !b.text.includes('credit'))).toBe(true);
+  });
+});
