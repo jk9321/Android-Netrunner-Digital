@@ -48,17 +48,5 @@
    "if (!ice.liability) return then(ws);",
    "return then(ws);"
   ]
- ],
- "trash": [
-  [
-   "ai/corp/hold.ts",
-   "const INERT = new Set<SubEffect['kind']>(['toGrip',",
-   "const INERT = new Set<SubEffect['kind']>(['trashInstalled', 'toGrip',"
-  ],
-  [
-   "ai/corp/hold.ts",
-   "case 'trashInstalled': {",
-   "case 'trashInstalledOff': {"
-  ]
  ]
 }

@@ -610,34 +610,6 @@ describe('hold walk: a liability rez, the Corp choosing bad publicity or a tag (
   });
 });
 
-// Found-list row 21 (report-36 T6 R&D, all 30 of its false "does not hold"): Lycian Multi-Munition's "If this ice is a
-// sentry, trash 1 installed program" was inert to the walk, so the fracter the inner Tatu-Bola needs was never lost. The
-// Corp chooses the program (ruling 6); Unity cannot break a sentry subroutine
-describe('hold walk: a subroutine that trashes an installed card, the Corp choosing it (found-list row 21)', () => {
-  const tatuLycian = (fracters: number) =>
-    board(st => {
-      ice(st, '34044', false);
-      ice(st, C.LYCIAN, false);
-      installProgramForTest(st, C.UNITY);
-      for (let k = 0; k < fracters; k++) installProgramForTest(st, '30016');
-      st.runner.credits = 1;
-      st.corp.credits = 12;
-    });
-
-  it('Tatu-Bola inside Lycian, Unity and Marjanah, $1: holds (Lycian a sentry trashes Marjanah; before, need 4 of a budget of 4)', () => {
-    const s = tatuLycian(1);
-    const h = agrees(s);
-    expect(h.holds).toBe(true);
-    expect(oracleOn(s, s.corp.servers.remote1.ice.map(c => c.instanceId))).toBe('holds');
-  });
-
-  it('mirror: a second Marjanah: one is left for Tatu-Bola, $1 gets in', () => {
-    const s = tatuLycian(2);
-    expect(agrees(s).holds).toBe(false);
-    expect(oracleOn(s, s.corp.servers.remote1.ice.map(c => c.instanceId))).toBe('getsIn');
-  });
-});
-
 describe('hold walk: break plans kept with the board they were worked out on (review R3)', () => {
   it('a breaker installed in place on the same board is read: Palisade, $5, holds; Cleaver added: gets in', () => {
     const s = board(st => { ice(st, C.PALISADE); st.runner.credits = 5; });

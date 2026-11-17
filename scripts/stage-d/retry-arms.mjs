@@ -26,12 +26,7 @@ const arms = {
   ],
   // Valentão and Piranhas: the liability rez inert again
   liability: [[F, 'if (!ice.liability) return then(ws);', 'return then(ws);']],
-  // Found-list row 21: "trash 1 installed program" inert again
-  // (a subroutine with nothing else is dropped; one with more falls to the switch's default, as on beta)
-  trash: [
-    [F, "const INERT = new Set<SubEffect['kind']>(['toGrip',", "const INERT = new Set<SubEffect['kind']>(['trashInstalled', 'toGrip',"],
-    [F, "case 'trashInstalled': {", "case 'trashInstalledOff': {"],
-  ],
+  // (Found-list row 21's trash was a sixth arm until the 18:56Z ruling took it off this branch, measurements section 7)
 };
 
 const src = readFileSync(`src/${F}`, 'utf8');
