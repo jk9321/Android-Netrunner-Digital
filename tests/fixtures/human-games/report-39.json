@@ -2514,20 +2514,20 @@
     },
     {
       "type": "RESOLVE_PROMPT",
-      "player": "corp",
+      "player": "runner",
       "promptId": "prompt-14",
       "choice": {
-        "kind": "effect_choice",
-        "optionId": "1"
+        "kind": "effect_cards",
+        "cardInstanceIds": []
       }
     },
     {
       "type": "RESOLVE_PROMPT",
-      "player": "runner",
+      "player": "corp",
       "promptId": "prompt-15",
       "choice": {
-        "kind": "effect_cards",
-        "cardInstanceIds": []
+        "kind": "effect_choice",
+        "optionId": "1"
       }
     },
     {
