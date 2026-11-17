@@ -432,6 +432,11 @@ export const ELEVATION: Record<string, CardAI> = {
     corp: (state, code, { cost, risk }) => ({ keep: perTurn(state, counterWorthOf(state, code, 'power'), risk, 0, 3) - cost }),
     counters: { power: () => 1.5 }, // 1 net damage each, when an agenda is scored or stolen
     counterFormulas: { power: gioanPower },
+    // "Do 1 net damage plus 1 net damage for each power counter removed this way" (up to 2). The text read 3 whatever the
+    // counters (ai-winnow-reach): 1 and the most counters a copy on the board hosts, up to 2. Counters are placed only when
+    // the discard phase ends, so the Corp's turn cannot raise this before a score
+    corpTurnDamage: state =>
+      1 + Math.min(2, Math.max(0, ...Object.values(state.corp.servers).flatMap(s => s.root.filter(c => c.cardCode === '35051').map(c => counters(c, 'power'))))),
   },
   // Empiricist
   '35052': { synergy: { gives: { ice: 1, damage: 1, tags: 0.5, draw: 0.5 } } },

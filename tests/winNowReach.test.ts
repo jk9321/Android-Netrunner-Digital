@@ -149,7 +149,7 @@ describe("the kill side's cards", () => {
       '34045 Mindscaping: 3',
       '34063 Angelique Garza Correa: 1',
       '34105 See How They Run: 1',
-      '35051 Phật Gioan Baotixita: 3',
+      '35051 Phật Gioan Baotixita: 1', // 1 + its counters (none on this board), up to 3
       '35078 Measured Response: 4',
     ]);
   });

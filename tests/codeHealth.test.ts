@@ -365,10 +365,11 @@ describe('AI code health (audit guards)', () => {
   // soundness comment): src/ai 15,012
   // Then + 122 (ai-winnow-reach: win-now's kill side canStillKill and its soundness comment, the hidden-grip cut,
   // usableSources shared, the install into an empty iced remote and places()' re-derived bound, the Neurospike and
-  // Mindscaping facts, damageThreat's key on the facts that read the board): src/ai 15,134
-  it('keeps src/ai/corp at or under 3,367 lines and src/ai at or under 15,134 (Stage C hand-off, ai-corp-honest-order, ai-value-time, ai-playout-lines, ai-honest-runner-view, ai-honest-corp-decision, ai-value-owners, ai-corp-rd-memory, ai-value-b1, ai-value-b2, ai-hold-reentry, ai-value-b3, ai-tag-loss-time, ai-value-b6, ai-threat-delete, ai-breaker-guard-key, ai-tag-loss-bp, ai-hold-facts, ai-hold-walk, ai-flood-bound, ai-winnow-reach)', () => {
+  // Mindscaping facts, damageThreat's key on the facts that read the board): src/ai 15,134; + 5 (Phật Gioan
+  // Baotixita's own-turn damage fact, after the fire count): src/ai 15,139
+  it('keeps src/ai/corp at or under 3,367 lines and src/ai at or under 15,139 (Stage C hand-off, ai-corp-honest-order, ai-value-time, ai-playout-lines, ai-honest-runner-view, ai-honest-corp-decision, ai-value-owners, ai-corp-rd-memory, ai-value-b1, ai-value-b2, ai-hold-reentry, ai-value-b3, ai-tag-loss-time, ai-value-b6, ai-threat-delete, ai-breaker-guard-key, ai-tag-loss-bp, ai-hold-facts, ai-hold-walk, ai-flood-bound, ai-winnow-reach)', () => {
     const corp = aiFiles().filter(f => f.replace(/\\/g, '/').startsWith('corp/')).reduce((n, f) => n + lines(f), 0);
     expect(corp).toBeLessThanOrEqual(3367);
-    expect(aiFiles().reduce((n, f) => n + lines(f), 0)).toBeLessThanOrEqual(15134);
+    expect(aiFiles().reduce((n, f) => n + lines(f), 0)).toBeLessThanOrEqual(15139);
   });
 });

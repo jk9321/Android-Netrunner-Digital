@@ -31,6 +31,11 @@
    "ai/effectValues.ts",
    ":${own && tagged}:${own ? boardFacts(state) : ''}:${count}`;",
    ":${own && tagged}:${count}`;"
+  ],
+  [
+   "ai/cards/elevation.ts",
+   "    corpTurnDamage: state =>\n      1 + Math.min(2, Math.max(0, ...Object.values(state.corp.servers).flatMap(s => s.root.filter(c => c.cardCode === '35051').map(c => counters(c, 'power'))))),",
+   "    corpTurnDamage: undefined,"
   ]
  ],
  "iced": [

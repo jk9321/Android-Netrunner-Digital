@@ -413,12 +413,12 @@ export function damageThreat(state: GameState, corpTurn = false): { burst: numbe
   return threat;
 }
 
-/** The Corp's cards whose corpTurnDamage fact reads the board (Orbital Superiority, Mindscaping, Neurospike), one game's. */
+/** The Corp's cards whose corpTurnDamage fact reads the board (Orbital Superiority, Mindscaping, Neurospike, Phật Gioan Baotixita), one game's. */
 const boardFactCodes = new Map<'codes', string[]>();
 /**
  * damageThreat's key for the facts that read the board (ai-winnow-reach): their values on this board, so a fact is never
- * served from a board with other inputs (Mindscaping reads the tag count, Neurospike the points scored this turn; the key
- * had only whether the Runner is tagged). Empty for a Corp with none of them, so its key is as before.
+ * served from a board with other inputs (Mindscaping reads the tag count, Neurospike the points scored this turn, Phật
+ * Gioan Baotixita its counters; the key had only whether the Runner is tagged). Empty for a Corp with none of them.
  */
 function boardFacts(state: GameState): string {
   scopeToGame(boardFactCodes, state);

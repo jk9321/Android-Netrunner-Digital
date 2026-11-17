@@ -3,6 +3,9 @@
  * owner of a card's damage on the Corp's own turn (ownTurnDamage, registry V20) saw neither card.
  *   Neurospike (30049): "Do X net damage, where X is equal to the sum of the printed agenda points on agendas you scored
  *   this turn."
+ *   Phật Gioan Baotixita (35051, ai-winnow-reach after the fire count): "The first time each turn an agenda is scored or
+ *   stolen, you may remove up to 2 hosted power counters. Do 1 net damage plus 1 net damage for each power counter removed
+ *   this way." The text read 3 whatever the counters.
  *   Mindscaping (34045): "Resolve 1 of the following: ... Do X net damage. X is equal to the number of tags the Runner
  *   has, up to 3."
  * Rule 10.4.2a: each net damage trashes 1 card from the grip at random, so the cards lost are the damage dealt.
@@ -11,9 +14,11 @@ import { describe, expect, it } from 'vitest';
 import { ALL_CARDS, GameState } from '../src/core';
 import { TurnFlag } from '../src/core/engine/cardEffects';
 import { ownTurnDamage } from '../src/ai/effectValues';
-import { answer, giveCard, newGame, play, scoreForTest } from './helpers';
+import { answer, giveCard, installCorpForTest, newGame, play, scoreForTest } from './helpers';
 
 const NEUROSPIKE = '30049';
+const PHAT_GIOAN = '35051';
+const LONGEVITY_SERUM = '30044'; // agenda, 3 to advance, 2 points
 const MINDSCAPING = '34045';
 const SURE_GAMBLE = '30030';
 
@@ -57,6 +62,28 @@ describe('the own-turn damage facts are the engine (ai-winnow-reach)', () => {
       const id = giveCard(s, 'corp', MINDSCAPING);
       const after = answer(play(s, 'corp', id), { kind: 'effect_choice', optionId: 'damage' });
       expect(grip - after.runner.grip.length).toBe(fact);
+    }
+  });
+
+  it('Phật Gioan Baotixita: with 0, 1, 2 and 3 power counters the fact is 1, 2, 3, 3, and so is the damage when an agenda is scored', () => {
+    for (const power of [0, 1, 2, 3]) {
+      let s = structuredClone(newGame(1));
+      s.corp.rd.push(...s.corp.hq.splice(0));
+      bigGrip(s);
+      const id = installCorpForTest(s, PHAT_GIOAN, 'remote-9', true);
+      s.corp.servers['remote-9'].root[0].tokens = { power };
+      const fact = ownTurnDamage(s, PHAT_GIOAN);
+      expect(fact).toBe(1 + Math.min(2, power));
+      expect(id).toBeTruthy();
+      const grip = s.runner.grip.length;
+      s = scoreForTest(s, LONGEVITY_SERUM, 'remote-1');
+      // The Corp removes as many counters as it may (the most damage)
+      while (s.pendingPrompts.length && s.pendingPrompts[0].side === 'corp' && grip === s.runner.grip.length) {
+        const p = s.pendingPrompts[0] as { options?: { id: string }[] };
+        const most = p.options ? p.options[p.options.length - 1].id : undefined;
+        s = most !== undefined ? answer(s, { kind: 'effect_choice', optionId: most }) : answer(s, { kind: 'effect_cards', cardInstanceIds: [] });
+      }
+      expect(grip - s.runner.grip.length).toBe(fact);
     }
   });
 });

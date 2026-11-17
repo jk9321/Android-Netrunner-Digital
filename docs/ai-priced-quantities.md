@@ -276,7 +276,7 @@ Counts at the branch head (scripts/value-owners/counts.mjs): see "Counts" at the
 - **V17, digging for an answer:** `digValue` (`src/ai/evaluate.ts:54`), the chance the next card answers a problem the hand can't (money, ice, a breaker type); read by `digValue` (`src/ai/runnerAI.ts:358`) and `digValue` (`src/ai/corp/rez.ts:321`). Copy (not comparable, a flat on the same move): `needsBiggerHand`'s `score += 1.5` (`src/ai/runnerAI.ts:356`). It reads the side's own deck contents (decklist odds, never the order). **Known debt (Jeff 2026-11-16 14:28Z; branch ai-value-dig after B6, ruling 4):** the Runner's half is deleted there (`digValue` at `src/ai/runnerAI.ts:358`) and its flat nudges (`needsBiggerHand`'s +1.5 at `src/ai/runnerAI.ts:356`, `digForBreakers`' +1.2 at `src/ai/runnerAI.ts:357`) stay as debt; the Corp half stays for its one reader, the rez-timing rule (`src/ai/corp/rez.ts:321`). Findings and rulings: `/mnt/project-files/adversarial/2026-11-16-value-deletions/findings.md`.
 - **V18, the Runner's standing flatline exposure:** the board's damage clock in `sideStrength`, `flatlineOdds` (`src/ai/effectValues.ts:461`) x `flatlineWorth` at `lifeGrip` (`src/ai/effectValues.ts:339`), plus `lifeCards` (V3) (`board clock` (`src/ai/evaluate.ts:501`)). Asks counted.
 - **V19, a hand slot lost to core damage:** `coreSlotWorth` (`src/ai/effectValues.ts:462`) (`CORE_SLOT_USE` x a card); `coreDamageWorth` (`src/ai/effectValues.ts:459`) adds the clock at the lower limit.
-- **V20, the Corp's damage threat:** `damageThreat` (`src/ai/effectValues.ts:374`): the biggest hit and the share of damage cards, read through `cardDamage` (`src/ai/effectValues.ts:398`) or, on the Corp's turn with `plan.corpTurnDamageOwn`, `ownTurnDamage` (`src/ai/effectValues.ts:423`). Its map is keyed by counts (about a third of hits another board's, `threatsAudit`). Three `corpTurnDamage` facts are functions of the state (ai-winnow-reach): Orbital Superiority (tags), Mindscaping (tags, up to 3: card text) and Neurospike (points scored this turn); the map's key holds their values on the `own` reading (`boardFacts`). `ownTurnDamage` is exported: win-now's kill side (`canStillKill`, `src/ai/winNow.ts`) reads it at the turn's most.
+- **V20, the Corp's damage threat:** `damageThreat` (`src/ai/effectValues.ts:374`): the biggest hit and the share of damage cards, read through `cardDamage` (`src/ai/effectValues.ts:398`) or, on the Corp's turn with `plan.corpTurnDamageOwn`, `ownTurnDamage` (`src/ai/effectValues.ts:423`). Its map is keyed by counts (about a third of hits another board's, `threatsAudit`). Four `corpTurnDamage` facts are functions of the state (ai-winnow-reach): Orbital Superiority (tags), Mindscaping (tags, up to 3: card text), Neurospike (points scored this turn) and Phật Gioan Baotixita (1 and its power counters, up to 2: card text); the map's key holds their values on the `own` reading (`boardFacts`). `ownTurnDamage` is exported: win-now's kill side (`canStillKill`, `src/ai/winNow.ts`) reads it at the turn's most.
 
 ### V21 to V25 (rows the V-A recount found missing, added in V-B B1; ruling 12)
 - **V21, a point on the clock:** `pointValue` (`src/ai/valueModel.ts:109`) (the sum of the point steps while `plan.pointClock` is on, else `RATES.point` 8 a point) and `pointGain` (`src/ai/valueModel.ts:192`) (more points on a score, fractional for decklist averages). About 40 and 15 call sites; every game end (V13), agenda (V6) and Archives loss (V23) reads them. Copies: none. `pointsTerm` (`src/ai/valueModel.ts:208`) restates sideStrength's points term by construction (for the sampled game end) and reads `pointValue`: a reader of the owner, not a second price of a point (labelled, not counted).
@@ -379,12 +379,12 @@ From `node scripts/value-owners/counts.mjs` (re-run it to recount; the copy coun
 
 | count | value |
 |---|--:|
-| hand-set literals in the valuation layer (val-lits.mjs: table + scattered) | 1108 (964 + 144) |
+| hand-set literals in the valuation layer (val-lits.mjs: table + scattered) | 1109 (965 + 144) |
 | quantities with one named owner (V1 to V25) | 25 |
 | live copies, all quantities (the live lines of "Copy lines") | 33 |
 | other copy lines, by kind (not counted) | reader 2, gone 4, dead 1, recorded 1, not comparable 6, inside owner 2 |
 | valuation exports with no reader (allow-list) | 6 |
-| lines of src/ai | 15134 |
+| lines of src/ai | 15139 |
 
 Live copies per quantity: V1 0, V2 3, V3 8, V4 3, V5 2, V6 0, V7 7, V8 0, V9 2, V10 1, V11 1, V12 3, V13 0, V14 0, V15 2, V16 0, V17 0, V18 0, V19 0, V20 0, V21 0, V22 1, V23 0, V24 0, V25 0.
 <!-- valuation:end -->
