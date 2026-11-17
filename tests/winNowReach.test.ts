@@ -49,6 +49,15 @@ const uncut = (s: GameState) => {
     winNowBound.uncut = false;
   }
 };
+/** win-now plays the rest of the turn (each pick re-asked on the board it leads to). */
+function followWinNow(s: GameState): GameState {
+  for (let i = 0; i < 20 && !s.winner; i++) {
+    const pick = winNow(s);
+    if (!pick) break;
+    s = executeAction(s, pick);
+  }
+  return s;
+}
 const playedCode = (s: GameState, a: GameAction | null) => {
   const id = (a as { cardInstanceId?: string } | null)?.cardInstanceId;
   return id ? [...s.corp.hq, ...Object.values(s.corp.servers).flatMap(v => v.root)].find(c => c.instanceId === id)?.cardCode : undefined;
@@ -156,6 +165,56 @@ describe("the kill side's cards", () => {
 });
 
 /**
+ * The kill side reads the Runner's tags at their most (canStillKill: tags unlimited), because the Corp's own cards give
+ * tags during the turn (review R2). Tomorrow's Headline (30052): "When this agenda is scored or stolen, give the Runner 1
+ * tag." Mindscaping (34045): "Do X net damage. X is equal to the number of tags the Runner has, up to 3." An untagged
+ * Runner with an empty grip: score, then 1 net damage flatlines (rule 10.4.4). Read at the tags as they are (0), the
+ * bound would cut this line at the root.
+ */
+describe('the kill side reads tags at their most: a tag the turn gives counts (review R2)', () => {
+  const TOMORROWS_HEADLINE = '30052'; // agenda, 3 to advance, 2 points
+  const MINDSCAPING = '34045';
+
+  function tagBoard(): GameState {
+    const s = structuredClone(newGame(1));
+    s.corp.rd.push(...s.corp.hq.splice(0));
+    s.runner.stack.push(...s.runner.grip.splice(0));
+    s.corp.clicks = 3;
+    s.corp.credits = 8;
+    s.runner.tags = 0;
+    const id = installCorpForTest(s, TOMORROWS_HEADLINE, 'remote-1');
+    s.corp.servers['remote-1'].root.find(c => c.instanceId === id)!.advancementCounters = 3;
+    giveCard(s, 'corp', MINDSCAPING);
+    return s;
+  }
+
+  it('an untagged Runner with an empty grip: win-now scores Tomorrow\'s Headline, plays Mindscaping, and flatlines the Runner', () => {
+    const s = tagBoard();
+    expect(s.corp.score + 2).toBeLessThan(7); // no win by points
+    const pick = winNow(s);
+    expect(pick?.type).toBe('SCORE_AGENDA');
+    const end = followWinNow(s);
+    expect(end.winner).toBe('corp');
+    expect(end.runner.tags).toBe(1);
+  });
+
+  it('mirror: one card in the grip survives 1 damage: no win', () => {
+    const s = tagBoard();
+    giveCard(s, 'runner', SURE_GAMBLE);
+    expect(winNow(s)).toBeNull();
+  });
+
+  it('mirror: the agenda gives no tag (Send a Message, fully advanced): no win', () => {
+    const s = tagBoard();
+    s.corp.servers['remote-1'].root = [];
+    const id = installCorpForTest(s, SEND_A_MESSAGE, 'remote-1');
+    s.corp.servers['remote-1'].root.find(c => c.instanceId === id)!.advancementCounters = 5;
+    expect(uncut(s)).toBeNull();
+    expect(winNow(s)).toBeNull();
+  });
+});
+
+/**
  * Touch-ups (35067): "Place 2 advancement counters on 1 installed card you can advance. If you do, choose a card type
  * and reveal the grip. Choose up to 2 revealed cards of that type. The Runner shuffles those cards into the stack." The
  * search plays moves in the real engine, so on a line through Touch-ups it would name the type knowing the grip. A kill
@@ -216,16 +275,6 @@ describe('win-now installs into an empty iced remote while a card counts iced re
   const HYPE = '36055'; // Hype Machine, an upgrade: a card in a root that is not an agenda
   const ICE = '30072'; // Palisade
   const TOMORROWS_HEADLINE = '30052'; // agenda, 3 to advance, 2 points
-
-  /** win-now plays the rest of the turn (each pick re-asked on the board it leads to). */
-  function followWinNow(s: GameState): GameState {
-    for (let i = 0; i < 20 && !s.winner; i++) {
-      const pick = winNow(s);
-      if (!pick) break;
-      s = executeAction(s, pick);
-    }
-    return s;
-  }
 
   it("Jeff's game #42, turn 16, three clicks: win-now installs into the empty iced remote, and its line wins", () => {
     const s = corpTurn(42, 16);
