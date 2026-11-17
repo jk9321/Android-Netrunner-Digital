@@ -31,11 +31,11 @@ export interface Pricing {
   /** The cards in each side's hand the deciding AI has seen (noted as a decision starts). */
   known: Record<SideCode, Set<string> | null>;
   /**
-   * plan.iceStopAnchor: the Runner's credits when the decision started (iceValues.ts stopCredits). stops: plan.ownIceKnown's
-   * rez-budget stops, noted once per decision (iceValues.ts rezBudget). root, side: the decision's own board and side;
+   * plan.iceStopAnchor: the Runner's credits when the decision started (iceValues.ts stopCredits). root, side: the
+   * decision's own board and side;
    * deckValues: the deck cards priced on that board, by pricing context and side (handValues.ts rootDeckAverage).
    */
-  anchor: { id: string; credits: number; stops?: Map<string, number>; root?: import('../core').GameState; side?: SideCode; deckValues?: Map<string, Map<string, number>> } | null;
+  anchor: { id: string; credits: number; root?: import('../core').GameState; side?: SideCode; deckValues?: Map<string, Map<string, number>> } | null;
   /**
    * The planner leaves being priced (plan.plannerHand): each prices its side's hand card by card, whatever
    * plan.handByCard says (leafHandByCard). A list, not one side: a leaf can open a decision that has its own

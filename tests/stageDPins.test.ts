@@ -32,13 +32,15 @@ describe('Stage D pins (known-failing until their fix lands)', () => {
   // D4, the open case: HQ behind one ice the rig beats; the ice went to a remote. Expected: on HQ
   // #49 #82 is a guard since beta 545f146 (the Runner AI plays from a guessed stack; clickWorth's key holds the board): the
   // Corp now advances Send a Message in remote-6 instead. D4 still owes the HQ ice and turns this into the HQ assertion
-  // #49 #111 is a guard since ai-runner-unknowns (the Runner's prices that the Corp's model reads): the Corp now installs
-  // Send a Message in remote-6 instead. Not a D4 fix: D4 still owes the HQ ice
-  for (const [n, m, title, remote, since] of [
-    [49, 82, 'Lycian Multi-Munition', 'remote-4', 'beta 545f146'],
-    [49, 111, 'Ansel 1.0', 'remote-6', 'ai-runner-unknowns'],
+  // #49 #111 was a guard from ai-runner-unknowns to ai-rez-stops: the Corp installed Send a Message in remote-6 instead.
+  // It held only by the rez budget's per-decision stop note (anchor.stops), which served a look-ahead board's stop to the
+  // decision's own board (Tithe on remote-2: 3.91 noted, 3.72 on the root). With the note deleted (ai-rez-stops) the
+  // Corp installs Ansel on remote-6 again, the original D4 mistake: known-failing until D4 owes the HQ ice
+  for (const [n, m, title, remote, since, fails] of [
+    [49, 82, 'Lycian Multi-Munition', 'remote-4', 'guard since beta 545f146', false],
+    [49, 111, 'Ansel 1.0', 'remote-6', 'known-failing again since ai-rez-stops', true],
   ] as const) {
-    it(`D4 #${n} #${m}: ${title} is not installed on ${remote} (expected: HQ) (guard since ${since})`, { timeout: T }, () => {
+    (fails ? it.fails : it)(`D4 #${n} #${m}: ${title} is not installed on ${remote} (expected: HQ) (${since})`, { timeout: T }, () => {
       const { s, recorded } = at(n, m);
       const id = (recorded as Install).cardInstanceId!;
       expect(cardDef(findCardAnywhere(s, id)!).title).toBe(title);
