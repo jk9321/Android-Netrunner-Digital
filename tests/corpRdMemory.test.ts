@@ -1,6 +1,6 @@
 import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
-import { GameAction, GameState, createCardInstance, executeAction, findCardAnywhere } from '../src/core';
+import { GameAction, GameState, cardDef, createCardInstance, executeAction, findCardAnywhere } from '../src/core';
 import { knownInRd, knownToCorpInRd, shuffleRD, updateRdKnowledge } from '../src/core/engine/rdKnowledge';
 import { HeuristicCorpAI, HeuristicRunnerAI } from '../src/ai';
 import { asSide, plan, withPricing } from '../src/ai/pricing';
@@ -179,6 +179,29 @@ describe("The Corp's memory of R&D (engine)", () => {
     expect(memory(s)).toEqual([[top, 0]]);
     s = choose(s, 'bottom');
     expect(memory(s)).toEqual([[top, s.corp.rd.length - 1]]);
+  });
+
+  // 10.2.2b: a card that is looked at stays hidden from the other player; the Corp now knows it (final typed-prompts audit TEST-MELIES-RD-MEMORY)
+  it('Méliès U: the top card it looks at on the matching side is known', () => {
+    let s = newGame();
+    setIdentity(s, 'corp', V.melies);
+    s.corp.rd.push(...s.corp.hq.splice(3));
+    corpTurn(s, 0);
+    s = executeAction(s, { type: 'END_TURN', player: 'corp' });
+    expect(source(s)).toMatchObject({ cardCode: V.melies, step: 'set' });
+    s = choose(s, 'rd');
+    s.corp.rd.push(...s.corp.hq.splice(0));
+    // A card the Runner can't steal on top, so the breach after the look leaves it in R&D
+    const i = s.corp.rd.findIndex(c => cardDef(c).type_code !== 'agenda');
+    s.corp.rd.unshift(...s.corp.rd.splice(i, 1));
+    const top = s.corp.rd[0].instanceId;
+    expect(memory(s)).toEqual([]);
+    s = cont(run(s, 'rd'));
+    expect(source(s)).toMatchObject({ cardCode: V.melies, step: 'top' });
+    expect(memory(s)).toEqual([[top, 0]]);
+    s = choose(s, 'no');
+    expect(s.corp.rd[0].instanceId).toBe(top);
+    expect(memory(s)).toEqual([[top, 0]]);
   });
 
   it('Cultivate: the 3 cards left and arranged are known where the Corp put them (8.3.3, 8.3.3b)', () => {
