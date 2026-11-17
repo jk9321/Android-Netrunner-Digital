@@ -162,26 +162,15 @@ export const CORP_TURN_INCOME = 3;
  * REZ_NEXT_SHARE, the rest nothing. plan.freeRez: ice a coming free rez pays for (Send a Message, Unleash) is covered
  * without drawing on the pool.
  */
-export function rezBudget(state: GameState, decisionStops = false): Map<string, number> {
-  // Keyed by what it reads that tests change in place (credits, the unrezzed ice, the free-rez switch)
+export function rezBudget(state: GameState): Map<string, number> {
+  // Keyed by what it reads that tests change in place (credits, the unrezzed ice, the free-rez switch). Every board works
+  // out its own stops: a stop reads the rest of the board (Mycoweb borrows a rezzed sentry's subroutine), so a stop noted
+  // once per decision served one board's answer to another (Stage D call-order fix, ai-rez-stops)
   const ice = Object.values(state.corp.servers).flatMap(s => s.ice.filter(c => !c.isRezzed).map(c => c.instanceId + c.cardCode)).join();
-  const stops = decisionStops ? decisionStopCache() : null;
-  return memo(state, `rezBudget:${state.corp.credits}:${ice}${stops ? ':d' : ''}`, () => countRezBudget(state, stops));
+  return memo(state, `rezBudget:${state.corp.credits}:${ice}`, () => countRezBudget(state));
 }
 
-/**
- * Stops noted once per decision (the anchor pricing notes as a decision starts), for plan.ownIceKnown's rez budget
- * (effectValues ownIce): it asks on every position the planner looks at, and the stop (iceCost against the rig)
- * only orders the ice that compete for the money, which a turn's plays barely move. Null outside a decision.
- */
-function decisionStopCache(): Map<string, number> | null {
-  // The anchor is a new object with every decision (pricing noteDecision): the stops live on it
-  const anchor = pricing().anchor;
-  if (!anchor) return null;
-  return (anchor.stops ??= new Map());
-}
-
-function countRezBudget(state: GameState, stops: Map<string, number> | null = null): Map<string, number> {
+function countRezBudget(state: GameState): Map<string, number> {
   const free = freeRezTargets(state);
   const shares = new Map<string, number>();
   const waiting: { ice: CardInstance; id: string; cost: number; stop: number }[] = [];
@@ -206,9 +195,7 @@ function countRezBudget(state: GameState, stops: Map<string, number> | null = nu
     return shares;
   }
   for (const w of waiting) {
-    const noted = stops?.get(w.id);
-    w.stop = noted ?? Math.min(iceStop(state), iceCost(state, { ...w.ice, isRezzed: true }));
-    if (stops && noted === undefined) stops.set(w.id, w.stop);
+    w.stop = Math.min(iceStop(state), iceCost(state, { ...w.ice, isRezzed: true }));
   }
   waiting.sort((a, b) => b.stop / Math.max(1, b.cost) - a.stop / Math.max(1, a.cost));
   // Stage B5: as the Corp prices it, the ice of the owner's holding rezzes (rez money's

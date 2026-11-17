@@ -177,7 +177,7 @@ export function runSuccess(state: GameState, serverId: string): number {
  */
 function ownIce(state: GameState, server: GameState['corp']['servers'][string]): CardInstance[] {
   if (!plan().ownIceKnown || !server.ice.some(ice => !ice.isRezzed)) return server.ice;
-  const budget = rezBudget(state, true);
+  const budget = rezBudget(state);
   return server.ice.flatMap(ice => {
     if (ice.isRezzed) return [ice];
     const share = budget.get(ice.instanceId);
