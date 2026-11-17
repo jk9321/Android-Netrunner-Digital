@@ -179,9 +179,13 @@ const aboveTheLaw: CardScript = {
       askCards(ctx, 'corp', 'Above the Law: you may trash 1 installed resource.', resources.map(c => c.instanceId), 0, 1, 'trash');
     },
   },
+  // Abilities triggered together resolve one at a time (rules 9.2.8d): only resources still installed when it resolves
+  liveCandidates: state => state.runner.rig.resources.map(c => c.instanceId),
   onPromptAnswer: ({ state }, _source, answer) => {
     if (answer.kind !== 'effect_cards' || answer.cardInstanceIds.length === 0) return;
-    const card = state.runner.rig.resources.find(c => c.instanceId === answer.cardInstanceIds[0])!;
+    // The chosen resource may have left play before the answer (Word on the Street trashes itself on the same score)
+    const card = state.runner.rig.resources.find(c => c.instanceId === answer.cardInstanceIds[0]);
+    if (!card) return;
     trashInstalledCard(state, card);
     addLog(state, 'corp', `Corp trashed ${cardDef(card).title} (Above the Law).`);
   },
