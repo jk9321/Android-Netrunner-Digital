@@ -22,7 +22,7 @@
  * The engine fires every card's own text, so the oracle shares none of the count's assumptions. Its limits: what the
  * engine does not model is not seen either, and the Runner's grip is never played (by the definition of the count).
  */
-import { GameAction, GameState, actingSide, activePrompt, executeAction, getLegalActions, rezCostOf } from '../../src/core';
+import { GameAction, GameState, actingSide, activePrompt, executeAction, findCardAnywhere, getCardScript, getLegalActions, rezCostOf } from '../../src/core';
 import { createHash } from 'node:crypto';
 
 export interface OracleAsk {
@@ -55,6 +55,13 @@ export interface OracleAnswer {
 }
 
 class Capped extends Error {}
+
+/** An ability whose text installs or plays a card from the grip. */
+function fromGrip(s: GameState, a: Extract<GameAction, { type: 'USE_ABILITY' }>): boolean {
+  const card = findCardAnywhere(s, a.cardInstanceId);
+  const label = card ? getCardScript(card.cardCode)?.abilities?.[a.abilityIndex]?.label ?? '' : '';
+  return /\b(install|play)\b[^.]*\bfrom (?:your )?grip\b/i.test(label);
+}
 
 const RUNNER_ALLOWED = new Set<GameAction['type']>([
   'GAIN_CREDIT', 'DRAW_CARD', 'REMOVE_TAG', 'USE_ABILITY', 'INITIATE_RUN', 'CONTINUE_RUN', 'BREAK_SUBROUTINE', 'BOOST_BREAKER',
@@ -205,6 +212,14 @@ export function oracle(state: GameState, ask: OracleAsk): OracleAnswer {
       if (!RUNNER_ALLOWED.has(a.type)) return false;
       if (a.type === 'INITIATE_RUN') return a.targetServerId === target && (ask.retries || s.runsThisTurn.length === k);
       if (a.type === 'PASS') return !a.restOfRun;
+      // No ability that installs or plays a card from the grip, on any card (Topan's and Arissana's identities): the
+      // count's capability is the rig installed at the turn's start (found reading the baseline's unread disagreements,
+      // found-during-stage-d.md row 5; narrowed to these abilities by the AI Coordinator's ruling). Every other ability
+      // stays in, an identity's too. The pool's 15 Runner identities, checked 2026-11-17: three have an ability, Topan
+      // and Arissana (left out here) and Virtual Intelligence, P.I. ("Draw 1 card and remove 1 tag": kept, public
+      // capability); René Arcemont, Zahya Sadeghi, Tāo Salonga, The Catalyst, Ryō Ōno, Barry Wong, MuslihaT, Dewi
+      // Subrotoputri, Magdalene Keino-Chemutai, Hiram Svensson, Mercury and Sebastião Souza Pessoa have none
+      if (a.type === 'USE_ABILITY') return !fromGrip(s, a);
       return true;
     });
     legal.sort((a, b) => (ORDER[a.type] ?? 9) - (ORDER[b.type] ?? 9));
@@ -228,8 +243,8 @@ export function oracle(state: GameState, ask: OracleAsk): OracleAnswer {
 }
 
 /** One hold question: does the Runner get in through `server` with exactly `rez` rezzed? 'unknown' at the cap. */
-export function oracleGetsIn(state: GameState, server: string, when: 'runnerTurn' | 'thisRun', rez: Iterable<string>, corpCredits?: number, cap?: number): { answer: 'getsIn' | 'holds' | 'unknown' | 'skipped'; work: number; skipped?: string } {
-  const a = oracle(state, { when, targets: [server], rez: new Set(rez), corpCredits, cap });
+export function oracleGetsIn(state: GameState, server: string, when: 'runnerTurn' | 'thisRun', rez: Iterable<string>, corpCredits?: number, cap?: number, retries = false): { answer: 'getsIn' | 'holds' | 'unknown' | 'skipped'; work: number; skipped?: string } {
+  const a = oracle(state, { when, targets: [server], rez: new Set(rez), corpCredits, cap, retries });
   if (a.skipped) return { answer: 'skipped', work: 0, skipped: a.skipped };
   if (a.reached === null) return { answer: 'unknown', work: a.work };
   return { answer: a.reached >= 1 ? 'getsIn' : 'holds', work: a.work };

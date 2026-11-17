@@ -1,6 +1,6 @@
 import { CardInstance, GameState, cardDef } from '../../core';
 import { tally } from '../diagnostics';
-import { runnerBudget, serverHold } from './hold';
+import { reachQuestion, reachSets, serverHold } from './hold';
 import { memo } from '../valueModel';
 
 /**
@@ -20,8 +20,8 @@ import { memo } from '../valueModel';
  *    nothing more rezzed), and a click used to run earns no credit. keep is the largest byServer total over the staked
  *    servers one affordable run sequence reaches. With one or two staked servers, or a rich Runner, it is the sum.
  *
- * In Stage A no decision reads `keep`; the counted lines read the byServer sum (lineFloor), as they read afterLineFloor
- * before. The other reserves (rezReserve, reservePenalty, moneyTarget, the pacing gate, scoringShort, reservedForAgenda's
+ * In Stage A no decision read `keep` (the counted lines read the byServer sum through lineFloor); since Stage C6 lineFloor
+ * returns `keep`, as the placement rules read it. The other reserves (rezReserve, reservePenalty, moneyTarget, the pacing gate, scoringShort, reservedForAgenda's
  * horizon, centralIce's rez gate, boardNeed, rezBudget) are untouched: scripts/stage-a/rez-money.ts measures how far
  * each is from `keep`.
  */
@@ -75,8 +75,7 @@ const holding = (state: GameState) => memo(state, 'holdingRez', () => holdingRez
 
 function countRezMoney(state: GameState, { byServer, rezIds, unholdable }: ReturnType<typeof holdingRez>): RezMoney {
   // What getting in costs the Runner with nothing more rezzed (the rezzed ice only)
-  const entry = Object.fromEntries(Object.keys(byServer).map(id => [id, serverHold(state, id, { when: 'runnerTurn', corpCredits: 0 }).need]));
-  return { keep: keepFor(state, byServer, entry), byServer, rezIds, unholdable };
+  return { keep: keepFor(state, byServer), byServer, rezIds, unholdable };
 }
 
 /** byServer and unholdable: the cheapest holding rez of each staked server, the Corp's money unbounded. */
@@ -94,26 +93,41 @@ function holdingRez(state: GameState, without: string[] = []): { byServer: Recor
   return { byServer, rezIds, unholdable };
 }
 
-/** The largest byServer total over the servers one affordable sequence of runs reaches (at most the Runner's clicks). */
-function keepFor(state: GameState, byServer: Record<string, number>, entry: Record<string, number>): number {
+/**
+ * The largest byServer total over the sets of staked servers that one Runner turn reaches in some order past the ice
+ * rezzed now, the Corp rezzing nothing more (the run sequence, brief 5.6; hold.ts owns it: reachQuestion and reachOrder,
+ * turnReach's search on input gathered once), largest total first. A set is reached only if every set inside it is (one
+ * run fewer frees its click), so a set with an unreached part is skipped unwalked.
+ */
+function keepFor(state: GameState, byServer: Record<string, number>): number {
   const ids = Object.keys(byServer).filter(id => byServer[id] > 0);
-  const budget = runnerBudget(state);
-  const clicks = Math.max(0, state.runner.maxClicks);
-  let keep = 0;
-  for (let mask = 1; mask < 1 << ids.length; mask++) {
+  const sets: number[] = [];
+  for (let mask = 1; mask < 1 << ids.length; mask++) if (bits(mask) <= state.runner.maxClicks) sets.push(mask);
+  const totals = new Map(sets.map(mask => [mask, ids.reduce((n, id, i) => (mask & (1 << i) ? n + byServer[id] : n), 0)]));
+  const total = (mask: number) => totals.get(mask)!;
+  sets.sort((a, b) => total(b) - total(a) || bits(a) - bits(b) || a - b);
+  // Gathered once for every set and order, when first asked (the 14:39Z ruling); its answers cached per decision
+  let asked: ((set: string[]) => boolean) | undefined;
+  const reachedInSomeOrder = (set: string[]) => (asked ??= reachSets(reachQuestion(state, ids)))(set);
+  const reached = new Map<number, boolean>();
+  const reach = (mask: number): boolean => {
+    const hit = reached.get(mask);
+    if (hit !== undefined) return hit;
     const set = ids.filter((_, i) => mask & (1 << i));
-    if (set.length > clicks) continue;
-    // Each run after the first spends a click that would have earned a credit (runnerBudget counts it as money)
-    const cost = set.reduce((n, id) => n + entry[id], 0) + (set.length - 1);
-    if (cost > budget) continue;
-    keep = Math.max(keep, set.reduce((n, id) => n + byServer[id], 0));
-  }
-  return keep;
+    let ok = set.every((_, i) => bits(mask) === 1 || reach(mask & ~(1 << ids.indexOf(set[i]))));
+    ok &&= reachedInSomeOrder(set);
+    reached.set(mask, ok);
+    return ok;
+  };
+  for (const mask of sets) if (reach(mask)) return total(mask);
+  return 0;
 }
+
+const bits = (mask: number): number => (mask ? (mask & 1) + bits(mask >>> 1) : 0);
 
 /**
  * The credits a counted two-turn line must leave once it has scored (count inputs F1; afterLineFloor before Stage A):
- * the byServer sum of rezMoney with the line's agenda out of the pools. A staked server no set holds adds 0 and is
+ * rezMoney's keep with the line's agenda out of the pools (the byServer sum before Stage C6). A staked server no set holds adds 0 and is
  * counted in the diagnostics' scoreInTwo.unholdable. Measured alone -1.1 ± 0.7 (games=3, run 42918968349); with F2 at
  * 10 games +0.2 ± 0.4 (run 42940051464 vs 42940033908).
  */

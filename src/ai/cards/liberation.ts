@@ -509,6 +509,9 @@ export const LIBERATION: Record<string, CardAI> = {
     value: { rig: 1.5 },
     // Its host bypassed for a credit a subroutine (not barriers)
     runner: state => perTurn(state, PACE.runs * 0.3 * 1.5, 'runner', 0, 4),
+    // "Whenever you encounter host ice, if it is not a barrier, you may pay 1 credit for each subroutine it has. If you do,
+    // bypass that ice. When the Corp purges virus counters, trash this program." (6.5.8a)
+    holdFacts: { hostBypass: { creditsPerSubroutine: 1, unlessSubtype: 'barrier' }, trashedOnPurge: true },
   },
   // Amelia Earhart
   '34083': {
@@ -627,8 +630,17 @@ export const LIBERATION: Record<string, CardAI> = {
     counters: { power: () => 3 - CLICK }, // 3 credits for a click
   },
   // Lycian Multi-Munition
-  // "When a turn ends, derez this ice" (its subtypes, chosen when rezzed, are a todo of the hold walk)
-  '34100': { synergy: { gives: { ice: 1 } }, rezEffect: true, holdFacts: { turnEndDerezSelf: true } },
+  // Its subtypes come from the Corp's choice when it rezzes it (rules 2.16.5: abilities can add subtypes); it derezzes itself when a turn ends
+  '34100': {
+    synergy: { gives: { ice: 1 } },
+    rezEffect: true,
+    // "When you rez this ice, choose 1 or more subtypes among barrier, code gate, and sentry. This ice gains the chosen
+    // subtypes while it remains rezzed. When a turn ends, derez this ice." (the engine's LYCIAN_CHOICES)
+    holdFacts: {
+      turnEndDerezSelf: true,
+      rezChoosesSubtypes: [['barrier'], ['code gate'], ['sentry'], ['barrier', 'code gate'], ['barrier', 'sentry'], ['code gate', 'sentry'], ['barrier', 'code gate', 'sentry']],
+    },
+  },
   // Sorocaban Blade
   '34101': { synergy: { gives: { ice: 1 } } },
   // Active Policing

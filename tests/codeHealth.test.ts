@@ -351,10 +351,19 @@ describe('AI code health (audit guards)', () => {
   // M1b + 3 (the cards the Corp cannot know are the decision root's R&D, not those outside the hand it noted) = 13,628 (up to 13,629 allowed)
   // Stage D item 1 branch 1 (ai-hold-facts) + 281: runs.ts + 218 (subroutineFacts, the literal facts of every pool
   // subroutine for the hold walk, ~150; each price rule's `blocks` condition and subroutineBlocks, ~40; breakPlans with
-  // PlanSpends, ~25), cards/types.ts + 37 (HoldFacts), the card entries + 26 (holdFacts of 11 cards) = 13,909
-  it('keeps src/ai/corp at or under 2,298 lines and src/ai at or under 13,909 (Stage C hand-off, ai-corp-honest-order, ai-value-time, ai-playout-lines, ai-honest-runner-view, ai-honest-corp-decision, ai-value-owners, ai-corp-rd-memory, ai-value-b1, ai-value-b2, ai-hold-reentry, ai-value-b3, ai-tag-loss-time, ai-value-b6, ai-threat-delete, ai-breaker-guard-key, ai-tag-loss-bp, ai-hold-facts)', () => {
+  // PlanSpends, ~25), cards/types.ts + 37 (HoldFacts), the card entries + 26 (holdFacts of 11 cards) = 13,909 (13,895 measured on beta ebc21b8)
+  // Stage D item 1 branch 2 (ai-hold-walk) + 937 over ebc21b8: corp/hold.ts + 888 (the hold count as a walk through the
+  // Runner's turn, brief rev 2 section 5: the gathered board and its plans, the click-by-click search, the run sequence and
+  // the 'thisRun' walk, the pure per-decision answer cache; the old count, its five switches' off paths and their helpers
+  // deleted), corp/rezMoney.ts + 13 (keepFor reads the run sequence), runs.ts + 8 (Thunderbolt's trash-unless fact, the
+  // subroutineBlocks reader), synergy.ts + 3 (the five folded names), cards/types.ts + 13 and liberation.ts + 12 (Lycian's
+  // subtype choice at rez, HoldFacts doc): corp/ 2,298 + 901 = 3,199, src/ai 13,895 + 937 = 14,832
+  // Then + 168 (the 14:39Z ruling on keepFor's wide-board time): corp/hold.ts + 165 (the run sequence gathered once,
+  // reachQuestion and reachOrder, and its per-decision cache of sets and orders, reachSets; a server's walked ice once
+  // per board), corp/rezMoney.ts + 3: corp/ 3,367, src/ai 15,000
+  it('keeps src/ai/corp at or under 3,367 lines and src/ai at or under 15,000 (Stage C hand-off, ai-corp-honest-order, ai-value-time, ai-playout-lines, ai-honest-runner-view, ai-honest-corp-decision, ai-value-owners, ai-corp-rd-memory, ai-value-b1, ai-value-b2, ai-hold-reentry, ai-value-b3, ai-tag-loss-time, ai-value-b6, ai-threat-delete, ai-breaker-guard-key, ai-tag-loss-bp, ai-hold-facts, ai-hold-walk)', () => {
     const corp = aiFiles().filter(f => f.replace(/\\/g, '/').startsWith('corp/')).reduce((n, f) => n + lines(f), 0);
-    expect(corp).toBeLessThanOrEqual(2298);
-    expect(aiFiles().reduce((n, f) => n + lines(f), 0)).toBeLessThanOrEqual(13909);
+    expect(corp).toBeLessThanOrEqual(3367);
+    expect(aiFiles().reduce((n, f) => n + lines(f), 0)).toBeLessThanOrEqual(15000);
   });
 });

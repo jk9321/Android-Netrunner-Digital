@@ -10,8 +10,12 @@ describe('holdFacts card entries', () => {
     expect(CARDS['30004'].holdFacts).toEqual({ runnerTurnStart: { counters: { kind: 'virus', n: 1 } } });
     expect(CARDS['30017'].holdFacts).toEqual({ runnerTurnStart: { counters: { kind: 'virus', n: 1 }, derezHostAt: 3 } });
   });
-  it('turn end: Lycian Multi-Munition derezzes itself', () => {
-    expect(CARDS['34100'].holdFacts).toEqual({ turnEndDerezSelf: true });
+  it('turn end: Lycian Multi-Munition derezzes itself; at its rez the Corp chooses 1 or more of barrier, code gate, sentry', () => {
+    expect(CARDS['34100'].holdFacts?.turnEndDerezSelf).toBe(true);
+    const sets = CARDS['34100'].holdFacts?.rezChoosesSubtypes ?? [];
+    expect(sets).toHaveLength(7);
+    expect(new Set(sets.map(x => [...x].sort().join('+'))).size).toBe(7);
+    expect(sets.every(x => x.length > 0 && x.every(t => ['barrier', 'code gate', 'sentry'].includes(t)))).toBe(true);
   });
   it('rezzed during a run: Flyswatter purges, Ping tags, Bumi 1.0 may trash a trojan, Thunderbolt Armaments adds a subroutine (9.8.3e)', () => {
     expect(CARDS['35079'].holdFacts?.rezDuringRun).toEqual({ purgeVirus: true });

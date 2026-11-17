@@ -175,7 +175,7 @@ export function icePaidAt(state: GameState, card: CardInstance, install: number,
  * remote; with neither paid and no scoring remote, to the thinnest central still (c0-rulings 08:15Z: the paid test
  * chooses between a central and the scoring remote; unrezzed ice deters a breakerless Runner). Equally thin: the larger
  * central stake (centralStake), then HQ before R&D (a fixed order; servers carry no instance id). Ice that changes a count on a staked server stays (line 2), and ice into a new remote stays while HQ holds an
- * agenda or asset to go behind it this turn (rule 4: a build pair, two clicks). Null: the proposal stands.
+ * agenda or asset to go behind it this turn (rule 4: a build pair, two clicks, or one when the ice's install is free). Null: the proposal stands.
  */
 function iceFallback(state: GameState, card: CardInstance, from: Install, free?: FreeInstall): { action: Install; unpaid: boolean } | null {
   if (!mainOr(state, free)) return null;

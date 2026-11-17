@@ -417,6 +417,9 @@ export const FOLDED: readonly string[] = [
   // tankNoEtr, moneyTarget (a weight): the ranking's own terms; plannerBuild, plannerAgenda: the planner's builders over
   // the ranking, replaced by the order's agenda and build slots (corp/candidates.ts plannerIntake)
   'corpCore', 'rolloutLines', 'agendaTiming', 'tankProtection', 'tankNoEtr', 'moneyTarget', 'plannerBuild', 'plannerAgenda',
+  // Stage D item 1 branch 2 (ai-hold-walk, brief 5.7): the hold count's walk and its commits' temporary switches; the
+  // count as on beta (iceCreditNeed summed per rez set) and keepFor's own sum were deleted with them
+  'holdWalk', 'holdWalkTags', 'holdWalkCredits', 'holdWalkSequence', 'holdWalkTolls',
 ];
 
 /**

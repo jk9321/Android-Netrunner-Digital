@@ -34,6 +34,12 @@ export interface HoldFacts {
   /** When a turn ends: this ice derezzes itself (Lycian Multi-Munition). */
   turnEndDerezSelf?: true;
   /**
+   * When the Corp rezzes this ice it chooses the subtypes the ice gains while it stays rezzed, one of these sets
+   * (Lycian Multi-Munition: "choose 1 or more subtypes among barrier, code gate, and sentry"). The walk takes the
+   * choice that keeps the Runner out (ruling 6).
+   */
+  rezChoosesSubtypes?: string[][];
+  /**
    * When the Corp rezzes this ice during a run against its server (Flyswatter, Ping, Bumi 1.0), or, on an identity, any
    * ice of these subtypes during a run (Thunderbolt Armaments): what follows. A choice the Corp makes ("you may trash 1
    * installed trojan") is the Corp's: the walk takes the answer that keeps the Runner out (ruling 6).
@@ -56,6 +62,13 @@ export interface HoldFacts {
     unless?: { tags?: number; netDamage?: number; clicks?: number };
     threatAtLeast?: number;
   };
+  /**
+   * A Runner card hosted on ice: whenever its host is encountered, if the host is not of `unlessSubtype`, the Runner may
+   * pay `creditsPerSubroutine` for each subroutine the host has to bypass it (Physarum Entangler; 6.5.8a).
+   */
+  hostBypass?: { creditsPerSubroutine: number; unlessSubtype: 'barrier' | 'code gate' | 'sentry' };
+  /** Trashed when the Corp purges virus counters (Physarum Entangler). */
+  trashedOnPurge?: true;
 }
 
 /**

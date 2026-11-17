@@ -4,6 +4,10 @@ import { GameAction, GameState, cardDef, createInitialGameState, executeAction, 
 import { deckGameSetup } from '../src/data/decks';
 import { HeuristicCorpAI, createAgent } from '../src/ai';
 import { giveCard, installCorpForTest, installIceForTest, installProgramForTest, newGame } from './helpers';
+import { serverHold } from '../src/ai/corp/hold';
+import { asSide } from '../src/ai/pricing';
+import { decisionContext } from '../src/ai/handValues';
+import { oracleGetsIn } from '../scripts/stage-d/hold-oracle';
 
 /**
  * Step 4 Stage D pins (spec-step4-corp-core.md section 5; AI Coordinator 2026-11-14 17:56Z), committed in Stage B as
@@ -101,9 +105,14 @@ describe('Stage D pins (known-failing until their fix lands)', () => {
   // ice (scripts/stage-c/fixture-candidates.ts). Cause: the leaf gives no worth to an empty scoring remote that now holds
   // (valuation, not the order; line 2 is not exempted from the look-ahead to cover it). The no-look-ahead Corp plays the
   // line-2 ice (tests/corpCandidates.test.ts)
-  // Passes since V-B B6 item 33 (a rezzed profiled card's hosted credits read the owner, countersWorth: the Regolith
-  // click's worth no longer outranks the ice; checked by reverting that line alone, which fails it again)
-  it('Stage C, deal 1001 T10: the Corp with the look-ahead installs ice on remote-1 (was: the Regolith click)', { timeout: 480_000 }, () => {
+  // Passed from V-B B6 item 33 (a rezzed profiled card's hosted credits read the owner, countersWorth) only by keeping
+  // the Regolith click out of K. Known-failing again with the hold walk (Stage D item 1, AI Coordinator's ruling,
+  // walk-rulings.md): no counted question takes the click; line 2 now offers all four ice, Whitespace first (the walk
+  // prices its credit loss and its "6 or less"), and R&D's count is need 5 and 1 entry, holds false against the
+  // Runner's 14 (beta: need 1, 4 entries; the oracle: one run gets in under every rez set). K becomes Whitespace,
+  // Palisade, a credit, a draw, and the Regolith click is valued beside them: -6.19 against -12.20 for the ice. The
+  // cause is the one above, the leaf's worth (valuation), not the count (walk-measurements.md section 3)
+  it.fails('Stage C, deal 1001 T10: the Corp with the look-ahead installs ice on remote-1 (was: the Regolith click)', { timeout: 480_000 }, () => {
     const s: GameState = JSON.parse(readFileSync(new URL('./fixtures/ice-redirect-1001-t10.json', import.meta.url), 'utf8'));
     const a = new HeuristicCorpAI({ synergy: true }).chooseAction(s) as Install;
     expect(a.type).toBe('INSTALL_CARD');
@@ -208,5 +217,73 @@ describe('Stage D pins (known-failing until their fix lands)', () => {
     }
     expect(t.corp.score).toBe(3);
     expect(Object.values(t.corp.servers).flatMap(v => v.ice).some(c => c.cardCode === '30063' && c.isRezzed)).toBe(true);
+  });
+  // Red team F8 (adversarial/2026-11-17-hold-walk, ruled 02:50Z): the hold walk counts installed cards only (10.2.2a; the
+  // grip is not read), so a remote behind two rezzed Brân 1.0 holds against an empty rig: 4 clicks to break, 1 to run
+  // (1.16.1). A Runner with Mayfly in the grip and $9 installs it (a click, $1), breaks one Brân with it (+5 strength
+  // $5, both subroutines $2) and the other with 2 clicks: 4 clicks, $8. The Corp installs Longevity Serum there. Owned by
+  // the deck-list capability item (exploit pin F2's family); the bar reports steals from bioroid remotes on their own line
+  it.fails('F8: an agenda is not installed behind a lone bioroid wall the grip can beat (deck-list capability)', { timeout: T }, () => {
+    const s = newGame(5);
+    s.turnNumber = 7;
+    s.corp.hq = [];
+    giveCard(s, 'corp', '30044');
+    giveCard(s, 'corp', '30072');
+    s.corp.credits = 8;
+    installIceForTest(s, '30039', 'remote1', true);
+    installIceForTest(s, '30039', 'remote1', true);
+    installIceForTest(s, '30072', 'hq', true);
+    installIceForTest(s, '30072', 'rd', true);
+    s.runner.rig = { ...s.runner.rig, programs: [], hardware: [], resources: [] };
+    s.runner.credits = 9;
+    giveCard(s, 'runner', '30032');
+    const a = decide(s) as Install;
+    expect(a.type === 'INSTALL_CARD' && cardDef(s.corp.hq.find(c => c.instanceId === a.cardInstanceId)!).type_code === 'agenda' && a.targetServerId === 'remote1').toBe(false);
+  });
+
+  // The failed first run (Stage D item 1's first follow-up; the AI Coordinator's ruling at 13:05Z in walk-rulings.md):
+  // the hold walk makes one run per target, so a run that ends is the end of the turn. The truth of `holds` is the whole
+  // turn: after a run ends (6.1.4) the Runner may clear a tag (5.2.7g) or meet a rezzed ice without what its rez gave
+  // for that run only (Thunderbolt Armaments, 9.8.3e) and run again. Built on ai-hold-walk (3b697ea, cut 109ae85) and
+  // taken out for its time (a few decisions 7 to 16 s); each board's truth is checked by the engine oracle, which plays
+  // the Runner's whole turn with failed runs allowed.
+  describe('the failed first run (item 1 follow-up)', () => {
+    const inCorp = <X>(s: GameState, f: () => X): X => asSide('corp', () => (decisionContext(s, 'corp'), f()));
+    const holds = (s: GameState, server: string, corp = s.corp.credits) => inCorp(s, () => serverHold(s, server, { when: 'runnerTurn', corpCredits: corp }).holds);
+    // Ping's board: Lamplighter rezzed, Ping unrezzed outside it, Cleaver, $10 and 4 clicks. Ping's rez tags the Runner and
+    // Lamplighter ends the run; the Runner clears the tag and runs again past Ping already rezzed (no new tag)
+    const ping = () => {
+      const s = newGame(3);
+      s.corp.hq = [];
+      s.runner.rig = { ...s.runner.rig, programs: [], hardware: [], resources: [] };
+      s.corp.credits = 20;
+      s.turnNumber = 7;
+      installIceForTest(s, '35080', 'remote1', true);
+      installIceForTest(s, '30055', 'remote1', false);
+      installProgramForTest(s, '30006');
+      s.runner.credits = 10;
+      return s;
+    };
+    // Human game 49 turn 1: Thunderbolt Armaments, Diviner unrezzed on R&D, nothing installed. Diviner's gained
+    // subroutine ends the first run; the second meets Diviner rezzed without it
+    const thunderbolt = () => JSON.parse(readFileSync(new URL('./fixtures/hold-walk/thunderbolt-49-t1-rd.json', import.meta.url), 'utf8')) as { server: string; state: GameState };
+
+    it("the boards' truth: one run is kept out, the whole turn gets in", { timeout: T }, () => {
+      const s = ping();
+      const pingId = [s.corp.servers.remote1.ice[1].instanceId];
+      expect(oracleGetsIn(s, 'remote1', 'runnerTurn', pingId).answer).toBe('holds');
+      expect(oracleGetsIn(s, 'remote1', 'runnerTurn', pingId, undefined, undefined, true).answer).toBe('getsIn');
+      const f = thunderbolt();
+      const all = f.state.corp.servers[f.server].ice.map(c => c.instanceId);
+      expect(oracleGetsIn(f.state, f.server, 'runnerTurn', all, Infinity).answer).toBe('holds');
+      expect(oracleGetsIn(f.state, f.server, 'runnerTurn', all, Infinity, undefined, true).answer).toBe('getsIn');
+    });
+    it.fails("Ping's board: the hold walk does not count the server as holding (the tag is cleared, a second run gets in)", { timeout: T }, () => {
+      expect(holds(ping(), 'remote1')).toBe(false);
+    });
+    it.fails('game 49 turn 1, Thunderbolt Armaments: the hold walk does not count R&D as holding (a second run gets in)', { timeout: T }, () => {
+      const f = thunderbolt();
+      expect(holds(f.state, f.server, Infinity)).toBe(false);
+    });
   });
 });
