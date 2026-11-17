@@ -33,9 +33,9 @@ describe('an agenda in HQ that would win the Runner the game (plan.lethalHq, bug
   // ice on HQ first (tests/corpCandidates.test.ts, bug report #4)
 
   // Known-failing under the order (c0-rulings 16:00Z (1)): the look-ahead plays Palisade into a new remote and two
-  // Clearinghouse advances, HQ ends at two ice (the playouts' leaf prices the game-ending steal as ordinary points:
-  // valuation, Stage D5). Also pinned in tests/stageDPins.test.ts
-  // Stage D item 4 (2026-11-18, counted, not built; netrunner-ai/stage-d/item4-game-end/design-answer.md sections 7 and 8):
+  // Clearinghouse advances, HQ ends at two ice. Stage C thought the cause was the playouts' leaf pricing the game-ending
+  // steal as ordinary points (valuation, Stage D5); Stage D item 4 found otherwise (below). Also pinned in tests/stageDPins.test.ts
+  // Stage D item 4 (2026-11-17, counted, not built; netrunner-ai/stage-d/item4-game-end/design-answer.md sections 7 and 8):
   // neither ordering a game-ending access first nor pricing a near loss moves this board. The reply's Runner never runs HQ
   // here (found-list row 44) and plays with its planner off (row 36), and the count says the third ice does not hold HQ
   // (need 2, budget 9), so this pin asks for a toll, not a hold. Known-failing until the Runner rework
