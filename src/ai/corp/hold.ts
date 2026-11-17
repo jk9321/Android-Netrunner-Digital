@@ -6,6 +6,7 @@ import { CARDS, clickMoneyOf, turnIncomeOf } from '../cards';
 import type { HoldFacts } from '../cards/types';
 import { counters } from '../../core/engine/cardEffects';
 import { plan, pricing, withPricing } from '../pricing';
+import { memo } from '../valueModel';
 
 /**
  * Owner: does a server hold (Step 4 Stage A, spec-step4-corp-core.md 1.4; registry row "what holds a server").
@@ -377,15 +378,11 @@ export function walkIce(state: GameState, start: WalkStart, ice: CardInstance[])
 
 /**
  * A server's ice as met on the Runner's turn (walkIce from walkStart(state, true)), once per board and server: serverHold's
- * question and the run sequence's ask it of the same boards (the 14:39Z ruling: gathered once).
+ * question and the run sequence's ask it of the same boards (the 14:39Z ruling: gathered once). On valueModel's memo, so
+ * it is dropped when the board is changed in place.
  */
-const turnIceCache = new WeakMap<GameState, Map<string, WalkIce[]>>();
 function turnIce(state: GameState, start: WalkStart, server: string): WalkIce[] {
-  let cache = turnIceCache.get(state);
-  if (!cache) turnIceCache.set(state, (cache = new Map()));
-  let ice = cache.get(server);
-  if (!ice) cache.set(server, (ice = walkIce(state, start, state.corp.servers[server]?.ice ?? [])));
-  return ice;
+  return memo(state, `turnIce:${server}`, () => walkIce(state, start, state.corp.servers[server]?.ice ?? []));
 }
 
 /** Each ice's break plans, by the number of subroutines, worked out once per board (time condition: not once per rez set). */
