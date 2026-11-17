@@ -1,3 +1,4 @@
+import { spawnSync } from 'node:child_process';
 import { readFileSync, readdirSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
 import { sideOff, tuning } from '../src/ai/synergy';
@@ -62,6 +63,15 @@ const MODULE_LETS: Record<string, string> = {
 const AUDIT_FLAGS = ['corp/rezMoney:rezMoneyAudit', 'effectValues:threatsAudit', 'handValues:clickAudit', 'handValues:drawAudit'];
 
 describe('AI code health (audit guards)', () => {
+  // Found-list rows 20 and 34: every `name` (path:line) location in docs/ai-priced-quantities.md must hold the name. A branch that
+  // moves an owner's line refreshes the location by hand (the script's --fix only moves one it can prove).
+  it('keeps every location in the AI registry on a line that holds its name', () => {
+    const root = new URL('..', import.meta.url);
+    const run = spawnSync(process.execPath, ['scripts/value-owners/verify-registry.mjs', '--all'], { cwd: root, encoding: 'utf8' });
+    expect(run.stdout).toMatch(/locations checked/);
+    expect(run.stdout + run.stderr, 'stale registry locations (docs/ai-priced-quantities.md)').toMatch(/ 0 stale/);
+  });
+
   it('keeps the on-hit audit objects to this list, each off by default', () => {
     const dir = new URL('../src/ai/', import.meta.url);
     const found = (readdirSync(dir, { recursive: true }) as string[]).filter(f => f.endsWith('.ts')).flatMap(file =>
