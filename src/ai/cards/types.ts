@@ -54,8 +54,8 @@ export interface HoldFacts {
     purgeVirus?: true;
     tags?: number;
     corpMayTrashInstalled?: 'trojan';
-    /** Identity: the rezzed ice of these subtypes gets this strength and gains this subroutine after its others, for the run (9.8.3e). */
-    anyIce?: { subtypes: string[]; strength: number; gains: string };
+    /** Identity: the rezzed ice of these printed subtypes gains this subroutine after its others, for the run (9.8.3e; its +1 strength is not modelled). */
+    anyIce?: { subtypes: string[]; gains: string };
   };
   /**
    * When the Runner encounters this ice (6.9.3a). `loses`: credits it loses. `toll`: what happens unless the Runner
