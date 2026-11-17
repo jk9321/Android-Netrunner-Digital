@@ -11,13 +11,13 @@ const RESERVE = 3;
 const POLL_MS = 120_000;
 const MAX_WAIT_MS = 5.5 * 3600_000;
 const JUST_PASSED_MS = 180_000;
-// Matched by workflow file, never by run.name: the API's run.name is the run-name title ("AI batch g1 · ...").
+// Matched by workflow file, never by run.name (isShort too: a waiting script's name is its expanded title, not "AI script"): the API's run.name is the run-name title ("AI batch g1 · ...").
 // Matching on name made every started batch invisible to this gate, and only a run still queued with no jobs
 // (its name not yet expanded, so plain "AI batch") was seen, and counted as 16 held jobs (2026-11-16 lockups).
 const HEAVY = ['.github/workflows/ai-batch.yml', '.github/workflows/ai-script.yml'];
 const BUILD = ['.github/workflows/ci.yml', '.github/workflows/deploy.yml'];
 
-const isShort = run => run.name === 'AI script' || /^AI batch g1\b/.test(run.display_title ?? '');
+const isShort = run => run.path === '.github/workflows/ai-script.yml' || /^AI batch g1\b/.test(run.display_title ?? '');
 const sleep = ms => new Promise(done => setTimeout(done, ms));
 
 module.exports = async ({ github, context, core }) => {
