@@ -6,6 +6,8 @@
  * whole-file patches. The card facts and the folded switch names stay (beta's code reads neither). Sum with
  * fire-count-sum.mjs: `time base` is beta, `time branch` this tree, on the same decisions.
  *   ARGS="BETA=ebc21b8b2244449fb62316bb3678ef4c904faec2" SHARD=0/64 npx vite-node scripts/stage-d/retime-beta.ts
+ * `RETRIES=off` in ARGS times this tree with the failed run off (the 10:33Z ruling: the time with it on and off): Walk's
+ * `retries` default is set false in this checkout's hold.ts before the trees are made, and put back after.
  */
 import { execSync } from 'node:child_process';
 import { readFileSync, rmSync, writeFileSync } from 'node:fs';
@@ -13,6 +15,13 @@ import { readFileSync, rmSync, writeFileSync } from 'node:fs';
 const sha = /BETA=([0-9a-f]{40})/.exec(process.env.ARGS ?? '')?.[1] ?? process.env.BETA;
 if (!sha) throw new Error('retime-beta: BETA=<full sha> in ARGS');
 const FILES = ['ai/corp/hold.ts', 'ai/corp/rezMoney.ts', 'ai/runs.ts'];
+const HOLD = 'src/ai/corp/hold.ts';
+const holdText = readFileSync(HOLD, 'utf8');
+if (/RETRIES=off/.test(process.env.ARGS ?? '')) {
+  const on = '    private readonly retries = true,';
+  if (holdText.split(on).length !== 2) throw new Error('retime-beta: the retries default is not in hold.ts once');
+  writeFileSync(HOLD, holdText.replace(on, '    private readonly retries = false,'));
+}
 
 // Four processes share a runner's checkout: the first fetch may race the others, so each tries until the commit is there
 const sleep = (ms: number) => Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, ms);
@@ -41,5 +50,9 @@ const patch = {
 const out = `.retime-beta-${(process.env.SHARD ?? '0/1').replace('/', '-')}.json`;
 writeFileSync(out, JSON.stringify(patch));
 process.env.ARGS = out;
-await import('../value-b1/fire-count');
-rmSync(out, { force: true });
+try {
+  await import('../value-b1/fire-count');
+} finally {
+  rmSync(out, { force: true });
+  writeFileSync(HOLD, holdText);
+}

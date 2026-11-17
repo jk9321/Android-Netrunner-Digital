@@ -27,7 +27,8 @@ export interface Steal {
   from: string;
   ice: number;
   rezzedIce: number;
-  /** A rezzed bioroid on the server at the steal (Stage D item 1's bar: steals from bioroid remotes, its own line) */
+  /** A bioroid rezzed on the server as the run became successful (Stage D item 1's bar: steals from bioroid remotes, its
+   * own line): not one rezzed during the access, as Send a Message's rez on the steal is */
   bioroid?: boolean;
   /** Advancement counters on the agenda (remote steals) */
   advanced: number;
@@ -300,6 +301,8 @@ export function playLogged(
   const money: GameRecord['money'] = { spent: {}, gained: {}, corpTurns: 0, creditsAtTurnEnd: 0, clicks: 0, creditClicks: 0, creditsAtTurnStart: [], scoreAtTurnStart: [] };
   const runs: RunWaste = { total: 0, paidAndFailed: 0, credits: 0, jackOutKnown: 0, jackOutFresh: 0, stoppedKnown: 0, stoppedFresh: 0 };
   let rezzedAtStart = new Set<string>();
+  // The ice rezzed as the current run became successful (before anything the access does)
+  let rezzedAtSuccess = new Set<string>();
   let paid = 0;
   let startCredits = 0;
   const early: GameRecord['early'] = [];
@@ -541,7 +544,10 @@ export function playLogged(
       paid = 0;
       startCredits = after.runner.credits + after.activeRun.bonusCredits;
       rezzedAtStart = new Set(Object.values(after.corp.servers).flatMap(sv => sv.ice.filter(i => i.isRezzed).map(i => i.instanceId)));
+      rezzedAtSuccess = new Set();
     }
+    if (after.activeRun?.isSuccessful && !run?.isSuccessful)
+      rezzedAtSuccess = new Set((after.corp.servers[after.activeRun.server]?.ice ?? []).filter(i => i.isRezzed).map(i => i.instanceId));
     // Credits spent while the encounter stays open: boosts and breaks (subroutines resolve as it closes)
     const pool = (st: GameState) => st.runner.credits + (st.activeRun?.bonusCredits ?? 0);
     if (run?.encounter && after.activeRun?.encounter && run.encounter.resolvingIndex === null && after.activeRun.encounter.resolvingIndex === null) {
@@ -585,7 +591,7 @@ export function playLogged(
       from: !serverId ? 'other' : serverId.startsWith('remote') ? 'remote' : serverId,
       ice: server?.ice.length ?? 0,
       rezzedIce: server?.ice.filter(i => i.isRezzed).length ?? 0,
-      bioroid: server?.ice.some(i => i.isRezzed && /\bbioroid\b/i.test(cardDef(i).keywords ?? '')) ?? false,
+      bioroid: server?.ice.some(i => rezzedAtSuccess.has(i.instanceId) && /\bbioroid\b/i.test(cardDef(i).keywords ?? '')) ?? false,
       advanced: agenda?.advancementCounters ?? 0,
       scoreable: !!agenda && !!def && (agenda.advancementCounters ?? 0) >= (def.advancement_cost ?? 99),
       corpCredits: before.corp.credits,
