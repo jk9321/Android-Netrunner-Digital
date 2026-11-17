@@ -10,7 +10,7 @@
 import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
 import '../src/ai';
-import { rezBudget } from '../src/ai/iceValues';
+import { runSuccess } from '../src/ai/effectValues';
 import { asSide, plan, withPricing } from '../src/ai/pricing';
 import { decisionContext } from '../src/ai/handValues';
 import { GameState } from '../src/core';
@@ -24,21 +24,26 @@ function inDecision<T>(root: GameState, fn: () => T): T {
   }));
 }
 
+// Asked through the reader that carried the leak (effectValues ownIce, the Corp's own unrezzed ice by its rez budget):
+// runSuccess on every server of the root. On the old code ownIce asked rezBudget(state, true), the noted path
+const servers = (s: GameState) => Object.keys(s.corp.servers);
+const odds = (s: GameState) => servers(s).map(id => [id, runSuccess(s, id)] as const);
+
 describe('rez budget stop notes: the answer does not depend on what was asked first', () => {
-  it("the root's rez budget is the same whether or not a look-ahead with the R&D sentry rezzed asked first", () => {
+  it("the root's run odds are the same whether or not a look-ahead with the R&D sentry rezzed was priced first", () => {
     const root1: GameState = JSON.parse(readFileSync(FILE, 'utf8'));
-    const alone = inDecision(root1, () => [...rezBudget(root1)]);
+    const alone = inDecision(root1, () => odds(root1));
     const root2: GameState = JSON.parse(readFileSync(FILE, 'utf8'));
     // A look-ahead of the same position (the planner's boards keep state.id): the R&D sentry (inst-37) rezzed, so
     // Mycoweb's "resolve 1 subroutine on a rezzed sentry" has one to borrow: its stop there is 8, on the root 3
     const ahead: GameState = structuredClone(root2);
     ahead.corp.servers.rd.ice.find(c => c.instanceId === 'inst-37')!.isRezzed = true;
     const after = inDecision(root2, () => {
-      rezBudget(ahead);
-      return [...rezBudget(root2)];
+      odds(ahead);
+      return odds(root2);
     });
-    // Today (25 credits): alone, R&D's sentry and both remote Elevation ice are covered and one Mycoweb half; after the
-    // look-ahead, both Mycowebs are covered first and R&D's sentry gets 0.3
+    // With the note (beta before ai-rez-stops) the look-ahead's stops were served on the root: both Mycowebs covered
+    // first and R&D's sentry left out, so the root's odds moved
     expect(after).toEqual(alone);
   });
 });
