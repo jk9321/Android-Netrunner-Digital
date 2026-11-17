@@ -204,10 +204,8 @@ export function knownSubroutineCost(state: GameState, label: string): number | u
 
 /**
  * Does letting this subroutine resolve end the run, as its price says (subroutineCost(...) === BLOCK), without working
- * out the price (Stage D item 1, brief 4.5: the hold count prices a tag's worth only to learn this). Same rules, same
- * order; a label no rule knows is priced 2, so it does not block. Not read yet: the hold count switches to it with the
- * walk (branch 2), since skipping the unused prices changes later picks through the valuation's call history
- * (netrunner-ai/stage-d/item1-hold-count/g1-play-identical.md: 219 of 221 deals the same, every answer equal).
+ * out the price (Stage D item 1, brief 4.5: the hold count priced a tag's worth only to learn this). Same rules, same
+ * order; a label no rule knows is priced 2, so it does not block.
  */
 export function subroutineBlocks(state: GameState, label: string): boolean {
   for (const [, blocks, m] of rulesFor(label)) {
@@ -726,9 +724,13 @@ export function iceCreditNeed(state: GameState, ice: CardInstance, broken: boole
   return physarum !== undefined ? Math.min(need, physarum) : need;
 }
 
+// Which subroutines end the run is read from the price rules' own condition (subroutineBlocks), not from the price: a
+// tag's worth was asked here only to learn it (Stage D item 1, brief 4.5; red team F7: 4.5 s of the old hold count's
+// 6.6 s on the seed-104 game; the walk no longer reads this, its other readers do). Same answers by construction
+// (tests/subroutineFacts.test.ts)
 function plainCreditNeed(state: GameState, ice: CardInstance, broken: boolean[] = []): number {
   const subs = plannedSubroutines(state, ice);
-  const blocking = Math.max(0, subs.filter((s, i) => !broken[i] && subroutineCost(state, s.label) === BLOCK).length - botulusBreaks(state, ice));
+  const blocking = Math.max(0, subs.filter((s, i) => !broken[i] && subroutineBlocks(state, s.label)).length - botulusBreaks(state, ice));
   if (blocking === 0) return 0;
   const plan = bestBreakPlan(state, ice, blocking);
   const self = iceScript(ice)?.runnerBreakCost;
@@ -821,7 +823,7 @@ export function bioroidClicks(state: GameState, ice: CardInstance[]): number {
   let clicks = 0;
   for (const card of ice) {
     if (!card.isRezzed || !isBioroid(card)) continue;
-    const blocking = plannedSubroutines(state, card).filter(s => subroutineCost(state, s.label) === BLOCK).length - botulusBreaks(state, card);
+    const blocking = plannedSubroutines(state, card).filter(s => subroutineBlocks(state, s.label)).length - botulusBreaks(state, card);
     if (blocking > 0 && !bestBreakPlan(state, card, blocking)) clicks += bioroidBreakClicks(card, blocking);
   }
   return clicks;
