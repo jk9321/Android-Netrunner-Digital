@@ -1,0 +1,53 @@
+{
+ "kill": [
+  [
+   "ai/winNow.ts",
+   "  return need === undefined && canStillKill(state, sources, agendas, budget, most);",
+   "  return false;"
+  ],
+  [
+   "ai/winNow.ts",
+   "    if (s.winner === 'corp') return s.corp.score >= 7 || blind(s);",
+   "    if (s.winner === 'corp') return true;"
+  ],
+  [
+   "ai/winNow.ts",
+   "    const k = key(s, true);",
+   "    const k = key(s);"
+  ]
+ ],
+ "facts": [
+  [
+   "ai/cards/systemGateway.ts",
+   "    corpTurnDamage: state => turnFlag(state, TurnFlag.agendaPointsScored),",
+   "    corpTurnDamage: undefined,"
+  ],
+  [
+   "ai/cards/liberation.ts",
+   "    corpTurnDamage: state => Math.min(3, state.runner.tags),",
+   "    corpTurnDamage: undefined,"
+  ],
+  [
+   "ai/effectValues.ts",
+   ":${own && tagged}:${own ? boardFacts(state) : ''}:${count}`;",
+   ":${own && tagged}:${count}`;"
+  ]
+ ],
+ "iced": [
+  [
+   "ai/winNow.ts",
+   "  if (fact) return fact(state) + Math.max(0, icedInstalls(state) - 1);",
+   "  if (fact) return fact(state);"
+  ],
+  [
+   "ai/winNow.ts",
+   "        return !!server?.isRemote && server.root.length === 0 && server.ice.length > 0 && countsIced(state);",
+   "        return false;"
+  ],
+  [
+   "ai/winNow.ts",
+   "  const iced = countsIced(state);",
+   "  const iced = false;"
+  ]
+ ]
+}
