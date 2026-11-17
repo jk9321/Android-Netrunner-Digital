@@ -221,7 +221,7 @@ export interface WalkIce {
   granters: number[];
   /** 'thisRun': the encounter with it is under way; the subroutines already broken. */
   broken?: boolean[];
-  /** The subroutine it gains after its others when the Corp rezzes it during a run (Thunderbolt Armaments, 9.8.3e; its +1 strength is not carried). */
+  /** The subroutine it gains after its others when the Corp rezzes it during a run (Thunderbolt Armaments, 9.8.3e; its +1 strength is not modelled, the todo in tests/holdWalk.test.ts). */
   rezGains?: SubFacts;
   /** Its rez costs the Corp 1 bad publicity or the Runner 1 tag, the Corp's choice (holdFacts.rezBadPublicityOrTag). */
   liability: boolean;
@@ -414,6 +414,7 @@ export function walkIce(state: GameState, start: WalkStart, ice: CardInstance[])
       encounterFacts: CARDS[c.cardCode]?.holdFacts?.encounter,
       granters: hostedHere(r => !!getCardScript(r.cardCode)?.grantsIceSubtypes?.length),
       broken: encounter?.iceId === c.instanceId ? [...encounter.broken] : undefined,
+      // AP and destroyer are printed subtypes only (iceSubtypes reads barrier, code gate and sentry, the ones a card grants)
       rezGains: anyIce && (cardDef(c).keywords ?? '').toLowerCase().split(/\s*-\s*/).some(k => anyIce.subtypes.includes(k)) ? subroutineFacts(anyIce.gains) : undefined,
       liability: !!CARDS[c.cardCode]?.holdFacts?.rezBadPublicityOrTag,
       trashOnce: !!CARDS[c.cardCode]?.holdFacts?.trashesOnePerEncounter,
@@ -423,12 +424,13 @@ export function walkIce(state: GameState, start: WalkStart, ice: CardInstance[])
 }
 
 /**
- * A server's ice as met on the Runner's turn (walkIce from walkStart(state, true)), once per board and server: serverHold's
- * question and the run sequence's ask it of the same boards (the 14:39Z ruling: gathered once). On valueModel's memo, so
- * it is dropped when the board is changed in place.
+ * A server's ice as met (walkIce), once per board, server and kind of start: serverHold's question and the run sequence's
+ * ask it of the same boards (the 14:39Z ruling: gathered once; every caller passes walkStart(state, true) today, and the
+ * key names the start's kind so a 'thisRun' start is never served the turn's ice). On valueModel's memo, so it is
+ * dropped when the board is changed in place.
  */
 function turnIce(state: GameState, start: WalkStart, server: string): WalkIce[] {
-  return memo(state, `turnIce:${server}`, () => walkIce(state, start, state.corp.servers[server]?.ice ?? []));
+  return memo(state, `turnIce:${start.runnerTurn ? 1 : 0}:${server}`, () => walkIce(state, start, state.corp.servers[server]?.ice ?? []));
 }
 
 
@@ -677,7 +679,6 @@ export class Walk {
     return v;
   }
 
-  /** The ice was rezzed during this run against its server: its rez-time facts (Flyswatter: purge virus counters). */
   /**
    * A liability rez's additional cost (Valentão, Piranhas: "take 1 bad publicity or remove 1 tag"; 1.14.3a), the
    * Corp's choice worse for the Runner (ruling 6): the bad publicity fills the fund from the next run on (10.6.3c), the
@@ -689,6 +690,7 @@ export class Walk {
     return ws.tags > 0 ? Math.max(bp, then({ ...ws, tags: ws.tags - 1 })) : bp;
   }
 
+  /** The ice was rezzed during this run against its server: its rez-time facts (Flyswatter: purge virus counters). */
   private rezzed(ws: WalkState, ice: SearchIce, next: (w: WalkState) => number, at: Step): number {
     if (ice.choices && this.choiceOf(ice, ws) === '') {
       // Lycian: the Corp chooses the ice's subtypes as it rezzes it, the choice worst for the Runner (ruling 6)
@@ -1187,7 +1189,7 @@ export function corpStart(state: GameState, ice: WalkIce[], corpCredits: number)
   return Number.isFinite(corpCredits) ? corpCredits : state.corp.credits + ice.filter(c => !c.rezzed).reduce((n, c) => n + c.rezCost, 0);
 }
 
-/** The board runBypasses reads for a rez set: the ice rezzed at the walk's start and the set's (as rezzedSet before). */
+/** The board runBypasses reads for a rez set: the ice rezzed at the walk's start and the set's. */
 function bypassBoard(state: GameState, serverId: string, ice: WalkIce[], set: Set<string>): GameState {
   const server = state.corp.servers[serverId];
   return withServerIce(state, serverId, server.ice.map((c, i) => ({ ...c, isRezzed: ice[i].rezzed || set.has(c.instanceId) })));
@@ -1349,6 +1351,8 @@ function walkRunnerTurn(state: GameState, server: string, corpCredits: number): 
  * the fund filled at each run, the credits hosted on cards and the counters shared, the board carried from run to run
  * (an ice rezzed on one run is met rezzed on the next). `need` is in runnerBudget's units, as serverHold's. Each run's
  * bypasses are priced again (a known gap: a counter one bypass spends is not taken from the next).
+ * A test and script entry point (the brute-force reference, scripts/stage-d): no reader in src; keepFor reads
+ * reachQuestion and reachSets, which answer the same.
  */
 export function turnReach(state: GameState, servers: string[], rezSets: string[][], corpCredits = state.corp.credits): { reaches: boolean; need: number; budget: number } {
   return counted(() => {
@@ -1429,7 +1433,10 @@ function setInput(q: ReachQuestion, set: string[]): TurnInput {
 const reaches = (q: ReachQuestion, order: string[], input: TurnInput, memos = walkMemos()): boolean =>
   passes(input, order.map(id => q.targets[id]), order.reduce((n, id) => n + q.prices[id], 0), q.budget, memos);
 
-/** turnReach(state, order, no rezzes) from the gathered question, its own memo (pure: it reads `q` alone). */
+/**
+ * turnReach(state, order, no rezzes) from the gathered question, its own memo (pure: it reads `q` alone). A test and
+ * script entry point: no reader in src (reachSets is keepFor's).
+ */
 export function reachOrder(q: ReachQuestion, order: string[]): boolean {
   return !order.length || reaches(q, order, setInput(q, order));
 }
