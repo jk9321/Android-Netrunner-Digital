@@ -23,6 +23,12 @@
  * of src/ (.hb-beta/<shard>, its own module graph, as the fire count's trees) and beta's count is asked there, as the
  * Corp on the question's board (the way the walk tests ask it).
  *
+ * JACKOUT=1 with COMPARE=1 (the hold-retry brief, section 2: jacking out measured before it is built): on a 'runnerTurn'
+ * question whose whole-turn truth is "holds", the oracle is asked again with jacking out allowed (hold-oracle.ts
+ * `jackOut`, retries on), from the set that held through the sets not yet shown to get in (a set the Runner gets in
+ * through without jacking out it gets in through with it), and the count's own set too. `jack` on the line: the truth
+ * with jacking out, its holding set, the count's set's verdict, its work. Sum with jack-out-sum.mjs.
+ *
  *   SHARD=0/64 npx vite-node scripts/stage-d/hold-baseline.ts > out-0.txt
  *   DEALS=1001 HUMAN=none SAMPLE=0.05 npx vite-node scripts/stage-d/hold-baseline.ts
  */
@@ -48,6 +54,7 @@ const CAP = Number(process.env.CAP ?? 40_000);
 const DUMP = process.env.OUT_DIR ?? process.env.DUMP ?? '';
 const MAX_SETS = Number(process.env.MAX_SETS ?? 16);
 const COMPARE = process.env.COMPARE === '1';
+const JACKOUT = process.env.JACKOUT === '1';
 // The count as on beta: on a tree with the walk's temporary switches (ai-hold-walk cbab0ad or earlier) `holdWalk: false`
 // reaches it; on a later tree it is beta's own files in a copy of src/ (BETA=<full sha>)
 const [shard, shards] = (process.env.SHARD ?? '0/1').split('/').map(Number);
@@ -173,8 +180,8 @@ function subsets<T>(xs: T[]): T[][] {
 
 type Verdict = 'getsIn' | 'holds' | 'unknown' | 'skipped';
 let movedFlag = false;
-function ask(q: Question, ids: string[], retries = false): { v: Verdict; work: number; why?: string } {
-  const a = oracle(q.state, { when: q.opts.when, targets: [q.server], rez: new Set(ids), corpCredits: q.opts.corpCredits, cap: CAP, retries });
+function ask(q: Question, ids: string[], retries = false, jackOut = false): { v: Verdict; work: number; why?: string } {
+  const a = oracle(q.state, { when: q.opts.when, targets: [q.server], rez: new Set(ids), corpCredits: q.opts.corpCredits, cap: CAP, retries, jackOut });
   if (a.skipped) return { v: 'skipped', work: 0, why: a.skipped };
   if (a.moved) movedFlag = true;
   if (a.reached === null) return { v: 'unknown', work: a.work };
@@ -296,6 +303,33 @@ function judgeBoth(q: Question) {
     }
   }
   if (truth === null && !skipped && unknown === 0) truth = false;
+  // JACKOUT: the truth again with jacking out (only a "holds" can turn: jacking out adds Runner choices)
+  let jack: { holds: boolean | null; set: string[] | null; count?: Verdict; work: number } | undefined;
+  if (JACKOUT && q.opts.when === 'runnerTurn' && truth === true && holdingSet) {
+    const held = holdingSet;
+    jack = { holds: null, set: null, work: 0 };
+    const from = order.findIndex(x => sameSet(x.ids, held));
+    const limit = MAX_SETS + first.length;
+    let unknownJ = 0;
+    for (const set of order.slice(from, limit)) {
+      const r = ask(q, set.ids, true, true);
+      jack.work += r.work;
+      if (count.holds && count.rez && sameSet(set.ids, count.rez)) jack.count = r.v;
+      if (r.v === 'unknown' || r.v === 'skipped') unknownJ++;
+      if (r.v === 'holds') {
+        jack.holds = true;
+        jack.set = set.ids;
+        break;
+      }
+    }
+    if (jack.holds === null && unknownJ === 0 && order.length <= limit) jack.holds = false;
+    if (count.holds && count.rez && jack.count === undefined && verdict.get([...count.rez].sort().join(',')) === 'holds') {
+      const r = ask(q, count.rez, true, true);
+      jack.work += r.work;
+      jack.count = r.v;
+    }
+    work += jack.work;
+  }
   const labelOf = (c: Hold): string => {
     if (skipped) return 'skipped';
     if (c.holds && c.rez && verdict.get([...c.rez].sort().join(',')) === 'holds') return 'agree';
@@ -319,6 +353,7 @@ function judgeBoth(q: Question) {
     count: brief(count),
     old: brief(old),
     oracle: { holds: truth, set: holdingSet, unknown, skipped },
+    jack,
     label: labelOf(count),
     oldLabel: labelOf(old),
     moved: movedFlag,
