@@ -339,6 +339,16 @@ export const tuning = {
      */
     oracle: { grip: false, safestRemote: false, rd: false, think: false, gripThreat: false, gripReply: false },
     /**
+     * TEMPORARY (Stage D item 1 branch 2, brief 5.7; deleted before the hand-off): the hold count walks the Runner's
+     * turn (corp/hold.ts). Commit 1: clicks shared along the run, counters and the choice among break plans, the board
+     * at the Runner's turn start, Flyswatter's purge. Off: the count as on beta.
+     */
+    holdWalk: true,
+    /** TEMPORARY (as holdWalk), commit 2: tags and grip size move through the walk (draws and tag removal before the run, tags and damage on the way, Ping's tag, Bumi's trojan trash, the encounter tolls of Funhouse, Seraph and Jaguarundi). */
+    holdWalkTags: true,
+    /** TEMPORARY (as holdWalk), commit 3: credits move on both sides through the run (subroutines' losses and the Corp's gains, the Corp paying each rez at its approach, the bad publicity fund and credits that pay during runs). */
+    holdWalkCredits: true,
+    /**
      * Per deciding side (Jeff, 2026-10-28): its own hand valued card by card, by what each will do once played (handValues.ts).
      * Batches: each side loses with it (Corp side 32.2% -> 28.0%, Runner side 32.2% -> 35.9% Corp) and the Runner draws at a
      * full hand on 55% of turns. Off on both sides, kept for re-testing.

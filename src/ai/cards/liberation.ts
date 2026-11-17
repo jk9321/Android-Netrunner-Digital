@@ -509,6 +509,9 @@ export const LIBERATION: Record<string, CardAI> = {
     value: { rig: 1.5 },
     // Its host bypassed for a credit a subroutine (not barriers)
     runner: state => perTurn(state, PACE.runs * 0.3 * 1.5, 'runner', 0, 4),
+    // "Whenever you encounter host ice, if it is not a barrier, you may pay 1 credit for each subroutine it has. If you do,
+    // bypass that ice. When the Corp purges virus counters, trash this program." (6.5.8a)
+    holdFacts: { hostBypass: { creditsPerSubroutine: 1, unlessSubtype: 'barrier' }, trashedOnPurge: true },
   },
   // Amelia Earhart
   '34083': {

@@ -56,6 +56,13 @@ export interface HoldFacts {
     unless?: { tags?: number; netDamage?: number; clicks?: number };
     threatAtLeast?: number;
   };
+  /**
+   * A Runner card hosted on ice: whenever its host is encountered, if the host is not of `unlessSubtype`, the Runner may
+   * pay `creditsPerSubroutine` for each subroutine the host has to bypass it (Physarum Entangler; 6.5.8a).
+   */
+  hostBypass?: { creditsPerSubroutine: number; unlessSubtype: 'barrier' | 'code gate' | 'sentry' };
+  /** Trashed when the Corp purges virus counters (Physarum Entangler). */
+  trashedOnPurge?: true;
 }
 
 /**
