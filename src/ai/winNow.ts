@@ -47,8 +47,8 @@ const WORDS: Record<string, number> = {
 const placesOf = new Map<string, number>();
 function places(code: string, text: string, state: GameState): number {
   // A text that counts the board (Flood the Market) is a fact of the card entry, read on this board: never cached by code.
-  // The search installs agendas only in new remotes (no ice) and never ice, so within it the count can't grow: the bound
-  // stays at or above the truth. Not reduced by the Double's second click: the bound stays an upper bound.
+  // It can grow inside the search (a play that installs into an empty iced remote), but the bound holds: that play costs a
+  // click the budget counts as a counter, and the Double's second click is not subtracted. Limit: a no-click effect that fills a root.
   const fact = placesCountersOf(code);
   if (fact) return fact(state);
   let n = placesOf.get(code);

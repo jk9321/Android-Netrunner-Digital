@@ -10,12 +10,12 @@ import { describe, expect, it } from 'vitest';
 import { GameState } from '../src/core';
 import { placesCountersOf } from '../src/ai/cards';
 import { scoreNowAction } from '../src/ai/winNow';
-import { giveCard, installCorpForTest, installIceForTest, newGame } from './helpers';
+import { answer, giveCard, installCorpForTest, installIceForTest, newGame, play } from './helpers';
 import { inDecision } from './helpers/pricing';
 
 const FLOOD = '36053';
-const HYPE = '36055'; // a card in a root that is not an agenda
-const ICE = '30071'; // any ice
+const HYPE = '36055'; // Hype Machine, an upgrade: a card in a root that is not an agenda
+const ICE = '30072'; // Palisade
 const SEND_A_MESSAGE = '30069'; // 5 to advance, 3 points
 
 /** Send a Message (no counters) in remote-1 and three more remotes with a card in the root, all iced; Flood the Market (a Double: 2 clicks) in HQ, 3 clicks. */
@@ -60,9 +60,26 @@ describe('Flood the Market: what one use places is a fact of the board (win-now 
     installCorpForTest(s, '30060', 'remote-1');
     expect(fact(s)).toBe(1);
     installIceForTest(s, ICE, 'hq'); // a central server, even with a root card and ice, is not a remote
-    installCorpForTest(s, '30043', 'hq');
+    installCorpForTest(s, '30042', 'hq'); // Manegarm Skunkworks, an upgrade
     expect(fact(s)).toBe(1);
     installIceForTest(s, ICE, 'remote-2');
     expect(fact(s)).toBe(2);
+  });
+
+  it('the fact equals what the engine places when Flood the Market is played, on each board above', () => {
+    const fact = placesCountersOf(FLOOD)!;
+    for (const iced of [4, 3, 2, 1, 0]) {
+      const s = board();
+      ['remote-1', 'remote-2', 'remote-3', 'remote-4'].forEach((id, i) => {
+        if (i >= iced) s.corp.servers[id].ice = [];
+      });
+      const target = s.corp.servers['remote-1'].root[0].instanceId;
+      const flood = s.corp.hq[s.corp.hq.length - 1].instanceId;
+      const expected = fact(s);
+      expect(expected).toBe(iced);
+      let next = play(s, 'corp', flood);
+      next = answer(next, { kind: 'effect_cards', cardInstanceIds: [target] });
+      expect(next.corp.servers['remote-1'].root[0].advancementCounters ?? 0).toBe(expected);
+    }
   });
 });
