@@ -225,6 +225,8 @@ export interface WalkIce {
   rezGains?: SubFacts;
   /** Its rez costs the Corp 1 bad publicity or the Runner 1 tag, the Corp's choice (holdFacts.rezBadPublicityOrTag). */
   liability: boolean;
+  /** It trashes at most 1 installed Runner card an encounter (holdFacts.trashesOnePerEncounter, Sorocaban Blade). */
+  trashOnce: boolean;
   /** Unrezzed at the walk's start, and the Corp chooses its subtypes when it rezzes it (holdFacts.rezChoosesSubtypes, Lycian): the sets it may choose. `types` is then without a choice. */
   choices?: string[][];
 }
@@ -413,6 +415,7 @@ export function walkIce(state: GameState, start: WalkStart, ice: CardInstance[])
       broken: encounter?.iceId === c.instanceId ? [...encounter.broken] : undefined,
       rezGains: anyIce && (cardDef(c).keywords ?? '').toLowerCase().split(/\s*-\s*/).some(k => anyIce.subtypes.includes(k)) ? subroutineFacts(anyIce.gains) : undefined,
       liability: !!CARDS[c.cardCode]?.holdFacts?.rezBadPublicityOrTag,
+      trashOnce: !!CARDS[c.cardCode]?.holdFacts?.trashesOnePerEncounter,
       choices,
     };
   });
@@ -850,10 +853,14 @@ export class Walk {
     return then(w) + (n - fund - hosted);
   }
 
-  /** The unbroken subroutines `list` (indexes into ice.subs) resolve one at a time in printed order (9.8.7b). */
-  private resolve(ws: WalkState, ice: SearchIce, types: string[], list: number[], k: number, next: (w: WalkState) => number, at: Step): number {
+  /**
+   * The unbroken subroutines `list` (indexes into ice.subs) resolve one at a time in printed order (9.8.7b). `from`: the
+   * cards gone as they began (Sorocaban Blade trashes no more once one is gone, holdFacts.trashesOnePerEncounter).
+   */
+  private resolve(ws: WalkState, ice: SearchIce, types: string[], list: number[], k: number, next: (w: WalkState) => number, at: Step, from = ws.gone.length): number {
     if (k >= list.length) return next(ws);
-    const go = () => this.subroutine(ws, ice.id, types, ice.subs[list[k]], w => this.resolve(w, ice, types, list, k + 1, next, at), at);
+    const f = ice.trashOnce && ws.gone.length > from ? { ...ice.subs[list[k]], does: ice.subs[list[k]].does.filter(e => e.kind !== 'trashInstalled') } : ice.subs[list[k]];
+    const go = () => this.subroutine(ws, ice.id, types, f, w => this.resolve(w, ice, types, list, k + 1, next, at, from), at);
     // A borrowing ice (Mycoweb) branches on every subroutine it may lend, each with the rest of its own to resolve: the
     // steps after the first are keyed (`at`: the approach and run; the subroutines as met, those left, the state)
     if (k === 0 || !ice.subs.some(f => f.does.some(e => e.kind === 'borrow'))) return go();

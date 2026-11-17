@@ -647,7 +647,8 @@ export const LIBERATION: Record<string, CardAI> = {
     },
   },
   // Sorocaban Blade
-  '34101': { synergy: { gives: { ice: 1 } } },
+  // "You cannot trash more than 1 installed Runner card with this ice during each encounter."
+  '34101': { synergy: { gives: { ice: 1 } }, holdFacts: { trashesOnePerEncounter: true } },
   // Active Policing
   '34102': { synergy: { gives: { install: 0.5, denial: 1 }, when: ['threat'] } },
   // Corporate Hospitality

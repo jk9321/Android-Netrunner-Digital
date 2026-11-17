@@ -176,9 +176,11 @@ class Brute {
     return rest <= ws.pool && then({ ...ws, fund: ws.fund - fund, hosted: ws.hosted - hosted, pool: ws.pool - rest });
   }
 
-  private resolve(ws: S, ice: WalkIce, types: string[], list: number[], k: number, next: Next, end: Next): boolean {
+  private resolve(ws: S, ice: WalkIce, types: string[], list: number[], k: number, next: Next, end: Next, from = ws.gone.length): boolean {
     if (k >= list.length) return next(ws);
-    return this.subroutine(ws, ice.card, types, ice.subs[list[k]], w => this.resolve(w, ice, types, list, k + 1, next, end), end);
+    // Sorocaban Blade: no more than 1 installed Runner card trashed with it during each encounter
+    const f = ice.trashOnce && ws.gone.length > from ? { ...ice.subs[list[k]], does: ice.subs[list[k]].does.filter(e => e.kind !== 'trashInstalled') } : ice.subs[list[k]];
+    return this.subroutine(ws, ice.card, types, f, w => this.resolve(w, ice, types, list, k + 1, next, end, from), end);
   }
 
   private subroutine(ws: S, card: CardInstance, types: string[], f: SubFacts, then: Next, end: Next): boolean {

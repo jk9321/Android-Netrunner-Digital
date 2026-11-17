@@ -638,6 +638,125 @@ describe('hold walk: a subroutine that trashes an installed card, the Corp choos
   });
 });
 
+// One scenario per kind of "trash 1 installed X" the card pool has (brief followup2-trash 4), each with its mirror and
+// the engine oracle. A program: Lycian above (Event Horizon's own "trash: End the run" is not modelled, the todo below);
+// a Runner card: Cloud Eater; a resource and a
+// piece of hardware: Sorocaban Blade, which trashes no more than 1 card an encounter (holdFacts.trashesOnePerEncounter);
+// a non-breaker program and a resource or piece of hardware: Hammer. Palisade inside, strength 4 on a remote: Cleaver
+// pays 2 to match it and 1 to break it.
+describe('hold walk: each kind of trash subroutine, the Corp choosing the card (found-list row 21)', () => {
+  const COOKBOOK = '30009';
+  const DOCKLANDS = '30013';
+  const outside = (code: string, setup: (s: GameState) => void) =>
+    board(st => {
+      ice(st, C.PALISADE);
+      ice(st, code);
+      setup(st);
+    });
+  const put = (s: GameState, code: string, zone: 'hardware' | 'resources', host?: string, tokens?: Record<string, number>) => {
+    const c = createCardInstance(s, code);
+    c.isRezzed = true;
+    if (host) c.hostedOnId = host;
+    if (tokens) c.tokens = tokens;
+    s.runner.rig[zone].push(c);
+  };
+  const oracleNow = (s: GameState) => oracleOn(s, []);
+
+  it('a Runner card (Cloud Eater): Cleaver, grip 5, $0 and 4 clicks: holds (it trashes the fracter; before, need 3 of a budget of 3)', () => {
+    const s = outside('34110', st => {
+      installProgramForTest(st, C.CLEAVER);
+      st.runner.grip = st.runner.grip.slice(0, 5);
+    });
+    expect(agrees(s).holds).toBe(true);
+    expect(oracleNow(s)).toBe('holds');
+  });
+
+  it('mirror: a second Cleaver: one is left for Palisade, it gets in', () => {
+    const s = outside('34110', st => {
+      installProgramForTest(st, C.CLEAVER);
+      installProgramForTest(st, C.CLEAVER);
+      st.runner.grip = st.runner.grip.slice(0, 5);
+    });
+    expect(agrees(s).holds).toBe(false);
+    expect(oracleNow(s)).toBe('getsIn');
+  });
+
+  it('Sorocaban Blade with nothing but Cleaver, $0 and 4 clicks: holds (its program subroutine trashes the fracter)', () => {
+    const s = outside('34101', st => installProgramForTest(st, C.CLEAVER));
+    expect(agrees(s).holds).toBe(true);
+    expect(oracleNow(s)).toBe('holds');
+  });
+
+  it('mirror, a resource (Cookbook): its resource subroutine trashes it, and no second card goes that encounter: it gets in', () => {
+    const s = outside('34101', st => {
+      installProgramForTest(st, C.CLEAVER);
+      put(st, COOKBOOK, 'resources');
+    });
+    expect(agrees(s).holds).toBe(false);
+    expect(oracleNow(s)).toBe('getsIn');
+  });
+
+  it('mirror, a piece of hardware (Docklands Pass): the same through its hardware subroutine', () => {
+    const s = outside('34101', st => {
+      installProgramForTest(st, C.CLEAVER);
+      put(st, DOCKLANDS, 'hardware');
+    });
+    expect(agrees(s).holds).toBe(false);
+    expect(oracleNow(s)).toBe('getsIn');
+  });
+
+  it('a non-breaker program (Hammer): Botulus with 1 counter on Palisade, $0, 1 click: holds (Hammer trashes Botulus)', () => {
+    const s = board(st => {
+      const pal = ice(st, C.PALISADE);
+      ice(st, '34126');
+      hosted(st, C.BOTULUS, pal, 1);
+      st.runner.maxClicks = 1;
+    });
+    expect(agrees(s).holds).toBe(true);
+    expect(oracleNow(s)).toBe('holds');
+  });
+
+  it('mirror: Cleaver and $3 instead: a fracter is no program of its kind, it gets in', () => {
+    const s = board(st => {
+      ice(st, C.PALISADE);
+      ice(st, '34126');
+      installProgramForTest(st, C.CLEAVER);
+      st.runner.credits = 3;
+      st.runner.maxClicks = 1;
+    });
+    expect(agrees(s).holds).toBe(false);
+    expect(oracleNow(s)).toBe('getsIn');
+  });
+
+  // The walk reads no resource or hardware a trash can take that changes a way in today (hosted credits are not carried:
+  // the registry's debt row); the scenario checks the kind: Hammer takes the hardware, never the fracter
+  it('a resource or piece of hardware (Hammer): Cleaver and Docklands Pass, $3, 1 click: it gets in (the hardware goes)', () => {
+    const s = board(st => {
+      ice(st, C.PALISADE);
+      ice(st, '34126');
+      installProgramForTest(st, C.CLEAVER);
+      put(st, DOCKLANDS, 'hardware');
+      st.runner.credits = 3;
+      st.runner.maxClicks = 1;
+    });
+    expect(agrees(s).holds).toBe(false);
+    expect(oracleNow(s)).toBe('getsIn');
+  });
+
+  it('mirror: $2: Palisade holds whichever card goes', () => {
+    const s = board(st => {
+      ice(st, C.PALISADE);
+      ice(st, '34126');
+      installProgramForTest(st, C.CLEAVER);
+      put(st, DOCKLANDS, 'hardware');
+      st.runner.credits = 2;
+      st.runner.maxClicks = 1;
+    });
+    expect(agrees(s).holds).toBe(true);
+    expect(oracleNow(s)).toBe('holds');
+  });
+});
+
 describe('hold walk: break plans kept with the board they were worked out on (review R3)', () => {
   it('a breaker installed in place on the same board is read: Palisade, $5, holds; Cleaver added: gets in', () => {
     const s = board(st => { ice(st, C.PALISADE); st.runner.credits = 5; });

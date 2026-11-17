@@ -390,9 +390,12 @@ describe('AI code health (audit guards)', () => {
   // Then + 88 (ai-hold-trash's time design, brief followup2-trash 2: corp/hold.ts, corpTrash with one walk per distinct
   // loss and its stop, lossKey and lossAt (what is still ahead of the trash), rigReads with its comment, a rig card's
   // first draw): corp/ 3,598, src/ai 15,384
-  it('keeps src/ai/corp at or under 3,598 lines and src/ai at or under 15,384 (Stage C hand-off, ai-corp-honest-order, ai-value-time, ai-playout-lines, ai-honest-runner-view, ai-honest-corp-decision, ai-value-owners, ai-corp-rd-memory, ai-value-b1, ai-value-b2, ai-hold-reentry, ai-value-b3, ai-tag-loss-time, ai-value-b6, ai-threat-delete, ai-breaker-guard-key, ai-tag-loss-bp, ai-hold-facts, ai-hold-walk, ai-flood-bound, ai-hold-retry, ai-winnow-reach, ai-hold-trash)', () => {
+  // Then + 10 (ai-hold-trash, Sorocaban Blade's one trash an encounter: corp/hold.ts + 7, the walk's trashOnce and
+  // resolve's from; cards/types.ts + 2 and liberation.ts + 1, the fact with its card text): corp/ 3,605, src/ai
+  // 15,394
+  it('keeps src/ai/corp at or under 3,605 lines and src/ai at or under 15,394 (Stage C hand-off, ai-corp-honest-order, ai-value-time, ai-playout-lines, ai-honest-runner-view, ai-honest-corp-decision, ai-value-owners, ai-corp-rd-memory, ai-value-b1, ai-value-b2, ai-hold-reentry, ai-value-b3, ai-tag-loss-time, ai-value-b6, ai-threat-delete, ai-breaker-guard-key, ai-tag-loss-bp, ai-hold-facts, ai-hold-walk, ai-flood-bound, ai-hold-retry, ai-winnow-reach, ai-hold-trash)', () => {
     const corp = aiFiles().filter(f => f.replace(/\\/g, '/').startsWith('corp/')).reduce((n, f) => n + lines(f), 0);
-    expect(corp).toBeLessThanOrEqual(3598);
-    expect(aiFiles().reduce((n, f) => n + lines(f), 0)).toBeLessThanOrEqual(15384);
+    expect(corp).toBeLessThanOrEqual(3605);
+    expect(aiFiles().reduce((n, f) => n + lines(f), 0)).toBeLessThanOrEqual(15394);
   });
 });

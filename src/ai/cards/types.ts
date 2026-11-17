@@ -77,6 +77,8 @@ export interface HoldFacts {
   trashedOnPurge?: true;
   /** A program hosted on ice: a hosted counter of this kind breaks 1 subroutine on its host (Botulus). */
   breaksHostSubroutine?: { counter: 'virus' };
+  /** "You cannot trash more than 1 installed Runner card with this ice during each encounter" (Sorocaban Blade): once one of its subroutines has trashed a card, its other trashes do nothing. */
+  trashesOnePerEncounter?: true;
 }
 
 /**
