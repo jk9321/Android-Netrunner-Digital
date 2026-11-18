@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { cardDef, createCardInstance, executeAction, findCardAnywhere, GameState, iceStrength, isLegalAction, breakerStrength } from '../src/core';
+import { cardDef, createCardInstance, executeAction, findCardAnywhere, GameState, getLegalActions, iceStrength, isLegalAction, breakerStrength } from '../src/core';
 import { availableCredits } from '../src/core/engine/cardEffects';
 import { answer, cont, giveCard, installCorpForTest, keepGoing, installIceForTest, installProgramForTest, newGame, passTurn, play, rezForTest, run, runnerInstall, setIdentity, startRunnerTurn, useAbility, toCorp } from './helpers';
 
@@ -225,8 +225,11 @@ describe('Elevation Runner events', () => {
     s.runner.heap.push(mayfly);
     [s] = playRunner(s, E.scrounge, 2);
     expect(prompt(s)).toMatchObject({ kind: 'effect_cards', candidateIds: [mayfly.instanceId] });
-    // Not without trashing: nothing is installed
-    expect(answer(s, { kind: 'effect_cards', cardInstanceIds: [mayfly.instanceId] }).runner.rig.programs.map(c => c.instanceId)).toEqual([old]);
+    // Not without trashing: the Runner must make room first, so that answer is not one (it would install nothing)
+    expect(() => answer(s, { kind: 'effect_cards', cardInstanceIds: [mayfly.instanceId] })).toThrow(/make room/);
+    // The legal answers name the programs to trash (rules 8.5.6c), so a player picking from the list can install it
+    const listed = getLegalActions(s, 'runner').filter(x => x.type === 'RESOLVE_PROMPT' && x.choice.kind === 'effect_cards' && x.choice.cardInstanceIds[0] === mayfly.instanceId);
+    expect(listed.map(x => x.type === 'RESOLVE_PROMPT' && x.choice.kind === 'effect_cards' && x.choice.trashFirst)).toEqual([[old]]);
     s = keepGoing(answer(s, { kind: 'effect_cards', cardInstanceIds: [mayfly.instanceId], trashFirst: [old] }));
     expect(s.runner.rig.programs.map(c => c.instanceId)).toEqual([mayfly.instanceId]);
     expect(s.runner.heap.map(c => c.instanceId)).toContain(old);
