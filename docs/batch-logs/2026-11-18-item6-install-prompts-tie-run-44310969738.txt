@@ -1,0 +1,125 @@
+sources 92 (deals 56, human 36); Corp decisions 8870; top-level install prompts 277; continuations 180; errors 0
+
+## Install prompts on the record (top level), by card:step
+35058:pick [pick, min 0]: asked 29 (self 8, human 21); in a run 0, run term decided 0; with a legal install 29; today declined with a legal install 2 | same: differ 0 (installs where today declines 0, declines where today installs 0) | tie: differ 0 (installs where today declines 0, declines where today installs 0)
+35058:server [server]: asked 23 (self 6, human 17); in a run 0, run term decided 0; with a legal install 23; today declined with a legal install 0 | same: differ 0 (installs where today declines 0, declines where today installs 0) | tie: differ 0 (installs where today declines 0, declines where today installs 0)
+35045:pick [pick, min 0]: asked 23 (self 23, human 0); in a run 0, run term decided 0; with a legal install 23; today declined with a legal install 2 | same: differ 0 (installs where today declines 0, declines where today installs 0) | tie: differ 0 (installs where today declines 0, declines where today installs 0)
+35042:pick [pick, min 0]: asked 22 (self 4, human 18); in a run 22, run term decided 0; with a legal install 22; today declined with a legal install 21 | same: differ 0 (installs where today declines 0, declines where today installs 0) | tie: differ 6 (installs where today declines 6, declines where today installs 0)
+35045:server [server]: asked 21 (self 21, human 0); in a run 0, run term decided 0; with a legal install 21; today declined with a legal install 0 | same: differ 0 (installs where today declines 0, declines where today installs 0) | tie: differ 0 (installs where today declines 0, declines where today installs 0)
+35055:pick [pick, min 0]: asked 19 (self 13, human 6); in a run 0, run term decided 0; with a legal install 19; today declined with a legal install 19 | same: differ 0 (installs where today declines 0, declines where today installs 0) | tie: differ 10 (installs where today declines 10, declines where today installs 0)
+35036:pick [pick, min 0]: asked 19 (self 10, human 9); in a run 6, run term decided 0; with a legal install 14; today declined with a legal install 1 | same: differ 0 (installs where today declines 0, declines where today installs 0) | tie: differ 0 (installs where today declines 0, declines where today installs 0)
+34039:pick [pick, min 0]: asked 18 (self 0, human 18); in a run 0, run term decided 0; with a legal install 18; today declined with a legal install 3 | same: differ 0 (installs where today declines 0, declines where today installs 0) | tie: differ 0 (installs where today declines 0, declines where today installs 0)
+35036:server [server]: asked 16 (self 8, human 8); in a run 4, run term decided 0; with a legal install 16; today declined with a legal install 0 | same: differ 0 (installs where today declines 0, declines where today installs 0) | tie: differ 0 (installs where today declines 0, declines where today installs 0)
+34039:server [server]: asked 15 (self 0, human 15); in a run 0, run term decided 0; with a legal install 15; today declined with a legal install 0 | same: differ 0 (installs where today declines 0, declines where today installs 0) | tie: differ 0 (installs where today declines 0, declines where today installs 0)
+35039:install_pick [pick, min 0]: asked 8 (self 0, human 8); in a run 0, run term decided 0; with a legal install 8; today declined with a legal install 8 | same: differ 0 (installs where today declines 0, declines where today installs 0) | tie: differ 8 (installs where today declines 8, declines where today installs 0)
+34098:pick [pick, min 0]: asked 7 (self 0, human 7); in a run 0, run term decided 0; with a legal install 7; today declined with a legal install 4 | same: differ 0 (installs where today declines 0, declines where today installs 0) | tie: differ 0 (installs where today declines 0, declines where today installs 0)
+30038:pick_install [pick, min 0]: asked 6 (self 4, human 2); in a run 6, run term decided 0; with a legal install 6; today declined with a legal install 6 | same: differ 0 (installs where today declines 0, declines where today installs 0) | tie: differ 5 (installs where today declines 5, declines where today installs 0)
+34044:swap [pick+place, min 0]: asked 6 (self 0, human 6); in a run 6, run term decided 0; with a legal install 6; today declined with a legal install 1 | same: differ 0 (installs where today declines 0, declines where today installs 0) | tie: differ 0 (installs where today declines 0, declines where today installs 0)
+35039:install_server [server]: asked 6 (self 0, human 6); in a run 0, run term decided 0; with a legal install 6; today declined with a legal install 0 | same: differ 0 (installs where today declines 0, declines where today installs 0) | tie: differ 0 (installs where today declines 0, declines where today installs 0)
+34037:pick [pick, min 0]: asked 5 (self 0, human 5); in a run 0, run term decided 0; with a legal install 5; today declined with a legal install 5 | same: differ 0 (installs where today declines 0, declines where today installs 0) | tie: differ 5 (installs where today declines 5, declines where today installs 0)
+35042:server [server]: asked 4 (self 0, human 4); in a run 4, run term decided 0; with a legal install 4; today declined with a legal install 0 | same: differ 0 (installs where today declines 0, declines where today installs 0) | tie: differ 0 (installs where today declines 0, declines where today installs 0)
+35044:install_pick [pick, min 0]: asked 4 (self 0, human 4); in a run 0, run term decided 0; with a legal install 4; today declined with a legal install 2 | same: differ 0 (installs where today declines 0, declines where today installs 0) | tie: differ 1 (installs where today declines 1, declines where today installs 0)
+34098:server [server]: asked 3 (self 0, human 3); in a run 0, run term decided 0; with a legal install 3; today declined with a legal install 0 | same: differ 0 (installs where today declines 0, declines where today installs 0) | tie: differ 0 (installs where today declines 0, declines where today installs 0)
+30039:install [pick+place, min 0]: asked 2 (self 2, human 0); in a run 2, run term decided 0; with a legal install 2; today declined with a legal install 1 | same: differ 0 (installs where today declines 0, declines where today installs 0) | tie: differ 0 (installs where today declines 0, declines where today installs 0)
+35044:install_server [server]: asked 2 (self 0, human 2); in a run 0, run term decided 0; with a legal install 2; today declined with a legal install 0 | same: differ 0 (installs where today declines 0, declines where today installs 0) | tie: differ 0 (installs where today declines 0, declines where today installs 0)
+34048:pick [pick, min 0]: asked 2 (self 0, human 2); in a run 0, run term decided 0; with a legal install 2; today declined with a legal install 0 | same: differ 0 (installs where today declines 0, declines where today installs 0) | tie: differ 0 (installs where today declines 0, declines where today installs 0)
+34048:server [server]: asked 2 (self 0, human 2); in a run 0, run term decided 0; with a legal install 2; today declined with a legal install 0 | same: differ 0 (installs where today declines 0, declines where today installs 0) | tie: differ 0 (installs where today declines 0, declines where today installs 0)
+35056:swap [pick+place, min 0]: asked 2 (self 2, human 0); in a run 2, run term decided 1; with a legal install 2; today declined with a legal install 1 | same: differ 0 (installs where today declines 0, declines where today installs 0) | tie: differ 0 (installs where today declines 0, declines where today installs 0)
+35055:server [server]: asked 1 (self 0, human 1); in a run 0, run term decided 0; with a legal install 1; today declined with a legal install 0 | same: differ 0 (installs where today declines 0, declines where today installs 0) | tie: differ 0 (installs where today declines 0, declines where today installs 0)
+35077:ice [pick, min 1]: asked 1 (self 1, human 0); in a run 0, run term decided 0; with a legal install 1; today declined with a legal install 0 | same: differ 0 (installs where today declines 0, declines where today installs 0) | tie: differ 0 (installs where today declines 0, declines where today installs 0)
+35077:ice_server [server]: asked 1 (self 1, human 0); in a run 0, run term decided 0; with a legal install 1; today declined with a legal install 0 | same: differ 0 (installs where today declines 0, declines where today installs 0) | tie: differ 0 (installs where today declines 0, declines where today installs 0)
+34037:server [server]: asked 1 (self 0, human 1); in a run 0, run term decided 0; with a legal install 1; today declined with a legal install 0 | same: differ 0 (installs where today declines 0, declines where today installs 0) | tie: differ 0 (installs where today declines 0, declines where today installs 0)
+34034:pick [pick, min 0]: asked 1 (self 0, human 1); in a run 1, run term decided 0; with a legal install 1; today declined with a legal install 1 | same: differ 0 (installs where today declines 0, declines where today installs 0) | tie: differ 1 (installs where today declines 1, declines where today installs 0)
+34034:server [server]: asked 1 (self 0, human 1); in a run 1, run term decided 0; with a legal install 1; today declined with a legal install 0 | same: differ 0 (installs where today declines 0, declines where today installs 0) | tie: differ 0 (installs where today declines 0, declines where today installs 0)
+34130:pick [pick, min 0]: asked 1 (self 0, human 1); in a run 0, run term decided 0; with a legal install 0; today declined with a legal install 0 | same: differ 0 (installs where today declines 0, declines where today installs 0) | tie: differ 0 (installs where today declines 0, declines where today installs 0)
+34130:server [server]: asked 1 (self 0, human 1); in a run 0, run term decided 0; with a legal install 1; today declined with a legal install 0 | same: differ 0 (installs where today declines 0, declines where today installs 0) | tie: differ 0 (installs where today declines 0, declines where today installs 0)
+30038:server [server]: asked 1 (self 0, human 1); in a run 1, run term decided 0; with a legal install 1; today declined with a legal install 0 | same: differ 0 (installs where today declines 0, declines where today installs 0) | tie: differ 0 (installs where today declines 0, declines where today installs 0)
+34115:pick [pick, min 0]: asked 1 (self 0, human 1); in a run 0, run term decided 0; with a legal install 1; today declined with a legal install 0 | same: differ 0 (installs where today declines 0, declines where today installs 0) | tie: differ 0 (installs where today declines 0, declines where today installs 0)
+34115:server [server]: asked 1 (self 0, human 1); in a run 0, run term decided 0; with a legal install 1; today declined with a legal install 0 | same: differ 0 (installs where today declines 0, declines where today installs 0) | tie: differ 0 (installs where today declines 0, declines where today installs 0)
+35053:install [pick, min 0]: asked 1 (self 1, human 0); in a run 1, run term decided 0; with a legal install 1; today declined with a legal install 1 | same: differ 0 (installs where today declines 0, declines where today installs 0) | tie: differ 1 (installs where today declines 1, declines where today installs 0)
+35066:server [server]: asked 1 (self 1, human 0); in a run 0, run term decided 0; with a legal install 1; today declined with a legal install 0 | same: differ 0 (installs where today declines 0, declines where today installs 0) | tie: differ 0 (installs where today declines 0, declines where today installs 0)
+
+## Classes of the owners' order at top-level install prompts (pick steps with min 0; server steps apart)
+pick steps (177):
+   A: an install not behind (lines 1-8): 37 (self 12 = 0.21 a game, human 25 = 0.69 a game); 35055:pick 10, 35039:install_pick 8, 35042:pick 6, 30038:pick_install 5, 34037:pick 5, 34034:pick 1, 35044:install_pick 1, 35053:install 1
+   B: only line 9: 14 (self 10 = 0.18 a game, human 4 = 0.11 a game); 35055:pick 9, 35042:pick 4, 35044:install_pick 1
+   C0: only behind, some at no credit: 2 (self 2 = 0.04 a game, human 0 = 0.00 a game); 35045:pick 2
+   none offered: 124 (self 44 = 0.79 a game, human 80 = 2.22 a game); 35058:pick 29, 35045:pick 21, 35036:pick 19, 34039:pick 18, 35042:pick 12, 34098:pick 7, 34044:swap 6, 30039:install 2, 35044:install_pick 2, 34048:pick 2, 35056:swap 2, 35077:ice 1, 34130:pick 1, 30038:pick_install 1, 34115:pick 1
+server steps (100):
+   none offered: 100 (self 37 = 0.66 a game, human 63 = 1.75 a game); 35058:server 23, 35045:server 21, 35036:server 16, 34039:server 15, 35039:install_server 6, 35042:server 4, 34098:server 3, 35044:install_server 2, 34048:server 2, 35055:server 1, 35077:ice_server 1, 34037:server 1, 34034:server 1, 34130:server 1, 30038:server 1, 34115:server 1, 35066:server 1
+
+## The pick-step tie (arm tie): top level, then inside decisions
+self: top-level install pick steps 68, fallback tied 26 (0.46 a game), order's answer taken 12; 35055:pick 13, 30038:pick_install 4, 35042:pick 4, 35045:pick 2, 35036:pick 2, 35053:install 1
+   inside decisions: Corp card questions tied 2688, of them install picks 911, the order's answer taken 631; by key 35044:install_pick 413, 35055:pick 216, 35042:pick 73, 30038:pick_install 63, 35045:pick 62, 35036:pick 35, 35039:install_pick 34, 35053:install 14, 35077:ice 1
+human: top-level install pick steps 109, fallback tied 33 (0.92 a game), order's answer taken 25; 35039:install_pick 8, 35042:pick 6, 35055:pick 6, 34037:pick 5, 35036:pick 3, 35044:install_pick 2, 34034:pick 1, 34130:pick 1, 30038:pick_install 1
+   inside decisions: Corp card questions tied 2722, of them install picks 1071, the order's answer taken 883; by key 35055:pick 234, 35039:install_pick 146, 35044:install_pick 144, 34034:pick 127, 34037:pick 112, 30038:pick_install 99, 35036:pick 81, 35042:pick 68, 35038:pick 30, 35056:swap 11, 36062:ice 8, 35077:ice 5
+
+## Fire count: changed Corp decisions a game
+self same: changed 0 (0.00 a game): at a top-level install prompt 0 (0.00), at another prompt 0, main phase or rez window (inside the planner) 0 (0.00)
+   inside decisions: install prompts answered 2452, by the owners 0, differently from today 0; by key: 
+self tie: changed 30 (0.54 a game): at a top-level install prompt 12 (0.21), at another prompt 0, main phase or rez window (inside the planner) 18 (0.32)
+   inside decisions: install prompts answered 3156, by the owners 0, differently from today 0; by key: 
+   base: Corp prompts answered inside decisions 22052, install prompts 2452; run term decided 210 prompts, 34 of them install prompts
+human same: changed 0 (0.00 a game): at a top-level install prompt 0 (0.00), at another prompt 0, main phase or rez window (inside the planner) 0 (0.00)
+   inside decisions: install prompts answered 6625, by the owners 0, differently from today 0; by key: 
+human tie: changed 60 (1.67 a game): at a top-level install prompt 25 (0.69), at another prompt 0, main phase or rez window (inside the planner) 35 (0.97)
+   inside decisions: install prompts answered 7484, by the owners 0, differently from today 0; by key: 
+   base: Corp prompts answered inside decisions 29302, install prompts 6625; run term decided 142 prompts, 0 of them install prompts
+
+## Continuations (4 turns or game end, GameRunner; arm Corp vs base Corp, base Runner)
+same:
+tie:
+   inside planner: n 53: arm better 6, worse 16, same 31; Corp wins base 14 arm 10; Runner wins base 3 arm 5
+   main/rez: n 53: arm better 6, worse 16, same 31; Corp wins base 14 arm 10; Runner wins base 3 arm 5
+   top-level prompt: n 37: arm better 10, worse 10, same 17; Corp wins base 10 arm 6; Runner wins base 1 arm 5
+   prompt 35055:pick: n 10: arm better 1, worse 2, same 7; Corp wins base 2 arm 1; Runner wins base 1 arm 3
+   prompt 35039:install_pick: n 8: arm better 2, worse 2, same 4; Corp wins base 4 arm 3; Runner wins base 0 arm 0
+   prompt 35042:pick: n 6: arm better 3, worse 2, same 1; Corp wins base 1 arm 1; Runner wins base 0 arm 1
+   prompt 30038:pick_install: n 5: arm better 2, worse 0, same 3; Corp wins base 1 arm 1; Runner wins base 0 arm 0
+   prompt 34037:pick: n 5: arm better 1, worse 3, same 1; Corp wins base 1 arm 0; Runner wins base 0 arm 0
+   prompt 34034:pick: n 1: arm better 0, worse 1, same 0; Corp wins base 1 arm 0; Runner wins base 0 arm 1
+   prompt 35044:install_pick: n 1: arm better 1, worse 0, same 0; Corp wins base 0 arm 0; Runner wins base 0 arm 0
+   prompt 35053:install: n 1: arm better 0, worse 0, same 1; Corp wins base 0 arm 0; Runner wins base 0 arm 0
+
+## Owners line-9 picks at top-level prompts, with continuations (owners vs base)
+   human:report-25.json#75 T9 35042:pick score [2,6] credits 8 | base decline: no cont | owners undefined -> new: no cont | no9 ?: no cont
+   human:report-25.json#85 T10 35042:pick score [5,6] credits 5 | base decline: no cont | owners undefined -> remote-2: no cont | no9 ?: no cont
+   deal:2681#80 T12 35055:pick score [5,4] credits 16 | base decline: no cont | owners undefined -> remote-3: no cont | no9 ?: no cont
+   deal:3121#56 T10 35055:pick score [3,2] credits 17 | base decline: no cont | owners undefined -> remote-3: no cont | no9 ?: no cont
+   deal:3201#68 T10 35055:pick score [6,0] credits 9 | base decline: no cont | owners undefined -> new: no cont | no9 ?: no cont
+   human:report-50.json#102 T12 35044:install_pick score [6,1] credits 1 | base decline: no cont | owners undefined -> new: no cont | no9 ?: no cont
+   human:report-50.json#135 T15 35042:pick score [6,3] credits 0 | base decline: no cont | owners undefined -> new: no cont | no9 ?: no cont
+   deal:2041#25 T5 35055:pick score [0,0] credits 19 | base decline: no cont | owners undefined -> new: no cont | no9 ?: no cont
+   deal:2201#16 T3 35055:pick score [0,0] credits 17 | base decline: no cont | owners undefined -> new: no cont | no9 ?: no cont
+   deal:2241#92 T14 35055:pick score [5,4] credits 7 | base decline: no cont | owners undefined -> new: no cont | no9 ?: no cont
+   deal:2241#98 T15 35055:pick score [5,4] credits 7 | base decline: no cont | owners undefined -> remote-1: no cont | no9 ?: no cont
+   deal:2441#48 T9 35042:pick score [2,0] credits 3 | base decline: no cont | owners undefined -> new: no cont | no9 ?: no cont
+   deal:2561#22 T4 35055:pick score [2,0] credits 12 | base decline: no cont | owners undefined -> new: no cont | no9 ?: no cont
+   deal:2561#111 T17 35055:pick score [4,5] credits 12 | base decline: no cont | owners undefined -> remote-5: no cont | no9 ?: no cont
+
+## Time (Corp decisions, ms; the owners-vs-today comparison is left out of the arm times)
+self same: total base 1831.7 s, arm 1917.2 s: x1.047; p95 x1.037; at top-level install prompts x1.105; over 2x at >= 0.5 s: 0; 3 s slower: 0
+self tie: total base 1831.7 s, arm 1944.5 s: x1.062; p95 x1.062; at top-level install prompts x1.209; over 2x at >= 0.5 s: 1 (deal:2001#73 909.3->2428.1); 3 s slower: 0
+human same: total base 1515.3 s, arm 1538.4 s: x1.015; p95 x1.009; at top-level install prompts x0.971; over 2x at >= 0.5 s: 0; 3 s slower: 0
+human tie: total base 1515.3 s, arm 1556.2 s: x1.027; p95 x1.016; at top-level install prompts x1.141; over 2x at >= 0.5 s: 1 (human:report-36.json#79 765.4->1549.3); 3 s slower: 0
+
+## Time against the control (arm / same)
+self tie: control 1917.2 s, arm 1944.5 s: x1.014; p95 x1.024; control/base x1.047; over 2x of control at >= 0.5 s: 1 (deal:2001#73 1147.6->2428.1)
+human tie: control 1538.4 s, arm 1556.2 s: x1.012; p95 x1.007; control/base x1.015; over 2x of control at >= 0.5 s: 1 (human:report-36.json#79 722.3->1549.3)
+
+errors in picks: 0
+
+### same: 0 changed top-level install-prompt decisions
+by what changed:
+by prompt kind:
+by kind and what changed:
+
+### tie: 37 changed top-level install-prompt decisions
+by what changed:
+   today declines, arm installs: self 12 (better 3, worse 2, same 7); human 25 (better 7, worse 8, same 10); 35055:pick 10, 35039:install_pick 8, 35042:pick 6, 30038:pick_install 5, 34037:pick 5, 34034:pick 1, 35044:install_pick 1, 35053:install 1
+by prompt kind:
+   free of the click only (costs paid): self 4 (better 0, worse 1, same 3); human 20 (better 5, worse 6, same 9); 35055:pick 10, 35039:install_pick 8, 34037:pick 5, 35044:install_pick 1
+   in a run: self 8 (better 3, worse 1, same 4); human 5 (better 2, worse 2, same 1); 35042:pick 6, 30038:pick_install 5, 34034:pick 1, 35053:install 1
+by kind and what changed:
+   free of the click only (costs paid) / today declines, arm installs: self 4 (better 0, worse 1, same 3); human 20 (better 5, worse 6, same 9); 35055:pick 10, 35039:install_pick 8, 34037:pick 5, 35044:install_pick 1
+   in a run / today declines, arm installs: self 8 (better 3, worse 1, same 4); human 5 (better 2, worse 2, same 1); 35042:pick 6, 30038:pick_install 5, 34034:pick 1, 35053:install 1
