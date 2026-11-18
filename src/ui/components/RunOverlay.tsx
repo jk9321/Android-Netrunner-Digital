@@ -288,7 +288,7 @@ export const RunOverlay: React.FC<RunOverlayProps> = ({
     return (
       <div
         data-testid="run-overlay"
-        className="shrink min-h-0 flex flex-col bg-[#090d15] border-2 border-cyber-neonPink rounded-[2px] shadow-2xl font-mono overflow-hidden"
+        className="shrink min-h-[min(56vh,calc(100%-7.5rem))] flex flex-col bg-[#090d15] border-2 border-cyber-neonPink rounded-[2px] shadow-2xl font-mono overflow-hidden"
       >
         <div className="px-3 py-2 border-b border-pink-900/50 bg-[#0c121d] shrink-0 space-y-1.5">
           <div className="flex items-center justify-between gap-2">
