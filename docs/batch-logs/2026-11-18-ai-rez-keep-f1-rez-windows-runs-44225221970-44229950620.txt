@@ -1,0 +1,12 @@
+AI script runs 44225221970 (acc23e1) and 44229950620 (61cb1bd, the rerun): scripts/stage-d/rez-keep-windows.ts at ai-rez-keep (src = 92616bf), the real Corp rez windows the game loop asks through chooseRez (56 deals played by this tree, the human games replayed). Summed with scripts/stage-d/rez-keep-windows-sum.mjs.
+
+== 44229950620 (fire test: spendsKept true AND countedRez passes)
+Deals played to the end 56; sources with an R3/R4 toll window 47; toll windows 76 (R3t 41, R4t 35)
+spendsKept true 1, of which countedRez reaches the toll branch and passes 0 (elsewhere it answers ["null"] before the branch)
+counted rule fires (the window is passed by the counted rule) 0; the agent's picks at those windows: {}
+ask time: mean 0.6 ms, median 0.3 ms, max 7.4 ms
+  SPENDS (not reached) human:report-33.json T20 hq R3t Hammer corp 11 cost 9 runner 9 clicks 3 counted null pick pass
+
+== 44225221970 (first run; its "fires" was spendsKept alone, before countedRez was recorded; same window)
+Deals played to the end 56; sources with an R3/R4 toll window 47; toll windows 76 (R3t 41, R4t 35)
+spendsKept true 1: human:report-33.json T20 hq R3t Hammer corp 11 cost 9 runner 9 clicks 3, pick pass. countedRez returns null there on both trees before the toll branch (traced locally: with beta's R3/R4 restored the agent also passes; the priced rez answers), so no decision changes. The first run counted it as a fire; the rerun records countedRez and does not.
