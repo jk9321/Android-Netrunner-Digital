@@ -136,7 +136,7 @@ Each card describes what it produces; its value is computed from the rates and t
 
 ## Rules for every step
 
-- Each step is behind its own `tuning.plan` switch. A step that clearly loses in batches is switched off and, once the new model makes it redundant, deleted (Jeff 2026-10-29; CLAUDE.md, Replace, don't stack). A neutral step that removes hacks stays on (Jeff).
+- Each step is behind its own `tuning.plan` switch. A step that clearly loses in batches is switched off and, once the new model makes it redundant, deleted (Jeff 2026-10-29; `docs/ai-process.md`, Replace, don't stack). A neutral step that removes hacks stays on (Jeff).
 - Normal and Hard both use the model (Jeff). Hard stays at 1 s per decision if possible; Jeff allows more if it makes Hard better.
 - Balance target: self-play Corp 50 ± 5%. Report Corp loss reasons with every batch.
 - AI bug fixes only need a small sample, not a full batch.
