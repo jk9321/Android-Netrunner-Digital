@@ -241,6 +241,30 @@ const chain: Patch[] = [
   ],
 ];
 
+/**
+ * tie    step 2 (AI Coordinator, design-answer.md section 3, rule (2)): at a Corp card question where every answer the
+ *        fallback scores comes out alike (the pick-step tie: the card is still in HQ, so the one-step board does not
+ *        change), take the order's first install of an offered card in lines 1 to 6 that is not behind; when there is
+ *        none, or the question installs nothing, today's answer. The server question, the per-card blocks and the run
+ *        term are untouched (the owners' prompts.ts entry point is not patched in); no agenda the engine marks known to
+ *        the Runner after the install (as owners).
+ */
+const tieFirst = (to: string) =>
+  to.replace(
+    "const first = order.find(ok) ?? (p.min > 0 ? order[0] : undefined);\n    if (!first) return p.min === 0 ? resolveAs(p, { kind: 'effect_cards', cardInstanceIds: [] }) : undefined;",
+    'const first = order.find(ok);\n    if (!first) return undefined;',
+  );
+const tieArm: Patch[] = [
+  ...probeOnly,
+  ...lineOk('c.line <= 6').filter(([f]) => f !== 'ai/prompts.ts').map(([f, from, to]) => [f, from, tieFirst(to)] as Patch),
+  ['ai/prompts.ts', '  let bestScore = -Infinity;\n  const skip = bypassSkips(', '  let bestScore = -Infinity;\n  let lo = Infinity;\n  let hi = -Infinity;\n  let scored = 0;\n  const skip = bypassSkips('],
+  [
+    'ai/prompts.ts',
+    '    if (skip && after.activeRun?.encounter?.iceId === skip.iceId) score -= skip.cost;\n    if (score > bestScore) {\n      bestScore = score;\n      best = action;\n    }\n  }\n  return best;\n}',
+    `    if (skip && after.activeRun?.encounter?.iceId === skip.iceId) score -= skip.cost;\n    lo = Math.min(lo, score);\n    hi = Math.max(hi, score);\n    scored++;\n    if (score > bestScore) {\n      bestScore = score;\n      best = action;\n    }\n  }\n  if (side === 'corp' && prompt.kind === 'effect_cards' && scored > 1 && hi - lo < 1e-9) {\n    const tie = (corpPorts as unknown as { installAnswer(s: GameState): GameAction | undefined }).installAnswer(state);\n    ${G}.__ppTie?.(state, tie);\n    if (tie) return tie;\n  }\n  return best;\n}`,
+  ],
+];
+
 export const ARM_PATCHES: Record<string, Patch[]> = {
   base: probeOnly,
   owners: lineOk('true'),
@@ -249,4 +273,5 @@ export const ARM_PATCHES: Record<string, Patch[]> = {
   // control: a second tree with base's patches only (base against base, for the time read: JIT warmth of the tree
   // that plays the self-play games)
   same: probeOnly,
+  tie: tieArm,
 };

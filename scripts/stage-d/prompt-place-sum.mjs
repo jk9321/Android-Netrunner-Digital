@@ -50,6 +50,22 @@ for (const step of ['pick', 'server']) {
   for (const [c, v] of Object.entries(cls).sort()) console.log(`   ${c}: ${v.n} (self ${v.self} = ${f(v.self / Math.max(1, games.self))} a game, human ${v.human} = ${f(v.human / Math.max(1, games.human))} a game); ${Object.entries(v.keys).sort((x, y) => y[1] - x[1]).map(([k, n]) => `${k} ${n}`).join(', ')}`);
 }
 
+// Arm tie (step 2): how often the fallback ties at a Corp card question, and how often the order's answer was taken
+if (arms.includes('tie')) {
+  console.log('\n## The pick-step tie (arm tie): top level, then inside decisions');
+  for (const g of ['self', 'human']) {
+    const ips = IP.filter(r => whoOf(r.src) === g && r.kindP === 'effect_cards');
+    const tied = ips.filter(r => r.tieTop?.tie);
+    const took = ips.filter(r => r.tieTop?.tie === 'took');
+    const keys = {};
+    for (const r of tied) keys[r.key] = (keys[r.key] ?? 0) + 1;
+    console.log(`${g}: top-level install pick steps ${ips.length}, fallback tied ${tied.length} (${f(tied.length / Math.max(1, games[g]))} a game), order's answer taken ${took.length}; ${Object.entries(keys).sort((x, y) => y[1] - x[1]).map(([k, n]) => `${k} ${n}`).join(', ')}`);
+    const inn = D.filter(d => whoOf(d.src) === g).map(d => d.inner.tie).filter(Boolean);
+    const tk = inn.reduce((m, i) => { for (const [k, v] of Object.entries(i.tieKeys ?? {})) m[k] = (m[k] ?? 0) + v; return m; }, {});
+    console.log(`   inside decisions: Corp card questions tied ${sum(inn.map(i => i.tie))}, of them install picks ${sum(inn.map(i => i.tieInstall))}, the order's answer taken ${sum(inn.map(i => i.tieTook))}; by key ${Object.entries(tk).sort((x, y) => y[1] - x[1]).slice(0, 12).map(([k, v]) => `${k} ${v}`).join(', ')}`);
+  }
+}
+
 // 3. Fire count
 console.log('\n## Fire count: changed Corp decisions a game');
 for (const g of ['self', 'human']) {
@@ -123,6 +139,19 @@ for (const g of ['self', 'human']) {
     const slow = ds.filter(d => d.ms.base >= 500 && d.ms[a] > 2 * d.ms.base);
     const late = ds.filter(d => d.ms[a] - d.ms.base > 3000);
     console.log(`${g} ${a}: total base ${f(sum(b) / 1000, 1)} s, arm ${f(sum(h) / 1000, 1)} s: x${f(sum(h) / Math.max(1, sum(b)), 3)}; p95 x${f(q(h, 0.95) / Math.max(1, q(b, 0.95)), 3)}; at top-level install prompts x${f(sum(ds.filter(d => d.install).map(d => d.ms[a])) / Math.max(1, sum(ds.filter(d => d.install).map(d => d.ms.base))), 3)}; over 2x at >= 0.5 s: ${slow.length}${slow.length ? ' (' + slow.slice(0, 8).map(d => `${d.src}#${d.i} ${d.ms.base}->${d.ms[a]}`).join(', ') + ')' : ''}; 3 s slower: ${late.length}${late.length ? ' (' + late.slice(0, 8).map(d => `${d.src}#${d.i} ${d.ms.base}->${d.ms[a]}`).join(', ') + ')' : ''}`);
+  }
+}
+// Against the control (a tree identical to base; AI Coordinator ruling (5), design-answer.md section 3): the bar is arm / control
+if (arms.includes('same')) {
+  console.log('\n## Time against the control (arm / same)');
+  for (const g of ['self', 'human']) {
+    const ds = D.filter(d => whoOf(d.src) === g);
+    const c = ds.map(d => d.ms.same);
+    for (const a of arms.filter(x => x !== 'same')) {
+      const h = ds.map(d => d.ms[a]);
+      const slow = ds.filter(d => d.ms.same >= 500 && d.ms[a] > 2 * d.ms.same);
+      console.log(`${g} ${a}: control ${f(sum(c) / 1000, 1)} s, arm ${f(sum(h) / 1000, 1)} s: x${f(sum(h) / Math.max(1, sum(c)), 3)}; p95 x${f(q(h, 0.95) / Math.max(1, q(c, 0.95)), 3)}; control/base x${f(sum(c) / Math.max(1, sum(ds.map(d => d.ms.base))), 3)}; over 2x of control at >= 0.5 s: ${slow.length}${slow.length ? ' (' + slow.slice(0, 8).map(d => `${d.src}#${d.i} ${d.ms.same}->${d.ms[a]}`).join(', ') + ')' : ''}`);
+    }
   }
 }
 const errs = D.filter(d => Object.values(d.picks ?? {}).some(p => String(p).startsWith('error')));

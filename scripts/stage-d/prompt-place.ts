@@ -116,8 +116,13 @@ interface Inner {
   runDecidedInstall: number;
   keys: Record<string, number>;
   differKeys: Record<string, number>;
+  /** arm tie: Corp card questions whose fallback answers all scored alike; of them install questions; of them taken by the order */
+  tie: number;
+  tieInstall: number;
+  tieTook: number;
+  tieKeys: Record<string, number>;
 }
-const inner0 = (): Inner => ({ prompts: 0, install: 0, owned: 0, differ: 0, diffMs: 0, runDecided: 0, runDecidedInstall: 0, keys: {}, differKeys: {} });
+const inner0 = (): Inner => ({ prompts: 0, install: 0, owned: 0, differ: 0, diffMs: 0, runDecided: 0, runDecidedInstall: 0, keys: {}, differKeys: {}, tie: 0, tieInstall: 0, tieTook: 0, tieKeys: {} });
 let inner = inner0();
 let inDiff = false;
 const akey = (a: GameAction | null | undefined) => (a ? JSON.stringify(Object.fromEntries(Object.entries(a).filter(([k]) => k !== 'promptId').sort())) : 'null');
@@ -147,6 +152,17 @@ G.__ppProbe = (state: GameState, side: string, owned: GameAction | undefined, to
     inner.diffMs += performance.now() - t0;
     inDiff = false;
   }
+};
+G.__ppTie = (state: GameState, took: GameAction | undefined) => {
+  if (inDiff) return;
+  inner.tie++;
+  const st = stepOf(state);
+  const pid = activePrompt(state)?.id;
+  if (pid) (G.__ppTieIds as Map<string, boolean> | undefined)?.set(pid, !!took);
+  if (!st?.cls) return;
+  inner.tieInstall++;
+  inner.tieKeys[st.key] = (inner.tieKeys[st.key] ?? 0) + 1;
+  if (took) inner.tieTook++;
 };
 G.__ppRun = (state: GameState) => {
   if (inDiff) return;
@@ -219,6 +235,7 @@ async function main() {
     const r0 = t.runTerm();
     const copy = structuredClone(s);
     G.__ppOrders = new Map();
+    G.__ppTieIds = new Map();
     const agent = t.createAgent('corp', 'normal');
     const t0 = performance.now();
     let pick: GameAction | null = null;
@@ -230,9 +247,10 @@ async function main() {
     }
     const ms = performance.now() - t0 - inner.diffMs;
     const orders = G.__ppOrders as Map<string, unknown>;
+    const tieIds = G.__ppTieIds as Map<string, boolean>;
     const r1 = t.runTerm();
     const pid = activePrompt(s)?.id;
-    return { pick, key: err ?? akey(pick), short: err ?? short(s, pick), ms, order: pid ? orders.get(pid) : undefined, inner: { ...inner, diffMs: Math.round(inner.diffMs) }, run: { asked: r1.asked - r0.asked, decided: r1.decided - r0.decided } };
+    return { pick, key: err ?? akey(pick), short: err ?? short(s, pick), ms, order: pid ? orders.get(pid) : undefined, tieTop: pid && tieIds.has(pid) ? (tieIds.get(pid) ? 'took' : 'tie') : null, inner: { ...inner, diffMs: Math.round(inner.diffMs) }, run: { asked: r1.asked - r0.asked, decided: r1.decided - r0.decided } };
   };
 
   const treeAgent = (t: Tree, side: 'corp' | 'runner') => {
@@ -323,7 +341,9 @@ async function main() {
         picks: Object.fromEntries(ARMS.map(x => [x, r[x].short])),
         runDecided: Object.fromEntries(ARMS.map(x => [x, r[x].inner.runDecidedInstall > 0 && r[x].run.decided > 0])),
         // the owners' order at this prompt (each candidate's card, server, line, behind, credits the install costs)
-        order: (r.owners ?? r.no9)?.order,
+        order: (r.owners ?? r.no9 ?? r.tie)?.order,
+        // arm tie: whether the fallback tied at this prompt ('tie'), and whether the order's answer was taken ('took')
+        tieTop: Object.fromEntries(ARMS.map(x => [x, r[x].tieTop])),
       });
     }
     if (changed.length && !process.env.NO_CONT && !only.size) {
