@@ -47,6 +47,11 @@ import { clearCaches, dealState, deals, humanFiles } from '../stage-a/harness';
 import { probe } from './game-end-patches';
 import { PATCHES, placeProbe } from './place-open-patches';
 
+// ai-script.yml passes ARGS only: KEY=VALUE words in it set the environment switches above (NO_ASK=1 NO_PLAY=1 ARMS=a1)
+for (const w of (process.env.ARGS ?? '').split(/\s+/)) {
+  const m = /^([A-Z_]+)=(.*)$/.exec(w);
+  if (m) process.env[m[1]] = m[2];
+}
 const want = (process.env.ARMS ?? '').split(',').filter(Boolean);
 const ARMS = ['base', ...Object.keys(PATCHES).filter(a => !want.length || want.includes(a))];
 const [shard, shards] = (process.env.SHARD ?? '0/1').split('/').map(Number);
