@@ -17,7 +17,7 @@ import { describe, expect, it } from 'vitest';
 import { GameAction, GameState, activePrompt, executeAction, getLegalActions } from '../src/core';
 import { createCardInstance } from '../src/core/engine/gameState';
 import { createAgent } from '../src/ai';
-import { answerPrompt } from '../src/ai/prompts';
+import { answerPrompt, runTermStats, settledStand } from '../src/ai/prompts';
 import { runStands } from '../src/ai/corp/hold';
 import { oracleGetsIn } from '../scripts/stage-d/hold-oracle';
 import { clearCaches } from '../scripts/stage-a/harness';
@@ -308,5 +308,88 @@ describe('the run stand against the engine oracle (ruling 4: scenario boards fro
         } else expect(r.walk, JSON.stringify(r)).toBe(r.oracle);
       }
     }
+  });
+});
+
+describe("the settle: the Corp's follow-up prompts as its choice (ruling 10, option A)", () => {
+  type V = 'in' | 'out' | null;
+  /** Each legal answer of the open Corp prompt, played by the engine (an answer it refuses is no answer). */
+  const next = (s: GameState): GameState[] => {
+    const p = activePrompt(s)!;
+    return (getLegalActions(s, 'corp') as GameAction[])
+      .filter(a => a.type === 'RESOLVE_PROMPT' && a.promptId === p.id)
+      .flatMap(a => {
+        try {
+          return [executeAction(s, a)];
+        } catch {
+          return [];
+        }
+      });
+  };
+  const followUp = (s: GameState, server: string) => {
+    const p = activePrompt(s);
+    return !!p && p.side === 'corp' && s.activeRun?.server === server && !s.winner;
+  };
+  /** The brute force by the engine: at a Corp follow-up of the run, `node` combines its answers' stands; elsewhere the walk reads the board. */
+  function brute(s: GameState, server: string, node: (vs: V[]) => V, depth = 0): V {
+    if (followUp(s, server) && depth < 8) {
+      const vs = next(s).map(x => brute(x, server, node, depth + 1));
+      if (vs.length) return vs.includes(null) ? null : node(vs);
+      return runStands({ ...s, pendingPrompts: [] }, server)?.verdict() ?? null;
+    }
+    return runStands(s, server)?.verdict() ?? null;
+  }
+  const or = (vs: V[]): V => (vs.includes('out') ? 'out' : 'in');
+  const and = (vs: V[]): V => (vs.every(v => v === 'out') ? 'out' : 'in');
+  const first = (vs: V[]): V => vs[0];
+
+  it('equals an OR over the answers by the engine on every answer of the recorded run prompts; AND and first-answer-only differ somewhere', () => {
+    const names = ['deal-1601-t12-30062', 'deal-1601-t7-30062', 'deal-2873-t8-30062', 'deal-1641-t21-30062', 'deal-1841-t9-35005', 'report-39-t7-34109-107', 'report-39-t7-34109-108', 'report-39-t1-34109-16'];
+    let nodes = 0;
+    let andDiffers = 0;
+    let firstDiffers = 0;
+    for (const name of names) {
+      const s = fixture(name);
+      const server = s.activeRun!.server;
+      for (const after of next(s)) {
+        clearCaches();
+        const got = settledStand(after, server)?.verdict() ?? null;
+        expect(got, `${name}`).toBe(brute(after, server, or));
+        if (!followUp(after, server)) continue;
+        nodes++;
+        if (brute(after, server, and) !== got) andDiffers++;
+        if (brute(after, server, first) !== got) firstDiffers++;
+      }
+    }
+    // The boards hold Corp follow-ups (Shred's reveal after Ballista's end, Boto's second subroutine) where the reading matters
+    expect(nodes).toBeGreaterThanOrEqual(3);
+    expect(andDiffers).toBeGreaterThan(0);
+    expect(firstDiffers).toBeGreaterThan(0);
+  });
+
+  it('reads the board as it is at the depth cap, and counts it', () => {
+    const s = fixture('report-39-t7-34109-107');
+    const server = s.activeRun!.server;
+    const before = runTermStats.capped;
+    const capped = settledStand(s, server, false, 8);
+    expect(runTermStats.capped).toBe(before + 1);
+    expect(capped?.key).toBe(runStands({ ...s, pendingPrompts: [] }, server)?.key);
+    // Below the cap the open Corp prompt is a choice node, not the board as it is
+    expect(settledStand(s, server)?.key).not.toBe(capped?.key);
+  });
+
+  it("a Runner prompt that is not a subroutine's choice is the Runner's side, and counted", () => {
+    // Funhouse's encounter ability (end the run unless the Runner takes 1 tag) is the ice's, not a subroutine's choice
+    let s = board(st => {
+      installIceForTest(st, '30054', 'remote1', true);
+    });
+    startRunnerTurn(s);
+    s = executeAction(s, { type: 'INITIATE_RUN', player: 'runner', targetServerId: 'remote1' });
+    s = runTo(s, x => activePrompt(x)?.side === 'runner');
+    const p = activePrompt(s)!;
+    expect('source' in p && p.source.cardCode).toBe('30054');
+    const before = runTermStats.runnerOther;
+    expect(settledStand(s, 'remote1')?.verdict()).toBe('in');
+    expect(runTermStats.runnerOther).toBe(before + 1);
   });
 });

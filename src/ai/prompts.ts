@@ -602,23 +602,8 @@ export function taoSwap(state: GameState, memory?: RunnerMemory): string[] {
  * An answer that opens the same card's next choice (AU Co.: which card to trash; Poétrï and
  * Synapse Global: which server) is judged after the AI answers that too, so the first step of a
  * good ability doesn't look like a loss on its own (plan.promptChains).
- * `reach` is how far it follows: 'card' (the fallback's score) an identity's own chain, 3 deep; 'run' (the run term's
- * walk, follow-up 3 ruling 7.3) every prompt of the run under way, either side's, each answered as the AI would, 8 deep,
- * until the run is over or no prompt is left (Anoetic Void's trash, Shred's reveal).
  */
-function followChain(prompt: Prompt, after: GameState, side: SideCode, memory?: RunnerMemory, synergy = false, reach: 'card' | 'run' = 'card'): GameState {
-  if (reach === 'run') {
-    const server = after.activeRun?.server;
-    let state = after;
-    for (let depth = 0; depth < 8; depth++) {
-      const next = activePrompt(state);
-      if (!next || state.winner || !state.activeRun || state.activeRun.server !== server) break;
-      const resolved = simulate(state, answerPrompt(state, next.side, next.side === side ? memory : undefined, synergy));
-      if (!resolved) break;
-      state = resolved;
-    }
-    return state;
-  }
+function followChain(prompt: Prompt, after: GameState, side: SideCode, memory?: RunnerMemory, synergy = false): GameState {
   // Identities only: following every card's chain made AI games about 4x slower
   if (!('source' in prompt) || getCardDefinition(prompt.source.cardCode).type_code !== 'identity') return after;
   let state = after;
@@ -638,16 +623,20 @@ function followChain(prompt: Prompt, after: GameState, side: SideCode, memory?: 
  * out (the Runner's branch has runRestWorth; the Corp's had no run term): Ballista's "trash 1 installed program or end
  * the run", Boto's and Anoetic Void's HQ trash, Shred's reveal, Lycian's subtypes and Lightning Laboratory's free rez
  * (the last two answered by per-card blocks that leave the run out the same way, ruling 8.1).
- * Each answer's board is settled through the run's own prompts (followChain 'run') and the hold owner says whether the
- * Runner gets in from there (runStands: the 'thisRun' walk), once per board it tells apart. When some answers let the
- * Runner in and some keep it out, each is priced: today's one-step score (scoreOutcome after followChain 'card', and
- * freeRezSaving, as the fallback scores it; the settled board feeds the walk only, ruling 8.2) less what the access
- * takes (runLoss, pools.ts) on the answers that let it in. The best answers are returned (several on a tie: today's
+ * The hold owner says whether the Runner gets in after each answer (settledStand below: the 'thisRun' walk from where
+ * the run stands, through the Corp's own choices still ahead), once per board it tells apart. When some answers let the
+ * Runner in and some keep it out, each is priced: today's one-step score (scoreOutcome after followChain, and
+ * freeRezSaving, as the fallback scores it; ruling 8.2) less what the access takes (runLoss, pools.ts) on the answers
+ * that let it in. The best answers are returned (several on a tie: today's
  * answer among them wins). Null, and today's answer, when the run stakes nothing (runLoss 0: nothing to price), when the
  * walk cannot say for an answer, or when the answers do not separate.
  */
-/** The run term's asks (a run that stakes something) and the ones it decided (the answers separated), for the time report. */
-export const runTermStats = { asked: 0, decided: 0 };
+/**
+ * The run term's asks (a run that stakes something) and the ones it decided (the answers separated), for the time report;
+ * with ruling 10's counts: settles stopped at the depth cap (`capped`), at a Runner prompt that is not the encountered
+ * ice's (`runnerOther`), and decisions whose pick lets the Runner in with an answer that keeps it out (`inPick`).
+ */
+export const runTermStats = { asked: 0, decided: 0, capped: 0, runnerOther: 0, inPick: 0 };
 /** The one-step boards the run term simulated, by answer, for the fallback on the same state (the same simulate, not done twice). */
 const runAfters = new WeakMap<GameState, Map<string, GameState>>();
 
@@ -667,8 +656,7 @@ function runAnswer(state: GameState, memory?: RunnerMemory, synergy = false): Ga
     const after = simulate(state, action);
     if (!after) continue;
     afters.set(JSON.stringify(action), after);
-    // Settled only where the answer leaves the run's next prompt open (followChain 'run' returns the board as it is otherwise)
-    const stand = corpPorts.runStands(followChain(prompt, after, 'corp', memory, synergy, 'run'), run.server);
+    const stand = settledStand(after, run.server, synergy);
     if (!stand) return null;
     outs.push({ action, after, key: stand.key, verdict: stand.verdict });
   }
@@ -679,7 +667,53 @@ function runAnswer(state: GameState, memory?: RunnerMemory, synergy = false): Ga
   const priced = outs.map((o, k) => runPrice(state, prompt, o.action, o.after, memory, synergy) - (verdicts[k] === 'in' ? loss : 0));
   const best = Math.max(...priced);
   runTermStats.decided++;
-  return outs.filter((_, k) => priced[k] >= best - 1e-9).map(o => o.action);
+  const picks = outs.filter((_, k) => priced[k] >= best - 1e-9);
+  if (picks.some(o => verdicts[outs.indexOf(o)] === 'in')) runTermStats.inPick++;
+  return picks.map(o => o.action);
+}
+
+/** The depth of the Corp's follow-up prompts a settle goes through (ruling 10.4). */
+const SETTLE_DEPTH = 8;
+
+/**
+ * Where the run stands after an answer, by the walk's own model of the choices still ahead (ruling 10, option A; the
+ * count models both sides so: the Runner takes its best line, the Corp's choices are the worst for the Runner):
+ *  - a Corp prompt of the same run (Boto's second subroutine, Shred's reveal): the Corp chooses, so the stand is "out" if
+ *    any legal answer leads to "out" (each answer simulated and stood again; an answer simulate refuses is no answer, and
+ *    a prompt with none left is read as the board is). Its key is the set of its answers' keys;
+ *  - a Runner prompt: the settle stops and the walk reads the board from there. Inside an encounter the subroutine being
+ *    resolved is still ahead (runStands marks only the ones before it as resolved) and the walk prices the Runner's
+ *    choice in it (the subroutines after it resolve too: the break window is over, 6.9.3c). A Runner prompt that is not a
+ *    subroutine's choice (a card's trigger such as Botulus's break or Audrey's discard, an ice's encounter ability) the walk
+ *    cannot read: runStands gives "in", the Runner's side (counted, `runnerOther`);
+ *  - no prompt, the run over or moved, or the depth cap (counted, `capped`): the board as it is.
+ * Known side (ruling 10.3, found row 48): where an answer of a follow-up keeps the Runner out, the stand is "out" even if
+ * the Corp's priced pick at that follow-up would let it in; the first answer is then not charged runLoss (counted,
+ * `inPick`, at the follow-up when the game reaches it).
+ */
+export function settledStand(board: GameState, server: string, synergy = false, depth = 0): { key: string; verdict: () => 'in' | 'out' } | null {
+  const p = activePrompt(board);
+  const run = board.activeRun;
+  if (p && p.side === 'corp' && run && run.server === server && !board.winner) {
+    if (depth >= SETTLE_DEPTH) {
+      runTermStats.capped++;
+      return corpPorts.runStands({ ...board, pendingPrompts: [] }, server);
+    }
+    const subs: { key: string; verdict: () => 'in' | 'out' }[] = [];
+    for (const a of answers(board, 'corp', synergy)) {
+      const next = simulate(board, a);
+      if (!next) continue;
+      const sub = settledStand(next, server, synergy, depth + 1);
+      if (!sub) return null;
+      subs.push(sub);
+    }
+    if (subs.length === 0) return corpPorts.runStands({ ...board, pendingPrompts: [] }, server);
+    const key = JSON.stringify(['or', [...new Set(subs.map(x => x.key))].sort()]);
+    return { key, verdict: () => (subs.some(x => x.verdict() === 'out') ? 'out' : 'in') };
+  }
+  const stand = corpPorts.runStands(board, server);
+  if (p && p.side === 'runner' && run?.server === server && stand?.key === 'in' && !board.winner && !run.breached && !run.isSuccessful && run.phase !== 'access') runTermStats.runnerOther++;
+  return stand;
 }
 
 /**

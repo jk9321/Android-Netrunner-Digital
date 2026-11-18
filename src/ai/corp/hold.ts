@@ -259,6 +259,8 @@ export interface WalkIce {
   granters: number[];
   /** 'thisRun': the encounter with it is under way; the subroutines already broken. */
   broken?: boolean[];
+  /** 'thisRun': its unbroken subroutines are resolving (6.9.3c): the Runner breaks no more and meets no toll or bypass again. */
+  resolving?: boolean;
   /** The subroutine it gains after its others when the Corp rezzes it during a run (Thunderbolt Armaments, 9.8.3e; its +1 strength is not modelled, the todo in tests/holdWalk.test.ts). */
   rezGains?: SubFacts;
   /** Its rez costs the Corp 1 bad publicity or the Runner 1 tag, the Corp's choice (holdFacts.rezBadPublicityOrTag). */
@@ -448,6 +450,7 @@ export function walkIce(state: GameState, start: WalkStart, ice: CardInstance[])
       encounterFacts: CARDS[c.cardCode]?.holdFacts?.encounter,
       granters: hostedHere(r => !!getCardScript(r.cardCode)?.grantsIceSubtypes?.length),
       broken: encounter?.iceId === c.instanceId ? [...encounter.broken] : undefined,
+      resolving: encounter?.iceId === c.instanceId && encounter.resolvingIndex !== null ? true : undefined,
       // AP and destroyer are printed subtypes only (iceSubtypes reads barrier, code gate and sentry, the ones a card grants)
       rezGains: anyIce && (cardDef(c).keywords ?? '').toLowerCase().split(/\s*-\s*/).some(k => anyIce.subtypes.includes(k)) ? subroutineFacts(anyIce.gains) : undefined,
       liability: !!CARDS[c.cardCode]?.holdFacts?.rezBadPublicityOrTag,
@@ -751,7 +754,7 @@ export class Walk {
     const subs = ice.subs;
     const types = this.typesOf(ice, ws);
     let best = FAIL;
-    if (this.board.bypass) {
+    if (this.board.bypass && !ice.resolving) {
       for (const b of ice.bypassers) if (!ws.gone.includes(b.idx) && !types.includes(b.unless)) best = Math.min(best, this.pay(ws, b.per * subs.length, next));
     }
     return Math.min(best, this.tolls(ws, ice, w => this.breaks(w, ice, types, next, at), at));
@@ -802,7 +805,8 @@ export class Walk {
     let best = FAIL;
     // An inert subroutine resolves to nothing (breaking it never helps): left out of the choice and of the resolution
     const open = subs.map((_, i) => i).filter(i => !ice.broken?.[i] && !inert(subs[i]));
-    for (let set = 0; set < 1 << open.length; set++) {
+    // Resolving: the break window is over (6.9.3c), every open subroutine resolves
+    for (let set = 0; set < (ice.resolving ? 1 : 1 << open.length); set++) {
       const unbroken = open.filter((_, k) => !(set & (1 << k)));
       // A subroutine left unbroken that always ends the run ends it there: without retries the way fails; with them it is
       // a way to end the run, and breaking a subroutine after it buys nothing (it never resolves)
@@ -1551,6 +1555,13 @@ function walkThisRun(state: GameState, server: string, opts: HoldOptions): Hold 
 // rezzed now (6.9.2b) or not. Its key is the gathered question(s): equal keys are equal verdicts, so a reader asks once
 // per board the walk tells apart, and answers are kept per decision (the anchor) as turnAnswers are.
 
+/** The open prompt is the Runner's choice in a subroutine of the encountered ice as it resolves (the walk reads it). */
+export function subroutineChoice(state: GameState): boolean {
+  const open = activePrompt(state);
+  const e = state.activeRun?.encounter;
+  return !!open && open.side === 'runner' && !!e && e.resolvingIndex !== null && 'source' in open && open.source.instanceId === e.iceId;
+}
+
 /** What a run stands at, for the walk: the verdict when it is settled, or the question(s) that decide it. */
 export interface RunStand {
   /** Equal keys, equal verdicts. */
@@ -1579,12 +1590,16 @@ export function runStands(state: GameState, server: string): RunStand | null {
   if (run.server !== server) return null;
   const open = activePrompt(state);
   if (open && open.side === 'corp') return null;
+  // A Runner prompt the walk cannot read (a card's trigger, an ability's choice, an ice's encounter ability: not a
+  // subroutine's choice): the Runner's side, "in" (ruling 10.4; prompts.ts counts it)
+  if (open && !subroutineChoice(state)) return settled('in');
   // The Success Phase or the server's approach: no ice is left (6.9.4e, 6.9.5)
   if (run.breached || run.isSuccessful || run.phase === 'access' || run.phase === 'approach_server') return settled('in');
   const sv = state.corp.servers[server];
   // A run that ended short of the server (6.9.6): over, out
   if (!sv || run.phase === 'complete') return settled('out');
-  let view = state;
+  // The boards the walk reads (one, or two readings of an open subroutine choice: the Runner's side wins between them)
+  let views = [state];
   let from: number;
   let approached: string | undefined;
   // At an ice no longer there (trashed during the run), the Runner moves on inward as from the Movement Phase
@@ -1597,9 +1612,15 @@ export function runStands(state: GameState, server: string): RunStand | null {
   } else if (run.phase === 'encounter_ice' && run.encounter) {
     from = run.icePosition ?? -1;
     const at = run.encounter.resolvingIndex;
-    if (at !== null && at > 0) {
-      const broken = run.encounter.broken.map((b, i) => b || i < at);
-      view = { ...state, activeRun: { ...run, encounter: { ...run.encounter, broken } } };
+    if (at !== null) {
+      // Resolving (6.9.3c): the subroutines before the index have resolved (9.8.7b) and resolve no more; none is broken
+      // now. The engine moves the index past a subroutine before it resolves, so with the Runner's choice in one open,
+      // that one is partly resolved: its choice may come before its effect (Semak-samun: suffer 3 net damage or end the
+      // run) or after part of it (Karunā: 2 net damage, then the Runner may jack out). The walk cannot tell which part
+      // is left, so it reads both, the subroutine still ahead and resolved, and the stand is "out" only if both are
+      const at2 = open ? [at - 1, at] : [at];
+      const encounter = run.encounter;
+      views = at2.map(done => ({ ...state, activeRun: { ...run, encounter: { ...encounter, broken: encounter.broken.map((b, i) => b || i < done) } } }));
     }
   } else {
     // Initiation or an approach: from the approached ice (initiation: the outermost)
@@ -1608,7 +1629,8 @@ export function runStands(state: GameState, server: string): RunStand | null {
     if (ice && !ice.isRezzed) approached = ice.instanceId;
   }
   if (from < 0) return settled('in');
-  const qs = [runQuestion(view, server, { when: 'thisRun', from }), ...(approached ? [runQuestion(view, server, { when: 'thisRun', from, mustRez: [approached] })] : [])];
+  // Per reading, the Corp's choices: the approached ice rezzed now or not (6.9.2b)
+  const qs = views.map(view => [runQuestion(view, server, { when: 'thisRun', from }), ...(approached ? [runQuestion(view, server, { when: 'thisRun', from, mustRez: [approached] })] : [])]);
   const key = questionKey(qs);
   return {
     key,
@@ -1620,7 +1642,7 @@ export function runStands(state: GameState, server: string): RunStand | null {
       let v = cache?.get(key);
       if (!v) {
         runStandStats.searched++;
-        v = qs.some(q => solveRun(q).holds) ? 'out' : 'in';
+        v = qs.every(reading => reading.some(q => solveRun(q).holds)) ? 'out' : 'in';
         cache?.set(key, v);
       }
       return v;

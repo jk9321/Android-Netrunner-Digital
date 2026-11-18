@@ -25,6 +25,7 @@ import { CARDS } from '../src/ai/cards';
 import { asSide, withPricing } from '../src/ai/pricing';
 import { decisionContext } from '../src/ai/handValues';
 import { breakerCodes, iceCodes } from '../scripts/stage-d/golden-prices';
+import { oracleGetsIn } from '../scripts/stage-d/hold-oracle';
 
 type S = WalkState & { pool: number };
 type Next = (w: S) => boolean;
@@ -107,7 +108,7 @@ class Brute {
 
   private encounter(ws: S, ice: WalkIce, next: Next, end: Next): boolean {
     const types = this.walk['typesOf'](ice, ws);
-    for (const b of ice.bypassers) if (!ws.gone.includes(b.idx) && !types.includes(b.unless) && this.pay(ws, b.per * ice.subs.length, next)) return true;
+    for (const b of ice.resolving ? [] : ice.bypassers) if (!ws.gone.includes(b.idx) && !types.includes(b.unless) && this.pay(ws, b.per * ice.subs.length, next)) return true;
     return this.tolls(ws, ice, w => this.breaks(w, ice, types, next, end), end);
   }
 
@@ -127,7 +128,8 @@ class Brute {
   /** Every set of subroutines to break, every way: Botulus counters, bioroid clicks or the ice's own price, a plan. */
   private breaks(ws: S, ice: WalkIce, types: string[], next: Next, end: Next): boolean {
     const open = ice.subs.map((_, i) => i).filter(i => !ice.broken?.[i]);
-    for (let set = 0; set < 1 << open.length; set++) {
+    // Resolving (6.9.3c): no more breaking
+    for (let set = 0; set < (ice.resolving ? 1 : 1 << open.length); set++) {
       const unbroken = open.filter((_, k) => !(set & (1 << k)));
       const b = open.length - unbroken.length;
       const resolve: Next = w => this.resolve(w, ice, types, unbroken, 0, next, end);
@@ -620,10 +622,26 @@ describe("the hold walk from the rest of the Runner's turn (mid-turn starts)", (
  * afford with one run and no retry; it must agree with runStands' verdict.
  */
 describe('the hold walk from where a run stands (the run under way)', () => {
+  // Pinned: of the oracle's asks with a Runner prompt open, the walk's "in" where the oracle keeps the Runner out
+  const RUNNER_SIDE = { ice: 5, other: 9 };
+  /** The engine oracle's truth (scripts/stage-d/hold-oracle.ts, 'thisRun'): some set of the unrezzed ice, rezzed as approached, keeps this run out. Null when the search hits its cap. */
+  function oracleStand(s: GameState, server: string): 'in' | 'out' | null {
+    const ids = s.corp.servers[server].ice.filter(c => !c.isRezzed).map(c => c.instanceId);
+    let unknown = false;
+    for (let mask = 0; mask < 1 << ids.length; mask++) {
+      const a = oracleGetsIn(s, server, 'thisRun', ids.filter((_, i) => mask & (1 << i)), undefined, 100_000).answer;
+      if (a === 'holds') return 'out';
+      if (a !== 'getsIn') unknown = true;
+    }
+    return unknown ? null : 'in';
+  }
   /** The brute force's verdict: 'out' when some affordable rez set keeps this one run out. Null where a bypass applies. */
   function bruteStand(s: GameState, server: string): 'in' | 'out' | null {
     const run = s.activeRun!;
     const all = s.corp.servers[server].ice;
+    // A Runner prompt that is not a subroutine's choice as the encountered ice resolves: the Runner's side (ruling 10.4)
+    const p = activePrompt(s);
+    if (p && !(run.encounter && run.encounter.resolvingIndex !== null && 'source' in p && p.source.instanceId === run.encounter.iceId)) return 'in';
     let view = s;
     let pos: number;
     let approached: CardInstance | undefined;
@@ -633,7 +651,14 @@ describe('the hold walk from where a run stands (the run under way)', () => {
       approached = all[pos];
     } else if (run.phase === 'encounter_ice' && run.encounter) {
       pos = run.icePosition!;
-      const done = run.encounter.resolvingIndex ?? 0;
+      // The index moves past a subroutine before it resolves: with the Runner's choice in it open, the subroutine is read
+      // both ways (still ahead, and resolved), the Runner's side between them
+      const at = run.encounter.resolvingIndex;
+      if (at !== null && activePrompt(s)) {
+        const both = [at - 1, at].map(done => bruteStand({ ...s, pendingPrompts: [], activeRun: { ...run, encounter: { ...run.encounter!, resolvingIndex: done } } }, server));
+        return both.includes(null) ? null : both.includes('in') ? 'in' : 'out';
+      }
+      const done = at ?? 0;
       view = { ...s, activeRun: { ...run, encounter: { ...run.encounter, broken: run.encounter.broken.map((b, i) => b || i < done) } } };
     } else {
       pos = run.icePosition ?? all.length - 1;
@@ -665,6 +690,10 @@ describe('the hold walk from where a run stands (the run under way)', () => {
     const misses: string[] = [];
     const seen: Record<string, number> = {};
     const outs: Record<string, number> = {};
+    const open = { ice: 0, other: 0 };
+    const runnerSide = { ice: 0, other: 0 };
+    let oracleAsked = 0;
+    let oracleSkipped = 0;
     for (let n = 0; n < 3000; n++) {
       let { s } = randomBoard(r, undefined, n % 4 === 3);
       startRunnerTurn(s);
@@ -684,6 +713,22 @@ describe('the hold walk from where a run stands (the run under way)', () => {
           if (want !== null) {
             const got = inCorp(s, () => runStands(s, 'remote1')?.verdict() ?? null);
             seen[at] = (seen[at] ?? 0) + 1;
+            // A Runner prompt open (ruling 10: the settle stops there and the walk reads the board): a subroutine's choice as
+            // the encountered ice resolves, or another card's (Botulus, Audrey, an ice's encounter ability, an identity),
+            // which the walk cannot read: "in". Against the engine oracle, the walk never says "out" where the Runner gets
+            // in (a half-resolved subroutine is read both ways, the Runner's side between them); the other way is counted
+            if (p) {
+              const own = !!run.encounter && run.encounter.resolvingIndex !== null && 'source' in p && p.source.instanceId === run.encounter.iceId;
+              open[own ? 'ice' : 'other']++;
+              if (!own && got !== 'in') misses.push(`#${n} ${p.side} prompt not a subroutine's choice: walk ${got}`);
+              if (oracleAsked < 60) {
+                oracleAsked++;
+                const truth = inCorp(s, () => oracleStand(s, 'remote1'));
+                if (truth === null) oracleSkipped++;
+                else if (got === 'out' && truth === 'in') misses.push(`#${n} oracle, ${'source' in p ? `${p.source.cardCode}:${p.source.step}` : p.kind} open: walk out, oracle in`);
+                else if (got !== truth) runnerSide[own ? 'ice' : 'other']++;
+              }
+            }
             if (want === 'out') outs[at] = (outs[at] ?? 0) + 1;
             if (got !== want) misses.push(`#${n} ${at} at ${run.icePosition}: walk ${got}, brute ${want}; ice ${s.corp.servers.remote1.ice.map(c => `${cardDef(c).title}${c.isRezzed ? '*' : ''}`)}; $${s.runner.credits} clicks ${s.runner.clicks} corp $${s.corp.credits}`);
           }
@@ -701,6 +746,11 @@ describe('the hold walk from where a run stands (the run under way)', () => {
       expect(seen[at] ?? 0, `${at}: ${JSON.stringify(seen)}`).toBeGreaterThan(100);
       expect(Math.min(outs[at] ?? 0, (seen[at] ?? 0) - (outs[at] ?? 0)), `${at}: ${JSON.stringify(outs)}`).toBeGreaterThan(10);
     }
+    expect(open.ice, JSON.stringify(open)).toBeGreaterThan(100);
+    expect(open.other, JSON.stringify(open)).toBeGreaterThan(50);
+    expect(oracleAsked - oracleSkipped, `oracle asked ${oracleAsked}, skipped ${oracleSkipped}`).toBeGreaterThan(40);
+    // The walk's "in" where the oracle keeps the Runner out, at a Runner prompt (the Corp misses a keep-out there, never claims a false one)
+    expect(runnerSide, JSON.stringify(runnerSide)).toEqual(RUNNER_SIDE);
     expect(misses.slice(0, 20)).toEqual([]);
   }, 600_000);
 });

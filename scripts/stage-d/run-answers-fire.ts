@@ -55,7 +55,7 @@ interface Tree {
   playout: typeof import('../../src/ai/playout');
   clear: () => void;
   loops: { clear(): void };
-  stats: () => { asked: number; decided: number; stands: number; searched: number };
+  stats: () => Record<'asked' | 'decided' | 'stands' | 'searched' | 'capped' | 'runnerOther' | 'inPick', number>;
 }
 async function tree(name: string, root: string): Promise<Tree> {
   const m = (p: string) => import(/* @vite-ignore */ join(root, 'src', p));
@@ -74,7 +74,7 @@ async function tree(name: string, root: string): Promise<Tree> {
       ev.clearDamageThreats();
     },
     loops: vm.valueLoops,
-    stats: () => ({ asked: prompts.runTermStats?.asked ?? 0, decided: prompts.runTermStats?.decided ?? 0, stands: hold.runStandStats?.asked ?? 0, searched: hold.runStandStats?.searched ?? 0 }),
+    stats: () => ({ asked: prompts.runTermStats?.asked ?? 0, decided: prompts.runTermStats?.decided ?? 0, stands: hold.runStandStats?.asked ?? 0, searched: hold.runStandStats?.searched ?? 0, capped: prompts.runTermStats?.capped ?? 0, runnerOther: prompts.runTermStats?.runnerOther ?? 0, inPick: prompts.runTermStats?.inPick ?? 0 }),
   };
 }
 
@@ -95,11 +95,11 @@ function ask(t: Tree, side: 'corp' | 'runner', state: GameState, a: Ask) {
   try {
     pick = a.method === 'chooseRez' ? (agent.chooseRez?.(s, structuredClone(a.cards ?? [])) ?? null) : a.method === 'chooseOffTurn' ? (agent.chooseOffTurn?.(s) ?? null) : agent.chooseAction(s);
   } catch (e) {
-    return { pick: `error ${(e as Error).message}`, ms: performance.now() - t0, d: { asked: 0, decided: 0, stands: 0, searched: 0 } };
+    return { pick: `error ${(e as Error).message}`, ms: performance.now() - t0, d: { asked: 0, decided: 0, stands: 0, searched: 0, capped: 0, runnerOther: 0, inPick: 0 } };
   }
   const ms = performance.now() - t0;
   const s1 = t.stats();
-  return { pick: key(pick), ms, d: { asked: s1.asked - s0.asked, decided: s1.decided - s0.decided, stands: s1.stands - s0.stands, searched: s1.searched - s0.searched } };
+  return { pick: key(pick), ms, d: Object.fromEntries(Object.entries(s1).map(([k, v]) => [k, v - s0[k as keyof typeof s0]])) as typeof s1 };
 }
 
 // ONLY=<src>#<i>,... asks those decisions alone (the bar's single decisions), each REPEAT times per tree, alternating;

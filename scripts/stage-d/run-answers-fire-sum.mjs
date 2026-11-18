@@ -23,6 +23,8 @@ for (const [g, is] of Object.entries(groups)) {
     console.log(`  decisions of 0.5 s or more on beta over 2x here: ${slow.length}${slow.length ? ': ' + slow.slice(0, 8).map(d => `${d.src}#${d.i} ${d.ms[0]}->${d.ms[1]}`).join(', ') : ''}`);
     const asked = rs.reduce((a, d) => a + d.run.asked, 0), decided = rs.reduce((a, d) => a + d.run.decided, 0), stands = rs.reduce((a, d) => a + d.run.stands, 0), searched = rs.reduce((a, d) => a + d.run.searched, 0);
     console.log(`  run term inside (here): asked ${asked} (${(asked / n).toFixed(1)} a game), decided ${decided} (${(decided / n).toFixed(1)} a game); run-stand verdicts ${stands}, searched ${searched}`);
+    const sum = k => rs.reduce((a, d) => a + (d.run[k] ?? 0), 0);
+    console.log(`  settle (ruling 10): depth cap reached ${sum('capped')}, Runner prompts read as "in" (not a subroutine's choice) ${sum('runnerOther')}; picks that let the Runner in with a keep-out answer available ${sum('inPick')}, at a top-level run prompt ${rs.filter(d => d.inRun && d.run.inPick > 0).length}`);
     console.log(`  changed ${changed.length} (${(changed.length / n).toFixed(2)} a game): top-level Corp prompt in a run ${changed.filter(d => d.inRun).length}; with the run term deciding inside ${changed.filter(d => d.run.decided > 0).length}; neither ${changed.filter(d => !d.inRun && d.run.decided === 0).length}`);
     for (const d of changed) console.log(`  - ${d.src} #${d.i} T${d.T} ${d.m}${d.inRun ? ' [run prompt]' : ''} ${d.card ?? ''} ${d.server ?? ''} decided ${d.run.decided} | beta ${d.picks.beta.slice(0, 140)} | here ${d.picks.here.slice(0, 140)}`);
   }

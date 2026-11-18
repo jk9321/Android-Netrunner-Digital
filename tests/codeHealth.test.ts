@@ -396,14 +396,15 @@ describe('AI code health (audit guards)', () => {
   // reachQuestion, + 50; rezMoney's restOfTurn keep with except, + 19; countedRez's toll pass and spendsKept, + 21; with
   // their comments): corp/ 3,606, src/ai 15,392. Then + 5 (ai-rez-keep review R1, R3, R4: spendsKept's second world and
   // its comment + 6, afterRun on memo - 3, runnerBudget one expression - 1, its comment + 3): corp/ 3,611, src/ai 15,397.
-  // Then + 249 (ai-run-answers, Stage D item 1 follow-up 3, row 13: hold.ts's run stand, 'thisRun' split into its
-  // question and its search, the stand from inside an encounter, the Movement Phase and an approach, its per-decision
-  // answers, a run at an ice trashed under it and a run over short of the server, with comments, + 125; prompts.ts's run term, the priced pick before the per-card blocks, Shred's reveal as
-  // chance on HQ's subsets, followChain's 'run' reach, with comments, + 115; the two ports and their registration
-  // + 9): corp/ 3,736, src/ai 15,646
-  it('keeps src/ai/corp at or under 3,736 lines and src/ai at or under 15,646 (Stage C hand-off, ai-corp-honest-order, ai-value-time, ai-playout-lines, ai-honest-runner-view, ai-honest-corp-decision, ai-value-owners, ai-corp-rd-memory, ai-value-b1, ai-value-b2, ai-hold-reentry, ai-value-b3, ai-tag-loss-time, ai-value-b6, ai-threat-delete, ai-breaker-guard-key, ai-tag-loss-bp, ai-hold-facts, ai-hold-walk, ai-flood-bound, ai-hold-retry, ai-winnow-reach, ai-hold-stealth, ai-rez-keep, ai-run-answers)', () => {
+  // Then + 305 (ai-run-answers, Stage D item 1 follow-up 3, row 13: hold.ts's run stand, 'thisRun' split into its
+  // question and its search, the stand from inside an encounter (resolving: no more breaking, a half-resolved subroutine
+  // read both ways), the Movement Phase and an approach, an ice trashed under the run, a run over short of the server, a
+  // Runner prompt the walk cannot read, its per-decision answers, with comments, + 147; prompts.ts's run term, the
+  // priced pick before the per-card blocks, Shred's reveal as chance on HQ's subsets, the settle as the Corp's choice
+  // (ruling 10), its counts, with comments, + 149; the two ports and their registration + 9): corp/ 3,758, src/ai 15,702
+  it('keeps src/ai/corp at or under 3,758 lines and src/ai at or under 15,702 (Stage C hand-off, ai-corp-honest-order, ai-value-time, ai-playout-lines, ai-honest-runner-view, ai-honest-corp-decision, ai-value-owners, ai-corp-rd-memory, ai-value-b1, ai-value-b2, ai-hold-reentry, ai-value-b3, ai-tag-loss-time, ai-value-b6, ai-threat-delete, ai-breaker-guard-key, ai-tag-loss-bp, ai-hold-facts, ai-hold-walk, ai-flood-bound, ai-hold-retry, ai-winnow-reach, ai-hold-stealth, ai-rez-keep, ai-run-answers)', () => {
     const corp = aiFiles().filter(f => f.replace(/\\/g, '/').startsWith('corp/')).reduce((n, f) => n + lines(f), 0);
-    expect(corp).toBeLessThanOrEqual(3736);
-    expect(aiFiles().reduce((n, f) => n + lines(f), 0)).toBeLessThanOrEqual(15646);
+    expect(corp).toBeLessThanOrEqual(3758);
+    expect(aiFiles().reduce((n, f) => n + lines(f), 0)).toBeLessThanOrEqual(15702);
   });
 });
