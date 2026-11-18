@@ -9,6 +9,7 @@
  * decisions and hold run-stand asks inside the `here` decision), and per source a 'src' line. Changed decisions carry
  * both picks. Order of the two trees alternates by decision (the time is paired).
  *   ARGS="BETA=<sha>" SHARD=0/64 npx vite-node scripts/stage-d/run-answers-fire.ts     (sum: run-answers-fire-sum.mjs)
+ * Single decisions (the bar's median of 3): ONLY=human:report-49.json#83,deal:1241#77 REPEAT=3 (DEALS=none or HUMAN=none to skip a group)
  */
 import { execSync } from 'node:child_process';
 import { existsSync, mkdirSync, readFileSync, readdirSync } from 'node:fs';
@@ -101,11 +102,26 @@ function ask(t: Tree, side: 'corp' | 'runner', state: GameState, a: Ask) {
   return { pick: key(pick), ms, d: { asked: s1.asked - s0.asked, decided: s1.decided - s0.decided, stands: s1.stands - s0.stands, searched: s1.searched - s0.searched } };
 }
 
+// ONLY=<src>#<i>,... asks those decisions alone (the bar's single decisions), each REPEAT times per tree, alternating;
+// the line's ms are the medians and `all` lists every time
+const only = new Set((process.env.ONLY ?? '').split(',').filter(Boolean));
+const repeat = Number(process.env.REPEAT ?? 1);
 let n = 0;
 function decide(src: string, i: number, side: 'corp' | 'runner', state: GameState, a: Ask) {
+  if (only.size && !only.has(`${src}#${i}`)) return;
   const order = n++ % 2 === 0 ? [beta, here] : [here, beta];
   const r: Record<string, ReturnType<typeof ask>> = {};
-  for (const t of order) r[t.name] = ask(t, side, state, a);
+  const all: Record<string, number[]> = { beta: [], here: [] };
+  for (let k = 0; k < repeat; k++) {
+    for (const t of k % 2 ? [...order].reverse() : order) {
+      r[t.name] = ask(t, side, state, a);
+      all[t.name].push(Math.round(r[t.name].ms));
+    }
+  }
+  if (repeat > 1) {
+    for (const t of ['beta', 'here']) r[t].ms = [...all[t]].sort((x, y) => x - y)[Math.floor(repeat / 2)];
+    console.log(JSON.stringify({ kind: 'times', src, i, all }));
+  }
   const prompt = beta.core.activePrompt(state);
   const inRun = !!state.activeRun && !!prompt && prompt.side === 'corp';
   const line: Record<string, unknown> = {
