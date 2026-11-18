@@ -452,7 +452,7 @@ function GameScreen({
               <LogFeed
                 logs={gameState.log}
                 viewer={viewer}
-                className={runDocked ? 'h-44 2xl:h-52 shrink-0' : 'h-56 lg:h-auto lg:flex-1 lg:min-h-[6rem]'}
+                className={runDocked ? 'flex-1 min-h-[7rem]' : 'h-56 lg:h-auto lg:flex-1 lg:min-h-[6rem]'}
               />
             </aside>
           </div>
