@@ -101,6 +101,11 @@ const ev = await m('ai/effectValues.ts');
 const vm = await m('ai/valueModel.ts');
 const iceM = await m('core/engine/ice.ts');
 const GATE = /GATE=1/.test(ARGS);
+// FINAL=1 (amended ruling 6, design-answer.md section 7): the arm is the final rule. On every Corp prompt during a run,
+// each answer's chain is settled; the walk is asked once per distinct settled board (walkInputs key) and only when the
+// keys differ; when the verdicts separate, the priced score picks (scoreOutcome + freeRezSaving, less runLoss on an
+// answer the walk lets in), ahead of every per-card block (Lycian, Lightning Laboratory); otherwise today's answer.
+const FINAL = /FINAL=1/.test(ARGS);
 
 const { activePrompt, actingSide, createInitialGameState, executeAction, getLegalActions } = core;
 const clearCaches = () => {
@@ -207,7 +212,18 @@ export function judgeOptions(s: GameState, side: SideCode, depth: number): Opt[]
     // The run goes on unless it is over without a breach (a breach finished inside the chain is the run going on)
     const lastRun = best.runsThisTurn[best.runsThisTurn.length - 1];
     const goesOn = best.winner ? best.winner === 'runner' : !!best.activeRun || !!lastRun?.successful;
-    out.push({ action, id: label(s, action), after, best, goesOn, out: judge(best, server) });
+    out.push({ action, id: label(s, action), after, best, goesOn, out: FINAL ? 'unknown' : judge(best, server) });
+  }
+  if (FINAL) {
+    // The final rule's gate: ask only when the settled boards differ in what the walk reads, once per board
+    const keys = out.map(o => walkInputs(o.best));
+    if (new Set(keys).size > 1) {
+      const seen = new Map<string, Out>();
+      out.forEach((o, k) => {
+        if (!seen.has(keys[k])) seen.set(keys[k], judge(o.best, server));
+        o.out = seen.get(keys[k])!;
+      });
+    }
   }
   return out;
 }
@@ -223,6 +239,13 @@ export function armPick(s: GameState, depth = 2): { action: GameAction; sep: boo
   const opts = judgeOptions(s, 'corp', depth);
   const outs = opts.filter(o => o.out === 'out');
   if (outs.length === 0 || !opts.some(o => o.out === 'in')) return { action: today(s), sep: false, opts };
+  if (FINAL) {
+    // Priced on the settled board (ruling 3: the walk's board and the score's come from one settle)
+    const loss = pools.runLoss(s) as number;
+    const priced = (o: Opt) => prompts.scoreOutcome(s, o.best, 'corp', undefined, true) + prompts.freeRezSaving(s, o.after) - (o.out === 'in' ? loss : 0);
+    const pick = opts.reduce((a, b) => (priced(b) > priced(a) ? b : a));
+    return { action: pick.action, sep: true, opts };
+  }
   const score = (o: Opt) => prompts.scoreOutcome(s, o.after, 'corp', undefined, true) + prompts.freeRezSaving(s, o.after);
   const pick = outs.reduce((a, b) => (score(b) > score(a) ? b : a));
   return { action: pick.action, sep: true, opts };
@@ -447,7 +470,7 @@ function playDeal(seed: number, armed: boolean) {
         }
       } else if (!same(chosen, given)) {
         counter.changed++;
-        const rec = { kind: 'arm', src, i, turn: state.turnNumber, server: state.activeRun!.server, card: 'source' in p! ? p!.source.cardCode : '', given: label(state, given), arm: label(state, chosen), runLoss: Math.round(pools.runLoss(state) * 10) / 10, options: a.opts?.map(o => ({ id: o.id, out: o.out })) };
+        const rec = { kind: 'arm', src, i, turn: state.turnNumber, server: state.activeRun!.server, card: 'source' in p! ? p!.source.cardCode : '', given: label(state, given), arm: label(state, chosen), runLoss: Math.round(pools.runLoss(state) * 10) / 10, options: a.opts?.map(o => ({ id: o.id, out: o.out, one: Math.round((prompts.scoreOutcome(state, o.after, 'corp', undefined, true) + prompts.freeRezSaving(state, o.after)) * 10) / 10, settled: Math.round((prompts.scoreOutcome(state, o.best, 'corp', undefined, true) + prompts.freeRezSaving(state, o.after)) * 10) / 10 })), step: 'source' in p! ? p!.source.step : '' };
         watches.push({ rec, turn: state.turnNumber, server: state.activeRun!.server, score: state.runner.score });
       }
       return chosen;
@@ -536,7 +559,11 @@ function replayHuman(file: string) {
             counter.family++;
             if (rec.separating) counter.sep++;
             if (rec.disagree) counter.disagree++;
-            if (a && a.sep && !same(a.action, given)) counter.changed++;
+            if (a && a.sep && !same(a.action, given)) {
+              counter.changed++;
+              rec.arm = label(s, a.action);
+              rec.armRunLoss = Math.round(pools.runLoss(s) * 10) / 10;
+            }
           }
           watches.push({ rec, turn: s.turnNumber, server: s.activeRun.server, score: s.runner.score });
         }

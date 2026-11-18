@@ -49,7 +49,12 @@ const base = Object.fromEntries(srcs.filter(s => s.play === 'base').map(s => [s.
 const flips = A.filter(a => base[a.src] && base[a.src].winner !== a.winner);
 p(`deal winners base -> arm: Corp ${srcs.filter(s => s.play === 'base' && s.winner === 'corp').length} -> ${A.filter(s => s.winner === 'corp').length} of ${A.length}; flipped ${flips.length}: ${flips.map(a => `${a.src} ${base[a.src].winner}->${a.winner}`).join(', ')}`);
 p('\nchanged decisions (self-play), each: src T server card given -> arm | options | followed');
-for (const a of arms) p(`- ${a.src} T${a.turn} ${a.server} ${a.card}: ${a.given} -> ${a.arm} (runLoss ${a.runLoss}) | ${a.options?.map(o => `${o.id}:${o.out}`).join(' ')} | ${JSON.stringify(a.followed)}`);
+for (const a of arms) p(`- ${a.src} T${a.turn} ${a.server} ${a.card}${a.step ? ' ' + a.step : ''}: ${a.given} -> ${a.arm} (runLoss ${a.runLoss}) | ${a.options?.map(o => `${o.id}:${o.out}${o.settled !== undefined ? `(${o.one}/${o.settled})` : ''}`).join(' ')} | ${JSON.stringify(a.followed)}`);
+const hArm = decs.filter(d => d.arm);
+if (hArm.length) {
+  p('\nchanged decisions (human, the recorded moves go on), each: src T server card step given -> arm (runLoss) | options | followed | recorded');
+  for (const d of hArm) p(`- ${d.src} T${d.turn} ${d.server} ${d.card} ${d.step ?? ''}: ${d.given} -> ${d.arm} (runLoss ${d.armRunLoss}) | ${d.options.map(o => `${o.id}:${o.out}`).join(' ')} | ${JSON.stringify(d.followed)} | recorded ${d.recorded}`);
+}
 p('\ndisagreements, each: src T server card shred given (out) -> walk | cause | score one-step/full given vs walk | followed');
 for (const d of decs.filter(d => d.disagree)) p(`- ${d.src} T${d.turn} ${d.server} ${d.card}${d.shred ? ' [Shred]' : ''}: ${d.given} -> ${d.walk} | ${d.cause} | priced ${d.priced} (runLoss ${d.runLoss}) | ${JSON.stringify(d.score)} | ${JSON.stringify(d.followed)}${d.recorded ? ` | recorded ${d.recorded}` : ''}`);
 
