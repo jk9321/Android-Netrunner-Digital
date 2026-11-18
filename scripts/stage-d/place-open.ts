@@ -173,11 +173,17 @@ interface IceRow {
  * money); `missing` when no turn holds: 'money' (holds with the money unbounded), 'deck ice' (holds when every ice
  * still in R&D is added too, unbounded), else 'ice' (no placement of ice it had or could draw).
  */
-function backTrace(e: GameState, x: string, ledger: IceRow[], tEnd: number) {
+function backTrace(e: GameState, x: string, ledger: IceRow[], tEnd: number, held: { T: number; ids: string[] }[] = []) {
   const target = e.corp.servers[x];
   if (!target) return null;
   const hqIce = e.corp.hq.filter(isIce);
-  const turns = [...new Set(ledger.filter(r => r.T <= tEnd).map(r => r.T))].sort((a, b) => b - a);
+  const turns = [...new Set([...ledger.map(r => r.T), ...held.map(h => h.T)].filter(T => T <= tEnd))].sort((a, b) => b - a);
+  // Ice the Corp held in HQ at a Corp turn's start from t on and discarded since (in Archives on `e`)
+  const archived = [...e.corp.archives.faceUp, ...e.corp.archives.faceDown].filter(isIce);
+  const discardedFrom = (t: number) => {
+    const ids = new Set(held.filter(h => h.T >= t && h.T <= tEnd).flatMap(h => h.ids));
+    return archived.filter(c => ids.has(c.instanceId));
+  };
   const test = (t: number, unbounded: boolean, extra: CardInstance[] = []) => {
     const moved = ledger
       .filter(r => r.T >= t && r.T <= tEnd && r.server !== x)
@@ -192,15 +198,16 @@ function backTrace(e: GameState, x: string, ledger: IceRow[], tEnd: number) {
       credits += m.r.install + (card.isRezzed ? cardDef(card).cost ?? 0 : 0);
       add.push({ ...card, isRezzed: false });
     }
-    for (const c of [...hqIce, ...extra]) add.push({ ...c, isRezzed: false });
+    const discarded = discardedFrom(t);
+    for (const c of [...hqIce, ...discarded, ...extra]) add.push({ ...c, isRezzed: false });
     let n = servers[x].ice.length;
     for (const c of add) credits -= n++;
     servers[x] = { ...servers[x], ice: [...servers[x].ice, ...add] };
     const hqIds = new Set(hqIce.map(c => c.instanceId));
     const view: GameState = { ...e, corp: { ...e.corp, hq: e.corp.hq.filter(c => !hqIds.has(c.instanceId)), servers } };
-    if (!unbounded && credits < 0) return { holds: false, added: add.length, credits };
+    if (!unbounded && credits < 0) return { holds: false, added: add.length, discarded: discarded.length, credits };
     const h = asSide('corp', () => serverHold(view, x, { when: 'runnerTurn', corpCredits: unbounded ? 999 : credits }));
-    return { holds: h.holds, need: h.need, budget: h.budget, rezCost: h.rezCost, added: add.length, credits };
+    return { holds: h.holds, need: h.need, budget: h.budget, rezCost: h.rezCost, added: add.length, discarded: discarded.length, credits };
   };
   const now = asSide('corp', () => serverHold(e, x, { when: 'runnerTurn' }));
   let latest: number | null = null;
@@ -210,7 +217,7 @@ function backTrace(e: GameState, x: string, ledger: IceRow[], tEnd: number) {
   for (const t of turns.length ? turns : [tEnd]) {
     const r = test(t, false);
     const f = latest === null || freeLatest === null ? test(t, true) : null;
-    tests.push({ t, holds: r.holds, free: f?.holds, added: r.added, credits: r.credits, need: (r as { need?: number }).need, budget: (r as { budget?: number }).budget });
+    tests.push({ t, holds: r.holds, free: f?.holds, added: r.added, discarded: r.discarded, credits: r.credits, need: (r as { need?: number }).need, budget: (r as { budget?: number }).budget });
     if (r.holds && latest === null) latest = t;
     if (f?.holds && freeLatest === null) freeLatest = t;
     if (latest !== null && freeLatest !== null) break;
@@ -233,7 +240,8 @@ function backTrace(e: GameState, x: string, ledger: IceRow[], tEnd: number) {
 function watcher(src: string, who: string, arm: string, order: (s: GameState) => { reasons: Map<string, string>; lines: Map<string, { line: number; behind: boolean }> }) {
   const ledger: (IceRow & Record<string, unknown>)[] = [];
   const life = new Map<string, { rezzed: boolean; met: number; stopped: number; passed: number; tax: number; rezPaid: number }>();
-  const turns: { T: number; start: GameState; end?: GameState; moves: string[] }[] = [];
+  const turns: { T: number; start: GameState; end?: GameState; moves: string[]; hqIce: string[] }[] = [];
+  const held = () => turns.map(t => ({ T: t.T, ids: t.hqIce }));
   const runnerTurnStarts: { T: number; s: GameState }[] = [];
   let run: { server: string; score: number; extra: number; encounter: string | null; credits: number; last: string | null; assets: string[]; breached: boolean } | null = null;
   let lastRun: { server: string; pts: number; extra: number } | null = null;
@@ -242,7 +250,7 @@ function watcher(src: string, who: string, arm: string, order: (s: GameState) =>
   return {
     decision(s: GameState) {
       if (s.activePlayer !== 'corp') return;
-      if (!turns.length || turns[turns.length - 1].T !== s.turnNumber) turns.push({ T: s.turnNumber, start: s, moves: [] });
+      if (!turns.length || turns[turns.length - 1].T !== s.turnNumber) turns.push({ T: s.turnNumber, start: s, moves: [], hqIce: s.corp.hq.filter(isIce).map(c => c.instanceId) });
     },
     move(s: GameState, a: GameAction) {
       const t = turns[turns.length - 1];
@@ -394,7 +402,7 @@ function watcher(src: string, who: string, arm: string, order: (s: GameState) =>
           let back = null;
           if (hold && !hold.holds && worth > 0) {
             try {
-              back = backTrace(rs.s, run.server, ledger, lastCorp?.T ?? next.turnNumber);
+              back = backTrace(rs.s, run.server, ledger, lastCorp?.T ?? next.turnNumber, held());
             } catch (e) {
               back = { error: (e as Error).message };
             }
@@ -428,7 +436,7 @@ function watcher(src: string, who: string, arm: string, order: (s: GameState) =>
       let back = null;
       if (v) {
         try {
-          back = backTrace(end, id, ledger, turn.T);
+          back = backTrace(end, id, ledger, turn.T, held());
         } catch (e) {
           back = { error: (e as Error).message };
         }
