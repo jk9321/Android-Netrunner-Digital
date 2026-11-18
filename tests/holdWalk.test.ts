@@ -1132,6 +1132,33 @@ describe('hold walk: the money a rez pays the Runner (Saci, ai-rez-set)', () => 
     expect(inCorp(r, () => serverHold(r, 'remote1', { when: 'thisRun', mustRez: [pal], further: false })).holds).toBe(false);
     expect(oracleGetsIn(r, 'remote1', 'thisRun', [pal]).answer).toBe('getsIn');
   });
+  // A Saci the walk has trashed pays nothing (review R1): Bumi 1.0 outermost and unrezzed ("When you rez this ice during a
+  // run against this server, you may trash 1 installed trojan program"; Saci is a trojan, the Corp chooses, ruling 6),
+  // the unrezzed Palisade inside it hosting Saci; $0 and 3 clicks. The Runner breaks Bumi with 2 clicks (or lets its
+  // subroutines trash Cleaver); with Saci trashed the Palisade's rez pays nothing and Cleaver's 3 is not there
+  const bumiOuter = (saciOn: 'palisade' | 'bumi') =>
+    board(st => {
+      const pal = ice(st, C.PALISADE, false);
+      const bumi = ice(st, '35041', false);
+      installProgramForTest(st, C.CLEAVER);
+      hosted(st, SACI, saciOn === 'palisade' ? pal : bumi, 0);
+      st.runner.maxClicks = 3;
+      st.runner.clicks = 3;
+    });
+  it("Bumi 1.0 outside the Palisade that hosts Saci, $0: Bumi's rez trashes Saci, the Palisade's rez pays nothing, it holds", () => {
+    const s = bumiOuter('palisade');
+    const all = s.corp.servers.remote1.ice.map(c => c.instanceId);
+    const h = agrees(s);
+    expect([h.holds, [...(h.rez ?? [])].sort()]).toEqual([true, [...all].sort()]);
+    expect(oracleOn(s, all)).toBe('holds');
+  });
+  it('Bumi mirror: Saci on Bumi itself: its 3 arrive with that rez, so the Corp holds with the Palisade alone and Bumi left unrezzed', () => {
+    const s = bumiOuter('bumi');
+    const [pal] = s.corp.servers.remote1.ice.map(c => c.instanceId);
+    const h = agrees(s);
+    expect([h.holds, h.rez]).toEqual([true, [pal]]);
+    expect(oracleOn(s, s.corp.servers.remote1.ice.map(c => c.instanceId))).toBe('getsIn');
+  });
   // The derez half is not walked: a derez at the Runner's turn start (Tranquilizer's derezHostAt) or at a turn's end
   // (Lightning Laboratory, Lycian) pays the Runner 3 that the walk does not see (hand-off, ai-rez-set)
   it.todo("Saci's derez half: a host derezzed by the walk's start (Tranquilizer, Lightning Laboratory, Lycian) pays the Runner 3");
