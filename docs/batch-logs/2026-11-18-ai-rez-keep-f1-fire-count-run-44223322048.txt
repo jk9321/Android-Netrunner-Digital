@@ -1,0 +1,21 @@
+AI script run 44223322048: value-b1/fire-count.ts with scripts/stage-d/rez-keep-fire-patches.json at ai-rez-keep c5aaec5 (src = 92616bf). Arm "toll" puts beta's R3/R4 back (always rez); the _probe patch (every tree) counts spendsKept asks and their time (tl.rk, tl.rkms). Summed with scripts/value-b1/fire-count-sum.mjs.
+
+20966 decisions in 92 sources (64 files)
+
+corp: 7580 decisions, changed 0 (0.00 a game), errors 0, unexplained 0
+  toll: alone reproduces 0, needed (leave-one-out) 0
+  changed by kind: {}
+  time base: mean 343.8 ms, p95 1332.5, total 2606 s, x1.000 mean, p95 x1.000
+  time branch: mean 344.7 ms, p95 1327.9, total 2613 s, x1.003 mean, p95 x0.997
+  time toll: mean 357.9 ms, p95 1375.5, total 2713 s, x1.041 mean, p95 x1.032
+
+runner: 13386 decisions, changed 0 (0.00 a game), errors 0, unexplained 0
+  toll: alone reproduces 0, needed (leave-one-out) 0
+  changed by kind: {}
+  time base: mean 37.8 ms, p95 186.2, total 506 s, x1.000 mean, p95 x1.000
+  time branch: mean 37.6 ms, p95 181.1, total 503 s, x0.994 mean, p95 x0.973
+  time toll: mean 39.5 ms, p95 195.6, total 528 s, x1.044 mean, p95 x1.050
+
+upgrade rezzes picked (all decisions): base 52 (0.57 a game), branch 52 (0.57 a game)
+
+spendsKept asks (branch tree, all decisions, simulated windows inside planning and playouts): 611 asks in 178 of 20,966 decisions (max 16 in one), 147 ms in all. Single decisions of 0.5 s or more on base over 2x: 0 (branch), 0 (toll). The "toll" arm is the same code as "branch" (one change); their times differ by noise (x1.003 vs x1.041 mean).
