@@ -7,7 +7,7 @@ import { CardZoomModal } from './CardZoomModal';
 import { GameOverModal } from './GameOverModal';
 import { HandoffScreen } from './HandoffScreen';
 import { PromptPanel } from './PromptPanel';
-import { RunOverlay } from './RunOverlay';
+import { RunOverlay, type RunOverlayProps } from './RunOverlay';
 import { TurnBanner } from './TurnBanner';
 import { ZoneId, ZoneViewer, zoneContents } from './ZoneViewer';
 
@@ -24,6 +24,33 @@ interface GameOverlaysProps {
   onGameOverHiddenChange: (hidden: boolean) => void;
   onNewGame: () => void;
   onRematch?: () => void;
+  /** True while RunOverlay is rendered docked inside the desktop sidebar. */
+  hideRunOverlay?: boolean;
+  /** Re-dock a popped-out RunOverlay back into the desktop sidebar. */
+  onToggleRunDock?: () => void;
+}
+
+/** Builds RunOverlay action/state props from the shared game controller so sidebar and floating modes stay identical. */
+export function runOverlayPropsFromController(
+  ctl: GameController,
+  onInspectCard: (card: CardInstance | null) => void,
+): Omit<RunOverlayProps, 'docked' | 'onToggleDock'> {
+  const { gameState, handleAction, rezWindow, rezWindowOpen, passWindow, viewer, corpCanAct, runnerCanAct } = ctl;
+  const rezAction = (card: CardInstance): GameAction => ({ type: 'REZ_CARD', player: 'corp', cardInstanceId: card.instanceId });
+  return {
+    state: gameState,
+    onContinueRun: () => handleAction({ type: 'CONTINUE_RUN', player: 'runner' }),
+    onJackOut: () => handleAction({ type: 'JACK_OUT', player: 'runner' }),
+    rezCards: rezWindowOpen ? rezWindow!.cards : [],
+    onRez: corpCanAct ? (card) => handleAction(rezAction(card)) : undefined,
+    rezAbilities: rezWindowOpen ? rezWindow!.abilities : [],
+    onDoneRezzing: rezWindowOpen && corpCanAct ? () => passWindow('corp') : undefined,
+    onPassRun: rezWindowOpen && corpCanAct ? () => passWindow('corp', true) : undefined,
+    runnerControls: runnerCanAct && gameState.priority?.holder !== 'corp',
+    canPeekCorp: canSeeCorpSecrets(viewer),
+    onInspectCard: (card) => onInspectCard(card),
+    onAction: handleAction,
+  };
 }
 
 /** Floating overlays and modals over the tabletop: runs, prompts, turn banners, accessed/zone viewers, handoff, game over, and card zoom. */
@@ -40,6 +67,8 @@ export function GameOverlays({
   onGameOverHiddenChange,
   onNewGame,
   onRematch,
+  hideRunOverlay = false,
+  onToggleRunDock,
 }: GameOverlaysProps) {
   const {
     seat,
@@ -51,38 +80,20 @@ export function GameOverlays({
     fates,
     aiSide,
     humanSide,
-    rezWindow,
     rezWindowOpen,
-    passWindow,
     viewer,
     handoffTo,
-    corpCanAct,
-    runnerCanAct,
     cancelChoice,
     online,
   } = ctl;
 
   const { corp, runner, activePlayer, winner } = gameState;
-  const rezAction = (card: CardInstance): GameAction => ({ type: 'REZ_CARD', player: 'corp', cardInstanceId: card.instanceId });
 
   return (
     <>
       {/* Active Run Overlay; the run and any open decision end with the game (rule 1.7.1) */}
-      {!ended && (
-        <RunOverlay
-          state={gameState}
-          onContinueRun={() => handleAction({ type: 'CONTINUE_RUN', player: 'runner' })}
-          onJackOut={() => handleAction({ type: 'JACK_OUT', player: 'runner' })}
-          rezCards={rezWindowOpen ? rezWindow!.cards : []}
-          onRez={corpCanAct ? (card) => handleAction(rezAction(card)) : undefined}
-          rezAbilities={rezWindowOpen ? rezWindow!.abilities : []}
-          onDoneRezzing={rezWindowOpen && corpCanAct ? () => passWindow('corp') : undefined}
-          onPassRun={rezWindowOpen && corpCanAct ? () => passWindow('corp', true) : undefined}
-          runnerControls={runnerCanAct && gameState.priority?.holder !== 'corp'}
-          canPeekCorp={canSeeCorpSecrets(viewer)}
-          onInspectCard={onInspectCard}
-          onAction={handleAction}
-        />
+      {!ended && !hideRunOverlay && (
+        <RunOverlay {...runOverlayPropsFromController(ctl, onInspectCard)} onToggleDock={onToggleRunDock} />
       )}
 
       {/* Pending player decision (mulligan, discard, trash on access) */}

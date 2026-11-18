@@ -23,18 +23,19 @@ export interface ZoomTarget {
 export function createZoomStore() {
   let current: ZoomTarget | null = null;
   const listeners = new Set<() => void>();
+  const notify = () => listeners.forEach(l => l());
   return {
     get: () => current,
     show(target: ZoomTarget) {
       if (current?.card.instanceId === target.card.instanceId && current.hidden === target.hidden && !!current.seen === !!target.seen) return;
       current = target;
-      listeners.forEach(l => l());
+      notify();
     },
     /** Forgets the card shown (a new viewer sits down: it was the last one's card). */
     clear() {
       if (!current) return;
       current = null;
-      listeners.forEach(l => l());
+      notify();
     },
     subscribe(listener: () => void) {
       listeners.add(listener);
