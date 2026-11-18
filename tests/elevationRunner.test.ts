@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
-import { cardDef, createCardInstance, executeAction, findCardAnywhere, GameState, getLegalActions, iceStrength, isLegalAction, breakerStrength } from '../src/core';
+import { cardDef, createCardInstance, executeAction, findCardAnywhere, GameAction, GameState, getLegalActions, iceStrength, isLegalAction, breakerStrength } from '../src/core';
 import { availableCredits } from '../src/core/engine/cardEffects';
+import { getCardScript } from '../src/core/scripts';
 import { seatCan } from '../src/ui/seatLegality';
 import { answer, cont, giveCard, installCorpForTest, keepGoing, installIceForTest, installProgramForTest, newGame, passTurn, play, rezForTest, run, runnerInstall, setIdentity, startRunnerTurn, useAbility, toCorp } from './helpers';
 
@@ -232,9 +233,9 @@ describe('Elevation Runner events', () => {
     const listed = getLegalActions(s, 'runner').filter(x => x.type === 'RESOLVE_PROMPT' && x.choice.kind === 'effect_cards' && x.choice.cardInstanceIds[0] === mayfly.instanceId);
     expect(listed.map(x => x.type === 'RESOLVE_PROMPT' && x.choice.kind === 'effect_cards' && x.choice.trashFirst)).toEqual([[old]]);
     // The prompt panel's seat check asks the engine, so the plain Confirm button is not offered: the free-MU one is
-    const plain = { type: 'RESOLVE_PROMPT', player: 'runner', promptId: prompt(s).id, choice: { kind: 'effect_cards', cardInstanceIds: [mayfly.instanceId] } } as const;
-    expect(seatCan(getLegalActions(s, 'runner'), 'runner', s, plain)).toBe(false);
-    expect(seatCan(getLegalActions(s, 'runner'), 'runner', s, { ...plain, choice: { ...plain.choice, trashFirst: [old] } })).toBe(true);
+    const plain = (trashFirst?: string[]): GameAction => ({ type: 'RESOLVE_PROMPT', player: 'runner', promptId: prompt(s).id, choice: { kind: 'effect_cards', cardInstanceIds: [mayfly.instanceId], trashFirst } });
+    expect(seatCan(getLegalActions(s, 'runner'), 'runner', s, plain())).toBe(false);
+    expect(seatCan(getLegalActions(s, 'runner'), 'runner', s, plain([old]))).toBe(true);
     s = keepGoing(answer(s, { kind: 'effect_cards', cardInstanceIds: [mayfly.instanceId], trashFirst: [old] }));
     expect(s.runner.rig.programs.map(c => c.instanceId)).toEqual([mayfly.instanceId]);
     expect(s.runner.heap.map(c => c.instanceId)).toContain(old);
@@ -439,6 +440,21 @@ describe('Elevation Runner hardware', () => {
     s = pick(s, [cleaver]);
     expect(s.runner.rig.programs.map(c => c.instanceId)).toContain(cleaver);
     expect(s.runner.credits).toBe(0);
+  });
+
+  it('Madani warns before its install when no hosted program fits the free memory (rules 8.5.6c)', () => {
+    let [s, madani] = runnerInstall(newGame(), E.madani);
+    const cleaver = giveCard(s, 'runner', SG.cleaver);
+    s.runner.clicks = 1;
+    s = useAbility(s, 'runner', madani, 0);
+    s = pick(s, [cleaver]);
+    s.runner.credits = 3;
+    const install = getCardScript(E.madani)!.abilities![1];
+    const ctx = () => ({ state: s, card: card(s, madani), side: 'runner' as const });
+    expect(install.warning?.(ctx())).toBeNull();
+    installProgramForTest(s, SG.leech);
+    s.runner.memoryUnitsUsed = s.runner.memoryUnitsTotal;
+    expect(install.warning?.(ctx())).toMatch(/trash installed programs/);
   });
 
   it('Madani installs once on the Runner turn and again on the Corp turn (no click, rules 9.5.2, 5.6.2a)', () => {

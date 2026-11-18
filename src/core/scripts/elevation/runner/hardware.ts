@@ -5,6 +5,7 @@ import { nextInt } from '../../../rng';
 import { addLog } from '../../../engine/log';
 import { findCardAnywhere, findInstalledCorpCard, removeCard, revealInHand } from '../../../engine/helpers';
 import { accessOutsideRun } from '../../../engine/actions/run';
+import { runnerInstallBlocker } from '../../../engine/actions/install';
 import { trashInstalledRunnerCard } from '../../../engine/damage';
 import { derez } from '../../../engine/cardEffects';
 import { isIcebreaker } from '../../../engine/ice';
@@ -217,6 +218,11 @@ export const madani: CardScript = {
       label: 'Install 1 hosted program.',
       oncePerTurn: true,
       canUse: ({ state, card }) => (madaniTargets(state, card).length > 0 ? null : 'No hosted program can be installed'),
+      // Once used, a program must be installed; if none fits, installed programs must be trashed first (rules 8.5.6c)
+      warning: ({ state, card }) =>
+        madaniTargets(state, card).every(c => runnerInstallBlocker(state, c))
+          ? 'No hosted program fits your free memory: you will have to trash installed programs to install one'
+          : null,
       resolve: ctx =>
         madaniFlow.runnerInstall(ctx, 'install', { message: 'Madani: install 1 hosted program.', candidateIds: madaniTargets(ctx.state, ctx.card).map(c => c.instanceId), min: 1, max: 1 }),
     },
