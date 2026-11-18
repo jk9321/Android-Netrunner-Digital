@@ -388,11 +388,10 @@ describe('AI code health (audit guards)', () => {
   // Then + 23 (ai-hold-stealth: found-list row 31, corp/hold.ts runCredits splitting the run-time credits into
   // stealth and the rest with its comment, pay's stealth spend as the Runner's choice, duringRuns and the 'thisRun'
   // hosted sum deleted, + 17; owner hygiene, audit AI-HOLD-OWNER-HYGIENE, comments and turnIce's key with its start's
-  // kind, + 6): corp/ 3,517, src/ai 15,303. Then + 10 (the review's R2: Walk's stealthKept, the stealth credits spent
-  // first when no stealth part or loss is on the way, with its comment): corp/ 3,527, src/ai 15,313
-  it('keeps src/ai/corp at or under 3,527 lines and src/ai at or under 15,313 (Stage C hand-off, ai-corp-honest-order, ai-value-time, ai-playout-lines, ai-honest-runner-view, ai-honest-corp-decision, ai-value-owners, ai-corp-rd-memory, ai-value-b1, ai-value-b2, ai-hold-reentry, ai-value-b3, ai-tag-loss-time, ai-value-b6, ai-threat-delete, ai-breaker-guard-key, ai-tag-loss-bp, ai-hold-facts, ai-hold-walk, ai-flood-bound, ai-hold-retry, ai-winnow-reach, ai-hold-stealth)', () => {
+  // kind, + 6): corp/ 3,517, src/ai 15,303
+  it('keeps src/ai/corp at or under 3,517 lines and src/ai at or under 15,303 (Stage C hand-off, ai-corp-honest-order, ai-value-time, ai-playout-lines, ai-honest-runner-view, ai-honest-corp-decision, ai-value-owners, ai-corp-rd-memory, ai-value-b1, ai-value-b2, ai-hold-reentry, ai-value-b3, ai-tag-loss-time, ai-value-b6, ai-threat-delete, ai-breaker-guard-key, ai-tag-loss-bp, ai-hold-facts, ai-hold-walk, ai-flood-bound, ai-hold-retry, ai-winnow-reach, ai-hold-stealth)', () => {
     const corp = aiFiles().filter(f => f.replace(/\\/g, '/').startsWith('corp/')).reduce((n, f) => n + lines(f), 0);
-    expect(corp).toBeLessThanOrEqual(3527);
-    expect(aiFiles().reduce((n, f) => n + lines(f), 0)).toBeLessThanOrEqual(15313);
+    expect(corp).toBeLessThanOrEqual(3517);
+    expect(aiFiles().reduce((n, f) => n + lines(f), 0)).toBeLessThanOrEqual(15303);
   });
 });

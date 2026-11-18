@@ -1,5 +1,6 @@
-// The time of the stealth spend in the hold walk (review of ai-hold-stealth, R2): Walk.pay tries every number of stealth
-// credits a payment may take, so the walk's states multiply by the stealth credits left. Built boards in the style of
+// The time of the stealth spend in the hold walk (review of ai-hold-stealth, R2): at d72502f Walk.pay tried every number
+// of stealth credits a payment may take, so the walk's states multiplied by the stealth credits left; it now pays in
+// spendCredits' fixed order (the R2 ruling). Built boards in the style of
 // gate-time's slow rows (below), each with Corsair (whose plans have a stealth part) and Touchstone holding 0, 3, 6, 7 or
 // 8, the Runner at $3 with 4 clicks. Per board, median of 3: the hold count of the remote
 // on the Runner's turn, fresh (no cache), and the Corp's whole decision (caches cleared). Run in each tree:
@@ -23,10 +24,10 @@ const BOARDS: Record<string, { ice: [string, boolean][]; rig: string[] }> = {
 // and Methuselah with Unity, Principia, Echelon, Azimat, Baker and Rising Tide)
 BOARDS.A0 = { ...BOARDS.A, rig: BOARDS.A.rig.filter(c => c !== '36004') };
 BOARDS.B0 = { ...BOARDS.B, rig: BOARDS.B.rig.filter(c => c !== '36004') };
-// A0 with Whitespace (its loss of 3) swapped for a Palisade: nothing on the way makes a kept stealth credit better
-// (Walk's stealthKept off), so the stealth credits are spent first and the split is not searched
+// A0 with Whitespace (its loss of 3) swapped for a Palisade: nothing on the way would make a kept stealth credit better
 BOARDS.A1 = { ...BOARDS.A0, ice: BOARDS.A0.ice.map(([c, r]) => (c === '30074' ? ['30072', r] : [c, r])) };
-// Lycian (its loss of 1) and Whitespace are the loss in B0 and A0: the split is searched there
+// Lycian (its loss of 1) and Whitespace are the loss in B0 and A0: where a split searched over the stealth credits spent
+// cost up to 3.1x (d72502f); the walk now pays in the engine's fixed order (Walk.pay), with no split
 const median = (xs: number[]) => [...xs].sort((a, b) => a - b)[1];
 
 function board(name: string, touch: number): GameState {

@@ -669,6 +669,34 @@ describe('hold walk: stealth credits counted once (found-list row 31)', () => {
     expect(oracleGetsIn(r, 'remote1', 'thisRun', []).answer).toBe('getsIn');
   });
 
+  // The engine pays in a fixed order (spendCredits: the fund, then the cards that pay during runs, then the pool), and the
+  // walk with it. Rule 1.10.3c would let the Runner divide a payment; on these two boards the best division gets in where
+  // the fixed order does not (found-list row 49). They break the day the engine gives the choice: then the walk must too
+  const ordered = (inner: string, outer: string, breaker: string, credits: number, pool: number) =>
+    board(st => {
+      ice(st, inner);
+      ice(st, outer);
+      installProgramForTest(st, breaker);
+      const t = createCardInstance(st, '36021');
+      t.isRezzed = true;
+      t.tokens = { credit: credits };
+      st.runner.rig.hardware.push(t);
+      st.runner.credits = pool;
+      st.runner.maxClicks = 1;
+    });
+
+  it('fixed order, a loss on the way: Palisade then Paywall, Cleaver, Touchstone 3, pool 1: holds (Touchstone pays Palisade, Paywall takes the pool; paying 1 from the pool first would get in)', () => {
+    const s = ordered(C.PAYWALL, C.PALISADE, C.CLEAVER, 3, 1);
+    expect(agrees(s).holds).toBe(true);
+    expect(oracleOn(s, [])).toBe('holds');
+  });
+
+  it('fixed order, Corsair after a cost: Paywall then Palisade, Corsair, Touchstone 2, pool 3: holds (Paywall\'s 1 drains a stealth credit; paying it from the pool would get in)', () => {
+    const s = ordered(C.PALISADE, C.PAYWALL, '36004', 2, 3);
+    expect(agrees(s).holds).toBe(true);
+    expect(oracleOn(s, [])).toBe('holds');
+  });
+
   // Aircheck (scripts/stage-d/aircheck-probe.ts): its run's credit hosts pay any cost, and the engine counts them with
   // the stealth credits (stealthCredits reads every run payer). Two Palisades on HQ (strength 2), Cleaver: 2 to break both
   const aircheck = (credits: number) => {

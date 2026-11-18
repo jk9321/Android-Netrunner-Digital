@@ -162,15 +162,13 @@ class Brute {
     return this.pay(w, p.credits - p.stealth, then);
   }
 
-  /** The fund first, then the credits on cards that pay during runs, then the pool, or the stealth credits for any of it. */
+  /** The engine's order (spendCredits): the fund, then the credits on cards that pay during runs, the stealth cards' last of them, then the pool. */
   private pay(ws: S, n: number, then: Next): boolean {
     const fund = Math.min(n, ws.fund);
     const hosted = Math.min(n - fund, ws.hosted);
-    const rest = n - fund - hosted;
-    for (let s = 0; s <= Math.min(rest, ws.stealth); s++) {
-      if (rest - s <= ws.pool && then({ ...ws, fund: ws.fund - fund, hosted: ws.hosted - hosted, stealth: ws.stealth - s, pool: ws.pool - rest + s })) return true;
-    }
-    return false;
+    const stealth = Math.min(n - fund - hosted, ws.stealth);
+    const rest = n - fund - hosted - stealth;
+    return rest <= ws.pool && then({ ...ws, fund: ws.fund - fund, hosted: ws.hosted - hosted, stealth: ws.stealth - stealth, pool: ws.pool - rest });
   }
 
   private resolve(ws: S, ice: WalkIce, types: string[], list: number[], k: number, next: Next, end: Next): boolean {
@@ -428,9 +426,9 @@ describe('the hold walk against a brute force of the same model (brief section 6
   }, 600_000);
 
   // Stealth credits (found-list row 31, the review of ai-hold-stealth R3): Touchstone holding 1 to 5 on every board, its
-  // credits paying any cost during a run, and Corsair (36004) on half, whose plans have a stealth part and cost more
-  // than it (lower by 3 a stealth credit, then break for 1); the pool at 0 to 3, so a stealth credit kept or spent turns
-  // the answer
+  // credits paying any cost during a run in the engine's order (before the pool), and Corsair (36004) on half, whose
+  // plans have a stealth part and cost more than it (lower by 3 a stealth credit, then break for 1); the pool at 0 to 3,
+  // so where the stealth credits went turns the answer
   it('agrees with turnReach and serverHold on 3,000 servers with stealth credits (seed 20261123)', () => {
     const touchstone = (s: GameState, r: () => number) => {
       const t = createCardInstance(s, '36021');
