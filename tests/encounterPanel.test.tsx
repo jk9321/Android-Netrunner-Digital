@@ -102,7 +102,7 @@ describe('Encounter panel: the ice’s own break ability shows its real cost', (
     s = runIntoFirstIce(s, 'hq');
     const breaks = buttons(s).filter(b => /^Break \d/.test(b.text));
     expect(breaks.map(b => b.text)).toEqual(['Break 1 (3credit)', 'Break 2 (3credit)', 'Break 3 (3credit)']);
-    expect(breaks.some(b => b.html.includes('lucide-clock'))).toBe(false);
+    expect(breaks.some(b => b.html.includes('aria-label="click"'))).toBe(false);
   });
 
   it('a bioroid’s break buttons still show a click', () => {
@@ -110,8 +110,9 @@ describe('Encounter panel: the ice’s own break ability shows its real cost', (
     let s = newGame();
     installIceForTest(s, BRAN, 'hq');
     s = runIntoFirstIce(s, 'hq');
-    const breaks = buttons(s).filter(b => /^Break \d/.test(b.text));
+    // The click icon's <title> ("click") is part of the button's text, ahead of "Break N"
+    const breaks = buttons(s).filter(b => /^(click)?Break \d/.test(b.text));
     expect(breaks.length).toBeGreaterThan(0);
-    expect(breaks.every(b => b.html.includes('lucide-clock') && !b.text.includes('credit'))).toBe(true);
+    expect(breaks.every(b => b.html.includes('aria-label="click"') && !b.text.includes('credit'))).toBe(true);
   });
 });
