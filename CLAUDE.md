@@ -33,24 +33,15 @@ Android: Netrunner digital game (React + TypeScript + Vite, Cloudflare Worker ho
 ## AI work
 - Guard: `.claude/hooks/guard-ai-dir.mjs` (PreToolUse, `.claude/settings.json`) blocks Edit/Write and obvious shell writes under `src/ai/**` unless the git branch starts with `ai-`. Don't work around it; ask the coordinator for an ai-* branch thread.
 - Goes through the Fable "AI Coordinator" thread for spec and review. Opus threads implement. Nothing merges to beta without its review.
-- Goal is playing strength, not matching Jeff's moves. Corp win rate should sit around 50 ± 5%.
-- Counted decisions (Jeff 2026-11-10): a decision made by counting (`plan.scoreNow`, `plan.scoreInTwo`, and the ones that follow) is fixed by changing an INPUT to its count (what holds a server, the Runner's capability, the reserve), never by adding a bonus or penalty value term on top. After each counted decision ships, delete the value terms it made redundant, so the levers stay few and visible.
-- One owner per quantity (Jeff 2026-11-13, after the audit found rez money priced about seven ways): every quantity the AI prices or counts (rez money, what holds a server, agenda odds, a game end, a card in hand, ...) has ONE owning function, listed in `docs/ai-priced-quantities.md` with its known duplicates. A branch may not add a second computation of a listed quantity: read the owner, or change the owner. A new rule names in its spec which listed quantities it reads; a new quantity gets a row in the same branch. The duplicate counts in that file may only go down; the review checks the file against the diff, and every audit recounts it.
-- Replace, don't stack (same date): a branch that adds a counted rule names the value term or rule it replaces and deletes it in the same branch, or the hand-off says why it cannot yet and the review file records the debt. No new Corp rules and no Corp behaviour fixes until the Step 4 cleanup lands (Jeff 2026-11-14: finish the refactor first, let the win rate land where it lands, then fix behaviour; no tuning and no win-rate gate or stop line on the cleanup itself: win rate is reported only and tuning happens once, on the final product; crashes and rules errors are still fixed; his games are still pinned, as known-failing where needed); no new Runner rules until a Runner audit has filled the Runner rows of the registry.
-- Behaviour is controlled by switches in `tuning.plan`. Folded switch names THROW when passed in `PLAN_OFF` (see `src/ai/synergy.ts`).
-- Per-card AI data (synergy tags, values, profiles, effect formulas, counter worths) lives in ONE entry per card in `src/ai/cards/<set>.ts`, joined in `src/ai/cards/index.ts`. Prompt answers, break plans and run options stay in `prompts.ts` / `runs.ts`.
-- Batches run on GitHub Actions: `.github/workflows/ai-batch.yml` (ref = branch name or full 40-char SHA). Use paired batches: run the base first, then pass its run id as `base_run`; compare with `scripts/corp-losses-sum.mjs`. Log every batch with `scripts/batch-log.mjs`.
-- Batch sizes (Jeff 2026-11-07: the repo runs at most 20 Actions jobs at once, a full batch is ~600 runner-minutes): "expect identical" checks use `games=1` (any difference shows); win-rate tests start at `games=3` and top up to 10 (`game_from=3`, `add_run`) only when the result is within about 2 SE of the gate. Launch at most 2-3 batches at a time.
-- Bar before the batch (Jeff 2026-11-12): before an experiment batch is launched, the spec (or a file in `/mnt/project-files/netrunner-ai/redesign/bars/`) states the expected behaviour change and what counts as pass, fail, borderline and stop, including the behaviour numbers (not only win rate). Every arm reports its local fire count (decisions changed per game) before it gets a batch; an arm that barely fires gets a note, not a batch.
-- Override check (Jeff 2026-11-12): a merge that goes ahead on a borderline or failed bar first gets a yes/no from a fresh thread that reads only the batch numbers, the bar and the diff. The AI Coordinator asks the project coordinator to start it and writes the reason for the override in the review file.
-- Self-play hides holes. Pin human-usable holes with scenario tests.
-- Human-games fixtures: `tests/fixtures/human-games/report-N.json` (decode bug reports with `scripts/bug-report-state.mjs`); score with `npx vite-node scripts/human-agreement.ts`.
+- **Read `docs/ai-process.md` first** if you touch `src/ai`, review or red-team AI or Multiplayer work, coordinate it, or launch an `ai-batch` or `ai-script` run. It holds the AI rules verbatim: thread economy, goal and win rate, counted decisions, one owner per quantity, replace don't stack and Stage D, the tuning ladder, switches, per-card data, batches, measurement scripts, batch sizes and the slot gate, bar before the batch, override check, pins, human-game fixtures, and adversarial review.
+- Batch queue (every thread that launches an `ai-batch` or `ai-script` run; slot gate details in `docs/ai-process.md`): Always start the workflow from `beta` (workflow ref `beta`, the commit to test in the `ref` input), since a run started from an older branch's copy of the workflow has no gate. Queue discipline (2026-11-16, after the queue reached ten waiting runs): a thread keeps at most TWO runs in the queue at a time, waiting or running, and launches its next one when one of its own starts its shards; a script that will take over 30 minutes says so in its label; before launching, look at what is already waiting. Do not change the gate's ordering rule while runs are waiting: two waiting runs on different versions of the rule can each put the other first and neither starts.
 - Branch-build failures on `ai-batch-results` are harmless noise.
 
 ## Hand-off and review
 - Any branch a coordinator (AI or Multiplayer) or reviewer will check: hand off with the `handoff` skill (`.claude/skills/handoff/SKILL.md`): fixed template, evidence generated by `evidence.mjs` (diff stat vs base, files vs the spec's allowed list, diff signals, real check output), deviations listed. A prose summary is not a hand-off.
 - Coordinators review with the `review` skill (`.claude/skills/review/SKILL.md`): re-run the evidence, read the raw diff against the spec, fact-check, verdict Approved/Changes needed for one full SHA. Merge only an approved SHA.
 - Specs from coordinators name the allowed and forbidden files, so the evidence script can check them.
+- Adversarial review (Jeff 2026-11-15): red team on a spec before it is built, exploit hunt at each stage checkpoint, by a fresh thread; full rule in `docs/ai-process.md`.
 
 ## Multiplayer
 - Goes through the Fable multiplayer coordinator thread for spec and review. Per-player views live in `src/core/view.ts` and `src/ui`. The game server must be a separate Worker (Durable Objects disable preview URLs).
@@ -62,14 +53,16 @@ Android: Netrunner digital game (React + TypeScript + Vite, Cloudflare Worker ho
 - Deck legality: `validateDeck` in `src/core/deckValidation.ts`; formats and ban lists in `src/core/formats.ts` (Casual/Startup/Standard; Eternal is out of scope).
 
 ## New card set process (Standard sets, newest first, on beta)
+When (Jeff 2026-11-16): new sets resume AFTER Stage D and the Runner rework, alongside tuning, so per-card AI is not written in the pre-Stage-D format.
 1. Pull card data and image links from NetrunnerDB.
 2. Add new keywords to the hover tooltips.
 3. Implement every card with its own unit test (plus liveValue/revealInHand); check errata.
+   Start from `npx vite-node scripts/new-set.ts` (stubs, test todos, unknown keywords). Card scripts live in `src/core/scripts/<set>/{corp,runner}/<type>.ts`; a card with prompts declares its steps with `prompts()` (`src/core/scripts/steps.ts`) and asks only through that flow (`tests/steps.test.ts` fails on a hand-written `onPromptAnswer` or a raw step string).
 3b. In a separate thread, blind rules tests with the `blind-rules-tests` skill (`.claude/skills/blind-rules-tests/SKILL.md`): 20-30 tricky cards tested from card text and the rules only, without reading the card code; real bugs go to the rules-bugs thread.
 4. AI data: one entry per card in `src/ai/cards/<set>.ts`; re-tag older cards that interact. Ice that gains subroutines when encountered (Starlit Knight) needs a `gainsOnEncounter` entry, or the Runner AI prices the run against the printed subroutines only.
 5. Startup/Standard legality and ban lists.
 6. Make the AI use the new cards and identities: sample real NetrunnerDB decks (test-only), run `scripts/deck-playability.ts`, add one beta picker deck per new identity. Check optional "you may X now for Y later" prompts.
-7. Balance with AI self-play: Corp 50 ± 5%.
+7. Balance with AI self-play, in the tuning phase: Corp 50 ± 5%.
 
 ## UI
 - No scanlines and no dot grid, ever.
@@ -84,3 +77,4 @@ Android: Netrunner digital game (React + TypeScript + Vite, Cloudflare Worker ho
 - Cloudflare Worker serves static assets. GitHub Actions deploys it (`.github/workflows/deploy.yml`, wrangler, secrets CLOUDFLARE_API_TOKEN / CLOUDFLARE_ACCOUNT_ID) after CI passes on a push to `main` (live: stackheap.run / android-netrunner-digital.jk9321.workers.dev) or `beta` (beta preview + game Workers). Cloudflare's own Workers Builds are off (they billed build minutes for every branch); no other branch deploys by itself. `beta` has its own preview (beta-android-netrunner-digital.jk9321.workers.dev) with separate localStorage, so decks don't carry over.
 - Card art loads from card-images.netrunnerdb.com; card backs are our own.
 - Update `PROJECT_STATUS.md` when finishing notable work.
+- AI state has ONE status source (Jeff 2026-11-16): the plan page "Corp AI rework: current plan" (https://claude.ai/artifact/DXPYCFJKJaPSvep8zfmoRk), kept by the AI Coordinator at every AI merge. `PROJECT_STATUS.md` keeps one dated line per AI merge (what, branch, review file) and points there for the state; project memory keeps rules, thread ids and pointers, not a second copy of the state. If they differ, the plan page wins.
