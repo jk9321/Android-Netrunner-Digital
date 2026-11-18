@@ -286,6 +286,8 @@ export interface CardAbility {
   stealthOnly?: boolean;
   /** Extra condition. Return a reason to forbid using the ability now. */
   canUse?(ctx: EffectContext): string | null;
+  /** A warning shown on the ability before it is used, when using it commits the player to a cost they may not expect. */
+  warning?(ctx: EffectContext): string | null;
   resolve(ctx: EffectContext): void;
 }
 

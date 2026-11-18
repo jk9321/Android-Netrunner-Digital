@@ -71,6 +71,7 @@ export const AbilityBar: React.FC<AbilityBarProps> = ({ state, side, onAction })
         const copyTag = ids.length > 1 ? `#${ids.indexOf(card.instanceId) + 1}${counters ? `, ${counters}` : ''}` : null;
         const position = cardPositionLabel(state, card);
         const hoverLabel = [cardDef(card).title, copyTag, position].filter(Boolean).join(' · ');
+        const warning = ability.warning?.({ state, card, side });
         return (
           <button
             key={`${action.cardInstanceId}-${action.abilityIndex}`}
@@ -81,12 +82,17 @@ export const AbilityBar: React.FC<AbilityBarProps> = ({ state, side, onAction })
             onMouseEnter={() => hoverPromptTarget({ id: card.instanceId, label: hoverLabel })}
             onMouseLeave={() => hoverPromptTarget(null)}
             className={`px-2 py-1 text-[12px] text-left font-bold rounded-[2px] transition-all flex items-center gap-1.5 shadow ${accent}`}
-            title={ability.label.replace(/\[click\]/g, 'click').replace(/\[credit\]/g, 'credit')}
+            title={[ability.label.replace(/\[click\]/g, 'click').replace(/\[credit\]/g, 'credit'), warning].filter(Boolean).join('\n')}
           >
             <Play className="w-3.5 h-3.5 text-amber-300" />
             {cardDef(card).title}
             {copyTag && <span className="opacity-80 font-mono">{` (${copyTag})`}</span>}: {renderSymbols(ability.label)}
             {cost && <span className="opacity-70 inline-flex items-center">({cost})</span>}
+            {warning && (
+              <span className="text-amber-300 font-normal" data-testid="ability-warning">
+                — {warning}
+              </span>
+            )}
           </button>
         );
       })}
